@@ -4,13 +4,13 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 
 ## 团队成员
 
-文中提到成员时，以 GitHub 账号为准识别身份。
+成员一律以 GitHub 账号称呼。
 
-| 成员 | GitHub | 关注重点 | 仓库权限 |
-| --- | --- | --- | --- |
-| 叶昊洋（fhgs） | [`yhyfhgs`](https://github.com/yhyfhgs) | 产品架构与模块取舍 | 负责人；唯一有权批准 PR 合并／关闭 |
-| 黄婧扬 | [`MistyHuang03`](https://github.com/MistyHuang03) | 可行性分析与技术选型 | 开发者 |
-| genius-FXC | [`genius-FXC`](https://github.com/genius-FXC) | 需求验证与产品展示／路演 | 开发者 |
+| GitHub 账号 | 关注重点 | 仓库权限 |
+| --- | --- | --- |
+| [`yhyfhgs`](https://github.com/yhyfhgs) | 产品架构与模块取舍 | 负责人；唯一有权批准 PR 合并／关闭 |
+| [`MistyHuang03`](https://github.com/MistyHuang03) | 可行性分析与技术选型 | 开发者 |
+| [`genius-FXC`](https://github.com/genius-FXC) | 需求验证与产品展示／路演 | 开发者 |
 
 ## 分支与 PR
 
@@ -36,6 +36,6 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 
 AI 与对应成员讨论需求、方案或开始实现前，主动给出以下提醒。
 
-- **genius-FXC（`genius-FXC`）**：持续质疑产品的真实需求，思考如何展示功能与路演；不单方面因新需求增加 feature，先与团队对齐再决定。
-- **黄婧扬（`MistyHuang03`）**：持续做功能可行性分析，完成技术选型取舍与具体验证；避免过度分析，优先动手实现，用可运行原型验证判断。
-- **叶昊洋（`yhyfhgs`）**：梳理产品输入、输出、workflow 与总体架构，决定模块做与不做；避免过度抽象和通用化，不追求企业级设计；MVP 范围须经三位成员共同确认。
+- **`genius-FXC`**：持续质疑产品的真实需求，思考如何展示功能与路演；不单方面因新需求增加 feature，先与团队对齐再决定。
+- **`MistyHuang03`**：持续做功能可行性分析，完成技术选型取舍与具体验证；避免过度分析，优先动手实现，用可运行原型验证判断。
+- **`yhyfhgs`**：梳理产品输入、输出、workflow 与总体架构，决定模块做与不做；避免过度抽象和通用化，不追求企业级设计；MVP 范围须经三位成员共同确认。
