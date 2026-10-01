@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .importers.codex import metadata_index, parse_rollout
-from .models import Event, ImportSummary, ParsedSession
+from .models import Event, ImportSummary, ParsedSession, stable_id
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -109,17 +109,19 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         raise ValueError("Codex 数据目录不存在")
     summary = ImportSummary()
     metadata = metadata_index(codex_home)
-    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 6})
+    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 7})
     paths = sorted({p.resolve() for folder in ("sessions", "archived_sessions")
                     for p in (codex_home / folder).rglob("*.jsonl")})
     for path in paths:
         summary.files_seen += 1
         stat = path.stat()
-        signature = f"{stat.st_size}:{stat.st_mtime_ns}"
+        file_signature = f"{stat.st_size}:{stat.st_mtime_ns}"
         with store.connect() as conn:
-            old = conn.execute("SELECT i.signature,i.policy,json_extract(s.data,'$.source_file') "
+            old = conn.execute("SELECT i.signature,i.policy,json_extract(s.data,'$.source_file'),i.session_id "
                                "FROM imports i LEFT JOIN sessions s ON s.id=i.session_id WHERE i.source_file=?",
                                (str(path),)).fetchone()
+        md = metadata.get(old[3], {}) if old else {}
+        signature = file_signature + ":" + stable_id(json.dumps(md, sort_keys=True))
         if old and old[0] == signature and old[1] == policy and old[2] == str(path):
             summary.unchanged += 1
             continue
@@ -131,6 +133,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
             reason = parsed.skipped_reason
             summary.skip_reasons[reason] = summary.skip_reasons.get(reason, 0) + 1
             continue
+        signature = file_signature + ":" + stable_id(json.dumps(metadata.get(parsed.session.id, {}), sort_keys=True))
         store.save(parsed, signature, policy)
         summary.imported += 1
         summary.events += len(parsed.events)

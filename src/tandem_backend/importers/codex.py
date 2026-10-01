@@ -20,7 +20,8 @@ MAX_LINE = 32 * 1024 * 1024
 
 def metadata_index(codex_home: Path) -> dict[str, dict]:
     """Optional desktop metadata, in a consistent read-only SQLite transaction."""
-    paths = sorted(codex_home.glob("state_*.sqlite"), reverse=True)
+    paths = sorted(codex_home.glob("state_*.sqlite"), key=lambda p: (
+        int(m[1]) if (m := re.fullmatch(r"state_(\d+)\.sqlite", p.name)) else -1, p.name), reverse=True)
     if not paths:
         return {}
     try:
