@@ -45,6 +45,34 @@ def merge_length_contracts(text: str, spans: list[tuple[int, int]]) -> list[dict
     return list(merged.values())
 
 
+def fenced_parts(text: str) -> list[tuple[bool, str]]:
+    """Separate Markdown fences; unclosed fences remain quoted literal material."""
+    parts, prose, literal = [], [], []
+    marker, width = "", 0
+    for line in text.splitlines(keepends=True):
+        stripped = line.rstrip("\r\n")
+        if literal:
+            literal.append(line)
+            if re.fullmatch(r" {0,3}" + re.escape(marker) + "{" + str(width) + r",}[ \t]*", stripped):
+                parts.append((True, "".join(literal)))
+                literal = []
+        else:
+            opening = re.fullmatch(r" {0,3}(`{3,}|~{3,})(.*)", stripped)
+            if opening and not (opening[1][0] == "`" and "`" in opening[2]):
+                if prose:
+                    parts.append((False, "".join(prose)))
+                    prose = []
+                marker, width = opening[1][0], len(opening[1])
+                literal = [line]
+            else:
+                prose.append(line)
+    if literal:
+        parts.append((True, "".join(literal)))
+    if prose:
+        parts.append((False, "".join(prose)))
+    return parts
+
+
 def visible_text(text: str) -> tuple[str, str]:
     """Exclude balanced expandable details and link destinations from the first layer."""
     # An unmatched tag cannot hide arbitrary text. Partial logs remain conservative.
@@ -57,25 +85,14 @@ def visible_text(text: str) -> tuple[str, str]:
 
     # Fences may use tildes, four backticks, or remain open at the end. Their
     # literal HTML must never be interpreted as expandable details.
-    parts, fenced, marker, width = [], [], "", 0
-    for line in text.splitlines(keepends=True):
+    parts = []
+    for fenced, part in fenced_parts(text):
         if fenced:
-            fenced.append(line)
-            if re.fullmatch(r" {0,3}" + re.escape(marker) + "{" + str(width) + r",}[ \t]*(?:\n)?", line):
-                literal = "".join(fenced)
-                key = f"\x00LITERAL{len(literals)}\x00"
-                literals[key] = literal
-                parts.append(key)
-                fenced = []
-        elif opening := re.match(r" {0,3}(`{3,}|~{3,})", line):
-            marker, width = opening[1][0], len(opening[1])
-            fenced = [line]
+            key = f"\x00LITERAL{len(literals)}\x00"
+            literals[key] = part
+            parts.append(key)
         else:
-            parts.append(line)
-    if fenced:
-        key = f"\x00LITERAL{len(literals)}\x00"
-        literals[key] = "".join(fenced)
-        parts.append(key)
+            parts.append(part)
     text = "".join(parts)
     text = re.sub(r"`[^`\n]+`", mask, text)
     depth, complete = 0, True
