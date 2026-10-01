@@ -166,6 +166,18 @@ def parse_rollout(
     calls: dict[str, Event] = {}
     turn_models: dict[str, str] = {}
     mirrors: list[Event] = []
+    pending_prompts: list[Event] = []
+
+    def bind_leading_prompts(next_turn, next_model=None):
+        # Some producers write the request before the turn marker. Bind only
+        # unanswered prompts; a subsequent reply/tool operation closes this window.
+        for prompt in pending_prompts:
+            if next_turn:
+                prompt.turn_id = next_turn
+                prompt.details['turn_basis'] = 'following_turn_marker'
+            if next_model:
+                prompt.model = next_model
+                prompt.details['model_basis'] = 'following_turn_context'
 
     with path.open("rb") as stream:
         for ordinal, raw in enumerate(stream, 1):
@@ -229,8 +241,11 @@ def parse_rollout(
             if not result.session:
                 continue
             if kind == "turn_context":
-                turn_id = payload.get("turn_id") or turn_id
-                model = payload.get("model") or model
+                next_turn = payload.get("turn_id") or turn_id
+                model = payload.get("model") or (model if next_turn == turn_id else 'unknown')
+                turn_id = next_turn
+                bind_leading_prompts(turn_id, model)
+                pending_prompts.clear()
                 if turn_id:
                     turn_models[turn_id] = model
                 result.session.model = model
@@ -275,9 +290,14 @@ def parse_rollout(
             elif kind == "event_msg":
                 ptype = payload.get("type")
                 if ptype == "task_started":
-                    turn_id = payload.get("turn_id") or turn_id
+                    next_turn = payload.get("turn_id") or turn_id
+                    if next_turn != turn_id:
+                        model = turn_models.get(next_turn, 'unknown')
+                    turn_id = next_turn
+                    bind_leading_prompts(turn_id)
                     event_kind = "turn_started"
                 elif ptype in ("task_complete", "task_interrupted", "turn_aborted"):
+                    pending_prompts.clear()
                     event_kind = "turn_completed" if ptype == "task_complete" else "turn_interrupted"
                 elif ptype == "token_count":
                     info = payload.get("info") or {}
@@ -297,9 +317,14 @@ def parse_rollout(
                             mirror_details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
                                                                       for surface in ("reply", "summary", "body")}
                             mirror_details["artifact_body_present"] = embedded_artifact_body(text)
-                        mirrors.append(Event(stable_id(result.session.id, ordinal), result.session.id,
-                                             ordinal, "user_message" if ptype == "user_message" else "assistant_message",
-                                             timestamp, model, turn_id, text[:MAX_TEXT], details=mirror_details))
+                        mirror = Event(stable_id(result.session.id, ordinal), result.session.id,
+                                       ordinal, "user_message" if ptype == "user_message" else "assistant_message",
+                                       timestamp, model, turn_id, text[:MAX_TEXT], details=mirror_details)
+                        mirrors.append(mirror)
+                        if ptype == 'user_message':
+                            pending_prompts.append(mirror)
+                        else:
+                            pending_prompts.clear()
                     continue
             if not event_kind:
                 continue
@@ -321,6 +346,10 @@ def parse_rollout(
                     else:
                         result.warnings.append({"line": ordinal, "code": "negative_duration"})
             result.events.append(event)
+            if event_kind == 'user_message':
+                pending_prompts.append(event)
+            elif event_kind in ('assistant_message', 'tool_call', 'tool_result'):
+                pending_prompts.clear()
     if not result.session:
         result.skipped_reason = "missing_metadata"
         return result

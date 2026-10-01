@@ -27,15 +27,32 @@ VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高�
 LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
 LANGUAGE_VERBS = r"(?:使用|用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出|给我|保留)"
 LANGUAGE_QUANTITY = r"\s*(?:一(?:份|篇|个|段|版|套)\s*)?"
-NEGATION = r"(?:不要|不用|无需|不必|别|不需要|不是让你|并非|不是)"
+NEGATION = r"(?:不要|不用|无需|不必|(?<!分)(?<!特)别|不需要|不是让你|并非|不是)"
 NEW_TOPIC = re.compile(r"新(?:的)?(?:数学)?(?:任务|定理|问题|主题|报告|文档|接口|教程|证明)|另(?:外)?一个(?:任务|问题|主题|定理|项目)|换(?:一个|个)(?:任务|主题)|下一(?:道|个)(?:题|问题)")
 SCENE_LABELS = {"math_explanation": "数学讲解", "developer_report": "开发说明与报告",
                 "document": "文档写作", "coding": "代码协作", "conversation": "一般对话"}
 
 
+def starts_new_subject(text: str) -> bool:
+    """A different subject breaks continuity; a new example/version can refine it."""
+    if NEW_TOPIC.search(text):
+        return True
+    for match in re.finditer(r'另(?:外)?一个|新的', text):
+        following = text[match.end():]
+        if re.match(r'例子|版本|角度|表述|方式|方法|比喻|解释|说法|思路', following):
+            continue
+        left = max(text.rfind(c, 0, match.start()) for c in '，,。；;\n') + 1
+        prefix = text[left:match.start()]
+        if re.search(r'用|采用|借助|举|换成|改用|给出', prefix):
+            continue
+        if re.match(r'[\u4e00-\u9fffA-Za-z]', following):
+            return True
+    return False
+
+
 def is_followup(text: str) -> bool:
     """A new subject must not become a revision merely because it says '没看懂'."""
-    if NEW_TOPIC.search(text):
+    if starts_new_subject(text):
         return False
     direct_reference = re.search(r"你(?:刚才|之前|这次|写的)|上一版|这份(?:文档|报告|讲义)|听完之后修改|修改回复", text)
     continuation = re.search(r"^(?:好的?[，。\s]*)?(?:继续|再|更|这|上一|补|精简|没看懂|看不懂|请再|请继续|请改|改成)", text.strip())
@@ -275,7 +292,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v12"
+    rule_version: str = "rules-v13"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)
@@ -310,8 +327,8 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
         task_id = event.id
         previous = current.get(event.session_id)
         supplement = bool(previous and event.turn_id is not None and event.turn_id == previous["turn_id"] and
-                          delivery_ordinals.get(event.session_id, -1) < previous["request_ordinal"] and not NEW_TOPIC.search(text))
-        continuation = supplement or is_followup(text) or (event.details.get("input_format") == "question_reply" and not NEW_TOPIC.search(text))
+                          delivery_ordinals.get(event.session_id, -1) < previous["request_ordinal"] and not starts_new_subject(text))
+        continuation = supplement or is_followup(text) or (event.details.get("input_format") == "question_reply" and not starts_new_subject(text))
         if continuation and event.session_id in current:
             previous = current[event.session_id]
             compatible = supplement or scene in ("conversation", previous["scene"]) or (

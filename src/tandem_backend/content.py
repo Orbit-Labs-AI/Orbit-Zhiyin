@@ -24,6 +24,8 @@ def length_contract(text: str, start: int, end: int) -> dict:
     # Search the requirement clause, not incidental numeric facts in another clause.
     cap = re.search(UPPER_BOUND_PATTERN, clause)
     body = bool(targets and targets[-1][0] in ("正文", "完整证明"))
+    if re.search(r'合计|总共', clause):
+        summary, body = False, False
     return {"surface": "summary" if summary else "body" if body else "reply",
             "char_limit": int(cap[1] or cap[2]) if cap else None,
             "requires_full_body": bool(re.search(r"(?:完整|详细).{0,8}(?:证明|推导|正文)|(?:证明|推导|正文).{0,8}(?:完整|详细)|不省略(?:条件|步骤)", text)),
@@ -35,15 +37,37 @@ def merge_length_contracts(text: str, spans: list[tuple[int, int]]) -> list[dict
     merged = {}
     for start, end in spans:
         contract = length_contract(text, start, end)
-        surface = contract["surface"]
-        previous = merged.get(surface)
         left = max(text.rfind(c, 0, start) for c in "，,、。；;\n") + 1
         replacement = bool(re.search(r"改成|改为|调整为|改到", text[left:end]))
-        if previous and previous["char_limit"] is not None and not replacement:
-            bound = contract["char_limit"]
-            contract["char_limit"] = min(previous["char_limit"], bound) if bound is not None else previous["char_limit"]
-        merged[surface] = contract
+        surfaces = _shared_surfaces(text, start, end) or [contract['surface']]
+        for surface in surfaces:
+            current = {**contract, 'surface': surface}
+            previous = merged.get(surface)
+            if previous and previous["char_limit"] is not None and not replacement:
+                bound = current["char_limit"]
+                current["char_limit"] = min(previous["char_limit"], bound) if bound is not None else previous["char_limit"]
+            merged[surface] = current
     return list(merged.values())
+
+
+def _shared_surfaces(text: str, start: int, end: int) -> list[str]:
+    """Only an explicit distributive word makes one cap apply to several objects."""
+    left = max(text.rfind(c, 0, start) for c in '，,。；;\n') + 1
+    ends = [text.find(c, end) for c in '，,。；;\n' if text.find(c, end) >= 0]
+    clause = text[left:min(ends) if ends else len(text)]
+    cap = re.search(UPPER_BOUND_PATTERN, clause)
+    if not cap:
+        return []
+    target = r'摘要|总结|概要|概述|开头|首段|首层|正文|全文|完整证明|完整回复|回答|回复|报告'
+    coordinated = re.search(r'((?:' + target + r')(?:\s*(?:和|与|及|、)\s*(?:' + target + r'))+)\s*(?:各|分别|均|都)\s*(?:控制在|最多|限于)?\s*$', clause[:cap.start()])
+    if not coordinated:
+        return []
+    surfaces = []
+    for name in re.findall(target, coordinated[1]):
+        surface = 'summary' if re.fullmatch(r'摘要|总结|概要|概述|开头|首段|首层', name) else 'body' if name in ('正文', '完整证明') else 'reply'
+        if surface not in surfaces:
+            surfaces.append(surface)
+    return surfaces
 
 
 def canceled_length_surfaces(text: str) -> set[str]:
