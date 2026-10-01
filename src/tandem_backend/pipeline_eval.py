@@ -104,8 +104,11 @@ def evidence_checks(store: Store, data: dict, recs: list[dict]) -> dict:
             "context_ablation_abstains": no_context}
 
 
-def pipeline_benchmark(cases_file: str | Path | None = None) -> dict:
-    raw = Path(cases_file).read_bytes() if cases_file else files("tandem_backend").joinpath("data/pipeline_cases.json").read_bytes()
+def pipeline_benchmark(cases_file: str | Path | None = None, dataset: str = "development") -> dict:
+    datasets = {"development": "pipeline_cases.json", "probe": "pipeline_probe_cases.json"}
+    if dataset not in datasets:
+        raise ValueError("未知的评价数据集")
+    raw = Path(cases_file).read_bytes() if cases_file else files("tandem_backend").joinpath("data/" + datasets[dataset]).read_bytes()
     corpus = json.loads(raw)
     if corpus.get("schema_version") != "1.0" or corpus.get("purpose") != "evaluation_only":
         raise ValueError("评价数据必须明确声明 evaluation_only 和支持的格式")

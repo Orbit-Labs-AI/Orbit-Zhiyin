@@ -52,6 +52,8 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     if cutoff:
         events = [e for e in events if e.timestamp and e.timestamp <= cutoff]
     context_by_id = task_contexts(events)
+    all_observed = signals(events, context_by_id)
+    all_bottlenecks, all_gaps = diagnose(events, all_observed)
     if scene:
         # Keep the whole task span after its request. Filtering only messages would
         # remove the results needed to diagnose a bottleneck.
@@ -68,7 +70,8 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     sessions_by_id = {k: v for k, v in sessions_by_id.items() if k in visible}
     users = [e for e in events if e.kind == "user_message"]
     user_sessions = {e.session_id for e in users}
-    observed = signals(events, context_by_id)
+    visible_user_ids = {e.id for e in users}
+    observed = [s for s in all_observed if s.event_id in visible_user_ids]
     preferences = _preferences(observed, user_sessions, sessions_by_id)
     contexts = []
     for key in SCENE_LABELS:
@@ -81,13 +84,18 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
                          "user_messages": len(scene_users), "user_sessions": len({e.session_id for e in scene_users}),
                          "preferences": _preferences(scene_signals, {e.session_id for e in scene_users}, sessions_by_id),
                          "readers": list(readers.values())})
-    bottlenecks, gaps = diagnose(events, observed)
+    # A revision can refer to a previous reply whose original request used a
+    # different scene label. Preserve that evidence without counting it as a new
+    # selected-scene requirement; the evidence endpoint can retrieve either side.
+    bottlenecks = [b for b in all_bottlenecks if (not scene or b["scene"] == scene)
+                   and set(b["profile_evidence_ids"]) <= visible_user_ids]
+    gaps = [g for g in all_gaps if g["request_event_id"] in visible_user_ids]
     calls = [e for e in events if e.kind == "tool_call"]
     results = [e for e in events if e.kind == "tool_result"]
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     return {
-        "schema_version": "1.2", "analysis_version": "context-v4",
+        "schema_version": "1.3", "analysis_version": "context-v5",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),

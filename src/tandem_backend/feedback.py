@@ -7,6 +7,7 @@ Signals describe observations; repeat requests do not establish stable personali
 import re
 from dataclasses import asdict, dataclass, field
 
+from .content import length_contract
 from .models import Event
 
 RULES = {
@@ -20,7 +21,7 @@ RULES = {
     "scope": ("保持范围集中", r"先做最[小简]|不要[再]*[增扩]|只[改做]|MVP|最小.{0,6}(?:版本|范围|原型)|不要重构"),
 }
 WRITING = re.compile(r"说人话|说明|讲清楚|解释|回答|表达|报告|文档|文章|语言|教程|注释|讲义|证明|思路|方案|策略|解答|读者|学生")
-CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|实现")
+CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|实现|字段|参数|属性|变量|文件名|命名")
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
 LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
 LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)"
@@ -30,7 +31,9 @@ SCENE_LABELS = {"math_explanation": "数学讲解", "developer_report": "开发�
 
 def is_followup(text: str) -> bool:
     """Carry task context only for a short, explicit continuation in the same session."""
-    return len(text) < 160 and bool(re.search(r"^(?:好的?[，。\s]*)?(?:继续|再|更|这|上一|补|精简|没看懂|看不懂|请再|请继续|请改|改成)", text.strip()))
+    continuation = re.search(r"^(?:好的?[，。\s]*)?(?:继续|再|更|这|上一|补|精简|没看懂|看不懂|请再|请继续|请改|改成)", text.strip())
+    revision = re.search(r"把(?:语言|说明|正文).{0,8}改|我觉得.{0,10}(?:增加|补充|修改|调整)", text)
+    return len(text) < 160 and bool(continuation or (revision and WRITING.search(text)))
 
 
 def reader_context(text: str, event_id: str) -> list[dict]:
@@ -76,6 +79,11 @@ def _clean(text: str) -> str:
     return text
 
 
+def _context_text(text: str) -> str:
+    """A filename can identify a subject, but never establishes a writing preference."""
+    return re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+
+
 def _writing_target(text: str, start: int, end: int) -> bool:
     # Do not borrow '教程' from the next clause to interpret '代码保持简洁'.
     delimiters = "，,。；;\n"
@@ -90,6 +98,8 @@ def _writing_target(text: str, start: int, end: int) -> bool:
     if text[start:end] == "精简" and re.search(r"小节|题目|\d+道题", local):
         return False
     context = text[max(0, start - 80):min(len(text), end + 60)]
+    if VISUAL.search(context) and not re.search(r"解释|正文|句子|表达|说明|语言", local):
+        return False
     if len(text) < 100 and not CODE.search(text) and not VISUAL.search(text):
         return True  # A short direct reply implicitly refers to the explanation.
     return bool(WRITING.search(local)) or bool(WRITING.search(context)) or text[start:end] in ("说人话", "看不懂", "没看懂", "不要啰嗦")
@@ -154,8 +164,9 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v4"
+    rule_version: str = "rules-v5"
     readers: list[dict] = field(default_factory=list)
+    output_contract: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -169,7 +180,7 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
         if event.kind != "user_message":
             continue
         text = _clean(event.text)
-        scene = scene_of(text)
+        scene = scene_of(_context_text(event.text))
         readers = reader_context(text, event.id)
         if scene == "conversation" and is_followup(text) and event.session_id in current:
             previous = current[event.session_id]
@@ -216,5 +227,6 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
             output.append(Signal(dimension, label, category, event.id, event.session_id,
                                  event.turn_id, event.timestamp, quote,
                                  "communication" if dimension in ("clarity", "brevity", "grounding") else "workflow",
-                                 context["scene"], readers=context["readers"]))
+                                 context["scene"], readers=context["readers"],
+                                 output_contract=length_contract(text, match.start(), match.end()) if dimension == "brevity" else None))
     return output

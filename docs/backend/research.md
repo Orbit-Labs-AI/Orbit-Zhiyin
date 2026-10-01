@@ -26,4 +26,21 @@ v0.3 的获取命令已通过 GitHub 官方 API 核对上述 10 个资源来源�
 
 三份设计文档提到的 Polars、DuckDB、Parquet、NetworkX、PM4Py、Perfetto、OpenTelemetry、向量表示和高级模型会继续核对，但不因它们出现在方案里就全部装上。第一版实际暴露的问题是语义误判，增加存储或图算法不能解决它。
 
-后续调研覆盖用量工具、代理、skill 生态、MCP、hooks、workflow 和评价框架。每项新增技术必须说明解决哪个实际问题、如何与现有基线对比。
+## 分析技术的取舍
+
+| 官方资料 | 它能解决什么 | 当前为什么不增加依赖 |
+| --- | --- | --- |
+| [Polars Lazy API](https://docs.pola.rs/user-guide/concepts/lazy-api/) | 延迟执行、提前过滤和选择列，减少批量计算开销 | 当前实际错误主要是对象、否定和场景误判；先解决输入含义 |
+| [DuckDB JSON](https://duckdb.org/docs/current/data/json/overview) | 对 JSON 做 SQL 查询，自动识别部分格式与结构 | Codex 角色、消息镜像与来源排除仍需定制读取；当前 SQLite 查询足够 |
+| [PM4Py DFG API](https://pm4py-source.readthedocs.io/en/stable/pm4py.html) | 从事件日志发现直接相继的活动关系 | 相继发生不等于原因；首版已有明确的调用与修改候选，暂不引入完整流程挖掘 |
+| [NetworkX DAG longest path](https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.dag.dag_longest_path.html) | 对已知的有向无环依赖图计算最长路径 | 现有日志没有充分的依赖标签，不能用时间戳顺序冒充因果边 |
+| [Perfetto Trace Processor](https://perfetto.dev/docs/analysis/trace-processor) | 统一轨迹格式与 SQL 分析，也能支持时间线核对 | 借鉴事件与分析视图分开；本次先提供本地事件接口，不加第二套运行服务 |
+| [OpenTelemetry Trace API](https://opentelemetry.io/docs/specs/otel/trace/api/) | 标准化 span、父关系与链接 | 适合以后主动采集；不能补出已有日志里缺失的调用关系 |
+
+这些判断是本项目根据实际样本规模与错误作出的取舍，不是对工具效果的否定。出现明确的批量查询或主动采集需求时，再按同一数据与验收比较。
+
+## 评价参考什么
+
+[G-Eval](https://arxiv.org/abs/2303.16634) 提供按标准检查生成文本的研究参考，也讨论评判模型偏好自己生成文本的问题。[MT-Bench / Chatbot Arena 论文](https://arxiv.org/abs/2306.05685) 进一步讨论位置、篇幅、自我偏好等偏差。这意味着不能只让生成报告的模型自评一个总分，就声称读者会满意。
+
+本版先把可核对的事实、推荐条件和明显表达问题单独检查。主次、读者背景、中文语感通过读者复述与对照来评价；对照时隐藏版本名字，改变展示顺序。当前没有真实读者评价或资源收益标签，相关字段保持待确认。

@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> None:
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     eval_parser = sub.add_parser("evaluate")
     eval_parser.add_argument("--output", type=Path, default=Path(".local/evaluation.json"))
-    eval_parser.add_argument("--suite", choices=("all", "readability", "pipeline"), default="all")
+    eval_parser.add_argument("--suite", choices=("all", "readability", "pipeline", "probe"), default="all")
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8765)
     refresh = sub.add_parser("catalog-refresh", help="显式核对公开 GitHub 资源来源，不执行安装")
@@ -84,6 +84,8 @@ def main(argv: list[str] | None = None) -> None:
             result["readability"] = benchmark()
         if args.suite in ("all", "pipeline"):
             result["pipeline"] = pipeline_benchmark()
+        if args.suite in ("all", "probe"):
+            result["probe"] = pipeline_benchmark(dataset="probe")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2))
         print(json.dumps({"human_acceptance": "pending", "history_updated": False,
