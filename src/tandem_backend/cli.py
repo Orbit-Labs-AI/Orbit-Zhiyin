@@ -81,14 +81,14 @@ def main(argv: list[str] | None = None) -> None:
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2))
         print(json.dumps({k: v for k, v in result.items() if k != "results"}, ensure_ascii=False))
         return
+    if args.command == "demo":
+        args.db = str(args.output / "demo.sqlite")
     store = Store(args.db)
     if args.command == "import":
         result = import_codex(store, args.codex_home, args.before, set(args.exclude_session))
         print(json.dumps({"import": result.to_dict(), "stored": store.counts()}, ensure_ascii=False))
         return
     if args.command == "demo":
-        args.db = str(args.output / "demo.sqlite")
-        store = Store(args.db)
         import_codex(store, demo_home(args.output / "codex"))
         args.audience, args.project_id, args.model = "user", None, None
     data = analyze(store, args.project_id, args.model)

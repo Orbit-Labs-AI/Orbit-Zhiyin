@@ -58,7 +58,7 @@ def test_rollout_source_marker_excludes_automatic_prompts_without_metadata_db(tm
     ('stdout fixture: {"exit_code":1}\nProcess exited with code 1', None),
 ])
 def test_tool_status_uses_transport_metadata_and_ignores_stdout(output, status):
-    assert _status(output) == status
+    assert _status(output, "exec_command") == status
 
 
 def test_successful_fixture_reads_do_not_create_repair_recommendations(tmp_path):

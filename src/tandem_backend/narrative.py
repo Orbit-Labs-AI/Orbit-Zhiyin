@@ -53,6 +53,8 @@ def markdown(result: dict) -> str:
         lines.extend([f"**{finding['title']}**：{finding['text']}", "",
                       f"> {finding['example']}", "",
                       f"证据：`{finding['evidence_ids'][0]}`。", ""])
+    for bottleneck in result.get("bottlenecks", [])[:2]:
+        lines.extend([f"**待核对的卡点**：{bottleneck['text']}", ""])
     for rec in result.get("recommendations", [])[:2]:
         lines.extend([f"可以试 [{rec['name']}]({rec['url']})：{rec['reason']}", "",
                       f"验证方式：{rec['trial']}", ""])

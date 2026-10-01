@@ -71,6 +71,9 @@ class Store:
             conn.execute("INSERT OR REPLACE INTO imports VALUES (?,?,?,?,?)",
                          (session.source_file, signature, session.id,
                           json.dumps(parsed.warnings), policy))
+            # Archiving/restoring is a move, not another independent source owner.
+            conn.execute("DELETE FROM imports WHERE session_id=? AND source_file<>?",
+                         (session.id, session.source_file))
 
     def sessions(self, project_id: str | None = None) -> list[dict]:
         with self.connect() as conn:
@@ -106,7 +109,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         raise ValueError("Codex 数据目录不存在")
     summary = ImportSummary()
     metadata = metadata_index(codex_home)
-    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 5})
+    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 6})
     paths = sorted({p.resolve() for folder in ("sessions", "archived_sessions")
                     for p in (codex_home / folder).rglob("*.jsonl")})
     for path in paths:
@@ -114,8 +117,10 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         stat = path.stat()
         signature = f"{stat.st_size}:{stat.st_mtime_ns}"
         with store.connect() as conn:
-            old = conn.execute("SELECT signature,policy FROM imports WHERE source_file=?", (str(path),)).fetchone()
-        if old and old[0] == signature and old[1] == policy:
+            old = conn.execute("SELECT i.signature,i.policy,json_extract(s.data,'$.source_file') "
+                               "FROM imports i LEFT JOIN sessions s ON s.id=i.session_id WHERE i.source_file=?",
+                               (str(path),)).fetchone()
+        if old and old[0] == signature and old[1] == policy and old[2] == str(path):
             summary.unchanged += 1
             continue
         parsed = parse_rollout(path, metadata, before, exclude_sessions)
@@ -129,4 +134,13 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         store.save(parsed, signature, policy)
         summary.imported += 1
         summary.events += len(parsed.events)
+    # Remove vanished sources only within the explicitly imported home. A moved
+    # file's old mapping was cleared by save(), so it cannot erase the new owner.
+    with store.connect() as conn:
+        known_sources = [row[0] for row in conn.execute("SELECT source_file FROM imports")]
+    source_roots = [(codex_home / folder).resolve() for folder in ("sessions", "archived_sessions")]
+    for known in known_sources:
+        candidate = Path(known)
+        if any(candidate.is_relative_to(root) for root in source_roots) and candidate not in paths:
+            store.remove_source(known)
     return summary

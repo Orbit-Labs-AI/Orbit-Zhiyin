@@ -47,7 +47,7 @@ def _text(content: object) -> str:
     return ""
 
 
-def _status(output: str) -> str | None:
+def _status(output: str, tool: str | None = None) -> str | None:
     """Only explicit exit codes/errors count. The word 'error' is not a failed tool."""
     try:
         data = json.loads(output)
@@ -57,7 +57,10 @@ def _status(output: str) -> str | None:
         if data.get("isError") is True:
             return "failed"
         code = data.get("exit_code")
-        if isinstance(code, int) and not isinstance(code, bool):
+        command_contract = tool and tool.rsplit(".", 1)[-1] in ("exec_command", "write_stdin")
+        orchestration_result = tool and tool.rsplit(".", 1)[-1] == "exec" and all(
+            key in data for key in ("output", "wall_time_seconds"))
+        if (command_contract or orchestration_result) and isinstance(code, int) and not isinstance(code, bool):
             return "success" if code == 0 else "failed"
     # exec_command's transport header ends before stdout. A fixture printed by cat
     # can itself contain exit_code or 'Process exited', so never scan that body.
@@ -174,7 +177,8 @@ def parse_rollout(
                 elif ptype in ("function_call_output", "custom_tool_call_output"):
                     event_kind, call_id = "tool_result", payload.get("call_id")
                     output = _text(payload.get("output"))
-                    status = _status(output)
+                    paired = calls.get(call_id)
+                    status = _status(output, paired.tool if paired else None)
                     details = {"output_chars": len(output)}
             elif kind == "event_msg":
                 ptype = payload.get("type")
