@@ -123,5 +123,5 @@ def normalization(events: list[Event], observed: list, policies: list[dict], fin
     return {'format': 'codex_jsonl_to_event', 'sample_policies': policies,
             'event_counts': dict(Counter(event.kind for event in events)), 'examples': examples,
             'rules': ['只采用用户会话与固定快照内的记录。', '用户消息与界面镜像按同一轮、角色、内容去重。',
-                      '引用、附件指令与自动审批不作为用户要求。', '模型来自轮次上下文，工作目录用于分组。',
+                      '平台环境、插件清单、引用与附件指令不作为用户要求。', '模型来自轮次上下文，工作目录用于分组。',
                       '来源类型、行号和证据 ID 保留，工具输出只留状态与必要统计。']}

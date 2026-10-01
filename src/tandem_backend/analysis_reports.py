@@ -11,9 +11,10 @@ def profile_markdown(data: dict) -> str:
     profile = data['profile']
     lines = ['# 你的协作画像', '', profile['headline'], '',
              '下面分别看任务、明确要求和协作过程。它们描述这批历史，不直接给你定型。', '',
-             '## 主要做哪些任务', '', '| 场景 | 会话 | 用户消息 |', '| --- | ---: | ---: |']
+             '## 主要做哪些任务', '', '| 场景 | 会话 | 用户消息 | 明确的读者要求 |', '| --- | ---: | ---: | --- |']
     for context in sorted(profile['contexts'], key=lambda c: -c['user_messages']):
-        lines.append(f"| {context['label']} | {context['user_sessions']} | {context['user_messages']} |")
+        readers = '、'.join(r['label'] for r in context['readers']) or '未明确'
+        lines.append(f"| {context['label']} | {context['user_sessions']} | {context['user_messages']} | {readers} |")
     lines += ['', '一个会话可以包含多个场景，会话列不能相加。一般对话是尚未细分的消息，不代表都是闲聊。', '',
               '## 你明确要求过什么', '']
     for observation in profile['observations']:
@@ -85,6 +86,8 @@ def cli_summary(data: dict, recommendations: list[dict]) -> str:
     contexts = sorted(profile['contexts'], key=lambda c: -c['user_messages'])[:3]
     if contexts:
         lines.append('   场景：' + '、'.join(f"{c['label']} {c['user_messages']} 条用户消息" for c in contexts) + '。')
+        if any(c['scene'] == 'conversation' for c in contexts):
+            lines.append('   一般对话是当前规则尚未细分的消息。')
     lines += ['3. 瓶颈分析']
     if data['bottleneck_details']:
         for dossier in data['bottleneck_details'][:3]:

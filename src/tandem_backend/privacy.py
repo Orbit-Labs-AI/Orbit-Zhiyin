@@ -6,6 +6,24 @@ import re
 from markdown_it import MarkdownIt
 
 _MARKDOWN = MarkdownIt("commonmark")
+PLATFORM_TAGS = ('recommended_plugins', 'skills_instructions', 'environment_context',
+                 'permissions', 'collaboration_mode', 'multi_agent_role', 'multi_agent_mode', 'app-context')
+
+
+def without_platform_blocks(text: str) -> str:
+    """Remove known native metadata blocks, preserving requests outside them.
+
+    Tags must start a source line. A literal inline reference is not metadata;
+    a cut-off native block stays excluded because its boundary is unavailable.
+    """
+    for tag in PLATFORM_TAGS:
+        opening = r'(?m)^[ \t]*<' + re.escape(tag) + r'(?=[\s>])[^>]*>'
+        closing = r'</' + re.escape(tag) + r'(?:\s+[^>]*)?>'
+        text = re.sub(opening + r'[\s\S]*?' + closing, '', text)
+        unfinished = re.search(opening, text)
+        if unfinished:
+            text = text[:unfinished.start()]
+    return text.strip()
 
 _PATTERNS = [
     (r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{15,}|github_pat_[A-Za-z0-9_]{15,})", "[密钥已隐藏]"),
@@ -46,6 +64,7 @@ def direct_user_text(text: str) -> str:
                          if isinstance(reply.get("answer"), str)).strip()
     if "## My request:" in text:
         text = text.split("## My request:", 1)[1].strip()
+    text = without_platform_blocks(text)
     if text.startswith(("# AGENTS.md", "<environment_context>", "<external_", "<permissions")):
         return ""
     if "<INSTRUCTIONS>" in text or text.startswith("<turn_aborted>"):

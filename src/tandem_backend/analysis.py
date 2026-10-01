@@ -99,7 +99,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     duration = _timing(results)
     policies = store.sample_policies()
     return {
-        "schema_version": "1.7", "analysis_version": "context-v17",
+        "schema_version": "1.7", "analysis_version": "context-v18",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "ledger_sample_policies": policies,
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
