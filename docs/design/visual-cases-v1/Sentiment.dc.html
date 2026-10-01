@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A6 情绪与语义</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 48px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.08);--win-ring:rgba(0,0,0,.06);
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--ser-m:#ec835a;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 22px 48px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);--win-ring:rgba(255,255,255,.08);
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#222326;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input,.tb textarea{font:inherit;color:inherit;margin:0}
+.win{position:absolute;overflow:hidden;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow)}
+.win::after{content:"";position:absolute;inset:0;border-radius:14px;box-shadow:inset 0 0 0 1px var(--win-ring);pointer-events:none;z-index:50}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cap{font-size:12px;line-height:16px;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card)}
+.ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
+.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;cursor:default;padding:0}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:4px}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.tip{position:absolute;z-index:25;background:var(--tip);color:var(--tip-ink);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sec{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sec h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .p2{margin:0;font-size:12px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div class="win" style="left: 40px; top: 50px; width: 1440px; height: 900px;">
+    <div style="position: absolute; left: 8px; top: 8px; width: 236px; height: 884px;">
+      <dc-import name="Sidebar" active="sentiment" hint-size="236px,884px"></dc-import>
+    </div>
+
+    <div style="position: absolute; left: 252px; top: 0; width: 1188px; height: 900px; padding: 0 24px 0 16px; display: flex; flex-direction: column;">
+      <div style="height: 58px; flex: none; display: flex; align-items: center; gap: 10px;">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px;">
+          <h1 class="serif" style="margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em;">情绪与语义</h1>
+          <span class="mono" style="font-size: 11.5px; color: var(--ink-3);">1,284 条你的消息 · 中文 62% · 英文 31% · 混合 7%</span>
+        </div>
+        <button type="button" class="btn gh"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.info }}"></path></svg>情绪如何计算</button>
+        <button type="button" class="btn ai"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>把高频纠偏写成规则</button>
+      </div>
+      <div style="height: 32px; flex: none; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+        <div class="seg" role="group" aria-label="时间范围"><button type="button" aria-pressed="false">7 天</button><button type="button" class="on" aria-pressed="true">30 天</button><button type="button" aria-pressed="false">90 天</button><button type="button" aria-pressed="false">全部</button></div>
+        <button type="button" class="chip">Agent · 全部 5<svg class="ico" style="width: 12px; height: 12px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+        <button type="button" class="chip">项目 · 全部 9<svg class="ico" style="width: 12px; height: 12px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+        <span style="flex: 1;"></span>
+        <span class="cap" style="display: inline-flex; align-items: center; gap: 6px;"><svg class="ico" style="width: 13px; height: 13px; color: var(--good);" viewBox="0 0 24 24"><path d="{{ ic.shield }}"></path></svg>语义分析由本地 Agent 完成，原文不离开本机</span>
+      </div>
+
+      <div style="flex: none; display: flex; flex-direction: column; gap: 12px;">
+        <div class="card" style="height: 252px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">1</span></sc-if>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="ct">情绪曲线</span><span class="cap">每日均值 · −1 沮丧 … +1 满意</span>
+            <span style="flex: 1;"></span>
+            <span style="display: inline-flex; gap: 14px; font-size: 11px; color: var(--ink-3);">
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 14px; height: 2px; border-radius: 1px; background: var(--ink-1);"></span>情绪均值</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--crit-m);"></span>低谷事件</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 8px; height: 10px; border-radius: 2px; background: var(--h2);"></span>纠偏次数（下图）</span>
+            </span>
+          </div>
+          <div style="position: relative; height: 196px;">
+            <sc-for list="{{ my }}" as="g" hint-placeholder-count="3">
+              <div style="position: absolute; left: 30px; right: 0; top: {{ g.y }}px; height: 1px; background: {{ g.c }};"></div>
+              <span class="mono" style="position: absolute; left: 0; width: 24px; text-align: right; top: {{ g.ly }}px; font-size: 10px; line-height: 12px; color: var(--ink-3);">{{ g.t }}</span>
+            </sc-for>
+            <svg width="1080" height="120" viewBox="0 0 1080 120" aria-hidden="true" style="position: absolute; left: 30px; top: 0; overflow: visible;">
+              <path d="{{ mood.neg }}" style="fill: var(--crit-m); fill-opacity: 0.1; stroke: none;"></path>
+              <path d="{{ mood.pos }}" style="fill: var(--ink-3); fill-opacity: 0.08; stroke: none;"></path>
+              <path d="{{ mood.line }}" style="fill: none; stroke: var(--ink-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round;"></path>
+              <path d="{{ mood.cross }}" style="fill: none; stroke: var(--ink-3); stroke-width: 1;"></path>
+            </svg>
+            <sc-for list="{{ lows }}" as="l" hint-placeholder-count="3">
+              <div style="position: absolute; left: {{ l.x }}px; top: {{ l.y }}px; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--crit-m); box-shadow: 0 0 0 2px var(--surface);"></div>
+              <div style="position: absolute; left: {{ l.lx }}px; top: {{ l.ly }}px; font-size: 11.5px; line-height: 15px; color: var(--ink-2); white-space: nowrap;"><span class="mono" style="color: var(--ink-1); font-weight: 600;">{{ l.d }}</span> {{ l.t }}</div>
+            </sc-for>
+            <div style="position: absolute; left: {{ hover.x }}px; top: 0; width: 1px; height: 120px; background: var(--ink-1);"></div>
+            <div style="position: absolute; left: {{ hover.x }}px; top: {{ hover.y }}px; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--ink-1); box-shadow: 0 0 0 2px var(--surface);"></div>
+            <div class="tip" style="left: {{ hover.tx }}px; top: 4px; width: 214px;">
+              <div style="display: flex; justify-content: space-between;"><span style="font-weight: 600;">9 月 22 日 周二</span><span class="mono" style="font-weight: 700;">+0.41</span></div>
+              <div style="font-size: 11.5px; opacity: .8; margin-top: 3px;">9 个会话 · 1 次纠偏 · 3 次致谢</div>
+              <div style="font-size: 11.5px; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(127,127,127,.3);">「可以，这版很好，直接合并」</div>
+            </div>
+            <sc-for list="{{ bars }}" as="b" hint-placeholder-count="30">
+              <div style="position: absolute; bottom: 18px; left: {{ b.x }}px; width: 14px; height: {{ b.h }}px; border-radius: 3px 3px 0 0; background: {{ b.c }};"></div>
+            </sc-for>
+            <div style="position: absolute; left: 30px; right: 0; bottom: 18px; height: 1px; background: var(--line);"></div>
+            <span class="cap" style="position: absolute; left: 0; bottom: 20px; font-size: 10px; width: 26px; text-align: right;">纠偏</span>
+            <sc-for list="{{ xl }}" as="x" hint-placeholder-count="5">
+              <span class="mono" style="position: absolute; bottom: 0; left: {{ x.left }}px; width: 40px; text-align: center; font-size: 10px; line-height: 12px; color: var(--ink-3);">{{ x.t }}</span>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="height: 248px; display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 12px;">
+          <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">2</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">摩擦分类</span><span class="cap">出现该摩擦的会话数</span></div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ fr }}" as="f" hint-placeholder-count="7">
+                <div style="display: grid; grid-template-columns: 112px minmax(0, 1fr) 24px; gap: 10px; align-items: center; height: 19px;">
+                  <span style="font-size: 12px; color: var(--ink-2); white-space: nowrap;">{{ f.k }}</span>
+                  <div style="height: 10px;"><div style="height: 10px; width: {{ f.w }}%; border-radius: 0 4px 4px 0; background: {{ f.c }};"></div></div>
+                  <span class="mono" style="font-size: 11.5px; text-align: right; font-weight: 600;">{{ f.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div class="cap" style="margin-top: auto; font-size: 11px;">「方向错误」与「改动过度」占全部摩擦的 47%，都可以用规则前置</div>
+          </div>
+
+          <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">3</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">语义主题</span><span class="cap">按会话意图聚类 · 面积 = 会话数 · 底部条 = 平均情绪</span></div>
+            <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 1.6fr 1.1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px;">
+              <sc-for list="{{ topics }}" as="t" hint-placeholder-count="6">
+                <div style="grid-column: {{ t.gc }}; grid-row: {{ t.gr }}; border-radius: 9px; background: {{ t.bg }}; padding: 9px 11px; display: flex; flex-direction: column; gap: 3px; overflow: hidden; position: relative;">
+                  <span style="font-size: 12.5px; font-weight: 600; line-height: 17px; color: var(--ink-1);">{{ t.k }}</span>
+                  <span class="mono" style="font-size: 10.5px; color: var(--ink-3);">{{ t.n }} 个会话</span>
+                  <span style="font-size: 11.5px; line-height: 15px; color: var(--ink-2); margin-top: auto;">{{ t.q }}</span>
+                  <div style="height: 4px; border-radius: 2px; background: var(--hair); margin-top: 4px; position: relative;"><div style="position: absolute; top: -2px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; left: {{ t.m }}%; background: {{ t.mc }}; box-shadow: 0 0 0 2px var(--surface);"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 178px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px;">
+          <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">4</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">你的高频反馈语</span><span class="cap">已脱敏 · 点击查看出处</span></div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ phrases }}" as="p" hint-placeholder-count="8">
+                <button type="button" style="height: 26px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); cursor: default;">
+                  <span style="font-size: 12px; color: var(--ink-1);">「{{ p.t }}」</span>
+                  <span class="mono" style="font-size: 10.5px; color: var(--ink-3);">×{{ p.n }}</span>
+                  <span style="font-size: 10.5px; padding: 1px 5px; border-radius: 4px; background: {{ p.bg }}; color: {{ p.fg }};">{{ p.k }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: auto;">
+              <span style="flex: 1; font-size: 12px; color: var(--ink-2);">4 条纠偏语可以直接变成规则，让 Agent 先遵守，而不是等你提醒。</span>
+              <button type="button" class="btn sm">生成规则草稿</button>
+            </div>
+          </div>
+          <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">5</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">情绪的前因</span><span class="cap">与会话特征的关联 · 相关不等于因果</span></div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ drivers }}" as="d" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 150px 48px; gap: 10px; align-items: center; font-size: 12px;">
+                  <span style="color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ d.k }}</span>
+                  <div style="position: relative; height: 8px;">
+                    <div style="position: absolute; left: 50%; top: -3px; width: 1px; height: 14px; background: var(--line);"></div>
+                    <div style="position: absolute; top: 0; height: 8px; left: {{ d.l }}%; width: {{ d.w }}%; border-radius: {{ d.r }}; background: {{ d.c }};"></div>
+                  </div>
+                  <span class="mono" style="font-size: 11.5px; text-align: right; font-weight: 600;">{{ d.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div class="cap" style="margin-top: auto; font-size: 11px;">左 = 情绪更差 · 右 = 情绪更好 · 数值为情绪均值差</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 1520px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">A6 · 主窗口 · ⌘6</div>
+      <h2>情绪与语义 <i>Sentiment</i></h2>
+      <p class="lead">从你的话里读出满意、不满和反复说的要求，再把它们变成规则。</p>
+    </div>
+    <div class="sec">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="7">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sec">
+      <h3>隐私与可信</h3>
+      <p class="p2">情绪只基于你发出的消息，不评判 Agent 回复；分类模型的置信度低于 0.6 的消息不计入。所有引语默认脱敏路径、邮箱与密钥，导出报告时再次确认。</p>
+    </div>
+    <div class="sec" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">⌘</b><b class="kbd">6</b>情绪与语义</span>
+        <span><b class="kbd">⌥</b> 点击 只看该主题</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"marks":{"editor":"boolean","default":true,"section":"标注"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const marks = this.props.marks ?? true;
+    const ic = {
+      info: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 11v5M12 7.5h.01',
+      spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+      chev: 'M6 9l6 6 6-6',
+      shield: 'M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5c-4.3-1.2-7.5-4.9-7.5-9.5V6zM9 12l2 2 4-4'
+    };
+    // 30 days, mood in [-1, 1]
+    const S = [0.32, 0.28, 0.35, 0.22, 0.4, 0.45, 0.18, 0.25, 0.1, -0.05, 0.12, -0.42, 0.05, 0.2, 0.26, 0.31, 0.18, 0.22, 0.38, 0.44, 0.15, 0.41, 0.34, -0.36, -0.08, 0.27, 0.48, 0.21, 0.3, 0.12];
+    const C = [1, 2, 1, 2, 0, 0, 2, 1, 3, 4, 2, 7, 3, 2, 2, 1, 3, 4, 1, 0, 2, 1, 2, 6, 4, 1, 0, 2, 1, 3];
+    const W = 1080, step = W / 30;
+    const X = (i) => +(i * step + step / 2).toFixed(1);
+    const Y = (v) => +(60 - v * 56).toFixed(1);
+    const pts = S.map((v, i) => [X(i), Y(v)]);
+    const line = 'M' + pts.map(p => p[0] + ' ' + p[1]).join(' L');
+    // split area into positive/negative washes via clip-free approach: build polygons per segment around zero
+    let pos = '', neg = '';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1], va = S[i], vb = S[i + 1];
+      if (va >= 0 && vb >= 0) pos += 'M' + a[0] + ' 60L' + a[0] + ' ' + a[1] + 'L' + b[0] + ' ' + b[1] + 'L' + b[0] + ' 60Z';
+      else if (va <= 0 && vb <= 0) neg += 'M' + a[0] + ' 60L' + a[0] + ' ' + a[1] + 'L' + b[0] + ' ' + b[1] + 'L' + b[0] + ' 60Z';
+      else {
+        const t = va / (va - vb), xm = +(a[0] + (b[0] - a[0]) * t).toFixed(1);
+        const p1 = 'M' + a[0] + ' 60L' + a[0] + ' ' + a[1] + 'L' + xm + ' 60Z';
+        const p2 = 'M' + xm + ' 60L' + b[0] + ' ' + b[1] + 'L' + b[0] + ' 60Z';
+        if (va > 0) { pos += p1; neg += p2; } else { neg += p1; pos += p2; }
+      }
+    }
+    const hi = 21;
+    const hover = { x: +(30 + X(hi)).toFixed(1), y: Y(S[hi]), tx: +(30 + X(hi) + 12).toFixed(1) };
+    const mood = { line: line, pos: pos || 'M0 0', neg: neg || 'M0 0', cross: 'M' + X(hi) + ' 0V120' };
+    const my = [[1, '+1'], [0, '0'], [-1, '−1']].map(g => ({ y: Y(g[0]), ly: Y(g[0]) - 6, t: g[1], c: g[0] === 0 ? 'var(--line)' : 'var(--hair)' }));
+    const lows = [[11, '9/12', 'Codex review 循环 11 轮'], [23, '9/24', '部署到了错误的平台']].map(l => ({
+      x: +(30 + X(l[0])).toFixed(1), y: Y(S[l[0]]), d: l[1], t: l[2], lx: +(30 + X(l[0]) + 10).toFixed(1), ly: Y(S[l[0]]) + 4
+    }));
+    const bars = C.map((c, i) => ({ x: +(30 + X(i) - 7).toFixed(1), h: Math.max(2, c * 5), c: c >= 5 ? 'var(--crit-m)' : 'var(--h2)' }));
+    const xl = [[0, '9/1'], [6, '9/7'], [13, '9/14'], [20, '9/21'], [27, '9/28']].map(p => ({ t: p[1], left: +(30 + X(p[0]) - 20).toFixed(1) }));
+
+    const frDefs = [['方向错误', 17], ['工具 / 环境失败', 12], ['改动过度', 9], ['误解需求', 7], ['流程过重（子代理）', 6], ['并行会话冲突', 5], ['额度 / 用量中断', 4]];
+    const fr = frDefs.map((f, i) => ({ k: f[0], v: f[1], w: (f[1] / 17 * 100).toFixed(1), c: i === 0 || i === 2 ? 'var(--ink-1)' : 'var(--h3)' }));
+
+    const tp = [
+      ['Git / PR 收尾与仓库规范', 46, '「直接合并，不要再跑 review」', 38, '1', '1 / 3'],
+      ['产品设计、Demo 与部署', 38, '「只发布手机部分」', 55, '2', '1'],
+      ['论文审阅与 LaTeX', 31, '「先只读审查，别改」', 72, '3', '1'],
+      ['Agent 数据管线', 27, '「为什么又中断了」', 34, '2', '2'],
+      ['量化与数据分析', 18, '「加一张对比表」', 66, '3', '2'],
+      ['网络代理规则', 14, '「还是没连上」', 28, '1 / 2', '2']
+    ];
+    // grid placement: col span, row span
+    const place = [['1', '1 / 3'], ['2', '1'], ['3', '1'], ['2', '2'], ['3', '2']];
+    const topics = tp.slice(0, 5).map((t, i) => ({
+      k: t[0], n: t[1], q: t[2], m: t[3], mc: t[3] < 45 ? 'var(--crit-m)' : 'var(--ink-1)',
+      gc: place[i][0], gr: place[i][1], bg: i === 0 ? 'var(--sunken)' : 'var(--bg)'
+    }));
+
+    const phrases = [
+      ['用中文', 9, '偏好'], ['直接合并', 6, '纠偏'], ['先只读审查', 5, '规划'], ['部署后验证线上', 7, '验证'],
+      ['简洁一点', 4, '风格'], ['别用子代理', 3, '纠偏'], ['不要改别的文件', 4, '纠偏'], ['用 Cloudflare 不是 Vercel', 2, '纠偏']
+    ].map(p => ({ t: p[0], n: p[1], k: p[2], bg: p[2] === '纠偏' ? 'var(--crit-bg)' : 'var(--sunken)', fg: p[2] === '纠偏' ? 'var(--crit)' : 'var(--ink-2)' }));
+
+    const drv = [['会话超过 90 分钟', -0.31], ['同一命令连续失败 ≥ 2 次', -0.44], ['首条消息写明验收标准', 0.27], ['小步提交并推送', 0.19]];
+    const drivers = drv.map(d => {
+      const w = Math.abs(d[1]) / 0.5 * 50;
+      return { k: d[0], v: (d[1] > 0 ? '+' : '−') + Math.abs(d[1]).toFixed(2), w: w.toFixed(1), l: d[1] < 0 ? (50 - w).toFixed(1) : 50, r: d[1] < 0 ? '4px 0 0 4px' : '0 4px 4px 0', c: d[1] < 0 ? 'var(--crit-m)' : 'var(--ink-2)' };
+    });
+
+    const spec = [
+      { n: 1, t: '情绪曲线', d: '每日均值，零线上下分别淡染；低谷事件直接标注原因。下方纠偏柱共用横轴但单独成图，不做双轴。' },
+      { n: 2, t: '摩擦分类', d: '分类由本地 Agent 依据你的纠偏语与会话结果判定；点击条目列出会话，可逐条改判。' },
+      { n: 3, t: '语义主题', d: '按会话意图聚类，面积为会话数，底部点为平均情绪；双击主题用该主题筛选全应用。' },
+      { n: 4, t: '高频反馈语', d: '归并同义表达后计数；标为「纠偏」的语句可一键生成规则草稿，进入 C2 预览。' },
+      { n: 5, t: '情绪的前因', d: '展示会话特征与情绪的关联强度，并明确写出「相关不等于因果」，避免误导。' },
+      { n: 6, t: '悬停读数', d: '悬停任意一天显示情绪值、会话数与当日一句代表性原话；键盘左右键逐日移动。' },
+      { n: 7, t: '隐私开关', d: '可关闭语义分析，只保留计数统计；关闭后本页显示说明而不是空白。' }
+    ];
+
+    return {
+      theme: dark ? 'dk' : '', marks: marks, ic: ic, mood: mood, my: my, lows: lows, hover: hover, bars: bars, xl: xl,
+      fr: fr, topics: topics, phrases: phrases, drivers: drivers, spec: spec
+    };
+  }
+}
+</script>
+</body>
+</html>

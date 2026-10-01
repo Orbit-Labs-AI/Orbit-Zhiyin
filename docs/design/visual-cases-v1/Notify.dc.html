@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>B5 系统通知</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;
+--nb:rgba(250,250,250,.94);--nb-ink:#17181b;--nb-ink-2:#45484f;--nb-ink-3:#6b6f78;--nb-btn:rgba(0,0,0,.06);--good:#11843a;--warn:#8a5a00;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;
+--nb:rgba(44,45,49,.94);--nb-ink:#ededef;--nb-ink-2:#c3c6cc;--nb-ink-3:#9a9ea7;--nb-btn:rgba(255,255,255,.1);--good:#4cc97a;--warn:#f0b341}
+.tb *{box-sizing:border-box}
+.tb button{font:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.nt{width:380px;border-radius:16px;background:var(--nb);color:var(--nb-ink);box-shadow:0 10px 30px rgba(20,24,30,.18),0 0 0 .5px rgba(0,0,0,.12);padding:12px 14px;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px}
+.nbtn{height:26px;padding:0 12px;border-radius:7px;border:0;background:var(--nb-btn);color:var(--nb-ink);font-size:12px;font-weight:500;cursor:default}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sx{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sx h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 1420px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 60px; top: 56px; width: 780px;">
+    <div style="font-size: 16px; font-weight: 600;">通知样例</div>
+    <div style="font-size: 12px; color: var(--pg-ink-3);">按事件分级：只有需要你动作，或带来明确结果时才打扰</div>
+  </div>
+
+  <div style="position: absolute; left: 60px; top: 112px; display: flex; flex-direction: column; gap: 14px;">
+    <sc-for list="{{ items }}" as="n" hint-placeholder-count="5">
+      <div style="display: flex; align-items: flex-start; gap: 12px;">
+        <div class="nt">
+          <span style="width: 34px; height: 34px; border-radius: 9px; background: #17181b; display: grid; place-items: center;"><svg width="22" height="16" viewBox="0 0 24 18" aria-hidden="true" style="fill: none; stroke: #f5f4f0; stroke-width: 1.8;"><circle cx="8.5" cy="9" r="6"></circle><circle cx="15.5" cy="9" r="6"></circle></svg></span>
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 13px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ n.t }}</span><span style="font-size: 11px; color: var(--nb-ink-3); white-space: nowrap;">{{ n.when }}</span></div>
+            <span style="font-size: 12.5px; line-height: 1.45; color: var(--nb-ink-2);">{{ n.b }}</span>
+            <div style="display: flex; gap: 6px; margin-top: 6px;">
+              <button type="button" class="nbtn" style="font-weight: 600;">{{ n.a1 }}</button>
+              <sc-if value="{{ n.has2 }}" hint-placeholder-val="{{ true }}"><button type="button" class="nbtn">{{ n.a2 }}</button></sc-if>
+            </div>
+          </div>
+        </div>
+        <div style="width: 300px; padding-top: 4px; display: flex; flex-direction: column; gap: 3px;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--pg-ink);"><span style="width: 8px; height: 8px; border-radius: {{ n.shape }}; background: {{ n.lc }};"></span>{{ n.level }}</span>
+          <span style="font-size: 12px; line-height: 1.5; color: var(--pg-ink-2);">{{ n.why }}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <span class="mk" style="left: 30px; top: 122px;">1</span>
+  <span class="mk" style="left: 30px; top: 252px;">2</span>
+  <span class="mk" style="left: 30px; top: 382px;">3</span>
+
+  <div style="position: absolute; left: 60px; top: 752px; width: 790px; padding: 14px 16px; border-radius: 12px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft);">
+    <span class="mk" style="left: -12px; top: -11px;">4</span>
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">投递矩阵</div>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px 70px; gap: 0; font-size: 12px;">
+      <span style="color: var(--pg-ink-3); padding: 0 0 6px;">事件</span><span style="color: var(--pg-ink-3); text-align: center;">横幅</span><span style="color: var(--pg-ink-3); text-align: center;">悬浮组件</span><span style="color: var(--pg-ink-3); text-align: center;">菜单栏角标</span>
+      <sc-for list="{{ matrix }}" as="m" hint-placeholder-count="5">
+        <span style="padding: 4px 0; border-top: 1px solid var(--pg-line-soft); color: var(--pg-ink-2);">{{ m.e }}</span>
+        <span class="mono" style="padding: 4px 0; border-top: 1px solid var(--pg-line-soft); text-align: center; font-weight: 700;">{{ m.a }}</span>
+        <span class="mono" style="padding: 4px 0; border-top: 1px solid var(--pg-line-soft); text-align: center; font-weight: 700;">{{ m.b }}</span>
+        <span class="mono" style="padding: 4px 0; border-top: 1px solid var(--pg-line-soft); text-align: center; font-weight: 700;">{{ m.c }}</span>
+      </sc-for>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 900px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">B5 · 通知中心</div>
+      <h2>系统通知 <i>Notifications</i></h2>
+      <p class="lead">克制是默认值：宁可少发一条，也不要让用户关掉整个通知权限。</p>
+    </div>
+    <div class="sx">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="7">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":1420,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const L = {
+      ts: { level: '时效性', lc: 'var(--warn)', shape: '2px', why: '需要你动作；等待 5 分钟后才发，可在授权后突破专注模式。' },
+      act: { level: '主动', lc: 'var(--pg-ink)', shape: '50%', why: '带来明确结果；短于 10 分钟的会话不通知。' },
+      pas: { level: '被动', lc: 'var(--pg-ink-3)', shape: '50%', why: '静默送达通知中心，不弹横幅。' }
+    };
+    const raw = [
+      ['ts', 'Codex 请求执行 git push', '5 分钟前', 'team-hub · 已等待 5 分钟。Tandem 不会代你批准，点按跳到对应终端。', '在终端中处理', ''],
+      ['act', '会话完成：部署 Confluo 演示', '现在', 'Claude Code · 42 分钟 · 186 步 · 2 次纠偏。线上验证已通过。', '查看轨迹', '好'],
+      ['act', '你的协作周报', '周一 09:00', '本周你仍是「指挥家」，并发度 ↑9。最值得做的一件事：只读命令自动放行。', '打开报告', ''],
+      ['pas', 'retry-breaker 已生效 7 天', '昨天', '重复失败 −68%，约省 41 分钟。保留还是撤销？', '保留', '撤销…'],
+      ['pas', '发现新的数据来源', '9/28', '检测到 Cursor 会话数据。是否加入分析？默认不加入。', '加入', '忽略']
+    ];
+    const items = raw.map(r => ({
+      t: r[1], when: r[2], b: r[3], a1: r[4], a2: r[5], has2: !!r[5],
+      level: L[r[0]].level, lc: L[r[0]].lc, shape: L[r[0]].shape, why: L[r[0]].why
+    }));
+    const matrix = [
+      ['需要你确认（≥ 5 分钟）', '✓', '✓', '✓'],
+      ['会话完成（≥ 10 分钟）', '✓', '✓', '—'],
+      ['连续失败 / 卡住', '—', '✓', '✓'],
+      ['上下文将满', '—', '✓', '✓'],
+      ['周报 · 建议效果 · 新来源', '✓', '—', '—']
+    ].map(m => ({ e: m[0], a: m[1], b: m[2], c: m[3] }));
+    const spec = [
+      { n: 1, t: '时效性通知', d: '只有「等你确认」属于时效性；用户授权后才可突破专注模式，否则进入通知中心。' },
+      { n: 2, t: '结果通知', d: '标题说结果，正文给数字和下一步；不用感叹号，不用情绪化措辞。' },
+      { n: 3, t: '周报', d: '每周一 09:00（可改），点按打开 A1 并带上「上周」筛选，同时生成可分享的报告。' },
+      { n: 4, t: '投递矩阵', d: '同一事件只在最合适的地方出现一次；矩阵可在设置 › 通知中逐项修改。' },
+      { n: 5, t: '合并', d: '同一会话 10 分钟内的多条事件合并；连续完成多个会话时汇总为「3 个会话已完成」。' },
+      { n: 6, t: '可撤销动作', d: '通知按钮只做跳转或可撤销操作；「撤销…」带省略号，表示还会再确认一次。' },
+      { n: 7, t: '静默时段', d: '跟随系统专注模式；也可单独为 Tandem 设置夜间静默。' }
+    ];
+    return { theme: dark ? 'dk' : '', items: items, matrix: matrix, spec: spec };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>P2 人格分享卡</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.sc{--bg:#0f1012;--dot:rgba(255,255,255,.06);--panel:#17181b;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--line:#2d2f34;--hair:#232529;--minor:#43464c;
+--a1:#d95926;--a2:#3987e5;--a3:#199e70;--a4:#c98500;--a5:#d55181;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);color:var(--ink-1);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.sc.lt{--bg:#f5f4f0;--dot:rgba(21,23,27,.07);--panel:#ffffff;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--line:#e3e1dc;--hair:#eeece7;--minor:#c0bdb5;
+--a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f}
+.sc *{box-sizing:border-box}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+</style>
+</helmet>
+<div class="sc {{ theme }}" style="position: relative; width: 1080px; height: 1350px; overflow: hidden; background-color: var(--bg); background-image: radial-gradient(var(--dot) 1.2px, transparent 1.5px); background-size: 18px 18px;">
+
+  <div style="position: absolute; left: 72px; right: 72px; top: 64px; display: flex; align-items: center; gap: 12px;">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="10" cy="13" r="8" style="fill: none; stroke: var(--ink-1); stroke-width: 2;"></circle><circle cx="16" cy="13" r="8" style="fill: var(--ink-1); fill-opacity: 0.18; stroke: var(--ink-1); stroke-width: 2;"></circle></svg>
+    <span class="mono" style="font-size: 17px; font-weight: 600; letter-spacing: 0.3em;">TANDEM</span>
+    <span style="flex: 1;"></span>
+    <span style="font-size: 15px; color: var(--ink-3);">我的 AI 协作人格 · 2026 年 9 月</span>
+  </div>
+
+  <div style="position: absolute; left: 64px; top: 128px; display: flex; gap: 26px; align-items: flex-end;">
+    <sc-for list="{{ code }}" as="c" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+        <span class="serif" style="font-size: 248px; line-height: 0.86; font-weight: 600;">{{ c.L }}</span>
+        <span style="font-size: 18px; color: var(--ink-2); white-space: nowrap;">{{ c.n }} <span class="mono" style="color: var(--ink-1); font-weight: 700;">{{ c.v }}</span></span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="position: absolute; left: 72px; top: 470px; display: flex; align-items: baseline; gap: 22px;">
+    <span class="serif" style="font-size: 92px; line-height: 1; font-weight: 600;">指挥家</span>
+    <span class="serif" style="font-size: 40px; font-style: italic; color: var(--ink-3);">The Conductor</span>
+  </div>
+
+  <div style="position: absolute; left: 52px; top: 616px; width: 500px; height: 500px;">
+    <svg width="500" height="500" viewBox="0 0 400 400" role="img" aria-label="协作指纹" style="position: absolute; left: 0; top: 0; overflow: visible;">
+      <circle cx="200" cy="200" r="186" style="fill: var(--panel); stroke: var(--line); stroke-width: 1;"></circle>
+      <circle cx="200" cy="200" r="132" style="fill: none; stroke: var(--hair); stroke-width: 1;"></circle>
+      <circle cx="200" cy="200" r="96" style="fill: none; stroke: var(--line); stroke-width: 1;"></circle>
+      <circle cx="200" cy="200" r="68" style="fill: var(--bg); stroke: var(--hair); stroke-width: 1;"></circle>
+      <path d="{{ fp.hours }}" style="fill: none; stroke: var(--ink-3); stroke-width: 3.2; stroke-linecap: round;"></path>
+      <path d="{{ fp.d0 }}" style="fill: var(--a1); stroke: var(--panel); stroke-width: 1.2;"></path>
+      <path d="{{ fp.d1 }}" style="fill: var(--a2); stroke: var(--panel); stroke-width: 1.2;"></path>
+      <path d="{{ fp.d2 }}" style="fill: var(--a3); stroke: var(--panel); stroke-width: 1.2;"></path>
+      <path d="{{ fp.d3 }}" style="fill: var(--a4); stroke: var(--panel); stroke-width: 1.2;"></path>
+      <path d="{{ fp.d4 }}" style="fill: var(--a5); stroke: var(--panel); stroke-width: 1.2;"></path>
+      <path d="{{ fp.minor }}" style="fill: var(--minor);"></path>
+      <path d="{{ fp.major }}" style="fill: var(--ink-1);"></path>
+      <circle cx="200" cy="200" r="5" style="fill: var(--panel); stroke: var(--ink-1); stroke-width: 1.5;"></circle>
+    </svg>
+  </div>
+
+  <div style="position: absolute; left: 596px; top: 640px; width: 412px; display: flex; flex-direction: column; gap: 34px;">
+    <p class="serif" style="margin: 0; font-size: 34px; line-height: 1.4; font-style: italic; font-weight: 500;">「把目标交出去，<br>把验收留给自己。」</p>
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+      <sc-for list="{{ stats }}" as="s" hint-placeholder-count="3">
+        <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line);">
+          <span style="font-size: 52px; line-height: 1; font-weight: 600; letter-spacing: -0.02em;">{{ s.v }}</span>
+          <span style="font-size: 18px; color: var(--ink-2);">{{ s.k }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+      <sc-for list="{{ traits }}" as="t" hint-placeholder-count="4">
+        <span style="height: 36px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); font-size: 17px; line-height: 33px; color: var(--ink-1);">{{ t.t }}</span>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 72px; right: 72px; top: 1160px; display: flex; align-items: center; gap: 24px; padding-top: 30px; border-top: 1px solid var(--line);">
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-size: 26px; font-weight: 600;">测测你和 AI 是哪种搭档</span>
+      <span class="mono" style="font-size: 16px; color: var(--ink-3);">[下载链接] · 全部分析在本机完成</span>
+    </div>
+    <div style="width: 116px; height: 116px; border-radius: 14px; border: 1.5px dashed var(--ink-3); display: grid; place-items: center; font-size: 15px; color: var(--ink-3);">二维码</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"light":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":1080,"height":1350}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const light = this.props.light ?? false;
+    const code = [{ L: 'D', n: '委托', v: 72 }, { L: 'I', n: '即兴', v: 64 }, { L: 'M', n: '多线', v: 81 }, { L: 'V', n: '求证', v: 68 }];
+    let sd = 7;
+    const rr = () => { sd |= 0; sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const C = 200;
+    const pt = (r, a) => [C + r * Math.sin(a), C - r * Math.cos(a)];
+    const f1 = (n) => n.toFixed(1);
+    const hw = [0.42, 0.22, 0.08, 0.03, 0.01, 0.01, 0.03, 0.1, 0.3, 0.55, 0.85, 0.95, 0.6, 0.55, 0.8, 0.92, 0.88, 0.75, 0.5, 0.55, 0.8, 0.95, 0.92, 0.7];
+    const hsum = hw.reduce((a, b) => a + b, 0);
+    const pickHour = () => { let x = rr() * hsum; for (let h = 0; h < 24; h++) { x -= hw[h]; if (x <= 0) return h; } return 23; };
+    const dots = [112, 38, 14, 13, 9].map(n => {
+      let d = '';
+      for (let i = 0; i < n; i++) {
+        const t = pickHour() + rr();
+        const dur = 6 + Math.pow(rr(), 1.7) * 120;
+        const p = pt(140 + Math.min(dur, 126) / 126 * 40, t / 24 * Math.PI * 2);
+        const dr = 2.3 + rr() * 1.5;
+        d += 'M' + f1(p[0] - dr) + ' ' + f1(p[1]) + 'a' + f1(dr) + ' ' + f1(dr) + ' 0 1 0 ' + f1(2 * dr) + ' 0a' + f1(dr) + ' ' + f1(dr) + ' 0 1 0 ' + f1(-2 * dr) + ' 0';
+      }
+      return d;
+    });
+    let hours = '';
+    for (let k = 0; k < 48; k++) {
+      const h = Math.floor(k / 2);
+      const v = k % 2 === 0 ? hw[h] : (hw[h] + hw[(h + 1) % 24]) / 2;
+      const a = (k + 0.5) / 48 * Math.PI * 2;
+      const p1 = pt(100, a), p2 = pt(104 + v * 24, a);
+      hours += 'M' + f1(p1[0]) + ' ' + f1(p1[1]) + 'L' + f1(p2[0]) + ' ' + f1(p2[1]);
+    }
+    const petal = (deg, L) => {
+      const a = deg * Math.PI / 180, w = 0.42;
+      const tip = pt(L, a), c1 = pt(L * 0.62, a + w), c2 = pt(L * 0.62, a - w);
+      return 'M200 200Q' + f1(c1[0]) + ' ' + f1(c1[1]) + ' ' + f1(tip[0]) + ' ' + f1(tip[1]) + 'Q' + f1(c2[0]) + ' ' + f1(c2[1]) + ' 200 200Z';
+    };
+    let major = '', minor = '';
+    [[0, 72, 1], [180, 28, 0], [90, 64, 1], [270, 36, 0], [45, 81, 1], [225, 19, 0], [315, 68, 1], [135, 32, 0]].forEach(p => {
+      const s = petal(p[0], 16 + p[1] * 0.56);
+      if (p[2]) major += s; else minor += s;
+    });
+    const fp = { d0: dots[0], d1: dots[1], d2: dots[2], d3: dots[3], d4: dots[4], hours: hours, major: major, minor: minor };
+    const stats = [{ v: '186', k: '个会话' }, { v: '5', k: '个 Agent 同时在用' }, { v: '142', k: '小时人机协作' }];
+    const traits = [{ t: '高吞吐' }, { t: '多线程' }, { t: '验收严格' }, { t: '中英混用' }];
+    return { theme: light ? 'lt' : '', code: code, fp: fp, stats: stats, traits: traits };
+  }
+}
+</script>
+</body>
+</html>

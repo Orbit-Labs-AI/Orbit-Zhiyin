@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>D1 设计令牌</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb *{box-sizing:border-box}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.pnl{position:absolute;border-radius:16px;background:var(--pg-panel);border:1px solid var(--pg-line-soft);padding:18px 20px}
+.pnl h2{margin:0 0 4px;font:600 20px/1.2 var(--serif)}
+.sw{width:100%;height:30px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+</style>
+</helmet>
+<div class="tb" style="position: relative; width: 2040px; height: 1300px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 80px; top: 48px; width: 1700px;">
+    <div class="eb">D1 · 设计令牌 · 浅色 / 深色成对定义</div>
+    <h1 class="serif" style="margin: 8px 0 0; font-size: 36px; line-height: 1.15; font-weight: 600;">延续 Confluo 的纸感与克制：暖白底、衬线标题、等宽数据</h1>
+  </div>
+
+  <div class="pnl" style="left: 80px; top: 140px; width: 920px;">
+    <h2>表面与墨色</h2>
+    <div style="font-size: 12.5px; color: var(--pg-ink-3); margin-bottom: 12px;">取自 Confluo 产品令牌（07 §14.2）；侧边栏与发丝线为 Mac 版新增。</div>
+    <div style="display: grid; grid-template-columns: 110px 150px 150px minmax(0, 1fr); gap: 8px 14px; align-items: center; font-size: 12px;">
+      <span class="eb" style="font-size: 10px;">令牌</span><span class="eb" style="font-size: 10px;">浅色</span><span class="eb" style="font-size: 10px;">深色</span><span class="eb" style="font-size: 10px;">用途</span>
+      <sc-for list="{{ neutrals }}" as="n" hint-placeholder-count="10">
+        <span class="mono" style="font-weight: 600;">{{ n.k }}</span>
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 44px; height: 26px; border-radius: 6px; flex: none; background: {{ n.l }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1);"></span><span class="mono" style="font-size: 11px; color: var(--pg-ink-2);">{{ n.l }}</span></div>
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 44px; height: 26px; border-radius: 6px; flex: none; background: {{ n.d }}; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 0 0 1px rgba(0,0,0,.08);"></span><span class="mono" style="font-size: 11px; color: var(--pg-ink-2);">{{ n.d }}</span></div>
+        <span style="color: var(--pg-ink-2);">{{ n.u }}</span>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 1040px; top: 140px; width: 920px;">
+    <h2>Agent 色 · 顺序固定，颜色跟随实体</h2>
+    <div style="font-size: 12.5px; color: var(--pg-ink-3); margin-bottom: 12px;">与 Confluo 学科色同源（同一套可视化色板）。紫色保留给「AI 生成」，不分配给任何 Agent。</div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <sc-for list="{{ agents }}" as="a" hint-placeholder-count="5">
+        <div style="display: grid; grid-template-columns: 26px 150px repeat(4, minmax(0, 1fr)); gap: 10px; align-items: center; font-size: 12px;">
+          <span class="mono" style="font-weight: 700; color: var(--pg-ink-3);">{{ a.n }}</span>
+          <span style="font-weight: 600;">{{ a.name }}</span>
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 26px; height: 26px; border-radius: 6px; background: {{ a.l }};"></span><span class="mono" style="font-size: 11px;">{{ a.l }}</span></div>
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 26px; height: 26px; border-radius: 6px; background: {{ a.lt }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);"></span><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">{{ a.lt }}</span></div>
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 26px; height: 26px; border-radius: 6px; background: {{ a.d }};"></span><span class="mono" style="font-size: 11px;">{{ a.d }}</span></div>
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 26px; height: 26px; border-radius: 6px; background: {{ a.dt }};"></span><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">{{ a.dt }}</span></div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+      <div style="padding: 10px 12px; border-radius: 10px; background: #ffffff; border: 1px solid var(--pg-line-soft); font-size: 12px; line-height: 1.55; color: #45484f;"><b style="color: #17181b;">浅色校验 ✓</b><br>相邻 CVD ΔE 最差 9.2 · 正常视觉 ≥ 16.3 · 对白底 ≥ 3:1</div>
+      <div style="padding: 10px 12px; border-radius: 10px; background: #1a1b1e; font-size: 12px; line-height: 1.55; color: #bdc0c7;"><b style="color: #ededef;">深色校验 ✓</b><br>相邻 CVD ΔE 最差 8.4 · 正常视觉 ≥ 19.3 · 对 #1a1b1e ≥ 3:1</div>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 1040px; top: 612px; width: 920px;">
+    <h2>语义色与色阶</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px;">
+      <sc-for list="{{ semantic }}" as="s" hint-placeholder-count="8">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; gap: 4px;"><span style="flex: 1; height: 30px; border-radius: 7px; background: {{ s.a }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);"></span><span style="flex: 1; height: 30px; border-radius: 7px; background: {{ s.b }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);"></span></div>
+          <span style="font-size: 12px; font-weight: 600;">{{ s.t }}</span>
+          <span class="mono" style="font-size: 10.5px; color: var(--pg-ink-3);">{{ s.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top: 16px; font-size: 12px; font-weight: 600;">顺序色阶 · 墨色（热力图、矩阵，避免与 Agent 色冲突）</div>
+    <div style="display: flex; gap: 4px; margin-top: 8px;">
+      <sc-for list="{{ ramp }}" as="r" hint-placeholder-count="6">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;"><span style="height: 30px; border-radius: 6px; background: {{ r.c }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);"></span><span class="mono" style="font-size: 10.5px; color: var(--pg-ink-3);">{{ r.k }} {{ r.c }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 80px; top: 690px; width: 920px;">
+    <h2>字体</h2>
+    <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+      <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: baseline;"><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">Source Serif 4 / 宋体<br>展示 · 600</span><span class="serif" style="font-size: 40px; line-height: 1.1; font-weight: 600;">指挥家 <span style="font-style: italic; font-weight: 400; font-size: 26px; color: var(--pg-ink-3);">The Conductor</span></span></div>
+      <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: baseline;"><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">Serif · 页面标题 24</span><span class="serif" style="font-size: 24px; font-weight: 600;">会话与轨迹</span></div>
+      <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: baseline;"><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">SF Pro / 苹方<br>界面 13 / 1.45</span><span style="font-size: 13px; line-height: 1.45;">你手动批准了 212 次 git status、ls、gh pr view 这类只读命令。把它们加入白名单，每月可少被打断约 2 小时。</span></div>
+      <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: baseline;"><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">SF Pro · 指标 26 / 600<br>比例数字</span><span style="font-size: 26px; font-weight: 600; letter-spacing: -0.01em;">9,860 <span style="font-size: 13px; font-weight: 400; color: var(--pg-ink-3);">次工具调用</span></span></div>
+      <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: baseline;"><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">JetBrains Mono<br>眉标 10.5 · 0.08em</span><span class="eb" style="font-size: 10.5px;">协作人格 · 9 月 · n = 186</span></div>
+      <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: baseline;"><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">Mono · 路径与数据<br>等宽数字</span><span class="mono" style="font-size: 12px;">~/Projects/ActionMesh AI/Confluo · 14:02–14:44 · exit 1</span></div>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 1040px; top: 1000px; width: 920px;">
+    <h2>间距、圆角与层级</h2>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 12px;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 12px; font-weight: 600;">间距 · 4 的倍数</span>
+        <div style="display: flex; align-items: flex-end; gap: 10px;">
+          <sc-for list="{{ space }}" as="s" hint-placeholder-count="7">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: {{ s.v }}px; height: {{ s.v }}px; background: var(--pg-ink); border-radius: 2px;"></span><span class="mono" style="font-size: 10.5px; color: var(--pg-ink-3);">{{ s.v }}</span></div>
+          </sc-for>
+        </div>
+        <span style="font-size: 12px; font-weight: 600; margin-top: 8px;">圆角</span>
+        <div style="display: flex; gap: 10px; align-items: flex-end;">
+          <sc-for list="{{ radii }}" as="r" hint-placeholder-count="7">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: 44px; height: 44px; border: 1.5px solid var(--pg-ink); border-radius: {{ r.v }}px;"></span><span class="mono" style="font-size: 10px; color: var(--pg-ink-3); white-space: nowrap;">{{ r.k }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; font-weight: 600;">层级</span>
+        <sc-for list="{{ elev }}" as="e" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 12px;"><span style="width: 64px; height: 36px; border-radius: 9px; background: #ffffff; box-shadow: {{ e.s }};"></span><div><div style="font-size: 12px; font-weight: 600;">{{ e.k }}</div><div class="mono" style="font-size: 10.5px; color: var(--pg-ink-3);">{{ e.u }}</div></div></div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2040,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const neutrals = [
+      ['--bg', '#f5f4f0', '#0f1012', '窗口底色（纸感暖白）'], ['--sb', '#ecebe5', '#17181b', '侧边栏'],
+      ['--surface', '#ffffff', '#1a1b1e', '卡片与面板'], ['--sunken', '#f0efeb', '#141517', '内凹区、代码块'],
+      ['--line', '#e3e1dc', '#2d2f34', '描边'], ['--hair', '#eeece7', '#232529', '分隔线、网格线'],
+      ['--ink-1', '#17181b', '#ededef', '主文字、主按钮'], ['--ink-2', '#45484f', '#bdc0c7', '次要文字'],
+      ['--ink-3', '#62666f', '#9a9ea7', '说明文字（白底 5.7:1）'], ['--focus', '#2f6feb', '#7aa7ff', '焦点环']
+    ].map(n => ({ k: n[0], l: n[1], d: n[2], u: n[3] }));
+    const agents = [
+      ['1', 'Claude Code', '#e2602b', '#ffe9df', '#d95926', '#3f2116'],
+      ['2', 'Codex', '#2a78d6', '#e1f2ff', '#3987e5', '#182b42'],
+      ['3', 'Gemini CLI', '#009f6b', '#dcf8e9', '#199e70', '#123124'],
+      ['4', 'DeepSeek Harness', '#c27800', '#feedd7', '#c98500', '#39260a'],
+      ['5', 'Copilot CLI', '#d0658f', '#ffe7f0', '#d55181', '#3e1f29']
+    ].map(a => ({ n: a[0], name: a[1], l: a[2], lt: a[3], d: a[4], dt: a[5] }));
+    const semantic = [
+      ['AI 生成', '#5a3fd0', '#efecff', '前景 / 底 · 深色 #b4a8ff'],
+      ['成功', '#11843a', '#e4f3e8', '文字 / 底 · 标记 #0ca30c'],
+      ['注意', '#8a5a00', '#fbf0d8', '文字 / 底 · 标记 #fab219'],
+      ['错误', '#c62f2f', '#fbe8e6', '文字 / 底 · 标记 #d03b3b'],
+      ['主按钮', '#17181b', '#ffffff', '底 / 字 · 深色反转'],
+      ['提示框', '#17181b', '#f3f4f6', '底 / 字 · 深色反转'],
+      ['评审层', '#e7e9ec', '#fbfbfc', '画布底 / 标注面板'],
+      ['标注点', '#23272e', '#fbfbfc', '编号圆点 / 字']
+    ].map(s => ({ t: s[0], a: s[1], b: s[2], v: s[3] }));
+    const ramp = [['h0', '#f1f0ec'], ['h1', '#dfddd6'], ['h2', '#c0bdb5'], ['h3', '#918e87'], ['h4', '#5a5b5f'], ['h5', '#1f2023']].map(r => ({ k: r[0], c: r[1] }));
+    const space = [4, 8, 12, 16, 20, 24, 32].map(v => ({ v: v }));
+    const radii = [['5 徽章', 5], ['7 按钮', 7], ['8 分段', 8], ['12 卡片', 12], ['14 窗口', 14], ['22 小组件', 22]].map(r => ({ k: r[0], v: r[1] }));
+    const elev = [
+      ['卡片', '0 1px 2px rgba(20,22,26,.04) + 1px 描边', '0 1px 2px rgba(20,22,26,.06), 0 0 0 1px #e3e1dc'],
+      ['选中段 / 侧栏选中', '0 1px 2px .08 + 0.5px 环', '0 1px 2px rgba(20,22,26,.08), 0 0 0 .5px rgba(20,22,26,.07)'],
+      ['弹出层', '0 16px 40px .16 + 1px 环', '0 16px 40px rgba(20,24,30,.16), 0 0 0 1px rgba(20,24,30,.07)'],
+      ['窗口', '0 22px 48px .16 + 1px 环', '0 1px 2px rgba(0,0,0,.05), 0 22px 48px rgba(20,24,30,.16), 0 0 0 1px rgba(20,24,30,.08)']
+    ].map(e => ({ k: e[0], u: e[1], s: e[2] }));
+    return { neutrals: neutrals, agents: agents, semantic: semantic, ramp: ramp, space: space, radii: radii, elev: elev };
+  }
+}
+</script>
+</body>
+</html>

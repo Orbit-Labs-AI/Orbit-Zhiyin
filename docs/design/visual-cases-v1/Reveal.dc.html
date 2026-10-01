@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>P3 人格揭晓动效</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 40px rgba(20,24,30,.14),0 0 0 1px rgba(20,24,30,.07);
+--bg:#f5f4f0;--surface:#ffffff;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;--h2:#c0bdb5;--pri:#17181b;--pri-ink:#ffffff;
+--a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 18px 40px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);
+--bg:#0f1012;--surface:#1a1b1e;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;--h2:#43464c;--pri:#ededef;--pri-ink:#0f1012;
+--a1:#d95926;--a2:#3987e5;--a3:#199e70;--a4:#c98500;--a5:#d55181}
+.tb *{box-sizing:border-box}
+.tb button{font:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.fr{position:relative;width:340px;height:440px;border-radius:16px;background:var(--bg);box-shadow:var(--pg-shadow);overflow:hidden;color:var(--ink-1);flex:none}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 98px; top: 60px; width: 1300px;">
+    <div class="eb">P3 · 动效分镜 · 总时长 3.0 s</div>
+    <h1 class="serif" style="margin: 10px 0 0; font-size: 44px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em;">人格揭晓：首次分析完成后的 3 秒</h1>
+    <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.6; color: var(--pg-ink-2);">这是产品里唯一的「仪式感」时刻：只在第一次揭晓和类型发生变化时播放，其余时候静态呈现。动画里的每个点都是真实的会话，不是装饰粒子。</p>
+  </div>
+
+  <div style="position: absolute; left: 98px; top: 220px; display: flex; align-items: center; gap: 12px;">
+    <div class="fr">
+      <div class="mono" style="position: absolute; left: 18px; top: 16px; font-size: 10.5px; color: var(--ink-3);">01 / 汇集</div>
+      <svg width="340" height="440" viewBox="0 0 340 440" aria-hidden="true" style="position: absolute; inset: 0;">
+        <path d="{{ scatter.d0 }}" style="fill: var(--a1); opacity: 0.85;"></path>
+        <path d="{{ scatter.d1 }}" style="fill: var(--a2); opacity: 0.85;"></path>
+        <path d="{{ scatter.d2 }}" style="fill: var(--a3); opacity: 0.85;"></path>
+        <path d="{{ scatter.d3 }}" style="fill: var(--a4); opacity: 0.85;"></path>
+        <path d="{{ scatter.d4 }}" style="fill: var(--a5); opacity: 0.85;"></path>
+      </svg>
+      <div style="position: absolute; left: 24px; right: 24px; bottom: 28px; display: flex; flex-direction: column; gap: 8px; align-items: center;">
+        <span style="font-size: 14px; font-weight: 600;">正在读取 2,416 个会话</span>
+        <div style="width: 100%; height: 4px; border-radius: 2px; background: var(--line);"><div style="width: 100%; height: 4px; border-radius: 2px; background: var(--ink-1);"></div></div>
+        <span class="mono" style="font-size: 11px; color: var(--ink-3);">统计 ✓ 轨迹 ✓ 语义 ✓ 人格 …</span>
+      </div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    <div class="fr">
+      <div class="mono" style="position: absolute; left: 18px; top: 16px; font-size: 10.5px; color: var(--ink-3);">02 / 归位</div>
+      <svg width="300" height="300" viewBox="0 0 400 400" aria-hidden="true" style="position: absolute; left: 20px; top: 70px;">
+        <circle cx="200" cy="200" r="186" style="fill: var(--surface); stroke: var(--line); stroke-width: 1;"></circle>
+        <circle cx="200" cy="200" r="96" style="fill: none; stroke: var(--line); stroke-width: 1;"></circle>
+        <path d="{{ fp.hoursHalf }}" style="fill: none; stroke: var(--ink-3); stroke-width: 3.2; stroke-linecap: round;"></path>
+        <path d="{{ fp.d0 }}" style="fill: var(--a1);"></path>
+        <path d="{{ fp.d1 }}" style="fill: var(--a2);"></path>
+        <path d="{{ fp.d2 }}" style="fill: var(--a3);"></path>
+        <path d="{{ fp.d3 }}" style="fill: var(--a4);"></path>
+        <path d="{{ fp.d4 }}" style="fill: var(--a5);"></path>
+      </svg>
+      <div style="position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-size: 13px; color: var(--ink-2);">按开始时间排到 24 小时表盘上</div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    <div class="fr">
+      <div class="mono" style="position: absolute; left: 18px; top: 16px; font-size: 10.5px; color: var(--ink-3);">03 / 生长</div>
+      <svg width="300" height="300" viewBox="0 0 400 400" aria-hidden="true" style="position: absolute; left: 20px; top: 70px;">
+        <circle cx="200" cy="200" r="186" style="fill: var(--surface); stroke: var(--line); stroke-width: 1;"></circle>
+        <circle cx="200" cy="200" r="96" style="fill: none; stroke: var(--line); stroke-width: 1;"></circle>
+        <circle cx="200" cy="200" r="68" style="fill: var(--bg); stroke: var(--hair); stroke-width: 1;"></circle>
+        <path d="{{ fp.hours }}" style="fill: none; stroke: var(--ink-3); stroke-width: 3.2; stroke-linecap: round;"></path>
+        <path d="{{ fp.d0 }}" style="fill: var(--a1);"></path>
+        <path d="{{ fp.d1 }}" style="fill: var(--a2);"></path>
+        <path d="{{ fp.d2 }}" style="fill: var(--a3);"></path>
+        <path d="{{ fp.d3 }}" style="fill: var(--a4);"></path>
+        <path d="{{ fp.d4 }}" style="fill: var(--a5);"></path>
+        <path d="{{ fp.minor }}" style="fill: var(--h2);"></path>
+        <path d="{{ fp.growing }}" style="fill: var(--ink-1);"></path>
+      </svg>
+      <div style="position: absolute; left: 0; right: 0; bottom: 30px; display: flex; justify-content: center; gap: 14px;">
+        <span class="serif" style="font-size: 30px; font-weight: 600;">D</span><span class="serif" style="font-size: 30px; font-weight: 600;">I</span><span class="serif" style="font-size: 30px; font-weight: 600; opacity: 0.35;">M</span><span class="serif" style="font-size: 30px; font-weight: 600; opacity: 0.12;">V</span>
+      </div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    <div class="fr">
+      <div class="mono" style="position: absolute; left: 18px; top: 16px; font-size: 10.5px; color: var(--ink-3);">04 / 定型</div>
+      <svg width="170" height="170" viewBox="0 0 400 400" aria-hidden="true" style="position: absolute; left: 85px; top: 52px;">
+        <circle cx="200" cy="200" r="186" style="fill: var(--surface); stroke: var(--line); stroke-width: 1.5;"></circle>
+        <path d="{{ fp.hours }}" style="fill: none; stroke: var(--ink-3); stroke-width: 3.2; stroke-linecap: round;"></path>
+        <path d="{{ fp.d0 }}" style="fill: var(--a1);"></path>
+        <path d="{{ fp.d1 }}" style="fill: var(--a2);"></path>
+        <path d="{{ fp.d2 }}" style="fill: var(--a3);"></path>
+        <path d="{{ fp.d3 }}" style="fill: var(--a4);"></path>
+        <path d="{{ fp.d4 }}" style="fill: var(--a5);"></path>
+        <path d="{{ fp.minor }}" style="fill: var(--h2);"></path>
+        <path d="{{ fp.major }}" style="fill: var(--ink-1);"></path>
+      </svg>
+      <div style="position: absolute; left: 0; right: 0; top: 246px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+        <span class="serif" style="font-size: 76px; line-height: 0.95; font-weight: 600; letter-spacing: 0.03em;">DIMV</span>
+        <span class="serif" style="font-size: 26px; font-weight: 600; opacity: 0.55;">指挥家</span>
+      </div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    <div class="fr">
+      <div class="mono" style="position: absolute; left: 18px; top: 16px; font-size: 10.5px; color: var(--ink-3);">05 / 停留</div>
+      <svg width="120" height="120" viewBox="0 0 400 400" aria-hidden="true" style="position: absolute; left: 110px; top: 46px;">
+        <circle cx="200" cy="200" r="186" style="fill: var(--surface); stroke: var(--line); stroke-width: 2;"></circle>
+        <path d="{{ fp.d0 }}" style="fill: var(--a1);"></path>
+        <path d="{{ fp.d1 }}" style="fill: var(--a2);"></path>
+        <path d="{{ fp.d2 }}" style="fill: var(--a3);"></path>
+        <path d="{{ fp.d3 }}" style="fill: var(--a4);"></path>
+        <path d="{{ fp.d4 }}" style="fill: var(--a5);"></path>
+        <path d="{{ fp.minor }}" style="fill: var(--h2);"></path>
+        <path d="{{ fp.major }}" style="fill: var(--ink-1);"></path>
+      </svg>
+      <div style="position: absolute; left: 24px; right: 24px; top: 182px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;">
+        <span class="serif" style="font-size: 64px; line-height: 0.95; font-weight: 600; letter-spacing: 0.03em;">DIMV</span>
+        <span style="display: flex; align-items: baseline; gap: 8px;"><span class="serif" style="font-size: 26px; font-weight: 600;">指挥家</span><span class="serif" style="font-size: 15px; font-style: italic; color: var(--ink-3);">The Conductor</span></span>
+        <span style="font-size: 12.5px; line-height: 1.55; color: var(--ink-2); margin-top: 2px;">整段目标交给 Agent，多线并进，坚持亲自验收。</span>
+      </div>
+      <div style="position: absolute; left: 24px; right: 24px; bottom: 24px; display: flex; flex-direction: column; gap: 8px;">
+        <button type="button" style="height: 36px; border: 0; border-radius: 10px; background: var(--pri); color: var(--pri-ink); font-size: 13px; font-weight: 600; cursor: default;">查看完整画像</button>
+        <button type="button" style="height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink-1); font-size: 13px; cursor: default;">导出分享卡</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 98px; top: 684px; display: grid; grid-template-columns: repeat(5, 340px); column-gap: 48px;">
+    <sc-for list="{{ notes }}" as="n" hint-placeholder-count="5">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-size: 13px; font-weight: 700;">{{ n.t }}</span><span style="font-size: 14px; font-weight: 600;">{{ n.k }}</span></div>
+        <p style="margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--pg-ink-2);">{{ n.d }}</p>
+        <span class="mono" style="align-self: flex-start; font-size: 11px; padding: 3px 7px; border-radius: 6px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft); color: var(--pg-ink-2);">{{ n.e }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="position: absolute; left: 98px; right: 98px; top: 892px; padding: 14px 18px; border-radius: 12px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft); display: flex; gap: 28px; font-size: 12.5px; line-height: 1.55; color: var(--pg-ink-2);">
+    <span><b style="color: var(--pg-ink);">跳过</b>：任意点击或按键直接到第 05 帧。</span>
+    <span><b style="color: var(--pg-ink);">减弱动态效果</b>：不播放 01–04，直接显示 05，字母 200 ms 淡入。</span>
+    <span><b style="color: var(--pg-ink);">再次播放</b>：仅在类型变化时，或在 A2 点击指纹手动重播。</span>
+    <span><b style="color: var(--pg-ink);">声音</b>：无。</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    let sd = 7;
+    const rr = () => { sd |= 0; sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const C = 200;
+    const pt = (r, a) => [C + r * Math.sin(a), C - r * Math.cos(a)];
+    const f1 = (n) => n.toFixed(1);
+    const circ = (x, y, r) => 'M' + f1(x - r) + ' ' + f1(y) + 'a' + f1(r) + ' ' + f1(r) + ' 0 1 0 ' + f1(2 * r) + ' 0a' + f1(r) + ' ' + f1(r) + ' 0 1 0 ' + f1(-2 * r) + ' 0';
+    const hw = [0.42, 0.22, 0.08, 0.03, 0.01, 0.01, 0.03, 0.1, 0.3, 0.55, 0.85, 0.95, 0.6, 0.55, 0.8, 0.92, 0.88, 0.75, 0.5, 0.55, 0.8, 0.95, 0.92, 0.7];
+    const hsum = hw.reduce((a, b) => a + b, 0);
+    const pickHour = () => { let x = rr() * hsum; for (let h = 0; h < 24; h++) { x -= hw[h]; if (x <= 0) return h; } return 23; };
+    const counts = [112, 38, 14, 13, 9];
+    const dots = counts.map(n => {
+      let d = '';
+      for (let i = 0; i < n; i++) {
+        const t = pickHour() + rr();
+        const dur = 6 + Math.pow(rr(), 1.7) * 120;
+        const p = pt(140 + Math.min(dur, 126) / 126 * 40, t / 24 * Math.PI * 2);
+        d += circ(p[0], p[1], 2.3 + rr() * 1.5);
+      }
+      return d;
+    });
+    let sc = 99;
+    const r2 = () => { sc = (sc * 9301 + 49297) % 233280; return sc / 233280; };
+    const scat = counts.map(n => { let d = ''; for (let i = 0; i < n; i++) { d += circ(20 + r2() * 300, 44 + r2() * 270, 2 + r2() * 1.6); } return d; });
+    const hoursPath = (frac) => {
+      let s = '';
+      const lim = Math.round(48 * frac);
+      for (let k = 0; k < lim; k++) {
+        const h = Math.floor(k / 2);
+        const v = k % 2 === 0 ? hw[h] : (hw[h] + hw[(h + 1) % 24]) / 2;
+        const a = (k + 0.5) / 48 * Math.PI * 2;
+        const p1 = pt(100, a), p2 = pt(104 + v * 24, a);
+        s += 'M' + f1(p1[0]) + ' ' + f1(p1[1]) + 'L' + f1(p2[0]) + ' ' + f1(p2[1]);
+      }
+      return s || 'M0 0';
+    };
+    const petal = (deg, L) => {
+      const a = deg * Math.PI / 180, w = 0.42;
+      const tip = pt(L, a), c1 = pt(L * 0.62, a + w), c2 = pt(L * 0.62, a - w);
+      return 'M200 200Q' + f1(c1[0]) + ' ' + f1(c1[1]) + ' ' + f1(tip[0]) + ' ' + f1(tip[1]) + 'Q' + f1(c2[0]) + ' ' + f1(c2[1]) + ' 200 200Z';
+    };
+    const P = [[0, 72, 1, 1], [180, 28, 0, 1], [90, 64, 1, 1], [270, 36, 0, 1], [45, 81, 1, 0.45], [225, 19, 0, 1], [315, 68, 1, 0.15], [135, 32, 0, 1]];
+    let major = '', minor = '', growing = '';
+    P.forEach(p => {
+      const L = 16 + p[1] * 0.56;
+      if (p[2]) { major += petal(p[0], L); growing += petal(p[0], Math.max(4, L * p[3])); } else { minor += petal(p[0], L); }
+    });
+    const fp = { d0: dots[0], d1: dots[1], d2: dots[2], d3: dots[3], d4: dots[4], hours: hoursPath(1), hoursHalf: hoursPath(0.6), major: major, minor: minor, growing: growing };
+    const scatter = { d0: scat[0], d1: scat[1], d2: scat[2], d3: scat[3], d4: scat[4] };
+    const notes = [
+      { t: '0 ms', k: '汇集', d: '会话点从四周飘入，数量即真实会话数；超过 400 个点时按比例抽样，颜色即 Agent。', e: 'ease-out · 600 ms' },
+      { t: '600 ms', k: '归位', d: '每个点沿弧线移动到它的开始时间角度，离心距离对应时长；中环按小时依次升起。', e: 'spring 170 / 26 · 800 ms' },
+      { t: '1400 ms', k: '生长', d: '四片主导花瓣依次生长，同时对应字母淡入；对立面的短瓣一起出现，表示你并非极端。', e: 'ease-in-out · 依次间隔 120 ms' },
+      { t: '2200 ms', k: '定型', d: '指纹缩小上移，字母放大落位，名称从下方淡入；此刻读屏播报类型与名称。', e: 'cubic-bezier(.05,.7,.1,1) · 500 ms' },
+      { t: '3000 ms', k: '停留', d: '出现两个操作：查看完整画像、导出分享卡。焦点落在主按钮上。', e: '静止 · 等待操作' }
+    ];
+    return { theme: dark ? 'dk' : '', fp: fp, scatter: scatter, notes: notes };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>C2 建议到安装到效果追踪</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 40px rgba(20,24,30,.14),0 0 0 1px rgba(20,24,30,.07);
+--bg:#f5f4f0;--surface:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;--good:#11843a;--good-bg:#e4f3e8;--crit:#c62f2f;--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;--toast-act:#a9c7ff;--h2:#c0bdb5;
+--a1:#e2602b;--a2:#2a78d6;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 18px 40px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);
+--bg:#0f1012;--surface:#1a1b1e;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;--good:#4cc97a;--good-bg:#16301f;--crit:#ff7b72;--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;--toast-act:#1f58d6;--h2:#43464c;
+--a1:#d95926;--a2:#3987e5}
+.tb *{box-sizing:border-box}
+.tb button,.tb input{font:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.cd{position:relative;width:400px;border-radius:14px;background:var(--surface);color:var(--ink-1);box-shadow:var(--pg-shadow);overflow:hidden}
+.btn{height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:600}
+.btn.gh{background:transparent;border-color:transparent;color:var(--ink-2)}
+.lvl{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
+.lvl i{display:block;width:4px;border-radius:1px;background:var(--line)}
+.lvl i.f{background:var(--ink-1)}
+.stp{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.stp b{width:24px;height:24px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 12px/24px var(--mono);text-align:center}
+.stp span{font-size:15px;font-weight:600;color:var(--pg-ink)}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2400px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 104px; top: 52px; width: 1500px;">
+    <div class="eb">C2 · 建议 → 安装 → 效果追踪</div>
+    <h1 class="serif" style="margin: 8px 0 0; font-size: 40px; line-height: 1.1; font-weight: 600;">每次写入都可预览、可确认、可撤销、可验证</h1>
+    <p style="margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: var(--pg-ink-2);">以「只读命令自动放行」这条 Hook 建议为例。同一套流程适用于 Skill、规则片段、子代理与 MCP 配置。</p>
+  </div>
+
+  <div style="position: absolute; left: 104px; top: 186px; display: flex; gap: 48px; align-items: flex-start;">
+    <div>
+      <div class="stp"><b>1</b><span>建议卡</span></div>
+      <div class="cd" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2);"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-1);" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6.5L10.5 21 19 10.5h-6.5z"></path></svg><span class="mono" style="font-weight: 600;">Hook</span><span class="lvl" aria-hidden="true"><i class="f" style="height: 4px;"></i><i style="height: 7px;"></i><i style="height: 10px;"></i><i style="height: 12px;"></i></span>L1 一键<span style="flex: 1;"></span><b style="font-size: 12px; color: var(--ink-1);">−212 次审批 / 月</b></div>
+        <div style="font-size: 15px; font-weight: 600;">只读命令自动放行</div>
+        <div style="font-size: 12px; line-height: 1.5; color: var(--ink-2);">你手动批准了 212 次 git status、ls、gh pr view 这类只读命令。<span style="text-decoration: underline; text-underline-offset: 3px;">38 个会话</span></div>
+        <div style="display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px;"><button type="button" class="btn gh">不适用</button><button type="button" class="btn">预览</button><button type="button" class="btn p" style="box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--ink-1);">一键应用</button></div>
+      </div>
+      <p style="margin: 14px 0 0; font-size: 12.5px; line-height: 1.65; color: var(--pg-ink-2); width: 400px;">「一键」指一步进入预览，而不是一步写入。按钮文案与类型绑定：Hook / 规则写「一键应用」，Skill 写「预览并安装」，教程类写「查看教程」。</p>
+    </div>
+
+    <div>
+      <div class="stp"><b>2</b><span>预览变更</span></div>
+      <div class="cd" style="display: flex; flex-direction: column;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--hair); display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 14px; font-weight: 600;">将修改 1 个文件</span><span class="mono" style="font-size: 11px; color: var(--ink-3);">+6 行</span></div>
+        <div class="mono" style="padding: 8px 16px; font-size: 11px; color: var(--ink-2); background: var(--sunken); border-bottom: 1px solid var(--hair);">~/.claude/settings.json</div>
+        <div class="mono" style="padding: 6px 0; font-size: 11.5px; line-height: 19px;">
+          <sc-for list="{{ diff }}" as="d" hint-placeholder-count="12">
+            <div style="display: grid; grid-template-columns: 26px minmax(0, 1fr); background: {{ d.bg }};"><span style="text-align: center; color: {{ d.sc }}; font-weight: 700;">{{ d.s }}</span><span style="white-space: pre; color: {{ d.c }};">{{ d.t }}</span></div>
+          </sc-for>
+        </div>
+        <div style="padding: 10px 16px 14px; border-top: 1px solid var(--hair); display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 12px; font-weight: 600;">放行的命令前缀 · 6 组覆盖 212 次</span>
+          <span style="font-size: 12px; line-height: 1.5; color: var(--ink-3);">含写操作的前缀已排除：git push、gh pr merge、rm。每一组都可以取消勾选。</span>
+          <div style="display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px;"><button type="button" class="btn">取消</button><button type="button" class="btn p">下一步</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="stp"><b>3</b><span>确认写入</span></div>
+      <div class="cd" style="padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="width: 40px; height: 40px; border-radius: 11px; background: var(--sunken); display: grid; place-items: center;"><svg class="ico" style="width: 20px; height: 20px;" viewBox="0 0 24 24"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8zM14 3v5h5M9 14l2 2 4-4"></path></svg></span>
+        <div><div style="font-size: 16px; font-weight: 600;">写入 settings.json？</div><div style="font-size: 12.5px; line-height: 1.55; color: var(--ink-2); margin-top: 4px;">修改前会自动备份，随时可在「历史产物」里还原。</div></div>
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--sunken); font-size: 11.5px;">
+          <div style="display: flex; gap: 8px;"><span style="width: 36px; color: var(--ink-3);">写入</span><span class="mono" style="color: var(--ink-1);">~/.claude/settings.json</span></div>
+          <div style="display: flex; gap: 8px;"><span style="width: 36px; color: var(--ink-3);">备份</span><span class="mono" style="color: var(--ink-1); word-break: break-all;">…/Tandem/backups/settings.json.1001-1530</span></div>
+        </div>
+        <label style="display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.45;"><input type="checkbox" checked="{{ no }}" style="margin: 2px 0 0; accent-color: var(--ink-1);"><span>同时应用到 Codex<span style="display: block; color: var(--ink-3); font-size: 11.5px;">写入 ~/.codex/config.toml 的允许列表</span></span></label>
+        <div style="display: flex; gap: 6px; justify-content: flex-end;"><button type="button" class="btn">取消</button><button type="button" class="btn p">确认写入</button></div>
+      </div>
+      <p style="margin: 14px 0 0; font-size: 12.5px; line-height: 1.65; color: var(--pg-ink-2); width: 400px;">这是整个流程里唯一真正写盘的一步。默认只改当前 Agent，跨 Agent 同步必须手动勾选；危险项（含写操作的命令）永远不会出现在可选列表里。</p>
+    </div>
+
+    <div>
+      <div class="stp"><b>4</b><span>已安装 · 可撤销</span></div>
+      <div class="cd" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2);"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-1);" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6.5L10.5 21 19 10.5h-6.5z"></path></svg><span class="mono" style="font-weight: 600;">Hook</span><span style="flex: 1;"></span><span style="display: inline-flex; align-items: center; gap: 4px; color: var(--good); font-weight: 600;"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10"></path></svg>已安装</span></div>
+        <div style="font-size: 15px; font-weight: 600;">只读命令自动放行</div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3);"><span>效果追踪中</span><div style="flex: 1; display: flex; gap: 3px;"><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--ink-1);"></span><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--line);"></span><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--line);"></span><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--line);"></span><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--line);"></span><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--line);"></span><span style="flex: 1; height: 5px; border-radius: 2px; background: var(--line);"></span></div><span class="mono">1 / 7 天</span></div>
+      </div>
+      <div style="margin-top: 22px; width: 400px; display: flex; justify-content: center;">
+        <div style="min-height: 38px; display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 14px; border-radius: 12px; background: var(--tip); color: var(--tip-ink); font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2);">
+          <span>已应用「只读命令自动放行」</span>
+          <button type="button" style="height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--toast-act); font-weight: 600; font-size: 13px; cursor: default;">撤销 · 8</button>
+        </div>
+      </div>
+      <p style="margin: 14px 0 0; font-size: 12.5px; line-height: 1.65; color: var(--pg-ink-2); width: 400px;">Toast 停留 10 秒，倒计时数字可见；⌘Z 等价于点「撤销」。超时后撤销入口移到建议卡的「⋯」菜单与历史产物中，永久可用。</p>
+    </div>
+
+    <div>
+      <div class="stp"><b>5</b><span>7 天后 · 效果追踪</span></div>
+      <div class="cd" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;"><span style="font-size: 15px; font-weight: 600;">只读命令自动放行</span><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--good);"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10"></path></svg>有效</span></div>
+        <div style="display: flex; gap: 14px; font-size: 11px; color: var(--ink-3);"><span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 8px; border-radius: 2px; background: var(--h2);"></span>安装前 7 天</span><span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 8px; border-radius: 2px; background: var(--ink-1);"></span>安装后 7 天</span></div>
+        <sc-for list="{{ track }}" as="t" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px;"><span style="color: var(--ink-2);">{{ t.k }}</span><span class="mono"><span style="color: var(--ink-3);">{{ t.b }}</span> → <b>{{ t.a }}</b> <span style="color: var(--good); font-weight: 700;">{{ t.d }}</span></span></div>
+            <div style="height: 7px; width: {{ t.wb }}%; border-radius: 0 3px 3px 0; background: var(--h2);"></div>
+            <div style="height: 7px; width: {{ t.wa }}%; border-radius: 0 3px 3px 0; background: var(--ink-1);"></div>
+          </div>
+        </sc-for>
+        <div style="font-size: 11.5px; line-height: 1.5; color: var(--ink-3);">对比口径：安装前后各 7 天、同一批项目；会话数相差超过 30% 时标为「样本不足」。</div>
+        <div style="display: flex; gap: 6px; justify-content: flex-end;"><button type="button" class="btn">撤销…</button><button type="button" class="btn p">保留</button></div>
+      </div>
+      <p style="margin: 14px 0 0; font-size: 12.5px; line-height: 1.65; color: var(--pg-ink-2); width: 400px;">没有改善时会询问原因（不适用 / 有副作用 / 还没用到），并降低同类建议的权重；结论回流到匹配算法的「社区效果」项。</p>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2400,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const ctx = { bg: 'transparent', s: ' ', sc: 'var(--ink-3)', c: 'var(--ink-2)' };
+    const add = { bg: 'var(--good-bg)', s: '+', sc: 'var(--good)', c: 'var(--ink-1)' };
+    const L = [
+      ['{', ctx], ['  "permissions": {', ctx], ['    "allow": [', ctx],
+      ['      "Bash(git status:*)",', add], ['      "Bash(git diff:*)",', add], ['      "Bash(git log:*)",', add],
+      ['      "Bash(ls:*)",', add], ['      "Bash(gh pr view:*)",', add], ['      "Bash(gh pr checks:*)",', add],
+      ['      "Read(~/Projects/**)"', ctx], ['    ]', ctx], ['  }', ctx], ['}', ctx]
+    ];
+    const diff = L.map(l => ({ t: l[0], bg: l[1].bg, s: l[1].s, sc: l[1].sc, c: l[1].c }));
+    const track = [
+      { k: '每周审批次数', b: '53', a: '9', d: '−83%', wb: 100, wa: 17 },
+      { k: '平均等待时间', b: '38 s', a: '31 s', d: '−18%', wb: 100, wa: 82 },
+      { k: '相关会话摩擦率', b: '9.1%', a: '7.4%', d: '−1.7 pt', wb: 100, wa: 81 }
+    ];
+    return { theme: dark ? 'dk' : '', no: false, diff: diff, track: track };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>P1 16 型协作人格图谱</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;
+--surface:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--h2:#c0bdb5;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;
+--surface:#1a1b1e;--sunken:#141517;--line:#2d2f34;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--h2:#43464c}
+.tb *{box-sizing:border-box}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1240px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div style="position: absolute; left: 80px; top: 64px; width: 1080px;">
+    <div class="eb">Persona system · 人格系统 v1</div>
+    <h1 class="serif" style="margin: 10px 0 0; font-size: 52px; line-height: 1.08; font-weight: 600; letter-spacing: -0.015em;">16 种人机协作人格</h1>
+    <p style="margin: 14px 0 0; max-width: 900px; font-size: 15px; line-height: 1.65; color: var(--pg-ink-2); text-wrap: pretty;">四个维度，每个维度取主导的一极，组合成 16 型。类型描述的是你和 Agent 怎么协作，不评判好坏；同一个人在不同项目、不同 Agent 面前，可能是不同的类型。</p>
+  </div>
+  <div style="position: absolute; left: 1240px; top: 64px; width: 720px; padding: 18px 20px; border-radius: 14px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft); display: flex; flex-direction: column; gap: 10px;">
+    <div class="eb">怎么算出来的</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+      <sc-for list="{{ method }}" as="m" hint-placeholder-count="4">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <span class="mono" style="width: 22px; height: 22px; border-radius: 50%; background: var(--pg-mark); color: var(--pg-mark-ink); font-size: 11px; font-weight: 700; line-height: 22px; text-align: center;">{{ m.n }}</span>
+          <span style="font-size: 13px; font-weight: 600;">{{ m.t }}</span>
+          <span style="font-size: 12px; line-height: 1.5; color: var(--pg-ink-2);">{{ m.d }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 80px; top: 258px; width: 1880px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;">
+    <sc-for list="{{ axes }}" as="a" hint-placeholder-count="4">
+      <div style="height: 196px; padding: 16px 18px; border-radius: 14px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft); display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="eb">{{ a.dim }}</span><span class="mono" style="font-size: 11px; color: var(--pg-ink-3);">{{ a.k }}</span></div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="serif" style="font-size: 34px; font-weight: 600; line-height: 1;">{{ a.L }}</span><span style="font-size: 15px; font-weight: 600;">{{ a.Ln }}</span>
+          <span style="flex: 1; height: 1px; background: var(--pg-line);"></span>
+          <span style="font-size: 15px; font-weight: 600;">{{ a.Rn }}</span><span class="serif" style="font-size: 34px; font-weight: 600; line-height: 1;">{{ a.R }}</span>
+        </div>
+        <div class="serif" style="font-size: 15px; font-style: italic; color: var(--pg-ink-2);">{{ a.q }}</div>
+        <div style="font-size: 12px; line-height: 1.55; color: var(--pg-ink-2); margin-top: auto;"><b style="color: var(--pg-ink);">信号</b> {{ a.sig }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="position: absolute; left: 200px; top: 480px; width: 1760px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+    <sc-for list="{{ cols }}" as="c" hint-placeholder-count="4">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-size: 13px; font-weight: 700;">{{ c.code }}</span><span style="font-size: 12px; color: var(--pg-ink-3);">{{ c.t }}</span></div>
+    </sc-for>
+  </div>
+  <div style="position: absolute; left: 80px; top: 512px; width: 104px; display: grid; grid-template-rows: repeat(4, 158px); gap: 16px;">
+    <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; justify-content: center; gap: 2px;"><span class="mono" style="font-size: 13px; font-weight: 700;">{{ r.code }}</span><span style="font-size: 12px; color: var(--pg-ink-3);">{{ r.t }}</span></div>
+    </sc-for>
+  </div>
+
+  <div style="position: absolute; left: 200px; top: 512px; width: 1760px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 158px; gap: 16px;">
+    <sc-for list="{{ types }}" as="t" hint-placeholder-count="16">
+      <div style="position: relative; border-radius: 14px; background: {{ t.bg }}; color: {{ t.fg }}; border: 1px solid {{ t.bd }}; padding: 16px 18px; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 16px; align-items: center; box-shadow: {{ t.sh }};">
+        <svg width="76" height="76" viewBox="0 0 80 80" aria-hidden="true">
+          <circle cx="40" cy="40" r="37" style="fill: none; stroke: {{ t.ring }}; stroke-width: 1;"></circle>
+          <path d="{{ t.minor }}" style="fill: {{ t.mc }};"></path>
+          <path d="{{ t.major }}" style="fill: {{ t.fg }};"></path>
+        </svg>
+        <div style="min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;"><span class="mono" style="font-size: 17px; font-weight: 700; letter-spacing: 0.08em;">{{ t.code }}</span><span class="serif" style="font-size: 21px; font-weight: 600;">{{ t.zh }}</span></div>
+          <span class="serif" style="font-size: 13.5px; font-style: italic; opacity: 0.72;">{{ t.en }}</span>
+          <span style="font-size: 12.5px; line-height: 1.5; opacity: 0.85; text-wrap: pretty;">{{ t.d }}</span>
+        </div>
+        <sc-if value="{{ t.me }}" hint-placeholder-val="{{ false }}">
+          <span style="position: absolute; top: -11px; right: 14px; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--pg-bg); color: var(--pg-ink); border: 1.5px solid var(--pg-ink); font-size: 11.5px; font-weight: 700; line-height: 19px;">你在这里 · 9 月</span>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2040,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const method = [
+      { n: 1, t: '提取信号', d: '每个维度 3–4 个可观测信号，全部来自日志结构，不读你的代码。' },
+      { n: 2, t: '分位数标准化', d: '与你的历史和匿名人群基线比较，抵消不同 Agent 的口径差异。' },
+      { n: 3, t: '加权得分', d: '信号加权求和映射到 0–100；落在 45–55 记为「未定型」。' },
+      { n: 4, t: '置信度', d: '由样本量与信号一致性决定；少于 30 个会话不出类型。' }
+    ];
+    const axes = [
+      { dim: '自主度', k: 'Autonomy', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率 · 计划模式使用' },
+      { dim: '结构度', k: 'Structure', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向次数' },
+      { dim: '并发度', k: 'Concurrency', L: 'M', Ln: '多线', R: 'F', Rn: '专注', q: '你同时推进几件事？', sig: '并行会话重叠时长 · 日均切换项目数 · 子代理派发与并行度' },
+      { dim: '求证度', k: 'Assurance', L: 'V', Ln: '求证', R: 'T', Rn: '信任', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 查看 diff 次数 · 回滚与重做率' }
+    ];
+    const cols = [['MV', '多线 · 求证'], ['MT', '多线 · 信任'], ['FV', '专注 · 求证'], ['FT', '专注 · 信任']].map(c => ({ code: c[0], t: c[1] }));
+    const rows = [['DP', '委托 · 规划'], ['DI', '委托 · 即兴'], ['SP', '掌舵 · 规划'], ['SI', '掌舵 · 即兴']].map(r => ({ code: r[0], t: r[1] }));
+    const T = {
+      DPMV: ['总设计师', 'The Architect', '先写清规格，再分派给多个 Agent，并逐一验收。'],
+      DPMT: ['调度官', 'The Dispatcher', '规格清楚、并行分派，信任结果、追求吞吐。'],
+      DPFV: ['监制', 'The Producer', '一次只盯一件事：交代清楚、放手执行、严格验收。'],
+      DPFT: ['委托人', 'The Commissioner', '写好需求就交出去，看结果不看过程。'],
+      DIMV: ['指挥家', 'The Conductor', '整段目标交给 Agent，多线并进，坚持亲自验收。'],
+      DIMT: ['冲浪者', 'The Surfer', '同时开很多条线，顺着结果走，很少回头检查。'],
+      DIFV: ['探路者', 'The Pathfinder', '让 Agent 带路探索，一条线走深，再自己核实。'],
+      DIFT: ['漫游者', 'The Wanderer', '随兴而起，放手让 Agent 发挥，享受意外收获。'],
+      SPMV: ['塔台', 'The Controller', '多线并行，但每一步都由你下指令、逐个核对。'],
+      SPMT: ['杂技师', 'The Juggler', '计划周全、亲自操盘多件事，节奏快、少回看。'],
+      SPFV: ['工匠', 'The Artisan', '先规划、亲自掌舵、单线深耕、反复打磨。'],
+      SPFT: ['执笔人', 'The Scribe', '你把步骤说清楚，Agent 逐条照做。'],
+      SIMV: ['实验家', 'The Experimenter', '同时试几种做法，边做边改，用结果说话。'],
+      SIMT: ['即兴乐手', 'The Jammer', '和多个 Agent 快速来回，灵感驱动，少收尾。'],
+      SIFV: ['雕刻师', 'The Sculptor', '小步试、即时看、反复改，一点点削出想要的形状。'],
+      SIFT: ['搭档', 'The Partner', '像结对编程一样边聊边推进，彼此信任。']
+    };
+    const C = 40;
+    const pt = (r, a) => [C + r * Math.sin(a), C - r * Math.cos(a)];
+    const f1 = (n) => n.toFixed(1);
+    const petal = (deg, L) => {
+      const a = deg * Math.PI / 180, w = 0.42;
+      const tip = pt(L, a), c1 = pt(L * 0.62, a + w), c2 = pt(L * 0.62, a - w);
+      return 'M40 40Q' + f1(c1[0]) + ' ' + f1(c1[1]) + ' ' + f1(tip[0]) + ' ' + f1(tip[1]) + 'Q' + f1(c2[0]) + ' ' + f1(c2[1]) + ' 40 40Z';
+    };
+    const DIR = { D: 0, S: 180, I: 90, P: 270, M: 45, F: 225, V: 315, T: 135 };
+    const OPP = { D: 'S', S: 'D', P: 'I', I: 'P', M: 'F', F: 'M', V: 'T', T: 'V' };
+    const glyph = (code) => {
+      let major = '', minor = '';
+      code.split('').forEach(ch => { major += petal(DIR[ch], 33); minor += petal(DIR[OPP[ch]], 15); });
+      return { major: major, minor: minor };
+    };
+    const order = [];
+    ['DP', 'DI', 'SP', 'SI'].forEach(r => ['MV', 'MT', 'FV', 'FT'].forEach(c => order.push(r[0] + r[1] + c[0] + c[1])));
+    const types = order.map(code => {
+      const me = code === 'DIMV';
+      const g = glyph(code);
+      return {
+        code: code, zh: T[code][0], en: T[code][1], d: T[code][2], major: g.major, minor: g.minor, me: me,
+        bg: me ? 'var(--pg-ink)' : 'var(--pg-panel)', fg: me ? 'var(--pg-bg)' : 'var(--pg-ink)',
+        bd: me ? 'var(--pg-ink)' : 'var(--pg-line-soft)', mc: me ? 'rgba(127,127,127,.55)' : 'var(--h2)',
+        ring: me ? 'rgba(127,127,127,.5)' : 'var(--pg-line-soft)', sh: me ? '0 18px 40px rgba(20,24,30,.22)' : 'none'
+      };
+    });
+    return { theme: dark ? 'dk' : '', method: method, axes: axes, cols: cols, rows: rows, types: types };
+  }
+}
+</script>
+</body>
+</html>

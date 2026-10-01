@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>D2 组件</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--warn-m:#fab219;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;--toast-act:#a9c7ff;
+--a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;--toast-act:#1f58d6;
+--a1:#d95926;--a2:#3987e5;--a3:#199e70;--a4:#c98500;--a5:#d55181;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input{font:inherit;color:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.pnl{position:absolute;border-radius:16px;background:var(--bg);border:1px solid var(--pg-line-soft);padding:18px 20px;color:var(--ink-1);display:flex;flex-direction:column;gap:12px}
+.pnl h2{margin:0;font:600 18px/1.2 var(--serif)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.lab{font-size:11px;color:var(--ink-3);width:100%}
+.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.dg{color:var(--crit);border-color:var(--crit-bg)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.btn[disabled]{opacity:.45}
+.btn.fc{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--focus)}
+.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;cursor:default;padding:0}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.chip.on{background:var(--ink-1);border-color:var(--ink-1);color:var(--surface)}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lvl{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
+.lvl i{display:block;width:4px;border-radius:1px;background:var(--line)}
+.lvl i.f{background:var(--ink-1)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card)}
+.mk{display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18)}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--ai);animation:spin .9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1300px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 80px; top: 48px; width: 1700px;">
+    <div class="eb" style="color: var(--pg-ink-3);">D2 · 组件 · 均为 Mac 尺度（指针目标 ≥ 24 pt）</div>
+    <h1 class="serif" style="margin: 8px 0 0; font-size: 36px; line-height: 1.15; font-weight: 600; color: var(--pg-ink);">组件：单色为主，颜色只承载身份与状态</h1>
+  </div>
+
+  <div class="pnl" style="left: 80px; top: 140px; width: 600px; height: 360px;">
+    <h2>按钮</h2>
+    <div class="row"><span class="lab">层级：主操作每屏最多一个；AI 按钮表示交给本地 Agent</span>
+      <button type="button" class="btn p">预览并安装</button><button type="button" class="btn">复制内容</button>
+      <button type="button" class="btn ai"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>交给 Agent 定制</button><button type="button" class="btn gh">不适用</button>
+    </div>
+    <div class="row"><span class="lab">尺寸与状态：28 / 24 pt；焦点环 2 pt；禁用 45% 不透明</span>
+      <button type="button" class="btn sm p">一键应用</button><button type="button" class="btn sm">预览</button><button type="button" class="btn fc">键盘焦点</button><button type="button" class="btn" disabled="{{ yes }}">安装（自检中）</button>
+    </div>
+    <div class="row"><span class="lab">破坏性操作：描边弱化，文字带省略号表示还会二次确认</span>
+      <button type="button" class="btn dg">清除全部数据…</button><button type="button" class="btn">撤销…</button>
+      <button type="button" class="ib" aria-label="更多操作" style="background: var(--surface); border: 1px solid var(--line);"><svg class="ico" style="stroke-width: 2.6;" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 700px; top: 140px; width: 620px; height: 360px;">
+    <h2>选择与输入</h2>
+    <div class="row"><span class="lab">分段控件：选中段为抬起的白色，未选为文字</span><div class="seg"><button type="button">7 天</button><button type="button" class="on">30 天</button><button type="button">90 天</button><button type="button">全部</button></div></div>
+    <div class="row"><span class="lab">筛选胶囊：默认 / 已选 / 添加</span><button type="button" class="chip">Agent · 全部 5</button><button type="button" class="chip on">Hooks · 3</button><button type="button" class="chip dash">+ 添加筛选</button></div>
+    <div class="row"><span class="lab">开关、复选、单选、搜索</span>
+      <button type="button" class="sw on" aria-pressed="true" aria-label="开"></button><button type="button" class="sw" aria-pressed="false" aria-label="关"></button>
+      <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;"><input type="checkbox" checked="{{ yes }}" style="accent-color: var(--ink-1);">相关会话摘要</label>
+      <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;"><input type="radio" name="r1" checked="{{ yes }}" style="accent-color: var(--ink-1);">全局</label>
+      <label style="height: 30px; width: 200px; display: inline-flex; align-items: center; gap: 7px; padding: 0 9px; border-radius: 8px; background: var(--field); color: var(--ink-3);"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM20 20l-4.6-4.6"></path></svg><input type="search" aria-label="搜索" placeholder="搜索会话…" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px; padding: 0;"></label>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 1340px; top: 140px; width: 620px; height: 360px;">
+    <h2>标签、徽章与状态</h2>
+    <div class="row"><span class="lab">标签 / 等宽徽章 / AI 生成标记</span><span class="tag">高吞吐</span><span class="tag">多线程</span><span class="bdg">置信度 高 · n=186</span><span class="bdg">L2</span><span class="aib"><svg class="ico" style="width: 11px; height: 11px;" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>AI 解读</span></div>
+    <div class="row"><span class="lab">难度刻度：四格，不依赖颜色</span>
+      <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4">
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2);"><span class="lvl"><i class="{{ l.b1 }}" style="height: 4px;"></i><i class="{{ l.b2 }}" style="height: 7px;"></i><i class="{{ l.b3 }}" style="height: 10px;"></i><i class="{{ l.b4 }}" style="height: 12px;"></i></span>{{ l.t }}</span>
+      </sc-for>
+    </div>
+    <div class="row"><span class="lab">状态：图标 + 文字 + 颜色三者同时出现</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--good);"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10"></path></svg>完成</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--warn);"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 3v18"></path></svg>部分完成</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--crit);"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M12 4L2.5 20h19zM12 10v4.5M12 17.5h.01"></path></svg>2 次纠偏</span>
+    </div>
+    <div class="row"><span class="lab">Agent 图例：圆点 + 名称，文字永远用墨色</span>
+      <sc-for list="{{ agents }}" as="a" hint-placeholder-count="5">
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ a.c }};"></span>{{ a.t }}</span>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 80px; top: 520px; width: 600px; height: 360px;">
+    <h2>侧边栏条目</h2>
+    <div style="display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 18px;">
+      <div style="border-radius: 12px; background: var(--sb); border: 1px solid var(--line); padding: 8px; display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 2px 10px 4px;">洞察</div>
+        <sc-for list="{{ side }}" as="s" hint-placeholder-count="4">
+          <div style="height: 30px; display: flex; align-items: center; gap: 9px; padding: 0 8px 0 10px; border-radius: 7px; background: {{ s.bg }}; box-shadow: {{ s.sh }}; font-size: 13px; font-weight: {{ s.fw }}; color: {{ s.fg }};">
+            <svg class="ico" style="color: {{ s.ic }};" viewBox="0 0 24 24"><path d="{{ s.icon }}"></path></svg><span style="flex: 1;">{{ s.t }}</span><span class="mono" style="font-size: 11px; color: var(--ink-3);">{{ s.n }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; line-height: 1.55; color: var(--ink-2);">
+        <span><b style="color: var(--ink-1);">默认</b> 次要墨色，图标更浅一级</span>
+        <span><b style="color: var(--ink-1);">悬停</b> 3% 墨色底，不改字重</span>
+        <span><b style="color: var(--ink-1);">选中</b> 白色抬起 + 字重 600，图标同步加深</span>
+        <span><b style="color: var(--ink-1);">计数</b> 等宽、右对齐；「新」用实心徽章</span>
+        <span><b style="color: var(--ink-1);">折叠</b> ⌃⌘S 收起为 52 pt 图标栏，悬停显示名称</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pnl" style="left: 700px; top: 520px; width: 620px; height: 360px;">
+    <h2>指标卡与建议卡</h2>
+    <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: start;">
+      <div class="card" style="padding: 11px 14px 10px; height: 96px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 12px; color: var(--ink-2);">摩擦率</span><svg width="64" height="22" viewBox="0 0 64 22" aria-hidden="true"><path d="M2 4 L13 7 L24 5 L35 10 L46 12 L57 15 L62 14" style="fill: none; stroke: var(--ink-4); stroke-width: 1.5;"></path><circle cx="62" cy="14" r="2.5" style="fill: var(--ink-1);"></circle></svg></div>
+        <div style="display: flex; align-items: baseline; gap: 3px;"><span style="font-size: 26px; line-height: 30px; font-weight: 600;">8.6</span><span style="font-size: 13px; color: var(--ink-3);">%</span></div>
+        <div style="font-size: 11.5px; color: var(--ink-3);"><span style="color: var(--good); font-weight: 600;">↓ 2.1 pt</span> 较上一周期</div>
+      </div>
+      <div class="card" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2);"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-1);" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6.5L10.5 21 19 10.5h-6.5z"></path></svg><span class="mono" style="font-weight: 600;">Hook</span><span class="lvl"><i class="f" style="height: 4px;"></i><i style="height: 7px;"></i><i style="height: 10px;"></i><i style="height: 12px;"></i></span>L1 一键<span style="flex: 1;"></span><b style="font-size: 12px; color: var(--ink-1);">−212 次 / 月</b></div>
+        <div style="font-size: 14px; font-weight: 600;">只读命令自动放行</div>
+        <div style="font-size: 12px; color: var(--ink-2);">依据：38 个会话里手动批准了 212 次</div>
+        <div style="display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px;"><button type="button" class="btn sm gh">不适用</button><button type="button" class="btn sm">预览</button><button type="button" class="btn sm p">一键应用</button></div>
+      </div>
+    </div>
+    <div style="font-size: 12.5px; line-height: 1.6; color: var(--ink-2);"><b style="color: var(--ink-1);">指标卡</b>：标签 → 数值 → 变化，三层信息自上而下；增减只在有好坏方向时着色。<br><b style="color: var(--ink-1);">建议卡</b>：类型、难度、收益在同一行；标题说做什么，第二行说依据；主按钮在右下。</div>
+  </div>
+
+  <div class="pnl" style="left: 1340px; top: 520px; width: 620px; height: 360px;">
+    <h2>会话行</h2>
+    <div class="card" style="padding: 6px; display: flex; flex-direction: column; gap: 2px;">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+        <div style="border-radius: 8px; padding: 8px 10px 9px; background: {{ r.bg }}; box-shadow: {{ r.ring }}; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ r.c }};"></span><span style="flex: 1; font-size: 13px; font-weight: 600;">{{ r.t }}</span><span style="font-size: 11.5px; color: {{ r.oc }}; font-weight: 600;">{{ r.o }}</span></div>
+          <div class="mono" style="font-size: 11px; color: var(--ink-3); padding-left: 16px;">{{ r.m }}</div>
+          <svg width="520" height="8" viewBox="0 0 520 8" aria-hidden="true" style="margin-left: 16px;"><path d="{{ r.bar }}" style="fill: none; stroke: var(--ink-4); stroke-width: 1.4;"></path><path d="{{ r.err }}" style="fill: none; stroke: var(--crit-m); stroke-width: 2;"></path></svg>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size: 12.5px; line-height: 1.6; color: var(--ink-2);">条码是工具调用在会话时间上的分布，红线为失败；选中态用 1.5 pt 墨色内描边，而不是彩色底。</div>
+  </div>
+
+  <div class="pnl" style="left: 80px; top: 900px; width: 600px; height: 340px;">
+    <h2>提示、Toast 与菜单</h2>
+    <div style="display: flex; gap: 18px; align-items: flex-start;">
+      <div style="width: 186px; background: var(--tip); color: var(--tip-ink); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.2);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><b>9 月 18 日 周五</b><span class="mono" style="opacity: .75; font-size: 11px;">11</span></div>
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 2px; background: var(--a1);"></span><b class="mono">6</b><span style="opacity: .8;">Claude Code</span></div>
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 2px; background: var(--a2);"></span><b class="mono">2</b><span style="opacity: .8;">Codex</span></div>
+      </div>
+      <div style="width: 210px; border-radius: 12px; background: var(--surface); box-shadow: var(--sh-pop); padding: 6px; display: flex; flex-direction: column;">
+        <span style="font-size: 12px; color: var(--ink-3); padding: 4px 10px 2px;">会话</span>
+        <span style="padding: 8px 10px; border-radius: 7px; font-size: 13px; background: var(--sunken);">在 Claude Code 中继续</span>
+        <span style="padding: 8px 10px; border-radius: 7px; font-size: 13px;">复制会话 ID</span>
+        <span style="padding: 8px 10px; border-radius: 7px; font-size: 13px;">标记为不计入分析</span>
+      </div>
+    </div>
+    <div style="align-self: flex-start; min-height: 38px; display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 14px; border-radius: 12px; background: var(--tip); color: var(--tip-ink); font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.2);"><span>已应用「只读命令自动放行」</span><button type="button" style="height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--toast-act); font-weight: 600; font-size: 13px; cursor: default;">撤销 · 8</button></div>
+  </div>
+
+  <div class="pnl" style="left: 700px; top: 900px; width: 620px; height: 340px;">
+    <h2>进度与步骤</h2>
+    <div style="display: flex; flex-direction: column;">
+      <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+        <div style="display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hair); align-items: center;">
+          <span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: {{ s.bg }}; color: {{ s.fg }}; box-shadow: {{ s.ring }}; font: 700 10.5px/1 var(--mono);">{{ s.mark }}</span>
+          <div><div style="font-size: 13px; font-weight: 600; color: {{ s.tc }};">{{ s.t }}</div><div style="font-size: 11.5px; color: var(--ink-3);">{{ s.d }}</div></div>
+          <span class="mono" style="font-size: 11px; color: var(--ink-3);">{{ s.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;"><span class="spin" aria-hidden="true"></span><div style="flex: 1; height: 6px; border-radius: 3px; background: var(--line);"><div style="width: 62%; height: 6px; border-radius: 3px; background: var(--ink-1);"></div></div><span class="mono" style="font-size: 11.5px;">62%</span></div>
+  </div>
+
+  <div class="pnl" style="left: 1340px; top: 900px; width: 620px; height: 340px;">
+    <h2>AI 内容与评审标注</h2>
+    <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; line-height: 1.6; color: var(--ink-2);">
+      <div style="display: flex; align-items: center; gap: 8px;"><span class="aib"><svg class="ico" style="width: 11px; height: 11px;" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>AI 解读</span><span style="font-size: 11.5px; color: var(--ink-3);">本地 Claude Code 生成 · 9/30 23:10</span></div>
+      <span>凡是由模型生成的文字（解读、描述、建议理由、产物）都带紫色标记，并写明生成它的 Agent 与时间；数字与图表由统计直接得出，不带此标记。</span>
+      <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 12px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft);">
+        <span class="mk">3</span>
+        <span><b style="color: var(--ink-1);">评审层标注</b>：画面上的编号圆点只属于这份设计稿，对应右侧说明；主窗口画板（A1–A10）可在 Tweaks 中关闭。</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2040,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const bars = (n) => ({ b1: n >= 1 ? 'f' : '', b2: n >= 2 ? 'f' : '', b3: n >= 3 ? 'f' : '', b4: n >= 4 ? 'f' : '' });
+    const levels = [['L1 一键', 1], ['L2 复制粘贴', 2], ['L3 需配置', 3], ['L4 架构调整', 4]].map(l => { const b = bars(l[1]); return { t: l[0], b1: b.b1, b2: b.b2, b3: b.b3, b4: b.b4 }; });
+    const agents = [['Claude Code', 'var(--a1)'], ['Codex', 'var(--a2)'], ['Gemini CLI', 'var(--a3)'], ['DeepSeek Harness', 'var(--a4)'], ['Copilot CLI', 'var(--a5)']].map(a => ({ t: a[0], c: a[1] }));
+    const icons = {
+      overview: 'M4 4h6v8H4zM14 4h6v5h-6zM14 13h6v7h-6zM4 16h6v4H4z',
+      persona: 'M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 15c1.5 1.3 4.5 1.3 6 0M9 10h.01M15 10h.01',
+      sessions: 'M3 12h4l3-7 4 14 3-7h4',
+      tools: 'M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.4 2.4-2.6-.4-.4-2.6z'
+    };
+    const side = [
+      ['默认', icons.overview, '', 'transparent', 'none', '450', 'var(--ink-2)', 'var(--ink-3)'],
+      ['悬停', icons.persona, '', 'rgba(23,24,27,.035)', 'none', '450', 'var(--ink-2)', 'var(--ink-3)'],
+      ['选中', icons.sessions, '186', 'var(--surface)', 'var(--sh-raise)', '600', 'var(--ink-1)', 'var(--ink-1)'],
+      ['带计数', icons.tools, '11', 'transparent', 'none', '450', 'var(--ink-2)', 'var(--ink-3)']
+    ].map(s => ({ t: s[0], icon: s[1], n: s[2], bg: s[3], sh: s[4], fw: s[5], fg: s[6], ic: s[7] }));
+    let sd = 9;
+    const rr = () => { sd |= 0; sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const code = (n, e, f) => { let d = '', x = ''; for (let i = 0; i < n; i++) d += 'M' + (rr() * 520 * f).toFixed(1) + ' 1V7'; for (let i = 0; i < e; i++) x += 'M' + (rr() * 520 * f).toFixed(1) + ' 0V8'; return { d: d, x: x || 'M0 0' }; };
+    const R = [
+      ['默认 · 部署 Confluo 演示', 'var(--a1)', 'Confluo · 14:02 · 42m · 142 次工具', '完成', 'var(--good)', 90, 9, 1, false],
+      ['选中 · 审阅 ICLR 稿件第 3 节', 'var(--a1)', 'latentskill · 10:20 · 1h08m · 96 次工具', '完成', 'var(--good)', 70, 2, 1, true],
+      ['运行中 · 设计 Tandem 视觉案例', 'var(--a1)', 'Hackathon · 15:12 · 运行中 18m', '运行中', 'var(--ink-2)', 50, 1, 0.6, false]
+    ];
+    const rows = R.map(r => { const c = code(r[5], r[6], r[7]); return { t: r[0], c: r[1], m: r[2], o: r[3], oc: r[4], bar: c.d, err: c.x, bg: r[8] ? 'var(--bg)' : 'transparent', ring: r[8] ? 'inset 0 0 0 1.5px var(--ink-1)' : 'none' }; });
+    const steps = [
+      ['done', '已完成', '耗时显示在右侧', '38s'], ['run', '进行中', '紫色表示由本地 Agent 执行', '1:04'],
+      ['todo', '待开始', '描边空心', ''], ['fail', '失败', '红色感叹号 + 原因 + 修复入口', 'exit 1']
+    ].map((s, i) => ({
+      t: s[1], d: s[2], v: s[3], mark: s[0] === 'done' ? '✓' : s[0] === 'fail' ? '!' : String(i + 1),
+      bg: s[0] === 'done' ? 'var(--ink-1)' : s[0] === 'run' ? 'var(--ai-bg)' : s[0] === 'fail' ? 'var(--crit-bg)' : 'var(--surface)',
+      fg: s[0] === 'done' ? 'var(--surface)' : s[0] === 'run' ? 'var(--ai)' : s[0] === 'fail' ? 'var(--crit)' : 'var(--ink-3)',
+      ring: s[0] === 'todo' ? 'inset 0 0 0 1.5px var(--line)' : s[0] === 'run' ? 'inset 0 0 0 1.5px var(--ai)' : 'none',
+      tc: s[0] === 'todo' ? 'var(--ink-3)' : 'var(--ink-1)'
+    }));
+    return { theme: dark ? 'dk' : '', yes: true, levels: levels, agents: agents, side: side, rows: rows, steps: steps };
+  }
+}
+</script>
+</body>
+</html>

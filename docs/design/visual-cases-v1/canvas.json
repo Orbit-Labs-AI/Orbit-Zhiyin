@@ -1,0 +1,57 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-01T08:30:00Z"},
+  "title": "Tandem Mac App 视觉案例",
+  "launch": {"view": "canvas", "page": "app"},
+  "pages": [
+    {"id": "app", "name": "主应用"},
+    {"id": "persona", "name": "人格系统"},
+    {"id": "ambient", "name": "菜单栏 · 悬浮 · 小组件"},
+    {"id": "flows", "name": "关键流程"},
+    {"id": "system", "name": "设计语言"}
+  ],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 2040, "h": 1000, "title": "A1 概览", "page": "app"},
+    "Persona.dc.html": {"x": 2120, "y": 0, "w": 2040, "h": 1000, "title": "A2 协作人格", "page": "app"},
+    "Sessions.dc.html": {"x": 0, "y": 1120, "w": 2040, "h": 1000, "title": "A3 会话与轨迹", "page": "app"},
+    "Tools.dc.html": {"x": 2120, "y": 1120, "w": 2040, "h": 1000, "title": "A4 工具调用", "page": "app"},
+    "Projects.dc.html": {"x": 0, "y": 2240, "w": 2040, "h": 1000, "title": "A5 项目习惯", "page": "app"},
+    "Sentiment.dc.html": {"x": 2120, "y": 2240, "w": 2040, "h": 1000, "title": "A6 情绪与语义", "page": "app"},
+    "Recs.dc.html": {"x": 0, "y": 3360, "w": 2040, "h": 1000, "title": "A7 优化建议", "page": "app"},
+    "Library.dc.html": {"x": 2120, "y": 3360, "w": 2040, "h": 1000, "title": "A8 资源库", "page": "app"},
+    "Studio.dc.html": {"x": 0, "y": 4480, "w": 2040, "h": 1000, "title": "A9 生成工坊", "page": "app"},
+    "Settings.dc.html": {"x": 2120, "y": 4480, "w": 1420, "h": 1000, "title": "A10 设置 · 数据源与隐私", "page": "app"},
+    "TypeMap.dc.html": {"x": 0, "y": 0, "w": 2040, "h": 1240, "title": "P1 16 型协作人格图谱", "page": "persona"},
+    "ShareCard.dc.html": {"x": 2120, "y": 0, "w": 1080, "h": 1350, "title": "P2 人格分享卡 1080×1350", "page": "persona", "radius": 28},
+    "Reveal.dc.html": {"x": 0, "y": 1360, "w": 2040, "h": 1000, "title": "P3 人格揭晓动效", "page": "persona"},
+    "Desktop.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 900, "title": "B1 桌面全景", "page": "ambient", "radius": 12},
+    "MenuBar.dc.html": {"x": 1520, "y": 0, "w": 2040, "h": 1000, "title": "B2 菜单栏面板", "page": "ambient"},
+    "FloatHUD.dc.html": {"x": 0, "y": 1120, "w": 2040, "h": 1000, "title": "B3 悬浮组件", "page": "ambient"},
+    "Widgets.dc.html": {"x": 2120, "y": 1120, "w": 2040, "h": 1000, "title": "B4 桌面小组件", "page": "ambient"},
+    "Notify.dc.html": {"x": 0, "y": 2240, "w": 1420, "h": 1000, "title": "B5 系统通知", "page": "ambient"},
+    "Onboarding.dc.html": {"x": 0, "y": 0, "w": 2400, "h": 1000, "title": "C1 首次启动", "page": "flows"},
+    "InstallFlow.dc.html": {"x": 0, "y": 1120, "w": 2400, "h": 1000, "title": "C2 建议 → 安装 → 效果追踪", "page": "flows"},
+    "GenFlow.dc.html": {"x": 0, "y": 2240, "w": 2400, "h": 1100, "title": "C3 本地 Agent 生成工作流", "page": "flows"},
+    "States.dc.html": {"x": 0, "y": 3460, "w": 2040, "h": 1000, "title": "C4 空 · 加载 · 异常状态", "page": "flows"},
+    "Interaction.dc.html": {"x": 2120, "y": 3460, "w": 2040, "h": 1000, "title": "C5 键盘 · 动效 · 无障碍", "page": "flows"},
+    "Tokens.dc.html": {"x": 0, "y": 0, "w": 2040, "h": 1300, "title": "D1 设计令牌", "page": "system"},
+    "Components.dc.html": {"x": 2120, "y": 0, "w": 2040, "h": 1300, "title": "D2 组件", "page": "system"},
+    "Sidebar.dc.html": {"x": 4240, "y": 0, "w": 236, "h": 884, "title": "D3 侧边栏组件（被各窗口引用）", "page": "system", "radius": 12}
+  },
+  "order": [
+    "Main.dc.html", "Persona.dc.html", "Sessions.dc.html", "Tools.dc.html", "Projects.dc.html",
+    "Sentiment.dc.html", "Recs.dc.html", "Library.dc.html", "Studio.dc.html", "Settings.dc.html",
+    "TypeMap.dc.html", "ShareCard.dc.html", "Reveal.dc.html",
+    "Desktop.dc.html", "MenuBar.dc.html", "FloatHUD.dc.html", "Widgets.dc.html", "Notify.dc.html",
+    "Onboarding.dc.html", "InstallFlow.dc.html", "GenFlow.dc.html", "States.dc.html", "Interaction.dc.html",
+    "Tokens.dc.html", "Components.dc.html", "Sidebar.dc.html"
+  ],
+  "notes": {
+    "t-app": {"x": 0, "y": -320, "text": "Tandem 主应用 · 10 个主窗口画面 + 交互标注（数值均为示例数据）", "kind": "title1", "maxW": 4160, "page": "app"},
+    "t-persona": {"x": 0, "y": -320, "text": "人格系统 · 16 型图谱、分享卡与揭晓动效", "kind": "title1", "maxW": 3200, "page": "persona"},
+    "t-ambient": {"x": 0, "y": -320, "text": "菜单栏 · 悬浮组件 · 桌面小组件 · 通知", "kind": "title1", "maxW": 3560, "page": "ambient"},
+    "t-flows": {"x": 0, "y": -320, "text": "关键流程与交互规范", "kind": "title1", "maxW": 4160, "page": "flows"},
+    "t-system": {"x": 0, "y": -320, "text": "设计语言 · 令牌与组件", "kind": "title1", "maxW": 4476, "page": "system"}
+  },
+  "designSystems": []
+}

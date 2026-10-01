@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>B3 悬浮组件</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;
+--wall:#dcd8cf;--wall-2:#cfcac0;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+--hud:rgba(22,23,26,.95);--hud-2:rgba(255,255,255,.07);--hud-line:rgba(255,255,255,.1);--hud-ink:#f1f1f3;--hud-ink-2:#c3c6cc;--hud-ink-3:#969aa3;
+--a1:#ea6a35;--a2:#4c90e8;--a3:#22a87a;--a4:#d29012;--a5:#de5f8e;--ai:#b9adff;--ai-bg:rgba(180,168,255,.16);--good:#5dd08a;--warn:#f3b843;--crit:#ff7d74;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;
+--wall:#24262b;--wall-2:#2d3036;--hud:rgba(40,41,46,.96);--hud-line:rgba(255,255,255,.14)}
+.tb *{box-sizing:border-box}
+.tb button{font:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.pill{height:44px;border-radius:22px;background:var(--hud);color:var(--hud-ink);display:flex;align-items:center;gap:10px;padding:0 8px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,.28),0 0 0 .5px rgba(255,255,255,.12) inset;font-size:13px;white-space:nowrap}
+.hb{height:28px;padding:0 12px;border-radius:14px;border:0;background:#f1f1f3;color:#17181b;font-size:12px;font-weight:600;cursor:default}
+.hg{height:28px;padding:0 10px;border-radius:8px;border:0;background:var(--hud-2);color:var(--hud-ink);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:6px}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.live{animation:pulse 1.8s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(234,106,53,.6)}70%{box-shadow:0 0 0 7px rgba(234,106,53,0)}100%{box-shadow:0 0 0 0 rgba(234,106,53,0)}}
+.spin{width:13px;height:13px;border-radius:50%;border:1.8px solid rgba(255,255,255,.2);border-top-color:#f1f1f3;animation:spin .9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.live,.spin{animation:none}}
+.cap2{font-size:12px;line-height:1.5;color:var(--pg-ink-3)}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sx{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sx h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div style="position: absolute; left: 40px; top: 50px; width: 1440px; height: 900px; border-radius: 16px; background: var(--wall); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05);">
+    <svg width="1440" height="900" viewBox="0 0 1440 900" aria-hidden="true" style="position: absolute; inset: 0;">
+      <circle cx="1300" cy="980" r="420" style="fill: none; stroke: var(--wall-2); stroke-width: 60;"></circle>
+      <circle cx="1300" cy="980" r="600" style="fill: none; stroke: var(--wall-2); stroke-width: 30; opacity: .6;"></circle>
+      <circle cx="1300" cy="980" r="760" style="fill: none; stroke: var(--wall-2); stroke-width: 12; opacity: .45;"></circle>
+    </svg>
+  </div>
+
+  <div style="position: absolute; left: 80px; top: 86px; width: 400px;">
+    <div style="font-size: 16px; font-weight: 600; color: var(--pg-ink);">收起态 · 5 种状态</div>
+    <div class="cap2">按紧急度覆盖：卡住 › 等你确认 › 完成 › 运行中</div>
+  </div>
+  <div style="position: absolute; left: 80px; top: 150px; width: 400px; display: flex; flex-direction: column; gap: 22px;">
+    <div style="display: flex; flex-direction: column; gap: 6px; position: relative;">
+      <span class="mk" style="left: -30px; top: 11px;">1</span>
+      <div class="pill" style="width: 360px;">
+        <span class="live" style="width: 9px; height: 9px; border-radius: 50%; background: var(--a1); flex: none;"></span>
+        <span style="font-weight: 600;">Hackathon</span><span class="mono" style="font-size: 12px; color: var(--hud-ink-2);">18:42</span>
+        <span style="width: 1px; height: 16px; background: var(--hud-line);"></span>
+        <span class="mono" style="font-size: 11.5px; color: var(--hud-ink-3); flex: 1; overflow: hidden; text-overflow: ellipsis;">Edit Main.dc.html</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" aria-hidden="true" style="margin-right: 6px;"><path d="{{ spark }}" style="fill: none; stroke: var(--hud-ink-2); stroke-width: 1.4;"></path></svg>
+      </div>
+      <span class="cap2">运行中 · 圆点颜色即 Agent，右侧是近 5 分钟的工具调用密度</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; position: relative;">
+      <span class="mk" style="left: -30px; top: 11px;">2</span>
+      <div class="pill" style="width: 340px;">
+        <span style="width: 10px; height: 10px; border-radius: 3px; background: var(--warn); flex: none;"></span>
+        <span style="font-weight: 600;">Codex</span><span style="color: var(--hud-ink-2); flex: 1; overflow: hidden; text-overflow: ellipsis;">请求执行 git push</span>
+        <button type="button" class="hb">去处理</button>
+      </div>
+      <span class="cap2">等你确认 · 方形角标；点「去处理」跳到对应终端标签页</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div class="pill" style="width: 316px;">
+        <svg class="ico" style="width: 16px; height: 16px; color: var(--good);" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10"></path></svg>
+        <span style="font-weight: 600;">完成</span><span style="color: var(--hud-ink-2); flex: 1;">42 分钟 · 186 步</span>
+        <button type="button" class="hg">查看</button>
+      </div>
+      <span class="cap2">完成 · 8 秒后自动退回运行中或空闲</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div class="pill" style="width: 316px;">
+        <svg class="ico" style="width: 16px; height: 16px; color: var(--crit);" viewBox="0 0 24 24"><path d="M12 4L2.5 20h19zM12 10v4.5M12 17.5h.01"></path></svg>
+        <span style="font-weight: 600; flex: 1;">同一命令失败 4 次</span>
+        <button type="button" class="hg">查看原因</button>
+      </div>
+      <span class="cap2">卡住 · 连续相同失败或长时间无进展</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; position: relative;">
+      <span class="mk" style="left: -30px; top: 11px;">6</span>
+      <div class="pill" style="width: 268px;">
+        <span style="display: flex; flex: none;"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--a1); box-shadow: 0 0 0 2px var(--hud);"></span><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--a2); box-shadow: 0 0 0 2px var(--hud); margin-left: -4px;"></span><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--a3); box-shadow: 0 0 0 2px var(--hud); margin-left: -4px;"></span></span>
+        <span style="font-weight: 600; flex: 1;">3 个会话进行中</span>
+        <svg class="ico" style="width: 14px; height: 14px; color: var(--hud-ink-2); margin-right: 6px;" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+      </div>
+      <span class="cap2">多会话 · 合并为一枚胶囊，展开后按紧急度排序</span>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 540px; top: 86px; width: 380px;">
+    <div style="font-size: 16px; font-weight: 600; color: var(--pg-ink);">展开态</div>
+    <div class="cap2">悬停 600 ms 或单击展开，向下长出，锚点不动</div>
+  </div>
+  <div style="position: absolute; left: 540px; top: 150px; width: 380px; border-radius: 20px; background: var(--hud); color: var(--hud-ink); box-shadow: 0 24px 60px rgba(0,0,0,.35), 0 0 0 .5px rgba(255,255,255,.12) inset; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px;">
+    <span class="mk" style="left: -32px; top: 16px;">3</span>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="live" style="width: 9px; height: 9px; border-radius: 50%; background: var(--a1);"></span>
+      <span style="font-weight: 600;">Claude Code</span><span style="color: var(--hud-ink-3);">· Hackathon</span>
+      <span style="flex: 1;"></span>
+      <span class="mono" style="font-size: 12px; color: var(--hud-ink-2);">18:42</span>
+      <button type="button" class="hg" aria-label="收起" style="width: 26px; height: 26px; padding: 0; justify-content: center;"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"></path></svg></button>
+    </div>
+    <div style="font-size: 15px; font-weight: 600; line-height: 1.35;">设计 Tandem Mac App 视觉案例</div>
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--hud-ink-2);"><span class="spin" aria-hidden="true"></span>编辑中<span class="mono" style="color: var(--hud-ink);">project/Main.dc.html</span></div>
+    <div style="display: flex; flex-direction: column; gap: 4px; position: relative;">
+      <span class="mk" style="left: -48px; top: 6px;">4</span>
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--hud-ink-3);"><span>最近 20 分钟</span><span class="mono">now</span></div>
+      <div style="position: relative; height: 54px; border-radius: 10px; background: var(--hud-2); overflow: hidden;">
+        <span style="position: absolute; left: 8px; top: 7px; font-size: 10px; color: var(--hud-ink-3);">你</span>
+        <span style="position: absolute; left: 8px; top: 23px; font-size: 10px; color: var(--hud-ink-3);">工具</span>
+        <span style="position: absolute; left: 8px; top: 39px; font-size: 10px; color: var(--hud-ink-3);">错误</span>
+        <svg width="300" height="54" viewBox="0 0 300 54" aria-hidden="true" style="position: absolute; left: 40px; top: 0;">
+          <path d="{{ lanes.user }}" style="fill: #f1f1f3;"></path>
+          <path d="{{ lanes.tools }}" style="fill: none; stroke: var(--hud-ink-3); stroke-width: 1.4;"></path>
+          <path d="{{ lanes.err }}" style="fill: none; stroke: var(--crit); stroke-width: 2.2;"></path>
+        </svg>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--hud-ink-2);">
+      <span style="width: 74px;">上下文 62%</span>
+      <div style="flex: 1; height: 6px; border-radius: 3px; background: var(--hud-2); position: relative;"><div style="width: 62%; height: 6px; border-radius: 3px; background: #f1f1f3;"></div><div style="position: absolute; left: 80%; top: -3px; width: 1.5px; height: 12px; background: var(--warn);"></div></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;">
+      <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+        <div style="padding: 6px 8px; border-radius: 8px; background: var(--hud-2);"><div style="font-size: 10.5px; color: var(--hud-ink-3);">{{ s.k }}</div><div style="font-size: 15px; font-weight: 600;">{{ s.v }}</div></div>
+      </sc-for>
+    </div>
+    <div style="padding: 10px 12px; border-radius: 12px; background: var(--ai-bg); display: flex; flex-direction: column; gap: 8px; position: relative;">
+      <span class="mk" style="left: -48px; top: 8px;">5</span>
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ai);"><svg class="ico" style="width: 12px; height: 12px;" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>提示</div>
+      <div style="font-size: 12.5px; line-height: 1.55; color: var(--hud-ink);">上下文已用 62%。如果还要做 3 个以上的画板，先让 Agent 总结进度再继续，可以避免压缩时丢失细节。</div>
+      <div style="display: flex; gap: 6px;"><button type="button" class="hb" style="border-radius: 8px;">复制提示语</button><button type="button" class="hg">不再提示此类</button></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="font-size: 11px; color: var(--hud-ink-3);">另外 2 个会话</div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px;"><span style="width: 9px; height: 9px; border-radius: 2px; background: var(--warn);"></span><span style="font-weight: 600;">Codex</span><span style="color: var(--hud-ink-3); flex: 1;">team-hub · 等你确认 2 分钟</span><button type="button" class="hb" style="height: 24px; font-size: 11.5px;">去处理</button></div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px;"><span style="width: 9px; height: 9px; border-radius: 50%; background: var(--a3);"></span><span style="font-weight: 600;">Gemini CLI</span><span style="color: var(--hud-ink-3); flex: 1;">latentskill · 运行 3:10</span></div>
+    </div>
+    <div style="display: flex; gap: 6px; padding-top: 4px; border-top: 1px solid var(--hud-line);">
+      <button type="button" class="hg" style="margin-top: 8px;">打开轨迹</button>
+      <button type="button" class="hg" style="margin-top: 8px;">暂停提醒 30 分钟</button>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 980px; top: 86px; width: 460px;">
+    <div style="font-size: 16px; font-weight: 600; color: var(--pg-ink);">位置、吸附与隐身</div>
+    <div class="cap2">拖动时显示 6 个吸附点，松手吸附到最近的一个</div>
+  </div>
+  <div style="position: absolute; left: 980px; top: 150px; width: 460px; height: 288px; border-radius: 14px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft); overflow: hidden;">
+    <span class="mk" style="left: 8px; top: 8px;">7</span>
+    <div style="position: absolute; left: 0; right: 0; top: 0; height: 16px; background: var(--pg-panel-2); border-bottom: 1px solid var(--pg-line-soft);"></div>
+    <div style="position: absolute; left: 210px; top: 0; width: 40px; height: 12px; border-radius: 0 0 6px 6px; background: var(--pg-ink);"></div>
+    <sc-for list="{{ snaps }}" as="s" hint-placeholder-count="6">
+      <div style="position: absolute; left: {{ s.x }}px; top: {{ s.y }}px; width: {{ s.w }}px; height: {{ s.h }}px; border-radius: 10px; border: 1.5px dashed var(--pg-ink-3); background: {{ s.bg }};"></div>
+    </sc-for>
+    <div style="position: absolute; left: 170px; top: 24px; width: 120px; height: 22px; border-radius: 11px; background: #17181b; box-shadow: 0 4px 12px rgba(0,0,0,.25);"></div>
+    <div style="position: absolute; left: 186px; top: 31px; width: 8px; height: 8px; border-radius: 50%; background: var(--a1);"></div>
+    <div style="position: absolute; left: 448px; top: 120px; width: 12px; height: 48px; border-radius: 8px 0 0 8px; background: #17181b;"></div>
+    <div style="position: absolute; left: 451px; top: 140px; width: 6px; height: 6px; border-radius: 50%; background: var(--a1);"></div>
+    <span style="position: absolute; left: 300px; top: 126px; font-size: 11.5px; color: var(--pg-ink-2); width: 136px; text-align: right;">贴边后缩成半隐藏标签</span>
+  </div>
+  <div style="position: absolute; left: 980px; top: 458px; width: 460px; display: flex; flex-direction: column; gap: 10px;">
+    <sc-for list="{{ rules }}" as="r" hint-placeholder-count="4">
+      <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft); position: relative;">
+        <svg class="ico" style="width: 18px; height: 18px; color: var(--pg-ink); margin-top: 1px;" viewBox="0 0 24 24"><path d="{{ r.icon }}"></path></svg>
+        <div><div style="font-size: 13px; font-weight: 600; color: var(--pg-ink);">{{ r.t }}</div><div style="font-size: 12px; line-height: 1.5; color: var(--pg-ink-2);">{{ r.d }}</div></div>
+      </div>
+    </sc-for>
+    <span class="mk" style="left: -30px; top: 12px;">8</span>
+  </div>
+
+  <aside class="spec" style="left: 1520px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">B3 · 悬浮组件 · ⌥⌘P 显示/隐藏</div>
+      <h2>悬浮组件 <i>Live HUD</i></h2>
+      <p class="lead">陪跑而不打扰：只在你需要的那一刻把信息推到眼前。</p>
+    </div>
+    <div class="sx">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="9">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sx" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">⌥</b><b class="kbd">⌘</b><b class="kbd">P</b>显示 / 隐藏</span>
+        <span><b class="kbd">⌥</b> 拖动 自由放置</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    let sd = 12;
+    const rr = () => { sd |= 0; sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    let spark = 'M0 14';
+    for (let i = 1; i <= 16; i++) spark += ' L' + (i * 3) + ' ' + (3 + rr() * 12).toFixed(1);
+    let tools = '', err = '', user = '';
+    for (let i = 0; i < 62; i++) { const x = (rr() * 290 + 4).toFixed(1); tools += 'M' + x + ' 20V32'; }
+    ['188'].forEach(x => { err += 'M' + x + ' 38V50'; });
+    [10, 120, 214, 276].forEach(x => { user += 'M' + (x - 3.5) + ' 12a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0'; });
+    const lanes = { tools: tools, err: err || 'M0 0', user: user };
+    const stats = [{ k: '消息', v: '4' }, { k: '工具', v: '61' }, { k: '错误', v: '1' }, { k: 'Tokens', v: '640k' }];
+    const snaps = [
+      { x: 170, y: 24, w: 120, h: 22, bg: 'transparent' },
+      { x: 330, y: 24, w: 116, h: 22, bg: 'transparent' },
+      { x: 14, y: 24, w: 116, h: 22, bg: 'transparent' },
+      { x: 330, y: 250, w: 116, h: 22, bg: 'transparent' },
+      { x: 14, y: 250, w: 116, h: 22, bg: 'transparent' },
+      { x: 430, y: 110, w: 22, h: 68, bg: 'transparent' }
+    ];
+    const rules = [
+      { t: '全屏与演示时隐身', d: '全屏应用、屏幕共享、Keynote 演示或专注模式开启时自动隐藏，只保留菜单栏角标。', icon: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM4 4l16 16' },
+      { t: '不抢焦点', d: '非激活面板：点击胶囊不会让你正在打字的终端失去焦点。', icon: 'M12 3v3M12 18v3M3 12h3M18 12h3M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6' },
+      { t: '多显示器', d: '跟随当前运行会话的终端所在屏幕；位置按显示器分别记忆。', icon: 'M3 5h12v9H3zM9 14v3M6 17h6M17 8h4v9h-6' },
+      { t: '提醒频率上限', d: '同一会话的教练提示最多 2 次；「不再提示此类」写入偏好，可在设置中恢复。', icon: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0' }
+    ];
+    const spec = [
+      { n: 1, t: '收起态', d: '44 pt 高的胶囊，永远在最上层但不抢焦点；只说一件事：谁、在哪、正在做什么。' },
+      { n: 2, t: '状态覆盖', d: '卡住 › 等你确认 › 完成 › 运行中；状态变化时胶囊宽度平滑过渡，不跳动。' },
+      { n: 3, t: '展开', d: '悬停 600 ms 或单击展开，鼠标移开 1.5 s 后收起；向下长出，锚点位置不变。' },
+      { n: 4, t: '迷你轨迹', d: '只显示最近 20 分钟的你 / 工具 / 错误三条泳道；点击任一处在 A3 打开并定位。' },
+      { n: 5, t: '教练提示', d: '由本地规则触发（上下文 > 60%、连续失败、长时间未验证），文案给出可复制的下一句话。' },
+      { n: 6, t: '多会话', d: '同时运行时合并为一枚胶囊，叠放的圆点即各 Agent；展开后按紧急度排序。' },
+      { n: 7, t: '位置与吸附', d: '6 个吸附点；贴边时缩成半隐藏标签，悬停弹出；位置按显示器记忆。' },
+      { n: 8, t: '隐身规则', d: '全屏、共享屏幕、演示与专注模式下自动隐藏，事件只进菜单栏与通知中心。' },
+      { n: 9, t: '无障碍', d: '胶囊在 VoiceOver 中是一个按钮，播报完整状态；动画遵守「减弱动态效果」。' }
+    ];
+    return { theme: dark ? 'dk' : '', spark: spark, lanes: lanes, stats: stats, snaps: snaps, rules: rules, spec: spec };
+  }
+}
+</script>
+</body>
+</html>
