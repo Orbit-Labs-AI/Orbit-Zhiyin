@@ -163,12 +163,15 @@ def parse_rollout(
                     phase = payload.get("channel") or payload.get("phase")
                     if phase == "analysis":
                         continue
-                    text = _text(payload.get("content"))
-                    text = direct_user_text(text) if role == "user" else redact(text)
+                    original = _text(payload.get("content"))
+                    text = direct_user_text(original) if role == "user" else redact(original)
                     if not text:
                         continue
                     event_kind = "user_message" if role == "user" else "assistant_message"
-                    details = {"phase": phase, "original_chars": len(text)}
+                    details = {"phase": phase, "original_chars": len(text), "message_digest": stable_id(text)}
+                    if role == "user":
+                        details["input_format"] = "question_reply" if original.strip().startswith(
+                            "<send_user_message_question_reply>") else "prompt"
                 elif ptype in ("function_call", "custom_tool_call"):
                     event_kind, tool = "tool_call", payload.get("name")
                     call_id = payload.get("call_id")
@@ -194,12 +197,15 @@ def parse_rollout(
                         event_kind = "usage"
                         details = {"cumulative_tokens": info["total_token_usage"]}
                 elif ptype in ("user_message", "agent_message"):
-                    text = str(payload.get("message", ""))
-                    text = direct_user_text(text) if ptype == "user_message" else redact(text)
+                    original = str(payload.get("message", ""))
+                    text = direct_user_text(original) if ptype == "user_message" else redact(original)
                     if text:
                         mirrors.append(Event(stable_id(result.session.id, ordinal), result.session.id,
                                              ordinal, "user_message" if ptype == "user_message" else "assistant_message",
-                                             timestamp, model, turn_id, text[:MAX_TEXT], details={"mirror": True}))
+                                             timestamp, model, turn_id, text[:MAX_TEXT], details={
+                                                 "mirror": True, "original_chars": len(text), "message_digest": stable_id(text),
+                                                 "input_format": "question_reply" if original.strip().startswith(
+                                                     "<send_user_message_question_reply>") else "prompt"}))
                     continue
             if not event_kind:
                 continue
@@ -223,8 +229,10 @@ def parse_rollout(
     if not result.session:
         result.skipped_reason = "missing_metadata"
         return result
-    canonical = {(e.turn_id, e.kind) for e in result.events if e.kind.endswith("message")}
-    result.events.extend(e for e in mirrors if (e.turn_id, e.kind) not in canonical)
+    # A second, different user message can arrive during the same turn. Its UI
+    # mirror is still evidence when no canonical copy of that content exists.
+    canonical = {(e.turn_id, e.kind, e.details["message_digest"]) for e in result.events if e.kind.endswith("message")}
+    result.events.extend(e for e in mirrors if (e.turn_id, e.kind, e.details["message_digest"]) not in canonical)
     result.events.sort(key=lambda e: e.ordinal)
     for event in result.events:
         if event.turn_id in turn_models:

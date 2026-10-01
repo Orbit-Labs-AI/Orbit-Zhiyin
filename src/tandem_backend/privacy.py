@@ -1,5 +1,6 @@
 """Redact common secrets before persistence. This is a guard, not an anonymizer."""
 
+import json
 import re
 
 _PATTERNS = [
@@ -23,8 +24,22 @@ def direct_user_text(text: str) -> str:
     We deliberately do not evaluate imported executable text.
     """
     text = text.strip()
-    if text.startswith(("The following is the Codex agent history", "<send_user_message_question_reply>")):
+    if text.startswith("The following is the Codex agent history"):
         return ""
+    if text.startswith("<send_user_message_question_reply>"):
+        # The desktop callback repeats the assistant's questions. Only answer
+        # fields are human observations; neither questions nor item IDs are.
+        wrapper = re.fullmatch(r"<send_user_message_question_reply>\s*([\s\S]*?)\s*</send_user_message_question_reply>", text)
+        if not wrapper:
+            return ""
+        try:
+            replies = json.loads(wrapper[1])
+        except (ValueError, TypeError):
+            return ""
+        if not isinstance(replies, list) or not all(isinstance(reply, dict) for reply in replies):
+            return ""
+        text = "\n".join(reply["answer"].strip() for reply in replies
+                         if isinstance(reply.get("answer"), str)).strip()
     if "## My request:" in text:
         text = text.split("## My request:", 1)[1].strip()
     if text.startswith(("# AGENTS.md", "<environment_context>", "<external_", "<permissions")):
