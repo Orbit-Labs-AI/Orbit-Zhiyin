@@ -15,6 +15,11 @@ def _primary_bottleneck(analysis: dict, recommendations: list[dict]) -> dict | N
     return next((b for b in candidates if b["id"] in linked), candidates[0] if candidates else None)
 
 
+def _primary_requirement(preferences: list[dict]) -> dict | None:
+    return next((p for p in preferences if p["dimension"] == "clarity"),
+                preferences[0] if preferences else None)
+
+
 def _main_point(bottleneck: dict | None, preferences: list[dict]) -> str:
     if bottleneck:
         scene = SCENE_LABELS.get(bottleneck["scene"], bottleneck["scene"])
@@ -33,7 +38,7 @@ def _main_point(bottleneck: dict | None, preferences: list[dict]) -> str:
             return f"这批记录里，可以先看一次{scene}：交付后，你又要求{change}。"
         return f"先核对{scene}中的这处卡点：{bottleneck['reason']}"
     if preferences:
-        first = next((p for p in preferences if p["dimension"] == "clarity"), preferences[0])
+        first = _primary_requirement(preferences)
         return f"这批任务中有明确的“{first['label']}”要求，但还没有足够证据确定具体卡点。"
     return "这批消息还没有明确的协作要求，暂时无法形成画像或推荐。"
 
@@ -46,6 +51,10 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     recommendations = recommendations or []
     sample = f"样本共 {counts['sessions']} 个会话，按工作目录分成 {counts['projects']} 组。"
     primary = _primary_bottleneck(analysis, recommendations)
+    # Opening and first evidence should explain the same observation, including
+    # workflow requirements when there is no observed communication bottleneck.
+    requirement = _primary_requirement(preferences)
+    focus = primary["dimensions"] if primary else [requirement["dimension"]] if requirement else []
     if counts["user_messages"] == 0:
         main = "还没有可用于分析的用户消息。先导入一段包含真实用户输入的 Codex 会话。"
     else:
@@ -53,7 +62,7 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     contexts = sorted(analysis.get("contexts", []), key=lambda c: (
         not primary or c["scene"] != primary["scene"], -c["user_sessions"]))
     contextual = [(c, p) for c in contexts for p in sorted(c["preferences"], key=lambda p: (
-        bool(primary) and p["dimension"] not in primary["dimensions"],
+        p["dimension"] not in focus,
         p["dimension"] != "clarity", p.get("target") != "communication", -p["sessions"]))]
     if not contextual:
         contextual = [({"label": "这批任务", "scene": "conversation"}, p) for p in preferences]

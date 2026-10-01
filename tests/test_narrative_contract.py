@@ -4,6 +4,7 @@ from tandem_backend.analysis import analyze
 from tandem_backend.cli import demo_home
 from tandem_backend.content import visible_text
 from tandem_backend.narrative import explain, markdown
+from tandem_backend.pipeline_eval import _write_case
 from tandem_backend.recommend import recommend
 from tandem_backend.store import Store, import_codex
 
@@ -45,3 +46,20 @@ def test_developer_output_exposes_counting_basis_without_changing_facts(tmp_path
     assert user["main_evidence_ids"] == developer["main_evidence_ids"]
     assert "同一会话重复提出只计一次" in markdown(developer)
     assert "同一会话重复提出只计一次" not in markdown(user)
+
+
+def test_report_opening_and_first_evidence_follow_the_same_workflow_requirement(tmp_path):
+    store = Store(tmp_path / 'history.sqlite')
+    for sid, text in [('one', '请实现函数，完成后运行测试。'),
+                      ('two', '请修改后端代码，最后运行测试。'),
+                      ('three', '代码注释请简洁。')]:
+        home = tmp_path / sid
+        _write_case(home, sid, [{'kind': 'user', 'text': text},
+                                {'kind': 'assistant', 'text': '已完成。'}])
+        import_codex(store, home)
+    data = analyze(store, scene='coding')
+    result = explain(data)
+    assert '完成后检查' in result['summary']
+    verification = next(p for p in data['preferences'] if p['dimension'] == 'verification')
+    assert result['findings'][0]['evidence_ids'] == [e['event_id'] for e in verification['evidence']]
+    assert result['recommendations'] == []
