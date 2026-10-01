@@ -8,6 +8,8 @@
 
 分析层先判断要求作用于说明还是工作流程，再把要求与后续响应、说明修改、连续工具失败关联。`bottlenecks.py` 保存候选问题与上下文，不把它们自动认定为失败或浪费。推荐必须同时有画像证据、瓶颈证据和适用场景；表达层只把这些事实整理成中文。
 
+`feedback.task_contexts` 保留数学讲解、开发报告、文档写作、代码协作和一般对话的区别。明确的短跟进可以接续同一会话的任务，其他输入重新判断。读者背景只来自任务中明确的读者要求，每一条有独立证据；不推断用户本人身份。`analysis.contexts` 使用各自的会话分母，推荐从同一场景的画像取证。
+
 结果分两层：`summary / findings / bottlenecks / next_step` 面向读者，`details` 留给开发者复核。建议里保存来源版本、匹配证据与试用方法，当前统一标为效果未测。
 
 资源获取在 `resource_fetch.py`，只有显式执行 `catalog-refresh` 时联网。它读取公开 Markdown 与仓库元数据，校验固定提交和 Git blob 哈希，再原子更新本地缓存。`catalog.py` 只接收来源校验字段；适用场景和能力标签仍由本地目录决定，外部文档不能改写分析规则。缓存损坏时退回随代码提供的固定版本，并标明状态。
@@ -26,6 +28,8 @@
 | `POST /v1/evaluation` | 对输入文本做场景检查，不写入画像 |
 
 `audience=user` 与 `audience=developer` 选择下一步说明的读者。`before` 使用带时区的 ISO 时间；没有对应数据时返回无数据状态，不沿用全局画像填充。
+
+`scene=math_explanation` 等筛选保留相应请求之后的工具和响应，便于核对完整结果。CLI 对应 `report --scene math_explanation`。其他场景为 `developer_report / document / coding / conversation`。
 
 ## 数学在这里解决什么
 

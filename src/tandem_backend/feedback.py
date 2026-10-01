@@ -5,7 +5,7 @@ Signals describe observations; repeat requests do not establish stable personali
 """
 
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 from .models import Event
 
@@ -24,6 +24,35 @@ CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|�
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
 LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
 LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)"
+SCENE_LABELS = {"math_explanation": "数学讲解", "developer_report": "开发说明与报告",
+                "document": "文档写作", "coding": "代码协作", "conversation": "一般对话"}
+
+
+def is_followup(text: str) -> bool:
+    """Carry task context only for a short, explicit continuation in the same session."""
+    return len(text) < 160 and bool(re.search(r"^(?:好的?[，。\s]*)?(?:继续|再|更|这|上一|补|精简|没看懂|看不懂|请再|请继续|请改|改成)", text.strip()))
+
+
+def reader_context(text: str, event_id: str) -> list[dict]:
+    """Task readers are explicit requirements, not claims about the user's identity."""
+    rules = [("first_year_student", "大一学生", r"大一学生|大学一年级|大学新生"),
+             ("beginner", "初学者", r"初学者|零基础(?:的读者|的人)?|入门读者"),
+             ("developer", "项目开发者", r"(?:给|让|面向|读者是).{0,8}(?:开发者|工程师)|开发者易读"),
+             ("general_reader", "非专业读者", r"非专业读者|普通读者|不了解背景的读者")]
+    readers = []
+    for key, label, pattern in rules:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        prefix = text[max(0, match.start() - 12):match.start()]
+        if re.search(r"不是|并非|不要面向|不针对|不用面向", prefix):
+            continue
+        # A mentioned person's background alone does not define the requested reader.
+        if not WRITING.search(text) or not re.search(r"给|让|面向|读者|讲|写|解释", text):
+            continue
+        readers.append({"id": key, "label": label, "evidence_id": event_id,
+                        "quote": _quote(text, match.start(), match.end())})
+    return readers
 
 
 def scene_of(text: str) -> str:
@@ -99,19 +128,42 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v2"
+    rule_version: str = "rules-v3"
+    readers: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-def signals(events: list[Event]) -> list[Signal]:
+def task_contexts(events: list[Event]) -> dict[str, dict]:
+    """Resolve task context without changing the original normalized events."""
+    current: dict[str, dict] = {}
+    by_event = {}
+    for event in sorted(events, key=lambda e: (e.session_id, e.ordinal)):
+        if event.kind != "user_message":
+            continue
+        text = _clean(event.text)
+        scene = scene_of(text)
+        readers = reader_context(text, event.id)
+        if scene == "conversation" and is_followup(text) and event.session_id in current:
+            previous = current[event.session_id]
+            scene = previous["scene"]
+            readers = readers or previous["readers"]
+        context = {"scene": scene, "readers": readers}
+        current[event.session_id] = context
+        by_event[event.id] = context
+    return by_event
+
+
+def signals(events: list[Event], context_by_id: dict | None = None) -> list[Signal]:
     output = []
-    for event in events:
+    context_by_id = task_contexts(events) if context_by_id is None else context_by_id
+    for event in sorted(events, key=lambda e: (e.session_id, e.ordinal)):
         if event.kind != "user_message":
             continue
         text = _clean(event.text)
         text = re.sub(r"(?:不是|并非|没有|不算)[^，。；\n]{0,10}(?:看不懂|不满意|太长)", "", text)
+        context = context_by_id[event.id]
         for dimension, (label, pattern) in RULES.items():
             matches = list(re.finditer(pattern, text, re.I))
             if dimension in ("clarity", "brevity"):
@@ -137,5 +189,5 @@ def signals(events: list[Event]) -> list[Signal]:
             output.append(Signal(dimension, label, category, event.id, event.session_id,
                                  event.turn_id, event.timestamp, quote,
                                  "communication" if dimension in ("clarity", "brevity", "grounding") else "workflow",
-                                 scene_of(text)))
+                                 context["scene"], readers=context["readers"]))
     return output

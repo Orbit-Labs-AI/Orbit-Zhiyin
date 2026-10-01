@@ -1,5 +1,8 @@
 """User-facing wording. Facts are supplied by analysis; templates add no claims."""
 
+from .feedback import SCENE_LABELS
+
+
 def explain(analysis: dict, recommendations: list[dict] | None = None, audience: str = "user") -> dict:
     if audience not in ("user", "developer"):
         raise ValueError("audience 只能是 user 或 developer")
@@ -19,13 +22,21 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     else:
         opening += "目前没找到足够明确的协作要求，暂时不下画像结论。"
     findings = []
-    ordered = sorted(preferences, key=lambda p: (p["dimension"] != "clarity", p.get("target") != "communication", -p["sessions"]))
-    for p in ordered[:2]:
+    recommended_scenes = {r["scene"] for r in recommendations or []}
+    contexts = sorted(analysis.get("contexts", []), key=lambda c: (c["scene"] not in recommended_scenes, -c["user_sessions"]))
+    contextual = [(c, p) for c in contexts for p in sorted(c["preferences"], key=lambda p: (
+        p["dimension"] != "clarity", p.get("target") != "communication", -p["sessions"]))]
+    if not contextual:
+        contextual = [({"label": "这批任务", "readers": [], "scene": "conversation"}, p) for p in preferences]
+    for c, p in contextual[:2]:
         evidence = p["evidence"]
         if not evidence:
             continue
-        findings.append({"title": p["label"],
-                         "text": f"在 {p['sessions']} 个会话中出现过这类要求。它是已观察到的要求，长期是否稳定还没有验证。",
+        reader_labels = "、".join(r["label"] for r in p.get("readers", []))
+        reader_note = f"其中有任务明确指定读者为{reader_labels}。" if reader_labels else ""
+        findings.append({"title": c["label"] + "：" + p["label"],
+                         "text": f"这类任务有 {p['sessions']} 个会话提出过这项要求。{reader_note}",
+                         "scene": c["scene"],
                          "evidence_ids": [e["event_id"] for e in evidence],
                          "example": evidence[0]["quote"]})
     if analysis["bottlenecks"]:
@@ -33,12 +44,13 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     elif analysis.get("data_gaps"):
         next_step = "日志只记录了文件交付；需要拿到对应文档正文，才能判断是否写得易懂。"
     elif clarity:
-        next_step = "下一次同类写作任务先试一个候选 skill，再对比结果是否更容易理解；当前还没有它有效的证据。"
+        next_step = "要求容易理解本身还不足以确定该换什么工具。先选一次具体任务，核对要求与交付结果。"
     else:
         next_step = "选一段你认可或不认可的回答作反馈，系统才有依据调整建议。"
     if audience == "developer":
         next_step = "先核对证据引用和反馈分类，再做同场景对照；自动检查通过后仍需读者判断。"
     bottlenecks = [{"id": b["id"], "type": b["type"], "text": b["reason"], "status": b["status"],
+                    "scene": b["scene"], "scene_label": SCENE_LABELS.get(b["scene"], b["scene"]),
                     "evidence_ids": b["evidence_ids"]} for b in analysis["bottlenecks"][:2]]
     if analysis.get("data_gaps"):
         opening += "部分记录只留下文件交付说明，正文质量还无法核对。"
@@ -49,16 +61,22 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
 def markdown(result: dict) -> str:
     """Short first layer; full machine-readable details stay in the JSON artifact."""
     lines = ["# 这批会话里看到了什么", "", result["summary"], ""]
-    for finding in result["findings"]:
+    for index, finding in enumerate(result["findings"]):
         lines.extend([f"**{finding['title']}**：{finding['text']}", "",
-                      f"> {finding['example']}", "",
-                      f"证据：`{finding['evidence_ids'][0]}`。", ""])
-    for bottleneck in result.get("bottlenecks", [])[:2]:
-        lines.extend([f"**待核对的卡点**：{bottleneck['text']}", ""])
+                      f"[查看原始要求](http://127.0.0.1:8765/v1/evidence/{finding['evidence_ids'][0]})", ""])
+        if index == 0:
+            lines.extend([f"> {finding['example']}", ""])
+    shown_bottlenecks = set()
+    for bottleneck in result.get("bottlenecks", [])[:1]:
+        lines.extend([f"**待核对的卡点（{bottleneck['scene_label']}）**：{bottleneck['text']}", ""])
+        shown_bottlenecks.add(bottleneck["id"])
     for rec in result.get("recommendations", [])[:2]:
-        lines.extend([f"可以试 [{rec['name']}]({rec['url']})：{rec['reason']}", "",
+        reason = rec["reason"] if rec["bottleneck_id"] not in shown_bottlenecks else f"对应上面的卡点，适用于{SCENE_LABELS.get(rec['scene'], rec['scene'])}。"
+        lines.extend([f"可以试 [{rec['name']}]({rec['source_url']})：{reason}", "",
+                      f"它提供的办法：{rec['capability']}", "",
                       f"验证方式：{rec['trial']}", ""])
     if not result.get("recommendations"):
-        lines.extend(["这次没有找到同时满足画像、瓶颈和适用场景的资源，暂时不给具体安装建议。", ""])
-    lines.extend([result["next_step"], "", "这些结论来自记录中的明确表达；未收到反馈的回答不算已获认可。", ""])
+        lines.extend(["目前的证据还不足以选定具体资源。", ""])
+        lines.extend([result["next_step"], ""])
+    lines.extend(["这些是这批任务中的明确要求；未收到反馈不代表满意，资源的效果也尚未测定。", ""])
     return "\n".join(lines)

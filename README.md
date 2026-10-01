@@ -52,6 +52,7 @@ demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.
 - [v0.3：推荐来源可以实际获取和复核](docs/backend/versions/v0.3.md)
 - [v0.3.1：确保瓶颈来自真实记录](docs/backend/versions/v0.3.1.md)
 - [v0.3.2：归档恢复与未知状态](docs/backend/versions/v0.3.2.md)
+- [v0.4：让画像和推荐适用于具体任务](docs/backend/versions/v0.4.md)
 - [模块与接口](docs/backend/architecture.md)
 - [调研与取舍](docs/backend/research.md)
 

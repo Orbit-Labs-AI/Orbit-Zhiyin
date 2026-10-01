@@ -49,7 +49,7 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
     def analysis(project_id: str | None = None, model: str | None = None, before: str | None = None,
                  audience: str = "user", scene: str = "auto"):
         try:
-            data = analyze(store, project_id, model, before)
+            data = analyze(store, project_id, model, before, scene if scene != "auto" else None)
             return explain(data, recommend(data, scene, catalog=resources(catalog_cache)), audience)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error

@@ -53,6 +53,7 @@ def main(argv: list[str] | None = None) -> None:
     report.add_argument("--audience", choices=("user", "developer"), default="user")
     report.add_argument("--project-id")
     report.add_argument("--model")
+    report.add_argument("--scene", help="只分析指定任务场景")
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     eval_parser = sub.add_parser("evaluate")
@@ -90,8 +91,8 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "demo":
         import_codex(store, demo_home(args.output / "codex"))
-        args.audience, args.project_id, args.model = "user", None, None
-    data = analyze(store, args.project_id, args.model)
+        args.audience, args.project_id, args.model, args.scene = "user", None, None, None
+    data = analyze(store, args.project_id, args.model, scene=args.scene)
     result = explain(data, recommend(data, catalog=resources(args.catalog_cache)), args.audience)
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "analysis.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))

@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 
 from .bottlenecks import diagnose
-from .feedback import signals
+from .feedback import SCENE_LABELS, signals, task_contexts
 from .models import Event
 from .store import Store
 
@@ -41,20 +41,73 @@ def union_duration(intervals: list[tuple[float, float]]) -> float:
 
 
 def analyze(store: Store, project_id: str | None = None, model: str | None = None,
-            before: str | None = None) -> dict:
+            before: str | None = None, scene: str | None = None) -> dict:
     from .models import utc_time
     cutoff = utc_time(before) if before else None
     if before and not cutoff:
         raise ValueError("before 必须是带时区的 ISO 时间")
+    if scene and scene not in SCENE_LABELS:
+        raise ValueError("未知的分析场景")
     events = store.events(project_id=project_id, model=model)
     if cutoff:
         events = [e for e in events if e.timestamp and e.timestamp <= cutoff]
+    context_by_id = task_contexts(events)
+    if scene:
+        # Keep the whole task span after its request. Filtering only messages would
+        # remove the results needed to diagnose a bottleneck.
+        active_scene = {}
+        visible_events = []
+        for e in events:
+            if e.kind == "user_message":
+                active_scene[e.session_id] = context_by_id[e.id]["scene"]
+            if active_scene.get(e.session_id) == scene:
+                visible_events.append(e)
+        events = visible_events
     sessions_by_id = {s["id"]: s for s in store.sessions(project_id)}
     visible = {e.session_id for e in events}
     sessions_by_id = {k: v for k, v in sessions_by_id.items() if k in visible}
     users = [e for e in events if e.kind == "user_message"]
     user_sessions = {e.session_id for e in users}
-    observed = signals(events)
+    observed = signals(events, context_by_id)
+    preferences = _preferences(observed, user_sessions, sessions_by_id)
+    contexts = []
+    for key in SCENE_LABELS:
+        scene_users = [e for e in users if context_by_id[e.id]["scene"] == key]
+        scene_signals = [s for s in observed if s.scene == key]
+        if not scene_users:
+            continue
+        readers = {r["id"]: r for e in scene_users for r in context_by_id[e.id]["readers"]}
+        contexts.append({"scene": key, "label": SCENE_LABELS[key],
+                         "user_messages": len(scene_users), "user_sessions": len({e.session_id for e in scene_users}),
+                         "preferences": _preferences(scene_signals, {e.session_id for e in scene_users}, sessions_by_id),
+                         "readers": list(readers.values())})
+    bottlenecks, gaps = diagnose(events, observed)
+    calls = [e for e in events if e.kind == "tool_call"]
+    results = [e for e in events if e.kind == "tool_result"]
+    failed = [e for e in results if e.status == "failed"]
+    duration = _timing(results)
+    return {
+        "schema_version": "1.2", "analysis_version": "context-v3",
+        "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
+        "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
+                   "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
+                   "tool_calls": len(calls), "explicit_tool_failures": len(failed)},
+        "models": dict(Counter(e.model for e in events if e.kind in ("assistant_message", "tool_call"))),
+        "projects": [{"id": pid, "name": next(s["project"] for s in sessions_by_id.values() if s["project_id"] == pid),
+                      "sessions": sum(s["project_id"] == pid for s in sessions_by_id.values())}
+                     for pid in sorted({s["project_id"] for s in sessions_by_id.values()})],
+        "preferences": preferences, "contexts": contexts, "bottlenecks": bottlenecks, "timing": duration,
+        "data_gaps": gaps,
+        "profile": {"basis": "explicit_requirements", "communication": [p for p in preferences if p["target"] == "communication"],
+                    "workflow": [p for p in preferences if p["target"] == "workflow"], "contexts": contexts, "stability": "unverified"},
+        "limitations": ["没有反馈不代表满意。", "规则识别的是候选证据，需要回看上下文。",
+                        "同一任务或 fork 的会话可能相关；参考区间不能证明长期偏好。",
+                        "记录中两次时间戳的跨度不等于模型计算时间或你的工作时间。"],
+    }
+
+
+def _preferences(observed: list, user_sessions: set, sessions_by_id: dict) -> list[dict]:
+    """The same counting rule applies globally and within each task context."""
     by_dimension = defaultdict(list)
     for signal in observed:
         by_dimension[signal.dimension].append(signal)
@@ -65,36 +118,16 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
         # Explicit requirements are useful even with one sample, but cannot establish stability.
         scope = "cross_project_candidate" if len(projects) > 1 and len(support) >= 3 else "observed_request"
         evidence = [s.to_dict() for s in items[:5]]
+        readers = {r["id"]: r for s in items for r in s.readers}
         preferences.append({"dimension": dimension, "label": items[0].label,
                             "sessions": len(support), "projects": len(projects),
                             "denominator": len(user_sessions), "scope": scope, "target": items[0].target,
                             "scenes": dict(Counter(s.scene for s in items)),
+                            "readers": list(readers.values()),
                             "reference_interval": wilson_interval(len(support), len(user_sessions)),
                             "evidence": evidence})
     preferences.sort(key=lambda p: (-p["sessions"], p["dimension"]))
-    bottlenecks, gaps = diagnose(events, observed)
-    calls = [e for e in events if e.kind == "tool_call"]
-    results = [e for e in events if e.kind == "tool_result"]
-    failed = [e for e in results if e.status == "failed"]
-    duration = _timing(results)
-    return {
-        "schema_version": "1.1", "analysis_version": "evidence-v2",
-        "scope": {"project_id": project_id, "model": model, "before": cutoff},
-        "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
-                   "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
-                   "tool_calls": len(calls), "explicit_tool_failures": len(failed)},
-        "models": dict(Counter(e.model for e in events if e.kind in ("assistant_message", "tool_call"))),
-        "projects": [{"id": pid, "name": next(s["project"] for s in sessions_by_id.values() if s["project_id"] == pid),
-                      "sessions": sum(s["project_id"] == pid for s in sessions_by_id.values())}
-                     for pid in sorted({s["project_id"] for s in sessions_by_id.values()})],
-        "preferences": preferences, "bottlenecks": bottlenecks, "timing": duration,
-        "data_gaps": gaps,
-        "profile": {"basis": "explicit_requirements", "communication": [p for p in preferences if p["target"] == "communication"],
-                    "workflow": [p for p in preferences if p["target"] == "workflow"], "stability": "unverified"},
-        "limitations": ["没有反馈不代表满意。", "规则识别的是候选证据，需要回看上下文。",
-                        "同一任务或 fork 的会话可能相关；参考区间不能证明长期偏好。",
-                        "记录中两次时间戳的跨度不等于模型计算时间或你的工作时间。"],
-    }
+    return preferences
 
 
 def _timing(results: list[Event]) -> dict:
