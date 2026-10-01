@@ -24,6 +24,16 @@ def demo_home(path: Path) -> Path:
             {"type": "response_item", "timestamp": "2026-01-01T00:00:02Z", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": request}]}},
             {"type": "response_item", "timestamp": "2026-01-01T00:00:04Z", "payload": {"type": "message", "role": "assistant", "channel": "final", "content": [{"type": "output_text", "text": "示例结果，仅用于检查数据流。"}]}},
         ]
+        if index == 0:
+            rows[-1]["payload"]["content"][0]["text"] = "KL、JS、POMDP、embedding 与 latent z_u 经过 factorize 获得表示。"
+        if index == 2:
+            tools = []
+            for attempt in range(3):
+                tools.extend([
+                    {"type": "response_item", "timestamp": "2026-01-01T00:00:03Z", "payload": {"type": "function_call", "name": "exec_command", "call_id": f"c-{attempt}", "arguments": '{"cmd":"run-demo-check"}'}},
+                    {"type": "response_item", "timestamp": "2026-01-01T00:00:04Z", "payload": {"type": "function_call_output", "call_id": f"c-{attempt}", "output": '{"exit_code":1}'}},
+                ])
+            rows[-1:-1] = tools
         (folder / f"{sid}.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
     return path
 

@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
@@ -34,11 +35,25 @@ class Store:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
 
-    def connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def connect(self):
         conn = sqlite3.connect(self.path, timeout=20)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def remove_source(self, source_file: str) -> None:
+        """Fail closed when an import policy excludes previously admitted evidence."""
+        with self.connect() as conn:
+            row = conn.execute("SELECT session_id FROM imports WHERE source_file=?", (source_file,)).fetchone()
+            if row and row[0]:
+                conn.execute("DELETE FROM sessions WHERE id=? AND json_extract(data,'$.source_file')=?",
+                             (row[0], source_file))
+            conn.execute("DELETE FROM imports WHERE source_file=?", (source_file,))
 
     def save(self, parsed: ParsedSession, signature: str, policy: str) -> None:
         session = parsed.session
@@ -91,7 +106,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         raise ValueError("Codex 数据目录不存在")
     summary = ImportSummary()
     metadata = metadata_index(codex_home)
-    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 1})
+    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 3})
     paths = sorted({p.resolve() for folder in ("sessions", "archived_sessions")
                     for p in (codex_home / folder).rglob("*.jsonl")})
     for path in paths:
@@ -106,6 +121,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         parsed = parse_rollout(path, metadata, before, exclude_sessions)
         summary.warning_count += len(parsed.warnings)
         if parsed.skipped_reason:
+            store.remove_source(str(path))
             summary.skipped += 1
             reason = parsed.skipped_reason
             summary.skip_reasons[reason] = summary.skip_reasons.get(reason, 0) + 1

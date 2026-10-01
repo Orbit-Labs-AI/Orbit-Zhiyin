@@ -99,7 +99,7 @@ def parse_rollout(
                 continue
             kind = envelope.get("type")
             timestamp = utc_time(envelope.get("timestamp"))
-            if cutoff and timestamp and timestamp > cutoff:
+            if kind != "session_meta" and cutoff and timestamp and timestamp > cutoff:
                 continue
             if kind == "session_meta":
                 if result.session:
@@ -157,7 +157,8 @@ def parse_rollout(
                     event_kind, tool = "tool_call", payload.get("name")
                     call_id = payload.get("call_id")
                     # Do not retain arguments: they often contain full private documents or code.
-                    details = {"arguments_chars": len(str(payload.get("arguments", payload.get("input", ""))))}
+                    arguments = str(payload.get("arguments", payload.get("input", "")))
+                    details = {"arguments_chars": len(arguments), "argument_digest": stable_id(arguments)}
                 elif ptype in ("function_call_output", "custom_tool_call_output"):
                     event_kind, call_id = "tool_result", payload.get("call_id")
                     output = _text(payload.get("output"))
@@ -203,7 +204,7 @@ def parse_rollout(
                         result.warnings.append({"line": ordinal, "code": "negative_duration"})
             result.events.append(event)
     if not result.session:
-        result.skipped_reason = "missing_metadata_or_after_snapshot"
+        result.skipped_reason = "missing_metadata"
         return result
     canonical = {(e.turn_id, e.kind) for e in result.events if e.kind.endswith("message")}
     result.events.extend(e for e in mirrors if (e.turn_id, e.kind) not in canonical)

@@ -76,6 +76,26 @@ def test_repeated_import_is_idempotent_and_evaluation_does_not_update_profile(tm
     assert store.counts() == before
 
 
+def test_tightening_import_policy_removes_old_evidence(tmp_path):
+    home = demo_home(tmp_path / "codex")
+    store = Store(tmp_path / "data.sqlite")
+    import_codex(store, home)
+    import_codex(store, home, exclude_sessions={"demo-0"})
+    assert {s["id"] for s in store.sessions()} == {"demo-1", "demo-2"}
+    assert not store.events(session_id="demo-0")
+    import_codex(store, home, before="2000-01-01T00:00:00Z")
+    assert store.counts()["sessions"] == 0
+
+
+def test_acknowledgement_does_not_override_clause_specific_correction():
+    event = Event("e", "s", 1, "user_message", None, text="很好，但还是太长，请精简；没看懂，请先给方案，然后直接实现。")
+    observed = {s.dimension: s.category for s in signals([event])}
+    assert observed["brevity"] == "correction"
+    assert observed["clarity"] == "correction"
+    assert observed["planning"] == "request"
+    assert observed["actionability"] == "request"
+
+
 def test_model_filter_keeps_only_matching_events(tmp_path):
     store = Store(tmp_path / "data.sqlite")
     import_codex(store, demo_home(tmp_path / "codex"))
@@ -107,6 +127,32 @@ def test_readability_contrasts_and_required_facts():
 
 def test_no_evidence_means_no_skill_recommendation(tmp_path):
     assert recommend(analyze(Store(tmp_path / "empty.sqlite"))) == []
+
+
+def test_code_and_chart_readability_do_not_become_writing_preferences():
+    for text in ("代码保持简洁，MPI 教程单独成文。", "函数写得简单易读一点。", "图表坐标太长了，改成科学计数法。",
+                 "我已经修改完相关c语言代码，使之简洁且仅包含必需内容。", "每小节精简至8道题，去掉重复题。",
+                 "讲义中简短公式的换行太多，调整居中排版。"):
+        event = Event("e", "s", 1, "user_message", None, text=text)
+        assert not any(s.dimension in ("clarity", "brevity") for s in signals([event]))
+    event = Event("e", "s", 1, "user_message", None, text="请解释这个函数，语言简洁易读。")
+    assert {s.dimension for s in signals([event])} >= {"clarity", "brevity"}
+
+
+def test_recommendation_requires_profile_and_bottleneck_and_traceable_evidence(tmp_path):
+    store = Store(tmp_path / "demo.sqlite")
+    import_codex(store, demo_home(tmp_path / "codex"))
+    analysis = analyze(store)
+    recommendations = recommend(analysis)
+    assert {r["resource_id"] for r in recommendations} == {"humanizer-zh", "systematic-debugging"}
+    ids = {e.id for e in store.events()}
+    for rec in recommendations:
+        assert rec["profile_evidence_ids"] and rec["bottleneck_evidence_ids"]
+        assert set(rec["evidence_ids"]) <= ids
+        assert rec["match_basis"] == "profile_and_bottleneck"
+    assert recommend({**analysis, "bottlenecks": []}) == []
+    assert recommend({**analysis, "preferences": []}) == []
+    assert recommend(analysis, scene="unrelated-scene") == []
 
 
 def test_api_reports_and_error_boundaries(tmp_path):

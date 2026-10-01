@@ -9,6 +9,8 @@
 | [Codex](https://github.com/openai/codex) | 官方协议目录，以及授权本地日志的实际字段 | 以本机实际格式验证；角色、模型与行号保留，不凭名字猜字段含义 |
 | [Humanizer-zh](https://github.com/op7418/Humanizer-zh/blob/f4518a8eab97b8bfebc66a89d34320a89bef6930/SKILL.md) | 中文编辑范围、事实保留和文体适配约束 | 进入试用目录；效果未测 |
 | [Humanizer](https://github.com/blader/humanizer/blob/225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8/SKILL.md) | 英文写作中模板表达的检查方法 | 作为英文候选，不默认给中文任务推荐 |
+| [Doc Co-Authoring](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/doc-coauthoring/SKILL.md) | 背景梳理、结构修改与读者测试三阶段 | 对说明反复修改的场景提供试用；先只建议读者测试，避免套用全部沟通步骤 |
+| [Systematic Debugging](https://github.com/obra/superpowers/blob/8ca22dba9a94f28898bbce59f2537ff4d87c747d/skills/systematic-debugging/SKILL.md) | 复现、收集证据、定位原因、修改后验证 | 对有对应协作要求的重复失败候选提供试用；不把预期失败测试直接算作浪费 |
 
 ## 为什么暂时只保留这些依赖
 

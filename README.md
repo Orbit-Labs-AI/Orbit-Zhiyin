@@ -35,6 +35,7 @@ demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.
 
 - [今晚先跑通什么](docs/backend/plan.md)
 - [v0.1：数据流已跑通，语义分类仍需修正](docs/backend/versions/v0.1.md)
+- [v0.2：推荐开始由分析结果决定](docs/backend/versions/v0.2.md)
 - [模块与接口](docs/backend/architecture.md)
 - [调研与取舍](docs/backend/research.md)
 

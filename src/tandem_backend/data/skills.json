@@ -16,13 +16,22 @@
       "profile",
       "bottleneck",
       "recommendation",
-      "developer_report"
+      "developer_report",
+      "math_explanation",
+      "document",
+      "coding",
+      "conversation"
     ],
     "summary": "编辑中文空话、重复和模板化表达，保留事实与原有确定程度。",
     "limitations": "只能改善表达；不能替代证据分析或保证读者满意。",
     "verification": "repository_and_skill_read",
     "verified_at": "2026-10-02",
-    "effect_status": "unmeasured"
+    "effect_status": "unmeasured",
+    "problem_types": [
+      "long_response",
+      "unexplained_terms"
+    ],
+    "trial": "用同一段原文对比原版和试用后的版本。隐藏版本名，请目标读者说明主线；同时核对数字、条件和证明是否保留。"
   },
   {
     "id": "humanizer",
@@ -38,10 +47,76 @@
       "brevity"
     ],
     "scenes": [
-      "developer_report"
+      "developer_report",
+      "math_explanation",
+      "document",
+      "coding",
+      "conversation"
     ],
     "summary": "审阅英文文章中的模板句式与夸大表达，要求保留支持得住的事实。",
     "limitations": "原文偏英文，中文效果需要单独验证。",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02",
+    "effect_status": "unmeasured",
+    "problem_types": [
+      "long_response",
+      "unexplained_terms"
+    ],
+    "trial": "用同一段原文对比原版和试用后的版本。隐藏版本名，请目标读者说明主线；同时核对数字、条件和证明是否保留。"
+  },
+  {
+    "id": "doc-coauthoring",
+    "name": "Doc Co-Authoring",
+    "kind": "skill",
+    "language": "any",
+    "url": "https://github.com/anthropics/skills",
+    "source_path": "skills/doc-coauthoring/SKILL.md",
+    "verified_sha": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+    "license": "repository_specific",
+    "dimensions": [
+      "clarity",
+      "grounding",
+      "brevity"
+    ],
+    "scenes": [
+      "math_explanation",
+      "document",
+      "developer_report",
+      "conversation"
+    ],
+    "problem_types": [
+      "explanation_revision"
+    ],
+    "summary": "通过背景梳理、结构修改和读者测试核对文档是否易懂。",
+    "limitations": "完整流程会增加沟通步骤；先只试读者测试环节，数学正确性仍需另行核对。",
+    "trial": "保留同一任务要求，先让不了解对话背景的目标读者读一版，记录他卡在哪里，再改写并复测。",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "systematic-debugging",
+    "name": "Systematic Debugging",
+    "kind": "skill",
+    "language": "any",
+    "url": "https://github.com/obra/superpowers",
+    "source_path": "skills/systematic-debugging/SKILL.md",
+    "verified_sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+    "license": "MIT",
+    "dimensions": [
+      "verification",
+      "actionability",
+      "grounding"
+    ],
+    "scenes": [
+      "coding"
+    ],
+    "problem_types": [
+      "repeated_tool_failure"
+    ],
+    "summary": "先复现并定位原因，再修改和验证，减少没有依据的重试。",
+    "limitations": "连续失败可能是预期测试或环境故障；先核对日志，不保证节省时间。",
+    "trial": "固定同一失败用例，记录原有重试过程与先定位原因后的过程；两版均须通过同一验收，再比较失败重试次数。",
     "verification": "repository_and_skill_read",
     "verified_at": "2026-10-02",
     "effect_status": "unmeasured"

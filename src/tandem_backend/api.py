@@ -47,7 +47,7 @@ def create_app(db: str | Path = ".local/tandem.sqlite") -> FastAPI:
 
     @app.get("/v1/analysis")
     def analysis(project_id: str | None = None, model: str | None = None, before: str | None = None,
-                 audience: str = "user", scene: str = "developer_report"):
+                 audience: str = "user", scene: str = "auto"):
         try:
             data = analyze(store, project_id, model, before)
             return explain(data, recommend(data, scene), audience)
@@ -57,6 +57,15 @@ def create_app(db: str | Path = ".local/tandem.sqlite") -> FastAPI:
     @app.get("/v1/catalog")
     def catalog():
         return skills()
+
+    @app.get("/v1/evidence/{event_id}")
+    def evidence(event_id: str):
+        with store.connect() as conn:
+            row = conn.execute("SELECT data FROM events WHERE id=?", (event_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "证据不存在")
+        import json
+        return json.loads(row[0])
 
     @app.post("/v1/evaluation")
     def evaluation(request: EvaluationRequest):

@@ -4,6 +4,7 @@ import math
 from collections import Counter, defaultdict
 from datetime import datetime
 
+from .bottlenecks import diagnose
 from .feedback import signals
 from .models import Event
 from .store import Store
@@ -57,7 +58,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     by_dimension = defaultdict(list)
     for signal in observed:
         by_dimension[signal.dimension].append(signal)
-    preferences, bottlenecks = [], []
+    preferences = []
     for dimension, items in by_dimension.items():
         support = {s.session_id for s in items}
         projects = {sessions_by_id[s]["project_id"] for s in support if s in sessions_by_id}
@@ -66,22 +67,18 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
         evidence = [s.to_dict() for s in items[:5]]
         preferences.append({"dimension": dimension, "label": items[0].label,
                             "sessions": len(support), "projects": len(projects),
-                            "denominator": len(user_sessions), "scope": scope,
+                            "denominator": len(user_sessions), "scope": scope, "target": items[0].target,
+                            "scenes": dict(Counter(s.scene for s in items)),
                             "reference_interval": wilson_interval(len(support), len(user_sessions)),
                             "evidence": evidence})
-        corrections = [s for s in items if s.category == "correction"]
-        if corrections:
-            bottlenecks.append({"dimension": dimension, "label": items[0].label,
-                                "correction_sessions": len({s.session_id for s in corrections}),
-                                "status": "needs_review", "evidence": [s.to_dict() for s in corrections[:3]],
-                                "reason": "用户出现过明确纠正；是否由表达引起，还需回看上一轮回答。"})
     preferences.sort(key=lambda p: (-p["sessions"], p["dimension"]))
+    bottlenecks, gaps = diagnose(events, observed)
     calls = [e for e in events if e.kind == "tool_call"]
     results = [e for e in events if e.kind == "tool_result"]
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     return {
-        "schema_version": "1.0", "analysis_version": "evidence-v1",
+        "schema_version": "1.1", "analysis_version": "evidence-v2",
         "scope": {"project_id": project_id, "model": model, "before": cutoff},
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
@@ -91,6 +88,9 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
                       "sessions": sum(s["project_id"] == pid for s in sessions_by_id.values())}
                      for pid in sorted({s["project_id"] for s in sessions_by_id.values()})],
         "preferences": preferences, "bottlenecks": bottlenecks, "timing": duration,
+        "data_gaps": gaps,
+        "profile": {"basis": "explicit_requirements", "communication": [p for p in preferences if p["target"] == "communication"],
+                    "workflow": [p for p in preferences if p["target"] == "workflow"], "stability": "unverified"},
         "limitations": ["没有反馈不代表满意。", "规则识别的是候选证据，需要回看上下文。",
                         "同一任务或 fork 的会话可能相关；参考区间不能证明长期偏好。",
                         "记录中两次时间戳的跨度不等于模型计算时间或你的工作时间。"],
