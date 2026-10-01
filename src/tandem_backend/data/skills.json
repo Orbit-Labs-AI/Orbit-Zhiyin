@@ -1,0 +1,49 @@
+[
+  {
+    "id": "humanizer-zh",
+    "name": "Humanizer-zh",
+    "kind": "skill",
+    "language": "zh",
+    "url": "https://github.com/op7418/Humanizer-zh",
+    "source_path": "SKILL.md",
+    "verified_sha": "f4518a8eab97b8bfebc66a89d34320a89bef6930",
+    "license": "MIT",
+    "dimensions": [
+      "clarity",
+      "brevity"
+    ],
+    "scenes": [
+      "profile",
+      "bottleneck",
+      "recommendation",
+      "developer_report"
+    ],
+    "summary": "编辑中文空话、重复和模板化表达，保留事实与原有确定程度。",
+    "limitations": "只能改善表达；不能替代证据分析或保证读者满意。",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "humanizer",
+    "name": "Humanizer",
+    "kind": "skill",
+    "language": "en",
+    "url": "https://github.com/blader/humanizer",
+    "source_path": "SKILL.md",
+    "verified_sha": "225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8",
+    "license": "MIT",
+    "dimensions": [
+      "clarity",
+      "brevity"
+    ],
+    "scenes": [
+      "developer_report"
+    ],
+    "summary": "审阅英文文章中的模板句式与夸大表达，要求保留支持得住的事实。",
+    "limitations": "原文偏英文，中文效果需要单独验证。",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02",
+    "effect_status": "unmeasured"
+  }
+]
