@@ -46,6 +46,32 @@ def merge_length_contracts(text: str, spans: list[tuple[int, int]]) -> list[dict
     return list(merged.values())
 
 
+def canceled_length_surfaces(text: str) -> set[str]:
+    """Explicit cancellation changes pending limits, not past profile evidence."""
+    pattern = (r"(?:取消|撤销|去掉|移除)[^，,。；;\n]{0,12}(?:字数|篇幅|长度|\d+字)[^，,。；;\n]{0,6}(?:限制|上限|要求)|"
+               r"(?:不再|不|不用|无需)限制(?:字数|篇幅|长度)")
+    surfaces = set()
+    for match in re.finditer(pattern, text):
+        left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
+        prefix = text[left:match.start()]
+        if re.search(r"(?:不要|别|不用|不需要|不是让你|不是要)[^，,。；;\n]{0,6}$", prefix):
+            continue
+        governors = list(re.finditer(r"介绍|解释|讨论|分析|如何|怎么|请|现在|另外|再", prefix))
+        if governors and governors[-1][0] in ("介绍", "解释", "讨论", "分析", "如何", "怎么"):
+            continue
+        local = text[left:match.end()]
+        targets = list(re.finditer(r"摘要|总结|正文|完整证明|回答|回复|全文", local))
+        if not targets:
+            surfaces.update(("summary", "body", "reply"))
+        elif targets[-1][0] in ("摘要", "总结"):
+            surfaces.add("summary")
+        elif targets[-1][0] in ("正文", "完整证明"):
+            surfaces.add("body")
+        else:
+            surfaces.add("reply")
+    return surfaces
+
+
 def fenced_parts(text: str) -> list[tuple[bool, str]]:
     """Separate Markdown fences; unclosed fences remain quoted literal material."""
     parts, prose, literal = [], [], []
@@ -77,18 +103,23 @@ def fenced_parts(text: str) -> list[tuple[bool, str]]:
 def embedded_artifact_body(text: str) -> bool:
     """Recognize a marked body in a delivery message; this cannot prove completeness."""
     for link in re.finditer(r"\[[^\]]+\]\([^)]*\.(?:md|tex|docx)(?::\d+)?\)", text, re.I):
-        tail = text[link.end():]
-        explicit = re.search(r"(?:以下(?:是|为)?|附上|附|提供)(?:文档|报告|讲义)?(?:正文|全文|完整内容)[：:。\s]*|(?:正文|全文|完整内容)如下[：:。\s]*", tail)
-        if explicit and tail[explicit.end():].strip():
+        if any(_marked_body(part) for part in (text[:link.start()], text[link.end():])):
             return True
-        if re.search(r"节选|片段|摘录", tail[:120]):
-            continue
-        for fenced, part in fenced_parts(tail):
-            if fenced and re.match(r"\s*(?:`{3,}|~{3,})(?:markdown|md|tex|latex)\b", part, re.I) and len(part.strip().splitlines()) >= 3:
-                return True
-        for heading in re.finditer(r"(?m)^#{1,6}\s+([^\n]+)\n", tail):
-            if not re.search(r"验证|测试|下一步|交付|修改|核对|完成情况|运行|文件清单|结果", heading[1]) and len(tail[heading.end():].strip()) >= 20:
-                return True
+    return False
+
+
+def _marked_body(text: str) -> bool:
+    if re.search(r"节选|片段|摘录", text[:120]):
+        return False
+    explicit = re.search(r"(?:以下(?:是|为)?|附上|附|提供)(?:文档|报告|讲义)?(?:正文|全文|完整内容)[：:。\s]*|(?:正文|全文|完整内容)如下[：:。\s]*", text)
+    if explicit and text[explicit.end():].strip():
+        return True
+    for fenced, part in fenced_parts(text):
+        if fenced and re.match(r"\s*(?:`{3,}|~{3,})(?:markdown|md|tex|latex)\b", part, re.I) and len(part.strip().splitlines()) >= 3:
+            return True
+    for heading in re.finditer(r"(?m)^#{1,6}\s+([^\n]+)\n", text):
+        if not re.search(r"验证|测试|下一步|交付|修改|核对|完成情况|运行|文件清单|结果", heading[1]) and len(text[heading.end():].strip()) >= 20:
+            return True
     return False
 
 

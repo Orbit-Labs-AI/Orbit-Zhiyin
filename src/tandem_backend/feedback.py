@@ -112,9 +112,9 @@ def scene_of(text: str) -> str:
         return "math_explanation"
     if re.search(r"报告|项目进度|完成度|README|开发说明", text, re.I):
         return "developer_report"
-    if re.search(r"文档|文章|讲义|教程|方案", text):
+    if re.search(r"文档|文章|讲义|教程|方案|大纲|试卷|试题", text):
         return "document"
-    if re.search(r"代码|函数|测试|bug|运行|实现|后端|算法|架构|模块|接口", text, re.I):
+    if re.search(r"代码|函数|测试(?!题|卷|成绩|分数)|bug|运行|实现|后端|算法|架构|模块|接口", text, re.I):
         return "coding"
     return "conversation"
 
@@ -183,6 +183,11 @@ def language_constraints(text: str) -> tuple[str | None, set[str]]:
         topic = bool(governors and re.fullmatch(r"介绍|解释|比较|分析|讨论|了解|什么|如何|怎么", governors[-1][0]))
         if topic or re.match(r"\s*(?:是什么|是什么意思|是啥|的?(?:概念|含义|意思|定义)|已经|已(?:经)?(?:完成|写完))", after):
             continue
+        # Contrastive coordination opens a new directive: the first '不要'
+        # must not govern the later '而使用中文' as well.
+        connectors = list(re.finditer(r"而(?:且|是|要)?|但(?:是|要)?|同时|并(?:且)?", prefix))
+        if connectors:
+            prefix = prefix[connectors[-1].end():]
         if re.search(NEGATION + r"[^，。；;\n]{0,8}$", prefix):
             forbidden.add(language)
             if requested == language:
@@ -208,6 +213,8 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
     left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
     prefix = text[max(left, match.start() - 24):match.start()]
     after = text[match.end():match.end() + 16]
+    if dimension == "brevity" and re.search(r"(?:取消|撤销|去掉|移除)[^，,。；;\n]{0,12}$", prefix):
+        return False
     if dimension == "brevity" and re.fullmatch(r"(?:一|两|三|\d+)段话", match[0]):
         output = re.search(r"(?:用|以|写成|分成|压缩成|控制在|限制为|回答|回复|摘要|概述)[^，,。；;\n]{0,6}$", prefix)
         if not output and not re.match(r"\s*(?:就好|即可|以内|足够)", after):
@@ -232,7 +239,7 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
         if not execution and match.start() != left:
             return False
     if dimension == "verification":
-        if topic or (match[0] == "测试" and re.match(r"工具|框架|日志|环境|版本|状态|计划|方案|驱动|数据|集|结果|报告|范围|覆盖|失败|成功|为什么|如何|的(?:概念|定义|原理)", after)):
+        if topic or (match[0] == "测试" and re.match(r"题|卷|成绩|分数|工具|框架|日志|环境|版本|状态|计划|方案|驱动|数据|集|结果|报告|范围|覆盖|失败|成功|为什么|如何|的(?:概念|定义|原理)", after)):
             return False
         imperative_object = (match[0].startswith(("检查", "验证")) and len(match[0]) > 2) or (
             match[0] == "测试" and bool(re.match(r"一下|一遍|这(?:段|个|些)|那(?:段|个|些)|所有|全部|每个", after)))
@@ -268,7 +275,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v11"
+    rule_version: str = "rules-v12"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)

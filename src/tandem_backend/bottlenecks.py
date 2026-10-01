@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 from dataclasses import replace
 
-from .content import embedded_artifact_body, measure_length
+from .content import canceled_length_surfaces, embedded_artifact_body, measure_length
 from .feedback import Signal, task_contexts
 from .models import Event, stable_id
 
@@ -209,8 +209,10 @@ def _combined_response(responses: list[Event]) -> Event:
 
 def _supplement(previous: list[Signal], added: list[Signal], text: str) -> list[Signal]:
     """Preserve unfulfilled requirements; an explicit cap replacement changes its surface."""
+    surfaces = canceled_length_surfaces(text)
     if re.search(r"改成|改为|调整为|改到", text):
-        surfaces = {c["surface"] for s in added if s.dimension == "brevity" for c in s.output_contracts}
+        surfaces.update(c["surface"] for s in added if s.dimension == "brevity" for c in s.output_contracts)
+    if surfaces:
         retained = []
         for signal in previous:
             if signal.dimension != "brevity":

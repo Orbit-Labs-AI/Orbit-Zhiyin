@@ -189,7 +189,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
     before, exclude_sessions = sample["before"], set(sample["exclude"])
     summary.sample_policy = sample
     metadata = metadata_index(codex_home)
-    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 17})
+    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 19})
     paths = sorted({p.resolve() for folder in ("sessions", "archived_sessions")
                     for p in (codex_home / folder).rglob("*.jsonl")})
     for path in paths:
