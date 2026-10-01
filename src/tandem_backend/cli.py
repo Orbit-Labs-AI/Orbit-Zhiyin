@@ -60,6 +60,14 @@ def main(argv: list[str] | None = None) -> None:
     eval_parser = sub.add_parser("evaluate")
     eval_parser.add_argument("--output", type=Path, default=Path(".local/evaluation.json"))
     eval_parser.add_argument("--suite", choices=("all", "readability", "pipeline", "probe"), default="all")
+    reader_pack = sub.add_parser("reader-pack", help="生成事实固定、展示顺序互换的读者评审材料")
+    reader_pack.add_argument("--cases", type=Path, help="独立的 evaluation_only 案例 JSON；默认使用虚构案例")
+    reader_pack.add_argument("--output", type=Path, default=Path(".local/reader-review"))
+    reader_pack.add_argument("--seed", type=int, default=0)
+    reader_results = sub.add_parser("reader-results", help="汇总已填写的评审表，不改写历史画像")
+    reader_results.add_argument("--pack", type=Path, required=True)
+    reader_results.add_argument("--ratings", type=Path, required=True)
+    reader_results.add_argument("--output", type=Path)
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8765)
     refresh = sub.add_parser("catalog-refresh", help="显式核对公开 GitHub 资源来源，不执行安装")
@@ -67,6 +75,15 @@ def main(argv: list[str] | None = None) -> None:
     refresh.add_argument("--latest", action="store_true")
     refresh.add_argument("--resource-id", action="append", default=[])
     args = parser.parse_args(argv)
+    if args.command in ("reader-pack", "reader-results"):
+        from .reader_eval import make_pack, reader_results
+
+        result = make_pack(args.output, args.cases, args.seed) if args.command == "reader-pack" else reader_results(args.pack, args.ratings)
+        if args.command == "reader-results" and args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
     if args.command == "serve":
         import uvicorn
 

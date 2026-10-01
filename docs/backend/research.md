@@ -17,6 +17,7 @@
 | [Claude Code Hooks Mastery](https://github.com/disler/claude-code-hooks-mastery/blob/052ad1cbd5aeb1ec4a1def22012d1293c6225625/README.md) | hooks 生命周期及事件示例 | 适合未来补采执行信息；当前已有日志，不加后台采集进程 |
 | [SWE-bench](https://github.com/SWE-bench/SWE-bench/blob/02e7a74ffd0b707aab73d203fe87bdc7c76afc8e/README.md) | 真实软件问题与可运行验收 | 借鉴固定任务和同一验收；代码修复分数不作为中文可读性排名 |
 | [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI/blob/fd48ea6840f5572deb53aeb5657740937ac9daaa/README.md) | 多种 CLI 和模型服务的适配接口 | 用于研究获取边界；首版直接读本地记录，避免引入代理依赖 |
+| [ccusage Codex guide](https://github.com/ccusage/ccusage/blob/main/docs/guide/codex/index.md) | 会话与归档来源、模型上下文、父会话重放和未知信息的边界 | 借鉴读取边界；本版不估算费用，避免用未知模型或价格给出错误成本 |
 
 v0.3 的获取命令已通过 GitHub 官方 API 核对上述 10 个资源来源；另外 3 个解析与轨迹项目此前已直接读过源码。获取时核对 Git blob 哈希，同时保存 SHA-256 便于重现。来源版本确定与实际效果确定是两件事：所有候选的收益仍未测。
 
@@ -44,3 +45,11 @@ v0.3 的获取命令已通过 GitHub 官方 API 核对上述 10 个资源来源�
 [G-Eval](https://arxiv.org/abs/2303.16634) 提供按标准检查生成文本的研究参考，也讨论评判模型偏好自己生成文本的问题。[MT-Bench / Chatbot Arena 论文](https://arxiv.org/abs/2306.05685) 进一步讨论位置、篇幅、自我偏好等偏差。这意味着不能只让生成报告的模型自评一个总分，就声称读者会满意。
 
 本版先把可核对的事实、推荐条件和明显表达问题单独检查。主次、读者背景、中文语感通过读者复述与对照来评价；对照时隐藏版本名字，改变展示顺序。当前没有真实读者评价或资源收益标签，相关字段保持待确认。
+
+| 官方资料 | 本次借鉴 | 为什么只借流程 |
+| --- | --- | --- |
+| [Inspect Scorers](https://inspect.aisi.org.uk/scorers.html) | 区分案例目标、输出、检查器和汇总指标 | 目前的字面事实与规则能用本地模块完成，不需要整套模型运行框架 |
+| [Langfuse Annotation Queues](https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues) | 专门保存读者评分与评语，并据此校准自动评价 | 先生成本地材料与空白表，没有多人在线标注需求 |
+| [Phoenix Datasets](https://arize.com/docs/phoenix/datasets-and-experiments/concepts-datasets) | 固定输入、参考信息和版本，再比较实验 | 本版用内容哈希冻结案例；增加平台不能替代真实阅读判断 |
+
+以上是本项目对现有功能规模的取舍。`reader_eval.py` 已实现材料冻结、顺序互换与标注汇总，尚未取得实际读者标签。

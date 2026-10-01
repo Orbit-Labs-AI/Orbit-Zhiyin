@@ -50,7 +50,8 @@ demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.
 ## 看实现与版本报告
 
 - [今晚先跑通什么](docs/backend/plan.md)
-- [当前版本：读懂工具包装](docs/backend/versions/v0.9.3.md)
+- [当前版本：读者对照](docs/backend/versions/v0.10.md)
+- [怎样验“说人话”](docs/backend/reader-review.md)
 - [各版记录](docs/backend/versions/README.md)
 - [模块与接口](docs/backend/architecture.md)
 - [调研与取舍](docs/backend/research.md)
