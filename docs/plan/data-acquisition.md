@@ -400,7 +400,126 @@ Demo 各页需要的数据与来源：
 
 ## 5. 模块 5：生态数据获取
 
-<!-- RESEARCH:ECOSYSTEM -->
+2026-10-01 至 10-02 用 `curl`、`gh api` 和官方文档实测，数量是当时的实测值；标「未核实」的条目接入前再确认。
+
+### 5.1 来源总表
+
+**MCP 服务**
+
+| 来源 | 获取方式 | 关键字段 | 限制与条款 | 规模 | 优先级 |
+| --- | --- | --- | --- | --- | --- |
+| 官方 MCP Registry | `GET https://registry.modelcontextprotocol.io/v0.1/servers?limit=100&cursor=&updated_since=&version=latest`；单条 `/v0.1/servers/{name}/versions/{ver}` | `server.json`：`name`（反向域名）、`title`、`description`、`version`、`repository{url, id, subfolder}`、`packages[]{registryType, identifier, version, transport, environmentVariables[]}`、`remotes[]{type, url}`；`_meta["io.modelcontextprotocol.registry/official"]{status, publishedAt, updatedAt, isLatest}` | 无需认证，`limit` 最大 100；预览阶段可能重置数据；数据为 CC0 | 最新版本约 3.8 万条（npm 1.05 万、pypi 4128、mcpb 1389、oci 1034）；约 2.4 万条有远程地址 | P0 |
+| GitHub MCP Registry | `GET https://api.mcp.github.com/v0.1/servers` | 同上，另有 `stargazerCount`、`license`、`topics`、`pushedAt` | 限流较严 | 339 条精选 | P0（精选与热度） |
+| Docker MCP Catalog | `docker/mcp-registry` 仓库的 `servers/*/server.yaml` | 镜像、分类、密钥与环境变量、部分有 `tools.json` | MIT | 328 条 | P1 |
+| Smithery | `GET https://registry.smithery.ai/servers?q=&page=&pageSize=` | `qualifiedName`、`useCount`、`verified`；详情含 `tools[]` | 单次查询最多返回 500 条，需按关键词分片；条款未核实 | 约 1.8 万条 | P1（工具清单、使用量） |
+| Glama、PulseMCP、mcp.so | API 需申请密钥或没有公开 API | — | Glama 要求逐条署名 | — | P2 |
+
+**插件与市场**
+
+| 来源 | 获取方式 | 格式 | 条款 | 规模 | 优先级 |
+| --- | --- | --- | --- | --- | --- |
+| `anthropics/claude-plugins-official` | `.claude-plugin/marketplace.json` | Claude 市场清单（`plugins[]{name, source, category, version, strict, …}`、`renames`） | 清单 Apache-2.0，各插件自有许可 | 315 个插件（`url` 164、`git-subdir` 98、相对路径 53） | P0 |
+| `anthropics/claude-plugins-community` | 同上 | 同上 | 未核实 | 2282 个 | P0（只入索引） |
+| `openai/plugins`（Codex 官方精选） | `.agents/plugins/marketplace.json`；插件内 `.codex-plugin/plugin.json` | `plugins[]{name, source, policy{installation, authentication}, category}` | 仓库无许可证，只存元数据与链接 | 65 个插件，内含 536 个 SKILL.md | P0 |
+| `github/awesome-copilot` | `.github/plugin/marketplace.json` 与目录树 | Copilot 插件；另有 `.agent.md`、`.instructions.md`、skills、hooks | MIT | 170 个插件、222 个子代理、194 条规则、444 个 Skill | P0 |
+| Gemini CLI 扩展库 | `GET https://geminicli.com/extensions.json`（单文件） | `fullName, stars, extensionName, extensionVersion, hasMCP, hasHooks, hasSkills, hasCustomCommands, licenseKey` | 带 ETag，每日更新 | 2066 个 | P0 |
+| `cursor/plugins` | `.cursor-plugin/marketplace.json` | Cursor 插件（规则、Skills、子代理、命令、MCP、Hooks） | 无许可证 | 96 个 | P1 |
+| GitHub 代码搜索 | `gh api search/code`，按 `filename:marketplace.json path:.claude-plugin` 等分片 | 发现新市场 | 需认证，单查询上限 1000 条 | `.claude-plugin/marketplace.json` 约 3.9 万处命中（含重复与测试样例） | P1（每周发现） |
+| claude-plugins.dev、claudemarketplaces.com、claude.com 插件页 | 站点 API 或网页 | 安装量、星数 | robots.txt 禁止抓取 `/api/`，未经许可不用 | 5.3 万插件 / 2736 个市场 | P2 |
+
+**Skills**
+
+| 来源 | 获取方式 | 关键字段 | 条款 | 规模 | 优先级 |
+| --- | --- | --- | --- | --- | --- |
+| Agent Skills 规范（`agentskills/agentskills`） | `agentskills.io/specification.md` | frontmatter：`name`（≤64，小写字母数字与连字符，须与目录同名）、`description`（≤1024）、`license`、`compatibility`、`metadata`、`allowed-tools`；目录 `scripts/ references/ assets/`；有校验器 `skills-ref validate` | Apache-2.0 | — | P0（标准化目标） |
+| `anthropics/skills`、`openai/skills`（`skills/.curated`、`skills/.system`） | 目录树 + 原文 | SKILL.md | 仓库无统一许可证，按单个 Skill 的 `license` 判断 | 20 / 44 个 | P0 |
+| awesome-copilot、openai/plugins、`vercel-labs/agent-skills` | 目录树 | SKILL.md | MIT / 无 / 无 | 444 / 536 / 9 个 | P0 / P1 |
+| skills.sh（`npx skills`） | `GET https://skills.sh/api/search?q=&limit=` | `owner/repo/skillId`、`installs` | 只有搜索接口；条款未核实 | — | P1（安装热度） |
+| ClawHub | `GET https://clawhub.ai/api/v1/skills?limit=&cursor=` | `slug, displayName, summary, latestVersion, stats` | 限流未核实 | 未核实 | P1 |
+| SkillsMP、LobeHub | — | — | robots.txt 禁止或未核实 | — | P2 |
+
+**Hooks**：没有专门的注册表，来源是插件里的 `hooks/hooks.json`、awesome-copilot 的 `hooks/` 目录（MIT）和 awesome-claude-code 的资源表 `THE_RESOURCES_TABLE_NEW.csv`（212 行，列 `ID, Display Name, Category, Sub-Category, Link, Author Name, Active, Date Added, Last Checked, Description, Stale`，只存元数据与链接）。各 Agent 的事件名见 5.2。
+
+**规则、子代理、工作流、指南**（只做了轻量核实）
+
+- 规则：`agentsmd/agents.md`（MIT）、awesome-copilot `instructions/`、`PatrickJS/awesome-cursorrules`（CC0）、`cursor/community-plugins`（原 cursor.directory）。
+- 子代理：`wshobson/agents`（MIT）、`VoltAgent/awesome-claude-code-subagents`（MIT）、awesome-copilot `agents/`。
+- 工作流框架（作为 `workflow` 条目人工录入，记录 README 哈希）：`obra/superpowers`、`github/spec-kit`、`Fission-AI/OpenSpec`、`gsd-build/get-shit-done`、`bmad-code-org/BMAD-METHOD`、`EveryInc/compound-engineering-plugin`、`SuperClaude-Org/SuperClaude_Framework`、`eyaltoledano/claude-task-master`。
+- 官方指南：`code.claude.com/docs/llms.txt`（含每周更新页）、`agentskills.io/llms.txt`；Claude Code、Codex、Gemini CLI、Cursor 的文档页都能直接取 `.md`，按周取哈希比对变化。
+
+**模型、价格与成绩**
+
+| 来源 | 获取方式 | 关键字段 | 条款 | 规模 | 优先级 |
+| --- | --- | --- | --- | --- | --- |
+| models.dev | `GET https://models.dev/api.json` | 供应商 → 模型：`family`、`canonical_model_id`、`reasoning`、`reasoning_options`（思考档位）、`cost{input, output, cache_read, cache_write}`（美元 / 百万 token）、`limit{context, output}` | MIT，每日更新 | 225 个供应商、8353 个模型 | P0 |
+| LiteLLM 价目表 | `model_prices_and_context_window.json` 原文 | 分档价格（如超过 20 万 token）、缓存写入分 5 分钟 / 1 小时、`supports_reasoning` | MIT（未核实） | 4439 条 | P0（分档与缓存价格） |
+| OpenRouter | `GET https://openrouter.ai/api/v1/models` | `canonical_slug`、`pricing`、`supported_parameters`（含 `reasoning`） | 条款未核实 | 463 个 | P1 |
+| SWE-bench 榜单 | `SWE-bench/swe-bench.github.io` 仓库的 `data/leaderboards.json` | `model_display, agent, resolved, cost, reasoning_effort, date` | 许可未核实 | Verified 180 条等 | P0（带思考档位） |
+| Aider polyglot | `aider/website/_data/polyglot_leaderboard.yml` | `pass_rate_2, reasoning_effort, thinking_tokens, total_cost` | Apache-2.0（未核实） | 69 条，最新为 2025-10，已不更新 | P2 |
+| Artificial Analysis | `GET https://artificialanalysis.ai/api/v2/data/llms/models` | 未核实 | 需要 API Key，署名要求未核实 | — | P1 |
+| Terminal-Bench、Epoch AI、LMArena、LiveBench | 数据位置未核实 | — | — | — | P2 |
+
+### 5.2 各 Agent 的扩展格式
+
+- **插件清单**：Claude 用 `.claude-plugin/plugin.json` 与 `.claude-plugin/marketplace.json`；Codex 用 `.codex-plugin/plugin.json` 与 `.agents/plugins/marketplace.json`（用户自己的市场在 `~/.agents/plugins/marketplace.json`）；Cursor 用 `.cursor-plugin/`；Copilot 用 `.github/plugin/`；Gemini 用 `gemini-extension.json`。另有跨 Agent 的 [Agent Plugins](https://agent-plugins.org) 规范（根目录 `plugin.json` + `extensions{<反向域名>: …}`），Copilot 与 Cursor 已支持；Antigravity 的插件格式未核实。
+- **Claude 插件的 `source`**：相对路径、`github{repo, ref, sha}`、`url{url, ref, sha}`、`git-subdir{url, path, ref, sha}`、`npm`、`archive{url, sha256}`；插件 ID 是 `<插件名>@<市场名>`。官方市场把外部插件钉在具体 `sha` 上，所以按 `sha` 变化就能判断插件更新。
+- **Claude 插件的组成**：`skills`、`commands`、`agents`、`hooks`（默认 `hooks/hooks.json`）、`mcpServers`（`.mcp.json`）、`lspServers`、`outputStyles`、`workflows`、`monitors`、`bin/`、默认 `settings.json`、`userConfig`、`dependencies`。本机缓存的 52 个官方相对路径插件中，含 Skills 的 17 个、命令 13 个、MCP 13 个、子代理 8 个、Hooks 7 个。
+- **Codex 插件清单**：`name, version, description, author, repository, license, keywords, skills, hooks, mcpServers, apps, interface{displayName, shortDescription, category, capabilities, defaultPrompt, …}`。
+- **Hook 事件**（取自各家文档，可能不全）：
+
+| Agent | 配置位置 | 事件 |
+| --- | --- | --- |
+| Claude Code | `settings.json` 的 `hooks`；插件 `hooks/hooks.json` | PreToolUse、PostToolUse、PostToolUseFailure、UserPromptSubmit、PermissionRequest、PermissionDenied、Notification、Stop、SubagentStart / Stop、PreCompact / PostCompact、SessionStart / End、FileChanged、CwdChanged、InstructionsLoaded、WorktreeCreate / Remove 等，处理器类型有 command、http、mcp_tool、prompt、agent |
+| Codex | `config.toml` 的 `[hooks.<事件>]` 或 `hooks.json` | SessionStart / End、UserPromptSubmit、PreToolUse、PostToolUse、PermissionRequest、PreCompact / PostCompact、SubagentStart / Stop、Stop |
+| Gemini CLI | `settings.json`（未核实） | BeforeTool、AfterTool、BeforeAgent、AfterAgent、BeforeModel、AfterModel、BeforeToolSelection、SessionStart / End、Notification、PreCompress |
+| Cursor | `.cursor/hooks.json`（未核实） | sessionStart / End、preToolUse、postToolUse、beforeShellExecution、afterShellExecution、beforeMCPExecution、afterFileEdit、beforeSubmitPrompt、preCompact、stop 等 |
+| Copilot | 插件 `hooks.json` | sessionStart / End、userPromptSubmitted、preToolUse、postToolUse、permissionRequest、errorOccurred、agentStop、subagentStop、preCompact、notification |
+
+  入库时保留原事件名 `event_native`，另归一为 `event_norm`：`session_start / session_end / prompt_submit / pre_tool / post_tool / post_tool_failure / permission / stop / subagent_start / subagent_stop / pre_compact / post_compact / notification / file_change / other`。会话侧的 `hook.run` 事件用同一套归一名，两边才能对上。
+- **Skill 目录**：Agent Skills 规范建议 `<项目>/.<客户端>/skills`、`<项目>/.agents/skills`、`~/.<客户端>/skills`、`~/.agents/skills`，很多客户端也扫描 `.claude/skills`；Cursor 用 `~/.cursor/skills/`。本机实测：Claude `~/.claude/skills/`、Codex `~/.codex/skills/`、通用 `~/.agents/skills/`。
+
+### 5.3 抓取顺序与刷新
+
+首次构建（约 1300 次 GitHub API 调用，低于认证用户每小时 5000 次）：
+
+1. 官方 MCP Registry 全量（`version=latest`，约 381 页，串行约 30 分钟），之后每小时用 `updated_since=<上次最大 updatedAt>` 增量；带 `updated_since` 时已删除条目也会返回，可同步下架状态。
+2. GitHub MCP Registry（4 页）与 Docker 目录。
+3. 约 9 个插件市场清单（Anthropic 官方、社区、knowledge-work、skills，openai/plugins，cursor/plugins，awesome-copilot）。重抓前先比对默认分支的 head SHA，没变就跳过。
+4. 官方与精选插件的组成（约 700 个）：每个源仓库一次 `git/trees/<sha>?recursive=1`，再取 `plugin.json`、SKILL.md、子代理、`hooks.json`、`.mcp.json` 原文。社区市场的 2282 个插件先只入索引。
+5. Skills：约 1050 个 SKILL.md，逐个按 Agent Skills 规范校验；安装热度用限速的 skills.sh 搜索补充。
+6. Gemini `extensions.json`（按 ETag 条件请求）。
+7. Hooks：awesome-claude-code 资源表、awesome-copilot `hooks/`、第 4 步拆出来的 Hooks。
+8. 规则、子代理、工作流：awesome-copilot、wshobson/agents、VoltAgent、awesome-cursorrules；8 个工作流框架人工录入。
+9. 模型与成绩：models.dev、LiteLLM（只在该文件有新提交时重取）、OpenRouter、SWE-bench、Aider，每日一次。
+10. 指南：`llms.txt` 索引与各页 `.md`，每周取哈希比对。
+
+| 来源 | 增量依据 | 频率 |
+| --- | --- | --- |
+| MCP Registry | `updated_since` | 每小时（App 内可降为每日） |
+| Git 仓库类来源 | 默认分支 head SHA；插件看清单里钉住的 `sha` | 每日 |
+| 单文件 JSON（Gemini、models.dev、LiteLLM） | ETag / Last-Modified；或该文件的最新提交 | 每日 |
+| 新市场发现（代码搜索、话题） | 分片搜索结果与已知集合做差 | 每周 |
+| 指南文档 | 内容哈希 | 每周 |
+
+### 5.4 许可与条款
+
+- 全文（SKILL.md 正文、规则正文、Hook 脚本）只在许可宽松（MIT、Apache-2.0、CC0、CC-BY）时入库，并保留署名；没有许可证的仓库（如 `anthropics/skills` 根目录、`openai/skills`、`openai/plugins`、`cursor/plugins`）只存元数据、哈希和链接，用户在本机预览或安装时再按需拉取原文。
+- robots.txt 禁止抓取接口的站点（claude-plugins.dev、claudemarketplaces.com、SkillsMP）未经许可不用；Glama 的数据要求逐条署名；官方 MCP Registry 的数据是 CC0。
+- 成绩数据逐条记录来源与链接；需要 API Key 的来源（Artificial Analysis）不进 MVP。
+
+### 5.5 本机已有的生态数据
+
+不联网也能先跑起来：各 Agent 已经在本机缓存了官方市场。
+
+| 位置 | 内容 |
+| --- | --- |
+| `~/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json` | Claude 官方市场清单（本机缓存 314 个插件，其中 52 个相对路径插件的源码也在本地） |
+| `~/.claude/plugins/marketplaces/anthropic-agent-skills/` | `anthropics/skills` 市场 |
+| `~/.codex/.tmp/bundled-marketplaces/openai-bundled/.agents/plugins/marketplace.json` | Codex 内置市场 |
+| `~/.codex/plugins/cache/{openai-curated, openai-curated-remote, openai-bundled, openai-primary-runtime}/` | 已下载的 Codex 插件（每个插件一个版本目录，内含 `.codex-plugin/plugin.json`） |
+| `~/.claude/skills/`、`~/.codex/skills/`、`~/.agents/skills/` | 已安装的 Skills |
+
+构建脚本先读这些本地缓存，解析器就能离线测试；已安装清单（3.5）也能马上链接到条目。
 
 ## 6. 生态索引数据库（Catalog）
 
@@ -418,16 +537,36 @@ Demo 各页需要的数据与来源：
 | `model_info` | 模型清单 | 规范 ID、别名、上下文长度、价格、支持的思考档位；会话侧算成本也用它 |
 | `benchmark_result` | 模型成绩 | 模型 × 思考档位 × harness × 基准 × 版本 → 分数、日期、来源 |
 
-`type` 取值：`skill`、`plugin`、`mcp_server`、`hook`、`subagent`、`command`、`rule`、`workflow`、`output_style`、`lsp_server`。「工作流经验」也作为 `workflow` 条目入库：来源是官方最佳实践文档或社区方法论仓库，正文存摘要与要点，并链接原文。
+`type` 取值：`skill`、`plugin`、`marketplace`、`mcp_server`、`hook`、`subagent`、`command`、`rule`、`workflow`、`guide`、`output_style`、`lsp_server`。各类型在 `item_version.manifest` 里保存自己的规范化字段：
+
+| 类型 | 规范化字段 |
+| --- | --- |
+| `plugin` | `format`（claude / codex / cursor / copilot / agent-plugins / gemini-extension）、清单路径、版本、组成（skill、command、agent、hook、mcp、lsp、output_style、workflow、bin、app、rule、settings …）、`userConfig`、依赖、各市场条目（市场、分类、`strict`、`policy`、解析后的 `source`）、各 Agent 的安装命令 |
+| `marketplace` | 名称、格式、所有者、仓库、清单路径、插件数、`renames`、head SHA |
+| `skill` | 规范字段 `name / description / license / compatibility / allowed_tools / metadata`、各 Agent 的扩展字段、是否带 `scripts / references / assets`、正文 token 数、规范校验结果 |
+| `mcp_server` | 规范名与各注册表别名、版本列表、包（类型、标识、版本、传输方式、环境变量及是否为密钥）、远程地址、仓库、工具清单（来自 Smithery / Docker）、认证方式、官方状态 |
+| `hook` | Agent、`event_native`、`event_norm`（5.2）、matcher、处理器（类型、命令 / URL / 提示词、超时）、作用域（用户 / 项目 / 插件）、风险标记 |
+| `rule` | 文件类型（AGENTS.md、CLAUDE.md、GEMINI.md、`.mdc`、`.instructions.md`）、适用范围（`globs`、`applyTo`、`alwaysApply`）、按标题切分的段落与主题 |
+| `subagent` / `command` | Agent、名称、描述、参数提示、可用工具、模型、权限模式、正文哈希 |
+| `workflow` | 仓库、星数、许可、安装方式（插件 / npx / uvx / CLI）、包含的 Skills / 命令 / 子代理 / Hooks、适用 Agent、阶段划分 |
+| `guide` | 地址、发布方、标题、日期、内容哈希、要点列表（每条：陈述、适用的条目类型与 Agent、原文锚点） |
+
+「工作流经验」以 `workflow`（方法论仓库）和 `guide`（官方最佳实践文档）两类入库：正文只存摘要与要点，链接原文。
 
 ### 6.2 统一身份与去重
 
 | 类型 | 规范 ID | 去重依据 |
 | --- | --- | --- |
-| 来自 Git 仓库的条目（Skill、插件、Hook、子代理、规则） | `<type>:<host>/<owner>/<repo>:<路径>` | 规范化内容哈希相同 → 复制或分叉，归并到规范条目（优先官方，其次 stars 多、出现早的） |
-| MCP 服务 | 官方 Registry 的反向域名名称（如 `io.github.owner/server`） | 没有 Registry 名称时用包身份（`npm:@scope/pkg`、`pypi:pkg`、`oci:image`）或远程地址；同一仓库、同一个包视为同一服务 |
-| 插件 | `<type>:<源仓库>:<路径>`；同时保存各市场里的 `<插件名>@<市场名>` | 同一插件可上架多个市场，按源仓库与路径归并 |
-| 模型成绩 | 模型规范 ID + 思考档位 + harness + 基准 + 版本 | 多个来源报同一成绩时都保留，展示时注明来源 |
+| 来自 Git 仓库的条目（Skill、插件、Hook、子代理、规则） | `<type>:<host>:<数字仓库 ID>:<路径>`，另存可读的 `owner/repo` | 用 GitHub 的数字仓库 ID（`gh api repos/o/r --jq .id`，Registry 的 `repository.id` 也有），仓库改名后不变；删库重建会换 ID，能识别「同名冒充」。内容哈希相同 → 复制或分叉，归并到规范条目 |
+| MCP 服务 | 官方 Registry 的 `name`（`io.github.<用户>/…` 表示命名空间经过 GitHub 验证） | 跨注册表用并查集合并，连接键由强到弱：`repository.id` → 规范化仓库地址 + 子目录 → 包身份（`npm:@scope/pkg`、`pypi:<规范化名>`、`oci:<不带 tag 的镜像>`、`mcpb:<fileSha256>`）→ 远程地址；键冲突的簇标出来人工看 |
+| 插件 | 解析 `source` 后的 `(仓库 ID, 路径)`；`<插件名>@<市场名>` 只作别名 | 同一插件可上架多个市场；按各市场的 `renames` 映射处理改名 |
+| 聚合站条目 | 不做主键 | skills.sh 的 `owner/repo/skillId`、ClawHub 的 `ownerHandle/slug`、Smithery 的 `qualifiedName` 等只存进 `item_source`，作为热度与出处 |
+| 模型 | models.dev 的 `<供应商>/<模型>` | 别名表：去掉 LiteLLM 的 `bedrock/`、`vertex_ai/` 等前缀，映射 OpenRouter 的 `canonical_slug`，解析榜单显示名里的「(32k thinking)」「(high)」。**思考档位不属于模型身份** |
+| 模型成绩 | `(模型, 归一后的思考档位, harness, 基准, 基准版本)` | 多个来源报同一成绩时都保留，展示时注明来源 |
+
+- **内容哈希**：单文件先规范化（统一换行、去首尾空白、frontmatter 解析后重新序列化）再算 SHA-256；目录（如一个 Skill 带 `scripts/`）对排序后的文件哈希再算一次（Merkle 哈希）。
+- **近似重复**：内容不完全相同但名称相同、描述与正文的 MinHash 相近的，标为 `alternative_to` 或疑似复制，不自动合并。
+- **选规范条目**：厂商官方 > 市场清单指向的源仓库 > 首次提交最早的仓库 > 聚合站副本。
 
 Skill 的 `name` 并不唯一，大量仓库互相复制，所以一定要用内容哈希聚类，否则资源库里会出现几十个同名条目。
 
