@@ -58,6 +58,7 @@ def main(argv: list[str] | None = None) -> None:
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     eval_parser = sub.add_parser("evaluate")
     eval_parser.add_argument("--output", type=Path, default=Path(".local/evaluation.json"))
+    eval_parser.add_argument("--suite", choices=("all", "readability", "pipeline"), default="all")
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8765)
     refresh = sub.add_parser("catalog-refresh", help="显式核对公开 GitHub 资源来源，不执行安装")
@@ -77,10 +78,17 @@ def main(argv: list[str] | None = None) -> None:
         print(json.dumps({"verified": result["success"], "failed": result["failed"], "output": str(args.output.resolve())}, ensure_ascii=False))
         return
     if args.command == "evaluate":
-        result = benchmark()
+        from .pipeline_eval import pipeline_benchmark
+        result = {"human_acceptance": "pending", "history_updated": False}
+        if args.suite in ("all", "readability"):
+            result["readability"] = benchmark()
+        if args.suite in ("all", "pipeline"):
+            result["pipeline"] = pipeline_benchmark()
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2))
-        print(json.dumps({k: v for k, v in result.items() if k != "results"}, ensure_ascii=False))
+        print(json.dumps({"human_acceptance": "pending", "history_updated": False,
+                          "suites": {k: {field: suite[field] for field in ("cases", "correct", "limitation")}
+                                     for k, suite in result.items() if isinstance(suite, dict)}}, ensure_ascii=False))
         return
     if args.command == "demo":
         args.db = str(args.output / "demo.sqlite")

@@ -19,6 +19,8 @@ python3 -m venv .venv
 
 demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
 
+`evaluate` 同时跑文字对照和整条链路的构造场景；`--suite pipeline` 可以只跑后者。结果分别保留误报、漏报和证据检查。所有评价样例在独立临时数据库中运行，正常数据不会被改写。
+
 ## 用自己的 Codex 数据
 
 ```sh
@@ -46,14 +48,8 @@ demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.
 ## 看实现与版本报告
 
 - [今晚先跑通什么](docs/backend/plan.md)
-- [v0.1：数据流已跑通，语义分类仍需修正](docs/backend/versions/v0.1.md)
-- [v0.2：推荐开始由分析结果决定](docs/backend/versions/v0.2.md)
-- [v0.2.1：修正快照与需求理解](docs/backend/versions/v0.2.1.md)
-- [v0.3：推荐来源可以实际获取和复核](docs/backend/versions/v0.3.md)
-- [v0.3.1：确保瓶颈来自真实记录](docs/backend/versions/v0.3.1.md)
-- [v0.3.2：归档恢复与未知状态](docs/backend/versions/v0.3.2.md)
-- [v0.4：让画像和推荐适用于具体任务](docs/backend/versions/v0.4.md)
-- [v0.4.1：元数据变化也重新判断](docs/backend/versions/v0.4.1.md)
+- [当前版本：评价整条链路](docs/backend/versions/v0.5.md)
+- [各版记录](docs/backend/versions/README.md)
 - [模块与接口](docs/backend/architecture.md)
 - [调研与取舍](docs/backend/research.md)
 

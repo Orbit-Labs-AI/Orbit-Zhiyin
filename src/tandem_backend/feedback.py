@@ -11,10 +11,10 @@ from .models import Event
 
 RULES = {
     "clarity": ("把说明讲清楚", r"说人话|易读|易懂|简洁直接|逻辑清晰|通俗|讲清楚|直观|朴素|看不懂|没看懂|难理解|明确思路"),
-    "brevity": ("说明简洁些", r"简洁|简短|不要啰嗦|太长|精简|少[一一点]*细节"),
+    "brevity": ("说明简洁些", r"简洁|简短|不要啰嗦|太长|精简|少[一一点]*细节|(?:一|两|三|\d+)段话|\d+字(?:以内|内)"),
     "grounding": ("说明判断依据", r"(?:给出|附上|提供|列出).{0,6}(?:证据|来源|出处)|注明.{0,6}(?:来源|出处)|引用来源|说明.{0,6}依据|有依据|不要编|真实性|不要想当然|不要猜|核对事实"),
     "actionability": ("把要求落实为结果", r"直接[修做改]|跑通|可运行|具体步骤|怎么[做用]|实现|继续执行"),
-    "autonomy": ("减少反复确认", r"不要[再]*问|直接完成|自主|不用[再]*确认|不[用需要]*[再]*问我"),
+    "autonomy": ("减少反复确认", r"不要[再]*问|直接完成|自主.{0,4}(?:完成|执行|处理|推进|决定)|不用[再]*确认|不[用需要]*[再]*问我"),
     "planning": ("先理清方案", r"先[想讲说给]*[一一下]*方案|先规划|先[做给]*计划|思考规划|分步"),
     "verification": ("完成后检查", r"测试|验收|跑通|检查.{0,10}(?:代码|运行|结果)|验证.{0,10}(?:代码|运行|结果)"),
     "scope": ("保持范围集中", r"先做最[小简]|不要[再]*[增扩]|只[改做]|MVP|最小.{0,6}(?:版本|范围|原型)|不要重构"),
@@ -58,11 +58,11 @@ def reader_context(text: str, event_id: str) -> list[dict]:
 def scene_of(text: str) -> str:
     if re.search(r"数学|定理|证明|推导|不动点|微分|积分|矩阵|数分|SPADE", text, re.I):
         return "math_explanation"
-    if re.search(r"报告|项目进度|完成度|README|开发者|后端|架构", text, re.I):
+    if re.search(r"报告|项目进度|完成度|README|开发说明", text, re.I):
         return "developer_report"
     if re.search(r"文档|文章|讲义|教程|方案", text):
         return "document"
-    if re.search(r"代码|函数|测试|bug|运行|实现", text, re.I):
+    if re.search(r"代码|函数|测试|bug|运行|实现|后端|算法|架构|模块|接口", text, re.I):
         return "coding"
     return "conversation"
 
@@ -98,10 +98,36 @@ def _writing_target(text: str, start: int, end: int) -> bool:
 def language_of(text: str) -> str:
     text = _clean(text)
     text = re.sub(r"(?:不要|别|不用|不是让你)\s*" + LANGUAGE_VERBS + r"?\s*" + LANGUAGE, "", text, flags=re.I)
-    explicit = list(re.finditer(LANGUAGE_VERBS + r"\s*" + LANGUAGE + "|" + LANGUAGE + r".{0,5}(?:版本|回答|报告|解释|文档)", text, re.I))
+    explicit = list(re.finditer(LANGUAGE_VERBS + r"\s*" + LANGUAGE + "|" + LANGUAGE + r"(?:版|版本|的?(?:回答|报告|解释|文档))", text, re.I))
+    explicit = [m for m in explicit if not re.match(r"\s*(?:API|SDK|字段|单词|术语|字样)", text[m.end():], re.I)]
     if explicit:
         return "zh" if re.search(r"中文|汉语", explicit[-1][0]) else "en"
     return "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+
+
+def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
+    """Separate an instruction from a negated instruction or a discussion topic."""
+    left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
+    prefix = text[max(left, match.start() - 24):match.start()]
+    after = text[match.end():match.end() + 16]
+    if re.search(r"(?:不要|不用|无需|不必|别|并非|不是)[^，。；;\n]{0,6}$", prefix):
+        return False
+    topic = bool(re.search(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何", prefix))
+    execution = bool(re.search(r"(?:请|先|再|然后|接着|并|直接|帮我|需要|要|务必|记得|完成后|最后|做|进行|执行|运行|跑|补充|添加|增加|编写|写|加入)[^，。；;\n]{0,8}$", prefix))
+    if dimension == "actionability" and match[0] == "实现":
+        if re.match(r"原理|机制|方式|方法|过程|细节", after) or topic:
+            return False
+        if not execution and match.start() != left:
+            return False
+    if dimension == "verification":
+        if topic or (match[0] == "测试" and re.match(r"驱动|数据|集|结果|报告|范围|覆盖|失败|成功|为什么|如何|的(?:概念|定义|原理)", after)):
+            return False
+        if not execution and match.start() != left:
+            return False
+    if dimension == "scope" and match[0].upper() == "MVP":
+        if topic or re.match(r"\s*(?:是什么|是啥|的?(?:概念|含义|意思))", after):
+            return False
+    return True
 
 
 def _quote(text: str, start: int, end: int) -> str:
@@ -128,7 +154,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v3"
+    rule_version: str = "rules-v4"
     readers: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -166,6 +192,7 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
         context = context_by_id[event.id]
         for dimension, (label, pattern) in RULES.items():
             matches = list(re.finditer(pattern, text, re.I))
+            matches = [m for m in matches if _requirement_target(text, m, dimension)]
             if dimension in ("clarity", "brevity"):
                 matches = [m for m in matches if _writing_target(text, m.start(), m.end())]
             if not matches:
@@ -178,7 +205,7 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
                 category = "request"
                 if dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长", clause):
                     category = "correction"
-                elif dimension in ("clarity", "brevity", "grounding") and re.search(r"继续修改|据此改进|改写|重写|上一[版轮]|你刚才|更[加]*.{0,5}(?:直观|朴素|易读)", text):
+                elif dimension in ("clarity", "brevity", "grounding") and re.search(r"继续修改|据此改进|改写|重写|上一[版轮]|你刚才|更[加]*.{0,5}(?:直观|朴素|易读)", clause):
                     category = "refinement"
                 candidates.append((category, match))
             # One event supports each dimension once; choose its strongest feedback

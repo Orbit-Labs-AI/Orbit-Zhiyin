@@ -87,7 +87,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     return {
-        "schema_version": "1.2", "analysis_version": "context-v3",
+        "schema_version": "1.2", "analysis_version": "context-v4",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),

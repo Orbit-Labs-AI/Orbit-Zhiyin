@@ -11,6 +11,25 @@ from .feedback import Signal, language_of
 from .models import Event, stable_id
 
 
+def unexplained_terms(text: str) -> list[str]:
+    """A local definition marker reduces false alarms; this is not semantic grading."""
+    terms = []
+    for match in re.finditer(r"\b(?:KL|JS|POMDP|latent|embedding|factorize|z_u)\b", text, re.I):
+        following = text[match.end():match.end() + 120]
+        definition = re.match(r"\s*(?:[:：（(]|是指?|表示|指的是|即)\s*([^。;；\n）)]+)", following)
+        if definition and (len(re.findall(r"[\u4e00-\u9fff]", definition[1])) >= 4 or
+                           len(re.findall(r"\b[a-z]+\b", definition[1], re.I)) >= 4):
+            continue
+        terms.append(match[0])
+    return terms
+
+
+def _expected_failure(text: str) -> bool:
+    if re.search(r"修复|排查|解决|不应该|不该", text):
+        return False
+    return bool(re.search(r"预期.{0,8}(?:失败|错误|报错)|应该.{0,8}(?:失败|报错|返回错误)|验证.{0,8}失败路径|负例.{0,6}(?:测试|用例)", text))
+
+
 def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], list[dict]]:
     by_session = defaultdict(list)
     by_event = defaultdict(list)
@@ -47,14 +66,17 @@ def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], l
                     if any(s.dimension == "brevity" for s in writing) and e.details.get("original_chars", len(e.text)) > 2500:
                         findings.append(_finding("long_response", pending_request, e, writing,
                                                  "你要求说明简洁；这次回复超过 2500 字符，值得回看是否有可移出的细节。", "rule_candidate"))
-                    jargon = re.findall(r"\b(?:KL|JS|POMDP|latent|embedding|factorize|z_u)\b", e.text[:500], re.I)
+                    jargon = unexplained_terms(e.text[:500])
                     if any(s.dimension == "clarity" for s in writing) and len(jargon) >= 4:
                         findings.append(_finding("unexplained_terms", pending_request, e, writing,
-                                                 f"你要求说明易懂；回复开头出现 {len(jargon)} 处模型术语，需要检查是否解释到位。", "rule_candidate"))
+                                                 f"你要求说明易懂；回复开头有 {len(jargon)} 处模型术语未找到紧邻的解释，需要回看是否解释到位。", "rule_candidate"))
                 last_response = e
             elif e.kind == "tool_result":
                 call = calls.get(e.call_id)
                 operation = (e.turn_id, e.tool, call.details.get("argument_digest")) if call else None
+                if pending_request and _expected_failure(pending_request.text):
+                    consecutive, last_operation = [], None
+                    continue
                 if not call or not call.details.get("argument_digest") or e.status != "failed":
                     consecutive, last_operation = [], None
                     continue
