@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 
 from .content import measure_length
-from .feedback import Signal, language_of, task_contexts
+from .feedback import Signal, task_contexts
 from .models import Event, stable_id
 
 
@@ -26,9 +26,15 @@ def unexplained_terms(text: str) -> list[str]:
 
 
 def _expected_failure(text: str) -> bool:
-    if re.search(r"修复|排查|解决|不应该|不该", text):
-        return False
-    return bool(re.search(r"预期.{0,8}(?:失败|错误|报错)|应该.{0,8}(?:失败|报错|返回错误)|验证.{0,8}失败路径|负例.{0,6}(?:测试|用例)", text))
+    # A repair task may deliberately run negative tests afterwards. Bind the
+    # exception to its own clause instead of treating every repair word as a veto.
+    pattern = r"预期[^，,。；;\n]{0,8}(?:失败|错误|报错)|应该[^，,。；;\n]{0,8}(?:失败|报错|返回错误)|验证[^，,。；;\n]{0,8}失败路径|负例[^，,。；;\n]{0,6}(?:测试|用例)"
+    for match in re.finditer(pattern, text):
+        left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
+        prefix = text[max(left, match.start() - 16):match.start()]
+        if not re.search(r"(?:不要|不用|无需|别|不需要|不|不能|禁止)[^，,。；;\n]{0,8}$", prefix):
+            return True
+    return False
 
 
 def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | None = None) -> tuple[list[dict], list[dict]]:
@@ -109,14 +115,16 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                 last_operation = operation
                 if len(consecutive) == 3 and pending_request:
                     workflow = [s for s in pending_signals if s.target == "workflow"]
+                    context = context_by_id[pending_request.id]
                     findings.append({
                         "id": stable_id("repeated_tool_failure", e.session_id, consecutive[0].id),
-                        "type": "repeated_tool_failure", "scene": "coding", "language": workflow[0].language if workflow else language_of(pending_request.text), "status": "rule_candidate",
+                        "type": "repeated_tool_failure", "scene": context["scene"], "language": context["language"], "status": "rule_candidate",
                         "session_id": e.session_id, "model": e.model,
+                        "task_id": context["task_id"],
                         "dimensions": [s.dimension for s in workflow],
-                        "readers": workflow[0].readers if workflow else [],
-                        "language_evidence_id": workflow[0].language_evidence_id if workflow else pending_request.id,
-                        "language_basis": workflow[0].language_basis if workflow else "message_language",
+                        "readers": context["readers"],
+                        "language_evidence_id": context["language_evidence_id"],
+                        "language_basis": context["language_basis"],
                         "profile_evidence_ids": [s.event_id for s in workflow],
                         "evidence_ids": [pending_request.id] + [x.id for x in consecutive],
                         "reason": "同一轮中，相同工具参数连续三次返回失败；可能需要先补定位步骤。预期失败测试或环境问题也会产生这个模式。",
@@ -126,7 +134,27 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
 
 
 def _artifact_delivery(text: str) -> bool:
-    return bool(re.search(r"(?:已|完成|写入|保存).{0,50}\[[^\]]+\]\([^)]*\.(?:md|tex|docx)", text))
+    """A file link plus a completed action supports delivery, never the file's quality."""
+    completed = r"已(?:经)?(?:完成|写入|写到|保存|生成|更新|创建|写好|补充)|(?:完成|写入|保存|生成|更新|创建|写好)(?:了|完成)"
+    uncertain = r"无法|不能|未能|尚未|还没|未|没有|计划|准备|打算|预计|接下来|随后|将|会|需要|请|待|是否|不确定"
+    for link in re.finditer(r"\[[^\]]+\]\([^)]*\.(?:md|tex|docx)(?::\d+)?\)", text, re.I):
+        left = max(text.rfind(c, 0, link.start()) for c in "。；;\n") + 1
+        before = text[max(left, link.start() - 70):link.start()]
+        for action in re.finditer(completed, before):
+            # Negative or prospective wording around the action leaves delivery
+            # unconfirmed. Do not inspect or execute the linked document.
+            if not re.search(uncertain, before[max(0, action.start() - 12):]):
+                return True
+        after = text[link.end():link.end() + 24]
+        if re.match(r"\s*(?:已(?:经)?(?:完成|写入|保存|生成|更新|创建)|保存完成|写入完成)", after):
+            return True
+        # Chinese often places the file inside the completed-action phrase:
+        # '已将 [文件] 重写为…' or '已在 [文件] 中补充…'.
+        enclosing = re.search(r"已(?:经)?(?:将|把|在|为|对)\s*$", before)
+        if enclosing and not re.search(uncertain, before[max(0, enclosing.start() - 12):enclosing.start()]) and re.match(
+                r"\s*(?:中|里)?\s*(?:重写|改写|补充|更新|保存|写入|生成|完成|整理|修改|加入|添加)", after):
+            return True
+    return False
 
 
 def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
