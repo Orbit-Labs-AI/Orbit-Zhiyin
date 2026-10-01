@@ -60,6 +60,10 @@ class Store:
         if not session:
             return
         with self.connect() as conn:
+            previous = conn.execute("SELECT session_id FROM imports WHERE source_file=?", (session.source_file,)).fetchone()
+            if previous and previous[0] != session.id:
+                conn.execute("DELETE FROM sessions WHERE id=? AND json_extract(data,'$.source_file')=?",
+                             (previous[0], session.source_file))
             conn.execute("INSERT OR REPLACE INTO sessions VALUES (?,?,?,?,?)",
                          (session.id, session.project_id, session.project, session.model,
                           json.dumps(asdict(session), ensure_ascii=False)))

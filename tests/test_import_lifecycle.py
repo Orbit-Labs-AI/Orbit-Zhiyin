@@ -28,6 +28,19 @@ def test_archive_restore_then_exclusion_removes_all_session_evidence(tmp_path):
     assert store.events(session_id="demo-0") == []
 
 
+def test_replacing_source_identity_removes_previous_session_in_same_transaction(tmp_path):
+    home = demo_home(tmp_path / "codex")
+    store = Store(tmp_path / "data.sqlite")
+    import_codex(store, home)
+    path = home / "sessions" / "demo-0.jsonl"
+    path.write_text(path.read_text().replace('"demo-0"', '"replacement"'))
+    import_codex(store, home)
+    assert {s["id"] for s in store.sessions()} == {"replacement", "demo-1", "demo-2"}
+    assert store.events(session_id="demo-0") == []
+    import_codex(store, home, exclude_sessions={"replacement"})
+    assert {s["id"] for s in store.sessions()} == {"demo-1", "demo-2"}
+
+
 def test_disappeared_sources_are_reconciled_without_removing_another_home(tmp_path):
     first = demo_home(tmp_path / "first")
     second = demo_home(tmp_path / "second")
