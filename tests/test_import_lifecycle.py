@@ -99,5 +99,6 @@ def test_bottleneck_is_rendered_when_no_resource_matches(tmp_path):
     recs = [r for r in recommend(data) if r["bottleneck_id"] == data["bottlenecks"][0]["id"]]
     assert recs == []
     output = markdown(explain(data, recs))
-    assert "待核对的卡点" in output
+    assert "代码协作" in output
+    assert all(eid in output for eid in data["bottlenecks"][0]["evidence_ids"])
     assert "你随后要求调整说明" in output

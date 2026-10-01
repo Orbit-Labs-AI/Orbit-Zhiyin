@@ -238,7 +238,7 @@ def test_api_reports_and_error_boundaries(tmp_path):
     with TestClient(create_app(store.path)) as client:
         assert client.get("/health").json()["counts"]["sessions"] == 3
         report = client.get("/v1/analysis").json()
-        assert "明确要求" in report["summary"]
+        assert report["main_evidence_ids"] == report["bottlenecks"][0]["evidence_ids"]
         assert report["recommendations"][0]["effect_status"] == "unmeasured"
         assert client.get("/v1/analysis?before=yesterday").status_code == 422
         assert client.get("/v1/sessions/missing/events").status_code == 404

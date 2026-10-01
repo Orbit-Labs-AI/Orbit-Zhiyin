@@ -33,7 +33,7 @@
 | `GET /v1/evidence/{id}` | 一条建议引用的原始事件 |
 | `POST /v1/evaluation` | 对输入文本做场景检查，不写入画像 |
 
-`audience=user` 与 `audience=developer` 选择下一步说明的读者。`before` 使用带时区的 ISO 时间；没有对应数据时返回无数据状态，不沿用全局画像填充。
+`audience=user` 与 `audience=developer` 选择报告读者。用户版先给具体核对项；开发者版补充分母和推荐引用方式。事实与推荐相同。`before` 使用带时区的 ISO 时间；没有对应数据时返回同字段的无数据状态，不沿用全局画像填充。
 
 `scene=math_explanation` 等筛选保留相应请求之后的工具和响应，便于核对完整结果。CLI 对应 `report --scene math_explanation`。其他场景为 `developer_report / document / coding / conversation`。
 

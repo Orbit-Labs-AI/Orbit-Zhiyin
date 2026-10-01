@@ -125,5 +125,7 @@ def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
             "readers": evidence[0].readers,
             "language_evidence_id": evidence[0].language_evidence_id,
             "language_basis": evidence[0].language_basis,
+            "request_preview": evidence[0].quote,
+            "response_content": "artifact_delivery" if _artifact_delivery(response.text) else "message",
             "profile_evidence_ids": [request.id], "evidence_ids": [request.id, response.id],
             "reason": reason}
