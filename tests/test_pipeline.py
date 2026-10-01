@@ -7,7 +7,7 @@ from tandem_backend.analysis import analyze, union_duration, wilson_interval
 from tandem_backend.api import create_app
 from tandem_backend.cli import demo_home
 from tandem_backend.evaluation import benchmark, evaluate_text
-from tandem_backend.feedback import signals
+from tandem_backend.feedback import language_of, signals
 from tandem_backend.importers.codex import parse_rollout
 from tandem_backend.models import Event
 from tandem_backend.privacy import direct_user_text, redact
@@ -60,6 +60,30 @@ def test_incomplete_tail_preserves_valid_prefix_and_source_file(tmp_path):
     assert len(result.events) == 1
     assert result.warnings == [{"line": 3, "code": "incomplete_tail"}]
     assert p.read_bytes() == original
+
+
+def test_fixed_snapshot_drops_unclocked_events(tmp_path):
+    p = rollout(tmp_path / "clock.jsonl", [meta(), message("请讲清楚")])
+    with p.open("a") as file:
+        file.write(json.dumps({"type": "response_item", "payload": message("没看懂")[1]}) + "\n")
+    result = parse_rollout(p, before="2026-02-01T00:00:00Z")
+    assert [e.text for e in result.events] == ["请讲清楚"]
+    assert result.warnings[-1]["code"] == "unclocked_at_snapshot"
+
+
+def test_language_mentions_are_not_language_instructions():
+    assert language_of("不要用英文，请用中文解释。") == "zh"
+    assert language_of("请用中文讲清楚这个 English API。") == "zh"
+    assert language_of("请介绍 English API 的用法。") == "zh"
+    assert language_of("请提供英文版本。") == "en"
+    assert language_of("翻译成英语，保持事实。") == "en"
+
+
+def test_source_field_is_not_a_grounding_preference():
+    event = Event("e", "s", 1, "user_message", None, text="请把 source 字段重命名为来源。")
+    assert not any(s.dimension == "grounding" for s in signals([event]))
+    event.text = "写报告时请注明来源，不要想当然。"
+    assert any(s.dimension == "grounding" for s in signals([event]))
 
 
 def test_repeated_import_is_idempotent_and_evaluation_does_not_update_profile(tmp_path):

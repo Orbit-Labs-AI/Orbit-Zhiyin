@@ -12,7 +12,7 @@ from .models import Event
 RULES = {
     "clarity": ("把说明讲清楚", r"说人话|易读|易懂|简洁直接|逻辑清晰|通俗|讲清楚|直观|朴素|看不懂|没看懂|难理解|明确思路"),
     "brevity": ("说明简洁些", r"简洁|简短|不要啰嗦|太长|精简|少[一一点]*细节"),
-    "grounding": ("说明判断依据", r"证据|有依据|不要编|来源|真实性|不要想当然|不要猜|核对事实"),
+    "grounding": ("说明判断依据", r"(?:给出|附上|提供|列出).{0,6}(?:证据|来源|出处)|注明.{0,6}(?:来源|出处)|引用来源|说明.{0,6}依据|有依据|不要编|真实性|不要想当然|不要猜|核对事实"),
     "actionability": ("把要求落实为结果", r"直接[修做改]|跑通|可运行|具体步骤|怎么[做用]|实现|继续执行"),
     "autonomy": ("减少反复确认", r"不要[再]*问|直接完成|自主|不用[再]*确认|不[用需要]*[再]*问我"),
     "planning": ("先理清方案", r"先[想讲说给]*[一一下]*方案|先规划|先[做给]*计划|思考规划|分步"),
@@ -65,8 +65,11 @@ def _writing_target(text: str, start: int, end: int) -> bool:
 
 
 def language_of(text: str) -> str:
-    if re.search(r"英文|英语|English", text, re.I):
-        return "en"
+    text = _clean(text)
+    text = re.sub(r"(?:不要|别|不用|不是让你)(?:用|写|输出|使用)?\s*(?:英文|英语|English|中文|汉语)", "", text, flags=re.I)
+    explicit = list(re.finditer(r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)\s*(英文|英语|English|中文|汉语)|(?:英文|英语|English|中文|汉语).{0,5}(?:版本|回答|报告|解释|文档)", text, re.I))
+    if explicit:
+        return "zh" if re.search(r"中文|汉语", explicit[-1][0]) else "en"
     return "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
 
 

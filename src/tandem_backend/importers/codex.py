@@ -99,6 +99,12 @@ def parse_rollout(
                 continue
             kind = envelope.get("type")
             timestamp = utc_time(envelope.get("timestamp"))
+            if cutoff and not timestamp:
+                result.warnings.append({"line": ordinal, "code": "unclocked_at_snapshot"})
+                if kind == "session_meta":
+                    result.skipped_reason = "unclocked_metadata"
+                    return result
+                continue
             if kind != "session_meta" and cutoff and timestamp and timestamp > cutoff:
                 continue
             if kind == "session_meta":
@@ -123,7 +129,7 @@ def parse_rollout(
                 project = Path(cwd).name or "未知项目"
                 # Full normalized path avoids collisions between identically named folders.
                 project_key = str(Path(cwd).expanduser().resolve()) if cwd != "unknown" else cwd
-                model = md.get("model") or "unknown"
+                model = (md.get("model") or "unknown") if not cutoff else "unknown"
                 result.session = Session(
                     sid, stable_id(project_key), project, cwd, str(path.resolve()), model,
                     md.get("title") or "未命名会话", timestamp,
