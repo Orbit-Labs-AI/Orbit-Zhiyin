@@ -6,6 +6,7 @@ Signals describe observations; repeat requests do not establish stable personali
 
 import re
 from dataclasses import asdict, dataclass, field
+from urllib.parse import unquote, urlsplit
 
 from .content import merge_length_contracts
 from .models import Event
@@ -24,17 +25,48 @@ WRITING = re.compile(r"说人话|说明|讲清楚|解释|回答|表达|报告|�
 CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|实现|字段|参数|属性|变量|文件名|命名")
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
 LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
-LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)"
+LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出|保留)"
 LANGUAGE_QUANTITY = r"\s*(?:一(?:份|篇|个|段|版|套)\s*)?"
+NEGATION = r"(?:不要|不用|无需|不必|别|不需要|不是让你|并非|不是)"
+NEW_TOPIC = re.compile(r"新(?:的)?(?:数学)?(?:任务|定理|问题|主题|报告|文档|接口|教程|证明)|另(?:外)?一个(?:任务|问题|主题|定理|项目)|换(?:一个|个)(?:任务|主题)|下一(?:道|个)(?:题|问题)")
 SCENE_LABELS = {"math_explanation": "数学讲解", "developer_report": "开发说明与报告",
                 "document": "文档写作", "coding": "代码协作", "conversation": "一般对话"}
 
 
 def is_followup(text: str) -> bool:
-    """Carry task context only for a short, explicit continuation in the same session."""
+    """A new subject must not become a revision merely because it says '没看懂'."""
+    if NEW_TOPIC.search(text):
+        return False
+    direct_reference = re.search(r"你(?:刚才|之前|这次|写的)|上一版|这份(?:文档|报告|讲义)|听完之后修改|修改回复", text)
     continuation = re.search(r"^(?:好的?[，。\s]*)?(?:继续|再|更|这|上一|补|精简|没看懂|看不懂|请再|请继续|请改|改成)", text.strip())
     revision = re.search(r"把(?:语言|说明|正文).{0,8}改|我觉得.{0,10}(?:增加|补充|修改|调整)", text)
-    return len(text) < 160 and bool(continuation or (revision and WRITING.search(text)))
+    reexplain = re.search(r"(?:没看懂|看不懂|不清楚).{0,12}再(?:解释|讲|说明)", text)
+    return bool(direct_reference) or (len(text) < 160 and bool(continuation or reexplain or (revision and WRITING.search(text))))
+
+
+def same_artifact_reference(request: str, delivery: str) -> bool:
+    """An explicit file reference can confirm continuity across imperfect scene labels.
+
+    Compare path suffixes without reading the referenced files. Distinct directories
+    with the same basename do not match when both references contain directories.
+    """
+    def references(text):
+        paths = []
+        for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", text):
+            try:
+                path = unquote(urlsplit(target).path)
+            except ValueError:
+                continue
+            path = re.sub(r":\d+$", "", path)
+            if re.search(r"\.(?:md|tex|docx)$", path, re.I):
+                paths.append(tuple(part for part in path.split("/") if part not in ("", ".")))
+        return paths
+    for first in references(request):
+        for second in references(delivery):
+            size = min(len(first), len(second))
+            if size and first[-size:] == second[-size:]:
+                return True
+    return False
 
 
 def reader_context(text: str, event_id: str) -> list[dict]:
@@ -106,19 +138,34 @@ def _writing_target(text: str, start: int, end: int) -> bool:
     return bool(WRITING.search(local)) or bool(WRITING.search(context)) or text[start:end] in ("说人话", "看不懂", "没看懂", "不要啰嗦")
 
 
-def explicit_language(text: str) -> str | None:
+def language_constraints(text: str) -> tuple[str | None, set[str]]:
     """The language of a user's message can differ from the requested deliverable."""
     text = _clean(text)
-    text = re.sub(r"(?:不要|别|不用|不是让你)\s*" + LANGUAGE_VERBS + "?" + LANGUAGE_QUANTITY + LANGUAGE, "", text, flags=re.I)
     explicit = list(re.finditer(LANGUAGE_VERBS + LANGUAGE_QUANTITY + LANGUAGE + "|" + LANGUAGE + r"(?:版|版本|的?(?:回答|报告|解释|文档))", text, re.I))
     explicit = [m for m in explicit if not re.match(r"\s*(?:API|SDK|字段|单词|术语|字样)", text[m.end():], re.I)]
-    if explicit:
-        return "zh" if re.search(r"中文|汉语", explicit[-1][0]) else "en"
-    return None
+    requested, forbidden = None, set()
+    for match in explicit:
+        language = "zh" if re.search(r"中文|汉语", match[0]) else "en"
+        left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
+        prefix = text[max(left, match.start() - 24):match.start()]
+        if re.search(NEGATION + r"[^，。；;\n]{0,8}$", prefix):
+            forbidden.add(language)
+            if requested == language:
+                requested = None
+        else:
+            requested = language
+            forbidden.discard(language)
+    return requested, forbidden
+
+
+def explicit_language(text: str) -> str | None:
+    return language_constraints(text)[0]
 
 
 def language_of(text: str) -> str:
-    return explicit_language(text) or ("zh" if re.search(r"[\u4e00-\u9fff]", _clean(text)) else "en")
+    requested, forbidden = language_constraints(text)
+    fallback = "zh" if re.search(r"[\u4e00-\u9fff]", _clean(text)) else "en"
+    return requested or (fallback if fallback not in forbidden else "unknown")
 
 
 def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
@@ -126,7 +173,9 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
     left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
     prefix = text[max(left, match.start() - 24):match.start()]
     after = text[match.end():match.end() + 16]
-    if re.search(r"(?:不要|不用|无需|不必|别|并非|不是)[^，。；;\n]{0,6}$", prefix):
+    if dimension == "brevity" and match[0] == "太长" and re.search(r"(?:不要|不用|无需|不必|别|不需要)[^，。；;\n]{0,4}$", prefix):
+        return True  # '不要太长' requests brevity; it does not reject brevity.
+    if re.search(NEGATION + r"[^，。；;\n]{0,6}$", prefix):
         return False
     topic = bool(re.search(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何", prefix))
     execution = bool(re.search(r"(?:请|先|再|然后|接着|并|直接|帮我|需要|要|务必|记得|完成后|最后|做|进行|执行|运行|跑|补充|添加|增加|编写|写|加入)[^，。；;\n]{0,8}$", prefix))
@@ -170,13 +219,14 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v6"
+    rule_version: str = "rules-v7"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)
     language: str = "zh"
     language_evidence_id: str | None = None
     language_basis: str = "message_language"
+    task_id: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -185,28 +235,37 @@ class Signal:
 def task_contexts(events: list[Event]) -> dict[str, dict]:
     """Resolve task context without changing the original normalized events."""
     current: dict[str, dict] = {}
+    deliveries = {}
     by_event = {}
     for event in sorted(events, key=lambda e: (e.session_id, e.ordinal)):
+        if event.kind == "assistant_message" and event.details.get("phase") not in ("commentary", "analysis"):
+            deliveries[event.session_id] = event.text
         if event.kind != "user_message":
             continue
         text = _clean(event.text)
         scene = scene_of(_context_text(event.text))
         readers = reader_context(text, event.id)
-        requested_language = explicit_language(text)
+        requested_language, forbidden = language_constraints(text)
         language = requested_language or language_of(text)
         language_evidence_id = event.id
         language_basis = "explicit_request" if requested_language else "message_language"
-        if is_followup(text) and event.session_id in current:
+        task_id = event.id
+        continuation = is_followup(text) or (event.details.get("input_format") == "question_reply" and not NEW_TOPIC.search(text))
+        if continuation and event.session_id in current:
             previous = current[event.session_id]
-            if scene in ("conversation", previous["scene"]):
-                scene = previous["scene"]
+            compatible = scene in ("conversation", previous["scene"]) or (
+                previous["scene"] == "document" and scene in ("math_explanation", "developer_report")) or same_artifact_reference(
+                    event.text, deliveries.get(event.session_id, ""))
+            if compatible:
+                scene = previous["scene"] if scene == "conversation" else scene
+                task_id = previous["task_id"]
                 readers = readers or previous["readers"]
-                language = requested_language or previous["language"]
-                if not requested_language:
+                if not requested_language and previous["language"] not in forbidden:
+                    language = previous["language"]
                     language_evidence_id = previous["language_evidence_id"]
                     language_basis = previous["language_basis"]
         context = {"scene": scene, "readers": readers, "language": language,
-                   "language_evidence_id": language_evidence_id, "language_basis": language_basis}
+                   "language_evidence_id": language_evidence_id, "language_basis": language_basis, "task_id": task_id}
         current[event.session_id] = context
         by_event[event.id] = context
     return by_event
@@ -234,7 +293,9 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
                 ends = [text.find(c, match.end()) for c in "，,。；;\n" if text.find(c, match.end()) >= 0]
                 clause = text[left:min(ends) if ends else len(text)]
                 category = "request"
-                if dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长", clause):
+                negative_constraint = dimension == "brevity" and match[0] == "太长" and re.search(
+                    r"(?:不要|不用|无需|不必|别|不需要)[^，。；;\n]{0,4}太长", clause)
+                if not negative_constraint and dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长", clause):
                     category = "correction"
                 elif dimension in ("clarity", "brevity", "grounding") and re.search(r"继续修改|据此改进|改写|重写|上一[版轮]|你刚才|更[加]*.{0,5}(?:直观|朴素|易读)", clause):
                     category = "refinement"
@@ -252,5 +313,5 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
                                  context["scene"], readers=context["readers"],
                                  output_contract=primary_contract, output_contracts=contracts,
                                  language=context["language"], language_evidence_id=context["language_evidence_id"],
-                                 language_basis=context["language_basis"]))
+                                 language_basis=context["language_basis"], task_id=context["task_id"]))
     return output

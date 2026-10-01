@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 
 from .content import measure_length
-from .feedback import Signal, language_of
+from .feedback import Signal, language_of, task_contexts
 from .models import Event, stable_id
 
 
@@ -31,7 +31,8 @@ def _expected_failure(text: str) -> bool:
     return bool(re.search(r"预期.{0,8}(?:失败|错误|报错)|应该.{0,8}(?:失败|报错|返回错误)|验证.{0,8}失败路径|负例.{0,6}(?:测试|用例)", text))
 
 
-def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], list[dict]]:
+def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | None = None) -> tuple[list[dict], list[dict]]:
+    context_by_id = task_contexts(events) if context_by_id is None else context_by_id
     by_session = defaultdict(list)
     by_event = defaultdict(list)
     for e in events:
@@ -41,6 +42,7 @@ def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], l
     findings, gaps = [], []
     for session_events in by_session.values():
         last_response = None
+        last_response_task = None
         pending_request = None
         pending_signals = []
         calls = {e.call_id: e for e in session_events if e.kind == "tool_call" and e.call_id}
@@ -52,7 +54,7 @@ def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], l
                 pending_signals = by_event[e.id]
                 communication = [s for s in pending_signals if s.target == "communication"]
                 revision = [s for s in communication if s.category in ("correction", "refinement")]
-                if revision and last_response:
+                if revision and last_response and last_response_task == context_by_id[e.id]["task_id"]:
                     findings.append(_finding("explanation_revision", e, last_response, revision,
                                              "你随后要求调整说明。这能证明发生过修改要求，不能单凭它断定上一版失败。",
                                              "observed_revision"))
@@ -91,6 +93,7 @@ def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], l
                         findings.append(_finding("unexplained_terms", pending_request, e, writing,
                                                  f"你要求说明易懂；回复开头有 {len(jargon)} 处模型术语未找到紧邻的解释，需要回看是否解释到位。", "rule_candidate"))
                 last_response = e
+                last_response_task = context_by_id[pending_request.id]["task_id"] if pending_request else None
             elif e.kind == "tool_result":
                 call = calls.get(e.call_id)
                 operation = (e.turn_id, e.tool, call.details.get("argument_digest")) if call else None
@@ -135,6 +138,7 @@ def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
             "language_evidence_id": evidence[0].language_evidence_id,
             "language_basis": evidence[0].language_basis,
             "request_preview": evidence[0].quote,
+            "task_id": evidence[0].task_id,
             "response_content": "artifact_delivery" if _artifact_delivery(response.text) else "message",
             "profile_evidence_ids": [request.id], "evidence_ids": [request.id, response.id],
             "reason": reason}

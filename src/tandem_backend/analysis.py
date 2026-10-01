@@ -53,7 +53,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
         events = [e for e in events if e.timestamp and e.timestamp <= cutoff]
     context_by_id = task_contexts(events)
     all_observed = signals(events, context_by_id)
-    all_bottlenecks, all_gaps = diagnose(events, all_observed)
+    all_bottlenecks, all_gaps = diagnose(events, all_observed, context_by_id)
     if scene:
         # Keep the whole task span after its request. Filtering only messages would
         # remove the results needed to diagnose a bottleneck.
@@ -96,7 +96,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     return {
-        "schema_version": "1.4", "analysis_version": "context-v6",
+        "schema_version": "1.5", "analysis_version": "context-v7",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
