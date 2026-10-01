@@ -96,7 +96,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     return {
-        "schema_version": "1.5", "analysis_version": "context-v10",
+        "schema_version": "1.5", "analysis_version": "context-v11",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "ledger_sample_policies": store.sample_policies(),
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),

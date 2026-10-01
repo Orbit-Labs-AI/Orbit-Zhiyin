@@ -99,7 +99,14 @@ def reader_constraints(text: str, event_id: str) -> tuple[list[dict], set[str]]:
 
 
 def scene_of(text: str) -> str:
-    if re.search(r"(?:实现|编写|修改|调试|重构|修复|运行|测试).{0,24}(?:代码|函数|程序|脚本|接口|模块|后端)|(?:代码|程序|脚本).{0,20}(?:实现|调试|修复|运行|测试)", text, re.I):
+    # The deliverable's intent outranks an incidental subject such as matrices.
+    # For mixed requests, prefer the first explicit action rather than relabeling
+    # the entire task from a later mention of a tool or optional report.
+    report = re.search(r"(?:编写|写|生成|修改|改写|整理|提供|输出)[^，,。；;\n]{0,36}(?:报告|README|开发说明)", text, re.I)
+    coding = re.search(r"(?:实现|编写|修改|调试|重构|修复|运行|测试)[^，,。；;\n]{0,24}(?:代码|函数|程序|脚本|接口|模块|后端)|(?:代码|程序|脚本)[^，,。；;\n]{0,20}(?:实现|调试|修复|运行|测试)", text, re.I)
+    if report and (not coding or report.start() <= coding.start()):
+        return "developer_report"
+    if coding:
         return "coding"
     if re.search(r"数学|定理|证明|推导|不动点|微分|积分|矩阵|数分|SPADE", text, re.I):
         return "math_explanation"
@@ -211,9 +218,11 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
         if not execution and match.start() != left:
             return False
     if dimension == "verification":
-        if topic or (match[0] == "测试" and re.match(r"驱动|数据|集|结果|报告|范围|覆盖|失败|成功|为什么|如何|的(?:概念|定义|原理)", after)):
+        if topic or (match[0] == "测试" and re.match(r"工具|框架|日志|环境|版本|状态|计划|方案|驱动|数据|集|结果|报告|范围|覆盖|失败|成功|为什么|如何|的(?:概念|定义|原理)", after)):
             return False
-        if not execution and match.start() != left:
+        imperative_object = (match[0].startswith(("检查", "验证")) and len(match[0]) > 2) or (
+            match[0] == "测试" and bool(re.match(r"一下|一遍|这(?:段|个|些)|那(?:段|个|些)|所有|全部|每个", after)))
+        if not execution and not imperative_object:
             return False
     if dimension == "scope" and match[0].upper() == "MVP":
         if topic or re.match(r"\s*(?:是什么|是啥|的?(?:概念|含义|意思))", after):
@@ -245,7 +254,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v8"
+    rule_version: str = "rules-v9"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)
