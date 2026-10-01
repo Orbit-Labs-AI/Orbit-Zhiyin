@@ -58,7 +58,7 @@ Demo 各页需要的数据与来源：
 | Demo 页面 | 需要的数据 | 来自 |
 | --- | --- | --- |
 | A1 概览、A3 会话与轨迹 | 会话起止、轮次、事件时间线、模型、token | `session`、`turn`、`event`、`model_call` |
-| A4 工具调用 | 工具明细、失败原因、耗时、审批负担、MCP 与子代理 | `tool_call`、`event(kind=approval)`、子代理链接 |
+| A4 工具调用 | 工具明细、失败原因、耗时、审批负担、MCP 与子代理 | `tool_call`、`event(kind=permission.*)`、子代理链接 |
 | A5 项目习惯 | 项目归属、规则覆盖（AGENTS.md / Hooks / Skills / MCP / 子代理） | `project`、已安装清单 |
 | A6 情绪与语义 | 用户原话（仅人类输入）、纠偏与打断 | `event(kind=message.user, origin=human)` |
 | A7 建议、A8 资源库 | 生态条目、兼容 Agent、许可、安装方式、热度 | `catalog.db` |
@@ -71,7 +71,7 @@ Demo 各页需要的数据与来源：
 
 | Agent | 本机版本 | 会话位置 | 格式 | 本机规模 | Demo 假设 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | 2.1.281–2.1.284；绝大多数来自 Claude 桌面版（`entrypoint=claude-desktop`） | `~/.claude/projects/<编码 cwd>/<sessionId>.jsonl`；第二账号 `~/.claude-account2/projects/` | JSONL，20 余种记录类型 | 124 + 4 个主会话，251 个子代理文件，1.3 GB（多为 PDF 页图） | 成立，另有第二账号目录 |
+| Claude Code | 2.1.281–2.1.284；绝大多数来自 Claude 桌面版（`entrypoint=claude-desktop`） | `~/.claude/projects/<编码 cwd>/<sessionId>.jsonl`；第二账号 `~/.claude-account2/projects/`；桌面版另有会话索引与本地 Agent 模式目录（3.2） | JSONL，20 余种记录类型 | 124 + 4 个主会话，251 个子代理文件，1.3 GB（多为 PDF 页图） | 成立，另有第二账号目录 |
 | Codex | 0.146–0.154，以 Codex Desktop 为主 | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`、`~/.codex/archived_sessions/`；索引 `state_5.sqlite`；投影 `thread_history_1.sqlite` | JSONL + SQLite | 432 + 474 个 rollout，3.4 GB；threads 表 890 行 | 部分成立：还要读归档目录和 SQLite |
 | Gemini 侧 | Antigravity 桌面版与 `agy` CLI；未见 Gemini CLI 的 `~/.gemini/tmp` | `~/.gemini/antigravity{,-cli}/brain/<id>/.system_generated/logs/transcript_full.jsonl`、`conversation_summaries.db`、`conversations/<id>.db` | 明文 JSONL 转录 + SQLite；模型与 token 在 protobuf 里 | 27 + 1 个对话，65 MB | 不成立 |
 | Copilot | Copilot 桌面 App（以 server 模式启动 CLI） | `~/.copilot/session-state/<id>/workspace.yaml`、`data.db` | YAML + SQLite | 43 个会话目录，只有元数据；`data.db` 的 sessions 表为空 | 不成立：没有 `~/.copilot/history` |
@@ -196,7 +196,7 @@ Demo 各页需要的数据与来源：
 | --- | --- | --- | --- |
 | Hooks（Claude Code、Codex 等） | 实时状态：会话开始结束、等待审批、通知、压缩前；审批等待的精确时长 | 要写入用户配置，必须走 Demo 的「预览 → 确认 → 可撤销」流程 | P1：菜单栏「需要关注」状态依赖它 |
 | OpenTelemetry（本地 OTLP 接收端） | 模型请求耗时、工具决策来源（自动 / 用户批准 / 拒绝）、精确成本 | 用户需开启各 Agent 的遥测并指向本机端口 | P1：用于校准日志推算的指标 |
-| 反代（Proxy） | 完整请求与响应、系统提示词、工具定义 | 侵入性强，可能影响订阅登录，隐私风险高 | 不做，仅在文档中说明 |
+| 反代（Proxy） | 完整请求与响应、系统提示词、工具定义 | 侵入性强，可能影响订阅登录，隐私风险高 | MVP 不做；以后可导入用户已有代理的日志（见下） |
 | 额度 | 剩余额度与重置时间 | 读 OAuth 令牌调用官方接口会触碰凭据 | 只用日志里已有的快照（Codex `rate_limits`、Claude `quotaLimits`），不调用接口 |
 
 **反代能补什么、缺什么。** 反代能拿到日志里没有的系统提示词与工具定义、压缩后实际发送的完整上下文、重试与失败的请求、首字延迟、429 等错误、实际服务的模型；但拿不到工作目录与 Git 状态、审批与打断，也覆盖不了无法改走代理的客户端（如 Cursor IDE）。代价是要改各客户端的 base URL 或信任本地 CA，会遇到 OAuth、签名请求的兼容问题，并且会落盘密钥与隐私数据。所以：
@@ -314,8 +314,8 @@ Demo 各页需要的数据与来源：
 | --- | --- | --- |
 | 同一响应拆成多行（Claude） | 相同 `message.id + requestId` | 内容块按顺序合并；usage 只记一次 |
 | 恢复或分叉复制历史（Claude） | 同一 `uuid` 出现在多个文件 | 最早出现的为正本，其余标 `replay_of` |
-| 子代理重放父历史（Codex） | `subagent_history_start_ordinal` 之前的记录 | 标 `replayed`，不计入子代理统计 |
-| 种子事件（DeepSeek Harness） | 会话头的 `parentSession + seedLength` | 前 `seedLength` 条标 `replayed`（待核实语义） |
+| 子代理重放父历史（Codex） | `subagent_history_start_ordinal` 之前的记录（旧文件以首个不在父会话中的 turn、或 `trigger_turn=true` 的跨 Agent 通信为界） | 标 `replayed`，不计入子代理统计 |
+| 种子事件（DeepSeek Harness） | 会话头的 `parentSession + seedLength` | 前 `seedLength` 条是从父会话复制的种子，标 `replayed`（tokscale 也按此判断分叉边界） |
 | 跨 Agent 导入（Codex 导入 Claude 会话） | `external_agent_session_imports.json` | 会话标 `kind=import`，链接到原会话，默认不计 |
 | token 重复事件（Codex 旧格式） | 累计值未变化的 `token_count` | 丢弃，标 `duplicate` |
 
@@ -387,7 +387,7 @@ Demo 各页需要的数据与来源：
 1. **按来源顺序排序，不按时间戳。** `event.seq` 取原始顺序；时间戳可能缺失、回退或并发交错（子代理），只作展示与时长计算。
 2. **token 统一成互斥分桶。** `input_tokens` 不含缓存，`cache_read_tokens`、`cache_write_tokens` 单列，`output_tokens` 含思考，`reasoning_tokens` 是其中的思考部分；原始字段原样保存在 `attrs.reported`。注意各家口径不同：Anthropic 的 `input_tokens` 不含缓存，OpenAI / Codex 的输入包含缓存命中部分，需要先减去。导出 ATIF 或 OTel 时再按对方口径相加。
 3. **思考内容分格式保存。** `reasoning.attrs.format` 取 `text / summary / encrypted / redacted`；Anthropic 的 `signature`、OpenAI 的 `encrypted_content`、Gemini 的 `thoughtSignature` 都作为不透明数据保存，永不展示，也不参与检索。
-4. **补两类事件。** `branch`（`fork / rewind / rollback / resume`，来源：Claude 的 `parentUuid` 树与 `/rewind`、pi 的 `id / parentId` 树、Codex 的回滚）；审批拆成 `permission.request` 与 `permission.decision`（`decision`、`source = config / hook / user / auto_review`、`wait_ms`），表 4.4 的 `approval` 即指这两类。
+4. **分支与审批单独成类。** 表 4.4 中的 `branch`（`fork / rewind / rollback / resume`，来源：Claude 的 `parentUuid` 树与 `/rewind`、pi 的 `id / parentId` 树、Codex 的回滚）与 `permission.request / permission.decision`（`decision`、`source = config / hook / user / auto_review`、`wait_ms`）就是按这条加的；Claude 的 `toolDenialKind` 映射为 `source`：`user-rejected → user`、`permission-rule → config`、`automode-* → auto_review`。
 5. **附件内容寻址。** 内联的 base64 图片等移到按哈希存放的附件区，事件里只留哈希、类型和大小，避免事件表膨胀。
 
 脱敏同样是派生视图：L0 永远保存原文，L2 的 `text` 是脱敏后的副本，规则更新后可以重算。
@@ -797,4 +797,31 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 
 ## 参考
 
-<!-- DRAFT:REFS -->
+**本机格式文档**
+
+- DeepSeek Harness 会话持久化：`~/.local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/README.md`；OTel 导出：同目录下的 `dsh-session-telemetry-otel/README.md`。
+
+**连接器参照（源码）**
+
+- ccusage 适配器说明：[claude](https://github.com/ccusage/ccusage/blob/main/rust/adapters/claude/src/README.md)、[codex](https://github.com/ccusage/ccusage/blob/main/rust/adapters/codex/src/README.md)、[pi](https://github.com/ccusage/ccusage/blob/main/rust/adapters/pi/src/README.md)、[opencode](https://github.com/ccusage/ccusage/blob/main/rust/adapters/opencode/src/README.md)、[amp](https://github.com/ccusage/ccusage/blob/main/rust/adapters/amp/src/README.md)、[copilot](https://github.com/ccusage/ccusage/blob/main/rust/adapters/copilot/README.md)、[antigravity](https://github.com/ccusage/ccusage/blob/main/rust/adapters/antigravity/README.md)
+- agentsview 解析器：[claude.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/claude.go)、[claude_lineage.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/claude_lineage.go)、[codex.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/codex.go)、[gemini.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/gemini.go)、[copilot.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/copilot.go)、[cursor_ide.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/cursor_ide.go)、[antigravity_cli.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/antigravity_cli.go)、[deepseek_harness.go](https://github.com/kenn-io/agentsview/blob/main/internal/parser/deepseek_harness.go)
+- tokscale：[codex.rs](https://github.com/junhoyeo/tokscale/blob/main/crates/tokscale-core/src/sessions/codex.rs)、[dsh.rs](https://github.com/junhoyeo/tokscale/blob/main/crates/tokscale-core/src/sessions/dsh.rs)、[antigravity_cli.rs](https://github.com/junhoyeo/tokscale/blob/main/crates/tokscale-core/src/sessions/antigravity_cli.rs)
+- SpecStory 格式说明：[ANTIGRAVITY-FORMAT.md](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md)、[CURSORIDE-FORMAT.md](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/pkg/providers/cursoride/CURSORIDE-FORMAT.md)、[OPENCODE-FORMAT.md](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/pkg/providers/opencode/OPENCODE-FORMAT.md)、[PI-FORMAT.md](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/pkg/providers/piagent/PI-FORMAT.md)、[QWEN-FORMAT.md](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/pkg/providers/qwencode/QWEN-FORMAT.md)
+- CodexBar 额度说明：[claude.md](https://github.com/steipete/CodexBar/blob/main/docs/claude.md)、[codex.md](https://github.com/steipete/CodexBar/blob/main/docs/codex.md)
+
+**轨迹标准**
+
+- ATIF：[harbor `rfcs/0001-trajectory-format.md`](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md)，转换器在 `src/harbor/agents/installed/`
+- OpenTelemetry GenAI 语义约定：[open-telemetry/semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai)
+- Claude Code 遥测：[code.claude.com/docs/en/monitoring-usage](https://code.claude.com/docs/en/monitoring-usage)
+- ACP：[agentclientprotocol/agent-client-protocol](https://github.com/agentclientprotocol/agent-client-protocol)
+- Codex app-server 协议：openai/codex 仓库 `codex-rs/app-server-protocol/src/protocol/v2/`
+- Agent Trace：[agent-trace.dev](https://agent-trace.dev/)
+
+**生态来源**
+
+- [官方 MCP Registry API](https://registry.modelcontextprotocol.io/v0.1/servers)、[GitHub MCP Registry API](https://api.mcp.github.com/v0.1/servers)
+- [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official)、[anthropics/skills](https://github.com/anthropics/skills)、[openai/plugins](https://github.com/openai/plugins)、[openai/skills](https://github.com/openai/skills)、[github/awesome-copilot](https://github.com/github/awesome-copilot)、[cursor/plugins](https://github.com/cursor/plugins)
+- [Agent Skills 规范](https://agentskills.io/specification)、[Agent Plugins 规范](https://agent-plugins.org)、[Gemini CLI 扩展清单](https://geminicli.com/extensions.json)
+- [awesome-claude-code 资源表](https://github.com/hesreallyhim/awesome-claude-code/blob/main/THE_RESOURCES_TABLE_NEW.csv)
+- [models.dev](https://models.dev/api.json)、[LiteLLM 价目表](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json)、[SWE-bench 榜单数据](https://github.com/SWE-bench/swe-bench.github.io/blob/master/data/leaderboards.json)
