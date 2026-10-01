@@ -23,19 +23,23 @@ def pipeline(tmp_path, request, response=None):
     return store, analyze(store)
 
 
-@pytest.mark.parametrize("request_text,expected", [
-    ("请修复解析器，完成后运行三次预期失败测试。", False),
-    ("请排查解析器，并验证失败路径。", False),
-    ("请解决问题，再运行三次负例测试。", False),
-    ("请修复解析器，这三次测试不应该失败。", True),
-    ("不要运行预期失败测试，请运行正常检查。", True),
+@pytest.mark.parametrize("request_text,expected,expected_recommendation", [
+    ("请修复解析器，完成后运行三次预期失败测试。", False, False),
+    ("请排查解析器，并验证失败路径。", False, False),
+    ("请解决问题，再运行三次负例测试。", False, False),
+    ("请修复解析器，这三次测试不应该失败。", True, False),
+    ("不要运行预期失败测试，请运行正常检查。", True, False),
+    ("预期失败测试已经完成；现在请运行正常测试。", True, True),
+    ("负例测试已通过；现在请运行测试。", True, True),
+    ("之前的预期失败测试记录在这里；现在请运行正常测试。", True, True),
+    ("请运行正常测试，然后运行三次预期失败测试。", False, False),
 ])
-def test_expected_negative_tests_do_not_become_debugging_recommendations(tmp_path, request_text, expected):
+def test_expected_negative_tests_do_not_become_debugging_recommendations(tmp_path, request_text, expected, expected_recommendation):
     _, data = pipeline(tmp_path, request_text)
     assert bool(data["bottlenecks"]) is expected
-    # These repair/normal-check clauses alone do not establish the configured
-    # verification preference. A failure candidate must not bypass that join.
-    assert recommend(data) == []
+    # A candidate alone cannot bypass the profile join. Explicit current test
+    # execution does supply that requirement; descriptive repair clauses do not.
+    assert bool(recommend(data)) is expected_recommendation
 
 
 def test_matrix_implementation_failures_join_coding_profile_and_recommendation(tmp_path):
@@ -43,6 +47,12 @@ def test_matrix_implementation_failures_join_coding_profile_and_recommendation(t
     incident = data["bottlenecks"][0]
     assert incident["scene"] == "coding"
     assert incident["task_id"] == incident["evidence_ids"][0]
+    assert recommend(data)[0]["resource_id"] == "systematic-debugging"
+
+
+def test_completed_negative_test_does_not_mask_a_new_normal_test_failure(tmp_path):
+    _, data = pipeline(tmp_path, "预期失败测试已经完成；现在请运行正常测试。")
+    assert data["bottlenecks"][0]["type"] == "repeated_tool_failure"
     assert recommend(data)[0]["resource_id"] == "systematic-debugging"
 
 

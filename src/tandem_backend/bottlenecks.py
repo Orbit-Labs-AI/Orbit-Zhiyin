@@ -30,11 +30,25 @@ def _expected_failure(text: str) -> bool:
     # A repair task may deliberately run negative tests afterwards. Bind the
     # exception to its own clause instead of treating every repair word as a veto.
     pattern = r"预期[^，,。；;\n]{0,8}(?:失败|错误|报错)|应该[^，,。；;\n]{0,8}(?:失败|报错|返回错误)|验证[^，,。；;\n]{0,8}失败路径|负例[^，,。；;\n]{0,6}(?:测试|用例)"
+    normal = r"(?:运行|执行|跑|做)[^，,。；;\n]{0,8}(?:正常|正例|常规|成功)[^，,。；;\n]{0,6}(?:测试|检查|用例)"
     intent = False
-    for match in re.finditer(pattern, text):
+    for match in re.finditer(pattern + "|" + normal, text):
         left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
-        prefix = text[max(left, match.start() - 16):match.start()]
-        intent = not bool(re.search(r"(?:不要|不用|无需|别|不需要|不|不能|禁止)[^，,。；;\n]{0,8}$", prefix))
+        prefix = text[max(left, match.start() - 24):match.start()]
+        after = text[match.end():match.end() + 24]
+        negated = bool(re.search(r"(?:不要|不用|无需|别|不需要|不|不能|禁止)[^，,。；;\n]{0,8}$", prefix))
+        if re.fullmatch(normal, match[0]):
+            if not negated:
+                intent = False
+            continue
+        # A completed negative test is background, not an exception for the
+        # next command. Without command semantics we only trust active intent.
+        retrospective = re.match(r"[^，,。；;\n]{0,8}(?:已经|已)(?:经)?(?:完成|结束|通过)|(?:测试|用例)?(?:完成|结束|通过)了", after)
+        past = re.search(r"之前|此前|上次|过去|刚才", prefix) and not re.search(r"运行|执行|跑|验证|请|再做", prefix)
+        if retrospective or past:
+            intent = False
+            continue
+        intent = not negated
     return intent
 
 
@@ -55,11 +69,13 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
         latest_request = None
         pending_requests = []
         pending_signals = []
+        response_parts = []
         calls = {e.call_id: e for e in session_events if e.kind == "tool_call" and e.call_id}
         consecutive = []
         last_operation = None
         for e in sorted(session_events, key=lambda x: x.ordinal):
             if e.kind == "user_message":
+                response_parts = []  # A new request ends the prior delivery sequence.
                 current_signals = by_event[e.id]
                 continuing = bool(pending_request and (not last_response or last_response.ordinal < pending_request.ordinal) and
                                   context_by_id[e.id]["task_id"] == context_by_id[pending_request.id]["task_id"])
@@ -77,6 +93,9 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                                              "observed_revision"))
                 consecutive, last_operation = [], None
             elif e.kind == "assistant_message" and e.details.get("phase") not in ("commentary", "analysis"):
+                response_parts.append(e)
+                if len(response_parts) > 1:
+                    _reconcile_delivery_gaps(gaps, response_parts)
                 if pending_request and pending_signals:
                     writing = [s for s in pending_signals if s.target == "communication"]
                     if writing and _delivery_content(e) == "artifact_delivery":
@@ -150,6 +169,31 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                         "observed_failures": 3,
                     })
     return list({x["id"]: x for x in findings}.values()), gaps
+
+
+def _reconcile_delivery_gaps(gaps: list[dict], responses: list[Event]) -> None:
+    """Later marked body parts can fill an earlier link-only delivery gap.
+
+    Only the current uninterrupted response sequence participates. Structural
+    body markers establish availability, never completeness or readability.
+    """
+    response_ids = {response.id for response in responses}
+    if not any(gap["code"] == "artifact_body_missing" and gap["response_event_id"] in response_ids for gap in gaps):
+        return
+    joined = "\n\n".join(response.text for response in responses)
+    if not embedded_artifact_body(joined):
+        return
+    truncated = any(response.details.get("original_chars", len(response.text)) > len(response.text)
+                    for response in responses)
+    retained = []
+    for gap in gaps:
+        if gap["code"] != "artifact_body_missing" or gap["response_event_id"] not in response_ids:
+            retained.append(gap)
+        elif truncated:
+            retained.append({**gap, "code": "artifact_body_truncated",
+                             "body_evidence_ids": [response.id for response in responses],
+                             "message": "同次交付的后续回复附有正文，但保留内容有截断，需要原文件核对全文。"})
+    gaps[:] = retained
 
 
 def _supplement(previous: list[Signal], added: list[Signal], text: str) -> list[Signal]:
