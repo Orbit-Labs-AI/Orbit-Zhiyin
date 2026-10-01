@@ -6,6 +6,7 @@
 """
 
 import json
+import math
 import re
 import sqlite3
 from contextlib import closing
@@ -49,29 +50,107 @@ def _text(content: object) -> str:
     return ""
 
 
-def _status(output: str, tool: str | None = None) -> str | None:
-    """Only explicit exit codes/errors count. The word 'error' is not a failed tool."""
+def _command_metadata(data: object) -> str | None:
+    if not isinstance(data, dict) or not isinstance(data.get("output"), str):
+        return None
+    elapsed = data.get("wall_time_seconds")
+    if not isinstance(elapsed, (int, float)) or isinstance(elapsed, bool) or elapsed < 0:
+        return None
+    try:
+        if not math.isfinite(elapsed):
+            return None
+    except OverflowError:
+        return None
+    code = data.get("exit_code")
+    if isinstance(code, int) and not isinstance(code, bool):
+        return "success" if code == 0 else "failed"
+    return None
+
+
+def _command_output_hint(arguments: str) -> bool:
+    """A syntax hint only; never execute or persist imported JavaScript."""
+    try:
+        envelope = json.loads(arguments)
+        if isinstance(envelope, dict) and isinstance(envelope.get("code"), str):
+            arguments = envelope["code"]
+    except (ValueError, TypeError, RecursionError):
+        pass
+    stripped = re.sub(r"(?s)//[^\n]*|/\*.*?\*/|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`", " ", arguments)
+    return bool(re.search(r"\btools\.(?:exec_command|write_stdin)\s*\(", stripped))
+
+
+def _status_details(output: str, tool: str | None = None, command_outputs: bool = False) -> dict:
+    """Keep transport status separate from arbitrary stdout and from script completion."""
+    name = tool.rsplit(".", 1)[-1] if isinstance(tool, str) else ""
+    command = name in ("exec_command", "write_stdin")
     try:
         data = json.loads(output)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
         data = None
     if isinstance(data, dict):
         if data.get("isError") is True:
-            return "failed"
+            return {"status": "failed", "status_scope": "explicit_tool_error"}
         code = data.get("exit_code")
-        command_contract = tool and tool.rsplit(".", 1)[-1] in ("exec_command", "write_stdin")
-        orchestration_result = tool and tool.rsplit(".", 1)[-1] == "exec" and all(
-            key in data for key in ("output", "wall_time_seconds"))
-        if (command_contract or orchestration_result) and isinstance(code, int) and not isinstance(code, bool):
-            return "success" if code == 0 else "failed"
-    # exec_command's transport header ends before stdout. A fixture printed by cat
-    # can itself contain exit_code or 'Process exited', so never scan that body.
-    if output.startswith("Chunk ID:"):
-        header = re.split(r"\n(?:Final output|Output):", output, maxsplit=1)[0]
-        match = re.search(r"^Process exited with code\s+(-?\d+)\s*$", header, re.M)
-        if match:
-            return "success" if int(match[1]) == 0 else "failed"
-    return None
+        if command and isinstance(code, int) and not isinstance(code, bool):
+            return {"status": "success" if code == 0 else "failed", "status_scope": "command_return"}
+        if name == "exec" and command_outputs and (state := _command_metadata(data)):
+            return {"status": state, "status_scope": "nested_command_return", "known_command_results": 1}
+    # Never inspect stdout: a fixture printed by cat can contain a fake exit code.
+    if command and output.startswith("Chunk ID:"):
+        parts = re.split(r"\n(?:Final output|Output):", output, maxsplit=1)
+        if len(parts) == 2 and re.search(r"^Wall time:", parts[0], re.M):
+            match = re.search(r"^Process exited with code\s+(-?\d+)\s*$", parts[0], re.M)
+            if match:
+                return {"status": "success" if int(match[1]) == 0 else "failed", "status_scope": "command_transport"}
+    if name != "exec":
+        return {"status": None, "status_scope": "unknown"}
+    wrapper = re.match(r"\AScript (completed|failed)\nWall time:?\s+\d+(?:\.\d+)? seconds\n", output)
+    if not wrapper:
+        return {"status": None, "status_scope": "unknown"}
+    if wrapper[1] == "failed":
+        return {"status": "failed", "status_scope": "orchestration_error"}
+    if not command_outputs:
+        return {"status": None, "status_scope": "orchestration_only"}
+    body = output[wrapper.end():]
+    if not body.startswith("Output:\n"):
+        return {"status": None, "status_scope": "orchestration_only"}
+    remaining = body[len("Output:\n"):].strip()
+    states = []
+    unknown = 0
+    decoder = json.JSONDecoder()
+
+    def collect(value, depth=0):
+        nonlocal unknown
+        if depth > 3:
+            unknown += 1
+        elif isinstance(value, list):
+            for item in value:
+                collect(item, depth + 1)
+        elif isinstance(value, dict) and value.get("status") == "fulfilled" and "value" in value:
+            collect(value["value"], depth + 1)
+        elif state := _command_metadata(value):
+            states.append(state)
+        else:
+            unknown += 1
+
+    while remaining:
+        try:
+            value, end = decoder.raw_decode(remaining)
+        except (ValueError, RecursionError):
+            unknown += 1
+            break
+        collect(value)
+        remaining = remaining[end:].lstrip()
+    # A known failure is evidence even in a mixed batch. Success requires all
+    # emitted values to be completed command returns, with no unparsed remainder.
+    status = "failed" if "failed" in states else ("success" if states and not unknown else None)
+    return {"status": status, "status_scope": "nested_command_returns", "known_command_results": len(states),
+            "failed_command_results": states.count("failed"), "unknown_return_values": unknown}
+
+
+def _status(output: str, tool: str | None = None, command_outputs: bool = False) -> str | None:
+    """Compatibility helper for callers that need only the tri-state status."""
+    return _status_details(output, tool, command_outputs)["status"]
 
 
 def parse_rollout(
@@ -98,7 +177,7 @@ def parse_rollout(
                 continue
             try:
                 envelope = json.loads(raw)
-            except (ValueError, UnicodeDecodeError):
+            except (ValueError, UnicodeDecodeError, RecursionError):
                 result.warnings.append({"line": ordinal, "code": "invalid_json"})
                 continue
             if not isinstance(envelope, dict):
@@ -182,12 +261,16 @@ def parse_rollout(
                     # Do not retain arguments: they often contain full private documents or code.
                     arguments = str(payload.get("arguments", payload.get("input", "")))
                     details = {"arguments_chars": len(arguments), "argument_digest": stable_id(arguments)}
+                    if isinstance(tool, str) and tool.rsplit(".", 1)[-1] == "exec":
+                        details["command_output_hint"] = _command_output_hint(arguments)
                 elif ptype in ("function_call_output", "custom_tool_call_output"):
                     event_kind, call_id = "tool_result", payload.get("call_id")
                     output = _text(payload.get("output"))
                     paired = calls.get(call_id)
-                    status = _status(output, paired.tool if paired else None)
-                    details = {"output_chars": len(output)}
+                    status_info = _status_details(output, paired.tool if paired else None,
+                                                  paired.details.get("command_output_hint", False) if paired else False)
+                    status = status_info.pop("status")
+                    details = {"output_chars": len(output), **status_info}
             elif kind == "event_msg":
                 ptype = payload.get("type")
                 if ptype == "task_started":
