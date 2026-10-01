@@ -8,6 +8,7 @@
 import json
 import re
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from ..models import Event, ParsedSession, Session, stable_id, utc_time
@@ -23,7 +24,7 @@ def metadata_index(codex_home: Path) -> dict[str, dict]:
     if not paths:
         return {}
     try:
-        with sqlite3.connect(paths[0].resolve().as_uri() + "?mode=ro", uri=True) as conn:
+        with closing(sqlite3.connect(paths[0].resolve().as_uri() + "?mode=ro", uri=True)) as conn:
             conn.row_factory = sqlite3.Row
             conn.execute("BEGIN")
             columns = {row[1] for row in conn.execute("PRAGMA table_info(threads)")}
@@ -56,11 +57,15 @@ def _status(output: str) -> str | None:
         if data.get("isError") is True:
             return "failed"
         code = data.get("exit_code")
-        if isinstance(code, int):
+        if isinstance(code, int) and not isinstance(code, bool):
             return "success" if code == 0 else "failed"
-    match = re.search(r"(?:Process exited with code|exit_code[\"']?\s*[:=])\s*(-?\d+)", output)
-    if match:
-        return "success" if int(match[1]) == 0 else "failed"
+    # exec_command's transport header ends before stdout. A fixture printed by cat
+    # can itself contain exit_code or 'Process exited', so never scan that body.
+    if output.startswith("Chunk ID:"):
+        header = re.split(r"\n(?:Final output|Output):", output, maxsplit=1)[0]
+        match = re.search(r"^Process exited with code\s+(-?\d+)\s*$", header, re.M)
+        if match:
+            return "success" if int(match[1]) == 0 else "failed"
     return None
 
 
@@ -116,7 +121,8 @@ def parse_rollout(
                 if isinstance(source, dict) and "subagent" in source:
                     result.skipped_reason = "non_user_session"
                     return result
-                if md.get("thread_source") in ("guardian_review", "subagent"):
+                if any(marker in ("guardian_review", "subagent") for marker in
+                       (payload.get("thread_source"), md.get("thread_source"))):
                     result.skipped_reason = "non_user_session"
                     return result
                 if sid in (exclude_sessions or set()):

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tandem_backend.analysis import analyze, union_duration, wilson_interval
@@ -8,7 +9,7 @@ from tandem_backend.api import create_app
 from tandem_backend.cli import demo_home
 from tandem_backend.evaluation import benchmark, evaluate_text
 from tandem_backend.feedback import language_of, signals
-from tandem_backend.importers.codex import parse_rollout
+from tandem_backend.importers.codex import _status, parse_rollout
 from tandem_backend.models import Event
 from tandem_backend.privacy import direct_user_text, redact
 from tandem_backend.recommend import recommend
@@ -35,6 +36,47 @@ def test_guardian_and_heldout_sessions_never_become_preference_data(tmp_path):
     assert parse_rollout(p).skipped_reason == "non_user_session"
     p = rollout(tmp_path / "heldout.jsonl", [meta("heldout"), message("说人话")])
     assert parse_rollout(p, exclude_sessions={"heldout"}).events == []
+
+
+@pytest.mark.parametrize("marker", ["guardian_review", "subagent"])
+def test_rollout_source_marker_excludes_automatic_prompts_without_metadata_db(tmp_path, marker):
+    kind, data = meta()
+    p = rollout(tmp_path / "automatic.jsonl", [(kind, {**data, "thread_source": marker}), message("请简洁解释")])
+    result = parse_rollout(p, metadata={"sample": {"thread_source": "user"}})
+    assert result.skipped_reason == "non_user_session"
+    assert result.events == []
+
+
+@pytest.mark.parametrize("output,status", [
+    ('{"exit_code":1}', "failed"),
+    ('{"exit_code":0}', "success"),
+    ('{"exit_code":true}', None),
+    ('{"isError":true}', "failed"),
+    ('Chunk ID: test\nWall time: 0.1 seconds\nProcess exited with code 0\nOutput:\n{"exit_code":1}', "success"),
+    ('Chunk ID: test\nWall time: 0.1 seconds\nProcess exited with code 2\nFinal output:\nfixture succeeded', "failed"),
+    ('Chunk ID: test\nWall time: 0.1 seconds\nOutput:\nProcess exited with code 1', None),
+    ('stdout fixture: {"exit_code":1}\nProcess exited with code 1', None),
+])
+def test_tool_status_uses_transport_metadata_and_ignores_stdout(output, status):
+    assert _status(output) == status
+
+
+def test_successful_fixture_reads_do_not_create_repair_recommendations(tmp_path):
+    rows = [meta(), message("先实现再测试，交付可运行版本。")]
+    for i in range(3):
+        rows.extend([
+            ("response_item", {"type": "function_call", "name": "exec_command", "call_id": str(i), "arguments": '{"cmd":"cat fixture.json"}'}),
+            ("response_item", {"type": "function_call_output", "call_id": str(i), "output": 'Chunk ID: test\nWall time: 0.1 seconds\nProcess exited with code 0\nOutput:\n{"exit_code":1}'}),
+        ])
+    home = tmp_path / "codex"
+    (home / "sessions").mkdir(parents=True)
+    rollout(home / "sessions" / "fixture.jsonl", rows)
+    store = Store(tmp_path / "data.sqlite")
+    import_codex(store, home)
+    data = analyze(store)
+    assert data["counts"]["explicit_tool_failures"] == 0
+    assert data["bottlenecks"] == []
+    assert recommend(data) == []
 
 
 def test_attachment_instructions_and_quotes_do_not_become_direct_feedback():
@@ -77,6 +119,17 @@ def test_language_mentions_are_not_language_instructions():
     assert language_of("请介绍 English API 的用法。") == "zh"
     assert language_of("请提供英文版本。") == "en"
     assert language_of("翻译成英语，保持事实。") == "en"
+    assert language_of("不要翻译成英文，保留中文原文。") == "zh"
+    assert language_of("别生成英语版本，请用中文。") == "zh"
+    assert language_of("不要输出中文，请提供英文版本。") == "en"
+
+
+def test_later_correction_in_same_dimension_is_not_hidden_by_first_request():
+    event = Event("e", "s", 1, "user_message", None, text="请简洁些；你这次还是太长，请再精简。")
+    result = [s for s in signals([event]) if s.dimension == "brevity"]
+    assert len(result) == 1
+    assert result[0].category == "correction"
+    assert "你这次还是太长" in result[0].quote
 
 
 def test_source_field_is_not_a_grounding_preference():

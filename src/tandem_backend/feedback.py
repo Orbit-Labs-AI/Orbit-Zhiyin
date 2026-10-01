@@ -22,6 +22,8 @@ RULES = {
 WRITING = re.compile(r"说人话|说明|讲清楚|解释|回答|表达|报告|文档|文章|语言|教程|注释|讲义|证明|思路|方案|策略|解答|读者|学生")
 CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|实现")
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
+LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
+LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)"
 
 
 def scene_of(text: str) -> str:
@@ -66,8 +68,8 @@ def _writing_target(text: str, start: int, end: int) -> bool:
 
 def language_of(text: str) -> str:
     text = _clean(text)
-    text = re.sub(r"(?:不要|别|不用|不是让你)(?:用|写|输出|使用)?\s*(?:英文|英语|English|中文|汉语)", "", text, flags=re.I)
-    explicit = list(re.finditer(r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)\s*(英文|英语|English|中文|汉语)|(?:英文|英语|English|中文|汉语).{0,5}(?:版本|回答|报告|解释|文档)", text, re.I))
+    text = re.sub(r"(?:不要|别|不用|不是让你)\s*" + LANGUAGE_VERBS + r"?\s*" + LANGUAGE, "", text, flags=re.I)
+    explicit = list(re.finditer(LANGUAGE_VERBS + r"\s*" + LANGUAGE + "|" + LANGUAGE + r".{0,5}(?:版本|回答|报告|解释|文档)", text, re.I))
     if explicit:
         return "zh" if re.search(r"中文|汉语", explicit[-1][0]) else "en"
     return "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
@@ -116,16 +118,22 @@ def signals(events: list[Event]) -> list[Signal]:
                 matches = [m for m in matches if _writing_target(text, m.start(), m.end())]
             if not matches:
                 continue
-            match = matches[0]
+            candidates = []
+            for match in matches:
+                left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
+                ends = [text.find(c, match.end()) for c in "，,。；;\n" if text.find(c, match.end()) >= 0]
+                clause = text[left:min(ends) if ends else len(text)]
+                category = "request"
+                if dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长", clause):
+                    category = "correction"
+                elif dimension in ("clarity", "brevity", "grounding") and re.search(r"继续修改|据此改进|改写|重写|上一[版轮]|你刚才|更[加]*.{0,5}(?:直观|朴素|易读)", text):
+                    category = "refinement"
+                candidates.append((category, match))
+            # One event supports each dimension once; choose its strongest feedback
+            # rather than letting an opening request hide a later explicit correction.
+            rank = {"request": 0, "refinement": 1, "correction": 2}
+            category, match = max(candidates, key=lambda item: rank[item[0]])
             quote = _quote(text, match.start(), match.end())
-            left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
-            ends = [text.find(c, match.end()) for c in "，,。；;\n" if text.find(c, match.end()) >= 0]
-            clause = text[left:min(ends) if ends else len(text)]
-            category = "request"
-            if dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长", clause):
-                category = "correction"
-            elif dimension in ("clarity", "brevity", "grounding") and re.search(r"继续修改|据此改进|改写|重写|上一[版轮]|你刚才|更[加]*.{0,5}(?:直观|朴素|易读)", text):
-                category = "refinement"
             output.append(Signal(dimension, label, category, event.id, event.session_id,
                                  event.turn_id, event.timestamp, quote,
                                  "communication" if dimension in ("clarity", "brevity", "grounding") else "workflow",
