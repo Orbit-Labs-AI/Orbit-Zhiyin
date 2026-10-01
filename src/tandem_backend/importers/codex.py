@@ -222,7 +222,7 @@ def parse_rollout(
                 model = (md.get("model") or "unknown") if not cutoff else "unknown"
                 result.session = Session(
                     sid, stable_id(project_key), project, cwd, str(path.resolve()), model,
-                    md.get("title") or "未命名会话", timestamp,
+                    redact(str(md.get("title") or "未命名会话")), timestamp,
                     payload.get("forked_from_id"), "user", str(payload.get("cli_version", "unknown")),
                 )
                 continue

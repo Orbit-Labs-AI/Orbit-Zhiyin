@@ -1,7 +1,9 @@
 import sqlite3
 
 import pytest
+from fastapi.testclient import TestClient
 
+from tandem_backend.api import create_app
 from tandem_backend.cli import demo_home
 from tandem_backend.importers.codex import metadata_index
 from tandem_backend.store import Store, import_codex
@@ -45,3 +47,17 @@ def test_metadata_version_is_numeric_not_lexicographic(tmp_path):
             conn.execute("CREATE TABLE threads (id TEXT, title TEXT)")
             conn.execute("INSERT INTO threads VALUES (?,?)", ("s", title))
     assert metadata_index(tmp_path)["s"]["title"] == "new"
+
+
+def test_metadata_titles_are_redacted_before_storage_and_api_listing(tmp_path):
+    home = demo_home(tmp_path / "codex")
+    secret = "sk-" + "X" * 24
+    with sqlite3.connect(home / "state_5.sqlite") as conn:
+        conn.execute("CREATE TABLE threads (id TEXT, title TEXT)")
+        conn.execute("INSERT INTO threads VALUES (?,?)", ("demo-0", "debug " + secret))
+    store = Store(tmp_path / "data.sqlite")
+    import_codex(store, home)
+    assert secret not in str(store.sessions())
+    with TestClient(create_app(store.path)) as client:
+        assert secret not in client.get("/v1/sessions").text
+        assert "密钥已隐藏" in client.get("/v1/sessions").text
