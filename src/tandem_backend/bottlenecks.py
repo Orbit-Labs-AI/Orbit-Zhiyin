@@ -6,8 +6,9 @@ A request to refine an explanation is observed revision, not rejection.
 
 import re
 from collections import defaultdict
+from dataclasses import replace
 
-from .content import measure_length
+from .content import embedded_artifact_body, measure_length
 from .feedback import Signal, task_contexts
 from .models import Event, stable_id
 
@@ -29,16 +30,17 @@ def _expected_failure(text: str) -> bool:
     # A repair task may deliberately run negative tests afterwards. Bind the
     # exception to its own clause instead of treating every repair word as a veto.
     pattern = r"预期[^，,。；;\n]{0,8}(?:失败|错误|报错)|应该[^，,。；;\n]{0,8}(?:失败|报错|返回错误)|验证[^，,。；;\n]{0,8}失败路径|负例[^，,。；;\n]{0,6}(?:测试|用例)"
+    intent = False
     for match in re.finditer(pattern, text):
         left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
         prefix = text[max(left, match.start() - 16):match.start()]
-        if not re.search(r"(?:不要|不用|无需|别|不需要|不|不能|禁止)[^，,。；;\n]{0,8}$", prefix):
-            return True
-    return False
+        intent = not bool(re.search(r"(?:不要|不用|无需|别|不需要|不|不能|禁止)[^，,。；;\n]{0,8}$", prefix))
+    return intent
 
 
 def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | None = None) -> tuple[list[dict], list[dict]]:
     context_by_id = task_contexts(events) if context_by_id is None else context_by_id
+    events_by_id = {e.id: e for e in events}
     by_session = defaultdict(list)
     by_event = defaultdict(list)
     for e in events:
@@ -50,15 +52,24 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
         last_response = None
         last_response_task = None
         pending_request = None
+        latest_request = None
+        pending_requests = []
         pending_signals = []
         calls = {e.call_id: e for e in session_events if e.kind == "tool_call" and e.call_id}
         consecutive = []
         last_operation = None
         for e in sorted(session_events, key=lambda x: x.ordinal):
             if e.kind == "user_message":
-                pending_request = e
-                pending_signals = by_event[e.id]
-                communication = [s for s in pending_signals if s.target == "communication"]
+                current_signals = by_event[e.id]
+                continuing = bool(pending_request and (not last_response or last_response.ordinal < pending_request.ordinal) and
+                                  context_by_id[e.id]["task_id"] == context_by_id[pending_request.id]["task_id"])
+                if continuing:
+                    pending_signals = _supplement(pending_signals, current_signals, e.text)
+                    pending_requests.append(e)
+                else:
+                    pending_request, pending_signals, pending_requests = e, list(current_signals), [e]
+                latest_request = e
+                communication = [s for s in current_signals if s.target == "communication"]
                 revision = [s for s in communication if s.category in ("correction", "refinement")]
                 if revision and last_response and last_response_task == context_by_id[e.id]["task_id"]:
                     findings.append(_finding("explanation_revision", e, last_response, revision,
@@ -68,10 +79,14 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
             elif e.kind == "assistant_message" and e.details.get("phase") not in ("commentary", "analysis"):
                 if pending_request and pending_signals:
                     writing = [s for s in pending_signals if s.target == "communication"]
-                    if writing and _artifact_delivery(e.text):
+                    if writing and _delivery_content(e) == "artifact_delivery":
                         gaps.append({"code": "artifact_body_missing", "session_id": e.session_id,
-                                     "request_event_id": pending_request.id, "response_event_id": e.id,
-                                     "message": "日志记录了文件交付，但没有文档正文，无法核对可读性。"})
+                                     "request_event_id": writing[0].event_id, "response_event_id": e.id,
+                                     "message": "日志记录了文件交付；未识别到完整正文，需要原文件核对可读性。"})
+                    elif writing and _delivery_content(e) == "embedded_body_truncated":
+                        gaps.append({"code": "artifact_body_truncated", "session_id": e.session_id,
+                                     "request_event_id": writing[0].event_id, "response_event_id": e.id,
+                                     "message": "原始回复附有正文，但当前保留内容已截断，需要原文件核对全文。"})
                     concise = [s for s in writing if s.dimension == "brevity"]
                     for signal in concise:
                         contracts = signal.output_contracts or [signal.output_contract or {"surface": "reply", "char_limit": None}]
@@ -84,9 +99,11 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                             if measure["chars"] > threshold:
                                 surface = "摘要" if contract["surface"] == "summary" else "首层回复"
                                 lower_bound = "至少 " if measure.get("complete") is False else ""
-                                finding = _finding("long_response", pending_request, e, writing,
+                                origin = events_by_id[signal.event_id]
+                                supporting = [signal] + [s for s in writing if s is not signal and s.scene == signal.scene]
+                                finding = _finding("long_response", origin, e, supporting,
                                                    f"你要求{surface}简洁；测得{lower_bound} {measure['chars']} 字符，超过本次核对阈值 {threshold}。可以回看哪些细节适合后移。", "rule_candidate")
-                                finding["id"] = stable_id("long_response", pending_request.id, e.id, contract["surface"])
+                                finding["id"] = stable_id("long_response", signal.event_id, e.id, contract["surface"])
                                 finding["measurement"] = {**measure, "threshold": threshold,
                                                            "threshold_basis": "requested_limit" if cap is not None else "review_heuristic"}
                                 findings.append(finding)
@@ -95,15 +112,17 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                                              "request_event_id": pending_request.id, "response_event_id": e.id,
                                              "message": "回复已截断且缺完整篇幅统计，当前下界不足以判断是否满足限制。"})
                     jargon = unexplained_terms(e.text[:500])
-                    if any(s.dimension == "clarity" for s in writing) and len(jargon) >= 4:
-                        findings.append(_finding("unexplained_terms", pending_request, e, writing,
+                    clarity = next((s for s in writing if s.dimension == "clarity"), None)
+                    if clarity and len(jargon) >= 4:
+                        supporting = [clarity] + [s for s in writing if s is not clarity and s.scene == clarity.scene]
+                        findings.append(_finding("unexplained_terms", events_by_id[clarity.event_id], e, supporting,
                                                  f"你要求说明易懂；回复开头有 {len(jargon)} 处模型术语未找到紧邻的解释，需要回看是否解释到位。", "rule_candidate"))
                 last_response = e
                 last_response_task = context_by_id[pending_request.id]["task_id"] if pending_request else None
             elif e.kind == "tool_result":
                 call = calls.get(e.call_id)
                 operation = (e.turn_id, e.tool, call.details.get("argument_digest")) if call else None
-                if pending_request and _expected_failure(pending_request.text):
+                if pending_request and _expected_failure("\n".join(request.text for request in pending_requests)):
                     consecutive, last_operation = [], None
                     continue
                 if not call or not call.details.get("argument_digest") or e.status != "failed":
@@ -115,7 +134,7 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                 last_operation = operation
                 if len(consecutive) == 3 and pending_request:
                     workflow = [s for s in pending_signals if s.target == "workflow"]
-                    context = context_by_id[pending_request.id]
+                    context = context_by_id[latest_request.id]
                     findings.append({
                         "id": stable_id("repeated_tool_failure", e.session_id, consecutive[0].id),
                         "type": "repeated_tool_failure", "scene": context["scene"], "language": context["language"], "status": "rule_candidate",
@@ -125,12 +144,39 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                         "readers": context["readers"],
                         "language_evidence_id": context["language_evidence_id"],
                         "language_basis": context["language_basis"],
-                        "profile_evidence_ids": [s.event_id for s in workflow],
-                        "evidence_ids": [pending_request.id] + [x.id for x in consecutive],
+                        "profile_evidence_ids": list(dict.fromkeys(s.event_id for s in workflow)),
+                        "evidence_ids": [request.id for request in pending_requests] + [x.id for x in consecutive],
                         "reason": "同一轮中，相同工具参数连续三次返回失败；可能需要先补定位步骤。预期失败测试或环境问题也会产生这个模式。",
                         "observed_failures": 3,
                     })
     return list({x["id"]: x for x in findings}.values()), gaps
+
+
+def _supplement(previous: list[Signal], added: list[Signal], text: str) -> list[Signal]:
+    """Preserve unfulfilled requirements; an explicit cap replacement changes its surface."""
+    if re.search(r"改成|改为|调整为|改到", text):
+        surfaces = {c["surface"] for s in added if s.dimension == "brevity" for c in s.output_contracts}
+        retained = []
+        for signal in previous:
+            if signal.dimension != "brevity":
+                retained.append(signal)
+                continue
+            remaining = [c for c in signal.output_contracts if c["surface"] not in surfaces]
+            if remaining:
+                retained.append(replace(signal, output_contracts=remaining, output_contract=remaining[0]))
+        previous = retained
+    return previous + list(added)
+
+
+def _delivery_content(response: Event) -> str:
+    if not _artifact_delivery(response.text):
+        return "message"
+    present = response.details.get("artifact_body_present")
+    if present is None:
+        present = embedded_artifact_body(response.text)
+    if present and response.details.get("original_chars", len(response.text)) > len(response.text):
+        return "embedded_body_truncated"
+    return "embedded_body" if present else "artifact_delivery"
 
 
 def _artifact_delivery(text: str) -> bool:
@@ -167,6 +213,7 @@ def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
             "language_basis": evidence[0].language_basis,
             "request_preview": evidence[0].quote,
             "task_id": evidence[0].task_id,
-            "response_content": "artifact_delivery" if _artifact_delivery(response.text) else "message",
-            "profile_evidence_ids": [request.id], "evidence_ids": [request.id, response.id],
+            "response_content": _delivery_content(response),
+            "profile_evidence_ids": list(dict.fromkeys(s.event_id for s in evidence)),
+            "evidence_ids": list(dict.fromkeys([s.event_id for s in evidence] + [response.id])),
             "reason": reason}

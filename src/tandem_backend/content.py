@@ -73,6 +73,24 @@ def fenced_parts(text: str) -> list[tuple[bool, str]]:
     return parts
 
 
+def embedded_artifact_body(text: str) -> bool:
+    """Recognize a marked body in a delivery message; this cannot prove completeness."""
+    for link in re.finditer(r"\[[^\]]+\]\([^)]*\.(?:md|tex|docx)(?::\d+)?\)", text, re.I):
+        tail = text[link.end():]
+        explicit = re.search(r"(?:以下(?:是|为)?|附上|附|提供)(?:文档|报告|讲义)?(?:正文|全文|完整内容)[：:。\s]*|(?:正文|全文|完整内容)如下[：:。\s]*", tail)
+        if explicit and tail[explicit.end():].strip():
+            return True
+        if re.search(r"节选|片段|摘录", tail[:120]):
+            continue
+        for fenced, part in fenced_parts(tail):
+            if fenced and re.match(r"\s*(?:`{3,}|~{3,})(?:markdown|md|tex|latex)\b", part, re.I) and len(part.strip().splitlines()) >= 3:
+                return True
+        for heading in re.finditer(r"(?m)^#{1,6}\s+([^\n]+)\n", tail):
+            if not re.search(r"验证|测试|下一步|交付|修改|核对|完成情况|运行|文件清单|结果", heading[1]) and len(tail[heading.end():].strip()) >= 20:
+                return True
+    return False
+
+
 def visible_text(text: str) -> tuple[str, str]:
     """Exclude balanced expandable details and link destinations from the first layer."""
     # An unmatched tag cannot hide arbitrary text. Partial logs remain conservative.

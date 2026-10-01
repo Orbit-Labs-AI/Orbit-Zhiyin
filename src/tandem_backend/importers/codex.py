@@ -12,7 +12,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from ..content import measure_length
+from ..content import embedded_artifact_body, measure_length
 from ..models import Event, ParsedSession, Session, stable_id, utc_time
 from ..privacy import direct_user_text, redact
 
@@ -255,6 +255,7 @@ def parse_rollout(
                     else:
                         details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
                                                            for surface in ("reply", "summary")}
+                        details["artifact_body_present"] = embedded_artifact_body(text)
                 elif ptype in ("function_call", "custom_tool_call"):
                     event_kind, tool = "tool_call", payload.get("name")
                     call_id = payload.get("call_id")
@@ -294,6 +295,7 @@ def parse_rollout(
                         if ptype == "agent_message":
                             mirror_details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
                                                                       for surface in ("reply", "summary")}
+                            mirror_details["artifact_body_present"] = embedded_artifact_body(text)
                         mirrors.append(Event(stable_id(result.session.id, ordinal), result.session.id,
                                              ordinal, "user_message" if ptype == "user_message" else "assistant_message",
                                              timestamp, model, turn_id, text[:MAX_TEXT], details=mirror_details))

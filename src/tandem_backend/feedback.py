@@ -262,10 +262,12 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
     """Resolve task context without changing the original normalized events."""
     current: dict[str, dict] = {}
     deliveries = {}
+    delivery_ordinals = {}
     by_event = {}
     for event in sorted(events, key=lambda e: (e.session_id, e.ordinal)):
         if event.kind == "assistant_message" and event.details.get("phase") not in ("commentary", "analysis"):
             deliveries[event.session_id] = event.text
+            delivery_ordinals[event.session_id] = event.ordinal
         if event.kind != "user_message":
             continue
         text = _clean(event.text)
@@ -276,14 +278,17 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
         language_evidence_id = event.id
         language_basis = "explicit_request" if requested_language else "message_language"
         task_id = event.id
-        continuation = is_followup(text) or (event.details.get("input_format") == "question_reply" and not NEW_TOPIC.search(text))
+        previous = current.get(event.session_id)
+        supplement = bool(previous and event.turn_id is not None and event.turn_id == previous["turn_id"] and
+                          delivery_ordinals.get(event.session_id, -1) < previous["request_ordinal"] and not NEW_TOPIC.search(text))
+        continuation = supplement or is_followup(text) or (event.details.get("input_format") == "question_reply" and not NEW_TOPIC.search(text))
         if continuation and event.session_id in current:
             previous = current[event.session_id]
-            compatible = scene in ("conversation", previous["scene"]) or (
+            compatible = supplement or scene in ("conversation", previous["scene"]) or (
                 previous["scene"] == "document" and scene in ("math_explanation", "developer_report")) or same_artifact_reference(
                     event.text, deliveries.get(event.session_id, ""))
             if compatible:
-                scene = previous["scene"] if scene == "conversation" else scene
+                scene = previous["scene"] if scene == "conversation" or (supplement and previous["scene"] != "conversation") else scene
                 task_id = previous["task_id"]
                 readers = readers or [r for r in previous["readers"] if r["id"] not in excluded_readers]
                 if not requested_language and previous["language"] not in forbidden:
@@ -291,7 +296,8 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
                     language_evidence_id = previous["language_evidence_id"]
                     language_basis = previous["language_basis"]
         context = {"scene": scene, "readers": readers, "language": language,
-                   "language_evidence_id": language_evidence_id, "language_basis": language_basis, "task_id": task_id}
+                   "language_evidence_id": language_evidence_id, "language_basis": language_basis, "task_id": task_id,
+                   "turn_id": event.turn_id, "request_ordinal": event.ordinal}
         current[event.session_id] = context
         by_event[event.id] = context
     return by_event

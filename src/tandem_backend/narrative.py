@@ -66,6 +66,8 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     elif analysis.get("data_gaps"):
         next_step = ("需要对应文档正文，才能判断它是否容易理解。" if any(
             g["code"] == "artifact_body_missing" for g in analysis["data_gaps"]) else
+            "原始日志有正文，但保留内容已截断，需要原文件核对全文。" if any(
+            g["code"] == "artifact_body_truncated" for g in analysis["data_gaps"]) else
             "这段回复的篇幅记录不完整，先补齐记录再核对要求。")
     else:
         next_step = "先选一次具体任务，核对要求与结果，再决定是否换工具。"
@@ -100,7 +102,9 @@ def markdown(result: dict) -> str:
         if primary["type"] == "explanation_revision":
             lines.extend(["你随后要求调整说明，不能单凭它断定上一版失败。", ""])
         if primary["response_content"] == "artifact_delivery":
-            lines.extend(["这次交付在日志里只有文件说明，文档正文还需要另看。", ""])
+            lines.extend(["日志记录了文件交付，完整正文还需要另看。", ""])
+        elif primary["response_content"] == "embedded_body_truncated":
+            lines.extend(["原始回复附有正文，但保留内容已截断，需要原文件核对全文。", ""])
         ids = primary["evidence_ids"]
         links = [f"[要求](http://127.0.0.1:8765/v1/evidence/{ids[0]})"]
         links.extend(f"[相关记录 {i}](http://127.0.0.1:8765/v1/evidence/{eid})" for i, eid in enumerate(ids[1:], 1))
