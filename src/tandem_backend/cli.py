@@ -48,6 +48,7 @@ def main(argv: list[str] | None = None) -> None:
     imp.add_argument("--codex-home", type=Path, required=True)
     imp.add_argument("--before", help="固定样本快照，ISO UTC 时间")
     imp.add_argument("--exclude-session", action="append", default=[])
+    imp.add_argument("--reset-sample-policy", action="store_true", help="显式重新设置快照和排除范围；默认保留已有隔离")
     report = sub.add_parser("report")
     report.add_argument("--output", type=Path, default=Path(".local/report"))
     report.add_argument("--audience", choices=("user", "developer"), default="user")
@@ -96,7 +97,7 @@ def main(argv: list[str] | None = None) -> None:
         args.db = str(args.output / "demo.sqlite")
     store = Store(args.db)
     if args.command == "import":
-        result = import_codex(store, args.codex_home, args.before, set(args.exclude_session))
+        result = import_codex(store, args.codex_home, args.before, set(args.exclude_session), args.reset_sample_policy)
         print(json.dumps({"import": result.to_dict(), "stored": store.counts()}, ensure_ascii=False))
         return
     if args.command == "demo":

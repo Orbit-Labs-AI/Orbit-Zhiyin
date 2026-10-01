@@ -98,6 +98,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     return {
         "schema_version": "1.5", "analysis_version": "context-v7",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
+        "ledger_sample_policies": store.sample_policies(),
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
                    "tool_calls": len(calls), "explicit_tool_failures": len(failed)},

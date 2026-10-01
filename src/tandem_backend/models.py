@@ -78,6 +78,7 @@ class ImportSummary:
     events: int = 0
     warning_count: int = 0
     skip_reasons: dict[str, int] = field(default_factory=dict)
+    sample_policy: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
