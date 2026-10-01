@@ -82,6 +82,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
         readers = {r["id"]: r for e in scene_users for r in context_by_id[e.id]["readers"]}
         contexts.append({"scene": key, "label": SCENE_LABELS[key],
                          "user_messages": len(scene_users), "user_sessions": len({e.session_id for e in scene_users}),
+                         "languages": dict(Counter(context_by_id[e.id]["language"] for e in scene_users)),
                          "preferences": _preferences(scene_signals, {e.session_id for e in scene_users}, sessions_by_id),
                          "readers": list(readers.values())})
     # A revision can refer to a previous reply whose original request used a
@@ -95,7 +96,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     return {
-        "schema_version": "1.3", "analysis_version": "context-v5",
+        "schema_version": "1.4", "analysis_version": "context-v6",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),

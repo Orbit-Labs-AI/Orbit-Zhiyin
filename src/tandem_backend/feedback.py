@@ -25,6 +25,7 @@ CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|�
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
 LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
 LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出)"
+LANGUAGE_QUANTITY = r"\s*(?:一(?:份|篇|个|段|版|套)\s*)?"
 SCENE_LABELS = {"math_explanation": "数学讲解", "developer_report": "开发说明与报告",
                 "document": "文档写作", "coding": "代码协作", "conversation": "一般对话"}
 
@@ -105,14 +106,19 @@ def _writing_target(text: str, start: int, end: int) -> bool:
     return bool(WRITING.search(local)) or bool(WRITING.search(context)) or text[start:end] in ("说人话", "看不懂", "没看懂", "不要啰嗦")
 
 
-def language_of(text: str) -> str:
+def explicit_language(text: str) -> str | None:
+    """The language of a user's message can differ from the requested deliverable."""
     text = _clean(text)
-    text = re.sub(r"(?:不要|别|不用|不是让你)\s*" + LANGUAGE_VERBS + r"?\s*" + LANGUAGE, "", text, flags=re.I)
-    explicit = list(re.finditer(LANGUAGE_VERBS + r"\s*" + LANGUAGE + "|" + LANGUAGE + r"(?:版|版本|的?(?:回答|报告|解释|文档))", text, re.I))
+    text = re.sub(r"(?:不要|别|不用|不是让你)\s*" + LANGUAGE_VERBS + "?" + LANGUAGE_QUANTITY + LANGUAGE, "", text, flags=re.I)
+    explicit = list(re.finditer(LANGUAGE_VERBS + LANGUAGE_QUANTITY + LANGUAGE + "|" + LANGUAGE + r"(?:版|版本|的?(?:回答|报告|解释|文档))", text, re.I))
     explicit = [m for m in explicit if not re.match(r"\s*(?:API|SDK|字段|单词|术语|字样)", text[m.end():], re.I)]
     if explicit:
         return "zh" if re.search(r"中文|汉语", explicit[-1][0]) else "en"
-    return "zh" if re.search(r"[\u4e00-\u9fff]", text) else "en"
+    return None
+
+
+def language_of(text: str) -> str:
+    return explicit_language(text) or ("zh" if re.search(r"[\u4e00-\u9fff]", _clean(text)) else "en")
 
 
 def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
@@ -164,9 +170,12 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v5"
+    rule_version: str = "rules-v6"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
+    language: str = "zh"
+    language_evidence_id: str | None = None
+    language_basis: str = "message_language"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -182,11 +191,21 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
         text = _clean(event.text)
         scene = scene_of(_context_text(event.text))
         readers = reader_context(text, event.id)
-        if scene == "conversation" and is_followup(text) and event.session_id in current:
+        requested_language = explicit_language(text)
+        language = requested_language or language_of(text)
+        language_evidence_id = event.id
+        language_basis = "explicit_request" if requested_language else "message_language"
+        if is_followup(text) and event.session_id in current:
             previous = current[event.session_id]
-            scene = previous["scene"]
-            readers = readers or previous["readers"]
-        context = {"scene": scene, "readers": readers}
+            if scene in ("conversation", previous["scene"]):
+                scene = previous["scene"]
+                readers = readers or previous["readers"]
+                language = requested_language or previous["language"]
+                if not requested_language:
+                    language_evidence_id = previous["language_evidence_id"]
+                    language_basis = previous["language_basis"]
+        context = {"scene": scene, "readers": readers, "language": language,
+                   "language_evidence_id": language_evidence_id, "language_basis": language_basis}
         current[event.session_id] = context
         by_event[event.id] = context
     return by_event
@@ -228,5 +247,7 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
                                  event.turn_id, event.timestamp, quote,
                                  "communication" if dimension in ("clarity", "brevity", "grounding") else "workflow",
                                  context["scene"], readers=context["readers"],
-                                 output_contract=length_contract(text, match.start(), match.end()) if dimension == "brevity" else None))
+                                 output_contract=length_contract(text, match.start(), match.end()) if dimension == "brevity" else None,
+                                 language=context["language"], language_evidence_id=context["language_evidence_id"],
+                                 language_basis=context["language_basis"]))
     return output

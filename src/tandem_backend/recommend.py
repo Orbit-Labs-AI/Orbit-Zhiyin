@@ -28,12 +28,16 @@ def recommend(analysis: dict, scene: str = "auto", language: str = "auto", catal
                 continue
             if actual_scene not in resource["scenes"]:
                 continue
-            actual_language = bottleneck.get("language", "zh") if language == "auto" else language
+            actual_language = bottleneck.get("language", "zh")
+            if language != "auto" and language != actual_language:
+                continue  # A filter cannot change the requested deliverable's language.
             if resource["language"] not in (actual_language, "any"):
                 continue
             if not resource["verified_sha"] or resource["verification"] != "repository_and_skill_read":
                 continue
             preference = scoped_dimensions[matched[0]]
+            context_ids = list(dict.fromkeys([i for i in [bottleneck.get("language_evidence_id")] +
+                                              [r["evidence_id"] for r in bottleneck.get("readers", [])] if i]))
             recommendations.append({
                 "id": resource["id"] + ":" + bottleneck["id"],
                 "resource_id": resource["id"], "kind": resource["kind"], "name": resource["name"],
@@ -42,9 +46,12 @@ def recommend(analysis: dict, scene: str = "auto", language: str = "auto", catal
                 "reason": f"在{SCENE_LABELS.get(actual_scene, actual_scene)}中，你提出过“{preference['label']}”的要求。{bottleneck['reason']}",
                 "profile_evidence_ids": bottleneck["profile_evidence_ids"],
                 "bottleneck_id": bottleneck["id"], "bottleneck_evidence_ids": bottleneck["evidence_ids"],
-                "evidence_ids": list(dict.fromkeys(bottleneck["profile_evidence_ids"] + bottleneck["evidence_ids"])),
+                "context_evidence_ids": context_ids,
+                "evidence_ids": list(dict.fromkeys(bottleneck["profile_evidence_ids"] + bottleneck["evidence_ids"] + context_ids)),
                 "matched_dimensions": matched, "status": "trial", "effect_status": "unmeasured",
                 "scene": actual_scene, "trial": resource["trial"], "limitation": resource["limitations"],
+                "language": actual_language, "language_basis": bottleneck.get("language_basis", "message_language"),
+                "language_evidence_id": bottleneck.get("language_evidence_id"),
                 "readers": bottleneck.get("readers", []), "capability": resource["summary"],
                 "verified_sha": resource["verified_sha"], "match_basis": "profile_and_bottleneck",
                 "source_status": resource.get("source_status", "bundled_snapshot"),

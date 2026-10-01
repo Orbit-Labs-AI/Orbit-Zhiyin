@@ -78,6 +78,7 @@ def evidence_checks(store: Store, data: dict, recs: list[dict]) -> dict:
     context_valid = True
     support_valid = True
     source_valid = True
+    language_valid = True
     for rec in recs:
         bottleneck = incidents.get(rec["bottleneck_id"])
         profile_ids = rec["profile_evidence_ids"]
@@ -94,12 +95,16 @@ def evidence_checks(store: Store, data: dict, recs: list[dict]) -> dict:
         sha = rec.get("verified_sha", "")
         source_valid &= bool(resource and re.fullmatch(r"[0-9a-f]{40}", sha) and
                              rec.get("source_url") == f"{resource['url']}/blob/{sha}/{resource['source_path']}")
+        language_valid &= bool(bottleneck and resource and rec.get("language") == bottleneck["language"] and
+                               resource["language"] in (bottleneck["language"], "any"))
+        language_valid &= all(i in events and events[i].kind == "user_message" for i in rec.get("context_evidence_ids", []))
     no_profile = recommend({**data, "preferences": []}) == []
     no_incident = recommend({**data, "bottlenecks": []}) == []
     empty_contexts = [{**c, "preferences": []} for c in data.get("contexts", [])]
     no_context = recommend({**data, "contexts": empty_contexts}) == []
     return {"references_valid": bool(references_valid), "original_context_preserved": bool(context_valid),
             "cited_profile_supports_match": bool(support_valid), "versioned_source_reference_valid": bool(source_valid),
+            "deliverable_language_preserved": bool(language_valid),
             "profile_ablation_abstains": no_profile, "bottleneck_ablation_abstains": no_incident,
             "context_ablation_abstains": no_context}
 

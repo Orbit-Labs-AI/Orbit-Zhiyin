@@ -99,10 +99,12 @@ def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], l
                     workflow = [s for s in pending_signals if s.target == "workflow"]
                     findings.append({
                         "id": stable_id("repeated_tool_failure", e.session_id, consecutive[0].id),
-                        "type": "repeated_tool_failure", "scene": "coding", "language": language_of(pending_request.text), "status": "rule_candidate",
+                        "type": "repeated_tool_failure", "scene": "coding", "language": workflow[0].language if workflow else language_of(pending_request.text), "status": "rule_candidate",
                         "session_id": e.session_id, "model": e.model,
                         "dimensions": [s.dimension for s in workflow],
                         "readers": workflow[0].readers if workflow else [],
+                        "language_evidence_id": workflow[0].language_evidence_id if workflow else pending_request.id,
+                        "language_basis": workflow[0].language_basis if workflow else "message_language",
                         "profile_evidence_ids": [s.event_id for s in workflow],
                         "evidence_ids": [pending_request.id] + [x.id for x in consecutive],
                         "reason": "同一轮中，相同工具参数连续三次返回失败；可能需要先补定位步骤。预期失败测试或环境问题也会产生这个模式。",
@@ -118,8 +120,10 @@ def _artifact_delivery(text: str) -> bool:
 def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
              reason: str, status: str) -> dict:
     return {"id": stable_id(kind, request.id, response.id), "type": kind,
-            "scene": evidence[0].scene, "language": language_of(request.text), "status": status, "session_id": request.session_id,
+            "scene": evidence[0].scene, "language": evidence[0].language, "status": status, "session_id": request.session_id,
             "model": response.model, "dimensions": list(dict.fromkeys(s.dimension for s in evidence)),
             "readers": evidence[0].readers,
+            "language_evidence_id": evidence[0].language_evidence_id,
+            "language_basis": evidence[0].language_basis,
             "profile_evidence_ids": [request.id], "evidence_ids": [request.id, response.id],
             "reason": reason}
