@@ -25,7 +25,7 @@ WRITING = re.compile(r"说人话|说明|讲清楚|解释|回答|表达|报告|�
 CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|实现|字段|参数|属性|变量|文件名|命名")
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
 LANGUAGE = r"(?:英文|英语|English|中文|汉语)"
-LANGUAGE_VERBS = r"(?:用|使用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出|保留)"
+LANGUAGE_VERBS = r"(?:使用|用|写|改成|改为|输出|生成|提供|翻译成|翻译为|给出|给我|保留)"
 LANGUAGE_QUANTITY = r"\s*(?:一(?:份|篇|个|段|版|套)\s*)?"
 NEGATION = r"(?:不要|不用|无需|不必|别|不需要|不是让你|并非|不是)"
 NEW_TOPIC = re.compile(r"新(?:的)?(?:数学)?(?:任务|定理|问题|主题|报告|文档|接口|教程|证明)|另(?:外)?一个(?:任务|问题|主题|定理|项目)|换(?:一个|个)(?:任务|主题)|下一(?:道|个)(?:题|问题)")
@@ -169,13 +169,20 @@ def _writing_target(text: str, start: int, end: int) -> bool:
 def language_constraints(text: str) -> tuple[str | None, set[str]]:
     """The language of a user's message can differ from the requested deliverable."""
     text = _clean(text)
-    explicit = list(re.finditer(LANGUAGE_VERBS + LANGUAGE_QUANTITY + LANGUAGE + "|" + LANGUAGE + r"(?:版|版本|的?(?:回答|报告|解释|文档))", text, re.I))
+    explicit = list(re.finditer(LANGUAGE_VERBS + LANGUAGE_QUANTITY + LANGUAGE + "|" + LANGUAGE + r"(?:版本|版|的?(?:回答|报告|解释|文档))", text, re.I))
     explicit = [m for m in explicit if not re.match(r"\s*(?:API|SDK|字段|单词|术语|字样)", text[m.end():], re.I)]
     requested, forbidden = None, set()
     for match in explicit:
         language = "zh" if re.search(r"中文|汉语", match[0]) else "en"
         left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
         prefix = text[max(left, match.start() - 24):match.start()]
+        after = text[match.end():match.end() + 24]
+        # A language can be the subject of a question rather than the output
+        # language. Keep the latest governing action local to this clause.
+        governors = list(re.finditer(r"介绍|解释|比较|分析|讨论|了解|什么|如何|怎么|用|写|输出|生成|提供|给出|给我|改成|改为|翻译成|翻译为|保留", prefix))
+        topic = bool(governors and re.fullmatch(r"介绍|解释|比较|分析|讨论|了解|什么|如何|怎么", governors[-1][0]))
+        if topic or re.match(r"\s*(?:是什么|是什么意思|是啥|的?(?:概念|含义|意思|定义)|已经|已(?:经)?(?:完成|写完))", after):
+            continue
         if re.search(NEGATION + r"[^，。；;\n]{0,8}$", prefix):
             forbidden.add(language)
             if requested == language:
@@ -212,6 +219,9 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
     if not execution and dimension in ("actionability", "verification") and re.match(
         r"(?:已经|已|正在|完成|结束|了|过|通过|成功|失败|是|可以|需要|耗时)", after):
         return False
+    if dimension == "actionability" and match[0] not in ("具体步骤", "怎么做", "怎么用"):
+        if topic or re.match(r"性(?:的)?(?:含义|意思|定义|概念)|(?:的)?(?:含义|意思|定义|概念)|程序(?:的)?(?:定义|概念|是什么)", after):
+            return False
     if dimension == "actionability" and match[0] == "实现":
         if re.match(r"原理|机制|方式|方法|过程|细节", after) or topic:
             return False
@@ -254,7 +264,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v9"
+    rule_version: str = "rules-v10"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)
