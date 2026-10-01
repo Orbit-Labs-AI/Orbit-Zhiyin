@@ -27,7 +27,7 @@ def test_separate_surfaces_keep_both_bounds_and_explicit_replacement():
     event = Event("e", "s", 1, "user_message", None,
                   text="摘要100字以内，正文200字以内。")
     signal = next(s for s in signals([event]) if s.dimension == "brevity")
-    assert {c["surface"]: c["char_limit"] for c in signal.output_contracts} == {"summary": 100, "reply": 200}
+    assert {c["surface"]: c["char_limit"] for c in signal.output_contracts} == {"summary": 100, "body": 200}
     event.text = "摘要100字以内，改成200字以内。"
     signal = next(s for s in signals([event]) if s.dimension == "brevity")
     assert signal.output_contracts[0]["char_limit"] == 200

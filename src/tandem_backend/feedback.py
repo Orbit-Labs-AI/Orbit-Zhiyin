@@ -208,6 +208,10 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
     left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
     prefix = text[max(left, match.start() - 24):match.start()]
     after = text[match.end():match.end() + 16]
+    if dimension == "brevity" and re.fullmatch(r"(?:一|两|三|\d+)段话", match[0]):
+        output = re.search(r"(?:用|以|写成|分成|压缩成|控制在|限制为|回答|回复|摘要|概述)[^，,。；;\n]{0,6}$", prefix)
+        if not output and not re.match(r"\s*(?:就好|即可|以内|足够)", after):
+            return False
     if dimension == "brevity" and match[0] == "太长" and re.search(r"(?:不要|不用|无需|不必|别|不需要)[^，。；;\n]{0,4}$", prefix):
         return True  # '不要太长' requests brevity; it does not reject brevity.
     if re.search(NEGATION + r"[^，。；;\n]{0,6}$", prefix):
@@ -264,7 +268,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v10"
+    rule_version: str = "rules-v11"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)

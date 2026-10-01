@@ -11,7 +11,7 @@ UPPER_BOUND_PATTERN = r"(\d+)\s*(?:字|字符)\s*(?:以内|内|以下)|(?:不超
 
 def length_contract(text: str, start: int, end: int) -> dict:
     """A local brevity requirement can constrain the abstract instead of the full reply."""
-    boundaries = "，,。；;\n"
+    boundaries = "，,、。；;\n"
     left = max(text.rfind(c, 0, start) for c in boundaries) + 1
     ends = [text.find(c, end) for c in boundaries if text.find(c, end) >= 0]
     right = min(ends) if ends else len(text)
@@ -23,7 +23,8 @@ def length_contract(text: str, start: int, end: int) -> dict:
     summary = bool(targets and re.fullmatch(r"摘要|总结|概要|概述|开头|首段|首层", targets[-1][0]))
     # Search the requirement clause, not incidental numeric facts in another clause.
     cap = re.search(UPPER_BOUND_PATTERN, clause)
-    return {"surface": "summary" if summary else "reply",
+    body = bool(targets and targets[-1][0] in ("正文", "完整证明"))
+    return {"surface": "summary" if summary else "body" if body else "reply",
             "char_limit": int(cap[1] or cap[2]) if cap else None,
             "requires_full_body": bool(re.search(r"(?:完整|详细).{0,8}(?:证明|推导|正文)|(?:证明|推导|正文).{0,8}(?:完整|详细)|不省略(?:条件|步骤)", text)),
             "basis": "explicit_request"}
@@ -36,7 +37,7 @@ def merge_length_contracts(text: str, spans: list[tuple[int, int]]) -> list[dict
         contract = length_contract(text, start, end)
         surface = contract["surface"]
         previous = merged.get(surface)
-        left = max(text.rfind(c, 0, start) for c in "，,。；;\n") + 1
+        left = max(text.rfind(c, 0, start) for c in "，,、。；;\n") + 1
         replacement = bool(re.search(r"改成|改为|调整为|改到", text[left:end]))
         if previous and previous["char_limit"] is not None and not replacement:
             bound = contract["char_limit"]
@@ -142,21 +143,35 @@ def visible_text(text: str) -> tuple[str, str]:
     return text.strip(), quality
 
 
-def measure_length(text: str, contract: dict, original_chars: int | None = None) -> dict:
+def measure_length(text: str, contract: dict, original_chars: int | None = None, message_separator: str = "") -> dict:
     visible, quality = visible_text(text)
     complete = not original_chars or original_chars <= len(text)
     if contract["surface"] == "summary":
         headings = re.search(r"(?m)^#{1,6}\s*(?:完整证明|证明|推导|正文|附录|详细|细节)", visible)
         if headings:
-            measured = visible[:headings.start()].strip()
+            measured = visible[:headings.start()]
             quality = "summary_before_heading"
             complete = True  # The complete summary boundary is visible even if the body is truncated.
         else:
-            measured = re.split(r"\n\s*\n", visible, maxsplit=1)[0].strip()
+            measured = re.split(r"\n\s*\n", visible, maxsplit=1)[0]
             quality = "first_paragraph_proxy"
             complete = complete or bool(re.search(r"\n\s*\n", visible))
+    elif contract["surface"] == "body":
+        # An explicit body limit excludes the abstract. Without a marked body
+        # boundary, its length is unknown rather than silently treated as zero.
+        body_text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+        boundary = re.search(r"(?m)^#{1,6}\s*(?:完整证明|证明|推导|正文|附录|详细)[^\n]*\n|正文[：:]\s*", body_text)
+        measured = body_text[boundary.end():] if boundary else ""
+        quality = "body_after_marker" if boundary else "body_boundary_missing"
+        complete = complete and bool(boundary)
     else:
         measured = visible
-    if not complete:
+    if message_separator:
+        measured = measured.replace(message_separator, "")
+    measured = measured.strip()
+    if not complete and quality == "unbalanced_details":
+        measured = ""  # A later closing tag might collapse all retained prose.
+        quality = "partial_markup_boundary_unknown"
+    if not complete and quality not in ("body_boundary_missing", "partial_markup_boundary_unknown"):
         quality = "truncated_lower_bound"
     return {"chars": len(measured), "surface": contract["surface"], "quality": quality, "complete": complete}

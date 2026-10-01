@@ -254,7 +254,7 @@ def parse_rollout(
                             "<send_user_message_question_reply>") else "prompt"
                     else:
                         details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
-                                                           for surface in ("reply", "summary")}
+                                                           for surface in ("reply", "summary", "body")}
                         details["artifact_body_present"] = embedded_artifact_body(text)
                 elif ptype in ("function_call", "custom_tool_call"):
                     event_kind, tool = "tool_call", payload.get("name")
@@ -294,7 +294,7 @@ def parse_rollout(
                                 "<send_user_message_question_reply>") else "prompt"}
                         if ptype == "agent_message":
                             mirror_details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
-                                                                      for surface in ("reply", "summary")}
+                                                                      for surface in ("reply", "summary", "body")}
                             mirror_details["artifact_body_present"] = embedded_artifact_body(text)
                         mirrors.append(Event(stable_id(result.session.id, ordinal), result.session.id,
                                              ordinal, "user_message" if ptype == "user_message" else "assistant_message",

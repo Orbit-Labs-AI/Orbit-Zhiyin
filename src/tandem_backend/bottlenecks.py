@@ -94,15 +94,19 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                 consecutive, last_operation = [], None
             elif e.kind == "assistant_message" and e.details.get("phase") not in ("commentary", "analysis"):
                 response_parts.append(e)
+                delivery = _combined_response(response_parts)
                 if len(response_parts) > 1:
-                    _reconcile_delivery_gaps(gaps, response_parts)
+                    response_ids = {part.id for part in response_parts}
+                    findings[:] = [f for f in findings if f["type"] not in ("long_response", "unexplained_terms") or
+                                   not response_ids.intersection(f["evidence_ids"])]
+                    gaps[:] = [g for g in gaps if g["response_event_id"] not in response_ids]
                 if pending_request and pending_signals:
                     writing = [s for s in pending_signals if s.target == "communication"]
-                    if writing and _delivery_content(e) == "artifact_delivery":
+                    if writing and _delivery_content(delivery) == "artifact_delivery":
                         gaps.append({"code": "artifact_body_missing", "session_id": e.session_id,
                                      "request_event_id": writing[0].event_id, "response_event_id": e.id,
                                      "message": "日志记录了文件交付；未识别到完整正文，需要原文件核对可读性。"})
-                    elif writing and _delivery_content(e) == "embedded_body_truncated":
+                    elif writing and _delivery_content(delivery) == "embedded_body_truncated":
                         gaps.append({"code": "artifact_body_truncated", "session_id": e.session_id,
                                      "request_event_id": writing[0].event_id, "response_event_id": e.id,
                                      "message": "原始回复附有正文，但当前保留内容已截断，需要原文件核对全文。"})
@@ -110,17 +114,20 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                     for signal in concise:
                         contracts = signal.output_contracts or [signal.output_contract or {"surface": "reply", "char_limit": None}]
                         for contract in contracts:
-                            full = e.details.get("writing_measurements", {}).get(contract["surface"])
-                            measure = full or measure_length(e.text, contract, e.details.get("original_chars"))
-                            measure = {**measure, "source": "normalized_full_message" if full else "retained_message"}
+                            full = delivery.details.get("writing_measurements", {}).get(contract["surface"])
+                            measure = full or measure_length(delivery.text, contract, delivery.details.get("original_chars"), DELIVERY_SEPARATOR)
+                            if not full and delivery.details.get("partial_sequence"):
+                                measure = {**measure, "complete": False, "quality": "truncated_lower_bound"}
+                            source = "normalized_full_message_sequence" if full and len(response_parts) > 1 else "normalized_full_message" if full else "retained_message"
+                            measure = {**measure, "source": source}
                             cap = contract.get("char_limit")
                             threshold = cap if cap is not None else (450 if contract["surface"] == "summary" else 2500)
                             if measure["chars"] > threshold:
-                                surface = "摘要" if contract["surface"] == "summary" else "首层回复"
+                                surface = {"summary": "摘要", "body": "正文", "reply": "首层回复"}[contract["surface"]]
                                 lower_bound = "至少 " if measure.get("complete") is False else ""
                                 origin = events_by_id[signal.event_id]
                                 supporting = [signal] + [s for s in writing if s is not signal and s.scene == signal.scene]
-                                finding = _finding("long_response", origin, e, supporting,
+                                finding = _finding("long_response", origin, delivery, supporting,
                                                    f"你要求{surface}简洁；测得{lower_bound} {measure['chars']} 字符，超过本次核对阈值 {threshold}。可以回看哪些细节适合后移。", "rule_candidate")
                                 finding["id"] = stable_id("long_response", signal.event_id, e.id, contract["surface"])
                                 finding["measurement"] = {**measure, "threshold": threshold,
@@ -129,14 +136,14 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                             elif measure.get("complete") is False:
                                 gaps.append({"code": "reply_length_incomplete", "session_id": e.session_id,
                                              "request_event_id": pending_request.id, "response_event_id": e.id,
-                                             "message": "回复已截断且缺完整篇幅统计，当前下界不足以判断是否满足限制。"})
-                    jargon = unexplained_terms(e.text[:500])
+                                             "message": "未识别正文分界，无法单独核对正文篇幅。" if measure["quality"] == "body_boundary_missing" else "回复已截断且缺完整篇幅统计，当前下界不足以判断是否满足限制。"})
+                    jargon = unexplained_terms(delivery.text[:500])
                     clarity = next((s for s in writing if s.dimension == "clarity"), None)
                     if clarity and len(jargon) >= 4:
                         supporting = [clarity] + [s for s in writing if s is not clarity and s.scene == clarity.scene]
-                        findings.append(_finding("unexplained_terms", events_by_id[clarity.event_id], e, supporting,
+                        findings.append(_finding("unexplained_terms", events_by_id[clarity.event_id], delivery, supporting,
                                                  f"你要求说明易懂；回复开头有 {len(jargon)} 处模型术语未找到紧邻的解释，需要回看是否解释到位。", "rule_candidate"))
-                last_response = e
+                last_response = delivery
                 last_response_task = context_by_id[pending_request.id]["task_id"] if pending_request else None
             elif e.kind == "tool_result":
                 call = calls.get(e.call_id)
@@ -171,29 +178,33 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
     return list({x["id"]: x for x in findings}.values()), gaps
 
 
-def _reconcile_delivery_gaps(gaps: list[dict], responses: list[Event]) -> None:
-    """Later marked body parts can fill an earlier link-only delivery gap.
+DELIVERY_SEPARATOR = "\n\n\x00TANDEM_MESSAGE_BOUNDARY\x00\n\n"
 
-    Only the current uninterrupted response sequence participates. Structural
-    body markers establish availability, never completeness or readability.
+
+def _combined_response(responses: list[Event]) -> Event:
+    """Measure an uninterrupted delivery, preserving all original evidence IDs.
+
+    Synthetic boundaries keep Markdown blocks apart but do not count toward
+    the user's character limit. Truncated sequences retain uncertainty.
     """
-    response_ids = {response.id for response in responses}
-    if not any(gap["code"] == "artifact_body_missing" and gap["response_event_id"] in response_ids for gap in gaps):
-        return
-    joined = "\n\n".join(response.text for response in responses)
-    if not embedded_artifact_body(joined):
-        return
-    truncated = any(response.details.get("original_chars", len(response.text)) > len(response.text)
-                    for response in responses)
-    retained = []
-    for gap in gaps:
-        if gap["code"] != "artifact_body_missing" or gap["response_event_id"] not in response_ids:
-            retained.append(gap)
-        elif truncated:
-            retained.append({**gap, "code": "artifact_body_truncated",
-                             "body_evidence_ids": [response.id for response in responses],
-                             "message": "同次交付的后续回复附有正文，但保留内容有截断，需要原文件核对全文。"})
-    gaps[:] = retained
+    if len(responses) == 1:
+        return responses[0]
+    text = DELIVERY_SEPARATOR.join(response.text for response in responses)
+    original_chars = sum(response.details.get("original_chars", len(response.text)) for response in responses)
+    original_chars += len(DELIVERY_SEPARATOR) * (len(responses) - 1)
+    partial = original_chars > len(text)
+    measurements = {} if partial else {
+        surface: measure_length(text, {"surface": surface}, message_separator=DELIVERY_SEPARATOR)
+        for surface in ("reply", "summary", "body")}
+    if partial:
+        full = [r.details.get("writing_measurements", {}).get("reply") for r in responses]
+        if all(m and m.get("complete") and m.get("quality") == "first_layer" for m in full):
+            measurements["reply"] = {"chars": sum(m["chars"] for m in full), "surface": "reply",
+                                     "quality": "full_fragment_sum", "complete": True}
+    return replace(responses[-1], text=text, details={**responses[-1].details,
+                   "response_event_ids": [r.id for r in responses], "original_chars": original_chars,
+                   "partial_sequence": partial, "artifact_body_present": embedded_artifact_body(text.replace(DELIVERY_SEPARATOR, "\n\n")),
+                   "writing_measurements": measurements})
 
 
 def _supplement(previous: list[Signal], added: list[Signal], text: str) -> list[Signal]:
@@ -259,5 +270,5 @@ def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
             "task_id": evidence[0].task_id,
             "response_content": _delivery_content(response),
             "profile_evidence_ids": list(dict.fromkeys(s.event_id for s in evidence)),
-            "evidence_ids": list(dict.fromkeys([s.event_id for s in evidence] + [response.id])),
+            "evidence_ids": list(dict.fromkeys([s.event_id for s in evidence] + response.details.get("response_event_ids", [response.id]))),
             "reason": reason}
