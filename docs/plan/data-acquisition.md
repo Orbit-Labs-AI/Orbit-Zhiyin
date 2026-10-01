@@ -50,7 +50,7 @@ flowchart LR
   L3 --> FEAT[(共享能力词表<br/>工具类别 · 命令族 · MCP · 技能 · 领域)]
   INV --> FEAT
   CAT --> FEAT
-  FEAT -.后续.-> REC[分析 / 匹配 / 推荐]
+  FEAT -. 后续 .-> REC[分析 / 匹配 / 推荐]
 ```
 
 Demo 各页需要的数据与来源：
