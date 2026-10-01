@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A1 概览</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 48px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.08);--win-ring:rgba(0,0,0,.06);
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--ser-m:#ec835a;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 22px 48px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);--win-ring:rgba(255,255,255,.08);
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#222326;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input,.tb textarea{font:inherit;color:inherit;margin:0}
+.win{position:absolute;overflow:hidden;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow)}
+.win::after{content:"";position:absolute;inset:0;border-radius:14px;box-shadow:inset 0 0 0 1px var(--win-ring);pointer-events:none;z-index:50}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cap{font-size:12px;line-height:16px;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card)}
+.ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
+.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;cursor:default;padding:0}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:4px}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.tip{position:absolute;z-index:25;background:var(--tip);color:var(--tip-ink);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sec{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sec h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .p2{margin:0;font-size:12px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div class="win" style="left: 40px; top: 50px; width: 1440px; height: 900px;">
+    <div style="position: absolute; left: 8px; top: 8px; width: 236px; height: 884px;">
+      <dc-import name="Sidebar" active="overview" hint-size="236px,884px"></dc-import>
+    </div>
+
+    <div style="position: absolute; left: 252px; top: 0; width: 1188px; height: 900px; padding: 0 24px 0 16px; display: flex; flex-direction: column;">
+      <div style="height: 58px; flex: none; display: flex; align-items: center; gap: 10px;">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px;">
+          <h1 class="serif" style="margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em;">概览</h1>
+          <span class="mono" style="font-size: 11.5px; color: var(--ink-3);">2026-09-01 — 09-30 · 186 个会话 · 5 个 Agent</span>
+        </div>
+        <span class="cap" style="display: inline-flex; align-items: center; gap: 5px; margin-right: 4px;"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.sync }}"></path></svg>2 分钟前已同步</span>
+        <button type="button" class="btn"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.share }}"></path></svg>分享报告</button>
+        <button type="button" class="btn ai"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>问本地 Agent</button>
+        <button type="button" class="ib" aria-label="更多操作"><svg class="ico" style="stroke-width: 2.6;" viewBox="0 0 24 24"><path d="{{ ic.more }}"></path></svg></button>
+      </div>
+
+      <div style="height: 32px; flex: none; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; position: relative;">
+        <div class="seg" role="group" aria-label="时间范围">
+          <button type="button" aria-pressed="false">7 天</button>
+          <button type="button" class="on" aria-pressed="true">30 天</button>
+          <button type="button" aria-pressed="false">90 天</button>
+          <button type="button" aria-pressed="false">全部</button>
+        </div>
+        <button type="button" class="chip"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.bot }}"></path></svg>Agent · 全部 5<svg class="ico" style="width: 12px; height: 12px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+        <button type="button" class="chip"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.folder }}"></path></svg>项目 · 全部 9<svg class="ico" style="width: 12px; height: 12px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+        <button type="button" class="chip dash"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.plus }}"></path></svg>添加筛选</button>
+        <div style="flex: 1;"></div>
+        <label style="position: relative; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2);">对比上一周期<button type="button" class="sw on" aria-pressed="true" aria-label="对比上一周期"></button>
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -30px; top: -3px;">9</span></sc-if>
+        </label>
+        <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">1</span></sc-if>
+      </div>
+
+      <div style="flex: none; display: flex; flex-direction: column; gap: 12px;">
+
+        <div class="card" style="height: 128px; padding: 14px 18px; display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; gap: 22px;">
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">2</span></sc-if>
+          <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="aib"><svg class="ico" style="width: 11px; height: 11px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>AI 解读</span>
+              <span class="cap" style="font-size: 11.5px;">本地 Claude Code 生成 · 9/30 23:10</span>
+            </div>
+            <p class="serif" style="margin: 0; font-size: 17px; line-height: 1.5; font-weight: 500; text-wrap: pretty;">你像一位指挥家：把整段目标交给 Agent，多线并进，但坚持亲自验收。</p>
+          </div>
+          <sc-for list="{{ insights }}" as="g" hint-placeholder-count="3">
+            <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-1);"><svg class="ico" style="width: 14px; height: 14px; color: {{ g.c }};" viewBox="0 0 24 24"><path d="{{ g.icon }}"></path></svg>{{ g.k }}</div>
+              <p style="margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); text-wrap: pretty;">{{ g.t }}</p>
+              <a href="#" class="lnk" style="margin-top: auto;">{{ g.l }}</a>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="height: 96px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; position: relative;">
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">3</span></sc-if>
+          <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="5">
+            <div class="card" style="padding: 11px 14px 10px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <span style="font-size: 12px; color: var(--ink-2);">{{ t.label }}</span>
+                <svg width="64" height="22" viewBox="0 0 64 22" aria-hidden="true" style="flex: none; overflow: visible;"><path d="{{ t.spark }}" style="fill: none; stroke: var(--ink-4); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;"></path><circle cx="{{ t.lx }}" cy="{{ t.ly }}" r="2.5" style="fill: var(--ink-1); stroke: var(--surface); stroke-width: 1.5;"></circle></svg>
+              </div>
+              <div style="display: flex; align-items: baseline; gap: 3px;"><span style="font-size: 26px; line-height: 30px; font-weight: 600; letter-spacing: -0.01em;">{{ t.value }}</span><span style="font-size: 13px; color: var(--ink-3);">{{ t.unit }}</span></div>
+              <div style="font-size: 11.5px; line-height: 16px; color: var(--ink-3); display: flex; gap: 6px; align-items: center; white-space: nowrap;"><span style="color: {{ t.dc }}; font-weight: 600;">{{ t.delta }}</span><span>{{ t.sub }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="height: 276px; display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 12px;">
+          <div class="card" style="padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">4</span></sc-if>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px;"><span class="ct">Agent 使用趋势</span><span class="cap">每日会话数 · 按 Agent 堆叠</span></div>
+              <div class="seg" role="group" aria-label="度量"><button type="button" class="on" aria-pressed="true">会话</button><button type="button" aria-pressed="false">时长</button><button type="button" aria-pressed="false">Tokens</button></div>
+              <div class="seg" role="group" aria-label="视图"><button type="button" class="on" aria-pressed="true" aria-label="图表视图" style="padding: 0 6px;"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.chart }}"></path></svg></button><button type="button" aria-pressed="false" aria-label="表格视图" style="padding: 0 6px;"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.grid }}"></path></svg></button></div>
+            </div>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+              <sc-for list="{{ legend }}" as="l" hint-placeholder-count="5">
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2);"><span style="width: 10px; height: 10px; border-radius: 2px; background: {{ l.c }};"></span>{{ l.name }}<span class="mono" style="color: var(--ink-1); font-weight: 600;">{{ l.n }}</span></span>
+              </sc-for>
+            </div>
+            <div style="position: relative; height: 184px;">
+              <sc-for list="{{ yticks }}" as="y" hint-placeholder-count="4">
+                <div style="position: absolute; left: 26px; right: 0; top: {{ y.top }}px; height: 1px; background: var(--hair);"></div>
+                <span class="mono" style="position: absolute; left: 0; width: 18px; text-align: right; top: {{ y.lt }}px; font-size: 10.5px; line-height: 12px; color: var(--ink-3);">{{ y.v }}</span>
+              </sc-for>
+              <div style="position: absolute; left: 26px; top: 6px; width: 706px; height: 156px;">
+                <div style="position: absolute; left: {{ hov.x }}px; top: -4px; width: {{ hov.w }}px; height: 160px; border-radius: 5px; background: var(--hair);"></div>
+                <sc-for list="{{ segs }}" as="s" hint-placeholder-count="40">
+                  <div style="position: absolute; left: {{ s.x }}px; bottom: {{ s.y }}px; width: 14px; height: {{ s.h }}px; background: {{ s.c }}; border-radius: {{ s.r }};"></div>
+                </sc-for>
+                <div class="tip" style="left: {{ hov.tx }}px; top: 2px; width: 176px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;"><span style="font-weight: 600;">9 月 18 日 周五</span><span class="mono" style="font-size: 11px; opacity: .75;">11 个会话</span></div>
+                  <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <sc-for list="{{ tipRows }}" as="r" hint-placeholder-count="5">
+                      <div style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 2px; border-radius: 1px; background: {{ r.c }};"></span><span class="mono" style="width: 14px; font-weight: 700;">{{ r.v }}</span><span style="opacity: .8;">{{ r.name }}</span></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+              <div style="position: absolute; left: 26px; top: 162px; width: 706px; height: 1px; background: var(--line);"></div>
+              <sc-for list="{{ xlabels }}" as="x" hint-placeholder-count="5">
+                <span class="mono" style="position: absolute; top: 168px; left: {{ x.left }}px; width: 40px; text-align: center; font-size: 10.5px; line-height: 12px; color: var(--ink-3);">{{ x.t }}</span>
+              </sc-for>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">5</span></sc-if>
+            <div style="display: flex; justify-content: space-between; align-items: center;"><span class="eb">协作人格 · 9 月</span><span class="bdg">置信度 高 · n=186</span></div>
+            <div>
+              <div class="serif" style="font-size: 40px; line-height: 44px; font-weight: 600; letter-spacing: 0.04em;">DIMV</div>
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 2px;"><span class="serif" style="font-size: 20px; font-weight: 600;">指挥家</span><span class="serif" style="font-size: 15px; font-style: italic; color: var(--ink-3);">The Conductor</span></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 2px;">
+              <sc-for list="{{ axes }}" as="a" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: 50px minmax(0, 1fr) 50px 24px; align-items: center; gap: 8px; height: 20px; font-size: 12px;">
+                  <span style="color: {{ a.lc }}; font-weight: {{ a.lw }};"><span class="mono">{{ a.L }}</span> {{ a.Ln }}</span>
+                  <div style="position: relative; height: 6px; border-radius: 3px; background: var(--sunken);">
+                    <div style="position: absolute; left: 50%; top: -3px; width: 1px; height: 12px; background: var(--line);"></div>
+                    <div style="position: absolute; top: 0; height: 6px; border-radius: 3px; left: {{ a.fl }}%; width: {{ a.fw }}%; background: var(--ink-2);"></div>
+                    <div style="position: absolute; top: -3px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; left: {{ a.pos }}%; background: var(--ink-1); box-shadow: 0 0 0 2px var(--surface);"></div>
+                  </div>
+                  <span style="color: {{ a.rc }}; font-weight: {{ a.rw }}; text-align: right;">{{ a.Rn }} <span class="mono">{{ a.R }}</span></span>
+                  <span class="mono" style="text-align: right; font-size: 11.5px; color: var(--ink-1); font-weight: 600;">{{ a.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span class="cap">较 8 月：多线 ↑9 · 求证 ↑4</span>
+              <button type="button" class="btn sm">完整画像<svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.arrow }}"></path></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 216px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+          <div class="card" style="padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">6</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">活跃节律</span><span class="cap">消息数 · 周 × 小时</span></div>
+            <div style="position: relative; height: 106px;">
+              <sc-for list="{{ dayLabels }}" as="d" hint-placeholder-count="7">
+                <span style="position: absolute; left: 0; top: {{ d.y }}px; width: 14px; font-size: 10px; line-height: 11px; color: var(--ink-3); text-align: left;">{{ d.t }}</span>
+              </sc-for>
+              <sc-for list="{{ cells }}" as="c" hint-placeholder-count="60">
+                <div style="position: absolute; left: {{ c.x }}px; top: {{ c.y }}px; width: 11px; height: 11px; border-radius: 2px; background: {{ c.c }};"></div>
+              </sc-for>
+              <div style="position: absolute; left: {{ peak.x }}px; top: {{ peak.y }}px; width: 41px; height: 15px; border-radius: 4px; box-shadow: 0 0 0 1.5px var(--ink-1);"></div>
+              <sc-for list="{{ hourLabels }}" as="h" hint-placeholder-count="5">
+                <span class="mono" style="position: absolute; top: 94px; left: {{ h.x }}px; width: 20px; text-align: center; font-size: 10px; line-height: 12px; color: var(--ink-3);">{{ h.t }}</span>
+              </sc-for>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto;">
+              <span style="font-size: 12px; color: var(--ink-2);"><b style="color: var(--ink-1);">高峰 周三 21–23 时</b> · 深夜会话纠偏率为白天 1.8×</span>
+              <span style="display: inline-flex; align-items: center; gap: 2px; flex: none;" aria-label="颜色图例：少到多"><span class="cap" style="font-size: 10.5px; margin-right: 3px;">少</span><span style="width: 9px; height: 9px; border-radius: 2px; background: var(--h1);"></span><span style="width: 9px; height: 9px; border-radius: 2px; background: var(--h2);"></span><span style="width: 9px; height: 9px; border-radius: 2px; background: var(--h3);"></span><span style="width: 9px; height: 9px; border-radius: 2px; background: var(--h4);"></span><span style="width: 9px; height: 9px; border-radius: 2px; background: var(--h5);"></span><span class="cap" style="font-size: 10.5px; margin-left: 3px;">多</span></span>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">7</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">工具调用 Top 6</span><a href="#" class="lnk">全部 11 种</a></div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ tools }}" as="t" hint-placeholder-count="6">
+                <div style="display: grid; grid-template-columns: 66px minmax(0, 1fr) 44px 62px; align-items: center; gap: 8px; height: 20px;">
+                  <span class="mono" style="font-size: 12px; color: var(--ink-1);">{{ t.name }}</span>
+                  <div style="height: 10px;"><div style="height: 10px; width: {{ t.w }}%; border-radius: 0 4px 4px 0; background: var(--ink-2);"></div></div>
+                  <span class="mono" style="font-size: 11.5px; text-align: right; color: var(--ink-1);">{{ t.nf }}</span>
+                  <span style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: 11px; color: {{ t.ec }}; font-weight: {{ t.ew }};">
+                    <sc-if value="{{ t.warn }}" hint-placeholder-val="{{ false }}"><svg class="ico" style="width: 12px; height: 12px;" viewBox="0 0 24 24"><path d="{{ ic.alert }}"></path></svg></sc-if>
+                    <span class="mono">{{ t.err }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+            <div class="cap" style="margin-top: auto; font-size: 11px;">右列为错误率 · 超过 10% 时以图标标出</div>
+          </div>
+
+          <div class="card" style="padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">8</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">本周建议</span><a href="#" class="lnk">全部 12 条</a></div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <sc-for list="{{ recs }}" as="r" hint-placeholder-count="3">
+                <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 2px;">
+                  <span style="width: 32px; height: 32px; border-radius: 8px; flex: none; display: grid; place-items: center; background: var(--sunken); color: var(--ink-1);"><svg class="ico" viewBox="0 0 24 24"><path d="{{ r.icon }}"></path></svg></span>
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 12.5px; font-weight: 600; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.title }}</div>
+                    <div style="font-size: 11.5px; line-height: 16px; color: var(--ink-3); white-space: nowrap;"><span class="mono" style="color: var(--ink-2);">{{ r.type }}</span> · {{ r.meta }}</div>
+                  </div>
+                  <button type="button" class="{{ r.cls }}">{{ r.act }}</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 1520px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">A1 · 主窗口 · ⌘1</div>
+      <h2>概览 <i>Overview</i></h2>
+      <p class="lead">一屏回答：最近怎么协作、哪里不顺、现在能改什么。</p>
+    </div>
+    <div class="sec">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="9">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sec">
+      <h3>状态与边界</h3>
+      <p class="p2">首次索引按「统计 → 轨迹 → 语义 → 人格」逐步解锁，未就绪卡片显示进度；数据源断开时顶部出现细横幅并给出修复入口。</p>
+    </div>
+    <div class="sec" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">⌘</b><b class="kbd">1</b>概览</span>
+        <span><b class="kbd">⌘</b><b class="kbd">K</b>命令面板</span>
+        <span><b class="kbd">⌘</b><b class="kbd">R</b>重新索引</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"marks":{"editor":"boolean","default":true,"section":"标注"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const marks = this.props.marks ?? true;
+    const ic = {
+      share: 'M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7',
+      spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+      more: 'M5 12h.01M12 12h.01M19 12h.01',
+      sync: 'M20 11a8 8 0 0 0-14.6-4.4M4 4v3.6h3.6M4 13a8 8 0 0 0 14.6 4.4M20 20v-3.6h-3.6',
+      chev: 'M6 9l6 6 6-6',
+      plus: 'M12 5v14M5 12h14',
+      bot: 'M7 8h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3zM12 4v4M9.5 14h.01M14.5 14h.01',
+      folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z',
+      okc: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10',
+      alert: 'M12 4L2.5 20h19zM12 10v4.5M12 17.5h.01',
+      bolt: 'M13 3L5 13.5h6.5L10.5 21 19 10.5h-6.5z',
+      book: 'M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7h6M9 10.5h4',
+      rule: 'M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8zM14 3v5h5M8.5 13h7M8.5 16.5h5',
+      grid: 'M4 5h16v14H4zM4 10h16M4 14.5h16M10 5v14',
+      chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3',
+      arrow: 'M5 12h14M13 6l6 6-6 6'
+    };
+
+    const spark = (arr) => {
+      const mn = Math.min.apply(null, arr), mx = Math.max.apply(null, arr);
+      const pts = arr.map((v, i) => [2 + i * (60 / (arr.length - 1)), 2 + (1 - (v - mn) / ((mx - mn) || 1)) * 18]);
+      return { d: 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L'), lx: pts[pts.length - 1][0].toFixed(1), ly: pts[pts.length - 1][1].toFixed(1) };
+    };
+    const tileDefs = [
+      { label: '会话', value: '186', unit: '', delta: '↑ 12%', dc: 'var(--ink-2)', sub: '较上一周期', s: [31, 35, 29, 38, 40, 36, 42, 39, 44, 47, 45, 48] },
+      { label: '协作时长', value: '142', unit: 'h', delta: '↑ 8%', dc: 'var(--ink-2)', sub: '日均 4.7 h', s: [24, 26, 22, 29, 30, 28, 33, 31, 34, 36, 35, 37] },
+      { label: '你发出的消息', value: '1,284', unit: '', delta: '6.9', dc: 'var(--ink-2)', sub: '条 / 会话', s: [260, 280, 250, 300, 310, 290, 320, 305, 330, 322, 318, 314] },
+      { label: '自主比', value: '11.8', unit: '×', delta: '↑ 1.6×', dc: 'var(--ink-2)', sub: 'Agent 步数 ÷ 你的消息', s: [7.2, 7.8, 8.1, 8.6, 9.4, 9.9, 10.2, 10.6, 11, 11.4, 11.9, 11.8] },
+      { label: '摩擦率', value: '8.6', unit: '%', delta: '↓ 2.1 pt', dc: 'var(--good)', sub: '纠偏与不满消息占比', s: [12.1, 11.4, 11.8, 10.9, 10.7, 10.9, 10.2, 10.7, 9.4, 8.9, 8.3, 8.6] }
+    ];
+    const tiles = tileDefs.map(t => { const sp = spark(t.s); return { label: t.label, value: t.value, unit: t.unit, delta: t.delta, dc: t.dc, sub: t.sub, spark: sp.d, lx: sp.lx, ly: sp.ly }; });
+
+    const M = [[4,1,0,0,2],[5,1,1,0,1],[3,1,1,1,0],[4,2,1,0,0],[2,1,0,0,0],[1,1,0,0,0],[4,1,1,0,0],[4,2,1,0,0],[5,2,1,1,0],[6,1,0,1,0],[4,1,0,0,1],[3,1,0,0,0],[2,1,0,0,0],[4,2,1,0,0],[4,2,0,1,1],[4,2,1,0,0],[7,0,0,1,1],[6,2,1,1,1],[2,1,1,0,0],[1,1,0,0,0],[3,0,1,1,1],[5,1,1,0,0],[5,1,0,1,1],[4,3,1,1,0],[4,2,0,1,0],[2,1,0,0,0],[1,1,0,0,0],[4,1,0,1,0],[4,1,0,1,0],[5,1,1,1,0]];
+    const cols = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--a5)'];
+    const names = ['Claude Code', 'Codex', 'Gemini CLI', 'DeepSeek Harness', 'Copilot CLI'];
+    const unit = 13, slot = 23.5, bw = 14;
+    const segs = [];
+    M.forEach((row, i) => {
+      let y = 0, last = -1;
+      row.forEach((v, j) => { if (v > 0) last = j; });
+      row.forEach((v, j) => {
+        if (v <= 0) return;
+        segs.push({ x: (i * slot + (slot - bw) / 2).toFixed(1), y: y, h: v * unit - 2, c: cols[j], r: j === last ? '4px 4px 0 0' : '0' });
+        y += v * unit;
+      });
+    });
+    const hi = 17;
+    const hov = { x: (hi * slot).toFixed(1), w: slot, tx: (hi * slot + slot + 10).toFixed(1) };
+    const tipRows = M[hi].map((v, j) => ({ v: v, name: names[j], c: cols[j] }));
+    const legend = names.map((n, j) => ({ name: n, c: cols[j], n: [112, 38, 14, 13, 9][j] }));
+    const yticks = [0, 4, 8, 12].map(v => ({ v: v, top: 6 + 156 - v * unit, lt: 6 + 156 - v * unit - 6 }));
+    const xlabels = [[0, '9/1'], [6, '9/7'], [13, '9/14'], [20, '9/21'], [27, '9/28']].map(p => ({ t: p[1], left: (26 + p[0] * slot + slot / 2 - 20).toFixed(1) }));
+
+    const insights = [
+      { k: '做得好', c: 'var(--good)', icon: ic.okc, t: '整段任务交出去后，坚持让 Agent 验证线上结果，返工率仅 4%。', l: '证据 · 23 个会话' },
+      { k: '卡在哪', c: 'var(--crit)', icon: ic.alert, t: '17 个会话出现方向偏离，集中在部署目标与 review 收敛。', l: '证据 · 17 个会话' },
+      { k: '立刻可做', c: 'var(--ai)', icon: ic.bolt, t: '只读命令加入白名单；把 PR 收尾写成带停止规则的 Skill。', l: '查看 2 条建议' }
+    ];
+
+    const axDefs = [
+      { L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', side: 'L', v: 72 },
+      { L: 'P', Ln: '规划', R: 'I', Rn: '即兴', side: 'R', v: 64 },
+      { L: 'M', Ln: '多线', R: 'F', Rn: '专注', side: 'L', v: 81 },
+      { L: 'V', Ln: '求证', R: 'T', Rn: '信任', side: 'L', v: 68 }
+    ];
+    const axes = axDefs.map(a => {
+      const pos = a.side === 'L' ? 50 - (a.v - 50) : 50 + (a.v - 50);
+      const strong = 'var(--ink-1)', weak = 'var(--ink-3)';
+      return {
+        L: a.L, Ln: a.Ln, R: a.R, Rn: a.Rn, v: a.v, pos: pos,
+        fl: a.side === 'L' ? pos : 50, fw: Math.abs(pos - 50),
+        lc: a.side === 'L' ? strong : weak, lw: a.side === 'L' ? '700' : '400',
+        rc: a.side === 'R' ? strong : weak, rw: a.side === 'R' ? '700' : '400'
+      };
+    });
+
+    const hourW = [0.42, 0.22, 0.08, 0.03, 0.01, 0.01, 0.03, 0.1, 0.3, 0.55, 0.85, 0.95, 0.6, 0.55, 0.8, 0.92, 0.88, 0.75, 0.5, 0.55, 0.8, 0.95, 0.92, 0.7];
+    const dayW = [0.95, 1, 1.12, 0.98, 0.9, 0.42, 0.33];
+    let seed = 11;
+    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    const vals = [];
+    let mx = 0;
+    for (let d = 0; d < 7; d++) {
+      for (let h = 0; h < 24; h++) {
+        let v = dayW[d] * hourW[h] * (0.82 + rnd() * 0.36);
+        if (d === 2 && h >= 21) v = v * 1.45;
+        vals.push({ d: d, h: h, v: v });
+        if (v > mx) mx = v;
+      }
+    }
+    const ramp = ['var(--h0)', 'var(--h1)', 'var(--h2)', 'var(--h3)', 'var(--h4)', 'var(--h5)'];
+    const cells = vals.map(o => ({ x: 18 + o.h * 13, y: o.d * 13, c: ramp[Math.min(5, Math.floor((o.v / mx) * 5.999))] }));
+    const dayLabels = ['一', '二', '三', '四', '五', '六', '日'].map((t, i) => ({ t: t, y: i * 13 }));
+    const hourLabels = [0, 6, 12, 18, 23].map(h => ({ t: String(h), x: 18 + h * 13 + 5.5 - 10 }));
+    const peak = { x: 18 + 21 * 13 - 2, y: 2 * 13 - 2 };
+
+    const toolDefs = [
+      { name: 'Bash', n: 4212, err: '11.2%', warn: true },
+      { name: 'Read', n: 1980, err: '1.2%', warn: false },
+      { name: 'Edit', n: 1406, err: '3.4%', warn: false },
+      { name: 'Grep', n: 802, err: '0.6%', warn: false },
+      { name: 'Task', n: 516, err: '4.1%', warn: false },
+      { name: 'WebFetch', n: 288, err: '12.5%', warn: true }
+    ];
+    const tools = toolDefs.map(t => ({ name: t.name, err: t.err, warn: t.warn, w: (t.n / 4212 * 100).toFixed(1), nf: t.n.toLocaleString('en-US'), ec: t.warn ? 'var(--crit)' : 'var(--ink-3)', ew: t.warn ? '600' : '400' }));
+
+    const recs = [
+      { type: 'Hook', icon: ic.bolt, title: '只读命令自动放行', meta: '−212 次审批 / 月 · L1', act: '一键应用', cls: 'btn sm p' },
+      { type: 'Skill', icon: ic.book, title: 'PR 收尾流程（含停止规则）', meta: 'review 轮次 −60% · L2', act: '生成', cls: 'btn sm' },
+      { type: '规则', icon: ic.rule, title: '在 AGENTS.md 写明部署目标', meta: '覆盖 4 类偏离 · L1', act: '复制', cls: 'btn sm' }
+    ];
+
+    const spec = [
+      { n: 1, t: '全局筛选行', d: '时间 / Agent / 项目作用于整页；切换时图表保留上一帧并淡出，不闪骨架屏。' },
+      { n: 2, t: 'AI 解读', d: '标注生成它的本地 Agent 与时间；每条结论附证据链接，可重新生成，旧版本可回看。' },
+      { n: 3, t: '指标卡', d: '悬停显示口径（自主比 = Agent 步数 ÷ 你的消息）；增减色只用于有好坏方向的指标。' },
+      { n: 4, t: 'Agent 使用趋势', d: '悬停显示当日各 Agent 数值；点图例单选、⌥ 点击多选；可切到表格视图（无障碍等价）。' },
+      { n: 5, t: '人格迷你卡', d: '随筛选重算；少于 30 个会话时标「置信度低」并淡化字母；点击进入 A2。' },
+      { n: 6, t: '活跃节律', d: '悬停看消息数与纠偏率；拖选区域跳到 A3 并带上时间段筛选。' },
+      { n: 7, t: '工具 Top 6', d: '错误率超 10% 用图标 + 文字标出，不只靠颜色；点击行进入 A4 定位该工具。' },
+      { n: 8, t: '本周建议', d: '按钮文案随类型变化；一键应用前必先预览变更，写入后 10 秒内可撤销（见 C2）。' },
+      { n: 9, t: '对比上一周期', d: 'delta 以等长的上一周期为基准；关闭后隐藏全部 delta。' }
+    ];
+
+    return {
+      theme: dark ? 'dk' : '', marks: marks, ic: ic, tiles: tiles, segs: segs, hov: hov, tipRows: tipRows, legend: legend,
+      yticks: yticks, xlabels: xlabels, insights: insights, axes: axes, cells: cells, dayLabels: dayLabels,
+      hourLabels: hourLabels, peak: peak, tools: tools, recs: recs, spec: spec
+    };
+  }
+}
+</script>
+</body>
+</html>

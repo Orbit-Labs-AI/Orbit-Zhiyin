@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>C1 首次启动</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 40px rgba(20,24,30,.14),0 0 0 1px rgba(20,24,30,.07);
+--bg:#f5f4f0;--surface:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;--ai:#5a3fd0;--ai-bg:#efecff;--good:#11843a;--pri:#17181b;--pri-ink:#ffffff;--h2:#c0bdb5;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 18px 40px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);
+--bg:#0f1012;--surface:#1a1b1e;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;--ai:#b4a8ff;--ai-bg:#2a2447;--good:#4cc97a;--pri:#ededef;--pri-ink:#0f1012;--h2:#43464c;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29}
+.tb *{box-sizing:border-box}
+.tb button,.tb input{font:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.fr{position:relative;width:520px;height:600px;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow);overflow:hidden;flex:none;display:flex;flex-direction:column}
+.tl{height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px}
+.tl i{display:block;width:12px;height:12px;border-radius:50%}
+.btn{height:32px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:default}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:600}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--ai);animation:spin .9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2400px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 70px; top: 52px; width: 1400px;">
+    <div class="eb">C1 · 首次启动 · 约 60 秒</div>
+    <h1 class="serif" style="margin: 8px 0 0; font-size: 40px; line-height: 1.1; font-weight: 600;">从打开到看见自己的协作人格</h1>
+    <p style="margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: var(--pg-ink-2);">没有注册、没有账号。四步里只有一次需要你做决定：分析哪些数据。</p>
+  </div>
+
+  <div style="position: absolute; left: 70px; top: 180px; display: flex; align-items: center; gap: 18px;">
+    <div class="fr">
+      <div class="tl"><i style="background: #ff5f57;"></i><i style="background: #febc2e;"></i><i style="background: #28c840;"></i></div>
+      <div style="flex: 1; padding: 30px 44px 36px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+        <span style="width: 76px; height: 76px; border-radius: 20px; background: #17181b; display: grid; place-items: center; box-shadow: 0 10px 24px rgba(0,0,0,.18);"><svg width="46" height="34" viewBox="0 0 24 18" aria-hidden="true" style="fill: none; stroke: #f5f4f0; stroke-width: 1.6;"><circle cx="8.5" cy="9" r="6"></circle><circle cx="15.5" cy="9" r="6"></circle></svg></span>
+        <h2 class="serif" style="margin: 18px 0 0; font-size: 34px; font-weight: 600;">Tandem</h2>
+        <p style="margin: 6px 0 0; font-size: 15px; color: var(--ink-2);">看见你和 Agent 怎么协作</p>
+        <div style="margin-top: 28px; width: 100%; display: flex; flex-direction: column; gap: 14px; text-align: left;">
+          <sc-for list="{{ promises }}" as="p" hint-placeholder-count="3">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+              <span style="width: 34px; height: 34px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; flex: none;"><svg class="ico" style="width: 17px; height: 17px; color: var(--good);" viewBox="0 0 24 24"><path d="{{ p.icon }}"></path></svg></span>
+              <div><div style="font-size: 14px; font-weight: 600;">{{ p.t }}</div><div style="font-size: 12.5px; color: var(--ink-3); line-height: 1.5;">{{ p.d }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top: auto; width: 100%; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+          <button type="button" class="btn p" style="width: 100%; height: 38px;">开始</button>
+          <a href="#" style="font-size: 12.5px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px;">完整隐私说明</a>
+        </div>
+      </div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+
+    <div class="fr">
+      <div class="tl"><i style="background: #ff5f57;"></i><i style="background: #febc2e;"></i><i style="background: #28c840;"></i><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--ink-3);">2 / 4</span></div>
+      <div style="flex: 1; padding: 18px 30px 30px; display: flex; flex-direction: column; gap: 14px;">
+        <div><h2 class="serif" style="margin: 0; font-size: 26px; font-weight: 600;">找到了这些 Agent 的会话</h2><p style="margin: 6px 0 0; font-size: 13px; color: var(--ink-3);">只读取会话日志。取消勾选的来源不会被索引。</p></div>
+        <div style="border-radius: 12px; background: var(--surface); border: 1px solid var(--line);">
+          <sc-for list="{{ sources }}" as="s" hint-placeholder-count="6">
+            <label style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hair); opacity: {{ s.op }};">
+              <input type="checkbox" checked="{{ s.on }}" disabled="{{ s.off }}" style="width: 15px; height: 15px; margin: 0; accent-color: var(--ink-1);">
+              <span style="width: 26px; height: 26px; border-radius: 7px; background: {{ s.t }}; display: grid; place-items: center;"><svg class="ico" style="width: 14px; height: 14px; color: {{ s.c }};" viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 9.5l3 2.5-3 2.5M12.5 15H17"></path></svg></span>
+              <span style="flex: 1; min-width: 0;"><span style="display: block; font-size: 13.5px; font-weight: 600;">{{ s.name }}</span><span class="mono" style="display: block; font-size: 11px; color: var(--ink-3);">{{ s.path }}</span></span>
+              <span class="mono" style="font-size: 12px; color: var(--ink-2);">{{ s.n }}</span>
+            </label>
+          </sc-for>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--sunken);">
+          <span style="flex: 1; font-size: 13px;"><b>只分析最近 90 天</b><span style="display: block; font-size: 12px; color: var(--ink-3);">首次约 40 秒；之后可在设置中扩展到全部历史</span></span>
+          <button type="button" class="sw on" aria-pressed="true" aria-label="只分析最近 90 天"></button>
+        </div>
+        <div style="margin-top: auto; display: flex; gap: 10px; align-items: center;">
+          <span style="flex: 1; font-size: 12px; color: var(--ink-3);">共 2,416 个会话 · 最早 2025-11-03</span>
+          <button type="button" class="btn">返回</button>
+          <button type="button" class="btn p">开始分析</button>
+        </div>
+      </div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+
+    <div class="fr">
+      <div class="tl"><i style="background: #ff5f57;"></i><i style="background: #febc2e;"></i><i style="background: #28c840;"></i><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--ink-3);">3 / 4</span></div>
+      <div style="flex: 1; padding: 18px 30px 30px; display: flex; flex-direction: column; gap: 14px;">
+        <div><h2 class="serif" style="margin: 0; font-size: 26px; font-weight: 600;">正在建立你的协作画像</h2><p style="margin: 6px 0 0; font-size: 13px; color: var(--ink-3);">每完成一步就先给你看结果，不用等到最后。</p></div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hair);">
+              <span style="width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: {{ s.bg }}; color: {{ s.fg }}; box-shadow: {{ s.ring }}; font: 700 11px/1 var(--mono);">{{ s.mark }}</span>
+              <div><div style="font-size: 13.5px; font-weight: 600; color: {{ s.tc }};">{{ s.t }}</div><div style="font-size: 12px; color: var(--ink-3);">{{ s.d }}</div></div>
+              <span class="mono" style="font-size: 11.5px; color: var(--ink-2);">{{ s.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="height: 6px; border-radius: 3px; background: var(--line);"><div style="width: 71%; height: 6px; border-radius: 3px; background: var(--ink-1);"></div></div>
+        <div style="padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11px; font-weight: 600; color: var(--ink-3);">已经知道的</span>
+          <sc-for list="{{ early }}" as="e" hint-placeholder-count="3">
+            <div style="display: flex; gap: 8px; font-size: 13px; line-height: 1.5;"><svg class="ico" style="width: 14px; height: 14px; margin-top: 3px;" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span>{{ e.t }}</span></div>
+          </sc-for>
+        </div>
+        <div style="margin-top: auto; display: flex; gap: 10px; align-items: center;">
+          <span style="flex: 1; font-size: 12px; color: var(--ink-3);">可关闭窗口，完成后通知你</span>
+          <button type="button" class="btn">在后台继续</button>
+        </div>
+      </div>
+    </div>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill: none; stroke: var(--pg-ink-3); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+
+    <div class="fr">
+      <div class="tl"><i style="background: #ff5f57;"></i><i style="background: #febc2e;"></i><i style="background: #28c840;"></i><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--ink-3);">4 / 4</span></div>
+      <div style="flex: 1; padding: 20px 36px 32px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+        <svg width="190" height="190" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="38" style="fill: var(--surface); stroke: var(--line); stroke-width: .5;"></circle><path d="{{ g.minor }}" style="fill: var(--h2);"></path><path d="{{ g.major }}" style="fill: var(--ink-1);"></path></svg>
+        <div class="eb" style="margin-top: 14px;">你的协作人格</div>
+        <div class="serif" style="font-size: 72px; line-height: 1; font-weight: 600; letter-spacing: 0.03em; margin-top: 6px;">DIMV</div>
+        <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 8px;"><span class="serif" style="font-size: 28px; font-weight: 600;">指挥家</span><span class="serif" style="font-size: 16px; font-style: italic; color: var(--ink-3);">The Conductor</span></div>
+        <p style="margin: 10px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-2);">整段目标交给 Agent，多线并进，坚持亲自验收。</p>
+        <div style="margin-top: auto; width: 100%; display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" class="btn p" style="height: 38px;">查看完整画像</button>
+          <button type="button" class="btn" style="height: 38px;">导出分享卡</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 70px; top: 808px; display: grid; grid-template-columns: repeat(4, 520px); column-gap: 60px;">
+    <sc-for list="{{ notes }}" as="n" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span class="mono" style="width: 22px; height: 22px; border-radius: 50%; background: var(--pg-mark); color: var(--pg-mark-ink); font-size: 11px; font-weight: 700; line-height: 22px; text-align: center;">{{ n.n }}</span><span style="font-size: 14px; font-weight: 600;">{{ n.t }}</span></div>
+        <p style="margin: 0; font-size: 12.5px; line-height: 1.65; color: var(--pg-ink-2);">{{ n.d }}</p>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2400,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const promises = [
+      { icon: 'M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11zM8 11V7.5a4 4 0 0 1 8 0V11', t: '只读会话日志', d: '不读你的代码，不读任何凭据文件。' },
+      { icon: 'M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5c-4.3-1.2-7.5-4.9-7.5-9.5V6zM9 12l2 2 4-4', t: '分析在本机完成', d: 'Tandem 自己不调用任何云端模型。' },
+      { icon: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6', t: '发送什么由你决定', d: '交给本地 Agent 的内容都能逐项预览。' }
+    ];
+    const sources = [
+      ['Claude Code', '~/.claude/projects', '1,412', 'var(--a1)', 'var(--a1t)', true],
+      ['Codex', '~/.codex/sessions', '498', 'var(--a2)', 'var(--a2t)', true],
+      ['Gemini CLI', '~/.gemini/tmp', '211', 'var(--a3)', 'var(--a3t)', true],
+      ['DeepSeek Harness', '~/.dsh/sessions', '160', 'var(--a4)', 'var(--a4t)', true],
+      ['Copilot CLI', '~/.copilot/history', '135', 'var(--a5)', 'var(--a5t)', true],
+      ['Cursor', '未检测到 · 可稍后手动指定', '—', 'var(--ink-3)', 'var(--sunken)', false]
+    ].map(s => ({ name: s[0], path: s[1], n: s[2], c: s[3], t: s[4], on: s[5], off: !s[5], op: s[5] ? '1' : '0.55' }));
+    const steps = [
+      ['done', '统计', '2,416 个会话、41 万条消息', '4.1 s'],
+      ['done', '轨迹', '18.4 万个工具调用事件', '9.8 s'],
+      ['run', '语义', '由 Claude Code 在本机分析 · 可跳过', '62%'],
+      ['todo', '人格', '等待语义完成', '']
+    ].map((s, i) => ({
+      t: s[1], d: s[2], v: s[3], mark: s[0] === 'done' ? '✓' : String(i + 1),
+      bg: s[0] === 'done' ? 'var(--ink-1)' : s[0] === 'run' ? 'var(--ai-bg)' : 'var(--surface)',
+      fg: s[0] === 'done' ? 'var(--surface)' : s[0] === 'run' ? 'var(--ai)' : 'var(--ink-3)',
+      ring: s[0] === 'todo' ? 'inset 0 0 0 1.5px var(--line)' : s[0] === 'run' ? 'inset 0 0 0 1.5px var(--ai)' : 'none',
+      tc: s[0] === 'todo' ? 'var(--ink-3)' : 'var(--ink-1)'
+    }));
+    const early = [
+      { t: '你最常用 Claude Code，占 58% 的会话' },
+      { t: '最活跃的时段是周三晚上 21–23 点' },
+      { t: '平均每个会话你只发 6.9 条消息' }
+    ];
+    const C = 40;
+    const pt = (r, a) => [C + r * Math.sin(a), C - r * Math.cos(a)];
+    const f1 = (n) => n.toFixed(1);
+    const petal = (deg, L) => {
+      const a = deg * Math.PI / 180, w = 0.42;
+      const tip = pt(L, a), c1 = pt(L * 0.62, a + w), c2 = pt(L * 0.62, a - w);
+      return 'M40 40Q' + f1(c1[0]) + ' ' + f1(c1[1]) + ' ' + f1(tip[0]) + ' ' + f1(tip[1]) + 'Q' + f1(c2[0]) + ' ' + f1(c2[1]) + ' 40 40Z';
+    };
+    let major = '', minor = '';
+    [[0, 72, 1], [180, 28, 0], [90, 64, 1], [270, 36, 0], [45, 81, 1], [225, 19, 0], [315, 68, 1], [135, 32, 0]].forEach(p => {
+      const s = petal(p[0], 6 + p[1] * 0.4);
+      if (p[2]) major += s; else minor += s;
+    });
+    const g = { major: major, minor: minor };
+    const notes = [
+      { n: 1, t: '欢迎：三条承诺', d: '首屏只讲读什么、在哪算、谁决定。没有注册与账号；沙盒外的目录在第 2 步通过系统选择框授权一次（安全书签）。' },
+      { n: 2, t: '选择数据源', d: '默认勾选全部检测到的来源；未安装的置灰并说明可稍后指定。默认只分析最近 90 天，把首次等待控制在一分钟内。' },
+      { n: 3, t: '渐进解锁', d: '统计和轨迹几秒就绪，先把「已经知道的」展示出来；语义最慢，可跳过或改到夜间。关窗后在后台继续，完成发通知。' },
+      { n: 4, t: '揭晓', d: '全部完成后播放 P3 的 3 秒动效，停在这一帧。样本少于 30 个会话时改为进度环与「再用几天」的说明，不硬出类型。' }
+    ];
+    return { theme: dark ? 'dk' : '', promises: promises, sources: sources, steps: steps, early: early, g: g, notes: notes };
+  }
+}
+</script>
+</body>
+</html>

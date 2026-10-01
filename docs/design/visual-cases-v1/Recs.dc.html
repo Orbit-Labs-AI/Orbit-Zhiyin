@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A7 优化建议</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 48px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.08);--win-ring:rgba(0,0,0,.06);
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--ser-m:#ec835a;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 22px 48px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);--win-ring:rgba(255,255,255,.08);
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#222326;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input,.tb textarea{font:inherit;color:inherit;margin:0}
+.win{position:absolute;overflow:hidden;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow)}
+.win::after{content:"";position:absolute;inset:0;border-radius:14px;box-shadow:inset 0 0 0 1px var(--win-ring);pointer-events:none;z-index:50}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cap{font-size:12px;line-height:16px;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card)}
+.ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
+.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;cursor:default;padding:0}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:4px}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
+.chip.on{background:var(--ink-1);border-color:var(--ink-1);color:var(--surface)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.tip{position:absolute;z-index:25;background:var(--tip);color:var(--tip-ink);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.lvl{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
+.lvl i{display:block;width:4px;border-radius:1px;background:var(--line)}
+.lvl i.f{background:var(--ink-1)}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sec{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sec h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .p2{margin:0;font-size:12px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div class="win" style="left: 40px; top: 50px; width: 1440px; height: 900px;">
+    <div style="position: absolute; left: 8px; top: 8px; width: 236px; height: 884px;">
+      <dc-import name="Sidebar" active="recs" hint-size="236px,884px"></dc-import>
+    </div>
+
+    <div style="position: absolute; left: 252px; top: 0; width: 1188px; height: 900px; padding: 0 24px 0 16px; display: flex; flex-direction: column;">
+      <div style="height: 58px; flex: none; display: flex; align-items: center; gap: 10px;">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px;">
+          <h1 class="serif" style="margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em;">优化建议</h1>
+          <span class="mono" style="font-size: 11.5px; color: var(--ink-3);">12 条 · 按预计收益排序 · 9 月 30 日 23:10 更新</span>
+        </div>
+        <button type="button" class="btn"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.sync }}"></path></svg>重新计算</button>
+        <button type="button" class="btn ai"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>让本地 Agent 深度诊断</button>
+      </div>
+      <div style="height: 32px; flex: none; display: flex; align-items: center; gap: 8px; position: relative;">
+        <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">1</span></sc-if>
+        <div class="seg" role="tablist" aria-label="优化维度">
+          <sc-for list="{{ dims }}" as="d" hint-placeholder-count="8">
+            <button type="button" role="tab" class="{{ d.cls }}" aria-selected="{{ d.sel }}">{{ d.t }}<span class="mono" style="font-size: 10.5px; color: var(--ink-3); font-weight: 500;">{{ d.n }}</span></button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="height: 28px; flex: none; margin: 10px 0 14px; display: flex; align-items: center; gap: 6px; position: relative;">
+        <span class="cap" style="margin-right: 2px; position: relative;">难度
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -30px; top: -3px;">2</span></sc-if>
+        </span>
+        <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4">
+          <button type="button" class="{{ l.cls }}" aria-pressed="{{ l.on }}" style="height: 26px; font-size: 12px; padding: 0 9px;"><span class="lvl" aria-hidden="true"><i class="{{ l.b1 }}" style="height: 4px;"></i><i class="{{ l.b2 }}" style="height: 7px;"></i><i class="{{ l.b3 }}" style="height: 10px;"></i><i class="{{ l.b4 }}" style="height: 12px;"></i></span>{{ l.t }}</button>
+        </sc-for>
+        <span style="width: 1px; height: 18px; background: var(--line); margin: 0 6px;"></span>
+        <span class="cap">按我的水平</span>
+        <button type="button" class="chip" style="height: 26px; font-size: 12px; position: relative;">进阶 · 会改配置、会用 Git<svg class="ico" style="width: 12px; height: 12px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg>
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="right: -14px; top: -12px;">3</span></sc-if>
+        </button>
+        <span style="flex: 1;"></span>
+        <span class="cap">已应用 4 · 不适用 2</span>
+      </div>
+
+      <div style="flex: 1; min-height: 0; padding-bottom: 20px; display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; position: relative;">
+          <div class="eb" style="display: flex; justify-content: space-between;"><span>高收益 · 低成本</span><span>4</span></div>
+          <sc-for list="{{ recs }}" as="r" hint-placeholder-count="5">
+            <sc-if value="{{ r.isHead }}" hint-placeholder-val="{{ false }}">
+              <div class="eb" style="display: flex; justify-content: space-between; margin-top: 4px;"><span>{{ r.head }}</span><span>{{ r.headN }}</span></div>
+            </sc-if>
+            <sc-if value="{{ r.isCard }}" hint-placeholder-val="{{ true }}">
+              <div class="card" style="flex: none; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; box-shadow: {{ r.ring }};">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-2);"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-1);" viewBox="0 0 24 24"><path d="{{ r.icon }}"></path></svg><span class="mono" style="font-weight: 600;">{{ r.type }}</span></span>
+                  <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-2);"><span class="lvl" aria-hidden="true"><i class="{{ r.b1 }}" style="height: 4px;"></i><i class="{{ r.b2 }}" style="height: 7px;"></i><i class="{{ r.b3 }}" style="height: 10px;"></i><i class="{{ r.b4 }}" style="height: 12px;"></i></span>{{ r.lvl }}</span>
+                  <span style="flex: 1;"></span>
+                  <span style="font-size: 12px; font-weight: 700; color: var(--ink-1);">{{ r.gain }}</span>
+                </div>
+                <div style="font-size: 14px; font-weight: 600; line-height: 19px;">{{ r.title }}</div>
+                <div style="font-size: 12px; line-height: 1.5; color: var(--ink-2);">{{ r.why }} <a href="#" class="lnk">{{ r.ev }}</a></div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-3);"><span class="dot" style="background: var(--a1); width: 7px; height: 7px;"></span><span class="dot" style="background: {{ r.c2 }}; width: 7px; height: 7px;"></span>{{ r.compat }}</span>
+                  <span style="flex: 1;"></span>
+                  <button type="button" class="btn sm gh">{{ r.a3 }}</button>
+                  <button type="button" class="btn sm">{{ r.a2 }}</button>
+                  <button type="button" class="{{ r.c1 }}">{{ r.a1 }}</button>
+                </div>
+              </div>
+            </sc-if>
+          </sc-for>
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}">
+            <span class="mk" style="left: 248px; top: 92px;">4</span>
+            <span class="mk" style="left: 520px; top: 14px;">5</span>
+            <span class="mk" style="left: -11px; top: 116px;">6</span>
+          </sc-if>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; overflow: hidden;">
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: 230px;">7</span></sc-if>
+          <div style="padding: 14px 18px 0; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2);">
+              <svg class="ico" style="width: 14px; height: 14px; color: var(--ink-1);" viewBox="0 0 24 24"><path d="{{ ic.book }}"></path></svg><span class="mono" style="font-weight: 600;">Skill</span>
+              <span class="lvl" aria-hidden="true"><i class="f" style="height: 4px;"></i><i class="f" style="height: 7px;"></i><i style="height: 10px;"></i><i style="height: 12px;"></i></span>L2 复制粘贴
+              <span style="flex: 1;"></span>
+              <span class="tag">适合：进阶</span><span class="tag">预计 review 轮次 −60%</span>
+            </div>
+            <h2 class="serif" style="margin: 2px 0 0; font-size: 21px; line-height: 1.3; font-weight: 600;">PR 收尾：最多两轮 review，只修 P0 / P1</h2>
+            <p style="margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2);">你的 46 个 Git 类会话里，review 循环中位 4 轮、最长 11 轮，6 次以「直接合并」结束。把收敛规则写进 Skill，Agent 就会在第二轮后停下来汇报，而不是继续修 P2。</p>
+          </div>
+          <div role="tablist" aria-label="建议详情" style="display: flex; gap: 2px; padding: 10px 14px 0; border-bottom: 1px solid var(--line);">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+              <button type="button" role="tab" aria-selected="{{ t.sel }}" style="border: 0; background: none; padding: 7px 10px 8px; font-size: 12.5px; color: {{ t.c }}; font-weight: {{ t.w }}; border-bottom: 2px solid {{ t.b }}; margin-bottom: -1px; cursor: default;">{{ t.t }}</button>
+            </sc-for>
+          </div>
+          <div style="flex: 1; min-height: 0; padding: 12px 18px 0; display: grid; grid-template-columns: 172px minmax(0, 1fr); gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 2px; font-size: 12px;">
+              <span class="eb" style="margin-bottom: 4px;">将写入</span>
+              <span class="mono" style="font-size: 11px; color: var(--ink-3); padding: 3px 6px;">~/.claude/skills/</span>
+              <span style="display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 14px; color: var(--ink-2);"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.folder }}"></path></svg><span class="mono" style="font-size: 11.5px;">pr-wrapup/</span></span>
+              <span style="display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 26px; border-radius: 6px; background: var(--sunken); color: var(--ink-1);"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.file }}"></path></svg><span class="mono" style="font-size: 11.5px; font-weight: 600;">SKILL.md</span><span class="mono" style="margin-left: auto; font-size: 10px; color: var(--good);">新建</span></span>
+              <span style="display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 26px; color: var(--ink-2);"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.file }}"></path></svg><span class="mono" style="font-size: 11.5px;">wait-review.sh</span><span class="mono" style="margin-left: auto; font-size: 10px; color: var(--good);">新建</span></span>
+              <span class="eb" style="margin: 14px 0 4px;">安装到</span>
+              <label style="display: flex; align-items: center; gap: 7px; padding: 3px 4px; font-size: 12px;"><input type="radio" name="scope" checked="{{ yes }}" style="accent-color: var(--ink-1); margin: 0;">全局（所有项目）</label>
+              <label style="display: flex; align-items: center; gap: 7px; padding: 3px 4px; font-size: 12px;"><input type="radio" name="scope" checked="{{ no }}" style="accent-color: var(--ink-1); margin: 0;">仅 Hackathon</label>
+              <span class="eb" style="margin: 14px 0 4px;">其他 Agent</span>
+              <span style="font-size: 11.5px; line-height: 1.5; color: var(--ink-2);">Codex / Gemini CLI 不支持 Skill，将转换为 AGENTS.md 片段（可预览）</span>
+            </div>
+            <div style="border-radius: 9px; background: var(--sunken); border: 1px solid var(--line); overflow: hidden; display: flex; flex-direction: column;">
+              <div style="height: 30px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--surface);">
+                <span class="mono" style="font-size: 11.5px; font-weight: 600;">SKILL.md</span><span class="cap" style="font-size: 11px;">已按你的仓库约定改写 6 处</span>
+                <span style="flex: 1;"></span>
+                <button type="button" class="ib" aria-label="复制内容" style="width: 24px; height: 24px;"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.copy }}"></path></svg></button>
+              </div>
+              <div class="mono" style="padding: 8px 0; font-size: 11.5px; line-height: 19px;">
+                <sc-for list="{{ code }}" as="l" hint-placeholder-count="14">
+                  <div style="display: grid; grid-template-columns: 34px minmax(0, 1fr); background: {{ l.bg }};">
+                    <span style="text-align: right; padding-right: 10px; color: var(--ink-4);">{{ l.n }}</span>
+                    <span style="color: {{ l.c }}; font-weight: {{ l.w }}; white-space: pre-wrap; padding-right: 10px;">{{ l.t }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="flex: none; padding: 12px 18px 14px; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); margin-top: 12px; position: relative;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">8</span></sc-if>
+            <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-3); flex: 1; min-width: 0;"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.grad }}"></path></svg>Tandem 模板库 · MIT · <a href="#" class="lnk" style="font-size: 11.5px;">教程 4 步</a></span>
+            <button type="button" class="btn">复制内容</button>
+            <button type="button" class="btn ai"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>交给 Agent 定制</button>
+            <button type="button" class="btn p">预览并安装</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 1520px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">A7 · 主窗口 · ⌘7</div>
+      <h2>优化建议 <i>Recommendations</i></h2>
+      <p class="lead">每条建议都要回答：依据是什么、能省多少、我做得到吗、怎么装。</p>
+    </div>
+    <div class="sec">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="9">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sec">
+      <h3>状态与边界</h3>
+      <p class="p2">依据超过 60 天的建议标「待重算」；点「不适用」后同类建议降权，可在设置里恢复。</p>
+    </div>
+    <div class="sec" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">⌘</b><b class="kbd">↩</b>预览并安装</span>
+        <span><b class="kbd">⌘</b><b class="kbd">C</b>复制内容</span>
+        <span><b class="kbd">⌘</b><b class="kbd">Z</b>撤销安装</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"marks":{"editor":"boolean","default":true,"section":"标注"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const marks = this.props.marks ?? true;
+    const ic = {
+      sync: 'M20 11a8 8 0 0 0-14.6-4.4M4 4v3.6h3.6M4 13a8 8 0 0 0 14.6 4.4M20 20v-3.6h-3.6',
+      spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+      chev: 'M6 9l6 6 6-6',
+      book: 'M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7h6M9 10.5h4',
+      bolt: 'M13 3L5 13.5h6.5L10.5 21 19 10.5h-6.5z',
+      rule: 'M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8zM14 3v5h5M8.5 13h7M8.5 16.5h5',
+      gauge: 'M3.5 17a8.5 8.5 0 1 1 17 0M12 17l4-5',
+      branch: 'M6 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4M6 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4M18 6a2 2 0 1 0 0 4a2 2 0 1 0 0-4M6 8v8M18 10c0 3.5-2.5 5-6 5H8',
+      folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z',
+      file: 'M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8zM14 3v5h5',
+      copy: 'M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1zM16 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3',
+      grad: 'M2.5 9.5L12 5l9.5 4.5L12 14zM6.5 11.5v4.5c3 2.3 8 2.3 11 0v-4.5M21.5 9.5V15'
+    };
+    const dims = [['全部', 12, true], ['规则与 Prompt', 3], ['Skills', 2], ['Hooks', 3], ['插件 / MCP', 1], ['子代理', 1], ['模型与思考', 1], ['工作流 / 架构', 1]]
+      .map(d => ({ t: d[0], n: d[1], cls: d[2] ? 'on' : '', sel: d[2] ? 'true' : 'false' }));
+    const bars = (n) => ({ b1: n >= 1 ? 'f' : '', b2: n >= 2 ? 'f' : '', b3: n >= 3 ? 'f' : '', b4: n >= 4 ? 'f' : '' });
+    const levels = [['L1 一键', 1, true], ['L2 复制粘贴', 2, true], ['L3 需配置', 3, true], ['L4 架构调整', 4, false]].map(l => {
+      const b = bars(l[1]);
+      return { t: l[0], on: l[2] ? 'true' : 'false', cls: l[2] ? 'chip' : 'chip dash', b1: b.b1, b2: b.b2, b3: b.b3, b4: b.b4 };
+    });
+    const R = [
+      { type: 'Hook', icon: ic.bolt, l: 1, lvl: 'L1 一键', gain: '−212 次审批 / 月', title: '只读命令自动放行', why: '你手动批准了 212 次 git status、ls、gh pr view 这类只读命令。', ev: '38 个会话', compat: 'Claude Code · Codex', c2: 'var(--a2)', a1: '一键应用', a2: '预览', a3: '不适用', p: true },
+      { type: 'Skill', icon: ic.book, l: 2, lvl: 'L2 复制粘贴', gain: 'review 轮次 −60%', title: 'PR 收尾：最多两轮 review，只修 P0 / P1', why: 'review 循环中位 4 轮、最长 11 轮，6 次以「直接合并」收场。', ev: '46 个会话', compat: 'Claude Code · 转换给 Codex', c2: 'var(--a2)', a1: '预览并安装', a2: '交给 Agent 定制', a3: '不适用', p: true, sel: true },
+      { type: '规则', icon: ic.rule, l: 1, lvl: 'L1 一键', gain: '覆盖 4 类方向偏离', title: 'AGENTS.md：写明部署目标与禁用平台', why: '4 次部署被引向 Vercel，而你的项目约定是 Cloudflare。', ev: '4 个会话', compat: '所有 Agent', c2: 'var(--a3)', a1: '复制片段', a2: '查看差异', a3: '不适用', p: false },
+      { type: '模型与思考', icon: ic.gauge, l: 1, lvl: 'L1 一键', gain: '−28% tokens', title: '只读审查任务改用 thinking medium', why: '审阅类会话中思考 token 占 61%，medium 与 high 结论一致率 94%。', ev: '22 个会话', compat: 'Claude Code', c2: 'var(--a1)', a1: '应用到 latentskill', a2: '查看对比', a3: '不适用', p: false },
+      { head: '值得投入 · 需要配置', headN: '5' },
+      { type: '工作流', icon: ic.branch, l: 3, lvl: 'L3 需配置', gain: '并行冲突 −5 次 / 月', title: '并行会话改用 git worktree 隔离', why: '多个会话同时改同一仓库，产生 5 次冲突与 2 次覆盖。', ev: '9 个会话', compat: 'Claude Code · Codex', c2: 'var(--a2)', a1: '查看教程', a2: '交给 Agent 配置', a3: '不适用', p: false }
+    ];
+    const recs = R.map(r => {
+      if (r.head) return { isHead: true, isCard: false, head: r.head, headN: r.headN, type: '', icon: '', lvl: '', gain: '', title: '', why: '', ev: '', compat: '', c2: '', a1: '', a2: '', a3: '', c1: '', ring: '', b1: '', b2: '', b3: '', b4: '' };
+      const b = bars(r.l);
+      return {
+        isHead: false, isCard: true, head: '', headN: '', type: r.type, icon: r.icon, lvl: r.lvl, gain: r.gain, title: r.title, why: r.why, ev: r.ev,
+        compat: r.compat, c2: r.c2, a1: r.a1, a2: r.a2, a3: r.a3, c1: r.p ? 'btn sm p' : 'btn sm',
+        ring: r.sel ? '0 0 0 2px var(--ink-1)' : 'var(--sh-card)', b1: b.b1, b2: b.b2, b3: b.b3, b4: b.b4
+      };
+    });
+    const tabs = [['说明', false], ['预览', true], ['教程 · 4 步', false], ['效果追踪', false]].map(t => ({ t: t[0], sel: t[1] ? 'true' : 'false', c: t[1] ? 'var(--ink-1)' : 'var(--ink-3)', w: t[1] ? '600' : '400', b: t[1] ? 'var(--ink-1)' : 'transparent' }));
+    const K = 'var(--ink-1)', V = 'var(--ink-2)', M = 'var(--ink-3)', AI = 'var(--ai)';
+    const lines = [
+      ['---', M, '400'], ['name: pr-wrapup', K, '600'], ['description: 合并前收尾。触发 review，只修 P0/P1，', V, '400'], ['  最多两轮，之后合并并删除分支', V, '400'], ['---', M, '400'],
+      ['# PR 收尾', K, '700'], ['1. 确认 CI 通过，review 汇总为 Completed', V, '400'], ['2. 只处理 P0 / P1；其余逐条回复理由', V, '400'],
+      ['3. 第二轮后仍有意见：停止并向我汇报', AI, '600'], ['4. 合并方式沿用仓库约定（merge commit）', V, '400'], ['5. 合并后删除远端与本地分支', V, '400'],
+      ['', V, '400'], ['## 不要做', K, '700'], ['- 不要为 P2 意见开启新一轮 review', V, '400']
+    ];
+    const code = lines.map((l, i) => ({ n: i + 1, t: l[0] || ' ', c: l[1], w: l[2], bg: l[1] === AI ? 'var(--ai-bg)' : 'transparent' }));
+
+    const spec = [
+      { n: 1, t: '维度标签', d: '规则与 Prompt、Skills、Hooks、插件 / MCP、子代理、模型与思考、工作流 / 架构；计数随难度筛选实时变化。' },
+      { n: 2, t: '难度梯度', d: 'L1 一键 · L2 复制粘贴 · L3 需配置 · L4 架构调整，用四格刻度表达，不靠颜色区分。' },
+      { n: 3, t: '按我的水平', d: '新手 / 进阶 / 专家决定默认可见范围与文案深度；超出水平的建议折叠为「可选」，不隐藏。' },
+      { n: 4, t: '依据', d: '每条必须附证据：次数、会话数和原话；点击进入 A3 并高亮相关时刻。' },
+      { n: 5, t: '预计收益', d: '用可度量单位表达（次数、分钟、tokens）并注明估算方法；无法量化时写「定性」。' },
+      { n: 6, t: '兼容性', d: '标出适用的 Agent；不原生支持时自动转换为等价形式，例如 Skill → AGENTS.md 片段。' },
+      { n: 7, t: '预览与目标路径', d: '列出将写入的每个文件与安装范围；已有文件先 diff 并备份，修改行高亮。' },
+      { n: 8, t: '安装与来源', d: '主按钮永远是「预览并安装」；来源与许可可见，教程分步骤、命令可复制，外链用默认浏览器打开。' },
+      { n: 9, t: '效果追踪', d: '安装 7 天后自动对比前后指标；没有效果的建议降权，并询问原因。' }
+    ];
+
+    return { theme: dark ? 'dk' : '', marks: marks, yes: true, no: false, ic: ic, dims: dims, levels: levels, recs: recs, tabs: tabs, code: code, spec: spec };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A10 设置 · 数据源与隐私</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 48px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.08);--win-ring:rgba(0,0,0,.06);
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--ser-m:#ec835a;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 22px 48px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);--win-ring:rgba(255,255,255,.08);
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#222326;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input,.tb textarea{font:inherit;color:inherit;margin:0}
+.win{position:absolute;overflow:hidden;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow)}
+.win::after{content:"";position:absolute;inset:0;border-radius:14px;box-shadow:inset 0 0 0 1px var(--win-ring);pointer-events:none;z-index:50}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cap{font-size:12px;line-height:16px;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.btn{height:26px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.dg{color:var(--crit);border-color:var(--crit-bg)}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:4px}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap;background:var(--surface)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.grp{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sec{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sec h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .p2{margin:0;font-size:12px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 1420px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div class="win" style="left: 40px; top: 100px; width: 820px; height: 800px; display: flex; flex-direction: column;">
+    <div style="flex: none; background: var(--sb); border-bottom: 1px solid var(--line);">
+      <div style="height: 38px; display: flex; align-items: center; padding: 0 14px; position: relative;">
+        <span style="display: flex; gap: 8px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57;"></span><span style="width: 12px; height: 12px; border-radius: 50%; background: #febc2e;"></span><span style="width: 12px; height: 12px; border-radius: 50%; background: #28c840;"></span></span>
+        <span style="position: absolute; left: 0; right: 0; text-align: center; font-size: 13px; font-weight: 600; pointer-events: none;">数据源</span>
+      </div>
+      <div role="tablist" aria-label="设置分区" style="display: flex; justify-content: center; gap: 4px; padding: 0 0 8px;">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+          <button type="button" role="tab" aria-selected="{{ t.sel }}" style="width: 70px; height: 50px; border: 0; border-radius: 8px; background: {{ t.bg }}; color: {{ t.c }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; cursor: default;">
+            <svg class="ico" style="width: 20px; height: 20px;" viewBox="0 0 24 24"><path d="{{ t.icon }}"></path></svg>{{ t.t }}
+          </button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex: 1; min-height: 0; padding: 18px 24px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <div style="font-size: 13px; font-weight: 600;">已检测到的 Agent</div>
+        <span class="cap" style="font-size: 11.5px;">自动扫描默认目录 · 只读会话日志，不读凭据文件</span>
+      </div>
+      <div class="grp" style="position: relative;">
+        <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}">
+          <span class="mk" style="left: -11px; top: -11px;">1</span>
+          <span class="mk" style="left: 560px; top: 104px;">2</span>
+          <span class="mk" style="left: 748px; top: 2px;">3</span>
+        </sc-if>
+        <sc-for list="{{ agents }}" as="a" hint-placeholder-count="6">
+          <div style="display: grid; grid-template-columns: 30px minmax(0, 1fr) 76px 92px 128px 30px; gap: 12px; align-items: center; padding: 9px 14px; border-bottom: {{ a.bd }}; opacity: {{ a.op }};">
+            <span style="width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: {{ a.t }};"><svg class="ico" style="width: 16px; height: 16px; color: {{ a.c }};" viewBox="0 0 24 24"><path d="{{ ic.term }}"></path></svg></span>
+            <div style="min-width: 0;">
+              <div style="display: flex; align-items: baseline; gap: 6px;"><span style="font-size: 13px; font-weight: 600;">{{ a.name }}</span><span class="mono" style="font-size: 10.5px; color: var(--ink-3);">{{ a.ver }}</span></div>
+              <div class="mono" style="font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ a.path }}</div>
+            </div>
+            <span class="mono" style="font-size: 12px; text-align: right;">{{ a.n }}</span>
+            <span style="font-size: 11.5px; color: var(--ink-3); text-align: right;">{{ a.when }}</span>
+            <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: {{ a.sc }}; font-weight: 600;"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ a.si }}"></path></svg>{{ a.st }}</span>
+            <sc-if value="{{ a.has }}" hint-placeholder-val="{{ true }}"><button type="button" class="sw on" aria-pressed="true" aria-label="启用该来源"></button></sc-if>
+            <sc-if value="{{ a.none }}" hint-placeholder-val="{{ false }}"><span></span></sc-if>
+          </div>
+        </sc-for>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 9px 14px; position: relative;">
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: 6px;">4</span></sc-if>
+          <button type="button" class="btn"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.plus }}"></path></svg>添加自定义来源…</button>
+          <span class="cap" style="font-size: 11.5px;">支持 JSONL、SQLite、Markdown 导出</span>
+          <span style="flex: 1;"></span>
+          <a href="#" class="lnk">工具名映射表</a>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px 16px; align-items: center; position: relative;">
+        <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -34px; top: 2px;">5</span></sc-if>
+        <span style="font-size: 12.5px; color: var(--ink-2); text-align: right;">索引方式</span>
+        <div style="display: flex; align-items: center; gap: 10px;"><div class="seg" role="radiogroup" aria-label="索引方式"><button type="button" role="radio" class="on" aria-checked="true">实时（FSEvents）</button><button type="button" role="radio" aria-checked="false">每小时</button><button type="button" role="radio" aria-checked="false">仅手动</button></div><span class="cap" style="font-size: 11.5px;">低电量时自动降为每小时</span></div>
+        <span style="font-size: 12.5px; color: var(--ink-2); text-align: right; position: relative;">分析引擎<sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -34px; top: -3px;">6</span></sc-if></span>
+        <div style="display: flex; align-items: center; gap: 10px;"><div class="seg" role="radiogroup" aria-label="分析引擎"><button type="button" role="radio" aria-checked="false">仅统计</button><button type="button" role="radio" class="on" aria-checked="true">本地 Agent</button><button type="button" role="radio" aria-checked="false">本机模型（Ollama）</button></div><span class="cap" style="font-size: 11.5px;">语义分析与生成依赖此项</span></div>
+        <span style="font-size: 12.5px; color: var(--ink-2); text-align: right; align-self: start; padding-top: 3px; position: relative;">脱敏规则<sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -34px; top: 0;">7</span></sc-if></span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <sc-for list="{{ rules }}" as="r" hint-placeholder-count="6">
+            <span class="tag"><svg class="ico" style="width: 12px; height: 12px; color: var(--good);" viewBox="0 0 24 24"><path d="{{ ic.check }}"></path></svg>{{ r.t }}</span>
+          </sc-for>
+          <button type="button" class="btn" style="height: 22px; font-size: 11.5px; border-radius: 999px;">测试规则…</button>
+        </div>
+        <span style="font-size: 12.5px; color: var(--ink-2); text-align: right;">匿名贡献</span>
+        <div style="display: flex; align-items: center; gap: 10px;"><button type="button" class="sw" aria-pressed="false" aria-label="匿名贡献"></button><span class="cap" style="font-size: 11.5px;">关闭。开启后只上传人格代码与已装资源名，用于「相似用户」统计</span></div>
+      </div>
+
+      <div style="height: 1px; background: var(--line);"></div>
+      <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px 16px; align-items: center; position: relative;">
+        <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -34px; top: 2px;">8</span></sc-if>
+        <span style="font-size: 12.5px; color: var(--ink-2); text-align: right;">数据存储</span>
+        <div style="display: flex; align-items: center; gap: 8px; min-width: 0;"><span class="mono" style="font-size: 11.5px; color: var(--ink-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">~/Library/Application Support/Tandem</span><span class="mono" style="font-size: 11.5px; color: var(--ink-3);">812 MB</span></div>
+        <span></span>
+        <div style="display: flex; gap: 8px;"><button type="button" class="btn">在 Finder 中显示</button><button type="button" class="btn">导出全部（JSON）</button><span style="flex: 1;"></span><button type="button" class="btn dg">清除全部数据…</button></div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 900px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">A10 · 设置窗口 · ⌘,</div>
+      <h2>数据源与隐私 <i>Settings</i></h2>
+      <p class="lead">信任来自透明：读了哪里、存在哪里、分析在哪里做，都要一眼看清。</p>
+    </div>
+    <div class="sec">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="8">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sec">
+      <h3>权限</h3>
+      <p class="p2">默认不需要「完全磁盘访问」：常见目录都在用户主目录下。只有当来源位于受保护位置时，才引导用户在系统设置中授权，并说明原因。</p>
+    </div>
+    <div class="sec" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">⌘</b><b class="kbd">,</b>打开设置</span>
+        <span><b class="kbd">⌘</b><b class="kbd">R</b>立即重新索引</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"marks":{"editor":"boolean","default":true,"section":"标注"},"$preview":{"width":1420,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const marks = this.props.marks ?? true;
+    const ic = {
+      term: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 9.5l3 2.5-3 2.5M12.5 15H17',
+      plus: 'M12 5v14M5 12h14',
+      check: 'M5 12.5l4.5 4.5L19 7.5',
+      okc: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10',
+      alert: 'M12 4L2.5 20h19zM12 10v4.5M12 17.5h.01',
+      minus: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12h8'
+    };
+    const tabIcons = {
+      general: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+      sources: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
+      privacy: 'M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5c-4.3-1.2-7.5-4.9-7.5-9.5V6zM9 12l2 2 4-4',
+      analysis: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+      notify: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0',
+      about: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 11v5M12 7.5h.01'
+    };
+    const tabs = [['general', '通用'], ['sources', '数据源'], ['privacy', '隐私'], ['analysis', '分析'], ['notify', '通知'], ['about', '关于']].map(t => ({
+      t: t[1], icon: tabIcons[t[0]], sel: t[0] === 'sources' ? 'true' : 'false',
+      bg: t[0] === 'sources' ? 'var(--field)' : 'transparent', c: t[0] === 'sources' ? 'var(--ink-1)' : 'var(--ink-3)'
+    }));
+    const A = [
+      ['Claude Code', 'v2.1', '~/.claude/projects', '1,412', '2 分钟前', 'ok', 'var(--a1)', 'var(--a1t)'],
+      ['Codex', '0.62', '~/.codex/sessions', '498', '2 分钟前', 'ok', 'var(--a2)', 'var(--a2t)'],
+      ['Gemini CLI', '0.31', '~/.gemini/tmp', '211', '5 分钟前', 'warn', 'var(--a3)', 'var(--a3t)'],
+      ['DeepSeek Harness', '1.4', '~/.dsh/sessions', '160', '12 分钟前', 'ok', 'var(--a4)', 'var(--a4t)'],
+      ['Copilot CLI', '0.9', '~/.copilot/history', '135', '1 小时前', 'ok', 'var(--a5)', 'var(--a5t)'],
+      ['Cursor', '', '未检测到 · 可手动指定数据库位置', '—', '—', 'none', 'var(--ink-3)', 'var(--sunken)']
+    ];
+    const ST = {
+      ok: { t: '正常', i: ic.okc, c: 'var(--good)' },
+      warn: { t: '部分字段缺失', i: ic.alert, c: 'var(--warn)' },
+      none: { t: '未安装', i: ic.minus, c: 'var(--ink-3)' }
+    };
+    const agents = A.map((a, i) => ({
+      name: a[0], ver: a[1], path: a[2], n: a[3], when: a[4], st: ST[a[5]].t, si: ST[a[5]].i, sc: ST[a[5]].c, c: a[6], t: a[7],
+      has: a[5] !== 'none', none: a[5] === 'none', op: a[5] === 'none' ? '0.7' : '1', bd: '1px solid var(--hair)'
+    }));
+    const rules = ['路径中的用户名', '邮箱', 'API Key / Token', '内网 IP 与主机名', '手机号', '自定义正则 2 条'].map(t => ({ t: t }));
+    const spec = [
+      { n: 1, t: '自动发现', d: '启动时扫描各 Agent 的默认目录；只读取会话日志，不碰 auth.json 之类的凭据文件。' },
+      { n: 2, t: '解析状态', d: '正常 / 部分字段缺失 / 格式版本未知 / 未安装；版本未知时只做计数，并提示更新解析器。' },
+      { n: 3, t: '启用开关', d: '关闭来源后其数据在所有页面隐藏但不删除；删除在下方单独操作。' },
+      { n: 4, t: '自定义来源', d: '选择文件夹并指定解析器；沙盒下用安全书签持久授权，可随时撤销。' },
+      { n: 5, t: '索引方式', d: '默认 FSEvents 实时增量；低电量或用户手动暂停时降级。' },
+      { n: 6, t: '分析引擎', d: '仅统计 / 本地 Agent / 本机模型；切换时明确说明会失去哪些功能（如语义主题、生成工坊）。' },
+      { n: 7, t: '脱敏规则', d: '入库前执行；可添加正则并用样例实时测试命中。' },
+      { n: 8, t: '数据存储', d: '路径与占用一目了然；清除全部需输入确认词，导出为可读的 JSON。' }
+    ];
+    return { theme: dark ? 'dk' : '', marks: marks, ic: ic, tabs: tabs, agents: agents, rules: rules, spec: spec };
+  }
+}
+</script>
+</body>
+</html>

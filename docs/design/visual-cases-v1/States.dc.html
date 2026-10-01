@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>C4 空、加载与异常状态</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;
+--bg:#f5f4f0;--surface:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;--ai:#5a3fd0;--ai-bg:#efecff;--good:#11843a;--warn:#8a5a00;--warn-bg:#fbf0d8;--crit:#c62f2f;--crit-bg:#fbe8e6;--pri:#17181b;--pri-ink:#ffffff;--h2:#c0bdb5;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;
+--bg:#0f1012;--surface:#1a1b1e;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;--ai:#b4a8ff;--ai-bg:#2a2447;--good:#4cc97a;--warn:#f0b341;--warn-bg:#372a10;--crit:#ff7b72;--crit-bg:#3b1c1b;--pri:#ededef;--pri-ink:#0f1012;--h2:#43464c}
+.tb *{box-sizing:border-box}
+.tb button{font:inherit;margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.st{display:flex;flex-direction:column;gap:12px;padding:16px 18px;border-radius:14px;background:var(--pg-panel);border:1px solid var(--pg-line-soft)}
+.mock{position:relative;height:216px;border-radius:12px;background:var(--bg);border:1px solid var(--line);color:var(--ink-1);overflow:hidden;padding:16px}
+.btn{height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:600}
+.btn[disabled]{opacity:.45}
+.note{font-size:12.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spin{width:13px;height:13px;border-radius:50%;border:1.8px solid var(--line);border-top-color:var(--ink-1);animation:spin .9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 80px; top: 48px; width: 1600px;">
+    <div class="eb">C4 · 状态规范</div>
+    <h1 class="serif" style="margin: 8px 0 0; font-size: 36px; line-height: 1.1; font-weight: 600;">空、加载与异常：永远告诉用户下一步</h1>
+  </div>
+  <div style="position: absolute; left: 80px; top: 140px; width: 1880px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;">
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">01</span><span style="font-size: 14px; font-weight: 600;">空 · 未发现数据源</span></div>
+      <div class="mock" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px;">
+        <svg width="56" height="42" viewBox="0 0 24 18" aria-hidden="true" style="fill: none; stroke: var(--ink-4); stroke-width: 1.2;"><circle cx="8.5" cy="9" r="6"></circle><circle cx="15.5" cy="9" r="6"></circle></svg>
+        <div style="font-size: 15px; font-weight: 600;">还没有找到 Agent 会话</div>
+        <div style="font-size: 12.5px; line-height: 1.5; color: var(--ink-3); max-width: 300px;">已检查 Claude Code、Codex、Gemini CLI 等的默认目录。</div>
+        <div style="display: flex; gap: 6px; margin-top: 4px;"><button type="button" class="btn p">手动指定目录…</button><button type="button" class="btn">支持哪些 Agent</button></div>
+      </div>
+      <p class="note" style="margin: 0;">空状态一定给出下一步动作，不放无意义的插画占位。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">02</span><span style="font-size: 14px; font-weight: 600;">首次加载 · 渐进解锁</span></div>
+      <div class="mock" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px;">
+        <div style="border-radius: 10px; background: var(--surface); border: 1px solid var(--line); padding: 10px 12px;"><div style="font-size: 11.5px; color: var(--ink-3);">会话</div><div style="font-size: 26px; font-weight: 600;">186</div></div>
+        <div style="border-radius: 10px; background: var(--surface); border: 1px solid var(--line); padding: 10px 12px;"><div style="font-size: 11.5px; color: var(--ink-3);">工具调用</div><div style="font-size: 26px; font-weight: 600;">9,860</div></div>
+        <div style="border-radius: 10px; background: var(--surface); border: 1px dashed var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;"><div style="font-size: 11.5px; color: var(--ink-3);">情绪与语义</div><div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2);"><span class="spin" aria-hidden="true"></span>分析中 62%</div><div style="height: 4px; border-radius: 2px; background: var(--line);"><div style="width: 62%; height: 4px; border-radius: 2px; background: var(--ink-1);"></div></div></div>
+        <div style="border-radius: 10px; background: var(--surface); border: 1px dashed var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;"><div style="font-size: 11.5px; color: var(--ink-3);">协作人格</div><div style="font-size: 12px; color: var(--ink-3);">等待语义完成</div></div>
+      </div>
+      <p class="note" style="margin: 0;">已就绪的卡片先显示真实数据；未就绪的显示进度与原因，不出现空白或假数据。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">03</span><span style="font-size: 14px; font-weight: 600;">刷新 · 保留上一帧</span></div>
+      <div class="mock">
+        <div style="display: flex; align-items: flex-end; gap: 10px; height: 150px; opacity: 0.4; padding: 10px 6px 0;">
+          <sc-for list="{{ bars }}" as="b" hint-placeholder-count="12">
+            <div style="flex: 1; height: {{ b.h }}px; border-radius: 4px 4px 0 0; background: var(--ink-2);"></div>
+          </sc-for>
+        </div>
+        <div style="position: absolute; left: 50%; top: 18px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.08);"><span class="spin" aria-hidden="true"></span>正在用新筛选重算</div>
+      </div>
+      <p class="note" style="margin: 0;">切换筛选或重新索引时不清空、不跳动、不闪骨架；完成后 150 ms 淡入新值。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">04</span><span style="font-size: 14px; font-weight: 600;">解析异常 · 部分失败</span></div>
+      <div class="mock" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); display: flex; gap: 10px; align-items: flex-start;">
+          <svg class="ico" style="width: 16px; height: 16px; color: var(--warn); margin-top: 1px;" viewBox="0 0 24 24"><path d="M12 4L2.5 20h19zM12 10v4.5M12 17.5h.01"></path></svg>
+          <div style="flex: 1;"><div style="font-size: 13px; font-weight: 600;">Gemini CLI 的日志格式有变化</div><div style="font-size: 12px; color: var(--ink-2); line-height: 1.5;">已跳过 12 个会话，其余 199 个正常计入。</div><div style="display: flex; gap: 6px; margin-top: 8px;"><button type="button" class="btn">更新解析器</button><button type="button" class="btn" style="border-color: transparent; background: transparent;">详情</button></div></div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 0 4px;"><span style="font-size: 12px; color: var(--ink-3);">Gemini CLI 会话</span><span style="font-size: 22px; font-weight: 600;">199</span><span style="font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); font-weight: 600;">不完整</span></div>
+      </div>
+      <p class="note" style="margin: 0;">部分失败不阻塞整体；受影响的数字旁标「不完整」，悬停说明缺了什么。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">05</span><span style="font-size: 14px; font-weight: 600;">需要授权 · 自定义目录</span></div>
+      <div class="mock" style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+        <div style="display: flex; gap: 12px; align-items: center;"><span style="width: 40px; height: 40px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center;"><svg class="ico" style="width: 18px; height: 18px;" viewBox="0 0 24 24"><path d="M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11zM8 11V7.5a4 4 0 0 1 8 0V11"></path></svg></span><div><div style="font-size: 14px; font-weight: 600;">需要访问这个文件夹</div><div class="mono" style="font-size: 11.5px; color: var(--ink-3);">~/Work/agent-logs</div></div></div>
+        <div style="font-size: 12.5px; line-height: 1.55; color: var(--ink-2);">Tandem 运行在沙盒里，需要你在系统选择框中确认一次，之后会记住。只读，不写入。</div>
+        <div style="display: flex; gap: 6px;"><button type="button" class="btn p">选择文件夹…</button><button type="button" class="btn">暂不添加</button></div>
+      </div>
+      <p class="note" style="margin: 0;">只在用户主动添加自定义来源时出现；拒绝后可在设置中随时重试。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">06</span><span style="font-size: 14px; font-weight: 600;">生成失败 · 可恢复</span></div>
+      <div class="mock" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; gap: 10px; align-items: flex-start;"><span style="width: 22px; height: 22px; border-radius: 50%; background: var(--crit-bg); color: var(--crit); display: grid; place-items: center; font: 700 12px/1 var(--mono); flex: none;">!</span><div><div style="font-size: 13px; font-weight: 600;">第 3 步「起草 SKILL.md」失败</div><div style="font-size: 12px; color: var(--ink-2); line-height: 1.5;">Claude Code 未登录（exit 1）。前两步结果已保留。</div></div></div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line);"><span class="mono" style="flex: 1; font-size: 12px;">claude login</span><button type="button" class="btn" style="height: 24px; font-size: 11.5px;">复制</button></div>
+        <div style="display: flex; gap: 6px;"><button type="button" class="btn p">重试此步骤</button><button type="button" class="btn">换用 Codex 继续</button></div>
+      </div>
+      <p class="note" style="margin: 0;">把退出码翻译成人话，并给出可复制的修复命令；可以换一个 Agent 从断点继续。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">07</span><span style="font-size: 14px; font-weight: 600;">样本不足 · 不硬下结论</span></div>
+      <div class="mock" style="display: flex; align-items: center; gap: 18px;">
+        <svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" style="fill: none; stroke: var(--line); stroke-width: 10;"></circle><path d="{{ ring }}" style="fill: none; stroke: var(--ink-1); stroke-width: 10; stroke-linecap: round;"></path><text x="56" y="62" style="text-anchor: middle; font: 700 20px var(--mono); fill: var(--ink-1);">18/30</text></svg>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;"><div style="font-size: 14px; font-weight: 600;">再积累 12 个会话后揭晓</div><div style="font-size: 12.5px; line-height: 1.55; color: var(--ink-2);">现在已能看到统计与轨迹。人格需要足够样本才可靠。</div><div class="mono" style="font-size: 20px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-3);">D?M?</div></div>
+      </div>
+      <p class="note" style="margin: 0;">维度得分落在 45–55 时字母显示为「?」，并说明还差多少会话。</p>
+    </div>
+
+    <div class="st">
+      <div style="display: flex; align-items: baseline; gap: 8px;"><span class="mono" style="font-weight: 700;">08</span><span style="font-size: 14px; font-weight: 600;">离线 · 只影响资源目录</span></div>
+      <div class="mock" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 14px; font-weight: 600; flex: 1;">资源库</span><span style="font-size: 11.5px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2);">离线 · 显示 2 天前的目录</span></div>
+        <sc-for list="{{ offline }}" as="o" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); opacity: 0.6;"><span class="mono" style="flex: 1; font-size: 12.5px; font-weight: 600;">{{ o.t }}</span><button type="button" class="btn" disabled="{{ yes }}" style="height: 24px; font-size: 11.5px;">获取需联网</button></div>
+        </sc-for>
+      </div>
+      <p class="note" style="margin: 0;">分析与生成完全离线可用；只有社区资源目录需要网络，断网时明确告知时效。</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const bars = [62, 88, 54, 120, 96, 72, 130, 84, 110, 66, 92, 104].map(h => ({ h: h }));
+    const frac = 18 / 30;
+    const a = frac * Math.PI * 2;
+    const x = 56 + 46 * Math.sin(a), y = 56 - 46 * Math.cos(a);
+    const ring = 'M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1);
+    const offline = [{ t: 'worktree-conductor' }, { t: 'retry-breaker' }, { t: 'release-verifier' }];
+    return { theme: dark ? 'dk' : '', yes: true, bars: bars, ring: ring, offline: offline };
+  }
+}
+</script>
+</body>
+</html>

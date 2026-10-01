@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A3 会话与轨迹</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 48px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.08);--win-ring:rgba(0,0,0,.06);
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--ser-m:#ec835a;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 22px 48px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);--win-ring:rgba(255,255,255,.08);
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#222326;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input,.tb textarea{font:inherit;color:inherit;margin:0}
+.win{position:absolute;overflow:hidden;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow)}
+.win::after{content:"";position:absolute;inset:0;border-radius:14px;box-shadow:inset 0 0 0 1px var(--win-ring);pointer-events:none;z-index:50}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cap{font-size:12px;line-height:16px;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card)}
+.ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
+.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;cursor:default;padding:0}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:4px}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.tip{position:absolute;z-index:25;background:var(--tip);color:var(--tip-ink);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sec{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sec h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .p2{margin:0;font-size:12px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(226,96,43,.45)}70%{box-shadow:0 0 0 6px rgba(226,96,43,0)}100%{box-shadow:0 0 0 0 rgba(226,96,43,0)}}
+.live{animation:pulse 1.8s ease-out infinite}
+@media (prefers-reduced-motion: reduce){.live{animation:none}}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div class="win" style="left: 40px; top: 50px; width: 1440px; height: 900px;">
+    <div style="position: absolute; left: 8px; top: 8px; width: 236px; height: 884px;">
+      <dc-import name="Sidebar" active="sessions" hint-size="236px,884px"></dc-import>
+    </div>
+
+    <div style="position: absolute; left: 252px; top: 0; width: 1188px; height: 900px; padding: 0 24px 0 16px; display: flex; flex-direction: column;">
+      <div style="height: 58px; flex: none; display: flex; align-items: center; gap: 10px;">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px;">
+          <h1 class="serif" style="margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em;">会话与轨迹</h1>
+          <span class="mono" style="font-size: 11.5px; color: var(--ink-3);">186 个会话 · 近 30 天 · 1 个运行中</span>
+        </div>
+        <div class="seg" role="group" aria-label="视图模式" style="position: relative;"><button type="button" class="on" aria-pressed="true">单个</button><button type="button" aria-pressed="false">对比</button>
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -13px;">9</span></sc-if>
+        </div>
+        <button type="button" class="btn"><svg class="ico" style="width: 13px; height: 13px;" viewBox="0 0 24 24"><path d="{{ ic.play }}"></path></svg>回放</button>
+        <button type="button" class="btn ai"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>让 Agent 复盘</button>
+      </div>
+
+      <div style="flex: 1; min-height: 0; padding-bottom: 20px; display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 12px;">
+
+        <div class="card" style="display: flex; flex-direction: column; overflow: hidden;">
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: 60px;">1</span></sc-if>
+          <div style="padding: 10px 10px 8px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--hair);">
+            <label style="height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border-radius: 8px; background: var(--field); color: var(--ink-3);">
+              <svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.search }}"></path></svg>
+              <input type="search" aria-label="搜索会话" placeholder="搜索标题、命令、文件…" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px; color: var(--ink-1); padding: 0;">
+            </label>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" class="chip" style="height: 24px; font-size: 12px; padding: 0 8px;">Agent<svg class="ico" style="width: 11px; height: 11px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+              <button type="button" class="chip" style="height: 24px; font-size: 12px; padding: 0 8px;">项目<svg class="ico" style="width: 11px; height: 11px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+              <button type="button" class="chip" style="height: 24px; font-size: 12px; padding: 0 8px;">结果<svg class="ico" style="width: 11px; height: 11px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+              <span style="flex: 1;"></span>
+              <span class="cap" style="font-size: 11.5px;">最新在前</span>
+            </div>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; padding: 4px 8px 8px; display: flex; flex-direction: column;">
+            <sc-for list="{{ items }}" as="it" hint-placeholder-count="12">
+              <sc-if value="{{ it.isHead }}" hint-placeholder-val="{{ false }}">
+                <div style="height: 28px; display: flex; align-items: flex-end; padding: 0 6px 5px; font-size: 11px; font-weight: 600; color: var(--ink-3);">{{ it.day }}</div>
+              </sc-if>
+              <sc-if value="{{ it.isRow }}" hint-placeholder-val="{{ true }}">
+                <button type="button" style="width: 100%; text-align: left; border: 0; background: {{ it.bg }}; box-shadow: {{ it.ring }}; border-radius: 8px; padding: 8px 10px 9px; display: flex; flex-direction: column; gap: 4px; cursor: default; flex: none;">
+                  <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                    <span class="{{ it.dotCls }}" style="width: 8px; height: 8px; border-radius: 50%; flex: none; background: {{ it.c }};"></span>
+                    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--ink-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ it.title }}</span>
+                    <svg class="ico" style="width: 14px; height: 14px; color: {{ it.oc }};" viewBox="0 0 24 24" aria-label="{{ it.ol }}"><path d="{{ it.oi }}"></path></svg>
+                  </div>
+                  <div class="mono" style="font-size: 11px; line-height: 15px; color: var(--ink-3); padding-left: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">{{ it.meta }}</div>
+                  <svg width="280" height="8" viewBox="0 0 280 8" aria-hidden="true" style="margin-left: 16px; overflow: visible;"><path d="{{ it.bar }}" style="fill: none; stroke: var(--ink-4); stroke-width: 1.4;"></path><path d="{{ it.err }}" style="fill: none; stroke: var(--crit-m); stroke-width: 2;"></path></svg>
+                </button>
+              </sc-if>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+          <div class="card" style="height: 100px; flex: none; overflow: hidden; display: flex;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">2</span></sc-if>
+            <div style="flex: 1; min-width: 0; background: var(--a1t); border-top: 4px solid var(--a1); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 4px;">
+              <div class="mono" style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; line-height: 16px; color: var(--ink-3); white-space: nowrap; overflow: hidden;">
+                <span class="dot" style="background: var(--a1);"></span><span style="font-family: var(--sans); font-weight: 600; color: var(--ink-2);">Claude Code</span><span>·</span><span>claude-opus-5-5</span><span>·</span><span>thinking high</span><span>·</span><span style="overflow: hidden; text-overflow: ellipsis;">~/Projects/ActionMesh AI/Confluo</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <h2 class="serif" style="margin: 0; flex: 1; min-width: 0; font-size: 22px; line-height: 28px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">部署 Confluo 演示到自定义域名并验证</h2>
+                <button type="button" class="btn"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.term }}"></path></svg>在 Claude Code 中继续</button>
+                <button type="button" class="ib" aria-label="更多操作" style="background: var(--surface); border: 1px solid var(--line);"><svg class="ico" style="stroke-width: 2.6;" viewBox="0 0 24 24"><path d="{{ ic.more }}"></path></svg></button>
+              </div>
+              <div style="font-size: 12.5px; color: var(--ink-2); display: flex; gap: 10px; align-items: center;">
+                <span class="mono">9 月 30 日 14:02 – 14:44 · 42 分钟</span>
+                <span style="display: inline-flex; align-items: center; gap: 4px; color: var(--good); font-weight: 600;"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.okc }}"></path></svg>完成</span>
+                <span style="display: inline-flex; align-items: center; gap: 4px; color: var(--crit); font-weight: 600;"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.alert }}"></path></svg>2 次纠偏</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="height: 52px; flex: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: center;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">3</span></sc-if>
+            <sc-for list="{{ stats }}" as="s" hint-placeholder-count="7">
+              <div style="padding: 0 14px; border-left: {{ s.bl }}; display: flex; flex-direction: column; gap: 1px;">
+                <span style="font-size: 11px; line-height: 14px; color: var(--ink-3); white-space: nowrap;">{{ s.k }}</span>
+                <span style="font-size: 16px; line-height: 20px; font-weight: 600; color: {{ s.c }};">{{ s.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div class="card" style="height: 390px; flex: none; padding: 12px 16px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">4</span></sc-if>
+            <div style="display: flex; align-items: center; gap: 10px; height: 26px;">
+              <span class="ct">轨迹</span><span class="cap">泳道时间轴 · 142 次工具调用 · 7 条你的消息</span>
+              <span style="flex: 1;"></span>
+              <div class="seg" role="group" aria-label="横轴"><button type="button" class="on" aria-pressed="true">时间</button><button type="button" aria-pressed="false">步数</button></div>
+              <div class="seg" role="group" aria-label="缩放"><button type="button" aria-label="缩小" style="padding: 0 7px;">−</button><button type="button" aria-label="放大" style="padding: 0 7px;">+</button><button type="button" class="on">适应</button></div>
+            </div>
+            <div style="position: relative; height: 302px;">
+              <sc-for list="{{ lanes }}" as="l" hint-placeholder-count="11">
+                <div style="position: absolute; left: 0; width: 82px; top: {{ l.top }}px; height: {{ l.h }}px; display: flex; align-items: center; font-size: 11.5px; color: var(--ink-2); white-space: nowrap;">{{ l.name }}</div>
+                <div style="position: absolute; left: 88px; right: 0; top: {{ l.sep }}px; height: 1px; background: var(--hair);"></div>
+              </sc-for>
+              <div style="position: absolute; left: 88px; top: 0; width: 686px; height: 302px;">
+                <sc-for list="{{ phases }}" as="p" hint-placeholder-count="5">
+                  <div style="position: absolute; top: 24px; height: 20px; left: {{ p.x }}px; width: {{ p.w }}px; border-radius: 5px; background: var(--sunken); border: 1px solid var(--line); font-size: 11px; line-height: 18px; color: var(--ink-2); text-align: center; overflow: hidden; white-space: nowrap;">{{ p.t }}</div>
+                </sc-for>
+                <sc-for list="{{ replies }}" as="r" hint-placeholder-count="12">
+                  <div style="position: absolute; top: 80px; height: 10px; left: {{ r.x }}px; width: {{ r.w }}px; border-radius: 3px; background: var(--a1); opacity: 0.55;"></div>
+                </sc-for>
+                <sc-for list="{{ ticks }}" as="k" hint-placeholder-count="80">
+                  <div style="position: absolute; left: {{ k.x }}px; top: {{ k.y }}px; width: {{ k.w }}px; height: {{ k.h }}px; border-radius: 1px; background: {{ k.c }};"></div>
+                </sc-for>
+                <div style="position: absolute; top: 183px; height: 14px; left: {{ sub.x }}px; width: {{ sub.w }}px; border-radius: 4px; background: var(--a1t); box-shadow: inset 0 0 0 1px var(--a1); font: 600 10px/14px var(--mono); color: var(--ink-1); text-align: center; white-space: nowrap; overflow: hidden;">Explore ×3</div>
+                <svg width="686" height="40" viewBox="0 0 686 40" aria-hidden="true" style="position: absolute; left: 0; top: 204px; overflow: visible;">
+                  <path d="{{ ctx.area }}" style="fill: var(--ink-3); fill-opacity: 0.1; stroke: none;"></path>
+                  <path d="{{ ctx.line }}" style="fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round;"></path>
+                  <path d="{{ ctx.mark }}" style="fill: none; stroke: var(--ink-1); stroke-width: 1;"></path>
+                </svg>
+                <span class="mono" style="position: absolute; top: 204px; left: {{ ctx.lx }}px; font-size: 10px; line-height: 12px; color: var(--ink-1); white-space: nowrap; background: var(--surface); padding: 0 3px;">自动压缩 78% → 31%</span>
+                <svg width="686" height="30" viewBox="0 0 686 30" aria-hidden="true" style="position: absolute; left: 0; top: 250px; overflow: visible;">
+                  <path d="M0 15H686" style="fill: none; stroke: var(--line); stroke-width: 1;"></path>
+                  <path d="{{ mood.line }}" style="fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-linejoin: round;"></path>
+                </svg>
+                <sc-for list="{{ users }}" as="u" hint-placeholder-count="7">
+                  <div style="position: absolute; top: 55px; left: {{ u.x }}px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: {{ u.fill }}; box-shadow: {{ u.ring }};"></div>
+                  <div style="position: absolute; top: {{ u.my }}px; left: {{ u.x }}px; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: {{ u.mc }}; box-shadow: 0 0 0 2px var(--surface);"></div>
+                </sc-for>
+                <sc-for list="{{ moments }}" as="m" hint-placeholder-count="5">
+                  <div style="position: absolute; top: 0; left: {{ m.x }}px; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--ink-1); color: var(--surface); font: 700 10px/18px var(--mono); text-align: center;">{{ m.n }}</div>
+                </sc-for>
+                <div style="position: absolute; top: 20px; left: {{ play.x }}px; width: 1px; height: 266px; background: var(--ink-1);"></div>
+                <div style="position: absolute; top: 284px; left: {{ play.x }}px; width: 10px; height: 10px; margin-left: -4.5px; border-radius: 2px; background: var(--ink-1); transform: rotate(45deg);"></div>
+                <div class="tip" style="left: {{ play.tx }}px; top: 104px; width: 236px;">
+                  <div style="display: flex; align-items: center; gap: 6px;"><span class="mono" style="font-weight: 700;">14:32:48</span><span style="opacity: .7;">· 命令 ·</span><span style="color: var(--crit-m); font-weight: 700;">失败</span></div>
+                  <div class="mono" style="margin-top: 4px; font-size: 11px; padding: 4px 6px; border-radius: 5px; background: rgba(127,127,127,.18);">npx wrangler pages deploy ./dist</div>
+                  <div style="margin-top: 4px; font-size: 11.5px; opacity: .85;">exit 1 · 4.2 s · 未登录 Cloudflare</div>
+                  <div style="margin-top: 2px; font-size: 11.5px; opacity: .85;">连续第 4 次相同失败</div>
+                </div>
+                <sc-for list="{{ xlabels }}" as="x" hint-placeholder-count="8">
+                  <span class="mono" style="position: absolute; top: 289px; left: {{ x.left }}px; width: 40px; text-align: center; font-size: 10px; line-height: 12px; color: var(--ink-3);">{{ x.t }}</span>
+                </sc-for>
+                <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}">
+                  <span class="mk" style="left: {{ play.mx }}px; top: 94px;">5</span>
+                  <span class="mk" style="left: -24px; top: -2px;">6</span>
+                  <span class="mk" style="left: -24px; top: 214px;">7</span>
+                </sc-if>
+              </div>
+            </div>
+            <div style="display: flex; gap: 14px; align-items: center; font-size: 11px; color: var(--ink-3); margin-top: auto;">
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: var(--ink-1);"></span>你的消息</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--crit-m);"></span>纠偏</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 3px; height: 10px; border-radius: 1px; background: var(--crit-m);"></span>失败的调用</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 6px; border-radius: 2px; background: var(--a1); opacity: .55;"></span>Agent 回复 / 思考</span>
+            </div>
+          </div>
+
+          <div style="height: 206px; flex: none; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px;">
+            <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <span class="ct">关键时刻</span>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <sc-for list="{{ momentList }}" as="m" hint-placeholder-count="5">
+                  <div style="display: grid; grid-template-columns: 18px 44px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 12.5px; line-height: 18px;">
+                    <span style="width: 18px; height: 18px; border-radius: 50%; background: {{ m.bg }}; color: {{ m.fg }}; box-shadow: {{ m.ring }}; font: 700 10px/18px var(--mono); text-align: center;">{{ m.n }}</span>
+                    <span class="mono" style="font-size: 11.5px; color: var(--ink-3);">{{ m.t }}</span>
+                    <span style="color: var(--ink-2);"><b style="color: var(--ink-1); font-weight: 600;">{{ m.k }}</b> {{ m.d }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">8</span></sc-if>
+              <div style="display: flex; align-items: center; gap: 8px;"><span class="ct">这次会话的启示</span><span class="aib"><svg class="ico" style="width: 11px; height: 11px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>AI</span></div>
+              <p style="margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); text-wrap: pretty;">若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。</p>
+              <div style="display: flex; gap: 6px; margin-top: auto; flex-wrap: wrap;">
+                <button type="button" class="btn sm p">生成规则</button>
+                <button type="button" class="btn sm">加 Hook：重复失败提醒</button>
+                <button type="button" class="btn sm gh">不准确</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 1520px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">A3 · 主窗口 · ⌘3</div>
+      <h2>会话与轨迹 <i>Trajectory</i></h2>
+      <p class="lead">把一次会话还原成可回放的时间线：谁在什么时候做了什么、哪里走偏、怎么拉回来。</p>
+    </div>
+    <div class="sec">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="9">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sec">
+      <h3>状态与边界</h3>
+      <p class="p2">运行中的会话实时追加事件，播放头吸附到最新；日志损坏时只展示可解析部分，并在时间轴上标出缺口。</p>
+    </div>
+    <div class="sec" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">↑</b><b class="kbd">↓</b>切换会话</span>
+        <span><b class="kbd">Space</b>回放 / 暂停</span>
+        <span><b class="kbd">⌘</b><b class="kbd">+</b>放大时间轴</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"marks":{"editor":"boolean","default":true,"section":"标注"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const marks = this.props.marks ?? true;
+    const ic = {
+      play: 'M7 4.5v15l12-7.5z',
+      spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+      search: 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM20 20l-4.6-4.6',
+      chev: 'M6 9l6 6 6-6',
+      term: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 9.5l3 2.5-3 2.5M12.5 15H17',
+      more: 'M5 12h.01M12 12h.01M19 12h.01',
+      okc: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10',
+      alert: 'M12 4L2.5 20h19zM12 10v4.5M12 17.5h.01',
+      half: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 3v18M12 7.5h4.5M12 12h6M12 16.5h4.5',
+      xc: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M9 9l6 6M15 9l-6 6',
+      live: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7.5V12l3 2'
+    };
+    let sd = 3;
+    const rr = () => { sd |= 0; sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+    // ---- session list ----
+    const A = { cc: 'var(--a1)', cx: 'var(--a2)', gm: 'var(--a3)', ds: 'var(--a4)', cp: 'var(--a5)' };
+    const OUT = {
+      ok: { i: ic.okc, c: 'var(--good)', l: '完成' },
+      part: { i: ic.half, c: 'var(--warn)', l: '部分完成' },
+      fail: { i: ic.xc, c: 'var(--crit)', l: '放弃' },
+      live: { i: ic.live, c: 'var(--a1)', l: '运行中' }
+    };
+    const barcode = (n, errs, fill) => {
+      let d = '', e = '';
+      for (let i = 0; i < n; i++) { const x = (rr() * 280 * fill).toFixed(1); d += 'M' + x + ' 1V7'; }
+      for (let i = 0; i < errs; i++) { const x = (rr() * 280 * fill).toFixed(1); e += 'M' + x + ' 0V8'; }
+      return { d: d || 'M0 0', e: e || 'M0 0' };
+    };
+    const raw = [
+      { head: '今天 · 10 月 1 日 周四' },
+      { t: '设计 Tandem Mac App 视觉案例', a: 'cc', m: 'Hackathon · 15:12 · 运行中 18m · 61 次工具', o: 'live', n: 61, e: 1, f: 0.62 },
+      { t: '同步 team-hub collab 并审核日报', a: 'cx', m: 'team-hub · 09:03 · 12m · 34 次工具', o: 'ok', n: 34, e: 0, f: 1 },
+      { head: '昨天 · 9 月 30 日 周三' },
+      { t: '部署 Confluo 演示到自定义域名并验证', a: 'cc', m: 'Confluo · 14:02 · 42m · 142 次工具 · 2 次纠偏', o: 'ok', n: 142, e: 9, f: 1, sel: true },
+      { t: '审阅 ICLR 稿件第 3 节与代码一致性', a: 'cc', m: 'latentskill · 10:20 · 1h08m · 96 次工具', o: 'ok', n: 96, e: 2, f: 1 },
+      { t: '修复 Surge 规则生成器漏判', a: 'cx', m: 'Surge 规则 · 21:47 · 26m · 58 次工具', o: 'part', n: 58, e: 6, f: 1 },
+      { t: '核对论文引用格式', a: 'gm', m: 'latentskill · 23:15 · 15m · 22 次工具 · 3 次纠偏', o: 'fail', n: 22, e: 4, f: 1 },
+      { head: '9 月 29 日 周二' },
+      { t: '合并 PR 并清理分支', a: 'cc', m: 'Hackathon · 18:40 · 9m · 27 次工具', o: 'ok', n: 27, e: 0, f: 1 },
+      { t: 'WebShop 轨迹采集进度检查', a: 'ds', m: 'latentskill · 16:05 · 6m · 11 次工具', o: 'ok', n: 11, e: 0, f: 1 },
+      { t: '生成因子衰减综述对比表', a: 'cp', m: 'Quant Factor Decay · 11:30 · 21m · 40 次工具', o: 'ok', n: 40, e: 1, f: 1 }
+    ];
+    const items = raw.map(r => {
+      if (r.head) return { isHead: true, isRow: false, day: r.head, title: '', meta: '', c: '', oi: '', oc: '', ol: '', bar: 'M0 0', err: 'M0 0', bg: 'transparent', ring: 'none', dotCls: '' };
+      const bc = barcode(Math.min(r.n, 90), r.e, r.f);
+      const o = OUT[r.o];
+      return {
+        isHead: false, isRow: true, day: '', title: r.t, meta: r.m, c: A[r.a], oi: o.i, oc: o.c, ol: o.l, bar: bc.d, err: bc.e,
+        bg: r.sel ? 'var(--bg)' : 'transparent', ring: r.sel ? 'inset 0 0 0 1.5px var(--ink-1)' : 'none', dotCls: r.o === 'live' ? 'live' : ''
+      };
+    });
+
+    const stats = [
+      { k: '你的消息', v: '7', c: 'var(--ink-1)' },
+      { k: 'Agent 步数', v: '186', c: 'var(--ink-1)' },
+      { k: '工具调用', v: '142', c: 'var(--ink-1)' },
+      { k: '错误', v: '9', c: 'var(--crit)' },
+      { k: '纠偏', v: '2', c: 'var(--crit)' },
+      { k: '上下文峰值', v: '78%', c: 'var(--ink-1)' },
+      { k: 'Tokens', v: '2.4M', c: 'var(--ink-1)' }
+    ].map((s, i) => ({ k: s.k, v: s.v, c: s.c, bl: i === 0 ? '0' : '1px solid var(--hair)' }));
+
+    // ---- trajectory ----
+    const W = 686, T = 42, k = W / T;
+    const X = (m) => +(m * k).toFixed(1);
+    const laneDefs = [
+      ['关键时刻', 0, 18], ['阶段', 24, 20], ['你', 50, 22], ['Agent 回复', 76, 14], ['读取 / 搜索', 96, 14],
+      ['编辑', 116, 14], ['命令', 136, 18], ['网络', 160, 14], ['子代理', 182, 16], ['上下文', 204, 40], ['情绪', 250, 30]
+    ];
+    const lanes = laneDefs.map(l => ({ name: l[0], top: l[1], h: l[2], sep: l[1] + l[2] + 2 }));
+    const phases = [[0, 6, '探索'], [6, 9, '规划'], [9, 24, '实施'], [24, 36, '部署'], [36, 42, '验证']].map(p => ({ x: X(p[0]) + 1, w: X(p[1]) - X(p[0]) - 2, t: p[2] }));
+    const replies = [[0.3, 0.6], [2.0, 0.8], [3.5, 0.5], [5.6, 1.4], [8.2, 0.9], [12.5, 0.6], [15.4, 1.0], [17.4, 0.8], [23.6, 0.7], [27.0, 0.5], [31.2, 1.0], [35.5, 0.6], [38.1, 0.8], [41.0, 0.6]].map(r => ({ x: X(r[0]), w: Math.max(4, X(r[1])) }));
+    const ticks = [];
+    const spread = (a, b, n, lane, top, h, color) => { for (let i = 0; i < n; i++) { const m = a + (b - a) * ((i + rr() * 0.8) / n); ticks.push({ x: X(m), y: top, w: 2, h: h, c: color }); } };
+    spread(0.5, 6, 26, 'read', 96, 14, 'var(--ink-3)');
+    spread(9, 14, 10, 'read', 96, 14, 'var(--ink-3)');
+    spread(17.5, 19.5, 5, 'read', 96, 14, 'var(--ink-3)');
+    spread(31.4, 32.4, 3, 'read', 96, 14, 'var(--ink-3)');
+    spread(9.2, 23.4, 22, 'edit', 116, 14, 'var(--ink-2)');
+    spread(32.2, 34.4, 4, 'edit', 116, 14, 'var(--ink-2)');
+    spread(1, 5.2, 6, 'bash', 138, 14, 'var(--ink-1)');
+    spread(13, 16.4, 8, 'bash', 138, 14, 'var(--ink-1)');
+    spread(19.2, 23.2, 5, 'bash', 138, 14, 'var(--ink-1)');
+    spread(24.2, 25.8, 4, 'bash', 138, 14, 'var(--ink-1)');
+    spread(32.4, 36, 6, 'bash', 138, 14, 'var(--ink-1)');
+    spread(36.4, 41.2, 5, 'bash', 138, 14, 'var(--ink-1)');
+    spread(4.0, 4.8, 2, 'web', 160, 14, 'var(--ink-3)');
+    spread(36.5, 40.6, 6, 'web', 160, 14, 'var(--ink-3)');
+    [[26.1, 136, 18], [27.4, 136, 18], [28.7, 136, 18], [30.8, 136, 18], [14.9, 136, 18], [34.1, 136, 18], [12.2, 114, 18], [4.9, 94, 18], [37.2, 158, 18]].forEach(e => ticks.push({ x: X(e[0]), y: e[1], w: 3, h: e[2], c: 'var(--crit-m)' }));
+    const sub = { x: X(1.2), w: X(5.8) - X(1.2) };
+
+    const ctxPts = [[0, 6], [3, 14], [6, 24], [9, 30], [14, 41], [18, 47], [23, 58], [28, 66], [33, 78], [33.6, 31], [37, 38], [42, 44]];
+    const cy = (v) => +(40 - v / 100 * 40).toFixed(1);
+    const line = 'M' + ctxPts.map(p => X(p[0]) + ' ' + cy(p[1])).join(' L');
+    const ctx = { line: line, area: line + ' L' + X(42) + ' 40 L0 40 Z', mark: 'M' + X(33.6) + ' -2V40', lx: X(33.6) + 4 };
+
+    const um = [[0.1, 0.3, false], [3.2, 0.1, false], [17.1, -0.6, true], [24.4, 0.2, false], [31.0, -0.4, true], [37.9, 0.3, false], [41.6, 0.7, false]];
+    const my = (v) => +(265 - v * 13).toFixed(1);
+    const users = um.map(u => ({
+      x: X(u[0]), fill: u[2] ? 'var(--surface)' : 'var(--ink-1)', ring: u[2] ? 'inset 0 0 0 2.5px var(--crit-m)' : 'none',
+      my: my(u[1]), mc: u[1] < 0 ? 'var(--crit-m)' : 'var(--ink-2)'
+    }));
+    const mood = { line: 'M' + um.map(u => X(u[0]) + ' ' + (my(u[1]) - 250).toFixed(1)).join(' L') };
+    const moments = [[0.1, '1'], [15.6, '2'], [17.1, '3'], [26.1, '4'], [38.4, '5']].map(m => ({ x: Math.max(9, X(m[0])), n: m[1] }));
+    const play = { x: X(30.8), tx: X(30.8) - 248, mx: X(30.8) + 6 };
+    const xlabels = [[3, '14:05'], [8, '14:10'], [13, '14:15'], [18, '14:20'], [23, '14:25'], [28, '14:30'], [33, '14:35'], [38, '14:40']].map(p => ({ t: p[1], left: X(p[0]) - 20 }));
+
+    const momentList = [
+      { n: '1', t: '14:02', k: '你给出目标', d: '「部署到自定义域名，配 HTTPS，并验证」', bad: false },
+      { n: '2', t: '14:17', k: 'Agent 偏离', d: '选择 Vercel 部署，与项目约定不符', bad: true },
+      { n: '3', t: '14:19', k: '你纠偏', d: '「不要用 Vercel，用 Cloudflare」', bad: true },
+      { n: '4', t: '14:28', k: '连续失败', d: 'wrangler 未登录，同一命令失败 4 次', bad: true },
+      { n: '5', t: '14:40', k: '验证通过', d: '线上 200 · HTTPS 与 www 跳转正常', bad: false }
+    ].map(m => ({ n: m.n, t: m.t, k: m.k, d: m.d, bg: m.bad ? 'var(--surface)' : 'var(--ink-1)', fg: m.bad ? 'var(--crit)' : 'var(--surface)', ring: m.bad ? 'inset 0 0 0 1.5px var(--crit-m)' : 'none' }));
+
+    const spec = [
+      { n: 1, t: '会话列表', d: '按天分组；标题由 AI 依据首条消息与结果生成；行内条码是工具调用密度，红线为失败。' },
+      { n: 2, t: 'Agent 色带', d: '色带颜色即 Agent；显示模型、思考档位与项目路径。「继续」调用对应 CLI 的 resume，需确认。' },
+      { n: 3, t: '指标条', d: '每个数字可点击，在时间轴上依次高亮对应事件，例如 9 个错误。' },
+      { n: 4, t: '泳道时间轴', d: '时间 / 步数两种横轴；⌘ + 滚轮缩放，拖动平移，框选只看一段；泳道可折叠、可拖动排序。' },
+      { n: 5, t: '播放头与悬停', d: '悬停事件显示命令、耗时、退出码；回放按真实节奏 ×8，可拖动播放头。' },
+      { n: 6, t: '关键时刻', d: '规则 + 语义模型自动标出偏离、纠偏、连续失败与验证；点击编号跳转并展开原文。' },
+      { n: 7, t: '上下文与情绪', d: '上下文曲线标出自动压缩；情绪来自你的每条消息，负值点为红色，悬停看原文。' },
+      { n: 8, t: '启示', d: 'AI 给出可执行的规则或 Hook，一键进入 C2 安装流程；「不准确」用于校准分类器。' },
+      { n: 9, t: '对比模式', d: '选中两个会话后切到对比，时间轴上下对齐，差异处高亮。' }
+    ];
+
+    return {
+      theme: dark ? 'dk' : '', marks: marks, ic: ic, items: items, stats: stats, lanes: lanes, phases: phases, replies: replies,
+      ticks: ticks, sub: sub, ctx: ctx, mood: mood, users: users, moments: moments, play: play, xlabels: xlabels,
+      momentList: momentList, spec: spec
+    };
+  }
+}
+</script>
+</body>
+</html>

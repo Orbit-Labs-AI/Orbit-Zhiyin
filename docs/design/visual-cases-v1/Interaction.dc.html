@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>C5 键盘、动效与无障碍</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;
+--bg:#f5f4f0;--surface:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;--ai:#5a3fd0;--focus:#2f6feb;--good:#11843a;
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;
+--bg:#0f1012;--surface:#1a1b1e;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;--ai:#b4a8ff;--focus:#7aa7ff;--good:#4cc97a}
+.tb *{box-sizing:border-box}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.eb{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 11px/1 var(--mono);color:var(--pg-ink)}
+.col h2{margin:0 0 12px;font:600 20px/1.2 var(--serif)}
+.pnl{border-radius:14px;background:var(--pg-panel);border:1px solid var(--pg-line-soft)}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+  <div style="position: absolute; left: 80px; top: 48px; width: 1600px;">
+    <div class="eb">C5 · 键盘 · 动效 · 无障碍</div>
+    <h1 class="serif" style="margin: 8px 0 0; font-size: 36px; line-height: 1.1; font-weight: 600;">只用键盘也能走完全部流程</h1>
+  </div>
+
+  <div class="col" style="position: absolute; left: 80px; top: 136px; width: 600px;">
+    <h2>命令面板 <span class="mono" style="font-size: 13px; color: var(--pg-ink-3); font-weight: 500;">⌘K</span></h2>
+    <div style="border-radius: 14px; background: var(--surface); color: var(--ink-1); box-shadow: 0 18px 44px rgba(20,24,30,.18), 0 0 0 .5px rgba(20,24,30,.16); overflow: hidden;">
+      <div style="height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--hair);">
+        <svg class="ico" style="width: 17px; height: 17px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM20 20l-4.6-4.6"></path></svg>
+        <span style="font-size: 16px;">部署</span><span style="width: 1.5px; height: 18px; background: var(--focus);"></span>
+        <span style="flex: 1;"></span><span class="mono" style="font-size: 11px; color: var(--ink-3);">Esc 关闭</span>
+      </div>
+      <div style="padding: 6px 8px 8px;">
+        <sc-for list="{{ palette }}" as="p" hint-placeholder-count="8">
+          <sc-if value="{{ p.isHead }}" hint-placeholder-val="{{ false }}"><div style="font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 8px 10px 4px;">{{ p.head }}</div></sc-if>
+          <sc-if value="{{ p.isRow }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; background: {{ p.bg }};">
+              <svg class="ico" style="width: 15px; height: 15px; color: var(--ink-2);" viewBox="0 0 24 24"><path d="{{ p.icon }}"></path></svg>
+              <span style="flex: 1; font-size: 13px; color: var(--ink-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.t }}</span>
+              <span class="mono" style="font-size: 11px; color: var(--ink-3);">{{ p.k }}</span>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+      <div style="height: 34px; display: flex; align-items: center; gap: 14px; padding: 0 16px; border-top: 1px solid var(--hair); font-size: 11.5px; color: var(--ink-3);"><span>↑↓ 选择</span><span>↩ 打开</span><span>⌘↩ 新窗口</span><span>⇥ 切换分组</span></div>
+    </div>
+    <div class="pnl" style="margin-top: 18px; padding: 14px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px;">
+      <sc-for list="{{ keys }}" as="k" hint-placeholder-count="14">
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--pg-ink-2);"><span style="display: inline-flex; min-width: 74px;"><b class="kbd" style="letter-spacing: 0.12em;">{{ k.ks }}</b></span><span>{{ k.t }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="col" style="position: absolute; left: 720px; top: 136px; width: 600px;">
+    <h2>动效</h2>
+    <div class="pnl" style="padding: 14px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+      <sc-for list="{{ curves }}" as="c" hint-placeholder-count="3">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <svg width="170" height="120" viewBox="0 0 170 120" aria-hidden="true" style="background: var(--surface); border-radius: 10px; border: 1px solid var(--line);">
+            <path d="M10 110H160M10 110V10" style="fill: none; stroke: var(--line); stroke-width: 1;"></path>
+            <path d="M10 20H160" style="fill: none; stroke: var(--hair); stroke-width: 1;"></path>
+            <path d="{{ c.d }}" style="fill: none; stroke: var(--ink-1); stroke-width: 2; stroke-linecap: round;"></path>
+          </svg>
+          <span style="font-size: 13px; font-weight: 600;">{{ c.t }}</span>
+          <span class="mono" style="font-size: 10.5px; color: var(--pg-ink-3);">{{ c.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div class="pnl" style="margin-top: 14px; padding: 6px 16px;">
+      <sc-for list="{{ motion }}" as="m" hint-placeholder-count="7">
+        <div style="display: grid; grid-template-columns: 128px 86px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--pg-line-soft); font-size: 12.5px; align-items: baseline;">
+          <span style="font-weight: 600;">{{ m.k }}</span><span class="mono" style="color: var(--pg-ink);">{{ m.d }}</span><span class="mono" style="font-size: 11.5px; color: var(--pg-ink-2);">{{ m.e }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+      <sc-for list="{{ rules }}" as="r" hint-placeholder-count="3">
+        <div style="display: flex; gap: 10px; font-size: 13px; line-height: 1.55;"><span class="mono" style="font-weight: 700; color: var(--pg-ink-3);">{{ r.n }}</span><span><b>{{ r.t }}</b> <span style="color: var(--pg-ink-2);">{{ r.d }}</span></span></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="col" style="position: absolute; left: 1360px; top: 136px; width: 600px;">
+    <h2>无障碍</h2>
+    <div class="pnl" style="padding: 6px 16px;">
+      <sc-for list="{{ a11y }}" as="a" hint-placeholder-count="8">
+        <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--pg-line-soft);">
+          <svg class="ico" style="width: 18px; height: 18px; margin-top: 1px;" viewBox="0 0 24 24"><path d="{{ a.icon }}"></path></svg>
+          <div><div style="font-size: 13px; font-weight: 600;">{{ a.t }}</div><div style="font-size: 12.5px; line-height: 1.55; color: var(--pg-ink-2);">{{ a.d }}</div></div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top: 14px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--pg-panel); border: 1px solid var(--pg-line-soft);">
+      <span style="display: inline-flex; gap: 2px;"><span style="width: 18px; height: 18px; border-radius: 4px; background: #e2602b;"></span><span style="width: 18px; height: 18px; border-radius: 4px; background: #2a78d6;"></span><span style="width: 18px; height: 18px; border-radius: 4px; background: #009f6b;"></span><span style="width: 18px; height: 18px; border-radius: 4px; background: #c27800;"></span><span style="width: 18px; height: 18px; border-radius: 4px; background: #d0658f;"></span></span>
+      <span style="font-size: 12px; line-height: 1.5; color: var(--pg-ink-2);">Agent 五色已用色觉校验脚本验证：相邻色 CVD ΔE 最差 9.2（浅）/ 8.4（深），均 ≥ 8；正常视觉 ≥ 16；对表面对比 ≥ 3:1。</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const I = {
+      act: 'M3 12h4l3-7 4 14 3-7h4',
+      filter: 'M4 5h16l-6.2 7.6V19l-3.6 1.8v-8.2z',
+      rule: 'M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8zM14 3v5h5M8.5 13h7M8.5 16.5h5',
+      sync: 'M20 11a8 8 0 0 0-14.6-4.4M4 4v3.6h3.6M4 13a8 8 0 0 0 14.6 4.4M20 20v-3.6h-3.6',
+      share: 'M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7'
+    };
+    const P = [
+      { head: '会话' },
+      { icon: I.act, t: '部署 Confluo 演示到自定义域名并验证', k: '9/30 · Claude Code', sel: true },
+      { icon: I.filter, t: '筛选：标题含「部署」的 9 个会话', k: '筛选' },
+      { head: '建议' },
+      { icon: I.rule, t: '在 AGENTS.md 写明部署目标与禁用平台', k: 'L1' },
+      { head: '操作' },
+      { icon: I.sync, t: '重新索引全部数据源', k: '⌘R' },
+      { icon: I.share, t: '导出本月协作报告', k: '⌘⇧E' }
+    ];
+    const palette = P.map(p => p.head
+      ? { isHead: true, isRow: false, head: p.head, icon: '', t: '', k: '', bg: 'transparent' }
+      : { isHead: false, isRow: true, head: '', icon: p.icon, t: p.t, k: p.k, bg: p.sel ? 'var(--sunken)' : 'transparent' });
+    const K = [
+      [['⌃', '⌥', 'T'], '菜单栏面板（全局）'], [['⌥', '⌘', 'P'], '悬浮组件（全局）'],
+      [['⌘', '1–9'], '切换页面'], [['⌘', 'K'], '命令面板'],
+      [['⌘', 'F'], '页内搜索'], [['⌘', 'R'], '重新索引'],
+      [['Space'], '快速预览 / 回放'], [['⌘', '↩'], '当前页主操作'],
+      [['⌘', 'Z'], '撤销最近一次安装'], [['⌘', 'T'], '图表 ↔ 表格'],
+      [['⌘', '['], '后退'], [['⌘', ','], '设置'],
+      [['⌘', '⇧', 'S'], '导出分享卡'], [['?'], '本页快捷键']
+    ];
+    const keys = K.map(k => ({ ks: k[0].join(''), t: k[1] }));
+    const bez = (x1, y1, x2, y2) => {
+      const X = (v) => (10 + v * 150).toFixed(1), Y = (v) => (110 - v * 90).toFixed(1);
+      return 'M' + X(0) + ' ' + Y(0) + ' C' + X(x1) + ' ' + Y(y1) + ' ' + X(x2) + ' ' + Y(y2) + ' ' + X(1) + ' ' + Y(1);
+    };
+    let spring = 'M10 110';
+    for (let i = 1; i <= 60; i++) {
+      const t = i / 60;
+      const v = 1 - Math.exp(-6 * t) * Math.cos(9 * t);
+      spring += ' L' + (10 + t * 150).toFixed(1) + ' ' + (110 - v * 90).toFixed(1);
+    }
+    const curves = [
+      { t: '进入', v: 'cubic-bezier(.05,.7,.1,1)', d: bez(0.05, 0.7, 0.1, 1) },
+      { t: '退出', v: 'cubic-bezier(.3,0,.8,.15)', d: bez(0.3, 0, 0.8, 0.15) },
+      { t: '展开', v: 'spring 300 / 30', d: spring }
+    ];
+    const motion = [
+      ['进入 / 出现', '150 ms', 'cubic-bezier(0.05, 0.7, 0.1, 1)'],
+      ['退出 / 消失', '100 ms', 'cubic-bezier(0.3, 0, 0.8, 0.15)'],
+      ['悬浮组件展开', '220 ms', 'spring 刚度 300 · 阻尼 30'],
+      ['图表数据更新', '200 ms', '交叉淡入，不做形变动画'],
+      ['页面切换', '120 ms', '只淡入，不位移'],
+      ['Toast', '150 / 100 ms', '停留 10 s，可撤销'],
+      ['人格揭晓', '3.0 s', '编排见 P3，可跳过']
+    ].map(m => ({ k: m[0], d: m[1], e: m[2] }));
+    const rules = [
+      { n: '01', t: '只解释变化来源。', d: '动效回答「这个东西从哪来」，不做装饰性的循环动画（运行中的脉冲点除外）。' },
+      { n: '02', t: '数据不弹跳。', d: '数值更新用淡入而不是滚动计数，避免误读。' },
+      { n: '03', t: '尊重系统设置。', d: '开启「减弱动态效果」后，一律改为不透明度过渡，揭晓动画直接显示终帧。' }
+    ];
+    const a11y = [
+      { icon: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3', t: '每张图都有文字与表格', d: '图表带一句摘要供 VoiceOver 朗读，⌘T 切换到等价表格；悬停信息键盘聚焦同样可见。' },
+      { icon: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 3v18', t: '不只靠颜色', d: 'Agent 色旁总有名称；状态同时用图标、形状与文字表达；难度用刻度而非色彩。' },
+      { icon: 'M4 6h16M4 12h10M4 18h6', t: '对比度', d: '正文与说明文字 ≥ 4.5:1（说明灰 #62666f 在白底为 5.7:1），大号数字 ≥ 3:1。' },
+      { icon: 'M3 5h18v14H3zM7 9h10v6H7z', t: '焦点与键盘', d: '所有操作可键盘完成；焦点环 2 pt、偏移 2 pt，使用 focus 色，不被裁切。' },
+      { icon: 'M9 3h6v6H9zM4 15h6v6H4zM14 15h6v6h-6z', t: '指针目标', d: '最小 24 × 24 pt；常用按钮高 28 pt；悬浮组件按钮 28 pt，适合触控板。' },
+      { icon: 'M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5c-4.3-1.2-7.5-4.9-7.5-9.5V6z', t: '减少透明度', d: '开启后菜单栏面板、悬浮组件与侧边栏改为不透明底色。' },
+      { icon: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 3a9 9 0 0 1 0 18z', t: '增强对比度', d: '卡片描边改用 ink-3，悬停与选中状态各加深一级。' },
+      { icon: 'M4 7h16M4 12h16M4 17h10', t: '语言与格式', d: '中文为主、英文术语保留原文；数字与单位之间留空格；日期按系统区域格式。' }
+    ];
+    return { theme: dark ? 'dk' : '', palette: palette, keys: keys, curves: curves, motion: motion, rules: rules, a11y: a11y };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A5 项目习惯</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&amp;family=Noto+Serif+SC:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.tb{--pg-bg:#e7e9ec;--pg-dot:rgba(21,23,27,.075);--pg-panel:#fbfbfc;--pg-panel-2:#f1f3f5;--pg-ink:#15171b;--pg-ink-2:#42464e;--pg-ink-3:#5b606a;--pg-line:#c9ced5;--pg-line-soft:#dde1e6;--pg-mark:#23272e;--pg-mark-ink:#fbfbfc;--pg-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 48px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.08);--win-ring:rgba(0,0,0,.06);
+--bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#ffffff;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--ser-m:#ec835a;--crit-m:#d03b3b;
+--pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.16),0 0 0 1px rgba(20,24,30,.07);
+--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;--serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;--mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--pg-ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.tb.dk{--pg-bg:#0d0f11;--pg-dot:rgba(255,255,255,.05);--pg-panel:#16181b;--pg-panel-2:#1c1f23;--pg-ink:#e9eaec;--pg-ink-2:#b6bac1;--pg-ink-3:#8f949c;--pg-line:#2b2e33;--pg-line-soft:#23262a;--pg-mark:#e9eaec;--pg-mark-ink:#16181b;--pg-shadow:0 1px 2px rgba(0,0,0,.4),0 22px 48px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);--win-ring:rgba(255,255,255,.08);
+--bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#222326;--sunken:#141517;--line:#2d2f34;--hair:#232529;--ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
+--ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
+--pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
+--sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)}
+.tb *{box-sizing:border-box}
+.tb button,.tb input,.tb textarea{font:inherit;color:inherit;margin:0}
+.win{position:absolute;overflow:hidden;border-radius:14px;background:var(--bg);color:var(--ink-1);box-shadow:var(--pg-shadow)}
+.win::after{content:"";position:absolute;inset:0;border-radius:14px;box-shadow:inset 0 0 0 1px var(--win-ring);pointer-events:none;z-index:50}
+.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cap{font-size:12px;line-height:16px;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--serif)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card)}
+.ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
+.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;cursor:default;box-shadow:0 1px 1px rgba(20,22,26,.03)}
+.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;cursor:default;padding:0}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;cursor:default;display:inline-flex;align-items:center;gap:4px}
+.seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
+.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--pg-line);border-bottom-width:2px;border-radius:5px;background:var(--pg-panel);font:600 10.5px/1 var(--mono);color:var(--pg-ink)}
+.mk{position:absolute;z-index:45;width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--pg-panel),0 2px 6px rgba(0,0,0,.18);pointer-events:none}
+.tip{position:absolute;z-index:25;background:var(--tip);color:var(--tip-ink);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0;cursor:default}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on::after{left:14px}
+.lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.spec{position:absolute;background:var(--pg-panel);border:1px solid var(--pg-line-soft);border-radius:14px;color:var(--pg-ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.spec .eb2{font:600 11px/16px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec h2{margin:6px 0 0;font:600 28px/1.15 var(--serif);letter-spacing:-.01em;color:var(--pg-ink)}
+.spec h2 i{font-weight:400;font-size:20px;color:var(--pg-ink-3)}
+.spec .lead{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .sec{border-top:1px solid var(--pg-line-soft);padding-top:12px}
+.spec .sec h3{margin:0 0 8px;font:600 11px/16px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--pg-ink-3)}
+.spec ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.spec li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+.spec li b.n{width:22px;height:22px;border-radius:50%;background:var(--pg-mark);color:var(--pg-mark-ink);font:700 11px/22px var(--mono);text-align:center}
+.spec li .t{font-size:13px;font-weight:600;line-height:18px;color:var(--pg-ink)}
+.spec li .d{font-size:12px;line-height:1.55;color:var(--pg-ink-2);margin-top:1px}
+.spec .p2{margin:0;font-size:12px;line-height:1.6;color:var(--pg-ink-2)}
+.spec .keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--pg-ink-2)}
+.spec .keys span{display:inline-flex;align-items:center;gap:5px}
+</style>
+</helmet>
+<div class="tb {{ theme }}" style="position: relative; width: 2040px; height: 1000px; background-color: var(--pg-bg); background-image: radial-gradient(var(--pg-dot) 1px, transparent 1.3px); background-size: 16px 16px; overflow: hidden;">
+
+  <div class="win" style="left: 40px; top: 50px; width: 1440px; height: 900px;">
+    <div style="position: absolute; left: 8px; top: 8px; width: 236px; height: 884px;">
+      <dc-import name="Sidebar" active="projects" hint-size="236px,884px"></dc-import>
+    </div>
+
+    <div style="position: absolute; left: 252px; top: 0; width: 1188px; height: 900px; padding: 0 24px 0 16px; display: flex; flex-direction: column;">
+      <div style="height: 58px; flex: none; display: flex; align-items: center; gap: 10px;">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px;">
+          <h1 class="serif" style="margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em;">项目习惯</h1>
+          <span class="mono" style="font-size: 11.5px; color: var(--ink-3);">9 个项目 · 142 小时 · 按协作时长排序</span>
+        </div>
+        <button type="button" class="btn">对比两个项目</button>
+        <button type="button" class="btn ai"><svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>为此项目起草规则</button>
+      </div>
+      <div style="height: 32px; flex: none; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; position: relative;">
+        <div class="seg" role="group" aria-label="时间范围"><button type="button" aria-pressed="false">7 天</button><button type="button" class="on" aria-pressed="true">30 天</button><button type="button" aria-pressed="false">90 天</button><button type="button" aria-pressed="false">全部</button></div>
+        <button type="button" class="chip">Agent · 全部 5<svg class="ico" style="width: 12px; height: 12px; color: var(--ink-3);" viewBox="0 0 24 24"><path d="{{ ic.chev }}"></path></svg></button>
+        <span style="width: 1px; height: 18px; background: var(--line); margin: 0 4px;"></span>
+        <span class="cap">聚合</span>
+        <div class="seg" role="group" aria-label="聚合方式" style="position: relative;"><button type="button" class="on" aria-pressed="true">按项目</button><button type="button" aria-pressed="false">按文件夹</button>
+          <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -13px;">1</span></sc-if>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-height: 0; padding-bottom: 20px; display: grid; grid-template-columns: 470px minmax(0, 1fr); gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 12px; min-height: 0;">
+          <div class="card" style="flex: none; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 6px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">2</span></sc-if>
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 42px 42px 92px 50px; gap: 10px; align-items: center; height: 22px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--ink-3);">
+              <span>项目</span><span style="text-align: right;">会话</span><span style="text-align: right;">时长 ↓</span><span>Agent 构成</span><span style="text-align: right;">此处人格</span>
+            </div>
+            <div style="display: flex; flex-direction: column;">
+              <sc-for list="{{ projects }}" as="p" hint-placeholder-count="9">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 42px 42px 92px 50px; gap: 10px; align-items: center; height: 42px; padding: 0 6px; margin: 0 -6px; border-radius: 7px; background: {{ p.bg }}; box-shadow: {{ p.ring }};">
+                  <div style="min-width: 0; display: flex; flex-direction: column;">
+                    <span style="font-size: 12.5px; font-weight: 600; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.name }}</span>
+                    <span class="mono" style="font-size: 10.5px; line-height: 14px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.path }}</span>
+                  </div>
+                  <span class="mono" style="font-size: 11.5px; text-align: right;">{{ p.s }}</span>
+                  <span class="mono" style="font-size: 11.5px; text-align: right;">{{ p.h }}h</span>
+                  <div style="display: flex; height: 8px; gap: 1px; border-radius: 2px; overflow: hidden;">
+                    <div style="width: {{ p.m0 }}%; background: var(--a1);"></div><div style="width: {{ p.m1 }}%; background: var(--a2);"></div><div style="width: {{ p.m2 }}%; background: var(--a3);"></div><div style="width: {{ p.m3 }}%; background: var(--a4);"></div><div style="width: {{ p.m4 }}%; background: var(--a5);"></div>
+                  </div>
+                  <span class="mono" style="font-size: 11.5px; text-align: right; font-weight: {{ p.tw }}; color: {{ p.tc }}; letter-spacing: 0.04em;">{{ p.type }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div class="card" style="flex: 1; min-height: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">3</span></sc-if>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="ct">跨项目对比</span><span class="cap">面积 = 时长 · 灰线为线性拟合（r = 0.91，n = 8）</span></div>
+            <div style="position: relative; flex: 1; min-height: 0;">
+              <sc-for list="{{ gx }}" as="g" hint-placeholder-count="5">
+                <div style="position: absolute; top: 4px; bottom: 22px; left: {{ g.x }}px; width: 1px; background: var(--hair);"></div>
+                <span class="mono" style="position: absolute; bottom: 6px; left: {{ g.lx }}px; width: 30px; text-align: center; font-size: 10px; color: var(--ink-3);">{{ g.t }}</span>
+              </sc-for>
+              <sc-for list="{{ gy }}" as="g" hint-placeholder-count="4">
+                <div style="position: absolute; left: 30px; right: 4px; top: {{ g.y }}px; height: 1px; background: var(--hair);"></div>
+                <span class="mono" style="position: absolute; left: 0; width: 24px; text-align: right; top: {{ g.ly }}px; font-size: 10px; line-height: 12px; color: var(--ink-3);">{{ g.t }}</span>
+              </sc-for>
+              <svg width="410" height="260" viewBox="0 0 410 260" aria-hidden="true" style="position: absolute; left: 30px; top: 4px; overflow: visible;">
+                <path d="{{ trend }}" style="fill: none; stroke: var(--h2); stroke-width: 1.5; stroke-linecap: round;"></path>
+              </svg>
+              <sc-for list="{{ bubbles }}" as="b" hint-placeholder-count="8">
+                <div style="position: absolute; left: {{ b.x }}px; top: {{ b.y }}px; width: {{ b.d }}px; height: {{ b.d }}px; margin: {{ b.m }}; border-radius: 50%; background: {{ b.fill }}; box-shadow: 0 0 0 2px var(--surface), inset 0 0 0 1.5px {{ b.stroke }};"></div>
+                <span style="position: absolute; left: {{ b.lx }}px; top: {{ b.ly }}px; font-size: 11px; line-height: 14px; color: {{ b.lc }}; font-weight: {{ b.lw }}; white-space: nowrap;">{{ b.name }}</span>
+              </sc-for>
+              <span style="position: absolute; right: 4px; bottom: 22px; font-size: 10.5px; color: var(--ink-3);">自主比 →</span>
+              <span style="position: absolute; left: 30px; top: 4px; font-size: 10.5px; color: var(--ink-3); background: var(--surface); padding-right: 4px;">↑ 摩擦率</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+          <div class="card" style="height: 118px; flex: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">4</span></sc-if>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="width: 36px; height: 36px; border-radius: 9px; background: var(--sunken); display: grid; place-items: center; flex: none;"><svg class="ico" style="width: 18px; height: 18px;" viewBox="0 0 24 24"><path d="{{ ic.folder }}"></path></svg></span>
+              <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: baseline; gap: 10px;"><h2 class="serif" style="margin: 0; font-size: 22px; line-height: 26px; font-weight: 600;">latentskill</h2><span class="mono" style="font-size: 11.5px; color: var(--ink-3);">~/Research/ppb · git: PbX8217/latentskill</span></div>
+                <div style="display: flex; gap: 6px; margin-top: 4px;"><span class="tag">Python</span><span class="tag">LaTeX</span><span class="tag">论文审阅</span><span class="tag">数据管线</span></div>
+              </div>
+              <button type="button" class="btn">在 Finder 中显示</button>
+              <button type="button" class="btn">打开 AGENTS.md</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); padding: 7px 10px; border-radius: 8px; background: var(--sunken);">
+              <svg class="ico" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="{{ ic.persona }}"></path></svg>
+              在这个项目里你是 <b class="mono" style="color: var(--ink-1); letter-spacing: 0.04em;">SPFV</b><b style="color: var(--ink-1);">工匠</b>：亲自掌舵、先规划、单线专注、严格求证（整体为 <span class="mono">DIMV</span> 指挥家）
+            </div>
+          </div>
+
+          <div style="height: 236px; flex: none; display: grid; grid-template-columns: minmax(0, 1fr) 262px; gap: 12px;">
+            <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">5</span></sc-if>
+              <div style="display: flex; align-items: center; justify-content: space-between;"><span class="ct">此项目 vs 你的整体</span>
+                <span style="display: inline-flex; gap: 12px; font-size: 11px; color: var(--ink-3);"><span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 8px; border-radius: 2px; background: var(--ink-1);"></span>latentskill</span><span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 8px; border-radius: 2px; background: var(--h2);"></span>整体</span></span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <sc-for list="{{ cmp }}" as="c" hint-placeholder-count="6">
+                  <div style="display: grid; grid-template-columns: 92px minmax(0, 1fr) 96px; gap: 10px; align-items: center;">
+                    <span style="font-size: 12px; color: var(--ink-2); white-space: nowrap;">{{ c.k }}</span>
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                      <div style="height: 7px; width: {{ c.a }}%; border-radius: 0 3px 3px 0; background: var(--ink-1);"></div>
+                      <div style="height: 7px; width: {{ c.b }}%; border-radius: 0 3px 3px 0; background: var(--h2);"></div>
+                    </div>
+                    <span class="mono" style="font-size: 11px; text-align: right; color: var(--ink-2); white-space: nowrap;"><b style="color: var(--ink-1);">{{ c.av }}</b> / {{ c.bv }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div class="card" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">8</span></sc-if>
+              <span class="ct">Agent 分工</span>
+              <div style="display: flex; height: 12px; gap: 2px; border-radius: 3px; overflow: hidden;">
+                <div style="width: 71%; background: var(--a1);"></div><div style="width: 19%; background: var(--a2);"></div><div style="width: 6%; background: var(--a3);"></div><div style="width: 4%; background: var(--a4);"></div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 2px;">
+                <sc-for list="{{ split }}" as="s" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.4;">
+                    <span style="width: 10px; height: 10px; border-radius: 2px; margin-top: 3px; flex: none; background: {{ s.c }};"></span>
+                    <span style="flex: 1; color: var(--ink-2);"><b style="color: var(--ink-1); font-weight: 600;">{{ s.name }}</b> {{ s.job }}</span>
+                    <span class="mono" style="font-size: 11.5px;">{{ s.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="height: 150px; flex: none; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">6</span></sc-if>
+            <div style="display: flex; align-items: baseline; gap: 10px;"><span class="ct">识别到的工作流</span><span class="cap">出现在 19 / 31 个会话 · 支持度 61%</span></div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <sc-for list="{{ flow }}" as="f" hint-placeholder-count="5">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); display: flex; flex-direction: column; justify-content: center;">
+                    <span style="font-size: 12.5px; font-weight: 600; line-height: 16px; white-space: nowrap;">{{ f.t }}</span>
+                    <span class="mono" style="font-size: 10px; line-height: 13px; color: var(--ink-3); white-space: nowrap;">{{ f.s }}</span>
+                  </div>
+                  <sc-if value="{{ f.arrow }}" hint-placeholder-val="{{ true }}"><svg class="ico" style="width: 14px; height: 14px; color: var(--ink-4);" viewBox="0 0 24 24"><path d="{{ ic.arrow }}"></path></svg></sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: auto;">
+              <span style="flex: 1; font-size: 12px; color: var(--ink-2);">固定成一个 Skill 后，每次审稿可少说约 4 条指令。</span>
+              <button type="button" class="btn sm ai"><svg class="ico" style="width: 12px; height: 12px;" viewBox="0 0 24 24"><path d="{{ ic.spark }}"></path></svg>封装为 Skill</button>
+            </div>
+          </div>
+
+          <div class="card" style="flex: 1; min-height: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;">
+            <sc-if value="{{ marks }}" hint-placeholder-val="{{ true }}"><span class="mk" style="left: -11px; top: -11px;">7</span></sc-if>
+            <div style="display: flex; align-items: baseline; gap: 10px;"><span class="ct">规则与配置覆盖</span><span class="cap">扫描 AGENTS.md、.claude、.codex、.gemini</span></div>
+            <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;">
+              <sc-for list="{{ cover }}" as="c" hint-placeholder-count="5">
+                <div style="border-radius: 9px; border: 1px solid var(--line); padding: 8px 10px; display: flex; flex-direction: column; gap: 3px;">
+                  <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;"><svg class="ico" style="width: 13px; height: 13px; color: {{ c.c }};" viewBox="0 0 24 24"><path d="{{ c.i }}"></path></svg>{{ c.k }}</span>
+                  <span class="mono" style="font-size: 16px; line-height: 20px; font-weight: 600;">{{ c.v }}</span>
+                  <span style="font-size: 11px; line-height: 14px; color: var(--ink-3);">{{ c.d }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 7px 10px; border-radius: 8px; background: var(--sunken);">
+              <svg class="ico" style="width: 15px; height: 15px; color: var(--ai);" viewBox="0 0 24 24"><path d="{{ ic.bolt }}"></path></svg>
+              <span style="flex: 1; font-size: 12px; color: var(--ink-2);">建议：添加「改动 .tex 后自动编译并检查页数」的 PostToolUse Hook</span>
+              <button type="button" class="btn sm">查看建议</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="spec" style="left: 1520px; top: 50px; width: 480px; height: 900px;">
+    <div>
+      <div class="eb2">A5 · 主窗口 · ⌘5</div>
+      <h2>项目习惯 <i>Projects</i></h2>
+      <p class="lead">同一个人在不同项目里是不同的协作者，按项目看习惯、分工与规则缺口。</p>
+    </div>
+    <div class="sec">
+      <h3>交互要点</h3>
+      <ol>
+        <sc-for list="{{ spec }}" as="s" hint-placeholder-count="8">
+          <li><b class="n">{{ s.n }}</b><div><div class="t">{{ s.t }}</div><div class="d">{{ s.d }}</div></div></li>
+        </sc-for>
+      </ol>
+    </div>
+    <div class="sec">
+      <h3>状态与边界</h3>
+      <p class="p2">项目移动或重命名后按 git remote 自动续接历史；没有 git 的文件夹以路径为准，可手动合并或拆分。</p>
+    </div>
+    <div class="sec" style="margin-top: auto;">
+      <h3>快捷键</h3>
+      <div class="keys">
+        <span><b class="kbd">⌘</b><b class="kbd">5</b>项目习惯</span>
+        <span><b class="kbd">⌘</b><b class="kbd">D</b>对比项目</span>
+        <span><b class="kbd">⌘</b><b class="kbd">⇧</b><b class="kbd">R</b>在 Finder 中显示</span>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"外观"},"marks":{"editor":"boolean","default":true,"section":"标注"},"$preview":{"width":2040,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const marks = this.props.marks ?? true;
+    const ic = {
+      spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+      chev: 'M6 9l6 6 6-6',
+      arrow: 'M5 12h14M13 6l6 6-6 6',
+      folder: 'M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z',
+      persona: 'M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 15c1.5 1.3 4.5 1.3 6 0M9 10h.01M15 10h.01',
+      bolt: 'M13 3L5 13.5h6.5L10.5 21 19 10.5h-6.5z',
+      okc: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12.5l2.7 2.7L16 10',
+      minus: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12h8'
+    };
+    const P = [
+      ['latentskill', '~/Research/ppb', 31, 34, [71, 19, 6, 4, 0], 'SPFV', true],
+      ['Confluo', '~/Projects/ActionMesh AI/Confluo', 38, 31, [82, 10, 4, 0, 4], 'DIMV', false],
+      ['Auto Finance & Quant', '~/Projects/Auto Finance & Quant', 18, 16, [44, 38, 0, 8, 10], 'SIFV', false],
+      ['Hackathon', '~/Projects/ActionMesh AI/Hackathon', 22, 14, [68, 18, 9, 0, 5], 'DIMV', false],
+      ['FHGS Website', '~/Projects/FHGS Website', 16, 13, [58, 30, 0, 6, 6], 'DIFV', false],
+      ['team-hub', '~/Projects/ActionMesh AI/team-hub', 24, 12, [52, 40, 0, 8, 0], 'DPMV', false],
+      ['Surge 规则', '~/.config/surge', 14, 9, [36, 50, 14, 0, 0], 'DIMT', false],
+      ['其他 3 个文件夹', '~/Research · ~/Downloads …', 14, 8, [40, 20, 20, 20, 0], '—', false],
+      ['Tweet Card', '~/Projects/Tweet Card', 9, 5, [33, 44, 0, 0, 23], 'SIFT', false]
+    ];
+    const projects = P.map(p => ({
+      name: p[0], path: p[1], s: p[2], h: p[3], m0: p[4][0], m1: p[4][1], m2: p[4][2], m3: p[4][3], m4: p[4][4], type: p[5],
+      tw: p[5] !== 'DIMV' && p[5] !== '—' ? '700' : '500', tc: p[5] !== 'DIMV' && p[5] !== '—' ? 'var(--ink-1)' : 'var(--ink-3)',
+      bg: p[6] ? 'var(--bg)' : 'transparent', ring: p[6] ? 'inset 0 0 0 1.5px var(--ink-1)' : 'none'
+    }));
+
+    const sx = (v) => 30 + v / 20 * 400;
+    const sy = (v) => 4 + (1 - v / 15) * 250;
+    // name, autonomy, friction %, hours, label placement
+    const B = [
+      ['Confluo', 12.4, 10.2, 31, 'lu'], ['latentskill', 6.1, 5.1, 34, 'l'], ['team-hub', 9.8, 6.4, 12, 'b'],
+      ['Hackathon', 13.5, 9.1, 14, 'r'], ['Auto Finance & Quant', 8.2, 7.4, 16, 'll'], ['FHGS Website', 11.1, 8.0, 13, 'rd'],
+      ['Surge 规则', 15.2, 12.6, 9, 'r'], ['Tweet Card', 7.4, 3.2, 5, 'l']
+    ];
+    const bubbles = B.map(b => {
+      const r = 4 + Math.sqrt(b[3]) * 2.1, x = sx(b[1]), y = sy(b[2]);
+      const sel = b[0] === 'latentskill';
+      const w = b[0].length * 6.6 + 4;
+      const pos = {
+        r: [x + r + 4, y - 7], rd: [x + r + 4, y + 2], l: [x - r - 4 - w, y - 7], ll: [x - r - 4 - w, y - 14],
+        lu: [x - r - 4 - w, y - r - 6], b: [x - 24, y + r + 3]
+      }[b[4]];
+      return {
+        name: b[0], x: x.toFixed(1), y: y.toFixed(1), d: (2 * r).toFixed(1), m: (-r).toFixed(1) + 'px 0 0 ' + (-r).toFixed(1) + 'px',
+        fill: sel ? 'var(--ink-1)' : 'var(--h1)', stroke: sel ? 'var(--ink-1)' : 'var(--h3)',
+        lx: pos[0].toFixed(1), ly: pos[1].toFixed(1),
+        lc: sel ? 'var(--ink-1)' : 'var(--ink-2)', lw: sel ? '700' : '400'
+      };
+    });
+    const gx = [0, 5, 10, 15, 20].map(v => ({ x: sx(v).toFixed(1), lx: (sx(v) - 15).toFixed(1), t: v + '×' }));
+    const gy = [0, 5, 10, 15].map(v => ({ y: sy(v).toFixed(1), ly: (sy(v) - 6).toFixed(1), t: v + '%' }));
+    // least-squares fit over the 8 sample points: friction = 0.848 x autonomy - 1.119 (r = 0.91)
+    const fit = (x) => 0.848 * x - 1.119;
+    const trend = 'M' + (sx(5) - 30).toFixed(1) + ' ' + (sy(fit(5)) - 4).toFixed(1) + ' L' + (sx(16.5) - 30).toFixed(1) + ' ' + (sy(fit(16.5)) - 4).toFixed(1);
+
+    const cmpDefs = [
+      ['平均会话时长', 66, 46, '66m', '46m', 70],
+      ['每会话消息', 11.2, 6.9, '11.2', '6.9', 12],
+      ['自主比', 6.1, 11.8, '6.1×', '11.8×', 12],
+      ['要求验证', 84, 61, '84%', '61%', 100],
+      ['摩擦率', 5.1, 8.6, '5.1%', '8.6%', 10],
+      ['并行会话', 0.2, 1.4, '0.2', '1.4', 1.5]
+    ];
+    const cmp = cmpDefs.map(c => ({ k: c[0], a: (c[1] / c[5] * 100).toFixed(1), b: (c[2] / c[5] * 100).toFixed(1), av: c[3], bv: c[4] }));
+    const split = [
+      { name: 'Claude Code', job: '审稿、LaTeX 修改', v: '71%', c: 'var(--a1)' },
+      { name: 'Codex', job: '代码与论文一致性核对', v: '19%', c: 'var(--a2)' },
+      { name: 'Gemini CLI', job: '文献检索', v: '6%', c: 'var(--a3)' },
+      { name: 'DeepSeek', job: '采集任务监控', v: '4%', c: 'var(--a4)' }
+    ];
+    const flow = [['只读审查', 'Read ×24'], ['归档快照', 'cp → archive/'], ['最小修改', 'Edit ×6'], ['重新编译', 'latexmk'], ['页数检查', '≤ 9 页']].map((f, i, a) => ({ t: f[0], s: f[1], arrow: i < a.length - 1 }));
+    const cover = [
+      { k: 'AGENTS.md', v: '3.2 KB', d: '9/28 更新', i: ic.okc, c: 'var(--good)' },
+      { k: 'Hooks', v: '1', d: '禁止删 .bib', i: ic.okc, c: 'var(--good)' },
+      { k: 'Skills', v: '0', d: '可封装审稿流程', i: ic.minus, c: 'var(--ink-4)' },
+      { k: 'MCP', v: '0', d: '无需', i: ic.minus, c: 'var(--ink-4)' },
+      { k: '子代理', v: '0', d: '可加引用核查员', i: ic.minus, c: 'var(--ink-4)' }
+    ];
+
+    const spec = [
+      { n: 1, t: '聚合方式', d: '按项目时以 git 根目录归并子文件夹；按文件夹保留原始路径。项目可手动合并、重命名。' },
+      { n: 2, t: '项目表', d: '可按时长、会话、摩擦排序；Agent 构成悬停看占比；「此处人格」与整体不同时加粗。' },
+      { n: 3, t: '跨项目散点', d: 'x = 自主比，y = 摩擦率，面积 = 时长；悬停看数值，框选多个项目进入对比。' },
+      { n: 4, t: '项目头部', d: '直说本项目人格与整体的差异；「打开 AGENTS.md」交给默认编辑器，应用内不改写文件。' },
+      { n: 5, t: '此项目 vs 整体', d: '成对条形：深色本项目、浅色整体；差异超过 30% 的指标在悬停时给出解释。' },
+      { n: 6, t: '识别到的工作流', d: '从会话挖掘高频动作序列（支持度 ≥ 40%），可交给生成工坊封装为 Skill（A9）。' },
+      { n: 7, t: '规则与配置覆盖', d: '扫描各 Agent 的规则与配置目录；缺失项只给建议，不自动创建文件。' },
+      { n: 8, t: 'Agent 分工', d: '按任务类型统计各 Agent 承担的工作；点击片段列出对应会话。' }
+    ];
+
+    return {
+      theme: dark ? 'dk' : '', marks: marks, ic: ic, projects: projects, bubbles: bubbles, gx: gx, gy: gy, trend: trend,
+      cmp: cmp, split: split, flow: flow, cover: cover, spec: spec
+    };
+  }
+}
+</script>
+</body>
+</html>
