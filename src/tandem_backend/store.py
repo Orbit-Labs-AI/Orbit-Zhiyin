@@ -113,7 +113,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
         raise ValueError("Codex 数据目录不存在")
     summary = ImportSummary()
     metadata = metadata_index(codex_home)
-    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 8})
+    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 10})
     paths = sorted({p.resolve() for folder in ("sessions", "archived_sessions")
                     for p in (codex_home / folder).rglob("*.jsonl")})
     for path in paths:

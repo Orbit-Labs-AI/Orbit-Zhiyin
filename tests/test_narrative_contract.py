@@ -30,7 +30,7 @@ def test_new_reading_order_retains_decision_and_real_sample_counts(tmp_path):
     assert result["recommendations"] == recs
     assert "3 个会话" in result["sample_summary"] and "1 个项目" in result["sample_summary"]
     assert text.index(result["summary"]) < text.index(result["sample_summary"])
-    assert len(visible_text(text)) < 1100
+    assert len(visible_text(text)[0]) < 1100
 
 
 def test_developer_output_exposes_counting_basis_without_changing_facts(tmp_path):

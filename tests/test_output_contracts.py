@@ -24,7 +24,7 @@ def test_summary_budget_does_not_constrain_the_requested_full_proof():
 
 def test_first_layer_measurement_preserves_code_and_rejects_unclosed_hiding():
     plain, quality = visible_text("主要发现。\n<details><summary>细节</summary>" + "日志。" * 1000 + "</details>")
-    assert plain == "主要发现。" and quality == "first_layer"
+    assert plain == "主要发现。\n细节" and quality == "first_layer"
     unbalanced, quality = visible_text("主要发现。\n<details>必须展示的正文。")
     assert "必须展示的正文" in unbalanced and quality == "unbalanced_details"
     literal = "```html\n<details>这是代码里的字面值。</details>\n```"

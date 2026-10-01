@@ -7,7 +7,7 @@ Signals describe observations; repeat requests do not establish stable personali
 import re
 from dataclasses import asdict, dataclass, field
 
-from .content import length_contract
+from .content import merge_length_contracts
 from .models import Event
 
 RULES = {
@@ -173,6 +173,7 @@ class Signal:
     rule_version: str = "rules-v6"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
+    output_contracts: list[dict] = field(default_factory=list)
     language: str = "zh"
     language_evidence_id: str | None = None
     language_basis: str = "message_language"
@@ -243,11 +244,13 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
             rank = {"request": 0, "refinement": 1, "correction": 2}
             category, match = max(candidates, key=lambda item: rank[item[0]])
             quote = _quote(text, match.start(), match.end())
+            contracts = merge_length_contracts(text, [(m.start(), m.end()) for m in matches]) if dimension == "brevity" else []
+            primary_contract = next((c for c in contracts if c["char_limit"] is not None), contracts[0] if contracts else None)
             output.append(Signal(dimension, label, category, event.id, event.session_id,
                                  event.turn_id, event.timestamp, quote,
                                  "communication" if dimension in ("clarity", "brevity", "grounding") else "workflow",
                                  context["scene"], readers=context["readers"],
-                                 output_contract=length_contract(text, match.start(), match.end()) if dimension == "brevity" else None,
+                                 output_contract=primary_contract, output_contracts=contracts,
                                  language=context["language"], language_evidence_id=context["language_evidence_id"],
                                  language_basis=context["language_basis"]))
     return output

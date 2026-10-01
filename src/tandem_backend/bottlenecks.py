@@ -66,17 +66,26 @@ def diagnose(events: list[Event], observed: list[Signal]) -> tuple[list[dict], l
                                      "message": "日志记录了文件交付，但没有文档正文，无法核对可读性。"})
                     concise = [s for s in writing if s.dimension == "brevity"]
                     for signal in concise:
-                        contract = signal.output_contract or {"surface": "reply", "char_limit": None}
-                        measure = measure_length(e.text, contract, e.details.get("original_chars"))
-                        cap = contract.get("char_limit")
-                        threshold = cap if cap is not None else (450 if contract["surface"] == "summary" else 2500)
-                        if measure["chars"] > threshold:
-                            surface = "摘要" if contract["surface"] == "summary" else "首层回复"
-                            finding = _finding("long_response", pending_request, e, writing,
-                                               f"你要求{surface}简洁；测得 {measure['chars']} 字符，超过本次核对阈值 {threshold}。可以回看哪些细节适合后移。", "rule_candidate")
-                            finding["measurement"] = {**measure, "threshold": threshold,
-                                                       "threshold_basis": "requested_limit" if cap is not None else "review_heuristic"}
-                            findings.append(finding)
+                        contracts = signal.output_contracts or [signal.output_contract or {"surface": "reply", "char_limit": None}]
+                        for contract in contracts:
+                            full = e.details.get("writing_measurements", {}).get(contract["surface"])
+                            measure = full or measure_length(e.text, contract, e.details.get("original_chars"))
+                            measure = {**measure, "source": "normalized_full_message" if full else "retained_message"}
+                            cap = contract.get("char_limit")
+                            threshold = cap if cap is not None else (450 if contract["surface"] == "summary" else 2500)
+                            if measure["chars"] > threshold:
+                                surface = "摘要" if contract["surface"] == "summary" else "首层回复"
+                                lower_bound = "至少 " if measure.get("complete") is False else ""
+                                finding = _finding("long_response", pending_request, e, writing,
+                                                   f"你要求{surface}简洁；测得{lower_bound} {measure['chars']} 字符，超过本次核对阈值 {threshold}。可以回看哪些细节适合后移。", "rule_candidate")
+                                finding["id"] = stable_id("long_response", pending_request.id, e.id, contract["surface"])
+                                finding["measurement"] = {**measure, "threshold": threshold,
+                                                           "threshold_basis": "requested_limit" if cap is not None else "review_heuristic"}
+                                findings.append(finding)
+                            elif measure.get("complete") is False:
+                                gaps.append({"code": "reply_length_incomplete", "session_id": e.session_id,
+                                             "request_event_id": pending_request.id, "response_event_id": e.id,
+                                             "message": "回复已截断且缺完整篇幅统计，当前下界不足以判断是否满足限制。"})
                     jargon = unexplained_terms(e.text[:500])
                     if any(s.dimension == "clarity" for s in writing) and len(jargon) >= 4:
                         findings.append(_finding("unexplained_terms", pending_request, e, writing,

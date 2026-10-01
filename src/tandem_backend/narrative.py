@@ -64,7 +64,9 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     elif primary:
         next_step = "先回看这次要求与交付。当前目录没有同时匹配画像、卡点和场景的资源。"
     elif analysis.get("data_gaps"):
-        next_step = "需要对应文档正文，才能判断它是否容易理解。"
+        next_step = ("需要对应文档正文，才能判断它是否容易理解。" if any(
+            g["code"] == "artifact_body_missing" for g in analysis["data_gaps"]) else
+            "这段回复的篇幅记录不完整，先补齐记录再核对要求。")
     else:
         next_step = "先选一次具体任务，核对要求与结果，再决定是否换工具。"
     if audience == "developer" and counts["user_messages"]:

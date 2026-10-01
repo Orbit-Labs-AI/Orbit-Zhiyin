@@ -11,6 +11,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from ..content import measure_length
 from ..models import Event, ParsedSession, Session, stable_id, utc_time
 from ..privacy import direct_user_text, redact
 
@@ -172,6 +173,9 @@ def parse_rollout(
                     if role == "user":
                         details["input_format"] = "question_reply" if original.strip().startswith(
                             "<send_user_message_question_reply>") else "prompt"
+                    else:
+                        details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
+                                                           for surface in ("reply", "summary")}
                 elif ptype in ("function_call", "custom_tool_call"):
                     event_kind, tool = "tool_call", payload.get("name")
                     call_id = payload.get("call_id")
@@ -200,12 +204,16 @@ def parse_rollout(
                     original = str(payload.get("message", ""))
                     text = direct_user_text(original) if ptype == "user_message" else redact(original)
                     if text:
+                        mirror_details = {
+                            "mirror": True, "original_chars": len(text), "message_digest": stable_id(text),
+                            "input_format": "question_reply" if original.strip().startswith(
+                                "<send_user_message_question_reply>") else "prompt"}
+                        if ptype == "agent_message":
+                            mirror_details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
+                                                                      for surface in ("reply", "summary")}
                         mirrors.append(Event(stable_id(result.session.id, ordinal), result.session.id,
                                              ordinal, "user_message" if ptype == "user_message" else "assistant_message",
-                                             timestamp, model, turn_id, text[:MAX_TEXT], details={
-                                                 "mirror": True, "original_chars": len(text), "message_digest": stable_id(text),
-                                                 "input_format": "question_reply" if original.strip().startswith(
-                                                     "<send_user_message_question_reply>") else "prompt"}))
+                                             timestamp, model, turn_id, text[:MAX_TEXT], details=mirror_details))
                     continue
             if not event_kind:
                 continue
