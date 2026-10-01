@@ -28,7 +28,7 @@ def test_new_reading_order_retains_decision_and_real_sample_counts(tmp_path):
     assert result["main_evidence_ids"] == result["bottlenecks"][0]["evidence_ids"]
     assert all(eid in text for eid in result["main_evidence_ids"])
     assert result["recommendations"] == recs
-    assert "3 个会话" in result["sample_summary"] and "1 个项目" in result["sample_summary"]
+    assert "3 个会话" in result["sample_summary"] and "工作目录分成 1 组" in result["sample_summary"]
     assert text.index(result["summary"]) < text.index(result["sample_summary"])
     assert len(visible_text(text)[0]) < 1100
 

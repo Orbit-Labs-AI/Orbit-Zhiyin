@@ -6,6 +6,10 @@
 
 import re
 
+from .content import visible_text
+
+READABILITY_RULE_VERSION = "readability-v2"
+
 SCENE_BUDGETS = {"profile": 900, "bottleneck": 1200, "recommendation": 1100,
                  "developer_report": 2200, "math_explanation": 3200, "status_update": 450}
 _EMPTY = re.compile(r"^(?:很好|一切正常|继续努力|持续优化|效果很好)[。！!\s]*$")
@@ -19,7 +23,8 @@ def evaluate_text(text: str, scene: str, required_facts: list[str] | None = None
     if scene not in SCENE_BUDGETS:
         raise ValueError("未知的评价场景")
     issues = []
-    if not text.strip() or _EMPTY.fullmatch(text.strip()):
+    visible, quality = visible_text(text)
+    if not visible.strip() or _EMPTY.fullmatch(visible.strip()):
         issues.append({"code": "empty_information", "severity": "error", "message": "读者得不到具体信息。"})
     for fact in required_facts or []:
         if fact not in text:
@@ -27,9 +32,9 @@ def evaluate_text(text: str, scene: str, required_facts: list[str] | None = None
     for claim in forbidden_claims or []:
         if claim in text:
             issues.append({"code": "unsupported_claim", "severity": "error", "message": "出现没有依据的结论。"})
-    if len(text) > SCENE_BUDGETS[scene]:
+    if len(visible) > SCENE_BUDGETS[scene]:
         issues.append({"code": "detail_overload", "severity": "warning", "message": "首层内容过长，考虑把细节移入可展开部分。"})
-    opening = re.sub(r"^#.*\n", "", text).strip()[:230]
+    opening = re.sub(r"^#.*\n", "", visible).strip()[:230]
     if scene != "math_explanation" and len(_JARGON.findall(opening)) >= 3:
         issues.append({"code": "unexplained_jargon", "severity": "warning", "message": "开头堆叠术语，读者还不知道结论。"})
     if _INFLATED.search(text):
@@ -39,8 +44,9 @@ def evaluate_text(text: str, scene: str, required_facts: list[str] | None = None
     errors = sum(i["severity"] == "error" for i in issues)
     warnings = len(issues) - errors
     score = max(0, 100 - 35 * errors - 12 * warnings)
-    return {"scene": scene, "rule_version": "readability-v1", "score": score,
+    return {"scene": scene, "rule_version": READABILITY_RULE_VERSION, "score": score,
             "checks_passed": errors == 0 and warnings == 0, "issues": issues,
+            "first_layer": {"chars": len(visible), "quality": quality, "budget": SCENE_BUDGETS[scene]},
             "human_acceptance": "pending", "meaning": "这是自动检查结果；背景适配、主次和中文语感仍由读者评价。"}
 
 

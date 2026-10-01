@@ -7,6 +7,22 @@ from .catalog import skills
 from .feedback import SCENE_LABELS
 
 
+def trial_method(resource: dict, bottleneck: dict) -> str:
+    """Make the reader check concrete using the existing task, without promising benefit."""
+    if resource["id"] != "doc-coauthoring":
+        return resource["trial"]
+    checks = {
+        "math_explanation": "先复述证明思路，指出条件在哪一步用到",
+        "developer_report": "复述已完成的工作、当前限制和下一步",
+        "document": "复述核心结论和它的依据",
+    }
+    question = checks.get(bottleneck["scene"])
+    if not question:
+        return resource["trial"]
+    readers = "、".join(r["label"] for r in bottleneck.get("readers", [])) or "目标读者"
+    return f"保持原任务的交付语言和必要事实，让没看过这段对话的{readers}读一版，{question}。记录他卡在哪里，再改写并用同一问题复测。"
+
+
 def recommend(analysis: dict, scene: str = "auto", language: str = "auto", catalog: list[dict] | None = None) -> list[dict]:
     dimensions = {p["dimension"]: p for p in analysis["preferences"]}
     contexts = {c["scene"]: c for c in analysis.get("contexts", [])}
@@ -49,7 +65,7 @@ def recommend(analysis: dict, scene: str = "auto", language: str = "auto", catal
                 "context_evidence_ids": context_ids,
                 "evidence_ids": list(dict.fromkeys(bottleneck["profile_evidence_ids"] + bottleneck["evidence_ids"] + context_ids)),
                 "matched_dimensions": matched, "status": "trial", "effect_status": "unmeasured",
-                "scene": actual_scene, "trial": resource["trial"], "limitation": resource["limitations"],
+                "scene": actual_scene, "trial": trial_method(resource, bottleneck), "limitation": resource["limitations"],
                 "language": actual_language, "language_basis": bottleneck.get("language_basis", "message_language"),
                 "language_evidence_id": bottleneck.get("language_evidence_id"),
                 "readers": bottleneck.get("readers", []), "capability": resource["summary"],

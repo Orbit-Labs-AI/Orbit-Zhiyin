@@ -11,7 +11,7 @@ from hashlib import sha256
 from importlib.resources import files
 from pathlib import Path
 
-from .evaluation import SCENE_BUDGETS, evaluate_text
+from .evaluation import READABILITY_RULE_VERSION, SCENE_BUDGETS, evaluate_text
 
 PACK_VERSION = "reader-pack-v1"
 DIMENSIONS = {
@@ -81,6 +81,7 @@ def validate_corpus(corpus: dict) -> None:
 
 def _form(cases: list[dict], mapping: dict, form: str) -> str:
     lines = [f"# 读者评审 · {form}", "", "先读表达，再回答；最后展开事实核对。A、B 不表示新旧或好坏。",
+             "", "评分分别看：" + "、".join(DIMENSIONS.values()) + "。",
              "", "每项按 0–4 评分：0 无法使用，1 大幅修改，2 有明显障碍，3 基本清楚，4 清楚且合适。无法判断请留空。",
              "", "评分表只记录评价，不会写入历史画像。", ""]
     for case in cases:
@@ -113,7 +114,8 @@ def make_pack(output: Path, cases_file: Path | None = None, seed: int = 0) -> di
     validate_corpus(corpus)
     cases = corpus["cases"]
     corpus_hash = _digest(_canonical(corpus))
-    review_id = "review-" + _digest(_canonical({"corpus": corpus_hash, "seed": seed, "version": PACK_VERSION}))[:24]
+    review_id = "review-" + _digest(_canonical({"corpus": corpus_hash, "seed": seed, "version": PACK_VERSION,
+                                             "checks": READABILITY_RULE_VERSION}))[:24]
     folder = output / review_id
     order = list(range(len(cases)))
     random.Random(seed).shuffle(order)

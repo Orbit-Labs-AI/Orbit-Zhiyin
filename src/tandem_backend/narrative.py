@@ -4,6 +4,8 @@ Every factual claim comes from the analysis. Selection is a reading order, not a
 severity score or a claim that one candidate caused the user's dissatisfaction.
 """
 
+import re
+
 from .feedback import SCENE_LABELS
 
 
@@ -17,7 +19,18 @@ def _main_point(bottleneck: dict | None, preferences: list[dict]) -> str:
     if bottleneck:
         scene = SCENE_LABELS.get(bottleneck["scene"], bottleneck["scene"])
         if bottleneck["type"] == "explanation_revision":
-            return f"先回看{scene}的这次修改：交付后，你又要求调整说明。是否已经讲清楚，还需要核对正文。"
+            preview = bottleneck.get("request_preview", "")
+            if "朴素" in preview:
+                change = "用更朴素的方法说明"
+            elif "直观" in preview:
+                change = "把说明讲得更直观"
+            elif re.search(r"没看懂|看不懂", preview):
+                change = "重新解释没看懂的地方"
+            elif "brevity" in bottleneck["dimensions"]:
+                change = "精简说明"
+            else:
+                change = "调整说明"
+            return f"这批记录里，可以先看一次{scene}：交付后，你又要求{change}。"
         return f"先核对{scene}中的这处卡点：{bottleneck['reason']}"
     if preferences:
         first = next((p for p in preferences if p["dimension"] == "clarity"), preferences[0])
@@ -31,7 +44,7 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
     counts = analysis["counts"]
     preferences = analysis["preferences"]
     recommendations = recommendations or []
-    sample = f"样本共 {counts['sessions']} 个会话、{counts['projects']} 个项目。"
+    sample = f"样本共 {counts['sessions']} 个会话，按工作目录分成 {counts['projects']} 组。"
     primary = _primary_bottleneck(analysis, recommendations)
     if counts["user_messages"] == 0:
         main = "还没有可用于分析的用户消息。先导入一段包含真实用户输入的 Codex 会话。"
@@ -51,7 +64,7 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
             continue
         reader_labels = "、".join(r["label"] for r in p.get("readers", []))
         reader_note = f"有任务明确指定读者为{reader_labels}。" if reader_labels else ""
-        text = f"{c['label']}中，{p['sessions']} 个会话提出过“{p['label']}”的要求。{reader_note}"
+        text = f"{c['label']}中，{p['sessions']} 个会话要求{p['label']}。{reader_note}"
         if audience == "developer":
             text += f"分母是这类任务的 {p['denominator']} 个会话；同一会话重复提出只计一次。"
         findings.append({"title": c["label"] + "：" + p["label"], "text": text,
@@ -90,21 +103,25 @@ def markdown(result: dict) -> str:
     """Keep a short first layer; evidence and full details can be opened separately."""
     title = "先看哪件事" if result["audience"] == "user" else "这次分析得到了什么"
     lines = ["# " + title, "", result["summary"], ""]
-    for finding in result["findings"]:
-        lines.extend([finding["text"], ""])
     primary = next(iter(result.get("bottlenecks", [])), None)
     if primary:
         preview = primary["request_preview"]
         if preview:
             lines.extend(["> " + preview.replace("\n", "\n> "), ""])
-        # A revision is an observation. Its linked delivery may contain only a
-        # file link; do not turn that into a claim about the unseen document.
-        if primary["type"] == "explanation_revision":
-            lines.extend(["你随后要求调整说明，不能单凭它断定上一版失败。", ""])
+    for finding in result["findings"]:
+        lines.extend([finding["text"], ""])
+    if primary:
+        # A revision is an observation, not a verdict on the delivered content.
         if primary["response_content"] == "artifact_delivery":
-            lines.extend(["日志记录了文件交付，完整正文还需要另看。", ""])
+            caveat = "日志记录了文件交付，完整正文还需要另看。"
         elif primary["response_content"] == "embedded_body_truncated":
-            lines.extend(["原始回复附有正文，但保留内容已截断，需要原文件核对全文。", ""])
+            caveat = "原始回复附有正文，但保留内容已截断，需要原文件核对全文。"
+        else:
+            caveat = ""
+        if primary["type"] == "explanation_revision":
+            caveat += "修改要求本身还不能说明上一版失败。"
+        if caveat:
+            lines.extend([caveat, ""])
         ids = primary["evidence_ids"]
         links = [f"[要求](http://127.0.0.1:8765/v1/evidence/{ids[0]})"]
         links.extend(f"[相关记录 {i}](http://127.0.0.1:8765/v1/evidence/{eid})" for i, eid in enumerate(ids[1:], 1))
@@ -115,16 +132,19 @@ def markdown(result: dict) -> str:
                       f"[回看要求](http://127.0.0.1:8765/v1/evidence/{first['evidence_ids'][0]})", ""])
     for index, rec in enumerate(result.get("recommendations", [])[:2]):
         if primary and rec["bottleneck_id"] == primary["id"]:
-            reason = f"对应这次{SCENE_LABELS.get(rec['scene'], rec['scene'])}的修改或核对需求。"
+            reason = "它的方法与上面的要求和这次记录相符，可以先做一次小对照。"
         else:
             reason = rec["reason"]
         lines.extend([f"可以试 [{rec['name']}]({rec['source_url']})：{reason}", "",
                       f"它提供的办法：{rec['capability']}", "",
-                      f"怎么验：{rec['trial']}", ""])
+                      f"这次怎么试：{rec['trial']}", ""])
         if index == 0 and result["audience"] == "developer":
             lines.extend(["推荐依据保存在 JSON 的画像、瓶颈和上下文引用中。" + rec["limitation"], ""])
     if not result.get("recommendations"):
         lines.extend(["目前的证据还不足以选定具体资源。", "", result["next_step"], ""])
-    lines.extend([result["sample_summary"], "",
-                  "这些是任务中的明确要求。资源效果尚未测定；没有后续反馈也不能当作满意。", ""])
+    lines.extend([result["sample_summary"], ""])
+    if result.get("recommendations"):
+        lines.extend(["建议是否有帮助，还需要同一任务的对照与读者评价。", ""])
+    elif result["details"]["counts"]["user_messages"]:
+        lines.extend(["没有后续反馈也不能当作满意，更多结论需要回到具体任务核对。", ""])
     return "\n".join(lines)

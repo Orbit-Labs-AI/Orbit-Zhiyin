@@ -101,4 +101,4 @@ def test_bottleneck_is_rendered_when_no_resource_matches(tmp_path):
     output = markdown(explain(data, recs))
     assert "代码协作" in output
     assert all(eid in output for eid in data["bottlenecks"][0]["evidence_ids"])
-    assert "你随后要求调整说明" in output
+    assert "交付后" in output and "你又要求" in output

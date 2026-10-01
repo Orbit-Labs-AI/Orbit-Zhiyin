@@ -93,6 +93,6 @@ def test_plain_report_mentions_reader_and_preserves_conditional_recommendation(t
     result = explain(data, recommend(data))
     output = markdown(result)
     assert "大一学生" in output and "数学讲解" in output
-    assert "不能单凭它断定上一版失败" in output
+    assert "还不能说明上一版失败" in output
     assert "已证明有效" not in output
     assert result["findings"][0]["scene"] == "math_explanation"
