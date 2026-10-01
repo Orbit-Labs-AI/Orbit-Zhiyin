@@ -3,7 +3,9 @@
 import json
 import re
 
-from .content import fenced_parts
+from markdown_it import MarkdownIt
+
+_MARKDOWN = MarkdownIt("commonmark")
 
 _PATTERNS = [
     (r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{15,}|github_pat_[A-Za-z0-9_]{15,})", "[密钥已隐藏]"),
@@ -49,6 +51,12 @@ def direct_user_text(text: str) -> str:
     if "<INSTRUCTIONS>" in text or text.startswith("<turn_aborted>"):
         return ""
     # Remove examples and quotations: a quoted complaint is not the speaker's complaint.
-    text = "".join(part for fenced, part in fenced_parts(text) if not fenced)
-    text = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith(">"))
+    # CommonMark distinguishes quoted code from indented list paragraphs. Only
+    # parse block structure: never render HTML, open links or execute code.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    quoted_lines = set()
+    for token in _MARKDOWN.parse(text):
+        if token.type in ("fence", "code_block", "blockquote_open") and token.map:
+            quoted_lines.update(range(*token.map))
+    text = "\n".join(line for index, line in enumerate(text.split("\n")) if index not in quoted_lines)
     return redact(text.strip())

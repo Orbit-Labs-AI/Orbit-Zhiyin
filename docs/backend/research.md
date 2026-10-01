@@ -25,6 +25,8 @@ v0.3 的获取命令已通过 GitHub 官方 API 核对上述 10 个资源来源�
 
 流式 JSONL 能避免一次把全部日志展开。SQLite 能支持本地查询、原子更新和证据回看；当前样本规模没有要求引入第二套存储。FastAPI 只承担接口和参数校验。后端的数学计算都能用标准库复现。
 
+[markdown-it-py 的官方文档](https://markdown-it-py.readthedocs.io/en/latest/using.html) 提供 CommonMark 的块结构与源行范围。v0.11.1 增加这个小依赖，用它区分围栏、缩进代码、引用与合法列表段落，减少手写空格规则带来的误删；仅解析，不渲染或执行输入。
+
 三份设计文档提到的 Polars、DuckDB、Parquet、NetworkX、PM4Py、Perfetto、OpenTelemetry、向量表示和高级模型会继续核对，但不因它们出现在方案里就全部装上。第一版实际暴露的问题是语义误判，增加存储或图算法不能解决它。
 
 ## 分析技术的取舍

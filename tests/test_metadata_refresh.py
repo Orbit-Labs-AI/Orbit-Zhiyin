@@ -61,3 +61,20 @@ def test_metadata_titles_are_redacted_before_storage_and_api_listing(tmp_path):
     with TestClient(create_app(store.path)) as client:
         assert secret not in client.get("/v1/sessions").text
         assert "密钥已隐藏" in client.get("/v1/sessions").text
+
+
+def test_frozen_snapshot_never_copies_a_mutable_desktop_title(tmp_path):
+    home = demo_home(tmp_path / "codex")
+    with sqlite3.connect(home / "state_5.sqlite") as conn:
+        conn.execute("CREATE TABLE threads (id TEXT, title TEXT)")
+        conn.execute("INSERT INTO threads VALUES (?,?)", ("demo-0", "held-out-title-v1"))
+    store = Store(tmp_path / "data.sqlite")
+    import_codex(store, home, before="2026-01-01T01:00:00Z")
+    original = {s["id"]: s for s in store.sessions()}
+    with sqlite3.connect(home / "state_5.sqlite") as conn:
+        conn.execute("UPDATE threads SET title=?", ("held-out-feedback-v2",))
+    import_codex(store, home)
+    assert {s["id"]: s for s in store.sessions()} == original
+    assert "held-out" not in str(store.sessions())
+    with TestClient(create_app(store.path)) as client:
+        assert "held-out" not in client.get("/v1/sessions").text
