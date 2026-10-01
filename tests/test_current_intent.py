@@ -71,7 +71,7 @@ def test_negated_cancellation_preserves_the_original_limit(tmp_path):
 
 
 def test_educational_test_questions_do_not_supply_software_verification_evidence():
-    text = '在大纲中加入四套测试题的题目选择。'
+    text = '整理语文测试题，写成一份大纲。'
     observed = signals([Event('u', 's', 1, 'user_message', None, text=text)])
     assert not any(s.dimension == 'verification' for s in observed)
     assert scene_of(text) == 'document'

@@ -1,3 +1,3 @@
 """Tandem: local trajectory evidence, readable findings, and skill recommendations."""
 
-__version__ = "0.11.6"
+__version__ = "0.12.0"

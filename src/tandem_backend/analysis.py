@@ -7,6 +7,7 @@ from datetime import datetime
 from .bottlenecks import diagnose
 from .feedback import SCENE_LABELS, signals, task_contexts
 from .models import Event
+from .portrait import diagnostic_details, normalization, profile
 from .store import Store
 
 
@@ -51,6 +52,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     events = store.events(project_id=project_id, model=model)
     if cutoff:
         events = [e for e in events if e.timestamp and e.timestamp <= cutoff]
+    all_events = events
     context_by_id = task_contexts(events)
     all_observed = signals(events, context_by_id)
     all_bottlenecks, all_gaps = diagnose(events, all_observed, context_by_id)
@@ -95,10 +97,11 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     results = [e for e in events if e.kind == "tool_result"]
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
+    policies = store.sample_policies()
     return {
-        "schema_version": "1.6", "analysis_version": "context-v15",
+        "schema_version": "1.7", "analysis_version": "context-v16",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
-        "ledger_sample_policies": store.sample_policies(),
+        "ledger_sample_policies": policies,
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
                    "tool_calls": len(calls), "explicit_tool_failures": len(failed)},
@@ -108,8 +111,9 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
                      for pid in sorted({s["project_id"] for s in sessions_by_id.values()})],
         "preferences": preferences, "contexts": contexts, "bottlenecks": bottlenecks, "timing": duration,
         "data_gaps": gaps,
-        "profile": {"basis": "explicit_requirements", "communication": [p for p in preferences if p["target"] == "communication"],
-                    "workflow": [p for p in preferences if p["target"] == "workflow"], "contexts": contexts, "stability": "unverified"},
+        "profile": profile(preferences, contexts, observed, events, context_by_id),
+        "bottleneck_details": diagnostic_details(bottlenecks, gaps, all_events),
+        "normalization": normalization(events, observed, policies, bottlenecks),
         "limitations": ["没有反馈不代表满意。", "规则识别的是候选证据，需要回看上下文。",
                         "同一任务或 fork 的会话可能相关；参考区间不能证明长期偏好。",
                         "记录中两次时间戳的跨度不等于模型计算时间或你的工作时间。"],

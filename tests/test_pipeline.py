@@ -177,7 +177,7 @@ def test_model_filter_keeps_only_matching_events(tmp_path):
     store = Store(tmp_path / "data.sqlite")
     import_codex(store, demo_home(tmp_path / "codex"))
     assert analyze(store, model="not-present")["counts"]["sessions"] == 0
-    assert analyze(store, model="demo-model")["counts"]["user_messages"] == 3
+    assert analyze(store, model="demo-model")["counts"]["user_messages"] == 4
 
 
 def test_not_understanding_is_not_a_claim_of_not_understanding():
@@ -221,7 +221,7 @@ def test_recommendation_requires_profile_and_bottleneck_and_traceable_evidence(t
     import_codex(store, demo_home(tmp_path / "codex"))
     analysis = analyze(store)
     recommendations = recommend(analysis)
-    assert {r["resource_id"] for r in recommendations} == {"humanizer-zh", "systematic-debugging"}
+    assert {r["resource_id"] for r in recommendations} == {"doc-coauthoring", "systematic-debugging"}
     ids = {e.id for e in store.events()}
     for rec in recommendations:
         assert rec["profile_evidence_ids"] and rec["bottleneck_evidence_ids"]

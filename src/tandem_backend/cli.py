@@ -2,9 +2,11 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from .analysis import analyze
+from .analysis_reports import bottlenecks_markdown, cli_summary, process_markdown, profile_markdown
 from .catalog import resources
 from .evaluation import benchmark
 from .narrative import explain, markdown
@@ -16,7 +18,7 @@ def demo_home(path: Path) -> Path:
     """Deterministic fictional logs; these are never mixed with the real history database."""
     folder = path / "sessions"
     folder.mkdir(parents=True, exist_ok=True)
-    for index, request in enumerate(("请简洁直接、说人话地解释这段代码。", "没看懂，换个直观的例子。", "先做最小可运行版本，再测试。")):
+    for index, request in enumerate(("请给初学者写一份程序教程，把思路讲清楚。", "请用两段话介绍项目报告的结构。", "先做最小可运行版本，再测试。")):
         sid = f"demo-{index}"
         rows = [
             {"type": "session_meta", "timestamp": "2026-01-01T00:00:00Z", "payload": {"id": sid, "cwd": "/fictional/sample-project", "source": "cli", "cli_version": "synthetic"}},
@@ -26,7 +28,12 @@ def demo_home(path: Path) -> Path:
             {"type": "response_item", "timestamp": "2026-01-01T00:00:04Z", "payload": {"type": "message", "role": "assistant", "channel": "final", "content": [{"type": "output_text", "text": "示例结果，仅用于检查数据流。"}]}},
         ]
         if index == 0:
-            rows[-1]["payload"]["content"][0]["text"] = "KL、JS、POMDP、embedding 与 latent z_u 经过 factorize 获得表示。"
+            rows[-1]["payload"]["content"][0]["text"] = "程序以一组变换来构建输出，并在条件满足时终止。"
+            rows.extend([
+                {"type": "event_msg", "timestamp": "2026-01-01T00:00:05Z", "payload": {"type": "task_started", "turn_id": "revision"}},
+                {"type": "turn_context", "timestamp": "2026-01-01T00:00:05Z", "payload": {"turn_id": "revision", "model": "demo-model"}},
+                {"type": "response_item", "timestamp": "2026-01-01T00:00:06Z", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "没看懂，换个直观的例子。"}]}},
+            ])
         if index == 2:
             tools = []
             for attempt in range(3):
@@ -57,6 +64,9 @@ def main(argv: list[str] | None = None) -> None:
     report.add_argument("--scene", help="只分析指定任务场景")
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
+    for command in (report, demo):
+        command.add_argument("--view", choices=("summary", "profile", "bottlenecks", "process", "recommendations"),
+                             default="summary", help="直接在终端查看画像、卡点、过程或推荐；默认展示整条链路摘要")
     eval_parser = sub.add_parser("evaluate")
     eval_parser.add_argument("--output", type=Path, default=Path(".local/evaluation.json"))
     eval_parser.add_argument("--suite", choices=("all", "readability", "pipeline", "probe"), default="all")
@@ -74,6 +84,9 @@ def main(argv: list[str] | None = None) -> None:
     refresh.add_argument("--output", type=Path, default=Path(".local/catalog.json"))
     refresh.add_argument("--latest", action="store_true")
     refresh.add_argument("--resource-id", action="append", default=[])
+    evidence = sub.add_parser("evidence", help="在终端回看一条判断引用的统一事件")
+    evidence.add_argument("event_id")
+    evidence.add_argument("--json", action="store_true", help="输出完整的已保存事件元数据")
     args = parser.parse_args(argv)
     if args.command in ("reader-pack", "reader-results"):
         from .reader_eval import make_pack, reader_results
@@ -113,6 +126,18 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "demo":
         args.db = str(args.output / "demo.sqlite")
     store = Store(args.db)
+    if args.command == "evidence":
+        with store.connect() as conn:
+            row = conn.execute("SELECT data FROM events WHERE id=?", (args.event_id,)).fetchone()
+        if not row:
+            parser.error("证据不存在；请确认使用生成报告时的数据库。")
+        item = json.loads(row[0])
+        if args.json:
+            print(json.dumps(item, ensure_ascii=False, indent=2))
+        else:
+            print(f"证据 {item['id']} · {item['kind']} · 原记录第 {item['ordinal']} 行")
+            print(item['text'] or json.dumps(item['details'], ensure_ascii=False, indent=2))
+        return
     if args.command == "import":
         result = import_codex(store, args.codex_home, args.before, set(args.exclude_session), args.reset_sample_policy)
         print(json.dumps({"import": result.to_dict(), "stored": store.counts()}, ensure_ascii=False))
@@ -125,5 +150,23 @@ def main(argv: list[str] | None = None) -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "analysis.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
     (args.output / "report.md").write_text(markdown(result))
-    print(result["summary"])
-    print(f"结果：{(args.output / 'report.md').resolve()}")
+    for name, value, render in (
+        ('profile', data['profile'], profile_markdown),
+        ('bottlenecks', data['bottleneck_details'], bottlenecks_markdown),
+        ('process', data['normalization'], process_markdown),
+    ):
+        (args.output / f'{name}.json').write_text(json.dumps(value, ensure_ascii=False, indent=2))
+        (args.output / f'{name}.md').write_text(render(data))
+    views = {'profile': profile_markdown, 'bottlenecks': bottlenecks_markdown, 'process': process_markdown}
+    if args.view in views:
+        text = views[args.view](data)
+        # Folding is useful in saved Markdown; terminals display the actual text.
+        text = '\n'.join(line for line in text.splitlines()
+                         if line not in ('<details>', '</details>', '<summary>查看原始要求</summary>'))
+        text = re.sub(r'\[证据\]\(http://127\.0\.0\.1:8765/v1/evidence/([^)]+)\)', r'证据 ID：\1', text)
+        print(text)
+    elif args.view == 'recommendations':
+        print(markdown(result))
+    else:
+        print(cli_summary(data, result['recommendations']))
+    print(f"完整结果：{args.output.resolve()}（profile / bottlenecks / process / report 的 Markdown 与 JSON）")

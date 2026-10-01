@@ -290,6 +290,7 @@ def parse_rollout(
                     if text:
                         mirror_details = {
                             "mirror": True, "original_chars": len(text), "message_digest": stable_id(text),
+                            "source_type": kind, "source_subtype": ptype,
                             "input_format": "question_reply" if original.strip().startswith(
                                 "<send_user_message_question_reply>") else "prompt"}
                         if ptype == "agent_message":
@@ -302,6 +303,7 @@ def parse_rollout(
                     continue
             if not event_kind:
                 continue
+            details.update({"source_type": kind, "source_subtype": payload.get("type")})
             event = Event(stable_id(result.session.id, ordinal), result.session.id, ordinal,
                           event_kind, timestamp, model, turn_id, text[:MAX_TEXT], call_id, tool, status,
                           details=details)

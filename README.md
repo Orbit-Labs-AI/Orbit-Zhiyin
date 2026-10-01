@@ -17,7 +17,15 @@ python3 -m venv .venv
 .venv/bin/pytest -q
 ```
 
-demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
+demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”直接展示。结果目录同时保存 `profile.md / bottlenecks.md / process.md / report.md` 及对应 JSON。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
+
+```sh
+.venv/bin/tandem demo --view profile
+.venv/bin/tandem demo --view bottlenecks
+.venv/bin/tandem demo --view process
+```
+
+不指定想要哪个 skill，也能先生成画像与瓶颈；资源目录只参与最后的匹配。推导过程见 [画像怎样产生](docs/backend/profiling.md)。这次展示使用 CLI，无需接入前端。
 
 `evaluate` 跑文字对照、整条链路的构造场景，以及新增措辞和组合要求；`--suite pipeline / probe` 可以分别选择。结果保留误报、漏报和证据检查。这些样例用于改进规则；在独立临时数据库中运行，正常数据不会被改写。
 
@@ -49,8 +57,9 @@ demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.
 
 ## 看实现与版本报告
 
+- [先验这条链路](docs/backend/acceptance.md)
 - [今晚先跑通什么](docs/backend/plan.md)
-- [当前版本：按交付整体核对篇幅](docs/backend/versions/v0.11.4.md)
+- [当前版本：先把画像和瓶颈看清楚](docs/backend/versions/v0.12.md)
 - [怎样验“说人话”](docs/backend/reader-review.md)
 - [各版记录](docs/backend/versions/README.md)
 - [模块与接口](docs/backend/architecture.md)
