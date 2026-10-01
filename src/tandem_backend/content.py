@@ -6,6 +6,8 @@ correctness, emotional tone, or whether the reader actually understands a passag
 
 import re
 
+UPPER_BOUND_PATTERN = r"(\d+)\s*(?:字|字符)\s*(?:以内|内|以下)|(?:不超过|不要超过|不得超过|最多|控制在|限于|限制为)\s*(\d+)\s*(?:字|字符)"
+
 
 def length_contract(text: str, start: int, end: int) -> dict:
     """A local brevity requirement can constrain the abstract instead of the full reply."""
@@ -20,7 +22,7 @@ def length_contract(text: str, start: int, end: int) -> dict:
     targets = list(re.finditer(r"摘要|总结|概要|概述|开头|首段|首层|正文|全文|完整证明|完整回复|回答|回复|报告", text[sentence_left:right]))
     summary = bool(targets and re.fullmatch(r"摘要|总结|概要|概述|开头|首段|首层", targets[-1][0]))
     # Search the requirement clause, not incidental numeric facts in another clause.
-    cap = re.search(r"(\d+)\s*(?:字|字符)\s*(?:以内|内|以下)|(?:不超过|最多|控制在|限于|限制为)\s*(\d+)\s*(?:字|字符)", clause)
+    cap = re.search(UPPER_BOUND_PATTERN, clause)
     return {"surface": "summary" if summary else "reply",
             "char_limit": int(cap[1] or cap[2]) if cap else None,
             "requires_full_body": bool(re.search(r"(?:完整|详细).{0,8}(?:证明|推导|正文)|(?:证明|推导|正文).{0,8}(?:完整|详细)|不省略(?:条件|步骤)", text)),

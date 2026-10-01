@@ -8,12 +8,12 @@ import re
 from dataclasses import asdict, dataclass, field
 from urllib.parse import unquote, urlsplit
 
-from .content import merge_length_contracts
+from .content import UPPER_BOUND_PATTERN, merge_length_contracts
 from .models import Event
 
 RULES = {
     "clarity": ("把说明讲清楚", r"说人话|易读|易懂|简洁直接|逻辑清晰|通俗|讲清楚|直观|朴素|看不懂|没看懂|难理解|明确思路"),
-    "brevity": ("说明简洁些", r"简洁|简短|不要啰嗦|太长|精简|少[一一点]*细节|(?:一|两|三|\d+)段话|\d+字(?:以内|内)"),
+    "brevity": ("说明简洁些", r"简洁|简短|不要啰嗦|太长|精简|少[一一点]*细节|(?:一|两|三|\d+)段话|" + UPPER_BOUND_PATTERN),
     "grounding": ("说明判断依据", r"(?:给出|附上|提供|列出).{0,6}(?:证据|来源|出处)|注明.{0,6}(?:来源|出处)|引用来源|说明.{0,6}依据|有依据|不要编|真实性|不要想当然|不要猜|核对事实"),
     "actionability": ("把要求落实为结果", r"直接[修做改]|跑通|可运行|具体步骤|怎么[做用]|实现|继续执行"),
     "autonomy": ("减少反复确认", r"不要[再]*问|直接完成|自主.{0,4}(?:完成|执行|处理|推进|决定)|不用[再]*确认|不[用需要]*[再]*问我"),
@@ -70,28 +70,37 @@ def same_artifact_reference(request: str, delivery: str) -> bool:
 
 
 def reader_context(text: str, event_id: str) -> list[dict]:
+    return reader_constraints(text, event_id)[0]
+
+
+def reader_constraints(text: str, event_id: str) -> tuple[list[dict], set[str]]:
     """Task readers are explicit requirements, not claims about the user's identity."""
     rules = [("first_year_student", "大一学生", r"大一学生|大学一年级|大学新生"),
              ("beginner", "初学者", r"初学者|零基础(?:的读者|的人)?|入门读者"),
-             ("developer", "项目开发者", r"(?:给|让|面向|读者是).{0,8}(?:开发者|工程师)|开发者易读"),
+             ("developer", "项目开发者", r"(?:给|让|面向|读者是)[^，,。；;\n]{0,8}(?:开发者|工程师)|开发者易读"),
              ("general_reader", "非专业读者", r"非专业读者|普通读者|不了解背景的读者")]
-    readers = []
+    readers, excluded = {}, set()
     for key, label, pattern in rules:
-        match = re.search(pattern, text)
-        if not match:
-            continue
-        prefix = text[max(0, match.start() - 12):match.start()]
-        if re.search(r"不是|并非|不要面向|不针对|不用面向", prefix):
-            continue
-        # A mentioned person's background alone does not define the requested reader.
-        if not WRITING.search(text) or not re.search(r"给|让|面向|读者|讲|写|解释", text):
-            continue
-        readers.append({"id": key, "label": label, "evidence_id": event_id,
-                        "quote": _quote(text, match.start(), match.end())})
-    return readers
+        for match in re.finditer(pattern, text):
+            left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
+            prefix = text[max(left, match.start() - 16):match.start()]
+            if re.search(NEGATION + r"[^，。；;\n]{0,10}$|不针对[^，。；;\n]{0,8}$", prefix):
+                readers.pop(key, None)
+                excluded.add(key)
+                continue
+            # A mentioned person's background alone does not define the requested reader.
+            local = text[max(left, match.start() - 24):match.end() + 24]
+            if not WRITING.search(text) or not re.search(r"给|让|面向|读者|写给|讲给|供|适合", local):
+                continue
+            readers[key] = {"id": key, "label": label, "evidence_id": event_id,
+                            "quote": _quote(text, match.start(), match.end())}
+            excluded.discard(key)
+    return list(readers.values()), excluded
 
 
 def scene_of(text: str) -> str:
+    if re.search(r"(?:实现|编写|修改|调试|重构|修复|运行|测试).{0,24}(?:代码|函数|程序|脚本|接口|模块|后端)|(?:代码|程序|脚本).{0,20}(?:实现|调试|修复|运行|测试)", text, re.I):
+        return "coding"
     if re.search(r"数学|定理|证明|推导|不动点|微分|积分|矩阵|数分|SPADE", text, re.I):
         return "math_explanation"
     if re.search(r"报告|项目进度|完成度|README|开发说明", text, re.I):
@@ -106,8 +115,20 @@ def scene_of(text: str) -> str:
 def _clean(text: str) -> str:
     # Filenames may contain '精简版' or '验证'; they are not semantic observations.
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", lambda m: "文档" if re.search(r"\.(?:md|tex|docx)\b", m[1]) else "文件", text)
-    text = re.sub(r"`[^`]+`", "", text)
-    text = re.sub(r"[“\"][^”\"]*[”\"]", "", text)
+    original = text
+
+    def quoted(match):
+        term = next(group for group in match.groups() if group is not None)
+        prefix = original[max(0, match.start() - 24):match.start()]
+        following = original[match.end():match.end() + 24]
+        directive = re.search(r"(?:(?:要求|需要|希望|喜欢|倾向|偏好|必须)[^，,。；;\n]{0,8}|(?:保持|用|写得|采用|做到|遵循|面向|给|按)\s*)$", prefix)
+        known = any(re.search(pattern, term, re.I) for _, pattern in RULES.values()) or re.search(
+            r"英文|英语|English|中文|汉语|初学者|大一学生|普通读者|开发者", term, re.I)
+        example = re.search(r"^(?:这句|这个词|作为|当作|做一个|做为|字样|命名|的例子)", following.lstrip())
+        artifact = re.search(r"\.[a-z]{1,8}\b|[/\\(){}=]", term, re.I)
+        return term if len(term) <= 24 and directive and known and not example and not artifact else ""
+
+    text = re.sub(r"“([^”\n]*)”|\"([^\"\n]*)\"|'([^'\n]*)'|`([^`\n]*)`", quoted, text)
     text = re.sub(r"(?:C\+\+|C|Python|JavaScript|Matlab|编程)\s*语言", "编程代码", text, flags=re.I)
     return text
 
@@ -177,8 +198,13 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
         return True  # '不要太长' requests brevity; it does not reject brevity.
     if re.search(NEGATION + r"[^，。；;\n]{0,6}$", prefix):
         return False
-    topic = bool(re.search(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何", prefix))
-    execution = bool(re.search(r"(?:请|先|再|然后|接着|并|直接|帮我|需要|要|务必|记得|完成后|最后|做|进行|执行|运行|跑|补充|添加|增加|编写|写|加入)[^，。；;\n]{0,8}$", prefix))
+    # The nearest governing cue distinguishes '请解释实现' from '先解释再实现'.
+    cues = list(re.finditer(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何|确认|是否|能否|阅读|查看|看看|描述|讨论|了解|请|先|再|然后|接着|并|直接|帮我|需要|要|务必|记得|完成后|最后|做|进行|执行|运行|跑|补充|添加|增加|编写|写|加入", prefix))
+    topic = bool(cues and re.fullmatch(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何|确认|是否|能否|阅读|查看|看看|描述|讨论|了解", cues[-1][0]))
+    execution = bool(cues and not topic and len(prefix[cues[-1].end():]) <= 8)
+    if not execution and dimension in ("actionability", "verification") and re.match(
+        r"(?:已经|已|正在|完成|结束|了|过|通过|成功|失败|是|可以|需要|耗时)", after):
+        return False
     if dimension == "actionability" and match[0] == "实现":
         if re.match(r"原理|机制|方式|方法|过程|细节", after) or topic:
             return False
@@ -219,7 +245,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v7"
+    rule_version: str = "rules-v8"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)
@@ -244,7 +270,7 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
             continue
         text = _clean(event.text)
         scene = scene_of(_context_text(event.text))
-        readers = reader_context(text, event.id)
+        readers, excluded_readers = reader_constraints(text, event.id)
         requested_language, forbidden = language_constraints(text)
         language = requested_language or language_of(text)
         language_evidence_id = event.id
@@ -259,7 +285,7 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
             if compatible:
                 scene = previous["scene"] if scene == "conversation" else scene
                 task_id = previous["task_id"]
-                readers = readers or previous["readers"]
+                readers = readers or [r for r in previous["readers"] if r["id"] not in excluded_readers]
                 if not requested_language and previous["language"] not in forbidden:
                     language = previous["language"]
                     language_evidence_id = previous["language_evidence_id"]
