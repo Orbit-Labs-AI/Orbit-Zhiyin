@@ -4,7 +4,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 ## 先试后端
 
-Tandem 后端读取本地 Codex 记录，按项目和模型整理，输出有证据的协作要求、待复核的瓶颈和写作 skill 建议。当前 MVP 范围由三位成员确认；前端 [demo](docs/design/demo/tandem-demo.html) 仅作设计参考。
+Tandem 后端读取本地 Codex 记录，按项目和模型整理，分析用户的协作要求与实际卡点，再找有对应处理办法的资源。中文解释是否容易理解，是当前 demo 的评价目标。当前 MVP 范围由三位成员确认；前端 [demo](docs/design/demo/tandem-demo.html) 仅作设计参考。
 
 需要 Python 3.11 或更新版本。在仓库根目录运行：
 
@@ -31,12 +31,25 @@ demo 使用虚构数据，结果在 `.local/demo/report.md`。评价结果在 `.
 
 分析和评价使用同一批数据时，用 `--before 2026-10-01T15:43:13Z` 固定导入快照，并通过 `--exclude-session` 排除测试与评价会话。不要把评价中用户给出的标准重新当作历史偏好导入。
 
+## 核对推荐来源
+
+离线目录自带 10 个公开来源的固定版本。需要重新核对时运行：
+
+```sh
+.venv/bin/tandem catalog-refresh
+```
+
+它从 GitHub 官方 API 读取仓库信息和 Markdown，核对版本与内容哈希，结果保存在 `.local/catalog.json`。`--latest` 才会更新到当前默认分支，`--resource-id humanizer-zh` 可以只核对一个来源。导入和分析不需要联网。
+
+目录包括规则、skills、插件、MCP、hooks、基准和代理。现阶段只对分析中有明确匹配的 skill 建议一次小范围试用：必须同时有画像证据、瓶颈证据，以及适合场景和语言的资源。真实收益需要另测。
+
 ## 看实现与版本报告
 
 - [今晚先跑通什么](docs/backend/plan.md)
 - [v0.1：数据流已跑通，语义分类仍需修正](docs/backend/versions/v0.1.md)
 - [v0.2：推荐开始由分析结果决定](docs/backend/versions/v0.2.md)
 - [v0.2.1：修正快照与需求理解](docs/backend/versions/v0.2.1.md)
+- [v0.3：推荐来源可以实际获取和复核](docs/backend/versions/v0.3.md)
 - [模块与接口](docs/backend/architecture.md)
 - [调研与取舍](docs/backend/research.md)
 

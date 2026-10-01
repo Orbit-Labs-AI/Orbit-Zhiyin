@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from . import __version__
 from .analysis import analyze
-from .catalog import skills
+from .catalog import resources
 from .evaluation import SCENE_BUDGETS, evaluate_text
 from .narrative import explain
 from .recommend import recommend
@@ -20,7 +20,7 @@ class EvaluationRequest(BaseModel):
     required_facts: list[str] = Field(default_factory=list, max_length=50)
 
 
-def create_app(db: str | Path = ".local/tandem.sqlite") -> FastAPI:
+def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Path = ".local/catalog.json") -> FastAPI:
     store = Store(db)
     app = FastAPI(title="Tandem 本地轨迹分析", version=__version__)
 
@@ -50,13 +50,13 @@ def create_app(db: str | Path = ".local/tandem.sqlite") -> FastAPI:
                  audience: str = "user", scene: str = "auto"):
         try:
             data = analyze(store, project_id, model, before)
-            return explain(data, recommend(data, scene), audience)
+            return explain(data, recommend(data, scene, catalog=resources(catalog_cache)), audience)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 
     @app.get("/v1/catalog")
     def catalog():
-        return skills()
+        return resources(catalog_cache)
 
     @app.get("/v1/evidence/{event_id}")
     def evidence(event_id: str):

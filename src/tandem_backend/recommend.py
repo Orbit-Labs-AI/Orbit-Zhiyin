@@ -6,14 +6,14 @@ Popularity is deliberately absent. A match supports a trial, not an effectivenes
 from .catalog import skills
 
 
-def recommend(analysis: dict, scene: str = "auto", language: str = "auto") -> list[dict]:
+def recommend(analysis: dict, scene: str = "auto", language: str = "auto", catalog: list[dict] | None = None) -> list[dict]:
     dimensions = {p["dimension"]: p for p in analysis["preferences"]}
     recommendations = []
     for bottleneck in analysis["bottlenecks"]:
         matched_profile = [d for d in bottleneck["dimensions"] if d in dimensions]
         if not matched_profile or not bottleneck["profile_evidence_ids"]:
             continue
-        for resource in skills():
+        for resource in skills() if catalog is None else catalog:
             matched = [d for d in resource["dimensions"] if d in matched_profile]
             if not matched or bottleneck["type"] not in resource.get("problem_types", []):
                 continue
@@ -38,6 +38,7 @@ def recommend(analysis: dict, scene: str = "auto", language: str = "auto") -> li
                 "matched_dimensions": matched, "status": "trial", "effect_status": "unmeasured",
                 "scene": actual_scene, "trial": resource["trial"], "limitation": resource["limitations"],
                 "verified_sha": resource["verified_sha"], "match_basis": "profile_and_bottleneck",
+                "source_status": resource.get("source_status", "bundled_snapshot"),
             })
     # Present one concrete opportunity per resource; retain the originating incident.
     seen, output = set(), []

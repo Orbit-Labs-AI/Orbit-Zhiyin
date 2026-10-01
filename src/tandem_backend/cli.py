@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .analysis import analyze
+from .catalog import resources
 from .evaluation import benchmark
 from .narrative import explain, markdown
 from .recommend import recommend
@@ -41,6 +42,7 @@ def demo_home(path: Path) -> Path:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
     parser.add_argument("--db", default=".local/tandem.sqlite")
+    parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
     sub = parser.add_subparsers(dest="command", required=True)
     imp = sub.add_parser("import", help="只读导入已授权的 Codex 数据目录")
     imp.add_argument("--codex-home", type=Path, required=True)
@@ -57,12 +59,21 @@ def main(argv: list[str] | None = None) -> None:
     eval_parser.add_argument("--output", type=Path, default=Path(".local/evaluation.json"))
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8765)
+    refresh = sub.add_parser("catalog-refresh", help="显式核对公开 GitHub 资源来源，不执行安装")
+    refresh.add_argument("--output", type=Path, default=Path(".local/catalog.json"))
+    refresh.add_argument("--latest", action="store_true")
+    refresh.add_argument("--resource-id", action="append", default=[])
     args = parser.parse_args(argv)
     if args.command == "serve":
         import uvicorn
 
         from .api import create_app
-        uvicorn.run(create_app(args.db), host="127.0.0.1", port=args.port)
+        uvicorn.run(create_app(args.db, args.catalog_cache), host="127.0.0.1", port=args.port)
+        return
+    if args.command == "catalog-refresh":
+        from .resource_fetch import refresh_catalog
+        result = refresh_catalog(args.output, latest=args.latest, resource_ids=set(args.resource_id))
+        print(json.dumps({"verified": result["success"], "failed": result["failed"], "output": str(args.output.resolve())}, ensure_ascii=False))
         return
     if args.command == "evaluate":
         result = benchmark()
@@ -81,7 +92,7 @@ def main(argv: list[str] | None = None) -> None:
         import_codex(store, demo_home(args.output / "codex"))
         args.audience, args.project_id, args.model = "user", None, None
     data = analyze(store, args.project_id, args.model)
-    result = explain(data, recommend(data), args.audience)
+    result = explain(data, recommend(data, catalog=resources(args.catalog_cache)), args.audience)
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "analysis.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
     (args.output / "report.md").write_text(markdown(result))

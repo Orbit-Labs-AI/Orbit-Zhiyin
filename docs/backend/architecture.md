@@ -10,6 +10,8 @@
 
 结果分两层：`summary / findings / bottlenecks / next_step` 面向读者，`details` 留给开发者复核。建议里保存来源版本、匹配证据与试用方法，当前统一标为效果未测。
 
+资源获取在 `resource_fetch.py`，只有显式执行 `catalog-refresh` 时联网。它读取公开 Markdown 与仓库元数据，校验固定提交和 Git blob 哈希，再原子更新本地缓存。`catalog.py` 只接收来源校验字段；适用场景和能力标签仍由本地目录决定，外部文档不能改写分析规则。缓存损坏时退回随代码提供的固定版本，并标明状态。
+
 ## 接口
 
 | 路径 | 返回什么 |
@@ -19,7 +21,7 @@
 | `GET /v1/sessions` | 会话列表，可按项目筛选 |
 | `GET /v1/sessions/{id}/events` | 可分页回看的统一事件 |
 | `GET /v1/analysis` | 易读结果与分析细节，可按项目、模型、时间筛选 |
-| `GET /v1/catalog` | 已核对的写作 skill 来源 |
+| `GET /v1/catalog` | skills 与其他公开资源的固定版本、来源状态 |
 | `GET /v1/evidence/{id}` | 一条建议引用的原始事件 |
 | `POST /v1/evaluation` | 对输入文本做场景检查，不写入画像 |
 
