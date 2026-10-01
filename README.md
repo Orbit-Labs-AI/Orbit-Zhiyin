@@ -59,7 +59,7 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 
 - [先验这条链路](docs/backend/acceptance.md)
 - [今晚先跑通什么](docs/backend/plan.md)
-- [当前版本：先把画像和瓶颈看清楚](docs/backend/versions/v0.12.md)
+- [当前版本：核对改写前后与读者反馈](docs/backend/versions/v0.13.md)
 - [怎样验“说人话”](docs/backend/reader-review.md)
 - [各版记录](docs/backend/versions/README.md)
 - [模块与接口](docs/backend/architecture.md)

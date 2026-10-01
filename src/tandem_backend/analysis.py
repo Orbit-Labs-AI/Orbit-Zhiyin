@@ -9,6 +9,7 @@ from .feedback import SCENE_LABELS, signals, task_contexts
 from .models import Event
 from .portrait import diagnostic_details, normalization, profile
 from .store import Store
+from .trajectory import audit_revisions
 
 
 def wilson_interval(successes: int, trials: int, z: float = 1.96) -> list[float] | None:
@@ -98,8 +99,10 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     failed = [e for e in results if e.status == "failed"]
     duration = _timing(results)
     policies = store.sample_policies()
+    portrait = profile(preferences, contexts, observed, events, context_by_id)
+    portrait['preference_audit'] = audit_revisions(bottlenecks, all_events, context_by_id)
     return {
-        "schema_version": "1.7", "analysis_version": "context-v18",
+        "schema_version": "1.8", "analysis_version": "context-v19",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "ledger_sample_policies": policies,
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
@@ -111,7 +114,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
                      for pid in sorted({s["project_id"] for s in sessions_by_id.values()})],
         "preferences": preferences, "contexts": contexts, "bottlenecks": bottlenecks, "timing": duration,
         "data_gaps": gaps,
-        "profile": profile(preferences, contexts, observed, events, context_by_id),
+        "profile": portrait,
         "bottleneck_details": diagnostic_details(bottlenecks, gaps, all_events),
         "normalization": normalization(events, observed, policies, bottlenecks),
         "limitations": ["没有反馈不代表满意。", "规则识别的是候选证据，需要回看上下文。",

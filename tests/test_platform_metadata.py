@@ -30,6 +30,11 @@ def test_inline_literal_tag_is_not_a_native_block():
     assert direct_user_text(text) == text
 
 
+def test_a_native_tag_in_fenced_example_cannot_swallow_the_actual_request():
+    text = '```xml\n<recommended_plugins>\n```\n请介绍花卉。'
+    assert direct_user_text(text) == '请介绍花卉。'
+
+
 def test_metadata_only_prompt_does_not_supply_profile_or_task_evidence(tmp_path):
     home = tmp_path / 'codex'
     _write_case(home, 'metadata', [

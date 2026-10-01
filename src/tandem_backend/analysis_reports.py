@@ -36,6 +36,10 @@ def profile_markdown(data: dict) -> str:
     lines += [
               '任务边界是规则判断，可通过 profile.json 的任务示例核对。后续可按项目、模型或场景分别读取。', '',
               '画像不需要先指定想要哪个 skill；推荐模块之后再消费这些要求和具体卡点。', '']
+    audit = profile['preference_audit']
+    lines += ['## 改写之后是否更合意', '',
+              f"找到 {audit['revision_chains']} 条修改链，其中 {audit['complete_response_pairs']} 条留有前后完整回复，{audit['observed_comparisons']} 条有明确的相对评价。", '',
+              '这些材料先用于回看与标注；没有相对评价时，不能把继续任务或沉默当作满意。目前没有训练长期偏好或估算资源收益。', '']
     return '\n'.join(lines)
 
 
@@ -52,6 +56,15 @@ def bottlenecks_markdown(data: dict) -> str:
             lines += [f"**{role}** · {_link(item['event_id'])}", '',
                       '> ' + (item['text'] or '正文未留存；通过证据接口查看状态与统计。').replace('\n', '\n> '), '']
         lines += ['还需要核对：', ''] + ['- ' + missing for missing in dossier['missing_evidence']] + ['']
+        pair = next((p for p in data['profile']['preference_audit']['pairs'] if p['bottleneck_id'] == dossier['id']), None)
+        if pair:
+            content_label = {'message': '对话回复已留存', 'missing': '没有找到改写回复',
+                             'artifact_delivery': '只有文件交付说明', 'embedded_body': '附有正文，完整性需核对',
+                             'embedded_body_truncated': '正文被截断'}.get(pair['revised']['content_status'], '需核对')
+            direction_label = {'revised_preferred': '用户明确说新版更易懂', 'original_preferred': '用户明确说旧版更易懂'}.get(pair['observed_comparison'], '暂无')
+            lines += ['后续链路：修改要求发生在回复之后。', '',
+                      f"改写回复：{content_label}；明确的前后相对评价：{direction_label}。", '',
+                      '完整元数据与前后回复计数见 profile.json 的 preference_audit。相对评价仍需人工核验，不能直接说明改写有效。', '']
     return '\n'.join(lines)
 
 

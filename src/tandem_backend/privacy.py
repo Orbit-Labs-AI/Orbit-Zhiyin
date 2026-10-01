@@ -64,11 +64,6 @@ def direct_user_text(text: str) -> str:
                          if isinstance(reply.get("answer"), str)).strip()
     if "## My request:" in text:
         text = text.split("## My request:", 1)[1].strip()
-    text = without_platform_blocks(text)
-    if text.startswith(("# AGENTS.md", "<environment_context>", "<external_", "<permissions")):
-        return ""
-    if "<INSTRUCTIONS>" in text or text.startswith("<turn_aborted>"):
-        return ""
     # Remove examples and quotations: a quoted complaint is not the speaker's complaint.
     # CommonMark distinguishes quoted code from indented list paragraphs. Only
     # parse block structure: never render HTML, open links or execute code.
@@ -78,4 +73,9 @@ def direct_user_text(text: str) -> str:
         if token.type in ("fence", "code_block", "blockquote_open") and token.map:
             quoted_lines.update(range(*token.map))
     text = "\n".join(line for index, line in enumerate(text.split("\n")) if index not in quoted_lines)
+    text = without_platform_blocks(text)
+    if text.startswith(("# AGENTS.md", "<external_")):
+        return ""
+    if "<INSTRUCTIONS>" in text or text.startswith("<turn_aborted>"):
+        return ""
     return redact(text.strip())

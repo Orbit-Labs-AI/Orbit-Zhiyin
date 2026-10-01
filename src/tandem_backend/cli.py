@@ -33,6 +33,10 @@ def demo_home(path: Path) -> Path:
                 {"type": "event_msg", "timestamp": "2026-01-01T00:00:05Z", "payload": {"type": "task_started", "turn_id": "revision"}},
                 {"type": "turn_context", "timestamp": "2026-01-01T00:00:05Z", "payload": {"turn_id": "revision", "model": "demo-model"}},
                 {"type": "response_item", "timestamp": "2026-01-01T00:00:06Z", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "没看懂，换个直观的例子。"}]}},
+                {"type": "response_item", "timestamp": "2026-01-01T00:00:08Z", "payload": {"type": "message", "role": "assistant", "channel": "final", "content": [{"type": "output_text", "text": "程序先读输入的数量。例如收到3个苹果，再逐个装盒；每装一个，剩余数量减一，到零就停止。"}]}},
+                {"type": "event_msg", "timestamp": "2026-01-01T00:00:09Z", "payload": {"type": "task_started", "turn_id": "comparison"}},
+                {"type": "turn_context", "timestamp": "2026-01-01T00:00:09Z", "payload": {"turn_id": "comparison", "model": "demo-model"}},
+                {"type": "response_item", "timestamp": "2026-01-01T00:00:10Z", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "这一版比上一版更清楚。"}]}},
             ])
         if index == 2:
             tools = []

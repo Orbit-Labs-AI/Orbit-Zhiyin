@@ -177,7 +177,7 @@ def test_model_filter_keeps_only_matching_events(tmp_path):
     store = Store(tmp_path / "data.sqlite")
     import_codex(store, demo_home(tmp_path / "codex"))
     assert analyze(store, model="not-present")["counts"]["sessions"] == 0
-    assert analyze(store, model="demo-model")["counts"]["user_messages"] == 4
+    assert analyze(store, model="demo-model")["counts"]["user_messages"] == 5
 
 
 def test_not_understanding_is_not_a_claim_of_not_understanding():

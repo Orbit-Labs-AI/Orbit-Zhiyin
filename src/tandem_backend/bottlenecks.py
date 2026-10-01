@@ -94,7 +94,7 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                 consecutive, last_operation = [], None
             elif e.kind == "assistant_message" and e.details.get("phase") not in ("commentary", "analysis"):
                 response_parts.append(e)
-                delivery = _combined_response(response_parts)
+                delivery = combine_response(response_parts)
                 if len(response_parts) > 1:
                     response_ids = {part.id for part in response_parts}
                     findings[:] = [f for f in findings if f["type"] not in ("long_response", "unexplained_terms") or
@@ -102,11 +102,11 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                     gaps[:] = [g for g in gaps if g["response_event_id"] not in response_ids]
                 if pending_request and pending_signals:
                     writing = [s for s in pending_signals if s.target == "communication"]
-                    if writing and _delivery_content(delivery) == "artifact_delivery":
+                    if writing and delivery_content(delivery) == "artifact_delivery":
                         gaps.append({"code": "artifact_body_missing", "session_id": e.session_id,
                                      "request_event_id": writing[0].event_id, "response_event_id": e.id,
                                      "message": "日志记录了文件交付；未识别到完整正文，需要原文件核对可读性。"})
-                    elif writing and _delivery_content(delivery) == "embedded_body_truncated":
+                    elif writing and delivery_content(delivery) == "embedded_body_truncated":
                         gaps.append({"code": "artifact_body_truncated", "session_id": e.session_id,
                                      "request_event_id": writing[0].event_id, "response_event_id": e.id,
                                      "message": "原始回复附有正文，但当前保留内容已截断，需要原文件核对全文。"})
@@ -181,7 +181,7 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
 DELIVERY_SEPARATOR = "\n\n\x00TANDEM_MESSAGE_BOUNDARY\x00\n\n"
 
 
-def _combined_response(responses: list[Event]) -> Event:
+def combine_response(responses: list[Event]) -> Event:
     """Measure an uninterrupted delivery, preserving all original evidence IDs.
 
     Synthetic boundaries keep Markdown blocks apart but do not count toward
@@ -225,7 +225,7 @@ def _supplement(previous: list[Signal], added: list[Signal], text: str) -> list[
     return previous + list(added)
 
 
-def _delivery_content(response: Event) -> str:
+def delivery_content(response: Event) -> str:
     if not _artifact_delivery(response.text):
         return "message"
     present = response.details.get("artifact_body_present")
@@ -270,7 +270,7 @@ def _finding(kind: str, request: Event, response: Event, evidence: list[Signal],
             "language_basis": evidence[0].language_basis,
             "request_preview": evidence[0].quote,
             "task_id": evidence[0].task_id,
-            "response_content": _delivery_content(response),
+            "response_content": delivery_content(response),
             "profile_evidence_ids": list(dict.fromkeys(s.event_id for s in evidence)),
             "evidence_ids": list(dict.fromkeys([s.event_id for s in evidence] + response.details.get("response_event_ids", [response.id]))),
             "reason": reason}
