@@ -35,6 +35,7 @@
 | --- | --- |
 | [使用指南](development/usage.md) | CLI、真实来源授权、旧库兼容 |
 | [测试与验收](development/testing.md) | 检查分类、执行条件与 CI |
+| [后端九小时改进计划](development/backend-improvement-plan.md) | 契约、任务关系、语义、鲁棒性与推荐效用验收 |
 | [链路验收](development/acceptance.md) | 本地 Codex 记录 → 证据 → 画像 → 推荐的验收步骤 |
 | [目录迁移](development/structure-migration.md) | 活跃分支如何接入新结构（含本次文档搬迁） |
 

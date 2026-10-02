@@ -362,7 +362,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         future = scope.until_ts is not None and any(timestamp(t) and t >= scope.until_ts
                     for t in (end, c.get("result_available_at"), result.get("ts") if result else None))
         if future:
-            for key in ("result_event_uid", "status", "duration_ms", "ended_at", "status_scope",
+            for key in ("result_event_uid", "status", "duration_ms", "native_execution_ms", "wall_elapsed_ms", "ended_at", "status_scope",
                         "known_command_results", "failed_command_results", "unknown_return_values",
                         "exit_code", "error_class", "approval_wait_ms", "failure_reason", "result_available_at",
                         "result_seq", "validation_result", "validation_report"):

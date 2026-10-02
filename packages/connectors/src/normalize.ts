@@ -264,8 +264,10 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
       else if (itemType==='HookPrompt') emit('hook.run','hook',null,{fragments:array(item.fragments)},`hook:${id}`);
       else if (itemType==='Plan') emit('plan.update','assistant',null,{plan:item.plan ?? item},`plan:${id}`);
       else if (itemType==='SubAgentActivity') {
-        const child = string(item.agent_thread_id) ?? id;
-        emit(item.kind==='completed'?'subagent.result':'subagent.spawn','subagent',null,item.kind==='completed'?{child_id:child,status:'completed'}:nonNull({child_id:child,agent_path:string(item.agent_path),metadata:item}),`subagent:${id}:${string(item.kind)}`,40,id);
+        const child = string(item.agent_thread_id);
+        const kind=child&&item.kind==='started'?'subagent.spawn':child&&item.kind==='completed'?'subagent.result':'subagent.activity';
+        emit(kind,'subagent',null,kind==='subagent.result'?{child_id:child,status:'completed'}:
+          nonNull({child_id:child,agent_path:string(item.agent_path),metadata:item}),`subagent:${id}:${string(item.kind)}`,40,id);
       } else {
         let name = itemType, args: Json = item.arguments ?? item, output: Json | undefined = undefined, extra: Obj = {};
         if (itemType==='CommandExecution') {

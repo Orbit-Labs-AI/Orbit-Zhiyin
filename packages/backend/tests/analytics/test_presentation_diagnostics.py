@@ -237,7 +237,7 @@ def test_real_feature_fixture_maps_consistently_for_global_and_session_scopes():
     assert result["tools"] == scoped["tools"]
     assert result["correction_rate"]["value"] == .5
     assert result["tools"]["success_rate"]["value"] == 1
-    assert result["tools"]["average_execution_duration_ms"]["value"] == 10000
+    assert result["tools"]["average_execution_duration_ms"]["value"] == 8000
     assert result["outcomes"]["objective"]["declared_criterion_pass_rate"]["value"] == 1
     assert result["outcomes"]["objective"]["project_completion"] is None
     assert analysis == before

@@ -246,7 +246,9 @@
       "duration_source": "native_bounds",
       "interval_reliable": true,
       "argument_digest": "fictional-test",
-      "argument_digest_kind": "literal"
+      "argument_digest_kind": "literal",
+      "native_execution_ms": 8000,
+      "wall_elapsed_ms": 10000
     },
     {
       "call_uid": "build",
@@ -265,7 +267,9 @@
       "duration_source": "native_bounds",
       "interval_reliable": true,
       "argument_digest": "fictional-build",
-      "argument_digest_kind": "literal"
+      "argument_digest_kind": "literal",
+      "native_execution_ms": 8000,
+      "wall_elapsed_ms": 10000
     }
   ],
   "model_calls": [

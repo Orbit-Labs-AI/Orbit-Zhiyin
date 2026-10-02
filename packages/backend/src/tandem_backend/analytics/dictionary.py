@@ -34,11 +34,15 @@ define("success_rate failure_rate", "ratio", "Explicit success/failure count div
 define("median_duration_ms p25_duration_ms p75_duration_ms p90_duration_ms", "ms", "Linear interpolated quantile of available nonnegative durations", "tool_call.duration_ms", "calls with duration")
 define("duration_sum_ms", "ms", "Sum usable durations; retains duration source and quality", "tool_call.duration_ms")
 define("reliable_interval_union_ms", "ms", "Union of reliable observed start/end intervals, including overlapping children", "tool_call native endpoints")
-define("error_count branch_count rollback_rewind_count compaction_count permission_request_count subagent_spawn_count interruption_count",
+define("error_count branch_count rollback_rewind_count compaction_count permission_request_count interruption_count",
        "event", "Count explicitly supported event kinds; unsupported kinds return null", "event.kind + attrs")
 define("repeated_transition_count", "transition", "Count edges previously seen in the same session sequence", "event.seq")
 define("repeated_transition_rate", "ratio", "Repeated transition count / all observed transitions", "event.seq", "transitions")
 define("max_repeated_transition_run", "transition", "Longest adjacent run of an identical edge; not repeated cycle detection", "event.seq")
+define("subagent_spawn_count", "child session", "Distinct child identities observed in spawn events; events without native child identity excluded", "event.attrs.child_session_uid")
+define("subagent_spawn_unknown_events", "event", "Spawn observations without a resolvable native child identity", "event.attrs")
+define("transition_edge_reuse_count", "transition", "Edges previously seen within a session; topology only, not retry or bottleneck", "event.seq")
+define("transition_edge_reuse_rate", "ratio", "Previously seen edge occurrences / transitions; topology only", "event.seq", "transitions")
 define("consecutive_failed_calls", "adjacent failed pair", "Adjacent failed logical calls in the same session", "tool_call status + seq")
 define("confirmed_same_argument_failed_retries", "adjacent failed pair", "Same tool, literal argument digest and known equal status_scope; wrapper-level only when wrapper", "tool_call + L2 attrs")
 define("correction_signal_count", "human message", "Messages matching conservative correction lexical markers; evidence only", "confirmed human text", kind="proxy")

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .. import __version__
@@ -289,7 +290,9 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             except ValueError as exc:
                 raise analysis_error(exc) from exc
             result["sessions"] = [session_summary(s) for s in result["sessions"]]
-            return result
+            # Stored cache values have already passed strict JSON serialization.
+            # Avoid a second recursive FastAPI conversion of the large provenance block.
+            return JSONResponse(result)
         result = analytics_section("sessions", scope, with_text)
         result["total"] = len(result["sessions"])
         result["sessions"] = [session_summary(s) for s in result["sessions"][offset:offset + limit]]
@@ -305,7 +308,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
                 raise analysis_error(exc) from exc
             if result["session"] is None:
                 raise HTTPException(404, "会话不在本次分析范围内")
-            return result
+            return JSONResponse(result)
         result = analytics_section("sessions", scope, with_text)
         row = next((s for s in result.pop("sessions") if s["session_uid"] == session_id), None)
         if row is None:

@@ -1,5 +1,8 @@
+import shlex
+
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
 from tandem_data.contract import canonical, uid
+from tandem_data.duration import native_duration_ms
 
 
 def select_history(store, mappers):
@@ -69,6 +72,52 @@ def select_history(store, mappers):
 
 
 class CodexMapper(BaseMapper):
+    def subagent_events(self, record, kind, payload, path):
+        """Native child identity is required; UI item ids are not child sessions."""
+        children = []
+        for key in ("agent_thread_id", "receiver_thread_id", "new_thread_id", "agent_id"):
+            if isinstance(payload.get(key), str) and payload[key]:
+                children.append(payload[key])
+        for key in ("receiver_thread_ids", "agent_thread_ids"):
+            if isinstance(payload.get(key), list):
+                children.extend(c for c in payload[key] if isinstance(c, str) and c)
+        statuses = payload.get("agent_statuses") or payload.get("statuses")
+        if isinstance(statuses, dict):
+            children.extend(c for c in statuses if isinstance(c, str) and c)
+        result = []
+        for child in sorted(set(children)) or [None]:
+            attrs = {
+                "observing_session_uid": self.session_uid,
+                "lifecycle_phase": payload.get("kind", payload.get("type")),
+                "status": payload.get("status") or "completed"
+                if kind == "subagent.result"
+                else "unknown",
+            }
+            # Viewing, waiting for, or messaging an existing agent does not create it.
+            parent = payload.get("parent_thread_id")
+            if isinstance(parent, str) and parent:
+                attrs["parent_session_uid"] = self.store.identity(record.source_id, parent)
+                attrs["parent_relation_source"] = "native_parent"
+            elif kind == "subagent.spawn":
+                attrs["parent_session_uid"] = self.session_uid
+                attrs["parent_relation_source"] = "spawn_creator"
+            if child:
+                attrs["child_session_uid"] = self.store.identity(record.source_id, child)
+                attrs["child_native_id"] = child
+            else:
+                attrs["relation_missing_reason"] = "native_child_identity_missing"
+            result.append(
+                self.make(
+                    record,
+                    kind,
+                    path + ("." + child if child else ""),
+                    actor="subagent",
+                    attrs=attrs,
+                    ext=payload,
+                )
+            )
+        return result
+
     def prepare(self, records):
         self.has_calls = False
         self.messages = {}
@@ -728,6 +777,11 @@ class CodexMapper(BaseMapper):
                             )
                         ]
                     )
+                if itype == "SubAgentActivity":
+                    kind = {"started": "subagent.spawn", "completed": "subagent.result"}.get(
+                        item.get("kind"), "subagent.activity"
+                    )
+                    return Mapping(self.subagent_events(record, kind, item, "subagent.activity"))
                 if (
                     itype
                     in (
@@ -754,7 +808,11 @@ class CodexMapper(BaseMapper):
                     }[itype]
                     args = item.get(
                         "arguments",
-                        {"command": " ".join(item.get("command", []))}
+                        {
+                            "command": shlex.join(item.get("command", []))
+                            if isinstance(item.get("command"), list)
+                            else item.get("command")
+                        }
                         if itype == "CommandExecution"
                         else {"action": item.get("action"), "query": item.get("query")}
                         if itype in ("WebSearch", "Extension")
@@ -778,7 +836,10 @@ class CodexMapper(BaseMapper):
                             "name": name,
                             "input": args,
                             "category": "subagent" if itype == "CollabAgentToolCall" else None,
-                            "duration_ms": item.get("duration_ms"),
+                            "duration_ms": native_duration_ms(item),
+                            "native_execution_ms": native_duration_ms(item)
+                            if itype == "CommandExecution"
+                            else None,
                             "native_turn_id": self.native_turn,
                         },
                         ts_value=payload.get("started_at_ms"),
@@ -805,7 +866,10 @@ class CodexMapper(BaseMapper):
                             if itype == "CommandExecution"
                             else "tool_protocol",
                             "exit_code": item.get("exit_code"),
-                            "duration_ms": item.get("duration_ms"),
+                            "duration_ms": native_duration_ms(item),
+                            "native_execution_ms": native_duration_ms(item)
+                            if itype == "CommandExecution"
+                            else None,
                             "native_turn_id": self.native_turn,
                         },
                         ts_value=payload.get("completed_at_ms"),
@@ -825,8 +889,6 @@ class CodexMapper(BaseMapper):
                             record,
                             "context.compaction"
                             if itype == "ContextCompaction"
-                            else "subagent.spawn"
-                            if "SubAgent" in str(itype)
                             else "plan.update"
                             if itype == "Plan"
                             else "hook.run"
@@ -859,15 +921,19 @@ class CodexMapper(BaseMapper):
                 "agent_message_delta": "ui.state",
                 "agent_reasoning_delta": "ui.state",
                 "exec_command_output_delta": "ui.state",
-                "collab_agent_spawn_begin": "subagent.spawn",
+                "collab_agent_spawn_begin": "subagent.activity",
                 "collab_agent_spawn_end": "subagent.spawn",
-                "collab_agent_interaction_begin": "subagent.spawn",
-                "collab_agent_interaction_end": "subagent.result",
-                "collab_waiting_begin": "subagent.spawn",
-                "collab_waiting_end": "subagent.result",
-                "collab_close_begin": "subagent.result",
-                "collab_close_end": "subagent.result",
+                "collab_agent_interaction_begin": "subagent.message",
+                "collab_agent_interaction_end": "subagent.message",
+                "collab_waiting_begin": "subagent.wait",
+                "collab_waiting_end": "subagent.wait",
+                "collab_close_begin": "subagent.close",
+                "collab_close_end": "subagent.close",
             }.get(etype, "unknown")
+            if kind.startswith("subagent."):
+                return Mapping(
+                    self.subagent_events(record, kind, payload, "event_msg." + str(etype))
+                )
             return Mapping(
                 [
                     self.make(
