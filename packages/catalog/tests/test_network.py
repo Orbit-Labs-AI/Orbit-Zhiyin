@@ -105,13 +105,26 @@ def test_get_many_keeps_order_and_isolates_errors(tmp_path):
 
 
 def test_status_errors_and_oversize_bodies(tmp_path):
-    http, _ = client(tmp_path, 429)
+    waits = []
+    http, opener = client(tmp_path, 429, sleep=waits.append)
     with pytest.raises(FetchError) as caught:
         http.get(URL)
     assert str(caught.value) == "http_429" and caught.value.retry_after == 7
+    assert len(opener.calls) == 5 and waits == [7, 7, 7, 8]  # Retry-After floor over 1/2/4/8 s backoff
     big, _ = client(tmp_path / "big", (b"z" * (MAX_BODY + 1), {}))
     with pytest.raises(FetchError, match="source_response_too_large"):
         big.get(URL)
+
+
+def test_transient_errors_retry_with_backoff_then_succeed(tmp_path):
+    waits = []
+    http, opener = client(tmp_path, 500, 503, (b'{"ok": 1}', {}), sleep=waits.append)
+    assert http.json(URL) == {"ok": 1}
+    assert waits == [7, 7] and len(opener.calls) == 3 and http.requests == 3
+    lost, opener = client(tmp_path / "404", 404, sleep=waits.append)
+    with pytest.raises(FetchError, match="http_404"):
+        lost.get(URL)
+    assert len(opener.calls) == 1 and waits == [7, 7]  # 4xx other than 429 is final
 
 
 def test_redirects_stay_on_allowlisted_same_host():
