@@ -18,6 +18,7 @@ from ..analytics.outcome_subjective.extraction import classify_feedback
 from ..install.env import AGENTS, capabilities
 from ..privacy import redact
 from ..recommend.outcomes import newcombe, welch, wilson
+from .a4a6_common import ManyQuery
 from .a4a6_sentiment import (
     FAILED,
     _appdb_rows,
@@ -434,14 +435,11 @@ def _linked_items(project_ids):
 
 
 def register(api, gw) -> None:
-    from typing import Annotated
-
     from fastapi import Query
 
     from ..services.auth import ApiError
+    from ..services.routes_data import mark_empty
     from . import a4a6_common as common
-
-    many = Annotated[list[str] | None, Query()]
 
     def scope_of(project_id, agent, since, until):
         if since is not None and until is not None and since >= until:
@@ -454,7 +452,7 @@ def register(api, gw) -> None:
         return getattr(gw, "persona_lookup", None)
 
     @api.get("/v1/uiview/projects")
-    def projects(project_id: many = None, agent: many = None, agents: str | None = None,
+    def projects(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
                  since: int | None = None, until: int | None = None, group: str = "project",
                  topic: str | None = None, outcome: str | None = None,
                  fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
@@ -467,15 +465,16 @@ def register(api, gw) -> None:
             return early
         scope = {**scope_of(project_id, common.agent_list(agent, agents), since, until),
                  "session_uids": ids}
-        with gw.reads.read() as conn:
-            return build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
+        with gw.reads.read(empty=True) as conn:
+            body = build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
+            return mark_empty(body) if gw.reads.is_empty(conn) else body
 
     @api.get("/v1/uiview/projects/{project_id}")
-    def project(project_id: str, agent: many = None, since: int | None = None,
+    def project(project_id: str, agent: ManyQuery = None, since: int | None = None,
                 until: int | None = None, compare: str = "overall"):
         scope = scope_of(None, agent, since, until)
         items = _linked_items([project_id])
-        with gw.reads.read() as conn:
+        with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
             body = build_project(conn, scope, project_id, {"compare": compare},
                                  inventory_items=items, appdb=gw.appdb, persona_lookup=lookup())
         if body is None:

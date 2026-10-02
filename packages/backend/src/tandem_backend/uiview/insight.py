@@ -36,7 +36,7 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
     for r in rows:
         if r.get("corr"):
             by_project[r.get("p")] += r["corr"]
-    top_p = [projects.get(pid, {}).get("name", pid) for pid, _ in by_project.most_common(2)]
+    top_p = [derive.project_name(projects, pid) for pid, _ in by_project.most_common(2)]
     if fr:
         kind, count = fr[0]
         stuck = {"text": f"{count} 个会话出现「{kind}」" + (f"，集中在 {'、'.join(top_p)}"

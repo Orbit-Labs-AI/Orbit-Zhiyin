@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .. import platform
 from ..sessionops import exclusion, locate, resume, toolcalls
 from .auth import ApiError
+from .routes_data import mark_empty
 
 if TYPE_CHECKING:
     from .gateway import Gateway
@@ -88,7 +89,7 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/sessions/{session_uid}/resume")
     def resume_command(session_uid: str):
-        with gw.reads.read() as db:
+        with gw.reads.read(empty=True) as db:  # nothing imported yet: 404, not 503
             row = session_row(db, session_uid)
             row["last_event_ts"] = db.execute("SELECT max(ts) FROM event WHERE session_uid = ?",
                                               (session_uid,)).fetchone()[0]
@@ -96,7 +97,7 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/sessions/{session_uid}/source_location")
     def source_location(session_uid: str):
-        with gw.reads.read() as db:
+        with gw.reads.read(empty=True) as db:
             session_row(db, session_uid)
             return locate.locate(db, session_uid)
 
@@ -122,8 +123,9 @@ def router(gw: Gateway) -> APIRouter:
         except ValueError as error:
             raise ApiError(422, "invalid_request", str(error)) from error
         excluded = [] if include_excluded else exclusion.excluded_uids(gw.appdb)
-        with gw.reads.read() as db:
-            return toolcalls.query(db, filters, limit, cursor, excluded)
+        with gw.reads.read(empty=True) as db:
+            body = toolcalls.query(db, filters, limit, cursor, excluded)
+            return mark_empty(body) if gw.reads.is_empty(db) else body
 
     return api
 

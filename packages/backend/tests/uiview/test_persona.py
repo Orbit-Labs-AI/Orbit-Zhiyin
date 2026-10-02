@@ -1,5 +1,6 @@
 """Deterministic four-axis persona: Wilson bounds, gates, periods and reveal."""
 
+import copy
 import json
 import re
 from datetime import date
@@ -7,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.uiview import persona
+from tandem_backend.uiview import derive, insight, overview, persona
 from tandem_backend.uiview.typecopy import AXES, BUILTIN, TYPES
 
 from .synth import TODAY, analysed
@@ -101,3 +102,51 @@ def test_months_window_resolution():
     assert label == "2026-01" and prev_label == "2025-12"
     assert window == ((date(2026, 1, 1) - date(2026, 3, 15)).days,
                       (date(2026, 1, 31) - date(2026, 3, 15)).days)
+
+
+# -- sessions without a project ------------------------------------------------------------
+# Kimi without session_index.jsonl or a session without cwd has project_id NULL; persona
+# evidence used to sort (ratio, pid) tuples and raised str < None on a ratio tie.
+
+def test_evidence_ties_with_a_projectless_bucket():
+    rows = [{"id": "a", "d": "2026-09-01", "a": "kimi", "p": None, "msgs": 3},
+            {"id": "b", "d": "2026-09-01", "a": "codex", "p": "p1", "msgs": 3}]
+    aux = {"a": {"open": 1, "turns": [[5, 1]]}, "b": {"open": 1, "turns": [[5, 1]]}}
+    p = {"axes": [{"k": "I", "n_units": 2, "k_units": 0}]}
+    st = {"per": 3.0, "auto": 5.0, "verify": 100.0}
+    ev = persona.evidence(rows, aux, p, st, {"p1": {"id": "p1", "name": "Alpha"}})
+    assert ev["I"]["vals"] == [100, 100] and ev["V"]["vals"] == [100, 100]
+    assert ev["I"]["projects"] == ev["V"]["projects"] == ["Alpha", derive.NO_PROJECT]
+
+
+def _projectless(share: int = 3) -> dict:
+    body = copy.deepcopy(analysed()[4])
+    for r in body["rows"][::share]:
+        r["p"] = None
+    return body
+
+
+def test_page_and_reveal_with_projectless_sessions():
+    body = _projectless()
+    for period in ("all", "90", "2026-09"):
+        out = persona.page(body, {"period": period}, TODAY)
+        for k in ("I", "V"):
+            ev = (next(a for a in out["axes"] if a["k"] == k)["evidence"] or {})
+            assert all(isinstance(name, str) for name in ev.get("projects") or [])
+    full = persona.page(body, {"period": "all"}, TODAY)
+    assert full["ok"] and derive.NO_PROJECT in next(
+        a for a in full["axes"] if a["k"] == "I")["evidence"]["projects"]
+    reveal = persona.reveal(body, {"period": "all"}, TODAY)
+    assert reveal["code"] == full["code"]
+    assert len(reveal["particles"]) == reveal["particles_total"] == 150
+
+
+def test_overview_insight_names_the_projectless_bucket():
+    rows = [{"id": "a", "p": None, "corr": 3, "fric": "方向错误"},
+            {"id": "b", "p": "p1", "corr": 1, "fric": "方向错误"}]
+    st = {"verify": 0, "ok": 0, "corr": 4}
+    p = {"ok": False, "n": 2}
+    out = insight.build(rows, st, p, {"p1": {"id": "p1", "name": "Alpha"}})
+    assert f"集中在 {derive.NO_PROJECT}、Alpha" in out["stuck"]["text"]
+    body = _projectless(share=1)
+    assert overview.build(body, {"range": 30}, TODAY)["insight"]["stuck"]["text"]

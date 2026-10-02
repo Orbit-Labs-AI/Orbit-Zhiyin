@@ -247,12 +247,15 @@ class _Reads:
         self.path = path
 
     @contextmanager
-    def read(self):
+    def read(self, check=True, empty=False):
         c = ro(self.path)
         try:
             yield c
         finally:
             c.close()
+
+    def is_empty(self, connection):
+        return False
 
 
 def make_client(home, path, **extra):

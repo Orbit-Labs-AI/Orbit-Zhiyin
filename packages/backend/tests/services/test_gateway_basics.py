@@ -82,9 +82,10 @@ def test_status_without_database_is_fast_and_onboarding(client_factory):
 
 def test_reads_and_fallback_without_database(client_factory):
     client, _ = client_factory()
-    response = client.get("/v1/sessions")
-    assert response.status_code == 503 and response.headers["retry-after"]
-    assert response.json()["error"]["code"] == "no_projection"
+    response = client.get("/v1/sessions")  # Nothing imported yet: empty, not unavailable.
+    assert response.status_code == 200 and response.json() == []
+    assert response.headers["x-tandem-freshness"] == "none"
+    assert response.headers["x-total-count"] == "0"
     legacy = client.get("/v1/analytics/statistics")  # Not a gateway route: create_app().
     assert legacy.status_code == 503 and legacy.json()["error"]["code"] == "no_projection"
     overview = client.get("/v1/analytics/overview")

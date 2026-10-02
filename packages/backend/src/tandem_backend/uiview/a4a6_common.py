@@ -16,6 +16,9 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import asdict, is_dataclass
+from typing import Annotated
+
+from fastapi import Query
 
 from ..analytics.common import quantile as _quantile
 from ..recommend.outcomes import newcombe as _newcombe
@@ -26,6 +29,12 @@ CONTRACT = "tandem-uiview-a4a6-v1"
 DAY_MS = 86_400_000
 WEEK_MS = 7 * DAY_MS
 ADAPTERS = ("a4a6_tools", "a4a6_projects", "a4a6_sentiment")
+
+# Repeated query parameter (``?agent=a&agent=b``). Kept at module level and imported by
+# name: the adapters use ``from __future__ import annotations``, so FastAPI resolves route
+# annotations against module globals and a function-local alias stays ForwardRef('many'),
+# which makes ``/v1/openapi.json`` fail with a 500.
+ManyQuery = Annotated[list[str] | None, Query()]
 
 
 # -- scope -------------------------------------------------------------------------------
