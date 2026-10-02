@@ -30,6 +30,10 @@ DEFAULT_SETTINGS = {"ai_generate": False, "level": None}
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
 
+# Cards per surface (route default ``limit``); A7 lists, the others show a top slice.
+SURFACE_LIMIT = {"A7": 30, "A1": 3, "lite": 3, "menubar": 1, "widget": 1, "palette": 10,
+                 "ask": 5, "hud": 1}
+
 KIND_MAP = {"prompt": "prompt", "skill": "skill", "hook": "hook", "plugin": "plugin",
             "mcp": "mcp", "model_config": "model", "workflow": "workflow", "agent": "subagent",
             "subagent": "subagent", "rule": "rule", "permission_rule": "permission_rule"}
@@ -221,7 +225,10 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         catalog = catalog_service(gw)
         generation, items = _catalog_state(catalog) if catalog is not None else (None, 0)
         if not items:
-            catalog = None  # empty catalog: the bundled seeds recall better than nothing
+            # Empty catalog (fresh install, before the first sync): the bundled seeds recall
+            # better than nothing, and the slate reports no generation — so neither may the
+            # digest, or every GET rebuilds the run and invalidates candidate ids.
+            catalog, generation = None, None
         same = previous is not None and previous["engine_version"] == engine_version
         kb_version = previous["kb_version"] if same else None
         if generation is None and same:
@@ -250,8 +257,12 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
             ai_rerank(gw, slate, scope_dict)
         _mark_generate(slate, memory["settings"]["ai_generate"])
         duration = int((time.perf_counter() - started) * 1000)
-        kb_version = slate.get("kb_version", kb_version)
-        generation = slate.get("catalog_generation", generation)
+        # Only versions the slate actually reports override the lookup ones, so the stored
+        # digest equals the one the next call computes from ``previous``.
+        if slate.get("kb_version") is not None:
+            kb_version = slate["kb_version"]
+        if slate.get("catalog_generation") is not None:
+            generation = slate["catalog_generation"]
         # Digest with the versions the slate actually used, so the next call reuses it.
         digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev)
         run_id = uuid.uuid4().hex[:16]
