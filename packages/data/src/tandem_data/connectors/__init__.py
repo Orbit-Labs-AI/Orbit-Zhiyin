@@ -2,6 +2,7 @@ from tandem_data.connectors.claude_code import ClaudeMapper
 from tandem_data.connectors.codex import CodexMapper
 from tandem_data.connectors.dsh import DshMapper
 from tandem_data.connectors.hermes import HermesMapper
+from tandem_data.connectors.kimi import KimiMapper
 from tandem_data.connectors.opencode import OpenCodeMapper
 from tandem_data.connectors.pi import PiMapper
 
@@ -10,6 +11,7 @@ MAPPERS = {
     "codex": CodexMapper,
     "dsh": DshMapper,
     "pi": PiMapper,
+    "kimi": KimiMapper,
     "hermes": HermesMapper,
     "opencode": OpenCodeMapper,
 }

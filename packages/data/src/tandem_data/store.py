@@ -63,7 +63,16 @@ def sqlite_rows(path: Path, agent: str) -> Iterable[bytes]:
             primary = [r["name"] for r in sorted(columns, key=lambda r: r["pk"]) if r["pk"]]
             if not primary:
                 raise ValueError(f"Cannot version {table}: no primary key")
-            order = ",".join('"' + col.replace('"', '""') + '"' for col in primary)
+            # Use native chronology, never assume lexicographic PK order is chronology.
+            names = {r["name"] for r in columns}
+            preferred = {
+                "session_message": ["session_id", "seq"],
+                "message": ["session_id", "time_created", "id"],
+                "part": ["session_id", "message_id", "id"],
+                "messages": ["id"],
+            }.get(table, [])
+            ordering = list(dict.fromkeys([c for c in preferred if c in names] + primary))
+            order = ",".join('"' + col.replace('"', '""') + '"' for col in ordering)
             for row in connection.execute(f'SELECT * FROM "{table}" ORDER BY {order}'):
                 data = {key: _json_cell(row[key]) for key in row.keys()}
                 yield (
@@ -72,6 +81,18 @@ def sqlite_rows(path: Path, agent: str) -> Iterable[bytes]:
                     )
                     + "\n"
                 ).encode()
+
+
+def _record_lines(handle, format_name):
+    if format_name == "json":
+        # Only small, explicitly allowlisted sidecars use document JSON.
+        raw = handle.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            raise ValueError("Metadata document exceeds 16 MiB; original archive retained")
+        if raw:
+            yield raw
+    else:
+        yield from handle
 
 
 class Store:
@@ -92,9 +113,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version != 1:
+        elif version not in (1, 2, 3, 4):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1")
+            raise ValueError(f"Unsupported database version {version}; expected 1, 2, 3 or 4")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -107,6 +128,42 @@ class Store:
             raise ValueError(
                 "This is a connector staging database, not tandem-session-v1. Use import-connector into a separate home."
             )
+
+        if version < 2:
+            sql = files("tandem_data").joinpath("migrations/002.sql").read_text()
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 3:
+            sql = files("tandem_data").joinpath("migrations/003.sql").read_text()
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 4:
+            # SQLite's table-copy migration procedure: disable FK enforcement only
+            # on this connection, preserve IDs, validate all references before commit.
+            sql = files("tandem_data").joinpath("migrations/004.sql").read_text()
+            try:
+                self.db.execute("PRAGMA foreign_keys=OFF")
+                try:
+                    self.db.executescript("BEGIN IMMEDIATE;\n" + sql)
+                    if self.db.execute("PRAGMA foreign_key_check").fetchall():
+                        raise ValueError("Project migration would break foreign keys")
+                    self.db.execute("COMMIT")
+                except BaseException:
+                    if self.db.in_transaction:
+                        self.db.execute("ROLLBACK")
+                    raise
+                finally:
+                    self.db.execute("PRAGMA foreign_keys=ON")
+            except BaseException:
+                self.db.close()
+                raise
+        os.chmod(self.home, 0o700)
+        os.chmod(self.raw_dir, 0o700)
+        for path in (
+            self.db_path,
+            Path(str(self.db_path) + "-wal"),
+            Path(str(self.db_path) + "-shm"),
+        ):
+            if path.exists():
+                os.chmod(path, 0o600)
 
     def __enter__(self):
         return self
@@ -157,8 +214,10 @@ class Store:
         severity="warning",
         detail=None,
     ):
+        # A capture can fail before source_file exists; retain each failed path separately.
+        location = file_id if file_id is not None else (detail or {}).get("path")
         values = {
-            "issue_uid": uid("issue", source_id, stage, code, file_id, record_uid),
+            "issue_uid": uid("issue", source_id, stage, code, location, record_uid),
             "source_id": source_id,
             "file_id": file_id,
             "record_uid": record_uid,
@@ -183,15 +242,49 @@ class Store:
             chunks = sqlite_rows(path, source["agent"])
             format_name = "sqlite_rows"
             stat = {}
-        elif path.name.endswith((".jsonl", ".jsonl.zst", ".jsonl.zstd")):
+        elif path.name.endswith((".jsonl", ".jsonl.zst", ".jsonl.zstd")) or (
+            path.suffix == ".json" and role in ("subagent_metadata", "session_title")
+        ):
             before = path.stat()
             stat = {
                 "dev": before.st_dev,
                 "inode": before.st_ino,
                 "size": before.st_size,
                 "mtime_ns": before.st_mtime_ns,
+                "ctime_ns": before.st_ctime_ns,
             }
-            format_name = "jsonl_zstd" if path.suffix in (".zst", ".zstd") else "jsonl"
+            previous = self.db.execute(
+                "SELECT f.file_id,f.role,f.status,f.watermark,r.source_stat,r.record_count FROM source_file f "
+                "JOIN source_revision r USING(file_id) WHERE f.source_id=? AND f.relative_path=? "
+                "ORDER BY r.revision DESC LIMIT 1",
+                (source_id, str(path.relative_to(root))),
+            ).fetchone()
+            if (
+                previous
+                and previous["status"] != "error"
+                and json.loads(previous["watermark"]).get(
+                    "last_source_stat", json.loads(previous["source_stat"])
+                )
+                == stat
+            ):
+                changed_role = previous["role"] != role
+                self.db.execute(
+                    "UPDATE source_file SET watermark=CASE WHEN role<>? THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=?,status='active',last_scan_at=? WHERE file_id=?",
+                    (role, role, now_ms(), previous["file_id"]),
+                )
+                self._resolve_capture_issues(source_id, previous["file_id"])
+                return {
+                    "file_id": previous["file_id"],
+                    "changed": changed_role,
+                    "records": previous["record_count"],
+                }
+            format_name = (
+                "json"
+                if path.suffix == ".json"
+                else "jsonl_zstd"
+                if path.suffix in (".zst", ".zstd")
+                else "jsonl"
+            )
 
             def contents():
                 with path.open("rb") as handle:
@@ -236,7 +329,7 @@ class Store:
         Source has to be registered. Callers provide bytes, not filesystem write privileges.
         A changed SQL primary-key row gets a monotonically increasing version, even A->B->A.
         """
-        if format_name not in ("jsonl", "jsonl_zstd", "sqlite_rows"):
+        if format_name not in ("jsonl", "jsonl_zstd", "sqlite_rows", "json"):
             raise ValueError("Unsupported record encoding")
         relative = Path(relative_path)
         if relative.is_absolute() or ".." in relative.parts:
@@ -279,7 +372,7 @@ class Store:
         )
         self.db.execute(
             "INSERT INTO source_file(file_id,source_id,relative_path,role,format,last_scan_at) "
-            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',last_scan_at=excluded.last_scan_at",
+            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',watermark=CASE WHEN role<>excluded.role THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=excluded.role,last_scan_at=excluded.last_scan_at",
             (file_id, source_id, relative_path, role, format_name, captured_at),
         )
         with self._index_transaction(source_id, file_id, uid("archive", sha)):
@@ -288,6 +381,11 @@ class Store:
                 (file_id,),
             ).fetchone()
             if latest and latest["archive_uid"] == uid("archive", sha):
+                # Cache the latest stat without mutating immutable capture provenance.
+                self.db.execute(
+                    "UPDATE source_file SET watermark=json_set(watermark,'$.last_source_stat',json(?)) WHERE file_id=?",
+                    (canonical(source_stat or {}), file_id),
+                )
                 self._resolve_capture_issues(source_id, file_id)
                 return {"file_id": file_id, "changed": False, "records": latest["record_count"]}
             revision = latest["revision"] + 1 if latest else 1
@@ -314,9 +412,11 @@ class Store:
             self.db.execute("DELETE FROM file_record WHERE file_id=?", (file_id,))
             count, offset = 0, 0
             with self._decoded(blob_path, format_name) as handle:
-                for ordinal, line in enumerate(handle):
+                for ordinal, line in enumerate(_record_lines(handle, format_name)):
                     row_sha = hashlib.sha256(line).hexdigest()
                     try:
+                        if format_name in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
+                            raise ValueError("pending_tail")
                         data = json.loads(line)
                         if not isinstance(data, dict):
                             raise ValueError("Record must be an object")
@@ -325,14 +425,18 @@ class Store:
                             native_type = "table:" + data["table"]
                         else:
                             locator = canonical(["line", ordinal])
-                            native_type = str(data.get("type", "unknown"))
+                            native_type = str(
+                                data.get("type", role if format_name == "json" else "unknown")
+                            )
                         native_id = data.get("uuid", data.get("id"))
                         shape_hash = uid("shape", shape(data))
                     except (ValueError, KeyError, TypeError, UnicodeDecodeError):
                         data, locator, native_type, native_id, shape_hash = (
                             {},
                             canonical(["line", ordinal]),
-                            "invalid",
+                            "pending_tail"
+                            if format_name in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n")
+                            else "invalid",
                             None,
                             None,
                         )
@@ -368,6 +472,11 @@ class Store:
                                 "shape_hash": shape_hash,
                             },
                         )
+                    if native_type == "pending_tail":
+                        self.db.execute(
+                            "UPDATE raw_record SET disposition='ignored',note=? WHERE record_uid=?",
+                            (canonical({"reason": "incomplete_tail_retained_in_L0"}), record_uid),
+                        )
                     self.db.execute(
                         "INSERT INTO file_record VALUES(?,?,?)", (file_id, locator, record_uid)
                     )
@@ -387,6 +496,7 @@ class Store:
                             "decoded_bytes": offset,
                             "records": count,
                             "capture": "immutable_snapshot",
+                            "last_source_stat": source_stat or {},
                         }
                     ),
                     file_id,
@@ -397,8 +507,8 @@ class Store:
 
     def _resolve_capture_issues(self, source_id, file_id):
         self.db.execute(
-            "UPDATE ingest_issue SET detail=json_set(detail,'$.status','resolved','$.resolved_at',?) WHERE source_id=? AND stage='l1' AND (file_id=? OR (file_id IS NULL AND code='capture_failed'))",
-            (now_ms(), source_id, file_id),
+            "UPDATE ingest_issue SET detail=json_set(detail,'$.status','resolved','$.resolved_at',?) WHERE source_id=? AND stage='l1' AND (file_id=? OR (file_id IS NULL AND code='capture_failed' AND json_extract(detail,'$.path')=(SELECT relative_path FROM source_file WHERE file_id=?)))",
+            (now_ms(), source_id, file_id, file_id),
         )
 
     @contextmanager
@@ -451,8 +561,10 @@ class Store:
         if not info:
             return
         with self._decoded(self.home / info["path"], info["format"]) as handle:
-            for ordinal, line in enumerate(handle):
+            for ordinal, line in enumerate(_record_lines(handle, info["format"])):
                 try:
+                    if info["format"] in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
+                        continue
                     data = json.loads(line)
                     if not isinstance(data, dict):
                         continue
@@ -482,6 +594,48 @@ class Store:
                         row["captured_at"],
                     )
 
+    def iter_versions(self, file_id: str, native_type: str) -> Iterable[RawRecord]:
+        """Read historical SQL row versions with one sequential decode per revision."""
+        info = self.db.execute(
+            "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id) WHERE file_id=?",
+            (file_id,),
+        ).fetchone()
+        for revision in self.db.execute(
+            "SELECT v.*,a.path FROM source_revision v JOIN archive_blob a USING(archive_uid) WHERE file_id=? ORDER BY revision",
+            (file_id,),
+        ).fetchall():
+            targets = self.db.execute(
+                "SELECT * FROM raw_record WHERE revision_uid=? AND native_type=? ORDER BY byte_offset",
+                (revision["revision_uid"], native_type),
+            ).fetchall()
+            if not targets:
+                continue
+            with self._decoded(self.home / revision["path"], info["format"]) as handle:
+                position = 0
+                for row in targets:
+                    remaining = row["byte_offset"] - position
+                    while remaining:
+                        part = handle.read(min(remaining, 1024 * 1024))
+                        if not part:
+                            raise ValueError("Archive shorter than L1 locator")
+                        remaining -= len(part)
+                    raw = handle.read(row["byte_len"])
+                    if hashlib.sha256(raw).hexdigest() != row["sha256"]:
+                        raise ValueError("L0 record hash mismatch")
+                    position = row["byte_offset"] + row["byte_len"]
+                    yield RawRecord(
+                        row["record_uid"],
+                        info["source_id"],
+                        info["agent"],
+                        file_id,
+                        info["relative_path"],
+                        row["ordinal"],
+                        row["version"],
+                        native_type,
+                        json.loads(raw),
+                        revision["captured_at"],
+                    )
+
     def read_raw(self, record_uid: str) -> bytes:
         row = self.db.execute(
             "SELECT r.*,a.path,f.format FROM raw_record r JOIN source_revision v USING(revision_uid) "
@@ -502,10 +656,10 @@ class Store:
             raise ValueError("L0 record hash mismatch")
         return data
 
-    def rebuild(self, *, mapper_version=None) -> dict:
+    def rebuild(self, *, mapper_version=None, source_ids=None) -> dict:
         from tandem_data.pipeline import rebuild
 
-        return rebuild(self, mapper_version=mapper_version)
+        return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event
@@ -519,6 +673,34 @@ class Store:
             if digest.hexdigest() != blob["sha256"]:
                 raise ValueError("L0 archive hash mismatch")
             checked += 1
+        # Verify locators and every L1 digest with linear reads, including superseded rows.
+        records_verified = 0
+        for revision in self.db.execute(
+            "SELECT v.revision_uid,a.path,f.format FROM source_revision v JOIN archive_blob a USING(archive_uid) JOIN source_file f USING(file_id)"
+        ).fetchall():
+            targets = self.db.execute(
+                "SELECT byte_offset,byte_len,sha256 FROM raw_record WHERE revision_uid=? ORDER BY byte_offset",
+                (revision["revision_uid"],),
+            )
+            with self._decoded(self.home / revision["path"], revision["format"]) as handle:
+                position = 0
+                for target in targets:
+                    remaining = target["byte_offset"] - position
+                    while remaining:
+                        block = handle.read(min(remaining, 1024 * 1024))
+                        if not block:
+                            raise ValueError("Archive shorter than L1 locator")
+                        remaining -= len(block)
+                    data = handle.read(target["byte_len"])
+                    if hashlib.sha256(data).hexdigest() != target["sha256"]:
+                        raise ValueError("L1 record digest mismatch")
+                    position = target["byte_offset"] + target["byte_len"]
+                    records_verified += 1
+        inconsistent = self.db.execute(
+            "SELECT COUNT(*) FROM v_raw_record_ledger WHERE (disposition IN ('mapped','folded','replayed','duplicate') AND event_count=0) OR (disposition IN ('ignored','unparsed') AND event_count>0)"
+        ).fetchone()[0]
+        if inconsistent:
+            raise ValueError("L1 dispositions disagree with evidence links")
         for row in self.db.execute("SELECT * FROM event"):
             envelope = dict(row)
             for name in ("attrs", "ext", "native_key"):
@@ -537,6 +719,7 @@ class Store:
         return {
             "integrity": "ok",
             "archives_verified": checked,
+            "record_hashes_verified": records_verified,
             "records": total,
             "dispositions": counts,
             "unparsed": counts.get("unparsed", 0),

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tandem_data.connectors.base import BaseMapper, Mapping
-from tandem_data.contract import canonical
+from tandem_data.contract import canonical, time_fields
 
 
 class PiMapper(BaseMapper):
@@ -9,7 +9,8 @@ class PiMapper(BaseMapper):
         super().prepare(records)
         self.parent_file_id = None
         self.parent_path = None
-        self.parent_entries = set()
+        self.parent_entries = {}
+        self.parent_identity = None
         parent = self.header.get("parentSession")
         if parent:
             root = self.store.db.execute(
@@ -23,11 +24,15 @@ class PiMapper(BaseMapper):
                 (self.info["source_id"], parent),
             ):
                 self.parent_file_id, self.parent_path = file["file_id"], file["relative_path"]
-                self.parent_entries = {
-                    record.data.get("id")
-                    for record in self.store.iter_file(file["file_id"])
-                    if record.data.get("type") != "session"
-                }
+                for parent_record in self.store.iter_file(file["file_id"]):
+                    if parent_record.data.get("type") == "session":
+                        self.parent_identity = self.store.identity(
+                            self.info["source_id"], str(parent_record.data["id"]), self.parent_path
+                        )
+                    elif parent_record.data.get("id"):
+                        self.parent_entries[parent_record.data["id"]] = canonical(
+                            parent_record.data
+                        )
 
     def map(self, record):
         data, typ = record.data, record.data.get("type")
@@ -40,10 +45,12 @@ class PiMapper(BaseMapper):
                 harness_version=str(data.get("version")),
                 fork_parent_path=data.get("parentSession"),
             )
+            if self.parent_identity:
+                event.attrs["forked_from_uid"] = self.parent_identity
             return Mapping([event])
         if self.session_uid is None:
             raise ValueError("pi session header is required")
-        if data.get("id") in self.parent_entries:
+        if self.parent_entries.get(data.get("id")) == canonical(data):
             refs = [
                 row[0]
                 for row in self.store.db.execute(
@@ -75,10 +82,62 @@ class PiMapper(BaseMapper):
             )
         if typ == "message":
             message = data.get("message", {})
+            if message.get("role") == "bashExecution":
+                call_id = str(data.get("id", record.record_uid))
+                call = self.make(
+                    record,
+                    "tool.call",
+                    "bash.call",
+                    actor="human",
+                    call_id=call_id,
+                    attrs={"name": "bash", "input": {"command": message.get("command")}},
+                )
+                result = self.make(
+                    record,
+                    "tool.result",
+                    "bash.result",
+                    actor="tool",
+                    call_id=call_id,
+                    text=message.get("output"),
+                    attrs={
+                        "name": "bash",
+                        "exit_code": message.get("exitCode"),
+                        "status": "interrupted"
+                        if message.get("cancelled")
+                        else "completed"
+                        if message.get("exitCode") == 0
+                        else "failed"
+                        if message.get("exitCode") is not None
+                        else "unknown",
+                        "status_scope": "direct_command",
+                    },
+                )
+                return Mapping([call, result])
+            if message.get("role") in ("branchSummary", "compactionSummary"):
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "branch"
+                            if message["role"] == "branchSummary"
+                            else "context.compaction",
+                            "message.summary",
+                            text=message.get("summary"),
+                            ext=message,
+                        )
+                    ]
+                )
             self.model = message.get("model", self.model)
             self.provider = message.get("provider", self.provider)
             self.effort = message.get("thinkingLevel", self.effort)
-            events = self.message(record, message)
+            origin = (
+                "injected"
+                if message.get("role") in ("custom", "hookMessage", "system", "developer")
+                else "human"
+            )
+            events = self.message(record, message, origin=origin)
+            if not events:
+                events = [self.make(record, "context.inject", "message.metadata", ext=message)]
             for event in events:
                 if data.get("parentId"):
                     event.parent_native_key = [
@@ -87,6 +146,13 @@ class PiMapper(BaseMapper):
                         data["parentId"],
                     ]
                 event.attrs["time"]["reported"]["message.timestamp"] = message.get("timestamp")
+                if event.ts is None and message.get("timestamp") is not None:
+                    event.ts, event.attrs["time"] = time_fields(
+                        message["timestamp"],
+                        "message.timestamp",
+                        "milliseconds",
+                        "request_start" if message.get("role") == "assistant" else "created",
+                    )
             if message.get("usage"):
                 events.append(
                     self.usage(
@@ -94,7 +160,11 @@ class PiMapper(BaseMapper):
                         message["usage"],
                         "pi",
                         request_id=message.get("responseId"),
-                        request_key=[record.source_id, self.session_uid, data["id"]],
+                        request_key=[
+                            record.source_id,
+                            self.session_uid,
+                            data.get("id", record.ordinal),
+                        ],
                         cost_usd=message["usage"].get("cost", {}).get("total"),
                         cost_source="native_estimate",
                         stop_reason=message.get("stopReason"),
@@ -122,6 +192,10 @@ class PiMapper(BaseMapper):
                 ]
             )
         if typ == "usage":
+            self.model, self.provider = (
+                data.get("model", self.model),
+                data.get("provider", self.provider),
+            )
             return Mapping(
                 [
                     self.usage(
@@ -129,7 +203,9 @@ class PiMapper(BaseMapper):
                         data.get("usage", {}),
                         "pi",
                         request_key=self.native_key(record),
-                        purpose="cache_warmup",
+                        purpose=data.get("kind", "auxiliary"),
+                        cost_usd=data.get("usage", {}).get("cost", {}).get("total"),
+                        cost_source="native_estimate",
                     )
                 ]
             )

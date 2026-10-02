@@ -93,7 +93,7 @@ def _model(store, provider, raw):
 
 
 TOOL_KINDS = {
-    "shell": {"bash", "exec", "exec_command", "commandexecution", "shell", "pwsh"},
+    "shell": {"bash", "exec", "exec_command", "commandexecution", "shell", "pwsh", "terminal"},
     "file.read": {"read", "read_file", "view_image"},
     "file.edit": {"edit", "multiedit", "apply_patch", "filechange", "str_replace_editor"},
     "file.write": {"write", "write_file"},
@@ -168,14 +168,16 @@ def _duration(call, result, attrs):
     return None, "unknown", "missing"
 
 
-def derive(store):
+def derive(store, *, scoped=False):
     identities = {
         row["session_uid"]: dict(row)
         for row in store.db.execute(
             "SELECT DISTINCT i.* FROM session_identity i JOIN event e USING(session_uid)"
+            + (" WHERE i.source_id IN (SELECT source_id FROM rebuild_scope)" if scoped else "")
         )
     }
     metas = {}
+    recorded_roots = {}
     for session_uid, identity in identities.items():
         values = {
             "session_uid": session_uid,
@@ -190,6 +192,8 @@ def derive(store):
             "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
         ):
             attrs = json.loads(row["attrs"])
+            if isinstance(attrs.get("git_root"), str):
+                recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
                 for name in (
                     "kind",
@@ -208,13 +212,15 @@ def derive(store):
                 ):
                     if attrs.get(name) is not None:
                         values[name] = attrs[name]
+                if attrs.get("forked_from_uid"):
+                    values["forked_from"] = attrs["forked_from_uid"]
                 if attrs.get("forked_from_native"):
                     values["forked_from"] = store.identity(
                         identity["source_id"], attrs["forked_from_native"]
                     )
                 if attrs.get("imported_from"):
                     values["kind"], values["imported_from"] = "import", attrs["imported_from"]
-            if row["kind"] == "session.title" and row["text"]:
+            if row["kind"] == "session.title" and row["text"] is not None:
                 previous_priority = {"custom": 3, "native": 2, "ai": 1}.get(
                     values.get("title_source"), 0
                 )
@@ -241,7 +247,9 @@ def derive(store):
             current = parent
             seen.add(current)
         values["root_uid"] = current
-        values["project_id"] = project_for(store, values.get("cwd"), values.get("git_remote"))
+        values["project_id"] = project_for(
+            store, values.get("cwd"), values.get("git_remote"), recorded_roots.get(session_uid)
+        )
         insert(store.db, "session", values)
 
     for session_uid, meta in metas.items():
@@ -252,10 +260,10 @@ def derive(store):
             event = dict(row)
             event["attrs"] = json.loads(event["attrs"])
             events.append(event)
-        _derive_session(store, session_uid, meta, events)
+        _derive_session(store, session_uid, meta, events, recorded_roots.get(session_uid))
 
 
-def _derive_session(store, session_uid, meta, events):
+def _derive_session(store, session_uid, meta, events, recorded_root=None):
     current_turn = None
     turns = {}
     context = {"cwd": None, "provider": None, "model_raw": None, "effort_raw": None}
@@ -276,7 +284,7 @@ def _derive_session(store, session_uid, meta, events):
                 context[field] = attrs[field]
         cwd = context["cwd"]
         if cwd not in project_cache:
-            project_cache[cwd] = project_for(store, cwd, meta.get("git_remote"))
+            project_cache[cwd] = project_for(store, cwd, meta.get("git_remote"), recorded_root)
         project_id = project_cache[cwd]
         insert(
             store.db,
@@ -548,6 +556,13 @@ def _derive_session(store, session_uid, meta, events):
             "turn.end",
         )
     ]
+    action_times.extend(
+        e["ts"]
+        for e in events
+        if e["ts"] is not None
+        and e["kind"] == "session.meta"
+        and e["attrs"].get("time", {}).get("semantics") == "created"
+    )
     final_boundary = next(
         (e for e in reversed(events) if e["kind"] in ("turn.start", "turn.end")), None
     )

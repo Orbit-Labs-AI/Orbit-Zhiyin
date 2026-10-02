@@ -61,7 +61,7 @@ added: 2026-10-02
 ## 对接已有分析
 
 - `validation.py`：`extract_validation_runs` 分离实际验证与命令候选，保留 test/build/check/lint/typecheck 的结果和证据。
-- 有来源且 executed=true 的验证元数据可以识别检查；完整的直接 pytest/ruff/mypy/tsc/cargo/go 检查命令也可识别，但不会猜测其验收项或覆盖版本。仅 command_head、不完整命令、帮助／收集／列表模式、复合命令和被拒绝执行的请求不算已执行验证。
+- 有来源且 executed=true 的验证元数据可以识别检查；完整的直接 pytest/ruff/mypy/tsc/cargo/go 检查命令也可识别，但不会猜测其验收项或覆盖版本。仅 command_head、不完整命令、帮助／收集／列表模式（包括 go test -list=.、--list=. 和 -test.list=.）、复合命令和被拒绝执行的请求不算已执行验证。
 - 命令级协议返回支持通过／失败／中断／未知。包装层成功不能证明内部通过；内部报告须有匹配调用 ID、报告 ID、对象范围和可见时间。
 - `collect_acceptance_criteria` 消费上游 Instruction 的确认标签；`match_acceptance_criteria` 按验收项 ID、任务、会话树、检查类别、对象版本及覆盖范围匹配。
 - 局部范围不扩展到全量，v1 不证明 v2。重复检查按结果可见时间／结果记录顺序更新，不能按调用开始顺序挑选较新的结论；无法比较且互相矛盾时保留未知；不同会话的局部 result_seq 不能用于相互排序。
@@ -113,7 +113,7 @@ python -m pytest -q tests/bottleneck/test_outcome.py tests/bottleneck/test_integ
 ruff check src tests
 ```
 
-2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器并修复两项 P1 后，在隔离提交副本中 564 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的全部已合入特征族、保留并行共存回归并修复四项 P1 后，在隔离提交副本中 775 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
 
 ## 补充特征与函数
 
@@ -129,4 +129,6 @@ PR #13 的 task_goal/expected_artifacts 是任务描述与预期产物，不等�
 
 ## 结论与下一步
 
-当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。审查按当前约定以 P0/P1 为阻塞，低优先级问题可后续处理；提交 PR 不代表已合并 main。
+当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/ActionMesh-AI/Hackathon/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按用户约定仅 P0/P1 阻塞，低优先级问题可后续处理。
+
+补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。

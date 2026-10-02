@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
 
@@ -38,6 +39,7 @@ JSON_COLUMNS = {
     "watermark",
     "source_stat",
     "note",
+    "detail",
 }
 
 
@@ -58,15 +60,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
     """
     with readonly_connection(Path(home) / "tandem.db") as connection:
         connection.execute("BEGIN")
-        manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
-        if not manifest or manifest["contract_id"] != "tandem-session-v1":
-            raise ValueError("Expected canonical tandem-session-v1")
-        run = connection.execute(
-            "SELECT * FROM projection_run ORDER BY run_id DESC LIMIT 1"
-        ).fetchone()
-        revisions = connection.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
-        if not run or revisions != run["l1_revision_count"]:
-            raise ValueError("Projection is pending; rebuild before analysis")
+        manifest, run = current_projection(connection)
         sources = [
             decoded(row) for row in connection.execute("SELECT * FROM source ORDER BY source_id")
         ]
@@ -85,22 +79,51 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             raw, provider = event["model_raw"], event["provider"] or ""
             return aliases.get((provider, raw), aliases.get(("", raw), raw))
 
-        def permitted_session(row):
-            return (
-                row["session_uid"] not in scope.excluded_session_uids
-                and row["root_uid"] not in scope.excluded_session_uids
-                and (scope.root_session_uids is None or row["root_uid"] in scope.root_session_uids)
-                and (scope.include_children or row["session_uid"] == row["root_uid"])
+        # Filter in SQLite before decoding payloads or applying the memory budget.
+        # json_each binds arbitrarily long selections without SQLite parameter-limit failures.
+        allowed = [
+            "session_uid NOT IN (SELECT value FROM json_each(:excluded))",
+            "root_uid NOT IN (SELECT value FROM json_each(:excluded))",
+        ]
+        params = {"excluded": json.dumps(scope.excluded_session_uids)}
+        if scope.root_session_uids is not None:
+            allowed.append("root_uid IN (SELECT value FROM json_each(:roots))")
+            params["roots"] = json.dumps(scope.root_session_uids)
+        if not scope.include_children:
+            allowed.append("session_uid=root_uid")
+        members_sql = list(allowed)
+        for field, values in (("project_id", scope.project_ids), ("effort_raw", scope.effort_raw)):
+            if values is not None:
+                members_sql.append(f"{field} IN (SELECT value FROM json_each(:{field}))")
+                params[field] = json.dumps(values)
+        if scope.model_ids is not None:
+            members_sql.append(
+                "COALESCE((SELECT model_id FROM model_alias a WHERE a.provider=COALESCE(v.provider,'') AND a.model_raw=v.model_raw),(SELECT model_id FROM model_alias a WHERE a.provider='' AND a.model_raw=v.model_raw),v.model_raw) IN (SELECT value FROM json_each(:models))"
             )
-
+            params["models"] = json.dumps(scope.model_ids)
+        for bound, operator in (("from_ts", ">="), ("until_ts", "<")):
+            value = getattr(scope, bound)
+            if value is not None:
+                members_sql.append(f"ts {operator} :{bound}")
+                params[bound] = value
+        # The canonical selector below classifies members vs earlier turn context.
+        # Metadata outside the selected turn is retained solely to reconstruct a cutoff.
+        query = (
+            "WITH members AS (SELECT event_uid,session_uid,turn_uid FROM v_analysis_event v WHERE "
+            + " AND ".join(members_sql)
+            + ") SELECT v.* FROM v_analysis_event v WHERE "
+            + " AND ".join(allowed)
+            + " AND (event_uid IN (SELECT event_uid FROM members) OR turn_uid IN (SELECT turn_uid FROM members)"
+            + " OR event_uid IN (SELECT x.event_uid FROM tool_call_event x JOIN v_analysis_tool_call t USING(call_uid)"
+            + " WHERE t.call_event_uid IN (SELECT event_uid FROM members) OR t.result_event_uid IN (SELECT event_uid FROM members))"
+            + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
+            + " ORDER BY session_uid,seq"
+        )
         events = []
-        for row in connection.execute("SELECT * FROM v_analysis_event ORDER BY session_uid,seq"):
-            if permitted_session(row):
-                events.append(decoded(row))
-                if len(events) > max_events:
-                    raise ValueError(
-                        "Narrow root_session_uids or read SQL views in batches; event limit exceeded"
-                    )
+        for row in connection.execute(query, params):
+            events.append(decoded(row))
+            if len(events) > max_events:
+                raise ValueError("Narrow scope or read SQL views in batches; event limit exceeded")
 
         def member(event):
             return (
@@ -142,9 +165,15 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                     or event["ts"] is not None
                     and event["ts"] < scope.until_ts
                     or event["ts"] is None
-                    and event["seq"] <= last_seq.get(event["session_uid"], -1)
                     and event["kind"]
-                    not in ("tool.result", "turn.end", "permission.decision", "subagent.result")
+                    not in (
+                        "tool.result",
+                        "permission.decision",
+                        "turn.end",
+                        "model.usage",
+                        "subagent.result",
+                    )
+                    and event["seq"] <= last_seq.get(event["session_uid"], -1)
                 )
             )
         ]
@@ -206,50 +235,11 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             if row["session_uid"] in sessions | roots
         ]
         if scope.until_ts is not None:
+            last_ends = {
+                event["session_uid"]: event for event in events if event["kind"] == "turn.end"
+            }
             for session in session_rows:
-                dynamic = (
-                    "title",
-                    "title_source",
-                    "cwd",
-                    "git_branch",
-                    "git_sha",
-                    "git_remote",
-                    "client",
-                    "harness_version",
-                    "timezone",
-                    "project_id",
-                )
-                for field in dynamic:
-                    session[field] = None
-                session["timezone_source"] = "unknown"
-                for evidence in events:
-                    if (
-                        evidence["session_uid"] != session["session_uid"]
-                        or evidence["ts"] is None
-                        or evidence["ts"] >= scope.until_ts
-                    ):
-                        continue
-                    attrs = evidence["attrs"]
-                    if evidence["kind"] in ("session.meta", "setting.change"):
-                        for field in dynamic:
-                            if attrs.get(field) is not None:
-                                session[field] = attrs[field]
-                        if attrs.get("timezone"):
-                            session["timezone_source"] = attrs.get("timezone_source", "reported")
-                        if attrs.get("cwd"):
-                            session["project_id"] = evidence["project_id"]
-                    if evidence["kind"] == "session.title" and evidence["text"]:
-                        session["title"], session["title_source"] = (
-                            evidence["text"],
-                            attrs.get("title_source"),
-                        )
-                ends = [
-                    event
-                    for event in events
-                    if event["session_uid"] == session["session_uid"]
-                    and event["kind"] == "turn.end"
-                ]
-                final_end = ends[-1] if ends else None
+                final_end = last_ends.get(session["session_uid"])
                 uncertain_end = final_end is not None and (
                     final_end["ts"] is None or final_end["ts"] >= scope.until_ts
                 )
@@ -288,9 +278,94 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             for row in connection.execute("SELECT * FROM usage_snapshot")
             if row["event_uid"] in members
         ]
-        unparsed = connection.execute(
-            "SELECT COUNT(*) FROM v_raw_record_ledger WHERE is_current=1 AND disposition='unparsed'"
-        ).fetchone()[0]
+        unrestricted = (
+            scope.root_session_uids is None
+            and scope.project_ids is None
+            and scope.model_ids is None
+            and scope.effort_raw is None
+            and scope.from_ts is None
+            and scope.until_ts is None
+            and not scope.excluded_session_uids
+        )
+        relevant_sources = {row["source_id"] for row in session_rows}
+        relevant_files = set()
+        ordered_sessions = sorted(sessions)
+        for start in range(0, len(ordered_sessions), 500):
+            chunk = ordered_sessions[start : start + 500]
+            markers = ",".join("?" for _ in chunk)
+            relevant_files.update(
+                row[0]
+                for row in connection.execute(
+                    f"SELECT DISTINCT file_id FROM raw_record WHERE session_uid IN ({markers})",
+                    chunk,
+                )
+            )
+        if not unrestricted:
+            sources = [source for source in sources if source["source_id"] in relevant_sources]
+            files = [file for file in files if file["file_id"] in relevant_files]
+        unparsed = sum(
+            1
+            for row in connection.execute(
+                "SELECT file_id FROM v_raw_record_ledger WHERE is_current=1 AND disposition='unparsed'"
+            )
+            if unrestricted or row["file_id"] in relevant_files
+        )
+        if scope.until_ts is not None:
+            historical_metadata = {}
+            for event in events:
+                if (
+                    event["ts"] is not None
+                    and event["ts"] < scope.until_ts
+                    and event["kind"] in ("session.meta", "setting.change", "session.title")
+                ):
+                    historical_metadata.setdefault(event["session_uid"], []).append(event)
+            latest_visible_turn = {}
+            for turn in turn_rows:
+                previous = latest_visible_turn.get(turn["session_uid"])
+                if previous is None or previous["idx"] < turn["idx"]:
+                    latest_visible_turn[turn["session_uid"]] = turn
+            for session in session_rows:
+                # Reconstruct mutable metadata from dated evidence, not the final L3 row.
+                fields = (
+                    "cwd",
+                    "git_branch",
+                    "git_sha",
+                    "git_remote",
+                    "client",
+                    "harness_version",
+                    "timezone",
+                )
+                for field_name in fields:
+                    session[field_name] = None
+                session["title"], session["title_source"] = None, None
+                session["timezone_source"] = "unknown"
+                session["project_id"] = None
+                title_priority = -1
+                for event in historical_metadata.get(session["session_uid"], []):
+                    attrs = event["attrs"]
+                    if event["kind"] in ("session.meta", "setting.change"):
+                        for field_name in fields:
+                            if attrs.get(field_name) is not None:
+                                session[field_name] = attrs[field_name]
+                        if attrs.get("timezone"):
+                            session["timezone_source"] = attrs.get("timezone_source", "reported")
+                        if attrs.get("cwd"):
+                            session["project_id"] = event["project_id"]
+                    if event["kind"] == "session.title":
+                        priority = {"custom": 3, "native": 2, "ai": 1}.get(
+                            attrs.get("title_source"), 0
+                        )
+                        if priority >= title_priority:
+                            session["title"], session["title_source"] = (
+                                event["text"],
+                                attrs.get("title_source"),
+                            )
+                            title_priority = priority
+                session["status"] = latest_visible_turn.get(session["session_uid"], {}).get(
+                    "status", "unknown"
+                )
+                if session["ended_at"] is None or session["ended_at"] >= scope.until_ts:
+                    session["ended_at"] = None
         unknown = sum(e["kind"] == "unknown" for e in selected)
         time_unknown = sum(e["ts"] is None for e in selected)
         truncated = sum(e["text_truncated"] for e in selected)
@@ -298,7 +373,12 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         diagnostics = [
             decoded(row)
             for row in connection.execute(
-                "SELECT * FROM ingest_issue ORDER BY stage,code,issue_uid"
+                "SELECT i.* FROM ingest_issue i LEFT JOIN raw_record r ON r.record_uid=i.record_uid ORDER BY i.stage,i.code,i.issue_uid"
+            )
+            if unrestricted
+            or (
+                row["source_id"] in relevant_sources
+                and (row["file_id"] is None or row["file_id"] in relevant_files)
             )
         ]
         capture_errors = sum(
@@ -315,6 +395,9 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             reasons.append("truncated_text")
         source_agents = {source["agent"] for source in sources}
         coverage = {
+            "sessions": {"status": "available", "rows": len(session_rows)},
+            "projects": {"status": "available", "rows": len(project_rows)},
+            "turns": {"status": "available", "rows": len(turn_rows)},
             "events": {
                 "status": "partial" if reasons or time_unknown else "available",
                 "rows": len(selected),
@@ -356,7 +439,11 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             "redaction_version": manifest["redaction_version"],
             "projection_run_id": run["run_id"],
             "scope": asdict(scope),
-            "sample_boundary": {"sources": sources, "files": files, "l1_revision_count": revisions},
+            "sample_boundary": {
+                "sources": sources,
+                "files": files,
+                "l1_revision_count": run["l1_revision_count"],
+            },
             "catalog_snapshot": None,
             "coverage": coverage,
             "projects": project_rows,

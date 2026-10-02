@@ -44,6 +44,9 @@ def union_duration(intervals: list[tuple[float, float]]) -> float:
 
 def analyze(store: Store, project_id: str | None = None, model: str | None = None,
             before: str | None = None, scene: str | None = None) -> dict:
+    if hasattr(store, "report_snapshot"):
+        store = store.report_snapshot(project_id, model, before)
+        before = None  # The data reader has already applied the exclusive cutoff.
     from .models import utc_time
     cutoff = utc_time(before) if before else None
     if before and not cutoff:

@@ -18,6 +18,7 @@ def canonical_bundle(data):
         if any(not reader_scope.contains(lookup[uid].get("ts")) for uid in members):
             raise ValueError("统计成员超出数据读取接口声明的时间范围")
         bundle.statistical_event_uids = members
+        bundle.statistical_members = None
 
     # Canonical model_call deliberately keeps call/delta evidence in its linked
     # usage event. Only that evidence can establish a reliable request boundary.
