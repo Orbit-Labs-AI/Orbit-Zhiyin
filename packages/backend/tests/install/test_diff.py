@@ -62,3 +62,16 @@ def test_cost_estimate():
     assert rule["resident_tokens"] == 1
     hook = cost.estimate({"kind": "hook"}, [{"idx": 0, "action": "merge_json", "content": []}])
     assert hook["resident_tokens"] == hook["trigger_tokens"] == 0
+
+
+def test_trimmed_large_file_matches_untrimmed_rows():
+    from tandem_backend.install.diff import _rows
+
+    before = "\n".join(f'  "k{i}": {i % 7},' for i in range(4000))
+    lines = before.splitlines()
+    lines[2000] = '  "k2000": "changed",'
+    lines.insert(3000, '  "new": 1,')
+    after = "\n".join(lines)
+    out = line_diff(before, after, context=3, ai_lines={3001})
+    assert out["lines"] == _rows(before.splitlines(), lines, 3, {3001})
+    assert (out["adds"], out["dels"]) == (2, 1)
