@@ -82,7 +82,7 @@ test('persona dial: bezel ticks, rose points, needle on the collaboration centre
       setTheme(t);
       const want = getComputedStyle(document.documentElement).getPropertyValue('--orbit').trim();
       const probe = document.createElement('i'); probe.style.color = want; document.body.appendChild(probe); const rgb = getComputedStyle(probe).color; probe.remove();
-      const ok = (el) => el.matches('.fp-nn, .fp-n0, .orbit-mark path') || (el.closest('.pe-fp-legend') && el.tagName === 'SPAN');
+      const ok = (el) => el.matches('.fp-nn, .fp-n0') || !!el.closest('.orbit-mark') || (el.closest('.pe-fp-legend') && el.tagName === 'SPAN');
       const hits = [...document.querySelectorAll('#desk *')].filter((el) => { const c = getComputedStyle(el); return [c.fill, c.stroke, c.backgroundColor, el.closest('svg') ? '' : c.color].includes(rgb); });
       return { rgb, needle: hits.some((el) => el.matches('#main .fp-nn')), tri: hits.some((el) => el.matches('#main .fp-n0')), bad: hits.filter((el) => !ok(el)).map((el) => el.tagName + '.' + el.getAttribute('class')) };
     }, theme);
@@ -194,5 +194,22 @@ test('brand: no visible "Tandem" in the title, pages, settings, onboarding or me
   await page.evaluate(() => { closeDD(); S.pop = true; render(); }); hits.push(await seen('menu bar panel'));
   expect(await page.evaluate(() => reportMD().includes('Tandem'))).toBe(false);
   expect(hits.filter(Boolean)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+// The App icon and the menu-bar item are the official Orbit logo (docs/design/logo/orbit-*.svg, via tools/brand-icon.mjs):
+// the full rendition from 128px up (as macOS does), the heavier small rendition below; the tile uses the logo's 22.5% corner; the page has the
+// icon as its favicon.
+test('App icon and menu-bar item use the official Orbit logo vectors', async ({ page }) => {
+  const errors = await openDemo(page);
+  const r = await page.evaluate(() => ({
+    big: appIcon(128).includes(ORBIT_ICON) && appIcon(64).includes(ORBIT_SMALL), small: appIcon(32).includes(ORBIT_SMALL), glyph: GLYPH.includes(ORBIT_SMALL) && GLYPH.includes('currentColor'),
+    menubar: !!document.querySelector('#mbar .glyph .orbit-mark polygon'),
+    radius: (() => { const s = document.createElement('span'); s.className = 'appicon'; s.style.width = '100px'; s.style.height = '100px'; document.body.appendChild(s); const v = parseFloat(getComputedStyle(s).borderTopLeftRadius); s.remove(); return v; })(),
+    favicon: (document.querySelector('link[rel="icon"]') || {}).href || ''
+  }));
+  expect([r.big, r.small, r.glyph, r.menubar]).toEqual([true, true, true, true]);
+  expect(r.radius).toBeCloseTo(22.46, 1);
+  expect(r.favicon.startsWith('data:image/svg+xml,')).toBe(true);
   expect(errors).toEqual([]);
 });

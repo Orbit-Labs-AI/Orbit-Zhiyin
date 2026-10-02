@@ -109,6 +109,9 @@ test('menu-bar panel: live card with context bar, 7-day columns, idle baseline, 
 
 test('HUD density band and pill bars follow the running session; a render mid-drag does not strand the drag', async ({ page }) => {
   ONLY('mac-14');
+  // liveBuckets() spreads the trajectory over Date.now() − S.live.t0, so the band shifts as real time passes between
+  // renders; a fixed Date (timers keep running, so the drag below is unaffected) makes the comparison deterministic
+  await page.clock.setFixedTime(new Date('2026-10-01T15:30:00+08:00'));
   const errors = await openDemo(page);
   await page.evaluate(() => { S.hud.open = true; renderHud(); });
   const exp = await page.evaluate(() => { const d = liveBuckets(20, 30); return { cols: d.b.filter((x) => x.tool).length, dots: d.b.filter((x) => x.user).length, err: d.b.filter((x) => x.err).length, tools: d.b.reduce((a, x) => a + x.tool, 0) }; });

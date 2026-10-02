@@ -1,7 +1,7 @@
 {
   "v": 3,
   "createdOnFiles": {"v": 1, "at": "2026-10-01T08:30:00Z"},
-  "title": "Tandem Mac App 视觉案例",
+  "title": "Orbit Mac App 视觉案例",
   "launch": {"view": "canvas", "page": "app"},
   "pages": [
     {"id": "app", "name": "主应用"},
@@ -47,7 +47,7 @@
     "Tokens.dc.html", "Components.dc.html", "Sidebar.dc.html"
   ],
   "notes": {
-    "t-app": {"x": 0, "y": -320, "text": "Tandem 主应用 · 10 个主窗口画面 + 交互标注（数值均为示例数据）", "kind": "title1", "maxW": 4160, "page": "app"},
+    "t-app": {"x": 0, "y": -320, "text": "Orbit 主应用 · 10 个主窗口画面 + 交互标注（数值均为示例数据）", "kind": "title1", "maxW": 4160, "page": "app"},
     "t-persona": {"x": 0, "y": -320, "text": "人格系统 · 16 型图谱、分享卡与揭晓动效", "kind": "title1", "maxW": 3200, "page": "persona"},
     "t-ambient": {"x": 0, "y": -320, "text": "菜单栏 · 悬浮组件 · 桌面小组件 · 通知", "kind": "title1", "maxW": 3560, "page": "ambient"},
     "t-flows": {"x": 0, "y": -320, "text": "关键流程与交互规范", "kind": "title1", "maxW": 4160, "page": "flows"},
