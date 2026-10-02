@@ -63,7 +63,7 @@ async function gateway(page, opts = {}) {
       'GET /v1/notifications/policy': 'notify-policy', 'GET /v1/notifications/snooze': 'notify-snooze', 'POST /v1/notifications/snooze': 'notify-snooze-set', 'DELETE /v1/notifications/snooze': 'notify-snooze-set',
       'POST /v1/notifications/test': 'notify-test', 'GET /v1/notifications/attention': 'notify-attention', 'POST /v1/notifications/fx-n2/ack': 'notify-ack',
       'GET /v1/platform/collection': 'collection', 'POST /v1/platform/collection/pause': 'collection-pause', 'POST /v1/platform/collection/resume': 'collection-resume',
-      'GET /v1/platform/storage': 'storage', 'GET /v1/platform/telemetry': 'telemetry', 'PUT /v1/platform/telemetry': 'telemetry-off', 'GET /v1/platform/health': 'health', 'POST /v1/platform/diagnostics/export': 'diagnostics-export'
+      'GET /v1/platform/storage': 'storage', 'GET /v1/app/data': 'storage', 'GET /v1/platform/diagnostics': 'health', 'GET /v1/platform/telemetry': 'telemetry', 'PUT /v1/platform/telemetry': 'telemetry-off', 'GET /v1/platform/health': 'health', 'POST /v1/platform/diagnostics/export': 'diagnostics-export'
     };
     if (routes[K]) return json(SS(routes[K]));
     return nf();
@@ -115,27 +115,24 @@ test('studio live: stop cancels the job; consent_required stops the run with the
   gw.job = 'consent';
   await page.locator('[data-act="studioStart"]').click();
   await expect(page.locator('#studioLog')).toContainText('! 需要授权：snippets');
-  await expect(page.locator('#toast')).toContainText('去设置');
+  await expect(page.locator('#modal [data-tl="consent"]')).toContainText('脱敏片段');   // the real consent dialog
   expect(errors).toEqual([]);
 });
 
-test('degrade: without AI and platform routes the studio runs the demo flow with 示例数据 and settings keep demo values', async ({ page }) => {
+test('degrade: without AI and platform routes the studio says so (no demo flow) and settings never show demo personal data', async ({ page }) => {
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   await gateway(page, { ai: false, platform: false });
   await page.goto('http://tandem.test/app#token=fx-token');
   await page.evaluate(() => go('studio'));
-  await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
-  await expect(page.locator('#content')).toContainText('已检测：Claude Code · Codex · Gemini CLI · DeepSeek · Copilot');
+  await expect(page.locator('#content')).toContainText('已检测：本地服务暂不提供生成接口');
   await page.locator('[data-act="studioStart"]').click();
-  await expect(page.locator('#studioLog')).toContainText('--output-format stream-json');
-  await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
+  await expect(page.locator('#toast')).toContainText('本地服务暂不提供生成接口');
+  await expect(page.locator('#studioLog')).not.toContainText('--output-format stream-json');
   await page.evaluate(() => openSettings('privacy'));
-  await expect(page.locator('#set')).toContainText('812 MB');
-  await expect(page.locator('#set [data-tl="sample"]')).toHaveCount(1);
+  await expect(page.locator('#set')).not.toContainText('812 MB');
   await page.evaluate(() => { S.setTab = 'about'; renderSet(); });
   await expect(page.locator('#set [data-tl="health"]')).toHaveCount(0);
-  await expect(page.locator('#set')).toContainText('1.0（演示版）');
   await page.evaluate(() => { S.setTab = 'notify'; renderSet(); });
   await expect(page.locator('#set [data-tl="sample"]')).toHaveCount(2);
   expect(errors).toEqual([]);
@@ -192,7 +189,7 @@ test('settings live: storage, collection pause, notify policy / preset / snooze 
   await expect(page.locator('#set [data-tl="health"]')).toContainText('FX 合成警告');
   await expect(page.locator('#set')).toContainText('0.9.0-fx');
   await page.locator('#set [data-act="tlsDiag"]').click();
-  await expect(page.locator('#toast')).toContainText('diagnostics-fx.zip');
+  await expect(page.locator('#toast')).toContainText('诊断包已下载');   // browser fallback of the host's save panel
   await page.locator('#set [data-act="tlsTel"]').click();
   await expect(page.locator('#set [data-act="tlsTel"]')).toHaveAttribute('aria-checked', 'false');
   expect(errors).toEqual([]);

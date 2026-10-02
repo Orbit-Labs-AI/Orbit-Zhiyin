@@ -1,0 +1,12 @@
+{
+ "enabled": false,
+ "retention_days": 14,
+ "slow_ms": 500,
+ "export_dir": null,
+ "stats": {
+  "series": 0,
+  "rows": 0,
+  "bytes_est": 0,
+  "since": null
+ }
+}

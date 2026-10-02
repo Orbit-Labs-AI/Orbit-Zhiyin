@@ -1,0 +1,22 @@
+{
+ "_doc": "slice 6 (studio / ask / settings): bodies captured from r4 on the synthetic fixture home (.work/release/fixtures/full); synthetic data, real agent ids.",
+ "GET /v1/app/state": "v1-app-state.json",
+ "GET /v1/app/discovery": "v1-app-discovery.json",
+ "GET /v1/app/about": "v1-app-about.json",
+ "GET /v1/app/data": "v1-app-data.json",
+ "GET /v1/privacy/rules": "v1-privacy-rules.json",
+ "GET /v1/ai/engines": "v1-ai-engines.json",
+ "GET /v1/ai/consent": "v1-ai-consent.json",
+ "GET /v1/ai/usage": "v1-ai-usage.json",
+ "GET /v1/platform/recommend": "v1-platform-recommend.json",
+ "GET /v1/notifications/policy": "v1-notifications-policy.json",
+ "GET /v1/notifications/snooze": "v1-notifications-snooze.json",
+ "GET /v1/notifications/attention": "v1-notifications-attention.json",
+ "GET /v1/platform/collection": "v1-platform-collection.json",
+ "GET /v1/platform/health": "v1-platform-health.json",
+ "GET /v1/platform/diagnostics": "v1-platform-diagnostics.json",
+ "GET /v1/app/tool_map": "v1-app-tool_map.json",
+ "GET /v1/ai/ask/presets": "v1-ai-ask-presets.json",
+ "GET /v1/ai/artifacts": "v1-ai-artifacts.json",
+ "GET /v1/platform/telemetry": "v1-platform-telemetry.json"
+}

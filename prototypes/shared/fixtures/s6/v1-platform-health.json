@@ -1,0 +1,178 @@
+{
+ "status": "ok",
+ "version": "0.13.6",
+ "uptime_s": 22.4,
+ "generated_at": 1790958787128,
+ "checks": [
+  {
+   "id": "app_db",
+   "status": "ok",
+   "ms": 2.4,
+   "detail": {
+    "quick_check": "ok",
+    "checked_at": 1790958787110,
+    "bytes": 409600,
+    "wal_bytes": 618032
+   }
+  },
+  {
+   "id": "tandem_db",
+   "status": "ok",
+   "ms": 0.0,
+   "detail": {
+    "bytes": 34058240,
+    "wal_bytes": 0
+   }
+  },
+  {
+   "id": "cache_db",
+   "status": "ok",
+   "ms": 0.1,
+   "detail": {
+    "memory_bytes": 573973,
+    "memory_rows": 4,
+    "disk_bytes": 99362,
+    "rows": 4
+   }
+  },
+  {
+   "id": "disk",
+   "status": "ok",
+   "ms": 0.3,
+   "detail": {
+    "free_bytes": 1269843546112,
+    "total_bytes": 1995218165760
+   }
+  },
+  {
+   "id": "workers",
+   "status": "ok",
+   "ms": 0.0,
+   "detail": {
+    "notes": []
+   }
+  },
+  {
+   "id": "event_bus",
+   "status": "ok",
+   "ms": 0.0,
+   "detail": {
+    "last_id": 135,
+    "clients": 0
+   }
+  },
+  {
+   "id": "sync_loop",
+   "status": "ok",
+   "ms": 0.0,
+   "detail": {
+    "running": true
+   }
+  },
+  {
+   "id": "maintenance",
+   "status": "ok",
+   "ms": 0.0,
+   "detail": {
+    "late": [],
+    "failed": []
+   }
+  },
+  {
+   "id": "logs",
+   "status": "ok",
+   "ms": 0.1,
+   "detail": {
+    "writable": true
+   }
+  }
+ ],
+ "services": {
+  "ingest": {
+   "state": "ok",
+   "pid": 79424,
+   "restarts": 0,
+   "last_hb_age_s": 4.643,
+   "rss_bytes": 40910848
+  },
+  "analysis": {
+   "state": "ok",
+   "pid": 79474,
+   "restarts": 0,
+   "last_hb_age_s": 3.659,
+   "rss_bytes": 596541440
+  }
+ },
+ "disk": {
+  "free_bytes": 1269843546112,
+  "total_bytes": 1995218165760
+ },
+ "db": {
+  "tandem_db": 34058240,
+  "tandem_wal": 0,
+  "app_db": 409600,
+  "catalog_db": 10469376,
+  "analysis": 18817024,
+  "snapshot_cache": 201648
+ },
+ "collection": {
+  "paused": false
+ },
+ "maintenance": {
+  "metrics_flush": {
+   "last_run": 1790958772107,
+   "ms": 0,
+   "ok": true
+  },
+  "wal_checkpoint": {
+   "last_run": 1790958772107,
+   "ms": 0,
+   "ok": true
+  },
+  "optimize": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "snapshot_compact": {
+   "last_run": 1790958772108,
+   "ms": 0,
+   "ok": true
+  },
+  "storage_report": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "retention": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "install_sweep": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "telemetry_export": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "integrity": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "source_watch": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  },
+  "weekly_report": {
+   "last_run": null,
+   "ms": null,
+   "ok": null
+  }
+ }
+}

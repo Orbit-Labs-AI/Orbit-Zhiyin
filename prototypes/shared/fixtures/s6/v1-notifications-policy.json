@@ -1,0 +1,64 @@
+{
+ "matrix": {
+  "awaiting_approval": [
+   "banner",
+   "hud",
+   "badge"
+  ],
+  "failing": [
+   "banner",
+   "hud",
+   "badge"
+  ],
+  "context_pressure": [
+   "hud"
+  ],
+  "just_finished": [
+   "hud",
+   "badge"
+  ],
+  "ai_job_done": [
+   "banner",
+   "badge"
+  ],
+  "weekly": [
+   "badge"
+  ],
+  "new_source": [
+   "badge"
+  ],
+  "system": [
+   "banner",
+   "badge"
+  ]
+ },
+ "quiet_hours": {
+  "enabled": false,
+  "start": "22:00",
+  "end": "08:00",
+  "allow": [
+   "awaiting_approval"
+  ]
+ },
+ "cooldown_s": {
+  "awaiting_approval": 120,
+  "failing": 300,
+  "context_pressure": 600,
+  "just_finished": 60,
+  "ai_job_done": 0,
+  "weekly": 0,
+  "new_source": 3600,
+  "system": 3600
+ },
+ "rate_limit": {
+  "per_minute": 6,
+  "per_hour": 40
+ },
+ "muted_types": [],
+ "snooze_default_s": 3600,
+ "min_run_s": {
+  "just_finished": 600
+ },
+ "updated_at": 1790958767106,
+ "policy_rev": 1790958767106
+}

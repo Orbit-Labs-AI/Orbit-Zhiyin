@@ -1,0 +1,99 @@
+{
+ "home": "/fx/fx-homes/full",
+ "total_bytes": 52007337,
+ "components": [
+  {
+   "id": "tandem_db",
+   "label": "规范数据库",
+   "bytes": 34091008,
+   "rebuildable": true,
+   "hint": "从 Agent 日志重新导入可重建",
+   "path": "/fx/fx-homes/full/tandem.db"
+  },
+  {
+   "id": "raw",
+   "label": "原始归档",
+   "bytes": 0,
+   "rebuildable": false,
+   "hint": "无损原始记录，删除后无法从已轮转日志恢复",
+   "path": "/fx/fx-homes/full/archive"
+  },
+  {
+   "id": "app_db",
+   "label": "应用数据库",
+   "bytes": 1043920,
+   "rebuildable": false,
+   "hint": "推荐记录、安装台账、AI 产物与遥测",
+   "path": "/fx/fx-homes/full/app.db"
+  },
+  {
+   "id": "catalog_db",
+   "label": "组件目录",
+   "bytes": 10469376,
+   "rebuildable": true,
+   "hint": "可重新同步目录",
+   "path": "/fx/fx-homes/full/catalog.db"
+  },
+  {
+   "id": "analysis",
+   "label": "分析库",
+   "bytes": 6279168,
+   "rebuildable": true,
+   "hint": "可重新计算",
+   "path": "/fx/fx-homes/full/analysis.sqlite"
+  },
+  {
+   "id": "snapshot_cache",
+   "label": "界面快照缓存",
+   "bytes": 123368,
+   "rebuildable": true,
+   "hint": "可随时清除，只影响首屏速度",
+   "path": "/fx/fx-homes/full/cache"
+  },
+  {
+   "id": "backups",
+   "label": "备份",
+   "bytes": 0,
+   "rebuildable": false,
+   "hint": "数据库备份",
+   "path": "/fx/fx-homes/full/backups"
+  },
+  {
+   "id": "logs",
+   "label": "日志",
+   "bytes": 497,
+   "rebuildable": true,
+   "hint": "本机日志，2 MB × 5 轮转",
+   "path": "/fx/fx-homes/full/logs"
+  },
+  {
+   "id": "exports",
+   "label": "导出",
+   "bytes": 0,
+   "rebuildable": true,
+   "hint": "诊断包与导出文件，保留最近 5 个",
+   "path": "/fx/fx-homes/full/exports"
+  }
+ ],
+ "will_delete": [
+  "tandem_db",
+  "raw",
+  "app_db",
+  "catalog_db",
+  "analysis",
+  "snapshot_cache",
+  "backups",
+  "exports",
+  "app_state"
+ ],
+ "keeps": [
+  "agent_logs",
+  "agent_configs"
+ ],
+ "installs_active": 0,
+ "ledger_entries": 0,
+ "jobs_active": 0,
+ "pending": false,
+ "confirm_word": "清除",
+ "note": "清除后需要重启 Tandem；已安装到 Agent 的组件不会被撤销，请先在安装台账中撤销。"
+}
