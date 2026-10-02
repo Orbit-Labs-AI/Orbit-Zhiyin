@@ -73,7 +73,7 @@
 .vz-ghost{stroke:var(--ink-4);stroke-width:2;stroke-linecap:round}
 .vz-fit{stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round}
 .vz-fit.weak{stroke-dasharray:4 3}
-.vz-rleg{display:inline-block;border-radius:50%;background:var(--vz-accent);opacity:.6;vertical-align:middle;margin:0 2px 0 4px}
+.vz-scale i.vz-rleg{display:inline-block;border-radius:50%;background:var(--vz-accent);opacity:.6;vertical-align:middle;margin:0 2px 0 6px}
 .vz-dot{fill:var(--c);stroke:var(--surface);stroke-width:2}
 .vz-bubble{fill-opacity:.85}
 .vz-flag{fill:var(--vz-err)}
