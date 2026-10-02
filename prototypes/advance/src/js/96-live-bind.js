@@ -18,7 +18,11 @@ function lvTable(cols, rows, rowAttr) {
     rows.map((r) => '<tr' + (rowAttr ? rowAttr(r) : '') + '>' + cols.map((c) => '<td' + (c.n ? ' class="n"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
 const lvKpi = (label, value) => '<div class="tl-card tl-kpi"><b>' + value + '</b><span>' + label + '</span></div>';
-function lvPage(title, meta, v, body) { return tbar(title, meta) + '<div class="content" id="content">' + filterRow() + TLU.body(v, body) + '</div>'; }
+// Lite edition (26-edition.js): the same bound renderers serve its pages, under the Lite top bar and without Advance filters.
+function lvPage(title, meta, v, body) {
+  const lite = S.ed === 'lite';
+  return (lite ? liteBar(title, meta) : tbar(title, meta)) + '<div class="content" id="content">' + (lite ? '' : filterRow()) + TLU.body(v, body) + '</div>';
+}
 
 TL.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview', waitMs: 800 }], (d) => {
   const o = d.ov.overview || {}; const c = o.counts || {}; const u = o.usage || {};
@@ -72,8 +76,12 @@ const TL_PAGES = {
 };
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
+// A Lite route whose Advance counterpart is bound (l-home → overview, l-sessions → sessions) shows that live page; the
+// others (l-persona, l-recs) keep their demo page and the 示例数据 badge.
+const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 if (TL.mode === 'live') {
   Object.keys(TL_PAGES).forEach((k) => { PAGES[k] = TL_PAGES[k]; });
+  Object.keys(TO_ADV).forEach((r) => { if (lvKey(r) !== r) PAGES[r] = TL_PAGES[lvKey(r)]; });
   TLU.ensureStyle(document);
   const baseRender = render, baseSide = renderSide, baseSet = renderSet;
   const lvSources = () => { const r = TL.resource('/v1/app/sources'); if (r.dirty && !r.loading) TL.load(r); return r; };
@@ -81,14 +89,14 @@ if (TL.mode === 'live') {
     baseRender();
     const c = $('#content'); if (!c) return;
     const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
-    const strip = TLU.strip(TL, S.route, TL_VIEWS[S.route]);
+    const strip = TLU.strip(TL, lvKey(S.route), TL_VIEWS[lvKey(S.route)]);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
   renderSide = function () {
     baseSide();
     const st = TL.status; const side = $('#side');
     const set = (sel, text) => { const el = side.querySelector(sel); if (el) el.textContent = text; };
-    set('[data-r="sessions"] .ct', TLU.num(st && st.counts && st.counts.sessions));
+    set('[data-r="sessions"] .ct, [data-r="l-sessions"] .ct', TLU.num(st && st.counts && st.counts.sessions));
     set('[data-r="projects"] .ct', TLU.num(st && st.counts && st.counts.projects));
     AG.forEach((a) => {
       const keys = TandemLive.AGENT_KEYS[a.id] || [];

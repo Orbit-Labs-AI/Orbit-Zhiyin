@@ -7,6 +7,7 @@
 //  3. outage        503 + Retry-After keeps the previous screen and shows the banner; service degraded shows too
 //  4. restart       a tandem:endpoint event moves to the new gateway (new token) and re-renders from it
 //  5. live Lite     same bindings in the single-file Lite page
+//  6. Lite edition  Advance's Lite pages: l-home / l-sessions reuse the bound pages, l-persona / l-recs show 示例数据
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -124,6 +125,34 @@ test('live Advance: progress, overview, sessions, tools, projects, sidebar and s
   await page.evaluate(() => openSettings('sources'));
   await expect(page.locator('#set [data-tl="sources"] .srcrow')).toHaveCount(3);
   await expect(page.locator('#set [data-tl="sources"]')).toContainText('已停用');
+  expect(errors).toEqual([]);
+});
+
+test('live Advance in the Lite edition: l-home and l-sessions use the bound pages, the rest carry 示例数据', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page);
+  await gateway(page);
+  await page.goto('http://tandem.test/app#token=fx-token');
+  await expect(page.locator('[data-tl="overview"]')).toContainText('128');
+  await page.evaluate(() => edSet('lite'));
+  await expect.poll(() => page.evaluate(() => [S.ed, S.route])).toEqual(['lite', 'l-home']);
+  await expect(page.locator('#content [data-tl="overview"]')).toContainText('1,874');
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+  await expect(page.locator('#side [data-r="l-sessions"] .ct')).toHaveText('128');
+  await page.evaluate(() => go('l-sessions'));
+  const rows = page.locator('[data-tl="sessions"] tbody tr');
+  await expect(rows).toHaveCount(2);
+  await rows.first().click();
+  await expect(page.locator('[data-tl="events"] .tl-ev')).toHaveCount(3);
+  for (const r of ['l-persona', 'l-recs']) {
+    await page.evaluate((id) => go(id), r);
+    await expect(page.locator('#content [data-tl="sample"]'), r).toHaveText('示例数据');
+  }
+  // back to Advance: the mapped route keeps its live page
+  await page.evaluate(() => edSet('advance'));
+  await expect.poll(() => page.evaluate(() => [S.ed, S.route])).toEqual(['advance', 'recs']);
+  await page.evaluate(() => go('sessions'));
+  await expect(page.locator('[data-tl="sessions"] tbody tr')).toHaveCount(2);
   expect(errors).toEqual([]);
 });
 
