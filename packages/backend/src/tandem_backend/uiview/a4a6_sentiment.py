@@ -24,7 +24,7 @@ from ..recommend.outcomes import welch
 from .a4a6_common import ManyQuery
 
 DAY_MS = 86_400_000
-DEFINITION_VERSION = "a6-corr-v1"
+DEFINITION_VERSION = "a6-corr-v2"  # v2: correction_terms 合并 zh-en-lexicon-v1
 EXPERIMENTAL_NOTE = "词面候选规则，未经人工标注验证；仅供趋势参考"
 
 # 待验证 EV-02：约束/纠偏式表达；只在引文剥离后的文本上匹配。
