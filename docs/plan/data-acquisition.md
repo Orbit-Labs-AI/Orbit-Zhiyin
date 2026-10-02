@@ -11,8 +11,25 @@
 3. **必须自建原始归档。** Claude Code 默认只保留 30 天会话（本机最早的转录停在 2026-09-02），Copilot 的会话表已被清空。Tandem 首次运行全量回填，之后增量归档原始字节，否则 Demo 的 90 天视图和 7 天效果追踪都无法成立。
 4. **「不丢信息」用四层结构保证**：L0 原始字节归档 → L1 原始记录索引（每行都有去向）→ L2 标准事件（未映射字段进 `ext`）→ L3 派生表（会话、轮次、工具调用、模型调用，可随时重算）。每个连接器都要通过「记录全记账」测试。
 5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应被拆成 1–6 行且每行重复同一份 usage（不去重会把 token 算多 2–3 倍）；恢复会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
-6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；Copilot 与其他 Agent 留接口。生态侧先接官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/skills` 与 Codex 官方插件、models.dev。
+6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；OpenCode、Hermes Agent 已有源码级调研，用安装后生成的样本接入；Copilot 与其他 Agent 留接口。生态侧先接官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/skills` 与 Codex 官方插件、models.dev。
 7. **存储用 SQLite + zstd 归档**：`tandem.db`（会话侧）、`catalog.db`（生态侧，可由团队定期构建成快照分发）、`raw/`（原始归档）。数据库表结构就是模块之间的契约，三人可以并行开发。
+
+### 需求对照
+
+| 需求 | 在本文哪里 |
+| --- | --- |
+| 模块 1：获取各 Agent 的本地 session，参考额度统计与反代类开源项目的对接方式 | 3.1 本机实测、3.2 各 Agent 接入要点、3.4 补充通道（反代、额度）、3.6 参考的开源项目；源码级细节见 [docs/research/agent-sessions](../research/agent-sessions/) |
+| 模块 2：标准化，按项目、按模型分类（不按 Agent 分类） | 4.5「分类维度」「项目归属」「模型与思考档位」 |
+| 模块 5.1 规则和 Prompts | 5.1「规则、子代理、工作流、指南」，6.1 `rule`、`command` |
+| 模块 5.2 Skills | 5.1 Skills，5.2「Skill 目录」 |
+| 模块 5.3 Plugins | 5.1 插件与市场，5.2 插件清单格式 |
+| 模块 5.4 MCP 接入：有哪些软件 | 5.1 MCP 服务与「有哪些软件」，6.1 `mcp_server` 的 `software` 字段 |
+| 模块 5.5 Hooks 脚本 | 5.1 Hooks，5.2 各 Agent 的 Hook 事件表 |
+| 模块 5.6 Model + Thinking 的 Benchmark 成绩 | 5.1「模型、价格与成绩」，6.2 模型成绩的身份规则 |
+| 模块 5.7 Workflows 经验 | 5.1「规则、子代理、工作流、指南」，6.1 `workflow`、`guide` |
+| session 轨迹不遗漏信息的标准化（适配不同 harness） | 4.1–4.6 |
+| Skills、Plugins 等索引数据库的管理，便于后续与 session 分析匹配 | 6.1–6.4，存储见 7 |
+| 结合 Demo | 2「Demo 各页需要的数据与来源」，3.1「Demo 假设」一列 |
 
 ## 1. 范围与原则
 
@@ -82,6 +99,8 @@ Demo 各页需要的数据与来源：
 
 ### 3.2 各 Agent 接入要点
 
+本节只列连接器需要的结论。pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 六个 Agent 的源码级分析（存储布局、记录 schema、写入时机、压缩与分支的数据表现，附源码 permalink）见 [docs/research/agent-sessions](../research/agent-sessions/)。
+
 #### Claude Code（P0）
 
 - **数据根目录不止一个**：`${CLAUDE_CONFIG_DIR:-~/.claude}`（可能是逗号分隔的多个目录）、同级的 `~/.claude*`（本机有 `~/.claude-account2`）、Claude 桌面版的本地 Agent 模式 `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`（本机 1 个会话）。
@@ -132,6 +151,26 @@ Demo 各页需要的数据与来源：
 - `message.role` 有 `user / assistant / toolResult / system`；内容块 `text / thinking / toolCall`；`usage` 自带 `input / output / cacheRead / cacheWrite / reasoning / cost`，`thinkingLevel` 与 `provider / model` 都在消息上。格式简单，适合作为连接器模板。
 - 根目录可由 `PI_CODING_AGENT_DIR` 覆盖；首次助手回复前不落盘；分叉会话会重放父会话前缀；`subagent-artifacts/` 下的文件与主会话重复，跳过。
 
+#### OpenCode（P1，本机未安装，依据源码）
+
+- **位置**：`$XDG_DATA_HOME/opencode`（macOS 也是 `~/.local/share/opencode`，不是 `~/Library`）下的 SQLite `opencode.db`；非正式渠道为 `opencode-<channel>.db`，`OPENCODE_DB` 可覆盖；`opencode db path` 能打印实际路径。
+- **表**：默认运行时写 V1 表 `session / message / part`，另有事件日志 `event / event_sequence`；V2 表（`session_v2`、`session_message`）只有 2.0 预览版 CLI 才写；更早的版本是 `storage/` 下的 JSON 文件。连接器按表是否存在判断版本，三种布局都要能读。
+- **用量**：最细粒度在 `step-finish` part（每次模型调用一条，`tokens{input, output, reasoning, cache{read, write}}` 与 `cost`，`input` 已减去缓存读取）；message 上的 `tokens` 只是最后一步的值、每步都会被覆盖，不能累加；`session` 表有累计值，可作对账。父会话的用量不含子会话，需要递归汇总。
+- **子代理**：`task` 工具新建子会话（`parent_id` 指向父会话），父会话中该工具调用的 `state.metadata.sessionId` 指向子会话。
+- **压缩与回退**：压缩写一条带 `compaction` part 的 user 消息和一条 `summary: true` 的摘要 assistant，被压缩的历史不删除；`prune` 只给旧工具输出打 `time.compacted` 标记，原文仍在库里。`revert` 提交后会删除撤销点之后的消息，所以必须在删除前完成归档（L0 按行快照，事件日志也可补）。`fork` 复制历史到一个**不设 `parent_id`** 的新会话（标题带 `(fork #N)`），需要按复制的内容去重。
+- **其他**：流式时 assistant 行会被原地改写，按「主键 + 行哈希」判断变化；TUI 里用户直接执行的 `!cmd` 会写成一条 synthetic user 消息加一个 `bash` 工具调用（成本为 0），归类为用户自己执行的命令，不算 Agent 的工具调用。
+- **敏感表**：`account`、`control_account`、`credential`、`session_share.secret`，以及数据目录下的 `auth.json`、`mcp-auth.json`，连接器不读。
+
+#### Hermes Agent（P1，本机未安装，依据源码）
+
+- **位置**：`$HERMES_HOME`（默认 `~/.hermes`，可加 `HERMES_DATA_DIR_SUFFIX`）；命名 profile 在 `profiles/<name>/`，**每个 profile 一个独立的 `state.db`**，都要登记为数据源。
+- **权威来源只有 `state.db`**（SQLite，WAL）：`sessions`（含 `parent_session_id`、`model`、`model_config`、`end_reason`、token 与成本）、`messages`、`session_model_usage`（按会话 × 模型 × 供应商 × 计费方式 × 任务累计；`task=''` 是主循环，其余是压缩、标题生成等辅助调用，正好对应 `model_call.purpose`）。`sessions/*.json(l)`、`pending_messages/` 只在故障时出现，作补充。
+- **顺序与身份**：一律按 `messages.id` 排序（时间戳可能回退）；会话 ID 是本地时区的 `YYYYMMDD_HHMMSS_<hex>`（ACP 会话为 uuid4），换算 UTC 时要用本机时区；`message_uid` 在压缩代际、分支拷贝中保持不变，是跨行去重的键；工具调用 ID 可能重复，用 `tool_call_uid` 区分。
+- **压缩、回退、分支都保留旧行**：就地压缩把旧行改为 `active=0, compacted=1` 并插入摘要行；rewind、编辑、重新生成把分歧后的行软删除（`active=0`）；`/branch` 新建子会话并拷贝完整历史（新 `id`、同 `message_uid`）。连接器要读**包括非活跃行在内的全部行**，分别映射为 `context.compaction` 与 `branch`，这样才不丢信息。
+- **子代理**：`delegate_task` 新建 `source=subagent` 的子会话（`parent_session_id` 与 `model_config._delegate_from` 指向父会话），用量记在子会话上；异步委派完成时以一条 user 消息写回父会话。
+- **跨 Agent 导入**：Hermes 能导入 Claude Code 与 Codex 的会话，与 Codex 一样要识别导入会话并链接原会话，避免重复计入。
+- **其他**：超大工具输出放在 `cache/spillover/<tool_call_id>.txt`，24 小时后过期，需要及时归档；`logs/agent.log` 有每次 API 调用的耗时与 token，可作补充；`$HERMES_HOME/.env` 存密钥，连接器不读。
+
 #### Antigravity（P1：明文转录 + 摘要库；P2：protobuf 用量）
 
 - IDE 数据在 `~/.gemini/antigravity/`，CLI（`agy`）数据在 `~/.gemini/antigravity-cli/`。
@@ -152,7 +191,7 @@ Demo 各页需要的数据与来源：
 | Gemini CLI | `~/.gemini/tmp/<项目哈希或名称>/chats/session-*.json(l)`，`projects.json` 映射路径；`GEMINI_CLI_HOME` / `GEMINI_DIR` 覆盖 | 旧版单个 JSON，v0.40 起为 JSONL 操作日志（`$set`、`$rewindTo`、`message_update`，同 `id` 后者覆盖前者） | `tokens.{input, output, cached, thoughts}` | 会话有 `kind: main / subagent` |
 | Cursor IDE | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` 的 `cursorDiskKV` 表 | `composerData:<id>`（会话）+ `bubbleId:<会话>:<消息>`（消息，`_v ≥ 3` 时工具数据在 `toolFormerData`） | 磁盘上没有可靠 token | 库常有数百 MB 且持续写入；`ItemTable` 里有登录令牌，绝不导出；项目归属要结合 `workspaceStorage` |
 | Cursor CLI | `~/.cursor/projects/<编码路径>/agent-transcripts/`、`~/.cursor/chats/<md5>/<id>/store.db` | 文本转录 + 内容寻址的 blob 树 | 无 | 细节有限 |
-| OpenCode / Kilo CLI | `${XDG_DATA_HOME:-~/.local/share}/opencode/opencode.db`（Kilo 为 `kilo/kilo.db`） | v2：`session_v2` + `session_message`；v1.2：`session / message / part`；更早是 `storage/` 下的 JSON | `tokens{input, output, cache{read, write}}`、`cost` | 分叉会复制父会话的行；流式时助手行会被原地改写；同库有凭据表 |
+| Kilo CLI / Kilo Code 新版 | `~/.local/share/kilo/kilo.db` | 与 OpenCode 同一套表结构 | 同 OpenCode | 复用 OpenCode 连接器 |
 | Amp | `~/.local/share/amp/threads/T-<uuid>.json` | 每线程一个 JSON，持续改写 | `messages[].usage`（含缓存读写）、credits | OpenAI 模型的未缓存输入记在「缓存写入」 |
 | Factory Droid | `~/.factory/sessions/**/<id>.jsonl` + `<id>.settings.json` | JSONL 消息 | `settings.json` 的累计 `tokenUsage` | 累计值原地改写；模型名是自定义字符串 |
 | Kimi CLI | `~/.kimi/sessions/…/wire.jsonl`、`~/.kimi-code/sessions/…/agents/<agent>/wire.jsonl` | JSONL | `StatusUpdate` / `usage.record` | 日志不记录模型 |
@@ -214,11 +253,14 @@ Demo 各页需要的数据与来源：
 | Agent | 扫描内容 |
 | --- | --- |
 | Claude Code | `settings.json`（`permissions`、`hooks`、`enabledPlugins`、`extraKnownMarketplaces`、`model`）、`~/.claude.json` 中的 `mcpServers`（全局与按项目）、`skills/`、`agents/`、`commands/`、`plugins/installed_plugins.json`、`plugins/known_marketplaces.json`；项目内 `.claude/`、`.mcp.json`、`CLAUDE.md` |
-| Codex | `config.toml` 的 `mcp_servers`、`plugins`、`marketplaces`、`skills.config`、`features`、`projects`；`skills/`、`rules/`、`plugins/cache/` |
-| 通用 | `~/.agents/AGENTS.md`、`~/.agents/skills/`；各项目根目录的 `AGENTS.md`、`GEMINI.md`、`.cursor/rules`、`.github/copilot-instructions.md` |
-| 其他 | Antigravity `config/mcp_config.json` 与 `config/plugins/`；Copilot `installed-plugins/`；DeepSeek Harness `settings.yaml` 与 `profiles/` |
+| Codex | `config.toml` 的 `mcp_servers`、`plugins`、`marketplaces`、`skills.config`、`features`、`projects`；`skills/`、`rules/`、`plugins/cache/`；定时任务 `automations/<id>/automation.toml`（`name / prompt / rrule / model / reasoning_effort / cwds / status`，对应 `thread_source=automation` 的会话） |
+| Claude 桌面版 | `claude-code-sessions/…/scheduled-tasks.json`（定时任务）、会话索引中的 `enabledMcpTools` |
+| 通用 | `~/.agents/AGENTS.md`、`~/.agents/skills/`、`~/.agents/plugins/marketplace.json`；各项目根目录的 `AGENTS.md`、`GEMINI.md`、`.cursor/rules`、`.github/copilot-instructions.md` |
+| 其他 | Antigravity `config/mcp_config.json` 与 `config/plugins/`；Copilot `installed-plugins/`；DeepSeek Harness `settings.yaml` 与 `profiles/`；Hermes `config.yaml`（各 profile 各一份） |
 
-**凭据黑名单**（连接器永不打开）：`~/.codex/auth.json`、`~/.dsh/.credentials.yaml`、`~/.pi/agent/auth.json`、`~/.gemini/*oauth*`、`~/.claude/.credentials*`、钥匙串、任何 `.env`。配置中的 `env`、`headers`、`token` 类字段入库前替换为 `<redacted>`。
+定时任务也进已安装清单：它们是用户已经在用的「可执行工作流」，后续推荐 headless 与定时检查类建议时要先看这里（Demo 的「长时间采集改为 headless + 定时检查」）。
+
+**凭据黑名单**（连接器永不打开）：`~/.codex/auth.json`、`~/.dsh/.credentials.yaml`、`~/.pi/agent/auth.json`、`~/.gemini/*oauth*`、`~/.claude/.credentials*`、`$HERMES_HOME/.env`、OpenCode 数据目录下的 `auth.json` 与 `mcp-auth.json`（以及库里的 `account`、`control_account`、`credential` 表）、钥匙串、任何 `.env`。配置中的 `env`、`headers`、`token` 类字段入库前替换为 `<redacted>`。
 
 ### 3.6 参考的开源项目
 
@@ -304,6 +346,11 @@ Demo 各页需要的数据与来源：
 | `ui.state` | 只与界面有关的状态（归档，不参与统计） | `atis-latch`、`bridge-session`、`frame-link`、`artifact-*`、`last-prompt` | `world_state` | 打包分片行（`folded`） | — |
 | `unknown` | 未识别记录（保留并计入漂移告警） | — | — | — | — |
 
+OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
+
+- **OpenCode**：`part.type` 决定事件——`text`（`synthetic: true` 为注入，进 `context.inject` 或 `origin=injected`）、`reasoning`（签名或加密内容在 `metadata`）、`tool`（`state.status` 为 `pending / running / completed / error`，映射 `tool.call / tool.result`）、`step-start / step-finish`（`model.usage`）、`patch`（`file.change`）、`compaction` 与 `summary: true` 的 assistant（`context.compaction`）、`agent / subtask`（`subagent.spawn`）、`file`（附件，内联的 base64 移到附件区）；`session.revert` 与 fork 映射为 `branch`。
+- **Hermes Agent**：`messages` 按 `id` 顺序映射为 `message.* / tool.* / reasoning`；`active=0, compacted=1` 的旧行加摘要行 → `context.compaction`；`active=0` 且未压缩的行 → `branch`（rewind / edit）；`/branch` 子会话 → `branch(fork)`；`delegate_task` 子会话 → `subagent.*`；`session_model_usage` → `model.usage`（`task` 字段给出用途）。
+
 每种 `kind` 的 `attrs` 字段在实现时写成 JSON Schema，作为连接器与分析模块的契约。
 
 ### 4.5 关键归一规则
@@ -318,6 +365,15 @@ Demo 各页需要的数据与来源：
 | 种子事件（DeepSeek Harness） | 会话头的 `parentSession + seedLength` | 前 `seedLength` 条是从父会话复制的种子，标 `replayed`（tokscale 也按此判断分叉边界） |
 | 跨 Agent 导入（Codex 导入 Claude 会话） | `external_agent_session_imports.json` | 会话标 `kind=import`，链接到原会话，默认不计 |
 | token 重复事件（Codex 旧格式） | 累计值未变化的 `token_count` | 丢弃，标 `duplicate` |
+
+**分类维度**
+
+按团队确定的口径，统计按**项目**和**模型**分类，不按 Agent 分类：
+
+- Agent 只作为来源属性保留（用于去重、兼容性判断和标注数据来自哪里），不作为分组维度。
+- 同一个模型经不同 Agent、不同供应商路由（直连、OpenRouter、Kimi Coding、OpenAI Codex 等）调用时，归到同一个规范模型；路由与供应商记在 `model_call.provider`，需要时再细分。
+- 思考档位是模型之下的第二层（模型 × 思考档位），不同厂商的档位分开展示。
+- 项目与模型都在 L3 派生，规则调整后可整体重算。
 
 **项目归属**
 
@@ -414,6 +470,8 @@ Demo 各页需要的数据与来源：
 | Smithery | `GET https://registry.smithery.ai/servers?q=&page=&pageSize=` | `qualifiedName`、`useCount`、`verified`；详情含 `tools[]` | 单次查询最多返回 500 条，需按关键词分片；条款未核实 | 约 1.8 万条 | P1（工具清单、使用量） |
 | Glama、PulseMCP、mcp.so | API 需申请密钥或没有公开 API | — | Glama 要求逐条署名 | — | P2 |
 
+**「MCP 接入：有哪些软件」怎么回答。** 每个 MCP 条目额外归一出 `software`（它对接的软件或服务），依据由强到弱：官方 Registry 的反向域名命名空间（厂商自己发布的服务用自己的域名）、远程地址的域名（厂商托管的远程 MCP 通常在自己的域名下）、仓库所有者、Docker 目录的分类与标题、名称与描述里的品牌词。同一软件的官方实现与社区实现并列，官方优先（`_meta` 的官方状态、GitHub Registry 的精选）。这样就能列出「哪些软件提供了 MCP」，后续也能从会话里的命令头（例如 `wrangler` 对应 Cloudflare、`gh` 对应 GitHub）和已安装清单反查可用的 MCP。`software` 与命令头的对应关系放在能力词表（6.3）里维护。
+
 **插件与市场**
 
 | 来源 | 获取方式 | 格式 | 条款 | 规模 | 优先级 |
@@ -443,7 +501,9 @@ Demo 各页需要的数据与来源：
 **规则、子代理、工作流、指南**（只做了轻量核实）
 
 - 规则：`agentsmd/agents.md`（MIT）、awesome-copilot `instructions/`、`PatrickJS/awesome-cursorrules`（CC0）、`cursor/community-plugins`（原 cursor.directory）。
+- Prompts：可复用的提示词以「命令」的形式存在，来源是各插件的 `commands/` 目录（本机缓存的 52 个官方相对路径插件中有 13 个带命令）和各 Agent 的命令目录；Demo 里「开场模板：先写完成条件」这类模板作为 `rule` 条目人工录入。
 - 子代理：`wshobson/agents`（MIT）、`VoltAgent/awesome-claude-code-subagents`（MIT）、awesome-copilot `agents/`。
+- 可执行的工作流：Claude 插件的 `workflows` 组件；awesome-copilot 的 `workflows/*.md`（GitHub Agentic Workflows，8 个，frontmatter 有 `on`（触发计划）、`permissions`、`safe-outputs`）；用户本机的定时任务也属于这一类，见 3.5。
 - 工作流框架（作为 `workflow` 条目人工录入，记录 README 哈希）：`obra/superpowers`、`github/spec-kit`、`Fission-AI/OpenSpec`、`gsd-build/get-shit-done`、`bmad-code-org/BMAD-METHOD`、`EveryInc/compound-engineering-plugin`、`SuperClaude-Org/SuperClaude_Framework`、`eyaltoledano/claude-task-master`。
 - 官方指南：`code.claude.com/docs/llms.txt`（含每周更新页）、`agentskills.io/llms.txt`；Claude Code、Codex、Gemini CLI、Cursor 的文档页都能直接取 `.md`，按周取哈希比对变化。
 
@@ -544,11 +604,11 @@ Demo 各页需要的数据与来源：
 | `plugin` | `format`（claude / codex / cursor / copilot / agent-plugins / gemini-extension）、清单路径、版本、组成（skill、command、agent、hook、mcp、lsp、output_style、workflow、bin、app、rule、settings …）、`userConfig`、依赖、各市场条目（市场、分类、`strict`、`policy`、解析后的 `source`）、各 Agent 的安装命令 |
 | `marketplace` | 名称、格式、所有者、仓库、清单路径、插件数、`renames`、head SHA |
 | `skill` | 规范字段 `name / description / license / compatibility / allowed_tools / metadata`、各 Agent 的扩展字段、是否带 `scripts / references / assets`、正文 token 数、规范校验结果 |
-| `mcp_server` | 规范名与各注册表别名、版本列表、包（类型、标识、版本、传输方式、环境变量及是否为密钥）、远程地址、仓库、工具清单（来自 Smithery / Docker）、认证方式、官方状态 |
+| `mcp_server` | 规范名与各注册表别名、`software`（对接的软件或服务，5.1）、版本列表、包（类型、标识、版本、传输方式、环境变量及是否为密钥）、远程地址、仓库、工具清单（来自 Smithery / Docker）、认证方式、官方状态 |
 | `hook` | Agent、`event_native`、`event_norm`（5.2）、matcher、处理器（类型、命令 / URL / 提示词、超时）、作用域（用户 / 项目 / 插件）、风险标记 |
 | `rule` | 文件类型（AGENTS.md、CLAUDE.md、GEMINI.md、`.mdc`、`.instructions.md`）、适用范围（`globs`、`applyTo`、`alwaysApply`）、按标题切分的段落与主题 |
 | `subagent` / `command` | Agent、名称、描述、参数提示、可用工具、模型、权限模式、正文哈希 |
-| `workflow` | 仓库、星数、许可、安装方式（插件 / npx / uvx / CLI）、包含的 Skills / 命令 / 子代理 / Hooks、适用 Agent、阶段划分 |
+| `workflow` | `form`：`methodology`（方法论框架，如 superpowers、spec-kit）或 `executable`（可执行定义，如插件的 `workflows`、GitHub Agentic Workflows）；仓库、星数、许可、安装方式（插件 / npx / uvx / CLI）、包含的 Skills / 命令 / 子代理 / Hooks、适用 Agent、阶段划分或触发计划 |
 | `guide` | 地址、发布方、标题、日期、内容哈希、要点列表（每条：陈述、适用的条目类型与 Agent、原文锚点） |
 
 「工作流经验」以 `workflow`（方法论仓库）和 `guide`（官方最佳实践文档）两类入库：正文只存摘要与要点，链接原文。
@@ -756,7 +816,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 
 ### 8.1 MVP 范围
 
-- **会话侧**：Claude Code（含子代理、第二账号与桌面版索引）、Codex（含归档目录与子代理）、DeepSeek Harness；pi 作为最简单的连接器模板一并接入；Antigravity 读明文转录与摘要库。
+- **会话侧**：Claude Code（含子代理、第二账号与桌面版索引）、Codex（含归档目录与子代理）、DeepSeek Harness；pi 作为最简单的连接器模板一并接入；Antigravity 读明文转录与摘要库；OpenCode 与 Hermes Agent 本机未安装，按源码调研写连接器，安装后跑一次生成样本再测试。
 - **生态侧**：官方 MCP Registry、Claude 官方插件市场与 `anthropics/skills`、`openai/skills` 与 Codex 官方插件、models.dev（模型清单与价格）。Hooks、子代理、命令先从这些来源的插件内容里拆出来。
 - **暂不做**：Hooks 与 OpenTelemetry 补充通道、反代、Antigravity 的 protobuf 用量解码、用模型给条目打标签、向量检索。
 - **实现形态**：采集与标准化做成独立于界面的本地进程（命令行 + 常驻监听），只负责写数据库；Mac App 只读数据库，界面技术不影响数据层。采集进程用 TypeScript（Node ≥ 24）：与 DeepSeek Harness 同栈，可以直接复用它 MIT 许可的分片解码代码（`@deepseek-ai/dsh-session` 的 `decodeStorageRecord`）；Node 自带 zstd 解压（本机 Node 26.8 已验证 `zlib.zstdDecompressSync`）和 `node:sqlite`，不引入原生依赖，功能不够时再换 better-sqlite3。先写最小原型验证 Claude Code 与 Codex 两个连接器，遇到性能或打包问题再调整。
@@ -766,7 +826,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 | 步骤 | 产出 | 验收 |
 | --- | --- | --- |
 | M0 契约 | 7.2 的表结构、每种 `kind` 的 `attrs` JSON Schema、各 Agent 的脱敏样本文件 | 样本覆盖本机出现过的全部记录类型 |
-| M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；命令行 `tandem ingest` | 全记账测试通过；同一数据重复导入零差异 |
+| M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `tandem ingest` | 全记账测试通过；同一数据重复导入零差异 |
 | M2 派生 | L3 各表、项目归属、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；按模型的 token 与 `cost-state` 误差 < 1% |
 | M3 生态 | Catalog 构建脚本、P0 来源、已安装清单、规则抽取的特征 | 抽检 50 条去重结果；本机已安装项全部能链接或给出未链接原因 |
 | M4 增量 | FSEvents 监听、原始归档、漂移告警；Demo 的 A1、A3、A4 接真实数据 | 新会话写入后 5 秒内可见 |
@@ -788,7 +848,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 
 默认做法（实现中遇到反例再调整）：
 
-1. 接入顺序：Claude Code → Codex → DeepSeek Harness → pi → Antigravity → 其他（见 8.1）。
+1. 接入顺序：Claude Code → Codex → DeepSeek Harness → pi → Antigravity → OpenCode、Hermes Agent → 其他（见 8.1）。
 2. 采集进程：TypeScript 命令行 + 常驻监听，写 SQLite（见 8.1）。
 3. 原始归档默认开启、不设保留期；图片等二进制只记引用；设置里可以关闭或清除。
 4. 生态快照先在本机用构建脚本生成；本仓库是私有仓库，对外分发快照时再选公开托管位置。
