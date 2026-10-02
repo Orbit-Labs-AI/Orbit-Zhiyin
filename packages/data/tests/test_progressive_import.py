@@ -68,7 +68,6 @@ def test_progressive_import_publishes_consistent_batches(tmp_path):
             summary = service.import_progressive(
                 [ImportRequest(agent, root) for agent, root in sorted(roots.items())],
                 first_sessions=8,
-                batch_files=12,
                 on_batch=on_batch,
             )
             service.close()
@@ -93,11 +92,22 @@ def test_first_batch_is_newest_sessions_and_groups_stay_together():
         {"group": ("s", "c"), "mtime": 80},
         {"group": ("s", "d"), "mtime": 10},
     ]
-    batches = plan_batches(entries, first_sessions=2, first_days=7, batch_files=2, now=100)
+    batches = plan_batches(entries, first_sessions=2, first_days=7, now=100)
     assert [e["group"][1] for e in batches[0]] == ["a", "a", "b"]
     assert [[e["group"][1] for e in batch] for batch in batches[1:]] == [["c", "d"]]
-    old = plan_batches(entries, first_sessions=9, first_days=0, batch_files=9, now=10**9)
+    old = plan_batches(entries, first_sessions=9, first_days=0, now=10**9)
     assert [e["group"][1] for e in old[0]] == ["a", "a"]  # Nothing recent: newest group only.
+    # The first batch is bounded by bytes (event volume), never empty; the rest is
+    # one batch per source, in order of each source's newest remaining group.
+    sized = [{**e, "size": 40} for e in entries] + [{"group": ("t", "e"), "mtime": 85, "size": 1}]
+    budget = plan_batches(sized, first_sessions=9, first_days=7, first_bytes=100, now=100)
+    assert [e["group"][1] for e in budget[0]] == ["a", "a"]
+    assert [[e["group"] for e in batch] for batch in budget[1:]] == [
+        [("s", "b"), ("s", "c"), ("s", "d")],
+        [("t", "e")],
+    ]
+    tiny = plan_batches(sized, first_sessions=9, first_days=7, first_bytes=1, now=100)
+    assert [e["group"][1] for e in tiny[0]] == ["a", "a"]
     assert session_group("claude_code", "projects/p/s1/subagents/agent-a.jsonl") == "projects/p/s1"
     assert session_group("claude_code", "projects/p/s1.jsonl") == "projects/p/s1"
     assert session_group("dsh", "sessions/p/s/session.v3.jsonl") == "sessions/p/s"
