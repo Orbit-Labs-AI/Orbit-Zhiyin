@@ -1,0 +1,81 @@
+/* A3 会话与轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
+   事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
+.tl-card{container-type:inline-size}
+.tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:4px 16px;align-items:start}
+.tl-sum{margin:-2px 0 8px;font-variant-numeric:tabular-nums}
+.tl-main{min-width:0;display:flex;flex-direction:column;gap:4px}
+.tl-ov{min-height:28px}
+.tl-ov .vz-plot{border-radius:4px}
+.tl-box{min-height:120px}
+/* 阶段带：浅色列（推断的阶段虚线描边）；泳道背景不再交替，避免与阶段列叠成格子 */
+.tl-box .vz-svg text,.tl-box .tl-deco{pointer-events:none}   /* 刻度文字不挡播放头手柄与事件 */
+.tl-box .vz-lane{fill:none;stroke:var(--hair)}
+.tl-box .vz-lane.alt{fill:none}
+.tl-box .vz-phase{fill:var(--sunken);fill-opacity:.55;stroke:var(--line);stroke-opacity:.9}
+.tl-box .vz-note{fill:var(--ink-2)}
+.tl-box .vz-ring-ev{stroke-width:2.5}
+.tl-box .vz-span-lbl{font-size:10px;fill:var(--ink-2)}
+.tl-box .vz-sel{stroke:var(--ink-1);stroke-width:2}
+.tl-box .vz-marker{cursor:pointer}
+.tl-box .vz-marker.vz-hot rect{filter:brightness(1.15)}
+.tl-box .vz-marker.vz-hot text{fill:var(--surface)}
+/* 上下文：面积 10% 强调色 + 1.5px 线；80% 阈值虚线；压缩事件竖标 */
+.tl-ctx-area{fill:var(--vz-accent);fill-opacity:.1}
+.tl-ctx-line{fill:none;stroke:var(--vz-accent);stroke-width:1.5;stroke-linejoin:round}
+.tl-ctx-th{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3}
+.tl-ctx-tick{font:10px var(--mono);fill:var(--ink-3)}
+.tl-ctx-comp line{stroke:var(--ink-1);stroke-width:1}
+.tl-ctx-lbl{font-size:10px;font-family:var(--mono);fill:var(--ink-1)}
+/* 顶部相对时间轴 */
+.tl-rel{font:10px var(--mono);fill:var(--ink-4)}
+.tl-rel-tick,.tl-rel-base{stroke:var(--hair);stroke-width:1}
+.tl-read{gap:10px;flex-wrap:wrap;min-height:22px;margin-top:4px}
+.tl-now{font-weight:700;font-size:13px;color:var(--ink-1)}
+.tl-brush{height:auto;min-height:20px;padding:1px 4px 1px 8px;gap:6px;font-family:var(--mono);color:var(--ink-1);border-color:var(--accent)}
+.tl-legend{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-top:4px}
+.tl-legend>span{display:inline-flex;align-items:center;gap:5px}
+.tl-sw{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.tl-legend .tl-sw+span{margin-left:-7px}
+.tl-hint{margin-left:auto;color:var(--ink-4)}
+/* 事件检视：右侧固定列；容器变窄时移到时间线下方成一行抽屉 */
+.tl-insp{border-left:1px solid var(--hair);padding:2px 0 2px 16px;font-size:12.5px;line-height:1.5;color:var(--ink-2);min-width:0;display:flex;flex-direction:column;gap:6px;align-self:stretch}
+.tl-insp .eb{margin-bottom:2px}
+.tl-ihd{display:flex;flex-direction:column;gap:1px}
+.tl-it{font-size:15px;font-weight:700;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.tl-kv{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:baseline}
+.tl-kv .k{font:11px/18px var(--mono);color:var(--ink-3);white-space:nowrap}
+.tl-kv .v{min-width:0;overflow-wrap:anywhere;color:var(--ink-1)}
+.tl-kv .v.mono{font-size:12px}
+.tl-blist{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:11.5px}
+.tl-blist li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2)}
+.tl-blist li.err{color:var(--crit)}
+.tl-ibtn{margin-top:auto;padding-top:6px;flex-wrap:wrap;gap:6px}
+.tl-ibtn .seg button{padding:0 7px}
+@container (max-width:860px){
+  .tl-grid{grid-template-columns:minmax(0,1fr)}
+  .tl-insp{border-left:0;border-top:1px solid var(--hair);padding:10px 0 0;margin-top:6px}
+  .tl-ibtn{margin-top:0}
+  .tl-hint{display:none}
+}
+/* 关键时刻列表：与图上徽章双向联动（hover = hot，播放头已过 = on） */
+.tl-mom{display:grid;grid-template-columns:18px 44px minmax(0,1fr);gap:8px;align-items:start;font-size:12.5px;line-height:18px;border:0;background:none;padding:3px 6px;margin:0 -6px;border-radius:7px;text-align:left;width:calc(100% + 12px);color:var(--ink-2)}
+.tl-mom:hover,.tl-mom.hot{background:var(--field)}
+.tl-mom .n{width:18px;height:18px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 10px/18px var(--mono);text-align:center}
+.tl-mom .n.alert{background:var(--vz-corr);color:#fff}
+.tl-mom.on .n{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent)}
+.tl-mt{font-size:11.5px;color:var(--ink-3);padding-top:1px}
+.tl-mx b{color:var(--ink-1)}
+/* 对比：两条紧凑时间线共用一个尺度 */
+.tl-cmp-row{margin-bottom:10px}
+.tl-cmp .vz-lane.alt{fill:none}
+.tl-cmp .vz-lane{fill:none;stroke:var(--hair)}
+.tl-cmp .vz-phase{fill:var(--sunken);fill-opacity:.55;stroke:var(--line)}
+/* 差异表：指标列不折行，阶段占比允许换行 */
+.tl-cmp-tbl th:first-child,.tl-cmp-tbl td:first-child{white-space:nowrap}
+.tl-cmp-tbl td:last-child{white-space:nowrap}
+.tl-ph{display:inline-block;font:11px/15px var(--mono);color:var(--ink-2);max-width:160px;text-align:right}
+/* 列表截断提示 */
+.tl-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:6px;height:32px;border:1px dashed var(--line);border-radius:8px;background:none;color:var(--ink-3);font-size:12px}
+.tl-more b{color:var(--ink-1);font-weight:600}
+.tl-more:hover{background:var(--field)}
+.tl-more-end{text-align:center;padding:10px 0 4px}
