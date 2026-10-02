@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import shlex
+from functools import lru_cache
 
 SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish", "pwsh", "powershell"})
 # Segments that only change shell state; the next segment holds the real program.
@@ -101,23 +102,22 @@ _VALUE_OPTIONS = {
 }
 
 
-def _tokens(command: str) -> list[str]:
+def _tokens(command: str):
+    """Lazily: the head is usually in the first segment, so heredoc bodies are never lexed."""
     lexer = shlex.shlex(command.replace("\r", "\n"), posix=True, punctuation_chars=";&|()")
     lexer.whitespace = " \t"
     lexer.whitespace_split = True
     lexer.commenters = ""
-    tokens = []
     for token in lexer:
         if "\n" in token:
             parts = token.split("\n")
             for index, part in enumerate(parts):
                 if index:
-                    tokens.append("\n")
+                    yield "\n"
                 if part:
-                    tokens.append(part)
+                    yield part
         else:
-            tokens.append(token)
-    return tokens
+            yield token
 
 
 def _segments(tokens):
@@ -209,6 +209,17 @@ def _with_subcommand(name, rest):
 
 def command_head(command, depth: int = 0) -> str | None:
     """First effective program of a shell command (str or argv list); never a path."""
+    if isinstance(command, str) and depth == 0:
+        return _string_head(command)
+    return _command_head(command, depth)
+
+
+@lru_cache(maxsize=32768)
+def _string_head(command: str) -> str | None:
+    return _command_head(command, 0)
+
+
+def _command_head(command, depth):
     if isinstance(command, list):
         if not command or not all(isinstance(word, str) for word in command):
             return None
@@ -221,12 +232,12 @@ def command_head(command, depth: int = 0) -> str | None:
     if not isinstance(command, str) or not command.strip():
         return None
     try:
-        tokens = _tokens(command)
+        for segment in _segments(_tokens(command)):
+            head = _segment_head(segment, depth)
+            if head:
+                return head
+        return None
     except ValueError:
-        # Unbalanced quotes or heredocs: fall back to whitespace words of the first line.
-        tokens = command.strip().split("\n", 1)[0].split()
-    for segment in _segments(tokens):
-        head = _segment_head(segment, depth)
-        if head:
-            return head
-    return None
+        # Unbalanced quotes: fall back to whitespace words of the first line.
+        words = command.strip().split("\n", 1)[0].split()
+        return _segment_head(words, depth) if words else None
