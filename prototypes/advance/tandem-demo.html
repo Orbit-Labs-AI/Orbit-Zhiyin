@@ -9222,21 +9222,32 @@ function lvFeedRes(f) {
   const list = typeof f.spec === 'string' ? [{ name: '_', path: f.spec }] : typeof f.spec === 'function' ? f.spec(sc) : f.spec;
   return list.map((x) => ({ name: x.name || '_', r: TL.resource(x.path, { query: x.query || null, waitMs: x.waitMs || 0 }) }));
 }
+// a resource key without its days= (a window switch of the same scope keeps the last screen until the new one decodes)
+const lvNoDays = (k) => String(k).replace(/([?&])days=[^&]*&?/, '$1').replace(/[?&]$/, '');
+const lvKeyDays = (k) => { const m = /[?&]days=(\d+)/.exec(String(k)); return m ? +m[1] : null; };
 LV.pump = function (route) {
   if (!LV.live) return;
+  LV.widen();
   (LV.feeds[route] || []).forEach((f) => {
     const rs = lvFeedRes(f);
     rs.forEach((x) => { if (x.r.dirty && !x.r.loading) TL.load(x.r); });
+    // 422 analysis_scope_too_large: remember the window and re-render; the spec then asks for 30 days (then 7)
+    const big = rs.find((x) => x.r.state === 'error' && x.r.error && x.r.error.code === 'analysis_scope_too_large');
+    if (big) { const d = lvKeyDays(big.r.key); if (!LV.tooLarge.has(d != null ? d : LV.window ? LV.window.days : 0)) { LV.scopeTooLarge(d); setTimeout(() => TL.changed(), 0); f.state = f.data ? 'ready' : 'pending'; return; } }
     const err = rs.find((x) => x.r.state === 'error' && x.r.data == null);
     if (err) { f.state = 'error'; f.error = err.r.error; return; }
-    if (rs.some((x) => x.r.data == null)) { f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return; }
+    if (rs.some((x) => x.r.data == null)) {
+      const swap = f.data && f.parts && f.keys && f.keys.length === rs.length && rs.every((x, i) => lvNoDays(x.r.key) === lvNoDays(f.keys[i]));
+      if (swap) return;   // same scope, another window still loading: keep the applied screen
+      f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return;
+    }
     const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt).join('|') + '#' + LV.rev;
     if (stamp === f.stamp) return;
     // a 304 / identical body refreshes updatedAt but hands back the same objects: nothing to re-apply
     const same = f.parts && f.rev === LV.rev && f.parts.length === rs.length && rs.every((x, i) => f.parts[i] === x.r.data);
     if (same) { f.stamp = stamp; return; }
     const data = rs.length === 1 && rs[0].name === '_' ? rs[0].r.data : rs.reduce((o, x) => { o[x.name] = x.r.data; return o; }, {});
-    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; f.parts = rs.map((x) => x.r.data); f.rev = LV.rev; }
+    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; f.parts = rs.map((x) => x.r.data); f.keys = rs.map((x) => x.r.key); f.rev = LV.rev; }
     catch (e) { f.state = 'error'; f.error = { code: 'apply_failed', message: String(e && e.message || e) }; console.error('LV.feed apply', e); }
   });
 };
@@ -9258,6 +9269,81 @@ function lvToday() {
   catch (e) { return new Date().toISOString().slice(0, 10); }
 }
 const lvUtc = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+
+/* ---- auto window (first-open fast path): /v1/uiview/{facts,overview,persona} without days serve the widest ready window
+   (all → 30 → 7) and warm wider ones; meta.window = {days, requested, wider: [{days, state, scope_hash}]}. LV.window keeps
+   {days (served), wider} merged across responses; LV.daysFor(want) gives the days to request for a wanted range (only a
+   window known to be ready, else null = auto); LV.tooLarge holds windows that answered 422 analysis_scope_too_large. */
+const LV_DAYS = [7, 30, 90, 0];
+LV.window = null;               // {days, wider: [{days, state, scope_hash}]}
+LV.spineDays = null;            // explicit days the spine requests (null = auto)
+LV.tooLarge = new Set();        // days values the gateway refused as too large (this data revision)
+LV.progress = null;             // meta.progress of the spine's last 202
+const lvWinMap = {};            // days → {state, scope_hash}
+const lvCovers = (w, want) => w === 0 || (want !== 0 && w >= want);
+const lvWider = (d, than) => d !== than && than !== 0 && (d === 0 || d > than);
+LV.rangeDays = (r) => { r = +r || 0; return r === 0 ? 0 : r <= 7 ? 7 : r <= 30 ? 30 : r <= 90 ? 90 : 0; };
+LV.periodDays = (p) => {
+  if (p === 'all') return 0;
+  if (/^\d+$/.test(String(p))) return LV.rangeDays(+p);
+  const m = /^(\d{4})-(\d{2})$/.exec(p || ''); if (!m) return 90;
+  const age = Math.round((lvUtc(lvToday()) - Date.UTC(+m[1], +m[2] - 1, 1)) / 86400000) + 1;
+  return age <= 7 ? 7 : age <= 30 ? 30 : age <= 90 ? 90 : 0;
+};
+LV.dayLabel = (d) => (d === 0 ? '全部' : d + ' 天');
+// the window a page wants: A2 / Lite persona follow their period, every other page the time range
+LV.wantDays = (route) => (/persona$/.test(route || S.route) && S.persona ? LV.periodDays(S.persona.period) : LV.rangeDays(S.range));
+LV.noteWindow = function (w) {
+  if (!w || w.days == null) return;
+  lvWinMap[w.days] = Object.assign({}, lvWinMap[w.days], { state: 'ready' });
+  (w.wider || []).forEach((x) => { if (LV_DAYS.indexOf(x.days) >= 0) lvWinMap[x.days] = { state: x.state, scope_hash: x.scope_hash || (lvWinMap[x.days] || {}).scope_hash || null }; });
+  LV.window = { days: w.days, requested: w.requested, wider: Object.keys(lvWinMap).map(Number).filter((d) => lvWider(d, w.days)).sort((a, b) => (a === 0) - (b === 0) || a - b).map((d) => Object.assign({ days: d }, lvWinMap[d])) };
+};
+LV.resetWindow = function () { Object.keys(lvWinMap).forEach((k) => { delete lvWinMap[k]; }); LV.tooLarge.clear(); LV.spineDays = null; };
+// days to request for a wanted window: the narrowest ready window that covers it (never one refused as too large); a
+// too-large want falls back to 30 then 7; null = no ready window covers it yet → auto (and the strip shows the hint)
+LV.daysFor = function (want) {
+  if (!LV.live || !LV.window) return null;
+  if (LV.tooLarge.has(want)) { const fb = [30, 7].find((d) => !LV.tooLarge.has(d)); return fb != null ? fb : null; }
+  const ok = Object.keys(lvWinMap).map(Number).filter((d) => LV_DAYS.indexOf(d) >= 0 && !LV.tooLarge.has(d) && lvWinMap[d].state === 'ready' && lvCovers(d, want));
+  if (!ok.length) return null;
+  return ok.sort((a, b) => (a === 0) - (b === 0) || a - b)[0];
+};
+// calm inline hint when the wanted window is wider than the served one: 「目前显示近 7 天 · 30 天数据计算中」
+LV.windowHint = function (route) {
+  const w = LV.window; if (!LV.live || !w || LV.state !== 'ready') return '';
+  const want = LV.wantDays(route);
+  const shown = w.days === 0 ? '全部数据' : '近 ' + w.days + ' 天';
+  if (LV.tooLarge.has(want)) { const fb = LV.daysFor(want); return '数据量太大，已切换到' + (fb != null ? '近 ' + fb + ' 天' : shown); }
+  if (lvCovers(w.days, want)) return '';
+  const e = w.wider.find((x) => lvCovers(x.days, want));
+  if (e && e.state === 'failed') return LV.dayLabel(e.days) + '数据量过大，显示' + shown;
+  if (e && e.state === 'ready') return '';
+  return '目前显示' + shown + ' · ' + LV.dayLabel(e ? e.days : want) + '数据计算中';
+};
+// 202 meta.progress → 「已用 N / M 秒 · K 条事件」 (or the queue position)
+LV.progressNote = function (p) {
+  if (!p) return '';
+  const out = [];
+  if (p.queue_position != null) out.push('排队第 ' + p.queue_position + ' 位');
+  else if (p.elapsed_s != null) out.push('已用 ' + Math.round(p.elapsed_s) + (p.budget_s ? ' / ' + Math.round(p.budget_s) : '') + ' 秒');
+  if (p.events) out.push(fmt(p.events) + ' 条事件');
+  return out.length ? ' · ' + out.join(' · ') : '';
+};
+// a page (or the strip) wants a window the spine does not cover and a ready one does: reload the spine with it
+LV.widen = function () {
+  if (!LV.live || !LV.window || LV.state !== 'ready') return;
+  const want = LV.wantDays();
+  if (lvCovers(LV.window.days, want) && !LV.tooLarge.has(LV.window.days)) return;
+  const d = LV.daysFor(want);
+  if (d != null && d !== LV.window.days && d !== LV.spineDays) { LV.spineDays = d; setTimeout(() => LV.loadSpine(), 0); }
+};
+// 422 analysis_scope_too_large for a request of `days` (null = auto): remember it, fall back to 30 then 7
+LV.scopeTooLarge = function (days) {
+  const d = days != null ? days : LV.window ? LV.window.days : 0;
+  LV.tooLarge.add(d);
+  return [30, 7].find((x) => !LV.tooLarge.has(x));
+};
 // columnar-v1 → row objects (inverse of facts.compact)
 LV.expand = function (wire) {
   if (!wire || !wire.fields) return (wire && wire.rows) || [];
@@ -9339,7 +9425,7 @@ LV.hydrate = function (spine) {
   if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
 };
 
-let lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
+let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
 LV.job = null;      // the analysis job being polled for the spine: {id, status, elapsed_s, timeout_s}
@@ -9374,9 +9460,12 @@ const lvSide = (path) => TL.get(path).then((r) => r.data, () => null);
 LV.loadSpine = function () {
   if (!LV.live) return Promise.resolve();
   if (lvSpineBusy) return lvSpineBusy;
-  lvSpineBusy = TL.get('/v1/uiview/facts', { query: { display_timezone: TL_TZ || 'UTC' }, waitMs: 1500 }).then(async (res) => {
+  const days = LV.spineDays != null && LV_DAYS.indexOf(LV.spineDays) >= 0 ? LV.spineDays : null;
+  lvSpineBusy = TL.get('/v1/uiview/facts', { query: { display_timezone: TL_TZ || 'UTC', days }, waitMs: 1500 }).then(async (res) => {
     lvSpineFails = 0;
     if (res.state === 'computing' || res.data == null) {
+      LV.progress = (res.meta && res.meta.progress) || null;
+      if (res.meta && res.meta.window) LV.noteWindow(res.meta.window);
       LV.stale = LV.state === 'ready'; if (LV.state !== 'ready') LV.state = 'computing';
       // the 202 names its job: poll GET /v1/analytics/jobs/{id} (backoff) and reload when it completes; without a job the
       // analysis is not running (its failure circuit is open), so the strip offers 重新计算 instead of retrying blindly
@@ -9386,7 +9475,8 @@ LV.loadSpine = function () {
       else lvSpineLater(1200);
       return;
     }
-    LV.stale = false; LV.failed = null; LV.job = null;
+    LV.stale = false; LV.failed = null; LV.job = null; LV.progress = null;
+    if (res.data && res.data.meta && res.data.meta.window) LV.noteWindow(res.data.meta.window);
     // 304: nothing changed — but a read that failed meanwhile has now succeeded, so leave the error state (R4-11)
     if (res.data === lvSpineData && LV.state !== 'connecting') { if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'empty'; return; }
     lvSpineData = res.data;
@@ -9402,6 +9492,11 @@ LV.loadSpine = function () {
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
   }, (e) => {
+    // 422 analysis_scope_too_large: this window is too big for the machine → 30 days, then 7 (the strip says so)
+    if (e && e.code === 'analysis_scope_too_large') {
+      const fb = LV.scopeTooLarge(days);
+      if (fb != null && fb !== days) { LV.spineDays = fb; lvSpineAgain = true; return; }
+    }
     if (e && e.code === 'analysis_unavailable') { LV.error = e; lvSpineFailed({ reason: e.reason || null, message: e.message }); return; }
     lvSpineFails++;
     // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
@@ -9409,7 +9504,13 @@ LV.loadSpine = function () {
     else LV.state = 'connecting';
     LV.error = e;
     lvSpineLater(Math.min(15000, 1000 * Math.pow(2, Math.min(lvSpineFails, 4))));
-  }).then(() => { lvSpineBusy = null; TL.changed(); });
+  }).then(() => {
+    lvSpineBusy = null;
+    // the wanted window changed while this read was in flight (SSE analysis.ready, a range switch, a 422 fallback)
+    if (lvSpineAgain || (LV.spineDays != null && LV.spineDays !== days)) { lvSpineAgain = false; setTimeout(() => LV.loadSpine(), 0); }
+    else LV.widen();
+    TL.changed();
+  });
   return lvSpineBusy;
 };
 
@@ -9421,7 +9522,15 @@ if (LV.live) {
   // no mock rows ever reach a live screen: start from the empty spine, then load
   LV.hydrate({ rows: [] });
   LV.state = 'connecting';
-  TL.on('event', (ev) => { if (/^data\b|^analysis\.ready$/.test(ev.name)) LV.loadSpine(); });
+  TL.on('event', (ev) => {
+    if (/^data\b/.test(ev.name)) { LV.resetWindow(); LV.loadSpine(); return; }
+    if (ev.name !== 'analysis.ready') return;
+    // a wider window finished (same scope_hash as its meta.window entry): widen to it without blanking the screen
+    const p = ev.data || ev.payload || ev.p || {};
+    const hit = LV.window && p.scope_hash && (p.section || 'uiview_facts') === LV_SECTION && LV.window.wider.find((x) => x.scope_hash === p.scope_hash);
+    if (hit) { lvWinMap[hit.days] = Object.assign({}, lvWinMap[hit.days], { state: 'ready' }); hit.state = 'ready'; if (!LV.tooLarge.has(hit.days)) LV.spineDays = hit.days; }
+    LV.loadSpine();
+  });
   TL.on('resync', () => LV.loadSpine());
   TL.on('retry', () => { if (!LV.failed && !LV.job && (LV.state === 'error' || LV.state === 'connecting')) { clearTimeout(lvSpineTimer); LV.loadSpine(); } });
   window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
@@ -9562,23 +9671,31 @@ function lvpQuery(period) {
   const sc = LV.scope();
   return { period, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project || null, display_timezone: TL_TZ || 'UTC' };
 }
+// days= only for a window the gateway reports ready (auto otherwise); kept out of the cache key so a window switch
+// refetches in place and the last persona stays on screen until the wider one arrives
+const lvpDays = (period) => LV.daysFor(LV.periodDays(period));
 const lvpKey = (period) => JSON.stringify(lvpQuery(period));
 // full /v1/uiview/persona payload for a period under the current filters → {state, data}; refetches (keeping the last
 // data on screen) when the spine revision moved
 function lvpFetch(period, path, store) {
   const key = lvpKey(period) + path;
   let e = store.get(key);
-  if (e && (e.rev === LV.rev || e.loading)) return e;
+  const days = lvpDays(period);
+  if (e && ((e.rev === LV.rev && e.days === days) || e.loading)) return e;
   if (!e) { e = { rev: null, loading: false, data: null, state: 'pending' }; store.set(key, e); }
-  e.loading = true; const rev = LV.rev;
-  TL.get(path, { query: lvpQuery(period) }).then((res) => {
+  e.loading = true; const rev = LV.rev; e.days = days;
+  TL.get(path, { query: Object.assign(lvpQuery(period), { days }) }).then((res) => {
     e.loading = false;
     if (res.state === 'computing' || res.data == null) { e.loading = true; setTimeout(() => { e.loading = false; e.rev = null; TL.changed(); }, 1200); return; }
     e.rev = rev; e.data = res.data; e.state = 'ready';
     if (path === '/v1/uiview/persona') {
       (res.data.months || []).forEach((x) => { LVP.mini[lvpKey(x.k)] = x; });
     }
-  }, (err) => { e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err; }).then(() => TL.changed());
+  }, (err) => {
+    e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err;
+    // 422 analysis_scope_too_large: the window is too big → refetch with 30 days (then 7)
+    if (err && err.code === 'analysis_scope_too_large' && !LV.tooLarge.has(days != null ? days : LV.window ? LV.window.days : 0)) { LV.scopeTooLarge(days); e.rev = null; e.state = e.data ? 'ready' : 'pending'; }
+  }).then(() => TL.changed());
   return e;
 }
 LV.personaFor = function (period, L) {
@@ -9634,8 +9751,9 @@ if (LV.live) {
   S.ov.synced = '已同步';
   const h0 = LV.hydrate;
   LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
+  // days = the range's window once the gateway reports it ready (全部 → 0); auto otherwise, with the strip's hint
   LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
-    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC' }) }],
+    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
 }
 
@@ -10744,10 +10862,21 @@ function lvJobNote() {
   const j = LV.job; if (!j || j.elapsed_s == null) return '';
   return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
 }
+// 202 meta.progress of the route's computing feed resource → 「已用 N / M 秒 · K 条事件」
+function lvFeedProgress(route) {
+  let p = null;
+  (LV.feeds[route] || []).forEach((f) => lvFeedRes(f).forEach((x) => { if (!p && x.r.state === 'computing' && x.r.meta && x.r.meta.progress) p = x.r.meta.progress; }));
+  return LV.progressNote(p);
+}
+// the spine's 202 progress, with the polled job's elapsed time once the job poll reports it
+function lvSpineProgress() {
+  const j = LV.job && LV.job.elapsed_s != null ? { elapsed_s: LV.job.elapsed_s, budget_s: LV.job.timeout_s || (LV.progress && LV.progress.budget_s) } : null;
+  return LV.progress ? LV.progressNote(Object.assign({}, LV.progress, j)) : lvJobNote();
+}
 function lvSpineBadge() {
   if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
-  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvJobNote() + '</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvSpineProgress() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
@@ -10757,8 +10886,10 @@ function lvStrip(route) {
   const failed = lvFailedFeeds(route);
   const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) + (TL_VIEWS[k] && TLU.unavailable(TL_VIEWS[k].error) ? lvRecBtn() : '')
     : failed.length ? '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.unavailable(failed[0].error)) + '</span>' + lvRecBtn()
-      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
-  const b = lvSpineBadge() || page;
+      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中' + lvFeedProgress(route) + '</span>' : '';
+  // the wanted range is wider than the window served so far (first-open fast path): say so, calmly
+  const hint = LV.windowHint(route);
+  const b = (lvSpineBadge() || page) + (hint ? '<span class="tl-badge" data-tl="window"' + (lvSpineBadge() || page ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
   // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
   let banner = TLU.banner(TL);
   if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');

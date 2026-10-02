@@ -40,10 +40,21 @@ function lvJobNote() {
   const j = LV.job; if (!j || j.elapsed_s == null) return '';
   return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
 }
+// 202 meta.progress of the route's computing feed resource → 「已用 N / M 秒 · K 条事件」
+function lvFeedProgress(route) {
+  let p = null;
+  (LV.feeds[route] || []).forEach((f) => lvFeedRes(f).forEach((x) => { if (!p && x.r.state === 'computing' && x.r.meta && x.r.meta.progress) p = x.r.meta.progress; }));
+  return LV.progressNote(p);
+}
+// the spine's 202 progress, with the polled job's elapsed time once the job poll reports it
+function lvSpineProgress() {
+  const j = LV.job && LV.job.elapsed_s != null ? { elapsed_s: LV.job.elapsed_s, budget_s: LV.job.timeout_s || (LV.progress && LV.progress.budget_s) } : null;
+  return LV.progress ? LV.progressNote(Object.assign({}, LV.progress, j)) : lvJobNote();
+}
 function lvSpineBadge() {
   if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
-  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvJobNote() + '</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvSpineProgress() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
@@ -53,8 +64,10 @@ function lvStrip(route) {
   const failed = lvFailedFeeds(route);
   const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) + (TL_VIEWS[k] && TLU.unavailable(TL_VIEWS[k].error) ? lvRecBtn() : '')
     : failed.length ? '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.unavailable(failed[0].error)) + '</span>' + lvRecBtn()
-      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
-  const b = lvSpineBadge() || page;
+      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中' + lvFeedProgress(route) + '</span>' : '';
+  // the wanted range is wider than the window served so far (first-open fast path): say so, calmly
+  const hint = LV.windowHint(route);
+  const b = (lvSpineBadge() || page) + (hint ? '<span class="tl-badge" data-tl="window"' + (lvSpineBadge() || page ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
   // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
   let banner = TLU.banner(TL);
   if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');
