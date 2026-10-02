@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "install_id": "inst-fx-0",
+      "plan_id": "plan-fx-0",
+      "candidate_id": null,
+      "source_type": "catalog",
+      "source_id": "fx:agent/release-check",
+      "title": "release-check",
+      "kind": "subagent",
+      "agents": [
+        "claude_code"
+      ],
+      "scope": "user",
+      "preview_digest": "sha256:x",
+      "state": "kept",
+      "installed_at": 1789000000000,
+      "observe_until": null,
+      "last_triggered_at": null,
+      "pinned": false,
+      "archived_at": null,
+      "reverted_at": null,
+      "tracking_id": null,
+      "risk_level": "safe"
+    }
+  ]
+}

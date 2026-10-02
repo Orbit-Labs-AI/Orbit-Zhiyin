@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "preview_stale",
+    "message": "文件在预览后被修改",
+    "retryable": false,
+    "detail": {
+      "preview_digest": "sha256:fx-digest-c",
+      "targets": [
+        0
+      ]
+    }
+  }
+}

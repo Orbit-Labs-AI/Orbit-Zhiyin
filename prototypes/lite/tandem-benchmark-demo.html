@@ -1105,6 +1105,7 @@ const TandemLive = (function () {
       recompute(scope, force) { return send('POST', REC_PATH + '/recompute', { scope: scopeBody(scope, C.status, now()), force: !!force }); },
       invalidate() { return C.invalidate((r) => r.path === REC_PATH || r.path.indexOf(REC_PATH + '/') === 0); }
     };
+    libraryInstall(C, { fetchFn, headers });   // C.li: library-install section below
     return C;
   }
   // recompute takes the analytics scope as a JSON object: list keys stay lists, the rest are scalars
@@ -1141,6 +1142,124 @@ const TandemLive = (function () {
     };
   }
   const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
+
+  /* ======== library-install: A8 资源库 (/v1/catalog/*) and the install sheet (/v1/install/*) ========
+     Owned by the library-install binding (Advance src/js/97-live-library-install.js, Lite @tandem-live block). Attached to
+     every client as C.li by one line in create(). Catalog reads go through C.resource so they keep ETag / states; writes and
+     the install flow use C.li.send (JSON body, error.code / error.detail or FastAPI's string detail). A route that is missing,
+     not implemented, unavailable or offline (liDegraded) lets the page fall back to its demo data with the 示例数据 badge. */
+  const LI_KINDS = { Skill: ['skill'], Hook: ['hook'], '插件': ['plugin', 'marketplace'], '子代理': ['subagent'], MCP: ['mcp_server'] };
+  const LI_LABEL = { skill: 'Skill', hook: 'Hook', plugin: '插件', marketplace: '插件', subagent: '子代理', mcp_server: 'MCP', command: '命令', rule: '规则', workflow: '工作流', guide: '指南', output_style: '输出风格', lsp_server: 'LSP' };
+  const LI_TABS = { for: { sort: 'updated' }, peer: { sort: 'stars' }, hot: { sort: 'installs' }, local: { sort: 'updated', origin: 'local' } };
+  const LI_DEGRADE = [0, 404, 405, 501, 503];
+  function liDegraded(err) { return !!err && (err.code === 'mock_mode' || LI_DEGRADE.indexOf(err.status || 0) >= 0); }
+  function liKindQS(kind) { const ks = LI_KINDS[kind] || []; return ks.length ? '?' + ks.map((k) => 'kind=' + encodeURIComponent(k)).join('&') : ''; }
+  // Library list request: a search box query uses /v1/catalog/search (ranked, no paging), otherwise /v1/catalog/items with
+  // the tab's sort / origin and keyset paging through next_cursor.
+  function liListRequest(o) {
+    o = o || {}; const tab = LI_TABS[o.tab] || LI_TABS.for; const q = String(o.q || '').trim();
+    if (q) return { path: '/v1/catalog/search' + liKindQS(o.kind), query: { q, limit: o.limit || 30 } };
+    const query = { sort: tab.sort, order: 'desc', limit: o.limit || 30 };
+    if (tab.origin) query.origin = tab.origin;
+    if (o.cursor) query.cursor = o.cursor;
+    return { path: '/v1/catalog/items' + liKindQS(o.kind), query };
+  }
+  function liFacetsRequest(o) { const tab = LI_TABS[(o || {}).tab] || LI_TABS.for; return { path: '/v1/catalog/facets', query: tab.origin ? { origin: tab.origin } : null }; }
+  const liItemPath = (id) => '/v1/catalog/items/' + String(id).split('/').map(encodeURIComponent).join('/');
+  // Preview → rows the sheet draws: one block per target with its diff lines ({n, op, text, gap}) and selectable units.
+  function liTargets(preview) {
+    return ((preview && preview.targets) || []).map((t) => ({
+      idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
+      disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
+      units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
+      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
+    }));
+  }
+  // Selection sent with preview / apply: selected_units only lists targets whose units were narrowed.
+  function liSelection(sel) {
+    sel = sel || {}; const out = { disabled_targets: Array.from(sel.disabled || []).map(Number).sort((a, b) => a - b) };
+    const su = {}; Object.keys(sel.units || {}).forEach((k) => { su[String(k)] = Array.from(sel.units[k]); });
+    if (Object.keys(su).length) out.selected_units = su;
+    return out;
+  }
+
+  function libraryInstall(C, ctx) {
+    function send(method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const h = ctx.headers(body != null ? { 'Content-Type': 'application/json' } : null);
+      const q = o.query ? Object.keys(o.query).filter((k) => o.query[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o.query[k])).join('&') : '';
+      const url = C.endpoint + path + (q ? (path.indexOf('?') >= 0 ? '&' : '?') + q : '');
+      return Promise.resolve().then(() => ctx.fetchFn(url, { method, headers: h, body: body != null ? JSON.stringify(body) : undefined, signal: o.signal })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        const code = info.code || (data && typeof data.detail === 'string' ? data.detail : 'http_' + res.status);
+        throw Object.assign(new Error(info.message || code), { status: res.status, code, detail: info.detail != null ? info.detail : null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      }, (e) => { if (e && e.name === 'AbortError') throw e; throw Object.assign(new Error((e && e.message) || 'offline'), { status: 0, code: 'offline', retryable: true }); });
+    }
+    const body = (r) => r.data;
+    const L = {
+      send, degraded: liDegraded,
+      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, LI_KINDS, LI_LABEL, LI_TABS },
+      kindLabel: (k) => LI_LABEL[k] || k || '—',
+      listRequest: liListRequest, facetsRequest: liFacetsRequest,
+      /* catalog */
+      items: (o) => { const r = liListRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      facets: (o) => { const r = liFacetsRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      item: (id, o) => send('GET', liItemPath(id), null, o).then(body),
+      addLocal: (item) => send('POST', '/v1/catalog/local', item).then(body),
+      removeLocal: (id) => send('DELETE', '/v1/catalog/local/' + String(id).split('/').map(encodeURIComponent).join('/')).then(() => true),
+      /* install */
+      environment: (refresh) => send('GET', '/v1/install/environment', null, { query: refresh ? { refresh: 1 } : null }).then(body),
+      plan: (req) => send('POST', '/v1/install/plans', req).then(body),
+      preview: (planId, sel) => { const s = liSelection(sel); const narrowed = s.disabled_targets.length || s.selected_units; return (narrowed ? send('POST', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview', s) : send('GET', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview')).then(body); },
+      fetch: (req) => send('POST', '/v1/install/fetch', req).then(body),
+      revert: (installId, targets) => send('POST', '/v1/install/' + encodeURIComponent(installId) + '/revert', targets ? { targets } : {}).then(body),
+      state: (st) => send('GET', '/v1/install/state', null, { query: st ? { state: st } : null }).then(body),
+      ledger: (o) => send('GET', '/v1/install/ledger', null, { query: o || null }).then(body),
+      install: (id) => send('GET', '/v1/install/' + encodeURIComponent(id)).then(body),
+      // plan → (fetch + re-plan when the source must be downloaded first) → preview. Resolves {env, plan, preview}; preview is
+      // null when the plan is link_only / unmappable (the sheet shows plan.links / plan.warnings instead).
+      prepare(source, o) {
+        o = o || {};
+        // the environment only narrows the agents; without it the backend picks its defaults
+        const env = o.env ? Promise.resolve(o.env) : L.environment().catch(() => null);
+        return env.then((envData) => {
+          let agents = o.agents;
+          if (!agents && envData) {
+            const ok = (envData.agents || []).filter((a) => a.installed && a.install_support === 'full').map((a) => a.agent);
+            const want = o.itemAgents && o.itemAgents.length ? ok.filter((a) => o.itemAgents.indexOf(a) >= 0) : ok;
+            agents = want.length ? want : ok.length ? ok : undefined;
+          }
+          const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
+          return L.plan(req).then((plan) => {
+            if (plan.status !== 'needs_fetch') return plan;
+            const fr = source.type === 'catalog' ? { catalog_id: source.id } : { source: source.spec || source };
+            return L.fetch(fr).then(() => L.plan(Object.assign({}, req, { fetch: true })));
+          }).then((plan) => {
+            if (plan.status !== 'ready') return { env: envData, plan, preview: null };
+            const sel = { disabled: o.defaultOff ? o.defaultOff(plan) : [] };
+            return L.preview(plan.plan_id, sel).then((preview) => ({ env: envData, plan, preview, sel }));
+          });
+        });
+      },
+      // apply with the digest the person confirmed; a 409 preview_stale re-previews with the same selection and resolves
+      // {stale: true, preview} so the sheet goes back to the diff instead of writing what was never shown.
+      apply(st) {
+        const s = liSelection(st.sel); const req = Object.assign({ plan_id: st.plan.plan_id, preview_digest: st.preview.preview_digest }, s);
+        if (st.overrideRisk) req.override_risk = true;
+        return send('POST', '/v1/install/apply', req).then((r) => ({ stale: false, result: r.data }), (e) => {
+          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail }));
+          throw e;
+        });
+      }
+    };
+    C.li = L;
+  }
+  /* ======== end library-install ======== */
+
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1241,6 +1360,41 @@ if(TL.mode==='live'){
   ACT.settings=()=>{baseSettings();$('#modal .mb').insertAdjacentHTML('beforeend','<div data-tl="sources" style="margin-top:16px"></div>');lvSources();};
   TL.start();
 }
+/* ---- library-install (Lite): 资源库 from /v1/catalog/* and a compact install sheet over /v1/install/* (TandemLive C.li).
+   Tabs map to sort (为你推荐 → 最近更新, 同人格正在用 → Star, 热门 → 安装量), the search box (debounced) to /v1/catalog/search,
+   预览 to the item detail, 安装 to plan → preview diff → 确认写入 with the confirmed preview_digest (409 preview_stale
+   re-previews), 撤销 to revert. Missing / unavailable routes or offline: the demo page and 示例数据. ---- */
+const LI_LITE={q:'',qT:0,detail:null,inst:null,last:null,degraded:false},LI_AG={claude_code:'Claude Code',codex:'Codex',gemini:'Gemini CLI'};
+const liLiteReq=()=>TL.li.listRequest({tab:S.libTab,kind:'全部',q:LI_LITE.q});
+TL.bind('library',()=>{const r=liLiteReq(),f=TL.li.facetsRequest({tab:S.libTab});return [{name:'list',path:r.path,query:r.query,scope:false},{name:'facets',path:f.path,query:f.query,scope:false}];},d=>({items:d.list.items||[],total:d.list.total,facets:d.facets||{}}));
+const LI_LITE_DEMO=PAGES.library;
+function liLiteBody(vm){const items=vm.items,featured=items.slice(0,3),more=items.slice(3),src=x=>x.official?'Tandem 官方':x.origin==='local'?'本地生成':esc(x.author||'社区')+' · '+esc(x.license||'许可未知');
+  return `<div class="stack" data-tl="library"><div class="row between" style="flex-wrap:wrap"><div class="seg" role="group" aria-label="资源浏览方式">${[['for','最近更新'],['peer','高星'],['hot','热门']].map(([id,label])=>`<button data-act="library-tab" data-value="${id}" class="${S.libTab===id?'on':''}" aria-pressed="${S.libTab===id}">${label}</button>`).join('')}</div><label class="search-field">${ic('search')}<input type="search" id="libQ" data-input="library" value="${esc(S.libQ)}" placeholder="搜索配置与资源" aria-label="搜索配置与资源"></label></div><div><div class="section-title"><h2>${LI_LITE.q?'搜索「'+esc(LI_LITE.q)+'」':'资源目录'}</h2><span class="cap">共 ${TLU.num(vm.total!=null?vm.total:vm.facets.total)} 项 · 本机资源目录</span></div>${featured.length?`<div class="three">${featured.map(x=>`<article class="card lib-feature" data-tl-item="${esc(x.item_id)}"><div class="row between"><span class="row">${ic('library')}<span class="note">${esc(TL.li.kindLabel(x.kind))} / ${src(x)}</span></span><div class="match" title="风险等级">${TLU.num(x.risk_level)}</div></div><h3>${esc(x.name)}</h3><p class="note">${esc(x.snippet||x.summary||'')}</p><div class="note">${x.installs?fmt(x.installs)+' 次安装':'—'}${x.stars!=null?' · '+TLU.num(x.stars)+' Star':''}</div><div class="row between" style="flex-wrap:wrap"><span class="note">${esc((x.agents||[]).map(a=>LI_AG[a]||a).join(' · ')||'—')}</span>${button(x.installed?'已安装':'预览','li-detail',`data-id="${esc(x.item_id)}"`,'sm')}</div></article>`).join('')}</div>`:empty(LI_LITE.q?'没有匹配的资源。换个关键词。':'资源目录还是空的。',false)}</div>${more.length?`<section class="card pad">${titleHTML('更多资源','中列为风险等级')}${more.map(x=>`<div class="lib-row" data-tl-item="${esc(x.item_id)}">${ic('library')}<div><b>${esc(x.name)}</b><div class="note">${esc(x.snippet||x.summary||'')}</div></div><span class="lib-sort-note mono">风险 ${TLU.num(x.risk_level)}</span>${button('预览','li-detail',`data-id="${esc(x.item_id)}"`,'sm')}</div>`).join('')}</section>`:''}</div>`;}
+TL_PAGES.library=()=>{if(S.libQ.trim()!==LI_LITE.q){clearTimeout(LI_LITE.qT);LI_LITE.qT=setTimeout(()=>{LI_LITE.q=S.libQ.trim();if(S.route==='library'){render();const i=$('#libQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}},280);}
+  const v=lvView('library');LI_LITE.degraded=!!(v&&!v.vm&&v.state==='error'&&TL.li.degraded(v.error));if(LI_LITE.degraded)return LI_LITE_DEMO();
+  if(v&&!v.vm&&v.state==='loading'&&LI_LITE.last)return liLiteBody(LI_LITE.last);return TLU.body(v,vm=>{LI_LITE.last=vm;return liLiteBody(vm);});};
+function liLiteCard(id){const v=TL_VIEWS.library;return v&&v.vm?v.vm.items.find(x=>x.item_id===id)||null:null;}
+function liLiteDetail(){const D=LI_LITE.detail;if(!D)return;const x=D.data||D.card||{name:D.id};const p=x.permissions||{},ins=x.install||{};
+  const body=!D.data?(D.error?TLU.errorCard(D.error):TLU.skeleton()):`<div data-tl="lib-detail"><p class="note">${esc(x.summary||'')}</p><p class="note">${esc(TL.li.kindLabel(x.kind))} · ${esc(x.license||'许可未知')} · 风险 ${TLU.num(p.level!=null?p.level:x.risk_level)}${(p.flags||[]).length?' · '+esc(p.flags.join('、')):''}${x.version?' · v'+esc(x.version):''}</p>${x.readme?`<pre class="code-block" data-tl="lib-readme">${esc(x.readme)}</pre>`:'<p class="note" data-tl="lib-readme">许可不允许内嵌正文</p>'}<p class="note" data-tl="lib-versions">版本：${(x.versions||[]).map(r=>esc(r.version||r.version_id)).join('、')||'—'}</p></div>`;
+  openModal(esc(x.name||D.id),body,button('关闭','close-modal')+(D.data&&ins.installable?button('安装','li-install',`data-id="${esc(D.id)}"`,'p'):''),true);}
+function liLiteInstallDraw(){const st=LI_LITE.inst;if(!st)return;const x=st.card;let body,foot=button('关闭','close-modal');
+  if(st.error)body=TLU.errorCard(st.error);else if(!st.preview&&!st.result)body=st.plan?`<div class="note" data-tl="inst-manual">${(st.plan.warnings||[]).map(esc).join('<br>')}${(st.plan.links||[]).map(u=>`<br><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`).join('')}</div>`:TLU.skeleton();
+  else if(st.result)body=`<div data-tl="inst-done"><p class="note">已写入 ${(st.result.written||[]).map(w=>esc(w.display||w.path)).join('、')}，修改前已备份。</p></div>`,foot=button('撤销','li-undo')+button('完成','close-modal','','p');
+  else{const ts=TL.li.helpers.liTargets(st.preview),tot=st.preview.totals||{};body=`<div data-tl="inst-preview">${st.notice?`<div class="tl-banner" role="alert" data-tl="inst-stale">${esc(st.notice)}</div>`:''}<p class="note">将修改 ${TLU.num(tot.files)} 个文件 · +${TLU.num(tot.adds)} / −${TLU.num(tot.dels)} 行 · 确认前不会改动任何文件</p>${ts.map(t=>`<label class="row" style="gap:6px;margin-top:10px"><input type="checkbox" data-act="li-target" data-i="${t.idx}"${st.sel.disabled.has(t.idx)?'':' checked'}${t.mappable?'':' disabled'}><span class="mono">${esc(t.display)}</span><span class="note">${esc(LI_AG[t.agent]||t.agent)}</span></label>${st.sel.disabled.has(t.idx)?'<p class="note">已取消，不写入这个文件</p>':`<pre class="code-block">${t.lines.map(l=>l.gap?'⋯':(l.op==='+'?'+ ':l.op==='-'?'− ':l.op==='ai'?'✦ ':'  ')+esc(l.text)).join('\n')}</pre>`}`).join('')}${st.preview.requires_override?`<label class="row" style="gap:6px;margin-top:10px"><input type="checkbox" data-act="li-override"${st.override?' checked':''}>我已了解风险，仍然写入</label>`:''}</div>`;
+    foot=button('取消','close-modal')+`<button type="button" class="btn p" data-act="li-apply"${st.busy||!st.preview.can_apply||!tot.files||(st.preview.requires_override&&!st.override)?' disabled':''}>${st.busy?'正在处理…':'确认写入'}</button>`;}
+  openModal('预览并安装 · '+esc(x.name),body,foot,true);}
+function liLiteSample(){const h=$('#modal .mh h2');if(h&&!$('#modal [data-tl="sample"]'))h.insertAdjacentHTML('beforeend',' '+TLU.sample());}
+Object.assign(ACT,{
+  'li-detail':el=>{const id=el.dataset.id;LI_LITE.detail={id,card:liLiteCard(id),data:null,error:null};liLiteDetail();TL.li.item(id).then(d=>{if(LI_LITE.detail&&LI_LITE.detail.id===id){LI_LITE.detail.data=d;liLiteDetail();}},e=>{if(LI_LITE.detail&&LI_LITE.detail.id===id){LI_LITE.detail.error=e;liLiteDetail();}});},
+  'li-install':el=>{const D=LI_LITE.detail;const x=(D&&D.data)||liLiteCard(el.dataset.id);if(!x)return;const st=LI_LITE.inst={card:x,sel:{disabled:new Set(),units:{}},busy:true};liLiteInstallDraw();
+    TL.li.prepare({type:'catalog',id:x.item_id},{itemAgents:x.agents,defaultOff:plan=>(plan.targets||[]).filter(t=>t.agent!==(plan.agents||[])[0]).map(t=>t.idx)}).then(r=>{if(LI_LITE.inst!==st)return;Object.assign(st,{plan:r.plan,preview:r.preview,busy:false});if(r.sel)st.sel.disabled=new Set(r.sel.disabled);liLiteInstallDraw();},e=>{if(LI_LITE.inst!==st)return;st.busy=false;st.error=e;liLiteInstallDraw();if(TL.li.degraded(e))liLiteSample();});},
+  'li-target':el=>{const st=LI_LITE.inst;if(!st||st.busy)return;const i=+el.dataset.i;if(el.checked)st.sel.disabled.delete(i);else st.sel.disabled.add(i);st.busy=true;st.notice=null;liLiteInstallDraw();TL.li.preview(st.plan.plan_id,st.sel).then(pv=>{st.preview=pv;st.busy=false;liLiteInstallDraw();},e=>{st.busy=false;st.error=e;liLiteInstallDraw();});},
+  'li-override':el=>{const st=LI_LITE.inst;if(st){st.override=el.checked;st.overrideRisk=el.checked;liLiteInstallDraw();}},
+  'li-apply':()=>{const st=LI_LITE.inst;if(!st||st.busy)return;st.busy=true;liLiteInstallDraw();TL.li.apply(st).then(r=>{st.busy=false;if(r.stale){st.preview=r.preview;st.notice='文件在预览之后被改动过，已重新生成预览，请再确认一次。';}else{st.result=r.result;st.preview=null;TL.invalidate(x=>/^\/v1\/(catalog|install)\//.test(x.path));}liLiteInstallDraw();},e=>{st.busy=false;st.error=e;liLiteInstallDraw();});},
+  'li-undo':()=>{const st=LI_LITE.inst;if(!st||!st.result)return;TL.li.revert(st.result.install_id).then(()=>{LI_LITE.inst=null;closeModal();TL.invalidate(x=>/^\/v1\/(catalog|install)\//.test(x.path));render();toast('已撤销「'+st.card.name+'」，文件已从备份恢复');},e=>toast('撤销失败：'+(e.message||e.code)));}
+});
+if(TL.mode==='live'){PAGES.library=TL_PAGES.library;const r0=render;render=function(){r0();if(S.route!=='library'||!LI_LITE.degraded)return;const strip=$('#content > [data-tl="strip"]');if(strip&&!strip.querySelector('[data-tl="sample"]'))strip.insertAdjacentHTML('beforeend','<div>'+TLU.sample()+'</div>');const note=$('#content .footer-note');if(note&&!/示例数据/.test(note.textContent))note.textContent+=' · 本页为示例数据';};}
+/* ---- end library-install (Lite) ---- */
 /* ==== @tandem-live block end ==== */
 /* ==== @tandem-live recs block: 优化建议 in live mode. GET /v1/recommendations (surface A7) replaces RECOMMENDATIONS rows and keeps
    the page renderer; view / open / copy exposure go to the gateway. Never live yet and the endpoint is missing or down

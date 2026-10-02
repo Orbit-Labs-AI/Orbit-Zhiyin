@@ -1,0 +1,138 @@
+{
+  "plan_id": "plan-fx-1",
+  "preview_digest": "sha256:fx-digest-c",
+  "title": "retry-guard",
+  "kind": "hook",
+  "agents": [
+    "claude_code",
+    "codex"
+  ],
+  "scope": "user",
+  "risk": {
+    "level": "caution",
+    "flags": [
+      "shell"
+    ],
+    "findings": []
+  },
+  "cost": {
+    "resident_tokens": 120,
+    "trigger_tokens": 0,
+    "basis": "estimate",
+    "parts": []
+  },
+  "totals": {
+    "files": 1,
+    "adds": 2,
+    "dels": 1
+  },
+  "backup_dir": "~/Library/Application Support/Tandem/backups/fx",
+  "targets": [
+    {
+      "idx": 0,
+      "agent": "claude_code",
+      "scope": "user",
+      "display": "~/.claude/settings.json",
+      "action": "merge_json",
+      "mappable": true,
+      "reason": null,
+      "requires_trust": false,
+      "shared_layer": false,
+      "note": null,
+      "group": null,
+      "path": "~/.claude/settings.json",
+      "status": "modify",
+      "exists": true,
+      "guard_hash": "sha256:g0",
+      "units": [
+        {
+          "id": "u1",
+          "label": "PreToolUse · Bash",
+          "kind": "hook",
+          "selected": true
+        }
+      ],
+      "diff": {
+        "lines": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "{"
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "  \"hooks\": {"
+          },
+          {
+            "n": 3,
+            "op": "+",
+            "text": "    \"PreToolUse\": [{\"matcher\": \"Bash\"}]"
+          },
+          {
+            "n": 4,
+            "op": "-",
+            "text": "    \"PreToolUse\": []"
+          },
+          {
+            "n": 5,
+            "op": "ai",
+            "text": "    // 两次失败后暂停"
+          },
+          {
+            "n": null,
+            "op": " ",
+            "text": "",
+            "gap": true
+          },
+          {
+            "n": 9,
+            "op": " ",
+            "text": "}"
+          }
+        ],
+        "adds": 2,
+        "dels": 1
+      },
+      "command": null,
+      "conflict": null,
+      "backup_path": null
+    },
+    {
+      "idx": 1,
+      "agent": "codex",
+      "scope": "user",
+      "display": "~/.codex/hooks.json",
+      "action": "create",
+      "mappable": true,
+      "reason": null,
+      "requires_trust": false,
+      "shared_layer": false,
+      "note": null,
+      "group": null,
+      "path": "~/.codex/hooks.json",
+      "status": "disabled",
+      "exists": false,
+      "guard_hash": null,
+      "units": [],
+      "diff": {
+        "lines": [
+          {
+            "n": 1,
+            "op": "+",
+            "text": "{\"retry-guard\": true}"
+          }
+        ],
+        "adds": 1,
+        "dels": 0
+      },
+      "command": null,
+      "conflict": null
+    }
+  ],
+  "conflicts": [],
+  "warnings": [],
+  "requires_trust": false,
+  "requires_override": false,
+  "can_apply": true
+}

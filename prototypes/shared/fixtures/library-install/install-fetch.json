@@ -1,0 +1,21 @@
+{
+  "tree_sha256": "sha256:tree",
+  "commit": "abc1234",
+  "files": [
+    {
+      "rel": "hook.py",
+      "size": 1024,
+      "sha256": "sha256:f"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "status": "ok"
+  },
+  "size": 1024,
+  "cached": false,
+  "link_only": false,
+  "source": {
+    "type": "github"
+  }
+}
