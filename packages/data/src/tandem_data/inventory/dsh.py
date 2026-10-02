@@ -50,7 +50,7 @@ def _entries(reader, entries, path, prefix="", depth=0):
             if isinstance(target, str) and target.startswith("/"):
                 local = local_path(reader, target, path.parent, ("hook",))
                 if local:
-                    doc = reader.document(local, ("hook",))
+                    doc = reader.document(local, ("hook",), required=True)
                     hooks(
                         reader,
                         doc if "hooks" in doc else {"hooks": doc},
@@ -93,7 +93,7 @@ def _bundle(reader, root, name, seen, depth=0):
     if "patch" in bundle:
         patch = local_path(reader, bundle["patch"], folder, KINDS)
         if patch:
-            _entries(reader, reader.document(patch, KINDS, expected=list), patch)
+            _entries(reader, reader.document(patch, KINDS, expected=list, required=True), patch)
     skills(reader, folder / "skills")
 
 

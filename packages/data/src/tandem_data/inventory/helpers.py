@@ -17,7 +17,10 @@ def array(reader, doc, key, path, kinds):
 def reference_name(value):
     """Do not publish URL userinfo, queries or fragments as installation names."""
     if "://" in value:
-        return Path(urlsplit(value).path).name or "remote-resource"
+        try:
+            return Path(urlsplit(value).path).name or "remote-resource"
+        except ValueError:
+            return None
     return value
 
 
@@ -25,9 +28,9 @@ def local_path(reader, value, base, kinds):
     if not isinstance(value, str) or not value or "://" in value or any(c in value for c in "*?[]"):
         reader.issue(base, kinds, "unresolved_reference")
         return None
-    path = Path(value).expanduser()
-    path = path if path.is_absolute() else base / path
     try:
+        path = Path(value).expanduser()
+        path = path if path.is_absolute() else base / path
         reader.safe(path)
     except (ValueError, OSError, RuntimeError):
         reader.issue(base, kinds, "unauthorized_reference")
@@ -47,9 +50,13 @@ def references(reader, values, path, kind, *, prefix="references"):
         # not pretend to resolve glob precedence or runtime resource registration.
         negative = value.startswith("!")
         target = value[1:] if negative else value
+        name = reference_name(target)
+        if name is None:
+            reader.issue(path, (kind,), "invalid_reference")
+            continue
         reader.add(
             kind,
-            reference_name(target),
+            name,
             path,
             f"{kind}/{prefix}/{i}",
             enabled=False if negative else None,
@@ -89,7 +96,11 @@ def plugins(reader, entries, path, key, *, source_field="source"):
         if not isinstance(value, str):
             reader.issue(path, ("plugin",), "invalid_plugin_reference")
             continue
-        reader.add("plugin", reference_name(value), path, f"{key}/{i}", raw=_source_bytes(entry))
+        name = reference_name(value)
+        if name is None:
+            reader.issue(path, ("plugin",), "invalid_reference")
+            continue
+        reader.add("plugin", name, path, f"{key}/{i}", raw=_source_bytes(entry))
 
 
 def hook_array(reader, entries, path, prefix="hooks"):

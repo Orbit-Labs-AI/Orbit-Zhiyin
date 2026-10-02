@@ -481,7 +481,7 @@
           "x-sql-type": "TEXT"
         },
         "locator": {
-          "type": "array",
+          "type": "string",
           "x-sql-type": "TEXT"
         },
         "enabled": {
@@ -793,7 +793,7 @@
           "x-sql-type": "TEXT"
         },
         "coverage": {
-          "type": "object",
+          "type": "string",
           "x-sql-type": "TEXT"
         },
         "input_tokens": {
@@ -2119,7 +2119,7 @@
           "x-sql-type": "TEXT"
         },
         "coverage": {
-          "type": "object",
+          "type": "string",
           "x-sql-type": "TEXT"
         },
         "provider": {

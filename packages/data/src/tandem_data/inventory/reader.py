@@ -51,7 +51,7 @@ class ScanReader:
             raise ValueError("credential_path")
         return target
 
-    def read(self, path: Path, kinds) -> bytes | None:
+    def read(self, path: Path, kinds, *, required=False) -> bytes | None:
         try:
             target = self.safe(path)
             info = target.stat()
@@ -63,7 +63,9 @@ class ScanReader:
                 raise ValueError("file_too_large")
             return raw
         except FileNotFoundError:
-            if path.is_symlink():
+            if required:
+                self.issue(path, kinds, "missing_reference")
+            elif path.is_symlink():
                 self.issue(path, kinds, "broken_symlink")
         except (OSError, ValueError, RuntimeError) as error:
             self.issue(
@@ -71,8 +73,8 @@ class ScanReader:
             )
         return None
 
-    def document(self, path: Path, kinds, *, expected=dict):
-        raw = self.read(path, kinds)
+    def document(self, path: Path, kinds, *, expected=dict, required=False):
+        raw = self.read(path, kinds, required=required)
         empty = [] if expected is list else {}
         if raw is None:
             return empty
