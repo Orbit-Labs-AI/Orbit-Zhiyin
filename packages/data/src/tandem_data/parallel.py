@@ -40,6 +40,27 @@ PARALLEL_THRESHOLD = 24  # Smaller jobs are cheaper in-process than spawning a p
 CAPTURE_ERRORS = (OSError, RuntimeError, ValueError, sqlite3.Error, zstandard.ZstdError)
 
 
+WRITER_CACHE_KIB = 262_144
+
+
+def writer_pragmas(db):
+    """Session-only settings for the single import writer; results are unaffected.
+
+    The default 2 MiB page cache makes every batch re-read index pages (about 4x slower
+    at 100k events). Only raised, never lowered, so a caller's larger cache is kept.
+    """
+    current = db.execute("PRAGMA cache_size").fetchone()[0]
+    if current >= 0 or -current < WRITER_CACHE_KIB:
+        db.execute(f"PRAGMA cache_size=-{WRITER_CACHE_KIB}")
+
+
+def _insert_rows(db, table, columns, rows):
+    """Batch INSERT used by the writer. Once (c) lands this delegates to store.insert_rows."""
+    if rows:
+        placeholders = ",".join("?" * len(columns))
+        db.executemany(f"INSERT INTO {table}({','.join(columns)}) VALUES({placeholders})", rows)
+
+
 def default_workers() -> int:
     configured = os.environ.get("TANDEM_IMPORT_WORKERS")
     if configured:
@@ -499,6 +520,7 @@ class MapPlan:
     def __init__(self, store, infos, unavailable, mapper_version, pool, workers, scope):
         self.store = store
         self.scope = scope
+        writer_pragmas(store.db)
         self.futures = {}
         self.current = {}
         self.present = set()
@@ -646,13 +668,13 @@ class MapPlan:
 
     def flush(self):
         db = self.store.db
-        if self.events:
-            db.executemany(
-                f"INSERT INTO event({','.join(self.columns)}) VALUES({','.join('?' * len(self.columns))})",
-                self.events,
-            )
-        if self.links:
-            db.executemany("INSERT INTO record_event VALUES(?,?,'mapped','{}')", self.links)
+        _insert_rows(db, "event", self.columns, self.events)
+        _insert_rows(
+            db,
+            "record_event",
+            ("record_uid", "event_uid", "relation", "contribution"),
+            [(*link, "mapped", "{}") for link in self.links],
+        )
         if self.updates:
             db.executemany(
                 "UPDATE raw_record SET session_uid=COALESCE(?,session_uid),disposition=?,note=? "

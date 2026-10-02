@@ -53,6 +53,7 @@ class ImportService:
         self.pool = parallel.WorkerPool(self.workers) if self.workers != 1 else None
         if self.pool is not None:
             weakref.finalize(self, self.pool.close)
+            parallel.writer_pragmas(store.db)
 
     def close(self):
         if self.pool is not None:
