@@ -71,7 +71,7 @@ function obRun() {
 }
 function openReveal(opt) {
   closeModal(); closeDD(); closeOverlay();
-  const per = PERIODS[S.persona.period]; const L = opt && opt.all ? ALL.filter((s) => !s.live && sourceEnabled(s)) : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
+  const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
   if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
   if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
   const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -105,7 +105,7 @@ Object.assign(ACT, {
   obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => go('persona'), force: true }); }, 2600); },
   obDone: () => { closeOverlay(); go('persona'); },
   obShare: () => { closeOverlay(); render(); openShare(); },
-  obReveal: () => { closeOverlay(); render(); openReveal({ all: true }); },
+  obReveal: () => { const L = obSel(); closeOverlay(); render(); openReveal({ L }); },
   revSkip: () => revealSkip(),
   revGo: () => { closeOverlay(); go('persona'); },
   revShare: () => { closeOverlay(); openShare(); }
