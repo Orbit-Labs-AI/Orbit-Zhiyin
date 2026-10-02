@@ -1171,3 +1171,20 @@ def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
         assert store.db.execute("PRAGMA user_version").fetchone()[0] == 4
         assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
+
+
+def test_pi_empty_session_info_clears_title(tmp_path):
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "s", "timestamp": ISO},
+                {"type": "session_info", "id": "one", "name": "old title", "timestamp": ISO},
+                {"type": "session_info", "id": "two", "name": "", "timestamp": ISO},
+            ],
+        )
+        store.rebuild()
+        assert rows(store, "session")[0]["title"] == ""
+        assert_sound(store)

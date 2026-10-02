@@ -218,7 +218,7 @@ def derive(store, *, scoped=False):
                     )
                 if attrs.get("imported_from"):
                     values["kind"], values["imported_from"] = "import", attrs["imported_from"]
-            if row["kind"] == "session.title" and row["text"]:
+            if row["kind"] == "session.title" and row["text"] is not None:
                 previous_priority = {"custom": 3, "native": 2, "ai": 1}.get(
                     values.get("title_source"), 0
                 )
