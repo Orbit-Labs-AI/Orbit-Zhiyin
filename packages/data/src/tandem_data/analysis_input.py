@@ -400,6 +400,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             reasons.append("capture_errors_or_incomplete_frames")
         if unparsed:
             reasons.append("unparsed_source_records")
+        if any(row["code"] == "inherited_parent_evidence_unavailable" for row in diagnostics):
+            reasons.append("inherited_parent_evidence_unavailable")
         if unknown:
             reasons.append("unknown_event_types")
         if truncated:

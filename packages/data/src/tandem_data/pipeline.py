@@ -367,7 +367,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                 file_id=row["file_id"],
             )
         progress({"stage": "derive"})
-        derive(store, scoped=True)
+        derive(store, scoped=True, progress=progress)
         for info in infos:
             store.db.execute(
                 "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",

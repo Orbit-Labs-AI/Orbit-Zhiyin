@@ -291,3 +291,35 @@ def test_over_budget_read_rejects_before_decoding_event_payloads(data, monkeypat
     monkeypatch.setattr(reader, "decoded", guard)
     with pytest.raises(ValueError, match="event limit exceeded"):
         reader.read_analysis(data[0], AnalysisScope("UTC"), max_events=1)
+
+
+def test_projection_probes_each_project_once_but_refreshes_next_run(tmp_path, monkeypatch):
+    root, home, project = demo_home(tmp_path / "codex"), tmp_path / "data", tmp_path / "project"
+    project.mkdir()
+    for path in root.rglob("*.jsonl"):
+        path.write_text(path.read_text().replace("/fictional/sample-project", str(project)))
+    probes = []
+
+    def git_probe(path, *args):
+        probes.append((path, args))
+        return None
+
+    monkeypatch.setattr("tandem_data.reduce._git", git_probe)
+    ingest(home, "codex", root)
+    assert len(probes) == 1
+    maintain(home, "rebuild")
+    assert len(probes) == 2
+    assert CanonicalStore(home).counts()["sessions"] == 3
+
+
+def test_recorded_git_remote_needs_no_local_git_probe(tmp_path, monkeypatch):
+    from tandem_data.reduce import project_for
+
+    def forbidden(*args):
+        raise AssertionError("known remote identity needs no Git subprocess")
+
+    monkeypatch.setattr("tandem_data.reduce._git", forbidden)
+    with Store(tmp_path / "data") as store:
+        pid = project_for(store, str(tmp_path), "https://example.com/team/repo.git")
+        row = store.db.execute("SELECT * FROM project WHERE project_id=?", (pid,)).fetchone()
+        assert row["key_type"] == "git_remote" and row["key"] == "example.com/team/repo"
