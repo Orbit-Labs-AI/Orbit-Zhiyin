@@ -251,14 +251,58 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             if unrestricted or row["file_id"] in relevant_files
         )
         if scope.until_ts is not None:
+            historical_metadata = {}
+            for event in events:
+                if (
+                    event["ts"] is not None
+                    and event["ts"] < scope.until_ts
+                    and event["kind"] in ("session.meta", "setting.change", "session.title")
+                ):
+                    historical_metadata.setdefault(event["session_uid"], []).append(event)
+            latest_visible_turn = {}
+            for turn in turn_rows:
+                previous = latest_visible_turn.get(turn["session_uid"])
+                if previous is None or previous["idx"] < turn["idx"]:
+                    latest_visible_turn[turn["session_uid"]] = turn
             for session in session_rows:
-                visible_turns = [
-                    turn for turn in turn_rows if turn["session_uid"] == session["session_uid"]
-                ]
-                session["status"] = (
-                    max(visible_turns, key=lambda turn: turn["idx"])["status"]
-                    if visible_turns
-                    else "unknown"
+                # Reconstruct mutable metadata from dated evidence, not the final L3 row.
+                fields = (
+                    "cwd",
+                    "git_branch",
+                    "git_sha",
+                    "git_remote",
+                    "client",
+                    "harness_version",
+                    "timezone",
+                )
+                for field_name in fields:
+                    session[field_name] = None
+                session["title"], session["title_source"] = None, None
+                session["timezone_source"] = "unknown"
+                session["project_id"] = None
+                title_priority = -1
+                for event in historical_metadata.get(session["session_uid"], []):
+                    attrs = event["attrs"]
+                    if event["kind"] in ("session.meta", "setting.change"):
+                        for field_name in fields:
+                            if attrs.get(field_name) is not None:
+                                session[field_name] = attrs[field_name]
+                        if attrs.get("timezone"):
+                            session["timezone_source"] = attrs.get("timezone_source", "reported")
+                        if attrs.get("cwd"):
+                            session["project_id"] = event["project_id"]
+                    if event["kind"] == "session.title":
+                        priority = {"custom": 3, "native": 2, "ai": 1}.get(
+                            attrs.get("title_source"), 0
+                        )
+                        if priority >= title_priority:
+                            session["title"], session["title_source"] = (
+                                event["text"],
+                                attrs.get("title_source"),
+                            )
+                            title_priority = priority
+                session["status"] = latest_visible_turn.get(session["session_uid"], {}).get(
+                    "status", "unknown"
                 )
                 if session["ended_at"] is None or session["ended_at"] >= scope.until_ts:
                     session["ended_at"] = None

@@ -1087,3 +1087,38 @@ def test_sqlite_blob_is_only_recoverable_from_l0(tmp_path):
         native = json.loads(store.read_raw(record))
         assert base64.b64decode(native["row"]["avatar"]["$binary"]) == value
         assert_sound(store)
+
+
+def test_historical_session_title_is_replayed_before_cutoff(tmp_path):
+    from tandem_data.analysis_input import AnalysisScope, read_analysis
+    from tandem_data.contract import time_fields
+
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "s", "timestamp": ISO, "cwd": "/fixture"},
+                {"type": "session_info", "id": "early", "name": "before", "timestamp": ISO},
+                {
+                    "type": "message",
+                    "id": "u",
+                    "timestamp": ISO,
+                    "message": {"role": "user", "content": "request"},
+                },
+                {
+                    "type": "session_info",
+                    "id": "late",
+                    "name": "future",
+                    "timestamp": "2026-10-02T02:00:00Z",
+                },
+            ],
+        )
+        store.rebuild()
+        cutoff = time_fields("2026-10-02T01:00:00Z", "cutoff")[0]
+        assert read_analysis(store.home, AnalysisScope("UTC"))["sessions"][0]["title"] == "future"
+        historical = read_analysis(store.home, AnalysisScope("UTC", until_ts=cutoff))
+        assert historical["sessions"][0]["title"] == "before"
+        assert historical["sessions"][0]["status"] == "unknown"
+        assert all(e["text"] != "future" for e in historical["events"])
