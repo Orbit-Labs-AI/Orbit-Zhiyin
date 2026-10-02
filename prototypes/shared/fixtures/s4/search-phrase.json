@@ -1,0 +1,59 @@
+{
+ "q": "示例：不是这个意思",
+ "took_ms": 1,
+ "index": {
+  "state": "ready",
+  "docs": 120,
+  "data_rev": "3"
+ },
+ "counts": {
+  "message": 2
+ },
+ "results": [
+  {
+   "kind": "message",
+   "id": "event_a",
+   "title": "示例：不是这个意思",
+   "snippet": "示例：不是这个意思",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_fx013",
+   "project_id": null,
+   "agent": "codex",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_fx013",
+    "event_uid": "event_a"
+   }
+  },
+  {
+   "kind": "message",
+   "id": "event_b",
+   "title": "示例：不是这个意思",
+   "snippet": "示例：不是这个意思",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_fx020",
+   "project_id": null,
+   "agent": "pi",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_fx020",
+    "event_uid": "event_b"
+   }
+  }
+ ],
+ "partial": []
+}
