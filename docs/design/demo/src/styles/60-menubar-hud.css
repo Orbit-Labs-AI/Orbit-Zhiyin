@@ -24,7 +24,7 @@
 .snap.near{background:var(--accent)}
 .widgets{position:absolute;z-index:5;left:24px;top:40px;width:364px;display:flex;flex-direction:column;gap:20px}
 .wg{border-radius:20px;background:var(--wg);color:var(--ink-1);box-shadow:0 10px 30px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge);padding:14px 16px;overflow:hidden;text-align:left;border:0;width:100%}
-.wg .lbl{font:600 11px/14px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.wg .lbl{font:600 10px/13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .wg-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 .desk.fs .widgets{display:none}
 .notes{position:absolute;z-index:80;top:32px;right:16px;width:min(344px,calc(100% - 32px));display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -36,4 +36,6 @@
 .nt:hover .nt-a,.nt:focus-within .nt-a{height:20px;opacity:1}
 .nt .nt-x{position:absolute;left:-6px;top:-6px;width:20px;height:20px;border-radius:50%;border:0;background:var(--raised);color:var(--ink-2);box-shadow:var(--sh-raise);display:grid;place-items:center;opacity:0;transition:opacity .12s}
 .nt:hover .nt-x,.nt .nt-x:focus-visible{opacity:1}
+.nt.out{animation:slideout .25s var(--ease) forwards;pointer-events:none}
+@keyframes slideout{to{opacity:0;transform:translateX(24px)}}
 .appicon{width:32px;height:32px;border-radius:8px;background:#1c1c1e;display:grid;place-items:center;flex:none}

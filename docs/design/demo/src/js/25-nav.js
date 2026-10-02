@@ -22,13 +22,16 @@ function renderMain() {
   tbarFit();
   if (PAGES[S.route].after) PAGES[S.route].after();
 }
-/* toolbar overflow: the meta text shrinks first; items that still do not fit move (right to left) into a » popover.
-   Runs after every page render and on 'tandem:layout' (window resize, sidebar toggle). */
+/* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
+   then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. Runs after every page render
+   and on 'tandem:layout' (window resize, sidebar toggle). */
 function tbarFit() {
   const tb = $('#main .tbar'); if (!tb) return;
   const tr = tb.querySelector('.tright'); if (!tr) return;
   let more = tb.querySelector('.tmore');
   if (more) { const pop = more.querySelector('.tmore-pop'); while (pop.firstChild) tr.appendChild(pop.firstChild); more.remove(); }
+  const ts = tb.querySelector('.tsearch'), meta = tb.querySelector('.meta');
+  if (ts && !ts.dataset.ico) { ts.classList.remove('ico-only'); if (meta && meta.scrollWidth > meta.clientWidth + 0.5) ts.classList.add('ico-only'); }
   const fits = () => tb.scrollWidth <= tb.clientWidth + 0.5;
   if (fits() || !tr.children.length) return;
   more = document.createElement('div'); more.className = 'tmore';
@@ -49,7 +52,7 @@ function renderMbar() {
   const m = (id, label) => '<button type="button" data-act="menu" data-m="' + id + '">' + label + '</button>';
   $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Tandem</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
     '<span class="sp"></span><span class="status"><button type="button" class="glyph" data-act="menu" data-m="demo" aria-label="演示菜单" data-tip="演示菜单：模拟会话事件、播放首次启动与人格揭晓">' + ic('flask', 15) + '<span class="mark" style="background:var(--ai)"></span></button>' +
-    '<button type="button" class="glyph' + (S.pop ? ' on' : '') + '" data-act="pop" aria-label="打开菜单栏面板" aria-expanded="' + S.pop + '">' + GLYPH + (S.paused || S.sim === 'idle' ? '' : '<span class="badge" style="background:' + badge + ';' + shape + '"></span>') + '</button>' +
+    '<button type="button" class="glyph' + (S.pop ? ' on' : '') + '" data-act="pop" aria-label="打开菜单栏面板" aria-expanded="' + S.pop + '">' + GLYPH + (S.paused || S.sim === 'idle' ? '' : '<span class="badge' + (S.sim === 'running' ? ' live' : '') + '" style="background:' + badge + ';' + shape + '"></span>') + '</button>' +
     SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>';
 }
 /* title row: traffic lights + sidebar toggle (floats over the sidebar material, stays when the sidebar is hidden) */
@@ -81,7 +84,7 @@ function personaNow() { return persona(sel({ noExtra: true })); }
 function tbar(title, meta, right) {
   const hasInput = /<input\b/i.test(right || '');
   return '<div class="tbar"><div class="grow"><h1>' + title + '</h1>' + (meta ? '<span class="meta">' + meta + '</span>' : '') + '</div>' + (right ? '<div class="tright">' + right + '</div>' : '') +
-    '<button type="button" class="tsearch' + (hasInput ? ' ico-only' : '') + '" data-act="palette" aria-label="搜索（' + kb('⌘K') + '）" data-tip="搜索会话、项目、建议与操作 ' + kb('⌘K') + '">' + ic('search', 14) + '<span>搜索</span><kbd>' + kb('⌘K') + '</kbd></button></div>';
+    '<button type="button" class="tsearch' + (hasInput ? ' ico-only" data-ico="1' : '') + '" data-act="palette" aria-label="搜索（' + kb('⌘K') + '）" data-tip="搜索会话、项目、建议与操作 ' + kb('⌘K') + '">' + ic('search', 14) + '<span>搜索</span><kbd>' + kb('⌘K') + '</kbd></button></div>';
 }
 function rangeLabel() { return S.range === 7 ? '近 7 天' : S.range === 30 ? '近 30 天' : S.range === 90 ? '近 90 天' : '全部历史'; }
 function winLabel() { const w = win(S.range); const a = dayDate(w[0]), b = dayDate(w[1]); const f = (x) => x.getUTCFullYear() + '-' + String(x.getUTCMonth() + 1).padStart(2, '0') + '-' + String(x.getUTCDate()).padStart(2, '0'); return f(a) + ' — ' + f(b).slice(5); }

@@ -118,7 +118,15 @@ function copyText(text, label) {
   const fail = () => { openModal(modalHead('手动复制', '浏览器拒绝了剪贴板访问，请选中下面的文字后复制') + '<div class="mb"><textarea id="copyArea" style="width:100%;min-height:200px;font:12px/1.5 var(--mono);border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface)">' + esc(text) + '</textarea></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'); setTimeout(() => { const a = $('#copyArea'); if (a) a.select(); }, 30); };
   try { navigator.clipboard.writeText(text).then(done, fail); } catch (e) { fail(); }
 }
-/* notifications: 344px banners, slide in from the right, actions appear on hover, × at the top-left on hover */
+/* notifications: 344px banners, slide in from the right (300ms, fades in while sliding), slide back out on dismiss (250ms);
+   hovering keeps a banner alive; actions and the × appear on hover */
+function noteDismiss(el) {
+  if (!el || !el.isConnected || el.classList.contains('out')) return;
+  el.classList.add('out');
+  let done = false; const rm = () => { if (!done) { done = true; el.remove(); } };
+  el.addEventListener('animationend', rm, { once: true }); setTimeout(rm, 400);
+  if (typeof hudPlace === 'function') hudPlace();
+}
 function notify(n) {
   if (S.paused && !n.force) return;
   const box = $('#notes'); const id = 'n' + Math.random().toString(36).slice(2, 8);
@@ -128,7 +136,8 @@ function notify(n) {
     '</div><button type="button" class="nt-x" data-act="noteClose" data-n="' + id + '" aria-label="关闭通知">' + ic('x', 11) + '</button>';
   el._n = n; box.prepend(el);
   while (box.children.length > 3) box.lastChild.remove();
+  if (typeof hudPlace === 'function') hudPlace();
   let hover = false; el.addEventListener('mouseenter', () => { hover = true; }); el.addEventListener('mouseleave', () => { hover = false; });
-  const kill = () => { if (hover) { setTimeout(kill, 1500); return; } el.remove(); };
+  const kill = () => { if (hover) { setTimeout(kill, 1500); return; } noteDismiss(el); };
   setTimeout(kill, n.ms || 7000);
 }

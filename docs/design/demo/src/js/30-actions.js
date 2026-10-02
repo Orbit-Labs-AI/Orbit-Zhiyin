@@ -23,8 +23,8 @@ Object.assign(ACT, {
   tmore: (el) => { const pop = el.nextElementSibling; pop.hidden = !pop.hidden; el.setAttribute('aria-expanded', String(!pop.hidden)); },
   closeModal: () => closeModal(),
   toastAct: () => { const t = $('#toast'); if (t.onAct) t.onAct(); t.hidden = true; clearInterval(toastTimer); },
-  noteClose: (el) => { const n = document.getElementById(el.dataset.n); if (n) n.remove(); },
-  noteAct: (el) => { const n = document.getElementById(el.dataset.n); if (!n) return; const fn = el.dataset.k === '1' ? n._n.on1 : n._n.on2; n.remove(); if (fn) fn(); },
+  noteClose: (el) => noteDismiss(document.getElementById(el.dataset.n)),
+  noteAct: (el) => { const n = document.getElementById(el.dataset.n); if (!n) return; const fn = el.dataset.k === '1' ? n._n.on1 : n._n.on2; noteDismiss(n); if (fn) fn(); },
   range: (el) => { S.range = +el.dataset.v; render(); },
   agentToggle: (el, e) => {
     const id = el.dataset.a;
