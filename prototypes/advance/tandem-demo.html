@@ -1985,6 +1985,8 @@ const PJ = [
     titles: ['整理下载目录', '咖啡数据回归分析', '读论文并写笔记', '量化因子衰减综述溯源', '配置新机器环境'] }
 ];
 const PJI = {}; PJ.forEach((p) => { PJI[p.id] = p; });
+// sidebar user row (25-nav sideFoot): the demo persona; live mode (90-live-core) swaps in a neutral local-user label
+const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
   cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
   cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
@@ -2969,6 +2971,7 @@ const TandemLive = (function () {
     '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+  const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const ui = {
     DASH, esc, num, pct, money, hm,
     ensureStyle(doc) {
@@ -2988,7 +2991,8 @@ const TandemLive = (function () {
       if (!C || C.mode !== 'live') return '';
       if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Tandem 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
-      const bad = Object.keys(C.services).filter((k) => C.services[k] && C.services[k] !== 'ok');
+      // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
+      const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
       if (bad.length) return '<div class="tl-banner" role="alert" data-tl="degraded">服务异常：' + bad.map((k) => esc(k) + ' ' + ({ restarting: '重启中', degraded: '降级' }[C.services[k]] || esc(C.services[k]))).join('、') + ' · 显示上次结果</div>';
       return '';
     },
@@ -3553,7 +3557,7 @@ function renderSide() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
   $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', 9) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
+    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', sideAgents(), '会话') +
     group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
@@ -3565,7 +3569,7 @@ function sideFoot() {
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
     '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
-    '<div class="me"><span class="av" aria-hidden="true">yh</span><div style="flex:1;min-width:0"><div class="nm">yhyfhgs</div><div class="mono cap pc">' + (me.ok ? me.code + ' · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
+    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? me.code + ' · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */
@@ -3578,7 +3582,7 @@ function rangeLabel() { return S.range === 7 ? '近 7 天' : S.range === 30 ? '�
 function winLabel() { const w = win(S.range); const a = dayDate(w[0]), b = dayDate(w[1]); const f = (x) => x.getUTCFullYear() + '-' + String(x.getUTCMonth() + 1).padStart(2, '0') + '-' + String(x.getUTCDate()).padStart(2, '0'); return f(a) + ' — ' + f(b).slice(5); }
 function filterRow(right) {
   const agN = AG.filter((a) => S.agents.has(a.id)).length;
-  const agLbl = agN === AG.length ? 'Agent · 全部 5' : agN === 1 ? 'Agent · ' + AG.find((a) => S.agents.has(a.id)).name : 'Agent · ' + agN + ' 个';
+  const agLbl = agN === AG.length ? 'Agent · 全部 ' + AG.length : agN === 1 ? 'Agent · ' + AG.find((a) => S.agents.has(a.id)).name : 'Agent · ' + agN + ' 个';
   const chips = [];
   if (S.topic) chips.push(['topic', '主题 · ' + TOPICS[S.topic]]);
   if (S.outcome) chips.push(['outcome', '结果 · ' + ({ ok: '完成', part: '部分完成', fail: '放弃' })[S.outcome]]);
@@ -3586,7 +3590,7 @@ function filterRow(right) {
   if (S.hour != null) chips.push(['hour', '时段 · ' + S.hour + ':00–' + (S.hour + 1) + ':00']);
   return '<div class="frow"><div class="seg" role="group" aria-label="时间范围">' + [[7, '7 天'], [30, '30 天'], [90, '90 天'], [0, '全部']].map((x) => '<button type="button" data-act="range" data-v="' + x[0] + '" class="' + (S.range === x[0] ? 'on' : '') + '" aria-pressed="' + (S.range === x[0]) + '">' + x[1] + '</button>').join('') + '</div>' +
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
-    '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 9') + ic('chev', 11) + '</button>' +
+    '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 ' + PJ.length) + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
     '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
 }
@@ -9113,7 +9117,8 @@ LV.loadSpine = function () {
     LV.state = rows.length ? 'ready' : 'empty';
   }, (e) => {
     lvSpineFails++;
-    if (LV.state === 'ready' || LV.state === 'empty') LV.state = 'error';
+    // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
+    if (LV.state === 'ready' || LV.state === 'empty' || (e && e.status >= 400)) LV.state = 'error';
     else LV.state = 'connecting';
     LV.error = e;
     lvSpineLater(Math.min(15000, 1000 * Math.pow(2, Math.min(lvSpineFails, 4))));
@@ -9123,6 +9128,8 @@ LV.loadSpine = function () {
 
 if (LV.live) {
   // live persona needs per-row units (G1): until slice 1's personaLive lands, never compute it from demo constants
+  // no personal mock identity on a live screen: the gateway has no account, the user row reads as the local user
+  ME.name = '本机用户'; ME.av = '我';
   persona = function (L) { return { ok: false, classified: false, n: L ? L.length : 0 }; };
   // no mock rows ever reach a live screen: start from the empty spine, then load
   LV.hydrate({ rows: [] });
@@ -10203,7 +10210,7 @@ ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 function lvSpineBadge() {
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
   if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
-  if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
+  if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
 }
@@ -11820,7 +11827,8 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
   // the default window leaves the column free. 「显示 › 桌面小组件」toggles them at any size.
   S.widgets = window.innerWidth >= WIDE_MIN;
   render();
-  setTimeout(() => notify({ t: '欢迎体验 Orbit 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
+  // the demo welcome says the data is sample data: mock only, never over live data or the native panel / hud / widgets surfaces
+  if (!LV.live && !ORBIT.native.surface) setTimeout(() => notify({ t: '欢迎体验 Orbit 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
 })();
 </script>
 </body>
