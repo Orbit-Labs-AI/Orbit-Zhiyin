@@ -51,7 +51,7 @@
 | DT-06.1 | 会话本地时区字段 | 缺失（v1） | `001.sql:104-106` 已有 `timezone / timezone_source`，没有 `utc_offset_min` | v1 |
 | DT-07 | 项目归属与模型归一 | 部分 | `project(key_type)`、`project_override`（`001.sql:50-58`，`004.sql`）；`reduce.py:98-122` 读 `model_alias` | `model_alias` 无写入 / 种子；`effort_rank` 无来源；项目合并 / 拆分接口（A5-04）缺 |
 | DT-08 | token 与成本 | 部分 | `contract.normalize_usage()` 六方言分桶；`usage_snapshot`、`v_session_call_usage`（`001.sql:229-237`） | 价目表折算（v1，依赖 DT-14） |
-| DT-09 | 已安装清单 | 已完成（MVP） | `inventory/`（7 Agent、6 类、`005.sql` 版本化快照） | agent / command 类型与「由 Tandem 安装」标记（随 IN-04）；每次扫描全量复制快照（`inventory/__init__.py:98-121`），扫描与导入共用写锁（`:49`） |
+| DT-09 | 已安装清单 | 已完成（MVP） | `inventory/`（7 Agent、6 类、`005.sql` 版本化快照） | agent / command 类型与「由 Orbit 安装」标记（随 IN-04）；每次扫描全量复制快照（`inventory/__init__.py:98-121`），扫描与导入共用写锁（`:49`） |
 | DT-10 | 脱敏 | 部分 | `privacy.py:69-177`（`redact / sanitize`，`REDACTION_VERSION`） | SET-12/13 需要的规则清单与样例预览接口缺；用户可编辑规则（v1）缺 |
 | DT-11 | 生态来源抓取 | 部分（catalog） | `packages/catalog`（sync、checkpoint、FTS5、向量） | 不在本审计主范围 |
 | DT-12 | Catalog 实体与去重 | 部分（catalog） | `migrations/catalog/schema.sql` | 同上 |
