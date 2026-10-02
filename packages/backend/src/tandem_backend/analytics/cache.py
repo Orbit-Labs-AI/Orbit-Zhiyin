@@ -290,7 +290,7 @@ class AnalysisCache:
         request = {"scope": asdict(scope), "with_text": with_text, "sections": names}
         run_id = self.history.start(engine, request, request_key=key, input_fp=input_fp)
         try:
-            bundle = self.store.analysis_bundle(scope)
+            bundle = self.store.analysis_bundle(scope, external_text=False)
             context = AnalysisContext.select(bundle, scope)
             rows = SessionRowStore(self.history, fps, algo)
             builder = AnalysisSections(context, with_text, row_cache=rows)

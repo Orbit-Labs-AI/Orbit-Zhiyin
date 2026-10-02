@@ -137,3 +137,31 @@ def test_analysis_read_shares_repeated_values_and_skips_native_keys(tmp_path):
     assert all(e["native_key"] is None and e["ext"] == {} for e in bundle["events"])
     full = read_analysis(store.home, AnalysisScope("UTC"))
     assert any(e["native_key"] is not None for e in full["events"])
+
+
+def test_external_text_false_leaves_blob_texts_unread(tmp_path):
+    from tandem_data import payload
+
+    rows = transcript("long", "/fictional/long", 2)
+    for row in rows:
+        item = row["payload"].get("item") or {}
+        if item.get("type") == "CommandExecution":
+            item["aggregated_output"] = "synthetic output " + "z" * 5000
+    with Store(tmp_path / "blob") as store:
+        source = store.add_source("codex", tmp_path / "blob" / "source")
+        store.capture_stream(source, "long.jsonl",
+                             [(canonical(r) + "\n").encode() for r in rows])
+        store.rebuild()
+        stored = store.db.execute(
+            "SELECT count(*) FROM event WHERE substr(text, 1, 1) = ?", (payload.TEXT_MARK,)
+        ).fetchone()[0]
+    assert stored > 0  # the long outputs are blob-stored
+    full = read_analysis(store.home, AnalysisScope("UTC"), include_native=False)
+    lean = read_analysis(store.home, AnalysisScope("UTC"), include_native=False,
+                         external_text=False)
+    by_uid = {e["event_uid"]: e for e in full["events"]}
+    dropped = [e for e in lean["events"] if e["text"] is None and by_uid[e["event_uid"]]["text"]]
+    assert len(dropped) == stored
+    assert all(e["kind"] not in payload.INLINE_TEXT_KINDS for e in dropped)
+    assert [e["text"] for e in lean["events"] if e["kind"] in payload.INLINE_TEXT_KINDS] == [
+        e["text"] for e in full["events"] if e["kind"] in payload.INLINE_TEXT_KINDS]

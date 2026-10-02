@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
-from tandem_data.payload import restore_row
+from tandem_data.payload import INLINE_TEXT_KINDS, TEXT_MARK, restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
@@ -88,6 +88,17 @@ def _compact(event: dict, shared: dict) -> dict:
     return event
 
 
+def _without_external_text(connection, row, cache=None) -> dict:
+    """``restore_row`` that leaves blob-stored non-message text unread (``None``)."""
+    text = row["text"]
+    if text and text[0] == TEXT_MARK and row["kind"] not in INLINE_TEXT_KINDS:
+        if text[1:2] != TEXT_MARK:  # a doubled mark is inline text, not a reference
+            event = dict(row)
+            event["text"] = None
+            return event
+    return restore_row(connection, row, cache)
+
+
 def _keys(values) -> str:
     return json.dumps(sorted(values))
 
@@ -112,9 +123,20 @@ def _ordered_calls(connection, view: str, table: str, where: str, params: dict) 
 
 
 def read_analysis(
-    home: str | Path, scope: AnalysisScope, *, max_events=None, include_native=True
+    home: str | Path,
+    scope: AnalysisScope,
+    *,
+    max_events=None,
+    include_native=True,
+    external_text=True,
 ) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
+
+    ``external_text=False`` leaves the large non-message texts that storage keeps in
+    ``content_blob`` (tool output, reasoning, injected context) as ``None`` instead of
+    fetching and decompressing each one: the feature analysis reads message texts only
+    (identical results on a real 7-day window), and those texts were ~2 KB of every
+    event's memory plus one blob lookup per event.
 
     Empty selections mean zero members. Time-unknown facts do not enter bounded statistics.
     A result after until_ts cannot enter historical context. No imported/review/auxiliary trees
@@ -327,8 +349,9 @@ def read_analysis(
                 )
         texts: dict = {}
         shared: dict = {}
+        restore = restore_row if external_text else _without_external_text
         events = [
-            _compact(decoded(restore_row(connection, row, texts)), shared)
+            _compact(decoded(restore(connection, row, texts)), shared)
             for row in connection.execute(
                 "SELECT " + event_columns + selector + " ORDER BY v.session_uid,v.seq", params
             )
