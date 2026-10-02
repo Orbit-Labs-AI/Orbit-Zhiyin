@@ -19,7 +19,10 @@ function simSettle(force) {
 function simIdle() { return S.simBase === 'idle' || S.sim === 'idle'; }
 /* an event that was handled (「去处理」,「查看」) leaves every channel that still shows it */
 function simClear(kind) { if (kind === 'waiting') S.waitOpen = false; Object.keys(SIM_CH).forEach((c) => { if (S[c] === kind) S[c] = S.simBase; }); simSettle(); }
+// live mode: the realtime snapshot (98-live-ops.js) drives S.simBase / S.attn / S.waitOpen; nothing is simulated
+const simOff = () => typeof LV !== 'undefined' && LV.live;
 function simEvent(k) {
+  if (simOff()) { toast('实时模式不模拟事件：菜单栏、悬浮组件与通知跟随本机的会话'); return; }
   const eventAgent = { done: 'cc', waiting: 'cx', stuck: 'cx', ctx: 'cc' }[k];
   if (eventAgent && !sourceEnabled({ a: eventAgent })) { toast(agent(eventAgent).name + ' 的数据源已停用，不会产生提醒'); return; }
   if (S.paused && k !== 'newsrc') { toast('采集已暂停，不会产生事件', { act: '恢复采集', onAct: () => { S.paused = false; render(); } }); return; }
@@ -56,4 +59,6 @@ function simEvent(k) {
   if (!banner && !ambient) toast(S.hud.mute && (ch[0] || ch[1]) ? '提醒已暂停：横幅与悬浮组件都没有打扰你' : '「' + N[k].t + '」的所有提醒渠道都已关闭');
   else if (!banner) toast(S.hud.mute ? '提醒已暂停，只更新了菜单栏角标' : '这类事件的横幅已在通知设置中关闭');
 }
-MENUS.demo = () => [{ h: '模拟事件（会触发通知、菜单栏与悬浮组件）' }, { t: '会话完成', v: () => simEvent('done') }, { t: '有会话等你确认', v: () => simEvent('waiting') }, { t: '同一命令连续失败', v: () => simEvent('stuck') }, { t: '上下文即将压缩', v: () => simEvent('ctx') }, { t: '每周报告已生成', v: () => simEvent('weekly') }, { t: '发现新的数据来源', v: () => simEvent('newsrc') }, { sep: 1 }, { t: '空闲（没有运行中的会话）', on: S.simBase === 'idle', v: () => simEvent('idle') }, { t: '有会话运行中', on: S.simBase !== 'idle', v: () => simEvent('running') }, { sep: 1 }, { t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { t: '问本地 Agent', v: () => openAsk('overview') }, { sep: 1 }, { t: '关于这个 Demo', v: () => openAbout() }, { t: '重置演示数据', v: () => resetDemo() }];
+const simMenu = () => [{ h: '模拟事件（会触发通知、菜单栏与悬浮组件）' }, { t: '会话完成', v: () => simEvent('done') }, { t: '有会话等你确认', v: () => simEvent('waiting') }, { t: '同一命令连续失败', v: () => simEvent('stuck') }, { t: '上下文即将压缩', v: () => simEvent('ctx') }, { t: '每周报告已生成', v: () => simEvent('weekly') }, { t: '发现新的数据来源', v: () => simEvent('newsrc') }, { sep: 1 }, { t: '空闲（没有运行中的会话）', on: S.simBase === 'idle', v: () => simEvent('idle') }, { t: '有会话运行中', on: S.simBase !== 'idle', v: () => simEvent('running') }, { sep: 1 }, { t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { t: '问本地 Agent', v: () => openAsk('overview') }, { sep: 1 }, { t: '关于这个 Demo', v: () => openAbout() }, { t: '重置演示数据', v: () => resetDemo() }];
+// live mode keeps only the replays that do not invent session events
+MENUS.demo = () => (simOff() ? [{ t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { t: '问本地 Agent', v: () => openAsk('overview') }, { sep: 1 }, { t: '关于 Orbit', v: () => openAbout() }] : simMenu());
