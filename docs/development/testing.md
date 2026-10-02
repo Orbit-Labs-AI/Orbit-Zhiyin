@@ -6,7 +6,7 @@
 
 | 类型 | 位置 | 运行入口 |
 | --- | --- | --- |
-| Python 模块测试 | packages/backend/tests、packages/data/tests | uv run pytest -q 对应目录 |
+| Python 模块测试 | packages/backend/tests、packages/data/tests、packages/catalog/tests | uv run pytest -q 对应目录 |
 | 历史兼容回归 | backend/tests/regression | 保留原来的行为边界；后续新增测试按所属模块归类 |
 | TypeScript 模块测试 | packages/connectors/tests | pnpm --filter @tandem/connectors check |
 | 跨包与跨语言 | tests/integration | pnpm check:integration |
@@ -18,7 +18,7 @@
 
 `pnpm check` 先构建 TypeScript producer，再运行全部 Python 测试，随后检查原型产物、文档、独立构建与安装。staging 集成缺少产物时失败，不会静默跳过。
 
-安装检查把两个 wheel 安装到临时环境，在仓库外运行 Demo、评价和 CLI；用于发现 editable 安装掩盖的路径或包资源问题。根 Python workspace 不发布为一个额外运行包。
+安装检查把三个 wheel 安装到临时环境，在仓库外运行 Demo、评价和 CLI；用于发现 editable 安装掩盖的路径或包资源问题。根 Python workspace 不发布为一个额外运行包。
 
 ## UI 测试
 
@@ -37,3 +37,5 @@ pnpm check:ui --project=mac-14
 真实数据验收需显式参数，输出放忽略目录 `.local/`。常规 CI 使用构造样本且不联网刷新资源或下载模型。性能评测记录硬件、规模与口径，不将单机耗时当成 App SLA。
 
 服务流程验收覆盖 CLI 导入、API 会话与证据、报告一致性和评价隔离；目前尚无原生 App，不能将其称为原生 UI 验收。
+
+Swift 客户端的 6 项测试通过 swift test --package-path packages/catalog-macos 运行，已纳入 pnpm check。Catalog 的本地 E5 权重测试是显式可选集成，默认缺少 TANDEM_TEST_E5_DIR 时跳过；不与必须执行的 staging 桥接测试混淆。

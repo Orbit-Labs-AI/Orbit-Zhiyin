@@ -7,9 +7,10 @@ name = "tandem-backend"
 version = "0.13.6"
 description = "Local multi-agent L0-L3 data pipeline and evidence-backed analysis"
 requires-python = ">=3.13,<3.14"
-dependencies = ["tandem-data==0.2.0", "fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "markdown-it-py==4.2.0", "scikit-learn==1.7.2", "scipy>=1.16,<2"]
+dependencies = ["tandem-data==0.2.0", "tandem-catalog==0.1.0", "fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "markdown-it-py==4.2.0", "scikit-learn==1.7.2", "scipy>=1.16,<2"]
 
 [project.optional-dependencies]
+embeddings = ["tandem-catalog[embeddings]==0.1.0"]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.2"]
 
 [project.scripts]
@@ -17,6 +18,7 @@ tandem = "tandem_backend.cli:main"
 
 [tool.uv.sources]
 tandem-data = { workspace = true }
+tandem-catalog = { workspace = true }
 
 [tool.setuptools.packages.find]
 where = ["src"]

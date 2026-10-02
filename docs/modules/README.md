@@ -9,3 +9,5 @@
 算法说明中的实验结果属于原文所注明的版本和样本，目录迁移没有重新证明历史结论。
 
 - [推荐引擎](recommendation.md)：七类资源合同、召回、排序、解释与当前限制。
+
+- [Catalog 架构](catalog-architecture.md)与[实测记录](catalog-validation.md)。

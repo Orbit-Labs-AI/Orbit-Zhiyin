@@ -38,7 +38,7 @@ def _cached_updates(path: Path) -> dict[str, dict]:
 
 
 def resources(cache_file: str | Path | None = None) -> list[dict]:
-    seeds = json.loads(files("tandem_backend").joinpath("data/skills.json").read_text())
+    seeds = json.loads(files("tandem_catalog").joinpath("data/skills.json").read_text())
     if not cache_file or not Path(cache_file).is_file():
         return seeds
     try:

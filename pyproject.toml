@@ -4,24 +4,28 @@ version = "0.0.0"
 requires-python = ">=3.13,<3.14"
 dependencies = ["tandem-backend"]
 
+[project.optional-dependencies]
+embeddings = ["tandem-catalog[embeddings]==0.1.0"]
+
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/backend", "packages/data"]
+members = ["packages/backend", "packages/data", "packages/catalog"]
 
 [tool.uv.sources]
 tandem-backend = { workspace = true }
 tandem-data = { workspace = true }
+tandem-catalog = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.2"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/backend/tests", "packages/data/tests", "tests/integration", "tests/e2e"]
+testpaths = ["packages/backend/tests", "packages/data/tests", "packages/catalog/tests", "tests/integration", "tests/e2e"]
 
 [tool.ruff]
-src = ["packages/backend/src"]
+src = ["packages/backend/src", "packages/catalog/src"]
 target-version = "py313"
 line-length = 100
 

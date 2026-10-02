@@ -1,6 +1,6 @@
 # 模块接入与依赖
 
-状态：当前实现与接入缺口；基线：main `f834616` 加结构迁移。仓库集成负责人：`yhyfhgs`；各能力的算法维护归属延续原任务，目录移动不改变分工。
+状态：当前实现与接入缺口；基线：main `15a753f` 加结构迁移。仓库集成负责人：`yhyfhgs`；各能力的算法维护归属延续原任务，目录移动不改变分工。
 
 ## 依赖方向
 
@@ -18,7 +18,7 @@ flowchart TD
   Access --> Data["packages/data"]
   Staging["packages/connectors"] --> Bridge["data/bridge"]
   Bridge --> Data
-  Rec -. 未来接入 .-> Catalog["packages/catalog"]
+  Rec -. 显式草稿适配 .-> Catalog["packages/catalog"]
 ```
 
 图中原型不接入真实数据；当前 API 仍直接调用部分只读服务。数据包不反向导入后端，UI 不直接写数据库，原生来源解析器只进入数据层。staging 与 canonical 分库，通过桥接发布。
@@ -33,7 +33,7 @@ flowchart TD
 | 画像、瓶颈与报告 | report / demo；/v1/analysis | application/reports → profiling / recommendation / reporting | 既有回归；服务流程检查 CLI/API 输出一致 | 两个入口共用报告用例 |
 | 资源匹配与推荐 | /v1/analytics/recommendations GET/POST；analytics CLI | backend/recommend/service + analytics/recommendations 诊断 | 七类 JSON/Schema；recall、ranking 与 API/CLI 回归 | 最新 main 已接入；UI 待接入 |
 | 固定资源兼容 | catalog-refresh；/v1/catalog | recommend/legacy_catalog、resource_fetch、legacy | 固定版本资源、证据与缓存回归 | 原画像推荐 API 保留 |
-| 独立资源索引 | 未来 catalog 服务 | 预定 packages/catalog | 接入时单独声明版本与测试 | 尚未进入本次 main 基线 |
+| 独立资源索引 | /v1/catalog/*；tandem-catalog CLI | packages/catalog；catalog-macos Swift 客户端 | catalog-v1、包测试、跨包 API、Swift tests | 已进入 main；模型须显式配置 |
 | 文本与链路评价 | evaluate；/v1/evaluation | backend/evaluation | 包内 JSON 样本、读者评审、evals | 自动检查不等于人类验收 |
 | Lite / Advance | 独立 HTML 原型 | prototypes/lite、prototypes/advance | Lite 构造数据检查；Advance Playwright | 设计参考、尚未接入 API |
 | 桌面交付 | 未来 apps/desktop | 正式 UI、系统集成与服务启停 | 原生 App 流程与安装测试待加入 | 未实现 |
@@ -48,4 +48,4 @@ flowchart TD
 
 公开入口调用真实实现；输入输出和缺失状态有契约；关键失败路径有测试；UI 接线状态如实记录；文档与检查命令可复跑。模块完成而 UI 未接入时，状态仍标为“API / 模块完成”。
 
-PR #26 带入的推荐引擎沿用公开 `tandem_backend.recommend` 命名空间。`analytics/recommendations` 保存现有瓶颈诊断与旧入口适配，新排序和召回位于 recommend；独立采集/索引的 tandem_catalog 仍未合入。
+PR #26 带入的推荐引擎沿用公开 `tandem_backend.recommend` 命名空间。`analytics/recommendations` 保存现有瓶颈诊断与旧入口适配，新排序和召回位于 recommend；独立采集/索引的 tandem_catalog 已由 PR #29 接入 packages/catalog，推荐端仍按显式审核流程接收草稿。

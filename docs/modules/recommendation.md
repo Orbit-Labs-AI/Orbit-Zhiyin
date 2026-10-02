@@ -207,7 +207,7 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 
 `sources.normalize.legacy_item` 只适配原有已审核目录，保留固定 commit、文件路径和内容摘要。它把原有能力映射为规则方向先验，仍保留原能力交集条件，避免宽泛规则映射改变旧资源的推荐依据。
 
-`sources.normalize.catalog_resource` 为尚未合入的 `tandem_catalog` 包预留接收边界：输入该包的 Resource 字典，仅把 `origin=curated` 的受控 feature 转成匹配字段。README/body、自动提取特征、人气和安装命令不成为能力真值；即使有 curated 标签，适配结果仍保持 draft，Agent 兼容性保持 unknown。调用方需显式选择这个 adapter，不会自动猜测其他 JSON 格式，也没有引入未合入包的运行时依赖。上游包负责来源采集/存储；本包负责审核后资源与用户瓶颈的匹配。
+`sources.normalize.catalog_resource` 为 `packages/catalog` 中的 `tandem_catalog` 包提供显式接收边界：输入该包的 Resource 字典，仅把 `origin=curated` 的受控 feature 转成匹配字段。README/body、自动提取特征、人气和安装命令不成为能力真值；即使有 curated 标签，适配结果仍保持 draft，Agent 兼容性保持 unknown。调用方需显式选择这个 adapter，不会自动猜测其他 JSON 格式，接收适配仍独立于采集与索引的实现。上游包负责来源采集/存储；本包负责审核后资源与用户瓶颈的匹配。
 
 后续按真实需求补充：
 

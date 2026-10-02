@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--home", type=Path, default=default_home(), help="L0–L3 数据目录，默认 macOS Application Support/Tandem")
     parser.add_argument("--db", help="显式使用旧版 MVP 数据库（兼容模式）")
     parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
+    parser.add_argument("--catalog-db", type=Path, help="推荐资源 SQLite；默认与 --db 同目录")
+    parser.add_argument("--catalog-model-dir", type=Path, help="本地 E5 ONNX 模型目录")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("init", "rebuild", "verify", "stats", "discover"):
         sub.add_parser(name)
@@ -170,7 +172,8 @@ def main(argv: list[str] | None = None) -> None:
 
         from ..api import create_app
         uvicorn.run(create_app(args.db, args.catalog_cache, home=args.home,
-                               recommendation_catalog=args.recommendation_catalog), host="127.0.0.1", port=args.port)
+                               recommendation_catalog=args.recommendation_catalog, catalog_db=args.catalog_db,
+                               catalog_model_dir=args.catalog_model_dir), host="127.0.0.1", port=args.port)
         return
     if args.command == "catalog-refresh":
         from ..recommend.resource_fetch import refresh_catalog

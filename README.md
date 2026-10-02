@@ -4,7 +4,7 @@ ActionMesh-AI 的本地跨 Agent 会话分析项目，目标交付为 macOS App�
 
 ## 开始开发
 
-需要 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0。在仓库根运行：
+需要 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0；完整检查还需 Swift 5.9+（macOS Command Line Tools）。在仓库根运行：
 
 ```sh
 bash scripts/bootstrap.sh
@@ -22,7 +22,7 @@ Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明�
 | --- | --- |
 | [packages/backend](packages/backend/README.md) | 应用编排、API/CLI、画像、特征分析、推荐、报告 |
 | [packages/data](packages/data/README.md) | 原生来源、L0–L3、canonical SQLite、查询与导入服务 |
-| [packages/connectors](packages/connectors/README.md) | TypeScript Codex staging producer |
+| [packages/catalog](packages/catalog/README.md) | 资源采集、版本、索引与检索 |\n| [packages/catalog-macos](packages/catalog-macos/README.md) | macOS Swift 异步客户端 |\n| [packages/connectors](packages/connectors/README.md) | TypeScript Codex staging producer |
 | [prototypes](prototypes/README.md) | Lite / Advance 示例数据原型 |
 | [tests](tests/README.md) | 跨模块集成与服务流程验收 |
 | [evals](evals/README.md) | 质量评测及显式启用的真实数据验收 |
@@ -30,7 +30,7 @@ Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明�
 | [scripts](scripts/README.md) | 启动、检查与安装验证入口 |
 | [docs](docs/README.md) | 架构、契约、开发指南、计划、研究与版本记录 |
 
-正式桌面入口未来放在 `apps/desktop/`；尚未合入的资源目录模块接入 `packages/catalog/`。这两个位置当前没有空壳实现。
+正式桌面入口未来放在 `apps/desktop/`；Catalog 和 Swift 客户端已接入，但仍没有原生 App target。
 
 ## 验证
 

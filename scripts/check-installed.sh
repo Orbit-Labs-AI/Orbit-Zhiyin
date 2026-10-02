@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build both distributions and run outside the checkout without editable installs.
+# Build workspace distributions and run outside the checkout without editable installs.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tandem-installed.XXXXXX")"
@@ -8,8 +8,13 @@ cd "$REPO_ROOT"
 uv build --all-packages --out-dir "$CHECK_DIR/wheels"
 uv export --frozen --no-dev --no-emit-workspace --format requirements-txt --output-file "$CHECK_DIR/requirements.txt" > /dev/null
 uv venv --python 3.13 "$CHECK_DIR/venv"
-uv pip install --python "$CHECK_DIR/venv/bin/python" --requirement "$CHECK_DIR/requirements.txt" "$CHECK_DIR"/wheels/*.whl
+uv pip install --python "$CHECK_DIR/venv/bin/python" --requirement "$CHECK_DIR/requirements.txt" "$CHECK_DIR"/wheels/tandem_data-*.whl "$CHECK_DIR"/wheels/tandem_catalog-*.whl
 cd "$CHECK_DIR"
+"$CHECK_DIR/venv/bin/python" -I -c 'import importlib.util; assert importlib.util.find_spec("tandem_backend") is None'
+env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem-catalog" --home "$CHECK_DIR/catalog" init > /dev/null
+env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem-catalog" --home "$CHECK_DIR/catalog" sync --source tandem-seeds > /dev/null
+env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem-catalog" --home "$CHECK_DIR/catalog" verify
+uv pip install --python "$CHECK_DIR/venv/bin/python" --no-deps "$CHECK_DIR"/wheels/tandem_backend-*.whl
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" demo --output "$CHECK_DIR/demo"
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" --home "$CHECK_DIR/demo/data" analytics --no-text --output "$CHECK_DIR/analytics.json"
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" evaluate --output "$CHECK_DIR/evaluation.json"

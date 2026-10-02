@@ -43,9 +43,9 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。目标为本�
 - 新类型须有 L1 去向；不能通过跳过未知记录或把缺失成本/状态当成 0/成功来让检查通过。
 ## 数据契约包检查
 
-目标是 macOS App。Python 统一为 3.13（`.python-version`），仓库根的 `uv.lock` 管理 `packages/backend` 与 `packages/data` workspace；不要新增平行 Python 锁文件。
+目标是 macOS App。Python 统一为 3.13（`.python-version`），仓库根的 `uv.lock` 管理 `packages/backend`、`packages/data` 与 `packages/catalog` workspace；不要新增平行 Python 锁文件。
 
-从仓库根运行 `bash scripts/bootstrap.sh`、`pnpm check`。后者执行 lint、全部 Python 测试、连接器检查、原型产物检查、文档链接检查和 wheel 安装后验收；TypeScript producer 必须先构建，桥接测试不允许静默跳过。修改原型后还须运行 `pnpm check:ui`。分类与局部检查见 [测试指南](docs/development/testing.md)。
+从仓库根运行 `bash scripts/bootstrap.sh`、`pnpm check`。后者执行 lint、全部 Python 测试、连接器检查、Swift 客户端测试、原型产物检查、文档链接检查和 wheel 安装后验收；TypeScript producer 必须先构建，桥接测试不允许静默跳过。修改原型后还须运行 `pnpm check:ui`。分类与局部检查见 [测试指南](docs/development/testing.md)。
 
 数据库的权威结构是 `packages/data/src/tandem_data/migrations/`。改变 DDL 后，用 `uv run python -m tandem_data.schema_export --output packages/data/src/tandem_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.tandem/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。
 
@@ -54,5 +54,5 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。目标为本�
 - 根 `pyproject.toml` / `uv.lock` 与 `pnpm-workspace.yaml` / `pnpm-lock.yaml` 分别统一两种语言的依赖；不新增包内锁文件。
 - 后端实现在 `packages/backend/src/tandem_backend/`；兼容导出文件不新增业务逻辑。模块与数据流见 [模块接入表](docs/architecture/module-map.md)。
 - 模块测试随包；根 `tests/` 只放跨包和服务流程。评测放 `evals/`，性能放 `benchmarks/`，根 `scripts/` 保持薄入口。
-- 可运行原型放 `prototypes/lite` 与 `prototypes/advance`；静态设计资料留在 `docs/design`。正式 App 与尚未合入的 Catalog 不建立空实现。
+- 可运行原型放 `prototypes/lite` 与 `prototypes/advance`；静态设计资料留在 `docs/design`。正式 App 不建立空实现；Catalog 与 Swift 客户端分别位于 packages/catalog 和 packages/catalog-macos。
 - 活跃分支遵循 [目录迁移说明](docs/development/structure-migration.md)，不要在 merge 时恢复旧目录或平行锁文件。

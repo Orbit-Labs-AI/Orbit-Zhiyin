@@ -20,3 +20,7 @@ node_modules/
 .pytest_cache/
 .ruff_cache/
 .pnpm-store/
+
+# Swift Package build state
+.build/
+.swiftpm/
