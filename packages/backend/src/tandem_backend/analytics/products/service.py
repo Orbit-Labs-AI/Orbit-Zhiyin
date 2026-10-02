@@ -85,7 +85,7 @@ def build_products(
         "rules_versions": versions,
         **{
             key: base[key]
-            for key in ("scope", "coverage", "source_coverage", "versions", "sample_boundary")
+            for key in ("scope", "coverage", "coverage_report", "source_coverage", "versions", "sample_boundary")
         },
         "lexical": base["lexical"],
         "statistics": base["statistics"],

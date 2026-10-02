@@ -45,10 +45,12 @@ def workflow(events, calls, main_ids, supported_kinds=None):
     for c in calls or []:
         by_session[c["session_uid"]].append(c)
     unknown_call_sessions = []
+    order_unknown = 0
     for sid, group in by_session.items():
         ordered = ordered_call_group(group)
         if ordered is None:
             unknown_call_sessions.append(sid)
+            order_unknown += len(group)
             continue
         previous, run = None, 0
         for c in ordered:
@@ -71,13 +73,15 @@ def workflow(events, calls, main_ids, supported_kinds=None):
             "consecutive_failed_calls": consecutive if calls is not None and not unknown_call_sessions else None,
             "max_consecutive_failure_run": max_failures if calls is not None and not unknown_call_sessions else None,
             "sequence_unknown_session_uids": sorted(unknown_call_sessions),
-            "confirmed_same_argument_failed_retries": same if digest_eligible else None,
-            "retry_eligible_pairs": digest_eligible, "sequences": dict(sequences)}
+            "confirmed_same_argument_failed_retries": same if digest_eligible and not order_unknown else None,
+            "retry_eligible_pairs": digest_eligible if calls is not None and not order_unknown else None,
+            "order_unknown_n": order_unknown if calls is not None else None, "sequences": dict(sequences)}
 
 
 def analyze_execution_sequence(calls):
     """Stricter retry links alongside the compatible v1 workflow counters."""
     groups, retries, failures, unknown_sessions = defaultdict(list), [], [], []
+    order_unknown = 0
     for c in calls or []:
         groups[c["session_uid"]].append(c)
         status = result_status(c)
@@ -93,6 +97,7 @@ def analyze_execution_sequence(calls):
         ordered = ordered_call_group(group)
         if ordered is None:
             unknown_sessions.append(sid)
+            order_unknown += len(group)
             continue
         prior, previous = {}, None
         for c in ordered:
@@ -118,7 +123,8 @@ def analyze_execution_sequence(calls):
                                         + ([] if scope_same else ["status_scope"])
                                         + ([] if explicit or digest_known else ["argument_digest_identity"])})
             prior[c["call_uid"]], previous = c, c
-    return {"retry_links": retries if calls is not None else None,
+    return {"retry_order_unknown_n": order_unknown if calls is not None else None,
+            "retry_links": retries if calls is not None else None,
             "retry_sequence_unknown_session_uids": sorted(unknown_sessions),
             "failure_reasons": failures if calls is not None else None,
             "failure_reason_unknown_n": sum(r["failure_reason"] is None for r in failures) if calls is not None else None}
