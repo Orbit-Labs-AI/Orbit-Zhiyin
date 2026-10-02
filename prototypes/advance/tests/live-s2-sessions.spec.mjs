@@ -21,6 +21,8 @@ async function open(page, extra) {
   const gw = await stubGateway(page, ['core', 's2'], Object.assign({ 'GET /v1/uiview/sessions': sessionsRoute }, extra || {}));
   await openLive(page, 'sessions');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  // TL changes render on the next animation frame (90-live-core.js): let that frame land before the test types into the page
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))));
   return { gw, errors };
 }
 const noPlainTables = async (page) => expect(await page.locator('.tl-table, .tl-kpi').count()).toBe(0);

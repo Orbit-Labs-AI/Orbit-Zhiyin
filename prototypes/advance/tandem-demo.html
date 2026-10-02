@@ -11434,7 +11434,9 @@ if (TL.mode === 'live') {
     }
     if (pol.data && pol.data.matrix) NEV.forEach((e) => { const k = polKey(pol.data.matrix, e[0]); if (k) { const ch = pol.data.matrix[k] || []; S.notif[e[0]] = ['banner', 'hud', 'badge'].map((x) => (ch.indexOf(x) >= 0 ? 1 : 0)); } });
     if (snz.data) S.hud.mute = (snz.data.items || []).some((x) => x.scope === 'global' && Date.parse(x.until) > Date.now());
-    if (attn.data && attn.updatedAt !== TLS.attnAt) {
+    // the realtime snapshot owns S.attn / S.waitOpen once it is in (98-live-ops tloApply runs before every render); applying the
+    // attention list on top would leave it clobbered until some later render, which the unchanged-state skip may never run
+    if (attn.data && attn.updatedAt !== TLS.attnAt && !(TL.ops && TL.ops.rt)) {
       TLS.attnAt = attn.updatedAt;
       const has = (k) => (attn.data.items || []).some((i) => tlsKind(i.type) === k);
       ['stuck', 'ctx'].forEach((k) => { if (has(k)) S.attn.add(k); else S.attn.delete(k); });
