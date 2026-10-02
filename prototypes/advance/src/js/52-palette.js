@@ -19,17 +19,18 @@ function palActions() {
     { t: '清除所有筛选', icon: 'filter', run: () => ACT.clearAllFilters() },
     { t: '部署相关会话', icon: 'sessions', run: () => { S.topic = 'design'; S.sess.q = '部署'; go('sessions'); } },
     { t: '键盘快捷键', k: '?', icon: 'info', run: () => openKeys() }
-  ];
+  ].filter((a) => !LV.live || a.t !== '部署相关会话');   // live: the demo topic shortcut has no real counterpart
 }
 function palItems(q) {
   q = q.trim().toLowerCase();
   const m = (t) => !q || String(t).toLowerCase().includes(q);
-  const out = [];
+  const out = []; const have = new Set();   // live: keys of local rows, so /v1/search hits are not listed twice
   navRoutes().forEach((r, i) => { if (m(r[1]) || m(r[0])) out.push({ g: '页面', t: r[1], k: kb('⌥' + (i + 1)), icon: r[2] || r[0], run: () => go(r[0]) }); });
-  if (q) PJ.forEach((p) => { if (m(p.name) || m(p.path)) out.push({ g: '项目', t: p.name, sub: p.path, icon: 'projects', run: () => { S.proj.sel = p.id; go('projects'); } }); });
-  ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id) && (q ? m(s.title) || m(PJI[s.p].name) : s.d >= 119)).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
-    .forEach((s) => out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => ACT.openSession({ dataset: { id: s.id } }) }));
-  RECS.filter((r) => m(r.title) || m(r.type) || m(r.why)).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + r.gain, icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
+  if (q) PJ.forEach((p) => { if (m(p.name) || m(p.path)) { have.add('p:' + p.id); out.push({ g: '项目', t: p.name, sub: p.path, icon: 'projects', run: () => { S.proj.sel = p.id; go('projects'); } }); } });
+  ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id) && (q ? m(s.title) || m(PJI[s.p].name) : (LV.live || s.d >= LASTDAY))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
+    .forEach((s) => have.add('s:' + s.id) && out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => ACT.openSession({ dataset: { id: s.id } }) }));
+  if (LV.live) lvSearchMerge(out, q, have);
+  RECS.filter((r) => (!LV.live || (r.live && !q)) && (m(r.title) || m(r.type) || m(r.why))).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + r.gain, icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
   palActions().filter((a) => m(a.t)).forEach((a) => out.push(Object.assign({ g: '操作' }, a)));
   return out;
 }
