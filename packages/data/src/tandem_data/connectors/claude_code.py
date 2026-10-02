@@ -89,6 +89,8 @@ class ClaudeMapper(BaseMapper):
         typ = data.get("type")
         if typ in ("user", "assistant"):
             message = data.get("message", {})
+            if isinstance(message, str):
+                message = {"role": typ, "content": message}
             if not isinstance(message, dict):
                 return self.unknown(record)
             self.model = message.get("model", self.model)
@@ -300,6 +302,25 @@ class ClaudeMapper(BaseMapper):
             )
         elif typ == "progress":
             events.append(self.make(record, "ui.state", "progress", ext=data))
+        elif typ in ("started", "completed", "failed", "cancelled") and data.get("agentId"):
+            events.append(
+                self.make(
+                    record,
+                    "subagent.spawn" if typ == "started" else "subagent.result",
+                    "agent." + typ,
+                    attrs={
+                        "child_native_id": data["agentId"],
+                        "status": "running" if typ == "started" else typ,
+                    },
+                    ext=data,
+                )
+            )
+        elif typ == "summary":
+            events.append(
+                self.make(
+                    record, "context.compaction", "summary", text=data.get("summary"), ext=data
+                )
+            )
         else:
             return (
                 Mapping(events, "ignored", "non-trajectory UI record")

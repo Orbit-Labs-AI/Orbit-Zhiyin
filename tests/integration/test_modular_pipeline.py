@@ -210,3 +210,160 @@ def test_staging_bridge_is_usable_after_native_source_is_gone(tmp_path):
     assert CanonicalStore(home).counts()["sessions"] == 3
     assert maintain(home, "verify")["unparsed"] == 0
     assert ingest_staging(home, staging)["import"]["imported_revisions"] == 0
+
+
+def test_cli_progress_uses_stderr_and_preserves_json(tmp_path, capsys):
+    root, home = demo_home(tmp_path / "codex"), tmp_path / "data"
+    main(["--home", str(home), "ingest", "--agent", "codex", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["import"]["current_unparsed"] == 0
+    for stage in ("capture", "reset_projection", "prepare", "map", "derive", "published"):
+        assert stage in captured.err
+    main(["--home", str(home), "--no-progress", "rebuild"])
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out)["tables"]["session"] == 3
+
+
+def test_interrupted_projection_keeps_published_facts_and_can_retry(data):
+    home, _ = data
+    before = CanonicalStore(home).read_bundle()
+
+    def cancel(update):
+        if update["stage"] == "derive":
+            raise KeyboardInterrupt
+
+    with Store(home) as store:
+        with pytest.raises(KeyboardInterrupt):
+            store.rebuild(progress=cancel)
+    after = CanonicalStore(home).read_bundle()
+    assert after["projection_run_id"] == before["projection_run_id"]
+    assert after["events"] == before["events"]
+    maintain(home, "rebuild")
+    assert CanonicalStore(home).counts()["events"] == len(before["events"])
+
+
+def test_cli_interrupt_has_actionable_message_not_traceback(monkeypatch, capsys):
+    def cancel(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("tandem_backend.data_access.ingest.maintain", cancel)
+    with pytest.raises(SystemExit) as error:
+        main(["rebuild"])
+    assert error.value.code == 130
+    captured = capsys.readouterr()
+    assert "已中断" in captured.err and "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize("command", ["analytics", "report"])
+def test_cli_event_budget_is_explicit_and_no_partial_report(data, tmp_path, capsys, command):
+    home, _ = data
+    output = tmp_path / ("result.json" if command == "analytics" else "report")
+    args = ["--home", str(home), "--no-progress", "--max-events", "1", command, "--output", str(output)]
+    with pytest.raises(SystemExit) as error:
+        main(args)
+    assert error.value.code == 2
+    message = capsys.readouterr().err
+    assert "--max-events" in message and "--from-ts" in message and "Traceback" not in message
+    assert not output.exists()
+    args[4] = "1000"
+    main(args)
+    assert output.exists()
+
+
+def test_report_time_scope_uses_same_canonical_selector_as_analytics(data):
+    store = CanonicalStore(data[0])
+    scope = Scope(from_ts=1767225603000, until_ts=1767225604000)
+    snapshot = store.report_snapshot(from_ts=scope.from_ts, until_ts=scope.until_ts)
+    bundle = store.read_bundle(scope)
+    assert {e.id for e in snapshot.events()} == set(bundle["statistical_members"]["event_uids"])
+
+
+def test_over_budget_read_rejects_before_decoding_event_payloads(data, monkeypatch):
+    import tandem_data.analysis_input as reader
+
+    original = reader.decoded
+
+    def guard(row):
+        assert "event_uid" not in row.keys(), "over-budget payload must not be materialized"
+        return original(row)
+
+    monkeypatch.setattr(reader, "decoded", guard)
+    with pytest.raises(ValueError, match="event limit exceeded"):
+        reader.read_analysis(data[0], AnalysisScope("UTC"), max_events=1)
+
+
+def test_projection_probes_each_project_once_but_refreshes_next_run(tmp_path, monkeypatch):
+    root, home, project = demo_home(tmp_path / "codex"), tmp_path / "data", tmp_path / "project"
+    project.mkdir()
+    for path in root.rglob("*.jsonl"):
+        path.write_text(path.read_text().replace("/fictional/sample-project", str(project)))
+    probes = []
+
+    def git_probe(path, *args):
+        probes.append((path, args))
+        return None
+
+    monkeypatch.setattr("tandem_data.reduce._git", git_probe)
+    ingest(home, "codex", root)
+    assert len(probes) == 1
+    maintain(home, "rebuild")
+    assert len(probes) == 2
+    assert CanonicalStore(home).counts()["sessions"] == 3
+
+
+def test_recorded_git_remote_needs_no_local_git_probe(tmp_path, monkeypatch):
+    from tandem_data.reduce import project_for
+
+    def forbidden(*args):
+        raise AssertionError("known remote identity needs no Git subprocess")
+
+    monkeypatch.setattr("tandem_data.reduce._git", forbidden)
+    with Store(tmp_path / "data") as store:
+        pid = project_for(store, str(tmp_path), "https://example.com/team/repo.git")
+        row = store.db.execute("SELECT * FROM project WHERE project_id=?", (pid,)).fetchone()
+        assert row["key_type"] == "git_remote" and row["key"] == "example.com/team/repo"
+
+
+def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
+    store = CanonicalStore(data[0])
+    full = store.read_bundle()
+    compact = store.read_bundle(include_native=False)
+    assert any(e["ext"] for e in full["events"])
+    assert all(e["ext"] == {} for e in compact["events"])
+    assert [{k: v for k, v in e.items() if k != "ext"} for e in full["events"]] == [
+        {k: v for k, v in e.items() if k != "ext"} for e in compact["events"]]
+    assert compact["coverage"]["native_event_payload"]["status"] == "excluded"
+    assert all(e["ext"] == {} for e in store.analysis_bundle().events)
+    assert store.evidence(full["events"][0]["event_uid"]) is not None
+
+
+@pytest.mark.parametrize("schema_version", [4, 5, 6])
+def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_version):
+    home, _ = data
+    with Store(home) as store:
+        if schema_version == 4:
+            store.db.execute("DROP TABLE inventory_item")
+            store.db.execute("DROP TABLE inventory_scan")
+        store.db.execute(f"PRAGMA user_version={schema_version}")
+        store.db.execute("UPDATE schema_manifest SET schema_version=?", (schema_version,))
+        names = [r[0] for r in store.db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'projection_fk_%'")]
+        assert len(names) == 7
+        for name in names:
+            store.db.execute(f'DROP INDEX "{name}"')
+    with Store(home) as store:
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert store.db.execute("SELECT count(*) FROM inventory_scan").fetchone()[0] == 0
+        assert store.db.execute("SELECT count(*) FROM inventory_item").fetchone()[0] == 0
+        store.db.execute("BEGIN")
+        store.db.execute("PRAGMA defer_foreign_keys=ON")
+        roots = {r["rootpage"]: r["name"] for r in store.db.execute("SELECT name,rootpage FROM sqlite_master")}
+        for table in ("session", "turn", "tool_call"):
+            row = store.db.execute(f"SELECT * FROM {table} LIMIT 1").fetchone()
+            columns = ",".join(row.keys())
+            placeholders = ",".join("?" for _ in row)
+            plan = store.db.execute(f"EXPLAIN INSERT INTO {table} ({columns}) VALUES ({placeholders})", tuple(row)).fetchall()
+            cursors = {op[2]: roots.get(op[3]) for op in plan if op[1] == "OpenRead"}
+            scans = {cursors.get(op[2]) for op in plan if op[1] == "Rewind"}
+            assert not scans & {"session", "tool_call", "model_call", "link"}
+        store.db.execute("ROLLBACK")

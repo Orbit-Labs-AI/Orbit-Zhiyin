@@ -34,3 +34,5 @@ bash scripts/test-local-codex-recommend.sh
 每次运行创建 `.local/codex-recommend/run-<时间>-<标识>/`，保存 `data/tandem.db`、原始归档、selection / import / verify / analytics / recommendations / summary JSON 和 `report.md`。真实结果只留在忽略目录。显式 `--output` 必须是新目录，避免旧会话混入新样本；仓库内输出必须位于 `.local`。
 
 退出码 0 表示完成并产生 Skill 推荐，2 表示链路完成但没有匹配，1 表示导入／核验／分析失败。零推荐不会回退到构造数据或自动降低门槛；具体原因保留在 recommendations.json 的 assessments、excluded_resources 和 diagnostics。未提供成本及改善假设时，收益仍为未知。
+
+UI 分析组合验收：`uv run python -m evals.analytics.products --synthetic`；真实来源通过 `--source AGENT=ROOT` 显式启用，命令、样本范围和报告见[分析验收](../docs/modules/analytics/analysis-products.md)。
