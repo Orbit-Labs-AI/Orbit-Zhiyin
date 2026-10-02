@@ -1,56 +1,33 @@
 """Second redaction pass for anything sent to a model (EV-14), plus token estimates.
 
 `privacy.redact` guards persistence (keys, auth); this pass also hides identity:
-emails, home-directory user names, the local user name and private hosts.
+emails, home-directory user names, the local user name, private hosts, phone numbers and
+user-defined patterns. The rule table and toggles live in ``privacy_rules``.
 """
 
 from __future__ import annotations
 
 import json
 import math
-import os
 import re
-from pathlib import Path
 
-from tandem_backend import privacy
+from tandem_backend import privacy, privacy_rules
 
-_MARKERS = ("[密钥已隐藏]", "[认证已隐藏]")
-_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
-_HOME_PATH = re.compile(r"/(?:Users|home)/[A-Za-z0-9._-]+")
-_PRIVATE_IP = re.compile(
-    r"(?<![\d.])(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168|127\.\d{1,3})\.\d{1,3}\.\d{1,3}(?![\d.])")
-_LOCAL_HOST = re.compile(r"(?<![A-Za-z0-9_.-])[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:local|internal)(?![A-Za-z0-9_-])")
-_GENERIC_NAMES = {"root", "user", "users", "admin", "home", "runner", "shared", "guest"}
-_CJK = re.compile(r"[　-〿㐀-鿿豈-﫿＀-￯]")
+_CJK = re.compile(r"[　-〿㐀-鿿豈-﫿＀-￯]")
 
 
-def _user_names() -> list[str]:
-    names = {Path.home().name, os.environ.get("USER", ""), os.environ.get("LOGNAME", "")}
-    return sorted(n for n in names if len(n) >= 3 and n.lower() not in _GENERIC_NAMES)
+def redact2(text: str, *, human: bool = False, rules: dict | None = None) -> tuple[str, int]:
+    """Return (redacted text, hit count). Idempotent on already-redacted text.
 
-
-def redact2(text: str, *, human: bool = False) -> tuple[str, int]:
-    """Return (redacted text, hit count). Idempotent on already-redacted text."""
+    ``rules`` is a ``privacy_rules`` config ({"enabled": {...}, "custom": [...]}); the
+    default is the user's current rule set (all built-in rules when nothing is stored).
+    """
     if not text:
         return text or "", 0
     if human:
         text = privacy.direct_user_text(text)
-    before = sum(text.count(m) for m in _MARKERS)
-    text = privacy.redact(text)
-    hits = sum(text.count(m) for m in _MARKERS) - before
-    text, n = _EMAIL.subn("[email]", text)
-    hits += n
-    text, n = _HOME_PATH.subn("~", text)
-    hits += n
-    text, n = _PRIVATE_IP.subn("[host]", text)
-    hits += n
-    text, n = _LOCAL_HOST.subn("[host]", text)
-    hits += n
-    for name in _user_names():
-        text, n = re.subn(r"(?<![A-Za-z0-9_])" + re.escape(name) + r"(?![A-Za-z0-9_])", "[user]", text,
-                          flags=re.I)
-        hits += n
-    return text, hits
+    text, hits = privacy_rules.apply(text, rules)
+    return text, len(hits)
 
 
 def _is_id_key(key) -> bool:

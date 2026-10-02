@@ -188,6 +188,7 @@ class Gateway:
         self.supervisor.ingest.jobs = self.jobs
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
+        self.hourly_sync_s = 3600.0
         self.prewarm_timer: threading.Timer | None = None
         self.prewarm_heavy = False
         self.lock = threading.Lock()
@@ -276,7 +277,8 @@ class Gateway:
         if rev["data_rev"] is None or self.stopping.is_set():
             return []
         state = self.state.snapshot()
-        scopes = [default_scope(state["settings"].get("default_range_days", 30))]
+        # default_range_days 0 means "all time" (the scope-less default).
+        scopes = [default_scope(state["settings"].get("default_range_days", 30) or None)]
         scopes += [s for s in state["mru_scopes"][: self.prewarm_mru] if s not in scopes]
         sections = LIGHT + (HEAVY if self.prewarm_heavy else ())
         # Light sections of every scope first, then heavy ones.
@@ -298,6 +300,13 @@ class Gateway:
                 queued.append(task.id)
         return queued
 
+    def next_sync_interval(self, mode: str | None, interval: float, changed: bool) -> float:
+        """``hour``: a fixed hourly import; ``live``: adaptive 2 s → 30 s backoff."""
+        low, high = self.sync_interval_s
+        if mode == "hour":
+            return self.hourly_sync_s
+        return low if changed else min(high, interval * 2)
+
     def _sync_loop(self) -> None:
         """Continuous sync (opt-in): adaptive polling 2 s → 30 s while nothing changes."""
         low, high = self.sync_interval_s
@@ -310,12 +319,13 @@ class Gateway:
             state = self.state.snapshot()
             enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
             catch_up = collection.consume_catch_up()
-            if (state["settings"].get("sync_mode") != "live" and not catch_up) or not enabled:
+            mode = state["settings"].get("sync_mode")
+            if (mode not in ("live", "hour") and not catch_up) or not enabled:
                 interval = high
                 continue
             last = next((j for j in self.state.jobs() if j.get("origin") == "sync"), None)
             changed = bool(last and any(r.get("changed") for r in last.get("results") or []))
-            interval = low if changed else min(high, interval * 2)
+            interval = self.next_sync_interval(mode, interval, changed)
             try:
                 self.jobs.submit("import", enabled, phase="full", origin="sync")
             except (JobConflict, ValueError):
