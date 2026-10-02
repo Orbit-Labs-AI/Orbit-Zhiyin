@@ -35,6 +35,7 @@ class Platform:
         self.notifier = Notifier(gw)
         self.collection = Collection(gw)
         self.job_started: dict[str, float] = {}
+        self.observers: list = []  # Extra bus taps (e.g. shell producers); never block.
         revisions = getattr(gw, "revisions", None)
         if revisions is not None:
             def data_rev():
@@ -108,5 +109,10 @@ class Platform:
             elif topic == "service" and data.get("state") == "degraded":
                 logs.log_event("service_degraded", logging.WARNING, name=data.get("name"))
             self.notifier.observe(topic, event, data)
+            for observer in list(self.observers):
+                try:
+                    observer(topic, event, data)
+                except Exception:  # noqa: BLE001
+                    logs.log.exception("bus observer failed", extra={"ev": "observe_failed"})
         except Exception:  # noqa: BLE001
             logs.log.exception("platform observe failed", extra={"ev": "observe_failed"})
