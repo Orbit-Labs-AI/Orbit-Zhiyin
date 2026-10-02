@@ -78,6 +78,7 @@ class CodexMapper(BaseMapper):
         self.parent = None
         self.prepared_turn = None
         self.ui_keys = {}
+        self.ui_messages = {}
         self.rollback_ranges = []
         self.human_starts = []
         self.last_human_turn = None
@@ -124,6 +125,7 @@ class CodexMapper(BaseMapper):
                 signature = (role, self.prepared_turn, text_content(item.get("content")))
                 native = item.get("id") or "ui:" + record.record_uid
                 self.ui_keys[record.record_uid] = native
+                self.ui_messages[native] = {**item, "role": role}
                 self.messages.setdefault(signature, []).append((record.ordinal, native))
         if data.get("type") == "event_msg" and payload.get("type") in (
             "user_message",
@@ -137,6 +139,11 @@ class CodexMapper(BaseMapper):
             )
             native = payload.get("id") or "ui:" + record.record_uid
             self.ui_keys[record.record_uid] = native
+            self.ui_messages[native] = {
+                "role": role,
+                "content": payload.get("message", payload.get("content")),
+                "phase": payload.get("phase"),
+            }
             self.messages.setdefault(signature, []).append((record.ordinal, native))
 
     def native_key(self, record):
@@ -370,8 +377,13 @@ class CodexMapper(BaseMapper):
                     matching = [
                         (ordinal, native)
                         for ordinal, native in candidates
-                        if abs(ordinal - record.ordinal) <= 2
+                        if (turn is not None or abs(ordinal - record.ordinal) <= 2)
                         and native not in self.matched_messages
+                        and (
+                            not payload.get("phase")
+                            or not self.ui_messages[native].get("phase")
+                            or payload["phase"] == self.ui_messages[native]["phase"]
+                        )
                     ]
                 pair = (
                     min(matching, key=lambda item: abs(item[0] - record.ordinal))
@@ -395,7 +407,19 @@ class CodexMapper(BaseMapper):
                     else "injected"
                 )
                 return Mapping(
-                    self.message(record, payload, origin=origin, key=key, native_turn_id=turn)
+                    self.message(
+                        record,
+                        {
+                            **payload,
+                            **self.ui_messages[key_id],
+                            "phase": self.ui_messages[key_id].get("phase") or payload.get("phase"),
+                        }
+                        if pair
+                        else payload,
+                        origin=origin,
+                        key=key,
+                        native_turn_id=turn,
+                    )
                 )
             if item_type in (
                 "function_call",
@@ -622,6 +646,7 @@ class CodexMapper(BaseMapper):
             if etype == "item_completed":
                 item = payload.get("item", {})
                 itype, native = item.get("type"), item.get("id")
+                native = native or self.ui_keys.get(record.record_uid)
                 key = (
                     [record.source_id, self.session_uid, native]
                     if native

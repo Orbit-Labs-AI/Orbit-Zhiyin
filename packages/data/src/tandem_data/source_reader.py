@@ -199,7 +199,7 @@ def record_source(home, record_uid, *, include_content=False):
 def archived_source(db, home, record_uid, *, include_content=False):
     """Read existing archives without migrating or creating another copy."""
     row = db.execute(
-        "SELECT r.*,a.path,f.format,s.root_path,f.relative_path FROM raw_record r "
+        "SELECT r.*,a.path,COALESCE(json_extract(v.source_stat,'$.capture_format'),f.format) AS format,s.root_path,f.relative_path FROM raw_record r "
         "JOIN source_revision v USING(revision_uid) LEFT JOIN archive_blob a USING(archive_uid) "
         "JOIN source_file f ON f.file_id=r.file_id JOIN source s USING(source_id) WHERE record_uid=?",
         (record_uid,),

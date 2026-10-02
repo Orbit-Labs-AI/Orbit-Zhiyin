@@ -79,6 +79,7 @@ def index_file(store, source_id, path, role):
     revision = latest["revision"] + 1 if latest else 1
     revision_uid = uid("revision", file_id, revision)
     with store.transaction():
+        store._remember_archive_formats(file_id)
         store.db.execute(
             "INSERT INTO source_file(file_id,source_id,relative_path,role,format,last_scan_at) VALUES(?,?,?,?,?,?) "
             "ON CONFLICT(file_id) DO UPDATE SET relative_path=excluded.relative_path,status='active',role=excluded.role,format=excluded.format,last_scan_at=excluded.last_scan_at",
@@ -110,6 +111,10 @@ def index_file(store, source_id, path, role):
             and latest["archive_uid"] is None
             and previous.get("source_sha256") == sha
             and latest["role"] == role
+            and not store.db.execute(
+                "SELECT 1 FROM ingest_issue WHERE file_id=? AND code='source_unavailable'",
+                (file_id,),
+            ).fetchone()
         )
         if unchanged:
             store.db.execute("DELETE FROM record_location WHERE revision_uid=?", (revision_uid,))

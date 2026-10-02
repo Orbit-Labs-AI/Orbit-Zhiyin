@@ -46,6 +46,10 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
         sessions = "SELECT session_uid FROM session_identity WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
         evidence = "SELECT event_uid FROM event WHERE session_uid IN (" + sessions + ")"
         source_files = "SELECT file_id FROM source_file WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
+        from tandem_data.retained import RetainedProjection
+
+        retained = RetainedProjection(store)
+        store._unavailable_files = set(retained.files)
         store.db.execute(
             "DELETE FROM tool_call_event WHERE call_uid IN (SELECT call_uid FROM tool_call WHERE session_uid IN ("
             + sessions
@@ -85,7 +89,10 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             )
         )
         mappers = {}
+        retained.restore(store, sequences, first_by_native)
         for info in infos:
+            if info["file_id"] in retained.files:
+                continue
             if info["role"] == "legacy_transcript":
                 store.db.execute(
                     "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id=?",
@@ -228,6 +235,23 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                     if relation != "replayed":
                         attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
                         incoming = {**prepared_envelope, "seq": existing["seq"]}
+                        if attrs.get("source_status") == "missing":
+                            # A live representation wins over a preserved one with
+                            # the same native identity, including shorter corrected text.
+                            replacement = dict(incoming)
+                            for field in ("attrs", "ext", "native_key"):
+                                replacement[field] = canonical(replacement[field])
+                            fields = [field for field in replacement if field != "event_uid"]
+                            store.db.execute(
+                                "UPDATE event SET "
+                                + ",".join(f"{field}=?" for field in fields)
+                                + " WHERE event_uid=?",
+                                [replacement[field] for field in fields] + [draft.event_uid],
+                            )
+                            existing = store.db.execute(
+                                "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
+                            ).fetchone()
+                            attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
                         merged, merged_ext = (
                             _merge(attrs, incoming["attrs"]),
                             _merge(ext, incoming["ext"]),
@@ -374,6 +398,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                         "UPDATE raw_record SET session_uid=? WHERE file_id=?",
                         (session_uid, info["file_id"]),
                     )
+        retained.finish(store, infos)
         for record, result in pending:
             resolved = [
                 event_uid

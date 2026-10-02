@@ -396,6 +396,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
         )
         if capture_errors:
             reasons.append("capture_errors_or_incomplete_frames")
+        if any(row["code"] == "source_unavailable" for row in diagnostics):
+            reasons.append("source_unavailable_preserved_facts")
         if unparsed:
             reasons.append("unparsed_source_records")
         if unknown:

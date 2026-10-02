@@ -300,7 +300,12 @@ class Store:
         relative = Path(relative_path)
         if relative.is_absolute() or ".." in relative.parts:
             raise ValueError("Relative source location must stay within its root")
-        file_id = uid("file", source_id, relative_path)
+        existing = self.db.execute(
+            "SELECT file_id FROM source_file WHERE source_id=? AND relative_path=?",
+            (source_id, relative_path),
+        ).fetchone()
+        file_id = existing["file_id"] if existing else uid("file", source_id, relative_path)
+        source_stat = {**(source_stat or {}), "capture_format": format_name}
         digest = hashlib.sha256()
         byte_len = 0
         with tempfile.NamedTemporaryFile(dir=self.raw_dir, delete=False) as temporary:
@@ -336,9 +341,10 @@ class Store:
                 captured_at,
             ),
         )
+        self._remember_archive_formats(file_id)
         self.db.execute(
             "INSERT INTO source_file(file_id,source_id,relative_path,role,format,last_scan_at) "
-            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',watermark=CASE WHEN role<>excluded.role THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=excluded.role,last_scan_at=excluded.last_scan_at",
+            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',watermark=CASE WHEN role<>excluded.role OR format<>excluded.format THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=excluded.role,format=excluded.format,last_scan_at=excluded.last_scan_at",
             (file_id, source_id, relative_path, role, format_name, captured_at),
         )
         with self._index_transaction(source_id, file_id, uid("archive", sha)):
@@ -346,7 +352,11 @@ class Store:
                 "SELECT * FROM source_revision WHERE file_id=? ORDER BY revision DESC LIMIT 1",
                 (file_id,),
             ).fetchone()
-            if latest and latest["archive_uid"] == uid("archive", sha):
+            if (
+                latest
+                and latest["archive_uid"] == uid("archive", sha)
+                and json.loads(latest["source_stat"]).get("capture_format") == format_name
+            ):
                 # Cache the latest stat without mutating immutable capture provenance.
                 self.db.execute(
                     "UPDATE source_file SET watermark=json_set(watermark,'$.last_source_stat',json(?)) WHERE file_id=?",
@@ -394,6 +404,16 @@ class Store:
             )
         self._resolve_capture_issues(source_id, file_id)
         return {"file_id": file_id, "changed": True, "records": count}
+
+    def _remember_archive_formats(self, file_id):
+        # Backfill old revisions before the mutable source_file encoding changes.
+        # Future revisions write this provenance at capture time.
+        self.db.execute(
+            "UPDATE source_revision SET source_stat=json_set(source_stat,'$.capture_format',"
+            "(SELECT format FROM source_file f WHERE f.file_id=source_revision.file_id)) "
+            "WHERE file_id=? AND archive_uid IS NOT NULL AND json_type(source_stat,'$.capture_format') IS NULL",
+            (file_id,),
+        )
 
     def _index_lines(self, file_id, revision_uid, lines, format_name, role, *, reference=False):
         previous = {
@@ -553,6 +573,8 @@ class Store:
     def iter_file(self, file_id: str) -> Iterable[RawRecord]:
         from tandem_data.indexing import iter_indexed_file
 
+        if file_id in getattr(self, "_unavailable_files", ()):
+            return  # Rebuild retains published facts; never invent missing native records.
         latest = self.db.execute(
             "SELECT archive_uid FROM source_revision WHERE file_id=? ORDER BY revision DESC LIMIT 1",
             (file_id,),
@@ -561,7 +583,7 @@ class Store:
             yield from iter_indexed_file(self, file_id)
             return
         info = self.db.execute(
-            "SELECT f.*,s.agent,r.revision_uid,a.path FROM source_file f "
+            "SELECT f.*,s.agent,r.revision_uid,a.path,COALESCE(json_extract(r.source_stat,'$.capture_format'),f.format) AS archive_format FROM source_file f "
             "JOIN source s USING(source_id) JOIN source_revision r USING(file_id) "
             "JOIN archive_blob a USING(archive_uid) WHERE f.file_id=? "
             "ORDER BY r.revision DESC LIMIT 1",
@@ -569,17 +591,18 @@ class Store:
         ).fetchone()
         if not info:
             return
-        with self._decoded(self.home / info["path"], info["format"]) as handle:
-            for ordinal, line in enumerate(_record_lines(handle, info["format"])):
+        format_name = info["archive_format"]
+        with self._decoded(self.home / info["path"], format_name) as handle:
+            for ordinal, line in enumerate(_record_lines(handle, format_name)):
                 try:
-                    if info["format"] in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
+                    if format_name in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
                         continue
                     data = json.loads(line)
                     if not isinstance(data, dict):
                         continue
                     locator = (
                         canonical(["row", data["table"], data["key"]])
-                        if info["format"] == "sqlite_rows"
+                        if format_name == "sqlite_rows"
                         else canonical(["line", ordinal])
                     )
                 except (ValueError, KeyError, TypeError, UnicodeDecodeError):
@@ -609,40 +632,37 @@ class Store:
             "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id) WHERE file_id=?",
             (file_id,),
         ).fetchone()
-        latest = self.db.execute(
-            "SELECT archive_uid FROM source_revision WHERE file_id=? ORDER BY revision DESC LIMIT 1",
-            (file_id,),
-        ).fetchone()
-        if latest and latest["archive_uid"] is None:
-            for row in self.db.execute(
-                "SELECT r.*,o.observation,v.captured_at FROM raw_record r JOIN usage_observation o USING(record_uid) "
-                "JOIN source_revision v USING(revision_uid) WHERE r.file_id=? AND r.native_type=? ORDER BY v.revision,r.ordinal",
-                (file_id, native_type),
-            ):
-                yield RawRecord(
-                    row["record_uid"],
-                    info["source_id"],
-                    info["agent"],
-                    file_id,
-                    info["relative_path"],
-                    row["ordinal"],
-                    row["version"],
-                    native_type,
-                    json.loads(row["observation"]),
-                    row["captured_at"],
-                )
-            return
         for revision in self.db.execute(
-            "SELECT v.*,a.path FROM source_revision v JOIN archive_blob a USING(archive_uid) WHERE file_id=? ORDER BY revision",
+            "SELECT v.*,a.path FROM source_revision v LEFT JOIN archive_blob a USING(archive_uid) WHERE file_id=? ORDER BY revision",
             (file_id,),
         ).fetchall():
+            if revision["archive_uid"] is None:
+                for row in self.db.execute(
+                    "SELECT r.*,o.observation FROM raw_record r JOIN usage_observation o USING(record_uid) "
+                    "WHERE r.revision_uid=? AND r.native_type=? ORDER BY r.ordinal",
+                    (revision["revision_uid"], native_type),
+                ):
+                    yield RawRecord(
+                        row["record_uid"],
+                        info["source_id"],
+                        info["agent"],
+                        file_id,
+                        info["relative_path"],
+                        row["ordinal"],
+                        row["version"],
+                        native_type,
+                        json.loads(row["observation"]),
+                        revision["captured_at"],
+                    )
+                continue
             targets = self.db.execute(
                 "SELECT * FROM raw_record WHERE revision_uid=? AND native_type=? ORDER BY byte_offset",
                 (revision["revision_uid"], native_type),
             ).fetchall()
             if not targets:
                 continue
-            with self._decoded(self.home / revision["path"], info["format"]) as handle:
+            format_name = json.loads(revision["source_stat"]).get("capture_format", info["format"])
+            with self._decoded(self.home / revision["path"], format_name) as handle:
                 position = 0
                 for row in targets:
                     remaining = row["byte_offset"] - position
@@ -674,7 +694,7 @@ class Store:
         if reference_info(self.db, record_uid) is not None:
             return read_reference(self.db, record_uid)
         row = self.db.execute(
-            "SELECT r.*,a.path,f.format FROM raw_record r JOIN source_revision v USING(revision_uid) "
+            "SELECT r.*,a.path,COALESCE(json_extract(v.source_stat,'$.capture_format'),f.format) AS format FROM raw_record r JOIN source_revision v USING(revision_uid) "
             "JOIN archive_blob a USING(archive_uid) JOIN source_file f USING(file_id) WHERE record_uid=?",
             (record_uid,),
         ).fetchone()
@@ -695,7 +715,10 @@ class Store:
     def rebuild(self, *, mapper_version=None, source_ids=None) -> dict:
         from tandem_data.pipeline import rebuild
 
-        return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
+        try:
+            return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
+        finally:
+            self._unavailable_files = set()
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event
@@ -712,7 +735,7 @@ class Store:
         # Verify locators and every L1 digest with linear reads, including superseded rows.
         records_verified = 0
         for revision in self.db.execute(
-            "SELECT v.revision_uid,a.path,f.format FROM source_revision v JOIN archive_blob a USING(archive_uid) JOIN source_file f USING(file_id)"
+            "SELECT v.revision_uid,a.path,COALESCE(json_extract(v.source_stat,'$.capture_format'),f.format) AS format FROM source_revision v JOIN archive_blob a USING(archive_uid) JOIN source_file f USING(file_id)"
         ).fetchall():
             targets = self.db.execute(
                 "SELECT byte_offset,byte_len,sha256 FROM raw_record WHERE revision_uid=? ORDER BY byte_offset",
