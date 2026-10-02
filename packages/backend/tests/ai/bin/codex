@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Fake `codex` CLI for tests: logs argv/stdin/cwd/env to $FAKE_LOG, acts per $FAKE_MODE."""
+
+import json
+import os
+import sys
+import time
+
+HELP = """Run Codex non-interactively
+Usage: codex exec [OPTIONS] [PROMPT]
+      --ephemeral               Do not persist the session
+      --json                    Print events as JSONL
+      --skip-git-repo-check     Allow running outside a git repo
+  -s, --sandbox <MODE>          read-only | workspace-write
+      --ignore-user-config      Ignore config.toml
+      --ignore-rules            Ignore rules files
+      --output-schema <FILE>    JSON Schema for the final message
+  -o, --output-last-message <FILE>
+  -m, --model <MODEL>
+  -C, --cd <DIR>
+"""
+mode = os.environ.get("FAKE_MODE", "ok")
+args = sys.argv[1:]
+if args == ["--version"]:
+    print("codex-cli 0.50.0")
+elif args == ["exec", "--help"]:
+    print(HELP)
+elif args[:2] == ["login", "status"]:
+    if mode == "notlogged":
+        print("Not logged in", file=sys.stderr)
+        sys.exit(1)
+    print("Logged in using ChatGPT")
+else:
+    stdin = sys.stdin.read()
+    with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as log:
+        log.write(json.dumps({"argv": sys.argv, "stdin": stdin, "cwd": os.getcwd(),
+                              "env": dict(os.environ)}) + "\n")
+    if mode == "sleep":
+        time.sleep(30)
+    if mode == "notlogged":
+        print(json.dumps({"type": "error", "message": "Not logged in; run codex login"}))
+        sys.exit(1)
+    out = args[args.index("-o") + 1]
+    print(json.dumps({"type": "thread.started", "thread_id": "t1"}))
+    for _ in range(2):
+        print(json.dumps({"type": "turn.completed",
+                          "usage": {"input_tokens": 500, "cached_input_tokens": 100,
+                                    "output_tokens": 25}}))
+    with open(out, "w", encoding="utf-8") as handle:
+        json.dump({"answer": "ok"}, handle)
