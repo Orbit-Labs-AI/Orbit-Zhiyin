@@ -291,7 +291,7 @@ test('live recs: A7 from fixtures, exposure, 不适用 with reason and 8-second 
   await expect(cards).toHaveCount(3);
   await expect(page.locator('#content')).not.toContainText('PR 收尾');
   await expect(cards.filter({ hasText: '只读命令自动放行' }).locator('.rc-save b')).toHaveText('≈ 1.2 h');
-  await expect(cards.filter({ hasText: '验收命令' }).locator('.rc-save b')).toHaveText('—');
+  await expect(cards.filter({ hasText: '验收命令' }).locator('.rc-save')).toHaveText('未估算');   // live: no benefit → 未估算 (fix-recs J16)
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   await expect.poll(() => gw.rec.posts.filter((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A7').flatMap((x) => x.body.items.map((i) => i.candidate_id)).sort()).toEqual(['fxc-allow', 'fxc-handoff', 'fxc-rule']);
   // open + detail + relations
