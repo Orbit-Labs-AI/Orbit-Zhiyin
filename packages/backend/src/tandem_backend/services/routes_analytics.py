@@ -100,9 +100,21 @@ ROUTE_PARAMS = frozenset({"wait_ms", "offset", "limit", "task_id"})
 UNSUPPORTED_FILTERS = frozenset({"weekday", "hour", "query", "q", "agent"})
 
 
+def _declared(request: Request) -> set[str]:
+    """Query parameters the matched route itself declares (e.g. ``first``/``second``)."""
+    route = request.scope.get("route")
+    names: set[str] = set()
+    pending = [route.dependant] if route is not None and hasattr(route, "dependant") else []
+    while pending:
+        dependant = pending.pop()
+        names.update(param.alias for param in dependant.query_params)
+        pending.extend(dependant.dependencies)
+    return names
+
+
 def reject_unknown_params(request: Request) -> None:
     """A filter the snapshot cannot apply must fail, not silently return the unfiltered scope."""
-    unknown = sorted(set(request.query_params) - SCOPE_PARAMS - ROUTE_PARAMS)
+    unknown = sorted(set(request.query_params) - SCOPE_PARAMS - ROUTE_PARAMS - _declared(request))
     if not unknown:
         return
     unsupported = [k for k in unknown if k in UNSUPPORTED_FILTERS]
