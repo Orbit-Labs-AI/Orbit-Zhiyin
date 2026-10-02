@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
+from tandem_data.models import PRICE_TABLE_VERSION
 from tandem_data.payload import restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
@@ -54,6 +55,22 @@ def decoded(row):
     for name in JSON_COLUMNS:
         if isinstance(result.get(name), str):
             result[name] = json.loads(result[name])
+    return result
+
+
+def model_call_row(row) -> dict:
+    """A model_call row with the request-boundary contract the token/cost analysis needs.
+
+    model_call only holds ``usage_scope='call'`` / ``measurement='delta'`` usage events (the
+    event CHECK and the reducer enforce it; cumulative snapshots live in usage_snapshot), and
+    each row is keyed by one native request key, so its boundary is reliable by construction.
+    """
+    result = decoded(row)
+    result.setdefault("usage_scope", "call")
+    result.setdefault("measurement", "delta")
+    result.setdefault("boundary_reliable", bool(result.get("call_uid")))
+    if result.get("cost_source") == "price_table":
+        result.setdefault("price_table_version", PRICE_TABLE_VERSION)
     return result
 
 
@@ -290,7 +307,7 @@ def read_analysis(
                     approval_wait_ms=None,
                 )
         models = [
-            decoded(row)
+            model_call_row(row)
             for row in connection.execute(
                 "SELECT * FROM v_analysis_model_call"
                 " WHERE +usage_event_uid IN (SELECT value FROM json_each(:members))",
