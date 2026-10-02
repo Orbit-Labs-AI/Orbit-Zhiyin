@@ -21,7 +21,8 @@ from tandem_data.store import Store, readonly_connection
 class DesktopService:
     """Own one task queue; each worker opens its own canonical database connection."""
 
-    def __init__(self, home: Path):
+    def __init__(self, home: Path, discovery=None):
+        self.source_discovery = discovery or candidates
         self.home = home.expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.lock_file = open(self.home / "desktop.lock", "a+")
@@ -80,7 +81,7 @@ class DesktopService:
         """Discovery reads names and file stats, not session bodies or credentials."""
         result = []
         configured = self.snapshot()["sources"].values()
-        roots = {(s["agent"], s["root"]) for s in [*candidates(), *configured]}
+        roots = {(s["agent"], s["root"]) for s in [*self.source_discovery(), *configured]}
         for agent, root in sorted(roots):
             source = {"agent": agent, "root": root}
             key = uid("source", source["agent"], source["root"])
@@ -146,6 +147,12 @@ class DesktopService:
             if any(j["status"] in ("queued", "running") for j in self.state["jobs"].values()):
                 raise RuntimeError("An application job is already active")
             sources = [self.state["sources"].get(key) for key in source_ids]
+            if any(source is None for source in sources):
+                raise ValueError("Unknown source")
+            if kind in ("verify", "backup") and source_ids:
+                raise ValueError("This maintenance job operates on the whole data home")
+            if kind in ("verify", "backup", "rebuild") and (limit or files_by_source):
+                raise ValueError("Maintenance does not read selected upstream files")
             if kind in ("import", "inventory") and (
                 not sources or any(not s or not s["enabled"] for s in sources)
             ):
@@ -192,11 +199,20 @@ class DesktopService:
                 if kind in ("verify", "rebuild", "backup"):
                     with service.writer():
                         if kind == "verify":
-                            results.append(store.verify())
+                            results.append(store.verify(progress=service.progress))
                         elif kind == "rebuild":
-                            results.append(store.rebuild())
+                            results.append(
+                                store.rebuild(
+                                    source_ids={source["id"] for source in sources}
+                                    if sources
+                                    else None,
+                                    progress=service.progress,
+                                )
+                            )
                         else:
                             results.append(self._backup(store))
+                if kind in ("verify", "rebuild", "backup"):
+                    sources = []  # Maintenance only touches saved archives, never upstream sources.
                 for source in sources:
                     if stop.is_set():
                         break

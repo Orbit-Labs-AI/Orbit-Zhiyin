@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
-from tandem_data.analysis_input import decoded
+from tandem_data.analysis_input import AnalysisLimitExceeded, decoded
 from tandem_data.connectors import MAPPERS
 from tandem_data.inventory import read_inventory
 
@@ -20,6 +20,7 @@ from .api import create_app
 from .app_contracts import JobResponse, SourceResponse, StorageResponse
 from .application import DesktopService
 from .data_access.store import CanonicalStore
+from .presentation import event_display, session_display
 
 
 class Command(BaseModel):
@@ -45,10 +46,10 @@ class SettingsCommand(Command):
     sync_mode: Literal["manual", "live"] | None = None
 
 
-def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
+def create_desktop_app(home: Path, token: str, assets: Path, *, discovery=None) -> FastAPI:
     if len(token) < 32:
         raise ValueError("Desktop token must contain at least 32 characters")
-    service = DesktopService(home)
+    service = DesktopService(home, discovery=discovery)
     app = create_app(home=home)
     store, cache = CanonicalStore(home), AnalyticsCache()
     app.state.desktop = service
@@ -92,6 +93,19 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
         return JSONResponse(
             {"error": {"code": "job_conflict", "message": str(error), "retryable": True}},
             status_code=409,
+        )
+
+    @app.exception_handler(AnalysisLimitExceeded)
+    async def large_analysis(request, error):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "analysis_scope_too_large",
+                    "message": "数据已完整保存；当前分析范围较大，请按时间、Agent 或项目缩小范围。",
+                    "retryable": False,
+                }
+            },
+            status_code=422,
         )
 
     @app.get("/app", response_class=HTMLResponse)
@@ -165,7 +179,7 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
     def inventory():
         return read_inventory(home)
 
-    def selection(agent=None, project=None, from_ts=None, until_ts=None):
+    def selection(agent=None, project=None, from_ts=None, until_ts=None, display_timezone="UTC"):
         roots = None
         if agent:
             with store.connect() as db:
@@ -177,7 +191,7 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
                     )
                 ]
         return Scope(
-            display_timezone="Asia/Shanghai",
+            display_timezone=display_timezone,
             project_ids=[project] if project else None,
             root_session_uids=roots,
             from_ts=from_ts,
@@ -205,9 +219,11 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
             if value is not None:
                 clauses.append(condition)
                 params.append(value)
+        first_prompt = "(CASE WHEN NULLIF(trim(s.title),'') IS NULL THEN (SELECT e.text FROM event e WHERE e.session_uid=s.session_uid AND e.kind='message.user' AND json_extract(e.attrs,'$.origin')='human' AND e.text IS NOT NULL AND trim(e.text)<>'' ORDER BY e.seq LIMIT 1) END)"
+        workflow_label = "(CASE WHEN NULLIF(trim(s.title),'') IS NULL AND s.kind='workflow_agent' THEN (SELECT json_extract(e.ext,'$.native.label') FROM event e WHERE e.session_uid=s.session_uid AND e.kind='unknown' AND e.event_path='raw' AND json_extract(e.ext,'$.native.type')='started' AND json_type(e.ext,'$.native.label')='text' ORDER BY e.seq LIMIT 1) END)"
         if q:
-            clauses.append("COALESCE(s.title,'') LIKE ?")
-            params.append("%" + q + "%")
+            clauses.append("(COALESCE(s.title,'') LIKE ? OR " + first_prompt + " LIKE ?)")
+            params.extend(["%" + q + "%", "%" + q + "%"])
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         base = (
             " FROM session s JOIN source src USING(source_id) LEFT JOIN project p ON p.project_id=s.project_id"
@@ -218,14 +234,18 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
             items = [
                 dict(r)
                 for r in db.execute(
-                    "SELECT s.session_uid,s.kind,s.title,s.started_at,s.ended_at,s.status,s.project_id,src.agent,p.name AS project"
+                    "SELECT s.session_uid,s.native_id,s.kind,s.title,s.title_source,s.started_at,s.ended_at,s.status,s.project_id,src.agent,p.name AS project,"
+                    + first_prompt
+                    + " AS first_prompt,"
+                    + workflow_label
+                    + " AS workflow_label"
                     + base
                     + " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
                     [*params, limit, offset],
                 )
             ]
         return {
-            "items": items,
+            "items": [session_display(item) for item in items],
             "total": total,
             "next_offset": offset + len(items) if offset + len(items) < total else None,
         }
@@ -253,7 +273,10 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
                     (session_uid, rows[-1]["seq"]),
                 ).fetchone()
             )
-        return {"items": rows, "next_after_seq": rows[-1]["seq"] if more else None}
+        return {
+            "items": [{**row, "display": event_display(row)} for row in rows],
+            "next_after_seq": rows[-1]["seq"] if more else None,
+        }
 
     @app.get("/v1/app/projects")
     def projects():
@@ -269,6 +292,7 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
 
     @app.get("/v1/app/analysis")
     def analysis(
+        display_timezone: str = "UTC",
         section: Literal[
             "overview",
             "preferences",
@@ -286,7 +310,15 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
     ):
         from .analytics.service import response_section
 
-        data = cache.read(store, selection(agent, project, from_ts, until_ts))
+        scope = selection(agent, project, from_ts, until_ts, display_timezone)
+        try:
+            data = cache.read(store, scope)
+        except AnalysisLimitExceeded:
+            if section != "overview":
+                raise
+            from .summary_query import overview_summary
+
+            return overview_summary(store, scope)
         if section == "recommendations":
             from .recommend.service import recommend
 
@@ -295,12 +327,13 @@ def create_desktop_app(home: Path, token: str, assets: Path) -> FastAPI:
 
     @app.get("/v1/app/export")
     def export(
+        display_timezone: str = "UTC",
         agent: str | None = None,
         project: str | None = None,
         from_ts: int | None = None,
         until_ts: int | None = None,
     ):
-        data = cache.read(store, selection(agent, project, from_ts, until_ts))
+        data = cache.read(store, selection(agent, project, from_ts, until_ts, display_timezone))
         # Export the selected, redacted analysis, never raw archives or discovery paths.
         data.pop("sample_boundary", None)
         return JSONResponse(

@@ -18,9 +18,21 @@ def main():
     parser.add_argument("--home", type=Path, default=default_home())
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--port", type=int, default=0)
+    parser.add_argument(
+        "--discovery-manifest",
+        type=Path,
+        help="Optional explicit source catalogue for isolated acceptance environments",
+    )
     args = parser.parse_args()
     token = os.environ.get("TANDEM_API_TOKEN", "")
-    app = create_desktop_app(args.home, token, args.assets)
+    discovery = None
+    if args.discovery_manifest:
+        roots = json.loads(args.discovery_manifest.read_text())
+
+        def discovery():
+            return [{"agent": agent, "root": root} for agent, root in roots.items()]
+
+    app = create_desktop_app(args.home, token, args.assets, discovery=discovery)
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", args.port))
         listener.set_inheritable(True)

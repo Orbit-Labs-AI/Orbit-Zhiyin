@@ -21,6 +21,20 @@ def main():
     run = Path(tempfile.mkdtemp(prefix="run-", dir=output))
     roots = create_sources(run / "sources")
     roots["codex"] = demo_home(run / "codex")
+    for path in (roots["codex"] / "sessions").glob("*.jsonl"):
+        with path.open("a") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "type": "world_state",
+                        "timestamp": "2026-01-01T00:00:11Z",
+                        "payload": {
+                            "state": {"model": "fixture-model", "cwd": "/fictional/project"}
+                        },
+                    }
+                )
+                + "\n"
+            )
     (run / "sources.json").write_text(json.dumps({k: str(v) for k, v in roots.items()}))
     env = {
         **os.environ,
@@ -39,6 +53,8 @@ def main():
                 str(run / "data"),
                 "--assets",
                 str(ROOT / "docs/design/demo/tandem-demo.html"),
+                "--discovery-manifest",
+                str(run / "sources.json"),
             ],
             cwd=ROOT,
             env=env,

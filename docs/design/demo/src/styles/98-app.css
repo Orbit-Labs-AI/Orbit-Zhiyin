@@ -13,3 +13,5 @@
 .tandem-live .card{min-width:0}.tandem-live .tbl td{max-width:360px;overflow-wrap:anywhere}
 .tandem-live .mbar{padding:0 12px;gap:12px}.tandem-live .app-filters select{max-width:220px}
 .tandem-live details summary{cursor:pointer;color:var(--ink-3);font-size:12px;margin:10px 0}
+
+.app-context-group{background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:2px 12px;margin:8px 0}.app-context-group>summary{font-size:12px;line-height:1.7}.app-event-fields{display:grid;grid-template-columns:minmax(100px,auto) 1fr;gap:4px 14px;font:11px/1.6 var(--mono)}.app-event-fields dt{color:var(--ink-3)}.app-event-fields dd{margin:0;overflow-wrap:anywhere}

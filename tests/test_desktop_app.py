@@ -1,6 +1,7 @@
 """Desktop acceptance: explicit sources, real jobs, persistence and recovery."""
 
 import json
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -15,8 +16,9 @@ from tandem_backend.cli import demo_home
 TOKEN = 'synthetic-desktop-token-for-tests-only'
 
 
-def client_for(home):
-    return TestClient(create_desktop_app(home, TOKEN, Path(__file__).parents[1] / 'docs/design/demo/tandem-demo.html'),
+def client_for(home, *, discovery=None):
+    return TestClient(create_desktop_app(home, TOKEN, Path(__file__).parents[1] / 'docs/design/demo/tandem-demo.html',
+                      discovery=discovery or (lambda: [])),
                       headers={'Authorization': 'Bearer ' + TOKEN})
 
 
@@ -50,8 +52,11 @@ def test_desktop_multi_agent_import_pagination_export_and_restart(tmp_path):
         listing = client.get('/v1/app/sessions?agent=codex&limit=1').json()
         assert listing['total'] == 3
         assert listing['next_offset'] == 1
+        assert listing['items'][0]['display_title_source'] == 'first_message'
+        assert listing['items'][0]['display_title'] != '未命名会话'
         sid = listing['items'][0]['session_uid']
         first = client.get(f'/v1/app/sessions/{sid}/events?limit=2').json()
+        assert all(e['display']['title'] for e in first['items'])
         second = client.get(f'/v1/app/sessions/{sid}/events?after_seq={first["next_after_seq"]}&limit=2').json()
         assert {e['event_uid'] for e in first['items']}.isdisjoint(e['event_uid'] for e in second['items'])
         for section in ('overview', 'preferences', 'tasks', 'instruction', 'tools', 'projects', 'bottleneck_features', 'recommendations'):
@@ -61,6 +66,10 @@ def test_desktop_multi_agent_import_pagination_export_and_restart(tmp_path):
         exported = client.get('/v1/app/export').json()
         assert exported['input_contract'] == 'analysis-input-v1'
         assert 'sample_boundary' not in exported
+        assert exported['scope']['display_timezone'] == 'UTC'
+        localized = client.get('/v1/app/analysis?section=overview&display_timezone=Pacific/Auckland')
+        assert localized.status_code == 200
+        assert localized.json()['scope']['display_timezone'] == 'Pacific/Auckland'
         repeated = finish(client, client.post('/v1/app/jobs', json={'source_ids': ids}))
         assert all(r['changed'] == 0 for r in repeated['results'])
         backup = finish(client, client.post('/v1/app/jobs', json={'kind': 'backup'}))
@@ -139,3 +148,76 @@ def test_disappeared_source_can_be_disabled(tmp_path):
         response = client.post('/v1/app/sources', json={'agent': 'pi', 'root': str(root), 'enabled': False})
         assert response.status_code == 200
         assert not response.json()['enabled']
+
+
+def test_discovery_catalogue_is_isolated_and_does_not_grant_import_consent(tmp_path):
+    roots = create_sources(tmp_path / 'sources')
+    catalogue = [{'agent': agent, 'root': str(roots[agent])} for agent in ('pi', 'dsh')]
+    with client_for(tmp_path / 'data', discovery=lambda: catalogue) as client:
+        found = client.get('/v1/app/discovery').json()['items']
+        assert {s['root'] for s in found} == {s['root'] for s in catalogue}
+        assert all(not s['enabled'] for s in found)
+        assert client.get('/v1/app/storage').json()['tables']['raw_record'] == 0
+
+
+def test_selected_rebuild_uses_archives_after_upstream_is_removed(tmp_path, monkeypatch):
+    roots = create_sources(tmp_path / 'sources')
+    home = tmp_path / 'data'
+    with client_for(home) as client:
+        sources = {
+            agent: client.post('/v1/app/sources', json={'agent': agent, 'root': str(roots[agent])}).json()['id']
+            for agent in ('pi', 'dsh')
+        }
+        imported = finish(client, client.post('/v1/app/jobs', json={'source_ids': list(sources.values())}))
+        assert imported['status'] == 'completed'
+        with Store(home) as store:
+            unrelated = [tuple(row) for row in store.db.execute(
+                "SELECT e.* FROM event e JOIN session s USING(session_uid) WHERE s.source_id=? ORDER BY event_uid", (sources['dsh'],))]
+            store.db.execute("UPDATE source_file SET watermark=json_set(watermark,'$.mapper_version','obsolete') WHERE source_id=?", (sources['pi'],))
+        shutil.rmtree(roots['pi'])
+
+        def forbid_capture(*args, **kwargs):
+            raise AssertionError('Archive rebuild must not capture upstream files')
+
+        monkeypatch.setattr(Store, 'capture_file', forbid_capture)
+        repaired = finish(client, client.post('/v1/app/jobs', json={'kind': 'rebuild', 'source_ids': [sources['pi']]}))
+        assert repaired['status'] == 'completed', repaired
+        assert client.get('/v1/app/storage').json()['readiness'] == 'ready'
+        assert client.get('/v1/app/sessions?agent=pi').json()['total'] > 0
+        with Store(home) as store:
+            assert unrelated == [tuple(row) for row in store.db.execute(
+                "SELECT e.* FROM event e JOIN session s USING(session_uid) WHERE s.source_id=? ORDER BY event_uid", (sources['dsh'],))]
+        assert client.post('/v1/app/jobs', json={'kind': 'verify', 'source_ids': [sources['pi']]}).status_code == 422
+
+
+def test_rebuild_reports_remaining_unparsed_records_as_partial(tmp_path):
+    home, root = tmp_path / 'data', tmp_path / 'source'
+    root.mkdir()
+    with client_for(home) as client:
+        source = client.post('/v1/app/sources', json={'agent': 'codex', 'root': str(root)}).json()
+        with Store(home) as store:
+            store.add_source('codex', root)
+            store.capture_stream(source['id'], 'sessions/broken.jsonl', [b'{invalid json}\n'])
+        job = finish(client, client.post('/v1/app/jobs', json={'kind': 'rebuild', 'source_ids': [source['id']]}))
+        assert job['status'] == 'partial'
+        assert job['results'][0]['current_unparsed'] == 1
+
+
+def test_analysis_budget_has_an_overview_fallback_and_actionable_export_error(tmp_path, monkeypatch):
+    from tandem_data.analysis_input import AnalysisLimitExceeded
+
+    from tandem_backend.analytics.cache import AnalyticsCache
+
+    def exceed_budget(*args, **kwargs):
+        raise AnalysisLimitExceeded('synthetic budget boundary')
+
+    monkeypatch.setattr(AnalyticsCache, 'read', exceed_budget)
+    with client_for(tmp_path / 'data') as client:
+        overview = client.get('/v1/app/analysis?section=overview')
+        assert overview.status_code == 200
+        assert overview.json()['analysis_mode'] == 'aggregate_only'
+        for route in ('/v1/app/analysis?section=tools', '/v1/app/export'):
+            response = client.get(route)
+            assert response.status_code == 422
+            assert response.json()['error']['code'] == 'analysis_scope_too_large'
+            assert '缩小范围' in response.json()['error']['message']
