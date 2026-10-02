@@ -61,7 +61,10 @@ def _merge(key: str, payloads: dict[str, dict[str, dict]]) -> dict:
         other = payloads[route][key]
         sessions += [uid for uid in other["evidence"]["session_uids"] if uid not in sessions]
         signals += [sid for sid in other["evidence"]["signal_ids"] if sid not in signals]
-        problem = _stronger(problem, other["problem"])
+        # another route may tie the same item to a different problem (e.g. dense similarity to an
+        # inventory fact); only a stronger problem of the same type replaces the primary one
+        if problem is None or (other["problem"] or {}).get("type") == problem.get("type"):
+            problem = _stronger(problem, other["problem"])
         if other.get("feature_overlap") and not cand.get("feature_overlap"):
             cand["feature_overlap"] = other["feature_overlap"]
     counts = dict(cand["evidence"]["counts"])

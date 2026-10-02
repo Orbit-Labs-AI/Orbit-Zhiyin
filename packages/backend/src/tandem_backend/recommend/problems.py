@@ -34,6 +34,7 @@ MIN_SESSIONS, MIN_WILSON_LO, MIN_DENOMINATOR = 3, .05, 5
 REF_N, FLOOR_WILSON_LO = 60, .01
 MAX_IDS = 50
 MIN_READONLY_PROMPTS = 2
+UNIT_ZH = {"count": "次", "ratio": "次", "events": "次", "calls": "次", "sessions": "会话", "minutes": "分钟"}
 # Inventory facts (unused / resident) are measurements, not k-of-n recurrences: a fixed
 # confidence instead of a Wilson bound whose numerator equals its denominator.
 INVENTORY_CONFIDENCE = {"resident_cost": .8, "installed_unused": .5}
@@ -242,7 +243,7 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         value = metrics[0].get("value") if metrics else None
         a.weekly += float(value) if isinstance(value, (int, float)) and value > 0 else 1.
         if metrics and metrics[0].get("unit"):
-            a.unit = metrics[0]["unit"]
+            a.unit = UNIT_ZH.get(metrics[0]["unit"], metrics[0]["unit"])
         evidence = signal.get("evidence") or []
         a.add_ids(a.sessions, [scope.get("root_session_uid"), *(e.get("session_uid") for e in evidence)])
         a.add_ids(a.events, [e.get("id") for e in evidence])
@@ -320,7 +321,10 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
             elif not estimated and tokens >= 2000:
                 hits.append(("resident_cost", f"resident_cost:{inv_id}", f"{name} 每个会话常驻约 {tokens} tokens"))
             bucket = usage.get("skill" if kind == "skill" else "mcp", {}) if kind in ("skill", "mcp") else None
+            # linked inventory marks agents whose logs never attribute calls (Codex skills) as
+            # unknown_usage: no calls there is no evidence of disuse
             if (bucket is not None and item.get("enabled") is not False and main >= 10 and window_days >= 14
+                    and item.get("status") not in ("unknown_usage", "active")
                     and int((bucket.get(name) or {}).get("calls") or 0) == 0):
                 hits.append(("installed_unused", f"installed_unused:{inv_id}",
                              f"{name} 在 {main} 个会话、{int(window_days)} 天里从未被调用"))

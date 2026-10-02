@@ -70,3 +70,27 @@ def test_benefit_zero_cards_do_not_pass():
     slate = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([zero], [unused]))
     card = slate["candidates"][0]
     assert card["gates"]["passed"] is False and engine.NO_BENEFIT in card["gates"]["reasons"]
+
+
+def test_signal_units_read_in_chinese_and_unknown_usage_is_not_unused():
+    sig = signal("tool_failures", "r1", group={"tool": "WebFetch", "kind": "web.fetch"})
+    sig["metrics"][0]["unit"] = "count"
+    assert problems.build(inputs(signals=[sig]))[0]["unit"] == "次"
+    window = {"main": 40, "weeks": 6, "first_ts": "2026-07-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
+    inv = [{"inv_id": "c", "type": "skill", "name": "codex-skill", "status": "unknown_usage", "resident_tokens": 50},
+           {"inv_id": "u", "type": "skill", "name": "idle", "status": "unused", "resident_tokens": 50}]
+    keys = {p["key"] for p in problems.build(inputs(inventory=inv, facts={"usage": {"skill": {}, "mcp": {}}},
+                                                    sessions=window))}
+    assert "installed_unused:u" in keys and "installed_unused:c" not in keys
+
+
+def test_merge_keeps_the_primary_problem_type():
+    from tandem_backend.recommend.recall import multi
+
+    def payload(ptype, lo):
+        prob = {"type": ptype, "status": "active", "wilson_lo": lo, "weekly_count": 1, "key": ptype}
+        return {"evidence": {"session_uids": ["a"], "signal_ids": [], "counts": {"sessions": 1}}, "problem": prob}
+
+    merged = multi._merge("k", {"catalog": {"k": payload("tool_env_failure", .04)},
+                                "dense": {"k": payload("installed_unused", .58)}})
+    assert merged["problem"]["type"] == "tool_env_failure"
