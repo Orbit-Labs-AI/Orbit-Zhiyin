@@ -188,7 +188,9 @@ scene('30-persona', () => {
   /* 4c: 你是 ___ — one name at a time, rolling with the needle; the code below in sync; leaves without the answer */
   txt(31.6, 37.6, [['lt', '你是'], ['hv sv', '<span class="pe-slot"><span class="pn"></span></span>'], ['pe-code', '<span class="pc"></span>']], { x: 150, y: 530 }, {
     st: .15, inB: .8, outB: .6, spread: 1, tick: (el, tl, life, t) => {
-      const b = t / BEAT, u = needleAt(b) / 22.5 + .5, fr = u - Math.floor(u), code = CODES[((Math.floor(u) % 16) + 16) % 16];
+      // from b37.0 the slot freezes on the name it shows then (搭档): while the line spreads out the needle passes north,
+      // which must not give the answer away, and a short name keeps the spreading line clear of the moving dial
+      const b = Math.min(t / BEAT, 37.0), u = needleAt(b) / 22.5 + .5, fr = u - Math.floor(u), code = CODES[((Math.floor(u) % 16) + 16) % 16];
       const pn = el.querySelector('.pn'), pc = el.querySelector('.pc');
       if (pn.dataset.c !== code) { pn.dataset.c = code; pn.textContent = D0.TYPES[code][0]; pc.textContent = code; }
       // enter in the first 30 % of its sector, hold, leave in the last 30 %: never two names in the slot
@@ -258,7 +260,8 @@ scene('30-persona', () => {
   txt(45.2, 52.8, [['eb', '你的协作人格 · YOUR TYPE']], Object.assign({ y: 300 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(300)) });
   txt(45.4, 52.8, [['xl sv serif', ME.code]], Object.assign({ y: 432 }, BLK), { anim: K.all(K.centerOut({ step: .12, dur: .4, out: 0 }), shrink(432)) });
   txt(46.4, 52.8, [['md pe-name', ME.zh + ' <span class="serif"><i>' + ME.en + '</i></span>']], Object.assign({ y: 590 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(590)) });
-  txt(47.0, 52.8, [['lt', '整段交出，多线并进，亲自验收。']], Object.assign({ y: 680 }, BLK), { anim: K.all(K.decode({ step: .05, dur: .4, out: 0 }), shrink(680)) });
+  // decode with a narrow start spacing: the line is right-aligned, so its extra width grows left towards the dial
+  txt(47.0, 52.8, [['lt', '整段交出，多线并进，亲自验收。']], Object.assign({ y: 680 }, BLK), { anim: K.all(K.decode({ step: .05, dur: .4, out: 0, from: .15 }), shrink(680)) });
   txt(47.6, 52.8, [['lt', STR.map((a, i) => CPD.AXES[i][a.letter === CPD.AXES[i].L ? 'Ln' : 'Rn'] + ' <b>' + Math.round(a.strong) + '</b>').join(' · ')]], Object.assign({ y: 770 }, BLK), { anim: K.all(K.blurIn({ spread: .4, out: 0 }), shrink(770)) });
   txt(52.4, 57.1, [['eb', ME.code + ' · ' + ME.zh]], { x: 1800, y: 90, align: 'r' }, { inB: .7, outB: .5 });
 
