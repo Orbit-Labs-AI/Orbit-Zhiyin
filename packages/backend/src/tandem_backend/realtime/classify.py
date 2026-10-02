@@ -21,6 +21,7 @@ CONTEXT_PRESSURE = 0.9  # 待验证: used / window ratio that raises the context
 
 CLOSED_STATUSES = {"completed", "failed"}
 CLOSED_TURN_ACTORS = {"assistant", "system"}
+OPEN_KINDS = {"tool.call", "subagent.spawn", "permission.request", "turn.start"}
 FAILED_CALL = {"failed", "error"}
 RUNNING_CALL = {"running", "pending", "started"}
 TEST_RUNNERS = ("pytest", "jest", "vitest", "go test", "cargo test", "npm test", "pnpm test",
@@ -47,9 +48,17 @@ def finish_ts(tail: SessionTail) -> int | None:
         return None
     if is_closed(tail):
         return tail.last_event_ts
-    if tail.last_actor in CLOSED_TURN_ACTORS:
+    if turn_closed(tail):
         return tail.last_event_ts + _ms(QUIET_S)
     return None
+
+
+def turn_closed(tail: SessionTail) -> bool:
+    """turn.end, or an assistant/system event that does not open a tool call or subagent."""
+    kind = tail.events[-1].kind if tail.events else None
+    if kind == "turn.end":
+        return True
+    return tail.last_actor in CLOSED_TURN_ACTORS and kind not in OPEN_KINDS
 
 
 def _is_test_runner(head: str) -> bool:
