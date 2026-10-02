@@ -542,14 +542,14 @@ def rebuild(
                         "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
                         (record.record_uid, event_uid, result.disposition or "folded"),
                     )
+        parent_updates = []
         for event_uid, native_key in parent_keys.items():
             if native_key in first_by_native and first_by_native[native_key] != event_uid:
-                store.db.execute(
-                    "UPDATE event SET parent_uid=? WHERE event_uid=?",
-                    (first_by_native[native_key], event_uid),
-                )
+                parent_updates.append((first_by_native[native_key], event_uid))
             elif plan is not None and native_key not in first_by_native:
                 plan.unresolved_parent(native_key)
+        # One statement for every parent link (same rows and order as row-by-row).
+        store.db.executemany("UPDATE event SET parent_uid=? WHERE event_uid=?", parent_updates)
         # Only rebuilt files can gain or lose an invalid-record issue; other sources keep
         # theirs (their L2 issues are not deleted), so scanning every raw_record of the
         # library on each source rebuild only rewrote identical rows.
