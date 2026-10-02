@@ -4,7 +4,8 @@
    Everything is a pure function of the master time t (seconds), so the page plays in real time with the soundtrack
    (preview) or frame by frame on Playwright's fake clock (render.mjs). Times are written in beats. */
 'use strict';
-const BPM = 124, BEAT = 60 / BPM, END = 118;              // beats; music.py uses the same grid
+const BPM = 124, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
+let END = 118;                                            // length in beats; the closing scene sets it
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
 const $ = (s, r) => (r || document).querySelector(s);
@@ -382,15 +383,6 @@ function drawCompass(st) {
   svg.querySelector('.cp-dial').style.opacity = (st.dial ?? 1).toFixed(3);
   svg.querySelectorAll('.cp-core, #cpRose, .cp-hub').forEach((e) => { e.style.opacity = (st.core ?? 1).toFixed(3); });
 }
-// needle bearing during the sweep: slow start, two and a half fast turns, a long slow arrival at north (your type)
-const SW0 = 37, SW1 = 46;
-function sweepAt(b) {
-  if (b < SW0) return -150;
-  const p = lp(b, SW0, SW1 - SW0), e = p < .5 ? 16 * Math.pow(p, 5) : 1 - Math.pow(-2 * p + 2, 5) / 2;     // quintic in-out
-  const total = 1080 + 150;                                 // from -150° through about three and a half turns to north
-  return -150 + total * e + (b > SW1 ? 4 * Math.sin((b - SW1) * 5) * Math.exp(-(b - SW1) * 2.2) : 0);
-}
-
 /* ---------- the Orbit mark, live ----------
    The same conical spiral as docs/design/logo/generate.py, variant "spiral" (1.6 turns, radius 9 → 16, rise 14, phase
    0.6, seen at yaw 20° / pitch 45° — the app icon), drawn as a tapered line so it can be traced, turned in 3D and seen
@@ -439,13 +431,16 @@ function planetsSVG(o) {
     return '<circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="16" fill="' + c + '" opacity=".18"/><circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="7" fill="' + c + '"/>';
   }).join('') + '<ellipse cx="' + o.cx + '" cy="' + o.cy + '" rx="' + (o.rx * (1 - o.pull)).toFixed(1) + '" ry="' + (o.ry * (1 - o.pull)).toFixed(1) + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 7"/></g>';
 }
-const OPEN = { trace: 7.9, tilt: 11.4, dive: 12.8, end: 14.6 };
-const CLOSE = { ring: 105.8, rise: 107.6, settle: 110 };
+// Timings (beats) of the two mark sequences. The open and close scenes overwrite them with Object.assign.
+// open: planets appear, are pulled onto the tail, the mark is traced, tips over and is dived into;
+// close: the ring grows its inner turn, rises into the icon and settles; sway = when the 3D sway starts; out = fade.
+const OPEN = { planets: 5.6, pull: 7.5, trace: 7.9, tilt: 11.4, dive: 12.8, end: 14.6 };
+const CLOSE = { ring: 105.8, rise: 107.6, settle: 110, sway: 104, out: 115.8, outDur: 1.8 };
 function orbitAt(b) {
   let h = '';
-  if (b >= 5.6 && b < 8.6) {
+  if (b >= OPEN.planets && b < OPEN.trace + .7) {
     const start = orbitPts(-25, 72)[0];
-    h += planetsSVG({ a: E.out(lp(b, 5.6, .8)) * (1 - E.in(lp(b, 8.1, .5))), phase: (b - 5.6) * 95, cx: 960, cy: 790, rx: 380, ry: 64, pull: E.inOut(lp(b, 7.5, 1)), tx: 960 + start[0] * 215, ty: 410 + start[1] * 215 });
+    h += planetsSVG({ a: E.out(lp(b, OPEN.planets, .8)) * (1 - E.in(lp(b, OPEN.trace + .2, .5))), phase: (b - OPEN.planets) * 95, cx: 960, cy: 790, rx: 380, ry: 64, pull: E.inOut(lp(b, OPEN.pull, 1)), tx: 960 + start[0] * 215, ty: 410 + start[1] * 215 });
   }
   if (b >= OPEN.trace && b < OPEN.end) {
     const turn = E.out(lp(b, OPEN.trace, 3.4)), tilt = E.inOut(lp(b, OPEN.tilt, OPEN.dive - OPEN.tilt)), dive = lp(b, OPEN.dive, OPEN.end - OPEN.dive);
@@ -457,7 +452,7 @@ function orbitAt(b) {
   if (b >= OPEN.end && b < OPEN.end + .2) $('#hole1').style.clipPath = 'none';
   if (b >= CLOSE.ring) {
     const R0 = 300 * decks[2].C.s, grow = E.inOut(lp(b, CLOSE.ring, CLOSE.rise - CLOSE.ring)), rise = E.inOut(lp(b, CLOSE.rise, CLOSE.settle - CLOSE.rise));
-    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise) + 12 * Math.sin((b - 104) * .35) * lp(b, 104, 3), pitch: lerp(90, 45, rise), R: lerp(R0, 215, rise), cx: 960, cy: lerp(540, 410, rise), w: lerp(7, 15, rise), a: E.out(lp(b, CLOSE.ring, .4)) * (1 - E.inOut(lp(b, 115.8, 1.8))), head: 0 });
+    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise) + 12 * Math.sin((b - CLOSE.sway) * .35) * lp(b, CLOSE.sway, 3), pitch: lerp(90, 45, rise), R: lerp(R0, 215, rise), cx: 960, cy: lerp(540, 410, rise), w: lerp(7, 15, rise), a: E.out(lp(b, CLOSE.ring, .4)) * (1 - E.inOut(lp(b, CLOSE.out, CLOSE.outDur))), head: 0 });
   }
   orbEl.innerHTML = '<defs><radialGradient id="orbGlow"><stop offset="0" stop-color="rgba(255,255,255,.9)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>' + h;
 }
@@ -488,248 +483,22 @@ function applyCursors(t) {
 }
 
 
-/* ============================== the script ============================== */
-// Shot list with timings, motion, type and sound per shot: STORYBOARD.md. Times are beats (124 BPM, 1 beat = 0.484 s).
-// Pace: the two core features (01 Analysis — the compass; 02 Recommend) get the long, slow shots; the overview and the
-// smaller features become walls of components filling the screen, moving fast. Words are either full-screen statements
-// on black or tags attached to a component's edge (they tilt and slide with it), so type never sits on a component.
+/* ============================== scenes ==============================
+   The film itself lives in scenes/*.js: each file registers one scene with scene(name, fn), promo.html loads them in
+   file-name order and script() runs them in that order once both app copies have loaded. A scene only adds cues,
+   tweens, drives, clicks and type for its own beats. STORYBOARD.md gives every scene its beats, decks and the state it
+   must hand over to the next one; times are beats (124 BPM, 1 beat = 0.484 s). */
+const SCENES = [];
+function scene(name, fn) { SCENES.push({ name, fn }); }
+function script() { for (const s of SCENES) { try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } }
+// styles a scene needs for its own type or overlays
+function css(text) { const st = document.createElement('style'); st.textContent = text; document.head.appendChild(st); }
 const L = 160, R = 1760;
 function split2(s) { const i = s.indexOf('，', 6); return i > 0 ? [s.slice(0, i + 1), s.slice(i + 1)] : [s]; }
 function smallest(D, sel, text) { return [...D.querySelectorAll(sel)].filter((e) => e.textContent.includes(text)).sort((a, b) => a.textContent.length - b.textContent.length)[0]; }
-function script() {
-  // ===== open (缓): words, the five Agents, the Orbit mark, then down into it =====
-  txt(.25, 3.9, [['row md', ['你每天', '和 <span class="acc">5</span> 个 Agent', '协作上百次']]], { x: 960, y: 450, align: 'c' }, { st: .6 });
-  const AGS = [['Claude Code', 'var(--a1)'], ['Codex', 'var(--a2)'], ['Gemini CLI', 'var(--a3)'], ['DeepSeek', 'var(--a4)'], ['Copilot', 'var(--a5)']];
-  txt(1.5, 3.9, [['', AGS.map((a) => '<span class="chip"><i style="background:' + a[1] + '"></i>' + a[0] + '</span>').join('')]], { x: 960, y: 560, align: 'c' }, {
-    anim: (el, tl, life) => {
-      const q = E.inOut(clamp((life - tl) / (.6 * BEAT)));
-      el.querySelectorAll('.chip').forEach((c, i) => { const p = E.expo(clamp((tl - (.7 + i * .375) * BEAT) / (.8 * BEAT))); c.style.opacity = (p * q).toFixed(3); c.style.transform = 'translateY(' + ((1 - p) * 24).toFixed(1) + 'px)'; c.style.marginRight = i < 4 ? '44px' : '0'; c.style.filter = q < .999 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none'; });
-    }
-  });
-  txt(4, 5.9, [['row md', ['却很少', '回头看看']]], { x: 960, y: 540, align: 'c' }, { st: .5 });
-  txt(6, 7.9, [['row md', ['自己是', '<span class="serif acc"><i>怎样</i></span>', '和它们协作的']]], { x: 960, y: 540, align: 'c' }, { st: .4 });
-  glowAt(7.9, 1, 3);
-  txt(9.6, 11.9, [['word', 'Orbit']], { x: 960, y: 690, align: 'c' }, { inB: 1.4, outB: .8 });
-  txt(10.6, 11.9, [['lt', '看见你与 Agent 的每一次协作']], { x: 960, y: 790, align: 'c' }, { inB: 1.2, outB: .8 });
-  glowAt(12.6, 0, 1.6);
-
-  // ===== the sentiment curve, first person: ride along it while it is drawn, the phrases you say stand up beside it =====
-  const MOOD = 'svg.vz-t-moodcorr', moodCard = (D) => { const s = D.querySelector(MOOD); return s && s.closest('.card'); };
-  const headX = (b) => 60 + 760 * E.inOut(lp(b, 14.4, 7.8));                          // svg units
-  const ride = (b) => ({ x: 689 + headX(b) - 30, y: 372, s: 3.1, ax: 960, ay: 720, rx: 58, ry: 0, rz: -72, z: 0, o: 1, bl: 0 });
-  at(12.9, () => { app(1).go('sentiment'); solo(1, moodCard); });
-  tween(1, 13.6, 1.7, () => ride(15.3), E.out, (T) => ({ s: T.s * .14, rz: T.rz - 200, o: 0, bl: 6 }));
-  drive(1, 15.3, 22.3, (p, b) => { const r = ride(b), C = decks[1].C; C.x = r.x; C.y = r.y; });
-  drive(1, 12.95, 22.6, (p, b, D) => { const s = D.querySelector(MOOD); if (!s) return; clipTo(s, 36, headX(b) + 34, 'path.vz-line, path.vz-cband, circle.vz-pt, text.vz-lbl'); riseRects(s, headX(b) + 34, 214); });
-  const PH = [['用中文', 9, '偏好'], ['先只读审查', 5, '规划'], ['方向错误', 3, '纠偏'], ['部署后验证线上', 7, '验证'], ['直接合并', 6, '纠偏'], ['简洁一点', 4, '风格'], ['不要改别的文件', 4, '纠偏'], ['可以，提交吧', 12, '满意']];
-  const PHC = { 偏好: 'var(--a2)', 规划: 'var(--a3)', 纠偏: 'var(--a1)', 验证: '#6fcf97', 风格: 'var(--a5)', 满意: '#cfe3e8' };
-  at(12.95, () => {
-    PH.forEach((ph, i) => {
-      const bi = 15 + i * .82, x = 689 + headX(bi) + 40, y = 260 + (i % 2 ? 228 : 4);
-      const el = document.createElement('div'); el.className = 'phr'; el.style.left = x + 'px'; el.style.top = y + 'px';
-      el.innerHTML = '<i style="background:' + PHC[ph[2]] + '"></i>「' + ph[0] + '」<b>×' + ph[1] + '</b><small>' + ph[2] + '</small>';
-      el.dataset.b = bi; decks[1].rig.appendChild(el); (decks[1].phr = decks[1].phr || []).push(el);
-    });
-  });
-  drive(1, 13, 23.2, (p, b) => (decks[1].phr || []).forEach((el) => {     // stand up when the head reaches them
-    const q = E.out(lp(b, +el.dataset.b, .6)), C = decks[1].C;
-    el.style.opacity = (q * (1 - lp(b, 22.2, .6))).toFixed(3);
-    el.style.transform = 'translate(-50%,-100%) rotateZ(' + (-C.rz) + 'deg) rotateX(' + (-C.rx) + 'deg) translateY(' + ((1 - q) * 30).toFixed(1) + 'px) scale(' + (lerp(.6, 1, q) / C.s * 2.6).toFixed(4) + ')';
-  }));
-  txt(15.4, 21.9, [['eb', 'Sentiment · 情绪与语义'], ['gap'], ['hv sv', '听懂每一句话'], ['lt acc', '本地 Agent 给每条消息打分、归类']], { x: L - 60, y: 170 }, { st: .3, spread: 1, outB: .9 });
-  tween(1, 22.2, 1.1, () => ({ o: 0, bl: 8, s: decks[1].C.s * 1.25 }), E.in);
-
-  // ===== numbers roll, then fly into the KPI tiles; the tiles open into the overview wall =====
-  const NUMS = [[186, '', '个会话'], [142, 'h', '小时协作'], ['1,284', '', '条消息']];
-  const TB = [960, 600, 1700, 420], morph = [];
-  at(25.8, () => {
-    const T = framing(0, '.tiles', TB);
-    NUMS.forEach((n, i) => {
-      const f = fx.find((x) => x.tag === 'num' + i); const span = f && f.el && f.el.querySelector('.odo'); if (!span) return;
-      const v = decks[0].D.querySelectorAll('.tiles .vz-kpi .v')[i]; if (!v) return;
-      const r = v.getBoundingClientRect(), k = stage.getBoundingClientRect().width / 1920, s0 = span.getBoundingClientRect();
-      const tx = T.ax + (r.left - T.x) * T.s, ty = T.ay + (r.top + r.height / 2 - T.y) * T.s;
-      const sx = (s0.left - stage.getBoundingClientRect().left) / k, sy = (s0.top + s0.height / 2 - stage.getBoundingClientRect().top) / k;
-      morph[i] = { dx: tx - sx, dy: ty - sy, sc: (r.height * T.s) / (s0.height / k) };
-    });
-  });
-  NUMS.forEach((n, i) => {
-    const b0 = 22.3 + i * .5;
-    txt(b0, 27.7, [['', '<span class="odo">' + odo(n[0]) + '</span><span class="odo-u">' + n[1] + '</span>'], ['lt', n[2]]], { x: 960 + (i - 1) * 520, y: 520, align: 'c' }, {
-      anim: (el, tl, life, t) => {
-        const b = t / BEAT, m = E.inOut(lp(b, 25.9, 1.45)), mv = morph[i], inP = E.expo(clamp(tl / (.9 * BEAT)));
-        el.style.opacity = (inP * (1 - E.inOut(lp(b, 27.35, .3)))).toFixed(3);
-        rollOdo(el, b, b0, 1.9);
-        const o = el.querySelector('.odo'); o.style.transformOrigin = '0 50%';
-        const ink = Math.round(lerp(255, 23, Math.pow(m, 3))); o.style.color = 'rgb(' + ink + ',' + ink + ',' + Math.round(lerp(255, 27, Math.pow(m, 3))) + ')';
-        o.style.transform = mv ? 'translate(' + (mv.dx * m).toFixed(1) + 'px,' + (mv.dy * m).toFixed(1) + 'px) scale(' + lerp(1, mv.sc, m).toFixed(4) + ')' : '';
-        el.querySelectorAll('.odo-u, .ln.lt').forEach((x) => { x.style.opacity = (1 - E.out(lp(b, 25.7, .6))).toFixed(3); });
-        el.style.transform = 'translate(-50%,-50%) translateY(' + ((1 - inP) * 40).toFixed(1) + 'px)';
-        el.querySelectorAll('.ln').forEach((x) => { x.style.overflow = 'visible'; });
-      }, tag: 'num' + i
-    });
-  });
-  txt(22.5, 25.8, [['eb', 'Overview · 近 30 天']], { x: 960, y: 330, align: 'c' });
-  const trend = byText('.card.pad', 'Agent 使用趋势'), bars = (D) => { const c = trend(D); return c && c.querySelector('svg.vz-t-bar'); };
-  const WALL = ['.tiles', '#aiCard', '.ov-out', trend, '.ov-pers'];
-  at(21.6, () => { const a = app(0); a.S.ov.stack = 'stacked'; a.go('overview'); solo(0, '.tiles'); });
-  drive(0, 21.6, 27.9, (p, b, D) => D.querySelectorAll('.tiles .vz-kpi .v').forEach((v, i) => {
-    if (v.dataset.count) v.textContent = Number(v.dataset.count).toLocaleString('en-US', { maximumFractionDigits: 1 });
-    v.style.opacity = i < 3 ? E.inOut(lp(b, 27.35, .3)).toFixed(3) : '';
-  }));
-  drive(0, 21.6, 31, (p, b, D) => { const s = bars(D); if (s) growBars(s, b, 28.6, .07, .5); });
-  tween(0, 25.9, 1.6, () => framing(0, '.tiles', TB), E.inOut, (T) => ({ s: T.s * .96, o: 0, bl: 4 }));
-  at(27.6, () => solo(0, WALL));
-  tween(0, 27.8, 2.4, () => Object.assign(framing(0, WALL, [1180, 560, 1360, 800]), { rx: 20, ry: -18, rz: -5 }), E.inOut);
-  tween(0, 30.2, 3.4, () => ({ rx: 12, ry: 6, rz: 2, s: decks[0].C.s * 1.05 }), E.sine);
-  tag(0, 28.4, 33.2, '.tiles', 'left', [['eb', 'Overview'], ['gap'], ['md sv', '186 个会话'], ['lt acc', '142 小时 · 5 个 Agent']], { st: .2, gap: 80 });
-  tag(0, 29, 33.2, '#aiCard', 'top', [['eb', 'AI 解读 · 本地 Agent 一句话说透']], { at: 0 });
-  tag(0, 29.4, 33.2, trend, 'left', [['md sv', '五个 Agent'], ['lt acc', '一张图对齐']], { at: .5, gap: 95 });
-  tag(0, 30, 33.2, '.ov-pers', 'bottom', [['lt', '你的协作人格 →']], { at: 1 });
-  tween(0, 33.3, 2, () => ({ rz: -70, s: decks[0].C.s * .45, o: 0, bl: 6, ax: 900 }), E.inOut);
-
-  // ===== 01 · Analysis: the compass (缓 → 急 → 缓, one continuous sweep) =====
-  glowAt(33.4, .3, 2);
-  drive(2, 33.3, 50.9, (p, b) => {
-    const deg = sweepAt(b), speed = (sweepAt(b + .05) - sweepAt(b - .05)) / .1;
-    const dip = b < 46 ? E.out(lp(b, 35, 1.4)) : b < 46.35 ? lerp(1, .4, E.inOut(lp(b, 46, .35))) : lerp(.4, 1, E.out(lp(b, 46.35, 1.2)));
-    drawCompass({ deg, speed, mine: E.inOut(lp(b, 44.6, 1.6)), grow: dip, sweep: E.inOut(lp(b, 34, 2.4)), orbit: (b - 33.6) * 28 + deg * .3, settle: lp(b, 47, 1.8), tip: E.out(lp(b, 36.4, .8)) * (1 - E.inOut(lp(b, 46.8, .6))), needle: 1 });
-  });
-  tween(2, 33.6, 2.4, () => framing(2, 'all', [1120, 560, 760, 760]), E.inOut, (T) => ({ rx: 64, rz: 40, s: T.s * .6, o: 0, bl: 5 }));
-  txt(34.2, 36.7, [['eb', '01 · Analysis'], ['gap'], ['hv sv', '16 种'], ['hv sv', '协作人格'], ['md acc', '4 个维度 · 8 个极']], { x: L - 30, y: 540 }, { st: .2, outB: .6 });
-  tween(2, 36.4, 1.6, () => framing(2, 'all', [960, 540, 900, 900]), E.inOut);
-  tween(2, 38, 7.6, () => ({ s: decks[2].C.s * 1.06, rz: -3 }), E.sine);
-  txt(36.8, 46.5, [['md', '你是'], ['hv sv', '<span class="slot"><span class="s0"></span><span class="s1"></span></span>'], ['eb', '<span class="slot-c"></span>']], { x: 70, y: 540 }, {
-    st: .15, inB: .7, outB: .5, tick: (el, tl, life, t) => {
-      const b = t / BEAT, code = b >= 45.4 ? compassData().me.code : personaAt(sweepAt(b), 0).code, D = compassData();
-      if (el._c !== code) { el._p = el._c; el._c = code; el._t = t; el.querySelector('.s0').textContent = el._p ? D.TYPES[el._p][0] : ''; el.querySelector('.s1').textContent = D.TYPES[code][0]; el.querySelector('.slot-c').textContent = code.split('').join(' '); }
-      const k = E.out(clamp((t - el._t) / (.22 * BEAT)));
-      el.querySelector('.s0').style.transform = 'translateY(' + (-k * 105).toFixed(1) + '%)'; el.querySelector('.s0').style.opacity = (1 - k).toFixed(3);
-      el.querySelector('.s1').style.transform = 'translateY(' + ((1 - k) * 105).toFixed(1) + '%)'; el.querySelector('.s1').style.opacity = k.toFixed(3);
-    }
-  });
-  // landing on yours: the needle settles at north, the rose folds and blooms with your values, the dial moves aside
-  tween(2, 46.6, 1.8, () => framing(2, 'all', [640, 540, 860, 860]), E.inOut);
-  glowAt(46, .6, 1.5);
-  txt(47.2, 50.4, [['eb', '你的类型 · Your type'], ['gap'], ['xl sv', '<span class="serif">DIMV</span>'], ['md', '指挥家 <span class="serif acc"><i>The Conductor</i></span>'], ['gap'], ['lt', '整段交出，多线并进，亲自验收。'], ['gap'], ['eb', '委托 72 · 即兴 61 · 多线 73 · 求证 67']], { x: R + 40, y: 540, align: 'r' }, { st: .12 });
-  tween(2, 50.5, 1.2, () => OUT.far(decks[2].C), E.in);
-  glowAt(50.5, 0, 1.2);
-
-  // ===== 02 · Recommend (缓): twelve suggestions on a tilted column add up the hours they save =====
-  const rcards = (D) => [...D.querySelectorAll('.rcard')], SAVE = [], RECB = 50.9, RECG = .5;
-  at(49.9, () => {
-    const a = app(0); a.go('recs'); solo(0, (D) => D.querySelector('.rcard').parentElement);
-    rcards(a.D).forEach((c) => { const n = c.querySelector('[data-count]'), m = c.textContent.match(/≈\s*[\d.]+\s*(h|min)/); SAVE.push(n ? +n.dataset.count / (m && m[1] === 'min' ? 60 : 1) : 0); });
-  });
-  drive(0, 49.95, 57.6, (p, b, D) => {
-    const cs = rcards(D);
-    cs.forEach((c, i) => { const q = E.out(lp(b, RECB + i * RECG, .7)); c.style.opacity = q.toFixed(3); c.style.transform = 'translateX(' + ((1 - q) * 80).toFixed(1) + 'px)'; });
-    const ct = D.querySelector('#content'); if (ct && cs[1]) { const step = cs[1].offsetTop - cs[0].offsetTop || 178; ct.scrollTop = Math.max(0, (b - RECB) / RECG - 2.4) * step * .92; }
-  });
-  tween(0, 50.4, 1.6, () => Object.assign(framing(0, [(D) => rcards(D)[0], (D) => rcards(D)[2]], [1260, 540, 820, 940], { max: 2.2 }), { ry: -14, rz: -3 }), E.quart, IN.rise);
-  txt(50.8, 56.9, [['eb', '02 · Recommend'], ['gap'], ['xl sv', '<span class="cnt">0.0</span><span style="font-size:.38em;letter-spacing:0"> h / 月</span>'], ['md acc', '每月省下的时间'], ['gap'], ['lt', '<span class="cnt-n">0</span> / 12 条建议 · 按节省时间排序']], { x: L, y: 540 }, {
-    st: .15, tick: (el, tl, life, t) => {
-      const b = t / BEAT; let sum = 0, n = 0;
-      SAVE.forEach((h, i) => { const q = E.out(lp(b, RECB + i * RECG + .25, .55)); sum += h * q; if (q > .5) n++; });
-      el.querySelector('.cnt').textContent = sum.toFixed(1); el.querySelector('.cnt-n').textContent = n;
-    }
-  });
-  tween(0, 57, 1, () => OUT.up(decks[0].C), E.in);
-  // the top suggestion installs: modal above, words below
-  const recDetail = (D) => smallest(D, '#main .card', '每月节省');
-  at(56.6, () => { const a = app(1); a.go('recs'); const d = recDetail(a.D); const btn = d && d.querySelector('[data-act="install"]'); if (btn) btn.click(); solo(1, '#modal'); });
-  tween(1, 57.3, 1.5, () => Object.assign(framing(1, '#modal', [960, 420, 1180, 640]), { rx: 14 }), E.quart, IN.rise);
-  tween(1, 58.8, 4, () => ({ rx: 4, s: decks[1].C.s * 1.04 }), E.sine);
-  txt(57.8, 62.7, [['row hv', ['<span class="sv-t">预览，</span>', '<span class="sv-t">再写入</span>']], ['md acc', '一键安装 · 随时撤销 · 装上后追踪 7 天效果']], { x: 960, y: 930, align: 'c' }, { st: .3 });
-  clickAt(1, 59.4, '#modal .btn.p', (a, el) => a.click(el));
-  clickAt(1, 61, '#modal .btn.p', (a, el) => a.click(el));
-  tween(1, 62.8, .9, () => OUT.up(decks[1].C), E.in);
-
-  // ===== 03 · Trajectory: the playhead runs one session start to end, the phases are named as it passes =====
-  const tlsvg = '.tl-card svg.vz-t-timeline';
-  at(62.5, () => { app(0).go('sessions'); solo(0, '.tl-card'); });
-  tween(0, 63, 2, () => framing(0, '.tl-card', [1310, 540, 1040, 900]), E.quart, IN.plane);
-  txt(63.4, 65.6, [['eb', '03 · Trajectory'], ['gap'], ['hv sv', '卡在哪一刻'], ['md acc', '逐秒回放，一眼看清']], { x: L, y: 540 }, { st: .25, outB: .5 });
-  drive(0, 64.6, 68.6, (p, b) => { const a = app(0); if (a.S.sess.playing) a.W.eval('stopPlay()'); a.S.sess.ph = a.W.eval('traj(BYID[S.sess.sel]).T') * E.inOut(lp(b, 64.8, 3.6)); a.W.eval('tlFrame(true)'); });
-  tween(0, 65.1, 1.4, () => framing(0, tlsvg, [1250, 500, 1300, 700], { max: 4, px: .18 }), E.inOut);
-  drive(0, 66.5, 68.6, (p, b, D) => { const ph = D.querySelector(tlsvg + ' .vz-playhead'), card = D.querySelector('.tl-card'); if (!ph) return; const C = decks[0].C, lim = card.getBoundingClientRect().left - (680 - C.ax) / C.s; C.x = Math.min(lim, lerp(C.x, ph.getBoundingClientRect().left + 30, .12)); });   // ride with the playhead, but keep the card clear of the caption
-  const PHASE = { '探索': ['读代码，找入口', ''], '规划': ['拆成 5 步', ''], '实施': ['纠偏 2 次', 'warn'], '部署': ['同一命令连续失败 4 次', 'crit'], '验证': ['上线验证通过 · 42 分钟', 'good'] };
-  txt(65.8, 68.7, [['md sv', '<span class="ph-n"></span>'], ['lt', '<span class="ph-d"></span>']], { x: L, y: 880 }, {
-    inB: .5, outB: .3, tick: (el, tl, life, t) => {
-      const D = decks[0].D, svg = D && D.querySelector(tlsvg), ph = svg && svg.querySelector('.vz-playhead'); if (!ph) return;
-      const px = ph.getBoundingClientRect().left; let cur = '探索';
-      [...svg.querySelectorAll('text')].filter((x) => PHASE[x.textContent]).forEach((x) => { if (x.getBoundingClientRect().left - 14 <= px) cur = x.textContent; });
-      if (el.dataset.p !== cur) { el.dataset.p = cur; el.querySelector('.ph-n').textContent = cur; const d = el.querySelector('.ph-d'); d.textContent = PHASE[cur][0]; d.className = 'ph-d ' + PHASE[cur][1]; el._t = t; }
-      const k = E.out(clamp((t - (el._t || 0)) / (.25 * BEAT))); el.querySelectorAll('.ln>span').forEach((s) => { s.style.transform = 'translateY(' + ((1 - k) * 40).toFixed(1) + '%)'; s.style.opacity = k.toFixed(3); });
-    }
-  });
-  const inspector = (D) => [...D.querySelectorAll('.tl-card div')].filter((e) => e.textContent.includes('事件检视') && e.getBoundingClientRect().width < 360).sort((a, b) => a.textContent.length - b.textContent.length).pop();
-  tween(0, 68.6, 1.4, () => Object.assign(framing(0, inspector, [760, 560, 900, 620], { max: 3 }), { ry: 12 }), E.inOut);
-  tag(0, 68.9, 70.9, inspector, 'right', [['hv sv', '每次失败'], ['md acc', '都留有现场']], { gap: 80 });
-  tween(0, 71, .9, () => OUT.up(decks[0].C), E.in);
-
-  // ===== insight → studio (a vertical feed: everything rises) =====
-  shot(1, 71.2, 75.6, { sel: byText('.card.pad.col', '这次会话的启示'), box: [1300, 540, 700, 860], inn: 'rise', out: 'up', rz: 3, prep: (a) => a.go('sessions') });
-  txt(71.5, 75.6, [['eb', 'Insight'], ['gap'], ['hv sv', '下次怎么做'], ['md acc', '复盘直接给出改法']], { x: L, y: 540 }, { st: .3 });
-  clickAt(1, 74.4, (D) => smallest(D, '.card.pad.col button', '生成规则'), () => {});
-  const runCard = (D) => D.querySelectorAll('#main .card.pad.col')[1], skillCard = (D) => smallest(D, '#main .card.col', 'SKILL.md');
-  at(75.2, () => { const a = app(0); a.go('studio'); a.click('[data-act="studioStart"]'); solo(0, [runCard, skillCard]); });
-  tween(0, 75.8, 1.3, () => Object.assign(framing(0, runCard, [1250, 540, 900, 860]), { ry: -10 }), E.quart, IN.rise);
-  txt(76.2, 79.8, [['eb', 'Studio'], ['gap'], ['hv sv', '交给本地 Agent'], ['md acc', '生成 Skill、Hook 与规则']], { x: L, y: 540 }, { st: .3 });
-  drive(0, 79.6, 81.6, (p, b, D) => { const ct = D.querySelector('#content'), sk = skillCard(D); if (ct && sk) { if (ct._s0 == null) { ct._s0 = ct.scrollTop; ct._s1 = Math.max(0, sk.offsetTop - 120); } ct.scrollTop = lerp(ct._s0, ct._s1, E.inOut(lp(b, 79.8, 1.6))); } });
-  drive(0, 80.6, 84.9, (p, b, D) => { const c = runCard(D); if (c) c.style.opacity = (1 - E.inOut(lp(b, 80.8, .9))).toFixed(3); });
-  tween(0, 81.4, 1.2, () => Object.assign(framing(0, skillCard, [1220, 540, 1040, 880], { max: 2.2 }), { ry: 0 }), E.inOut);
-  txt(81, 83.8, [['hv sv', '边写边验'], ['md acc', '自检 · 回放 dry-run · 第二视角评分']], { x: L, y: 540 }, { st: .25 });
-  tween(0, 83.9, .9, () => OUT.up(decks[0].C), E.in);
-
-  // ===== 04 · Ask (build) =====
-  shot(1, 84, 90.5, { sel: '#modal', box: [1310, 560, 980, 760], inn: 'rise', inDur: 1.4, out: 'near', outDur: 1, push: 1.14, prep: (a) => { a.go('overview'); a.W.openAsk('overview'); } });
-  clickAt(1, 85.4, '[data-act="askPick"]', (a, el) => a.click(el));
-  glowAt(84, .5, 2);
-  txt(84.5, 90.5, [['eb', '04 · Ask'], ['gap'], ['hv sv', '问你自己的'], ['hv ai', '本地 Agent'], ['gap'], ['lt', '数据不出本机 · 0 B 上传']], { x: L, y: 540 }, { st: .5, spread: 1, outB: .8 });
-  glowAt(90, 0, 1.5);
-
-  // ===== the smaller features (急): one wall of desktop pieces filling the screen, each one acts in turn =====
-  const DESK = ['#widgets', '#hud', '#notes', '.edsw'];
-  at(90.3, () => { const a = app(0); a.W.closeModal(); a.S.widgets = true; a.S.hud.show = true; a.S.sim = 'running'; a.go('overview'); a.D.querySelectorAll('#notes .nt').forEach((n) => n.remove()); solo(0, DESK); });
-  const WIDE = () => Object.assign(framing(0, ['#widgets', '#hud', '.edsw'], [960, 560, 1500, 900]), { s: 1.12, x: 800, y: 500, rx: 14, ry: -12, rz: -3 });
-  tween(0, 90.8, 1.6, WIDE, E.quart, IN.plane);
-  tag(0, 91.4, 93.6, '#widgets', 'right', [['hv sv', '桌面小组件'], ['lt acc', '人格 · 今日 · 本周 · 最值得做']], { gap: 60 });
-  at(92.6, () => { const a = app(0); a.D.querySelectorAll('#notes .nt').forEach((n) => n.remove()); a.W.simEvent('waiting'); });
-  tween(0, 92.6, 1.1, () => Object.assign(framing(0, '#notes .nt', [1200, 380, 900, 400], { max: 2 }), { rx: 8, ry: 10, rz: 2 }), E.inOut);
-  tag(0, 93, 94.6, '#notes .nt', 'left', [['md sv', '第一时间提醒'], ['lt acc', '会话等你确认时']], { gap: 50 });
-  at(94, () => { app(0).W.openPalette(); solo(0, DESK.concat('#modal')); });
-  drive(0, 94.4, 95.4, (p, b, D) => { const q = D.querySelector('#palQ'); if (!q) return; const s = '部署'.slice(0, Math.floor(p * 2.99)); if (q.value !== s) { q.value = s; q.dispatchEvent(new Event('input', { bubbles: true })); } });
-  tween(0, 94, 1.1, () => Object.assign(framing(0, '#modal', [960, 470, 900, 640], { max: 1.8 }), { rx: 10, ry: -6, rz: -2 }), E.inOut);
-  tag(0, 94.4, 95.8, '#modal', 'bottom', [['md sv', '⌘K'], ['lt acc', '任何页面、会话与操作']], { at: .5 });
-  at(95.6, () => { app(0).W.closeModal(); solo(0, DESK); });
-  tween(0, 95.8, 1.1, () => Object.assign(framing(0, '.edsw', [960, 600, 1000, 300], { max: 3.2 }), { rx: 18, ry: 8, rz: 0 }), E.inOut);
-  clickAt(0, 96.6, '[data-act="edition"][data-v="lite"]', (a) => a.W.edSet('lite'));
-  at(97.2, () => { const a = app(0); a.S.hud.show = true; a.S.sim = 'running'; a.render(); });
-  tag(0, 96, 97.4, '.edsw', 'bottom', [['md sv', 'Lite / Advance'], ['lt acc', '一键切换 · ⌃⌘L']], { at: .5, gap: 50 });
-  tween(0, 97.4, 1.1, () => Object.assign(framing(0, '#hud', [900, 560, 1100, 400], { max: 2.6 }), { rx: 12, ry: -10, rz: 2 }), E.inOut);
-  clickAt(0, 97.9, '#hudPill', (a, el) => a.click(el));
-  tag(0, 97.7, 99, '#hud', 'right', [['md sv', '悬浮组件'], ['lt acc', '会话运行时，陪在桌面一角']], { gap: 50 });
-  tween(0, 98.8, 1.2, WIDE, E.inOut);
-  at(99.2, () => { app(0).W.setTheme('dark'); });
-  tag(0, 99.3, 100.6, '#widgets', 'right', [['hv sv', '深色模式'], ['lt acc', '跟随系统外观']], { gap: 60 });
-  tween(0, 100.6, 1.3, () => ({ rz: 80, s: decks[0].C.s * .3, o: 0, bl: 6 }), E.inOut);
-
-  // ===== close: your compass, the aurora collapses to one ring, the ring becomes the Orbit mark =====
-  drive(2, 100.7, 107.6, (p, b) => drawCompass({ deg: 4 * Math.sin((b - 101) * 1.5) * Math.exp(-(b - 101) * .5), speed: 0, mine: 1, grow: 1 + .02 * Math.sin((b - 101) * 1.6), sweep: 1, orbit: 0, settle: 1, tip: 0, needle: 1, core: 1 - E.inOut(lp(b, 104, 1.2)), dial: 1 - E.inOut(lp(b, 104.4, 1.6)), collapse: E.inOut(lp(b, 104.4, 1.6)) }));
-  tween(2, 100.9, 2, () => framing(2, 'all', [960, 540, 900, 900]), E.quart, (T) => ({ s: T.s * .3, rz: -80, o: 0, bl: 6 }));
-  tween(2, 106.2, .8, () => ({ o: 0 }), E.inOut);
-  glowAt(101, .6, 3);
-  txt(102, 104.6, [['row md', ['<span>只读本地日志</span>', '<span class="acc">数据不出本机</span>']]], { x: 960, y: 1030, align: 'c' }, { st: .4 });
-  glowAt(106, .9, 3);
-  txt(109.2, 117.6, [['word', 'Orbit']], { x: 960, y: 690, align: 'c' }, { inB: 1.5, outB: 2 });
-  txt(110.6, 117.6, [['lt', '看见你与 Agent 的每一次协作']], { x: 960, y: 790, align: 'c' }, { inB: 1.5, outB: 2 });
-  txt(112.4, 117.6, [['eb', 'for macOS · ActionMesh AI']], { x: 960, y: 865, align: 'c' }, { inB: 1.5, outB: 2 });
-  glowAt(115, 0, 2.5);
-}
 
 /* ---------- clock & frame loop ---------- */
-const PROMO = window.PROMO = { ready: false, duration: END * BEAT, t: 0 };
+const PROMO = window.PROMO = { ready: false, duration: 0, t: 0 };
 let t0 = null, offset = 0, audio = null, actx = null;
 function now() {
   if (actx && audio) return actx.currentTime - audio.start + offset;
@@ -775,7 +544,7 @@ decks.filter((k) => k.frame).forEach((k) => k.frame.addEventListener('load', () 
   const S = k.W.eval('S'); S.widgets = false; S.hud.show = false; k.W.render();
   k.D.querySelectorAll('#notes .nt').forEach((n) => n.remove());
   if (++loaded < 2) return;
-  script(); tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
+  script(); PROMO.duration = END * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
   if (DEBUG) { const d = document.createElement('div'); d.className = 'dbg'; stage.appendChild(d); setInterval(() => { d.textContent = 'b' + (PROMO.t / BEAT).toFixed(2); }, 50); }
   PROMO.ready = true;
 }));
