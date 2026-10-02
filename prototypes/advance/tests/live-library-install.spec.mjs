@@ -5,7 +5,8 @@
 //  2. install   plan → preview (default selection narrows Codex off) → toggle target → confirm → 409 preview_stale
 //               re-previews → confirm → written → 撤销 (revert); installed sheet lists state + ledger
 //  3. Lite      the single-file Lite page: catalog cards, detail, install with preview_stale re-confirm, undo
-//  4. degraded  catalog / install routes missing → demo library and demo install sheet with 示例数据
+//  4. degraded  catalog / install routes missing → demo library (seed content) and demo install sheet with 示例数据;
+//               the 已安装 sheet is personal and shows an honest unavailable note, never demo rows
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -104,7 +105,8 @@ test('live library: catalog cards, facets, paging, search, local items and item 
   await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="liDetail"]').first().click();
   const d = page.locator('#modal [data-tl="lib-detail"]');
   await expect(d.locator('[data-tl="lib-readme"]')).toContainText('同一命令连续失败两次后暂停');
-  await expect(d.locator('[data-tl="lib-versions"] tbody tr')).toHaveCount(2);
+  // versions are the polished list rows (one .row per version), not the round-2 plain table
+  await expect(d.locator('[data-tl="lib-versions"] > .row')).toHaveCount(2);
   await expect(d).toContainText('shell');
   expect(errors).toEqual([]);
 });
@@ -157,7 +159,7 @@ test('live install: preview, target selection, preview_stale re-confirm, apply, 
   expect(errors).toEqual([]);
 });
 
-test('live library degraded: missing catalog / install routes fall back to the demo with 示例数据', async ({ page }) => {
+test('live library degraded: missing catalog routes fall back to the seed demo with 示例数据; 已安装 stays honest', async ({ page }) => {
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   await gateway(page, { degraded: true });
@@ -169,8 +171,10 @@ test('live library degraded: missing catalog / install routes fall back to the d
   await page.locator('#content .lb-card [data-act="getLib"]').first().click();
   await expect(page.locator('#modal')).toContainText('预览变更');
   await page.locator('#modal [data-act="closeModal"]').first().click();
+  // 已安装 is personal data: no demo rows and no 示例数据, an honest "unavailable" note instead
   await page.locator('[data-act="libInstalled"]').click();
-  await expect(page.locator('#modal [data-tl="sample"]')).toHaveText('示例数据');
+  await expect(page.locator('#modal [data-tl="installed"]')).toContainText('本机安装台账暂不可用');
+  await expect(page.locator('#modal [data-tl="sample"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

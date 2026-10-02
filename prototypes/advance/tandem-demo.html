@@ -10523,7 +10523,11 @@ if (TL.mode === 'live') {
   render = function () {
     r96();
     if (S.route !== 'library' || !S.li.degraded) return;
-    const strip = $('#content > [data-tl="strip"]'); if (strip && !strip.querySelector('[data-tl="sample"]')) strip.insertAdjacentHTML('beforeend', '<div>' + TLU.sample() + '</div>');
+    // no status strip on screen (nothing else to report): add one so the demo catalog still carries its 示例数据 badge
+    const c = $('#content'); if (!c) return;
+    const strip = c.querySelector(':scope > [data-tl="strip"]');
+    if (!strip) c.insertAdjacentHTML('afterbegin', '<div class="tl-strip" data-tl="strip"><div>' + TLU.sample() + '</div></div>');
+    else if (!strip.querySelector('[data-tl="sample"]')) strip.insertAdjacentHTML('beforeend', '<div>' + TLU.sample() + '</div>');
   };
   Object.assign(ACT, {
     libQ: (el, e) => {
