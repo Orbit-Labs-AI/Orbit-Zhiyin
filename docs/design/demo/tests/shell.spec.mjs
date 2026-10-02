@@ -23,9 +23,16 @@
 // 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 // 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
 //                      zoomed and in full screen, on three representative pages.
-// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26) and the system UI font; resize
-//                      handles are invisible (no background, no pseudo content); notifications are 344px wide, 16px from the
-//                      stage edge, and reveal their actions on hover.
+// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); the page title is serif, meta /
+//                      counts / eyebrows are mono, nav and the system clock are the system font; resize handles are invisible
+//                      (no background, no pseudo content); notifications are 344px wide, 16px from the stage edge, and reveal
+//                      their actions on hover.
+// 13. motion           every effect of the published demo is still wired up (mac-14 only): keyframes blink / fadein / grow /
+//                      pulse / shim / spin plus popin / sheetin / slidein / slideout; .nt slides + fades in and survives hover;
+//                      the toast undo countdown ticks; the menu-bar badge changes shape / colour per state and pulses while
+//                      running; the switch knob slides; the window scales away on close; the HUD drag shows six snap points,
+//                      ⌥-release places it freely, the expanded card grows away from the anchor, the timer / tool name tick;
+//                      the reveal runs its 3s storyboard; onboarding step 3 appears line by line (obRun).
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
@@ -318,10 +325,12 @@ test('shell text uses the macOS type scale and system font; resize handles are i
     }));
     const fam = (sel) => getComputedStyle(document.querySelector(sel)).fontFamily;
     const handles = Array.from(document.querySelectorAll('#win .rz')).map((h) => { const cs = getComputedStyle(h), ps = getComputedStyle(h, '::after'); return { bg: cs.backgroundColor, after: ps.content, w: h.offsetWidth, h: h.offsetHeight, radius: cs.borderRadius }; });
-    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), handles };
+    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), meta: fam('#main .tbar .meta'), eb: fam('#pop .eb'), ct: fam('.nav .ct'), handles };
   });
   expect(r.offScale).toEqual([]);
-  for (const f of [r.title, r.nav, r.clock]) expect(f.split(',')[0].trim()).toBe('system-ui');
+  expect(r.title.split(',')[0].trim()).toBe('"Source Serif 4"');
+  for (const f of [r.nav, r.clock]) expect(f.split(',')[0].trim()).toBe('system-ui');
+  expect(r.meta.split(',')[0].trim()).toBe('"JetBrains Mono"'); expect(r.eb.split(',')[0].trim()).toBe('"JetBrains Mono"'); expect(r.ct.split(',')[0].trim()).toBe('"JetBrains Mono"');
   expect(r.handles).toHaveLength(8);
   for (const h of r.handles) { expect(h.bg).toBe('rgba(0, 0, 0, 0)'); expect(h.after).toBe('none'); expect(Math.max(h.w, h.h) <= 10 || Math.min(h.w, h.h) <= 6).toBe(true); expect(h.radius).toBe('0px'); }
   expect(errors).toEqual([]);
@@ -361,5 +370,72 @@ test('no horizontal overflow with the sidebar shown / hidden, zoomed and in full
     await page.evaluate(() => { S.win.zoom = false; S.win.full = true; applyWin(); }); await check(r + ' full');
     await page.evaluate(() => { S.win.full = false; applyWin(); });
   }
+  expect(errors).toEqual([]);
+});
+
+test('motion inventory: the published effects plus the shell additions are wired up', async ({ page }) => {
+  // effects.spec.mjs (from main) guards the baseline effects; this adds the shell's own: badge pulse, notification slide-out,
+  // sheet / popover / palette entrances, HUD card direction, density bars, the reveal storyboard labels, reduced motion.
+  test.skip(test.info().project.name !== 'mac-14', 'motion coverage runs once, at the default size');
+  // a paused fake clock makes every timer deterministic: timeouts only fire through clock.runFor()
+  const time = new Date('2026-10-02T04:00:00Z');
+  await page.clock.install({ time }); await page.clock.pauseAt(time);
+  const errors = await openDemo(page);
+  const anim = (sel, pseudo) => page.evaluate(([s, p]) => { const el = document.querySelector(s); return el ? getComputedStyle(el, p || null).animationName : null; }, [sel, pseudo]);
+  const rules = (name) => page.evaluate((n) => { for (const sh of document.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (const r of rs) if (r.type === CSSRule.KEYFRAMES_RULE && r.name === n) return r.cssText; } return null; }, name);
+  for (const k of ['blink', 'fadein', 'grow', 'pulse', 'shim', 'spin', 'popin', 'sheetin', 'slidein', 'slideout', 'badgepulse']) expect(await rules(k), '@keyframes ' + k).not.toBeNull();
+  // notification: fades while sliding in from the right, survives hover, slides out on dismiss
+  await page.clock.runFor(900); await expect(page.locator('#notes .nt')).toHaveCount(1);
+  await page.evaluate(() => { document.querySelectorAll('#notes .nt').forEach((n) => n.remove()); notify({ t: '动效', b: '正文', a1: '好', ms: 700, force: true }); });
+  const nt = page.locator('#notes .nt', { hasText: '动效' });
+  await expect(nt).toBeVisible();
+  expect(await anim('#notes .nt')).toBe('slidein');
+  const kf = await rules('slidein'); expect(kf).toMatch(/opacity:\s*0/); expect(kf).toMatch(/translateX\(24px\)/);
+  await nt.hover();
+  await page.clock.runFor(1500);                      // lifetime (700ms) passed while hovered → kept, re-checked 1.5s later
+  await expect(nt).toBeVisible(); await expect(nt).not.toHaveClass(/\bout\b/);
+  await page.mouse.move(5, 500);
+  await page.clock.runFor(800);                       // the deferred check fires → slide-out starts
+  await expect(nt).toHaveClass(/\bout\b/);
+  await page.clock.runFor(500); await expect(nt).toHaveCount(0);
+  // menu-bar badge pulses only while running (shape / colour per state are guarded by effects.spec.mjs)
+  expect(await anim('.mbar .glyph .badge')).toBe('badgepulse');
+  await page.evaluate(() => { S.sim = 'waiting'; renderMbar(); });
+  expect(await anim('.mbar .glyph .badge')).toBe('none');
+  await page.evaluate(() => { S.sim = 'running'; renderMbar(); });
+  // sheet / popover / palette entrances
+  await page.evaluate(() => openKeys()); expect(await anim('#modal')).toBe('sheetin'); await page.evaluate(() => closeModal());
+  await page.evaluate(() => { S.pop = true; render(); }); expect(await anim('#pop')).toBe('popin'); await page.evaluate(() => { S.pop = false; render(); });
+  await page.evaluate(() => openPalette()); expect(await anim('#modal.pal')).toBe('popin'); await page.evaluate(() => closeModal());
+  expect(await anim('#hudPill .dot.live')).toBe('pulse');
+  // HUD: tool name scrolls every 4s, density bars drawn, the expanded card grows away from the anchor
+  const tool0 = await page.locator('#hudPill [data-hudtool]').textContent();
+  await page.clock.runFor(4100);
+  expect(await page.locator('#hudPill [data-hudtool]').textContent()).not.toBe(tool0);
+  expect(await page.locator('#hudPill svg rect').count()).toBe(5);
+  await page.evaluate(() => { S.hud.snap = 'tr'; S.hud.user = true; S.hud.open = true; renderHud(); });
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#hud')).flexDirection)).toBe('column');
+  await page.evaluate(() => { S.hud.snap = 'br'; renderHud(); });
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#hud')).flexDirection)).toBe('column-reverse');
+  await page.evaluate(() => { S.hud.open = false; S.hud.snap = 'tr'; S.hud.user = false; renderHud(); });
+  // a top-row pill steps below visible notification banners (they share the corner and stay on top)
+  await page.evaluate(() => notify({ t: '占位', b: '横幅在悬浮组件上方', ms: 60000, force: true }));
+  await expect.poll(async () => { const n = await box(page, '#notes .nt'); const p = await box(page, '#hudPill'); return p.y >= n.y + n.h + 7; }).toBe(true);
+  await page.evaluate(() => document.querySelectorAll('#notes .nt').forEach((n) => n.remove()));
+  // reveal storyboard: five stage labels over ~3s; pet grows, code fades in
+  await page.evaluate(() => openReveal());
+  await expect(page.locator('#revStage')).toContainText('01 /');
+  await page.clock.runFor(700); await expect(page.locator('#revStage')).toContainText('02 /');
+  await page.clock.runFor(800); await expect(page.locator('#revStage')).toContainText('03 /');
+  await page.clock.runFor(800); await expect(page.locator('#revStage')).toContainText('04 /');
+  expect(await anim('.reveal .pet')).toBe('grow'); expect(await anim('.reveal .code')).toBe('fadein');
+  await page.clock.runFor(900); await expect(page.locator('#revStage')).toContainText('05 /');
+  await page.evaluate(() => { closeOverlay(); render(); });
+  // reduced motion: the sheet entrance collapses to ~0ms
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => openKeys());
+  expect(parseFloat(await page.evaluate(() => getComputedStyle(document.querySelector('#modal')).animationDuration))).toBeLessThan(0.01);
+  await page.evaluate(() => closeModal());
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   expect(errors).toEqual([]);
 });
