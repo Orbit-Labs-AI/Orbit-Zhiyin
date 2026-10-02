@@ -5543,7 +5543,7 @@ PAGES['l-sessions'] = () => {
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === liteToday() ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
     '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins"><span class="aib">' + ic('spark', 11) + 'AI 洞察</span><p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
   const tl = '<div class="card pad l-tlc"><div class="hd"><div class="grow"><span class="ct">关键步骤</span><span class="cap">' + tr.moments.length + ' 个关键时刻 · 全程 ' + (s.live ? liveMin() + 'm' : dur(T)) + '</span></div>' + liteAdv('sessions', '在 Advance 中回放') + '</div>' +
-    '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol></div>';
+    (tr.moments.length ? '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol>' : (tr.state === 'pending' ? '<p class="cap" data-lv="pending" aria-busy="true" style="margin:12px 0 4px">正在读取关键时刻…</p>' : tr.state === 'error' ? '<p class="cap" data-lv="error" style="margin:12px 0 4px">关键时刻暂时取不到</p>' : '<p class="cap" data-lv="no-moments" style="margin:12px 0 4px">这个会话没有关键时刻</p>')) + '</div>';
   return liteBar('会话轨迹', rangeLabel() + ' · 最近 ' + list.length + ' 个会话') +
     '<div class="content" id="content"><div class="lite l-sessions"><div class="sess l-sess"><div class="card l-slist-c"><div class="hd l-slh"><div class="grow"><span class="ct">最近的会话</span></div></div><div class="slist">' + rows + '</div></div>' +
     '<div class="stack">' + head + '<div class="tiles l-tiles l-snums">' + nums + '</div>' + tl + '</div></div></div></div>';
@@ -5617,6 +5617,15 @@ function ovMini(kind, a, b) {
   if (kind === 'bars') { const mx = Math.max(1, ...a); return '<svg class="ov-mini" width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">' + a.slice(0, 3).map((v, i) => '<rect x="0" y="' + (i * 8) + '" width="' + Math.max(2, v / mx * 36).toFixed(1) + '" height="6" rx="1.5" fill="' + (i === 0 ? 'var(--crit)' : 'var(--h2)') + '"/>').join('') + '</svg>'; }
   return '<svg class="ov-mini" width="' + (Math.max(1, a + b) * 9) + '" height="24" viewBox="0 0 ' + (Math.max(1, a + b) * 9) + ' 24" aria-hidden="true">' + Array.from({ length: a + b }, (_, i) => '<rect x="' + (i * 9) + '" y="8" width="7" height="7" rx="1.5" fill="' + (i < a ? 'var(--ai)' : 'none') + '" stroke="var(--ai)" stroke-width="1.2"/>').join('') + '</svg>';
 }
+// 人格未揭晓：保留卡片的结构（占位码 + 进度 + 四轴空轨），不留大块空白，也不编造数值（R4-14）
+function ovPersEmpty(pers) {
+  const n = pers.n || 0; const need = Math.max(0, 30 - n);
+  const why = pers.error ? '画像暂时取不到，稍后会自动重试' : need ? '再积累 ' + need + ' 个会话后揭晓' : '当前筛选下暂不计算画像';
+  return '<div class="ov-code" data-lv="pers-empty"><span class="serif ov-code-l" style="color:var(--ink-4)">????</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600;color:var(--ink-3)">尚未揭晓</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-4)">Not yet revealed</span></span></div>' +
+    '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + ' / 30</span>' : '') + '</div>' +
+    (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:' + Math.min(100, n / 30 * 100).toFixed(0) + '%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
+    '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
+}
 PAGES.overview = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
@@ -5671,7 +5680,7 @@ PAGES.overview = () => {
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
     '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : '<span class="cap">再积累 ' + (30 - pers.n) + ' 个会话后揭晓</span>') +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three ov-three">' +
@@ -5806,7 +5815,7 @@ function peAxisRows(p, prev) {
 function peEvidence(L, st, p, i) {
   if (LV.live) {   // live: the server's per-axis evidence (unit counts the client cannot see until G1)
     const ax = (p.axes || [])[i]; const e = ax && ax.evidence;
-    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax ? ax.n_units + ' 个' + ({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] : '—', vals: [0], lbl: '暂无证据' };
+    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax && ax.n_units != null ? ax.n_units + ' 个' + (({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] || '单位') : '—', vals: [0], lbl: '暂无证据' };
   }
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.min(n - 1, Math.floor(v / max * n))]++; }); return out; };
   const byProj = (key) => PJ.slice().sort((a, b) => a[key] - b[key]).map((pj) => sum(L.filter((s) => s.p === pj.id), (s) => s.dur) / 60);
@@ -9446,6 +9455,26 @@ function lvPersonaCompute(L, minN) {
     v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
 }
 
+// per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
+const LVP_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
+function lvEvidence(L, p, st) {
+  const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.max(0, Math.min(n - 1, Math.floor(v / max * n)))]++; }); return out; };
+  const byDay = {}; L.forEach((s) => { (byDay[s.d] = byDay[s.d] || []).push(s); }); const days = Object.values(byDay);
+  const avgS = days.length ? L.length / days.length : 0, avgA = days.length ? days.reduce((a, xs) => a + new Set(xs.map((s) => s.a)).size, 0) / days.length : 0;
+  const pp = {}; L.forEach((s) => { const e = pp[s.p == null ? '' : s.p] = pp[s.p == null ? '' : s.p] || [0, 0, 0, 0];
+    if (s.op != null) { e[0] += s.op; e[1]++; } e[2] += s.vk || 0; e[3] += s.dn || 0; });
+  const pname = (k) => (k && PJI[k] ? PJI[k].name : '未归属');
+  const rank = (a, b) => Object.keys(pp).filter((k) => pp[k][b]).map((k) => [pp[k][a] / pp[k][b], k]).sort((x, y) => x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+  const plan = rank(0, 1), check = rank(2, 3);
+  const ax = {}; p.axes.forEach((a) => { ax[a.k] = a; }); const openN = ax.I.n_units || 1;
+  return {
+    D: { txt: '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
+    I: { txt: '结构化开场占 ' + Math.round((openN - ax.I.k_units) / openN * 100) + '%', vals: plan.map((x) => Math.round(x[0] * 100)), lbl: '项目结构化开场占比 · 低 → 高', projects: plan.map((x) => pname(x[1])) },
+    M: { txt: '日均 ' + f1(avgS) + ' 个会话 · 同日 ' + f1(avgA) + ' 个 Agent', vals: hist(days.map((xs) => xs.length), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' },
+    V: { txt: Math.round(st.verify) + '% 会话要求或运行了验证', vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
+  };
+}
+
 /* ---- server payload → the demo's persona shape (+ axes / server extras) ---- */
 function lvAvg(L) {
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); }); const d = Object.values(by);
@@ -9521,7 +9550,11 @@ function lvProjPersona(pid, L) {
 }
 function personaLive(L, minN) {
   L = L || [];
-  if (lvHasUnits(L)) { const p = lvPersonaCompute(L, minN); if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); } return p; }
+  if (lvHasUnits(L)) {
+    const p = lvPersonaCompute(L, minN);
+    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
+    return p;
+  }
   if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {

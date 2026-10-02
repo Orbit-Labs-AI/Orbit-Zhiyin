@@ -163,6 +163,16 @@ test('Lite: home, persona, sessions and recs run on the real agents; persona mon
   await expect(page.locator('.l-slist-c .srow').first()).toBeVisible();
   const dots = await page.locator('.l-slist-c .srow .dot').evaluateAll((els) => els.map((e) => e.getAttribute('style')));
   expect(dots.every((s) => /var\(--a[1-9]\)/.test(s))).toBe(true);
+  // R4-14: a session without key moments says so instead of drawing a bare rail
+  // (stubbed trajectory: a ready trace with zero moments; a pending one says it is loading, not that there are none)
+  await page.evaluate(() => { const s = liteSessList()[0]; S.sess.sel = s.id; window.__t0 = traj;
+    traj = (x) => (x === s ? Object.assign({}, window.__t0(x), { moments: [], state: window.__ts }) : window.__t0(x)); window.__ts = 'ready'; render(); });
+  await expect(page.locator('.l-tlc [data-lv="no-moments"]')).toHaveText('这个会话没有关键时刻');
+  await expect(page.locator('.l-tlc .l-tl')).toHaveCount(0);
+  await page.evaluate(() => { window.__ts = 'pending'; render(); });
+  await expect(page.locator('.l-tlc [data-lv="pending"]')).toBeVisible();
+  await expect(page.locator('.l-tlc [data-lv="no-moments"]')).toHaveCount(0);
+  await page.evaluate(() => { traj = window.__t0; render(); });
   await page.evaluate(() => go('l-recs'));
   await expect(page.locator('.l-rhero')).toBeVisible();
   for (const r of ['l-home', 'l-persona', 'l-sessions', 'l-recs']) {
@@ -189,6 +199,10 @@ test('empty spine and missing endpoints: owned routes render honest empty states
   }
   await page.evaluate(() => go('overview'));
   await expect(page.locator('.ov-tools [data-lv="na"]')).toBeVisible();
+  // R4-14: an unrevealed persona keeps the card's structure (placeholder code + progress + four empty axis tracks)
+  await expect(page.locator('.ov-pers [data-lv="pers-empty"]')).toBeVisible();
+  await expect(page.locator('.ov-pers')).toContainText('再积累 30 个会话后揭晓');
+  await expect(page.locator('.ov-pers [aria-label="四个维度尚无数值"] > div')).toHaveCount(4);
   await page.evaluate(() => edSet('lite'));
   for (const r of ['l-home', 'l-persona', 'l-sessions', 'l-recs']) {
     await page.evaluate((x) => go(x), r);
@@ -207,8 +221,16 @@ test('G1 port: rows with unit counts compute the persona client-side (Wilson axe
     // 40 synthetic rows over 20 days, two agents a day: D 委托 (most turns ≥ 5 steps), P (structured openings), M, V
     const L = Array.from({ length: 40 }, (_, i) => ({ id: 's' + i, d: Math.floor(i / 2), h: 10, mi: 0, a: i % 2 ? 'cc' : 'cx', p: '_none', dur: 10, msgs: 4, tools: 8, corr: 0, errors: 0, steps: 20, out: 'ok', verify: true,
       dk: 4, dn: 4, vk: 4, op: 1, t0: i * 1000, t1: i * 1000 + 500 }));
-    const r = persona(L); return { ok: r.ok, code: r.code, zh: r.zh, axes: r.axes.map((a) => [a.k, a.state, a.value]) };
+    const r = persona(L); const st = stats(L);
+    return { ok: r.ok, code: r.code, zh: r.zh, axes: r.axes.map((a) => [a.k, a.state, a.value]), units: r.axes.map((a) => a.unit),
+      ev: [0, 1, 2, 3].map((i) => peEvidence(L, st, r, i)) };
   });
+  // R4-03: client-port axes carry the unit and the same per-axis evidence the server sends (no 'N 个undefined')
+  expect(p.units).toEqual(['turn', 'session_opening', 'active_day', 'turn']);
+  p.ev.forEach((e) => { expect(e.txt).not.toMatch(/undefined|NaN/); expect(e.vals.length).toBeGreaterThan(0); expect(e.lbl).not.toBe('暂无证据'); });
+  expect(p.ev[0].vals.reduce((a, b) => a + b, 0)).toBe(40);
+  expect(p.ev[1].txt).toBe('结构化开场占 100%');
+  expect(p.ev[2].txt).toBe('日均 2.0 个会话 · 同日 2.0 个 Agent');
   expect(p.ok).toBe(true);
   expect(p.code).toBe('DPMV');
   expect(p.zh).toBe('总设计师');
