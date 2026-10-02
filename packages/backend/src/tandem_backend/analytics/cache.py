@@ -36,11 +36,13 @@ _lru_lock = threading.Lock()
 
 
 def algo_version() -> str:
-    """H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION/TAXONOMY/PREFERENCE versions, VECTOR_VERSION).
+    """H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION/TAXONOMY/PREFERENCE, VECTOR, READER versions).
 
     Read at call time. Every version that enters ``analysis_digest`` is part of it, so a
     rule change never serves a cached section or row computed under the old rules.
     """
+    from tandem_data.analysis_input import READER_VERSION
+
     from . import FEATURE_VERSION
     from . import instruction as instruction_module
     from . import preference as preference_module
@@ -57,6 +59,7 @@ def algo_version() -> str:
         preference_module.PREFERENCE_VERSION,
         preference_module.PREFERENCE_EVIDENCE_VERSION,
         vectors.VECTOR_VERSION,
+        READER_VERSION,
     )[:32]
 
 

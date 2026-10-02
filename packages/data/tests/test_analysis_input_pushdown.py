@@ -238,3 +238,20 @@ def test_pushdown_binds_selections_beyond_the_sqlite_variable_limit(home):
     assert [s["session_uid"] for s in data["sessions"]] == [
         s["session_uid"] for s in read_analysis(home, AnalysisScope("UTC"))["sessions"]
     ]
+
+
+def test_undated_title_survives_a_bounded_scope(tmp_path):
+    """A title record without a timestamp still names the session under until_ts."""
+    rows = session_rows(1, 1000)
+    del rows[1]["time"]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(source, "s1.jsonl", [(canonical(r) + "\n").encode() for r in rows])
+        store.rebuild()
+        home = store.home
+    with readonly_connection(home / "tandem.db") as connection:
+        assert connection.execute("SELECT ts FROM event WHERE kind='session.title'").fetchone()[0] is None
+    unbounded = read_analysis(home, AnalysisScope("Asia/Shanghai"))["sessions"][0]
+    bounded = read_analysis(home, AnalysisScope("Asia/Shanghai", until_ts=1000 + 1500))["sessions"][0]
+    assert unbounded["title"] == bounded["title"] == "会话 1"
+    assert bounded["title_source"] == unbounded["title_source"]
