@@ -1,0 +1,178 @@
+/* VZ · shared visualization kit (see js/36-vizkit.js). Colors only via tokens; text sizes are fixed px so charts never scale type with width.
+   Semantic chart colors (critique §4): one color = one meaning. They read the shell's --sem-* tokens when present and fall back to the theme. */
+:root{--vz-err:var(--sem-err,var(--crit-m));--vz-corr:var(--sem-corr,#c8820b);--vz-good:var(--sem-good,var(--good-m));--vz-mood-neg:var(--sem-mood-neg,#5b5bd6);--vz-mood-pos:var(--sem-mood-pos,#2a9d8f)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--vz-corr:var(--sem-corr,#e0a030);--vz-mood-neg:var(--sem-mood-neg,#8f8cff);--vz-mood-pos:var(--sem-mood-pos,#3fc3ad)}}
+:root[data-theme="dark"]{--vz-corr:var(--sem-corr,#e0a030);--vz-mood-neg:var(--sem-mood-neg,#8f8cff);--vz-mood-pos:var(--sem-mood-pos,#3fc3ad)}
+/* Selection affordances (brush, minimap window, now marker, hot marker) share the shell's monochrome --accent (= ink); their shapes and opacities keep them distinct from the ink playhead and selection stroke. */
+.vz{position:relative;min-width:0;--vz-accent:var(--accent,var(--ink-1))}
+.vz-plot{position:relative;outline:none;border-radius:8px;touch-action:pan-y}
+.vz-plot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+/* Type: ticks and numbers are monospace (same as the live demo's .chart text and .eb eyebrows); names, notes and axis titles stay in the UI sans. */
+.vz svg.vz-svg{display:block;max-width:100%;overflow:visible;font:11px var(--sans)}
+.vz-svg text{font-size:11px;font-family:var(--sans);fill:var(--ink-3);font-variant-numeric:tabular-nums;user-select:none}
+.vz-svg .vz-ax{font-size:11px;font-family:var(--mono);fill:var(--ink-3)}
+.vz-svg .vz-major{fill:var(--ink-2);font-weight:500}
+.vz-svg .vz-axl{font-size:11px;fill:var(--ink-3)}
+.vz-svg .vz-cat{font-size:12px;fill:var(--ink-2)}
+.vz-svg .vz-strong{fill:var(--ink-1);font-weight:600}
+.vz-svg .vz-val{font-size:11px;font-family:var(--mono);fill:var(--ink-1);font-weight:600}
+.vz-svg .vz-val.vz-good{fill:var(--good)}
+.vz-svg .vz-val.vz-bad{fill:var(--crit)}
+.vz-svg .vz-note{font-size:11px;fill:var(--ink-2)}
+.vz-svg .vz-end{font-size:11px;fill:var(--ink-1);font-weight:500}
+.vz-svg .vz-lbl,.vz-svg .vz-nlbl,.vz-svg .vz-span-lbl,.vz-svg .vz-callout{font-size:11px;fill:var(--ink-2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.vz-svg .vz-callout{fill:var(--ink-1)}
+.vz-svg .vz-nlbl{fill:var(--ink-1)}
+.vz-svg .vz-span-lbl{font-size:10.5px;fill:var(--ink-1)}
+.vz-svg .vz-inbar{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:#fff}
+.vz-svg .vz-cv{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
+.vz-svg .vz-cv.on{fill:var(--bg)}
+.vz-svg .vz-ct-svg{font-size:12px;font-weight:600;fill:var(--ink-1)}
+.vz-grid{stroke:var(--hair);stroke-width:1;fill:none}
+.vz-base{stroke:var(--line);stroke-width:1;fill:none}
+.vz-tick{stroke:var(--line);stroke-width:1}
+.vz-ref{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3;fill:none}
+.vz-band{fill:var(--sunken)}
+.vz-mark{stroke:var(--ink-2);stroke-width:1}
+.vz-line{fill:none;stroke:var(--c);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.vz-line.dash{stroke-dasharray:4 3}
+.vz-area{fill:var(--c);fill-opacity:.1;stroke:none}
+.vz-cband{fill:var(--c);fill-opacity:.12;stroke:none}
+.vz-pt{fill:var(--c);stroke:var(--surface);stroke-width:2}
+.vz-bar{fill:var(--c);stroke:none}
+.vz-seg path,.vz-seg rect{fill:var(--c)}
+.vz-err{stroke:var(--ink-2);stroke-width:1.5;fill:none}
+.vz-hit,.vz-hit-pt{fill:transparent;stroke:none}
+.vz-bar.vz-hot,.vz-cell.vz-hot,.vz-box.vz-hot,.vz-span.vz-hot,.vz-tickev.vz-hot,.vz-seg.vz-hot path{filter:brightness(1.12) saturate(1.08)}
+.vz-ribbon{fill:var(--c);fill-opacity:.3;stroke:none}
+.vz-ribbon.vz-hot{fill-opacity:.6}
+.vz-dot.vz-hot,.vz-pt.vz-hot{stroke:var(--ink-1)}
+.vz-lo{opacity:.3}
+.vz-hatch{pointer-events:none}
+.vz-hatch-ln{stroke:var(--surface);stroke-width:2}
+/* Entrance (first draw only, class vz-in set by VZ.draw): lines draw in, bars rise / grow, marks pop, fills fade. All <= 220ms; disabled under reduced motion below. */
+.vz-svg.vz-in .vz-line:not(.dash){animation:vz-draw .22s ease-out both}
+.vz-svg.vz-in .vz-bar,.vz-svg.vz-in .vz-hatch,.vz-svg.vz-in .vz-dens,.vz-svg.vz-in .vz-dens-err{transform-box:fill-box;transform-origin:50% 100%;animation:vz-rise .2s cubic-bezier(.05,.7,.1,1) both}
+.vz-svg.vz-in .vz-gx{transform-origin:0 50%;animation-name:vz-grow}
+.vz-svg.vz-in .vz-gxr{transform-origin:100% 50%;animation-name:vz-grow}
+.vz-svg.vz-in .vz-dot,.vz-svg.vz-in .vz-pt,.vz-svg.vz-in .vz-swarm{transform-box:fill-box;transform-origin:center;animation:vz-pop .2s ease-out both}
+.vz-svg.vz-in .vz-area,.vz-svg.vz-in .vz-cband,.vz-svg.vz-in .vz-cell,.vz-svg.vz-in .vz-ribbon,.vz-svg.vz-in .vz-box,.vz-svg.vz-in .vz-span,.vz-svg.vz-in .vz-tickev{animation:vz-fade .22s ease-out both}
+@keyframes vz-draw{from{stroke-dasharray:1 1;stroke-dashoffset:1}to{stroke-dasharray:1 1;stroke-dashoffset:0}}
+@keyframes vz-rise{from{transform:scaleY(0)}}
+@keyframes vz-grow{from{transform:scaleX(0)}}
+@keyframes vz-pop{from{transform:scale(0)}}
+@keyframes vz-fade{from{opacity:0}}
+.vz-head{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.vz-head .hd{margin-bottom:0}
+.vz-svg .vz-sel{stroke:var(--ink-1);stroke-width:2}
+.vz-dot.vz-sel{stroke:var(--ink-1);stroke-width:2.5}
+.vz-xline{stroke:var(--ink-2);stroke-width:1;opacity:.7;pointer-events:none}
+.vz-xdots{pointer-events:none}
+.vz-brush{fill:var(--vz-accent);fill-opacity:.12;stroke:var(--vz-accent);stroke-width:1;pointer-events:none}
+.vz-leader{stroke:var(--ink-4);stroke-width:1}
+.vz-callout-dot{--c:var(--ink-1)}
+.vz-ghost{stroke:var(--ink-4);stroke-width:2;stroke-linecap:round}
+.vz-fit{stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round}
+.vz-fit.weak{stroke-dasharray:4 3}
+.vz-scale i.vz-rleg{display:inline-block;border-radius:50%;background:var(--vz-accent);opacity:.6;vertical-align:middle;margin:0 2px 0 6px}
+.vz-dot{fill:var(--c);stroke:var(--surface);stroke-width:2}
+.vz-bubble{fill-opacity:.85}
+.vz-flag{fill:var(--vz-err)}
+.vz-range{stroke:none}
+.vz-target{stroke:var(--ink-1);stroke-width:2}
+.vz-dline{stroke:var(--ink-4);stroke-width:2;stroke-linecap:round}
+.vz-slope{stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round}
+.vz-slope.vz-good{stroke:var(--vz-good)}
+.vz-slope.vz-bad{stroke:var(--vz-err)}
+.vz-slope.vz-sel{stroke-width:3;stroke:var(--ink-1)}
+.vz-cell{fill:var(--h0);stroke:var(--hair);stroke-width:1}
+.vz-cell.vz-na{opacity:.45}
+.vz-peak{fill:none;stroke:var(--ink-1);stroke-width:1.5;pointer-events:none}
+.vz-whisker{stroke:var(--ink-4);stroke-width:1}
+.vz-box{fill:var(--c);fill-opacity:.35;stroke:none}
+.vz-median{stroke:var(--ink-1);stroke-width:2}
+.vz-swarm{fill:var(--c);fill-opacity:.75;stroke:none}
+.vz-node{fill:var(--c);stroke:none}
+.vz-lane{fill:transparent}
+.vz-lane.alt{fill:var(--sunken);fill-opacity:.7}
+.vz-phase{fill:var(--sunken);stroke:var(--line);stroke-width:1}
+.vz-tickev{fill:var(--c)}
+.vz-span{fill:var(--c);fill-opacity:.55;stroke:none}
+.vz-ring-ev{fill:var(--surface);stroke:var(--c);stroke-width:2.5}
+.vz-future{opacity:.3}
+.vz-dim{opacity:.15}
+.vz-marker line{stroke:var(--ink-4);stroke-width:1;stroke-dasharray:2 2}
+.vz-marker rect,.vz-marker circle{fill:var(--ink-1);stroke:none}
+.vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--mono)}
+.vz-marker.vz-hot line{stroke:var(--vz-accent);stroke-dasharray:none}
+.vz-marker.alert rect,.vz-marker.alert circle{fill:var(--vz-corr)}
+.vz-marker.alert text{fill:#fff}
+.vz-phase.inferred{stroke-dasharray:3 2}
+.vz-dens{fill:var(--c)}
+.vz-dens-err{fill:var(--vz-err)}
+.vz-playhead line{stroke:var(--ink-1);stroke-width:1}
+.vz-playhead path{fill:var(--ink-1)}
+.vz-now line{stroke:var(--vz-accent);stroke-width:1}
+.vz-now .core{fill:var(--vz-accent)}
+.vz-now .ring{fill:none;stroke:var(--vz-accent);stroke-width:1.5;transform-box:fill-box;transform-origin:center;animation:vz-pulse 1.8s ease-out infinite}
+@keyframes vz-pulse{0%{transform:scale(1);opacity:.9}100%{transform:scale(3.2);opacity:0}}
+.vz-mm-bg{fill:var(--sunken)}
+.vz-mm-area{fill:var(--ink-4);fill-opacity:.35}
+.vz-mm-line{fill:none;stroke:var(--ink-3);stroke-width:1}
+.vz-mm-err{fill:var(--vz-err)}
+.vz-mm-user{fill:var(--ink-1)}
+.vz-mm-view{fill:var(--vz-accent);fill-opacity:.14;stroke:var(--vz-accent);stroke-width:1;cursor:grab}
+.vz-mm-hdl{fill:var(--vz-accent);cursor:ew-resize}
+.vz-t-minimap{cursor:crosshair}
+.vz-legend{display:flex;gap:2px 10px;flex-wrap:wrap;margin:0 0 6px;min-width:0}
+.vz-lg{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 6px;border:0;border-radius:6px;background:none;font-size:12px;color:var(--ink-2);white-space:nowrap}
+.vz-lg:hover{background:var(--field)}
+.vz-lg.off{opacity:.38}
+.vz-sw{width:10px;height:10px;border-radius:2px;background:var(--c);flex:none}
+.vz-sw.line{width:12px;height:2px;border-radius:1px}
+.vz-sw.dot{border-radius:50%}
+.vz-lgv{font-family:var(--mono);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.vz-tip{position:absolute;z-index:5;pointer-events:none;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
+.vz-th{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:3px;white-space:nowrap}
+.vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--mono);font-size:11px}
+.vz-tr{display:flex;align-items:center;gap:6px;min-height:18px;min-width:0}
+.vz-tk{width:12px;height:2px;border-radius:1px;background:var(--c);flex:none}
+.vz-tk.rect{width:10px;height:10px;border-radius:2px}
+.vz-tv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
+.vz-tn{color:var(--ink-3);font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12.5px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
+.vz-empty-ic{stroke:var(--ink-4);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.vz-low b{display:block;color:var(--ink-1);font-size:13px}
+.vz-low .cap{display:block;font-size:11.5px}
+.vz-ring-bg{fill:none;stroke:var(--line);stroke-width:4}
+.vz-ring{fill:none;stroke:var(--ink-1);stroke-width:4;stroke-linecap:round}
+.vz-scale{display:flex;align-items:center;gap:3px;margin-top:8px;font-size:11px;flex-wrap:wrap}
+.vz-scale i{display:block;width:10px;height:10px;border-radius:2px}
+.vz-scale .cap{font-size:11px;margin:0 3px}
+.vz-scale-note{margin-left:auto}
+.vz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(var(--minw,220px),100%),1fr));gap:12px 16px}
+.vz-cell-wrap{min-width:0}
+.vz-ct{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;font-weight:600;color:var(--ink-1);margin-bottom:4px}
+.vz-ct .cap{font-weight:400;font-size:11px}
+.vz-kpi{padding:11px 14px 10px;display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--line);cursor:default;width:100%;container-type:inline-size}
+.vz-kpi-h{justify-content:space-between;width:100%}
+.vz-kpi-l{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@container (max-width:150px){.vz-kpi .vz-spark{display:none}}
+.vz-kpi-v{align-items:baseline;gap:3px}
+.vz-kpi .v{font-size:26px;line-height:30px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:normal}
+.vz-kpi-u{font-size:13px;color:var(--ink-3)}
+.vz-kpi .v{font-variant-numeric:tabular-nums}
+.vz-kpi-d{font:600 11px/16px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
+.vz-kpi-d.vz-good{color:var(--good)}
+.vz-kpi-d.vz-bad{color:var(--crit)}
+.vz-tbl{margin-top:2px;max-height:360px;overflow:auto}
+.vz-tbl thead th{position:sticky;top:0;background:var(--surface);z-index:1}
+.vz-kpi-p{font-size:11px;color:var(--ink-4);margin-left:4px;white-space:nowrap}
+.vz-spark{display:block;overflow:visible;flex:none}
+.vz-tv-toggle{margin-left:auto}
+.vz-ev{transition:opacity .15s}
+.vz-playing .vz-future{opacity:0}
+.vz-playhead{cursor:ew-resize}
+.vz-ph-hit{fill:transparent}
+@media (prefers-reduced-motion:reduce){.vz *{transition:none!important;animation:none!important}}
+@media (forced-colors:active){.vz-line{stroke:CanvasText}.vz-bar,.vz-cell{fill:CanvasText}}

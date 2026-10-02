@@ -133,10 +133,13 @@ test('floating HUD shows six snap points while dragged, snaps, places freely wit
   await expect(pill).toBeVisible();
   const t0 = await page.locator('#hud [data-live]').first().textContent();
   await expect.poll(() => page.locator('#hud [data-live]').first().textContent(), { timeout: 3000 }).not.toBe(t0);
+  // The pill rests at the first snap point free of the window and widgets (bottom-left at mac-14), so drag towards the stage
+  // centre to stay inside the viewport.
+  const vw = page.viewportSize();
   const r = await pill.boundingBox();
   await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
   await page.mouse.down();
-  await page.mouse.move(r.x - 200, r.y - 150, { steps: 8 });
+  await page.mouse.move(vw.width / 2, vw.height / 2, { steps: 8 });
   await expect(page.locator('.snap')).toHaveCount(6);
   await page.mouse.up();
   await expect(page.locator('.snap')).toHaveCount(0);
@@ -145,7 +148,7 @@ test('floating HUD shows six snap points while dragged, snaps, places freely wit
   await page.mouse.move(r2.x + r2.width / 2, r2.y + r2.height / 2);
   await page.mouse.down();
   await page.keyboard.down('Alt');
-  await page.mouse.move(r2.x - 40, r2.y + 60, { steps: 8 });
+  await page.mouse.move(r2.x + r2.width / 2 - 40, r2.y + r2.height / 2 + (r2.y > vw.height / 2 ? -60 : 60), { steps: 8 });
   await page.mouse.up();
   await page.keyboard.up('Alt');
   expect(await page.evaluate(() => S.hud.snap)).toBeNull();

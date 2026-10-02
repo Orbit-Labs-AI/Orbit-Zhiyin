@@ -20,10 +20,28 @@ test('all pages render without errors or horizontal overflow', async ({ page }, 
     expect.soft(over.content, r + ' content overflow').toBeLessThanOrEqual(1);
   }
   if (info.project.name === 'compact') {
-    // Under 900px the sidebar is an off-canvas drawer opened from the burger button.
-    await expect(page.locator('.burger')).toBeVisible();
-    const side = await page.locator('.side').boundingBox();
-    expect(side.x + side.width).toBeLessThanOrEqual(1);
+    // A stage narrower than the 900×600 minimum window: the window fills the stage ("fit" mode, 16px margins), the sidebar
+    // takes no content width by default, and the title-bar toggle opens it as an overlay without any sideways overflow.
+    const vw = page.viewportSize();
+    const win = page.locator('#win');
+    await expect(win).toHaveAttribute('data-mode', 'fit');
+    await expect(win).toHaveClass(/\bnosb\b/);
+    const w = await win.boundingBox();
+    expect(w.x).toBe(16); expect(w.width).toBe(vw.width - 32); expect(w.y).toBe(24 + 16); expect(w.height).toBe(vw.height - 24 - 32);
+    await expect(page.locator('#side')).toBeHidden();
+    const main = await page.locator('#main').boundingBox();
+    expect(main.x).toBe(w.x); expect(main.width).toBe(w.width);
+    await page.locator('#wtop [data-act="sideToggle"]').click();
+    await expect(win).toHaveClass(/\bsbover\b/);
+    await expect(page.locator('#side')).toBeVisible();
+    // let the slide-in transition finish (infinite animations such as the live-dot pulse are skipped)
+    await page.evaluate(() => Promise.race([Promise.all(document.getAnimations().filter((a) => { const t = a.effect && a.effect.getTiming(); return t && t.iterations !== Infinity; }).map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1500))]));
+    const side = await page.locator('#side').boundingBox();
+    expect(side.x).toBe(w.x); expect(side.x + side.width).toBeLessThanOrEqual(w.x + w.width);
+    const over = await page.evaluate(() => { const m = document.querySelector('#main'); return { page: document.documentElement.scrollWidth - window.innerWidth, main: m.scrollWidth - m.clientWidth }; });
+    expect(over.page).toBeLessThanOrEqual(0); expect(over.main).toBeLessThanOrEqual(1);
+    await page.locator('#sidescrim').click({ position: { x: 600, y: 300 } });
+    await expect(page.locator('#side')).toBeHidden();
   }
   expect(errors).toEqual([]);
 });
