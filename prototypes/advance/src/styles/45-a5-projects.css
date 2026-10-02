@@ -1,0 +1,62 @@
+/* A5 项目习惯（js/44-a5-projects.js）。布局 .pj：内容列 ≥ 1100px 时左（表 + 散点）右（详情）两栏，否则单栏堆叠（修评审 A5-V01 的裁切）。
+   颜色：墨色 = 选中项目 / A，浅灰 = 基准；Agent 五色只在构成条与分工条里表示身份；残差竖线用语义色（琥珀高于预期、绿低于）。 */
+.pj{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
+@container main (min-width:1100px){.pj{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.pj-two{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px}
+@container main (max-width:699px){.pj-two{grid-template-columns:minmax(0,1fr)}}
+/* 项目表：固定布局，路径列吃掉剩余宽度；窄容器隐藏路径与构成列 */
+.pj-tbl{table-layout:fixed;width:100%;font-size:13px}
+.pj-tbl col.pj-c-n{width:48px}.pj-tbl col.pj-c-h{width:60px}.pj-tbl col.pj-c-f{width:112px}.pj-tbl col.pj-c-s{width:96px}.pj-tbl col.pj-c-p{width:60px}
+.pj-tbl td{overflow:hidden}
+.pj-name{min-width:0}
+.pj-title{font-weight:600;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-path{font-size:11px;line-height:15px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-pers{text-align:right;letter-spacing:.06em;white-space:nowrap}
+.pj-fric{gap:6px}
+.pj-fric .mono{font-size:13px;min-width:46px;text-align:right}
+.pj-bar{display:block;flex:1;min-width:24px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
+.pj-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
+.pj-split{display:flex;height:8px;gap:1px;border-radius:2px;overflow:hidden;width:100%;max-width:92px;outline:none}
+.pj-split:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@container main (max-width:639px){.pj-path{display:none}.pj-tbl col.pj-c-s{width:0}.pj-tbl td:nth-child(5),.pj-tbl th:nth-child(5){display:none}}
+/* 散点：残差竖线与 A / B 标记 */
+.pj-res{stroke:var(--c);stroke-width:1.5;stroke-opacity:.85}
+.pj-ring{fill:none;stroke:var(--ink-1);stroke-width:2}
+.vz-svg .pj-ab{font:700 10px var(--mono);fill:var(--surface)}
+.vz-svg .pj-ab.ring{fill:var(--ink-1);paint-order:stroke;stroke:var(--surface);stroke-width:3px}
+/* 此项目 vs 基准：成对条 + Δ */
+.pj-key{width:10px;height:8px;border-radius:2px;display:inline-block}
+.pj-vs{display:grid;grid-template-columns:84px minmax(0,1fr) 92px 64px;gap:10px;align-items:center}
+.pj-vs-n{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-vs-b{display:block;height:7px;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-4)}
+.pj-vs-b.a{background:var(--ink-1)}
+.pj-vs-v{font-size:11px;text-align:right;color:var(--ink-2);white-space:nowrap}
+.pj-vs-v b{color:var(--ink-1)}
+.pj-vs-d{font-size:11px;text-align:right;white-space:nowrap;color:var(--ink-2)}
+.pj-vs-d.flat{color:var(--ink-4)}
+.pj-vs-d.vz-good{color:var(--good)}
+.pj-vs-d.vz-bad{color:var(--crit)}
+@container main (max-width:639px){.pj-vs{grid-template-columns:76px minmax(0,1fr) 84px}.pj-vs-d{display:none}}
+/* Agent 分工：会话 / 时长 / 完成率三行条 */
+.pj-share{display:flex;height:10px;gap:2px;border-radius:3px;overflow:hidden}
+.pj-dot{width:9px;height:9px;border-radius:2px;flex:none;display:inline-block}
+.pj-ag{display:grid;grid-template-columns:88px minmax(0,1fr);gap:8px;align-items:start}
+.pj-ag-r{display:grid;grid-template-columns:24px minmax(0,1fr) 40px;gap:6px;align-items:center}
+.pj-ag-r .cap{font-size:11px}
+.pj-ag-r .mono{font-size:11px;text-align:right}
+/* 工作流步骤芯片 */
+.pj-step{gap:0;padding:6px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg)}
+/* 配置覆盖：Agent × 配置类型方块矩阵 */
+.pj-cov{display:grid;gap:4px 6px;align-items:center}
+.pj-cov-h{display:grid;place-items:center;height:18px}
+.pj-cov-r{font-size:12px;color:var(--ink-2);white-space:nowrap;padding-right:6px}
+.pj-cov-c{width:14px;height:14px;border-radius:3px;display:inline-block;justify-self:center;box-sizing:border-box;border:1.5px solid var(--ink-3);background:transparent}
+.pj-cov-c.on{background:var(--ink-1);border-color:var(--ink-1)}
+.pj-cov-c.na{border-color:transparent;background:repeating-linear-gradient(45deg,var(--line) 0 2px,transparent 2px 4px)}
+.pj-cov-v{display:flex;align-items:baseline;gap:8px;min-width:0;padding-left:8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pj-cov-v b{font-size:12px;color:var(--ink-1)}
+.pj-cov-v .cap{font-size:11px;overflow:hidden;text-overflow:ellipsis}
+/* 散点：标签由 pscatter 自行避让（避开回归线与残差竖线）；尺寸图例圆点与文字留出间距 */
+.pj .vz-scale-note{display:inline-flex;align-items:center;gap:0}
+.pj .vz-scale i.vz-rleg{margin:0 4px 0 10px}
+.vz-svg .vz-lbl.pj-lbl{font-size:11px}

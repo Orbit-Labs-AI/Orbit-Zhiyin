@@ -3,6 +3,8 @@
 本目录存放 Hackathon 产品（暂定名 **Tandem / 同频**）的设计参考与存档：一个本地的跨 Agent 会话分析 Mac App，做协作人格分析、会话轨迹可视化，并给出 Skills、Hooks、规则等优化建议。
 
 > App 版本与设计归属按下表执行。画板与 Demo 的具体内容仍是视觉与交互参考，MVP 功能范围须由 `yhyfhgs`、`MistyHuang03`、`genius-FXC` 三人共同确认。
+>
+> Advance 的画板与 Demo 是 2026-10-01 定下的视觉与交互参考。之后确定的数据口径、分析方法和页面改动见下文「v1 之后的决定」，与画板不一致时以那里列出的文档为准。
 
 ## App 版本与设计归属
 
@@ -14,6 +16,7 @@
 | **Advance** | `yhyfhgs` 的桌面 App 设计 | [`../../prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html)、源码 [`../../prototypes/advance/src/`](../../prototypes/advance/src)、画板存档 [`visual-cases-v1/`](visual-cases-v1/) |
 
 - 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。
+- 自 2026-10-02 起两版合为**同一个 App**：[`../../prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html) 侧栏顶部的 Lite | Advance 按钮一键切换，两版共用侧栏、卡片、栏目标题、KPI、控件、桌面小组件与动效，Lite 只在页面数量与尺度上做减法（见下文「Lite 与 Advance：同一个 App」）。`prototypes/lite/` 保留 `genius-FXC` 的原稿作为 Lite 设计来源。
 - 个人 Benchmark Demo 对应 Lite，原版桌面 Demo 与 v1 画板对应 Advance。两套设计并行保留，引用设计或功能说明时注明适用版本。
 - 版本归属保持不变；结构整理已将可运行原型迁移到 prototypes，并保留界面与交互行为。界面与交互的调整由对应设计任务另行推进，版本归属本身不新增功能或替代 MVP 范围确认。
 
@@ -24,20 +27,54 @@
 | Advance | v1 | 2026-10-01 | Mac App 视觉案例：5 页、26 块画板，含逐屏交互标注 | 在线画布、`visual-cases-v1/` |
 | Advance | v1.1 | 2026-10-01 | 修正 A5「跨项目对比」的拟合线与相关系数（标注 r = 0.71 与示例点不符，按示例点重算为 0.91） | 同上 |
 | Advance | v1.2 | 2026-10-01 | 把视觉案例做成可交互 HTML Demo，所有页面和按钮都有逻辑 | 在线 Demo、`../../prototypes/advance/tandem-demo.html` |
+| Advance | v1.3 | 2026-10-02 | Demo 源码拆到 `demo/src/`（现 `prototypes/advance/src/`），加入构建与 Playwright 测试；修复来源筛选、临时静音、模式状态与跨筛选跳转；在线 Demo 重新发布为 main（`c97c818`）的构建 | 在线 Demo、`../../prototypes/advance/` |
 | Lite | Benchmark Demo（PR #12） | 2026-10-02 | `genius-FXC` 的八页个人协作 Benchmark 设计 | `../../prototypes/lite/tandem-benchmark-demo.html`、`lite-review.md` |
+| Lite + Advance | v1.4 | 2026-10-02 | 两版合为同一个 App：侧栏顶部一键切换；Lite 收敛为四页并复用 Advance 组件；两版共用的换页编排、数字滚动、页面导读与微动效；首次启动改为导入 → 归位 → 生成 → 匹配 → 落地的连贯 Genesis 序列 | `../../prototypes/advance/`（`26-edition.js`、`37-motion.js`、`39-lite-pages.js`、`56-onboarding.js`） |
 
 ## 如何查看
 
-- **Lite Demo**：[`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，用浏览器直接打开即可，无需构建、依赖或联网。
-- **Advance 在线画布**（可平移缩放、留评论）：<https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>
+- **统一 App（Lite + Advance）**：[`../../prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html)，侧栏顶部切换版本（也可用「显示」菜单、⌘K 或 ⌃⌘L）；地址加 `#l-home` 直接以 Lite 打开。
+- **Lite 原稿**：[`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，用浏览器直接打开即可，无需构建、依赖或联网。
+- **Advance 在线画布**（可平移缩放、留评论）：<https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>，内容停在 v1.1。
 - **Advance 画板源文件**：`visual-cases-v1/` 下的 `canvas.json` 与 `*.dc.html`。它们依赖 claude.ai Design 画布的运行时（`support.js`），不能直接用浏览器打开，用于留档、比对和必要时重新发布。
-- **Advance Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>；本地版 `../../prototypes/advance/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `../../prototypes/advance/src/` 构建生成，修改方法见下文「修改 Demo」。
+- **Advance Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>，每次 Demo 合入 main 后按下文「修改 Demo」最后一行重新发布；本地版 `../../prototypes/advance/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `../../prototypes/advance/src/` 构建生成，修改方法见下文「修改 Demo」。
+
+## Logo
+
+`logo/` 存放项目 logo：一段洛伦茨吸引子（σ=10, ρ=28, β=8/3）轨道的纯色线稿，颜色为低饱和板岩灰 `#5f6b6f`。它由莫比乌斯带线稿演化而来，沿用同一套线条语言：一笔画成，近处粗、远处细，投影交叉处较远的一支断开，两端渐细收笔。轨道左右两翼各绕两圈；吸引子的拓扑模板本身是一条带扭转的分支带，与莫比乌斯带同源。
+
+| 文件 | 用途 |
+| --- | --- |
+| [`logo/tandem-mark.svg`](logo/tandem-mark.svg) | 主标志，透明底、紧凑画布 |
+| [`logo/tandem-mark-light.svg`](logo/tandem-mark-light.svg) | 浅色线（暖纸色），用于深色底 |
+| [`logo/tandem-mark-small.svg`](logo/tandem-mark-small.svg) | 线宽拉平加粗，用于 48 px 以下或 favicon |
+| [`logo/tandem-icon.svg`](logo/tandem-icon.svg)、[`logo/tandem-icon.png`](logo/tandem-icon.png) | 方形 App 图标，暖纸底圆角方块，1024 px |
+
+文件由 [`logo/generate.py`](logo/generate.py) 生成（`python3 docs/design/logo/generate.py`，纯 Python，无第三方依赖，积分初值与步长固定，可复现）。取哪几圈轨道、起止点、视角、线宽和交叉留白都是脚本顶部的常量。断口是真正断开的，可直接放在任意底色上。PNG 由浏览器截图导出，改 SVG 后需同步更新。此前的莫比乌斯带版本见 git 历史（`391203a` 及更早）。
+
+两个备选版本用同一套线条语言与文件组成（mark、light、small、icon），由同一脚本一并生成，主版本保持不变：
+
+| 版本 | 位置 | 曲线 |
+| --- | --- | --- |
+| 复杂度略增 | [`logo/variants/rich/`](logo/variants/rich/tandem-mark.svg) | 同一段吸引子轨道多取一圈，右翼多绕一圈 |
+| 单环螺旋 | [`logo/variants/spiral/`](logo/variants/spiral/tandem-mark.svg) | 一条 1.6 圈的锥形螺旋线，半径由外向内收、同时沿轴向抬升，斜看时内圈从外环下方穿过 |
 
 ## 可交互 Demo
 
+### Lite 与 Advance：同一个 App（2026-10-02）
+
+| 部分 | 做法 |
+| --- | --- |
+| 切换 | 侧栏顶部 Lite \| Advance 滑块；「显示」菜单、命令面板、⌃⌘L 同样可切。滑块先移动，再以 View Transition 交叉淡入侧栏与内容；选择会被记住 |
+| 路由 | 概览、画像、会话、建议两版一一对应，切换时停在对应页面；Lite 中打开工具、项目、情绪、资源库、工坊等 Advance 独有页面时自动切到 Advance，并给出「回到 Lite」 |
+| 共用组件 | 侧栏（分组、导航行、Agents、页脚隐私卡与用户行）、标题栏 `tbar`、卡片与栏目标题、KPI、`seg` / `chip` / 按钮、建议卡、会话行、协作指纹、桌面小组件、悬浮组件与菜单栏 |
+| Lite 四页 | 概览（AI 一句话 + 大字人格码、四个大数字、30 天活跃条、本周最值得做的一件事）、协作画像（超大四字母码、指纹、四条大刻度、月度演变）、会话轨迹（最近关键会话 + 关键步骤时间线）、优化建议（前三条大卡，可应用 / 撤销）。不显示筛选行，只保留时间范围；有 Advance 筛选时给出「清除」 |
+| 共用动效 | 换页时区块依次上浮淡入、`data-count` 数字滚动、标题栏下的「这页回答」导读（可收起并记住）、按钮按下回弹、可点卡片抬升、分段控件滑块、筛选 chip 增删；`prefers-reduced-motion` 时全部关闭 |
+| 首次启动 Genesis | 「开始分析」后连续播放：来源化为会话粒子汇入中央 → 按开始时间落到 24 小时表盘、外环生长 → D I M V 雷达长出、字母翻牌锁定 → 相近人格卡比对、匹配卡并入四字母并显示匹配度 → 「查看完整画像」时人格码与指纹 FLIP 飞到当前版本的画像页。落地页沿用刚分析的时间范围；「播放人格揭晓」复用后四段；可随时跳过、Esc、在后台继续 |
+
 ### Lite：genius-FXC 的个人 Benchmark Demo（2026-10-02）
 
-- 打开 [`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，无需构建或联网。它作为 Lite 的设计参考，与 Advance 的 `tandem-demo.html` 并行保留。
+- 打开 [`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，无需构建或联网。它是 Lite 的设计原稿；可运行的 Lite 已并入统一 App（见上节）。
 - 沿用原版暖白底色、衬线标题、等宽数字、侧栏和 Agent 配色，按个人协作 Benchmark 的需求收敛为八页：概览、协作画像、会话与轨迹、工具调用、项目分析、情绪与语义、优化建议、资源库。
 - 项目分析保持独立；暂不实现生成工坊。移除桌面小组件、悬浮面板、首次启动、人格揭晓、会话回放 / 对比和通知模拟等额外流程。保留全局搜索、浅深色、筛选、同步入口、导出与分享。
 - 日期、Agent、项目筛选共同作用于各页；月度画像使用同 Agent / 项目的完整历史。Markdown 报告、会话 CSV 与 SVG 分享卡支持真实下载；同步、安装和社区推荐均为明确标记的演示，不接入真实日志、不调用模型、不写入 Agent 配置。
@@ -61,7 +98,7 @@ Advance Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面�
 
 ## 修改 Demo
 
-本节是 **Advance Demo** 的维护方式。Lite 是独立 HTML，其现有检查命令见 [`lite-review.md`](lite-review.md)。版本归属的文档同步不涉及两套 Demo 的实现修改。
+本节是**统一 App**（Lite 与 Advance 同一套源码）的维护方式。Lite 原稿是独立 HTML，其现有检查命令见 [`lite-review.md`](lite-review.md)。版本归属的文档同步不涉及两套 Demo 的实现修改。
 
 Advance 的 `../../prototypes/advance/tandem-demo.html` 是构建产物，**不要直接改它**：源码在 `../../prototypes/advance/src/`，下一次构建会覆盖对产物的直接修改。
 
@@ -121,13 +158,27 @@ Advance 的 `../../prototypes/advance/tandem-demo.html` 是构建产物，**不�
 
 - **视觉语言**延续 Confluo v2 Demo（`Confluo/docs/plan/v2/demo/paper-feed-demo.html`）：暖白纸感底色、衬线标题、等宽数字与小标题，整体以单色为主。
 - **颜色只承载身份与状态**：五个 Agent 用同一套可视化色板中的五色，按固定顺序分配、颜色跟随实体；亮色与暗色下相邻色的色觉差异 ΔE 最差为 9.2 与 8.4（≥ 8），已用校验脚本验证。紫色只用来标记 AI 生成的内容。
-- **协作人格**：四个维度（委托 / 掌舵、规划 / 即兴、多线 / 专注、求证 / 信任）组合成 16 型；少于 30 个会话或维度落在 45–55 时不下结论。
-- **隐私边界**：Tandem 只读本地会话日志，自己不调用任何云端模型；生成内容交给用户本机的 Agent，使用它自己的登录与额度，发送内容可逐项预览。
-- **所有写入**都要经过预览、确认，写入后可撤销，并在 7 天后对比效果。
+- **协作人格**：四个维度（委托 / 掌舵、规划 / 即兴、多线 / 专注、求证 / 信任）组合成 16 型；少于 30 个会话或维度落在 45–55 时不下结论，展示时标「实验性」。
+- **隐私边界**：Tandem 只读本地会话日志，不上传数据，自己也不调用云端模型。交给本机 Agent 的内容会经该 Agent 发往它的服务商，用的是用户自己的登录与额度，发送前可以逐项预览。
+- **所有写入**都要经过预览、确认，写入后可撤销，并在安装后对照效果。
 
-## 假设与待确认
+## v1 之后的决定
 
-- 名称 Tandem / 同频为暂定。
-- 所有数值都是示例数据；项目名与使用习惯参考了 `yhyfhgs` 本机的 Claude Code Insights 报告，数字为虚构。
-- Gemini CLI、Copilot CLI、DeepSeek Harness 的会话目录是假设，需要逐一核实。
-- 人格维度的信号与权重是初版设想，需要用真实数据校准。
+画板没有回改。下表是 v1 之后定下的改动，Demo 后续修改以它们为准；表中「调研总结」指 [docs/research/landscape.md](../research/landscape.md) §1 的编号。
+
+| v1 的做法 | 现行做法 | 依据 |
+| --- | --- | --- |
+| 以 Agent 为主要分组：A1 按 Agent 堆叠的趋势图、侧边栏 Agent 列表、A2 Agent 契合度 | 按项目、模型与思考档位分组；Agent 只作来源属性，用于去重、兼容性判断与标注数据来自哪里 | [数据方案 §4.5](../plans/data-acquisition.md) |
+| 页面里的指标由 Demo 自己从示例数据算出 | 指标来自后端的确定性计算，不开 AI 也能出数；后端 MVP 先读 Codex 记录，按「数据 → 画像 → 瓶颈 → 推荐」输出 | 调研总结第 3 条、[仓库 README](../../README.md) |
+| A3 泳道时间轴，窄窗口需要横向滚动 | 脊柱概览 + 语义泳道 + 按轮次的事件账本 + 检查器；默认按活跃时间投影、折叠空闲、不横向滚动；规则检出的关键时刻画实心，AI 推断的画空心并附引用 | 调研总结第 14 条 |
+| 图表标题描述图表本身，数字不标来源 | 标题写结论句；每个数字标来源与新鲜度（官方、官方缓存、估算、过期、无数据）；样本不够时显示「数据不足」 | 调研总结第 15 条 |
+| A2「与全体用户比较」、A8「同类型用户在用」与「和你相似的人」 | 删除，没有跨用户的数据来源 | 调研总结第 15 条 |
+| A7 建议卡用示例收益（如「review 轮次 −60%」） | 推荐由问题驱动，机制由代码决策表选择，一次最多推荐 2–3 个 skill；装后效果分是否触发、机械效果、行为效果三层报告，不写提速百分比 | 调研总结第 6、7、11 条 |
+| 没有用量与额度视图 | 新增「用量与额度」视图，作为分析的分母；Lite 版只放一张卡 | 调研总结第 13 条 |
+
+## 假设
+
+- 产品名暂用 Tandem / 同频。
+- 画板与 Demo 里的数值都是示例数据；项目名与使用习惯参考了 `yhyfhgs` 本机的 Claude Code Insights 报告，数字为虚构。
+- Demo 里 Gemini CLI、Copilot CLI 的会话目录沿用 v1 的写法；实际接入哪些 Agent、各自的会话格式，以[数据方案](../plans/data-acquisition.md)和[会话格式调研](../research/agent-sessions/README.md)为准。
+- 人格维度的信号与权重是初版设想，接入真实数据后按区间判定。

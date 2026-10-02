@@ -17,6 +17,14 @@ function pass(s, o) {
   return true;
 }
 function sel(o) { o = o || {}; const w = o.win || win(o.range != null ? o.range : S.range); return ALL.filter((s) => s.d >= w[0] && s.d <= w[1] && pass(s, o)); }
+// 人格的唯一口径（BUG-06）：只按时间窗、Agent 与项目取会话；主题 / 结果 / 摩擦 / 时段这些会话级筛选不计入，
+// 否则同一时刻侧栏（personaNow）、A1 人格卡与 A2 会算出不同的四字母码。页面在显示时注明哪些筛选未计入（personaScopeNote）。
+function personaScope(w) { return sel({ win: w || win(S.range), noExtra: true }); }
+function personaScopeNote() {
+  const x = [];
+  if (S.topic) x.push('主题'); if (S.outcome) x.push('结果'); if (S.fric) x.push('摩擦'); if (S.hour != null) x.push('时段');
+  return x.length ? x.join(' / ') + '筛选不计入人格' : '';
+}
 function stats(L) {
   const n = L.length, mins = sum(L, (s) => s.dur), msgs = sum(L, (s) => s.msgs), tools = sum(L, (s) => s.tools);
   const errors = sum(L, (s) => s.errors), corr = sum(L, (s) => s.corr);

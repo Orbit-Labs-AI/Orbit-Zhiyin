@@ -27,6 +27,8 @@ def tool_summary(calls, dataset_status="available"):
             reliable = c.get("interval_reliable", c.get("duration_source") == "native_bounds")
             if reliable and timestamp(a) and timestamp(b) and b >= a:
                 intervals.append((a, b))
+        # One O(n log n) sort; quantile() re-sorting an ordered list is linear.
+        ordered = sorted(durations)
         out = {"call_count": len(items), "paired_result_count": sum(bool(c.get("result_event_uid")) for c in items),
                "unpaired_count": sum(not c.get("result_event_uid") for c in items),
                "known_success_count": statuses["success"], "known_failure_count": statuses["failed"],
@@ -35,8 +37,8 @@ def tool_summary(calls, dataset_status="available"):
                "eligible_status_count": statuses["success"] + statuses["failed"],
                "success_rate": ratio(statuses["success"], statuses["success"] + statuses["failed"]),
                "failure_rate": ratio(statuses["failed"], statuses["success"] + statuses["failed"]),
-               "median_duration_ms": quantile(durations, .5), "p25_duration_ms": quantile(durations, .25),
-               "p75_duration_ms": quantile(durations, .75), "p90_duration_ms": quantile(durations, .9),
+               "median_duration_ms": quantile(ordered, .5), "p25_duration_ms": quantile(ordered, .25),
+               "p75_duration_ms": quantile(ordered, .75), "p90_duration_ms": quantile(ordered, .9),
                "duration_sum_ms": sum(durations) if durations else None,
                "reliable_interval_union_ms": union_duration(intervals) if intervals else None,
                "duration_source": dict(sources), "duration_quality": dict(qualities),

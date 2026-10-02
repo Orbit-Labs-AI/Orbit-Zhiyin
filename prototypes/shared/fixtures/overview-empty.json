@@ -1,0 +1,33 @@
+{
+  "overview": {
+    "counts": {
+      "sessions": null,
+      "human_messages": null,
+      "tool_calls": null,
+      "projects": null,
+      "active_days": null
+    },
+    "usage": {
+      "request_count": null,
+      "total_tokens": null,
+      "cost_usd": null
+    }
+  },
+  "meta": {
+    "contract": "tandem-app-v1",
+    "scope_hash": "sha256:fx-overview",
+    "data_rev": 42,
+    "rules_version": "rules-fx",
+    "freshness": "none",
+    "computed_at": "2026-10-01T07:20:00Z",
+    "source": "cache",
+    "duration_ms": 12,
+    "coverage": {
+      "rows": 128
+    },
+    "selection": {
+      "main_sessions": 128
+    },
+    "reason": "no_projection"
+  }
+}

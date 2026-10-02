@@ -21,27 +21,57 @@ def history_for(store: Any) -> AnalysisHistory:
     raise ValueError("Persistent analysis requires a store home or database path")
 
 
-def recorded(store: Any, engine: str, request: dict, compute: Callable[[], dict]) -> dict:
-    """Persist every success or failure; identical successful results share only their payload."""
-    history = history_for(store)
-    request = {
-        **request,
-        "runtime": {
-            "python": python_version(),
-            **{
-                name: version(name)
-                for name in (
-                    "tandem-backend",
-                    "tandem-data",
-                    "jieba",
-                    "numpy",
-                    "scipy",
-                    "scikit-learn",
-                )
-            },
+def runtime() -> dict:
+    return {
+        "python": python_version(),
+        **{
+            name: version(name)
+            for name in ("tandem-backend", "tandem-data", "jieba", "numpy", "scipy", "scikit-learn")
         },
     }
-    run_id = history.start(engine, request)
+
+
+def cache_key(store: Any, engine: str, request: dict) -> tuple[str, str] | None:
+    """(request_key, input_fp) for canonical stores; legacy stores are never cached."""
+    from tandem_data.analysis_fingerprint import digest, fingerprints
+
+    from .cache import algo_version, supports_cache
+
+    if not supports_cache(store):
+        return None
+    return digest(engine, request, algo_version()), fingerprints(store.home).input_fp()
+
+
+def recorded(
+    store: Any,
+    engine: str,
+    request: dict,
+    compute: Callable[[], dict],
+    *,
+    key: tuple[str, str] | None = None,
+) -> dict:
+    """Serve a verified cached result for the same request and input, else compute and record.
+
+    A hit records only a light run that points at the existing snapshot; no payload is
+    written again. Every computation, success or failure, is still recorded.
+    """
+    history = history_for(store)
+    request = {**request, "runtime": runtime()}
+    key = key or cache_key(store, engine, request)
+    request_key, input_fp = key or (None, None)
+    if key is not None:
+        hit = history.cached_run(engine, request_key, input_fp)
+        if hit is not None:
+            result = history.result(hit["run_id"])  # checksum errors propagate
+            history.record_hit(
+                engine,
+                request,
+                request_key=request_key,
+                input_fp=input_fp,
+                snapshot_id=hit["snapshot_id"],
+            )
+            return result
+    run_id = history.start(engine, request, request_key=request_key, input_fp=input_fp)
     try:
         result = compute()
         history.complete(run_id, result)

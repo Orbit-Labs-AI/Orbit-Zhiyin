@@ -1,6 +1,6 @@
 // Screenshot every page at several window sizes for visual review (not a test).
 //   node tools/shoot.mjs [--html file] [--out dir] [--sizes mac-14,small] [--routes overview,sessions]
-//                        [--theme light|dark] [--full]
+//                        [--theme light|dark] [--ed lite|advance] [--full]
 // Writes <out>/<size>-<theme>-<route>.png. Default html is ../tandem-demo.html, default out is ../shots.
 // Sizes are the Playwright projects in playwright.config.mjs; routes default to every page the demo defines.
 import { chromium } from '@playwright/test';
@@ -20,6 +20,7 @@ const sizes = opt('--sizes', 'mac-14').split(',');
 const unknown = sizes.filter((s) => !SIZES[s]);
 if (unknown.length) { console.error('unknown size(s): ' + unknown.join(', ') + ' (known: ' + Object.keys(SIZES).join(', ') + ')'); process.exit(1); }
 const theme = opt('--theme', 'light');
+const edition = opt('--ed', 'advance');   // lite → shoots the Lite pages (l-home …) instead of the Advance ones
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
@@ -33,10 +34,11 @@ for (const s of sizes) {
   // The welcome notification is posted 800 ms after load (src/js/99-init.js); let it arrive, then clear it.
   await page.waitForTimeout(900);
   await page.evaluate((t) => { setTheme(t); $$('#notes .nt').forEach((n) => n.remove()); }, theme);
-  const routes = opt('--routes', null)?.split(',') ?? await page.evaluate(() => ROUTES.map((r) => r[0]));
+  await page.evaluate((e) => { if (e === 'lite') { S.ed = 'lite'; $('#win').dataset.ed = 'lite'; render(); } }, edition);
+  const routes = opt('--routes', null)?.split(',') ?? await page.evaluate(() => navRoutes().map((r) => r[0]));
   for (const r of routes) {
     await page.evaluate((x) => { go(x); const c = document.querySelector('#main .content'); if (c) c.scrollTop = 0; }, r);
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(700);   // let the page-enter cascade and count-ups settle
     const file = path.join(out, `${s}-${theme}-${r}.png`);
     if (args.includes('--full')) {
       // Capture the content pane's full scroll height by temporarily growing the viewport.

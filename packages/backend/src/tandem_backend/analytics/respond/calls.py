@@ -7,6 +7,20 @@ from ..common import task_uid
 from .rules import RESULT_FIELDS
 
 
+def _detach(value):
+    """Copy mutable containers one level; scalars and strings are immutable already.
+
+    Rows are only updated at the top level downstream, so a recursive copy per call
+    was pure overhead. Lists/dicts still get their own container so no caller can
+    append into the input bundle through a normalized row.
+    """
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, dict):
+        return dict(value)
+    return value
+
+
 def native_sequence(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
@@ -117,12 +131,12 @@ def pair_tool_calls(events):
                    "is_wrapper": a.get("is_wrapper", (name or "").rsplit(".", 1)[-1] in ("exec", "wait")),
                    "status": None, "status_scope": None, "started_at": e.get("ts"), "ended_at": None,
                    "interval_reliable": False, "pairing_status": "conflict" if conflict else "unpaired",
-                   **{k: deepcopy(a[k]) for k in ("argument_digest", "argument_digest_kind", "command_head",
+                   **{k: _detach(a[k]) for k in ("argument_digest", "argument_digest_kind", "command_head",
                        "command_complete", "validation", "validation_scope", "retry_of_call_uid", "project_id") if k in a}}
             if paired:
                 r = ends[0]
                 ra = r.get("attrs", {})
-                row.update({k: deepcopy(ra.get(k)) for k in RESULT_FIELDS})
+                row.update({k: _detach(ra.get(k)) for k in RESULT_FIELDS})
                 row.update(result_event_uid=r["event_uid"], result_available_at=r.get("ts"),
                            result_seq=r["seq"], pairing_status="paired")
                 if row["status"] is None and isinstance(ra.get("exit_code"), int) and not isinstance(ra["exit_code"], bool):
@@ -141,7 +155,10 @@ def normalize_tool_calls(calls):
     rows, duplicates, conflicts = {}, 0, []
     for original in calls or []:
         key = (original["session_uid"], original["call_uid"])
-        c = deepcopy(original)
+        c = dict(original)
+        for k, v in c.items():
+            if isinstance(v, (list, dict)):
+                c[k] = v.copy()  # same one-level detachment as _detach, without a call per field
         c.setdefault("is_wrapper", (c.get("name_raw") or "").rsplit(".", 1)[-1] in ("exec", "wait"))
         if key in rows:
             duplicates += 1

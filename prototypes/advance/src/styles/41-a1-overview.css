@@ -1,0 +1,71 @@
+/* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
+/* AI card: every column = header row (label + mini viz / regen) → prose → bottom line (evidence link / provenance), so the four bottoms share a baseline */
+.ov-aic{gap:8px;min-width:0}
+.ov-aih{justify-content:space-between;align-items:center;gap:8px;min-height:24px}
+.ov-aik{font-size:13px;font-weight:600;gap:6px}
+.ov-aip{margin:0;font-size:13px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.ov-aiev{align-self:flex-start;margin-top:auto;padding-top:4px}
+.ov-aigen{margin-top:auto;padding-top:4px;font-size:11px;line-height:16px;color:var(--ink-3)}
+.ov-ail .btn.sm{gap:4px;color:var(--ink-2)}
+.ov-ail .btn.sm:hover{color:var(--ink-1)}
+.ov-mini{flex:none;display:block}
+/* KPI tiles: compact spark stays visible at 150px tiles (the period label refers to it); period label sits right, under the spark */
+#ovTiles .vz-kpi{padding:12px 12px 10px}
+#ovTiles .vz-kpi .vz-spark{display:block;flex:none}
+#ovTiles .vz-kpi-h{gap:6px}
+#ovTiles .vz-kpi-p{margin-left:auto;font-size:10px;color:var(--ink-4)}
+#ovTiles .vz-kpi-d{letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis}
+@container (max-width:132px){#ovTiles .vz-kpi-d{font-size:10px}}
+@container (max-width:112px){#ovTiles .vz-kpi .vz-spark,#ovTiles .vz-kpi-p{display:none}}
+/* outcome strip: text block left (label + summary / hint), share bar right */
+.ov-out{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,1fr);align-items:center;gap:24px;padding:12px 16px}
+.ov-out-t{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;row-gap:2px;min-width:0}
+.ov-out-t .ct{font-size:13px}
+.ov-out-t .cap{flex-basis:100%;font-size:11px}
+.ov-out .vz-legend{margin:6px 0 0}
+.ov-out .vz-head{display:none}
+[data-vz="ov-out"] .vz-inbar{pointer-events:none}
+@container main (max-width:799px){.ov-out{grid-template-columns:minmax(0,1fr);gap:8px}}
+/* trend card: controls on one line, avg label legible over the bars */
+.ov-ctl{gap:6px;flex-wrap:wrap;margin:-2px 0 10px}
+.ov-ctl .seg button{padding:0 8px}
+[data-vz="ov-trend"] .vz-note{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.ov-brush{margin-top:6px;gap:10px;padding:4px 8px;border-radius:7px;background:var(--sunken)}
+.ov-brush .cap{flex:1;min-width:0}
+/* persona side card: code on top, axes centred in the remaining height, link at the bottom */
+.ov-pers{display:flex;flex-direction:column;gap:12px;text-align:left}
+.ov-pers-h{justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px}
+.ov-pers [data-vz="ov-axes"]{margin:auto 0}
+.ov-code{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:4px;color:inherit;border-radius:8px}
+.ov-code:hover .ov-code-l{color:var(--ink-2)}
+.ov-code-l{font-size:40px;line-height:44px;font-weight:600;letter-spacing:.04em;transition:color .15s}
+/* bottom row: rhythm | tools, suggestions full width underneath (heat map needs ≥ 340px, tool bars need room) */
+.ov-three{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
+.ov-three>.ov-recs{grid-column:1/-1}
+.ov-heat-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin-bottom:8px}
+.ov-heat-line b{color:var(--ink-1);font-weight:600}
+.ov-heat{min-width:340px}
+.ov-tools{display:flex;flex-direction:column;gap:8px}
+.ov-tool{display:grid;grid-template-columns:72px minmax(0,1fr) 48px 52px;align-items:center;gap:10px;height:24px;border:0;background:none;padding:0 4px;margin:0 -4px;text-align:left;border-radius:6px;color:inherit}
+.ov-tool:hover{background:var(--bg)}
+.ov-tool .nm{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-tool .bar{height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
+.ov-tool .bar span{display:block;height:6px;min-width:2px;border-radius:0 3px 3px 0;background:var(--h2)}
+.ov-tool:first-child .bar span{background:var(--ink-3)}
+.ov-tool .n{font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.ov-err{display:flex;flex-direction:column;align-items:stretch;gap:2px}
+.ov-tool .eb-bar{height:3px;border-radius:2px;background:var(--sunken);overflow:hidden}
+.ov-tool .eb-bar span{display:block;height:3px;min-width:1px;border-radius:0 2px 2px 0;background:var(--h3)}
+.ov-tool .eb-bar.hi span{background:var(--crit)}
+.ov-tool .e{font-size:11px;line-height:13px;text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ov-tool .e.hi{color:var(--crit);font-weight:600}
+.ov-recl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 20px}
+.ov-rec{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.ov-reci{width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;background:var(--sunken)}
+.ov-rect{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:1;min-width:0}
+.ov-recb{display:flex;flex-direction:column;gap:2px;width:100%;border:0;background:none;padding:0;text-align:left;color:inherit;border-radius:4px}
+.ov-recn{font-size:13px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-recb:hover .ov-recn{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.ov-recm{font-size:11px;line-height:15px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-recm .mono{color:var(--ink-2)}
+@container main (max-width:639px){.ov-tool{grid-template-columns:56px minmax(0,1fr) 40px 44px;gap:6px}}

@@ -1,11 +1,20 @@
 /* ============ exports: report, csv, share card ============ */
 const REP_SECS = [['ov', '概览'], ['persona', '协作人格'], ['proj', '项目'], ['fric', '主要摩擦'], ['recs', '建议']];
+// Active filters, as one line for the report header. The persona uses the shared persona scope (personaNow, BUG-06):
+// session-level filters such as topic or outcome do not change it, and the report says so.
+function filterNote() {
+  const f = [];
+  const agN = AG.filter((a) => S.agents.has(a.id)).length; if (agN !== AG.length) f.push('Agent · ' + AG.filter((a) => S.agents.has(a.id)).map((a) => a.name).join('、'));
+  if (S.project) f.push('项目 · ' + PJI[S.project].name); if (S.topic) f.push('主题 · ' + TOPICS[S.topic]); if (S.outcome) f.push('结果 · ' + ({ ok: '完成', part: '部分完成', fail: '放弃' })[S.outcome]); if (S.fric) f.push('摩擦 · ' + S.fric); if (S.hour != null) f.push('时段 · ' + S.hour + ':00–' + (S.hour + 1) + ':00');
+  return f.join(' · ');
+}
 function reportMD() {
-  const L = sel(); const st = stats(L); const p = personaNow();
+  const L = sel(); const st = stats(L); const p = personaNow(); const fn = filterNote();
   const out = ['# Tandem 协作报告 · ' + rangeLabel(), '', '> ' + winLabel() + ' · 示例数据 · 生成于 ' + nowText(), ''];
+  if (fn) out.push('> 筛选：' + fn, '');
   if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
   if (S.rep.has('persona')) {
-    out.push('## 协作人格', '', p.ok ? '**' + p.code + ' · ' + p.zh + '**（' + p.en + '）：' + p.line : '样本不足，暂不判断。', '');
+    out.push('## 协作人格', '', p.ok ? '**' + p.code + ' · ' + p.zh + '**（' + p.en + '）：' + p.line + (fn ? '　—　' + (personaScopeNote() || '按上面的筛选计算') + '，' + p.n + ' 个会话' : '') : '样本不足（' + p.n + ' 个会话，少于 30 个），暂不判断。', '');
     if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%'); }); out.push(''); }
   }
   if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + f1(r.st.auto) + '× | ' + f1(r.st.fric) + '% |')); out.push(''); }
@@ -65,4 +74,3 @@ Object.assign(ACT, {
   shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Tandem，全部分析在本机完成。', '分享文案'); },
   shareSave: () => toast('浏览器 Demo 不能下载文件；App 会把 1080×1350 的 PNG 存到「下载」')
 });
-

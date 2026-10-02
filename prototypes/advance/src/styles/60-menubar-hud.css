@@ -1,24 +1,46 @@
-/* menu bar popover, dropdowns, hud, widgets, notifications */
-.pop{position:absolute;z-index:60;top:34px;right:120px;width:360px;max-height:calc(100% - 50px);overflow:auto;border-radius:12px;background:var(--raised);box-shadow:var(--sh-pop);color:var(--ink-1)}
+/* menu bar panel (right edge aligned to the status item by js), menus / dropdowns, floating HUD, desktop widgets
+   (desktop layer, z below the window), notifications (344px, slide in from the right). */
+.pop{position:absolute;z-index:60;top:30px;right:120px;width:336px;max-height:calc(100% - 46px);overflow:auto;border-radius:12px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);color:var(--ink-1);animation:popin .12s var(--ease);transform-origin:top right}
 .pop .sec{padding:12px 14px;border-top:1px solid var(--hair)}
-.dd{position:absolute;z-index:70;min-width:220px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);box-shadow:var(--sh-pop);padding:5px;max-height:70%;overflow:auto}
-.dd button{width:100%;display:flex;align-items:center;gap:8px;min-height:28px;padding:0 10px 0 8px;border:0;border-radius:6px;background:transparent;text-align:left;font-size:13px;color:var(--ink-1)}
-.dd button:hover,.dd button.act{background:var(--ai);color:#fff}
-.dd button:hover .k,.dd button.act .k{color:rgba(255,255,255,.8)}
-.dd .ck{width:14px;flex:none;font-weight:700}
-.dd .k{margin-left:auto;font:11px/1 var(--mono);color:var(--ink-3);padding-left:16px}
-.dd hr{border:0;border-top:1px solid var(--hair);margin:4px 6px}
-.dd .h{font-size:11px;font-weight:600;color:var(--ink-3);padding:6px 10px 2px}
-.hud{position:absolute;z-index:40;color:var(--hud-ink);user-select:none;touch-action:none}
-.pill{height:44px;border-radius:22px;background:var(--hud);display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(255,255,255,.12);font-size:13px;white-space:nowrap;max-width:min(420px,calc(100vw - 32px));cursor:grab}
+.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:calc(100% - 40px);overflow:auto}
+.dd button{width:100%;display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border:0;border-radius:5px;background:transparent;text-align:left;font-size:13px;color:var(--ink-1);white-space:nowrap}
+.dd button:hover,.dd button.act{background:var(--accent);color:var(--accent-ink)}
+.dd button:hover .k,.dd button.act .k{color:inherit;opacity:.8}
+.dd button[disabled]{color:var(--ink-4);pointer-events:none}
+.dd .ck{width:14px;flex:none;font-size:11px;text-align:center}
+.dd .k{margin-left:auto;font-size:13px;color:var(--ink-3);padding-left:20px;font-variant-numeric:tabular-nums}
+.dd .sub{margin-left:auto;font-size:11px;color:var(--ink-3)}
+.dd hr{border:0;border-top:1px solid var(--sep);margin:5px 0}
+.dd .h{font-size:11px;font-weight:600;color:var(--ink-3);padding:6px 10px 3px}
+.hud{position:absolute;z-index:40;color:var(--hud-ink);user-select:none;touch-action:none;display:flex;flex-direction:column;align-items:flex-start}
+.pill{height:44px;border-radius:22px;background:var(--hud);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(255,255,255,.12);font-size:13px;white-space:nowrap;max-width:min(320px,calc(100vw - 32px));cursor:grab}
+.pill>*{min-width:0;flex:none}
+/* only the free-text part (tool name / detail) may shrink, so the project name and the timer never collide (gap stays 10px) */
+.pill>span:not(.dot):not([data-live]):not(.mono){flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill:active{cursor:grabbing}
-.hb{height:28px;padding:0 12px;border-radius:14px;border:0;background:#f1f1f3;color:#17181b;font-size:12px;font-weight:600}
-.hg{height:28px;padding:0 10px;border-radius:8px;border:0;background:var(--hud-2);color:var(--hud-ink);font-size:12px;display:inline-flex;align-items:center;gap:6px}
-.hcard{margin-top:8px;width:min(380px,calc(100vw - 32px));border-radius:20px;background:var(--hud);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 0 0 .5px rgba(255,255,255,.12);padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
-.widgets{position:absolute;z-index:5;left:24px;top:46px;width:364px;display:flex;flex-direction:column;gap:20px}
-.wg{border-radius:22px;background:var(--surface);color:var(--ink-1);box-shadow:0 10px 30px rgba(20,24,30,.16),0 0 0 .5px rgba(0,0,0,.08);padding:14px 16px;overflow:hidden;text-align:left;border:0;width:100%}
+.hb{height:26px;padding:0 11px;border-radius:13px;border:0;background:#f2f2f4;color:#1c1c1e;font-size:12px;font-weight:600;flex:none}
+.hg{height:26px;padding:0 10px;border-radius:7px;border:0;background:var(--hud-2);color:var(--hud-ink);font-size:12px;display:inline-flex;align-items:center;gap:6px;flex:none}
+.hcard{margin:8px 0;width:min(380px,calc(100vw - 32px));border-radius:18px;background:var(--hud);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 0 0 .5px rgba(255,255,255,.12);padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px;animation:popin .12s var(--ease)}
+.hud .lane{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:center;font-size:11px;color:var(--hud-ink-3)}
+.snap{position:absolute;z-index:39;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid var(--ink-1);background:var(--accent-tint);box-shadow:0 0 0 1.5px var(--bg);pointer-events:none}
+.snap.near{background:var(--ink-1)}
+.widgets{position:absolute;z-index:5;left:24px;top:42px;width:364px;display:flex;flex-direction:column;gap:20px}
+.wg{border-radius:20px;background:var(--wg);color:var(--ink-1);box-shadow:0 10px 30px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge);padding:14px 16px;overflow:hidden;text-align:left;border:0;width:100%}
 .wg .lbl{font:600 10px/13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.notes{position:absolute;z-index:80;top:36px;right:12px;width:min(380px,calc(100% - 24px));display:flex;flex-direction:column;gap:10px;pointer-events:none}
-.nt{pointer-events:auto;border-radius:16px;background:var(--raised);box-shadow:var(--sh-pop);padding:12px 14px;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;animation:fadein .2s cubic-bezier(.05,.7,.1,1)}
-.appicon{width:34px;height:34px;border-radius:9px;background:#17181b;display:grid;place-items:center;flex:none}
-
+.wg .mono,.wg .cap.mono{word-spacing:-.2em}
+.wg-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.desk.fs .widgets{display:none}
+.notes{position:absolute;z-index:80;top:32px;right:16px;width:min(344px,calc(100% - 32px));display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.nt{position:relative;pointer-events:auto;border-radius:14px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:10px 12px 10px 12px;display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;align-items:start;animation:slidein .3s var(--ease)}
+.nt .nt-t{display:flex;gap:8px;align-items:baseline}
+.nt .nt-t b{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nt .nt-b{font-size:12px;line-height:16px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nt .nt-a{display:flex;gap:6px;margin-top:6px;height:0;opacity:0;overflow:hidden;transition:opacity .15s,height .15s}
+.nt:hover .nt-a,.nt:focus-within .nt-a{height:20px;opacity:1}
+.nt .nt-x{position:absolute;left:-6px;top:-6px;width:20px;height:20px;border-radius:50%;border:0;background:var(--raised);color:var(--ink-2);box-shadow:var(--sh-raise);display:grid;place-items:center;opacity:0;transition:opacity .12s}
+.nt:hover .nt-x,.nt .nt-x:focus-visible{opacity:1}
+.nt.out{animation:slideout .25s var(--ease) forwards;pointer-events:none}
+/* mono meta mixed with CJK: a mono space is .6em, which makes「10 月 1 日」read letter-spaced — tighten spaces only */
+.pop .mono{word-spacing:-.25em}
+@keyframes slideout{to{opacity:0;transform:translateX(24px)}}
+.appicon{width:32px;height:32px;border-radius:8px;background:#1c1c1e;display:grid;place-items:center;flex:none}

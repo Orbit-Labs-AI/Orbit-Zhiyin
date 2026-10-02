@@ -1,0 +1,31 @@
+/* Editions: the Lite / Advance switch on top of the sidebar (a two-segment track with a sliding thumb, monochrome like every
+   other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
+   before the sidebar re-renders; the content then swaps under a View Transition (ed-side / ed-main) or the .ed-in fallback. */
+.edsw{position:relative;flex:none;display:grid;grid-template-columns:1fr 1fr;height:30px;margin:0 10px 10px;padding:2px;border-radius:9px;background:var(--field)}
+.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
+.edsw button[aria-checked="true"]{color:var(--ink-1)}
+.edsw button:hover{color:var(--ink-1)}
+.edsw-thumb{position:absolute;z-index:0;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:7px;background:var(--surface);box-shadow:var(--sh-raise);transition:transform .32s cubic-bezier(.3,1.35,.5,1)}
+.win[data-ed="advance"] .edsw-thumb{transform:translateX(100%)}
+.win[data-ed="lite"] .edsw button[data-v="lite"],.win[data-ed="advance"] .edsw button[data-v="advance"]{color:var(--ink-1)}
+.win[data-ed="lite"] .edsw button[data-v="advance"],.win[data-ed="advance"] .edsw button[data-v="lite"]{color:var(--ink-3)}
+/* edition swap: content gently scales + un-blurs in; the old page drifts back and blurs out */
+.win.ed-vt .main{view-transition-name:ed-main}
+.win.ed-vt .side{view-transition-name:ed-side}
+/* the title row (lights + sidebar toggle) floats over the sidebar; it gets its own still layer so the sidebar snapshot never covers it */
+.win.ed-vt .wtop{view-transition-name:ed-top}
+::view-transition-group(ed-top),::view-transition-new(ed-top){animation:none}
+::view-transition-old(ed-top){display:none}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-old(ed-main){animation:edOut .26s var(--ease) both}
+::view-transition-new(ed-main){animation:edIn .46s .06s var(--ease) both}
+::view-transition-old(ed-side){animation:edFade .2s ease-out both}
+::view-transition-new(ed-side){animation:edSideIn .36s var(--ease) both}
+::view-transition-group(ed-main),::view-transition-group(ed-side){animation-duration:.36s;animation-timing-function:var(--ease)}
+.main.ed-in{animation:edIn .46s var(--ease) both}
+.side.ed-in{animation:edSideIn .36s var(--ease) both}
+@keyframes edOut{to{opacity:0;transform:scale(.97);filter:blur(8px)}}
+@keyframes edIn{from{opacity:0;transform:scale(1.025) translateY(10px);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+@keyframes edFade{to{opacity:0}}
+@keyframes edSideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.edsw-thumb{transition:none}.main.ed-in,.side.ed-in{animation:none}}
