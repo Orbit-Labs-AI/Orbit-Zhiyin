@@ -10,7 +10,7 @@
 2. **本机实测推翻了 Demo 里的三处假设**：Gemini 侧实际是 Google Antigravity（明文转录在 `brain/<id>/…/transcript_full.jsonl`，模型与 token 藏在 protobuf 里），不是 `~/.gemini/tmp`；Copilot 没有 `~/.copilot/history`，本机只剩会话元数据；DeepSeek Harness 的会话是 zstd 压缩的事件流，需要解压并合并流式分片。另外 Claude Code 不止 `~/.claude` 一个根目录（第二账号、桌面版本地 Agent 模式），桌面版还有一份会话索引。
 3. **必须自建原始归档。** Claude Code 默认只保留 30 天会话（本机最早的转录停在 2026-09-02），Copilot 本机的会话表是空的。Tandem 首次运行全量回填，之后增量归档原始字节，否则 Demo 的 90 天视图和长期趋势都无法成立。
 4. **「不丢信息」用四层结构保证**：L0 原始字节归档 → L1 原始记录索引（每行都有去向）→ L2 标准事件（未映射字段进 `ext`）→ L3 派生表（会话、轮次、工具调用、模型调用，可随时重算）。每个连接器都要通过「记录全记账」测试。
-5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应会拆成多行（多数 2–3 行，主会话最多 16 行），每行重复同一份 usage（不去重平均多算约 2.4 倍）；分叉与后台会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
+5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应会拆成多行（多数 2–3 行，主会话最多 16 行），每行重复同一份 usage（不去重会多算约 2.5–3.1 倍，因字段而异）；分叉与后台会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
 6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；OpenCode、Hermes Agent 已有源码级调研，用安装后生成的样本接入；Copilot 与其他 Agent 留接口。生态侧先接官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/skills` 与 Codex 官方插件、models.dev。
 7. **存储用 SQLite + zstd 归档**：`tandem.db`（会话侧）、`catalog.db`（生态侧，可由团队定期构建成快照分发）、`raw/`（原始归档）。数据库表结构就是模块之间的契约，三人可以并行开发。
 
@@ -118,7 +118,7 @@ Demo 各页需要的数据与来源：
   - `--fork-session`、后台续接、Desktop 的分支会把历史复制进新文件；普通 `--resume` 沿用原 `sessionId`（`--resume --bg` 遇到会话被占用时会开副本）。本机 830 个重复 uuid 来自 3 对文件：两对 Desktop 前缀副本、一对 CLI 转入后台续接；`/btw` 旁支会用新的 `requestId` 重放父消息 → 按 `uuid` 去重，后出现的副本标记为重放。排队的命令以没有 `uuid` 的 attachment 保存，需要合成 ID。
   - `type=user` 不等于人类输入：要排除 `isMeta`、压缩摘要、只含 `tool_result` 的消息、`<command-name>` / `<local-command-stdout>` 包装，并结合 `origin.kind` 区分人类、任务通知与对等 Agent；`[Request interrupted by user…]` 是打断信号。
   - 30 天自动清理（`cleanupPeriodDays`，Desktop 会话另有 `desktopSessionCleanupPeriodDays`）；桌面版的临时工作区路径 `~/Library/Application Support/Claude/scratch-workspaces/…` 应归入「临时工作区」。
-  - 子代理文件里的 usage 可能是占位值：同一 `message.id` 组内取 `output_tokens` 最大的一行，或用父会话里 Agent 工具结果的 `usage / totalTokens` 校对。
+  - 子代理文件里约 88% 的响应只有占位用量（`stop_reason` 为空，`output_tokens` 中位数 8），组内取最大值也救不回来。子代理的用量以父会话记录为准：Agent 工具结果的 `usage / totalTokens`、`queued_command.usage`、Workflow 汇总，或父会话 `cost-state.modelUsage`（已含子代理）。`cost-state` 是会话级累计（恢复会话时接着累加，`/clear` 清零）。
   - 文件内顺序不单调：会话起止取全部 `timestamp` 的最小与最大值，不取首行末行；轮次按 `promptId` 分组；`system(turn_duration)` 只见于 CLI 入口（本机 Desktop 文件里一条都没有），Desktop 会话的轮次结束只能由 `end_turn` 与下一条真人输入推断。
   - 不要只沿「最新叶子 → 根」回溯重建对话：源码调研实测这样会丢 17% 的工具结果。按文件顺序读全部消息、按 `message.id` 合并、按工具 ID 配对，再用 `parentUuid` 图区分三种分叉：同一 `message.id` 下的并行侧枝（正常）、prompt 层级的分叉（rewind 或编辑重发）、`api_error` 旁的分叉（重试）。
   - 单文件可达 81 MB（子代理 125 MB），必须流式解析；`prompt_snapshot`、`Edit.originalFile`、`Read` 结果等大字段延迟解析或截断。
@@ -131,7 +131,7 @@ Demo 各页需要的数据与来源：
 - **rollout 记录**（实测新格式）：顶层 `ordinal / timestamp / type / payload / metadata`；`type` 有 `session_meta`、`turn_context`、`response_item`、`event_msg`、`compacted`、`token_usage_record`、`world_state`、`inter_agent_communication_metadata`。`event_msg` 下有 `item_completed`（条目类型 `Reasoning / CommandExecution / AgentMessage / Extension(web.search) / UserMessage / SubAgentActivity / FileChange / ImageView / McpToolCall`）、`task_started / task_complete`、`token_count`、`thread_settings_applied`、`turn_aborted`；`response_item` 下有 `message`（`user / assistant / developer`）、`reasoning`（`summary` 与 `encrypted_content`）、`function_call / custom_tool_call` 及其输出、`compaction`。
 - **用量**：优先用 `token_usage_record`（每个 `response_id` 一条，含 `cached_input / cache_write_input / reasoning_output`，实测无重复）；旧文件只有 `token_count` 时用 `last_token_usage`，并跳过累计值未变化的重复事件（实测 2397 条中 8 条重复）；上下文超限时 Codex 会写一条合成的 `token_count`（总量等于上下文窗口、其余为 0），不能当作用量，`threads.tokens_used` 也会被它带偏。`rate_limits` 快照可用于额度展示。
 - **坑**：
-  - 子代理与分叉线程会先重放父会话历史，真正属于自己的部分从 `subagent_history_start_ordinal` 开始（实测近 120 个文件中 106 个是子代理或分叉，抽样中每个重放数条到数十条）→ 之前的记录标记为重放。继承前缀是过滤过的（保留 system / developer / user 消息、`final_answer`、`compacted`、`event_msg` 等，去掉推理、工具调用、`token_usage_record`），不能拿它与父 rollout 逐行比对。
+  - `thread_spawn` 派生的子代理会先重放父会话历史，真正属于自己的部分从 `subagent_history_start_ordinal` 开始（抽样中每个重放数条到数十条）→ 之前的记录标记为重放。**这条规则不适用于 guardian 评审文件**：本机 413 个 guardian 文件里的回合都是它自己的评审（只有自己的 `session_meta`，5,528 个 turn_id 中只有 1 个出现在其他文件），其中 410 个的起点序号恰好等于最大序号 + 1，照搬规则会把内容全部当重放丢掉。继承前缀是过滤过的（保留 system / developer / user 消息、`final_answer`、`compacted`、`event_msg` 等，去掉推理、工具调用、`token_usage_record`），不能拿它与父 rollout 逐行比对。
   - `thread_source` 区分 `user`、`subagent`、`guardian_review`（自动审批评审）、`automation`、`realtime_voice`；本机 890 个线程里，用户发起的只有 241 个，`guardian_review` 241 个、`subagent` 385 个，使用 `codex-auto-review` 模型的线程有 413 个 → 会话类型必须分开，否则人格与习惯统计会被系统线程污染。
   - `external_agent_session_imports.json` 记录了 Codex 导入的 50 个 Claude Code 会话（`source_path`、`content_sha256`、`imported_thread_id`）→ 这些线程标记为导入并链接到原 Claude 会话，默认不重复计入。
   - 思考档位取值有 `low / medium / high / xhigh / max / ultra`，模型名随版本变化（实测有 `gpt-5.6-sol`、`gpt-6-astra` 等）→ 原值保留，另做归一（4.5）。
@@ -139,10 +139,10 @@ Demo 各页需要的数据与来源：
   - 恢复会话会改写 `cli_version`，不能按版本号分支解析逻辑，要按记录形状判断；早期会话没有 `turn_context`，模型未知；`codex-auto-review` 是服务端别名，看不到真实模型。
   - 额度快照 `rate_limits` 按 `window_minutes` 判断是 5 小时窗口还是周窗口，不要按 `primary / secondary` 槽位判断（2026-07 起周窗口移到了 `primary`）。
   - **同一信息有两套表示**：`response_item` 与 `item_completed`、`token_usage_record` 与 `token_count`、`compacted.replacement_history` 与原始行、子代理继承前缀与父 rollout。每类只取一种视角：消息与工具以 `item_completed` 为准（`response_item:message` 里混有 harness 注入的 user 消息，不能直接计数），用量以 `token_usage_record` 为准。
-  - Codex 会把 rollout 原地改写：迁移器改写旧文件，压缩会换成 `.jsonl.zst`，归档会移到 `archived_sessions/`。水位要记 `(路径, inode, size, mtime, 最后 ordinal, 字节偏移)`，变化时整文件重扫；单行可达 16 MB（内联的 base64 图片），流式读取并设单行上限。
+  - Codex 会把 rollout 原地改写：迁移器改写旧文件，压缩会换成 `.jsonl.zst`，归档会移到 `archived_sessions/`。水位要记 `(路径, inode, size, mtime, 最后 ordinal, 字节偏移)`，变化时整文件重扫；迁移与压缩期间 Codex 持有 `.tmp/rollout-maintenance.lock`，文件可能正被整体替换，这一轮先跳过；`thread/delete` 会直接删除 rollout 与状态行，同样需要及时归档；单行可达 16 MB（内联的 base64 图片），流式读取并设单行上限。`CommandExecution.cwd` 与 `ImageView.path` 是 `file://` URI，要先转成路径（`session_meta / turn_context` 里的 cwd 是普通路径）。
   - 审批不直接落盘：策略在 `turn_context.approval_policy / approvals_reviewer / sandbox_policy`，被拒绝的命令是 `status=declined`（`exit_code` 为 −1），guardian 自动审批是独立子线程。
   - 工具成败以 `item_completed` 的 `status / exit_code` 为准（`function_call_output` 不带成败标志）；Code Mode 下嵌套工具条目的 id 是 `exec-<uuid>`，与外层 `exec` 的 `call_id` 无关，只能按 `turn_id` 与行序归属（源码调研实测约 11% 的嵌套条目写在 `exec` 输出之后）。
-  - `world_state` 里有当时生效的 AGENTS.md 全文（`agents_md.text`），可直接用于 Demo A5 的「规则覆盖」；导入会话的 `token_count` 只是按字节估算的值，用量标为估算；标题取 `threads.name`（用户改名）> `session_index.jsonl` 最后一条 > `threads.title / preview`；`threads` 里的 `creator_user_id / creator_account_id` 是账号标识，不入库。
+  - `world_state` 里有当时生效的 AGENTS.md 全文（`agents_md.text`），可直接用于 Demo A5 的「规则覆盖」；导入会话的 `token_count` 只是按字节估算的值，用量标为估算；标题取 `threads.name` > `session_index.jsonl` 最后一条 > `threads.title / preview`（`threads.name` 可能是用户改名，也可能是 TUI 用模型自动生成的，数据上分不出来）；`threads` 里的 `creator_user_id / creator_account_id` 是账号标识，不入库。
 
 #### DeepSeek Harness（P0）
 
@@ -151,7 +151,7 @@ Demo 各页需要的数据与来源：
 - 第一行是会话头：`type=session`、`version`、`id`、`cwd`、`createdAt`、`parentSession`、`seedLength`、`origin`、`delegationDepth`、`agentPreset`；之后每行一个事件，`seq` 连续。
 - 事件类型（实测）：`user/message`、`assistant/message`（含 `usage`）、`tool/call`、`tool/result`、`step/start / step/end`、`turn/start / turn/end`、`approval/asked / approval/decided / approval/policy`、`permission/preset`、`sandbox/mode`、`subagent/descriptor`、`agent/inbox/spliced`、`todo/write`、`session/title`、`request/header`、`request/context`、`web/deepseek-search-llm-request` 等。
 - **流式分片**（旧版 v0）：`assistant/chunk` 增量事件会被打包成 `text-chunks / reasoning-chunks / tool-call-chunks` 行（`seq0 / time0 + dt[]` 可无损还原每个分片的序号和时间）。统计与正文以 `assistant/message`、`tool/call` 等完整事件为准（`assistant/message` 的内容块里有明文 `reasoning`，签名或加密推理在 `source.replayState`），分片只用于还原首字延迟和流式时长，标记为已折叠。
-- **坑**：根目录可由 `DSH_HOME` 覆盖；关闭压缩时文件是明文 `session.jsonl`，按 zstd 魔数判断而不是按扩展名；目录名同时存在 `<uuid>` 与 `session-<uuid>` 两种（54 / 25）；目录名是有损规范化的 cwd，以会话头的 `cwd` 为准；文件末尾可能有未写完的帧，读到不完整的帧时保留已解码记录并在下次重读；`compaction/summary` 是单独计费的压缩调用；HEAD 的 `replayState` 可带可选的 `responseModel`（本机 v0 没有），否则取 `source.model`；图片与文件以内容寻址存到 `$DSH_HOME/attachments/v1`，日志里只留引用；多供应商（`openrouter`、`kimi-coding`、`openai-codex`、`xai`），模型名不统一；不记录成本。
+- **坑**：根目录可由 `DSH_HOME` 覆盖；关闭压缩时文件是明文 `session.jsonl`，按 zstd 魔数判断而不是按扩展名；目录名同时存在 `<uuid>` 与 `session-<uuid>` 两种（本机 54 / 25），不能据此判断是否子代理（ACP 顶层会话也是裸 uuid），以会话头的 `parentSession / delegationDepth` 为准；目录名是有损规范化的 cwd，以会话头的 `cwd` 为准；文件末尾可能有未写完的帧，读到不完整的帧时保留已解码记录并在下次重读；`compaction/summary` 是单独计费的压缩调用；HEAD 的 `replayState` 可带可选的 `responseModel`（本机 v0 没有），否则取 `source.model`；图片与文件以内容寻址存到 `$DSH_HOME/attachments/v1`，日志里只留引用；多供应商（`openrouter`、`kimi-coding`、`openai-codex`、`xai`），模型名不统一；不记录成本。
 - **新旧两代格式**（据源码调研，HEAD 为 0.2.0-rc.2）：新版日志文件是 `session.v4.jsonl.zstd`，旧代文件保留；会话头改为必填的 `isSeeded`，继承切点由最后一个 `session/end-seed{inherited:true}` 推出（旧版用 `seedLength`）；流式增量不再是独立的 `assistant/chunk` 事件，而是内嵌在 `assistant/message.stream / assistant/attempt.stream` 里；新增 `session.lock` 文件锁；超大工具输出外置的预算从 50,000 字节改为约 12,500 个估算 token。连接器按会话头的 `version` 选择解析逻辑，两代都要支持，同一会话目录里两代文件并存时以新版为准、旧版按重复处理。
 - 另有 `dsh-session-telemetry-otel` 可把事件流导出为 OpenTelemetry 日志，可作补充通道；轨迹可视化组件 `dsh-client-ui-trajectory` 留给模块 3 参考。
 
@@ -165,9 +165,10 @@ Demo 各页需要的数据与来源：
 
 #### OpenCode（P1，本机未安装，依据源码）
 
-- **位置**：`$XDG_DATA_HOME/opencode`（macOS 也是 `~/.local/share/opencode`，不是 `~/Library`）下的 SQLite `opencode.db`；非正式渠道为 `opencode-<channel>.db`，`OPENCODE_DB` 可覆盖；`opencode db path` 能打印实际路径。
-- **表**：默认运行时写 V1 表 `session / message / part`，另有事件日志 `event / event_sequence`；V2 投影表（`session_message`、`session_input`、`session_context_epoch`，会话行仍在 `session` 表）只有 2.0 预览版 CLI 才写；更早的版本是 `storage/` 下的 JSON 文件。连接器按表是否存在判断版本，三种布局都要能读。ID 的 48 位时间前缀约 795 天回绕一次，不要按 ID 排序或推算时间。
-- **用量**：最细粒度在 `step-finish` part（每次模型调用一条，`tokens{input, output, reasoning, cache{read, write}}` 与 `cost`，`input` 已减去缓存读写）；message 上的 `tokens` 只是最后一步的值、每步都会被覆盖，不能累加；`session` 表有累计值，可作对账。父会话的用量不含子会话，需要递归汇总。
+- **位置**：`$XDG_DATA_HOME/opencode`（macOS 也是 `~/.local/share/opencode`，不是 `~/Library`）下的 SQLite `opencode.db`；非正式渠道为 `opencode-<channel>.db`，`OPENCODE_DB` 可覆盖。不要用 `opencode db` 子命令读取，它会以读写方式打开数据库并先跑迁移。
+- **表**：默认运行时写 V1 表 `session / message / part`，另有事件日志 `event / event_sequence`；V2 投影表（`session_message`、`session_input`、`session_context_epoch`，会话行仍在 `session` 表）只有通过 V2 接口 `/api/session/*` 提交的客户端才写（如 2.0 预览版 CLI；默认的 `opencode serve` 也挂载了 V2 接口）；更早的版本是 `storage/` 下的 JSON 文件。连接器按表是否存在判断版本，三种布局都要能读。ID 的 48 位时间前缀约 795 天回绕一次，不要按 ID 排序或推算时间。
+- **用量**：最细粒度在 `step-finish` part（每次模型调用一条，`tokens{input, output, reasoning, cache{read, write}}` 与 `cost`，`input` 已减去缓存读写）；message 上的 `tokens` 只是最后一步的值、每步都会被覆盖，不能累加；`session` 表的累计值不可靠（旧会话由迁移回填、并发时可能丢一次累加、fork 会把复制的 step-finish 重新累加），以自己汇总的 step-finish 为准，fork 会话先去掉复制段。父会话的用量不含子会话，需要递归汇总。
+- **项目归属**：按 assistant 消息的 `path.cwd / path.root`；`session.directory` 会被 `/move` 改写成当前目录，`project` 表按远程地址把多个克隆合成一行，都不能直接当项目键。
 - **子代理**：`task` 工具新建子会话（`parent_id` 指向父会话），父会话中该工具调用的 `state.metadata.sessionId` 指向子会话。
 - **压缩与回退**：压缩写一条带 `compaction` part 的 user 消息和一条 `summary: true` 的摘要 assistant，被压缩的历史不删除；`prune` 只给旧工具输出打 `time.compacted` 标记，原文仍在库里。`revert` 提交后会删除撤销点（含）之后的消息行（整条撤销时连同该轮的 user 消息），并从会话累计中扣回它们的用量，所以必须在删除前完成归档（以 L0 的按行快照为准；事件日志不可靠，历史上的迁移清空过它）。`fork` 复制历史到一个**不设 `parent_id`** 的新会话（标题带 `(fork #N)`），需要按复制的内容去重。
 - **其他**：流式时 assistant 行会被原地改写，按「主键 + 行哈希」判断变化；TUI 里用户直接执行的 `!cmd` 会写成一条 synthetic user 消息加一个 `bash` 工具调用（成本为 0），归类为用户自己执行的命令，不算 Agent 的工具调用。
@@ -374,8 +375,8 @@ OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](../resea
 | 情况 | 识别 | 处理 |
 | --- | --- | --- |
 | 同一响应拆成多行（Claude） | 相同 `message.id + requestId`（跨文件也按 `message.id` 去重，本机有 175 个出现在多个主文件） | 内容块按顺序合并；usage 只记一次 |
-| 分叉或后台会话复制历史（Claude） | 同一 `uuid` 出现在多个文件 | 最早出现的为正本；其余记录标 `replayed` 并指向原事件，新会话记 `forked_from` |
-| 子代理重放父历史（Codex） | `subagent_history_start_ordinal` 之前的记录（旧文件以首个不在父会话中的 turn、或 `trigger_turn=true` 的跨 Agent 通信为界） | 标 `replayed`，不计入子代理统计 |
+| 分叉或后台会话复制历史（Claude） | 同一 `uuid` 出现在多个文件 | 最早出现的为正本；其余记录标 `replayed` 并指向原事件，新会话记 `forked_from`；SDK 的 `fork_session` 会重映射 uuid，改用 `forkedFrom.messageUuid` 对应 |
+| 子代理重放父历史（Codex，只限 `thread_spawn` 子代理，guardian 文件不适用） | `subagent_history_start_ordinal` 之前的记录（旧文件以首个不在父会话中的 turn、或 `trigger_turn=true` 的跨 Agent 通信为界） | 标 `replayed`，不计入子代理统计 |
 | 种子事件（DeepSeek Harness） | 旧版：会话头的 `parentSession + seedLength`；新版：`isSeeded` + 最后一个 `session/end-seed{inherited:true}` | 切点之前是从父会话复制的种子，标 `replayed` |
 | 分叉复制（pi、Hermes、OpenCode） | pi `/fork` 保留原 entry id；Hermes `/branch` 保留 `message_uid`；OpenCode fork 无 `parent_id`、标题带 `(fork #N)` | pi、Hermes 由确定性 ID 自动识别；OpenCode 按内容哈希与源会话比对，复制段标 `replayed`，新会话记 `forked_from` |
 | 跨 Agent 导入（Codex 导入 Claude 会话） | `external_agent_session_imports.json` | 会话标 `kind=import`，链接到原会话，默认不计 |
@@ -844,7 +845,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 | --- | --- | --- |
 | M0 契约 | 7.2 的表结构、每种 `kind` 的 `attrs` JSON Schema、各 Agent 的脱敏样本文件 | 样本覆盖本机出现过的全部记录类型 |
 | M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `tandem ingest` | 全记账测试通过；同一数据重复导入零差异 |
-| M2 派生 | L3 各表、项目归属、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；主模型的 token 与 `cost-state` 中同一模型的累计值误差 < 1%（`cost-state` 含不进转录的辅助调用，辅助模型单独核对） |
+| M2 派生 | L3 各表、项目归属、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；主会话加子代理（子代理按父会话的 Agent 工具结果计）的主模型 token，与 `cost-state` 中同一模型的累计值误差 < 1%（`cost-state` 还含不进转录的辅助调用，辅助模型单独核对） |
 | M3 生态 | Catalog 构建脚本、P0 来源、已安装清单、规则抽取的特征 | 抽检 50 条去重结果；本机已安装项全部能链接或给出未链接原因 |
 | M4 增量 | FSEvents 监听、原始归档、漂移告警；Demo 的 A1、A3、A4 接真实数据 | 新会话写入后 5 秒内可见 |
 
