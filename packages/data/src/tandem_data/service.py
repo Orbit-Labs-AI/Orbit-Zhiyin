@@ -84,6 +84,8 @@ class ImportService:
                 "files": 0,
                 "changed": 0,
                 "capture_errors": 0,
+                # Captured files rewritten before projection; their last facts are kept.
+                "skipped_files": 0,
                 "cancelled": False,
                 "selection": "full"
                 if request.files is None and request.limit is None
@@ -161,6 +163,7 @@ class ImportService:
                 result["projection"] = self.store.rebuild(
                     source_ids=stale_sources, progress=self.progress
                 )
+                result["skipped_files"] = result["projection"]["skipped_files"]
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)
             result["current_unparsed"] = self.store.db.execute(
                 "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",

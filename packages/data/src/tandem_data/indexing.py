@@ -137,6 +137,14 @@ def index_file(store, source_id, path, role):
     return {"file_id": file_id, "changed": not unchanged, "records": count}
 
 
+def iter_indexed_file(store, file_id):
+    try:
+        yield from _iter_captured(store, file_id)
+    except SourceUnavailable as error:
+        error.file_id = file_id
+        raise
+
+
 def _captured(lines, length):
     """Stop at the captured byte length; a line completed later is cut to its pending tail."""
     if length <= 0:
@@ -148,7 +156,7 @@ def _captured(lines, length):
             return  # Never read past the capture: appended bytes belong to the next scan.
 
 
-def iter_indexed_file(store, file_id):
+def _iter_captured(store, file_id):
     """Yield the captured revision of a live source, verifying the captured prefix.
 
     Agents keep appending to their logs while Tandem imports. Each line and the

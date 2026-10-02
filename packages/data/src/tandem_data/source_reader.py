@@ -19,6 +19,8 @@ from tandem_data.contract import canonical
 
 
 class SourceUnavailable(ValueError):
+    file_id: str | None = None  # Set when a rebuild can skip just this indexed file.
+
     def __init__(self, status: str, message: str):
         self.status = status
         super().__init__(message)
