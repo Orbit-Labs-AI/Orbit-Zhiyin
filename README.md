@@ -80,3 +80,5 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 - [调研与取舍](docs/backend/research.md)
 
 官方 dsh 源码作为固定版本的 submodule 放在 `third_party/deepseek-harness`。需要查源码时运行 `git submodule update --init --depth 1`；它不参与后端启动。
+
+- [多 Agent 数据导入模块与一键验收](docs/backend/agent-connectors.md)（统一 Python canonical 链路）
