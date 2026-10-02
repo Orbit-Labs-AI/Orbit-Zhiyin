@@ -65,7 +65,7 @@ def test_transition_notifies_once_and_resolves(tandem):
 
 
 def test_just_finished_and_leaving_horizon(tandem):
-    tandem.session("s2", started=NOW - 60_000)
+    tandem.session("s2", started=NOW - 20 * 60_000)  # >= min_run_s (600 s)
     tandem.event("s2", NOW - 1_000, actor="assistant")
     recorder = Recorder()
     rt, _, _ = make(tandem, recorder)

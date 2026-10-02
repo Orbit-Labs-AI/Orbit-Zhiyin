@@ -33,7 +33,8 @@ SEVERITY = {"awaiting_approval": "urgent", "failing": "urgent", "just_finished":
 TITLES = {"awaiting_approval": "会话等待你的批准", "failing": "会话反复失败",
           "context_pressure": "会话上下文接近上限", "just_finished": "会话已完成"}
 FAILURE_KEYS = ("n", "command_head", "error_class_share", "cause_hint")
-VOLATILE = ("running_s",)  # Changes every tick; clients derive it from ``since``.
+VOLATILE = ("running_s",)
+MIN_RUN_S = {"just_finished": 600}  # Default of notify policy ``min_run_s``.  # Changes every tick; clients derive it from ``since``.
 
 
 def _notifier_module():
@@ -64,6 +65,14 @@ def _body(kind: str, item: dict) -> str:
         ratio = (item["context"] or {}).get("ratio") or 0
         return f"{name}：上下文已用 {round(ratio * 100)}%"
     return f"{name} 已结束本轮工作"
+
+
+def _run_s(tail: SessionTail, state: SessionState) -> int | None:
+    """Run length of a finished session (start → finish), None when either end is unknown."""
+    end = state.finished_at or finish_ts(tail)
+    if tail.started_at is None or end is None:
+        return None
+    return max(0, (end - tail.started_at) // 1000)
 
 
 def content_hash(snapshot: dict) -> str:
@@ -173,7 +182,7 @@ class Realtime:
             items.sort(key=lambda i: (ORDER[i["state"]], -(i["since"] or 0)))
             self.known = {t.session_uid for t in tails}
             if not paused:
-                self._transitions(items)
+                self._transitions(items, {t.session_uid: _run_s(t, s) for t, s in pairs})
             snap = self._compose(items, pairs, now_ms, paused)
             self.last, self.last_at = snap, self.clock()
             return snap
@@ -239,12 +248,23 @@ class Realtime:
         except Exception:  # noqa: BLE001 - a notifier error never breaks the loop.
             pass
 
-    def _transitions(self, items: list[dict]) -> None:
+    def _min_run_s(self, kind: str) -> int:
+        notifier = getattr(getattr(self.gw, "platform", None), "notifier", None)
+        policy = getattr(notifier, "policy_body", None) or {}
+        value = (policy.get("min_run_s") or {}).get(kind)
+        return MIN_RUN_S.get(kind, 0) if value is None else int(value)
+
+    def _transitions(self, items: list[dict], run_s: dict[str, int | None] | None = None,
+                     ) -> None:
         current = {}
+        threshold = self._min_run_s("just_finished")
         for item in items:
             kinds = {f for f in item["flags"] if f in NOTIFY_TYPES}
             if item["state"] == "just_finished":
-                kinds.add("just_finished")
+                ran = (run_s or {}).get(item["session_uid"])
+                # SIM-01: only runs of at least ``min_run_s`` notify; unknown length notifies.
+                if ran is None or ran >= threshold:
+                    kinds.add("just_finished")
             current[item["session_uid"]] = (kinds, item)
         for uid in list(self.active):
             if uid not in current:
