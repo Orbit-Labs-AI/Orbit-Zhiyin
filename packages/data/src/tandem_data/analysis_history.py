@@ -417,16 +417,20 @@ class AnalysisHistory:
         input_fp: str,
         values: dict[str, Any],
         rows: dict[str, list[tuple[str | None, Any]]] | None = None,
-    ) -> None:
-        """Publish sections and their paged rows atomically; readers never see half a section."""
+    ) -> dict[str, int]:
+        """Publish sections and their paged rows atomically; readers never see half a section.
+
+        Returns the JSON bytes stored per section (its rows included)."""
         rows = rows or {}
         if set(rows) - set(values):
             raise ValueError("Rows require their section in the same publish")
         now = _now()
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            sizes: dict[str, int] = {}
             for name, value in values.items():
                 payload, size, sha = self._encode(value)
+                sizes[name] = size
                 # Deleting the section cascades to its rows before the new ones are written.
                 connection.execute(
                     "DELETE FROM analysis_section WHERE request_key=? AND input_fp=? AND section=?",
@@ -440,8 +444,10 @@ class AnalysisHistory:
                 encoded = []
                 for index, (key, value) in enumerate(items):
                     payload, size, sha = self._encode(value)
+                    sizes[name] = sizes.get(name, 0) + size
                     encoded.append((request_key, input_fp, name, index, key, payload, size, sha))
                 connection.executemany("INSERT INTO analysis_row VALUES(?,?,?,?,?,?,?,?)", encoded)
+        return sizes
 
     def section_rows(
         self, request_key: str, input_fp: str, section: str, *, offset: int = 0, limit: int = 50

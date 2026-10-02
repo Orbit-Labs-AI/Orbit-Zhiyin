@@ -222,6 +222,10 @@ def clear_memory_cache() -> None:
         _lru.clear()
 
 
+# Sections larger than this are not copied into the run snapshot (see ``_compute``).
+RUN_SNAPSHOT_SECTION_BYTES = 8 * 1024 * 1024
+
+
 class AnalysisCache:
     """Serve analysis sections for one canonical store through the cache layers."""
 
@@ -307,12 +311,25 @@ class AnalysisCache:
             if SESSIONS in stored:
                 row_items = {SESSIONS: [(r["session_uid"], r) for r in stored[SESSIONS]]}
                 stored[SESSIONS] = {"rows": len(stored[SESSIONS])}
-            self.history.put_sections(key, input_fp, stored, row_items)
+            sizes = self.history.put_sections(key, input_fp, stored, row_items) or {}
             if with_text:
                 self._mirror_text_free(scope, input_fp, builder, computed, computed_at)
             # The run snapshot has the public result shape (shared metadata at the top level),
             # like runs recorded by the uncached engine.
-            sections = {name: computed[name] for name in requested if name != META}
+            # A run snapshot repeats its sections; large ones (sessions rows of a real home
+            # are hundreds of MB) only point at the section cache, which already holds them.
+            sections = {
+                name: computed[name]
+                if sizes.get(name, 0) <= RUN_SNAPSHOT_SECTION_BYTES
+                else {
+                    "stored_in": "analysis_section",
+                    "request_key": key,
+                    "input_fp": input_fp,
+                    "json_bytes": sizes[name],
+                }
+                for name in requested
+                if name != META
+            }
             self.history.complete(run_id, compose(computed[META], sections))
         except BaseException as error:
             try:

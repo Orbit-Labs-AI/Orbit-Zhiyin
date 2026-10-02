@@ -290,3 +290,18 @@ def test_sections_computed_as_dependencies_are_stored_for_later_reads(tmp_path):
             json.loads(normalized(b)) | {"freshness": None})
 
     assert same(texted, texted_alone) and same(plain, plain_alone)
+
+
+def test_large_sections_only_point_at_the_section_cache_in_the_run_snapshot(
+    tmp_path, monkeypatch
+):
+    home, _ = build_home(tmp_path, 6)
+    store = CanonicalStore(home)
+    monkeypatch.setattr(cache_module, "RUN_SNAPSHOT_SECTION_BYTES", 1)
+    result = AnalysisCache(store).sections(Scope(), ["sessions", "overview"], with_text=False)
+    history = history_for(store)
+    run = history.list_runs(engine="features")["items"][0]
+    snapshot = history.result(run["run_id"])
+    assert snapshot["sessions"]["stored_in"] == "analysis_section"
+    assert snapshot["sessions"]["json_bytes"] > 0
+    assert snapshot["analysis_digest"] == result["analysis_digest"]
