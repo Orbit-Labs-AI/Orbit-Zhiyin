@@ -68,8 +68,10 @@ def run(source, output, *, latest=20, catalog=DEFAULT_CATALOG, context=None, sco
          "selection": "all" if latest == 0 else "latest_modified", "synthetic_activity": False})
     home = output / "data"
     with Store(home) as store:
-        # Native inputs are now indexed in place. A live writer can append
-        # between indexing, projection and verification; rescan the SAME sample.
+        # Native inputs are indexed in place. Appends after capture are fine: the
+        # rebuild projects exactly the captured bytes and the next import adds the
+        # tail. A file rewritten after capture is skipped (skipped_files, partial
+        # verification with status "changed"); rescan the SAME sample to project it.
         for attempt in range(1, 4):
             try:
                 imported = ImportService(store, progress=progress).import_source(ImportRequest("codex", source, files=tuple(selected)))

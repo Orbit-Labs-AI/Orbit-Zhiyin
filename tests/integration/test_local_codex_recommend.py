@@ -96,41 +96,91 @@ def test_context_and_catalog_errors_do_not_ingest_local_files(tmp_path, runner):
     assert not (tmp_path / "invalid").exists()
 
 
-def test_live_append_between_indexing_and_projection_rescans_same_sample(tmp_path, runner):
+def rewrite_first_line(path, marker):
+    """Rewrite the transcript in place: the captured prefix no longer matches."""
+    first, rest = path.read_text().split("\n", 1)
+    row = json.loads(first)
+    row["payload"]["cwd"] = f"/fictional-project/{marker}"
+    path.write_text(json.dumps(row) + "\n" + rest)
+
+
+def test_live_append_between_indexing_and_projection_projects_captured_sample(tmp_path, runner):
+    source, output = tmp_path / "codex", tmp_path / "result"
+    path = transcript(source)
+    captured = len(path.read_text().splitlines())
+    appended, rescans = [], []
+
+    def progress(event):
+        if event["stage"] == "normalize" and not appended:
+            row = json.loads(path.read_text().splitlines()[-1])
+            row["payload"]["item"]["id"] = "appended-command"
+            with path.open("a") as stream:
+                stream.write(json.dumps(row) + "\n")
+            appended.append(row)
+        if event["stage"] == "rescan":
+            rescans.append(event)
+
+    summary = runner.run(source, output, progress=progress)
+    assert summary["selected_files"] == 1 and summary["recommendation_count"] > 0
+    # An append is not a change: the rebuild projects exactly the captured bytes, first time.
+    assert appended and rescans == []
+    imported = json.loads((output / "import.json").read_text())
+    assert imported["attempt"] == 1 and imported["import"]["skipped_files"] == 0
+    assert imported["stored"]["tables"]["raw_record"] == captured
+    assert imported["stored"]["tables"]["tool_call"] == 10
+    assert json.loads((output / "verify.json").read_text())["integrity"] == "ok"
+
+    # The next ingest of the same source picks up the appended tail.
+    with runner.Store(output / "data") as store:
+        again = runner.ImportService(store).import_source(runner.ImportRequest("codex", source))
+        assert again["changed"] == 1 and again["skipped_files"] == 0
+        tables = runner.statistics(store)["tables"]
+        assert tables["raw_record"] == captured + 1 and tables["tool_call"] == 11
+        assert store.verify()["integrity"] == "ok"
+
+
+def test_rewrite_between_indexing_and_projection_rescans_same_sample(tmp_path, runner):
     source, output = tmp_path / "codex", tmp_path / "result"
     path = transcript(source)
     rescans = []
 
     def progress(event):
         if event["stage"] == "normalize" and not rescans:
-            row = json.loads(path.read_text().splitlines()[-1])
-            row["payload"]["item"]["id"] = "appended-command"
-            with path.open("a") as stream:
-                stream.write(json.dumps(row) + "\n")
+            rewrite_first_line(path, "rewritten")
         if event["stage"] == "rescan":
-            rescans.append(event)
+            rescans.append(json.loads((output / "import.json").read_text())["import"])
 
     summary = runner.run(source, output, progress=progress)
     assert summary["selected_files"] == 1 and summary["recommendation_count"] > 0
-    assert len(rescans) == 1
-    assert json.loads((output / "import.json").read_text())["attempt"] == 2
+    # The import skipped the rewritten file instead of raising; the run rescanned it once.
+    assert [r["skipped_files"] for r in rescans] == [1]
+    imported = json.loads((output / "import.json").read_text())
+    assert imported["attempt"] == 2 and imported["import"]["skipped_files"] == 0
     assert json.loads((output / "verify.json").read_text())["integrity"] == "ok"
 
 
-def test_continuously_changing_source_fails_after_three_attempts(tmp_path, runner):
+def test_continuously_rewritten_source_is_skipped_then_fails_after_three_attempts(tmp_path, runner):
     source, output = tmp_path / "codex", tmp_path / "result"
     path = transcript(source)
-    attempts = []
+    attempts, skipped = [], []
 
     def progress(event):
         if event["stage"] == "normalize":
             attempts.append(event)
-            with path.open("a") as stream:
-                stream.write('{"type":"event_msg","payload":{"type":"task_complete"}}\n')
+            rewrite_first_line(path, f"rewrite-{len(attempts)}")
+        if event["stage"] == "rescan":
+            skipped.append(json.loads((output / "import.json").read_text())["import"]["skipped_files"])
 
+    # Every import skips the rewritten file and reports a partial result rather than raising;
+    # the acceptance run never verifies the sample, so it gives up after three attempts.
     with pytest.raises(runner.SourceUnavailable, match="changed"):
         runner.run(source, output, progress=progress)
-    assert len(attempts) == 3
+    assert len(attempts) == 3 and skipped == [1, 1]
+    imported = json.loads((output / "import.json").read_text())
+    assert imported["attempt"] == 3 and imported["import"]["skipped_files"] == 1
+    verification = json.loads((output / "verify.json").read_text())
+    assert verification["integrity"] == "partial"
+    assert [s["status"] for s in verification["unavailable_sources"]] == ["changed"]
     assert not (output / "analytics.json").exists()
 
 
