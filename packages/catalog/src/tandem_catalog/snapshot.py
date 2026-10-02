@@ -19,7 +19,7 @@ import zlib
 from importlib.resources import files
 
 from .contracts import Page, Record, Resource, SourceSpec, canonical_json, digest
-from .store import CatalogStore, get_blob
+from .store import CatalogStore, _ms, get_blob
 
 FORMAT = "tandem-library-seed/1"
 SEED_PREFIX = "seed-"
@@ -48,7 +48,9 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
     with store.connect(True) as conn:
         specs = {r["source_id"]: json.loads(r["spec"]) for r in conn.execute("SELECT source_id,spec FROM catalog_source")}
         rows = conn.execute(
-            "SELECT i.item_id,i.type,i.official,i.stars,i.risk_level,w.source_id,w.res_sha,w.body_sha FROM catalog_item i "
+            "SELECT i.item_id,i.type,i.official,i.stars,i.installs,i.risk_level,i.name_key,i.summary,i.license,i.body_len,"
+            "i.updated_at,json_extract(i.metadata,'$.metadata.installable') AS installable,"
+            "json_extract(i.metadata,'$.metadata.repository_url') AS repo,w.source_id,w.res_sha,w.body_sha FROM catalog_item i "
             "JOIN (SELECT s.item_id,s.source_id,s.res_sha,s.body_sha,row_number() OVER (PARTITION BY s.item_id "
             "ORDER BY c.priority DESC,s.has_path DESC,s.source_id,s.native_id) AS n FROM item_source s "
             "JOIN catalog_source c USING(source_id) WHERE s.status='active' AND c.enabled=1) w "
@@ -62,8 +64,14 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
             if not origin or (kind in OFFLINE_KINDS and kind != "snapshot"):
                 continue
             seen.add(row["item_id"])
+            # Popularity first; without it (most MCP servers) prefer documented, licensed, recent items.
+            richness = (bool(row["summary"]) + bool(row["license"]) + bool(row["body_len"]) + bool(row["installable"])
+                        + bool(row["repo"]))
             found[row["type"]].append({"item_id": row["item_id"], "source_id": origin,
-                                       "sort": (-row["official"], -row["stars"], row["risk_level"], row["item_id"]),
+                                       "sort": (-row["official"], -(row["stars"] or 0), -(row["installs"] or 0),
+                                                -richness, row["risk_level"], -(row["updated_at"] or 0),
+                                                row["item_id"]),
+                                       "key": (row["name_key"], row["summary"] or ""),
                                        "res_sha": row["res_sha"], "body_sha": row["body_sha"]})
         if include_staged:
             # An interrupted full scan (e.g. the MCP registry) still holds validated resources in
@@ -80,18 +88,18 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
                 seen.add(doc["item_id"])
                 manifest = doc.get("manifest") or {}
                 richness = bool(manifest.get("packages") or manifest.get("remotes")) + bool((manifest.get("repository") or {}).get("url"))
-                updated = str((doc.get("metadata") or {}).get("source_updated_at") or "")
+                updated = _ms((doc.get("metadata") or {}).get("source_updated_at")) or 0
                 found[doc["type"]].append({"item_id": doc["item_id"], "source_id": row["source_id"],
-                                           "sort": (-int(bool(doc.get("official"))), -richness, _desc(updated), doc["item_id"]),
+                                           "sort": (-int(bool(doc.get("official"))), 0, 0, -richness - 1, 0,
+                                                    -updated, doc["item_id"]),
+                                           "key": (str(doc.get("name") or "").lower(), doc.get("summary") or ""),
                                            "doc": doc})
-    for rows in found.values():
+    for kind, rows in found.items():
         rows.sort(key=lambda r: r["sort"])
+        # The same component mirrored by two repositories (same name and summary) is listed once.
+        keys: set = set()
+        found[kind] = [r for r in rows if not (r["key"] in keys or keys.add(r["key"]))]
     return found
-
-
-def _desc(text: str) -> str:
-    """Sort key that orders ISO timestamps newest first."""
-    return "".join(chr(0x10FFFF - ord(c)) for c in text)
 
 
 def _pick(ranked: list[dict], limit: int) -> list[dict]:
