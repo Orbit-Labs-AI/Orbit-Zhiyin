@@ -7,7 +7,17 @@ Other modules call the module-level helpers after ``routes_features.router(gw)``
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
+
+# Submodules share names with the helpers below (profile, search, vocab). Import them
+# first so the later ``def`` wins; importing a submodule afterwards would otherwise
+# replace the package attribute with the module object.
+from . import profile as _profile_module  # noqa: F401
+from . import vocab as _vocab_module  # noqa: F401
+
+with contextlib.suppress(ImportError):
+    from . import search as _search_module  # noqa: F401
 
 _service: Any = None
 
