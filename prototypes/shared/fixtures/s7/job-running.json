@@ -1,0 +1,112 @@
+{
+ "id": "10951bad4daa4a2fb0994de1f0d61e09",
+ "kind": "import",
+ "status": "running",
+ "created_at": 1790958767287,
+ "source_ids": [
+  "source_3e4aefdbfa338c90faf7752ac2f43c5fe429d2248ea17bb53a3a453a1f5f7209",
+  "source_ed0e99a39311b5814ab59f02524c37deeb91be4b3cfbaf9ad202c0a668ebdbfd",
+  "source_964f91199b5dec14b6b3e38fdd7d534646b0e2a03218ec413d1fb35e67aa18ce",
+  "source_760dac069e16471128778b1d02a3a966efcdf08a505029e79252c43bab9efb40",
+  "source_eb03666b244c1e5d1f3e7690f4119f89d5be9582c517705fe77546c969189061",
+  "source_7034b7d5680b1a864d0bcc4a37c42caaa74042b07c0e27373af70c9816f56363",
+  "source_826dcf0ea8f066b054f4b91ef3f3876752adee20dafa1f4a0b7688898737ae6b"
+ ],
+ "selection": "full",
+ "limit": null,
+ "files_by_source": {},
+ "phase": "auto",
+ "origin": "user",
+ "plan": {
+  "max_age_days": 90
+ },
+ "started_at": 1790958767442,
+ "finished_at": null,
+ "cancel_requested": false,
+ "progress": {
+  "stage": "backfill",
+  "completed": 3,
+  "total": 8
+ },
+ "published": [
+  {
+   "phase": "head",
+   "source_id": "source_3e4aefdbfa338c90faf7752ac2f43c5fe429d2248ea17bb53a3a453a1f5f7209",
+   "data_rev": 1,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 45,
+    "events": 3120,
+    "projects": 5
+   }
+  },
+  {
+   "phase": "head",
+   "source_id": "source_ed0e99a39311b5814ab59f02524c37deeb91be4b3cfbaf9ad202c0a668ebdbfd",
+   "data_rev": 2,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 80,
+    "events": 5113,
+    "projects": 5
+   }
+  },
+  {
+   "phase": "head",
+   "source_id": "source_964f91199b5dec14b6b3e38fdd7d534646b0e2a03218ec413d1fb35e67aa18ce",
+   "data_rev": 3,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 87,
+    "events": 5631,
+    "projects": 5
+   }
+  },
+  {
+   "phase": "head",
+   "source_id": "source_760dac069e16471128778b1d02a3a966efcdf08a505029e79252c43bab9efb40",
+   "data_rev": 4,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 92,
+    "events": 5938,
+    "projects": 5
+   }
+  },
+  {
+   "phase": "head",
+   "source_id": "source_eb03666b244c1e5d1f3e7690f4119f89d5be9582c517705fe77546c969189061",
+   "data_rev": 5,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 98,
+    "events": 6174,
+    "projects": 5
+   }
+  },
+  {
+   "phase": "head",
+   "source_id": "source_7034b7d5680b1a864d0bcc4a37c42caaa74042b07c0e27373af70c9816f56363",
+   "data_rev": 6,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 103,
+    "events": 6311,
+    "projects": 5
+   }
+  },
+  {
+   "phase": "head",
+   "source_id": "source_826dcf0ea8f066b054f4b91ef3f3876752adee20dafa1f4a0b7688898737ae6b",
+   "data_rev": 7,
+   "inventory_rev": 0,
+   "counts": {
+    "sessions": 111,
+    "events": 6784,
+    "projects": 5
+   }
+  }
+ ],
+ "error": null,
+ "current_phase": "head"
+}

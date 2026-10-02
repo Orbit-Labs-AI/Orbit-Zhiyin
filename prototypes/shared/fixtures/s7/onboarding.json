@@ -1,0 +1,156 @@
+{
+ "state": "onboarding",
+ "settings": {
+  "onboarded": false,
+  "onboarding_step": 0,
+  "recent_days": 90
+ },
+ "sources": [
+  {
+   "id": "source_b0bab3c85747dfd3ee317a71cc07d2e4f462104550382dadfcab948732b61522",
+   "agent": "claude_code",
+   "root": "/fx/fx-homes/full.userhome/.claude",
+   "files": 0,
+   "est_sessions": 0,
+   "earliest_mtime": null,
+   "latest_mtime": null,
+   "status": "empty",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_3e4aefdbfa338c90faf7752ac2f43c5fe429d2248ea17bb53a3a453a1f5f7209",
+   "agent": "claude_code",
+   "root": "/fx/fx-src/claude_code",
+   "files": 45,
+   "est_sessions": 45,
+   "earliest_mtime": 1785811504001,
+   "latest_mtime": 1790938937893,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_ed0e99a39311b5814ab59f02524c37deeb91be4b3cfbaf9ad202c0a668ebdbfd",
+   "agent": "codex",
+   "root": "/fx/fx-src/codex",
+   "files": 35,
+   "est_sessions": 35,
+   "earliest_mtime": 1786258414590,
+   "latest_mtime": 1790930306247,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_964f91199b5dec14b6b3e38fdd7d534646b0e2a03218ec413d1fb35e67aa18ce",
+   "agent": "dsh",
+   "root": "/fx/fx-src/dsh",
+   "files": 7,
+   "est_sessions": 7,
+   "earliest_mtime": 1786451053623,
+   "latest_mtime": 1790742696468,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_760dac069e16471128778b1d02a3a966efcdf08a505029e79252c43bab9efb40",
+   "agent": "hermes",
+   "root": "/fx/fx-src/hermes",
+   "files": 1,
+   "est_sessions": 1,
+   "earliest_mtime": 1790958764122,
+   "latest_mtime": 1790958764122,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_eb03666b244c1e5d1f3e7690f4119f89d5be9582c517705fe77546c969189061",
+   "agent": "kimi",
+   "root": "/fx/fx-src/kimi",
+   "files": 6,
+   "est_sessions": 6,
+   "earliest_mtime": 1787541637067,
+   "latest_mtime": 1789785969452,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_7034b7d5680b1a864d0bcc4a37c42caaa74042b07c0e27373af70c9816f56363",
+   "agent": "opencode",
+   "root": "/fx/fx-src/opencode",
+   "files": 1,
+   "est_sessions": 1,
+   "earliest_mtime": 1790958764119,
+   "latest_mtime": 1790958764119,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  },
+  {
+   "id": "source_826dcf0ea8f066b054f4b91ef3f3876752adee20dafa1f4a0b7688898737ae6b",
+   "agent": "pi",
+   "root": "/fx/fx-src/pi",
+   "files": 8,
+   "est_sessions": 8,
+   "earliest_mtime": 1787032780634,
+   "latest_mtime": 1790924724483,
+   "status": "available",
+   "enabled": false,
+   "estimate": true
+  }
+ ],
+ "totals": {
+  "files": 103,
+  "est_sessions": 103
+ },
+ "progress": {
+  "job_id": null,
+  "status": "idle",
+  "stages": [
+   {
+    "id": "backfill",
+    "label": "导入历史会话",
+    "status": "pending",
+    "done": null,
+    "total": null,
+    "note": null
+   },
+   {
+    "id": "stats",
+    "label": "统计分析",
+    "status": "pending",
+    "done": 0,
+    "total": 2,
+    "note": null
+   },
+   {
+    "id": "semantic",
+    "label": "语义分析",
+    "status": "skipped",
+    "done": 0,
+    "total": 0,
+    "note": "仅统计模式：不调用模型；开启后约 0 次调用"
+   },
+   {
+    "id": "persona",
+    "label": "协作画像",
+    "status": "pending",
+    "done": null,
+    "total": null,
+    "note": null
+   }
+  ]
+ },
+ "semantic": {
+  "enabled": false,
+  "mode": "stats",
+  "est_calls": 14,
+  "note": "仅统计模式：不调用模型；开启后约 14 次调用"
+ },
+ "persona": null,
+ "recs": null
+}

@@ -1,0 +1,43 @@
+{
+ "sources": [],
+ "settings": {
+  "onboarded": false,
+  "recent_days": 90,
+  "default_range_days": 30,
+  "sync_mode": "off",
+  "weekly_report": false,
+  "onboarding_step": 0
+ },
+ "jobs": [],
+ "storage": {
+  "data_rev": null,
+  "inventory_rev": 0,
+  "projection": "absent",
+  "counts": null,
+  "published_at": null
+ },
+ "services": {
+  "ingest": {
+   "state": "idle",
+   "pid": null,
+   "restarts": 0,
+   "last_hb_age_s": null
+  },
+  "analysis": {
+   "state": "idle",
+   "pid": null,
+   "restarts": 0,
+   "last_hb_age_s": null
+  }
+ },
+ "capabilities": {
+  "sse": true,
+  "phased_import": true,
+  "export": false,
+  "sync_modes": [
+   "off",
+   "hour",
+   "live"
+  ]
+ }
+}

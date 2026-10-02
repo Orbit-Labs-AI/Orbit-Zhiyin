@@ -52,9 +52,9 @@ Object.assign(ACT, {
     if (DD && DD.anchor === el) { closeDD(); return; }
     openDD(el, MENUS[el.dataset.m](), (v) => { if (typeof v === 'function') v(); }, { align: el.dataset.m === 'demo' ? 'right' : undefined });
   },
-  winClose: () => { S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
-  winMin: () => { S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
-  winZoom: (el, e) => { if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
+  winClose: () => { if (nativeWin('close')) return; S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
+  winMin: () => { if (nativeWin('minimize')) return; S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
+  winZoom: (el, e) => { if (nativeShell() && nativeWin(e && e.altKey ? 'zoom' : 'fullscreen')) return; if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
   winFull: () => winFullToggle(),
   pop: () => { S.pop = !S.pop; render(); }
 });
