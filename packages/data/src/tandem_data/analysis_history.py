@@ -1,4 +1,9 @@
-"""Append-only execution records and content-addressed, checksummed analysis snapshots."""
+"""Append-only execution records, checksummed snapshots and reusable derived caches.
+
+v2 adds materialized session rows (``session_result``), per-section results
+(``analysis_section`` / ``analysis_row``) and persisted exclusions. All of them are derived
+from tandem.db and can be deleted at any time; they are verified before every read.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +20,14 @@ from pathlib import Path
 from typing import Any
 
 Record = dict[str, Any]
+SCHEMA_VERSION = 2
+KEEP_INPUTS = 3
+MAX_BYTES = 512 * 1024 * 1024
+FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
+
+
+def _now() -> int:
+    return time.time_ns() // 1_000_000
 
 
 def _json(value: Any) -> str:
@@ -22,6 +35,21 @@ def _json(value: Any) -> str:
     return json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
     )
+
+
+def _statements(script: str) -> list[str]:
+    """Split a migration into complete statements; comments may contain semicolons."""
+    statements, buffer = [], ""
+    for line in script.splitlines():
+        if line.lstrip().startswith("--"):
+            continue
+        buffer += line + "\n"
+        if sqlite3.complete_statement(buffer):
+            statements.append(buffer.strip())
+            buffer = ""
+    if buffer.strip():
+        raise ValueError("Incomplete analysis migration statement")
+    return statements
 
 
 class AnalysisHistory:
@@ -38,14 +66,31 @@ class AnalysisHistory:
             os.close(descriptor)
         with self.connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
+            current = connection.execute("PRAGMA user_version").fetchone()[0]
+        if current != SCHEMA_VERSION:
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Upgrade in place under a write lock; v1 runs and snapshots stay readable."""
+        connection = sqlite3.connect(self.path, timeout=15, isolation_level=None)
+        try:
+            connection.execute("BEGIN IMMEDIATE")
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version > 1:
+            if version > SCHEMA_VERSION:
+                connection.execute("ROLLBACK")
                 raise ValueError("Unsupported analysis history schema")
-            if version == 0:
-                schema = files("tandem_data").joinpath("migrations/analysis/001.sql").read_text()
-                connection.executescript(
-                    "BEGIN IMMEDIATE;\n" + schema + "\nPRAGMA user_version=1;\nCOMMIT;"
-                )
+            folder = files("tandem_data").joinpath("migrations/analysis")
+            for step in range(version + 1, SCHEMA_VERSION + 1):
+                for statement in _statements(folder.joinpath(f"{step:03d}.sql").read_text()):
+                    connection.execute(statement)
+            connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            connection.execute("COMMIT")
+        except BaseException:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
 
     @contextmanager
     def connect(self):
@@ -59,13 +104,44 @@ class AnalysisHistory:
         finally:
             connection.close()
 
-    def start(self, engine: str, request: Record) -> str:
+    def start(
+        self,
+        engine: str,
+        request: Record,
+        *,
+        request_key: str | None = None,
+        input_fp: str | None = None,
+    ) -> str:
         """Create an execution even when an identical analysis has previously completed."""
         run_id = uuid.uuid4().hex
         with self.connect() as connection:
             connection.execute(
-                "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json) VALUES(?,?,'running',?,?)",
-                (run_id, engine, time.time_ns() // 1_000_000, _json(request)),
+                "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json,request_key,input_fp)"
+                " VALUES(?,?,'running',?,?,?,?)",
+                (run_id, engine, _now(), _json(request), request_key, input_fp),
+            )
+        return run_id
+
+    def cached_run(self, engine: str, request_key: str, input_fp: str) -> Record | None:
+        """Find the latest completed execution that answered the same request and input."""
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM analysis_run WHERE engine=? AND request_key=? AND input_fp=?"
+                " AND status='completed' ORDER BY started_at DESC,rowid DESC LIMIT 1",
+                (engine, request_key, input_fp),
+            ).fetchone()
+        return self._run(row) if row else None
+
+    def record_hit(
+        self, engine: str, request: Record, *, request_key: str, input_fp: str, snapshot_id: str
+    ) -> str:
+        """Log a cache hit as a light completed run that reuses an existing snapshot."""
+        run_id, now = uuid.uuid4().hex, _now()
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO analysis_run(run_id,engine,status,started_at,finished_at,request_json,"
+                "snapshot_id,request_key,input_fp,cache_hit) VALUES(?,?,'completed',?,?,?,?,?,?,1)",
+                (run_id, engine, now, now, _json(request), snapshot_id, request_key, input_fp),
             )
         return run_id
 
@@ -194,3 +270,239 @@ class AnalysisHistory:
             "limit": limit,
             "items": value[offset : offset + limit],
         }
+
+    # ---- v2 derived caches -------------------------------------------------------------
+
+    @staticmethod
+    def _encode(value: Any) -> tuple[bytes, int, str]:
+        data = _json(value).encode("utf-8")
+        return zlib.compress(data, 1), len(data), hashlib.sha256(data).hexdigest()
+
+    @staticmethod
+    def _decode(payload: bytes, json_bytes: int, sha256: str, what: str) -> Any:
+        """Verify before decoding; a damaged cache entry is an error, never a silent miss."""
+        try:
+            data = zlib.decompress(payload)
+        except zlib.error as error:
+            raise ValueError(f"Analysis {what} is corrupt") from error
+        if len(data) != json_bytes or hashlib.sha256(data).hexdigest() != sha256:
+            raise ValueError(f"Analysis {what} checksum mismatch")
+        return json.loads(data)
+
+    def session_results(
+        self, scope_class: str, algo_version: str, wanted: dict[str, str]
+    ) -> dict[str, Any]:
+        """Return stored rows whose tree fingerprint still matches; others are misses."""
+        if not wanted:
+            return {}
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM session_result WHERE scope_class=? AND algo_version=?"
+                " AND root_session_uid IN (SELECT value FROM json_each(?))",
+                (scope_class, algo_version, json.dumps(sorted(wanted))),
+            ).fetchall()
+        return {
+            row["root_session_uid"]: self._decode(
+                row["payload"], row["json_bytes"], row["sha256"], "session result"
+            )
+            for row in rows
+            if wanted.get(row["root_session_uid"]) == row["tree_fp"]
+        }
+
+    def put_session_results(
+        self, scope_class: str, algo_version: str, items: dict[str, tuple[str, Any]]
+    ) -> None:
+        """Replace rows for these roots and drop their rows from older algorithm versions."""
+        if not items:
+            return
+        now = _now()
+        values = []
+        for root, (tree_fp, value) in items.items():
+            payload, size, sha = self._encode(value)
+            values.append((root, scope_class, algo_version, tree_fp, payload, size, sha, now))
+        with self.connect() as connection:
+            connection.executemany(
+                "INSERT OR REPLACE INTO session_result VALUES(?,?,?,?,?,?,?,?)", values
+            )
+            connection.execute(
+                "DELETE FROM session_result WHERE algo_version<>?"
+                " AND root_session_uid IN (SELECT value FROM json_each(?))",
+                (algo_version, json.dumps(sorted(items))),
+            )
+
+    def sections(self, request_key: str, input_fp: str, names: list[str]) -> dict[str, Any]:
+        """Read cached sections individually; hits refresh their LRU timestamp."""
+        if not names:
+            return {}
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM analysis_section WHERE request_key=? AND input_fp=?"
+                " AND section IN (SELECT value FROM json_each(?))",
+                (request_key, input_fp, json.dumps(sorted(set(names)))),
+            ).fetchall()
+            found = {
+                row["section"]: self._decode(
+                    row["payload"], row["json_bytes"], row["sha256"], "section"
+                )
+                for row in rows
+            }
+            if found:
+                connection.execute(
+                    "UPDATE analysis_section SET last_hit_at=?,hits=hits+1 WHERE request_key=?"
+                    " AND input_fp=? AND section IN (SELECT value FROM json_each(?))",
+                    (_now(), request_key, input_fp, json.dumps(sorted(found))),
+                )
+        return found
+
+    def put_sections(
+        self,
+        request_key: str,
+        input_fp: str,
+        values: dict[str, Any],
+        rows: dict[str, list[tuple[str | None, Any]]] | None = None,
+    ) -> None:
+        """Publish sections and their paged rows atomically; readers never see half a section."""
+        rows = rows or {}
+        if set(rows) - set(values):
+            raise ValueError("Rows require their section in the same publish")
+        now = _now()
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for name, value in values.items():
+                payload, size, sha = self._encode(value)
+                # Deleting the section cascades to its rows before the new ones are written.
+                connection.execute(
+                    "DELETE FROM analysis_section WHERE request_key=? AND input_fp=? AND section=?",
+                    (request_key, input_fp, name),
+                )
+                connection.execute(
+                    "INSERT INTO analysis_section VALUES(?,?,?,?,?,?,?,?,0)",
+                    (request_key, input_fp, name, payload, size, sha, now, now),
+                )
+            for name, items in rows.items():
+                encoded = []
+                for index, (key, value) in enumerate(items):
+                    payload, size, sha = self._encode(value)
+                    encoded.append((request_key, input_fp, name, index, key, payload, size, sha))
+                connection.executemany("INSERT INTO analysis_row VALUES(?,?,?,?,?,?,?,?)", encoded)
+
+    def section_rows(
+        self, request_key: str, input_fp: str, section: str, *, offset: int = 0, limit: int = 50
+    ) -> Record:
+        """Page stored rows with LIMIT/OFFSET; only the requested rows are decoded."""
+        if offset < 0 or not 1 <= limit <= 1000:
+            raise ValueError("offset must be nonnegative and limit 1–1000")
+        key = (request_key, input_fp, section)
+        with self.connect() as connection:
+            total = connection.execute(
+                "SELECT count(*) FROM analysis_row WHERE request_key=? AND input_fp=? AND section=?",
+                key,
+            ).fetchone()[0]
+            rows = connection.execute(
+                "SELECT * FROM analysis_row WHERE request_key=? AND input_fp=? AND section=?"
+                " ORDER BY idx LIMIT ? OFFSET ?",
+                (*key, limit, offset),
+            ).fetchall()
+        items = [self._decode(r["payload"], r["json_bytes"], r["sha256"], "row") for r in rows]
+        return {"total": total, "offset": offset, "limit": limit, "items": items}
+
+    def section_row(self, request_key: str, input_fp: str, section: str, row_key: str) -> Any:
+        """Fetch one stored row by key, or None when the section has no such row."""
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM analysis_row WHERE request_key=? AND input_fp=? AND section=?"
+                " AND row_key=? ORDER BY idx LIMIT 1",
+                (request_key, input_fp, section, row_key),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._decode(row["payload"], row["json_bytes"], row["sha256"], "row")
+
+    def exclude(self, session_uid: str, reason: str | None = None) -> Record:
+        """Persist an exclusion; repeating it keeps the first timestamp and updates the reason."""
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO session_exclusion VALUES(?,?,?) ON CONFLICT(session_uid)"
+                " DO UPDATE SET reason=excluded.reason",
+                (session_uid, reason, _now()),
+            )
+            row = connection.execute(
+                "SELECT * FROM session_exclusion WHERE session_uid=?", (session_uid,)
+            ).fetchone()
+        return dict(row)
+
+    def include(self, session_uid: str) -> bool:
+        """Remove an exclusion; returns whether one existed."""
+        with self.connect() as connection:
+            deleted = connection.execute(
+                "DELETE FROM session_exclusion WHERE session_uid=?", (session_uid,)
+            ).rowcount
+        return deleted == 1
+
+    def exclusions(self) -> list[Record]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM session_exclusion ORDER BY session_uid"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def stored_bytes(self) -> int:
+        """Bytes in use by the database file (free pages excluded)."""
+        with self.connect() as connection:
+            page = connection.execute("PRAGMA page_size").fetchone()[0]
+            count = connection.execute("PRAGMA page_count").fetchone()[0]
+            free = connection.execute("PRAGMA freelist_count").fetchone()[0]
+        return (count - free) * page
+
+    def prune(
+        self,
+        *,
+        algo_version: str | None = None,
+        keep_inputs: int = KEEP_INPUTS,
+        max_bytes: int = MAX_BYTES,
+        failed_retention_ms: int = FAILED_RETENTION_MS,
+        now: int | None = None,
+    ) -> Record:
+        """Apply the retention policy; completed runs and their snapshots are never removed.
+
+        1. each request_key keeps its ``keep_inputs`` most recently used input fingerprints;
+        2. failed runs older than the retention window are deleted;
+        3. session rows from other algorithm versions are deleted;
+        4. while the database exceeds ``max_bytes``, least recently hit sections are evicted.
+        """
+        now = _now() if now is None else now
+        stats = {"stale_inputs": 0, "failed_runs": 0, "old_session_results": 0, "evicted": 0}
+        with self.connect() as connection:
+            stats["stale_inputs"] = connection.execute(
+                """DELETE FROM analysis_section WHERE (request_key, input_fp) IN (
+                     SELECT request_key, input_fp FROM (
+                       SELECT request_key, input_fp, row_number() OVER (
+                         PARTITION BY request_key
+                         ORDER BY max(last_hit_at) DESC, max(created_at) DESC, input_fp
+                       ) AS rank
+                       FROM analysis_section GROUP BY request_key, input_fp)
+                     WHERE rank > ?)""",
+                (keep_inputs,),
+            ).rowcount
+            stats["failed_runs"] = connection.execute(
+                "DELETE FROM analysis_run WHERE status='failed' AND finished_at < ?",
+                (now - failed_retention_ms,),
+            ).rowcount
+            if algo_version is not None:
+                stats["old_session_results"] = connection.execute(
+                    "DELETE FROM session_result WHERE algo_version<>?", (algo_version,)
+                ).rowcount
+        while self.stored_bytes() > max_bytes:
+            with self.connect() as connection:
+                oldest = connection.execute(
+                    "SELECT request_key, input_fp, section FROM analysis_section"
+                    " ORDER BY last_hit_at, created_at LIMIT 1"
+                ).fetchone()
+                if oldest is None:
+                    break
+                connection.execute(
+                    "DELETE FROM analysis_section WHERE request_key=? AND input_fp=? AND section=?",
+                    tuple(oldest),
+                )
+                stats["evicted"] += 1
+        return stats
