@@ -1,10 +1,11 @@
 import { watch } from 'node:fs';
-import type { CodexConnector } from './ingest.ts';
+import type { CodexConnector, IngestOptions } from './ingest.ts';
 import type { IngestResult } from './types.ts';
 
 export interface WatchOptions {
   signal: AbortSignal; debounceMs?: number; pollMs?: number;
   onResult: (result: IngestResult) => void; onError?: (error: unknown) => void;
+  ingest?: IngestOptions;
 }
 /** Serialized ingests coalesce FSEvents notifications; periodic stat scans cover missed notifications. */
 export async function watchCodex(connector: CodexConnector, options: WatchOptions): Promise<void> {
@@ -17,7 +18,7 @@ export async function watchCodex(connector: CodexConnector, options: WatchOption
     active=(async()=>{
       while (pending && !options.signal.aborted) {
         pending=false;
-        try { options.onResult(await connector.ingest()); }
+        try { options.onResult(await connector.ingest(options.ingest)); }
         catch(error) { options.onError?.(error); }
       }
     })().finally(()=>{active=null;});

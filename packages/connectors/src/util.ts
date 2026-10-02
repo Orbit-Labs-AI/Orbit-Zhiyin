@@ -8,14 +8,15 @@ export function hash(value: string | Uint8Array): string {
 export function uid(...parts: unknown[]): string { return hash(JSON.stringify(parts)); }
 export function sessionUid(source: string, native: string): string { return `codex:${uid(source).slice(0,12)}:${native}`; }
 export function timestamp(value: unknown): number | null {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== 'string' || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return null;
   const result = Date.parse(value);
   return Number.isFinite(result) ? result : null;
 }
 export function durationMs(value: unknown): number | null {
   const duration = object(value);
   const seconds = number(duration.secs);
-  return seconds === null ? null : Math.round(seconds * 1000 + (number(duration.nanos) ?? 0) / 1e6);
+  const nanos=number(duration.nanos);
+  return seconds === null || seconds<0 || (nanos!==null && nanos<0) ? null : Math.round(seconds * 1000 + (nanos ?? 0) / 1e6);
 }
 export function pathValue(value: unknown): string | null {
   const path = string(value);

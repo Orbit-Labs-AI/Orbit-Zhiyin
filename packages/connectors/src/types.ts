@@ -9,10 +9,11 @@ export interface RawRecord {
   ref_event_uid: string | null; note: string | null;
 }
 export interface StandardEvent {
-  event_uid: string; session_uid: string; seq: number; ts: number; kind: string; actor: string;
+  event_uid: string; session_uid: string; seq: number; ts: number | null; kind: string; actor: string;
   turn_uid: string | null; parent_uid: string | null; call_id: string | null;
   text: string | null; text_truncated: number; attrs: Obj; ext: Obj;
   record_uid: string; native_id: string | null;
+  native_key: Json[]; event_path: string; contract_version: number; mapper_version: string;
 }
 export interface ParserState { meta: Obj; turn: string | null; line: number; offset: number; }
 export interface Watermark extends ParserState { archived: number; }

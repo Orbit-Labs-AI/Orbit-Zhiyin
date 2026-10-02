@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { object, string } from './types.ts';
 import type { Obj } from './types.ts';
+import { maintenanceState } from './maintenance.ts';
 
 export function defaultCodexHome(): string { return process.env.CODEX_HOME || join(homedir(),'.codex'); }
 export function within(root: string, path: string): boolean {
@@ -11,7 +12,7 @@ export function within(root: string, path: string): boolean {
   return value === '' || (!value.startsWith('..'+String.fromCharCode(47)) && value !== '..' && !isAbsolute(value));
 }
 export async function exists(path: string): Promise<boolean> { try { await access(path); return true; } catch { return false; } }
-export interface Discovery { root: string; files: string[]; index_path: string | null; maintenance: boolean; }
+export interface Discovery { root: string; files: string[]; index_path: string | null; maintenance: boolean; maintenance_state:'held'|'idle'|'unknown'; }
 export async function discoverCodex(rootPath = defaultCodexHome()): Promise<Discovery> {
   const root = await realpath(resolve(rootPath));
   const files: string[] = [];
@@ -28,8 +29,9 @@ export async function discoverCodex(rootPath = defaultCodexHome()): Promise<Disc
   await scan(join(root,'sessions')); await scan(join(root,'archived_sessions'));
   const indexes = (await readdir(root)).filter(name => /^state_\d+\.sqlite$/.test(name))
     .sort((a,b) => Number(b.match(/\d+/)?.[0])-Number(a.match(/\d+/)?.[0]));
+  const state=await maintenanceState(join(root,'.tmp','rollout-maintenance.lock'));
   return { root, files:files.sort(), index_path:indexes[0] ? join(root,indexes[0]) : null,
-    maintenance: await exists(join(root,'.tmp','rollout-maintenance.lock')) };
+    maintenance:state==='held',maintenance_state:state };
 }
 const threadColumns = ['id','rollout_path','cwd','name','title','preview','created_at','updated_at','created_at_ms','updated_at_ms',
   'archived','source','thread_source','model','model_provider','reasoning_effort','cli_version','originator',

@@ -7,12 +7,16 @@ import { DatabaseSync } from 'node:sqlite';
 import { zstdCompressSync } from 'node:zlib';
 import { CodexConnector } from '../src/ingest.ts';
 import { ConnectorStore } from '../src/store.ts';
-import { readRawRecord, archivedBytes } from '../src/archive.ts';
+import { readRawRecord, readRedactedRecord, archivedBytes } from '../src/archive.ts';
 import { discoverCodex } from '../src/discovery.ts';
 import { sessionUid } from '../src/util.ts';
+import { hash,uid } from '../src/util.ts';
+import { sanitize } from '../src/privacy.ts';
+import { readFileSync } from 'node:fs';
 import { watchCodex } from '../src/watch.ts';
 import { promisify } from 'node:util';
-import { execFile } from 'node:child_process';
+import { execFile,spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
 type Sandbox = {root:string, home:string, file:string, store:ConnectorStore, connector:CodexConnector};
@@ -148,17 +152,30 @@ test('read-only state index sets title priority, project metadata, imports and s
   assert.equal(s.store.db.prepare('SELECT title FROM session').get()?.title,'新名称');
   db.close();
 }));
-test('maintenance lock defers ingest; malformed records and drift remain explicit and bounded',async()=>sandbox(async s=>{
+test('a stale maintenance file does not block ingestion; malformed records and drift remain explicit and bounded',async()=>sandbox(async s=>{
   await writeFile(s.file,await fixture()); await mkdir(join(s.home,'.tmp'));
   const lock=join(s.home,'.tmp','rollout-maintenance.lock'); await writeFile(lock,'');
-  assert.equal((await s.connector.ingest()).maintenance_skipped,true);
-  assert.equal(scalar(s,'SELECT count(*) n FROM raw_record'),0); await rm(lock);
+  assert.equal((await s.connector.ingest()).maintenance_skipped,false);
+  assert.ok(scalar(s,'SELECT count(*) n FROM raw_record')>0); await rm(lock);
   await appendFile(s.file,'not-json\n'+jsonLine('world_state',{full:false,state:{},new_field:'preserve'},31));
   const result=await s.connector.ingest();
   assert.equal(result.accounting.unparsed,1);
   assert.ok(scalar(s,"SELECT count(*) n FROM diagnostic WHERE code='format_drift'")>0);
-  assert.equal(Object.values(result.accounting).reduce((a,b)=>a+b,0),result.records_added);
+  assert.equal(Object.values(result.accounting).reduce((a,b)=>a+b,0),scalar(s,'SELECT count(*) n FROM current_record'));
   assert.equal((await stat(join(s.root,'tandem','raw'))).mode&0o777,0o700);
+}));
+test('an actually held maintenance lock defers ingest without acquiring a lock in the connector',async t=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());await mkdir(join(s.home,'.tmp'));
+  const lock=join(s.home,'.tmp','rollout-maintenance.lock');await writeFile(lock,'');
+  const holder=spawn('python3',['-c','import sys,fcntl; f=open(sys.argv[1],"rb"); fcntl.flock(f,fcntl.LOCK_EX); print("held",flush=True); sys.stdin.read()',lock]);
+  try {
+    await once(holder.stdout,'data');
+    const discovery=await discoverCodex(s.home);
+    if(discovery.maintenance_state==='unknown'){t.skip('OS lock observer unavailable');return;}
+    assert.equal(discovery.maintenance,true);
+    assert.equal((await s.connector.ingest()).maintenance_skipped,true);
+    assert.equal(scalar(s,'SELECT count(*) n FROM raw_record'),0);
+  } finally {holder.stdin.end();await once(holder,'exit');}
 }));
 test('unknown sources are discovered without reading credentials or following directory symlinks',async()=>sandbox(async s=>{
   await writeFile(s.file,await fixture()); await writeFile(join(s.home,'auth.json'),'do not read');
@@ -189,6 +206,8 @@ test('MCP error flags and declined commands are authoritative, with exact origin
   const event=s.store.db.prepare("SELECT * FROM event WHERE kind='tool.result' AND call_id='m1'").get()!;
   assert.equal(event.text_truncated,1); assert.ok(!JSON.stringify(event).includes(secret));
   assert.ok((await readRawRecord(s.store,String(event.record_uid))).toString().includes(secret));
+  const full=JSON.stringify(await readRedactedRecord(s.store,String(event.record_uid)));
+  assert.ok(full.length>8192);assert.ok(!full.includes(secret));
 }));
 test('Codex project metadata is accounted without creating project IDs as fake sessions',async()=>sandbox(async s=>{
   await writeFile(s.file,await fixture());
@@ -260,4 +279,62 @@ test('CLI discovery stays read-only; ingest, stats, JSONL export and raw retriev
   assert.ok(exported.stdout.trim().split('\n').every(line=>JSON.parse(line).event_uid));
   const record=JSON.parse(exported.stdout.trim().split('\n')[0]!).record_uid;
   const raw=await command(['raw','--data-dir',data,'--record',record]); assert.ok(JSON.parse(raw.stdout).type);
+}));
+
+test('nullable time, native order, and time semantics survive backward clocks without fabricated bounds',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'ordered',timestamp:'2026-10-02T00:00:00Z'},0)+
+    JSON.stringify({ordinal:1,type:'event_msg',payload:{type:'item_completed',turn_id:'order-turn',item:{type:'UserMessage',id:'untimed',content:[{type:'text',text:'时间未知'}]}}})+'\n'+
+    JSON.stringify({ordinal:2,timestamp:'2026-10-02T00:00:09Z',type:'event_msg',payload:{type:'user_message',turn_id:'order-turn',message:'先写'}})+'\n'+
+    JSON.stringify({ordinal:3,timestamp:'2026-10-02T00:00:01Z',type:'event_msg',payload:{type:'user_message',turn_id:'order-turn',message:'后写'}})+'\n'+
+    jsonLine('event_msg',{type:'item_completed',turn_id:'order-turn',item:{type:'CommandExecution',id:'no-bounds',command:['pwd'],status:'completed',duration:{secs:1,nanos:0}}},4));
+  await s.connector.ingest();
+  const unknown=s.store.db.prepare("SELECT ts,attrs,event_path FROM event WHERE text='时间未知'").get()!;
+  assert.equal(unknown.ts,null); assert.equal(JSON.parse(String(unknown.attrs)).time.quality,'missing'); assert.ok(unknown.event_path);
+  assert.deepEqual(s.store.db.prepare("SELECT text FROM event WHERE text IN ('先写','后写') ORDER BY seq").all().map(row=>row.text),['先写','后写']);
+  const tool=s.store.db.prepare("SELECT started_at,ended_at,duration_ms,duration_source,duration_quality FROM tool_call").get()!;
+  assert.equal(tool.started_at,null);assert.equal(tool.ended_at,null);assert.equal(tool.duration_ms,1000);assert.equal(tool.duration_source,'reported');
+}));
+test('cumulative-only usage is a snapshot; missing cache buckets and request identity stay unknown',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'snapshot'},0)+jsonLine('event_msg',{type:'token_count',info:{total_token_usage:{input_tokens:8000,output_tokens:100},last_token_usage:{input_tokens:8000,output_tokens:100}}},1));
+  await s.connector.ingest();
+  assert.equal(scalar(s,'SELECT count(*) n FROM model_call'),0);assert.equal(scalar(s,'SELECT count(*) n FROM usage_snapshot'),1);
+  const row=s.store.db.prepare('SELECT attrs FROM event WHERE kind=\'model.usage\'').get()!;
+  const a=JSON.parse(String(row.attrs));assert.equal(a.measurement,'cumulative');assert.equal(a.request_id,null);assert.equal(a.input_tokens,null);assert.equal(a.cache_read_tokens,null);
+}));
+test('unchanged totals do not erase a new legacy request; complementary direct-tool arguments and states are merged',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture('legacy')+jsonLine('response_item',{type:'function_call',call_id:'another-step',name:'exec_command',arguments:JSON.stringify({cmd:'target-test',workdir:'/target'})},20)+
+    jsonLine('event_msg',{type:'token_count',info:{total_token_usage:{input_tokens:100,output_tokens:20},last_token_usage:{input_tokens:30,output_tokens:5}}},21));
+  await s.connector.ingest();assert.equal(scalar(s,'SELECT count(*) n FROM model_call'),2);
+  const snapshotCount=scalar(s,'SELECT count(*) n FROM usage_snapshot');assert.ok(snapshotCount>=1);
+  const second=await fixture();await writeFile(s.file,second);await s.connector.ingest();
+  const call=s.store.db.prepare("SELECT attrs FROM event WHERE kind='tool.call' AND call_id='c1'").get()!;
+  assert.equal(JSON.parse(String(call.attrs)).arguments.cmd,'pnpm test');
+  assert.equal(s.store.db.prepare("SELECT status FROM tool_call WHERE name_raw='exec_command' AND exit_code=2").get()?.status,'failed');
+}));
+test('record_event represents one native completion contributing multiple events and remains valid on a parent rebuild',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());await s.connector.ingest();
+  assert.ok(scalar(s,'SELECT count(*) n FROM (SELECT record_uid FROM record_event GROUP BY record_uid HAVING count(*)>1)')>0);
+  assert.equal(scalar(s,'SELECT count(*) n FROM record_event re LEFT JOIN event e USING(event_uid) WHERE e.event_uid IS NULL'),0);
+}));
+test('v1 staging migration rebuilds nullable L2/L3 without losing archived originals',async()=>sandbox(async s=>{
+  const directory=join(s.root,'old-staging');await mkdir(join(directory,'raw'),{recursive:true});
+  const native=await fixture(),bytes=Buffer.from(native),oldPath=join(directory,'tandem.db');
+  const db=new DatabaseSync(oldPath);db.exec(readFileSync(new URL('../schema/001.sql',import.meta.url),'utf8'));db.exec('PRAGMA user_version=1');
+  const source=s.connector.sourceId,file=uid(source,'old-file'),sid=sessionUid(source,'main'),archive=join(directory,'raw','fixture.zst');
+  await writeFile(archive,zstdCompressSync(bytes));db.prepare('INSERT INTO source VALUES(?,?,?,?,?,?)').run(source,'codex',s.home,'fixture',1,1);
+  db.prepare('INSERT INTO source_file(file_id,source_id,path,role,format,generation) VALUES(?,?,?,?,?,1)').run(file,source,s.file,'transcript','jsonl');
+  db.prepare('INSERT INTO archive_chunk VALUES(?,?,?,?,?,?)').run(file,1,0,bytes.length,hash(bytes),archive);
+  let turn:string|null=null,offset=0;
+  for (const [index,line] of native.trim().split('\n').entries()) {
+    const data=JSON.parse(line),raw=Buffer.from(line+'\n');turn=data.payload.turn_id??turn;
+    const subtype=data.payload.type?':'+data.payload.type:'';
+    db.prepare('INSERT INTO raw_record VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(uid(file,index),file,1,index+1,data.ordinal,offset,raw.length,hash(raw),data.type+subtype,'fixture',Date.parse(data.timestamp),sid,turn,JSON.stringify(sanitize(data)),'ignored',null,null);
+    offset+=raw.length;
+  }
+  db.close();const migrated=new ConnectorStore(directory);
+  try {
+    assert.equal(migrated.db.prepare('PRAGMA user_version').get()?.user_version,2);
+    assert.equal(migrated.db.prepare('SELECT count(*) n FROM model_call').get()?.n,1);
+    assert.deepEqual(await readRawRecord(migrated,uid(file,0)),Buffer.from(native.split('\n')[0]+'\n'));
+  } finally {migrated.close();}
 }));

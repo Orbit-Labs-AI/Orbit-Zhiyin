@@ -15,10 +15,12 @@ import { redact } from './privacy.ts';
 
 const help=`Tandem Codex Connector — 本地只读采集与标准化
 
+  tandem-ingest init     [--data-dir PATH]
   tandem-ingest discover [--codex-home PATH]
-  tandem-ingest ingest   [--codex-home PATH] [--data-dir PATH]
+  tandem-ingest ingest   [--codex-home PATH] [--data-dir PATH] [--file PATH ...] [--no-index]
   tandem-ingest watch    [--codex-home PATH] [--data-dir PATH]
   tandem-ingest stats    [--data-dir PATH]
+  tandem-ingest rebuild  [--data-dir PATH]
   tandem-ingest export   --session UID [--data-dir PATH] [--output FILE]
   tandem-ingest raw      --record UID [--data-dir PATH]
 
@@ -33,12 +35,19 @@ async function canonicalDestination(path:string):Promise<string> {
 async function main():Promise<void> {
   const {values,positionals}=parseArgs({allowPositionals:true,options:{
     'codex-home':{type:'string'},'data-dir':{type:'string'},session:{type:'string'},record:{type:'string'},output:{type:'string'},help:{type:'boolean',short:'h'}
+    ,file:{type:'string',multiple:true},'no-index':{type:'boolean'}
   }});
   const command=positionals[0];
   if (values.help || !command) { console.log(help); return; }
-  if (positionals.length!==1 || !['discover','ingest','watch','stats','export','raw'].includes(command)) throw new Error('Unknown command; use --help');
+  if (positionals.length!==1 || !['init','discover','ingest','watch','stats','export','raw','rebuild'].includes(command)) throw new Error('Unknown command; use --help');
   const directory=resolve(values['data-dir']??join(homedir(),'Library','Application Support','Tandem'));
   const root=values['codex-home']??defaultCodexHome();
+  if (command==='init') {
+    const home=await canonicalDestination(resolve(root));
+    if (within(home,await canonicalDestination(directory))) throw new Error('--data-dir must be outside CODEX_HOME');
+    const store=new ConnectorStore(directory);
+    try {console.log(JSON.stringify({db_schema_version:2,input_contract:'analysis-input-v1',directory}));}finally{store.close();}return;
+  }
   if (command==='discover') {
     const result=await discoverCodex(root);
     console.log(JSON.stringify({agent:'codex',root:result.root,transcript_files:result.files.length,index_path:result.index_path,maintenance:result.maintenance,enabled:false},null,2)); return;
@@ -47,16 +56,17 @@ async function main():Promise<void> {
     const home=await realpath(root);
     if (within(home,await canonicalDestination(directory))) throw new Error('--data-dir must be outside CODEX_HOME');
     const store=new ConnectorStore(directory),connector=new CodexConnector(store,home);
+    const ingestOptions={files:values.file,includeMetadata:!values['no-index']};
     try {
       if (command==='ingest') {
-        const result=await connector.ingest(); console.log(JSON.stringify(result,null,2));
+        const result=await connector.ingest(ingestOptions); console.log(JSON.stringify(result,null,2));
         if (result.files_failed || result.accounting.unparsed) process.exitCode=2;
       } else {
         const controller=new AbortController();
         const stop=():void=>controller.abort(); process.once('SIGINT',stop); process.once('SIGTERM',stop);
         let first=true;
         try {
-          await watchCodex(connector,{signal:controller.signal,onResult:result=>{
+          await watchCodex(connector,{signal:controller.signal,ingest:ingestOptions,onResult:result=>{
             if (first||result.files_changed||result.files_failed||result.maintenance_skipped) console.log(JSON.stringify(result)); first=false;
           },onError:error=>console.error(redact(String(error)))});
         } finally { process.removeListener('SIGINT',stop); process.removeListener('SIGTERM',stop); }
@@ -65,6 +75,11 @@ async function main():Promise<void> {
     return;
   }
   await access(join(directory,'tandem.db'));
+  if (command==='rebuild') {
+    const store=new ConnectorStore(directory);
+    try {console.log(JSON.stringify({sessions_rebuilt:store.rebuild(),db_schema_version:2,input_contract:'analysis-input-v1'}));}
+    finally {store.close();}return;
+  }
   if (command==='raw') {
     if (!values.record) throw new Error('raw requires --record');
     const store=new ConnectorStore(directory);
@@ -76,7 +91,11 @@ async function main():Promise<void> {
     if (command==='stats') {
       const count=(table:string)=>db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n;
       console.log(JSON.stringify({sessions:count('session'),events:count('event'),turns:count('turn'),tools:count('tool_call'),model_calls:count('model_call'),
-        main_model_usage:db.prepare('SELECT model_id,sum(input_tokens) AS input_tokens,sum(cache_read_tokens) AS cache_read_tokens,sum(output_tokens) AS output_tokens FROM main_model_usage GROUP BY model_id').all(),
+        usage_snapshots:count('usage_snapshot'),db_schema_version:2,input_contract:'analysis-input-v1',
+        versions:db.prepare('SELECT * FROM pipeline_version').all(),sample_boundary:db.prepare('SELECT * FROM source_boundary').all(),
+        main_model_usage:db.prepare(`SELECT model_id,count(*) AS calls,sum(input_tokens) AS known_input_tokens,sum(input_tokens IS NULL) AS input_unknown_calls,
+          sum(cache_read_tokens) AS known_cache_read_tokens,sum(cache_read_tokens IS NULL) AS cache_read_unknown_calls,
+          sum(output_tokens) AS known_output_tokens,sum(output_tokens IS NULL) AS output_unknown_calls FROM main_model_usage GROUP BY model_id`).all(),
         accounting:db.prepare('SELECT disposition,count(*) AS n FROM current_record GROUP BY disposition').all(),
         diagnostics:db.prepare('SELECT code,count(*) AS n FROM diagnostic GROUP BY code').all()},null,2));
     } else {
@@ -91,7 +110,7 @@ async function main():Promise<void> {
       stream.on('error',failure);
       try {
         for (const event of db.prepare('SELECT * FROM event WHERE session_uid=? ORDER BY seq').iterate(values.session)) {
-          const row={...event,attrs:JSON.parse(String(event.attrs)),ext:JSON.parse(String(event.ext))};
+          const row={...event,attrs:JSON.parse(String(event.attrs)),ext:JSON.parse(String(event.ext)),native_key:JSON.parse(String(event.native_key))};
           if (!stream.write(JSON.stringify(row)+'\n')) await once(stream,'drain');
         }
         if (output) { stream.end(); await once(stream,'finish'); }

@@ -7,6 +7,8 @@ import { Readable } from 'node:stream';
 import { hash } from './util.ts';
 import { decompressFrames } from './zstd.ts';
 import type { ConnectorStore } from './store.ts';
+import { sanitize } from './privacy.ts';
+import type { Json } from './types.ts';
 
 export interface ArchiveChunk { offset: number; byte_len: number; sha256: string; path: string; }
 export async function archiveBuffer(directory: string, source: string, bytes: Buffer, offset: number): Promise<ArchiveChunk> {
@@ -64,4 +66,9 @@ export async function readRawRecord(store: ConnectorStore, recordUid: string): P
   const bytes = Buffer.concat(parts);
   if (bytes.length !== Number(record.byte_len)) throw new Error('Incomplete archive record');
   return bytes;
+}
+/** Analysis drill-down keeps projection redaction while lifting the 8 KB tool preview budget. */
+export async function readRedactedRecord(store:ConnectorStore,recordUid:string):Promise<Json> {
+  const bytes=await readRawRecord(store,recordUid);
+  return sanitize(JSON.parse(bytes.toString('utf8')), '',32*1024*1024,32*1024*1024);
 }
