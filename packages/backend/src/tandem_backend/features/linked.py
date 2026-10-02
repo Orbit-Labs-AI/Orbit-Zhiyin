@@ -180,18 +180,19 @@ def _match(item, catalog) -> tuple[dict, str, float] | None:
 def _ledger(conn, items, catalog) -> dict[str, str]:
     """inv_id -> catalog item id for components Tandem installed from the catalog.
 
-    Uses explicit ``inv_id``/``catalog_item_id`` ledger columns when present; otherwise joins
-    install's real tables: live ``install_state`` rows with ``source_type='catalog'`` and the
+    Explicit ``inv_id``/``catalog_item_id`` ledger columns win; components they do not cover
+    fall back to joining install's real tables: live ``install_state`` rows with ``source_type='catalog'`` and the
     paths their ``install`` ledger entries wrote. A shared config file (e.g. several MCP
     servers in one JSON) only links when the catalog name matches the component.
     """
+    out: dict[str, str] = {}
     if _has(conn, "main", "install_ledger", ("inv_id", "catalog_item_id")):
-        return {r[0]: r[1] for r in conn.execute(
+        out = {r[0]: r[1] for r in conn.execute(
             "SELECT inv_id, catalog_item_id FROM main.install_ledger "
             "WHERE inv_id IS NOT NULL AND catalog_item_id IS NOT NULL ORDER BY rowid")}
     if not (_has(conn, "main", "install_ledger", ("path",))
             and _has(conn, "main", "install_state", ("source_type", "source_id", "state"))):
-        return {}
+        return out
     by_path: dict[str, set[str]] = {}
     for path, item_id in conn.execute(
             "SELECT l.path, s.source_id FROM main.install_ledger l "
@@ -199,8 +200,9 @@ def _ledger(conn, items, catalog) -> dict[str, str]:
             "WHERE l.action = 'install' AND l.path IS NOT NULL AND s.source_type = 'catalog' "
             "AND s.source_id IS NOT NULL AND s.state != 'reverted'"):
         by_path.setdefault(_norm_path(path), set()).add(item_id)
-    out = {}
     for item in items:
+        if item["inv_id"] in out:
+            continue
         ids = by_path.get(_norm_path(item["config_path"]))
         if not ids:
             continue
