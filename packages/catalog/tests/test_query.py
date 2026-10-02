@@ -123,3 +123,14 @@ def test_models_merge_sources_and_benchmarks_resolve(tmp_path):
     assert [(r["model"], r["resolved"]) for r in rows] == [("x", True), ("ghost", False)]
     assert query.get_model(store, "acme/x")["benchmarks"][0]["url"] == "https://bench"
     assert query.models(store, q="latest")["total"] == 1 and query.models(store, provider="other")["total"] == 0
+
+
+def test_empty_catalog_reads(tmp_path):
+    from tandem_catalog.contracts import MatchRequest
+    from tandem_catalog.search import search
+    store = CatalogStore(tmp_path / "empty.db")
+    assert query.list_items(store) == {"items": [], "next_cursor": None, "total": 0, "generation": 0}
+    assert query.facets(store)["total"] == 0 and query.facets(store)["agent"] == []
+    assert search(store, MatchRequest(text="调试 debug", prefix=True))["items"] == []
+    assert query.models(store)["items"] == [] and query.benchmarks(store)["items"] == []
+    assert query.get_item(store, "x") is None and store.verify()["ok"]

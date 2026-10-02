@@ -20,7 +20,7 @@ from .contracts import (
 from .network import HttpClient
 from .search import query_text, remember_queries, search
 from .sources import default_sources
-from .store import CatalogStore
+from .store import CatalogBusy, CatalogStore
 from .sync import CatalogSync
 from .vectors import LocalE5Encoder, index_embeddings, normalize_vectors
 
@@ -35,7 +35,10 @@ class CatalogService:
         existing = {s["source_id"] for s in self.store.sources()}
         missing = [s for s in default_sources() if s.source_id not in existing]
         if missing:
-            self.store.register(missing)
+            try:
+                self.store.register(missing)
+            except CatalogBusy:  # Another process is syncing; defaults are registered next start.
+                pass
         self.http = http or HttpClient(self.store.path.parent / "catalog-http-cache")
         self.model_dir = model_dir
         self._encoder = encoder
