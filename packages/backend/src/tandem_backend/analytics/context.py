@@ -93,6 +93,10 @@ class AnalysisContext:
         }[kind]
         return [row for sid in sorted(ids) for row in groups.get(sid, [])]
 
+    def seed_families(self, ids: set[str], value: Record) -> None:
+        """Store families computed elsewhere (a worker) for exactly this scope."""
+        self._families.setdefault(tuple(sorted(ids)), value)
+
     def families(self, ids: set[str]) -> Record:
         """Reuse identical scopes; never average ratios or merge interval totals."""
         key = tuple(sorted(ids))
