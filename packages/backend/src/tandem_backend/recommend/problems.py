@@ -28,7 +28,19 @@ FACT_TYPES = ("review_loop", "parallel_conflict", "readonly_review", "repeated_w
 TYPES = (*dict.fromkeys(RULE_TO_PROBLEM.values()), "permission_friction", "communication_gap",
          "resident_cost", "installed_unused", *FACT_TYPES)
 MIN_SESSIONS, MIN_WILSON_LO, MIN_DENOMINATOR = 3, .05, 5
+# The Wilson bar relaxes with the population size: ``MIN_WILSON_LO`` holds up to ``REF_N``
+# sessions and shrinks by sqrt(REF_N / n) above it (never under ``FLOOR_WILSON_LO``), so a
+# heterogeneous heavy user (390 sessions over many projects) is not held to a 5 % share.
+REF_N, FLOOR_WILSON_LO = 60, .01
 MAX_IDS = 50
+# Inventory facts (unused / resident) are measurements, not k-of-n recurrences: a fixed
+# confidence instead of a Wilson bound whose numerator equals its denominator.
+INVENTORY_CONFIDENCE = {"resident_cost": .8, "installed_unused": .5}
+# MCP servers load their tool schemas each session; without a measurement use this estimate.
+MCP_RESIDENT_EST = 500
+# Generic tool names never stand for a "software" (they wrap every shell / agent call).
+GENERIC_TOOLS = {"exec_command", "bash", "shell", "local_shell", "terminal", "commandexecution", "pwsh",
+                 "agent", "task", "js", "node_repl", "write_stdin", "spawn_agent", "subagent"}
 # SQL facts that stand in for analytics signals on unlabelled logs:
 # fact name -> (problem type, key, weekly count field, reason template).
 FACT_PROBLEMS = {
@@ -64,6 +76,80 @@ def wilson_lo(k: int, n: int, z: float = 1.96) -> float:
     centre = p + z * z / (2 * n)
     margin = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return max(0., (centre - margin) / (1 + z * z / n))
+
+
+def min_wilson_lo(n: int) -> float:
+    """The calibrated Wilson lower-bound bar for a population of ``n`` sessions."""
+    if n <= REF_N:
+        return MIN_WILSON_LO
+    return max(FLOOR_WILSON_LO, MIN_WILSON_LO * math.sqrt(REF_N / n))
+
+
+def passes(problem: dict) -> bool:
+    """Shared evidence bar for problems.build and ranking.gates (one configurable value)."""
+    return (int(problem.get("sessions") or 0) >= MIN_SESSIONS
+            and float(problem.get("wilson_lo") or 0) >= float(problem.get("threshold", MIN_WILSON_LO)))
+
+
+def group_label(group) -> str | None:
+    """A signal's ``scope.group`` as a key part: a tool dict names its tool; generic tools
+    (exec_command, Agent, …) name nothing so they fold into the bare problem type."""
+    if isinstance(group, dict):
+        group = group.get("tool") or group.get("name") or group.get("software")
+    text = str(group).strip() if group else ""
+    return None if not text or text.lower() in GENERIC_TOOLS else text
+
+
+class _Scopes:
+    """Reference populations a problem can be measured against (project, task family, software)."""
+
+    def __init__(self, facts: dict):
+        days = [d for d in facts.get("session_days") or () if isinstance(d, dict) and d.get("session_uid")]
+        given = facts.get("scope_sessions") or {}
+        self.project_of = {d["session_uid"]: d.get("project_id") for d in days}
+        self.types_of = {d["session_uid"]: list(d.get("task_types") or ()) for d in days}
+        self.projects = dict(given.get("projects") or {}) or _count(self.project_of.values())
+        self.task_types = dict(given.get("task_types") or {}) or _count(
+            t for types in self.types_of.values() for t in types)
+        self.software = dict(given.get("software") or {})
+
+    def candidates(self, uids, k: int, software) -> list[tuple[str, int]]:
+        out = []
+        if software and self.software.get(str(software)):
+            out.append(("software", int(self.software[str(software)])))
+        uids = [u for u in uids if u]
+        if uids and len(uids) >= k:
+            projects = {self.project_of.get(u) for u in uids}
+            if projects and None not in projects and all(p in self.projects for p in projects):
+                out.append(("project", sum(int(self.projects[p]) for p in projects)))
+            types = [self.types_of.get(u) for u in uids]
+            if all(types):
+                family = {t for ts in types for t in ts}
+                if all(t in self.task_types for t in family):
+                    out.append(("task_family", sum(int(self.task_types[t]) for t in family)))
+        return out
+
+
+def _count(values) -> dict:
+    out: dict = {}
+    for value in values:
+        if value:
+            out[value] = out.get(value, 0) + 1
+    return out
+
+
+def _measure(k: int, n: int, uids, software, scopes: _Scopes) -> dict:
+    """Pick the narrowest reference population that holds all k sessions and gives the best
+    calibrated margin; ``all`` (every main session) is the fallback."""
+    best = {"basis": "all", "n": n, "lo": wilson_lo(k, n), "threshold": min_wilson_lo(n)}
+    for basis, m in scopes.candidates(uids, k, software):
+        m = max(m, k)
+        if m >= n or m < MIN_DENOMINATOR:
+            continue
+        lo, bar = wilson_lo(k, m), min_wilson_lo(m)
+        if lo - bar > best["lo"] - best["threshold"]:
+            best = {"basis": basis, "n": m, "lo": lo, "threshold": bar}
+    return best
 
 
 def _ts(value) -> float | None:
@@ -143,7 +229,10 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         if not type_:
             continue
         scope = signal.get("scope") or {}
-        a = acc(type_, f"{type_}:{scope['group']}" if scope.get("group") else type_)
+        label = group_label(scope.get("group"))
+        a = acc(type_, f"{type_}:{label}" if label else type_)
+        if label and type_ == "tool_env_failure":
+            a.vars = {**a.vars, "software": label}
         if scope.get("root_session_uid"):
             a.roots.add(scope["root_session_uid"])
         if scope.get("project_id"):
@@ -210,12 +299,18 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         for item in inventory:
             inv_id, name, kind = item.get("inv_id"), item.get("name") or item.get("inv_id"), item.get("type")
             lines, tokens = int(item.get("lines") or 0), int(item.get("resident_tokens") or 0)
+            estimated = kind == "mcp" and item.get("resident_tokens") is None
+            if estimated:
+                tokens = MCP_RESIDENT_EST
             base = {"inv_id": inv_id, "name": name, "inv_type": kind, "lines": lines, "tokens": tokens,
-                    "config_path": item.get("config_path")}
+                    "config_path": item.get("config_path"), "tokens_basis": "estimate" if estimated else "measured"}
+            for extra in ("agent", "scope", "plugin"):
+                if item.get(extra):
+                    base[extra] = item[extra]
             hits = []
             if kind == "rule" and lines > 200:
                 hits.append(("resident_cost", f"resident_cost:rules_file:{name}", f"{name} 有 {lines} 行，每个会话都会加载"))
-            elif tokens >= 2000:
+            elif not estimated and tokens >= 2000:
                 hits.append(("resident_cost", f"resident_cost:{inv_id}", f"{name} 每个会话常驻约 {tokens} tokens"))
             bucket = usage.get("skill" if kind == "skill" else "mcp", {}) if kind in ("skill", "mcp") else None
             if (bucket is not None and item.get("enabled") is not False and main >= 10 and window_days >= 14
@@ -227,6 +322,7 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
                 a.k = a.n = main
                 a.weekly = main / weeks
                 a.unit = "会话"
+                a.basis = "inventory"
                 a.vars = {**base, "days": int(window_days)}
                 a.reasons.append(reason)
     comm = [card for card in inputs.get("legacy_cards") or () if card.get("rule_id") in COMMUNICATION_RULES]
@@ -243,24 +339,40 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
     profile = inputs.get("profile") or {}
     languages = profile.get("languages") or []
     scope_hash = str(inputs.get("scope_hash") or "")
+    scopes = _Scopes(facts)
+    span_days = 0.
+    first_ts, last_ts = _ts(sessions.get("first_ts")), _ts(sessions.get("last_ts"))
+    if first_ts is not None and last_ts is not None:
+        span_days = (last_ts - first_ts) / 86400
     output = []
     for (type_, key), a in sorted(accs.items()):
         if type_ in muted:
             continue
         k, n = int(a.k or 0), int(a.n or 0)
-        lo = wilson_lo(k, n)
-        status = ("insufficient" if n < MIN_DENOMINATOR
-                  else "active" if k >= MIN_SESSIONS and lo >= MIN_WILSON_LO else "below_threshold")
+        if a.basis == "inventory":
+            # A measured fact: fixed confidence (unused grows with the observed window), no k/n bound.
+            confidence = INVENTORY_CONFIDENCE.get(type_, .5)
+            if type_ == "installed_unused":
+                confidence = min(.9, confidence + .4 * min(1., max(0., span_days - 14) / 76))
+            scope = {"basis": "inventory", "n": n, "lo": confidence, "threshold": 0.}
+            status = "insufficient" if n < MIN_DENOMINATOR else "active"
+        else:
+            scope = _measure(k, n, a.roots or a.sessions, a.vars.get("software"), scopes)
+            status = ("insufficient" if n < MIN_DENOMINATOR
+                      else "active" if k >= MIN_SESSIONS and scope["lo"] >= scope["threshold"]
+                      else "below_threshold")
+        lo = scope["lo"]
         weekly = round(a.weekly / weeks, 2)
         output.append({
             "problem_id": hashlib.sha256(f"{scope_hash}|{type_}|{key}".encode()).hexdigest()[:16],
-            "type": type_, "key": key, "dimension": DIMENSIONS.get(type_), "sessions": k, "denominator": n,
-            "wilson_lo": round(lo, 4), "weekly_count": weekly, "unit": a.unit, "status": status,
+            "type": type_, "key": key, "dimension": DIMENSIONS.get(type_), "sessions": k,
+            "denominator": scope["n"], "denominator_all": n, "scope": {"basis": scope["basis"], "n": scope["n"]},
+            "wilson_lo": round(lo, 4), "threshold": round(scope["threshold"], 4), "weekly_count": weekly, "unit": a.unit, "status": status,
             "evidence": {"session_uids": a.sessions, "signal_ids": a.signals, "event_ids": a.events},
             "reason": a.reasons[0] if a.reasons else f"{k}/{n} 个会话出现 {type_}",
             "scene": None, "language": languages[0] if type_ == "communication_gap" and languages else None,
             "project_ids": sorted(a.projects),
-            "vars": {"k": k, "n": n, "weekly": round(weekly, 1), **a.vars},
+            "vars": {"k": k, "n": scope["n"], "weekly": round(weekly, 1), **a.vars},
             **({"basis": a.basis} if a.basis else {}),
         })
     order = {"active": 0, "below_threshold": 1, "insufficient": 2}

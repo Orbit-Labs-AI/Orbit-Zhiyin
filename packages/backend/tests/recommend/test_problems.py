@@ -63,7 +63,9 @@ def test_inventory_resident_cost_and_installed_unused():
     out = {p["key"]: p for p in problems.build(inputs(inventory=inv, facts=facts, sessions=sessions))}
     assert out["resident_cost:rules_file:AGENTS.md"]["vars"]["lines"] == 312
     unused = out["installed_unused:i2"]
-    assert unused["sessions"] == unused["denominator"] == 20 and unused["wilson_lo"] == round(wilson_lo(20, 20), 4)
+    # An inventory fact is a measurement: fixed confidence, not a Wilson bound with k == n (≈ 0.99).
+    assert unused["sessions"] == unused["denominator"] == 20 and unused["wilson_lo"] < round(wilson_lo(20, 20), 4)
+    assert unused["scope"]["basis"] == "inventory" and .5 <= unused["wilson_lo"] <= .9
     assert "resident_cost:i2" in out and not any(k.endswith(":i3") for k in out)
     short = {**sessions, "last_ts": "2026-08-05T00:00:00Z"}
     assert "installed_unused:i2" not in {p["key"] for p in problems.build(inputs(inventory=inv, facts=facts, sessions=short))}

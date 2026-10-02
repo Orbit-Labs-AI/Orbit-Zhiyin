@@ -4,6 +4,8 @@ Gated candidates are kept (with reasons) so the UI can answer「为什么没推�
 EV-05 has a denominator. Missing context is 'n/a', never silent agreement.
 """
 
+from ..problems import MIN_DENOMINATOR, MIN_SESSIONS, passes
+
 NA = "n/a"
 TRUSTED_ORIGINS = {"kb", "template", "inventory", "generated", "builtin"}
 LANGUAGE_KINDS = {"rule", "prompt", "skill", "subagent"}
@@ -138,14 +140,14 @@ def _evidence_ok(raw, inputs, memory):
     if not problem or raw.get("kind") in {"removal", "model"}:
         return NA, ""
     kb = raw.get("kb") or {}
-    min_sessions = kb.get("min_sessions") or (kb.get("problem") or {}).get("min_sessions") or 3
-    ok = (problem.get("status") == "active" and problem.get("sessions", 0) >= min_sessions
-          and (problem.get("wilson_lo") or 0) >= .05)
+    min_sessions = kb.get("min_sessions") or (kb.get("problem") or {}).get("min_sessions") or MIN_SESSIONS
+    # Same calibrated bar as problems.build (per scope / project / task family), never a fixed 5 %.
+    ok = problem.get("status") == "active" and problem.get("sessions", 0) >= min_sessions and passes(problem)
     if ok:
         return True, ""
     n = problem.get("denominator") or 0
-    if n < 5:
-        return False, f"再积累 {5 - n} 个会话"
+    if n < MIN_DENOMINATOR:
+        return False, f"再积累 {MIN_DENOMINATOR - n} 个会话"
     return False, f"证据不足：{problem.get('sessions', 0)}/{n} 个会话"
 
 
