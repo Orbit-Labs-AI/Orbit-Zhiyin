@@ -12,6 +12,7 @@ import json
 import math
 import re
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 
 from ..services.sections import Section, register
@@ -54,8 +55,12 @@ MIN_UNVERIFIED_EDITS, MIN_TEST_FAILURES, MAX_TASK_DIRS = 5, 3, 5
 WRAPPER_HEADS = ("cd", "bash", "sh", "zsh", "/bin/zsh", "/bin/bash", "/bin/sh", "/usr/bin/env", "env",
                  "export", "source", "set", "pushd", "builtin")
 SHELLS = {"bash", "sh", "zsh", "dash", "fish"}
-PRELUDE = {"cd", "export", "source", ".", "set", "pushd", "popd", "builtin", "true", "unset"}
+PRELUDE = {"cd", "export", "source", ".", "set", "pushd", "popd", "builtin", "true", "unset", "for", "while",
+           "until", "if", "elif", "case", "done", "fi", "esac", "function", "{", "}", "echo", "printf", "sleep"}
+# Keywords that introduce the real command of their segment (``do git status``, ``time pytest``).
+LEADERS = {"do", "then", "else", "time", "nohup", "exec", "command", "!", "sudo"}
 SCOPE_TOP = 200
+TEXT_DUMPERS = {"cat", "sed", "awk", "head", "tail", "less", "nl", "jq", "echo", "printf", "rg", "grep"}
 _ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # A call's own input command, only for wrapper heads (a correlated lookup per wrapped row).
 _INPUT = ("CASE WHEN t.command_head IN ({wrappers}) OR (t.command_head IS NULL AND t.kind = 'shell') "
@@ -70,29 +75,30 @@ def is_approved(approval) -> bool:
     return text.startswith("approved") or text.startswith("allow") or text in ("accept", "accepted", "yes")
 
 
-OPERATORS = {"&&", "||", ";", "|", "&", ";;", "|&"}
 
 
-def _segments(text: str) -> list[list[str]]:
-    """Shell words grouped by ``&&`` / ``;`` / ``|``; quoted strings stay one word."""
-    import shlex
-    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
-    try:
-        tokens = list(lexer)
-    except ValueError:
-        tokens = text.split()
-    out, current = [], []
-    for token in tokens:
-        if token in OPERATORS or set(token) <= set(";&|") and token:
+# Shell-ish tokens: quoted strings, operators, or bare words (with embedded quotes). A regex
+# scan that stops at the first real command is ~10x faster than shlex on 50k long commands.
+_TOKEN = re.compile(r"""(?P<op>&&|\|\||;;|\|&|[;|&\n])|(?P<paren>[()])|(?P<word>(?:[^\s;|&()"'\\]|\\.|"(?:\\.|[^"\\])*"|'[^']*')+)""")
+_QUOTED = re.compile(r"""\\(.)|"((?:\\.|[^"\\])*)"|'([^']*)'""")
+
+
+def _unquote(word: str) -> str:
+    return _QUOTED.sub(lambda m: m.group(1) or (m.group(2) or "").replace('\\"', '"') or m.group(3) or "", word)
+
+
+def _segments(text: str):
+    """Shell words grouped by ``&&`` / ``;`` / ``|`` / newlines, lazily (callers stop early)."""
+    current: list[str] = []
+    for match in _TOKEN.finditer(text):
+        if match.group("op"):
             if current:
-                out.append(current)
+                yield current
             current = []
-        elif token not in ("(", ")"):
-            current.append(token)
+        elif match.group("word"):
+            current.append(_unquote(match.group("word")))
     if current:
-        out.append(current)
-    return out
+        yield current
 
 
 def _shell_script(words: list[str]) -> str | None:
@@ -100,6 +106,11 @@ def _shell_script(words: list[str]) -> str | None:
     if first in SHELLS and len(words) >= 3 and words[1].startswith("-") and "c" in words[1]:
         return words[2]
     return None
+
+
+@lru_cache(maxsize=65536)
+def _unwrap_text(text: str, depth: int) -> str | None:
+    return unwrap_command(text, depth)
 
 
 def unwrap_command(command, depth: int = 0) -> str | None:
@@ -126,7 +137,7 @@ def unwrap_command(command, depth: int = 0) -> str | None:
             if inner := unwrap_command(script, depth + 1):
                 return inner
             continue
-        while words and (_ASSIGN.match(words[0]) or words[0].rsplit("/", 1)[-1] == "env"):
+        while words and (_ASSIGN.match(words[0]) or words[0].rsplit("/", 1)[-1] == "env" or words[0] in LEADERS):
             words = words[1:]
         if not words:
             continue
@@ -142,7 +153,8 @@ def unwrap_command(command, depth: int = 0) -> str | None:
 def real_head(head: str | None, command=None) -> str | None:
     """``command_head`` unless it is a wrapper and the input command unwraps to something real."""
     if command is not None and (head is None or head in WRAPPER_HEADS):
-        return unwrap_command(command) or (None if head in WRAPPER_HEADS else head)
+        unwrapped = _unwrap_text(command, 0) if isinstance(command, str) else unwrap_command(command)
+        return unwrapped or (None if head in WRAPPER_HEADS else head)
     return None if head in WRAPPER_HEADS else head
 
 
@@ -456,7 +468,9 @@ def _classify_failures(conn, uids, root_of, failures) -> None:
             f"t.error_class IS NULL AND t.status IN ({status_in}) AND t.session_uid IN {UIDS}",
             (*WRAPPER_HEADS, *FAILED, uids)):
         head = real_head(head, command)
-        error_class = classify_failure(exit_code, text)
+        # read / print commands echo file contents: their text says nothing about the failure
+        dumps = bool(readonly_head(head)) or software_of(head) in TEXT_DUMPERS
+        error_class = classify_failure(exit_code, None if dumps else text)
         if error_class and head:
             _add_failure(failures, software_of(head), error_class, root_of.get(uid, uid))
 

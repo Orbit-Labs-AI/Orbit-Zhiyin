@@ -37,6 +37,8 @@ def _db(tmp_path):
         if i < 4:
             call(uid, 3, "cd", "cd repo && wrangler deploy", status="failed", code=1,
                  out="zsh: command not found: wrangler")
+            # cat prints file text; a "timeout" inside it is not a failure class
+            call(uid, 4, "cd", "cd repo && cat notes.md", status="failed", code=1, out="request timeout: 30s")
     conn.commit()
     conn.close()
     return FakeStore(path), rows
@@ -55,6 +57,10 @@ def test_unwrap_command_finds_the_real_command():
     assert section.unwrap_command(["bash", "-lc", "cd a; FOO=1 uv run pytest -q"]) == "uv run pytest -q"
     assert section.unwrap_command('cd "/a b" && (gh pr view 12)') == "gh pr view 12"
     assert section.unwrap_command("cd x") is None
+    assert section.unwrap_command("for f in a b; do git status $f; done") == "git status $f"
+    assert section.unwrap_command("if [ -f x ]; then rg foo; fi") == "rg foo"
+    assert section.unwrap_command("bash -lc 'cd /x && FOO=\"a b\" uv run pytest -q'") == "uv run pytest -q"
+    assert section.unwrap_command('echo "a && b"') is None
     assert section.real_head("cd", None) is None and section.real_head("git status", None) == "git status"
 
 
@@ -65,6 +71,7 @@ def test_wrapped_heads_feed_readonly_and_software_facts(tmp_path):
     assert facts["readonly_denied"] == {"ls": 6}
     failures = {row["software"]: row for row in facts["failures_by_software"]}
     assert failures["wrangler"]["error_class"] == "command_not_found" and failures["wrangler"]["sessions"] == 4
+    assert "cat" not in failures
     assert facts["scope_sessions"]["software"]["git"] == 6 and facts["scope_sessions"]["projects"] == {"p1": 6}
 
 
