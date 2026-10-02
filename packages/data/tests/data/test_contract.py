@@ -33,6 +33,11 @@ def test_null_is_not_zero_and_usage_buckets():
         "codex",
     )
     assert usage["input_tokens"] == 60 and usage["output_tokens"] == 20
+    with_writes = normalize_usage(
+        {"input_tokens": 100, "cached_input_tokens": 40, "cache_write_input_tokens": 10}, "codex"
+    )
+    assert with_writes["input_tokens"] == 50
+    assert with_writes["cache_write_tokens"] == 10
     assert normalize_usage({"output": 20, "reasoning": 5}, "opencode")["output_tokens"] == 25
     with pytest.raises(ValueError):
         normalize_usage({"input_tokens": 1, "cached_input_tokens": 2}, "codex")

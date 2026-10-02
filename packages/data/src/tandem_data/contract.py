@@ -283,6 +283,9 @@ def normalize_usage(reported: dict, dialect: str) -> dict:
     if dialect == "codex" and values["input_tokens"] is not None:
         cached = values["cache_read_tokens"]
         values["input_tokens"] = values["input_tokens"] - cached if cached is not None else None
+        # Explicit cache writes are also included in the native input bucket.
+        if values["input_tokens"] is not None and values["cache_write_tokens"] is not None:
+            values["input_tokens"] -= values["cache_write_tokens"]
     if dialect == "opencode":
         output, reasoning = values["output_tokens"], values["reasoning_tokens"]
         values["output_tokens"] = (

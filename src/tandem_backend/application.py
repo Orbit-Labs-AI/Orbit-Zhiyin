@@ -79,7 +79,10 @@ class DesktopService:
     def discover(self):
         """Discovery reads names and file stats, not session bodies or credentials."""
         result = []
-        for source in candidates():
+        configured = self.snapshot()["sources"].values()
+        roots = {(s["agent"], s["root"]) for s in [*candidates(), *configured]}
+        for agent, root in sorted(roots):
+            source = {"agent": agent, "root": root}
             key = uid("source", source["agent"], source["root"])
             try:
                 count = sum(
