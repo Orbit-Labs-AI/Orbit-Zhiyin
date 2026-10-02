@@ -99,6 +99,11 @@ if (LV.live) {
   function tloApply() {
     if (TLO.off || !TL.ops.rt) { TLO.d = null; return; }
     const d = TLO.d = TL.ops.derive();
+    // collection paused: realtime answers status paused / reason collection_paused with no sessions → the panel, HUD and
+    // widgets show 采集已暂停 with 恢复采集 (setPause → POST /v1/platform/collection/resume)
+    const rt = TL.ops.rt; const paused = rt.reason === 'collection_paused' || d.paused;
+    if (paused) { TLO.paused = true; S.paused = true; }
+    else if (TLO.paused) { TLO.paused = false; if (TL.collection !== 'paused') S.paused = false; }
     S.simBase = d.active.length ? 'running' : 'idle';
     if (d.failing.length) S.attn.add('stuck'); else S.attn.delete('stuck');
     if (d.ctx.length) S.attn.add('ctx'); else S.attn.delete('ctx');
@@ -211,8 +216,14 @@ if (LV.live) {
     return d && d.primary ? tloPill().replace(/<span data-hudtool([^>]*)>[^<]*<\/span>/, (m, a) => '<span data-hudtool' + a + '>' + esc(HUD_TOOLS[0] || '—') + '</span>') : '';
   };
   const tloHud = renderHud;
+  const pausedPill = () => '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-paused"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>采集已暂停</b><span style="color:var(--hud-ink-2)">不会产生事件，也不会更新统计</span><button type="button" class="hb" data-act="setPause">恢复采集</button></div>';
   renderHud = function () {
     const d = TLO.d;
+    if (S.paused && S.hud.show && LV.state !== 'connecting') {
+      const h = $('#hud'); S.hud.open = false; h.hidden = false; h.innerHTML = pausedPill();
+      if (!ORBIT.native.surface) hudPlace();
+      return;
+    }
     if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) {
       const h = $('#hud');
       // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
@@ -234,6 +245,10 @@ if (LV.live) {
     tloWg();
     const d = TLO.d; const pv = TL.resource(POP).data || null;
     const sq = $('#widgets [data-act="wgGo"][data-r="sessions"]'); if (!sq) return;
+    if (S.paused) {
+      const row = sq.closest('.wg-row');
+      if (row && !$('#widgets [data-tl="rt-paused"]')) row.insertAdjacentHTML('beforebegin', '<button type="button" class="wg" data-act="setPause" data-tl="rt-paused" style="display:flex;align-items:center;gap:10px;text-align:left"><span class="col" style="gap:2px;flex:1;min-width:0"><span class="lbl">采集已暂停</span><span style="font-size:12px;color:var(--ink-2)">不会产生事件，也不会更新统计</span></span><span class="btn sm p">恢复采集</span></button>');
+    }
     const n = d && d.today ? d.today.sessions_started : pv && pv.today ? pv.today.sessions : null;
     const big = sq.querySelector('.mono'); if (big && n != null) big.textContent = TLU.num(n);
     const sub = big && big.nextElementSibling; if (sub && d && d.today) sub.textContent = '会话 · 今天已结束 ' + TLU.num(d.today.sessions_finished);

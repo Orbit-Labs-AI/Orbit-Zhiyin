@@ -18,16 +18,41 @@ function lvTable(cols, rows, rowAttr) {
 const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
+// 重新计算 next to a failed analysis: the spine (LV.recompute) and every feed resource of the page that failed the same way
+const lvRecBtn = () => '<button type="button" class="btn sm" data-act="lvRecompute" data-tl="recompute" style="margin-left:8px">重新计算</button>';
+function lvFailedFeeds(route) {
+  const out = [];
+  (LV.feeds[route] || []).forEach((f) => lvFeedRes(f).forEach((x) => { if (x.r.state === 'error' && TLU.unavailable(x.r.error) && out.indexOf(x.r) < 0) out.push(x.r); }));
+  return out;
+}
+ACT.lvRecompute = (el) => {
+  if (el) el.disabled = true;
+  const jobs = [];
+  if (LV.failed) jobs.push(LV.recompute());
+  const v = TL_VIEWS[lvKey(S.route)];
+  const rs = lvFailedFeeds(S.route).concat(v && v.res ? Object.keys(v.res).map((n) => v.res[n]).filter((r) => r.state === 'error' && TLU.unavailable(r.error)) : []);
+  rs.forEach((r) => jobs.push(TL.recompute(r, r.section ? null : { sections: [LV_SECTION], scope: { display_timezone: TL_TZ || 'UTC' } }).catch(() => {})));
+  if (!jobs.length) LV.loadSpine();
+  render();
+};
+function lvJobNote() {
+  const j = LV.job; if (!j || j.elapsed_s == null) return '';
+  return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
+}
 function lvSpineBadge() {
+  if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
-  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvJobNote() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
 }
 function lvStrip(route) {
   const k = lvKey(route);
-  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
+  const failed = lvFailedFeeds(route);
+  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) + (TL_VIEWS[k] && TLU.unavailable(TL_VIEWS[k].error) ? lvRecBtn() : '')
+    : failed.length ? '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.unavailable(failed[0].error)) + '</span>' + lvRecBtn()
+      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
   const b = lvSpineBadge() || page;
   const html = TLU.progress(TL) + TLU.banner(TL) + (b ? '<div>' + b + '</div>' : '');
   return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';

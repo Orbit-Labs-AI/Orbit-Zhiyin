@@ -2240,6 +2240,12 @@ const TandemLive = (function () {
     const t = Date.parse(v); return Number.isFinite(t) ? Math.max(0, t - Date.now()) : null;
   }
   function sectionOf(path) { const m = /^\/v1\/analytics\/([a-z_]+)/.exec(path); return m ? m[1] : null; }
+  // 503 analysis_unavailable says "<code>: <message>" (timeout, worker_crashed …); the code is the reason the UI names
+  function analysisReason(code, message) { if (code !== 'analysis_unavailable') return null; const m = /^([a-z_]+):\s/.exec(message || ''); return m ? m[1] : null; }
+  const isUnavailable = (e) => !!e && e.status === 503 && e.code === 'analysis_unavailable';
+  // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
+  const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
+  const JOB_DONE = ['completed', 'failed'];
 
   /* ---- mode ---- */
   function detectMode(win) {
@@ -2352,6 +2358,7 @@ const TandemLive = (function () {
         err.status = res.status; err.code = info.code || 'http_' + res.status;
         err.retryable = info.retryable != null ? !!info.retryable : res.status >= 500;
         err.retryAfter = retryAfterMs(res.headers.get('Retry-After'));
+        err.reason = analysisReason(err.code, info.message);
         throw err;
       });
       entry.promise.catch(() => {});
@@ -2411,17 +2418,76 @@ const TandemLive = (function () {
       r.loading = C.get(r.path, { scope: r.scope, query: r.query, waitMs: r.waitMs, signal }).then((res) => {
         if (res.state === 'computing') { r.state = 'computing'; r.meta = Object.assign({}, r.meta || {}, res.meta || {}); r.computingSince = now(); }
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
+        // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
+        const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
         C.failure = null;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
-        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter };
+        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;
+        // analysis_unavailable: this scope's analysis failed for this data_rev; the service is fine and a retry gives the same
+        // answer, so no banner and no Retry-After loop: the page offers 重新计算 (C.recompute) instead
+        if (isUnavailable(e)) { r.error.retryable = false; return; }
         if (!e.status || e.status >= 500) C.failure = r.error;
         if (e.retryAfter != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, e.retryAfter);
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
+    };
+    /* ---- on-demand analysis: job polling (202 job_id), recompute (POST /v1/analytics/recompute) ---- */
+    C.analysis = {
+      failed: {},   // section -> code of the last analysis.failed frame
+      job: (id, o) => C.send('GET', '/v1/analytics/jobs/' + encodeURIComponent(id), null, { signal: o && o.signal }).then((x) => x.data),
+      // poll(id, onUpdate, {signal, base, max}): GET the job with backoff (base · 1.6ⁿ, capped at max) until completed / failed;
+      // a 404 (expired / unknown job) or repeated network failures resolve {status:'gone'} so the caller refetches once
+      poll(id, onUpdate, o) {
+        o = o || {}; let delay = o.base || 500; const max = o.max || 8000; let misses = 0;
+        return (async () => {
+          for (;;) {
+            if (o.signal && o.signal.aborted) throw abortError();
+            let job = null;
+            try { job = await C.analysis.job(id, o); } catch (e) {
+              if (isAbort(e)) throw e;
+              if (e.status === 404 || e.status === 405 || e.status === 501 || ++misses >= 8) return { id, status: 'gone', error: null };
+            }
+            if (job) { misses = 0; if (onUpdate) onUpdate(job); if (JOB_DONE.indexOf(job.status) >= 0) return job; }
+            await sleep(delay, o.signal); delay = Math.min(max, Math.round(delay * 1.6));
+          }
+        })();
+      },
+      recompute: (sections, scope) => C.send('POST', '/v1/analytics/recompute', { sections, scope: scope || {} }).then((x) => x.data)
+    };
+    function watchJob(r, id) {
+      if (r.jobWatch && r.jobId === id) return;
+      r.jobId = id; const w = r.jobWatch = { id };
+      C.analysis.poll(id, (job) => { if (r.jobWatch === w) { r.job = job; changed(); } }).then((job) => {
+        if (r.jobWatch !== w) return; r.jobWatch = null;
+        if (job.status === 'failed') {
+          const er = job.error || {};
+          r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: er.code || 'analysis_failed', message: er.message || '分析失败', retryable: false, job };
+        } else r.dirty = true;
+        changed();
+      }, () => { if (r.jobWatch === w) { r.jobWatch = null; r.dirty = true; changed(); } });
+    }
+    // recompute(resource, {sections, scope}): clears the failure for that scope and resubmits; the returned job is polled and
+    // the resource refetches when it completes. The scope defaults to the resource's own (UI scope or analytics query keys).
+    C.recompute = function (r, o) {
+      o = o || {};
+      const sections = o.sections || (r && r.section ? [r.section] : []);
+      if (!sections.length) return Promise.reject(Object.assign(new Error('no analysis section'), { code: 'no_section', status: 0 }));
+      let scope = o.scope;
+      if (!scope && r && r.scope) scope = scopeBody(r.scope, C.status, now());
+      if (!scope) { scope = {}; const q = (r && r.query) || {}; SCOPE_KEYS.forEach((k) => { if (q[k] != null) scope[k] = q[k]; }); }
+      if (r) { r.recomputing = true; r.error = null; r.state = 'computing'; changed(); }
+      return C.analysis.recompute(sections, scope).then((d) => {
+        const j = ((d && d.jobs) || []).find((x) => x.job_id);
+        if (r) { r.recomputing = false; if (j) watchJob(r, j.job_id); else r.dirty = true; changed(); }
+        return d;
+      }, (e) => {
+        if (r) { r.recomputing = false; r.state = 'error'; r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: false, reason: null }; changed(); }
+        throw e;
+      });
     };
     C.invalidate = function (match) {
       let n = 0;
@@ -2496,7 +2562,8 @@ const TandemLive = (function () {
       } else if (name === 'analysis.ready') {
         C.invalidate(matchSection(p));
       } else if (name === 'analysis.failed') {
-        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.state = 'error'; r.error = { code: p.code || 'analysis_failed', message: '分析失败，可重试', retryable: true }; } });
+        if (p.section) C.analysis.failed[p.section] = p.code || 'analysis_failed';
+        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.jobWatch = null; r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: p.code || 'analysis_failed', message: '分析失败，可重新计算', retryable: false }; } });
         changed();
       } else if (name === 'service') {
         if (p.name) C.services[p.name] = p.state; changed();
@@ -2984,8 +3051,12 @@ const TandemLive = (function () {
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
+  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
   const ui = {
     DASH, esc, num, pct, money, hm,
+    reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
+    // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
+    unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
     ensureStyle(doc) {
       doc = doc || (typeof document !== 'undefined' ? document : null);
       if (!doc || !doc.head || doc.getElementById('tl-style')) return;
@@ -3012,6 +3083,7 @@ const TandemLive = (function () {
       if (!v) return '';
       if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
       if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
+      if (v.state === 'error' && ui.unavailable(v.error)) return '<span class="tl-badge" data-tl="unavailable">' + esc(ui.unavailable(v.error)) + (v.vm ? ' · 显示上次结果' : '') + '</span>';
       if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
       return '';
     },
@@ -3024,7 +3096,10 @@ const TandemLive = (function () {
     },
     skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
     empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
-    errorCard(err) { return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>'; },
+    errorCard(err) {
+      if (ui.unavailable(err)) return '<div class="tl-card tl-empty" data-tl="unavailable" role="alert">' + esc(ui.unavailable(err)) + ' · 可以重新计算</div>';
+      return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>';
+    },
     // state → body: vm present renders even when stale / error (last good data); otherwise skeleton, empty or error
     body(v, render) {
       if (!v) return '';
@@ -8926,10 +9001,10 @@ let lvFrame = 0, lvFrameT = null, lvLastSig = null, lvTick = 0;
 const lvIds = new WeakMap(); let lvIdN = 0;
 const lvId = (o) => { if (o == null || typeof o !== 'object') return String(o); let v = lvIds.get(o); if (!v) lvIds.set(o, v = ++lvIdN); return v; };
 function lvSig() {
-  const parts = [lvTick, LV.rev, LV.state, LV.stale, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
     TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
   try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
-  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0)); return false; });
+  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0) + (r.dirty ? 'd' : '')); return false; });
   return parts.join('|');
 }
 function lvFlush() {
@@ -9203,6 +9278,35 @@ LV.hydrate = function (spine) {
 };
 
 let lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
+const LV_SECTION = 'uiview_facts';
+LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
+LV.job = null;      // the analysis job being polled for the spine: {id, status, elapsed_s, timeout_s}
+function lvSpineFailed(f) {
+  LV.failed = f; LV.job = null; LV.stale = false;
+  if (LV.state !== 'ready') LV.state = 'error';
+  TL.changed();
+}
+function lvWatchSpine(id) {
+  if (LV.job && LV.job.id === id) return;
+  LV.job = { id, status: 'queued' };
+  TL.analysis.poll(id, (j) => { if (LV.job && LV.job.id === id) { LV.job = Object.assign({ id }, j); TL.changed(); } }).then((j) => {
+    if (!LV.job || LV.job.id !== id) return;
+    if (j.status === 'failed') { lvSpineFailed({ reason: (j.error && j.error.code) || 'analysis_failed', message: j.error && j.error.message }); return; }
+    LV.job = null;
+    if (j.status === 'gone') lvSpineLater(1200); else LV.loadSpine();
+  }, () => { LV.job = null; lvSpineLater(1200); });
+}
+// 重新计算: POST /v1/analytics/recompute for the spine's scope (the same scope /v1/uiview/facts uses), then poll the job
+LV.recompute = function () {
+  LV.failed = null; LV.job = null;
+  if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'computing';
+  LV.stale = LV.state === 'ready';
+  TL.changed();
+  return TL.analysis.recompute([LV_SECTION], { display_timezone: TL_TZ || 'UTC' }).then((d) => {
+    const j = ((d && d.jobs) || []).find((x) => x.job_id);
+    if (j) lvWatchSpine(j.job_id); else LV.loadSpine();
+  }, (e) => lvSpineFailed({ reason: null, message: (e && (e.message || e.code)) || '重新计算失败' }));
+};
 function lvSpineLater(ms) { clearTimeout(lvSpineTimer); lvSpineTimer = setTimeout(() => LV.loadSpine(), ms); }
 const lvSide = (path) => TL.get(path).then((r) => r.data, () => null);
 LV.loadSpine = function () {
@@ -9212,9 +9316,15 @@ LV.loadSpine = function () {
     lvSpineFails = 0;
     if (res.state === 'computing' || res.data == null) {
       LV.stale = LV.state === 'ready'; if (LV.state !== 'ready') LV.state = 'computing';
-      lvSpineLater(1200); return;
+      // the 202 names its job: poll GET /v1/analytics/jobs/{id} (backoff) and reload when it completes; without a job the
+      // analysis is not running (its failure circuit is open), so the strip offers 重新计算 instead of retrying blindly
+      const jid = res.meta && res.meta.job_id;
+      if (jid) lvWatchSpine(jid);
+      else if (TL.analysis) lvSpineFailed({ reason: TL.analysis.failed[LV_SECTION] || null });
+      else lvSpineLater(1200);
+      return;
     }
-    LV.stale = false;
+    LV.stale = false; LV.failed = null; LV.job = null;
     if (res.data === lvSpineData && LV.state !== 'connecting') return;   // 304: nothing changed
     lvSpineData = res.data;
     const wire = res.data; const rows = LV.expand(wire);
@@ -9229,6 +9339,7 @@ LV.loadSpine = function () {
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
   }, (e) => {
+    if (e && e.code === 'analysis_unavailable') { LV.error = e; lvSpineFailed({ reason: e.reason || null, message: e.message }); return; }
     lvSpineFails++;
     // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
     if (LV.state === 'ready' || LV.state === 'empty' || (e && e.status >= 400)) LV.state = 'error';
@@ -10435,16 +10546,41 @@ function lvTable(cols, rows, rowAttr) {
 const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
+// 重新计算 next to a failed analysis: the spine (LV.recompute) and every feed resource of the page that failed the same way
+const lvRecBtn = () => '<button type="button" class="btn sm" data-act="lvRecompute" data-tl="recompute" style="margin-left:8px">重新计算</button>';
+function lvFailedFeeds(route) {
+  const out = [];
+  (LV.feeds[route] || []).forEach((f) => lvFeedRes(f).forEach((x) => { if (x.r.state === 'error' && TLU.unavailable(x.r.error) && out.indexOf(x.r) < 0) out.push(x.r); }));
+  return out;
+}
+ACT.lvRecompute = (el) => {
+  if (el) el.disabled = true;
+  const jobs = [];
+  if (LV.failed) jobs.push(LV.recompute());
+  const v = TL_VIEWS[lvKey(S.route)];
+  const rs = lvFailedFeeds(S.route).concat(v && v.res ? Object.keys(v.res).map((n) => v.res[n]).filter((r) => r.state === 'error' && TLU.unavailable(r.error)) : []);
+  rs.forEach((r) => jobs.push(TL.recompute(r, r.section ? null : { sections: [LV_SECTION], scope: { display_timezone: TL_TZ || 'UTC' } }).catch(() => {})));
+  if (!jobs.length) LV.loadSpine();
+  render();
+};
+function lvJobNote() {
+  const j = LV.job; if (!j || j.elapsed_s == null) return '';
+  return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
+}
 function lvSpineBadge() {
+  if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
-  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvJobNote() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
 }
 function lvStrip(route) {
   const k = lvKey(route);
-  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
+  const failed = lvFailedFeeds(route);
+  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) + (TL_VIEWS[k] && TLU.unavailable(TL_VIEWS[k].error) ? lvRecBtn() : '')
+    : failed.length ? '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.unavailable(failed[0].error)) + '</span>' + lvRecBtn()
+      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
   const b = lvSpineBadge() || page;
   const html = TLU.progress(TL) + TLU.banner(TL) + (b ? '<div>' + b + '</div>' : '');
   return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';
@@ -11595,9 +11731,15 @@ if (TL.mode === 'live') {
     }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供工具名映射表' : '读取映射表失败：' + (e.message || e.code)));
   });
   wrap('setPause', (base, el, ev) => {
-    const to = !S.paused;
-    tlsWrite(R.col, { paused: to }, () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {}), to ? '暂停采集' : '恢复采集', (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); });
-    base(el, ev);
+    const to = !S.paused; const label = to ? '暂停采集' : '恢复采集';
+    const req = () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {});
+    const after = (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); if (TL.ops) TL.ops.realtime().catch(() => {}); };
+    // resuming: the last realtime snapshot still says collection_paused until the next frame; drop that so 98 keeps the switch
+    const unpause = () => { const rt = TL.ops && TL.ops.rt; if (!to && rt && (rt.status === 'paused' || rt.reason === 'collection_paused')) TL.ops.rt = Object.assign({}, rt, { status: 'idle', reason: null }); };
+    if (tlsWrite(R.col, { paused: to }, req, label, after)) { unpause(); base(el, ev); return; }
+    // the collection setting is not loaded here (menu-bar panel / HUD / widgets surface): write first, flip after the answer
+    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); base(el, ev); after(x && x.data); },
+      (e) => toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)));
   });
   // 隐私
   wrap('setRule', (base, el, ev) => {
@@ -11819,6 +11961,11 @@ if (LV.live) {
   function tloApply() {
     if (TLO.off || !TL.ops.rt) { TLO.d = null; return; }
     const d = TLO.d = TL.ops.derive();
+    // collection paused: realtime answers status paused / reason collection_paused with no sessions → the panel, HUD and
+    // widgets show 采集已暂停 with 恢复采集 (setPause → POST /v1/platform/collection/resume)
+    const rt = TL.ops.rt; const paused = rt.reason === 'collection_paused' || d.paused;
+    if (paused) { TLO.paused = true; S.paused = true; }
+    else if (TLO.paused) { TLO.paused = false; if (TL.collection !== 'paused') S.paused = false; }
     S.simBase = d.active.length ? 'running' : 'idle';
     if (d.failing.length) S.attn.add('stuck'); else S.attn.delete('stuck');
     if (d.ctx.length) S.attn.add('ctx'); else S.attn.delete('ctx');
@@ -11931,8 +12078,14 @@ if (LV.live) {
     return d && d.primary ? tloPill().replace(/<span data-hudtool([^>]*)>[^<]*<\/span>/, (m, a) => '<span data-hudtool' + a + '>' + esc(HUD_TOOLS[0] || '—') + '</span>') : '';
   };
   const tloHud = renderHud;
+  const pausedPill = () => '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-paused"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>采集已暂停</b><span style="color:var(--hud-ink-2)">不会产生事件，也不会更新统计</span><button type="button" class="hb" data-act="setPause">恢复采集</button></div>';
   renderHud = function () {
     const d = TLO.d;
+    if (S.paused && S.hud.show && LV.state !== 'connecting') {
+      const h = $('#hud'); S.hud.open = false; h.hidden = false; h.innerHTML = pausedPill();
+      if (!ORBIT.native.surface) hudPlace();
+      return;
+    }
     if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) {
       const h = $('#hud');
       // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
@@ -11954,6 +12107,10 @@ if (LV.live) {
     tloWg();
     const d = TLO.d; const pv = TL.resource(POP).data || null;
     const sq = $('#widgets [data-act="wgGo"][data-r="sessions"]'); if (!sq) return;
+    if (S.paused) {
+      const row = sq.closest('.wg-row');
+      if (row && !$('#widgets [data-tl="rt-paused"]')) row.insertAdjacentHTML('beforebegin', '<button type="button" class="wg" data-act="setPause" data-tl="rt-paused" style="display:flex;align-items:center;gap:10px;text-align:left"><span class="col" style="gap:2px;flex:1;min-width:0"><span class="lbl">采集已暂停</span><span style="font-size:12px;color:var(--ink-2)">不会产生事件，也不会更新统计</span></span><span class="btn sm p">恢复采集</span></button>');
+    }
     const n = d && d.today ? d.today.sessions_started : pv && pv.today ? pv.today.sessions : null;
     const big = sq.querySelector('.mono'); if (big && n != null) big.textContent = TLU.num(n);
     const sub = big && big.nextElementSibling; if (sub && d && d.today) sub.textContent = '会话 · 今天已结束 ' + TLU.num(d.today.sessions_finished);

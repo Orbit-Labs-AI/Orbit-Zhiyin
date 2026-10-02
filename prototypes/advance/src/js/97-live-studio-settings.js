@@ -500,9 +500,15 @@ if (TL.mode === 'live') {
     }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供工具名映射表' : '读取映射表失败：' + (e.message || e.code)));
   });
   wrap('setPause', (base, el, ev) => {
-    const to = !S.paused;
-    tlsWrite(R.col, { paused: to }, () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {}), to ? '暂停采集' : '恢复采集', (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); });
-    base(el, ev);
+    const to = !S.paused; const label = to ? '暂停采集' : '恢复采集';
+    const req = () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {});
+    const after = (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); if (TL.ops) TL.ops.realtime().catch(() => {}); };
+    // resuming: the last realtime snapshot still says collection_paused until the next frame; drop that so 98 keeps the switch
+    const unpause = () => { const rt = TL.ops && TL.ops.rt; if (!to && rt && (rt.status === 'paused' || rt.reason === 'collection_paused')) TL.ops.rt = Object.assign({}, rt, { status: 'idle', reason: null }); };
+    if (tlsWrite(R.col, { paused: to }, req, label, after)) { unpause(); base(el, ev); return; }
+    // the collection setting is not loaded here (menu-bar panel / HUD / widgets surface): write first, flip after the answer
+    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); base(el, ev); after(x && x.data); },
+      (e) => toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)));
   });
   // 隐私
   wrap('setRule', (base, el, ev) => {
