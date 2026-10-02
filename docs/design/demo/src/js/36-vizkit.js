@@ -23,6 +23,8 @@
  *   legend     false 隐藏；'top'|'bottom'（默认 top；单系列自动不显示）。点击 = 显示/隐藏，⌥ 点击 = 只看该系列，悬停 = 其他淡出
  *   hidden     初始隐藏的系列名数组              view      'chart' | 'table'
  *   empty      空数据文案（默认「暂无数据」）     minN / n  样本门槛：n < minN 时显示「样本不足 n / minN」
+ *   head       { eyebrow, title, sub, evidence: { label, act, attrs }, right }  图表头（VZ.head；等宽眉标 + 结论句标题 + 口径说明）
+ *   animate    false 关闭首次绘制的入场动画（线描入、柱升起、点弹出；prefers-reduced-motion 下自动关闭）
  *   onHover(i, d) onSelect(i, d) onBrush([a, b], meta) onLegend(name, visible, { hidden }) onFocus(i, d)  回调
  *   brush      true 允许在绘图区拖选（line/area/bar/histogram/timeline/scatter）
  *   selected   当前选中项（索引或 id），用描边高亮
@@ -53,6 +55,10 @@
  *                 spans: [{ t, t2, label, color, inferred }] 阶段带；markers: [{ t, label, n, alert }] 关键时刻徽章（相距 < 20px 自动合并成簇）
  *                 mode: 'density' 的泳道把事件按 bucket px（默认 4）聚合成密度块（高度对数、失败叠红），hover 列出桶内事件
  *                 onSelect(i, d)：d 为事件本身，或 { bucket: true, lane, t0, t1, n, err, events }，或 { marker: true, t, markers }
+ *                 axisMode: 'time' | 'steps'（事件等距、跨度固定 1 步、刻度每 k 步）；zoom: false 关闭 ⌘/Ctrl + 滚轮以光标为锚的缩放（1 – maxZoom，默认 12 倍）；
+ *                 缩放改写 spec.range 并把全程记在 spec.extent，触发 onView(range | null, { zoom, full })；⇧ + 滚轮平移
+ *                 回放：playhead 可拖动（snap: false 关闭吸附），onPlayhead(t, { done })；VZ.playhead(el, t, { playing }) 逐帧定位不重绘；
+ *                 VZ.replay(el, { ms: 8000, rate, realtime, onTick, onDone }) 内置 rAF 回放（Space 播放 / 暂停，[ ] 逐事件；spec.onPlay(play) 可接管）
  *   minimap       range，events: [{ t, err, user }]（或 density: [n]），window: [a, b]（当前视窗，null = 全程），bins，axis，onView(range | null, { px, done, full })
  *                 总览条：密度面积 + 失败刻 + 你的消息点 + 可拖视窗（拖动平移、拖手柄缩放、点空白跳转、双击 / Home 复位、← → 平移、↑ ↓ 缩放）
  *   multiples     items: [{ title, spec }]，minW，shareY，height
@@ -73,7 +79,9 @@ VZ.hatchId = () => 'vzh' + (VZ._uid++);
 VZ.hatchDefs = (id) => '<defs><pattern id="' + id + '" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><line class="vz-hatch-ln" x1="0" y1="0" x2="0" y2="5"/></pattern></defs>';
 VZ.num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 VZ.r1 = (v) => Math.round(v * 10) / 10;
-VZ.tw = (s, size) => { s = String(s == null ? '' : s); let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? (c === 0x2022 || c === 0x2013 ? 0.5 : 0.8) : /[0-9]/.test(ch) ? 0.64 : /[A-Z%@#]/.test(ch) ? 0.74 : /[ .,:·/|'()\[\]]/.test(ch) ? 0.32 : /[mwMW]/.test(ch) ? 0.9 : 0.56; } return w * (size || 11); };
+// 文字宽度估算（px）。mono = true 按等宽字体（刻度、数值用 var(--mono)：ASCII 0.6em，中日韩 1em）；否则按 SF / 苹方的比例字体
+VZ.tw = (s, size, mono) => { s = String(s == null ? '' : s); let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); if (mono) { w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? 0.8 : 0.6; continue; } w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? (c === 0x2022 || c === 0x2013 ? 0.5 : 0.8) : /[0-9]/.test(ch) ? 0.64 : /[A-Z%@#]/.test(ch) ? 0.74 : /[ .,:·/|'()\[\]]/.test(ch) ? 0.32 : /[mwMW]/.test(ch) ? 0.9 : 0.56; } return w * (size || 11); };
+VZ.twm = (s, size) => VZ.tw(s, size, true);
 VZ.tickFmt = (f) => (v) => ((f === '1f' || f === '2f') && Number.isInteger(v)) ? VZ.fmt(v) : VZ.fmt(v, f);
 VZ.fmt = function (v, f) {
   if (v == null || !Number.isFinite(v)) return '—';
@@ -194,7 +202,7 @@ VZ.frame = function (spec, w, h, o) {
   if (!(y1 > y0)) { y1 = y0 + 1; }
   const yTicksN = (spec.y && spec.y.ticks) || Math.max(2, Math.min(6, Math.floor((h - 30) / 36)));
   const ticks = o.noY ? [] : VZ.ticks(y0, y1, yTicksN);
-  const tickW = o.noY ? 0 : Math.max(0, ...ticks.map((v) => VZ.tw(fmtY(v), 11)));
+  const tickW = o.noY ? 0 : Math.max(0, ...ticks.map((v) => VZ.twm(fmtY(v), 11)));
   const left = o.left != null ? o.left : Math.ceil(tickW) + 10;
   const top = o.top != null ? o.top : 10;
   const bottom = o.bottom != null ? o.bottom : (o.noX ? 6 : 22);
@@ -213,14 +221,14 @@ VZ.grid = function (F, o) {
 // x 轴：items [{ x, label, major }]；按实际标签宽度抽稀：主刻度（major）先保留，其余从左到右加入且不与已保留的重叠。
 VZ.axisX = function (F, items, o) {
   o = o || {}; if (!items.length) return '';
-  const y = F.yB + (o.dy || 15); const tw = (it) => VZ.tw(it.label, 11);
+  const y = F.yB + (o.dy || 15); const tw = (it) => VZ.twm(it.label, 11);
   let keep;
   if (o.every) keep = items.filter((it, i) => i % o.every === 0 || (o.keepMajor && it.major));
   else { const sel = items.filter((it) => it.major); const fits = (it) => sel.every((k) => k === it || Math.abs(k.x - it.x) >= (tw(k) + tw(it)) / 2 + 10); items.forEach((it) => { if (!it.major && fits(it)) sel.push(it); }); keep = items.filter((it) => sel.includes(it)); }
   let g = '';
   keep.forEach((it) => {
     const anchor = o.anchor || 'middle'; let x = it.x;
-    if (anchor === 'middle') { const tw = VZ.tw(it.label, 11) + 4; x = Math.max(F.x0 + tw / 2 - 4, Math.min(F.x1 - tw / 2 + 2, x)); }
+    if (anchor === 'middle') { const tw = VZ.twm(it.label, 11) + 4; x = Math.max(F.x0 + tw / 2 - 4, Math.min(F.x1 - tw / 2 + 2, x)); }
     g += (o.tick ? '<line class="vz-tick" x1="' + VZ.r1(it.x) + '" x2="' + VZ.r1(it.x) + '" y1="' + VZ.r1(F.yB) + '" y2="' + VZ.r1(F.yB + 4) + '"/>' : '') + VZ.txt(x, y, it.label, { class: 'vz-ax' + (it.major ? ' vz-major' : ''), 'text-anchor': anchor });
   });
   if (o.label) g += VZ.txt(F.x1, F.yB - 6, o.label, { class: 'vz-axl', 'text-anchor': 'end' });
@@ -255,15 +263,18 @@ VZ.bandsAndMarks = function (spec, F, XA) {
 VZ.refs = function (spec, F) {
   return (spec.refs || []).map((r) => { const y = VZ.r1(F.y(r.y)); if (y < F.yT - 1 || y > F.yB + 1) return ''; return '<line class="vz-ref" x1="' + F.x0 + '" x2="' + F.x1 + '" y1="' + y + '" y2="' + y + '"' + (r.color ? ' style="stroke:' + r.color + '"' : '') + '/>' + (r.label ? VZ.txt(F.x1, y - 4, r.label, { class: 'vz-note', 'text-anchor': 'end' }) : ''); }).join('');
 };
-// callout：点 + 引线 + 文字；放不下时翻到另一侧
+// callout：点 + 引线 + 文字（带表面色描边，压在图元上也可读）；优先放右上，放不下依次试左上、正上方
 VZ.callouts = function (notes, F, pos) {
   let g = ''; const used = [];
   (notes || []).forEach((n) => {
     const p = pos(n); if (!p) return; const [x, y] = p; const tw = VZ.tw(n.text, 11) + 8;
-    let lx = x + 10, ly = y - 12; if (lx + tw > F.x1) lx = x - 10 - tw; if (ly - 12 < F.yT) ly = y + 20;
+    const cands = [[x + 10, y - 12], [x - 10 - tw, y - 12], [x - tw / 2, y - 18], [x + 10, y + 20], [x - 10 - tw, y + 20]];
+    let [lx, ly] = cands.find(([a, b]) => a >= F.x0 - 2 && a + tw <= F.x1 + 2 && b - 11 >= F.yT - 2 && b <= F.yB) || cands[0];
+    lx = Math.max(F.x0, Math.min(F.x1 - tw, lx));
     while (used.some((u) => Math.abs(u[1] - ly) < 14 && Math.abs(u[0] - lx) < tw)) ly += 14;
     used.push([lx, ly]);
-    g += '<circle class="vz-dot vz-callout-dot" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(y) + '" r="4"/><line class="vz-leader" x1="' + VZ.r1(x) + '" y1="' + VZ.r1(y) + '" x2="' + VZ.r1(lx + (lx > x ? -2 : tw)) + '" y2="' + VZ.r1(ly - 4) + '"/>' + VZ.txt(lx, ly, n.text, { class: 'vz-note vz-callout' });
+    const ex = lx + tw / 2 > x ? lx - 2 : lx + tw - 6;
+    g += '<circle class="vz-dot vz-callout-dot" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(y) + '" r="4"/><line class="vz-leader" x1="' + VZ.r1(x) + '" y1="' + VZ.r1(y) + '" x2="' + VZ.r1(ex) + '" y2="' + VZ.r1(ly - 4) + '"/>' + VZ.txt(lx, ly, n.text, { class: 'vz-note vz-callout' });
   });
   return g;
 };
@@ -306,15 +317,21 @@ VZ.svg = function (spec, w, h) {
   if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return '<svg class="vz-svg vz-empty-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(spec.title || '') + '：' + (VZ.lowSample(spec) ? '样本不足' : esc(spec.empty || '暂无数据')) + '"><title>' + esc(spec.title || '') + '</title>' + VZ.txt(w / 2, h / 2 + 4, VZ.lowSample(spec) ? '样本不足 · ' + spec.n + ' / ' + spec.minN : (spec.empty || '暂无数据'), { class: 'vz-ax', 'text-anchor': 'middle' }) + '</svg>';
   return VZ.render(spec, w, h).svg;
 };
+// 图表头：沿用卡片层级 —— .eb 等宽眉标（模块名）、.ct 13px 标题（按 Apple 的做法写成结论句）、.cap 12px 说明（口径 / 范围）、evidence「证据 →」链接
+// o: { eyebrow, title, sub, evidence: { label, act, attrs }, right（额外 HTML，如图表 ↔ 表格切换） }
+VZ.head = function (o) {
+  if (!o) return '';
+  return '<div class="vz-head">' + (o.eyebrow ? '<span class="eb">' + esc(o.eyebrow) + '</span>' : '') + '<div class="hd"><div class="grow"><span class="ct">' + esc(o.title || '') + '</span>' + (o.sub ? '<span class="cap">' + esc(o.sub) + '</span>' : '') + '</div>' + (o.evidence ? '<button type="button" class="lnk" data-act="' + esc(o.evidence.act || '') + '"' + (o.evidence.attrs || '') + '>' + esc(o.evidence.label || '证据 →') + '</button>' : '') + (o.right || '') + '</div></div>';
+};
 VZ.html = function (spec, w, h, inst) {
-  h = h || VZ.height(spec, w);
-  if (spec.view === 'table') return VZ.table(spec);
-  if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return VZ.emptyHTML(spec, h);
-  const t = VZ.types[spec.type]; if (t && t.html) { if (inst) inst.model = null; return t.html(spec, w, h, inst); }
+  h = h || VZ.height(spec, w); const head = VZ.head(spec.head);
+  if (spec.view === 'table') return head + VZ.table(spec);
+  if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return head + VZ.emptyHTML(spec, h);
+  const t = VZ.types[spec.type]; if (t && t.html) { if (inst) inst.model = null; return head + t.html(spec, w, h, inst); }
   const r = VZ.render(spec, w, h, inst); if (inst) inst.model = r.model;
   const lg = VZ.legendHTML(spec, inst);
   const extra = t && t.extra ? t.extra(spec, w, r.model) : '';
-  return (spec.legend === 'bottom' ? '' : lg) + '<div class="vz-plot" tabindex="0" role="group" aria-roledescription="图表" aria-label="' + esc(spec.title || spec.type) + '（← → 移动焦点，Enter 选择）">' + r.svg + '<div class="vz-tip" role="tooltip" hidden></div><div class="vh" aria-live="polite" data-vz-live></div></div>' + extra + (spec.legend === 'bottom' ? lg : '');
+  return head + (spec.legend === 'bottom' ? '' : lg) + '<div class="vz-plot" tabindex="0" role="group" aria-roledescription="图表" aria-label="' + esc(spec.title || spec.type) + '（← → 移动焦点，Enter 选择）">' + r.svg + '<div class="vz-tip" role="tooltip" hidden></div><div class="vh" aria-live="polite" data-vz-live></div></div>' + extra + (spec.legend === 'bottom' ? lg : '');
 };
 VZ.mount = function (el, spec) {
   if (typeof el === 'string') el = document.querySelector(el.startsWith('#') || el.startsWith('.') || el.startsWith('[') ? el : '[data-vz="' + el + '"]');
@@ -334,6 +351,8 @@ VZ.draw = function (el) {
   const spec = inst.spec; const w = el.clientWidth || spec.width || 600; inst.w = w;
   const h = VZ.height(spec, w);
   el.innerHTML = VZ.html(spec, w, h, inst);
+  // 入场动画只在首次绘制时播放（vz-in）；尺寸变化、图例切换等重绘不再播放；prefers-reduced-motion 下 CSS 关闭全部动画
+  if (!inst.drawn) { inst.drawn = true; const svg = el.querySelector('svg.vz-svg'); if (svg && spec.animate !== false) svg.classList.add('vz-in'); }
   el.classList.toggle('vz-table-view', spec.view === 'table');
   if (spec.type === 'multiples') VZ.types.multiples.mountChildren(el, spec, inst);
   if (inst.focus >= 0) VZ._focus(inst, inst.focus, true);
@@ -397,6 +416,7 @@ VZ._bind = function (el, inst) {
   let brush = null;
   el.addEventListener('pointermove', (e) => {
     if (inst.mm) { VZ._mmMove(inst, pos(e)[0]); return; }
+    if (inst.phDrag) { VZ._phDrag(inst, pos(e)[0], false); return; }
     if (brush) { VZ._brushMove(inst, brush, pos(e)[0]); return; }
     const i = indexAt(e); if (i < 0) { VZ._tipHide(inst); inst.hover = -1; return; }
     const m = inst.model; if (!m) return;
@@ -404,16 +424,30 @@ VZ._bind = function (el, inst) {
     if (html) { const at = m.kind === 'x' && m.at ? [pos(e)[0], m.at(i)[1]] : (m.at ? m.at(i) : pos(e)); VZ._tipShow(inst, html, m.kind === 'x' ? at[0] : at[0], m.kind === 'x' ? Math.min(at[1], pos(e)[1]) : at[1]); }
     if (inst.hover !== i) { inst.hover = i; if (inst.spec.onHover) inst.spec.onHover(i, m.datum ? m.datum(i) : null); }
   });
-  el.addEventListener('pointerleave', () => { if (!brush && !inst.mm) { VZ._tipHide(inst); inst.hover = -1; } });
+  el.addEventListener('pointerleave', () => { if (!brush && !inst.mm && !inst.phDrag) { VZ._tipHide(inst); inst.hover = -1; } });
   el.addEventListener('pointerdown', (e) => {
     if (inst.model && inst.model.kind === 'view') { if (e.button !== 0 || e.target.closest('.vz-legend')) return; VZ._mmDown(inst, pos(e)[0], e); return; }
+    if (e.button === 0 && e.target.closest && e.target.closest('.vz-playhead') && inst.model && inst.model.F) { if (inst.play) inst.play.stop(); inst.phDrag = true; el.setPointerCapture(e.pointerId); VZ._tipHide(inst); e.preventDefault(); return; }
     if (!inst.spec.brush || e.button !== 0 || !inst.model || !inst.model.F) return;
     if (e.target.closest('.vz-legend')) return;
     const [x, y] = pos(e); const F = inst.model.F; if (y < F.yT || y > F.yB || x < F.x0 || x > F.x1) return;
     brush = { x0: x, x1: x, id: e.pointerId }; el.setPointerCapture(e.pointerId); VZ._tipHide(inst); e.preventDefault();
   });
-  const endBrush = (e) => { if (inst.mm) { VZ._mmUp(inst, pos(e)[0]); return; } if (!brush) return; const b = brush; brush = null; VZ._brushEnd(inst, b, pos(e)[0]); };
+  const endBrush = (e) => { if (inst.mm) { VZ._mmUp(inst, pos(e)[0]); return; } if (inst.phDrag) { inst.phDrag = false; VZ._phDrag(inst, pos(e)[0], true); return; } if (!brush) return; const b = brush; brush = null; VZ._brushEnd(inst, b, pos(e)[0]); };
   el.addEventListener('pointerup', endBrush); el.addEventListener('pointercancel', endBrush);
+  // ⌘ / Ctrl + 滚轮：以光标为锚缩放时间线（1 – maxZoom 倍，默认 12）；缩放后 ⇧ + 滚轮或横向滚轮平移。页面滚动不受影响。
+  el.addEventListener('wheel', (e) => {
+    const m = inst.model; const spec = inst.spec; if (!m || !m.F || !m.F.range || spec.type !== 'timeline' || spec.zoom === false) return;
+    const F = m.F; const [x] = pos(e); if (x < F.x0 || x > F.x1) return;
+    const ext = spec.extent || (spec.extent = F.range.slice()); const [a, b] = F.range; const span = b - a; const full = ext[1] - ext[0];
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault(); const f = Math.exp(-e.deltaY * 0.0025); const ns = clamp(span / f, full / (spec.maxZoom || 12), full); if (Math.abs(ns - span) < 1e-9) return;
+      const t = F.inv(x); const k = (t - a) / span; let na = t - k * ns, nb = na + ns; if (na < ext[0]) { na = ext[0]; nb = na + ns; } if (nb > ext[1]) { nb = ext[1]; na = nb - ns; }
+      VZ._setRange(inst, [na, nb]);
+    } else if ((e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) && span < full - 1e-9) {
+      e.preventDefault(); const d = (e.deltaX || e.deltaY) / F.pw * span; const na = clamp(a + d, ext[0], ext[1] - span); VZ._setRange(inst, [na, na + span]);
+    }
+  }, { passive: false });
   el.addEventListener('dblclick', (e) => { const m = inst.model; if (m && m.kind === 'view' && !e.target.closest('.vz-legend')) VZ._mmApply(inst, m.F.x0, m.F.x1, true); });
   el.addEventListener('pointerover', (e) => { const lg = e.target.closest('.vz-lg'); if (lg) VZ._lgDim(inst, +lg.dataset.si); });
   el.addEventListener('pointerout', (e) => { const lg = e.target.closest('.vz-lg'); if (lg && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.vz-lg') === lg)) VZ._lgDim(inst, -1); });
@@ -433,6 +467,13 @@ VZ._bind = function (el, inst) {
   el.addEventListener('keydown', (e) => {
     if (!e.target.classList.contains('vz-plot')) return; const m = inst.model; if (!m) return;
     if (m.kind === 'view') { VZ._mmKey(inst, e); return; }
+    // 时间线回放键：Space 播放 / 暂停（spec.onPlay 或内置 VZ.replay），[ ] 把播放头移到上一个 / 下一个事件
+    if (inst.spec.type === 'timeline' && (e.key === ' ' || e.key === '[' || e.key === ']') && !(e.key === ' ' && inst.focus >= 0 && !inst.spec.onPlay && inst.spec.playhead == null)) {
+      e.preventDefault();
+      if (e.key === ' ') { if (inst.spec.onPlay) inst.spec.onPlay(!inst.play); else if (inst.play) inst.play.stop(); else VZ.replay(el); return; }
+      const ts = m.evTs || []; const ph = inst.spec.playhead != null ? inst.spec.playhead : m.F.range[1]; const nt = e.key === ']' ? ts.find((t) => t > ph + 1e-9) : ts.slice().reverse().find((t) => t < ph - 1e-9);
+      if (nt != null) { if (inst.play) inst.play.stop(); VZ.playhead(el, nt); if (inst.spec.onPlayhead) inst.spec.onPlayhead(nt, { done: true, key: true }); } return;
+    }
     if (!m.n) return;
     const k = e.key; const cur = inst.focus < 0 ? (k === 'ArrowLeft' || k === 'End' ? m.n : -1) : inst.focus;
     if (k === 'ArrowRight' || k === 'ArrowDown') { e.preventDefault(); VZ._focus(inst, cur + 1); }
@@ -458,6 +499,37 @@ VZ._brushEnd = function (inst, b, x) {
   const range = m.brushRange ? m.brushRange(a, c) : [a, c];
   inst.brushRange = range; if (inst.spec.onBrush) inst.spec.onBrush(range, { px: [a, c] });
 };
+/* ---------- 时间线回放：播放头拖动 / 定位（不重绘）、范围缩放、VZ.replay 控制器 ---------- */
+VZ._setRange = function (inst, r) { inst.spec.range = r; VZ.draw(inst.el); const ext = inst.spec.extent; const full = !ext || (Math.abs(r[0] - ext[0]) < 1e-9 && Math.abs(r[1] - ext[1]) < 1e-9); if (inst.spec.onView) inst.spec.onView(full ? null : r, { zoom: true, full, range: r }); };
+VZ._phDrag = function (inst, x, done) {
+  const m = inst.model; const F = m.F; x = clamp(x, F.x0, F.x1); let t = F.inv(x);
+  if (inst.spec.snap !== false && m.evTs && m.evTs.length) { let best = null, bd = 6; m.evTs.forEach((et) => { const d = Math.abs(F.px(et) - x); if (d < bd) { bd = d; best = et; } }); if (best != null) t = best; }
+  t = clamp(t, F.range[0], F.range[1]); VZ.playhead(inst.el, t); if (inst.spec.onPlayhead) inst.spec.onPlayhead(t, { done });
+};
+// VZ.playhead(el, t, { playing })：把播放头移到 t 并按 t 切换事件的「未发生」态。逐帧调用也只改 transform 与 class，不重绘。
+// playing = true 时 svg 带 vz-playing，未发生的事件完全隐藏（回放中逐个出现）；拖动 / 定位时只淡化，便于看全貌（评审 A3-V07）
+VZ.playhead = function (el, t, o) {
+  const inst = VZ._inst.get(el); if (!inst || !inst.model || !inst.model.F) return; const F = inst.model.F; o = o || {};
+  if (inst.spec.playhead == null) { inst.spec.playhead = t; VZ.draw(el); } else inst.spec.playhead = t;
+  const svg = el.querySelector('svg.vz-svg'); if (!svg) return; const g = svg.querySelector('.vz-playhead'); if (g) g.setAttribute('transform', 'translate(' + VZ.r1(F.px(t)) + ' 0)');
+  svg.classList.toggle('vz-playing', !!o.playing);
+  svg.querySelectorAll('[data-t]').forEach((n) => n.classList.toggle('vz-future', +n.getAttribute('data-t') > t));
+  const live = el.querySelector('[data-vz-live]'); if (live && inst.model.ft && !o.playing) { const done = (inst.model.evTs || []).filter((et) => et <= t).length; live.textContent = '播放头 ' + inst.model.ft(t) + ' · 已发生 ' + done + ' / ' + (inst.model.evTs || []).length + ' 个事件'; }
+};
+// VZ.replay(el, { from, to, ms = 8000（全程时长，范围变窄按比例缩短）, rate = 1, realtime（按真实时长，unit 'min' 时 1 分钟 = 60 s）, onTick(t, k), onDone }) -> { playing, stop() }
+// 与现有 A3 的 8 秒 requestAnimationFrame 回放等价：从当前播放头继续，到末尾自动停止并恢复「全部显示」；再次调用从头开始
+VZ.replay = function (el, o) {
+  o = o || {}; const inst = VZ._inst.get(el); if (!inst || !inst.model || !inst.model.F) return null; const F = inst.model.F; const [r0, r1] = F.range;
+  if (inst.play) inst.play.stop();
+  const cur = inst.spec.playhead; const from = o.from != null ? o.from : (cur != null && cur < r1 - 1e-9 && cur >= r0 ? cur : r0); const to = o.to != null ? o.to : r1;
+  const rate = o.rate || 1; const unitMs = (inst.spec.unit || 'ms') === 'min' ? 60000 : 1;
+  const total = (o.realtime ? (to - from) * unitMs : (o.ms || 8000) * ((to - from) / Math.max(1e-9, r1 - r0))) / rate;
+  let raf = null, t0 = null; const ctl = { playing: true, from, to };
+  const tick = (now) => { if (t0 == null) t0 = now; const k = total > 0 ? Math.min(1, (now - t0) / total) : 1; const t = from + (to - from) * k; VZ.playhead(el, t, { playing: k < 1 }); if (o.onTick) o.onTick(t, k); if (k < 1 && ctl.playing) raf = requestAnimationFrame(tick); else { ctl.playing = false; raf = null; if (inst.play === ctl) inst.play = null; if (o.onDone) o.onDone(t); } };
+  ctl.stop = () => { if (raf) cancelAnimationFrame(raf); raf = null; ctl.playing = false; if (inst.play === ctl) inst.play = null; VZ.playhead(el, inst.spec.playhead != null ? inst.spec.playhead : to, { playing: false }); if (o.onStop) o.onStop(inst.spec.playhead); };
+  inst.play = ctl; VZ.playhead(el, from, { playing: true }); raf = requestAnimationFrame(tick); return ctl;
+};
+VZ.playing = (el) => { const inst = VZ._inst.get(el); return !!(inst && inst.play && inst.play.playing); };
 /* ---------- minimap 视窗（model.kind === 'view'）：拖动平移、拖手柄缩放、点空白跳转、双击 / Home 复位、键盘平移与缩放 ---------- */
 VZ._mmDown = function (inst, x, e) {
   const m = inst.model; const F = m.F; let [a, b] = m.view; let mode = 'in';
@@ -549,7 +621,8 @@ VZ.types.line = {
       for (let i = 0; i < n; i++) { const v = VZ.val((s.values || [])[i]); if (v == null) pts.push(null); else { pts.push([XA.xs[i], F.y(v)]); lastI = i; } }
       if (s.band) { let up = '', dn = ''; s.band.forEach((b, i) => { if (!b || b[0] == null || XA.xs[i] == null) return; up += (up ? 'L' : 'M') + VZ.r1(XA.xs[i]) + ' ' + VZ.r1(F.y(b[1])); dn = 'L' + VZ.r1(XA.xs[i]) + ' ' + VZ.r1(F.y(b[0])) + dn; }); if (up) g += '<path class="vz-cband" data-s="' + j + '" d="' + up + dn + 'Z" style="--c:' + c + '"/>'; }
       if (area || s.area) { const segs = []; let cur = []; pts.forEach((p) => { if (p) cur.push(p); else if (cur.length) { segs.push(cur); cur = []; } }); if (cur.length) segs.push(cur); segs.forEach((sg) => { g += '<path class="vz-area" data-s="' + j + '" d="' + VZ.linePath(sg, spec.curve) + 'L' + VZ.r1(sg[sg.length - 1][0]) + ' ' + VZ.r1(base) + 'L' + VZ.r1(sg[0][0]) + ' ' + VZ.r1(base) + 'Z" style="--c:' + c + '"/>'; }); }
-      g += '<path class="vz-line' + (s.dash ? ' dash' : '') + '" data-s="' + j + '" d="' + VZ.linePath(pts, spec.curve) + '" style="--c:' + c + (s.width ? ';stroke-width:' + s.width + 'px' : '') + '"/>';
+      // pathLength="1" 让入场的描线动画（CSS vz-draw）与路径长度无关；虚线依赖真实长度，不加
+      g += '<path class="vz-line' + (s.dash ? ' dash' : '') + '" data-s="' + j + '"' + (s.dash ? '' : ' pathLength="1"') + ' d="' + VZ.linePath(pts, spec.curve) + '" style="--c:' + c + (s.width ? ';stroke-width:' + s.width + 'px' : '') + '"/>';
       const showPts = spec.points === true || (spec.points !== false && n <= 12);
       if (showPts) pts.forEach((p) => { if (p) g += '<circle class="vz-pt" data-s="' + j + '" cx="' + VZ.r1(p[0]) + '" cy="' + VZ.r1(p[1]) + '" r="3.5" style="--c:' + c + '"/>'; });
       if (lastI >= 0) ends.push({ name: s.name || '', c, x: pts[lastI][0], y: pts[lastI][1] });
@@ -613,7 +686,7 @@ VZ.types.bar = {
     if (hi === lo) hi = lo + 1;
     let [v0, v1] = VZ.nice(lo, hi, 5); if (spec.y && spec.y.min != null) v0 = spec.y.min; if (spec.y && spec.y.max != null) v1 = spec.y.max;
     const labW = Math.min(Math.max(40, Math.ceil(Math.max(...cats.map((c) => VZ.tw(String(c), 12)), 0) + 10)), Math.round(w * 0.38));
-    const valW = spec.labels === false ? 0 : Math.ceil(VZ.tw(fy(v1), 11)) + 10;
+    const valW = spec.labels === false ? 0 : Math.ceil(VZ.twm(fy(v1), 11)) + 10;
     const F = { x0: labW, x1: Math.max(labW + 20, w - 10 - valW), yT: 6, yB: h - 20, w, h }; F.pw = F.x1 - F.x0; F.ph = F.yB - F.yT;
     const sx = VZ.scale.linear(v0, v1, F.x0, F.x1); const by = VZ.scale.band(n, F.yT, F.yB); const step = by.step;
     const gw = stacked ? Math.min(20, step * 0.68) : Math.min(step * 0.8, k * 18 + (k - 1) * 2); const bw = stacked ? gw : Math.max(2, (gw - (k - 1) * 2) / k);
@@ -634,8 +707,9 @@ VZ.types.bar = {
         const xa = sx(a), xb = sx(b); const isEnd = !stacked || (sg.v >= 0 ? pos[pos.length - 1] === sg : neg[neg.length - 1] === sg); const isFirst = !stacked || (sg.v >= 0 ? pos[0] === sg : neg[0] === sg);
         const gap = stacked && !isFirst ? 2 : 0; const wd = Math.max(0.5, xb - xa - gap); const xs = sg.v >= 0 ? xa + gap : xa;
         const d = isEnd ? VZ.barPath(xs, y, wd, bw, sg.v >= 0 ? 'right' : 'left') : 'M' + VZ.r1(xs) + ' ' + VZ.r1(y) + 'h' + VZ.r1(wd) + 'v' + VZ.r1(bw) + 'h' + VZ.r1(-wd) + 'Z';
-        g += '<path class="vz-bar' + (spec.selected != null && spec.selected === i ? ' vz-sel' : '') + '" data-i="' + i + '" data-s="' + sg.j + '" d="' + d + '" style="--c:' + sg.c + '"/>';
-        if (hatch && hatch.indexOf(i) >= 0) g += '<path class="vz-hatch" d="' + d + '" fill="url(#' + pid + ')"/>';
+        const gx = sg.v >= 0 ? ' vz-gx' : ' vz-gxr';
+        g += '<path class="vz-bar' + gx + (spec.selected != null && spec.selected === i ? ' vz-sel' : '') + '" data-i="' + i + '" data-s="' + sg.j + '" d="' + d + '" style="--c:' + sg.c + '"/>';
+        if (hatch && hatch.indexOf(i) >= 0) g += '<path class="vz-hatch' + gx + '" d="' + d + '" fill="url(#' + pid + ')"/>';
         endX = Math.max(endX, xb);
       });
       const tot = stacked ? up : Math.max(...segs.map((s) => s.v || 0), 0);
@@ -705,7 +779,7 @@ VZ.types.diverging = {
     const lW = hasPoles ? Math.ceil(Math.max(...rows.map((r) => VZ.tw(r.left || '', 12)), 0) + 10) : 0, rW = hasPoles ? Math.ceil(Math.max(...rows.map((r) => VZ.tw(r.right || '', 12)), 0) + 10) : 0;
     const mx = Math.max(1e-9, ...rows.map((r) => Math.abs(VZ.num(r.value) || 0)), ...rows.map((r) => Math.abs(VZ.num(r.ref) || 0)));
     const dom = spec.domain || [-VZ.nice(0, mx, 4)[1], VZ.nice(0, mx, 4)[1]];
-    const valW = Math.ceil(Math.max(VZ.tw(fmt(dom[0]), 11), VZ.tw(fmt(dom[1]), 11))) + 8;
+    const valW = Math.ceil(Math.max(VZ.twm(fmt(dom[0]), 11), VZ.twm(fmt(dom[1]), 11))) + 8;
     const F = VZ.rowsFrame(spec, w, h, rows, { leftExtra: lW + valW, rightW: rW + valW, axis: spec.axis !== false });
     const sx = VZ.scale.linear(dom[0], dom[1], F.x0, F.x1); const cx = VZ.r1(sx(0)); const bh = Math.min(spec.barH || 12, F.step * 0.6);
     const colors = spec.colors || [VZ.sem.neg, VZ.sem.pos];
@@ -720,7 +794,7 @@ VZ.types.diverging = {
       if (VZ.num(r.ref) != null) { const rx = VZ.r1(sx(r.ref)); g += '<line class="vz-ghost" x1="' + rx + '" x2="' + rx + '" y1="' + VZ.r1(cy - bh) + '" y2="' + VZ.r1(cy + bh) + '"/>'; }
       if (v == null) return;
       const xe = sx(v); const c = r.color || (v < 0 ? colors[0] : colors[1]);
-      g += '<path class="vz-bar' + (spec.selected != null && (spec.selected === i || spec.selected === r.id) ? ' vz-sel' : '') + '" data-i="' + i + '" d="' + VZ.barPath(Math.min(cx, xe), cy - bh / 2, Math.max(1, Math.abs(xe - cx)), bh, v < 0 ? 'left' : 'right') + '" style="--c:' + c + '"/>';
+      g += '<path class="vz-bar' + (v < 0 ? ' vz-gxr' : ' vz-gx') + (spec.selected != null && (spec.selected === i || spec.selected === r.id) ? ' vz-sel' : '') + '" data-i="' + i + '" d="' + VZ.barPath(Math.min(cx, xe), cy - bh / 2, Math.max(1, Math.abs(xe - cx)), bh, v < 0 ? 'left' : 'right') + '" style="--c:' + c + '"/>';
       if (spec.values !== false) g += VZ.txt(v < 0 ? xe - 5 : xe + 5, cy + 4, fmt(v), { class: 'vz-val', 'text-anchor': v < 0 ? 'end' : 'start' });
       g += F.hit(i);
     });
@@ -737,7 +811,7 @@ VZ.types.ranked = {
     const rows = VZ.types.ranked.rows(spec); const n = rows.length; const fmt = (v) => VZ.fmt(v, spec.format);
     const sum = rows.reduce((a, r) => a + (VZ.num(r.value) || 0), 0); const shareOf = (r) => r.share != null ? (r.share <= 1 ? r.share * 100 : r.share) : (sum ? (VZ.num(r.value) || 0) / sum * 100 : 0);
     const mx = Math.max(1e-9, ...rows.map((r) => VZ.num(r.value) || 0));
-    const valW = Math.ceil(VZ.tw(fmt(mx), 11)) + 10; const shW = spec.share === false ? 0 : 40;
+    const valW = Math.ceil(VZ.twm(fmt(mx), 11)) + 10; const shW = spec.share === false ? 0 : 40;
     const F = VZ.rowsFrame(spec, w, h, rows, { rightW: valW + shW, labFrac: 0.4 });
     const sx = VZ.scale.linear(0, mx, F.x0, F.x1); const bh = Math.min(spec.barH || 8, F.step * 0.6);
     let g = '';
@@ -745,10 +819,10 @@ VZ.types.ranked = {
       const cy = F.by(i); const v = VZ.num(r.value) || 0; const top = spec.top != null ? i < spec.top : true;
       // 列表条浅灰、只有被强调的（top）用深色（评审 G-03）
       const c = r.color || (spec.top != null ? (top ? (spec.color || 'var(--ink-2)') : 'var(--h2)') : (spec.color || 'var(--h3)'));
-      g += F.name(i) + '<path class="vz-bar' + (spec.selected != null && (spec.selected === i || spec.selected === r.id) ? ' vz-sel' : '') + '" data-i="' + i + '" d="' + VZ.barPath(F.x0, cy - bh / 2, Math.max(2, sx(v) - F.x0), bh, 'right', 3) + '" style="--c:' + c + '"/>';
+      g += F.name(i) + '<path class="vz-bar vz-gx' + (spec.selected != null && (spec.selected === i || spec.selected === r.id) ? ' vz-sel' : '') + '" data-i="' + i + '" d="' + VZ.barPath(F.x0, cy - bh / 2, Math.max(2, sx(v) - F.x0), bh, 'right', 3) + '" style="--c:' + c + '"/>';
       g += VZ.txt(F.x1 + valW - 2, cy + 4, fmt(v), { class: 'vz-val', 'text-anchor': 'end' });
       if (shW) g += VZ.txt(w - 2, cy + 4, Math.round(shareOf(r)) + '%', { class: 'vz-ax', 'text-anchor': 'end' });
-      if (r.flag) g += '<circle class="vz-flag" cx="' + VZ.r1(F.x1 + valW - 2 - VZ.tw(fmt(v), 11) - 8) + '" cy="' + VZ.r1(cy) + '" r="2.5"/>';
+      if (r.flag) g += '<circle class="vz-flag" cx="' + VZ.r1(F.x1 + valW - 2 - VZ.twm(fmt(v), 11) - 8) + '" cy="' + VZ.r1(cy) + '" r="2.5"/>';
       g += F.hit(i);
     });
     return { body: g, model: { kind: 'mark', n, F, xs: [], has: () => true, tip: (i) => { const r = rows[i]; return VZ.tipHead(r.name || '', r.meta || '') + VZ.tipRow(r.color || 'var(--ink-2)', '占比 ' + Math.round(shareOf(r)) + '%', fmt(VZ.num(r.value)), { kind: 'rect' }) + (r.flag ? '<div class="vz-tr"><span class="vz-tk" style="--c:var(--crit-m)"></span><span class="vz-tn">' + esc(r.flag) + '</span></div>' : ''); }, at: (i) => [sx(VZ.num(rows[i].value) || 0), F.by(i)], datum: (i) => rows[i] } };
@@ -770,7 +844,7 @@ VZ.types.share = {
       const path = d || '<path d="' + (k === 0 ? VZ.barPath(x, y, ww, bh, 'left') : k === vis.length - 1 ? VZ.barPath(x, y, ww, bh, 'right') : 'M' + VZ.r1(x) + ' ' + VZ.r1(y) + 'h' + VZ.r1(ww) + 'v' + bh + 'h' + VZ.r1(-ww) + 'Z') + '"/>';
       g += '<g class="vz-seg' + (spec.selected != null && (spec.selected === i || spec.selected === it.id) ? ' vz-sel' : '') + '" data-i="' + i + '" style="--c:' + c + '">' + path + '</g>';
       const pct = Math.round((VZ.num(it.value) || 0) / sum * 100) + '%';
-      if (spec.labels !== false && ww >= VZ.tw(pct, 10.5) + 10 && bh >= 12) g += VZ.txt(x + ww / 2, y + bh / 2 + 3.5, pct, { class: 'vz-inbar', 'text-anchor': 'middle' });
+      if (spec.labels !== false && ww >= VZ.twm(pct, 10.5) + 10 && bh >= 12) g += VZ.txt(x + ww / 2, y + bh / 2 + 3.5, pct, { class: 'vz-inbar', 'text-anchor': 'middle' });
       segs[i] = [x + ww / 2, y]; x += ww + gap;
     });
     return { body: g, model: { kind: 'mark', n: items.length, xs: [], has: (i) => !!segs[i], tip: (i) => { const it = items[i]; return VZ.tipHead(it.name || '') + VZ.tipRow(it.color || VZ.color(i), '占比 ' + Math.round((VZ.num(it.value) || 0) / sum * 100) + '%', VZ.fmt(VZ.num(it.value), spec.format) + (spec.unit || ''), { kind: 'rect' }); }, at: (i) => segs[i] || [0, y], datum: (i) => items[i] } };
@@ -784,7 +858,7 @@ VZ.types.bullet = {
   render(spec, w, h) {
     const rows = spec.rows || []; const fmt = (v, r) => VZ.fmt(v, (r && r.format) || spec.format);
     const mx = spec.max || VZ.nice(0, Math.max(1e-9, ...rows.map((r) => Math.max(VZ.num(r.value) || 0, VZ.num(r.target) || 0, ...(r.ranges || [])))), 4)[1];
-    const valW = Math.ceil(Math.max(...rows.map((r) => VZ.tw(fmt(VZ.num(r.value), r) + ' / ' + fmt(VZ.num(r.target), r), 11)), 20)) + 10;
+    const valW = Math.ceil(Math.max(...rows.map((r) => VZ.twm(fmt(VZ.num(r.value), r) + ' / ' + fmt(VZ.num(r.target), r), 11)), 20)) + 10;
     const F = VZ.rowsFrame(spec, w, h, rows, { rightW: valW, axis: spec.axis !== false });
     const sx = VZ.scale.linear(0, mx, F.x0, F.x1); const bh = Math.min(16, F.step * 0.56);
     let g = spec.axis === false ? '' : VZ.axisBottom(F, sx, VZ.ticks(0, mx, Math.max(2, Math.floor(F.pw / 70))), VZ.tickFmt(spec.format));
@@ -793,7 +867,7 @@ VZ.types.bullet = {
       const rg = (r.ranges || []).slice().sort((a, b) => a - b); let prev = 0;
       rg.forEach((q, k) => { g += '<rect class="vz-range" x="' + VZ.r1(sx(prev)) + '" y="' + VZ.r1(cy - bh / 2) + '" width="' + VZ.r1(Math.max(0, sx(Math.min(q, mx)) - sx(prev))) + '" height="' + bh + '" style="fill:var(--h' + Math.max(0, 2 - k) + ')"/>'; prev = Math.min(q, mx); });
       if (!rg.length) g += '<rect class="vz-range" x="' + VZ.r1(F.x0) + '" y="' + VZ.r1(cy - bh / 2) + '" width="' + VZ.r1(F.pw) + '" height="' + bh + '" style="fill:var(--h0)"/>';
-      g += '<path class="vz-bar" data-i="' + i + '" d="' + VZ.barPath(F.x0, cy - 3, Math.max(2, sx(Math.min(v, mx)) - F.x0), 6, 'right', 2) + '" style="--c:' + (r.color || spec.color || VZ.ACC) + '"/>';
+      g += '<path class="vz-bar vz-gx" data-i="' + i + '" d="' + VZ.barPath(F.x0, cy - 3, Math.max(2, sx(Math.min(v, mx)) - F.x0), 6, 'right', 2) + '" style="--c:' + (r.color || spec.color || VZ.ACC) + '"/>';
       if (t != null) { const tx = VZ.r1(sx(Math.min(t, mx))); g += '<line class="vz-target" x1="' + tx + '" x2="' + tx + '" y1="' + VZ.r1(cy - bh / 2 - 3) + '" y2="' + VZ.r1(cy + bh / 2 + 3) + '"/>'; }
       g += VZ.txt(w - 2, cy + 4, fmt(v, r) + (t != null ? ' / ' + fmt(t, r) : ''), { class: 'vz-val', 'text-anchor': 'end' }) + F.hit(i);
     });
@@ -814,7 +888,7 @@ VZ.types.dumbbell = {
   render(spec, w, h) {
     const rows = spec.rows || []; const C = spec.colors || ['var(--h2)', 'var(--ink-1)']; const fmt = (v) => VZ.fmt(v, spec.format);
     const vals = rows.flatMap((r) => [VZ.num(r.a), VZ.num(r.b)]).filter((v) => v != null); let lo = Math.min(0, ...vals), hi = Math.max(1e-9, ...vals); [lo, hi] = VZ.nice(lo, hi, 4);
-    const dW = spec.delta === false ? 0 : Math.ceil(Math.max(...rows.map((r) => VZ.tw(VZ.delta(VZ.num(r.a), VZ.num(r.b), spec.goodDown).text, 11)), 30)) + 12;
+    const dW = spec.delta === false ? 0 : Math.ceil(Math.max(...rows.map((r) => VZ.twm(VZ.delta(VZ.num(r.a), VZ.num(r.b), spec.goodDown).text, 11)), 30)) + 12;
     const F = VZ.rowsFrame(spec, w, h, rows, { rightW: dW + 14, axis: true, leftExtra: 10 });
     const sx = VZ.scale.linear(lo, hi, F.x0, F.x1);
     let g = VZ.axisBottom(F, sx, VZ.ticks(lo, hi, Math.max(2, Math.floor(F.pw / 70))), VZ.tickFmt(spec.format));
@@ -837,7 +911,7 @@ VZ.types.slope = {
   render(spec, w, h) {
     const rows = spec.rows || []; const L = spec.labels || ['前', '后']; const C = spec.colors || ['var(--h2)', 'var(--ink-1)']; const fmt = (v) => VZ.fmt(v, spec.format);
     const vals = rows.flatMap((r) => [VZ.num(r.a), VZ.num(r.b)]).filter((v) => v != null); let [lo, hi] = VZ.nice(Math.min(0, ...vals), Math.max(1e-9, ...vals), 4);
-    const lblW = Math.min(Math.round(w * 0.32), Math.ceil(Math.max(...rows.map((r) => VZ.tw((r.name || '') + ' ' + fmt(VZ.num(r.a)), 11)), 40)) + 14);
+    const lblW = Math.min(Math.round(w * 0.32), Math.ceil(Math.max(...rows.map((r) => Math.max(VZ.tw((r.name || '') + ' ' + fmt(VZ.num(r.a)), 12), VZ.tw(fmt(VZ.num(r.b)) + ' ' + (r.name || ''), 12))), 40)) + 14);
     const F = { x0: lblW, x1: w - lblW, yT: 24, yB: h - 10 }; const sy = VZ.scale.linear(lo, hi, F.yB, F.yT);
     let g = '<line class="vz-grid" x1="' + F.x0 + '" x2="' + F.x0 + '" y1="' + F.yT + '" y2="' + F.yB + '"/><line class="vz-grid" x1="' + F.x1 + '" x2="' + F.x1 + '" y1="' + F.yT + '" y2="' + F.yB + '"/>' + VZ.txt(F.x0, 14, L[0], { class: 'vz-axl', 'text-anchor': 'middle' }) + VZ.txt(F.x1, 14, L[1], { class: 'vz-axl', 'text-anchor': 'middle' });
     const left = rows.map((r, i) => ({ i, y: sy(VZ.num(r.a) || 0) })).sort((p, q) => p.y - q.y), right = rows.map((r, i) => ({ i, y: sy(VZ.num(r.b) || 0) })).sort((p, q) => p.y - q.y);
@@ -868,7 +942,7 @@ VZ.types.heatmap = {
   isEmpty: (spec) => spec.layout === 'calendar' ? !(spec.days || []).some((d) => VZ.num(d.v) != null) : !(spec.values || []).some((r) => (r || []).some((v) => VZ.num(v) != null)),
   geo(spec, w) {
     const rows = spec.rows || [], cols = spec.cols || []; const gap = spec.gap != null ? spec.gap : 2;
-    const labW = rows.some((r) => r != null && r !== '') ? Math.min(Math.round(w * 0.3), Math.ceil(Math.max(...rows.map((r) => VZ.tw(String(r), 11))) + 10)) : 0;
+    const labW = rows.some((r) => r != null && r !== '') ? Math.min(Math.round(w * 0.3), Math.ceil(Math.max(...rows.map((r) => VZ.twm(String(r), 11))) + 10)) : 0;
     const cell = clamp(Math.floor((w - labW - 2 - gap * (cols.length - 1)) / Math.max(1, cols.length)), 4, spec.cellMax || 18);
     const cellH = spec.cellH || (spec.square === false ? Math.max(cell, 14) : cell);
     const top = cols.some((c) => c != null && c !== '') && spec.colLabels !== 'bottom' ? 16 : 2;
@@ -896,7 +970,7 @@ VZ.types.heatmap = {
     const flat = V.flat().map(VZ.num).filter((v) => v != null); const [mn, mx] = VZ.types.heatmap.domain(spec, flat);
     const lvl = (v) => v == null ? -1 : clamp(Math.floor((v - mn) / (mx - mn || 1) * 5.999), 0, 5);
     let g = ''; const nC = G.cols.length, nR = G.rows.length;
-    const every = Math.max(1, Math.ceil((Math.max(...G.cols.map((c) => VZ.tw(String(c), 10))) + 6) / (G.cell + G.gap)));
+    const every = Math.max(1, Math.ceil((Math.max(...G.cols.map((c) => VZ.twm(String(c), 11))) + 6) / (G.cell + G.gap)));
     G.cols.forEach((c, j) => { if (j % every) return; if (c == null || c === '') return; g += VZ.txt(G.x(j) + G.cell / 2, spec.colLabels === 'bottom' ? G.y(nR - 1) + G.cellH + 12 : 11, String(c), { class: 'vz-ax', 'text-anchor': 'middle' }); });
     G.rows.forEach((r, i) => { if (r == null || r === '') return; g += VZ.txt(G.labW - 6, G.y(i) + G.cellH / 2 + 3.5, String(r), { class: 'vz-ax', 'text-anchor': 'end' }); });
     let peak = null;
@@ -956,14 +1030,13 @@ VZ.types.scatter = {
     if (Y.label) g += VZ.txt(F.x0 + 4, F.yT + 11, Y.label, { class: 'vz-axl' });
     const hasR = all.some((p) => VZ.num(p.r) != null); const rMax = spec.rMax || 20; const rmx = hasR ? Math.max(1e-9, ...all.map((p) => VZ.num(p.r) || 0)) : 1;
     const rad = (p) => hasR ? 4 + Math.sqrt((VZ.num(p.r) || 0) / rmx) * (rMax - 4) : (spec.r || 5);
-    const fitTxt = fit ? 'r = ' + fit.r.toFixed(2) + ' · n = ' + fit.n + ' · 95% CI' : '';
     if (fit) {
+      // 回归线 + 95% 置信带；拟合读数（r、n）放在图下方的说明行（extra），不与点和标签争位置
       const xa = Math.min(...all.map((p) => p.x)), xb = Math.max(...all.map((p) => p.x)); const K = 24; let up = '', dn = '';
       for (let k = 0; k <= K; k++) { const x = xa + (xb - xa) * k / K; const yp = fit.pred(x), se = fit.se(x); up += (up ? 'L' : 'M') + VZ.r1(sx(x)) + ' ' + VZ.r1(F.y(clamp(yp + se, y0, y1))); dn = 'L' + VZ.r1(sx(x)) + ' ' + VZ.r1(F.y(clamp(yp - se, y0, y1))) + dn; }
-      g += '<path class="vz-cband" d="' + up + dn + 'Z" style="--c:var(--ink-3)"/><line class="vz-fit" x1="' + VZ.r1(sx(xa)) + '" y1="' + VZ.r1(F.y(clamp(fit.pred(xa), y0, y1))) + '" x2="' + VZ.r1(sx(xb)) + '" y2="' + VZ.r1(F.y(clamp(fit.pred(xb), y0, y1))) + '"/>';
-      g += VZ.txt(F.x1 - 2, F.yT + 11, fitTxt, { class: 'vz-note', 'text-anchor': 'end' });
+      g += '<path class="vz-cband" d="' + up + dn + 'Z" style="--c:var(--ink-3)"/><line class="vz-fit' + (fit.n < 10 ? ' weak' : '') + '" x1="' + VZ.r1(sx(xa)) + '" y1="' + VZ.r1(F.y(clamp(fit.pred(xa), y0, y1))) + '" x2="' + VZ.r1(sx(xb)) + '" y2="' + VZ.r1(F.y(clamp(fit.pred(xb), y0, y1))) + '"/>';
     }
-    const order = all.slice().sort((p, q) => rad(q) - rad(p)); const boxes = fit ? [[F.x1 - 6 - VZ.tw(fitTxt, 11), F.yT - 2, F.x1, F.yT + 14]] : []; const placed = {};
+    const order = all.slice().sort((p, q) => rad(q) - rad(p)); const boxes = []; const placed = {};
     order.forEach((p) => { const cx = sx(p.x), cy = F.y(p.y), r = rad(p); const sel = spec.selected != null && (spec.selected === p._i || (p.id != null && spec.selected === p.id)); const c = p.color || (p.series != null ? VZ.color(p.series) : spec.color || VZ.ACC); g += '<circle class="vz-dot' + (hasR ? ' vz-bubble' : '') + (sel ? ' vz-sel' : '') + '" data-i="' + p._i + '" cx="' + VZ.r1(cx) + '" cy="' + VZ.r1(cy) + '" r="' + VZ.r1(r) + '" style="--c:' + c + '"/>'; boxes.push([cx - r, cy - r, cx + r, cy + r]); });
     if (spec.labels !== false) order.forEach((p) => {
       if (p.label == null || p.label === '') return; const cx = sx(p.x), cy = F.y(p.y), r = rad(p); const tw = VZ.tw(p.label, 11), th = 12;
@@ -973,6 +1046,12 @@ VZ.types.scatter = {
     order.forEach((p) => { g += '<circle class="vz-hit vz-hit-pt" data-i="' + p._i + '" cx="' + VZ.r1(sx(p.x)) + '" cy="' + VZ.r1(F.y(p.y)) + '" r="' + VZ.r1(Math.max(12, rad(p) + 6)) + '"/>'; });
     const P = spec.points || [];
     return { body: g, model: { kind: 'mark', n: P.length, F, xs: [], has: (i) => all.some((p) => p._i === i), tip: (i) => { const p = P[i]; const res = fit ? p.y - fit.pred(p.x) : null; return VZ.tipHead(p.label || p.name || '', p.meta || '') + VZ.tipRow(p.color || (p.series != null ? VZ.color(p.series) : spec.color || VZ.ACC), X.label || 'x', fx(p.x), { kind: 'rect' }) + VZ.tipRow('transparent', Y.label || 'y', fy(p.y)) + (hasR && p.r != null ? VZ.tipRow('transparent', spec.rLabel || '大小', VZ.fmt(p.r, spec.rFormat)) : '') + (res != null ? '<div class="vz-tr"><span class="vz-tk" style="--c:var(--ink-3)"></span><span class="vz-tn">' + (res >= 0 ? '高于拟合预期 ' : '低于拟合预期 ') + fy(Math.abs(res)) + '</span></div>' : ''); }, at: (i) => [sx(P[i].x), F.y(P[i].y)], datum: (i) => P[i], brushRange: (a, c) => [sx.inv(a), sx.inv(c)], fit } };
+  },
+  // 图下说明行：拟合读数 + 气泡尺寸图例（评审 A5-V04）
+  extra(spec, w, model) {
+    const fit = model && model.fit; const hasR = (spec.points || []).some((p) => VZ.num(p.r) != null); if (!fit && !hasR) return '';
+    const rmx = hasR ? Math.max(1e-9, ...(spec.points || []).map((p) => VZ.num(p.r) || 0)) : 0;
+    return '<div class="vz-scale">' + (fit ? '<span class="cap">拟合 r = ' + fit.r.toFixed(2) + ' · n = ' + fit.n + ' · 带为 95% 置信区间' + (fit.n < 10 ? '（样本少，仅供参考）' : '') + '</span>' : '') + (hasR ? '<span class="cap vz-scale-note"><i class="vz-rleg" style="width:12px;height:12px"></i>' + esc(VZ.fmt(rmx / 4, spec.rFormat)) + ' <i class="vz-rleg" style="width:20px;height:20px"></i>' + esc(VZ.fmt(rmx, spec.rFormat)) + (spec.rLabel ? ' · ' + esc(spec.rLabel) : '') + '</span>' : '') + '</div>';
   },
   table: (spec) => { const X = spec.x || {}, Y = spec.y || {}; const hasR = (spec.points || []).some((p) => p.r != null); return { cols: ['名称', X.label || 'x', Y.label || 'y'].concat(hasR ? [spec.rLabel || '大小'] : []), rows: (spec.points || []).map((p) => [p.label || p.name || '', VZ.fmt(VZ.num(p.x), X.format), VZ.fmt(VZ.num(p.y), Y.format)].concat(hasR ? [VZ.fmt(VZ.num(p.r), spec.rFormat)] : [])) }; }
 };
@@ -1109,9 +1188,21 @@ VZ.types.timeline = {
     const labW = spec.laneLabels === false || !L.some((l) => l.label) ? 0 : Math.min(120, Math.ceil(Math.max(...L.map((l) => VZ.tw(l.label || '', 11))) + 12));
     const ev = spec.events || []; const ts = ev.flatMap((e) => [e.t, e.t2 != null ? e.t2 : e.t]).concat((spec.spans || []).flatMap((s) => [s.t, s.t2]), (spec.markers || []).map((m) => m.t)).filter((t) => VZ.num(t) != null);
     const range = spec.range ? spec.range.slice() : ts.length ? [Math.min(...ts), Math.max(...ts)] : [0, 1]; if (!(range[1] > range[0])) range[1] = range[0] + 1;
-    const F = { x0: labW + 2, x1: w - 6, yT: top, yB: L.length ? L[L.length - 1].y1 : top + 40, w, h, L, labW, range, mkY, phY }; F.pw = F.x1 - F.x0; F.ph = F.yB - F.yT;
-    F.sx = VZ.scale.linear(range[0], range[1], F.x0, F.x1); F.px = (t) => clamp(F.sx(t), F.x0, F.x1); return F;
+    const F = { x0: labW + 2, x1: w - 6, yT: top, yB: L.length ? L[L.length - 1].y1 : top + 40, w, h, L, labW, range, mkY, phY, steps: spec.axisMode === 'steps' }; F.pw = F.x1 - F.x0; F.ph = F.yB - F.yT;
+    // 横轴两种排布：'time'（像素 ∝ 时间）或 'steps'（每个事件等距，像素 ∝ 事件序号；跨度事件固定 1 步宽）。
+    // F.pos(t) 把时刻映射到「轴坐标」（时间模式即 t，步数模式为小数序号），F.sx / F.px 再映射到像素；F.inv(px) 反推时刻（供 brush / 缩放 / 播放头）
+    if (F.steps) {
+      let a = Array.from(new Set(ev.map((e) => VZ.num(e.t)).filter((t) => t != null))).sort((p, q) => p - q); if (!a.length) a = [range[0]]; if (a.length === 1) a.push(a[0] + 1);
+      F.stepTs = a; const n = a.length - 1;
+      F.pos = (t) => { if (t <= a[0]) return -Math.min(0.5, (a[0] - t) / Math.max(1e-9, a[1] - a[0])); if (t >= a[n]) return n + Math.min(0.5, (t - a[n]) / Math.max(1e-9, a[n] - a[n - 1])); let lo = 0, hi = n; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (a[m] <= t) lo = m; else hi = m; } return lo + (t - a[lo]) / Math.max(1e-9, a[hi] - a[lo]); };
+      F.unpos = (s) => { const i = clamp(Math.floor(s), 0, n - 1); return a[i] + (a[i + 1] - a[i]) * (s - i); };
+    } else { F.pos = (t) => t; F.unpos = (s) => s; }
+    F.dom = [F.pos(range[0]), F.pos(range[1])]; if (!(F.dom[1] > F.dom[0])) F.dom[1] = F.dom[0] + 1;
+    F.sx = VZ.scale.linear(F.dom[0], F.dom[1], F.x0, F.x1); F.px = (t) => clamp(F.sx(F.pos(t)), F.x0, F.x1); F.inv = (px) => F.unpos(F.sx.inv(px)); F.stepPx = F.steps ? F.pw / Math.max(1, F.dom[1] - F.dom[0]) : 0;
+    return F;
   },
+  // 步数轴刻度：每 k 步一个（k ∈ 1/2/5/10/20/50/100，保证 ≥ 48px），每 5k 为主刻度
+  stepTicks(F) { const [d0, d1] = F.dom; const ks = [1, 2, 5, 10, 20, 50, 100, 200, 500]; const k = ks.find((s) => s * F.stepPx >= 48) || ks[ks.length - 1]; const out = []; for (let s = Math.max(0, Math.ceil(d0 / k) * k); s <= d1; s += k) out.push({ x: F.sx(s), label: String(s), major: s % (k * 5) === 0 }); return out; },
   render(spec, w, h) {
     const F = VZ.types.timeline.frame(spec, w, h); const L = F.L; const ft = VZ.tfmt(spec, F);
     // 统一索引空间：items[i] = 逐个画出的事件 → 密度桶 → 关键时刻簇；data-i 指向它，tooltip / 键盘 / onSelect 都按它分发
@@ -1128,11 +1219,11 @@ VZ.types.timeline = {
       const l = VZ.laneOf(L, e.lane); if (!l || dense(l) || VZ.num(e.t) == null) return; const x = F.px(e.t); const kind = e.kind || (e.t2 != null ? 'span' : 'tick'); const c = e.err ? VZ.sem.err : (e.color || l.color || 'var(--ink-2)');
       const fut = ph != null && e.t > ph; const sel = spec.selected != null && (spec.selected === k || (e.id != null && spec.selected === e.id));
       const cls = 'vz-ev' + (e.err ? ' vz-err' : '') + (fut ? ' vz-future' : '') + (sel ? ' vz-sel' : '') + (e.dim ? ' vz-dim' : '');
-      const i = items.length; items.push({ tip: () => evTip(e, l), at: () => [x, l.cy], datum: () => e });
-      if (kind === 'span') { const x2 = Math.max(x + 4, F.px(e.t2)); const hh = Math.max(4, l.h - 6); g += '<rect class="' + cls + ' vz-span" data-i="' + i + '" x="' + VZ.r1(x) + '" y="' + VZ.r1(l.cy - hh / 2) + '" width="' + VZ.r1(x2 - x) + '" height="' + hh + '" rx="3" style="--c:' + c + '"/>' + (e.label && x2 - x > VZ.tw(e.label, 10.5) + 8 ? VZ.txt(x + 4, l.cy + 3.5, e.label, { class: 'vz-span-lbl' }) : ''); }
-      else if (kind === 'dot') g += '<circle class="' + cls + ' vz-pt" data-i="' + i + '" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(l.cy) + '" r="' + (e.r || 5) + '" style="--c:' + c + '"/>';
-      else if (kind === 'ring') g += '<circle class="' + cls + ' vz-ring-ev" data-i="' + i + '" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(l.cy) + '" r="' + (e.r || 5) + '" style="--c:' + c + '"/>';
-      else { const hh = e.err ? l.h : l.h - 4; g += '<rect class="' + cls + ' vz-tickev" data-i="' + i + '" x="' + VZ.r1(x - (e.err ? 1.5 : 1)) + '" y="' + VZ.r1(l.cy - hh / 2) + '" width="' + (e.err ? 3 : 2) + '" height="' + hh + '" rx="1" style="--c:' + c + '"/>'; }
+      const i = items.length; items.push({ tip: () => evTip(e, l), at: () => [x, l.cy], datum: () => e, t: e.t }); const dt = ' data-i="' + i + '" data-t="' + e.t + '"';
+      if (kind === 'span') { const x2 = F.steps ? Math.min(F.x1, x + Math.max(4, F.stepPx)) : Math.max(x + 4, F.px(e.t2)); const hh = Math.max(4, l.h - 6); g += '<rect class="' + cls + ' vz-span"' + dt + ' x="' + VZ.r1(x) + '" y="' + VZ.r1(l.cy - hh / 2) + '" width="' + VZ.r1(x2 - x) + '" height="' + hh + '" rx="3" style="--c:' + c + '"/>' + (e.label && x2 - x > VZ.tw(e.label, 10.5) + 8 ? VZ.txt(x + 4, l.cy + 3.5, e.label, { class: 'vz-span-lbl' }) : ''); }
+      else if (kind === 'dot') g += '<circle class="' + cls + ' vz-pt"' + dt + ' cx="' + VZ.r1(x) + '" cy="' + VZ.r1(l.cy) + '" r="' + (e.r || 5) + '" style="--c:' + c + '"/>';
+      else if (kind === 'ring') g += '<circle class="' + cls + ' vz-ring-ev"' + dt + ' cx="' + VZ.r1(x) + '" cy="' + VZ.r1(l.cy) + '" r="' + (e.r || 5) + '" style="--c:' + c + '"/>';
+      else { const hh = e.err ? l.h : l.h - 4; g += '<rect class="' + cls + ' vz-tickev"' + dt + ' x="' + VZ.r1(x - (e.err ? 1.5 : 1)) + '" y="' + VZ.r1(l.cy - hh / 2) + '" width="' + (e.err ? 3 : 2) + '" height="' + hh + '" rx="1" style="--c:' + c + '"/>'; }
       if (kind !== 'span') g += '<rect class="vz-hit" data-i="' + i + '" x="' + VZ.r1(x - 6) + '" y="' + l.y0 + '" width="12" height="' + l.h + '"/>';
     });
     // 密度泳道（lane.mode === 'density'，评审 A3-V02）：事件按 spec.bucket px（默认 4）聚合，高度按对数，失败份额叠在顶部
@@ -1144,25 +1235,27 @@ VZ.types.timeline = {
       bs.forEach((b) => {
         const x = F.x0 + b.k * bpx; const hh = VZ.r1(Math.max(2, 2 + Math.log2(b.n + 1) / Math.log2(maxN + 1) * (l.h - 4))); const y = VZ.r1(l.y1 - 1 - hh); const eh = b.err ? VZ.r1(Math.max(2, Math.min(hh, hh * b.err / b.n))) : 0;
         const fut = ph != null && b.t0 > ph; const i = items.length; const names = b.evs.map((e) => e.label || '').filter(Boolean);
-        items.push({ tip: () => VZ.tipHead(ft(b.t0) + (b.t1 > b.t0 ? ' – ' + ft(b.t1) : ''), l.label || '') + VZ.tipRow(c, l.unit || '次', String(b.n), { kind: 'rect' }) + (b.err ? VZ.tipRow(VZ.sem.err, '失败', String(b.err), { kind: 'rect' }) : '') + (names.length ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(names.slice(0, 4).join(' · ') + (names.length > 4 ? ' · +' + (names.length - 4) : '')) + '</span></div>' : ''), at: () => [x + bpx / 2, y], datum: () => ({ bucket: true, lane: l.id, t0: b.t0, t1: b.t1, n: b.n, err: b.err, events: b.evs }) });
-        g += '<rect class="vz-dens' + (fut ? ' vz-future' : '') + '" data-i="' + i + '" x="' + VZ.r1(x) + '" y="' + y + '" width="' + Math.max(1, bpx - 1) + '" height="' + hh + '" style="--c:' + c + '"/>' + (eh ? '<rect class="vz-dens-err' + (fut ? ' vz-future' : '') + '" x="' + VZ.r1(x) + '" y="' + y + '" width="' + Math.max(1, bpx - 1) + '" height="' + eh + '"/>' : '') + '<rect class="vz-hit" data-i="' + i + '" x="' + VZ.r1(x) + '" y="' + l.y0 + '" width="' + bpx + '" height="' + l.h + '"/>';
+        items.push({ tip: () => VZ.tipHead(ft(b.t0) + (b.t1 > b.t0 ? ' – ' + ft(b.t1) : ''), l.label || '') + VZ.tipRow(c, l.unit || '次', String(b.n), { kind: 'rect' }) + (b.err ? VZ.tipRow(VZ.sem.err, '失败', String(b.err), { kind: 'rect' }) : '') + (names.length ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(names.slice(0, 4).join(' · ') + (names.length > 4 ? ' · +' + (names.length - 4) : '')) + '</span></div>' : ''), at: () => [x + bpx / 2, y], datum: () => ({ bucket: true, lane: l.id, t0: b.t0, t1: b.t1, n: b.n, err: b.err, events: b.evs }), t: b.t0 });
+        g += '<rect class="vz-dens vz-ev' + (fut ? ' vz-future' : '') + '" data-i="' + i + '" data-t="' + b.t0 + '" x="' + VZ.r1(x) + '" y="' + y + '" width="' + Math.max(1, bpx - 1) + '" height="' + hh + '" style="--c:' + c + '"/>' + (eh ? '<rect class="vz-dens-err vz-ev' + (fut ? ' vz-future' : '') + '" data-t="' + b.t0 + '" x="' + VZ.r1(x) + '" y="' + y + '" width="' + Math.max(1, bpx - 1) + '" height="' + eh + '"/>' : '') + '<rect class="vz-hit" data-i="' + i + '" x="' + VZ.r1(x) + '" y="' + l.y0 + '" width="' + bpx + '" height="' + l.h + '"/>';
       });
     });
     // 关键时刻：编号徽章 + 贯穿全高的虚线；相距 < 20px 的徽章合并成「2–3」簇（评审 A3-V08）；异常用纠偏色实心 + 白字
     const mks = (spec.markers || []).map((m, k) => ({ m, k })).filter((p) => VZ.num(p.m.t) != null && inR(p.m.t)).map((p) => Object.assign(p, { x: Math.max(F.x0 + 9, Math.min(F.x1 - 9, F.px(p.m.t))) })).sort((a, b) => a.x - b.x); const groups = [];
     mks.forEach((p) => { const gp = groups[groups.length - 1]; if (gp && p.x - gp.x1 < 20) { gp.list.push(p); gp.x1 = p.x; } else groups.push({ list: [p], x0: p.x, x1: p.x }); });
     groups.forEach((gp) => {
-      const x = (gp.x0 + gp.x1) / 2; const alert = gp.list.some((p) => p.m.alert); const num = (p) => String(p.m.n != null ? p.m.n : p.k + 1); const one = gp.list.length === 1; const label = one ? num(gp.list[0]) : num(gp.list[0]) + '–' + num(gp.list[gp.list.length - 1]); const pw = one ? 16 : Math.ceil(VZ.tw(label, 10) + 10);
+      const x = (gp.x0 + gp.x1) / 2; const alert = gp.list.some((p) => p.m.alert); const num = (p) => String(p.m.n != null ? p.m.n : p.k + 1); const one = gp.list.length === 1; const label = one ? num(gp.list[0]) : num(gp.list[0]) + '–' + num(gp.list[gp.list.length - 1]); const pw = one ? 16 : Math.ceil(VZ.twm(label, 10) + 10);
       const i = items.length; const first = gp.list[0].m, last = gp.list[gp.list.length - 1].m;
       items.push({ tip: () => VZ.tipHead(one ? ft(first.t) : ft(first.t) + ' – ' + ft(last.t), '关键时刻 ' + label) + gp.list.map((p) => VZ.tipRow(p.m.alert ? VZ.sem.corr : 'var(--ink-1)', one ? (p.m.alert ? '异常' : '') : '#' + num(p) + (p.m.alert ? ' · 异常' : ''), p.m.label || '', { kind: 'rect' })).join(''), at: () => [x, F.mkY], datum: () => ({ marker: true, t: first.t, markers: gp.list.map((p) => p.m) }) });
       g += '<g class="vz-marker' + (alert ? ' alert' : '') + '" data-i="' + i + '" data-mk="' + gp.list.map((p) => p.k).join(',') + '"><line x1="' + VZ.r1(x) + '" x2="' + VZ.r1(x) + '" y1="' + (F.mkY + 8) + '" y2="' + F.yB + '"/><rect x="' + VZ.r1(x - pw / 2) + '" y="' + (F.mkY - 8) + '" width="' + pw + '" height="16" rx="8"/>' + VZ.txt(x, F.mkY + 3.5, label, { 'text-anchor': 'middle' }) + '</g>';
     });
-    if (ph != null) { const x = VZ.r1(F.px(ph)); g += '<g class="vz-playhead"><line x1="' + x + '" x2="' + x + '" y1="' + (F.yT - 2) + '" y2="' + (F.yB + 6) + '"/><path d="M' + x + ' ' + (F.yB + 10) + 'l-5 5 5 5 5-5z"/></g>'; }
+    // 播放头：整组用 transform 定位，VZ.playhead() 逐帧只改 transform，不重绘；手柄在底部轴上，可拖动（吸附到 5px 内最近的事件）
+    if (ph != null) { const x = VZ.r1(F.px(ph)); g += '<g class="vz-playhead" transform="translate(' + x + ' 0)"><rect class="vz-ph-hit" x="-6" y="' + (F.yT - 2) + '" width="12" height="' + VZ.r1(F.yB - F.yT + 22) + '"/><line x1="0" x2="0" y1="' + (F.yT - 2) + '" y2="' + (F.yB + 6) + '"/><path d="M0 ' + (F.yB + 10) + 'l-5 5 5 5 5-5z"/></g>'; }
     // 运行中会话：now 竖线 + 脉冲点（评审 A3-V21）
     if (spec.now != null) { const x = VZ.r1(F.px(spec.now)); const y = F.yT - 3; g += '<g class="vz-now"><line x1="' + x + '" x2="' + x + '" y1="' + y + '" y2="' + (F.yB + 2) + '"/><circle class="ring" cx="' + x + '" cy="' + y + '" r="3"/><circle class="core" cx="' + x + '" cy="' + y + '" r="3"/></g>'; }
-    if (spec.axis !== false) { const ticks = VZ.timeTicks(F.range[0], F.range[1], F.pw, { unit: spec.unit || 'ms', start: spec.start }); g += VZ.axisX(F, ticks.map((t) => ({ x: F.sx(t.t), label: t.label, major: t.major })), { dy: 16, tick: true }); }
+    if (spec.axis !== false) { const ticks = F.steps ? VZ.types.timeline.stepTicks(F) : VZ.timeTicks(F.range[0], F.range[1], F.pw, { unit: spec.unit || 'ms', start: spec.start }).map((t) => ({ x: F.sx(t.t), label: t.label, major: t.major })); g += VZ.axisX(F, ticks, { dy: 16, tick: true, label: F.steps ? '步' : null }); }
     g += '<line class="vz-xline" x1="0" x2="0" y1="' + F.yT + '" y2="' + F.yB + '" hidden/>';
-    return { body: g, model: { kind: 'mark', n: items.length, F, xs: [], has: () => true, tip: (i) => items[i].tip(), at: (i) => items[i].at(), datum: (i) => items[i].datum(), brushRange: (a, c) => [F.sx.inv(a), F.sx.inv(c)], ft, items } };
+    const evTs = ev.map((e) => e.t).filter((t) => VZ.num(t) != null).sort((a, b) => a - b);
+    return { body: g, model: { kind: 'mark', n: items.length, F, xs: [], has: () => true, tip: (i) => items[i].tip(), at: (i) => items[i].at(), datum: (i) => items[i].datum(), brushRange: (a, c) => [F.inv(a), F.inv(c)], ft, items, evTs } };
   },
   table: (spec) => { const L = VZ.lanes(spec.lanes || []); const ft = VZ.tfmt(spec, VZ.types.timeline.frame(spec, 600, 100)); return { cols: ['时间', '泳道', '事件', '结果'], rows: (spec.events || []).map((e) => [ft(e.t) + (e.t2 != null ? ' – ' + ft(e.t2) : ''), (VZ.laneOf(L, e.lane) || {}).label || e.lane, e.label || '', e.err ? '失败' + (e.detail ? ' · ' + e.detail : '') : (e.detail || '')]) }; }
 };

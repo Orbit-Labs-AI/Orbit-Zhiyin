@@ -6,23 +6,25 @@
 .vz{position:relative;min-width:0;--vz-accent:var(--accent,#0a84ff)}
 .vz-plot{position:relative;outline:none;border-radius:8px;touch-action:pan-y}
 .vz-plot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+/* Type: ticks and numbers are monospace (same as the live demo's .chart text and .eb eyebrows); names, notes and axis titles stay in the UI sans. */
 .vz svg.vz-svg{display:block;max-width:100%;overflow:visible;font:11px var(--sans)}
 .vz-svg text{font-size:11px;font-family:var(--sans);fill:var(--ink-3);font-variant-numeric:tabular-nums;user-select:none}
-.vz-svg .vz-ax{font-size:11px;fill:var(--ink-3)}
+.vz-svg .vz-ax{font-size:11px;font-family:var(--mono);fill:var(--ink-3)}
 .vz-svg .vz-major{fill:var(--ink-2);font-weight:500}
 .vz-svg .vz-axl{font-size:11px;fill:var(--ink-3)}
 .vz-svg .vz-cat{font-size:12px;fill:var(--ink-2)}
 .vz-svg .vz-strong{fill:var(--ink-1);font-weight:600}
-.vz-svg .vz-val{font-size:11px;fill:var(--ink-1);font-weight:600}
+.vz-svg .vz-val{font-size:11px;font-family:var(--mono);fill:var(--ink-1);font-weight:600}
 .vz-svg .vz-val.vz-good{fill:var(--good)}
 .vz-svg .vz-val.vz-bad{fill:var(--crit)}
 .vz-svg .vz-note{font-size:11px;fill:var(--ink-2)}
 .vz-svg .vz-end{font-size:11px;fill:var(--ink-1);font-weight:500}
-.vz-svg .vz-lbl,.vz-svg .vz-nlbl,.vz-svg .vz-span-lbl{font-size:11px;fill:var(--ink-2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.vz-svg .vz-lbl,.vz-svg .vz-nlbl,.vz-svg .vz-span-lbl,.vz-svg .vz-callout{font-size:11px;fill:var(--ink-2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.vz-svg .vz-callout{fill:var(--ink-1)}
 .vz-svg .vz-nlbl{fill:var(--ink-1)}
 .vz-svg .vz-span-lbl{font-size:10.5px;fill:var(--ink-1)}
-.vz-svg .vz-inbar{font-size:10.5px;font-weight:600;fill:#fff}
-.vz-svg .vz-cv{font-size:10.5px;font-weight:600;fill:var(--ink-1)}
+.vz-svg .vz-inbar{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:#fff}
+.vz-svg .vz-cv{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
 .vz-svg .vz-cv.on{fill:var(--bg)}
 .vz-svg .vz-ct-svg{font-size:12px;font-weight:600;fill:var(--ink-1)}
 .vz-grid{stroke:var(--hair);stroke-width:1;fill:none}
@@ -47,6 +49,20 @@
 .vz-lo{opacity:.3}
 .vz-hatch{pointer-events:none}
 .vz-hatch-ln{stroke:var(--surface);stroke-width:2}
+/* Entrance (first draw only, class vz-in set by VZ.draw): lines draw in, bars rise / grow, marks pop, fills fade. All <= 220ms; disabled under reduced motion below. */
+.vz-svg.vz-in .vz-line:not(.dash){animation:vz-draw .22s ease-out both}
+.vz-svg.vz-in .vz-bar,.vz-svg.vz-in .vz-hatch,.vz-svg.vz-in .vz-dens,.vz-svg.vz-in .vz-dens-err{transform-box:fill-box;transform-origin:50% 100%;animation:vz-rise .2s cubic-bezier(.05,.7,.1,1) both}
+.vz-svg.vz-in .vz-gx{transform-origin:0 50%;animation-name:vz-grow}
+.vz-svg.vz-in .vz-gxr{transform-origin:100% 50%;animation-name:vz-grow}
+.vz-svg.vz-in .vz-dot,.vz-svg.vz-in .vz-pt,.vz-svg.vz-in .vz-swarm{transform-box:fill-box;transform-origin:center;animation:vz-pop .2s ease-out both}
+.vz-svg.vz-in .vz-area,.vz-svg.vz-in .vz-cband,.vz-svg.vz-in .vz-cell,.vz-svg.vz-in .vz-ribbon,.vz-svg.vz-in .vz-box,.vz-svg.vz-in .vz-span,.vz-svg.vz-in .vz-tickev{animation:vz-fade .22s ease-out both}
+@keyframes vz-draw{from{stroke-dasharray:1 1;stroke-dashoffset:1}to{stroke-dasharray:1 1;stroke-dashoffset:0}}
+@keyframes vz-rise{from{transform:scaleY(0)}}
+@keyframes vz-grow{from{transform:scaleX(0)}}
+@keyframes vz-pop{from{transform:scale(0)}}
+@keyframes vz-fade{from{opacity:0}}
+.vz-head{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.vz-head .hd{margin-bottom:0}
 .vz-svg .vz-sel{stroke:var(--ink-1);stroke-width:2}
 .vz-dot.vz-sel{stroke:var(--ink-1);stroke-width:2.5}
 .vz-xline{stroke:var(--ink-2);stroke-width:1;opacity:.7;pointer-events:none}
@@ -56,6 +72,8 @@
 .vz-callout-dot{--c:var(--ink-1)}
 .vz-ghost{stroke:var(--ink-4);stroke-width:2;stroke-linecap:round}
 .vz-fit{stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round}
+.vz-fit.weak{stroke-dasharray:4 3}
+.vz-rleg{display:inline-block;border-radius:50%;background:var(--vz-accent);opacity:.6;vertical-align:middle;margin:0 2px 0 4px}
 .vz-dot{fill:var(--c);stroke:var(--surface);stroke-width:2}
 .vz-bubble{fill-opacity:.85}
 .vz-flag{fill:var(--vz-err)}
@@ -142,7 +160,8 @@
 .vz-kpi-v{align-items:baseline;gap:3px}
 .vz-kpi .v{font-size:26px;line-height:30px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:normal}
 .vz-kpi-u{font-size:13px;color:var(--ink-3)}
-.vz-kpi-d{font-size:11.5px;font-weight:600;white-space:nowrap;color:var(--ink-2)}
+.vz-kpi .v{font-variant-numeric:tabular-nums}
+.vz-kpi-d{font:600 11px/16px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
 .vz-kpi-d.vz-good{color:var(--good)}
 .vz-kpi-d.vz-bad{color:var(--crit)}
 .vz-tbl{margin-top:2px;max-height:360px;overflow:auto}
@@ -150,5 +169,9 @@
 .vz-kpi-p{font-size:11px;color:var(--ink-4);margin-left:4px;white-space:nowrap}
 .vz-spark{display:block;overflow:visible;flex:none}
 .vz-tv-toggle{margin-left:auto}
+.vz-ev{transition:opacity .15s}
+.vz-playing .vz-future{opacity:0}
+.vz-playhead{cursor:ew-resize}
+.vz-ph-hit{fill:transparent}
 @media (prefers-reduced-motion:reduce){.vz *{transition:none!important;animation:none!important}}
 @media (forced-colors:active){.vz-line{stroke:CanvasText}.vz-bar,.vz-cell{fill:CanvasText}}
