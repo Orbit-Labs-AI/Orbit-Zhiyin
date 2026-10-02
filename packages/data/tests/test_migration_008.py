@@ -20,10 +20,18 @@ V8_INDEXES = (
     "source_file_unprojected",
     "source_file_projection_versions",
 )
-FK_INDEXES = re.findall(
-    r"CREATE INDEX IF NOT EXISTS (fk_\w+)",
-    files("tandem_data").joinpath("migrations/008.sql").read_text(),
-)
+V10 = files("tandem_data").joinpath("migrations/010.sql").read_text()
+# 010 replaces redundant FK indexes (prefixes of v8 list indexes, a sparse column's full index).
+V10_DROPPED = set(re.findall(r"DROP INDEX IF EXISTS (fk_\w+)", V10))
+V10_INDEXES = set(re.findall(r"CREATE INDEX IF NOT EXISTS (fk_\w+)", V10))
+FK_INDEXES = [
+    name
+    for name in re.findall(
+        r"CREATE INDEX IF NOT EXISTS (fk_\w+)",
+        files("tandem_data").joinpath("migrations/008.sql").read_text(),
+    )
+    if name not in V10_DROPPED
+]
 LEGACY_FTS = """
 DROP TRIGGER event_text_blob_ai; DROP TRIGGER event_text_blob_ad; DROP TRIGGER event_text_blob_au;
 DROP TRIGGER event_blob_ai; DROP TRIGGER event_blob_ad; DROP TRIGGER event_blob_au;
@@ -114,6 +122,7 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
         )
         names = {r[0] for r in db.execute("SELECT name FROM sqlite_master")}
         assert set(V8_INDEXES) | set(FK_INDEXES) | {"content_blob", "event_search"} <= names
+        assert V10_INDEXES <= names and not V10_DROPPED & names
         assert not {n for n in names if n.startswith("event_fts")}
         assert (
             db.execute("SELECT COUNT(*) FROM event_search").fetchone()[0]

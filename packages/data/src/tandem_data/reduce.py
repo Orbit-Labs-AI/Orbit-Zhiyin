@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from tandem_data.contract import TOKENS, canonical, uid
-from tandem_data.store import insert
+from tandem_data.store import insert, insert_rows
 
 
 def normalize_remote(remote: str | None) -> str | None:
@@ -324,6 +324,8 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
     pending_approvals = {}
     features = Counter()
     snapshots = {}
+    # Per-event rows are written with one executemany per session (same rows and order).
+    contexts, turn_updates = [], []
     for event in events:
         attrs, kind = event["attrs"], event["kind"]
         for field in context:
@@ -335,11 +337,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 store, cwd, meta.get("git_remote"), recorded_root, cache=shared_projects
             )
         project_id = project_cache[cwd]
-        insert(
-            store.db,
-            "event_context",
-            {"event_uid": event["event_uid"], "project_id": project_id, **context},
-        )
+        contexts.append({"event_uid": event["event_uid"], "project_id": project_id, **context})
         native_turn = attrs.get("native_turn_id")
         new_trigger = kind == "message.user" and attrs.get("origin") in (
             "human",
@@ -384,9 +382,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 turn["trigger_event_uid"], turn["trigger"] = event["event_uid"], attrs["origin"]
             if kind == "turn.end":
                 turn["status"], turn["ended_at"] = attrs.get("status", "unknown"), event["ts"]
-            store.db.execute(
-                "UPDATE event SET turn_uid=? WHERE event_uid=?", (current_turn, event["event_uid"])
-            )
+            turn_updates.append((current_turn, event["event_uid"]))
         if kind == "tool.call":
             call_uid = uid("tool_call", event["event_uid"])
             values = {
@@ -570,6 +566,9 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                     "ts": event["ts"],
                 },
             )
+    insert_rows(store.db, "event_context", contexts)
+    if turn_updates:
+        store.db.executemany("UPDATE event SET turn_uid=? WHERE event_uid=?", turn_updates)
     for values, call in tools.values():
         insert(store.db, "tool_call", values)
         for role, field in (("call", "call_event_uid"), ("result", "result_event_uid")):

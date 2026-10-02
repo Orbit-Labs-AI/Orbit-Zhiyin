@@ -12,7 +12,8 @@ import pytest
 from tandem_data import payload
 from tandem_data.query import event_page, trajectory_page
 from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store, insert_rows
+from tandem_data.store import PAGE_SIZE, SMALL_PAGE_SIZE, Store, insert_rows, readonly_connection
+from tandem_data.validation.integrity import logical_digest
 
 BIG = 48_000
 
@@ -293,15 +294,32 @@ def test_event_search_indexes_only_messages_and_titles(tmp_path, corpus):
 
 
 def test_compaction_keeps_logical_contents(tmp_path, corpus):
-    from tandem_data.validation.integrity import logical_digest
-
     source, _ = corpus
     home = tmp_path / "home"
     import_home(home, source).db.close()
     before, digest = dump(home), logical_digest(home)
     with Store(home) as store:
-        assert not store.compact()  # Small stores are never rewritten implicitly.
+        assert store.db.execute("PRAGMA page_size").fetchone()[0] == PAGE_SIZE
+        # A small store moves to small pages once (no other connection is open), then stays.
+        assert store.compact()
+        assert store.db.execute("PRAGMA page_size").fetchone()[0] == SMALL_PAGE_SIZE
+        assert store.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert not store.compact()
         assert store.compact(force=True)
         assert store.verify()["integrity"] == "ok"
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
     assert dump(home) == before
+    assert logical_digest(home) == digest
+
+
+def test_compaction_keeps_page_size_while_a_reader_is_open(tmp_path, corpus):
+    source, _ = corpus
+    home = tmp_path / "home"
+    import_home(home, source).db.close()
+    digest = logical_digest(home)
+    with Store(home) as store, readonly_connection(home / "tandem.db") as reader:
+        reader.execute("SELECT COUNT(*) FROM event").fetchone()
+        assert store.compact()  # Falls back to a plain VACUUM; WAL mode is kept.
+        assert store.db.execute("PRAGMA page_size").fetchone()[0] == PAGE_SIZE
+        assert store.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     assert logical_digest(home) == digest

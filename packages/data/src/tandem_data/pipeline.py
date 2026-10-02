@@ -260,6 +260,17 @@ def rebuild(
             f"note=CASE WHEN {current} THEN '{{}}' ELSE ? END WHERE file_id IN ({source_files})",
             (canonical({"reason": "superseded source row version"}),),
         )
+        deferred = None
+        if scope is None:
+            from tandem_data.bulkload import DeferredIndexes
+
+            # Bulk-load mode (e.g. first import): sorted index builds after the writes.
+            deferred = DeferredIndexes.start(
+                store.db,
+                incoming=store.db.execute(
+                    f"SELECT COUNT(*) FROM raw_record WHERE file_id IN ({source_files})"
+                ).fetchone()[0],
+            )
         infos = list(
             store.db.execute(
                 "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id) "
@@ -600,6 +611,10 @@ def rebuild(
                         "UPDATE raw_record SET session_uid=? WHERE file_id=?",
                         (session_uid, info["file_id"]),
                     )
+        if deferred is not None:
+            from tandem_data.bulkload import AFTER_MAP
+
+            deferred.restore(AFTER_MAP)
         retained.finish(store, infos)
         for record, result in pending:
             resolved = [
@@ -655,6 +670,8 @@ def rebuild(
             progress=progress,
             sessions=None if scope is None else scope.sessions_sql,
         )
+        if deferred is not None:
+            deferred.restore()  # Before validation and publication.
         exclude_tandem_ai_sessions(store)
         for info in infos:
             if info["file_id"] in changed:
