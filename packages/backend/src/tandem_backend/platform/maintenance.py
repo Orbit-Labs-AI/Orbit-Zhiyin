@@ -208,6 +208,8 @@ class Maintenance:
                   "exports": prune_exports(p.home)}
         detail["notifications"] = p.notifier.prune()
         detail["log_files"] = _prune_logs(p.home / "logs")
+        detail["analysis"] = _analysis_retention(p.home)
+        storage.save_report(p.appdb, storage.storage_report(p.home))  # sizes just changed
         return detail
 
     def _install_sweep(self) -> dict:
@@ -255,6 +257,23 @@ class Maintenance:
                      "title": "应用数据库完整性检查失败"})
             raise RuntimeError(f"app.db quick_check: {result}")
         return {"app_db": result}
+
+
+def _analysis_retention(home: Path) -> dict:
+    """analysis.sqlite: drop old run snapshots and stale cache entries, then VACUUM when
+    mostly free pages (each full run snapshot used to stay forever, ~100 MB apiece)."""
+    path = home / "analysis.sqlite"
+    if not path.is_file():
+        return {"skipped": True}
+    from tandem_data.analysis_history import AnalysisHistory
+
+    from ..analytics.cache import algo_version
+
+    history = AnalysisHistory(path)
+    stats = history.prune(algo_version=algo_version())
+    stats["vacuumed"] = history.vacuum_if_sparse()
+    stats["file_bytes"] = history.file_bytes()
+    return stats
 
 
 def _prune_logs(directory: Path) -> int:

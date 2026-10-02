@@ -229,6 +229,10 @@ def clear_memory_cache() -> None:
         _lru.clear()
 
 
+# Sections larger than this are not copied into the run snapshot (see ``_compute``).
+RUN_SNAPSHOT_SECTION_BYTES = 8 * 1024 * 1024
+
+
 class AnalysisCache:
     """Serve analysis sections for one canonical store through the cache layers."""
 
@@ -287,30 +291,56 @@ class AnalysisCache:
         with_text: bool,
         engine: str,
     ) -> tuple[dict[str, Any], dict]:
-        from .service import META, AnalysisSections, compose
+        from .service import META, SECTIONS, AnalysisSections, compose
 
         algo = algo_version()
         request = {"scope": asdict(scope), "with_text": with_text, "sections": names}
         run_id = self.history.start(engine, request, request_key=key, input_fp=input_fp)
         try:
-            bundle = self.store.analysis_bundle(scope)
+            bundle = self.store.analysis_bundle(scope, external_text=False)
             context = AnalysisContext.select(bundle, scope)
             rows = SessionRowStore(self.history, fps, algo)
             builder = AnalysisSections(context, with_text, row_cache=rows)
             computed = {name: builder.section(name) for name in names}
+            requested = list(computed)
+            # Sections computed as dependencies (a full pass for bottleneck_recommendations
+            # computes every section) come from the same input: store them too.
+            for memo_key, value in list(builder._memo.items()):
+                extra = memo_key.removeprefix("section:")
+                if memo_key.startswith("section:") and extra in SECTIONS and extra not in computed:
+                    computed[extra] = value
             computed_at = int(time.time() * 1000)
+            # content_digest lets a with_text=False read reuse these text-free sections.
+            content = getattr(builder, "content_digest", None)
             stored = {
-                name: ({"meta": value, "computed_at": computed_at} if name == META else value)
+                name: (
+                    {"meta": value, "computed_at": computed_at, "content_digest": content}
+                    if name == META
+                    else value
+                )
                 for name, value in computed.items()
             }
             row_items = None
             if SESSIONS in stored:
                 row_items = {SESSIONS: [(r["session_uid"], r) for r in stored[SESSIONS]]}
                 stored[SESSIONS] = {"rows": len(stored[SESSIONS])}
-            self.history.put_sections(key, input_fp, stored, row_items)
+            sizes = self.history.put_sections(key, input_fp, stored, row_items) or {}
             # The run snapshot has the public result shape (shared metadata at the top level),
             # like runs recorded by the uncached engine.
-            sections = {name: value for name, value in computed.items() if name != META}
+            # A run snapshot repeats its sections; large ones (sessions rows of a real home
+            # are hundreds of MB) only point at the section cache, which already holds them.
+            sections = {
+                name: computed[name]
+                if sizes.get(name, 0) <= RUN_SNAPSHOT_SECTION_BYTES
+                else {
+                    "stored_in": "analysis_section",
+                    "request_key": key,
+                    "input_fp": input_fp,
+                    "json_bytes": sizes[name],
+                }
+                for name in requested
+                if name != META
+            }
             self.history.complete(run_id, compose(computed[META], sections))
         except BaseException as error:
             try:
@@ -318,12 +348,28 @@ class AnalysisCache:
             except Exception as storage_error:
                 error.add_note(f"Recording the failure also failed: {type(storage_error).__name__}")
             raise
-        self.history.prune(algo_version=algo)
+        self.history.prune(algo_version=algo, protect=[(key, input_fp)])
         for name, value in stored.items():
             if name != SESSIONS:
                 _lru_put((self.home, key, input_fp, name), value)
         stats = {"computed": builder.rows_computed, "reused": builder.rows_reused}
         return computed, {"computed_at": computed_at, "rows": stats, "run_id": run_id}
+
+    def _text_variant(self, scope, input_fp: str, missing: list[str]) -> dict[str, Any] | None:
+        """Text-free sections of the scope's ``with_text=True`` result, with its metadata
+        restated for ``with_text=False`` (only the digest differs); None unless all present.
+        A full pass (``uiview_facts``) thus serves both variants without storing twice."""
+        from .service import META, TEXT_FREE_SECTIONS, text_variant_meta
+
+        names = [name for name in missing if name != META]
+        if not set(names) <= set(TEXT_FREE_SECTIONS):
+            return None
+        found = self._read(request_key(scope, True), input_fp, [META, *names])
+        stored_meta = found.get(META) or {}
+        if any(name not in found for name in names) or not stored_meta.get("content_digest"):
+            return None
+        meta = text_variant_meta(stored_meta["meta"], stored_meta["content_digest"], False)
+        return {**found, META: {**stored_meta, "meta": meta}}
 
     def sections(
         self, scope: Scope, names: list[str], with_text: bool = False, *, engine: str = "features"
@@ -344,6 +390,11 @@ class AnalysisCache:
             "request_key": key,
             "cache_hit": not missing,
         }
+        variant = None if with_text or not missing else self._text_variant(scope, input_fp, missing)
+        if variant is not None:
+            found.update(variant)  # metadata too: sections and metadata from one computation
+            missing = []
+            freshness["cache_hit"] = True
         if missing:
             if META not in missing:
                 missing.insert(0, META)  # keep metadata and sections from the same computation

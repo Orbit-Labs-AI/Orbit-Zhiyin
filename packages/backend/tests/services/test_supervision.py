@@ -6,7 +6,7 @@ import os
 import signal
 
 import pytest
-from conftest import add_codex, bus_events, fast_config, run_job, wait_for, wait_job
+from conftest import ALL_TIME, add_codex, bus_events, fast_config, run_job, wait_for, wait_job
 
 from tandem_backend.services.worker_protocol import DEBUG_DELAY_ENV
 
@@ -27,7 +27,7 @@ def test_killed_analysis_worker_requeues_once_and_reads_continue(client_factory,
     client, gateway = client_factory(config=fast_config(worker_env={DEBUG_DELAY_ENV: "1500"}))
     source = add_codex(client, codex_root)
     _import_head(client, source)
-    response = client.get("/v1/analytics/overview")
+    response = client.get("/v1/analytics/overview", params=ALL_TIME)
     assert response.status_code == 202
     analysis = gateway.supervisor.analysis
     pid = wait_for(lambda: analysis.running and analysis.worker.pid, 30, message="dispatch")
@@ -36,7 +36,7 @@ def test_killed_analysis_worker_requeues_once_and_reads_continue(client_factory,
     assert client.get("/v1/sessions").status_code == 200
     assert client.get("/v1/status").status_code == 200
     wait_for(lambda: bus_events(gateway, "analysis.ready"), 60, message="requeued result")
-    assert client.get("/v1/analytics/overview").json()["meta"]["freshness"] == "fresh"
+    assert client.get("/v1/analytics/overview", params=ALL_TIME).json()["meta"]["freshness"] == "fresh"
     assert list(analysis.dispatched.values()) == [2]  # original + one rerun
     services = _services(client)["analysis"]
     assert services["restarts"] == 1 and services["state"] == "ok"
@@ -71,16 +71,18 @@ def test_timeout_keeps_old_snapshot_and_opens_circuit(client_factory, codex_root
     client, gateway = client_factory(config=config)
     source = add_codex(client, codex_root)
     _import_head(client, source)
-    assert client.get("/v1/analytics/overview").status_code == 202
+    assert client.get("/v1/analytics/overview", params=ALL_TIME).status_code == 202
     wait_for(lambda: bus_events(gateway, "analysis.ready"), 60, message="first snapshot")
-    old = client.get("/v1/analytics/overview").json()
+    old = client.get("/v1/analytics/overview", params=ALL_TIME).json()
     window = run_job(client, "import", [source], phase="window")
     assert wait_job(client, window["id"])["status"] == "completed"
 
-    config.light_timeout_s = 0.3  # Shorter than the worker's fixed 0.6 s start-up delay.
+    # Shorter than the worker's fixed 0.6 s start-up delay even after two budget doublings
+    # (0.1 → 0.2 → 0.4 s).
+    config.light_timeout_s = 0.1
     analysis = gateway.supervisor.analysis
     for attempt in range(1, 4):
-        stale = client.get("/v1/analytics/overview")
+        stale = client.get("/v1/analytics/overview", params=ALL_TIME)
         assert stale.status_code == 200 and stale.json()["meta"]["freshness"] == "stale"
         assert stale.json()["overview"] == old["overview"]  # the old snapshot keeps serving
         wait_for(lambda n=attempt: len([f for f in bus_events(gateway, "analysis.failed")
@@ -88,7 +90,7 @@ def test_timeout_keeps_old_snapshot_and_opens_circuit(client_factory, codex_root
                  30, message=f"timeout {attempt}")
         wait_for(lambda: analysis.running is None, 10)
     assert sum(analysis.dispatched.values()) == 4  # 1 success + 3 timeouts
-    held = client.get("/v1/analytics/overview").json()
+    held = client.get("/v1/analytics/overview", params=ALL_TIME).json()
     assert held["meta"]["freshness"] == "stale" and held["meta"]["circuit"] == "open"
     assert sum(analysis.dispatched.values()) == 4  # circuit open: no fourth attempt
 
@@ -109,7 +111,7 @@ def test_timeout_keeps_old_snapshot_and_opens_circuit(client_factory, codex_root
     assert client.post("/v1/analytics/recompute", json={"sections": ["overview"]}
                        ).status_code == 202
     wait_for(lambda: len(bus_events(gateway, "analysis.ready")) >= 2, 60, message="recovered")
-    assert client.get("/v1/analytics/overview").json()["meta"]["freshness"] == "fresh"
+    assert client.get("/v1/analytics/overview", params=ALL_TIME).json()["meta"]["freshness"] == "fresh"
 
 
 def test_hung_worker_is_killed_and_crash_loops_degrade(client_factory, codex_root):

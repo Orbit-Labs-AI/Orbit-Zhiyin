@@ -332,8 +332,8 @@ def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
     compact = store.read_bundle(include_native=False)
     assert any(e["ext"] for e in full["events"])
     assert all(e["ext"] == {} for e in compact["events"])
-    assert [{k: v for k, v in e.items() if k != "ext"} for e in full["events"]] == [
-        {k: v for k, v in e.items() if k != "ext"} for e in compact["events"]]
+    assert [{k: v for k, v in e.items() if k not in ("ext", "native_key")} for e in full["events"]] == [
+        {k: v for k, v in e.items() if k not in ("ext", "native_key")} for e in compact["events"]]
     assert compact["coverage"]["native_event_payload"]["status"] == "excluded"
     assert all(e["ext"] == {} for e in store.analysis_bundle().events)
     assert store.evidence(full["events"][0]["event_uid"]) is not None

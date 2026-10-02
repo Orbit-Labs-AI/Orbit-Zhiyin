@@ -22,8 +22,55 @@ from typing import Any
 Record = dict[str, Any]
 SCHEMA_VERSION = 3
 KEEP_INPUTS = 3
-MAX_BYTES = 512 * 1024 * 1024
+# A real home's window (sections + session rows) is several hundred MB; 512 MB evicted the
+# result of the computation that had just stored it. Retention keeps it bounded instead.
+MAX_BYTES = 3 * 1024 * 1024 * 1024
 FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
+# Completed runs keep their full result snapshot (often 100+ MB on a real home); only the
+# newest few per request survive retention. The section cache serves reads, not runs.
+KEEP_RUNS_PER_REQUEST = 2
+KEEP_RUNS = 20
+# Waits for another writer (a concurrent analysis publishing a large result) before
+# "database is locked"; each write transaction is short, so this is generous.
+LOCK_TIMEOUT_S = 60.0
+# Optional observer ``(run_id, active)`` for every execution this process starts and
+# finishes. The analysis worker forwards it to the supervisor, which fails the runs a
+# killed worker left ``running`` (SIGKILL skips every ``except``).
+RUN_OBSERVER = None
+
+
+def _observe(run_id: str, active: bool) -> None:
+    observer = RUN_OBSERVER
+    if observer is not None:
+        try:
+            observer(run_id, active)
+        except Exception:  # noqa: BLE001  observation never breaks an analysis
+            pass
+
+
+CHUNK_DEPTH = 2  # container levels split into separate json.dumps calls by _encode
+
+
+def _json_pieces(value: Any, depth: int):
+    """Yield strings whose concatenation equals ``_json(value, sort_keys=False)``.
+
+    Only dicts with string keys and lists are split (their compact JSON is the members'
+    JSON joined by ``,`` / ``:``); everything else is one ``json.dumps``."""
+    if depth > 0 and isinstance(value, list) and value:
+        yield "["
+        for index, item in enumerate(value):
+            if index:
+                yield ","
+            yield from _json_pieces(item, depth - 1)
+        yield "]"
+    elif depth > 0 and isinstance(value, dict) and value and all(isinstance(k, str) for k in value):
+        yield "{"
+        for index, (key, item) in enumerate(value.items()):
+            yield ("," if index else "") + _json(key) + ":"
+            yield from _json_pieces(item, depth - 1)
+        yield "}"
+    else:
+        yield _json(value, sort_keys=False)
 
 
 class AnalysisIntegrityError(ValueError):
@@ -92,7 +139,7 @@ class AnalysisHistory:
 
     def _migrate(self) -> None:
         """Upgrade in place under a write lock; v1 runs and snapshots stay readable."""
-        connection = sqlite3.connect(self.path, timeout=15, isolation_level=None)
+        connection = sqlite3.connect(self.path, timeout=LOCK_TIMEOUT_S, isolation_level=None)
         try:
             connection.execute("BEGIN IMMEDIATE")
             version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -115,7 +162,7 @@ class AnalysisHistory:
     @contextmanager
     def connect(self):
         """Bound lock waits and enforce references for every short transaction."""
-        connection = sqlite3.connect(self.path, timeout=15)
+        connection = sqlite3.connect(self.path, timeout=LOCK_TIMEOUT_S)
         try:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys=ON")
@@ -141,6 +188,7 @@ class AnalysisHistory:
                 " VALUES(?,?,'running',?,?,?,?,?)",
                 (run_id, engine, _now(), _json(request), request_key, input_fp, os.getpid()),
             )
+        _observe(run_id, True)
         return run_id
 
     def cached_run(self, engine: str, request_key: str, input_fp: str) -> Record | None:
@@ -211,6 +259,8 @@ class AnalysisHistory:
         """Atomically publish the complete result and finish exactly one running execution."""
         data = _json(result, sort_keys=False).encode("utf-8")
         snapshot_id = hashlib.sha256(data).hexdigest()
+        # Compress before taking the write lock: a 150 MB result must not hold it.
+        packed = zlib.compress(data)
         now = time.time_ns() // 1_000_000
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -226,7 +276,7 @@ class AnalysisHistory:
                     result.get("analysis_digest"),
                     result.get("schema_version", result.get("feature_schema_version")),
                     len(data),
-                    zlib.compress(data),
+                    packed,
                     now,
                 ),
             )
@@ -234,6 +284,7 @@ class AnalysisHistory:
                 "UPDATE analysis_run SET status='completed',finished_at=?,snapshot_id=? WHERE run_id=?",
                 (now, snapshot_id, run_id),
             )
+        _observe(run_id, False)
         return snapshot_id
 
     def fail(self, run_id: str, error: BaseException) -> None:
@@ -245,6 +296,31 @@ class AnalysisHistory:
             ).rowcount
             if changed != 1:
                 raise ValueError("Only a running analysis can be failed")
+        _observe(run_id, False)
+
+    def fail_stale(self, *, older_than_ms: int, reason: str, now: int | None = None) -> int:
+        """Fail ``running`` executions started before ``now - older_than_ms`` (their
+        process is gone: a crash or a supervisor kill). Returns the number failed."""
+        now = _now() if now is None else now
+        with self.connect() as connection:
+            return connection.execute(
+                "UPDATE analysis_run SET status='failed',finished_at=?,error_type=?,"
+                "error_message=? WHERE status='running' AND started_at < ?",
+                (now, "WorkerTerminated", reason[:2000], now - older_than_ms),
+            ).rowcount
+
+    def fail_runs(self, run_ids, reason: str) -> int:
+        """Fail the given executions if they are still ``running``."""
+        ids = list(run_ids)
+        if not ids:
+            return 0
+        now = _now()
+        with self.connect() as connection:
+            return connection.execute(
+                "UPDATE analysis_run SET status='failed',finished_at=?,error_type=?,"
+                f"error_message=? WHERE status='running' AND run_id IN ({','.join('?' * len(ids))})",
+                (now, "WorkerTerminated", reason[:2000], *ids),
+            ).rowcount
 
     def list_runs(
         self,
@@ -337,8 +413,22 @@ class AnalysisHistory:
 
     @staticmethod
     def _encode(value: Any) -> tuple[bytes, int, str]:
-        data = _json(value, sort_keys=False).encode("utf-8")
-        return zlib.compress(data, 1), len(data), hashlib.sha256(data).hexdigest()
+        """(zlib payload, JSON bytes, sha256) of ``_json(value, sort_keys=False)``.
+
+        Large dicts and lists are encoded piece by piece into one compressor, producing
+        the same bytes as a single ``json.dumps`` without ever holding the whole document
+        (a real home's bottleneck_features section is several hundred MB of JSON, held
+        once as str and once as bytes before)."""
+        compressor, sha = zlib.compressobj(1), hashlib.sha256()
+        parts: list[bytes] = []
+        size = 0
+        for piece in _json_pieces(value, CHUNK_DEPTH):
+            data = piece.encode("utf-8")
+            size += len(data)
+            sha.update(data)
+            parts.append(compressor.compress(data))
+        parts.append(compressor.flush())
+        return b"".join(parts), size, sha.hexdigest()
 
     @staticmethod
     def _decode(payload: bytes, json_bytes: int, sha256: str, what: str) -> Any:
@@ -422,16 +512,20 @@ class AnalysisHistory:
         input_fp: str,
         values: dict[str, Any],
         rows: dict[str, list[tuple[str | None, Any]]] | None = None,
-    ) -> None:
-        """Publish sections and their paged rows atomically; readers never see half a section."""
+    ) -> dict[str, int]:
+        """Publish sections and their paged rows atomically; readers never see half a section.
+
+        Returns the JSON bytes stored per section (its rows included)."""
         rows = rows or {}
         if set(rows) - set(values):
             raise ValueError("Rows require their section in the same publish")
         now = _now()
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            sizes: dict[str, int] = {}
             for name, value in values.items():
                 payload, size, sha = self._encode(value)
+                sizes[name] = size
                 # Deleting the section cascades to its rows before the new ones are written.
                 connection.execute(
                     "DELETE FROM analysis_section WHERE request_key=? AND input_fp=? AND section=?",
@@ -445,8 +539,10 @@ class AnalysisHistory:
                 encoded = []
                 for index, (key, value) in enumerate(items):
                     payload, size, sha = self._encode(value)
+                    sizes[name] = sizes.get(name, 0) + size
                     encoded.append((request_key, input_fp, name, index, key, payload, size, sha))
                 connection.executemany("INSERT INTO analysis_row VALUES(?,?,?,?,?,?,?,?)", encoded)
+        return sizes
 
     def section_rows(
         self, request_key: str, input_fp: str, section: str, *, offset: int = 0, limit: int = 50
@@ -523,17 +619,31 @@ class AnalysisHistory:
         keep_inputs: int = KEEP_INPUTS,
         max_bytes: int = MAX_BYTES,
         failed_retention_ms: int = FAILED_RETENTION_MS,
+        keep_runs_per_request: int = KEEP_RUNS_PER_REQUEST,
+        keep_runs: int = KEEP_RUNS,
+        protect: list[tuple[str, str]] | None = None,
         now: int | None = None,
     ) -> Record:
-        """Apply the retention policy; completed runs and their snapshots are never removed.
+        """Apply the retention policy.
 
         1. each request_key keeps its ``keep_inputs`` most recently used input fingerprints;
         2. failed runs older than the retention window are deleted;
         3. session rows from other algorithm versions are deleted;
-        4. while the database exceeds ``max_bytes``, least recently hit sections are evicted.
+        4. completed runs: the newest ``keep_runs_per_request`` per (engine, request) and
+           ``keep_runs`` overall keep their snapshots; older runs and the snapshots no run
+           references any more are deleted (a full snapshot is often 100+ MB);
+        5. while the database exceeds ``max_bytes``, least recently hit sections are evicted,
+           except the ``protect``ed (request_key, input_fp) pairs (the caller's own result).
         """
         now = _now() if now is None else now
-        stats = {"stale_inputs": 0, "failed_runs": 0, "old_session_results": 0, "evicted": 0}
+        stats = {
+            "stale_inputs": 0,
+            "failed_runs": 0,
+            "old_session_results": 0,
+            "evicted": 0,
+            "old_runs": 0,
+            "snapshots": 0,
+        }
         with self.connect() as connection:
             stats["stale_inputs"] = connection.execute(
                 """DELETE FROM analysis_section WHERE (request_key, input_fp) IN (
@@ -554,11 +664,29 @@ class AnalysisHistory:
                 stats["old_session_results"] = connection.execute(
                     "DELETE FROM session_result WHERE algo_version<>?", (algo_version,)
                 ).rowcount
+            stats["old_runs"] = connection.execute(
+                """DELETE FROM analysis_run WHERE run_id IN (
+                     SELECT run_id FROM (
+                       SELECT run_id,
+                         row_number() OVER (
+                           PARTITION BY engine, COALESCE(request_key, request_json)
+                           ORDER BY started_at DESC, rowid DESC) AS per_request,
+                         row_number() OVER (ORDER BY started_at DESC, rowid DESC) AS overall
+                       FROM analysis_run WHERE status='completed')
+                     WHERE per_request > ? OR overall > ?)""",
+                (keep_runs_per_request, keep_runs),
+            ).rowcount
+            stats["snapshots"] = connection.execute(
+                "DELETE FROM analysis_snapshot WHERE snapshot_id NOT IN ("
+                " SELECT snapshot_id FROM analysis_run WHERE snapshot_id IS NOT NULL)"
+            ).rowcount
         while self.stored_bytes() > max_bytes:
             with self.connect() as connection:
                 oldest = connection.execute(
                     "SELECT request_key, input_fp, section FROM analysis_section"
-                    " ORDER BY last_hit_at, created_at LIMIT 1"
+                    " WHERE request_key || ' ' || input_fp NOT IN (SELECT value FROM json_each(?))"
+                    " ORDER BY last_hit_at, created_at LIMIT 1",
+                    (json.dumps([f"{k} {fp}" for k, fp in protect or ()]),),
                 ).fetchone()
                 if oldest is None:
                     break
@@ -568,3 +696,29 @@ class AnalysisHistory:
                 )
                 stats["evicted"] += 1
         return stats
+
+    def file_bytes(self) -> int:
+        """Bytes the database occupies on disk, WAL included."""
+        total = 0
+        for suffix in ("", "-wal", "-shm"):
+            try:
+                total += os.stat(f"{self.path}{suffix}").st_size
+            except OSError:
+                pass
+        return total
+
+    def vacuum_if_sparse(self, *, min_bytes: int = 256 * 1024 * 1024, ratio: float = 0.5) -> bool:
+        """VACUUM when more than ``ratio`` of a large file is free pages (after pruning)."""
+        with self.connect() as connection:
+            pages = connection.execute("PRAGMA page_count").fetchone()[0]
+            free = connection.execute("PRAGMA freelist_count").fetchone()[0]
+            page = connection.execute("PRAGMA page_size").fetchone()[0]
+        if pages * page < min_bytes or free <= pages * ratio:
+            return False
+        connection = sqlite3.connect(self.path, timeout=LOCK_TIMEOUT_S, isolation_level=None)
+        try:
+            connection.execute("VACUUM")
+            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            connection.close()
+        return True

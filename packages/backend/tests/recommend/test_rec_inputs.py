@@ -64,6 +64,9 @@ class FakeMemo:
     def analysis(self, store, scope, with_text, revision):
         return self.result
 
+    def sections(self, store, scope, keys, with_text, revision):
+        return self.analysis(store, scope, with_text, revision)
+
 
 def build(tmp_path, sessions=6):
     path = tmp_path / "tandem.db"

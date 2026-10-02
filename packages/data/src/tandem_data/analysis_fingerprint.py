@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -172,14 +173,46 @@ def read_fingerprints(connection) -> Fingerprints:
     return Fingerprints(run, digest(global_parts), trees)
 
 
+# Last fingerprint per database, reused while no write has touched the files. Reading
+# fingerprints scans every event row; on a real home (770k events) that is 0.7 s with a
+# warm page cache and 38 s under memory pressure, and every analysis task (cache hits
+# included) starts with it.
+_MEMO: dict[str, tuple[tuple, Fingerprints]] = {}
+
+
+def _stamp(path: Path) -> tuple:
+    """(mtime_ns, size) of the database and its WAL: every commit grows the WAL or, at a
+    checkpoint, rewrites the database. An empty WAL (a reader opening the file creates one)
+    counts as no WAL."""
+    stamp = []
+    for name in (path, path.with_name(path.name + "-wal")):
+        try:
+            info = os.stat(name)
+        except OSError:
+            stamp.append(None)
+            continue
+        empty_wal = name is not path and info.st_size == 0
+        stamp.append(None if empty_wal else (info.st_mtime_ns, info.st_size))
+    return tuple(stamp)
+
+
 def fingerprints(home: str | Path) -> Fingerprints:
-    """Open the canonical database read-only and fingerprint it in one transaction."""
-    with readonly_connection(Path(home) / "tandem.db") as connection:
+    """Open the canonical database read-only and fingerprint it in one transaction
+    (memoized until the database or its WAL changes)."""
+    path = (Path(home) / "tandem.db").resolve()
+    key, before = f"{FINGERPRINT_VERSION}:{path}", _stamp(path)
+    cached = _MEMO.get(key)
+    if cached is not None and cached[0] == before:
+        return cached[1]
+    with readonly_connection(path) as connection:
         connection.execute("BEGIN")
         try:
-            return read_fingerprints(connection)
+            result = read_fingerprints(connection)
         finally:
             connection.rollback()
+    if _stamp(path) == before:  # nothing committed while reading
+        _MEMO[key] = (before, result)
+    return result
 
 
 def known_sessions(home: str | Path, session_uids: Iterable[str]) -> set[str]:
