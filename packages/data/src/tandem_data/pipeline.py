@@ -649,17 +649,21 @@ def rebuild(
                         "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
                         (record.record_uid, event_uid, result.disposition or "folded"),
                     )
+        parent_updates = []
         for event_uid, native_key in parent_keys.items():
             if native_key in first_by_native and first_by_native[native_key] != event_uid:
-                store.db.execute(
-                    "UPDATE event SET parent_uid=? WHERE event_uid=?",
-                    (first_by_native[native_key], event_uid),
-                )
+                parent_updates.append((first_by_native[native_key], event_uid))
             elif plan is not None and native_key not in first_by_native:
                 plan.unresolved_parent(native_key)
+        # One statement for every parent link (same rows and order as row-by-row).
+        store.db.executemany("UPDATE event SET parent_uid=? WHERE event_uid=?", parent_updates)
+        # Only rebuilt files can gain or lose an invalid-record issue; other sources keep
+        # theirs (their L2 issues are not deleted), so scanning every raw_record of the
+        # library on each source rebuild only rewrote identical rows.
         for row in store.db.execute(
             "SELECT r.*,f.source_id FROM raw_record r JOIN file_record c USING(record_uid) "
-            "JOIN source_file f ON f.file_id=r.file_id WHERE r.native_type='invalid'"
+            "JOIN source_file f ON f.file_id=r.file_id WHERE r.native_type='invalid' "
+            f"AND r.file_id IN ({source_files})"
         ).fetchall():
             store.issue(
                 row["source_id"],
@@ -681,13 +685,15 @@ def rebuild(
         if deferred is not None:
             deferred.restore()  # Before validation and publication.
         exclude_tandem_ai_sessions(store)
-        for info in infos:
-            if info["file_id"] in changed:
-                continue  # Not projected: the next import rebuilds it from a fresh capture.
-            store.db.execute(
-                "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
-                (mapper_version, REDUCER_VERSION, REDACTION_VERSION, info["file_id"]),
-            )
+        # Changed files are not projected: the next import rebuilds them from a fresh capture.
+        store.db.executemany(
+            "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
+            [
+                (mapper_version, REDUCER_VERSION, REDACTION_VERSION, info["file_id"])
+                for info in infos
+                if info["file_id"] not in changed
+            ],
+        )
 
         if not store.db.execute(
             "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.mapper_version'),'') <> ? LIMIT 1",
