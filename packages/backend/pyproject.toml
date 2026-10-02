@@ -25,6 +25,7 @@ dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.2"]
 
 [project.scripts]
 tandem = "tandem_backend.cli:main"
+tandem-helper = "tandem_backend.services.__main__:main"
 
 [tool.uv.sources]
 tandem-data = { workspace = true }
