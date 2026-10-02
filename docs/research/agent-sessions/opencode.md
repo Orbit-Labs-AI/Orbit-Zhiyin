@@ -1,6 +1,6 @@
 # OpenCode（anomalyco/opencode）会话与轨迹数据分析
 
-> 面向 Tandem（本地跨 Agent 会话分析 Mac App）的数据接入设计。全部结论来自 HEAD 源码阅读；每条 schema / 写入行为论断都附 GitHub permalink（commit `1ddb087`；初稿基于 `63cf236`，迁移说明见 §0）。标注「源码推导」的内容未经运行验证；标注「待确认」的内容给出了原因。
+> 面向 Orbit（本地跨 Agent 会话分析 Mac App）的数据接入设计。全部结论来自 HEAD 源码阅读；每条 schema / 写入行为论断都附 GitHub permalink（commit `1ddb087`；初稿基于 `63cf236`，迁移说明见 §0）。标注「源码推导」的内容未经运行验证；标注「待确认」的内容给出了原因。
 
 ## 0. 元信息
 
@@ -214,7 +214,7 @@ $XDG_DATA_HOME/opencode/        默认 ~/.local/share/opencode/
 ├── plans/<time>-<slug>.md      非 git 项目的 plan 文件（git 项目在 <worktree>/.opencode/plans/）
 ├── worktree/<projectID>/       实验性 worktree
 ├── log/  repos/                日志、仓库缓存
-└── auth.json  mcp-auth.json    凭据（Tandem 不应读取）
+└── auth.json  mcp-auth.json    凭据（Orbit 不应读取）
 <repo>/.git/opencode            项目 ID 缓存文件（写在 git common dir）
 ```
 
@@ -224,7 +224,7 @@ $XDG_DATA_HOME/opencode/        默认 ~/.local/share/opencode/
 
 新库直接执行生成的完整 DDL，并把所有迁移 ID 记为已完成；已有库按 `migration` 表逐个补跑（[packages/core/src/database/migration.ts:18-41](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/core/src/database/migration.ts#L18-L41)、[packages/core/src/database/migration.ts:96-106](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/core/src/database/migration.ts#L96-L106)）。完整 DDL 见 [packages/core/src/database/schema.gen.ts:7-271](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/core/src/database/schema.gen.ts#L7-L271)。
 
-| 表 | 内容 | 默认 V1 运行时是否写 | 对 Tandem |
+| 表 | 内容 | 默认 V1 运行时是否写 | 对 Orbit |
 | --- | --- | --- | --- |
 | `session` | 会话元数据 + 累计 cost/tokens | 是 | 核心 |
 | `message` | 消息，`data` 为 JSON（User/Assistant） | 是 | 核心 |
@@ -252,7 +252,7 @@ $XDG_DATA_HOME/opencode/        默认 ~/.local/share/opencode/
 
 ID 生成算法（[packages/schema/src/identifier.ts:14-30](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/schema/src/identifier.ts#L14-L30)）：`value = timestamp_ms * 0x1000 + counter`（counter 在同一毫秒、同一进程内自增），降序时取按位非；然后**只取 `value` 的低 48 位**编码为 12 位 hex，再接 14 位 base62 随机字符。
 
-- **陷阱（源码推导）**：低 48 位 ÷ 4096 = 2^36 ms ≈ 795.4 天，所以 hex 前缀每约 2.18 年回绕一次。按 `k × 2^36 ms` 计算，最近一次回绕在 **2026-08-14 11:19:55 UTC**，下一次在 2028-10-17。回绕点前后生成的 ID 字典序与时间序相反。OpenCode 自己排序消息用 `(time_created, id)`（[packages/opencode/src/session/message-v2.ts:443](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/message-v2.ts#L443)），注释也说明 ID 只是确定性的 tie-breaker（[packages/opencode/src/session/message-v2.ts:582-585](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/message-v2.ts#L582-L585)）。`Identifier.timestamp()` 从 ID 解出的时间同样会回绕（[packages/opencode/src/id/id.ts:72-78](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/id/id.ts#L72-L78)）。**Tandem 不要用 ID 推时间，也不要只按 ID 排序。**
+- **陷阱（源码推导）**：低 48 位 ÷ 4096 = 2^36 ms ≈ 795.4 天，所以 hex 前缀每约 2.18 年回绕一次。按 `k × 2^36 ms` 计算，最近一次回绕在 **2026-08-14 11:19:55 UTC**，下一次在 2028-10-17。回绕点前后生成的 ID 字典序与时间序相反。OpenCode 自己排序消息用 `(time_created, id)`（[packages/opencode/src/session/message-v2.ts:443](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/message-v2.ts#L443)），注释也说明 ID 只是确定性的 tie-breaker（[packages/opencode/src/session/message-v2.ts:582-585](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/message-v2.ts#L582-L585)）。`Identifier.timestamp()` 从 ID 解出的时间同样会回绕（[packages/opencode/src/id/id.ts:72-78](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/id/id.ts#L72-L78)）。**Orbit 不要用 ID 推时间，也不要只按 ID 排序。**
 - part 在消息内按 `id` 升序排列（[packages/opencode/src/session/message-v2.ts:103-108](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/message-v2.ts#L103-L108)、[packages/opencode/src/session/message-v2.ts:496-507](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/message-v2.ts#L496-L507)）。只有恰好跨越回绕瞬间的消息才会乱序，可忽略。
 - 项目 ID 可能变化：若同一仓库先用「根 commit」后来加了 `origin`，`migrateProjectId` 会在一个 IMMEDIATE 事务里把旧 ID 下的 session/workspace 改挂到新 ID 并删除旧 project 行（[packages/opencode/src/project/project.ts:146-193](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/project/project.ts#L146-L193)）；非 git 目录先挂在 `global` 下，变成 git 仓库后会按 `directory` 迁到新项目（[packages/opencode/src/project/project.ts:291-298](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/project/project.ts#L291-L298)）。
 
@@ -487,7 +487,7 @@ V1 会话的事件日志里也可能出现 V2 事件：默认 TUI 的 `/move`（
 
 V2 的事件为 `session.next.*`（`prompted`、`step.started`、`step.ended`(v2)、`text.ended`、`tool.called`、`tool.success`、`compaction.ended` 等；增量 `*.delta` 不落盘），定义见 [packages/schema/src/session-event.ts:54-477](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/schema/src/session-event.ts#L54-L477)。
 
-### 3.9 敏感表（Tandem 不应读取）
+### 3.9 敏感表（Orbit 不应读取）
 
 `account`（`access_token`、`refresh_token`）、`control_account`、`credential`（`value`）（[packages/core/src/database/schema.gen.ts:34-71](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/core/src/database/schema.gen.ts#L34-L71)）；`session_share.secret`；数据目录下的 `auth.json`、`mcp-auth.json`。
 
@@ -539,7 +539,7 @@ V2 的事件为 `session.next.*`（`prompted`、`step.started`、`step.ended`(v2
 
 - 每个 durable 事件一个 IMMEDIATE 事务；库为 WAL 模式，`busy_timeout = 5000`（[packages/core/src/database/database.ts:27-32](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/core/src/database/database.ts#L27-L32)）。
 - 同一会话的执行由进程内的 `SessionRunState` 串行化（[packages/opencode/src/session/run-state.ts:12-41](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/session/run-state.ts#L12-L41)）。多个 OpenCode 进程（TUI、`serve`、desktop）共用一个库时只靠 SQLite 锁互斥，跨进程是否有会话级互斥**待确认**（未见相关代码）。
-- 对 Tandem：以只读方式打开（带 WAL，不要用 `immutable=1`），容忍 `SQLITE_BUSY` 并重试；不要只拷贝 `.db` 文件，否则会丢失 `-wal` 中未 checkpoint 的提交。
+- 对 Orbit：以只读方式打开（带 WAL，不要用 `immutable=1`），容忍 `SQLITE_BUSY` 并重试；不要只拷贝 `.db` 文件，否则会丢失 `-wal` 中未 checkpoint 的提交。
 
 ### 4.5 中断与错误的表现
 
@@ -1057,11 +1057,11 @@ ORDER BY m.time_created, m.id, p.id;
 | [packages/opencode/test/cli/import.test.ts:71-85](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/test/cli/import.test.ts#L71-L85) | 分享数据 `[{type, data}]` 转为 `{info, messages}` |
 | `packages/opencode/test/fixtures/recordings/session/*.json`、`packages/core/test/fixtures/recordings/session-runner/*.json` | 这些是 provider HTTP 录制（请求/响应 cassette），**不是**会话存储样本 |
 
-## 9. 对 Tandem 解析器的要点
+## 9. 对 Orbit 解析器的要点
 
 ### 9.1 发现与打开
 
-1. **路径候选**：`$XDG_DATA_HOME/opencode/`，未设置时为 `~/.local/share/opencode/`（macOS 也一样）。在其中 glob `opencode*.db`：正式版是 `opencode.db`，其他渠道是 `opencode-<channel>.db`，源码运行是 `opencode-local.db`。用户若设置了 `OPENCODE_DB`，应在 Tandem 设置里允许手动指定路径。
+1. **路径候选**：`$XDG_DATA_HOME/opencode/`，未设置时为 `~/.local/share/opencode/`（macOS 也一样）。在其中 glob `opencode*.db`：正式版是 `opencode.db`，其他渠道是 `opencode-<channel>.db`，源码运行是 `opencode-local.db`。用户若设置了 `OPENCODE_DB`，应在 Orbit 设置里允许手动指定路径。
 2. **只读打开**：使用 `file:<path>?mode=ro`，不要加 `immutable=1`（否则会忽略 WAL 中尚未 checkpoint 的数据）；设置 `PRAGMA query_only = 1` 与 2–5 秒的 busy timeout。一次读取放在同一个读事务里，保证多表一致，并尽快结束，避免长事务阻止 OpenCode checkpoint、导致 `-wal` 膨胀。不要只复制 `.db` 文件做离线分析。
 3. **版本探测**：读 `SELECT id FROM migration ORDER BY id`（HEAD 最新为 `20260622202450_simplify_session_input`；旧库可能只有 `__drizzle_migrations`），再用 `PRAGMA table_info(session)` 判断可选列（`cost`、`tokens_*`、`agent`、`model`、`path`、`metadata`）是否存在。
 
@@ -1076,7 +1076,7 @@ ORDER BY m.time_created, m.id, p.id;
 | 消息数 / step 数 | `message` 行数（分角色统计）；step 数 = `step-finish` part 数 |
 | 工具调用 | `json_extract(p.data,'$.type') = 'tool'` 的 part：`tool`、`callID`、`state.status`、`state.input`、`state.error`、`state.time.start/end`（耗时）、`state.metadata.truncated/outputPath`；`metadata.providerExecuted` 为 provider 端执行；`tool = 'invalid'` 表示参数无效；`callID` 为 ULID 的是用户 `!cmd` 或 subtask |
 | 审批 | 不落盘。只能从 tool `error` 的固定文案推断（拒绝、带反馈拒绝、规则拒绝），以及 `question` 工具的 input/output。需要真实审批事件时，只能在 OpenCode 运行期间订阅 `GET /event` 的 `permission.asked/replied` |
-| token / cost | 最细粒度是 `step-finish` part；会话级的 `session.cost/tokens_*` 只是近似的 step-finish 之和（**不含子会话**，不含标题生成；旧会话是回填值，`patch` 并发覆盖可能丢掉累加，fork 会话还含复制来的源会话前缀，见 §3.2、§5.4）。Tandem 应以自己按 step-finish 的汇总为准：fork 会话先按 `time.created` + 内容哈希去掉复制段，再按 `parent_id` 递归合并子会话。cost 是 OpenCode 按 models.dev 价格表在本地估算的，不是账单 |
+| token / cost | 最细粒度是 `step-finish` part；会话级的 `session.cost/tokens_*` 只是近似的 step-finish 之和（**不含子会话**，不含标题生成；旧会话是回填值，`patch` 并发覆盖可能丢掉累加，fork 会话还含复制来的源会话前缀，见 §3.2、§5.4）。Orbit 应以自己按 step-finish 的汇总为准：fork 会话先按 `time.created` + 内容哈希去掉复制段，再按 `parent_id` 递归合并子会话。cost 是 OpenCode 按 models.dev 价格表在本地估算的，不是账单 |
 | 模型 | 每次调用取 assistant 的 `providerID/modelID/variant`；用户请求的模型取 user 的 `model`；当前模型取 `session.model`。相邻 assistant 的模型不同即视为一次模型切换 |
 | agent 模式 | user / assistant 的 `agent`（`build`、`plan`、自定义；子代理如 `general`、`explore`；内部 `compaction`）。内置 agent 定义见 [packages/opencode/src/agent/agent.ts:142-256](https://github.com/anomalyco/opencode/blob/1ddb0873aee50d209d1a8d7f91b89c5daf692d49/packages/opencode/src/agent/agent.ts#L142-L256) |
 | 错误 | assistant `error.name` / `error.data.message`；tool `state.status = 'error'`；`state.metadata.interrupted` |

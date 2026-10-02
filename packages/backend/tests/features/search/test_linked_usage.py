@@ -6,10 +6,10 @@ from tandem_backend.features.linked import compute_linked, estimate_tokens
 REVS = {"data": 1, "inventory": 1, "catalog": "1"}
 
 
-def run(world, read_text=lambda _p: None, **kw):
+def run(world, read_text=lambda _p: None, revs=REVS, **kw):
     linked.clear_cache()
     return {i["inv_id"]: i for i in compute_linked(
-        world.connection(), revs=REVS, now_ms=NOW, write=world.write, read_text=read_text,
+        world.connection(), revs=revs, now_ms=NOW, write=world.write, read_text=read_text,
         **kw)["items"]}
 
 
@@ -70,6 +70,7 @@ def test_unused_boundaries(world):
 
 def test_short_data_span_is_not_unused(world):
     seed(world, first_session_days=20)
+    world.call("a", skill="other", started=NOW - 5 * DAY)
     world.inventory("claude_code", [{"inv_id": "never", "type": "skill", "name": "never"}])
     assert run(world)["never"]["status"] == "active"
 
@@ -105,3 +106,37 @@ def test_unreadable_and_token_estimate():
 def test_unreadable_basis(world):
     world.inventory("claude_code", [{"inv_id": "s", "type": "skill", "name": "x"}])
     assert run(world)["s"]["resident"] == {"tokens_est": None, "basis": "unreadable"}
+
+
+def test_agent_without_skill_attribution_is_unknown_not_unused(world):
+    seed(world)
+    world.call("a", skill="claude-only", started=NOW - 5 * DAY)  # Claude attributes skills
+    world.call("b", started=NOW - 2 * DAY)  # Codex calls never carry tool_call.skill
+    world.inventory("codex", [{"inv_id": "cx", "type": "skill", "name": "codex-skill"}])
+    world.inventory("claude_code", [{"inv_id": "cc", "type": "skill", "name": "never"}])
+    items = run(world)
+    assert items["cx"]["status"] == "unknown_usage" and items["cx"]["unused_days"] is None
+    assert items["cx"]["usage"]["attributable"] is False
+    assert items["cx"]["usage"]["basis"] == "usage_unavailable"
+    assert items["cc"]["status"] == "unused"
+
+
+def test_usage_aggregate_is_cached_in_app_db_per_data_rev(world):
+    from importlib.resources import files
+
+    world.a.executescript(files("tandem_backend.appdb").joinpath("schema/features.sql")
+                          .read_text(encoding="utf-8"))
+    seed(world)
+    world.call("a", skill="pdf-tools", started=NOW - 5 * DAY)
+    world.call("a", mcp="playwright", started=NOW - 1 * DAY, status="error")
+    world.inventory("claude_code", [{"inv_id": "s", "type": "skill", "name": "pdf-tools"},
+                                    {"inv_id": "m", "type": "mcp", "name": "playwright"}])
+    first = run(world)
+    assert world.a.execute("SELECT count(*) FROM inv_usage").fetchone()[0] == 1
+    world.call("a", skill="pdf-tools", started=NOW - 2 * DAY)  # same data rev: served from app.db
+    cached = run(world)
+    assert cached["s"]["usage"] == first["s"]["usage"] and cached["m"]["usage"] == first["m"]["usage"]
+    assert cached["m"]["usage"]["error_rate"] == 1.0
+    fresh = run(world, revs={**REVS, "data": 2})
+    assert fresh["s"]["usage"]["calls_total"] == 2
+    assert world.a.execute("SELECT data_rev FROM inv_usage").fetchall() == [("2",)]

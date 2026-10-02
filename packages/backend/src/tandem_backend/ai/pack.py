@@ -131,7 +131,7 @@ def metrics(conn, start: int, end: int, project_id=None, home=None, *, source_id
             "tool_failure_rate": round(fails / calls, 3) if calls else 0.0}
 
 
-def fts_query(text: str) -> str:
+def fts_query(text: str, min_len: int = 2) -> str:
     try:
         import jieba
         words = jieba.cut_for_search(text or "")
@@ -140,19 +140,23 @@ def fts_query(text: str) -> str:
     seen: list[str] = []
     for w in words:
         w = w.strip()
-        if len(w) >= 2 and w not in seen:
+        if len(w) >= min_len and w not in seen:
             seen.append(w)
     return " OR ".join('"' + w.replace('"', '""') + '"' for w in seen[:24])
 
 
 def fts_human(conn, text: str, limit: int = 5) -> list[dict]:
-    query = fts_query(text)
+    # Schema v8 replaced unicode61 ``event_fts`` with trigram ``event_search`` (messages and
+    # titles only); a trigram index cannot match terms shorter than three characters.
+    table = "event_search" if conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE name='event_search'").fetchone() else "event_fts"
+    query = fts_query(text, 3 if table == "event_search" else 2)
     if not query:
         return []
     rows = conn.execute(
-        "SELECT e.event_uid, e.session_uid, e.text FROM event_fts f JOIN event e ON e.rowid = f.rowid"
-        " WHERE event_fts MATCH ? AND e.event_uid IN (SELECT event_uid FROM v_human_message)"
-        " ORDER BY bm25(event_fts) LIMIT ?", (query, limit)).fetchall()
+        f"SELECT e.event_uid, e.session_uid, e.text FROM {table} f JOIN event e ON e.rowid = f.rowid"
+        f" WHERE {table} MATCH ? AND e.event_uid IN (SELECT event_uid FROM v_human_message)"
+        f" ORDER BY bm25({table}) LIMIT ?", (query, limit)).fetchall()
     return [{"event_uid": r[0], "session_uid": r[1], "kind": "human",
              "text": privacy.direct_user_text(r[2] or "")} for r in rows]
 

@@ -447,3 +447,53 @@ def test_catalog_service_from_home_and_generation(env, tmp_path):
     assert svc is not None and runs.catalog_service(gw) is svc  # cached on gw
     generation, items = runs._catalog_state(svc)
     assert isinstance(generation, int) and items == 0  # empty → run uses the seed fallback
+
+
+class _FakeCatalogStore:
+    """catalog.db with a non-zero generation and active items (synthetic)."""
+
+    def __init__(self, path, generation):
+        self.path = path
+        conn = sqlite3.connect(path)
+        conn.executescript("CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);"
+                           "CREATE TABLE catalog_item (item_id TEXT, status TEXT);"
+                           "INSERT INTO catalog_item VALUES ('syn-a','active'),('syn-b','active');")
+        conn.execute("INSERT INTO catalog_meta VALUES ('generation', ?)", (str(generation),))
+        conn.commit()
+        conn.close()
+
+    @contextmanager
+    def connect(self, readonly=False):
+        conn = sqlite3.connect(self.path)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+
+@pytest.mark.parametrize("reported", [None, 6, "7"])
+def test_repeat_get_reuses_run_with_live_catalog(env, monkeypatch, tmp_path, reported):
+    """The slate's catalog generation (absent when no catalog.match answered, or a lagging
+    index snapshot) must not key the run: the lookup uses catalog_meta, so must the store."""
+    client, gw, _ = env
+    gw.catalog = SimpleNamespace(store=_FakeCatalogStore(tmp_path / "cat.db", 7))
+
+    def build(inputs, memory, *, catalog=None, **kw):
+        assert catalog is gw.catalog
+        slate = runs.legacy_slate(inputs)
+        slate.update(engine_version="rec-engine-v2", kb_version="kb-syn@1",
+                     catalog_generation=reported, diagnostics=[])
+        return slate
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build, "rec-engine-v2"))
+    first = runs.run(gw, {})
+    second = runs.run(gw, {})
+    assert first["reused"] is False and second["reused"] is True
+    assert second["run_id"] == first["run_id"]
+    with gw.appdb.read() as conn:
+        assert store.get_run(conn, first["run_id"])["catalog_generation"] == 7
+    ids = [i["candidate_id"] for i in client.get("/v1/recommendations").json()["items"]]
+    client.get("/v1/recommendations/runs")
+    client.get("/v1/recommendations?surface=A1")
+    assert [i["candidate_id"] for i in client.get("/v1/recommendations").json()["items"]] == ids
+    assert len(client.get("/v1/recommendations/runs").json()["runs"]) == 1

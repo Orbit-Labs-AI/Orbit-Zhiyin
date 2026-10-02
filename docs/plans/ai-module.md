@@ -1,4 +1,4 @@
-# Tandem AI 接入设计：分析侧与推荐侧如何用模型
+# Orbit AI 接入设计：分析侧与推荐侧如何用模型
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
@@ -54,7 +54,7 @@
 | --- | --- |
 | L2 已脱敏的真人消息截断（≤ 500 字）、答复截断（≤ 300 字）、工具 `kind + command_head + status + error_class`、错误输出首 200 字、汇总统计、每类问题 ≤ 3 条证据片段、已有规则文件的相关段落、Catalog 条目的 description | L0 原文、`reasoning`（`encrypted / redacted`）、工具参数全文、工具输出全文、文件内容、路径中的用户名（脱敏规则替换）、凭据、`ext` 原生字段 |
 
-用户在 A9-06 / ASK 预览里取消勾选的项不发送；开启「原始对话片段」需逐条确认（Demo A9-06 的交互保留）。脱敏按契约 §3.8：以 DT-10（`yhyfhgs`，`packages/data` `privacy.py`）写入时脱敏为准，AI-08 与分析侧只调用 main `privacy.direct_user_text()` 剥平台块与引用；EV-01 的脱敏夹具放在 `packages/data`。Tandem 自身没有服务端，不上传任何数据；只有 Ollama 通道可称「完全离线」。
+用户在 A9-06 / ASK 预览里取消勾选的项不发送；开启「原始对话片段」需逐条确认（Demo A9-06 的交互保留）。脱敏按契约 §3.8：以 DT-10（`yhyfhgs`，`packages/data` `privacy.py`）写入时脱敏为准，AI-08 与分析侧只调用 main `privacy.direct_user_text()` 剥平台块与引用；EV-01 的脱敏夹具放在 `packages/data`。Orbit 自身没有服务端，不上传任何数据；只有 Ollama 通道可称「完全离线」。
 
 ## 2. 执行通道（AI-01、AI-02、AI-08、AI-11、EV-11）
 
@@ -62,12 +62,12 @@
 
 | 引擎 | 最小开销配方（来源：`docs/research/landscape.md` §2.4，本机实测 2026-10-02） | 不落盘 / 隔离 | 固定开销（输入 token） | 结构化输出 | 阶段 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | 在 Tandem 专用空目录、净环境运行：`claude -p --safe-mode --tools "" --system-prompt-file <任务静态提示> --no-session-persistence --output-format json --json-schema <schema> --max-turns 3 --effort low --settings '{"alwaysThinkingEnabled":false}' --max-budget-usd <上限> --model <槽位> < /dev/null`（[headless](https://code.claude.com/docs/en/headless)、[cli-reference](https://code.claude.com/docs/en/cli-reference)） | `--no-session-persistence`（仍会建空的 `projects/<cwd>/memory/`，连接器忽略）；`--safe-mode` 关 CLAUDE.md / skills / 插件 / hooks / MCP；订阅登录照常可用；`--bare` 只接受 API Key，不用 | 约 0.55–0.73K；加 `--json-schema` 至少两轮，合计 1.3–1.5K；默认配置 2.7 万（净环境）/ 3.7 万（继承桌面环境） | `--json-schema`（两轮） | MVP：L2 + L3 |
+| Claude Code | 在 Orbit 专用空目录、净环境运行：`claude -p --safe-mode --tools "" --system-prompt-file <任务静态提示> --no-session-persistence --output-format json --json-schema <schema> --max-turns 3 --effort low --settings '{"alwaysThinkingEnabled":false}' --max-budget-usd <上限> --model <槽位> < /dev/null`（[headless](https://code.claude.com/docs/en/headless)、[cli-reference](https://code.claude.com/docs/en/cli-reference)） | `--no-session-persistence`（仍会建空的 `projects/<cwd>/memory/`，连接器忽略）；`--safe-mode` 关 CLAUDE.md / skills / 插件 / hooks / MCP；订阅登录照常可用；`--bare` 只接受 API Key，不用 | 约 0.55–0.73K；加 `--json-schema` 至少两轮，合计 1.3–1.5K；默认配置 2.7 万（净环境）/ 3.7 万（继承桌面环境） | `--json-schema`（两轮） | MVP：L2 + L3 |
 | Codex | `codex exec --ephemeral --json --skip-git-repo-check -s read-only --ignore-user-config --ignore-rules --disable apps --disable plugins --disable memories -c agents.enabled=false --output-schema schema.json -o out.json < /dev/null`（[Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode.md)） | `--ephemeral` 不写 rollout、不写 threads、不触发 memories | 默认 2.09 万；去用户配置 1.46 万；换基础指令并关工具 0.92 万；`--output-schema` 原生单轮，多约 20 token | `--output-schema`（单轮） | MVP：只给 L3 任务（固定开销太大，不做 facet 打包） |
 | `FakeEngine` | 从 fixture 读取固定 JSON 响应，不调模型；与真实引擎走同一条 `run_task → gate → 缓存 → 降级` 链路 | 无 | 0 | 原生 | MVP（测试与 EV-03 回归） |
 | pi | `pi -p --no-session --no-tools --no-extensions --no-skills --no-context-files --mode json --system-prompt <提示>` | `--no-session` | 未实测（系统提示很短） | `--mode json`（schema 由提示约束 + 代码校验） | v1 |
 | Hermes | `hermes chat -q … --oneshot --format stream-json --source tool --ignore-user-config --ignore-rules --safe-mode` | `--source tool`：不出现在用户会话列表 | 未实测 | 提示约束 | v1 |
-| API Key（可选） | Anthropic Messages API：`output_config.format` 结构化输出、静态前缀 `cache_control`、后台任务可走 Batch（5 折）（[structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)、[prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)、[batch](https://platform.claude.com/docs/en/build-with-claude/batch-processing)） | 无会话；密钥存 Keychain，只在 Tandem 进程内使用 | 无 CLI 开销；静态前缀可缓存（最小可缓存前缀：Sonnet 5.5 / Opus 5.5 为 512 token，Haiku 4.5 为 4,096，见 prompt caching 文档） | 原生 | v1 |
+| API Key（可选） | Anthropic Messages API：`output_config.format` 结构化输出、静态前缀 `cache_control`、后台任务可走 Batch（5 折）（[structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)、[prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)、[batch](https://platform.claude.com/docs/en/build-with-claude/batch-processing)） | 无会话；密钥存 Keychain，只在 Orbit 进程内使用 | 无 CLI 开销；静态前缀可缓存（最小可缓存前缀：Sonnet 5.5 / Opus 5.5 为 512 token，Haiku 4.5 为 4,096，见 prompt caching 文档） | 原生 | v1 |
 | OpenCode / Kimi Code / DSH | OpenCode 走 `opencode serve` + SDK `format: json_schema`；Kimi `-p --output-format stream-json`；DSH `--profile headless --json` | 三者都会写会话 → 只能靠 marker + cwd 过滤（R10）；OpenCode `share: auto` 会公开会话，必须用独立 `OPENCODE_DB` 与 inline 配置关闭分享（待验证） | 未实测 | 部分 | v2 |
 | Ollama（可选） | 本机 OpenAI 兼容端点；`format: json` | 完全离线 | 0 | 弱（代码校验 + 重试） | v2（只做 L2 任务） |
 
@@ -199,7 +199,7 @@
 }
 ```
 
-**v1 扩展字段**（随 AN-07、AN-09（AI）、RC-06 #2 加入，每加一个字段 EV-04.1 多一组标注）：`satisfaction_signal: explicit_positive|implicit_continue|explicit_negative|abandoned|unclear`（只依据显式信号与是否继续，与 `/insights` 的 `likely_satisfied` 口径一致）；`candidates[].sentiment: positive|neutral|negative|frustrated`；`key_moments: [{event_uid, kind: "deviation|other", label ≤ 30 字}]`——规则类时刻（correction、failure_streak、verify_pass …）只由 AN-09 产出，AI 只补「偏离用户目标」一类，写 `key_moment(origin=ai)` 空心标记；`violated_rules: [{rule_anchor_hash, event_uid, confidence}]`——输入只送 L0 预筛结果（AN 先把纠偏 / 要求消息与 §2.5 `existing_rules` 段落做字符 n-gram 重合，每会话 ≤ 3 对），gate 要求 `rule_anchor_hash` 必须在输入里；MVP 的「规则写入后仍被违反」（RC-06 #2 / #12）只限 Tandem 已装规则，由 EV-07 机械层判定。
+**v1 扩展字段**（随 AN-07、AN-09（AI）、RC-06 #2 加入，每加一个字段 EV-04.1 多一组标注）：`satisfaction_signal: explicit_positive|implicit_continue|explicit_negative|abandoned|unclear`（只依据显式信号与是否继续，与 `/insights` 的 `likely_satisfied` 口径一致）；`candidates[].sentiment: positive|neutral|negative|frustrated`；`key_moments: [{event_uid, kind: "deviation|other", label ≤ 30 字}]`——规则类时刻（correction、failure_streak、verify_pass …）只由 AN-09 产出，AI 只补「偏离用户目标」一类，写 `key_moment(origin=ai)` 空心标记；`violated_rules: [{rule_anchor_hash, event_uid, confidence}]`——输入只送 L0 预筛结果（AN 先把纠偏 / 要求消息与 §2.5 `existing_rules` 段落做字符 n-gram 重合，每会话 ≤ 3 对），gate 要求 `rule_anchor_hash` 必须在输入里；MVP 的「规则写入后仍被违反」（RC-06 #2 / #12）只限 Orbit 已装规则，由 EV-07 机械层判定。
 
 规则：`candidates[].signal_id / event_uid` 必须出现在输入里，否则该项丢弃；`friction_types` 只能来自 `candidates` 里出现过的类型或工具失败证据，不许凭空添加；极短会话归 `chat`；`confidence` 是闭集不是概率。
 
@@ -712,7 +712,7 @@ AV2（`--safe-mode` 与 MCP 共存）随 L4 `ask.query` 删除而撤销。
 | 6 | 新增 `ai_job` 表（MVP 列：`job_id, task_id, status, scope_hash, goal_source, preview_digest, estimated_tokens, actual_tokens, created_at, finished_at, error`；`lease_until` v1）；`ai_usage` 加 `status, items_ok, items_failed, engine_version` | §3.3 |
 | 7 | hook 脚本落点统一为 `~/Library/Application Support/Tandem/hooks/<template_id>@<version>.sh`；hook 模板闭集六个（`retry-breaker / verify-before-commit / post-edit-check / stop-verify / compaction-reminder / scope-guard`）各标触发 `problem.type`；`scope-guard` 的触发 `unsafe_operation` 随 `recommendation.md` 新增的高风险操作 `problem.type` 进 §3.2b | §3.4、§3.5 |
 | 8 | IN 动作枚举增加 `replace_block / move_block`（写前备份、可撤销），供 AI-06.8 与 RC-07 拆分使用 | §3.5 |
-| 9 | DT 侧补充约定：连接器把 cwd 位于 Tandem `agent-cwd/` 或首条真人消息以 `[tandem-analysis` 开头的会话标 `session.kind = auxiliary, attrs.origin = tandem`，默认不进 `v_analysis_*`；落在 `packages/data` 的 mapper 公共层 | §1 隐私、DT-01 / DT-06 |
+| 9 | DT 侧补充约定：连接器把 cwd 位于 Orbit `agent-cwd/` 或首条真人消息以 `[tandem-analysis` 开头的会话标 `session.kind = auxiliary, attrs.origin = tandem`，默认不进 `v_analysis_*`；落在 `packages/data` 的 mapper 公共层 | §1 隐私、DT-01 / DT-06 |
 | 10 | API：`GET /v1/analytics/overview` 增 `narration{…, source, prompt_version, model_id, generated_at}`；`GET /v1/analytics/sessions/{id}` 增 `facet`；`GET /v1/ai/jobs/{id}` SSE 事件形状 `{stage, progress, tokens, message}`；`GET /v1/ai/usage?from&until`；`GET /v1/recommendations` 增 `surface / kind` 参数 | §5.3 |
 | 11 | AI-09 改为「计划 → 代码执行只读查询 → 回答」（`ask.plan` L2 + `ask.answer` L3），无 L4；AI-11 的空闲 / 额度 / 并发 / 退避规则改为 v1，MVP 为用户触发、串行；AI-06 行的 MVP 改为「规则、hook、SKILL.md、粘合规则」 | §2.5、§5.1 |
 | 12 | `judge.rule_counterfactual` 的反例由「随机片段」改为「共享关键词的近似反例」（研究 E6） | §3.6 |

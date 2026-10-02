@@ -10,7 +10,7 @@ const UNDO_SEC = 10;
 function libFile(x) {
   const k = x.kind;
   if (k === 'Hook') return { target: '~/.claude/settings.json', file: [['{', ' '], ['  "hooks": {', ' '], ['    "PreToolUse": [', ' '], ['      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "~/.claude/hooks/' + x.id + '.sh" }] }', '+'], ['    ]', ' '], ['  }', ' '], ['}', ' ']] };
-  if (k === 'MCP') return { target: '~/.claude.json · mcpServers', file: [['{', ' '], ['  "mcpServers": {', ' '], ['    "' + x.id + '": {', '+'], ['      "command": "npx",', '+'], ['      "args": ["-y", "@tandem/' + x.id + '"]', '+'], ['    }', '+'], ['  }', ' '], ['}', ' ']] };
+  if (k === 'MCP') return { target: '~/.claude.json · mcpServers', file: [['{', ' '], ['  "mcpServers": {', ' '], ['    "' + x.id + '": {', '+'], ['      "command": "npx",', '+'], ['      "args": ["-y", "@orbit/' + x.id + '"]', '+'], ['    }', '+'], ['  }', ' '], ['}', ' ']] };
   if (k === '插件') return { target: '~/.claude/plugins/' + x.id + '/plugin.json', file: [['{', '+'], ['  "name": "' + x.id + '",', '+'], ['  "description": "' + x.desc + '",', '+'], ['  "source": "' + x.src + '",', '+'], ['  "commands": ["' + x.id.replace(/-.*$/, '') + '"]', '+'], ['}', '+']] };
   if (k === '子代理') return { target: '~/.claude/agents/' + x.id + '.md', file: [['---', '+'], ['name: ' + x.id, '+'], ['description: ' + x.desc, '+'], ['tools: Read, Grep, Bash(curl:*)', '+'], ['---', '+'], ['', '+'], ['你是独立的检查者：只读，不修改仓库；结果用表格汇报。', '+']] };
   return { target: '~/.claude/skills/' + x.id + '/SKILL.md', file: [['---', '+'], ['name: ' + x.id, '+'], ['description: ' + x.desc, '+'], ['source: ' + x.src, '+'], ['---', '+'], ['', '+'], ['# ' + x.id, '+'], ['', '+'], ['触发时按以下顺序执行，每步完成后汇报再继续。', 'ai']] };
@@ -52,20 +52,20 @@ function drawInstall() {
     html = modalHead('预览变更 · ' + esc(f.title), '将修改 1 个文件 · <b class="mono" style="color:var(--good)">+' + adds + ' 行</b>' + (dels ? ' · <b class="mono" style="color:var(--crit)">−' + dels + ' 行</b>' : '') + ' · 确认前不会改动任何文件') + prog +
       '<div class="mb col" style="gap:10px"><div class="row" style="padding:6px 10px;border-radius:8px;background:var(--sunken)">' + ic('file', 14) + '<span class="mono" style="font-size:12px;flex:1;min-width:0;word-break:break-all">' + esc(f.target) + '</span>' + scopeLine + '</div>' +
       '<div class="code" style="max-height:min(320px,42vh)">' + f.file.map((l, i) => { const can = l[1] === '+' || l[1] === 'ai'; const off = st.off.has(i); return '<div class="' + (l[1] === '+' && !off ? 'add' : l[1] === 'ai' && !off ? 'ai' : '') + '" style="grid-template-columns:34px 22px minmax(0,1fr);' + (l[1] === '-' ? 'background:var(--crit-bg)' : '') + '"><span class="n">' + (l[1] === '+' ? '+' : l[1] === '-' ? '−' : l[1] === 'ai' ? '✦' : i + 1) + '</span><span>' + (can ? '<input type="checkbox" data-chg="instLine" data-i="' + i + '"' + (off ? '' : ' checked') + ' aria-label="保留第 ' + (i + 1) + ' 行" style="margin:3px 0 0;accent-color:var(--ink-1)">' : '') + '</span><span class="t" style="' + (off ? 'text-decoration:line-through;opacity:.45' : l[1] === '-' ? 'text-decoration:line-through;color:var(--crit)' : '') + '">' + (esc(l[0]) || ' ') + '</span></div>'; }).join('') + '</div>' +
-      '<div class="cap" style="font-size:11.5px">每一行新增都可以取消勾选。' + (f.key === 'ro-allow' ? '含写操作的前缀（git push、gh pr merge、rm）已排除，永远不会出现在可选列表里。' : '紫色 ✦ 行是按你的会话改写的内容。') + '</div></div>' +
+      '<div class="cap" style="font-size:11px">每行新增都可取消勾选 · ' + (f.key === 'ro-allow' ? '写操作前缀（git push、gh pr merge、rm）已排除' : '紫色 ✦ 行按你的会话改写') + '</div></div>' +
       '<div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="instNext" autofocus' + (adds || dels ? '' : ' disabled') + '>下一步</button></div>';
     openModal(html, 'wide'); MODAL_KEY = 'install';
     const nc = $('#modal .code'); if (nc) nc.scrollTop = top;
     return;
   }
-  const bk = st.bk || ('…/Tandem/backups/' + name + '.1001-' + nowText().slice(-5).replace(':', ''));
+  const bk = st.bk || ('…/Orbit/backups/' + name + '.1001-' + nowText().slice(-5).replace(':', ''));
   const codexOk = /Codex|所有/.test(f.compat || '');
   const facts = '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono row" style="font-size:12px;word-break:break-all;flex-wrap:wrap">' + esc(f.target) + scopeLine + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(bk) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + adds + (dels ? ' / −' + dels : '') + ' 行' + (st.codex ? ' · 含 Codex 等价配置' : '') + '</span></div>';
   if (st.step === 2) {
     html = modalHead('写入 ' + esc(name) + '？', '修改前会自动备份，随时可以撤销') + prog +
       '<div class="mb col" style="gap:12px">' + facts +
-      (codexOk ? '<label class="row" style="align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;border:1px solid var(--line)"><input type="checkbox" data-chg="instCodex"' + (st.codex ? ' checked' : '') + ' style="margin-top:2px;accent-color:var(--ink-1)"><span class="col" style="gap:2px"><b style="font-size:12.5px">同时应用到 Codex</b><span class="cap" style="font-size:11.5px">写入 ~/.codex/config.toml 的等价配置。默认只改当前 Agent。</span></span></label>' : '') +
-      '<div class="row cap" style="font-size:11.5px;align-items:flex-start">' + ic('info', 13, 'margin-top:2px') + '<span>这是整个流程里唯一真正写盘的一步（Demo 中只是模拟）。写入后 ' + UNDO_SEC + ' 秒内可直接撤销，之后在建议卡与「已安装」里撤销。</span></div></div>' +
+      (codexOk ? '<label class="row" style="align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;border:1px solid var(--line)"><input type="checkbox" data-chg="instCodex"' + (st.codex ? ' checked' : '') + ' style="margin-top:2px;accent-color:var(--ink-1)"><span class="col" style="gap:2px"><b style="font-size:13px">同时应用到 Codex</b><span class="cap" style="font-size:11px">写入 ~/.codex/config.toml 的等价配置。默认只改当前 Agent。</span></span></label>' : '') +
+      '<div class="row cap" style="font-size:11px;align-items:flex-start">' + ic('info', 13, 'margin-top:2px') + '<span>这是整个流程里唯一真正写盘的一步（Demo 中只是模拟）。写入后 ' + UNDO_SEC + ' 秒内可直接撤销，之后在建议卡与「已安装」里撤销。</span></div></div>' +
       '<div class="mf"><button type="button" class="btn gh" data-act="instBack">返回</button><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="instDo" autofocus>确认写入</button></div>';
     openModal(html, 'wide'); MODAL_KEY = 'install';
     return;
@@ -74,8 +74,8 @@ function drawInstall() {
   const left = Math.max(0, UNDO_SEC - Math.floor((Date.now() - st.at) / 1000));
   html = modalHead('已写入 ' + esc(name), '备份在 ' + esc(bk) + '，' + (left ? left + ' 秒内可直接撤销' : '撤销已转到建议卡与「已安装」')) + prog +
     '<div class="mb col" style="gap:12px">' + facts +
-    '<div class="inst-undo' + (left ? '' : ' off') + '"><span class="row" style="gap:8px">' + ic(left ? 'undo' : 'okc', 14) + '<span style="font-size:12.5px"><b>' + (left ? '撤销倒计时' : '已生效') + '</b><span class="cap" style="margin-left:8px">' + (left ? '倒计时结束后文件保留，仍可在建议卡撤销' : '文件已保留，随时可从备份恢复') + '</span></span><span style="flex:1"></span><b class="mono" id="instLeft">' + (left ? left + ' s' : '') + '</b></span><span class="bar" aria-hidden="true"><i id="instBar" style="width:' + Math.round(left / UNDO_SEC * 100) + '%;transition:width 1s linear"></i></span></div>' +
-    (f.rec ? '<div class="row" style="gap:8px;padding:10px 12px;border-radius:9px;background:var(--sunken);font-size:12.5px;align-items:flex-start">' + ic('clock', 14, 'margin-top:2px') + '<span><b>7 天效果追踪已开始</b><span class="cap" style="display:block;margin-top:2px">安装前 7 天作为基准（n = ' + recX(f.key).n[0] + ' 个会话），满 7 天后逐项对比：' + f.rec.track.map((t) => t[0]).join('、') + '。</span></span></div>' : '') + '</div>' +
+    '<div class="inst-undo' + (left ? '' : ' off') + '"><span class="row" style="gap:8px">' + ic(left ? 'undo' : 'okc', 14) + '<span style="font-size:13px"><b>' + (left ? '撤销倒计时' : '已生效') + '</b><span class="cap" style="margin-left:8px">' + (left ? '倒计时结束后文件保留，仍可在建议卡撤销' : '文件已保留，随时可从备份恢复') + '</span></span><span style="flex:1"></span><b class="mono" id="instLeft">' + (left ? left + ' s' : '') + '</b></span><span class="bar" aria-hidden="true"><i id="instBar" style="width:' + Math.round(left / UNDO_SEC * 100) + '%;transition:width 1s linear"></i></span></div>' +
+    (f.rec ? '<div class="row" style="gap:8px;padding:10px 12px;border-radius:9px;background:var(--sunken);font-size:13px;align-items:flex-start">' + ic('clock', 14, 'margin-top:2px') + '<span><b>7 天效果追踪已开始</b><span class="cap" style="display:block;margin-top:2px">安装前 7 天作为基准（n = ' + recX(f.key).n[0] + ' 个会话），满 7 天后逐项对比：' + f.rec.track.map((t) => t[0]).join('、') + '。</span></span></div>' : '') + '</div>' +
     '<div class="mf"><button type="button" class="btn" data-act="instUndo"' + (left ? '' : ' disabled') + '>撤销</button><span style="flex:1"></span>' + (f.rec ? '<button type="button" class="btn" data-act="instTrack" data-id="' + f.key + '">查看效果追踪</button>' : '') + '<button type="button" class="btn p" data-act="instClose" autofocus>完成</button></div>';
   openModal(html, 'wide'); MODAL_KEY = 'install';
 }
@@ -113,7 +113,7 @@ Object.assign(ACT, {
     if (f.lib) S.libInst.add(f.lib);
     if (f.studio) S.libInst.add('studio:' + f.key);
     S.instLog.unshift({ t: '安装 ' + f.title + (codex ? '（含 Codex）' : '') + (f.scope === 'proj' ? '（仅 ' + f.scopeName + '）' : ''), when: '刚刚', target: f.target });
-    LAST_INSTALL = f; st.step = 3; st.at = Date.now(); st.t = Date.now(); st.bk = '…/Tandem/backups/' + f.target.split('/').pop() + '.1001-' + nowText().slice(-5).replace(':', '');
+    LAST_INSTALL = f; st.step = 3; st.at = Date.now(); st.t = Date.now(); st.bk = '…/Orbit/backups/' + f.target.split('/').pop() + '.1001-' + nowText().slice(-5).replace(':', '');
     renderMain(); drawInstall(); instTick();
   },
   instUndo: () => { if (instBusy()) return; const f = INST.info; closeModal(); INST = null; undoInstall(f); },

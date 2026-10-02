@@ -3,33 +3,67 @@
    匹配度在所有位置都用同一根三段条（行为 ×0.5 深、痛点 ×0.3 中、社区 ×0.2 浅），图例写在标题行；
    「和你相似的人」的占比条加全体用户占比细线。颜色只用灰阶与状态色。 */
 .lb-card{overflow:hidden;display:flex;flex-direction:column;min-width:0}
-.lb-head{background:var(--sunken);border-top:4px solid var(--ink-1);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.lb-head{background:var(--sunken);border-top:3px solid var(--ink-1);padding:12px 16px 14px;display:flex;flex-direction:column;gap:6px}
+.lb-meta{font-size:11px;line-height:16px;gap:6px;white-space:nowrap;min-width:0}
 .lb-head .mono b{color:var(--ink-1)}
 .lb-id{font-size:15px;font-weight:700;line-height:20px;word-break:break-all}
-.lb-desc{font-size:12.5px;line-height:1.5;color:var(--ink-2)}
-.lb-match{display:flex;align-items:center;gap:10px;margin-top:4px;border-radius:6px}
+.lb-desc{font-size:12px;line-height:18px;color:var(--ink-2)}
+.lb-match{display:flex;align-items:center;gap:10px;margin-top:6px;border-radius:6px}
 .lb-match:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
-.lb-match>b{font-size:22px;line-height:24px;font-variant-numeric:tabular-nums;color:var(--ink-1)}
-.lb-parts{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-match>b{font-size:26px;line-height:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink-1)}
+.lb-parts{font-size:11px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb-bar{display:flex;height:7px;border-radius:4px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--hair);overflow:hidden;width:100%;min-width:0}
 .lb-bar i{display:block;height:100%}
 .lb-bar i+i{margin-left:1px}
 .lb-bar.sm{height:6px;flex:1;background:var(--sunken)}
-.lb-body{padding:10px 14px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
-.lb-foot{margin-top:auto;flex-wrap:wrap;padding-top:4px}
-.lb-legend{display:inline-flex;align-items:center;gap:8px;font-size:11px;white-space:nowrap}
+.lb-body{padding:12px 16px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
+.lb-why{align-items:flex-start;gap:8px;font-size:12px;line-height:18px;color:var(--ink-2)}
+.lb-why svg{margin-top:2px!important}
+.lb-foot{margin-top:auto;flex-wrap:wrap;gap:8px;padding-top:12px;border-top:1px solid var(--hair)}
+.lb-fc{font-size:11px;line-height:16px}
+.lb-acts{gap:4px;margin-left:auto}
+.lb-acts .btn.p{min-width:48px;justify-content:center}
+.lb-legend{display:flex;align-items:center;gap:8px;font-size:11px;line-height:14px;white-space:nowrap;margin-top:-4px}
 .lb-legend i{display:inline-block;width:10px;height:6px;border-radius:2px}
-.lb-row{display:grid;grid-template-columns:30px minmax(0,1fr) 128px 52px auto;gap:10px;align-items:center;min-height:46px;border-bottom:1px solid var(--hair)}
+.lb-row{display:grid;grid-template-columns:32px minmax(0,1fr) 112px 44px minmax(52px,auto);gap:10px;align-items:center;min-height:52px;padding:6px 0;border-bottom:1px solid var(--hair)}
+.lb-row>:last-child{justify-self:end}
+.lb-row .btn.p{min-width:44px;justify-content:center}
 .lb-row:last-child{border-bottom:0}
-.lb-row>div>.row{flex-wrap:wrap;gap:4px 6px}
+.lb-row>div>.row{flex-wrap:nowrap;gap:6px;min-width:0;margin-bottom:2px}
+.lb-nm{font-size:12px;line-height:16px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .lb-row b.mono{white-space:nowrap}
-.lb-ico{width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center}
-.lb-ell{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-mv{font-size:12px;min-width:20px;text-align:right}
+.lb-ico{width:32px;height:32px;border-radius:8px;color:var(--ink-2);background:var(--sunken);display:grid;place-items:center}
+.lb-ell{font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb-m{border-radius:4px}
 .lb-m:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 .lb-users{font-size:11px;text-align:right}
 .lb-peer{position:relative;display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:visible}
 .lb-peer i{display:block;height:100%;border-radius:0 3px 3px 0;background:var(--ink-2)}
 .lb-peer em{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--ink-1);border-radius:1px}
-@container main (max-width:1099px){.lb-row{grid-template-columns:30px minmax(0,1fr) 96px auto}.lb-users{display:none}}
+/* list wider than the peers panel: the list carries four columns, the peers panel only names + share bars */
+.lb-two{grid-template-columns:minmax(0,1fr) 312px}
+.lb-pintro{font-size:12px;line-height:18px;color:var(--ink-2)}
+.lb-peers{gap:14px}
+.lb-anon{align-items:flex-start;gap:8px;margin-top:auto;padding:8px 12px;border-radius:8px;background:var(--sunken);font-size:11px;line-height:16px;color:var(--ink-2)}
+.lb-anon .lnk{font-size:11px}
+.lb-div{width:1px;height:16px;background:var(--line);margin:0 4px}
+.lb-sort{align-self:center}
+.lb-q{width:clamp(220px,36cqi,360px)}
+@container main (max-width:1099px){.lb-row{grid-template-columns:32px minmax(0,1fr) 88px minmax(52px,auto)}.lb-users,.lb-ucap{display:none}}
 @container main (max-width:799px){.lb-legend{display:none}.lb-two{grid-template-columns:minmax(0,1fr)!important}}
+.lb-row>div>.row>:not(.lb-nm){flex:none}
+/* the peers card ends with its content instead of stretching to the list's height with an empty middle */
+.lb-two>.lb-peers{align-self:start}
+.lb-peers .lb-anon{margin-top:2px}
+/* pass 2: page title on the type scale (17), both list cards end with their content, empty list reads as a quiet line,
+   installed sheet rows: mono id + kind caption, action right-aligned */
+.lb-title{font-size:17px;line-height:22px;font-weight:600}
+.lb-two>.card{align-self:start}
+.lb-none{display:block;padding:12px 0 4px}
+.lb-irow{justify-content:space-between;gap:12px;min-height:36px;padding:6px 0;border-bottom:1px solid var(--hair)}
+.lb-irow:last-child{border-bottom:0}
+.lb-inm{min-width:0;display:flex;align-items:baseline;gap:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-inm b{font-size:12px;font-weight:600;color:var(--ink-1)}
+.lb-inm .cap{font-size:11px}
+.lb-pintro{text-wrap:balance}

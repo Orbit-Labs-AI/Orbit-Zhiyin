@@ -76,6 +76,7 @@ def test_numbers_equal_section_data(env, sections):
     assert s["projects"]["freshness"] == "stale"
     assert s["overview"]["coverage"] == {"events": "available", "tool_calls": "partial"}
     md = body["markdown"]
+    assert md.startswith("# Orbit 协作报告\n") and "Tandem" not in md
     assert md.count("\n## ") == len(report.DEFAULT_SECTIONS) + 1
     assert "## 口径与限制" in md and "123,456" in md and "7.5%" in md
     assert s["recommendations"]["status"] == "unavailable"

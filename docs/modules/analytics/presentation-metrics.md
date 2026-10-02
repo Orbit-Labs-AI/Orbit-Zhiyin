@@ -264,7 +264,7 @@ priority = 100 × r × support × coverage
 
 每条建议携带 `rule_id/rule_version/evidence_refs/priority_score`。`expected_effect=null`、`installable=false`；配置名称、适配 Agent、代码预览和安装动作需要后续可信资源条目与能力清单，不由排序公式补造。
 
-具体资源卡片复用同范围的 `bottleneck_recommendations`，输出在 `resource_recommendations` 与 `resources.for_you`。其规则／BM25／效果方向／环境召回、RRF 融合、兼容性过滤、加权排序和 MMR 去重由已有[推荐引擎](../recommendation.md)负责；本展示层不重新评分。上面的诊断 `priority_score` 仅排列回看建议，与资源卡片的试用优先级分别解释。
+具体资源卡片复用同范围的 `bottleneck_recommendations`，输出在 `resource_recommendations` 与 `resources.for_you`。其规则／BM25／效果方向／环境召回、RRF 融合、兼容性过滤、加权排序和 MMR 去重由已有[推荐引擎](../recommendation/engine.md)负责；本展示层不重新评分。上面的诊断 `priority_score` 仅排列回看建议，与资源卡片的试用优先级分别解释。
 
 ## 8. 明确保留不可用的展示与所需输入
 

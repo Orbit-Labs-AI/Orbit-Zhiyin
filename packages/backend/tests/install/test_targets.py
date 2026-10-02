@@ -5,6 +5,7 @@ import pytest
 
 from tandem_backend.install.env import environment
 from tandem_backend.install.targets import (
+    REASON_TEXT,
     TABLE,
     PlanError,
     check_path,
@@ -94,7 +95,8 @@ def test_landing_grid(key, env, info, project):
     targets = resolve_targets(spec(kind, [agent], scope, project if scope == "project" else None), info, env=env)
     first = targets[0]
     if isinstance(expected, str):
-        assert first == {"idx": 0, "agent": agent, "kind": kind, "mappable": False, "reason": expected}
+        assert first == {"idx": 0, "agent": agent, "kind": kind, "mappable": False, "reason": expected,
+                         "reason_text": REASON_TEXT[expected]}
         return
     path, action, pointer = expected
     if kind == "hook":

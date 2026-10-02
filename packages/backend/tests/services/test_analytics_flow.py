@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import threading
 
+import pytest
 from conftest import add_codex, bus_events, run_job, wait_for, wait_job
 from fastapi.testclient import TestClient
 
 from tandem_backend.api.routes import create_app
 from tandem_backend.services.sections import SESSION_SUMMARY_FIELDS
+
+# Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
+pytestmark = pytest.mark.serial
 
 META_KEYS = {"contract", "scope_hash", "data_rev", "inventory_rev", "rules_version", "freshness",
              "computed_at", "source", "duration_ms", "coverage", "selection"}
@@ -44,7 +48,14 @@ def test_snapshot_lifecycle_keys_and_merging(client_factory, codex_root, tmp_pat
     # Same keys and values as the existing create_app() route; only meta is added.
     legacy = TestClient(create_app(home=gateway.home)).get("/v1/analytics/overview").json()
     assert set(body) - {"meta"} == set(legacy)
-    assert {k: v for k, v in body.items() if k != "meta"} == legacy
+    # The worker filled the shared read-through cache, so the legacy route hits that same
+    # entry: same request key, input fingerprint and compute time. Only per-request fields
+    # (hit flag, rows computed on a miss) differ.
+    assert body["freshness"]["cache_hit"] is False and legacy["freshness"]["cache_hit"] is True
+    stable = ("request_key", "input_fp", "algo_version", "computed_at")
+    assert {k: body["freshness"][k] for k in stable} == {k: legacy["freshness"][k] for k in stable}
+    assert ({k: v for k, v in body.items() if k not in ("meta", "freshness")}
+            == {k: v for k, v in legacy.items() if k != "freshness"})
     assert body["meta"]["coverage"] == legacy["coverage"]  # Passed through, never zero-filled.
     assert body["meta"]["selection"] == legacy["selection"]
 
@@ -138,9 +149,14 @@ def test_recompute_and_prewarm(client_factory, codex_root):
     assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
         "status"] == "completed"
     # head publishes only light sections for the default scope (debounced prewarm).
-    wait_for(lambda: len(bus_events(gateway, "analysis.ready")) >= 4, 120, 0.1, "prewarm")
-    sections = {f.data["section"] for f in bus_events(gateway, "analysis.ready")}
-    assert {"overview", "sessions", "tools", "projects"} <= sections
+    # Sections are computed lazily one by one, so wait for the expected ones, not a count.
+    def ready_sections():
+        return {f.data["section"] for f in bus_events(gateway, "analysis.ready")}
+
+    expected = {"overview", "sessions", "tools", "projects"}
+    wait_for(lambda: expected <= ready_sections(), 120, 0.1, "prewarm")
+    sections = ready_sections()
+    assert expected <= sections
     assert not sections & {"text", "tasks"}
     bad = client.post("/v1/analytics/recompute", json={"sections": ["nope"]})
     assert bad.status_code == 422

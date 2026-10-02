@@ -153,6 +153,65 @@ def test_fetch_and_catalog_plan(client, fake_home):
     assert (fake_home / ".claude/skills/foo/SKILL.md").read_text() == "# foo\n"
 
 
+def add_card(appdb, cid, source, kind="skill"):
+    card = {"source": source, "target_agents": ["claude_code"], "problem": {"type": "x"}}
+    with appdb.write() as db:
+        db.execute("INSERT INTO rec_candidate (candidate_id, run_id, rec_key, kind, dim, title, passed, card, "
+                   "created_at) VALUES (?, 'run1', ?, ?, 'd', 't', 1, ?, 1)", (cid, f"rk-{cid}", kind, json.dumps(card)))
+
+
+def test_fetch_accepts_candidate_and_catalog_sources(client, fake_home):
+    """Older clients POST a recommendation card to ``/v1/install/fetch``: it is planned with
+    ``fetch: true`` and the plan comes back with the fetch result instead of a 422."""
+    c, svc = client
+    add_card(svc.appdb, "cand-skill", {"origin": "catalog", "item_id": "foo-skill"})
+    got = c.post("/v1/install/fetch", json={"source": {"type": "candidate", "id": "cand-skill"},
+                                             "agents": ["claude_code"]})
+    assert got.status_code == 200, got.text
+    body = got.json()
+    assert body["status"] == "ready" and body["plan_id"] == body["plan"]["plan_id"]
+    assert body["fetch"]["commit"] == COMMIT and body["fetch"]["cached"] is False
+    assert (body["plan"]["source"]["type"], body["plan"]["source"]["id"]) == ("candidate", "cand-skill")
+    preview = c.get(f"/v1/install/plans/{body['plan_id']}/preview").json()
+    applied = c.post("/v1/install/apply", json={"plan_id": body["plan_id"], "preview_digest": preview["preview_digest"]})
+    assert applied.status_code == 200 and (fake_home / ".claude/skills/foo/SKILL.md").read_text() == "# foo\n"
+
+    cat = c.post("/v1/install/fetch", json={"source": {"type": "catalog", "id": "foo-skill"}}).json()
+    assert cat["status"] == "ready" and cat["fetch"]["cached"] is True and cat["plan"]["kind"] == "skill"
+    no_id = c.post("/v1/install/fetch", json={"source": {"type": "candidate"}})
+    assert no_id.status_code == 422 and error(no_id)["code"] == "invalid_request"
+    missing = c.post("/v1/install/fetch", json={"source": {"type": "candidate", "id": "cand-nope"}})
+    assert missing.status_code == 404 and error(missing)["code"] == "not_found"
+    unknown = c.post("/v1/install/fetch", json={"source": {"type": "ftp", "id": "x"}})
+    assert unknown.status_code == 422 and error(unknown)["code"] == "unsupported_source"
+
+
+def test_kb_candidate_plan_preview_apply_revert(client, fake_home):
+    """A KB-origin card (6af89b1) goes plan → preview → apply → revert over a tmp HOME."""
+    c, svc = client
+    hook = {"event": "PreToolUse", "matcher": "Bash", "command": "echo synthetic-guard", "id": "retry-breaker"}
+    entry = {"id": "kb:retry-breaker", "kind": "hook", "name": "retry breaker", "install": {"hook": hook},
+             "license": {"spdx": "MIT"}}
+    svc.catalog_lookup = {SKILL["id"]: SKILL, entry["id"]: entry}.get
+    add_card(svc.appdb, "cand-kb", {"origin": "kb", "item_id": "retry-breaker", "catalog_ref": None}, kind="hook")
+    settings = fake_home / ".claude/settings.json"
+    before = settings.read_text()
+    plan = c.post("/v1/install/plans", json={"source": {"type": "candidate", "id": "cand-kb"},
+                                             "agents": ["claude_code"]})
+    assert plan.status_code == 201, plan.text
+    plan = plan.json()
+    assert (plan["status"], plan["kind"], plan["source"]["type"]) == ("ready", "hook", "candidate")
+    preview = c.get(f"/v1/install/plans/{plan['plan_id']}/preview").json()
+    assert preview["targets"][0]["status"] in ("create", "modify")
+    applied = c.post("/v1/install/apply", json={"plan_id": plan["plan_id"], "preview_digest": preview["preview_digest"]})
+    assert applied.status_code == 200, applied.text
+    applied = applied.json()
+    assert applied["state"] == "observing" and applied["tracking_id"]
+    assert "echo synthetic-guard" in settings.read_text()
+    reverted = c.post(f"/v1/install/{applied['install_id']}/revert", json={})
+    assert reverted.status_code == 200 and json.loads(settings.read_text()) == json.loads(before)
+
+
 def test_artifact_install_updates_ai_status(client):
     c, svc = client
     with svc.appdb.write() as db:

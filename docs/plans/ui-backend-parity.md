@@ -4,7 +4,7 @@
 
 这份报告回答四个问题：前端每个 UI 元素有没有后端支撑；资料库（MCP / hooks / skills / plugins 等）够不够完整；推荐能不能做到 UI 的效果；分析能不能百分之百还原 UI。
 
-**依据。** 五份审计表（推荐、资料库、分析 A1–A3、分析 A4–A6、外壳与流程）在本机 `.work/be-notes/parity-*.md`，不入库。审计对象是 `wip/yhyfhgs-backend-r4` @ `8902890`，全部用合成数据驱动真实 Gateway 测得，没有读取真实 `~/.claude` 或 `~/.codex`。之后合入了 12 个修复包，到 `5b380b6` 为止。「本轮后」一列按各包的修复报告和包规格计算，没有逐行复审；推荐的样例在合入后的分支上重新跑过一遍。UI 依据 Advance 原型、Lite 原型和 [feature-map.md](feature-map.md) §5；口径约定见 [backend-gap.md](backend-gap.md)。
+**依据。** 五份审计表（推荐、资料库、分析 A1–A3、分析 A4–A6、外壳与流程）在本机 `.work/be-notes/parity-*.md`，不入库。审计对象是 `wip/yhyfhgs-backend-r4` @ `8902890`，全部用合成数据驱动真实 Gateway 测得，没有读取真实 `~/.claude` 或 `~/.codex`。之后合入了 12 个修复包，到 `5b380b6` 为止。「本轮后」一列按各包的修复报告和包规格计算，没有逐行复审；推荐的样例在合入后的分支上重新跑过一遍。UI 依据 Advance 原型、Lite 原型和 [feature-map.md](feature-map.md) §5；口径约定见 [backend-gap.md](../audits/backend-gap.md)。
 
 ## 1. 结论
 

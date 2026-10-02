@@ -9,7 +9,8 @@ from tandem_data.source_reader import SourceUnavailable, native_lines, source_pa
 from tandem_data.store import SQL_TABLES
 
 
-def index_file(store, source_id, path, role):
+def index_file(store, source_id, path, role, scan=None):
+    """Capture one allowlisted file. ``scan`` holds line facts computed by a worker."""
     source = store.db.execute("SELECT * FROM source WHERE source_id=?", (source_id,)).fetchone()
     if source is None:
         raise ValueError("Register the source before indexing files")
@@ -29,7 +30,9 @@ def index_file(store, source_id, path, role):
         encoding = "json"
     else:
         raise ValueError("Only allowlisted transcript and session database inputs can be indexed")
-    before = source_stat(path)
+    if scan is not None and scan["encoding"] != encoding:
+        scan = None  # The allowlist chose another encoding; read the file in this process.
+    before = scan["before"] if scan is not None else source_stat(path)
     existing = store.db.execute(
         "SELECT file_id FROM source_file WHERE source_id=? AND relative_path=?",
         (source_id, relative),
@@ -44,22 +47,40 @@ def index_file(store, source_id, path, role):
         )
         missing = [f for f in missing if not (root / f["relative_path"]).exists()]
         if missing:
-            digest = hashlib.sha256()
-            with native_lines(path, encoding, source["agent"]) as lines:
-                for line in lines:
-                    digest.update(line)
+            if scan is not None and not scan["start_ordinal"]:
+                hexdigest = scan["sha256"]
+            else:
+                digest = hashlib.sha256()
+                with native_lines(path, encoding, source["agent"]) as lines:
+                    for line in lines:
+                        digest.update(line)
+                hexdigest = digest.hexdigest()
             matches = [
-                f
-                for f in missing
-                if json.loads(f["watermark"]).get("source_sha256") == digest.hexdigest()
+                f for f in missing if json.loads(f["watermark"]).get("source_sha256") == hexdigest
             ]
             if len(matches) == 1:
                 file_id = matches[0]["file_id"]
+                if scan is not None:
+                    # Native keys may include the path, so a rename needs a new projection.
+                    scan = {**scan, "renamed_from": matches[0]["relative_path"]}
     latest = store.db.execute(
         "SELECT v.*,f.watermark,f.role,f.status FROM source_revision v JOIN source_file f USING(file_id) "
         "WHERE file_id=? ORDER BY revision DESC LIMIT 1",
         (file_id,),
     ).fetchone()
+    if scan is not None and scan["start_ordinal"]:
+        # Append fast path: the old revision must be a byte prefix of the same inode.
+        previous = json.loads(latest["watermark"]) if latest else {}
+        if (
+            latest is None
+            or latest["archive_uid"] is not None
+            or latest["record_count"] < scan["start_ordinal"]
+            or scan["prefix_sha256"] is None
+            or scan["prefix_sha256"] != previous.get("source_sha256")
+            or (previous.get("last_source_stat") or {}).get("ino") != before["ino"]
+        ):
+            scan = None
+            before = source_stat(path)
     # SQLite WAL changes are not reflected by the database file's stat.
     if (
         latest
@@ -90,11 +111,16 @@ def index_file(store, source_id, path, role):
             (revision_uid, file_id, revision, captured, canonical(before)),
         )
         store.db.execute("INSERT INTO source_reference VALUES(?,'',0,?)", (revision_uid, encoding))
-        with native_lines(path, encoding, source["agent"]) as lines:
-            count, length, sha = store._index_lines(
-                file_id, revision_uid, lines, encoding, role, reference=True
-            )
-        if encoding != "sqlite_rows" and source_stat(path) != before:
+        if scan is not None:
+            count, length, sha = _index_scanned(store, file_id, revision_uid, scan, latest)
+            after = scan["after"]
+        else:
+            with native_lines(path, encoding, source["agent"]) as lines:
+                count, length, sha = store._index_lines(
+                    file_id, revision_uid, lines, encoding, role, reference=True
+                )
+            after = source_stat(path) if encoding != "sqlite_rows" else before
+        if encoding != "sqlite_rows" and after != before:
             raise SourceUnavailable(
                 "changed", "Source changed during indexing; retry after the writer flushes"
             )
@@ -130,19 +156,14 @@ def index_file(store, source_id, path, role):
                 "capture": "source_reference",
                 "last_source_stat": before,
             }
+        if scan is not None and scan.get("renamed_from") not in (None, relative):
+            # L1 identity is kept, but the projection is stale: native keys may include the path.
+            watermark.pop("projected_revision", None)
         store.db.execute(
             "UPDATE source_file SET watermark=? WHERE file_id=?", (canonical(watermark), file_id)
         )
     store._resolve_capture_issues(source_id, file_id)
     return {"file_id": file_id, "changed": not unchanged, "records": count}
-
-
-def iter_indexed_file(store, file_id):
-    try:
-        yield from _iter_captured(store, file_id)
-    except SourceUnavailable as error:
-        error.file_id = file_id
-        raise
 
 
 def _captured(lines, length):
@@ -156,46 +177,172 @@ def _captured(lines, length):
             return  # Never read past the capture: appended bytes belong to the next scan.
 
 
-def _iter_captured(store, file_id):
-    """Yield the captured revision of a live source, verifying the captured prefix.
+def _index_scanned(store, file_id, revision_uid, scan, latest):
+    """Batch form of ``Store._index_lines`` for worker-computed line facts.
 
-    Agents keep appending to their logs while Tandem imports. Each line and the
-    aggregate digest are checked over the captured length, so an appended file still
-    projects its captured records and a truncated or rewritten one is rejected.
+    An append scan starts at ``start_ordinal``: earlier lines keep their L1 rows and
+    their locations are copied to the new revision. Version numbers, record UIDs and
+    pending-tail dispositions match the line-by-line writer.
     """
-    info = store.db.execute(
+    db = store.db
+    start = scan["start_ordinal"]
+    rows = scan["rows"]
+    if start:
+        db.execute(
+            "INSERT INTO record_location SELECT record_uid,?,ordinal,byte_offset,byte_len "
+            "FROM record_location WHERE revision_uid=? AND ordinal<?",
+            (revision_uid, latest["revision_uid"], start),
+        )
+        stale = [canonical(["line", ordinal]) for ordinal in range(start, latest["record_count"])]
+        previous = {}
+        for chunk in _chunks(stale):
+            previous.update(
+                (row[0], (row[1], row[2]))
+                for row in db.execute(
+                    "SELECT f.locator,r.record_uid,r.sha256 FROM file_record f JOIN raw_record r "
+                    f"USING(record_uid) WHERE f.file_id=? AND f.locator IN ({_marks(chunk)})",
+                    (file_id, *chunk),
+                )
+            )
+            db.execute(
+                f"DELETE FROM file_record WHERE file_id=? AND locator IN ({_marks(chunk)})",
+                (file_id, *chunk),
+            )
+    else:
+        previous = {
+            row[0]: (row[1], row[2])
+            for row in db.execute(
+                "SELECT f.locator,r.record_uid,r.sha256 FROM file_record f JOIN raw_record r "
+                "USING(record_uid) WHERE f.file_id=?",
+                (file_id,),
+            )
+        }
+        db.execute("DELETE FROM file_record WHERE file_id=?", (file_id,))
+    versions = {}
+    changed = [row[4] for row in rows if previous.get(row[4], (None, None))[1] != row[3]]
+    for chunk in _chunks(changed):
+        versions.update(
+            db.execute(
+                "SELECT locator,MAX(version) FROM raw_record WHERE file_id=? "
+                f"AND locator IN ({_marks(chunk)}) GROUP BY locator",
+                (file_id, *chunk),
+            ).fetchall()
+        )
+    tail_note = canonical({"reason": "incomplete_tail_retained_in_L0"})
+    inserted, ignored, located, current = [], [], [], []
+    for ordinal, offset, length, row_sha, locator, native_type, native_id, harness, shape in rows:
+        old = previous.get(locator)
+        pending = native_type == "pending_tail"
+        if old and old[1] == row_sha:
+            record_uid = old[0]
+            if pending:
+                ignored.append((tail_note, record_uid))
+        else:
+            version = versions.get(locator, 0) + 1
+            versions[locator] = version
+            record_uid = uid("record", file_id, json.loads(locator), version)
+            inserted.append(
+                (
+                    record_uid,
+                    file_id,
+                    revision_uid,
+                    locator,
+                    version,
+                    ordinal,
+                    offset,
+                    length,
+                    row_sha,
+                    native_type,
+                    native_id,
+                    harness,
+                    shape,
+                    "ignored" if pending else "unparsed",
+                    tail_note if pending else "{}",
+                )
+            )
+        current.append((file_id, locator, record_uid))
+        located.append((record_uid, revision_uid, ordinal, offset, length))
+    db.executemany(
+        "INSERT INTO raw_record(record_uid,file_id,revision_uid,locator,version,ordinal,"
+        "byte_offset,byte_len,sha256,native_type,native_id,harness_version,shape_hash,"
+        "disposition,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        inserted,
+    )
+    db.executemany("UPDATE raw_record SET disposition='ignored',note=? WHERE record_uid=?", ignored)
+    db.executemany("INSERT INTO file_record VALUES(?,?,?)", current)
+    db.executemany("INSERT INTO record_location VALUES(?,?,?,?,?)", located)
+    return start + len(rows), scan["decoded_bytes"], scan["sha256"]
+
+
+def _chunks(values, size=500):
+    values = list(values)
+    for index in range(0, len(values), size):
+        yield values[index : index + size]
+
+
+def _marks(values):
+    return ",".join("?" * len(values))
+
+
+def indexed_rows(db, file_id):
+    """Latest source-reference revision and its ordinal -> L1 row map, in one query."""
+    info = db.execute(
         "SELECT f.*,s.agent,s.root_path,v.revision_uid,v.captured_at,x.sha256,x.byte_len "
         "FROM source_file f JOIN source s USING(source_id) JOIN source_revision v USING(file_id) "
         "JOIN source_reference x USING(revision_uid) WHERE f.file_id=? ORDER BY v.revision DESC LIMIT 1",
         (file_id,),
     ).fetchone()
-    path = source_path(info["root_path"], info["relative_path"])
+    rows = {
+        row[0]: tuple(row[1:])
+        for row in db.execute(
+            "SELECT l.ordinal,r.record_uid,r.version,r.native_type,r.sha256 FROM record_location l "
+            "JOIN raw_record r USING(record_uid) WHERE l.revision_uid=?",
+            (info["revision_uid"],),
+        )
+    }
+    return info, rows
+
+
+def iter_lines_with_rows(path, info, rows):
+    """Yield verified records of the captured revision of one indexed file.
+
+    Agents keep appending to their logs while Tandem imports. Reading stops at the
+    captured ``byte_len`` (the same length and digest the append scan extends), so an
+    appended file still projects its captured records, while a truncated or rewritten
+    prefix fails the per-line and aggregate checks.
+    """
     digest = hashlib.sha256()
     with native_lines(path, info["format"], info["agent"]) as lines:
         for ordinal, line in enumerate(_captured(lines, info["byte_len"])):
             digest.update(line)
-            row = store.db.execute(
-                "SELECT r.*,l.ordinal AS current_ordinal FROM record_location l JOIN raw_record r USING(record_uid) "
-                "WHERE l.revision_uid=? AND l.ordinal=?",
-                (info["revision_uid"], ordinal),
-            ).fetchone()
-            if row is None or hashlib.sha256(line).hexdigest() != row["sha256"]:
+            row = rows.get(ordinal)
+            if row is None or hashlib.sha256(line).hexdigest() != row[3]:
                 raise SourceUnavailable(
                     "changed", "Indexed source changed; rescan before rebuilding"
                 )
-            if row["native_type"] in ("invalid", "pending_tail"):
+            if row[2] in ("invalid", "pending_tail"):
                 continue
             yield RawRecord(
-                row["record_uid"],
+                row[0],
                 info["source_id"],
                 info["agent"],
-                file_id,
+                info["file_id"],
                 info["relative_path"],
                 ordinal,
-                row["version"],
-                row["native_type"],
+                row[1],
+                row[2],
                 json.loads(line),
                 info["captured_at"],
             )
     if digest.hexdigest() != info["sha256"]:
         raise SourceUnavailable("changed", "Indexed source changed; rescan before rebuilding")
+
+
+def iter_indexed_file(store, file_id):
+    info, rows = indexed_rows(store.db, file_id)
+    path = source_path(info["root_path"], info["relative_path"])
+    try:
+        yield from iter_lines_with_rows(path, info, rows)
+    except SourceUnavailable as error:
+        error.file_id = file_id  # A rebuild can retain just this file's facts.
+        raise

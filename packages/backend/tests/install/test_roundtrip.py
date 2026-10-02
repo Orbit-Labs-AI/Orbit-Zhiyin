@@ -198,11 +198,22 @@ def test_user_edit_of_our_unit_is_refused(tmp_path, name):
     assert path.read_text() == edited
 
 
-def test_edited_array_item_counts_as_gone(tmp_path):
-    """A list edit is indistinguishable from remove+add: our item is gone, theirs stays."""
+def test_edited_array_item_refuses_revert(tmp_path):
+    """B5: our list item replaced by one nobody installed is a user edit: refuse, keep the file."""
     home, path, original, targets, env = _setup(tmp_path, "permissions_allow")
     recs = _apply(home, targets, env)
     edited = path.read_text().replace("Bash(git diff:*)", "Bash(git diff --stat:*)")
     path.write_text(edited)
-    assert _revert(recs, env)[0]["status"] == "already_reverted"
+    assert _revert(recs, env)[0]["status"] == "modified"
     assert path.read_text() == edited
+
+
+def test_deleted_array_item_still_reverts(tmp_path):
+    """Deleting our only item (no stranger item appears) is not an edit: nothing to undo."""
+    home, path, original, targets, env = _setup(tmp_path, "permissions_allow")
+    recs = _apply(home, targets, env)
+    data = json.loads(path.read_text())
+    data["permissions"]["allow"].remove("Bash(git diff:*)")
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    assert _revert(recs, env)[0]["status"] == "already_reverted"
+    assert "Bash(git diff:*)" not in path.read_text()

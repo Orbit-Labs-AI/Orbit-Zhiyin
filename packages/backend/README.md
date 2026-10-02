@@ -1,4 +1,4 @@
-# Tandem Backend
+# Orbit Backend
 
 当前实现：产品编排、本机 API、CLI、画像、特征分析、推荐与报告。Python import 仍为 `tandem_backend`，安装后的命令仍为 `tandem`。
 

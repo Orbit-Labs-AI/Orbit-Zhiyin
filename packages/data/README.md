@@ -1,4 +1,4 @@
-# Tandem 数据契约与预处理
+# Orbit 数据契约与预处理
 
 本包提供实际可建库的 SQLite DDL、L0 来源索引、L1 全记录记账、L2 完整正文映射、L3 派生、分析读取和旧归档兼容。原生扫描不复制完整 session；Mac App 可通过索引打开原文与完整轨迹，见 [索引与 App 接口](../../docs/modules/data/indexed-trajectories.md)。设计与字段见 [数据契约](../../docs/contracts/data.md)。无需数据库服务器；Python 3.13 + uv。
 
@@ -59,7 +59,7 @@ git diff --check
 bash scripts/check-data.sh --real --open
 ```
 
-不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `trajectory_page` / `record_source` / `read_analysis` 只读查询。存储 user_version=6，事件契约仍为 v1；旧库自动迁移。变化文件更新来源索引，未变化文件快速跳过，重算按来源隔离；源文件改写或删除时，原文接口明确返回不可用状态。
+不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `trajectory_page` / `record_source` / `read_analysis` 只读查询。存储 user_version=8，事件契约仍为 v1；旧库自动迁移（008 见 [存储去重与索引](../../docs/modules/data/storage-dedup.md)）。变化文件更新来源索引，未变化文件快速跳过，重算按来源隔离；源文件改写或删除时，原文接口明确返回不可用状态。
 
 ## 分析运行记录
 
