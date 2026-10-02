@@ -288,11 +288,13 @@ test('first run: Genesis 看看优化建议 counts the live recommendations (J10
   await page.evaluate((i) => window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id: i, path: '/Users/someone/fx-src/pi', cancelled: false } })), id);
   await expect(page.locator('#overlay [data-ob="added"]')).toContainText('~/fx-src/pi');
   await expect(page.locator('#toast')).toBeHidden();
-  const fits = async () => { const b = await page.locator('#overlay .obox').boundingBox(); const sh = await page.evaluate(() => { const o = $('#overlay .obox'); return o.scrollHeight - o.clientHeight; }); return b.y >= 0 && b.y + b.height <= 900 && sh <= 1; };
-  expect(await fits()).toBe(true);
+  const box = page.locator('#overlay .obox');
+  // the sheet opens with an entrance animation: measure only once it is visible and its box has settled (B14 flake)
+  const fits = async () => { await expect(box).toBeVisible(); const b = await box.boundingBox(); if (!b) return false; const sh = await page.evaluate(() => { const o = $('#overlay .obox'); return o.scrollHeight - o.clientHeight; }); return b.y >= 0 && b.y + b.height <= 900 && sh <= 1; };
+  await expect.poll(fits, { timeout: 5_000 }).toBe(true);
   await page.locator('#overlay [data-act="obStart"]').click();
   await expect(page.locator('#overlay [data-ob="stages"] .step')).toHaveCount(4);
-  expect(await fits()).toBe(true);
+  await expect.poll(fits, { timeout: 5_000 }).toBe(true);
   await expect(page.locator('#overlay [data-act="obBgImport"]')).toBeInViewport();
   gw.set('GET /v1/uiview/facts', fx('core/facts.json'));
   gw.set('GET /v1/app/jobs/' + JOB, fx('s7/job-completed.json'));
