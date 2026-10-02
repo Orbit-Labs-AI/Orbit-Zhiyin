@@ -210,3 +210,84 @@ def test_staging_bridge_is_usable_after_native_source_is_gone(tmp_path):
     assert CanonicalStore(home).counts()["sessions"] == 3
     assert maintain(home, "verify")["unparsed"] == 0
     assert ingest_staging(home, staging)["import"]["imported_revisions"] == 0
+
+
+def test_cli_progress_uses_stderr_and_preserves_json(tmp_path, capsys):
+    root, home = demo_home(tmp_path / "codex"), tmp_path / "data"
+    main(["--home", str(home), "ingest", "--agent", "codex", "--root", str(root)])
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["import"]["current_unparsed"] == 0
+    for stage in ("capture", "reset_projection", "prepare", "map", "derive", "published"):
+        assert stage in captured.err
+    main(["--home", str(home), "--no-progress", "rebuild"])
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out)["tables"]["session"] == 3
+
+
+def test_interrupted_projection_keeps_published_facts_and_can_retry(data):
+    home, _ = data
+    before = CanonicalStore(home).read_bundle()
+
+    def cancel(update):
+        if update["stage"] == "derive":
+            raise KeyboardInterrupt
+
+    with Store(home) as store:
+        with pytest.raises(KeyboardInterrupt):
+            store.rebuild(progress=cancel)
+    after = CanonicalStore(home).read_bundle()
+    assert after["projection_run_id"] == before["projection_run_id"]
+    assert after["events"] == before["events"]
+    maintain(home, "rebuild")
+    assert CanonicalStore(home).counts()["events"] == len(before["events"])
+
+
+def test_cli_interrupt_has_actionable_message_not_traceback(monkeypatch, capsys):
+    def cancel(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("tandem_backend.data_access.ingest.maintain", cancel)
+    with pytest.raises(SystemExit) as error:
+        main(["rebuild"])
+    assert error.value.code == 130
+    captured = capsys.readouterr()
+    assert "已中断" in captured.err and "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize("command", ["analytics", "report"])
+def test_cli_event_budget_is_explicit_and_no_partial_report(data, tmp_path, capsys, command):
+    home, _ = data
+    output = tmp_path / ("result.json" if command == "analytics" else "report")
+    args = ["--home", str(home), "--no-progress", "--max-events", "1", command, "--output", str(output)]
+    with pytest.raises(SystemExit) as error:
+        main(args)
+    assert error.value.code == 2
+    message = capsys.readouterr().err
+    assert "--max-events" in message and "--from-ts" in message and "Traceback" not in message
+    assert not output.exists()
+    args[4] = "1000"
+    main(args)
+    assert output.exists()
+
+
+def test_report_time_scope_uses_same_canonical_selector_as_analytics(data):
+    store = CanonicalStore(data[0])
+    scope = Scope(from_ts=1767225603000, until_ts=1767225604000)
+    snapshot = store.report_snapshot(from_ts=scope.from_ts, until_ts=scope.until_ts)
+    bundle = store.read_bundle(scope)
+    assert {e.id for e in snapshot.events()} == set(bundle["statistical_members"]["event_uids"])
+
+
+def test_over_budget_read_rejects_before_decoding_event_payloads(data, monkeypatch):
+    import tandem_data.analysis_input as reader
+
+    original = reader.decoded
+
+    def guard(row):
+        assert "event_uid" not in row.keys(), "over-budget payload must not be materialized"
+        return original(row)
+
+    monkeypatch.setattr(reader, "decoded", guard)
+    with pytest.raises(ValueError, match="event limit exceeded"):
+        reader.read_analysis(data[0], AnalysisScope("UTC"), max_events=1)

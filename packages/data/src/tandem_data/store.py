@@ -656,10 +656,12 @@ class Store:
             raise ValueError("L0 record hash mismatch")
         return data
 
-    def rebuild(self, *, mapper_version=None, source_ids=None) -> dict:
+    def rebuild(self, *, mapper_version=None, source_ids=None, progress=None) -> dict:
         from tandem_data.pipeline import rebuild
 
-        return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
+        return rebuild(
+            self, mapper_version=mapper_version, source_ids=source_ids, progress=progress
+        )
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event

@@ -89,7 +89,8 @@ class ReportSnapshot:
 class CanonicalStore:
     """Open one short query-only connection per read, safe across API worker threads."""
 
-    def __init__(self, home: str | Path):
+    def __init__(self, home: str | Path, *, max_events=100000):
+        self.max_events = max_events
         self.home = Path(home).expanduser().resolve()
         self.path = self.home / "tandem.db"
         if not self.path.is_file():
@@ -110,20 +111,21 @@ class CanonicalStore:
         fields = asdict(scope)
         fields.pop("scene")
         fields.pop("legacy_project_ids")
-        return read_analysis(self.home, AnalysisScope(**fields))
+        return read_analysis(self.home, AnalysisScope(**fields), max_events=self.max_events)
 
     def analysis_bundle(self, scope=None):
         from ..analytics.inputs import AnalysisInputBundle
         return AnalysisInputBundle.from_dict(self.read_bundle(scope))
 
-    def report_snapshot(self, project_id=None, model=None, before=None):
+    def report_snapshot(self, project_id=None, model=None, before=None, *, from_ts=None, until_ts=None):
         from ..analytics.inputs import Scope, millis
         cutoff = millis(before) if before else None
         if before and cutoff is None:
             raise ValueError("before 必须是带时区的 ISO 时间")
         return ReportSnapshot(self.read_bundle(Scope(
             project_ids=[project_id] if project_id is not None else None,
-            model_ids=[model] if model is not None else None, until_ts=cutoff)))
+            model_ids=[model] if model is not None else None, from_ts=from_ts,
+            until_ts=cutoff if cutoff is not None else until_ts)))
 
     def counts(self):
         with self.connect() as db:

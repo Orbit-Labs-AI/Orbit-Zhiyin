@@ -22,9 +22,11 @@ def _merge(old, new):
     return result
 
 
-def rebuild(store, *, mapper_version=None, source_ids=None):
+def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
     from tandem_data.reduce import derive
 
+    progress = progress or (lambda _: None)
+    progress({"stage": "reset_projection"})
     mapper_version = mapper_version or MAPPER_VERSION
     sequences = defaultdict(int)
     parent_keys = {}
@@ -66,16 +68,13 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
         store.db.execute(
             "DELETE FROM ingest_issue WHERE stage IN ('l2','l3') AND source_id IN (SELECT source_id FROM rebuild_scope)"
         )
+        # Walk file-local rows once. Two passes (including a global UID IN-list)
+        # rewrote every current record twice and caused random primary-key IO.
+        current = "EXISTS(SELECT 1 FROM file_record f WHERE f.record_uid=raw_record.record_uid)"
         store.db.execute(
-            "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id IN ("
-            + source_files
-            + ")",
+            f"UPDATE raw_record SET disposition=CASE WHEN {current} THEN 'unparsed' ELSE 'ignored' END,"
+            f"note=CASE WHEN {current} THEN '{{}}' ELSE ? END WHERE file_id IN ({source_files})",
             (canonical({"reason": "superseded source row version"}),),
-        )
-        store.db.execute(
-            "UPDATE raw_record SET disposition='unparsed',note='{}' WHERE file_id IN ("
-            + source_files
-            + ") AND record_uid IN (SELECT record_uid FROM file_record)"
         )
         infos = list(
             store.db.execute(
@@ -84,7 +83,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             )
         )
         mappers = {}
-        for info in infos:
+        progress({"stage": "prepare", "completed": 0, "total": len(infos)})
+        for index, info in enumerate(infos):
+            progress({"stage": "prepare", "completed": index, "total": len(infos)})
             if info["role"] == "legacy_transcript":
                 store.db.execute(
                     "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id=?",
@@ -286,7 +287,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 ),
             )
 
-        for info in infos:
+        mapped_records = 0
+        progress({"stage": "map", "completed": 0, "total": len(infos), "records": 0})
+        for index, info in enumerate(infos):
             mapper = mappers.get(info["file_id"])
             if mapper is None:
                 continue
@@ -302,6 +305,24 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.
                 map_record(mapper, record)
+                mapped_records += 1
+                if mapped_records % 500 == 0:
+                    progress(
+                        {
+                            "stage": "map",
+                            "completed": index,
+                            "total": len(infos),
+                            "records": mapped_records,
+                        }
+                    )
+            progress(
+                {
+                    "stage": "map",
+                    "completed": index + 1,
+                    "total": len(infos),
+                    "records": mapped_records,
+                }
+            )
             for record in store.iter_versions(info["file_id"], "table:session_model_usage"):
                 map_record(mapper, record)
         for record, result in pending:
@@ -345,6 +366,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 record_uid=row["record_uid"],
                 file_id=row["file_id"],
             )
+        progress({"stage": "derive"})
         derive(store, scoped=True)
         for info in infos:
             store.db.execute(
@@ -357,6 +379,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             (mapper_version,),
         ).fetchone():
             store.db.execute("UPDATE schema_manifest SET redaction_version=?", (REDACTION_VERSION,))
+        progress({"stage": "validate_projection"})
         dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
         if dangling:
             raise ValueError("Projection contains broken foreign keys")
@@ -380,6 +403,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 ).fetchone()[0],
             ),
         )
+    progress({"stage": "published", "completed": len(infos), "total": len(infos)})
     return {
         "events": count,
         "sessions": store.db.execute("SELECT COUNT(*) FROM session").fetchone()[0],

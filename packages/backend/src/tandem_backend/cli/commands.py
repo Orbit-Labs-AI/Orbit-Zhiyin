@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 from tandem_data.paths import default_home
@@ -59,8 +60,18 @@ def demo_home(path: Path) -> Path:
 
 
 def main(argv: list[str] | None = None) -> None:
+    try:
+        _main(argv)
+    except KeyboardInterrupt:
+        print("操作已中断；未完成的数据库事务已回滚，已归档数据保留。可重新运行同一命令。", file=sys.stderr)
+        raise SystemExit(130) from None
+
+
+def _main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
     parser.add_argument("--home", type=Path, default=default_home(), help="L0–L3 数据目录，默认 macOS Application Support/Tandem")
+    parser.add_argument("--max-events", type=int, default=100000, help="分析/报告读取事件上限，含上下文；默认 100000，可显式调大")
+    parser.add_argument("--no-progress", action="store_true", help="关闭 stderr 进度输出")
     parser.add_argument("--db", help="显式使用旧版 MVP 数据库（兼容模式）")
     parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
     parser.add_argument("--catalog-db", type=Path, help="推荐资源 SQLite；默认与 --db 同目录")
@@ -84,6 +95,8 @@ def main(argv: list[str] | None = None) -> None:
     report.add_argument("--audience", choices=("user", "developer"), default="user")
     report.add_argument("--project-id")
     report.add_argument("--model")
+    report.add_argument("--from-ts", type=int, help="UTC 毫秒，包含左端")
+    report.add_argument("--until-ts", type=int, help="UTC 毫秒，不包含右端")
     report.add_argument("--scene", help="只分析指定任务场景")
     analytics = sub.add_parser("analytics", help="计算有覆盖说明的特征、聚类和二维坐标")
     analytics.add_argument("--output", type=Path, help="完整 JSON，仅建议保存在 .local 下")
@@ -125,6 +138,10 @@ def main(argv: list[str] | None = None) -> None:
     evidence.add_argument("event_id")
     evidence.add_argument("--json", action="store_true", help="输出完整的已保存事件元数据")
     args = parser.parse_args(argv)
+    from tandem_data.progress import TerminalProgress
+    progress = TerminalProgress(enabled=not args.no_progress)
+    if args.max_events < 1:
+        parser.error("--max-events 必须是正整数")
     if args.command in ("ingest", "import-connector", "init", "rebuild", "verify", "stats", "discover"):
         from ..data_access.ingest import ingest, ingest_staging, maintain
         if args.db:
@@ -134,11 +151,11 @@ def main(argv: list[str] | None = None) -> None:
                 from tandem_data.discovery import candidates
                 result = candidates()
             elif args.command == "ingest":
-                result = ingest(args.home, args.agent, args.root, limit=args.limit)
+                result = ingest(args.home, args.agent, args.root, limit=args.limit, progress=progress)
             elif args.command == "import-connector":
-                result = ingest_staging(args.home, args.connector_home)
+                result = ingest_staging(args.home, args.connector_home, progress=progress)
             else:
-                result = maintain(args.home, args.command)
+                result = maintain(args.home, args.command, progress=progress)
         except (ValueError, OSError, RuntimeError) as exc:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
@@ -151,7 +168,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.before or args.exclude_session or args.reset_sample_policy:
             parser.error("统一归档保留完整历史；analytics 用 --until-ts/--exclude-session 选择样本。旧版持久采样请显式传 --db。")
         try:
-            result = ingest(args.home, "codex", args.codex_home)
+            result = ingest(args.home, "codex", args.codex_home, progress=progress)
         except (ValueError, OSError, RuntimeError) as exc:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
@@ -205,7 +222,7 @@ def main(argv: list[str] | None = None) -> None:
     else:
         from ..data_access.store import CanonicalStore
         try:
-            store = CanonicalStore(args.home)
+            store = CanonicalStore(args.home, max_events=args.max_events)
         except ValueError as exc:
             parser.error(str(exc))
     if args.command == "analytics":
@@ -217,6 +234,7 @@ def main(argv: list[str] | None = None) -> None:
                           effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
                           root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],
                           include_children=args.include_children, scene=args.scene)
+            progress({"stage": "analytics"})
             result = analyze_store(store, scope, not args.no_text)
             if args.recommendation_catalog is not None or args.recommendation_family or args.recommendation_agent != "generic":
                 from ..recommend.service import recommend as recommend_resources
@@ -258,8 +276,16 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "demo":
         args.audience, args.project_id, args.model, args.scene = "user", None, None, None
+    progress({"stage": "report"})
     if hasattr(store, "report_snapshot"):
-        store = store.report_snapshot(args.project_id, args.model)
+        try:
+            store = store.report_snapshot(args.project_id, args.model,
+                                          from_ts=getattr(args, "from_ts", None),
+                                          until_ts=getattr(args, "until_ts", None))
+        except ValueError as exc:
+            parser.error(str(exc))
+    elif getattr(args, "from_ts", None) is not None or getattr(args, "until_ts", None) is not None:
+        parser.error("报告时间范围仅适用于统一数据层 --home")
     data, result = build_report(store, project_id=args.project_id, model=args.model,
                                 scene=args.scene, audience=args.audience, catalog_cache=args.catalog_cache)
     args.output.mkdir(parents=True, exist_ok=True)

@@ -119,11 +119,22 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
             + " ORDER BY session_uid,seq"
         )
-        events = []
-        for row in connection.execute(query, params):
-            events.append(decoded(row))
-            if len(events) > max_events:
-                raise ValueError("Narrow scope or read SQL views in batches; event limit exceeded")
+        # Check cardinality without loading/decoding potentially huge native payloads.
+        # The same read transaction and selector keep this check consistent with the read.
+        if not isinstance(max_events, int) or isinstance(max_events, bool) or max_events < 0:
+            raise ValueError("max_events must be a nonnegative integer")
+        budget_params = {**params, "event_budget": max_events + 1}
+        budget_query = query.removesuffix(" ORDER BY session_uid,seq")
+        count = connection.execute(
+            "SELECT COUNT(*) FROM (" + budget_query + " LIMIT :event_budget)", budget_params
+        ).fetchone()[0]
+        if count > max_events:
+            raise ValueError(
+                f"Analysis event limit exceeded ({max_events}, including turn context). "
+                "Narrow --project-id / --from-ts / --until-ts, or explicitly raise --max-events before the command. "
+                "No partial analysis was returned."
+            )
+        events = [decoded(row) for row in connection.execute(query, params)]
 
         def member(event):
             return (
