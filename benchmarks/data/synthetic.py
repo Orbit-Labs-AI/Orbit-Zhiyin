@@ -82,7 +82,7 @@ class Generator:
     def __init__(self, out: Path, preset: Preset, seed: int):
         self.out, self.preset = out, preset
         self.rng = random.Random(seed)
-        self.outputs = 0
+        self.outputs: dict[str, int] = {}
         self.large: list[dict] = []
         self.counts: dict[str, dict[str, int]] = {}
 
@@ -97,8 +97,9 @@ class Generator:
         bucket["files"] += files
 
     def output(self, agent: str, session: str) -> str:
-        index = self.outputs
-        self.outputs += 1
+        # Per-agent counter: every agent gets exactly 1 large output in BIG_EVERY.
+        index = self.outputs.get(agent, 0)
+        self.outputs[agent] = index + 1
         if index % BIG_EVERY:
             return "ok " * self.rng.randrange(5, 80)
         text = (
