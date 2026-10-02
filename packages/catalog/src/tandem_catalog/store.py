@@ -425,7 +425,9 @@ class CatalogStore:
                    resource.version or _text(resource.manifest.get("version")),
                    _count(popularity.get("installs", popularity.get("downloads"))), _count(popularity.get("stars")),
                    _ms(md.get("source_updated_at")) or now, canonical_json(flags), level,
-                   canonical_json({"metadata": md, "install": resource.install, "popularity": popularity}))
+                   canonical_json({"metadata": md, "install": resource.install, "popularity": popularity,
+                                   # Raw-byte sha256 of the body (= blob sha) for inventory hash linking.
+                                   "body_sha256": winner["body_sha"]}))
         if old and old["latest_version"] == version_id and old["status"] == resource.status:
             conn.execute("UPDATE catalog_item SET author=?,version=?,installs=?,stars=?,updated_at=?,risk=?,risk_level=?,"
                          "metadata=?,last_seen=? WHERE item_id=?", (*display, now, item_id))

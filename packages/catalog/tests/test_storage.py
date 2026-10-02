@@ -173,6 +173,16 @@ def test_identical_bodies_share_one_blob(store):
     assert store.verify()["ok"]
 
 
+def test_metadata_carries_raw_body_sha256(store):
+    import hashlib
+    import json
+    body = "---\nname: a\n---\n# 指南\r\nbody"
+    publish(store, [record("a", body=body, body_policy="licensed"), record("m", metadata={"author": "x"})])
+    with store.connect(True) as conn:
+        rows = dict(conn.execute("SELECT item_id,metadata FROM catalog_item").fetchall())
+    assert json.loads(rows["a"])["body_sha256"] == hashlib.sha256(body.encode()).hexdigest()
+    assert json.loads(rows["m"])["body_sha256"] is None
+
 def test_unchanged_republish_skips_materialization(store, monkeypatch):
     rows = [record(f"s{n}", body=f"# B\nbody {n}", body_policy="licensed") for n in range(5)]
     publish(store, rows)
