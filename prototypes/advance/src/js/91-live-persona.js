@@ -1,0 +1,186 @@
+/* ============ live persona + A1 overview feed (slice 1) ============
+   Mock mode: nothing here runs (LV.live is false), persona() stays the demo formula and PERIODS keeps the demo months.
+   Live mode:
+   - persona(L, minN) → personaLive: a JS port of uiview/persona.py (Wilson 95% axes, insufficient / experimental) when
+     the rows carry the G1 unit counts (dk / dn / vk / op / t0 / t1). Until facts ships them, L is matched against the
+     scopes the server can answer (7 / 30 / 90 / all, the last four calendar months, under the current Agent / project
+     filters) and the memoised GET /v1/uiview/persona for that scope is returned; months come from that payload's
+     months[]. A single-project subset uses /v1/uiview/projects[].persona. Any other subset → {ok:false} (样本不足).
+   - PERIODS is rebuilt from LASTDAY's calendar months (keys YYYY-MM, which the server accepts as period=).
+   - LV.ov: the /v1/uiview/overview payload for the current scope (tools top, insight); tiles / trend / heat stay
+     client-derived from the spine (same formulas; parity is tested against the server).
+   - LV.reveal(period): GET /v1/uiview/persona/reveal for the reveal overlay (candidates when the code is not settled). */
+const LVP = { full: new Map(), mini: {}, proj: new Map(), sigKey: null, sigs: null };
+const lvpSig = (L) => (L && L.length ? L.length + '|' + L[0].id + '|' + L[L.length - 1].id : '0');
+// last 4 calendar months ending at LASTDAY's month: {k: 'YYYY-MM', m, y, a, b} (day indices clipped to the spine)
+function lvMonths(count) {
+  const t = new Date(DAY0 + LASTDAY * 86400000); const y = t.getUTCFullYear(), mo = t.getUTCMonth(); const out = [];
+  for (let back = (count || 4) - 1; back >= 0; back--) {
+    const f = Date.UTC(y, mo - back, 1), l = Date.UTC(y, mo - back + 1, 0); const d = new Date(f);
+    out.push({ k: d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'), m: d.getUTCMonth() + 1, y: d.getUTCFullYear(),
+      a: Math.max(0, Math.round((f - DAY0) / 86400000)), b: Math.min(LASTDAY, Math.round((l - DAY0) / 86400000)) });
+  }
+  return out;
+}
+function lvBuildPeriods() {
+  if (!LV.live) return;
+  Object.keys(PERIODS).forEach((k) => { delete PERIODS[k]; });
+  lvMonths().forEach((m) => { PERIODS[m.k] = [m.a, m.b, m.m + ' 月']; });
+  PERIODS['90'] = [Math.max(0, LASTDAY - 89), LASTDAY, '近 90 天'];
+  PERIODS.all = [0, LASTDAY, '全部'];
+  if (!PERIODS[S.persona.period]) S.persona.period = '90';
+  LVP.sigKey = null;
+}
+// month keys the A2 / Lite evolution rows show (mock: the demo's four months)
+function peMonthKeys() { return LV.live ? lvMonths().map((m) => m.k) : ['jun', 'jul', 'aug', 'sep']; }
+const peCurMonth = () => { const k = peMonthKeys(); return k[k.length - 1]; };
+
+/* ---- G1 port of uiview/persona.py (used when facts rows carry dk / dn / vk / op / t0 / t1) ---- */
+const LVP_MIN_UNITS = { D: 30, I: 30, M: 10, V: 30 };
+function lvWilson(k, n) {
+  if (n <= 0) return [0, 1];
+  const z = 1.96, p = k / n, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den;
+  const h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+const lvHasUnits = (L) => L.length > 0 && L.every((s) => s.dn != null);
+function lvUnits(L) {
+  let dk = 0, dn = 0, vk = 0, ik = 0, inn = 0; const byDay = {};
+  L.forEach((s) => {
+    dk += s.dk || 0; dn += s.dn || 0; vk += s.vk || 0;
+    if (s.op != null) { inn++; if (s.op === 0) ik++; }
+    (byDay[s.d] = byDay[s.d] || []).push(s);
+  });
+  let multi = 0; const days = Object.values(byDay);
+  days.forEach((xs) => {
+    if (new Set(xs.map((s) => s.a)).size >= 2) { multi++; return; }
+    const sp = xs.filter((s) => s.t0 != null && s.t1 != null).map((s) => [s.t0, s.t1]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    let end = null; for (const [a, b] of sp) { if (end != null && a < end) { multi++; return; } end = end == null ? b : Math.max(end, b); }
+  });
+  return { D: [dk, dn], I: [ik, inn], M: [multi, days.length], V: [vk, dn] };
+}
+const LVP_LR = { D: ['D 委托', '掌舵 S'], I: ['P 规划', '即兴 I'], M: ['M 多线', '专注 F'], V: ['V 求证', '信任 T'] };
+const LVP_HI = { D: ['D', 'S'], I: ['I', 'P'], M: ['M', 'F'], V: ['V', 'T'] };
+function lvPersonaCompute(L, minN) {
+  const n = L.length; const days = new Set(L.map((s) => s.d)).size;
+  if (n < (minN || 30) || !n) return { ok: false, classified: false, n, days, conf: '低' };
+  const u = lvUnits(L);
+  const axes = AXES.map((ax) => {
+    const k = ax.k, kk = u[k][0], nn = u[k][1];
+    const value = nn ? 100 * kk / nn : null; let [lo, hi] = lvWilson(kk, nn); lo = Math.round(lo * 1000) / 10; hi = Math.round(hi * 1000) / 10;
+    let letter = '?', state = 'experimental';
+    if (nn < LVP_MIN_UNITS[k] || days < 10 || value == null) state = 'insufficient';
+    else if (lo >= 55) { letter = LVP_HI[k][0]; state = 'settled'; } else if (hi <= 45) { letter = LVP_HI[k][1]; state = 'settled'; }
+    return { k, value: value == null ? null : Math.round(value * 10) / 10, lo, hi, n_units: nn, k_units: kk, letter, state,
+      strong: value == null ? null : Math.round(Math.max(value, 100 - value)), left: LVP_LR[k][0], right: LVP_LR[k][1], dim: ax.dim, q: ax.q, sig: ax.sig };
+  });
+  const code = axes.map((a) => a.letter).join('');
+  const t = TYPES[code];
+  return { ok: true, classified: !!t, n, days, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。',
+    v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
+}
+
+/* ---- server payload → the demo's persona shape (+ axes / server extras) ---- */
+function lvAvg(L) {
+  const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); }); const d = Object.values(by);
+  return { avgS: d.length ? L.length / d.length : 0, avgA: d.length ? d.reduce((a, l) => a + new Set(l.map((s) => s.a)).size, 0) / d.length : 0 };
+}
+function lvShape(b, L) {
+  if (!b || !b.ok) return { ok: false, classified: false, n: b && b.n != null ? b.n : L ? L.length : 0, server: b || null };
+  const v = {}; ['D', 'I', 'M', 'V'].forEach((k) => { const x = b.v && b.v[k]; v[k] = x == null ? 50 : x; });
+  const t = TYPES[b.code];
+  const out = Object.assign({}, b, { ok: true, classified: b.classified != null ? !!b.classified : !!t, n: b.n, v, code: b.code,
+    zh: b.zh || (t ? t[0] : '尚未定型'), en: b.en || (t ? t[1] : 'Undetermined'), line: b.line || (t ? t[2] : '有维度落在 45–55 之间，暂不下结论。'),
+    conf: b.conf || (b.n >= 100 ? '高' : '中'), axes: b.axes || [], server: b });
+  if (L) { out.st = stats(L); Object.assign(out, lvAvg(L)); }
+  return out;
+}
+// the scopes the server answers: {period, w}; matched to a row list by signature (cached per spine rev + filters)
+function lvpScopes() {
+  const ag = Array.from(S.agents).sort().join(',') + '/' + Array.from(S.srcOff).sort().join(',');
+  const key = LV.rev + '|' + LASTDAY + '|' + ag + '|' + (S.project || '');
+  if (LVP.sigKey === key) return LVP.sigs;
+  const m = new Map();
+  const add = (period, w) => { const sg = lvpSig(sel({ win: w, noExtra: true })); if (!m.has(sg)) m.set(sg, period); };
+  [7, 30, 90].forEach((r) => add(String(r), win(r)));
+  add('all', [0, LASTDAY]);
+  lvMonths().forEach((x) => add(x.k, [x.a, x.b]));
+  LVP.sigKey = key; LVP.sigs = m;
+  return m;
+}
+function lvpQuery(period) {
+  const sc = LV.scope();
+  return { period, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project || null, display_timezone: TL_TZ || 'UTC' };
+}
+const lvpKey = (period) => JSON.stringify(lvpQuery(period));
+// full /v1/uiview/persona payload for a period under the current filters → {state, data}; refetches (keeping the last
+// data on screen) when the spine revision moved
+function lvpFetch(period, path, store) {
+  const key = lvpKey(period) + path;
+  let e = store.get(key);
+  if (e && (e.rev === LV.rev || e.loading)) return e;
+  if (!e) { e = { rev: null, loading: false, data: null, state: 'pending' }; store.set(key, e); }
+  e.loading = true; const rev = LV.rev;
+  TL.get(path, { query: lvpQuery(period) }).then((res) => {
+    e.loading = false;
+    if (res.state === 'computing' || res.data == null) { e.loading = true; setTimeout(() => { e.loading = false; e.rev = null; TL.changed(); }, 1200); return; }
+    e.rev = rev; e.data = res.data; e.state = 'ready';
+    if (path === '/v1/uiview/persona') {
+      (res.data.months || []).forEach((x) => { LVP.mini[lvpKey(x.k)] = x; });
+    }
+  }, (err) => { e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err; }).then(() => TL.changed());
+  return e;
+}
+LV.personaFor = function (period, L) {
+  const e = lvpFetch(period, '/v1/uiview/persona', LVP.full);
+  if (e.data) return lvShape(e.data, L);
+  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: true };
+  return { ok: false, classified: false, n: L ? L.length : 0, pending: true };
+};
+LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
+// single-project subsets: /v1/uiview/projects[].persona (persona_pending until the backend computes it → 样本不足)
+function lvProjPersona(pid, L) {
+  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { range: sc.range, agent: sc.agents, display_timezone: TL_TZ || 'UTC' });
+  let e = LVP.proj.get(path);
+  if (!e || (e.rev !== LV.rev && !e.loading)) {
+    e = e || { rev: null, loading: false, map: {} }; LVP.proj.set(path, e); e.loading = true; const rev = LV.rev;
+    TL.get(path).then((res) => {
+      e.loading = false; if (res.data == null) return; e.rev = rev; e.map = {};
+      (res.data.projects || []).forEach((p) => { e.map[p.project_id || p.id] = p.persona || null; });
+    }, () => { e.loading = false; e.rev = rev; }).then(() => TL.changed());
+  }
+  const pp = e.map[pid];
+  if (pp && pp.code && pp.v) return lvShape(Object.assign({ ok: true, n: pp.n || L.length }, pp), L);
+  return { ok: false, classified: false, n: L.length };
+}
+function personaLive(L, minN) {
+  L = L || [];
+  if (lvHasUnits(L)) { const p = lvPersonaCompute(L, minN); if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); } return p; }
+  if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
+  const period = lvpScopes().get(lvpSig(L));
+  if (period) {
+    const full = LVP.full.get(lvpKey(period) + '/v1/uiview/persona');
+    if (full && full.data) return lvShape(full.data, L);
+    const mini = LVP.mini[lvpKey(period)];
+    if (mini) return lvShape(mini, L);
+    // calendar months arrive with a period payload's months[]; only an explicitly shown month (A2) fetches its own
+    if (/^\d{4}-\d{2}$/.test(period)) return { ok: false, classified: false, n: L.length, pending: true };
+    return LV.personaFor(period, L);
+  }
+  const p0 = L[0].p;
+  if (minN && L.every((s) => s.p === p0)) return lvProjPersona(p0, L);
+  return { ok: false, classified: false, n: L.length };
+}
+
+/* ---- A1 overview feed: tools top + insight for the current scope ---- */
+LV.ov = null;
+if (LV.live) {
+  persona = personaLive;
+  lvBuildPeriods();
+  S.ov.synced = '已同步';
+  const h0 = LV.hydrate;
+  LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
+  LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
+    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC' }) }],
+  (d) => { LV.ov = d.ov || null; });
+}
