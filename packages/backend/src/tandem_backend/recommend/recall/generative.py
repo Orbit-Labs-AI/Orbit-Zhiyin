@@ -19,6 +19,13 @@ def _target_kind(problem: dict, memory: dict) -> str:
     return "rule"
 
 
+def _matches(rule, problem: dict, memory: dict) -> bool:
+    """KB rules of kind 'generate' are templates for this route (kb_route skips them)."""
+    prefix = rule.problem.key_prefix
+    return (problem["type"] in rule.problem.types and rule.id not in set(memory.get("muted_kb_rules") or ())
+            and (not prefix or problem["key"].startswith(prefix)))
+
+
 def _placeholder(problem: dict, kind: str, inputs: dict, memory: dict, rule=None) -> dict:
     key = f"generate:{kind}:{problem['key']}"
     slots = {name: value for name, value in problem["vars"].items() if isinstance(value, (str, int, float))}
@@ -72,10 +79,12 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict, covered: dic
         own = by_problem.get(problem["problem_id"], [])
         slotted = [rule for cand in own if cand.get("kb") and cand["kb"]["remedy"]["slots"]
                    for rule in rules if rule.id == cand["kb"]["id"] and missing_slots(rule, problem)]
-        if own and not slotted:
+        generators = [rule for rule in rules if rule.remedy.kind == "generate" and _matches(rule, problem, memory)]
+        if own and not slotted and not generators:
             continue
-        rule = slotted[0] if slotted else None
-        kind = rule.remedy.kind if rule is not None and rule.remedy.kind in TASKS else _target_kind(problem, memory)
+        rule = slotted[0] if slotted else generators[0] if generators else None
+        kind = (rule.remedy.kind if rule is not None and rule.remedy.kind in TASKS
+                else rule.remedy.dim if rule is not None and rule.remedy.dim in TASKS else _target_kind(problem, memory))
         cand = _placeholder(problem, kind, inputs, memory, rule)
         payload[cand["rec_key"]] = cand
         rows.append((cand["rec_key"], round(.5 + .5 * problem["wilson_lo"], 6)))

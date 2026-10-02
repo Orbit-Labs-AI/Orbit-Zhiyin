@@ -66,7 +66,8 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tupl
 
     muted = set(memory.get("muted_kb_rules") or ())
     rule_docs = {rule.id: " ".join([rule.title, rule.summary, *rule.tags, rule.explain.reason_template])
-                 for rule in rules if rule.id not in muted and not rule.predicate and rule.remedy.kind != "removal"}
+                 for rule in rules if rule.id not in muted and not rule.predicate
+                 and rule.remedy.kind not in ("removal", "generate", "model")}
     by_id = {rule.id: rule for rule in rules}
     claimed = {type_ for rule in rules for type_ in rule.problem.types}
     items = {item["item_id"]: item for item in legacy}

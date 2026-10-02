@@ -16,6 +16,8 @@ TYPE_ZH = {
     "repeated_workflow": "重复的多步流程", "parallel_conflict": "并行会话冲突",
     "process_overhead": "旁支任务淹没主会话", "quota_interrupt": "撞到额度上限",
     "installed_unused": "已装未用", "quality_drop": "质量下滑",
+    "review_loop": "PR review 来回拉锯", "readonly_review": "长时间只读审查", "late_build_failure": "改完才发现构建失败",
+    "polling": "反复手动查看进度", "deploy_platform_mix": "部署平台混用",
 }
 TYPE_LABEL = {"rule": "规则", "prompt": "Prompt", "skill": "Skill", "hook": "Hook", "permission_rule": "Hook",
               "builtin": "内置功能", "mcp": "MCP", "plugin": "插件", "subagent": "子代理", "model": "模型与思考",
@@ -146,6 +148,15 @@ def _track(track: dict | None) -> list:
     return rows
 
 
+def _commands(steps: list, trial, raw: dict) -> list:
+    """Copyable command per step (None where a step has none); [] when the card has none."""
+    commands = (trial.get("commands") if isinstance(trial, dict) else None) or raw.get("commands") or []
+    if not any(commands):
+        return []
+    commands = list(commands)[:len(steps)]
+    return commands + [None] * (len(steps) - len(commands))
+
+
 def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
     """A7 card fields; `raw` (the RawCand) supplies token counts the Cand no longer carries."""
     raw = raw or cand
@@ -154,6 +165,7 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
     uids = (cand.get("evidence") or {}).get("session_uids") or (problem.get("evidence") or {}).get("session_uids") or []
     trial = cand.get("trial")
     dim = cand.get("dim")
+    steps = list((trial.get("steps") if isinstance(trial, dict) else None) or raw.get("steps") or [])
     return {
         "dim": dim, "type": TYPE_LABEL.get(cand.get("kind"), cand.get("kind")),
         "icon": ICON.get(dim, "rule"), "lvl": cand.get("level") or 1, "aud": cand.get("audience_min") or 0,
@@ -162,6 +174,7 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
         "evq": {"session_uids": list(uids)}, "compat": _compat(cand.get("agents") or {}),
         "primary": _primary(cand), "target": (cand.get("target") or {}).get("path_hint") or "",
         "file": [list(line) for line in raw.get("file") or []],
-        "steps": list((trial.get("steps") if isinstance(trial, dict) else None) or raw.get("steps") or []),
+        "steps": steps,
+        "commands": _commands(steps, trial, raw),
         "track": _track(cand.get("track")),
     }

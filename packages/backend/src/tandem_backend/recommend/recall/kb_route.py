@@ -58,7 +58,7 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
     shown = {**values, **{name: "…" for name in rule.remedy.slots if name not in values}}
     project = project_of(problem)
     scope = "project" if rule.remedy.scope == "project" or project else "user"
-    path = PATHS.get(rule.remedy.kind)
+    path = rule.remedy.path or PATHS.get(rule.remedy.kind)
     if path and scope == "project" and project and path.startswith("~/.claude"):
         path = path.replace("~/.claude", f"{project}/.claude")
     return {
@@ -71,7 +71,8 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
         "target": {"agents": target_agents(rule.remedy.agents, inputs), "scope": scope, "project_id": project,
                    "path_hint": path.format(id=rule.id) if path else None},
         "track": {**rule.track.model_dump(), "extend_days": 28},
-        "trial": {"steps": [fill(step, shown) for step in rule.steps], "metric": rule.track.triggered,
+        "trial": {"steps": [fill(step, shown) for step in rule.steps],
+                  "commands": [fill(c, shown) if c else None for c in rule.commands], "metric": rule.track.triggered,
                   "follow_days": rule.track.follow_days},
         "alternatives": [f"kb:{ref}" for ref in rule.remedy.alternatives], "generate": None,
         "kb": rule.model_dump(mode="json"), "item": None, "agents": dict(rule.remedy.agents),
@@ -91,7 +92,7 @@ def missing_slots(rule: Rule, problem: dict | None) -> list[str]:
 
 def recall(problems: list[dict], rules: list[Rule], memory: dict, inputs: dict | None = None,
            inventory=None) -> tuple[list[tuple[str, float]], dict[str, dict]]:
-    """Match problem-bound rules; removal and predicate rules belong to their own routes."""
+    """Match problem-bound rules; removal, generate and predicate rules belong to their own routes."""
     inputs = inputs or {}
     muted = set(memory.get("muted_kb_rules") or ())
     rows, payload = [], {}
@@ -100,7 +101,7 @@ def recall(problems: list[dict], rules: list[Rule], memory: dict, inputs: dict |
             continue
         choice = mechanism.choose(problem, memory, inventory, rules)
         for rule in rules:
-            if (rule.id in muted or rule.predicate or rule.remedy.kind == "removal"
+            if (rule.id in muted or rule.predicate or rule.remedy.kind in ("removal", "generate")
                     or problem["type"] not in rule.problem.types):
                 continue
             prefix = rule.problem.key_prefix
