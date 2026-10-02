@@ -221,7 +221,9 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         catalog = catalog_service(gw)
         generation, items = _catalog_state(catalog) if catalog is not None else (None, 0)
         if not items:
-            catalog = None  # empty catalog: the bundled seeds recall better than nothing
+            # Empty catalog: the bundled seeds recall better than nothing. The slate then reports
+            # no catalog generation, so the lookup digest must not carry one either.
+            catalog, generation = None, None
         same = previous is not None and previous["engine_version"] == engine_version
         kb_version = previous["kb_version"] if same else None
         if generation is None and same:
