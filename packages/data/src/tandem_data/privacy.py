@@ -157,7 +157,6 @@ def sanitize(value, key=""):
     if isinstance(value, list):
         return [sanitize(item, key) for item in value]
     if isinstance(value, str):
-        digest = hashlib.sha256(value.encode()).hexdigest()
         if (
             key
             in (
@@ -171,7 +170,8 @@ def sanitize(value, key=""):
             or value.startswith("data:")
             and ";base64," in value[:128]
         ):
-            return f"<opaque:sha256:{digest}>"
+            # Hash only values that are replaced; most strings are only redacted.
+            return f"<opaque:sha256:{hashlib.sha256(value.encode()).hexdigest()}>"
         clean = redact(value)
         return clean
     return value
