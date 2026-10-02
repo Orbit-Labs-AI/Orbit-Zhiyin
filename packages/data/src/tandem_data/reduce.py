@@ -290,8 +290,11 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
     progress({"stage": "derive_sessions", "completed": 0, "total": len(metas)})
     for index, (session_uid, meta) in enumerate(metas.items()):
         events = []
+        # Only the columns _derive_session reads: text and ext can be large.
         for row in store.db.execute(
-            "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
+            "SELECT event_uid,record_uid,seq,kind,ts,call_id,turn_uid,attrs FROM event "
+            "WHERE session_uid=? ORDER BY seq",
+            (session_uid,),
         ):
             event = dict(row)
             event["attrs"] = json.loads(event["attrs"])
