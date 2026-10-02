@@ -21,9 +21,18 @@ def table_schemas():
             f'PRAGMA table_info("{name}")'
         ):
             typ = {"TEXT": "string", "INTEGER": "integer", "REAL": "number"}.get(sql_type, "string")
-            if column in ("attrs", "ext", "attribution", "note", "watermark", "source_stat"):
+            if column in (
+                "attrs",
+                "ext",
+                "attribution",
+                "note",
+                "watermark",
+                "source_stat",
+                "config",
+                "coverage",
+            ):
                 typ = "object"
-            if column in ("native_key", "locator", "paths", "files"):
+            if column in ("native_key", "locator", "paths", "files", "diagnostics"):
                 typ = "array"
             properties[column] = {
                 "type": typ if notnull or primary else [typ, "null"],

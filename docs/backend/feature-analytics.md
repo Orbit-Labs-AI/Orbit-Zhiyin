@@ -162,7 +162,7 @@ Instruction 已按特征族独立组织，见 [实现与字段口径](../../src/
 | usage_scope/measurement | cumulative_tokens | partial | 知道是累计，不知道可信计数周期/覆盖；无 fake model_call |
 | snapshot_key / coverage=self/root_tree | 旧库未保留 | unavailable | 不能合并多快照或父子总量 |
 | cost / latency / ttft | 无请求级记录 | unavailable | null，不从回复间隔推断 |
-| inventory_item | 未接入 | unavailable | 不扫描额外目录；安装不等于调用 |
+| inventory_item | 显式安装清单扫描 | 按快照与来源返回 available / partial / unavailable | [来源与边界](local-inventory.md)；分析时不扫描目录，安装不等于调用 |
 | context-window observations | 未持久化占用、容量配对 | unavailable | 不用会话累计 token 推占用率 |
 | session_feature/link | 部分工具名/文件文本线索 | partial | 无标准 feature/link 输入；只报告明确线索 |
 | source/L1/L0 evidence drill-down | 事件 id、源文件当前路径、原行号 | partial | 可看旧 evidence API；无不可变 raw_record/归档代次链 |
