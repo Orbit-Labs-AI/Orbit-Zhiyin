@@ -9,11 +9,11 @@ ActionMesh-AI 的本地跨 Agent 会话分析项目，目标交付为 macOS App�
 ```sh
 bash scripts/bootstrap.sh
 uv run tandem demo
-pnpm dev
+pnpm dev --home .local/demo/data
 ```
 
 Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明位于 <http://127.0.0.1:8765/docs>。
-`pnpm dev --home .tandem` 可选择开发数据目录；实际来源须显式执行 `tandem ingest` 才会导入。
+上面的启动命令读取刚生成的 Demo 数据库。使用自己的已初始化开发库时可运行 `pnpm dev --home .tandem`；实际来源须显式执行 `tandem ingest` 才会导入。
 完整 CLI、真实来源授权和旧库兼容说明见[使用指南](docs/development/usage.md)。
 
 ## 仓库入口

@@ -1,7 +1,7 @@
 # 开发与验收入口
 
 - bootstrap.sh：安装根 workspace 的锁定依赖。
-- dev.sh：启动当前本机 API。全局 CLI 参数位于 serve 之前，例如 `pnpm dev --home .tandem`；调整端口可直接 `uv run tandem serve --port 8766`。
+- dev.sh：启动当前本机 API。全局 CLI 参数位于 serve 之前，例如先运行 `uv run tandem demo`，再运行 `pnpm dev --home .local/demo/data`；自己的数据目录须已初始化；调整端口可直接 `uv run tandem serve --port 8766`。
 - check.sh：本地和 CI 共用的结构、模块、集成、安装验收；integration 子命令只跑跨包与服务流程。
 - check-ui.sh：Lite 检查和 Advance Playwright，可追加 --project=mac-14。
 - check-installed.sh：构建 wheel 并在仓库外的临时环境验证安装。
