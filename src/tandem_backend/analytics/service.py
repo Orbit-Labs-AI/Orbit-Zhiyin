@@ -5,15 +5,18 @@ from dataclasses import asdict
 
 from ..models import stable_id
 from . import FEATURE_VERSION
+from .common import human
 from .dictionary import FEATURES
-from .features import activity, human, session_features, tool_summary, usage, workflow
+from .features import activity, session_features, tool_summary, usage, workflow
 from .inputs import KINDS, Scope, legacy_bundle, metadata, select
 from .instruction import (
     INSTRUCTION_VERSION,
     extract_instruction_constraints,
     summarize_control_patterns,
 )
-from .text import representation
+from .preference import extract_explicit_preferences, summarize_preferences
+from .task import segment_tasks, summarize_task_distribution
+from .task.representation import representation
 
 
 def analyze_bundle(bundle, scope=None, with_text=True):
@@ -27,6 +30,20 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                         ("tool_calls", calls), ("model_calls", model_calls)):
         meta["coverage"].setdefault(name, {"status": "unavailable"})["rows"] = len(items) if items is not None else None
     main_ids = {s["session_uid"] for s in sessions if s.get("kind") == "main"}
+    semantic_events = events if bundle.events is not None else None
+    tasks = segment_tasks(semantic_events, sessions)
+    if semantic_events is None:
+        tasks["records"] = None
+    preferences = extract_explicit_preferences(semantic_events, sessions, tasks.pop("task_by_event"))
+    tasks["summary"] = summarize_task_distribution(tasks["records"], asdict(scope))
+    preferences["summary"] = summarize_preferences(preferences["records"], asdict(scope))
+    task_ids, preference_ids = defaultdict(list), defaultdict(list)
+    for task in tasks["records"] or []:
+        for sid in task["related_session_ids"]:
+            task_ids[sid].append(task["task_id"])
+    for preference in preferences["records"] or []:
+        sid = preference["preference_evidence"][0]["session_uid"]
+        preference_ids[sid].append(preference["preference_id"])
     instruction_records = extract_instruction_constraints(events, main_ids=main_ids)
     instruction_groups = defaultdict(list)
     for record in instruction_records:
@@ -69,7 +86,9 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         }
         data["coverage"] = meta["coverage"]
         row = {**s, **data, "included_session_uids": sorted(included), "cluster_id": None,
-               "novelty": None, "embedding_x": None, "embedding_y": None}
+               "novelty": None, "embedding_x": None, "embedding_y": None,
+               "task_ids": task_ids[sid] if semantic_events is not None else None,
+               "preference_ids": preference_ids[sid] if semantic_events is not None else None}
         rows.append(row)
         prompts = [e for e in own if human(e, main_ids) and e.get("text")]
         if prompts:
@@ -154,6 +173,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                                            for k, n in languages.most_common()] if bundle.events is not None and (human_count or not unknown_origin) else None},
             "sessions": rows, "tools": {**all_tools, "transitions": all_workflow["transitions"]},
             "workflow": all_workflow, "projects": projects, "text": text,
+            "tasks": tasks, "preferences": preferences,
             "instruction": {"schema_version": INSTRUCTION_VERSION,
                             "records": instruction_records if instruction_available else None,
                             "summary": instruction_summary},

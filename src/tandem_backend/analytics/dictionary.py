@@ -1,6 +1,8 @@
 """Machine-readable feature meanings shared by all analytics endpoints."""
 
 from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES
+from .preference.dictionary import FEATURES as PREFERENCE_FEATURES
+from .task.dictionary import FEATURES as TASK_FEATURES
 
 FEATURES = {}
 
@@ -46,5 +48,7 @@ define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by
 define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
 
+FEATURES.update(PREFERENCE_FEATURES)
+FEATURES.update(TASK_FEATURES)
 # Family-owned definitions retain the established global lookup surface.
 FEATURES.update(INSTRUCTION_FEATURES)
