@@ -9,6 +9,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 - 数据方案：[docs/plan/data-acquisition.md](docs/plan/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
 - 会话格式调研：[docs/research/agent-sessions](docs/research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
 - 分析开发输入：[docs/plan/analysis-inputs.md](docs/plan/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
+- 会话数据实现：[packages/data](packages/data/README.md)（实际 SQLite 数据库、L0/L1 归档、L2/L3 预处理和 connector 桥接）
 - Codex 数据连接器：[packages/connectors](packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
 
 ## App 版本
