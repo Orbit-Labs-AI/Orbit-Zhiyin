@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,7 @@ def analytics_scope(
     excluded_session_uids: Annotated[list[str] | None, Query()] = None,
     include_children: bool = True, scene: str | None = None,
     source_ids: Annotated[list[str] | None, Query()] = None,
+    agent_ids: Annotated[list[str] | None, Query()] = None,
 ):
     """Same parameters as api/routes.py; an explicit empty value (``x=``) means []."""
     from ..analytics.inputs import Scope
@@ -61,7 +62,8 @@ def analytics_scope(
                      from_ts=from_ts, until_ts=until_ts,
                      root_session_uids=explicit(root_session_uids),
                      excluded_session_uids=merged(excluded_session_uids),
-                     include_children=include_children, scene=scene)
+                     include_children=include_children, scene=scene,
+                     agent_ids=explicit(agent_ids))
     except ValueError as error:
         raise ApiError(422, "invalid_request", str(error)) from error
 
@@ -78,6 +80,23 @@ def failure_error(error: dict | None) -> ApiError:
                     retry_after=5)
 
 
+SCOPE_PARAMS = frozenset(analytics_scope.__code__.co_varnames[:analytics_scope.__code__.co_argcount])
+ROUTE_PARAMS = frozenset({"wait_ms", "offset", "limit", "task_id"})
+# Filters callers have tried that snapshot sections cannot apply; named so the 422 says why.
+UNSUPPORTED_FILTERS = frozenset({"weekday", "hour", "query", "q", "agent"})
+
+
+def reject_unknown_params(request: Request) -> None:
+    """A filter the snapshot cannot apply must fail, not silently return the unfiltered scope."""
+    unknown = sorted(set(request.query_params) - SCOPE_PARAMS - ROUTE_PARAMS)
+    if not unknown:
+        return
+    unsupported = [k for k in unknown if k in UNSUPPORTED_FILTERS]
+    hint = (f"; unsupported filters {unsupported} (use agent_ids, from_ts/until_ts, or "
+            f"/v1/search for text)") if unsupported else ""
+    raise ApiError(422, "invalid_request", f"Unknown query parameters: {unknown}{hint}")
+
+
 class RecomputeRequest(BaseModel):
     sections: list[str] = Field(min_length=1, max_length=len(SECTIONS))
     scope: dict = Field(default_factory=dict)
@@ -85,7 +104,7 @@ class RecomputeRequest(BaseModel):
 
 
 def router(gw: Gateway) -> APIRouter:
-    api = APIRouter()
+    api = APIRouter(dependencies=[Depends(reject_unknown_params)])
     scope_dependency = Depends(analytics_scope)
 
     def meta(h: str, rules: str, freshness: str, snapshot: Snapshot | None, rev: dict,
@@ -193,7 +212,7 @@ def router(gw: Gateway) -> APIRouter:
         unknown = [s for s in request.sections if s not in SECTIONS]
         if unknown:
             raise ApiError(422, "invalid_request", f"Unknown sections: {unknown}")
-        allowed = set(analytics_scope.__code__.co_varnames[:analytics_scope.__code__.co_argcount])
+        allowed = SCOPE_PARAMS
         if set(request.scope) - allowed:
             raise ApiError(422, "invalid_request", f"Unknown scope keys: "
                            f"{sorted(set(request.scope) - allowed)}")
