@@ -111,9 +111,12 @@ class DshMapper(BaseMapper):
             )
             from tandem_data.contract import time_fields
 
-            meta.ts, meta.attrs["time"] = time_fields(
-                data.get("createdAt"), "createdAt", "milliseconds", "created"
-            )
+            if data.get("createdAt") is not None:
+                meta.ts, meta.attrs["time"] = time_fields(
+                    data["createdAt"], "createdAt", "milliseconds", "created"
+                )
+                if data.get("time") is not None:
+                    meta.attrs["time"]["reported"]["time"] = data["time"]
             return Mapping([meta])
         if self.session_uid is None:
             raise ValueError("DSH session header required")

@@ -214,8 +214,10 @@ class Store:
         severity="warning",
         detail=None,
     ):
+        # A capture can fail before source_file exists; retain each failed path separately.
+        location = file_id if file_id is not None else (detail or {}).get("path")
         values = {
-            "issue_uid": uid("issue", source_id, stage, code, file_id, record_uid),
+            "issue_uid": uid("issue", source_id, stage, code, location, record_uid),
             "source_id": source_id,
             "file_id": file_id,
             "record_uid": record_uid,
@@ -270,6 +272,7 @@ class Store:
                     "UPDATE source_file SET watermark=CASE WHEN role<>? THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=?,status='active',last_scan_at=? WHERE file_id=?",
                     (role, role, now_ms(), previous["file_id"]),
                 )
+                self._resolve_capture_issues(source_id, previous["file_id"])
                 return {
                     "file_id": previous["file_id"],
                     "changed": changed_role,
@@ -504,8 +507,8 @@ class Store:
 
     def _resolve_capture_issues(self, source_id, file_id):
         self.db.execute(
-            "UPDATE ingest_issue SET detail=json_set(detail,'$.status','resolved','$.resolved_at',?) WHERE source_id=? AND stage='l1' AND (file_id=? OR (file_id IS NULL AND code='capture_failed'))",
-            (now_ms(), source_id, file_id),
+            "UPDATE ingest_issue SET detail=json_set(detail,'$.status','resolved','$.resolved_at',?) WHERE source_id=? AND stage='l1' AND (file_id=? OR (file_id IS NULL AND code='capture_failed' AND json_extract(detail,'$.path')=(SELECT relative_path FROM source_file WHERE file_id=?)))",
+            (now_ms(), source_id, file_id, file_id),
         )
 
     @contextmanager
