@@ -52,12 +52,16 @@ def run(output):
         expected_pending=0,
         layers=None,
         expected_counts=None,
+        force_rebuild=False,
+        expected_integrity="ok",
     ):
         before = {
             str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob("*.jsonl")
         }
         with Store(home) as store:
             imported = ImportService(store).import_source(ImportRequest("codex", source))
+            if force_rebuild:
+                store.rebuild()
             verified = store.verify()
             unknown = store.db.execute(
                 "SELECT count(*) FROM event WHERE kind='unknown'"
@@ -87,7 +91,7 @@ def run(output):
             == 5,
             "source_unchanged_by_import": before == after,
             "relational_invariants": relational["status"] == "passed",
-            "source_integrity": verified["integrity"] == "ok",
+            "source_integrity": verified["integrity"] == expected_integrity,
         }
         if layers is not None:
             checks["logical_layers_equal"] = layers == section_digests(home)
@@ -162,6 +166,15 @@ def run(output):
                 path.with_name("demo-0-copy.jsonl").write_bytes(path.read_bytes())
                 measure(
                     "exact_file_copy", source, home, expected_counts=measured["analysis_counts"]
+                )
+                path.unlink()
+                measure(
+                    "missing_original_rebuild",
+                    source,
+                    home,
+                    expected_counts=measured["analysis_counts"],
+                    force_rebuild=True,
+                    expected_integrity="partial",
                 )
         report["status"] = (
             "passed" if all(r["status"] == "passed" for r in report["cases"]) else "failed"

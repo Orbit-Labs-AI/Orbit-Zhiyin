@@ -35,7 +35,43 @@ def select_history(store, mappers):
             digest = watermark.get("source_sha256")
             if digest and mapper.info["format"] in ("jsonl", "jsonl_zstd"):
                 identical[(digest, mapper.info["role"])].append(mapper)
+                original_id = watermark.get("mirror_file_id")
+                if original_id in getattr(store, "_unavailable_files", set()):
+                    original = store.db.execute(
+                        "SELECT * FROM source_file WHERE file_id=?", (original_id,)
+                    ).fetchone()
+                    native_ids = {
+                        row[0]
+                        for row in store.db.execute(
+                            "SELECT DISTINCT s.native_id FROM file_record f "
+                            "JOIN raw_record r USING(record_uid) "
+                            "JOIN session_identity s USING(session_uid) WHERE f.file_id=?",
+                            (original_id,),
+                        )
+                    }
+                    if (
+                        original is not None
+                        and original["source_id"] == identity[0]
+                        and original["role"] == mapper.info["role"]
+                        and json.loads(original["watermark"]).get("source_sha256") == digest
+                        and native_ids == {identity[1]}
+                    ):
+                        # The previously proven mirror is still identical to its
+                        # missing representative. Reuse the retained facts and
+                        # their IDs; source availability remains explicitly partial.
+                        mapper.mirror_file_id = original_id
         for copies in identical.values():
+            retained_ids = {
+                copy.mirror_file_id for copy in copies if getattr(copy, "mirror_file_id", None)
+            }
+            if len(retained_ids) == 1:
+                original_id = next(iter(retained_ids))
+                for copy in copies:
+                    copy.mirror_file_id = original_id
+                continue
+            if len(retained_ids) > 1:
+                store.issue(identity[0], "ambiguous_missing_mirror_original")
+                continue
             if len(copies) < 2:
                 continue
             current_path = active_paths.get(identity)

@@ -145,6 +145,68 @@ def test_diverging_file_is_not_silently_treated_as_an_exact_mirror(tmp_path):
         assert store.verify()["integrity"] == "ok"
 
 
+def test_missing_original_keeps_mirror_provenance_across_rebuild_and_recovery(tmp_path):
+    root = tmp_path / "codex"
+    original = root / "sessions/original.jsonl"
+    copy = root / "sessions/copy.jsonl"
+    records = native_records()
+    write(original, records)
+    write(copy, records)
+    third = root / "sessions/another-copy.jsonl"
+    write(third, records)
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store)
+        service.import_source(ImportRequest("codex", root))
+        before = facts(store)
+        original.unlink()
+        store.rebuild()
+        assert facts(store) == before
+        assert store.verify()["integrity"] == "partial"
+        assert store.db.execute(
+            "SELECT count(*) FROM event WHERE json_extract(attrs,'$.source_status')='missing'"
+        ).fetchone()[0] == len(before["events"])
+        assert store.db.execute(
+            "SELECT count(*) FROM record_event WHERE relation='duplicate'"
+        ).fetchone()[0] == 2 * len(before["events"])
+        store.rebuild()
+        assert facts(store) == before
+        copy.unlink()
+        third.unlink()
+        store.rebuild()
+        assert facts(store) == before
+        assert store.verify()["integrity"] == "partial"
+        write(original, records)
+        service.import_source(ImportRequest("codex", root))
+        store.rebuild()
+        assert facts(store) == before
+        assert not store.db.execute(
+            "SELECT 1 FROM event WHERE json_extract(attrs,'$.source_status')='missing'"
+        ).fetchone()
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
+
+
+def test_diverging_mirror_of_missing_original_is_mapped_as_new_evidence(tmp_path):
+    root = tmp_path / "codex"
+    original = root / "sessions/original.jsonl"
+    copy = root / "sessions/copy.jsonl"
+    records = native_records()
+    write(original, records)
+    write(copy, records)
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store)
+        service.import_source(ImportRequest("codex", root))
+        original.unlink()
+        records[2]["payload"]["message"] = "changed while original missing"
+        write(copy, records)
+        service.import_source(ImportRequest("codex", root))
+        assert "changed while original missing" in [r[1] for r in facts(store)["humans"]]
+        assert not store.db.execute(
+            "SELECT 1 FROM source_file WHERE relative_path='sessions/copy.jsonl' "
+            "AND json_extract(watermark,'$.mirror_file_id') IS NOT NULL"
+        ).fetchone()
+        assert store.verify()["integrity"] == "partial"
+
+
 def test_damaged_and_pending_rows_in_mirrors_keep_their_original_disposition(tmp_path):
     root = tmp_path / "codex"
     original = root / "sessions/original.jsonl"
