@@ -26,4 +26,6 @@ def result_status(call):
         return "unknown"
     if status == "completed":
         return "success"
+    if status in ("declined", "denied"):
+        return "rejected"
     return status if status in ("success", "failed", "rejected", "interrupted", "running") else "unknown"

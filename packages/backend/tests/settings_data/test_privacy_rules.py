@@ -51,9 +51,10 @@ def test_toggles_change_hits_and_redact2(client):
     saved = client.put("/v1/privacy/rules", json={"enabled": off}).json()
     assert saved["active_count"] == 3
     text, n = redact2(SAMPLE)
-    assert "alice@example.com" in text and "13800138000" in text and KEY not in text and n == 3
+    # redact2 counts hidden values; folding the home directory to "~" is not one.
+    assert "alice@example.com" in text and "13800138000" in text and KEY not in text and n == 2
     client.put("/v1/privacy/rules", json={"enabled": {k: True for k in off}})
-    assert redact2(SAMPLE)[1] == 6
+    assert redact2(SAMPLE)[1] == 5
 
 
 def test_locked_rule_cannot_be_disabled(client):
@@ -96,4 +97,4 @@ def test_preview_does_not_write_platform_kv(client, gateway):
 def test_unbound_defaults(user_home):
     privacy_rules.bind(None)
     text, n = redact2(SAMPLE)
-    assert n == 6 and "[phone]" in text
+    assert n == 5 and "[phone]" in text

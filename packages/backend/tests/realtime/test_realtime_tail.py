@@ -52,7 +52,7 @@ def test_active_query_uses_index_and_is_fast(tandem):
     tail = tails[0]
     assert tail.agent == "claude_code" and tail.project == "demo"
     assert [e.actor for e in tail.events] == ["human", "assistant", "assistant"]
-    assert tail.usage == {"used_tokens": 1000, "model": "claude-sonnet-4-5"}
+    assert tail.usage == {"used_tokens": 1000, "model": "claude-sonnet-4-5", "window_tokens": None}
     assert tail.calls[0].command_head == "ls"
 
 

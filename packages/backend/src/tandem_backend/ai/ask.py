@@ -11,6 +11,7 @@ import logging
 import re
 
 from . import queries
+from .errors import AIError
 from .pack import features_profile
 
 log = logging.getLogger(__name__)
@@ -30,6 +31,8 @@ CONDITIONAL = {  # index 3: shown only when `gate(metrics)` holds
     "tools": ("为什么最近工具失败变多了？", "tool_failure_rate"),
 }
 RISE = 1.2
+HOURS_NOTE = "按会话跨度合并计算，重叠的会话只算一次"
+MIN_KNOWN_CALLS = 20  # a project needs this many calls with a known status to rank by failure rate
 FRIC_RULE = {
     "wrong_approach": "开始改动前，先用三句话复述目标和完成条件，等我确认再动手。",
     "excessive_changes": "只改与任务直接相关的文件；超出范围的改动先列出来问我。",
@@ -90,8 +93,20 @@ def _rising(m: dict, name: str) -> bool:
     return cur > 0 and cur >= prev * RISE
 
 
+def _check(context: str, scope=None, index: int | None = None) -> None:
+    """B15: an unknown context, preset index or malformed scope is a 422, not overview answers."""
+    if context not in ASKQ:
+        raise AIError(422, "invalid_context", f"未知问答上下文：{context}", allowed=sorted(ASKQ))
+    if index is not None and (context, index) not in _ANSWERS:
+        raise AIError(422, "invalid_preset", f"{context} 没有第 {index} 个预置问题")
+    try:
+        queries.check_scope(scope)
+    except ValueError as error:
+        raise AIError(422, "invalid_scope", str(error)) from None
+
+
 def presets(context: str, *, reads, appdb=None, scope=None, session_uid=None, home=None) -> list[dict]:
-    context = context if context in ASKQ else "overview"
+    _check(context, scope)
     out = [{"index": i, "question": q} for i, q in enumerate(ASKQ[context])]
     if context in CONDITIONAL:
         question, metric = CONDITIONAL[context]
@@ -111,11 +126,9 @@ def _change(a, b) -> str:
 
 
 def preset_answer(context: str, index: int, *, reads, appdb=None, scope=None, session_uid=None, home=None) -> dict:
-    context = context if context in ASKQ else "overview"
+    _check(context, scope, index)
     q = _Q(reads, appdb, scope, home)
-    fn = _ANSWERS.get((context, index))
-    if fn is None:
-        return {**out_of_scope(""), "source": "template"}
+    fn = _ANSWERS[(context, index)]
     answer, nxt = fn(q, session_uid)
     out = {"answer": answer, "refs": q.refs[:12], "next": nxt, "source": "template"}
     if nxt == "studio":
@@ -144,8 +157,9 @@ def _ov_compare(q, _):
         return "上一个同样长度的周期没有会话，暂时没有可比的数据。换一个时间范围再问我。", "none"
     s, h, cr = m["sessions"], m["hours"], m["correction_rate"]
     text = (f"和上一个同样长度的周期相比：\n\n· 会话 {s['prev']} → {s['value']}（{_change(s['value'], s['prev'])}）\n"
-            f"· 协作时长 {h['prev']}h → {h['value']}h\n· 纠偏率 {_pct(cr['prev'])} → {_pct(cr['value'])}")
-    projects = q("projects", limit=1)
+            f"· 协作时长 {h['prev']}h → {h['value']}h（{HOURS_NOTE}）\n· 纠偏率 {_pct(cr['prev'])} → {_pct(cr['value'])}")
+    projects = sorted((p for p in q("projects", limit=20) if not p.get("unattributed")),
+                      key=lambda p: -(p["hours"] or 0))
     if projects:
         text += f"\n\n花时间最多的项目是「{projects[0]['name']}」，{projects[0]['hours']} 小时。"
     text += "纠偏率在上升，值得看看最近的卡点。" if (cr["value"] or 0) > (cr["prev"] or 0) else "纠偏率没有上升。"
@@ -204,20 +218,36 @@ def _weight(value) -> str:
     return str(value or "")
 
 
+_PLACEHOLDER_TYPES = {"当前类型", "未知", "unknown", "type"}
+_SHELL_EDGE = re.compile(r"^[\s;&|<>()]+|[\s;&|<>()]+$")
+
+
+def _tag_label(value) -> str:
+    """Readable tag label: no namespace prefix, no shell separators ("cmd:b1;" → "b1")."""
+    text = str(value or "")
+    if ":" in text and " " not in text:
+        text = text.split(":", 1)[1]
+    return _SHELL_EDGE.sub("", text)
+
+
 def _evidence_lines(p: dict) -> list[str]:
     """Top profile features as "· label weight"; tags are dicts (features.profile) or names."""
     weights = p.get("weights") or p.get("tags") or {}
+    raw = []
     if isinstance(weights, dict):
-        items = [(str(k), _weight(v)) for k, v in list(weights.items())[:4]]
+        raw = [(_tag_label(k), _weight(v)) for k, v in weights.items()]
     else:
-        items = []
-        for tag in list(weights)[:4]:
+        for tag in weights:
             if isinstance(tag, dict):
-                items.append((str(tag.get("label") or tag.get("id") or "特征"),
-                              _weight(tag.get("weight"))))
+                raw.append((_tag_label(tag.get("label") or tag.get("id")), _weight(tag.get("weight"))))
             else:
-                items.append((str(tag), ""))
-    return [f"· {label} {weight}".rstrip() for label, weight in items]
+                raw.append((_tag_label(tag), ""))
+    items, seen = [], set()
+    for label, weight in raw:
+        if label and label not in seen:
+            seen.add(label)
+            items.append((label, weight))
+    return [f"· {label} {weight}".rstrip() for label, weight in items[:4]]
 
 
 def _pe_why(q, _):
@@ -227,7 +257,7 @@ def _pe_why(q, _):
         return f"画像还没生成：当前有 {n} 个会话，特征模块完成计算后才判断类型。", "none"
     lines = _evidence_lines(p)
     code = p.get("code")
-    if not code:
+    if not code or not str(p.get("label") or code).strip() or p.get("label") in _PLACEHOLDER_TYPES:
         tail = ("\n\n目前最明显的特征：\n" + "\n".join(lines)) if lines else ""
         return "样本不足，暂不判断类型。" + tail, "none"
     head = f"判定为「{p.get('label') or code}」"
@@ -330,11 +360,13 @@ def _to_worst(q, _):
 
 
 def _to_approvals(q, _):
-    rows = sorted(q("tools", limit=20), key=lambda r: -r["approvals"])
-    if not rows or not rows[0]["approvals"]:
+    rows = sorted(q("tools", limit=20), key=lambda r: -(r["approvals"] + r.get("denied", 0)))
+    if not rows or not rows[0]["approvals"] + rows[0].get("denied", 0):
         return "这段时间没有记录到需要审批的调用。", "none"
     t = rows[0]
-    return (f"{t['tool']} 有 {t['approvals']} 次调用经过审批（共 {t['calls']} 次）。\n\n"
+    parts = ([f"{t['approvals']} 次经你批准后执行"] if t["approvals"] else []) + \
+        ([f"{t['denied']} 次被你拒绝"] if t.get("denied") else [])
+    return (f"{t['tool']} 的调用中有 " + "，".join(parts) + f"（共 {t['calls']} 次）。\n\n"
             "把只读命令放进允许列表可以少掉大部分审批；含写操作的命令仍然需要你确认。"), "studio"
 
 
@@ -362,15 +394,29 @@ def _pr_time(q, _):
     rows = sorted(q("projects", limit=20), key=lambda r: -(r["hours"] or 0))[:3]
     if not rows:
         return "还没有按项目归类的会话。", "none"
-    return "花时间最多的项目：\n" + "\n".join(f"· {r['name']}：{r['hours']} 小时，{r['sessions']} 个会话" for r in rows), "none"
+    return ("花时间最多的项目（" + HOURS_NOTE + "）：\n"
+            + "\n".join(f"· {r['name']}：{r['hours']} 小时，{r['sessions']} 个会话" for r in rows)), "none"
+
+
+def wilson_lower(failures: int, n: int, z: float = 1.96) -> float:
+    """Lower bound of the Wilson interval: small samples cannot win on a lucky ratio."""
+    if not n:
+        return 0.0
+    p = failures / n
+    denom = 1 + z * z / n
+    centre = p + z * z / (2 * n)
+    margin = z * ((p * (1 - p) + z * z / (4 * n)) / n) ** 0.5
+    return max(0.0, (centre - margin) / denom)
 
 
 def _pr_friction(q, _):
-    rows = [r for r in q("projects", limit=20) if r["tool_calls"]]
+    rows = [r for r in q("projects", limit=20)
+            if (r.get("known_calls") or 0) >= MIN_KNOWN_CALLS and not r.get("unattributed")]
     if not rows:
-        return "还没有项目级的工具数据。", "none"
-    r = max(rows, key=lambda r: r["tool_failures"] / r["tool_calls"])
-    return f"「{r['name']}」摩擦最多：{r['tool_calls']} 次工具调用中失败 {r['tool_failures']} 次。", "tools"
+        return f"还没有足够的项目级工具数据（每个项目至少需要 {MIN_KNOWN_CALLS} 次有结果的调用）。", "none"
+    r = max(rows, key=lambda r: (wilson_lower(r["tool_failures"], r["known_calls"]), r["known_calls"]))
+    return (f"「{r['name']}」摩擦最多：{r['known_calls']} 次有结果的工具调用中失败 {r['tool_failures']} 次"
+            f"（{_pct(r['tool_failures'] / r['known_calls'])}）。"), "tools"
 
 
 def _pr_habits(q, _):
@@ -382,7 +428,7 @@ def _pr_habits(q, _):
 
 
 def _se_phrases(q, _):
-    rows = q("search", q="不是 不对 别再 wrong again", limit=3)
+    rows = q("corrections", limit=3)
     if not rows:
         return "这段时间没有记录到纠偏说法。", "none"
     return "最近的纠偏原话：\n" + "\n".join(f"· {r['text'][:60]}" for r in rows), "sessions"

@@ -37,10 +37,14 @@ def test_actual_feature_ids_are_joined_and_single_pole_axes_abstain():
     assert native_id != analysis["tasks"]["records"][0]["task_id"]
     profile = build_profile(analysis)
     assert profile["coverage"]["unmapped_instruction_n"] == 0
-    assert profile["axes"]["delegation"]["score"] == 1
+    # One task is below the 5-task / 2-session minimum: the vote is kept, the score is not.
+    assert profile["axes"]["delegation"]["observed_mean"] == 1
+    assert profile["axes"]["delegation"]["score"] is None
+    assert profile["axes"]["delegation"]["status"] == "insufficient"
     # Plan and execute_first conflict, so the task gives no planning vote.
     assert profile["axes"]["planning"]["observed_score"] is None
-    assert profile["axes"]["verification"]["observed_score"] == 1
+    assert profile["axes"]["verification"]["observed_mean"] == 1
+    assert profile["axes"]["verification"]["observed_score"] is None
     assert profile["axes"]["verification"]["score"] is None
     assert profile["axes"]["verification"]["direction"] is None
     assert profile["axes"]["orchestration"]["score"] is None
@@ -70,7 +74,8 @@ def test_long_tasks_duplicates_and_cross_session_tasks_do_not_get_more_votes():
     analysis["tasks"]["records"].append(deepcopy(analysis["tasks"]["records"][0]))
     axis = build_profile(analysis)["axes"]["delegation"]
     assert axis["effective_task_n"] == 2
-    assert axis["score"] == 0.5
+    assert axis["observed_mean"] == 0.5
+    assert axis["score"] is None  # two tasks are below the minimum
 
 
 def test_conflicting_authorizations_abstain_and_preserve_evidence():
@@ -93,9 +98,9 @@ def test_explicit_supersession_is_resolved_but_does_not_rewrite_prior_month():
     second = _event("直接完成报告", uid="direct", seq=1, ts=feb)
     second["attrs"]["supersedes_instruction_ids"] = [constraint_id]
     profile = build_profile(_analysis([first, second]))
-    assert profile["axes"]["delegation"]["score"] == 1
+    assert profile["axes"]["delegation"]["observed_mean"] == 1
     months = {r["month"]: r for r in profile["monthly_trend"]["rows"]}
-    assert months["2026-01"]["axes"]["delegation"]["score"] == 0
+    assert months["2026-01"]["axes"]["delegation"]["observed_mean"] == 0
     # The replacement references prior context, which a monthly-only sample does
     # not contain: conservative unknown is preferable to inventing active policy.
     assert months["2026-02"]["axes"]["delegation"]["score"] is None
@@ -244,3 +249,29 @@ def test_bad_times_do_not_enter_calendar_buckets(value):
     analysis["tasks"]["records"][0]["task_boundaries"][0]["start"]["ts"] = value
     analysis["tasks"]["records"][0]["label_evidence"] = {}
     assert build_profile(analysis)["monthly_trend"]["rows"] == []
+
+
+def test_single_explicit_task_among_many_does_not_score_an_axis():
+    """a1a3-B18: one delegation phrase out of many tasks is 'insufficient', never 1.0."""
+    events = [_event("直接完成报告", uid="only", sid="s0", task_id="t0")]
+    events += [_event(f"整理第 {i} 节文档", uid=f"plain-{i}", sid=f"s{i % 3}", seq=i,
+                      task_id=f"t{i}") for i in range(1, 30)]
+    profile = build_profile(_analysis(events))
+    axis = profile["axes"]["delegation"]
+    assert axis["effective_task_n"] == 1
+    assert axis["score"] is None and axis["observed_score"] is None
+    assert axis["status"] == "insufficient"
+    assert axis["evidence"] and axis["evidence"][0]["event_uid"] == "only"
+    low, high = axis["signal_rate_ci"]
+    assert low < axis["signal_rate"] < high
+
+
+def test_chinese_planning_and_verification_requests_are_observed():
+    events = [_event(text, uid=f"u{i}", sid=f"s{i % 2}", seq=i, task_id=f"t{i}") for i, text in
+              enumerate(["先出一个方案给我看", "请你先调研一下再动手", "请你再次确认，没有问题后提交",
+                         "确保所有图表数据一致", "please make a plan"])]
+    axes = build_profile(_analysis(events))["axes"]
+    # discuss_first is observed but only plan_first votes on the planning pole.
+    assert axes["planning"]["effective_task_n"] == 2
+    assert axes["verification"]["effective_task_n"] == 2
+    assert axes["planning"]["observed_score"] is None  # single-pole: signal_rate only

@@ -177,3 +177,19 @@ def test_real_db_pack_queries_and_presets(real_db, monkeypatch, user_home):
         assert len(ask.presets(ctx, reads=reads, home=home)) >= 3
         for i in range(len(qs)):
             assert ask.preset_answer(ctx, i, reads=reads, home=home)["answer"]
+
+
+def test_tool_rates_use_known_results_only(tdb, tandem_home):
+    # Synthetic: 99 unknown + 1 failed Edit, 3 completed + 1 failed + 1 declined Read.
+    tools = [("Edit", "edit", None, "unknown")] * 99 + [("Edit", "edit", None, "failed")]
+    tools += [("Read", "read", None, "completed")] * 3 + [("Read", "read", None, "failed"),
+                                                         ("Read", "read", None, "declined")]
+    tdb.session("s", start=NOW - DAY, tools=tools)
+    tdb.commit()
+    kw = dict(reads=tdb.reads, home=tandem_home)
+    rows = {r["tool"]: r for r in queries.run("tools", {}, **kw)["rows"]}
+    assert rows["Edit"]["failure_rate"] == 1.0  # 1 of 1 known; unknown_share exposes the gap
+    assert rows["Edit"]["known"] == 1 and rows["Edit"]["unknown_share"] == 0.99
+    assert rows["Read"]["failure_rate"] == 0.25 and rows["Read"]["rejected"] == 1
+    m = {r["metric"]: r["value"] for r in queries.run("metrics", {"scope": {"days": 30}}, **kw)["rows"]}
+    assert m["tool_failures"] == 2 and m["tool_failure_rate"] == round(2 / 5, 3)

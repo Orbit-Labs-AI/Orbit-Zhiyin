@@ -168,3 +168,57 @@ def test_snippet_helpers():
     text, marks = snippet("x" * 200 + "needle" + "y" * 200, ["needle"])
     assert text.startswith("…") and text[marks[0][0]:marks[0][1]] == "needle"
     assert strip_marks("a\x01bc\x02d") == ("abcd", [[1, 3]])
+
+
+def test_concurrent_clients_do_not_starve_each_other(seeded):
+    """D6: queue time behind other clients must not count against a source's deadline."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    world, index = seeded
+
+    def slowish():
+        time.sleep(0.08)
+        return []
+
+    pool = ThreadPoolExecutor(2)  # far fewer threads than 4 clients x 8 sources
+    try:
+        with ThreadPoolExecutor(4) as clients:
+            outs = list(clients.map(
+                lambda _i: search(world.home, "login", index=index, data_rev=1, now_ms=NOW,
+                                  linked=slowish, executor=pool, timeout_s=0.15),
+                range(4)))
+    finally:
+        pool.shutdown()
+    for out in outs:
+        assert out["complete"] and out["partial"] == [] and out["partial_reasons"] == {}
+        assert out["counts"]["session"] == 1 and out["results"]
+
+
+def test_queued_past_hard_cap_is_flagged_not_silent(seeded):
+    from concurrent.futures import ThreadPoolExecutor
+
+    world, index = seeded
+    pool = ThreadPoolExecutor(1)
+    blocker = pool.submit(time.sleep, 0.4)
+    try:
+        out = search(world.home, "login", index=index, data_rev=1, now_ms=NOW,
+                     kinds=["session", "project"], executor=pool, timeout_s=0.05,
+                     max_wait_s=0.1)
+    finally:
+        blocker.result()
+        pool.shutdown()
+    assert out["results"] == [] and not out["complete"]
+    assert out["partial_reasons"] == {"project": "queued_timeout", "session": "queued_timeout"}
+
+
+def test_full_queue_sheds_with_reason(seeded, monkeypatch):
+    import sys
+
+    search_mod = sys.modules[search.__module__]
+    world, index = seeded
+    monkeypatch.setattr(search_mod, "MAX_QUEUED", 0)
+    out = run(world, index, "login", kinds=["session", "catalog"])
+    assert out["partial"] == ["catalog", "session"] and not out["complete"]
+    assert set(out["partial_reasons"].values()) == {"overloaded"}
+    monkeypatch.setattr(search_mod, "MAX_QUEUED", 64)
+    assert run(world, index, "login", kinds=["session"])["complete"]

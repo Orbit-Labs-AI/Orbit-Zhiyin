@@ -21,7 +21,7 @@ def test_app_full_messages_original_and_trajectory_for_review_sessions(tmp_path)
         ImportService(store).import_source(ImportRequest("codex", root))
         session = store.db.execute("SELECT session_uid FROM session").fetchone()[0]
     with TestClient(create_app(home=home)) as client:
-        assert client.get("/v1/sessions").json()[0]["id"] == session
+        assert client.get("/v1/sessions", params={"kind": "all"}).json()[0]["id"] == session
         events = client.get(f"/v1/sessions/{session}/events").json()["items"]
         assert any(e["text"] == text for e in events)
         first = client.get(f"/v1/sessions/{session}/trajectory?limit=2").json()

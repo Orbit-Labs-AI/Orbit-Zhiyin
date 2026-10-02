@@ -10,9 +10,14 @@ from zoneinfo import ZoneInfo
 
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
+from tandem_data.models import PRICE_TABLE_VERSION
 from tandem_data.payload import restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
+
+# Bumped when read_analysis returns different values for the same database; analysis
+# caches key on it. 1.1: undated session metadata stays visible under until_ts.
+READER_VERSION = "analysis-input-reader-1.1"
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,22 @@ def decoded(row):
     for name in JSON_COLUMNS:
         if isinstance(result.get(name), str):
             result[name] = json.loads(result[name])
+    return result
+
+
+def model_call_row(row) -> dict:
+    """A model_call row with the request-boundary contract the token/cost analysis needs.
+
+    model_call only holds ``usage_scope='call'`` / ``measurement='delta'`` usage events (the
+    event CHECK and the reducer enforce it; cumulative snapshots live in usage_snapshot), and
+    each row is keyed by one native request key, so its boundary is reliable by construction.
+    """
+    result = decoded(row)
+    result.setdefault("usage_scope", "call")
+    result.setdefault("measurement", "delta")
+    result.setdefault("boundary_reliable", bool(result.get("call_uid")))
+    if result.get("cost_source") == "price_table":
+        result.setdefault("price_table_version", PRICE_TABLE_VERSION)
     return result
 
 
@@ -290,7 +311,7 @@ def read_analysis(
                     approval_wait_ms=None,
                 )
         models = [
-            decoded(row)
+            model_call_row(row)
             for row in connection.execute(
                 "SELECT * FROM v_analysis_model_call"
                 " WHERE +usage_event_uid IN (SELECT value FROM json_each(:members))",
@@ -407,10 +428,11 @@ def read_analysis(
         if scope.until_ts is not None:
             historical_metadata = {}
             for event in events:
-                if (
-                    event["ts"] is not None
-                    and event["ts"] < scope.until_ts
-                    and event["kind"] in ("session.meta", "setting.change", "session.title")
+                # Undated metadata (time quality missing, e.g. a title record) has no position
+                # on the clock, so it belongs to the session in every cutoff; dated metadata
+                # counts only before the cutoff. Events arrive in seq order.
+                if event["kind"] in ("session.meta", "setting.change", "session.title") and (
+                    event["ts"] is None or event["ts"] < scope.until_ts
                 ):
                     historical_metadata.setdefault(event["session_uid"], []).append(event)
             latest_visible_turn = {}
@@ -517,7 +539,11 @@ def read_analysis(
             reasons.append("truncated_text")
         if time_unknown:
             reasons.append("missing_timestamps")
-        diagnostic_counts = Counter(row["code"] for row in diagnostics)
+        diagnostic_counts = Counter()
+        for row in diagnostics:
+            # Per-file diagnostics carry the number of records they stand for.
+            per_file = row["code"] == "inherited_parent_evidence_unavailable"
+            diagnostic_counts[row["code"]] += row["detail"].get("records", 1) if per_file else 1
         reason_counts = {
             "capture_errors_or_incomplete_frames": capture_errors,
             "source_unavailable_preserved_facts": diagnostic_counts["source_unavailable"],

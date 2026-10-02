@@ -9,6 +9,9 @@ from tandem_data import MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION, payload
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
+# Trajectory totals per (home, session, children, publication); a publication is immutable.
+_TOTALS: dict[tuple, int] = {}
+
 
 def current_projection(connection):
     manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
@@ -119,7 +122,19 @@ def trajectory_page(home, session_uid, *, after=0, limit=100, run_id=None, inclu
             "LEFT JOIN record_location l ON l.record_uid=r.record_uid AND l.revision_uid=(SELECT revision_uid FROM source_revision v WHERE v.file_id=f.file_id ORDER BY revision DESC LIMIT 1) "
         )
         args = (session_uid, include_children)
-        total = db.execute(scope + "SELECT COUNT(*) " + where, args).fetchone()[0]
+        key = (
+            str(Path(home).resolve()),
+            session_uid,
+            bool(include_children),
+            run["run_id"],
+            run["completed_at"],
+        )
+        total = _TOTALS.get(key)
+        if total is None:
+            total = db.execute(scope + "SELECT COUNT(*) " + where, args).fetchone()[0]
+            if len(_TOTALS) >= 256:
+                _TOTALS.clear()
+            _TOTALS[key] = total
         records = []
         for row in db.execute(
             scope

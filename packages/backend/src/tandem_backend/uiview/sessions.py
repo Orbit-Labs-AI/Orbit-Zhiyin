@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from tandem_data.privacy import redact
 
 from ..analytics.interaction import correction_terms
+from ..analytics.lexicon import CORRECTION_EXTRA_HINT
 
 ACTIVE_GAP_MS = 5 * 60_000
 TICKS_MAX = 90
@@ -100,7 +101,8 @@ def _home() -> str:
 
 def is_correction(text: str | None) -> bool:
     """Same verdict as the analytics lexical rule, without parsing messages that cannot hit."""
-    return bool(text and CORRECTION_HINT.search(text) and correction_terms(text))
+    return bool(text and (CORRECTION_HINT.search(text) or CORRECTION_EXTRA_HINT.search(text))
+                and correction_terms(text))
 
 
 def scrub(text: str | None, limit: int = 120) -> str | None:

@@ -14,8 +14,12 @@ from ..instruction import resolve_instruction_scope
 from ..preference import summarize_preferences
 from ..task import summarize_task_distribution
 
-PROFILE_VERSION = "collaboration-profile-v1"
+PROFILE_VERSION = "collaboration-profile-v2"
 MAX_TREND_MONTHS = 12
+# An axis score needs this much explicit evidence; below it the axis is "insufficient"
+# (same abstain-until-enough-units rule as uiview persona, which uses Wilson intervals).
+MIN_TASKS, MIN_SESSIONS = 5, 2
+SINGLE_POLE = {"planning", "verification"}
 AXES = {
     "delegation": ("控制", "委托", "C", "D"),
     "planning": ("探索", "规划", "E", "P"),
@@ -171,6 +175,14 @@ def _task_states(tasks, instructions):
     return list(states.values()), unmapped
 
 
+def _wilson(k, n, z=1.959963984540054):
+    p = k / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5 / denom
+    return [round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4)]
+
+
 def _axes(states, source_available):
     result = {}
     for key, (low, high, low_code, high_code) in AXES.items():
@@ -190,7 +202,8 @@ def _axes(states, source_available):
             reasons.append("no_usable_explicit_axis_evidence")
         if any(key in s["unresolved"] for s in states):
             reasons.append("replacement_text_not_observable")
-        if len(known) < 5 or len(sessions) < 2:
+        enough = len(known) >= MIN_TASKS and len(sessions) >= MIN_SESSIONS
+        if not enough:
             reasons.append("requires_five_tasks_and_two_sessions")
         if any(s["candidate_boundary"] for s in known):
             reasons.append("candidate_task_boundaries")
@@ -201,17 +214,23 @@ def _axes(states, source_available):
         result[key] = {
             "label": f"{low} / {high}", "low_label": low, "high_label": high,
             "low_code": low_code, "high_code": high_code,
-            "score": mean if key == "delegation" else None,
-            "observed_score": mean, "direction": direction,
+            # Single-pole extractors only ever vote 1.0, so their mean is not a score;
+            # signal_rate (with its interval) is the observable quantity there.
+            "score": mean if key == "delegation" and enough else None,
+            "observed_score": mean if enough and key not in SINGLE_POLE else None,
+            "observed_mean": mean, "direction": direction,
             "direction_status": "provisional" if direction else "undetermined",
             "score_basis": "equal_weight_per_task_with_explicit_axis_evidence",
             "signal_rate": len(known) / len(observed) if observed and key != "orchestration" else None,
             "signal_rate_basis": "explicit_rule_hit_tasks / text_observable_nonconflicting_tasks",
+            "signal_rate_ci": _wilson(len(known), len(observed))
+            if observed and key != "orchestration" else None,
+            "minimum": {"tasks": MIN_TASKS, "sessions": MIN_SESSIONS},
             "effective_task_n": len(known), "observable_task_n": len(observed),
             "unknown_task_n": len(states) - len(known), "session_n": len(sessions),
             "conflicting_task_n": sum(key in s["conflicts"] for s in states),
             "unresolved_task_n": sum(key in s["unresolved"] for s in states),
-            "status": "partial" if known else "unavailable",
+            "status": "unavailable" if not known else "partial" if enough else "insufficient",
             "missing_reasons": reasons,
             "evidence": _unique_evidence([ref for s in known for ref in s["evidence"][key]]),
             "conflict_evidence": _unique_evidence([ref for s in states if key in s["conflicts"]
@@ -297,7 +316,8 @@ def _scatter(tasks, instructions, sessions):
         included = [t for t in tasks if sid in t.get("related_session_ids", [])]
         states, _ = _task_states(included, groups[sid])
         axes = _axes(states, True)
-        x, y = axes["delegation"]["score"], axes["planning"]["signal_rate"]
+        # Per-session coordinates are observed request metrics, not gated axis scores.
+        x, y = axes["delegation"]["observed_mean"], axes["planning"]["signal_rate"]
         if x is None or y is None:
             missing.append(sid)
             continue
@@ -365,7 +385,9 @@ def build_profile(analysis: dict) -> dict:
                      "conditional_constraint_n": sum(s["conditional_n"] for s in states),
                      "source": deepcopy(analysis.get("coverage", {}))},
         "rules": {"aggregation": "one_equal_weight_vote_per_task_per_axis",
-                  "minimum_tasks": 5, "minimum_sessions": 2, "direction_thresholds": [0.4, 0.6],
+                  "minimum_tasks": MIN_TASKS, "minimum_sessions": MIN_SESSIONS,
+                  "score_gate": "score/observed_score null and status insufficient below the minimum",
+                  "direction_thresholds": [0.4, 0.6],
                   "threshold_status": "product_heuristic_not_calibrated_probability",
                   "time_decay": None, "missing": "abstain_never_impute_zero_or_neutral"},
         "limitations": ["四轴为协作行为展示，不是心理学 MBTI 或能力评价",

@@ -246,3 +246,51 @@ def test_archive_move_and_compressed_replacement_keep_record_identity(tmp_path):
         assert store.db.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0] == 1
         assert record_source(store.home, record)["path"] == str(compressed)
         assert store.verify()["integrity"] == "ok"
+
+
+def test_trajectory_page_uses_session_indexes_not_full_record_scan(tmp_path, monkeypatch):
+    """Large homes made each trajectory page scan every current file_record row."""
+    import contextlib
+    import re
+
+    import tandem_data.query as query
+
+    root = tmp_path / "claude"
+    write_rows(
+        root / "projects/p/target.jsonl",
+        [
+            {"type": "user", "sessionId": "target", "message": {"content": "prompt"}},
+            {"type": "last-prompt", "text": "ignored record"},
+        ],
+    )
+    for index in range(3):
+        write_rows(
+            root / f"projects/p/other-{index}.jsonl",
+            [{"type": "user", "sessionId": f"other-{index}", "message": {"content": "x"}}],
+        )
+    statements = []
+    original = query.readonly_connection
+
+    @contextlib.contextmanager
+    def traced(path):
+        with original(path) as connection:
+            connection.set_trace_callback(statements.append)
+            yield connection
+
+    monkeypatch.setattr(query, "readonly_connection", traced)
+    with Store(tmp_path / "data") as store:
+        ImportService(store).import_source(ImportRequest("claude_code", root))
+        session = store.db.execute(
+            "SELECT session_uid FROM session WHERE native_id='target'"
+        ).fetchone()[0]
+        page = trajectory_page(store.home, session, limit=10)
+        assert page["total"] == 2 and len(page["items"]) == 2
+        scans = []
+        for sql in statements:
+            if "selected" not in sql:
+                continue
+            for row in store.db.execute("EXPLAIN QUERY PLAN " + sql):
+                detail = row[3]
+                if re.match(r"SCAN (file_record|raw_record|source_file|[rcf])\b", detail):
+                    scans.append(detail)
+        assert scans == []

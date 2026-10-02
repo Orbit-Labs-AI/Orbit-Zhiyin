@@ -35,8 +35,23 @@ def test_redact2_hides_identity_and_counts(user_home):
         assert raw not in text
     assert "alex" not in text
     assert "[email]" in text and "~/x" in text and "[host]" in text and "[user]" in text
-    assert hits >= 7
+    assert hits == 6  # folding /Users/alex to "~" is normalisation, not a hidden value
     assert redact2(text) == (text, 0)
+
+
+def test_redact2_hides_every_ipv4_and_deep_home_paths(user_home):
+    text, hits = redact2("ssh 100.87.119.124 and 45.94.40.86, ping 8.8.8.8. "
+                         "see /Users/alex/Projects/acme/src/a.md and ~/Projects/acme/b.md, keep ~/.claude/CLAUDE.md")
+    for raw in ("100.87.119.124", "45.94.40.86", "8.8.8.8", "Projects", "acme"):
+        assert raw not in text, raw
+    assert text.count("[ip]") == 3 and "~/…/a.md" in text and "~/…/b.md" in text
+    assert "~/.claude/CLAUDE.md" in text
+    assert hits == 3  # three hosts; path folding is not counted
+    assert redact2(text) == (text, 0)
+    kept, n = redact2("python v1.2.3.4, build 1.2.3.4.5, 999.1.1.1")
+    assert (kept, n) == ("python v1.2.3.4, build 1.2.3.4.5, 999.1.1.1", 0)
+    off = {"enabled": {"private_host": False, "home_user": False}, "custom": []}
+    assert redact2("45.94.40.86 ~/a/b/c.md", rules=off) == ("45.94.40.86 ~/a/b/c.md", 0)
 
 
 def test_est_tokens_counts_cjk_per_char():

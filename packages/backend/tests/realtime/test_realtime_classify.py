@@ -95,3 +95,15 @@ def test_context_window_lookup():
     assert lookup("claude_code", "claude-sonnet-4-5[1m]")["window_tokens"] == 1_000_000
     assert lookup("codex", "gpt-5", {"gpt-5": 123})["window_tokens"] == 123
     assert lookup("codex", None) is None and lookup("codex", "llama-3") is None
+
+
+def test_reported_window_wins_and_exceeded_table_window_has_no_ratio():
+    """a1a3-B20: model metadata beats the fixed table; impossible ratios are withheld."""
+    reported = {"used_tokens": 190_000, "model": "gpt-5-codex", "window_tokens": 950_000}
+    state = c.classify(tail(1, usage=reported, agent="codex"), NOW)
+    assert state.context["window_tokens"] == 950_000 and state.context["ratio"] == 0.2
+    assert state.context["window_basis"] == "reported" and "context_pressure" not in state.flags
+    big = {"used_tokens": 600_000, "model": "claude-sonnet-4-5"}
+    state = c.classify(tail(1, usage=big), NOW)
+    assert state.context["ratio"] is None and state.context["basis"] == "window_exceeded"
+    assert "context_pressure" not in state.flags

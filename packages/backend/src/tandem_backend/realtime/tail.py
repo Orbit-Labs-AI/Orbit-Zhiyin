@@ -40,6 +40,16 @@ SELECT call_uid, name, command_head, argument_digest, status, error_class, exit_
        started_at, ended_at
 FROM tool_call WHERE session_uid = ? ORDER BY started_at DESC LIMIT ?
 """
+# Codex turn.start payloads carry the effective model_context_window (kept in event.ext).
+WINDOW_SQL = """
+SELECT CAST(json_extract(ext, '$.model_context_window') AS INTEGER) AS window
+FROM event WHERE session_uid = ? AND kind = 'turn.start'
+  AND json_extract(ext, '$.model_context_window') IS NOT NULL
+ORDER BY seq DESC LIMIT 1
+"""
+# Older than this, no rule can make a session live (approval waits expire after an hour, the
+# finished state after minutes), so only the cheap session row is read for it.
+DETAIL_HORIZON_S = 3_600
 USAGE_SQL = """
 SELECT input_tokens, cache_read_tokens, COALESCE(model_id, model_raw) AS model
 FROM model_call WHERE session_uid = ? ORDER BY ts DESC LIMIT 1
@@ -51,15 +61,26 @@ def active_sessions(db, since_ms: int, limit: int = MAX_SESSIONS):
 
 
 def load_tails(reads, now_ms: int, horizon_s: int = 86_400,
-               per_session_events: int = 200) -> list[SessionTail]:
-    """Sessions with an event in the horizon, each with its newest events, calls and usage."""
+               per_session_events: int = 200,
+               detail_horizon_s: int = DETAIL_HORIZON_S) -> list[SessionTail]:
+    """Sessions with an event in the horizon; those active within ``detail_horizon_s`` also
+    carry their newest events, calls and usage (older ones can only classify as idle)."""
     with reads.read(check=False) as db:
         tails = []
+        detail_from = now_ms - detail_horizon_s * 1000
         for row in active_sessions(db, now_ms - horizon_s * 1000):
             uid = row["session_uid"]
+            if row["last_ts"] is not None and row["last_ts"] < detail_from:
+                tails.append(SessionTail(
+                    session_uid=uid, agent=row["agent"], native_id=row["native_id"],
+                    project_id=row["project_id"], project=row["project"], title=row["title"],
+                    status=row["status"], started_at=row["started_at"],
+                    ended_at=row["ended_at"], last_event_ts=row["last_ts"]))
+                continue
             events = db.execute(EVENTS_SQL, (uid, per_session_events)).fetchall()
             calls = db.execute(CALLS_SQL, (uid, CALLS_PER_SESSION)).fetchall()
             usage = db.execute(USAGE_SQL, (uid,)).fetchone()
+            window = db.execute(WINDOW_SQL, (uid,)).fetchone()
             newest = events[0] if events else None
             pending = None
             if newest is not None and newest["kind"] == "permission.request":
@@ -76,5 +97,7 @@ def load_tails(reads, now_ms: int, horizon_s: int = 86_400,
                 usage=None if usage is None else {
                     "used_tokens": None if usage["input_tokens"] is None
                     else usage["input_tokens"] + (usage["cache_read_tokens"] or 0),
-                    "model": usage["model"]}))
+                    "model": usage["model"],
+                    "window_tokens": window["window"] if window and window["window"] and
+                    window["window"] > 0 else None}))
         return tails
