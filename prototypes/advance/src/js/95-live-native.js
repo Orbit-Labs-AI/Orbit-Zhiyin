@@ -117,16 +117,22 @@ function lvnWatch(ob) {
   }, 1500);
 }
 const lvnSleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function lvnSpine(rev0) {
+// the projection revision the import just published (/v1/app/state storage.data_rev); analysis answers older than it are partial
+LVN.dataRev = async function () { const st = await lvnTry('/v1/app/state'); return st && st.storage && st.storage.data_rev != null ? +st.storage.data_rev : null; };
+const lvnRevOf = (meta) => (meta && meta.data_rev != null ? +meta.data_rev : null);
+// spine reloaded after the import: a 200 can still be the previous snapshot (freshness stale, data_rev older than the import)
+// while the analysis job recomputes, so keep reloading until the spine's data_rev reaches the published one (or time runs out)
+async function lvnSpine(rev0, target) {
   const t0 = Date.now();
   LV.loadSpine();
   let k = 0;
   while (Date.now() - t0 < 30000) {
-    if (LV.rev > rev0 && LV.state !== 'computing' && LV.state !== 'connecting') return true;
+    const fresh = target == null || lvnRevOf(LV.meta) == null || lvnRevOf(LV.meta) >= target;
+    if (LV.rev > rev0 && LV.state !== 'computing' && LV.state !== 'connecting' && fresh) return true;
     await lvnSleep(400);
-    if (LV.rev === rev0 && ++k % 3 === 0) LV.loadSpine();
+    if (++k % 3 === 0) LV.loadSpine();
   }
-  return false;
+  return LV.rev > rev0 && LV.state === 'ready' ? 'partial' : false;
 }
 // server persona → the persona(L) shape Genesis reads ({ok, classified, n, v, code, zh, en, line, conf}) + its candidates
 LVN.personaOf = function (d) {
@@ -138,15 +144,24 @@ LVN.personaOf = function (d) {
   const cands = (d.candidates || d.matches || []).map((c) => ({ c: c.code, zh: c.zh || (TYPES[c.code] || [])[0] || '', en: c.en || (TYPES[c.code] || [])[1] || '', sim: clamp(Math.round(c.match != null ? c.match : c.sim || 0), 3, 99) })).filter((c) => c.c);
   return { p, cands };
 };
-LVN.reveal = async function (period) {
+// The reveal waits for the analysis of the published revision (target); a stale answer from an older snapshot is only used
+// when time runs out, and then it is marked partial so Genesis says so instead of presenting it as the final card.
+LVN.reveal = async function (period, target) {
   const q = { period: period || '90', display_timezone: TL_TZ || 'UTC' };
-  for (let i = 0; i < 8; i++) {
+  let stale = null;
+  for (let i = 0; i < 16; i++) {
     let r = null;
     try { r = await TL.get('/v1/uiview/persona/reveal', { query: q, waitMs: 1500 }); } catch (e) { r = { state: 'error', error: e }; }
-    if (r && r.data != null && r.state !== 'computing') return LVN.personaOf(r.data);
+    if (r && r.data != null && r.state !== 'computing') {
+      const rv = lvnRevOf(r.meta) != null ? lvnRevOf(r.meta) : lvnRevOf(r.data && r.data.meta);
+      const old = target != null && (r.state === 'stale' || (rv != null && rv < target));
+      if (!old) return LVN.personaOf(r.data);
+      stale = r.data;
+    }
     if (r && r.state === 'error') break;
     await lvnSleep(600);
   }
+  if (stale) { const x = LVN.personaOf(stale); x.p.partial = true; return x; }
   const sh = await lvnTry('/v1/shell/reveal', { query: { display_timezone: TL_TZ || 'UTC' } });
   return LVN.personaOf(sh && sh.reason !== 'computing' ? sh : null);
 };
@@ -166,7 +181,9 @@ async function lvnAfter(ob) {
   const L = ob.live; if (L.after) return; L.after = true; lvnStop(L); L.err = null;
   lvnStage(L, 'stats', { status: 'running', note: null }); lvnStage(L, 'persona', { status: 'pending', note: null }); lvnDraw(ob);
   // the import is in but the analysis did not come back: keep the first run open (no onboarded:true) and offer a retry
-  if (!(await lvnSpine(L.rev0)) || !ALL.length) {
+  const target = await LVN.dataRev();
+  const spun = await lvnSpine(L.rev0, target);
+  if (!spun || !ALL.length) {
     L.after = false;
     lvnStage(L, 'stats', { status: 'failed', note: ALL.length ? '本机服务没有返回分析结果' : '没有读到会话' });
     L.err = ALL.length ? '会话已导入，但分析结果暂时读不到（本机服务没有响应）。可以重试。' : '导入完成，但没有读到任何会话。检查来源目录后重试。';
@@ -174,7 +191,8 @@ async function lvnAfter(ob) {
     lvnDraw(ob); return;
   }
   lvnStage(L, 'stats', { status: 'done', note: fmt(ALL.length) + ' 个会话' }); lvnStage(L, 'persona', { status: 'running' }); lvnDraw(ob);
-  const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all'), LVN.loadRecs().catch(() => null)]);
+  const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all', target), LVN.loadRecs().catch(() => null)]);
+  if (spun === 'partial') per.p.partial = true;   // the spine is still an older snapshot: Genesis labels its numbers as partial
   lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
   TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
   if (ORBIT.native && ORBIT.native.isNative) ORBIT.native.post('onboarded', {});   // native host shows the HUD only after this
