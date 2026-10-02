@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> None:
     analytics.add_argument("--display-timezone", default="UTC")
     analytics.add_argument("--from-ts", type=int)
     analytics.add_argument("--until-ts", type=int)
-    for flag in ("project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
+    for flag in ("source-id", "project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
         analytics.add_argument("--" + flag, action="append")
     analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
     analytics.add_argument("--scene")
@@ -93,6 +93,17 @@ def main(argv: list[str] | None = None) -> None:
     analytics.add_argument("--recommendation-catalog", type=Path, help="读取该目录的七类推荐 JSON，缺失时不回退种子")
     analytics.add_argument("--recommendation-agent", default="generic", help="推荐适配的 Agent 标识")
     analytics.add_argument("--recommendation-family", choices=("rules_prompts", "skills", "plugins", "mcp", "hooks", "model_configs", "workflows"))
+    products = sub.add_parser("analysis-report", help="生成同一分析快照的终端、JSON、CSV 和离线图表")
+    products.add_argument("--output", type=Path, default=Path(".local/analysis-report"))
+    products.add_argument("--display-timezone", default="UTC")
+    products.add_argument("--from-ts", type=int)
+    products.add_argument("--until-ts", type=int)
+    products.add_argument("--bucket", choices=("day", "week", "month"), default="day")
+    products.add_argument("--with-text", action="store_true")
+    products.add_argument("--compare-previous", action="store_true")
+    for flag in ("source-id", "project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
+        products.add_argument("--" + flag, action="append")
+    products.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     for command in (report, demo):
@@ -202,11 +213,28 @@ def main(argv: list[str] | None = None) -> None:
             store = CanonicalStore(args.home)
         except ValueError as exc:
             parser.error(str(exc))
+    if args.command == "analysis-report":
+        from .analytics.inputs import Scope
+        from .analytics.products import analyze_product_store
+        from .analytics.products.render import export_report, terminal_report
+        try:
+            scope = Scope(display_timezone=args.display_timezone, source_ids=args.source_id,
+                          project_ids=args.project_id, model_ids=args.model_id, effort_raw=args.effort_raw,
+                          from_ts=args.from_ts, until_ts=args.until_ts, root_session_uids=args.root_session_uid,
+                          excluded_session_uids=args.exclude_session or [], include_children=args.include_children)
+            product = analyze_product_store(store, scope, bucket=args.bucket, with_text=args.with_text,
+                                            compare_previous=args.compare_previous)
+            paths = export_report(product, args.output)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(terminal_report(product))
+        print("离线图表：" + paths["report.html"])
+        return
     if args.command == "analytics":
         from .analytics.inputs import Scope
         from .analytics.service import analyze_store
         try:
-            scope = Scope(display_timezone=args.display_timezone, project_ids=args.project_id,
+            scope = Scope(display_timezone=args.display_timezone, source_ids=args.source_id, project_ids=args.project_id,
                           legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
                           effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
                           root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],

@@ -42,11 +42,12 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         effort_raw: Annotated[list[str] | None, Query()] = None, from_ts: int | None = None, until_ts: int | None = None,
         root_session_uids: Annotated[list[str] | None, Query()] = None, excluded_session_uids: Annotated[list[str] | None, Query()] = None,
         include_children: bool = True, scene: str | None = None,
+        source_ids: Annotated[list[str] | None, Query()] = None,
     ):
         from .analytics.inputs import Scope
         try:
             # Repeated parameters are lists; an explicit empty value means [].
-            return Scope(display_timezone=display_timezone,
+            return Scope(display_timezone=display_timezone, source_ids=[] if source_ids == [""] else source_ids,
                          project_ids=[] if project_ids == [""] else project_ids,
                          legacy_project_ids=[] if legacy_project_ids == [""] else legacy_project_ids,
                          model_ids=[] if model_ids == [""] else model_ids, effort_raw=effort_raw,
@@ -68,6 +69,36 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     def analytics_section(key, scope):
         from .analytics.service import response_section
         return response_section(analytics_data(scope, key in ("sessions", "text", "projects")), key)
+
+    @app.get("/v1/analytics/products")
+    def analysis_products(scope=scope_dependency, bucket: Literal["day", "week", "month"] = "day",
+                          with_text: bool = False, compare_previous: bool = False):
+        from .analytics.products import analyze_product_store
+        try:
+            return analyze_product_store(store, scope, bucket=bucket, with_text=with_text,
+                                         compare_previous=compare_previous)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/v1/analytics/products/sessions")
+    def product_sessions(scope=scope_dependency, query: str = "", offset: int = Query(0, ge=0),
+                         limit: int = Query(50, ge=1, le=200)):
+        from .analytics.products import analyze_product_store, session_page
+        try:
+            result = analyze_product_store(store, scope)
+            return {"scope": result["scope"], "analysis_digest": result["analysis_digest"],
+                    **session_page(result, query=query, offset=offset, limit=limit)}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/v1/analytics/products/compare")
+    def product_compare(first: str, second: str, scope=scope_dependency):
+        from .analytics.products import analyze_product_store
+        from .analytics.products.summaries import compare_sessions
+        try:
+            return compare_sessions(analyze_product_store(store, scope), first, second)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @app.get("/v1/analytics/overview")
     def feature_overview(scope=scope_dependency):
