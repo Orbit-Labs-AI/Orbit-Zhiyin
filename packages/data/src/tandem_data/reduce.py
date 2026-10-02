@@ -408,8 +408,9 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             tools[call_uid] = (values, event)
             open_tools[event["call_id"]].append(call_uid)
             if event["call_id"] in pending_approvals:
-                _approve(values, call_uid, pending_approvals.pop(event["call_id"]),
-                         permission_evidence)
+                _approve(
+                    values, call_uid, pending_approvals.pop(event["call_id"]), permission_evidence
+                )
         elif kind == "tool.result":
             matches = open_tools[event["call_id"]]
             if len(matches) == 1:

@@ -757,25 +757,64 @@ def test_codex_approvals_link_to_their_tool_calls(tmp_path):
         # 1) Decision before the completed CommandExecution item (synthetic rollout order).
         msg(1, type="exec_approval_request", call_id="c1", turn_id="t", command=["ls", "-la"]),
         msg(5, type="exec_approval_response", call_id="c1", decision="approved"),
-        item(6, type="CommandExecution", id="c1", command=["ls", "-la"], status="completed",
-             exit_code=0, aggregated_output="ok"),
+        item(
+            6,
+            type="CommandExecution",
+            id="c1",
+            command=["ls", "-la"],
+            status="completed",
+            exit_code=0,
+            aggregated_output="ok",
+        ),
         # 2) Call first, then a sub-command approval with an externally tagged decision.
-        at(10, {"type": "response_item", "payload": {"type": "function_call", "call_id": "c2",
-                                                     "name": "exec_command",
-                                                     "arguments": '{"cmd": "make"}'}}),
-        msg(11, type="exec_approval_request", call_id="c2", approval_id="a2", turn_id="t",
-            command=["make"]),
-        msg(13, type="exec_approval_response", call_id="c2", approval_id="a2",
-            decision={"approved_execpolicy_amendment": {"proposed_execpolicy_amendment": []}}),
-        at(14, {"type": "response_item", "payload": {"type": "function_call_output",
-                                                     "call_id": "c2", "output": "built"}}),
+        at(
+            10,
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "call_id": "c2",
+                    "name": "exec_command",
+                    "arguments": '{"cmd": "make"}',
+                },
+            },
+        ),
+        msg(
+            11,
+            type="exec_approval_request",
+            call_id="c2",
+            approval_id="a2",
+            turn_id="t",
+            command=["make"],
+        ),
+        msg(
+            13,
+            type="exec_approval_response",
+            call_id="c2",
+            approval_id="a2",
+            decision={"approved_execpolicy_amendment": {"proposed_execpolicy_amendment": []}},
+        ),
+        at(
+            14,
+            {
+                "type": "response_item",
+                "payload": {"type": "function_call_output", "call_id": "c2", "output": "built"},
+            },
+        ),
         # 3) Patch approval denied.
         msg(20, type="apply_patch_approval_request", call_id="p1", turn_id="t", changes={}),
         msg(27, type="apply_patch_approval_response", call_id="p1", decision="denied"),
         item(28, type="FileChange", id="p1", status="failed", changes={}),
         # 4) No approval at all.
-        item(30, type="CommandExecution", id="c3", command=["pwd"], status="completed",
-             exit_code=0, aggregated_output="/w"),
+        item(
+            30,
+            type="CommandExecution",
+            id="c3",
+            command=["pwd"],
+            status="completed",
+            exit_code=0,
+            aggregated_output="/w",
+        ),
     ]
     with Store(tmp_path / "data") as store:
         stream(store, "codex", tmp_path / "source", rows)
