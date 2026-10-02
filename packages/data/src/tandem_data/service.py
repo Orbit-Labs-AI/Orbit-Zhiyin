@@ -50,6 +50,12 @@ class _Maintenance:
 
     def run(self) -> None:
         fd = None
+        # Sequential imports (one call per source) follow each other within milliseconds;
+        # the grace period lets the next one cancel this run before any work starts.
+        if self.stop.wait(MAINTENANCE_GRACE_SECONDS):
+            self.result = {"action": "interrupted"}
+            self._finish()
+            return
         try:
             fd = _lock(self.home)
             with Store(self.home) as store:
@@ -68,9 +74,12 @@ class _Maintenance:
             self.connection = None
             if fd is not None:
                 os.close(fd)
-            with _MAINTENANCE_LOCK:
-                if _MAINTENANCE.get(self.home) is self:
-                    del _MAINTENANCE[self.home]
+            self._finish()
+
+    def _finish(self) -> None:
+        with _MAINTENANCE_LOCK:
+            if _MAINTENANCE.get(self.home) is self:
+                del _MAINTENANCE[self.home]
 
     def interrupt(self) -> None:
         self.stop.set()
@@ -82,6 +91,7 @@ class _Maintenance:
 _MAINTENANCE: dict[Path, _Maintenance] = {}
 _MAINTENANCE_LOCK = threading.Lock()
 MAINTENANCE_MODES = ("background", "wait", "off")
+MAINTENANCE_GRACE_SECONDS = 1.0
 
 
 def _yield_maintenance(home: Path) -> None:
