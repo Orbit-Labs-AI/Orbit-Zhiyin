@@ -6,7 +6,7 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
 
 - heartbeat every ``heartbeat_s`` (5 s); no message for ``stale_s`` (15 s) → kill + restart
 - crash restarts back off 0.5 / 1 / 2 / 4 s; more than 5 within 60 s → ``degraded``
-- analysis tasks time out (light 20 s, heavy 120 s): kill, task ``failed(timeout)``,
+- analysis tasks time out (light 60 s, heavy 120 s): kill, task ``failed(timeout)``,
   the previous snapshot keeps serving; three failures open a circuit for that key
 - analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
 """
@@ -37,7 +37,9 @@ class SupervisorConfig:
     backoff_s: tuple[float, ...] = (0.5, 1.0, 2.0, 4.0)
     restart_window_s: float = 60.0
     max_restarts: int = 5
-    light_timeout_s: float = 20.0
+    # "light" sections still run the full engine on a scoped read; 20 s timed out real
+    # mid-size projects before the first snapshot ever landed.
+    light_timeout_s: float = 60.0
     heavy_timeout_s: float = 120.0
     rss_limit_bytes: int = 1_500_000_000
     analysis_idle_s: float = 300.0

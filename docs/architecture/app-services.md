@@ -123,7 +123,7 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | --- | --- |
 | worker 心跳 5 s 一次；15 s 无心跳 | 判定卡死，SIGTERM → 3 s 后 SIGKILL；重启 |
 | worker 退出（崩溃 / OOM） | 指数退避重启 0.5 → 1 → 2 → 4 s；60 s 内超过 5 次进入 `degraded`，停止自动拉起并经 SSE 通知，UI 提示“后台服务异常，可重试” |
-| 分析任务超时（轻量 20 s / 重型 120 s，可配） | 杀 analysis-worker 并重启；任务记 `failed(timeout)`；旧快照保留 |
+| 分析任务超时（轻量 60 s / 重型 120 s，可配） | 杀 analysis-worker 并重启；任务记 `failed(timeout)`；旧快照保留 |
 | analysis-worker RSS > 1.5 GB | 当前任务完成后回收重启 |
 | gateway 崩溃 | 宿主 `/health` 连续 3 次失败（2 s 间隔）→ 重启 gateway（新端口、新令牌），通过 `evaluateJavaScript` 设置 `window.__TANDEM_ENDPOINT__ = {base, token}` 并触发 `tandem:endpoint` 事件，适配层重连，不整页刷新；子 worker 因 stdin 关闭自行退出，不会残留 |
 | 宿主退出 | gateway 父进程看门退出；ingest 在文件边界取消，已发布数据不受损（既有语义） |
@@ -243,7 +243,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 | 情况 | 行为 |
 | --- | --- |
 | 命中旧快照 | 先返回旧快照（`stale`），后台重算，完成后推送；UI 不闪、不空白 |
-| 计算超时（轻量 20 s / 重型 120 s） | 杀 worker 重启，任务 `failed(timeout)`；有旧快照继续服务，无则返回 `503 analysis_unavailable`（可重试），页面显示“范围较大，请缩小”；3 次熔断后需数据变化或手动重算 |
+| 计算超时（轻量 60 s / 重型 120 s） | 杀 worker 重启，任务 `failed(timeout)`；有旧快照继续服务，无则返回 `503 analysis_unavailable`（可重试），页面显示“范围较大，请缩小”；3 次熔断后需数据变化或手动重算 |
 | 范围过大 | 沿用 `422 analysis_scope_too_large`（`data-app-integration` 的预算语义），提示缩小时间 / Agent / 项目；概览允许降级为 SQL 聚合（`aggregate_only`，未算项为 `null`） |
 | analysis-worker 不可用 | 读接口、会话 / 事件 / 搜索 / 清单照常；分析接口只服务缓存，UI 显示异常横幅 |
 | 导入进行中 | 缓存继续服务（`stale`）；新数据发布后再重算，避免对一个正在变化的数据集反复计算 |
@@ -337,7 +337,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 | --- | --- | --- |
 | `heartbeat_s` / `stale_s` | 5 / 15 | worker 心跳间隔与判定卡死阈值（经 `TANDEM_WORKER_HEARTBEAT_S` 传给 worker） |
 | `backoff_s` / `max_restarts` / `restart_window_s` | 0.5,1,2,4 / 5 / 60 | 崩溃重启退避；窗口内超过次数进入 `degraded`，用户提交导入或重试时复位 |
-| `light_timeout_s` / `heavy_timeout_s` | 20 / 120 | 分析超时；按 section 的 `cost` 选择 |
+| `light_timeout_s` / `heavy_timeout_s` | 60 / 120 | 分析超时；按 section 的 `cost` 选择 |
 | `max_failures` | 3 | 同 `(section, scope_hash)` 在同一版本下的熔断阈值；数据版本变化或 `recompute` 解除 |
 | `rss_limit_bytes` / `analysis_idle_s` | 1.5 GB / 300 | analysis worker 回收条件 |
 | `plan` | `{}` | 传给 `plan_batches` 的覆盖（`head_sessions`、`head_days`、`window_days`、`rest_chunk`） |

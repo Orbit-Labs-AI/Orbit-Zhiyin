@@ -127,6 +127,19 @@ def _session_rows(
     return rows, text, len(entities)
 
 
+def _by_session(items: list[Record] | None) -> dict[str, list[tuple[int, Record]]]:
+    groups = defaultdict(list)
+    for position, item in enumerate(items or ()):
+        groups[item["session_uid"]].append((position, item))
+    return groups
+
+
+def _take(groups: dict[str, list[tuple[int, Record]]], ids: set) -> list[Record]:
+    """Items of ``ids`` in their original order, without rescanning the whole list."""
+    picked = [pair for sid in ids for pair in groups.get(sid, ())]
+    return [item for _, item in sorted(picked, key=lambda pair: pair[0])]
+
+
 def _project_rows(
     context: AnalysisContext, rows: list[Record], instruction_groups: dict, tool_status: str
 ) -> list[Record]:
@@ -150,10 +163,14 @@ def _project_rows(
         (p.get("project_id"), p.get("legacy_project_id")): p.get("name")
         for p in bundle.projects or []
     }
+    # Group once: per-project list comprehensions were O(projects x events).
+    event_groups, call_groups = _by_session(events), _by_session(calls)
+    model_groups, session_groups = _by_session(model_calls), _by_session(sessions)
     for (pid, legacy), rs in sorted(by_project.items(), key=lambda pair: str(pair[0])):
         ids = {sid for r in rs for sid in r["included_session_uids"]}
-        pcs = None if calls is None else [c for c in calls if c["session_uid"] in ids]
-        pe = [e for e in events if e["session_uid"] in ids]
+        pcs = None if calls is None else _take(call_groups, ids)
+        pe = _take(event_groups, ids)
+        project_sessions = _take(session_groups, ids)
         ph = sum(human(e, main_ids) for e in pe)
         pu = sum(r["unknown_counts"]["human_origin"] for r in rs)
         projects.append(
@@ -179,16 +196,14 @@ def _project_rows(
                 "subjective_outcomes": aggregate_subjective_outcomes(
                     [r["subjective_outcomes"] for r in rs], event_status
                 ),
-                "activity_rhythm": activity([s for s in sessions if s["session_uid"] in ids], pe,
+                "activity_rhythm": activity(project_sessions, pe,
                     pcs, None if model_calls is None else context.members(ids, "models"),
                     main_ids & ids, scope) if bundle.events is not None else None,
                 "tools": tool_summary(pcs, tool_status),
                 "usage": usage(
-                    None
-                    if model_calls is None
-                    else [c for c in model_calls if c["session_uid"] in ids],
+                    None if model_calls is None else _take(model_groups, ids),
                     pe,
-                    [s for s in sessions if s["session_uid"] in ids],
+                    project_sessions,
                     scope,
                     complete_models,
                 ),
