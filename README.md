@@ -46,6 +46,7 @@ CI 调用同一套命令。测试不自动读取本机 Agent 历史；性能与�
 
 ## 集成约定
 
+- [UI 分析与端到端验收](docs/modules/analytics/analysis-products.md)：工具占比、调用转移、情绪表达及开发者本地 session 验证。
 - [分析补全建议](docs/plans/analysis-review.md)：八族边界与 Lite / Advance 的分析功能缺口。
 - [后端缺口](docs/plans/backend-gap.md)：数据、分析、推荐与横切后端程序对照两版 UI 的差距与补齐顺序。
 - [模块接入表](docs/architecture/module-map.md)：功能、入口、实现、契约、测试与缺口。

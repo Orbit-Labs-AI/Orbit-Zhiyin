@@ -3,12 +3,14 @@
 from tandem_data.coverage import COVERAGE_CONTRACT
 
 LABELS = {
+    "sessions": "会话", "projects": "项目", "turns": "轮次", "usage_snapshot": "累计用量快照",
     "source_scans": "来源扫描范围", "events": "事件证据", "tool_calls": "工具调用配对",
     "model_calls": "逐次模型用量", "inventory": "本机安装清单", "catalog": "资源目录",
     "native_event_payload": "原生扩展正文", "sample_exclusions": "额外样本筛选",
     "human_origin": "真人来源",
 }
-STATUS_LABELS = {"partial": "部分证据可用", "unavailable": "输入尚不可用", "excluded": "按配置或范围省略"}
+STATUS_LABELS = {
+    "sessions": "会话", "projects": "项目", "turns": "轮次", "usage_snapshot": "累计用量快照","partial": "部分证据可用", "unavailable": "输入尚不可用", "excluded": "按配置或范围省略"}
 REASONS = {
     "truncated_text": "条事件文本曾被截断",
     "missing_timestamps": "条事件缺少时间戳",

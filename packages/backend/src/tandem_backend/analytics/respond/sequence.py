@@ -3,6 +3,7 @@
 from collections import Counter, defaultdict
 
 from ..common import human, ratio
+from .order import ordered_calls
 from .rules import STATES, result_status
 
 
@@ -34,12 +35,10 @@ def workflow(events, calls, main_ids, supported_kinds=None):
     counts["rollback_rewind_count"] = (sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind") for e in events)
                                        if supported_kinds is None or "branch" in supported_kinds else None)
     consecutive, same, max_failures, digest_eligible = 0, 0, 0, 0
-    by_session = defaultdict(list)
-    for c in calls or []:
-        by_session[c["session_uid"]].append(c)
-    for group in by_session.values():
+    ordered_groups, order_unknown = ordered_calls(calls or [])
+    for group in ordered_groups:
         previous, run = None, 0
-        for c in sorted(group, key=lambda c: (c.get("seq", 0), c["call_uid"])):
+        for c in group:
             failed = c.get("status") == "failed" or bool(c.get("failed_command_results"))
             run = run + 1 if failed else 0
             max_failures = max(max_failures, run)
@@ -56,17 +55,17 @@ def workflow(events, calls, main_ids, supported_kinds=None):
             "repeated_transition_rate": ratio(repeated, count), "max_repeated_transition_run": runs,
             "transitions": [{"from": a, "to": b, "count": n, "probability": n / totals[a]}
                             for (a, b), n in sorted(transitions.items())],
-            "consecutive_failed_calls": consecutive if calls is not None else None,
-            "max_consecutive_failure_run": max_failures if calls is not None else None,
-            "confirmed_same_argument_failed_retries": same if digest_eligible else None,
-            "retry_eligible_pairs": digest_eligible, "sequences": dict(sequences)}
+            "consecutive_failed_calls": consecutive if calls is not None and not order_unknown else None,
+            "max_consecutive_failure_run": max_failures if calls is not None and not order_unknown else None,
+            "confirmed_same_argument_failed_retries": same if digest_eligible and not order_unknown else None,
+            "retry_eligible_pairs": digest_eligible if calls is not None and not order_unknown else None,
+            "order_unknown_n": order_unknown if calls is not None else None, "sequences": dict(sequences)}
 
 
 def analyze_execution_sequence(calls):
     """Stricter retry links alongside the compatible v1 workflow counters."""
-    groups, retries, failures = defaultdict(list), [], []
+    retries, failures = [], []
     for c in calls or []:
-        groups[c["session_uid"]].append(c)
         status = result_status(c)
         if status in ("failed", "rejected", "interrupted"):
             code = c.get("error_class") or c.get("failure_reason")
@@ -76,8 +75,8 @@ def analyze_execution_sequence(calls):
                              "failure_reason": code, "exit_code": c.get("exit_code"),
                              "status_scope": c.get("status_scope"), "source": "explicit_protocol",
                              "evidence_event_uid": c.get("result_event_uid")})
-    for group in groups.values():
-        ordered = sorted(group, key=lambda c: (c.get("seq", 0), c["call_uid"]))
+    ordered_groups, order_unknown = ordered_calls(calls or [])
+    for ordered in ordered_groups:
         prior, previous = {}, None
         for c in ordered:
             explicit = c.get("retry_of_call_uid")
@@ -102,6 +101,7 @@ def analyze_execution_sequence(calls):
                                         + ([] if scope_same else ["status_scope"])
                                         + ([] if explicit or digest_known else ["argument_digest_identity"])})
             prior[c["call_uid"]], previous = c, c
-    return {"retry_links": retries if calls is not None else None,
+    return {"retry_order_unknown_n": order_unknown if calls is not None else None,
+            "retry_links": retries if calls is not None else None,
             "failure_reasons": failures if calls is not None else None,
             "failure_reason_unknown_n": sum(r["failure_reason"] is None for r in failures) if calls is not None else None}

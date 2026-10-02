@@ -5,6 +5,7 @@ from tandem_data.inventory import InventoryRequest, scan_inventory
 from tandem_data.store import Store
 
 from tandem_backend.analytics.inputs import AnalysisInputBundle
+from tandem_backend.analytics.products import build_products
 from tandem_backend.analytics.service import analyze_bundle
 
 
@@ -20,6 +21,9 @@ def test_inventory_reaches_analytics_and_changes_digest(tmp_path):
         data = read_analysis(store.home, AnalysisScope('UTC'))
         bundle = AnalysisInputBundle.from_dict(data)
         result = analyze_bundle(bundle)
+        product = build_products(bundle)
+        assert product['configuration']['items'] == data['inventory']
+        assert product['configuration']['status'] == 'available'
         assert result['inventory'] == data['inventory']
         assert result['inventory_scans'] == data['inventory_scans']
         assert result['coverage']['inventory']['status'] == 'available'

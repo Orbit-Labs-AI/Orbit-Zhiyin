@@ -3,6 +3,7 @@
 import math
 from collections import Counter, defaultdict
 from datetime import datetime
+from pathlib import Path
 
 from ..models import Event
 from ..store import Store
@@ -43,6 +44,18 @@ def union_duration(intervals: list[tuple[float, float]]) -> float:
 
 
 def analyze(store: Store, project_id: str | None = None, model: str | None = None,
+            before: str | None = None, scene: str | None = None) -> dict:
+    """Record every durable-store profile calculation, preserving pure in-memory fixtures."""
+    from ..analytics.history import recorded
+    def compute():
+        return _analyze(store, project_id, model, before, scene)
+    if any(isinstance(getattr(store, name, None), (str, Path)) for name in ("home", "path")):
+        return recorded(store, "profile", {"project_id": project_id, "model": model,
+                        "before": before, "scene": scene, "method_version": "profile-evidence-v1"}, compute)
+    return compute()
+
+
+def _analyze(store: Store, project_id: str | None = None, model: str | None = None,
             before: str | None = None, scene: str | None = None) -> dict:
     if hasattr(store, "report_snapshot"):
         store = store.report_snapshot(project_id, model, before)

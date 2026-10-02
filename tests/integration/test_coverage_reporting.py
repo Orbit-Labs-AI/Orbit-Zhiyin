@@ -52,6 +52,8 @@ def test_known_missing_tool_endpoints_have_counts_and_remain_partial(tmp_path):
     assert tools["status"] == "partial"
     assert tools["reason_counts"]["tool_calls_without_results"] == 1
     assert tools["reason_counts"]["tool_results_without_calls"] == 1
+    assert result["workflow"]["order_unknown_n"] > 0
+    assert result["workflow"]["consecutive_failed_calls"] is None
     assert result["coverage"]["events"]["reason_counts"]["missing_timestamps"] >= 2
     detail = coverage_details(result["coverage"])["tool_calls"]
     assert "1 条调用缺少对应结果" in detail["reasons"]
@@ -146,3 +148,58 @@ def test_new_source_reason_does_not_need_local_cli_patch():
     assert report["datasets"]["new_source"]["counts"] == {"new_adapter_gap": 1}
     assert "new_adapter_gap" in "\n".join(coverage_lines(report))
     assert "不能推断为完整" in coverage_lines(build_coverage_report(None))[0]
+
+
+def test_source_filter_isolates_coverage_but_keeps_failed_selected_sources(tmp_path):
+    _, home = prepare(tmp_path)
+    before = read_analysis(home, AnalysisScope("UTC"))["coverage"]["events"]
+    with Store(home) as store:
+        good = store.db.execute("SELECT source_id FROM source").fetchone()[0]
+        bad = store.add_source("hermes", tmp_path / "broken")
+        store.capture_stream(bad, "broken.jsonl", [b"{bad\n"])
+        store.rebuild()
+    selected = read_analysis(home, AnalysisScope("UTC", source_ids=(good,)))
+    assert selected["coverage"]["events"] == before
+    assert selected["coverage"]["source_scans"]["status"] == "available"
+    broken = read_analysis(home, AnalysisScope("UTC", source_ids=(bad,)))
+    assert broken["sessions"] == []
+    assert broken["coverage"]["events"]["reason_counts"]["unparsed_source_records"] == 1
+    assert broken["coverage"]["source_scans"]["status"] == "unavailable"
+
+
+def test_product_exports_and_history_preserve_shared_coverage(tmp_path):
+    from tandem_backend.analytics.history import history_for
+    from tandem_backend.analytics.products import analyze_product_store
+    from tandem_backend.analytics.products.render import html_report, terminal_report
+
+    _, home = prepare(tmp_path)
+    store = CanonicalStore(home)
+    features = analyze_store(store, with_text=False)
+    history = history_for(store)
+    run = history.list_runs(engine="features")["items"][0]
+    assert history.result(run["run_id"])["coverage_report"] == features["coverage_report"]
+    product = analyze_product_store(store, with_text=False)
+    assert product["coverage_report"] == features["coverage_report"]
+    assert product["rules_versions"]["coverage"] == "input-coverage-v1"
+    assert "尚未显式扫描本机安装配置" in terminal_report(product)
+    assert "尚未显式扫描本机安装配置" in html_report(product)
+    run = history.list_runs(engine="products")["items"][0]
+    assert history.result(run["run_id"])["coverage_report"] == product["coverage_report"]
+
+
+def test_missing_call_order_is_preserved_and_never_becomes_an_adjacency():
+    from tandem_backend.analytics.respond.calls import normalize_tool_calls
+    from tandem_backend.analytics.respond.sequence import analyze_execution_sequence, workflow
+
+    calls = [{"session_uid": "s", "call_uid": uid, "seq": seq, "status": "failed", "name_raw": "shell"}
+             for uid, seq in (("first", 1), ("missing", None), ("last", 3))]
+    normalized = normalize_tool_calls(calls)["calls"]
+    assert next(c for c in normalized if c["call_uid"] == "missing")["seq"] is None
+    result = workflow([], normalized, set())
+    assert result["order_unknown_n"] == 3 and result["retry_eligible_pairs"] is None
+    assert result["consecutive_failed_calls"] is None
+    retries = analyze_execution_sequence(normalized)
+    assert retries["retry_links"] == [] and retries["retry_order_unknown_n"] == 3
+    assert len(retries["failure_reasons"]) == 3  # Protocol failures remain observed facts.
+    assert workflow([], None, set())["retry_eligible_pairs"] is None
+    assert workflow([], [], set())["retry_eligible_pairs"] == 0

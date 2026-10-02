@@ -4,6 +4,7 @@ from collections import defaultdict
 from copy import deepcopy
 
 from ..common import task_uid
+from .order import call_order_key
 from .rules import RESULT_FIELDS
 
 
@@ -86,5 +87,5 @@ def normalize_tool_calls(calls):
                 rows[key].update(pairing_status="conflict", result_event_uid=None, interval_reliable=False)
         else:
             rows[key] = c
-    return {"calls": sorted(rows.values(), key=lambda c: (c["session_uid"], c.get("seq", 0), c["call_uid"])),
+    return {"calls": sorted(rows.values(), key=call_order_key),
             "duplicate_call_rows": duplicates, "call_conflicts": conflicts}

@@ -17,6 +17,8 @@ env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem-catalog" --home "$CHECK_DIR/catalo
 uv pip install --python "$CHECK_DIR/venv/bin/python" --no-deps "$CHECK_DIR"/wheels/tandem_backend-*.whl
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" demo --output "$CHECK_DIR/demo"
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" --home "$CHECK_DIR/demo/data" analytics --no-text --output "$CHECK_DIR/analytics.json"
+env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" --home "$CHECK_DIR/demo/data" analysis-report --output "$CHECK_DIR/ui-report"
+env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" --home "$CHECK_DIR/demo/data" analysis-history --output "$CHECK_DIR/history.json"
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem" evaluate --output "$CHECK_DIR/evaluation.json"
 env -u PYTHONPATH "$CHECK_DIR/venv/bin/tandem-data" --help > /dev/null
 "$CHECK_DIR/venv/bin/python" -I -c 'from tandem_backend.api import create_app; from tandem_backend.application.reports import build_report; from tandem_data.service import ImportService; print("Installed API, service and package resources verified")'

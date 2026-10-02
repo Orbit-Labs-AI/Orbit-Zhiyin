@@ -47,8 +47,9 @@ def report_session(row, project=None):
 class ReportSnapshot:
     """One bounded L2/L3 read transaction for all stages of a narrative report."""
 
-    def __init__(self, bundle):
+    def __init__(self, bundle, *, home=None):
         self.bundle = bundle
+        self.home = home
         projects = {p["project_id"]: p for p in bundle["projects"]}
         self._sessions = [report_session(s, projects.get(s["project_id"])) for s in bundle["sessions"]]
         members = set(bundle["statistical_members"]["event_uids"])
@@ -126,7 +127,7 @@ class CanonicalStore:
         return ReportSnapshot(self.read_bundle(Scope(
             project_ids=[project_id] if project_id is not None else None,
             model_ids=[model] if model is not None else None, from_ts=from_ts,
-            until_ts=cutoff if cutoff is not None else until_ts), include_native=False))
+            until_ts=cutoff if cutoff is not None else until_ts), include_native=False), home=self.home)
 
     def counts(self):
         with self.connect() as db:

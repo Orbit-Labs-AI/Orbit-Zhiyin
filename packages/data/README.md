@@ -60,3 +60,7 @@ bash scripts/check-data.sh --real --open
 ```
 
 不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `trajectory_page` / `record_source` / `read_analysis` 只读查询。存储 user_version=6，事件契约仍为 v1；旧库自动迁移。变化文件更新来源索引，未变化文件快速跳过，重算按来源隔离；源文件改写或删除时，原文接口明确返回不可用状态。
+
+## 分析运行记录
+
+`analysis_history.AnalysisHistory` 在独立的 `analysis.sqlite` 保存每次分析运行与不可覆盖的完整结果快照，原始来源和 canonical 事实库不受写入。DDL 位于 `migrations/analysis/`，查询、字段字典与数据边界见[统计分析与完整分析记录](../../docs/modules/analytics/statistics-history.md)。

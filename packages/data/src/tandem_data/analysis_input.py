@@ -25,6 +25,7 @@ class AnalysisScope:
     root_session_uids: tuple[str, ...] | None = None
     excluded_session_uids: tuple[str, ...] = ()
     include_children: bool = True
+    source_ids: tuple[str, ...] | None = None
 
     def __post_init__(self):
         ZoneInfo(self.display_timezone)
@@ -96,6 +97,11 @@ def read_analysis(
             params["roots"] = json.dumps(scope.root_session_uids)
         if not scope.include_children:
             allowed.append("session_uid=root_uid")
+        if scope.source_ids is not None:
+            allowed.append(
+                "session_uid IN (SELECT session_uid FROM session WHERE source_id IN (SELECT value FROM json_each(:sources)))"
+            )
+            params["sources"] = json.dumps(scope.source_ids)
         members_sql = list(allowed)
         for field, values in (("project_id", scope.project_ids), ("effort_raw", scope.effort_raw)):
             if values is not None:
@@ -311,7 +317,7 @@ def read_analysis(
             for row in connection.execute("SELECT * FROM usage_snapshot")
             if row["event_uid"] in members
         ]
-        unrestricted = (
+        source_wide = (
             scope.root_session_uids is None
             and scope.project_ids is None
             and scope.model_ids is None
@@ -319,7 +325,9 @@ def read_analysis(
             and scope.from_ts is None
             and scope.until_ts is None
             and not scope.excluded_session_uids
+            and scope.include_children
         )
+        unrestricted = source_wide and scope.source_ids is None
         relevant_sources = {row["source_id"] for row in session_rows}
         relevant_files = set()
         ordered_sessions = sorted(sessions)
@@ -333,6 +341,13 @@ def read_analysis(
                     chunk,
                 )
             )
+        if source_wide and scope.source_ids is not None:
+            # Selecting a source includes its failed/unmapped files even if it has
+            # no publishable session. Other sources cannot affect this selection.
+            relevant_sources = {
+                s["source_id"] for s in sources if s["source_id"] in scope.source_ids
+            }
+            relevant_files = {f["file_id"] for f in files if f["source_id"] in relevant_sources}
         if not unrestricted:
             sources = [source for source in sources if source["source_id"] in relevant_sources]
             files = [file for file in files if file["file_id"] in relevant_files]

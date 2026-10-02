@@ -58,8 +58,10 @@ flowchart LR
 - **状态判定**：`packages/data/src/tandem_data/coverage.py` 的 `dataset_coverage` 是公共入口。没有可用输入（`rows=null`）为 unavailable；确已观察的空集（`rows=0`）可以 available；存在缺口为 partial；调用方明确省略为 excluded，优先于其他状态。计数不接受负数、布尔值或假零。
 - **结构契约**：[coverage-v1.schema.json](../../packages/data/src/tandem_data/schemas/coverage-v1.schema.json) 规定 status、rows、reasons、reason_counts，允许附加来源专属字段。原因采用稳定代码；新来源能携带新原因，不依赖个人路径、会话 ID 或本地数据规模。
 - **生产者职责**：会话 reader 依据选择后的事件、工具配对与来源诊断计算缺口；安装清单 reader 依据显式扫描结果计算覆盖。缺时间、缺调用、缺结果、时间范围外结果各有独立原因。来源扫描缺少范围记录不能冒充完整，主动采样也不等于扫描中断。扫描范围与已选事件质量分别判定，source_scans 的未知不能直接降级另一组完整事件；消费者需要同时查看这两个维度。
-- **消费与展示**：`analytics/coverage.py` 生成共享 `coverage_report`（contract 为 input-coverage-v1）。analytics API、分析 JSON、CLI 与叙述报告传递同一套原因、数量、状态含义和处理建议，展示层不能把 partial/unavailable 改成 available。旧入口的单复数别名只在展示中去重，原字段保留兼容。
+- **消费与展示**：`analytics/coverage.py` 生成共享 `coverage_report`（contract 为 input-coverage-v1）。analytics API、分析 JSON、CLI、叙述报告与 analysis-report 的终端/HTML 导出传递同一套原因、数量、状态含义和处理建议；统一 AnalysisContext 的结果在保存分析历史前即附带 coverage_report 和契约版本，展示层不能把 partial/unavailable 改成 available。旧入口的单复数别名只在展示中去重，原字段保留兼容。
 - **工作流边界**：partial 不阻止基于已有事实分析；投影未发布/版本过期、格式错误、显式预算超限仍按原流程报错。analytics 不隐式启用安装配置扫描或联网采集 Catalog。语义推断中的“未识别/规则覆盖有限”也不等同于没有源数据。
+
+执行流程中的原生顺序同样遵守证据边界：`analytics/respond/order.py` 供调用归一化、工作流与组合报告共用。展示排序不写回缺失 seq；缺失或重复顺序不能用 0、时间戳或 ID 猜测相邻调用，相关连续失败/重试统计保留未知，协议失败事实仍可单独保留。
 
 新增数据源时，只需报告事实、扫描范围和缺口代码，复用公共判定函数与消费者。构造测试覆盖状态矩阵、七类 Agent、空集和缺失输入、旧库扫描边界、时间筛选以及 CLI/API/报告一致性；真实快照只做额外验收。
 
