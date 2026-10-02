@@ -11,6 +11,7 @@ import logging
 import re
 
 from . import queries
+from .errors import AIError
 from .pack import features_profile
 
 log = logging.getLogger(__name__)
@@ -92,8 +93,20 @@ def _rising(m: dict, name: str) -> bool:
     return cur > 0 and cur >= prev * RISE
 
 
+def _check(context: str, scope=None, index: int | None = None) -> None:
+    """B15: an unknown context, preset index or malformed scope is a 422, not overview answers."""
+    if context not in ASKQ:
+        raise AIError(422, "invalid_context", f"未知问答上下文：{context}", allowed=sorted(ASKQ))
+    if index is not None and (context, index) not in _ANSWERS:
+        raise AIError(422, "invalid_preset", f"{context} 没有第 {index} 个预置问题")
+    try:
+        queries.check_scope(scope)
+    except ValueError as error:
+        raise AIError(422, "invalid_scope", str(error)) from None
+
+
 def presets(context: str, *, reads, appdb=None, scope=None, session_uid=None, home=None) -> list[dict]:
-    context = context if context in ASKQ else "overview"
+    _check(context, scope)
     out = [{"index": i, "question": q} for i, q in enumerate(ASKQ[context])]
     if context in CONDITIONAL:
         question, metric = CONDITIONAL[context]
@@ -113,11 +126,9 @@ def _change(a, b) -> str:
 
 
 def preset_answer(context: str, index: int, *, reads, appdb=None, scope=None, session_uid=None, home=None) -> dict:
-    context = context if context in ASKQ else "overview"
+    _check(context, scope, index)
     q = _Q(reads, appdb, scope, home)
-    fn = _ANSWERS.get((context, index))
-    if fn is None:
-        return {**out_of_scope(""), "source": "template"}
+    fn = _ANSWERS[(context, index)]
     answer, nxt = fn(q, session_uid)
     out = {"answer": answer, "refs": q.refs[:12], "next": nxt, "source": "template"}
     if nxt == "studio":
@@ -207,20 +218,36 @@ def _weight(value) -> str:
     return str(value or "")
 
 
+_PLACEHOLDER_TYPES = {"当前类型", "未知", "unknown", "type"}
+_SHELL_EDGE = re.compile(r"^[\s;&|<>()]+|[\s;&|<>()]+$")
+
+
+def _tag_label(value) -> str:
+    """Readable tag label: no namespace prefix, no shell separators ("cmd:b1;" → "b1")."""
+    text = str(value or "")
+    if ":" in text and " " not in text:
+        text = text.split(":", 1)[1]
+    return _SHELL_EDGE.sub("", text)
+
+
 def _evidence_lines(p: dict) -> list[str]:
     """Top profile features as "· label weight"; tags are dicts (features.profile) or names."""
     weights = p.get("weights") or p.get("tags") or {}
+    raw = []
     if isinstance(weights, dict):
-        items = [(str(k), _weight(v)) for k, v in list(weights.items())[:4]]
+        raw = [(_tag_label(k), _weight(v)) for k, v in weights.items()]
     else:
-        items = []
-        for tag in list(weights)[:4]:
+        for tag in weights:
             if isinstance(tag, dict):
-                items.append((str(tag.get("label") or tag.get("id") or "特征"),
-                              _weight(tag.get("weight"))))
+                raw.append((_tag_label(tag.get("label") or tag.get("id")), _weight(tag.get("weight"))))
             else:
-                items.append((str(tag), ""))
-    return [f"· {label} {weight}".rstrip() for label, weight in items]
+                raw.append((_tag_label(tag), ""))
+    items, seen = [], set()
+    for label, weight in raw:
+        if label and label not in seen:
+            seen.add(label)
+            items.append((label, weight))
+    return [f"· {label} {weight}".rstrip() for label, weight in items[:4]]
 
 
 def _pe_why(q, _):
@@ -230,7 +257,7 @@ def _pe_why(q, _):
         return f"画像还没生成：当前有 {n} 个会话，特征模块完成计算后才判断类型。", "none"
     lines = _evidence_lines(p)
     code = p.get("code")
-    if not code:
+    if not code or not str(p.get("label") or code).strip() or p.get("label") in _PLACEHOLDER_TYPES:
         tail = ("\n\n目前最明显的特征：\n" + "\n".join(lines)) if lines else ""
         return "样本不足，暂不判断类型。" + tail, "none"
     head = f"判定为「{p.get('label') or code}」"

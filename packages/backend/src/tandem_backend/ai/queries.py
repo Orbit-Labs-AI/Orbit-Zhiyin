@@ -51,6 +51,24 @@ APIS = tuple(SCHEMAS)
 _VALIDATORS = {api: jsonschema.Draft202012Validator(s) for api, s in SCHEMAS.items()}
 
 
+_SCOPE_VALIDATOR = jsonschema.Draft202012Validator({**_FIELDS["scope"], "additionalProperties": True})
+
+
+def check_scope(scope) -> dict:
+    """Validate a request scope (B15): days 1–365, non-negative bounds with start < end."""
+    if scope is None:
+        return {}
+    if not isinstance(scope, dict):
+        raise ValueError("scope 必须是对象")
+    errors = sorted(e.message for e in _SCOPE_VALIDATOR.iter_errors(scope))
+    if errors:
+        raise ValueError("scope: " + "; ".join(errors))
+    start, end = scope.get("start_ms"), scope.get("end_ms")
+    if start is not None and end is not None and start >= end:
+        raise ValueError("scope: start_ms 必须早于 end_ms")
+    return scope
+
+
 def check(api: str, params: dict | None) -> dict:
     """Validate a planned query; raises ValueError when it leaves the whitelist."""
     if api not in _VALIDATORS:
