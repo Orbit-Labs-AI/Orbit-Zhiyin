@@ -87,6 +87,23 @@ def display(path: Path | str, home: Path) -> str:
 
 # ---- binaries -----------------------------------------------------------------------------
 
+# App bundles that ship a CLI outside PATH (ChatGPT.app bundles ``codex``). ``~`` = env.home.
+APP_ROOTS: tuple[str, ...] = ("/Applications", "~/Applications")
+APP_BIN_GLOB = "*.app/Contents/Resources/codex-cli/bin"
+VERSION_RE = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?")
+
+
+def app_bundle_dirs(home: Path, roots: tuple[str, ...] | None = None) -> list[Path]:
+    dirs: list[Path] = []
+    for root in APP_ROOTS if roots is None else roots:
+        base = home / root[2:] if root.startswith("~/") else Path(root)
+        try:
+            dirs += sorted(p for p in base.glob(APP_BIN_GLOB) if p.is_dir())
+        except OSError:
+            pass
+    return dirs
+
+
 def search_dirs(env: Env) -> list[Path]:
     if env.search_dirs is not None:
         return list(env.search_dirs)
@@ -101,6 +118,7 @@ def search_dirs(env: Env) -> list[Path]:
     except OSError:
         pass
     dirs += [Path(p) for p in env.environ.get("PATH", "").split(os.pathsep) if p]
+    dirs += app_bundle_dirs(h)
     seen, unique = set(), []
     for d in dirs:
         if str(d) not in seen:
@@ -138,7 +156,7 @@ def probe_version(binary: str, env: Env, timeout: float = 3.0) -> dict:
     raw = ((done.stdout or "") + (done.stderr or "")).strip()[:200]
     if done.returncode != 0:
         return {"version": None, "raw": raw, "ok": False, "error": f"exit_{done.returncode}"}
-    match = re.search(r"\d+\.\d+\.\d+", raw)
+    match = VERSION_RE.search(raw)
     if not match:
         return {"version": None, "raw": raw, "ok": False, "error": "no_version"}
     return {"version": match[0], "raw": raw, "ok": True, "error": None}
