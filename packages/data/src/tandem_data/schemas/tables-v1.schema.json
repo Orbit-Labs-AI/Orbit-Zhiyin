@@ -710,7 +710,9 @@
         "latency_ms",
         "ttft_ms",
         "stop_reason",
-        "ts"
+        "ts",
+        "request_identity_quality",
+        "boundary_quality"
       ],
       "properties": {
         "call_uid": {
@@ -872,6 +874,16 @@
             "null"
           ],
           "x-sql-type": "INTEGER"
+        },
+        "request_identity_quality": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
+        },
+        "boundary_quality": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
         }
       },
       "x-foreign-keys": [
@@ -896,7 +908,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE model_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project,\n  usage_event_uid TEXT NOT NULL UNIQUE REFERENCES event, request_id TEXT,\n  provider TEXT, model_raw TEXT, model_id TEXT, model_resolution TEXT NOT NULL,\n  effort_raw TEXT, effort_rank INTEGER, purpose TEXT, coverage TEXT NOT NULL,\n  input_tokens INTEGER CHECK(input_tokens >= 0), cache_read_tokens INTEGER CHECK(cache_read_tokens >= 0),\n  cache_write_tokens INTEGER CHECK(cache_write_tokens >= 0), output_tokens INTEGER CHECK(output_tokens >= 0),\n  reasoning_tokens INTEGER CHECK(reasoning_tokens >= 0), cost_usd REAL CHECK(cost_usd >= 0), cost_source TEXT,\n  latency_ms INTEGER CHECK(latency_ms >= 0), ttft_ms INTEGER CHECK(ttft_ms >= 0), stop_reason TEXT, ts INTEGER\n) STRICT"
+      "x-ddl": "CREATE TABLE model_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project,\n  usage_event_uid TEXT NOT NULL UNIQUE REFERENCES event, request_id TEXT,\n  provider TEXT, model_raw TEXT, model_id TEXT, model_resolution TEXT NOT NULL,\n  effort_raw TEXT, effort_rank INTEGER, purpose TEXT, coverage TEXT NOT NULL,\n  input_tokens INTEGER CHECK(input_tokens >= 0), cache_read_tokens INTEGER CHECK(cache_read_tokens >= 0),\n  cache_write_tokens INTEGER CHECK(cache_write_tokens >= 0), output_tokens INTEGER CHECK(output_tokens >= 0),\n  reasoning_tokens INTEGER CHECK(reasoning_tokens >= 0), cost_usd REAL CHECK(cost_usd >= 0), cost_source TEXT,\n  latency_ms INTEGER CHECK(latency_ms >= 0), ttft_ms INTEGER CHECK(ttft_ms >= 0), stop_reason TEXT, ts INTEGER\n, request_identity_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(request_identity_quality IN ('reported','derived','unknown')), boundary_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(boundary_quality IN ('reported','observed','unknown','conflict'))) STRICT"
     },
     "project": {
       "type": "object",

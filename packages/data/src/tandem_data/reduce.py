@@ -474,6 +474,16 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                         "project_id": project_id,
                         "usage_event_uid": event["event_uid"],
                         "request_id": attrs.get("request_id"),
+                        "request_identity_quality": "reported"
+                        if attrs.get("request_id")
+                        else "derived"
+                        if attrs.get("request_key")
+                        else "unknown",
+                        "boundary_quality": "reported"
+                        if attrs.get("request_id")
+                        else "observed"
+                        if attrs.get("boundary_evidence") == "changed_cumulative_usage"
+                        else "unknown",
                         "provider": provider,
                         "model_raw": raw,
                         "model_id": model_id,
