@@ -731,11 +731,25 @@ class Store:
 
     def rebuild(self, *, mapper_version=None, source_ids=None, progress=None) -> dict:
         from tandem_data.pipeline import rebuild
+        from tandem_data.source_reader import SourceUnavailable
 
+        # A source rewritten or truncated after capture must not block every other file:
+        # the failed attempt rolls back and is retried with that file's last facts retained.
+        changed = set()
         try:
-            return rebuild(
-                self, mapper_version=mapper_version, source_ids=source_ids, progress=progress
-            )
+            while True:
+                try:
+                    return rebuild(
+                        self,
+                        mapper_version=mapper_version,
+                        source_ids=source_ids,
+                        progress=progress,
+                        changed=frozenset(changed),
+                    )
+                except SourceUnavailable as error:
+                    if error.file_id is None or error.file_id in changed:
+                        raise
+                    changed.add(error.file_id)
         finally:
             self._unavailable_files = set()
 

@@ -210,6 +210,7 @@ def main(argv=None):
         if (
             result.get("capture_errors")
             or result.get("current_unparsed")
+            or result.get("skipped_files")
             or (args.command == "scan-inventory" and result["status"] == "partial")
         ):
             raise SystemExit(2)

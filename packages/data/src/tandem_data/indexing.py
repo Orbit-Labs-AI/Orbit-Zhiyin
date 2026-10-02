@@ -138,16 +138,41 @@ def index_file(store, source_id, path, role):
 
 
 def iter_indexed_file(store, file_id):
+    try:
+        yield from _iter_captured(store, file_id)
+    except SourceUnavailable as error:
+        error.file_id = file_id
+        raise
+
+
+def _captured(lines, length):
+    """Stop at the captured byte length; a line completed later is cut to its pending tail."""
+    if length <= 0:
+        return
+    for line in lines:
+        yield line[:length]
+        length -= len(line)
+        if length <= 0:
+            return  # Never read past the capture: appended bytes belong to the next scan.
+
+
+def _iter_captured(store, file_id):
+    """Yield the captured revision of a live source, verifying the captured prefix.
+
+    Agents keep appending to their logs while Tandem imports. Each line and the
+    aggregate digest are checked over the captured length, so an appended file still
+    projects its captured records and a truncated or rewritten one is rejected.
+    """
     info = store.db.execute(
-        "SELECT f.*,s.agent,s.root_path,v.revision_uid,v.captured_at,x.sha256 FROM source_file f "
-        "JOIN source s USING(source_id) JOIN source_revision v USING(file_id) "
+        "SELECT f.*,s.agent,s.root_path,v.revision_uid,v.captured_at,x.sha256,x.byte_len "
+        "FROM source_file f JOIN source s USING(source_id) JOIN source_revision v USING(file_id) "
         "JOIN source_reference x USING(revision_uid) WHERE f.file_id=? ORDER BY v.revision DESC LIMIT 1",
         (file_id,),
     ).fetchone()
     path = source_path(info["root_path"], info["relative_path"])
     digest = hashlib.sha256()
     with native_lines(path, info["format"], info["agent"]) as lines:
-        for ordinal, line in enumerate(lines):
+        for ordinal, line in enumerate(_captured(lines, info["byte_len"])):
             digest.update(line)
             row = store.db.execute(
                 "SELECT r.*,l.ordinal AS current_ordinal FROM record_location l JOIN raw_record r USING(record_uid) "
