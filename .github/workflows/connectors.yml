@@ -1,10 +1,10 @@
-name: Codex Connector
+name: Connector runtime matrix
 on:
   pull_request:
-    paths: ['packages/connectors/**', '.github/workflows/connectors.yml']
+    paths: ['packages/connectors/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.github/workflows/connectors.yml']
   push:
-    branches: [main, 'feat/codex-connector']
-    paths: ['packages/connectors/**', '.github/workflows/connectors.yml']
+    branches: [main, 'feat/**', 'fix/**', 'refactor/**']
+    paths: ['packages/connectors/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.github/workflows/connectors.yml']
 permissions:
   contents: read
 jobs:
@@ -13,9 +13,6 @@ jobs:
     strategy:
       matrix:
         node: [24, 26]
-    defaults:
-      run:
-        working-directory: packages/connectors
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,5 +20,5 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm install --global pnpm@11.25.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: node dist/cli.js --help
+      - run: pnpm --filter @tandem/connectors check
+      - run: node packages/connectors/dist/cli.js --help

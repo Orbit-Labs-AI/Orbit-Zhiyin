@@ -1,6 +1,6 @@
 # Tandem 数据契约与预处理
 
-本包提供实际可建库的 SQLite DDL、L0 原始归档、L1 全记录记账、L2 映射、L3 派生、分析读取和 TypeScript connector 归档桥接。设计与字段见 [数据契约](../../docs/data-contract.md)。无需数据库服务器；Python 3.13 + uv。
+本包提供实际可建库的 SQLite DDL、L0 原始归档、L1 全记录记账、L2 映射、L3 派生、分析读取和 TypeScript connector 归档桥接。设计与字段见 [数据契约](../../docs/contracts/data.md)。无需数据库服务器；Python 3.13 + uv。
 
 从仓库根目录运行：
 
@@ -23,7 +23,7 @@ node packages/connectors/dist/cli.js ingest --codex-home ~/.codex --data-dir .lo
 uv run --project packages/data tandem-data --home .tandem import-connector --connector-home .local/codex-staging
 ```
 
-桥接校验分块哈希并重新解析原始归档，保留 `connector_record_link` 对照。默认源文件已删除也能从 staging 归档导入。macOS App、CLI 和分析后端的接入方式见 [模块化数据入口](../../docs/backend/data-pipeline.md)。两个 Python 包共用仓库根 `uv.lock`。
+桥接校验分块哈希并重新解析原始归档，保留 `connector_record_link` 对照。默认源文件已删除也能从 staging 归档导入。macOS App、CLI 和分析后端的接入方式见 [模块化数据入口](../../docs/architecture/data-pipeline.md)。两个 Python 包共用仓库根 `uv.lock`。
 
 分析读取示例：
 
@@ -52,11 +52,11 @@ git diff --check
 
 ## 六类 Agent connector 与 App 模块
 
-新增 connector 的来源差异、架构、存储语义、实测边界和开源依据见 [完整模块说明](../../docs/backend/agent-connectors.md)。
+新增 connector 的来源差异、架构、存储语义、实测边界和开源依据见 [完整模块说明](../../docs/modules/data/agent-connectors.md)。
 
 ```sh
 # 仓库根目录：一次运行测试、打包、六家原生样本、本机真实样本和离线查看页
-./scripts/check-connectors.sh --real --open
+bash scripts/check-data.sh --real --open
 ```
 
 不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `read_analysis` 只读查询。存储 user_version=4，事件契约仍为 v1；原 v1 数据库自动应用索引迁移。变化文件采用不可变完整快照，未变化文件快速跳过，重算按来源隔离。
