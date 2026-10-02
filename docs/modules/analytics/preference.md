@@ -119,3 +119,12 @@ uv run --locked python -m evals.analytics.preference_local \
 - `instruction.json`：已提取控制要求，可核对为何某条要求没有进入四类白名单或没有计入支持。
 
 脚本复用现有提取函数，只从 `v_analysis_event` 读取现成投影，数据库以 `mode=ro`、`query_only` 和同一读事务打开。支持旧 canonical 快照的共同消息字段，不读取原始归档、不触发导入或迁移；不支持 connector staging 或旧 JSON ledger。它验证证据引用和本地通路，不保证快照投影为最新版本，也不等于完整服务验收或人工准确率。没有证据时明确返回 `no_evidence`；非零数量不是测试通过的硬编码条件。所有逐条内容保存在忽略目录，不提交。
+
+## 2026-10-02 本地 CI 复核
+
+本地使用 Python 3.13.15、Node 24.19.0、pnpm 11.25.0、uv 0.12.22；pnpm 与工作流固定版本一致，uv 本地补丁版本高于工作流的 0.12.8。
+
+- bootstrap、连接器 35 项测试及构建、Ruff／格式检查、Python 全量回归（1367 passed，1 项可选 E5 测试跳过）、原型产物与文档检查、wheel 独立安装及 CLI／API 资源验收通过。
+- `PLAYWRIGHT_CHANNEL=chrome pnpm check:ui`：16 passed，50 项按现有视口规则跳过。修复了静音测试在运行中的虚拟时钟上暂停到初始时刻的竞态；安装时钟提前一分钟，仍保留原有 30 分钟到期和手动覆盖断言。测试使用本机 Chrome；工作流指定的 Chromium 下载超时，未据此宣称两个浏览器环境完全等价。
+- `swift build --package-path packages/catalog-macos` 通过；`swift test` 因 Command Line Tools 缺少 XCTest 而失败，因此本地 `pnpm check` 整体仍未全绿。未绕过或删除该检查。
+- [远端运行记录](https://github.com/ActionMesh-AI/Hackathon/actions/runs/36999396005)的两个 job 均无执行步骤，注释指出账户付款失败或消费额度不足。需要管理员恢复 Actions 额度后重跑；这与上述本地测试结果分开记录。
