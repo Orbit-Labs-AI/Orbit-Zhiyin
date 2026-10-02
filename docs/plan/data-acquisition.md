@@ -8,9 +8,9 @@
 
 1. **两边各自独立采集，在同一套「能力词表」上汇合。** 会话侧把各 Agent 的日志标准化成统一事件；生态侧把 Skills、Plugins、MCP、Hooks、规则、工作流、模型成绩标准化成统一条目。两边都抽取同一套特征（工具类别、命令族、MCP 服务、技能名、文件类型、领域标签），后续匹配只需在特征层做连接。
 2. **本机实测推翻了 Demo 里的三处假设**：Gemini 侧实际是 Google Antigravity（明文转录在 `brain/<id>/…/transcript_full.jsonl`，模型与 token 藏在 protobuf 里），不是 `~/.gemini/tmp`；Copilot 没有 `~/.copilot/history`，本机只剩会话元数据；DeepSeek Harness 的会话是 zstd 压缩的事件流，需要解压并合并流式分片。另外 Claude Code 不止 `~/.claude` 一个根目录（第二账号、桌面版本地 Agent 模式），桌面版还有一份会话索引。
-3. **必须自建原始归档。** Claude Code 默认只保留 30 天会话（本机最早的转录停在 2026-09-02），Copilot 的会话表已被清空。Tandem 首次运行全量回填，之后增量归档原始字节，否则 Demo 的 90 天视图和 7 天效果追踪都无法成立。
+3. **必须自建原始归档。** Claude Code 默认只保留 30 天会话（本机最早的转录停在 2026-09-02），Copilot 本机的会话表是空的。Tandem 首次运行全量回填，之后增量归档原始字节，否则 Demo 的 90 天视图和长期趋势都无法成立。
 4. **「不丢信息」用四层结构保证**：L0 原始字节归档 → L1 原始记录索引（每行都有去向）→ L2 标准事件（未映射字段进 `ext`）→ L3 派生表（会话、轮次、工具调用、模型调用，可随时重算）。每个连接器都要通过「记录全记账」测试。
-5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应被拆成 1–6 行且每行重复同一份 usage（不去重会把 token 算多 2–3 倍）；恢复会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
+5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应会拆成多行（多数 2–3 行，最多 6 行以上），每行重复同一份 usage（不去重平均多算约 2.4 倍）；恢复会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
 6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；OpenCode、Hermes Agent 已有源码级调研，用安装后生成的样本接入；Copilot 与其他 Agent 留接口。生态侧先接官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/skills` 与 Codex 官方插件、models.dev。
 7. **存储用 SQLite + zstd 归档**：`tandem.db`（会话侧）、`catalog.db`（生态侧，可由团队定期构建成快照分发）、`raw/`（原始归档）。数据库表结构就是模块之间的契约，三人可以并行开发。
 
@@ -80,16 +80,16 @@ Demo 各页需要的数据与来源：
 | A6 情绪与语义 | 用户原话（仅人类输入）、纠偏与打断 | `event(kind=message.user, origin=human)` |
 | A7 建议、A8 资源库 | 生态条目、兼容 Agent、许可、安装方式、热度 | `catalog.db` |
 | A10 设置 | 数据源、索引状态、脱敏规则、存储位置 | `source`、`source_file`、配置 |
-| 菜单栏、悬浮组件（实时状态） | 会话是否运行、是否在等审批、上下文占用 | 文件监听 + 可选 Hooks（3.4） |
+| 菜单栏、悬浮组件（实时状态） | 会话是否运行、是否在等审批、上下文占用 | 文件监听与运行状态信号（3.3）；等待审批需要 Hooks（3.4） |
 
 ## 3. 模块 1：本地会话数据获取
 
-### 3.1 本机实测（2026-10-01）
+### 3.1 本机实测（2026-10-01，规模于 10-02 复核）
 
 | Agent | 本机版本 | 会话位置 | 格式 | 本机规模 | Demo 假设 |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | 2.1.281–2.1.284；绝大多数来自 Claude 桌面版（`entrypoint=claude-desktop`） | `~/.claude/projects/<编码 cwd>/<sessionId>.jsonl`；第二账号 `~/.claude-account2/projects/`；桌面版另有会话索引与本地 Agent 模式目录（3.2） | JSONL，20 余种记录类型 | 124 + 4 个主会话，251 个子代理文件，1.3 GB（多为 PDF 页图） | 成立，另有第二账号目录 |
-| Codex | 0.146–0.154，以 Codex Desktop 为主 | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`、`~/.codex/archived_sessions/`；索引 `state_5.sqlite`；投影 `thread_history_1.sqlite` | JSONL + SQLite | 432 + 474 个 rollout，3.4 GB；threads 表 890 行 | 部分成立：还要读归档目录和 SQLite |
+| Claude Code | 2.1.281–2.1.284；绝大多数来自 Claude 桌面版（`entrypoint=claude-desktop`） | `~/.claude/projects/<编码 cwd>/<sessionId>.jsonl`；第二账号 `~/.claude-account2/projects/`；桌面版另有会话索引与本地 Agent 模式目录（3.2） | JSONL，20 余种记录类型 | 127 + 4 个主会话、355 个子代理文件；JSONL 约 1.4 GB（子代理约 1.0 GB，主会话约 29% 的字节是内联的 base64 图片），另有图片与 PDF 约 0.2 GB | 成立，另有第二账号目录 |
+| Codex | 0.146–0.154，以 Codex Desktop 为主 | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`、`~/.codex/archived_sessions/`；索引 `state_5.sqlite`；投影 `thread_history_1.sqlite` | JSONL + SQLite | 432 + 474 个 rollout，3.7 GB；threads 表 890 行 | 部分成立：还要读归档目录和 SQLite |
 | Gemini 侧 | Antigravity 桌面版与 `agy` CLI；未见 Gemini CLI 的 `~/.gemini/tmp` | `~/.gemini/antigravity{,-cli}/brain/<id>/.system_generated/logs/transcript_full.jsonl`、`conversation_summaries.db`、`conversations/<id>.db` | 明文 JSONL 转录 + SQLite；模型与 token 在 protobuf 里 | 27 + 1 个对话，65 MB | 不成立 |
 | Copilot | Copilot 桌面 App（以 server 模式启动 CLI） | `~/.copilot/session-state/<id>/workspace.yaml`、`data.db` | YAML + SQLite | 43 个会话目录，只有元数据；`data.db` 的 sessions 表为空 | 不成立：没有 `~/.copilot/history` |
 | DeepSeek Harness | `@deepseek-ai/dsh` 0.1.1-rc.2（MIT） | `~/.dsh/sessions/--<规范化 cwd>--/<sessionId>/session.jsonl.zstd` | zstd 帧拼接的 JSONL 事件流，含打包的流式分片 | 79 个会话，39 MB | 路径成立，需解压与合并分片 |
@@ -103,8 +103,8 @@ Demo 各页需要的数据与来源：
 
 #### Claude Code（P0）
 
-- **数据根目录不止一个**：`${CLAUDE_CONFIG_DIR:-~/.claude}`（可能是逗号分隔的多个目录）、同级的 `~/.claude*`（本机有 `~/.claude-account2`）、Claude 桌面版的本地 Agent 模式 `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`（本机 1 个会话）。
-- **桌面版会话索引**：`~/Library/Application Support/Claude/claude-code-sessions/<组织>/<账号>/local_<id>.json`（本机 118 个），字段有 `cliSessionId`（对应转录文件的 `sessionId`）、`cwd / originCwd`、`createdAt / lastActivityAt`、`model`、`effort`、`title / titleSource`、`isArchived`、`permissionMode`、`enabledMcpTools`、`completedTurns`；另有 `deleted_<id>` 删除标记（237 个）与 `scheduled-tasks.json`。用于补标题、归档状态和会话级设置，不含正文。
+- **数据根目录不止一个**：`${CLAUDE_CONFIG_DIR:-~/.claude}`、同级的 `~/.claude*`（本机有 `~/.claude-account2`）、Claude 桌面版的本地 Agent 模式 `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`（本机 1 个会话）。Tandem 要支持登记多个根目录（ccusage 等工具允许在 `CLAUDE_CONFIG_DIR` 里用逗号列出多个目录，这是工具的约定，不是 Claude Code 本身的行为）。
+- **桌面版会话索引**：`~/Library/Application Support/Claude/claude-code-sessions/<id>/<id>/local_<id>.json`（本机 118 个），字段有 `cliSessionId`（对应转录文件的 `sessionId`）、`cwd / originCwd`、`createdAt / lastActivityAt`、`model`、`effort`、`title / titleSource`、`isArchived`、`permissionMode`、`enabledMcpTools`、`completedTurns`；另有 `deleted_<id>` 删除标记（237 个）与 `scheduled-tasks.json`。用于补标题、归档状态和会话级设置，不含正文。
 - **文件布局**：主会话 `<proj>/<sessionId>.jsonl`；子代理 `<proj>/<sessionId>/subagents/agent-<id>.jsonl` 与同名 `.meta.json`（`agentType`、`description`、`toolUseId`、`spawnDepth`）；Workflow 子代理 `<proj>/<sessionId>/subagents/workflows/wf_<id>/agent-<id>.jsonl` 与 `journal.jsonl`、`<sessionId>/workflows/wf_<id>.json`；超长工具输出落在 `<sessionId>/tool-results/`；`custom-title.json`；项目记忆 `<proj>/memory/*.md`。
 - **目录名是有损编码**（`/`、空格、`.` 都变成 `-`），项目归属必须用记录里的 `cwd`，不能反解目录名。
 - **记录类型**（实测）：`assistant`、`user`、`attachment`、`system`、`last-prompt`、`custom-title`、`agent-name`、`queue-operation`、`pr-link`、`file-history-snapshot/delta`、`mode`、`permission-mode`、`cost-state`、`relocated`，以及 `atis-latch`、`bridge-session`、`frame-link`、`artifact-*` 等界面状态。
@@ -115,7 +115,7 @@ Demo 各页需要的数据与来源：
 - **审批与打断**（实测）：`toolDenialKind` 取 `user-rejected`（用户拒绝）、`permission-rule`（规则拦截）、`automode-blocked / automode-unavailable`（自动模式分类器拦截或不可用）、`interrupted`；被拒绝时工具结果是固定提示文本；打断标记为 `[Request interrupted by user]` 与 `[Request interrupted by user for tool use]`。转录里没有审批等待时长。
 - **坑**：
   - 一次 API 响应按内容块拆成多行，每行重复同一份 usage（实测 4546 条多行消息的 usage 全部相同）→ 用 `message.id + requestId` 去重后再累计。
-  - `--resume`、`--fork-session`、后台会话会把历史复制进新文件（830 个 uuid 出现在多个文件）；`/btw` 旁支会用新的 `requestId` 重放父消息 → 按 `uuid` 去重，后出现的副本标记为重放。排队的命令以没有 `uuid` 的 attachment 保存，需要合成 ID。
+  - `--fork-session`、后台会话会把历史复制进新文件（本机 830 个 uuid 出现在多个文件）；`--resume` 则沿用原 `sessionId` 追加到原文件（SDK 端到端测试断言）；`/btw` 旁支会用新的 `requestId` 重放父消息 → 按 `uuid` 去重，后出现的副本标记为重放。排队的命令以没有 `uuid` 的 attachment 保存，需要合成 ID。
   - `type=user` 不等于人类输入：要排除 `isMeta`、压缩摘要、只含 `tool_result` 的消息、`<command-name>` / `<local-command-stdout>` 包装，并结合 `origin.kind` 区分人类、任务通知与对等 Agent；`[Request interrupted by user…]` 是打断信号。
   - 30 天自动清理（`cleanupPeriodDays`）；桌面版的临时工作区路径 `~/Library/Application Support/Claude/scratch-workspaces/…` 应归入「临时工作区」。
   - 子代理文件里的 usage 可能是占位值：同一 `message.id` 组内取 `output_tokens` 最大的一行，或用父会话里 Agent 工具结果的 `usage / totalTokens` 校对。
@@ -131,7 +131,7 @@ Demo 各页需要的数据与来源：
 - **rollout 记录**（实测新格式）：顶层 `ordinal / timestamp / type / payload / metadata`；`type` 有 `session_meta`、`turn_context`、`response_item`、`event_msg`、`token_usage_record`、`world_state`、`inter_agent_communication_metadata`。`event_msg` 下有 `item_completed`（条目类型 `Reasoning / CommandExecution / AgentMessage / Extension(web.search) / UserMessage / SubAgentActivity / FileChange / ImageView / McpToolCall`）、`task_started / task_complete`、`token_count`、`thread_settings_applied`、`turn_aborted`；`response_item` 下有 `message`（`user / assistant / developer`）、`reasoning`（`summary` 与 `encrypted_content`）、`function_call / custom_tool_call` 及其输出、`compaction / compacted`。
 - **用量**：优先用 `token_usage_record`（每个 `response_id` 一条，含 `cached_input / cache_write_input / reasoning_output`，实测无重复）；旧文件只有 `token_count` 时用 `last_token_usage`，并跳过累计值未变化的重复事件（实测 2397 条中 8 条重复）。`rate_limits` 快照可用于额度展示。
 - **坑**：
-  - 子代理与分叉线程会先重放父会话历史，真正属于自己的部分从 `subagent_history_start_ordinal` 开始（实测近 120 个文件中 106 个是子代理或分叉，每个重放 1–55 条）→ 之前的记录标记为重放。
+  - 子代理与分叉线程会先重放父会话历史，真正属于自己的部分从 `subagent_history_start_ordinal` 开始（实测近 120 个文件中 106 个是子代理或分叉，抽样中每个重放数条到数十条）→ 之前的记录标记为重放。
   - `thread_source` 区分 `user`、`subagent`、`guardian_review`（自动审批评审）、`automation`、`realtime_voice`；本机 890 个线程里，用户发起的只有 241 个，`guardian_review` 241 个、`subagent` 385 个，使用 `codex-auto-review` 模型的线程有 413 个 → 会话类型必须分开，否则人格与习惯统计会被系统线程污染。
   - `external_agent_session_imports.json` 记录了 Codex 导入的 50 个 Claude Code 会话（`source_path`、`content_sha256`、`imported_thread_id`）→ 这些线程标记为导入并链接到原 Claude 会话，默认不重复计入。
   - 思考档位取值有 `low / medium / high / xhigh / max / ultra`，模型名随版本变化（实测有 `gpt-5.6-sol`、`gpt-6-astra` 等）→ 原值保留，另做归一（4.5）。
@@ -141,6 +141,7 @@ Demo 各页需要的数据与来源：
   - **同一信息有两套表示**：`response_item` 与 `item_completed`、`token_usage_record` 与 `token_count`、`compacted.replacement_history` 与原始行、子代理继承前缀与父 rollout。每类只取一种视角：消息与工具以 `item_completed` 为准（`response_item:message` 里混有 harness 注入的 user 消息，不能直接计数），用量以 `token_usage_record` 为准。
   - Codex 会把 rollout 原地改写：迁移器改写旧文件，压缩会换成 `.jsonl.zst`，归档会移到 `archived_sessions/`。水位要记 `(路径, inode, size, mtime, 最后 ordinal, 字节偏移)`，变化时整文件重扫；单行可达 16 MB（内联的 base64 图片），流式读取并设单行上限。
   - 审批不直接落盘：策略在 `turn_context.approval_policy / approvals_reviewer / sandbox_policy`，被拒绝的命令是 `status=declined`（`exit_code` 为 −1），guardian 自动审批是独立子线程。
+  - 工具成败以 `item_completed` 的 `status / exit_code` 为准（`function_call_output` 不带成败标志）；Code Mode 下嵌套工具条目的 id 是 `exec-<uuid>`，与外层 `exec` 的 `call_id` 无关，只能按 `turn_id` 与行序归属（源码调研实测约 11% 的嵌套条目写在 `exec` 输出之后）。
   - `world_state` 里有当时生效的 AGENTS.md 全文（`agents_md.text`），可直接用于 Demo A5 的「规则覆盖」；导入会话的 `token_count` 只是按字节估算的值，用量标为估算；标题取 `threads.name`（用户改名）> `session_index.jsonl` 最后一条 > `threads.title / preview`。
 
 #### DeepSeek Harness（P0）
@@ -149,36 +150,36 @@ Demo 各页需要的数据与来源：
 - 每个会话一个目录、一个只追加的逻辑日志；文件由多个独立的 zstd 帧拼接（第一帧只含会话头，之后每次批量写入一帧），任何标准 zstd 解码器都能整体解压。
 - 第一行是会话头：`type=session`、`version`、`id`、`cwd`、`createdAt`、`parentSession`、`seedLength`、`origin`、`delegationDepth`、`agentPreset`；之后每行一个事件，`seq` 连续。
 - 事件类型（实测）：`user/message`、`assistant/message`（含 `usage`）、`tool/call`、`tool/result`、`step/start / step/end`、`turn/start / turn/end`、`approval/asked / approval/decided / approval/policy`、`permission/preset`、`sandbox/mode`、`subagent/descriptor`、`agent/inbox/spliced`、`todo/write`、`session/title`、`request/header`、`request/context`、`web/deepseek-search-llm-request` 等。
-- **流式分片**：`assistant/chunk` 增量事件会被打包成 `text-chunks / reasoning-chunks / tool-call-chunks` 行（`seq0 / time0 + dt[]` 可无损还原每个分片的序号和时间）。统计与正文以 `assistant/message`、`tool/call` 等完整事件为准，分片只用于还原首字延迟和流式时长，标记为已折叠。
+- **流式分片**（旧版 v0）：`assistant/chunk` 增量事件会被打包成 `text-chunks / reasoning-chunks / tool-call-chunks` 行（`seq0 / time0 + dt[]` 可无损还原每个分片的序号和时间）。统计与正文以 `assistant/message`、`tool/call` 等完整事件为准（`assistant/message` 的内容块里有明文 `reasoning`，签名或加密推理在 `source.replayState`），分片只用于还原首字延迟和流式时长，标记为已折叠。
 - **坑**：根目录可由 `DSH_HOME` 覆盖；关闭压缩时文件是明文 `session.jsonl`，按 zstd 魔数判断而不是按扩展名；目录名同时存在 `<uuid>` 与 `session-<uuid>` 两种（54 / 25）；目录名是有损规范化的 cwd，以会话头的 `cwd` 为准；文件末尾可能有未写完的帧，读到不完整的帧时保留已解码记录并在下次重读；`compaction/summary` 是单独计费的压缩调用；实际响应模型以 `replayState.response.responseModel` 为准；多供应商（`openrouter`、`kimi-coding`、`openai-codex`、`xai`），模型名不统一；不记录成本。
 - **新旧两代格式**（据源码调研，HEAD 为 0.2.0-rc.2）：新版日志文件是 `session.v4.jsonl.zstd`，旧代文件保留；会话头改为必填的 `isSeeded`，继承切点由最后一个 `session/end-seed{inherited:true}` 推出（旧版用 `seedLength`）；流式增量不再是独立的 `assistant/chunk` 事件，而是内嵌在 `assistant/message.stream / assistant/attempt.stream` 里；新增 `session.lock` 文件锁；图片与文件以内容寻址存到 `$DSH_HOME/attachments/v1`，日志里只留引用；超大工具输出按 `spill-policy` 外置。连接器按会话头的 `version` 选择解析逻辑，两代都要支持，同一会话目录里两代文件并存时以新版为准、旧版按重复处理。
 - 另有 `dsh-session-telemetry-otel` 可把事件流导出为 OpenTelemetry 日志，可作补充通道；轨迹可视化组件 `dsh-client-ui-trajectory` 留给模块 3 参考。
 
 #### pi（P1，顺手接入）
 
-- 每个会话一个 JSONL：会话头 `type=session`（`version`、`cwd`），之后 `message`、`model_change`、`thinking_level_change`、`compaction` 等条目，以 `id / parentId` 构成树（可分支，当前分支是从最后一个叶子回溯到根的路径）。
+- 每个会话一个 JSONL：会话头 `type=session`（`version`、`cwd`），之后 `message`、`model_change`、`thinking_level_change`、`compaction`、`custom_message`、`context_edit`（重试时省略失败回合）、`usage`（缓存保温）、`label`、`session_info` 等条目，以 `id / parentId` 构成树（可分支，当前分支是从最后一个叶子回溯到根的路径；连接器保留全部分支，不只当前分支）。
 - `message.role` 有 `user / assistant / toolResult / system`；内容块 `text / thinking / toolCall`；`usage` 自带 `input / output / cacheRead / cacheWrite / reasoning / cost`，`thinkingLevel` 与 `provider / model` 都在消息上。格式简单，适合作为连接器模板。
-- 根目录可由 `PI_CODING_AGENT_DIR` 覆盖；首次助手回复前不落盘；分叉会话会重放父会话前缀；`subagent-artifacts/` 下的文件与主会话重复，跳过。
+- 根目录可由 `PI_CODING_AGENT_DIR` 覆盖；文件懒创建，出现第一条 user 或 assistant 消息时才一次性写出缓冲，之后每条消息完成时追加（流式增量不落盘）；`/fork` 复制 entry 并保留原 id，按 id 识别副本；pi 没有内置子代理。
 
 #### OpenCode（P1，本机未安装，依据源码）
 
 - **位置**：`$XDG_DATA_HOME/opencode`（macOS 也是 `~/.local/share/opencode`，不是 `~/Library`）下的 SQLite `opencode.db`；非正式渠道为 `opencode-<channel>.db`，`OPENCODE_DB` 可覆盖；`opencode db path` 能打印实际路径。
-- **表**：默认运行时写 V1 表 `session / message / part`，另有事件日志 `event / event_sequence`；V2 表（`session_v2`、`session_message`）只有 2.0 预览版 CLI 才写；更早的版本是 `storage/` 下的 JSON 文件。连接器按表是否存在判断版本，三种布局都要能读。
+- **表**：默认运行时写 V1 表 `session / message / part`，另有事件日志 `event / event_sequence`；V2 投影表（`session_message`、`session_input`、`session_context_epoch`，会话行仍在 `session` 表）只有 2.0 预览版 CLI 才写；更早的版本是 `storage/` 下的 JSON 文件。连接器按表是否存在判断版本，三种布局都要能读。ID 的 48 位时间前缀约 795 天回绕一次，不要按 ID 排序或推算时间。
 - **用量**：最细粒度在 `step-finish` part（每次模型调用一条，`tokens{input, output, reasoning, cache{read, write}}` 与 `cost`，`input` 已减去缓存读取）；message 上的 `tokens` 只是最后一步的值、每步都会被覆盖，不能累加；`session` 表有累计值，可作对账。父会话的用量不含子会话，需要递归汇总。
 - **子代理**：`task` 工具新建子会话（`parent_id` 指向父会话），父会话中该工具调用的 `state.metadata.sessionId` 指向子会话。
-- **压缩与回退**：压缩写一条带 `compaction` part 的 user 消息和一条 `summary: true` 的摘要 assistant，被压缩的历史不删除；`prune` 只给旧工具输出打 `time.compacted` 标记，原文仍在库里。`revert` 提交后会删除撤销点之后的消息，所以必须在删除前完成归档（L0 按行快照，事件日志也可补）。`fork` 复制历史到一个**不设 `parent_id`** 的新会话（标题带 `(fork #N)`），需要按复制的内容去重。
+- **压缩与回退**：压缩写一条带 `compaction` part 的 user 消息和一条 `summary: true` 的摘要 assistant，被压缩的历史不删除；`prune` 只给旧工具输出打 `time.compacted` 标记，原文仍在库里。`revert` 提交后会删除撤销点之后的消息行，并从会话累计中扣回它们的用量，所以必须在删除前完成归档（以 L0 的按行快照为准；事件日志不可靠，历史上的迁移清空过它）。`fork` 复制历史到一个**不设 `parent_id`** 的新会话（标题带 `(fork #N)`），需要按复制的内容去重。
 - **其他**：流式时 assistant 行会被原地改写，按「主键 + 行哈希」判断变化；TUI 里用户直接执行的 `!cmd` 会写成一条 synthetic user 消息加一个 `bash` 工具调用（成本为 0），归类为用户自己执行的命令，不算 Agent 的工具调用。
 - **敏感表**：`account`、`control_account`、`credential`、`session_share.secret`，以及数据目录下的 `auth.json`、`mcp-auth.json`，连接器不读。
 
 #### Hermes Agent（P1，本机未安装，依据源码）
 
 - **位置**：`$HERMES_HOME`（默认 `~/.hermes`，可加 `HERMES_DATA_DIR_SUFFIX`）；命名 profile 在 `profiles/<name>/`，**每个 profile 一个独立的 `state.db`**，都要登记为数据源。
-- **权威来源只有 `state.db`**（SQLite，WAL）：`sessions`（含 `parent_session_id`、`model`、`model_config`、`end_reason`、token 与成本）、`messages`、`session_model_usage`（按会话 × 模型 × 供应商 × 计费方式 × 任务累计；`task=''` 是主循环，其余是压缩、标题生成等辅助调用，正好对应 `model_call.purpose`）。`sessions/*.json(l)`、`pending_messages/` 只在故障时出现，作补充。
+- **权威来源只有 `state.db`**（SQLite；日志模式默认 WAL，但链接的 SQLite 有 WAL 缺陷时会保持 DELETE 模式，两种都要支持，WAL 模式下必须连同 `-wal` 一起读）：`sessions`（含 `parent_session_id`、`model`、`model_config`、`end_reason`、token 与成本）、`messages`、`session_model_usage`（按会话 × 模型 × 供应商 × 计费方式 × 任务累计；`task=''` 是主循环，其余是压缩、标题生成等辅助调用，正好对应 `model_call.purpose`）。`sessions/*.json(l)`、`pending_messages/` 只在故障时出现，作补充。
 - **顺序与身份**：一律按 `messages.id` 排序（时间戳可能回退）；会话 ID 是本地时区的 `YYYYMMDD_HHMMSS_<hex>`（ACP 会话为 uuid4），换算 UTC 时要用本机时区；`message_uid` 在压缩代际、分支拷贝中保持不变，是跨行去重的键；工具调用 ID 可能重复，用 `tool_call_uid` 区分。
 - **压缩、回退、分支都保留旧行**：就地压缩把旧行改为 `active=0, compacted=1` 并插入摘要行；rewind、编辑、重新生成把分歧后的行软删除（`active=0`）；`/branch` 新建子会话并拷贝完整历史（新 `id`、同 `message_uid`）。连接器要读**包括非活跃行在内的全部行**，分别映射为 `context.compaction` 与 `branch`，这样才不丢信息。
 - **子代理**：`delegate_task` 新建 `source=subagent` 的子会话（`parent_session_id` 与 `model_config._delegate_from` 指向父会话），用量记在子会话上；异步委派完成时以一条 user 消息写回父会话。
 - **跨 Agent 导入**：Hermes 能导入 Claude Code 与 Codex 的会话，与 Codex 一样要识别导入会话并链接原会话，避免重复计入。
-- **其他**：超大工具输出放在 `cache/spillover/<tool_call_id>.txt`，24 小时后过期，需要及时归档；`logs/agent.log` 有每次 API 调用的耗时与 token，可作补充；`$HERMES_HOME/.env` 存密钥，连接器不读。
+- **其他**：`sessions.auto_prune` 默认开启，已结束且 90 天不活跃的会话会被删除，和 Claude Code 的 30 天清理一样需要提前归档；超大工具输出放在 `cache/spillover/<tool_call_id>.txt`，24 小时后过期，需要及时归档；`logs/agent.log` 有每次 API 调用的耗时与 token，可作补充；`$HERMES_HOME/.env` 存密钥，连接器不读。
 
 #### Antigravity（P1：明文转录 + 摘要库；P2：protobuf 用量）
 
@@ -224,20 +225,20 @@ Demo 各页需要的数据与来源：
 | --- | --- | --- | --- |
 | 只追加的 JSONL | 已处理的字节偏移 + 最后一行的哈希 | `dev / inode / size / mtime_ns` 变化 | 从偏移继续读；末行不完整时下次重读 |
 | zstd 帧拼接 | 已处理的帧数与解压后的行号 | 同上 | 从下一帧继续；不完整帧下次重读 |
-| SQLite | 表的 `updated_at` / rowid 游标；行会被原地改写时按「主键 + 行哈希」比对 | 目录内 `db / -wal` 的变化（WAL 会被删除重建，所以监听目录而不是文件） | 以只读方式打开（`mode=ro`，不要用 `immutable=1`），设 `busy_timeout` 与 `query_only`，在一个读事务内读完 |
+| SQLite | 表的 `updated_at` / rowid 游标；行会被原地改写时按「主键 + 行哈希」比对 | 目录内 `db / -wal` 的变化（WAL 会被删除重建，所以监听目录而不是文件） | 以只读方式打开（`mode=ro`，不要用 `immutable=1`），设 `busy_timeout` 与 `query_only`，在一个读事务内读完；目录不可写或缺少 `-shm` 时，在 Agent 空闲时把 `db / -wal / -shm` 一起复制到临时目录再读 |
 | 文件被改写或截断 | 前 4 KB 的哈希 | 哈希不符、文件变小或 inode 变化 | 整个文件重新解析；事件 ID 是确定性的，重复写入会被覆盖 |
 | 文件消失 | — | 上游清理 | `source_file.status = gone_upstream`，归档和已入库的数据保留 |
 
-- **确定性 ID**：`event_uid = hash(source_id, 原生 ID 或 文件相对路径 + 序号)`。有原生 uuid（Claude、pi）就用原生 uuid，保证跨文件的重放副本能对上。
+- **确定性 ID**：有稳定原生 ID 的记录（Claude 的 `uuid`、pi 的 `id`、Hermes 的 `message_uid`）用 `event_uid = hash(source_id, 原生 ID)`，这样跨文件的重放副本会撞到同一个 ID，被识别为重放；没有原生 ID 时用 `hash(source_id, 文件相对路径, 序号)`。重放副本不再生成事件，只在 L1 标 `replayed` 并指向原事件（4.2）。
 - **监听**：macOS 用 FSEvents 监听各根目录，事件合并 1–2 秒后触发增量解析；另每 10 分钟做一次全量 `stat` 兜底。
 - **判断会话是否在运行**（菜单栏与悬浮组件用，只观察、不加锁）：Claude Code 看 `~/.claude/sessions/<pid>.json`（不要读同目录的 `.key` 文件）；Codex 看 `thread-writer-locks/<id>.lock` 是否被占用与 `threads.updated_at_ms`；DeepSeek Harness 新版有 `session.lock`；其余 Agent 看会话文件最近是否在写入。
-- **首次回填**：本机约 5 GB 原始日志，按文件并行、流式解析，不把整个文件读进内存；先处理最近 30 天，再补更早的。
+- **首次回填**：本机约 5 GB 文本日志（Codex 3.7 GB、Claude 1.4 GB），按文件并行、流式解析，不把整个文件读进内存；先处理最近 30 天，再补更早的。
 
 **原始归档（L0）**
 
 - 每个被跟踪的文本文件在 `raw/` 下有一个对应归档：首次整份 zstd 压缩，之后只把新增的字节压成新帧追加（与 DeepSeek Harness 的做法相同）。SQLite 来源按行导出为 JSONL 再归档。
-- 图片、PDF 页图等二进制默认只记路径、大小和哈希，不复制（Claude 的 1.3 GB 主要是这些）；需要时在设置里打开。
-- 文本日志压缩率估计在 8–15 倍，本机 5 GB 原始日志归档后约 0.4–0.6 GB（待实测）。
+- 图片、PDF 等独立的二进制文件默认只记路径、大小和哈希，不复制（Claude 目录里约 0.2 GB）；需要时在设置里打开。
+- 实测 zstd 默认级别的压缩率：Codex 约 5 倍，Claude 约 2.4 倍（主会话约 29% 的字节是内联的 base64 图片，几乎压不动）；本机 5.1 GB 文本日志归档后约 1.3 GB。把内联图片抽出按哈希去重存放（4.6 第 5 条）还能再省一部分。
 
 ### 3.4 补充通道（可选，非 MVP）
 
@@ -309,7 +310,7 @@ Demo 各页需要的数据与来源：
 
 ### 4.2 「不丢信息」的四条契约
 
-1. **每条原始记录都有去向。** L1 的 `disposition` 只能是 `mapped`（生成了事件）、`folded`（并入其他事件，如流式分片）、`replayed`（重放的历史副本）、`duplicate`（同一响应的重复行）、`ignored`（界面状态等，需写明原因）、`unparsed`（解析失败，保留原文并告警）之一。
+1. **每条原始记录都有去向。** L1 的 `disposition` 只能是 `mapped`（生成了事件）、`folded`（并入其他事件，如流式分片）、`replayed`（重放的历史副本）、`duplicate`（同一信息的重复表示）、`ignored`（界面状态等，需写明原因）、`unparsed`（解析失败，保留原文并告警）之一。`folded / replayed / duplicate` 不生成新事件，用 `ref_event_uid` 指向承接它的事件。
 2. **没用上的字段不丢。** 解析器记录自己读取了哪些键，剩余的键原样写入事件的 `ext`（JSON）。这样既不丢信息，也能发现新字段。
 3. **全记账测试。** 每个连接器用脱敏后的样本文件做回归测试：记录数 = 各去向计数之和；`unparsed` 为 0；`ext` 中出现新键时测试给出提示。
 4. **格式漂移告警。** 按「Agent × 版本 × 原生类型」统计键集合指纹。新版本出现新类型或新键时，在设置页提示「Claude Code 2.1.29x 出现了未识别字段」，再决定是否扩展映射。
@@ -319,9 +320,9 @@ Demo 各页需要的数据与来源：
 | 实体 | 粒度 | 关键字段 |
 | --- | --- | --- |
 | `source` | 一个 Agent 数据根目录 | `agent`、`root_path`、`label`（账号） |
-| `session` | 一个会话（含子代理会话） | `session_uid`、`kind`、父会话与根会话、派生它的工具调用、`forked_from`、`imported_from`、`project_id`、`cwd`、Git 信息、入口（CLI / 桌面 / IDE / exec）、版本、标题、起止时间、状态 |
+| `session` | 一个会话（含子代理会话） | `session_uid`、`kind`、父会话与根会话、派生它的工具调用、`forked_from`（分叉或恢复自哪个会话）、`imported_from`、`project_id`、`cwd`、Git 信息、入口（CLI / 桌面 / IDE / exec）、版本、标题、起止时间、状态 |
 | `turn` | 一次「输入 → 完成」 | 触发者（人类 / 排队消息 / 通知 / 对等 Agent / 自动化）、起止、状态（完成 / 打断 / 失败）、首条与末条事件 |
-| `event` | 一条标准事件 | `kind`、`actor`、`ts`、`seq`、`parent_uid`、`call_id`、`text`、`attrs`、`ext`、`record_uid`、`replay_of` |
+| `event` | 一条标准事件 | `kind`、`actor`、`ts`、`seq`、`parent_uid`、`call_id`、`text`、`attrs`、`ext`、`record_uid`、`native_id` |
 | `tool_call` | 一次工具调用（调用与结果配对） | 原名与归一名、类别、MCP 服务与工具、技能、子代理会话、命令头、涉及文件、状态、退出码、错误类别、耗时、审批结果与等待、归因 |
 | `model_call` | 一次模型请求 | 供应商、原始模型名与归一模型、思考档位（原值与归一）、各类 token、成本与成本来源、延迟、首字延迟、停止原因、用途（主对话 / 子代理 / 分类器 / 标题 / 评审 / 压缩） |
 | `project` | 一个项目 | 归属键（Git 远程 / Git 根目录 / 路径）、显示名、包含的路径、用户手动合并拆分 |
@@ -337,26 +338,26 @@ Demo 各页需要的数据与来源：
 | `session.title` | 标题 | `custom-title`、`agent-name` | threads 表 `title`、`session_index.jsonl` | `session/title` | — |
 | `setting.change` | 中途切换模型、思考档位、权限模式 | `attachment(model / auto_mode)`、`effort` 变化 | `turn_context` 变化 | `sandbox/mode` 等变化 | `model_change`、`thinking_level_change` |
 | `turn.start` / `turn.end` | 轮次边界 | 由人类输入与 `system(turn_duration)` 推出 | `task_started` / `task_complete`、`turn_aborted` | `turn/start` / `turn/end` | 由人类输入推出 |
-| `message.user` | 用户或注入的输入，`attrs.origin` 区分来源 | `type=user` 文本（结合 `origin.kind`、`isMeta`） | `message(role=user)`、`UserMessage` | `user/message` | `role=user` |
+| `message.user` | 用户或注入的输入，`attrs.origin` 区分来源 | `type=user` 文本（结合 `origin.kind`、`isMeta`） | `item_completed(UserMessage)`（`response_item` 里的 user 消息多为注入，见 3.2） | `user/message` | `role=user` |
 | `message.assistant` | 可见回复，`attrs.phase` 区分过程说明与最终答复 | `text` 块 | `AgentMessage`、`agent_message`（`phase`） | `assistant/message` | `text` 块 |
-| `reasoning` | 思考；可能是明文、摘要或加密 | `thinking` 块（`signature`） | `reasoning`（`summary`、`encrypted_content`） | `reasoning-chunks` 合并结果 | `thinking` 块 |
+| `reasoning` | 思考；可能是明文、摘要或加密 | `thinking` 块（`signature`） | `reasoning`（`summary`、`encrypted_content`） | `assistant/message` 中的 `reasoning` 块 | `thinking` 块 |
 | `tool.call` / `tool.result` | 工具调用与结果 | `tool_use` / `tool_result` + `toolUseResult` | `function_call`、`custom_tool_call`、`CommandExecution`、`McpToolCall`、`FileChange`、`web.search` 及输出 | `tool/call` / `tool/result` | `toolCall` / `toolResult` |
 | `model.usage` | 一次模型请求的用量与耗时 | 去重后的 `message.usage`；`cost-state` | `token_usage_record`（旧版 `token_count`） | `assistant/message.usage` | `message.usage` |
 | `context.inject` | 注入的上下文：规则文件、技能清单、MCP 说明、环境、日期、附件 | `attachment`（`skill_listing`、`instructions`、`environment`、`mcp_instructions_delta` 等） | `developer` 消息、`base_instructions`、环境上下文、`world_state`（含当时生效的 AGENTS.md） | `request/context`、`request/header` | `system` 消息的分段 |
 | `context.compaction` | 上下文压缩 | `system(compact_boundary)` + 压缩摘要 | `compaction`、`compacted`、`contextCompaction` | `compaction/summary` | `compaction` 条目 |
 | `permission.request` / `permission.decision` | 审批请求与决定（决定、来源、等待时长） | `toolDenialKind`、拒绝提示文本、`permissionMode`；等待时长只有 OTel 有 | 不直接落盘：`turn_context` 中的审批策略、`status=declined` 的命令、guardian 子线程；精确决策来源只有 OTel 的 `tool_decision` | `approval/asked`、`approval/decided` | 无审批 |
 | `branch` | 分叉、回退、回滚、恢复 | `parentUuid` 树的分支、`/rewind`、恢复会话 | `forked_from_id`、回滚 | `parentSession` | `id / parentId` 树的分支 |
-| `hook.run` | Hook 执行 | `system(stop_hook_summary)`、`attachment(hook_success / hook_additional_context)` | 待核实 | 待核实 | — |
+| `hook.run` | Hook 执行 | `system(stop_hook_summary)`、`attachment(hook_success / hook_additional_context)` | `HookPrompt` 条目（本机未出现） | 待核实 | — |
 | `subagent.spawn` / `subagent.result` | 子代理派生与回传 | `Agent / Task` 工具 + `subagents/*.meta.json` | `spawn_agent`、`SubAgentActivity`、`thread_spawn_edges` | `subagent/descriptor`、`agent/inbox/spliced` | — |
 | `plan.update` | 计划或待办 | `TodoWrite` | `update_plan` | `todo/write` | — |
 | `file.change` | 文件改动或快照 | `structuredPatch`、`file-history-*` | `FileChange` | `write / edit` 工具参数 | 工具参数 |
 | `link` | PR、commit、artifact 关联 | `pr-link` | Git 信息 | — | — |
 | `queue` | 排队或插话消息 | `queue-operation` | `queue_1.sqlite` | — | — |
 | `error` | API 错误、重试、中断、崩溃修复 | `system(api_error)`、`isApiErrorMessage`、`isAbortedMidStream` | 失败的轮次与条目 | 错误与修复闭合事件 | `errorMessage` |
-| `ui.state` | 只与界面有关的状态（归档，不参与统计） | `atis-latch`、`bridge-session`、`frame-link`、`artifact-*`、`last-prompt` | — | 打包分片行（`folded`） | — |
+| `ui.state` | 只与界面有关的状态（归档，不参与统计） | `atis-latch`、`bridge-session`、`frame-link`、`artifact-*`、`last-prompt` | — | — | — |
 | `unknown` | 未识别记录（保留并计入漂移告警） | — | — | — | — |
 
-OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
+OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](../research/agent-sessions/) 第 6.3 节）：
 
 - **OpenCode**：`part.type` 决定事件——`text`（`synthetic: true` 为注入，进 `context.inject` 或 `origin=injected`）、`reasoning`（签名或加密内容在 `metadata`）、`tool`（`state.status` 为 `pending / running / completed / error`，映射 `tool.call / tool.result`）、`step-start / step-finish`（`model.usage`）、`patch`（`file.change`）、`compaction` 与 `summary: true` 的 assistant（`context.compaction`）、`agent / subtask`（`subagent.spawn`）、`file`（附件，内联的 base64 移到附件区）；`session.revert` 与 fork 映射为 `branch`。
 - **Hermes Agent**：`messages` 按 `id` 顺序映射为 `message.* / tool.* / reasoning`；`active=0, compacted=1` 的旧行加摘要行 → `context.compaction`；`active=0` 且未压缩的行 → `branch`（rewind / edit）；`/branch` 子会话 → `branch(fork)`；`delegate_task` 子会话 → `subagent.*`；`session_model_usage` → `model.usage`（`task` 字段给出用途）。
@@ -370,9 +371,10 @@ OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
 | 情况 | 识别 | 处理 |
 | --- | --- | --- |
 | 同一响应拆成多行（Claude） | 相同 `message.id + requestId` | 内容块按顺序合并；usage 只记一次 |
-| 恢复或分叉复制历史（Claude） | 同一 `uuid` 出现在多个文件 | 最早出现的为正本，其余标 `replay_of` |
+| 恢复或分叉复制历史（Claude） | 同一 `uuid` 出现在多个文件 | 最早出现的为正本；其余记录标 `replayed` 并指向原事件，新会话记 `forked_from` |
 | 子代理重放父历史（Codex） | `subagent_history_start_ordinal` 之前的记录（旧文件以首个不在父会话中的 turn、或 `trigger_turn=true` 的跨 Agent 通信为界） | 标 `replayed`，不计入子代理统计 |
 | 种子事件（DeepSeek Harness） | 旧版：会话头的 `parentSession + seedLength`；新版：`isSeeded` + 最后一个 `session/end-seed{inherited:true}` | 切点之前是从父会话复制的种子，标 `replayed` |
+| 分叉复制（pi、Hermes、OpenCode） | pi `/fork` 保留原 entry id；Hermes `/branch` 保留 `message_uid`；OpenCode fork 无 `parent_id`、标题带 `(fork #N)` | pi、Hermes 由确定性 ID 自动识别；OpenCode 按内容哈希与源会话比对，复制段标 `replayed`，新会话记 `forked_from` |
 | 跨 Agent 导入（Codex 导入 Claude 会话） | `external_agent_session_imports.json` | 会话标 `kind=import`，链接到原会话，默认不计 |
 | token 重复事件（Codex 旧格式） | 累计值未变化的 `token_count` | 丢弃，标 `duplicate` |
 | 同一信息两套表示（Codex） | `response_item` 与 `item_completed`、`token_usage_record` 与 `token_count`、`replacement_history` 与原始行 | 每类只映射一种视角，另一种标 `duplicate` 并记下对应关系 |
@@ -397,12 +399,12 @@ OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
 **模型与思考档位**
 
 - 保留 `model_raw`，另映射出 `provider`、`model_id`（规范名）、`family`；映射表以 models.dev 与 LiteLLM 的模型清单为底，未识别的模型标出来。
-- 思考档位保留原值 `effort_raw`，另给出各厂商内部的序号 `effort_rank`；不同厂商的档位不可直接比较，展示时按厂商分组。Claude 的思考 token 在 `output_tokens_details.thinking_tokens`，Codex 在 `reasoning_output_tokens`，pi 在 `usage.reasoning`。
+- 思考档位保留原值 `effort_raw`，另给出各厂商内部的序号 `effort_rank`；不同厂商的档位不可直接比较，展示时按厂商分组。Claude 的思考 token 在 `output_tokens_details.thinking_tokens`，Codex 在 `reasoning_output_tokens`，pi 在 `usage.reasoning`，OpenCode 在 `step-finish.tokens.reasoning`。
 
 **token 与成本**
 
 - 统一字段：`input_tokens`（不含缓存）、`cache_read_tokens`、`cache_write_tokens`、`output_tokens`（含思考）、`reasoning_tokens`（输出中的思考部分）；各家口径的换算见 4.6。
-- 成本来源按优先级：Agent 原生给出（Claude `cost-state`、pi `usage.cost`）→ 按价目表计算（记录价目表版本）→ 未知。订阅用户的成本是「按 API 价格折算」，界面上要注明。
+- 成本来源按优先级：Agent 原生给出（Claude `cost-state`、pi `usage.cost`、OpenCode `step-finish.cost`、Hermes `session_model_usage`）→ 按价目表计算（记录价目表版本）→ 未知。订阅用户的成本是「按 API 价格折算」，界面上要注明。
 
 **工具归一**
 
@@ -428,7 +430,7 @@ OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
 **人类输入与打断**
 
 - `message.user.attrs.origin` 取值：`human`、`queued`（排队插话）、`notification`（任务完成通知）、`peer`（其他 Agent 发来）、`automation`、`injected`（系统注入）。情绪、纠偏与满意度只看 `human`。
-- 打断：Claude 的 `[Request interrupted by user…]` 与 `toolUseResult.interrupted`；Codex 的 `turn_aborted`；DeepSeek Harness 的审批取消与修复闭合事件。
+- 打断：Claude 的 `[Request interrupted by user…]` 与 `toolUseResult.interrupted`；Codex 的 `turn_aborted`；DeepSeek Harness 的审批取消与修复闭合事件；OpenCode 的 `MessageAbortedError`；Hermes 的 `display_metadata.interrupted` 与补写的 `effect_disposition='none'` 工具行。
 
 **时间**
 
@@ -452,7 +454,7 @@ OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
 据此对 4.4、4.5 补充五条规则：
 
 1. **按来源顺序排序，不按时间戳。** `event.seq` 取原始顺序；时间戳可能缺失、回退或并发交错（子代理），只作展示与时长计算。
-2. **token 统一成互斥分桶。** `input_tokens` 不含缓存，`cache_read_tokens`、`cache_write_tokens` 单列，`output_tokens` 含思考，`reasoning_tokens` 是其中的思考部分；原始字段原样保存在 `attrs.reported`。注意各家口径不同：Anthropic 的 `input_tokens` 不含缓存，OpenAI / Codex 的输入包含缓存命中部分，需要先减去。导出 ATIF 或 OTel 时再按对方口径相加。
+2. **token 统一成互斥分桶。** `input_tokens` 不含缓存，`cache_read_tokens`、`cache_write_tokens` 单列，`output_tokens` 含思考，`reasoning_tokens` 是其中的思考部分；原始字段原样保存在 `attrs.reported`。注意各家口径不同：Anthropic 的 `input_tokens` 不含缓存；OpenAI / Codex、Copilot 的输入包含缓存命中部分，需要先减去；OpenCode、DeepSeek Harness 记录的输入已不含缓存。导出 ATIF 或 OTel 时再按对方口径相加。
 3. **思考内容分格式保存。** `reasoning.attrs.format` 取 `text / summary / encrypted / redacted`；Anthropic 的 `signature`、OpenAI 的 `encrypted_content`、Gemini 的 `thoughtSignature` 都作为不透明数据保存，永不展示，也不参与检索。
 4. **分支与审批单独成类。** 表 4.4 中的 `branch`（`fork / rewind / rollback / resume`，来源：Claude 的 `parentUuid` 树与 `/rewind`、pi 的 `id / parentId` 树、Codex 的回滚）与 `permission.request / permission.decision`（`decision`、`source = config / hook / user / auto_review`、`wait_ms`）就是按这条加的；Claude 的 `toolDenialKind` 映射为 `source`：`user-rejected → user`、`permission-rule → config`、`automode-* → auto_review`。
 5. **附件内容寻址。** 内联的 base64 图片等移到按哈希存放的附件区，事件里只留哈希、类型和大小，避免事件表膨胀。
@@ -507,7 +509,7 @@ OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
 | ClawHub | `GET https://clawhub.ai/api/v1/skills?limit=&cursor=` | `slug, displayName, summary, latestVersion, stats` | 限流未核实 | 未核实 | P1 |
 | SkillsMP、LobeHub | — | — | robots.txt 禁止或未核实 | — | P2 |
 
-**Hooks**：没有专门的注册表，来源是插件里的 `hooks/hooks.json`、awesome-copilot 的 `hooks/` 目录（MIT）和 awesome-claude-code 的资源表 `THE_RESOURCES_TABLE_NEW.csv`（212 行，列 `ID, Display Name, Category, Sub-Category, Link, Author Name, Active, Date Added, Last Checked, Description, Stale`，只存元数据与链接）。各 Agent 的事件名见 5.2。
+**Hooks**：没有专门的注册表，来源是插件里的 `hooks/hooks.json`、awesome-copilot 的 `hooks/` 目录（MIT）和 awesome-claude-code 的资源表 `THE_RESOURCES_TABLE_NEW.csv`（212 行，列 `ID, Display Name, Category, Sub-Category, Link, Author Name, Author Link, Active, Date Added, Last Checked, Description, Stale`，只存元数据与链接）。各 Agent 的事件名见 5.2。
 
 **规则、子代理、工作流、指南**（只做了轻量核实）
 
@@ -647,12 +649,13 @@ Skill 的 `name` 并不唯一，大量仓库互相复制，所以一定要用内
 
 | 特征 | 会话侧怎么得到 | 生态侧怎么得到 |
 | --- | --- | --- |
-| `agent` | 会话所属 Agent | 兼容的 Agent |
+| `agent` | 会话所属 Agent（只用于兼容性判断，不作分类维度） | 兼容的 Agent |
 | `tool_kind` | 工具归一类别 | `allowed-tools`、Hook 的 matcher |
 | `command` | shell 命令头（`git`、`gh pr`、`wrangler`、`latexmk`） | Hook 脚本与 Skill 正文里出现的命令 |
 | `mcp_server` | 实际调用的 MCP 服务 | MCP 条目自身、插件包含的 MCP |
+| `software` | 由命令头、MCP 服务与项目依赖推出（如 `wrangler` → Cloudflare） | MCP 条目的 `software`（5.1）、插件与 Skill 的描述 |
 | `skill` | 实际调用的 Skill（含归因字段） | Skill 条目自身 |
-| `hook_event` | 会话中出现的 Hook 执行 | Hook 声明的事件与 matcher（如 `PostToolUse:Edit|Write`） |
+| `hook_event` | 会话中出现的 Hook 执行（按 `event_norm`） | Hook 声明的事件与 matcher（如 `PostToolUse:Edit\|Write`） |
 | `file_type` | 改动或读取的文件扩展名 | 规则的 `globs`、Skill 描述 |
 | `domain` | 由命令、文件与项目标签推出（如 `deploy.cloudflare`、`git.pr`、`latex.paper`） | 由名称、描述、分类推出 |
 
@@ -674,7 +677,7 @@ Skill 的 `name` 并不唯一，大量仓库互相复制，所以一定要用内
   cache/             # 临时复制的 SQLite、下载的快照
 ```
 
-- **SQLite**：单文件、可嵌入，Swift（GRDB）、Node（better-sqlite3）、Python 都能直接用；开启 WAL、外键、JSON1、FTS5（事件文本与条目全文检索）。数据量在百万行以内，不需要服务端数据库；重型统计需要时用 DuckDB 只读挂载 SQLite。
+- **SQLite**：单文件、可嵌入，Swift（GRDB）、Node（内置 `node:sqlite` 或 better-sqlite3）、Python 都能直接用；开启 WAL、外键、JSON1、FTS5（事件文本与条目全文检索）。数据量在百万行以内，不需要服务端数据库；重型统计需要时用 DuckDB 只读挂载 SQLite。
 - **两个库分开**：会话库只在本机生成；生态库是公开数据，可由团队定期构建快照分发给所有用户，替换时不影响会话数据。两个库通过 `ATTACH` 联合查询。
 - **控制体积**：L2 的工具输出只存前 8 KB（`text_truncated = 1`），全文通过 `record_uid` 回到 L0 读取；按本机规模估算 `tandem.db` 在 100–300 MB（待实测）。
 - **迁移**：`PRAGMA user_version` 记录结构版本，迁移脚本放仓库；L2、L3 结构变化时直接从 L0 / L2 重算，不写复杂的数据迁移。
@@ -717,6 +720,7 @@ CREATE TABLE raw_record (                      -- L1
   harness_version TEXT,
   ts            INTEGER,
   disposition   TEXT NOT NULL,                 -- mapped | folded | replayed | duplicate | ignored | unparsed
+  ref_event_uid TEXT,                          -- folded / replayed / duplicate 时指向承接它的事件
   note          TEXT,
   UNIQUE (file_id, ordinal)
 ) STRICT;
@@ -737,7 +741,7 @@ CREATE TABLE session (
   kind          TEXT NOT NULL,                 -- main | subagent | workflow_agent | review | automation | import | auxiliary
   parent_uid    TEXT, root_uid TEXT, spawn_call_uid TEXT,
   depth         INTEGER NOT NULL DEFAULT 0,
-  forked_from   TEXT, imported_from TEXT,
+  forked_from   TEXT, imported_from TEXT,      -- 分叉或恢复自；跨 Agent 导入自
   project_id    TEXT REFERENCES project,
   cwd           TEXT, git_branch TEXT, git_sha TEXT,
   client        TEXT,                          -- cli | desktop | ide | exec | web
@@ -762,8 +766,7 @@ CREATE TABLE event (                           -- L2
   attrs         TEXT NOT NULL DEFAULT '{}',    -- 按 kind 约定的标准字段
   ext           TEXT,                          -- 未消费的原生字段
   record_uid    TEXT NOT NULL REFERENCES raw_record,
-  native_id     TEXT,
-  replay_of     TEXT
+  native_id     TEXT
 ) STRICT;
 CREATE INDEX event_by_session ON event(session_uid, seq);
 CREATE INDEX event_by_call ON event(call_id);
@@ -838,7 +841,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 | --- | --- | --- |
 | M0 契约 | 7.2 的表结构、每种 `kind` 的 `attrs` JSON Schema、各 Agent 的脱敏样本文件 | 样本覆盖本机出现过的全部记录类型 |
 | M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `tandem ingest` | 全记账测试通过；同一数据重复导入零差异 |
-| M2 派生 | L3 各表、项目归属、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；按模型的 token 与 `cost-state` 误差 < 1% |
+| M2 派生 | L3 各表、项目归属、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；主模型的 token 与 `cost-state` 中同一模型的累计值误差 < 1%（`cost-state` 含不进转录的辅助调用，辅助模型单独核对） |
 | M3 生态 | Catalog 构建脚本、P0 来源、已安装清单、规则抽取的特征 | 抽检 50 条去重结果；本机已安装项全部能链接或给出未链接原因 |
 | M4 增量 | FSEvents 监听、原始归档、漂移告警；Demo 的 A1、A3、A4 接真实数据 | 新会话写入后 5 秒内可见 |
 
@@ -849,7 +852,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 | 风险 | 影响 | 应对 |
 | --- | --- | --- |
 | 各 Agent 格式变化快 | 连接器失效或漏读字段 | 漂移告警 + 样本回归测试；未映射字段进 `ext` |
-| Antigravity 内容是 protobuf | 读不到对话正文 | 先读摘要库和步骤输出文本 |
+| Antigravity 的模型与 token 只在 protobuf 里 | 读不到用量 | 先读明文转录与摘要库，用量解码放到 P2 |
 | Copilot 本机没有事件明细 | 无法分析 Copilot 会话 | 先读元数据，确认新版事件文件位置后再接 |
 | 原始归档含敏感内容 | 隐私 | 只存本机、权限 0600、可一键清除，不进同步目录；连接器不读凭据文件 |
 | 归档占用磁盘 | 用户顾虑 | 设置里可关闭或设保留期；图片等二进制默认不复制 |
@@ -863,7 +866,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 2. 采集进程：TypeScript 命令行 + 常驻监听，写 SQLite（见 8.1）。
 3. 原始归档默认开启、不设保留期；图片等二进制只记引用；设置里可以关闭或清除。
 4. 生态快照先在本机用构建脚本生成；本仓库是私有仓库，对外分发快照时再选公开托管位置。
-5. Hooks 与 OpenTelemetry 不进 MVP；菜单栏的实时状态先用「会话文件是否在写入」判断，「等待审批」状态等接入 Hooks 后再做。
+5. Hooks 与 OpenTelemetry 不进 MVP；菜单栏的实时状态先用 3.3 的只读信号判断（Claude 的 `sessions/<pid>.json`、Codex 的写锁、会话文件是否在写入），「等待审批」状态等接入 Hooks 后再做。
 6. 能力词表放在仓库里的一个 YAML 文件，随 PR 维护。
 
 ## 参考
