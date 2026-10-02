@@ -2,6 +2,8 @@
 
 本特征族描述用户对具体交付的明确反馈，位于“语义 · 瓶颈分析”象限。实现入口为 `analyze_subjective_outcomes`；会话详情、项目汇总、概览、CLI 共用同一套计算。关联 [Issue #4](https://github.com/ActionMesh-AI/Hackathon/issues/4)，本次实现由 `MistyHuang03` 发起。
 
+本分支按本轮明确开发请求实现分类表中的主观 Outcome，供 PR 审查；尚未合并 main 或发布产品。下文“待团队确认”区分代码验收与产品决策，不声称三位成员已完成业务验收。
+
 这是有证据的规则代理信号，不是通用情感分析。用户沉默、助手声称完成、测试通过和会话结束均不证明用户接受；`task_success` 始终为 `null`。产品字段口径与人工验收仍待团队确认。
 
 ## Feature TODO 与实现状态
@@ -26,10 +28,10 @@
 | `user_acceptance` | 反馈消息；`accepted/rejected/mixed/null` | 只匹配完整的明确分句；不以情绪、礼貌、沉默推断接受。 |
 | `user_confirmed_completion` | 反馈对象；`bool/null` | 独立于接受；相互矛盾的完成陈述输出 `null` 并标记冲突。 |
 | `rework_feedback` | 反馈消息；列表 | 每项保留 `request/reason`；新增需求本身不记返工。 |
-| `feedback_target` | 对象关系；字典或 `null` | 交付必须在同一会话、反馈之前；显式坏链接不能回退到其他交付。 |
+| `feedback_target` | 对象关系；字典或 `null` | 交付必须在同一会话、反馈之前；显式坏链接（包括空对象）不能回退到其他交付。 |
 | `feedback_evidence` | 证据；字典 | 原始日志通过 `event_uid` 回查；输出不复制原始日志，引用片段经过规范化和脱敏。 |
 | `link_status` | 反馈；`linked/candidate/unlinked` | 只有 `linked` 计入确认分布；旧适配器的启发式任务 ID 只产生 `candidate`。 |
-| `completion_scope` | `task/artifact/delivery/null` | 解释完成确认适用对象；不据此推断其他产物或整个项目的完成状态。 |
+| `completion_scope` | `task/artifact/delivery/null` | 显式交付引用优先为 delivery，显式产物引用为 artifact，只有任务关联才为 task；不据此推断其他产物或整个项目的完成状态。 |
 
 `accepted_feedback_count` 等计数以“已关联反馈消息”为单位，重复反馈计作不同观测，不是独立任务数量或满意率。`effective_n` 为已关联反馈数；`unknown_n` 为未能关联的候选、来源不确定的消息与不可测正文数量之和。未获反馈的交付另外计入 `deliveries_without_feedback`，分母不能相加混用。
 
@@ -64,7 +66,7 @@
 
 | 函数 | 输入 → 输出 | 方法与对应测试 |
 | --- | --- | --- |
-| `classify_feedback` | 正文 → 分维度标签或空 | 去除平台块、引用和围栏；排除提问、条件、假设、示例及转述；完整分句规则。分类正反例、冲突与因果范围单测。 |
+| `classify_feedback` | 正文 → 分维度标签或空 | 去除平台块、引用和围栏；先排除含条件、假设、示例、转述及文本分析请求的整条消息，再排除提问；完整分句规则。分类正反例、冲突与因果范围单测。 |
 | `collect_deliveries` | 事件、主会话集合 → 交付 | 显式 final／final_answer 与来源边界；阶段、子代理与重放单测。 |
 | `extract_subjective_feedback` | 真人消息、交付、主会话集合 → 候选 | 再次检查身份，提取证据并调用关联；来源、actor、截断和证据测试。 |
 | `link_feedback_targets` | 候选、交付 → 带状态的对象关系 | 会话＋任务／对象索引、按序二分查找；坏引用、旧版本、重复顺序和未来交付单测。 |
@@ -82,7 +84,7 @@
 | 功能 mock | 同文件的 `test_mock_store_api_and_cli_share_the_family` | mock 输入适配器，在真实 TestClient 和 CLI 上比较 JSON、会话详情、项目聚合与历史窗口。 |
 | 端到端真实数据 | [验证脚本](../../../../scripts/validate_subjective_outcomes.py) 的 `real_flow` | 只读备份现有 SQLite，在副本使导入缓存失效，重新解析原始 Codex 日志；保持截止时间与排除名单，核对 CLI/API 和源证据引用。 |
 | 性能 | 同脚本的 `performance` | 1千／1万／5万事件、同一任务的连续交付与反馈；预热后重复3次，单独测量分配峰值；另测完整 analytics `--no-text` 计算。 |
-| 正确性／质量 | [45例质量集](../../../../tests/fixtures/subjective-outcome-quality.json)、[质量测试](../../../../tests/test_subjective_outcome_quality.py) | 独立保存预期标签，逐例比对接受、完成、返工三个维度，覆盖中文、英文、条件、引用、拒收及冲突。 |
+| 正确性／质量 | [49例质量集](../../../../tests/fixtures/subjective-outcome-quality.json)、[质量测试](../../../../tests/test_subjective_outcome_quality.py) | 独立保存预期标签，逐例比对接受、完成、返工三个维度，覆盖中文、英文、条件、引用、拒收及冲突。 |
 
 质量集是为本规则口径构造的输入，不是独立标注的真实分布；同一组样例通过不能说明长文本、反讽、隐喻和跨任务反馈已经可靠。性能数字也不代表并发服务 SLA。
 
@@ -103,21 +105,21 @@ PYTHONPATH=src python scripts/validate_subjective_outcomes.py \
 
 ## 本轮实测记录（2026-10-02，Asia/Shanghai）
 
-运行环境：Python 3.12.3，macOS 14.6.1 arm64。全仓库 **532 项测试通过**；其中本族新增 89 项函数／功能用例、45 项构造质量用例；另有原 analytics 47 项回归通过。`ruff check src tests scripts`、`tandem demo`、`tandem evaluate` 均通过；evaluate 的 readability/pipeline/probe 分别为 8/8、34/34、12/12。仅有现有 Starlette/AnyIO 弃用提示。
+运行环境：Python 3.12.3，macOS 14.6.1 arm64。全仓库 **540 项测试通过**；其中本族新增 93 项函数／功能用例、49 项构造质量用例；另有原 analytics 47 项回归通过。`ruff check src tests scripts`、`tandem demo`、`tandem evaluate` 均通过；evaluate 的 readability/pipeline/probe 分别为 8/8、34/34、12/12。仅有现有 Starlette/AnyIO 弃用提示。
 
-质量集 45/45 完全匹配；该固定集合上的反馈检测 precision/recall 均为 1.0。样例包括无结果、冲突、中文／英文、引用、条件和新增需求；不将该数字外推为真实数据准确率。
+质量集 49/49 完全匹配；该固定集合上的反馈检测 precision/recall 均为 1.0。样例包括无结果、冲突、中文／英文、引用、条件和新增需求；不将该数字外推为真实数据准确率。
 
 | 事件规模 | 特征族耗时中位数（3次） | 特征族吞吐量 | 整体 analytics 无文本表示（单次） |
 | ---: | ---: | ---: | ---: |
-| 1,000 | 0.037 秒 | 26,817 事件／秒 | 0.082 秒 |
-| 10,000 | 0.461 秒 | 21,702 事件／秒 | 0.869 秒 |
-| 50,000 | 2.440 秒 | 20,494 事件／秒 | 4.376 秒 |
+| 1,000 | 0.038 秒 | 26,566 事件／秒 | 0.083 秒 |
+| 10,000 | 0.414 秒 | 24,151 事件／秒 | 0.866 秒 |
+| 50,000 | 2.030 秒 | 24,634 事件／秒 | 4.385 秒 |
 
 5万事件对应2.5万次交付与反馈；独立 tracemalloc 测量的特征族分配峰值约 **58.46 MiB**，不含输入数据内存。关联使用索引与二分查询，避免每条反馈重新扫描全部交付。没有执行并发压力、超大正文和长期运行内存测试。
 
 真实端到端沿用本机已有快照：截至 **2026-10-01 23:43:13（Asia/Shanghai）**，排除名单中的1个会话保持不变。在隔离副本上使导入缓存失效后，重新解析36份真实日志，保存41,740个事件；126份已发现文件中的其余90份依现有策略跳过。原数据库文件摘要与样本策略前后相同。
 
-选择后保留35个会话、40,664个事件，其中33个确认主会话；识别并逐条核对 **823 条 final／final_answer 交付引用**。原始解析、SQLite 适配、特征族、CLI JSON 和 API 概览／项目／会话详情全部一致。解析约6.55秒；引擎无文本表示约0.84秒；CLI进程含适配与JSON输出约3.99秒；3个API请求合计约7.64秒。
+选择后保留35个会话、40,664个事件，其中33个确认主会话；识别并逐条核对 **823 条 final／final_answer 交付引用**。原始解析、SQLite 适配、特征族、CLI JSON 和 API 概览／项目／会话详情全部一致。解析约6.64秒；引擎无文本表示约0.86秒；CLI进程含适配与JSON输出约4.02秒；3个API请求合计约7.66秒。
 
 **真实语义结果仍不足以验收准确率**：仅9条消息有确认真人来源，另918条来源未知；没有命中明确反馈，823个交付结果全部保持未知。因此有效已关联反馈数为0，`status=partial`；这不是满意率0，也不是任务失败。真实反馈引用核对数为0，不能把它写成“真实正例已验证”。真实正负例的独立人工标注和业务验收仍待完成。
 

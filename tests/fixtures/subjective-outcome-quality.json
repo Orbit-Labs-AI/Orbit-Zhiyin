@@ -303,5 +303,25 @@
     "id": "empty",
     "text": "",
     "expected": null
+  },
+  {
+    "id": "cn-meta-multiline",
+    "text": "请分析下面这条反馈：\n可以了",
+    "expected": null
+  },
+  {
+    "id": "cn-if-multiline",
+    "text": "如果验收通过：\n可以了",
+    "expected": null
+  },
+  {
+    "id": "en-meta-multiline",
+    "text": "Classify this feedback:\nLooks good.",
+    "expected": null
+  },
+  {
+    "id": "cn-example-multiline",
+    "text": "下面是示例：\n可以了",
+    "expected": null
   }
 ]

@@ -129,6 +129,7 @@ def test_target_indexes_support_explicit_older_version_without_mutating_inputs()
     ({"delivery_event_uid": "d", "task_id": "other"}, "task_mismatch"),
     ({"delivery_event_uid": "future"}, "delivery_not_prior"),
     ({"delivery_event_uid": ["d"]}, "invalid_explicit_target"),
+    ({}, "invalid_explicit_target"),
     ({"typo": "d"}, "invalid_explicit_target"), ("d", "invalid_explicit_target"),
 ])
 def test_broken_explicit_target_never_falls_back(target, reason):
@@ -277,3 +278,20 @@ def test_legacy_candidates_keep_the_original_shape_and_polarities():
     r = analyze_bundle(bundle([delivery(), event("f", 2, "可以了，但不能接受")]), with_text=False)
     assert r["sessions"][0]["subjective_outcome_candidates"] == []
     assert r["sessions"][0]["subjective_outcomes"]["feedback"][0]["signal"] == "mixed"
+
+
+@pytest.mark.parametrize("target,scope", [
+    ({"delivery_event_uid": "v1"}, "delivery"),
+    ({"artifact_id": "doc", "artifact_version": "1"}, "artifact"),
+    (None, "task"),
+])
+def test_completion_scope_uses_the_explicit_target_before_ambient_task(target, scope):
+    events = [delivery("v1", 1, artifact_id="doc", artifact_version="1"),
+              delivery("v2", 2, artifact_id="doc", artifact_version="2"),
+              event("f", 3, "任务完成了", feedback_target=target)]
+    result = analyze_subjective_outcomes(events, {"s"})
+    assert result["feedback"][0]["completion_scope"] == scope
+    target_uid = "v2" if target is None else "v1"
+    assert result["feedback"][0]["delivery_event_uid"] == target_uid
+    untouched = next(s for s in result["delivery_states"] if s["delivery_event_uid"] != target_uid)
+    assert untouched["latest_user_confirmed_completion"] is None

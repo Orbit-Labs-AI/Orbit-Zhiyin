@@ -13,6 +13,7 @@ _COMPLETE = re.compile(r"(?:我确认)?(?:(?:这个|整个)?任务(?:已经|已)
 _INCOMPLETE = re.compile(r"(?:这个|整个)?任务(?:还没|尚未|没有)完成|(?:这个)?问题(?:还没|尚未|没有)解决|(?:the )?task (?:is )?(?:not complete|incomplete)|(?:the )?(?:problem|issue) (?:is )?not (?:fixed|resolved)", re.I)
 _REWORK = re.compile(r"(?:请|麻烦)?(?:重新(?:修改|处理|生成|写|做|提交)|重写|重做|返工)(?:.*)|(?:please )?(?:rewrite|redo|revise|rework)(?:\s+.+)?", re.I)
 _HYPOTHETICAL = re.compile(r"如果|假如|假设|要是|例如|比如|举例|示例|假想|用户说|他说|她说|你说|请回答|请回复|请输出|请翻译|不是说|不代表|不要说|\b(?:if|unless|when|once|suppose|example|says?|said|would|could)\b", re.I)
+_META_REQUEST = re.compile(r"(?:分析|识别|提取|归类|判断|评估|翻译|总结|统计).{0,16}(?:反馈|句子|短语|文本|例子)|(?:以下|下面|如下|原文|示例|样例|例如)[:：]|\b(?:classify|translate|analy[sz]e|summari[sz]e)\b.{0,40}\b(?:feedback|sentences?|text|example)\b", re.I)
 _QUOTES = re.compile(r'“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"|(?<!\w)\x27[^\x27\n]*\x27(?!\w)|`[^`]*`')
 
 
@@ -23,6 +24,9 @@ def classify_feedback(text):
     Evidence is normalized/redacted text, not a copy of the source log.
     """
     clean = _QUOTES.sub("[quoted]", direct_user_text(text or ""))
+    # A later line in a quoted/example/conditional prompt is not a new assertion.
+    if _META_REQUEST.search(clean) or _HYPOTHETICAL.search(clean):
+        return None
     clean = re.sub(r"\.(?=\s|$)", "。", clean)
     accepted = rejected = complete = incomplete = False
     evidence, rework = [], []

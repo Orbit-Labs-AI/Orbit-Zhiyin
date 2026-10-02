@@ -27,7 +27,7 @@ def link_feedback_targets(feedback, deliveries):
         f = {**original, "delivery_event_uid": None, "feedback_target": None,
              "link_status": "unlinked", "link_reason": None, "completion_scope": None}
         target = f.get("requested_target")
-        if target is not None and (not isinstance(target, dict) or any(
+        if target is not None and (not isinstance(target, dict) or not target or any(
                 key not in ("delivery_event_uid", "task_id", "artifact_id", "artifact_version")
                 or not isinstance(value, str) or not value.strip() for key, value in target.items())):
             f["link_reason"] = "invalid_explicit_target"
@@ -77,6 +77,6 @@ def link_feedback_targets(feedback, deliveries):
                      link_reason="heuristic_task_identity" if inferred else None,
                      feedback_target={k: d.get(k) for k in ("session_uid", "task_id", "delivery_event_uid", "artifact_id", "artifact_version")},
                      link_basis=basis,
-                     completion_scope="artifact" if target.get("artifact_id") else "task" if task else "delivery")
+                     completion_scope="artifact" if target.get("artifact_id") else "delivery" if basis == "explicit_delivery" else "task" if task else "delivery")
         output.append(f)
     return output
