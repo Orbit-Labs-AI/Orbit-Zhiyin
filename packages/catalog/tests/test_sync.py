@@ -1,11 +1,13 @@
+import json
 import threading
 from pathlib import Path
 
 from tandem_catalog.contracts import Page, Record, Resource, SourceSpec
-from tandem_catalog.network import FetchError
+from tandem_catalog.network import FetchError, HttpClient
 from tandem_catalog.store import CatalogStore
 from tandem_catalog.sync import CatalogSync
 
+from .test_network import FakeOpener
 from .test_storage import record
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -148,3 +150,31 @@ def test_benchmarks_resolve_against_models_imported_in_same_run(tmp_path):
     # A later benchmark-only refresh still resolves through the stored model rows.
     assert "anthropic/claude-3-5-sonnet-20241022" in CatalogSync(store, None)._stored_models()
     assert CatalogSync(store, None).sync(["swe-bench"], force=True)[0]["status"] == "completed"
+
+
+def run_cli(capsys, *argv):
+    from tandem_catalog.cli import main
+    try:
+        main(list(argv))
+        code = 0
+    except SystemExit as exc:
+        code = exc.code
+    return code, json.loads(capsys.readouterr().out)
+
+
+def test_cli_import_file_loads_fixture_without_network(tmp_path, capsys):
+    code, result = run_cli(capsys, "--home", str(tmp_path), "import-file", "--source", "models-dev",
+                           "--file", str(FIXTURES / "models_dev_mini.json"))
+    assert code == 0 and result[0]["status"] == "completed"
+    assert CatalogStore(tmp_path / "catalog.db").stats()["items"] == 4
+
+
+def test_cli_offline_sync_uses_cache_only(tmp_path, capsys):
+    body = (FIXTURES / "litellm_mini.json").read_bytes()
+    url = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+    HttpClient(tmp_path / "catalog-http-cache", opener=FakeOpener((body, {"ETag": '"x"'}))).get(url)
+    code, result = run_cli(capsys, "--home", str(tmp_path), "sync", "--source", "litellm", "--source", "models-dev",
+                           "--offline", "--concurrency", "2")
+    status = {r["source_id"]: (r["status"], r.get("error")) for r in result}
+    assert status["litellm"] == ("completed", None)
+    assert status["models-dev"] == ("failed", "not_cached") and code == 1
