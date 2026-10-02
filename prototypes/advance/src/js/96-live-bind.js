@@ -21,7 +21,7 @@ ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 function lvSpineBadge() {
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
   if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
-  if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
+  if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
 }

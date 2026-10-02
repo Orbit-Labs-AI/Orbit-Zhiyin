@@ -282,7 +282,8 @@ LV.loadSpine = function () {
     LV.state = rows.length ? 'ready' : 'empty';
   }, (e) => {
     lvSpineFails++;
-    if (LV.state === 'ready' || LV.state === 'empty') LV.state = 'error';
+    // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
+    if (LV.state === 'ready' || LV.state === 'empty' || (e && e.status >= 400)) LV.state = 'error';
     else LV.state = 'connecting';
     LV.error = e;
     lvSpineLater(Math.min(15000, 1000 * Math.pow(2, Math.min(lvSpineFails, 4))));
@@ -292,6 +293,8 @@ LV.loadSpine = function () {
 
 if (LV.live) {
   // live persona needs per-row units (G1): until slice 1's personaLive lands, never compute it from demo constants
+  // no personal mock identity on a live screen: the gateway has no account, the user row reads as the local user
+  ME.name = '本机用户'; ME.av = '我';
   persona = function (L) { return { ok: false, classified: false, n: L ? L.length : 0 }; };
   // no mock rows ever reach a live screen: start from the empty spine, then load
   LV.hydrate({ rows: [] });

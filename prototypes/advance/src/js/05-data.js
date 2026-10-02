@@ -40,6 +40,8 @@ const PJ = [
     titles: ['整理下载目录', '咖啡数据回归分析', '读论文并写笔记', '量化因子衰减综述溯源', '配置新机器环境'] }
 ];
 const PJI = {}; PJ.forEach((p) => { PJI[p.id] = p; });
+// sidebar user row (25-nav sideFoot): the demo persona; live mode (90-live-core) swaps in a neutral local-user label
+const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
   cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
   cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
