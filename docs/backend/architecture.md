@@ -1,10 +1,13 @@
 # 后端怎么工作
 
+默认入口已经切换到统一 L0–L3。当前模块边界、macOS App 接入、存储位置、分页与兼容方式见 [数据流程](data-pipeline.md)；本文其余部分解释报告与评价算法。
+
 先看 `cli.py`：它连接各模块，是理解完整流程最短的入口。`api.py` 调用同样的分析函数，前端接入时不用重复实现逻辑。
 
 | 模块 | 必须回答的问题 |
 | --- | --- |
-| `importers / privacy / models / store` | 这是谁说的、属于哪个项目与模型，是否重复或超出样本范围？ |
+| `packages/data / data_access` | 从归档生成统一事件和派生表，以只读契约供 App 与分析消费 |
+| `legacy / privacy / models` | 保留旧库和历史评价兼容，不承担默认来源获取 |
 | `feedback / bottlenecks / analysis / portrait` | 明确要求是什么，怎样形成画像与可回看的案卷？ |
 | `trajectory` | 修改前后是否有正文和相对评价，哪些证据还不能用于学习？ |
 | `resource_fetch / catalog` | 资源来自哪里，核对的是哪个版本？ |

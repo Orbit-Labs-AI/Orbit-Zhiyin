@@ -1,5 +1,13 @@
 """Machine-readable feature meanings shared by all analytics endpoints."""
 
+from .cost_time.dictionary import FEATURES as COST_TIME_FEATURES
+from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES
+from .interaction.dictionary import FEATURES as INTERACTION_FEATURES
+from .outcome.dictionary import FEATURES as OUTCOME_FEATURES
+from .preference.dictionary import FEATURES as PREFERENCE_FEATURES
+from .respond.dictionary import FEATURES as RESPOND_FEATURES
+from .task.dictionary import FEATURES as TASK_FEATURES
+
 FEATURES = {}
 
 
@@ -34,9 +42,6 @@ define("consecutive_failed_calls", "adjacent failed pair", "Adjacent failed logi
 define("confirmed_same_argument_failed_retries", "adjacent failed pair", "Same tool, literal argument digest and known equal status_scope; wrapper-level only when wrapper", "tool_call + L2 attrs")
 define("correction_signal_count", "human message", "Messages matching conservative correction lexical markers; evidence only", "confirmed human text", kind="proxy")
 define("correction_signal_rate", "ratio", "Signal messages / confirmed human messages", "confirmed human text", "confirmed human messages in main sessions", "proxy")
-define("prompt_char_count prompt_line_count paragraph_count question_mark_count bullet_count numbered_list_count code_block_count url_count file_reference_count explicit_format_request_count explicit_tool_mention_count constraint_marker_count",
-       "occurrence", "Structural regex counts over normalized human text; removed code fences stay unknown", "confirmed human text", kind="proxy")
-define("constraint_density", "marker / character", "Constraint marker count / retained normalized prompt chars", "confirmed human text", "retained prompt chars", "proxy")
 define("language_signals", "file extension occurrence", "Map explicit file extensions; no guessing language from semantics", "confirmed human text", kind="proxy")
 define("request_count", "model request", "Unique call_uid with call/delta and reliable boundary", "model_call")
 define("total_tokens", "token", "input_tokens + cache_read_tokens + cache_write_tokens + output_tokens; reasoning already included", "compatible complete usage buckets")
@@ -46,3 +51,19 @@ define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by
        "record", "Bucket reported timestamps in display_timezone; unknown clocks excluded; models count requests not snapshots", "event/tool/model timestamps")
 define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
+
+FEATURES.update(INTERACTION_FEATURES)
+FEATURES.update(RESPOND_FEATURES)
+FEATURES.update(COST_TIME_FEATURES)
+FEATURES.update(OUTCOME_FEATURES)
+
+define("user_acceptance", "feedback message", "Explicit accepted/rejected/mixed clauses after a linked prior final delivery; no silence inference", "confirmed human text + delivery/task identity", kind="proxy")
+define("user_confirmed_completion", "feedback target", "Explicit human completion/incompletion, independent of acceptance; scope retained", "confirmed human text + linked delivery", kind="proxy")
+define("rework_feedback", "feedback message", "Explicit revision request; retain request and explicit reason; new requirements alone are not rework", "confirmed human text + linked delivery", kind="proxy")
+define("feedback_target", "delivery relation", "Explicit same-session delivery/artifact/version or latest prior shared task; heuristic legacy task IDs remain candidates", "event.attrs + seq", kind="deterministic_derived")
+define("feedback_evidence", "evidence record", "event_uid, normalized redacted evidence_text, seq, ts and available_at; missing clock is sequence-only", "confirmed human event", kind="direct_observation")
+define("accepted_feedback_count rejected_feedback_count confirmed_completion_count confirmed_incompletion_count rework_feedback_count", "linked feedback message", "Count only linked explicit feedback in selected scope; not unique tasks, satisfaction or task success", "subjective_outcomes.feedback", "linked feedback messages", "proxy")
+FEATURES.update(PREFERENCE_FEATURES)
+FEATURES.update(TASK_FEATURES)
+# Family-owned definitions retain the established global lookup surface.
+FEATURES.update(INSTRUCTION_FEATURES)

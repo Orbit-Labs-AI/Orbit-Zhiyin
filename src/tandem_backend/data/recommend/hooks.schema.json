@@ -1,0 +1,632 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "recommendation-catalog-v1",
+      "default": "recommendation-catalog-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "family": {
+      "const": "hooks",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/RecommendationItem"
+      },
+      "maxItems": 10000,
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "family",
+    "items"
+  ],
+  "title": "CatalogEnvelope",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "properties": {
+        "setup_steps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Setup Steps",
+          "type": "array"
+        },
+        "preview": {
+          "default": "",
+          "title": "Preview",
+          "type": "string"
+        },
+        "trial": {
+          "default": "",
+          "title": "Trial",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        }
+      },
+      "title": "Action",
+      "type": "object"
+    },
+    "Compatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "additionalProperties": {
+            "enum": [
+              "native",
+              "manual",
+              "adaptation_required",
+              "unsupported",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "title": "Agents",
+          "type": "object"
+        },
+        "os": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Os",
+          "type": "array"
+        },
+        "languages": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Languages",
+          "type": "array"
+        },
+        "frameworks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Frameworks",
+          "type": "array"
+        }
+      },
+      "title": "Compatibility",
+      "type": "object"
+    },
+    "EvidenceQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "default": "draft",
+          "enum": [
+            "draft",
+            "reviewed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "score": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "reviewed_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed By"
+        }
+      },
+      "title": "EvidenceQuality",
+      "type": "object"
+    },
+    "ExpectedEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "additionalProperties": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "title": "Targets",
+          "type": "object"
+        },
+        "status": {
+          "const": "unmeasured",
+          "default": "unmeasured",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "ExpectedEffect",
+      "type": "object"
+    },
+    "Friction": {
+      "additionalProperties": false,
+      "properties": {
+        "setup_cost": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Setup Cost",
+          "type": "number"
+        },
+        "runtime_cost": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Runtime Cost",
+          "type": "number"
+        }
+      },
+      "title": "Friction",
+      "type": "object"
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Identity",
+      "type": "object"
+    },
+    "Requirements": {
+      "additionalProperties": false,
+      "properties": {
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "software": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Software",
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Resources",
+          "type": "array"
+        }
+      },
+      "title": "Requirements",
+      "type": "object"
+    },
+    "RiskPermission": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Level",
+          "type": "number"
+        },
+        "required_permissions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Permissions",
+          "type": "array"
+        }
+      },
+      "title": "RiskPermission",
+      "type": "object"
+    },
+    "SourceMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "origin": {
+          "default": "local",
+          "enum": [
+            "local",
+            "github",
+            "registry",
+            "benchmark"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "status": {
+          "default": "draft",
+          "enum": [
+            "draft",
+            "verified",
+            "stale",
+            "deprecated",
+            "unavailable",
+            "revoked"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "verified_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified Sha"
+        },
+        "blob_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Blob Sha"
+        },
+        "content_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Sha256"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verification"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified At"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "License"
+        }
+      },
+      "title": "SourceMetadata",
+      "type": "object"
+    },
+    "TextTags": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "default": "",
+          "maxLength": 12000,
+          "title": "Text",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "title": "TextTags",
+      "type": "object"
+    },
+    "Trigger": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "default": "",
+          "maxLength": 12000,
+          "title": "Text",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Tags",
+          "type": "array"
+        },
+        "rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Rule Ids",
+          "type": "array"
+        }
+      },
+      "title": "Trigger",
+      "type": "object"
+    },
+    "RecommendationItem": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "recommendation-item-v1",
+          "default": "recommendation-item-v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity"
+        },
+        "family": {
+          "const": "hooks",
+          "type": "string"
+        },
+        "target_task": {
+          "$ref": "#/$defs/TextTags"
+        },
+        "trigger": {
+          "$ref": "#/$defs/Trigger"
+        },
+        "capability": {
+          "$ref": "#/$defs/TextTags"
+        },
+        "expected_effect": {
+          "$ref": "#/$defs/ExpectedEffect"
+        },
+        "requirements": {
+          "$ref": "#/$defs/Requirements"
+        },
+        "compatibility": {
+          "$ref": "#/$defs/Compatibility"
+        },
+        "friction": {
+          "$ref": "#/$defs/Friction"
+        },
+        "risk_permission": {
+          "$ref": "#/$defs/RiskPermission"
+        },
+        "evidence_quality": {
+          "$ref": "#/$defs/EvidenceQuality"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceMetadata"
+        },
+        "family_features": {
+          "additionalProperties": false,
+          "properties": {
+            "event": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Event"
+            },
+            "condition": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Condition"
+            },
+            "action": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action"
+            },
+            "pre_or_post": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pre",
+                    "post"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pre Or Post"
+            },
+            "blocking": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Blocking"
+            },
+            "deterministic_or_prompt": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "deterministic",
+                    "prompt"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Deterministic Or Prompt"
+            },
+            "runtime_overhead_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Runtime Overhead Ms"
+            },
+            "failure_behavior": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Failure Behavior"
+            }
+          },
+          "title": "ItemFeatures",
+          "type": "object"
+        },
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "legacy_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "skill",
+                "agent",
+                "hook",
+                "prompt"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Legacy Kind"
+        }
+      },
+      "required": [
+        "identity",
+        "family"
+      ],
+      "title": "RecommendationItem",
+      "type": "object"
+    }
+  }
+}

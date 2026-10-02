@@ -21,10 +21,9 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 
 - `main` 仅通过 PR 更新：任何人（含 `yhyfhgs`）不得直接提交、推送、强推或删除。分支从最新 `main` 创建，命名 `<type>/<简述>`（feat／fix／docs／refactor／chore）。
 - PR 标题用 `type(scope): 描述`，正文包含改动摘要、验证方式与关联 Issue。
-- 合并前须通过 Codex review（`chatgpt-codex-connector`）：
-  - 开 PR 时自动触发；此后每次推送须评论 `@codex review` 重新触发。
-  - 汇总评论为 `✅ Completed` 且 Commit 与当前 head 一致；每条意见经独立判断后修复，或在原评论下说明不采纳理由；无未解决线程。
-- merge 与 close 仅由 `yhyfhgs` 决定；其他成员与 AI 只可开 PR、推送修复、回复评论。AI 须得到 `yhyfhgs` 对该 PR 的明确指示后执行，合并使用 `gh pr merge --merge --match-head-commit <已审 SHA>`。
+- 本仓库不再要求 AI 触发、读取、等待或跟进 Codex review（`chatgpt-codex-connector`），也不将其完成状态或意见处理作为合并前置条件；本条覆盖全局指令中的 Codex review 流程。
+- 其他成员提交的 PR 由 `yhyfhgs` 统一管理；未经其明确指派，AI 不主动审查、修改、回复评论、合并或关闭这些 PR。
+- merge 与 close 仅由 `yhyfhgs` 决定。AI 须得到 `yhyfhgs` 对该 PR 的明确指示后执行，合并使用 `gh pr merge --merge --match-head-commit <当前 head SHA>`。
 - 统一使用 merge commit 保留分支提交历史，不 squash、不 rebase。
 - GitHub Free 私有仓库无法启用分支保护，上述规则依约定执行。
 
@@ -35,3 +34,17 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 - 提交前确保可运行或通过现有检查；有意提交的未完成状态须在提交信息中注明。
 - 已推送的提交不 amend、不强推，修正以新提交完成。
 - 禁止提交密钥、`.env` 与个人隐私数据。
+
+## Codex Connector
+
+- 代码位于 `packages/connectors/`，TypeScript + Node ≥24.7；使用内置 `node:sqlite` 和 `node:zlib`，不引入原生扩展依赖。
+- 提交前在该目录执行 `pnpm check`（typecheck、构造样本回归、build）。CLI 文档与 SQL / JSON Schema 是分析模块和前端接入的数据契约。
+- 来源目录只读；仅在用户明确启用来源时导入。构造或脱敏样本进仓库，真实日志、原始归档和派生数据库只放本地忽略目录。
+- 新类型须有 L1 去向；不能通过跳过未知记录或把缺失成本/状态当成 0/成功来让检查通过。
+## 数据契约包检查
+
+目标是 macOS App。Python 统一为 3.13（`.python-version`），仓库根的 `uv.lock` 管理 backend 与 `packages/data` workspace；不要新增平行 Python 锁文件。
+
+从仓库根运行 `uv sync --locked --all-packages --dev`、`uv run ruff check src tests packages/data/src packages/data/tests`、`uv run ruff format --check packages/data/src packages/data/tests`、`uv run pytest -q tests`、`uv run pytest -q packages/data/tests`、`uv build --all-packages`、`uv run tandem demo`、`uv run tandem evaluate`、`git diff --check`。涉及 staging 桥接时，先在 `packages/connectors` 执行 `pnpm check`，避免跳过桥接集成回归。
+
+数据库的权威结构是 `packages/data/src/tandem_data/migrations/`。改变 DDL 后，用 `uv run python -m tandem_data.schema_export --output src/tandem_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.tandem/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。

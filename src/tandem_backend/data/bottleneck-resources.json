@@ -1,0 +1,221 @@
+[
+  {
+    "id": "superpowers-systematic-debugging",
+    "name": "Systematic Debugging",
+    "kind": "skill",
+    "origin": "github",
+    "url": "https://github.com/obra/superpowers",
+    "source_path": "skills/systematic-debugging/SKILL.md",
+    "verified_sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+    "blob_sha": "095d194ac041502905f15b01d22d294fb94db8b2",
+    "content_sha256": "808fc5717aa88ad65efff312b11c186294d3e6ee301afb584e2f86599b137787",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02T07:29:30Z",
+    "license": "MIT",
+    "summary": "把重复试错改为复现、收集证据、单一假设和最小修复；连续修复失败后重新检查原因。",
+    "capabilities": ["debugging", "retry_control"],
+    "compatibility": {"claude_code": "manual", "codex": "manual", "generic": "manual"},
+    "effort": "medium",
+    "setup_steps": [
+      "打开固定提交中的技能文件及同目录引用材料，先审核内容；保留 MIT 署名。",
+      "在一个合成失败案例中手动引用该技能，只提供失败调用、相关文件和复现步骤。",
+      "要求记录假设与证据，再修改一个变量并执行原验收命令；需要安装时按对应 Agent 的 Superpowers 接入说明操作。"
+    ],
+    "limitations": [
+      "技能提供排错流程，不包含执行层的强制重试计数器。",
+      "权限拒绝、外部限流和缺失依赖应先归类，不能全部当成代码缺陷。",
+      "上游提供多个 Agent 的整体插件安装方式；本条只审核该技能及 README，未执行安装或验证本机兼容性。"
+    ],
+    "trial": "使用相同故障夹具和验收命令对照启用前后：统计同参数重复失败次数、首次有效验证前的调用数和实际 Token；通过率不得下降。",
+    "preview": "复现故障 → 保留调用与错误证据 → 提出一个假设 → 做最小改动 → 重跑原验收；相同失败再次出现时补充证据，避免直接重发调用。",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "superpowers-verification-before-completion",
+    "name": "Verification Before Completion",
+    "kind": "skill",
+    "origin": "github",
+    "url": "https://github.com/obra/superpowers",
+    "source_path": "skills/verification-before-completion/SKILL.md",
+    "verified_sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+    "blob_sha": "7d45333cc4a49c57a80df6c1fe2fa777a207afbc",
+    "content_sha256": "2befe7fc55bcadaa3d97dd9e8efeb633d2561c0ebe74c5a8b17c4d9e7e4520b3",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02T07:29:31Z",
+    "license": "MIT",
+    "summary": "在报告完成前，用实际命令输出支持测试、构建和需求符合性的结论。",
+    "capabilities": ["verification", "validation_visibility"],
+    "compatibility": {"claude_code": "manual", "codex": "manual", "generic": "manual"},
+    "effort": "low",
+    "setup_steps": [
+      "审核固定版本的技能，并选一个已有明确验收命令的合成任务。",
+      "在任务开始时给出验收项、测试范围与产物版本，在收尾阶段手动引用该技能。",
+      "保存真实退出状态与输出证据；只对实际验证覆盖的部分给出通过结论。"
+    ],
+    "limitations": [
+      "不能补造日志中缺失的验证结果；没有验收标准时仍需先定义标准。",
+      "技能不会自动把测试输出写成 Tandem 的 validation_runs 输入，需要生产者接入。",
+      "不应仅因日志缺少验证记录就认定 Agent 没有执行验证；先检查数据覆盖。"
+    ],
+    "trial": "对同一任务版本和验收清单，对比有证据的验收项覆盖率、未知结果数、返工次数及新增验证耗时；不把更多测试调用本身当成改善。",
+    "preview": "逐项列出验收项、验证命令、目标版本、实际结果和证据 ID；未执行、范围不匹配或结果未知的项目保留未知。",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "superpowers-writing-plans",
+    "name": "Writing Plans",
+    "kind": "skill",
+    "origin": "github",
+    "url": "https://github.com/obra/superpowers",
+    "source_path": "skills/writing-plans/SKILL.md",
+    "verified_sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+    "blob_sha": "4cf0275d88d67aa4ef09f4bbca9970ed6ff74a00",
+    "content_sha256": "a6c67c1900064347c2a329990dd3c555657c51c3ec53b259a08aa01a2c26139a",
+    "verification": "repository_and_skill_read",
+    "verified_at": "2026-10-02T07:29:33Z",
+    "license": "MIT",
+    "summary": "把多步骤需求分成边界明确、能独立验证的任务，记录文件职责、接口、约束和检查方法。",
+    "capabilities": ["scope_alignment", "requirements_memory", "context_budget"],
+    "compatibility": {"claude_code": "manual", "codex": "manual", "generic": "manual"},
+    "effort": "medium",
+    "setup_steps": [
+      "先确认已有需求与不做的范围，再审核固定版本的规划技能。",
+      "在一个多步骤合成任务上手动引用，要求计划明确输入、输出、改动文件与验收方式。",
+      "按任务提供相关上下文并保留决策记录；开始实施前检查任务之间的接口是否一致。"
+    ],
+    "limitations": [
+      "简单的一步修改不适合引入完整规划流程。",
+      "计划与独立审查会增加 Token 和耗时；是否节省需要同任务对照，不能由 Token 高直接判定适用。",
+      "资源并不提供自动压缩或缓存实现；context_budget 仅表示明确任务边界、减少无关上下文的使用方式。"
+    ],
+    "trial": "对照相同多步骤任务的重复要求次数、确认纠偏率、输入 Token、总 Token 和验收通过情况；额外规划成本计入总成本。",
+    "preview": "每个任务只记录目标、必要背景、输入输出、允许修改的文件和完成证据；公共约束写一处，执行阶段按需读取。",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "superpowers-code-reviewer-agent",
+    "name": "Code Reviewer Agent Template",
+    "kind": "agent",
+    "origin": "github",
+    "url": "https://github.com/obra/superpowers",
+    "source_path": "skills/requesting-code-review/code-reviewer.md",
+    "verified_sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+    "blob_sha": "6d358b5d7d450c83cacbe450b7dbd4e673b694ad",
+    "content_sha256": "82e370be6b3447523816286195571e4216ba56ba1ad6ad0e87862294c4c78dcb",
+    "verification": "repository_and_source_read",
+    "verified_at": "2026-10-02T07:29:34Z",
+    "license": "MIT",
+    "summary": "给独立审查角色提供明确需求、提交范围和只读约束，核对实现与证据并按实际严重性报告问题。",
+    "capabilities": ["verification", "validation_visibility", "scope_alignment"],
+    "compatibility": {"claude_code": "manual", "codex": "manual", "generic": "adaptation_required"},
+    "effort": "medium",
+    "setup_steps": [
+      "审核固定版本的角色模板，填入需求、实现摘要与已存在的 base/head 提交。",
+      "在支持子代理的宿主中手动建立只读审查任务，仅提供该任务需要的文件和验证证据。",
+      "核实审查发现的代码位置与触发条件，记录处理结论；无子代理支持时改用单独的人工审查会话。"
+    ],
+    "limitations": [
+      "这是角色提示模板，不是独立 Agent 程序，也不是可直接安装的 Codex 或 Claude Code 配置文件。",
+      "独立审查会增加模型调用；只应在实际验证失败、验收遗漏或需求偏离证据出现时试用。",
+      "审查意见不能替代实际测试，也不能自动授权提交、合并或发布。"
+    ],
+    "trial": "使用相同 diff、验收项和已知缺陷夹具，对比有效缺陷检出、误报和漏报，并统计新增 Token 与审查耗时；用户指定的 P0/P1 阻断范围保持一致。",
+    "preview": "只读输入：需求、diff、目标版本、验证证据。输出：可复现问题、文件位置、影响、严重性与证据缺口；不自动修改代码或合并。",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "spec-kit-clarify-prompt",
+    "name": "Spec Kit Clarify",
+    "kind": "prompt",
+    "origin": "github",
+    "url": "https://github.com/github/spec-kit",
+    "source_path": "templates/commands/clarify.md",
+    "verified_sha": "838f1184d1b2ed254a99e8b818dbc23aa80a7f1f",
+    "blob_sha": "f48d8bd703d7eb3fe4eadf2d3d283ca508e6bb80",
+    "content_sha256": "5260d798c5671deb9ac7e59d6ffdb69b30c26fb28878d3cc25e30fb71cacc734",
+    "verification": "repository_and_source_read",
+    "verified_at": "2026-10-02T07:29:36Z",
+    "license": "MIT",
+    "summary": "从已有需求中挑选真正影响实施或验收的缺口，提出有限的澄清问题并把答案写回规格。",
+    "capabilities": ["scope_alignment", "requirements_memory"],
+    "compatibility": {"claude_code": "manual", "codex": "manual", "generic": "adaptation_required"},
+    "effort": "medium",
+    "setup_steps": [
+      "审核固定版本的命令模板；先准备一个已有规格的合成任务。",
+      "已有 Spec Kit 的项目可通过其 Claude Code 或 Codex 集成调用 clarify；独立使用时需替换脚本占位符、规格路径和命令名称。",
+      "仅询问会改变任务范围或验收的未知项，把已确认答案保存到原规格，检查旧说明是否矛盾。"
+    ],
+    "limitations": [
+      "原始模板依赖 Spec Kit 的目录、脚本和占位符，不能直接当成已展开的独立命令。",
+      "需求已经明确、用户已回答或仅发生工具错误时，不应反复要求澄清。",
+      "Spec Kit 会检查项目扩展 hooks；试用前需阅读扩展配置，来源审核不等于授权执行其中的命令。"
+    ],
+    "trial": "使用相同歧义需求和目标验收，对比后续确认纠偏率、重复要求数及澄清轮数；新增问题成本计入互动和 Token 总量。",
+    "preview": "列出目标、范围、验收和仍缺少的决策；只询问影响实施的缺口；把答案更新到统一规格，避免在下一轮重复询问。",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "spec-kit-checklist-prompt",
+    "name": "Spec Kit Requirements Checklist",
+    "kind": "prompt",
+    "origin": "github",
+    "url": "https://github.com/github/spec-kit",
+    "source_path": "templates/commands/checklist.md",
+    "verified_sha": "838f1184d1b2ed254a99e8b818dbc23aa80a7f1f",
+    "blob_sha": "6e33f5d4225c539fa1c3860e5409f098a6a8d827",
+    "content_sha256": "1192784f378fb977b408b72ca1bfb8fc55e129519f3f44bc5d0a7e152c480654",
+    "verification": "repository_and_source_read",
+    "verified_at": "2026-10-02T07:29:38Z",
+    "license": "MIT",
+    "summary": "检查需求是否完整、可衡量、相互一致且有验收依据，为后续客观验证补齐规格。",
+    "capabilities": ["scope_alignment", "requirements_memory"],
+    "compatibility": {"claude_code": "manual", "codex": "manual", "generic": "adaptation_required"},
+    "effort": "medium",
+    "setup_steps": [
+      "审核固定版本模板，提供当前规格和需要重点检查的范围。",
+      "通过已配置的 Spec Kit 集成调用 checklist，或先适配其路径、脚本与模板占位符后手动使用。",
+      "逐项确认需求是否具有明确对象、边界和可测标准；把认可的标准另行映射到实际验证任务。"
+    ],
+    "limitations": [
+      "该清单检查需求写法，明确不检查实现是否通过；勾选项绝不能直接计入 outcome 的已通过验证。",
+      "规格缺失时应先形成规格；日志采集缺失也不能靠本清单修复。",
+      "原模板依赖 Spec Kit 脚本、目录和扩展机制，需要项目接入或手工适配。"
+    ],
+    "trial": "对照同一需求中可测验收标准的缺失与冲突数，以及后续因验收不清导致的确认纠偏；实际验证通过率单独记录。",
+    "preview": "按需求 ID 检查对象、预期行为、边界条件与可测标准是否齐全；清单通过表示需求清楚，不能表示程序已经通过测试。",
+    "effect_status": "unmeasured"
+  },
+  {
+    "id": "claude-sdk-tool-hooks-example",
+    "name": "Claude Agent SDK Tool Hooks Example",
+    "kind": "hook",
+    "origin": "github",
+    "url": "https://github.com/anthropics/claude-agent-sdk-python",
+    "source_path": "examples/hooks.py",
+    "verified_sha": "bfb895c6ef46e095191938b4eda798a025957c09",
+    "blob_sha": "a8001d4dbecfed3778b9b0d8c87a07679fdf596d",
+    "content_sha256": "de7d454a698d4f1e59e01ff13bfb18625e16091e3a639066e35ee5bbd7caa5d5",
+    "verification": "repository_and_source_read",
+    "verified_at": "2026-10-02T07:29:39Z",
+    "license": "MIT",
+    "summary": "展示工具执行前校验和执行后反馈、中止的 Python 回调接口，可用于实现经过项目适配的调用保护。",
+    "capabilities": ["tool_preflight", "retry_control"],
+    "compatibility": {"claude_code": "adaptation_required", "codex": "adaptation_required", "generic": "adaptation_required"},
+    "effort": "high",
+    "setup_steps": [
+      "阅读固定版本的 hooks 示例和 SDK README；只选需要的回调形式，不直接运行整份演示。",
+      "在隔离测试程序中提供合成 HookInput，先验证允许、提醒和中止三种返回结果。",
+      "接入项目的结构化失败状态、任务 ID 与参数摘要，并自行实现重试预算和去重状态；先以仅提示模式观察误拦截。",
+      "Claude Agent SDK 通过 ClaudeAgentOptions 配置回调；Claude Code 设置文件和 Codex 的接入方式需单独适配，之后再在测试任务中启用阻断。"
+    ],
+    "limitations": [
+      "此文件是 SDK 示例，不是可直接安装的 Claude Code 或 Codex Hook；也没有完整的状态化重复失败限制。",
+      "示例用输出中的 error 或 critical 字样演示流程，不能把这种字符串命中作为可靠失败判定，适配时必须使用结构化状态。",
+      "示例会实际启动 Agent、执行工具并包含写文件演示；试用应选择隔离回调测试，不能直接运行全部示例。",
+      "源码 LICENSE 为 MIT；调用 Claude 服务仍受其服务条款和使用权限约束。"
+    ],
+    "trial": "固定工具输入、失败返回和验收目标，对比同参数重复失败数、拦截误报数、未知状态处理和总调用成本；合法调用与正常恢复必须保持可用。",
+    "preview": "以任务、工具和参数摘要关联调用；只对已确认失败累计重试；达到项目设定上限时给出证据并停止同样尝试；未知状态仅提示，不猜测失败。",
+    "effect_status": "unmeasured"
+  }
+]

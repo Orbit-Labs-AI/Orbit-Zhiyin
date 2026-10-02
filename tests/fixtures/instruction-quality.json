@@ -1,0 +1,369 @@
+[
+  {
+    "id": "plan-approval",
+    "text": "先给方案，等我确认后再改文件",
+    "expected": {
+      "requested_autonomy": [
+        "ask_first"
+      ],
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "english-approval",
+    "text": "Please ask me before editing",
+    "expected": {
+      "requested_autonomy": [
+        "ask_first"
+      ]
+    }
+  },
+  {
+    "id": "autonomous",
+    "text": "你可以自主完成任务，无需确认",
+    "expected": {
+      "requested_autonomy": [
+        "explicit"
+      ]
+    }
+  },
+  {
+    "id": "execute",
+    "text": "直接执行",
+    "expected": {
+      "requested_autonomy": [
+        "explicit"
+      ],
+      "execution_order": [
+        "execute_first"
+      ]
+    }
+  },
+  {
+    "id": "discuss",
+    "text": "先讨论实现方式",
+    "expected": {
+      "execution_order": [
+        "discuss_first"
+      ]
+    }
+  },
+  {
+    "id": "limited-file",
+    "text": "只修改 `src/a.py`",
+    "expected": {
+      "requested_autonomy": [
+        "scoped"
+      ],
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "allow-file",
+    "text": "现在允许修改 a.py",
+    "expected": {
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "test-request",
+    "text": "请运行 pytest 并报告结果",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "english-tests",
+    "text": "Run unit tests and report the result",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "no-test",
+    "text": "不要运行测试",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "english-no-test",
+    "text": "Do not run tests",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "acceptance",
+    "text": "验收标准：全部测试通过且零 lint 错误",
+    "expected": {
+      "acceptance_criteria": [
+        "criterion"
+      ]
+    }
+  },
+  {
+    "id": "english-acceptance",
+    "text": "Acceptance criteria: all tests pass",
+    "expected": {
+      "acceptance_criteria": [
+        "criterion"
+      ]
+    }
+  },
+  {
+    "id": "format",
+    "text": "请用 JSON 输出",
+    "expected": {
+      "format_requirements": [
+        "format"
+      ]
+    }
+  },
+  {
+    "id": "tool",
+    "text": "使用 pytest",
+    "expected": {
+      "tool_requirements": [
+        "tool"
+      ]
+    }
+  },
+  {
+    "id": "hello",
+    "text": "你好",
+    "expected": {}
+  },
+  {
+    "id": "quote",
+    "text": "示例中写有“不要运行测试”",
+    "expected": {}
+  },
+  {
+    "id": "blockquote",
+    "text": "> 不要运行测试\n\n请继续",
+    "expected": {}
+  },
+  {
+    "id": "fence",
+    "text": "```text\n不要运行测试\n```\n继续",
+    "expected": {}
+  },
+  {
+    "id": "inline-example",
+    "text": "`不要运行测试`",
+    "expected": {}
+  },
+  {
+    "id": "example",
+    "text": "例如：先给方案",
+    "expected": {}
+  },
+  {
+    "id": "report",
+    "text": "他说不要运行测试",
+    "expected": {}
+  },
+  {
+    "id": "log",
+    "text": "日志中记录了先给方案",
+    "expected": {}
+  },
+  {
+    "id": "history",
+    "text": "我昨天要求先给方案",
+    "expected": {}
+  },
+  {
+    "id": "metadata",
+    "text": "<environment_context>\n不要测试\n</environment_context>",
+    "expected": {}
+  },
+  {
+    "id": "assistant-question",
+    "text": "<send_user_message_question_reply>[{\"question\":\"不要测试?\",\"answer\":\"好的\"}]</send_user_message_question_reply>",
+    "expected": {}
+  },
+  {
+    "id": "not-required",
+    "text": "无需运行测试",
+    "expected": {}
+  },
+  {
+    "id": "not-autonomy",
+    "text": "不要直接执行",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "hypothetical",
+    "text": "如果失败，直接执行修复",
+    "expected": {
+      "execution_order": [
+        "execute_first"
+      ]
+    }
+  },
+  {
+    "id": "tool-negative",
+    "text": "不要使用 pytest",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "format-negative",
+    "text": "不要输出为 JSON",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "conditional-allow",
+    "text": "如果测试通过，允许修改 a.py",
+    "expected": {
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "english-plan",
+    "text": "Plan first",
+    "expected": {
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "english-scope",
+    "text": "Only edit a.py",
+    "expected": {
+      "requested_autonomy": [
+        "scoped"
+      ],
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "english-explicit",
+    "text": "Proceed autonomously",
+    "expected": {
+      "requested_autonomy": [
+        "explicit"
+      ]
+    }
+  },
+  {
+    "id": "quotation-only",
+    "text": "\"Do not run tests\"",
+    "expected": {}
+  },
+  {
+    "id": "english-habit",
+    "text": "We run tests every day",
+    "expected": {}
+  },
+  {
+    "id": "program-behavior",
+    "text": "程序会运行测试",
+    "expected": {}
+  },
+  {
+    "id": "past-check",
+    "text": "昨天运行了测试",
+    "expected": {}
+  },
+  {
+    "id": "explain-phrase",
+    "text": "请解释先给方案是什么意思",
+    "expected": {}
+  },
+  {
+    "id": "separate-polarity",
+    "text": "不要推送，请运行测试",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ],
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "negated-order",
+    "text": "不要先给方案",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "unneeded-test",
+    "text": "不需要运行测试",
+    "expected": {}
+  },
+  {
+    "id": "negative-autonomy",
+    "text": "Do not proceed autonomously",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "single-quote",
+    "text": "'Proceed autonomously' is a quote",
+    "expected": {}
+  },
+  {
+    "id": "statement-autonomy",
+    "text": "程序无需确认",
+    "expected": {}
+  },
+  {
+    "id": "english-please-test",
+    "text": "Please run tests",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "verify-after-change",
+    "text": "修改后请运行测试",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  }
+]
