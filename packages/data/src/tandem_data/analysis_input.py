@@ -22,6 +22,7 @@ class AnalysisScope:
     root_session_uids: tuple[str, ...] | None = None
     excluded_session_uids: tuple[str, ...] = ()
     include_children: bool = True
+    source_ids: tuple[str, ...] | None = None
 
     def __post_init__(self):
         ZoneInfo(self.display_timezone)
@@ -91,6 +92,11 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             params["roots"] = json.dumps(scope.root_session_uids)
         if not scope.include_children:
             allowed.append("session_uid=root_uid")
+        if scope.source_ids is not None:
+            allowed.append(
+                "session_uid IN (SELECT session_uid FROM session WHERE source_id IN (SELECT value FROM json_each(:sources)))"
+            )
+            params["sources"] = json.dumps(scope.source_ids)
         members_sql = list(allowed)
         for field, values in (("project_id", scope.project_ids), ("effort_raw", scope.effort_raw)):
             if values is not None:

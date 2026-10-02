@@ -42,6 +42,7 @@ class Scope:
     include_children: bool = True
     scene: str | None = None
     legacy_project_ids: list[str] | None = None
+    source_ids: list[str] | None = None
 
     def __post_init__(self):
         try:
@@ -266,6 +267,8 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
             reason = "children_disabled"
         elif scope.root_session_uids is not None and root not in scope.root_session_uids:
             reason = "root_filter"
+        elif scope.source_ids is not None and s.get("source_id") not in scope.source_ids:
+            reason = "source_filter"
         elif scope.project_ids is not None and s.get("project_id") not in scope.project_ids:
             reason = "project_filter"
         elif scope.legacy_project_ids is not None and s.get("legacy_project_id") not in scope.legacy_project_ids:
@@ -382,6 +385,9 @@ def select_canonical(bundle, scope):
     """Honor the data layer's scoped membership; linked context is never counted twice."""
     ids = set(bundle.statistical_members["event_uids"])
     events = bundle.events or []
+    if scope.source_ids is not None:
+        source_sessions = {s["session_uid"] for s in bundle.sessions if s.get("source_id") in scope.source_ids}
+        ids &= {e["event_uid"] for e in events if e["session_uid"] in source_sessions}
     if scope.scene:
         humans = [Event(e["event_uid"], e["session_uid"], e["seq"], "user_message", None,
                         text=e.get("text") or "", details=e["attrs"])
@@ -397,6 +403,11 @@ def select_canonical(bundle, scope):
     members = [e for e in events if e["event_uid"] in ids]
     calls = None if bundle.tool_calls is None else [c for c in bundle.tool_calls
             if c.get("call_event_uid") in ids or c.get("result_event_uid") in ids]
+    # L3 calls reference L2 events; native seq belongs to those events, not timestamps.
+    positions = {(e["session_uid"], e["event_uid"]): e["seq"] for e in events}
+    if calls is not None:
+        calls = [{**c, "seq": positions.get((c["session_uid"], c.get("call_event_uid"))),
+                  "result_seq": positions.get((c["session_uid"], c.get("result_event_uid")))} for c in calls]
     models = None if bundle.model_calls is None else [c for c in bundle.model_calls if c["usage_event_uid"] in ids]
     visible = {e["session_uid"] for e in members}
     roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}
