@@ -123,6 +123,7 @@ test('A2: code, axes and evidence equal /v1/uiview/persona; months from LASTDAY 
 });
 
 test('A2 reveal: unsettled code names the closest candidates; a settled one plays the compass + genesis reveal', async ({ page }) => {
+  test.skip(!!PASS, 'stubbed answers (gw.set / 404s) only');
   const errors = collectErrors(page);
   const gw = await stubGateway(page, 's1', routes());
   await openLive(page, 'persona');
@@ -173,6 +174,7 @@ test('Lite: home, persona, sessions and recs run on the real agents; persona mon
 });
 
 test('empty spine and missing endpoints: owned routes render honest empty states, zero page errors', async ({ page }) => {
+  test.skip(!!PASS, 'stubbed answers (gw.set / 404s) only');
   const errors = collectErrors(page);
   await stubGateway(page, ['core', 's1'], {
     'GET /v1/uiview/facts': fx('core/facts-empty.json'), 'GET /v1/uiview/overview': { status: 404 }, 'GET /v1/uiview/persona': { status: 404 }, 'GET /v1/uiview/persona/reveal': { status: 404 }
