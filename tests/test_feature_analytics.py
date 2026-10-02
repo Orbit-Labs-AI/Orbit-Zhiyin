@@ -153,6 +153,20 @@ def test_retry_requires_digest_identity_and_status_scope():
     assert workflow([], cs, set())["confirmed_same_argument_failed_retries"] is None
 
 
+def test_canonical_tool_sequence_and_supplements_come_from_l2_not_uid_or_clock():
+    es = [event("z", 0, "tool.call", ts=900, argument_digest="same"),
+          event("rz", 1, "tool.result", ts=901, status_scope="command_return"),
+          event("a", 2, "tool.call", ts=100, argument_digest="same"),
+          event("ra", 3, "tool.result", ts=101, status_scope="command_return")]
+    cs = [call("a"), call("z")]
+    for c in cs:
+        del c["seq"]
+    r = analyze_bundle(bundle(es, cs), with_text=False)
+    assert r["workflow"]["confirmed_same_argument_failed_retries"] == 1
+    selected = sorted(r["sessions"][0]["tool_sequence"], key=lambda c: c["seq"])
+    assert [c["call_uid"] for c in selected] == ["z", "a"]
+
+
 def test_half_open_time_filter_and_calendar_unknowns():
     b = bundle([event("a", 0, ts=100), event("b", 1, ts=200), event("c", 2, ts=300), event("d", 3, ts=None)])
     r = analyze_bundle(b, Scope(from_ts=100, until_ts=300, display_timezone="Asia/Shanghai"), with_text=False)
@@ -168,6 +182,9 @@ def test_future_tool_result_does_not_leak_into_snapshot():
                [call(started_at=100, ended_at=400, duration_ms=300)])
     r = analyze_bundle(b, Scope(until_ts=300), with_text=False)
     assert r["tools"]["totals"]["paired_result_count"] == 0
+    assert r["tools"]["totals"]["known_failure_count"] == 0
+    b.tool_calls[0]["failed_command_results"] = 1
+    r = analyze_bundle(b, Scope(until_ts=300), with_text=False)
     assert r["tools"]["totals"]["known_failure_count"] == 0
 
 

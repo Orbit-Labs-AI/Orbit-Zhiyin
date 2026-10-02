@@ -47,6 +47,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         data["usage"] = usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in included],
                               root_events, [p for p in sessions if p["session_uid"] in included], scope, complete_models)
         data["tools"] = tool_summary(root_calls, bundle.coverage.get("tool_calls", {}).get("status", "partial"))
+        if root_calls == [] and data["tools"]["status"] != "available":
+            data["features"]["tool_call_count"] = None
         data["coverage"] = meta["coverage"]
         row = {**s, **data, "included_session_uids": sorted(included), "cluster_id": None,
                "novelty": None, "embedding_x": None, "embedding_y": None}
@@ -108,6 +110,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
     correction_terms = Counter(term for r in rows for signal in r["correction_signals"] for term in signal["terms"])
     text["correction_terms"] = dict(correction_terms)
     if bundle.events is None:
+        meta["coverage"]["human_origin"] = {"status": "unavailable", "rows": None, "unknown_rows": None}
         counts.update(events=None, human_messages=None, turns=None, correction_signals=None)
         for row in rows:
             for key in row["features"]:
@@ -127,7 +130,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "overview": {"counts": counts, "usage": all_usage, "activity_rhythm": rhythm,
                          "top_tools": (all_tools["by_tool"] or [])[:10] if all_tools["by_tool"] is not None else None,
                          "top_languages": [{"language": k, "count": n, "basis": "file_extension_in_human_text"}
-                                           for k, n in languages.most_common()] if human_count or not unknown_origin else None},
+                                           for k, n in languages.most_common()] if bundle.events is not None and (human_count or not unknown_origin) else None},
             "sessions": rows, "tools": {**all_tools, "transitions": all_workflow["transitions"]},
             "workflow": all_workflow, "projects": projects, "text": text,
             "limitations": ["日志跨度不是实际工作时长", "词面纠偏和结构约束只是代理信号",

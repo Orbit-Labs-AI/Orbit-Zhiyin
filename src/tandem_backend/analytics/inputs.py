@@ -296,17 +296,30 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         if not selected:
             continue
         c = dict(c)
+        if event:
+            c["seq"] = event["seq"]
+            for key in ("argument_digest", "command_head", "files"):
+                if c.get(key) is None and event.get("attrs", {}).get(key) is not None:
+                    c[key] = event["attrs"][key]
         result = lookup.get(c.get("result_event_uid"))
+        if result:
+            for key in ("status_scope", "known_command_results", "failed_command_results", "unknown_return_values"):
+                if c.get(key) is None and result.get("attrs", {}).get(key) is not None:
+                    c[key] = result["attrs"][key]
         # Future dated results cannot leak into an earlier snapshot. Unknown-time
         # linked results can support status/duration, never calendar membership.
         end = c.get("ended_at")
         future = scope.until_ts is not None and ((end is not None and end >= scope.until_ts)
                     or (result and result.get("ts") is not None and result["ts"] >= scope.until_ts))
         if future:
-            for key in ("result_event_uid", "status", "duration_ms", "ended_at", "status_scope"):
+            for key in ("result_event_uid", "status", "duration_ms", "ended_at", "status_scope",
+                        "known_command_results", "failed_command_results", "unknown_return_values",
+                        "exit_code", "error_class", "approval_wait_ms"):
                 c[key] = None
             c.update(duration_quality="missing", duration_source=None, interval_reliable=False)
         calls.append(c)
+    if calls is not None:
+        calls.sort(key=lambda c: (c["session_uid"], c.get("seq", 0), c["call_uid"]))
     visible_ids = {e["session_uid"] for e in members} | {c["session_uid"] for c in (model_calls or [])}
     bounded = scope.from_ts is not None or scope.until_ts is not None or model_filter or scope.scene
     if bounded:
