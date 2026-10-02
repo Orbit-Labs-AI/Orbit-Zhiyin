@@ -320,7 +320,7 @@ def parent_alive(parent: int) -> bool:
 def _watch_parent(parent: int, server) -> None:
     while not server.should_exit:
         if not parent_alive(parent):
-            server.should_exit = True
+            server.handle_exit(None, None)
             return
         time.sleep(1)
 
@@ -338,10 +338,17 @@ def run_gateway(home: Path, *, port: int = 0, host: str = "127.0.0.1") -> int:
     sock.bind((host, port))
     sock.listen(128)
     bound = sock.getsockname()[1]
-    app = create_gateway(home, token, port=bound)
+    gateway = Gateway(home)
+    app = gateway.app(token=token, port=bound)
     config = uvicorn.Config(app, log_level="warning", access_log=False, lifespan="on",
                             timeout_graceful_shutdown=3)
-    server = uvicorn.Server(config)
+
+    class Server(uvicorn.Server):
+        def handle_exit(self, sig, frame):
+            gateway.bus.close()  # End SSE streams so graceful shutdown does not wait on them.
+            super().handle_exit(sig, frame)
+
+    server = Server(config)
     parent = os.environ.get(PARENT_ENV)
     if parent:
         threading.Thread(target=_watch_parent, args=(int(parent), server), daemon=True,

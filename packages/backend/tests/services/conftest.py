@@ -96,6 +96,7 @@ class LiveServer:
         return self
 
     def __exit__(self, *_):
+        self.gateway.bus.close()  # Let open SSE streams finish before shutdown.
         self.server.should_exit = True
         self.thread.join(15)
 

@@ -202,10 +202,13 @@ class AppState:
 class JobService:
     """Validates, records and dispatches jobs; reacts to runner callbacks; publishes SSE."""
 
-    def __init__(self, state: AppState, runner: JobRunner, publish: Callable[..., int]):
+    def __init__(self, state: AppState, runner: JobRunner, publish: Callable[..., int],
+                 progress_interval_s: float = 0.25):
         self.state = state
         self.runner = runner
         self.publish = publish
+        self.progress_interval_s = progress_interval_s
+        self.progress_sent: dict[str, tuple[tuple, float]] = {}
 
     def _event(self, job: dict) -> None:
         self.publish("job", "job", {k: job.get(k) for k in (
@@ -247,6 +250,17 @@ class JobService:
     def progress(self, job_id: str, progress: dict, phase: str | None = None) -> None:
         job = self.state.update(job_id, progress=progress, throttle_s=0.5,
                                 **({"current_phase": phase} if phase else {}))
+        # Coalesce: per-file progress would flood the 1000-frame SSE buffer. Stage or phase
+        # changes and completion always go out; otherwise at most one frame per interval.
+        marker = (progress.get("stage"), phase)
+        last = self.progress_sent.get(job_id)
+        now = time.monotonic()
+        final = progress.get("total") is not None and progress.get("completed") == progress.get(
+            "total")
+        if last is not None and last[0] == marker and not final and (
+                now - last[1] < self.progress_interval_s):
+            return
+        self.progress_sent[job_id] = (marker, now)
         self.publish("job", "job", {"id": job_id, "kind": job["kind"], "status": job["status"],
                                     "progress": progress, "phase": phase})
 
@@ -259,6 +273,7 @@ class JobService:
                 job["published"] = [*job.get("published", []), entry]
 
     def finished(self, job_id: str, status: str, results: list, error: dict | None) -> None:
+        self.progress_sent.pop(job_id, None)
         job = self.state.job(job_id)
         if job["status"] not in ACTIVE:
             return
@@ -275,6 +290,7 @@ class JobService:
                 self.state.save()
 
     def interrupted(self, job_id: str, code: str, message: str) -> None:
+        self.progress_sent.pop(job_id, None)
         job = self.state.job(job_id)
         if job["status"] not in ACTIVE:
             return
