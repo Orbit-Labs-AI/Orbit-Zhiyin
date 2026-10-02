@@ -18,16 +18,19 @@ test('the sidebar switch swaps editions, maps the route and persists', async ({ 
   // same sidebar components as Advance: groups, Agents list, footer
   await expect(page.locator('#side .sect')).toHaveCount(3);
   await expect(page.locator('#side .nav .ag')).toHaveCount(5);
-  await expect(page.locator('#side .sb-foot .pv')).toBeVisible();
+  await expect(page.locator('#side .sb-foot .pv')).toHaveCount(1);
   await page.keyboard.press('Alt+Digit4');
   await expect.poll(() => ed(page)).toEqual(['lite', 'l-recs']);
-  // a link into an Advance-only route lands on the closest Lite page
-  await page.evaluate(() => go('tools'));
-  await expect.poll(() => ed(page)).toEqual(['lite', 'l-home']);
   await page.reload();
-  await expect.poll(() => ed(page)).toEqual(['lite', 'l-home']);
+  await expect.poll(() => ed(page)).toEqual(['lite', 'l-recs']);
   await page.keyboard.press('Control+Meta+KeyL');
-  await expect.poll(() => ed(page)).toEqual(['advance', 'overview']);
+  await expect.poll(() => ed(page)).toEqual(['advance', 'recs']);
+  await page.keyboard.press('Control+Meta+KeyL');
+  await expect.poll(() => ed(page)).toEqual(['lite', 'l-recs']);
+  // a link into an Advance-only page is a request for detail: it switches to Advance and offers the way back
+  await page.evaluate(() => go('tools'));
+  await expect.poll(() => ed(page)).toEqual(['advance', 'tools']);
+  await expect(page.locator('#toast')).toContainText('Advance');
   await expect(page.locator('#win')).toHaveAttribute('data-ed', 'advance');
   expect(errors).toEqual([]);
 });

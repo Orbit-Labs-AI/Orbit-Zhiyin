@@ -38,7 +38,7 @@
 //                      the toast undo countdown ticks; the menu-bar badge changes shape / colour per state and pulses while
 //                      running; the switch knob slides; the window scales away on close; the HUD drag shows six snap points,
 //                      ⌥-release places it freely, the expanded card grows away from the anchor, the timer / tool name tick;
-//                      the reveal runs its 3s storyboard; onboarding step 3 appears line by line (obRun).
+//                      the reveal runs its ~5s Genesis storyboard; onboarding step 3 appears line by line (Genesis facts).
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
@@ -460,14 +460,14 @@ test('motion inventory: the published effects plus the shell additions are wired
   await expect.poll(async () => (await box(page, '#hudPill')).y).toBe(MB + 8);
   await page.clock.runFor(500); await expect(page.locator('#notes .nt')).toHaveCount(0);
   await page.evaluate(() => { S.hud.user = false; renderHud(); });
-  // reveal storyboard: five stage labels over ~3s; pet grows, code fades in
+  // reveal storyboard (Genesis 2–5, ~4.9s): five stage labels at 0 / 0.7 / 1.8 / 3.1 / 4.9 s; pet (radar) grows, code fades in
   await page.evaluate(() => openReveal());
   await expect(page.locator('#revStage')).toContainText('01 /');
-  await page.clock.runFor(700); await expect(page.locator('#revStage')).toContainText('02 /');
-  await page.clock.runFor(800); await expect(page.locator('#revStage')).toContainText('03 /');
-  await page.clock.runFor(800); await expect(page.locator('#revStage')).toContainText('04 /');
+  await page.clock.runFor(750); await expect(page.locator('#revStage')).toContainText('02 /');
+  await page.clock.runFor(1150); await expect(page.locator('#revStage')).toContainText('03 /');
+  await page.clock.runFor(1300); await expect(page.locator('#revStage')).toContainText('04 /');
   expect(await anim('.reveal .pet')).toBe('grow'); expect(await anim('.reveal .code')).toBe('fadein');
-  await page.clock.runFor(900); await expect(page.locator('#revStage')).toContainText('05 /');
+  await page.clock.runFor(1800); await expect(page.locator('#revStage')).toContainText('05 /');
   await page.evaluate(() => { closeOverlay(); render(); });
   // reduced motion: the sheet entrance collapses to ~0ms
   await page.emulateMedia({ reducedMotion: 'reduce' });

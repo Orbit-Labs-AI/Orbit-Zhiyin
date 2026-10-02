@@ -30,7 +30,8 @@ test('mute expiration honors thirty minutes and manual overrides', async ({ page
   test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
   const time = new Date('2026-10-02T04:00:00Z');
   await page.clock.install({ time });
-  await page.clock.pauseAt(time);
+  // pause a second later: the installed clock may already have ticked past `time`, and pauseAt never moves backwards
+  await page.clock.pauseAt(new Date(time.getTime() + 1000));
   const errors = await openDemo(page);
   const muted = () => page.evaluate(() => S.hud.mute);
   await page.evaluate(() => ACT.hudMute());

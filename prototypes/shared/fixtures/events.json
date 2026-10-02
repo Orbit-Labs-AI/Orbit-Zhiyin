@@ -1,0 +1,51 @@
+{
+  "comment": "SSE frames for the fixture gateway; each item becomes id / event / data lines",
+  "frames": [
+    {
+      "id": "1",
+      "event": "service",
+      "data": {
+        "name": "gateway",
+        "state": "ok"
+      }
+    },
+    {
+      "id": "2",
+      "event": "job",
+      "data": {
+        "id": "job-1",
+        "kind": "import",
+        "status": "running",
+        "phase": "window",
+        "progress": {
+          "stage": "写入批次",
+          "completed": 40,
+          "total": 128
+        }
+      }
+    },
+    {
+      "id": "3",
+      "event": "data.published",
+      "data": {
+        "data_rev": 43,
+        "phase": "window",
+        "counts": {
+          "sessions": 128
+        },
+        "sources": [
+          "src-claude"
+        ]
+      }
+    },
+    {
+      "id": "4",
+      "event": "analysis.ready",
+      "data": {
+        "section": "overview",
+        "scope_hash": "sha256:fx-overview",
+        "rev": 43
+      }
+    }
+  ]
+}

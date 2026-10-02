@@ -36,19 +36,11 @@
 .toast-in button:hover{background:var(--field)}
 .tip{position:fixed;z-index:130;pointer-events:none;max-width:280px;background:var(--tip);color:var(--tip-ink);border-radius:6px;padding:4px 8px;font-size:11px;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.14);white-space:pre-line}
 .overlay{position:absolute;inset:0;z-index:110;background:var(--scrim);display:grid;place-items:center;padding:16px}
+/* .reveal（人格揭晓）与首次启动 2–3 步同为 .obox.gen，分段时间轴与 .pet / .code 的生长、淡入见 76-genesis.css */
 .obox{width:min(560px,100%);max-height:100%;overflow:auto;border-radius:14px;background:var(--bg);box-shadow:var(--sh-win);padding:28px 36px;display:flex;flex-direction:column;gap:14px}
-.reveal{width:min(420px,100%);border-radius:18px;background:var(--bg);box-shadow:var(--sh-win);padding:22px 24px 26px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
-.reveal .dots{animation:fadein .6s ease-out both}
-.reveal .hours{animation:fadein .8s .6s ease-out both}
-.reveal .pet{transform-origin:200px 200px;animation:grow .5s var(--ease) both}
-.reveal .code{background:none;border:0;max-height:none;overflow:visible;font:600 64px/.95 var(--serif);letter-spacing:.03em;animation:fadein .5s 2.2s var(--ease) both;padding:0}
-.reveal .nm{animation:fadein .5s 2.5s ease-out both}
-.reveal .acts{animation:fadein .4s 3s ease-out both}
 @keyframes grow{from{transform:scale(0)}to{transform:scale(1)}}
 .sharecard{width:100%;aspect-ratio:1080/1350;max-width:100%;border-radius:18px;overflow:hidden;container-type:inline-size}
 [hidden]{display:none!important}
-.reveal .pet{animation-delay:1.4s}
-.reveal.skip *,.reveal.skip{animation:none!important}
 .srcrow{display:grid;grid-template-columns:30px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--hair)}
 .srcrow:last-child{border-bottom:0}
 @container set (max-width:560px){.srcrow{grid-template-columns:30px minmax(0,1fr) auto}.srcrow .when{display:none}}

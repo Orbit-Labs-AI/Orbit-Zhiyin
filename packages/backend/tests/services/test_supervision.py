@@ -109,7 +109,9 @@ def test_timeout_keeps_old_snapshot_and_opens_circuit(client_factory, codex_root
 
 
 def test_hung_worker_is_killed_and_crash_loops_degrade(client_factory, codex_root):
-    config = fast_config(stale_s=1.0, max_restarts=2, backoff_s=(0.05, 0.05))
+    # stale_s leaves room for a respawned worker to import and send its first heartbeat
+    # under load; 1 s made the respawn itself look hung (extra restart, early degraded).
+    config = fast_config(stale_s=3.0, max_restarts=2, backoff_s=(0.05, 0.05))
     client, gateway = client_factory(config=config)
     source = add_codex(client, codex_root)
     _import_head(client, source)

@@ -1,0 +1,91 @@
+/* Genesis：首次启动 2–3 步与「人格揭晓」共用的连贯序列（56-onboarding.js）。组件沿用画像页：指纹 fp2SVG 放在 .fp-wrap 纸面上，
+   人格码是 .letters / .L，类型小卡是 .card，匹配度是 .bdg，按钮 .btn / .btn.p；Agent 色只在会话点与外环，紫色只给本地 Agent 的进行中。
+   .run = 时间轴进行中（各层先隐藏，由 WAAPI 逐段显现）；.skip = 最终态（跳过、自然结束、减少动态效果）。 */
+.obox.gen{position:relative;width:min(760px,100%);padding:22px 30px 24px;gap:12px;container:gen/inline-size}
+.obox.gen:focus,.obox.gen:focus-visible{outline:none}
+.obox.gen.g-morph{overflow:hidden}
+.g-ghost{position:absolute;display:flex;flex-direction:column;gap:14px;padding:28px 36px;pointer-events:none;transform-origin:50% 45%}
+.g-cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.g-top{gap:10px;min-height:22px}
+.g-stage{font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-head h2{margin:0;font-size:24px;line-height:1.25}
+.g-head p{margin:6px 0 0}
+.g-bar{height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.g-bar i{display:block;height:100%;width:0;border-radius:2px;background:var(--ink-1);transition:width .5s var(--ease)}
+.g-body{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:center}
+.g-dial{--gd:300px;position:relative;width:calc(var(--gd) + 16px);flex:none}
+.g-fp{width:var(--gd)}
+.g-fp svg{display:block;width:100%;height:auto}
+.g-over{position:absolute;left:8px;top:8px;width:var(--gd);height:var(--gd);overflow:visible;pointer-events:none}
+.g-ring0{fill:none;stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
+.g-ticks{stroke:var(--ink-3);stroke-width:1.2;opacity:0}
+/* 扫掠扇形：跟在指针（fp2SVG 的 .fp-needle，由 js 逐帧写 transform）身后转一圈 */
+.g-hand{transform-origin:200px 200px;transform-box:view-box;opacity:0}
+.g-wedge{fill:var(--ink-1);opacity:.07}
+.gen:not(.run) .g-over{display:none}
+.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-compass,.fp-ax,.fps){opacity:0}
+.gen .g-fp :is(.fps,.fp-core,.fp-compass){transform-origin:200px 200px;transform-box:view-box}
+/* 生长：罗盘玫瑰主角（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
+.gen .pet{transform-origin:200px 200px;transform-box:view-box;animation:grow .6s var(--ease) var(--g-grow,0ms) both}
+.gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
+.gen.skip,.gen.skip *{animation:none!important}
+.g-side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.g-count{font-size:11.5px;min-height:16px}
+.g-res{display:flex;flex-direction:column;gap:6px}
+.gen .code{background:none;border:0;padding:0;margin:0;max-height:none;overflow:visible;font:inherit}
+.gen .letters{gap:14px;margin-top:2px;flex-wrap:nowrap}
+.gen .letters .L{font-size:64px;display:block;min-width:.72em;text-align:center}
+.g-slot{display:flex;flex-direction:column;align-items:center;gap:4px}
+.g-ax{font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.g-ax .mono{color:var(--ink-1);font-weight:600}
+.gen.run .g-slot:not(.lock) .g-ax{opacity:0}
+.g-match{gap:8px;flex-wrap:wrap;min-height:18px}
+.gen.run .g-match,.gen.run .nm{opacity:0}
+.g-zh{font-size:22px;font-weight:600;line-height:1.25}
+.g-zh i{font-weight:400;font-size:16px;color:var(--ink-3)}
+.g-line{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.g-facts{display:flex;flex-direction:column}
+.g-facts .eb{margin-bottom:2px}
+.g-fact{padding:5px 0;align-items:center}
+.g-fact:last-child{border-bottom:0}
+.g-fact .mk{background:var(--surface);color:var(--ink-3);box-shadow:inset 0 0 0 1.5px var(--line);transition:background .25s,color .25s}
+.g-fact.run .mk{background:var(--ai-bg);box-shadow:none}
+.g-fact.done .mk{background:var(--ink-1);color:var(--surface);box-shadow:none}
+/* 每步一行：进行中显示做什么（cap），完成后同一位置换成「已经知道的」事实 */
+.g-ft{display:flex;gap:10px;align-items:baseline;min-width:0;font-size:12.5px}
+.g-ft b{flex:none}
+.g-fact:not(.done):not(.run) .g-ft b{color:var(--ink-3)}
+.g-sw{display:grid;min-width:0;flex:1}
+.g-sw>*{grid-area:1/1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-sub{font-size:11.5px}
+.g-fx{display:flex;gap:6px;align-items:baseline;line-height:1.45}
+.g-fx>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.gen.run .g-fact:not(.done) .g-fx,.gen:not(.run) .g-sub{opacity:0}
+/* 候选类型卡：.card 的小号，码 mono、名字衬线、相似度 mono；胜出的一张加深描边 */
+.g-cards{position:absolute;inset:0;pointer-events:none;z-index:2}
+.g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
+.g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
+.g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
+.g-card .z{grid-column:1/-1;font:600 12.5px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
+.g-card.win .pc{color:var(--ink-1)}
+.g-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.g-done{display:flex;flex-direction:column;gap:12px}
+/* 运行中的底栏与结果底栏叠在同一格：盒子高度从头到尾不变，结束时只交叉淡入（不可见的一侧按钮 disabled，焦点陷阱会跳过） */
+.g-tail{display:grid}
+.g-tail>*{grid-area:1/1;align-self:end}
+.gen.run .g-done,.gen:not(.run) [data-g="run"]{visibility:hidden}
+.g-next{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding-top:10px;border-top:1px solid var(--hair)}
+.g-n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:10.5px;font-weight:700;display:grid;place-items:center}
+.reveal.gen{width:min(720px,100%)}
+/* 落地：飞向画像页的克隆（body 下，fixed） */
+.g-fly{position:fixed;z-index:200;margin:0;pointer-events:none;transform-origin:50% 50%;text-align:center;white-space:nowrap;display:block}
+@container gen (max-width:640px){
+  .g-body{grid-template-columns:minmax(0,1fr);justify-items:center;gap:16px}
+  .g-dial{--gd:236px}
+  .g-side{width:100%}
+  .gen .letters .L{font-size:52px}
+  .g-next{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-height:860px){.g-head p{display:none}.obox.gen{padding-top:18px;padding-bottom:18px;gap:10px}.g-line{-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}}
+@media (prefers-reduced-motion:reduce){.g-bar i{transition:none}}

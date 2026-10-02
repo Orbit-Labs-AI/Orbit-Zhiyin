@@ -753,7 +753,7 @@ svg{display:block}
 .ov-tool .e.hi{color:var(--crit);font-weight:600}
 @container main (max-width:639px){.ov-tool{grid-template-columns:56px minmax(0,1fr) 40px 28px 40px;gap:6px}}
 
-/* A2 persona: low-sample relax chips, fingerprint v2 (radar core / rhythm band / stacked density ring), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 compass (bezel ticks / stacked density ring / rhythm band / compass rose + needle), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
@@ -777,6 +777,13 @@ svg{display:block}
 .pe-evl{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container main (max-width:1100px){.letters .L{font-size:72px}.persona-hero{grid-template-columns:minmax(0,1fr) 380px}}
 @container main (max-width:639px){.pe-ev{grid-template-columns:minmax(0,1fr)}}
+/* 罗盘指针：外层按 --hd（协作重心）定位，内层 .fp-nd 留给晃动（进入页面的 WAAPI 阻尼晃动、悬停颤动 ±3°） */
+.fp2 .fp-needle{transform:rotate(var(--hd,0deg));transform-origin:200px 200px;transform-box:view-box}
+.fp2 .fp-nd{transform-origin:200px 200px;transform-box:view-box}
+.fp2:hover .fp-nd{animation:fp-jit .9s ease-in-out infinite}
+@keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
+@media (prefers-reduced-motion:reduce){.fp2:hover .fp-nd{animation:none}}
+.pe-fp-legend .lnk{white-space:nowrap}
 
 /* A3 会话与轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
    事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
@@ -1337,19 +1344,11 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .toast-in button:hover{background:var(--field)}
 .tip{position:fixed;z-index:130;pointer-events:none;max-width:280px;background:var(--tip);color:var(--tip-ink);border-radius:6px;padding:4px 8px;font-size:11px;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.14);white-space:pre-line}
 .overlay{position:absolute;inset:0;z-index:110;background:var(--scrim);display:grid;place-items:center;padding:16px}
+/* .reveal（人格揭晓）与首次启动 2–3 步同为 .obox.gen，分段时间轴与 .pet / .code 的生长、淡入见 76-genesis.css */
 .obox{width:min(560px,100%);max-height:100%;overflow:auto;border-radius:14px;background:var(--bg);box-shadow:var(--sh-win);padding:28px 36px;display:flex;flex-direction:column;gap:14px}
-.reveal{width:min(420px,100%);border-radius:18px;background:var(--bg);box-shadow:var(--sh-win);padding:22px 24px 26px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
-.reveal .dots{animation:fadein .6s ease-out both}
-.reveal .hours{animation:fadein .8s .6s ease-out both}
-.reveal .pet{transform-origin:200px 200px;animation:grow .5s var(--ease) both}
-.reveal .code{background:none;border:0;max-height:none;overflow:visible;font:600 64px/.95 var(--serif);letter-spacing:.03em;animation:fadein .5s 2.2s var(--ease) both;padding:0}
-.reveal .nm{animation:fadein .5s 2.5s ease-out both}
-.reveal .acts{animation:fadein .4s 3s ease-out both}
 @keyframes grow{from{transform:scale(0)}to{transform:scale(1)}}
 .sharecard{width:100%;aspect-ratio:1080/1350;max-width:100%;border-radius:18px;overflow:hidden;container-type:inline-size}
 [hidden]{display:none!important}
-.reveal .pet{animation-delay:1.4s}
-.reveal.skip *,.reveal.skip{animation:none!important}
 .srcrow{display:grid;grid-template-columns:30px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--hair)}
 .srcrow:last-child{border-bottom:0}
 @container set (max-width:560px){.srcrow{grid-template-columns:30px minmax(0,1fr) auto}.srcrow .when{display:none}}
@@ -1371,6 +1370,98 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .obox .step{align-items:center}
 .reveal:focus{outline:none}
 .reveal:focus-visible{outline:none}
+
+/* Genesis：首次启动 2–3 步与「人格揭晓」共用的连贯序列（56-onboarding.js）。组件沿用画像页：指纹 fp2SVG 放在 .fp-wrap 纸面上，
+   人格码是 .letters / .L，类型小卡是 .card，匹配度是 .bdg，按钮 .btn / .btn.p；Agent 色只在会话点与外环，紫色只给本地 Agent 的进行中。
+   .run = 时间轴进行中（各层先隐藏，由 WAAPI 逐段显现）；.skip = 最终态（跳过、自然结束、减少动态效果）。 */
+.obox.gen{position:relative;width:min(760px,100%);padding:22px 30px 24px;gap:12px;container:gen/inline-size}
+.obox.gen:focus,.obox.gen:focus-visible{outline:none}
+.obox.gen.g-morph{overflow:hidden}
+.g-ghost{position:absolute;display:flex;flex-direction:column;gap:14px;padding:28px 36px;pointer-events:none;transform-origin:50% 45%}
+.g-cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.g-top{gap:10px;min-height:22px}
+.g-stage{font-size:11px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-head h2{margin:0;font-size:24px;line-height:1.25}
+.g-head p{margin:6px 0 0}
+.g-bar{height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.g-bar i{display:block;height:100%;width:0;border-radius:2px;background:var(--ink-1);transition:width .5s var(--ease)}
+.g-body{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:center}
+.g-dial{--gd:300px;position:relative;width:calc(var(--gd) + 16px);flex:none}
+.g-fp{width:var(--gd)}
+.g-fp svg{display:block;width:100%;height:auto}
+.g-over{position:absolute;left:8px;top:8px;width:var(--gd);height:var(--gd);overflow:visible;pointer-events:none}
+.g-ring0{fill:none;stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
+.g-ticks{stroke:var(--ink-3);stroke-width:1.2;opacity:0}
+/* 扫掠扇形：跟在指针（fp2SVG 的 .fp-needle，由 js 逐帧写 transform）身后转一圈 */
+.g-hand{transform-origin:200px 200px;transform-box:view-box;opacity:0}
+.g-wedge{fill:var(--ink-1);opacity:.07}
+.gen:not(.run) .g-over{display:none}
+.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-compass,.fp-ax,.fps){opacity:0}
+.gen .g-fp :is(.fps,.fp-core,.fp-compass){transform-origin:200px 200px;transform-box:view-box}
+/* 生长：罗盘玫瑰主角（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
+.gen .pet{transform-origin:200px 200px;transform-box:view-box;animation:grow .6s var(--ease) var(--g-grow,0ms) both}
+.gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
+.gen.skip,.gen.skip *{animation:none!important}
+.g-side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.g-count{font-size:11.5px;min-height:16px}
+.g-res{display:flex;flex-direction:column;gap:6px}
+.gen .code{background:none;border:0;padding:0;margin:0;max-height:none;overflow:visible;font:inherit}
+.gen .letters{gap:14px;margin-top:2px;flex-wrap:nowrap}
+.gen .letters .L{font-size:64px;display:block;min-width:.72em;text-align:center}
+.g-slot{display:flex;flex-direction:column;align-items:center;gap:4px}
+.g-ax{font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.g-ax .mono{color:var(--ink-1);font-weight:600}
+.gen.run .g-slot:not(.lock) .g-ax{opacity:0}
+.g-match{gap:8px;flex-wrap:wrap;min-height:18px}
+.gen.run .g-match,.gen.run .nm{opacity:0}
+.g-zh{font-size:22px;font-weight:600;line-height:1.25}
+.g-zh i{font-weight:400;font-size:16px;color:var(--ink-3)}
+.g-line{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.g-facts{display:flex;flex-direction:column}
+.g-facts .eb{margin-bottom:2px}
+.g-fact{padding:5px 0;align-items:center}
+.g-fact:last-child{border-bottom:0}
+.g-fact .mk{background:var(--surface);color:var(--ink-3);box-shadow:inset 0 0 0 1.5px var(--line);transition:background .25s,color .25s}
+.g-fact.run .mk{background:var(--ai-bg);box-shadow:none}
+.g-fact.done .mk{background:var(--ink-1);color:var(--surface);box-shadow:none}
+/* 每步一行：进行中显示做什么（cap），完成后同一位置换成「已经知道的」事实 */
+.g-ft{display:flex;gap:10px;align-items:baseline;min-width:0;font-size:12.5px}
+.g-ft b{flex:none}
+.g-fact:not(.done):not(.run) .g-ft b{color:var(--ink-3)}
+.g-sw{display:grid;min-width:0;flex:1}
+.g-sw>*{grid-area:1/1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-sub{font-size:11.5px}
+.g-fx{display:flex;gap:6px;align-items:baseline;line-height:1.45}
+.g-fx>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.gen.run .g-fact:not(.done) .g-fx,.gen:not(.run) .g-sub{opacity:0}
+/* 候选类型卡：.card 的小号，码 mono、名字衬线、相似度 mono；胜出的一张加深描边 */
+.g-cards{position:absolute;inset:0;pointer-events:none;z-index:2}
+.g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
+.g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
+.g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
+.g-card .z{grid-column:1/-1;font:600 12.5px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
+.g-card.win .pc{color:var(--ink-1)}
+.g-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.g-done{display:flex;flex-direction:column;gap:12px}
+/* 运行中的底栏与结果底栏叠在同一格：盒子高度从头到尾不变，结束时只交叉淡入（不可见的一侧按钮 disabled，焦点陷阱会跳过） */
+.g-tail{display:grid}
+.g-tail>*{grid-area:1/1;align-self:end}
+.gen.run .g-done,.gen:not(.run) [data-g="run"]{visibility:hidden}
+.g-next{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding-top:10px;border-top:1px solid var(--hair)}
+.g-n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:10.5px;font-weight:700;display:grid;place-items:center}
+.reveal.gen{width:min(720px,100%)}
+/* 落地：飞向画像页的克隆（body 下，fixed） */
+.g-fly{position:fixed;z-index:200;margin:0;pointer-events:none;transform-origin:50% 50%;text-align:center;white-space:nowrap;display:block}
+@container gen (max-width:640px){
+  .g-body{grid-template-columns:minmax(0,1fr);justify-items:center;gap:16px}
+  .g-dial{--gd:236px}
+  .g-side{width:100%}
+  .gen .letters .L{font-size:52px}
+  .g-next{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-height:860px){.g-head p{display:none}.obox.gen{padding-top:18px;padding-bottom:18px;gap:10px}.g-line{-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}}
+@media (prefers-reduced-motion:reduce){.g-bar i{transition:none}}
 
 /* Responsive = container queries. "win" is the main window (.win), "main" the content column (.main, i.e. window minus
    sidebar). Page grids break on the content width, never on the viewport. The thresholds follow the published demo: the
@@ -1770,6 +1861,454 @@ const LIB = [
 const PHRASES = [['用中文', 9, '偏好'], ['直接合并', 6, '纠偏'], ['先只读审查', 5, '规划'], ['部署后验证线上', 7, '验证'], ['简洁一点', 4, '风格'], ['别用子代理', 3, '纠偏'], ['不要改别的文件', 4, '纠偏'], ['用 Cloudflare 不是 Vercel', 2, '纠偏']];
 const DRIVERS = [['会话超过 90 分钟', -0.31], ['同一命令连续失败 ≥ 2 次', -0.44], ['首条消息写明完成条件', 0.27], ['小步提交并推送', 0.19]];
 const QUOTES = { pos: ['「可以，这版很好，直接合并」', '「线上验证过了，谢谢」', '「对，就是这个意思」', '「这个思路好，继续」'], neg: ['「不要用 Vercel，用 Cloudflare」', '「别再跑 review 了，直接合并」', '「先停一下，你改太多了」', '「为什么又中断了」', '「不是这个意思」'], mid: ['「继续」', '「先看看现在的进度」', '「好的，下一步」'] };
+
+/* 生成文件：由 prototypes/shared/sync-live.mjs 从 prototypes/shared/tandem-live.js 复制，请勿手改。
+   修改共享适配层后运行 node prototypes/shared/sync-live.mjs，再运行 node prototypes/advance/build.mjs。 */
+/* ============ TandemLive: live data adapter shared by Lite and Advance ============
+   Canonical source: prototypes/shared/tandem-live.js. Copies inside the Lite HTML and Advance src/js/06-live-client.js are
+   generated by prototypes/shared/sync-live.mjs; edit this file and run the sync script.
+   - mode: mock (default, file:// or opened on its own) / live (served by the gateway at /app or /lite, or ?live=1)
+   - get(path, {scope, waitMs, signal}): If-None-Match / ETag, same-key requests share one fetch, AbortSignal cancels
+   - resources keep the last good data and move through idle / loading / ready / stale / computing / empty / error / importing
+   - /v1/events is read with fetch (SSE text frames + Authorization), reconnects with exponential backoff, resumes with
+     Last-Event-ID and resyncs on a gap; an event only invalidates the matching resources and asks the page to render
+   - bind(page, resources, toViewModel) turns API responses into the shapes the page renderers consume
+   Once live is established, failures show an error and keep the last screen; the adapter never falls back to demo data. */
+const TandemLive = (function () {
+  'use strict';
+  const STATES = ['idle', 'loading', 'ready', 'stale', 'computing', 'empty', 'error', 'importing'];
+  const TOPICS = 'job,data,analysis,service';
+  // UI agent id -> agent names a source may report in /v1/status sources[].agent
+  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'] };
+  const ACTIVE_JOB = ['queued', 'pending', 'running'];
+
+  function abortError() { const e = new Error('aborted'); e.name = 'AbortError'; return e; }
+  function isAbort(e) { return !!e && e.name === 'AbortError'; }
+  function retryAfterMs(v) {
+    if (v == null || v === '') return null;
+    const n = Number(v); if (Number.isFinite(n)) return Math.max(0, n * 1000);
+    const t = Date.parse(v); return Number.isFinite(t) ? Math.max(0, t - Date.now()) : null;
+  }
+  function sectionOf(path) { const m = /^\/v1\/analytics\/([a-z_]+)/.exec(path); return m ? m[1] : null; }
+
+  /* ---- mode ---- */
+  function detectMode(win) {
+    const loc = (win && win.location) || {};
+    let q = null; try { q = new URLSearchParams(loc.search || ''); } catch (e) { q = null; }
+    if (q && q.get('live') === '0') return 'mock';
+    if (q && q.get('live') === '1') return 'live';
+    if (loc.protocol === 'file:') return 'mock';
+    if (/^\/(app|lite)(\/|$|\.)/.test(loc.pathname || '')) return 'live';
+    return 'mock';
+  }
+  // #token=… (development only): read once and removed from the address so the app's own hash routing is untouched
+  function takeHashToken(win) {
+    const loc = win && win.location; if (!loc || !loc.hash) return null;
+    const m = /([#&?])token=([^&]*)/.exec(loc.hash); if (!m) return null;
+    let token = m[2]; try { token = decodeURIComponent(token); } catch (e) { /* keep raw */ }
+    const rest = loc.hash.replace(m[0], m[1] === '#' ? '#' : '').replace(/^#&/, '#').replace(/[&?]$/, '');
+    try { win.history.replaceState(null, '', (loc.pathname || '') + (loc.search || '') + (rest === '#' ? '' : rest)); } catch (e) { /* sandboxed */ }
+    return token;
+  }
+
+  /* ---- scope ----
+     scope = {range: days (0 = all history), agents: ui agent ids | null (all), projects | null, models | null,
+              excluded: session uids, tz}
+     A preset becomes from_ts at the start of the local day, until_ts is never sent, so the same preset gives the same
+     query (and the same scope_hash) all day. An explicit empty list is sent as `key=` (zero selected). */
+  function dayStart(now, back) { const d = new Date(now); return new Date(d.getFullYear(), d.getMonth(), d.getDate() - back).getTime(); }
+  function sourceIdsFor(agents, status) {
+    const want = new Set(); agents.forEach((a) => (AGENT_KEYS[a] || [a]).forEach((k) => want.add(String(k).toLowerCase())));
+    return ((status && status.sources) || []).filter((s) => s.enabled !== false && want.has(String(s.agent || '').toLowerCase())).map((s) => s.id);
+  }
+  function scopePairs(scope, status, now) {
+    const p = []; if (!scope) return p;
+    const list = (k, v) => { if (v == null) return; const xs = Array.from(new Set(Array.from(v, String))).sort(); if (!xs.length) p.push([k, '']); else xs.forEach((x) => p.push([k, x])); };
+    if (scope.range > 0) p.push(['from_ts', String(dayStart(now, scope.range - 1))]);
+    if (scope.agents != null) list('source_ids', sourceIdsFor(Array.from(scope.agents), status));
+    list('project_ids', scope.projects);
+    list('model_ids', scope.models);
+    if (scope.excluded && Array.from(scope.excluded).length) list('excluded_session_uids', scope.excluded);
+    if (scope.tz) p.push(['display_timezone', scope.tz]);
+    return p;
+  }
+  function encodePairs(pairs) { return pairs.map((kv) => encodeURIComponent(kv[0]) + '=' + encodeURIComponent(kv[1])).join('&'); }
+  function serializeScope(scope, status, now) { return encodePairs(scopePairs(scope, status, now == null ? Date.now() : now)); }
+
+  function stateFrom(status, meta) {
+    if (status === 202) return 'computing';
+    const f = meta && meta.freshness;
+    if (f === 'computing') return 'computing';
+    if (f === 'none') return 'empty';
+    if (f === 'stale' || f === 'failed') return 'stale';
+    return 'ready';
+  }
+
+  function create(opts) {
+    opts = opts || {};
+    const win = opts.win || (typeof window !== 'undefined' ? window : {});
+    const fetchFn = opts.fetch || ((...a) => win.fetch(...a));
+    const timers = opts.timers || { setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (t) => clearTimeout(t) };
+    const now = opts.now || (() => Date.now());
+    const backoff = Object.assign({ base: 1000, max: 30000 }, opts.backoff || {});
+    const listeners = {};
+    const resources = new Map();   // key -> resource
+    const etags = new Map();       // key -> {etag, data, meta}
+    const inflight = new Map();    // key -> {ctrl, promise, waiters}
+    const bindings = {};
+    const mode = opts.mode || detectMode(win);
+    const hashToken = mode === 'live' ? takeHashToken(win) : null;
+    const C = {
+      mode,
+      endpoint: String(opts.endpoint || win.__TANDEM_ENDPOINT__ || ((win.location && /^https?:/.test(win.location.protocol || '')) ? win.location.origin : '')).replace(/\/+$/, ''),
+      token: opts.token || win.__TANDEM_TOKEN__ || hashToken || null,
+      error: null, failure: null, services: {}, job: null, status: null, page: null,
+      events: { connected: false, attempt: 0, delays: [], lastId: null, resyncs: 0, running: false },
+      STATES
+    };
+    let pageCtrl = null, scheduled = false, statusRes = null;
+
+    function emit(name, payload) { (listeners[name] || []).slice().forEach((fn) => { try { fn(payload); } catch (e) { /* listener errors stay local */ } }); }
+    C.on = function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); return () => { listeners[name] = listeners[name].filter((f) => f !== fn); }; };
+    function changed() {
+      if (scheduled) return; scheduled = true;
+      timers.setTimeout(() => { scheduled = false; emit('change'); if (opts.onChange) opts.onChange(); }, 0);
+    }
+    C.changed = changed;
+    function headers(extra) { const h = Object.assign({ Accept: 'application/json' }, extra || {}); if (C.token) h.Authorization = 'Bearer ' + C.token; return h; }
+
+    /* ---- requests ---- */
+    function urlFor(path, query) { return C.endpoint + path + (query ? (path.indexOf('?') >= 0 ? '&' : '?') + query : ''); }
+    function keyFor(path, opt) {
+      const q = [opt && opt.scope ? serializeScope(opt.scope, C.status, now()) : '', opt && opt.query ? encodePairs(Object.keys(opt.query).sort().filter((k) => opt.query[k] != null).map((k) => [k, String(opt.query[k])])) : ''].filter(Boolean).join('&');
+      return { key: path + (q ? '?' + q : ''), query: q };
+    }
+    function start(key, url) {
+      const ctrl = new AbortController();
+      const hit = etags.get(key);
+      const h = headers(hit ? { 'If-None-Match': hit.etag } : null);
+      const entry = { ctrl, waiters: 0 };
+      entry.promise = Promise.resolve().then(() => fetchFn(url, { headers: h, signal: ctrl.signal })).then(async (res) => {
+        if (res.status === 304 && hit) return { status: 304, data: hit.data, meta: hit.meta, etag: hit.etag, state: stateFrom(200, hit.meta) };
+        let body = null; const text = await res.text();
+        if (text) { try { body = JSON.parse(text); } catch (e) { body = null; } }
+        if (res.status >= 200 && res.status < 300) {
+          const meta = (body && body.meta) || null; const etag = res.headers.get('ETag');
+          if (res.status === 200 && etag) etags.set(key, { etag, data: body, meta });
+          return { status: res.status, data: res.status === 202 ? null : body, meta, etag, state: stateFrom(res.status, meta) };
+        }
+        const info = (body && body.error) || {};
+        const err = new Error(info.message || ('HTTP ' + res.status));
+        err.status = res.status; err.code = info.code || 'http_' + res.status;
+        err.retryable = info.retryable != null ? !!info.retryable : res.status >= 500;
+        err.retryAfter = retryAfterMs(res.headers.get('Retry-After'));
+        throw err;
+      });
+      entry.promise.catch(() => {});
+      return entry;
+    }
+    C.get = function (path, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode' }));
+      const need = o.scope && o.scope.agents != null && !C.status ? C.ensureStatus() : Promise.resolve();
+      return need.then(() => {
+        const k = keyFor(path, o);
+        const url = urlFor(path, [k.query, o.waitMs ? 'wait_ms=' + o.waitMs : ''].filter(Boolean).join('&'));
+        let entry = inflight.get(k.key);
+        if (!entry) {
+          entry = start(k.key, url); inflight.set(k.key, entry);
+          const mine = entry; entry.promise.then(() => {}, () => {}).then(() => { if (inflight.get(k.key) === mine) inflight.delete(k.key); });
+        }
+        entry.waiters++;
+        return new Promise((resolve, reject) => {
+          let done = false;
+          const onAbort = () => {
+            if (done) return; done = true; reject(abortError());
+            if (--entry.waiters === 0) { entry.ctrl.abort(); if (inflight.get(k.key) === entry) inflight.delete(k.key); }
+          };
+          if (o.signal) { if (o.signal.aborted) { onAbort(); return; } o.signal.addEventListener('abort', onAbort, { once: true }); }
+          entry.promise.then((v) => { if (done) return; done = true; entry.waiters--; resolve(v); }, (e) => { if (done) return; done = true; entry.waiters--; reject(e); });
+        });
+      });
+    };
+    C.inflightCount = () => inflight.size;
+
+    /* ---- resources ---- */
+    C.resource = function (path, o) {
+      o = o || {};
+      const k = keyFor(path, o);
+      let r = resources.get(k.key);
+      if (!r) {
+        r = { key: k.key, path, scope: o.scope || null, query: o.query || null, section: o.section || sectionOf(path), state: 'idle', data: null, meta: null, error: null, updatedAt: null, dirty: true, loading: null, retryTimer: null, waitMs: o.waitMs || 0 };
+        resources.set(k.key, r);
+      }
+      return r;
+    };
+    C.stateOf = function (r) {
+      if (!r) return 'idle';
+      const importing = C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0;
+      if (importing && (r.state === 'empty' || (r.data == null && (r.state === 'loading' || r.state === 'idle')))) return 'importing';
+      return r.state;
+    };
+    C.load = function (r, signal) {
+      if (C.mode !== 'live') return Promise.resolve(r);
+      if (r.loading) return r.loading;
+      const prev = r.state;
+      r.dirty = false;
+      if (r.data == null && r.state !== 'computing') r.state = 'loading';
+      r.refreshing = true;
+      if (r.retryTimer) { timers.clearTimeout(r.retryTimer); r.retryTimer = null; }
+      r.loading = C.get(r.path, { scope: r.scope, query: r.query, waitMs: r.waitMs, signal }).then((res) => {
+        if (res.state === 'computing') { r.state = 'computing'; r.meta = Object.assign({}, r.meta || {}, res.meta || {}); r.computingSince = now(); }
+        else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
+        C.failure = null;
+        if (r === statusRes) { C.status = r.data; C.error = null; }
+      }, (e) => {
+        if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
+        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter };
+        r.state = 'error';
+        if (r === statusRes) C.error = r.error;
+        if (!e.status || e.status >= 500) C.failure = r.error;
+        if (e.retryAfter != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, e.retryAfter);
+      }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
+      return r.loading;
+    };
+    C.invalidate = function (match) {
+      let n = 0;
+      resources.forEach((r) => { if (!match || match(r)) { r.dirty = true; n++; } });
+      if (n) changed();
+      return n;
+    };
+    C.ensureStatus = function () {
+      if (!statusRes) statusRes = C.resource('/v1/status');
+      if (C.status && !statusRes.dirty) return Promise.resolve(C.status);
+      return C.load(statusRes).then(() => { if (statusRes.error) throw Object.assign(new Error(statusRes.error.message), statusRes.error); return C.status; });
+    };
+    C.statusResource = () => statusRes || (statusRes = C.resource('/v1/status'));
+
+    /* ---- page binding ---- */
+    C.bind = function (page, res, toViewModel) { bindings[page] = { res, toViewModel }; return C; };
+    C.isBound = (page) => !!bindings[page];
+    C.setPage = function (page) {
+      if (page === C.page) return pageCtrl.signal;
+      if (pageCtrl) pageCtrl.abort();
+      pageCtrl = new AbortController(); C.page = page;
+      return pageCtrl.signal;
+    };
+    function aggregate(rs) {
+      const st = rs.map(C.stateOf);
+      const has = (s) => st.indexOf(s) >= 0;
+      if (has('error')) return 'error';   // the last good data (if any) still renders, with a「刷新失败」badge
+      if (has('importing')) return 'importing';
+      if (rs.some((r) => r.data == null && (r.state === 'loading' || r.state === 'idle'))) return 'loading';
+      if (has('computing')) return rs.every((r) => r.data != null) ? 'stale' : 'computing';
+      if (st.length && st.every((s) => s === 'empty')) return 'empty';
+      if (has('stale') || rs.some((r) => r.refreshing && r.data != null)) return 'stale';
+      return 'ready';
+    }
+    C.view = function (page, scope) {
+      const b = bindings[page]; if (!b || C.mode !== 'live') return null;
+      const signal = C.setPage(page);
+      const descs = typeof b.res === 'function' ? b.res(scope, C) : b.res;
+      const res = {};
+      descs.forEach((d) => {
+        const r = C.resource(d.path, { scope: d.scope === false ? null : scope, query: d.query, waitMs: d.waitMs });
+        res[d.name] = r;
+        if (r.dirty && !r.loading) C.load(r, signal);
+      });
+      const rs = Object.keys(res).map((k) => res[k]);
+      const state = aggregate(rs);
+      const data = {}; rs.forEach((r, i) => { data[Object.keys(res)[i]] = r.data; });
+      let vm = null, error = null;
+      if (rs.every((r) => r.data != null)) { try { vm = b.toViewModel(data, { client: C, scope, res }); } catch (e) { error = { code: 'view_model', message: e.message }; } }
+      const errs = rs.filter((r) => r.error).map((r) => r.error);
+      const stamps = rs.map((r) => (r.meta && r.meta.computed_at) || r.updatedAt).filter(Boolean);
+      return { page, state, vm, res, error: error || errs[0] || null, updatedAt: stamps.length ? stamps.sort()[0] : null };
+    };
+
+    /* ---- events (SSE over fetch) ---- */
+    function resync() {
+      C.events.resyncs++;
+      if (statusRes) statusRes.dirty = true;
+      C.invalidate();
+      emit('resync');
+    }
+    function matchSection(p) { return (r) => r.section === p.section && (!p.scope_hash || !r.meta || !r.meta.scope_hash || r.meta.scope_hash === p.scope_hash || r.state === 'computing'); }
+    function dispatch(name, p) {
+      p = p || {};
+      if (name === 'job') {
+        C.job = p;
+        if (ACTIVE_JOB.indexOf(p.status) < 0 && p.kind === 'import') C.invalidate((r) => r === statusRes);
+        changed();
+      } else if (name === 'data.published') {
+        if (C.status) C.status = Object.assign({}, C.status, { data_rev: p.data_rev != null ? p.data_rev : C.status.data_rev });
+        C.invalidate();
+      } else if (name === 'analysis.ready') {
+        C.invalidate(matchSection(p));
+      } else if (name === 'analysis.failed') {
+        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.state = 'error'; r.error = { code: p.code || 'analysis_failed', message: '分析失败，可重试', retryable: true }; } });
+        changed();
+      } else if (name === 'service') {
+        if (p.name) C.services[p.name] = p.state; changed();
+      } else if (name === 'resync') {
+        resync();
+      }
+      emit('event', { name, data: p });
+    }
+    function frame(raw) {
+      let id = null, name = 'message'; const data = [];
+      raw.split('\n').forEach((line) => {
+        if (!line || line[0] === ':') return;
+        const i = line.indexOf(':'); const f = i < 0 ? line : line.slice(0, i); let v = i < 0 ? '' : line.slice(i + 1); if (v[0] === ' ') v = v.slice(1);
+        if (f === 'id') id = v; else if (f === 'event') name = v; else if (f === 'data') data.push(v);
+      });
+      if (id == null && !data.length && name === 'message') return false;
+      if (id != null) {
+        const last = C.events.lastId;
+        if (last != null && /^\d+$/.test(id) && /^\d+$/.test(last) && Number(id) > Number(last) + 1) resync();
+        C.events.lastId = id;
+      }
+      let payload = null; if (data.length) { try { payload = JSON.parse(data.join('\n')); } catch (e) { payload = { raw: data.join('\n') }; } }
+      dispatch(name, payload);
+      return true;
+    }
+    function sleep(ms, signal) {
+      return new Promise((resolve) => {
+        const t = timers.setTimeout(resolve, ms);
+        if (signal) signal.addEventListener('abort', () => { timers.clearTimeout(t); resolve(); }, { once: true });
+      });
+    }
+    async function loop(run) {
+      while (run.on) {
+        const ctrl = new AbortController(); run.ctrl = ctrl;
+        try {
+          const h = headers({ Accept: 'text/event-stream' }); if (C.events.lastId != null) h['Last-Event-ID'] = C.events.lastId;
+          const res = await fetchFn(C.endpoint + '/v1/events?topics=' + TOPICS, { headers: h, signal: ctrl.signal });
+          if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+          C.events.connected = true; C.events.attempt = 0; changed();
+          const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+          for (;;) {
+            const step = await reader.read(); if (step.done) break;
+            buf += dec.decode(step.value, { stream: true }).replace(/\r\n?/g, '\n');
+            let i; while ((i = buf.indexOf('\n\n')) >= 0) { const raw = buf.slice(0, i); buf = buf.slice(i + 2); frame(raw); }
+          }
+          if (buf.trim()) frame(buf);
+        } catch (e) { /* reconnect below */ }
+        if (C.events.connected) { C.events.connected = false; changed(); }
+        if (!run.on) break;
+        const delay = Math.min(backoff.max, backoff.base * Math.pow(2, C.events.attempt)); C.events.attempt++;
+        C.events.delays.push(delay);
+        await sleep(delay, run.stop.signal);
+      }
+    }
+    let run = null;
+    C.connectEvents = function () {
+      if (C.mode !== 'live' || (run && run.on)) return;
+      run = { on: true, stop: new AbortController(), ctrl: null };
+      C.events.running = true;
+      run.done = loop(run).then(() => { C.events.running = false; });
+    };
+    C.stopEvents = function () {
+      if (!run) return Promise.resolve();
+      const r = run; run = null; r.on = false; r.stop.abort(); if (r.ctrl) r.ctrl.abort();
+      return r.done;
+    };
+    C.setEndpoint = function (detail) {
+      detail = detail || {};
+      if (detail.endpoint) C.endpoint = String(detail.endpoint).replace(/\/+$/, '');
+      if (detail.token) C.token = detail.token;
+      C.error = null; etags.clear(); C.events.lastId = null;
+      inflight.forEach((e) => e.ctrl.abort()); inflight.clear();
+      const restart = run != null;
+      return C.stopEvents().then(() => {
+        if (statusRes) statusRes.dirty = true;
+        C.invalidate();
+        if (restart || C.mode === 'live') { C.connectEvents(); C.ensureStatus().catch(() => {}); }
+      });
+    };
+    C.start = function () {
+      if (C.mode !== 'live') return C;
+      if (!C.endpoint) C.error = { code: 'no_endpoint', message: '未配置本地服务地址', retryable: false };
+      else { C.ensureStatus().catch(() => {}); C.connectEvents(); }
+      if (win.addEventListener) win.addEventListener('tandem:endpoint', (e) => { C.setEndpoint(e && e.detail); });
+      return C;
+    };
+    return C;
+  }
+
+  /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const DASH = '—';
+  function num(v) { return v == null || (typeof v === 'number' && !Number.isFinite(v)) ? DASH : typeof v === 'number' ? Math.round(v).toLocaleString('en-US') : esc(v); }
+  function pct(v) { return v == null || !Number.isFinite(v) ? DASH : (Math.round(v * 1000) / 10).toFixed(1) + '%'; }
+  function money(v) { return v == null || !Number.isFinite(v) ? DASH : '$' + v.toFixed(2); }
+  function hm(ts) { if (ts == null) return DASH; const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts)); if (isNaN(d)) return DASH; return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  const CSS = '.tl-strip{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.tl-strip:empty{display:none}' +
+    '.tl-banner{display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;background:var(--warn-bg,#fbf0d8);color:var(--warn,#8a5a00)}' +
+    '.tl-banner.crit{background:var(--crit-bg,#fbe8e6);color:var(--crit,#c62f2f)}' +
+    '.tl-progress{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2,#45484f)}.tl-progress .tl-bar{height:4px;border-radius:2px;background:var(--hair,#eeece7);overflow:hidden}.tl-progress .tl-bar i{display:block;height:100%;background:var(--a2,#2a78d6)}' +
+    '.tl-badge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:11px;background:var(--sunken,#f0efeb);color:var(--ink-3,#62666f);white-space:nowrap}' +
+    '.tl-badge.sample{background:var(--warn-bg,#fbf0d8);color:var(--warn,#8a5a00)}' +
+    '.tl-skel{height:72px;border-radius:10px;background:var(--sunken,#f0efeb);animation:tl-pulse 1.2s ease-in-out infinite alternate}@keyframes tl-pulse{to{opacity:.45}}' +
+    '.tl-card{padding:14px 16px;border-radius:10px;border:1px solid var(--line,#e3e1dc);background:var(--surface,#fff)}.tl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}' +
+    '.tl-kpi b{display:block;font-size:22px;font-weight:600;color:var(--ink-1,#17181b)}.tl-kpi span{font-size:12px;color:var(--ink-3,#62666f)}' +
+    '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
+    '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
+    '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+  const ui = {
+    DASH, esc, num, pct, money, hm,
+    ensureStyle(doc) {
+      doc = doc || (typeof document !== 'undefined' ? document : null);
+      if (!doc || !doc.head || doc.getElementById('tl-style')) return;
+      const s = doc.createElement('style'); s.id = 'tl-style'; s.textContent = CSS; doc.head.appendChild(s);
+    },
+    progress(C) {
+      const j = C && C.job; if (!j || ACTIVE_JOB.indexOf(j.status) < 0) return '';
+      const pr = j.progress || {}; const total = pr.total, done = pr.completed;
+      const ratio = total > 0 && done != null ? Math.max(0, Math.min(1, done / total)) : null;
+      return '<div class="tl-progress" role="progressbar" aria-label="导入进度"' + (ratio != null ? ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(ratio * 100) + '"' : '') + '>' +
+        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (pr.stage ? ' · ' + esc(pr.stage) : '') + ' · ' + num(done) + ' / ' + num(total) + '</span>' +
+        '<div class="tl-bar"><i style="width:' + (ratio != null ? Math.round(ratio * 100) : 8) + '%"></i></div></div>';
+    },
+    banner(C) {
+      if (!C || C.mode !== 'live') return '';
+      if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Tandem 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
+      if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
+      const bad = Object.keys(C.services).filter((k) => C.services[k] && C.services[k] !== 'ok');
+      if (bad.length) return '<div class="tl-banner" role="alert" data-tl="degraded">服务异常：' + bad.map((k) => esc(k) + ' ' + ({ restarting: '重启中', degraded: '降级' }[C.services[k]] || esc(C.services[k]))).join('、') + ' · 显示上次结果</div>';
+      return '';
+    },
+    badge(v) {
+      if (!v) return '';
+      if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
+      if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
+      if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
+      return '';
+    },
+    sample() { return '<span class="tl-badge sample" data-tl="sample">示例数据</span>'; },
+    // top-of-page strip in live mode: import progress, service banner, then the page badge (unbound pages: 示例数据)
+    strip(C, page, v) {
+      if (!C || C.mode !== 'live') return '';
+      const b = C.isBound(page) ? ui.badge(v) : ui.sample();
+      return '<div class="tl-strip" data-tl="strip">' + ui.progress(C) + ui.banner(C) + (b ? '<div>' + b + '</div>' : '') + '</div>';
+    },
+    skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
+    empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
+    errorCard(err) { return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>'; },
+    // state → body: vm present renders even when stale / error (last good data); otherwise skeleton, empty or error
+    body(v, render) {
+      if (!v) return '';
+      if (v.state === 'importing' && !v.vm) return ui.skeleton();
+      if (v.state === 'empty') return ui.empty();
+      if (v.vm) return render(v.vm);
+      if (v.state === 'error') return ui.errorCard(v.error);
+      return ui.skeleton();
+    }
+  };
+
+  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui };
+})();
+if (typeof module === 'object' && module && module.exports) module.exports = TandemLive;
 
 /* ============ state ============ */
 const S = {
@@ -2191,7 +2730,7 @@ const PAGES = {};
 const RENDER_HOOKS = [];
 let ROUTE_ENTER = false;
 function go(route, keepScroll) {
-  route = edRoute(route);
+  edFollow(route); route = edRoute(route);
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
   if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
@@ -2321,10 +2860,18 @@ function empty(msg) { return '<div class="card pad" style="text-align:center;col
 // Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
 S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
 const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
-const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs', library: 'l-recs', studio: 'l-recs', tools: 'l-home', projects: 'l-home', sentiment: 'l-home' };
+const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs' };
 const TO_ADV = { 'l-home': 'overview', 'l-persona': 'persona', 'l-sessions': 'sessions', 'l-recs': 'recs' };
 const ED_NAME = { lite: 'Lite', advance: 'Advance' };
 function navRoutes() { return S.ed === 'lite' ? LITE_ROUTES : ROUTES; }
+// A page Lite does not have (tools, projects, sentiment, library, studio) is a request for detail: go() switches to Advance
+// and says so, instead of dropping the user on the Lite overview.
+function edFollow(route) {
+  if (S.ed !== 'lite' || TO_LITE[route] || /^l-/.test(route) || !ROUTES.some((r) => r[0] === route)) return;
+  S.ed = 'advance'; store.set('edition', 'advance'); $('#win').dataset.ed = 'advance';
+  const name = ROUTES.find((r) => r[0] === route)[1];
+  setTimeout(() => toast('「' + name + '」在 Advance 中，已切换到 Advance', { act: '回到 Lite', sec: 5, onAct: () => edSet('lite') }), 0);
+}
 function edRoute(route, ed) {
   ed = ed || S.ed;
   if (ed === 'lite') return TO_LITE[route] || route;
@@ -4348,8 +4895,8 @@ function reindex() {
 }
 
 /* ============ A2 persona ============
- * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（内核 4 轴雷达 / 中环 1px 刻度 + 节律带 /
- * 外环 24 段按 Agent 堆叠的密度环，点击一段展开该小时的会话点）→ 四个维度（VZ 双向条：45–55 未定型带、对照刻度、
+ * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（罗盘表盘：外框 120 道刻度与 24 小时方位 /
+ * 外环 24 段按 Agent 堆叠的密度环，点击一段展开该小时的会话点 / 节律带 / 内盘罗盘玫瑰 + 指向协作重心的指针）→ 四个维度（VZ 双向条：45–55 未定型带、对照刻度、
  * 数值跟随胜出极、每轴证据微型图）+ 优势与盲点 + 契合度（中性条、透明度随 n、95% 区间、Agent 色只在圆点）。
  * 人格口径统一走 personaScope（BUG-06）；样本不足时列出放宽哪个筛选能补到多少（A2-V08），全部来源停用时引导到设置（BUG-50）。 */
 const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
@@ -4381,13 +4928,33 @@ function peRelax(w) {
   return out;
 }
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
-// 协作指纹（评审 A2-V01/02/03）：内核 4 轴雷达，中环 1px 刻度 + 节律带，外环 24 段按 Agent 堆叠的密度环；选中小时展开会话点
+// 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、外环 R0 → R0+RH、节律带 98 → 118、内盘 92、玫瑰半径 RR、指针半长 NL。
+// Genesis（56-onboarding.js）的粒子落点与玫瑰生长共用这一组常量。
+const FPG = { R0: 124, RH: 38, RR: 70, NL: 86 };
+// 协作重心：会话开始时刻在 24 小时表盘上的圆形平均（0° = 00:00，顺时针）；没有会话时指向 00
+function fpHeading(L) {
+  let sx = 0, cx = 0; L.forEach((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; sx += Math.sin(a); cx += Math.cos(a); });
+  const deg = Math.abs(sx) + Math.abs(cx) < 1e-9 ? 0 : (Math.atan2(sx, cx) * 180 / Math.PI + 360) % 360;
+  const mins = Math.round(deg / 360 * 1440) % 1440;
+  return { deg: +deg.toFixed(1), hm: Math.floor(mins / 60) + ':' + String(mins % 60).padStart(2, '0') };
+}
+// 玫瑰主角长度：随该轴强度（50 → 85+）从 0.36 长到 1.0 × RR（实际强度多在 55–80，按 85 封顶让形状可读）；u 用于 Genesis 生长（0 = 强度 50 的长度）
+const fpRoseLen = (strong, u) => FPG.RR * (0.36 + 0.64 * clamp((strong - 50) / 35, 0, 1) * (u == null ? 1 : u));
+// 一个罗盘角：顺时针半面实心、逆时针半面空心描边（经典明暗面）；w = 侧点半径
+function fpRosePt(deg, len, w) {
+  const a = deg * Math.PI / 180, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+  const tip = f(pt(200, len, a)), r = f(pt(200, w, a + Math.PI / 4)), l = f(pt(200, w, a - Math.PI / 4));
+  return ['M200 200L' + tip + 'L' + r + 'Z', 'M200 200L' + tip + 'L' + l + 'Z'];
+}
+// 协作指纹 · 罗盘表盘（评审 A2-V01/02/03）：外框 120 道刻度与 24 小时方位；外环 24 段按 Agent 堆叠的密度环（选中小时展开会话点）；
+// 节律带；内盘是罗盘玫瑰（四个主角朝 D I M V，长度 = 该轴强度，端点标胜出极与分数），指针指向协作重心（--hd，CSS rotate）
 function fp2SVG(L, p, size, opt) {
-  opt = opt || {}; const C = 200; const R0 = 140, RH = 44;
+  opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const k = sm ? 1.25 : 1;
   const byH = Array.from({ length: 24 }, () => []); L.forEach((s) => byH[s.h].push(s));
   const mxH = Math.max(1, ...byH.map((x) => x.length));
   CUR.fp = { byH, mxH };
-  const sector = (r0, r1, a0, a1) => { const p0 = pt(C, r0, a0), p1 = pt(C, r1, a0), p2 = pt(C, r1, a1), p3 = pt(C, r0, a1); const lg = a1 - a0 > Math.PI ? 1 : 0; return 'M' + p0[0].toFixed(1) + ' ' + p0[1].toFixed(1) + 'L' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + 'A' + r1 + ' ' + r1 + ' 0 ' + lg + ' 1 ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1) + 'L' + p3[0].toFixed(1) + ' ' + p3[1].toFixed(1) + 'A' + r0 + ' ' + r0 + ' 0 ' + lg + ' 0 ' + p0[0].toFixed(1) + ' ' + p0[1].toFixed(1) + 'Z'; };
+  const f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+  const sector = (r0, r1, a0, a1) => { const p0 = pt(C, r0, a0), p1 = pt(C, r1, a0), p2 = pt(C, r1, a1), p3 = pt(C, r0, a1); const lg = a1 - a0 > Math.PI ? 1 : 0; return 'M' + f(p0) + 'L' + f(p1) + 'A' + r1 + ' ' + r1 + ' 0 ' + lg + ' 1 ' + f(p2) + 'L' + f(p3) + 'A' + r0 + ' ' + r0 + ' 0 ' + lg + ' 0 ' + f(p0) + 'Z'; };
   const sel = S.persona.fpHour;
   let ring = '';
   byH.forEach((xs, h) => {
@@ -4395,27 +4962,49 @@ function fp2SVG(L, p, size, opt) {
     let r = R0 + 1;
     const total = xs.length; const hh = total / mxH * RH;
     ring += '<g class="fps' + (sel === h ? ' sel' : '') + (!on ? ' dim' : '') + '" data-h="' + h + '"' + (opt.interactive ? ' data-tf="fph|' + h + '" data-act="fpHour" tabindex="0" role="button" aria-label="' + h + ':00–' + (h + 1) + ':00 · ' + total + ' 个会话"' : '') + '><path d="' + sector(R0, R0 + RH + 2, a0, a1) + '" fill="transparent"/>';
-    AG.forEach((a) => { const k = xs.filter((s) => s.a === a.id).length; if (!k) return; const seg = k / total * hh; ring += '<path d="' + sector(r, r + Math.max(1.5, seg - 1), a0, a1) + '" fill="' + a.c + '"/>'; r += seg; });
+    AG.forEach((a) => { const n = xs.filter((s) => s.a === a.id).length; if (!n) return; const seg = n / total * hh; ring += '<path d="' + sector(r, r + Math.max(1.5, seg - 1), a0, a1) + '" fill="' + a.c + '"/>'; r += seg; });
     ring += '</g>';
   });
   // 选中小时：展开该小时的会话点（角度 = 开始分钟，半径 = 时长），这时才能悬停到单个会话
   let dots = '';
   if (sel != null) dots = byH[sel].map((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; const q = pt(C, R0 + 4 + Math.min(s.dur, 126) / 126 * (RH - 6), a); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="4" fill="' + agent(s.a).c + '" stroke="var(--surface)" stroke-width="1.5"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join('');
-  // 中环：24 个 1px 刻度 + 节律带（每半小时一个采样点，半径 102 → 128）
+  // 外框：120 道刻度（每 3°），整点较长、每 6 小时最长；每 3 小时一个方位数字，00 / 06 / 12 / 18 用衬线当作四方位；00 外侧基准三角
+  const tk = ['', '', '']; for (let i = 0; i < 120; i++) { const w = i % 30 === 0 ? 2 : i % 5 === 0 ? 1 : 0; const a = i * 3 * Math.PI / 180; tk[w] += 'M' + f(pt(C, 194.5, a)) + 'L' + f(pt(C, [190.5, 187.5, 184][w], a)); }
+  const hrs = [0, 3, 6, 9, 12, 15, 18, 21].filter((h) => !sm || h % 6 === 0).map((h) => { const card = h % 6 === 0; const q = pt(C, card ? (sm ? 170 : 171.5) : 176, h * 15 * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central"' + (card ? ' font-size="' + (sm ? 17 : 15) + '" font-family="var(--serif)" font-weight="700" fill="var(--ink-1)" paint-order="stroke" stroke="var(--bg)" stroke-width="4"' : ' font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)"') + '>' + String(h).padStart(2, '0') + '</text>'; }).join('');
+  // 中环：节律带（每半小时一个采样点，半径 98 → 118）+ 24 个小刻度
   const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h]++; });
   const hm2 = Math.max(1, ...hc);
-  let ticks = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const p1 = pt(C, 96, a), p2 = pt(C, h % 6 ? 100 : 103, a); ticks += 'M' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + 'L' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1); }
-  let band = ''; for (let k = 0; k < 48; k++) { const h = Math.floor(k / 2); const v = (k % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; const a = k / 48 * Math.PI * 2; const q = pt(C, 102 + v * 20, a); band += (k ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
-  band += 'Z'; let inner = ''; for (let k = 0; k < 48; k++) { const a = k / 48 * Math.PI * 2; const q = pt(C, 102, a); inner += (k ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
-  // 内核：4 轴雷达（0 在中心，100 在 r=64）；45–55 画成浅灰环
-  const RR = 64; const rad = (v) => v / 100 * RR; const axes = ['D', 'I', 'M', 'V'];
-  const poly = axes.map((k) => pt(C, rad(p.v[k]), AXR[k] * Math.PI / 180)).map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join('L');
-  const spokes = axes.map((k) => { const q = pt(C, RR, AXR[k] * Math.PI / 180); return 'M' + C + ' ' + C + 'L' + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join('');
-  const verts = axes.map((k) => { const q = pt(C, rad(p.v[k]), AXR[k] * Math.PI / 180); return '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.5" fill="var(--ink-1)" stroke="var(--surface)" stroke-width="1.5"/>'; }).join('');
-  const lbl = opt.labels ? axes.map((k, i) => { const a = axisView(p, i); const q = pt(C, RR + 14, AXR[k] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 4).toFixed(1) + '" text-anchor="middle" font-size="11" font-family="var(--mono)" font-weight="700" fill="var(--ink-1)">' + a.letter + ' ' + a.strong + '</text>'; }).join('') +
-    [['00', 0], ['06', 90], ['12', 180], ['18', 270]].map((h) => { const q = pt(C, 131, h[1] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 3.5).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)" paint-order="stroke" stroke="var(--surface)" stroke-width="3">' + h[0] + '</text>'; }).join('') +
-    '<text x="' + (C + R0 + RH + 4) + '" y="' + (C + 3.5) + '" font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)">' + mxH + '</text><text x="' + (C + R0 + 3) + '" y="' + (C - 3) + '" font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)">0</text>' : '';
-  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：内核是四维度雷达，中环是 24 小时节律带，外环每段是该小时的会话数、按 Agent 堆叠" style="overflow:visible;max-width:100%;height:auto"><circle cx="200" cy="200" r="' + (R0 + RH + 2) + '" fill="var(--surface)" stroke="var(--line)"/><circle cx="200" cy="200" r="' + R0 + '" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/><path d="' + band + inner + '" fill="var(--h2)" fill-opacity=".7" fill-rule="evenodd"/><path d="' + ticks + '" stroke="var(--ink-3)" stroke-width="1"/><circle cx="200" cy="200" r="96" fill="var(--bg)" stroke="var(--line)"/><circle cx="200" cy="200" r="' + ((rad(55) + rad(45)) / 2).toFixed(1) + '" fill="none" stroke="var(--sunken)" stroke-width="' + (rad(55) - rad(45)).toFixed(1) + '"/><circle cx="200" cy="200" r="' + rad(55) + '" fill="none" stroke="var(--hair)"/><circle cx="200" cy="200" r="' + rad(45) + '" fill="none" stroke="var(--hair)"/><path d="' + spokes + '" stroke="var(--line)" stroke-width="1"/><g class="radar"><path d="M' + poly + 'Z" fill="var(--ink-1)" fill-opacity=".14" stroke="var(--ink-1)" stroke-width="2" stroke-linejoin="round"/>' + verts + '</g><g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' + lbl + '</svg>';
+  let ticks = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; ticks += 'M' + f(pt(C, 92, a)) + 'L' + f(pt(C, h % 6 ? 95 : 98, a)); }
+  let band = ''; for (let i = 0; i < 48; i++) { const h = Math.floor(i / 2); const v = (i % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; band += (i ? 'L' : 'M') + f(pt(C, 98 + v * 20, i / 48 * Math.PI * 2)); }
+  band += 'Z'; let inner = ''; for (let i = 0; i < 48; i++) inner += (i ? 'L' : 'M') + f(pt(C, 98, i / 48 * Math.PI * 2));
+  // 内盘：罗盘玫瑰。四个次角（45°）固定短；四个主角朝 D I M V，长度随强度；未定型区（强度 < 55）画成浅灰圆心
+  const axes = ['D', 'I', 'M', 'V'];
+  const av = axes.map((x, i) => axisView(p, i));
+  const minor = [45, 135, 225, 315].map((d) => fpRosePt(d, RR * 0.4, RR * 0.1)).map((x) => '<g class="fp-minor"><path d="' + x[0] + '" fill="var(--ink-4)"/><path d="' + x[1] + '" fill="var(--line)" stroke="var(--ink-4)" stroke-width=".8" stroke-linejoin="round"/></g>').join('');
+  const major = axes.map((x, i) => { const q = fpRosePt(AXR[x], fpRoseLen(av[i].strong), RR * 0.18); return '<g class="fp-pt" data-k="' + x + '"><path d="' + q[1] + '" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.1" stroke-linejoin="round"/><path d="' + q[0] + '" fill="var(--ink-1)" stroke="var(--ink-1)" stroke-width="1.1" stroke-linejoin="round"/></g>'; }).join('');
+  const lbl = axes.map((x, i) => {
+    const a = av[i]; const ch = p.code ? p.code[i] : a.strong < 55 ? '?' : a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
+    const q = pt(C, len + 11 * k, rad); const side = d === 90 || d === 270;
+    const sq = [q[0], q[1] + (d === 0 ? -13 : 13) * k];
+    return '<g class="fp-ax" data-k="' + x + '"><text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 15 * k + '" font-family="var(--serif)" font-weight="600" fill="' + (ch === '?' ? 'var(--ink-3)' : 'var(--ink-1)') + '" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + ch + '</text>' +
+      (opt.labels && !sm ? '<text x="' + sq[0].toFixed(1) + '" y="' + sq[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 9 * k + '" font-family="var(--mono)" fill="var(--ink-3)" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + a.strong + '</text>' : '') + '</g>';
+  }).join('');
+  // 指针：细长双头菱形，北半实心、南半空心；--hd = 协作重心
+  const hd = fpHeading(L); const NL = FPG.NL;
+  const needle = '<g class="fp-compass"><g class="fp-needle" data-hd="' + hd.deg + '" style="--hd:' + hd.deg + 'deg"><title>协作重心 ' + hd.hm + '</title><g class="fp-nd"><path d="M200 ' + (C - NL) + 'L203.6 200L196.4 200Z" fill="var(--ink-1)" stroke="var(--surface)" stroke-width="1" stroke-linejoin="round"/><path d="M200 ' + (C + NL) + 'L203.6 200L196.4 200Z" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.1" stroke-linejoin="round"/></g></g>' +
+    '<circle cx="200" cy="200" r="7" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.4"/><circle cx="200" cy="200" r="2" fill="var(--ink-1)"/></g>';
+  const hub = (fpRoseLen(55) - 1).toFixed(1);
+  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 24 小时罗盘刻度，外环每段是该小时的会话数、按 Agent 堆叠，中环是节律带，内盘罗盘玫瑰的四个主角长度是四个维度的强度；指针指向协作重心 ' + hd.hm + '" style="overflow:visible;max-width:100%;height:auto">' +
+    '<g class="fp-base"><circle cx="200" cy="200" r="198" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.1"/><circle cx="200" cy="200" r="179.5" fill="none" stroke="var(--bg)" stroke-width="31"/><circle cx="200" cy="200" r="195" fill="none" stroke="var(--ink-3)" stroke-width=".6"/><circle cx="200" cy="200" r="164" fill="none" stroke="var(--line)"/>' +
+    '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".8"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-3)" stroke-width="1.1"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-1)" stroke-width="1.6"/>' +
+    '<path d="M200 3L194.5 -7L205.5 -7Z" fill="var(--ink-1)"/>' +
+    '<circle cx="200" cy="200" r="' + R0 + '" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/></g>' +
+    '<g class="fp-hours">' + hrs + '</g>' +
+    '<g class="fp-band"><path d="' + band + inner + '" fill="var(--h2)" fill-opacity=".7" fill-rule="evenodd"/><path d="' + ticks + '" stroke="var(--ink-3)" stroke-width="1"/></g>' +
+    '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' +
+    '<g class="fp-core"><circle cx="200" cy="200" r="92" fill="var(--bg)" stroke="var(--line)"/><circle cx="200" cy="200" r="' + hub + '" fill="var(--sunken)" stroke="var(--hair)"/><circle cx="200" cy="200" r="' + RR + '" fill="none" stroke="var(--line)" stroke-dasharray="1.5 3"/>' +
+    '<path d="M200 110V290M110 200H290" stroke="var(--line)" stroke-width=".8"/>' + minor + '</g>' +
+    '<g class="fp-rose pet">' + major + '</g><g class="fp-axl">' + lbl + '</g>' + needle + '</svg>';
 }
 TIPS.fph = (h) => { const F = CUR.fp; if (!F) return ''; const xs = F.byH[+h]; const by = AG.map((a) => [a, xs.filter((s) => s.a === a.id).length]).filter((x) => x[1]); return '<b>' + h + ':00–' + (+h + 1) + ':00 · ' + xs.length + ' 个会话</b>\n' + (by.length ? by.map((x) => '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + x[0].c + ';vertical-align:-1px"></span> ' + x[0].short + ' ' + x[1]).join(' · ') : '这个小时没有会话') + '\n<span style="opacity:.75">' + (S.persona.fpHour === +h ? '再点一次收起' : '点击展开这个小时的会话点') + '</span>'; };
 PAGES.persona = () => {
@@ -4454,7 +5043,7 @@ PAGES.persona = () => {
   return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + per[2] + (note ? ' · ' + note : ''), right) +
     '<div class="content" id="content"><div class="stack">' +
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">Your agent collaboration type · 你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
-    '<div class="letters">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
+    '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;font-style:italic;color:var(--ink-3)">' + p.en + '</span></div>' +
     '<p style="margin:12px 0 0;max-width:580px;font-size:14.5px;line-height:1.65;color:var(--ink-2);text-wrap:pretty">' + esc(p.line) + ' 这段时间你平均每个会话只发 ' + f1(st.per) + ' 条消息，Agent 每轮自主走 ' + f1(st.auto) + ' 步；' + Math.round(st.verify) + '% 的会话会要求验证结果。</p>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></div>' +
@@ -4462,8 +5051,8 @@ PAGES.persona = () => {
     // 演变：月份码 + 四轴折线（评审 A2-V06）
     '<div style="margin-top:22px"><div class="eb" style="margin-bottom:8px">演变 · 按月重算 · 点击切换</div><div class="evo">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 13, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap" style="font-size:11px;margin-top:4px">四个维度逐月的值 · 中线 50，灰带 45–55 为未定型 · 跨过中线的月份字母会变</div></div></div>' +
-    '<div class="fp-wrap"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
-    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:var(--ink-1);opacity:.7"></span>内核 · 四维度雷达（0 在中心）</span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>外环 · 每段是该小时的会话数，按 Agent 堆叠；点击展开' + (S.persona.fpHour != null ? ' · <button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '') + '</span></div></div></div>' +
+    '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
+    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>内核 · 罗盘玫瑰，主角越长该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--ink-1)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>外环 · 每段是该小时的会话数（峰值 ' + CUR.fp.mxH + '），按 Agent 堆叠；点击展开' + (S.persona.fpHour != null ? ' · <button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '') + '</span></div></div></div>' +
     '<div class="three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
     '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button><button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button></div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +
@@ -4522,6 +5111,13 @@ Object.assign(ACT, {
     go('sessions');
   }
 });
+// 进入画像页（Advance persona / Lite l-persona）：指针做一次阻尼晃动后定位到协作重心；Genesis 落地时（overlay 仍开着）不晃，
+// 免得飞入的表盘与页面上的指针角度对不上。减少动态效果时静止。
+function fpWobble(svg) {
+  const nd = svg && svg.querySelector('.fp-nd'); if (!nd || !nd.animate || reduceMotion()) return null;
+  return nd.animate([-40, 24, -12, 6, -2, 0].map((d) => ({ transform: 'rotate(' + d + 'deg)' })), { duration: 1400, easing: 'cubic-bezier(.37,0,.63,1)' });
+}
+RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) fpWobble(m.querySelector('svg.fp2')); });
 
 /* ============ A3 sessions & trajectory ============
  * 轨迹时间线建在 VZ（36-vizkit.js）的 timeline / minimap / playhead 原语上：总览条（刷子视窗）+ 主时间线（关键时刻徽章、阶段带、
@@ -6024,9 +6620,22 @@ Object.assign(ACT, {
   shareSave: () => toast('浏览器 Demo 不能下载文件；App 会把 1080×1350 的 PNG 存到「下载」')
 });
 
-/* ============ onboarding & reveal (overlay) ============ */
-let OB = null, REV = null;
+/* ============ onboarding & reveal (overlay) ============
+ * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
+ * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
+ *   01 导入  选中来源行的 Agent 色点化作会话粒子，沿曲线流向中央；来源列表收拢淡出，罗盘外框画出，计数器累加；
+ *            表盘中心出现指南针，指针自由快转（寻找方向），粒子汇入时逐渐减速，转满整圈停在 00 接上 02
+ *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），
+ *            再汇入外环的小时密度段（fp2SVG 的几何，FPG）
+ *   03 生长  罗盘玫瑰四个主角（.pet）从中心长出并伸到各轴强度；字母位在两极之间翻牌时指针左右寻向，
+ *            最后一个字母锁定时摆向协作重心，阻尼振荡后停住
+ *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（指针轻颤），其余淡出，胜出的一张飞入四字母（指针定住），给出匹配度
+ *   05 落地  「查看完整画像」：大人格码与指纹（含指针）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
+ * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），其余是 CSS keyframes + WAAPI，节点只建一次。
+ * 跳过 / Esc / 在后台继续随时可用；closeOverlay() 取消全部计时器、动画帧与动画；prefers-reduced-motion 直接给最终态。 */
+let OB = null, REV = null, GNS = null;
 function closeOverlay() {
+  genStop();
   const o = $('#overlay'); o.hidden = true; o.innerHTML = '';
   if (OB) OB.timers.forEach(clearTimeout);
   if (REV) REV.timers.forEach(clearTimeout);
@@ -6036,8 +6645,8 @@ function closeOverlay() {
 // main window's project / Agent filters (BUG-84).
 function obSel() { return ALL.filter((s) => !s.live && OB && OB.src.has(s.a) && (!OB.recent || s.d >= 30)); }
 function obPersona() { return persona(obSel()); }
-function obFacts() {
-  const L = obSel(); const st = stats(L);
+function genFacts(L) {
+  const st = stats(L);
   const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h] += s.msgs; });
   let bh = 0; hc.forEach((v, h) => { if (v > hc[bh]) bh = h; });
   const byA = AG.map((a) => [a, sum(L.filter((s) => s.a === a.id), (s) => s.dur)]).sort((x, y) => y[1] - x[1]);
@@ -6049,6 +6658,7 @@ function obFacts() {
     ['人格', '四个维度', '你在 ' + Math.round(st.verify) + '% 的会话里要求验证结果']
   ];
 }
+function obFacts() { return genFacts(obSel()); }
 function openOnboarding(step) {
   closeModal(); closeDD(); closeOverlay();
   OB = { step: step || 0, src: new Set(AG.map((a) => a.id).filter((id) => !S.srcOff.has(id))), recent: true, prog: -1, timers: [] };
@@ -6056,6 +6666,8 @@ function openOnboarding(step) {
 }
 function drawOB() {
   const s = OB.step;
+  // 2 / 3 步是 Genesis：直接打开（3 = 最终态）；从第 1 步点「开始分析」时走 obStart，带上来源行位置做粒子起点
+  if (s >= 2) { genOpen('ob', { L: obSel(), final: s === 3 }); return; }
   const dots = '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= s ? 'on' : '') + '"></i>').join('') + '</div>';
   const top = '<div class="row">' + dots + '<span class="mono cap" style="font-size:11px">' + (s + 1) + ' / 4</span><span style="flex:1"></span>' + (s < 3 ? '<button type="button" class="btn sm gh" data-act="obClose">跳过</button>' : '') + '</div>';
   let b = '';
@@ -6070,17 +6682,6 @@ function drawOB() {
       '<div class="srcrow" style="opacity:.6"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">Cursor</b><span class="cap" style="display:block;font-size:11px">未检测到 · 可稍后在设置中手动指定</span></span><span></span><span></span></div></div>' +
       '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:12.5px">只分析最近 90 天</b><span class="cap" style="font-size:11.5px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11.5px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (OB.src.size ? '' : ' disabled') + '>开始分析</button></div>';
-  } else if (s === 2) {
-    const F = obFacts();
-    b = '<div><h2 class="serif" style="margin:0;font-size:24px">正在建立你的协作画像</h2><p class="cap" style="margin:6px 0 0">每完成一步就先给你看结果，不用等到最后。</p></div><div style="height:4px;border-radius:2px;background:var(--line)"><div style="height:4px;border-radius:2px;background:var(--ink-1);width:' + ((OB.prog + 1) / 4 * 100) + '%;transition:width .4s"></div></div><div class="col" style="gap:0">' +
-      F.map((f, i) => { const st = i <= OB.prog ? 'done' : i === OB.prog + 1 ? 'run' : 'todo'; return '<div class="step"><span class="mk" style="background:' + (st === 'done' ? 'var(--ink-1)' : st === 'run' ? 'var(--ai-bg)' : 'var(--surface)') + ';color:' + (st === 'done' ? 'var(--surface)' : 'var(--ink-3)') + ';box-shadow:' + (st === 'todo' ? 'inset 0 0 0 1.5px var(--line)' : 'none') + '">' + (st === 'done' ? '✓' : st === 'run' ? '<span class="spin" style="width:12px;height:12px"></span>' : i + 1) + '</span><div><div style="font-size:12.5px;font-weight:600;color:' + (st === 'todo' ? 'var(--ink-3)' : 'var(--ink-1)') + '">' + f[0] + '</div><div class="cap" style="font-size:11.5px">' + f[1] + '</div></div><span></span></div>'; }).join('') +
-      '</div><div class="col" style="gap:6px;min-height:96px"><span class="eb">已经知道的</span>' + F.filter((f, i) => i <= OB.prog).map((f) => '<div class="row fade" style="font-size:12.5px;align-items:flex-start">' + ic('check', 14, 'color:var(--good);margin-top:2px') + '<span>' + esc(f[2]) + '</span></div>').join('') + (OB.prog < 0 ? '<span class="cap">第一条结果马上出来…</span>' : '') + '</div>' +
-      '<div class="row" style="justify-content:space-between;flex-wrap:wrap"><span class="cap" style="font-size:11.5px">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>';
-  } else {
-    const p = obPersona(); const vr = visibleRecs();
-    b = '<div class="col" style="align-items:center;text-align:center;gap:6px">' + (p.ok ? glyphSVG(p, 92) : '') + '<span class="eb">你的协作人格</span><div class="serif" style="font-size:56px;font-weight:600;line-height:1;letter-spacing:.03em">' + (p.ok ? p.code : '—') + '</div><div class="serif" style="font-size:20px;font-weight:600">' + (p.ok ? p.zh + ' <i style="font-weight:400;font-size:15px;color:var(--ink-3)">' + p.en + '</i>' : '样本不足') + '</div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2);max-width:380px">' + esc(p.ok ? p.line : '已选来源的会话少于 30 个，先用一段时间再来看。') + '</p></div>' +
-      '<div class="col" style="gap:8px">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '让本地 Agent 依据你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:10px"><span class="mono" style="width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:10.5px;font-weight:700;display:grid;place-items:center">' + (i + 1) + '</span><span class="col" style="gap:1px"><b style="font-size:12.5px">' + x[0] + '</b><span class="cap" style="font-size:11.5px">' + x[1] + '</span></span></div>').join('') + '</div>' +
-      '<div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-act="obShare">导出分享卡</button><button type="button" class="btn p" data-act="obDone" style="height:32px;padding:0 18px">查看完整画像</button></div><button type="button" class="lnk" data-act="obReveal" style="align-self:center">播放揭晓动画</button>';
   }
   // Keep the keyboard where it was across redraws (a ticked checkbox, the 90-day switch, the progress page's 950 ms ticks);
   // only a step change moves focus to the default button (BUG-54).
@@ -6090,30 +6691,369 @@ function drawOB() {
   if (keep) keep.focus({ preventScroll: true }); else if (OB.drawn !== s) { const f = $('#overlay button.p'); if (f && !f.disabled) f.focus(); }
   OB.drawn = s;
 }
-function obRun() {
-  OB.timers.forEach(clearTimeout); OB.timers = [];
-  const tick = () => { if (!OB || OVL !== 'ob' || OB.step !== 2) return; OB.prog++; drawOB(); if (OB.prog < 3) OB.timers.push(setTimeout(tick, 950)); else OB.timers.push(setTimeout(() => { if (OB && OVL === 'ob') { OB.step = 3; drawOB(); render(); } }, 800)); };
-  OB.timers.push(setTimeout(tick, 700));
+
+/* ---- Genesis ---- */
+const G_EASE = 'cubic-bezier(.2,.8,.2,1)', G_SPRING = 'cubic-bezier(.34,1.45,.64,1)';
+const G_PAIRS = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
+// reduceMotion() comes from 37-motion.js (shared by every motion layer)
+const genIO = (u) => { u = clamp(u, 0, 1); return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
+const genBack = (u) => { u = clamp(u, 0, 1); const c = 1.25; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
+// 各段起点（ms）。首次启动从「开始分析」算起约 6.7 s；揭晓没有来源列表，01 段只把会话点汇集到中央，约 4.9 s。
+function genTimes(mode) { return mode === 'ob' ? { place: 1700, grow: 3000, match: 4500, end: 6700 } : { place: 700, grow: 1800, match: 3100, end: 4900 }; }
+// 16 种类型的原型点取每轴 25 / 75；匹配度 = 100 − 0.9 × 四维欧氏距离（每轴落在同侧的类型一定最近，所以第一名就是 p.code）
+function genCands(p) {
+  const K = ['D', 'I', 'M', 'V'];
+  return Object.keys(TYPES).map((c) => { const d = Math.sqrt(K.reduce((a, k, i) => a + Math.pow(p.v[k] - (c[i] === k ? 75 : 25), 2), 0)); return { c, zh: TYPES[c][0], en: TYPES[c][1], sim: clamp(Math.round(100 - d * 0.9), 3, 99) }; }).sort((a, b) => b.sim - a.sim);
+}
+// 来源行的图标中心（overlay 坐标）：导入段的粒子从这里出发
+function obSources() {
+  const o = $('#overlay').getBoundingClientRect(); const m = {};
+  $$('#overlay .srcrow').forEach((row) => { const cb = row.querySelector('input[data-a]'); if (!cb || !cb.checked) return; const r = row.firstElementChild.getBoundingClientRect(); m[cb.dataset.a] = [r.left - o.left + r.width / 2, r.top - o.top + r.height / 2, r.width]; });
+  return m;
+}
+// 结构只建一次：指纹沿用画像页的 fp2SVG（.fp-wrap 纸面），人格码沿用 .letters / .L，类型小卡是 .card，按钮是 .btn / .btn.p
+function genHTML(g) {
+  const ob = g.mode === 'ob', p = g.p, F = g.F;
+  const pv = p.ok ? p : { v: { D: 50, I: 50, M: 50, V: 50 } };
+  const hr = S.persona.fpHour, cur = CUR.fp; S.persona.fpHour = null;
+  const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
+  S.persona.fpHour = hr; CUR.fp = cur;
+  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）
+  let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
+  const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
+  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g></svg>';
+  const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? (ch === '?' ? '未定型' : a.name) + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
+  const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
+  const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '暂不匹配' : '样本不足') + '</span><span class="cap">' + (p.ok ? '有维度落在 45–55 之间，先不下结论' : '已选来源的会话少于 30 个') + '</span>';
+  const nm = '<div class="serif g-zh">' + (p.ok ? p.zh + ' <i>' + p.en + '</i>' : '样本不足') + '</div><p class="g-line">' + esc(p.ok ? p.line : '已选来源的会话少于 30 个，先用一段时间再来看。') + '</p>';
+  const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx">' + ic('check', 13, 'color:var(--good);flex:none') + '<span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
+  const top = '<div class="row g-top">' + (ob ? '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= 2 ? 'on' : '') + '"></i>').join('') + '</div><span class="mono cap" data-g="n" style="font-size:11px">3 / 4</span>' : '') +
+    '<span class="mono cap g-stage"' + (ob ? '' : ' id="revStage"') + ' data-g="stage"></span><span style="flex:1"></span><button type="button" class="btn sm gh" data-act="' + (ob ? 'genSkip' : 'revSkip') + '">跳过</button></div>';
+  const head = ob ? '<div class="g-head" data-g="head"><h2 class="serif">正在建立你的协作画像</h2><p class="cap">每完成一步就先给你看结果，不用等到最后。</p></div><div class="g-bar"><i data-g="bar"></i></div>' : '';
+  const vr = visibleRecs();
+  const done = ob ? '<div class="g-next">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '让本地 Agent 依据你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b style="font-size:12.5px">' + x[0] + '</b><span class="cap" style="font-size:11.5px">' + x[1] + '</span></span></div>').join('') + '</div>' +
+      '<div class="g-foot"><button type="button" class="lnk" data-act="obReveal">播放揭晓动画</button><span class="row" style="gap:8px"><button type="button" class="btn" data-act="obShare">导出分享卡</button><button type="button" class="btn p" data-act="obDone" style="height:32px;padding:0 18px">查看完整画像</button></span></div>'
+    : '<div class="g-foot" style="justify-content:center"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></div>';
+  return top + head +
+    '<div class="g-body"><div class="fp-wrap g-dial" data-g="dial"><div class="g-fp">' + fp + '</div>' + over + '<div class="g-cards" data-g="cards"></div></div>' +
+    '<div class="g-side"><div class="mono cap g-count" data-g="count"></div><div class="g-res"><span class="eb">你的协作人格</span><div class="letters code g-code" data-g="code" role="img" aria-label="' + (p.ok ? p.code : '样本不足') + '">' + slots + '</div><div class="row g-match" data-g="match">' + match + '</div><div class="nm" data-g="nm">' + nm + '</div></div>' +
+    '<div class="g-facts"><span class="eb">已经知道的</span>' + facts + '</div></div></div>' +
+    '<div class="g-tail">' + (ob ? '<div class="g-foot" data-g="run"><span class="cap">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>' : '') +
+    '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
+}
+// 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 指南针 .fp-compass /
+// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 外环每小时一段 .fps）
+function genMark(g) {
+  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; if (!svg) return;
+  g.rose = Array.from(svg.querySelectorAll('.fp-rose .fp-pt')).map((el) => Array.from(el.querySelectorAll('path')));
+  g.axl = g.p.ok ? Array.from(svg.querySelectorAll('.fp-ax')) : [];
+  g.nd = svg.querySelector('.fp-needle'); g.hd = g.nd ? +g.nd.dataset.hd : 0;
+  g.segs = Array.from(svg.querySelectorAll('g.ring > g.fps'));
+  g.slotL = Array.from(g.box.querySelectorAll('.g-slot .L'));
+}
+// 玫瑰主角从强度 50 的长度伸到各轴强度（u 可以超过 1，配合 genBack 的回弹）
+function genRose(g, u) {
+  if (!g.rose || !g.p.ok) return;
+  ['D', 'I', 'M', 'V'].forEach((k, i) => { const el = g.rose[i]; if (!el) return; const q = fpRosePt(AXR[k], fpRoseLen(axisView(g.p, i).strong, u), FPG.RR * 0.18); el[0].setAttribute('d', q[1]); el[1].setAttribute('d', q[0]); });
+}
+// 指针角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫针的速度；02 匀速扫一圈；
+// 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向协作重心，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
+function genNeedle(g, t) {
+  const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, w0 = 1.25;
+  if (t < P) {
+    const N = Math.max(1, Math.round((w0 + ws) / 2 * P / 360)), u = t / P;
+    return (u * u * u - 2 * u * u + u) * w0 * P + (3 * u * u - 2 * u * u * u) * N * 360 + (u * u * u - u * u) * ws * P;
+  }
+  if (t < P + sw) return (t - P) / sw * 360;
+  const cd = 300, ts = P + sw + cd, A0 = 360 + ws * cd / 2;
+  if (t < ts) { const tc = t - P - sw; return 360 + ws * tc - ws * tc * tc / (2 * cd); }
+  const H = A0 + ((g.hd - A0) % 360 + 540) % 360 - 180;
+  const search = (x) => { const v = clamp((x - ts) / 900, 0, 1); return A0 + (H - A0) * 0.35 * v * v * (3 - 2 * v) + 30 * Math.sin((x - ts) / 520 * Math.PI * 2) * Math.min(1, (x - ts) / 250); };
+  if (t < g.lockAt) return search(t);
+  const tt = t - g.lockAt; let a = H + (search(g.lockAt) - H) * Math.exp(-tt / 240) * Math.cos(tt / 430 * Math.PI * 2);
+  const tm = T.match, te = T.match + (T.end - T.match) * 0.62 + 520;
+  if (t > tm && t < te) a += 1.8 * Math.sin((t - tm) / 46) * Math.sin(Math.PI * (t - tm) / (te - tm));
+  return a;
+}
+function genAnim(g, el, kf, o) {
+  if (!el || !el.animate) return null;
+  const a = el.animate(kf, Object.assign({ fill: 'both', easing: G_EASE }, o)); g.anims.push(a); return a;
+}
+function genStage(g, t) { const s = g.box.querySelector('[data-g="stage"]'); if (!s) return; s.textContent = t; if (!g.done) s.animate([{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: G_EASE }); }
+function genCount(g) {
+  const el = g.box.querySelector('[data-g="count"]'); if (!el) return;
+  const all = !g.N || g.arrived >= g.N; const f = all ? 1 : g.arrived / g.N;
+  const t = '已读取 ' + fmt(Math.round(g.L.length * f)) + ' 个会话 · ' + fmt(Math.round(g.st.tools * f)) + ' 次工具调用';
+  if (el.textContent !== t) el.textContent = t;
+}
+function genOpen(mode, opt) {
+  genStop();
+  const L = opt.L, p = persona(L), ob = mode === 'ob';
+  const g = { mode, L, p, st: stats(L), F: genFacts(L), cands: p.ok ? genCands(p) : [], T: genTimes(mode), timers: [], anims: [], raf: 0, done: false, arrived: 0, N: 0, flips: [-1, -1, -1, -1], locked: [false, false, false, false], t0: performance.now() };
+  g.lockAt = g.T.grow + (g.T.match - g.T.grow) * 0.77;   // 第四个字母锁定的时刻（genPlay 里 0.32 + 3 × 0.15）
+  GNS = g;
+  const o = $('#overlay'); const old = ob ? o.querySelector('.obox') : null;
+  const r0 = old && opt.from ? old.getBoundingClientRect() : null; const kids = r0 ? Array.from(old.childNodes) : null;
+  let box = old;
+  if (!box) { o.innerHTML = '<div class="obox"></div>'; box = o.firstChild; }
+  box.id = ob ? 'genBox' : 'revBox'; box.className = 'obox gen' + (ob ? '' : ' reveal') + ' run'; box.tabIndex = -1;
+  box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-label', ob ? '首次启动' : '人格揭晓：' + (p.ok ? p.code + ' ' + p.zh : '样本不足'));
+  box.style.setProperty('--g-grow', g.T.grow + 'ms');
+  box.innerHTML = genHTML(g); g.box = box; genMark(g);
+  if (opt.final || reduceMotion()) { genFinal('init'); return; }
+  genRose(g, 0);
+  if (kids) {
+    // 来源列表：留在原位收拢、模糊、淡出；盒子用 clip-path 从旧尺寸展开到新尺寸，新内容随后上浮淡入
+    const gh = document.createElement('div'); gh.className = 'g-ghost'; gh.setAttribute('aria-hidden', 'true'); gh.inert = true;
+    kids.forEach((n) => gh.appendChild(n)); box.prepend(gh);
+    const r1 = box.getBoundingClientRect();
+    Object.assign(gh.style, { width: r0.width + 'px', left: (r0.left - r1.left) + 'px', top: (r0.top - r1.top) + 'px' });
+    const ins = 'inset(' + Math.max(0, r0.top - r1.top) + 'px ' + Math.max(0, r1.right - r0.right) + 'px ' + Math.max(0, r1.bottom - r0.bottom) + 'px ' + Math.max(0, r0.left - r1.left) + 'px round 14px)';
+    box.classList.add('g-morph');
+    genAnim(g, box, [{ clipPath: ins }, { clipPath: 'inset(0px 0px 0px 0px round 14px)' }], { duration: 620, fill: 'none' });
+    genAnim(g, gh, [{ opacity: 1, transform: 'none', filter: 'blur(0px)' }, { opacity: 0, transform: 'scale(.965) translateY(-6px)', filter: 'blur(5px)' }], { duration: 460, fill: 'forwards' });
+    g.timers.push(setTimeout(() => { gh.remove(); box.classList.remove('g-morph'); }, 640));
+    Array.from(box.children).forEach((el, i) => { if (el !== gh) genAnim(g, el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 120 + i * 60 }); });
+  } else genAnim(g, box, [{ opacity: 0, transform: 'scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 320 });
+  genParticles(g, opt.from); genCount(g);
+  genPlay(g);
+  g.raf = requestAnimationFrame(() => genTick(g));
+}
+function genParticles(g, from) {
+  const o = $('#overlay'), cs = getComputedStyle(g.box), T = g.T, ob = g.mode === 'ob', ow = o.getBoundingClientRect().width;
+  const col = (c) => { const m = /^var\((--[\w-]+)\)$/.exec(c); return m ? cs.getPropertyValue(m[1]).trim() || '#888' : c; };
+  const L = g.L.slice().sort((a, b) => (a.h * 60 + a.mi) - (b.h * 60 + b.mi));
+  const N = Math.min(240, L.length), R = rng(hash('genesis' + L.length)), parts = [];
+  const byH = new Array(24).fill(0); g.L.forEach((s) => { byH[s.h]++; }); const mxH = Math.max(1, ...byH);
+  g.sweep = (T.grow - T.place) * 0.8;
+  for (let i = 0; i < N; i++) {
+    const s = L[Math.floor(i * L.length / N)];
+    const a = (s.h + s.mi / 60) / 24 * Math.PI * 2;
+    const src = from && from[s.a];
+    const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, FPG.R0 + 4 + Math.min(s.dur, 126) / 126 * (FPG.RH - 6), a), pour: pt(200, FPG.R0 + byH[s.h] / mxH * FPG.RH * 0.55, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
+    if (ob) { q.e = R() * 1050; q.fl = 700 + R() * 260; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
+    else { q.e = R() * 260; q.fl = 380 + R() * 220; q.gs = pt(200, 250 + R() * 90, R() * Math.PI * 2); }
+    q.dep = Math.max(T.place + a / (Math.PI * 2) * g.sweep, q.e + q.fl + 60); q.land = q.dep + 380; q.pourAt = q.land + 240;
+    parts.push(q);
+  }
+  g.parts = parts; g.N = N; g.surf = cs.getPropertyValue('--surface').trim();
+  const cv = document.createElement('canvas'); cv.className = 'g-cv'; cv.setAttribute('aria-hidden', 'true'); o.appendChild(cv); g.cv = cv; g.ctx = cv.getContext('2d');
+}
+function genDraw(g, t, orc, sr) {
+  const cv = g.cv, dpr = window.devicePixelRatio || 1, W = orc.width, H = orc.height;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const x = g.ctx; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top;
+  const U = (q) => [ox + q[0] * k, oy + q[1] * k];
+  const cloud = (p, tt) => U(pt(200, p.cr, p.ca + tt * 0.0011));
+  const lerp = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+  let arrived = 0, live = 0;
+  x.lineWidth = 1.2 * k; x.strokeStyle = g.surf;
+  for (const p of g.parts) {
+    if (t < p.e) { live++; continue; }
+    let pos, r = p.r * k, al = 1;
+    if (t < p.e + p.fl) {
+      // 导入 / 汇集：二次贝塞尔，从来源图标（或表盘外一圈）弯向中央的会话云
+      const u = genIO((t - p.e) / p.fl), st = p.gs ? U(p.gs) : [p.sx, p.sy], en = cloud(p, t);
+      const cx = (st[0] + en[0]) / 2 - (en[1] - st[1]) * p.bend, cy = (st[1] + en[1]) / 2 + (en[0] - st[0]) * p.bend, v = 1 - u;
+      pos = [v * v * st[0] + 2 * v * u * cx + u * u * en[0], v * v * st[1] + 2 * v * u * cy + u * u * en[1]];
+      al = Math.min(1, (t - p.e) / 160); r *= 0.65 + 0.35 * u;
+    } else if (t < p.dep) { arrived++; pos = cloud(p, t); }
+    else if (t < p.land) { arrived++; pos = lerp(cloud(p, p.dep), U(p.fin), genIO((t - p.dep) / (p.land - p.dep))); }
+    else if (t < p.pourAt) { arrived++; pos = U(p.fin); }
+    else if (t < p.pourAt + 360) { arrived++; const u = genIO((t - p.pourAt) / 360); pos = lerp(U(p.fin), U(p.pour), u); r *= 1 - u * 0.9; al = 1 - u * 0.7; }
+    else { arrived++; continue; }
+    live++;
+    x.globalAlpha = al; x.beginPath(); x.arc(pos[0], pos[1], Math.max(0.2, r), 0, Math.PI * 2); x.fillStyle = p.c; x.fill(); if (r > 1.6) x.stroke();
+  }
+  x.globalAlpha = 1; g.arrived = arrived;
+  if (!live) { cv.remove(); g.cv = null; }
+}
+function genTick(g) {
+  if (GNS !== g || g.done) return;
+  const t = performance.now() - g.t0, T = g.T;
+  // 先读布局（overlay 与指纹的位置），再写 canvas / 文本 / 属性
+  const orc = $('#overlay').getBoundingClientRect(), sr = g.svg ? g.svg.getBoundingClientRect() : null;
+  if (g.cv && sr) genDraw(g, t, orc, sr);
+  if (!g.counted) { genCount(g); if (g.arrived >= g.N) g.counted = true; }
+  if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genRose(g, genBack(u)); if (u >= 1) g.roseDone = true; }
+  if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
+  if (t >= T.grow + 60) g.slotL.forEach((el, i) => {
+    if (g.locked[i]) return;
+    const f = Math.floor((t - T.grow) / 85); if (f === g.flips[i]) return; g.flips[i] = f;
+    el.textContent = G_PAIRS[i][(f + i) % 2];
+    el.animate([{ transform: 'translateY(-34%) scaleY(.55)', opacity: 0.25 }, { transform: 'none', opacity: 1 }], { duration: 80, easing: 'ease-out' });
+  });
+  if (g.cards) g.cards.forEach((c, j) => { const u = clamp((t - g.cardT - j * 70) / 600, 0, 1); const v = Math.round(c.sim * (1 - Math.pow(1 - u, 3))) + '%'; if (c.pc.textContent !== v) c.pc.textContent = v; });
+  if (t < T.end + 60) g.raf = requestAnimationFrame(() => genTick(g));
+}
+function genLock(g, i) {
+  g.locked[i] = true; const el = g.slotL[i]; if (!el) return;
+  el.textContent = g.p.ok ? g.p.code[i] : '—'; el.parentNode.classList.add('lock');
+  genAnim(g, el, [{ transform: 'scale(1.3)', opacity: 0.4 }, { transform: 'scale(.93)', opacity: 1, offset: 0.55 }, { transform: 'none', opacity: 1 }], { duration: 520, easing: 'ease-out', fill: 'none' });
+  genAnim(g, el.parentNode.querySelector('.g-ax'), [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 320 });
+  if (g.axl[i]) genAnim(g, g.axl[i], [{ opacity: 0 }, { opacity: 1 }], { duration: 320 });
+}
+function genFactRun(g, i) { const r = g.box.querySelectorAll('.g-fact')[i]; if (!r) return; r.classList.add('run'); r.querySelector('.mk').innerHTML = '<span class="spin" style="width:12px;height:12px"></span>'; }
+function genFact(g, i) {
+  const rows = g.box.querySelectorAll('.g-fact'); const r = rows[i]; if (!r) return;
+  r.classList.remove('run'); r.classList.add('done'); r.querySelector('.mk').textContent = '✓';
+  genAnim(g, r.querySelector('.g-sub'), [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 260, fill: 'forwards' });
+  genAnim(g, r.querySelector('.g-fx'), [{ opacity: 0, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 120 });
+  if (rows[i + 1]) genFactRun(g, i + 1);
+  if (g.mode === 'ob' && OB) OB.prog = i;
+  const bar = g.box.querySelector('[data-g="bar"]'); if (bar) bar.style.width = ((i + 1) / 4 * 100) + '%';
+}
+// 候选类型卡：绕表盘出现（打乱的位置）→ 按相似度移到名次位 → 其余淡出 → 第一名飞进四字母
+function genCards(g) {
+  const box = g.box, wrap = box.querySelector('[data-g="cards"]'), dial = box.querySelector('[data-g="dial"]'); if (!wrap || !dial) return;
+  const T = g.T, ml = T.end - T.match, top = g.cands.slice(0, 6), win = g.p.classified;
+  const at = (ms, fn) => g.timers.push(setTimeout(() => { if (GNS === g && !g.done) fn(); }, ms));
+  const D = dial.clientWidth, H = dial.clientHeight, ANG = [0, 60, 300, 120, 240, 180], perm = [3, 0, 5, 1, 4, 2];
+  const slot = (j) => { const a = ANG[j] * Math.PI / 180; return [D / 2 + Math.sin(a) * (D / 2 - 26), H / 2 - Math.cos(a) * (H / 2 - 14)]; };
+  wrap.innerHTML = top.map((c) => '<div class="card g-card"><span class="mono c">' + c.c + '</span><span class="mono pc">0%</span><span class="z">' + c.zh + '</span></div>').join('');
+  const els = Array.from(wrap.children); g.cardT = performance.now() - g.t0;
+  g.cards = els.map((el, j) => ({ sim: top[j].sim, pc: el.querySelector('.pc') }));
+  els.forEach((el, j) => { const s = slot(perm[j]); el.style.left = s[0] + 'px'; el.style.top = s[1] + 'px'; genAnim(g, el, [{ opacity: 0, transform: 'translate(' + ((D / 2 - s[0]) * 0.55).toFixed(1) + 'px,' + ((H / 2 - s[1]) * 0.55).toFixed(1) + 'px) scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 440, delay: j * 70, easing: G_SPRING }); });
+  at(ml * 0.3, () => els.forEach((el, j) => {
+    const a = slot(perm[j]), b = slot(j); el.style.left = b[0] + 'px'; el.style.top = b[1] + 'px';
+    genAnim(g, el, [{ transform: 'translate(' + (a[0] - b[0]).toFixed(1) + 'px,' + (a[1] - b[1]).toFixed(1) + 'px)' }, { transform: 'none' }], { duration: 540, easing: G_SPRING, fill: 'none' });
+    if (j === 0 && win) el.classList.add('win');
+  }));
+  at(ml * 0.55, () => els.forEach((el, j) => { if (j === 0 && win) return; genAnim(g, el, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86)' }], { duration: 280, delay: (5 - j) * 50, fill: 'forwards' }); }));
+  if (win) at(ml * 0.62, () => {
+    const el = els[0], code = box.querySelector('[data-g="code"]'); const cr = el.getBoundingClientRect(), tr = code.getBoundingClientRect();
+    const dx = tr.left + tr.width / 2 - (cr.left + cr.width / 2), dy = tr.top + tr.height / 2 - (cr.top + cr.height / 2);
+    genAnim(g, el, [{ transform: 'none', opacity: 1 }, { transform: 'translate(' + (dx * 0.8).toFixed(1) + 'px,' + (dy * 0.8).toFixed(1) + 'px) scale(.8)', opacity: 1, offset: 0.7 }, { transform: 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(.55)', opacity: 0 }], { duration: 560, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' });
+    at(500, () => genAnim(g, code, [{ transform: 'none' }, { transform: 'scale(1.06)', offset: 0.4 }, { transform: 'none' }], { duration: 480, fill: 'none' }));
+  });
+}
+function genPlay(g) {
+  const T = g.T, box = g.box, ob = g.mode === 'ob', q = (s) => box.querySelector(s), qa = (s) => Array.from(box.querySelectorAll(s));
+  const at = (ms, fn) => g.timers.push(setTimeout(() => { if (GNS === g && !g.done) fn(); }, ms));
+  const A = (el, kf, o) => genAnim(g, el, kf, o), fade = { opacity: [0, 1] };
+  const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
+  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 指针扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 生长 · 罗盘玫瑰长出 D I M V'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
+  genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
+  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）
+  A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: ob ? 900 : 600, delay: ob ? 150 : 0 });
+  A(q('.g-ticks'), fade, { duration: 500, delay: ob ? 500 : 200 });
+  qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
+  A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 360 : 80 });
+  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 420 : 120, easing: G_SPRING });
+  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入，外环每小时一段在指针过后长出
+  A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
+  qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
+  g.segs.forEach((el) => { const h = +el.dataset.h; A(el, [{ opacity: 0, transform: 'scale(.76)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: T.place + (h + 0.5) / 24 * sw + 520, easing: G_SPRING }); });
+  A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
+  // 03：玫瑰主角（.pet，CSS grow）从中心长出并在 rAF 里伸到各轴强度；字母位翻牌（指针寻向），按顺序锁定
+  [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
+  // 已经知道的：每完成一段给一条
+  genFactRun(g, 0);
+  [T.place - 200, T.grow - 100, T.grow + gl * 0.6, T.match + ml * 0.4].forEach((ms, i) => at(ms, () => genFact(g, i)));
+  // 04：候选卡 → 匹配度、名字与一句话
+  if (g.p.ok) at(T.match, () => genCards(g));
+  at(T.match + ml * 0.8, () => A(q('[data-g="match"]'), [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420 }));
+  at(T.match + ml * 0.86, () => A(q('[data-g="nm"]'), [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 520 }));
+  at(T.end, () => genFinal('end'));
+}
+// 最终态：跳过、自然结束、减少动态效果与第 3 步直开都走这里
+function genFinal(how) {
+  const g = GNS; if (!g || g.done) return;
+  g.done = true; g.timers.forEach(clearTimeout); g.timers = []; cancelAnimationFrame(g.raf);
+  g.anims.forEach((a) => { try { a.cancel(); } catch (e) { /* detached */ } }); g.anims = [];
+  if (g.cv) { g.cv.remove(); g.cv = null; }
+  const box = g.box, ob = g.mode === 'ob', p = g.p, q = (s) => box.querySelector(s);
+  box.querySelectorAll('.g-ghost').forEach((el) => el.remove()); box.classList.remove('run', 'g-morph'); box.classList.add('skip');
+  genRose(g, 1); if (g.nd) g.nd.style.transform = '';
+  g.slotL.forEach((el, i) => { el.textContent = p.ok ? p.code[i] : '—'; el.parentNode.classList.add('lock'); });
+  const cw = q('[data-g="cards"]'); if (cw) cw.innerHTML = ''; g.cards = null;
+  g.arrived = g.N; genCount(g);
+  box.querySelectorAll('.g-fact').forEach((r) => { r.classList.remove('run'); r.classList.add('done'); r.querySelector('.mk').textContent = '✓'; });
+  const bar = q('[data-g="bar"]'); if (bar) bar.style.width = '100%';
+  const run = q('[data-g="run"]'); if (run) run.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  const sk = q('[data-act="genSkip"], [data-act="revSkip"]'); if (sk) sk.hidden = true;
+  const dn = q('[data-g="done"]'); if (dn) { dn.querySelectorAll('button').forEach((b) => { b.disabled = false; }); if (how !== 'init') dn.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: G_EASE }); }
+  if (ob) {
+    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
+    const nn = q('[data-g="n"]'); if (nn) nn.textContent = '4 / 4'; box.querySelectorAll('.ob-dots i').forEach((i) => i.classList.add('on'));
+    const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
+    if (OB) { OB.prog = 3; OB.step = 3; OB.drawn = 3; }
+    const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
+    render();
+  } else {
+    genStage(g, '05 / 停留');
+    if (REV) { REV.done = true; REV.timers.forEach(clearTimeout); }
+    if (how !== 'init') { const f = q('[data-act="revGo"]'); if (f) f.focus(); }
+  }
+}
+function genStop() {
+  const g = GNS; if (!g) return; GNS = null;
+  g.done = true; g.timers.forEach(clearTimeout); cancelAnimationFrame(g.raf);
+  g.anims.forEach((a) => { try { a.cancel(); } catch (e) { /* detached */ } });
+  if (g.cv) g.cv.remove();
+  if (g.land) g.land();
+}
+// The landing page shows the scope first launch just analysed (90 days when「只分析最近 90 天」is on, else all history):
+// Lite reads S.range, Advance's persona page its own period, so both are aligned and the numbers do not jump on arrival.
+function obScope() { if (!OB) return; S.range = OB.recent ? 90 : 0; S.persona.period = OB.recent ? '90' : 'all'; }
+// 05 落地：大人格码逐字母、指纹整体从 overlay FLIP 到画像页 [data-hero]；overlay 同时淡出，目标页内容随后淡入。
+// Lite 的 l-persona 或目标不在可视区时退化为原地缩小淡出。
+function genLand() {
+  const g = GNS, box = g && g.box;
+  if (!g || !box || reduceMotion() || g.land) { closeOverlay(); go('persona'); return; }
+  const o = $('#overlay');
+  const fromL = g.slotL.map((el) => [el, el.getBoundingClientRect()]);
+  const fromF = g.svg ? [g.svg, g.svg.getBoundingClientRect()] : null;
+  const fly = [], hid = [], an = [];
+  const clone = (el, r) => {
+    const c = el.cloneNode(true); const cs = getComputedStyle(el); c.removeAttribute('id'); c.classList.add('g-fly');
+    Object.assign(c.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', font: cs.font, letterSpacing: cs.letterSpacing, color: cs.color, lineHeight: r.height + 'px' });
+    document.body.appendChild(c); fly.push(c); return c;
+  };
+  const cL = fromL.map((x) => clone(x[0], x[1])); const cF = fromF ? clone(fromF[0], fromF[1]) : null;
+  g.land = () => { g.land = null; an.forEach((a) => { try { a.cancel(); } catch (e) { /* detached */ } }); fly.forEach((c) => c.remove()); hid.forEach((el) => { el.style.visibility = ''; }); o.style.pointerEvents = ''; };
+  o.style.pointerEvents = 'none';
+  an.push(o.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 380, easing: 'ease-out', fill: 'forwards' }));
+  go('persona');
+  const main = $('#main'), cont = $('#content'), cr = cont ? cont.getBoundingClientRect() : null;
+  const seen = (r) => !!cr && r.width > 4 && r.bottom > cr.top + 24 && r.top < cr.bottom - 24;
+  const tL = main ? Array.from(main.querySelectorAll('[data-hero="code"] .L')) : [];
+  const tH = main ? main.querySelector('[data-hero="fp"]') : null; const tF = tH ? (tH.querySelector('svg') || tH) : null;
+  if (cont) an.push(cont.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 160, easing: G_EASE, fill: 'backwards' }));
+  const flyTo = (c, r0, el, i, byW) => {
+    const r1 = el ? el.getBoundingClientRect() : null;
+    if (!r1 || !seen(r1) || !r0.width || !r0.height) { an.push(c.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.9)' }], { duration: 360, delay: i * 30, easing: G_EASE, fill: 'forwards' })); return; }
+    const s = byW ? r1.width / r0.width : r1.height / r0.height;
+    const dx = r1.left + r1.width / 2 - (r0.left + r0.width / 2), dy = r1.top + r1.height / 2 - (r0.top + r0.height / 2);
+    hid.push(el); el.style.visibility = 'hidden';
+    an.push(c.animate([{ transform: 'none' }, { transform: 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' + s.toFixed(3) + ')' }], { duration: byW ? 700 : 640, delay: i * 45, easing: byW ? G_EASE : 'cubic-bezier(.3,1.25,.5,1)', fill: 'forwards' }));
+  };
+  cL.forEach((c, i) => flyTo(c, fromL[i][1], tL.length === 4 ? tL[i] : null, i, false));
+  if (cF) flyTo(cF, fromF[1], tF, 0, true);
+  g.timers.push(setTimeout(() => {
+    if (GNS !== g) return;
+    // 字母落在同一位置、同一字形：直接换成目标，不做交叉淡化（否则会叠出灰影）；指纹数据口径不同，交叉淡化
+    hid.forEach((el) => { el.style.visibility = ''; if (el === tF) an.push(el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' })); });
+    cL.forEach((c) => { c.style.visibility = 'hidden'; });
+    if (cF) an.push(cF.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' }));
+  }, 760));
+  g.timers.push(setTimeout(() => { if (GNS === g) closeOverlay(); }, 980));
 }
 function openReveal(opt) {
   closeModal(); closeDD(); closeOverlay();
   const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
   if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
   if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
-  const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  REV = { done: reduce, timers: [] }; OVL = 'reveal';
-  const o = $('#overlay'); o.hidden = false;
-  o.innerHTML = '<div class="reveal' + (reduce ? ' skip' : '') + '" id="revBox" tabindex="-1" role="dialog" aria-modal="true" aria-label="人格揭晓：' + p.code + ' ' + p.zh + '"><div class="row" style="width:100%"><span class="mono cap" id="revStage" style="font-size:11px;text-align:left">' + (reduce ? '05 / 停留' : '01 / 汇集 · 读取 ' + fmt(L.length) + ' 个会话') + '</span><span style="flex:1"></span><button type="button" class="btn sm gh" data-act="revSkip"' + (reduce ? ' hidden' : '') + '>跳过</button></div><div style="width:min(300px,62vw)">' + fpSVG(L, p, 300, { labels: true }) + '</div><div class="code">' + p.code + '</div><div class="nm"><div class="serif" style="font-size:22px;font-weight:600">' + p.zh + ' <i style="font-weight:400;font-size:16px;color:var(--ink-3)">' + p.en + '</i></div><div style="font-size:13px;line-height:1.55;color:var(--ink-2);max-width:330px;margin:6px auto 0">' + esc(p.line) + '</div></div><div class="acts row" style="margin-top:14px;gap:8px;justify-content:center"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo">查看完整画像</button></div></div>';
+  REV = { done: false, timers: [] }; OVL = 'reveal';
+  const o = $('#overlay'); o.hidden = false; o.innerHTML = '';
+  genOpen('rev', { L });
   const bx = $('#revBox'); if (bx) bx.focus({ preventScroll: true });
-  if (!reduce) [[600, '02 / 归位 · 按开始时间排到 24 小时表盘上'], [1400, '03 / 生长 · D I M V 四个维度'], [2200, '04 / 定型 · ' + p.code], [3000, '']].forEach((x) => REV.timers.push(setTimeout(() => { if (!x[1]) { revealSkip(); return; } const s = $('#revStage'); if (s) s.textContent = x[1]; }, x[0])));
 }
 function revealSkip() {
   if (!REV || REV.done) return;
-  REV.done = true; REV.timers.forEach(clearTimeout);
-  const b = $('#revBox'); if (b) b.classList.add('skip');
-  const s = $('#revStage'); if (s) s.textContent = '05 / 停留';
-  const k = $('#revBox [data-act="revSkip"]'); if (k) k.hidden = true;
-  const g = $('#revBox [data-act="revGo"]'); if (g) g.focus();
+  if (GNS && GNS.mode === 'rev') genFinal('skip'); else REV.done = true;
 }
 $('#overlay').addEventListener('click', (e) => {
   if (OVL !== 'reveal' || !REV) return;
@@ -6127,13 +7067,14 @@ Object.assign(ACT, {
   obPrivacy: () => { closeOverlay(); openSettings('privacy'); },
   obSrc: (el) => { const id = el.dataset.a; if (el.checked) OB.src.add(id); else OB.src.delete(id); drawOB(); },
   obRecent: () => { OB.recent = !OB.recent; drawOB(); },
-  obStart: () => { AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); }); OB.step = 2; OB.prog = -1; drawOB(); obRun(); },
-  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => go('persona'), force: true }); }, 2600); },
-  obDone: () => { closeOverlay(); go('persona'); },
+  obStart: () => { AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); }); OB.step = 2; OB.prog = -1; const from = obSources(); genOpen('ob', { L: obSel(), from }); },
+  genSkip: () => genFinal('skip'),
+  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => { obScope(); go('persona'); }, force: true }); }, 2600); },
+  obDone: () => { obScope(); genLand(); },
   obShare: () => { closeOverlay(); render(); openShare(); },
   obReveal: () => { const L = obSel(); closeOverlay(); render(); openReveal({ L }); },
   revSkip: () => revealSkip(),
-  revGo: () => { closeOverlay(); go('persona'); },
+  revGo: () => genLand(),
   revShare: () => { closeOverlay(); openShare(); }
 });
 // Tab stays inside the open overlay box (first launch or reveal); without this it walks on to the menu bar behind the scrim (BUG-55).
@@ -6737,6 +7678,129 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '?') { e.preventDefault(); openKeys(); return; }
   if (e.key === ' ' && S.route === 'sessions' && !tg.closest('button,a,input,textarea,select,[tabindex]')) { e.preventDefault(); ACT.playToggle(); }
 });
+
+/* ============ live binding (TandemLive, js/06-live-client.js) ============
+   Mock mode (file://, opened on its own) changes nothing. Live mode (served by the gateway at /app, or ?live=1) replaces the
+   bound pages with API-backed renderers, overlays the sidebar counts and the settings › 数据源 list, and puts the status strip
+   (import progress, service banner, stale / computing badge, 示例数据 on pages that are not bound yet) at the top of the content.
+   Hooks wrap render / renderSide / renderSet from here; no other file changes. The demo's sel() / stats() / persona() and
+   15-derive are not used to show anything on bound pages. */
+const TL = TandemLive.create({ onChange: () => render() });
+const TLU = TandemLive.ui;
+const TL_VIEWS = {};
+const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
+function lvScope() {
+  const on = AG.filter((a) => S.agents.has(a.id) && !S.srcOff.has(a.id)).map((a) => a.id);
+  return { range: S.range, agents: on.length === AG.length ? null : on, projects: null, tz: TL_TZ };
+}
+function lvView(page) { const v = TL.view(page, lvScope()); TL_VIEWS[page] = v; return v; }
+function lvTable(cols, rows, rowAttr) {
+  return '<table class="tl-table"><thead><tr>' + cols.map((c) => '<th' + (c.n ? ' class="n"' : '') + '>' + c.t + '</th>').join('') + '</tr></thead><tbody>' +
+    rows.map((r) => '<tr' + (rowAttr ? rowAttr(r) : '') + '>' + cols.map((c) => '<td' + (c.n ? ' class="n"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+}
+const lvKpi = (label, value) => '<div class="tl-card tl-kpi"><b>' + value + '</b><span>' + label + '</span></div>';
+// Lite edition (26-edition.js): the same bound renderers serve its pages, under the Lite top bar and without Advance filters.
+function lvPage(title, meta, v, body) {
+  const lite = S.ed === 'lite';
+  return (lite ? liteBar(title, meta) : tbar(title, meta)) + '<div class="content" id="content">' + (lite ? '' : filterRow()) + TLU.body(v, body) + '</div>';
+}
+
+TL.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview', waitMs: 800 }], (d) => {
+  const o = d.ov.overview || {}; const c = o.counts || {}; const u = o.usage || {};
+  return { counts: c, usage: u, coverage: d.ov.meta && d.ov.meta.coverage };
+});
+TL.bind('sessions', (scope) => {
+  const res = [{ name: 'list', path: '/v1/analytics/sessions', query: { offset: 0, limit: 50 } }];
+  if (S.lvSess) res.push({ name: 'events', path: '/v1/sessions/' + encodeURIComponent(S.lvSess) + '/events', query: { limit: 200 }, scope: false });
+  return res;
+}, (d) => ({ total: d.list.total, rows: d.list.sessions || [], events: d.events ? d.events.items || [] : null }));
+TL.bind('tools', [{ name: 't', path: '/v1/analytics/tools' }], (d) => { const t = d.t.tools || {}; return { totals: t.totals || {}, rows: t.by_tool || [] }; });
+TL.bind('projects', [{ name: 'p', path: '/v1/analytics/projects' }], (d) => { const p = d.p.projects || {}; return { status: p.status, rows: p.records || [] }; });
+
+const TL_PAGES = {
+  overview() {
+    const v = lvView('overview');
+    return lvPage('概览', '本机数据 · ' + rangeLabel(), v, (vm) => '<div class="tl-grid" data-tl="overview">' +
+      lvKpi('会话', TLU.num(vm.counts.sessions)) + lvKpi('真人消息', TLU.num(vm.counts.human_messages)) + lvKpi('工具调用', TLU.num(vm.counts.tool_calls)) +
+      lvKpi('项目', TLU.num(vm.counts.projects)) + lvKpi('活跃天数', TLU.num(vm.counts.active_days)) + lvKpi('模型请求', TLU.num(vm.usage.request_count)) +
+      lvKpi('Token', TLU.num(vm.usage.total_tokens)) + lvKpi('费用', TLU.money(vm.usage.cost_usd)) + '</div>');
+  },
+  sessions() {
+    const v = lvView('sessions');
+    return lvPage('会话与轨迹', v && v.vm ? TLU.num(v.vm.total) + ' 个会话' : '', v, (vm) => {
+      const list = lvTable([
+        { t: '会话', v: (s) => esc(s.title || s.session_uid) },
+        { t: '消息', n: 1, v: (s) => TLU.num(s.features && s.features.user_message_count) },
+        { t: '工具', n: 1, v: (s) => TLU.num(s.features && s.features.tool_call_count) },
+        { t: 'Token', n: 1, v: (s) => TLU.num(s.usage && s.usage.total_tokens) }
+      ], vm.rows, (s) => ' data-tl-sel data-act="lvSess" data-id="' + esc(s.session_uid) + '"' + (S.lvSess === s.session_uid ? ' class="on"' : ''));
+      const ev = vm.events == null ? '<div class="cap">选择一个会话查看事件</div>' : vm.events.length ? vm.events.map((e) => '<div class="tl-ev">#' + TLU.num(e.seq) + ' · ' + TLU.hm(e.ts) + ' · ' + esc(e.kind) + ' · ' + esc(e.summary || '') + '</div>').join('') : TLU.empty('该会话没有事件');
+      return '<div class="stack" data-tl="sessions"><div class="tl-card">' + list + '</div><div class="tl-card" data-tl="events">' + ev + '</div></div>';
+    });
+  },
+  tools() {
+    const v = lvView('tools');
+    return lvPage('工具调用', v && v.vm ? TLU.num(v.vm.totals.call_count) + ' 次调用' : '', v, (vm) => '<div class="stack" data-tl="tools"><div class="tl-grid">' +
+      lvKpi('调用', TLU.num(vm.totals.call_count)) + lvKpi('明确失败', TLU.num(vm.totals.known_failure_count)) + lvKpi('状态未知', TLU.num(vm.totals.unknown_status_count)) + lvKpi('失败率', TLU.pct(vm.totals.failure_rate)) + '</div>' +
+      '<div class="tl-card">' + lvTable([
+        { t: '工具', v: (r) => esc(r.name) }, { t: '调用', n: 1, v: (r) => TLU.num(r.call_count) }, { t: '成功', n: 1, v: (r) => TLU.num(r.known_success_count) },
+        { t: '失败', n: 1, v: (r) => TLU.num(r.known_failure_count) }, { t: '未知', n: 1, v: (r) => TLU.num(r.unknown_status_count) }, { t: '中位时长 ms', n: 1, v: (r) => TLU.num(r.median_duration_ms) }
+      ], vm.rows) + '</div></div>');
+  },
+  projects() {
+    const v = lvView('projects');
+    return lvPage('项目习惯', v && v.vm ? v.vm.rows.length + ' 个项目' : '', v, (vm) => '<div class="tl-card" data-tl="projects">' + lvTable([
+      { t: '项目', v: (r) => esc(r.name || r.project_id) }, { t: '会话', n: 1, v: (r) => TLU.num(r.session_count) }, { t: '真人消息', n: 1, v: (r) => TLU.num(r.human_message_count) },
+      { t: '工具调用', n: 1, v: (r) => TLU.num(r.tool_call_count) }, { t: '最近', n: 1, v: (r) => TLU.hm(r.last_observed_ts) }
+    ], vm.rows) + '</div>');
+  }
+};
+ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
+
+// A Lite route whose Advance counterpart is bound (l-home → overview, l-sessions → sessions) shows that live page; the
+// others (l-persona, l-recs) keep their demo page and the 示例数据 badge.
+const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
+if (TL.mode === 'live') {
+  Object.keys(TL_PAGES).forEach((k) => { PAGES[k] = TL_PAGES[k]; });
+  Object.keys(TO_ADV).forEach((r) => { if (lvKey(r) !== r) PAGES[r] = TL_PAGES[lvKey(r)]; });
+  TLU.ensureStyle(document);
+  const baseRender = render, baseSide = renderSide, baseSet = renderSet;
+  const lvSources = () => { const r = TL.resource('/v1/app/sources'); if (r.dirty && !r.loading) TL.load(r); return r; };
+  render = function () {
+    baseRender();
+    const c = $('#content'); if (!c) return;
+    const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
+    const strip = TLU.strip(TL, lvKey(S.route), TL_VIEWS[lvKey(S.route)]);
+    if (strip) c.insertAdjacentHTML('afterbegin', strip);
+  };
+  renderSide = function () {
+    baseSide();
+    const st = TL.status; const side = $('#side');
+    const set = (sel, text) => { const el = side.querySelector(sel); if (el) el.textContent = text; };
+    set('[data-r="sessions"] .ct, [data-r="l-sessions"] .ct', TLU.num(st && st.counts && st.counts.sessions));
+    set('[data-r="projects"] .ct', TLU.num(st && st.counts && st.counts.projects));
+    AG.forEach((a) => {
+      const keys = TandemLive.AGENT_KEYS[a.id] || [];
+      const src = ((st && st.sources) || []).filter((s) => keys.indexOf(String(s.agent || '').toLowerCase()) >= 0);
+      const on = src.filter((s) => s.enabled !== false);
+      set('.ag[data-a="' + a.id + '"] .ct', !st ? '—' : !src.length ? '—' : !on.length ? '停用' : TLU.num(on.some((s) => s.sessions == null) ? null : on.reduce((n, s) => n + s.sessions, 0)));
+    });
+    side.querySelectorAll('[data-act="pinProject"] .ct').forEach((el) => { el.textContent = '—'; });
+    set('.me .pc', '—');
+    set('.sb-foot .pv .row.cap span', st ? '已索引 ' + TLU.num(st.counts && st.counts.sessions) + ' 个会话 · 本机服务' : TL.error ? '本机服务未连接' : '正在连接本机服务');
+  };
+  renderSet = function () {
+    baseSet();
+    if ($('#set').hidden || S.setTab !== 'sources') return;
+    const card = $$('#set .card').find((x) => { const t = x.querySelector('.ct'); return t && t.textContent === '已检测到的 Agent'; });
+    if (!card) return;
+    const r = lvSources(); const box = card.lastElementChild;
+    box.setAttribute('data-tl', 'sources');
+    box.innerHTML = r.data ? ((r.data.sources || []).map((s) => '<div class="srcrow" style="opacity:' + (s.enabled === false ? 0.55 : 1) + '"><div style="min-width:0"><b style="font-size:13px">' + esc(s.name || s.agent) + '</b><div class="cap" style="font-size:11px">' + esc(s.id) + ' · ' + (s.enabled === false ? '已停用' : '已启用') + '</div></div><span class="when">' + TLU.num(s.sessions) + ' 个会话 · ' + TLU.hm(s.last_scan) + '</span></div>').join('') || TLU.empty('尚未发现数据来源'))
+      : r.state === 'error' ? TLU.errorCard(r.error) : TLU.skeleton();
+  };
+  TL.start();
+}
 
 /* ============ clock, live counters, init ============ */
 let TICK = 0;
