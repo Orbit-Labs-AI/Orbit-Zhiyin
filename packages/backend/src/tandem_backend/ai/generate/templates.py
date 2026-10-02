@@ -28,6 +28,14 @@ HOOK_BY_PROBLEM = {"tool_env_failure": "retry-breaker", "missing_verification": 
 TITLES = {"retry-breaker": "连续失败熔断", "verify-before-commit": "提交前先验证",
           "post-edit-check": "改后提醒检查", "stop-verify": "结束前补验证",
           "compaction-reminder": "压缩前留档", "scope-guard": "越界命令拦截"}
+HOOK_SEMANTICS = {
+    "retry-breaker": "PostToolUse 记录同一命令头的连续失败次数，PreToolUse 在达到 threshold 时拦下再次尝试。",
+    "verify-before-commit": "PreToolUse 遇到 git commit 时，若最后一次编辑之后 command_heads 里的验证命令都没成功过就拦下。",
+    "post-edit-check": "PostToolUse 编辑了命中 file_glob 的文件时提醒运行 command。",
+    "stop-verify": "Stop 时若还有未验证的编辑就拦一次，提示先跑 command_heads 里的验证命令。",
+    "compaction-reminder": "PreCompact 时提醒先记下目标、已改文件和未完成的验证。",
+    "scope-guard": "PreToolUse 拦下以 command_heads 中任一前缀开头的 Bash 命令。",
+}
 
 
 def _text(limit: int) -> dict:
