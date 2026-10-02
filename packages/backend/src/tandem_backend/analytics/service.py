@@ -359,6 +359,14 @@ def analyze_context(
             "聚类和坐标不带人格或任务成功含义",
         ],
     }
+    from .products.contracts import RULE_VERSIONS
+    from .products.lexical import lexical_analysis
+    from .products.statistics import statistical_analysis
+
+    result["lexical"] = lexical_analysis(context)
+    result["statistics"] = statistical_analysis(context, result)
+    result["analysis_methods"] = dict(RULE_VERSIONS)
+    result["analysis_digest"] = stable_id(result["analysis_digest"], RULE_VERSIONS, with_text)
     if with_recommendations:
         result["bottleneck_recommendations"] = recommend_resources(result)
     return result
@@ -366,10 +374,13 @@ def analyze_context(
 
 def analyze_store(store, scope: Scope | None = None, with_text: bool = True) -> Record:
     """Adapt canonical or legacy storage before entering the pure analysis engine."""
-    bundle = (
-        store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
-    )
-    return analyze_bundle(bundle, scope, with_text)
+    from .history import recorded
+
+    scope = scope or Scope()
+    def compute():
+        bundle = store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
+        return analyze_bundle(bundle, scope, with_text)
+    return recorded(store, "features", {"scope": asdict(scope), "with_text": with_text}, compute)
 
 
 def response_section(result: Record, key: str) -> Record:

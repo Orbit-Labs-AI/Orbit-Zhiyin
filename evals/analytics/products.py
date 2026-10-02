@@ -17,6 +17,7 @@ from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store
 from tandem_data.validation.fixtures import create_sources
 
+from tandem_backend.analytics.history import history_for
 from tandem_backend.analytics.inputs import Scope
 from tandem_backend.analytics.products import analyze_product_store
 from tandem_backend.analytics.products.render import atomic_write, export_report, terminal_report
@@ -264,6 +265,11 @@ def main(argv: list[str] | None = None) -> int:
         with TestClient(create_app(home=home)) as client:
             response = client.get("/v1/analytics/products", params=params)
             parity = response.status_code == 200 and response.json() == product
+        history = history_for(CanonicalStore(home))
+        runs = history.list_runs(engine="products", status="completed")["items"]
+        history_equal = len(runs) == 2 and all(
+            history.result(row["run_id"]) == product for row in runs
+        )
         exports = export_report(product, output / "report")
         json_parity = json.loads((output / "report/analysis.json").read_text()) == product
         status = (
@@ -271,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
             if checks["status"] == "passed"
             and parity
             and json_parity
+            and history_equal
             and not verification["unparsed"]
             and not any(r["capture_errors"] for r in imports)
             else "failed"
@@ -285,6 +292,11 @@ def main(argv: list[str] | None = None) -> int:
             "product_validation": checks,
             "api_equal": parity,
             "export_equal": json_parity,
+            "history_verification": {
+                "path": str(history.path),
+                "run_count": len(runs),
+                "full_results_equal": history_equal,
+            },
             "exports": exports,
             "coverage": product["coverage"],
             "elapsed_seconds": round(time.perf_counter() - started, 3),

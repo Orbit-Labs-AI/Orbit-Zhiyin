@@ -18,6 +18,8 @@ RULE_VERSIONS = {
     "cost_time": "bottleneck-features-v1",
     "outcome": "bottleneck-features-v1",
     "outcome_subjective": "subjective-outcome-v1",
+    "lexical": "lexical-v1",
+    "statistics": "descriptive-statistics-v1",
 }
 
 

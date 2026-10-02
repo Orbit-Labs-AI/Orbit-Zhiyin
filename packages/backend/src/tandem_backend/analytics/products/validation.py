@@ -17,6 +17,25 @@ def validate_products(product: Record) -> Record:
             errors.append(name)
 
     tools = product["tools"]
+    lexical = product["lexical"]
+    if lexical["terms"] is not None:
+        check(
+            "word counts match retained tokens",
+            sum(row["count"] for row in lexical["terms"]) == lexical["token_count"],
+        )
+        check("full vocabulary is retained", len(lexical["terms"]) == lexical["vocabulary_size"])
+        check(
+            "word evidence accounting",
+            all(
+                sum(ref["count"] for ref in row["evidence"]) == row["count"]
+                for row in lexical["terms"]
+            ),
+        )
+    for name, summary in product["statistics"]["metrics"].items():
+        check(
+            f"{name}: known + unknown = samples",
+            summary["n"] + summary["unknown_n"] == len(summary["samples"]),
+        )
     if tools["call_count"] is not None:
         for name in ("by_name", "by_kind"):
             rows = tools[name]

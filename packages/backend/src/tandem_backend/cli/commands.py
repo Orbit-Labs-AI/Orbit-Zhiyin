@@ -109,6 +109,14 @@ def main(argv: list[str] | None = None) -> None:
     for flag in ("source-id", "project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
         products.add_argument("--" + flag, action="append")
     products.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
+    history = sub.add_parser("analysis-history", help="查询持久保存的分析运行与完整结果")
+    history.add_argument("--engine", choices=("features", "products", "comparison", "profile"))
+    history.add_argument("--status", choices=("running", "completed", "failed"))
+    history.add_argument("--run-id")
+    history.add_argument("--pointer", help="分页读取结果数组，例如 /lexical/terms")
+    history.add_argument("--limit", type=int, default=50)
+    history.add_argument("--offset", type=int, default=0)
+    history.add_argument("--output", type=Path)
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     for command in (report, demo):
@@ -219,6 +227,25 @@ def main(argv: list[str] | None = None) -> None:
             store = CanonicalStore(args.home)
         except ValueError as exc:
             parser.error(str(exc))
+    if args.command == "analysis-history":
+        from ..analytics.history import history_for
+        from ..analytics.products.render import atomic_write
+        try:
+            history = history_for(store)
+            if args.pointer and not args.run_id:
+                raise ValueError("pointer 需要 run-id")
+            result = (history.records(args.run_id, args.pointer, limit=args.limit, offset=args.offset)
+                      if args.pointer else history.result(args.run_id)) if args.run_id else history.list_runs(
+                          engine=args.engine, status=args.status, limit=args.limit, offset=args.offset)
+            text = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)
+            if args.output:
+                atomic_write(args.output, text)
+                print(str(args.output.resolve()))
+            else:
+                print(text)
+        except (ValueError, KeyError) as exc:
+            parser.error(str(exc))
+        return
     if args.command == "analysis-report":
         from ..analytics.inputs import Scope
         from ..analytics.products import analyze_product_store

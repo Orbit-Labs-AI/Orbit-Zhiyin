@@ -65,7 +65,48 @@ def terminal_report(product: Record) -> str:
             f"反馈 {(journey['feedback'].get('counts') or {}).get('linked_feedback_count', '未知')}"
         )
     lines += ["", *product["limitations"]]
+    lines += ["", "分布统计（均值 / 中位数 / P90 / 标准差）"]
+    for name, row in product["statistics"]["metrics"].items():
+        lines.append(
+            f"{name} | n={row['n']} 未知={row['unknown_n']} | "
+            f"{number(row['mean'])} / {number(row['median'])} / {number(row['quantiles']['p90'])} / {number(row['stddev'])}"
+        )
+    lexical = product["lexical"]
+    lines += [
+        "",
+        f"词频前 20 项（完整词表 {lexical.get('vocabulary_size', 0)} 项均保存在分析记录）",
+        "词 | 次数 | 消息数 | 会话数 | 每千词频次",
+    ]
+    for row in (lexical["terms"] or [])[:20]:
+        lines.append(
+            f"{row['term']} | {row['count']} | {row['message_count']} | {row['session_count']} | {row['per_1000_tokens']:.2f}"
+        )
+    if product.get("comparison"):
+        lines += ["", "与上期比较（均值差 / 中位数差 / 均值差 95% 区间）"]
+        for row in comparison_rows(product):
+            lines.append(" | ".join(str(value) for value in row))
     return "\n".join(lines) + "\n"
+
+
+def comparison_rows(product: Record) -> list[list[Any]]:
+    """Render stored comparison values without recomputing a different set of statistics."""
+    rows = []
+    for row in product["comparison"]["distributions"]["rows"]:
+        interval = row["uncertainty"]["confidence_interval_95"]
+        bounds = (
+            " — ".join(number(value) for value in interval)
+            if interval
+            else "有效会话不足或无法估计"
+        )
+        rows.append(
+            [
+                row["metric"],
+                number(row["mean_difference"]),
+                number(row["median_difference"]),
+                bounds,
+            ]
+        )
+    return rows
 
 
 def _table(headers: list[str], rows: list[list[Any]]) -> str:
@@ -154,6 +195,37 @@ def html_report(product: Record) -> str:
     sections = [
         "<h1>会话分析组合验收</h1><p>工具占比、调用转移、情绪表达及任务验收均来自同一数据快照。</p>",
         f'<p class="meta">{html.escape(product["analysis_digest"])} · {html.escape(product["scope"]["display_timezone"])}</p>',
+        "<h2>数值分布</h2><p>每项保留样本、未知数量、分位数和异常值位置；日志跨度不等于实际工作时间。</p>",
+        _table(
+            ["指标", "样本", "未知", "均值", "中位数", "P90", "标准差"],
+            [
+                [
+                    name,
+                    row["n"],
+                    row["unknown_n"],
+                    number(row["mean"]),
+                    number(row["median"]),
+                    number(row["quantiles"]["p90"]),
+                    number(row["stddev"]),
+                ]
+                for name, row in product["statistics"]["metrics"].items()
+            ],
+        ),
+        "<h2>词频与覆盖</h2><p>使用实际中文分词与英文词统计；本表展示前 30 项，完整词表、短语、共现与证据均保存在 JSON 和分析历史。</p>",
+        _table(
+            ["词", "次数", "消息数", "会话数", "每千词频次", "TF-IDF 均值"],
+            [
+                [
+                    row["term"],
+                    row["count"],
+                    row["message_count"],
+                    row["session_count"],
+                    number(row["per_1000_tokens"]),
+                    number(row["tfidf_mean"], 4),
+                ]
+                for row in (product["lexical"]["terms"] or [])[:30]
+            ],
+        ),
         "<h2>工具调用占比</h2><p>按可观测调用计数，缺失状态单列；图展示前 12 项。</p>",
         _shares_svg(tools["by_name"] or []),
         _table(
@@ -213,6 +285,11 @@ def html_report(product: Record) -> str:
         + "".join(f"<li>{html.escape(text)}</li>" for text in product["limitations"])
         + "</ul>",
     ]
+    if product.get("comparison"):
+        sections += [
+            "<h2>与上期比较</h2><p>使用相邻等长窗口，区间按会话树重抽样估计。</p>",
+            _table(["指标", "均值差", "中位数差", "均值差 95% 区间"], comparison_rows(product)),
+        ]
     return (
         '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tandem 分析验收</title><style>body{font:15px/1.6 system-ui,sans-serif;color:#263733;background:#f7f8f6;margin:0}main{max-width:1000px;margin:auto;padding:36px 24px}h1{font-size:28px}h2{margin-top:40px}table{border-collapse:collapse;width:100%;background:white;margin:16px 0;font-variant-numeric:tabular-nums}th,td{text-align:left;padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere}svg{max-width:750px;width:100%;font:12px system-ui}p,.meta{color:#52615d}.meta{overflow-wrap:anywhere}@media(max-width:600px){main{padding:18px 10px}table{font-size:12px}}</style><main>'
         + "".join(sections)
@@ -258,6 +335,26 @@ def export_report(product: Record, output: Path) -> dict[str, str]:
         "report.html": html_report(product),
         "tools.csv": buffer.getvalue(),
     }
+    words = io.StringIO(newline="")
+    writer = csv.writer(words)
+    writer.writerow(
+        ["term", "count", "message_count", "session_count", "per_1000_tokens", "tfidf_mean"]
+    )
+    for row in product["lexical"]["terms"] or []:
+        term = row["term"]
+        if term.lstrip().startswith(("=", "+", "-", "@")):
+            term = "'" + term
+        writer.writerow(
+            [
+                term,
+                row["count"],
+                row["message_count"],
+                row["session_count"],
+                row["per_1000_tokens"],
+                row["tfidf_mean"],
+            ]
+        )
+    files["words.csv"] = words.getvalue()
     for name, content in files.items():
         atomic_write(output / name, content)
     return {name: str(output / name) for name in files}
