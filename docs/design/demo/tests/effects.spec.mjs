@@ -133,7 +133,8 @@ test('floating HUD shows six snap points while dragged, snaps, places freely wit
   await expect(pill).toBeVisible();
   const t0 = await page.locator('#hud [data-live]').first().textContent();
   await expect.poll(() => page.locator('#hud [data-live]').first().textContent(), { timeout: 3000 }).not.toBe(t0);
-  // The pill rests under the menu bar (top-right) by default, so drag towards the stage centre to stay inside the viewport.
+  // The pill rests at the first snap point free of the window and widgets (bottom-left at mac-14), so drag towards the stage
+  // centre to stay inside the viewport.
   const vw = page.viewportSize();
   const r = await pill.boundingBox();
   await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);

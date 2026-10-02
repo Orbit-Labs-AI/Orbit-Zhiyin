@@ -2,19 +2,24 @@
 //
 // Flow per test:
 //  1. window model     open the demo → read #win (left/top/size/data-mode). Stage too small for 900×600 → "fit" (16px margins).
-//                      Otherwise: drag the title row by (60,40) → window moved (clamped to the stage); drag the SE handle by
-//                      (−100,−80) → smaller; drag it far → clamped to 900×600; double-click the title → zoom (fills the area
-//                      under the menu bar) → double-click → restored; ⌃⌘F → full screen (menu bar slides away, window fills the
-//                      stage) → green light → restored; reload → rect comes back from localStorage.
+//                      Otherwise the default is the published layout: the window fills the stage (24px sides, 18px top /
+//                      bottom) and on stages ≥ 1500px starts at x = 412 so the desktop widgets keep their column (visible,
+//                      never covered); shrinking the viewport re-fits an untouched window. Then: drag the title row by (60,40)
+//                      → window moved (clamped to the stage); drag the SE handle by (−100,−80) → smaller; drag it far →
+//                      clamped to 900×600; a viewport change now keeps the user's size; double-click the title → zoom (fills
+//                      the area under the menu bar) → double-click → restored; ⌃⌘F → full screen (menu bar slides away,
+//                      window fills the stage) → green light → restored; reload → rect comes back from localStorage.
 //  2. sidebar          ⌃⌘S hides / shows the sidebar (toolbar shifts right of the lights); in a window narrower than 900px the
 //                      sidebar is hidden by default and the toggle shows it as an overlay that the content scrim closes.
 //  3. container query  at the same viewport, narrow the window (S.win.w = 1000) → the overview .two grid drops to one column
 //                      and the metric tiles to 3 per row; widen again → restored. Narrow stages assert the single column.
+//                      Thresholds follow 90-responsive.css: .two 780, .tiles 800 / 640, .sess 760 (content-column px).
 //  4. settings         openSettings() → #set fully inside the viewport, six tabs visible, each tab renders, main window
 //                      inactive (grey lights); Esc closes it.
 //  5. menu-bar panel   click the Tandem status item → #pop right edge aligns with the status item (±1.5px), 6px under the bar.
-//  6. HUD              the pill never covers the window's title row; when any snap point is free of the window it does not
-//                      intersect the window at all.
+//  6. HUD              the pill never covers the window's title row; when any snap point is free of the window and the
+//                      visible desktop widgets it covers neither — checked at the default layout and again with the window
+//                      shrunk to 900×600 in a corner, where the top row is certainly free.
 //  7. sheet            openModal() → focus lands on the default (.btn.p) button, the scrim covers exactly the window, the sheet
 //                      hangs 52px under the window top; Return triggers the default button, Esc closes.
 //  8. shortcuts        ⌥2 → persona, ⌘K → palette, ⌥0 restores a closed window; menu labels match the bindings.
@@ -62,8 +67,20 @@ test('window model: fit / move / resize / minimum / zoom / full screen / persist
     await expect(page.locator('#win .rz[data-rz="se"]')).toBeHidden();
   } else {
     expect(r.mode).toBe('win');
-    expect(r.w).toBe(Math.min(1180, vw.width - PAD * 2)); expect(r.h).toBe(Math.min(760, vw.height - MB - PAD * 2));
-    expect(r.y).toBeGreaterThanOrEqual(MB); expect(r.x + r.w).toBeLessThanOrEqual(vw.width); expect(r.y + r.h).toBeLessThanOrEqual(vw.height);
+    // default = the published layout: fills the stage with 24px sides and 18px top / bottom; on stages ≥ 1500px the desktop
+    // widgets are shown and the window starts right of their column (x = 24 + 364 + 24), never covering them
+    const fill = (w, h) => { const wide = w >= 1500; const x = wide ? 412 : 24; return { x, y: MB + 18, w: w - x - 24, h: h - MB - 36 }; };
+    expect(r).toMatchObject(fill(vw.width, vw.height));
+    if (vw.width >= 1500) {
+      await expect(page.locator('#widgets')).toBeVisible();
+      const wg = await box(page, '#widgets'); expect(wg.x).toBe(24); expect(wg.y).toBe(r.y); expect(wg.x + wg.w).toBeLessThanOrEqual(r.x);
+    } else await expect(page.locator('#widgets')).toBeHidden();
+    // an untouched window follows the viewport (the widget column is given up under 1500px) and comes back with it
+    // (−40 / −20 keeps every project above the 900×600 + margins "fit" threshold)
+    await page.setViewportSize({ width: vw.width - 40, height: vw.height - 20 });
+    await expect.poll(() => winBox(page)).toMatchObject(fill(vw.width - 40, vw.height - 20));
+    await page.setViewportSize(vw);
+    await expect.poll(() => winBox(page)).toMatchObject(fill(vw.width, vw.height));
     // move by the title row (the page title is not a control)
     const h1 = await box(page, '#main .tbar h1');
     await drag(page, { x: h1.x + h1.w / 2, y: h1.y + h1.h / 2 }, { x: h1.x + h1.w / 2 + 60, y: h1.y + h1.h / 2 + 40 });
@@ -79,6 +96,11 @@ test('window model: fit / move / resize / minimum / zoom / full screen / persist
     await drag(page, { x: se.x + 5, y: se.y + 5 }, { x: Math.max(1, se.x - 1500), y: Math.max(1, se.y - 1500) });
     const r4 = await winBox(page);
     expect(r4.w).toBe(MIN.w); expect(r4.h).toBe(MIN.h);
+    // once the user has sized it, a viewport change keeps the size (only clamps the position) instead of re-fitting
+    await page.setViewportSize({ width: vw.width - 40, height: vw.height - 20 });
+    await expect.poll(() => winBox(page)).toMatchObject({ w: MIN.w, h: MIN.h, x: Math.min(r4.x, vw.width - 40 - MIN.w), y: Math.min(r4.y, vw.height - 20 - MIN.h) });
+    await page.setViewportSize(vw);
+    await expect.poll(() => winBox(page)).toMatchObject(r4);
     r = r4;
   }
   // double-click the title row → zoom → double-click → restore
@@ -146,19 +168,19 @@ test('container queries: narrowing the window at a fixed viewport collapses page
   const cols = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).gridTemplateColumns.trim().split(/\s+/).length, sel);
   const mainW = () => page.evaluate(() => document.querySelector('#main').clientWidth);
   const mw = await mainW();
-  expect(await cols('.two')).toBe(mw >= 860 ? 2 : 1);
+  expect(await cols('.two')).toBe(mw >= 780 ? 2 : 1);
   expect(await cols('.tiles')).toBe(mw >= 800 ? 5 : mw >= 640 ? 3 : 2);
   const r = await winBox(page);
-  if (r.mode === 'win' && mw >= 860) {
+  if (r.mode === 'win' && mw >= 780) {
     await page.evaluate(() => { S.win.w = 1000; applyWin(); });
-    await expect.poll(() => mainW()).toBeLessThan(860);
+    await expect.poll(() => mainW()).toBeLessThan(780);
     expect(await cols('.two')).toBe(1); expect(await cols('.tiles')).toBe(3);
     await page.evaluate((w) => { S.win.w = w; applyWin(); }, r.w);
     await expect.poll(() => cols('.two')).toBe(2);
   }
-  // sessions page: list + detail side by side only when the content column is ≥ 900px wide
+  // sessions page: list + detail side by side only when the content column is ≥ 760px wide
   await go(page, 'sessions');
-  expect(await cols('.sess')).toBe((await mainW()) >= 900 ? 2 : 1);
+  expect(await cols('.sess')).toBe((await mainW()) >= 760 ? 2 : 1);
   expect(errors).toEqual([]);
 });
 
@@ -208,18 +230,28 @@ test('menu-bar panel hangs under the bar with its right edge on the status item'
   expect(errors).toEqual([]);
 });
 
-test('HUD stays off the title row and avoids the window whenever a snap point is free', async ({ page }) => {
+test('HUD stays off the title row and avoids the window and widgets whenever a snap point is free', async ({ page }) => {
   const errors = await openDemo(page);
   await expect(page.locator('#hudPill')).toBeVisible();
-  const res = await page.evaluate(() => {
-    const pill = document.querySelector('#hudPill').getBoundingClientRect(), w = document.querySelector('#win').getBoundingClientRect();
-    const hit = (x, y, pw, ph) => x < w.right && x + pw > w.left && y < w.bottom && y + ph > w.top;
-    const free = snapPts(pill.width).some((p) => !hit(p.x, p.y, pill.width, 44));
-    return { free, hitsWin: hit(pill.left, pill.top, pill.width, pill.height), hitsTitle: pill.left < w.right && pill.right > w.left && pill.top < w.top + 52 && pill.bottom > w.top, inside: pill.left >= 0 && pill.top >= 0 && pill.right <= innerWidth && pill.bottom <= innerHeight };
+  // occupied = the main window plus the visible desktop widgets; "free" = some snap point touches neither
+  const probe = () => page.evaluate(() => {
+    const rect = (s) => { const el = document.querySelector(s); return el && !el.hidden ? el.getBoundingClientRect() : null; };
+    const pill = rect('#hudPill'), w = rect('#win'), g = rect('#widgets');
+    const hit = (x, y, pw, ph, r) => !!r && x < r.right && x + pw > r.left && y < r.bottom && y + ph > r.top;
+    const occupied = (x, y, pw, ph) => hit(x, y, pw, ph, w) || hit(x, y, pw, ph, g);
+    const free = snapPts(pill.width).some((p) => !occupied(p.x, p.y, pill.width, 44));
+    return { free, hitsAny: occupied(pill.left, pill.top, pill.width, pill.height), hitsTitle: pill.left < w.right && pill.right > w.left && pill.top < w.top + 52 && pill.bottom > w.top, inside: pill.left >= 0 && pill.top >= 0 && pill.right <= innerWidth && pill.bottom <= innerHeight };
   });
+  const res = await probe();
   expect(res.inside).toBe(true);
   expect(res.hitsTitle).toBe(false);
-  if (res.free) expect(res.hitsWin).toBe(false);
+  if (res.free) expect(res.hitsAny).toBe(false);
+  // the window shrunk to its minimum in the bottom-left corner frees the top row: the pill must leave window and widgets alone
+  if ((await winBox(page)).mode === 'win') {
+    await page.evaluate(() => { S.win.x = 0; S.win.y = innerHeight - 600; S.win.w = 900; S.win.h = 600; applyWin(); renderHud(); });
+    const r2 = await probe();
+    expect(r2.free).toBe(true); expect(r2.hitsAny).toBe(false); expect(r2.hitsTitle).toBe(false); expect(r2.inside).toBe(true);
+  }
   expect(errors).toEqual([]);
 });
 
@@ -417,11 +449,16 @@ test('motion inventory: the published effects plus the shell additions are wired
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#hud')).flexDirection)).toBe('column');
   await page.evaluate(() => { S.hud.snap = 'br'; renderHud(); });
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#hud')).flexDirection)).toBe('column-reverse');
-  await page.evaluate(() => { S.hud.open = false; S.hud.snap = 'tr'; S.hud.user = false; renderHud(); });
-  // a top-row pill steps below visible notification banners (they share the corner and stay on top)
+  // a pill the user parked top-right steps below visible notification banners (they share the corner and stay on top)
+  await page.evaluate(() => { S.hud.open = false; S.hud.snap = 'tr'; S.hud.user = true; renderHud(); });
+  expect((await box(page, '#hudPill')).y).toBe(MB + 8);
   await page.evaluate(() => notify({ t: '占位', b: '横幅在悬浮组件上方', ms: 60000, force: true }));
   await expect.poll(async () => { const n = await box(page, '#notes .nt'); const p = await box(page, '#hudPill'); return p.y >= n.y + n.h + 7; }).toBe(true);
-  await page.evaluate(() => document.querySelectorAll('#notes .nt').forEach((n) => n.remove()));
+  // dismissing the banner (slide-out) re-places the pill at once, before the banner is gone
+  await page.evaluate(() => document.querySelectorAll('#notes .nt').forEach((n) => noteDismiss(n)));
+  await expect.poll(async () => (await box(page, '#hudPill')).y).toBe(MB + 8);
+  await page.clock.runFor(500); await expect(page.locator('#notes .nt')).toHaveCount(0);
+  await page.evaluate(() => { S.hud.user = false; renderHud(); });
   // reveal storyboard: five stage labels over ~3s; pet grows, code fades in
   await page.evaluate(() => openReveal());
   await expect(page.locator('#revStage')).toContainText('01 /');
