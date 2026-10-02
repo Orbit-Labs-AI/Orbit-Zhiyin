@@ -39,7 +39,7 @@
 | 项目分析 | `projects`：同范围计数、Agent 构成、画像、诊断、执行时间、声明验收集合；项目完成度与配置覆盖显式不可用 |
 | 情绪与语义 | `semantics`：题材候选、明确偏好、反馈词面线索、确认摩擦各自展示；不从词频生成情绪结论 |
 | 优化建议 | `recommendations` 与 `diagnostics.findings`：证据驱动的回看建议；类别列表保留前端分类 |
-| 资源库 | `resources.matching_signals` 提供匹配输入；自动推荐、同人格使用和热门仍需目录与使用数据 |
+| 资源库 | `resources.for_you` 复用同范围的资源推荐结果，`resources.matching_signals` 保留匹配输入；同人格使用和热门仍需群体使用数据 |
 | 生成工坊 | `capabilities.studio="deferred"`，本次不实现 |
 
 同步、分享、导出与安装是应用操作，不是统计指标。此层可作为导出 JSON 的来源，不会执行配置安装。
