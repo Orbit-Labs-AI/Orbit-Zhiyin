@@ -1,12 +1,12 @@
-name: Backend checks
-
+name: App integration
 on:
   pull_request:
   push:
-    branches: ['feat/**', 'fix/**', 'refactor/**']
-
+    branches: [main, 'feat/**', 'fix/**', 'refactor/**', 'chore/**', 'docs/**']
+permissions:
+  contents: read
 jobs:
-  test:
+  integration:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,13 +18,16 @@ jobs:
         with:
           node-version: '24'
       - run: npm install --global pnpm@11.25.0
-      - run: uv sync --locked --all-packages --dev
-      - run: pnpm --dir packages/connectors install --frozen-lockfile
-      - run: pnpm --dir packages/connectors check
-      - run: uv run --no-sync ruff check src tests packages/data/src packages/data/tests
-      - run: uv run --no-sync ruff format --check packages/data/src packages/data/tests
-      - run: uv run --no-sync pytest -q tests
-      - run: uv run --no-sync pytest -q packages/data/tests
-      - run: uv build --all-packages
-      - run: uv run --no-sync tandem demo
-      - run: uv run --no-sync tandem evaluate
+      - run: bash scripts/bootstrap.sh
+      - run: pnpm check
+  prototypes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --global pnpm@11.25.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @tandem/prototype-advance exec playwright install --with-deps chromium
+      - run: pnpm check:ui
