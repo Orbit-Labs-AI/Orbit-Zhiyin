@@ -1,15 +1,16 @@
 /* ============ onboarding & reveal (overlay) ============
  * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
  * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
- *   01 导入  选中来源行的 Agent 色点化作会话粒子，沿曲线流向中央；来源列表收拢淡出，罗盘外框画出，计数器累加；
- *            表盘中心出现指南针，指针自由快转（寻找方向），粒子汇入时逐渐减速，转满整圈停在 00 接上 02
- *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），
- *            再汇入外环的小时密度段（fp2SVG 的几何，FPG）
+ *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成罗盘外框；
+ *            标志的内弧收拢成指针，随后指针自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
+ *            来源列表收拢淡出，计数器累加；粒子汇入时指针逐渐减速，转满整圈停在 00 接上 02
+ *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），再汇入轨道环带；
+ *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着指针公转，扫完走最短弧滑到各自的协作重心（fp2SVG 的几何，FPG）
  *   03 生长  罗盘玫瑰四个主角（.pet）从中心长出并伸到各轴强度；字母位在两极之间翻牌时指针左右寻向，
  *            最后一个字母锁定时摆向协作重心，阻尼振荡后停住
  *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（指针轻颤），其余淡出，胜出的一张飞入四字母（指针定住），给出匹配度
  *   05 落地  「查看完整画像」：大人格码与指纹（含指针）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
- * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），其余是 CSS keyframes + WAAPI，节点只建一次。
+ * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、环带扫描与行星在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
  * 跳过 / Esc / 在后台继续随时可用；closeOverlay() 取消全部计时器、动画帧与动画；prefers-reduced-motion 直接给最终态。 */
 let OB = null, REV = null, GNS = null;
 function closeOverlay() {
@@ -96,10 +97,10 @@ function genHTML(g) {
   const hr = S.persona.fpHour, cur = CUR.fp; S.persona.fpHour = null;
   const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
   S.persona.fpHour = hr; CUR.fp = cur;
-  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）
+  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）、首次启动的 Orbit 内弧
   let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
   const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
-  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g></svg>';
+  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
   const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? (ch === '?' ? '未定型' : a.name) + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
   const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '暂不匹配' : '样本不足') + '</span><span class="cap">' + (p.ok ? '有维度落在 45–55 之间，先不下结论' : '已选来源的会话少于 30 个') + '</span>';
@@ -120,13 +121,15 @@ function genHTML(g) {
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
 }
 // 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 指南针 .fp-compass /
-// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 外环每小时一段 .fps）
+// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 轨道环带的扫描遮罩 .fp-sweep / 行星 .fp-pl）与翻正用的两层（.g-fp、.g-over）
 function genMark(g) {
-  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; if (!svg) return;
+  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; g.pls = []; g.tiltEls = []; if (!svg) return;
   g.rose = Array.from(svg.querySelectorAll('.fp-rose .fp-pt')).map((el) => Array.from(el.querySelectorAll('path')));
   g.axl = g.p.ok ? Array.from(svg.querySelectorAll('.fp-ax')) : [];
   g.nd = svg.querySelector('.fp-needle'); g.hd = g.nd ? +g.nd.dataset.hd : 0;
-  g.segs = Array.from(svg.querySelectorAll('g.ring > g.fps'));
+  g.sweepEl = svg.querySelector('.fp-sweep');
+  g.pls = Array.from(svg.querySelectorAll('.fp-pl')).map((el) => ({ el, deg: +el.dataset.pa }));
+  g.tiltEls = [g.box.querySelector('.g-fp'), g.box.querySelector('.g-over')].filter(Boolean); g.arc = g.box.querySelector('.g-arc');
   g.slotL = Array.from(g.box.querySelectorAll('.g-slot .L'));
 }
 // 玫瑰主角从强度 50 的长度伸到各轴强度（u 可以超过 1，配合 genBack 的回弹）
@@ -136,11 +139,14 @@ function genRose(g, u) {
 }
 // 指针角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫针的速度；02 匀速扫一圈；
 // 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向协作重心，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
+// 首次启动：Orbit 内弧先在 00 收拢成指针（G_HOLD 之前指针停在 00），再从静止起转，快转两圈后减速落到 00
+const G_HOLD = 960;
 function genNeedle(g, t) {
-  const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, w0 = 1.25;
+  const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, ob = g.mode === 'ob', t0 = ob ? G_HOLD : 0, w0 = ob ? 0 : 1.25;
+  if (t < t0) return 0;
   if (t < P) {
-    const N = Math.max(1, Math.round((w0 + ws) / 2 * P / 360)), u = t / P;
-    return (u * u * u - 2 * u * u + u) * w0 * P + (3 * u * u - 2 * u * u * u) * N * 360 + (u * u * u - u * u) * ws * P;
+    const D = P - t0, N = ob ? 2 : Math.max(1, Math.round((w0 + ws) / 2 * D / 360)), u = (t - t0) / D;
+    return (u * u * u - 2 * u * u + u) * w0 * D + (3 * u * u - 2 * u * u * u) * N * 360 + (u * u * u - u * u) * ws * D;
   }
   if (t < P + sw) return (t - P) / sw * 360;
   const cd = 300, ts = P + sw + cd, A0 = 360 + ws * cd / 2;
@@ -156,6 +162,24 @@ function genNeedle(g, t) {
 function genAnim(g, el, kf, o) {
   if (!el || !el.animate) return null;
   const a = el.animate(kf, Object.assign({ fill: 'both', easing: G_EASE }, o)); g.anims.push(a); return a;
+}
+// 01 的 Orbit 母题：表盘从倾斜轨道视角翻正（rotateX 64° → 0°、转角 8° → 0°、0.62 → 1 倍），0.2–1.5 s；粒子与内弧用同一投影
+const G_TILT = 1500;
+function genTiltAt(t) { const u = genIO((t - 200) / (G_TILT - 200)); return { a: 64 * (1 - u), z: 8 * (1 - u), s: 0.62 + 0.38 * u }; }
+function genProj(q, k) {
+  const ca = Math.cos(k.a * Math.PI / 180), cz = Math.cos(k.z * Math.PI / 180), sz = Math.sin(k.z * Math.PI / 180);
+  const dx = (q[0] - 200) * k.s, dy = (q[1] - 200) * ca * k.s;
+  return [200 + dx * cz - dy * sz, 200 + dx * sz + dy * cz];
+}
+function genTilt(g, t) {
+  const k = genTiltAt(t), done = t >= G_TILT;
+  g.tiltEls.forEach((el) => { el.style.transform = done ? '' : 'rotate(' + k.z.toFixed(2) + 'deg) scale(' + k.s.toFixed(4) + ') rotateX(' + k.a.toFixed(2) + 'deg)'; });
+  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 00 方向的指针北半：每个采样点从弧上滑到指针上对应的位置
+  if (g.arc) {
+    const u = genIO((t - 420) / 540), n = 28, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
+    for (let i = 0; i <= n; i++) { const A = pt(200, 112, (235 + i / n * 225) * Math.PI / 180), B = [200, 200 - FPG.NL * i / n]; d += (i ? 'L' : 'M') + f([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u]); }
+    g.arc.setAttribute('d', d); g.arc.style.opacity = String(clamp(1 - (t - 960) / 160, 0, 1));
+  }
 }
 function genStage(g, t) { const s = g.box.querySelector('[data-g="stage"]'); if (!s) return; s.textContent = t; if (!g.done) s.animate([{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: G_EASE }); }
 function genCount(g) {
@@ -181,6 +205,9 @@ function genOpen(mode, opt) {
   box.innerHTML = genHTML(g); g.box = box; genMark(g);
   if (opt.final || reduceMotion()) { genFinal('init'); return; }
   genRose(g, 0);
+  if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '1';
+  g.pls.forEach((x) => { x.el.style.opacity = '0'; });
+  if (ob) genTilt(g, 0);
   if (kids) {
     // 来源列表：留在原位收拢、模糊、淡出；盒子用 clip-path 从旧尺寸展开到新尺寸，新内容随后上浮淡入
     const gh = document.createElement('div'); gh.className = 'g-ghost'; gh.setAttribute('aria-hidden', 'true'); gh.inert = true;
@@ -210,7 +237,7 @@ function genParticles(g, from) {
     const a = (s.h + s.mi / 60) / 24 * Math.PI * 2;
     const src = from && from[s.a];
     const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, FPG.R0 + 4 + Math.min(s.dur, 126) / 126 * (FPG.RH - 6), a), pour: pt(200, FPG.R0 + byH[s.h] / mxH * FPG.RH * 0.55, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
-    if (ob) { q.e = R() * 1050; q.fl = 700 + R() * 260; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
+    if (ob) { q.e = R() * 1050; q.fl = 760 + R() * 300; q.turns = 0.55 + R() * 0.6; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
     else { q.e = R() * 260; q.fl = 380 + R() * 220; q.gs = pt(200, 250 + R() * 90, R() * Math.PI * 2); }
     q.dep = Math.max(T.place + a / (Math.PI * 2) * g.sweep, q.e + q.fl + 60); q.land = q.dep + 380; q.pourAt = q.land + 240;
     parts.push(q);
@@ -222,8 +249,8 @@ function genDraw(g, t, orc, sr) {
   const cv = g.cv, dpr = window.devicePixelRatio || 1, W = orc.width, H = orc.height;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const x = g.ctx; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
-  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top;
-  const U = (q) => [ox + q[0] * k, oy + q[1] * k];
+  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top, tl = g.mode === 'ob' && t < G_TILT ? genTiltAt(t) : null;
+  const U = (q) => { if (tl) q = genProj(q, tl); return [ox + q[0] * k, oy + q[1] * k]; };
   const cloud = (p, tt) => U(pt(200, p.cr, p.ca + tt * 0.0011));
   const lerp = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
   let arrived = 0, live = 0;
@@ -231,8 +258,14 @@ function genDraw(g, t, orc, sr) {
   for (const p of g.parts) {
     if (t < p.e) { live++; continue; }
     let pos, r = p.r * k, al = 1;
-    if (t < p.e + p.fl) {
-      // 导入 / 汇集：二次贝塞尔，从来源图标（或表盘外一圈）弯向中央的会话云
+    if (t < p.e + p.fl && p.turns) {
+      // 导入（首次启动）：从来源图标被拉进倾斜的椭圆轨道，沿轨道顺时针螺旋收进中央的会话云；轨道随表盘一起翻正
+      const u = (t - p.e) / p.fl, v = genIO(u), th = p.ca + (p.e + p.fl) * 0.0011 - (1 - v) * p.turns * Math.PI * 2;
+      const sp = U(pt(200, p.cr + (196 - p.cr) * (1 - v) * (1 - v), th)), j = genIO(u / 0.38);
+      pos = [p.sx + (sp[0] - p.sx) * j, p.sy + (sp[1] - p.sy) * j];
+      al = Math.min(1, (t - p.e) / 160); r *= 0.65 + 0.35 * v;
+    } else if (t < p.e + p.fl) {
+      // 汇集（揭晓）：二次贝塞尔，从表盘外一圈弯向中央的会话云
       const u = genIO((t - p.e) / p.fl), st = p.gs ? U(p.gs) : [p.sx, p.sy], en = cloud(p, t);
       const cx = (st[0] + en[0]) / 2 - (en[1] - st[1]) * p.bend, cy = (st[1] + en[1]) / 2 + (en[0] - st[0]) * p.bend, v = 1 - u;
       pos = [v * v * st[0] + 2 * v * u * cx + u * u * en[0], v * v * st[1] + 2 * v * u * cy + u * u * en[1]];
@@ -252,11 +285,27 @@ function genTick(g) {
   if (GNS !== g || g.done) return;
   const t = performance.now() - g.t0, T = g.T;
   // 先读布局（overlay 与指纹的位置），再写 canvas / 文本 / 属性
-  const orc = $('#overlay').getBoundingClientRect(), sr = g.svg ? g.svg.getBoundingClientRect() : null;
+  // 指纹的未变换位置：.g-dial 的内框（.fp-wrap 留 8px 纸边）；翻正期间 .g-fp 带 3D 变换，不能直接量 svg
+  const orc = $('#overlay').getBoundingClientRect(), dl = g.svg ? g.box.querySelector('[data-g="dial"]') : null, dr = dl ? dl.getBoundingClientRect() : null;
+  const sr = dr ? { left: dr.left + 8, top: dr.top + 8, width: dr.width - 16 } : null;
   if (g.cv && sr) genDraw(g, t, orc, sr);
   if (!g.counted) { genCount(g); if (g.arrived >= g.N) g.counted = true; }
   if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genRose(g, genBack(u)); if (u >= 1) g.roseDone = true; }
   if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
+  if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
+  // 02：环带在指针扫过处长出（比指针晚 450 ms，等粒子落位）；行星依次出现、跟在指针后公转，扫完走最短弧滑到各自的协作重心
+  const P = T.place, sw = g.sweep;
+  if (g.sweepEl && !g.swept) { const v = clamp((t - P - 450) / sw, 0, 1); g.sweepEl.style.strokeDashoffset = (1 - v).toFixed(4); if (v >= 1) { g.sweepEl.style.strokeDashoffset = ''; g.swept = true; } }
+  if (g.pls.length && !g.settled) {
+    let all = true;
+    g.pls.forEach((x, i) => {
+      const ride = (tt) => clamp((tt - P) / sw, 0, 1) * 360 - 16 - 9 * i, t1 = P + sw, ra = ride(t1), d = ((x.deg - ra) % 360 + 540) % 360 - 180;
+      const u = clamp((t - t1 - i * 60) / 800, 0, 1), a = t < t1 ? ride(t) : ra + d * genIO(u);
+      x.el.style.opacity = String(clamp((t - P - 120 - i * 110) / 220, 0, 1)); x.el.style.transform = 'rotate(' + a.toFixed(2) + 'deg)';
+      if (u < 1) all = false;
+    });
+    if (all) { g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; }); g.settled = true; }
+  }
   if (t >= T.grow + 60) g.slotL.forEach((el, i) => {
     if (g.locked[i]) return;
     const f = Math.floor((t - T.grow) / 85); if (f === g.flips[i]) return; g.flips[i] = f;
@@ -314,16 +363,17 @@ function genPlay(g) {
   const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
   const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 指针扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 生长 · 罗盘玫瑰长出 D I M V'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
   genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
-  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）
-  A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: ob ? 900 : 600, delay: ob ? 150 : 0 });
+  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）。
+  // 首次启动时外框先是 Orbit 标志的倾斜椭圆（石板灰、留一道缺口），随翻正补全并换成外框的墨色
+  if (ob) A(q('.g-ring0'), [{ strokeDashoffset: 0.17, stroke: 'var(--orbit)', strokeWidth: 4.5 }, { strokeDashoffset: 0.12, stroke: 'var(--orbit)', strokeWidth: 4.5, offset: 0.4 }, { strokeDashoffset: 0, stroke: 'var(--ink-2)', strokeWidth: 1.2 }], { duration: G_TILT, easing: 'ease-in-out' });
+  else A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 600 });
   A(q('.g-ticks'), fade, { duration: 500, delay: ob ? 500 : 200 });
   qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
-  A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 360 : 80 });
-  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 420 : 120, easing: G_SPRING });
-  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入，外环每小时一段在指针过后长出
+  A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
+  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
+  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
-  qa('.g-fp .fp-band, .g-fp .fp-hours, .g-fp .fp-orb, .g-fp .fp-pls').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
-  g.segs.forEach((el) => { const h = +el.dataset.h; A(el, [{ opacity: 0, transform: 'scale(.76)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: T.place + (h + 0.5) / 24 * sw + 520, easing: G_SPRING }); });
+  qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
   // 03：玫瑰主角（.pet，CSS grow）从中心长出并在 rAF 里伸到各轴强度；字母位翻牌（指针寻向），按顺序锁定
   [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
@@ -345,6 +395,9 @@ function genFinal(how) {
   const box = g.box, ob = g.mode === 'ob', p = g.p, q = (s) => box.querySelector(s);
   box.querySelectorAll('.g-ghost').forEach((el) => el.remove()); box.classList.remove('run', 'g-morph'); box.classList.add('skip');
   genRose(g, 1); if (g.nd) g.nd.style.transform = '';
+  if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '';
+  g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; });
+  g.tiltEls.forEach((el) => { el.style.transform = ''; });
   g.slotL.forEach((el, i) => { el.textContent = p.ok ? p.code[i] : '—'; el.parentNode.classList.add('lock'); });
   const cw = q('[data-g="cards"]'); if (cw) cw.innerHTML = ''; g.cards = null;
   g.arrived = g.N; genCount(g);
