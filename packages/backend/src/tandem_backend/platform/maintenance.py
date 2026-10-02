@@ -25,8 +25,8 @@ DISK_LOW = 2 * 1024**3
 LOGS_CAP = 20 * 1024 * 1024
 INTERVALS = {
     "metrics_flush": 60, "wal_checkpoint": 300, "optimize": 3600, "snapshot_compact": 600,
-    "storage_report": 3600, "retention": 86_400, "telemetry_export": 86_400,
-    "integrity": 604_800,
+    "storage_report": 3600, "retention": 86_400, "install_sweep": 86_400,
+    "telemetry_export": 86_400, "integrity": 604_800,
 }
 LIGHT = frozenset({"metrics_flush"})
 
@@ -194,11 +194,21 @@ class Maintenance:
         p = self.platform
         detail = {"metric_rows": p.telemetry.prune(),
                   "exports": prune_exports(p.home)}
-        prune = getattr(getattr(p, "notifier", None), "prune", None)
-        if callable(prune):
-            detail["notifications"] = prune()
+        detail["notifications"] = p.notifier.prune()
         detail["log_files"] = _prune_logs(p.home / "logs")
         return detail
+
+    def _install_sweep(self) -> dict:
+        """Idle-mark stale installs and drop old backups, plans and fetch-cache objects."""
+        service = getattr(self.platform.gw, "install", None)  # set by routes_install.router
+        if service is None:
+            return {"skipped": True}
+        from ..install import lifecycle
+        from ..install.fetch import gc
+
+        return {"idle": lifecycle.sweep(service, int(time.time() * 1000)),
+                "backups": service.sweep_backups(keep=50, days=90),
+                "plans": service.sweep_plans(30), "fetch_cache": gc(service.cache_dir)}
 
     def _telemetry_export(self) -> dict:
         p = self.platform
