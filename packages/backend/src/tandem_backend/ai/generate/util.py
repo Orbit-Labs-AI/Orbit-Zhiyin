@@ -7,12 +7,12 @@ import json
 import re
 
 try:  # P1 owns the real classes; fall back to same-named placeholders until it lands.
-    from tandem_backend.ai.errors import Cancelled, CallFailed  # type: ignore[import-not-found]
+    from tandem_backend.ai.errors import CallFailed, Cancelled  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - exercised only before the runtime package exists
-    class CallFailed(Exception):  # noqa: N818 - name fixed by contract C2
+    class CallFailed(Exception):  # name fixed by contract C2
         """A controlled engine call failed after its single retry."""
 
-    class Cancelled(Exception):  # noqa: N818 - name fixed by contract C2
+    class Cancelled(Exception):  # name fixed by contract C2
         """The job was cancelled while a call was in flight."""
 
 
