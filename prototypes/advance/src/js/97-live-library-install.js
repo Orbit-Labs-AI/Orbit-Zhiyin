@@ -24,7 +24,10 @@ const liSeed = (x) => /^seed:/.test(String((x && x.item_id) || ''));
 const liSeedTag = (x) => (liSeed(x) ? TLU.sample() : '');
 // external link: the native host opens it in the default browser (openExternal); the browser build falls back to window.open
 const liLink = (url, label, cls) => '<button type="button" class="' + (cls || 'lnk') + '" data-act="liOpen" data-url="' + esc(url) + '">' + label + '</button>';
-const liSrc = (x) => x.official ? 'Tandem 官方' : x.origin === 'local' ? '本地生成' : esc(x.author || '社区') + ' · ' + esc(x.license || '许可未知');
+// card text: the item's own summary; a search hit without one gets its snippet minus the index's `key: value` tag dump
+const LI_TAGDUMP = /(?:^|\s)(?:agent|command|dimension|domain|file_type|friction|software|tag|kind|lang|language|topic|scene|tool|ftype|cmd):\s*\S+/gi;
+const liDesc = (x) => { const t = String(x.summary || x.snippet || ''); return t.replace(LI_TAGDUMP, '').replace(/\s{2,}/g, ' ').trim(); };
+const liSrc = (x) => x.official ? 'Orbit 官方' : x.origin === 'local' ? '本地生成' : esc(x.author || '社区') + ' · ' + esc(x.license || '许可未知');
 const liReq = () => TL.li.listRequest({ tab: S.lib.tab, kind: S.lib.kind, q: S.li.q });
 const liReqKey = (r) => r.path + '|' + JSON.stringify(r.query);
 const liInvalidate = () => TL.invalidate((r) => /^\/v1\/(catalog|install)\//.test(r.path));
@@ -32,7 +35,9 @@ const liDay = (v) => { if (v == null) return '—'; const d = new Date(typeof v 
 
 TL.bind('library', () => {
   const r = liReq(), f = TL.li.facetsRequest({ tab: S.lib.tab });
-  return [{ name: 'list', path: r.path, query: r.query, scope: false }, { name: 'facets', path: f.path, query: f.query, scope: false }];
+  // the distribution card follows the kind chip (the backend keeps the kind facet itself unfiltered, so chip counts stay whole)
+  const ks = TL.li.helpers.LI_KINDS[S.lib.kind] || []; const fp = f.path + (ks.length ? '?' + ks.map((k) => 'kind=' + encodeURIComponent(k)).join('&') : '');
+  return [{ name: 'list', path: r.path, query: r.query, scope: false }, { name: 'facets', path: fp, query: f.query, scope: false }];
 }, (d) => ({ items: d.list.items || [], next: d.list.next_cursor || null, total: d.list.total, search: !!S.li.q, facets: d.facets || {} }));
 
 // Install state (optional): marks installed cards with their install_id and feeds the toolbar count; never blocks the page.
@@ -52,14 +57,14 @@ function liGetBtn(x) {
   return '<button type="button" class="btn sm p" data-act="getLib" data-id="' + esc(x.item_id) + '">' + (x.origin === 'local' ? '安装' : '获取') + '</button>';
 }
 function liFeat(x) {
-  return '<div class="card lb-card" data-tl-item="' + esc(x.item_id) + '"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
-    '<div class="mono lb-id"><button type="button" class="lnk" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font:inherit;color:inherit;text-align:left">' + esc(x.name) + '</button></div><div class="lb-desc">' + esc(x.snippet || x.summary || '') + '</div>' +
+  return '<div class="card lb-card" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
+    '<div class="mono lb-id"><button type="button" class="lnk" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font:inherit;color:inherit;text-align:left">' + esc(x.name) + '</button></div><div class="lb-desc">' + esc(liDesc(x)) + '</div>' +
     '<div class="lb-match"><b class="mono">' + TLU.num(x.risk_level) + '</b><span class="col" style="flex:1;gap:3px;min-width:0"><span class="mono cap lb-parts">风险等级' + (x.risk && x.risk.length ? ' · ' + esc(x.risk.join('、')) : ' · 无敏感权限') + '</span><span class="mono cap lb-parts">' + (x.version ? 'v' + esc(x.version) + ' · ' : '') + '更新于 ' + liDay(x.updated_at) + '</span></span></div></div>' +
     '<div class="lb-body"><span class="eb">适用 Agent</span>' + ((x.agents && x.agents.length ? x.agents : [null]).map((a) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + (a ? esc(liAgentName(a)) : '未声明') + '</span>').join('')) +
     '<div class="row lb-foot"><span class="cap lb-fc">' + (x.stars != null ? TLU.num(x.stars) + ' Star' : '—') + '</span><span style="flex:1"></span><span class="mono cap lb-fc">' + (x.installs ? fmt(x.installs) + ' 安装' : x.origin === 'local' ? '本机' : '—') + '</span><span class="row lb-acts"><button type="button" class="btn sm gh" data-act="libHide" data-id="' + esc(x.item_id) + '">不感兴趣</button>' + liGetBtn(x) + '</span></div></div></div>';
 }
 function liRow(x) {
-  return '<div class="lb-row" data-tl-item="' + esc(x.item_id) + '"><span class="lb-ico">' + ic(LI_ICON[x.kind] || 'file', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><button type="button" class="lnk mono lb-nm" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font-weight:700;color:var(--ink-1)">' + esc(x.name) + '</button><span class="bdg">' + esc(TL.li.kindLabel(x.kind)) + '</span>' + (x.origin === 'local' ? '<span class="aib">本地生成</span>' : '') + liSeedTag(x) + '</div><div class="cap lb-ell">' + esc(x.snippet || x.summary || '') + '</div></div>' +
+  return '<div class="lb-row" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><span class="lb-ico">' + ic(LI_ICON[x.kind] || 'file', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><button type="button" class="lnk mono lb-nm" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font-weight:700;color:var(--ink-1)">' + esc(x.name) + '</button><span class="bdg">' + esc(TL.li.kindLabel(x.kind)) + '</span>' + (x.origin === 'local' ? '<span class="aib">本地生成</span>' : '') + liSeedTag(x) + '</div><div class="cap lb-ell">' + esc(liDesc(x)) + '</div></div>' +
     '<div class="row lb-m" style="gap:6px"><span class="mono cap">风险</span><b class="mono lb-mv">' + TLU.num(x.risk_level) + '</b></div><span class="mono cap lb-users">' + (x.installs ? (x.installs >= 1000 ? f1(x.installs / 1000) + 'k' : x.installs) : x.origin === 'local' ? '本机' : '—') + '</span>' + liGetBtn(x) + '</div>';
 }
 function liBody(vm) {
@@ -232,7 +237,7 @@ function liDemoExtra(x) { return { id: x.name, kind: TL.li.kindLabel(x.kind), de
 function liInstall(x) {
   const st = { live: true, card: x, step: 0, t: Date.now(), sel: { disabled: new Set(), units: {} }, busy: true, overrideRisk: false };
   INST = st; liDraw();
-  TL.li.prepare(x.source || { type: 'catalog', id: x.item_id }, { itemAgents: x.agents, defaultOff: (plan) => (plan.targets || []).filter((t) => t.agent !== (plan.agents || [])[0]).map((t) => t.idx) }).then((r) => {
+  TL.li.prepare(x.source || { type: 'catalog', id: x.item_id }, { itemAgents: x.agents, catalogId: x.catalogId, defaultOff: (plan) => (plan.targets || []).filter((t) => t.agent !== (plan.agents || [])[0]).map((t) => t.idx) }).then((r) => {
     if (INST !== st) return;
     st.plan = r.plan; st.preview = r.preview; st.busy = false; st.step = r.preview ? 1 : 9;
     if (r.sel) st.sel.disabled = new Set(r.sel.disabled);
