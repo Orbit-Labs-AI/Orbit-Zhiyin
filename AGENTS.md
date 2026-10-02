@@ -21,10 +21,9 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 
 - `main` 仅通过 PR 更新：任何人（含 `yhyfhgs`）不得直接提交、推送、强推或删除。分支从最新 `main` 创建，命名 `<type>/<简述>`（feat／fix／docs／refactor／chore）。
 - PR 标题用 `type(scope): 描述`，正文包含改动摘要、验证方式与关联 Issue。
-- 合并前须通过 Codex review（`chatgpt-codex-connector`）：
-  - 开 PR 时自动触发；此后每次推送须评论 `@codex review` 重新触发。
-  - 汇总评论为 `✅ Completed` 且 Commit 与当前 head 一致；每条意见经独立判断后修复，或在原评论下说明不采纳理由；无未解决线程。
-- merge 与 close 仅由 `yhyfhgs` 决定；其他成员与 AI 只可开 PR、推送修复、回复评论。AI 须得到 `yhyfhgs` 对该 PR 的明确指示后执行，合并使用 `gh pr merge --merge --match-head-commit <已审 SHA>`。
+- 本仓库不再要求 AI 触发、读取、等待或跟进 Codex review（`chatgpt-codex-connector`），也不将其完成状态或意见处理作为合并前置条件；本条覆盖全局指令中的 Codex review 流程。
+- 其他成员提交的 PR 由 `yhyfhgs` 统一管理；未经其明确指派，AI 不主动审查、修改、回复评论、合并或关闭这些 PR。
+- merge 与 close 仅由 `yhyfhgs` 决定。AI 须得到 `yhyfhgs` 对该 PR 的明确指示后执行，合并使用 `gh pr merge --merge --match-head-commit <当前 head SHA>`。
 - 统一使用 merge commit 保留分支提交历史，不 squash、不 rebase。
 - GitHub Free 私有仓库无法启用分支保护，上述规则依约定执行。
 
