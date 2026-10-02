@@ -169,8 +169,7 @@ class InstallService:
                               "applied": {**render["applied"], "created_dirs": []},
                               "file_mode": t.get("file_mode"), "block_id": t.get("block_id")})
             chained[path] = new
-        # risk.scan expects a string pointer; block/file targets carry None.
-        risk = risk_mod.scan(spec, [{**t, "pointer": t.get("pointer") or ""} for t in active])
+        risk = risk_mod.scan(spec, active)
         cost = cost_mod.estimate(spec, active)
         digest_value = digest({"plan_id": plan["plan_id"], "spec_hash": plan["spec_hash"],
                                "selected": {str(k): v for k, v in sorted(chosen.items())}, "disabled": disabled,
