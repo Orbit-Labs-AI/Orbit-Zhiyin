@@ -9,6 +9,7 @@ import json
 import os
 import sqlite3
 import tempfile
+import time
 from collections.abc import Iterable
 from contextlib import contextmanager
 from importlib.resources import files
@@ -26,12 +27,33 @@ PAGE_SIZE = 16384
 # total compaction work stays within a few file sizes.
 COMPACT_GROWTH = 1.5
 # Every table and index owns at least one page (~130 objects), so 16 KiB pages cost a small
-# store ~2 MB of empty space; small stores are compacted to 4 KiB pages and move back to
-# PAGE_SIZE once they grow. The gap between the two bounds keeps a store near the boundary
-# from switching back and forth.
+# store ~2 MB of empty space. Compaction picks the page size by store size: tiny stores use
+# 1 KiB pages (the fixed per-object pages dominate; events overflow but stay cheap at this
+# scale), small stores 4 KiB, large stores PAGE_SIZE. Each step up triggers at a larger size
+# than the step down, so a store near a boundary does not switch back and forth.
+TINY_PAGE_SIZE = 1024
 SMALL_PAGE_SIZE = 4096
+TINY_STORE_MAX_BYTES = 6 << 20
+TINY_STORE_GROW_BYTES = 12 << 20
 SMALL_STORE_MAX_BYTES = 16 << 20
 LARGE_STORE_MIN_BYTES = 32 << 20
+# Maintenance VACUUMs when this share of the used pages is slack (dbstat ``unused``); free
+# pages alone are returned with ``incremental_vacuum`` instead of a full rewrite.
+VACUUM_SLACK = 0.12
+
+
+def target_page_size(size_bytes: int, page_size: int) -> int:
+    """Page size a compaction should use for a store of ``size_bytes`` at ``page_size``."""
+    if size_bytes >= LARGE_STORE_MIN_BYTES:
+        return PAGE_SIZE
+    if size_bytes < TINY_STORE_MAX_BYTES:
+        return TINY_PAGE_SIZE
+    if size_bytes < SMALL_STORE_MAX_BYTES and page_size > SMALL_PAGE_SIZE:
+        return SMALL_PAGE_SIZE
+    if size_bytes >= TINY_STORE_GROW_BYTES and page_size < SMALL_PAGE_SIZE:
+        return SMALL_PAGE_SIZE
+    return page_size
+
 
 SQL_TABLES = {
     "codex": ("threads", "thread_spawn_edges"),
@@ -781,7 +803,10 @@ class Store:
             raise ValueError("L0 record hash mismatch")
         return data
 
-    def rebuild(self, *, mapper_version=None, source_ids=None, progress=None) -> dict:
+    def rebuild(
+        self, *, mapper_version=None, source_ids=None, progress=None, optimize=True
+    ) -> dict:
+        """Rebuild L2; ``optimize=False`` leaves maintenance to the import service."""
         from tandem_data.pipeline import rebuild
 
         try:
@@ -790,7 +815,8 @@ class Store:
             )
         finally:
             self._unavailable_files = set()
-        self.optimize()
+        if optimize:
+            self.optimize()
         return result
 
     def optimize(self) -> None:
@@ -808,18 +834,62 @@ class Store:
             return False
         pages = self.db.execute("PRAGMA page_count").fetchone()[0]
         size = self.db.execute("PRAGMA page_size").fetchone()[0]
-        target = size
-        if pages * size < SMALL_STORE_MAX_BYTES:
-            target = SMALL_PAGE_SIZE
-        elif pages * size >= LARGE_STORE_MIN_BYTES:
-            target = PAGE_SIZE
+        target = target_page_size(pages * size, size)
         if not force and target == size and pages < COMPACT_GROWTH * self._compacted_pages:
             return False
+        self._vacuum(size, target)
+        return True
+
+    def maintain(self, *, force: bool = False) -> dict:
+        """Post-publish maintenance run by the import service, never inside an import.
+
+        Measures where the slack is first: free pages (``freelist_count``) are returned
+        with ``incremental_vacuum`` when the store allows it; only slack inside used pages
+        (dbstat ``unused``: fragmentation from bulk loads and random-key indexes) or a page
+        size change needs a full VACUUM. Logical contents never change.
+        """
+        if self.db.in_transaction:
+            return {"action": "skipped"}
+        started = time.perf_counter()
+        payload.collect_garbage(self.db)
+        self.db.execute("PRAGMA optimize")
+        self.db.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchall()
+        size = self.db.execute("PRAGMA page_size").fetchone()[0]
+        pages = self.db.execute("PRAGMA page_count").fetchone()[0]
+        free = self.db.execute("PRAGMA freelist_count").fetchone()[0]
+        unused = self.db.execute(
+            "SELECT COALESCE(SUM(unused),0) FROM dbstat WHERE aggregate=TRUE"
+        ).fetchone()[0]
+        used_bytes = max(1, (pages - free) * size)
+        result = {
+            "bytes_before": pages * size,
+            "page_size_before": size,
+            "free_pages": free,
+            "slack": round(unused / used_bytes, 4),
+        }
+        target = target_page_size(pages * size, size)
+        if force or target != size or unused > VACUUM_SLACK * used_bytes:
+            self._vacuum(size, target)
+            result["action"] = "vacuum"
+        elif free and self.db.execute("PRAGMA auto_vacuum").fetchone()[0] == 2:
+            self.db.execute("PRAGMA incremental_vacuum").fetchall()
+            self.db.execute("PRAGMA main.wal_checkpoint(TRUNCATE)").fetchall()
+            result["action"] = "incremental_vacuum"
+        else:
+            result["action"] = "none"
+        result["page_size"] = self.db.execute("PRAGMA page_size").fetchone()[0]
+        result["bytes"] = result["page_size"] * self.db.execute("PRAGMA page_count").fetchone()[0]
+        result["seconds"] = round(time.perf_counter() - started, 4)
+        return result
+
+    def _vacuum(self, size: int, target: int) -> None:
+        # Incremental auto-vacuum lets later maintenance return free pages without a full
+        # rewrite; the mode is only adopted by a VACUUM, so it is set right before one.
+        self.db.execute("PRAGMA auto_vacuum = INCREMENTAL")
         if target == size or not self._vacuum_page_size(target):
             self.db.execute("VACUUM")
         self.db.execute("PRAGMA main.wal_checkpoint(TRUNCATE)").fetchall()
         self._compacted_pages = self.db.execute("PRAGMA page_count").fetchone()[0]
-        return True
 
     def _vacuum_page_size(self, page_size: int) -> bool:
         """VACUUM into a new page size; WAL stores must briefly leave WAL mode for that.
