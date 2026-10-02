@@ -283,17 +283,29 @@ def _catalog_source(catalog_db, parsed) -> dict[str, list[dict]]:
 
 
 def _recommendation_source(app_db, parsed) -> dict[str, list[dict]]:
+    """Titles of passed candidates in recommend's ``rec_candidate`` (newest run per rec_key);
+    a legacy ``candidate(candidate_id?, title)`` table is still read when present."""
     conn = _ro(app_db)
-    if conn is None or not _has_table(conn, "candidate", "title"):
+    if conn is None:
         return {"recommendation": []}
-    columns = {r[1] for r in conn.execute("PRAGMA table_info(candidate)")}
-    key = "candidate_id" if "candidate_id" in columns else "rowid"
-    where, args = _like_all("title", parsed["terms"])
     hits = []
-    for r in conn.execute(f"SELECT {key} AS id, title FROM candidate WHERE {where} "
-                          f"LIMIT {PER_SOURCE}", args):
-        text, marks = snippet(r["title"], parsed["terms"])
-        hits.append(_hit("recommendation", str(r["id"]), r["title"], text, marks))
+    if _has_table(conn, "rec_candidate", "rec_key"):
+        where, args = _like_all("title", parsed["terms"])
+        sql = ("SELECT candidate_id, rec_key, title, MAX(created_at) AS ts FROM rec_candidate "
+               f"WHERE passed = 1 AND {where} GROUP BY rec_key ORDER BY ts DESC "
+               f"LIMIT {PER_SOURCE}")
+        for r in conn.execute(sql, args):
+            text, marks = snippet(r["title"], parsed["terms"])
+            hits.append(_hit("recommendation", r["candidate_id"], r["title"], text, marks, r,
+                             ref={"id": r["candidate_id"], "rec_key": r["rec_key"]}))
+    elif _has_table(conn, "candidate", "title"):
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(candidate)")}
+        key = "candidate_id" if "candidate_id" in columns else "rowid"
+        where, args = _like_all("title", parsed["terms"])
+        for r in conn.execute(f"SELECT {key} AS id, title FROM candidate WHERE {where} "
+                              f"LIMIT {PER_SOURCE}", args):
+            text, marks = snippet(r["title"], parsed["terms"])
+            hits.append(_hit("recommendation", str(r["id"]), r["title"], text, marks))
     return {"recommendation": hits}
 
 
