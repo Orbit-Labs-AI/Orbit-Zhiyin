@@ -90,9 +90,10 @@ const TandemLive = (function () {
     const etags = new Map();       // key -> {etag, data, meta}
     const inflight = new Map();    // key -> {ctrl, promise, waiters}
     const bindings = {};
-    const hashToken = opts.mode === 'mock' ? null : takeHashToken(win);
+    const mode = opts.mode || detectMode(win);
+    const hashToken = mode === 'live' ? takeHashToken(win) : null;
     const C = {
-      mode: opts.mode || detectMode(win),
+      mode,
       endpoint: String(opts.endpoint || win.__TANDEM_ENDPOINT__ || ((win.location && /^https?:/.test(win.location.protocol || '')) ? win.location.origin : '')).replace(/\/+$/, ''),
       token: opts.token || win.__TANDEM_TOKEN__ || hashToken || null,
       error: null, failure: null, services: {}, job: null, status: null, page: null,
