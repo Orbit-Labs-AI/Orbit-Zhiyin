@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import pytest
 
 from tandem_data import analysis_input
-from tandem_data.analysis_input import AnalysisScope, decoded, read_analysis
+from tandem_data.analysis_input import AnalysisScope, decoded, model_call_row, read_analysis
 from tandem_data.contract import canonical
 from tandem_data.store import Store, readonly_connection
 
@@ -123,10 +123,10 @@ def build(tmp_path, sessions: int):
         return store.home
 
 
-def full_scan(home, query, keep):
+def full_scan(home, query, keep, decode=decoded):
     """The former reader: decode every row, filter in Python, keep native scan order."""
     with readonly_connection(home / "tandem.db") as connection:
-        return [decoded(row) for row in connection.execute(query) if keep(row)]
+        return [decode(row) for row in connection.execute(query) if keep(row)]
 
 
 def legacy_approval_visible(home, call_uid, until_ts):
@@ -162,7 +162,10 @@ def test_pushdown_rows_match_former_full_scans(home, scope):
     sessions = {e["session_uid"] for e in data["events"]} | {e["root_uid"] for e in data["events"]}
 
     expected_models = full_scan(
-        home, "SELECT * FROM v_analysis_model_call", lambda r: r["usage_event_uid"] in members
+        home,
+        "SELECT * FROM v_analysis_model_call",
+        lambda r: r["usage_event_uid"] in members,
+        model_call_row,
     )
     assert expected_models and data["model_calls"] == expected_models
     expected_tools = full_scan(

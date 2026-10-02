@@ -1,5 +1,35 @@
+import re
+
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
 from tandem_data.contract import canonical, uid
+
+_EXIT_LINE = re.compile(r"^(?:Process exited with code|Exit code:)\s*(-?\d+)\s*$", re.M)
+
+
+def output_status(text) -> dict:
+    """Status of a function_call_output from the harness-written header, never from the body.
+
+    exec_command/shell outputs carry ``Process exited with code N`` / ``Exit code: N`` in their
+    header; code-mode ``exec`` writes ``Script completed|failed`` for the script as a whole.
+    A still-running script or a header-less output stays unknown.
+    """
+    if not isinstance(text, str):
+        return {"status": "unknown"}
+    head = text[:600]
+    if head.startswith("Script completed"):
+        return {"status": "completed", "status_scope": "outer_wrapper"}
+    if head.startswith("Script failed"):
+        return {"status": "failed", "status_scope": "outer_wrapper"}
+    if head.startswith(("Chunk ID:", "Exit code:", "Process exited")):
+        match = _EXIT_LINE.search(head)
+        if match:
+            code = int(match.group(1))
+            return {
+                "status": "completed" if code == 0 else "failed",
+                "exit_code": code,
+                "status_scope": "direct_command",
+            }
+    return {"status": "unknown"}
 
 
 def select_history(store, mappers):
@@ -512,6 +542,14 @@ class CodexMapper(BaseMapper):
                                     )
                                 ),
                                 "native_turn_id": turn,
+                                # Server-executed web search has no output item; its status
+                                # is the tool protocol's own result.
+                                **(
+                                    {"status": str(payload["status"]).lower()}
+                                    if item_type == "web_search_call"
+                                    and isinstance(payload.get("status"), str)
+                                    else {}
+                                ),
                             },
                             ext=payload,
                         )
@@ -523,6 +561,7 @@ class CodexMapper(BaseMapper):
                 "tool_search_output",
             ):
                 call_id = str(payload.get("call_id", record.record_uid))
+                output = text_content(payload.get("output", payload.get("tools")))
                 return Mapping(
                     [
                         self.make(
@@ -532,8 +571,8 @@ class CodexMapper(BaseMapper):
                             actor="tool",
                             call_id=call_id,
                             native_key=[record.source_id, self.session_uid, "tool", call_id],
-                            text=text_content(payload.get("output", payload.get("tools"))),
-                            attrs={"status": "unknown", "native_turn_id": turn},
+                            text=output,
+                            attrs={**output_status(output), "native_turn_id": turn},
                             ext={key: value for key, value in payload.items() if key != "output"},
                         )
                     ]

@@ -177,6 +177,10 @@ class ClaudeMapper(BaseMapper):
                         exit_code=result.get("exitCode"),
                         status_scope="tool_protocol",
                     )
+                    if event.attrs.get("status") == "unknown":
+                        # The Claude protocol signals failure explicitly (is_error, denial,
+                        # interrupt): an observed tool_result without it is a completed call.
+                        event.attrs["status"] = "completed"
                     denial = data.get("toolDenialKind")
                     if denial:
                         event.attrs["status"] = (

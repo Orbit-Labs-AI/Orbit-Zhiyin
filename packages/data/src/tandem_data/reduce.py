@@ -1,16 +1,21 @@
-"""Deterministic L3 derivation. No LLM, cost estimation, or inferred missing tokens."""
+"""Deterministic L3 derivation. No LLM and no inferred missing tokens.
+
+Cost is either the harness-reported value or, for a resolved model with complete token buckets,
+the versioned list price in ``tandem_data.models``; otherwise it stays NULL.
+"""
 
 from __future__ import annotations
 
 import fnmatch
 import json
-import shlex
 import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from tandem_data import models as model_catalog
 from tandem_data.contract import TOKENS, canonical, uid
+from tandem_data.shell import command_head
 from tandem_data.store import insert
 
 
@@ -103,7 +108,17 @@ def _model(store, provider, raw):
         "ORDER BY provider<>'' DESC LIMIT 1",
         (raw, provider or ""),
     ).fetchone()
-    return (row[0], "resolved") if row else (raw, "unmapped")
+    if row:
+        return row[0], "resolved"
+    # Seed the alias table from the built-in normaliser; user rows (same key) always win.
+    known = model_catalog.canonical_model(raw)
+    if known is None:
+        return raw, "unmapped"
+    store.db.execute(
+        "INSERT OR IGNORE INTO model_alias(provider,model_raw,model_id,family) VALUES(?,?,?,?)",
+        (provider or "", raw, known[0], known[1]),
+    )
+    return known[0], "resolved"
 
 
 TOOL_KINDS = {
@@ -140,16 +155,8 @@ def tool_metadata(name, attrs):
                 files.append(args[key])
         command = args.get("command", args.get("cmd"))
         skill = args.get("skill") if kind == "skill" else attrs.get("skill")
-    head = None
-    if isinstance(command, str):
-        try:
-            words = shlex.split(command)
-            if words:
-                head = " ".join(
-                    words[:2] if words[0] in ("git", "uv", "pnpm", "npm", "docker") else words[:1]
-                )
-        except ValueError:
-            pass
+    # Effective program (cd/env/shell wrappers unwrapped); never a path or an assignment.
+    head = command_head(command)
     return {
         "name_raw": name,
         "name": tool if kind == "mcp" else name.lower(),
@@ -489,6 +496,14 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             model_id, resolution = _model(store, provider, raw)
             metrics = {token: attrs.get(token) for token in TOKENS}
             metrics.update(cost_usd=attrs.get("cost_usd"), cost_source=attrs.get("cost_source"))
+            if (
+                metrics["cost_usd"] is None
+                and resolution == "resolved"
+                and attrs["usage_scope"] == "call"
+            ):
+                price = model_catalog.cost_usd(model_id, metrics)
+                if price is not None:
+                    metrics.update(cost_usd=price, cost_source="price_table")
             if attrs["usage_scope"] == "call":
                 insert(
                     store.db,
@@ -627,6 +642,10 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
         if final_boundary and final_boundary["kind"] == "turn.end"
         else "unknown"
     )
+    if not action_times:
+        # Sessions without turn/message boundaries (tool-only subagent or review rollouts)
+        # still span their timestamped events.
+        action_times = [e["ts"] for e in events if e["ts"] is not None]
     store.db.execute(
         "UPDATE session SET started_at=?,ended_at=?,status=? WHERE session_uid=?",
         (
