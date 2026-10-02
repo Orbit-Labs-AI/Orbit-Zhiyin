@@ -9,6 +9,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 - 数据方案：[docs/plan/data-acquisition.md](docs/plan/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
 - 会话格式调研：[docs/research/agent-sessions](docs/research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
 - 分析开发输入：[docs/plan/analysis-inputs.md](docs/plan/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
+- Codex 数据连接器：[packages/connectors](packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
 
 ## App 版本
 
@@ -88,3 +89,16 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 - [调研与取舍](docs/backend/research.md)
 
 官方 dsh 源码作为固定版本的 submodule 放在 `third_party/deepseek-harness`。需要查源码时运行 `git submodule update --init --depth 1`；它不参与后端启动。
+
+## 使用标准 Codex Connector
+
+采集进程使用 TypeScript、Node ≥24.7 与 pnpm，输出独立 staging 库；通过 `packages/data` 的归档桥接进入统一数据库，避免两套 schema 共写同一个文件。
+
+```sh
+cd packages/connectors
+pnpm install --frozen-lockfile
+pnpm check
+pnpm tandem --help
+```
+
+初始化、增量导入、重算、监听、数据契约和真实来源验证范围见 [Connector README](packages/connectors/README.md)。
