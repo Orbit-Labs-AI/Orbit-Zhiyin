@@ -7,13 +7,13 @@ frame so open lists and analytics views can refresh.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from .. import platform
-from ..sessionops import exclusion, resume
+from ..sessionops import exclusion, resume, toolcalls
 from .auth import ApiError
 
 if TYPE_CHECKING:
@@ -93,6 +93,31 @@ def router(gw: Gateway) -> APIRouter:
             row["last_event_ts"] = db.execute("SELECT max(ts) FROM event WHERE session_uid = ?",
                                               (session_uid,)).fetchone()[0]
         return resume.build(row, int(time.time() * 1000))
+
+    @api.get("/v1/analytics/tool_calls")
+    def tool_calls(
+        name: str | None = None, command_head: str | None = None,
+        mcp_server: str | None = None, skill: str | None = None, kind: str | None = None,
+        status: Literal["ok", "failed", "all"] = "all", error_class: str | None = None,
+        session_uid: str | None = None,
+        project_id: Annotated[list[str] | None, Query()] = None,
+        agent: Annotated[list[str] | None, Query()] = None,
+        from_ts: int | None = None, until_ts: int | None = None,
+        include_excluded: bool = False, limit: int = Query(50, ge=1, le=200),
+        cursor: str | None = None,
+    ):
+        filters = {"name": name, "command_head": command_head, "mcp_server": mcp_server,
+                   "skill": skill, "kind": kind, "status": status, "error_class": error_class,
+                   "session_uid": session_uid, "project_id": project_id, "agent": agent,
+                   "from_ts": from_ts, "until_ts": until_ts}
+        try:  # Validate before reading: ReadPool.read() turns ValueError into a 409.
+            if cursor:
+                toolcalls.decode_cursor(cursor)
+        except ValueError as error:
+            raise ApiError(422, "invalid_request", str(error)) from error
+        excluded = [] if include_excluded else exclusion.excluded_uids(gw.appdb)
+        with gw.reads.read() as db:
+            return toolcalls.query(db, filters, limit, cursor, excluded)
 
     return api
 
