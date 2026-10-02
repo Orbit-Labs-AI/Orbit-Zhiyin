@@ -336,21 +336,36 @@ if (LV.live) {
   /* ---------- export: report .md · tool-call .csv · share card .png ---------- */
   const unavailable = (what) => (e) => toast(TL.unavailable(e) ? '本地服务暂不支持导出' + what + '，请更新 Orbit 后再试' : '导出' + what + '失败：' + ((e && (e.message || e.code)) || ''));
   const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="' + (act === 'repSave' ? 'repCopy' : 'copyCSV') + '">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
+  // B18: every export carries the scope the screen shows — range, the enabled agents and the project filter
+  // (S.project; '_none' = sessions without a project has no backend filter and is dropped)
+  function tloExportScope() {
+    const sc = lvScope(); const ls = LV.scope(); const pj = S.project && S.project !== '_none' ? S.project : null;
+    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }), csv: { from_ts: lvtpFrom(S.range) == null ? undefined : lvtpFrom(S.range), agent: ls.agents || undefined, project_id: pj ? [pj] : undefined } };
+  }
+  TLO.exportScope = tloExportScope;
+  // H4: the sheet opens on the keystroke and fills when the gateway answers. /v1/export/report waits up to 3 s for sections
+  // a filter change has just invalidated, so opening only after the response looked like ⇧⌘E did nothing. TLO.repSeq drops
+  // an answer that arrives after the sheet was closed, replaced or re-requested.
+  const repSheet = () => modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" data-tl="report-pending" aria-label="报告内容" aria-busy="true" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">正在生成报告…</textarea></div>' + exportFoot('repSave', '保存 .md');
+  const repBusy = (on) => { $$('#modal [data-act="repSave"], #modal [data-act="repCopy"]').forEach((b) => { b.disabled = on; }); const t = $('#repText'); if (t) { t.dataset.tl = on ? 'report-pending' : 'report'; t.setAttribute('aria-busy', String(on)); } };
+  TLO.repSeq = 0;
   function tloReport(first) {
-    return TL.ops.report(S.rep, lvScope()).then((d) => {
+    const seq = ++TLO.repSeq;
+    if (first) { CUR.report = ''; openModal(repSheet(), 'wide'); MODAL_KEY = 'report'; }
+    repBusy(true);
+    const mine = () => seq === TLO.repSeq && MODAL_KEY === 'report';
+    return TL.ops.report(S.rep, tloExportScope().report).then((d) => {
+      if (!mine()) return;
       CUR.report = d.markdown || '';
-      if (first) {
-        openModal(modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" data-tl="report" aria-label="报告内容" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.report) + '</textarea></div>' + exportFoot('repSave', '保存 .md'), 'wide');
-        MODAL_KEY = 'report';
-      } else { const t = $('#repText'); if (t) t.value = CUR.report; }
-    });
+      const t = $('#repText'); if (t) t.value = CUR.report;
+      repBusy(false);
+    }, (e) => { if (!mine()) return; closeModal(); throw e; });
   }
   openReport = function () { tloReport(true).catch(unavailable('报告')); };
   wrap('repSec', (base, el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); tloReport(false).catch(unavailable('报告')); });
   ACT.repSave = () => expSave('orbit-report-' + expStamp() + '.md', 'text/markdown', { text: CUR.report || '' });
   openCSV = function () {
-    const w = win(S.range); const sc = LV.scope();
-    TL.ops.csv('tool_calls', { from_ts: DAY0 + w[0] * 86400000, limit: 5000, agent: sc.agents || undefined }).then((text) => {
+    TL.ops.csv('tool_calls', Object.assign({ limit: 5000 }, tloExportScope().csv)).then((text) => {
       CUR.csv = text; const n = Math.max(0, text.split('\n').filter(Boolean).length - 1);
       openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
     }, unavailable('CSV'));
@@ -371,15 +386,23 @@ if (LV.live) {
     // same scope as the persona the app shows (A2 / Genesis: S.persona.period + filters); without a period the gateway
     // falls back to its own 30-day window and can refuse a card the persona page offers
     const sc = LV.scope();
+    // H4: ⇧⌘S answers at once — a pending sheet the gateway's answer fills (or closes, with the reason as a toast)
+    const seq = TLO.shareSeq = (TLO.shareSeq || 0) + 1;
+    openModal(modalHead('导出分享卡', '1080 × 1350 · 适合朋友圈、小红书与 X') + '<div class="mb" id="shareBody" data-tl="share-pending" aria-busy="true" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start"><span class="cap">正在生成分享卡…</span></div><div class="mf"><button type="button" class="btn" data-act="shareCopy" disabled>' + ic('copy', 13) + '复制分享文案</button><button type="button" class="btn p" data-act="shareSave" disabled>' + ic('down', 13) + '保存图片</button></div>', 'wide');
+    MODAL_KEY = 'share-pending';
+    const mine = () => seq === TLO.shareSeq && MODAL_KEY === 'share-pending';
+    const drop = () => { if (mine()) closeModal(); };
     TL.send('POST', '/v1/export/share_card', { hide_numbers: !!S.shareNoNum, theme: S.shareDark ? 'dark' : 'light', save: false,
       period: String(S.persona.period || '90'), agents: sc.agents || null, project: sc.project || null,
       scope: { display_timezone: TL_TZ || 'UTC' } }).then((r) => r.data).then((d) => {
-      if (d.freshness === 'computing') { toast('协作画像正在计算，稍后再试'); return; }
-      if (!d.eligible) { toast(H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡'); return; }
+      if (!mine()) return;
+      if (d.freshness === 'computing') { drop(); toast('协作画像正在计算，稍后再试'); return; }
+      if (!d.eligible) { drop(); toast(H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡'); return; }
       TLO.share = d;
       openModal(modalHead('导出分享卡', '1080 × 1350 · 适合朋友圈、小红书与 X') + '<div class="mb" id="shareBody" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start">' + shareBody() + '</div><div class="mf"><button type="button" class="btn" data-act="shareCopy">' + ic('copy', 13) + '复制分享文案</button><button type="button" class="btn p" data-act="shareSave">' + ic('down', 13) + '保存图片</button></div>', 'wide');
       MODAL_KEY = 'share';
     }, (e) => {
+      if (!mine()) return; drop();
       if (!TL.unavailable(e)) { toast('生成分享卡失败：' + (e.message || e.code)); return; }
       const sp = sharePersona(); if (sp.p && sp.p.ok) tloShareOpen(); else toast('协作画像还没有算好，暂时不能生成分享卡');
     });
