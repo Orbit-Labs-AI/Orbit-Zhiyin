@@ -59,6 +59,8 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 
 ## 看实现与版本报告
 
+- [Feature Analytics MVP：真实数据案例、特征字典与输入缺口](docs/backend/feature-analytics.md)
+  — 运行 `.venv/bin/tandem --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
 - [先验这条链路](docs/backend/acceptance.md)
 - [今晚先跑通什么](docs/backend/plan.md)
 - [当前版本：完整过滤凭据并核对交付证据](docs/backend/versions/v0.13.6.md)
