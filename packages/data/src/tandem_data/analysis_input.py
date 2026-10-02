@@ -165,13 +165,28 @@ def read_analysis(
             ):
                 raise ValueError(f"{label} must be a nonnegative integer")
         if max_events is not None or max_bytes is not None:
+            limit_message = (
+                "Analysis event limit exceeded or payload byte budget exceeded. "
+                "Narrow --project-id / --from-ts / --until-ts or explicitly raise --max-events; no partial analysis was returned."
+            )
+            if max_events is not None:
+                # Members are a lower bound on the final context-inclusive set.
+                # Reject large scopes before expanding linked turns and tool evidence.
+                member_count = connection.execute(
+                    "SELECT COUNT(*) FROM (SELECT 1 FROM v_analysis_event v WHERE "
+                    + " AND ".join(members_sql)
+                    + " LIMIT :member_budget)",
+                    {**params, "member_budget": max_events + 1},
+                ).fetchone()[0]
+                if member_count > max_events:
+                    raise AnalysisLimitExceeded(limit_message)
             ext_bytes = "length(CAST(v.ext AS BLOB))+" if include_native else ""
             probe = query.replace(
                 "SELECT " + event_columns + " FROM v_analysis_event",
                 "SELECT "
                 + ext_bytes
                 + "length(CAST(v.attrs AS BLOB))+COALESCE(length(CAST(v.text AS BLOB)),0) AS payload_bytes FROM v_analysis_event",
-            )
+            ).removesuffix(" ORDER BY session_uid,seq")
             budget_params = dict(params)
             if max_events is not None:
                 probe += " LIMIT :event_budget"
@@ -182,10 +197,7 @@ def read_analysis(
                 if (max_events is not None and count > max_events) or (
                     max_bytes is not None and total_bytes > max_bytes
                 ):
-                    raise AnalysisLimitExceeded(
-                        "Analysis event limit exceeded or payload byte budget exceeded. "
-                        "Narrow --project-id / --from-ts / --until-ts or explicitly raise --max-events; no partial analysis was returned."
-                    )
+                    raise AnalysisLimitExceeded(limit_message)
         events = [decoded(row) for row in connection.execute(query, params)]
 
         def member(event):

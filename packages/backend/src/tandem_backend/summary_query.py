@@ -49,6 +49,12 @@ def overview_summary(store, scope):
         "CASE WHEN v.kind='message.user' THEN json_extract(v.attrs,'$.origin') END AS origin "
         "FROM v_analysis_event v" + where + ") "
     )
+    # Both tool endpoints refer to the same scoped IDs. Materialize this small
+    # projection once instead of rescanning every event for each OR branch.
+    tool_members = (
+        "WITH members AS MATERIALIZED (SELECT v.event_uid FROM v_analysis_event v"
+        + where + ") "
+    )
     with store.connect() as db:
         manifest, run = current_projection(db)
         counts = dict(
@@ -63,7 +69,7 @@ def overview_summary(store, scope):
         tools = [
             dict(row)
             for row in db.execute(
-                members + "SELECT t.name_raw,COUNT(*) AS call_count FROM v_analysis_tool_call t "
+                tool_members + "SELECT t.name_raw,COUNT(*) AS call_count FROM v_analysis_tool_call t "
                 "WHERE t.call_event_uid IN (SELECT event_uid FROM members) OR t.result_event_uid IN (SELECT event_uid FROM members) "
                 "GROUP BY t.name_raw ORDER BY call_count DESC,t.name_raw LIMIT 10",
                 params,
