@@ -1141,3 +1141,33 @@ def test_hermes_recorded_git_root_survives_missing_worktree(tmp_path, cwd):
         assert rows(store, "session")[0]["project_id"] == project["project_id"]
         assert rows(store, "event_context")[0]["project_id"] == project["project_id"]
         assert_sound(store)
+
+
+def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
+    from importlib.resources import files
+
+    from tandem_data.reduce import project_for
+
+    home = tmp_path / "data"
+    home.mkdir()
+    with sqlite3.connect(home / "tandem.db") as db:
+        for migration in ["001.sql", "002.sql", "003.sql"]:
+            db.executescript(files("tandem_data").joinpath("migrations/" + migration).read_text())
+        db.execute("INSERT INTO project VALUES('old','path','/synthetic/repo','repo',NULL,'[]')")
+        db.execute("INSERT INTO project_override VALUES('/synthetic/repo/*','old')")
+        db.execute(
+            "INSERT INTO source(source_id,agent,root_path,discovered_at) VALUES('source','pi','/source',0)"
+        )
+        db.execute("INSERT INTO session_identity VALUES('session','source','s','[\"s\"]')")
+        db.execute(
+            "INSERT INTO session(session_uid,source_id,native_id,kind,root_uid,project_id) VALUES('session','source','s','main','session','old')"
+        )
+    with Store(home) as store:
+        new_id = project_for(store, None, recorded_root="/synthetic/repo")
+        assert new_id != "old"
+        assert len(rows(store, "project")) == 2
+        assert rows(store, "project_override")[0]["project_id"] == "old"
+        assert rows(store, "session")[0]["project_id"] == "old"
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()

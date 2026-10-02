@@ -802,7 +802,7 @@
         }
       },
       "x-foreign-keys": [],
-      "x-ddl": "CREATE TABLE project (\n  project_id TEXT PRIMARY KEY, key_type TEXT NOT NULL CHECK(key_type IN ('git_remote','git_root','path','bucket')),\n  key TEXT NOT NULL UNIQUE, name TEXT NOT NULL, git_remote TEXT,\n  paths TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(paths))\n) STRICT"
+      "x-ddl": "CREATE TABLE \"project\" (\n  project_id TEXT PRIMARY KEY,\n  key_type TEXT NOT NULL CHECK(key_type IN ('git_remote','git_root','path','bucket')),\n  key TEXT NOT NULL, name TEXT NOT NULL, git_remote TEXT,\n  paths TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(paths)),\n  UNIQUE(key_type, key)\n) STRICT"
     },
     "project_override": {
       "type": "object",

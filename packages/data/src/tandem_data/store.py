@@ -109,9 +109,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version not in (1, 2, 3):
+        elif version not in (1, 2, 3, 4):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1, 2 or 3")
+            raise ValueError(f"Unsupported database version {version}; expected 1, 2, 3 or 4")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -131,6 +131,26 @@ class Store:
         if version < 3:
             sql = files("tandem_data").joinpath("migrations/003.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 4:
+            # SQLite's table-copy migration procedure: disable FK enforcement only
+            # on this connection, preserve IDs, validate all references before commit.
+            sql = files("tandem_data").joinpath("migrations/004.sql").read_text()
+            try:
+                self.db.execute("PRAGMA foreign_keys=OFF")
+                try:
+                    self.db.executescript("BEGIN IMMEDIATE;\n" + sql)
+                    if self.db.execute("PRAGMA foreign_key_check").fetchall():
+                        raise ValueError("Project migration would break foreign keys")
+                    self.db.execute("COMMIT")
+                except BaseException:
+                    if self.db.in_transaction:
+                        self.db.execute("ROLLBACK")
+                    raise
+                finally:
+                    self.db.execute("PRAGMA foreign_keys=ON")
+            except BaseException:
+                self.db.close()
+                raise
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (
