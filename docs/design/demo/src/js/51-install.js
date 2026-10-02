@@ -35,6 +35,9 @@ function openInstall(id, extra) {
   drawInstall();
 }
 const instBusy = () => !INST || Date.now() - INST.t < 400;   // a double click must not advance two steps or fall through to the page (BUG-64 / BUG-88)
+// The second click of a double click lands wherever the redrawn sheet is not — usually the scrim, which would close it.
+// Capture-phase on the document runs before the scrim's own listener (30-actions.js), so it can be swallowed here.
+document.addEventListener('click', (e) => { if (e.target && e.target.id === 'scrim' && MODAL_KEY === 'install' && INST && Date.now() - INST.t < 400) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 function drawInstall() {
   const st = INST, f = st.info;
   const adds = f.file.filter((l, i) => (l[1] === '+' || l[1] === 'ai') && !st.off.has(i)).length;
