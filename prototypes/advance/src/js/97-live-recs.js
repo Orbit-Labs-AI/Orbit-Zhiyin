@@ -177,7 +177,7 @@ if (TL.mode === 'live') {
     const r = RECI[el.dataset.id];
     if (!r || !r.live || typeof liInstall !== 'function') return A.install(el);
     if (S.installed.has(r.id)) return ACT.openRec({ dataset: { id: r.id, tab: 'track' } });
-    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id },
+    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id }, catalogId: r.origin === 'catalog' ? r.item_id : null,
       onDone: (res) => { S.installed.set(r.id, { days: 1, live: true, fresh: true, install_id: res.install_id, at: Date.now(), scope: 'global', target: (res.written || []).map((w) => w.display).join('、') }); } });
   };
   ACT.doUninstall = (el) => {
