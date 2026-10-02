@@ -47,6 +47,19 @@ def test_actual_feature_ids_are_joined_and_single_pole_axes_abstain():
     assert profile["code"] is None
 
 
+def test_monthly_view_caps_long_histories_without_changing_overall_observations():
+    old = _event("直接完成报告", uid="old", ts=_ts("2000-01-01T00:00:00+00:00"))
+    new = _event("直接完成报告", uid="new", sid="new-session", task_id="new-task",
+                 ts=_ts("2026-10-02T00:00:00+00:00"))
+    profile = build_profile(_analysis([old, new]))
+    trend = profile["monthly_trend"]
+    assert len(trend["rows"]) == trend["max_months"] == 12
+    assert trend["rows"][0]["month"] == "2025-11"
+    assert trend["rows"][-1]["month"] == "2026-10"
+    assert trend["earlier_observed_months_omitted"] == 1
+    assert profile["axes"]["delegation"]["effective_task_n"] == 2
+
+
 def test_long_tasks_duplicates_and_cross_session_tasks_do_not_get_more_votes():
     events = [_event("直接完成报告", uid=f"long-{i}", seq=i, task_id="long") for i in range(10)]
     events += [_event("先询问我。编写报告", uid="other", sid="s2", task_id="short")]

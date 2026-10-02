@@ -15,6 +15,7 @@ from ..preference import summarize_preferences
 from ..task import summarize_task_distribution
 
 PROFILE_VERSION = "collaboration-profile-v1"
+MAX_TREND_MONTHS = 12
 AXES = {
     "delegation": ("控制", "委托", "C", "D"),
     "planning": ("探索", "规划", "E", "P"),
@@ -32,7 +33,8 @@ def _month(ts, zone):
     if not isinstance(ts, int) or isinstance(ts, bool):
         return None
     try:
-        return datetime.fromtimestamp(ts / 1000, zone).strftime("%Y-%m")
+        value = datetime.fromtimestamp(ts / 1000, zone)
+        return f"{value.year:04d}-{value.month:02d}"
     except (ValueError, OverflowError, OSError):
         return None
 
@@ -238,6 +240,12 @@ def _month_sequence(months, scope, zone):
         return []
     year, month = map(int, min(bounds).split("-"))
     last = max(bounds)
+    end_year, end_month = map(int, last.split("-"))
+    first_index = year * 12 + month - 1
+    last_index = end_year * 12 + end_month - 1
+    first_index = max(first_index, last_index - MAX_TREND_MONTHS + 1)
+    year, zero_based_month = divmod(first_index, 12)
+    month = zero_based_month + 1
     result = []
     while f"{year:04d}-{month:02d}" <= last:
         result.append(f"{year:04d}-{month:02d}")
@@ -272,6 +280,8 @@ def _trend(tasks, instructions, scope, zone, source_available):
                        "basis": "only_instruction_observations_in_this_calendar_month",
                        "scope_clipped": bool(clipped)})
     return {"rows": result, "display_timezone": zone.key,
+            "max_months": MAX_TREND_MONTHS,
+            "earlier_observed_months_omitted": sum(m < result[0]["month"] for m in all_months) if result else 0,
             "unknown_time_instruction_n": sum(_month(r.get("ts"), zone) is None for r in instructions),
             "method": "independent_monthly_reduction_fixed_mapping_no_smoothing",
             "missing_months": "no_evidence_is_null_not_zero"}
