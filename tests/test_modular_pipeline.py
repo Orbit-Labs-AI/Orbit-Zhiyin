@@ -148,6 +148,31 @@ def test_empty_authorized_source_can_be_opened_by_app(tmp_path):
     assert TestClient(create_app(home=home)).get("/health").json()["counts"]["events"] == 0
 
 
+def test_cli_reports_partial_import_with_nonzero_status(tmp_path, capsys):
+    root, home = tmp_path / "source", tmp_path / "data"
+    (root / "sessions").mkdir(parents=True)
+    (root / "sessions/bad.jsonl").write_text("{bad\n")
+    with pytest.raises(SystemExit) as error:
+        main(["--home", str(home), "ingest", "--agent", "codex", "--root", str(root)])
+    assert error.value.code == 2
+    assert json.loads(capsys.readouterr().out)["import"]["current_unparsed"] == 1
+    assert (home / "raw").exists()
+
+
+def test_report_rerun_cleans_only_its_old_canonical_evidence(data, tmp_path, capsys):
+    home, _ = data
+    output = tmp_path / "report"
+    main(["--home", str(home), "report", "--output", str(output)])
+    capsys.readouterr()
+    evidence = output / "evidence"
+    previous = {p.name for p in evidence.iterdir()}
+    assert previous and all(name.startswith("event_") for name in previous)
+    unrelated = evidence / "my-note.txt"
+    unrelated.write_text("keep")
+    main(["--home", str(home), "report", "--project-id", "absent", "--output", str(output)])
+    assert {p.name for p in evidence.iterdir()} == {"my-note.txt"}
+
+
 def test_new_import_does_not_silently_ignore_legacy_sample_policy_flags(tmp_path):
     home = tmp_path / "data"
     with pytest.raises(SystemExit) as error:

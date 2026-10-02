@@ -133,6 +133,9 @@ def main(argv: list[str] | None = None) -> None:
         except (ValueError, OSError, RuntimeError) as exc:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
+        imported = result.get("import", {}) if isinstance(result, dict) else {}
+        if imported.get("capture_errors") or imported.get("current_unparsed"):
+            raise SystemExit(2)
         return
     if args.command == "import" and args.db is None:
         from .data_access.ingest import ingest
@@ -143,6 +146,8 @@ def main(argv: list[str] | None = None) -> None:
         except (ValueError, OSError, RuntimeError) as exc:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
+        if result["import"].get("capture_errors") or result["import"].get("current_unparsed"):
+            raise SystemExit(2)
         return
     if args.command in ("reader-pack", "reader-results"):
         from .reader_eval import make_pack, reader_results
@@ -226,7 +231,9 @@ def main(argv: list[str] | None = None) -> None:
         if args.json:
             print(json.dumps(item, ensure_ascii=False, indent=2))
         else:
-            print(f"证据 {item['id']} · {item['kind']} · 原记录第 {item['ordinal']} 行")
+            position = (f"事件序号 {item['ordinal']} · 原始记录 {item['details']['record_uid']}"
+                        if item["details"].get("record_uid") else f"原记录第 {item['ordinal']} 行")
+            print(f"证据 {item['id']} · {item['kind']} · {position}")
             print(item['text'] or json.dumps(item['details'], ensure_ascii=False, indent=2))
         return
     if args.command == "import":
@@ -253,7 +260,7 @@ def main(argv: list[str] | None = None) -> None:
     # Remove only snapshots owned by this exporter when a rerun narrows the
     # sample. Leave unrelated user files alone.
     for old in evidence_folder.iterdir():
-        if old.is_file() and re.fullmatch(r'[0-9a-f]{24}', old.name) and old.name not in wanted:
+        if old.is_file() and re.fullmatch(r'(?:[0-9a-f]{24}|event_[0-9a-f]{64})', old.name) and old.name not in wanted:
             old.unlink()
     for event in store.events():
         if event.id in wanted:
