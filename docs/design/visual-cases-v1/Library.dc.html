@@ -248,7 +248,7 @@ class Component extends DCLogic {
     const kinds = [['全部', true], ['Skills', false], ['Hooks', false], ['插件', false], ['子代理', false], ['MCP', false]].map(k => ({ t: k[0], on: k[1] ? 'true' : 'false', cls: k[1] ? 'chip on' : 'chip' }));
     const featured = [
       { icon: ic.branch, kind: 'Skill', src: '社区 · MIT', name: 'worktree-conductor', desc: '为每个并行会话自动建立独立 worktree，结束后合并并清理。', m: 94, why: [{ t: '你每周约 10 次并行会话，5 次改到同一仓库' }, { t: '同为 DIMV 的用户安装后冲突减少 72%' }], compat: 'Claude Code · Codex', c2: 'var(--a2)', users: '3.1k 安装' },
-      { icon: ic.bolt, kind: 'Hook', src: 'Tandem 官方', name: 'retry-breaker', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, why: [{ t: '23 段「失败后原样重试」序列，最长 4 次' }, { t: '覆盖你第二大的摩擦：工具 / 环境失败' }], compat: 'Claude Code · Codex', c2: 'var(--a2)', users: '1.8k 安装', sel: true },
+      { icon: ic.bolt, kind: 'Hook', src: 'Orbit 官方', name: 'retry-breaker', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, why: [{ t: '23 段「失败后原样重试」序列，最长 4 次' }, { t: '覆盖你第二大的摩擦：工具 / 环境失败' }], compat: 'Claude Code · Codex', c2: 'var(--a2)', users: '1.8k 安装', sel: true },
       { icon: ic.bot, kind: '子代理', src: '社区 · Apache-2.0', name: 'release-verifier', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, why: [{ t: '61% 的会话你会要求验证线上结果' }, { t: '可把验收从主会话中拆出去' }], compat: 'Claude Code · Gemini CLI', c2: 'var(--a3)', users: '940 安装' }
     ].map(f => ({ icon: f.icon, kind: f.kind, src: f.src, name: f.name, desc: f.desc, m: f.m, deg: Math.round(f.m * 3.6), w1: f.why[0].t, w2: f.why[1].t, compat: f.compat, c2: f.c2, users: f.users, ring: f.sel ? '0 0 0 2px var(--ink-1)' : 'var(--sh-card)' }));
     const score = [['行为相似 ×0.5', 96], ['痛点覆盖 ×0.3', 92], ['社区效果 ×0.2', 74]].map(s => ({ k: s[0], v: s[1], w: s[1] }));

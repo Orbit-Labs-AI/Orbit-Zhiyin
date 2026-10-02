@@ -11,7 +11,7 @@ Lite 与 Advance 自 2026-10-02 起是**同一个 App**，源码在 [`prototypes
 | 统一 App（本地） | [`prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html) | 单个 HTML，浏览器直接打开，不需构建或联网（联网时加载 Google Fonts）；侧栏顶部切换版本（也可用「显示」菜单、⌘K 或 ⌃⌘L），地址加 `#l-home` 直接以 Lite 打开 |
 | 统一 App（在线） | <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8> | 每次 Demo 合入 main 后按下文「修改 Demo」最后一行重新发布 |
 | Lite 原稿 | [`prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html) | `genius-FXC` 的八页设计来源，直接打开，范围与审查见 [lite-review.md](lite-review.md) |
-| Advance 画板 | 在线画布 <https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>、[`visual-cases-v1/`](visual-cases-v1/) | 内容停在 v1.1，见 [画板与设计决定](boards.md) |
+| Advance 画板 | 在线画布 <https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>、[`visual-cases-v1/`](visual-cases-v1/) | 版式停在 v1.1，文字与标志已改为 Orbit（v1.6），见 [画板与设计决定](boards.md) |
 
 ## Lite 与 Advance：同一个 App
 

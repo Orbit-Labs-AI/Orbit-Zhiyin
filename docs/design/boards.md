@@ -63,7 +63,7 @@ Advance 的画板是 2026-10-01 定下的视觉与交互参考，画板本身没
 
 ## 假设
 
-- 产品名已定为 Orbit（见[品牌](brand.md)），画板里的 Tandem 字样未回改。
+- 产品名已定为 Orbit（见[品牌](brand.md)）。2026-10-02 画板文字已改为 Orbit，菜单栏、通知、首次启动、空状态与分享卡里的双圆图标换成原型 `orbitMark` 的原样输出；版式与其余内容未回改。
 - 画板与 Demo 里的数值都是示例数据；项目名与使用习惯参考了 `yhyfhgs` 本机的 Claude Code Insights 报告，数字为虚构。
 - Demo 里 Gemini CLI、Copilot CLI 的会话目录沿用 v1 的写法；实际接入哪些 Agent、各自的会话格式，以[数据方案](../plans/data-acquisition.md)和[会话格式调研](../research/agent-sessions/README.md)为准。
 - 人格维度的信号与权重是初版设想，接入真实数据后按区间判定。
