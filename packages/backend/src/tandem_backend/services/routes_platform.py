@@ -90,12 +90,8 @@ def router(gw: Gateway) -> APIRouter:
             raise ApiError(422, "invalid_request", str(error)) from None
 
     @api.get("/v1/platform/storage")
-    def platform_storage():
-        report = storage.latest_report(p.appdb)
-        if report is None:
-            report = storage.storage_report(p.home)
-            storage.save_report(p.appdb, report)
-        return report
+    def platform_storage(refresh: bool = False):
+        return storage.fresh_report(p.appdb, p.home, refresh=refresh)
 
     @api.get("/v1/platform/maintenance")
     def maintenance_status():

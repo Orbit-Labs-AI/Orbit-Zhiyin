@@ -87,3 +87,36 @@ def test_install_sweep(started):
     assert out["ok"], out
     assert {k: out["detail"][k] for k in ("idle", "backups", "plans")} == {
         "idle": 0, "backups": 0, "plans": 0}
+
+
+def test_retention_prunes_analysis_runs_and_refreshes_the_storage_report(started):
+    from tandem_data.analysis_history import AnalysisHistory
+
+    from tandem_backend.platform.storage import fresh_report, latest_report
+
+    history = AnalysisHistory(started.home / "analysis.sqlite")
+    for index in range(4):
+        run_id = history.start("features", {}, request_key="k", input_fp="fp")
+        history.complete(run_id, {"analysis_digest": str(index), "blob": "x" * 50_000})
+    stale = fresh_report(started.appdb, started.home)
+    result = started.maintenance.run("retention")
+    assert result["ok"], result
+    detail = result["detail"]["analysis"]
+    assert detail["old_runs"] == 2 and detail["snapshots"] == 2 and detail["file_bytes"] > 0
+    report = latest_report(started.appdb)
+    analysis = next(c for c in report["components"] if c["id"] == "analysis")
+    assert analysis["bytes"] > 0 and analysis["reclaimable_bytes"] >= 0
+    assert report["generated_at"] >= stale["generated_at"]
+
+
+def test_storage_endpoint_recomputes_an_old_report(started):
+    from tandem_backend.platform.storage import fresh_report, save_report, storage_report
+
+    old = storage_report(started.home)
+    old["generated_at"] -= 3_600_000
+    for component in old["components"]:
+        component["bytes"] = 0
+    save_report(started.appdb, old)
+    report = fresh_report(started.appdb, started.home)
+    assert report["generated_at"] > old["generated_at"] and report["total_bytes"] > 0
+    assert fresh_report(started.appdb, started.home)["generated_at"] == report["generated_at"]
