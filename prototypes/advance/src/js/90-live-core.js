@@ -239,6 +239,8 @@ LV.hydrate = function (spine) {
   const first = rows.reduce((m, r) => (r.d && (!m || r.d < m) ? r.d : m), null);
   DAY0 = Math.min(first ? lvUtc(first) : t, t - 119 * 86400000);
   LASTDAY = Math.round((t - DAY0) / 86400000);
+  // 全部 starts at the earliest session, not at the 120-day spine floor (R4-04); no rows keeps the full spine
+  FIRSTDAY = first ? Math.max(0, Math.min(LASTDAY, Math.round((lvUtc(first) - DAY0) / 86400000))) : 0;
   // agents: present in facts or detected, ordered by session count; deselections survive by id
   const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
   const ags = {};
