@@ -26,7 +26,11 @@ class EmbeddingRequest(Contract):
     max_chunks: int | None = Field(default=256, ge=1, le=1000000)
 
 
-def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None) -> APIRouter:
+def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None,
+                   profile: Callable[[dict], dict | None] | None = None,
+                   installed_summary: Callable[[], dict | None] | None = None) -> APIRouter:
+    """``profile(scope)`` returns the library profile (see query.library) or None; both hooks are
+    supplied by the gateway so this package never imports the features module."""
     router = APIRouter(prefix="/v1/catalog", tags=["resource catalog"])
 
     def invoke(operation):
@@ -96,12 +100,32 @@ def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None
         decorated(result["items"])
         return result
 
+    @router.get("/library")
+    def library(tab: str = "for", kind: Strs = None, agent: Strs = None,
+                q: Annotated[str, Query(max_length=2000)] = "", sort: str = "fit", exclude: Strs = None,
+                limit: Annotated[int, Query(ge=1, le=50)] = 20, cursor: str | None = None,
+                project_id: Strs = None, window_days: Annotated[int, Query(ge=1, le=365)] = 30):
+        basis = profile({"project_ids": project_id or None, "window_days": window_days}) if profile else None
+        result = invoke(lambda: service.library(profile=basis, tab=tab, kinds=kind or [], agents=agent or [], q=q,
+                                                sort=sort, exclude=exclude or [], limit=limit, cursor=cursor))
+        if basis is None:
+            result["profile_basis"]["window_days"] = window_days
+        decorated(result["items"])
+        result["installed_summary"] = installed_summary() if installed_summary else None
+        return result
+
     @router.get("/items")
     def items(kind: Strs = None, agent: Strs = None, license: str | None = None,
               max_risk: Risk = None, origin: str | None = None,
               official: bool | None = None, source_id: str | None = None, exclude: Strs = None,
               sort: str = "updated", order: str = "desc", limit: Annotated[int, Query(ge=1, le=100)] = 30,
-              cursor: str | None = None, include_duplicates: bool = False):
+              cursor: str | None = None, include_duplicates: bool = False, id: Strs = None):
+        if id:
+            if len(id) > 50:
+                raise HTTPException(422, "too_many_ids")
+            result = query.cards_by_id(service.store, id)
+            decorated(result["items"])
+            return result
         result = invoke(lambda: query.list_items(
             service.store, sort=sort, order=order, limit=limit, cursor=cursor,
             **filters(kind, agent, license, max_risk, origin, official, source_id, exclude, include_duplicates)))
@@ -167,7 +191,7 @@ def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None
     return router
 
 
-def create_catalog_app(service, decorate=None) -> FastAPI:
+def create_catalog_app(service, decorate=None) -> FastAPI:  # Standalone worker: library without profile.
     from contextlib import asynccontextmanager
 
     @asynccontextmanager

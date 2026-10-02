@@ -91,7 +91,7 @@ def test_detail_fields_and_related(store):
     assert relations["i03"] == "depends" and relations["i01"] == "alternative_to"
     assert any(r == "similar" for r in relations.values())
     assert detail["install"]["ref"] == {"source": "catalog_item", "id": "i30"}
-    assert detail["versions"][0]["version_id"] == detail["version_id"] and detail["scan"] is None
+    assert detail["versions"][0]["version_id"] == detail["version_id"] and detail["scan"]["estimate"] is True
     metadata_only = query.get_item(store, "i02")
     assert metadata_only["readme"] is None and metadata_only["readme_policy"] == "link_only"
     assert metadata_only["resident_tokens_est"] is None and query.get_item(store, "i00")["resident_tokens_est"] == 0
