@@ -217,7 +217,8 @@ svg{display:block}
    starts under it. Window dragging is the host's (drag strip), so the title row keeps no move / resize handles. */
 :root{--titlebar-inset:28px}
 body.native .desk{background:var(--bg)}
-body.native :is(.mbar,.wall,#widgets){display:none!important}
+body.native :is(.mbar,.wall){display:none!important}
+body.native:not(.surface-widgets) #widgets{display:none!important}
 body.native:not([class*="surface-"]) :is(#hud,#pop){display:none!important}
 body.native .win{border-radius:0;box-shadow:none;transition:opacity .15s,grid-template-columns .2s var(--ease)}
 body.native .win .rz{display:none}
