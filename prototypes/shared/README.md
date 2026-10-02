@@ -44,3 +44,9 @@ pnpm --filter @tandem/prototype-lite check    # benchmark 检查 + sync --check 
 - Lite 单文件：`@tandem-live recs block` 绑定「优化建议」页。
 - 降级：从未取得 live 数据且端点 404 / 501 / 503 / 离线时保留演示数据并标「示例数据」；取得过 live 数据后失败只保留上一屏。
 - 夹具：`fixtures/recs/*.json`（每个端点一份，合成数据）；单测 `tests/tandem-live-recs.test.cjs`。
+
+## 运行态、会话操作与导出（ops 段）
+
+- 适配层 `C.ops`（`tandem-live.js` 中 `ops` 分区）：`realtime()` 读 `/v1/analytics/realtime?lanes=1`，`startStream()` 保持 `/v1/analytics/realtime/stream`（每帧完整快照，指数退避重连，404 / 501 时停止）；`dismiss`；`exclude / include / resume / locate / toolCalls`；`csv`（文本）、`report`、`shareCard`、`snapshots`。纯函数 `TandemLive.ops.rtDerive / rtBuckets / toolCallsQuery / reportSections` 在 node 中测试。
+- Advance 绑定 `advance/src/js/98-live-ops.js`：快照写入 demo 自身的状态（`S.simBase / S.attn / S.waitOpen`、`S.live` 的 t0 / ctx / tools、`HUD_TOOLS`、`liveBuckets`），菜单栏面板、HUD 和桌面小组件里写着具体会话的卡片按原样式换成实时内容；live 会话页增加「不计入分析 / 复制继续命令 / 定位原始日志」与已排除列表，live 工具页点行看调用明细；导出报告、工具 CSV 与分享卡读 `/v1/export/*`。
+- 路由缺失（404 / 501）、503 或离线时保留 demo 数据并标「示例数据」。fixtures 在 `fixtures/ops/`，Playwright 用例在 `advance/tests/live-ops.spec.mjs`。

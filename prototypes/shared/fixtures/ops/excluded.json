@@ -1,0 +1,17 @@
+{
+  "count": 1,
+  "items": [
+    {
+      "session_uid": "fx-s2",
+      "title": "合成会话 2",
+      "agent": "codex",
+      "project_id": "fx-p2",
+      "project": "fx-rules",
+      "started_at": 1789913600000,
+      "reason": "test",
+      "note": null,
+      "excluded_at": 1789996400000,
+      "source": "user"
+    }
+  ]
+}

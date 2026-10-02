@@ -36,6 +36,14 @@ function collectErrors(page, allow) {
   return errors;
 }
 
+// realtime fixtures carry absolute timestamps: move them so generated_at is now (lanes / since stay relative)
+function rtNow(name) {
+  const o = FX('ops/' + name); const dt = Date.now() - o.generated_at;
+  const mv = (x) => (typeof x === 'number' ? x + dt : x);
+  o.generated_at += dt;
+  o.sessions.forEach((s) => { s.since = mv(s.since); if (s.lanes) Object.keys(s.lanes).forEach((k) => { s.lanes[k] = s.lanes[k].map(mv); }); });
+  return o;
+}
 // Fixture gateway. state.queue holds the frame lists for the next /v1/events connections (an empty stream once drained).
 async function gateway(page) {
   const state = { down: false, queue: [], seen: [] };
@@ -50,6 +58,8 @@ async function gateway(page) {
     if (u.pathname === '/app') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(ADV_FILE, 'utf8') });
     if (u.pathname === '/lite') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(LITE_FILE, 'utf8') });
     if (u.pathname === '/v1/events') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sseText(state.queue.shift() || []) });
+    // ops (98-live-ops.js) reads the realtime snapshot and its stream on every live page; the full flow is in live-ops.spec.mjs
+    if (u.pathname === '/v1/analytics/realtime/stream') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'event: realtime\ndata: ' + JSON.stringify(rtNow('realtime-calm')) + '\n\n' });
     if (state.down && u.pathname.startsWith('/v1/analytics/')) return json(FX('error-503'), 503, { 'Retry-After': '2' });
     const bump = (o) => { if (second) { o = JSON.parse(JSON.stringify(o)); if (o.counts) o.counts.sessions = 256; if (o.overview) o.overview.counts.sessions = 256; } return o; };
     const routes = {
@@ -69,7 +79,9 @@ async function gateway(page) {
       '/v1/platform/collection': () => FX('studio-settings/collection'),
       '/v1/notifications/policy': () => FX('studio-settings/notify-policy'),
       '/v1/notifications/snooze': () => FX('studio-settings/notify-snooze'),
-      '/v1/notifications/attention': () => FX('studio-settings/notify-attention')
+      '/v1/notifications/attention': () => FX('studio-settings/notify-attention'),
+      '/v1/analytics/realtime': () => rtNow('realtime-calm'),
+      '/v1/sessions/excluded': () => FX('ops/excluded')
     };
     const rec = recsRoute(u, route.request(), state); if (rec) return json(rec.body, rec.status || 200);
     if (routes[u.pathname]) return json(routes[u.pathname]());

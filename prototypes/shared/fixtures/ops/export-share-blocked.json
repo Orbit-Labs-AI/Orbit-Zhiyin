@@ -1,0 +1,23 @@
+{
+  "eligible": false,
+  "blocked_reason": "insufficient_data",
+  "gate": {
+    "min_units": 30,
+    "min_active_days": 10,
+    "axes": [
+      {
+        "axis": "autonomy",
+        "n_units": 12
+      }
+    ],
+    "active_days": 4
+  },
+  "code": null,
+  "type_name": null,
+  "copy": null,
+  "stats": [],
+  "theme": "system",
+  "disclaimer": "实验性画像，仅供参考",
+  "generated_at": 1790000000000,
+  "scope_hash": "fx-share"
+}
