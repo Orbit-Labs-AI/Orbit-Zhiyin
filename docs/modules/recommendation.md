@@ -4,6 +4,48 @@
 
 当前只消费已有的非语义瓶颈诊断，不新增数据采集或依靠人格标签生成推荐。运行时不联网、不调用 LLM、不下载模型、不安装或执行资源。排序权重和瓶颈阈值是初始启发式，尚未证明能改善真实任务表现。
 
+偏好排序和条件收益估计已接入同一推荐入口，具体对照与生成案例见[推荐测试报告](recommendation-validation.md)。在仓库根执行 `bash scripts/test-recommend.sh` 可重跑测试和报告；公共资源评测目录在 `evals/recommendation/fixtures/reviewed-skills.json`，不自动替换全部抓取草稿。
+
+## 三层偏好与收益输入
+
+`POST /v1/analytics/recommendations` 的 `context.preferences` 接受显式偏好；`state.py` 同时复用 analytics 的偏好历史解析器。作用域优先级为 `task > project > global`，同范围内为本次请求 > 显式偏好历史。Instruction 的历史要求只作为证据，不进入有效偏好；当前任务的明确覆盖通过 `context.preferences` 提供。撤销、修改、生效时间和冲突沿用 analytics 语义。多个值冲突时不任选其一，也不回退到低范围值；根会话有多个未选定任务时不应用某一个任务的偏好。
+
+```json
+{
+  "family": "skills",
+  "context": {
+    "agent": "codex",
+    "preferences": [
+      {"scope": "global", "dimension": "capability", "value": "retry_control"},
+      {"scope": "project", "target_id": "实际项目 ID", "dimension": "tool", "value": "pytest"},
+      {"scope": "task", "target_id": "实际解析任务 ID", "dimension": "task_type", "value": "debug"}
+    ]
+  }
+}
+```
+
+维度为 `language`、`detail`、`format`、`tool`、`collaboration`、`task_type`、`capability`；`polarity` 为 `prefer` 或 `avoid`，默认 `prefer`。`global` 不带 target_id；项目和任务必须绑定解析后的规范 ID。`avoid` 是软排序偏好，严格禁止项通过已有 `denied_permissions` 等硬约束表达。
+
+资源新增 `preference_support`，例如 `{"detail":["brief"],"tool":["pytest"]}`，只允许有内容依据的审核元数据；工具、能力、任务类型还分别复用 requirements.tools、capability.tags、target_task.tags。匹配、未知、明确不匹配分别取 1、0.5、0，每个维度等权，同一表达重复出现不增加权重。偏好只能调整已有瓶颈证据支持的候选；不能绕过兼容性、权限、已安装、来源或审核过滤。
+
+收益输入位于 `context.benefit_scenarios`。资源、信号、快照、改善区间和 basis 必填；其余成本缺失时保留未知，字段如下：
+
+| 字段 | 含义 |
+| --- | --- |
+| resource_id、signal_id、analysis_digest | 对应资源、观察信号和同一分析快照；过期或越界时拒绝估计 |
+| reduction.low / high | 明确假设的改善比例，0–1；不是 effect_match 或 priority_score |
+| repeated_windows | 预测重复观察窗口数，默认 1；不自动解释为天、周或任务数 |
+| minutes_per_occurrence、tokens_per_occurrence | 每个观察事件的成本区间，low / high |
+| setup_minutes、setup_tokens | 一次配置成本区间 |
+| extra_minutes_per_window、extra_tokens_per_window | 每个预测窗口新增的运行和验证成本区间 |
+| basis | 改善、成本和重复窗口的假设说明；不允许空白 |
+
+当前从纠偏次数、同参数重试对数、明确工具失败数取基线事件数，不从比率推算事件数。其余规则尚未建立成本口径时返回不足。缺少单次成本时连毛节省也未知；缺少配置或运行成本时仅显示毛节省，净收益为 null；明确为零时必须显式填写 0。
+
+`benefit_estimate` 按“事件数 × 窗口数 × 单次成本 × 改善比例 − 配置成本 − 窗口数 × 新增成本”计算分钟、Token 的上下限和回本窗口，保留负收益。未知依赖和适配条件随估计返回；多条规则／多个 Skill 不累加，避免对同一次失败重复记账。卡片的 `effect_status` 仍为 `unmeasured`，`evaluation_plan.observed_effect` 仍为 null，直到另有成对执行实验提供效果证据。
+
+权重、收益假设和真实资源内容是三种不同信息。报告展示规则行为和算术正确性，不把自设改善比例当作预测准确率。旧画像入口与 UI 原型尚未接入这些新增字段。
+
 ## 本轮完成的链路
 
 ```text
@@ -11,7 +53,7 @@
   → 按根会话建立 RecommendationState
   → 加载部分资源目录，规范化 item，校验 family 特有字段
   → 排除已知不可用资源
-  → rules / sparse / effect / context 四路召回
+  → rules / sparse / effect / context 召回；有效偏好存在时增加 preferences 路线
   → RRF 融合
   → 公共候选特征与加权评分
   → MMR 多样性选择
@@ -33,6 +75,8 @@
 | `model_configs/benchmarks.py` | 模型、推理配置及 harness 对应的 benchmark observation 合同 |
 | `recall/` | 规则、BM25、效果方向、环境召回，RRF 融合和未启用的 dense 接口 |
 | `features.py` | 计算跨 family 的任务、触发、效果方向、环境、证据、成本和风险特征 |
+| `preferences.py` | 按范围及来源解析显式偏好，计算匹配解释并召回候选 |
+| `benefit.py` | 从当前快照的事件计数与显式情景参数计算净收益区间 |
 | `ranking/` | 已知不兼容过滤、透明评分、去重与 MMR |
 | `explain.py` | 生成观察 → 触发 → 瓶颈 → 干预 → 预期改善的结构化解释 |
 | `service.py` | 新推荐主入口；API 层不需要直接操作 BM25 或 family 实现 |
@@ -175,22 +219,23 @@ print(result["recommendations"])
 
 新入口是 `tandem_backend.recommend.service.recommend`。`from tandem_backend.recommend import recommend` 保留旧画像接口，不要把两者的输入与返回类型混用。新入口也接受 `catalog=[RecommendationItem 或统一格式 dict]`、可选的同快照 `bottlenecks`、`RecommendationPolicy` 和 `RankingPolicy`。
 
-如果传入 `bottlenecks`，其 `feature_digest`、`analysis_digest`、`scope` 必须匹配当前 analytics；信号证据必须属于对应根会话树。不同会话的样本不会合并来凑门槛。原始对话正文与 persona 标签不进入 P0 检索文本；当前 preference 仅保留引用，`used_for_ranking=False`。
+如果传入 `bottlenecks`，其 `feature_digest`、`analysis_digest`、`scope` 必须匹配当前 analytics；信号证据必须属于对应根会话树。不同会话的样本不会合并来凑门槛。原始对话正文与 persona 标签不进入检索文本；解析后的显式 preference 通过独立路线和特征参与排序。
 
 输出版本为 `recommendation-pipeline-v1`，保留 `signals`、`assessments`、`states`、`diagnostics`、`excluded_resources`、策略参数及输入/目录 digest。整体状态包括 `ready`、`no_matching_resources`、`insufficient_evidence`、`no_threshold_met`。`ready` 表示存在卡片，具体卡片仍可能是 `needs_context`，应检查 `recommendation_status`。
 
 ## 算法与分数含义
 
-四路召回默认每路最多 50 项：
+以下召回路线默认每路最多 50 项：
 
 - `rules`：匹配已经成立的规则 ID 或能力标签，不重新判断原始特征阈值。
 - `sparse`：无外部依赖的 BM25，英文技术名称与中文二元词片匹配；默认 `k1=1.2`、`b=0.75`。
 - `effect`：瓶颈向量与资源效果方向向量的点积。每个根会话的同规则强度取 `severity × confidence` 的最大值。
 - `context`：利用已知 Agent、OS、语言、框架和依赖匹配召回相关候选。
+- `preferences`：存在有效偏好时启用，召回有明确匹配元数据的候选，避免其被其他路线的数量上限挤出。
 
-RRF 只融合各路名次：`RRF(i) = Σ 1 / (60 + rank(i))`，名次从 1 开始。它不把 BM25 分数与规则分数直接相加；原始分数保留在卡片中供排查。当前四路等权，RRF 特征按已启用路数的理论上限归一化。
+RRF 只融合各路名次：`RRF(i) = Σ 1 / (60 + rank(i))`，名次从 1 开始。它不把 BM25 分数与规则分数直接相加；原始分数保留在卡片中供排查。各路线等权，RRF 特征按已启用路数的理论上限归一化。
 
-公共评分的默认正向权重是：任务匹配 0.10、触发匹配 0.20、效果方向匹配 0.25、环境匹配 0.10、资源证据质量 0.20、RRF 匹配 0.15；接入/运行成本罚项权重 0.10，风险罚项权重 0.15。
+公共评分的默认正向权重是：任务匹配 0.10、触发匹配 0.20、效果方向匹配 0.25、环境匹配 0.10、资源证据质量 0.20、RRF 匹配 0.15；有效偏好存在时增加偏好匹配 0.30。接入/运行成本罚项权重 0.10，风险罚项权重 0.15。
 
 ```text
 base = max(0, (正向加权和 − 成本罚项 − 风险罚项) / 正向权重和)
@@ -220,7 +265,9 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 
 当前自动化验证只使用合成特征、合成目录和既有公开资源元数据。没有对本机个人聊天数据做端到端测试。
 
-## 本轮验证记录
+## 初始 P0 验证记录
+
+下列为目录迁移前的历史结果；当前偏好／收益版本的命令和结果以[推荐测试报告](recommendation-validation.md)为准。
 
 - 全量 `pytest -q`：1,055 项通过；原有 Starlette/AnyIO 弃用警告 1 项。
 - `ruff check src tests` 及两个推荐脚本检查通过，`git diff --check` 通过。

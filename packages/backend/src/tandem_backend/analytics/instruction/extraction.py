@@ -4,10 +4,11 @@ import re
 from collections import Counter
 
 from ...models import stable_id
+from .formats import format_arguments
 from .structure import FILE
 from .text import instruction_text
 
-INSTRUCTION_VERSION = "instruction-v1"
+INSTRUCTION_VERSION = "instruction-v1.1-format-values"
 FIELDS = (
     "requested_autonomy", "execution_order", "verification_requirements",
     "allowed_scope", "prohibited_actions", "acceptance_criteria",
@@ -148,6 +149,7 @@ def extract_instruction_constraints(messages, *, main_ids):
                         "targets": targets or None, "condition": condition,
                         "action": next((name for name, rule in ACTIONS if rule.search(match_text)), None),
                         "source": "confirmed_human_text", "method": "explicit_lexical_rule",
+                        **(format_arguments(match.group()) if feature == "format_requirements" else {}),
                     })
         reasons = []
         if event.get("text") is None:

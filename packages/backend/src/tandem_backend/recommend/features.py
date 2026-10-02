@@ -4,6 +4,7 @@ import math
 import re
 
 from .contracts import Candidate, RecommendationItem, RecommendationState
+from .preferences import match_preferences
 from .ranking.filters import FilterDecision
 
 COMPATIBILITY_FACTORS = {"native": 1., "manual": 1., "adaptation_required": .55, "unknown": .35,
@@ -83,11 +84,15 @@ def candidate_features(state: RecommendationState, item: RecommendationItem, can
     fusion = (candidate.fusion_score / upper
               if isinstance(upper, (int, float)) and not isinstance(upper, bool)
               and math.isfinite(upper) and upper > 0. else 0.)
+    preference = match_preferences(state, item)
     return {
         "task_match": _unit(_task_match(state, item)),
         "trigger_match": float(bool(trigger_signals)),
         "semantic_match": 0.,  # P0 has no embedding backend; absence is not semantic agreement.
         "effect_match": _unit(effect_match),
+        "preference_match": preference["score"],
+        "preference_active": preference["active"],
+        "preference_matches": preference["matches"],
         "context_match": _unit(_context_match(state, item, decision)) if decision.eligible else 0.,
         "evidence_quality": _unit(item.evidence_quality.score),
         "friction": _unit(.7 * item.friction.setup_cost + .3 * item.friction.runtime_cost),

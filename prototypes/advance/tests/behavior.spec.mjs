@@ -29,9 +29,10 @@ test('disabled sources hide live sessions across entry points', async ({ page })
 test('mute expiration honors thirty minutes and manual overrides', async ({ page }) => {
   test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
   const time = new Date('2026-10-02T04:00:00Z');
-  await page.clock.install({ time });
-  // pause a second later: the installed clock may already have ticked past `time`, and pauseAt never moves backwards
-  await page.clock.pauseAt(new Date(time.getTime() + 1000));
+  // install starts a running clock; leave more headroom than the 30s test timeout
+  // so pauseAt cannot target the past after time spent between protocol calls.
+  await page.clock.install({ time: new Date(time.getTime() - 60_000) });
+  await page.clock.pauseAt(time);
   const errors = await openDemo(page);
   const muted = () => page.evaluate(() => S.hud.mute);
   await page.evaluate(() => ACT.hudMute());

@@ -2,8 +2,11 @@
 
 from typing import Literal, TypedDict
 
+from tandem_data.coverage import COVERAGE_CONTRACT
+
 PRODUCT_VERSION = "analysis-products-v1"
 RULE_VERSIONS = {
+    "coverage": COVERAGE_CONTRACT,
     "products": PRODUCT_VERSION,
     "tools": "tool-sequence-v1",
     "emotion": "explicit-emotion-v1",
