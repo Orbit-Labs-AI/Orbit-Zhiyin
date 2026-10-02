@@ -253,8 +253,13 @@ def test_undated_title_survives_a_bounded_scope(tmp_path):
         store.rebuild()
         home = store.home
     with readonly_connection(home / "tandem.db") as connection:
-        assert connection.execute("SELECT ts FROM event WHERE kind='session.title'").fetchone()[0] is None
+        assert (
+            connection.execute("SELECT ts FROM event WHERE kind='session.title'").fetchone()[0]
+            is None
+        )
     unbounded = read_analysis(home, AnalysisScope("Asia/Shanghai"))["sessions"][0]
-    bounded = read_analysis(home, AnalysisScope("Asia/Shanghai", until_ts=1000 + 1500))["sessions"][0]
+    bounded = read_analysis(home, AnalysisScope("Asia/Shanghai", until_ts=1000 + 1500))["sessions"][
+        0
+    ]
     assert unbounded["title"] == bounded["title"] == "会话 1"
     assert bounded["title_source"] == unbounded["title_source"]

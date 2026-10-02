@@ -91,7 +91,9 @@ def test_runs_of_killed_processes_are_failed_instead_of_running_forever(tmp_path
     history = AnalysisHistory(tmp_path / "analysis.sqlite")
     killed, legacy, live = [history.start("features", {"index": i}) for i in range(3)]
     with history.connect() as connection:
-        connection.execute("UPDATE analysis_run SET owner_pid=? WHERE run_id=?", (_dead_pid(), killed))
+        connection.execute(
+            "UPDATE analysis_run SET owner_pid=? WHERE run_id=?", (_dead_pid(), killed)
+        )
         connection.execute("UPDATE analysis_run SET owner_pid=NULL WHERE run_id=?", (legacy,))
     history.start("features", {"index": 3})  # Any later start sweeps orphans.
     assert history.get_run(killed)["status"] == "failed"

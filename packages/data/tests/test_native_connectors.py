@@ -182,9 +182,19 @@ def test_claude_result_without_error_flag_is_completed(tmp_path):
     common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture", "promptId": "p"}
     records = [{**common, "type": "user", "uuid": "u", "message": {"content": "Edit files"}}]
     for i in range(4):
-        records.append({**common, "type": "assistant", "uuid": f"a{i}", "message": {
-            "id": f"r{i}", "model": "test", "usage": {"input_tokens": 1, "output_tokens": 1},
-            "content": [{"type": "tool_use", "id": f"c{i}", "name": "Edit", "input": {}}]}})
+        records.append(
+            {
+                **common,
+                "type": "assistant",
+                "uuid": f"a{i}",
+                "message": {
+                    "id": f"r{i}",
+                    "model": "test",
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                    "content": [{"type": "tool_use", "id": f"c{i}", "name": "Edit", "input": {}}],
+                },
+            }
+        )
         block = {"type": "tool_result", "tool_use_id": f"c{i}", "content": "ok"}
         if i == 3:
             block["is_error"] = True
