@@ -158,6 +158,22 @@ def test_every_uiview_route_answers_on_the_gateway(gw):
     assert sorted(r["id"] for r in listed) == ["s0", "s1"]
 
 
+def test_openapi_lists_every_uiview_route(gw):
+    """The real gateway app renders its schema: a function-local ``Annotated`` alias under
+    ``from __future__ import annotations`` used to stay ForwardRef('many') → 500."""
+    r = gw.client.get("/v1/openapi.json")
+    assert r.status_code == 200, r.text[:300]
+    spec = r.json()
+    routes = {route.path for route in gw.client.app.routes
+              if getattr(route, "path", "").startswith("/v1/uiview")}
+    assert routes and routes <= set(spec["paths"])
+    for path in ("/v1/uiview/projects", "/v1/uiview/projects/{project_id}",
+                 "/v1/uiview/sentiment", "/v1/uiview/tools"):
+        params = {p["name"]: p for p in spec["paths"][path]["get"]["parameters"]}
+        assert params["agent"]["in"] == "query"
+        assert '"array"' in json.dumps(params["agent"]["schema"]), (path, params["agent"])
+
+
 def test_facets_and_agents_filter_a4a6_pages(gw):
     put_facts(gw)
     c = gw.client

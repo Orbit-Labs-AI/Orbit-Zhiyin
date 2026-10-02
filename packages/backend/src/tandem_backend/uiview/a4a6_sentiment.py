@@ -21,6 +21,7 @@ from ..analytics.products.feedback import classify_emotion
 from ..analytics.task.taxonomy import DOMAIN_DETAILS, domain_matches
 from ..privacy import direct_user_text, redact
 from ..recommend.outcomes import welch
+from .a4a6_common import ManyQuery
 
 DAY_MS = 86_400_000
 DEFINITION_VERSION = "a6-corr-v1"
@@ -530,17 +531,14 @@ def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
 
 def register(api, gw) -> None:
     from pathlib import Path
-    from typing import Annotated
 
     from fastapi import Query
 
     from ..services.auth import ApiError
     from . import a4a6_common as common
 
-    many = Annotated[list[str] | None, Query()]
-
     @api.get("/v1/uiview/sentiment")
-    def sentiment(project_id: many = None, agent: many = None, agents: str | None = None,
+    def sentiment(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
                   since: int | None = None, until: int | None = None,
                   days: int = Query(30, ge=1, le=730), bucket: str = "auto",
                   tz: str | None = None, topic: str | None = None, outcome: str | None = None,
