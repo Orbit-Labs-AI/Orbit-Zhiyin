@@ -55,6 +55,7 @@ def compute(store, scope, params, memo) -> dict:
     diagnostics: list[dict] = []
     with store.connect() as conn:
         facts, agents = _facts(conn, root_of, roots, signals, diagnostics)
+        facts.update(_kb_facts(conn, root_of, roots, diagnostics))
         inventory = _inventory(conn, diagnostics)
     starts = [r["started_at"] for r in roots if r.get("started_at") is not None]
     first, last = (min(starts), max(starts)) if starts else (None, None)
@@ -176,24 +177,258 @@ def _sessions(entry: dict) -> dict:
 def _model_mix(conn, uids, root_of, edit_roots, per_root, diagnostics) -> list[dict]:
     try:
         rows = conn.execute(
-            f"SELECT model_id, effort_raw, session_uid, COALESCE(input_tokens,0) + "
-            f"COALESCE(output_tokens,0) + COALESCE(reasoning_tokens,0) FROM model_call "
-            f"WHERE session_uid IN {UIDS}", (uids,)).fetchall()
+            f"SELECT m.model_id, m.effort_raw, m.session_uid, COALESCE(m.input_tokens,0) + "
+            f"COALESCE(m.output_tokens,0) + COALESCE(m.reasoning_tokens,0), src.agent "
+            f"FROM model_call m LEFT JOIN session s ON s.session_uid = m.session_uid "
+            f"LEFT JOIN source src ON src.source_id = s.source_id "
+            f"WHERE m.session_uid IN {UIDS}", (uids,)).fetchall()
     except Exception as error:  # noqa: BLE001 - schema drift degrades to an empty fact
         diagnostics.append({"source": "model_mix", "status": "unavailable", "reason": str(error)})
         return []
     mix: dict[tuple, dict] = {}
-    for model_id, effort, uid, tokens in rows:
+    for model_id, effort, uid, tokens, agent in rows:
         root = root_of.get(uid, uid)
         per_root[root]["tokens"] += tokens
-        entry = mix.setdefault((model_id, effort), {"model_id": model_id, "effort": effort,
-                                                    "sessions": set(), "tokens": 0})
+        entry = mix.setdefault((model_id, effort, agent), {"model_id": model_id, "effort": effort,
+                                                           "agent": agent, "sessions": set(),
+                                                           "tokens": 0})
         entry["sessions"].add(root)
         entry["tokens"] += tokens
-    return sorted(({"model_id": e["model_id"], "effort": e["effort"],
+    return sorted(({"model_id": e["model_id"], "effort": e["effort"], "agent": e["agent"],
                     "sessions": len(e["sessions"]),
                     "readonly_sessions": len(e["sessions"] - edit_roots), "tokens": e["tokens"]}
-                   for e in mix.values()), key=lambda e: -e["tokens"])
+                   for e in mix.values()), key=lambda e: (-e["tokens"], str(e["agent"])))
+
+
+# --- KB coverage facts (review loops, parallel conflicts, read-only reviews, repeated
+# workflows, late build failures, polling, deploy platform mix). Kept separate from
+# ``_facts`` so the per-call scan can evolve without touching the approval/failure facts.
+
+READ_TOOLS = ("Read", "Grep", "Glob", "LS", "NotebookRead")
+READ_HEADS = ("cat", "rg", "grep", "head", "tail", "ls", "find", "sed -n", "wc", "less", "tree")
+REVIEW_HEADS = ("gh pr view", "gh pr checks", "gh pr review", "gh pr diff")
+BUILD_HEADS = ("latexmk", "tsc", "npm run build", "pnpm build", "pnpm run build", "yarn build",
+               "cargo build", "xcodebuild", "swift build", "go build", "make")
+POLL_HEADS = ("tail", "ls", "cat", "wc")
+STATUS_HEADS = (*POLL_HEADS, "ps", "gh run view", "gh run watch", "gh pr checks", "git status",
+                "docker ps", "kubectl get")
+DEPLOY_HEADS = {"vercel": "vercel", "wrangler": "wrangler", "netlify": "netlify", "fly": "fly",
+                "flyctl": "fly", "firebase deploy": "firebase"}
+REVIEW_ROUNDS, READONLY_READS, READONLY_MINUTES = 3, 20, 30
+WORKFLOW_LEN, WORKFLOW_SESSIONS, BUILD_EDITS, POLL_CHECKS, LONG_MS = 4, 3, 5, 5, 600_000
+KB_FACT_KEYS = ("review_loops", "parallel_conflicts", "readonly_reviews", "repeated_workflows",
+                "late_build_failures", "polling", "deploy_platforms")
+
+
+def _prefix(head: str | None, prefixes) -> str | None:
+    if not head:
+        return None
+    head = " ".join(head.split())
+    for prefix in sorted(prefixes, key=len, reverse=True):
+        if head == prefix or head.startswith(prefix + " "):
+            return prefix
+    return None
+
+
+def _files(raw) -> list[str]:
+    try:
+        value = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return []
+    out = []
+    for item in value or ():
+        path = item.get("path") if isinstance(item, dict) else item
+        if isinstance(path, str) and path:
+            out.append(path)
+    return out
+
+
+def _calls_by_root(conn, root_of: dict) -> dict[str, list[dict]]:
+    uids = json.dumps(sorted(root_of))
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tool_call)")}
+    pick = ", ".join(c if c in cols else f"NULL AS {c}" for c in (
+        "session_uid", "name", "command_head", "status", "files", "started_at", "ended_at",
+        "duration_ms"))
+    calls: dict[str, list[dict]] = defaultdict(list)
+    for uid, name, head, status, files, start, end, duration in conn.execute(
+            f"SELECT {pick} FROM tool_call WHERE session_uid IN {UIDS} "
+            f"ORDER BY COALESCE(started_at, 0), rowid", (uids,)):
+        calls[root_of.get(uid, uid)].append({
+            "name": name, "head": " ".join(head.split()) if head else None, "status": status,
+            "files": _files(files), "start": start, "end": end or start, "duration": duration})
+    return calls
+
+
+def _is_edit(call: dict) -> bool:
+    return call["name"] in EDIT_TOOLS
+
+
+def _review_rounds(calls: list[dict]) -> int:
+    rounds, reviewed = 0, False
+    for call in calls:
+        head = call["head"] or ""
+        if _prefix(head, REVIEW_HEADS) or (head and "review" in head.split()):
+            reviewed = True
+        elif reviewed and _is_edit(call):
+            rounds, reviewed = rounds + 1, False
+    return rounds
+
+
+def _span(calls: list[dict]) -> tuple[int, int] | None:
+    starts = [c["start"] for c in calls if c["start"] is not None]
+    ends = [c["end"] for c in calls if c["end"] is not None]
+    return (min(starts), max(ends)) if starts and ends else None
+
+
+def _late_build(calls: list[dict]) -> dict | None:
+    builds = [i for i, c in enumerate(calls) if _prefix(c["head"], BUILD_HEADS)]
+    if not builds:
+        return None
+    last = builds[-1]
+    if calls[last]["status"] not in FAILED:
+        return None
+    previous = builds[-2] if len(builds) > 1 else -1
+    edits = sum(1 for c in calls[previous + 1:last] if _is_edit(c))
+    if edits < BUILD_EDITS:
+        return None
+    return {"build_command": calls[last]["head"], "edits": edits}
+
+
+def _polls(calls: list[dict]) -> dict | None:
+    targets: dict[str, int] = defaultdict(int)
+    for call in calls:
+        prefix = _prefix(call["head"], POLL_HEADS)
+        if prefix:
+            target = (call["files"] or [call["head"][len(prefix):].strip() or prefix])[0]
+            targets[target] += 1
+    best = max(sorted(targets), key=lambda t: targets[t], default=None)
+    if best is not None and targets[best] >= POLL_CHECKS:
+        return {"target": best, "checks": targets[best]}
+    for i, call in enumerate(calls):
+        if (call["duration"] or 0) > LONG_MS:
+            follow = [c for c in calls[i + 1:i + 11] if _prefix(c["head"], STATUS_HEADS)]
+            if len(follow) >= 3:
+                return {"target": call["head"] or call["name"], "checks": len(follow)}
+    return None
+
+
+def _ngrams(calls: list[dict]) -> set[tuple]:
+    heads: list[str] = []
+    for call in calls:
+        head = call["head"]
+        if head and (not heads or heads[-1] != head):
+            heads.append(head)
+    grams = set()
+    for i in range(len(heads) - WORKFLOW_LEN + 1):
+        gram = tuple(heads[i:i + WORKFLOW_LEN])
+        if len(set(gram)) >= 2 and any(not readonly_head(h) for h in gram):
+            grams.add(gram)
+    return grams
+
+
+def _chain(grams: dict[tuple, set]) -> list[tuple[list, set]]:
+    """Frequent n-grams shared by the same sessions and overlapping by n-1 steps become one
+    longer sequence (A B C D + B C D E → A … E), so one workflow yields one problem."""
+    chains = [[list(g), m] for g, m in sorted(grams.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+              if len(m) >= WORKFLOW_SESSIONS]
+    overlap = WORKFLOW_LEN - 1
+    merged = True
+    while merged:
+        merged = False
+        for x in chains:
+            for y in chains:
+                if x is not y and x[1] == y[1] and x[0][-overlap:] == y[0][:overlap]:
+                    x[0] += y[0][overlap:]
+                    chains.remove(y)
+                    merged = True
+                    break
+            if merged:
+                break
+    return [(seq, members) for seq, members in chains]
+
+
+def _kb_facts(conn, root_of: dict, roots: list[dict], diagnostics: list) -> dict:
+    """Per-root call scans for the KB coverage problems; schema drift yields empty facts."""
+    empty = {key: [] for key in KB_FACT_KEYS}
+    try:
+        calls = _calls_by_root(conn, root_of)
+    except Exception as error:  # noqa: BLE001 - facts are optional, never fail the section
+        diagnostics.append({"source": "kb_facts", "status": "unavailable", "reason": str(error)})
+        return empty
+    project_of = {r["session_uid"]: r.get("project_id") for r in roots}
+    names = _project_names(conn, {p for p in project_of.values() if p})
+    out = empty
+    grams: dict[tuple, set] = defaultdict(set)
+    deploys: dict[str, dict] = {}
+    spans: dict[str, list] = defaultdict(list)
+    for root in sorted(calls):
+        seq = calls[root]
+        rounds = _review_rounds(seq)
+        if rounds >= REVIEW_ROUNDS:
+            out["review_loops"].append({"session_uid": root, "rounds": rounds})
+        edits = sum(1 for c in seq if _is_edit(c))
+        reads = sum(1 for c in seq if c["name"] in READ_TOOLS or _prefix(c["head"], READ_HEADS))
+        span = _span(seq)
+        minutes = (span[1] - span[0]) / 60_000 if span else 0
+        if reads >= READONLY_READS and not edits and minutes >= READONLY_MINUTES:
+            out["readonly_reviews"].append({"session_uid": root, "reads": reads,
+                                            "minutes": round(minutes)})
+        if late := _late_build(seq):
+            out["late_build_failures"].append({"session_uid": root, "project_id": project_of.get(root),
+                                               **late})
+        if poll := _polls(seq):
+            out["polling"].append({"session_uid": root, **poll})
+        for gram in _ngrams(seq):
+            grams[gram].add(root)
+        project = project_of.get(root)
+        if project:
+            for c in seq:
+                if platform := DEPLOY_HEADS.get(_prefix(c["head"], DEPLOY_HEADS) or ""):
+                    entry = deploys.setdefault(project, {"platforms": set(), "sessions": set()})
+                    entry["platforms"].add(platform)
+                    entry["sessions"].add(root)
+            touched = {f for c in seq if _is_edit(c) for f in c["files"]}
+            if span and touched:
+                spans[project].append((root, span, touched))
+    for sequence, members in _chain(grams)[:3]:
+        out["repeated_workflows"].append({"sequence": sequence, "sessions": len(members),
+                                          "session_uids": sorted(members)[:MAX_UIDS]})
+    for project, entry in sorted(deploys.items()):
+        if len(entry["platforms"]) >= 2:
+            out["deploy_platforms"].append({
+                "project_id": project, "project": names.get(project) or project,
+                "platforms": sorted(entry["platforms"]), "sessions": len(entry["sessions"]),
+                "session_uids": sorted(entry["sessions"])[:MAX_UIDS]})
+    for project, rows in sorted(spans.items()):
+        rows.sort(key=lambda r: r[1][0])
+        for i, (a, (_a0, a1), fa) in enumerate(rows):
+            for b, (b0, _b1), fb in rows[i + 1:]:
+                if b0 >= a1:
+                    break
+                if shared := sorted(fa & fb):
+                    out["parallel_conflicts"].append({"project_id": project, "a": a, "b": b,
+                                                      "files": shared[:5]})
+    out["parallel_conflicts"] = out["parallel_conflicts"][:200]
+    return out
+
+
+def _project_names(conn, ids: set) -> dict:
+    if not ids:
+        return {}
+    try:
+        rows = conn.execute(f"SELECT project_id, paths FROM project WHERE project_id IN {UIDS}",
+                            (json.dumps(sorted(ids)),)).fetchall()
+    except Exception:  # noqa: BLE001 - names are cosmetic
+        return {}
+    names = {}
+    for project_id, paths in rows:
+        try:
+            first = (json.loads(paths) or [None])[0]
+        except (ValueError, TypeError):
+            first = None
+        if isinstance(first, str) and first:
+            names[project_id] = first.rstrip("/").rsplit("/", 1)[-1]
+    return names
 
 
 def _linked_item(item: dict) -> dict:
@@ -262,9 +497,12 @@ def cap(inputs: dict, limit: int = MAX_BYTES) -> dict:
         return inputs
     for signal in inputs["signals"]:
         signal["evidence"] = (signal.get("evidence") or [])[:10]
-    for group in ("readonly_prompts", "failures_by_software"):
+    for group in ("readonly_prompts", "failures_by_software", "repeated_workflows",
+                  "deploy_platforms"):
         for entry in facts[group]:
             entry["session_uids"] = entry["session_uids"][:5]
+    for group in KB_FACT_KEYS:
+        facts[group] = (facts.get(group) or [])[:50]
     for card in inputs["legacy_cards"]:
         card["evidence"] = (card.get("evidence") or [])[:10]
     for key, keep in (("tasks", 50), ("assessments", 50), ("legacy_cards", 10)):
