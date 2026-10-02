@@ -210,6 +210,22 @@ svg{display:block}
    is too narrow it moves to its own line as one unit, still right-aligned */
 .frow-r{margin-left:auto;flex:none;display:flex;align-items:center;gap:8px;white-space:nowrap}
 .frow-r label{white-space:nowrap;gap:8px}
+/* Native shell (body.native, set by js/95-live-native.js under window.__ORBIT_NATIVE__): the real NSWindow is the window.
+   The fake desktop (menu bar, wallpaper, desktop widgets, the in-page menubar panel / HUD) and the fake traffic lights go;
+   #win fills the viewport (22-window.js "native" mode) without radius or shadow, and the transparent title bar of the real
+   window gets --titlebar-inset: the sidebar toggle sits in that strip right of the real traffic lights, the page title row
+   starts under it. Window dragging is the host's (drag strip), so the title row keeps no move / resize handles. */
+:root{--titlebar-inset:28px}
+body.native .desk{background:var(--bg)}
+body.native :is(.mbar,.wall,#widgets){display:none!important}
+body.native:not([class*="surface-"]) :is(#hud,#pop){display:none!important}
+body.native .win{border-radius:0;box-shadow:none;transition:opacity .15s,grid-template-columns .2s var(--ease)}
+body.native .win .rz{display:none}
+body.native .win .lights{display:none}
+body.native .wtop{height:var(--titlebar-inset);padding-left:78px}
+body.native .main{padding-top:var(--titlebar-inset)}
+body.native .side{border-radius:0}
+body.native .win.nosb .tbar{padding-left:20px}
 
 /* Editions: the Lite / Advance switch on top of the sidebar (a two-segment track with a sliding thumb, monochrome like every
    other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
@@ -3312,8 +3328,15 @@ let WIN_LAST = null, WIN_SIG = '';
   ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].forEach((d) => { const h = document.createElement('div'); h.className = 'rz'; h.dataset.rz = d; h.setAttribute('aria-hidden', 'true'); $('#win').appendChild(h); });
 })();
 function stageSize() { return { w: desk.clientWidth, h: desk.clientHeight }; }
+// Native shell (WKWebView, window.__ORBIT_NATIVE__): body.native hides the fake desktop and the real NSWindow is the window,
+// so #win fills the viewport ("native" mode: never moved / resized by the page) and window ops go to the host as messages.
+// nativeWin(type) posts close / minimize / zoom / fullscreen and returns true when a host took it; otherwise the caller keeps
+// the simulated behaviour (browser, mock).
+function nativeShell() { const n = window.ORBIT && window.ORBIT.native; return n ? !!n.isNative : !!window.__ORBIT_NATIVE__; }
+function nativeWin(type) { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.post(type, {})); }
 function winRect() {
   const st = stageSize(), W = S.win;
+  if (nativeShell()) return { x: 0, y: 0, w: st.w, h: st.h, mode: 'native' };
   if (W.full) return { x: 0, y: 0, w: st.w, h: st.h, mode: 'full' };
   const areaH = st.h - MB_H;
   if (W.zoom) return { x: 0, y: MB_H, w: st.w, h: areaH, mode: 'zoom' };
@@ -3359,8 +3382,8 @@ function saveWin() { store.set('win', { x: S.win.x, y: S.win.y, w: S.win.w, h: S
 function saveSide() { store.set('side', { show: S.side, open: S.sideOpen }); }
 function winNarrow() { return (WIN_LAST || winRect()).w < SIDE_MIN_WIN; }
 function toggleSide() { if (winNarrow()) S.sideOver = !S.sideOver; else { S.side = !S.side; S.sideOver = false; saveSide(); } applyWin(); renderWtop(); }
-function winZoomToggle() { if (S.win.full) return; S.win.zoom = !S.win.zoom; saveWin(); applyWin(); renderWtop(); }
-function winFullToggle() { S.win.full = !S.win.full; S.sideOver = false; applyWin(); renderWtop(); renderWidgets(); }
+function winZoomToggle() { if (nativeWin('zoom')) return; if (S.win.full) return; S.win.zoom = !S.win.zoom; saveWin(); applyWin(); renderWtop(); }
+function winFullToggle() { if (nativeWin('fullscreen')) return; S.win.full = !S.win.full; S.sideOver = false; applyWin(); renderWtop(); renderWidgets(); }
 function showMain() { S.winGone = false; S.pop = false; S.keyWin = 'main'; render(); }
 function keyWinApply() { $('#win').classList.toggle('inactive', S.keyWin !== 'main'); $('#set').classList.toggle('inactive', S.keyWin !== 'set'); }
 document.addEventListener('pointerdown', (e) => {
@@ -3697,9 +3720,9 @@ Object.assign(ACT, {
     if (DD && DD.anchor === el) { closeDD(); return; }
     openDD(el, MENUS[el.dataset.m](), (v) => { if (typeof v === 'function') v(); }, { align: el.dataset.m === 'demo' ? 'right' : undefined });
   },
-  winClose: () => { S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
-  winMin: () => { S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
-  winZoom: (el, e) => { if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
+  winClose: () => { if (nativeWin('close')) return; S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
+  winMin: () => { if (nativeWin('minimize')) return; S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
+  winZoom: (el, e) => { if (nativeShell() && nativeWin(e && e.altKey ? 'zoom' : 'fullscreen')) return; if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
   winFull: () => winFullToggle(),
   pop: () => { S.pop = !S.pop; render(); }
 });
@@ -7339,9 +7362,35 @@ Object.assign(ACT, {
 // One source of truth for shortcut copy: the bindings live in 85-keyboard.js, the menus (30-actions.js) show the same keys.
 const KEYS = [['⌘K', '命令面板'], ['⌥1 – ⌥9', '切换页面（App 内是 ⌘1–9）'], ['⌥0', '主窗口（App 内是 ⌘0）'], ['⌃⌘S', '显示 / 隐藏侧边栏'], ['⌃⌘F', '进入 / 退出全屏'], ['⌘M', '最小化窗口'], ['⌘F', '页内搜索'], ['⌥R', '重新索引（App 内是 ⌘R）'], ['Space', '回放 / 暂停轨迹'], ['⌘↩', '当前页主操作'], ['⌘Z', '撤销最近一次安装'], ['⌥T', '图表 ↔ 表格（App 内是 ⌘T）'], ['⌘[', '返回上一页'], ['⌘,', '设置'], ['⇧⌘S', '导出分享卡'], ['⇧⌘E', '导出报告'], ['⌥⌘P', '显示 / 隐藏悬浮组件'], ['⌃⌥T', '菜单栏面板'], ['?', '本页快捷键'], ['Esc', '关闭弹窗与面板']];
 function openKeys() {
-  openModal(modalHead('键盘快捷键', '浏览器占用的组合在 Demo 里改用 ⌥，灰字是 App 内的按键') + '<div class="mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:0 20px">' + KEYS.map((k) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);gap:12px"><span style="font-size:13px;min-width:0">' + esc(k[1]).replace(/（App 内是 (.+?)）/, '<span class="cap" style="font-size:11px;margin-left:6px">App 内 $1</span>') + '</span><span class="kbd">' + esc(kb(k[0])) + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
+  // in the native App the App key is the key: no ⌥ stand-ins, no grey「App 内」hints
+  const app = nativeShell();
+  const keys = app ? KEYS.map((k) => { const m = /（App 内是 (.+?)）/.exec(k[1]); return m ? [m[1], k[1].replace(m[0], '')] : k; }) : KEYS;
+  openModal(modalHead('键盘快捷键', app ? 'Orbit 的全部快捷键' : '浏览器占用的组合在 Demo 里改用 ⌥，灰字是 App 内的按键') + '<div class="mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:0 20px">' + keys.map((k) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);gap:12px"><span style="font-size:13px;min-width:0">' + esc(k[1]).replace(/（App 内是 (.+?)）/, '<span class="cap" style="font-size:11px;margin-left:6px">App 内 $1</span>') + '</span><span class="kbd">' + esc(kb(k[0])) + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
+}
+// Live: version and components from GET /v1/app/about (+ the shell's __ORBIT_NATIVE__.app); the mock keeps the demo note.
+let ABOUT = null;
+function aboutRows(a) {
+  const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
+  const app = (a && a.app) || {}, c = (a && a.components) || {}, rt = (a && a.runtime) || {};
+  return [['版本', app.version || (n && n.app) || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.contract].filter(Boolean).join(' · ') || '—'],
+    ['数据库结构', c.db_schema_version != null ? 'v' + c.db_schema_version : '—'], ['规则 / 分析', [c.rules_version, c.analytics_version].filter(Boolean).join(' · ') || '—'],
+    ['脱敏规则', c.redaction_version || '—'], ['支持的 Agent', (c.mappers || []).map((k) => lvAgentOf(k).name).join('、') || '—'],
+    ['运行环境', [rt.python && 'Python ' + rt.python, rt.platform, rt.arch].filter(Boolean).join(' · ') || '—']];
+}
+function drawAbout(first) {
+  if (!first && (MODAL_KEY !== 'about' || $('#modal').hidden)) return;
+  const a = ABOUT, ver = a && a.data && a.data.app && a.data.app.version;
+  const body = !a || a.state === 'pending' ? LV.pend(180) : a.state === 'error' ? '<p style="margin:0">' + LV.na('暂时读不到版本信息（本机服务未响应）') + '</p>'
+    : '<div class="col" data-about="rows" style="gap:0">' + aboutRows(a.data).map((r) => '<div class="row" style="justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--hair)"><span class="cap" style="font-size:12px;flex:none">' + esc(r[0]) + '</span><span class="mono" style="font-size:12px;text-align:right;min-width:0;overflow-wrap:anywhere">' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
+  openModal(modalHead('关于 Orbit', 'Orbit' + (ver ? ' ' + ver : '') + ' · 本地的跨 Agent 会话分析') + '<div class="mb col" style="gap:12px;font-size:13px;line-height:1.65;color:var(--ink-2)"><div class="row" style="gap:12px"><span class="appicon" style="width:44px;height:44px;flex:none">' + appIcon(44) + '</span><div class="col" style="gap:2px"><b class="serif" style="font-size:20px;color:var(--ink-1)">Orbit</b><span class="mono cap" data-about="version">' + esc(ver || '—') + '</span></div></div>' + body + '<p class="cap" style="margin:0">全部数据只在本机；Orbit 不上传会话内容。</p></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); MODAL_KEY = 'about';
+}
+function openAboutLive() {
+  ABOUT = { state: 'pending', data: null };
+  drawAbout(true);
+  TL.get('/v1/app/about').then((r) => { ABOUT = { state: r.data ? 'ready' : 'error', data: r.data }; }, () => { ABOUT = { state: 'error', data: null }; }).then(drawAbout);
 }
 function openAbout() {
+  if (LV.live) { openAboutLive(); return; }
   openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品（暂定名 Orbit / 同频）的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>名称、MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
 }
 function openMethod() {
@@ -7459,7 +7508,7 @@ function closeOverlay() {
 }
 // First launch looks at every session of the sources ticked in step 2 (90 days when「只分析最近 90 天」is on), not at the
 // main window's project / Agent filters (BUG-84).
-function obSel() { return ALL.filter((s) => !s.live && OB && OB.src.has(s.a) && (!OB.recent || s.d >= 30)); }
+function obSel() { return ALL.filter((s) => !s.live && OB && OB.src.has(s.a) && (!OB.recent || s.d >= LASTDAY - 89)); }
 function obPersona() { return persona(obSel()); }
 function genFacts(L) {
   const st = stats(L);
@@ -7491,6 +7540,8 @@ function drawOB() {
     b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
+  } else if (s === 1 && OB.live) {
+    b = obLiveStep();
   } else if (s === 1) {
     const tot = AG.filter((a) => OB.src.has(a.id)).reduce((x, a) => x + a.all, 0);
     b = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
@@ -7506,6 +7557,45 @@ function drawOB() {
   const keep = key && OB.drawn === s ? o.querySelector(key) : null;
   if (keep) keep.focus({ preventScroll: true }); else if (OB.drawn !== s) { const f = $('#overlay button.p'); if (f && !f.disabled) f.focus(); }
   OB.drawn = s;
+}
+
+// Live step 1 (OB.live, filled by 95-live-native.js): the sources come from /v1/shell/onboarding (estimates) and
+// /v1/app/discovery, 添加文件夹 goes through LVN.addSource() (native chooseFolder, or the path field in a browser), and once
+// 开始分析 has posted the import job the button row becomes the four onboarding stages driven by job frames.
+function obLiveStep() {
+  const L = OB.live, rows = L.sources, host = window.ORBIT && ORBIT.native.hasHost();
+  const ag = (x) => lvAgentOf(x.agent);
+  const col = (m, k) => m.slot ? 'var(--a' + m.slot + k + ')' : 'var(--a0' + k + ')';
+  const busy = !!(L.job || L.starting);
+  const cnt = (x) => x.status === 'permission_denied' ? '无权限' : x.est ? fmt(x.est) : x.status === 'empty' ? '空' : '—';
+  const list = L.state === 'loading' && !rows.length ? '<div class="srcrow"><span class="spin" style="width:14px;height:14px;margin:8px"></span><span class="cap">正在查找本机的 Agent 会话…</span><span></span><span></span></div>'
+    : rows.length ? rows.map((x) => { const m = ag(x); const dis = busy || x.status === 'permission_denied'; return '<label class="srcrow" data-src="' + esc(x.id) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + col(m, 't') + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + col(m, '')) + '</span><span style="min-width:0"><b style="font-size:13px">' + esc(m.name) + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.root || '—') + '</span></span><span class="mono cap" style="font-size:11px">' + cnt(x) + '</span><input type="checkbox" data-chg="obSrcL" data-s="' + esc(x.id) + '" data-a="' + esc(m.id) + '"' + (L.sel.has(x.id) ? ' checked' : '') + (dis ? ' disabled' : '') + ' aria-label="分析 ' + esc(m.name) + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>'; }).join('')
+    : '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">' + (L.state === 'error' ? '读取来源失败' : '没有找到 Agent 会话目录') + '</b><span class="cap" style="display:block;font-size:11px">' + (L.state === 'error' ? esc(L.loadErr || '本机服务没有响应') : '可以在下面手动添加文件夹') + '</span></span><span></span><span></span></div>';
+  const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
+  const add = '<div class="srcrow ob-add"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('plus', 15) + '</span><span class="row" style="gap:6px;min-width:0"><select class="ob-agent" data-chg="obAgent" aria-label="来源的 Agent"' + (busy ? ' disabled' : '') + ' style="height:26px;max-width:132px">' + opts + '</select>' +
+    (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
+    '<button type="button" class="btn sm" data-act="obAddFolder"' + (busy || L.adding ? ' disabled' : '') + '>' + (L.adding ? '添加中…' : host ? '添加文件夹…' : '添加') + '</button></div>';
+  const chosen = rows.filter((x) => L.sel.has(x.id));
+  const tot = chosen.reduce((a, x) => a + (x.est || 0), 0);
+  const first = chosen.reduce((a, x) => (x.earliest && (!a || x.earliest < a) ? x.earliest : a), null);
+  const day = (ms) => { try { return new Date(ms).toISOString().slice(0, 10); } catch (e) { return '—'; } };
+  const head = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">' + (L.job ? '正在导入你的会话' : rows.length ? '找到了这些 Agent 的会话' : '先告诉 Orbit 会话在哪里') + '</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div>';
+  let foot;
+  if (L.job || L.starting) {
+    const st = L.stages || [];
+    const pr = L.job && L.job.progress || {}; const ratio = pr.total ? clamp(pr.completed / pr.total, 0, 1) : null;
+    foot = '<div class="st-steps ob-stages" data-ob="stages">' + st.map((x, i) => { const k = x.status === 'done' ? 'done' : x.status === 'running' ? 'run' : x.status === 'failed' ? 'stop' : 'todo';
+      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? '跳过' : '') + '</span></div>'; }).join('') + '</div>' +
+      '<div class="g-bar"><i data-ob="bar" style="width:' + (ratio == null ? 4 : Math.round(ratio * 100)) + '%"></i></div>' +
+      (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
+      '<div class="row" style="justify-content:space-between"><span class="cap">可以关闭窗口，完成后通知你</span>' + (L.err ? '<button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px">重试</button>' : '<button type="button" class="btn" data-act="obBgImport">在后台继续</button>') + '</div>';
+  } else {
+    foot = (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
+      '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (chosen.length ? '' : ' disabled') + '>开始分析</button></div>';
+  }
+  return head + '<div class="card ob-srcs" data-ob="sources" style="padding:2px 0">' + list + add + '</div>' +
+    '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, busy ? 'noop' : 'obRecent', busy ? ' disabled' : '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">只导入 90 天内改动过的日志；之后可以在设置中扩展到全部历史</span></span></div>' +
+    '<div class="mono cap" data-ob="total" style="font-size:11px">' + (chosen.length ? '约 ' + fmt(tot) + ' 个会话（估计）' + (first ? ' · 最早 ' + day(first) : '') : '还没有选择来源') + '</div>' + foot;
 }
 
 /* ---- Genesis ---- */
@@ -7627,8 +7717,9 @@ function genCount(g) {
 }
 function genOpen(mode, opt) {
   genStop();
-  const L = opt.L, p = persona(L), ob = mode === 'ob';
-  const g = { mode, L, p, st: stats(L), F: genFacts(L), cands: p.ok ? genCands(p) : [], T: genTimes(mode), timers: [], anims: [], raf: 0, done: false, arrived: 0, N: 0, flips: [-1, -1, -1, -1], locked: [false, false, false, false], t0: performance.now() };
+  // live: opt.p / opt.cands carry the server persona (/v1/uiview/persona/reveal, mapped in 95-live-native.js)
+  const L = opt.L, p = opt.p || persona(L), ob = mode === 'ob';
+  const g = { mode, L, p, st: stats(L), F: genFacts(L), cands: opt.cands && opt.cands.length ? opt.cands : p.ok ? genCands(p) : [], T: genTimes(mode), timers: [], anims: [], raf: 0, done: false, arrived: 0, N: 0, flips: [-1, -1, -1, -1], locked: [false, false, false, false], t0: performance.now() };
   g.lockAt = g.T.grow + (g.T.match - g.T.grow) * 0.77;   // 第四个字母锁定的时刻（genPlay 里 0.32 + 3 × 0.15）
   GNS = g;
   const o = $('#overlay'); const old = ob ? o.querySelector('.obox') : null;
@@ -7911,12 +8002,12 @@ function genLand() {
 }
 function openReveal(opt) {
   closeModal(); closeDD(); closeOverlay();
-  const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
+  const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = opt && opt.p || persona(L);
   if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
   if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
   REV = { done: false, timers: [] }; OVL = 'reveal';
   const o = $('#overlay'); o.hidden = false; o.innerHTML = '';
-  genOpen('rev', { L });
+  genOpen('rev', { L, p, cands: opt && opt.cands });
   const bx = $('#revBox'); if (bx) bx.focus({ preventScroll: true });
 }
 function revealSkip() {
@@ -8541,6 +8632,11 @@ document.addEventListener('keydown', (e) => {
   if (mod && e.key === 'Enter') { e.preventDefault(); mainAction(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyM' && !typing) { e.preventDefault(); ACT.winMin(); return; }
   if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); goBack(); return; }
+  // in the native App the browser-safe ⌥ bindings also answer to ⌘ (⌘1–9 pages, ⌘0 main window, ⌘T chart / table);
+  // ⌘R stays with the App menu (刷新 → tandem:command refresh)
+  const appKey = e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && nativeShell();
+  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
+  if (appKey && e.code === 'KeyT') { e.preventDefault(); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
   if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); return; }
   if (e.altKey && !mod && e.code === 'Digit0') { e.preventDefault(); showMain(); return; }
   if (e.altKey && !mod && e.code === 'KeyR') { e.preventDefault(); reindex(); return; }
@@ -8852,6 +8948,259 @@ if (LV.live) {
   TL.on('resync', () => LV.loadSpine());
   window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
   setTimeout(() => LV.loadSpine(), 0);
+}
+
+/* ============ live: native shell + first run (slice 7) ============
+   Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
+   (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / route / toggleEdition / refresh).
+   Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
+   /v1/shell/onboarding (+ /v1/app/discovery) with estimates, 添加文件夹 = LVN.addSource() (native chooseFolder, browser: the
+   path field) → POST /v1/app/sources; 开始分析 aligns the sources, PATCHes recent_days and POSTs an import job; job frames
+   (polled as a fallback) drive the four stages; once published the spine reloads, the server persona
+   (/v1/uiview/persona/reveal, else /v1/shell/reveal) feeds the unchanged Genesis sequence, settings get onboarded:true and the
+   catalog syncs. Mock mode (file://) only gets the native layout when a host flag is present, which it never is. */
+const LVN = { ACTIVE: ['queued', 'pending', 'running'], appState: null };
+(function nativeLayout() {
+  const n = ORBIT.native; if (!n.isNative) return;
+  document.body.classList.add('native');
+  if (n.surface) document.body.classList.add('surface-' + n.surface);
+})();
+
+/* ---- host menu commands ---- */
+LVN.refresh = function () {
+  if (!LV.live) { reindex(); return; }
+  TL.invalidate(); LV.loadSpine(); TL.changed();
+  toast('正在刷新');
+};
+LVN.command = function (d) {
+  const cmd = d && d.cmd; if (!cmd) return;
+  if (cmd === 'settings') { closeModal(); openSettings(d.tab || undefined); }
+  else if (cmd === 'palette') { closeModal(); openPalette(); }
+  else if (cmd === 'about') { closeModal(); openAbout(); }
+  else if (cmd === 'toggleEdition') edToggle();
+  else if (cmd === 'refresh') LVN.refresh();
+  else if (cmd === 'route') {
+    const r = String(d.route || '').replace(/^#/, '');
+    if (r === 'settings' || /^settings[:/]/.test(r)) { openSettings(r.split(/[:/]/)[1] || undefined); return; }
+    if (r === 'onboarding') { openOnboarding(0); return; }
+    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance'); go(r); }
+  }
+};
+ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });
+
+/* ---- sources ---- */
+const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],
+  [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/opencode/i, 'opencode'], [/deepseek|\bdsh\b|\.dsh/i, 'dsh'], [/(^|\/)\.pi(\/|$)/i, 'pi']];
+LVN.agentFromPath = (path) => { const hit = LVN_PATHS.find((x) => x[0].test(path || '')); return hit ? hit[1] : null; };
+// addSource({agent?, path?, purpose?}) → {ok, source, agent, root} | {cancelled:true}; throws {message, path?} on failure.
+// In the native shell it asks the host for a folder (chooseFolder → tandem:folder); in a browser the caller passes path.
+LVN.addSource = async function (o) {
+  o = o || {};
+  let path = o.path;
+  if (!path) {
+    if (!ORBIT.native.hasHost()) return { cancelled: true, needPath: true };
+    const r = await ORBIT.native.request('chooseFolder', { purpose: o.purpose || 'source', agent: o.agent && o.agent !== 'auto' ? o.agent : undefined, defaultPath: o.defaultPath || '~/' });
+    if (!r || r.cancelled || !r.path) return { cancelled: true };
+    path = r.path;
+  }
+  const agent = o.agent && o.agent !== 'auto' ? o.agent : LVN.agentFromPath(path);
+  if (!agent) throw Object.assign(new Error('认不出这是哪个 Agent 的目录，先在左边选择 Agent'), { path });
+  try {
+    const res = await TL.send('POST', '/v1/app/sources', { agent, root: path, enabled: true });
+    return { ok: true, source: res.data, agent, root: path };
+  } catch (e) { throw Object.assign(new Error(e.status === 422 ? '这个文件夹不能作为来源：' + (e.message || '') : e.message || '添加失败'), { path, status: e.status }); }
+};
+const lvnBody = (r) => (r && r.data != null ? r.data : null);
+const lvnTry = (path, o) => TL.get(path, o || {}).then(lvnBody, () => null);
+// OB.live.sources from /v1/shell/onboarding (estimates, earliest mtime) merged with /v1/app/discovery (status, enabled)
+LVN.loadOb = async function (ob) {
+  const L = ob.live; L.state = 'loading'; if (OVL === 'ob' && OB === ob && ob.step === 1) drawOB();
+  const [sh, disc] = await Promise.all([lvnTry('/v1/shell/onboarding'), lvnTry('/v1/app/discovery')]);
+  if (OB !== ob) return;
+  const map = new Map();
+  (Array.isArray(disc) ? disc : []).forEach((x) => { if (x && x.agent) map.set(x.id || x.agent + ':' + x.root, { id: x.id || x.agent + ':' + x.root, agent: x.agent, root: x.root, files: x.files, est: x.files || 0, status: x.status || 'available', enabled: !!x.enabled, earliest: null }); });
+  ((sh && sh.sources) || []).forEach((x) => {
+    if (!x || !x.agent) return; const id = x.id || x.agent + ':' + x.root; const cur = map.get(id) || {};
+    map.set(id, Object.assign(cur, { id, agent: x.agent, root: x.root, files: x.files, est: x.est_sessions != null ? x.est_sessions : x.files || 0, status: x.status || cur.status || 'available', enabled: !!x.enabled, earliest: x.earliest_mtime || null }));
+  });
+  const rank = (x) => (x.status === 'available' ? 0 : x.status === 'empty' ? 1 : 2);
+  L.sources = Array.from(map.values()).sort((a, b) => rank(a) - rank(b) || (b.est || 0) - (a.est || 0) || (lvAgentOf(a.agent).slot || 99) - (lvAgentOf(b.agent).slot || 99));
+  if (!L.touched) {
+    const on = L.sources.filter((x) => x.enabled && x.status !== 'permission_denied');
+    L.sel = new Set((on.length ? on : L.sources.filter((x) => x.status === 'available')).map((x) => x.id));
+  } else L.sel = new Set(Array.from(L.sel).filter((id) => map.has(id)));
+  if (sh && sh.settings && !L.touched) OB.recent = sh.settings.recent_days != null;
+  L.stagesBase = sh && sh.progress && sh.progress.stages || null;
+  L.semantic = sh && sh.semantic || null;
+  L.state = sh || disc ? 'ready' : 'error'; L.loadErr = sh || disc ? null : '本机服务没有返回来源列表';
+  lvnSyncSrc(L);
+  if (OVL === 'ob' && OB === ob && ob.step === 1) drawOB();
+};
+function lvnSyncSrc(L) { OB.src = new Set(L.sources.filter((x) => L.sel.has(x.id)).map((x) => lvAgentOf(x.agent).id)); }
+
+/* ---- import: job frames → the four stages → Genesis ---- */
+const LVN_STAGES = [['backfill', '导入历史会话'], ['stats', '统计分析'], ['semantic', '语义分析'], ['persona', '协作画像']];
+function lvnStages(L) {
+  const base = {}; (L.stagesBase || []).forEach((x) => { base[x.id] = x; });
+  return LVN_STAGES.map(([id, label]) => {
+    const b = base[id] || {};
+    const sem = id === 'semantic' && (!L.semantic || !L.semantic.enabled);
+    return { id, label: b.label || label, status: sem ? 'skipped' : 'pending', done: null, total: null, note: sem ? (L.semantic && L.semantic.note) || b.note || '仅统计模式：不调用模型' : null };
+  });
+}
+function lvnStage(L, id, patch) { const s = (L.stages || []).find((x) => x.id === id); if (s) Object.assign(s, patch); }
+function lvnDraw(ob) { if (OVL === 'ob' && OB === ob && ob.step === 1) drawOB(); }
+function lvnJob(ob, job) {
+  const L = ob.live; if (!job || !L.job || job.id !== L.job.id) return;
+  L.job = Object.assign({}, L.job, job);
+  const pr = L.job.progress || {}; const st = L.job.status;
+  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, note: pr.stage ? String(pr.stage) : st === 'queued' ? '排队中' : null });
+  else if (st === 'completed') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: null }); lvnAfter(ob); }
+  else { lvnStage(L, 'backfill', { status: 'failed', note: (L.job.error && (L.job.error.message || L.job.error)) || '导入失败' }); L.err = '导入没有完成：' + ((L.job.error && (L.job.error.message || L.job.error)) || st); lvnStop(L); }
+  lvnDraw(ob);
+}
+function lvnStop(L) { if (L.poll) clearInterval(L.poll); L.poll = null; if (L.off) L.off(); L.off = null; }
+function lvnWatch(ob) {
+  const L = ob.live; lvnStop(L);
+  L.off = TL.on('event', (ev) => { if (ev.name === 'job' && ev.data) lvnJob(ob, ev.data); });
+  L.poll = setInterval(() => {
+    if (!L.job || L.after) return lvnStop(L);
+    TL.send('GET', '/v1/app/jobs/' + encodeURIComponent(L.job.id)).then((r) => lvnJob(ob, r.data), () => { /* frames still come */ });
+  }, 1500);
+}
+const lvnSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function lvnSpine(rev0) {
+  const t0 = Date.now();
+  LV.loadSpine();
+  let k = 0;
+  while (Date.now() - t0 < 30000) {
+    if (LV.rev > rev0 && LV.state !== 'computing' && LV.state !== 'connecting') return true;
+    await lvnSleep(400);
+    if (LV.rev === rev0 && ++k % 3 === 0) LV.loadSpine();
+  }
+  return false;
+}
+// server persona → the persona(L) shape Genesis reads ({ok, classified, n, v, code, zh, en, line, conf}) + its candidates
+LVN.personaOf = function (d) {
+  if (!d || d.ok === false || !d.code) return { p: { ok: false, classified: false, n: d && d.n || 0 }, cands: [] };
+  const v = { D: 50, I: 50, M: 50, V: 50 };
+  (d.axes || []).forEach((a) => { const k = a.k || a.axis; if (k in v && a.value != null) v[k] = +a.value; });
+  if (d.v) Object.keys(v).forEach((k) => { if (d.v[k] != null) v[k] = +d.v[k]; });
+  const p = { ok: true, classified: d.classified != null ? !!d.classified : d.code.indexOf('?') < 0, n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || '尚未定型', en: d.en || (d.type && d.type.en) || 'Undetermined', line: d.line || '', conf: d.conf || '—', server: true };
+  const cands = (d.candidates || d.matches || []).map((c) => ({ c: c.code, zh: c.zh || (TYPES[c.code] || [])[0] || '', en: c.en || (TYPES[c.code] || [])[1] || '', sim: clamp(Math.round(c.match != null ? c.match : c.sim || 0), 3, 99) })).filter((c) => c.c);
+  return { p, cands };
+};
+LVN.reveal = async function (period) {
+  const q = { period: period || '90', display_timezone: TL_TZ || 'UTC' };
+  for (let i = 0; i < 8; i++) {
+    let r = null;
+    try { r = await TL.get('/v1/uiview/persona/reveal', { query: q, waitMs: 1500 }); } catch (e) { r = { state: 'error', error: e }; }
+    if (r && r.data != null && r.state !== 'computing') return LVN.personaOf(r.data);
+    if (r && r.state === 'error') break;
+    await lvnSleep(600);
+  }
+  const sh = await lvnTry('/v1/shell/reveal', { query: { display_timezone: TL_TZ || 'UTC' } });
+  return LVN.personaOf(sh && sh.reason !== 'computing' ? sh : null);
+};
+async function lvnAfter(ob) {
+  const L = ob.live; if (L.after) return; L.after = true; lvnStop(L);
+  lvnStage(L, 'stats', { status: 'running' }); lvnDraw(ob);
+  await lvnSpine(L.rev0);
+  lvnStage(L, 'stats', { status: 'done', note: fmt(ALL.length) + ' 个会话' }); lvnStage(L, 'persona', { status: 'running' }); lvnDraw(ob);
+  const per = await LVN.reveal(OB.recent ? '90' : 'all');
+  lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
+  TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
+  TL.send('POST', '/v1/catalog/sync', {}).catch(() => { /* library keeps its seed rows */ });
+  if (OB !== ob || OVL !== 'ob') {   // 在后台继续: tell the user instead of playing Genesis
+    const p = per.p;
+    notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '会话已导入，样本还不够下结论。', a1: '查看画像', on1: () => go('persona') });
+    render(); return;
+  }
+  AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); });
+  OB.revealP = per;
+  const from = obSources();
+  OB.step = 2; OB.prog = -1;
+  genOpen('ob', { L: obSel(), from, p: per.p, cands: per.cands });
+}
+LVN.obImport = async function () {
+  const ob = OB; const L = ob && ob.live; if (!L || L.starting || (L.job && !L.err)) return;
+  const chosen = L.sources.filter((x) => L.sel.has(x.id));
+  if (!chosen.length) return;
+  L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: '准备来源' });
+  drawOB();
+  try {
+    await Promise.all(L.sources.filter((x) => x.status !== 'permission_denied' && !!x.enabled !== L.sel.has(x.id) && (L.sel.has(x.id) || x.enabled))
+      .map((x) => TL.send('POST', '/v1/app/sources', { agent: x.agent, root: x.root, enabled: L.sel.has(x.id) }).then((r) => { x.enabled = L.sel.has(x.id); if (r.data && r.data.id && r.data.id !== x.id && L.sel.has(x.id)) { L.sel.delete(x.id); x.id = r.data.id; L.sel.add(x.id); } })));
+    await TL.send('PATCH', '/v1/app/settings', { recent_days: OB.recent ? 90 : null, onboarding_step: 2 }).catch(() => null);
+    L.rev0 = LV.rev;
+    let job;
+    try { job = (await TL.send('POST', '/v1/app/jobs', { kind: 'import', source_ids: chosen.map((x) => x.id) })).data; }
+    catch (e) {
+      if (e.status !== 409) throw e;
+      const js = lvnBody(await TL.send('GET', '/v1/app/jobs')) || [];
+      job = js.find((j) => j.kind === 'import' && LVN.ACTIVE.indexOf(j.status) >= 0); if (!job) throw e;
+    }
+    if (!job || !job.id) throw new Error('本机服务没有返回导入任务');
+    L.job = { id: job.id, status: job.status || 'queued', progress: job.progress || null };
+    lvnWatch(ob);
+    lvnJob(ob, job);
+  } catch (e) {
+    L.err = '没能开始导入：' + (e.message || e.code || '本机服务没有响应');
+    lvnStage(L, 'backfill', { status: 'failed', note: e.message || null });
+  } finally { L.starting = false; lvnDraw(ob); }
+};
+
+if (LV.live) {
+  // onboarding gets its live state on open (also when re-entered from settings / help menu)
+  const baseOpenOb = openOnboarding;
+  openOnboarding = function (step) {
+    if (OB && OB.live) lvnStop(OB.live);
+    baseOpenOb(step);
+    if (!OB) return;
+    OB.live = { state: 'loading', sources: [], sel: new Set(), job: null, stages: null, err: null, manual: { agent: 'auto', path: '' }, touched: false };
+    LVN.loadOb(OB);
+  };
+  // reveal (help menu, persona page 重播揭晓, onboarding「播放揭晓动画」) plays the server persona
+  const baseReveal = openReveal;
+  openReveal = function (opt) {
+    opt = Object.assign({}, opt || {});
+    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period) : '90');
+    return per.then((x) => baseReveal(Object.assign(opt, { p: x.p, cands: x.cands })));
+  };
+  Object.assign(ACT, {
+    obStart: (() => { const base = ACT.obStart; return (el, e) => (OB && OB.live ? LVN.obImport() : base(el, e)); })(),
+    obSrcL: (el) => { const L = OB && OB.live; if (!L) return; L.touched = true; if (el.checked) L.sel.add(el.dataset.s); else L.sel.delete(el.dataset.s); lvnSyncSrc(L); drawOB(); },
+    obAgent: (el) => { if (OB && OB.live) OB.live.manual.agent = el.value; },
+    obPath: (el) => { if (OB && OB.live) OB.live.manual.path = el.value; },
+    obAddFolder: async () => {
+      const ob = OB, L = ob && ob.live; if (!L || L.adding) return;
+      const host = ORBIT.native.hasHost();
+      const path = host ? null : (L.manual.path || '').trim();
+      if (!host && !path) { L.err = '先填写会话日志所在的文件夹路径'; drawOB(); const f = $('#obPath'); if (f) f.focus(); return; }
+      L.adding = true; L.err = null; drawOB();
+      try {
+        const r = await LVN.addSource({ agent: L.manual.agent, path });
+        if (r && r.ok) {
+          L.touched = true; L.manual.path = '';
+          const id = r.source && r.source.id; if (id) L.sel.add(id);
+          await LVN.loadOb(ob); if (id) L.sel.add(id); lvnSyncSrc(L);
+          toast('已添加来源：' + r.root);
+        }
+      } catch (e) { L.err = e.message || '添加失败'; if (e.path) L.manual.path = e.path; }
+      finally { L.adding = false; lvnDraw(ob); }
+    },
+    obBgImport: () => { closeOverlay(); render(); toast('导入会在后台继续，完成后通知你'); }
+  });
+  // first run: no projection yet, or no enabled source → onboarding opens by itself (main window only, once per load)
+  if (!ORBIT.native.surface) setTimeout(() => {
+    TL.get('/v1/app/state').then((r) => {
+      const st = r && r.data; if (!st) return; LVN.appState = st;
+      const absent = !st.storage || st.storage.projection === 'absent' || st.readiness === 'absent';
+      const noSrc = !(st.sources || []).some((x) => x && x.enabled);
+      const busy = (st.jobs || []).some((j) => j && j.kind === 'import' && LVN.ACTIVE.indexOf(j.status) >= 0);
+      if ((absent || noSrc) && !busy && !OVL) openOnboarding(0);
+    }, () => { /* no state route: nothing to decide */ });
+  }, 0);
 }
 
 /* ============ live binding: status strip + endpoint wiring (TandemLive, js/06-live-client.js; core in 90-live-core.js) ============

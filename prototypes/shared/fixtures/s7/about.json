@@ -1,0 +1,38 @@
+{
+ "app": {
+  "name": "Orbit",
+  "version": "0.0.1",
+  "contract": "tandem-app-v1"
+ },
+ "components": {
+  "rules_version": "04afa558427a",
+  "analytics_version": "feature-analytics-v2.3-ui-statistics",
+  "redaction_version": "1.2.0",
+  "prompt_version": "gen-1",
+  "db_schema_version": 6,
+  "mapper_version": "1.3.2",
+  "reducer_version": "1.2.0",
+  "catalog_schema_version": 3,
+  "catalog_contract": "catalog-v1",
+  "feature_vocab": "vocab-1",
+  "mappers": [
+   "claude_code",
+   "codex",
+   "dsh",
+   "hermes",
+   "kimi",
+   "opencode",
+   "pi"
+  ]
+ },
+ "runtime": {
+  "python": "3.13.15",
+  "platform": "darwin",
+  "arch": "arm64"
+ },
+ "update": {
+  "channel": null,
+  "available": null,
+  "checked_at": null
+ }
+}

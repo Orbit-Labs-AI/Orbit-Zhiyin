@@ -22,7 +22,7 @@ function closeOverlay() {
 }
 // First launch looks at every session of the sources ticked in step 2 (90 days when「只分析最近 90 天」is on), not at the
 // main window's project / Agent filters (BUG-84).
-function obSel() { return ALL.filter((s) => !s.live && OB && OB.src.has(s.a) && (!OB.recent || s.d >= 30)); }
+function obSel() { return ALL.filter((s) => !s.live && OB && OB.src.has(s.a) && (!OB.recent || s.d >= LASTDAY - 89)); }
 function obPersona() { return persona(obSel()); }
 function genFacts(L) {
   const st = stats(L);
@@ -54,6 +54,8 @@ function drawOB() {
     b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
+  } else if (s === 1 && OB.live) {
+    b = obLiveStep();
   } else if (s === 1) {
     const tot = AG.filter((a) => OB.src.has(a.id)).reduce((x, a) => x + a.all, 0);
     b = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
@@ -69,6 +71,45 @@ function drawOB() {
   const keep = key && OB.drawn === s ? o.querySelector(key) : null;
   if (keep) keep.focus({ preventScroll: true }); else if (OB.drawn !== s) { const f = $('#overlay button.p'); if (f && !f.disabled) f.focus(); }
   OB.drawn = s;
+}
+
+// Live step 1 (OB.live, filled by 95-live-native.js): the sources come from /v1/shell/onboarding (estimates) and
+// /v1/app/discovery, 添加文件夹 goes through LVN.addSource() (native chooseFolder, or the path field in a browser), and once
+// 开始分析 has posted the import job the button row becomes the four onboarding stages driven by job frames.
+function obLiveStep() {
+  const L = OB.live, rows = L.sources, host = window.ORBIT && ORBIT.native.hasHost();
+  const ag = (x) => lvAgentOf(x.agent);
+  const col = (m, k) => m.slot ? 'var(--a' + m.slot + k + ')' : 'var(--a0' + k + ')';
+  const busy = !!(L.job || L.starting);
+  const cnt = (x) => x.status === 'permission_denied' ? '无权限' : x.est ? fmt(x.est) : x.status === 'empty' ? '空' : '—';
+  const list = L.state === 'loading' && !rows.length ? '<div class="srcrow"><span class="spin" style="width:14px;height:14px;margin:8px"></span><span class="cap">正在查找本机的 Agent 会话…</span><span></span><span></span></div>'
+    : rows.length ? rows.map((x) => { const m = ag(x); const dis = busy || x.status === 'permission_denied'; return '<label class="srcrow" data-src="' + esc(x.id) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + col(m, 't') + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + col(m, '')) + '</span><span style="min-width:0"><b style="font-size:13px">' + esc(m.name) + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.root || '—') + '</span></span><span class="mono cap" style="font-size:11px">' + cnt(x) + '</span><input type="checkbox" data-chg="obSrcL" data-s="' + esc(x.id) + '" data-a="' + esc(m.id) + '"' + (L.sel.has(x.id) ? ' checked' : '') + (dis ? ' disabled' : '') + ' aria-label="分析 ' + esc(m.name) + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>'; }).join('')
+    : '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">' + (L.state === 'error' ? '读取来源失败' : '没有找到 Agent 会话目录') + '</b><span class="cap" style="display:block;font-size:11px">' + (L.state === 'error' ? esc(L.loadErr || '本机服务没有响应') : '可以在下面手动添加文件夹') + '</span></span><span></span><span></span></div>';
+  const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
+  const add = '<div class="srcrow ob-add"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('plus', 15) + '</span><span class="row" style="gap:6px;min-width:0"><select class="ob-agent" data-chg="obAgent" aria-label="来源的 Agent"' + (busy ? ' disabled' : '') + ' style="height:26px;max-width:132px">' + opts + '</select>' +
+    (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
+    '<button type="button" class="btn sm" data-act="obAddFolder"' + (busy || L.adding ? ' disabled' : '') + '>' + (L.adding ? '添加中…' : host ? '添加文件夹…' : '添加') + '</button></div>';
+  const chosen = rows.filter((x) => L.sel.has(x.id));
+  const tot = chosen.reduce((a, x) => a + (x.est || 0), 0);
+  const first = chosen.reduce((a, x) => (x.earliest && (!a || x.earliest < a) ? x.earliest : a), null);
+  const day = (ms) => { try { return new Date(ms).toISOString().slice(0, 10); } catch (e) { return '—'; } };
+  const head = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">' + (L.job ? '正在导入你的会话' : rows.length ? '找到了这些 Agent 的会话' : '先告诉 Orbit 会话在哪里') + '</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div>';
+  let foot;
+  if (L.job || L.starting) {
+    const st = L.stages || [];
+    const pr = L.job && L.job.progress || {}; const ratio = pr.total ? clamp(pr.completed / pr.total, 0, 1) : null;
+    foot = '<div class="st-steps ob-stages" data-ob="stages">' + st.map((x, i) => { const k = x.status === 'done' ? 'done' : x.status === 'running' ? 'run' : x.status === 'failed' ? 'stop' : 'todo';
+      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? '跳过' : '') + '</span></div>'; }).join('') + '</div>' +
+      '<div class="g-bar"><i data-ob="bar" style="width:' + (ratio == null ? 4 : Math.round(ratio * 100)) + '%"></i></div>' +
+      (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
+      '<div class="row" style="justify-content:space-between"><span class="cap">可以关闭窗口，完成后通知你</span>' + (L.err ? '<button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px">重试</button>' : '<button type="button" class="btn" data-act="obBgImport">在后台继续</button>') + '</div>';
+  } else {
+    foot = (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
+      '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (chosen.length ? '' : ' disabled') + '>开始分析</button></div>';
+  }
+  return head + '<div class="card ob-srcs" data-ob="sources" style="padding:2px 0">' + list + add + '</div>' +
+    '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, busy ? 'noop' : 'obRecent', busy ? ' disabled' : '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">只导入 90 天内改动过的日志；之后可以在设置中扩展到全部历史</span></span></div>' +
+    '<div class="mono cap" data-ob="total" style="font-size:11px">' + (chosen.length ? '约 ' + fmt(tot) + ' 个会话（估计）' + (first ? ' · 最早 ' + day(first) : '') : '还没有选择来源') + '</div>' + foot;
 }
 
 /* ---- Genesis ---- */
@@ -190,8 +231,9 @@ function genCount(g) {
 }
 function genOpen(mode, opt) {
   genStop();
-  const L = opt.L, p = persona(L), ob = mode === 'ob';
-  const g = { mode, L, p, st: stats(L), F: genFacts(L), cands: p.ok ? genCands(p) : [], T: genTimes(mode), timers: [], anims: [], raf: 0, done: false, arrived: 0, N: 0, flips: [-1, -1, -1, -1], locked: [false, false, false, false], t0: performance.now() };
+  // live: opt.p / opt.cands carry the server persona (/v1/uiview/persona/reveal, mapped in 95-live-native.js)
+  const L = opt.L, p = opt.p || persona(L), ob = mode === 'ob';
+  const g = { mode, L, p, st: stats(L), F: genFacts(L), cands: opt.cands && opt.cands.length ? opt.cands : p.ok ? genCands(p) : [], T: genTimes(mode), timers: [], anims: [], raf: 0, done: false, arrived: 0, N: 0, flips: [-1, -1, -1, -1], locked: [false, false, false, false], t0: performance.now() };
   g.lockAt = g.T.grow + (g.T.match - g.T.grow) * 0.77;   // 第四个字母锁定的时刻（genPlay 里 0.32 + 3 × 0.15）
   GNS = g;
   const o = $('#overlay'); const old = ob ? o.querySelector('.obox') : null;
@@ -474,12 +516,12 @@ function genLand() {
 }
 function openReveal(opt) {
   closeModal(); closeDD(); closeOverlay();
-  const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
+  const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = opt && opt.p || persona(L);
   if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
   if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
   REV = { done: false, timers: [] }; OVL = 'reveal';
   const o = $('#overlay'); o.hidden = false; o.innerHTML = '';
-  genOpen('rev', { L });
+  genOpen('rev', { L, p, cands: opt && opt.cands });
   const bx = $('#revBox'); if (bx) bx.focus({ preventScroll: true });
 }
 function revealSkip() {
