@@ -269,17 +269,24 @@ def test_legacy_stores_are_not_cached(tmp_path):
 
 
 def test_sections_computed_as_dependencies_are_stored_for_later_reads(tmp_path):
-    """A full pass (bottleneck_recommendations) also fills the other sections' cache, so a
-    first-screen section of the same scope is a cache hit, equal to computing it alone."""
+    """A full pass (bottleneck_recommendations, with text) also fills the other sections'
+    cache, and its text-free sections serve the ``with_text=False`` request of the scope:
+    each equal to computing it alone."""
     home, _ = build_home(tmp_path, 12)
     store = CanonicalStore(home)
     cache = AnalysisCache(store)
     cache.sections(Scope(), ["bottleneck_recommendations"], with_text=True)
     clear_memory_cache()
-    hit = cache.sections(Scope(), ["overview", "sessions", "tools"], with_text=True)
-    assert hit["freshness"]["cache_hit"] is True
+    texted = cache.sections(Scope(), ["sessions", "projects"], with_text=True)
+    plain = cache.sections(Scope(), ["overview", "tools", "instruction"], with_text=False)
+    assert texted["freshness"]["cache_hit"] is True and plain["freshness"]["cache_hit"] is True
     drop_sections(store)
-    alone = cache.sections(Scope(), ["overview", "sessions", "tools"], with_text=True)
-    assert alone["freshness"]["cache_hit"] is False
-    assert json.loads(normalized(hit)) | {"freshness": None} == (
-        json.loads(normalized(alone)) | {"freshness": None})
+    texted_alone = cache.sections(Scope(), ["sessions", "projects"], with_text=True)
+    plain_alone = cache.sections(Scope(), ["overview", "tools", "instruction"], with_text=False)
+    assert plain_alone["freshness"]["cache_hit"] is False
+
+    def same(a, b):
+        return json.loads(normalized(a)) | {"freshness": None} == (
+            json.loads(normalized(b)) | {"freshness": None})
+
+    assert same(texted, texted_alone) and same(plain, plain_alone)

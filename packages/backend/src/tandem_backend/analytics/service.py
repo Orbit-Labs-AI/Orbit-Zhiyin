@@ -77,6 +77,26 @@ LIMITATIONS = [
     "缺少事件不等于没有发生；未知保持 null",
     "聚类和坐标不带人格或任务成功含义",
 ]
+# Sections whose value is the same with and without the text representation; a
+# ``with_text=True`` computation also serves the ``with_text=False`` request of the scope.
+TEXT_FREE_SECTIONS = (
+    "overview",
+    "tools",
+    "workflow",
+    "bottleneck_features",
+    "tasks",
+    "instruction",
+    "lexical",
+)
+
+
+def text_variant_meta(meta: Record, content_digest, with_text: bool) -> Record:
+    """``meta`` as the other ``with_text`` variant reports it (only the digest differs)."""
+    from .products.contracts import RULE_VERSIONS
+
+    return {**meta, "analysis_digest": stable_id(content_digest, RULE_VERSIONS, with_text)}
+
+
 # Row fields that depend on other sessions or on the whole selection; never cached per row.
 CROSS_SESSION_FIELDS = (
     "coverage",
@@ -742,6 +762,7 @@ class AnalysisSections:
             )
             from .products.contracts import RULE_VERSIONS
 
+            self.content_digest = digest  # lets the cache derive the other text variant
             meta.update(
                 {
                     "feature_schema_version": FEATURE_VERSION,

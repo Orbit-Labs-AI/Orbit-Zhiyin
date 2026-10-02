@@ -308,6 +308,8 @@ class AnalysisCache:
                 row_items = {SESSIONS: [(r["session_uid"], r) for r in stored[SESSIONS]]}
                 stored[SESSIONS] = {"rows": len(stored[SESSIONS])}
             self.history.put_sections(key, input_fp, stored, row_items)
+            if with_text:
+                self._mirror_text_free(scope, input_fp, builder, computed, computed_at)
             # The run snapshot has the public result shape (shared metadata at the top level),
             # like runs recorded by the uncached engine.
             sections = {name: computed[name] for name in requested if name != META}
@@ -324,6 +326,23 @@ class AnalysisCache:
                 _lru_put((self.home, key, input_fp, name), value)
         stats = {"computed": builder.rows_computed, "reused": builder.rows_reused}
         return computed, {"computed_at": computed_at, "rows": stats, "run_id": run_id}
+
+    def _mirror_text_free(self, scope, input_fp, builder, computed, computed_at) -> None:
+        """Store the text-free sections of a ``with_text=True`` pass under the
+        ``with_text=False`` key too, so both variants of a scope share one computation."""
+        from .service import META, TEXT_FREE_SECTIONS, text_variant_meta
+
+        digest = getattr(builder, "content_digest", None)
+        shared = {name: computed[name] for name in TEXT_FREE_SECTIONS if name in computed}
+        if META not in computed or digest is None or not shared:
+            return
+        plain = request_key(scope, False)
+        meta = text_variant_meta(computed[META], digest, False)
+        self.history.put_sections(
+            plain, input_fp, {META: {"meta": meta, "computed_at": computed_at}, **shared}
+        )
+        for name, value in shared.items():
+            _lru_put((self.home, plain, input_fp, name), value)
 
     def sections(
         self, scope: Scope, names: list[str], with_text: bool = False, *, engine: str = "features"
