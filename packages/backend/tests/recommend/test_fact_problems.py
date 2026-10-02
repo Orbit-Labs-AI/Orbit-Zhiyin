@@ -138,3 +138,16 @@ def test_classify_and_software_helpers():
     assert section.retry_segments([(False, "a", True, "d1"), (False, "a", True, "d1"),
                                    (False, "a", True, "d2"), (False, "a", True, "d2"),
                                    (False, "a", True, "d2")]) == [(2, "a"), (3, "a")]
+
+
+def test_every_evidence_backed_card_carries_resolvable_session_uids(inputs):
+    slate = engine.build_slate(inputs, {})
+    known = {day["session_uid"] for day in inputs["facts"]["session_days"]}
+    passing = [cand for cand in slate["candidates"] if cand["gates"]["passed"]]
+    assert passing
+    for cand in passing:
+        ui = cand["ui"]
+        if ui["ev"]:
+            uids = ui["evq"].get("session_uids") or []
+            assert uids and set(uids) <= known, (cand["rec_key"], ui["ev"], uids)
+        assert "0 个会话出现" not in ui["gain"] and not ui["gain"].startswith("−0 ")
