@@ -15,8 +15,8 @@ from pathlib import Path
 from .. import __version__
 from ..profiling.analysis import analyze
 from ..profiling.feedback import signals
-from ..recommendation.catalog import resources
-from ..recommendation.recommend import recommend
+from ..recommend.legacy import recommend
+from ..recommend.legacy_catalog import resources
 from ..reporting.narrative import explain, markdown
 from ..store import Store, import_codex
 

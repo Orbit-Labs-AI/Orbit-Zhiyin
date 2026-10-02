@@ -10,7 +10,7 @@ from .rules import result_status
 
 def tool_summary(calls, dataset_status="available"):
     if calls is None:
-        return {"status": "unavailable", "totals": None, "by_tool": None,
+        return {"status": "excluded" if dataset_status == "excluded" else "unavailable", "totals": None, "by_tool": None,
                 "effective_n": 0, "unknown_n": None}
     def aggregate(items):
         statuses = Counter()

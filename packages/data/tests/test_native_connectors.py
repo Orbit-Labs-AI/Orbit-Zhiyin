@@ -42,6 +42,64 @@ def assert_sound(store):
     assert first == [(r["event_uid"], r["seq"], r["text"]) for r in rows(store, "event")]
 
 
+@pytest.mark.parametrize("unchanged", [False, True])
+def test_successful_capture_resolves_only_its_own_path(tmp_path, unchanged):
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("pi", tmp_path / "source")
+        raw = (canonical({"type": "session", "id": "s"}) + "\n").encode()
+        if unchanged:
+            store.capture_stream(source, "healthy.jsonl", [raw])
+        for path in ("healthy.jsonl", "broken.jsonl"):
+            store.issue(source, "capture_failed", stage="l1", detail={"path": path})
+        store.capture_stream(source, "healthy.jsonl", [raw])
+        issues = {
+            detail["path"]: detail.get("status")
+            for row in store.db.execute(
+                "SELECT detail FROM ingest_issue WHERE code='capture_failed'"
+            )
+            if (detail := json.loads(row[0]))
+        }
+        assert issues == {"healthy.jsonl": "resolved", "broken.jsonl": None}
+        store.capture_stream(source, "broken.jsonl", [raw])
+        assert all(
+            json.loads(row[0])["status"] == "resolved"
+            for row in store.db.execute(
+                "SELECT detail FROM ingest_issue WHERE code='capture_failed'"
+            )
+        )
+
+
+def test_capture_stat_cache_resolves_recovered_path(tmp_path):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    path = source_root / "session.jsonl"
+    path.write_text(canonical({"type": "session", "id": "s"}) + "\n")
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("pi", source_root)
+        store.capture_file(source, path)
+        store.issue(source, "capture_failed", stage="l1", detail={"path": path.name})
+        result = store.capture_file(source, path)
+        assert result["changed"] is False
+        detail = store.db.execute("SELECT detail FROM ingest_issue").fetchone()[0]
+        assert json.loads(detail)["status"] == "resolved"
+
+
+@pytest.mark.parametrize("created_at", [None, T - 1000])
+def test_dsh_session_preserves_reported_header_time(tmp_path, created_at):
+    header = {"type": "session", "id": "s", "version": 4, "time": T}
+    if created_at is not None:
+        header["createdAt"] = created_at
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "dsh", [header])
+        store.rebuild()
+        event = store.db.execute("SELECT ts,attrs FROM event WHERE kind='session.meta'").fetchone()
+        assert event["ts"] == (T if created_at is None else created_at)
+        reported = json.loads(event["attrs"])["time"]["reported"]
+        assert reported["time"] == T
+        if created_at is not None:
+            assert reported["createdAt"] == created_at
+
+
 def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
     common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture", "promptId": "p"}
     records = [

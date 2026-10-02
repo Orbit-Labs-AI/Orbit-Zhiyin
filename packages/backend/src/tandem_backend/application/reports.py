@@ -1,8 +1,8 @@
 """Shared report use case for the CLI and local API."""
 
 from ..profiling.analysis import analyze
-from ..recommendation.catalog import resources
-from ..recommendation.recommend import recommend
+from ..recommend.legacy import recommend
+from ..recommend.legacy_catalog import resources
 from ..reporting.narrative import explain
 
 

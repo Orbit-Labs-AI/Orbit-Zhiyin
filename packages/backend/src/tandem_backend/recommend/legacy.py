@@ -4,7 +4,7 @@ Popularity is deliberately absent. A match supports a trial, not an effectivenes
 """
 
 from ..profiling.feedback import SCENE_LABELS
-from .catalog import skills
+from .legacy_catalog import skills
 
 
 def trial_method(resource: dict, bottleneck: dict) -> str:

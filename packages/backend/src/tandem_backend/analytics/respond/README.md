@@ -71,7 +71,7 @@ added: 2026-10-02
 - `analyze_execution_sequence` 输出失败原因与重试关系。明确失败之后，同任务、工具、参数摘要类型与结果范围一致才确认同参数重试；显式 retry_of_call_uid 可支持修改参数后的重试。缺信息保留候选，跨任务／跨会话不猜测重试。
 - `build_execution_relations` 使用 parent_uid 或明确 spawn/join 事件关联子代理；forked_from 单列，角色名不构成父子关系。回滚／重启只接受明确事件。
 - `execution_intervals` 从可靠端点构建半开区间并计算同时运行片段；日志时间差不证明并行。
-- `analyze_respond` 汇总调用、轮次覆盖、执行序列、关系与配对诊断；L3 缺失且 L2 有实际调用时可返回标为 partial 的配对结果。
+- `analyze_respond` 汇总调用、轮次覆盖、执行序列、关系与配对诊断；L3 缺失且 L2 有实际调用时可返回标为 partial 的配对结果；coverage.tool_calls.status=excluded 时禁止回退重建，并保留 excluded 状态。
 
 
 ## 输入与使用
@@ -106,7 +106,7 @@ uv run python -m pytest -q packages/backend/tests/bottleneck/test_respond.py pac
 uv run ruff check packages/backend/src packages/backend/tests packages/data/src packages/data/tests tests
 ```
 
-2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器并修复两项 P1 后，在隔离提交副本中 564 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的全部已合入特征族、保留并行共存回归并修复四项 P1 后，在隔离提交副本中 775 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
 
 ## 补充特征与函数
 
@@ -120,4 +120,6 @@ uv run ruff check packages/backend/src packages/backend/tests packages/data/src 
 
 ## 结论与下一步
 
-当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。审查按当前约定以 P0/P1 为阻塞，低优先级问题可后续处理；提交 PR 不代表已合并 main。
+当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/ActionMesh-AI/Hackathon/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按用户约定仅 P0/P1 阻塞，低优先级问题可后续处理。
+
+补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。

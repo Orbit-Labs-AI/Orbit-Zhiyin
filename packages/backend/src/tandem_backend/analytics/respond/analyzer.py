@@ -9,16 +9,18 @@ from .sequence import analyze_execution_sequence, workflow
 
 def analyze_respond(events, calls, sessions, main_ids, dataset_status="available", supported_kinds=None,
                     event_status="available"):
-    paired = pair_tool_calls(events or [])
-    normalized = normalize_tool_calls(calls)
-    effective = normalized["calls"] if calls is not None else paired["calls"] if paired["calls"] else None
+    excluded = dataset_status == "excluded"
+    paired = pair_tool_calls([] if excluded else events or [])
+    normalized = normalize_tool_calls(None if excluded else calls)
+    effective = (None if excluded else normalized["calls"] if calls is not None
+                 else paired["calls"] if paired["calls"] else None)
     session_lookup = {s["session_uid"]: s for s in sessions}
     for c in effective or []:
         s = session_lookup.get(c["session_uid"], {})
         c.setdefault("root_session_uid", s.get("root_uid"))
     linked_results = {c.get("result_event_uid") for c in effective or [] if c.get("result_event_uid")}
     paired["orphan_result_event_uids"] = [uid for uid in paired["orphan_result_event_uids"] if uid not in linked_results]
-    status = dataset_status if calls is not None else "partial" if effective else "unavailable"
+    status = "excluded" if excluded else dataset_status if calls is not None else "partial" if effective else "unavailable"
     sequence = [] if effective is not None else None
     for c in effective or []:
         sequence.append({**c, "tool_result_status": result_status(c), "raw_status": c.get("status")})

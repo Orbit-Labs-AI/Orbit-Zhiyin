@@ -1,6 +1,6 @@
 # 活跃分支迁移
 
-状态：结构重构的接入指南。基线：main `c008688`。本次保留运行行为、Python 包名与 CLI，未合入其他开发分支的功能。
+状态：结构重构的接入指南。基线：main `f834616`。本次保留运行行为、Python 包名与 CLI，未合入其他开发分支的功能。
 
 | 原位置 | 新位置 |
 | --- | --- |
@@ -24,7 +24,7 @@
 
 1. 在自己的功能分支 merge 更新后的 main，保留合并历史。
 2. 遇到 rename/delete 冲突，将功能改动应用到新实现文件；不要在旧目录恢复整份源码。
-3. 后端旧 import 入口仍能使用；新增代码优先导入 profiling、recommendation、reporting、evaluation 等职责目录。
+3. 后端旧 import 入口仍能使用；新增代码优先导入 profiling、recommend、reporting、evaluation 等职责目录。
 4. Advance 新页面、外壳与图表仍进入原型的 src；本次没有接收未合入 main 的 UI 代码。
 5. Catalog 分支接入时建立 packages/catalog 的 workspace 包；使用根 uv.lock，不恢复已删除的 requirements-dev.lock 或平行 uv.lock。
 6. JS/TS 依赖从根执行 pnpm install，统一更新根锁；不要恢复包内 pnpm-lock.yaml。
@@ -39,3 +39,5 @@ analysis / feedback / content / portrait / trajectory / bottlenecks → profilin
 ## 后续 App 接入
 
 正式 target 放 apps/desktop，接入同一后端服务和 canonical 数据目录，并补充服务生命周期与原生 UI 测试。本次不建立不可运行的空 App，也不将 HTML 原型伪装成完成的桌面产品。
+
+本次整理期间 main 更新到 `f834616`；新增 recommend 引擎已纳入 packages/backend，保持 `tandem_backend.recommend.*` 公开命名空间。新增推荐工具分别进入 evals/recommendation/demo.py 与 catalog.py。原有 catalog/resource_fetch 薄入口仍可使用。

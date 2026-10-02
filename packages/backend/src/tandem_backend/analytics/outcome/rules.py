@@ -25,9 +25,9 @@ def _command_kind(call):
         args = shlex.split(command)
     except ValueError:
         return None
-    if not args or any(a in ("--help", "-h", "--version", "-V", "--collect-only", "--co", "--setup-only",
+    if not args or any(a.split("=", 1)[0] in ("--help", "-h", "--version", "-V", "--collect-only", "--co", "--setup-only",
                             "--fixtures", "--fixtures-per-test", "--markers", "--no-run", "--list", "-list",
-                            "--show-settings", "--show-files") for a in args):
+                            "-test.list", "--test.list", "--show-settings", "--show-files") for a in args):
         return None
     executable = args[0].replace("\\", "/").rsplit("/", 1)[-1]
     if executable == "pytest" or (executable in ("python", "python3") and args[1:3] == ["-m", "pytest"]):

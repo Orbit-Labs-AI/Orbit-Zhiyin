@@ -76,4 +76,4 @@ sigmoid(t) = 1 / (1 + exp(-t))
 
 </details>
 
-实现对应 [analysis.py](../../../packages/backend/src/tandem_backend/profiling/analysis.py)、[recommend.py](../../../packages/backend/src/tandem_backend/recommendation/recommend.py) 和 [pipeline_eval.py](../../../packages/backend/src/tandem_backend/evaluation/pipeline.py)。
+实现对应 [analysis.py](../../../packages/backend/src/tandem_backend/profiling/analysis.py)、[recommend.py](../../../packages/backend/src/tandem_backend/recommend/legacy.py) 和 [pipeline_eval.py](../../../packages/backend/src/tandem_backend/evaluation/pipeline.py)。

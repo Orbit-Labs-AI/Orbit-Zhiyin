@@ -15,4 +15,4 @@ uv build --package tandem-backend
 
 会话事实由 `tandem_data` 管理；后端只通过数据读取与导入服务接入，不新增原生日志解析器。旧库显式经 `legacy/` 访问。
 
-职责目录：`application` 组织用例，`api` / `cli` 提供入口，`profiling` 处理画像与要求，`analytics` 保留特征族，`recommendation` 管理现有资源匹配，`reporting` 输出报告，`evaluation` 提供运行时评价。根级旧模块仅作兼容导出。整体依赖见 [模块接入表](../../docs/architecture/module-map.md)。
+职责目录：`application` 组织用例，`api` / `cli` 提供入口，`profiling` 处理画像与要求，`analytics` 保留特征族，`recommend` 管理现有资源匹配，`reporting` 输出报告，`evaluation` 提供运行时评价。根级旧模块仅作兼容导出。整体依赖见 [模块接入表](../../docs/architecture/module-map.md)。

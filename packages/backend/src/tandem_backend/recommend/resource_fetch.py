@@ -17,7 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from .catalog import resources
+from .legacy_catalog import resources
 
 MAX_RESPONSE = 2_000_000
 MAX_SOURCE = 250_000
