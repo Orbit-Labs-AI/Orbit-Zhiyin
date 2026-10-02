@@ -1,7 +1,6 @@
 """Pair native call/result events and normalize logical tool calls."""
 
 from collections import Counter, defaultdict
-from copy import deepcopy
 
 from ..common import task_uid
 from .rules import RESULT_FIELDS
@@ -52,7 +51,9 @@ def project_call_sequence(calls, events):
             positions[(event["session_uid"], event["seq"])] += 1
     projected = []
     for original in calls or []:
-        call = deepcopy(original)
+        # Only top-level fields are updated below; callers already pass private rows
+        # (normalize/pair copies), so a recursive copy per call was pure overhead.
+        call = {k: _detach(v) for k, v in original.items()}
         matches = by_id.get((call["session_uid"], call.get("call_event_uid")), [])
         reason = "call_event_not_selected"
         seq = None
