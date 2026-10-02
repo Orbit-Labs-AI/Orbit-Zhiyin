@@ -1,0 +1,23 @@
+name: Session data contract
+on:
+  pull_request:
+    paths: ['packages/data/**', 'docs/data-contract.md', '.github/workflows/data-contract.yml']
+  push:
+    branches: [main]
+    paths: ['packages/data/**', 'docs/data-contract.md', '.github/workflows/data-contract.yml']
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.8'
+      - run: uv sync --locked --dev
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run pytest
+      - run: uv build
