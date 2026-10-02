@@ -1,0 +1,35 @@
+/* ============ A8 资源库 ============
+   精选卡：头部（类型 · 来源 · 排序指标）→ id → 描述 → 匹配度拆解条；正文列「解决你的问题」。
+   匹配度在所有位置都用同一根三段条（行为 ×0.5 深、痛点 ×0.3 中、社区 ×0.2 浅），图例写在标题行；
+   「和你相似的人」的占比条加全体用户占比细线。颜色只用灰阶与状态色。 */
+.lb-card{overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.lb-head{background:var(--sunken);border-top:4px solid var(--ink-1);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.lb-head .mono b{color:var(--ink-1)}
+.lb-id{font-size:15px;font-weight:700;line-height:20px;word-break:break-all}
+.lb-desc{font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.lb-match{display:flex;align-items:center;gap:10px;margin-top:4px;border-radius:6px}
+.lb-match:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.lb-match>b{font-size:22px;line-height:24px;font-variant-numeric:tabular-nums;color:var(--ink-1)}
+.lb-parts{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-bar{display:flex;height:7px;border-radius:4px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--hair);overflow:hidden;width:100%;min-width:0}
+.lb-bar i{display:block;height:100%}
+.lb-bar i+i{margin-left:1px}
+.lb-bar.sm{height:6px;flex:1;background:var(--sunken)}
+.lb-body{padding:10px 14px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
+.lb-foot{margin-top:auto;flex-wrap:wrap;padding-top:4px}
+.lb-legend{display:inline-flex;align-items:center;gap:8px;font-size:11px;white-space:nowrap}
+.lb-legend i{display:inline-block;width:10px;height:6px;border-radius:2px}
+.lb-row{display:grid;grid-template-columns:30px minmax(0,1fr) 128px 52px auto;gap:10px;align-items:center;min-height:46px;border-bottom:1px solid var(--hair)}
+.lb-row:last-child{border-bottom:0}
+.lb-row>div>.row{flex-wrap:wrap;gap:4px 6px}
+.lb-row b.mono{white-space:nowrap}
+.lb-ico{width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center}
+.lb-ell{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-m{border-radius:4px}
+.lb-m:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.lb-users{font-size:11px;text-align:right}
+.lb-peer{position:relative;display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:visible}
+.lb-peer i{display:block;height:100%;border-radius:0 3px 3px 0;background:var(--ink-2)}
+.lb-peer em{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--ink-1);border-radius:1px}
+@container main (max-width:1099px){.lb-row{grid-template-columns:30px minmax(0,1fr) 96px auto}.lb-users{display:none}}
+@container main (max-width:799px){.lb-legend{display:none}.lb-two{grid-template-columns:minmax(0,1fr)!important}}
