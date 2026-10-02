@@ -16,6 +16,7 @@
 | **Advance** | `yhyfhgs` 的桌面 App 设计 | [`../../prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html)、源码 [`../../prototypes/advance/src/`](../../prototypes/advance/src)、画板存档 [`visual-cases-v1/`](visual-cases-v1/) |
 
 - 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。
+- 自 2026-10-02 起两版合为**同一个 App**：[`../../prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html) 侧栏顶部的 Lite | Advance 按钮一键切换，两版共用侧栏、卡片、栏目标题、KPI、控件、桌面小组件与动效，Lite 只在页面数量与尺度上做减法（见下文「Lite 与 Advance：同一个 App」）。`prototypes/lite/` 保留 `genius-FXC` 的原稿作为 Lite 设计来源。
 - 个人 Benchmark Demo 对应 Lite，原版桌面 Demo 与 v1 画板对应 Advance。两套设计并行保留，引用设计或功能说明时注明适用版本。
 - 版本归属保持不变；结构整理已将可运行原型迁移到 prototypes，并保留界面与交互行为。界面与交互的调整由对应设计任务另行推进，版本归属本身不新增功能或替代 MVP 范围确认。
 
@@ -28,10 +29,12 @@
 | Advance | v1.2 | 2026-10-01 | 把视觉案例做成可交互 HTML Demo，所有页面和按钮都有逻辑 | 在线 Demo、`../../prototypes/advance/tandem-demo.html` |
 | Advance | v1.3 | 2026-10-02 | Demo 源码拆到 `demo/src/`（现 `prototypes/advance/src/`），加入构建与 Playwright 测试；修复来源筛选、临时静音、模式状态与跨筛选跳转；在线 Demo 重新发布为 main（`c97c818`）的构建 | 在线 Demo、`../../prototypes/advance/` |
 | Lite | Benchmark Demo（PR #12） | 2026-10-02 | `genius-FXC` 的八页个人协作 Benchmark 设计 | `../../prototypes/lite/tandem-benchmark-demo.html`、`lite-review.md` |
+| Lite + Advance | v1.4 | 2026-10-02 | 两版合为同一个 App：侧栏顶部一键切换；Lite 收敛为四页并复用 Advance 组件；两版共用的换页编排、数字滚动、页面导读与微动效；首次启动改为导入 → 归位 → 生成 → 匹配 → 落地的连贯 Genesis 序列 | `../../prototypes/advance/`（`26-edition.js`、`37-motion.js`、`39-lite-pages.js`、`56-onboarding.js`） |
 
 ## 如何查看
 
-- **Lite Demo**：[`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，用浏览器直接打开即可，无需构建、依赖或联网。
+- **统一 App（Lite + Advance）**：[`../../prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html)，侧栏顶部切换版本（也可用「显示」菜单、⌘K 或 ⌃⌘L）；地址加 `#l-home` 直接以 Lite 打开。
+- **Lite 原稿**：[`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，用浏览器直接打开即可，无需构建、依赖或联网。
 - **Advance 在线画布**（可平移缩放、留评论）：<https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>，内容停在 v1.1。
 - **Advance 画板源文件**：`visual-cases-v1/` 下的 `canvas.json` 与 `*.dc.html`。它们依赖 claude.ai Design 画布的运行时（`support.js`），不能直接用浏览器打开，用于留档、比对和必要时重新发布。
 - **Advance Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>，每次 Demo 合入 main 后按下文「修改 Demo」最后一行重新发布；本地版 `../../prototypes/advance/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `../../prototypes/advance/src/` 构建生成，修改方法见下文「修改 Demo」。
@@ -58,9 +61,20 @@
 
 ## 可交互 Demo
 
+### Lite 与 Advance：同一个 App（2026-10-02）
+
+| 部分 | 做法 |
+| --- | --- |
+| 切换 | 侧栏顶部 Lite \| Advance 滑块；「显示」菜单、命令面板、⌃⌘L 同样可切。滑块先移动，再以 View Transition 交叉淡入侧栏与内容；选择会被记住 |
+| 路由 | 概览、画像、会话、建议两版一一对应，切换时停在对应页面；Lite 中打开工具、项目、情绪、资源库、工坊等 Advance 独有页面时自动切到 Advance，并给出「回到 Lite」 |
+| 共用组件 | 侧栏（分组、导航行、Agents、页脚隐私卡与用户行）、标题栏 `tbar`、卡片与栏目标题、KPI、`seg` / `chip` / 按钮、建议卡、会话行、协作指纹、桌面小组件、悬浮组件与菜单栏 |
+| Lite 四页 | 概览（AI 一句话 + 大字人格码、四个大数字、30 天活跃条、本周最值得做的一件事）、协作画像（超大四字母码、指纹、四条大刻度、月度演变）、会话轨迹（最近关键会话 + 关键步骤时间线）、优化建议（前三条大卡，可应用 / 撤销）。不显示筛选行，只保留时间范围；有 Advance 筛选时给出「清除」 |
+| 共用动效 | 换页时区块依次上浮淡入、`data-count` 数字滚动、标题栏下的「这页回答」导读（可收起并记住）、按钮按下回弹、可点卡片抬升、分段控件滑块、筛选 chip 增删；`prefers-reduced-motion` 时全部关闭 |
+| 首次启动 Genesis | 「开始分析」后连续播放：来源化为会话粒子汇入中央 → 按开始时间落到 24 小时表盘、外环生长 → D I M V 雷达长出、字母翻牌锁定 → 相近人格卡比对、匹配卡并入四字母并显示匹配度 → 「查看完整画像」时人格码与指纹 FLIP 飞到当前版本的画像页。落地页沿用刚分析的时间范围；「播放人格揭晓」复用后四段；可随时跳过、Esc、在后台继续 |
+
 ### Lite：genius-FXC 的个人 Benchmark Demo（2026-10-02）
 
-- 打开 [`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，无需构建或联网。它作为 Lite 的设计参考，与 Advance 的 `tandem-demo.html` 并行保留。
+- 打开 [`../../prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)，无需构建或联网。它是 Lite 的设计原稿；可运行的 Lite 已并入统一 App（见上节）。
 - 沿用原版暖白底色、衬线标题、等宽数字、侧栏和 Agent 配色，按个人协作 Benchmark 的需求收敛为八页：概览、协作画像、会话与轨迹、工具调用、项目分析、情绪与语义、优化建议、资源库。
 - 项目分析保持独立；暂不实现生成工坊。移除桌面小组件、悬浮面板、首次启动、人格揭晓、会话回放 / 对比和通知模拟等额外流程。保留全局搜索、浅深色、筛选、同步入口、导出与分享。
 - 日期、Agent、项目筛选共同作用于各页；月度画像使用同 Agent / 项目的完整历史。Markdown 报告、会话 CSV 与 SVG 分享卡支持真实下载；同步、安装和社区推荐均为明确标记的演示，不接入真实日志、不调用模型、不写入 Agent 配置。
@@ -84,7 +98,7 @@ Advance Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面�
 
 ## 修改 Demo
 
-本节是 **Advance Demo** 的维护方式。Lite 是独立 HTML，其现有检查命令见 [`lite-review.md`](lite-review.md)。版本归属的文档同步不涉及两套 Demo 的实现修改。
+本节是**统一 App**（Lite 与 Advance 同一套源码）的维护方式。Lite 原稿是独立 HTML，其现有检查命令见 [`lite-review.md`](lite-review.md)。版本归属的文档同步不涉及两套 Demo 的实现修改。
 
 Advance 的 `../../prototypes/advance/tandem-demo.html` 是构建产物，**不要直接改它**：源码在 `../../prototypes/advance/src/`，下一次构建会覆盖对产物的直接修改。
 

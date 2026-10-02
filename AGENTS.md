@@ -7,6 +7,7 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。目标为本�
 - **Lite**：采用 `genius-FXC` 的设计，参考 `prototypes/lite/tandem-benchmark-demo.html`（PR #12）。
 - **Advance**：采用 `yhyfhgs` 的设计，参考 `prototypes/advance/tandem-demo.html`、`prototypes/advance/src/` 与 `docs/design/visual-cases-v1/`。
 - 版本名统一使用 **Lite / Advance**；历史文档中的 `Advanced` 指 **Advance**。设计入口与详细说明以 [设计资料](docs/design/README.md) 为准。
+- 两版是同一个 App（`prototypes/advance`，侧栏顶部一键切换），共用侧栏、卡片、栏目、控件、小组件与动效；Lite 只做页面数量与尺度上的减法，不另建一套组件。
 - 以上仅规定版本与现有设计的对应关系。本次结构整理将可运行原型归入 prototypes；画板与界面行为仍由对应设计任务推进，MVP 功能范围仍须三位成员共同确认。
 
 ## 成员与分工
