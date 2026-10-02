@@ -107,11 +107,7 @@ def test_close_releases_area_services(tmp_path):
         def close(self):
             closed.append(self.name)
 
-    previous = features._service
     features.bind(Closable("features"))
     gateway._ai = Closable("ai")
-    try:
-        gateway.close()
-    finally:
-        features.bind(previous)
-    assert closed == ["features", "ai"]
+    gateway.close()
+    assert closed == ["features", "ai"] and features._service is None

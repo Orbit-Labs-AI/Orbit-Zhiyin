@@ -227,11 +227,16 @@ class Gateway:
         """Area services created by their routers (features hub, lazy AI service)."""
         from .. import features
 
-        for close in (lambda: features.get().close(), lambda: self._ai.close()):
-            try:
-                close()
-            except (AttributeError, RuntimeError):
-                pass  # Never created (router not mounted or AI never used).
+        try:
+            hub = features.get()
+        except RuntimeError:
+            hub = None  # Features router never mounted.
+        if hub is not None:
+            features.bind(None)  # Module helpers fall back to "unbound", not a closed hub.
+            hub.close()
+        ai = getattr(self, "_ai", None)
+        if ai is not None:
+            ai.close()
 
     @property
     def rec_settings(self) -> dict:
