@@ -89,7 +89,10 @@ def normalize_tool_calls(calls):
     rows, duplicates, conflicts = {}, 0, []
     for original in calls or []:
         key = (original["session_uid"], original["call_uid"])
-        c = {k: _detach(v) for k, v in original.items()}
+        c = dict(original)
+        for k, v in c.items():
+            if isinstance(v, (list, dict)):
+                c[k] = v.copy()  # same one-level detachment as _detach, without a call per field
         c.setdefault("is_wrapper", (c.get("name_raw") or "").rsplit(".", 1)[-1] in ("exec", "wait"))
         if key in rows:
             duplicates += 1
