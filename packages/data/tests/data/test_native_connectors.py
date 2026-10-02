@@ -885,3 +885,54 @@ def test_invalid_json_sidecar_is_not_mistaken_for_an_incomplete_jsonl_tail(tmp_p
         result = ImportService(store).import_source(ImportRequest("claude_code", root))
         assert result["current_unparsed"] == 1
         assert store.verify()["unparsed"] == 1
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "DATABASE_PASSWORD",
+        "AWS_SECRET_ACCESS_KEY",
+        "client_secret",
+        "clientSecret",
+        "service.api-key",
+        "GITHUB_TOKEN",
+        "refreshToken",
+    ],
+)
+def test_namespaced_credentials_are_redacted_in_objects_and_text(key):
+    from tandem_data.privacy import redact, sanitize
+
+    secret = "arbitrary credential with spaces"
+    assert sanitize({"config": {key: secret}})["config"][key] == "<redacted:secret>"
+    assert secret not in redact(canonical({key: secret}))
+    assert secret not in redact(key + '="' + secret + '"')
+    usage = {"input_tokens": 20, "cacheReadTokens": 10, "output_tokens": 5}
+    assert sanitize(usage) == usage
+
+
+@pytest.mark.parametrize("version_field", ["mapper_version", "reducer_version"])
+def test_analysis_reader_rejects_obsolete_projection_without_new_input(tmp_path, version_field):
+    from tandem_data.analysis_input import AnalysisScope, read_analysis
+
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "s"},
+                {"type": "message", "id": "u", "message": {"role": "user", "content": "hello"}},
+            ],
+        )
+        store.rebuild()
+        assert read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        store.db.execute(f"UPDATE projection_run SET {version_field}='obsolete'")
+        with pytest.raises(ValueError, match="obsolete"):
+            read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        store.rebuild()
+        assert read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        store.db.execute(
+            "UPDATE source_file SET watermark=json_remove(watermark,'$.projected_revision')"
+        )
+        with pytest.raises(ValueError, match="incomplete"):
+            read_analysis(store.home, AnalysisScope("Asia/Shanghai"))

@@ -3,11 +3,18 @@
 import hashlib
 import re
 
-REDACTION_VERSION = "1.0.1"
+REDACTION_VERSION = "1.0.2"
 SECRET_KEYS = re.compile(
-    r"^(api_?key|access_?token|refresh_?token|authorization|password|secret)$", re.I
+    r"(?:^|_)(?:api_?key|access_?token|refresh_?token|auth_?token|token|authorization|password|passwd|secret|private_key|secret_access_key)$",
+    re.I,
 )
 HIDDEN_KEYS = {"creator_user_id", "creator_account_id"}
+
+
+def is_secret_key(key: str) -> bool:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
+    normalized = re.sub(r"[^a-zA-Z0-9]+", "_", normalized).lower()
+    return SECRET_KEYS.search(normalized) is not None
 
 
 def redact(text: str) -> str:
@@ -24,17 +31,22 @@ def redact(text: str) -> str:
     text = re.sub(
         r"\bBearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}", "Bearer <redacted:token>", text, flags=re.I
     )
-    text = re.sub(
-        r"((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*[\"']?)[^\s\"'`,;}{]{8,}",
-        r"\1<redacted:secret>",
-        text,
-        flags=re.I,
-    )
+
+    def assignment(match):
+        if not is_secret_key(match["key"]):
+            return match[0]
+        value = match["value"]
+        quote = value[0] if value[0] in (chr(34), chr(39)) else ""
+        return match["prefix"] + quote + "<redacted:secret>" + quote
+
+    # JSON/YAML keys and shell assignments, including quoted values with spaces.
+    assignment_pattern = r"(?P<prefix>\b(?P<key>[A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*[=:]\s*)(?P<value>\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s\"'`,;}{]+)"
+    text = re.sub(assignment_pattern, assignment, text)
     return re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1<redacted:credentials>@", text)
 
 
 def sanitize(value, key=""):
-    if SECRET_KEYS.fullmatch(key):
+    if is_secret_key(key):
         return "<redacted:secret>"
     if isinstance(value, dict):
         if value.get("type") == "base64" and isinstance(value.get("data"), str):

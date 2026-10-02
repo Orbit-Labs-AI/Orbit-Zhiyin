@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tandem_data.contract import canonical
 from tandem_data.discovery import candidates
+from tandem_data.query import current_projection
 from tandem_data.store import Store, readonly_connection
 
 EXPORT_TABLES = (
@@ -128,13 +129,16 @@ def main(argv=None):
                     raise ValueError("Export must not write into an Agent source directory")
             if target == store.db_path or target.is_relative_to(store.raw_dir):
                 raise ValueError("Export must not overwrite the database or raw archive")
-            from contextlib import closing
+            from contextlib import ExitStack, closing
 
-            descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with (
-                closing(readonly_connection(store.db_path)) as connection,
-                os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle,
-            ):
+            with ExitStack() as stack:
+                connection = stack.enter_context(closing(readonly_connection(store.db_path)))
+                connection.execute("BEGIN")
+                current_projection(connection)
+                descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                handle = stack.enter_context(
+                    os.fdopen(descriptor, "w", encoding="utf-8", newline="")
+                )
                 rows = connection.execute(f"SELECT * FROM {args.table}")
                 if args.format == "csv":
                     writer = csv.writer(handle)

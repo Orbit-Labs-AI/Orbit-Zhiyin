@@ -7,7 +7,6 @@ never session text. Cancellation is checked between files; publication is atomic
 from __future__ import annotations
 
 import fcntl
-import json
 import os
 import sqlite3
 import threading
@@ -23,6 +22,7 @@ from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import now_ms
 from tandem_data.discovery import inputs
+from tandem_data.query import event_page as event_page
 from tandem_data.store import Store
 
 
@@ -154,29 +154,3 @@ class ImportService:
         while not stop.is_set():
             yield self.import_source(request, stop)
             stop.wait(interval)
-
-
-def event_page(
-    home: Path, session_uid: str, *, after_seq: int = -1, limit: int = 100
-) -> list[dict]:
-    """Cursor pagination for the product App. Does not load L0 or full session histories."""
-    from contextlib import closing
-
-    from tandem_data.store import readonly_connection
-
-    if not 1 <= limit <= 1000:
-        raise ValueError("limit must be between 1 and 1000")
-    with closing(readonly_connection(Path(home) / "tandem.db")) as db:
-        rows = db.execute(
-            "SELECT * FROM event WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ?",
-            (session_uid, after_seq, limit),
-        )
-        return [
-            {
-                **dict(row),
-                "attrs": json.loads(row["attrs"]),
-                "ext": json.loads(row["ext"]),
-                "native_key": json.loads(row["native_key"]),
-            }
-            for row in rows
-        ]

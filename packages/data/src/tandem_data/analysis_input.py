@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
 
@@ -59,15 +60,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
     """
     with closing(readonly_connection(Path(home) / "tandem.db")) as connection:
         connection.execute("BEGIN")
-        manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
-        if not manifest or manifest["contract_id"] != "tandem-session-v1":
-            raise ValueError("Expected canonical tandem-session-v1")
-        run = connection.execute(
-            "SELECT * FROM projection_run ORDER BY run_id DESC LIMIT 1"
-        ).fetchone()
-        revisions = connection.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
-        if not run or revisions != run["l1_revision_count"]:
-            raise ValueError("Projection is pending; rebuild before analysis")
+        manifest, run = current_projection(connection)
         sources = [
             decoded(row) for row in connection.execute("SELECT * FROM source ORDER BY source_id")
         ]
@@ -291,7 +284,11 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             "redaction_version": manifest["redaction_version"],
             "projection_run_id": run["run_id"],
             "scope": asdict(scope),
-            "sample_boundary": {"sources": sources, "files": files, "l1_revision_count": revisions},
+            "sample_boundary": {
+                "sources": sources,
+                "files": files,
+                "l1_revision_count": run["l1_revision_count"],
+            },
             "catalog_snapshot": None,
             "coverage": coverage,
             "projects": project_rows,

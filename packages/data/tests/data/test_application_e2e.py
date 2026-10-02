@@ -116,3 +116,20 @@ def test_second_writer_does_not_start_import(tmp_path):
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             with pytest.raises(RuntimeError, match="worker"):
                 ImportService(store).import_source(ImportRequest("pi", roots["pi"]))
+
+
+def test_app_cursor_and_export_refuse_obsolete_projection(tmp_path):
+    from tandem_data.service import event_page
+
+    roots = create_sources(tmp_path / "fixtures")
+    home = tmp_path / "data"
+    with Store(home) as store:
+        ImportService(store).import_source(ImportRequest("pi", roots["pi"]))
+        session = store.db.execute("SELECT session_uid FROM session").fetchone()[0]
+        store.db.execute("UPDATE projection_run SET mapper_version='obsolete'")
+        with pytest.raises(ValueError, match="obsolete"):
+            event_page(home, session)
+    export = tmp_path / "stale-export.jsonl"
+    result = invoke("--home", home, "export", "--table", "v_analysis_event", "--output", export)
+    assert result.returncode != 0 and "obsolete" in result.stderr
+    assert not export.exists()
