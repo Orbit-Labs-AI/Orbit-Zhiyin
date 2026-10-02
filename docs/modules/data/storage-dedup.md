@@ -49,6 +49,17 @@ trigram 要求关键词至少 3 个字符，更短的关键词仍用 `LIKE`。�
 
 - 写连接：`synchronous=NORMAL`、`temp_store=MEMORY`、`cache_size=-262144`、`mmap_size=1 GiB`。在 WAL 模式下，进程崩溃不会丢失已提交的事务；只有断电可能丢失最后几个事务，下次扫描会从源文件补回。
 - 每次 `rebuild` 后：清理 blob、`PRAGMA optimize`、`wal_checkpoint(PASSIVE)`。
+- 导入后维护见下节；`ImportService` 的导入路径（串行与并行）都不在导入计时内压实。
+
+## 导入后维护（`Store.maintain` / `ImportService(maintenance=...)`）
+
+- **触发**：`import_source` 产生新发布（结果含 `projection`）或 `import_progressive` 至少发布一批后，由导入结束钩子触发，发生在写锁释放之后，不计入导入耗时与首批可读时间。
+  - `background`（默认，App ingest worker 使用）：独立连接的守护线程，先等 1 s 宽限期（按来源连续导入时下一次导入会在宽限期内取消它），再取写锁执行。新的写者（导入、verify、rebuild、inventory）先中断它并等待线程退出；被中断的 VACUUM 整体回滚，库保持原样，下一次导入结束再排入。
+  - `wait`：在调用返回前同步执行，结果放在 `result["maintenance"]`（CLI `scan/ingest --maintenance` 默认 wait，`benchmarks/data/import_bench.py --maintenance wait` 单独计时）。
+  - `off`：不维护。
+- **判断**：先查 `freelist_count` 与 `dbstat` 的 `unused`。合成数据首导后空闲页为 0、页内空闲约 40%（small），膨胀全部来自碎片（bulkload 推迟建索引、随机 uid 键、reducer 回填使行变长），所以首导后必须整库 `VACUUM`。VACUUM 前设置 `auto_vacuum=INCREMENTAL`；之后只有空闲页、碎片低于 12% 时用 `incremental_vacuum` 归还空闲页，不再整库重写。`maintenance.json` 记录上次检查的页数，库增长不足 25%、空闲页不足 5% 时跳过 dbstat 全库扫描（watch 每次重扫都会排入维护）。
+- **页大小**：每个表和索引至少占一页（约 130 个对象）。按库大小分档并带回差：<6 MiB 用 1 KiB，<16 MiB 且当前大于 4 KiB 时用 4 KiB，≥12 MiB 的 1 KiB 库升到 4 KiB，≥32 MiB 用 16 KiB。small（801 事件）用 4 KiB 页为 4.09 MB（0.810×），空对象占约 37 页×4 KiB，trigram FTS 只有 4 个段、`optimize` 不再缩小；把 `event_context` 改成 WITHOUT ROWID 因 70 字符 uid 进入二级索引只省 12 KB，所以改用 1 KiB 页，降到 3.86 MB。
+- **与只读连接共存**：WAL 下 VACUUM 只占写锁，已开始的读事务继续读旧快照，结果不变；新事务在提交后读到压实后的文件，不会看到中间状态或 pending 投影（测试 `test_background_maintenance_keeps_reads_stable`）。改页大小需要暂时退出 WAL，必须是唯一连接；有读者时退回同页大小的普通 VACUUM，下次无读者时再换页。
 - 只读连接：同样设置 `temp_store`、`cache_size`、`mmap_size`。
 
 ## 实测（2026-10-02，合成数据）
