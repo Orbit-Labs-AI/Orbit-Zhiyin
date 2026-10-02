@@ -108,7 +108,11 @@ def test_session_pages_are_compact_and_details_resolve(client_factory, codex_roo
     body = page.json()
     assert page.status_code == 200 and body["total"] == 50 and body["next_offset"] == 20
     assert len(body["sessions"]) == 20
-    assert set(body["sessions"][0]) == {*SESSION_SUMMARY_FIELDS, "usage"}
+    assert set(body["sessions"][0]) == {*SESSION_SUMMARY_FIELDS, "usage", "outcome"}
+    # a1a3-B11: rows carry agent, timing and outcome facts.
+    first = body["sessions"][0]
+    assert first["agent"] == "codex" and isinstance(first["started_at"], int)
+    assert first["status"] is not None and "tool_failure_count" in first["outcome"]
     last = client.get("/v1/analytics/sessions", params={"limit": 20, "offset": 40}).json()
     assert len(last["sessions"]) == 10 and last["next_offset"] is None
     # Pages are cached separately by ETag but share one snapshot computation.
@@ -121,6 +125,9 @@ def test_session_pages_are_compact_and_details_resolve(client_factory, codex_roo
         _ready(gateway, "session")
         detail = client.get(f"/v1/analytics/sessions/{uid}")
     assert detail.status_code == 200 and detail.json()["session"]["session_uid"] == uid
+    row = detail.json()["session"]
+    assert row["models"]["status"] == "available" and row["models"]["models"]
+    assert isinstance(row["key_moments"], list) and set(row["signals"]) >= {"correction", "feedback"}
     missing = client.get("/v1/analytics/sessions/not-a-session", params={"wait_ms": 3000})
     if missing.status_code == 202:
         wait_for(lambda: bus_events(gateway, "analysis.failed"), 60)
