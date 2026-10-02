@@ -21,7 +21,7 @@ WITH RECURSIVE kinds(kind) AS (
 ), active AS (
   SELECT session_uid, MAX(ts) AS last_ts FROM recent GROUP BY session_uid
 )
-SELECT a.session_uid, a.last_ts, s.project_id, p.name AS project, s.title, s.status,
+SELECT a.session_uid, a.last_ts, s.native_id, s.project_id, p.name AS project, s.title, s.status,
        s.started_at, s.ended_at, src.agent
 FROM active a JOIN session s ON s.session_uid = a.session_uid
 LEFT JOIN source src ON src.source_id = s.source_id
@@ -65,7 +65,7 @@ def load_tails(reads, now_ms: int, horizon_s: int = 86_400,
             if newest is not None and newest["kind"] == "permission.request":
                 pending = {"ts": newest["ts"], "command": newest["command"]}
             tails.append(SessionTail(
-                session_uid=uid, agent=row["agent"], project_id=row["project_id"],
+                session_uid=uid, agent=row["agent"], native_id=row["native_id"], project_id=row["project_id"],
                 project=row["project"], title=row["title"], status=row["status"],
                 started_at=row["started_at"], ended_at=row["ended_at"],
                 last_event_ts=row["last_ts"], last_actor=newest and newest["actor"],

@@ -14,9 +14,11 @@ import threading
 import time
 from datetime import datetime
 from importlib import import_module
+from pathlib import Path
 
 from ..platform import timed
 from ..services.auth import ApiError
+from . import hooks
 from .classify import classify, finish_ts
 from .context_windows import load_overrides
 from .model import SessionState, SessionTail
@@ -88,6 +90,8 @@ class Realtime:
         self.clients = 0
         self.thread: threading.Thread | None = None
         self.stop = threading.Event()
+        home = getattr(gw, "home", None)
+        self.hooks = hooks.HookFeed(Path(home) / "hooks") if home else None
 
     # -- lifecycle -----------------------------------------------------------------------
     def start(self) -> None:
@@ -160,14 +164,34 @@ class Realtime:
         except (ApiError, sqlite3.Error):  # No tandem.db yet, or busy: show nothing.
             return []
 
+    def _classify(self, tail: SessionTail, now_ms: int, overrides) -> tuple[SessionTail, SessionState]:
+        info = self.hooks.session(tail.agent, tail.native_id) if self.hooks else None
+        hooks.overlay(tail, info)
+        state = classify(tail, now_ms, overrides)
+        hooks.refine(state, info)
+        return tail, state
+
+    def approvals(self, since_ms: int = 0, limit: int = 100) -> dict:
+        """Hook-observed approval waits (HUD-03 / POP-*): closed waits and open ones."""
+        if self.hooks is None:
+            return {"items": [], "pending": [], "summary": hooks.summary([])}
+        self.hooks.poll()
+        items = self.hooks.waits(since_ms, limit)
+        return {"items": items, "pending": self.hooks.pending(), "summary": hooks.summary(items)}
+
     def refresh(self, now: float | None = None) -> dict:
         now_s = self.clock() if now is None else now
         now_ms = int(now_s * 1000)
         with self.lock, timed("realtime.refresh"):
             paused = self._paused()
             tails = self._tails(now_ms)
+            if self.hooks is not None:
+                try:
+                    self.hooks.poll()
+                except OSError:  # unreadable events file: run on tandem.db alone
+                    pass
             overrides = load_overrides(getattr(self.gw, "appdb", None))
-            pairs = [(t, classify(t, now_ms, overrides)) for t in tails]
+            pairs = [self._classify(t, now_ms, overrides) for t in tails]
             self.dismissed = {k: v for k, v in self.dismissed.items() if v > now_ms}
             items = [self._item(t, s, now_ms) for t, s in pairs]
             items.sort(key=lambda i: (ORDER[i["state"]], -(i["since"] or 0)))
