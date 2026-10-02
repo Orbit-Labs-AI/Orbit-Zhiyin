@@ -4,7 +4,7 @@
 
 当前只消费已有的非语义瓶颈诊断，不新增数据采集或依靠人格标签生成推荐。运行时不联网、不调用 LLM、不下载模型、不安装或执行资源。排序权重和瓶颈阈值是初始启发式，尚未证明能改善真实任务表现。
 
-偏好排序和条件收益估计已接入同一推荐入口，具体对照与生成案例见[推荐测试报告](recommendation-validation.md)。在仓库根执行 `bash scripts/test-recommend.sh` 可重跑测试和报告；公共资源评测目录在 `evals/recommendation/fixtures/reviewed-skills.json`，不自动替换全部抓取草稿。
+偏好排序和条件收益估计已接入同一推荐入口，具体对照与生成案例见[推荐测试报告](validation.md)。在仓库根执行 `bash scripts/test-recommend.sh` 可重跑测试和报告；公共资源评测目录在 `evals/recommendation/fixtures/reviewed-skills.json`，不自动替换全部抓取草稿。
 
 ## 三层偏好与收益输入
 
@@ -148,7 +148,7 @@
 
 坏条目单独诊断，同文件其他合法条目继续接收；坏 envelope 或不可解析 JSON 按文件诊断。相同 `identity.id` 的所有冲突记录都排除，不按文件或输入顺序选择胜者。诊断只包含字段位置与错误类别，不回显字段中的原始输入内容。
 
-统一接收层先检查公共合同；`service.py` 再检查对应 family 字段。例如 skills 的 `required_tools` 会并入公共工具依赖，MCP/plugin 的 `permissions` 会进入权限检查。[data/recommend/](../../packages/backend/src/tandem_backend/data/recommend/) 中的七份 `*.schema.json` 由这些合同生成，供编辑器及资源提供方校验。
+统一接收层先检查公共合同；`service.py` 再检查对应 family 字段。例如 skills 的 `required_tools` 会并入公共工具依赖，MCP/plugin 的 `permissions` 会进入权限检查。[data/recommend/](../../../packages/backend/src/tandem_backend/data/recommend/) 中的七份 `*.schema.json` 由这些合同生成，供编辑器及资源提供方校验。
 
 安装项目依赖后，在仓库根目录运行：
 
@@ -267,7 +267,7 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 
 ## 初始 P0 验证记录
 
-下列为目录迁移前的历史结果；当前偏好／收益版本的命令和结果以[推荐测试报告](recommendation-validation.md)为准。
+下列为目录迁移前的历史结果；当前偏好／收益版本的命令和结果以[推荐测试报告](validation.md)为准。
 
 - 全量 `pytest -q`：1,055 项通过；原有 Starlette/AnyIO 弃用警告 1 项。
 - `ruff check src tests` 及两个推荐脚本检查通过，`git diff --check` 通过。

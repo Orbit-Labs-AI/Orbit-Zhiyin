@@ -459,7 +459,7 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 
 | # | Lite Demo 现在 | 建议 | 依据 |
 | --- | --- | --- | --- |
-| 1 | 资源库有「同人格正在用」「社区使用次数」与按「同人格使用比例」排序 | 删除「同人格」；「社区使用」改为标明来源与日期的外部信号（如 skills.sh 安装量） | [docs/design/README.md](../design/README.md)「v1 之后的决定」已删除跨用户对比 |
+| 1 | 资源库有「同人格正在用」「社区使用次数」与按「同人格使用比例」排序 | 删除「同人格」；「社区使用」改为标明来源与日期的外部信号（如 skills.sh 安装量） | [docs/design/boards.md](../design/boards.md)「v1 之后的决定」已删除跨用户对比 |
 | 2 | 建议卡写「预计效果 约 30% / 约 45% / 约 20%」 | 改为可数的受影响事件（如「近 30 天 14 次纠偏」，示例）+「效果未测」 | [research.md](landscape.md) §1 第 7、11 条 |
 | 3 | 叫「协作 MBTI」 | 产品文案改用自有名称；路演可以口头类比；保留「非心理测评」「实验性」 | MBTI 是注册商标（§2.13） |
 | 4 | 少于 30 个会话或维度落在 45–55 时不定型 | 30 个会话保留为最低样本；字母改按区间判定（按天 bootstrap 的 95% 区间整体在 50% 一侧才给字母，否则「?」） | [research.md](landscape.md) §5.1、[analysis.md](../plans/analysis-module.md) |

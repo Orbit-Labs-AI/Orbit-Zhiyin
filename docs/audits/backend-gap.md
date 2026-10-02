@@ -2,7 +2,7 @@
 
 2026-10-02。核对基线：main `9eb18b4`，并计入本文所在分支的 [PR #35](https://github.com/ActionMesh-AI/Hackathon/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/tandem-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
 
-本文回答一个问题：**要让两版 UI 的每个页面和按钮接上真实数据与真实动作，数据模块和分析模块还差什么，另外还需要哪些后端程序。** 八个分析族各自的功能缺口已写在 [analysis-review.md](analysis-review.md)，本文不重复逐族展开，只在页面与横切能力里引用；数据获取的目标方案见 [data-acquisition.md](data-acquisition.md)，统计口径见 [analysis-inputs.md](../contracts/analysis-inputs.md)。
+本文回答一个问题：**要让两版 UI 的每个页面和按钮接上真实数据与真实动作，数据模块和分析模块还差什么，另外还需要哪些后端程序。** 八个分析族各自的功能缺口已写在 [analysis-review.md](../plans/analysis-review.md)，本文不重复逐族展开，只在页面与横切能力里引用；数据获取的目标方案见 [data-acquisition.md](../plans/data-acquisition.md)，统计口径见 [analysis-inputs.md](../contracts/analysis-inputs.md)。
 
 缺口编号：`G-D` 数据模块，`G-A` 分析模块，`G-R` 推荐与资源，`G-B` 横切后端程序。状态用语：**已有**（源码已实现，不代表真实日志覆盖充分或已验收）、**可派生**（原始字段已在库里，缺聚合或接口）、**部分**（有基础但口径或形状不符）、**缺失**（未见实现）。
 
@@ -33,7 +33,7 @@
 | 能力 | 现状 |
 | --- | --- |
 | 两条链路 | 旧链路 `profiling/analysis.py`（画像、瓶颈、修改链审计、旧推荐）供 `report` / `demo` / `/v1/analysis`；新链路 `analytics/service.py::analyze_bundle`（八族特征 + 多路召回推荐）供 `/v1/analytics/*` |
-| 八族特征 | Task、Instruction、Preference、Interaction、Respond、Cost-Time、Outcome、Subjective Outcome，全部是规则或确定性计算，带 coverage 与 unknown 计数，详见 [analysis-review.md](analysis-review.md) |
+| 八族特征 | Task、Instruction、Preference、Interaction、Respond、Cost-Time、Outcome、Subjective Outcome，全部是规则或确定性计算，带 coverage 与 unknown 计数，详见 [analysis-review.md](../plans/analysis-review.md) |
 | 文本表示 | 字符 n-gram TF-IDF → SVD → DBSCAN 聚类 + PCA 二维坐标 + 新颖度 |
 | 瓶颈 | 新链路 7 条规则（纠偏密度、重复要求、相同重试、工具失败、验证失败、验收证据缺口、上下文压力）；旧链路 4 类候选加 3 类数据缺口 |
 | 推荐 | 规则 / BM25 / 效果向量 / 上下文四路召回 → RRF → 启发式打分 → MMR；卡片带证据与 `effect_status = unmeasured` |
@@ -193,7 +193,7 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 
 ## 5. 分析模块缺口（G-A）
 
-逐族的细项见 [analysis-review.md](analysis-review.md)；这里按 UI 需要的交付物归并。
+逐族的细项见 [analysis-review.md](../plans/analysis-review.md)；这里按 UI 需要的交付物归并。
 
 | 编号 | 缺口 | 现状 | 服务的 UI | 做法要点 |
 | --- | --- | --- | --- | --- |

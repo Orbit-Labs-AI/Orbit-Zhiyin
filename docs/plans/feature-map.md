@@ -2,7 +2,7 @@
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
-> 2026-10-02。依据：四份模块文档最终版（`docs/plans/analysis-module.md`、`docs/plans/recommendation-module.md`、`docs/plans/ai-module.md`、`docs/plans/evaluation-module.md`）、模块契约 [`contract.md`](module-contract.md) 第 2 版（本机工作文件，第 3 版条目见各模块文档末节）、数据契约 `docs/plans/data-acquisition.md` 与 `docs/contracts/analysis-inputs.md`、Demo 功能清单 [`feature-map.md`](feature-map.md) §5（309 条）与八组映射行 本机工作文件…8.json`、已合入 main 的 `docs/plans/backend-gap.md`（PR #36）。现状基线 origin/main `4ffa506`。成员一律用 GitHub 账号指代；版本名 Lite / Advance（历史材料中的 Advanced 指 Advance）。
+> 2026-10-02。依据：四份模块文档最终版（`docs/plans/analysis-module.md`、`docs/plans/recommendation-module.md`、`docs/plans/ai-module.md`、`docs/plans/evaluation-module.md`）、模块契约 [`contract.md`](module-contract.md) 第 2 版（本机工作文件，第 3 版条目见各模块文档末节）、数据契约 `docs/plans/data-acquisition.md` 与 `docs/contracts/analysis-inputs.md`、Demo 功能清单 [`feature-map.md`](feature-map.md) §5（309 条）与八组映射行 本机工作文件…8.json`、已合入 main 的 `docs/audits/backend-gap.md`（PR #36）。现状基线 origin/main `4ffa506`。成员一律用 GitHub 账号指代；版本名 Lite / Advance（历史材料中的 Advanced 指 Advance）。
 >
 > 本文只做映射与分工，不定义算法：feature 的输入 → 处理 → 输出、MVP 与迭代、复杂度与 token 成本在各模块文档；表与端点在契约；本文负责「哪条界面功能由哪些 feature 串起来、谁做、什么时候做、前端要改什么」。
 
@@ -31,7 +31,7 @@
 | 新增功能 | 顺序固定：① 在 §5 对应页面加映射行（`ui_id`、功能、后端怎么实现、feature 链）；② 链里缺 feature 时在 §6.8 登记新 ID（挂到最近的模块，写阶段、负责人、复杂度与 token）；③ 回模块文档功能清单写该 feature 的输入 → 处理 → 输出。先有界面需求再有 feature，不反过来。 |
 | 阶段 | 只在本文 §6 与模块文档改；MVP 判定规则（Lite 8 页需要的数据 + Advance 三张安装闭环卡）不因单条条目调整。 |
 | 现状 | PR 合入后由 PR 作者更新本文相关行的现状列（含 §5 受影响条目），不等 reviewer。 |
-| 与 `docs/plans/backend-gap.md` | 缺口文档的 G 编号只作核对清单，开工与分工按本文 feature ID；对照与三处口径差异见 §6.10。 |
+| 与 `docs/audits/backend-gap.md` | 缺口文档的 G 编号只作核对清单，开工与分工按本文 feature ID；对照与三处口径差异见 §6.10。 |
 
 **CSV 版**：`docs/plans/feature-map.csv` 由 §5 的映射表生成，用于导入表格或看板；两者不一致时以本文为准，不手工编辑 CSV。生成命令（在仓库根目录）：
 
@@ -54,7 +54,7 @@ EOF
 
 ## 2. 总览
 
-现状基线：origin/main `4ffa506`（2026-10-02；PR #31 安装清单、PR #34 真实会话解析与重算进度、PR #36 `docs/plans/backend-gap.md` 已合入）；开放 PR：#27 `feat/feature-display-metrics`（genius-FXC）、#32 `feat/analytics-products`、#33 `feat/data-app-integration`、#35 `feat/indexed-trajectories`（yhyfhgs）。现状取值：**已实现**（main 有可用代码）/ **部分**（main 有基础，口径或接口未齐）/ **PR 中**（开放 PR 或未合入分支）/ **计划**（无代码）。阶段取值按契约 §2.1：MVP = Lite 8 页需要的数据 + Advance 三张安装闭环卡；只服务 Advance 独有界面的 feature 一律 v1。
+现状基线：origin/main `4ffa506`（2026-10-02；PR #31 安装清单、PR #34 真实会话解析与重算进度、PR #36 `docs/audits/backend-gap.md` 已合入）；开放 PR：#27 `feat/feature-display-metrics`（genius-FXC）、#32 `feat/analytics-products`、#33 `feat/data-app-integration`、#35 `feat/indexed-trajectories`（yhyfhgs）。现状取值：**已实现**（main 有可用代码）/ **部分**（main 有基础，口径或接口未齐）/ **PR 中**（开放 PR 或未合入分支）/ **计划**（无代码）。阶段取值按契约 §2.1：MVP = Lite 8 页需要的数据 + Advance 三张安装闭环卡；只服务 Advance 独有界面的 feature 一律 v1。
 
 ### 2.1 feature 规模
 
@@ -1111,7 +1111,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | --- | --- | --- |
 | AI-06.2 | 权限白名单说明 | 并入 RC-12 模板句；白名单前缀来自 DT-13 词表，不是生成任务（ai.md §8） |
 
-### 6.10 与 `docs/plans/backend-gap.md`（PR #36）的缺口编号对照
+### 6.10 与 `docs/audits/backend-gap.md`（PR #36）的缺口编号对照
 
 `backend-gap.md` 用 G-D / G-A / G-R / G-B 描述「让两版 UI 接上真实数据还差什么」；本文用 feature ID 分工。两套编号一一对照如下，开工按 feature ID，缺口文档只作核对清单。三处口径差异按模块文档执行：① 四轴字母——`backend-gap` §8.1 按 UI 的 D / I / M / V，`analysis.md` AN-08.2 按契约 D/S、P/I、M/F、V/T，两者的 I 含义不同，AN-08.2 开工前以 `analysis.md` 为准统一（Demo 字母只是示例）；② 资源匹配度——`backend-gap` G-R6 为行为相似 0.6 + 痛点 0.4，本文按 `recommendation.md` §2.2 的 `parts = {feature_overlap, friction, trust}`（无社区项，`friction` v1）；③ Lite 的安装——`backend-gap` §8.5「Lite 只复制内容」，本文按模块文档：Lite 走真实 IN-02 → IN-03 → IN-04 闭环（三张卡须在 Lite 走通，Lite 是 MVP 主路径）。其余口径（人格门槛与「?」、社区数据不做、MVP 只显示 token、情绪实验性）一致。
 

@@ -2,7 +2,7 @@
 
 > 状态：已定方案，服务层（§5.1 包 A）按本文实现于 `packages/backend/src/tandem_backend/services/`，实现细节与基准见 §7。审计基于 `main`（`0459c8f`）；性能数字来自合成数据，不含真实会话。
 > 回答三个问题：Q3 数据模块如何封装为 App 的一部分（多个本地服务）；Q4 数据模块如何与 Lite / Advance 的对应环节衔接；Q7 分析模块如何与 UI 衔接并打包进 App（高可用、低延迟）。
-> 关联：[功能映射](../plans/feature-map.md)（§5 前端→后端、§6.1 DT、§6.2 AN、§6.10 缺口对照）、[模块契约](../plans/module-contract.md)（§3.1 Scope / meta、§5.3 前端 API）、[缺口对照](../plans/backend-gap.md)、[后端架构](backend.md)、[数据管线](data-pipeline.md)、[模块接入表](module-map.md)。
+> 关联：[功能映射](../plans/feature-map.md)（§5 前端→后端、§6.1 DT、§6.2 AN、§6.10 缺口对照）、[模块契约](../plans/module-contract.md)（§3.1 Scope / meta、§5.3 前端 API）、[缺口对照](../audits/backend-gap.md)、[后端架构](backend.md)、[数据管线](data-pipeline.md)、[模块接入表](module-map.md)。
 
 ## 0. 结论先行
 

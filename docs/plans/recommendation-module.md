@@ -29,7 +29,7 @@
 
 | 问题 | 本文答案 | 不在本文（去哪） |
 | --- | --- | --- |
-| 推荐什么 | §2.1 十二种 `remedy.kind` 与 main 七个 family 的对应 | 生态抓取与 Catalog 建库：`docs/plans/data-acquisition.md` §5–§6（DT-11、DT-12）；已实现部分见 main `docs/modules/catalog-architecture.md` |
+| 推荐什么 | §2.1 十二种 `remedy.kind` 与 main 七个 family 的对应 | 生态抓取与 Catalog 建库：`docs/plans/data-acquisition.md` §5–§6（DT-11、DT-12）；已实现部分见 main `docs/modules/catalog/architecture.md` |
 | 怎么从分析结果推出候选 | §3.1 问题 taxonomy（含 main `rule_id` 对照）→ §2.4 决策表 → §3.2 召回 | 信号与问题怎么检测：`analysis.md`（AN-05、AN-06） |
 | 怎么排序、去重、解释 | §3.3–§3.7 | 文案可读性检查：`evaluation.md`（EV-09） |
 | 怎么个性化 | §4 | 人格四轴：`analysis.md`（AN-08） |
