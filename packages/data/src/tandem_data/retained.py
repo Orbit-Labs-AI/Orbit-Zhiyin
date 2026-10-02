@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from tandem_data.contract import canonical
+from tandem_data.payload import restore_json
 from tandem_data.privacy import redact, sanitize
 from tandem_data.store import insert
 
@@ -55,7 +56,7 @@ class RetainedProjection:
             attrs = json.loads(event["attrs"])
             attrs.update(source_status="missing", preserved_mapper_version=event["mapper_version"])
             event["attrs"] = canonical(sanitize(attrs))
-            event["ext"] = canonical(sanitize(json.loads(event["ext"])))
+            event["ext"] = canonical(sanitize(restore_json(store.db, event["ext"])))
             if event["text"] is not None:
                 event["text"] = redact(event["text"])
             insert(store.db, "event", event)
