@@ -37,6 +37,7 @@
 | [测试与验收](development/testing.md) | 检查分类、执行条件与 CI |
 | [后端九小时改进计划](development/backend-improvement-plan.md) | 契约、任务关系、语义、鲁棒性与推荐效用验收 |
 | [分析与推荐鲁棒性验收](development/analytics-robustness.md) | 受控扰动、证据关系、全量增量、损坏恢复与规模 |
+| [过去到未来推荐 Benchmark](../evals/benchmark/README.md) | 效用、Regret、时间与个性化的统一评测协议 |
 | [链路验收](development/acceptance.md) | 本地 Codex 记录 → 证据 → 画像 → 推荐的验收步骤 |
 | [目录迁移](development/structure-migration.md) | 活跃分支如何接入新结构（含本次文档搬迁） |
 

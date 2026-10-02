@@ -3,10 +3,10 @@
 从仓库根使用现有 `.venv` 运行，无需 `uv`。真实输入必须明确提供已有 canonical 数据库目录；所有产物写入新的、忽略的 `.local` 子目录。这些工具不调用模型、不安装或执行 Skill。
 
 ```sh
-.venv/bin/python -m evals.analytics.robustness --home .local/backend-nine-hour/p0-data --output .local/robustness/run-01
-.venv/bin/python -m evals.analytics.robustness_native --home .local/backend-nine-hour/p0-data --output .local/robustness/native-01
+.venv/bin/python -m evals.analytics.robustness --home .local/backend-nine-hour/current-data --output .local/robustness/run-01
+.venv/bin/python -m evals.analytics.robustness_native --home .local/backend-nine-hour/current-data --output .local/robustness/native-01
 .venv/bin/python -m evals.analytics.robustness_faults --output .local/robustness/faults-01
-.venv/bin/python -m evals.analytics.robustness_scale --home .local/backend-nine-hour/p0-data --output .local/robustness/scale-01
+.venv/bin/python -m evals.analytics.robustness_scale --home .local/backend-nine-hour/current-data --output .local/robustness/scale-01
 ```
 
 第一条默认以快照最新记录为截止点选取七天；`--from-ts / --until-ts` 可固定 UTC 毫秒范围。原生重建默认使用数据库已启用来源中已索引的文件清单，不扩大来源；未提供截止点时分析整个重建快照。需要比较同一个七天窗口时，两条命令应显式使用同一对时间参数。
@@ -35,7 +35,7 @@
 
 canonical 输入是生产方已按范围重建的快照。改变它的时间、模型、effort 或项目范围时，应重新调用 `CanonicalStore.analysis_bundle(new_scope)`，不能只过滤旧事件、继续使用旧的 L3 元数据。相同身份的重复行只计一次；冲突行不会被任意挑选。任务接口保留“验证 → 产物版本 → 所属产物”的版本关系，不沿共享产物拉入其他任务。
 
-Codex 完全一致的文件副本按已索引的完整解码哈希及原生会话身份识别，支持普通与 zstd 文件。副本的 L1 记录引用代表文件已有事件，坏行和未完成尾行保留原有处理状态；不按文本或部分前缀猜测重复。代表依次由原生活动文件索引、带原生会话 ID 的文件名、已发布代表和路径排序选出。没有更强原生证据时保留已发布代表，避免添加更早排序的副本更换既有事件身份。发生分歧的文件退出副本集合，继续走原生历史分支规则。
+Codex 完全一致的文件副本按已索引的完整解码哈希及原生会话身份识别，支持普通与 zstd 文件。副本的 L1 记录引用代表文件已有事件，坏行和未完成尾行保留原有处理状态；不按文本或部分前缀猜测重复。代表依次由原生活动文件索引、带原生会话 ID 的文件名、已发布代表和路径排序选出。没有更强原生证据时保留已发布代表，避免添加更早排序的副本更换既有事件身份。发生分歧的文件退出副本集合，继续走原生历史分支规则。原代表缺失时只延续此前已证明且仍完整一致的镜像关系，复用留存事件；原来源依然报告 missing，完整性为 partial，不能因存在副本伪装为完全可用。
 
 ## 人工与环境限制
 
