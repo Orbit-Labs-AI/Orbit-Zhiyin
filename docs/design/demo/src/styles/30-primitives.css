@@ -1,40 +1,49 @@
-/* primitives */
+/* primitives: three button tiers (filled .p / bordered / plain .gh), 24px controls (20px .sm, 28px in the toolbar), 6px radius,
+   ink (--pri / --ink-1) for the filled button, switch, selected filter token and count badge — one colour, as in the
+   published demo; checkboxes / radios take the same ink through accent-color; AI purple only on .ai / .aib.
+   Eyebrows (.eb), badges (.bdg), keycaps (.kbd) and every count stay mono — part of the demo's visual language. */
 .ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card);min-width:0}
 .pad{padding:14px 16px}
 .ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .cap{font-size:12px;line-height:16px;color:var(--ink-3)}
-.eb{font:600 10.5px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.eb{font:600 11px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .hd .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.btn{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;box-shadow:0 1px 1px rgba(20,22,26,.03)}
-.btn:hover{border-color:var(--ink-4)}
-.btn.p{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
-.btn.p:hover{opacity:.9}
+.btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
+.btn:hover{background:color-mix(in srgb,var(--surface) 92%,var(--ink-1))}
+.btn:active{background:color-mix(in srgb,var(--surface) 86%,var(--ink-1))}
+.btn.p{background:var(--pri);border-color:transparent;color:var(--pri-ink);box-shadow:0 .5px 1px rgba(0,0,0,.12)}
+.btn.p:hover{background:color-mix(in srgb,var(--pri) 86%,var(--bg))}
 .btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
+.btn.ai:hover{background:color-mix(in srgb,var(--ai-bg) 90%,var(--ai))}
 .btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
 .btn.gh:hover{background:var(--field)}
 .btn.dg{color:var(--crit)}
-.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.btn.sm{height:20px;padding:0 8px;font-size:12px;border-radius:5px}
 .btn[disabled]{opacity:.45;pointer-events:none}
-.ib{width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;padding:0;flex:none}
+.ib{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;padding:0;flex:none}
 .ib:hover{background:var(--field)}
-.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--field);flex-wrap:wrap}
-.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font-size:12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.ib:active{background:var(--sel)}
+.seg{display:inline-flex;gap:1px;padding:2px;border-radius:7px;background:var(--field);flex-wrap:wrap;height:24px}
+.seg button{height:20px;padding:0 10px;border:0;border-radius:5px;background:transparent;color:var(--ink-2);font-size:12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
-.chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.chip.on{background:var(--ink-1);border-color:var(--ink-1);color:var(--surface)}
-.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent}
-.chip.sm{height:24px;font-size:12px;padding:0 8px}
-.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
-.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
-.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:10.5px;font-weight:600;white-space:nowrap}
+.chip{height:24px;padding:0 8px 0 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
+.chip:hover{background:color-mix(in srgb,var(--surface) 92%,var(--ink-1))}
+.chip.on{background:var(--ink-1);border-color:var(--ink-1);color:var(--bg);box-shadow:none}
+.chip.on:hover{background:color-mix(in srgb,var(--ink-1) 86%,var(--bg))}
+.chip.on .ico{color:inherit}
+.chip.dash{border-style:dashed;color:var(--ink-2);background:transparent;box-shadow:none}
+.chip.sm{height:20px;font-size:12px;padding:0 7px;border-radius:5px}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 11px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:11px;font-weight:600;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
-.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--surface);font:600 10.5px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
-.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--line);flex:none;border:0;padding:0}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--surface);font:600 11px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.sw{position:relative;width:34px;height:20px;border-radius:999px;background:var(--ink-4);flex:none;border:0;padding:0;transition:background .15s}
 .sw.on{background:var(--ink-1)}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s cubic-bezier(.05,.7,.1,1)}
-.sw.on::after{left:14px}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.08);transition:left .15s var(--ease),background .15s}
+.sw.on::after{left:16px;background:var(--pri-ink)}
 .lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line);background:none;border:0;padding:0}
 .lnk:hover{text-decoration-color:var(--ink-3)}
 .lvl{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
@@ -53,6 +62,9 @@
 @keyframes blink{50%{opacity:0}}
 @keyframes shim{to{background-position:-200% 0}}
 @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.fade{animation:fadein .15s cubic-bezier(.05,.7,.1,1)}
+@keyframes fadeonly{from{opacity:0}to{opacity:1}}
+@keyframes popin{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+@keyframes sheetin{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+@keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+.fade{animation:fadein .15s var(--ease)}
 .stale{opacity:.45;transition:opacity .15s}
-

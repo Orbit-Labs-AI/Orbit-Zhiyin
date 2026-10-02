@@ -28,3 +28,6 @@ jobs:
       - run: uv build --all-packages
       - run: uv run --no-sync tandem demo
       - run: uv run --no-sync tandem evaluate
+      - run: pnpm --dir docs/design/demo install --frozen-lockfile
+      - run: pnpm --dir docs/design/demo exec playwright install chrome
+      - run: uv run --no-sync python scripts/check-desktop.py

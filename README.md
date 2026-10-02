@@ -12,6 +12,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 - 分析补全建议：[docs/plan/analysis-review.md](docs/plan/analysis-review.md)（后端规范、八族边界及 Lite / Advance 所需的分析功能）
 - Codex 数据连接器：[packages/connectors](packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
 - 会话数据实现：[packages/data](packages/data/README.md)（实际 SQLite 数据库、L0/L1 归档、L2/L3 预处理和 connector 桥接）
+- Mac App 封装与真实 UI 接入：[运行与验收](docs/backend/mac-app.md)（原生宿主、开屏导入、后台任务、七来源构造验收与本机样本展示）
 - App 数据入口：[模块边界与接入方式](docs/backend/data-pipeline.md)（macOS、统一 workspace、分页查询、重算与旧库兼容）
 
 ## App 版本

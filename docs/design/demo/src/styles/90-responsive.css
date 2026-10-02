@@ -1,19 +1,31 @@
-/* responsive */
-@media (max-width:1100px){.desk.wide .win{left:24px}.widgets{z-index:45;background:rgba(0,0,0,.08);padding:12px;border-radius:24px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}.two,.proj,.recs,.studio{grid-template-columns:minmax(0,1fr)!important}.persona-hero{grid-template-columns:minmax(0,1fr)}.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}}
-@media (max-width:1000px){.three{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.tiles{grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr))}.ov-ai{grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))}.sess{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}}
-@media (max-width:900px){
-.mbar .menus,.mbar .sys .opt{display:none}.mbar .compact{display:inline-flex}
-.win,.desk.wide .win,.desk.max .win{top:28px;left:0;right:0;bottom:0;border-radius:0;grid-template-columns:minmax(0,1fr)}
-.side{position:absolute;z-index:20;left:0;top:0;bottom:0;width:260px;margin:0;border-radius:0;transform:translateX(-102%);transition:transform .2s cubic-bezier(.05,.7,.1,1);box-shadow:var(--sh-pop)}
-.win.drawer .side{transform:none}
-.win.rail{grid-template-columns:minmax(0,1fr)}
-.burger{display:inline-grid}
-.tbar{padding:8px 16px}
-.content{padding:0 16px 96px}
-.pop{right:8px;left:8px;width:auto}
-.stats7{grid-template-columns:repeat(4,minmax(0,1fr))}
-.form{grid-template-columns:minmax(0,1fr)}.form>.l{text-align:left}
-.studio{grid-template-columns:minmax(0,1fr)}
-}
-@media (max-width:600px){.tbar .grow{flex:1 1 calc(100% - 44px)}.tbar h1{font-size:21px}.letters .L{font-size:72px}.ax{grid-template-columns:58px minmax(0,1fr) 58px 26px;gap:6px;font-size:12px}.persona-hero{padding:16px}.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.set .tabs button{width:56px}.widgets{left:16px;right:16px;width:auto;top:40px;max-height:calc(100% - 56px);overflow:auto}.wg-row{gap:12px}.srcrow{grid-template-columns:30px minmax(0,1fr) auto}.srcrow .when{display:none}}
+/* Responsive = container queries. "win" is the main window (.win), "main" the content column (.main, i.e. window minus
+   sidebar). Page grids break on the content width, never on the viewport. The thresholds follow the published demo: the
+   default window on a 14" display (content column 836px) keeps every side-by-side layout, the 820px "fit" stage (788px)
+   stacks them like the published full-screen layout did, and a Studio Display fills the window instead of centring a
+   narrow column:
+     main ≥ 1900  → content capped at 1800px and centred (5K / 6K displays only)
+     main < 1000  → .studio stacks (three columns need ≥ 1000)
+     main <  900  → toolbar search becomes an icon
+     main <  800  → metric tiles 3 + 2; .two .proj .recs .sess .persona-hero stack; .three / .lib-feat auto-fit; .ov-ai 2×2
+     main <  640  → metric tiles 2 per row, .stats7 4 + 3, persona axes tighten
+   Media queries stay only for accessibility settings (reduced motion / transparency, more contrast) and tiny stages. */
+@container main (min-width:1900px){.content>*{max-width:1800px;margin-inline:auto}}
+@container main (max-width:999px){.studio{grid-template-columns:minmax(0,1fr)}}
+@container main (max-width:899px){.tsearch{width:28px;padding:0;justify-content:center}.tsearch span,.tsearch kbd{display:none}}
+@container main (max-width:799px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.sess,.persona-hero{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container main (max-width:639px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.stats7{grid-template-columns:repeat(4,minmax(0,1fr))}.ov-ai{grid-template-columns:minmax(0,1fr)}.letters .L{font-size:72px}.ax{grid-template-columns:58px minmax(0,1fr) 58px 26px;gap:6px;font-size:12px}.persona-hero{padding:16px}.content{padding:0 16px 24px}}
+@media (max-width:600px){.mbar .sysicon,.mbar .status .glyph[data-m="demo"]{display:none}.widgets{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+/* reduce transparency: every glass surface becomes solid (menu bar, sidebar, menus, panel, notifications, HUD, palette, toast) */
+@media (prefers-reduced-transparency:reduce){
+:root{--menubar:#ececf0;--sb:#e9e9ed;--raised:#fbfbfc;--hud:#1f1f22;--field:rgba(0,0,0,.07)}
+:root[data-theme="dark"]{--menubar:#232327;--sb:#29292e;--raised:#36363c;--hud:#2e2e33}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--menubar:#232327;--sb:#29292e;--raised:#36363c;--hud:#2e2e33}}
+.mbar,.side,.pop,.dd,.nt,.tmore-pop,.modal.pal,.toast-in,.pill,.hcard{-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+/* increase contrast: stronger separators and secondary text */
+@media (prefers-contrast:more){
+:root{--line:rgba(0,0,0,.22);--hair:rgba(0,0,0,.14);--sep:rgba(0,0,0,.28);--ink-3:#48484c;--ink-4:#8a8a8f}
+:root[data-theme="dark"]{--line:rgba(255,255,255,.24);--hair:rgba(255,255,255,.14);--sep:rgba(255,255,255,.28);--ink-3:#c9c9ce;--ink-4:#8a8a90}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--line:rgba(255,255,255,.24);--hair:rgba(255,255,255,.14);--sep:rgba(255,255,255,.28);--ink-3:#c9c9ce;--ink-4:#8a8a90}}
+}

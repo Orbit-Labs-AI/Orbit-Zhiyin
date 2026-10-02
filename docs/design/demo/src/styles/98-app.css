@@ -1,0 +1,15 @@
+/* Real data uses the Advance shell, typography and shared controls. */
+.app-content{display:flex;flex-direction:column;gap:18px;padding:20px;overflow:auto}
+.app-content .frow{padding:0;flex-wrap:wrap;gap:10px}
+.app-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.app-number{font-size:32px;line-height:1.5;font-variant-numeric:tabular-nums}
+.app-note{font-size:12px;color:var(--ink-3);line-height:1.6}
+.app-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font:11px/1.6 var(--mono);background:var(--sunken);padding:12px;border-radius:8px}
+.app-path{display:block;overflow-wrap:anywhere;font:11px/1.6 var(--mono)}
+.app-onboarding{max-height:90vh;overflow:auto;width:min(780px,95vw)!important}
+.app-onboarding .srcrow{grid-template-columns:20px minmax(0,1fr) auto auto}
+.app-events{max-height:70vh;overflow:auto}.app-event{border-bottom:1px solid var(--line);padding:14px 0}.app-event pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.7 var(--sans)}
+.app-job{padding:12px 0;border-bottom:1px solid var(--line)}
+.tandem-live .card{min-width:0}.tandem-live .tbl td{max-width:360px;overflow-wrap:anywhere}
+.tandem-live .mbar{padding:0 12px;gap:12px}.tandem-live .app-filters select{max-width:220px}
+.tandem-live details summary{cursor:pointer;color:var(--ink-3);font-size:12px;margin:10px 0}
