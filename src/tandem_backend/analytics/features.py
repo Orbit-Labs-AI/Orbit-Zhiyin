@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from ..analysis import union_duration
 from ..privacy import direct_user_text
-from .outcome_subjective import extract_subjective_feedback
+from .outcome_subjective import analyze_subjective_outcomes
 
 
 def ratio(a, b):
@@ -324,7 +324,7 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
             "cumulative_note": "快照不按日期分摊、不推算请求、不与逐次值相加；旧报告不提供规范总量"}
 
 
-def session_features(session, events, calls, main_ids, supported_kinds=None):
+def session_features(session, events, calls, main_ids, supported_kinds=None, event_status="available"):
     users = [e for e in events if human(e, main_ids)]
     assistants = [e for e in events if e["kind"] == "message.assistant"]
     unknown_humans = sum(e["kind"] == "message.user" and e.get("attrs", {}).get("origin", "unknown") == "unknown" for e in events)
@@ -337,9 +337,9 @@ def session_features(session, events, calls, main_ids, supported_kinds=None):
     objective = {"explicit_tool_failures": sum(c.get("status") == "failed" for c in calls) if calls is not None else None,
                  "validation_command_candidates": sum(bool(re.search(r"\b(test|pytest|lint|typecheck|build)\b", c.get("command_head") or "")) for c in calls or []),
                  "task_success": None, "validation_scope": None}
-    deliveries = [e for e in events if e["kind"] == "message.assistant"
-                  and e.get("attrs", {}).get("phase") == "final"]
-    feedback = extract_subjective_feedback(users, deliveries)
+    subjective = analyze_subjective_outcomes(events, main_ids, event_status)
+    feedback = None if subjective["feedback"] is None else [
+        f for f in subjective["feedback"] if f["delivery_event_uid"] is not None]
     main = session["session_uid"] in main_ids
     features = {"user_message_count": len(users) if main and (users or not unknown_humans) else None,
                 "assistant_message_count": len(assistants), "turn_count": len({e["turn_uid"] for e in events if e.get("turn_uid")}) or None,
@@ -361,5 +361,6 @@ def session_features(session, events, calls, main_ids, supported_kinds=None):
             "prompt_structure": structures, "language_signals": [{"language": LANG[k], "extension": k, "count": n,
                 "basis": "human_text_file_extension"} for k, n in languages.most_common()],
             "objective_outcomes": objective, "subjective_outcome_candidates": feedback,
+            "subjective_outcomes": subjective,
             "task_success": None, "tool_sequence": calls,
             "human_evidence_ids": [e["event_uid"] for e in users]}

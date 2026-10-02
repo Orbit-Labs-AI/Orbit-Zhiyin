@@ -8,6 +8,7 @@ from . import FEATURE_VERSION
 from .dictionary import FEATURES
 from .features import activity, human, session_features, tool_summary, usage, workflow
 from .inputs import KINDS, Scope, legacy_bundle, metadata, select
+from .outcome_subjective import aggregate_subjective_outcomes
 from .text import representation
 
 
@@ -32,6 +33,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
     for c in calls or []:
         call_groups[c["session_uid"]].append(c)
     supported = set(KINDS.values()) if bundle.versions.get("storage") == "legacy-json-ledger" else None
+    event_status = "unavailable" if bundle.events is None else bundle.coverage.get("events", {}).get("status", "partial")
     rows, entities = [], []
     for s in sessions:
         sid = s["session_uid"]
@@ -42,7 +44,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         root_events = [e for member in sorted(included) for e in groups[member]]
         context_events = [e for e in diagnostics["context_events"] if e["session_uid"] in included]
         root_calls = None if calls is None else [c for member in sorted(included) for c in call_groups[member]]
-        data = session_features(s, own, root_calls, main_ids, supported)
+        data = session_features(s, own, root_calls, main_ids, supported, event_status)
         data["workflow"] = workflow(root_events + context_events, root_calls, main_ids, supported)
         data["usage"] = usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in included],
                               root_events, [p for p in sessions if p["session_uid"] in included], scope, complete_models)
@@ -103,6 +105,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "effective_samples": {"human_messages": ph}, "unknown_counts": {"human_origin": pu},
             "turn_count": len({(e["session_uid"], e["turn_uid"]) for e in pe if e.get("turn_uid")}) or None,
             "correction_signal_count": sum(r["features"]["correction_signal_count"] or 0 for r in rs) if ph else None,
+            "subjective_outcomes": aggregate_subjective_outcomes([r["subjective_outcomes"] for r in rs], event_status),
             "tools": tool_summary(pcs, all_tools["status"]),
             "usage": usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
                            pe, [s for s in sessions if s["session_uid"] in ids], scope, complete_models),
@@ -128,6 +131,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "unknown_counts": {"human_origin": unknown_origin, "session_kind": counts["session_kind_unknown"],
                                "timestamp": diagnostics["time_unknown_events"], "model_calls": None if model_calls is None else 0},
             "overview": {"counts": counts, "usage": all_usage, "activity_rhythm": rhythm,
+                         "subjective_outcomes": aggregate_subjective_outcomes([r["subjective_outcomes"] for r in rows], event_status),
                          "top_tools": (all_tools["by_tool"] or [])[:10] if all_tools["by_tool"] is not None else None,
                          "top_languages": [{"language": k, "count": n, "basis": "file_extension_in_human_text"}
                                            for k, n in languages.most_common()] if bundle.events is not None and (human_count or not unknown_origin) else None},
