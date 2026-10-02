@@ -10,8 +10,11 @@ export async function* lines(path: string, start = 0, firstLine = 0, maxLineByte
   if (snapshotSize !== undefined && snapshotSize <= (compressed ? 0 : start)) return;
   const input = createReadStream(path, { start: compressed ? 0 : start, end:snapshotSize === undefined ? undefined : snapshotSize-1, highWaterMark: 256 * 1024 });
   const stream = compressed ? Readable.from(decompressFrames(input)) : input;
-  let offset = compressed ? 0 : start;
-  let line = compressed ? 0 : firstLine;
+  try {yield* linesFromStream(stream,compressed?0:start,compressed?0:firstLine,maxLineBytes,compressed?start:0);}
+  finally {stream.destroy();input.destroy();}
+}
+export async function* linesFromStream(stream:Readable,initialOffset=0,firstLine=0,maxLineBytes=32*1024*1024,skipBefore=0):AsyncGenerator<Line>{
+  let offset=initialOffset,line=firstLine;
   let parts: Buffer[] = [];
   let size = 0;
   let oversized = false;
@@ -31,7 +34,7 @@ export async function* lines(path: string, start = 0, firstLine = 0, maxLineByte
         if (newline !== -1) {
           line++;
           const record = { bytes: oversized ? null : Buffer.concat(parts,size), offset, length: size, line, oversized, sha256:digest.digest('hex') };
-          if (!compressed || offset >= start) yield record;
+          if (offset >= skipBefore) yield record;
           offset += size;
           parts = []; size = 0; oversized = false;
           digest = createHash('sha256');
@@ -39,5 +42,5 @@ export async function* lines(path: string, start = 0, firstLine = 0, maxLineByte
         cursor = end;
       }
     }
-  } finally { stream.destroy(); input.destroy(); }
+  } finally { stream.destroy(); }
 }

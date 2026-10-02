@@ -68,3 +68,10 @@ test('Basic authentication, cookie headers and credentialed URI schemes are reda
   for(const secret of ['dXNlcjpwYXNzd29yZA==','opaque-session-value','opaque-cookie-value','opaque-db-password','opaque-structured-cookie','opaque-set-cookie'])assert.ok(!result.includes(secret));
   assert.ok(result.includes('db.example/test'));
 });
+test('all authorization schemes and raw image-generation media stay out of sanitized projections',()=>{
+  const rawImage='iVBORw0KGgoAAAANSUhEUgAAfixtureBase64Image';
+  const result=JSON.stringify(sanitize({image:{type:'image_generation_call',result:rawImage},
+    text:'Authorization: Digest response="opaque-digest"\nProxy-Authorization: Negotiate opaque-negotiate\nAuthorization: AWS4-HMAC-SHA256 Signature=opaque-signature'}));
+  for(const secret of [rawImage,'opaque-digest','opaque-negotiate','opaque-signature'])assert.ok(!result.includes(secret));
+  assert.ok(result.includes('attachment:sha256:'));
+});

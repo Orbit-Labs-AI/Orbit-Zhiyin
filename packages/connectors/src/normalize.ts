@@ -453,11 +453,11 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
     if (output) Object.assign(output.attrs,{status_scope:'outer_script',known_command_results:results.filter(event=>event&&['completed','failed'].includes(String(event.attrs.status))).length,
       failed_command_results:results.filter(event=>event?.attrs.status==='failed').length,unknown_return_values:null});
   }
-  events.forEach((candidate,index)=>{
-    candidate.event.seq=index; validateEvent(candidate.event); store.event(candidate.event);
+  events.forEach((candidate,sequence)=>{
+    candidate.event.seq=sequence; validateEvent(candidate.event); store.event(candidate.event);
     const context=ctx.recordSettings.get(candidate.record.record_uid)??{};
-    const eventCwd=pathValue(candidate.event.attrs.cwd)??pathValue(context.cwd)??pathValue(meta.cwd);
-    store.db.prepare('INSERT INTO event_context VALUES(?,?,?,?,?,?)').run(candidate.event.event_uid,projectFor(store,eventCwd,string(git.repository_url)),eventCwd,
+    const eventCwd=pathValue(candidate.event.attrs.cwd)??pathValue(context.cwd)??pathValue(meta.cwd)??pathValue(index.cwd);
+    store.db.prepare('INSERT INTO event_context VALUES(?,?,?,?,?,?)').run(candidate.event.event_uid,projectFor(store,eventCwd,string(index.git_origin_url)??string(git.repository_url)),eventCwd,
       string(context.model_provider_id)??string(meta.model_provider),string(context.model),string(context.effort)??string(context.reasoning_effort));
     if (candidate.event.kind==='unknown') store.diagnostic(source,'unknown_type',`Unrecognized native type: ${candidate.record.native_type}`,candidate.record.file_id,candidate.record.record_uid);
   });

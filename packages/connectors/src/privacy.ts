@@ -14,6 +14,7 @@ export function redact(text: string): string {
     .replace(/(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g, '<redacted:api_key>')
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}/gi, 'Bearer <redacted:token>')
     .replace(/Basic\s+[A-Za-z0-9+/]{4,}={0,2}/gi, 'Basic <redacted:credentials>')
+    .replace(/((?:Proxy-)?Authorization\s*:\s*)[^\r\n]+/gi,'$1<redacted:authorization>')
     .replace(/((?:Cookie|Set-Cookie)\s*:\s*)[^\r\n]+/gi,'$1<redacted:cookie>')
     .replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*["']?)[^\s"'`,;}{]{8,}/gi, '$1<redacted:secret>')
     .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, '$1<redacted:credentials>@');
@@ -40,7 +41,10 @@ export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024, tool
   if (Array.isArray(value)) return value.map(item => sanitize(item,key,maxBytes,toolBudget));
   if (value !== null && typeof value === 'object') {
     const result: { [key: string]: Json } = {};
+    const native=value as Record<string,unknown>;
+    const imageGeneration=['image_generation_call','ImageGeneration'].includes(String(native.type))||native.kind==='image_gen.generation';
     for (const [name, item] of Object.entries(value)) {
+      if((name==='b64_json'||(imageGeneration&&name==='result'))&&typeof item==='string') {result[name]=/^<attachment:sha256:[0-9a-f]{64}>$/.test(item)?item:`<attachment:sha256:${hash(item)}>`;continue;}
       if (!hiddenKeys.test(name)) result[name] = sanitize(item,name,maxBytes,toolBudget);
     }
     return result;

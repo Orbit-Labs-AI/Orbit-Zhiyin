@@ -5,9 +5,11 @@ import { hash, uid, sessionUid, timestamp, stableJson } from './util.ts';
 import { object, string, number, array } from './types.ts';
 import type { Obj, Watermark, SourceFile, RawRecord, IngestResult } from './types.ts';
 import { sanitize } from './privacy.ts';
-import { lines } from './lines.ts';
+import { linesFromStream } from './lines.ts';
+import { Readable } from 'node:stream';
+import { decompressFrames } from './zstd.ts';
 import type { Line } from './lines.ts';
-import { archiveRange, archiveBuffer } from './archive.ts';
+import { archiveRange, archiveBuffer,archivedBytes,archiveRangeHash } from './archive.ts';
 import { discoverCodex, exists, readStateIndex, indexThreadId, within } from './discovery.ts';
 import { ConnectorStore } from './store.ts';
 import { rebuildSource } from './normalize.ts';
@@ -134,18 +136,22 @@ export class CodexConnector {
       const generation = append ? previous.generation : previous.generation+1;
       const chunks = await archiveRange(this.store.directory,this.sourceId,path,watermark.archived,size);
       const headLength = Math.min(size,4096);
-      const head = await rangeHash(path,0,headLength);
-      const tail = await rangeHash(path,Math.max(0,size-4096),Math.min(size,4096));
       this.store.db.exec('BEGIN IMMEDIATE');
       let added = 0;
       try {
         if (!append) this.markOldSessions(id);
         for (const chunk of chunks) this.store.db.prepare('INSERT INTO archive_chunk VALUES(?,?,?,?,?,?)')
           .run(id,generation,chunk.offset,chunk.byte_len,chunk.sha256,chunk.path);
-        for await (const line of lines(path,watermark.offset,watermark.line,32*1024*1024,size)) {
+        const head=await archiveRangeHash(this.store,id,generation,0,headLength);
+        const tail=await archiveRangeHash(this.store,id,generation,Math.max(0,size-4096),Math.min(size,4096));
+        const zipped=format==='jsonl_zstd';
+        const native=Readable.from(archivedBytes(this.store,id,generation,zipped?0:watermark.offset));
+        const immutable=zipped?Readable.from(decompressFrames(native)):native;
+        for await (const line of linesFromStream(immutable,zipped?0:watermark.offset,zipped?0:watermark.line,32*1024*1024,zipped?watermark.offset:0)) {
           this.record(id,generation,line,watermark,role); added++;
           watermark.offset = line.offset + line.length; watermark.line = line.line;
         }
+        native.destroy();
         const after = await stat(path,{bigint:true});
         if (after.ino !== info.ino || after.size < info.size || (after.size === info.size && after.mtimeNs !== info.mtimeNs)) {
           throw new Error('Source was rewritten during ingest');

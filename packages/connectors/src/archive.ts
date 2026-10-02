@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { mkdir, writeFile, rename, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID,createHash } from 'node:crypto';
 import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { hash } from './util.ts';
@@ -36,16 +36,25 @@ export async function archiveRange(directory: string, source: string, path: stri
   if (offset !== end) throw new Error('Source changed while archiving');
   return chunks;
 }
-export async function* archivedBytes(store: ConnectorStore, fileId: string, generation: number): AsyncGenerator<Buffer> {
+export async function* archivedBytes(store: ConnectorStore, fileId: string, generation: number, start=0): AsyncGenerator<Buffer> {
   const chunks = store.db.prepare('SELECT * FROM archive_chunk WHERE file_id=? AND generation=? ORDER BY offset')
     .all(fileId,generation) as unknown as ArchiveChunk[];
   let offset = 0;
   for (const chunk of chunks) {
     if (chunk.offset !== offset) throw new Error('Archive has a gap');
+    offset+=chunk.byte_len;
+    if(offset<=start)continue;
     const bytes = zstdDecompressSync(await readFile(chunk.path));
     if (hash(bytes) !== chunk.sha256 || bytes.length !== chunk.byte_len) throw new Error('Archive checksum mismatch');
-    yield bytes; offset += bytes.length;
+    yield bytes.subarray(Math.max(0,start-chunk.offset));
   }
+}
+export async function archiveRangeHash(store:ConnectorStore,file:string,generation:number,start:number,length:number):Promise<string>{
+  const digest=createHash('sha256');let left=length;
+  for await(const bytes of archivedBytes(store,file,generation,start)){
+    const take=Math.min(left,bytes.length);digest.update(bytes.subarray(0,take));left-=take;if(!left)break;
+  }
+  if(left)throw new Error('Archive range missing');return digest.digest('hex');
 }
 export async function readRawRecord(store: ConnectorStore, recordUid: string): Promise<Buffer> {
   const record = store.db.prepare(`SELECT r.*, f.format FROM raw_record r JOIN source_file f USING(file_id) WHERE record_uid=?`).get(recordUid);

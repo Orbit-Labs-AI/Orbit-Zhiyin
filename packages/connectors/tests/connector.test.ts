@@ -13,6 +13,7 @@ import { sessionUid } from '../src/util.ts';
 import { hash,uid } from '../src/util.ts';
 import { sanitize } from '../src/privacy.ts';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { watchCodex } from '../src/watch.ts';
 import { promisify } from 'node:util';
 import { execFile,spawn } from 'node:child_process';
@@ -82,6 +83,28 @@ test('incremental JSONL preserves raw pending bytes and retries the incomplete f
   const archived=Buffer.concat(await Array.fromAsync(archivedBytes(s.store,String(file.file_id),Number(file.generation))));
   assert.deepEqual(archived,await readFile(s.file));
   assert.equal(scalar(s,'SELECT count(*) n FROM turn'),2);
+}));
+test('source growth and rewrite after archiving cannot change the parsed immutable snapshot',async()=>sandbox(async s=>{
+  const original=await fixture();await writeFile(s.file,original);
+  const execute=s.store.db.exec.bind(s.store.db);let replaced=false;
+  s.store.db.exec=(sql:string)=>{
+    execute(sql);
+    if(sql==='BEGIN IMMEDIATE'&&!replaced){replaced=true;writeFileSync(s.file,original.replaceAll('请修复样例','改写后的内容')+jsonLine('world_state',{state:{appended:true}},40));}
+  };
+  const first=await s.connector.ingest();s.store.db.exec=execute;
+  assert.equal(first.files_failed,0);assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE text='请修复样例'"),1);
+  const raw=s.store.db.prepare("SELECT record_uid FROM current_record WHERE native_type='event_msg:item_completed:UserMessage'").get()!;
+  assert.ok((await readRawRecord(s.store,String(raw.record_uid))).toString().includes('请修复样例'));
+  await s.connector.ingest();assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE text='改写后的内容'"),1);
+}));
+test('event projects use the same native index fallback as sessions when legacy metadata is absent',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'indexed-only'},0)+jsonLine('event_msg',{type:'user_message',message:'indexed task'},1));
+  const db=new DatabaseSync(join(s.home,'state_5.sqlite'));db.exec('CREATE TABLE threads(id TEXT,cwd TEXT,git_origin_url TEXT)');
+  db.prepare('INSERT INTO threads VALUES(?,?,?)').run('indexed-only','/missing/project','https://github.com/Example/Indexed.git');db.close();
+  await s.connector.ingest();const session=s.store.db.prepare('SELECT project_id FROM session').get()!;
+  assert.ok(session.project_id);
+  assert.equal(scalar(s,'SELECT count(*) n FROM event_context WHERE project_id IS NULL'),0);
+  for(const row of s.store.db.prepare('SELECT project_id FROM event_context').all())assert.equal(row.project_id,session.project_id);
 }));
 test('rewrites replace the current projection while retaining previous raw generations; deletion keeps evidence',async()=>sandbox(async s=>{
   const original=await fixture(); await writeFile(s.file,original); await s.connector.ingest();
