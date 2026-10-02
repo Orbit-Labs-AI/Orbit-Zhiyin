@@ -1,45 +1,50 @@
 // Screenshot every page at several window sizes for visual review (not a test).
 //   node tests/shoot.mjs [--html file] [--out dir] [--sizes mac-14,small] [--routes overview,sessions]
-//                        [--theme light|dark] [--full] [--hud]
+//                        [--theme light|dark] [--full]
 // Writes <out>/<size>-<theme>-<route>.png. Default html is ../tandem-demo.html, default out is ../shots.
+// Sizes are the Playwright projects in playwright.config.mjs; routes default to every page the demo defines.
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import config from '../playwright.config.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
-const SIZES = { 'mac-14': [1512, 982, 2], 'mac-13': [1280, 800, 2], 'mac-16': [1728, 1117, 2], studio: [2560, 1440, 1], small: [1024, 700, 1], compact: [820, 760, 1] };
-const ROUTES = ['overview', 'persona', 'sessions', 'tools', 'projects', 'sentiment', 'recs', 'library', 'studio'];
+const SIZES = Object.fromEntries(config.projects.map((p) => [p.name, p.use]));
 
 const html = path.resolve(opt('--html', path.join(here, '..', 'tandem-demo.html')));
 const out = path.resolve(opt('--out', path.join(here, '..', 'shots')));
 const sizes = opt('--sizes', 'mac-14').split(',');
-const routes = opt('--routes', ROUTES.join(',')).split(',');
+const unknown = sizes.filter((s) => !SIZES[s]);
+if (unknown.length) { console.error('unknown size(s): ' + unknown.join(', ') + ' (known: ' + Object.keys(SIZES).join(', ') + ')'); process.exit(1); }
 const theme = opt('--theme', 'light');
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome' });
 for (const s of sizes) {
-  const [width, height, dpr] = SIZES[s];
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, colorScheme: theme, locale: 'zh-CN' });
+  const { viewport, deviceScaleFactor } = SIZES[s];
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor, colorScheme: theme, locale: 'zh-CN' });
   const page = await ctx.newPage();
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   page.on('pageerror', (e) => console.error('[pageerror]', s, e.message));
-  await page.goto('file://' + html);
-  await page.evaluate((t) => { setTheme(t); $$('.note').forEach((n) => n.remove()); }, theme);
+  await page.goto(pathToFileURL(html).href);
+  // The welcome notification is posted 800 ms after load (src/js/99-init.js); let it arrive, then clear it.
+  await page.waitForTimeout(900);
+  await page.evaluate((t) => { setTheme(t); $$('#notes .nt').forEach((n) => n.remove()); }, theme);
+  const routes = opt('--routes', null)?.split(',') ?? await page.evaluate(() => ROUTES.map((r) => r[0]));
   for (const r of routes) {
-    await page.evaluate((x) => { go(x); document.querySelector('#main').scrollTop = 0; }, r);
+    await page.evaluate((x) => { go(x); const c = document.querySelector('#main .content'); if (c) c.scrollTop = 0; }, r);
     await page.waitForTimeout(250);
     const file = path.join(out, `${s}-${theme}-${r}.png`);
     if (args.includes('--full')) {
-      // Capture the main pane's full scroll height by temporarily growing the viewport.
-      const h = await page.evaluate(() => { const m = document.querySelector('#main'); return m.scrollHeight - m.clientHeight; });
-      await page.setViewportSize({ width, height: height + Math.min(h, 6000) });
+      // Capture the content pane's full scroll height by temporarily growing the viewport.
+      const h = await page.evaluate(() => { const c = document.querySelector('#main .content'); return c ? c.scrollHeight - c.clientHeight : 0; });
+      await page.setViewportSize({ width: viewport.width, height: viewport.height + Math.min(h, 6000) });
       await page.waitForTimeout(150);
       await page.screenshot({ path: file });
-      await page.setViewportSize({ width, height });
+      await page.setViewportSize(viewport);
     } else {
       await page.screenshot({ path: file });
     }
