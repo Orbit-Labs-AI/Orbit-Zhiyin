@@ -54,7 +54,7 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
                  "reversible": True},
         "risk": {"level": "medium" if len(risk_flags) > 1 else "low", "flags": risk_flags},
         "requirements": {"tools": [], "software": []}, "gates_hint": {"scenes": None, "language": None},
-        "unit_minutes": 2., "tags": list(item.get("tags") or ()), "file": None,
+        "unit_minutes": 1., "tags": list(item.get("tags") or ()), "file": None,
         "explain_hints": {"reason_template": (problem or {}).get("reason") or "", "mechanism": "",
                           "trial": item.get("trial") or "", "limitation": item.get("limitation") or "",
                           "vars": dict((problem or {}).get("vars") or {})},
@@ -126,7 +126,9 @@ def _fallback(problems, inputs) -> tuple[list[tuple[str, float]], dict[str, dict
         query = " ".join([problem["reason"], problem["type"], *map(str, problem["vars"].values())])
         for uid, score in bm25(query, docs):
             types = {RULE_TO_PROBLEM.get(rule) for rule in items[uid]["rule_ids"]}
-            raw = score * (1.5 if problem["type"] in types else 1.)
+            if problem["type"] not in types:
+                continue  # same evidence bar as the real catalog: the seed must target this problem
+            raw = score
             if raw > best.get(uid, (0, None))[0]:
                 best[uid] = (raw, problem)
     rows, payload = [], {}
