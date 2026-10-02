@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 
 from .contracts import MatchRequest, SourceSpec
+from .network import HttpClient
 from .service import CatalogService, default_home
+from .sources.structured import FILE_KINDS
 from .sync import CatalogSync
 from .vectors import index_embeddings
 
@@ -24,6 +26,11 @@ def main(argv=None):
     sync.add_argument("--source", action="append", default=[])
     sync.add_argument("--force", action="store_true", help="忽略刷新间隔；仍复用固定版本和未完成 checkpoint")
     sync.add_argument("--max-pages", type=int, default=10000)
+    sync.add_argument("--concurrency", type=int, default=3, help="并发抓取的来源数")
+    sync.add_argument("--offline", action="store_true", help="只读本地 HTTP 缓存，不发网络请求")
+    imported = sub.add_parser("import-file", help="从本地 JSON（夹具或公开榜单缓存）导入一个结构化来源，不经网络")
+    imported.add_argument("--source", required=True)
+    imported.add_argument("--file", type=Path, required=True)
     embed = sub.add_parser("embed")
     embed.add_argument("--max-chunks", type=int)
     query = sub.add_parser("search")
@@ -36,7 +43,8 @@ def main(argv=None):
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8766)
     args = parser.parse_args(argv)
-    service = CatalogService(args.home / "catalog.db", model_dir=args.model_dir)
+    http = HttpClient(args.home / "catalog-http-cache", offline=True) if getattr(args, "offline", False) else None
+    service = CatalogService(args.home / "catalog.db", model_dir=args.model_dir, http=http)
     try:
         if args.command == "init":
             if args.sources:
@@ -45,7 +53,15 @@ def main(argv=None):
         elif args.command == "status":
             result = {"catalog": service.store.stats(), "sources": service.store.sources()}
         elif args.command == "sync":
-            result = CatalogSync(service.store, service.http).sync(args.source, force=args.force, max_pages=args.max_pages)
+            result = CatalogSync(service.store, service.http).sync(args.source, force=args.force, max_pages=args.max_pages,
+                                                                   concurrency=args.concurrency)
+        elif args.command == "import-file":
+            row = next((s for s in service.store.sources() if s["source_id"] == args.source), None)
+            if row is None or row["spec"].get("kind") not in FILE_KINDS:
+                parser.error("import-file requires a models_dev/litellm/swe_bench/gemini source")
+            spec = SourceSpec.model_validate(row["spec"])
+            service.store.register([spec.model_copy(update={"config": {**spec.config, "file": str(args.file.resolve())}})])
+            result = CatalogSync(service.store, service.http).sync([args.source], force=True)
         elif args.command == "embed":
             if service.encoder() is None:
                 parser.error("embed requires --model-dir with a local E5 snapshot")
@@ -66,7 +82,7 @@ def main(argv=None):
             uvicorn.run(create_catalog_app(service), host="127.0.0.1", port=args.port)
             return
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        if args.command == "sync" and any(r["status"] == "failed" for r in result):
+        if args.command in ("sync", "import-file") and any(r["status"] == "failed" for r in result):
             raise SystemExit(1)
         if args.command == "verify" and not result["ok"]:
             raise SystemExit(1)

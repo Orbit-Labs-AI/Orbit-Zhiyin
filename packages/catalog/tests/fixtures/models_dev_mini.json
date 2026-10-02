@@ -1,0 +1,37 @@
+{
+  "anthropic": {
+    "id": "anthropic",
+    "name": "Anthropic (synthetic fixture)",
+    "doc": "https://models.dev",
+    "models": {
+      "claude-3-5-sonnet-20241022": {
+        "id": "claude-3-5-sonnet-20241022", "name": "Claude Sonnet 3.5 v2", "family": "claude-sonnet",
+        "description": "SYNTHETIC test values, not real prices or limits",
+        "reasoning": false, "tool_call": true, "knowledge": "2024-04", "last_updated": "2024-10-22",
+        "modalities": {"input": ["text", "image"], "output": ["text"]},
+        "cost": {"input": 1.5, "output": 7.5, "cache_read": 0.15},
+        "limit": {"context": 100000, "output": 4000}
+      },
+      "claude-3-5-sonnet-latest": {
+        "id": "claude-3-5-sonnet-latest", "name": "Claude Sonnet 3.5 (latest alias)",
+        "description": "SYNTHETIC test values", "cost": {"input": 1.5}, "limit": {"context": 100000}
+      }
+    }
+  },
+  "openai": {
+    "id": "openai",
+    "name": "OpenAI (synthetic fixture)",
+    "models": {
+      "gpt-5": {"id": "gpt-5", "name": "GPT-5", "description": "SYNTHETIC: no cost or output limit on purpose",
+                "reasoning": true, "limit": {"context": 200000}}
+    }
+  },
+  "amazon-bedrock": {
+    "id": "amazon-bedrock",
+    "name": "Amazon Bedrock (synthetic fixture)",
+    "models": {
+      "anthropic.claude-3-5-sonnet-20241022-v2:0": {"id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "name": "Claude Sonnet 3.5 v2 (Bedrock)", "description": "SYNTHETIC test values", "cost": {"input": 1.5, "output": 7.5}}
+    }
+  }
+}
