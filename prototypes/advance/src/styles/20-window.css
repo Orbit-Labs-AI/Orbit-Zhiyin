@@ -96,3 +96,7 @@
 .rz[data-rz="sw"]{left:0;bottom:0;width:10px;height:10px;cursor:nesw-resize}
 .rz[data-rz="se"]{right:0;bottom:0;width:10px;height:10px;cursor:nwse-resize}
 .win:not([data-mode="win"]) .rz{display:none}
+/* the page's own control on the right of the filter row (对比上一周期 switch, 仅看失败 …) never wraps inside itself; when the row
+   is too narrow it moves to its own line as one unit, still right-aligned */
+.frow-r{margin-left:auto;flex:none;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.frow-r label{white-space:nowrap;gap:8px}

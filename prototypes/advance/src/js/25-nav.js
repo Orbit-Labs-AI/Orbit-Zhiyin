@@ -41,7 +41,21 @@ function tbarFit() {
   let more = tb.querySelector('.tmore');
   if (more) { const pop = more.querySelector('.tmore-pop'); while (pop.firstChild) tr.appendChild(pop.firstChild); more.remove(); }
   const ts = tb.querySelector('.tsearch'), meta = tb.querySelector('.meta'), grow = tb.querySelector('.grow');
-  if (ts && !ts.dataset.ico) { ts.classList.remove('ico-only'); if (meta && meta.scrollWidth > meta.clientWidth + 0.5) ts.classList.add('ico-only'); }
+  // plain-text meta (or a single plain <span> inside it) can be shortened part by part
+  const mt = !meta ? null : !meta.children.length ? meta : meta.children.length === 1 && !meta.firstElementChild.children.length && meta.textContent === meta.firstElementChild.textContent ? meta.firstElementChild : null;
+  if (meta) meta.hidden = false;
+  if (mt) { if (mt.dataset.full == null) mt.dataset.full = mt.textContent; mt.textContent = mt.dataset.full; }
+  const clipped = () => meta && meta.scrollWidth > meta.clientWidth + 0.5;
+  if (ts && !ts.dataset.ico) { ts.classList.remove('ico-only'); if (clipped()) ts.classList.add('ico-only'); }
+  // a clipped meta drops whole trailing「 · 」parts instead of cutting a date in half; if even the first part does not fit
+  // the meta is hidden. Either way the full line stays in the tooltip (on the meta, or on the title when the meta is gone).
+  const h1 = tb.querySelector('h1'); if (h1) delete h1.dataset.tip;
+  if (mt) {
+    const parts = mt.dataset.full.split(' · ');
+    while (clipped() && parts.length > 1) { parts.pop(); mt.textContent = parts.join(' · '); }
+    if (clipped()) { meta.hidden = true; if (h1) h1.dataset.tip = mt.dataset.full; }
+    if (mt.textContent !== mt.dataset.full) meta.dataset.tip = mt.dataset.full; else delete meta.dataset.tip;
+  }
   const fits = () => tb.scrollWidth <= tb.clientWidth + 0.5 && (!grow || grow.scrollWidth <= grow.clientWidth + 0.5);
   if (fits() || !tr.children.length) return;
   more = document.createElement('div'); more.className = 'tmore';
@@ -123,7 +137,7 @@ function filterRow(right) {
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
     '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 9') + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
-    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button><span style="flex:1"></span>' + (right || '') + '</div>';
+    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
 }
 function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
 function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }
