@@ -48,6 +48,7 @@ function askAnswer(ctx, i) {
   return S.tools.figma ? 'figma 这个 MCP 近 30 天没有被调用过，但每个会话都会加载它的工具描述（约 2.1k tokens）。可以先移除，需要时再装回来。' : 'figma 已经移除了。剩下的 browser MCP 失败率 7.8%，主要是页面加载超时，可以把等待时间调长一点。';
 }
 function openAsk(ctx) {
+  if (S.engine === 'stats') { toast('仅统计模式下无法使用 Agent 问答，请在设置中切换分析引擎'); return; }
   clearInterval(ASKT); ASK = { ctx: ASKQ[ctx] ? ctx : 'overview', q: '', text: '' };
   const c = ASK.ctx;
   openModal(modalHead('问本地 Agent', '由本地 ' + agent(S.studio.agent).name + ' 回答 · 上下文：' + ASKN[c] + ' · ' + rangeLabel() + ' · Demo 中为预置回答') +
@@ -58,6 +59,7 @@ function openAsk(ctx) {
   MODAL_KEY = 'ask';
 }
 function askStream(q, txt) {
+  if (S.engine === 'stats') { clearInterval(ASKT); toast('仅统计模式下无法使用 Agent 问答'); return; }
   clearInterval(ASKT); ASK.q = q; ASK.text = txt;
   const a = $('#askA'); if (!a) return;
   a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span id="askT"></span><span class="caret"></span>';

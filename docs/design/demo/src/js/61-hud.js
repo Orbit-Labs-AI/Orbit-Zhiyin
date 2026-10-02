@@ -1,4 +1,12 @@
 /* ============ floating HUD ============ */
+let HUD_MUTE_TIMER = null;
+function setHudMuted(muted, durationMs) {
+  clearTimeout(HUD_MUTE_TIMER);
+  HUD_MUTE_TIMER = null;
+  S.hud.mute = muted;
+  if (muted && durationMs) HUD_MUTE_TIMER = setTimeout(() => setHudMuted(false), durationMs);
+  render();
+}
 function hudCard() {
   const r = rng(77);
   const lane = (label, n, color, w) => { let ticks = ''; for (let i = 0; i < n; i++) ticks += '<rect x="' + (2 + r() * 300).toFixed(1) + '" y="1" width="' + w + '" height="10" rx="1" fill="' + color + '"/>'; return '<div class="lane"><span>' + label + '</span><svg viewBox="0 0 312 12" width="100%" height="12" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="312" y1="6" y2="6" stroke="var(--hud-line)"/>' + ticks + '<line x1="310" x2="310" y1="0" y2="12" stroke="var(--hud-ink-3)" stroke-dasharray="2 2"/></svg></div>'; };
@@ -22,7 +30,7 @@ function hudPill() {
 }
 function renderHud() {
   const h = $('#hud');
-  if (!S.hud.show || S.sim === 'idle' || S.paused) { h.hidden = true; h.innerHTML = ''; return; }
+  if (!S.hud.show || S.sim === 'idle' || S.paused || !sourceEnabled(ALL.find((s) => s.id === LIVE_ID))) { h.hidden = true; h.innerHTML = ''; return; }
   h.hidden = false;
   h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open ? hudCard() : '');
   hudPlace();
@@ -84,7 +92,7 @@ Object.assign(ACT, {
   hudTraj: () => { S.hud.open = false; if (S.sim === 'done') S.sim = 'running'; S.sess.sel = LIVE_ID; S.sess.mode = 'single'; S.sess.q = ''; go('sessions'); },
   hudTip: () => { copyText('先总结目前的进度：已完成的文件、关键决定和剩余待办，写成一段摘要，然后再继续下一步。', '提示语'); },
   hudTipOff: () => { S.hud.tipOff = true; renderHud(); toast('这类提示不会再出现；可以在设置 › 通知里恢复'); },
-  hudMute: () => { S.hud.mute = !S.hud.mute; render(); if (S.hud.mute) toast('已暂停提醒 30 分钟', { act: '恢复', onAct: () => { S.hud.mute = false; render(); } }); else toast('已恢复提醒'); },
+  hudMute: () => { setHudMuted(!S.hud.mute, 30 * 60 * 1000); if (S.hud.mute) toast('已暂停提醒 30 分钟', { act: '恢复', onAct: () => setHudMuted(false) }); else toast('已恢复提醒'); },
   hudHide: () => toggleHud()
 });
 

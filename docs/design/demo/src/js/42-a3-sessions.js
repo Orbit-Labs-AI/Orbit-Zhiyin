@@ -59,7 +59,7 @@ function traj(s) {
 function sessList() {
   const q = S.sess.q.trim().toLowerCase();
   const w = win(S.range);
-  return ALL.filter((s) => (s.d === 120 || (s.d >= w[0] && s.d <= w[1])) && (s.d === 120 ? S.agents.has(s.a) && (!S.project || s.p === S.project) : pass(s, {})) && (!q || s.title.toLowerCase().includes(q) || PJI[s.p].name.toLowerCase().includes(q) || agent(s.a).name.toLowerCase().includes(q))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
+  return ALL.filter((s) => (s.d === 120 || (s.d >= w[0] && s.d <= w[1])) && (s.d === 120 ? sourceEnabled(s) && S.agents.has(s.a) && (!S.project || s.p === S.project) : pass(s, {})) && (!q || s.title.toLowerCase().includes(q) || PJI[s.p].name.toLowerCase().includes(q) || agent(s.a).name.toLowerCase().includes(q))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
 }
 function barcode(s, w) {
   const r = rng(hash(s.id + 'b')); const n = Math.min(s.tools, 90); const f = s.live ? 0.62 : 1;
@@ -140,8 +140,9 @@ function readout(s) {
 }
 PAGES.sessions = () => {
   const list = sessList();
-  const s = BYID[S.sess.sel] || list[0] || ALL[ALL.length - 1];
-  if (s && S.sess.sel !== s.id) S.sess.sel = s.id;
+  const s = list.find((x) => x.id === S.sess.sel) || list[0];
+  S.sess.sel = s ? s.id : null;
+  if (!list.some((x) => x.id === S.sess.cmp) || S.sess.cmp === S.sess.sel) S.sess.cmp = null;
   const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="ask" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
   let lastDay = null;
   const rows = list.slice(0, 120).map((x) => {
@@ -159,7 +160,7 @@ PAGES.sessions = () => {
   const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span style="font-size:11px;color:var(--ink-3)">' + label + '</span><span style="font-size:16px;font-weight:600;color:' + (col || 'var(--ink-1)') + '">' + v + '</span></button>';
   let detail;
   if (S.sess.mode === 'cmp') {
-    const b = BYID[S.sess.cmp];
+    const b = list.find((x) => x.id === S.sess.cmp);
     if (!b) detail = empty('对比模式：在左侧列表再选一个会话作为 B（当前 A：' + esc(s.title) + '）');
     else {
       const T = Math.max(traj(s).T, traj(b).T); const sa = stats([s]), sb = stats([b]);
