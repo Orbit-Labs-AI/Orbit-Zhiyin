@@ -36,7 +36,7 @@ for (const s of sizes) {
   const routes = opt('--routes', null)?.split(',') ?? await page.evaluate(() => ROUTES.map((r) => r[0]));
   for (const r of routes) {
     await page.evaluate((x) => { go(x); const c = document.querySelector('#main .content'); if (c) c.scrollTop = 0; }, r);
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(700);   // let the page-enter cascade and count-ups settle
     const file = path.join(out, `${s}-${theme}-${r}.png`);
     if (args.includes('--full')) {
       // Capture the content pane's full scroll height by temporarily growing the viewport.
