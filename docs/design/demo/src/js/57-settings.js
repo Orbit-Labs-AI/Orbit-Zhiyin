@@ -11,6 +11,12 @@ const RULE_RE = {
 };
 const ENGINE_TXT = { stats: '只做计数与时序统计。语义主题、情绪曲线、AI 解读与生成工坊都不可用。', agent: '语义分析交给你本机的 Agent（默认 Claude Code），用它自己的登录与额度；Tandem 只传结构化摘要。', ollama: '用本机模型（如 qwen3:8b）做语义分析，完全离线但较慢；生成工坊仍然需要本地 Agent。' };
 const NEV = [['waiting', '有会话等你确认'], ['done', '会话完成（超过 10 分钟的）'], ['stuck', '同一命令连续失败 / 长时间无进展'], ['ctx', '上下文即将压缩'], ['weekly', '每周报告已生成']];
+const NEV_COL = [['横幅', '右上角滑入，7 秒后自动收起'], ['悬浮组件', '胶囊切换为该事件的状态'], ['菜单栏角标', '图标角标变色 / 变形']];
+// what leaves the machine when the analysis engine is a local Agent or model (settings › 分析 › AI 通道)
+S.aiCh = S.aiCh || { sum: true, snip: true, raw: false };
+const AI_CH = [['sum', '结构化摘要', '计数、时序、工具名、结果；不含任何原文'], ['snip', '脱敏后的片段', '关键时刻前后各 2 条消息，先过脱敏规则'], ['raw', '完整原文', '仅本机模型（Ollama）可选；本地 Agent 通道始终关闭']];
+// the default time range survives a reload (BUG-51)
+{ const r = store.get('range', null); if (typeof r === 'number') S.range = r; }
 function redact(text) {
   let n = 0; let t = text;
   Object.keys(RULE_RE).forEach((k) => { if (!S.rules[k]) return; const rr = RULE_RE[k]; t = t.replace(rr[0], (...m) => { n++; const pre = rr[1].startsWith('$1') ? m[1] : ''; return pre + '\u0001' + rr[1].replace('$1', '') + '\u0002'; }); });
@@ -35,7 +41,7 @@ function renderSet() {
   const card = (title, sub, inner, right) => '<div class="card"><div class="row" style="padding:12px 14px 0;flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:200px"><div class="ct">' + title + '</div>' + (sub ? '<div class="cap" style="font-size:11px">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div><div style="padding:10px 14px 14px">' + inner + '</div></div>';
   let body = '';
   if (t === 'general') {
-    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏；默认停在避开主窗口的位置，拖动可吸附到 6 个位置，按住 ⌥ 松手可自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '显示在桌面层；屏幕宽度不小于 1500 时主窗口默认让出左侧一列，否则在主窗口之下，移动或缩小主窗口可以看到') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + row('登录时启动', swBtn(S.login, 'setLogin', '', '登录时启动'), '只在菜单栏常驻，不打开主窗口') + '</div>') +
+    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏；默认停在避开主窗口的位置，拖动可吸附到 6 个位置，按住 ⌥ 松手可自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '显示在桌面层；屏幕宽度不小于 1500 时主窗口默认让出左侧一列，否则在主窗口之下，移动或缩小主窗口可以看到') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小 = 人格与今日；中 = 加本周与建议；大 = 加运行中的会话与 7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + row('登录时启动', swBtn(S.login, 'setLogin', '', '登录时启动'), '只在菜单栏常驻，不打开主窗口') + '</div>') +
       card('统计', '', '<div class="form">' + row('默认时间范围', seg('setRange', String(S.range), [['7', '7 天'], ['30', '30 天'], ['90', '90 天'], ['0', '全部']], '默认时间范围')) + row('键盘快捷键', '<button type="button" class="btn sm" data-act="openKeys">查看全部</button>') + '</div>');
   } else if (t === 'sources') {
     const hasCursor = S.extraSrc.some((x) => /cursor/i.test(x.name));
@@ -54,13 +60,17 @@ function renderSet() {
       card('匿名贡献', S.anon ? '已开启：只上传人格代码与已装资源名，用于「相似用户」统计' : '关闭：不上传任何内容。开启后只上传人格代码与已装资源名', '<div class="row" style="gap:10px">' + swBtn(S.anon, 'setAnon', '', '匿名贡献') + '<span class="cap" style="font-size:11px">会话内容、项目名、路径永远不会上传</span></div>') +
       card('数据存储', '', '<div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="mono" style="font-size:12px;flex:1;min-width:200px">~/Library/Application Support/Tandem</span><b class="mono" style="font-size:12px">812 MB</b></div><div class="row" style="flex-wrap:wrap;gap:8px"><button type="button" class="btn sm" data-act="setFinder">在 Finder 中显示</button><button type="button" class="btn sm" data-act="setExport">导出全部（JSON）</button><button type="button" class="btn sm dg" data-act="setClear">清除全部数据…</button></div></div>');
   } else if (t === 'analysis') {
+    const chOff = S.engine === 'stats';
     body = card('分析引擎', '语义分析与生成依赖此项', '<div class="col" style="gap:8px">' + seg('setEngine', S.engine, [['stats', '仅统计'], ['agent', '本地 Agent'], ['ollama', '本机模型（Ollama）']], '分析引擎') + '<span style="font-size:13px;line-height:1.5;color:var(--ink-2)">' + ENGINE_TXT[S.engine] + '</span>' + (S.engine === 'agent' ? '<div class="row" style="gap:8px"><span class="cap">执行者</span><button type="button" class="chip sm" data-act="studioAgent">' + agent(S.studio.agent).name + ic('chev', 12) + '</button></div>' : '') + '</div>') +
+      card('AI 通道', chOff ? '「仅统计」不会把任何内容交给 AI' : '交给' + (S.engine === 'agent' ? '本地 Agent' : '本机模型') + '的内容，按层级勾选；传出前都先过脱敏规则', '<div class="aich' + (chOff ? ' off' : '') + '">' + AI_CH.map((c) => { const dis = chOff || (c[0] === 'raw' && S.engine !== 'ollama'); const on = !chOff && !!S.aiCh[c[0]] && !(c[0] === 'raw' && S.engine !== 'ollama'); return '<div class="row aich-r"><div style="flex:1;min-width:0"><div style="font-size:13px">' + c[1] + '</div><div class="cap" style="font-size:11px">' + c[2] + '</div></div>' + swBtn(on, 'setAiCh', ' data-k="' + c[0] + '"' + (dis ? ' disabled' : ''), c[1]) + '</div>'; }).join('') + '</div><div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="setTab" data-v="privacy">查看脱敏规则</button><span class="cap" style="font-size:11px">当前启用 ' + Object.keys(S.rules).filter((k) => S.rules[k]).length + ' / ' + Object.keys(S.rules).length + ' 条</span></div>') +
       card('协作人格', '', '<div class="col" style="gap:6px;font-size:13px;color:var(--ink-2)"><span>· 至少 30 个会话才判断类型；项目级至少 8 个</span><span>· 任一维度落在 45–55 之间时显示「?」，不强行归类</span><span>· 信号与权重是初版设想，需要真实数据校准</span><div><button type="button" class="btn sm" data-act="method">查看计算方法与 16 型</button></div></div>') +
       card('不计入分析的会话', S.excluded.size ? S.excluded.size + ' 个会话被你手动排除' : '没有被排除的会话。在会话详情的「⋯」菜单里可以排除', '<button type="button" class="btn sm" data-act="setRestoreEx"' + (S.excluded.size ? '' : ' disabled') + '>全部恢复</button>') +
       card('每周报告', '', '<div class="row" style="gap:10px">' + swBtn(S.weekly, 'setWeekly', '', '每周报告') + '<span class="cap" style="font-size:11px">每周一 09:00 生成，通过通知提醒；可以在「文件 › 导出报告」随时生成</span></div>');
   } else if (t === 'notify') {
-    body = card('投递矩阵', '克制是默认值：只有需要你动作，或带来明确结果时才打扰', '<div class="scroll-x"><table class="tbl"><thead><tr><th>事件</th><th style="text-align:center">横幅</th><th style="text-align:center">悬浮组件</th><th style="text-align:center">菜单栏角标</th></tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + [0, 1, 2].map((c) => '<td style="text-align:center"><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + ['横幅', '悬浮组件', '菜单栏角标'][c] + '" style="width:15px;height:15px"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="cap" style="font-size:11px;margin-top:8px">用菜单栏右侧的「演示」菜单模拟事件，可以看到这里的设置立即生效。</div>') +
-      card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div><span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
+    // each column is its own channel: a row with only 悬浮组件 ticked changes the HUD and nothing else (BUG-40)
+    const nOn = (c) => NEV.filter((e) => S.notif[e[0]][c]).length;
+    body = card('投递矩阵', '克制是默认值：只有需要你动作，或带来明确结果时才打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + NEV_COL.map((c, i) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + [0, 1, 2].map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + NEV_COL.map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">用菜单栏右侧的「演示」菜单模拟事件，可以看到这里的设置立即生效；每一列独立生效。</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
+      card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div><span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span><div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时在展开的卡片里给出「先总结进度」建议' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
   } else {
     body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px;border-radius:16px"><svg width="38" height="28" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="#f2f2f4" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg></span><div style="font-size:22px;font-weight:700">Tandem</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">关于这个 Demo</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
   }
@@ -68,7 +78,7 @@ function renderSet() {
     '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
 }
 function doReset() {
-  store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null);
+  store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null);
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* sandboxed */ }
   try { location.reload(); } catch (e) { toast('请手动刷新页面'); }
 }
@@ -84,7 +94,7 @@ Object.assign(ACT, {
   setWidgets: () => { S.widgets = !S.widgets; render(); },
   setNumOnly: () => { S.numOnly = !S.numOnly; render(); },
   setLogin: () => { S.login = !S.login; renderSet(); },
-  setRange: (el) => { S.range = +el.dataset.v; render(); },
+  setRange: (el) => { S.range = +el.dataset.v; store.set('range', S.range); render(); },
   setSrc: (el) => { const id = el.dataset.a; if (S.srcOff.has(id)) S.srcOff.delete(id); else S.srcOff.add(id); render(); toast(S.srcOff.has(id) ? agent(id).name + ' 已停用：数据在所有页面隐藏，但不删除' : agent(id).name + ' 已重新启用'); },
   setAddSrc: (el) => { S.addSrc = el.dataset.v || '自定义'; S.addSrcFmt = S.addSrc === 'Cursor' ? 'sqlite' : 'jsonl'; renderSet(); const n = $('#srcPath'); if (n) n.focus(); },
   setAddCancel: () => { S.addSrc = false; renderSet(); },
@@ -112,7 +122,10 @@ Object.assign(ACT, {
   setEngine: (el) => { S.engine = el.dataset.v; render(); toast(S.engine === 'stats' ? '已切换为「仅统计」：语义相关功能暂停' : '已切换分析引擎'); },
   setRestoreEx: () => { const n = S.excluded.size; S.excluded.clear(); render(); toast('已恢复 ' + n + ' 个会话，所有页面已重算'); },
   setWeekly: () => { S.weekly = !S.weekly; renderSet(); },
-  setNotif: (el) => { S.notif[el.dataset.e][+el.dataset.c] = el.checked ? 1 : 0; },
+  setNotif: (el) => { S.notif[el.dataset.e][+el.dataset.c] = el.checked ? 1 : 0; simSettle(); render(); },
+  setNotifPreset: (el) => { const quiet = el.dataset.v === 'quiet'; NEV.forEach((e) => { S.notif[e[0]] = quiet ? ({ waiting: [1, 1, 1], done: [0, 1, 0], stuck: [0, 1, 1], ctx: [0, 1, 0], weekly: [0, 0, 0] })[e[0]] : [1, 1, 1]; }); simSettle(); render(); toast(quiet ? '只保留需要你动作的横幅' : '已打开全部提醒渠道'); },
+  setTipOn: () => { S.hud.tipOff = !S.hud.tipOff; render(); toast(S.hud.tipOff ? '已关闭悬浮组件里的上下文提示' : '已恢复悬浮组件里的上下文提示'); },
+  setAiCh: (el) => { const k = el.dataset.k; S.aiCh[k] = !S.aiCh[k]; renderSet(); },
   setMute: () => setHudMuted(!S.hud.mute),
   setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true }),
   setUpdate: () => toast('已是最新版本（演示）'),
