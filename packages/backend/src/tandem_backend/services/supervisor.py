@@ -6,11 +6,12 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
 
 - heartbeat every ``heartbeat_s`` (5 s); no message for ``stale_s`` (15 s) → kill + restart
 - crash restarts back off 0.5 / 1 / 2 / 4 s; more than 5 within 60 s → ``degraded``
-- analysis tasks time out (light 20 s, heavy 120 s, plus a per-event allowance once the
-  worker reports the scope's event count, capped at ``max_budget_s``): kill, task
-  ``failed(timeout)``, the previous snapshot keeps serving; three failures open a circuit
-  for that key. A task whose sized budget hit the cap fails ``analysis_scope_too_large``
-  (narrow the scope) instead of a bare timeout
+- analysis tasks time out (light 20 s, heavy 120 s; ``TANDEM_ANALYSIS_HEAVY_TIMEOUT_S``
+  overrides the heavy base) plus a per-event allowance once the worker reports the scope's
+  event count; each timed-out retry of the same key doubles that budget, all capped at
+  ``max_budget_s``: kill, task ``failed(timeout)``, the previous snapshot keeps serving;
+  three failures open a circuit for that key. A task whose budget already hit the cap
+  fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout
 - analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
 """
 
@@ -31,6 +32,15 @@ from .sections import SECTIONS
 from .snapshots import SnapshotKey, SnapshotStore
 from .worker_protocol import HEARTBEAT_ENV, decode, encode
 
+HEAVY_TIMEOUT_ENV = "TANDEM_ANALYSIS_HEAVY_TIMEOUT_S"
+
+
+def _heavy_timeout_default() -> float:
+    try:
+        return float(os.environ.get(HEAVY_TIMEOUT_ENV) or 120.0)
+    except ValueError:
+        return 120.0
+
 
 @dataclass
 class SupervisorConfig:
@@ -41,11 +51,12 @@ class SupervisorConfig:
     restart_window_s: float = 60.0
     max_restarts: int = 5
     light_timeout_s: float = 20.0
-    heavy_timeout_s: float = 120.0
+    heavy_timeout_s: float = field(default_factory=_heavy_timeout_default)
     # Seconds per 1 000 selected events on top of the base budget (sized after start).
     # Measured: ~0.39 s/k for a light section on a 772k-event home (read + analyse).
     light_s_per_kevent: float = 0.6
     heavy_s_per_kevent: float = 1.2
+    # Ceiling of every budget (sized allowance and per-timeout doubling included).
     max_budget_s: float = 900.0
     rss_limit_bytes: int = 1_500_000_000
     analysis_idle_s: float = 300.0
@@ -409,13 +420,18 @@ class AnalysisQueue:
         task.done.set()
 
     def _budget(self, task: AnalysisTask) -> tuple[float, bool]:
-        """(seconds, capped): base budget plus the per-event allowance, at most the cap."""
+        """(seconds, capped): base budget plus the per-event allowance, doubled for each
+        earlier timeout of the same key and revision, at most ``max_budget_s``."""
         heavy = SECTIONS[task.section].cost == "heavy"
         base = self.config.heavy_timeout_s if heavy else self.config.light_timeout_s
-        if not task.events:
-            return base, False
-        rate = self.config.heavy_s_per_kevent if heavy else self.config.light_s_per_kevent
-        wanted = base + rate * task.events / 1000
+        wanted = base
+        if task.events:
+            rate = self.config.heavy_s_per_kevent if heavy else self.config.light_s_per_kevent
+            wanted += rate * task.events / 1000
+        record = self.failure(task.section, task.scope_hash, (task.data_rev, task.inventory_rev))
+        # A scope that outgrew the budget gets more time on each retry instead of being
+        # killed at the same point three times in a row.
+        wanted *= 2 ** (record or {}).get("timeouts", 0)
         cap = max(base, self.config.max_budget_s)
         return min(wanted, cap), wanted > cap
 
@@ -460,6 +476,8 @@ class AnalysisQueue:
         if record is None or record["rev"] != rev:
             record = {"rev": rev, "count": 0}
         record.update(count=record["count"] + 1, error=error)
+        if error.get("code") == "timeout":
+            record["timeouts"] = record.get("timeouts", 0) + 1
         self.failures[key] = record
 
     def _message(self, message: dict) -> None:

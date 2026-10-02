@@ -77,7 +77,9 @@ def test_timeout_keeps_old_snapshot_and_opens_circuit(client_factory, codex_root
     window = run_job(client, "import", [source], phase="window")
     assert wait_job(client, window["id"])["status"] == "completed"
 
-    config.light_timeout_s = 0.3  # Shorter than the worker's fixed 0.6 s start-up delay.
+    # Shorter than the worker's fixed 0.6 s start-up delay even after two budget doublings
+    # (0.1 → 0.2 → 0.4 s).
+    config.light_timeout_s = 0.1
     analysis = gateway.supervisor.analysis
     for attempt in range(1, 4):
         stale = client.get("/v1/analytics/overview")

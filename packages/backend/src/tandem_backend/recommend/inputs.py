@@ -2,7 +2,9 @@
 
 Mirrors ``routes_analytics.serve``: exact snapshot → fresh; otherwise submit an interactive
 job, optionally wait ``wait_ms``, then fall back to the newest older snapshot (stale) or
-report ``computing``. Never runs the analysis in the gateway process.
+report ``computing``. With no older snapshot, an open circuit or a failed wait raises the
+same retryable 503 as ``routes_analytics.serve`` instead of ``computing`` forever. Never runs
+the analysis in the gateway process.
 """
 
 from __future__ import annotations
@@ -23,8 +25,11 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     snapshot = gw.snapshots.get(key)
     if snapshot is not None:
         return _attach(snapshot, scope_dict, h), "fresh", None
-    task = gw.supervisor.analysis.submit(SECTION, scope_dict, {}, h, "interactive",
-                                         (rev["data_rev"], rev["inventory_rev"]), rules)
+    from ..services.routes_analytics import failure_error
+
+    analysis = gw.supervisor.analysis
+    revision = (rev["data_rev"], rev["inventory_rev"])
+    task = analysis.submit(SECTION, scope_dict, {}, h, "interactive", revision, rules)
     if task is not None and wait_ms:
         task.done.wait(wait_ms / 1000)
         if task.status == "completed":
@@ -35,6 +40,10 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     old = gw.snapshots.latest(SECTION, h, rules)
     if old is not None:
         return _attach(old, scope_dict, h), "stale", job_id
+    if task is None:  # Circuit open: nothing will ever compute until a manual recompute.
+        raise failure_error((analysis.failure(SECTION, h, revision) or {}).get("error"))
+    if task.status == "failed":
+        raise failure_error(task.error)
     return None, "computing", job_id
 
 
