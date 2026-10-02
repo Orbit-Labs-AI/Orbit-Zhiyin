@@ -42,7 +42,7 @@ added: 2026-10-02
 | --- | --- | --- |
 | `usage.token_buckets` | 模型请求 · Token 数 | 输入为未缓存输入；输出已含 reasoning，不能重复相加；必要分项未知时不声称完整总量。 |
 | `usage.token_buckets` | 模型请求 · Token 数 | 区分缓存读／写；includes_cache 明确声明后才从输入扣除，缺包含关系保持未知。 |
-| `durations.execution_durations` | 调用 · 毫秒 | 优先可靠端点，其次原生耗时报告；event_difference 单列估算，reported 耗时不推造 ended_at。 |
+| `durations.execution_durations` | 调用 · 毫秒 | 墙钟跨度与原生执行报告独立保留；event_difference 单列估算，reported 耗时不推造 ended_at。 |
 | `durations.session_spans` | 会话 · 毫秒 | 有效事件最大时间减最小时间；一个有效时间为 0，无有效时间为 null，不能等同人工工作时长。 |
 | `activity_rhythm.*.by_day` | 所选范围 · 计数分布 | 真人消息、主会话开始、工具调用和可靠模型请求分别统计；累计快照不能冒充模型请求。 |
 | `activity_rhythm.*.by_hour` | 所选范围 · 计数分布 | 使用 Scope.display_timezone；无时间不入桶，不推造会话开始时间。 |
@@ -121,3 +121,9 @@ uv run ruff check packages/backend/src packages/backend/tests packages/data/src 
 当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/ActionMesh-AI/Hackathon/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按用户约定仅 P0/P1 阻塞，低优先级问题可后续处理。
 
 补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。
+
+## 契约修复后的口径
+
+L3 model_call 本身保证 call/delta，消费者校验 request_identity_quality 与 boundary_quality。原生请求 ID 与累计变化观察分列，边界未知保留诊断原因；不以行哈希证明边界。
+
+wall_elapsed、native_execution、approval_wait 分别输出 P50/P90/P99、样本覆盖、前 16 项及超过一小时的贡献。model_latency 在 usage 单列；没有报告时保持未知。旧 execution_duration_sum_ms 现在只指原生执行报告之和，reliable_interval_union_ms 指墙钟区间并集；二者不能相互替代，也不描述人类工作时间。

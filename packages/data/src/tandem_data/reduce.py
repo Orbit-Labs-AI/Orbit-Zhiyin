@@ -151,6 +151,13 @@ def tool_metadata(name, attrs, *, cwd=None, project_id=None):
                 )
         except ValueError:
             pass
+    spec = (
+        command_spec(
+            command, cwd=(args or {}).get("workdir", attrs.get("cwd", cwd)), project_id=project_id
+        )
+        if kind == "shell" and isinstance(command, str)
+        else None
+    )
     return {
         "name_raw": name,
         "name": tool if kind == "mcp" else name.lower(),
@@ -159,15 +166,7 @@ def tool_metadata(name, attrs, *, cwd=None, project_id=None):
         "mcp_tool": tool,
         "skill": skill,
         "command_head": head,
-        "command_spec": canonical(
-            command_spec(
-                command,
-                cwd=(args or {}).get("workdir", attrs.get("cwd", cwd)),
-                project_id=project_id,
-            )
-        )
-        if kind == "shell" and isinstance(command, str)
-        else None,
+        "command_spec": canonical(spec) if spec is not None else None,
         "files": canonical(files),
     }
 
@@ -421,6 +420,23 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 values.update(
                     duration_ms=duration, duration_source=source, duration_quality=quality
                 )
+                native_execution = attrs.get("native_execution_ms")
+                if (
+                    isinstance(native_execution, int)
+                    and not isinstance(native_execution, bool)
+                    and native_execution >= 0
+                ):
+                    values["native_execution_ms"] = native_execution
+                ctime, rtime = call["attrs"]["time"], attrs["time"]
+                if (
+                    ctime["semantics"] == "started"
+                    and rtime["semantics"] == "completed"
+                    and ctime["quality"] == rtime["quality"] == "reported"
+                    and call["ts"] is not None
+                    and event["ts"] is not None
+                    and event["ts"] >= call["ts"]
+                ):
+                    values["wall_elapsed_ms"] = event["ts"] - call["ts"]
             else:
                 call_uid = uid("tool_call", event["event_uid"])
                 tools[call_uid] = (

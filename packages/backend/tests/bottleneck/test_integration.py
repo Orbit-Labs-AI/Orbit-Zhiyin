@@ -31,7 +31,8 @@ def test_four_families_have_consistent_scope_in_overall_session_and_project():
         assert f["interaction"]["confirmed_correction_rate"] == .5
         assert f["respond"]["tools"]["totals"]["call_count"] == 2
         assert f["cost_time"]["usage"]["total_tokens"] == 350
-        assert f["cost_time"]["durations"]["execution_duration_sum_ms"] == 20000
+        assert f["cost_time"]["durations"]["execution_duration_sum_ms"] == 16000
+        assert f["cost_time"]["durations"]["wall_elapsed_sum_ms"] == 20000
         assert f["cost_time"]["durations"]["reliable_interval_union_ms"] == 15000
         assert f["outcome"]["task_success"] is True
     assert data == before

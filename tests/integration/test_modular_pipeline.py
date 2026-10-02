@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from tandem_data import SCHEMA_VERSION
 from tandem_data.analysis_input import AnalysisScope, read_analysis
 from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store
@@ -342,6 +343,12 @@ def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
 def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_version):
     home, _ = data
     with Store(home) as store:
+        # A historical fixture must have its historical columns, not just an old
+        # version number attached to the current DDL.
+        for table, columns in (("model_call", ("request_identity_quality", "boundary_quality")),
+                               ("tool_call", ("command_spec", "wall_elapsed_ms", "native_execution_ms"))):
+            for column in columns:
+                store.db.execute(f'ALTER TABLE "{table}" DROP COLUMN "{column}"')
         if schema_version == 4:
             store.db.execute("DROP TABLE inventory_item")
             store.db.execute("DROP TABLE inventory_scan")
@@ -352,7 +359,7 @@ def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_ve
         for name in names:
             store.db.execute(f'DROP INDEX "{name}"')
     with Store(home) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert store.db.execute("SELECT count(*) FROM inventory_scan").fetchone()[0] == 0
         assert store.db.execute("SELECT count(*) FROM inventory_item").fetchone()[0] == 0
         store.db.execute("BEGIN")

@@ -4,7 +4,7 @@ import math
 from collections import Counter
 from statistics import median
 
-from ..common import nonnegative_number
+from ..common import nonnegative_number, quantile
 from .tokens import (
     TOKEN_BUCKETS,
     normalize_token_buckets,
@@ -81,6 +81,8 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
             "cost_sources": sorted({c["cost_source"] for c in valid if c.get("cost_source")}),
             "price_table_versions": sorted({c["price_table_version"] for c in valid if c.get("price_table_version")}),
             "median_latency_ms": median(latency) if latency else None, "latency_effective_n": len(latency),
+            "model_latency_sum_ms": sum(latency) if latency else None,
+            "p90_model_latency_ms": quantile(latency, .9), "p99_model_latency_ms": quantile(latency, .99),
             "median_ttft_ms": median(ttft) if ttft else None, "ttft_effective_n": len(ttft),
             "models": dict(Counter(c.get("model_id") or "unknown" for c in valid)) if model_calls is not None else None,
             "cumulative_snapshots": snapshot_totals or None, "legacy_latest_reports": list(legacy.values()) or None,

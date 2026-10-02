@@ -261,6 +261,8 @@ def read_analysis(
                     error_class=None,
                     ended_at=None,
                     duration_ms=None,
+                    wall_elapsed_ms=None,
+                    native_execution_ms=None,
                     duration_source="unknown",
                     duration_quality="missing",
                     approval=None,

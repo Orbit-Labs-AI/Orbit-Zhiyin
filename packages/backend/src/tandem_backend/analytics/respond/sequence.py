@@ -36,8 +36,13 @@ def workflow(events, calls, main_ids, supported_kinds=None):
     counts = {}
     for name, kind in (("error_count", "error"), ("branch_count", "branch"),
                        ("compaction_count", "context.compaction"), ("permission_request_count", "permission.request"),
-                       ("subagent_spawn_count", "subagent.spawn"), ("interruption_count", "turn.interrupted")):
+                       ("interruption_count", "turn.interrupted")):
         counts[name] = sum(e["kind"] == kind for e in events) if supported_kinds is None or kind in supported_kinds else None
+    children = {e.get("attrs", {}).get("child_session_uid") for e in events
+                if e["kind"] == "subagent.spawn" and e.get("attrs", {}).get("child_session_uid")}
+    counts["subagent_spawn_count"] = len(children) if supported_kinds is None or "subagent.spawn" in supported_kinds else None
+    counts["subagent_spawn_unknown_events"] = sum(e["kind"] == "subagent.spawn"
+        and not e.get("attrs", {}).get("child_session_uid") for e in events)
     counts["rollback_rewind_count"] = (sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind") for e in events)
                                        if supported_kinds is None or "branch" in supported_kinds else None)
     consecutive, same, max_failures, digest_eligible = 0, 0, 0, 0
@@ -68,6 +73,9 @@ def workflow(events, calls, main_ids, supported_kinds=None):
             previous = c
     return {**counts, "transition_count": count, "repeated_transition_count": repeated,
             "repeated_transition_rate": ratio(repeated, count), "max_repeated_transition_run": runs,
+            "transition_edge_reuse_count": repeated, "transition_edge_reuse_rate": ratio(repeated, count),
+            "transition_reuse_meaning": "workflow topology only; does not measure retry, waste or bottleneck",
+            "deprecated_metrics": ["repeated_transition_count", "repeated_transition_rate", "max_repeated_transition_run"],
             "transitions": [{"from": a, "to": b, "count": n, "probability": n / totals[a]}
                             for (a, b), n in sorted(transitions.items())],
             "consecutive_failed_calls": consecutive if calls is not None and not unknown_call_sessions else None,
