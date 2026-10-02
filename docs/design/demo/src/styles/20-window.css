@@ -53,10 +53,17 @@
 .nav .ag.dim .dot{opacity:.45}
 .nav .ag.off{color:var(--ink-3)}
 .nav .ag.off .ico{color:var(--ink-4)}
-.sb-foot{flex:none;display:flex;align-items:center;gap:2px;padding:6px 8px 8px;border-top:1px solid var(--hair)}
-.sb-foot .pv{flex:1;min-width:0;height:24px;display:flex;align-items:center;gap:6px;padding:0 6px;border:0;border-radius:6px;background:transparent;font-size:11px;color:var(--ink-3);text-align:left;white-space:nowrap;overflow:hidden}
-.sb-foot .pv span{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.sb-foot .pv:hover{background:var(--sel-off)}
+/* footer: the privacy card (surface card, as published) over the user row; both stay on the 10 / 11 / 12px type scale */
+.sb-foot{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px;border-top:1px solid var(--hair)}
+.sb-foot .pv{width:100%;display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--sh-card);font-size:11px;color:var(--ink-3);text-align:left}
+.sb-foot .pv:hover{border-color:var(--ink-4)}
+.sb-foot .pv b{font-size:12px;line-height:16px;font-weight:600;color:var(--ink-1)}
+.sb-foot .pv .cap{font-size:11px;line-height:14px}
+.sb-foot .pv span{min-width:0}
+.sb-foot .me{display:flex;align-items:center;gap:8px;padding:0 2px 0 4px}
+.sb-foot .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ink-1);color:var(--bg);font:600 11px/1 var(--mono)}
+.sb-foot .nm{font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-foot .pc{font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-foot .ib{width:24px;height:24px;color:var(--ink-3)}
 /* content column with the page's toolbar on the same 52px line as the lights (serif page title, mono meta — the demo's type voice) */
 .main{grid-column:2;grid-row:1/-1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg);container:main/inline-size}
