@@ -163,6 +163,8 @@ test('artifact: install once with undo, save to library once, history lists stud
   await page.locator('[data-act="studioInstall"]').click();
   await expect(page.locator('#modal')).toContainText('预览变更');
   await page.evaluate(() => { ACT.instNext(); ACT.instDo(); });
+  // The install flow (51-install.js) ends on a "written" sheet with an undo countdown; close it.
+  await page.evaluate(() => { if (!document.querySelector('#modal').hidden) closeModal(); });
   await expect(page.locator('#modal')).toBeHidden();
   await expect(page.locator('[data-act="studioInstall"]')).toHaveText('已安装');
   await expect(page.locator('[data-act="studioInstall"]')).toBeDisabled();
@@ -224,17 +226,18 @@ test('palette: blocked under the overlay, IME-safe Return, focus lands on the pa
   expect(errors).toEqual([]);
 });
 
-test('ask follows the figma state; the report persona uses the filtered set', async ({ page }) => {
+test('ask follows the figma state; the report persona uses the shared persona scope', async ({ page }) => {
   only();
   const errors = await openDemo(page);
   // BUG-21
   const a = await page.evaluate(() => [askAnswer('tools', 2), (S.installed.set('remove-figma', { days: 1 }), askAnswer('tools', 2))]);
   expect(a[0]).toContain('可以先移除');
   expect(a[1]).toContain('已经移除');
-  // BUG-06: topic filter → report persona computed on the same sessions, filter named in the header.
-  const r = await page.evaluate(() => { S.topic = 'design'; const L = sel(); const p = persona(L); return [reportMD(), p.ok ? p.code : 'n/a', L.length]; });
+  // BUG-06: topic filter → report persona follows personaNow() (session-level filters don't change it, the note says so);
+  // the filter is named in the header and the session count follows the filtered set.
+  const r = await page.evaluate(() => { S.topic = 'design'; const L = sel(); const p = personaNow(); return [reportMD(), p.ok ? p.code : 'n/a', L.length]; });
   expect(r[0]).toContain('> 筛选：主题 · ');
-  if (r[1] !== 'n/a') expect(r[0]).toContain('**' + r[1]); else expect(r[0]).toContain('样本不足');
+  if (r[1] !== 'n/a') { expect(r[0]).toContain('**' + r[1]); expect(r[0]).toContain('不计入人格'); } else expect(r[0]).toContain('样本不足');
   expect(r[0]).toContain('| 会话 | ' + r[2] + ' |');
   expect(errors).toEqual([]);
 });

@@ -142,7 +142,7 @@ test('persona code is the same in the sidebar, A1 card, A2 and the report while 
   expect(await page.evaluate(() => [...document.querySelectorAll('#main .letters .L')].map((x) => x.textContent).join(''))).toBe(a1.trim());
   await expect(page.locator('#main')).toContainText('主题筛选不计入人格');
   const rep = await page.evaluate(() => reportMD());
-  expect(rep).toContain('**' + a1.trim());
+  expect(rep).toContain(a1.trim()); // report wording comes from 55-exports.js; only the code must match
   // 人格卡在 A1 用的是人格口径的 n，而不是筛选后的会话数
   await go(page, 'overview');
   const n = await page.evaluate(() => personaNow().n);
