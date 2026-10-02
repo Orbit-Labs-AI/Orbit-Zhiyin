@@ -3,6 +3,7 @@
 from collections import Counter, defaultdict
 from typing import Any
 
+from ..common import covered_ratio
 from ..respond.order import ordered_calls as ordered_calls
 from ..respond.rules import result_status
 from .contracts import metric
@@ -73,7 +74,7 @@ def tool_shares(calls: list[Record], field: str, status: str) -> list[Record]:
                 "share": metric(len(rows) / len(calls), "ratio", len(calls), status=status),
                 "states": dict(states),
                 "success_rate": metric(
-                    states["success"] / known if known else None,
+                    covered_ratio(states["success"], known, states["unknown"]),
                     "ratio",
                     known,
                     len(rows) - known,

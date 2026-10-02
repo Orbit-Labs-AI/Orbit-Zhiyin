@@ -139,3 +139,24 @@ def test_declined_and_denied_count_as_rejected_not_unknown():
     totals = tool_summary(calls)["totals"]
     assert totals["rejected_count"] == 2 and totals["unknown_status_count"] == 0
     assert totals["failure_rate"] == 0.5
+
+
+def test_status_biased_subset_withholds_rates():
+    """a1a3-B8: only errors carry a status -> no 100% failure rate."""
+    from tandem_backend.analytics.products.tools import tool_shares
+    from tandem_backend.analytics.respond.features import tool_summary
+
+    calls = [{"name_raw": "Edit", "kind": "edit", "status": "unknown", "result_event_uid": f"r{i}",
+              "call_uid": f"c{i}", "session_uid": "s1"} for i in range(300)]
+    calls += [{"name_raw": "Edit", "kind": "edit", "status": "failed", "result_event_uid": f"f{i}",
+               "call_uid": f"f{i}", "session_uid": "s1"} for i in range(5)]
+    totals = tool_summary(calls)["totals"]
+    assert totals["known_failure_count"] == 5 and totals["eligible_status_count"] == 5
+    assert totals["failure_rate"] is None and totals["success_rate"] is None
+    assert totals["rate_reason"] == "status_coverage_below_min"
+    assert round(totals["status_coverage"], 3) == round(5 / 305, 3)
+    share = tool_shares(calls, "name_raw", "available")[0]
+    assert share["success_rate"]["value"] is None
+    covered = calls[:100] + [dict(c, status="completed") for c in calls[100:300]] + calls[300:]
+    totals = tool_summary(covered)["totals"]
+    assert totals["rate_reason"] is None and totals["failure_rate"] == 5 / 205
