@@ -147,6 +147,7 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
         "gates_hint": rule.gates.model_dump(), "unit_minutes": rule.benefit.unit_minutes, "tags": list(rule.tags),
         "file": file or None,
         "explain_hints": {**rule.explain.model_dump(), "vars": values},
+        "unfilled_slots": [name for name in rule.remedy.slots if name not in values],
     }
 
 

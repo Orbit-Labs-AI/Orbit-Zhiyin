@@ -6,11 +6,9 @@ are pure functions of their own session tree, so they can be reused from ``sessi
 text coordinates) and global metadata are attached when rows are assembled.
 """
 
-import importlib
 import json
 import os
 import pickle
-import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ProcessPoolExecutor
@@ -115,6 +113,8 @@ BOTTLENECK_COVERAGE = ("events", "tool_calls", "model_calls", "turns", "lineage"
 # Parallel cold computation: only worth the process start-up for many misses.
 PARALLEL_MIN_MISSES = 300
 PARALLEL_CHUNK = 200
+# Fewer idle cores than this and spawn/pickle overhead outweighs the parallel gain.
+PARALLEL_MIN_WORKERS = 3
 # Sections the parent computes while workers run the whole-selection jobs.
 PARENT_FIRST = ("tools", "workflow", "overview", "instruction", "text", "projects")
 # Observable counters (tests and the status endpoint): rows computed vs reused.
@@ -142,7 +142,7 @@ def session_row_core(context: AnalysisContext, s: Record) -> Record:
     bundle, scope = context.bundle, context.scope
     sid = s["session_uid"]
     calls, model_calls = context.calls, context.model_calls
-    main_ids, diagnostics = context.main_ids, context.diagnostics
+    main_ids = context.main_ids
     supported, event_status = context.supported_kinds, context.event_status
     complete_models = bundle.coverage.get("model_calls", {}).get("status") == "available"
     groups, call_groups, children = context.event_groups, context.call_groups, context.children
@@ -150,7 +150,7 @@ def session_row_core(context: AnalysisContext, s: Record) -> Record:
     included = {sid} | (children[sid] if scope.include_children else set())
     own = groups[sid]
     root_events = [e for member in sorted(included) for e in groups[member]]
-    context_events = [e for e in diagnostics["context_events"] if e["session_uid"] in included]
+    context_events = context.tree_context_events(included)
     root_calls = (
         None if calls is None else [c for member in sorted(included) for c in call_groups[member]]
     )
@@ -168,7 +168,7 @@ def session_row_core(context: AnalysisContext, s: Record) -> Record:
     data["usage"] = usage(
         None if model_calls is None else context.members(included, "models"),
         root_events,
-        [p for p in context.sessions if p["session_uid"] in included],
+        context.tree_sessions(included),
         scope,
         complete_models,
     )
@@ -239,11 +239,25 @@ def _compute_chunk(payload: tuple) -> dict[str, Record]:
 DEFAULT_MAX_WORKERS = 4
 
 
+def _idle_cores() -> int:
+    """Cores not already claimed by runnable work: ``cpu_count - 1-minute load``.
+
+    On a busy machine spawned workers only time-slice with the existing load while
+    paying start-up and pickling, so the serial path is faster there.
+    """
+    cpus = os.cpu_count() or 1
+    try:
+        load = os.getloadavg()[0]
+    except (AttributeError, OSError):  # platforms without a load average
+        return cpus
+    return max(1, min(cpus, int(cpus - load)))
+
+
 def _max_workers() -> int:
     limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")  # "0"/"1" disables process workers
     if limit and limit.isdigit():
         return int(limit)
-    return max(1, min(os.cpu_count() or 1, DEFAULT_MAX_WORKERS))
+    return max(1, min(_idle_cores(), DEFAULT_MAX_WORKERS))
 
 
 # Above this many selected events the pool is skipped: every worker unpickles its chunk's
@@ -259,11 +273,11 @@ def _parallel_max_events() -> int:
 
 def _wants_parallel(misses: int, parallel: bool | None, events: int = 0) -> bool:
     if parallel is None:
-        return (
-            misses >= PARALLEL_MIN_MISSES
-            and _max_workers() > 1
-            and events <= _parallel_max_events()
-        )
+        if misses < PARALLEL_MIN_MISSES or events > _parallel_max_events():
+            return False
+        limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")
+        floor = 2 if limit and limit.isdigit() else PARALLEL_MIN_WORKERS
+        return _max_workers() >= floor
     return parallel
 
 
@@ -301,21 +315,6 @@ def _whole_selection_job(blob: bytes, job: str, scopes: list[tuple[str, ...]] | 
 
         return lexical_analysis(context)
     raise ValueError(f"Unknown analysis job: {job}")
-
-
-def _warm_import(module: str) -> None:
-    """Import a heavy module in a daemon thread while the parent waits on workers.
-
-    Purely a latency overlap: a later ``import`` of the same module waits for this one.
-    """
-
-    def load():
-        try:
-            importlib.import_module(module)
-        except Exception:  # the real import site reports any error
-            pass
-
-    threading.Thread(target=load, name=f"warm-import-{module}", daemon=True).start()
 
 
 def _spawn_pool(workers: int) -> ProcessPoolExecutor:
@@ -570,8 +569,6 @@ class AnalysisSections:
                     self._jobs[name] = self._executor.submit(
                         _whole_selection_job, blob, job, scopes
                     )
-            if "statistics" in names:
-                _warm_import("scipy.stats")  # rank association; overlaps the parent's waits
             self._row_futures = [
                 self._executor.submit(_compute_chunk, _chunk_bundle(self.context, chunk))
                 for chunk in chunks

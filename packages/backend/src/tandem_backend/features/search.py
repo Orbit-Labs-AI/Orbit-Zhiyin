@@ -4,8 +4,10 @@ Sources run on a shared pool. Each source gets its own deadline that starts when
 running (time spent queued behind other clients does not count against it), and every request
 has a hard wall-clock cap. The pool queue is bounded; work that would overflow it is not queued.
 A slow, failing or shed source is listed in ``partial`` with a reason in ``partial_reasons``
-instead of failing the request, so an empty result list is never silent. All databases are opened read-only; the only write
-is the disposable trigram index (``search_index``). Text comes from redacted L2 rows as-is.
+instead of failing the request, so an empty result list is never silent. A source that could only
+search part of its data (a short query over events) is listed there too, next to the hits it
+found. All databases are opened read-only; the only write is the disposable trigram index
+(``search_index``). Text comes from redacted L2 rows as-is.
 """
 
 from __future__ import annotations
@@ -43,6 +45,10 @@ FUSE_TOP = 50
 MAX_MESSAGES_PER_SESSION = 2
 SYNC_INLINE_SESSIONS = 20_000
 DAY_MS = 86_400_000
+# Storage v8 ``event_search`` (contentless trigram) indexes these kinds only.
+EVENT_KINDS = ("message.user", "message.assistant", "session.title")
+EVENT_LIKE_ROWS = 50_000  # newest event rows a query with no indexable term scans with LIKE
+PARTIAL = "_partial"  # optional key of a source result: {kind: reason} for incomplete kinds
 
 _executor = ThreadPoolExecutor(POOL_SIZE, thread_name_prefix="tandem-search")
 _local = threading.local()
@@ -65,8 +71,8 @@ class _Task:
         global _inflight
         self.started = time.perf_counter()
         try:
-            return self.fn(*self.args, deadline=self.deadline) if self.fn is _index_source \
-                else self.fn(*self.args)
+            return self.fn(*self.args, deadline=self.deadline) \
+                if self.fn in (_index_source, _event_source) else self.fn(*self.args)
         finally:
             with _inflight_lock:
                 _inflight -= 1
@@ -364,25 +370,75 @@ def _recommendation_source(app_db, parsed) -> dict[str, list[dict]]:
     return {"recommendation": hits}
 
 
-def _event_source(tandem_db, parsed, scope) -> dict[str, list[dict]]:
+def _event_source(tandem_db, parsed, scope, deadline=None) -> dict[str, list[dict]]:
+    """Events from tandem.db's own text index (messages and titles on v8+ stores).
+
+    Storage v8+ has ``event_search``: contentless trigram, so terms of 3+ characters (CJK
+    included) match as substrings, shorter terms filter the matched rows with LIKE, and
+    ``snippet()`` is unavailable. Older stores have unicode61 ``event_fts``, which matches
+    latin words by prefix. A query with no term the index can match scans the newest
+    ``EVENT_LIKE_ROWS`` events with LIKE; when that leaves older events unsearched the kind
+    is reported partial (``short_query_window``). Snippets are cut in Python for both.
+    """
     conn = _ro(tandem_db)
-    latin = [t for t in parsed["terms"] if re.fullmatch(r"[A-Za-z0-9_]+", t)]
-    if conn is None or not latin or not _has_table(conn, "event_fts"):
+    if conn is None:
         return {"event": []}
-    expr = " AND ".join(f'"{t}"*' for t in latin)
-    scope_sql, scope_args = _scope_sql({k: v for k, v in scope.items() if k != "agent_ids"},
-                                       "x.")
-    sql = ("SELECT * FROM (SELECT e.event_uid, e.session_uid, e.ts, s.project_id, s.title, "
-           "snippet(event_fts,0,'\x01','\x02','…',12) AS sn, bm25(event_fts) AS b "
-           "FROM event_fts JOIN event e ON e.rowid=event_fts.rowid "
-           "LEFT JOIN session s ON s.session_uid=e.session_uid WHERE event_fts MATCH ?) x "
-           f"WHERE 1{scope_sql} ORDER BY b LIMIT 50")
+    if deadline is not None:  # a LIKE scan must not outlive its budget
+        conn.set_progress_handler(lambda: time.perf_counter() > deadline + 0.05, 2000)
+    try:
+        return _event_query(conn, parsed, scope)
+    finally:
+        if deadline is not None:
+            conn.set_progress_handler(None, 0)
+
+
+def _event_query(conn, parsed, scope) -> dict:
+    terms = parsed["terms"]
+    if _has_table(conn, "event_search"):
+        table, match, rest = "event_search", parsed["match"], parsed["like"]
+    elif _has_table(conn, "event_fts"):
+        latin = [t for t in terms if re.fullmatch(r"[A-Za-z0-9_]+", t)]
+        table, match = "event_fts", " AND ".join(f'"{t}"*' for t in latin) or None
+        rest = [t for t in terms if t not in latin]
+    else:
+        table, match, rest = None, None, terms
+    if match is None:
+        rest = terms
+    like_sql, like_args = _like_all("e.text", rest) if rest else ("", [])
+    scope_sql, scope_args = _scope_sql(scope, "x.")
+    cols = "e.event_uid, e.session_uid, e.ts, e.text, s.project_id, s.title, src.agent"
+    joins = ("LEFT JOIN session s ON s.session_uid=e.session_uid "
+             "LEFT JOIN source src ON src.source_id=s.source_id")
+    out: dict = {}
+    if match:
+        # Same trade-off as the index source: past BM25_CAP matches, newest first.
+        common = conn.execute(f"SELECT COUNT(*) FROM (SELECT 1 FROM {table} WHERE {table} "
+                              f"MATCH ? LIMIT {BM25_CAP})", (match,)).fetchone()[0]
+        order = "x.rid DESC" if common >= BM25_CAP else "x.b"
+        sql = (f"SELECT * FROM (SELECT {cols}, f.rowid AS rid, bm25({table}) AS b "
+               f"FROM {table} f JOIN event e ON e.rowid=f.rowid {joins} "
+               f"WHERE {table} MATCH ?{' AND ' + like_sql if like_sql else ''}) x "
+               f"WHERE 1{scope_sql} ORDER BY {order} LIMIT {PER_SOURCE}")
+        args = [match, *like_args, *scope_args]
+    else:
+        low, high = conn.execute("SELECT (SELECT MIN(rowid) FROM event), "
+                                 "(SELECT MAX(rowid) FROM event)").fetchone()
+        floor = (high or 0) - EVENT_LIKE_ROWS
+        sql = (f"SELECT * FROM (SELECT {cols}, e.rowid AS rid FROM event e {joins} "
+               f"WHERE e.rowid > ? AND +e.kind IN ({','.join('?' * len(EVENT_KINDS))}) "
+               f"AND {like_sql}) x WHERE 1{scope_sql} ORDER BY x.rid DESC LIMIT {PER_SOURCE}")
+        args = [floor, *EVENT_KINDS, *like_args, *scope_args]
     hits = []
-    for r in conn.execute(sql, [expr, *scope_args]):
-        text, marks = strip_marks(r["sn"])
+    for r in conn.execute(sql, args):
+        text, marks = snippet(r["text"], terms)
         hits.append(_hit("event", r["event_uid"], r["title"] or text[:60], text, marks, r,
                          {"id": r["session_uid"], "event_uid": r["event_uid"]}))
-    return {"event": hits}
+    out["event"] = hits
+    # A full page is the exact newest-first top; a short page from a window that did not
+    # reach the oldest event may be missing older matches.
+    if not match and low is not None and low <= floor and len(hits) < PER_SOURCE:
+        out[PARTIAL] = {"event": "short_query_window"}
+    return out
 
 
 # -- index lifecycle -----------------------------------------------------------------------
@@ -480,10 +536,11 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
 
 
 def _run_sources(tasks: dict, pool, budget_s: float, hard_deadline: float):
-    """Run source tasks; returns (hits by kind, {kind: reason} for missing kinds).
+    """Run source tasks; returns (hits by kind, {kind: reason} for missing or partial kinds).
 
     A task's deadline starts when it starts running. A task still queued at the request's
     hard deadline is cancelled. When the bounded queue is full, sources are shed up front.
+    A source may add ``{PARTIAL: {kind: reason}}`` to its result for hits it knows are incomplete.
     """
     lists: dict[str, list[dict]] = {}
     reasons: dict[str, str] = {}
@@ -526,7 +583,9 @@ def _run_sources(tasks: dict, pool, budget_s: float, hard_deadline: float):
         if future.exception() is not None:
             reasons.update({k: "error" for k in task.group})
             continue
-        lists.update(future.result())
+        result = dict(future.result())
+        reasons.update(result.pop(PARTIAL, {}))
+        lists.update(result)
     return lists, reasons
 
 

@@ -98,8 +98,11 @@ def prepare_sources(work: Path, preset: str, seed: int) -> tuple[Path, dict, flo
     return out, manifest, round(time.perf_counter() - started, 3)
 
 
-def import_all(store: Store, out: Path, manifest: dict, progress=None) -> dict:
-    service = ImportService(store, progress)
+def import_all(
+    store: Store, out: Path, manifest: dict, progress=None, maintenance: str = "off"
+) -> dict:
+    """First import of every source; post-publish maintenance is timed separately."""
+    service = ImportService(store, progress, maintenance=maintenance)
     results = {}
     for agent, relative in sorted(manifest["sources"].items()):
         started = time.perf_counter()
@@ -258,6 +261,9 @@ def run(args) -> dict:
             if first
             else None,
         }
+        if getattr(args, "maintenance", "wait") == "wait":
+            # Post-publish maintenance (compaction), outside the first-import timing.
+            report["maintenance"] = ImportService(store, maintenance="off").maintain()
         started = time.perf_counter()
         inventory = manifest["inventory"]
         scanned = scan_inventory(
@@ -334,6 +340,12 @@ def main(argv=None) -> None:
     parser.add_argument("--check", action="store_true", help="also run logical_digest/invariants")
     parser.add_argument("--skip-verify", action="store_true", help="with --check: skip verify()")
     parser.add_argument("--no-append", action="store_true", help="skip the append rescan")
+    parser.add_argument(
+        "--maintenance",
+        choices=("wait", "off"),
+        default="wait",
+        help="run post-import maintenance synchronously (timed apart) before measuring size",
+    )
     parser.add_argument("--keep", action="store_true", help="keep the benchmark data home")
     args = parser.parse_args(argv)
     if args.repeats < 1:

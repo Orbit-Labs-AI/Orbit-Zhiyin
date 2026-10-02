@@ -54,6 +54,7 @@ uv run pytest -q packages/data/tests/test_import_integrity.py
 | `preset / parameters / seed / repeats` | 规模与 UI 查询重复次数 |
 | `dataset` | 生成耗时（复用缓存时为 null）、源大小 MB、manifest 计数 |
 | `first_import` | 总秒数、按进度阶段（capture / map / derive_sessions / validate_projection 等）分秒数、各 Agent 秒数、事件/秒、MB/秒 |
+| `maintenance` | 默认 `--maintenance wait`：首导计时结束后同步执行导入后维护（`Store.maintain`），记录动作、前后字节、页大小、slack 与秒数；`size` 因此是维护后的体积。`--maintenance off` 跳过 |
 | `inventory_scan` | 秒数与条目数 |
 | `size` | checkpoint 后库体积 MB、`dbstat` 分表与索引 MB、`event.text/attrs/ext` 字节 |
 | `ui_queries_ms` | 12 条 UI 关键查询，取 `repeats` 次最好成绩（与审计 §3.6 相同） |
