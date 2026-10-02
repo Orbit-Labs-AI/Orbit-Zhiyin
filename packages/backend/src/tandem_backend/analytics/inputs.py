@@ -429,8 +429,9 @@ def select_canonical(bundle, scope):
     models = None if bundle.model_calls is None else [c for c in bundle.model_calls if c["usage_event_uid"] in ids]
     visible = {e["session_uid"] for e in members}
     roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}
-    sessions = [s for s in bundle.sessions
-                if s["session_uid"] in (visible | roots) & allowed_sessions]
+    # Build the member set once; the inline expression rebuilt it for every session.
+    selected_sessions = (visible | roots) & allowed_sessions
+    sessions = [s for s in bundle.sessions if s["session_uid"] in selected_sessions]
     linked_results = {c.get("result_event_uid") for c in calls or []}
     diagnostics = {"excluded_sessions": {}, "replayed_events_excluded": 0,
                    "model_ambiguous_turns_excluded": 0,
