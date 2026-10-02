@@ -212,10 +212,13 @@ def language_constraints(text: str) -> tuple[str | None, set[str]]:
     """The language of a user's message can differ from the requested deliverable."""
     text = _clean(text)
     explicit = list(re.finditer(LANGUAGE_VERBS + LANGUAGE_QUANTITY + LANGUAGE + "|" + LANGUAGE + r"(?:版本|版|的?(?:回答|报告|解释|文档))", text, re.I))
+    alternatives = list(re.finditer(r'(?:中文|汉语)\s*(?:或|或者)\s*(?:英文|英语|English)|(?:英文|英语|English)\s*(?:或|或者)\s*(?:中文|汉语)|中英文(?:版本|版)?(?:都可以|均可)', text, re.I))
+    explicit = [m for m in explicit if not any(m.start() < a.end() and m.end() > a.start() for a in alternatives)]
+    explicit = sorted(explicit + alternatives, key=lambda m: m.start())
     explicit = [m for m in explicit if not re.match(r"\s*(?:API|SDK|字段|单词|术语|字样)", text[m.end():], re.I)]
     requested, forbidden = None, set()
     for match in explicit:
-        language = "zh" if re.search(r"中文|汉语", match[0]) else "en"
+        language = 'zh_or_en' if match in alternatives else "zh" if re.search(r"中文|汉语", match[0]) else "en"
         left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
         prefix = text[max(left, match.start() - 24):match.start()]
         after = text[match.end():match.end() + 24]
@@ -231,12 +234,12 @@ def language_constraints(text: str) -> tuple[str | None, set[str]]:
         if connectors:
             prefix = prefix[connectors[-1].end():]
         if re.search(NEGATION + r"[^，。；;\n]{0,8}$", prefix):
-            forbidden.add(language)
+            forbidden.update(language.split('_or_'))
             if requested == language:
                 requested = None
         else:
             requested = language
-            forbidden.discard(language)
+            forbidden.difference_update(language.split('_or_'))
     return requested, forbidden
 
 
@@ -269,6 +272,8 @@ def _requirement_target(text: str, match: re.Match, dimension: str) -> bool:
     cues = list(re.finditer(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何|确认|是否|能否|阅读|查看|看看|描述|讨论|了解|请|先|再|然后|接着|并|直接|帮我|需要|要|务必|记得|完成后|最后|做|进行|执行|运行|跑|补充|添加|增加|编写|写|加入", prefix))
     topic = bool(cues and re.fullmatch(r"解释|介绍|科普|概念|定义|是什么|分析|怎么|如何|确认|是否|能否|阅读|查看|看看|描述|讨论|了解", cues[-1][0]))
     execution = bool(cues and not topic and len(prefix[cues[-1].end():]) <= 8)
+    if dimension == 'grounding' and (topic or re.search(r'什么是|何谓|如何理解', prefix) or re.match(r'的?(?:定义|概念|含义|意思)|是什么|是什么意思', after)):
+        return False
     if not execution and dimension in ("actionability", "verification") and re.match(
         r"(?:已经|已|正在|完成|结束|了|过|通过|成功|失败|是|可以|需要|耗时)", after):
         return False
@@ -363,10 +368,11 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
                 scene = previous["scene"] if scene == "conversation" or (supplement and previous["scene"] != "conversation") else scene
                 task_id = previous["task_id"]
                 readers = readers or [r for r in previous["readers"] if r["id"] not in excluded_readers]
-                if not requested_language and previous["language"] not in forbidden:
-                    language = previous["language"]
-                    language_evidence_id = previous["language_evidence_id"]
-                    language_basis = previous["language_basis"]
+                inherited = set(previous['language'].split('_or_')) - forbidden
+                if not requested_language and inherited:
+                    language = '_or_'.join(sorted(inherited, reverse=True))
+                    language_evidence_id = event.id if forbidden else previous["language_evidence_id"]
+                    language_basis = 'explicit_constraint' if forbidden else previous["language_basis"]
         context = {"scene": scene, "readers": readers, "language": language,
                    "language_evidence_id": language_evidence_id, "language_basis": language_basis, "task_id": task_id,
                    "turn_id": event.turn_id, "request_ordinal": event.ordinal}

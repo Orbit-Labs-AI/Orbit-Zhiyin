@@ -6,7 +6,7 @@ correctness, emotional tone, or whether the reader actually understands a passag
 
 import re
 
-UPPER_BOUND_PATTERN = r"(\d+)\s*(?:字|字符)\s*(?:以内|内|以下)|(?:不超过|不要超过|不得超过|最多|控制在|限于|限制为)\s*(\d+)\s*(?:字|字符)"
+UPPER_BOUND_PATTERN = r"(\d+)\s*(?:字|字符)\s*(?:以内|内|以下)|(?:不超过|不要超过|不得超过|最多|控制在|限于|限制为|改为|改成|调整为|改到)\s*(\d+)\s*(?:字|字符)"
 
 
 def length_contract(text: str, start: int, end: int) -> dict:

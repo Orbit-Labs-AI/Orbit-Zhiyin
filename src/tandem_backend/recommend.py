@@ -45,9 +45,10 @@ def recommend(analysis: dict, scene: str = "auto", language: str = "auto", catal
             if actual_scene not in resource["scenes"]:
                 continue
             actual_language = bottleneck.get("language", "zh")
-            if language != "auto" and language != actual_language:
+            allowed_languages = actual_language.split('_or_')
+            if language != "auto" and language not in allowed_languages:
                 continue  # A filter cannot change the requested deliverable's language.
-            if resource["language"] not in (actual_language, "any"):
+            if resource["language"] not in (*allowed_languages, "any"):
                 continue
             if not resource["verified_sha"] or resource["verification"] != "repository_and_skill_read":
                 continue
