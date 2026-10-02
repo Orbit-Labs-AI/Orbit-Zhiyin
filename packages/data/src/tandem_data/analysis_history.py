@@ -48,6 +48,31 @@ def _observe(run_id: str, active: bool) -> None:
             pass
 
 
+CHUNK_DEPTH = 2  # container levels split into separate json.dumps calls by _encode
+
+
+def _json_pieces(value: Any, depth: int):
+    """Yield strings whose concatenation equals ``_json(value, sort_keys=False)``.
+
+    Only dicts with string keys and lists are split (their compact JSON is the members'
+    JSON joined by ``,`` / ``:``); everything else is one ``json.dumps``."""
+    if depth > 0 and isinstance(value, list) and value:
+        yield "["
+        for index, item in enumerate(value):
+            if index:
+                yield ","
+            yield from _json_pieces(item, depth - 1)
+        yield "]"
+    elif depth > 0 and isinstance(value, dict) and value and all(isinstance(k, str) for k in value):
+        yield "{"
+        for index, (key, item) in enumerate(value.items()):
+            yield ("," if index else "") + _json(key) + ":"
+            yield from _json_pieces(item, depth - 1)
+        yield "}"
+    else:
+        yield _json(value, sort_keys=False)
+
+
 class AnalysisIntegrityError(ValueError):
     """A stored payload failed decompression or its checksum; never served silently."""
 
@@ -334,8 +359,22 @@ class AnalysisHistory:
 
     @staticmethod
     def _encode(value: Any) -> tuple[bytes, int, str]:
-        data = _json(value, sort_keys=False).encode("utf-8")
-        return zlib.compress(data, 1), len(data), hashlib.sha256(data).hexdigest()
+        """(zlib payload, JSON bytes, sha256) of ``_json(value, sort_keys=False)``.
+
+        Large dicts and lists are encoded piece by piece into one compressor, producing
+        the same bytes as a single ``json.dumps`` without ever holding the whole document
+        (a real home's bottleneck_features section is several hundred MB of JSON, held
+        once as str and once as bytes before)."""
+        compressor, sha = zlib.compressobj(1), hashlib.sha256()
+        parts: list[bytes] = []
+        size = 0
+        for piece in _json_pieces(value, CHUNK_DEPTH):
+            data = piece.encode("utf-8")
+            size += len(data)
+            sha.update(data)
+            parts.append(compressor.compress(data))
+        parts.append(compressor.flush())
+        return b"".join(parts), size, sha.hexdigest()
 
     @staticmethod
     def _decode(payload: bytes, json_bytes: int, sha256: str, what: str) -> Any:

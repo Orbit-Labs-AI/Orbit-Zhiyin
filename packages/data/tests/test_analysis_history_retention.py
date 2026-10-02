@@ -71,3 +71,32 @@ def test_size_eviction_spares_the_protected_result(tmp_path):
     with history.connect() as db:
         left = {r[0] for r in db.execute("SELECT request_key FROM analysis_section")}
     assert left == {"rk2"} and stats["evicted"] == 2
+
+
+def test_piecewise_encoding_matches_one_json_dump():
+    import hashlib
+    import random
+    import zlib
+
+    from tandem_data.analysis_history import _json, _json_pieces
+
+    rng = random.Random(7)
+
+    def value(depth=0):
+        roll = rng.random()
+        if depth > 3 or roll < 0.3:
+            return rng.choice([1, 2.5, '中文"x', None, True, 10**20, "a b", 1e-7])
+        if roll < 0.6:
+            return [value(depth + 1) for _ in range(rng.randint(0, 4))]
+        return {rng.choice(["k", "中", '"q"', "1"]) + str(i): value(depth + 1)
+                for i in range(rng.randint(0, 4))}
+
+    for _ in range(500):
+        item = value()
+        expected = _json(item, sort_keys=False).encode()
+        assert "".join(_json_pieces(item, 3)).encode() == expected
+        payload, size, sha = AnalysisHistory._encode(item)
+        assert zlib.decompress(payload) == expected and size == len(expected)
+        assert sha == hashlib.sha256(expected).hexdigest()
+    mixed = {1: "int key", "a": [1, {"b": 2}]}  # non-string keys are dumped whole
+    assert "".join(_json_pieces(mixed, 3)) == _json(mixed, sort_keys=False)
