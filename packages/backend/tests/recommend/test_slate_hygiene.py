@@ -74,3 +74,14 @@ def test_no_placeholders_in_card_text():
         text = json.dumps({k: card.get(k) for k in ("title", "summary", "explain", "ui", "trial", "track")},
                           ensure_ascii=False)
         assert not slot.search(text), slot.findall(text)
+
+
+def test_removals_sharing_a_rule_are_not_duplicates():
+    from tandem_backend.recommend.ranking.hygiene import dedupe
+
+    def removal(key, title):
+        return {"rec_key": key, "title": title, "basis": "problem", "links": {"kb_id": "disable-unused"},
+                "source": {"origin": "inventory"}}
+
+    kept, dropped = dedupe([removal("removal:a", "停用 MCP browser"), removal("removal:b", "停用 MCP figma")])
+    assert len(kept) == 2 and not dropped

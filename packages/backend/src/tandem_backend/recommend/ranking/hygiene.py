@@ -37,6 +37,9 @@ def profile_overlap(raw: dict) -> bool:
 
 
 def remedy_id(cand: dict) -> str | None:
+    """The KB rule a card instantiates; per-item cards (removals) are their own remedy."""
+    if (cand.get("source") or {}).get("origin") == "inventory":
+        return None
     kb_id = (cand.get("links") or {}).get("kb_id")
     if kb_id:
         return kb_id
