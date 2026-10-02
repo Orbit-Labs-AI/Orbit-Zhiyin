@@ -261,7 +261,10 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         # digest equals the one the next call computes from ``previous``.
         if slate.get("kb_version") is not None:
             kb_version = slate["kb_version"]
-        if slate.get("catalog_generation") is not None:
+        # The catalog generation the lookup read from catalog_meta is authoritative: the
+        # slate's comes from whichever catalog.match answered (absent when none ran, or a
+        # lagging index snapshot), and storing that made every GET rebuild the run.
+        if generation is None and slate.get("catalog_generation") is not None:
             generation = slate["catalog_generation"]
         # Digest with the versions the slate actually used, so the next call reuses it.
         digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev)

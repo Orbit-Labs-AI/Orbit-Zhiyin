@@ -179,3 +179,22 @@ def test_fp16_scores_preserve_fp32_top10():
         approx = set(np.argsort(-blocked_scores(matrix.astype("<f2"), query))[:10])
         overlaps.append(len(exact & approx) / 10)
     assert np.mean(overlaps) >= 0.95
+
+
+@pytest.mark.parametrize("text", ["tool_env_failure", "node_repl", "exec_command shell", "a_b", "__init__", "ab_"])
+def test_snake_case_query_matches_fts_split_not_phrase(store, text):
+    rows = [record("envfix", summary="tool env failure triage for node repl and exec command shell, a b init ab")]
+    publish(store, rows)
+    result = search(store, MatchRequest(purpose="library", text=text))
+    assert "degraded" not in result
+    assert [i["item_id"] for i in result["items"]] == ["envfix"]
+
+
+def test_lexical_fts_error_degrades_only_that_route(store, monkeypatch):
+    import tandem_catalog.search as module
+    publish(store, [record("envfix", features=[Feature(feature="friction", value="tool_env", origin="curated")])])
+    monkeypatch.setattr(module, "match_expression", lambda text, prefix=False: '"a b"')  # phrase: unsupported here
+    result = search(store, MatchRequest(text="tool env", features=[Feature(feature="friction", value="tool_env")]))
+    assert result["degraded"] == ["lexical:OperationalError"]
+    assert result["routes"]["lexical"] == 0
+    assert [i["item_id"] for i in result["items"]] == ["envfix"]

@@ -23,6 +23,77 @@ from tandem_data.store import Store, readonly_connection
 from .ingest_plan import Batch, plan_batches
 from .worker_protocol import WorkerIO, debug_delay
 
+# User-level skill directories shared outside the agent root (Codex reads ~/.agents/skills).
+SHARED_SKILL_ROOTS = {"codex": (".agents/skills",)}
+
+
+def _link_targets(root: Path, user_home: Path, data_home: Path) -> tuple[Path, ...]:
+    """Targets of symlinks at most two levels below ``root`` that live elsewhere in the
+    user's home (dotfile repos, a second account sharing hooks/plugins/skills). The data
+    home, the home directory itself and anything containing them are never authorized."""
+    out: list[Path] = []
+    try:
+        level = [root]
+        for _depth in range(2):
+            nxt = []
+            for parent in level:
+                try:
+                    children = sorted(parent.iterdir())[:500]
+                except OSError:
+                    continue
+                for child in children:
+                    if child.is_symlink():
+                        try:
+                            target = child.resolve(strict=True)
+                        except (OSError, RuntimeError):
+                            continue
+                        if (target.is_relative_to(user_home) and target != user_home
+                                and not target.is_relative_to(root)
+                                and not data_home.is_relative_to(target)
+                                and target not in out):
+                            out.append(target)
+                    if child.is_dir():
+                        nxt.append(child)
+            level = nxt
+    except OSError:
+        pass
+    return tuple(out)
+
+
+def inventory_request(source: dict, data_home: Path, user_home: Path | None = None) -> dict:
+    """InventoryRequest kwargs for one enabled source: the agent root plus the symlink
+    targets it points at, the user-level Claude config (MCP only) and shared skill roots.
+    Explicit ``allowed_roots`` / ``claude_config`` / ``skill_roots`` on the source win."""
+    user_home = (user_home or Path.home()).resolve()
+    data_home = Path(data_home).resolve()
+    agent, root = source["agent"], Path(source["root"]).expanduser()
+    resolved = root.resolve()
+    kwargs: dict = {"agent": agent, "root": root}
+    if "allowed_roots" in source:
+        kwargs["allowed_roots"] = tuple(Path(p) for p in source["allowed_roots"] or ())
+    elif resolved.is_dir():
+        kwargs["allowed_roots"] = _link_targets(resolved, user_home, data_home)
+    if agent == "claude_code":
+        if "claude_config" in source:
+            config = source["claude_config"]
+            kwargs["claude_config"] = Path(config) if config else None
+        else:
+            # CLAUDE_CONFIG_DIR=<root> keeps .claude.json inside the root; the default
+            # ~/.claude account keeps it next to it as ~/.claude.json.
+            for candidate in (resolved / ".claude.json",
+                              *((user_home / ".claude.json",)
+                                if resolved == user_home / ".claude" else ())):
+                if candidate.is_file():
+                    kwargs["claude_config"] = candidate
+                    break
+    if "skill_roots" in source:
+        kwargs["skill_roots"] = tuple(Path(p) for p in source["skill_roots"] or ())
+    else:
+        kwargs["skill_roots"] = tuple(
+            path for rel in SHARED_SKILL_ROOTS.get(agent, ())
+            if (path := user_home / rel).is_dir() and not data_home.is_relative_to(path.resolve()))
+    return kwargs
+
 
 def revision(home: Path) -> dict:
     """Published revision read back after a batch: run id, inventory scan and counts."""
@@ -119,8 +190,8 @@ class IngestWorker:
                     from tandem_data.inventory import InventoryRequest, scan_inventory
 
                     for source in job["sources"]:
-                        result = scan_inventory(store, InventoryRequest(source["agent"],
-                                                                        Path(source["root"])))
+                        result = scan_inventory(
+                            store, InventoryRequest(**inventory_request(source, self.home)))
                         results.append({"source_id": source["id"], **result})
                     self._publish(job, "inventory")
                 else:
