@@ -17,32 +17,32 @@
 .g-fp{width:var(--gd)}
 .g-fp svg{display:block;width:100%;height:auto}
 .g-over{position:absolute;left:8px;top:8px;width:var(--gd);height:var(--gd);overflow:visible;pointer-events:none}
-.g-ring0{fill:none;stroke:var(--ink-3);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
+.g-ring0{fill:none;stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
 .g-ticks{stroke:var(--ink-3);stroke-width:1.2;opacity:0}
+/* 扫掠扇形：跟在指针（fp2SVG 的 .fp-needle，由 js 逐帧写 transform）身后转一圈 */
 .g-hand{transform-origin:200px 200px;transform-box:view-box;opacity:0}
-.g-hand line{stroke:var(--ink-1);stroke-width:1.4;stroke-linecap:round}
 .g-wedge{fill:var(--ink-1);opacity:.07}
 .gen:not(.run) .g-over{display:none}
-.gen.run .g-fp .g-base,.gen.run .g-fp .g-band,.gen.run .g-fp .g-core,.gen.run .g-fp .fps,.gen.run .g-fp text{opacity:0}
-.gen .g-fp .fps{transform-origin:200px 200px;transform-box:view-box}
-/* 生长：雷达（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
+.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-compass,.fp-ax,.fps){opacity:0}
+.gen .g-fp :is(.fps,.fp-core,.fp-compass){transform-origin:200px 200px;transform-box:view-box}
+/* 生长：罗盘玫瑰主角（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
 .gen .pet{transform-origin:200px 200px;transform-box:view-box;animation:grow .6s var(--ease) var(--g-grow,0ms) both}
 .gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
 .gen.skip,.gen.skip *{animation:none!important}
 .g-side{display:flex;flex-direction:column;gap:12px;min-width:0}
-.g-count{font-size:11.5px;min-height:16px}
+.g-count{font-size:12px;min-height:16px;word-spacing:-.2em}
 .g-res{display:flex;flex-direction:column;gap:6px}
 .gen .code{background:none;border:0;padding:0;margin:0;max-height:none;overflow:visible;font:inherit}
 .gen .letters{gap:14px;margin-top:2px;flex-wrap:nowrap}
 .gen .letters .L{font-size:64px;display:block;min-width:.72em;text-align:center}
 .g-slot{display:flex;flex-direction:column;align-items:center;gap:4px}
-.g-ax{font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.g-ax{font-size:12px;color:var(--ink-2);white-space:nowrap}
 .g-ax .mono{color:var(--ink-1);font-weight:600}
 .gen.run .g-slot:not(.lock) .g-ax{opacity:0}
 .g-match{gap:8px;flex-wrap:wrap;min-height:18px}
 .gen.run .g-match,.gen.run .nm{opacity:0}
 .g-zh{font-size:22px;font-weight:600;line-height:1.25}
-.g-zh i{font-weight:400;font-size:16px;color:var(--ink-3)}
+.g-zh i{font-weight:400;font-size:15px;color:var(--ink-3)}
 .g-line{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
 .g-facts{display:flex;flex-direction:column}
 .g-facts .eb{margin-bottom:2px}
@@ -52,12 +52,12 @@
 .g-fact.run .mk{background:var(--ai-bg);box-shadow:none}
 .g-fact.done .mk{background:var(--ink-1);color:var(--surface);box-shadow:none}
 /* 每步一行：进行中显示做什么（cap），完成后同一位置换成「已经知道的」事实 */
-.g-ft{display:flex;gap:10px;align-items:baseline;min-width:0;font-size:12.5px}
+.g-ft{display:flex;gap:10px;align-items:baseline;min-width:0;font-size:13px}
 .g-ft b{flex:none}
 .g-fact:not(.done):not(.run) .g-ft b{color:var(--ink-3)}
 .g-sw{display:grid;min-width:0;flex:1}
 .g-sw>*{grid-area:1/1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.g-sub{font-size:11.5px}
+.g-sub{font-size:12px}
 .g-fx{display:flex;gap:6px;align-items:baseline;line-height:1.45}
 .g-fx>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .gen.run .g-fact:not(.done) .g-fx,.gen:not(.run) .g-sub{opacity:0}
@@ -66,7 +66,7 @@
 .g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
 .g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
 .g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
-.g-card .z{grid-column:1/-1;font:600 12.5px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card .z{grid-column:1/-1;font:600 12px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
 .g-card.win .pc{color:var(--ink-1)}
 .g-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -76,7 +76,7 @@
 .g-tail>*{grid-area:1/1;align-self:end}
 .gen.run .g-done,.gen:not(.run) [data-g="run"]{visibility:hidden}
 .g-next{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding-top:10px;border-top:1px solid var(--hair)}
-.g-n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:10.5px;font-weight:700;display:grid;place-items:center}
+.g-n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:11px;font-weight:700;display:grid;place-items:center}
 .reveal.gen{width:min(720px,100%)}
 /* 落地：飞向画像页的克隆（body 下，fixed） */
 .g-fly{position:fixed;z-index:200;margin:0;pointer-events:none;transform-origin:50% 50%;text-align:center;white-space:nowrap;display:block}

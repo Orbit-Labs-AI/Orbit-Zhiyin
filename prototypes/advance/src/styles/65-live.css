@@ -44,7 +44,12 @@
 .wg-stack{display:flex;flex-direction:column;justify-content:flex-end;gap:1px;width:100%}
 .wg-stack i{display:block;width:100%}
 .wg-stack i:first-child{border-radius:2px 2px 0 0}
-.wg-col>span.cap{font-size:9px;line-height:1}
+.wg-col>span.cap{font-size:10px;line-height:1}
+/* 今日 · 24 one-hour cells on a 2px hairline baseline; empty hours are a 2px tick */
+.wg-day{display:flex;flex-direction:column;gap:3px;width:100%}
+.wg-day-b{display:flex;align-items:flex-end;gap:2px;height:18px;border-bottom:1px solid var(--hair)}
+.wg-day-b i{flex:1;min-width:0;height:2px;border-radius:1px 1px 0 0;background:var(--h1)}
+.wg-day-x{display:flex;justify-content:space-between;font-size:10px;line-height:1;color:var(--ink-4)}
 .wg-trend{display:flex;flex-direction:column;gap:4px;min-width:0}
 .wg-trend .vz-spark{display:block;max-width:100%}
 /* settings · notification matrix (every column is its own channel) and the AI channel list */
