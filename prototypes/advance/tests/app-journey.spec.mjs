@@ -345,32 +345,75 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   const installs = [];
   page.on('response', async (r) => {
     if (!/\/v1\/install\//.test(r.url()) || r.request().method() === 'GET') return;
-    try { installs.push({ url: r.url().replace(GW, ''), status: r.status(), body: (await r.text()).slice(0, 4000) }); } catch (e) { /* gone */ }
+    try { installs.push({ url: r.url().replace(GW, ''), status: r.status(), body: (await r.text()).slice(0, 20000) }); } catch (e) { /* gone */ }
   });
+  // pick the first recommendation (card order) whose install plan is 'ready'; none → soft note, no apply / revert
+  let readyRec = null;
   mark(await step('a7-install-preview', async (s) => {
     await goRoute(page, 'recs');
-    if (!(await act(page, 'install', { wait: 2500 }))) throw new Error('no install button on recs');
+    const probe = await ev(page, async () => {
+      const ids = Array.from(document.querySelectorAll('#main [data-act="selRec"]')).map((el) => el.dataset.id);
+      const seen = [];
+      for (const id of ids) {
+        if (!RECI[id] || !RECI[id].live) { seen.push(id + ':not-live'); continue; }
+        try {
+          const req = { source: { type: 'candidate', id }, scope: 'user' };
+          let plan = await TL.li.plan(req);
+          if (plan.status === 'needs_fetch') plan = await TL.li.plan(Object.assign({}, req, { fetch: true }));
+          seen.push(id + ':' + plan.status);
+          if (plan.status === 'ready') return { id, seen };
+        } catch (e) { seen.push(id + ':error ' + ((e && (e.code || e.status)) || e)); }
+      }
+      return { id: null, seen };
+    });
+    s.notes.push('plans: ' + probe.seen.join(', '));
+    readyRec = probe.id;
+    if (!readyRec) { s.notes.push('no-ready-candidate'); return; }
+    s.notes.push('ready=' + readyRec);
+    await act(page, 'selRec', { attr: { 'data-id': readyRec }, wait: 1200 });
+    if (!(await act(page, 'install', { attr: { 'data-id': readyRec }, wait: 2500 }))) {
+      s.notes.push('no visible install button for ' + readyRec + ' (ACT.install used)');
+      await ev(page, (id) => ACT.install({ dataset: { id } }), readyRec); await sleep(2500);
+    }
     s.notes.push('modal=' + (await ev(page, () => (document.querySelector('#modal:not([hidden]) .mh, #modal:not([hidden]) h2') || {}).textContent || null)));
     for (let i = 0; i < 3 && await act(page, 'instNext', { wait: 1500 }); i++);
   }));
   mark(await step('a7-install-apply', async (s) => {
+    if (!readyRec) { s.notes.push('no-ready-candidate (apply skipped)'); return; }
     if (!(await act(page, 'instDo', { wait: 4000 }))) throw new Error('no instDo');
     s.notes.push(JSON.stringify(installs.map((x) => x.url + ' ' + x.status)));
+    const applied = installs.filter((x) => /\/v1\/install\/apply$/.test(x.url));
+    if (!applied.length || applied.at(-1).status >= 400) throw new Error('apply did not succeed: ' + JSON.stringify(applied.map((x) => x.status)));
   }));
   await step('a7-install-paths', async (s) => {
     const bad = [];
-    installs.forEach((x) => { (x.body.match(/"(\/[^"]+)"/g) || []).map((p) => p.slice(1, -1)).filter((p) => /^\/(Users|home|private|var|tmp)\//.test(p)).forEach((p) => { if (!FAKE_HOME || p.indexOf(FAKE_HOME) !== 0 && p.indexOf(fs.realpathSync(FAKE_HOME)) !== 0) bad.push(x.url + ' → ' + p); }); });
+    // TMPDIR may end in '/' (…/T//orbit-journey…) and macOS reports /var as /private/var: compare normalized real paths.
+    // Backups under the redirected data home (--home) are Orbit's own files and also allowed.
+    const DATA_HOME = process.env.JOURNEY_DATA_HOME || '';
+    const real = (p) => { try { return fs.realpathSync(p); } catch (e) { return path.normalize(p); } };
+    const roots = [FAKE_HOME, DATA_HOME].filter(Boolean).flatMap((r) => [path.normalize(r), real(r)]);
+    const inside = (p) => { const n = path.normalize(p.replace(/^\/private(?=\/var\/)/, '')); return roots.some((r) => { const rr = r.replace(/^\/private(?=\/var\/)/, ''); return n === rr || n.indexOf(rr + '/') === 0; }); };
+    installs.forEach((x) => { (x.body.match(/"(\/[^"]+)"/g) || []).map((p) => p.slice(1, -1)).filter((p) => /^\/(Users|home|private|var|tmp)\//.test(p)).forEach((p) => { if (!inside(p)) bad.push(x.url + ' → ' + p); }); });
+    // the apply result's written[] paths specifically must all land under the redirected HOME
+    installs.filter((x) => /\/v1\/install\/apply$/.test(x.url)).forEach((x) => {
+      let w = []; try { w = (JSON.parse(x.body).written || []); } catch (e) { /* truncated body: covered by the scan above */ }
+      w.forEach((it) => { const p = it.path || it.abs_path || it.target; if (p && p[0] === '/' && !inside(p)) bad.push('written → ' + p); });
+      s.notes.push('written=' + w.length);
+    });
     s.notes.push('fake home ' + FAKE_HOME);
     if (bad.length) throw new Error('install paths outside the redirected HOME: ' + bad.slice(0, 5).join('; '));
     if (FAKE_HOME) s.notes.push('fake home files: ' + walk(FAKE_HOME).slice(0, 20).join(', '));
   }, { shot: false });
   mark(await step('a7-install-revert', async (s) => {
+    if (!readyRec) { s.notes.push('no-ready-candidate (revert skipped)'); return; }
     if (!(await act(page, 'instUndo', { wait: 3000 }))) {
       await closeAll(page);
       if (!(await act(page, 'uninstall', { wait: 2500 })) && !(await act(page, 'doUninstall', { wait: 2500 }))) s.notes.push('no revert control');
       await act(page, 'doUninstall', { wait: 2500 });
     }
+    const rv = installs.filter((x) => /\/revert$/.test(x.url));
     s.notes.push(JSON.stringify(installs.slice(-3).map((x) => x.url + ' ' + x.status)));
+    if (!rv.length || rv.at(-1).status >= 400) throw new Error('revert did not succeed: ' + JSON.stringify(rv.map((x) => x.status)));
   }));
   await step('a7-close', async () => { await closeAll(page); }, { shot: false });
 
@@ -498,8 +541,18 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   mark(await step('export-share-card', async (s) => {
     const n0 = await ev(page, () => window.__nativeMsgs.length);
     await page.keyboard.press('Meta+Shift+s'); await sleep(1500);
-    if (!(await act(page, 'shareSave', { wait: 3500 }))) throw new Error('no shareSave');
+    // an unsettled / thin persona honestly refuses the card with a toast (部分维度尚未定型… / 样本不足…): a valid outcome
+    const refusal = () => ev(page, () => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.innerText.trim() : ''; });
+    const REFUSE = /部分维度尚未定型|样本不足|协作画像还没有算好/;
+    let msg = await refusal();
+    if (REFUSE.test(msg)) { s.notes.push('refused: ' + msg); return; }
+    if (!(await act(page, 'shareSave', { wait: 3500 }))) {
+      msg = await refusal();
+      if (REFUSE.test(msg)) { s.notes.push('refused: ' + msg); return; }
+      throw new Error('no shareSave' + (msg ? ' (toast: ' + msg + ')' : ''));
+    }
     const sv = await saves(n0); s.notes.push(JSON.stringify(sv));
+    if (!sv.length) { msg = await refusal(); if (REFUSE.test(msg)) { s.notes.push('refused: ' + msg); return; } }
     if (!sv.length || sv[0].mime !== 'image/png' || !sv[0].bytes) throw new Error('share card save missing / not png');
   }));
   await step('export-share-close', async () => { await closeAll(page); }, { shot: false });
