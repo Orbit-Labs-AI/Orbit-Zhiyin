@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['packages/connectors/**', '.github/workflows/connectors.yml']
   push:
-    branches: [main]
+    branches: [main, 'feat/codex-connector']
     paths: ['packages/connectors/**', '.github/workflows/connectors.yml']
 permissions:
   contents: read
