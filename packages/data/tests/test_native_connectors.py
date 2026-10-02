@@ -1277,3 +1277,53 @@ def test_hermes_routing_identity_stays_in_raw_without_losing_lineage(tmp_path):
         ]
         assert originals[1]["row"]["origin_json"] == origin
         assert_sound(store)
+
+
+@pytest.mark.parametrize(
+    "lead",
+    [
+        {"type": "queue-operation", "operation": "enqueue", "sessionId": "s1", "timestamp": ISO},
+        {"type": "mode", "mode": "plan", "sessionId": "s1"},
+        {"type": "custom-title", "customTitle": "t", "sessionId": "s1"},
+        {"type": "ai-title", "aiTitle": "t", "sessionId": "s1"},
+    ],
+)
+def test_claude_metadata_comes_from_later_records_when_first_line_lacks_cwd(tmp_path, lead):
+    context = {
+        "sessionId": "s1",
+        "timestamp": ISO,
+        "cwd": "/synthetic/repo",
+        "gitBranch": "feature-x",
+        "version": "9.9.9",
+        "entrypoint": "cli",
+    }
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "claude_code",
+            [
+                lead,
+                {
+                    **context,
+                    "type": "user",
+                    "uuid": "u",
+                    "message": {"role": "user", "content": "hi"},
+                },
+                {
+                    **context,
+                    "type": "assistant",
+                    "uuid": "a",
+                    "message": {"id": "m", "content": [{"type": "text", "text": "ok"}]},
+                },
+            ],
+            path="projects/-synthetic-repo/s1.jsonl",
+        )
+        store.rebuild()
+        (session,) = rows(store, "session")
+        assert session["cwd"] == "/synthetic/repo"
+        assert session["git_branch"] == "feature-x"
+        assert session["harness_version"] == "9.9.9"
+        assert session["client"] == "cli"
+        assert session["project_id"] is not None
+        assert {t["project_id"] for t in rows(store, "turn")} <= {session["project_id"]}
