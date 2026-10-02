@@ -1,0 +1,52 @@
+{
+  "tools": {
+    "totals": {
+      "call_count": 6431,
+      "known_failure_count": 312,
+      "unknown_status_count": 905,
+      "failure_rate": 0.0596
+    },
+    "by_tool": [
+      {
+        "name": "Bash",
+        "call_count": 2810,
+        "known_success_count": 2500,
+        "known_failure_count": 210,
+        "unknown_status_count": 100,
+        "median_duration_ms": 1840
+      },
+      {
+        "name": "Edit",
+        "call_count": 1904,
+        "known_success_count": 1850,
+        "known_failure_count": 54,
+        "unknown_status_count": 0,
+        "median_duration_ms": null
+      },
+      {
+        "name": "mcp__figma__get",
+        "call_count": 12,
+        "known_success_count": null,
+        "known_failure_count": null,
+        "unknown_status_count": 12,
+        "median_duration_ms": null
+      }
+    ]
+  },
+  "meta": {
+    "contract": "tandem-app-v1",
+    "scope_hash": "sha256:fx-tools",
+    "data_rev": 42,
+    "rules_version": "rules-fx",
+    "freshness": "fresh",
+    "computed_at": "2026-10-01T07:20:00Z",
+    "source": "cache",
+    "duration_ms": 12,
+    "coverage": {
+      "rows": 128
+    },
+    "selection": {
+      "main_sessions": 128
+    }
+  }
+}

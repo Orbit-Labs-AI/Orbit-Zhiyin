@@ -31,6 +31,7 @@ BASIS = {"overview": "analytics.overview 快照（与总览页同口径）",
          "recommendations": "recommend 最新一次运行（标题与状态）"}
 MIN_SESSIONS = 5
 INSUFFICIENT = "样本不足"
+BRAND = "Orbit"  # Product name on user-visible exports; package, env and data paths keep "tandem".
 SCOPE_KEYS = ("display_timezone", "project_ids", "from_ts", "until_ts", "model_ids",
               "source_ids", "excluded_session_uids")
 
@@ -297,7 +298,7 @@ def scope_line(scope: dict) -> str:
 def document(report: dict) -> str:
     generated = datetime.fromtimestamp(report["generated_at"] / 1000, UTC).strftime(
         "%Y-%m-%d %H:%M UTC")
-    parts = ["# Tandem 协作报告", "", f"生成于 {generated}　{scope_line(report['scope'])}", ""]
+    parts = [f"# {BRAND} 协作报告", "", f"生成于 {generated}　{scope_line(report['scope'])}", ""]
     parts += [s["markdown"] + "\n" for s in report["sections"]]
     parts += ["## 口径与限制", ""]
     parts += table(["章节", "口径", "样本 n", "覆盖", "新鲜度", "状态"], [

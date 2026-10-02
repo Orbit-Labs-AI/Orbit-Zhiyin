@@ -116,6 +116,14 @@ def ledger_for(appdb, install_id: str) -> list[dict]:
     return [_row(r) for r in rows]
 
 
+def ledger_for_path(appdb, path: str) -> list[dict]:
+    """Install / revert rows of every install that touched ``path`` (stacked installs)."""
+    with appdb.read() as db:
+        rows = db.execute("SELECT * FROM install_ledger WHERE path = ? AND action IN ('install', 'revert') "
+                          "ORDER BY ts, entry_id", (path,)).fetchall()
+    return [_row(r) for r in rows]
+
+
 def ledger_page(appdb, install_id: str | None = None, limit: int = 50,
                 before_ts: int | None = None) -> list[dict]:
     with appdb.read() as db:

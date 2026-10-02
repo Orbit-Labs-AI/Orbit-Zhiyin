@@ -163,6 +163,11 @@ def _render_json(target: dict, current: bytes | None) -> dict:
         if existing is not _ABSENT and not isinstance(existing, dict):
             raise OpConflict("container_type", detail={"pointer": pointer})
         base = existing if isinstance(existing, dict) else {}
+        if (len(parts) >= 2 and parts[-2] == "mcpServers" and existing is not _ABSENT
+                and any(_canon(base.get(k, _ABSENT)) != _canon(v) for k, v in content.items())):
+            # A same-name server we would partially overwrite is someone else's: refuse,
+            # like Codex's ``toml_table_exists``, instead of merging args/env together.
+            raise OpConflict("mcp_exists", detail={"pointer": pointer})
         added_map: dict[str, Any] = {}
         for key, value in content.items():
             if key not in base:
@@ -198,7 +203,10 @@ def _drop_empty_created(data: dict, created_paths: list[str]) -> None:
             del parent[parts[-1]]
 
 
-def _unrender_json(applied: dict, current: bytes) -> dict:
+def _unrender_json(applied: dict, current: bytes, known: list | None = None,
+                   inherit: dict | None = None) -> dict:
+    """``known``: list items that are not the user's (pre-install baseline plus other active
+    installs' items); with it, a missing item of ours next to an unknown item is a user edit."""
     data = _load_json(current)
     parts = parse_pointer(applied.get("pointer"))
     node = _get(data, parts)
@@ -206,6 +214,7 @@ def _unrender_json(applied: dict, current: bytes) -> dict:
     changed = False
     if isinstance(added, list):
         if isinstance(node, list):
+            missing = False
             for value in added:
                 key = _canon(value)
                 for i, item in enumerate(node):
@@ -213,6 +222,14 @@ def _unrender_json(applied: dict, current: bytes) -> dict:
                         del node[i]
                         changed = True
                         break
+                else:
+                    missing = True
+            if missing and known is not None:
+                ours = {_canon(v) for v in added}
+                other = {_canon(v) for v in known}
+                if any(_canon(i) not in other and _canon(i) not in ours for i in node):
+                    # our item is gone but an item nobody installed appeared: an edit
+                    return {"status": "modified", "new": None, "delete": False}
     else:
         previous = applied.get("previous") or {}
         if isinstance(node, dict):
@@ -234,7 +251,9 @@ def _unrender_json(applied: dict, current: bytes) -> dict:
     if not changed:
         return {"status": "already_reverted", "new": None, "delete": False}
     _drop_empty_created(data, applied.get("created_paths") or [])
-    if applied.get("created_file") and data == {}:
+    inherit = inherit or {}
+    _drop_empty_created(data, inherit.get("created_paths") or [])
+    if (applied.get("created_file") or inherit.get("created_file")) and data == {}:
         return {"status": "reverted", "new": None, "delete": True}
     return {"status": "reverted", "new": _dump_json(data, current), "delete": False}
 
@@ -339,7 +358,7 @@ def _render_block(target: dict, current: bytes | None) -> dict:
             "applied": applied}
 
 
-def _unrender_block(applied: dict, current: bytes) -> dict:
+def _unrender_block(applied: dict, current: bytes, inherit: dict | None = None) -> dict:
     action, block_id = applied["kind"], applied["block_id"]
     text = _text(current)
     found = _find_block(text, action, block_id)
@@ -355,7 +374,7 @@ def _unrender_block(applied: dict, current: bytes) -> dict:
     elif sep and text[:start].endswith(sep):
         start -= len(sep)
     new = text[:start] + text[end:]
-    if applied.get("created_file") and not new.strip():
+    if (applied.get("created_file") or (inherit or {}).get("created_file")) and not new.strip():
         return {"status": "reverted", "new": None, "delete": True}
     return {"status": "reverted", "new": new.encode(), "delete": False}
 
@@ -406,11 +425,14 @@ def _ai_lines(target: dict, new: bytes | None) -> list[int]:
     return [i for i, ln in enumerate(_text(new).splitlines(), 1) if ln.strip() in marks]
 
 
-def unrender(applied: dict, target: dict, current: bytes | None) -> dict:
+def unrender(applied: dict, target: dict, current: bytes | None, *, known: list | None = None,
+             inherit: dict | None = None) -> dict:
     """Reverse ``applied`` on ``current``: ``{'status','new','delete'}``.
 
     status: reverted | already_reverted | modified (our unit was edited; leave the file) |
-    missing (file is gone).
+    missing (file is gone). ``inherit`` carries ``created_file`` / ``created_paths`` of
+    earlier, already-reverted installs that created this file, so whichever install is
+    reverted last removes the file once nothing but empty tandem containers remain.
     """
     kind = applied.get("kind") or target.get("action")
     if current is None:
@@ -419,9 +441,9 @@ def unrender(applied: dict, target: dict, current: bytes | None) -> dict:
                 "delete": False}
     _check_size(current)
     if kind == "merge_json":
-        return _unrender_json(applied, current)
+        return _unrender_json(applied, current, known, inherit)
     if kind in ("md_block", "toml_block"):
-        return _unrender_block(applied, current)
+        return _unrender_block(applied, current, inherit)
     if kind == "create_file":
         if sha256(current) == applied.get("sha256"):
             return {"status": "reverted", "new": None, "delete": bool(applied.get("created"))}

@@ -17,6 +17,9 @@ from fastapi.testclient import TestClient
 from tandem_backend.services.auth import validate_token
 from tandem_backend.services.gateway import create_gateway
 
+# Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
+pytestmark = pytest.mark.serial
+
 
 def test_token_host_and_origin_guard(client_factory):
     client, _ = client_factory()

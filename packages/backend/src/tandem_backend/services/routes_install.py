@@ -88,6 +88,10 @@ class FetchRequest(BaseModel):
     source: dict | None = None
     catalog_id: str | None = None
     refresh: bool = False
+    # Only for candidate / catalog sources, which are fetched by planning them with ``fetch``.
+    agents: list[str] | None = None
+    scope: Literal["user", "project"] = "user"
+    project_path: str | None = None
 
 
 def _catalog_lookup(gw: Gateway) -> Callable[[str], dict | None]:
@@ -112,7 +116,8 @@ def _catalog_lookup(gw: Gateway) -> Callable[[str], dict | None]:
 
                 stores[path] = CatalogStore(path)
             store = stores[path]
-        return store.detail(item_id)
+        view = getattr(store, "install_view", None)  # B16: skip the cold related-items index
+        return view(item_id) if callable(view) else store.detail(item_id)
 
     def lookup(item_id: str) -> dict | None:
         found = None
@@ -215,6 +220,15 @@ def router(gw: Gateway) -> APIRouter:
     @api.post("/v1/install/fetch")
     def fetch(body: FetchRequest):
         source = body.source
+        if isinstance(source, dict) and source.get("type") in ("candidate", "catalog"):
+            # Older clients send a recommendation card / catalog entry here; the real flow is
+            # ``POST /v1/install/plans`` with ``fetch: true``, so plan it that way and hand back
+            # the plan (``plan_id`` / ``status``) alongside what was fetched.
+            if not source.get("id"):
+                raise InstallApiError(422, "invalid_request", f"{source['type']} 来源需要 id")
+            plan = call(svc.plan, {"type": source["type"], "id": str(source["id"])}, agents=body.agents,
+                        scope=body.scope, project_path=body.project_path, fetch=True)
+            return {"plan_id": plan["plan_id"], "status": plan["status"], "fetch": plan.get("fetch"), "plan": plan}
         if source is None and body.catalog_id:
             item = svc.catalog_lookup(body.catalog_id)
             if not item:

@@ -6,6 +6,8 @@
 >
 > 实测数字均来自合成数据与本机 M 系列机器，多数在其他实现任务并行占满 CPU 时测得（负载均值 36–100），只说明量级，不是验收值。下文 `BE/` = `packages/backend/src/tandem_backend/`，`CAT/` = `packages/catalog/src/tandem_catalog/`。
 
+> 真实数据验收见 [real-data-validation.md](real-data-validation.md)：本机真实日志只读导入（1,895 个会话、77.2 万事件）后，逐页核对分析、推荐、安装与 AI 上下文包，记录性能热点、缺陷和修复分支（基线 `wip/yhyfhgs-backend-r4`），只含聚合结果。
+
 ## 0. 结论
 
 1. 两轮共合入六个区域（catalog、features、recommend、ai、install、platform）、五条接线分支，以及四个补缺包（realtime、evalrun、eval-suites、session-ops）。网关按模块挂载 9 个路由文件，app.db 新增 8 个模块的 38 张表。
@@ -532,6 +534,7 @@ DT、AN 两行只列本分支触及的项，其余数据与分析 feature 的现
 - 之前的两例确定性失败（账本链接解析、`Gateway.close` 重复关闭）已在验证中修复。
 - `tests/integration/test_modular_pipeline.py` 需要先执行 `pnpm --dir packages/connectors build`。
 - 真实网关验收仍未做：UI 接线、hooks 与 Codex notify 都只在夹具或临时 HOME 下测试过。
+- 后端在真实数据上的只读验证已单独成文，见 [real-data-validation.md](real-data-validation.md)；其中的修复分支合入后还需在真实数据上重跑。
 
 ### 8.3 下一轮缺口（按优先级）
 

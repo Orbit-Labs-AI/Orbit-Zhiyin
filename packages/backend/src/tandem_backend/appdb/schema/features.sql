@@ -24,3 +24,8 @@ CREATE TABLE IF NOT EXISTS inv_link (
 CREATE TABLE IF NOT EXISTS inv_size (
   content_hash TEXT PRIMARY KEY, tokens_est INTEGER, basis TEXT, measured_at INTEGER
 ) STRICT, WITHOUT ROWID;
+-- Skill / MCP usage aggregate per data revision, project scope and UTC day (features.linked).
+CREATE TABLE IF NOT EXISTS inv_usage (
+  data_rev TEXT NOT NULL, scope TEXT NOT NULL, day INTEGER NOT NULL, body TEXT NOT NULL,
+  computed_at INTEGER NOT NULL, PRIMARY KEY(data_rev, scope, day)
+) STRICT, WITHOUT ROWID;

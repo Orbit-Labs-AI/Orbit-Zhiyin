@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import zstandard
 
+from tandem_data import SCHEMA_VERSION
 from tandem_data.contract import canonical
 from tandem_data.service import ImportRequest, ImportService, event_page
 from tandem_data.store import Store
@@ -1103,7 +1104,7 @@ def test_touching_unchanged_file_refreshes_stat_cache_not_capture_provenance(tmp
     file.parent.mkdir(parents=True)
     file.write_text(canonical({"type": "session", "id": "s", "timestamp": ISO}) + "\n")
     with Store(tmp_path / "data") as store:
-        service = ImportService(store)
+        service = ImportService(store, workers=1)  # Observes the serial line indexer.
         request = ImportRequest("pi", root)
         service.import_source(request)
         captured_stat = store.db.execute("SELECT source_stat FROM source_revision").fetchone()[0]
@@ -1226,7 +1227,7 @@ def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
         assert len(rows(store, "project")) == 2
         assert rows(store, "project_override")[0]["project_id"] == "old"
         assert rows(store, "session")[0]["project_id"] == "old"
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 

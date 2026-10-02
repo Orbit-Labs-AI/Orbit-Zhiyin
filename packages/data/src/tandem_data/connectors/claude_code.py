@@ -163,8 +163,14 @@ class ClaudeMapper(BaseMapper):
                         "promptId",
                         "effort",
                         "perTurnEffort",
+                        # Stored once as ext.toolUseResult below, never again in the envelope.
+                        "toolUseResult",
                     ),
                 )
+                if "toolUseResult" in data and not any(
+                    event.kind == "tool.result" for event in contents
+                ):
+                    contents[0].ext["toolUseResult"] = data["toolUseResult"]
             result = data.get("toolUseResult")
             result = result if isinstance(result, dict) else {}
             for event in contents:
@@ -190,7 +196,7 @@ class ClaudeMapper(BaseMapper):
                         )
                     elif result.get("interrupted"):
                         event.attrs["status"] = "interrupted"
-                    event.ext["toolUseResult"] = result
+                    event.ext["toolUseResult"] = data.get("toolUseResult", result)
             events.extend(contents)
             if (
                 typ == "assistant"

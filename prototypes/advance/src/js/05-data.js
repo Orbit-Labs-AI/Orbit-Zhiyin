@@ -22,7 +22,7 @@ const PJ = [
     titles: ['同步 team-hub collab 并审核日报', '合并 PR 并清理分支', '统一 AGENTS.md 并删除旧规则文件', '处理 Codex review 意见', '整理项目索引', '清理过期会话与权限'] },
   { id: 'hackathon', name: 'Hackathon', path: '~/Projects/ActionMesh AI/Hackathon', git: 'ActionMesh-AI/Hackathon', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
     flow: [['讨论需求', '3 轮对话'], ['写规则', 'Edit AGENTS.md'], ['开 PR', 'gh pr create'], ['处理 review', '@codex review'], ['合并', 'gh pr merge']], cover: [['AGENTS.md', '2.5 KB', '10/1 更新', 1], ['Hooks', '0', '可加 review 收敛规则', 0], ['Skills', '0', '可加 PR 收尾', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '安装 PR 收尾 Skill：最多两轮 review，只修 P0 / P1', rec: 'pr-wrapup',
-    titles: ['设计 Tandem Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
+    titles: ['设计 Orbit Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
   { id: 'quant', name: 'Auto Finance & Quant', path: '~/Projects/Auto Finance & Quant', git: 'yhyfhgs/Auto-Finance-Quant', q: 18, h: 16, A: 8.2, fr: 7.4, I: 66, V: 70, err: 0.05, tags: ['Python', 'uv', '回测'], topics: { quant: 1 }, fric: { '误解需求': 4, '工具 / 环境失败': 2 },
     flow: [['拉数据', 'datahub sync'], ['清洗', 'pandas'], ['回测', 'pytest -q'], ['出图', 'matplotlib'], ['写结论', 'Edit report.md']], cover: [['AGENTS.md', '1.6 KB', '9/12 更新', 1], ['Hooks', '0', '可加单测守卫', 0], ['Skills', '0', '无需', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '改动后自动跑相关单测的 Hook，减少「误解需求」类返工', rec: 'acceptance',
     titles: ['生成因子衰减综述对比表', '回测数据清洗', '整理 datahub 接口', '修复 equity 模块单测', '更新加密套利监控脚本', '写宏观指标看板'] },
@@ -165,7 +165,7 @@ function genSessions() {
     s.title = P.titles[n % P.titles.length] + ['', '（续）', ' · 收尾', ' · 返工', ' · 复盘'][Math.floor(n / P.titles.length) % 5];
   });
   all.push(FEAT);
-  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Tandem Mac App 视觉案例' });
+  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
   all.push({ id: 'sess-1001-0903', d: 120, a: 'cx', p: 'teamhub', h: 9, mi: 3, dur: 12, msgs: 3, tools: 34, errors: 0, corr: 0, out: 'ok', verify: true, mood: 0.35, topic: 'git', title: '同步 team-hub collab 并审核日报' });
   all.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi));
   all.forEach((s, i) => {
@@ -211,12 +211,12 @@ const RECS = [
   { id: 'deploy-target', dim: 'rule', type: '规则', icon: 'rule', lvl: 1, aud: 0, title: 'AGENTS.md：写明部署目标与禁用平台', gain: '覆盖 4 类方向偏离', why: '4 次部署被引向 Vercel，而你的项目约定是 Cloudflare。', ev: '4 个会话', evq: { fric: '方向错误' }, compat: '所有 Agent', c2: 'var(--a3)', primary: '复制片段', target: 'Confluo/AGENTS.md',
     file: [['## 部署', '+'], ['- 部署目标：Cloudflare Pages（wrangler）', '+'], ['- 不要使用 Vercel、Netlify 或其他平台', '+'], ['- 部署前先运行 npx wrangler whoami，未登录就停下来告诉我', 'ai'], ['- 部署后验证：线上 200、HTTPS、www 跳转', '+']],
     steps: ['复制片段', '粘贴到项目根目录的 AGENTS.md「部署」小节', '下次部署时观察 Agent 是否先检查登录状态'], track: [['部署方向偏离', 4, 0, '次'], ['部署会话平均时长', 47, 33, '分钟'], ['部署类会话摩擦率', 12.4, 6.2, '%']] },
-  { id: 'think-medium', dim: 'model', type: '模型与思考', icon: 'gauge', lvl: 1, aud: 1, title: '只读审查任务改用 thinking medium', gain: '−28% tokens', why: '审阅类会话中思考 token 占 61%，medium 与 high 的结论一致率为 94%。', ev: '22 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code', c2: 'var(--a1)', primary: '应用到 latentskill', target: 'latentskill · Tandem 任务预设',
+  { id: 'think-medium', dim: 'model', type: '模型与思考', icon: 'gauge', lvl: 1, aud: 1, title: '只读审查任务改用 thinking medium', gain: '−28% tokens', why: '审阅类会话中思考 token 占 61%，medium 与 high 的结论一致率为 94%。', ev: '22 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code', c2: 'var(--a1)', primary: '应用到 latentskill', target: 'latentskill · Orbit 任务预设',
     file: [['# latentskill · 审查类任务预设', ' '], ['match: 只读审查（以 Read / Grep 为主，没有 Edit）', '+'], ['thinking: medium', '+'], ['fallback: high（出现 Edit 时自动恢复）', 'ai']],
-    steps: ['应用预设到 latentskill', '审查类会话开始时 Tandem 会提示建议档位', '7 天后对比 token 与结论一致率'], track: [['审查会话 tokens', 410, 296, 'k'], ['结论一致率', 100, 94, '%'], ['平均耗时', 21, 16, '分钟']] },
+    steps: ['应用预设到 latentskill', '审查类会话开始时 Orbit 会提示建议档位', '7 天后对比 token 与结论一致率'], track: [['审查会话 tokens', 410, 296, 'k'], ['结论一致率', 100, 94, '%'], ['平均耗时', 21, 16, '分钟']] },
   { id: 'retry-breaker', dim: 'hook', type: 'Hook', icon: 'bolt', lvl: 2, aud: 1, title: '重复失败熔断：同一命令失败 2 次先诊断', gain: '重复失败 −68%', why: '有 23 段「失败后原样重试」的序列，最长一次连续 4 次。', ev: '17 个会话', evq: { fric: '工具 / 环境失败' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '预览并安装', target: '~/.claude/settings.json',
-    file: [['{', ' '], ['  "hooks": {', '+'], ['    "PostToolUse": [', '+'], ['      {', '+'], ['        "matcher": "Bash",', '+'], ['        "hooks": [', '+'], ['          { "type": "command",', '+'], ['            "command": "~/.tandem/hooks/retry-breaker.sh" }', 'ai'], ['        ]', '+'], ['      }', '+'], ['    ]', '+'], ['  }', '+'], ['}', ' ']],
-    steps: ['预览将写入的 Hook 与脚本', '确认安装（脚本放在 ~/.tandem/hooks，可随时删除）', '下次出现连续失败时，Agent 会先停下来检查认证与环境'], track: [['重复失败序列', 23, 7, '段'], ['失败后浪费时长', 58, 17, '分钟'], ['工具类摩擦', 12, 5, '次']] },
+    file: [['{', ' '], ['  "hooks": {', '+'], ['    "PostToolUse": [', '+'], ['      {', '+'], ['        "matcher": "Bash",', '+'], ['        "hooks": [', '+'], ['          { "type": "command",', '+'], ['            "command": "~/.orbit/hooks/retry-breaker.sh" }', 'ai'], ['        ]', '+'], ['      }', '+'], ['    ]', '+'], ['  }', '+'], ['}', ' ']],
+    steps: ['预览将写入的 Hook 与脚本', '确认安装（脚本放在 ~/.orbit/hooks，可随时删除）', '下次出现连续失败时，Agent 会先停下来检查认证与环境'], track: [['重复失败序列', 23, 7, '段'], ['失败后浪费时长', 58, 17, '分钟'], ['工具类摩擦', 12, 5, '次']] },
   { id: 'worktree', dim: 'flow', type: '工作流', icon: 'branch', lvl: 3, aud: 1, title: '并行会话改用 git worktree 隔离', gain: '并行冲突 −5 次 / 月', why: '多个会话同时改同一仓库，产生了 5 次冲突与 2 次覆盖。', ev: '9 个会话', evq: { fric: '并行会话冲突' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '查看教程', target: '教程（不写入文件）',
     file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Hackathon-a feat/a', '+'], ['git worktree add ../Hackathon-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Hackathon-a', '+']],
     steps: ['为每个要并行的任务建一个 worktree', '在各自目录启动 Agent', '完成后在主目录合并并清理 worktree', '也可以交给生成工坊做成一个 Skill'], track: [['并行冲突', 5, 0, '次'], ['覆盖他人改动', 2, 0, '次'], ['并行会话数', 41, 44, '次']] },
@@ -240,21 +240,21 @@ const RECS = [
     steps: ['交给生成工坊，用你的 19 个会话生成定制版', '审阅并安装', '下次审稿时说「按 paper-audit」'], track: [['每次审稿的指令数', 9, 5, '条'], ['审稿会话时长', 66, 49, '分钟'], ['改动过度类纠偏', 4, 1, '次']] },
   { id: 'headless', dim: 'flow', type: '工作流', icon: 'clock', lvl: 4, aud: 2, title: '长时间采集改为 headless + 定时检查', gain: '人工查看进度 −15 次 / 周', why: '轨迹采集期间你平均每 40 分钟手动问一次进度。', ev: '8 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · DeepSeek', c2: 'var(--a4)', primary: '查看教程', target: '教程（需要 cron 与脚本）',
     file: [['# 每 30 分钟检查一次采集进度', ' '], ['*/30 * * * * claude -p "检查 runs/ 的进度，异常时总结原因" >> ~/logs/collect.log', '+']],
-    steps: ['确认采集脚本能无人值守运行', '配置 cron 或 launchd 定时任务', '异常时由 Tandem 发通知'], track: [['手动查看进度', 15, 2, '次 / 周'], ['异常发现延迟', 95, 30, '分钟'], ['采集中断', 3, 1, '次']] }
+    steps: ['确认采集脚本能无人值守运行', '配置 cron 或 launchd 定时任务', '异常时由 Orbit 发通知'], track: [['手动查看进度', 15, 2, '次 / 周'], ['异常发现延迟', 95, 30, '分钟'], ['采集中断', 3, 1, '次']] }
 ];
 const RECI = {}; RECS.forEach((r) => { RECI[r.id] = r; });
 
 const LIB = [
   { id: 'worktree-conductor', kind: 'Skill', icon: 'branch', src: '社区 · MIT', desc: '为每个并行会话自动建立独立 worktree，结束后合并并清理。', m: 94, sc: [96, 92, 74], why: ['你每周约 10 次并行会话，5 次改到同一仓库', '同为 DIMV 的用户安装后冲突减少 72%'], compat: 'Claude Code · Codex', users: 3100, peer: 68, rec: 'worktree' },
-  { id: 'retry-breaker', kind: 'Hook', icon: 'bolt', src: 'Tandem 官方', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, sc: [88, 95, 81], why: ['23 段「失败后原样重试」，最长 4 次', '覆盖你第二大的摩擦：工具 / 环境失败'], compat: 'Claude Code · Codex', users: 1800, peer: 52, rec: 'retry-breaker' },
+  { id: 'retry-breaker', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, sc: [88, 95, 81], why: ['23 段「失败后原样重试」，最长 4 次', '覆盖你第二大的摩擦：工具 / 环境失败'], compat: 'Claude Code · Codex', users: 1800, peer: 52, rec: 'retry-breaker' },
   { id: 'release-verifier', kind: '子代理', icon: 'bot', src: '社区 · Apache-2.0', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, sc: [90, 84, 79], why: ['61% 的会话你会要求验证线上结果', '可以把验收从主会话中拆出去'], compat: 'Claude Code · Gemini CLI', users: 940, peer: 43, rec: 'deploy-target' },
   { id: 'paper-audit-loop', kind: 'Skill', icon: 'book', src: '本地生成', local: true, desc: '只读审查 → 归档 → 最小修改 → 编译 → 页数检查。', m: 84, sc: [86, 88, 70], why: ['你在 19 个会话里重复这五步', '由你的本地 Agent 依据你的会话生成'], compat: 'Claude Code', users: 0, peer: 0, rec: 'paper-audit' },
   { id: 'cloudflare-deploy', kind: '插件', icon: 'plug', src: '社区 · MIT', desc: 'wrangler 登录检查、Pages 部署与域名验证命令集。', m: 81, sc: [78, 90, 72], why: ['部署类会话里 4 次走错平台', 'wrangler 未登录导致 37 次失败'], compat: 'Claude Code · Codex', users: 5600, peer: 39, rec: 'deploy-target' },
-  { id: 'readonly-allowlist', kind: 'Hook', icon: 'bolt', src: 'Tandem 官方', desc: '把 git status、ls、gh pr view 等只读命令加入白名单。', m: 79, sc: [74, 92, 70], why: ['212 次只读命令需要你手动批准', '审批平均等待 38 秒'], compat: 'Claude Code · Codex', users: 12000, peer: 61, rec: 'ro-allow' },
+  { id: 'readonly-allowlist', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '把 git status、ls、gh pr view 等只读命令加入白名单。', m: 79, sc: [74, 92, 70], why: ['212 次只读命令需要你手动批准', '审批平均等待 38 秒'], compat: 'Claude Code · Codex', users: 12000, peer: 61, rec: 'ro-allow' },
   { id: 'gh-review-digest', kind: 'MCP', icon: 'puzzle', src: '社区 · MIT', desc: '把多轮 review 意见合并成一份按优先级排序的清单。', m: 74, sc: [70, 82, 66], why: ['review 循环最长 11 轮', '与 PR 收尾 Skill 搭配效果最好'], compat: 'Claude Code', users: 2200, peer: 27, rec: 'pr-wrapup' },
   { id: 'citation-checker', kind: '子代理', icon: 'bot', src: '社区 · MIT', desc: '核对论文引用与 BibTeX，一致性问题列成表。', m: 71, sc: [64, 86, 60], why: ['9 次纠偏与引用格式有关', '只读，不会改你的文件'], compat: 'Claude Code · Gemini CLI', users: 780, peer: 18, rec: 'citation-checker' },
   { id: 'bilingual-report', kind: 'Skill', icon: 'book', src: '社区 · CC BY', desc: '英文交付后自动附中文版，术语表保持一致。', m: 66, sc: [72, 58, 64], why: ['你常在英文结果后要求翻译', '中英混用占 7%'], compat: '所有 Agent', users: 1100, peer: 22, rec: 'acceptance' },
-  { id: 'context-saver', kind: 'Hook', icon: 'bolt', src: 'Tandem 官方', desc: '上下文超过 60% 时提醒先总结，再继续。', m: 63, sc: [60, 70, 58], why: ['9 次压缩后需要重复说明约定', '长会话摩擦率 11.2%'], compat: 'Claude Code', users: 4300, peer: 31, rec: 'summary-compact' },
+  { id: 'context-saver', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '上下文超过 60% 时提醒先总结，再继续。', m: 63, sc: [60, 70, 58], why: ['9 次压缩后需要重复说明约定', '长会话摩擦率 11.2%'], compat: 'Claude Code', users: 4300, peer: 31, rec: 'summary-compact' },
   { id: 'commit-coach', kind: 'Skill', icon: 'book', src: '社区 · MIT', desc: '按约定格式写提交信息，并提醒小步提交。', m: 58, sc: [62, 50, 61], why: ['你的仓库要求 type(scope): 描述', '小步提交时你的满意度更高'], compat: '所有 Agent', users: 6800, peer: 47, rec: 'acceptance' },
   { id: 'headless-scheduler', kind: '插件', icon: 'clock', src: '社区 · MIT', desc: '把长任务改成 headless 运行，定时汇报进度。', m: 55, sc: [52, 64, 48], why: ['采集任务期间频繁手动查看进度', '适合专家用户'], compat: 'Claude Code', users: 900, peer: 12, rec: 'headless' }
 ];

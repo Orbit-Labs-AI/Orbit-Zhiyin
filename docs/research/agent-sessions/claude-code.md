@@ -1,6 +1,6 @@
 # Claude Code 会话与轨迹数据分析
 
-> 面向 Tandem（本地跨 Agent 会话分析 Mac App）的数据接入调研。本机数据已脱敏：用户名写作 `~`，项目名写作 `<project>`，报告中不含任何对话正文、提示词、命令或工具输出，只含字段名、类型、计数、版本号与工具名。
+> 面向 Orbit（本地跨 Agent 会话分析 Mac App）的数据接入调研。本机数据已脱敏：用户名写作 `~`，项目名写作 `<project>`，报告中不含任何对话正文、提示词、命令或工具输出，只含字段名、类型、计数、版本号与工具名。
 
 **一句话结论**：Claude Code 每个会话落盘为 `~/.claude/projects/<编码后的 cwd>/<sessionId>.jsonl`，追加写入，一行一个 entry。消息类 entry 的 `message` 字段原样保存 Anthropic Messages API 结构，但一次 API 响应会按 content block 拆成多行（同一 `message.id`，`usage` 重复）。entry 之间用 `uuid`/`parentUuid` 连成树：并行工具调用、rewind、compaction 都会产生分叉或新根。子代理写在 `<sessionId>/subagents/` 下的独立文件。大工具输出另存到 `<sessionId>/tool-results/`，文件快照存到 `~/.claude/file-history/`。另有十余种不进对话链的“元数据行”（标题、模式、成本快照、队列操作等），会被反复追加。
 
@@ -730,7 +730,7 @@ flowchart TD
 - 按 `message.id` 去重的 transcript `output_tokens` 与 `cost-state` 的 output tokens 之比（transcript / `cost-state`）：中位 1.0，P10 0.56（n=108）；反过来 `cost-state` / transcript 的 P10 为 1.00、P90 为 2.11。比值小于 1（transcript 少于 `cost-state`）时，差额推断来自不进 transcript 的调用（标题生成、子代理等）。
 - `file-history-snapshot` 引用的备份 359/388 存在；`file-history-delta` 引用的备份 84/84 存在。
 
-## 9. 对 Tandem 解析器的要点
+## 9. 对 Orbit 解析器的要点
 
 **会话列表**
 
@@ -821,7 +821,7 @@ flowchart TD
 
 **清理**
 
-- 默认 30 天后删除。Tandem 若要长期分析，需要自行归档，只复制，不修改原文件。
+- 默认 30 天后删除。Orbit 若要长期分析，需要自行归档，只复制，不修改原文件。
 - Desktop 会话有豁免规则；SDK SessionStore 中的数据不受本地清理影响。
 
 **隐私**

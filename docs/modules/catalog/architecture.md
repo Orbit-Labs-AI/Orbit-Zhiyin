@@ -2,7 +2,7 @@
 
 状态：2026-10-02。此设计按本次明确要求实现向量检索，替代旧数据方案中“向量检索暂不做”的范围判断。它属于 DT-11/12/13/14 与 RC-09 的数据基础；不变更其他成员的分析模块、安装模块或两套 UI。
 
-实际构建规模、模型、测试和查询耗时见[实测记录](catalog-validation.md)。
+实际构建规模、模型、测试和查询耗时见[实测记录](validation.md)。
 
 ## 目标与模块边界
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ## 数据库与索引
 
-实际 DDL 统一放在 [`packages/data/src/tandem_data/migrations/catalog/`](../../packages/data/src/tandem_data/migrations/catalog/)，字段字典为 [`catalog-v1.schema.json`](../../packages/data/src/tandem_data/schemas/catalog-v1.schema.json)。这一子目录只用于独立的 `catalog.db`，不会被 canonical 会话库的顶层迁移加载。使用 SQLite WAL、外键、STRICT 表、FTS5；`application_id = 0x54434C47`、`user_version = 2`。v1 的 FTS rowid 由 `catalog/002.sql` 原子迁移；FTS 删除按 rowid 查找，避免对大目录反复扫描。打开其他模块的数据库或未来版本会明确失败。
+实际 DDL 统一放在 [`packages/data/src/tandem_data/migrations/catalog/`](../../../packages/data/src/tandem_data/migrations/catalog/)，字段字典为 [`catalog-v1.schema.json`](../../../packages/data/src/tandem_data/schemas/catalog-v1.schema.json)。这一子目录只用于独立的 `catalog.db`，不会被 canonical 会话库的顶层迁移加载。使用 SQLite WAL、外键、STRICT 表、FTS5；`application_id = 0x54434C47`、`user_version = 2`。v1 的 FTS rowid 由 `catalog/002.sql` 原子迁移；FTS 删除按 rowid 查找，避免对大目录反复扫描。打开其他模块的数据库或未来版本会明确失败。
 
 | 表 | 粒度与作用 | 主要索引 |
 | --- | --- | --- |

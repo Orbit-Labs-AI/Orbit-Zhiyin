@@ -1,6 +1,7 @@
 """Scoped analytics + an existing diagnosis + explicit environment → state."""
 
 import math
+from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -19,7 +20,10 @@ class StateBuild:
 def build_states(analysis, bottlenecks=None, context=None, policy=None):
     context = RecommendationContext.model_validate(context or {}) if not isinstance(context, RecommendationContext) else context.model_copy(deep=True)
     diagnosis = diagnose_bottlenecks(analysis, policy) if bottlenecks is None else deepcopy(bottlenecks)
-    if (not isinstance(diagnosis, dict) or diagnosis.get("feature_digest") != feature_digest(analysis)
+    # A diagnosis made here carries this snapshot's digest already; re-serializing every
+    # root's features only to compare it with itself is skipped.
+    if (not isinstance(diagnosis, dict)
+            or (bottlenecks is not None and diagnosis.get("feature_digest") != feature_digest(analysis))
             or diagnosis.get("scope") != analysis.get("scope") or diagnosis.get("analysis_digest") != analysis.get("analysis_digest")):
         raise ValueError("Bottleneck diagnosis does not match this scoped feature snapshot")
     roots = {r["session_uid"]: r for r in analysis.get("sessions") or []}
@@ -38,13 +42,23 @@ def build_states(analysis, bottlenecks=None, context=None, policy=None):
             value = signal.get(key)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
                 raise ValueError("Invalid bottleneck strength")
+    # Index signals by root and task records by id once (O(S + T)) instead of scanning
+    # every signal and task record per root; both keep their original relative order.
+    signals_by_root = defaultdict(list)
+    for signal in diagnosis["signals"]:
+        signals_by_root[signal["scope"]["root_session_uid"]].append(signal)
+    all_tasks = (analysis.get("tasks") or {}).get("records") or []
+    task_positions = defaultdict(list)
+    for position, task in enumerate(all_tasks):
+        task_positions[task.get("task_id")].append(position)
     states = []
     for sid, row in sorted(roots.items()):
-        own = [s for s in diagnosis["signals"] if s["scope"]["root_session_uid"] == sid]
+        own = signals_by_root.get(sid, [])
         features = row.get("bottleneck_features") or {}
         # Only scoped, extracted task labels are used in P0 lexical matching.
         # Raw conversation text and persona labels do not enter the query.
-        task_records = [t for t in (analysis.get("tasks") or {}).get("records") or [] if t.get("task_id") in (row.get("task_ids") or [])]
+        positions = {p for tid in set(row.get("task_ids") or []) for p in task_positions.get(tid, ())}
+        task_records = [all_tasks[p] for p in sorted(positions)]
         tasks = [{k: t.get(k) for k in ("task_id", "domain", "task_type")} for t in task_records]
         task_words = sorted({word for t in tasks for key in ("domain", "task_type") for word in t.get(key) or []})
         context_words = (context.languages or []) + (context.frameworks or []) + (context.tools or [])

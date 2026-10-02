@@ -8,7 +8,8 @@ case "${1:-all}" in
     pnpm --filter @tandem/connectors check
     uv run --no-sync ruff check packages/backend/src packages/backend/tests packages/data/src packages/data/tests packages/catalog/src packages/catalog/tests tests scripts evals benchmarks
     uv run --no-sync ruff format --check packages/data/src packages/data/tests
-    uv run --no-sync pytest -q
+    uv run --no-sync pytest -q -n auto -m "not serial"
+    uv run --no-sync pytest -q -m serial
     swift test --package-path packages/catalog-macos
     pnpm --filter @tandem/prototype-lite check
     pnpm --filter @tandem/prototype-advance check
@@ -18,7 +19,7 @@ case "${1:-all}" in
     ;;
   integration)
     pnpm --filter @tandem/connectors build
-    uv run --locked pytest -q tests/integration tests/e2e
+    uv run --locked pytest -q -n auto tests/integration tests/e2e
     ;;
   *)
     echo "Usage: bash scripts/check.sh [all|integration]" >&2

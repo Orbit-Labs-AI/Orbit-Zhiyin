@@ -1,6 +1,12 @@
 """DSH physical formats 0-4; packed chunks are indexed without per-token expansion."""
 
-from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
+from tandem_data.connectors.base import (
+    NATIVE_KEY_MATCH,
+    BaseMapper,
+    Mapping,
+    decode_json,
+    text_content,
+)
 from tandem_data.contract import canonical, uid
 
 CHUNKS = {"assistant/chunk", "text-chunks", "reasoning-chunks", "tool-call-chunks"}
@@ -127,7 +133,7 @@ class DshMapper(BaseMapper):
             refs = [
                 r[0]
                 for r in self.store.db.execute(
-                    "SELECT event_uid FROM event WHERE native_key=?",
+                    "SELECT event_uid FROM event WHERE " + NATIVE_KEY_MATCH,
                     (canonical([record.source_id, parent_uid, seq]),),
                 )
             ]

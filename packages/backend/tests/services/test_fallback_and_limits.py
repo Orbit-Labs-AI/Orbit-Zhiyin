@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from conftest import (
     AUTH,
     BASE,
@@ -18,6 +19,9 @@ from conftest import (
 from fastapi.testclient import TestClient
 
 from tandem_backend.services.worker_protocol import DEBUG_DELAY_ENV
+
+# Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
+pytestmark = pytest.mark.serial
 
 
 def _import_head(client, source):

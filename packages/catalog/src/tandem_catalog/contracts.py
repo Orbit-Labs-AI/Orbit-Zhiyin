@@ -101,6 +101,7 @@ class SourceSpec(Contract):
     github: repo, agents, official, marketplace (path; auto-detected when absent), agents_infer (default
     true), kind_rules ([{glob, type}] evaluated before built-in rules), root_type.
     mcp: publish_every_pages (default 10, partial publication without retirement), max_pages (default 120).
+    Any paged kind: max_seconds (wall-clock budget per sync call; mcp 300, others 900; the run pauses).
     clawhub: max_items (default 500). Any file kind: file (absolute local snapshot).
     """
 

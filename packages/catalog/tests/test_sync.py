@@ -7,7 +7,7 @@ from tandem_catalog.network import FetchError, HttpClient
 from tandem_catalog.store import CatalogStore
 from tandem_catalog.sync import CatalogSync
 
-from .test_network import FakeOpener
+from .test_network import FakeOpener, client
 from .test_storage import record
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -178,3 +178,63 @@ def test_cli_offline_sync_uses_cache_only(tmp_path, capsys):
     status = {r["source_id"]: (r["status"], r.get("error")) for r in result}
     assert status["litellm"] == ("completed", None)
     assert status["models-dev"] == ("failed", "not_cached") and code == 1
+
+
+class EndlessAdapter:
+    """A registry whose pagination never completes (recs-B14)."""
+
+    def __init__(self, spec, http, delay=0.02):
+        self.spec, self.http, self.delay = spec, http, delay
+
+    def fetch_page(self, checkpoint, state):
+        import time
+
+        time.sleep(self.delay)
+        n = int(checkpoint.get("n", 0)) + 1
+        return Page(records=[record(f"item-{n}")], complete=False, checkpoint={"n": n})
+
+
+def endless_store(tmp_path, **config):
+    store = CatalogStore(tmp_path / "catalog.db")
+    store.register([SourceSpec(source_id="reg", kind="mcp", url="https://registry.example/v0/servers",
+                               priority=50, config=config)])
+    return store
+
+
+def test_time_budget_pauses_endless_pagination_and_resumes(tmp_path):
+    import time
+
+    store = endless_store(tmp_path, max_seconds=0.3)
+    started = time.monotonic()
+    (result,) = CatalogSync(store, None, connector_factory=EndlessAdapter).sync(force=True, max_pages=400)
+    assert time.monotonic() - started < 3
+    assert result["status"] == "paused" and result["stopped"] == "time_budget"
+    first = result["pages_done"]
+    assert 0 < first < 120
+    assert store.stats()["items"] == first  # staged pages published before pausing
+    (again,) = CatalogSync(store, None, connector_factory=EndlessAdapter).sync(force=True, max_pages=400)
+    assert again["status"] == "paused" and store.stats()["items"] == first + again["pages_done"]
+
+
+def test_cancel_interrupts_retry_backoff_without_failing_the_source(tmp_path):
+    import time
+
+    store = endless_store(tmp_path)
+    http, opener = client(tmp_path / "http", 503, sleep=time.sleep)
+
+    class Adapter:
+        def __init__(self, spec, http):
+            self.http = http
+
+        def fetch_page(self, checkpoint, state):
+            self.http.json("https://models.dev/api.json")
+            raise AssertionError("unreachable: every response is 503")
+
+    cancel = threading.Event()
+    threading.Timer(0.3, cancel.set).start()
+    started = time.monotonic()
+    (result,) = CatalogSync(store, http, connector_factory=Adapter).sync(force=True, cancelled=cancel.is_set)
+    assert time.monotonic() - started < 3  # back-off would otherwise wait 1+2+4+8 s
+    assert result["status"] == "paused" and result["stopped"] == "cancelled", result
+    source = next(s for s in store.sources() if s["source_id"] == "reg")
+    assert source["failures"] == 0 and source["error"] is None

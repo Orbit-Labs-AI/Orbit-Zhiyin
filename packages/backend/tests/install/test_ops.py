@@ -212,3 +212,17 @@ def test_md_units_shape():
                                         "Final paragraph"]
     two = ops.select(blk("md_block", MD), ["u1", "u2"])["content"]
     assert two == "- run `uv sync` first\n- prefer small commits\n  with a reason"
+
+
+def test_merge_same_name_mcp_server_conflicts_instead_of_merging():
+    cur = dumps({"mcpServers": {"foo": {"type": "stdio", "command": "npx",
+                                        "args": ["-y", "a", "b"], "env": {"K": "v"}}}})
+    spec = {"type": "stdio", "command": "npx", "args": ["x"]}
+    for pointer, data in (("/mcpServers/foo", cur),
+                          ("/projects/~1p/mcpServers/foo",
+                           dumps({"projects": {"/p": json.loads(cur)}}))):
+        with pytest.raises(OpConflict) as e:
+            ops.render(mj(pointer, spec, write_mode="set"), data)
+        assert e.value.code == "mcp_exists"
+    same = {"type": "stdio", "command": "npx", "args": ["-y", "a", "b"]}
+    assert ops.render(mj("/mcpServers/foo", same, write_mode="set"), cur)["status"] == "noop"

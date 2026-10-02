@@ -188,11 +188,6 @@ def cooccurrences(rows: list[Record], terms: list[Record], *, top_n: int = 40) -
 
 def text_similarity(rows: list[Record], *, max_sessions: int = 2000, neighbors: int = 3) -> Record:
     """Find local TF-IDF cosine neighbors; similarity never establishes shared task identity."""
-    import numpy as np
-    from sklearn.feature_extraction import DictVectorizer
-    from sklearn.feature_extraction.text import TfidfTransformer
-    from sklearn.neighbors import NearestNeighbors
-
     groups = defaultdict(Counter)
     for row in rows:
         if row["token_count"]:
@@ -205,6 +200,12 @@ def text_similarity(rows: list[Record], *, max_sessions: int = 2000, neighbors: 
             "max_sessions": max_sessions,
             "pairs": None,
         }
+    # Imported only when a matrix is built: the sklearn import alone costs about a second.
+    import numpy as np
+    from sklearn.feature_extraction import DictVectorizer
+    from sklearn.feature_extraction.text import TfidfTransformer
+    from sklearn.neighbors import NearestNeighbors
+
     matrix = DictVectorizer().fit_transform([dict(groups[sid]) for sid in ids])
     matrix = TfidfTransformer(sublinear_tf=True).fit_transform(matrix)
     distances, indices = (

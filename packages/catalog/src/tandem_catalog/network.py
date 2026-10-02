@@ -8,6 +8,7 @@ import threading
 import time
 import zlib
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -26,6 +27,10 @@ CACHE_DDL = """CREATE TABLE IF NOT EXISTS http_cache(
   url_sha TEXT PRIMARY KEY, url TEXT NOT NULL, etag TEXT, modified TEXT, sha256 TEXT NOT NULL,
   codec TEXT NOT NULL, size INTEGER NOT NULL, fetched_at INTEGER NOT NULL, body BLOB NOT NULL
 ) WITHOUT ROWID, STRICT"""
+
+
+class Interrupted(Exception):
+    """A retry back-off was cut short by the caller's stop condition (cancel or time budget)."""
 
 
 class FetchError(RuntimeError):
@@ -65,6 +70,7 @@ class HttpClient:
         self.offline, self.ttl = offline, ttl
         self.opener = opener or build_opener(SafeRedirect)
         self.retries, self.sleep = max(0, retries), sleep
+        self._local = threading.local()  # per-thread stop condition for retry back-off
         self.requests = 0  # network round trips, for budgets and tests
         self._db_lock = threading.Lock()
         self._mutex = threading.Lock()
@@ -173,8 +179,38 @@ class HttpClient:
             except FetchError as exc:
                 if attempt >= self.retries or not getattr(exc, "retryable", False) or exc.retry_after > MAX_RETRY_AFTER:
                     raise
-                self.sleep(max(2 ** attempt, exc.retry_after))
+                self._backoff(max(2 ** attempt, exc.retry_after))
                 attempt += 1
+
+    @contextmanager
+    def interruptible(self, stop):
+        """Within this block (this thread only), retry back-off raises ``Interrupted`` as soon
+        as ``stop()`` is true instead of sleeping out the full delay."""
+        previous = getattr(self._local, "stop", None)
+        self._local.stop = stop
+        try:
+            yield self
+        finally:
+            self._local.stop = previous
+
+    def _backoff(self, seconds: float):
+        stop = getattr(self._local, "stop", None)
+        if stop is None:
+            return self.sleep(seconds)
+        if self.sleep is not time.sleep:  # injected clock (tests): one call, checked around it
+            if stop():
+                raise Interrupted
+            self.sleep(seconds)
+            if stop():
+                raise Interrupted
+            return
+        end = time.monotonic() + seconds
+        while (left := end - time.monotonic()) > 0:
+            if stop():
+                raise Interrupted
+            time.sleep(min(0.2, left))
+        if stop():
+            raise Interrupted
 
     def _request(self, url: str, key: str, headers: dict, cached: dict | None) -> bytes:
         with self._mutex:
