@@ -61,19 +61,28 @@ def locate_interventions(events, main_ids):
     for es in groups.values():
         es.sort(key=lambda e: (e["seq"], e["event_uid"]))
         steps = [e for e in es if e["kind"] in EXECUTION_KINDS]
+        step_tasks = [task_uid(s) for s in steps]
         for e in es:
             if not human(e, main_ids):
                 continue
-            eligible = [s for s in steps if task_uid(e) is None or task_uid(s) == task_uid(e)]
-            before = [s for s in eligible if s["seq"] < e["seq"]]
-            after = [s for s in eligible if s["seq"] > e["seq"]]
-            previous, following = (before[-1] if before else None), (after[0] if after else None)
+            # Steps are in (seq, uid) order: the last eligible step before the message and
+            # the first eligible one after it, found in one scan instead of three lists.
+            task, seq = task_uid(e), e["seq"]
+            previous = following = None
+            for s, step_task in zip(steps, step_tasks, strict=True):
+                if task is not None and step_task != task:
+                    continue
+                if s["seq"] < seq:
+                    previous = s
+                elif s["seq"] > seq:
+                    following = s
+                    break
             points.append({"event_uid": e["event_uid"], "session_uid": e["session_uid"],
-                           "task_uid": task_uid(e), "turn_uid": e.get("turn_uid"), "seq": e["seq"],
+                           "task_uid": task, "turn_uid": e.get("turn_uid"), "seq": e["seq"],
                            "previous_step_uid": previous["event_uid"] if previous else None,
                            "next_step_uid": following["event_uid"] if following else None,
                            "next_step_available_at": following.get("ts") if following else None,
-                           "relation_scope": "task" if task_uid(e) else "session_only"})
+                           "relation_scope": "task" if task else "session_only"})
     return points
 
 

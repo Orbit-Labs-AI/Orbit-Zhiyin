@@ -3,17 +3,24 @@
 from collections import Counter, defaultdict
 
 from ..common import human, ratio
-from .calls import native_sequence, ordered_call_group, sequence_sort_key
+from .calls import ordered_call_group
 from .rules import STATES, result_status
 
 
 def workflow(events, calls, main_ids, supported_kinds=None):
     sequences, transitions = defaultdict(list), Counter()
-    valid_events = [e for e in events if native_sequence(e.get("seq"))]
-    ambiguous_sessions = {e["session_uid"] for e in events if not native_sequence(e.get("seq"))}
-    positions = Counter((e["session_uid"], e["seq"]) for e in valid_events)
+    # One pass classifies native positions (same test as native_sequence).
+    valid_events, ambiguous_sessions, positions = [], set(), Counter()
+    for e in events:
+        seq = e.get("seq")
+        if isinstance(seq, int) and not isinstance(seq, bool) and seq >= 0:
+            valid_events.append(e)
+            positions[(e["session_uid"], seq)] += 1
+        else:
+            ambiguous_sessions.add(e["session_uid"])
     ambiguous_sessions.update(sid for (sid, _), n in positions.items() if n > 1)
-    for e in sorted(valid_events, key=lambda e: sequence_sort_key(e, "event_uid")):
+    # Every row here has a native seq, so sequence_sort_key reduces to (session, seq, uid).
+    for e in sorted(valid_events, key=lambda e: (e["session_uid"], e["seq"], e["event_uid"])):
         if e["session_uid"] in ambiguous_sessions:
             continue
         state = "HUMAN_MESSAGE" if human(e, main_ids) else STATES.get(e["kind"])
@@ -34,11 +41,13 @@ def workflow(events, calls, main_ids, supported_kinds=None):
         totals[a] += n
     count = sum(transitions.values())
     counts = {}
+    kinds = Counter(e["kind"] for e in events)
     for name, kind in (("error_count", "error"), ("branch_count", "branch"),
                        ("compaction_count", "context.compaction"), ("permission_request_count", "permission.request"),
                        ("subagent_spawn_count", "subagent.spawn"), ("interruption_count", "turn.interrupted")):
-        counts[name] = sum(e["kind"] == kind for e in events) if supported_kinds is None or kind in supported_kinds else None
-    counts["rollback_rewind_count"] = (sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind") for e in events)
+        counts[name] = kinds[kind] if supported_kinds is None or kind in supported_kinds else None
+    counts["rollback_rewind_count"] = (sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind")
+                                           for e in events) if kinds["branch"] else 0
                                        if supported_kinds is None or "branch" in supported_kinds else None)
     consecutive, same, max_failures, digest_eligible = 0, 0, 0, 0
     by_session = defaultdict(list)

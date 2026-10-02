@@ -25,10 +25,18 @@ def normalize_token_buckets(row):
 
 
 def token_total(row):
-    values = list(normalize_token_buckets(row).values())
-    if all(v is not None for v in values):
-        return sum(values)
-    return None
+    """Sum of normalize_token_buckets(row), or None if any bucket is unknown (no dict built)."""
+    i, r, w, o = (row.get(k) for k in TOKEN_BUCKETS)
+    if not (token_number(r) and token_number(w) and token_number(o)):
+        return None
+    semantics = row.get("input_tokens_semantics", "uncached")
+    if not token_number(i) or semantics not in ("uncached", "includes_cache"):
+        return None
+    if semantics == "includes_cache":
+        i = i - r - w
+        if i < 0:
+            return None
+    return i + r + w + o
 
 
 def prepare_requests(model_calls):
