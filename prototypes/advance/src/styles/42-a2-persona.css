@@ -1,4 +1,4 @@
-/* A2 persona: low-sample relax chips, fingerprint v2 (radar core / rhythm band / stacked density ring), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 compass (bezel ticks / stacked density ring / rhythm band / compass rose + needle), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
@@ -22,3 +22,10 @@
 .pe-evl{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container main (max-width:1100px){.letters .L{font-size:72px}.persona-hero{grid-template-columns:minmax(0,1fr) 380px}}
 @container main (max-width:639px){.pe-ev{grid-template-columns:minmax(0,1fr)}}
+/* 罗盘指针：外层按 --hd（协作重心）定位，内层 .fp-nd 留给晃动（进入页面的 WAAPI 阻尼晃动、悬停颤动 ±3°） */
+.fp2 .fp-needle{transform:rotate(var(--hd,0deg));transform-origin:200px 200px;transform-box:view-box}
+.fp2 .fp-nd{transform-origin:200px 200px;transform-box:view-box}
+.fp2:hover .fp-nd{animation:fp-jit .9s ease-in-out infinite}
+@keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
+@media (prefers-reduced-motion:reduce){.fp2:hover .fp-nd{animation:none}}
+.pe-fp-legend .lnk{white-space:nowrap}
