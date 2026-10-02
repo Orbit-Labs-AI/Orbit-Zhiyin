@@ -239,7 +239,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 真实规模（约 1.9k 会话 / 77 万事件）下全时段冷算需数分钟，首屏不能等它。
 
 - `/v1/uiview/{facts,overview,persona,persona/reveal}` 与 `/v1/analytics/overview` 接受 `days`（7 / 30 / 90 / 0=全部）。
-- 省略 `days`（且 analytics 未给 `from_ts/until_ts`）时自动选择：已就绪（当前修订）的最宽窗口（全部 → 30 → 7）；否则最宽的旧快照（stale）；否则立即（interactive）算近 7 天，并把 30 天、全部排进 prewarm。
+- 省略 `days`（且 analytics 未给 `from_ts/until_ts`）时自动选择：已就绪（当前修订）的最宽窗口（全部 → 30 → 7）；否则最宽的旧快照（stale）；否则立即（interactive）算近 7 天（近 7 天没有事件时取 30 天，再没有取全部），并把更宽的窗口排进 prewarm（先排该窗口的 `uiview_facts` 完整计算，再排请求的分区）。
 - 窗口从 UTC 日起点开始（`days-1` 天前），一天内同一窗口同一 scope_hash，预热与请求命中同一快照。
 - 响应 `meta.window = {days, requested: "auto"|n, wider: [{days, state}]}`，`state ∈ ready / stale / computing / queued / failed / absent`；客户端看到更宽窗口 `ready`（或收到对应 `analysis.ready`）后带上 `days` 切换。
 - 202 的 `meta.progress = {status, attempt, events, last_error, queue_position | elapsed_s, budget_s, rss_bytes}`。
@@ -249,7 +249,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 - **触发**：每次 `data.published`（去抖 30 s；`head / window` 批次只预热轻量 section）；来源启停、设置变更；用户请求未命中（interactive，最高优先）；`POST /v1/analytics/recompute {sections, scope}` 手动。
 - **预热范围**：导入发布后（去抖 30 s）与有数据时 gateway 启动后，按 7 天 → 30 天 → 全部的窗口梯度，每个窗口先算 `uiview_facts`（一次完整分析），再算轻量 section（此时多为 analysis.sqlite 缓存读取）；然后是设置中的默认范围（若不在梯度内）与最近 5 个 MRU 范围；`rest` 全量批次后再算重型 section 与推荐输入。范围按路由同样方式构建（MRU 里的客户端时区、默认来源、持久排除），快照键与请求一致。重型 section 标注 `cost: heavy`，UI 进入对应页面时才升为 interactive。
 - **缓存共享**：`with_text=True` 的完整计算会把与文本无关的 section（overview/tools/workflow/bottleneck_features/tasks/instruction/lexical）连同元数据一并写入 `with_text=False` 键，作为依赖算出的 section 也全部落盘；同一窗口只冷算一次。
-- **成本控制**：prewarm 以较低 OS 优先级运行（`setpriority`）、单并发；interactive 到来时抢占当前 prewarm，被抢占的 prewarm 回到队尾（至多 2 次）；冷算进程池默认最多 4 个子进程（`TANDEM_ANALYSIS_WORKERS` 覆盖）；用户正在拖动筛选时合并为最后一个 Scope。
+- **成本控制**：prewarm 以较低 OS 优先级运行（`setpriority`）、单并发；interactive 到来时抢占当前 prewarm，被抢占的 prewarm 回到队尾（至多 2 次）；冷算进程池默认最多 4 个子进程（`TANDEM_ANALYSIS_WORKERS` 覆盖），选区超过 15 万事件时不起进程池（`TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS`），避免子进程各持一份分片把进程树推到十几 GB；用户正在拖动筛选时合并为最后一个 Scope。
 - **更新**：按 `data_rev` 整体失效是 MVP 的保守默认；分析审计包若提供按会话 / 按日增量，则把“失效”收窄为受影响的快照，网关接口不变（只是 `rev` 更细）。
 
 ### 4.4 超时与降级
