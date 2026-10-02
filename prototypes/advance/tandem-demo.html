@@ -7069,6 +7069,10 @@ const STUDIO_COPY = { mine: '从 46 个会话提炼出 5 条可执行规则', re
 let RUNT = null;
 const stFile = () => GEN[S.studio.type].file.split('/').pop();
 const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0] || agent(S.studio.agent);
+// token sizes: ≥ 1k as「6.1k」(the demo's packs); a small live pack reads its exact count instead of a misleading「0.0k」
+const tokK = (n) => n > 0 && n < 1000 ? String(Math.round(n)) : f1(n / 1000) + 'k';
+const tokS = (n) => n > 0 && n < 1000 ? Math.round(n) + ' tok' : f1(n / 1000) + 'k';
+const tokPct = (n, L) => { const p = Math.round(n / L * 100); return (n > 0 && p < 1 ? '<1' : p) + '%'; };
 function ctxTokens() { return CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? c[3] : 0), 0); }
 function ctxHits() { return S.studio.ctx.redact ? CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? (CTX_HITS[c[0]] || 0) : 0), 0) : 0; }
 const ctxEmpty = () => !CTX.some((c) => c[0] !== 'redact' && S.studio.ctx[c[0]]);
@@ -7081,7 +7085,7 @@ function replayRows() {
 function studioLogs(i) {
   const ag = agent(S.studio.agent); const tok = ctxTokens();
   return [
-    ['$ ' + ag.cli + ' --output-format stream-json' + (S.studio.agent === 'cc' ? ' --model claude-opus-5-5' : ''), '› 读取上下文包 orbit-ctx-1001.json（' + f1(tok / 1000) + 'k tokens）', '› 已脱敏 ' + ctxHits() + ' 处'].concat(tok > CTX_LIMIT ? ['! 超出 ' + f1(CTX_LIMIT / 1000) + 'k 上限 ' + f1((tok - CTX_LIMIT) / 1000) + 'k：原始片段将被截断'] : []),
+    ['$ ' + ag.cli + ' --output-format stream-json' + (S.studio.agent === 'cc' ? ' --model claude-opus-5-5' : ''), '› 读取上下文包 orbit-ctx-1001.json（' + tokK(tok) + ' tokens）', '› 已脱敏 ' + ctxHits() + ' 处'].concat(tok > CTX_LIMIT ? ['! 超出 ' + f1(CTX_LIMIT / 1000) + 'k 上限 ' + f1((tok - CTX_LIMIT) / 1000) + 'k：原始片段将被截断'] : []),
     ['› 识别到 5 条可执行规则，置信度 ≥ 0.8', '› 检查已安装内容：无同名冲突'],
     ['› 草拟 ' + stFile()],
     ['› 规范：frontmatter 与结构合法，名称不与已安装 14 项冲突', '› 安全：未发现 rm -rf、强推、读取凭据'],
@@ -7115,9 +7119,9 @@ function refreshStudio() {
 // Context stack: one segment per enabled item (grey ramp; raw snippets hatched), the budget mark turns critical when exceeded.
 function tokBar() {
   const tok = ctxTokens(); const scale = Math.max(tok, CTX_LIMIT) * 1.08; const over = tok > CTX_LIMIT;
-  const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + c[0] + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + f1(c[3] / 1000) + 'k"></span>').join('');
-  return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + f1(tok / 1000) + 'k tokens，上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (CTX_LIMIT / scale * 100) + '%"></span></div>' +
-    '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + f1(tok / 1000) + 'k tokens</span><span class="mono cap">上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - CTX_LIMIT) / 1000) + 'k，原始片段会被截断' : ' · ' + Math.round(tok / CTX_LIMIT * 100) + '%') + '</span></div></div>';
+  const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + c[0] + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + tokS(c[3]) + '"></span>').join('');
+  return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (CTX_LIMIT / scale * 100) + '%"></span></div>' +
+    '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - CTX_LIMIT) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, CTX_LIMIT)) + '</span></div></div>';
 }
 function ctxLine(l) { return esc(l).replace(/\{\{(u|m|k|ip)\}\}/g, (m, k) => S.studio.ctx.redact ? '<mark class="rd">' + CTX_PH[k] + '</mark>' : '<mark class="st-leak">' + esc(CTX_RAW[k]) + '</mark>'); }
 function checkRows(run, seq) {
@@ -7142,7 +7146,7 @@ function checkRows(run, seq) {
 PAGES.studio = () => {
   const st = S.studio; const run = st.run; const g = GEN[st.type]; const ag = agent(st.agent); const tpl = TPLS[run ? run.tpl : st.tpl]; const seq = tpl.seq;
   const file = stFile(); const active = run && !run.done && !run.stopped;
-  const stepsDef = [['打包上下文', f1(ctxTokens() / 1000) + 'k tokens · 脱敏 ' + ctxHits() + ' 处'], ['分析模式', STUDIO_COPY.mine], ['起草 ' + file, run && run.step === 2 && active ? '已输出 ' + run.lines + ' / ' + g.lines.length + ' 行' : '流式写入预览'], ['自检', '规范 · 安全'], ['回放 dry-run + judge', STUDIO_COPY.replay], ['等你审阅', '审阅前不会写入任何文件'], ['交叉自检', '由 ' + otherAgent().name + ' 复核结论']];
+  const stepsDef = [['打包上下文', tokK(ctxTokens()) + ' tokens · 脱敏 ' + ctxHits() + ' 处'], ['分析模式', STUDIO_COPY.mine], ['起草 ' + file, run && run.step === 2 && active ? '已输出 ' + run.lines + ' / ' + g.lines.length + ' 行' : '流式写入预览'], ['自检', '规范 · 安全'], ['回放 dry-run + judge', STUDIO_COPY.replay], ['等你审阅', '审阅前不会写入任何文件'], ['交叉自检', '由 ' + otherAgent().name + ' 复核结论']];
   const stepState = (i) => { const k = seq.indexOf(i); return !run ? 'todo' : run.stopped && k === run.pos ? 'stop' : run.done || k < run.pos ? 'done' : k === run.pos ? 'run' : 'todo'; };
   const maxDur = Math.max(...seq.map((i) => STEP_DUR[i]));
   const shownLines = run ? (run.step > 2 || run.done ? g.lines.length : run.step === 2 ? run.lines : 0) : 0;
@@ -7152,7 +7156,7 @@ PAGES.studio = () => {
     '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不调用云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录与额度</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
     '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
     '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)" placeholder="一句话写清要生成什么，例如：提交前先跑测试，失败就停下汇报">' + esc(st.goal) + '</textarea>' + (st.from ? '<span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span>' : '') + '</label>' +
-    '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? f1(c[3] / 1000) + 'k' : '') + '</span></label>').join('') + '</div></div>' +
+    '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? tokS(c[3]) : '') + '</span></label>').join('') + '</div></div>' +
     '<div class="col" style="gap:6px"><span class="eb">执行者</span><button type="button" data-act="studioAgent" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:left"><span style="width:28px;height:28px;border-radius:7px;background:' + ag.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + ag.c) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:13px;line-height:18px">' + ag.name + '</b><span class="mono cap" style="font-size:11px;line-height:14px">' + ag.model + '</span></span>' + ic('chev', 12, 'color:var(--ink-3)') + '</button><span class="cap" style="font-size:11px">已检测：' + STUDIO_COPY.detected + '</span></div>' +
     '<div class="row" style="justify-content:space-between;font-size:12px"><span class="row" style="gap:6px;min-width:0"><span class="eb">模板</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(TPLS[st.tpl].name) + ' · ' + TPLS[st.tpl].seq.length + ' 步</span></span><button type="button" class="lnk" data-act="studioTpl">更换</button></div>' +
     '<div class="row" style="margin-top:auto"><button type="button" class="btn p" data-act="studioStart" style="flex:1;height:32px"' + (active ? ' disabled' : '') + '>' + (run && (run.done || run.stopped) ? '重新生成' : '开始生成') + '</button><button type="button" class="btn" data-act="studioDraft" style="height:32px">存为草稿</button></div></div>' +
@@ -7170,7 +7174,7 @@ PAGES.studio.after = () => { const l = $('#studioLog'); if (l) l.scrollTop = l.s
 let studioRunner = () => agent(S.studio.agent);
 function ctxPreviewHTML() {
   const c = S.studio.ctx; const tok = ctxTokens();
-  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? ((CTX_SAMPLE[x[0]] || []).length ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">暂无可发送的内容</span>') : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
+  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + tokS(x[3]) + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? ((CTX_SAMPLE[x[0]] || []).length ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">暂无可发送的内容</span>') : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
   return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(studioRunner().cli || studioRunner().name || '所选 Agent') + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Orbit 服务器。') + '</span></div></div>';
 }
 function ctxBundle() {
@@ -11298,6 +11302,13 @@ const TLS_KIND = { waiting: ['awaiting_approval', 'waiting'], done: ['just_finis
 const TLS_ART_KIND = { skill: 'Skill', hook: 'Hook', rule: '规则', subagent: '子代理', glue: '工作流', command: '命令' };
 const tlsKind = (type) => Object.keys(TLS_KIND).find((k) => TLS_KIND[k].indexOf(type) >= 0) || null;
 const tlsAgOf = (eid) => Object.keys(TandemLive.AGENT_KEYS).find((a) => TandemLive.AGENT_KEYS[a].indexOf(eid) >= 0) || null;
+// display name of an engine id (「Claude Code」, not claude_code): the engines list first, then the app's agent table
+const tlsEngName = (id) => {
+  if (!id) return null;
+  const d = TL.resource('/v1/ai/engines').data; const e = d && d.engines && d.engines.find((x) => x.id === id);
+  if (e && e.name) return e.name;
+  const a = tlsAgOf(id); const g = a && AG.find((x) => x.id === a); return g ? g.name : String(id).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
 function tlsRes(path, query) { const r = TL.resource(path, { query }); if (r.dirty && !r.loading) TL.load(r); return r; }
 const tlsDemo = (r) => !!(r && r.data == null && r.error && TL.unavailable(r.error));
 function tlsBytes(n) { if (n == null || !Number.isFinite(n)) return TLU.DASH; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i]; }
@@ -11331,7 +11342,10 @@ if (TL.mode === 'live') {
     return e ? { name: e.name || id, cli: e.name || id } : agent(S.studio.agent);
   };
   const tlsSel = () => { const items = {}; CTX.forEach((c) => { items[c[0]] = !!S.studio.ctx[c[0]]; }); return { items }; };
-  const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel())].join('|');
+  // a typed goal is a manual goal: the gateway then searches the index for it (evidence) and packs the text itself; an
+  // empty goal stays 'ask' (a manual one is a 422 goal_required) so the item list still renders before the user writes one
+  const tlsGoal = () => { const g = S.studio.goal.trim(); return { goal: g, goal_source: g ? 'manual' : 'ask' }; };
+  const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel()), S.studio.goal.trim()].join('|');
   // the pack previews are compact dumps (`key: value` per field, JSON-quoted strings): drop empty fields, unquote strings,
   // name the fields, and leave out the goal's own bookkeeping (source) — the goal text is what gets sent
   const TLS_FIELD = { text: '', command_heads: '命令', file_exts: '文件类型', verify_commands: '验证命令', failure_runs: '连续失败' };
@@ -11365,19 +11379,33 @@ if (TL.mode === 'live') {
   function tlsPreview(force) {
     const key = tlsPreviewKey();
     if (TLS.previewBusy || (!force && TLS.previewKey === key)) return;
-    TLS.previewKey = key; TLS.previewBusy = true;
-    TL.send('POST', '/v1/ai/preview', { task_id: TLS_TASK[S.studio.type], engine: tlsEngine(), selection: tlsSel(), goal: S.studio.goal, goal_source: 'ask', template: S.studio.tpl })
+    TLS.previewKey = key; TLS.previewBusy = true; const keys = CTX.map((c) => c[0]).join(',');
+    TL.send('POST', '/v1/ai/preview', Object.assign({ task_id: TLS_TASK[S.studio.type], engine: tlsEngine(), selection: tlsSel(), template: S.studio.tpl }, tlsGoal()))
       .then((r) => { TLS.preview = r.data; tlsApplyPreview(r.data || {}); }, (e) => { TLS.preview = null; if (!TL.unavailable(e)) toast('上下文预览失败：' + (e.message || e.code)); })
-      .then(() => { TLS.previewBusy = false; if (tlsPreviewKey() !== TLS.previewKey) tlsPreview(); else { refreshStudio(); refreshCtx(); } });
+      .then(() => { TLS.previewBusy = false; if (tlsPreviewKey() !== TLS.previewKey) tlsPreview(); else tlsPreviewShow(keys); });
   }
+  // while the user is typing the goal a full re-render would drop the IME composition: patch the stack bar, the preview
+  // sheet and the per-item sizes in place when the item set is unchanged
+  function tlsPreviewShow(keys) {
+    const a = document.activeElement; const rows = $$('#main .st-ctx');
+    if (!(a && a.id === 'studioGoal') || keys !== CTX.map((c) => c[0]).join(',') || rows.length !== CTX.length) { refreshStudio(); refreshCtx(); return; }
+    refreshCtx();
+    rows.forEach((row) => {
+      const inp = row.querySelector('input[data-k]'); const c = inp && CTX.find((x) => x[0] === inp.dataset.k); const t = row.querySelector(':scope > .mono.cap');
+      if (c && t) t.textContent = c[3] ? tokS(c[3]) : '';
+    });
+  }
+  // the goal is part of the pack: re-preview shortly after the user stops typing
+  const tlsGoalBase = ACT.studioGoal;
+  ACT.studioGoal = (el) => { tlsGoalBase(el); clearTimeout(TLS.goalT); TLS.goalT = setTimeout(() => { if (S.route === 'studio' && engines()) tlsPreview(); }, 450); };
   // same markup as the demo's token stack, with the gateway's input budget
   const tlsTokBarBase = tokBar;
   tokBar = function () {
     if (!TLS.limit) return tlsTokBarBase();
     const L = TLS.limit; const tok = ctxTokens(); const scale = Math.max(tok, L) * 1.08; const over = tok > L;
-    const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + esc(c[0]) + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + f1(c[3] / 1000) + 'k"></span>').join('');
-    return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + f1(tok / 1000) + 'k tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
-      '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + f1(tok / 1000) + 'k tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + Math.round(tok / L * 100) + '%') + '</span></div></div>';
+    const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + esc(c[0]) + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + tokS(c[3]) + '"></span>').join('');
+    return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
+      '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, L)) + '</span></div></div>';
   };
   const tlsStudioBase = PAGES.studio; const tlsStudioAfter = PAGES.studio.after;
   PAGES.studio = function () {
@@ -11438,7 +11466,7 @@ if (TL.mode === 'live') {
   function tlsConsentDialog(det, el) {
     const miss = det.missing || []; const eid = det.engine || tlsEngine();
     TLS.consent = { miss, eid, el };
-    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(eid || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
+    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(tlsEngName(eid) || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
       miss.map((k) => '<div class="row" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px">' + ic('shield', 13, 'color:var(--good)') + '<span style="flex:1">' + esc(CLS_NAME[k] || k) + '</span><span class="mono cap" style="font-size:11px">' + esc(k) + '</span></div>').join('') +
       '</div><div class="mf"><button type="button" class="btn" data-act="tlsConsentSet">去设置</button><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="tlsConsentOk">授权并重试</button></div>');
   }
@@ -11466,7 +11494,7 @@ if (TL.mode === 'live') {
     const seq = TPLS[S.studio.tpl].seq;
     const run = S.studio.run = { tpl: S.studio.tpl, pos: 0, step: seq[0], lines: 0, log: [], head: ['$ POST /v1/ai/jobs · ' + TLS_TASK[type] + ' · ' + eid], done: false, stopped: false, installed: null, live: { id: null, job: null } };
     run.log = run.head.slice(); refreshStudio(); renderSide();
-    TL.send('POST', '/v1/ai/jobs', { task_id: TLS_TASK[type], engine: eid, template: run.tpl, goal: S.studio.goal, goal_source: 'ask', selection: tlsSel(), preview_digest: TLS.preview ? TLS.preview.preview_digest : undefined }, { signal: ctl.signal })
+    TL.send('POST', '/v1/ai/jobs', { task_id: TLS_TASK[type], engine: eid, template: run.tpl, goal: tlsGoal().goal, goal_source: tlsGoal().goal_source, selection: tlsSel(), preview_digest: TLS.preview ? TLS.preview.preview_digest : undefined }, { signal: ctl.signal })
       .then((res) => {
         const j = res.data || {}; run.live.id = j.job_id;
         run.head.push('› 任务 ' + j.job_id + (j.cached ? ' · 命中缓存' : '') + (j.estimate ? ' · 预计 ' + f1((j.estimate.tokens || 0) / 1000) + 'k tokens · ' + TLU.money(j.estimate.cost_usd) : ''));
@@ -11710,7 +11738,7 @@ if (TL.mode === 'live') {
       if (tlsDemo(TL.resource(R.con))) sample('AI 通道');
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
-        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(conEngine(d) || '未选择') : '') + '</div>');
+        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
