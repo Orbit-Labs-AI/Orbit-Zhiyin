@@ -20,6 +20,7 @@
 | 某个 feature 的阶段、现状、负责人、reviewer、被多少界面用到 | §6（161 行，含 20 个新增与 1 个废弃） |
 | 前端下一步改什么、优先级 | §7（P0 9 项、P1 13 项、P2 10 项、明确拒绝 10 项） |
 | 后端集成分支 `wip/yhyfhgs-backend` 上资源库、特征、推荐、AI、安装、平台各做到哪、实测性能与剩余缺口 | [backend-buildout.md](backend-buildout.md)（Q1–Q7） |
+| 后端在本机真实日志上能否还原各页、推荐/安装/AI 的实测效果、性能与缺陷修复分支（只含聚合结果） | [real-data-validation.md](real-data-validation.md) |
 | Lite 8 页与 Advance 页面的对应、哪些后端共用 | §8 |
 
 **增删改规则**
