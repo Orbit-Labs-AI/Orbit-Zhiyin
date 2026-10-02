@@ -59,6 +59,8 @@ def validate_spec(spec: dict) -> dict:
     if not isinstance(payload, dict):
         raise PlanError("invalid_spec", "payload 必须是对象")
     missing = [f for f in REQUIRED[kind] if payload.get(f) in (None, "", [], {})]
+    if kind == "hook" and payload.get("event_bindings") and "event" in missing:
+        missing.remove("event")
     if kind == "mcp" and not (payload.get("command") or payload.get("url")):
         missing.append("command|url")
     if missing:
@@ -263,6 +265,61 @@ def _rec_candidate_row(appdb, sid) -> dict | None:
     return row
 
 
+# AI artifacts name their files by symbolic target; the prefix says which agent it is for.
+SYMBOLIC_AGENTS = {"claude": "claude_code", "codex": "codex", "agents": "codex"}
+_AI_MARKER = re.compile(r"^<!-- /?tandem:rule\b.*-->$")
+
+
+def _ai_payload(kind: str, payload: dict, files: list[dict]) -> dict:
+    """AI generate's payload (see ``ai/generate/render.py``) → this module's InstallSpec payload."""
+    by_target = {f.get("target"): f for f in files if isinstance(f, dict)}
+    if kind == "rule":
+        lines = [ln for ln in str(payload.get("markdown") or "").splitlines() if not _AI_MARKER.match(ln.strip())]
+        return {"text": "\n".join(lines).strip("\n")}
+    if kind == "skill":
+        return {"name": payload.get("name"),
+                "files": [{"rel": f.get("path"), "text": f.get("content")} for f in payload.get("files") or []]}
+    if kind in ("subagent", "command"):
+        return {"name": payload.get("name"), "text": payload.get("markdown")}
+    if kind == "hook":
+        script = payload.get("script") or {}
+        bindings, command = [], None
+        for target, f in by_target.items():
+            if str(target).startswith("claude.user_settings#/hooks/"):
+                for entry in _json(f.get("content")) or []:
+                    bindings.append({"event": target.rsplit("/", 1)[1], "matcher": entry.get("matcher")})
+                    command = command or ((entry.get("hooks") or [{}])[0]).get("command")
+        bindings = bindings or [dict(b) for b in payload.get("event_bindings") or []]
+        config = next((f for t, f in by_target.items() if str(t).startswith("tandem.hooks/")
+                       and str(t).endswith(".config.json")), None)
+        out = {"event_bindings": bindings, "command": command, "timeout": payload.get("timeout_s"),
+               "script": {"name": script.get("name"), "text": script.get("content")}}
+        if config is not None:
+            out["extra_files"] = [{"name": config["target"].split("/", 1)[1], "text": config.get("content")}]
+        return out
+    return payload
+
+
+def _from_artifact(row: dict, sid: str) -> dict:
+    body = _json(row.get("payload")) or {}
+    files = _json(row.get("files")) or []
+    kind = body.get("kind") or row.get("kind")
+    if isinstance(body.get("payload"), dict):  # already an InstallSpec-shaped body
+        inner, agents = body["payload"], body.get("agents")
+    else:
+        inner = _ai_payload(kind, body, files)
+        found = {SYMBOLIC_AGENTS.get(str(f.get("target")).split(".", 1)[0]) for f in files if isinstance(f, dict)}
+        agents = sorted(a for a in found if a) or body.get("agents")
+    ai_text = [ln["text"] for f in files if isinstance(f, dict) for ln in f.get("lines") or []
+               if isinstance(ln, dict) and ln.get("mark") == "ai" and str(ln.get("text") or "").strip()]
+    return {"kind": kind, "id": slug(body.get("id") or row.get("name") or sid),
+            "title": body.get("title") or row.get("title") or sid, "agents": agents, "payload": inner,
+            "ai_ranges": body.get("ai_ranges"), "ai_text": sorted(set(ai_text)) or None,
+            "evidence_refs": [e for e in _json(row.get("evidence")) or [] if isinstance(e, str)],
+            "source": {"type": "artifact", "id": sid, "template": row.get("template_id"), "license": None,
+                       "sha256": None}}
+
+
 def build_spec(source: dict, *, appdb, catalog_lookup=None, cache_dir, fetcher=None,
                allow_network: bool = False) -> tuple[dict, dict]:
     """Return ``(spec, extra)``; ``extra['status']`` is ready | needs_fetch | link_only."""
@@ -309,13 +366,7 @@ def build_spec(source: dict, *, appdb, catalog_lookup=None, cache_dir, fetcher=N
         row = _row(appdb, "SELECT * FROM ai_artifact WHERE artifact_id = ?", (sid,), "artifact_unavailable")
         if row is None:
             raise PlanError("artifact_unavailable", f"AI 产物不存在：{sid}", http=404)
-        body = _json(row.get("payload")) or {}
-        inner = body.get("payload") if isinstance(body.get("payload"), dict) else body
-        spec = {"kind": body.get("kind") or row.get("kind"), "id": slug(body.get("id") or sid),
-                "title": body.get("title") or row.get("title") or sid, "agents": body.get("agents"),
-                "payload": inner, "ai_ranges": body.get("ai_ranges"),
-                "source": {"type": "artifact", "id": sid, "template": None, "license": None, "sha256": None}}
-        return validate_spec(spec), {"status": "ready"}
+        return validate_spec(_from_artifact(row, sid)), {"status": "ready"}
     raise PlanError("invalid_source", f"未知来源类型：{stype!r}")
 
 
@@ -350,6 +401,9 @@ def make_plan(source: dict, *, agents=None, scope: str = "user", project_path: s
             targets = targets_mod.resolve_targets(spec, env_info, env=service.env)
         except targets_mod.PlanError as error:
             raise PlanError(error.code, error.message, http=error.http) from None
+        if spec.get("ai_text"):
+            for t in targets:
+                t["ai_text"] = spec["ai_text"]
         if targets and not any(t.get("mappable") for t in targets):
             status = "unmappable"
         inv = INVENTORY_KIND.get(spec["kind"])

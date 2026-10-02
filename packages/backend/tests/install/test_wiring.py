@@ -164,3 +164,66 @@ def test_route_lookup_prefers_gateway_catalog_then_seed(tmp_path):
     direct = _catalog_lookup(SimpleNamespace(catalog=SimpleNamespace(item=lambda i: shaped), home=tmp_path))
     assert direct("x") is shaped
     assert _catalog_lookup(SimpleNamespace(home=tmp_path))("missing-item-id") is None  # no catalog.db
+
+
+def insert_ai_artifact(appdb, artifact_id, kind, out):
+    with appdb.write() as db:
+        db.execute("INSERT INTO ai_artifact (artifact_id, kind, template_id, name, title, slots, payload, files, "
+                   "checks, personalized, content_hash, status, created_at, updated_at) "
+                   "VALUES (?,?,'t',?,?,'{}',?,?,'[]',1,?,'draft',1,1)",
+                   (artifact_id, kind, out["name"], out["title"], json.dumps(out["payload"]),
+                    json.dumps(out["files"]), out["content_hash"]))
+
+
+def test_ai_hook_artifact_resolves_placeholders_and_symbolic_targets(setup):
+    from tandem_backend.ai.generate.render import render
+    from tandem_backend.ai.generate.templates import get
+
+    svc, _, _ = setup
+    slots = {"matcher": "Bash", "threshold": 3, "message": "先看错误再重试。", "command_heads": ["pnpm test"]}
+    out = render(get("retry-breaker"), slots, {"refs": {"event": ["e1"]}}, personalized=True)
+    insert_ai_artifact(svc.appdb, "h1", "hook", out)
+    plan = svc.plan({"type": "artifact", "id": "h1"})
+    assert plan["agents"] == ["claude_code", "codex"]  # from claude.* and codex.* targets
+    codex = [t["idx"] for t in plan["targets"] if t["agent"] == "codex"]
+    preview = svc.preview(plan["plan_id"], disabled_targets=codex)
+    assert preview["risk"]["level"] != "dangerous", preview["risk"]
+    result = svc.apply(plan["plan_id"], preview["preview_digest"], disabled_targets=codex)
+    home = svc.env.home
+    hooks_dir = home / ".claude/hooks/tandem"
+    assert (hooks_dir / "retry-breaker@1.py").stat().st_mode & 0o111
+    assert json.loads((hooks_dir / "retry-breaker@1.config.json").read_text()) == slots
+    settings = json.loads((home / ".claude/settings.json").read_text())
+    entries = {event: settings["hooks"][event][0] for event in ("PreToolUse", "PostToolUse")}
+    for entry in entries.values():
+        command = entry["hooks"][0]["command"]
+        assert entry["matcher"] == "Bash" and "{tandem.hooks}" not in command
+        assert f'"{hooks_dir}/retry-breaker@1.py" --config "{hooks_dir}/retry-breaker@1.config.json"' in command
+    claude_settings = next(t for t in preview["targets"] if t["path"].endswith("settings.json"))
+    assert any(r["op"] == "ai" for r in claude_settings["diff"]["lines"])  # matcher came from an AI slot
+    assert svc.revert(result["install_id"])["ok"] and not (hooks_dir / "retry-breaker@1.py").exists()
+
+
+def test_ai_skill_rule_and_command_artifacts_install(setup):
+    from tandem_backend.ai.generate.render import render
+    from tandem_backend.ai.generate.templates import get
+
+    svc, _, _ = setup
+    pack = {"refs": {"event": ["e1"]}}
+    skill = render(get("procedure"), {"name": "ts-verify", "description": "验证。", "steps": ["跑测试"],
+                                      "verify": "全绿"}, pack, personalized=False, kind="skill")
+    rule = render(get("paragraph"), {"title": "测试先行", "rules": [{"text": "先跑测试。", "dimension": "verification"}]},
+                  pack, personalized=False, kind="rule")
+    command = render(get("checklist"), {"name": "ship", "description": "发布前检查", "body": "检查 diff"},
+                     pack, personalized=False, kind="command")
+    for aid, kind, out in (("s1", "skill", skill), ("r1", "rule", rule), ("c1", "command", command)):
+        insert_ai_artifact(svc.appdb, aid, kind, out)
+        plan = svc.plan({"type": "artifact", "id": aid}, agents=["claude_code"])
+        preview = svc.preview(plan["plan_id"])
+        assert preview["can_apply"], preview
+        svc.apply(plan["plan_id"], preview["preview_digest"])
+    home = svc.env.home / ".claude"
+    assert "1. 跑测试" in (home / "skills/ts-verify/SKILL.md").read_text()
+    memory = (home / "CLAUDE.md").read_text()
+    assert "## 测试先行" in memory and "tandem:rule id=" not in memory
+    assert "检查 diff" in (home / "commands/ship.md").read_text()
