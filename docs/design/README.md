@@ -2,35 +2,50 @@
 
 本目录存放 Hackathon 产品（暂定名 **Tandem / 同频**）的设计参考与存档：一个本地的跨 Agent 会话分析 Mac App，做协作人格分析、会话轨迹可视化，并给出 Skills、Hooks、规则等优化建议。
 
-> 这里的内容是视觉与交互参考，不代表已确认的需求。MVP 范围须由 `yhyfhgs`、`MistyHuang03`、`genius-FXC` 三人共同确认。
+> App 版本与设计归属按下表执行。画板与 Demo 的具体内容仍是视觉与交互参考，MVP 功能范围须由 `yhyfhgs`、`MistyHuang03`、`genius-FXC` 三人共同确认。
+
+## App 版本与设计归属
+
+2026-10-02，`yhyfhgs` 明确以下对应关系：
+
+| App 版本 | 设计来源 | 当前设计入口 |
+| --- | --- | --- |
+| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [`demo/tandem-benchmark-demo.html`](demo/tandem-benchmark-demo.html)；范围与审查见 [`demo/benchmark-review.md`](demo/benchmark-review.md) |
+| **Advance** | `yhyfhgs` 的桌面 App 设计 | [`demo/tandem-demo.html`](demo/tandem-demo.html)、源码 [`demo/src/`](demo/src/)、画板存档 [`visual-cases-v1/`](visual-cases-v1/) |
+
+- 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。
+- 个人 Benchmark Demo 对应 Lite，原版桌面 Demo 与 v1 画板对应 Advance。两套设计并行保留，引用设计或功能说明时注明适用版本。
+- 这项规定仅记录版本归属，不改动现有画板、Demo、源码、文件名或目录结构。界面与交互的调整由对应设计任务另行推进，版本归属本身不新增功能或替代 MVP 范围确认。
 
 ## 存档记录
 
-| 版本 | 日期 | 内容 | 位置 |
-| --- | --- | --- | --- |
-| v1 | 2026-10-01 | Mac App 视觉案例：5 页、26 块画板，含逐屏交互标注 | 在线画布、`visual-cases-v1/` |
-| v1.1 | 2026-10-01 | 修正 A5「跨项目对比」的拟合线与相关系数（标注 r = 0.71 与示例点不符，按示例点重算为 0.91） | 同上 |
-| v1.2 | 2026-10-01 | 把视觉案例做成可交互 HTML Demo，所有页面和按钮都有逻辑 | 在线 Demo、`demo/tandem-demo.html` |
+| App 版本 | 设计存档 | 日期 | 内容 | 位置 |
+| --- | --- | --- | --- | --- |
+| Advance | v1 | 2026-10-01 | Mac App 视觉案例：5 页、26 块画板，含逐屏交互标注 | 在线画布、`visual-cases-v1/` |
+| Advance | v1.1 | 2026-10-01 | 修正 A5「跨项目对比」的拟合线与相关系数（标注 r = 0.71 与示例点不符，按示例点重算为 0.91） | 同上 |
+| Advance | v1.2 | 2026-10-01 | 把视觉案例做成可交互 HTML Demo，所有页面和按钮都有逻辑 | 在线 Demo、`demo/tandem-demo.html` |
+| Lite | Benchmark Demo（PR #12） | 2026-10-02 | `genius-FXC` 的八页个人协作 Benchmark 设计 | `demo/tandem-benchmark-demo.html`、`demo/benchmark-review.md` |
 
 ## 如何查看
 
-- **在线画布**（可平移缩放、留评论）：<https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>
-- **源文件**：`visual-cases-v1/` 下的 `canvas.json` 与 `*.dc.html`。它们依赖 claude.ai Design 画布的运行时（`support.js`），不能直接用浏览器打开，用于留档、比对和必要时重新发布。
-- **可交互 Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>；本地版 `demo/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `demo/src/` 构建生成，修改方法见下文「修改 Demo」。
+- **Lite Demo**：[`demo/tandem-benchmark-demo.html`](demo/tandem-benchmark-demo.html)，用浏览器直接打开即可，无需构建、依赖或联网。
+- **Advance 在线画布**（可平移缩放、留评论）：<https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>
+- **Advance 画板源文件**：`visual-cases-v1/` 下的 `canvas.json` 与 `*.dc.html`。它们依赖 claude.ai Design 画布的运行时（`support.js`），不能直接用浏览器打开，用于留档、比对和必要时重新发布。
+- **Advance Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>；本地版 `demo/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `demo/src/` 构建生成，修改方法见下文「修改 Demo」。
 
 ## 可交互 Demo
 
-### genius-FXC 的个人 Benchmark 副本（2026-10-02）
+### Lite：genius-FXC 的个人 Benchmark Demo（2026-10-02）
 
-- 打开 [`demo/tandem-benchmark-demo.html`](demo/tandem-benchmark-demo.html)，无需构建或联网。原版 `tandem-demo.html` 保留用于对照。
+- 打开 [`demo/tandem-benchmark-demo.html`](demo/tandem-benchmark-demo.html)，无需构建或联网。它作为 Lite 的设计参考，与 Advance 的 `tandem-demo.html` 并行保留。
 - 沿用原版暖白底色、衬线标题、等宽数字、侧栏和 Agent 配色，按个人协作 Benchmark 的需求收敛为八页：概览、协作画像、会话与轨迹、工具调用、项目分析、情绪与语义、优化建议、资源库。
 - 项目分析保持独立；暂不实现生成工坊。移除桌面小组件、悬浮面板、首次启动、人格揭晓、会话回放 / 对比和通知模拟等额外流程。保留全局搜索、浅深色、筛选、同步入口、导出与分享。
 - 日期、Agent、项目筛选共同作用于各页；月度画像使用同 Agent / 项目的完整历史。Markdown 报告、会话 CSV 与 SVG 分享卡支持真实下载；同步、安装和社区推荐均为明确标记的演示，不接入真实日志、不调用模型、不写入 Agent 配置。
 - 需求对应、交互说明和自查结果见 [`demo/benchmark-review.md`](demo/benchmark-review.md)。这仍是设计原型，不替代三位成员对 MVP 的共同确认。
 
-### 原版桌面演示
+### Advance：yhyfhgs 的桌面 Demo
 
-Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面小组件和关键流程放在一个模拟的 Mac 桌面里。所有统计都由同一份示例会话数据实时计算，切换时间范围、Agent、项目或筛选条件后，各页面的数字、图表和人格会一起变化。
+Advance Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面小组件和关键流程放在一个模拟的 Mac 桌面里。所有统计都由同一份示例会话数据实时计算，切换时间范围、Agent、项目或筛选条件后，各页面的数字、图表和人格会一起变化。
 
 | 部分 | 可以操作的内容 |
 | --- | --- |
@@ -46,7 +61,9 @@ Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面小组件
 
 ## 修改 Demo
 
-`demo/tandem-demo.html` 是构建产物，**不要直接改它**：源码在 `demo/src/`，下一次构建会覆盖对产物的直接修改。
+本节是 **Advance Demo** 的维护方式。Lite 是独立 HTML，其现有检查命令见 [`demo/benchmark-review.md`](demo/benchmark-review.md)。版本归属的文档同步不涉及两套 Demo 的实现修改。
+
+Advance 的 `demo/tandem-demo.html` 是构建产物，**不要直接改它**：源码在 `demo/src/`，下一次构建会覆盖对产物的直接修改。
 
 - `src/index.html` 是页面骨架，`/*@css*/` 与 `/*@js*/` 两个占位符各出现一次；`src/styles/*.css` 与 `src/js/*.js` 按文件名排序后拼接进去，文件之间隔一行空行。
 - 文件名必须是 `NN-名称.css` 或 `NN-名称.js`，两位数字前缀决定拼接顺序；其他名字的文件会让构建报错。`00-utils.js` 必须排在第一位，因为它开头的 `"use strict"` 对整段脚本生效。
@@ -66,6 +83,8 @@ Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面小组件
 源码与产物一起提交；PR 中 `tandem-demo.html` 的差异会被折叠（见仓库根目录的 `.gitattributes`）。
 
 ## 画板索引
+
+以下均为 **Advance** 的 `visual-cases-v1/` 存档；Lite 的页面范围见上方 Lite Demo 说明。
 
 | 页面 | 画板 | 文件 | 内容 |
 | --- | --- | --- | --- |
@@ -97,6 +116,8 @@ Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面小组件
 | 设计语言 | D3 侧边栏组件 | `Sidebar.dc.html` | 被 A1–A9 引用的侧边栏 |
 
 ## 关键设计决定
+
+以下记录 **Advance** 画板的原始设计决定。Lite 当前的功能与操作边界见 [`demo/benchmark-review.md`](demo/benchmark-review.md)，不因版本命名自动扩充。
 
 - **视觉语言**延续 Confluo v2 Demo（`Confluo/docs/plan/v2/demo/paper-feed-demo.html`）：暖白纸感底色、衬线标题、等宽数字与小标题，整体以单色为主。
 - **颜色只承载身份与状态**：五个 Agent 用同一套可视化色板中的五色，按固定顺序分配、颜色跟随实体；亮色与暗色下相邻色的色觉差异 ΔE 最差为 9.2 与 8.4（≥ 8），已用校验脚本验证。紫色只用来标记 AI 生成的内容。

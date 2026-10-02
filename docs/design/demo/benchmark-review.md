@@ -1,8 +1,10 @@
-# 个人协作 Benchmark Demo：范围与审查
+# Lite 个人协作 Benchmark Demo：范围与审查
 
 2026-10-02 · `genius-FXC` · 分支 `feat/genius-FXC-dev`
 
-打开 [tandem-benchmark-demo.html](tandem-benchmark-demo.html) 即可使用，无需构建、依赖或联网。原版 [tandem-demo.html](tandem-demo.html) 保留不变。
+本设计由 `genius-FXC` 提供，对应 App 的 **Lite** 版本。`yhyfhgs` 的原版桌面设计对应 **Advance** 版本；统一的版本归属见[设计资料](../README.md)。此处仅补充版本说明，以下范围与审查记录描述现有 Demo，不变更设计实现或 MVP 功能范围。
+
+打开 [Lite Demo：tandem-benchmark-demo.html](tandem-benchmark-demo.html) 即可使用，无需构建、依赖或联网。[Advance Demo：tandem-demo.html](tandem-demo.html) 并行保留。下文的「原版」均指 Advance 设计。
 
 ## 本次调整
 
