@@ -113,6 +113,7 @@ def router(gw: Gateway) -> APIRouter:
             items = store.candidates(conn, run["run_id"], level=level, audience=aud, limit=50)
             states = store.states(conn, [c["rec_key"] for c in items])
             items = [c for c in items if store.visible(states.get(c["rec_key"]), now)]
+            items = store.apply_decay(items, states)
             gated = (store.candidates(conn, run["run_id"], passed=False, limit=50)
                      if include_gated else None)
         counts: dict[str, int] = {}

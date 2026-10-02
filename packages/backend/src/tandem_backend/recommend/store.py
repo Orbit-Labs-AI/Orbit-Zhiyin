@@ -247,7 +247,8 @@ def record_exposure(conn: sqlite3.Connection, cid: str, surface: str, position: 
         if state["status"] == "candidate":
             state["status"] = "shown"
         problem = json.loads(row["card"]).get("problem") or {}
-        state["last_evidence"] = problem.get("wilson_lo", state["last_evidence"])
+        # Session count, the unit gates/rank compare against (evidence_changed ≥ 20 %).
+        state["last_evidence"] = problem.get("sessions", state["last_evidence"])
     conn.execute("INSERT INTO rec_exposure (ts, run_id, candidate_id, rec_key, surface, position,"
                  " priority, action) VALUES (?,?,?,?,?,?,?,?)",
                  (now, row["run_id"], cid, row["rec_key"], surface, position, row["priority"],
@@ -330,10 +331,12 @@ def memory(conn: sqlite3.Connection, now: int, settings: dict | None = None) -> 
     settings = settings or {}
     state = {}
     for key, row in states(conn).items():
-        entry = {k: row[k] for k in ("status", "snooze_until", "shown_count", "last_shown_at",
-                                     "last_evidence", "install_id")}
-        if entry["status"] == "snoozed" and (entry["snooze_until"] or 0) <= now:
-            entry["status"] = "shown"
+        # Exposure counts stay out of the engine (see ``memory_rev``); ``read_decay`` applies
+        # the frequency decay when cards are served.
+        entry = {k: row[k] for k in ("status", "snooze_until", "last_evidence", "install_id")}
+        if entry["status"] == "shown" or (
+                entry["status"] == "snoozed" and (entry["snooze_until"] or 0) <= now):
+            entry["status"] = "candidate"
         state[key] = entry
     labels: dict[str, list] = defaultdict(list)
     muted_problems: set[str] = set()
@@ -377,10 +380,37 @@ def memory(conn: sqlite3.Connection, now: int, settings: dict | None = None) -> 
 
 
 def memory_rev(conn: sqlite3.Connection) -> str:
+    """Labels plus the decision part of ``rec_state``; views are excluded so browsing never
+    reruns the engine or burns the run history."""
     last, count = conn.execute("SELECT max(ts), count(*) FROM label WHERE undone_at IS NULL"
                                ).fetchone()
-    updated = conn.execute("SELECT max(updated_at) FROM rec_state").fetchone()[0]
-    return f"{last or 0}:{count}:{updated or 0}"
+    rows = conn.execute("SELECT rec_key, CASE status WHEN 'shown' THEN 'candidate' ELSE status "
+                        "END, snooze_until, install_id FROM rec_state WHERE status NOT IN "
+                        "('candidate','shown') OR install_id IS NOT NULL ORDER BY rec_key"
+                        ).fetchall()
+    digest = hashlib.sha256(json.dumps([list(r) for r in rows]).encode()).hexdigest()[:12]
+    return f"{last or 0}:{count}:{digest}"
+
+
+def read_decay(state: dict | None, card: dict) -> float:
+    """RC-17 exposure decay 0.85^(shown−1), floor 0.5, applied when serving; resets on
+    install or a ≥ 20 % evidence change since the last view."""
+    if not state or state.get("install_id"):
+        return 1.0
+    last = state.get("last_evidence")
+    sessions = (card.get("problem") or {}).get("sessions")
+    if last is not None and sessions is not None and abs(sessions - last) / max(last, 1) >= .2:
+        return 1.0
+    return max(.5, .85 ** max(0, (state.get("shown_count") or 0) - 1))
+
+
+def apply_decay(cards: list[dict], states_by_key: dict[str, dict]) -> list[dict]:
+    """Stable re-order: a card's slate position is stretched by 1/decay (at most doubled)."""
+    for card in cards:
+        card.setdefault("score", {})["decay"] = round(
+            read_decay(states_by_key.get(card["rec_key"]), card), 4)
+    order = {id(c): i for i, c in enumerate(cards)}
+    return sorted(cards, key=lambda c: ((order[id(c)] + 1) / c["score"]["decay"], order[id(c)]))
 
 
 # -- top snapshots -----------------------------------------------------------------------
