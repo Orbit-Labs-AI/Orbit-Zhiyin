@@ -14,6 +14,7 @@ scene('50-montage', () => {
 .mt-sw .sw>span{color:var(--a1)}
 .tag .ln.mt-eb{font-size:32px}
 .tag .ln.mt-eb2{font-size:26px}
+.tag .ln.mt-ed{font-size:64px}
 `);
   // tag() writes 'scale(k) translate(…)', which scales about the anchor after moving the box away from it, so a
   // counter-scaled tag drifts off its edge; swapping the order keeps the anchor on the edge (see report)
@@ -100,9 +101,12 @@ scene('50-montage', () => {
     const i = a.D.querySelector('#askIn'); if (i) i.value = '';
   }, { bloom: 'var(--ai)', glide: .5 });
   // after the press: push in on the answer's first lines
-  tween(0, 94.55, .6, () => Object.assign(framing(0, '#askA', [240, 620, 1500, 520], { s: 3, px: 0, py: 0 })), E.inOut);
+  // (the answer sits low enough that the modal's top edge stays clear of the 「还有 ___」 line entering at y≈220)
+  tween(0, 94.55, .5, () => Object.assign(framing(0, '#askA', [240, 690, 1500, 520], { s: 3, px: 0, py: 0 })), E.inOut);
   tag(0, 93.2, 94.9, '#modal', 'bottom', [['eb ai mt-eb2', '04 · 问你自己的本地 Agent'], ['lt', '数据不出本机 · 0 B 上传']], { at: .5, gap: 34, anim: tg(.2) });
-  tween(0, 94.95, .35, () => OUT.down(decks[0].C), E.in);
+  // hold the answer as long as the cut allows: the modal stays put while the sentence comes in above it, then drops and
+  // fades fast just as the widgets pop up in the middle
+  tween(0, 95.28, .16, () => { const C = decks[0].C; return { ay: C.ay + 120, o: 0, bl: 10 }; }, E.out);
 
   /* ---------- 6.5–6.9 「还有 ___」 (b95.2–101.4) ---------- */
   const WORDS = ['桌面小组件', '及时提醒', '⌘K', 'Lite / Advance', '深色模式'];
@@ -117,41 +121,46 @@ scene('50-montage', () => {
       if (!(cur % 2)) el.querySelectorAll('.sw>span').forEach((w) => { const m = /translateY\((-?[\d.]+)%\)/.exec(w.style.transform); if (m) w.style.transform = 'translateY(' + (parseFloat(m[1]) * 100 / 45).toFixed(1) + '%)'; });
       const inn = E.out(clamp(tl / BB(.4)));
       const b = t / BEAT, q = E.inOut(lp(b, 101.0, .4));     // the whole group turns and shrinks into the centre
-      el.style.transform = 'translate(-50%,-50%) translate(0,' + ((1 - inn) * 40 + q * 320).toFixed(1) + 'px) rotate(' + (q * 80).toFixed(2) + 'deg) scale(' + lerp(1, .3, q).toFixed(3) + ')';
-      el.style.opacity = (inn * (1 - q)).toFixed(3); el.style.filter = q > .001 ? 'blur(' + (q * 6).toFixed(1) + 'px)' : (inn < .999 ? 'blur(' + ((1 - inn) * 8).toFixed(1) + 'px)' : 'none');
+      // (it travels less and fades sooner than the components, so the turning line never sweeps across the larger widgets)
+      el.style.transform = 'translate(-50%,-50%) translate(0,' + ((1 - inn) * 40 + q * 90).toFixed(1) + 'px) rotate(' + (q * 80).toFixed(2) + 'deg) scale(' + lerp(1, .3, q).toFixed(3) + ')';
+      el.style.opacity = (inn * clamp(1 - q * 2)).toFixed(3); el.style.filter = q > .001 ? 'blur(' + (q * 6).toFixed(1) + 'px)' : (inn < .999 ? 'blur(' + ((1 - inn) * 8).toFixed(1) + 'px)' : 'none');
     }
   });
-  const BOXC = [960, 690, 1500, 560];
-  const upOut = (d) => () => { const C = decks[d].C; return { ay: C.ay - 110, o: 0, bl: 10 }; };
-  const fromBelow = (T) => ({ ay: T.ay + 160, o: 0, bl: 10 });
+  // components fill the band under the sentence (y≈320–1020); each shot sets its own box so the sizes read alike
+  const BOXW = [960, 675, 1700, 660], BOXN = [960, 670, 1120, 640], BOXP = [960, 670, 1700, 690], BOXS = [960, 670, 900, 300];
+  // leave by rising a little and shrinking (a full rise would carry the larger components into the sentence)
+  const upOut = (d) => () => { const C = decks[d].C; return { ay: C.ay - 50, s: C.s * .92, o: 0, bl: 10 }; };
+  const fromBelow = (T) => ({ ay: T.ay + 120, o: 0, bl: 10 });
   // 6.5 desktop widgets pop up (deck 1)
   at(94.0, () => { const a = app(1); a.W.closeModal(); a.S.widgets = true; a.go('overview'); solo(1, '#widgets'); });
-  tween(1, 95.25, .5, () => framing(1, '#widgets', BOXC, { max: 2.2 }), ease.back, (T) => ({ s: T.s * .55, o: 0, bl: 6 }));
+  tween(1, 95.25, .5, () => framing(1, '#widgets', BOXW, { max: 4 }), ease.back, (T) => ({ s: T.s * .55, o: 0, bl: 6 }));
   tween(1, 95.7, .7, () => ({ s: decks[1].C.s * 1.03 }), E.sine);
   tween(1, 96.15, .35, upOut(1), E.in);
   // 6.6 a notification slides in (deck 0)
   at(95.75, () => { const a = app(0); a.W.closeModal(); a.D.querySelectorAll('#notes .nt').forEach((n) => n.remove()); a.go('overview'); });
-  at(96.15, () => { const a = app(0); a.W.simEvent('waiting'); solo(0, '#notes .nt'); });
-  tween(0, 96.4, .5, () => framing(0, '#notes .nt', BOXC, { max: 2.4 }), E.quart, fromBelow);
+  // raised early enough that its 0.3 s slide-in has finished when the camera frames it at b96.4 (framed mid-slide, the
+  // card settled off-centre to the left)
+  at(95.78, () => { const a = app(0); a.W.simEvent('waiting'); solo(0, '#notes .nt'); });
+  tween(0, 96.4, .5, () => framing(0, '#notes .nt', BOXN, { max: 4 }), E.quart, fromBelow);
   tween(0, 96.9, .7, () => ({ s: decks[0].C.s * 1.03 }), E.sine);
   tween(0, 97.35, .35, upOut(0), E.in);
   // 6.7 ⌘K palette, typing 「部署」 (deck 1)
   at(97.2, () => { const a = app(1); a.W.openPalette(); solo(1, '#modal'); });
   drive(1, 97.75, 98.4, (p, b, D) => { const q = D.querySelector('#palQ'); if (!q) return; const s = '部署'.slice(0, Math.floor(p * 2.99)); if (q.value !== s) { q.value = s; q.dispatchEvent(new Event('input', { bubbles: true })); } });
-  tween(1, 97.6, .5, () => framing(1, '#modal', BOXC, { max: 1.8, py: .45 }), E.quart, fromBelow);
+  tween(1, 97.6, .5, () => framing(1, '#modal', BOXP, { max: 4 }), E.quart, fromBelow);
   tween(1, 98.55, .35, upOut(1), E.in);
   // 6.8 the edition switch, flanked by its two names; the pointer picks Lite (deck 0)
   at(98.3, () => { const a = app(0); a.D.querySelectorAll('#notes .nt').forEach((n) => n.remove()); a.W.closeModal(); a.go('overview'); solo(0, '.edsw'); });
-  tween(0, 98.8, .5, () => framing(0, '.edsw', [960, 700, 700, 200], { max: 3.4 }), E.quart, fromBelow);
-  tag(0, 98.9, 100.0, '.edsw', 'left', [['md sv', 'Lite']], { gap: 44, anim: tg(0) });
-  tag(0, 98.9, 100.0, '.edsw', 'right', [['md sv', 'Advance']], { gap: 44, anim: tg(0) });
+  tween(0, 98.8, .5, () => framing(0, '.edsw', BOXS, { max: 6 }), E.quart, fromBelow);
+  tag(0, 98.9, 100.0, '.edsw', 'left', [['md sv mt-ed', 'Lite']], { gap: 56, anim: tg(0) });
+  tag(0, 98.9, 100.0, '.edsw', 'right', [['md sv mt-ed', 'Advance']], { gap: 56, anim: tg(0) });
   // the press does what edSet() does first (the thumb slides to Lite); the page swap that follows would re-render the
   // sidebar with an entrance fade and lose the switch for the rest of the shot
   clickAt(0, 99.4, '[data-act="edition"][data-v="lite"]', (a) => { a.D.querySelector('#win').dataset.ed = 'lite'; a.D.querySelectorAll('.edsw [data-act="edition"]').forEach((x) => x.setAttribute('aria-checked', String(x.dataset.v === 'lite'))); }, { glide: .45 });
   tween(0, 99.72, .3, upOut(0), E.in);                   // clear before the widgets rise into the same spot at b100.0
   // 6.9 dark mode: a light copy (deck 1) is wiped diagonally left → right to reveal a dark copy beneath it (deck 0)
   at(99.3, () => { const a = app(1); a.W.closeModal(); a.go('overview'); solo(1, '#widgets'); });
-  tween(1, 100.0, .45, () => framing(1, '#widgets', BOXC, { max: 2.2 }), E.quart, fromBelow);
+  tween(1, 100.0, .45, () => framing(1, '#widgets', BOXW, { max: 4 }), E.quart, fromBelow);
   at(100.26, () => { const a = app(0); a.W.setTheme('dark'); a.S.widgets = true; a.render(); solo(0, '#widgets'); });
   drive(0, 100.27, 101.0, (p, b) => { Object.assign(decks[0].C, decks[1].C); if (b < 100.4) decks[0].C.o = 0; });
   let WX = null;
