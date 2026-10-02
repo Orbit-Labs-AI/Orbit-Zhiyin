@@ -43,6 +43,19 @@ function openOnboarding(step) {
   OB = { step: step || 0, src: new Set(AG.map((a) => a.id).filter((id) => !S.srcOff.has(id))), recent: true, prog: -1, timers: [] };
   OVL = 'ob'; $('#overlay').hidden = false; drawOB();
 }
+// The live source list scrolls inside its card; its max-height is a viewport budget, so snap it down to whole rows
+// (R4-10: the last visible row — often the 添加文件夹 row — was cut in half at the card's bottom edge).
+function obSnapRows(sc) {
+  sc.style.removeProperty('height');
+  const cap = sc.clientHeight, rows = Array.from(sc.children);
+  if (!rows.length || sc.scrollHeight <= cap + 1) return;
+  const pad = parseFloat(getComputedStyle(sc).paddingTop) || 0, top = sc.getBoundingClientRect().top + sc.clientTop;
+  let fit = 0;
+  rows.forEach((r) => { const b = r.getBoundingClientRect().bottom - top; if (b <= cap - pad + 0.5) fit = Math.max(fit, b); });
+  const bb = getComputedStyle(sc).boxSizing === 'border-box' ? sc.offsetHeight - sc.clientHeight : 0;
+  // end exactly at the last whole row (fractional px): the bottom padding would otherwise show a sliver of the next row
+  if (fit > 0) sc.style.height = (fit + bb).toFixed(2) + 'px';
+}
 function drawOB() {
   const s = OB.step;
   // 2 / 3 步是 Genesis：直接打开（3 = 最终态）；从第 1 步点「开始分析」时走 obStart，带上来源行位置做粒子起点
@@ -67,7 +80,9 @@ function drawOB() {
   // Keep the keyboard where it was across redraws (a ticked checkbox, the 90-day switch, the progress page's 950 ms ticks);
   // only a step change moves focus to the default button (BUG-54).
   const o = $('#overlay'); const a = document.activeElement; const key = a && o.contains(a) ? (a.dataset.a ? '[data-a="' + a.dataset.a + '"]' : a.dataset.act ? '[data-act="' + a.dataset.act + '"]' : null) : null;
+  const sc0 = o.querySelector('[data-ob="sources"]'); const top0 = sc0 ? sc0.scrollTop : 0;
   o.innerHTML = '<div class="obox" role="dialog" aria-modal="true" aria-label="首次启动">' + top + b + '</div>';
+  const sc = o.querySelector('[data-ob="sources"]'); if (sc) { obSnapRows(sc); sc.scrollTop = top0; }
   const keep = key && OB.drawn === s ? o.querySelector(key) : null;
   if (keep) keep.focus({ preventScroll: true }); else if (OB.drawn !== s) { const f = $('#overlay button.p'); if (f && !f.disabled) f.focus(); }
   OB.drawn = s;
@@ -458,7 +473,7 @@ function genFinal(how) {
   if (ob) {
     genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
     const nn = q('[data-g="n"]'); if (nn) nn.textContent = '4 / 4'; box.querySelectorAll('.ob-dots i').forEach((i) => i.classList.add('on'));
-    const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
+    const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.partial ? ' · 部分结果，分析仍在更新，以画像页为准' : p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
     const rl = box.querySelector('.g-next .g-nc'); if (rl) rl.textContent = genRecLine();
     if (OB) { OB.prog = 3; OB.step = 3; OB.drawn = 3; }
     const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
