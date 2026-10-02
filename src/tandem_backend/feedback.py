@@ -111,7 +111,7 @@ def reader_constraints(text: str, event_id: str) -> tuple[list[dict], set[str]]:
     """Task readers are explicit requirements, not claims about the user's identity."""
     rules = [("first_year_student", "大一学生", r"大一学生|大学一年级|大学新生"),
              ("beginner", "初学者", r"初学者|零基础(?:的读者|的人)?|入门读者"),
-             ("developer", "项目开发者", r"(?:给|让|面向|读者是)[^，,。；;\n]{0,8}(?:开发者|工程师)|开发者易读"),
+             ("developer", "项目开发者", r"开发者|工程师"),
              ("general_reader", "非专业读者", r"非专业读者|普通读者|不了解背景的读者")]
     readers, excluded = {}, set()
     for key, label, pattern in rules:
@@ -123,8 +123,16 @@ def reader_constraints(text: str, event_id: str) -> tuple[list[dict], set[str]]:
                 excluded.add(key)
                 continue
             # A mentioned person's background alone does not define the requested reader.
-            local = text[max(left, match.start() - 24):match.end() + 24]
-            if not WRITING.search(text) or not re.search(r"给|让|面向|读者|写给|讲给|供|适合", local):
+            cue = list(re.finditer(r'给|让|面向|供|适合|为|读者(?:是|为|包括|[:：])|受众(?:是|为|包括|[:：])', prefix))
+            governed = False
+            if cue:
+                between = prefix[cue[-1].end():]
+                # A shared cue can govern coordinated audiences. An intervening
+                # action such as "分析" ends that scope before the subject.
+                names = '|'.join(pattern for _, _, pattern in rules)
+                between = re.sub(names, '', between)
+                governed = bool(re.fullmatch(r'(?:\s|、|和|与|及|或|以及|刚入门的|没有基础的)*', between))
+            if not WRITING.search(text) or not (governed or text[match.end():].startswith('易读')):
                 continue
             readers[key] = {"id": key, "label": label, "evidence_id": event_id,
                             "quote": _quote(text, match.start(), match.end())}

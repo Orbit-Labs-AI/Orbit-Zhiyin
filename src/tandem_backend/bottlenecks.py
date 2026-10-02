@@ -9,7 +9,7 @@ from collections import defaultdict
 from dataclasses import replace
 
 from .content import canceled_length_surfaces, embedded_artifact_body, measure_length
-from .feedback import Signal, task_contexts
+from .feedback import Signal, answers_clarification, task_contexts
 from .models import Event, stable_id
 
 
@@ -90,7 +90,7 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                 latest_request = e
                 communication = [s for s in current_signals if s.target == "communication"]
                 revision = [s for s in communication if s.category in ("correction", "refinement")]
-                if revision and last_response and last_response_task == context_by_id[e.id]["task_id"]:
+                if revision and last_response and last_response_task == context_by_id[e.id]["task_id"] and not answers_clarification(e, last_response.text):
                     findings.append(_finding("explanation_revision", e, last_response, revision,
                                              "你随后要求调整说明。这能证明发生过修改要求，不能单凭它断定上一版失败。",
                                              "observed_revision"))

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tandem-backend"
-version = "0.13.2"
+version = "0.13.3"
 description = "Local Codex trajectory analysis with evidence-backed Chinese explanations"
 requires-python = ">=3.11"
 dependencies = ["fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "markdown-it-py==4.2.0"]

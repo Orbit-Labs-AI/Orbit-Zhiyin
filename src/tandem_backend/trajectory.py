@@ -42,7 +42,7 @@ def comparison_signal(event: Event | None) -> str | None:
         return None
     text = re.sub(r'“[^”\n]*”|"[^"\n]*"|`[^`\n]*`', '', event.text)
     for clause in re.split(r'[，,。；;\n]', text):
-        if re.search(r'是否|是不是|[?？]|没有|并非|未|不', clause):
+        if re.search(r'是否|是不是|[?？]|没有|并非|未|不|如果|假如|若|倘|要是|希望|期望', clause):
             continue
         if re.match(r'\s*(?:请|解释|介绍|讨论|假设|例如)', clause):
             continue
