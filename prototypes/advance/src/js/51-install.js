@@ -18,7 +18,7 @@ function libFile(x) {
 function instInfo(id, extra) {
   if (id && RECI[id] && !(extra && extra.kind)) {
     const r = RECI[id]; const proj = S.recs.scope === 'proj' && recScoped(r);   // the chosen scope travels with the install (BUG-22)
-    return { key: id, rec: r, title: r.title.split('：')[0], target: recTarget(r), file: r.file, compat: r.compat, lib: null, scope: proj ? 'proj' : 'global', scopeName: proj ? PJI[scopeProj()].name : null };
+    return { key: id, rec: r, title: r.title.split('：')[0], target: recTarget(r), file: r.file, compat: r.compat, lib: null, scope: proj ? 'proj' : 'global', scopeName: proj ? scopeProjName() : null };
   }
   if (!extra) return null;
   if (id === '__studio') return { key: extra.id, rec: null, title: extra.title, target: extra.target, file: extra.file, compat: agent(S.studio.agent).name, lib: null, studio: true, scope: 'global' };

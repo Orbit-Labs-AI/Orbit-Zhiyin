@@ -81,7 +81,11 @@ async function gateway(page) {
       '/v1/notifications/snooze': () => FX('studio-settings/notify-snooze'),
       '/v1/notifications/attention': () => FX('studio-settings/notify-attention'),
       '/v1/analytics/realtime': () => rtNow('realtime-calm'),
-      '/v1/sessions/excluded': () => FX('ops/excluded')
+      '/v1/sessions/excluded': () => FX('ops/excluded'),
+      // slice 0 spine (90-live-core.js): every live page hydrates from facts; see live-core.spec.mjs
+      '/v1/uiview/facts': () => FX('core/facts'),
+      '/v1/app/discovery': () => FX('core/discovery'),
+      '/v1/install/environment': () => FX('core/install-environment')
     };
     const rec = recsRoute(u, route.request(), state); if (rec) return json(rec.body, rec.status || 200);
     if (routes[u.pathname]) return json(routes[u.pathname]());
@@ -110,7 +114,8 @@ test('mock mode: file:// Lite and Advance make no requests and add no adapter ma
   expect(errors).toEqual([]);
 });
 
-test('live Advance: progress, overview, sessions, tools, projects, sidebar and sources render from fixtures', async ({ page }) => {
+// superseded by slice 0: the plain TL_PAGES renderers are gone (polished pages on the facts spine, live-core.spec.mjs)
+test.skip('live Advance: progress, overview, sessions, tools, projects, sidebar and sources render from fixtures', async ({ page }) => {
   ONLY('mac-14');
   const errors = collectErrors(page);
   const gw = await gateway(page);
@@ -152,7 +157,8 @@ test('live Advance: progress, overview, sessions, tools, projects, sidebar and s
   expect(errors).toEqual([]);
 });
 
-test('live Advance in the Lite edition: l-home and l-sessions use the bound pages, the rest carry 示例数据', async ({ page }) => {
+// superseded by slice 0: the plain TL_PAGES renderers are gone (polished pages on the facts spine, live-core.spec.mjs)
+test.skip('live Advance in the Lite edition: l-home and l-sessions use the bound pages, the rest carry 示例数据', async ({ page }) => {
   ONLY('mac-14');
   const errors = collectErrors(page);
   await gateway(page);
@@ -181,7 +187,8 @@ test('live Advance in the Lite edition: l-home and l-sessions use the bound page
   expect(errors).toEqual([]);
 });
 
-test('live outage: 503 + Retry-After keeps the previous screen with a banner; gateway restart reconnects via tandem:endpoint', async ({ page }) => {
+// superseded by slice 0: the plain TL_PAGES renderers are gone (polished pages on the facts spine, live-core.spec.mjs)
+test.skip('live outage: 503 + Retry-After keeps the previous screen with a banner; gateway restart reconnects via tandem:endpoint', async ({ page }) => {
   ONLY('mac-14');
   // the browser logs the deliberate 503 responses as resource errors; nothing else may fail
   const errors = collectErrors(page, (text, url) => /status of 503/.test(text) && /^http:\/\/tandem\.test\/v1\/analytics\//.test(url));
@@ -337,7 +344,7 @@ for (const mode of ['missing', 'down']) {
     const gw = await gateway(page);
     gw.rec = { mode, hidden: new Set(), posts: [] };
     await page.goto('http://tandem.test/app#token=fx-token');
-    await expect(page.locator('[data-tl="overview"]')).toContainText('1,874');
+    await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
     await expect(page.locator('#content [data-tl="recs-a1"]')).toHaveCount(0);
     await page.evaluate(() => go('recs'));
     await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');

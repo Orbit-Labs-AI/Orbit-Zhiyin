@@ -1,5 +1,5 @@
 /* ============ derived data ============ */
-function win(range) { return range === 7 ? [113, 119] : range === 30 ? [90, 119] : range === 90 ? [30, 119] : [0, 119]; }
+function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [0, L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
@@ -28,7 +28,9 @@ function personaScopeNote() {
 function stats(L) {
   const n = L.length, mins = sum(L, (s) => s.dur), msgs = sum(L, (s) => s.msgs), tools = sum(L, (s) => s.tools);
   const errors = sum(L, (s) => s.errors), corr = sum(L, (s) => s.corr);
-  return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? tools * 1.54 / msgs : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: n ? L.filter((s) => s.verify).length / n * 100 : 0, ok: n ? L.filter((s) => s.out === 'ok').length / n * 100 : 0, err: tools ? errors / tools * 100 : 0 };
+  // live rows carry observed steps (uiview/derive.py); the demo rows keep the tools × 1.54 stand-in
+  const stepped = L.some((s) => s.steps != null), steps = stepped ? sum(L, (s) => s.steps || 0) : 0;
+  return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? (stepped ? steps / msgs : tools * 1.54 / msgs) : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: n ? L.filter((s) => s.verify).length / n * 100 : 0, ok: n ? L.filter((s) => s.out === 'ok').length / n * 100 : 0, err: tools ? errors / tools * 100 : 0 };
 }
 function persona(L, minN) {
   const n = L.length;

@@ -1,0 +1,29 @@
+{
+ "home": "~",
+ "platform": "darwin",
+ "scanned_at": 1790000000000,
+ "agents": [
+  {
+   "agent": "claude_code",
+   "name": "Claude Code",
+   "installed": true,
+   "install_support": "full",
+   "root": "~/.claude"
+  },
+  {
+   "agent": "codex",
+   "name": "Codex",
+   "installed": true,
+   "install_support": "full",
+   "root": "~/.codex"
+  },
+  {
+   "agent": "gemini",
+   "name": "Gemini CLI",
+   "installed": false,
+   "install_support": "read_only",
+   "root": "~/.gemini"
+  }
+ ],
+ "projects": []
+}

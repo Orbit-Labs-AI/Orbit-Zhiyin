@@ -32,7 +32,7 @@ const STEP_MS = [700, 1400, 0, 1100, 1300, 0, 900];             // pause after a
 S.studio.tpl = S.studio.tpl || 'v1';
 let RUNT = null;
 const stFile = () => GEN[S.studio.type].file.split('/').pop();
-const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0];
+const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0] || agent(S.studio.agent);
 function ctxTokens() { return CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? c[3] : 0), 0); }
 function ctxHits() { return S.studio.ctx.redact ? CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? (CTX_HITS[c[0]] || 0) : 0), 0) : 0; }
 const ctxEmpty = () => !CTX.some((c) => c[0] !== 'redact' && S.studio.ctx[c[0]]);

@@ -1,0 +1,7 @@
+{
+  "_doc": "stubGateway manifest: \"METHOD /path\" → fixture file in this folder (synthetic data, real agent ids). Unlisted /v1 paths answer 404.",
+  "GET /v1/status": "status.json",
+  "GET /v1/uiview/facts": "facts.json",
+  "GET /v1/app/discovery": "discovery.json",
+  "GET /v1/install/environment": "install-environment.json"
+}

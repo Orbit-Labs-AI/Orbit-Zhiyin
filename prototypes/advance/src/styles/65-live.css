@@ -69,3 +69,7 @@
 .wg.wk{align-items:stretch}
 .wg.wk>.col:first-child>span.mono{margin-top:auto}
 .wg.wk>.col:last-child{align-self:end}
+/* live pending placeholder (LV.pend): the card's own skeleton, warm paper shimmer, never a table */
+.lv-pend{border-radius:10px;background:linear-gradient(90deg,var(--sunken) 0%,var(--hair) 50%,var(--sunken) 100%);background-size:200% 100%;animation:lv-shimmer 1.4s ease-in-out infinite}
+@keyframes lv-shimmer{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.lv-pend{animation:none}}

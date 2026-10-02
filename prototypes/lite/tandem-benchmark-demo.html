@@ -709,7 +709,7 @@ const TandemLive = (function () {
   const STATES = ['idle', 'loading', 'ready', 'stale', 'computing', 'empty', 'error', 'importing'];
   const TOPICS = 'job,data,analysis,service,notify';
   // UI agent id -> agent names a source may report in /v1/status sources[].agent
-  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'] };
+  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'], pi: ['pi'], km: ['kimi', 'kimi_cli'], hm: ['hermes', 'hermes_agent'], oc: ['opencode'] };
   const ACTIVE_JOB = ['queued', 'pending', 'running'];
 
   function abortError() { const e = new Error('aborted'); e.name = 'AbortError'; return e; }

@@ -28,7 +28,7 @@
 --orbit:#5f6b6f;
 --good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#17181b;--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
---a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
+--a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;--a6:#0f8b8d;--a6t:#dcf4f4;--a7:#7a5cc7;--a7t:#ede6fb;--a8:#5f8a1e;--a8t:#eaf3d9;--a9:#8a6a4f;--a9t:#f3ebe3;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
 --hud:rgba(22,23,26,.95);--hud-2:rgba(255,255,255,.08);--hud-line:rgba(255,255,255,.12);--hud-ink:#f1f1f3;--hud-ink-2:#c3c6cc;--hud-ink-3:#969aa3;
 --wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
@@ -48,7 +48,7 @@
 --orbit:#a3adb0;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
---a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
 --hud:rgba(40,40,45,.96);
 --wg:#28282d;--wg-edge:rgba(255,255,255,.12);
@@ -63,7 +63,7 @@ color-scheme:dark}}
 --orbit:#a3adb0;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
---a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
+--a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
 --hud:rgba(40,40,45,.96);
 --wg:#28282d;--wg-edge:rgba(255,255,255,.12);
@@ -1585,6 +1585,10 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .wg.wk{align-items:stretch}
 .wg.wk>.col:first-child>span.mono{margin-top:auto}
 .wg.wk>.col:last-child{align-self:end}
+/* live pending placeholder (LV.pend): the card's own skeleton, warm paper shimmer, never a table */
+.lv-pend{border-radius:10px;background:linear-gradient(90deg,var(--sunken) 0%,var(--hair) 50%,var(--sunken) 100%);background-size:200% 100%;animation:lv-shimmer 1.4s ease-in-out infinite}
+@keyframes lv-shimmer{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.lv-pend{animation:none}}
 
 /* settings panel (its own window chrome, never shares .win rules), sheets (#modal + #scrim sized to the key window by js),
    command palette (floating, no scrim), toast (status / undo bar inside the window), tooltip, onboarding / reveal overlay. */
@@ -1971,10 +1975,10 @@ const AFF = {
   ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
   cp: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
-const DAY0 = Date.UTC(2026, 5, 3);
-const LASTDAY = 119;
+let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
+let LASTDAY = 119;
 const dayDate = (d) => new Date(DAY0 + d * 86400000);
-const wd = (d) => (2 + d) % 7;
+const wd = (d) => (new Date(DAY0 + d * 86400000).getUTCDay() + 6) % 7;   // 0 = Monday
 const WD = ['一', '二', '三', '四', '五', '六', '日'];
 const md = (d) => { const x = dayDate(d); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate(); };
 const mdz = (d) => { const x = dayDate(d); return (x.getUTCMonth() + 1) + ' 月 ' + x.getUTCDate() + ' 日'; };
@@ -2204,7 +2208,7 @@ const TandemLive = (function () {
   const STATES = ['idle', 'loading', 'ready', 'stale', 'computing', 'empty', 'error', 'importing'];
   const TOPICS = 'job,data,analysis,service,notify';
   // UI agent id -> agent names a source may report in /v1/status sources[].agent
-  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'] };
+  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'], pi: ['pi'], km: ['kimi', 'kimi_cli'], hm: ['hermes', 'hermes_agent'], oc: ['opencode'] };
   const ACTIVE_JOB = ['queued', 'pending', 'running'];
 
   function abortError() { const e = new Error('aborted'); e.name = 'AbortError'; return e; }
@@ -3035,7 +3039,7 @@ function nowText() { const d = new Date(Date.now() + CLOCK0 + 8 * 3600000); retu
 function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); return hm(Math.floor(s / 60), s % 60); }
 
 /* ============ derived data ============ */
-function win(range) { return range === 7 ? [113, 119] : range === 30 ? [90, 119] : range === 90 ? [30, 119] : [0, 119]; }
+function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [0, L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
@@ -3064,7 +3068,9 @@ function personaScopeNote() {
 function stats(L) {
   const n = L.length, mins = sum(L, (s) => s.dur), msgs = sum(L, (s) => s.msgs), tools = sum(L, (s) => s.tools);
   const errors = sum(L, (s) => s.errors), corr = sum(L, (s) => s.corr);
-  return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? tools * 1.54 / msgs : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: n ? L.filter((s) => s.verify).length / n * 100 : 0, ok: n ? L.filter((s) => s.out === 'ok').length / n * 100 : 0, err: tools ? errors / tools * 100 : 0 };
+  // live rows carry observed steps (uiview/derive.py); the demo rows keep the tools × 1.54 stand-in
+  const stepped = L.some((s) => s.steps != null), steps = stepped ? sum(L, (s) => s.steps || 0) : 0;
+  return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? (stepped ? steps / msgs : tools * 1.54 / msgs) : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: n ? L.filter((s) => s.verify).length / n * 100 : 0, ok: n ? L.filter((s) => s.out === 'ok').length / n * 100 : 0, err: tools ? errors / tools * 100 : 0 };
 }
 function persona(L, minN) {
   const n = L.length;
@@ -3516,7 +3522,7 @@ function sideAgents() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
   return AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
 }
-function sidePins() { return ['confluo', 'latentskill', 'teamhub'].map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
+function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
   const n = sel({ noExtra: true }).length;
@@ -3711,7 +3717,7 @@ const MENUS = {
 };
 
 /* ============ shared visuals ============ */
-const agent = (id) => AGI[id];
+const agent = (id) => AGI[id] || { id, name: id, short: id, c: 'var(--a0)', t: 'var(--a0t)' };   // live: an id the spine does not carry
 const CUR = {};
 const OUT = { ok: ['okc', 'var(--good)', '完成'], part: ['half', 'var(--warn)', '部分完成'], fail: ['xc', 'var(--crit)', '放弃'], live: ['clock', 'var(--a1)', '运行中'] };
 function spark(arr, w, h) {
@@ -6613,7 +6619,8 @@ function agentDots(r, names) { const ids = recAgents(r); return '<span class="rc
 // Install scope (BUG-22): recs that write under ~/.claude can also be installed into one project; the path follows.
 const recScoped = (r) => /^~\/\.claude\/(skills|agents|settings)/.test(r.target);
 const scopeProj = () => S.project || S.proj.sel || 'confluo';
-function recTarget(r) { return S.recs.scope === 'proj' && recScoped(r) ? PJI[scopeProj()].name + '/' + r.target.replace(/^~\//, '') : r.target; }
+const scopeProjName = () => (PJI[scopeProj()] || { name: '—' }).name;   // live spine may have no project yet
+function recTarget(r) { return S.recs.scope === 'proj' && recScoped(r) ? scopeProjName() + '/' + r.target.replace(/^~\//, '') : r.target; }
 // File verdict (BUG-23): a diff whose context lines are only front-matter / blanks / comments creates a new file.
 function fileKind(r) { if (r.file.some((l) => l[1] === '-')) return '删除项'; const ctx = r.file.filter((l) => l[1] === ' ' && l[0].trim() && !/^(---|#)/.test(l[0].trim())); return ctx.length ? '修改' : '新建'; }
 const AUD_D = ['刚开始用 Agent', '会改配置、会用 Git', '会写脚本与定时任务'];
@@ -6640,7 +6647,7 @@ PAGES.recs = () => {
       '<div class="rc-ev"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><span class="eb">依据 · 可回看</span><button type="button" class="btn sm" data-act="recEvidence" data-id="' + r.id + '">' + ic('sessions', 13) + '在会话里回看 ' + r.ev + '</button></div><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + t[1] + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div><span class="cap">安装前 7 天基准 · 效果追踪的对照组 · n = ' + x.n[0] + '</span></div>' +
       '<p style="margin:0" class="cap" data-tip="不原生支持的 Agent 会自动转换成等价形式（例如 Skill → AGENTS.md 片段）">每月节省时间 = 近 30 天同类事件数 × 单次耗时（估计）</p></div>';
     else if (R.tab === 'preview') body = '<div class="rc-pv"><div class="rc-pv-f"><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb">将写入</span><span class="mono rc-path">' + esc(recTarget(r)).replace(/\//g, '/<wbr>') + '</span><span class="row" style="margin-top:4px;padding:4px 8px;border-radius:6px;background:var(--sunken)">' + ic('file', 13) + '<span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><span class="mono" style="margin-left:auto;font-size:11px;color:' + (fileKind(r) === '删除项' ? 'var(--crit)' : 'var(--good)') + '">' + fileKind(r) + '</span></span></div><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb rc-eb">安装到' + (recScoped(r) && !S.project ? '<span class="rc-i" data-tip="项目取自侧栏筛选；未筛选时用「项目习惯」里选中的项目" aria-label="说明">' + ic('info', 12) + '</span>' : '') + '</span>' +
-      (recScoped(r) ? '<label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'global' ? 'checked ' : '') + 'data-chg="recScope" value="global" style="accent-color:var(--ink-1)">全局（所有项目）</label><label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'proj' ? 'checked ' : '') + 'data-chg="recScope" value="proj" style="accent-color:var(--ink-1)">仅 ' + esc(PJI[scopeProj()].name) + '</label>' : /教程|剪贴板/.test(r.target) ? '<span class="cap">不写入文件</span>' : '<span class="cap">已限定项目 · ' + esc(r.target.split('/')[0]) + '</span>') +
+      (recScoped(r) ? '<label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'global' ? 'checked ' : '') + 'data-chg="recScope" value="global" style="accent-color:var(--ink-1)">全局（所有项目）</label><label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'proj' ? 'checked ' : '') + 'data-chg="recScope" value="proj" style="accent-color:var(--ink-1)">仅 ' + esc(scopeProjName()) + '</label>' : /教程|剪贴板/.test(r.target) ? '<span class="cap">不写入文件</span>' : '<span class="cap">已限定项目 · ' + esc(r.target.split('/')[0]) + '</span>') +
       '<span class="eb" style="margin-top:8px">其他 Agent</span><span style="font-size:12px;line-height:16px;color:var(--ink-2)">' + (/Codex|所有/.test(r.compat) ? '同时生成 Codex 等价配置' : 'Codex / Gemini 转为 AGENTS.md 片段') + '</span></div></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button></div>' + codeBlock(r.file) + '</div></div>';
     else if (R.tab === 'tut') body = '<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">' + r.steps.map((s2, i) => '<li class="row" style="align-items:flex-start;gap:10px"><span class="mono" style="width:22px;height:22px;flex:none;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:11px;font-weight:700;line-height:22px;text-align:center">' + (i + 1) + '</span><span style="font-size:13px;line-height:1.55;padding-top:1px">' + esc(s2) + '</span></li>').join('') + '</ol><div class="cap" style="margin-top:12px">外部链接会在默认浏览器中打开；命令都可以复制。</div>';
     else body = inst ? trackView(r, inst) : '<div class="col" style="gap:10px;align-items:flex-start"><span style="font-size:13px;line-height:18px;color:var(--ink-2)" data-tip="安装后 7 天逐项对比，给出 95% 区间与结论">安装后开始追踪，对比安装前后各 7 天</span><span class="eb">基准 · 安装前 7 天 · n = ' + x.n[0] + '</span><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + t[1] + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div>' + recPrimaryBtn(r) + '</div>';
@@ -6807,7 +6814,7 @@ const STEP_MS = [700, 1400, 0, 1100, 1300, 0, 900];             // pause after a
 S.studio.tpl = S.studio.tpl || 'v1';
 let RUNT = null;
 const stFile = () => GEN[S.studio.type].file.split('/').pop();
-const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0];
+const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0] || agent(S.studio.agent);
 function ctxTokens() { return CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? c[3] : 0), 0); }
 function ctxHits() { return S.studio.ctx.redact ? CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? (CTX_HITS[c[0]] || 0) : 0), 0) : 0; }
 const ctxEmpty = () => !CTX.some((c) => c[0] !== 'redact' && S.studio.ctx[c[0]]);
@@ -7072,7 +7079,7 @@ function libFile(x) {
 function instInfo(id, extra) {
   if (id && RECI[id] && !(extra && extra.kind)) {
     const r = RECI[id]; const proj = S.recs.scope === 'proj' && recScoped(r);   // the chosen scope travels with the install (BUG-22)
-    return { key: id, rec: r, title: r.title.split('：')[0], target: recTarget(r), file: r.file, compat: r.compat, lib: null, scope: proj ? 'proj' : 'global', scopeName: proj ? PJI[scopeProj()].name : null };
+    return { key: id, rec: r, title: r.title.split('：')[0], target: recTarget(r), file: r.file, compat: r.compat, lib: null, scope: proj ? 'proj' : 'global', scopeName: proj ? scopeProjName() : null };
   }
   if (!extra) return null;
   if (id === '__studio') return { key: extra.id, rec: null, title: extra.title, target: extra.target, file: extra.file, compat: agent(S.studio.agent).name, lib: null, studio: true, scope: 'global' };
@@ -8543,16 +8550,318 @@ document.addEventListener('keydown', (e) => {
   if (e.key === ' ' && S.route === 'sessions' && !tg.closest('button,a,input,textarea,select,[tabindex]')) { e.preventDefault(); ACT.playToggle(); }
 });
 
-/* ============ live binding (TandemLive, js/06-live-client.js) ============
-   Mock mode (file://, opened on its own) changes nothing. Live mode (served by the gateway at /app, or ?live=1) replaces the
-   bound pages with API-backed renderers, overlays the sidebar counts and the settings › 数据源 list, and puts the status strip
-   (import progress, service banner, stale / computing badge, 示例数据 on pages that are not bound yet) at the top of the content.
-   Hooks wrap render / renderSide / renderSet from here; no other file changes. The demo's sel() / stats() / persona() and
-   15-derive are not used to show anything on bound pages. */
+/* ============ live core (slice 0): spine hydration, agent map, page feeds, native bridge ============
+   Mock mode (file://, no gateway) changes nothing here: LV.live is false, nothing is fetched and 05-data stays as generated.
+   Live mode hydrates the demo's own globals in place (ALL / BYID / AG / AGI / PJ / PJI, DAY0 / LASTDAY) from
+   GET /v1/uiview/facts, so every polished renderer, filter and animation runs unchanged on real rows. Page files hook
+   their constants through LV.feed(); see .work/release/slice0-notes.md for the contract. */
 const TL = TandemLive.create({ onChange: () => render() });
 const TLU = TandemLive.ui;
-const TL_VIEWS = {};
 const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
+
+/* ---- native bridge (WKWebView shell; browser fallbacks) ---- */
+const ORBIT = (typeof window !== 'undefined' && window.ORBIT) || {};
+if (typeof window !== 'undefined') window.ORBIT = ORBIT;
+ORBIT.native = (function () {
+  const flag = window.__ORBIT_NATIVE__;
+  const info = flag === true ? { v: 1, app: null, platform: 'macos', features: [] } : flag && typeof flag === 'object' ? flag : null;
+  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tandem; } catch (e) { return null; } };
+  let q = null; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
+  const surface = q && ['panel', 'hud', 'widgets'].indexOf(q.get('surface')) >= 0 ? q.get('surface') : null;
+  const REPLY = { chooseFolder: 'tandem:folder', save: 'tandem:saved' };
+  const waits = new Map(); let seq = 0;
+  Object.keys(REPLY).forEach((t) => window.addEventListener(REPLY[t], (e) => {
+    const d = (e && e.detail) || {}; const w = waits.get(d.id); if (!w) return;
+    waits.delete(d.id); if (w.timer) clearTimeout(w.timer); w.resolve(d);
+  }));
+  function post(type, payload) {
+    const h = handler(); if (!h || typeof h.postMessage !== 'function') return false;
+    h.postMessage(Object.assign({}, payload || {}, { type })); return true;
+  }
+  const fallback = {
+    save(p) {
+      const bytes = p.base64 != null ? Uint8Array.from(atob(p.base64), (c) => c.charCodeAt(0)) : p.text || '';
+      const url = URL.createObjectURL(new Blob([bytes], { type: p.mime || 'application/octet-stream' }));
+      const a = document.createElement('a'); a.href = url; a.download = p.filename || 'orbit-export'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { id: p.id, ok: true, path: null, browser: true };
+    },
+    chooseFolder(p) {
+      const path = window.prompt('输入文件夹路径', p.defaultPath || '~/');
+      return { id: p.id, path: path || null, cancelled: !path, browser: true };
+    },
+    openExternal(p) { if (/^https?:\/\//.test(p.url || '')) window.open(p.url, '_blank', 'noopener'); return { ok: true, browser: true }; },
+    reveal(p) {
+      try { navigator.clipboard.writeText(p.path || ''); } catch (e) { /* clipboard blocked */ }
+      if (typeof toast === 'function') toast('已复制路径：' + (p.path || ''));
+      return { ok: true, browser: true };
+    }
+  };
+  // request(type, payload, {timeoutMs}) → Promise of the host's reply event detail (chooseFolder / save); other types resolve
+  // {ok:true} once posted. Outside the native shell the browser fallback answers ({browser:true}); window ops resolve
+  // {ok:false, browser:true} so the caller keeps its simulated behaviour.
+  function request(type, payload, o) {
+    payload = Object.assign({}, payload || {});
+    if (!handler()) {
+      const fb = fallback[type];
+      return fb ? Promise.resolve().then(() => fb(payload)) : Promise.resolve({ ok: false, browser: true });
+    }
+    if (!REPLY[type]) { post(type, payload); return Promise.resolve({ ok: true }); }
+    const id = payload.id || type + '-' + (++seq) + '-' + Date.now().toString(36);
+    payload.id = id;
+    return new Promise((resolve, reject) => {
+      const w = { resolve, timer: null };
+      if (o && o.timeoutMs) w.timer = setTimeout(() => { waits.delete(id); reject(Object.assign(new Error('timeout'), { code: 'timeout' })); }, o.timeoutMs);
+      waits.set(id, w);
+      if (!post(type, payload)) { waits.delete(id); reject(Object.assign(new Error('no host'), { code: 'no_host' })); }
+    });
+  }
+  // tandem:command {cmd:'settings'|'palette'|'about'|'route'|'toggleEdition'|'refresh', route?}
+  function onCommand(fn) { const h = (e) => fn((e && e.detail) || {}); window.addEventListener('tandem:command', h); return () => window.removeEventListener('tandem:command', h); }
+  return { isNative: !!info, info, surface, post, request, onCommand, has: (f) => !!info && (info.features || []).indexOf(f) >= 0, hasHost: () => !!handler() };
+})();
+
+/* ---- agent map: backend id → UI agent (color slot fixed by id, never by rank) ---- */
+const LV_AGENTS = {};
+[[['claude_code', 'claude'], 'cc', 'Claude Code', 'Claude', 1], [['codex'], 'cx', 'Codex', 'Codex', 2],
+  [['gemini', 'gemini_cli'], 'gm', 'Gemini CLI', 'Gemini', 3], [['dsh', 'deepseek', 'deepseek_harness'], 'ds', 'DeepSeek Harness', 'DeepSeek', 4],
+  [['copilot', 'copilot_cli'], 'cp', 'Copilot CLI', 'Copilot', 5], [['pi'], 'pi', 'Pi', 'Pi', 6], [['kimi', 'kimi_cli'], 'km', 'Kimi CLI', 'Kimi', 7],
+  [['hermes', 'hermes_agent'], 'hm', 'Hermes Agent', 'Hermes', 8], [['opencode'], 'oc', 'OpenCode', 'OpenCode', 9]
+].forEach(([keys, id, name, short, slot]) => keys.forEach((k) => { LV_AGENTS[k] = { id, key: keys[0], keys, name, short, slot }; }));
+function lvAgentOf(backendId) {
+  const k = String(backendId || '').toLowerCase();
+  const m = LV_AGENTS[k];
+  if (m) return m;
+  return { id: k || 'unknown', key: k, keys: [k], name: backendId || '未知', short: backendId || '未知', slot: 0 };
+}
+
+/* ---- LV ---- */
+const LV = {
+  live: TL.mode === 'live',
+  demo: (() => { try { return new URLSearchParams(location.search).get('demo') === '1'; } catch (e) { return false; } })(),
+  AGENTS: LV_AGENTS,
+  agentOf: lvAgentOf,
+  state: 'connecting',         // connecting | computing | ready | empty | error
+  stale: false,                // facts is recomputing; the screen keeps the previous spine
+  meta: null, wire: null, rev: 0, excluded: [], undated: 0,
+  feeds: {}, applied: {}
+};
+LV.backendId = (uiId) => { const a = AGI[uiId]; return a && a.key ? a.key : uiId; };
+// scope for page endpoints: {range, agents (backend ids | null = all), project, tz} + the UI-only filters
+LV.scope = () => {
+  const on = AG.filter((a) => S.agents.has(a.id) && !S.srcOff.has(a.id));
+  return { range: S.range, agents: on.length === AG.length ? null : on.map((a) => a.key || a.id), project: S.project || null, tz: TL_TZ,
+    topic: S.topic || null, outcome: S.outcome || null, fric: S.fric || null, hour: S.hour };
+};
+// path + query string; array values repeat the key (agent=a&agent=b), null / undefined are dropped
+LV.withQuery = (path, obj) => {
+  const parts = [];
+  Object.keys(obj || {}).forEach((k) => { const v = obj[k]; if (v == null) return; (Array.isArray(v) ? v : [v]).forEach((x) => parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(x))); });
+  return parts.length ? path + (path.indexOf('?') >= 0 ? '&' : '?') + parts.join('&') : path;
+};
+LV.lru = function (max) {
+  const m = new Map(); max = max || 30;
+  return {
+    get(k) { if (!m.has(k)) return undefined; const v = m.get(k); m.delete(k); m.set(k, v); return v; },
+    set(k, v) { m.delete(k); m.set(k, v); while (m.size > max) m.delete(m.keys().next().value); return v; },
+    has: (k) => m.has(k), delete: (k) => m.delete(k), clear: () => m.clear(), get size() { return m.size; }, keys: () => Array.from(m.keys())
+  };
+};
+// on-demand drill-down: LV.detail(cache, key, path) → {state:'pending'|'ready'|'error', data, error}; first call fetches,
+// the arrival re-renders; later calls are cache hits (no request).
+LV.detail = function (cache, key, path, o) {
+  let e = cache.get(key);
+  if (!e) {
+    e = cache.set(key, { state: 'pending', data: null, error: null });
+    TL.get(path, o || {}).then((res) => { e.state = res.data == null ? 'pending' : 'ready'; e.data = res.data; if (res.state === 'computing') cache.delete(key); },
+      (err) => { e.state = 'error'; e.error = err; }).then(() => TL.changed());
+  }
+  return e;
+};
+
+/* ---- page feeds ----
+   LV.feed(route | [routes], spec, apply): spec is a path string, an array of {name, path, query?, waitMs?} or a function
+   (scope) → that array. While one of the routes is shown, the resources load through TL (ETag, SSE invalidation); every
+   time they all hold new data, apply(data, ctx) runs right before the page renders, so it can overwrite the page's
+   constants in their existing shapes. data is the response body for a string spec, {name: body} otherwise. */
+LV.feed = function (routes, spec, apply) {
+  const f = { routes: [].concat(routes), spec, apply, stamp: null, state: 'pending', error: null, data: null };
+  f.routes.forEach((r) => { (LV.feeds[r] = LV.feeds[r] || []).push(f); });
+  return f;
+};
+function lvFeedRes(f) {
+  const sc = LV.scope();
+  const list = typeof f.spec === 'string' ? [{ name: '_', path: f.spec }] : typeof f.spec === 'function' ? f.spec(sc) : f.spec;
+  return list.map((x) => ({ name: x.name || '_', r: TL.resource(x.path, { query: x.query || null, waitMs: x.waitMs || 0 }) }));
+}
+LV.pump = function (route) {
+  if (!LV.live) return;
+  (LV.feeds[route] || []).forEach((f) => {
+    const rs = lvFeedRes(f);
+    rs.forEach((x) => { if (x.r.dirty && !x.r.loading) TL.load(x.r); });
+    const err = rs.find((x) => x.r.state === 'error' && x.r.data == null);
+    if (err) { f.state = 'error'; f.error = err.r.error; return; }
+    if (rs.some((x) => x.r.data == null)) { f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return; }
+    const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt).join('|') + '#' + LV.rev;
+    if (stamp === f.stamp) return;
+    const data = rs.length === 1 && rs[0].name === '_' ? rs[0].r.data : rs.reduce((o, x) => { o[x.name] = x.r.data; return o; }, {});
+    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; }
+    catch (e) { f.state = 'error'; f.error = { code: 'apply_failed', message: String(e && e.message || e) }; console.error('LV.feed apply', e); }
+  });
+};
+// 'ready' when every feed of the route applied; 'error' (404 / 501 included) or 'pending' / 'computing' otherwise
+LV.feedState = (route) => {
+  const fs = LV.feeds[route] || []; if (!fs.length) return 'ready';
+  if (fs.some((f) => f.state === 'error')) return 'error';
+  if (fs.some((f) => f.state === 'computing')) return 'computing';
+  return fs.every((f) => f.state === 'ready') ? 'ready' : 'pending';
+};
+LV.ready = (route) => !LV.live || LV.feedState(route) === 'ready';
+// pending / empty placeholders in the prototype's own card language (no tl-table / tl-kpi)
+LV.pend = (h) => '<div class="lv-pend" data-lv="pending" style="height:' + (h || 120) + 'px" aria-busy="true"></div>';
+LV.na = (txt) => '<span class="cap" data-lv="na">' + esc(txt || '暂无数据') + '</span>';
+
+/* ---- spine: /v1/uiview/facts → ALL / BYID / AG / PJ ---- */
+function lvToday() {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: TL_TZ || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+  catch (e) { return new Date().toISOString().slice(0, 10); }
+}
+const lvUtc = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+// columnar-v1 → row objects (inverse of facts.compact)
+LV.expand = function (wire) {
+  if (!wire || !wire.fields) return (wire && wire.rows) || [];
+  const fields = wire.fields, dicts = wire.dicts || {}, cons = wire.constants || {};
+  const prefix = (wire.meta && wire.meta.id_prefix) || '';
+  return (wire.rows || []).map((vals) => {
+    const r = Object.assign({}, cons);
+    fields.forEach((k, i) => {
+      let v = vals[i];
+      if (k === 'id') v = prefix + v;
+      else if (dicts[k] && v != null) v = dicts[k][v];
+      r[k] = v;
+    });
+    ['verify', 'live', 'excluded'].forEach((k) => { if (r[k] != null) r[k] = !!r[k]; });
+    return r;
+  });
+};
+function lvMakeAgent(m, extra) {
+  const slot = m.slot;
+  return Object.assign({ id: m.id, key: m.key, keys: m.keys, slot, name: m.name, short: m.short, c: slot ? 'var(--a' + slot + ')' : 'var(--a0)', t: slot ? 'var(--a' + slot + 't)' : 'var(--a0t)',
+    path: '—', ver: '—', model: '—', cli: '', resume: '', all: 0, detected: false }, extra || {});
+}
+// hydrate({rows, agents?, projects?, meta?, discovered?}) — mutates the demo globals in place, then fixes up S
+LV.hydrate = function (spine) {
+  const rows = spine.rows || [];
+  const today = lvToday();
+  const t = lvUtc(today);
+  const first = rows.reduce((m, r) => (r.d && (!m || r.d < m) ? r.d : m), null);
+  DAY0 = Math.min(first ? lvUtc(first) : t, t - 119 * 86400000);
+  LASTDAY = Math.round((t - DAY0) / 86400000);
+  // agents: present in facts or detected, ordered by session count; deselections survive by id
+  const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
+  const ags = {};
+  const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
+  (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
+  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || x.installed) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
+  // projects
+  const pj = {};
+  (spine.projects || []).forEach((p) => { pj[p.id] = p; });
+  const ALLX = []; const excluded = []; let undated = 0;
+  rows.forEach((r) => {
+    if (r.excluded) { excluded.push(r); return; }
+    if (!r.d) { undated++; return; }
+    const ag = add(r.a);
+    ag.all++;
+    const p = r.p || '_none';
+    if (!pj[p]) pj[p] = { id: p, name: r.p ? r.p : '未归属项目', path: null };
+    ALLX.push({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
+      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, msgs: r.msgs || 0, tools: r.tools || 0, errors: r.errors || 0, corr: r.corr || 0,
+      steps: r.steps != null ? r.steps : null, out: r.out || null, live: !!r.live, verify: !!r.verify, mood: r.mood != null ? r.mood : null,
+      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null,
+      dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1, raw: r });
+  });
+  ALLX.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi) || (x.id < y.id ? -1 : 1));
+  ALL.length = 0; ALLX.forEach((s) => ALL.push(s));
+  Object.keys(BYID).forEach((k) => { delete BYID[k]; }); ALL.forEach((s) => { BYID[s.id] = s; });
+  AG.length = 0; Object.values(ags).sort((x, y) => (y.all - x.all) || (x.slot || 99) - (y.slot || 99) || (x.id < y.id ? -1 : 1)).forEach((a) => AG.push(a));
+  Object.keys(AGI).forEach((k) => { delete AGI[k]; }); AG.forEach((a) => { AGI[a.id] = a; });
+  const pcount = {}; ALL.forEach((s) => { pcount[s.p] = (pcount[s.p] || 0) + 1; });
+  PJ.length = 0;
+  Object.keys(pcount).sort((x, y) => (pcount[y] - pcount[x]) || (x < y ? -1 : 1)).forEach((id) => {
+    const p = pj[id];
+    PJ.push({ id, name: p.name || id, path: p.path || '—', git: '—', n: pcount[id], q: null, h: null, A: null, fr: null, I: null, V: null, err: null,
+      tags: [], topics: {}, fric: {}, flow: [], cover: [], tip: '', rec: null, titles: [], live: true });
+  });
+  Object.keys(PJI).forEach((k) => { delete PJI[k]; }); PJ.forEach((p) => { PJI[p.id] = p; });
+  LV.excluded = excluded; LV.undated = undated; LV.rev++;
+  // S fix-ups
+  S.agents = new Set(AG.map((a) => a.id).filter((id) => !prevOff.has(id)));
+  S.srcOff = new Set(Array.from(S.srcOff).filter((id) => AGI[id]));
+  if (S.project && !PJI[S.project]) S.project = null;
+  const done = ALL.filter((s) => !s.live);
+  const newest = done.length ? done[done.length - 1] : ALL[ALL.length - 1];
+  if (!BYID[S.sess.sel]) S.sess.sel = newest ? newest.id : null;
+  if (S.sess.cmp && !BYID[S.sess.cmp]) S.sess.cmp = null;
+  if (!PJI[S.proj.sel]) S.proj.sel = PJ[0] ? PJ[0].id : null;
+  if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
+};
+
+let lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
+function lvSpineLater(ms) { clearTimeout(lvSpineTimer); lvSpineTimer = setTimeout(() => LV.loadSpine(), ms); }
+const lvSide = (path) => TL.get(path).then((r) => r.data, () => null);
+LV.loadSpine = function () {
+  if (!LV.live) return Promise.resolve();
+  if (lvSpineBusy) return lvSpineBusy;
+  lvSpineBusy = TL.get('/v1/uiview/facts', { query: { display_timezone: TL_TZ || 'UTC' }, waitMs: 1500 }).then(async (res) => {
+    lvSpineFails = 0;
+    if (res.state === 'computing' || res.data == null) {
+      LV.stale = LV.state === 'ready'; if (LV.state !== 'ready') LV.state = 'computing';
+      lvSpineLater(1200); return;
+    }
+    LV.stale = false;
+    if (res.data === lvSpineData && LV.state !== 'connecting') return;   // 304: nothing changed
+    lvSpineData = res.data;
+    const wire = res.data; const rows = LV.expand(wire);
+    LV.wire = wire; LV.meta = wire.meta || null;
+    const spine = { rows, projects: wire.projects || [], agents: wire.agents || [] };
+    if (!rows.length) {
+      const disc = await lvSide('/v1/app/discovery');
+      spine.discovered = (Array.isArray(disc) ? disc : (disc && (disc.sources || disc.items)) || []).filter((x) => x && x.agent && x.status !== 'permission_denied');
+    }
+    if (!LV.env) { const env = await lvSide('/v1/install/environment'); LV.env = (env && env.agents) || []; }
+    spine.environment = LV.env.filter((x) => x.installed);
+    LV.hydrate(spine);
+    LV.state = rows.length ? 'ready' : 'empty';
+  }, (e) => {
+    lvSpineFails++;
+    if (LV.state === 'ready' || LV.state === 'empty') LV.state = 'error';
+    else LV.state = 'connecting';
+    LV.error = e;
+    lvSpineLater(Math.min(15000, 1000 * Math.pow(2, Math.min(lvSpineFails, 4))));
+  }).then(() => { lvSpineBusy = null; TL.changed(); });
+  return lvSpineBusy;
+};
+
+if (LV.live) {
+  // live persona needs per-row units (G1): until slice 1's personaLive lands, never compute it from demo constants
+  persona = function (L) { return { ok: false, classified: false, n: L ? L.length : 0 }; };
+  // no mock rows ever reach a live screen: start from the empty spine, then load
+  LV.hydrate({ rows: [] });
+  LV.state = 'connecting';
+  TL.on('event', (ev) => { if (/^data\b|^analysis\.ready$/.test(ev.name)) LV.loadSpine(); });
+  TL.on('resync', () => LV.loadSpine());
+  window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
+  setTimeout(() => LV.loadSpine(), 0);
+}
+
+/* ============ live binding: status strip + endpoint wiring (TandemLive, js/06-live-client.js; core in 90-live-core.js) ============
+   Mock mode (file://, opened on its own) changes nothing. Live mode keeps every polished page: 90-live-core hydrates the
+   demo globals from /v1/uiview/facts and page feeds (LV.feed) overwrite page constants right before each render. This file
+   only puts the status strip (import progress, service banner, connecting / computing / stale / failed badge) at the top of
+   the content and keeps the sidebar footer honest. TL_VIEWS / lvScope / lvView / TL_PAGES / lvKey stay as the round-2
+   compatibility surface used by 97-* / 98-* until their slices move to LV.feed. */
+const TL_VIEWS = {};
+const TL_PAGES = {};
 function lvScope() {
   const on = AG.filter((a) => S.agents.has(a.id) && !S.srcOff.has(a.id)).map((a) => a.id);
   return { range: S.range, agents: on.length === AG.length ? null : on, projects: null, tz: TL_TZ };
@@ -8562,106 +8871,39 @@ function lvTable(cols, rows, rowAttr) {
   return '<table class="tl-table"><thead><tr>' + cols.map((c) => '<th' + (c.n ? ' class="n"' : '') + '>' + c.t + '</th>').join('') + '</tr></thead><tbody>' +
     rows.map((r) => '<tr' + (rowAttr ? rowAttr(r) : '') + '>' + cols.map((c) => '<td' + (c.n ? ' class="n"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
-const lvKpi = (label, value) => '<div class="tl-card tl-kpi"><b>' + value + '</b><span>' + label + '</span></div>';
-// Lite edition (26-edition.js): the same bound renderers serve its pages, under the Lite top bar and without Advance filters.
-function lvPage(title, meta, v, body) {
-  const lite = S.ed === 'lite';
-  return (lite ? liteBar(title, meta) : tbar(title, meta)) + '<div class="content" id="content">' + (lite ? '' : filterRow()) + TLU.body(v, body) + '</div>';
-}
-
-TL.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview', waitMs: 800 }], (d) => {
-  const o = d.ov.overview || {}; const c = o.counts || {}; const u = o.usage || {};
-  return { counts: c, usage: u, coverage: d.ov.meta && d.ov.meta.coverage };
-});
-TL.bind('sessions', (scope) => {
-  const res = [{ name: 'list', path: '/v1/analytics/sessions', query: { offset: 0, limit: 50 } }];
-  if (S.lvSess) res.push({ name: 'events', path: '/v1/sessions/' + encodeURIComponent(S.lvSess) + '/events', query: { limit: 200 }, scope: false });
-  return res;
-}, (d) => ({ total: d.list.total, rows: d.list.sessions || [], events: d.events ? d.events.items || [] : null }));
-TL.bind('tools', [{ name: 't', path: '/v1/analytics/tools' }], (d) => { const t = d.t.tools || {}; return { totals: t.totals || {}, rows: t.by_tool || [] }; });
-TL.bind('projects', [{ name: 'p', path: '/v1/analytics/projects' }], (d) => { const p = d.p.projects || {}; return { status: p.status, rows: p.records || [] }; });
-
-const TL_PAGES = {
-  overview() {
-    const v = lvView('overview');
-    return lvPage('概览', '本机数据 · ' + rangeLabel(), v, (vm) => '<div class="tl-grid" data-tl="overview">' +
-      lvKpi('会话', TLU.num(vm.counts.sessions)) + lvKpi('真人消息', TLU.num(vm.counts.human_messages)) + lvKpi('工具调用', TLU.num(vm.counts.tool_calls)) +
-      lvKpi('项目', TLU.num(vm.counts.projects)) + lvKpi('活跃天数', TLU.num(vm.counts.active_days)) + lvKpi('模型请求', TLU.num(vm.usage.request_count)) +
-      lvKpi('Token', TLU.num(vm.usage.total_tokens)) + lvKpi('费用', TLU.money(vm.usage.cost_usd)) + '</div>');
-  },
-  sessions() {
-    const v = lvView('sessions');
-    return lvPage('会话与轨迹', v && v.vm ? TLU.num(v.vm.total) + ' 个会话' : '', v, (vm) => {
-      const list = lvTable([
-        { t: '会话', v: (s) => esc(s.title || s.session_uid) },
-        { t: '消息', n: 1, v: (s) => TLU.num(s.features && s.features.user_message_count) },
-        { t: '工具', n: 1, v: (s) => TLU.num(s.features && s.features.tool_call_count) },
-        { t: 'Token', n: 1, v: (s) => TLU.num(s.usage && s.usage.total_tokens) }
-      ], vm.rows, (s) => ' data-tl-sel data-act="lvSess" data-id="' + esc(s.session_uid) + '"' + (S.lvSess === s.session_uid ? ' class="on"' : ''));
-      const ev = vm.events == null ? '<div class="cap">选择一个会话查看事件</div>' : vm.events.length ? vm.events.map((e) => '<div class="tl-ev">#' + TLU.num(e.seq) + ' · ' + TLU.hm(e.ts) + ' · ' + esc(e.kind) + ' · ' + esc(e.summary || '') + '</div>').join('') : TLU.empty('该会话没有事件');
-      return '<div class="stack" data-tl="sessions"><div class="tl-card">' + list + '</div><div class="tl-card" data-tl="events">' + ev + '</div></div>';
-    });
-  },
-  tools() {
-    const v = lvView('tools');
-    return lvPage('工具调用', v && v.vm ? TLU.num(v.vm.totals.call_count) + ' 次调用' : '', v, (vm) => '<div class="stack" data-tl="tools"><div class="tl-grid">' +
-      lvKpi('调用', TLU.num(vm.totals.call_count)) + lvKpi('明确失败', TLU.num(vm.totals.known_failure_count)) + lvKpi('状态未知', TLU.num(vm.totals.unknown_status_count)) + lvKpi('失败率', TLU.pct(vm.totals.failure_rate)) + '</div>' +
-      '<div class="tl-card">' + lvTable([
-        { t: '工具', v: (r) => esc(r.name) }, { t: '调用', n: 1, v: (r) => TLU.num(r.call_count) }, { t: '成功', n: 1, v: (r) => TLU.num(r.known_success_count) },
-        { t: '失败', n: 1, v: (r) => TLU.num(r.known_failure_count) }, { t: '未知', n: 1, v: (r) => TLU.num(r.unknown_status_count) }, { t: '中位时长 ms', n: 1, v: (r) => TLU.num(r.median_duration_ms) }
-      ], vm.rows) + '</div></div>');
-  },
-  projects() {
-    const v = lvView('projects');
-    return lvPage('项目习惯', v && v.vm ? v.vm.rows.length + ' 个项目' : '', v, (vm) => '<div class="tl-card" data-tl="projects">' + lvTable([
-      { t: '项目', v: (r) => esc(r.name || r.project_id) }, { t: '会话', n: 1, v: (r) => TLU.num(r.session_count) }, { t: '真人消息', n: 1, v: (r) => TLU.num(r.human_message_count) },
-      { t: '工具调用', n: 1, v: (r) => TLU.num(r.tool_call_count) }, { t: '最近', n: 1, v: (r) => TLU.hm(r.last_observed_ts) }
-    ], vm.rows) + '</div>');
-  }
-};
+const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
-// A Lite route whose Advance counterpart is bound (l-home → overview, l-sessions → sessions) shows that live page; the
-// others (l-persona, l-recs) keep their demo page and the 示例数据 badge.
-const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
-if (TL.mode === 'live') {
-  Object.keys(TL_PAGES).forEach((k) => { PAGES[k] = TL_PAGES[k]; });
-  Object.keys(TO_ADV).forEach((r) => { if (lvKey(r) !== r) PAGES[r] = TL_PAGES[lvKey(r)]; });
+function lvSpineBadge() {
+  if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
+  if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
+  if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
+  return '';
+}
+function lvStrip(route) {
+  const k = lvKey(route);
+  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
+  const b = lvSpineBadge() || page;
+  const html = TLU.progress(TL) + TLU.banner(TL) + (b ? '<div>' + b + '</div>' : '');
+  return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';
+}
+
+if (LV.live) {
   TLU.ensureStyle(document);
-  const baseRender = render, baseSide = renderSide, baseSet = renderSet;
-  const lvSources = () => { const r = TL.resource('/v1/app/sources'); if (r.dirty && !r.loading) TL.load(r); return r; };
+  const baseRender = render, baseSide = renderSide;
   render = function () {
+    LV.pump(S.route);
     baseRender();
     const c = $('#content'); if (!c) return;
     const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
-    const strip = TLU.strip(TL, lvKey(S.route), TL_VIEWS[lvKey(S.route)]);
+    const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
   renderSide = function () {
     baseSide();
-    const st = TL.status; const side = $('#side');
-    const set = (sel, text) => { const el = side.querySelector(sel); if (el) el.textContent = text; };
-    set('[data-r="sessions"] .ct, [data-r="l-sessions"] .ct', TLU.num(st && st.counts && st.counts.sessions));
-    set('[data-r="projects"] .ct', TLU.num(st && st.counts && st.counts.projects));
-    AG.forEach((a) => {
-      const keys = TandemLive.AGENT_KEYS[a.id] || [];
-      const src = ((st && st.sources) || []).filter((s) => keys.indexOf(String(s.agent || '').toLowerCase()) >= 0);
-      const on = src.filter((s) => s.enabled !== false);
-      set('.ag[data-a="' + a.id + '"] .ct', !st ? '—' : !src.length ? '—' : !on.length ? '停用' : TLU.num(on.some((s) => s.sessions == null) ? null : on.reduce((n, s) => n + s.sessions, 0)));
-    });
-    side.querySelectorAll('[data-act="pinProject"] .ct').forEach((el) => { el.textContent = '—'; });
-    set('.me .pc', '—');
-    set('.sb-foot .pv .row.cap span', st ? '已索引 ' + TLU.num(st.counts && st.counts.sessions) + ' 个会话 · 本机服务' : TL.error ? '本机服务未连接' : '正在连接本机服务');
-  };
-  renderSet = function () {
-    baseSet();
-    if ($('#set').hidden || S.setTab !== 'sources') return;
-    const card = $$('#set .card').find((x) => { const t = x.querySelector('.ct'); return t && t.textContent === '已检测到的 Agent'; });
-    if (!card) return;
-    const r = lvSources(); const box = card.lastElementChild;
-    box.setAttribute('data-tl', 'sources');
-    box.innerHTML = r.data ? ((r.data.sources || []).map((s) => '<div class="srcrow" style="opacity:' + (s.enabled === false ? 0.55 : 1) + '"><div style="min-width:0"><b style="font-size:13px">' + esc(s.name || s.agent) + '</b><div class="cap" style="font-size:11px">' + esc(s.id) + ' · ' + (s.enabled === false ? '已停用' : '已启用') + '</div></div><span class="when">' + TLU.num(s.sessions) + ' 个会话 · ' + TLU.hm(s.last_scan) + '</span></div>').join('') || TLU.empty('尚未发现数据来源'))
-      : r.state === 'error' ? TLU.errorCard(r.error) : TLU.skeleton();
+    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
+    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
   };
   TL.start();
 }
