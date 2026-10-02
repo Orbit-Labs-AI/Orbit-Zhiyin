@@ -278,14 +278,14 @@ class Gateway:
         """Continuous sync (opt-in): adaptive polling 2 s → 30 s while nothing changes."""
         low, high = self.sync_interval_s
         interval = low
+        collection = self.platform.collection
         while not self.stopping.wait(interval):
-            collection = getattr(self.platform, "collection", None)
-            if collection is not None and getattr(collection, "paused", False):
+            if collection.paused:
                 interval = high
                 continue  # Collection paused (DT-02.1); explicit re-index still works.
             state = self.state.snapshot()
             enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-            catch_up = collection is not None and getattr(collection, "catch_up_pending", False)
+            catch_up = collection.consume_catch_up()
             if (state["settings"].get("sync_mode") != "live" and not catch_up) or not enabled:
                 interval = high
                 continue
@@ -294,9 +294,8 @@ class Gateway:
             interval = low if changed else min(high, interval * 2)
             try:
                 self.jobs.submit("import", enabled, phase="full", origin="sync")
-                if catch_up:
-                    collection.catch_up_pending = False
             except (JobConflict, ValueError):
+                collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
                 interval = low  # A user job is running; check again soon.
 
     # -- application ---------------------------------------------------------------------

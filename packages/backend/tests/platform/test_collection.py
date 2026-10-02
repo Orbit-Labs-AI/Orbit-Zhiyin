@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import inspect
 import sys
 from pathlib import Path
 
@@ -86,10 +85,44 @@ def test_paused_ms_today_and_prune(gw, clock):
         assert db.execute("SELECT COUNT(*) FROM collection_pause").fetchone()[0] == 201
 
 
-def test_sync_loop_respects_pause():
+class Stopper:
+    """``stopping`` stand-in: lets the sync loop run ``rounds`` iterations."""
+
+    def __init__(self, rounds: int):
+        self.rounds = rounds
+
+    def wait(self, _interval: float) -> bool:
+        self.rounds -= 1
+        return self.rounds < 0
+
+
+def run_sync_loop(gw, rounds: int) -> None:
     from tandem_backend.services.gateway import Gateway
 
-    if "collection" not in inspect.getsource(Gateway._sync_loop):
-        pytest.skip("platform-core has not wired collection.paused into _sync_loop yet")
-    # Wired: the loop must read gw.platform.collection.paused before submitting.
-    assert "paused" in inspect.getsource(Gateway._sync_loop)
+    gw.stopping, gw.sync_interval_s = Stopper(rounds), (0.0, 0.0)
+    Gateway._sync_loop(gw)
+
+
+def test_sync_loop_respects_pause(gw, clock):
+    enable_sources(gw, "a")
+    gw.state.update_settings({"sync_mode": "live"})
+    gw.platform.collection = c = Collection(gw, clock=clock)
+    c.pause()
+    run_sync_loop(gw, 3)
+    assert gw.jobs.calls == []  # Paused: no origin='sync' import.
+    c.resume()
+    run_sync_loop(gw, 1)
+    assert [call[3] for call in gw.jobs.calls] == ["sync", "sync"]  # catch-up + live poll
+
+
+def test_sync_loop_retries_catch_up_until_submitted(gw, clock):
+    enable_sources(gw, "a")  # sync_mode is not live: only the catch-up submits.
+    gw.platform.collection = c = Collection(gw, clock=clock)
+    gw.jobs.conflict = True
+    c.pause()
+    c.resume()
+    run_sync_loop(gw, 2)
+    assert c.catch_up_pending and gw.jobs.calls == []
+    gw.jobs.conflict = False
+    run_sync_loop(gw, 3)
+    assert not c.catch_up_pending and gw.jobs.calls == [("import", ["a"], "full", "sync")]
