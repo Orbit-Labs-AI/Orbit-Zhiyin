@@ -17,7 +17,7 @@
 5. **会话结果只有一套对外口径**：AN-19 `outcome ∈ {completed, partially_completed, abandoned, unknown}`；AI-03 facet 五态经 §2.3 映射表进入，`outcome_basis` 增 `facet`；`completed_rate` 分母 = `outcome ≠ unknown`，另报 `unknown_n`。验证证据只认 `outcome.extract_validation_runs()` 的 `executed = true` 记录，只命中 `command_head` 的是 `verify_candidate`（proxy），不作 `completed` 的证据。
 6. **摩擦 → 问题 → 推荐是单向链**：检测器产 `signal`（每会话每类型最多参与一次会话级计数），AN-06 按 `(problem_type, key, scope)` 聚合，`min_sessions` 按类型（`repeated_instruction` = 2，其余 3）∧ Wilson 下界 ≥ 阈值（契约 V1）升级为 `problem`；推荐只吃 `problem`、`profile` 与 AN-11 的清单事实（§2.4、§8）。
 7. **第一件事是 AN-16**：把 PR #14 已合入的 `tandem_data.analysis_input.read_analysis()` 适配成 `AnalysisInputBundle`（`analytics/inputs.py` 的 canonical 适配器尚未闭环），用真实 `tandem.db` 重跑现有 analytics，核对 `human_origin` 覆盖（契约 V11，阻塞 MVP）。
-8. **计算管线 = 查询现算**（§5）：MVP 不建派生表缓存；`signal / problem` 用确定性 ID（`stable_id(session_uid, kind, event_uid)`、`stable_id(type, key, scope, scope_id)`），`problem` 的 `resolved / dismissed` 写 `label`，整份响应按现有 `analysis_digest` 做进程内 LRU；`analysis.db` 在 MVP 只存用户状态（`candidate / label / install_ledger / tracking`）。性能预算：100k 事件冷算 ≤ 10 s（首次导入后带 `analysis_run` 进度）、热查询 ≤ 1 s（契约 V4，阻塞 MVP）；`session_row` 缓存与物化表 v1，只在 V4 实测不达标时启用。
+8. **计算管线 = 会话行物化 + section 缓存**（§5，负责人已决定，替代原「查询现算、不建缓存」）：会话行按根会话树指纹物化到 `analysis.sqlite` 的 `session_result`，各端点 section 按 `(request_key, input_fp)` 缓存，只重算变化的会话树；`signal / problem` 用确定性 ID（`stable_id(session_uid, kind, event_uid)`、`stable_id(type, key, scope, scope_id)`），`problem` 的 `resolved / dismissed` 写 `label`，section 先查进程内 LRU、再查 `analysis_section`；`analysis.db` 在 MVP 只存用户状态（`candidate / label / install_ledger / tracking`）。性能预算：100k 事件冷算 ≤ 10 s（首次导入后带 `analysis_run` 进度）、热查询 ≤ 1 s（契约 V4，阻塞 MVP）；审计实测 10 万事件冷算 40.9 s，不满足原「查询现算」的前提，因此会话行物化与 section 缓存提前到 MVP（[审计](analysis-audit.md) §3.3）。
 9. **目录不再搬**：八族（`task / instruction / preference / interaction / respond / cost_time / outcome / outcome_subjective`）已全部在 main；MVP 只新增 `analytics/signals.py`（检测器适配、映射表、AN-06 升级、规则时刻）与 `analytics/stats.py`（Wilson、`insufficient`），四轴写在 `profiling/portrait.py` 旁；组合层以 PR #27 `analytics/presentation/` 与 PR #32 `analytics/products/` 中先合入者为底，另一个 rebase 并入，本文 §2 的口径是两者的验收标准（§5.2）。
 10. **MVP 判定规则**（契约 §2.1 第 3 版）：MVP = Lite 8 页需要的数据 + Advance 三张安装闭环卡；只服务 Advance 独有界面（A9 工坊、ASK、菜单栏 / HUD / 小组件、首次启动、SET-21 周报、A1-06 上期对比、A3 阶段带与情绪泳道）的 feature 一律 v1。据此 AN-07 情绪、AN-13 实时状态、AN-14 `report_snapshot` 表、AN-12 的周序列与 `compare_previous`、AN-03 阶段打标、AN-10 的 EB / bootstrap 全部 v1（§6）。
 11. **Demo 的差距集中在三处**（§9、§10）：两版 Demo 自算的指标（`15-derive.js::stats / persona`、Lite `stats() / persona()`）全部换成后端 `metrics / profile`；A3 时间线沿用本地 `ui/vizkit` 的密度泳道 / 关键时刻簇 / minimap / 回放组件，只换数据源（本机工作文件 第 3 条）；A4 / A6 的静态表改为按 `Scope` 实时计算并按 `n / lo / hi / basis` 渲染。
@@ -394,21 +394,22 @@ flowchart LR
   SIG --> AGG
   AGG --> API[/v1/analytics/*]
   LBL[(analysis.db<br/>candidate · label · install_ledger · tracking)] --> AGG
-  AGG -. analysis_digest LRU .-> API
+  CACHE[(analysis.sqlite<br/>session_result · analysis_section · analysis_row)] -. 按树指纹复用会话行 .-> ROW
+  AGG -. section 读穿缓存 LRU → analysis_section .-> API
 ```
 
 | 环节 | 现状（main） | 目标（MVP） | 触发 |
 | --- | --- | --- | --- |
 | 输入适配 | `analytics/inputs.py::legacy_bundle()` 一次读事务；`data_access/store.py` 已能打开 canonical 库 | 新增 `canonical_bundle(home, scope)`：调用已合入的 `read_analysis()`（PR #14 版本，含截止后状态置 `unknown` 与事件 kind 过滤），透传 `usage_snapshots / statistical_members / diagnostics / coverage`，把 `projection_run` 写进 `versions`；`scene / task_id` 由 AN-17 补到 `attrs`；`max_events = 100000` 超限时按 `root_session_uids` 分批（契约 V4） | 每次查询 |
 | 选择 | `select()` 七种排除原因、重放剔除、模型歧义轮次、未来返回隔离 | 保留；接 canonical 后以 `statistical_members` 为准；PR #32 `analytics/context.py` 的「同一次请求只选择一次、为会话建索引」作统一入口 | 每次查询 |
-| 会话行 | `analyze_bundle()` 每次全量重算所有会话 | **查询现算，不建 `session_row` 缓存**；`signal_id = stable_id(session_uid, kind, event_uid ∣ call_uid)`、`problem_id = stable_id(type, key, scope, scope_id)` 保证跨重算稳定 | 每次查询 |
+| 会话行 | `analyze_bundle()` 每次全量重算所有会话 | **会话行物化**：只依赖本会话树的行写入 `session_result`（键 `root_session_uid, scope_class, algo_version`，值带 `tree_fp`），只重算树指纹变化或缺失的根会话，未命中 ≥ 300 个时按根会话分块并行；任务 / 偏好 ID、文本坐标与全局覆盖在装配时附加；`signal_id = stable_id(session_uid, kind, event_uid ∣ call_uid)`、`problem_id = stable_id(type, key, scope, scope_id)` 保证跨重算稳定 | 导入后预热 / 按需 |
 | 信号与问题 | `profiling/bottlenecks.diagnose()`、`bottleneck_features` 查询现算 | `analytics/signals.py`：检测器适配 → `signal[]` → §2.4 映射 → `problem[]`；`problem` 的 `resolved / dismissed` 读 `label`；`problems_top[]` 进 `overview` | 随查询 |
-| 聚合与区间 | `overview / projects / tools / text` 无区间；PR #27 `presentation-v1`、PR #32 `analysis-products-v1` 各有一套组合层 | `metrics(scope, metric[], bucket, group_by)` 端点：从会话行聚合，比例带 Wilson；两套组合层以先合入者为底，另一套 rebase 并入，本文 §2 为验收口径 | 每次查询；整份响应按 `analysis_digest = hash(content_digest, scope, FEATURE_VERSION, rules_version)` 做进程内 LRU（V4 实测不达标再物化） |
+| 聚合与区间 | `overview / projects / tools / text` 无区间；PR #27 `presentation-v1`、PR #32 `analysis-products-v1` 各有一套组合层 | `metrics(scope, metric[], bucket, group_by)` 端点：从会话行聚合，比例带 Wilson；两套组合层以先合入者为底，另一套 rebase 并入，本文 §2 为验收口径 | 按需；**section 缓存**：每个端点只算所需 section，按 `request_key = H(Scope, with_text, algo_version)` 与 `input_fp = H(projection_run, 选中会话树指纹)` 存入 `analysis_section` / `analysis_row`，读时先查进程内 LRU；输入或版本一变即失配，不提供过期结果 |
 | 画像 | `profiling/portrait.profile()` 查询现算；PR #27 `presentation/profile.py` | `observations` 原样；四轴 Wilson 版与逐月画像按窗口现算；不建 `profile / profile_history` 表 | 每次查询 |
 | 作业状态 | 无；`ImportService` 只管导入，`ai_job` 只管 AI | `analysis_run(run_id, trigger ∈ import/rules_version/manual, stage ∈ select/rows/signals/problems/profile, status, progress{done,total}, started_at, finished_at, error)`（内存 + `analysis.db`）与 `GET /v1/analytics/status`（SSE）；`meta.freshness` 带 `analysis_run_id`；MVP 只用于首次冷算进度与 Lite「同步」状态；阶段事件供 NT-04 / OB-05（v1），AI 语义阶段由 `ai_job` 接续 | 导入后 / 手动 |
 | 快照与导出 | `cli report`、`cli analytics --output`、`application/reports.py`；PR #32 同源导出（JSON / CSV / HTML） | MVP 复用 CLI 与同源导出；`report_snapshot(kind ∈ weekly/share_card/menubar/persona_fixed)` 表 v1 | 周报定时（v1） |
 
-`analysis.db` 在 MVP 只存用户状态与推荐 / 安装侧表（`candidate / rec_exposure / label / install_ledger / install_state / tracking / rec_outcome / eval_run / ai_usage / session_facet`）；`signal / problem / profile / segment / key_moment / workflow_pattern / dfg_edge / declare_check / report_snapshot` 的 DDL（契约 §3.2b）保留为 v1 物化目标，MVP 只作响应形状。
+派生结果缓存（`session_result / analysis_section / analysis_row / session_exclusion`）放在 `analysis.sqlite`，可随时删除重算，清理策略见[统计分析与完整分析记录](../modules/analytics/statistics-history.md)；`analysis.db` 在 MVP 只存用户状态与推荐 / 安装侧表（`candidate / rec_exposure / label / install_ledger / install_state / tracking / rec_outcome / eval_run / ai_usage / session_facet`）；`signal / problem / profile / segment / key_moment / workflow_pattern / dfg_edge / declare_check / report_snapshot` 的 DDL（契约 §3.2b）保留为 v1 物化目标，MVP 只作响应形状。
 
 ### 5.2 八族 ↔ AN ID 映射与代码落点
 
@@ -438,10 +439,11 @@ flowchart LR
 | 项 | 预算 | 依据 |
 | --- | --- | --- |
 | 冷算：90 天窗口 ≤ 100k 事件、≤ 30k 工具调用、≤ 5k 真人消息 | 全部会话行 + 信号 + 问题 + 画像 ≤ 10 s（首次导入后带 `analysis_run` 进度）；`with_text` 再 +2 s | PR #13 实测 1 万条真人消息 3.3 s；main 真实快照 40,664 事件 3.11 s → 100k 线性外推约 7.6 s，未计新增检测器 |
-| 热查询（`analysis_digest` 命中） | `overview / metrics / projects / tools` ≤ 1 s；`sessions` 列表 ≤ 200 行 ≤ 300 ms | 进程内 LRU |
+| 热查询（section 缓存命中） | `overview / metrics / projects / tools` ≤ 200 ms；`sessions?limit=50` ≤ 100 ms；`sessions/{id}` 按键读一行，不触发全量计算 | 进程内 LRU + `analysis_section` / `analysis_row`；1,000 会话构造数据有回归测试 |
 | 文本表示 | TF-IDF ≤ 20k 特征、SVD ≤ 32 维、DBSCAN O(n²) 在会话数 ≤ 5k 可接受；> 5k 按项目分块 | `text.py` 参数 |
 | 内存 | 事件行一次驻留 ≤ 500 MB；超过改为按根会话分批 | `max_events = 100000` 守卫 |
-| 复杂度禁区 | 不做跨会话 O(N²) 相似度（`duplicate_prompt` 用 `message_digest` 精确匹配 + 7 天内 3-gram 近似，v1）；不做实时 HMM；MVP 不做增量缓存 | — |
+| 复杂度禁区 | 不做跨会话 O(N²) 相似度（`duplicate_prompt` 用 `message_digest` 精确匹配 + 7 天内 3-gram 近似，v1）；不做实时 HMM | — |
+| 增量 | 导入 1 个新会话后只重算该根会话的行（`session_result` 命中其余），聚合用缓存行做一次 O(E) 分组 | 树指纹：一条 `GROUP BY root_uid` SQL |
 
 ## 6. MVP 与迭代
 
@@ -466,7 +468,7 @@ MVP 完成标准：Lite 8 页与 Advance A1–A6 的每个数字都能回到 `ov
 
 | 阶段 | 内容 |
 | --- | --- |
-| v1（有标注与几周数据后） | 阶段打标与粘性 HMM；轮次变体、`wait_side`、Declare（AN-04）；`frustration / runaway_loop / edit_churn / mid_task_compaction / duplicate_prompt / parallel_conflict / quota_hit / workflow_pattern` 检测器与 `severity` / 上游去重；AN-07 情绪与 `mood_drivers`；AN-13 实时状态（`running / idle / failing / stalled / just_finished`，`failing` 对运行中会话尾部增量跑 `retry_loop` 规则，`stalled` = 轮次未闭合且 ≥ N 分钟无新事件，MB-13 优先级 `failing > 等待审批 > 上下文超阈值 > 运行中 > 刚完成`，SSE 事件带 `session_uid`）；AN-14 `report_snapshot` 表（含 `persona_fixed`）；AN-12 `bucket = week`、`compare_previous`（Newcombe）、`change_flags`；AN-10 EB、bootstrap、`method` 字段；AN-15；`cache_rebill / rework_tax`；`similar_sessions`；`agent_switches_after`；`task_type → benchmark_task_class`；`session_row` 缓存与派生表物化（只在 V4 不达标时）；信号权重按 `label.not_me` 校准；`analytics/segment/`、`analytics/profile/` 目录 |
+| v1（有标注与几周数据后） | 阶段打标与粘性 HMM；轮次变体、`wait_side`、Declare（AN-04）；`frustration / runaway_loop / edit_churn / mid_task_compaction / duplicate_prompt / parallel_conflict / quota_hit / workflow_pattern` 检测器与 `severity` / 上游去重；AN-07 情绪与 `mood_drivers`；AN-13 实时状态（`running / idle / failing / stalled / just_finished`，`failing` 对运行中会话尾部增量跑 `retry_loop` 规则，`stalled` = 轮次未闭合且 ≥ N 分钟无新事件，MB-13 优先级 `failing > 等待审批 > 上下文超阈值 > 运行中 > 刚完成`，SSE 事件带 `session_uid`）；AN-14 `report_snapshot` 表（含 `persona_fixed`）；AN-12 `bucket = week`、`compare_previous`（Newcombe）、`change_flags`；AN-10 EB、bootstrap、`method` 字段；AN-15；`cache_rebill / rework_tax`；`similar_sessions`；`agent_switches_after`；`task_type → benchmark_task_class`；`signal / problem / profile` 等派生表物化；信号权重按 `label.not_me` 校准；`analytics/segment/`、`analytics/profile/` 目录 |
 | v2（多 Agent / 多用户后） | `context_peak_ratio / context_pressure`（需上下文观测，契约 C9）；DSH 审批等待时长；跨 Agent 落点差异的分层；PELT / BOCPD 变点；AI 推断时刻的回放评测 |
 | 先不做 | 训练型 HMM / HSMM、DTW、GNN、HDBSCAN / UMAP；p / q 分布损失、Bradley–Terry、反馈似然更新、分层贝叶斯；健康分 / 契合度合成分；跨用户常模；关键路径；PM4Py（AGPL）；向量语义匹配；bandit |
 
@@ -630,7 +632,7 @@ ID 沿用契约 §2.3；AN-19 为本文新增；AN-05 拆为 05.1 / 05.2，AN-08
 | V1 | 问题升级阈值 `min_sessions`（§2.4 按类型）∧ `wilson_lo ≥ 0.05` 在三位成员本机数据上既不漏也不吵 | AN-06 跑真实 `tandem.db`，人工看前 20 条 | AN-06 |
 | V2 | 四轴单位门槛 `n_units ≥ 30 ∧ 活跃天 ≥ 10` 下 Wilson 区间宽度多数 ≤ 20 个百分点；D 轴阈值 `autonomy_steps ≥ 5` 不是全 0 或全 1；M 轴判定线 50% | 本机数据跑 `profile` | AN-08.2 |
 | V3 | 中文纠偏 / 挫败词表精度 ≥ 0.5；agentsview 阈值改按字符后召回可接受 | 每人 30 条命中标注（EV-02 MVP 口径） | AN-05.1 |
-| V4 | 10 万事件 / 90 天窗口查询现算冷算 ≤ 10 s、热查询 ≤ 1 s；`read_analysis(max_events = 100000)` 够一个窗口 | 原型计时；不达标再启用 `session_row` 缓存 | AN-16、AN-01 |
+| V4 | 10 万事件 / 90 天窗口查询现算冷算 ≤ 10 s、热查询 ≤ 1 s；`read_analysis(max_events = 100000)` 够一个窗口 | 原型计时；会话行物化与 section 缓存已提前启用（审计 §3.3） | AN-16、AN-01 |
 | V11 | canonical 接入后 `human_origin` 覆盖从 legacy 的 9 / 927 显著提升（≥ 50%）；否则所有语义指标继续「数据不足」 | AN-16 完成后重跑同一快照 | AN-16 |
 | V12 | `session.meta.attrs.permission_mode` 是否进 L2（Claude Code mapper）；Codex 侧没有 `permission.request` 时 `would_prompt` 只能按词表估计 | 读两个 Schema 与 mapper | AN-05.2 |
 | V-A2 | 阶段规则在 50 个真实会话上与人工边界一致率 ≥ 70%（v1） | EV-02 标注抽样 | AN-03 |
