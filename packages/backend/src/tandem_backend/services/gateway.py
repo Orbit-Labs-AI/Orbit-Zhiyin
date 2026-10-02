@@ -311,6 +311,7 @@ class Gateway:
             routes_install,
             routes_platform,
             routes_recommend,
+            routes_sessionops,
         )
 
         @asynccontextmanager
@@ -329,7 +330,7 @@ class Gateway:
         app.include_router(routes_app.router(self))
         app.include_router(routes_analytics.router(self))
         for module in (routes_catalog, routes_features, routes_recommend, routes_ai,
-                       routes_install, routes_platform):
+                       routes_install, routes_platform, routes_sessionops):
             app.include_router(module.router(self))
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
         app.state.gateway = self
