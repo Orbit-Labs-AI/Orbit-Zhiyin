@@ -10,7 +10,9 @@ from tandem_backend.realtime.tail import ACTIVE_SQL, load_tails
 def _bulk(tandem, sessions=20_000, active=30):
     """Old sessions in bulk (executemany, FTS trigger dropped), then 30 live ones."""
     db = tandem.db
-    db.execute("DROP TRIGGER event_ai")  # FTS upkeep is irrelevant to the plan under test.
+    # FTS upkeep is irrelevant to the plan under test (event_search_ai since schema v8).
+    db.execute("DROP TRIGGER IF EXISTS event_ai")
+    db.execute("DROP TRIGGER IF EXISTS event_search_ai")
     old = NOW - 30 * 86_400_000
     db.execute("BEGIN")
     db.executemany(
