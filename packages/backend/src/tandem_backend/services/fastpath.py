@@ -23,6 +23,7 @@ from .sections import rules_digest
 from .snapshots import SnapshotKey, scope_hash
 
 FAST_DAYS = 7
+FULL_PASS = "uiview_facts"  # one complete analysis per window (see uiview.section)
 LADDER = (7, 30, 0)  # computation order: small first
 ALLOWED_DAYS = (7, 30, 90, 0)
 
@@ -110,6 +111,10 @@ def follow_up(gw, section: str, base: dict, window: dict, params: dict | None = 
     todo = tuple(w["days"] for w in window["wider"]
                  if w["state"] not in ("ready", "computing", "queued"))
     if todo:
+        if section != FULL_PASS and not params:
+            # The full pass of a window caches every analysis section of it (with and
+            # without text), so the section's own task after it is a cache read.
+            warm(gw, FULL_PASS, base, None, todo)
         warm(gw, section, base, params, todo)
         for w in window["wider"]:
             if w["days"] in todo:

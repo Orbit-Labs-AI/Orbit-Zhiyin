@@ -68,6 +68,14 @@ def test_cold_auto_serves_seven_days_and_queues_wider_windows_after_it():
     assert [w["state"] for w in window["wider"]] == ["queued", "queued"]
 
 
+def test_wider_overview_windows_queue_the_full_pass_first():
+    gw, submitted = fake_gateway()
+    base = asdict(analytics_scope())
+    _, window = fastpath.choose(gw, "overview", base, None)
+    fastpath.follow_up(gw, "overview", base, window)
+    assert [s[0] for s in submitted] == ["uiview_facts", "uiview_facts", "overview", "overview"]
+
+
 def test_auto_prefers_the_widest_ready_window_then_stale():
     gw, _ = fake_gateway()
     base = asdict(analytics_scope())
