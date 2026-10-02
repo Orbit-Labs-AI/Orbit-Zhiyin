@@ -25,6 +25,7 @@ CREATE TABLE tool_call (call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL, pr
   name TEXT NOT NULL, kind TEXT NOT NULL, mcp_server TEXT, skill TEXT, command_head TEXT,
   files TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL, error_class TEXT,
   started_at INTEGER) STRICT;
+CREATE INDEX projection_fk_tool_session ON tool_call(session_uid);
 CREATE TABLE projection_run (run_id INTEGER PRIMARY KEY, completed_at INTEGER NOT NULL,
   event_count INTEGER NOT NULL) STRICT;
 CREATE VIRTUAL TABLE event_fts USING fts5(text, content='event', content_rowid='rowid');
