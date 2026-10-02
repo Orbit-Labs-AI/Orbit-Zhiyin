@@ -19,7 +19,12 @@ from ..context import AnalysisContext
 from .feedback import calendar_key
 
 Record = dict[str, Any]
-LEXICAL_VERSION = "lexical-v1"
+LEXICAL_VERSION = "lexical-v2"
+# A long message repeated verbatim this often is a template (automation loop, pasted
+# boilerplate); its phrases count once in total instead of once per copy.
+TEMPLATE_MIN_COPIES = 3
+TEMPLATE_MIN_TOKENS = 12
+EVIDENCE_LIMIT = 20
 STOPWORDS = frozenset(
     "的 了 和 是 在 我 你 他 她 它 我们 你们 他们 请 一个 这个 那个 这些 那些 一下 以及 然后 可以 进行 需要 当前 the a an and or to of in on for is are be it this that with as i you we please".split()
 )
@@ -69,6 +74,11 @@ def sentences(text: str) -> list[list[str]]:
     return result
 
 
+def normalized_key(text: str) -> str:
+    """Whitespace and case do not make a templated message a different message."""
+    return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+
+
 def documents(context: AnalysisContext) -> tuple[list[Record], Record]:
     """Keep full per-message term counts and evidence IDs, not another copy of raw message text."""
     messages = semantic_messages(context.events, context.sessions)
@@ -100,7 +110,7 @@ def documents(context: AnalysisContext) -> tuple[list[Record], Record]:
                 "phrase_counts": dict(sorted(phrases.items())),
                 "text_truncated": bool(event.get("text_truncated")),
                 "normalized_text_sha256": hashlib.sha256(
-                    event["semantic_text"].encode()
+                    normalized_key(event["semantic_text"]).encode()
                 ).hexdigest(),
                 "text_available": bool(event["semantic_text"]),
             }
@@ -108,8 +118,13 @@ def documents(context: AnalysisContext) -> tuple[list[Record], Record]:
     return rows, coverage
 
 
-def frequency(rows: list[Record], field: str = "term_counts") -> Record:
-    """Measure occurrence count, message prevalence and session prevalence separately."""
+def frequency(
+    rows: list[Record], field: str = "term_counts", *, evidence_limit: int | None = None
+) -> Record:
+    """Measure occurrence count, message prevalence and session prevalence separately.
+
+    ``evidence_limit`` keeps only the first N evidence refs; ``evidence_n`` stays exact.
+    """
     counts, evidence, sessions_by_term, normalized_tf = (
         Counter(),
         defaultdict(list),
@@ -141,9 +156,14 @@ def frequency(rows: list[Record], field: str = "term_counts") -> Record:
                 "message_prevalence": document_n / len(eligible),
                 "session_prevalence": len(sessions_by_term[term]) / len(session_ids),
                 "tfidf_mean": normalized_tf[term] * idf / len(eligible),
-                "evidence": evidence[term],
+                "evidence": evidence[term][:evidence_limit]
+                if evidence_limit is not None
+                else evidence[term],
             }
         )
+        if evidence_limit is not None:
+            terms[-1]["evidence_n"] = document_n
+            terms[-1]["evidence_truncated"] = document_n > evidence_limit
     return {
         "token_count": total_tokens,
         "message_n": len(eligible),
@@ -151,6 +171,49 @@ def frequency(rows: list[Record], field: str = "term_counts") -> Record:
         "vocabulary_size": len(terms),
         "rows": terms,
     }
+
+
+def template_hashes(rows: list[Record]) -> dict[str, list[Record]]:
+    """Long messages repeated verbatim (normalized) at least ``TEMPLATE_MIN_COPIES`` times."""
+    groups = defaultdict(list)
+    for row in rows:
+        if row["text_available"] and not row["text_truncated"]:
+            groups[row["normalized_text_sha256"]].append(row)
+    return {
+        key: items
+        for key, items in groups.items()
+        if len(items) >= TEMPLATE_MIN_COPIES and items[0]["token_count"] >= TEMPLATE_MIN_TOKENS
+    }
+
+
+def phrase_documents(rows: list[Record], templates: dict[str, list[Record]]) -> list[Record]:
+    """One copy per template overall and one copy per repeated message per session."""
+    seen, out = set(), []
+    for row in rows:
+        digest = row["normalized_text_sha256"]
+        key = digest if digest in templates else (row["session_uid"], digest)
+        if row["text_available"] and not row["text_truncated"]:
+            if key in seen:
+                continue
+            seen.add(key)
+        out.append(row)
+    return out
+
+
+def rank_phrases(rows: list[Record]) -> tuple[list[Record], int]:
+    """Rank by session spread, then drop n-grams that never occur outside a longer phrase."""
+    by_term = {row["term"]: row for row in rows}
+    subsumed = set()
+    for row in rows:
+        words = row["term"].split(" ")
+        for size in range(2, len(words)):
+            for index in range(len(words) - size + 1):
+                part = by_term.get(" ".join(words[index : index + size]))
+                if part is not None and part["message_count"] == row["message_count"]:
+                    subsumed.add(part["term"])
+    kept = [row for row in rows if row["term"] not in subsumed]
+    kept.sort(key=lambda row: (-row["session_count"], -row["message_count"], -row["count"], row["term"]))
+    return kept, len(subsumed)
 
 
 def cooccurrences(rows: list[Record], terms: list[Record], *, top_n: int = 40) -> Record:
@@ -251,7 +314,12 @@ def lexical_analysis(context: AnalysisContext) -> Record:
             "similarity": None,
         }
     rows, coverage = documents(context)
-    terms, phrases = frequency(rows), frequency(rows, "phrase_counts")
+    templates = template_hashes(rows)
+    terms = frequency(rows)
+    phrases = frequency(
+        phrase_documents(rows, templates), "phrase_counts", evidence_limit=EVIDENCE_LIMIT
+    )
+    phrase_rows, subsumed_n = rank_phrases(phrases["rows"])
     groups = []
     for field in ("project_id", "source_id"):
         selected = defaultdict(list)
@@ -287,7 +355,24 @@ def lexical_analysis(context: AnalysisContext) -> Record:
         "vocabulary_size": terms["vocabulary_size"],
         "zero_token_message_n": sum(row["token_count"] == 0 for row in rows),
         "terms": terms["rows"],
-        "phrases": phrases["rows"],
+        "phrases": phrase_rows,
+        "phrase_method": {
+            "ranking": "session_count, message_count, count",
+            "template_rule": f">={TEMPLATE_MIN_COPIES} identical normalized messages of "
+            f">={TEMPLATE_MIN_TOKENS} tokens count once; other repeats count once per session",
+            "subsumed_phrase_n": subsumed_n,
+            "evidence_limit": EVIDENCE_LIMIT,
+        },
+        "templates": [
+            {
+                "normalized_text_sha256": key,
+                "message_n": len(items),
+                "session_n": len({row["session_uid"] for row in items}),
+                "token_count": items[0]["token_count"],
+                "event_uids": [row["event_uid"] for row in items[:EVIDENCE_LIMIT]],
+            }
+            for key, items in sorted(templates.items(), key=lambda pair: (-len(pair[1]), pair[0]))
+        ],
         "documents": rows,
         "groups": groups,
         "by_day": [{"day": day, **frequency(items)} for day, items in sorted(days.items())],
