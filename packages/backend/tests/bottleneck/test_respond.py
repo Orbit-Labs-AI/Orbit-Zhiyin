@@ -129,3 +129,13 @@ def test_l2_only_input_can_pair_without_inventing_turns(make_event):
     assert out["tools"]["totals"]["call_count"] == 1
     assert out["turn_count"] is None
     assert out["turn_boundary_unknown_n"] == 2
+
+
+def test_declined_and_denied_count_as_rejected_not_unknown():
+    from tandem_backend.analytics.respond.features import tool_summary
+
+    calls = [{"name_raw": "Bash", "kind": "shell", "status": s, "result_event_uid": f"r{i}"}
+             for i, s in enumerate(["declined", "denied", "completed", "failed"])]
+    totals = tool_summary(calls)["totals"]
+    assert totals["rejected_count"] == 2 and totals["unknown_status_count"] == 0
+    assert totals["failure_rate"] == 0.5

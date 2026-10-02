@@ -107,6 +107,10 @@ def window_sql(start: int, end: int, project_id, home, alias: str = "s", *,
     return sql + extra, params + extra_params
 
 
+FAILED_SQL = "'failed','error'"
+KNOWN_SQL = FAILED_SQL + ",'completed','success'"
+
+
 def _correction_sql(col: str = "h.text") -> str:
     return "(" + " OR ".join(f"{col} LIKE '%{w}%'" for w in _CORRECTION_LIKE) + ")"
 
@@ -122,13 +126,16 @@ def metrics(conn, start: int, end: int, project_id=None, home=None, *, source_id
     sub = f"SELECT s.session_uid FROM session s WHERE {where}"
     h = conn.execute(f"SELECT COUNT(*), COALESCE(SUM({_correction_sql()}),0) FROM v_human_message h"
                      f" WHERE h.session_uid IN ({sub}) LIMIT 1", params).fetchone()
-    t = conn.execute(f"SELECT COUNT(*), COALESCE(SUM(t.status IN ('failed','error')),0) FROM tool_call t"
+    t = conn.execute(f"SELECT COUNT(*), COALESCE(SUM(t.status IN ({FAILED_SQL})),0),"
+                     f" COALESCE(SUM(t.status IN ({KNOWN_SQL})),0) FROM tool_call t"
                      f" WHERE t.session_uid IN ({sub}) LIMIT 1", params).fetchone()
-    msgs, corr, calls, fails = h[0], int(h[1]), t[0], int(t[1])
+    msgs, corr, calls, fails, known = h[0], int(h[1]), t[0], int(t[1]), int(t[2])
+    # Rates use known protocol outcomes only; unknown/declined calls are not successes.
     return {"sessions": sessions, "hours": round(span / 3_600_000, 1), "human_messages": msgs,
             "corrections": corr, "correction_rate": round(corr / msgs, 3) if msgs else 0.0,
-            "tool_calls": calls, "tool_failures": fails,
-            "tool_failure_rate": round(fails / calls, 3) if calls else 0.0}
+            "tool_calls": calls, "tool_failures": fails, "tool_known_results": known,
+            "tool_failure_rate": round(fails / known, 3) if known else None,
+            "tool_unknown_share": round((calls - known) / calls, 3) if calls else None}
 
 
 def fts_query(text: str) -> str:

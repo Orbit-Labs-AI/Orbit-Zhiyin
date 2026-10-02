@@ -176,6 +176,26 @@ def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
         assert_sound(store)
 
 
+def test_claude_result_without_error_flag_is_completed(tmp_path):
+    # Synthetic: Claude Code omits is_error on success; only explicit errors are failures.
+    common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture", "promptId": "p"}
+    records = [{**common, "type": "user", "uuid": "u", "message": {"content": "Edit files"}}]
+    for i in range(4):
+        records.append({**common, "type": "assistant", "uuid": f"a{i}", "message": {
+            "id": f"r{i}", "model": "test", "usage": {"input_tokens": 1, "output_tokens": 1},
+            "content": [{"type": "tool_use", "id": f"c{i}", "name": "Edit", "input": {}}]}})
+        block = {"type": "tool_result", "tool_use_id": f"c{i}", "content": "ok"}
+        if i == 3:
+            block["is_error"] = True
+        records.append({**common, "type": "user", "uuid": f"t{i}", "message": {"content": [block]}})
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records)
+        store.rebuild()
+        statuses = sorted(r["status"] for r in rows(store, "tool_call"))
+        assert statuses == ["completed"] * 3 + ["failed"]
+        assert {r["status_scope"] for r in rows(store, "tool_call")} == {"tool_protocol"}
+
+
 @pytest.mark.parametrize("version", [0, 1, 2, 3, 4])
 def test_dsh_generations_stream_and_tool_result(version, tmp_path):
     message = {
