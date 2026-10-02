@@ -15,6 +15,8 @@ from .models import canonical_model_id
 from .sources import connector
 
 MODEL_KINDS = {"models_dev", "litellm"}
+# Long paginated scans publish every N pages so a late failure keeps what was already fetched.
+PARTIAL_DEFAULTS = {"mcp": (10, 120)}  # kind -> (publish_every_pages, max_pages per sync call)
 LATE_KINDS = {"swe_bench"}
 
 
@@ -74,7 +76,11 @@ class CatalogSync:
                 state = {**state, "known_models": set(self._models)}
             adapter = self.connector_factory(spec, self.http)
             checkpoint = run["checkpoint"]
-            for _ in range(max_pages):
+            every, budget = PARTIAL_DEFAULTS.get(spec.kind, (0, max_pages))
+            every = int(spec.config.get("publish_every_pages", every) or 0)
+            budget = min(max_pages, int(spec.config.get("max_pages", budget) or max_pages))
+            partial = getattr(self.store, "publish_partial", None) if every > 0 else None
+            for fetched in range(1, budget + 1):
                 if cancelled():
                     break
                 page = adapter.fetch_page(checkpoint, state)
@@ -89,6 +95,9 @@ class CatalogSync:
                 if page.complete:
                     with self._db:
                         return self.store.publish(run["run_id"])
+                if partial and fetched % every == 0:
+                    with self._db:
+                        partial(run["run_id"])
             with self._db:
                 return self.store.finish_interrupted(run["run_id"])
         except Exception as exc:

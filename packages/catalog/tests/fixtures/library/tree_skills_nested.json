@@ -1,0 +1,11 @@
+{
+ "note": "Synthetic repository: markdown inside a skill directory belongs to that skill.",
+ "files": {
+  "LICENSE": "MIT License\n\nCopyright (c) 2026 Example\n",
+  "skills/review/SKILL.md": "---\nname: review\ndescription: Review a diff\nlicense: MIT License\n---\nSteps.",
+  "skills/review/agents/x.md": "---\nname: x\n---\nhelper persona",
+  "skills/review/rules/_template.md": "# template",
+  "skills/review/references/commands/run.md": "reference",
+  "agents/standalone.md": "---\nname: standalone\ndescription: real subagent\n---\nbody"
+ }
+}
