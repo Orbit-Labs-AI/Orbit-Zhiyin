@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import sqlite3
 import tempfile
 import time
@@ -111,6 +112,26 @@ def _tune(connection) -> None:
     connection.execute("PRAGMA temp_store = MEMORY")
     connection.execute("PRAGMA cache_size = -262144")
     connection.execute("PRAGMA mmap_size = 1073741824")
+
+
+def _fact_migration(connection, sql):
+    """The unpublished v7-v9 analytics preview already has some v11-v13 fields."""
+    statements = []
+    for statement in sql.split(";"):
+        added = re.search(r"ALTER TABLE (\w+) ADD COLUMN (\w+) (TEXT|INTEGER)", statement)
+        if added:
+            table, name, datatype = added.groups()
+            column = next(
+                (r for r in connection.execute(f"PRAGMA table_info({table})") if r["name"] == name),
+                None,
+            )
+            if column is not None:
+                if column["type"] != datatype:
+                    raise ValueError("Existing analytics preview field has an incompatible type")
+                continue
+        if statement.strip():
+            statements.append(statement + ";")
+    return "\n".join(statements)
 
 
 def insert(connection, table: str, values: dict) -> None:
@@ -289,12 +310,33 @@ class Store:
                     raise
                 finally:
                     self.db.execute("PRAGMA foreign_keys=ON")
-        # 007 (reserved for feat/data-app-integration) and later: apply each migration file
-        # that exists and is newer than the opened store, so merge order does not matter.
+        # The unpublished analytics preview used v7-v9 for logical fields, while
+        # main uses v8-v10 for physical storage. Converge both without dropping facts.
+        if (
+            version in (7, 8, 9)
+            and "content_blob" not in tables
+            and any(
+                r["name"] == "request_identity_quality"
+                for r in self.db.execute("PRAGMA table_info(model_call)")
+            )
+        ):
+            self.db.executescript(
+                "BEGIN IMMEDIATE; UPDATE schema_manifest SET schema_version=6; PRAGMA user_version=6; COMMIT;"
+            )
+            version = 6
+        # 007 remains reserved for feat/data-app-integration. Each step publishes
+        # its version atomically so an interrupted physical upgrade can resume.
         for number in range(7, SCHEMA_VERSION + 1):
             migration = files("tandem_data").joinpath(f"migrations/{number:03d}.sql")
             if version < number and migration.is_file():
-                self.db.executescript("BEGIN IMMEDIATE;\n" + migration.read_text() + "\nCOMMIT;")
+                sql = migration.read_text()
+                if number in (11, 12, 13):
+                    sql = _fact_migration(self.db, sql)
+                self.db.executescript(
+                    "BEGIN IMMEDIATE;\n"
+                    + sql
+                    + f"\nUPDATE schema_manifest SET schema_version={number}; PRAGMA user_version={number}; COMMIT;"
+                )
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (

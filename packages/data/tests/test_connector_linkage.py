@@ -368,12 +368,15 @@ def test_codex_background_exec_startup_has_no_fake_zero_duration(tmp_path):
         calls = {
             row["native_call_id"]: row
             for row in store.db.execute(
-                "SELECT native_call_id, duration_ms, duration_source, duration_quality"
+                "SELECT native_call_id, duration_ms, duration_source, duration_quality,"
+                " native_execution_ms, wall_elapsed_ms"
                 " FROM tool_call"
             )
         }
         assert calls["background"]["duration_ms"] is None
         assert calls["background"]["duration_quality"] == "missing"
+        assert calls["background"]["native_execution_ms"] is None
+        assert calls["background"]["wall_elapsed_ms"] is None
         assert calls["measured"]["duration_ms"] == 3000
         assert calls["measured"]["duration_quality"] == "reported"
 

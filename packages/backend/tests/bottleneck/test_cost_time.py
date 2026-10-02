@@ -72,10 +72,12 @@ def test_reliable_duration_sum_union_and_log_estimates_stay_separate(make_call, 
              make_call("estimate", duration_ms=40000, duration_source="event_difference"),
              make_call("unknown")]
     r = summarize_durations(calls, [make_event(ts=500)])
-    assert r["execution_duration_sum_ms"] == 20000
+    assert r["wall_elapsed_sum_ms"] == 20000
+    assert r["execution_duration_sum_ms"] is None
     assert r["reliable_interval_union_ms"] == 15000
     assert r["estimated_log_gap_sum_ms"] == 40000
-    assert r["effective_n"] == 2 and r["unknown_n"] == 2
+    assert r["wall_effective_n"] == 2
+    assert r["effective_n"] == 0 and r["unknown_n"] == 4
     assert r["session_spans"][0]["observed_session_span_ms"] == 0
 
 

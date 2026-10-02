@@ -152,9 +152,10 @@ def test_session_spans_match_per_session_scan():
     for span in spans:
         es = [e for e in events if e["session_uid"] == span["session_uid"]]
         timed = [e for e in es if timestamp(e.get("ts"))]
-        assert span["evidence_event_uids"] == [e["event_uid"] for e in timed]
+        assert span["evidence_event_uids"] == sorted(e["event_uid"] for e in timed)
         assert span["unknown_n"] == len(es) - len(timed)
         assert span["first_observed_ts"] == min(e["ts"] for e in timed)
+    assert summarize_durations(bundle.tool_calls, list(reversed(events)))["session_spans"] == spans
 
 
 def test_direct_user_text_is_memoized_pure_function():

@@ -30,6 +30,9 @@ flowchart TD
 | 授权来源导入、进度与重算 | CLI ingest / import-connector；ImportService | data/connectors、service、bridge、pipeline | data 测试；根 integration 桥接回归 | 后端已实现，UI 待接入 |
 | 会话与证据浏览 | /v1/sessions、/v1/evidence、trajectory、records/source | backend/api + data_access + data/query | 分页、只读、范围与过期版本回归 | API 已实现 |
 | 特征分析 | analytics CLI；/v1/analytics/* | backend/analytics，各特征族保持独立目录 | analysis-input；模块和集成测试 | 已实现能力见各特征族说明 |
+| 共享任务关系 | /v1/analytics/work-graph、tasks/{task_uid}/trajectory | backend/analytics/work_graph | [身份、关系与证据契约](../../packages/backend/src/tandem_backend/analytics/work_graph/README.md)；构造轨迹、隔离与截止回归 | API / 模块完成；候选边界与未知版本明确保留 |
+| 有边界的语义观察 | evals.analytics.semantic_cascade；显式本地缓存 → analytics | backend/analytics/semantic_cascade | [输入、引用与推断边界](../../packages/backend/src/tandem_backend/analytics/semantic_cascade/README.md)；无人工标注接入、负例、超时和历史缓存回归 | 共享模块完成；真实模型准确率需独立标签与外发授权 |
+| 特征与 Skill 使用诊断 | bash scripts/check-feature-diagnostics.sh；本地 canonical 快照 | backend/analytics/diagnostics；recommend/service | [单位、证据与效用边界](../modules/analytics/fact-diagnostics.md)；未知项、目录无回退、模型候选与逐项筛选回归 | 终端和 JSON 完成；实际因果收益保持待测 |
 | 统计分析与运行历史 | /v1/analytics/statistics、lexical、compare、runs；analysis-history | backend/analytics/products；data/analysis_history | 数值与词频独立预期、并发及快照完整性回归 | 已实现；[方法与记录](../modules/analytics/statistics-history.md) |
 | UI 分析组合与本地验收 | analysis-report；/v1/analytics/products*；evals.analytics.products | backend/analytics/products | analysis-products-v1；模块与服务流程组合测试 | API / 报告完成；两版原型待接入，见[说明](../modules/analytics/analysis-products.md) |
 | 画像、瓶颈与报告 | report / demo；/v1/analysis | application/reports → profiling / recommendation / reporting | 既有回归；服务流程检查 CLI/API 输出一致 | 两个入口共用报告用例 |

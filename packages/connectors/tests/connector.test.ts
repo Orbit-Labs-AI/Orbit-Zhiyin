@@ -33,6 +33,20 @@ async function fixture(name='paginated'):Promise<string> { return readFile(new U
 const scalar=(s:Sandbox,query:string):number=>Number(s.store.db.prepare(query).get()?.n);
 const jsonLine=(type:string,payload:unknown,ordinal=0)=>JSON.stringify({type,payload,ordinal,timestamp:new Date(Date.UTC(2026,9,2,0,0,ordinal)).toISOString()})+'\n';
 
+test('subagent activity preserves lifecycle and never invents a child from UI item id',async()=>sandbox(async s=>{
+  const header=jsonLine('session_meta',{id:'parent',cwd:'/synthetic'});
+  const items=[['started','child'],['interacted','child'],['completed','child'],['interacted',null]];
+  await writeFile(s.file,header+items.map(([kind,child],index)=>jsonLine('event_msg',{
+    type:'item_completed',item:{type:'SubAgentActivity',id:`item-${index}`,kind,agent_thread_id:child}},index+1)).join(''));
+  const result=await s.connector.ingest();
+  assert.equal(result.accounting.unparsed??0,0);
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='subagent.spawn'"),1);
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='subagent.activity'"),2);
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='subagent.result'"),1);
+  const children=s.store.db.prepare("SELECT DISTINCT json_extract(attrs,'$.child_id') child FROM event WHERE kind LIKE 'subagent.%' AND json_extract(attrs,'$.child_id') IS NOT NULL").all();
+  assert.deepEqual(children.map(row=>row.child),['child']);
+}));
+
 test('paginated records are fully accounted; mirrors do not duplicate messages, tools or tokens',async()=>sandbox(async s=>{
   const native=await fixture(); await writeFile(s.file,native);
   const first=await s.connector.ingest();
