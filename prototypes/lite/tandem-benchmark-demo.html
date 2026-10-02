@@ -1063,8 +1063,84 @@ const TandemLive = (function () {
       if (win.addEventListener) win.addEventListener('tandem:endpoint', (e) => { C.setEndpoint(e && e.detail); });
       return C;
     };
+
+    /* ==== recs: recommendations (A7 / A1 / Lite / menubar top), detail, relations, exposure, labels, recompute ====
+       Reads go through C.get / C.resource like every other page. Writes (POST / DELETE) use send(); a write never
+       changes a resource by itself: the caller invalidates the recommendation resources afterwards. */
+    function send(method, path, body) {
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode' }));
+      const h = headers(body !== undefined ? { 'Content-Type': 'application/json' } : null);
+      return Promise.resolve().then(() => fetchFn(urlFor(path), { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      });
+    }
+    const REC_PATH = '/v1/recommendations';
+    const seen = new Set();   // surface|candidate_id already reported as `view` in this page session
+    C.recs = {
+      PATH: REC_PATH,
+      SURFACE_LIMIT: { A7: 50, A1: 3, lite: 3, menubar: 1 },
+      // resource descriptor for a surface (same shape as a bind() resource); A7 asks for the full list, the top
+      // surfaces ask for the backend's stable 24-hour slate
+      desc(surface, extra) { return { name: surface, path: REC_PATH, query: Object.assign({ surface, limit: C.recs.SURFACE_LIMIT[surface] || 30 }, extra || {}), waitMs: 800 }; },
+      resource(surface, scope) { const d = C.recs.desc(surface); return C.resource(d.path, { scope, query: d.query, waitMs: d.waitMs }); },
+      detail(id, signal) { return C.get(REC_PATH + '/' + encodeURIComponent(id), { signal }); },
+      relations(ids, signal) {
+        const xs = Array.from(new Set(ids || [])).slice(0, 20);
+        if (xs.length < 2) return Promise.resolve({ status: 200, data: { pairs: [] } });
+        return C.get(REC_PATH + '/relations?' + xs.map((x) => 'candidate_id=' + encodeURIComponent(x)).join('&'), { signal });
+      },
+      exposure(id, surface, action, position) { return send('POST', REC_PATH + '/' + encodeURIComponent(id) + '/exposure', { surface, action: action || 'view', position: position == null ? null : position }); },
+      // batched `view` exposure; ids already reported for this surface are skipped, so a re-render sends nothing
+      viewed(surface, ids) {
+        const items = []; (ids || []).forEach((id, i) => { const k = surface + '|' + id; if (id && !seen.has(k)) { seen.add(k); items.push({ candidate_id: id, position: i, action: 'view' }); } });
+        if (!items.length) return Promise.resolve(null);
+        return send('POST', REC_PATH + '/exposures', { surface, items: items.slice(0, 50) }).catch((e) => { items.forEach((it) => seen.delete(surface + '|' + it.candidate_id)); throw e; });
+      },
+      label(id, label, reason) { return send('POST', '/v1/labels', Object.assign({ target_kind: 'candidate', target_id: id, label }, reason ? { reason } : {})); },
+      unlabel(labelId) { return send('DELETE', '/v1/labels/' + encodeURIComponent(labelId)); },
+      recompute(scope, force) { return send('POST', REC_PATH + '/recompute', { scope: scopeBody(scope, C.status, now()), force: !!force }); },
+      invalidate() { return C.invalidate((r) => r.path === REC_PATH || r.path.indexOf(REC_PATH + '/') === 0); }
+    };
     return C;
   }
+  // recompute takes the analytics scope as a JSON object: list keys stay lists, the rest are scalars
+  const SCOPE_LISTS = ['source_ids', 'project_ids', 'model_ids', 'excluded_session_uids'];
+  function scopeBody(scope, status, now) {
+    const o = {};
+    scopePairs(scope, status, now == null ? Date.now() : now).forEach((kv) => {
+      if (SCOPE_LISTS.indexOf(kv[0]) >= 0) { o[kv[0]] = o[kv[0]] || []; if (kv[1] !== '') o[kv[0]].push(kv[1]); }
+      else o[kv[0]] = kv[0] === 'from_ts' ? Number(kv[1]) : kv[1];
+    });
+    return o;
+  }
+
+  /* ==== recs: Cand -> the prototype's RECS row ====
+     The backend's Cand carries `ui` already shaped like the A7 rows (dim, type, icon, lvl, aud, title, gain, why, ev,
+     evq, compat, primary, target, file, steps, track). Missing numbers stay null so the page prints「—」, never 0. */
+  function recSaveHours(c) {
+    // ranking: benefit = 1 − exp(−weekly_minutes / 30) → minutes per week → hours per month (4.33 weeks)
+    const b = c && c.score && c.score.benefit;
+    if (b == null || !Number.isFinite(b) || b <= 0 || b >= 1) return null;
+    return Math.round(-30 * Math.log(1 - b) * 4.33 / 60 * 10) / 10;
+  }
+  function recRow(c) {
+    const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
+    const track = (u.track || []).map((t) => [t[0], t[1] == null ? null : t[1], t[2] == null ? null : t[2], t[3] || '']);
+    return {
+      id: c.candidate_id, rec_key: c.rec_key, run_id: c.run_id, live: true,
+      dim: u.dim || c.dim || 'rule', type: u.type || c.kind || '—', icon: u.icon || 'rule', lvl: u.lvl || c.level || 1, aud: u.aud != null ? u.aud : (c.audience_min || 0),
+      title: u.title || c.title || '', gain: u.gain || '—', why: u.why || ((c.explain || {}).reason) || '', ev: u.ev || (n + ' 个会话'), evq: u.evq || {},
+      compat: u.compat || '', c2: 'var(--a2)', primary: u.primary || '查看方案', target: u.target || '', file: (u.file || []).map((l) => [String(l[0] == null ? '' : l[0]), l[1] || ' ']),
+      steps: u.steps || [], track,
+      x: { save: recSaveHours(c), tok: null, n: [n, n] },
+      priority: c.score ? c.score.priority : null, source: c.source || null
+    };
+  }
+  const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1136,7 +1212,7 @@ const TandemLive = (function () {
     }
   };
 
-  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui };
+  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui, recs };
 })();
 if (typeof module === 'object' && module && module.exports) module.exports = TandemLive;
 /* @tandem-live:generated end */
@@ -1166,6 +1242,27 @@ if(TL.mode==='live'){
   TL.start();
 }
 /* ==== @tandem-live block end ==== */
+/* ==== @tandem-live recs block: 优化建议 in live mode. GET /v1/recommendations (surface A7) replaces RECOMMENDATIONS rows and keeps
+   the page renderer; view / open / copy exposure go to the gateway. Never live yet and the endpoint is missing or down
+   (404 / 501 / 503 / offline): the demo rows stay, with 示例数据. Shared client: TandemLive recs section. ==== */
+const LVR={applied:null};
+TL.bind('recs',()=>[TL.recs.desc('A7')],d=>({items:(d.A7&&d.A7.items)||[]}));
+function lvRecAgents(compat){if(/所有/.test(compat||''))return AG.map(a=>a.id);const ids=[['cc',/Claude/],['cx',/Codex/],['gm',/Gemini/],['ds',/DeepSeek/],['cp',/Copilot/]].filter(x=>x[1].test(compat||'')).map(x=>x[0]);return ids.length?ids:['cc'];}
+function lvRecRow(c){const r=TandemLive.recs.row(c);return {id:r.id,rec_key:r.rec_key,live:true,dim:r.dim==='rule'?'prompt':r.dim,type:r.type,icon:['bolt','book','bot','branch','gauge','puzzle','rule'].includes(r.icon)?r.icon:'rule',title:r.title,desc:r.why,gain:r.gain,agents:lvRecAgents(r.compat),score:r.priority==null?0:r.priority,reason:'live',n:r.x.n[0],file:(r.target||'').split('/').pop()||'—',code:r.file.filter(l=>l[1]!=='-').map(l=>l[0]).join('\n'),steps:r.steps};}
+function lvRecDegraded(){if(LVR.applied)return false;const r=TL.recs.resource('A7',{range:S.range,agents:S.agent==='all'?null:[S.agent],projects:null,tz:TL_TZ});const e=r.error;return r.state==='error'&&(!e||!e.status||[404,501,503].includes(e.status));}
+if(TL.mode==='live'){
+  const baseRecsPage=PAGES.recs,baseEvidence=evidence;
+  evidence=r=>r.live?r.n:baseEvidence(r);
+  PAGES.recs=()=>{const v=lvView('recs');const d=v&&v.res&&v.res.A7&&v.res.A7.data;if(d&&d!==LVR.applied){const rows=(d.items||[]).map(lvRecRow);RECOMMENDATIONS.splice(0,RECOMMENDATIONS.length,...rows);rows.forEach(r=>{REC[r.id]=r;});LVR.applied=d;}return baseRecsPage();};
+  const lvRecRender=render;
+  render=function(){lvRecRender();if(S.route!=='recs')return;const c=$('#content');if(!c)return;const strip=c.querySelector(':scope > [data-tl="strip"]');if(lvRecDegraded()){if(strip&&!strip.querySelector('[data-tl="sample"]'))strip.insertAdjacentHTML('beforeend','<div>'+TLU.sample()+'</div>');const note=c.querySelector('.footer-note');if(note)note.textContent='TANDEM / 同频 · 本机数据 · 本页为示例数据';}const ids=[...c.querySelectorAll('[data-act="rec"][data-id]')].map(el=>el.dataset.id).filter(id=>REC[id]&&REC[id].live);if(ids.length)TL.recs.viewed('A7',[...new Set(ids)]).catch(()=>{});};
+  const ex=(id,action)=>{if(REC[id]&&REC[id].live)TL.recs.exposure(id,'A7',action).catch(()=>{});};
+  const baseRec=ACT.rec,baseCopy=ACT['copy-config'],baseRecTab=ACT['rec-tab'];
+  ACT.rec=el=>{baseRec(el);ex(el.dataset.id,'open');};
+  if(baseRecTab)ACT['rec-tab']=el=>{baseRecTab(el);if(el.dataset.value==='preview')ex(S.rec,'preview');};
+  if(baseCopy)ACT['copy-config']=el=>{baseCopy(el);ex(S.rec,'copy');};
+}
+/* ==== @tandem-live recs block end ==== */
 readLocation();render();
 
 </script></body></html>

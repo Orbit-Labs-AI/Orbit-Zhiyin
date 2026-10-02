@@ -49,7 +49,7 @@ function renderPop() {
   const mx = Math.max(1, ...days.map((x) => x[1]));
   const avg7 = sum(days, (x) => x[1]) / 7;
   const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="mono cap" style="font-size:11px">日均 ' + f1(avg7) + ' · 今天 ' + today.length + '</span></div><div class="pwk" role="img" aria-label="近 7 天每天的会话数">' + days.map((x) => '<span class="pwk-c' + (x[0] === 120 ? ' today' : '') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话' + (x[0] === 120 ? '（今天）' : '') + '"><b class="mono">' + x[1] + '</b><i style="height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px"></i><span class="mono cap">' + (x[0] === 120 ? '今' : WD[wd(x[0])]) + '</span></span>').join('') + '</div></div>';
-  const top = visibleRecs().find((r) => !S.installed.has(r.id));
+  const top = recTop('menubar')[0];
   const rec = top ? '<div class="sec row" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic(top.icon, 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(top.title) + '</div><div class="cap" style="font-size:11px">本周最值得做 · ' + top.gain + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + top.id + '">预览</button></div>' : '';
   const doneS = BYID[DONE_ID];
   const doneBadge = S.sim === 'done' && doneS ? '<button type="button" class="bdg" data-act="popSess" data-id="' + DONE_ID + '" style="background:var(--good-bg);color:var(--good);border:0" data-tip="' + esc(doneS.title) + '">刚刚完成 1 个</button>' : '';

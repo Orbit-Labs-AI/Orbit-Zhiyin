@@ -2384,8 +2384,84 @@ const TandemLive = (function () {
       if (win.addEventListener) win.addEventListener('tandem:endpoint', (e) => { C.setEndpoint(e && e.detail); });
       return C;
     };
+
+    /* ==== recs: recommendations (A7 / A1 / Lite / menubar top), detail, relations, exposure, labels, recompute ====
+       Reads go through C.get / C.resource like every other page. Writes (POST / DELETE) use send(); a write never
+       changes a resource by itself: the caller invalidates the recommendation resources afterwards. */
+    function send(method, path, body) {
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode' }));
+      const h = headers(body !== undefined ? { 'Content-Type': 'application/json' } : null);
+      return Promise.resolve().then(() => fetchFn(urlFor(path), { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      });
+    }
+    const REC_PATH = '/v1/recommendations';
+    const seen = new Set();   // surface|candidate_id already reported as `view` in this page session
+    C.recs = {
+      PATH: REC_PATH,
+      SURFACE_LIMIT: { A7: 50, A1: 3, lite: 3, menubar: 1 },
+      // resource descriptor for a surface (same shape as a bind() resource); A7 asks for the full list, the top
+      // surfaces ask for the backend's stable 24-hour slate
+      desc(surface, extra) { return { name: surface, path: REC_PATH, query: Object.assign({ surface, limit: C.recs.SURFACE_LIMIT[surface] || 30 }, extra || {}), waitMs: 800 }; },
+      resource(surface, scope) { const d = C.recs.desc(surface); return C.resource(d.path, { scope, query: d.query, waitMs: d.waitMs }); },
+      detail(id, signal) { return C.get(REC_PATH + '/' + encodeURIComponent(id), { signal }); },
+      relations(ids, signal) {
+        const xs = Array.from(new Set(ids || [])).slice(0, 20);
+        if (xs.length < 2) return Promise.resolve({ status: 200, data: { pairs: [] } });
+        return C.get(REC_PATH + '/relations?' + xs.map((x) => 'candidate_id=' + encodeURIComponent(x)).join('&'), { signal });
+      },
+      exposure(id, surface, action, position) { return send('POST', REC_PATH + '/' + encodeURIComponent(id) + '/exposure', { surface, action: action || 'view', position: position == null ? null : position }); },
+      // batched `view` exposure; ids already reported for this surface are skipped, so a re-render sends nothing
+      viewed(surface, ids) {
+        const items = []; (ids || []).forEach((id, i) => { const k = surface + '|' + id; if (id && !seen.has(k)) { seen.add(k); items.push({ candidate_id: id, position: i, action: 'view' }); } });
+        if (!items.length) return Promise.resolve(null);
+        return send('POST', REC_PATH + '/exposures', { surface, items: items.slice(0, 50) }).catch((e) => { items.forEach((it) => seen.delete(surface + '|' + it.candidate_id)); throw e; });
+      },
+      label(id, label, reason) { return send('POST', '/v1/labels', Object.assign({ target_kind: 'candidate', target_id: id, label }, reason ? { reason } : {})); },
+      unlabel(labelId) { return send('DELETE', '/v1/labels/' + encodeURIComponent(labelId)); },
+      recompute(scope, force) { return send('POST', REC_PATH + '/recompute', { scope: scopeBody(scope, C.status, now()), force: !!force }); },
+      invalidate() { return C.invalidate((r) => r.path === REC_PATH || r.path.indexOf(REC_PATH + '/') === 0); }
+    };
     return C;
   }
+  // recompute takes the analytics scope as a JSON object: list keys stay lists, the rest are scalars
+  const SCOPE_LISTS = ['source_ids', 'project_ids', 'model_ids', 'excluded_session_uids'];
+  function scopeBody(scope, status, now) {
+    const o = {};
+    scopePairs(scope, status, now == null ? Date.now() : now).forEach((kv) => {
+      if (SCOPE_LISTS.indexOf(kv[0]) >= 0) { o[kv[0]] = o[kv[0]] || []; if (kv[1] !== '') o[kv[0]].push(kv[1]); }
+      else o[kv[0]] = kv[0] === 'from_ts' ? Number(kv[1]) : kv[1];
+    });
+    return o;
+  }
+
+  /* ==== recs: Cand -> the prototype's RECS row ====
+     The backend's Cand carries `ui` already shaped like the A7 rows (dim, type, icon, lvl, aud, title, gain, why, ev,
+     evq, compat, primary, target, file, steps, track). Missing numbers stay null so the page prints「—」, never 0. */
+  function recSaveHours(c) {
+    // ranking: benefit = 1 − exp(−weekly_minutes / 30) → minutes per week → hours per month (4.33 weeks)
+    const b = c && c.score && c.score.benefit;
+    if (b == null || !Number.isFinite(b) || b <= 0 || b >= 1) return null;
+    return Math.round(-30 * Math.log(1 - b) * 4.33 / 60 * 10) / 10;
+  }
+  function recRow(c) {
+    const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
+    const track = (u.track || []).map((t) => [t[0], t[1] == null ? null : t[1], t[2] == null ? null : t[2], t[3] || '']);
+    return {
+      id: c.candidate_id, rec_key: c.rec_key, run_id: c.run_id, live: true,
+      dim: u.dim || c.dim || 'rule', type: u.type || c.kind || '—', icon: u.icon || 'rule', lvl: u.lvl || c.level || 1, aud: u.aud != null ? u.aud : (c.audience_min || 0),
+      title: u.title || c.title || '', gain: u.gain || '—', why: u.why || ((c.explain || {}).reason) || '', ev: u.ev || (n + ' 个会话'), evq: u.evq || {},
+      compat: u.compat || '', c2: 'var(--a2)', primary: u.primary || '查看方案', target: u.target || '', file: (u.file || []).map((l) => [String(l[0] == null ? '' : l[0]), l[1] || ' ']),
+      steps: u.steps || [], track,
+      x: { save: recSaveHours(c), tok: null, n: [n, n] },
+      priority: c.score ? c.score.priority : null, source: c.source || null
+    };
+  }
+  const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2457,7 +2533,7 @@ const TandemLive = (function () {
     }
   };
 
-  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui };
+  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui, recs };
 })();
 if (typeof module === 'object' && module && module.exports) module.exports = TandemLive;
 
@@ -2589,6 +2665,10 @@ function projRows(L) {
   });
 }
 function visibleRecs() { return RECS.filter((r) => r.aud <= S.recs.aud && !S.recs.gone.has(r.id)); }
+// Visible recs (recOrder) and the open, not installed ones (recTop) in the order a surface shows them: A1 / menubar take visibleRecs() order, Lite sorts by saving.
+// Live mode (97-live-recs.js) puts the backend's stable top slate for that surface first.
+function recOrder(surface) { return surface === 'lite' ? liteOrder() : visibleRecs(); }
+function recTop(surface) { return recOrder(surface).filter((r) => !S.installed.has(r.id)); }
 
 /* ============ ui plumbing: theme, tooltip, toast, sheets (#modal), dropdown menus, notifications ============ */
 const desk = $('#desk');
@@ -4718,9 +4798,19 @@ const liteCount = (html, v, dec) => html.replace('<span class="v">', '<span clas
 function liteRecBtn(r) {
   return recPrimaryBtn(r).replace(/data-act="(tutorial|recToStudio|openRec)"/, 'data-act="liteRecAdv"').replace('class="btn', 'class="btn l-big');
 }
-const liteOrder = () => visibleRecs().slice().sort((a, b) => recX(b.id).save - recX(a.id).save);
-const liteSaveH = (id) => recX(id).save;
+const liteOrder = () => visibleRecs().slice().sort((a, b) => liteSaveH(b.id) - liteSaveH(a.id));
+const liteSaveH = (id) => recX(id).save || 0;   // live recs without an estimate (save: null) sort last and print「—」
+const liteSaveSpan = (id) => recX(id).save == null ? '<span class="v mono">—</span>' : '<span class="v mono" data-count="' + liteSaveH(id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(id)) + '</span>';
 
+// 「本周最值得做的一件事」(also appended to the live Lite home by 97-live-recs.js)
+function liteOneCard(open) {
+  const r = open[0];
+  return r ? '<div class="card rcard l-one"><div class="rc-top"><span class="eb" style="color:var(--ink-1)">本周最值得做的一件事</span><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span></div>' +
+    '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
+    '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="u">h / 月 · 估计节省</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' +
+    (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
+    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+}
 /* ---------- 1 概览：AI 一句话 + 人格码 → 四个大数字 + 活跃条带 → 本周最值得做的一件事 ---------- */
 PAGES['l-home'] = () => {
   const L = sel(); const st = stats(L);
@@ -4745,12 +4835,7 @@ PAGES['l-home'] = () => {
   const days = Array.from({ length: span }, (_, i) => a0 + i).filter((x) => x >= 0); const mx = Math.max(1, ...days.map((x) => per[x] || 0));
   const strip = '<div class="l-strip" role="img" aria-label="每日会话数 · ' + md(days[0]) + ' — ' + md(w[1]) + '">' + days.map((x) => '<i class="' + (x >= w[0] ? 'in' : '') + '" style="height:' + Math.max(4, (per[x] || 0) / mx * 100).toFixed(1) + '%" data-tip="' + md(x) + ' 周' + WD[wd(x)] + ' · ' + (per[x] || 0) + ' 个会话"></i>').join('') + '</div>' +
     '<div class="row cap l-strip-l"><span class="mono">' + md(days[0]) + '</span><span style="flex:1;text-align:center">每日会话 · 深色为' + rangeLabel() + '</span><span class="mono">' + md(w[1]) + '</span></div>';
-  const open = liteOrder().filter((r) => !S.installed.has(r.id)); const r = open[0];
-  const one = r ? '<div class="card rcard l-one"><div class="rc-top"><span class="eb" style="color:var(--ink-1)">本周最值得做的一件事</span><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span></div>' +
-    '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-    '<div class="rc-foot"><span class="l-gain"><span class="v mono" data-count="' + liteSaveH(r.id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(r.id)) + '</span><span class="u">h / 月 · 估计节省</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' +
-    (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
-    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+  const one = liteOneCard(recTop('lite'));
   return liteBar('概览', winLabel() + ' · ' + st.n + ' 个会话') +
     '<div class="content" id="content"><div class="lite l-home">' + hero +
     '<section class="l-sec"><div class="tiles l-tiles">' + tiles + '</div>' + strip + '</section>' + one +
@@ -4833,7 +4918,7 @@ PAGES['l-sessions'] = () => {
 
 /* ---------- 4 优化建议：一句总收益 → 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
-  const all = liteOrder(); const top = all.slice(0, 3);
+  const all = recOrder('lite'); const top = all.slice(0, 3);
   const open = top.filter((r) => !S.installed.has(r.id));
   const save = sum(open, (r) => liteSaveH(r.id));
   const hero = '<div class="card pad l-rhero"><span class="eb">优化建议 · 按每月节省时间排序</span>' +
@@ -4844,7 +4929,7 @@ PAGES['l-recs'] = () => {
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);
     return '<div class="card rcard l-rc' + (inst ? ' inst' : '') + '" data-id="' + r.id + '"><span class="l-rn mono" aria-hidden="true">0' + (i + 1) + '</span><div class="col l-rb"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + agentDots(r, true) + '</div>' +
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-      '<div class="rc-foot"><span class="l-gain"><span class="v mono" data-count="' + liteSaveH(r.id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(r.id)) + '</span><span class="u">h / 月</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
+      '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="u">h / 月</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
   return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
     '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +
@@ -4905,7 +4990,7 @@ PAGES.overview = () => {
   const topF = fr[0];
   const projC = {}; L.forEach((s) => { if (s.corr) projC[s.p] = (projC[s.p] || 0) + s.corr; });
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
-  const topR = visibleRecs().filter((r) => !S.installed.has(r.id)).slice(0, 3);
+  const topR = recTop('A1').slice(0, 3);
   const okN = L.filter((s) => s.out === 'ok').length;
   const ai = [
     ['做得好', 'okc', 'var(--good)', Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
@@ -4952,7 +5037,7 @@ PAGES.overview = () => {
     '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap" style="font-size:11px;margin-top:6px">点击格子：查看该小时开始的会话（筛选只按小时，不分星期）</div></div>' +
     // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="ov-tools">' + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err"><span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span></span></button>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">右侧为错误率（刻度 0–20%）· 超过 10% 标红</div></div>' +
-    '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>' +
+    ovRecsCard(topR) +
     '</div></div></div>';
 };
 // 图表挂载：趋势（堆叠 / 分组 / 100%）、结果构成、人格双向条、节律热力图
@@ -4996,6 +5081,10 @@ PAGES.overview.after = () => {
   });
 };
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
+// 「本周建议」card (also appended to the live overview by 97-live-recs.js)
+function ovRecsCard(topR) {
+  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>';
+}
 function recPrimaryBtn(r, small) {
   const inst = S.installed.has(r.id);
   if (inst) return '<button type="button" class="btn' + (small ? ' sm' : '') + '" data-act="openRec" data-id="' + r.id + '" data-tab="track">已安装 · 追踪中</button>';
@@ -5986,8 +6075,8 @@ const REC_X = {
 };
 const REC_UP = /一致率|比例|完成率|并行会话数/;   // metrics where higher is better; everything else is good when it goes down
 const recX = (id) => REC_X[id] || { save: 1, tok: 0, n: [10, 10] };
-const recSave = (id) => { const s = recX(id).save; return s >= 1 ? '≈ ' + f1(s) + ' h' : '≈ ' + Math.round(s * 60) + ' min'; };
-const recTok = (id) => { const t = recX(id).tok; return t > 0 ? '+' + f1(t) + 'k' : t < 0 ? '−' + f1(-t) + 'k' : '0'; };
+const recSave = (id) => { const s = recX(id).save; return s == null ? '—' : s >= 1 ? '≈ ' + f1(s) + ' h' : '≈ ' + Math.round(s * 60) + ' min'; };
+const recTok = (id) => { const t = recX(id).tok; return t == null ? '—' : t > 0 ? '+' + f1(t) + 'k' : t < 0 ? '−' + f1(-t) + 'k' : '0'; };
 // Which agents a rec applies to, parsed from its compat string (identity colours only).
 function recAgents(r) {
   if (/所有/.test(r.compat)) return AG.map((a) => a.id);
@@ -6008,11 +6097,11 @@ PAGES.recs = () => {
   const peek = R.peek && RECI[R.peek] && !R.gone.has(R.peek) ? RECI[R.peek] : null;   // opened from elsewhere: shown without changing the filters (BUG-80)
   if (peek && !vis.includes(peek)) vis = vis.concat([peek]);
   const inLv = vis.filter((r) => R.lv.has(r.lvl) || r === peek);
-  const list = inLv.filter((r) => R.dim === 'all' || r.dim === R.dim || r === peek).sort((a, b) => recX(b.id).save - recX(a.id).save);
+  const list = inLv.filter((r) => R.dim === 'all' || r.dim === R.dim || r === peek).sort((a, b) => (recX(b.id).save || 0) - (recX(a.id).save || 0));
   const cnt = (d) => inLv.filter((r) => d === 'all' || r.dim === d).length;
   const sel0 = RECI[R.sel] && list.includes(RECI[R.sel]) ? RECI[R.sel] : list[0];
   if (sel0) R.sel = sel0.id;
-  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '">' + recSave(r.id) + '</b><span class="u">/ 月</span></span></div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + ' <button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button></div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span><span class="mono rc-gain">' + esc(r.gain) + '</span></div><div class="rc-foot"><span style="flex:1"></span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
+  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b' + (x.save == null ? '' : ' data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '"') + '>' + recSave(r.id) + '</b><span class="u">/ 月</span></span></div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + ' <button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button></div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span><span class="mono rc-gain">' + esc(r.gain) + '</span></div><div class="rc-foot"><span style="flex:1"></span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
   const g1 = list.filter((r) => r.lvl <= 2), g2 = list.filter((r) => r.lvl >= 3);
   let detail = empty('没有符合筛选的建议');
   TRK_SPECS = [];
@@ -7461,7 +7550,7 @@ function renderPop() {
   const mx = Math.max(1, ...days.map((x) => x[1]));
   const avg7 = sum(days, (x) => x[1]) / 7;
   const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="mono cap" style="font-size:11px">日均 ' + f1(avg7) + ' · 今天 ' + today.length + '</span></div><div class="pwk" role="img" aria-label="近 7 天每天的会话数">' + days.map((x) => '<span class="pwk-c' + (x[0] === 120 ? ' today' : '') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话' + (x[0] === 120 ? '（今天）' : '') + '"><b class="mono">' + x[1] + '</b><i style="height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px"></i><span class="mono cap">' + (x[0] === 120 ? '今' : WD[wd(x[0])]) + '</span></span>').join('') + '</div></div>';
-  const top = visibleRecs().find((r) => !S.installed.has(r.id));
+  const top = recTop('menubar')[0];
   const rec = top ? '<div class="sec row" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic(top.icon, 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(top.title) + '</div><div class="cap" style="font-size:11px">本周最值得做 · ' + top.gain + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + top.id + '">预览</button></div>' : '';
   const doneS = BYID[DONE_ID];
   const doneBadge = S.sim === 'done' && doneS ? '<button type="button" class="bdg" data-act="popSess" data-id="' + DONE_ID + '" style="background:var(--good-bg);color:var(--good);border:0" data-tip="' + esc(doneS.title) + '">刚刚完成 1 个</button>' : '';
@@ -7991,6 +8080,157 @@ if (TL.mode === 'live') {
       : r.state === 'error' ? TLU.errorCard(r.error) : TLU.skeleton();
   };
   TL.start();
+}
+
+/* ============ live binding: recommendations (TandemLive.recs, js/06-live-client.js) ============
+   Mock mode changes nothing. In live mode the demo renderers stay as they are (A7 cards and detail, A1「本周建议」, Lite
+   l-home「本周最值得做的一件事」and l-recs, menubar「本周最值得做」): this file swaps the rows they read (RECS / RECI / REC_X)
+   for GET /v1/recommendations, and recOrder / recTop(surface) put the backend's stable top slate (surface A1 / lite / menubar) first.
+   - Never live yet and the endpoint is missing or down (404 / 501 / 503 / offline): the demo rows stay, with 示例数据.
+   - Live once: later failures keep the last live rows (the strip says 刷新失败), never the demo rows.
+   - Writes: view / open / preview / copy exposure; 不适用 / 稍后 / 不再推荐同类 are labels with an 8-second undo
+     (DELETE /v1/labels/{id}); 重新计算 is POST /v1/recommendations/recompute. Each write invalidates the rec resources. */
+const LVR = { applied: null, top: {}, rel: {}, labels: new Map(), poll: 0, detail: {} };
+const LVR_SURFACES = ['A1', 'lite', 'menubar'];
+const LVR_ROUTES = { recs: 'A7', 'l-recs': 'lite', overview: 'A1', 'l-home': 'lite' };
+const LVR_DEGRADE = (e) => !e || !e.status || e.status === 404 || e.status === 501 || e.status === 503;
+const lvRecLive = (id) => !!(RECI[id] && RECI[id].live);
+
+TL.bind('recs', () => [TL.recs.desc('A7')], (d) => ({ items: (d.A7 && d.A7.items) || [], dims: (d.A7 && d.A7.dims) || [], run: d.A7 && d.A7.run }));
+
+// Load the A7 list (and the top slate of the surfaces in view) without the page AbortSignal, then apply the rows.
+function lvRecSync(surfaces) {
+  if (TL.mode !== 'live') return;
+  const scope = lvScope();
+  const a7 = TL.recs.resource('A7', scope);
+  if (a7.dirty && !a7.loading) TL.load(a7);
+  (surfaces || []).forEach((sf) => {
+    const r = TL.recs.resource(sf, scope);
+    if (r.dirty && !r.loading) TL.load(r);
+    if (r.data) LVR.top[sf] = (r.data.items || []).map((c) => c.rec_key);
+  });
+  if (a7.data && a7.data !== LVR.applied) lvRecApply(a7.data);
+  // 202 computing: the recommend job does not publish analysis.ready for a section, so poll until a run exists
+  const computing = [a7].concat((surfaces || []).map((sf) => TL.recs.resource(sf, scope))).some((r) => r.state === 'computing');
+  if (computing && !LVR.poll) LVR.poll = setTimeout(() => { LVR.poll = 0; TL.recs.invalidate(); }, 3000);
+}
+function lvRecApply(data) {
+  const rows = (data.items || []).map(TandemLive.recs.row);
+  RECS.splice(0, RECS.length, ...rows);
+  rows.forEach((r) => { RECI[r.id] = r; REC_X[r.id] = r.x; });
+  LVR.applied = data;
+  LVR.rel = {};
+  const ids = rows.slice(0, 20).map((r) => r.id);
+  if (ids.length >= 2) TL.recs.relations(ids).then((res) => { LVR.rel = {}; ((res.data && res.data.pairs) || []).forEach((p) => { (LVR.rel[p.a] = LVR.rel[p.a] || []).push(p); (LVR.rel[p.b] = LVR.rel[p.b] || []).push(p); }); if (S.route === 'recs') render(); }, () => {});
+}
+// Live never reached and the endpoint is missing / unavailable: keep the demo rows and label them.
+function lvRecDegraded() {
+  if (LVR.applied) return false;
+  const r = TL.recs.resource('A7', lvScope());
+  return r.state === 'error' && LVR_DEGRADE(r.error);
+}
+// Detail (GET /v1/recommendations/{id}): a finished outcome fills the track rows with the 7-day before / after values.
+function lvRecDetail(id) {
+  if (!lvRecLive(id) || LVR.detail[id]) return;
+  LVR.detail[id] = 'loading';
+  TL.recs.detail(id).then((res) => {
+    const d = res.data || {}; LVR.detail[id] = d;
+    const w = d.outcome && (d.outcome.windows || []).find((x) => x.window === '7d');
+    const r = RECI[id];
+    if (w && r) {
+      const by = {}; (w.metrics || []).forEach((m) => { by[m.metric] = m; });
+      r.track = r.track.map((t) => { const m = by[t[0]]; return m ? [t[0], m.before == null ? null : m.before, m.after == null ? null : m.after, t[3]] : t; });
+    }
+    if (S.route === 'recs' && S.recs.sel === id) render();
+  }, () => { LVR.detail[id] = null; });
+}
+
+if (TL.mode === 'live') {
+  // ---- top slate per surface ----
+  const baseRecOrder = recOrder;
+  recOrder = function (surface) {
+    const base = baseRecOrder(surface);
+    const keys = LVR.applied && LVR.top[surface];
+    if (!keys) return base;
+    const first = keys.map((k) => base.find((r) => r.rec_key === k)).filter(Boolean);
+    return first.concat(base.filter((r) => first.indexOf(r) < 0));
+  };
+
+  // ---- pages: A7 and Lite l-recs keep the demo renderers; overview / Lite home get the rec card appended ----
+  const baseRecs = PAGES.recs, baseLiteRecs = PAGES['l-recs'];
+  TL_PAGES.recs = function () { lvView('recs'); lvRecSync(); return baseRecs(); };
+  TL_PAGES.recs.after = baseRecs.after;
+  PAGES.recs = TL_PAGES.recs;
+  PAGES['l-recs'] = function () { lvView('recs'); lvRecSync(['lite']); return baseLiteRecs(); };
+  if (baseLiteRecs.after) PAGES['l-recs'].after = baseLiteRecs.after;
+  const append = (html, card) => { const i = html.lastIndexOf('</div>'); return i < 0 ? html + card : html.slice(0, i) + card + html.slice(i); };
+  const baseOv = PAGES.overview, baseLiteHome = PAGES['l-home'];
+  PAGES.overview = function () { lvRecSync(['A1']); const html = baseOv(); return LVR.applied ? append(html, '<div style="margin-top:12px" data-tl="recs-a1">' + ovRecsCard(recTop('A1').slice(0, 3)) + '</div>') : html; };
+  PAGES['l-home'] = function () { lvRecSync(['lite']); const html = baseLiteHome(); return LVR.applied ? append(html, '<div class="lite" style="margin-top:12px" data-tl="recs-lite">' + liteOneCard(recTop('lite')) + '</div>') : html; };
+  ['overview', 'l-home'].forEach((k) => { const b = k === 'overview' ? baseOv : baseLiteHome; if (b.after) PAGES[k].after = b.after; });
+
+  // ---- render: 示例数据 when degraded, relations tags, view exposure ----
+  const lvBaseRender = render;
+  render = function () {
+    lvBaseRender();
+    const c = $('#content'); if (!c) return;
+    const surface = LVR_ROUTES[S.route];
+    if (!surface) return;
+    const strip = c.querySelector(':scope > [data-tl="strip"]');
+    if (strip && lvRecDegraded() && !strip.querySelector('[data-tl="sample"]')) strip.insertAdjacentHTML('beforeend', '<div>' + TLU.sample() + '</div>');
+    if (S.route === 'recs' && S.recs.tab === 'why' && LVR.rel[S.recs.sel]) {
+      const ev = c.querySelector('.rc-ev');
+      if (ev && !c.querySelector('[data-tl="rec-rel"]')) ev.insertAdjacentHTML('beforebegin', '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[S.recs.sel].map((p) => { const o = RECI[p.a === S.recs.sel ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>');
+    }
+    if (S.route === 'recs' && lvRecLive(S.recs.sel)) lvRecDetail(S.recs.sel);
+    const ids = [...c.querySelectorAll(S.route === 'recs' ? '.rcard[data-id]' : S.route === 'overview' ? '[data-tl="recs-a1"] [data-act="openRec"][data-id]' : S.route === 'l-home' ? '[data-tl="recs-lite"] [data-id]' : '.l-rc[data-id]')].map((el) => el.dataset.id).filter(lvRecLive);
+    if (ids.length) TL.recs.viewed(surface, Array.from(new Set(ids))).catch(() => {});
+  };
+  const lvBasePop = renderPop;
+  renderPop = function () {
+    lvRecSync(['menubar']);
+    lvBasePop.apply(this, arguments);
+    const b = document.querySelector('[data-act="popRec"][data-id]');
+    if (b && lvRecLive(b.dataset.id)) TL.recs.viewed('menubar', [b.dataset.id]).catch(() => {});
+  };
+
+  // ---- actions ----
+  const ex = (id, surface, action) => { if (lvRecLive(id)) TL.recs.exposure(id, surface, action).catch(() => {}); };
+  const A = Object.assign({}, ACT);
+  ACT.selRec = (el, e) => { const was = S.recs.sel; A.selRec(el, e); if (S.recs.sel !== was) ex(S.recs.sel, 'A7', 'open'); };
+  ACT.openRec = (el) => { const sf = el.closest && el.closest('[data-tl="recs-a1"]') ? 'A1' : S.pop ? 'menubar' : 'A7'; A.openRec(el); ex(el.dataset.id, sf, 'open'); };
+  ACT.popRec = (el) => { ex(el.dataset.id, 'menubar', 'open'); A.popRec(el); };
+  ACT.recTab = (el) => { A.recTab(el); if (el.dataset.v === 'preview') ex(S.recs.sel, 'A7', 'preview'); };
+  ACT.copyRec = (el) => { A.copyRec(el); ex(el.dataset.id, S.route === 'recs' ? 'A7' : 'lite', 'copy'); };
+  // 不适用 / 稍后 / 不再推荐同类: a label, hidden at once, undo within 8 seconds (DELETE /v1/labels/{id})
+  const REASONS = [['has_equivalent', '已有等价配置'], ['dont_want', '不想要这类改动'], ['env_mismatch', '环境不匹配'], ['wrong_diagnosis', '诊断不对'], ['other', '其他原因']];
+  function feedback(id, label, reason, msg) {
+    const prevSel = S.recs.sel; S.recs.gone.add(id); render();
+    const p = TL.recs.label(id, label, reason).then((res) => { const lid = res.data && res.data.label_id; if (lid) LVR.labels.set(id, lid); TL.recs.invalidate(); return lid; }, (e) => { S.recs.gone.delete(id); render(); toast('没能保存反馈（' + (e.code || e.message) + '），建议已恢复'); return null; });
+    toast(msg, { act: '撤销', sec: 8, onAct: () => { S.recs.gone.delete(id); S.recs.sel = prevSel; render(); p.then((lid) => { if (!lid) return; LVR.labels.delete(id); TL.recs.unlabel(lid).then(() => TL.recs.invalidate(), () => toast('撤销没有保存到本机服务')); }); } });
+  }
+  ACT.dismissRec = (el) => {
+    const id = el.dataset.id;
+    if (!lvRecLive(id)) return A.dismissRec(el);
+    openDD(el, [{ h: '不适用 · 原因' }].concat(REASONS.map((x) => ({ t: x[1], v: 'na:' + x[0] })), [{ sep: 1 }, { t: '稍后再说 · 7 天内不再出现', v: 'snooze' }, { t: '不再推荐同类建议', v: 'mute' }]), (v) => {
+      if (v === 'snooze') feedback(id, 'snooze', null, '已推迟，7 天内不再出现');
+      else if (v === 'mute') feedback(id, 'mute', null, '不再推荐同类建议');
+      else feedback(id, 'not_applicable', String(v).slice(3), '已标记「不适用」，同类建议会降权');
+    });
+  };
+  ACT.restoreRecs = () => {
+    const pend = [...LVR.labels.values()]; LVR.labels.clear(); A.restoreRecs();
+    if (pend.length) Promise.all(pend.map((lid) => TL.recs.unlabel(lid).catch(() => null))).then(() => TL.recs.invalidate());
+  };
+  ACT.recalc = () => {
+    if (!LVR.applied && lvRecDegraded()) return A.recalc();
+    const c = $('#content'); if (c) c.classList.add('stale');
+    TL.recs.recompute(lvScope(), true).then((res) => {
+      TL.recs.invalidate();
+      toast(res.status === 202 ? '正在重新计算建议…' : '建议已按最新数据重算');
+    }, (e) => { if (c) c.classList.remove('stale'); toast(e.code === 'no_projection' ? '还没有可分析的数据，导入会话后再试' : '重新计算失败（' + (e.code || e.message) + '）'); });
+  };
+  TL.on('event', (e) => { if ((e.name === 'job' && e.data && /recommend/.test(e.data.kind || '') && e.data.status === 'succeeded') || e.name === 'data.published') TL.recs.invalidate(); });
 }
 
 /* ============ clock, live counters, init ============ */
