@@ -140,6 +140,28 @@ test('missing detail: honest error state, no mock trajectory; empty spine render
   expect(errors).toEqual([]);
 });
 
+// B02: a gateway without /v1/uiview/sessions (404) must not empty the page: the list, search box, timeline and the ··· menu
+// come from the facts spine + the per-session detail; only the list barcodes degrade to the honest empty barcode.
+test('B02: list endpoint 404 keeps the list, search, timeline and more-menu; barcodes degrade to na', async ({ page }) => {
+  const errors = collectErrors(page);
+  const gw = await stubGateway(page, ['core', 's2'], { 'GET /v1/uiview/sessions': { status: 404, body: { detail: 'Not Found' } } });
+  await openLive(page, 'sessions');
+  await expect.poll(() => page.evaluate(() => ALL.length)).toBeGreaterThan(0);
+  const list = gw.seen.filter((x) => x.path === '/v1/uiview/sessions');
+  expect(list.length).toBeGreaterThan(0);
+  expect(list[0].query).toMatch(/limit=200/);
+  expect(list[0].query).toMatch(/tz=/);
+  await expect(page.locator('#main')).not.toContainText('没有会话');
+  await expect(page.locator('#sessQ')).toHaveCount(1);
+  expect(await page.locator('#main [data-act="pickSession"]').count()).toBeGreaterThan(1);
+  await expect(page.locator('[data-act="sessMore"]').first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => traj(BYID[S.sess.sel]).state)).toBe('ready');
+  await expect(page.locator('#tlBox svg.vz-svg')).toHaveCount(1);
+  expect(await page.locator('.srow svg[preserveAspectRatio="none"]:not([data-lv="na"])').count()).toBe(0);
+  await noPlainTables(page);
+  expect(errors).toEqual([]);
+});
+
 test('empty spine: sessions page renders its own empty state', async ({ page }) => {
   const errors = collectErrors(page);
   await stubGateway(page, ['core', 's2'], { 'GET /v1/uiview/facts': fx('core/facts-empty.json'), 'GET /v1/uiview/sessions': sessionsRoute });
@@ -168,6 +190,6 @@ test('real gateway smoke: sessions page, detail, compare and messages render wit
   }
   await noPlainTables(page);
   expect(errors).toEqual([]);
-  console.log('real gateway smoke:', JSON.stringify(await page.evaluate(() => ({ sel: S.sess.sel, ev: traj(BYID[S.sess.sel]).ev.length, cmp: S.sess.cmp, msgs: LVS.msgs.size }))));
+  console.log('real gateway smoke:', JSON.stringify(await page.evaluate(() => ({ sel: S.sess.sel, ev: traj(BYID[S.sess.sel]).ev.length, cmp: S.sess.cmp, msgs: window.LVS.msgs.size }))));
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
