@@ -10,7 +10,13 @@ new vm.Script(script);
 const beforeDOMEvents = script.indexOf("document.addEventListener('click'");
 if (beforeDOMEvents < 0) throw new Error('Missing application event boundary');
 const diagnostics = `
-let checks = 0, emptyScopes = 0;
+let checks = 0, emptyScopes = 0, personaScopes = 0, uncertainDimensions = 0;
+const tendencyPairs = [
+  ['D', '#甩手有方', '#亲自掌舵'],
+  ['I', '#灵感先行', '#计划控'],
+  ['M', '#多线程大脑', '#专注星人'],
+  ['V', '#验收才安心', '#信任搭档']
+];
 for (const range of [7, 30, 90, 0]) {
   for (const agent of ['all', ...AG.map(a => a.id)]) {
     for (const project of ['all', ...PJ.map(p => p.id)]) {
@@ -29,12 +35,27 @@ for (const range of [7, 30, 90, 0]) {
       for (const renderPage of Object.values(PAGES)) {
         if (/NaN|undefined|Infinity/.test(renderPage())) throw Error('Invalid view output');
       }
+      const profile = persona(list), personaHTML = PAGES.persona();
+      for (const [index, [axis, highTag, lowTag]] of tendencyPairs.entries()) {
+        const value = profile.ok ? profile.v[axis] : null;
+        const highShown = personaHTML.includes(highTag), lowShown = personaHTML.includes(lowTag);
+        if (!profile.ok || value >= 45 && value <= 55) {
+          if (highShown || lowShown) throw Error('Uncertain or small-sample persona has a tendency tag');
+          if (profile.ok) {
+            if (profile.code[index] !== '?') throw Error('Uncertain dimension has a definitive code');
+            uncertainDimensions++;
+          }
+        } else if (highShown !== (value > 55) || lowShown !== (value < 45)) {
+          throw Error('Decisive persona dimension is missing its matching tendency tag');
+        }
+      }
+      if (profile.ok) personaScopes++;
       if (!list.length) emptyScopes++;
       checks++;
     }
   }
 }
-({ filterCombinations: checks, emptyScopes, sessions: ALL.filter(s => s.d <= 119 && !s.live).length, routes: Object.keys(PAGES).length });
+({ filterCombinations: checks, emptyScopes, personaScopes, uncertainDimensions, sessions: ALL.filter(s => s.d <= 119 && !s.live).length, routes: Object.keys(PAGES).length });
 `;
 const result = vm.runInNewContext(script.slice(0, beforeDOMEvents) + diagnostics, {
   document: {}, localStorage: { getItem() { return null; } },
