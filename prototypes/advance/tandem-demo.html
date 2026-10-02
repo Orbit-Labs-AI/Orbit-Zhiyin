@@ -11358,6 +11358,9 @@ if (LV.live) {
   RENDER_HOOKS.push((m) => {
     if (S.route !== 'tools' || !S.tools || !S.tools.open) return;
     const td = m.querySelector('tr.tt-open td'); if (!td) return;
+    /* slice 3 already renders (and caches) this row's calls; only tag its markup, never refetch or overwrite */
+    const lv = td.querySelector('[data-lv="tool-calls"]');
+    if (lv) { lv.setAttribute('data-tl', 'tool-calls'); lv.querySelectorAll('.tt-call').forEach((r) => r.setAttribute('data-tl', 'call')); return; }
     const t = tloCalls(S.tools.open, !!S.tools.failOnly);
     const body = t.busy ? '<div class="cap" style="padding:6px 0" data-tl="calls-pending">正在读取调用明细…</div>' : t.err ? '<div class="cap" style="padding:6px 0" data-tl="calls-na">' + (TL.unavailable(t.err) ? '本地服务暂不提供调用明细' : '读取调用明细失败') + '</div>' : !t.items.length ? '<div class="cap" style="padding:6px 0" data-tl="calls-na">这段时间没有调用记录</div>' : t.items.map(callRow).join('') + (t.more ? '<span class="cap" style="font-size:11px">只显示最近 20 次</span>' : '');
     td.innerHTML = '<div class="col" style="gap:3px;padding:4px 0 6px" data-tl="tool-calls">' + body + '</div>';
