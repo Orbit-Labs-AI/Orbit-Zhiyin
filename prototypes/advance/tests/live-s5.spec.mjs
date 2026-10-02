@@ -30,6 +30,9 @@ test('A7: fixture recs render as polished cards with real agents, live run time 
   // the one rec with a saving estimate sorts first and prints it; the rest print 「—」, never 0
   await expect(cards.first()).toContainText('claude-api');
   await expect(cards.first().locator('.rc-save')).toContainText('2.2 h');
+  // J16 / B08: one-line card text, no 0-session evidence links or 0 个会话出现 on profile matches
+  for (const t of await page.locator('#content .rc-why').allInnerTexts()) expect(t.length).toBeLessThan(160);
+  await expect(page.locator('#content .recs .stack')).not.toContainText(/0 个会话|TRIGGER/);
   // real agents: Claude Code native, Codex native on claude-api; other targets are converted
   await cards.first().click();
   const detail = page.locator('#content .rc-kpis');
@@ -73,6 +76,26 @@ test('A7: 预览并安装 runs the real sheet (candidate source) and apply → r
   await expect.poll(() => gw.seen.some((s) => s.method === 'POST' && s.path === '/v1/install/inst-fx-1/revert')).toBe(true);
   await expect(page.locator('#content .rcard[data-id="252667ab78141eda"]')).not.toContainText('已安装');
   await noPlainTables(page);
+  expect(errors).toEqual([]);
+});
+
+test('A7: 预览并安装 on a catalog-backed candidate downloads through catalog_id when the plan needs a fetch (B06)', async ({ page }) => {
+  const errors = collectErrors(page);
+  const plan = fx('s5/install-plan.json'); let plans = 0;
+  await stubGateway(page, ['core', 's5'], {
+    'POST /v1/install/plans': () => (++plans === 1 ? Object.assign({}, plan, { status: 'needs_fetch', targets: [] }) : plan),
+    'POST /v1/install/fetch': { tree_sha256: 'fx-tree', cached: false }
+  });
+  const bodies = [];
+  page.on('request', (r) => { if (r.method() === 'POST' && /\/v1\/install\//.test(r.url())) bodies.push({ path: new URL(r.url()).pathname, body: r.postDataJSON() }); });
+  await openLive(page, 'recs');
+  await page.locator('#content .rcard[data-id="252667ab78141eda"]').click();
+  await page.locator('#content .rc-dfoot [data-act="install"]').click();
+  await expect(page.locator('#modal [data-tl="inst-preview"]')).toBeVisible();
+  const f = bodies.find((b) => b.path === '/v1/install/fetch');
+  expect(f.body.catalog_id).toMatch(/claude-api/);
+  expect(f.body.source).toBeUndefined();
+  expect(bodies.filter((b) => b.path === '/v1/install/plans').map((b) => b.body.source.type)).toEqual(['candidate', 'candidate']);
   expect(errors).toEqual([]);
 });
 
