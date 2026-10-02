@@ -1,0 +1,9 @@
+{
+ "note": "Plugin with a hooks/hooks.json declaring two events.",
+ "files": {
+  "LICENSE": "MIT License\n\nCopyright (c) 2026 Example\n",
+  ".claude-plugin/marketplace.json": "{\"name\": \"example-market\", \"plugins\": [{\"name\": \"hookify\", \"source\": \"./plugins/hookify\", \"description\": \"hooks\"}]}",
+  "plugins/hookify/.claude-plugin/plugin.json": "{\"name\": \"hookify\", \"description\": \"Hook toolkit\", \"version\": \"1.2.0\"}",
+  "plugins/hookify/hooks/hooks.json": "{\"description\": \"Guard rails\", \"hooks\": {\"PreToolUse\": [{\"matcher\": \"Bash\", \"hooks\": [{\"type\": \"command\", \"command\": \"python3 ${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\", \"timeout\": 10}]}], \"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop.py\"}]}]}}"
+ }
+}

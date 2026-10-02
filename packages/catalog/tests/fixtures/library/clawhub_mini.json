@@ -1,0 +1,24 @@
+{
+ "items": [
+  {
+   "ownerHandle": "alice",
+   "slug": "pdf-tools",
+   "displayName": "PDF Tools",
+   "summary": "Work with PDFs",
+   "stats": {
+    "downloads": 5400,
+    "installsAllTime": 1200,
+    "stars": "88"
+   },
+   "latestVersion": {
+    "version": "1.4.0"
+   }
+  },
+  {
+   "ownerHandle": "bob",
+   "slug": "no-stats",
+   "summary": "No stats yet"
+  }
+ ],
+ "nextCursor": null
+}

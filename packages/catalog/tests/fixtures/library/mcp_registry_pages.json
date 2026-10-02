@@ -1,0 +1,118 @@
+{
+ "note": "Three registry pages keyed by cursor (null, c1, c2).",
+ "pages": [
+  {
+   "servers": [
+    {
+     "server": {
+      "name": "io.github.acme/server-1",
+      "description": "server 1",
+      "version": "1.0.0",
+      "repository": {
+       "url": "https://github.com/acme/server-1",
+       "source": "github"
+      },
+      "packages": [
+       {
+        "registryType": "npm",
+        "identifier": "@acme/server-1",
+        "version": "1.0.0",
+        "transport": {
+         "type": "stdio"
+        },
+        "environmentVariables": [
+         {
+          "name": "ACME_TOKEN",
+          "isSecret": true,
+          "isRequired": true
+         }
+        ]
+       }
+      ]
+     },
+     "_meta": {
+      "io.modelcontextprotocol.registry/official": {
+       "status": "active",
+       "updatedAt": "2026-09-01T00:00:00Z"
+      }
+     }
+    },
+    {
+     "server": {
+      "name": "io.github.acme/server-2",
+      "description": "server 2",
+      "version": "1.0.0",
+      "repository": {
+       "url": "https://github.com/acme/server-2",
+       "source": "github"
+      },
+      "remotes": [
+       {
+        "type": "streamable-http",
+        "url": "https://mcp.acme.example/2"
+       }
+      ]
+     },
+     "_meta": {
+      "io.modelcontextprotocol.registry/official": {
+       "status": "active",
+       "updatedAt": "2026-09-02T00:00:00Z"
+      }
+     }
+    }
+   ],
+   "metadata": {
+    "nextCursor": "c1"
+   }
+  },
+  {
+   "servers": [
+    {
+     "server": {
+      "name": "com.example/tool",
+      "description": "pypi tool",
+      "version": "2.0.0",
+      "packages": [
+       {
+        "registryType": "pypi",
+        "identifier": "example-tool",
+        "version": "2.0.0"
+       }
+      ]
+     },
+     "_meta": {
+      "io.modelcontextprotocol.registry/official": {
+       "status": "active",
+       "updatedAt": "2026-09-04T00:00:00Z"
+      }
+     }
+    }
+   ],
+   "metadata": {
+    "nextCursor": "c2"
+   }
+  },
+  {
+   "servers": [
+    {
+     "server": {
+      "name": "io.github.acme/server-5",
+      "description": "server 5",
+      "version": "1.0.0",
+      "repository": {
+       "url": "https://github.com/acme/server-5",
+       "source": "github"
+      }
+     },
+     "_meta": {
+      "io.modelcontextprotocol.registry/official": {
+       "status": "active",
+       "updatedAt": "2026-09-05T00:00:00Z"
+      }
+     }
+    }
+   ],
+   "metadata": {}
+  }
+ ]
+}
