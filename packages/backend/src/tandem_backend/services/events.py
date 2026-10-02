@@ -14,7 +14,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 
-TOPICS = frozenset({"job", "data", "analysis", "service"})
+TOPICS = frozenset({"job", "data", "analysis", "service", "notify"})
 
 
 @dataclass(frozen=True)
