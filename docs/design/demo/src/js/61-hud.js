@@ -1,4 +1,12 @@
 /* ============ floating HUD ============ */
+let HUD_MUTE_TIMER = null;
+function setHudMuted(muted, durationMs) {
+  clearTimeout(HUD_MUTE_TIMER);
+  HUD_MUTE_TIMER = null;
+  S.hud.mute = muted;
+  if (muted && durationMs) HUD_MUTE_TIMER = setTimeout(() => setHudMuted(false), durationMs);
+  render();
+}
 function hudCard() {
   const r = rng(77);
   const lane = (label, n, color, w) => { let ticks = ''; for (let i = 0; i < n; i++) ticks += '<rect x="' + (2 + r() * 300).toFixed(1) + '" y="1" width="' + w + '" height="10" rx="1" fill="' + color + '"/>'; return '<div class="lane"><span>' + label + '</span><svg viewBox="0 0 312 12" width="100%" height="12" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="312" y1="6" y2="6" stroke="var(--hud-line)"/>' + ticks + '<line x1="310" x2="310" y1="0" y2="12" stroke="var(--hud-ink-3)" stroke-dasharray="2 2"/></svg></div>'; };
@@ -8,21 +16,22 @@ function hudCard() {
     '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;font-size:10.5px;color:var(--hud-ink-3)"><span>最近 20 分钟</span><span>现在</span></div>' + lane('你', 4, 'var(--hud-ink)', 3) + lane('工具', 26, 'var(--a1)', 2) + lane('错误', 1, '#ff7d74', 3) + '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + [['上下文', S.live.ctx + '%'], ['工具', S.live.tools], ['错误', 1], ['消息', 4]].map((x) => '<div style="border-radius:9px;background:var(--hud-2);padding:6px 8px"><div style="font-size:10.5px;color:var(--hud-ink-3)">' + x[0] + '</div><b class="mono" style="font-size:14px"' + (x[0] === '工具' ? ' data-livetools' : '') + '>' + x[1] + '</b></div>').join('') + '</div>' +
     (tip ? '<div style="border-radius:12px;background:rgba(243,184,67,.12);padding:10px 12px;display:flex;flex-direction:column;gap:8px"><div style="font-size:12px;line-height:1.55;color:var(--hud-ink-2)"><b style="color:#f3b843">提示</b> · 上下文已用 ' + S.live.ctx + '%。如果还要做 3 个以上的画板，先让 Agent 总结进度再继续，可以避免压缩时丢失细节。</div><div class="row"><button type="button" class="hb" data-act="hudTip">复制提示语</button><button type="button" class="hg" data-act="hudTipOff">不再提示此类</button></div></div>' : '') +
-    '<div class="col" style="gap:6px"><span style="font-size:10.5px;color:var(--hud-ink-3)">另外 1 个会话</span><div class="row" style="font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0">Codex · team-hub' + (S.sim === 'waiting' ? ' · <span style="color:#f3b843">等你确认 2 分钟</span>' : ' · 09:03 已完成') + '</span>' + (S.sim === 'waiting' ? '<button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>' : '<button type="button" class="hg" data-act="openSession" data-id="sess-1001-0903">打开轨迹</button>') + '</div></div>' +
+    (sourceEnabled({ a: 'cx' }) ? '<div class="col" style="gap:6px"><span style="font-size:10.5px;color:var(--hud-ink-3)">另外 1 个会话</span><div class="row" style="font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0">Codex · team-hub' + (S.sim === 'waiting' ? ' · <span style="color:#f3b843">等你确认 2 分钟</span>' : ' · 09:03 已完成') + '</span>' + (S.sim === 'waiting' ? '<button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>' : '<button type="button" class="hg" data-act="openSession" data-id="sess-1001-0903">打开轨迹</button>') + '</div></div>' : '') +
     '<div class="row" style="flex-wrap:wrap;border-top:1px solid var(--hud-line);padding-top:10px"><button type="button" class="hg" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒 30 分钟') + '</button><span style="flex:1"></span><button type="button" class="hg" data-act="hudHide">隐藏</button><button type="button" class="hb" data-act="hudTraj">打开轨迹</button></div></div>';
 }
 function hudPill() {
-  const st = S.attn.has('stuck') ? 'stuck' : S.sim;
+  let st = S.attn.has('stuck') ? 'stuck' : S.sim;
+  if ((st === 'stuck' || st === 'waiting') && !sourceEnabled({ a: 'cx' })) st = 'running';
   const dens = '<svg width="34" height="18" viewBox="0 0 34 18" aria-hidden="true">' + [5, 9, 6, 12, 8].map((h, i) => '<rect x="' + (i * 7) + '" y="' + (18 - h) + '" width="4" height="' + h + '" rx="1" fill="' + (i === 4 ? 'var(--a1)' : 'rgba(255,255,255,.28)') + '"/>').join('') + '</svg>';
   if (st === 'stuck') return ic('alert', 16, 'color:#ff7d74') + '<b>同一命令失败 4 次</b><span style="color:var(--hud-ink-3);font-size:12px">Codex · Surge</span><button type="button" class="hb" data-act="hudGo" data-v="stuck">查看原因</button>';
   if (st === 'waiting') return '<span style="width:10px;height:10px;border-radius:2px;background:#f3b843;flex:none"></span><b>Codex</b><span style="color:var(--hud-ink-2)">请求执行 git push</span><button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>';
   if (st === 'done') return ic('okc', 16, 'color:#5dd08a') + '<b>完成</b><span style="color:var(--hud-ink-2)">42 分钟 · 186 步</span><button type="button" class="hb" data-act="hudTraj">查看</button>';
   if (st === 'ctx') return ic('gauge', 16, 'color:#f3b843') + '<b>上下文 78%</b><span style="color:var(--hud-ink-2)">latentskill 即将压缩</span><button type="button" class="hb" data-act="hudTip">复制提示语</button>';
-  return '<span class="dot live" style="width:9px;height:9px;background:var(--a1)"></span><b>Hackathon</b><span class="mono" data-live>' + liveElapsed() + '</span><span data-hudtool style="color:var(--hud-ink-2);max-width:150px;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span>' + dens + '<span class="mono" style="font-size:11px;color:var(--hud-ink-3)" data-tip="另有 1 个会话今天已完成">+1</span>';
+  return '<span class="dot live" style="width:9px;height:9px;background:var(--a1)"></span><b>Hackathon</b><span class="mono" data-live>' + liveElapsed() + '</span><span data-hudtool style="color:var(--hud-ink-2);max-width:150px;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span>' + dens + (sourceEnabled({ a: 'cx' }) ? '<span class="mono" style="font-size:11px;color:var(--hud-ink-3)" data-tip="另有 1 个会话今天已完成">+1</span>' : '');
 }
 function renderHud() {
   const h = $('#hud');
-  if (!S.hud.show || S.sim === 'idle' || S.paused) { h.hidden = true; h.innerHTML = ''; return; }
+  if (!S.hud.show || S.sim === 'idle' || S.paused || !sourceEnabled(ALL.find((s) => s.id === LIVE_ID))) { h.hidden = true; h.innerHTML = ''; return; }
   h.hidden = false;
   h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open ? hudCard() : '');
   hudPlace();
@@ -92,10 +101,10 @@ Object.assign(ACT, {
     if (v === 'waiting') { S.sim = 'running'; render(); toast('已切换到 Codex 所在的终端标签页（演示）；批准仍由你在终端里完成'); }
     else if (v === 'stuck') { S.pop = true; S.hud.open = false; render(); }
   },
-  hudTraj: () => { S.hud.open = false; if (S.sim === 'done') S.sim = 'running'; S.sess.sel = LIVE_ID; S.sess.mode = 'single'; S.sess.q = ''; go('sessions'); },
+  hudTraj: () => { S.hud.open = false; if (S.sim === 'done') S.sim = 'running'; ACT.openSession({ dataset: { id: LIVE_ID } }); },
   hudTip: () => { copyText('先总结目前的进度：已完成的文件、关键决定和剩余待办，写成一段摘要，然后再继续下一步。', '提示语'); },
   hudTipOff: () => { S.hud.tipOff = true; renderHud(); toast('这类提示不会再出现；可以在设置 › 通知里恢复'); },
-  hudMute: () => { S.hud.mute = !S.hud.mute; render(); if (S.hud.mute) toast('已暂停提醒 30 分钟', { act: '恢复', onAct: () => { S.hud.mute = false; render(); } }); else toast('已恢复提醒'); },
+  hudMute: () => { setHudMuted(!S.hud.mute, 30 * 60 * 1000); if (S.hud.mute) toast('已暂停提醒 30 分钟', { act: '恢复', onAct: () => setHudMuted(false) }); else toast('已恢复提醒'); },
   hudHide: () => toggleHud()
 });
 

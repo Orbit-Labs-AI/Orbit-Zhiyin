@@ -2,6 +2,10 @@
   "name": "tandem-demo",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "node build.mjs",
     "check": "node build.mjs --check",

@@ -1,7 +1,8 @@
 /* ============ derived data ============ */
 function win(range) { return range === 7 ? [113, 119] : range === 30 ? [90, 119] : range === 90 ? [30, 119] : [0, 119]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
-function base(s) { return !s.live && S.agents.has(s.a) && !S.srcOff.has(s.a); }
+function sourceEnabled(s) { return !S.srcOff.has(s.a); }
+function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
 function pass(s, o) {
   if (!base(s)) return false;
   const p = o.project !== undefined ? o.project : S.project;
@@ -23,7 +24,7 @@ function stats(L) {
 }
 function persona(L, minN) {
   const n = L.length;
-  if (n < (minN || 30) || !n) return { ok: false, n };
+  if (n < (minN || 30) || !n) return { ok: false, classified: false, n };
   const st = stats(L);
   const mins = st.hours * 60 || 1;
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); });
@@ -39,7 +40,7 @@ function persona(L, minN) {
   const pairs = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
   const code = ['D', 'I', 'M', 'V'].map((k, i) => v[k] >= 55 ? pairs[i][0] : v[k] <= 45 ? pairs[i][1] : '?').join('');
   const t = TYPES[code];
-  return { ok: true, n, v, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。', st, avgS, avgA, conf: n >= 100 ? '高' : n >= 30 ? '中' : '低' };
+  return { ok: true, classified: !!t, n, v, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。', st, avgS, avgA, conf: n >= 100 ? '高' : n >= 30 ? '中' : '低' };
 }
 function axisView(p, i) {
   const ax = AXES[i]; const val = p.v[ax.k];

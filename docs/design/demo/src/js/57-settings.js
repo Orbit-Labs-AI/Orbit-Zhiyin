@@ -113,7 +113,7 @@ Object.assign(ACT, {
   setRestoreEx: () => { const n = S.excluded.size; S.excluded.clear(); render(); toast('已恢复 ' + n + ' 个会话，所有页面已重算'); },
   setWeekly: () => { S.weekly = !S.weekly; renderSet(); },
   setNotif: (el) => { S.notif[el.dataset.e][+el.dataset.c] = el.checked ? 1 : 0; },
-  setMute: () => { S.hud.mute = !S.hud.mute; render(); },
+  setMute: () => setHudMuted(!S.hud.mute),
   setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true }),
   setUpdate: () => toast('已是最新版本（演示）'),
   obReplay: () => openOnboarding(0),

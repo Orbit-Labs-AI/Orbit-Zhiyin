@@ -736,7 +736,8 @@ function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); 
 /* ============ derived data ============ */
 function win(range) { return range === 7 ? [113, 119] : range === 30 ? [90, 119] : range === 90 ? [30, 119] : [0, 119]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
-function base(s) { return !s.live && S.agents.has(s.a) && !S.srcOff.has(s.a); }
+function sourceEnabled(s) { return !S.srcOff.has(s.a); }
+function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
 function pass(s, o) {
   if (!base(s)) return false;
   const p = o.project !== undefined ? o.project : S.project;
@@ -758,7 +759,7 @@ function stats(L) {
 }
 function persona(L, minN) {
   const n = L.length;
-  if (n < (minN || 30) || !n) return { ok: false, n };
+  if (n < (minN || 30) || !n) return { ok: false, classified: false, n };
   const st = stats(L);
   const mins = st.hours * 60 || 1;
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); });
@@ -774,7 +775,7 @@ function persona(L, minN) {
   const pairs = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
   const code = ['D', 'I', 'M', 'V'].map((k, i) => v[k] >= 55 ? pairs[i][0] : v[k] <= 45 ? pairs[i][1] : '?').join('');
   const t = TYPES[code];
-  return { ok: true, n, v, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。', st, avgS, avgA, conf: n >= 100 ? '高' : n >= 30 ? '中' : '低' };
+  return { ok: true, classified: !!t, n, v, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。', st, avgS, avgA, conf: n >= 100 ? '高' : n >= 30 ? '中' : '低' };
 }
 function axisView(p, i) {
   const ax = AXES[i]; const val = p.v[ax.k];
@@ -1256,7 +1257,19 @@ Object.assign(ACT, {
   method: () => openMethod(),
   share: () => openShare(),
   reveal: () => openReveal(),
-  openSession: (el) => { S.sess.sel = el.dataset.id; S.sess.mode = 'single'; go('sessions'); }
+  openSession: (el) => {
+    const s = BYID[el.dataset.id];
+    if (!s || !sourceEnabled(s) || S.excluded.has(s.id)) { toast('此会话的来源已停用或已从分析中排除'); return; }
+    stopPlay();
+    S.agents.add(s.a);
+    for (const [key, value] of [['project', s.p], ['topic', s.topic], ['outcome', s.out], ['fric', s.fric], ['hour', s.h]]) {
+      if (S[key] != null && S[key] !== value) S[key] = null;
+    }
+    const w = win(S.range);
+    if (s.d !== 120 && (s.d < w[0] || s.d > w[1])) S.range = 0;
+    S.sess.sel = s.id; S.sess.mode = 'single'; S.sess.cmp = null; S.sess.q = ''; S.sess.ph = traj(s).T;
+    go('sessions');
+  }
 });
 
 /* ============ A3 sessions & trajectory ============ */
@@ -1320,7 +1333,7 @@ function traj(s) {
 function sessList() {
   const q = S.sess.q.trim().toLowerCase();
   const w = win(S.range);
-  return ALL.filter((s) => (s.d === 120 || (s.d >= w[0] && s.d <= w[1])) && (s.d === 120 ? S.agents.has(s.a) && (!S.project || s.p === S.project) : pass(s, {})) && (!q || s.title.toLowerCase().includes(q) || PJI[s.p].name.toLowerCase().includes(q) || agent(s.a).name.toLowerCase().includes(q))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
+  return ALL.filter((s) => (s.d === 120 || (s.d >= w[0] && s.d <= w[1])) && (s.d === 120 ? sourceEnabled(s) && S.agents.has(s.a) && (!S.project || s.p === S.project) : pass(s, {})) && (!q || s.title.toLowerCase().includes(q) || PJI[s.p].name.toLowerCase().includes(q) || agent(s.a).name.toLowerCase().includes(q))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
 }
 function barcode(s, w) {
   const r = rng(hash(s.id + 'b')); const n = Math.min(s.tools, 90); const f = s.live ? 0.62 : 1;
@@ -1401,8 +1414,9 @@ function readout(s) {
 }
 PAGES.sessions = () => {
   const list = sessList();
-  const s = BYID[S.sess.sel] || list[0] || ALL[ALL.length - 1];
-  if (s && S.sess.sel !== s.id) S.sess.sel = s.id;
+  const s = list.find((x) => x.id === S.sess.sel) || list[0];
+  S.sess.sel = s ? s.id : null;
+  if (!list.some((x) => x.id === S.sess.cmp) || S.sess.cmp === S.sess.sel) S.sess.cmp = null;
   const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="ask" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
   let lastDay = null;
   const rows = list.slice(0, 120).map((x) => {
@@ -1420,7 +1434,7 @@ PAGES.sessions = () => {
   const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span style="font-size:11px;color:var(--ink-3)">' + label + '</span><span style="font-size:16px;font-weight:600;color:' + (col || 'var(--ink-1)') + '">' + v + '</span></button>';
   let detail;
   if (S.sess.mode === 'cmp') {
-    const b = BYID[S.sess.cmp];
+    const b = list.find((x) => x.id === S.sess.cmp);
     if (!b) detail = empty('对比模式：在左侧列表再选一个会话作为 B（当前 A：' + esc(s.title) + '）');
     else {
       const T = Math.max(traj(s).T, traj(b).T); const sa = stats([s]), sb = stats([b]);
@@ -1748,7 +1762,7 @@ Object.assign(ACT, {
   studioDraft: () => { S.history.unshift({ t: '草稿：' + S.studio.type + ' · ' + S.studio.goal.slice(0, 18) + '…', when: '刚刚' }); toast('已存为草稿'); },
   studioInstall: () => { const g = GEN[S.studio.type]; openInstall('__studio', { id: g.file.split('/').pop(), file: g.lines, target: g.file, title: S.studio.type + '：' + g.file.split('/').pop() }); },
   studioEditor: () => toast('已在默认编辑器中打开草稿（演示）'),
-  studioSave: () => { const g = GEN[S.studio.type]; if (!LIB.find((x) => x.id === 'my-' + S.studio.type)) LIB.unshift({ id: 'my-' + (S.studio.type === 'Skill' ? 'pr-wrapup' : S.studio.type), kind: S.studio.type === '规则' ? 'Skill' : S.studio.type === '工作流' ? '插件' : S.studio.type, icon: 'spark', src: '本地生成', local: true, desc: '由本地 ' + agent(S.studio.agent).name + ' 生成：' + g.file.split('/').pop(), m: 90, sc: [92, 90, 80], why: ['依据你的会话生成', '只在本机'], compat: agent(S.studio.agent).name, users: 0, peer: 0, rec: null }); toast('已存入资源库 ›「本地生成」', { act: '去看看', onAct: () => { S.lib.tab = 'local'; go('library'); } }); },
+  studioSave: () => { const g = GEN[S.studio.type]; const id = 'my-' + (S.studio.type === 'Skill' ? 'pr-wrapup' : S.studio.type); if (!LIB.find((x) => x.id === id)) LIB.unshift({ id, kind: S.studio.type === '规则' ? 'Skill' : S.studio.type === '工作流' ? '插件' : S.studio.type, icon: 'spark', src: '本地生成', local: true, desc: '由本地 ' + agent(S.studio.agent).name + ' 生成：' + g.file.split('/').pop(), m: 90, sc: [92, 90, 80], why: ['依据你的会话生成', '只在本机'], compat: agent(S.studio.agent).name, users: 0, peer: 0, rec: null }); toast('已存入资源库 ›「本地生成」', { act: '去看看', onAct: () => { S.lib.tab = 'local'; go('library'); } }); },
   studioHistory: () => openModal(modalHead('历史产物', '由生成工坊产出或安装的内容') + '<div class="mb col" style="gap:6px">' + S.history.concat([{ t: 'Skill · design-review', when: '9/26' }, { t: 'Hook · block-claude-md', when: '9/22' }, { t: '规则 · 中文默认', when: '9/18' }, { t: 'Skill · daily-sync', when: '9/12' }, { t: 'Hook · latex-lint', when: '9/03' }, { t: '子代理 · ref-finder', when: '8/29' }, { t: 'Skill · paper-blueprint', when: '8/20' }, { t: '规则 · 小步提交', when: '8/11' }]).map((h) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);font-size:13px"><span>' + esc(h.t) + '</span><span class="cap mono">' + h.when + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'),
   studioTpl: () => openModal(modalHead('工作流模板', 'Tandem 把一次生成拆成可观察的步骤') + '<div class="mb col" style="gap:10px">' + ['Tandem 生成流程 v1：打包上下文 → 分析模式 → 起草 → 自检 → 回放测试 → 审阅', '快速草稿：打包上下文 → 起草 → 审阅（不做回放测试）', '严格模式：在 v1 基础上要求两个不同 Agent 交叉自检'].map((t, i) => '<label class="row" style="align-items:flex-start;gap:8px;font-size:13px"><input type="radio" name="tpl"' + (i === 0 ? ' checked' : '') + ' style="margin-top:3px;accent-color:var(--ink-1)">' + esc(t) + '</label>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">使用所选模板</button></div>'),
   ctxPreview: () => { const c = S.studio.ctx; const bundle = { goal: S.studio.goal, type: S.studio.type, runner: agent(S.studio.agent).cli, persona: personaNow().code, sessions_summary: c.sum ? '46 个会话的结构化摘要（不含原文）' : undefined, friction: c.fric ? { '方向错误': 17, 'review 最长轮次': 11 } : undefined, rules: c.rules ? ['~/.agents/AGENTS.md', 'Hackathon/AGENTS.md', 'team-hub/AGENTS.md'] : undefined, raw_snippets: c.raw ? '（逐条确认后附上）' : undefined, redaction: c.redact ? '23 处已替换为占位符' : '未脱敏' }; openModal(modalHead('将发送给 ' + agent(S.studio.agent).name + ' 的上下文包', '≈ ' + f1(ctxTokens() / 1000) + 'k tokens · 本机进程间传递，不经过 Tandem 服务器') + '<div class="mb"><pre class="code" style="padding:12px;white-space:pre-wrap">' + esc(JSON.stringify(bundle, null, 2)) + '</pre></div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); CUR.bundle = JSON.stringify(bundle, null, 2); },
@@ -1864,8 +1878,8 @@ function palItems(q) {
   const out = [];
   ROUTES.forEach((r, i) => { if (m(r[1]) || m(r[0])) out.push({ g: '页面', t: r[1], k: kb('⌥' + (i + 1)), icon: r[0], run: () => go(r[0]) }); });
   if (q) PJ.forEach((p) => { if (m(p.name) || m(p.path)) out.push({ g: '项目', t: p.name, sub: p.path, icon: 'projects', run: () => { S.proj.sel = p.id; go('projects'); } }); });
-  ALL.filter((s) => (q ? m(s.title) || m(PJI[s.p].name) : s.d >= 119)).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
-    .forEach((s) => out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => { S.sess.sel = s.id; S.sess.mode = 'single'; S.sess.q = ''; go('sessions'); } }));
+  ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id) && (q ? m(s.title) || m(PJI[s.p].name) : s.d >= 119)).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
+    .forEach((s) => out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => ACT.openSession({ dataset: { id: s.id } }) }));
   RECS.filter((r) => m(r.title) || m(r.type) || m(r.why)).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + r.gain, icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
   palActions().filter((a) => m(a.t)).forEach((a) => out.push(Object.assign({ g: '操作' }, a)));
   return out;
@@ -1937,6 +1951,7 @@ function askAnswer(ctx, i) {
   return S.tools.figma ? 'figma 这个 MCP 近 30 天没有被调用过，但每个会话都会加载它的工具描述（约 2.1k tokens）。可以先移除，需要时再装回来。' : 'figma 已经移除了。剩下的 browser MCP 失败率 7.8%，主要是页面加载超时，可以把等待时间调长一点。';
 }
 function openAsk(ctx) {
+  if (S.engine === 'stats') { toast('仅统计模式下无法使用 Agent 问答，请在设置中切换分析引擎'); return; }
   clearInterval(ASKT); ASK = { ctx: ASKQ[ctx] ? ctx : 'overview', q: '', text: '' };
   const c = ASK.ctx;
   openModal(modalHead('问本地 Agent', '由本地 ' + agent(S.studio.agent).name + ' 回答 · 上下文：' + ASKN[c] + ' · ' + rangeLabel() + ' · Demo 中为预置回答') +
@@ -1947,6 +1962,7 @@ function openAsk(ctx) {
   MODAL_KEY = 'ask';
 }
 function askStream(q, txt) {
+  if (S.engine === 'stats') { clearInterval(ASKT); toast('仅统计模式下无法使用 Agent 问答'); return; }
   clearInterval(ASKT); ASK.q = q; ASK.text = txt;
   const a = $('#askA'); if (!a) return;
   a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span id="askT"></span><span class="caret"></span>';
@@ -2043,6 +2059,7 @@ function shareBody() {
 function openShare() {
   const sp = sharePersona();
   if (!sp.p.ok) { toast('样本不足（少于 30 个会话），暂时不能生成分享卡'); return; }
+  if (!sp.p.classified) { toast('部分维度尚未定型，暂时不能生成分享卡'); return; }
   openModal(modalHead('导出分享卡', '1080 × 1350 · 适合朋友圈、小红书与 X') + '<div class="mb" id="shareBody" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start">' + shareBody() + '</div><div class="mf"><button type="button" class="btn" data-act="shareCopy">' + ic('copy', 13) + '复制分享文案</button><button type="button" class="btn p" data-act="shareSave">' + ic('down', 13) + '保存图片</button></div>', 'wide');
   MODAL_KEY = 'share';
 }
@@ -2122,6 +2139,7 @@ function openReveal() {
   closeModal(); closeDD(); closeOverlay();
   const per = PERIODS[S.persona.period]; const L = S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
   if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
+  if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
   const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   REV = { done: reduce, timers: [] }; OVL = 'reveal';
   const o = $('#overlay'); o.hidden = false;
@@ -2262,7 +2280,7 @@ Object.assign(ACT, {
   setRestoreEx: () => { const n = S.excluded.size; S.excluded.clear(); render(); toast('已恢复 ' + n + ' 个会话，所有页面已重算'); },
   setWeekly: () => { S.weekly = !S.weekly; renderSet(); },
   setNotif: (el) => { S.notif[el.dataset.e][+el.dataset.c] = el.checked ? 1 : 0; },
-  setMute: () => { S.hud.mute = !S.hud.mute; render(); },
+  setMute: () => setHudMuted(!S.hud.mute),
   setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true }),
   setUpdate: () => toast('已是最新版本（演示）'),
   obReplay: () => openOnboarding(0),
@@ -2271,6 +2289,7 @@ Object.assign(ACT, {
 
 /* ============ menu bar panel ============ */
 function popLiveCard() {
+  if (!sourceEnabled(ALL.find((s) => s.id === LIVE_ID))) return '';
   return '<div class="sec col" style="gap:6px"><div class="row"><span class="dot live" style="background:var(--a1)"></span><b style="font-size:12.5px">Claude Code</b><span class="cap">· Hackathon</span><span style="flex:1"></span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></div><div style="font-size:13px;font-weight:600">设计 Tandem Mac App 视觉案例</div><div class="row cap" style="font-size:11.5px;min-width:0"><span class="aib">进行中</span><span class="mono" data-hudtool style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span></div>' +
     '<div class="col" style="gap:3px;margin-top:2px"><div class="row" style="justify-content:space-between;font-size:11px;color:var(--ink-3)"><span>上下文 <b class="mono" style="color:var(--ink-1)">' + S.live.ctx + '%</b></span><span class="mono">80% 压缩</span></div><div style="position:relative;height:6px;border-radius:3px;background:var(--line)"><span style="position:absolute;left:0;top:0;bottom:0;width:' + S.live.ctx + '%;border-radius:3px;background:' + (S.live.ctx >= 75 ? 'var(--warn-m)' : 'var(--ink-1)') + '"></span><span style="position:absolute;left:80%;top:-3px;width:1.5px;height:12px;background:var(--ink-3)"></span></div></div>' +
     '<div class="row" style="margin-top:4px"><button type="button" class="btn sm" data-act="popTraj">查看轨迹</button><button type="button" class="btn sm gh" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒') + '</button></div></div>';
@@ -2278,11 +2297,13 @@ function popLiveCard() {
 function renderPop() {
   const el = $('#pop'); el.hidden = false;
   const p = personaNow();
-  const today = ALL.filter((s) => s.d === 120);
+  const available = ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id));
+  const attn = new Set([...S.attn].filter((k) => sourceEnabled({ a: k === 'stuck' ? 'cx' : 'cc' })));
+  const today = available.filter((s) => s.d === 120);
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
   const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:12.5px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Tandem <span class="mono" style="opacity:.7;font-size:10.5px">' + kb('⌘O') + '</span></button></div>';
-  const days = []; for (let d = 114; d <= 120; d++) days.push([d, ALL.filter((s) => s.d === d).length]);
+  const days = []; for (let d = 114; d <= 120; d++) days.push([d, available.filter((s) => s.d === d).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
   const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="cap" style="font-size:11px">今天 ' + today.length + ' 个会话</span></div><div class="row" style="align-items:flex-end;gap:6px;height:48px;margin-top:6px">' + days.map((x) => '<span class="col" style="flex:1;align-items:center;gap:3px"><span style="width:100%;height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px;border-radius:3px 3px 1px 1px;background:' + (x[0] === 120 ? 'var(--a1)' : 'var(--h2)') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话"></span><span class="mono cap" style="font-size:9.5px">' + WD[wd(x[0])] + '</span></span>').join('') + '</div></div>';
   const top = visibleRecs().find((r) => !S.installed.has(r.id));
@@ -2290,31 +2311,39 @@ function renderPop() {
   let html;
   if (S.paused) {
     html = head('采集已暂停', '不会产生事件，也不会更新统计') + '<div class="sec row"><span style="flex:1;font-size:12.5px;color:var(--ink-2)">恢复后会补齐暂停期间的会话。</span><button type="button" class="btn sm p" data-act="setPause">恢复采集</button></div>' + foot;
-  } else if (S.attn.size) {
-    html = head('需要关注', '10 月 1 日 周四', '<span class="bdg" style="background:var(--crit-bg);color:var(--crit)">' + S.attn.size + ' 件事</span>') +
-      (S.attn.has('stuck') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('alert', 15, 'color:var(--crit)') + '<b style="font-size:12.5px">同一命令连续失败 4 次</b></div><div class="cap" style="font-size:11.5px">Codex · Surge 规则 · 15:02 开始</div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--sunken)">python gen_rules.py --publish</div><div style="font-size:12px;color:var(--ink-2)">可能原因：CDN token 过期（4 次输出里 3 次是 401）</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="popTerm">在终端中处理</button><button type="button" class="btn sm" data-act="popStuckSess">打开会话</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="stuck">忽略 1 小时</button></div></div>' : '') +
-      (S.attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:12.5px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:11.5px">Claude Code · latentskill · 审阅第 3 节</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
+  } else if (attn.size) {
+    html = head('需要关注', '10 月 1 日 周四', '<span class="bdg" style="background:var(--crit-bg);color:var(--crit)">' + attn.size + ' 件事</span>') +
+      (attn.has('stuck') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('alert', 15, 'color:var(--crit)') + '<b style="font-size:12.5px">同一命令连续失败 4 次</b></div><div class="cap" style="font-size:11.5px">Codex · Surge 规则 · 15:02 开始</div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--sunken)">python gen_rules.py --publish</div><div style="font-size:12px;color:var(--ink-2)">可能原因：CDN token 过期（4 次输出里 3 次是 401）</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="popTerm">在终端中处理</button><button type="button" class="btn sm" data-act="popStuckSess">打开会话</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="stuck">忽略 1 小时</button></div></div>' : '') +
+      (attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:12.5px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:11.5px">Claude Code · latentskill · 审阅第 3 节</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
       popLiveCard() + foot;
   } else if (S.sim === 'idle') {
-    const y = ALL.filter((s) => s.d === 119); const ys = stats(y);
+    const y = available.filter((s) => s.d === 119); const ys = stats(y);
     html = head('今天', '10 月 1 日 周四 · 还没有会话') + '<div class="sec col" style="gap:8px"><div class="row" style="justify-content:space-between"><b style="font-size:12.5px">昨天 · 9 月 30 日</b><span class="mono cap" style="font-size:11px">' + y.length + ' 会话 · ' + dur(sum(y, (s) => s.dur)) + '</span></div><div class="row" style="gap:18px">' + [['摩擦率', f1(ys.fric) + '%'], ['纠偏', ys.corr], ['完成', y.filter((s) => s.out === 'ok').length + ' / ' + y.length]].map((x) => '<span class="col" style="gap:0"><span class="cap" style="font-size:11px">' + x[0] + '</span><b class="mono" style="font-size:15px">' + x[1] + '</b></span>').join('') + '</div></div>' + week +
       '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Hackathon 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>' + foot;
   } else {
     html = head('今天', '10 月 1 日 周四 · ' + today.length + ' 会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)), S.sim === 'done' ? '<span class="bdg" style="background:var(--good-bg);color:var(--good)">刚刚完成 1 个</span>' : '') + popLiveCard() +
-      (S.sim === 'waiting' ? '<div class="sec col" style="gap:6px;background:var(--warn-bg)"><div class="row"><span style="width:9px;height:9px;border-radius:2px;background:var(--warn-m)"></span><b style="font-size:12.5px">Codex · team-hub</b><span style="flex:1"></span><span class="cap" style="font-size:11px">等你确认 · 2 分钟</span></div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--surface)">git push origin collab</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudGo" data-v="waiting">在终端中处理</button><span class="cap" style="font-size:11px">Tandem 不会代你批准</span></div></div>' : '<button type="button" class="sec row" data-act="openSession" data-id="sess-1001-0903" style="width:100%;border:0;border-top:1px solid var(--hair);background:none;text-align:left;font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Codex · team-hub · 同步 collab 并审核日报</span><span class="mono cap" style="font-size:11px">09:03 · 12m ✓</span></button>') +
+      (sourceEnabled({ a: 'cx' }) ? (S.sim === 'waiting' ? '<div class="sec col" style="gap:6px;background:var(--warn-bg)"><div class="row"><span style="width:9px;height:9px;border-radius:2px;background:var(--warn-m)"></span><b style="font-size:12.5px">Codex · team-hub</b><span style="flex:1"></span><span class="cap" style="font-size:11px">等你确认 · 2 分钟</span></div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--surface)">git push origin collab</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudGo" data-v="waiting">在终端中处理</button><span class="cap" style="font-size:11px">Tandem 不会代你批准</span></div></div>' : '<button type="button" class="sec row" data-act="openSession" data-id="sess-1001-0903" style="width:100%;border:0;border-top:1px solid var(--hair);background:none;text-align:left;font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Codex · team-hub · 同步 collab 并审核日报</span><span class="mono cap" style="font-size:11px">09:03 · 12m ✓</span></button>') : '') +
       week + rec + foot;
   }
   el.innerHTML = html;
 }
 Object.assign(ACT, {
   popOpen: () => { S.pop = false; S.winGone = false; render(); },
-  popTraj: () => { S.pop = false; S.sess.sel = LIVE_ID; S.sess.mode = 'single'; S.sess.q = ''; go('sessions'); },
+  popTraj: () => { S.pop = false; ACT.openSession({ dataset: { id: LIVE_ID } }); },
   popTerm: () => toast('已切换到对应的终端标签页（演示）'),
-  popStuckSess: () => { const s = ALL.filter((x) => x.p === 'surge' && x.a === 'cx' && !x.live).sort((a, b) => b.d - a.d)[0] || ALL.filter((x) => x.p === 'surge').pop(); S.pop = false; if (s) { S.sess.sel = s.id; S.sess.mode = 'single'; } go('sessions'); },
+  popStuckSess: () => { const s = ALL.filter((x) => sourceEnabled(x) && x.p === 'surge' && x.a === 'cx' && !x.live).sort((a, b) => b.d - a.d)[0] || ALL.filter((x) => sourceEnabled(x) && x.p === 'surge').pop(); S.pop = false; if (s) { S.sess.sel = s.id; S.sess.mode = 'single'; } go('sessions'); },
   popIgnore: (el) => { S.attn.delete(el.dataset.k); if (!S.attn.size && (S.sim === 'stuck' || S.sim === 'ctx')) S.sim = 'running'; render(); toast(el.dataset.k === 'stuck' ? '已忽略 1 小时' : '已忽略'); }
 });
 
 /* ============ floating HUD ============ */
+let HUD_MUTE_TIMER = null;
+function setHudMuted(muted, durationMs) {
+  clearTimeout(HUD_MUTE_TIMER);
+  HUD_MUTE_TIMER = null;
+  S.hud.mute = muted;
+  if (muted && durationMs) HUD_MUTE_TIMER = setTimeout(() => setHudMuted(false), durationMs);
+  render();
+}
 function hudCard() {
   const r = rng(77);
   const lane = (label, n, color, w) => { let ticks = ''; for (let i = 0; i < n; i++) ticks += '<rect x="' + (2 + r() * 300).toFixed(1) + '" y="1" width="' + w + '" height="10" rx="1" fill="' + color + '"/>'; return '<div class="lane"><span>' + label + '</span><svg viewBox="0 0 312 12" width="100%" height="12" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="312" y1="6" y2="6" stroke="var(--hud-line)"/>' + ticks + '<line x1="310" x2="310" y1="0" y2="12" stroke="var(--hud-ink-3)" stroke-dasharray="2 2"/></svg></div>'; };
@@ -2324,21 +2353,22 @@ function hudCard() {
     '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;font-size:10.5px;color:var(--hud-ink-3)"><span>最近 20 分钟</span><span>现在</span></div>' + lane('你', 4, 'var(--hud-ink)', 3) + lane('工具', 26, 'var(--a1)', 2) + lane('错误', 1, '#ff7d74', 3) + '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + [['上下文', S.live.ctx + '%'], ['工具', S.live.tools], ['错误', 1], ['消息', 4]].map((x) => '<div style="border-radius:9px;background:var(--hud-2);padding:6px 8px"><div style="font-size:10.5px;color:var(--hud-ink-3)">' + x[0] + '</div><b class="mono" style="font-size:14px"' + (x[0] === '工具' ? ' data-livetools' : '') + '>' + x[1] + '</b></div>').join('') + '</div>' +
     (tip ? '<div style="border-radius:12px;background:rgba(243,184,67,.12);padding:10px 12px;display:flex;flex-direction:column;gap:8px"><div style="font-size:12px;line-height:1.55;color:var(--hud-ink-2)"><b style="color:#f3b843">提示</b> · 上下文已用 ' + S.live.ctx + '%。如果还要做 3 个以上的画板，先让 Agent 总结进度再继续，可以避免压缩时丢失细节。</div><div class="row"><button type="button" class="hb" data-act="hudTip">复制提示语</button><button type="button" class="hg" data-act="hudTipOff">不再提示此类</button></div></div>' : '') +
-    '<div class="col" style="gap:6px"><span style="font-size:10.5px;color:var(--hud-ink-3)">另外 1 个会话</span><div class="row" style="font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0">Codex · team-hub' + (S.sim === 'waiting' ? ' · <span style="color:#f3b843">等你确认 2 分钟</span>' : ' · 09:03 已完成') + '</span>' + (S.sim === 'waiting' ? '<button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>' : '<button type="button" class="hg" data-act="openSession" data-id="sess-1001-0903">打开轨迹</button>') + '</div></div>' +
+    (sourceEnabled({ a: 'cx' }) ? '<div class="col" style="gap:6px"><span style="font-size:10.5px;color:var(--hud-ink-3)">另外 1 个会话</span><div class="row" style="font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0">Codex · team-hub' + (S.sim === 'waiting' ? ' · <span style="color:#f3b843">等你确认 2 分钟</span>' : ' · 09:03 已完成') + '</span>' + (S.sim === 'waiting' ? '<button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>' : '<button type="button" class="hg" data-act="openSession" data-id="sess-1001-0903">打开轨迹</button>') + '</div></div>' : '') +
     '<div class="row" style="flex-wrap:wrap;border-top:1px solid var(--hud-line);padding-top:10px"><button type="button" class="hg" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒 30 分钟') + '</button><span style="flex:1"></span><button type="button" class="hg" data-act="hudHide">隐藏</button><button type="button" class="hb" data-act="hudTraj">打开轨迹</button></div></div>';
 }
 function hudPill() {
-  const st = S.attn.has('stuck') ? 'stuck' : S.sim;
+  let st = S.attn.has('stuck') ? 'stuck' : S.sim;
+  if ((st === 'stuck' || st === 'waiting') && !sourceEnabled({ a: 'cx' })) st = 'running';
   const dens = '<svg width="34" height="18" viewBox="0 0 34 18" aria-hidden="true">' + [5, 9, 6, 12, 8].map((h, i) => '<rect x="' + (i * 7) + '" y="' + (18 - h) + '" width="4" height="' + h + '" rx="1" fill="' + (i === 4 ? 'var(--a1)' : 'rgba(255,255,255,.28)') + '"/>').join('') + '</svg>';
   if (st === 'stuck') return ic('alert', 16, 'color:#ff7d74') + '<b>同一命令失败 4 次</b><span style="color:var(--hud-ink-3);font-size:12px">Codex · Surge</span><button type="button" class="hb" data-act="hudGo" data-v="stuck">查看原因</button>';
   if (st === 'waiting') return '<span style="width:10px;height:10px;border-radius:2px;background:#f3b843;flex:none"></span><b>Codex</b><span style="color:var(--hud-ink-2)">请求执行 git push</span><button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>';
   if (st === 'done') return ic('okc', 16, 'color:#5dd08a') + '<b>完成</b><span style="color:var(--hud-ink-2)">42 分钟 · 186 步</span><button type="button" class="hb" data-act="hudTraj">查看</button>';
   if (st === 'ctx') return ic('gauge', 16, 'color:#f3b843') + '<b>上下文 78%</b><span style="color:var(--hud-ink-2)">latentskill 即将压缩</span><button type="button" class="hb" data-act="hudTip">复制提示语</button>';
-  return '<span class="dot live" style="width:9px;height:9px;background:var(--a1)"></span><b>Hackathon</b><span class="mono" data-live>' + liveElapsed() + '</span><span data-hudtool style="color:var(--hud-ink-2);max-width:150px;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span>' + dens + '<span class="mono" style="font-size:11px;color:var(--hud-ink-3)" data-tip="另有 1 个会话今天已完成">+1</span>';
+  return '<span class="dot live" style="width:9px;height:9px;background:var(--a1)"></span><b>Hackathon</b><span class="mono" data-live>' + liveElapsed() + '</span><span data-hudtool style="color:var(--hud-ink-2);max-width:150px;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span>' + dens + (sourceEnabled({ a: 'cx' }) ? '<span class="mono" style="font-size:11px;color:var(--hud-ink-3)" data-tip="另有 1 个会话今天已完成">+1</span>' : '');
 }
 function renderHud() {
   const h = $('#hud');
-  if (!S.hud.show || S.sim === 'idle' || S.paused) { h.hidden = true; h.innerHTML = ''; return; }
+  if (!S.hud.show || S.sim === 'idle' || S.paused || !sourceEnabled(ALL.find((s) => s.id === LIVE_ID))) { h.hidden = true; h.innerHTML = ''; return; }
   h.hidden = false;
   h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open ? hudCard() : '');
   hudPlace();
@@ -2397,10 +2427,10 @@ Object.assign(ACT, {
     if (v === 'waiting') { S.sim = 'running'; render(); toast('已切换到 Codex 所在的终端标签页（演示）；批准仍由你在终端里完成'); }
     else if (v === 'stuck') { S.pop = true; S.hud.open = false; render(); }
   },
-  hudTraj: () => { S.hud.open = false; if (S.sim === 'done') S.sim = 'running'; S.sess.sel = LIVE_ID; S.sess.mode = 'single'; S.sess.q = ''; go('sessions'); },
+  hudTraj: () => { S.hud.open = false; if (S.sim === 'done') S.sim = 'running'; ACT.openSession({ dataset: { id: LIVE_ID } }); },
   hudTip: () => { copyText('先总结目前的进度：已完成的文件、关键决定和剩余待办，写成一段摘要，然后再继续下一步。', '提示语'); },
   hudTipOff: () => { S.hud.tipOff = true; renderHud(); toast('这类提示不会再出现；可以在设置 › 通知里恢复'); },
-  hudMute: () => { S.hud.mute = !S.hud.mute; render(); if (S.hud.mute) toast('已暂停提醒 30 分钟', { act: '恢复', onAct: () => { S.hud.mute = false; render(); } }); else toast('已恢复提醒'); },
+  hudMute: () => { setHudMuted(!S.hud.mute, 30 * 60 * 1000); if (S.hud.mute) toast('已暂停提醒 30 分钟', { act: '恢复', onAct: () => setHudMuted(false) }); else toast('已恢复提醒'); },
   hudHide: () => toggleHud()
 });
 
@@ -2412,7 +2442,8 @@ function renderWidgets() {
   const p = personaNow();
   const L7 = sel({ range: 7, noExtra: true }), P7 = sel({ win: [106, 112], noExtra: true });
   const s7 = stats(L7), sp = stats(P7);
-  const today = ALL.filter((s) => s.d === 120 && S.agents.has(s.a));
+  const today = ALL.filter((s) => s.d === 120 && S.agents.has(s.a) && sourceEnabled(s) && !S.excluded.has(s.id));
+  const live = today.some((s) => s.live) && S.sim !== 'idle';
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const days = []; for (let d = 113; d <= 119; d++) { const xs = L7.filter((s) => s.d === d); days.push([d, xs.filter((s) => s.a === 'cc').length, xs.filter((s) => s.a === 'cx').length, xs.filter((s) => s.a !== 'cc' && s.a !== 'cx').length]); }
   const mx = Math.max(1, ...days.map((x) => x[1] + x[2] + x[3]));
@@ -2421,7 +2452,7 @@ function renderWidgets() {
   const bar = (v, c) => v ? '<span style="height:' + (v / mx * 64).toFixed(1) + 'px;background:' + c + ';border-radius:2px"></span>' : '';
   w.innerHTML = (over ? '<div class="row" style="justify-content:space-between;color:#fff"><b style="font-size:13px;text-shadow:0 1px 2px rgba(0,0,0,.35)">桌面小组件</b><button type="button" class="btn sm" data-act="wgClose">完成</button></div>' : '') +
     '<div class="wg-row"><button type="button" class="wg" data-act="wgGo" data-r="persona" style="aspect-ratio:1;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start"><span class="lbl">协作人格</span>' + (p.ok ? glyphSVG(p, 56) : '') + '<span><span class="serif" style="display:block;font-size:26px;font-weight:600;line-height:1;letter-spacing:.02em">' + (p.ok ? p.code : '—') + '</span><span style="font-size:12px;color:var(--ink-2)">' + (p.ok ? p.zh + ' · 置信度' + p.conf : '样本不足') + '</span></span></button>' +
-    '<button type="button" class="wg" data-act="wgGo" data-r="sessions" style="aspect-ratio:1;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span><span class="row" style="font-size:11.5px;gap:6px">' + (S.sim === 'idle' ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:var(--a1)"></span>' + (S.numOnly ? '1 个运行中' : 'Hackathon · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>' +
+    '<button type="button" class="wg" data-act="wgGo" data-r="sessions" style="aspect-ratio:1;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span><span class="row" style="font-size:11.5px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:var(--a1)"></span>' + (S.numOnly ? '1 个运行中' : 'Hackathon · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>' +
     '<button type="button" class="wg" data-act="wgGo" data-r="overview" style="display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:12px;align-items:end"><span class="col" style="gap:4px"><span class="lbl">本周</span><span class="mono" style="font-size:34px;font-weight:600;line-height:1">' + s7.n + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + (delta >= 0 ? '↑ ' : '↓ ') + Math.abs(delta) + '%</span><span style="font-size:12px;color:var(--ink-2)">摩擦率 ' + f1(s7.fric) + '% · 较上周 ' + (s7.fric <= sp.fric ? '↓ ' : '↑ ') + f1(Math.abs(s7.fric - sp.fric)) + ' pt</span></span><span class="col" style="gap:5px"><span class="row" style="align-items:flex-end;gap:5px;height:66px">' + days.map((x) => '<span class="col" style="flex:1;gap:2px;justify-content:flex-end" data-tip="' + md(x[0]) + '：Claude ' + x[1] + ' · Codex ' + x[2] + ' · 其他 ' + x[3] + '">' + bar(x[3], 'var(--h2)') + bar(x[2], 'var(--a2)') + bar(x[1], 'var(--a1)') + '</span>').join('') + '</span><span class="row cap" style="font-size:10px;gap:6px"><span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--a1)"></i>Claude</span><span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--a2)"></i>Codex</span><span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--h2)"></i>其他</span></span></span></button>' +
     (top ? '<button type="button" class="wg" data-act="wgRec" data-id="' + top.id + '" style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="lbl">本周最值得做</span><span style="font-size:15px;font-weight:600;line-height:1.35">' + esc(top.title) + '</span><span class="cap">' + top.type + ' · ' + LEVELS[top.lvl] + ' · ' + top.gain + '</span><span class="row" style="width:100%;justify-content:space-between;margin-top:4px"><span class="cap">还有 ' + Math.max(0, recs.length - 1) + ' 条建议</span><span class="btn sm">预览</span></span></button>' : '');
 }
@@ -2433,6 +2464,8 @@ Object.assign(ACT, {
 
 /* ============ simulated events ============ */
 function simEvent(k) {
+  const eventAgent = { done: 'cc', waiting: 'cx', stuck: 'cx', ctx: 'cc' }[k];
+  if (eventAgent && !sourceEnabled({ a: eventAgent })) { toast(agent(eventAgent).name + ' 的数据源已停用，不会产生提醒'); return; }
   if (S.paused && k !== 'newsrc') { toast('采集已暂停，不会产生事件', { act: '恢复采集', onAct: () => { S.paused = false; render(); } }); return; }
   if (k === 'idle') { S.sim = 'idle'; S.attn.clear(); S.hud.open = false; render(); toast('已切换为空闲：没有运行中的会话，悬浮组件自动隐身'); return; }
   if (k === 'running') { S.sim = 'running'; S.attn.clear(); render(); toast('已恢复为有会话运行中'); return; }
