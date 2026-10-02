@@ -11,6 +11,8 @@ import yaml
 from ..contracts import Feature, Page, Record, Resource, digest
 from .structured import safe_path
 
+PAGE_FILES = 60
+WORKERS = 12
 PERMISSIVE = {"MIT", "Apache-2.0", "CC0-1.0", "CC-BY-4.0", "BSD-2-Clause", "BSD-3-Clause", "ISC"}
 
 
@@ -56,6 +58,7 @@ def frontmatter(text: str) -> tuple[dict, str]:
 class GitHubConnector:
     def __init__(self, source, http):
         self.source, self.http = source, http
+        self._texts: dict[str, str] = {}  # LICENSE reads shared by documents of one connector run
         self.repo = source.config["repo"]
         if not re.fullmatch(r"[\w.-]+/[\w.-]+", self.repo):
             raise ValueError("invalid_github_repository")
@@ -64,11 +67,14 @@ class GitHubConnector:
         if not checkpoint:
             info = self.http.json(f"https://api.github.com/repos/{self.repo}")
             branch = quote(info["default_branch"], safe="")
-            head = self.http.json(f"https://api.github.com/repos/{self.repo}/branches/{branch}")["commit"]["sha"]
+            commit = self.http.json(f"https://api.github.com/repos/{self.repo}/branches/{branch}")["commit"]
+            head = commit["sha"]
             if head == state.get("revision"):
                 return Page(records=[], complete=True, mode="incremental", revision=head)
+            committed = ((commit.get("commit") or {}).get("committer") or {}).get("date")
             checkpoint = {"sha": head, "offset": 0, "repo_id": str(info["id"]),
-                          "license": (info.get("license") or {}).get("spdx_id")}
+                          "license": (info.get("license") or {}).get("spdx_id"),
+                          "stars": info.get("stargazers_count"), "updated_at": committed}
         sha = checkpoint["sha"]
         if not re.fullmatch(r"[a-f0-9]{40}", sha):
             raise ValueError("invalid_git_revision")
@@ -81,11 +87,12 @@ class GitHubConnector:
             plan.append(("README.md", self.source.config["root_type"]))
         offset = checkpoint["offset"]
         records = []
+        known = state.get("known") or {}
         if offset == 0 and self.source.config.get("marketplace"):
-            records.extend(self._marketplace(checkpoint, blobs))
-        batch = plan[offset:offset + 30]
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            records.extend(pool.map(lambda entry: self._document(entry, checkpoint, blobs), batch))
+            records.extend(self._marketplace(checkpoint, blobs, known))
+        batch = plan[offset:offset + PAGE_FILES]
+        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+            records.extend(pool.map(lambda entry: self._document(entry, checkpoint, blobs, known), batch))
         next_offset = offset + len(batch)
         return Page(records=records, complete=next_offset >= len(plan), revision=sha,
                     checkpoint={**checkpoint, "offset": next_offset})
@@ -116,7 +123,9 @@ class GitHubConnector:
                 candidate = str(directory / name)
                 if candidate not in blobs:
                     continue
-                text = self._read(candidate, checkpoint, blobs).lstrip()[:400]
+                if candidate not in self._texts:
+                    self._texts[candidate] = self._read(candidate, checkpoint, blobs)
+                text = self._texts[candidate].lstrip()[:400]
                 if explicit and not re.search(r"(?:terms|license\.)", explicit, re.I):
                     return explicit
                 if re.match(r"(?:#\s*)?MIT License", text, re.I):
@@ -131,9 +140,43 @@ class GitHubConnector:
             path = str(PurePosixPath(path).parent.parent)
         return f"{kind}:github.com:{checkpoint['repo_id']}:{path}"
 
-    def _document(self, entry, checkpoint, blobs):
+    def _extra(self, checkpoint, blob_sha) -> dict:
+        return {"blob_sha": blob_sha, "author": self.repo.split("/")[0], "source_updated_at": checkpoint.get("updated_at")}
+
+    def _popularity(self, checkpoint) -> dict:
+        return {"stars": checkpoint["stars"]} if checkpoint.get("stars") is not None else {}
+
+    def _components(self, path, checkpoint, blobs) -> list[str]:
+        parent = str(PurePosixPath(path).parent.parent)
+        return [self._item_id(file_kind(child), child, checkpoint) for child in sorted(blobs)
+                if file_kind(child) and file_kind(child) != "plugin" and (parent == "." or child.startswith(parent + "/"))][:1000]
+
+    def _reuse(self, entry, checkpoint, blobs, known) -> Record | None:
+        """Unchanged git blob: reuse the stored Resource/raw instead of downloading it again."""
+        path, kind = entry
+        hit = known.get(path)
+        if not hit:
+            return None
+        if isinstance(hit, dict):
+            stored_sha, resource, raw = hit.get("blob_sha"), hit.get("resource"), hit.get("raw")
+        else:
+            stored_sha, resource, raw = hit
+        if resource is None:
+            return None
+        resource = resource if isinstance(resource, Resource) else Resource.model_validate(resource)
+        if (stored_sha or resource.metadata.get("blob_sha")) != blobs[path]["sha"]:
+            return None
+        update = {"popularity": {**resource.popularity, **self._popularity(checkpoint)}}
+        if kind == "plugin":
+            update["components"] = self._components(path, checkpoint, blobs)  # Sibling files may have changed.
+        return Record(native_id=path, resource=resource.model_copy(update=update), raw=raw or {})
+
+    def _document(self, entry, checkpoint, blobs, known=None):
         import json
         path, kind = entry
+        reused = self._reuse(entry, checkpoint, blobs, known or {})
+        if reused:
+            return reused
         if blobs[path].get("size", 0) > 250000:
             # One oversized document must not make the entire source unrefreshable.
             resource = Resource(item_id=self._item_id(kind, path, checkpoint), type=kind,
@@ -141,8 +184,10 @@ class GitHubConnector:
                                 url=f"https://github.com/{self.repo}/blob/{checkpoint['sha']}/{quote(path, safe='/')}",
                                 repo_id=checkpoint["repo_id"], repo_path=path, commit_sha=checkpoint["sha"],
                                 agents=self.source.config.get("agents", []),
+                                popularity=self._popularity(checkpoint),
                                 metadata={"content_status": "oversize_metadata_only", "source_blob_sha": blobs[path]["sha"],
-                                          "source_bytes": blobs[path]["size"], "verification": "tree_metadata_only"})
+                                          "source_bytes": blobs[path]["size"], "verification": "tree_metadata_only",
+                                          **self._extra(checkpoint, blobs[path]["sha"])})
             return Record(native_id=path, resource=resource, raw={"path": path, **blobs[path]})
         text = self._read(path, checkpoint, blobs)
         if path.endswith(".json"):
@@ -157,13 +202,7 @@ class GitHubConnector:
         license_id = self._license(path, metadata, checkpoint, blobs)
         allowed = license_id in PERMISSIVE
         item_id = self._item_id(kind, path, checkpoint)
-        components = []
-        if kind == "plugin":
-            parent = str(PurePosixPath(path).parent.parent)
-            for child in sorted(blobs):
-                child_kind = file_kind(child)
-                if child_kind and child_kind != "plugin" and (parent == "." or child.startswith(parent + "/")):
-                    components.append(self._item_id(child_kind, child, checkpoint))
+        components = self._components(path, checkpoint, blobs) if kind == "plugin" else []
         features = []
         tools = metadata.get("allowed-tools", metadata.get("tools", []))
         if isinstance(tools, str):
@@ -177,14 +216,28 @@ class GitHubConnector:
                      agents=self.source.config.get("agents", []), commit_sha=checkpoint["sha"], repo_id=checkpoint["repo_id"], repo_path=path,
                      official=bool(self.source.config.get("official")) and not path.startswith("external_plugins/"), manifest=metadata,
                      metadata={"repository": self.repo, "source_body_hash": digest(text), "source_blob_sha": blobs[path]["sha"],
-                               "verification": "repository_and_source_read", "parse_error": metadata.get("parse_error")},
+                               "verification": "repository_and_source_read", "parse_error": metadata.get("parse_error"),
+                               **self._extra(checkpoint, blobs[path]["sha"])},
+                     popularity=self._popularity(checkpoint),
                      version=str(metadata["version"]) if metadata.get("version") else None,
-                     components=components[:1000], features=features, risk=risk)
+                     components=components, features=features, risk=risk)
         return Record(native_id=path, resource=r, raw={"path": path, "blob_sha": blobs[path]["sha"], "frontmatter": metadata})
 
-    def _marketplace(self, checkpoint, blobs):
+    def _marketplace(self, checkpoint, blobs, known=None):
         import json
-        path = self.source.config["marketplace"]
+        path = safe_path(self.source.config["marketplace"])
+        blob_sha = (blobs.get(path) or {}).get("sha")
+        stored = {k: v for k, v in (known or {}).items() if k.startswith("marketplace:")}
+        if blob_sha and stored:
+            reused = []
+            for native_id, hit in stored.items():
+                resource = hit.get("resource") if isinstance(hit, dict) else hit[1]
+                resource = resource if isinstance(resource, Resource) else Resource.model_validate(resource)
+                raw = (hit.get("raw") if isinstance(hit, dict) else hit[2]) or {}
+                reused.append(Record(native_id=native_id, resource=resource, raw=raw))
+            if all(r.resource.metadata.get("marketplace_blob_sha") == blob_sha for r in reused):
+                yield from reused
+                return
         manifest = json.loads(self._read(path, checkpoint, blobs))
         plugins = manifest.get("plugins")
         if not isinstance(plugins, list):
@@ -192,7 +245,9 @@ class GitHubConnector:
         for plugin in plugins:
             name = plugin["name"]
             source = plugin.get("source")
-            metadata = {"marketplace": manifest.get("name"), "source": source, "resolution": "pointer_only"}
+            metadata = {"marketplace": manifest.get("name"), "source": source, "resolution": "pointer_only",
+                        "marketplace_blob_sha": blob_sha, "author": self.repo.split("/")[0],
+                        "source_updated_at": checkpoint.get("updated_at")}
             item_id = f"plugin:marketplace:{checkpoint['repo_id']}:{name}"
             url = plugin.get("homepage") or self.source.url
             if isinstance(source, str) and source.startswith("./"):
