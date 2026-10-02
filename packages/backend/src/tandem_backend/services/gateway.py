@@ -360,6 +360,8 @@ class Gateway:
             routes_sessionops,
             routes_settings,
             routes_shell,
+            routes_uiview,
+            routes_uiview_a4a6,
         )
 
         @asynccontextmanager
@@ -391,6 +393,8 @@ class Gateway:
             routes_export,
             routes_settings,
             routes_shell,
+            routes_uiview,
+            routes_uiview_a4a6,
         ):
             app.include_router(module.router(self))
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
