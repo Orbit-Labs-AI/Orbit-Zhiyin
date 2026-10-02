@@ -334,6 +334,7 @@ class Gateway:
             routes_features,
             routes_install,
             routes_platform,
+            routes_quota,
             routes_realtime,
             routes_recommend,
             routes_sessionops,
@@ -364,6 +365,7 @@ class Gateway:
             routes_eval,
             routes_realtime,
             routes_sessionops,
+            routes_quota,
         ):
             app.include_router(module.router(self))
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
