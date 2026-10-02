@@ -231,22 +231,41 @@ class IngestRunner:
         self.jobs = None  # JobService, bound after construction.
         self.on_published = on_published
         self.current: str | None = None
+        self.pending: dict | None = None
         self.paused = False
         self.lock = threading.RLock()
+        self.on_state = on_state
         self.worker = WorkerProcess("ingest", home, config, self._message, self._exit,
-                                    on_state, lambda: None)
+                                    self._state, self._send_pending)
 
     def start(self, job: dict, sources: list[dict]) -> None:
         with self.lock:
             if self.current is not None:
                 raise RuntimeError("ingest worker busy")
-            if not self.worker.ensure():
+            if not self.worker.ensure() and self.worker.state != "restarting":
                 raise RuntimeError(f"ingest worker {self.worker.state}")
             self.current = job["id"]
-            if not self.worker.send({"op": "run", "job": {**job, "sources": sources,
-                                                          "plan": self.config.plan}}):
-                self.current = None
-                raise RuntimeError("ingest worker unavailable")
+            # During a backoff restart the job waits and is sent once the worker respawns.
+            self.pending = {"op": "run", "job": {**job, "sources": sources,
+                                                 "plan": self.config.plan}}
+            self._send_pending()
+
+    def _state(self, role: str, state: str) -> None:
+        self.on_state(role, state)
+        if state == "degraded":
+            with self.lock:
+                job_id = self.current if self.pending is not None else None
+                if job_id is not None:
+                    self.pending = self.current = None
+            if job_id is not None:
+                self.jobs.finished(job_id, "failed", [], {
+                    "code": "service_unavailable", "message": "ingest worker degraded",
+                    "retryable": True})
+
+    def _send_pending(self) -> None:
+        with self.lock:
+            if self.pending is not None and self.worker.send(self.pending):
+                self.pending = None
 
     def cancel(self, job_id: str) -> None:
         with self.lock:
@@ -281,6 +300,8 @@ class IngestRunner:
 
     def _exit(self, reason: str | None) -> None:
         with self.lock:
+            if self.pending is not None:
+                return  # Not yet delivered: the job is sent to the next worker.
             job_id, self.current = self.current, None
         if job_id is not None:
             self.jobs.interrupted(job_id, "worker_exited",
