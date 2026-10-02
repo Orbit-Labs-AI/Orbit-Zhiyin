@@ -36,6 +36,18 @@
 - **Advance 画板源文件**：`visual-cases-v1/` 下的 `canvas.json` 与 `*.dc.html`。它们依赖 claude.ai Design 画布的运行时（`support.js`），不能直接用浏览器打开，用于留档、比对和必要时重新发布。
 - **Advance Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>，每次 Demo 合入 main 后按下文「修改 Demo」最后一行重新发布；本地版 `../../prototypes/advance/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `../../prototypes/advance/src/` 构建生成，修改方法见下文「修改 Demo」。
 
+## Logo
+
+`logo/` 存放项目 logo：一条低饱和的莫比乌斯带，沿双纽线走一圈。中心交叉处上层带子收窄成尖（扭转点），颜色沿路径由板岩灰渐变到雾灰，最深与最浅在收窄点相接，表示走一圈回到"另一面"。
+
+| 文件 | 用途 |
+| --- | --- |
+| [`logo/tandem-mark.svg`](logo/tandem-mark.svg) | 主标志，透明底、紧凑画布 |
+| [`logo/tandem-mark-mono.svg`](logo/tandem-mark-mono.svg) | 单色版，用于小尺寸或单色场景 |
+| [`logo/tandem-icon.svg`](logo/tandem-icon.svg)、[`logo/tandem-icon.png`](logo/tandem-icon.png) | 方形 App 图标，暖纸底圆角方块，1024 px |
+
+文件由 [`logo/generate.py`](logo/generate.py) 生成（`python3 docs/design/logo/generate.py`），颜色、带宽和交叉留白都在脚本顶部的常量里。中心留白按暖纸底 `#f5f4f0` 绘制，放到其他底色上时把 `mark()` 的 `gap_color` 改成对应底色后重新生成。PNG 由浏览器截图导出，改 SVG 后需同步更新。
+
 ## 可交互 Demo
 
 ### Lite：genius-FXC 的个人 Benchmark Demo（2026-10-02）
