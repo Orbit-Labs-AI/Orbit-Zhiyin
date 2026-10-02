@@ -90,12 +90,17 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         from ..analytics.cache import supports_cache
         return supports_cache(store)
 
+    def analysis_error(exc: ValueError) -> HTTPException:
+        """Damaged cached results are a conflict (409), not an invalid request (422)."""
+        from tandem_data.analysis_history import AnalysisIntegrityError
+        return HTTPException(409 if isinstance(exc, AnalysisIntegrityError) else 422, str(exc))
+
     def analytics_data(scope, with_text=True):
         from ..analytics import service
         try:
             return service.analyze_store(store, scope, with_text)
         except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+            raise analysis_error(exc) from exc
 
     def analytics_sections(scope, keys, with_text=False):
         """Only the requested sections (plus shared metadata) are computed or read."""
@@ -105,7 +110,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         try:
             return service.analyze_sections(store, scope, keys, with_text)
         except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+            raise analysis_error(exc) from exc
 
     def analytics_section(key, scope, with_text=False):
         from ..analytics.service import response_section
@@ -244,7 +249,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             try:
                 result = AnalysisCache(store).session_page(scope, offset=offset, limit=limit, with_text=with_text)
             except ValueError as exc:
-                raise HTTPException(422, str(exc)) from exc
+                raise analysis_error(exc) from exc
             result["sessions"] = [session_summary(s) for s in result["sessions"]]
             return result
         result = analytics_section("sessions", scope, with_text)
@@ -259,7 +264,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             try:
                 result = AnalysisCache(store).session_row(scope, session_id, with_text=with_text)
             except ValueError as exc:
-                raise HTTPException(422, str(exc)) from exc
+                raise analysis_error(exc) from exc
             if result["session"] is None:
                 raise HTTPException(404, "会话不在本次分析范围内")
             return result

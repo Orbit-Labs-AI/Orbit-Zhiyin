@@ -197,12 +197,14 @@ def compute_row_cores(
     context: AnalysisContext, sids: list[str], *, parallel: bool | None = None
 ) -> dict[str, Record]:
     """Compute rows serially, or by root chunks in spawned processes when there are many."""
+    limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")  # "0"/"1" disables process workers
+    max_workers = int(limit) if limit and limit.isdigit() else os.cpu_count() or 1
     if parallel is None:
-        parallel = len(sids) >= PARALLEL_MIN_MISSES
+        parallel = len(sids) >= PARALLEL_MIN_MISSES and max_workers > 1
     ROW_STATS["computed"] += len(sids)
     if parallel and len(sids) > 1:
         chunks = [sids[i : i + PARALLEL_CHUNK] for i in range(0, len(sids), PARALLEL_CHUNK)]
-        workers = max(1, min(len(chunks), os.cpu_count() or 1))
+        workers = max(1, min(len(chunks), max_workers))
         try:
             with ProcessPoolExecutor(workers, mp_context=get_context("spawn")) as executor:
                 results = executor.map(_compute_chunk, [_chunk_bundle(context, c) for c in chunks])
