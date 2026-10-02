@@ -149,14 +149,17 @@ def install_error_handlers(app: FastAPI) -> None:
                                        "retryable": False}}, status_code=422)
 
 
-def default_scope(days: int, now: datetime | None = None) -> dict:
-    """Last ``days`` UTC days from the start of a day, so one day maps to one scope hash."""
-    now = now or datetime.now(UTC)
-    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+def default_scope(days: int | None, now: datetime | None = None) -> dict:
+    """Last ``days`` UTC days from the start of a day, so one day maps to one scope hash
+    (``None``: all time, the default of scope-less routes such as recommendations)."""
     from dataclasses import asdict
 
     from ..analytics.inputs import Scope
 
+    if days is None:
+        return asdict(Scope())
+    now = now or datetime.now(UTC)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return asdict(Scope(from_ts=int(start.timestamp() * 1000)))
 
 
@@ -209,6 +212,7 @@ class Gateway:
     def close(self) -> None:
         self.stopping.set()
         self.platform.close()
+        self._close_services()
         with self.lock:
             if self.prewarm_timer is not None:
                 self.prewarm_timer.cancel()
@@ -218,6 +222,26 @@ class Gateway:
         self.reads.close()
         self.snapshots.close()
         self.appdb.close()
+
+    def _close_services(self) -> None:
+        """Area services created by their routers (features hub, lazy AI service)."""
+        from .. import features
+
+        try:
+            hub = features.get()
+        except RuntimeError:
+            hub = None  # Features router never mounted.
+        if hub is not None:
+            features.bind(None)  # Module helpers fall back to "unbound", not a closed hub.
+            hub.close()
+        ai = getattr(self, "_ai", None)
+        if ai is not None:
+            ai.close()
+
+    @property
+    def rec_settings(self) -> dict:
+        """Recommend memory settings (ai_generate, level), edited via /v1/platform/recommend."""
+        return self.platform.settings.get("recommend")
 
     # -- worker events -------------------------------------------------------------------
     def _emit(self, topic: str, event: str, data: dict) -> int:
@@ -260,32 +284,37 @@ class Gateway:
         scopes = [default_scope(state["settings"].get("default_range_days", 30))]
         scopes += [s for s in state["mru_scopes"][: self.prewarm_mru] if s not in scopes]
         sections = LIGHT + (HEAVY if self.prewarm_heavy else ())
+        # Light sections of every scope first, then heavy ones.
+        work = [(name, scope) for name in sections for scope in scopes]
+        if self.prewarm_heavy:  # /v1/recommendations defaults to the all-time scope.
+            from ..recommend.inputs import SECTION
+
+            work.append((SECTION, default_scope(None)))
         rules = rules_digest()
         queued = []
-        for name in sections:  # Light sections of every scope first, then heavy ones.
-            for scope in scopes:
-                h = scope_hash(scope, {})
-                key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
-                if self.snapshots.get(key) is not None:
-                    continue
-                task = self.supervisor.analysis.submit(
-                    name, scope, {}, h, "prewarm", (rev["data_rev"], rev["inventory_rev"]), rules)
-                if task is not None:
-                    queued.append(task.id)
+        for name, scope in work:
+            h = scope_hash(scope, {})
+            key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
+            if self.snapshots.get(key) is not None:
+                continue
+            task = self.supervisor.analysis.submit(
+                name, scope, {}, h, "prewarm", (rev["data_rev"], rev["inventory_rev"]), rules)
+            if task is not None:
+                queued.append(task.id)
         return queued
 
     def _sync_loop(self) -> None:
         """Continuous sync (opt-in): adaptive polling 2 s → 30 s while nothing changes."""
         low, high = self.sync_interval_s
         interval = low
+        collection = self.platform.collection
         while not self.stopping.wait(interval):
-            collection = getattr(self.platform, "collection", None)
-            if collection is not None and getattr(collection, "paused", False):
+            if collection.paused:
                 interval = high
                 continue  # Collection paused (DT-02.1); explicit re-index still works.
             state = self.state.snapshot()
             enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-            catch_up = collection is not None and getattr(collection, "catch_up_pending", False)
+            catch_up = collection.consume_catch_up()
             if (state["settings"].get("sync_mode") != "live" and not catch_up) or not enabled:
                 interval = high
                 continue
@@ -294,9 +323,8 @@ class Gateway:
             interval = low if changed else min(high, interval * 2)
             try:
                 self.jobs.submit("import", enabled, phase="full", origin="sync")
-                if catch_up:
-                    collection.catch_up_pending = False
             except (JobConflict, ValueError):
+                collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
                 interval = low  # A user job is running; check again soon.
 
     # -- application ---------------------------------------------------------------------

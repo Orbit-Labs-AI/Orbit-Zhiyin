@@ -143,6 +143,8 @@ def router(gw: Gateway) -> APIRouter:
                 {k: j.get(k) for k in ("id", "kind", "status", "progress", "phase")}
                 for j in active],
             "services": gw.supervisor.services(), "settings": state["settings"],
+            "collection": {"paused": gw.platform.collection.paused},
+            "badge": gw.platform.notifier.summary()["active"],
             "capabilities": {"sse": True, "snapshots": True, "export": False},
             "server_ms": round((time.perf_counter() - started) * 1000, 3)}
 

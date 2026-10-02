@@ -76,3 +76,14 @@ def test_retention_prunes_logs(started):
     detail = started.maintenance.run("retention")["detail"]
     assert detail["log_files"] >= 1
     assert sum(p.stat().st_size for p in logs_dir.iterdir()) <= 20 * 1024 * 1024
+
+
+def test_install_sweep(started):
+    from tandem_backend.install.service import InstallService
+
+    assert started.maintenance.run("install_sweep")["detail"] == {"skipped": True}
+    started.gw.install = InstallService(started.appdb, started.home)
+    out = started.maintenance.run("install_sweep")
+    assert out["ok"], out
+    assert {k: out["detail"][k] for k in ("idle", "backups", "plans")} == {
+        "idle": 0, "backups": 0, "plans": 0}

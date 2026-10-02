@@ -71,3 +71,43 @@ def test_job_events_feed_metrics(gateway_client):
     names = {s["name"]: s for s in gateway.platform.telemetry.query(None, 600, "total")["series"]}
     assert names["job.duration"]["tags"] == {"kind": "import", "status": "failed"}
     assert names["error"]["tags"] == {"area": "job", "code": "boom"}
+
+
+def test_status_reports_collection_and_badge(gateway_client):
+    client, gateway = gateway_client
+    body = client.get("/v1/status").json()
+    assert body["collection"] == {"paused": False} and body["badge"] == 0
+    gateway.platform.collection.pause()
+    gateway.platform.notifier.emit({"type": "system", "kind": "test", "title": "t",
+                                    "dedupe_key": "test:1"})
+    body = client.get("/v1/status").json()
+    assert body["collection"] == {"paused": True} and body["badge"] == 1
+
+
+def test_recommend_settings_route(gateway_client):
+    client, gateway = gateway_client
+    assert client.get("/v1/platform/recommend").json() == {"ai_generate": False, "level": None}
+    out = client.put("/v1/platform/recommend", json={"ai_generate": True, "level": 2}).json()
+    assert out == {"ai_generate": True, "level": 2} == gateway.rec_settings
+    for bad in ({"level": 9}, {"ai_generate": "yes"}, {"nope": 1}):
+        assert client.put("/v1/platform/recommend", json=bad).status_code == 422
+
+
+def test_close_releases_area_services(tmp_path):
+    from tandem_backend import features
+    from tandem_backend.services.gateway import Gateway
+
+    gateway = Gateway(tmp_path / "gw", discovery=lambda: [])
+    closed = []
+
+    class Closable:
+        def __init__(self, name):
+            self.name = name
+
+        def close(self):
+            closed.append(self.name)
+
+    features.bind(Closable("features"))
+    gateway._ai = Closable("ai")
+    gateway.close()
+    assert closed == ["features", "ai"] and features._service is None
