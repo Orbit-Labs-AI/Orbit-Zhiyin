@@ -1,5 +1,6 @@
 """One selection and reusable indexes for a single analysis request."""
 
+import copy
 from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -7,6 +8,7 @@ from typing import Any
 
 from .bottleneck import analyze_bottleneck
 from .inputs import KINDS, AnalysisInputBundle, Scope, select
+from .respond.calls import normalize_tool_calls, pair_tool_calls, project_call_sequence
 
 Record = dict[str, Any]
 
@@ -37,6 +39,7 @@ class AnalysisContext:
     session_map: dict[str, Record] = field(init=False)
     children: dict[str, set[str]] = field(init=False)
     _families: dict[tuple[str, ...], Record] = field(default_factory=dict, init=False)
+    _call_pieces: dict[str, tuple] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self.event_groups = group_sessions(self.events)
@@ -125,6 +128,60 @@ class AnalysisContext:
         """Store families computed elsewhere (a worker) for exactly this scope."""
         self._families.setdefault(tuple(sorted(ids)), value)
 
+    def _call_piece(self, sid: str) -> tuple:
+        """Pairing, normalization and sequence projection of one session, computed once.
+
+        All three are keyed by session and sorted session-first, so a scope's result is
+        the concatenation of its sessions' pieces in sorted uid order. Session rows,
+        project rows and the whole selection then share one computation per session.
+        """
+        piece = self._call_pieces.get(sid)
+        if piece is None:
+            events = self.event_groups.get(sid, [])
+            context_events = self.context_groups.get(sid, [])
+            execution = list(
+                {(e["session_uid"], e["event_uid"]): e for e in [*events, *context_events]}.values()
+            )
+            paired = pair_tool_calls(execution)
+            calls = None if self.calls is None else self.call_groups.get(sid, [])
+            normalized = normalize_tool_calls(calls)
+            base = normalized["calls"] if calls is not None else paired["calls"]
+            projected = project_call_sequence(base, execution) if base else []
+            piece = self._call_pieces[sid] = (paired, normalized, projected)
+        return piece
+
+    def _respond_inputs(self, key: tuple[str, ...]) -> tuple | None:
+        """Assemble ``analyze_respond``'s pairing inputs for a scope from session pieces."""
+        if self.bundle.events is None or self.event_status in ("excluded", "unavailable"):
+            return None
+        if self.bundle.coverage.get("tool_calls", {}).get("status", "partial") == "excluded":
+            return None
+        pieces = [self._call_piece(sid) for sid in key]
+        any_paired = any(p[0]["calls"] for p in pieces)
+        paired = {
+            "calls": [c for p in pieces for c in p[0]["calls"]] if any_paired else [],
+            "orphan_result_event_uids": [u for p in pieces for u in p[0]["orphan_result_event_uids"]],
+            "duplicate_event_uids": [u for p in pieces for u in p[0]["duplicate_event_uids"]],
+            "pairing_conflicts": copy.deepcopy([c for p in pieces for c in p[0]["pairing_conflicts"]]),
+        }
+        normalized = {
+            "calls": None,  # only consumed through ``effective``
+            "duplicate_call_rows": sum(p[1]["duplicate_call_rows"] for p in pieces),
+            "call_conflicts": copy.deepcopy([c for p in pieces for c in p[1]["call_conflicts"]]),
+        }
+        effective = None
+        if self.calls is not None or any_paired:
+            # Fresh one-level copies, exactly as project_call_sequence hands them out.
+            effective = []
+            for p in pieces:
+                for original in p[2]:
+                    call = dict(original)
+                    for k, v in call.items():
+                        if isinstance(v, (list, dict)):
+                            call[k] = v.copy()
+                    effective.append(call)
+        return paired, normalized, effective
+
     def families(self, ids: set[str]) -> Record:
         """Reuse identical scopes; never average ratios or merge interval totals."""
         key = tuple(sorted(ids))
@@ -139,5 +196,6 @@ class AnalysisContext:
                 self.bundle.coverage,
                 self.members(ids, "context"),
                 self.supported_kinds,
+                respond_inputs=self._respond_inputs(key),
             )
         return self._families[key]
