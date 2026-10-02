@@ -5,9 +5,13 @@ from __future__ import annotations
 import os
 import signal
 
+import pytest
 from conftest import add_codex, bus_events, fast_config, run_job, wait_for, wait_job
 
 from tandem_backend.services.worker_protocol import DEBUG_DELAY_ENV
+
+# Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
+pytestmark = pytest.mark.serial
 
 
 def _services(client):

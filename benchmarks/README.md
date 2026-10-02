@@ -18,3 +18,5 @@ uv run python -m benchmarks.analytics.full_pipeline --sizes 500 1000 2500 --repe
 - 基准不作 CI 硬门槛。性能改动应同时通过等价性回归；金标更新须在 PR 描述中说明原因与差异。
 
 保留运行时、硬件、样本规模、重复次数和计时边界。性能与语义质量分开解释；质量评测见 [evals](../evals/README.md)。
+
+`recommendation.py` 提供推荐入口的耗时观察，由 `bash scripts/test-recommend.sh` 调用，分别测量 4 项和 1,000 项构造目录；计时不包含 analytics、网络抓取或 Skill 执行。记录中位数和最大值，不设置依赖本机速度的正确性门禁。

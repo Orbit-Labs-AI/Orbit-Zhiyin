@@ -19,6 +19,13 @@
 | scripts/benchmark_*.py | benchmarks/analytics |
 | scripts/validate_*、verify_semantic_history.py | evals/analytics |
 | scripts/check-connectors.sh | scripts/check-data.sh |
+| docs/modules/catalog-architecture.md、catalog-validation.md | docs/modules/catalog/architecture.md、validation.md |
+| docs/modules/recommendation.md、recommendation-validation.md | docs/modules/recommendation/engine.md、validation.md |
+| docs/plans/analysis-audit.md、data-audit.md、backend-gap.md | docs/audits/ |
+| docs/design/README.md 的 Logo、Demo、画板章节 | docs/design/brand.md、demo.md、boards.md |
+| docs/design/logo/tandem-*（spiral 变体升为主版本） | docs/design/logo/orbit-*，原洛伦茨主标志移到 logo/variants/lorenz/ |
+
+最后五行是 2026-10-02 的文档整理（产品改名 Orbit）。活跃分支 merge 时若遇到这些文件的 rename/modify 冲突，把改动应用到新位置；不要恢复旧路径。
 
 ## 合并步骤
 

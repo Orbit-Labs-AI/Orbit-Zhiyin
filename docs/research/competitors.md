@@ -1,4 +1,4 @@
-# Tandem 竞品分析
+# Orbit 竞品分析
 
 > 状态：调研 · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
@@ -6,9 +6,9 @@
 >
 > **依据与核实**：2026-10-02 完成的竞品调研，覆盖 7 类、约 60 个产品与开源项目。外部事实就地附链接，**核实日期均为 2026-10-02**（另注者除外）；GitHub stars、最近推送与发版时间是当日 `gh api` 读数。只有二手来源的事实标「未核实」；需要真实数据或实测才能定的技术假设标「待验证」。
 >
-> **与其他文档的分工**：主流 Agent 的内置功能与扩展点、开源项目的源码级研读见 [research.md](landscape.md) §2、§4，本文只引结论；Tandem 各模块的做法见 [analysis.md](../plans/analysis-module.md)、[recommendation.md](../plans/recommendation-module.md)、[ai.md](../plans/ai-module.md)、[evaluation.md](../plans/evaluation-module.md)，功能与分工映射见 [feature-map.md](../plans/feature-map.md)。
+> **与其他文档的分工**：主流 Agent 的内置功能与扩展点、开源项目的源码级研读见 [research.md](landscape.md) §2、§4，本文只引结论；Orbit 各模块的做法见 [analysis.md](../plans/analysis-module.md)、[recommendation.md](../plans/recommendation-module.md)、[ai.md](../plans/ai-module.md)、[evaluation.md](../plans/evaluation-module.md)，功能与分工映射见 [feature-map.md](../plans/feature-map.md)。
 >
-> **Tandem「现状」的口径**（2026-10-02 各分支）：
+> **Orbit「现状」的口径**（2026-10-02 各分支）：
 > - main `c97c818`：后端 v0.13.6 + Feature Analytics（`src/tandem_backend/`），只读 Codex，没有 LLM 调用和安装器；
 > - PR #9 `feat/session-data-contract`：`packages/data`，`tandem-session-v1` 契约，6 个 connector（Claude Code、Codex、dsh、Hermes、OpenCode、pi），L0–L3；
 > - PR #11 `feat/codex-connector`：`packages/connectors`，Codex 增量 connector、L0 zstd 归档、watch；
@@ -18,18 +18,18 @@
 
 ### 0.1 定位
 
-**一句话：Tandem 是开发者自己的、在本机运行的跨 Agent 协作教练——用你已有的会话证据指出卡在哪里、该装什么，可撤销地装好，7 天后告诉你有没有用。**
+**一句话：Orbit 是开发者自己的、在本机运行的跨 Agent 协作教练——用你已有的会话证据指出卡在哪里、该装什么，可撤销地装好，7 天后告诉你有没有用。**
 
-- 路演短句：「官方报告告诉你哪里不顺；Tandem 跨 Agent 找到证据、一键改好，再用数据回看有没有用。」
-- English：*Tandem is your local, cross-agent coach: evidence from your own sessions, reversible fixes, and a 7-day check on whether they helped.*
+- 路演短句：「官方报告告诉你哪里不顺；Orbit 跨 Agent 找到证据、一键改好，再用数据回看有没有用。」
+- English：*Orbit is your local, cross-agent coach: evidence from your own sessions, reversible fixes, and a 7-day check on whether they helped.*
 
-**没有竞品覆盖整条链。** 在「跨 Agent × 零配置读本机历史 × 确定性诊断 → 多类别优化项 → 预览 / 撤销安装 → 装后对照」这条链上，各家只占一两段（矩阵见 §3）：Claude Code 官方和 Devin 只看自家；SpecStory Lore 能把跨 Agent 历史炼成 skill 并装好，但不诊断、不追踪；agentsview 能在本机长期归档并分析 60+ 种 Agent，但不安装；Faros 做浪费分类与回放验证，卖给企业。报告、浏览、记录、记忆、skill 生成、市场排行这些单点能力都已免费或开源，**Tandem 的价值只能来自闭环，以及「装了有没有用」的证据。**
+**没有竞品覆盖整条链。** 在「跨 Agent × 零配置读本机历史 × 确定性诊断 → 多类别优化项 → 预览 / 撤销安装 → 装后对照」这条链上，各家只占一两段（矩阵见 §3）：Claude Code 官方和 Devin 只看自家；SpecStory Lore 能把跨 Agent 历史炼成 skill 并装好，但不诊断、不追踪；agentsview 能在本机长期归档并分析 60+ 种 Agent，但不安装；Faros 做浪费分类与回放验证，卖给企业。报告、浏览、记录、记忆、skill 生成、市场排行这些单点能力都已免费或开源，**Orbit 的价值只能来自闭环，以及「装了有没有用」的证据。**
 
 ### 0.2 三个差异化
 
 单看第 1 条，agentsview 已经很接近；护城河在三条连成一条链，尤其是第 3 条积累下来的效果证据。
 
-| # | 差异化 | 竞品做不到的证据 | Tandem 怎么做到 | 现状 |
+| # | 差异化 | 竞品做不到的证据 | Orbit 怎么做到 | 现状 |
 | --- | --- | --- | --- | --- |
 | 1 | **同一个人、跨 Agent 的诊断**：打开即分析本机已有的几个月历史，用同一把尺子比较你在 Claude Code、Codex、dsh、pi 等里的协作，每个结论都能点回原事件 | 官方洞察只看自家 Agent，Claude Code 默认 30 天清理会话与 `/insights` 报告；可观测平台与 Entire 从装 hook 或启用那刻起才采集；agentsview 能跨 Agent 浏览并长期归档，但诊断止于规则文本，不连到安装与效果 | connector + L0 原始归档 + 确定性指标 + 证据回链 | main 只读 Codex，已有 `/v1/evidence/{id}`；PR #9 六个 connector 与 L0–L3；PR #11 Codex 增量归档；跨 Agent 对比为计划 |
 | 2 | **从证据到可撤销改动的全类别闭环**：7 类优化项（规则与 Prompt、Skills、Hooks、插件与 MCP、子代理、模型与思考强度、工作流），预览 diff → 确认 → 按 Agent 渲染写入 → 单条撤销 | `/doctor` 只改 Claude Code 配置，未见统一撤销；Codex Memories 自动生效；Lore 只产 skill，批准后写入，没有一键撤销；skills.sh 只管装卸，没有 diff 预览，也不看用户数据 | 问题驱动的机制决策表 + 模板渲染 + 安装 ledger | main 的推荐只覆盖 4 个 skill（`status=trial`、`effect_status=unmeasured`）；安装器为计划；两个 Demo 都是模拟安装 |
@@ -59,13 +59,13 @@
 | **T3 开源浏览器追平** | agentsview：60+ 种 Agent、本机长期归档、friction 检测、健康分、Quality 卡，2026-09 连发 v0.42–v0.44 | 高 / 中 | 不在「能看会话」上竞争；把它的检测器（MIT）移植为规则 v0 并中文化；差异放在闭环 | 分析的摩擦检测（MVP） | 中：移植检测器并补中文词表、重标阈值，0 token |
 | **T4 记忆产品内置化** | claude-mem 95.2k★；Codex Memories；Hermes 复盘写记忆与 skill | 中 / 中 | 不做记忆；把记忆类插件记为效果追踪的混杂因素；读它们的产物作补充数据源（经授权、只读，待验证） | 效果追踪的混杂记录（MVP）；补充数据源（v1） | 低：记录同期安装清单，0 token |
 | **T5 供应链安全** | 31,132 个 skill 中 26.1% 至少有一处漏洞，带脚本的是纯指令型的 2.12 倍；Snyk 扫描 3,984 个，13.4% 严重、76 个恶意（二手转述，未逐字核实） | 中 / 高 | 只装有来源的条目；装前展示 diff 与权限；静态扫描；一键撤销；不自动运行 skill 自带的脚本 | 安装的风险闸门（MVP） | 中：静态扫描 + diff 预览 + ledger，0 token |
-| **T6 评审第一反应「官方已经有了」** | `/insights` 所有套餐可用、不另收费（消耗用户自己的额度） | 高 / 高 | 开场 30 秒脚本 + 三个只有 Tandem 能演示的时刻（§5.1） | 路演 | 低：脚本与标注清楚的演示数据 |
+| **T6 评审第一反应「官方已经有了」** | `/insights` 所有套餐可用、不另收费（消耗用户自己的额度） | 高 / 高 | 开场 30 秒脚本 + 三个只有 Orbit 能演示的时刻（§5.1） | 路演 | 低：脚本与标注清楚的演示数据 |
 
 ## 1. 竞品分类全景
 
 ### 1.1 七类竞品
 
-| 类别 | 代表产品（2026-10 状态） | 它回答的问题 · 买方 | 与 Tandem 的关系 | 威胁 | Tandem 的处理 |
+| 类别 | 代表产品（2026-10 状态） | 它回答的问题 · 买方 | 与 Orbit 的关系 | 威胁 | Orbit 的处理 |
 | --- | --- | --- | --- | --- | --- |
 | **Agent 自带洞察** | Claude Code `/insights`、`/usage`、`/doctor`、插件推荐与 `plugin eval`；Codex Memories、Computer History、`tool_suggest`、Usage Insights；Devin Session Insights + Coach；Hermes `/insights` + curator；Cursor、GitHub Copilot 团队分析；Gemini CLI `/stats`（未核实） | 「你在我这个 Agent 里用得怎么样」· 个人与管理员，随订阅 | 最直接的对手，也是输入与推荐项 | 高 | 不做单 Agent 报告；做跨 Agent、可撤销、装后对照 |
 | **开发者效能分析** | DX（Atlassian，2026 Gartner DPIP 魔力象限 Leader）、Jellyfish、LinearB、Faros AI（Token Intelligence）、Swarmia、WakaTime、Weave | 「AI 工具值不值得买，团队产出变了没有」· VP Eng、平台与财务 | 买方不同；借结果口径与价格锚 | 低 | 只服务个人，不给经理排名 |
@@ -83,7 +83,7 @@
 
 | 能走到哪一步 | 单 Agent | 跨 Agent |
 | --- | --- | --- |
-| **改配置并验证效果** | 空位（Hermes 的学习闭环带 ledger 与回滚，但只在 Hermes 内部、只管它自建的 skill） | **Tandem 的目标位置** |
+| **改配置并验证效果** | 空位（Hermes 的学习闭环带 ledger 与回滚，但只在 Hermes 内部、只管它自建的 skill） | **Orbit 的目标位置** |
 | **会改或会装，但不验证** | Claude Code `/doctor`、插件推荐；Codex Memories、`tool_suggest`；Devin Coach | SpecStory Lore（只产 skill）；skills.sh、cc-switch（只装卸或切换） |
 | **只看、只统计** | `/insights`、`/usage`、Devin Session Insights、Cursor 与 Copilot 团队分析 | agentsview、ccusage / tokscale、Entire、Langfuse / LangSmith |
 
@@ -105,9 +105,9 @@
 | 可执行建议 / 一键安装 | 建议文本与可复制提示；`/doctor` 先报告，经确认才改；插件提示给出 `/plugin install` 命令，从不自动安装，同一插件最多每 3 个会话提示一次；未见统一撤销 |
 | 隐私 | 本机读取；`/insights` 的分析走用户自己的模型账号，内容发往模型供应商；报告与会话按 `cleanupPeriodDays`（默认 30 天）删除，桌面版与 Cowork 自 2.1.248 起例外 |
 | 价格 | 随订阅，所有套餐可用；`/insights` 消耗用户自己的额度 |
-| 优点 | 零安装，官方字段最全，随版本快速演进；`/doctor` 已覆盖 Tandem「规则精简」「权限」两类推荐的一部分 |
-| 缺点（相对 Tandem） | 只看 Claude Code；一次性快照，没有固定口径的趋势与装后对照；`/insights` 的开放标签会漂移（`yhyfhgs` 本机 49 个 facet 文件里，`goal_categories` 出现 181 种键，见 [research.md](landscape.md) §1 第 4 条）；插件推荐只看当前会话，且只对管理员加入 `pluginSuggestionMarketplaces` 的市场生效 |
-| 对 Tandem | **威胁最高。** 借：session-meta 的 31 个字段作派生指标的对照答案；relevance 信号词表（工作目录、命令名、host、读过的文件、依赖清单）作资源库匹配字段；提示频控；`plugin eval` 的有 / 无对照。避：不做单 Agent 叙述报告，不重做 `/doctor` |
+| 优点 | 零安装，官方字段最全，随版本快速演进；`/doctor` 已覆盖 Orbit「规则精简」「权限」两类推荐的一部分 |
+| 缺点（相对 Orbit） | 只看 Claude Code；一次性快照，没有固定口径的趋势与装后对照；`/insights` 的开放标签会漂移（`yhyfhgs` 本机 49 个 facet 文件里，`goal_categories` 出现 181 种键，见 [research.md](landscape.md) §1 第 4 条）；插件推荐只看当前会话，且只对管理员加入 `pluginSuggestionMarketplaces` 的市场生效 |
+| 对 Orbit | **威胁最高。** 借：session-meta 的 31 个字段作派生指标的对照答案；relevance 信号词表（工作目录、命令名、host、读过的文件、依赖清单）作资源库匹配字段；提示频控；`plugin eval` 的有 / 无对照。避：不做单 Agent 叙述报告，不重做 `/doctor` |
 | 来源 | [costs：`/usage` 与 Analyze your usage patterns](https://code.claude.com/docs/en/costs)、[commands](https://code.claude.com/docs/en/commands)、[plugins/relevance](https://code.claude.com/docs/en/plugins/relevance)、[plugin-evals](https://code.claude.com/docs/en/plugin-evals)、[analytics](https://code.claude.com/docs/en/analytics)、[claude-directory（清理规则）](https://code.claude.com/docs/en/claude-directory) |
 
 ### 2.2 Codex 官方能力
@@ -123,8 +123,8 @@
 | 隐私 | 记忆存本机；管理员数据在 OpenAI |
 | 价格 | 随 ChatGPT 套餐；Computer History 限 Pro / Business / Enterprise |
 | 优点 | 「从历史沉淀 skill」「任务中途推荐插件」都已内置 |
-| 缺点（相对 Tandem） | 没有个人分析报告与摩擦诊断；只看 Codex；没有装后效果 |
-| 对 Tandem | **威胁高**（skill 生成与插件推荐）。借 Memories 的节流：闲置 ≥ 6 小时才处理、每次启动最多 2 个、剩余额度 < 25% 跳过、租约防重复、密钥脱敏；rollout 每次响应都带 `rate_limits`，可离线重建额度曲线。避：不再造「会话 → 记忆 → 自动 skill」 |
+| 缺点（相对 Orbit） | 没有个人分析报告与摩擦诊断；只看 Codex；没有装后效果 |
+| 对 Orbit | **威胁高**（skill 生成与插件推荐）。借 Memories 的节流：闲置 ≥ 6 小时才处理、每次启动最多 2 个、剩余额度 < 25% 跳过、租约防重复、密钥脱敏；rollout 每次响应都带 `rate_limits`，可离线重建额度曲线。避：不再造「会话 → 记忆 → 自动 skill」 |
 | 来源 | [Memories](https://learn.chatgpt.com/docs/customization/memories.md)、[合并模板的 skills 段（源码）](https://github.com/openai/codex/blob/b707714ae4200db0a0385da24b3981d99139fa62/codex-rs/memories/write/templates/memories/consolidation.md#L687-L724)、[默认阈值（源码）](https://github.com/openai/codex/blob/b707714ae4200db0a0385da24b3981d99139fa62/codex-rs/config/src/types.rs#L55-L60)、[Computer History](https://learn.chatgpt.com/docs/customization/computer-history.md)、[Record & Replay](https://learn.chatgpt.com/docs/extend/record-and-replay.md)、[`tool_suggest`（源码）](https://github.com/openai/codex/blob/b707714ae4200db0a0385da24b3981d99139fa62/codex-rs/tools/src/request_plugin_install.rs#L16)、[Import](https://learn.chatgpt.com/docs/import.md)、[Usage Insights](https://learn.chatgpt.com/docs/enterprise/usage-insights)、[Codex Pricing](https://developers.openai.com/codex/pricing) |
 
 ### 2.3 Devin：Session Insights 与 Devin Coach
@@ -140,8 +140,8 @@
 | 隐私 | 云端 |
 | 价格 | Session Insights 免费；Devin 按 ACU / 套餐计费 |
 | 优点 | 「复盘 → 改进 prompt → 沉淀 playbook」最完整；发送前提醒的时机好 |
-| 缺点（相对 Tandem） | 只覆盖 Devin 自己的会话；云端 |
-| 对 Tandem | **威胁高**（叙事最接近）。借：问题时间线 + 影响分级（会话页的关键时刻）；「Knowledge 有用 / 过时」对应 Tandem 的减法推荐；发送前提醒可做成 `UserPromptSubmit` hook 类推荐（v1） |
+| 缺点（相对 Orbit） | 只覆盖 Devin 自己的会话；云端 |
+| 对 Orbit | **威胁高**（叙事最接近）。借：问题时间线 + 影响分级（会话页的关键时刻）；「Knowledge 有用 / 过时」对应 Orbit 的减法推荐；发送前提醒可做成 `UserPromptSubmit` hook 类推荐（v1） |
 | 来源 | [Session Insights](https://docs.devin.ai/product-guides/session-insights)、[Devin Coach](https://docs.devin.ai/enterprise/features/devin-coach.md)、[Windsurf is now Devin Desktop](https://devin.ai/blog/windsurf-is-now-devin-desktop) |
 
 ### 2.4 Cursor 与 GitHub Copilot 的团队分析
@@ -157,8 +157,8 @@
 | 隐私 | Cursor 的分类全部在设备端运行，输出不在预期值内就丢弃；Copilot 是聚合遥测 |
 | 价格 | 随 Cursor Teams / Enterprise（Conversation Insights 自 2026-01-01 起按推理计费，Enterprise 默认可用）；随 Copilot Business / Enterprise |
 | 优点 | 「设备端分类 + 只传聚合」是隐私样板；「提示具体度」「采用阶段」可直接借作画像维度与成熟度阶梯 |
-| 缺点（相对 Tandem） | 管理视角，不回答「我该怎么改」 |
-| 对 Tandem | 威胁低；借维度与隐私做法。Cursor Year in Code 的「使用量百分位」是最强的晒图动机，但需要跨用户数据，Tandem 不做 |
+| 缺点（相对 Orbit） | 管理视角，不回答「我该怎么改」 |
+| 对 Orbit | 威胁低；借维度与隐私做法。Cursor Year in Code 的「使用量百分位」是最强的晒图动机，但需要跨用户数据，Orbit 不做 |
 | 来源 | [Cursor Usage Analytics](https://cursor.com/docs/account/teams/analytics)、[Year in Code 2025（论坛）](https://forum.cursor.com/t/view-your-year-2025-in-cursor/146960)、[Copilot metrics GA](https://github.blog/changelog/2026-02-27-copilot-metrics-is-now-generally-available)、[采用阶段](https://github.blog/changelog/2026-05-29-copilot-usage-metrics-api-adds-cohorts-for-ai-adoption/)、[影响看板](https://github.blog/changelog/2026-07-22-new-copilot-usage-metrics-impact-dashboard/) |
 
 ### 2.5 SpecStory 与 Lore
@@ -173,9 +173,9 @@
 | 可执行建议 / 一键安装 | **生成 skill 并装进每个 Agent**：写到 `~/.agents/skills/<name>`，再软链到各 Agent 目录；先出锻造计划，自带的 `PreToolUse` hook 拒绝任何没有内嵌完整证据的计划；registry 记住已锻造和已拒绝的候选 |
 | 隐私 | 本地优先，Cloud 可选；交给模型前机械脱敏凭据 |
 | 价格 | 扩展与 CLI 免费；Lore 开源（Apache-2.0），模型调用用用户自己的额度；Cloud 的 analytics 与 skills 属付费功能（价格未核实） |
-| 优点 | 与 Tandem「推荐 + 生成 + 安装」重叠最多；「证据 + 反驳 + 看过证据才能批准」值得照搬 |
-| 缺点（相对 Tandem） | 只产 skill，不涉及规则精简、hooks、权限、MCP、模型与思考强度、工作流；没有可视化与装后对照；要先用 SpecStory 采集 |
-| 对 Tandem | **威胁第二高**，对策见 §0.4 T2。照搬四个工程决定：beat 作分析单位；下一句用户回复当结果标签；确定性计数 + 对抗验证；安装计划内嵌证据才可批准 |
+| 优点 | 与 Orbit「推荐 + 生成 + 安装」重叠最多；「证据 + 反驳 + 看过证据才能批准」值得照搬 |
+| 缺点（相对 Orbit） | 只产 skill，不涉及规则精简、hooks、权限、MCP、模型与思考强度、工作流；没有可视化与装后对照；要先用 SpecStory 采集 |
+| 对 Orbit | **威胁第二高**，对策见 §0.4 T2。照搬四个工程决定：beat 作分析单位；下一句用户回复当结果标签；确定性计数 + 对抗验证；安装计划内嵌证据才可批准 |
 | 来源 | [SpecStory README](https://github.com/specstoryai/getspecstory)（1.3k★）、[Lore README](https://github.com/specstoryai/getspecstory/tree/main/lore)、[Lore CHANGELOG（v3.9.0，2026-06-11）](https://github.com/specstoryai/getspecstory/blob/main/lore/CHANGELOG.md)、[Cloud 概览](https://docs.specstory.com/cloud/overview) |
 
 ### 2.6 Entire
@@ -191,8 +191,8 @@
 | 隐私 | transcript 进仓库自己的 git 对象，推送后在远端；写入前脱敏 secrets，可选 PII 脱敏 |
 | 价格 | CLI 开源（MIT，5.1k★）；托管平台定价未公开（未核实）；2026-02-12 发布，种子轮 6000 万美元 |
 | 优点 | 会话与提交一一对应，天然带「结果」 |
-| 缺点（相对 Tandem） | 从启用那刻起才采集；偏审计与团队协作，不分析个人行为 |
-| 对 Tandem | 威胁低。借摘要字段；用户已装 Entire 时，只读 `Entire-Checkpoint` trailer，把会话连到提交与结果 |
+| 缺点（相对 Orbit） | 从启用那刻起才采集；偏审计与团队协作，不分析个人行为 |
+| 对 Orbit | 威胁低。借摘要字段；用户已装 Entire 时，只读 `Entire-Checkpoint` trailer，把会话连到提交与结果 |
 | 来源 | [Entire CLI README](https://github.com/entireio/cli)、[官网](https://entire.io/)、[发布报道（RCPmag，2026-02-12）](https://rcpmag.com/articles/2026/02/12/ex-github-ceo-thomas-dohmke-unveils-entire.aspx) |
 
 ### 2.7 claude-mem
@@ -208,8 +208,8 @@
 | 隐私 | 本地 SQLite + 本地向量检索；`<private>` 标签可排除内容；可选 CMEM Cloud |
 | 价格 | 开源（Apache-2.0，95.2k★）；CMEM Cloud $20 / 月，Team $333 / 席 / 月 |
 | 优点 | 星数说明「让 Agent 记住我」是强需求 |
-| 缺点（相对 Tandem） | 不分析、不推荐；注入的记忆本身占上下文 |
-| 对 Tandem | 不竞争。装了记忆插件会改变会话形态，效果追踪要把它记为混杂因素；其 observation 可作补充数据源（经用户授权、只读，待验证） |
+| 缺点（相对 Orbit） | 不分析、不推荐；注入的记忆本身占上下文 |
+| 对 Orbit | 不竞争。装了记忆插件会改变会话形态，效果追踪要把它记为混杂因素；其 observation 可作补充数据源（经用户授权、只读，待验证） |
 | 来源 | [README](https://github.com/thedotmack/claude-mem)、[CMEM](https://cmem.ai/) |
 
 ### 2.8 agentsview
@@ -225,8 +225,8 @@
 | 隐私 | 本机；服务只绑定 loopback 并校验 Host 头 |
 | 价格 | 免费开源（MIT，6.0k★） |
 | 优点 | 最接近的开源参照，迭代快（2026-09 连发 v0.42、v0.43、v0.44） |
-| 缺点（相对 Tandem） | 不安装、不做装后对照；检测器以英文正则为主，长度按字节计，中文会失真 |
-| 对 Tandem | **威胁中。** 不在「能看会话」上竞争；把检测器移植为规则 v0 并中文化（MIT，保留声明） |
+| 缺点（相对 Orbit） | 不安装、不做装后对照；检测器以英文正则为主，长度按字节计，中文会失真 |
+| 对 Orbit | **威胁中。** 不在「能看会话」上竞争；把检测器移植为规则 v0 并中文化（MIT，保留声明） |
 | 来源 | [README](https://github.com/kenn-io/agentsview)、[Releases](https://github.com/kenn-io/agentsview/releases)、[归档与重建说明](https://agentsview.io/docs/configuration/)、[friction 源码](https://github.com/kenn-io/agentsview/tree/d37642206051dababc436635024676c17dddac45/internal/friction) |
 
 ### 2.9 skills.sh 与 claude-code-templates
@@ -242,8 +242,8 @@
 | 隐私 | 遥测默认开启，可用 `DISABLE_TELEMETRY` / `DO_NOT_TRACK` 关闭 |
 | 价格 | 免费 |
 | 优点 | 跨 Agent 装卸 skill 的现成通道 + 审计数据 |
-| 缺点（相对 Tandem） | 「流行」不等于「对你有用」；没有效果追踪 |
-| 对 Tandem | 通道与先验，不是对手：安装量与审计结果作推荐的先验与门槛；可直接调用 `npx skills add / remove`，或复用同样的「规范副本 + 软链」，撤销就是删软链 |
+| 缺点（相对 Orbit） | 「流行」不等于「对你有用」；没有效果追踪 |
+| 对 Orbit | 通道与先验，不是对手：安装量与审计结果作推荐的先验与门槛；可直接调用 `npx skills add / remove`，或复用同样的「规范副本 + 软链」，撤销就是删软链 |
 | 来源 | [Vercel 发布 skills](https://vercel.com/changelog/introducing-skills-the-open-agent-skills-ecosystem)、[skills.sh](https://skills.sh/)、[安全审计（2026-02-17）](https://vercel.com/changelog/automated-security-audits-now-available-for-skills-sh)、[vercel-labs/skills](https://github.com/vercel-labs/skills)（33.0k★）、[claude-code-templates](https://github.com/davila7/claude-code-templates)（32.3k★） |
 
 ### 2.10 cc-switch
@@ -259,8 +259,8 @@
 | 隐私 | 本机；其 OAuth 认证中心自述可能违反服务条款（见 [research.md](landscape.md) §4.2） |
 | 价格 | 开源（MIT，139k★） |
 | 优点 | 「一次写入多个 Agent」的直接相邻产品，用户基数大 |
-| 缺点（相对 Tandem） | 管配置与连接，不回答「为什么改、改什么、改了有没有用」 |
-| 对 Tandem | 路演要讲清区别。借存储设计（增量水位 + 尾部指纹、`request_model` 与 `pricing_model` 双列）；不碰凭据与代理 |
+| 缺点（相对 Orbit） | 管配置与连接，不回答「为什么改、改什么、改了有没有用」 |
+| 对 Orbit | 路演要讲清区别。借存储设计（增量水位 + 尾部指纹、`request_model` 与 `pricing_model` 双列）；不碰凭据与代理 |
 | 来源 | [README](https://github.com/farion1231/cc-switch) |
 
 ### 2.11 效能平台：Faros AI、DX、WakaTime
@@ -275,11 +275,11 @@
 | 隐私 | 称不需在开发者机器上装软件，数据留在客户边界 | 企业 SaaS | 心跳发往 WakaTime 云 |
 | 价格 | 按用量，未公开 | 询价 | Free、Basic $9、**Premium $14（含 AI 洞察）**、Team $21、Business $24 / 开发者 / 月 |
 | 优点 | 把浪费分类做到会话级，并用回放验证修正 | 方法论与问卷体系最成熟，有 Atlassian 渠道 | 面向个人且有 AI 维度的付费产品 |
-| 缺点（相对 Tandem） | 企业级、重集成，个人与小团队用不上 | 看不到会话里发生了什么 | 只有计时与行数，没有会话语义、摩擦与建议 |
-| 对 Tandem | 「浪费分类 + 回放验证」是 Advanced 的企业级镜像，个人版做轻量回放 | 买方不同，借结果口径 | 个人愿意为「了解自己」付费的价格锚 |
+| 缺点（相对 Orbit） | 企业级、重集成，个人与小团队用不上 | 看不到会话里发生了什么 | 只有计时与行数，没有会话语义、摩擦与建议 |
+| 对 Orbit | 「浪费分类 + 回放验证」是 Advanced 的企业级镜像，个人版做轻量回放 | 买方不同，借结果口径 | 个人愿意为「了解自己」付费的价格锚 |
 | 来源 | [官网](https://www.faros.ai/)、[Token Intelligence](https://www.faros.ai/blog/token-intelligence-for-ai-engineering) | [官网](https://getdx.com/)、[AI Measurement Framework](https://getdx.com/ai-measurement-framework/)、[魔力象限公告](https://getdx.com/report/dx-named-a-leader-gartner-magic-quadrant-developer-productivity/)（12 家入围名单只见于第三方，未核实） | [定价](https://wakatime.com/pricing)、[Claude Code 插件](https://wakatime.com/claude-code-time-tracking) |
 
-同类团队平台的公开价：LinearB $29–59、Swarmia $45–55 / 开发者 / 月（Swarmia 不足 10 人免费），均卖给管理层。对 Tandem 的共同启示：它们都把 AI 用量连到 PR 吞吐、cycle time、返工；Tandem 只有会话日志，「结果」信号要从本机取：会话所在仓库的提交、提交是否被回滚、测试命令的退出码。
+同类团队平台的公开价：LinearB $29–59、Swarmia $45–55 / 开发者 / 月（Swarmia 不足 10 人免费），均卖给管理层。对 Orbit 的共同启示：它们都把 AI 用量连到 PR 吞吐、cycle time、返工；Orbit 只有会话日志，「结果」信号要从本机取：会话所在仓库的提交、提交是否被回滚、测试命令的退出码。
 
 ### 2.12 可观测平台：Langfuse、LangSmith、Raindrop
 
@@ -292,9 +292,9 @@
 | 可执行建议 / 一键安装 | 无个人建议 | 给出问题类别，不改配置 | 发现问题 → 实验验证 |
 | 隐私 | 核心 MIT，可完全自部署 | Cloud；自托管只在 Enterprise | Cloud |
 | 价格 | Hobby 免费、Core $29、Pro $199、Enterprise $2,499 / 月 | Developer 免费、Plus $39 / 席 / 月；Insights 每千条线程约 $1–4 | Starter $65、Pro $350 / 月起（第三方汇总，未核实） |
-| 优点 | 开源、可自托管，生态最大（35.3k★） | 「逐条摘要 → 聚类」的分层归类方法现成 | 「隐性信号 + 改后对照」与 Tandem 的摩擦与 7 天追踪最像 |
-| 缺点（相对 Tandem） | 要先装 hook，接入前的历史拿不到；面向应用开发而非个人习惯 | 闭源 SaaS，同样要先埋点 | 面向 AI 产品的终端用户，不是开发者本人 |
-| 对 Tandem | 兼容不竞争：它们从装 hook 起才采集；v1 提供 OTel 导出 | 借「逐条摘要 → 聚类」做 AI 辅助分析 | 借「沮丧 / 卡在循环」信号与改后对照 |
+| 优点 | 开源、可自托管，生态最大（35.3k★） | 「逐条摘要 → 聚类」的分层归类方法现成 | 「隐性信号 + 改后对照」与 Orbit 的摩擦与 7 天追踪最像 |
+| 缺点（相对 Orbit） | 要先装 hook，接入前的历史拿不到；面向应用开发而非个人习惯 | 闭源 SaaS，同样要先埋点 | 面向 AI 产品的终端用户，不是开发者本人 |
+| 对 Orbit | 兼容不竞争：它们从装 hook 起才采集；v1 提供 OTel 导出 | 借「逐条摘要 → 聚类」做 AI 辅助分析 | 借「沮丧 / 卡在循环」信号与改后对照 |
 | 来源 | [ClickHouse 收购（2026-01-16）](https://clickhouse.com/blog/clickhouse-acquires-langfuse-open-source-llm-observability)、[定价](https://langfuse.com/pricing)、[Claude Code 集成](https://langfuse.com/integrations/developer-tools/claude-code) | [定价](https://www.langchain.com/pricing)、[Insights](https://docs.langchain.com/langsmith/insights) | [官网](https://raindrop.ai/) |
 
 ### 2.13 人格化报告：Spotify、Raycast、ChatGPT、Cursor
@@ -309,9 +309,9 @@
 | 隐私 | — | 大部分数据只存本机；使用不足 14 天不显示；每节可「Copy as Image」 | 需开启记忆与聊天记录引用，并达到最低活跃度 | 账号侧数据 |
 | 效果 | 2024 年用泛化的 AI 内容替换数据，CARMA 测得正面情绪 50.5% → 41.5%；2025 年回归数据与互动，24 小时 2 亿用户、首日 5 亿次分享 | — | 评价不一 | 论坛自发晒图 |
 | 可执行建议 | 无 | 无 | 无 | 无 |
-| 优点 | 身份标签 + 社会比较，传播力最强 | 隐私形态与 Tandem 相同 | 证明 AI 助手的使用回顾能做 | 百分位是最强的晒图动机 |
-| 缺点（相对 Tandem） | 一年一次，只有计数与标签 | 只有计数 | 被批尴尬，AI 文案风险 | 只有量化数字，没有行为洞察 |
-| 对 Tandem | 维度可解释、数字上卡，AI 文案不替代数据 | 同平台、同隐私形态，最值得照搬 | 「先开启才生成」的门槛 | 百分位需要跨用户数据，Tandem 不做 |
+| 优点 | 身份标签 + 社会比较，传播力最强 | 隐私形态与 Orbit 相同 | 证明 AI 助手的使用回顾能做 | 百分位是最强的晒图动机 |
+| 缺点（相对 Orbit） | 一年一次，只有计数与标签 | 只有计数 | 被批尴尬，AI 文案风险 | 只有量化数字，没有行为洞察 |
+| 对 Orbit | 维度可解释、数字上卡，AI 文案不替代数据 | 同平台、同隐私形态，最值得照搬 | 「先开启才生成」的门槛 | 百分位需要跨用户数据，Orbit 不做 |
 | 来源 | [2022（Engadget）](https://www.engadget.com/spotify-wrapped-2022-130037719.html)、[2022 维度（SAYS）](https://says.com/my/entertainment/spotify-wrapped-2022-16-personalities)、[2024（Marketing-Interactive 引 CARMA）](https://www.marketing-interactive.com/Spotify-brand-sentiments-dip-after-Wrapped-2024's-use-of-AI)、[2025（Spotify Newsroom）](https://newsroom.spotify.com/2025-12-03/2025-wrapped-user-experience/)、[2025 首日数据（TechCrunch）](https://techcrunch.com/2025/12/04/spotify-says-wrapped-2025-is-its-biggest-yet-with-200m-users-in-its-first-day) | [changelog](https://www.raycast.com/changelog/macos-v1/1-104-0) | [Storyboard18](https://storyboard18.com/digital/chatgpt-rolls-out-year-end-review-feature-inspired-by-spotify-wrapped-86382.htm)、[TechRadar](https://www.techradar.com/ai-platforms-assistants/chatgpt/chatgpts-attempt-at-spotify-wrapped-is-more-embarrassing-than-any-song-list)（只据标题） | [论坛帖](https://forum.cursor.com/t/view-your-year-2025-in-cursor/146960) |
 
 开发者圈另有：社区的 Claude Code Wrapped 按时段与计数贴称号（夜猫子、连续打卡者等）；tokscale 有公开 token 排行榜，比的是「烧了多少」；16Personalities 免费给完整类型、付费卖深度报告。**MBTI 是 Myers & Briggs Foundation 的注册商标**（[商标说明](https://themyersbriggs.com/en-US/Support/Trademarks)），产品文案应使用自有名称。
@@ -320,9 +320,9 @@
 
 ### 3.1 矩阵
 
-图例：● 有且较完整｜◐ 部分或有限制｜○ 没有｜— 不适用。Tandem 的「Advanced / Lite」两列是目标能力；「现状」列：`main` 已合入，`PR #9` / `PR #11` 在未合入的 PR 中，`Demo-A` / `Demo-L` 只在 Advanced / Lite Demo 中用示例数据演示，「计划」只有设计。
+图例：● 有且较完整｜◐ 部分或有限制｜○ 没有｜— 不适用。Orbit 的「Advanced / Lite」两列是目标能力；「现状」列：`main` 已合入，`PR #9` / `PR #11` 在未合入的 PR 中，`Demo-A` / `Demo-L` 只在 Advanced / Lite Demo 中用示例数据演示，「计划」只有设计。
 
-| 能力 | Advanced | Lite | Tandem 现状 | Claude Code | Codex | Devin | SpecStory + Lore | agentsview | Entire | 效能平台 | 可观测 | 市场 |
+| 能力 | Advanced | Lite | Orbit 现状 | Claude Code | Codex | Devin | SpecStory + Lore | agentsview | Entire | 效能平台 | 可观测 | 市场 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 覆盖 Agent | 9+ | 同 Advanced | main：Codex；PR #9：6 个；PR #11：Codex | 1 | 1 | 1 | 采集 12 / 分析 7 | 66 项 | 约 10 | 多（管理 API） | 多（逐个装 hook） | 安装 79 |
 | 零配置读接入前的历史 | ● | ● | main ◐ 手动导入；PR #11 发现 + 增量 | ◐ 默认留 30 天 | ○ | ● 云端 | ◐ 需 `sync` | ● | ○ 从启用起 | ◐ | ○ 从装 hook 起 | — |
@@ -345,7 +345,7 @@
 | 可分享报告 | ● | ● | Demo-A、Demo-L；main 生成 Markdown 报告 | ◐ | ○ | ○ | ◐ | ○ | ○ | ○ | ○ | — |
 | 价格 | 未定 | 未定 | — | 随订阅 | 随套餐 | Insights 免费 | 开源 + Cloud 付费 | 开源 | CLI 开源 | $29–59 / 人 / 月或询价 | 免费至 $2,499 / 月 | 免费 |
 
-**读法**：每一行都有人做得不错，但「零配置读历史 → 诊断 → 生成 → 预览 / 撤销 → 多 Agent 写入 → 装后对照」这一段上，没有任何一列连续是 ●。Tandem 要占的是这条链，而不是其中任何一格。
+**读法**：每一行都有人做得不错，但「零配置读历史 → 诊断 → 生成 → 预览 / 撤销 → 多 Agent 写入 → 装后对照」这一段上，没有任何一列连续是 ●。Orbit 要占的是这条链，而不是其中任何一格。
 
 **现状脚注**（2026-10-02）：
 - main 的分析：`feedback.py`（rules-v13）识别 8 个要求维度，`portrait.py` 汇成画像；`bottlenecks.py` 输出 4 类瓶颈（说明修改、回复过长、术语未解释、工具重复失败）与 3 类材料缺口；Feature Analytics（`/v1/analytics/*`）给出工具、流程、节律特征与本地文本聚类。真实 Codex 快照上的测量与「状态未知」的处理见 [docs/backend/feature-analytics.md](../modules/analytics/feature-analytics.md)。
@@ -355,9 +355,9 @@
 
 ### 3.2 推荐排序信号对照
 
-市场回答「什么流行」，Tandem 回答「什么能解决你的问题」。
+市场回答「什么流行」，Orbit 回答「什么能解决你的问题」。
 
-| 信号 | 谁在用 | 缺陷 | Tandem 的用法 |
+| 信号 | 谁在用 | 缺陷 | Orbit 的用法 |
 | --- | --- | --- | --- |
 | 安装量 / 使用次数 | skills.sh、Smithery、claude-code-templates | 马太效应、可刷，与「对我有没有用」无关 | 只作先验与冷启动，不作主排序 |
 | GitHub stars | Glama、Gemini CLI 扩展库、SkillsMP | 与质量弱相关，老项目占优 | 只作门槛 |
@@ -385,9 +385,9 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 
 ### 5.1 主打展示什么
 
-**一条主线：证据 → 改动 → 验证。** 每一段都要有「只有 Tandem 能做」的画面。
+**一条主线：证据 → 改动 → 验证。** 每一段都要有「只有 Orbit 能做」的画面。
 
-| 时刻 | 画面 | 为什么只有 Tandem 能做 | 数据来源与标注 |
+| 时刻 | 画面 | 为什么只有 Orbit 能做 | 数据来源与标注 |
 | --- | --- | --- | --- |
 | 1. 跨 Agent 的同一个人 | 同一类任务在 Claude Code 与 Codex 里的纠偏率、重复失败、每个完成任务的 token，带样本数与区间 | 官方各看各的；agentsview 只能分别浏览 | 真实数据需要 PR #9 的 Claude Code 与 Codex connector；合入前用示例数据并标「示例」 |
 | 2. 一条建议的全过程 | 摩擦证据（次数、原话、会话链接）→ 为什么是 hook 而不是规则（机制决策表）→ 预览将写入的文件与 diff → 确认 → 一键撤销 | `/doctor` 只改 Claude Code；Lore 只产 skill，没有一键撤销；市场没有 diff | 安装器未实现，演示标「模拟安装」 |
@@ -397,7 +397,7 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 
 **开场 30 秒**（给 `genius-FXC` 的路演脚本草稿）：
 1. 「你同时在用 Claude Code 和 Codex。Claude 的 `/insights` 会告诉你 Claude 里哪里卡；同样的问题出在 Codex 里，没人告诉你。」
-2. 「Tandem 读你本机已有的全部会话，不用装 hook，打开就有过去几个月；用同一把尺子找出反复出现的卡点，每个结论都能点回原话。」
+2. 「Orbit 读你本机已有的全部会话，不用装 hook，打开就有过去几个月；用同一把尺子找出反复出现的卡点，每个结论都能点回原话。」
 3. 「然后它把修复装进每个 Agent：先给你看 diff，可以一键撤销；7 天后告诉你那个卡点还出不出现。」
 
 **不要说**：
@@ -409,9 +409,9 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 
 ### 5.2 避免与官方正面竞争
 
-一句话回应：**官方是 Tandem 的输入和推荐项，不是对手。** 我们把 `/insights` 已提示过的问题去重，把 `/doctor`、auto mode 这类官方功能推荐给真正需要的人。
+一句话回应：**官方是 Orbit 的输入和推荐项，不是对手。** 我们把 `/insights` 已提示过的问题去重，把 `/doctor`、auto mode 这类官方功能推荐给真正需要的人。
 
-| 官方或开源已经做好的 | Tandem 不做 | Tandem 改做 |
+| 官方或开源已经做好的 | Orbit 不做 | Orbit 改做 |
 | --- | --- | --- |
 | 单 Agent 叙述报告（`/insights`、Devin Session Insights） | 不做「又一个 Insights」，也不用这个名字 | 跨 Agent 对比 + 证据回链；Lite 叫「个人协作 Benchmark」，只和过去的自己比 |
 | 配置体检与瘦身（`/doctor`、`/skill-doctor`、`/fewer-permission-prompts`） | 不重做 | 列为一等零安装推荐项，用跨会话证据说明「为什么现在该跑」；推荐前用 `claude --version` 探测是否支持 |
@@ -445,12 +445,12 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 | 工具与项目 | 工具排行、成功率、失败原因；项目卡与配置覆盖 | 转移矩阵与流程挖掘、审批负担、MCP 与子代理、已装未用、跨项目对比 | MVP | 补上 `/usage` 没有的「已装未用」 |
 | 情绪与语义 | 高频反馈语与纠偏类型（词表，确定性） | AI facet、主题聚类命名、情绪（实验性） | MVP；Advanced 的 AI 部分可关 | LangSmith Insights、Cursor Conversation Insights 的做法 |
 | 用量与额度 | 一张卡 | 一页：燃尽曲线、缓存效率、额度中断 | v1 | 不做额度监控器（CodexBar 已有） |
-| 推荐 | 每周 Top 3，只含低风险类：官方功能开关、规则片段、已审计的现成 skill | 7 类全量、排序分解、减法推荐、模型与思考档位 | MVP；模型档位 v1 | 市场按流行度，Tandem 按个人问题 |
+| 推荐 | 每周 Top 3，只含低风险类：官方功能开关、规则片段、已审计的现成 skill | 7 类全量、排序分解、减法推荐、模型与思考档位 | MVP；模型档位 v1 | 市场按流行度，Orbit 按个人问题 |
 | 生成 | 不生成，只给可编辑模板 | 生成工坊：规则、权限白名单、Hook，之后是 SKILL.md、子代理；四道自检 | MVP（规则、白名单、Hook）；v1（skill、子代理） | 生成不是卖点（Lore、Codex Memories 已有），自检与评测才是 |
 | 安装 | 预览 → 确认 → 撤销，单 Agent、低风险 | 跨 Agent 渲染、批量、ledger、风险闸门、Codex hook 的信任引导 | MVP | Lore 没有一键撤销，市场没有 diff |
 | 效果 | 一句话：是否被触发 + 目标事件前后次数 + 样本数 | 三层效果 + 区间 + 混杂说明；可选的装前有 / 无对照 | MVP；装前对照 v1 | 没有竞品对个人做装后对照 |
 | Benchmark 的含义 | 只和过去的自己比：上月的我、各 Agent 里的我 | 加模型 × 档位的公开基准先验，与个人结果收缩合并 | MVP；模型档位 v1 | 不编跨用户百分位（没有数据通路） |
-| AI | 默认关，0 token | 可选开启，走本机 Agent：发送前预览、设预算、只处理新会话、5–10 个会话打包一次调用（固定开销实测见 [research.md](landscape.md) §2.4） | MVP（可关） | `/insights` 逐会话调用模型、单次上限 200 个会话；Tandem 打包调用，目标是同样会话数下更少 token（待验证） |
+| AI | 默认关，0 token | 可选开启，走本机 Agent：发送前预览、设预算、只处理新会话、5–10 个会话打包一次调用（固定开销实测见 [research.md](landscape.md) §2.4） | MVP（可关） | `/insights` 逐会话调用模型、单次上限 200 个会话；Orbit 打包调用，目标是同样会话数下更少 token（待验证） |
 | 分享与导出 | 分享卡（汇总 + 画像）、Markdown / CSV | 加装后前后对照卡、周报 | MVP | Raycast 的「Copy as Image」；前后对照卡是独有的分享理由 |
 | 常驻形态 | 无 | 菜单栏、悬浮组件、小组件、通知 | MVP（运行中 / 空闲）；之后加审批、压缩前提醒 | agent-sessions、CodexBar 的同平台形态 |
 | 资源库 | 「为你推荐」（问题驱动）+ 外部信号（官方、verified、审计、安装量，注明来源与日期） | 全量检索、许可与风险、TDQS、来源管理 | MVP | 「同人格正在用」没有数据通路 |
@@ -459,7 +459,7 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 
 | # | Lite Demo 现在 | 建议 | 依据 |
 | --- | --- | --- | --- |
-| 1 | 资源库有「同人格正在用」「社区使用次数」与按「同人格使用比例」排序 | 删除「同人格」；「社区使用」改为标明来源与日期的外部信号（如 skills.sh 安装量） | [docs/design/README.md](../design/README.md)「v1 之后的决定」已删除跨用户对比 |
+| 1 | 资源库有「同人格正在用」「社区使用次数」与按「同人格使用比例」排序 | 删除「同人格」；「社区使用」改为标明来源与日期的外部信号（如 skills.sh 安装量） | [docs/design/boards.md](../design/boards.md)「v1 之后的决定」已删除跨用户对比 |
 | 2 | 建议卡写「预计效果 约 30% / 约 45% / 约 20%」 | 改为可数的受影响事件（如「近 30 天 14 次纠偏」，示例）+「效果未测」 | [research.md](landscape.md) §1 第 7、11 条 |
 | 3 | 叫「协作 MBTI」 | 产品文案改用自有名称；路演可以口头类比；保留「非心理测评」「实验性」 | MBTI 是注册商标（§2.13） |
 | 4 | 少于 30 个会话或维度落在 45–55 时不定型 | 30 个会话保留为最低样本；字母改按区间判定（按天 bootstrap 的 95% 区间整体在 50% 一侧才给字母，否则「?」） | [research.md](landscape.md) §5.1、[analysis.md](../plans/analysis-module.md) |
@@ -471,13 +471,13 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 
 | 质疑 | 回答要点 | 依据 |
 | --- | --- | --- |
-| 官方 `/insights` 已经有了，为什么还要 Tandem？ | `/insights` 只看 Claude Code、是一次性快照、报告 30 天后删除，建议停在复制粘贴。Tandem 跨 Agent、长期、能装能撤、装后对照；还会把 `/insights` 已提示过的问题去重，把官方功能当推荐项 | §2.1、§3 |
-| SpecStory Lore 已经开源了「历史 → skill → 安装」？ | Lore 只产 skill，不诊断、不可视化、不追踪效果；Tandem 覆盖 7 类，skill 只是其中之一；Lore 的证据设计我们直接照搬 | §2.5 |
-| 为什么不直接把日志交给 Claude 问？ | 贵且不稳：默认配置的 `claude -p` 每次调用约 2.7 万输入 token 的固定开销，`/insights` 单次上限 200 个会话；LLM 在长轨迹里定位错误的准确率很低；开放标签会漂移。Tandem 先用代码算，模型只判定已定位的短候选，用最小配置、多会话打包、结构化输出，可关闭 | §5.5；[research.md](landscape.md) §2.4；[ai.md](../plans/ai-module.md) |
+| 官方 `/insights` 已经有了，为什么还要 Orbit？ | `/insights` 只看 Claude Code、是一次性快照、报告 30 天后删除，建议停在复制粘贴。Orbit 跨 Agent、长期、能装能撤、装后对照；还会把 `/insights` 已提示过的问题去重，把官方功能当推荐项 | §2.1、§3 |
+| SpecStory Lore 已经开源了「历史 → skill → 安装」？ | Lore 只产 skill，不诊断、不可视化、不追踪效果；Orbit 覆盖 7 类，skill 只是其中之一；Lore 的证据设计我们直接照搬 | §2.5 |
+| 为什么不直接把日志交给 Claude 问？ | 贵且不稳：默认配置的 `claude -p` 每次调用约 2.7 万输入 token 的固定开销，`/insights` 单次上限 200 个会话；LLM 在长轨迹里定位错误的准确率很低；开放标签会漂移。Orbit 先用代码算，模型只判定已定位的短候选，用最小配置、多会话打包、结构化输出，可关闭 | §5.5；[research.md](landscape.md) §2.4；[ai.md](../plans/ai-module.md) |
 | 数据安全吗？ | 默认不出机，只读日志；AI 可关；开启时走用户本机已登录的 Agent，发送前预览并脱敏，并如实说明内容会经该 Agent 发往其服务商；分享卡不含路径与原文 | §0.3 |
 | 怎么证明有效？ | 不报提速百分比；报可数事件（目标摩擦的复现率）+ 区间 + 混杂；样本不足就写「数据不足」；装前可选有 / 无对照 | §5.5；[evaluation.md](../plans/evaluation-module.md) |
-| 和 cc-switch、skills.sh、插件市场有什么不同？ | 它们管「装什么、怎么装」，按流行度排序；Tandem 管「为什么装、装哪一个、装了有没有用」，并用它们做通道与先验 | §2.9、§2.10 |
-| agentsview 也能跨 Agent、本机、长期归档？ | 能看会话不是差异点；它止于规则文本，Tandem 把诊断连到安装和效果；我们移植了它的检测器（MIT） | §2.8 |
+| 和 cc-switch、skills.sh、插件市场有什么不同？ | 它们管「装什么、怎么装」，按流行度排序；Orbit 管「为什么装、装哪一个、装了有没有用」，并用它们做通道与先验 | §2.9、§2.10 |
+| agentsview 也能跨 Agent、本机、长期归档？ | 能看会话不是差异点；它止于规则文本，Orbit 把诊断连到安装和效果；我们移植了它的检测器（MIT） | §2.8 |
 | 会不会变成监控工具？ | 只做个人工具，不出团队排行、不做跨用户比较；人格命名中性、标「实验性」 | §5.2 |
 | 怎么赚钱？ | 商业假设（待验证）：Lite 免费、Advanced 付费，参照 16Personalities 的「免费给类型、付费卖深度」；个人价格锚是 WakaTime Premium $14 / 月，团队平台 $29–59 / 人 / 月 | §2.11、§2.13 |
 

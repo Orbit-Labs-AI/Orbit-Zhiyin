@@ -41,7 +41,21 @@ function tbarFit() {
   let more = tb.querySelector('.tmore');
   if (more) { const pop = more.querySelector('.tmore-pop'); while (pop.firstChild) tr.appendChild(pop.firstChild); more.remove(); }
   const ts = tb.querySelector('.tsearch'), meta = tb.querySelector('.meta'), grow = tb.querySelector('.grow');
-  if (ts && !ts.dataset.ico) { ts.classList.remove('ico-only'); if (meta && meta.scrollWidth > meta.clientWidth + 0.5) ts.classList.add('ico-only'); }
+  // plain-text meta (or a single plain <span> inside it) can be shortened part by part
+  const mt = !meta ? null : !meta.children.length ? meta : meta.children.length === 1 && !meta.firstElementChild.children.length && meta.textContent === meta.firstElementChild.textContent ? meta.firstElementChild : null;
+  if (meta) meta.hidden = false;
+  if (mt) { if (mt.dataset.full == null) mt.dataset.full = mt.textContent; mt.textContent = mt.dataset.full; }
+  const clipped = () => meta && meta.scrollWidth > meta.clientWidth + 0.5;
+  if (ts && !ts.dataset.ico) { ts.classList.remove('ico-only'); if (clipped()) ts.classList.add('ico-only'); }
+  // a clipped meta drops whole trailing「 · 」parts instead of cutting a date in half; if even the first part does not fit
+  // the meta is hidden. Either way the full line stays in the tooltip (on the meta, or on the title when the meta is gone).
+  const h1 = tb.querySelector('h1'); if (h1) delete h1.dataset.tip;
+  if (mt) {
+    const parts = mt.dataset.full.split(' · ');
+    while (clipped() && parts.length > 1) { parts.pop(); mt.textContent = parts.join(' · '); }
+    if (clipped()) { meta.hidden = true; if (h1) h1.dataset.tip = mt.dataset.full; }
+    if (mt.textContent !== mt.dataset.full) meta.dataset.tip = mt.dataset.full; else delete meta.dataset.tip;
+  }
   const fits = () => tb.scrollWidth <= tb.clientWidth + 0.5 && (!grow || grow.scrollWidth <= grow.clientWidth + 0.5);
   if (fits() || !tr.children.length) return;
   more = document.createElement('div'); more.className = 'tmore';
@@ -51,7 +65,7 @@ function tbarFit() {
   while (!fits() && tr.children.length) pop.prepend(tr.lastElementChild);
 }
 window.addEventListener('tandem:layout', tbarFit);
-/* menu bar: Apple menu, app menus (never fold with the window width), status items: demo (flask) · Tandem · control centre · Wi-Fi · battery · clock */
+/* menu bar: Apple menu, app menus (never fold with the window width), status items: demo (flask) · Orbit · control centre · Wi-Fi · battery · clock */
 const APPLE = '<svg width="14" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M16.37 12.7c-.03-2.6 2.13-3.86 2.23-3.92-1.22-1.78-3.11-2.02-3.78-2.05-1.61-.16-3.14.95-3.96.95-.82 0-2.08-.93-3.42-.9-1.76.03-3.38 1.02-4.29 2.6-1.83 3.17-.47 7.87 1.31 10.44.87 1.26 1.91 2.67 3.27 2.62 1.31-.05 1.81-.85 3.4-.85 1.59 0 2.03.85 3.42.82 1.41-.03 2.31-1.28 3.17-2.55 1-1.46 1.41-2.87 1.43-2.95-.03-.01-2.75-1.05-2.78-4.21zM13.76 5.05c.72-.88 1.21-2.1 1.08-3.31-1.04.04-2.3.69-3.05 1.57-.67.78-1.26 2.02-1.1 3.21 1.16.09 2.35-.59 3.07-1.47z"/></svg>';
 const SYS_ICONS = '<span class="sysicon" aria-hidden="true"><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x=".55" y=".55" width="14.9" height="4.9" rx="2.45"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><rect x=".55" y="6.55" width="14.9" height="4.9" rx="2.45"/><circle cx="13" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg></span>' +
   '<span class="sysicon" aria-hidden="true"><svg width="16" height="12" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 7a14 14 0 0 1 19 0M5.5 10.5a9.5 9.5 0 0 1 13 0M8.8 14a5 5 0 0 1 6.4 0"/></svg></span>' +
@@ -60,7 +74,7 @@ function renderMbar() {
   const badge = S.paused || S.sim === 'idle' ? 'transparent' : S.sim === 'stuck' ? 'var(--crit-m)' : S.sim === 'waiting' || S.sim === 'ctx' ? 'var(--warn-m)' : S.sim === 'done' ? 'var(--good-m)' : 'var(--a1)';
   const shape = S.sim === 'waiting' ? 'border-radius:1.5px' : S.sim === 'stuck' ? 'border-radius:1.5px;transform:rotate(45deg)' : '';
   const m = (id, label) => '<button type="button" data-act="menu" data-m="' + id + '">' + label + '</button>';
-  $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Tandem</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
+  $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Orbit</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
     '<span class="sp"></span><span class="status"><button type="button" class="glyph" data-act="menu" data-m="demo" aria-label="演示菜单" data-tip="演示菜单：模拟会话事件、播放首次启动与人格揭晓">' + ic('flask', 15) + '<span class="mark" style="background:var(--ai)"></span></button>' +
     '<button type="button" class="glyph' + (S.pop ? ' on' : '') + '" data-act="pop" aria-label="打开菜单栏面板" aria-expanded="' + S.pop + '">' + GLYPH + (S.paused || S.sim === 'idle' ? '' : '<span class="badge' + (S.sim === 'running' ? ' live' : '') + '" style="background:' + badge + ';' + shape + '"></span>') + '</button>' +
     SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>';
@@ -123,7 +137,7 @@ function filterRow(right) {
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
     '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 9') + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
-    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button><span style="flex:1"></span>' + (right || '') + '</div>';
+    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
 }
 function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
 function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }

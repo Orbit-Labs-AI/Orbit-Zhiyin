@@ -36,17 +36,26 @@ _lru_lock = threading.Lock()
 
 
 def algo_version() -> str:
-    """H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION_VERSION, VECTOR_VERSION), read at call time."""
+    """H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION/TAXONOMY/PREFERENCE versions, VECTOR_VERSION).
+
+    Read at call time. Every version that enters ``analysis_digest`` is part of it, so a
+    rule change never serves a cached section or row computed under the old rules.
+    """
     from . import FEATURE_VERSION
     from . import instruction as instruction_module
+    from . import preference as preference_module
     from .products.contracts import RULE_VERSIONS
     from .task import representation as vectors
+    from .task import taxonomy
 
     return digest(
         CACHE_FORMAT,
         FEATURE_VERSION,
         dict(RULE_VERSIONS),
         instruction_module.INSTRUCTION_VERSION,
+        taxonomy.TAXONOMY_VERSION,
+        preference_module.PREFERENCE_VERSION,
+        preference_module.PREFERENCE_EVIDENCE_VERSION,
         vectors.VECTOR_VERSION,
     )[:32]
 
@@ -109,7 +118,13 @@ def scope_class(scope: Scope, tree) -> str:
     )
     unfiltered = all(
         value is None
-        for value in (scope.model_ids, scope.effort_raw, scope.project_ids, scope.source_ids)
+        for value in (
+            scope.model_ids,
+            scope.effort_raw,
+            scope.project_ids,
+            scope.agent_ids,
+            scope.source_ids,
+        )
     )
     if contained and unfiltered and not excluded_members:
         return "full"
@@ -119,6 +134,7 @@ def scope_class(scope: Scope, tree) -> str:
         scope.model_ids,
         scope.effort_raw,
         scope.project_ids,
+        scope.agent_ids,
         scope.source_ids,
         excluded_members,
     )[:32]
@@ -264,7 +280,7 @@ class AnalysisCache:
         with_text: bool,
         engine: str,
     ) -> tuple[dict[str, Any], dict]:
-        from .service import META, AnalysisSections
+        from .service import META, AnalysisSections, compose
 
         algo = algo_version()
         request = {"scope": asdict(scope), "with_text": with_text, "sections": names}
@@ -285,7 +301,10 @@ class AnalysisCache:
                 row_items = {SESSIONS: [(r["session_uid"], r) for r in stored[SESSIONS]]}
                 stored[SESSIONS] = {"rows": len(stored[SESSIONS])}
             self.history.put_sections(key, input_fp, stored, row_items)
-            self.history.complete(run_id, computed)
+            # The run snapshot has the public result shape (shared metadata at the top level),
+            # like runs recorded by the uncached engine.
+            sections = {name: value for name, value in computed.items() if name != META}
+            self.history.complete(run_id, compose(computed[META], sections))
         except BaseException as error:
             try:
                 self.history.fail(run_id, error)

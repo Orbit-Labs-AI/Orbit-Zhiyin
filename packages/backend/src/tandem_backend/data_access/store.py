@@ -145,10 +145,10 @@ class CanonicalStore:
         if offset < 0 or not 1 <= limit <= 200:
             raise ValueError("offset 必须非负，limit 必须在 1–200")
         clause, params = (" AND s.project_id=?", [project_id]) if project_id is not None else ("", [])
-        base = (" FROM session s LEFT JOIN project p ON p.project_id=s.project_id WHERE 1=1" + clause)
+        base = (" FROM session s JOIN source src ON src.source_id=s.source_id LEFT JOIN project p ON p.project_id=s.project_id WHERE 1=1" + clause)
         with self.connect() as db:
             total = db.execute("SELECT count(*)" + base, params).fetchone()[0]
-            rows = db.execute("SELECT s.*,p.name AS project_name" + base +
+            rows = db.execute("SELECT s.*,src.agent,p.name AS project_name" + base +
                               " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
                               [*params, limit, offset])
             items = [report_session(dict(r), {"name": r["project_name"]}) for r in rows]

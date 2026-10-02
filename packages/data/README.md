@@ -1,4 +1,4 @@
-# Tandem 数据契约与预处理
+# Orbit 数据契约与预处理
 
 本包提供实际可建库的 SQLite DDL、L0 来源索引、L1 全记录记账、L2 完整正文映射、L3 派生、分析读取和旧归档兼容。原生扫描不复制完整 session；Mac App 可通过索引打开原文与完整轨迹，见 [索引与 App 接口](../../docs/modules/data/indexed-trajectories.md)。设计与字段见 [数据契约](../../docs/contracts/data.md)。无需数据库服务器；Python 3.13 + uv。
 

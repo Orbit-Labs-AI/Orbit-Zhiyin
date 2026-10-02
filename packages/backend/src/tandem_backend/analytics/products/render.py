@@ -10,6 +10,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from ..coverage import build_coverage_report, coverage_lines
+
 Record = dict[str, Any]
 
 
@@ -85,6 +87,8 @@ def terminal_report(product: Record) -> str:
         lines += ["", "与上期比较（均值差 / 中位数差 / 均值差 95% 区间）"]
         for row in comparison_rows(product):
             lines.append(" | ".join(str(value) for value in row))
+    lines += ["", "数据覆盖（输入完整性，不是命令执行状态）"]
+    lines += coverage_lines(product.get("coverage_report") or build_coverage_report(product.get("coverage")))
     return "\n".join(lines) + "\n"
 
 
@@ -279,7 +283,9 @@ def html_report(product: Record) -> str:
         ),
         "<h2>覆盖与边界</h2>",
         _table(
-            ["数据", "状态"], [[key, value["status"]] for key, value in product["coverage"].items()]
+            ["数据", "状态", "原因", "处理方式"],
+            [[item["label"], item["status"], "；".join(item["reasons"]), item["action"] or ""]
+             for item in (product.get("coverage_report") or build_coverage_report(product.get("coverage")))["datasets"].values()]
         ),
         "<ul>"
         + "".join(f"<li>{html.escape(text)}</li>" for text in product["limitations"])

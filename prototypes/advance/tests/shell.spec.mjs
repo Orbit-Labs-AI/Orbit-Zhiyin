@@ -17,7 +17,7 @@
 //                      A toolbar that cannot fit its page title moves items into the » popover instead of clipping it.
 //  4. settings         openSettings() → #set fully inside the viewport, six tabs visible, each tab renders, main window
 //                      inactive (grey lights); Esc closes it.
-//  5. menu-bar panel   click the Tandem status item → #pop right edge aligns with the status item (±1.5px), 6px under the bar.
+//  5. menu-bar panel   click the Orbit status item → #pop right edge aligns with the status item (±1.5px), 6px under the bar.
 //  6. HUD              the pill never covers the window's title row; when any snap point is free of the window and the
 //                      visible desktop widgets it covers neither — checked at the default layout and again with the window
 //                      shrunk to 900×600 in a corner, where the top row is certainly free.
@@ -167,15 +167,17 @@ test('sidebar: ⌃⌘S hides and restores; narrow windows get an overlay sidebar
 test('container queries: narrowing the window at a fixed viewport collapses page grids', async ({ page }) => {
   const errors = await openDemo(page);
   const cols = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).gridTemplateColumns.trim().split(/\s+/).length, sel);
+  // tiles per first row, measured from layout (the overview uses a 6-track grid to place 3 + 2 tiles)
+  const perRow = (sel) => page.evaluate((s) => { const k = [...document.querySelector(s).children]; return k.filter((e) => e.offsetTop === k[0].offsetTop).length; }, sel);
   const mainW = () => page.evaluate(() => document.querySelector('#main').clientWidth);
   const mw = await mainW();
   expect(await cols('.two')).toBe(mw >= 800 ? 2 : 1);
-  expect(await cols('.tiles')).toBe(mw >= 800 ? 5 : mw >= 640 ? 3 : 2);
+  expect(await perRow('.tiles')).toBe(mw >= 800 ? 5 : mw >= 640 ? 3 : 2);
   const r = await winBox(page);
   if (r.mode === 'win' && mw >= 800) {
     await page.evaluate(() => { S.win.w = 1000; applyWin(); });
     await expect.poll(() => mainW()).toBeLessThan(800);
-    expect(await cols('.two')).toBe(1); expect(await cols('.tiles')).toBe(3);
+    expect(await cols('.two')).toBe(1); expect(await perRow('.tiles')).toBe(3);
     await page.evaluate((w) => { S.win.w = w; applyWin(); }, r.w);
     await expect.poll(() => cols('.two')).toBe(2);
   }

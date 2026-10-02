@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pydantic import ValidationError
 
 from ..analytics.recommendations.policy import RecommendationPolicy
+from . import preferences
 from .catalog import load_catalog
 from .contracts import FAMILIES, RankingPolicy, RecommendationContext, RecommendationResult
 from .explain import KINDS, explain_candidate
@@ -63,6 +64,8 @@ def recommend(analytics_result, bottlenecks=None, context=None, limit=6, *, cata
                   "sparse": sparse.recall(state, items, ranking_policy.per_route),
                   "effect": effect.recall(state, items, ranking_policy.per_route),
                   "context": context_recall.recall(state, items, ranking_policy.per_route)}
+        if state.preference_state.get("effective"):
+            routes["preferences"] = preferences.recall(state, items, ranking_policy.per_route)
         for candidate in fuse(routes, k=ranking_policy.rrf_k):
             item = prepared[candidate.item_id]
             candidate_state = state
@@ -95,6 +98,8 @@ def recommend(analytics_result, bottlenecks=None, context=None, limit=6, *, cata
         excluded_resources=excluded + [{"resource_id": d.get("resource_id"), "reason": d["reason"]} for d in loaded.diagnostics
                                       if d.get("resource_id") and d["reason"] != "draft"],
         limitations=["阈值和权重为初始启发式，需在获授权的评测集上校准。", "效果权重代表改善方向的相关先验，不是已测量收益。",
+                     "偏好只调整有瓶颈证据的候选；冲突和无法定位的任务偏好不参与排序。",
+                     "收益为显式假设下的区间估计；各瓶颈与各 Skill 可能覆盖相同事件，不可直接累加。",
                      "向量召回、自动抓取及 LLM 重排未启用；运行时不下载、安装或执行资源。",
                      "来源核验是目录声明的版本快照；实际环境条件仍需确认。"],
     ).model_dump(mode="json")

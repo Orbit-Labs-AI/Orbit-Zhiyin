@@ -17,11 +17,14 @@ from dataclasses import asdict
 from multiprocessing import get_context
 from typing import Protocol
 
+from tandem_data.coverage import dataset_coverage
+
 from ..models import stable_id
 from ..recommend.service import recommend as recommend_resources
 from . import FEATURE_VERSION
 from .common import human
 from .context import AnalysisContext, Record
+from .coverage import build_coverage_report
 from .dictionary import FEATURES
 from .features import activity, session_features, tool_summary, usage, workflow
 from .inputs import AnalysisInputBundle, Scope, legacy_bundle, metadata
@@ -31,8 +34,10 @@ from .instruction import (
     summarize_control_patterns,
 )
 from .outcome_subjective import aggregate_subjective_outcomes
+from .preference import PREFERENCE_EVIDENCE_VERSION, PREFERENCE_VERSION
 from .semantic import SemanticAnalysis, analyze_semantics
 from .task.representation import representation
+from .task.taxonomy import TAXONOMY_VERSION
 
 # Endpoint sections, in the order of the complete result.
 SECTIONS = (
@@ -64,6 +69,7 @@ SHARED_KEYS = (
     "analysis_digest",
     "feature_dictionary",
     "source_coverage",
+    "coverage_report",
 )
 LIMITATIONS = [
     "日志跨度不是实际工作时长",
@@ -80,6 +86,7 @@ CROSS_SESSION_FIELDS = (
     "embedding_y",
     "task_ids",
     "preference_ids",
+    "preference_evidence_ids",
 )
 ENTITY = "_text_entity"  # private: the session's prompt text for the text representation
 BOTTLENECK_COVERAGE = ("events", "tool_calls", "model_calls", "turns", "lineage")
@@ -127,7 +134,14 @@ def session_row_core(context: AnalysisContext, s: Record) -> Record:
         None if calls is None else [c for member in sorted(included) for c in call_groups[member]]
     )
     data = session_features(
-        s, own, root_calls, main_ids, supported, event_status, with_workflow=False
+        s,
+        own,
+        root_calls,
+        main_ids,
+        supported,
+        event_status,
+        scope.display_timezone,
+        with_workflow=False,
     )
     data["workflow"] = workflow(root_events + context_events, root_calls, main_ids, supported)
     data["usage"] = usage(
@@ -319,10 +333,13 @@ def assemble_row(
     row["coverage"] = coverage
     row.update(cluster_id=None, novelty=None, embedding_x=None, embedding_y=None)
     if semantic is None:
-        row.update(task_ids=None, preference_ids=None)
+        row.update(task_ids=None, preference_ids=None, preference_evidence_ids=None)
     else:
         row["task_ids"] = semantic.task_ids[sid] if semantic_available else None
         row["preference_ids"] = semantic.preference_ids[sid] if semantic_available else None
+        row["preference_evidence_ids"] = (
+            semantic.preference_evidence_ids[sid] if semantic_available else None
+        )
     row.update({k: v for k, v in (projection or {}).items() if k != "entity_id"})
     return row
 
@@ -402,6 +419,9 @@ def _project_rows(
                 "subjective_outcomes": aggregate_subjective_outcomes(
                     [r["subjective_outcomes"] for r in rs], event_status
                 ),
+                "activity_rhythm": activity([s for s in sessions if s["session_uid"] in ids], pe,
+                    pcs, None if model_calls is None else context.members(ids, "models"),
+                    main_ids & ids, scope) if bundle.events is not None else None,
                 "tools": tool_summary(pcs, tool_status),
                 "usage": usage(
                     None if project_models is None else project_models.get(key, []),
@@ -686,19 +706,21 @@ class AnalysisSections:
             unknown_origin, human_count = self.unknown_origin, self.human_count
             meta["coverage"]["human_origin"] = {
                 **meta["coverage"].get("human_origin", {}),
-                "status": "partial" if unknown_origin else "available",
-                "rows": human_count,
+                **dataset_coverage(
+                    human_count if bundle.events is not None else None,
+                    reason_counts={"human_origin_unknown": unknown_origin},
+                ),
                 "unknown_rows": unknown_origin,
             }
-            meta["coverage"]["sample_exclusions"] = {
-                "status": "excluded",
-                "rows": sum(diagnostics["excluded_sessions"].values()),
-                "reasons": diagnostics["excluded_sessions"],
-            }
+            excluded_count = sum(diagnostics["excluded_sessions"].values())
+            meta["coverage"]["sample_exclusions"] = dataset_coverage(
+                excluded_count,
+                excluded=bool(excluded_count),
+                reason_counts=diagnostics["excluded_sessions"],
+            )
             if bundle.events is None:
                 meta["coverage"]["human_origin"] = {
-                    "status": "unavailable",
-                    "rows": None,
+                    **dataset_coverage(None, reasons=["events_unavailable"]),
                     "unknown_rows": None,
                 }
             calls, model_calls = context.calls, context.model_calls
@@ -707,6 +729,9 @@ class AnalysisSections:
                 asdict(scope),
                 FEATURE_VERSION,
                 INSTRUCTION_VERSION,
+                TAXONOMY_VERSION,
+                PREFERENCE_VERSION,
+                PREFERENCE_EVIDENCE_VERSION,
             )
             from .products.contracts import RULE_VERSIONS
 
@@ -733,6 +758,7 @@ class AnalysisSections:
                     "inventory": bundle.inventory,
                     "inventory_scans": bundle.inventory_scans,
                     "analysis_methods": dict(RULE_VERSIONS),
+                    "coverage_report": build_coverage_report(meta["coverage"]),
                 }
             )
             return meta
@@ -865,6 +891,20 @@ class AnalysisSections:
             else None,
         }
 
+    def _preferences(self) -> Record:
+        """Preference evidence reuses the optional session clusters of the text section."""
+        preferences = self.semantic.preferences
+        if preferences.get("evidence") is None:
+            return preferences
+        projections = self._projections()
+        return {
+            **preferences,
+            "evidence": [
+                {**item, "cluster_id": projections.get(item["session_uid"], {}).get("cluster_id")}
+                for item in preferences["evidence"]
+            ],
+        }
+
     def _statistics(self) -> Record:
         from .products.statistics import statistical_analysis
 
@@ -898,7 +938,7 @@ class AnalysisSections:
             "text": lambda: self.text,
             "bottleneck_features": self._all_families,
             "tasks": lambda: self.semantic.tasks,
-            "preferences": lambda: self.semantic.preferences,
+            "preferences": self._preferences,
             "instruction": lambda: {
                 "schema_version": INSTRUCTION_VERSION,
                 "records": self.instruction_records if self.events_available else None,
