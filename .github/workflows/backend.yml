@@ -28,3 +28,4 @@ jobs:
       - run: uv build --all-packages
       - run: uv run --no-sync tandem demo
       - run: uv run --no-sync tandem evaluate
+      - run: swift test --package-path packages/catalog-macos
