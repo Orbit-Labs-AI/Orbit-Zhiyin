@@ -192,3 +192,23 @@ def test_usage_summary(ai_svc):
     assert usage["by_engine"][0]["engine"] == "fake" and len(usage["by_day"]) == 1
     assert usage["estimate_error"]["n"] == 1 and usage["daily_cap"] == 2.0
     assert json.dumps(usage)
+
+
+def test_job_reports_telemetry_and_notifies(ai_svc, monkeypatch):
+    from tandem_backend import platform
+
+    metrics, notes = [], []
+    monkeypatch.setattr(platform, "record", lambda name, value=1.0, **tags:
+                        metrics.append((name, tags.get("task"))))
+    monkeypatch.setattr(platform, "notify", notes.append)
+    job = wait_done(ai_svc, ai_svc.submit("test.echo", {"slots": {"goal": "n"}})["job_id"])
+    deadline = time.monotonic() + 2
+    while not notes and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert {("ai.tokens", "test.echo"), ("ai.job", "test.echo")} <= set(metrics)
+    assert notes[0]["type"] == "ai_job_done" and notes[0]["payload"]["job_id"] == job["job_id"]
+    notes.clear()
+    ai_svc.run("test.echo", slots={"goal": "sync"})  # synchronous callers are not notified
+    ai_svc.submit("test.echo", {"slots": {"goal": "bg"}, "params": {"auto": True}})
+    time.sleep(0.2)
+    assert notes == []

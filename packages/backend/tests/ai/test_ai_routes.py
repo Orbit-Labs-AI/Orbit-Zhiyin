@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import time
 
 import pytest
@@ -132,26 +131,17 @@ def test_artifacts_and_facets(client, ai_svc):
     assert [f["session_uid"] for f in facets] == ["s1"]
 
 
-def test_ask_routes(client, ai_svc, monkeypatch):
-    import types
-
-    module = types.ModuleType("tandem_backend.ai.ask")
-    module.presets = lambda context, **kw: [{"q": f"{context}-1"}]
-    module.preset_answer = lambda context, index, **kw: {"answer": "a", "refs": [], "next": "none",
-                                                         "source": "template"}
-    monkeypatch.setitem(sys.modules, "tandem_backend.ai.ask", module)
-    import tandem_backend.ai as ai_pkg
-    monkeypatch.setattr(ai_pkg, "ask", module, raising=False)
-    assert client.get("/v1/ai/ask/presets?context=overview").json() == [{"q": "overview-1"}]
-    answer = client.post("/v1/ai/ask", json={"context": "overview", "preset_index": 0}).json()
-    assert answer["source"] == "template"
+def test_ask_routes(client, ai_svc):
+    presets = client.get("/v1/ai/ask/presets?context=overview")
+    assert presets.status_code == 200, presets.text
+    assert [p["index"] for p in presets.json()][:3] == [0, 1, 2]
+    answer = client.post("/v1/ai/ask", json={"context": "overview", "preset_index": 0})
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["source"] == "template" and answer.json()["answer"]
     ai_svc.register_task(answer_task("ask.question"))
     asked = client.post("/v1/ai/ask", json={"context": "overview", "question": "为什么？"}).json()
     assert asked["job_id"].startswith("aj_")
     assert client.post("/v1/ai/ask", json={"context": "overview"}).status_code == 422
-    monkeypatch.setitem(sys.modules, "tandem_backend.ai.ask", None)
-    monkeypatch.delattr(ai_pkg, "ask", raising=False)
-    assert client.get("/v1/ai/ask/presets").status_code == 501
 
 
 def test_gateway_mounts_ai_routes(tmp_path, ai_env):

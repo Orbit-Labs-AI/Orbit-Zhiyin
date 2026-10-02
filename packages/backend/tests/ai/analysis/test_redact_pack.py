@@ -206,3 +206,21 @@ def _timed(fn) -> float:
     start = time.perf_counter()
     fn()
     return time.perf_counter() - start
+
+
+def test_candidates_read_latest_passed_run_from_appdb(tmp_path):
+    from tandem_backend.appdb import AppDB
+
+    appdb = AppDB(tmp_path / "app.db")
+    assert P.candidates({}, 5, None) == []
+    with appdb.write() as db:
+        for run_id, at in (("r-old", 1), ("r-new", 2)):
+            db.execute("INSERT INTO rec_run (run_id, scope_hash, scope, inputs_digest, engine_version,"
+                       " status, created_at) VALUES (?, 'h', '{}', ?, 'v1', 'ok', ?)", (run_id, run_id, at))
+        rows = [("c-old", "r-old", 1, 1), ("c-1", "r-new", 2, 1), ("c-0", "r-new", 1, 1), ("c-x", "r-new", 0, 0)]
+        for cid, run_id, rank, passed in rows:
+            db.execute("INSERT INTO rec_candidate (candidate_id, run_id, rec_key, kind, dim, title, rank, priority,"
+                       " passed, card, created_at) VALUES (?, ?, ?, 'hook', 'hook', ?, ?, 1, ?, ?, 0)",
+                       (cid, run_id, cid, cid.upper(), rank, passed, json.dumps({"reason": f"why {cid}"})))
+    got = P.candidates({}, 5, appdb)
+    assert [c["candidate_id"] for c in got] == ["c-0", "c-1"] and got[0]["reason"] == "why c-0"

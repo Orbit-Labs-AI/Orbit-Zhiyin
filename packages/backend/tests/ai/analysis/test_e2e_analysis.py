@@ -1,22 +1,16 @@
-"""End to end through the ai runtime (P1): preview payload == what the engine receives (EV-14).
-
-Skipped until `tandem_backend.ai.runner` is merged; after that it must run.
-"""
+"""End to end through the ai runtime (P1): preview payload == what the engine receives (EV-14)."""
 
 from __future__ import annotations
 
+import json
+import sys
+import time
+from pathlib import Path
+
 import pytest
+from fastapi.testclient import TestClient
 
-pytest.importorskip("tandem_backend.ai.runner")
-
-import json  # noqa: E402
-import sys  # noqa: E402
-import time  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from tandem_backend.ai.redact import compact  # noqa: E402
+from tandem_backend.ai.redact import compact
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 BASE = "http://127.0.0.1:8765"
@@ -94,3 +88,18 @@ def test_facet_job_writes_ai_facet(client):
     with gw.appdb.read() as db:
         rows = db.execute("SELECT session_uid, status FROM ai_facet").fetchall()
     assert {r[0] for r in rows} == set(uids) and {r[1] for r in rows} == {"ok"}
+
+
+def test_auto_facet_new_respects_setting_and_skips_faceted(client, monkeypatch):
+    from tandem_backend.ai import auto, auto_facet_new
+
+    c, gw, _ = client
+    monkeypatch.setattr(auto, "WINDOW_DAYS", 100000)
+    assert auto_facet_new(gw) == {"status": "skipped", "reason": "disabled"}
+    assert c.put("/v1/ai/consent", json={"settings": {"auto_facet_new": True}}).status_code == 200
+    first = auto_facet_new(gw, limit=3)
+    assert first["status"] == "submitted" and first["sessions"] == 3
+    assert _wait(c, first["job_id"])["status"] == "ok"
+    with gw.appdb.read() as db:
+        faceted = {r[0] for r in db.execute("SELECT session_uid FROM ai_facet")}
+    assert len(faceted) == 3 and not faceted & set(auto.new_session_uids(gw, 50))

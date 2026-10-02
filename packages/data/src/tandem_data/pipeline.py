@@ -2,6 +2,7 @@
 
 import json
 from collections import defaultdict
+from pathlib import Path
 
 from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
@@ -9,6 +10,22 @@ from tandem_data.contract import canonical, now_ms, validate_event
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.source_reader import SourceUnavailable
 from tandem_data.store import insert
+
+# Tandem's own headless AI runs (tandem_backend.ai.isolation) start in ``<home>/agent-cwd``
+# and put this marker on the first prompt line; they never become canonical sessions.
+TANDEM_AI_MARKER = "[tandem-analysis v1"
+TANDEM_AI_CWD = "agent-cwd"
+TANDEM_AI_MARKER_FILE = ".tandem-ai"
+SESSION_TABLES = (
+    "model_call",
+    "usage_snapshot",
+    "session_feature",
+    "link",
+    "tool_call",
+    "turn",
+    "session",
+    "event",
+)
 
 
 def _merge(old, new):
@@ -21,6 +38,68 @@ def _merge(old, new):
         elif key not in result:
             result[key] = value
     return result
+
+
+def tandem_ai_session_uids(store) -> list[str]:
+    """Sessions in the rebuild scope that Tandem's AI runtime started (cwd or marker)."""
+    root = store.home / TANDEM_AI_CWD
+    found = set()
+    for row in store.db.execute(
+        "SELECT session_uid, cwd FROM session WHERE source_id IN (SELECT source_id FROM rebuild_scope) "
+        "AND cwd IS NOT NULL AND (cwd = ? OR cwd LIKE ? OR cwd LIKE ?)",
+        (str(root), f"{root}/%", f"%/{TANDEM_AI_CWD}"),
+    ):
+        cwd = row["cwd"]
+        if cwd == str(root) or cwd.startswith(f"{root}/") or _has_marker(cwd):
+            found.add(row["session_uid"])
+    found.update(
+        row[0]
+        for row in store.db.execute(
+            "SELECT DISTINCT e.session_uid FROM event e JOIN session_identity i USING(session_uid) "
+            "WHERE i.source_id IN (SELECT source_id FROM rebuild_scope) AND e.actor = 'human' "
+            "AND substr(ltrim(e.text, ' ' || char(9) || char(10) || char(13)), 1, ?) = ?",
+            (len(TANDEM_AI_MARKER), TANDEM_AI_MARKER),
+        )
+    )
+    return sorted(found)
+
+
+def _has_marker(cwd: str) -> bool:
+    try:
+        return (Path(cwd) / TANDEM_AI_MARKER_FILE).is_file()
+    except OSError:
+        return False
+
+
+def exclude_tandem_ai_sessions(store) -> int:
+    """Drop Tandem's own AI sessions from L2/L3; their L1 records stay, marked ignored."""
+    uids = tandem_ai_session_uids(store)
+    if not uids:
+        return 0
+    marks = ",".join("?" * len(uids))
+    events = f"SELECT event_uid FROM event WHERE session_uid IN ({marks})"
+    store.db.execute(
+        f"DELETE FROM tool_call_event WHERE call_uid IN (SELECT call_uid FROM tool_call "
+        f"WHERE session_uid IN ({marks}))",
+        uids,
+    )
+    records = [
+        row[0]
+        for row in store.db.execute(
+            f"SELECT DISTINCT record_uid FROM record_event WHERE event_uid IN ({events})", uids
+        )
+    ]
+    for table in ("record_event", "event_context"):
+        store.db.execute(f"DELETE FROM {table} WHERE event_uid IN ({events})", uids)
+    note = canonical({"reason": "tandem_ai_session"})
+    store.db.executemany(
+        "UPDATE raw_record SET disposition='ignored',note=? WHERE record_uid=? "
+        "AND NOT EXISTS(SELECT 1 FROM record_event WHERE record_event.record_uid=raw_record.record_uid)",
+        ((note, uid) for uid in records),
+    )
+    for table in SESSION_TABLES:
+        store.db.execute(f"DELETE FROM {table} WHERE session_uid IN ({marks})", uids)
+    return len(uids)
 
 
 def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
@@ -59,16 +138,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         )
         for table in ("record_event", "event_context"):
             store.db.execute(f"DELETE FROM {table} WHERE event_uid IN ({evidence})")
-        for table in (
-            "model_call",
-            "usage_snapshot",
-            "session_feature",
-            "link",
-            "tool_call",
-            "turn",
-            "session",
-            "event",
-        ):
+        for table in SESSION_TABLES:
             store.db.execute(f"DELETE FROM {table} WHERE session_uid IN ({sessions})")
         store.db.execute(
             "DELETE FROM ingest_issue WHERE stage IN ('l2','l3') AND source_id IN (SELECT source_id FROM rebuild_scope)"
@@ -463,6 +533,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
             )
         progress({"stage": "derive"})
         derive(store, scoped=True, progress=progress)
+        exclude_tandem_ai_sessions(store)
         for info in infos:
             store.db.execute(
                 "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
