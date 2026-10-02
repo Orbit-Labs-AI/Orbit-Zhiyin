@@ -188,6 +188,26 @@ def _legacy_report(store, scope, params, memo):
     return result  # Legacy body shape: the report itself at top level, plus ``meta``.
 
 
+def _scope_comparison(store, scope, params, memo):
+    """``POST /v1/analytics/compare``: two full product analyses; ``scope`` is unused."""
+    from ..analytics.inputs import Scope
+    from ..analytics.products.service import compare_scopes
+
+    return compare_scopes(store, Scope(**params["first"]), Scope(**params["second"]))
+
+
+def _catalog_requests(store, scope, params, memo):
+    """``/v1/catalog/match-analysis`` input: the gateway matches these against its catalog."""
+    from tandem_catalog.analysis_adapter import requests_from_analysis
+
+    from ..profiling.analysis import analyze
+
+    data = analyze(store, params.get("project_id"), params.get("model"),
+                   scene=params.get("scene"))
+    return {"requests": [r.model_dump(mode="json")
+                         for r in requests_from_analysis(data, limit=params.get("limit", 10))]}
+
+
 # Legacy create_app() analyses that used to run synchronously inside the gateway process
 # (analyze_store / build_report on the gateway threadpool: no timeout, no RSS cap, GIL
 # starvation). On demand only (never prewarmed); products may run for minutes on a large home.
@@ -199,6 +219,9 @@ register(Section("bottleneck", "bottleneck_features", "heavy",
 register(Section("recommendations", "bottleneck_recommendations", "heavy", _recommendations,
                  **_ON_DEMAND))
 register(Section("analysis", "analysis", "heavy", _legacy_report, **_ON_DEMAND))
+register(Section("comparison", "comparison", "heavy", _scope_comparison, timeout_s=1800,
+                 **_ON_DEMAND))
+register(Section("catalog_requests", "requests", "heavy", _catalog_requests, **_ON_DEMAND))
 register(Section("products", "products", "heavy", _products, timeout_s=1800, **_ON_DEMAND))
 register(Section("presentation", "presentation", "heavy", _presentation, timeout_s=1800,
                  **_ON_DEMAND))

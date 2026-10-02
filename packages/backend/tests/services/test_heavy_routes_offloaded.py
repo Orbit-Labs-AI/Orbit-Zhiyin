@@ -24,6 +24,10 @@ ROUTES = [
      "bottleneck_recommendations"),
     ("products", "get", "/v1/analytics/products", {}, None),
     ("analysis", "get", "/v1/analysis", {}, None),
+    ("products", "get", "/v1/analytics/products/sessions", {"params": {"query": "x"}}, "items"),
+    ("comparison", "post", "/v1/analytics/compare", {"json": {"first": {}, "second": {}}},
+     "distributions"),
+    ("catalog_requests", "get", "/v1/catalog/match-analysis", {}, "batches"),
 ]
 
 
@@ -34,6 +38,7 @@ def _forbid_in_process(monkeypatch):
     import tandem_backend.analytics.products as products
     import tandem_backend.analytics.service as service
     import tandem_backend.api.routes as legacy_routes
+    import tandem_backend.analytics.products.service as product_service
     import tandem_backend.application.reports as reports
 
     monkeypatch.setattr(service, "analyze_store", boom)
@@ -41,6 +46,9 @@ def _forbid_in_process(monkeypatch):
     monkeypatch.setattr(reports, "build_report", boom)
     monkeypatch.setattr(reports, "analyze", boom)
     monkeypatch.setattr(legacy_routes, "build_report", boom)
+    monkeypatch.setattr(legacy_routes, "analyze", boom)
+    monkeypatch.setattr(product_service, "compare_scopes", boom)
+    monkeypatch.setattr(product_service, "analyze_product_store", boom)
 
 
 @pytest.fixture
@@ -107,3 +115,22 @@ def test_timed_out_on_demand_route_reports_failure_instead_of_rerunning(client_f
         assert "timeout" in again.json()["error"]["message"]
     assert sum(analysis.dispatched.values()) == dispatched
     assert client.get("/v1/analytics/jobs/nope").status_code == 404
+
+
+def test_product_session_compare_projects_the_cached_products_snapshot(imported):
+    client, gateway = imported
+    assert client.get("/v1/analytics/products").status_code == 202
+    wait_for(lambda: any(f.data["section"] == "products"
+                         for f in bus_events(gateway, "analysis.ready")), 120, 0.05, "products")
+    page = client.get("/v1/analytics/products/sessions", params={"limit": 2}).json()
+    assert page["meta"]["freshness"] == "fresh" and page["total"] >= 2
+    first, second = (row["session_uid"] for row in page["items"][:2])
+    compared = client.get("/v1/analytics/products/compare",
+                          params={"first": first, "second": second})
+    assert compared.status_code == 200, compared.text
+    assert compared.json()["meta"]["freshness"] == "fresh"
+    missing = client.get("/v1/analytics/products/compare", params={"first": first,
+                                                                    "second": "nope"})
+    assert missing.status_code == 422
+    assert sum(1 for f in bus_events(gateway, "analysis.ready")
+               if f.data["section"] == "products") == 1  # One worker run serves all three.

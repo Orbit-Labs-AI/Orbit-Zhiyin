@@ -86,6 +86,11 @@ class RecommendationBody(BaseModel):
     limit: int = Field(default=6, ge=1, le=20, strict=True)
 
 
+class ComparisonBody(BaseModel):
+    first: dict = Field(default_factory=dict)
+    second: dict = Field(default_factory=dict)
+
+
 class RecomputeRequest(BaseModel):
     sections: list[str] = Field(min_length=1, max_length=len(SECTIONS))
     scope: dict = Field(default_factory=dict)
@@ -110,8 +115,15 @@ def router(gw: Gateway) -> APIRouter:
     def etag(rules: str, data_rev, inventory_rev, h: str, token: str) -> str:
         return f'W/"{rules}:{data_rev}.{inventory_rev}:{h}:{token}"'
 
-    def render(snapshot: Snapshot, meta_: dict, tag: str, page) -> JSONResponse:
+    def render(snapshot: Snapshot, meta_: dict, tag: str, page, view=None) -> Response:
         body = dict(snapshot.body)
+        if view is not None:
+            try:
+                body = view[1](body)
+            except ValueError as error:
+                raise ApiError(422, "invalid_request", str(error)) from error
+            if isinstance(body, Response):
+                return body
         if page is not None:
             offset, limit = page
             rows = body.get("sessions") or []
@@ -122,13 +134,17 @@ def router(gw: Gateway) -> APIRouter:
         return JSONResponse(body, headers={"ETag": tag})
 
     def serve(name: str, scope, params: dict, wait_ms: int, if_none_match: str | None,
-              page: tuple[int, int] | None = None):
+              page: tuple[int, int] | None = None, view=None):
+        """``view`` = (etag token, body → body): a cheap gateway-side projection of the
+        worker's snapshot (search page, two-session compare, catalog match)."""
         section = SECTIONS[name]
         rules = rules_digest()
         scope_dict = asdict(scope)
         h = scope_hash(scope_dict, params)
         rev = gw.revisions.snapshot()
         token = name if page is None else f"{name}[{page[0]}:{page[1]}]"
+        if view is not None:
+            token = f"{token}{view[0]}"
         if rev["data_rev"] is None:
             return JSONResponse({section.key: None, "meta": meta(
                 h, rules, "none", None, rev, "none", reason="no_projection")})
@@ -139,7 +155,8 @@ def router(gw: Gateway) -> APIRouter:
         if snapshot is not None:
             if if_none_match is not None and tag in [t.strip() for t in if_none_match.split(",")]:
                 return Response(status_code=304, headers={"ETag": tag})
-            return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "cache"), tag, page)
+            return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "cache"), tag, page,
+                          view)
         analysis = gw.supervisor.analysis
         revision = (rev["data_rev"], rev["inventory_rev"])
         old = gw.snapshots.latest(name, h, rules)
@@ -147,7 +164,8 @@ def router(gw: Gateway) -> APIRouter:
             task = analysis.submit(name, scope_dict, params, h, "interactive", revision, rules)
             extra = {"job_id": task.id} if task else {"circuit": "open"}
             old_tag = etag(rules, old.key.data_rev, old.key.inventory_rev, h, token)
-            return render(old, meta(h, rules, "stale", old, rev, "cache", **extra), old_tag, page)
+            return render(old, meta(h, rules, "stale", old, rev, "cache", **extra), old_tag, page,
+                          view)
         failure = analysis.failure(name, h, revision)
         if failure and (failure["error"].get("code") in CLIENT_ERRORS
                         or analysis.circuit_open(name, h, revision)):
@@ -161,7 +179,7 @@ def router(gw: Gateway) -> APIRouter:
                 snapshot = gw.snapshots.get(current)
                 if snapshot is not None:
                     return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "computed"),
-                                  tag, page)
+                                  tag, page, view)
             elif task.status == "failed":
                 raise failure_error(task.error)
         return JSONResponse({"meta": meta(h, rules, "computing", None, rev, "none",
@@ -207,6 +225,70 @@ def router(gw: Gateway) -> APIRouter:
         params = {"bucket": bucket, "with_text": with_text, "compare_previous": compare_previous}
         return serve("products", scope, params, wait_ms, if_none_match, page=(offset, limit))
 
+    def drop_none(**values) -> dict:
+        return {k: v for k, v in values.items() if v is not None}
+
+    def product_params() -> dict:  # Same params as /v1/analytics/products defaults: one cache.
+        return {"bucket": "day", "with_text": False, "compare_previous": False}
+
+    @api.get("/v1/analytics/products/sessions")
+    def product_sessions(scope=scope_dependency, query: str = "", offset: int = Query(0, ge=0),
+                         limit: int = Query(50, ge=1, le=200), wait_ms: int = wait,
+                         if_none_match: str | None = Header(None)):
+        from hashlib import sha256
+
+        from ..analytics.products import session_page
+
+        def view(body: dict) -> dict:
+            return {"scope": body.get("scope"), "analysis_digest": body.get("analysis_digest"),
+                    **session_page(body, query=query, offset=offset, limit=limit)}
+
+        tag = f"/sessions?{sha256(query.encode()).hexdigest()[:8]}:{offset}:{limit}"
+        return serve("products", scope, product_params(), wait_ms, if_none_match,
+                     view=(tag, view))
+
+    @api.get("/v1/analytics/products/compare")
+    def product_compare(first: str, second: str, scope=scope_dependency, wait_ms: int = wait,
+                        if_none_match: str | None = Header(None)):
+        from hashlib import sha256
+
+        from ..analytics.products.summaries import compare_sessions
+
+        tag = f"/compare?{sha256(f'{first}|{second}'.encode()).hexdigest()[:12]}"
+        return serve("products", scope, product_params(), wait_ms, if_none_match,
+                     view=(tag, lambda body: compare_sessions(body, first, second)))
+
+    @api.post("/v1/analytics/compare")
+    def scope_comparison(request: ComparisonBody, wait_ms: int = wait):
+        from ..analytics.inputs import Scope
+
+        try:
+            first, second = Scope(**request.first), Scope(**request.second)
+        except (TypeError, ValueError) as error:
+            raise ApiError(422, "invalid_request", str(error)) from error
+        return serve("comparison", Scope(), {"first": asdict(first), "second": asdict(second)},
+                     wait_ms, None)
+
+    @api.get("/v1/catalog/match-analysis")
+    def match_analysis(project_id: str | None = None, model: str | None = None,
+                       scene: str | None = None, limit: int = Query(10, ge=1, le=100),
+                       wait_ms: int = wait, if_none_match: str | None = Header(None)):
+        """Bottleneck → catalog requests come from the worker; matching stays in the gateway."""
+        from ..analytics.inputs import Scope
+
+        def view(body: dict) -> dict:
+            from tandem_catalog import get_service
+            from tandem_catalog.contracts import MatchRequest
+
+            service = get_service(gw.home / "catalog.db")
+            return {"contract": "catalog-analysis-match-v1",
+                    "batches": [service.match(MatchRequest.model_validate(r))
+                                for r in body.get("requests") or []]}
+
+        params = drop_none(project_id=project_id, model=model, scene=scene, limit=limit)
+        return serve("catalog_requests", Scope(), params, wait_ms, if_none_match,
+                     view=("/match", view))
+
     @api.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,
                      target_agent: Literal["generic", "codex", "claude_code"] = "generic",
@@ -220,9 +302,6 @@ def router(gw: Gateway) -> APIRouter:
             raise ApiError(422, "invalid_request", str(error)) from error
         params = {"window": window, "target_agent": target_agent, "family": family}
         return serve("presentation", scope, params, wait_ms, if_none_match)
-
-    def drop_none(**values) -> dict:
-        return {k: v for k, v in values.items() if v is not None}
 
     @api.get("/v1/analytics/recommendations")
     def recommendations(scope=scope_dependency,
