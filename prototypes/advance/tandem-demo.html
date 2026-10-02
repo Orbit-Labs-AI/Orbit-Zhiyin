@@ -9741,7 +9741,7 @@ if (LV.live) {
     if (!m.items.length) return '<div class="cap" data-lv="na" style="padding:12px 0">这个会话没有可显示的消息原文</div>';
     const rows = m.items.map((x) => {
       const ts = x.timestamp ? new Date(x.timestamp) : null; const at = ts && !isNaN(ts) ? hm(ts.getHours(), ts.getMinutes()) : '—';
-      return '<div class="tl-kv lvs-msg' + (x.id === focus ? ' on' : '') + '" data-ev="' + esc(x.id) + '" style="align-items:flex-start;padding:8px 0;border-top:1px solid var(--hair)' + (x.id === focus ? ';background:var(--sunken)' : '') + '"><span class="k mono" style="min-width:64px">' + at + ' · ' + MSG_KIND[x.kind] + '</span><span class="v" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text) + msgTrunc(s, x) + (x.details && x.details.text_truncated ? ' <span class="cap">…（原文已截断）</span>' : '') + '</span></div>';
+      return '<div class="tl-kv lvs-msg' + (x.id === focus ? ' on' : '') + '" data-ev="' + esc(x.id) + '" style="grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--hair)' + (x.id === focus ? ';background:var(--sunken)' : '') + '"><span class="k mono">' + at + ' · ' + MSG_KIND[x.kind] + '</span><span class="v" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text) + msgTrunc(s, x) + (x.details && x.details.text_truncated ? ' <span class="cap">…（原文已截断）</span>' : '') + '</span></div>';
     }).join('');
     const more = !m.done ? '<button type="button" class="tl-more" data-act="lvsMsgsMore" data-uid="' + esc(s.id) + '">已载入 ' + m.offset + ' / ' + m.total + ' 个事件<b>加载更多</b></button>' : '';
     return '<div class="col" style="gap:0;max-height:56vh;overflow:auto">' + rows + '</div>' + more;
