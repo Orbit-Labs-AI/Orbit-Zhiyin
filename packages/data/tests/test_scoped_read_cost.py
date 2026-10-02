@@ -120,3 +120,20 @@ def test_time_window_read_selects_the_same_members_through_the_kind_time_index(
     assert members == expected and expected
     assert old not in {s["session_uid"] for s in bundle["sessions"]}
     assert any("SELECT DISTINCT session_uid FROM event WHERE kind IN" in q for q in queries)
+
+
+def test_analysis_read_shares_repeated_values_and_skips_native_keys(tmp_path):
+    with build(tmp_path / "s", 1) as store:
+        pass
+    bundle = read_analysis(store.home, AnalysisScope("UTC"), include_native=False)
+    events = [e for e in bundle["events"] if e["session_uid"] == bundle["events"][0]["session_uid"]]
+    assert len(events) > 2
+    assert all(e["session_uid"] is events[0]["session_uid"] for e in events)
+    keyed = [e for e in events if e["attrs"]]
+    shared_keys = set.intersection(*(set(e["attrs"]) for e in keyed))
+    for key in shared_keys:
+        first = next(k for k in keyed[0]["attrs"] if k == key)
+        assert all(next(k for k in e["attrs"] if k == key) is first for e in keyed)
+    assert all(e["native_key"] is None and e["ext"] == {} for e in bundle["events"])
+    full = read_analysis(store.home, AnalysisScope("UTC"))
+    assert any(e["native_key"] is not None for e in full["events"])

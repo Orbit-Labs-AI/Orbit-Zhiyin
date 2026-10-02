@@ -57,6 +57,37 @@ def decoded(row):
     return result
 
 
+# Event columns whose values repeat across a selection (ids of sessions, turns and projects,
+# kinds, model names). SQLite returns a new string per row; sharing one object per value
+# saves ~1 KB per event (a real 7-day window holds 300k events, ~8 KB each).
+SHARED_EVENT_COLUMNS = (
+    "session_uid",
+    "root_uid",
+    "turn_uid",
+    "project_id",
+    "cwd",
+    "kind",
+    "actor",
+    "provider",
+    "model_raw",
+    "effort_raw",
+    "contract_version",
+    "mapper_version",
+)
+
+
+def _compact(event: dict, shared: dict) -> dict:
+    """Share repeated column values and ``attrs`` keys between the events of one read."""
+    for name in SHARED_EVENT_COLUMNS:
+        value = event.get(name)
+        if isinstance(value, str):
+            event[name] = shared.setdefault(value, value)
+    attrs = event.get("attrs")
+    if isinstance(attrs, dict):
+        event["attrs"] = {shared.setdefault(key, key): value for key, value in attrs.items()}
+    return event
+
+
 def _keys(values) -> str:
     return json.dumps(sorted(values))
 
@@ -164,8 +195,11 @@ def read_analysis(
             names = [
                 row["name"] for row in connection.execute("PRAGMA table_info(v_analysis_event)")
             ]
+            # native_key (the source's own record locator, ~300 bytes decoded) is dropped
+            # with them: analysis identifies events by event_uid / record_uid.
             event_columns = (
-                ",".join(f'v."{name}"' for name in names if name != "ext") + ", '{}' AS ext"
+                ",".join(f'v."{name}"' for name in names if name not in ("ext", "native_key"))
+                + ", '{}' AS ext, NULL AS native_key"
             )
         # Resolve the selection key-first. A scoped request must never scan the whole event
         # corpus: candidate sessions come from the narrow event_context / session tables,
@@ -292,12 +326,14 @@ def read_analysis(
                     "No partial analysis was returned."
                 )
         texts: dict = {}
+        shared: dict = {}
         events = [
-            decoded(restore_row(connection, row, texts))
+            _compact(decoded(restore_row(connection, row, texts)), shared)
             for row in connection.execute(
                 "SELECT " + event_columns + selector + " ORDER BY v.session_uid,v.seq", params
             )
         ]
+        shared.clear()
 
         def member(event):
             return (
