@@ -67,6 +67,64 @@ def statistics(store):
     }
 
 
+DATA_SERVICE_COMMANDS = (
+    "search",
+    "resume",
+    "capabilities",
+    "storage",
+    "purge",
+    "privacy-rules",
+    "privacy-preview",
+    "insights",
+)
+
+
+def _data_service(args) -> dict:
+    """Read-only services (and the confirmed purge) never open a writable Store."""
+    home = Path(args.home).expanduser()
+    if args.command == "search":
+        from tandem_data.search import SearchScope, search
+
+        scope = SearchScope(
+            source_ids=tuple(args.source_ids) if args.source_ids else None,
+            from_ts=args.from_ts,
+            until_ts=args.until_ts,
+        )
+        return search(home, args.query, scope, limit=args.limit, offset=args.offset)
+    if args.command == "resume":
+        from tandem_data.resume import session_resume
+
+        return session_resume(home, args.session)
+    if args.command == "capabilities":
+        from tandem_data.capabilities import capabilities
+
+        return capabilities(home, refresh=args.refresh)
+    if args.command == "storage":
+        from tandem_data.maintenance import storage_usage
+
+        return storage_usage(home)
+    if args.command == "purge":
+        from tandem_data.maintenance import purge_all
+
+        return purge_all(home, args.confirm)
+    if args.command == "privacy-rules":
+        from tandem_data.privacy_rules import rules
+
+        return rules()
+    if args.command == "privacy-preview":
+        import sys
+
+        from tandem_data.privacy_rules import preview
+
+        return preview(args.text if args.text is not None else sys.stdin.read())
+    from tandem_data.insights import match_sessions, read_usage_data
+
+    report = read_usage_data(args.path)
+    if args.match:
+        report["matches"] = match_sessions(home, report)
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Tandem local session data contract v1")
     parser.add_argument(
@@ -108,7 +166,32 @@ def main(argv=None):
     export.add_argument("--table", choices=EXPORT_TABLES, required=True)
     export.add_argument("--output", type=Path, required=True)
     export.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
+    search = commands.add_parser(
+        "search", help="Search messages, titles, projects, commands, files"
+    )
+    search.add_argument("query")
+    search.add_argument("--source-id", action="append", dest="source_ids")
+    search.add_argument("--from-ts", type=int)
+    search.add_argument("--until-ts", type=int)
+    search.add_argument("--limit", type=int, default=20)
+    search.add_argument("--offset", type=int, default=0)
+    resume = commands.add_parser("resume", help="Print (never run) the resume command")
+    resume.add_argument("--session", required=True)
+    capabilities = commands.add_parser("capabilities", help="Source versions and capabilities")
+    capabilities.add_argument("--refresh", action="store_true")
+    commands.add_parser("storage", help="Bytes per storage layer")
+    purge = commands.add_parser("purge", help="Delete tandem.db, WAL and raw archive")
+    purge.add_argument("--confirm", required=True)
+    commands.add_parser("privacy-rules", help="List redaction rules")
+    privacy_preview = commands.add_parser("privacy-preview", help="Redact sample text (stdin)")
+    privacy_preview.add_argument("--text")
+    usage = commands.add_parser("insights", help="Read Claude Code usage-data at an explicit path")
+    usage.add_argument("--path", type=Path, required=True)
+    usage.add_argument("--match", action="store_true", help="Compare with Tandem sessions")
     args = parser.parse_args(argv)
+    if args.command in DATA_SERVICE_COMMANDS:
+        print(canonical(_data_service(args)))
+        return
     from tandem_data.progress import TerminalProgress
 
     progress = TerminalProgress(enabled=not args.no_progress)
