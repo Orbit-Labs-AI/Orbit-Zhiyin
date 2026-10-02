@@ -116,7 +116,7 @@ def build_helper() -> Path:
 
 def build_host(contents: Path) -> None:
     run("xcrun", "swiftc", "-O", "-target", "arm64-apple-macos15.0", "-framework", "AppKit",
-        "-framework", "WebKit", "-framework", "Security", HERE / "Orbit.swift",
+        "-framework", "WebKit", "-framework", "Security", "-framework", "UserNotifications", HERE / "Orbit.swift",
         "-o", contents / f"MacOS/{NAME}")
 
 
@@ -161,6 +161,14 @@ def build_icon(resources: Path) -> None:
             else:  # < 128 px: the small rendition, as brand-icon.mjs does.
                 run(renderer, small if px < 128 else LOGO / "orbit-icon.svg", target, px)
     run("iconutil", "-c", "icns", iconset, "-o", resources / f"{NAME}.icns")
+    # Menu-bar status item: orbit-mark-small.svg rendered verbatim at its own aspect ratio
+    # (used as a template image, so only its alpha matters). 16 pt tall, @1x and @2x.
+    box = re.search(r'viewBox="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)"',
+                    (LOGO / "orbit-mark-small.svg").read_text()).groups()
+    width = round(16 * float(box[0]) / float(box[1]))
+    for scale, suffix in ((1, ""), (2, "@2x")):
+        run(renderer, LOGO / "orbit-mark-small.svg", resources / f"StatusIcon{suffix}.png",
+            width * scale, 16 * scale)
 
 
 def write_plist(contents: Path) -> None:
