@@ -8,6 +8,9 @@ import stat
 import tomllib
 from pathlib import Path
 
+import json5
+import yaml
+
 from tandem_data.contract import canonical, uid
 from tandem_data.privacy import redact
 
@@ -36,13 +39,15 @@ class ScanReader:
             raise ValueError("outside_allowed_roots")
         # Even explicitly allowed directories do not authorize credential inputs.
         if any(
-            part in ("backups", ".env")
-            or part.startswith((".credentials", ".env."))
-            or "oauth" in part.lower()
+            part in ("backups", ".env", "credentials") or part.startswith((".credentials", ".env."))
             for part in target.parts
         ):
             raise ValueError("credential_path")
-        if target.name in ("auth.json", "mcp-auth.json") or target.suffix == ".key":
+        if (
+            target.name in ("auth.json", "mcp-auth.json")
+            or target.suffix == ".key"
+            or ("oauth" in target.name.lower() and target.suffix in (".json", ".yaml", ".toml"))
+        ):
             raise ValueError("credential_path")
         return target
 
@@ -66,19 +71,55 @@ class ScanReader:
             )
         return None
 
-    def document(self, path: Path, kinds) -> dict:
+    def document(self, path: Path, kinds, *, expected=dict):
         raw = self.read(path, kinds)
+        empty = [] if expected is list else {}
         if raw is None:
-            return {}
+            return empty
         try:
-            text = raw.decode("utf-8")
-            value = tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
-            if not isinstance(value, dict):
+            text = raw.decode("utf-8-sig")
+            if path.suffix in (".yaml", ".yml"):
+                # Reject aliases before construction: cycles and exponential alias
+                # expansion must not reach hashing or traversal. Never execute tags.
+                if any(isinstance(event, yaml.AliasEvent) for event in yaml.parse(text)):
+                    raise ValueError("yaml_alias")
+
+                class StaticLoader(yaml.SafeLoader):
+                    pass
+
+                def expression(loader, node):
+                    self.issue(path, kinds, "dynamic_yaml_expression")
+                    return {"$expression": loader.construct_scalar(node)}
+
+                StaticLoader.add_constructor("tag:yaml.org,2002:js", expression)
+                value = yaml.load(text, Loader=StaticLoader)
+                if value is None:
+                    value = empty
+            elif path.suffix == ".toml":
+                value = tomllib.loads(text)
+            elif path.suffix == ".jsonc":
+                value = json5.loads(text)
+            else:
+                value = json.loads(text)
+            if not isinstance(value, expected):
                 raise ValueError
+            pending = [(value, 0)]
+            nodes = 0
+            while pending:
+                node, depth = pending.pop()
+                nodes += 1
+                if depth > 64 or nodes > MAX_ENTRIES * 4:
+                    raise ValueError
+                if isinstance(node, dict):
+                    if any(not isinstance(key, str) for key in node):
+                        raise ValueError
+                    pending.extend((child, depth + 1) for child in node.values())
+                elif isinstance(node, list):
+                    pending.extend((child, depth + 1) for child in node)
             return value
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, yaml.YAMLError, RecursionError):
             self.issue(path, kinds, "invalid_document")
-            return {}
+            return empty
 
     def children(self, path: Path, kinds) -> list[Path]:
         try:

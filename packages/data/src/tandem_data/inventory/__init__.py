@@ -12,7 +12,7 @@ from tandem_data.store import Store, insert, readonly_connection
 from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
-SCANNER_VERSION = "1.0.0"
+SCANNER_VERSION = "1.1.0"
 
 
 @dataclass(frozen=True)
@@ -34,8 +34,6 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
 
     if request.agent not in SUPPORTED:
         raise ValueError(f"Unsupported inventory agent: {request.agent}")
-    if request.project_id and request.agent != "project":
-        raise ValueError("project_id requires the project layout")
     if request.claude_config and request.agent != "claude_code":
         raise ValueError("claude_config requires claude_code")
     root = request.root.expanduser().resolve()
@@ -96,7 +94,7 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
                     source_key,
                     request.agent,
                     str(root),
-                    "project" if request.agent == "project" else "global",
+                    "project" if request.agent == "project" or request.project_id else "global",
                     request.project_id,
                     now_ms(),
                     SCANNER_VERSION,

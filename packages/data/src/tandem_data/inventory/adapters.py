@@ -7,6 +7,11 @@ from .reader import KINDS, ScanReader
 
 SUPPORTED = {
     "codex": KINDS,
+    "dsh": KINDS,
+    "hermes": KINDS,
+    "kimi": KINDS,
+    "pi": ("skill", "mcp", "plugin", "rule"),
+    "opencode": ("skill", "mcp", "plugin", "rule"),
     "claude_code": ("skill", "mcp", "hook", "plugin", "rule"),
     "common": ("skill", "rule"),
     "project": ("skill", "mcp", "hook", "plugin", "rule"),
@@ -304,6 +309,15 @@ def scan_layout(reader: ScanReader, agent: str):
     if agent == "common":
         skills(reader, reader.root / "skills")
         rules(reader, reader.root, ("AGENTS.md",))
+    elif agent in ("dsh", "hermes", "kimi", "pi", "opencode"):
+        from .dsh import dsh
+        from .hermes import hermes
+        from .kimi import kimi
+        from .native import opencode, pi
+
+        {"dsh": dsh, "hermes": hermes, "kimi": kimi, "pi": pi, "opencode": opencode}[agent](
+            reader, reader.root
+        )
     else:
         {"codex": codex, "claude_code": claude, "project": project, "claude_desktop": desktop}[
             agent
