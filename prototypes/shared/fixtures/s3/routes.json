@@ -1,0 +1,9 @@
+{
+ "_doc": "slice 3 (A4/A5): synthetic, derived from r4 responses on a synthetic home; project ids match fixtures/core",
+ "GET /v1/uiview/tools": "tools.json",
+ "GET /v1/uiview/projects": "projects.json",
+ "GET /v1/uiview/projects/proj_alpha": "project-alpha.json",
+ "GET /v1/uiview/projects/proj_beta": "project-beta.json",
+ "GET /v1/features/linked": "features-linked.json",
+ "GET /v1/analytics/tool_calls": "tool-calls.json"
+}

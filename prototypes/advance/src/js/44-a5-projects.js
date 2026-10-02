@@ -49,6 +49,7 @@ VZ.types.pscatter = Object.assign({}, VZ.types.scatter, {
   }
 });
 PAGES.projects = () => {
+  if (LV.live) return lvProjectsPage();   // live: same cards from /v1/uiview/projects* (93-live-tools-projects.js)
   const L = sel({ project: null });
   const rows = projRows(L).filter((r) => r.st.n > 0).sort((a, b) => b.st.hours - a.st.hours);
   // 全局项目筛选激活时，详情定位到该项目（BUG-07）；B 与 A 相同则清掉 B（BUG-71）

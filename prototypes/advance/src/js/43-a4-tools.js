@@ -12,6 +12,7 @@ function toolDaily(L, share, range) {
 }
 const TOOL_SHARE = {}; TOOLS.forEach((t) => { TOOL_SHARE[t[0]] = t[1] / 9860; });
 PAGES.tools = () => {
+  if (LV.live) return lvToolsPage();   // live: same cards from /v1/uiview/tools (93-live-tools-projects.js)
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
   const T = S.tools; S.tools.figma = !S.installed.has('remove-figma');   // 问本地 Agent 的回答与页头一致（BUG-21）
