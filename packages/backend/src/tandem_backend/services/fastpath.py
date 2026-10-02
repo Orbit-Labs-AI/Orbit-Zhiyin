@@ -25,6 +25,8 @@ from .snapshots import SnapshotKey, scope_hash
 
 FAST_DAYS = 7
 FULL_PASS = "uiview_facts"  # one complete analysis per window (see uiview.section)
+# Light analytics sections a full pass caches (served right after it as cache reads).
+FIRST_SCREEN = ("overview", "sessions", "tools", "projects", "instruction")
 LADDER = (7, 30, 0)  # computation order: small first
 ALLOWED_DAYS = (7, 30, 90, 0)
 
@@ -135,6 +137,13 @@ def follow_up(gw, section: str, base: dict, window: dict, params: dict | None = 
     """Queue the wider windows of an automatic choice that are not ready or on their way."""
     todo = tuple(w["days"] for w in window["wider"]
                  if w["state"] not in ("ready", "computing", "queued"))
+    if todo and not params:
+        # The served window's other first-screen sections first: after its full pass they
+        # are cache reads, and an interactive request for one of them would otherwise
+        # preempt the long wider-window computation queued below.
+        for name in FIRST_SCREEN:
+            if name != section and state(gw, name, windowed(base, window["days"])) == "absent":
+                warm(gw, name, base, None, (window["days"],))
     if todo:
         if section != FULL_PASS and not params:
             # The full pass of a window caches every analysis section of it (with and
