@@ -16,12 +16,14 @@ scene('20-sentiment', () => {
   at(12.9, () => { app(1).go('sentiment'); solo(1, moodCard); SV = null; });
   // KF 3.1: spins in out of the hole (1.6 beats)
   tween(1, 13.4, 1.6, () => ride(15.0), E.out, (T) => ({ s: T.s * .14, rz: T.rz - 200, o: 0, bl: 6 }));
-  // ride, then KF 3.4 the push-through: the zoom grows exponentially (2.5×) towards the far end of the road while it
-  // blurs (0 → 12 px) and fades; the anchor drifts up to the screen centre, where the next scene's numbers start
+  // ride, then KF 3.4 the push-through: the zoom grows exponentially (2.5×) towards the screen centre while it
+  // blurs (0 → 12 px) and fades
   drive(1, 15.0, GONE, (p, b) => {
-    const r = ride(b), C = decks[1].C, q = lp(b, PUSH, GONE - PUSH), e = E.in(q);
-    C.x = r.x + 40 * e; C.y = r.y; C.s = r.s * Math.pow(2.5, e); C.ay = lerp(r.ay, 540, E.inOut(q)); C.ax = lerp(r.ax, 960, E.inOut(q));
-    C.bl = 12 * E.inOut(q); C.o = q >= 1 ? 0 : 1 - E.in(clamp(q * 1.05));
+    // the push is a dolly along the camera axis (translateZ under the 2400 px perspective → 2.5× at the end), so the
+    // picture grows towards the screen centre; the deck blurs and is gone by q 0.75 (b21.3), before the numbers (b21.2)
+    const r = ride(b), C = decks[1].C, q = lp(b, PUSH, GONE - PUSH), k = clamp(q / .75);
+    C.x = r.x; C.y = r.y; C.ax = r.ax; C.ay = r.ay; C.s = r.s; C.z = 2400 * (1 - Math.pow(2.5, -Math.pow(k, 1.4)));
+    C.bl = 12 * E.in(k); C.o = q > 0 && k >= 1 ? 0 : 1 - E.inOut(clamp((k - .15) / .85));
   });
   drive(1, 12.95, GONE, (p, b, D) => { const s = D.querySelector(MOOD); if (!s) return; clipTo(s, 36, headX(b) + 34, 'path.vz-line, path.vz-cband, circle.vz-pt, text.vz-lbl'); riseRects(s, headX(b) + 34, 214); });
   // KF 3.2–3.3: eight signposts, one every 0.7 beat from b14.8 (a blip each in the soundtrack), last one b19.7
@@ -41,7 +43,7 @@ scene('20-sentiment', () => {
     const gone = E.inOut(lp(b, +el.dataset.b + 1.3, .5));
     el.style.opacity = b >= GONE ? '0' : (q * (1 - gone)).toFixed(3);
     el.style.transformOrigin = '0 0';
-    el.style.transform = 'rotateZ(' + (-C.rz) + 'deg) rotateX(' + (-C.rx) + 'deg) scale(' + (lerp(.6, 1, ease.back(q)) / C.s * 2.3).toFixed(4) + ') translate(calc(-100% - 10px),' + (-100 + (1 - q) * 60).toFixed(1) + '%)';
+    el.style.transform = 'rotateZ(' + (-C.rz) + 'deg) rotateX(' + (-C.rx) + 'deg) scale(' + (lerp(.6, 1, ease.back(q)) / C.s * 2.3).toFixed(4) + ') translate(calc(-100% - 70px),' + (-100 + (1 - q) * 60).toFixed(1) + '%)';
   }));
   // title block at the lower left, clear of the road and the signposts; leaves with its letters drifting apart b19.8–20.4
   const TX = 110;

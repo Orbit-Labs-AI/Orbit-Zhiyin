@@ -16,13 +16,13 @@ scene('60-close', () => {
   // hand-over: the collapsed ring (radius 300 in compass units) and orbitAt's ring (R0 = 300 × the deck's zoom) sit on
   // the same circle; the mark grows its outer turn first (from its tail inwards), so the compass ring stays until that
   // turn is closed (≈ b105) and then fades under it
-  tween(2, 104.8, .8, () => ({ o: 0 }), E.inOut);
+  tween(2, 104.6, .6, () => ({ o: 0 }), E.inOut);
   glowAt(101, .6, 2);
   glowAt(CLOSE.ring, .9, 2);
   // KF 7.4: end card under the risen mark (it settles at cy 410, R 215); all of it leaves with the mark b111.6–113
   const OUT = END - CLOSE.out;
   css(`
-.ec-line{font-size:46px;font-weight:500;color:rgba(255,255,255,.88);letter-spacing:.02em}
+.ec-line{font-size:48px;font-weight:500;color:rgba(255,255,255,.88);letter-spacing:.02em}
 .ec-line b{color:var(--a1);font-weight:700}
 .ec-by{font-family:var(--mono);font-size:26px;letter-spacing:.3em;color:rgba(255,255,255,.55)}
 `);

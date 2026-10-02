@@ -69,7 +69,7 @@ scene('10-open', () => {
   // KF 1.5: question 1 — 你是 lands huge and blurred and shrinks into the line, the rest fly in from lower right; a
   // highlighter sweeps under 怎样 from b4.2; at b5.6 the line moves up and out while question 2 comes up from below
   const SWAP = .3;
-  const qOut = (at) => (el, tl) => { const p = E.inOut(clamp((tl - BB(at)) / BB(SWAP))); const s = el.querySelector('.ln>span'); s.style.transform = 'translateY(' + (-p * 110).toFixed(1) + 'px)'; s.style.opacity = (1 - clamp(p * 1.8)).toFixed(3); s.style.filter = p > 0 ? 'blur(' + (p * 6).toFixed(1) + 'px)' : 'none'; };
+  const qOut = (at) => (el, tl) => { const p = E.inOut(clamp((tl - BB(at)) / BB(SWAP))); const s = el.querySelector('.ln>span'); s.style.transform = 'translateY(' + (-p * 110).toFixed(1) + 'px)'; s.style.opacity = (1 - clamp(p * 2.6)).toFixed(3); s.style.filter = p > 0 ? 'blur(' + (p * 6).toFixed(1) + 'px)' : 'none'; };
   txt(3.4, 5.6 + SWAP, [['hv op-q', '<span class="w">你是 </span><span class="w"><span class="mk">怎样</span></span><span class="w"> 协作的？</span>']], { x: 960, y: 540, align: 'c' }, {
     anim: K.all(K.big({ scale: 3.2, dur: .45, fly: .12, out: 0 }), K.mark(4.2 - 3.4, .4), qOut(5.6 - 3.4))
   });
@@ -77,7 +77,7 @@ scene('10-open', () => {
   txt(5.6, 8.1, [['hv op-q', '<span class="op-o">时间</span>都花在了哪？']], { x: 960, y: 540, align: 'c' }, {
     anim: (el, tl, life) => {
       const p = E.inOut(clamp(tl / BB(SWAP))), s = el.querySelector('.ln>span');
-      s.style.transform = 'translateY(' + ((1 - p) * 110).toFixed(1) + 'px)'; s.style.opacity = clamp((p - .35) / .65).toFixed(3);
+      s.style.transform = 'translateY(' + ((1 - p) * 110).toFixed(1) + 'px)'; s.style.opacity = clamp((p - .5) / .5).toFixed(3);
       s.style.filter = p < 1 ? 'blur(' + ((1 - p) * 6).toFixed(1) + 'px)' : 'none';
       leave(el, exitQ(tl, life, .6), true);
     }
