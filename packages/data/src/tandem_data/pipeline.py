@@ -343,7 +343,7 @@ def rebuild(
             header = mapper.header if mapper else {}
             parent_id = header.get(
                 "parentSession", header.get("parent_thread_id", header.get("forked_from_id"))
-            )
+            ) or getattr(mapper, "parent", None)  # Codex thread_spawn.parent_thread_id
             parent_file = getattr(mapper, "parent_file_id", None) or by_native.get(
                 (info["source_id"], str(parent_id))
             )
@@ -546,11 +546,19 @@ def rebuild(
             if info["agent"] == "codex" and mapper.cut is not None and mapper.parent:
                 parent_file = by_native.get((info["source_id"], str(mapper.parent)))
                 mapper.parent_candidates = defaultdict(list)
+                # A parent that is itself a fork replays its prefix; those links are
+                # written after mapping, so hand the child the pending references.
+                mapper.replayed_refs = {
+                    item.record_uid: result.references
+                    for item, result in pending
+                    if item.file_id == parent_file
+                }
                 if parent_file:
                     for parent_record in store.iter_file(parent_file):
-                        mapper.parent_candidates[mapper.record_signature(parent_record)].append(
-                            (parent_record.ordinal, parent_record.record_uid)
-                        )
+                        for signature in mapper.parent_signatures(parent_record):
+                            mapper.parent_candidates[signature].append(
+                                (parent_record.ordinal, parent_record.record_uid)
+                            )
             owned = plan is not None and plan.owns(mapper)
             for record in plan.records(mapper) if owned else store.iter_file(info["file_id"]):
                 if record.native_type == "table:session_model_usage":

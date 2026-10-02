@@ -136,7 +136,8 @@ def named(name):
     (tarball({f"skills/foo/{i}.md": b"x" * 900_000 for i in range(6)}), "unpacked_too_large"),
     (tarball({}), "path_not_found"),
     (b"not a tarball", "corrupt_archive"),
-])
+], ids=["symlink", "hardlink", "absolute", "dotdot", "too_many_files", "file_too_large",
+        "unpacked_too_large", "path_not_found", "corrupt"])  # gzip bytes carry a timestamp
 def test_rejected_archives_leave_no_residue(tmp_path, archive, code):
     cache = tmp_path / "cache"
     with pytest.raises(FetchError) as error:

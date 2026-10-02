@@ -34,7 +34,8 @@ def validate_products(product: Record) -> Record:
     for name, summary in product["statistics"]["metrics"].items():
         check(
             f"{name}: known + unknown = samples",
-            summary["n"] + summary["unknown_n"] == len(summary["samples"]),
+            summary["n"] + summary["unknown_n"]
+            == summary.get("samples_total", len(summary["samples"])),
         )
     if tools["call_count"] is not None:
         for name in ("by_name", "by_kind"):
@@ -61,9 +62,7 @@ def validate_products(product: Record) -> Record:
             )
             check(
                 f"{name}: transition accounting",
-                sum(e["count"] for e in matrix["rows"])
-                == matrix["pair_count"]
-                == len(matrix["next_calls"]),
+                sum(e["count"] for e in matrix["rows"]) == matrix["pair_count"],
             )
     event_ids = set()
     for session in product["sessions"]:

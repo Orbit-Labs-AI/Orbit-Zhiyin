@@ -9,7 +9,6 @@ profiles are produced by other modules and handed in that way). Every item carri
 from __future__ import annotations
 
 from .pack import (
-    CORRECTION_RE,
     FAIL_STATUS,
     _Ctx,
     _facet_rows,
@@ -18,6 +17,7 @@ from .pack import (
     _metrics,
     _tool_rows,
     facet_payload,
+    is_correction,
     placeholders,
 )
 
@@ -52,7 +52,7 @@ def feedback_items(c: _Ctx) -> dict:
         rows = [r for r in c.conn.execute(
             f"SELECT h.session_uid, h.event_uid, h.text, s.title FROM v_human_message h JOIN session s"
             f" ON s.session_uid=h.session_uid WHERE {where} ORDER BY h.ts DESC LIMIT 400", params)
-            if CORRECTION_RE.search(r[2] or "")][:FEEDBACK_MAX]
+            if is_correction(r[2])][:FEEDBACK_MAX]
     items = [{"signal_id": "sig:" + r[1], "event_uid": r[1], "session_uid": r[0], "text": (r[2] or "")[:300],
               "prev_assistant": _prev_assistant(c.conn, r[0], r[1]), "context": (r[3] or "")[:60],
               "rejudge": bool(event_uids)} for r in rows]

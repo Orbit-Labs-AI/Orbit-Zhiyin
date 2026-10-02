@@ -134,3 +134,41 @@ def test_density_and_lanes(tandem):
     assert item["density"] == [1, 0, 0, 0, 0, 0, 1, 0, 0, 2]
     assert len(item["lanes"]["human"]) == 5 and len(item["lanes"]["error"]) == 1
     assert "lanes" not in rt.snapshot(now=T)["sessions"][0]
+
+
+def test_paused_lists_no_stale_sessions_and_idle_is_counted_not_listed(tandem):
+    """a1a3-B20: paused collection reports nothing; idle sessions are not listed."""
+    seed_failing(tandem)
+    tandem.session("old", started=NOW - 5 * 3_600_000)
+    tandem.event("old", NOW - 4 * 3_600_000, actor="assistant")
+    rt, _, _ = make(tandem, Recorder(), paused=True)
+    snap = rt.snapshot(now=T)
+    assert snap["sessions"] == [] and snap["reason"] == "collection_paused"
+    assert snap["today"] is None
+    rt, _, _ = make(tandem, Recorder())
+    snap = rt.snapshot(now=T)
+    assert [s["session_uid"] for s in snap["sessions"]] == ["s1"]
+    assert snap["counts"]["idle"] == 1
+
+
+def test_old_sessions_skip_detail_reads(tandem):
+    from tandem_backend.realtime.tail import load_tails
+
+    tandem.session("old", started=NOW - 5 * 3_600_000)
+    tandem.event("old", NOW - 2 * 3_600_000, actor="assistant")
+    tandem.usage("old", NOW - 2 * 3_600_000, 190_000)
+    tails = {t.session_uid: t for t in load_tails(Reads(tandem.path), NOW)}
+    assert tails["old"].events == [] and tails["old"].usage is None
+
+
+def test_tail_reads_reported_context_window(tandem):
+    from tandem_backend.realtime.tail import load_tails
+
+    tandem.session("cx", agent="codex", started=NOW - 60_000)
+    tandem.event("cx", NOW - 30_000, kind="turn.start", actor="system")
+    tandem.db.execute("UPDATE event SET ext=? WHERE session_uid='cx' AND kind='turn.start'",
+                      ('{"model_context_window": 258400}',))
+    tandem.db.commit()
+    tandem.usage("cx", NOW - 20_000, 1000, model="gpt-5-codex")
+    tail = next(t for t in load_tails(Reads(tandem.path), NOW) if t.session_uid == "cx")
+    assert tail.usage["window_tokens"] == 258_400

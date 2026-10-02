@@ -10,8 +10,10 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   overrides the heavy base) plus a per-event allowance once the worker reports the scope's
   event count; each timed-out retry of the same key doubles that budget, all capped at
   ``max_budget_s``: kill, task ``failed(timeout)``, the previous snapshot keeps serving;
-  three failures open a circuit for that key. A task whose budget already hit the cap
-  fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout
+  three failures (one for on-demand legacy sections) open a circuit for that key, after
+  which routes answer 503 without re-running it. A task whose budget already hit the cap
+  fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout; sections
+  with their own ``timeout_s`` use it as the base
 - analysis RSS (the worker and its process-pool children) above 1.5 GB recycles the worker
   after the task; above ``rss_kill_bytes`` (¾ of RAM, 4–24 GB) while running (heartbeat
   RSS) kills it and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
@@ -382,6 +384,9 @@ class AnalysisTask:
                            self.rules)
 
 
+RECENT_JOBS = 256
+
+
 class AnalysisQueue:
     """Priority queue (interactive > prewarm) with same-key merging and a circuit breaker."""
 
@@ -396,6 +401,7 @@ class AnalysisQueue:
         self.dispatched: dict[tuple, int] = {}
         self.home = home
         self.open_runs: set[str] = set()
+        self.recent: dict[str, AnalysisTask] = {}  # job_id → task, newest RECENT_JOBS kept.
         self.worker = WorkerProcess("analysis", home, config, self._message, self._exit,
                                     on_state, self._dispatch)
 
@@ -432,7 +438,24 @@ class AnalysisQueue:
 
     def circuit_open(self, section: str, scope_hash: str, rev: tuple[int, int]) -> bool:
         record = self.failure(section, scope_hash, rev)
-        return bool(record and record["count"] >= self.config.max_failures)
+        spec = SECTIONS.get(section)
+        limit = (spec.max_failures if spec is not None and spec.max_failures is not None
+                 else self.config.max_failures)
+        return bool(record and record["count"] >= limit)
+
+    def job(self, job_id: str) -> dict | None:
+        """Status of a recent analysis task (the ``job_id`` a 202 response carries)."""
+        with self.lock:
+            task = self.recent.get(job_id)
+            if task is None:
+                return None
+            started = task.dispatched_at
+            return {"id": task.id, "kind": "analysis", "section": task.section,
+                    "scope_hash": task.scope_hash, "status": task.status,
+                    "priority": task.priority, "data_rev": task.data_rev,
+                    "elapsed_s": (round(time.monotonic() - started, 1)
+                                  if started is not None and task.status == "running" else None),
+                    "timeout_s": self._timeout_for(task), "error": task.error}
 
     def clear_failures(self, section: str, scope_hash: str) -> None:
         with self.lock:
@@ -453,6 +476,9 @@ class AnalysisQueue:
                     existing.priority = "interactive"  # Promote; the same computation serves both.
                 return existing
             self.tasks[task.merge_key] = task
+            self.recent[task.id] = task
+            while len(self.recent) > RECENT_JOBS:
+                self.recent.pop(next(iter(self.recent)))
             self.pending.append(task)
             running = self.running
             if (priority == "interactive" and running is not None
@@ -477,8 +503,11 @@ class AnalysisQueue:
     def _budget(self, task: AnalysisTask) -> tuple[float, bool]:
         """(seconds, capped): base budget plus the per-event allowance, doubled for each
         earlier timeout of the same key and revision, at most ``max_budget_s``."""
-        heavy = SECTIONS[task.section].cost == "heavy"
+        section = SECTIONS[task.section]
+        heavy = section.cost == "heavy"
         base = self.config.heavy_timeout_s if heavy else self.config.light_timeout_s
+        if section.timeout_s is not None:
+            base = section.timeout_s  # sections that declare their own budget
         wanted = base
         if task.events:
             rate = self.config.heavy_s_per_kevent if heavy else self.config.light_s_per_kevent

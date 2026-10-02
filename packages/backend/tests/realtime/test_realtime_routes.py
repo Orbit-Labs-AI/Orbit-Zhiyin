@@ -44,7 +44,7 @@ def test_snapshot_before_tandem_db_is_idle(client):
     body = test_client.get("/v1/analytics/realtime").json()
     assert body["status"] == "idle" and body["sessions"] == []
     assert set(body["counts"]) == {"running", "awaiting_approval", "failing", "just_finished",
-                                   "context_pressure"}
+                                   "context_pressure", "idle"}
 
 
 def test_snapshot_shape_lanes_and_dismiss(client, home):

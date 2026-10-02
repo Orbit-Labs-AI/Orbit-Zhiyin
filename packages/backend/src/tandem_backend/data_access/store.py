@@ -37,11 +37,48 @@ def report_event(row):
                  duration_ms=attrs.get("duration_ms"), details=attrs)
 
 
+SESSION_KINDS = ("main", "subagent", "workflow_agent", "review", "automation", "import", "auxiliary")
+# The session table has no model column: use the session's most used model call, then its
+# latest cumulative usage snapshot (both index lookups by session_uid, run per page row only).
+SESSION_MODEL_SQL = (
+    "COALESCE((SELECT COALESCE(m.model_id,m.model_raw) FROM model_call m"
+    " WHERE m.session_uid=s.session_uid AND COALESCE(m.model_id,m.model_raw) IS NOT NULL"
+    " GROUP BY 1 ORDER BY COUNT(*) DESC, 1 LIMIT 1),"
+    "(SELECT COALESCE(u.model_id,u.model_raw) FROM usage_snapshot u"
+    " WHERE u.session_uid=s.session_uid AND COALESCE(u.model_id,u.model_raw) IS NOT NULL"
+    " ORDER BY u.observation_seq DESC LIMIT 1)) AS model_raw")
+
+
+def session_kinds(value):
+    """``kind`` filter: default ``main``; ``all`` disables it; otherwise a comma list."""
+    if value is None or value == "":
+        return ("main",)
+    if value == "all":
+        return None
+    kinds = tuple(dict.fromkeys(k.strip() for k in value.split(",") if k.strip()))
+    unknown = [k for k in kinds if k not in SESSION_KINDS]
+    if not kinds or unknown:
+        raise ValueError(f"kind 必须是 all 或 {', '.join(SESSION_KINDS)} 的逗号列表")
+    return kinds
+
+
+def session_filter(project_id=None, kinds=("main",)):
+    """WHERE clause shared by /v1/sessions and the adapter's session page."""
+    clauses, params = [], []
+    if project_id is not None:
+        clauses.append("s.project_id=?")
+        params.append(project_id)
+    if kinds is not None:
+        clauses.append("s.kind IN (" + ",".join("?" * len(kinds)) + ")")
+        params.extend(kinds)
+    return (" WHERE " + " AND ".join(clauses) if clauses else ""), params
+
+
 def report_session(row, project=None):
     return {**row, "id": row["session_uid"], "project_id": row.get("project_id") or "unknown",
             "project": (project or {}).get("name") or "未知项目", "model": row.get("model_raw") or "unknown",
             "title": row.get("title") or "未命名会话", "started_at": utc_time(row.get("started_at")),
-            "source_kind": "user" if row["kind"] == "main" else row["kind"]}
+            "kind": row["kind"], "source_kind": "user" if row["kind"] == "main" else row["kind"]}
 
 
 class ReportSnapshot:
@@ -144,14 +181,14 @@ class CanonicalStore:
                 "SELECT s.source_id,s.agent,s.label,s.enabled,x.selection,x.discovered_files,x.indexed_files,x.capture_errors,x.cancelled "
                 "FROM source s LEFT JOIN source_scan x USING(source_id) ORDER BY s.source_id")]
 
-    def session_page(self, project_id=None, *, offset=0, limit=50):
+    def session_page(self, project_id=None, *, offset=0, limit=50, kind=None):
         if offset < 0 or not 1 <= limit <= 200:
             raise ValueError("offset 必须非负，limit 必须在 1–200")
-        clause, params = (" AND s.project_id=?", [project_id]) if project_id is not None else ("", [])
-        base = (" FROM session s JOIN source src ON src.source_id=s.source_id LEFT JOIN project p ON p.project_id=s.project_id WHERE 1=1" + clause)
+        clause, params = session_filter(project_id, session_kinds(kind))
+        base = (" FROM session s JOIN source src ON src.source_id=s.source_id LEFT JOIN project p ON p.project_id=s.project_id" + clause)
         with self.connect() as db:
             total = db.execute("SELECT count(*)" + base, params).fetchone()[0]
-            rows = db.execute("SELECT s.*,src.agent,p.name AS project_name" + base +
+            rows = db.execute("SELECT s.*,src.agent,p.name AS project_name," + SESSION_MODEL_SQL + base +
                               " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
                               [*params, limit, offset])
             items = [report_session(dict(r), {"name": r["project_name"]}) for r in rows]

@@ -7,6 +7,7 @@ text coordinates) and global metadata are attached when rows are assembled.
 """
 
 import importlib
+import json
 import os
 import pickle
 import threading
@@ -171,11 +172,12 @@ def session_row_core(context: AnalysisContext, s: Record) -> Record:
         scope,
         complete_models,
     )
+    tool_status = bundle.coverage.get("tool_calls", {}).get("status", "partial")
+    # Partial dataset coverage is about pairing quality of observed calls; a session whose
+    # own calls were read and are empty observed zero calls (null is for unavailable data).
     data["tools"] = tool_summary(
-        root_calls, bundle.coverage.get("tool_calls", {}).get("status", "partial")
+        root_calls, "available" if root_calls == [] and tool_status == "partial" else tool_status
     )
-    if root_calls == [] and data["tools"]["status"] != "available":
-        data["features"]["tool_call_count"] = None
     # Instruction records are per human message, so the session's own records equal the
     # session's slice of a global extraction.
     records = extract_instruction_constraints(own, main_ids=main_ids)
@@ -1088,9 +1090,24 @@ def analyze_sections(
     }}
 
 
+def boundary_summary(boundary: Record | None) -> Record | None:
+    """Sample boundary without the per-file list: count + digest stay O(1) in every section.
+
+    The file list itself is served page by page from ``/v1/analytics/sample_files``.
+    """
+    if not boundary or "files" not in boundary:
+        return boundary
+    files = boundary["files"] or []
+    summary = {k: v for k, v in boundary.items() if k != "files"}
+    # Canonical JSON: str(dict) would depend on key order (fresh vs. history-cached results).
+    canonical = json.dumps(files, sort_keys=True, ensure_ascii=False, default=str)
+    return {**summary, "file_count": len(files), "files_digest": stable_id(canonical)}
+
+
 def response_section(result: Record, key: str) -> Record:
     """Attach shared scope and coverage metadata to an API section."""
     shared = {k: result[k] for k in SHARED_KEYS}
     if "freshness" in result:
         shared["freshness"] = result["freshness"]
+    shared["sample_boundary"] = boundary_summary(shared["sample_boundary"])
     return {**shared, key: result[key]}

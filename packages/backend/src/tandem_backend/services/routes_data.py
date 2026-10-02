@@ -28,12 +28,28 @@ from fastapi.responses import JSONResponse
 
 from .. import __version__, privacy_rules
 from .auth import ApiError
+from .text_cap import EVIDENCE_MAX_CHARS, LIST_MAX_CHARS, RANGE_MAX_CHARS, cap_event
 
 if TYPE_CHECKING:
     from .gateway import Gateway
 
-SESSION_FIELDS = ("id", "title", "project_id", "project", "model", "started_at")
+SESSION_FIELDS = ("id", "title", "project_id", "project", "model", "started_at", "kind", "agent")
 NO_DATABASE = {"freshness": "none", "reason": "no_projection"}
+
+
+def disambiguate_names(items: list[dict]) -> list[dict]:
+    """Suffix names used by several projects with the parent folder (or Git owner).
+    ``key``/``key_type`` are dropped: paths stay in the local ledger."""
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item["name"]] = counts.get(item["name"], 0) + 1
+    for item in items:
+        key, key_type = item.pop("key"), item.pop("key_type")
+        if counts[item["name"]] > 1 and key_type != "bucket":
+            parts = [p for p in key.replace("\\", "/").split("/") if p]
+            if len(parts) >= 2:
+                item["name"] = f"{item['name']} ({parts[-2]})"
+    return items
 
 
 class NoDatabase(ApiError):
@@ -213,18 +229,31 @@ def router(gw: Gateway) -> APIRouter:
                 "projection": revisions["projection"], "counts": revisions["counts"]}
 
     @api.get("/v1/sessions")
-    def sessions(request: Request, project_id: str | None = None,
+    def sessions(request: Request, project_id: str | None = None, kind: str | None = None,
                  limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
-        from ..data_access.store import report_session
+        """Newest first. ``kind`` defaults to ``main`` (user sessions); ``all`` lists every
+        kind, or pass a comma list such as ``main,review``. ``model`` is the session's most
+        used model (``unknown`` when it reported none)."""
+        from ..data_access.store import (
+            SESSION_MODEL_SQL,
+            report_session,
+            session_filter,
+            session_kinds,
+        )
 
+        try:
+            kinds = session_kinds(kind)
+        except ValueError as error:
+            raise ApiError(422, "invalid_kind", str(error)) from error
         total_header = {}
 
         def produce(db):
-            clause, params = (" WHERE s.project_id=?", [project_id]) if project_id else ("", [])
-            base = " FROM session s LEFT JOIN project p ON p.project_id=s.project_id" + clause
+            clause, params = session_filter(project_id or None, kinds)
+            base = (" FROM session s LEFT JOIN source src ON src.source_id=s.source_id"
+                    " LEFT JOIN project p ON p.project_id=s.project_id" + clause)
             total_header["X-Total-Count"] = str(db.execute("SELECT count(*)" + base,
                                                            params).fetchone()[0])
-            rows = db.execute("SELECT s.*,p.name AS project_name" + base +
+            rows = db.execute("SELECT s.*,src.agent,p.name AS project_name," + SESSION_MODEL_SQL + base +
                               " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
                               [*params, limit, offset]).fetchall()
             items = [report_session(dict(r), {"name": r["project_name"]}) for r in rows]
@@ -236,7 +265,10 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/sessions/{session_id}/events")
     def events(request: Request, session_id: str, offset: int = Query(0, ge=0),
-               limit: int = Query(100, ge=1, le=500), after_seq: int | None = Query(None, ge=-1)):
+               limit: int = Query(100, ge=1, le=500), after_seq: int | None = Query(None, ge=-1),
+               max_chars: int = Query(LIST_MAX_CHARS, ge=1, le=RANGE_MAX_CHARS)):
+        """Event texts are capped at ``max_chars`` (``truncated`` / ``text_range`` say so);
+        the full text is read by range from ``/v1/evidence/{event_id}``."""
         from tandem_data.analysis_input import decoded
 
         from ..data_access.store import report_event
@@ -251,20 +283,48 @@ def router(gw: Gateway) -> APIRouter:
                 "SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c USING(event_uid)"
                 " WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ? OFFSET ?",
                 (session_id, after_seq if after_seq is not None else -1, limit, offset))]
-            return {"total": total, "items": [report_event(e).to_dict() for e in rows],
+            return {"total": total,
+                    "items": [cap_event(report_event(e).to_dict(), max_chars) for e in rows],
                     "next_after_seq": rows[-1]["seq"] if rows else None}
 
         return served(request, produce)
 
+    @api.get("/v1/evidence/{event_id}")
+    def evidence(request: Request, event_id: str, text_offset: int = Query(0, ge=0),
+                 max_chars: int = Query(EVIDENCE_MAX_CHARS, ge=1, le=RANGE_MAX_CHARS)):
+        """One event; ``text`` is the range ``[text_offset, text_offset + max_chars)`` and
+        ``text_range.total`` the full length, so a client pages through huge outputs."""
+        from tandem_data.analysis_input import decoded
+
+        from ..data_access.store import report_event
+
+        def produce(db):
+            row = db.execute("SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c"
+                             " USING(event_uid) WHERE e.event_uid=?", (event_id,)).fetchone()
+            if row is None:
+                raise ApiError(404, "not_found", "证据不存在或不在分析范围内")
+            return cap_event(report_event(decoded(row)).to_dict(), max_chars, text_offset)
+
+        return served(request, produce)
+
     @api.get("/v1/projects")
-    def projects(request: Request):
+    def projects(request: Request, include_empty: bool = False):
+        """Projects by session attribution. ``sessions`` counts main sessions, the same set
+        ``/v1/sessions?project_id=`` lists by default; ``sessions_all`` counts every kind.
+        Projects without any session (only event-level attribution) are hidden unless
+        ``include_empty``. Names shared by several projects get their parent folder."""
+
         def produce(db):
             rows = db.execute(
-                "SELECT p.project_id,p.name,COUNT(s.session_uid) AS sessions,"
+                "SELECT p.project_id,p.name,p.key_type,p.key,"
+                " COUNT(s.session_uid) FILTER (WHERE s.kind='main') AS sessions,"
+                " COUNT(s.session_uid) AS sessions_all,"
                 " MAX(s.started_at) AS last_started_at FROM project p"
                 " LEFT JOIN session s ON s.project_id=p.project_id"
-                " GROUP BY p.project_id ORDER BY sessions DESC, p.project_id").fetchall()
-            return [dict(r) for r in rows]
+                " GROUP BY p.project_id ORDER BY sessions DESC, sessions_all DESC, p.project_id"
+            ).fetchall()
+            items = [dict(r) for r in rows if include_empty or r["sessions_all"]]
+            return disambiguate_names(items)
 
         return served(request, produce)
 

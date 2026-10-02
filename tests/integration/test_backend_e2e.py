@@ -225,6 +225,10 @@ def test_backend_end_to_end(e2e):
     # link-only) under the temporary HOME, then follow it through to revert.
     backed = [i for i in items if i.get("basis") != "catalog_only" and i["evidence"]["session_uids"]]
     assert backed, items
+    # Remedies Tandem writes itself (KB allowlist / hook) plan from the card, never link_only.
+    own = [i for i in backed if (i.get("source") or {}).get("origin") == "kb"
+           and i["kind"] in ("permission_rule", "hook") and "…" not in json.dumps(i.get("file"))]
+    assert own and all(plan_status(client, i["candidate_id"]) == "ready" for i in own), own
     card = next((i for i in backed if plan_status(client, i["candidate_id"]) == "ready"), None)
     assert card is not None, [(i["candidate_id"], i["source"]) for i in backed]
     candidate = card["candidate_id"]

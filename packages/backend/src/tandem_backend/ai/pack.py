@@ -13,6 +13,7 @@ import importlib
 import json
 import logging
 import re
+import sqlite3
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
@@ -25,8 +26,17 @@ log = logging.getLogger(__name__)
 
 DAY_MS = 86_400_000
 MARKER = "[tandem-analysis"
-CORRECTION_RE = re.compile(r"不是|不对|我说的是|别再|wrong|no,|again", re.I)
-_CORRECTION_LIKE = ("不是", "不对", "我说的是", "别再", "wrong", "no,", "again")
+# Corrections are short pushback near the start of a message (B8): a bare "不是" inside a long
+# prompt is a copula, "again" is mostly a client retry ("Try again").
+CORRECTION_MAX_CHARS = 200
+_CORRECTION_HEAD = 60
+_CORRECTION_ZH = re.compile(r"^(?:不是|错了|搞错)|(?<!对)不对(?![应称劲齐])|我说的是|别再|不是这样|不是这个|不是我要"
+                            r"|不是让你|理解错|搞错了|还是不行")
+_CORRECTION_EN = re.compile(r"^(?:no|nope)\b[\s,.!]|\b(?:wrong|that'?s not|not what i (?:asked|meant|wanted|said)"
+                            r"|i said|i meant|you misunderstood)\b", re.I)
+_CLIENT_RETRY = re.compile(r"^(?:try again|retry|continue|please continue|go on|keep going)[.!。！]?$", re.I)
+# No protocol outcome: not counted in failure-rate denominators (declined = user refused).
+UNKNOWN_STATUS = ("unknown", "orphan_result", "declined", "denied")
 VERIFY_RE = re.compile(r"pytest|npm (run )?test|pnpm (check|test)|cargo test|go test|make( test)?|tsc|ruff|eslint"
                        r"|swift (build|test)|xcodebuild")
 OK_STATUS = ("success", "completed", "ok")
@@ -35,6 +45,9 @@ LIMITS = {"human": 500, "assistant": 300, "error": 200}
 FACET_SESSION_TOKENS = 6000
 FACET_MAX_SESSIONS = 200
 FACET_BATCH = 8
+FACET_RESERVE_TOKENS = 2000  # room for goal and the other items of a facet pack
+REPLAY_CALLS_MAX = 40  # per session, before the token budget halves it further
+REPLAY_TOKENS = 4000
 
 
 # ---------------------------------------------------------------- helpers
@@ -107,28 +120,159 @@ def window_sql(start: int, end: int, project_id, home, alias: str = "s", *,
     return sql + extra, params + extra_params
 
 
-def _correction_sql(col: str = "h.text") -> str:
-    return "(" + " OR ".join(f"{col} LIKE '%{w}%'" for w in _CORRECTION_LIKE) + ")"
+def is_correction(text) -> bool:
+    """A short human message that pushes back on the agent (see ``CORRECTION_MAX_CHARS``)."""
+    t = (text or "").strip()
+    if not t or len(t) > CORRECTION_MAX_CHARS or _CLIENT_RETRY.match(t):
+        return False
+    head = t[:_CORRECTION_HEAD]
+    return bool(_CORRECTION_ZH.search(head) or _CORRECTION_EN.search(head))
+
+
+def union_ms(intervals, lo: int | None = None, hi: int | None = None) -> int:
+    """Wall-clock length of the union of ``(start, end)`` intervals clipped to ``[lo, hi)`` (B7):
+    overlapping sessions count once, so hours never exceed the window."""
+    spans = []
+    for a, b in intervals:
+        if a is None:
+            continue
+        b = a if b is None or b < a else b
+        if lo is not None:
+            a, b = max(a, lo), max(b, lo)
+        if hi is not None:
+            a, b = min(a, hi), min(b, hi)
+        if b > a:
+            spans.append((a, b))
+    total, cur_a, cur_b = 0, None, None
+    for a, b in sorted(spans):
+        if cur_b is None or a > cur_b:
+            if cur_b is not None:
+                total += cur_b - cur_a
+            cur_a, cur_b = a, b
+        else:
+            cur_b = max(cur_b, b)
+    if cur_b is not None:
+        total += cur_b - cur_a
+    return total
+
+
+def _chunks(values, size: int = 500):
+    values = list(values)
+    for i in range(0, len(values), size):
+        yield values[i:i + size]
+
+
+def human_texts(conn, uids, since: int | None = None) -> dict[str, list[str]]:
+    """Human message texts per session, in order; driven by the session list (B9)."""
+    out: dict[str, list[str]] = {}
+    for chunk in _chunks(dict.fromkeys(uids)):
+        extra, args = ("", []) if since is None else (" AND h.ts>=?", [since])
+        for uid, text in conn.execute(
+                f"SELECT h.session_uid, h.text FROM v_human_message h WHERE h.session_uid IN"
+                f" ({placeholders(chunk)}){extra} ORDER BY h.session_uid, h.seq", [*chunk, *args]):
+            out.setdefault(uid, []).append(text or "")
+    return out
+
+
+def correction_counts(conn, uids) -> dict[str, int]:
+    return {uid: sum(map(is_correction, texts)) for uid, texts in human_texts(conn, uids).items()}
+
+
+def with_children(conn, uids) -> dict[str, str]:
+    """{session_uid: main uid} for the main sessions and their subagent/workflow children, so
+    tool counts include delegated work (the analytics views do the same)."""
+    out = {u: u for u in uids}
+    try:
+        for chunk in _chunks(uids):
+            for uid, root in conn.execute(
+                    f"SELECT session_uid, root_uid FROM session WHERE root_uid IN ({placeholders(chunk)})"
+                    f" AND kind IN ('subagent','workflow_agent') AND lineage_unresolved=0", chunk):
+                out.setdefault(uid, root)
+    except sqlite3.OperationalError:  # pre-lineage schema: main sessions only
+        pass
+    return out
+
+
+def tool_stats(conn, uids) -> dict[str, list[int]]:
+    """{main uid: [calls, known, failures]} (known = a status other than unknown/orphan)."""
+    owner = with_children(conn, uids)
+    out: dict[str, list[int]] = {}
+    for chunk in _chunks(owner):
+        for uid, calls, known, fails in conn.execute(
+                f"SELECT session_uid, COUNT(*), SUM(status NOT IN ({placeholders(UNKNOWN_STATUS)})),"
+                f" SUM(status IN ({placeholders(FAIL_STATUS)})) FROM tool_call WHERE session_uid IN"
+                f" ({placeholders(chunk)}) GROUP BY session_uid", [*UNKNOWN_STATUS, *FAIL_STATUS, *chunk]):
+            acc = out.setdefault(owner[uid], [0, 0, 0])
+            acc[0] += calls
+            acc[1] += int(known or 0)
+            acc[2] += int(fails or 0)
+    return out
+
+
+def _metric_values(rows, start: int, end: int, humans: dict, tools: dict) -> dict:
+    uids = [r[0] for r in rows]
+    msgs = sum(len(humans.get(u, ())) for u in uids)
+    corr = sum(is_correction(t) for u in uids for t in humans.get(u, ()))
+    calls = sum(tools.get(u, (0, 0, 0))[0] for u in uids)
+    known = sum(tools.get(u, (0, 0, 0))[1] for u in uids)
+    fails = sum(tools.get(u, (0, 0, 0))[2] for u in uids)
+    span = union_ms(((r[1], r[2]) for r in rows), start, end)
+    return {"sessions": len(rows), "hours": round(span / 3_600_000, 1), "human_messages": msgs,
+            "corrections": corr, "correction_rate": round(corr / msgs, 3) if msgs else 0.0,
+            "tool_calls": calls, "tool_failures": fails, "tool_known_results": known,
+            # Rates use known protocol outcomes only; unknown/declined calls are not successes.
+            "tool_failure_rate": round(fails / known, 3) if known else None,
+            "tool_unknown_share": round((calls - known) / calls, 3) if calls else None}
+
+
+_METRICS_CACHE: dict = {}
+_METRICS_TTL_S = 60
+
+
+def _data_rev(conn):
+    try:
+        path = conn.execute("PRAGMA database_list").fetchone()[2]
+        rev = conn.execute("SELECT (SELECT MAX(rowid) FROM event), (SELECT MAX(rowid) FROM tool_call),"
+                           " (SELECT COUNT(*) FROM session)").fetchone()
+        return path, tuple(rev)
+    except Exception:  # noqa: BLE001 - unknown connection type: no caching
+        return None
+
+
+def metrics_pair(conn, start: int, end: int, project_id=None, home=None, *, source_ids=None,
+                 exclude=None) -> tuple[dict, dict]:
+    """Metrics of ``[start, end)`` and of the preceding window of equal length, in one pass (B9).
+
+    Hours are the union of session spans clipped to the window (B7); the tool failure rate uses
+    calls with a known status as denominator. Cached for a minute per (db, data revision, scope).
+    """
+    span = end - start
+    rev = _data_rev(conn)
+    key = None
+    if rev is not None:
+        key = (rev, start // 60_000, end // 60_000, project_id, str(home) if home else None,
+               tuple(source_ids or ()), tuple(sorted(exclude or ())))
+        hit = _METRICS_CACHE.get(key)
+        if hit and time.monotonic() - hit[0] < _METRICS_TTL_S:
+            return hit[1]
+    where, params = window_sql(start - span, end, project_id, home, source_ids=source_ids, exclude=exclude)
+    rows = conn.execute(f"SELECT s.session_uid, s.started_at, s.ended_at FROM session s WHERE {where}",
+                        params).fetchall()
+    uids = [r[0] for r in rows]
+    humans = human_texts(conn, uids, since=start - span - DAY_MS)
+    tools = tool_stats(conn, uids)
+    cur = _metric_values([r for r in rows if r[1] >= start], start, end, humans, tools)
+    prev = _metric_values([r for r in rows if r[1] < start], start - span, start, humans, tools)
+    if key is not None:
+        if len(_METRICS_CACHE) > 64:
+            _METRICS_CACHE.clear()
+        _METRICS_CACHE[key] = (time.monotonic(), (cur, prev))
+    return cur, prev
 
 
 def metrics(conn, start: int, end: int, project_id=None, home=None, *, source_ids=None,
             exclude=None) -> dict:
-    where, params = window_sql(start, end, project_id, home, source_ids=source_ids,
-                               exclude=exclude)
-    row = conn.execute(
-        f"SELECT COUNT(*), COALESCE(SUM(MAX(COALESCE(s.ended_at,s.started_at)-s.started_at,0)),0)"
-        f" FROM session s WHERE {where} LIMIT 1", params).fetchone()
-    sessions, span = row[0], row[1]
-    sub = f"SELECT s.session_uid FROM session s WHERE {where}"
-    h = conn.execute(f"SELECT COUNT(*), COALESCE(SUM({_correction_sql()}),0) FROM v_human_message h"
-                     f" WHERE h.session_uid IN ({sub}) LIMIT 1", params).fetchone()
-    t = conn.execute(f"SELECT COUNT(*), COALESCE(SUM(t.status IN ('failed','error')),0) FROM tool_call t"
-                     f" WHERE t.session_uid IN ({sub}) LIMIT 1", params).fetchone()
-    msgs, corr, calls, fails = h[0], int(h[1]), t[0], int(t[1])
-    return {"sessions": sessions, "hours": round(span / 3_600_000, 1), "human_messages": msgs,
-            "corrections": corr, "correction_rate": round(corr / msgs, 3) if msgs else 0.0,
-            "tool_calls": calls, "tool_failures": fails,
-            "tool_failure_rate": round(fails / calls, 3) if calls else 0.0}
+    return metrics_pair(conn, start, end, project_id, home, source_ids=source_ids, exclude=exclude)[0]
 
 
 def fts_query(text: str, min_len: int = 2) -> str:
@@ -250,7 +394,7 @@ def _evidence(c: _Ctx) -> list[dict]:
         for uid in (cand.get("evidence_session_uids") or [])[:5]:
             rows = _human_rows(c.conn, uid)
             pick = next((r for r in rows if r[0] in top), None) or \
-                next((r for r in rows if CORRECTION_RE.search(r[1] or "")), None)
+                next((r for r in rows if is_correction(r[1])), None)
             if pick:
                 out.append({"event_uid": pick[0], "session_uid": uid, "kind": "human",
                             "text": privacy.direct_user_text(pick[1] or "")})
@@ -314,10 +458,10 @@ def _project_evidence(c: _Ctx) -> list[dict]:
             out.extend(_events_by_uid(c.conn, [uid]))
     if not out:  # no feature problems: corrections and top failing commands of the project
         rows = c.conn.execute(f"SELECT h.event_uid, h.session_uid, h.text FROM v_human_message h"
-                              f" WHERE h.session_uid IN ({sub}) AND {_correction_sql()} ORDER BY h.ts DESC LIMIT 3",
+                              f" WHERE h.session_uid IN ({sub}) ORDER BY h.ts DESC LIMIT 400",
                               params).fetchall()
         out = [{"event_uid": r[0], "session_uid": r[1], "kind": "human",
-                "text": privacy.direct_user_text(r[2] or "")} for r in rows]
+                "text": privacy.direct_user_text(r[2] or "")} for r in rows if is_correction(r[2])][:3]
         rows = c.conn.execute(f"SELECT COALESCE(t.result_event_uid,t.call_event_uid), t.session_uid, t.name,"
                               f" t.command_head, t.error_class FROM tool_call t WHERE t.session_uid IN ({sub})"
                               f" AND t.status IN ('failed','error') ORDER BY t.started_at DESC LIMIT 2",
@@ -350,9 +494,7 @@ def _sessions(c: _Ctx):
     tools = {r[0]: (r[1], int(r[2] or 0)) for r in c.conn.execute(
         f"SELECT session_uid, COUNT(*), SUM(status IN ('failed','error')) FROM tool_call"
         f" WHERE session_uid IN ({ph}) GROUP BY session_uid LIMIT 30", ids)}
-    corr = {r[0]: int(r[1] or 0) for r in c.conn.execute(
-        f"SELECT h.session_uid, SUM({_correction_sql()}) FROM v_human_message h"
-        f" WHERE h.session_uid IN ({ph}) GROUP BY h.session_uid LIMIT 30", ids)}
+    corr = correction_counts(c.conn, ids)
     facets = _facet_rows(c.appdb, ids)
     out = []
     for r in rows:
@@ -396,8 +538,8 @@ def _friction(c: _Ctx):
         classes = [{"error_class": r[0], "count": r[1]} for r in c.conn.execute(
             f"SELECT error_class, COUNT(*) n FROM tool_call WHERE session_uid IN ({sub})"
             f" AND error_class IS NOT NULL GROUP BY error_class ORDER BY n DESC, error_class LIMIT 8", params)]
-        corr = c.conn.execute(f"SELECT COALESCE(SUM({_correction_sql()}),0) FROM v_human_message h"
-                              f" WHERE h.session_uid IN ({sub}) LIMIT 1", params).fetchone()[0]
+        uids = [r[0] for r in c.conn.execute(sub, params)]
+        corr = sum(correction_counts(c.conn, uids).values())
         return {"problems": problems, "error_classes": classes, "corrections": int(corr)}
     value = c.once("friction", calc)
     return value
@@ -477,11 +619,13 @@ def _replay_calls(c: _Ctx):
     if pid:
         where, params = window_sql(c.start, c.end, pid, c.home)
     excl = f" AND s.session_uid NOT IN ({placeholders(evidence)})" if evidence else ""
+    rows: dict[str, list] = {}
     for (uid,) in c.conn.execute(f"SELECT s.session_uid FROM session s WHERE {where}{excl}"
                                  f" ORDER BY s.started_at DESC LIMIT 20", params + evidence):
         if len(normal) >= 5:
             break
-        if not _failure_runs(_tool_rows(c, [uid], 200)):
+        rows[uid] = _tool_rows(c, [uid], 200)
+        if not _failure_runs(rows[uid]):
             normal.append(uid)
     uids = evidence + normal
     titles = {r[0]: r[1] for r in c.conn.execute(
@@ -489,18 +633,57 @@ def _replay_calls(c: _Ctx):
         if uids else {}
     out = []
     for uid in uids:
-        calls = [{"tool_name": r[1], "kind": r[2], "command_head": r[3], "status": r[4], "error_class": r[5],
-                  "exit_code": r[6], "file_exts": _exts(r[7])} for r in _tool_rows(c, [uid], 200)]
+        calls = []
+        for r in rows.get(uid) or _tool_rows(c, [uid], 200):
+            call = {"tool_name": r[1], "kind": r[2], "command_head": r[3], "status": r[4], "error_class": r[5],
+                    "exit_code": r[6], "file_exts": _exts(r[7])}
+            calls.append({k: v for k, v in call.items() if v not in (None, [], "")})
         out.append({"session_uid": uid, "title": titles.get(uid) or "", "evidence": uid in evidence, "calls": calls})
     return out
+
+
+def _replay_keep(calls: list[dict], cap: int) -> list[int]:
+    """Indices to keep: head and tail plus a window around each failure (what hooks react to)."""
+    n = len(calls)
+    if n <= cap:
+        return list(range(n))
+    keep: dict[int, None] = {}
+    for i, call in enumerate(calls):
+        if call.get("status") in FAIL_STATUS or call.get("error_class"):
+            keep.update(dict.fromkeys(range(max(0, i - 2), min(n, i + 3))))
+    edge = max(1, cap // 8)
+    head_tail = list(range(min(edge, n))) + list(range(max(0, n - edge), n))
+    picked = sorted(dict.fromkeys(head_tail))
+    for i in keep:
+        if len(picked) >= cap:
+            break
+        if i not in picked:
+            picked.append(i)
+    return sorted(picked[:cap])
+
+
+def clip_replay(sessions, cap: int = REPLAY_CALLS_MAX, budget: int = REPLAY_TOKENS) -> list[dict]:
+    """Clip each session's calls (B11) until the item fits ``budget`` tokens; ``omitted_calls``
+    says how many were left out so the replay result is read as a sample."""
+    sessions = list(sessions or [])
+    while True:
+        out = []
+        for s in sessions:
+            calls = s.get("calls") or []
+            idx = _replay_keep(calls, cap)
+            item = {**s, "calls": [calls[i] for i in idx]}
+            if len(idx) < len(calls):
+                item["omitted_calls"] = len(calls) - len(idx) + int(s.get("omitted_calls") or 0)
+            out.append(item)
+        if cap <= 4 or est_tokens(out) <= budget:
+            return out
+        cap //= 2
 
 
 def _metrics(c: _Ctx):
     if c.conn is None:
         return {}
-    cur = metrics(c.conn, c.start, c.end, c.project_id, c.home)
-    span = c.end - c.start
-    prev = metrics(c.conn, c.start - span, c.start, c.project_id, c.home)
+    cur, prev = metrics_pair(c.conn, c.start, c.end, c.project_id, c.home)
     return {**cur, "prev": prev if prev["sessions"] else None}
 
 
@@ -635,13 +818,14 @@ def facet_sessions(c: _Ctx) -> list[str]:
         return uids
     end = c.end
     extra, params = session_filter(c.home)
-    rows = c.conn.execute(
-        f"SELECT s.session_uid, EXISTS(SELECT 1 FROM v_human_message h WHERE h.session_uid=s.session_uid"
-        f" AND {_correction_sql()}) cand FROM session s WHERE s.kind='main' AND s.status<>'active'"
+    uids = [r[0] for r in c.conn.execute(
+        f"SELECT s.session_uid FROM session s WHERE s.kind='main' AND s.status<>'active'"
         f" AND s.started_at>=? AND s.started_at<? AND COALESCE(s.ended_at,s.started_at)-s.started_at>=60000"
-        f" AND (SELECT COUNT(*) FROM v_human_message h WHERE h.session_uid=s.session_uid)>=2{extra}"
-        f" ORDER BY cand DESC, s.started_at DESC LIMIT 600", [end - 90 * DAY_MS, end, *params]).fetchall()
-    return [r[0] for r in rows]
+        f"{extra} ORDER BY s.started_at DESC", [end - 90 * DAY_MS, end, *params])]
+    humans = human_texts(c.conn, uids)
+    keep = [u for u in uids if len(humans.get(u, ())) >= 2]
+    cand = {u for u in keep if any(map(is_correction, humans[u]))}
+    return sorted(keep, key=lambda u: u not in cand)[:600]
 
 
 def _seq(kinds: list[str]) -> list[str]:
@@ -672,7 +856,7 @@ def facet_payload(conn, uid: str) -> dict:
     texts = [(r[0], privacy.direct_user_text(r[1] or "")) for r in humans]
     texts = [t for t in texts if t[1]]
     cands = [{"signal_id": "sig:" + e, "event_uid": e, "kind": "correction", "snippet": t[:120]}
-             for e, t in texts if CORRECTION_RE.search(t)][:10]
+             for e, t in texts if is_correction(t)][:10]
     if len(texts) > 12:
         texts = texts[:4] + texts[-8:]
     return {"row": row, "tool_sequence": _seq([t[0] for t in tools]),
@@ -718,17 +902,25 @@ def _items(c: _Ctx):
         return {}
     uids = facet_sessions(c)
     known = _existing_facets(c.appdb, uids, c.task.get("prompt_version"))
-    out, hits = {}, 0
-    for uid in uids:
+    budget = max(FACET_SESSION_TOKENS, int(c.task.get("input_budget") or 40_000) - FACET_RESERVE_TOKENS)
+    out, hits, tokens, queued = {}, 0, 0, 0
+    for k, uid in enumerate(uids):
         if len(out) >= FACET_MAX_SESSIONS:
+            queued = len(uids) - k
             break
         payload, n = redact_value(facet_payload(c.conn, uid))
         payload = clip_facet(payload)
         if known.get(uid) == content_hash(payload):
             continue
+        size = est_tokens({uid: payload})
+        if out and tokens + size > budget:  # B12: stay within the task budget; the rest waits
+            queued = len(uids) - k
+            break
         out[uid] = payload
         hits += n
+        tokens += size
     c.memo["items:hits"] = hits
+    c.memo["items:queued"] = queued
     return out
 
 
@@ -775,6 +967,8 @@ def _clip(key: str, value):
         return (value or [])[:3]
     if key == "items":
         return {uid: clip_facet(p) for uid, p in (value or {}).items()}
+    if key == "replay_calls":
+        return clip_replay(value)
     return value
 
 
@@ -872,6 +1066,11 @@ def build(task: dict, *, reads, appdb, home, scope=None, selection=None, goal=No
             items[key] = {"key": key, "label": label, "desc": desc + ("（不可用）" if unavailable else ""),
                           "data_class": data_class, "enabled": enabled, "tokens": tokens,
                           "redaction_hits": hits, "preview": _preview(key, value)}
+            queued = c.memo.pop(f"{key}:queued", 0)
+            if queued:
+                items[key]["queued"] = queued
+                items[key]["desc"] += (f"（按输入预算先处理 {len(value or {})} 个会话，"
+                                       f"其余最多 {queued} 个排队，下次提交继续）")
             if enabled:
                 content[key] = value
                 collect_refs(value, refs, numbers, numeric=key in ("metrics", "friction", "transitions"))

@@ -15,6 +15,14 @@ MIN_SESSIONS, MIN_SHARE = 5, .3
 CODEX_RULE = "codex-effort-medium"
 
 
+def _uids(rows: list[dict]) -> list[str]:
+    """Read-only session uids behind the counts, so the card's「依据 N 个会话」is resolvable."""
+    out: list[str] = []
+    for row in rows:
+        out += [uid for uid in row.get("readonly_session_uids") or () if uid not in out]
+    return out[:20]
+
+
 def _stats(rows: list[dict]) -> tuple[int, int, int, str] | None:
     sessions = sum(int(row.get("sessions") or 0) for row in rows)
     readonly = sum(int(row.get("readonly_sessions") or 0) for row in rows)
@@ -61,7 +69,7 @@ def _codex(high: list[dict], inputs: dict) -> tuple[list, dict]:
         "rec_key": key, "problem": None, "kind": "model", "dim": "model", "level": rule.remedy.level,
         "audience_min": rule.audience_min, "title": fill(rule.title, values), "summary": fill(rule.summary, values),
         "match_basis": "inventory_fact", "routes": {}, "fusion": 0.,
-        "evidence": {"session_uids": [], "signal_ids": [], "counts": {"sessions": readonly, "events": 0}},
+        "evidence": {"session_uids": _uids(high), "signal_ids": [], "counts": {"sessions": readonly, "events": 0}},
         "source": {"origin": "template", "item_id": rule.id, "url": None, "license": None,
                    "version": str(rule.version), "verified": True},
         "target": {"agents": ["codex"], "scope": "user", "project_id": None, "path_hint": rule.remedy.path},
@@ -95,7 +103,7 @@ def _claude(high: list[dict], inputs: dict) -> tuple[list, dict]:
         "title": "只读审查任务改用 thinking medium",
         "summary": "高思考档位的会话里有相当比例只读不改，可以先用 medium，出现编辑再恢复。",
         "match_basis": "inventory_fact", "routes": {}, "fusion": 0.,
-        "evidence": {"session_uids": [], "signal_ids": [], "counts": {"sessions": readonly, "events": 0}},
+        "evidence": {"session_uids": _uids(high), "signal_ids": [], "counts": {"sessions": readonly, "events": 0}},
         "source": {"origin": "template", "item_id": "effort-medium-readonly", "url": None, "license": None,
                    "version": "1", "verified": True},
         "target": {"agents": [a for a, _ in agents if a == "claude_code"] or ["claude_code"], "scope": "user",
