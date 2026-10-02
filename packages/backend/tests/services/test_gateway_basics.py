@@ -86,8 +86,11 @@ def test_reads_and_fallback_without_database(client_factory):
     assert response.status_code == 200 and response.json() == []
     assert response.headers["x-tandem-freshness"] == "none"
     assert response.headers["x-total-count"] == "0"
-    legacy = client.get("/v1/analytics/products/sessions")  # Not a gateway route: create_app().
+    legacy = client.get("/v1/analytics/runs")  # Not a gateway route: create_app().
     assert legacy.status_code == 503 and legacy.json()["error"]["code"] == "no_projection"
+    products = client.get("/v1/analytics/products/sessions")  # Worker-backed: empty state.
+    assert products.status_code == 200
+    assert products.json()["meta"]["freshness"] == "none"
     overview = client.get("/v1/analytics/overview")
     assert overview.status_code == 200
     assert overview.json()["overview"] is None
