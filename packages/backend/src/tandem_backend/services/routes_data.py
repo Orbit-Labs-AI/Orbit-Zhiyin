@@ -20,7 +20,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from .. import __version__
+from .. import __version__, privacy_rules
 from .auth import ApiError
 
 if TYPE_CHECKING:
@@ -144,6 +144,7 @@ def router(gw: Gateway) -> APIRouter:
                 for j in active],
             "services": gw.supervisor.services(), "settings": state["settings"],
             "collection": {"paused": gw.platform.collection.paused},
+            "privacy": {"active_rules": privacy_rules.active_count()},
             "badge": gw.platform.notifier.summary()["active"],
             "capabilities": {"sse": True, "snapshots": True, "export": False},
             "server_ms": round((time.perf_counter() - started) * 1000, 3)}
