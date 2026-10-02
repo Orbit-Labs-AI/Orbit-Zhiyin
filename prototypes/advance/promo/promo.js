@@ -625,8 +625,9 @@ function script() {
   at(57.5, () => { app(0).go('sessions'); solo(0, '.tl-card'); });
   tween(0, 58, 2, () => framing(0, '.tl-card', [1310, 540, 1040, 900]), E.quart, IN.plane);
   txt(58.4, 60.6, [['eb', '03 · Trajectory'], ['gap'], ['hv sv', '卡在哪一刻'], ['md acc', '逐秒回放，一眼看清']], { x: L, y: 540 }, { st: .25, outB: .5 });
-  at(59.6, () => app(0).click('[data-act="playToggle"]'));
-  tween(0, 60.1, 1.4, () => framing(0, tlsvg, [1180, 520, 1400, 720], { max: 4, px: .18 }), E.inOut);
+  // the promo drives the replay itself: the playhead runs the whole session from its start in these four beats
+  drive(0, 59.6, 63.6, (p, b, D) => { const a = app(0); if (a.S.sess.playing) a.W.eval('stopPlay()'); a.S.sess.ph = a.W.eval('traj(BYID[S.sess.sel]).T') * E.inOut(lp(b, 59.8, 3.6)); a.W.eval('tlFrame(true)'); });
+  tween(0, 60.1, 1.4, () => framing(0, tlsvg, [1250, 500, 1300, 700], { max: 4, px: .18 }), E.inOut);
   drive(0, 61.5, 63.6, (p, b, D) => {                       // the camera rides with the playhead
     const ph = D.querySelector(tlsvg + ' .vz-playhead'); if (!ph) return;
     const r = ph.getBoundingClientRect(); decks[0].C.x = lerp(decks[0].C.x, r.left + 30, .12);
