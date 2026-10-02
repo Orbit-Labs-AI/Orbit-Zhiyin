@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
@@ -406,10 +408,25 @@ def read_analysis(
             for row in connection.execute("SELECT * FROM source_scan")
             if unrestricted or row["source_id"] in relevant_sources
         ]
-        if any(row["selection"] == "sample" for row in scans):
-            reasons.append("sampled_source_files")
-        if any(row["cancelled"] or row["indexed_files"] < row["discovered_files"] for row in scans):
-            reasons.append("source_scan_incomplete")
+        sampled_scans = sum(row["selection"] == "sample" for row in scans)
+        incomplete_scans = sum(
+            bool(
+                row["cancelled"]
+                or row["capture_errors"]
+                or (row["selection"] == "full" and row["indexed_files"] < row["discovered_files"])
+            )
+            for row in scans
+        )
+        missing_scans = len(
+            {row["source_id"] for row in sources} - {row["source_id"] for row in scans}
+        )
+        scan_reason_counts = {
+            "sampled_source_files": sampled_scans,
+            "source_scan_incomplete": incomplete_scans,
+            "source_scan_boundary_unknown": missing_scans,
+        }
+        # Discovery completeness and selected-event evidence are separate dimensions.
+        # An unknown source inventory must not downgrade unrelated, fully observed rows.
         diagnostics = [
             decoded(row)
             for row in connection.execute(
@@ -437,57 +454,83 @@ def read_analysis(
             reasons.append("unknown_event_types")
         if truncated:
             reasons.append("truncated_text")
+        if time_unknown:
+            reasons.append("missing_timestamps")
+        diagnostic_counts = Counter(row["code"] for row in diagnostics)
+        reason_counts = {
+            "capture_errors_or_incomplete_frames": capture_errors,
+            "source_unavailable_preserved_facts": diagnostic_counts["source_unavailable"],
+            "unparsed_source_records": unparsed,
+            "inherited_parent_evidence_unavailable": diagnostic_counts[
+                "inherited_parent_evidence_unavailable"
+            ],
+            "unknown_event_types": unknown,
+            "truncated_text": truncated,
+            "missing_timestamps": time_unknown,
+        }
+        pairing_counts = Counter(tool["pairing_quality"] or "unknown" for tool in tools)
+        pairing_reasons = {
+            "missing_call": "tool_results_without_calls",
+            "missing_result": "tool_calls_without_results",
+            "outside_cutoff": "tool_results_outside_time_scope",
+        }
+        tool_reason_counts = Counter()
+        for quality, count in pairing_counts.items():
+            if quality != "native_id":
+                tool_reason_counts[pairing_reasons.get(quality, "ambiguous_tool_pairing")] += count
         source_agents = {source["agent"] for source in sources}
         inventory = read_inventory_connection(
             connection, until_ts=scope.until_ts, project_ids=scope.project_ids
         )
         coverage = {
             "source_scans": {
-                "status": "partial"
-                if any(
-                    s["selection"] == "sample" or s["capture_errors"] or s["cancelled"]
-                    for s in scans
-                )
-                else "available",
-                "rows": len(scans),
+                **dataset_coverage(
+                    None if missing_scans and not scans else len(scans),
+                    reason_counts=scan_reason_counts,
+                ),
                 "scans": scans,
             },
-            "sessions": {"status": "available", "rows": len(session_rows)},
-            "projects": {"status": "available", "rows": len(project_rows)},
-            "turns": {"status": "available", "rows": len(turn_rows)},
+            "sessions": dataset_coverage(len(session_rows)),
+            "projects": dataset_coverage(len(project_rows)),
+            "turns": dataset_coverage(len(turn_rows)),
             "events": {
-                "status": "partial" if reasons or time_unknown else "available",
-                "rows": len(selected),
+                **dataset_coverage(len(selected), reasons=reasons, reason_counts=reason_counts),
                 "statistical_rows": len(members),
                 "unknown_rows": unknown,
                 "truncated_rows": truncated,
                 "time_unknown_rows": time_unknown,
-                "reasons": reasons,
+                "truncated_by_kind": dict(
+                    Counter(e["kind"] for e in selected if e["text_truncated"])
+                ),
             },
             "tool_call": {
-                "status": "partial"
-                if any(t["pairing_quality"] != "native_id" for t in tools)
-                else "available",
-                "rows": len(tools),
+                **dataset_coverage(len(tools), reason_counts=tool_reason_counts),
+                "pairing_quality_counts": dict(pairing_counts),
             },
             "model_call": {
-                "status": "unavailable"
-                if source_agents == {"hermes"}
-                else "partial"
-                if "hermes" in source_agents or unparsed
-                else "available",
-                "rows": len(models),
+                **dataset_coverage(
+                    None if source_agents == {"hermes"} else len(models),
+                    reasons=["cumulative_usage_only"]
+                    if source_agents == {"hermes"}
+                    else ["mixed_model_usage_granularity"]
+                    if "hermes" in source_agents
+                    else (),
+                    reason_counts={"unparsed_source_records": unparsed},
+                ),
                 "reason": "Hermes supplies cumulative snapshots rather than per-call usage"
                 if "hermes" in source_agents
                 else None,
             },
-            "usage_snapshot": {"status": "available", "rows": len(snapshots)},
+            "usage_snapshot": dataset_coverage(len(snapshots)),
             "inventory": inventory["coverage"],
-            "catalog": {"status": "unavailable", "reason": "Catalog is a separate dataset"},
+            "catalog": {
+                **dataset_coverage(None, reasons=["catalog_not_connected"]),
+                "reason": "Catalog is a separate dataset",
+            },
         }
         if not include_native:
             coverage["native_event_payload"] = {
-                "status": "excluded",
+                **dataset_coverage(None, excluded=True, reasons=["native_payload_on_demand"]),
                 "reason": "Analysis omits event.ext; complete stored evidence remains available by event/record UID",
             }
         return {

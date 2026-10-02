@@ -248,9 +248,15 @@ def _main(argv: list[str] | None = None) -> None:
             args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
         counts = result["overview"]["counts"]
         print(f"主会话 {counts['main_sessions']}；确认真人消息 {counts['human_messages']}；来源未知 {counts['human_origin_unknown']}。")
-        print(f"工具调用 {result['effective_samples']['tools']}；文本样本 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")
+        print(f"工具调用 {result['effective_samples']['tools']}；可用文本会话 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")
+        if result["text"].get("status") == "excluded":
+            print("文本表示已按 --no-text 关闭，未运行文本聚类或新颖度计算。")
+        from .coverage import print_coverage
+        print_coverage(result["coverage_report"])
         print(json.dumps({"clustering": result['text'].get('clustering'),
+                          "text_status": result['text'].get('status'),
                           "coverage": {k: v['status'] for k, v in result['coverage'].items()},
+                          "coverage_report": result["coverage_report"],
                           "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
         return
     if args.command == "evidence":

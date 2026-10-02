@@ -3,6 +3,8 @@
 from collections import Counter, defaultdict
 from dataclasses import asdict
 
+from tandem_data.coverage import dataset_coverage
+
 from ..models import stable_id
 from ..recommend.service import recommend as recommend_resources
 from . import FEATURE_VERSION
@@ -123,9 +125,12 @@ def analyze_bundle(bundle, scope=None, with_text=True):
               "correction_signals": correction if human_count else None,
               "correction_signal_rate": correction / human_count if human_count else None}
     meta["coverage"]["human_origin"] = {**meta["coverage"].get("human_origin", {}),
-        "status": "partial" if unknown_origin else "available", "rows": human_count, "unknown_rows": unknown_origin}
-    meta["coverage"]["sample_exclusions"] = {"status": "excluded",
-        "rows": sum(diagnostics["excluded_sessions"].values()), "reasons": diagnostics["excluded_sessions"]}
+        **dataset_coverage(human_count if bundle.events is not None else None,
+                           reason_counts={"human_origin_unknown": unknown_origin}),
+        "unknown_rows": unknown_origin}
+    excluded_count = sum(diagnostics["excluded_sessions"].values())
+    meta["coverage"]["sample_exclusions"] = dataset_coverage(
+        excluded_count, excluded=bool(excluded_count), reason_counts=diagnostics["excluded_sessions"])
     languages = Counter()
     for r in rows:
         languages.update({v["language"]: v["count"] for v in r["language_signals"]})
@@ -164,7 +169,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
     correction_terms = Counter(term for r in rows for signal in r["correction_signals"] for term in signal["terms"])
     text["correction_terms"] = dict(correction_terms)
     if bundle.events is None:
-        meta["coverage"]["human_origin"] = {"status": "unavailable", "rows": None, "unknown_rows": None}
+        meta["coverage"]["human_origin"] = {**dataset_coverage(None, reasons=["events_unavailable"]),
+                                           "unknown_rows": None}
         counts.update(events=None, human_messages=None, turns=None, correction_signals=None)
         for row in rows:
             for key in row["features"]:
@@ -198,6 +204,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                             "summary": instruction_summary},
             "limitations": ["日志跨度不是实际工作时长", "词面纠偏和结构约束只是代理信号",
                             "缺少事件不等于没有发生；未知保持 null", "聚类和坐标不带人格或任务成功含义"]}
+    from .coverage import build_coverage_report
+    result["coverage_report"] = build_coverage_report(result["coverage"])
     result["bottleneck_recommendations"] = recommend_resources(result)
     return result
 
@@ -210,5 +218,5 @@ def analyze_store(store, scope=None, with_text=True):
 def response_section(result, key):
     shared = {k: result[k] for k in ("input_contract", "feature_schema_version", "scope", "coverage", "versions",
                                    "sample_boundary", "selection", "effective_samples", "unknown_counts", "analysis_digest",
-                                   "feature_dictionary", "source_coverage")}
+                                   "feature_dictionary", "source_coverage", "coverage_report")}
     return {**shared, key: result[key]}
