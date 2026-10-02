@@ -1153,6 +1153,7 @@ const TandemLive = (function () {
       invalidate() { return C.invalidate((r) => r.path === REC_PATH || r.path.indexOf(REC_PATH + '/') === 0); }
     };
     libraryInstall(C, { fetchFn, headers });   // C.li: library-install section below
+    ops(C, { fetchFn, headers, timers });       // C.ops: ops section below
     return C;
   }
   // recompute takes the analytics scope as a JSON object: list keys stay lists, the rest are scalars
@@ -1307,6 +1308,131 @@ const TandemLive = (function () {
   }
   /* ======== end library-install ======== */
 
+  /* ======== ops: realtime (menu bar · popover · HUD · widgets), session ops (A3 / A4), export (EXP) ========
+     Owned by the ops binding (Advance src/js/98-live-ops.js). Attached to every client as C.ops by one line in create().
+     - realtime: GET /v1/analytics/realtime?lanes=1 once, then /v1/analytics/realtime/stream (SSE `event: realtime`, a full
+       snapshot per frame) with exponential backoff; C.ops.rt holds the last snapshot, every frame calls C.changed().
+     - sessionops: exclude / include / excluded list, resume command, raw-log location, tool-call drilldown (keyset cursor).
+     - export: tables, CSV text, report (markdown), share-card payload, snapshots.
+     Writes go through C.send; a route that is missing / unavailable / offline (C.unavailable) lets the page keep its demo. */
+  const RT_PATH = '/v1/analytics/realtime';
+  const RT_ACTIVE = ['running', 'awaiting_approval', 'failing'];
+  const hasFlag = (s, f) => (s.flags || []).indexOf(f) >= 0;
+  // snapshot → what the menu bar / popover / HUD / widgets need: the primary running session, the open alerts, the others
+  function rtDerive(snap) {
+    const ss = (snap && snap.sessions) || [];
+    const active = ss.filter((s) => RT_ACTIVE.indexOf(s.state) >= 0);
+    const primary = active.find((s) => s.state === 'running') || active[0] || null;
+    return {
+      status: (snap && snap.status) || 'idle', paused: !!snap && snap.status === 'paused',
+      primary, active, others: active.filter((s) => s !== primary),
+      failing: ss.filter((s) => s.state === 'failing' || hasFlag(s, 'failing')),
+      waiting: ss.filter((s) => s.state === 'awaiting_approval' || hasFlag(s, 'awaiting_approval')),
+      ctx: ss.filter((s) => hasFlag(s, 'context_pressure')),
+      finished: ss.filter((s) => s.state === 'just_finished'),
+      counts: (snap && snap.counts) || {}, today: (snap && snap.today) || {}
+    };
+  }
+  const rtCtxPct = (s) => (s && s.context && s.context.ratio != null ? Math.round(s.context.ratio * 100) : null);
+  const rtCtxTh = (s) => (s && s.context && s.context.auto_compact_ratio != null ? Math.round(s.context.auto_compact_ratio * 100) : 80);
+  // lanes (timestamps of the last 20 minutes) → n buckets of bucketSec covering the last `minutes`: [{tool, err, user}]
+  function rtBuckets(s, nowMs, minutes, bucketSec) {
+    const n = Math.max(1, Math.round(minutes * 60 / bucketSec)); const from = nowMs - minutes * 60000;
+    const b = []; for (let i = 0; i < n; i++) b.push({ tool: 0, err: 0, user: 0 });
+    const L = (s && s.lanes) || {};
+    const put = (ts, k) => { if (ts == null || ts < from || ts > nowMs) return; b[Math.min(n - 1, Math.floor((ts - from) / (minutes * 60000) * n))][k]++; };
+    (L.tool || []).forEach((t) => put(t, 'tool')); (L.error || []).forEach((t) => put(t, 'err')); (L.human || []).forEach((t) => put(t, 'user'));
+    return b;
+  }
+  function sseFrames(buf, onFrame) {
+    let i; buf = buf.replace(/\r\n?/g, '\n');
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const raw = buf.slice(0, i); buf = buf.slice(i + 2); let name = 'message'; const data = [];
+      raw.split('\n').forEach((line) => { if (!line || line[0] === ':') return; const k = line.indexOf(':'); const f = k < 0 ? line : line.slice(0, k); let v = k < 0 ? '' : line.slice(k + 1); if (v[0] === ' ') v = v.slice(1); if (f === 'event') name = v; else if (f === 'data') data.push(v); });
+      if (data.length) { let p = null; try { p = JSON.parse(data.join('\n')); } catch (e) { p = null; } if (p) onFrame(name, p); }
+    }
+    return buf;
+  }
+  // A3 / A4 / EXP request helpers (pure, tested in node)
+  function toolCallsQuery(f) {
+    f = f || {}; const q = { limit: f.limit || 50, status: f.status || 'all' };
+    ['name', 'command_head', 'mcp_server', 'skill', 'kind', 'error_class', 'session_uid', 'from_ts', 'until_ts', 'cursor'].forEach((k) => { if (f[k] != null && f[k] !== '') q[k] = f[k]; });
+    return q;
+  }
+  const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
+  function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
+  const BLOCKED = { insufficient_data: '样本不足（每个维度至少 30 个任务、10 个活跃天），暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
+
+  function ops(C, ctx) {
+    const enc = encodeURIComponent;
+    const body = (r) => r.data;
+    const O = {
+      rt: null, rtError: null, stream: { connected: false, attempt: 0, frames: 0 },
+      helpers: { rtDerive, rtCtxPct, rtCtxTh, rtBuckets, sseFrames, toolCallsQuery, reportSections, BLOCKED, RESUME_OFF },
+      derive: () => rtDerive(O.rt),
+      /* realtime */
+      realtime: () => C.send('GET', RT_PATH, null, { query: { lanes: 1 } }).then((r) => { O.rt = r.data; O.rtError = null; C.changed(); return r.data; }, (e) => { O.rtError = e; C.changed(); throw e; }),
+      dismiss: (uid, seconds) => C.send('POST', RT_PATH + '/' + enc(uid) + '/dismiss', { seconds: seconds || 3600 }).then(body),
+      // stream(): keeps /v1/analytics/realtime/stream open; resolves when stopped. A 404 / 501 ends it (no stream route).
+      startStream() {
+        if (C.mode !== 'live' || O.run) return;
+        const run = O.run = { on: true, ctrl: null, stop: new AbortController() };
+        const sleep = (ms) => new Promise((res) => { const t = ctx.timers.setTimeout(res, ms); run.stop.signal.addEventListener('abort', () => { ctx.timers.clearTimeout(t); res(); }, { once: true }); });
+        run.done = (async () => {
+          while (run.on) {
+            const ctrl = run.ctrl = new AbortController(); let status = 0;
+            try {
+              const res = await ctx.fetchFn(C.endpoint + RT_PATH + '/stream?lanes=1', { headers: ctx.headers({ Accept: 'text/event-stream' }), signal: ctrl.signal });
+              status = res.status;
+              if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+              O.stream.connected = true; O.stream.attempt = 0;
+              const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+              for (;;) {
+                const step = await reader.read(); if (step.done) break;
+                buf = sseFrames(buf + dec.decode(step.value, { stream: true }), (name, p) => { if (name === 'realtime') { O.rt = p; O.rtError = null; O.stream.frames++; C.changed(); } });
+              }
+            } catch (e) { /* reconnect below */ }
+            O.stream.connected = false;
+            if (!run.on || status === 404 || status === 501) break;
+            const delay = Math.min(30000, 2000 * Math.pow(2, O.stream.attempt)); O.stream.attempt++;
+            await sleep(delay);
+          }
+          if (O.run === run) O.run = null;
+        })();
+      },
+      stopStream() { const run = O.run; if (!run) return Promise.resolve(); O.run = null; run.on = false; run.stop.abort(); if (run.ctrl) run.ctrl.abort(); return run.done; },
+      /* sessionops */
+      exclude: (uid, reason, note) => C.send('POST', '/v1/sessions/' + enc(uid) + '/exclude', Object.assign({}, reason ? { reason } : {}, note ? { note } : {})).then(body),
+      include: (uid) => C.send('DELETE', '/v1/sessions/' + enc(uid) + '/exclude').then(body),
+      EXCLUDED: '/v1/sessions/excluded',
+      resume: (uid) => C.send('GET', '/v1/sessions/' + enc(uid) + '/resume').then(body),
+      locate: (uid) => C.send('GET', '/v1/sessions/' + enc(uid) + '/source_location').then(body),
+      toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
+      /* export */
+      tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
+      csv(table, f) {
+        if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+        f = f || {}; const q = [['table', table]];
+        ['from_ts', 'until_ts', 'limit'].forEach((k) => { if (f[k] != null) q.push([k, String(f[k])]); });
+        (f.project_id || []).forEach((x) => q.push(['project_id', x])); (f.agent || []).forEach((x) => q.push(['agent', x]));
+        const url = C.endpoint + '/v1/export/csv?' + q.map((kv) => enc(kv[0]) + '=' + enc(kv[1])).join('&');
+        return Promise.resolve().then(() => ctx.fetchFn(url, { headers: ctx.headers({ Accept: 'text/csv' }) })).then(async (res) => {
+          const text = await res.text();
+          if (res.ok) return text;
+          let info = {}; try { info = (JSON.parse(text) || {}).error || {}; } catch (e) { info = {}; }
+          throw Object.assign(new Error(info.message || 'HTTP ' + res.status), { status: res.status, code: info.code || 'http_' + res.status });
+        }, (e) => { throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network' }); });
+      },
+      report: (keys, scope, o) => C.send('POST', '/v1/export/report', { sections: reportSections(keys), scope: scopeBody(scope, C.status), format: 'markdown', save: !!(o && o.save) }).then(body),
+      shareCard: (o) => { o = o || {}; return C.send('POST', '/v1/export/share_card', { hide_numbers: !!o.hideNumbers, theme: o.theme || 'system', save: !!o.save }).then(body); },
+      snapshots: (kind) => C.send('GET', '/v1/export/snapshots', null, { query: kind ? { kind } : null }).then(body)
+    };
+    C.ops = O;
+  }
+  /* ======== end ops ======== */
+
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1378,7 +1504,8 @@ const TandemLive = (function () {
     }
   };
 
-  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui, recs };
+  const opsHelpers = { rtDerive, rtCtxPct, rtCtxTh, rtBuckets, sseFrames, toolCallsQuery, reportSections, BLOCKED, RESUME_OFF };
+  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui, recs, ops: opsHelpers };
 })();
 if (typeof module === 'object' && module && module.exports) module.exports = TandemLive;
 /* @tandem-live:generated end */
