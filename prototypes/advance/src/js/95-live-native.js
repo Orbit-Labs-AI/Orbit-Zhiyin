@@ -177,6 +177,7 @@ async function lvnAfter(ob) {
   const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all'), LVN.loadRecs().catch(() => null)]);
   lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
   TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
+  if (ORBIT.native && ORBIT.native.isNative) ORBIT.native.post('onboarded', {});   // native host shows the HUD only after this
   TL.send('POST', '/v1/catalog/sync', {}).catch(() => { /* library keeps its seed rows */ });
   if (OB !== ob || OVL !== 'ob') {   // 在后台继续: tell the user instead of playing Genesis
     const p = per.p;

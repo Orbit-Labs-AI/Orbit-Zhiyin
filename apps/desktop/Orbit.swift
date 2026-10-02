@@ -10,7 +10,7 @@ import WebKit
 let appVersion = "0.0.1"
 let bundleID = "ai.actionmesh.orbit"
 let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
-                      "resizeSurface", "commands", "surface:panel", "surface:hud", "surface:widgets"]
+                      "resizeSurface", "onboarded", "commands", "surface:panel", "surface:hud", "surface:widgets"]
 
 func dataHome() -> URL {
     if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
@@ -117,11 +117,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.delegate = self
         window.center()
         window.setFrameAutosaveName("OrbitMainWindow")  // Remembers size and position.
+        resetFrameIfOffscreen(window)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         if Bundle.main.bundleIdentifier != nil { UNUserNotificationCenter.current().delegate = self }
         buildStatusItem()
-        if UserDefaults.standard.object(forKey: "hudVisible") as? Bool ?? true { setPanel(.hud, visible: true) }
+        // First launch keeps the HUD hidden until the page reports onboarding done ("onboarded").
+        if UserDefaults.standard.bool(forKey: "hudVisible") { setPanel(.hud, visible: true) }
         if UserDefaults.standard.bool(forKey: "widgetsVisible") { setPanel(.widgets, visible: true) }
         // Smoke checks without Accessibility access: ORBIT_DEBUG_SURFACES=panel,hud,widgets opens
         // those surfaces at launch without persisting their visibility.
@@ -272,9 +274,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         target.webView.load(URLRequest(url: pageURL(origin, target.surface)))
     }
 
+    /// A restored frame can sit on a display that is gone (or fully off every visible area):
+    /// recentre it at the default size on the main screen so the window is never lost.
+    func resetFrameIfOffscreen(_ win: NSWindow) {
+        let frame = win.frame
+        let visible = NSScreen.screens.contains { screen in
+            let overlap = screen.visibleFrame.intersection(frame)
+            return !overlap.isNull && overlap.width >= 120 && overlap.height >= 60
+        }
+        guard !visible, let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        let area = screen.visibleFrame
+        let size = NSSize(width: min(1320, area.width), height: min(860, area.height))
+        win.setFrame(NSRect(x: area.midX - size.width / 2, y: area.midY - size.height / 2,
+                            width: size.width, height: size.height), display: false)
+    }
+
     @objc func showMain(_ sender: Any?) {
         popover?.performClose(nil)
         if window.isMiniaturized { window.deminiaturize(nil) }
+        resetFrameIfOffscreen(window)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -499,6 +517,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             }
         case "notify": notify(body)
         case "openMain": openMain(route: body["route"] as? String)
+        case "onboarded":
+            // Show the HUD once onboarding finishes, unless the user has already hidden it.
+            if UserDefaults.standard.object(forKey: "hudVisible") == nil { setPanel(.hud, visible: true) }
         case "resizeSurface":
             if let height = (body["height"] as? NSNumber)?.doubleValue { resizeSurface(host, height: height) }
         default: break
