@@ -18,6 +18,9 @@ ALLOWED_HOSTS = {
     "api.mcp.github.com", "models.dev", "geminicli.com", "clawhub.ai", "openrouter.ai",
 }
 MAX_BODY = 25_000_000
+RETRIES = 4  # extra attempts after the first for 5xx/429/timeouts, waiting 1/2/4/8 s
+MAX_RETRY_AFTER = 120  # honour Retry-After within one sync; longer waits fail and reschedule the source
+RETRYABLE = {429, 500, 502, 503, 504}
 COMPRESS_OVER = 512
 CACHE_DDL = """CREATE TABLE IF NOT EXISTS http_cache(
   url_sha TEXT PRIMARY KEY, url TEXT NOT NULL, etag TEXT, modified TEXT, sha256 TEXT NOT NULL,
@@ -29,6 +32,7 @@ class FetchError(RuntimeError):
     def __init__(self, code: str, retry_after: int = 0):
         super().__init__(code)
         self.retry_after = retry_after
+        self.retryable = False
 
 
 def validate_url(url: str):
@@ -54,12 +58,13 @@ class HttpClient:
     """
 
     def __init__(self, cache_dir: str | Path, github_token: str | None = None, offline: bool = False,
-                 ttl: int | None = None, opener=None):
+                 ttl: int | None = None, opener=None, retries: int = RETRIES, sleep=time.sleep):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.offline, self.ttl = offline, ttl
         self.opener = opener or build_opener(SafeRedirect)
+        self.retries, self.sleep = max(0, retries), sleep
         self.requests = 0  # network round trips, for budgets and tests
         self._db_lock = threading.Lock()
         self._mutex = threading.Lock()
@@ -161,6 +166,17 @@ class HttpClient:
             for field, header in (("etag", "If-None-Match"), ("modified", "If-Modified-Since")):
                 if cached[field]:
                     headers[header] = cached[field]
+        attempt = 0
+        while True:
+            try:
+                return self._request(url, key, headers, cached)
+            except FetchError as exc:
+                if attempt >= self.retries or not getattr(exc, "retryable", False) or exc.retry_after > MAX_RETRY_AFTER:
+                    raise
+                self.sleep(max(2 ** attempt, exc.retry_after))
+                attempt += 1
+
+    def _request(self, url: str, key: str, headers: dict, cached: dict | None) -> bytes:
         with self._mutex:
             self.requests += 1
         try:
@@ -175,6 +191,10 @@ class HttpClient:
                 self._touch(key)
                 return cached["body"]
             delay = (exc.headers or {}).get("Retry-After", "0") or "0"
-            raise FetchError(f"http_{exc.code}", int(delay) if delay.isdigit() else 0) from None
+            error = FetchError(f"http_{exc.code}", int(delay) if delay.isdigit() else 0)
+            error.retryable = exc.code in RETRYABLE
+            raise error from None
         except (URLError, TimeoutError, OSError) as exc:
-            raise FetchError("source_network_error") from exc
+            error = FetchError("source_network_error")
+            error.retryable = isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError)
+            raise error from exc

@@ -46,7 +46,7 @@ def test_gateway_serves_catalog_reads_local_writes_and_sync(client, monkeypatch)
     assert facets["total"] == page["total"] and facets["kind"]
     item_id = page["items"][0]["item_id"]
     detail = client.get(f"/v1/catalog/items/{item_id}").json()
-    assert detail["item_id"] == item_id and detail["scan"] is None and "install" in detail
+    assert detail["item_id"] == item_id and detail["scan"]["estimate"] is True and "install" in detail
     found = client.get("/v1/catalog/search", params={"q": "调试"}).json()
     assert found["items"] and "snippet" in found["items"][0]
 
@@ -91,7 +91,7 @@ def test_sync_passes_concurrency_offline_and_reports_durations(client, monkeypat
         return original(self, *args, **kwargs)
     monkeypatch.setattr(CatalogSync, "sync", spy)
     monkeypatch.setattr(platform, "record", lambda name, value=1.0, **tags: recorded.append((name, value, tags)))
-    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"], "concurrency": 2,
+    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"], "concurrency": 2, "force": True,
                                                     "offline": True, "ttl": 600})
     job = wait_job(client, started.json()["job_id"])
     assert seen == {"concurrency": 2, "offline": True, "ttl": 600}

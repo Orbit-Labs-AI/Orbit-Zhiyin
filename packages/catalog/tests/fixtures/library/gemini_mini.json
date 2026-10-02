@@ -1,0 +1,25 @@
+[
+ {
+  "fullName": "acme/gemini-db",
+  "extensionName": "gemini-db",
+  "extensionDescription": "DB tools",
+  "url": "https://github.com/acme/gemini-db",
+  "stars": "1234",
+  "licenseKey": "mit",
+  "hasMCP": "true",
+  "hasHooks": "false",
+  "hasSkills": "1",
+  "isGoogleOwned": "false",
+  "extensionVersion": "0.1.0",
+  "lastUpdated": "2026-09-20T00:00:00Z"
+ },
+ {
+  "fullName": "google/official-ext",
+  "extensionName": "official",
+  "url": "https://github.com/google/official-ext",
+  "stars": 7,
+  "licenseKey": "Apache License 2.0",
+  "hasMCP": true,
+  "isGoogleOwned": true
+ }
+]

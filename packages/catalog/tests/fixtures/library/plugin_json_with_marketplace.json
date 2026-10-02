@@ -1,0 +1,10 @@
+{
+ "note": "plugin.json resolvable through the same repository's marketplace.",
+ "files": {
+  "LICENSE": "MIT License\n\nCopyright (c) 2026 Example\n",
+  ".claude-plugin/marketplace.json": "{\"name\": \"acme-tools\", \"plugins\": [{\"name\": \"formatter\", \"source\": \"./plugins/fmt\"}]}",
+  "plugins/fmt/.claude-plugin/plugin.json": "{\"name\": \"fmt\", \"description\": \"Format code\", \"version\": \"0.3.1\", \"author\": {\"name\": \"Acme Dev\"}, \"license\": \"mit\", \"homepage\": \"https://acme.example/fmt\", \"repository\": \"https://github.com/acme/fmt\"}",
+  "plugins/fmt/commands/format.md": "---\ndescription: format files\n---\nRun the formatter.",
+  "plugins/orphan/.claude-plugin/plugin.json": "{\"name\": \"orphan\", \"description\": \"Not in the marketplace\"}"
+ }
+}

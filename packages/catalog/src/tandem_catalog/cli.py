@@ -31,6 +31,16 @@ def main(argv=None):
     imported = sub.add_parser("import-file", help="从本地 JSON（夹具或公开榜单缓存）导入一个结构化来源，不经网络")
     imported.add_argument("--source", required=True)
     imported.add_argument("--file", type=Path, required=True)
+    snap = sub.add_parser("snapshot", help="从已联网同步的 home 构建离线种子快照（发布前运行，产物入仓库）")
+    snap.add_argument("--out", type=Path, required=True)
+    snap.add_argument("--from-home", type=Path, required=True, help="已同步的 Tandem home（只读）")
+    snap.add_argument("--max-bytes", type=int, default=3_000_000)
+    snap.add_argument("--no-staged", action="store_true", help="不使用未完成同步的暂存条目（如 MCP 中断的全量扫描）")
+    seed = sub.add_parser("seed-import", help="把内置（或指定）种子快照和官方条目导入当前 home，不联网")
+    seed.add_argument("--file", type=Path, help="种子快照 .json.gz；缺省用包内 data/library-seed.v1.json.gz")
+    official = sub.add_parser("export-official", help="把推荐知识库 remedies.v1.json 导出为官方条目 official.v1.json")
+    official.add_argument("--remedies", type=Path, required=True)
+    official.add_argument("--out", type=Path, required=True)
     embed = sub.add_parser("embed")
     embed.add_argument("--max-chunks", type=int)
     query = sub.add_parser("search")
@@ -43,6 +53,10 @@ def main(argv=None):
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8766)
     args = parser.parse_args(argv)
+    if args.command in ("snapshot", "export-official"):
+        result = _offline_tool(args)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
     http = HttpClient(args.home / "catalog-http-cache", offline=True) if getattr(args, "offline", False) else None
     service = CatalogService(args.home / "catalog.db", model_dir=args.model_dir, http=http)
     try:
@@ -55,6 +69,9 @@ def main(argv=None):
         elif args.command == "sync":
             result = CatalogSync(service.store, service.http).sync(args.source, force=args.force, max_pages=args.max_pages,
                                                                    concurrency=args.concurrency)
+            service.retire_seeds(result)
+        elif args.command == "seed-import":
+            result = service.bootstrap(args.file.read_bytes() if args.file else None)
         elif args.command == "import-file":
             row = next((s for s in service.store.sources() if s["source_id"] == args.source), None)
             if row is None or row["spec"].get("kind") not in FILE_KINDS:
@@ -88,6 +105,25 @@ def main(argv=None):
             raise SystemExit(1)
     finally:
         service.close()
+
+
+def _offline_tool(args) -> dict:
+    """Commands that only read a given file/home and write one output file."""
+    if args.command == "export-official":
+        from .sources.structured import official_entries
+        entries = official_entries(json.loads(args.remedies.read_text()))
+        args.out.write_text(json.dumps(entries, ensure_ascii=False, indent=1) + "\n")
+        return {"out": str(args.out), "entries": len(entries)}
+    from .snapshot import build_snapshot, load_seed
+    from .store import CatalogStore
+    source = args.from_home / "catalog.db"
+    if not source.is_file():
+        raise SystemExit(f"no catalog.db under {args.from_home}")
+    data = build_snapshot(CatalogStore(source), max_bytes=args.max_bytes, include_staged=not args.no_staged)
+    args.out.write_bytes(data)
+    doc = load_seed(data)
+    return {"out": str(args.out), "bytes": len(data), "stats": doc["stats"],
+            "sources": {sid: len(src["items"]) for sid, src in doc["sources"].items()}}
 
 
 if __name__ == "__main__":

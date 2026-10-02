@@ -1,0 +1,2150 @@
+{
+ "_comment": "Sanitised from parity-tmp/recs/engine_run.py (synthetic Codex sessions + upstream signals). No real logs: uids session_syn_*, paths /synthetic/...",
+ "inputs": {
+  "version": "rec-inputs-v1",
+  "scope": {},
+  "scope_hash": "parity",
+  "data_rev": 1,
+  "inventory_rev": 1,
+  "analysis_digest": "synthetic",
+  "agents": {
+   "codex": 36
+  },
+  "sessions": {
+   "main": 36,
+   "first_ts": 1788361658104,
+   "last_ts": 1790881658104,
+   "weeks": 4.167
+  },
+  "signals": [
+   {
+    "signal_id": "identical_retries:01:None",
+    "rule_id": "identical_retries",
+    "reason": "同参数重试 4 次",
+    "metrics": [
+     {
+      "name": "identical_retries",
+      "value": 4,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-identical_retries-01-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-identical_retries-01-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-identical_retries-01-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-identical_retries-01-3"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_01",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "tool_failures:01:None",
+    "rule_id": "tool_failures",
+    "reason": "pytest 失败 5 次",
+    "metrics": [
+     {
+      "name": "tool_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-tool_failures-01-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-tool_failures-01-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-tool_failures-01-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-tool_failures-01-3"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-tool_failures-01-4"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_01",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "validation_failures:01:None",
+    "rule_id": "validation_failures",
+    "reason": "同一测试反复失败",
+    "metrics": [
+     {
+      "name": "validation_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-validation_failures-01-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-validation_failures-01-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_01",
+      "id": "ev-validation_failures-01-2"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_01",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "identical_retries:07:None",
+    "rule_id": "identical_retries",
+    "reason": "同参数重试 4 次",
+    "metrics": [
+     {
+      "name": "identical_retries",
+      "value": 4,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-identical_retries-07-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-identical_retries-07-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-identical_retries-07-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-identical_retries-07-3"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_07",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "tool_failures:07:None",
+    "rule_id": "tool_failures",
+    "reason": "pytest 失败 5 次",
+    "metrics": [
+     {
+      "name": "tool_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-tool_failures-07-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-tool_failures-07-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-tool_failures-07-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-tool_failures-07-3"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-tool_failures-07-4"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_07",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "validation_failures:07:None",
+    "rule_id": "validation_failures",
+    "reason": "同一测试反复失败",
+    "metrics": [
+     {
+      "name": "validation_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-validation_failures-07-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-validation_failures-07-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_07",
+      "id": "ev-validation_failures-07-2"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_07",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "identical_retries:13:None",
+    "rule_id": "identical_retries",
+    "reason": "同参数重试 4 次",
+    "metrics": [
+     {
+      "name": "identical_retries",
+      "value": 4,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-identical_retries-13-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-identical_retries-13-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-identical_retries-13-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-identical_retries-13-3"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_13",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "tool_failures:13:None",
+    "rule_id": "tool_failures",
+    "reason": "pytest 失败 5 次",
+    "metrics": [
+     {
+      "name": "tool_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-tool_failures-13-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-tool_failures-13-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-tool_failures-13-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-tool_failures-13-3"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-tool_failures-13-4"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_13",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "validation_failures:13:None",
+    "rule_id": "validation_failures",
+    "reason": "同一测试反复失败",
+    "metrics": [
+     {
+      "name": "validation_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-validation_failures-13-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-validation_failures-13-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_13",
+      "id": "ev-validation_failures-13-2"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_13",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "identical_retries:19:None",
+    "rule_id": "identical_retries",
+    "reason": "同参数重试 4 次",
+    "metrics": [
+     {
+      "name": "identical_retries",
+      "value": 4,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-identical_retries-19-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-identical_retries-19-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-identical_retries-19-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-identical_retries-19-3"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_19",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "tool_failures:19:None",
+    "rule_id": "tool_failures",
+    "reason": "pytest 失败 5 次",
+    "metrics": [
+     {
+      "name": "tool_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-tool_failures-19-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-tool_failures-19-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-tool_failures-19-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-tool_failures-19-3"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-tool_failures-19-4"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_19",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "validation_failures:19:None",
+    "rule_id": "validation_failures",
+    "reason": "同一测试反复失败",
+    "metrics": [
+     {
+      "name": "validation_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-validation_failures-19-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-validation_failures-19-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_19",
+      "id": "ev-validation_failures-19-2"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_19",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "identical_retries:25:None",
+    "rule_id": "identical_retries",
+    "reason": "同参数重试 4 次",
+    "metrics": [
+     {
+      "name": "identical_retries",
+      "value": 4,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-identical_retries-25-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-identical_retries-25-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-identical_retries-25-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-identical_retries-25-3"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_25",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "tool_failures:25:None",
+    "rule_id": "tool_failures",
+    "reason": "pytest 失败 5 次",
+    "metrics": [
+     {
+      "name": "tool_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-tool_failures-25-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-tool_failures-25-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-tool_failures-25-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-tool_failures-25-3"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-tool_failures-25-4"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_25",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "validation_failures:25:None",
+    "rule_id": "validation_failures",
+    "reason": "同一测试反复失败",
+    "metrics": [
+     {
+      "name": "validation_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-validation_failures-25-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-validation_failures-25-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_25",
+      "id": "ev-validation_failures-25-2"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_25",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "identical_retries:31:None",
+    "rule_id": "identical_retries",
+    "reason": "同参数重试 4 次",
+    "metrics": [
+     {
+      "name": "identical_retries",
+      "value": 4,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-identical_retries-31-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-identical_retries-31-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-identical_retries-31-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-identical_retries-31-3"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_31",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "tool_failures:31:None",
+    "rule_id": "tool_failures",
+    "reason": "pytest 失败 5 次",
+    "metrics": [
+     {
+      "name": "tool_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-tool_failures-31-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-tool_failures-31-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-tool_failures-31-2"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-tool_failures-31-3"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-tool_failures-31-4"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_31",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "validation_failures:31:None",
+    "rule_id": "validation_failures",
+    "reason": "同一测试反复失败",
+    "metrics": [
+     {
+      "name": "validation_failures",
+      "value": 5,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-validation_failures-31-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-validation_failures-31-1"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_31",
+      "id": "ev-validation_failures-31-2"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_31",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "acceptance_evidence_gap:02:None",
+    "rule_id": "acceptance_evidence_gap",
+    "reason": "声称完成但没有验证证据",
+    "metrics": [
+     {
+      "name": "acceptance_evidence_gap",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_02",
+      "id": "ev-acceptance_evidence_gap-02-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_02",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "acceptance_evidence_gap:08:None",
+    "rule_id": "acceptance_evidence_gap",
+    "reason": "声称完成但没有验证证据",
+    "metrics": [
+     {
+      "name": "acceptance_evidence_gap",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_08",
+      "id": "ev-acceptance_evidence_gap-08-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_08",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "acceptance_evidence_gap:14:None",
+    "rule_id": "acceptance_evidence_gap",
+    "reason": "声称完成但没有验证证据",
+    "metrics": [
+     {
+      "name": "acceptance_evidence_gap",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_14",
+      "id": "ev-acceptance_evidence_gap-14-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_14",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "acceptance_evidence_gap:20:None",
+    "rule_id": "acceptance_evidence_gap",
+    "reason": "声称完成但没有验证证据",
+    "metrics": [
+     {
+      "name": "acceptance_evidence_gap",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_20",
+      "id": "ev-acceptance_evidence_gap-20-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_20",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "acceptance_evidence_gap:26:None",
+    "rule_id": "acceptance_evidence_gap",
+    "reason": "声称完成但没有验证证据",
+    "metrics": [
+     {
+      "name": "acceptance_evidence_gap",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_26",
+      "id": "ev-acceptance_evidence_gap-26-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_26",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "acceptance_evidence_gap:32:None",
+    "rule_id": "acceptance_evidence_gap",
+    "reason": "声称完成但没有验证证据",
+    "metrics": [
+     {
+      "name": "acceptance_evidence_gap",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_32",
+      "id": "ev-acceptance_evidence_gap-32-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_32",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "correction_density:03:None",
+    "rule_id": "correction_density",
+    "reason": "两次纠偏：部署平台",
+    "metrics": [
+     {
+      "name": "correction_density",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_03",
+      "id": "ev-correction_density-03-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_03",
+      "id": "ev-correction_density-03-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_03",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:03:pnpm",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：用 pnpm 而不是 npm",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_03",
+      "id": "ev-repeated_requirements-03-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_03",
+     "project_id": "project_syn_1",
+     "group": "pnpm"
+    }
+   },
+   {
+    "signal_id": "correction_density:09:None",
+    "rule_id": "correction_density",
+    "reason": "两次纠偏：部署平台",
+    "metrics": [
+     {
+      "name": "correction_density",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_09",
+      "id": "ev-correction_density-09-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_09",
+      "id": "ev-correction_density-09-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_09",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:09:pnpm",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：用 pnpm 而不是 npm",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_09",
+      "id": "ev-repeated_requirements-09-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_09",
+     "project_id": "project_syn_1",
+     "group": "pnpm"
+    }
+   },
+   {
+    "signal_id": "correction_density:15:None",
+    "rule_id": "correction_density",
+    "reason": "两次纠偏：部署平台",
+    "metrics": [
+     {
+      "name": "correction_density",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_15",
+      "id": "ev-correction_density-15-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_15",
+      "id": "ev-correction_density-15-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_15",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:15:pnpm",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：用 pnpm 而不是 npm",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_15",
+      "id": "ev-repeated_requirements-15-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_15",
+     "project_id": "project_syn_1",
+     "group": "pnpm"
+    }
+   },
+   {
+    "signal_id": "correction_density:21:None",
+    "rule_id": "correction_density",
+    "reason": "两次纠偏：部署平台",
+    "metrics": [
+     {
+      "name": "correction_density",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_21",
+      "id": "ev-correction_density-21-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_21",
+      "id": "ev-correction_density-21-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_21",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:21:pnpm",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：用 pnpm 而不是 npm",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_21",
+      "id": "ev-repeated_requirements-21-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_21",
+     "project_id": "project_syn_1",
+     "group": "pnpm"
+    }
+   },
+   {
+    "signal_id": "correction_density:27:None",
+    "rule_id": "correction_density",
+    "reason": "两次纠偏：部署平台",
+    "metrics": [
+     {
+      "name": "correction_density",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_27",
+      "id": "ev-correction_density-27-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_27",
+      "id": "ev-correction_density-27-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_27",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:27:pnpm",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：用 pnpm 而不是 npm",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_27",
+      "id": "ev-repeated_requirements-27-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_27",
+     "project_id": "project_syn_1",
+     "group": "pnpm"
+    }
+   },
+   {
+    "signal_id": "correction_density:33:None",
+    "rule_id": "correction_density",
+    "reason": "两次纠偏：部署平台",
+    "metrics": [
+     {
+      "name": "correction_density",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_33",
+      "id": "ev-correction_density-33-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_33",
+      "id": "ev-correction_density-33-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_33",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:33:pnpm",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：用 pnpm 而不是 npm",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 1,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_33",
+      "id": "ev-repeated_requirements-33-0"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_33",
+     "project_id": "project_syn_1",
+     "group": "pnpm"
+    }
+   },
+   {
+    "signal_id": "context_pressure:04:None",
+    "rule_id": "context_pressure",
+    "reason": "两次自动压缩后重复说明",
+    "metrics": [
+     {
+      "name": "context_pressure",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_04",
+      "id": "ev-context_pressure-04-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_04",
+      "id": "ev-context_pressure-04-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_04",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:04:page-limit",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：正文不超过 9 页",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_04",
+      "id": "ev-repeated_requirements-04-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_04",
+      "id": "ev-repeated_requirements-04-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_04",
+     "project_id": "project_syn_1",
+     "group": "page-limit"
+    }
+   },
+   {
+    "signal_id": "context_pressure:10:None",
+    "rule_id": "context_pressure",
+    "reason": "两次自动压缩后重复说明",
+    "metrics": [
+     {
+      "name": "context_pressure",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_10",
+      "id": "ev-context_pressure-10-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_10",
+      "id": "ev-context_pressure-10-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_10",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:10:page-limit",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：正文不超过 9 页",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_10",
+      "id": "ev-repeated_requirements-10-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_10",
+      "id": "ev-repeated_requirements-10-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_10",
+     "project_id": "project_syn_1",
+     "group": "page-limit"
+    }
+   },
+   {
+    "signal_id": "context_pressure:16:None",
+    "rule_id": "context_pressure",
+    "reason": "两次自动压缩后重复说明",
+    "metrics": [
+     {
+      "name": "context_pressure",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_16",
+      "id": "ev-context_pressure-16-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_16",
+      "id": "ev-context_pressure-16-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_16",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:16:page-limit",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：正文不超过 9 页",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_16",
+      "id": "ev-repeated_requirements-16-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_16",
+      "id": "ev-repeated_requirements-16-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_16",
+     "project_id": "project_syn_1",
+     "group": "page-limit"
+    }
+   },
+   {
+    "signal_id": "context_pressure:22:None",
+    "rule_id": "context_pressure",
+    "reason": "两次自动压缩后重复说明",
+    "metrics": [
+     {
+      "name": "context_pressure",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_22",
+      "id": "ev-context_pressure-22-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_22",
+      "id": "ev-context_pressure-22-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_22",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:22:page-limit",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：正文不超过 9 页",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_22",
+      "id": "ev-repeated_requirements-22-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_22",
+      "id": "ev-repeated_requirements-22-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_22",
+     "project_id": "project_syn_1",
+     "group": "page-limit"
+    }
+   },
+   {
+    "signal_id": "context_pressure:28:None",
+    "rule_id": "context_pressure",
+    "reason": "两次自动压缩后重复说明",
+    "metrics": [
+     {
+      "name": "context_pressure",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_28",
+      "id": "ev-context_pressure-28-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_28",
+      "id": "ev-context_pressure-28-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_28",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:28:page-limit",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：正文不超过 9 页",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_28",
+      "id": "ev-repeated_requirements-28-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_28",
+      "id": "ev-repeated_requirements-28-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_28",
+     "project_id": "project_syn_1",
+     "group": "page-limit"
+    }
+   },
+   {
+    "signal_id": "context_pressure:34:None",
+    "rule_id": "context_pressure",
+    "reason": "两次自动压缩后重复说明",
+    "metrics": [
+     {
+      "name": "context_pressure",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_34",
+      "id": "ev-context_pressure-34-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_34",
+      "id": "ev-context_pressure-34-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_34",
+     "project_id": "project_syn_1",
+     "group": null
+    }
+   },
+   {
+    "signal_id": "repeated_requirements:34:page-limit",
+    "rule_id": "repeated_requirements",
+    "reason": "重复要求：正文不超过 9 页",
+    "metrics": [
+     {
+      "name": "repeated_requirements",
+      "value": 2,
+      "unit": "次"
+     }
+    ],
+    "evidence": [
+     {
+      "kind": "event",
+      "session_uid": "session_syn_34",
+      "id": "ev-repeated_requirements-34-0"
+     },
+     {
+      "kind": "event",
+      "session_uid": "session_syn_34",
+      "id": "ev-repeated_requirements-34-1"
+     }
+    ],
+    "scope": {
+     "root_session_uid": "session_syn_34",
+     "project_id": "project_syn_1",
+     "group": "page-limit"
+    }
+   }
+  ],
+  "tasks": [
+   {
+    "domain": [],
+    "task_type": []
+   },
+   {
+    "domain": [],
+    "task_type": [
+     "modify"
+    ]
+   },
+   {
+    "domain": [
+     "software"
+    ],
+    "task_type": [
+     "debug",
+     "test"
+    ]
+   },
+   {
+    "domain": [
+     "writing"
+    ],
+    "task_type": []
+   },
+   {
+    "domain": [
+     "software"
+    ],
+    "task_type": [
+     "publish"
+    ]
+   }
+  ],
+  "facts": {
+   "readonly_prompts": [
+    {
+     "command_head": "git status",
+     "count": 12,
+     "sessions": 6,
+     "session_uids": [
+      "session_syn_00",
+      "session_syn_06",
+      "session_syn_12",
+      "session_syn_18",
+      "session_syn_24",
+      "session_syn_30"
+     ]
+    },
+    {
+     "command_head": "git diff",
+     "count": 6,
+     "sessions": 6,
+     "session_uids": [
+      "session_syn_00",
+      "session_syn_06",
+      "session_syn_12",
+      "session_syn_18",
+      "session_syn_24",
+      "session_syn_30"
+     ]
+    },
+    {
+     "command_head": "ls",
+     "count": 6,
+     "sessions": 6,
+     "session_uids": [
+      "session_syn_00",
+      "session_syn_06",
+      "session_syn_12",
+      "session_syn_18",
+      "session_syn_24",
+      "session_syn_30"
+     ]
+    },
+    {
+     "command_head": "gh pr view",
+     "count": 6,
+     "sessions": 6,
+     "session_uids": [
+      "session_syn_00",
+      "session_syn_06",
+      "session_syn_12",
+      "session_syn_18",
+      "session_syn_24",
+      "session_syn_30"
+     ]
+    },
+    {
+     "command_head": "git log",
+     "count": 6,
+     "sessions": 6,
+     "session_uids": [
+      "session_syn_00",
+      "session_syn_06",
+      "session_syn_12",
+      "session_syn_18",
+      "session_syn_24",
+      "session_syn_30"
+     ]
+    }
+   ],
+   "readonly_prompt_sessions": 6,
+   "failures_by_software": [
+    {
+     "software": "wrangler",
+     "error_class": "command_not_found",
+     "count": 18,
+     "sessions": 12,
+     "session_uids": [
+      "session_syn_01",
+      "session_syn_07",
+      "session_syn_13",
+      "session_syn_19",
+      "session_syn_25",
+      "session_syn_31",
+      "session_syn_03",
+      "session_syn_09",
+      "session_syn_15",
+      "session_syn_21",
+      "session_syn_27",
+      "session_syn_33"
+     ]
+    }
+   ],
+   "usage": {
+    "skill": {},
+    "mcp": {
+     "browser": {
+      "calls": 3,
+      "sessions": 2,
+      "last_ts": 1790881658104
+     }
+    }
+   },
+   "model_mix": [],
+   "session_days": [
+    {
+     "session_uid": "session_syn_00",
+     "started_at": 1788361658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "permission_friction"
+     ],
+     "readonly_prompts": 2,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_01",
+     "started_at": 1788433658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "buggy_output",
+      "tool_env_failure"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 7,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_02",
+     "started_at": 1788505658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "missing_verification"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_03",
+     "started_at": 1788577658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "repeated_instruction",
+      "wrong_approach"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 3,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_04",
+     "started_at": 1788649658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "context_loss",
+      "repeated_instruction"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_05",
+     "started_at": 1788721658104,
+     "project_id": "project_syn_1",
+     "problems": [],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_06",
+     "started_at": 1788793658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "permission_friction"
+     ],
+     "readonly_prompts": 2,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_07",
+     "started_at": 1788865658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "buggy_output",
+      "tool_env_failure"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 7,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_08",
+     "started_at": 1788937658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "missing_verification"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_09",
+     "started_at": 1789009658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "repeated_instruction",
+      "wrong_approach"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 3,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_10",
+     "started_at": 1789081658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "context_loss",
+      "repeated_instruction"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_11",
+     "started_at": 1789153658104,
+     "project_id": "project_syn_1",
+     "problems": [],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_12",
+     "started_at": 1789225658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "permission_friction"
+     ],
+     "readonly_prompts": 2,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_13",
+     "started_at": 1789297658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "buggy_output",
+      "tool_env_failure"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 7,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_14",
+     "started_at": 1789369658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "missing_verification"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_15",
+     "started_at": 1789441658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "repeated_instruction",
+      "wrong_approach"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 3,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_16",
+     "started_at": 1789513658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "context_loss",
+      "repeated_instruction"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_17",
+     "started_at": 1789585658104,
+     "project_id": "project_syn_1",
+     "problems": [],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_18",
+     "started_at": 1789657658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "permission_friction"
+     ],
+     "readonly_prompts": 2,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_19",
+     "started_at": 1789729658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "buggy_output",
+      "tool_env_failure"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 7,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_20",
+     "started_at": 1789801658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "missing_verification"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_21",
+     "started_at": 1789873658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "repeated_instruction",
+      "wrong_approach"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 3,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_22",
+     "started_at": 1789945658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "context_loss",
+      "repeated_instruction"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_23",
+     "started_at": 1790017658104,
+     "project_id": "project_syn_1",
+     "problems": [],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_24",
+     "started_at": 1790089658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "permission_friction"
+     ],
+     "readonly_prompts": 2,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_25",
+     "started_at": 1790161658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "buggy_output",
+      "tool_env_failure"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 7,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_26",
+     "started_at": 1790233658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "missing_verification"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_27",
+     "started_at": 1790305658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "repeated_instruction",
+      "wrong_approach"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 3,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_28",
+     "started_at": 1790377658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "context_loss",
+      "repeated_instruction"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_29",
+     "started_at": 1790449658104,
+     "project_id": "project_syn_1",
+     "problems": [],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_30",
+     "started_at": 1790521658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "permission_friction"
+     ],
+     "readonly_prompts": 2,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_31",
+     "started_at": 1790593658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "buggy_output",
+      "tool_env_failure"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 7,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_32",
+     "started_at": 1790665658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "missing_verification"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_33",
+     "started_at": 1790737658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "repeated_instruction",
+      "wrong_approach"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 3,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_34",
+     "started_at": 1790809658104,
+     "project_id": "project_syn_1",
+     "problems": [
+      "context_loss",
+      "repeated_instruction"
+     ],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    },
+    {
+     "session_uid": "session_syn_35",
+     "started_at": 1790881658104,
+     "project_id": "project_syn_1",
+     "problems": [],
+     "readonly_prompts": 0,
+     "tool_failures": 0,
+     "tokens": 0
+    }
+   ]
+  },
+  "inventory": [
+   {
+    "inv_id": "inv_syn_1",
+    "type": "mcp",
+    "name": "browser",
+    "config_path": "/synthetic/home/.codex/config.toml",
+    "enabled": true,
+    "content_hash": "sha-inv_syn_1",
+    "lines": null,
+    "resident_tokens": 900,
+    "catalog_item_id": null
+   },
+   {
+    "inv_id": "inv_syn_2",
+    "type": "skill",
+    "name": "old-helper",
+    "config_path": "/synthetic/home/.codex/skills/old-helper/SKILL.md",
+    "enabled": true,
+    "content_hash": "sha-inv_syn_2",
+    "lines": 404,
+    "resident_tokens": 2400,
+    "catalog_item_id": null
+   },
+   {
+    "inv_id": "inv_syn_3",
+    "type": "rule",
+    "name": "AGENTS.md",
+    "config_path": "/synthetic/home/.codex/AGENTS.md",
+    "enabled": true,
+    "content_hash": "sha-inv_syn_3",
+    "lines": 261,
+    "resident_tokens": 5200,
+    "catalog_item_id": null
+   },
+   {
+    "inv_id": "inv_syn_4",
+    "type": "skill",
+    "name": "pdf-tools",
+    "config_path": "/synthetic/home/.codex/skills/pdf-tools/SKILL.md",
+    "enabled": true,
+    "content_hash": "sha-inv_syn_4",
+    "lines": 404,
+    "resident_tokens": 2400,
+    "catalog_item_id": null
+   },
+   {
+    "inv_id": "inv_syn_5",
+    "type": "mcp",
+    "name": "figma",
+    "config_path": "/synthetic/home/.codex/config.toml",
+    "enabled": true,
+    "content_hash": "sha-inv_syn_5",
+    "lines": null,
+    "resident_tokens": 2100,
+    "catalog_item_id": null
+   }
+  ],
+  "profile": null,
+  "legacy_cards": [],
+  "assessments": [],
+  "diagnostics": [],
+  "projects": {
+   "project_syn_1": {
+    "name": "paper-site",
+    "root": "/synthetic/paper-site"
+   }
+  }
+ },
+ "variants": {
+  "claude_code": {
+   "agents": {
+    "claude_code": 36
+   }
+  }
+ }
+}

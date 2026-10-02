@@ -16,6 +16,13 @@ REMEDY_PRIORITY: dict[str, list[str]] = {
     "context_loss": ["rule", "skill", "workflow"],
     "installed_unused": ["removal"],
     "repeated_workflow": ["skill", "plugin", "subagent"],
+    "review_loop": ["skill", "rule", "subagent"],
+    "parallel_conflict": ["workflow", "rule"],
+    "readonly_review": ["subagent", "model", "rule"],
+    "late_build_failure": ["hook", "rule", "skill"],
+    "polling": ["workflow", "hook"],
+    "deploy_platform_mix": ["rule", "prompt"],
+    "high_effort_readonly": ["model"],  # model route only (recall/models.py), never a problem
 }
 
 # RC-06 rows implemented for the MVP; other types use the default order (row 0).
@@ -24,6 +31,12 @@ _ROWS = {
     "wrong_approach": (11, "方向问题默认不装东西，先改开场与工作方式"),
     "resident_cost": (12, "常驻成本只能做减法"),
     "permission_friction": (13, "权限摩擦先用权限规则，只放行只读命令"),
+    "review_loop": (14, "review 来回拉锯先用 skill 约定轮数和修复范围"),
+    "parallel_conflict": (15, "并行会话冲突先改工作方式，用独立工作区隔开"),
+    "readonly_review": (16, "只读审查交给只读子代理，主会话保持干净"),
+    "late_build_failure": (17, "改完才发现构建失败，用项目级 hook 在编辑后自动构建"),
+    "polling": (18, "反复手动查看进度，改成无人值守的定时任务"),
+    "deploy_platform_mix": (19, "部署目标不统一，先写进项目规则"),
 }
 
 

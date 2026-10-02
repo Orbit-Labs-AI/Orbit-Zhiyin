@@ -13,7 +13,7 @@ from collections import OrderedDict
 import numpy as np
 
 from .contracts import canonical_json
-from .risk import allowed_tools, declared_env
+from .risk import allowed_tools, declared_env, scan
 
 SORTS = {"updated": "updated_at", "installs": "installs", "stars": "stars", "name": "name_key"}
 PERMISSIVE = {"MIT", "Apache-2.0", "CC0-1.0", "CC-BY-4.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD",
@@ -24,6 +24,19 @@ CARD = ("i.item_id,i.type,i.name,i.summary,i.author,i.license,i.official,i.agent
 README_LIMIT = 250_000
 MODEL_FIELDS = ("provider", "model_id", "family", "context_window", "max_output", "input_per_mtok", "output_per_mtok",
                 "cache_read_per_mtok", "reasoning", "tool_call", "knowledge_cutoff")
+KIND_LABELS = {"skill": "Skill", "hook": "Hook", "plugin": "插件", "subagent": "子代理", "mcp_server": "MCP",
+               "rule": "规则", "workflow": "工作流", "command": "命令", "marketplace": "市场", "guide": "指南",
+               "output_style": "输出风格", "lsp_server": "LSP"}
+AGENT_LABELS = {"claude_code": "Claude Code", "codex": "Codex", "copilot": "Copilot", "gemini": "Gemini CLI",
+                "opencode": "OpenCode", "cursor": "Cursor", "openclaw": "OpenClaw"}
+SOURCE_LABELS = {"official": "官方", "community": "社区", "local": "本地", "mirror": "镜像"}
+VERIFIED = ("repository_and_skill_read", "repository_and_source_read")
+_SPDX = {"mit": "MIT", "mit license": "MIT", "apache-2.0": "Apache-2.0", "apache 2.0": "Apache-2.0",
+         "apache license 2.0": "Apache-2.0", "apache-2": "Apache-2.0", "apache2": "Apache-2.0",
+         "bsd-3-clause": "BSD-3-Clause", "bsd-2-clause": "BSD-2-Clause", "isc": "ISC", "0bsd": "0BSD",
+         "cc0-1.0": "CC0-1.0", "cc0": "CC0-1.0", "cc-by-4.0": "CC-BY-4.0", "unlicense": "Unlicense",
+         "mpl-2.0": "MPL-2.0", "gpl-3.0": "GPL-3.0", "gpl-2.0": "GPL-2.0", "agpl-3.0": "AGPL-3.0",
+         "lgpl-3.0": "LGPL-3.0"}
 _CACHE: OrderedDict = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
@@ -50,6 +63,35 @@ def card(row) -> dict:
             "risk": json.loads(row["risk"]), "version": row["version"], "updated_at": row["updated_at"],
             "installs": row["installs"], "stars": row["stars"], "origin": row["origin"], "url": row["url"],
             "body_policy": row["body_policy"], "canonical_of": row["canonical_of"]}
+
+
+def license_spdx(value: str | None) -> str | None:
+    """Best-effort SPDX id; non-SPDX markers (repository_specific, proprietary) map to None."""
+    if not value:
+        return None
+    if value == "user-generated":
+        return value
+    key = value.split("(")[0].strip().casefold()
+    return _SPDX.get(key) or (value if value in PERMISSIVE else None)
+
+
+def source_kind(card: dict, metadata: dict | None = None) -> str:
+    if card.get("origin") == "local":
+        return "local"
+    if (metadata or {}).get("mirror"):
+        return "mirror"
+    return "official" if card.get("official") else "community"
+
+
+def labels(card: dict, metadata: dict | None = None) -> dict:
+    """Display labels shared by library cards and the detail page (A8-05 src/compat)."""
+    kind = source_kind(card, metadata)
+    spdx = license_spdx(card.get("license"))
+    src = SOURCE_LABELS[kind] + (f" · {spdx}" if spdx and spdx != "user-generated" else "")
+    repo = "github.com/" in (card.get("url") or "")
+    return {"source_kind": kind, "source_label": src, "license_spdx": spdx,
+            "compat_label": " · ".join(AGENT_LABELS.get(a, a) for a in card.get("agents") or []),
+            "stars_scope": "repo" if repo else "source", "updated_scope": "repo" if repo else "source"}
 
 
 def _encode_cursor(values: list) -> str:
@@ -271,11 +313,34 @@ def get_item(store, item_id: str) -> dict | None:
             "sources": [dict(r) for r in conn.execute(
                 "SELECT source_id,native_id,status,fetched_at FROM item_source WHERE item_id=? ORDER BY source_id,native_id",
                 (item_id,))],
-            "install": {"ref": {"source": "catalog_item", "id": item_id}, "targets": result["agents"], "hints": hints,
-                        "license_ok": license_ok, "installable": license_ok and row["status"] == "active"},
+            "install": _install(item_id, row, result["agents"], hints, license_ok),
             "resident_tokens_est": math.ceil(row["body_len"] / 4) if row["type"] in RESIDENT_TYPES else None,
-            "scan": None, "first_seen": row["first_seen"], "last_seen": row["last_seen"]})
+            "scan": scan(resource, result["risk"], row["risk_level"]),
+            "first_seen": row["first_seen"], "last_seen": row["last_seen"]})
+        result.update(labels(result, resource.metadata))
         return result
+
+
+def _install(item_id: str, row, targets: list, hints: dict, license_ok: bool) -> dict:
+    reason = None
+    if row["status"] != "active":
+        reason = "inactive"
+    elif row["type"] == "hook" and not (isinstance(hints, dict) and hints.get("hook")):
+        reason = "hook_without_install_declaration"
+    elif not license_ok:
+        reason = "license_not_permissive" if row["type"] not in ("plugin", "mcp_server") else "no_install_declaration"
+    return {"ref": {"source": "catalog_item", "id": item_id}, "targets": targets, "hints": hints,
+            "license_ok": license_ok, "installable": reason is None, "reason": reason}
+
+
+def cards_by_id(store, item_ids: list[str]) -> dict:
+    """Batch cards in request order (restore panel for "not interested"); unknown ids are reported."""
+    ids = list(dict.fromkeys(item_ids))
+    with store.reader() as conn:
+        found = _cards(conn, ids)
+        generation = store.generation(conn)
+    items = [{**found[i], **labels(found[i])} for i in ids if i in found]
+    return {"items": items, "missing": [i for i in ids if i not in found], "generation": generation}
 
 
 # -- models and benchmarks -------------------------------------------------------------
@@ -367,3 +432,167 @@ def get_model(store, canonical_id: str) -> dict | None:
     if model is None:
         return None
     return {**model, "benchmarks": benchmarks(store, model=canonical_id, limit=200)["items"]}
+
+
+# -- A8 library view -------------------------------------------------------------------
+LIBRARY_WEIGHTS = {"feature_overlap": 0.5, "friction": 0.3, "trust": 0.2}
+LIBRARY_SORTS = ("fit", "pain", "updated", "stars", "name")
+ORIGIN_WEIGHT = {"curated": 1.0, "declared": 1.0, "extracted": 0.6}
+LIBRARY_KINDS = ("skill", "hook", "plugin", "subagent", "mcp_server", "rule", "workflow", "command")
+
+
+def trust(row) -> float:
+    """0.35 official + 0.25 permissive license + 0.2 source read & verified + 0.2 (1 - risk/3)."""
+    value = (0.35 * bool(row["official"]) + 0.25 * (license_spdx(row["license"]) in PERMISSIVE)
+             + 0.2 * (row["verification"] in VERIFIED) + 0.2 * (1 - min(3, row["risk_level"]) / 3))
+    return round(min(1.0, value), 4)
+
+
+def _profile_overlap(conn, pairs: dict, ids: list[str] | None) -> dict:
+    """item_id -> raw overlap (same formula as features.match_items: Σ w·min(weight,1) / Σ w)."""
+    total = sum(p["weight"] for p in pairs.values())
+    if not total:
+        return {}
+    keys = list(pairs)
+    scores: dict[str, float] = {}
+    for start in range(0, len(keys), 200):
+        part = keys[start:start + 200]
+        values = ",".join("(?,?,?)" for _ in part)
+        id_filter, extra = "", []
+        if ids is not None:
+            id_filter, extra = " AND f.item_id IN (SELECT value FROM json_each(?))", [json.dumps(ids)]
+        sql = (f"WITH q(feature,value,w) AS (VALUES {values}) SELECT f.item_id, sum(s) FROM ("
+               f"SELECT f.item_id, q.w*min(max(f.weight),1.0) s FROM q JOIN item_feature f ON f.feature=q.feature "
+               f"AND f.value=q.value WHERE 1{id_filter} GROUP BY f.item_id,f.feature,f.value) f GROUP BY f.item_id")
+        args = [x for k in part for x in (*k, pairs[k]["weight"])] + extra
+        for item_id, score in conn.execute(sql, args):
+            scores[item_id] = scores.get(item_id, 0.0) + score / total
+    return scores
+
+
+def library(store, *, profile: dict | None = None, lexical: dict | None = None, tab: str = "for", kinds=(),
+            agents=(), q: str = "", sort: str = "fit", exclude=(), limit: int = 20, cursor: str | None = None) -> dict:
+    """A8 cards with parts {feature_overlap, friction, trust} and m = round(100 · Σ weight·part).
+
+    ``profile``: {"ok", "n_sessions", "window_days", "scope_hash", "features": [{fid, feature, value,
+    weight, sessions, label}]} with features already mapped to catalog (feature, value) pairs.
+    ``lexical``: item_id -> retrieval score from hybrid search (seed and, without a profile, the
+    relevance part). Without a usable profile no personal reason is produced and friction stays 0.
+    """
+    if tab not in ("for", "local") or sort not in LIBRARY_SORTS:
+        raise ValueError("invalid_query")
+    kinds = [k for k in kinds if k] or list(LIBRARY_KINDS)
+    if set(kinds) - set(LIBRARY_KINDS):
+        raise ValueError("invalid_query")
+    limit = max(1, min(50, int(limit)))
+    offset = 0
+    if cursor:
+        values = _decode_cursor(cursor)
+        if len(values) != 3 or values[:2] != ["library", sort] or not isinstance(values[2], int) or values[2] < 0:
+            raise ValueError("invalid_query")
+        offset = values[2]
+    profile = profile or {}
+    ok = bool(profile.get("ok")) and bool(profile.get("features"))
+    pairs: dict = {}
+    for f in profile.get("features") or [] if ok else []:
+        key = (f["feature"], f["value"])
+        if key not in pairs or pairs[key]["weight"] < f["weight"]:
+            pairs[key] = f
+    friction_profile = {k[1]: f for k, f in pairs.items() if k[0] == "friction"}
+    top_friction = max((f["weight"] for f in friction_profile.values()), default=0) or 1
+    lexical = lexical or {}
+    where, args = _filters(kinds=kinds, agents=agents, exclude=exclude,
+                           origin="local" if tab == "local" else None)
+    with store.reader() as conn:
+        generation = store.generation(conn)
+        if tab == "local":
+            seed = None  # Every local item is a candidate.
+        else:
+            overlap_all = _profile_overlap(conn, pairs, None) if pairs else {}
+            seed = set(lexical) if q.strip() else set(overlap_all) | set(lexical)
+            if not seed and not q.strip():
+                # No profile and no query: fall back to a trust/popularity shortlist, never personal.
+                seed = {r[0] for r in conn.execute(
+                    f"SELECT i.item_id FROM catalog_item i WHERE {' AND '.join(where)} "
+                    "ORDER BY i.official DESC,i.stars DESC,i.item_id LIMIT 200", args)}
+        sql = (f"SELECT {CARD},i.verification FROM catalog_item i WHERE {' AND '.join(where)}"
+               + (" AND i.item_id IN (SELECT value FROM json_each(?))" if seed is not None else ""))
+        rows = conn.execute(sql, [*args, *([json.dumps(sorted(seed))] if seed is not None else [])]).fetchall()
+        if tab == "local" and q.strip():
+            needle = q.strip().casefold()
+            rows = [r for r in rows if needle in f"{r['name']} {r['summary']}".casefold()]
+        ids = [r["item_id"] for r in rows]
+        overlap = (_profile_overlap(conn, pairs, ids) if tab == "local" else
+                   {i: overlap_all[i] for i in ids if i in overlap_all}) if pairs else {}
+        feats: dict[str, list] = {}
+        for start in range(0, len(ids), 500):
+            part = ids[start:start + 500]
+            for r in conn.execute("SELECT item_id,feature,value,weight,origin,evidence FROM item_feature "
+                                  "WHERE item_id IN (SELECT value FROM json_each(?))", (json.dumps(part),)):
+                feats.setdefault(r[0], []).append(r)
+        hidden = conn.execute("SELECT count(*) FROM catalog_item WHERE listable=1 AND item_id IN "
+                              "(SELECT value FROM json_each(?))", (json.dumps(list(exclude)),)).fetchone()[0] if exclude else 0
+    top_overlap = max(overlap.values(), default=0) or 1
+    top_lexical = max(lexical.values(), default=0) or 1
+    window = profile.get("window_days")
+    items = []
+    for row in rows:
+        item_id = row["item_id"]
+        friction, matched, why_friction, seen = 0.0, [], [], set()
+        for _, feature, value, _weight, origin, evidence in sorted(
+                feats.get(item_id, []), key=lambda r: -ORIGIN_WEIGHT.get(r[4], 0.6)):
+            entry = pairs.get((feature, value))
+            if entry is None or (feature, value) in seen:
+                continue
+            seen.add((feature, value))
+            matched.append({"feature": feature, "value": value, "evidence": evidence, "origin": origin,
+                            "sessions": entry.get("sessions"), "label": entry.get("label") or value,
+                            "_w": entry["weight"]})
+            if feature == "friction":
+                # Strongest hit, relative to the user's top friction; extracted text counts 0.6.
+                friction = max(friction, min(1.0, entry["weight"] / top_friction * ORIGIN_WEIGHT.get(origin, 0.6)))
+        matched.sort(key=lambda m: (m["feature"] != "friction", -m["_w"], m["feature"], m["value"]))
+        if ok:
+            fo = overlap.get(item_id, 0.0) / top_overlap
+        else:
+            fo = lexical.get(item_id, 0.0) / top_lexical if lexical else 0.0
+        parts = {"feature_overlap": round(min(1.0, fo), 4), "friction": round(friction, 4), "trust": trust(row)}
+        m = round(100 * sum(LIBRARY_WEIGHTS[k] * v for k, v in parts.items()))
+        why = []
+        if ok:
+            for hit in (h for h in matched if h["feature"] == "friction" and h["sessions"]):
+                why_friction.append(f"覆盖你的摩擦：{hit['label']}（近 {window} 天 {hit['sessions']} 个会话）")
+            usage = [f"你近 {window} 天在 {h['sessions']} 个会话用到 {h['label']}"
+                     for h in matched if h["feature"] != "friction" and h["sessions"]]
+            why = (usage[:1] + why_friction[:1] + usage[1:2] + why_friction[1:2])[:2]
+        else:
+            if lexical.get(item_id):
+                why.append("与搜索词匹配")
+            if row["official"]:
+                why.append("官方维护")
+            elif row["risk_level"] == 0:
+                why.append("静态估计未发现高风险权限")
+            why = why[:2]
+        base = card(row)
+        info = labels(base)
+        items.append({
+            "id": item_id, "item_id": item_id, "kind": base["kind"], "kind_label": KIND_LABELS.get(base["kind"], base["kind"]),
+            "name": base["name"], "src": info["source_label"], "source_kind": info["source_kind"],
+            "license": info["license_spdx"] or base["license"], "author": base["author"], "desc": base["summary"],
+            "compat": info["compat_label"], "agents": base["agents"], "m": m, "parts": parts, "why": why,
+            "matched_features": [{k: v for k, v in h.items() if k not in ("_w", "label")} for h in matched[:6]],
+            "stars": base["stars"], "stars_scope": info["stars_scope"], "updated_at": base["updated_at"],
+            "updated_scope": info["updated_scope"], "users": None, "local": base["origin"] == "local",
+            "risk_level": base["risk_level"], "installed": None, "rec": None, "url": base["url"]})
+    keys = {"fit": lambda c: (-c["m"], -c["parts"]["friction"], c["id"]),
+            "pain": lambda c: (-c["parts"]["friction"], -c["m"], c["id"]),
+            "updated": lambda c: (-c["updated_at"], c["id"]), "stars": lambda c: (-c["stars"], c["id"]),
+            "name": lambda c: (c["name"].casefold(), c["id"])}
+    items.sort(key=keys[sort])
+    end = offset + limit
+    return {"generation": generation,
+            "profile_basis": {"scope_hash": profile.get("scope_hash"), "n_sessions": profile.get("n_sessions", 0),
+                              "window_days": window, "ok": ok},
+            "weights": dict(LIBRARY_WEIGHTS), "total": len(items),
+            "next_cursor": _encode_cursor(["library", sort, end]) if end < len(items) else None,
+            "hidden_excluded": hidden, "installed_summary": None, "items": items[offset:end]}

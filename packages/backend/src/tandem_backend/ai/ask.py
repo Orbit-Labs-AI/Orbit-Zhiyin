@@ -55,6 +55,9 @@ def out_of_scope(question: str) -> dict:
     return {"answer": OUT_OF_SCOPE, "refs": [], "next": "none", "pages": route_pages(question)}
 
 
+SCOPE_KEYS = ("days", "start_ms", "end_ms", "project_id", "source_ids")
+
+
 class _Q:
     """Runs whitelisted queries for one answer and collects their refs."""
 
@@ -63,8 +66,10 @@ class _Q:
         self.refs: list[dict] = []
 
     def __call__(self, api: str, **params) -> list[dict]:
-        if "scope" in queries.SCHEMAS[api]["properties"] and self.scope.get("days"):
-            params.setdefault("scope", {"days": int(self.scope["days"])})
+        if "scope" in queries.SCHEMAS[api]["properties"]:
+            scope = {k: self.scope[k] for k in SCOPE_KEYS if self.scope.get(k) not in (None, [])}
+            if scope:  # Forwarded as given (days/start_ms/end_ms/project_id/source_ids).
+                params.setdefault("scope", scope)
         try:
             r = queries.run(api, params, reads=self.reads, appdb=self.appdb, home=self.home)
         except Exception:  # noqa: BLE001 - no tandem.db yet: answer degrades, never 500
@@ -112,7 +117,23 @@ def preset_answer(context: str, index: int, *, reads, appdb=None, scope=None, se
     if fn is None:
         return {**out_of_scope(""), "source": "template"}
     answer, nxt = fn(q, session_uid)
-    return {"answer": answer, "refs": q.refs[:12], "next": nxt, "source": "template"}
+    out = {"answer": answer, "refs": q.refs[:12], "next": nxt, "source": "template"}
+    if nxt == "studio":
+        out["handoff"] = handoff(answer, q.refs)
+    return out
+
+
+def handoff(answer: str, refs: list[dict]) -> dict:
+    """Studio goal from an answer (ASK-05): the first suggestion line, redacted, ≤200 chars."""
+    from .redact import redact2
+
+    lines = [line.strip().lstrip("·").strip() for line in answer.splitlines()]
+    suggestion = next((line for line in lines if line and answer.find("· " + line) >= 0), None)
+    if suggestion is None:
+        first = re.split(r"(?<=[。！？!?])", answer.strip(), maxsplit=1)[0]
+        suggestion = first.strip()
+    goal, _ = redact2(suggestion)
+    return {"goal": goal[:200], "goal_source": "ask", "refs": refs[:12]}
 
 
 # ---------------------------------------------------------------- overview
@@ -177,15 +198,40 @@ def _profile(q) -> dict:
     return features_profile(q.scope)
 
 
+def _weight(value) -> str:
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return f"{round(value * 100):g}%" if 0 <= value <= 1 else f"{value:g}"
+    return str(value or "")
+
+
+def _evidence_lines(p: dict) -> list[str]:
+    """Top profile features as "· label weight"; tags are dicts (features.profile) or names."""
+    weights = p.get("weights") or p.get("tags") or {}
+    if isinstance(weights, dict):
+        items = [(str(k), _weight(v)) for k, v in list(weights.items())[:4]]
+    else:
+        items = []
+        for tag in list(weights)[:4]:
+            if isinstance(tag, dict):
+                items.append((str(tag.get("label") or tag.get("id") or "特征"),
+                              _weight(tag.get("weight"))))
+            else:
+                items.append((str(tag), ""))
+    return [f"· {label} {weight}".rstrip() for label, weight in items]
+
+
 def _pe_why(q, _):
     p = _profile(q)
     if not p:
         n = (q.metrics().get("sessions") or {}).get("value") or 0
         return f"画像还没生成：当前有 {n} 个会话，特征模块完成计算后才判断类型。", "none"
-    label = p.get("code") or p.get("label") or "当前类型"
-    weights = p.get("weights") or p.get("tags") or {}
-    items = list(weights.items())[:4] if isinstance(weights, dict) else [(w, "") for w in weights[:4]]
-    return f"判定为「{label}」，主要依据：\n\n" + "\n".join(f"· {k} {v}" for k, v in items), "none"
+    lines = _evidence_lines(p)
+    code = p.get("code")
+    if not code:
+        tail = ("\n\n目前最明显的特征：\n" + "\n".join(lines)) if lines else ""
+        return "样本不足，暂不判断类型。" + tail, "none"
+    head = f"判定为「{p.get('label') or code}」"
+    return head + ("，主要依据：\n\n" + "\n".join(lines) if lines else "。"), "none"
 
 
 def _pe_tradeoff(q, _):

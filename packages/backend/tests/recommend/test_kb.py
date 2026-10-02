@@ -19,7 +19,8 @@ def test_bundled_kb_validates_and_covers_mvp_problem_types():
     assert sum(rule.generic for rule in rules) >= 3
     for rule in rules:
         # Every mechanism-table kind of a rule is a known RC-06 kind for one of its problem types.
-        assert any(rule.remedy.kind in mechanism.REMEDY_PRIORITY.get(t, []) or rule.remedy.kind == "workflow"
+        kind = rule.remedy.dim if rule.remedy.kind == "generate" else rule.remedy.kind
+        assert any(kind in mechanism.REMEDY_PRIORITY.get(t, []) or kind == "workflow"
                    for t in rule.problem.types), rule.id
         assert rule.explain.reason_template and rule.track.triggered and rule.steps
 

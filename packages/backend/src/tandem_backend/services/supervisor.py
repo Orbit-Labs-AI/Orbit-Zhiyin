@@ -247,7 +247,8 @@ class IngestRunner:
             self.current = job["id"]
             # During a backoff restart the job waits and is sent once the worker respawns.
             self.pending = {"op": "run", "job": {**job, "sources": sources,
-                                                 "plan": self.config.plan}}
+                                                 "plan": {**self.config.plan,
+                                                          **(job.get("plan") or {})}}}
             self._send_pending()
 
     def _state(self, role: str, state: str) -> None:

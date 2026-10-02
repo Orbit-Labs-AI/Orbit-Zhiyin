@@ -4,7 +4,7 @@ import time
 from tandem_backend.recommend import engine, narrate
 
 UI_KEYS = {"dim", "type", "icon", "lvl", "aud", "title", "gain", "why", "ev", "evq", "compat", "primary", "target",
-           "file", "steps", "track"}
+           "file", "steps", "commands", "track", "save", "tok", "n"}
 
 
 def problem(pid="p1", ptype="permission_friction", sessions=8, **kw):
@@ -61,10 +61,13 @@ def test_slate_shape_and_ui_keys():
     assert set(top["gates"]) == {"passed", "checks", "reasons"}
     ui = top["ui"]
     assert ui["why"] == "你手动批准了 212 次 git status、ls 这类只读命令。"
-    assert ui["gain"] == "−53 次审批 / 月" and ui["ev"] == "8 个会话" and ui["compat"] == "Claude Code · Codex"
+    assert ui["gain"] == "−52 次 / 月" and ui["ev"] == "8 个会话" and ui["compat"] == "Claude Code · Codex"
+    assert ui["save"]["min_month"] == 26 and ui["save"]["label"] == "≈ 26 min" and ui["tok"] == 0
+    assert ui["n"] == [20, None]
     assert ui["primary"] == "一键应用" and ui["type"] == "Hook" and ui["icon"] == "bolt"
     assert ui["evq"] == {"session_uids": ["s1", "s2"]} and ui["steps"] == ["预览", "确认写入"]
-    assert ui["track"][0] == ["每周审批次数", None, None, ""] and ui["file"] == [['"Bash(git status:*)",', "+"]]
+    assert ui["track"][0] == ["每周审批次数", 13.25, None, "次/周"] and len(ui["track"]) == 3
+    assert ui["file"] == [['"Bash(git status:*)",', "+"]]
     assert top["explain"]["mechanism"] and top["explain"]["source"] == "template"
     assert low["rank"] is None and "ui" not in low and low["gates"]["checks"]["risk_ok"] is False
     assert low["problem_type"] == "permission_friction"
@@ -92,7 +95,7 @@ def test_statuses():
 def test_risk_downgrade_reaches_ui_level():
     r = raw("kb:hook", kind="hook", risk={"level": "medium", "flags": []})
     cand = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([r]))["candidates"][0]
-    assert cand["level"] == 3 and cand["ui"]["lvl"] == 3 and cand["ui"]["primary"] == "查看步骤"
+    assert cand["level"] == 3 and cand["ui"]["lvl"] == 3 and cand["ui"]["primary"] == "预览并安装"
     assert "降为 L3，需逐行预览" in cand["explain"]["limitation"]
 
 

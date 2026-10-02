@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
 from .. import __version__
+from ..appdata.wipe import apply_pending
 from ..appdb import AppDB
 from ..platform.middleware import PlatformMiddleware
 from ..platform.runtime import Platform
@@ -39,6 +40,7 @@ from .snapshots import SnapshotKey, SnapshotStore, scope_hash
 from .supervisor import Supervisor, SupervisorConfig
 
 PARENT_ENV = "TANDEM_PARENT_PID"
+HOURLY_SYNC_S = 3600.0  # sync_mode "hour"
 STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
                 405: "method_not_allowed", 409: "conflict", 422: "invalid_request",
                 503: "service_unavailable"}
@@ -163,6 +165,15 @@ def default_scope(days: int | None, now: datetime | None = None) -> dict:
     return asdict(Scope(from_ts=int(start.timestamp() * 1000)))
 
 
+def next_sync_interval(mode: str | None, interval: float, changed: bool,
+                       bounds: tuple[float, float], hourly: float = 3600.0) -> float:
+    """``hour``: a fixed hourly import; ``live``: adaptive 2 s → 30 s backoff."""
+    low, high = bounds
+    if mode == "hour":
+        return hourly
+    return low if changed else min(high, interval * 2)
+
+
 class Gateway:
     def __init__(self, home: Path, *, config: SupervisorConfig | None = None,
                  discovery: Callable[[], list[dict]] | None = None,
@@ -173,6 +184,7 @@ class Gateway:
 
         self.home = home.expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.cleared = apply_pending(self.home)  # A pending "clear all data" runs first.
         self.config = config or SupervisorConfig()
         self.discovery = discovery or candidates
         self.bus = EventBus(heartbeat_s=heartbeat_s)
@@ -188,6 +200,7 @@ class Gateway:
         self.supervisor.ingest.jobs = self.jobs
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
+        self.hourly_sync_s = HOURLY_SYNC_S
         self.prewarm_timer: threading.Timer | None = None
         self.prewarm_heavy = False
         self.lock = threading.Lock()
@@ -225,8 +238,11 @@ class Gateway:
 
     def _close_services(self) -> None:
         """Area services created by their routers (features hub, lazy AI service)."""
-        from .. import features
+        from .. import features, privacy_rules
+        from ..appdata import sources_scope
 
+        privacy_rules.bind(None)
+        sources_scope.set_provider(None)
         # bind(None) closes the bound hub; module helpers then fall back to "unbound".
         features.bind(None)
         ai = getattr(self, "_ai", None)
@@ -276,7 +292,8 @@ class Gateway:
         if rev["data_rev"] is None or self.stopping.is_set():
             return []
         state = self.state.snapshot()
-        scopes = [default_scope(state["settings"].get("default_range_days", 30))]
+        # default_range_days 0 means "all time" (the scope-less default).
+        scopes = [default_scope(state["settings"].get("default_range_days", 30) or None)]
         scopes += [s for s in state["mru_scopes"][: self.prewarm_mru] if s not in scopes]
         sections = LIGHT + (HEAVY if self.prewarm_heavy else ())
         # Light sections of every scope first, then heavy ones.
@@ -310,12 +327,14 @@ class Gateway:
             state = self.state.snapshot()
             enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
             catch_up = collection.consume_catch_up()
-            if (state["settings"].get("sync_mode") != "live" and not catch_up) or not enabled:
+            mode = state["settings"].get("sync_mode")
+            if (mode not in ("live", "hour") and not catch_up) or not enabled:
                 interval = high
                 continue
             last = next((j for j in self.state.jobs() if j.get("origin") == "sync"), None)
             changed = bool(last and any(r.get("changed") for r in last.get("results") or []))
-            interval = low if changed else min(high, interval * 2)
+            interval = next_sync_interval(mode, interval, changed, self.sync_interval_s,
+                                          getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
             try:
                 self.jobs.submit("import", enabled, phase="full", origin="sync")
             except (JobConflict, ValueError):
@@ -339,6 +358,8 @@ class Gateway:
             routes_realtime,
             routes_recommend,
             routes_sessionops,
+            routes_settings,
+            routes_shell,
         )
 
         @asynccontextmanager
@@ -368,6 +389,8 @@ class Gateway:
             routes_sessionops,
             routes_quota,
             routes_export,
+            routes_settings,
+            routes_shell,
         ):
             app.include_router(module.router(self))
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().

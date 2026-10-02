@@ -19,6 +19,7 @@ from .contracts import (
 )
 from .network import HttpClient
 from .search import query_text, remember_queries, search
+from .snapshot import OFFLINE_KINDS, bundled_seed, import_snapshot, retire_seeds
 from .sources import default_sources
 from .store import CatalogBusy, CatalogStore
 from .sync import CatalogSync
@@ -96,6 +97,26 @@ class CatalogService:
         return {"items": items, "generation": result.get("generation"), "routes": result["routes"],
                 "vector": result["vector"], "ranking_version": result["ranking_version"]}
 
+    def library(self, *, profile: dict | None = None, tab: str = "for", kinds=(), agents=(), q: str = "",
+                sort: str = "fit", exclude=(), limit: int = 20, cursor: str | None = None) -> dict:
+        """A8 library view: hybrid retrieval seeds lexical candidates, query.library scores parts."""
+        from . import query
+        lexical = {}
+        features = [Feature(feature=f["feature"], value=f["value"], weight=max(0.01, min(10, f["weight"])),
+                            origin="declared", evidence="profile")
+                    for f in sorted((profile or {}).get("features") or [], key=lambda f: -f["weight"])[:40]] \
+            if (profile or {}).get("ok") else []
+        if tab == "for" and (q.strip() or features):
+            kinds_ = [k for k in kinds if k] or list(query.LIBRARY_KINDS)
+            ranked = sorted(profile.get("features") or [], key=lambda f: -f["weight"]) if features else []
+            labels = " ".join(dict.fromkeys(str(f.get("label") or f["value"]) for f in ranked[:12]))
+            result = self.match(MatchRequest(text=(q.strip() or labels)[:8000], features=[] if q.strip() else features,
+                                             types=kinds_, agents=list(agents), excluded_ids=list(exclude)[:1000],
+                                             purpose="library", limit=100, per_route=200, prefix=bool(q.strip())))
+            lexical = {item["item_id"]: float(item["score"]) for item in result["items"]}
+        return query.library(self.store, profile=profile, lexical=lexical, tab=tab, kinds=kinds, agents=agents, q=q,
+                             sort=sort, exclude=exclude, limit=limit, cursor=cursor)
+
     def add_local(self, payload: dict | LocalItem) -> dict:
         """Idempotent local item (AI-generated or user-authored); requires a passing self-check."""
         item = payload if isinstance(payload, LocalItem) else LocalItem.model_validate(payload)
@@ -143,13 +164,72 @@ class CatalogService:
 
         def run(cancel):
             try:
-                return CatalogSync(self.store, http).sync(request.source_ids, force=request.force,
-                                                          max_pages=request.max_pages, cancelled=cancel,
-                                                          concurrency=request.concurrency)
+                results = CatalogSync(self.store, http).sync(request.source_ids, force=request.force,
+                                                             max_pages=request.max_pages, cancelled=cancel,
+                                                             concurrency=request.concurrency)
+                self.retire_seeds(results)
+                return results
             finally:
                 if http is not self.http:
                     http.close()
         return self._submit("sync", run)
+
+    def retire_seeds(self, results: list[dict]) -> int:
+        """Seed rows of sources that just published from the network are no longer needed."""
+        done = [r["source_id"] for r in results if r.get("status") == "completed"]
+        return retire_seeds(self.store, done) if done else 0
+
+    def bootstrap(self, seed: bytes | None = None, *, import_seed: bool = True,
+                  offline_ids=("tandem-seeds", "tandem-kb")) -> dict:
+        """First start: publish the offline sources (package data, KB) and the bundled snapshot.
+
+        Never touches the network. Safe to call on every start: offline sources are published
+        on every start (no-op when unchanged), the snapshot only while the library has no
+        network data and no seed yet (``needs_seed``).
+        """
+        sources = {s["source_id"]: s for s in self.store.sources()}
+        # Re-published every start (an unchanged revision is a cheap no-op), so an app update
+        # that ships a new KB or seed list is visible immediately.
+        due = [sid for sid in offline_ids if sid in sources and sources[sid]["enabled"]]
+        result = {"offline": [], "seed": None}
+        if due:
+            # Offline kinds read package files only; a failing source is reported, not raised.
+            result["offline"] = CatalogSync(self.store, self.http).sync(due, force=True, concurrency=1)
+        if import_seed and self.needs_seed():
+            seed = bundled_seed() if seed is None else seed
+            if seed:
+                result["seed"] = import_snapshot(self.store, seed)
+        return result
+
+    def needs_seed(self) -> bool:
+        """No snapshot imported yet and no network source has ever completed."""
+        return not any(s["spec"].get("kind") == "snapshot" or
+                       (s["completed_at"] and s["spec"].get("kind") not in OFFLINE_KINDS)
+                       for s in self.store.sources())
+
+    def coverage(self) -> dict:
+        """Library coverage for the settings page and the first-start progress bar."""
+        stats = self.store.stats()
+        with self.store.connect(True) as conn:
+            per_source = {r[0]: r[1] for r in conn.execute(
+                "SELECT source_id,count(*) FROM item_source WHERE status='active' GROUP BY source_id")}
+            open_runs = {r[0] for r in conn.execute(
+                "SELECT DISTINCT source_id FROM sync_run WHERE status IN ('running','paused','failed','ready')")}
+        by_source, seeded, last_sync, partial = {}, False, None, []
+        for source in self.store.sources():
+            sid, kind = source["source_id"], source["spec"].get("kind")
+            by_source[sid] = {"kind": kind, "items": per_source.get(sid, 0), "last_ok_at": source["completed_at"],
+                              "error": source["error"], "enabled": bool(source["enabled"])}
+            if kind in ("snapshot", "kb") and source["completed_at"]:
+                seeded = True
+            if kind in OFFLINE_KINDS:
+                continue
+            if source["completed_at"]:
+                last_sync = max(last_sync or 0, source["completed_at"])
+            if source["enabled"] and (sid in open_runs or not source["completed_at"]):
+                partial.append(sid)
+        return {"by_kind": stats["by_type"], "by_source": by_source, "seeded": seeded,
+                "last_sync_at": last_sync, "partial_sources": partial}
 
     def start_embeddings(self, max_chunks: int | None = None) -> dict:
         if not self.model_dir and self._encoder is None:

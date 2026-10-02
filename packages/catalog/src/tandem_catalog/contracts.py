@@ -15,6 +15,35 @@ def digest(value: object) -> str:
     return hashlib.sha256(canonical_json(value).encode()).hexdigest()
 
 
+_SPDX = {key.lower(): key for key in (
+    "MIT", "Apache-2.0", "CC0-1.0", "CC-BY-4.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MPL-2.0",
+    "GPL-2.0", "GPL-3.0", "LGPL-3.0", "AGPL-3.0", "Unlicense")}
+_LICENSE_ALIASES = {
+    "mit license": "MIT", "the mit license": "MIT", "mit licence": "MIT",
+    "apache 2.0": "Apache-2.0", "apache2": "Apache-2.0", "apache-2": "Apache-2.0", "apache 2": "Apache-2.0",
+    "apache license 2.0": "Apache-2.0", "apache license, version 2.0": "Apache-2.0", "apache license version 2.0": "Apache-2.0",
+    "bsd-3": "BSD-3-Clause", "bsd 3-clause": "BSD-3-Clause", "bsd-2": "BSD-2-Clause", "isc license": "ISC",
+    "cc0": "CC0-1.0", "unlicense": "Unlicense", "the unlicense": "Unlicense",
+}
+
+
+def normalize_license(value) -> str | None:
+    """Free-form license declaration → SPDX-ish id; unknown values are kept (trimmed), blanks → None."""
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split()).strip()
+    if not text:
+        return None
+    lowered = text.lower().rstrip(".")
+    if lowered in _SPDX:
+        return _SPDX[lowered]
+    if lowered in _LICENSE_ALIASES:
+        return _LICENSE_ALIASES[lowered]
+    if lowered.startswith("proprietary"):
+        return "Proprietary"
+    return text[:200]
+
+
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
@@ -67,8 +96,17 @@ class Record(Contract):
 
 
 class SourceSpec(Contract):
+    """`config` keys (all optional) used by connectors:
+
+    github: repo, agents, official, marketplace (path; auto-detected when absent), agents_infer (default
+    true), kind_rules ([{glob, type}] evaluated before built-in rules), root_type.
+    mcp: publish_every_pages (default 10, partial publication without retirement), max_pages (default 120).
+    clawhub: max_items (default 500). Any file kind: file (absolute local snapshot).
+    """
+
     source_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,79}$")
-    kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local"]
+    kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local",
+                  "snapshot", "kb"]
     url: str
     enabled: bool = True
     priority: int = Field(default=50, ge=0, le=100)

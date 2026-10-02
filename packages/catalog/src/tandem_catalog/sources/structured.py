@@ -8,11 +8,84 @@ from importlib.resources import files
 from pathlib import Path
 from urllib.parse import urlencode
 
-from ..contracts import Feature, Page, Record, Resource, digest
+from ..contracts import Feature, Page, Record, Resource, digest, normalize_license
 from ..models import canonical_model_id, normalize_effort, resolve_benchmark_model, split_effort
 
 MAX_SOURCE_FILE = 64 * 1024 * 1024
 FILE_KINDS = {"models_dev", "litellm", "swe_bench", "gemini"}
+SKILL_AGENTS = ["claude_code", "codex", "gemini", "opencode"]  # Agent Skills (SKILL.md) open standard
+MCP_AGENTS = ["claude_code", "codex", "copilot", "gemini", "opencode"]
+MCP_PUBLISH_EVERY = 10
+MCP_MAX_PAGES = 120
+CLAWHUB_MAX_ITEMS = 500
+
+
+def slug(text: str) -> str:
+    out = re.sub(r"[^a-z0-9-]+", "-", str(text).lower()).strip("-")[:64].strip("-")
+    return out or "item"
+
+
+def mcp_install(manifest: dict) -> dict | None:
+    """MCP registry ``server.json`` → install payload: a remote URL, else an npm/pypi stdio package."""
+    name = slug(str(manifest.get("name") or "").rsplit("/", 1)[-1])
+    for remote in manifest.get("remotes") or []:
+        if isinstance(remote, dict) and str(remote.get("url", "")).startswith("https://"):
+            return {"name": name, "transport": "sse" if remote.get("type") == "sse" else "http", "url": remote["url"]}
+    for package in manifest.get("packages") or []:
+        if not isinstance(package, dict) or (package.get("transport") or {}).get("type", "stdio") != "stdio":
+            continue
+        ident, version = package.get("identifier"), package.get("version")
+        if package.get("registryType") == "npm" and ident:
+            return {"name": name, "transport": "stdio", "command": "npx", "args": ["-y", f"{ident}@{version}" if version else ident]}
+        if package.get("registryType") == "pypi" and ident:
+            return {"name": name, "transport": "stdio", "command": "uvx", "args": [f"{ident}=={version}" if version else ident]}
+    return None
+
+
+def mcp_config_install(name: str, server: dict) -> dict | None:
+    """One ``.mcp.json`` ``mcpServers`` entry → install payload. Literal env values are dropped
+    (only ``${VAR}`` references survive); the names stay visible as ``env_required``."""
+    if not isinstance(server, dict):
+        return None
+    url, command = server.get("url"), server.get("command")
+    payload: dict = {"name": slug(name)}
+    if isinstance(url, str) and url.startswith("https://"):
+        payload.update(transport="sse" if server.get("type") == "sse" else "http", url=url)
+        headers = {k: v for k, v in (server.get("headers") or {}).items() if isinstance(v, str) and "${" in v}
+        if headers:
+            payload["headers"] = headers
+    elif isinstance(command, str) and command:
+        payload.update(transport="stdio", command=command, args=[str(a) for a in server.get("args") or [] if isinstance(a, (str, int, float))])
+        env = {k: v for k, v in (server.get("env") or {}).items() if isinstance(v, str) and "${" in v}
+        if env:
+            payload["env"] = env
+    else:
+        return None
+    return payload
+
+
+def namespace_author(name: str) -> str | None:
+    """Reverse-DNS registry namespace → publisher: ``io.github.acme/x`` → ``acme``, ``com.example/x`` → ``example.com``."""
+    namespace = str(name or "").split("/", 1)[0]
+    parts = [p for p in namespace.split(".") if p]
+    if len(parts) >= 3 and parts[0] in ("io", "com") and parts[1] == "github":
+        return parts[2]
+    return ".".join(reversed(parts)) or None
+
+
+def _mcp_features(manifest: dict, install: dict | None) -> list[Feature]:
+    features = [Feature(feature="tool_kind", value="mcp", origin="declared", evidence="registry entry")]
+    transport = "remote" if manifest.get("remotes") or (install or {}).get("url") else "stdio"
+    features.append(Feature(feature="transport", value=transport, origin="declared", evidence="registry packages/remotes"))
+    env = set()
+    for package in manifest.get("packages") or []:
+        for var in (package.get("environmentVariables") or []) if isinstance(package, dict) else []:
+            if isinstance(var, dict) and var.get("name") and var.get("isRequired", True):
+                env.add(str(var["name"])[:256])
+    features += [Feature(feature="env_required", value=name, origin="declared", evidence="registry environmentVariables")
+                 for name in sorted(env)[:20]]
+    return features
+OFFICIAL_FILE = "data/official.v1.json"
 
 
 def _number(value) -> float | None:
@@ -28,6 +101,17 @@ def _number(value) -> float | None:
 
 def _flag(value) -> bool | None:
     return value if isinstance(value, bool) else None
+
+
+def _bool(value) -> bool | None:
+    """Booleans that some registries serialize as strings ("true"/"false"/"1"/"0")."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str) and value.strip().lower() in ("true", "false", "1", "0", "yes", "no"):
+        return value.strip().lower() in ("true", "1", "yes")
+    return None
 
 
 def _per_mtok(value) -> float | None:
@@ -88,6 +172,12 @@ class StructuredConnector:
                              "trial": row.get("trial"), "limitations": row.get("limitations")})
                 records.append(Record(native_id=row["id"], resource=r, raw=row))
             return Page(records=records, complete=True, revision=digest(rows))
+        if self.source.kind == "snapshot":
+            # Seed rows are written once by snapshot.import_snapshot and retired by the real
+            # source; a scheduled visit must neither re-add nor remove them.
+            return Page(records=[], complete=True, mode="incremental", revision=state.get("revision"))
+        if self.source.kind == "kb":
+            return self._kb(state)
         if self.source.kind == "mcp":
             return self._mcp(checkpoint, state)
         if self.source.kind == "clawhub":
@@ -99,6 +189,21 @@ class StructuredConnector:
         self.known_models = set(state.get("known_models") or ()) | _known_model_ids(state.get("known") or {})
         parser = getattr(self, "_" + self.source.kind)
         return Page(records=list(parser(data)), complete=True, revision=revision)
+
+    def _kb(self, state):
+        """Tandem's reviewed remedy templates as official catalog items (read-only view of the KB)."""
+        if self.source.config.get("file"):
+            data = self._load()
+        else:
+            data = json.loads(files("tandem_catalog").joinpath(OFFICIAL_FILE).read_text())
+        revision = digest(data)
+        if revision == state.get("revision"):
+            return Page(records=[], complete=True, mode="incremental", revision=revision)
+        entries = official_entries(data) if isinstance(data, dict) and "rules" in data else data
+        if not isinstance(entries, list) or not entries:
+            raise ValueError("invalid_kb_catalog")
+        records = [Record(native_id=entry["id"], resource=official_resource(entry), raw=entry) for entry in entries]
+        return Page(records=records, complete=True, revision=revision)
 
     def _mcp(self, checkpoint, state):
         params = {"limit": 100, "version": "latest"}
@@ -122,24 +227,33 @@ class StructuredConnector:
                 maximum = updated
             name = server["name"]
             status = meta.get("status", "active")
-            # Registry inclusion/namespace validation is not vendor endorsement.
+            install = mcp_install(server)
+            repository = server.get("repository") if isinstance(server.get("repository"), dict) else {}
+            # Registry inclusion/namespace validation is not vendor endorsement. The registry's CC0
+            # covers its metadata, not the server: the server license stays unknown (None).
             r = Resource(item_id="mcp:" + name, type="mcp_server", name=server.get("title") or name,
                          summary=server.get("description", "")[:12000], version=server.get("version"),
-                         url=server.get("websiteUrl") or server.get("repository", {}).get("url") or self.source.url,
-                         manifest=server, license="CC0-1.0 (registry metadata)", agents=["claude_code", "codex", "copilot", "gemini", "opencode"],
+                         url=server.get("websiteUrl") or repository.get("url") or self.source.url,
+                         manifest=server, license=None, agents=list(MCP_AGENTS),
                          status=status if status in ("active", "deprecated", "deleted") else "deprecated",
-                         risk=["external_tools"], metadata={"registry_status": status, "source_updated_at": updated})
+                         install={"mcp": install} if install else {}, features=_mcp_features(server, install),
+                         risk=["external_tools"],
+                         metadata={"registry_status": status, "source_updated_at": updated, "author": namespace_author(name),
+                                   "registry_license": "CC0-1.0", "repository_url": repository.get("url"),
+                                   "installable": bool(install), "stars_scope": "unavailable"})
             records.append(Record(native_id=name, resource=r, raw=entry))
         cursor = data["metadata"].get("nextCursor")
         if cursor and cursor == checkpoint.get("cursor"):
             raise ValueError("mcp_cursor_did_not_advance")
+        pages = int(checkpoint.get("pages", 0)) + 1
         # Empty registry has no provider clock; the bounded overlap covers the initial scan time.
         maximum = maximum or scan_started_at
         # Never advance past the scan start: updates behind the pagination cursor must
         # be eligible next time, even when a full scan takes longer than the overlap.
         committed = min(datetime.fromisoformat(maximum.replace("Z", "+00:00")), datetime.fromisoformat(scan_started_at)).isoformat()
         return Page(records=records, complete=not bool(cursor), mode=mode, watermark=committed,
-                    checkpoint={"cursor": cursor, "watermark": maximum, "scan_started_at": scan_started_at}, revision=maximum)
+                    checkpoint={"cursor": cursor, "watermark": maximum, "scan_started_at": scan_started_at, "pages": pages},
+                    revision=maximum)
 
     def _models_dev(self, data):
         if not isinstance(data, dict) or not data:
@@ -227,15 +341,23 @@ class StructuredConnector:
             raise ValueError("invalid_gemini_catalog")
         for row in data:
             key = row["fullName"]
+            stars = _int(row.get("stars"))
             r = Resource(item_id="gemini-extension:" + key, type="plugin", name=row.get("extensionName") or key,
                          summary=(row.get("extensionDescription") or row.get("repoDescription") or "")[:12000],
                          url=row["url"], agents=["gemini"], version=row.get("extensionVersion"),
-                         license=row.get("licenseKey"), official=bool(row.get("isGoogleOwned")), manifest=row,
-                         metadata={"source_updated_at": row.get("lastUpdated") or row.get("updatedAt")})
+                         license=normalize_license(row.get("licenseKey")), official=_bool(row.get("isGoogleOwned")) is True,
+                         manifest=row, popularity={"stars": stars} if stars is not None else {},
+                         install={"gemini_extension": {"url": row["url"]}},
+                         metadata={"source_updated_at": row.get("lastUpdated") or row.get("updatedAt"),
+                                   "author": key.split("/", 1)[0] if "/" in key else None, "stars_scope": "repo",
+                                   "has_mcp": _bool(row.get("hasMCP")), "has_hooks": _bool(row.get("hasHooks")),
+                                   "has_skills": _bool(row.get("hasSkills")), "has_context": _bool(row.get("hasContext"))})
             yield Record(native_id=key, resource=r, raw=row)
 
     def _clawhub(self, checkpoint, state):
         params = {"limit": 100}
+        if self.source.config.get("sort"):
+            params["sort"] = str(self.source.config["sort"])
         if checkpoint.get("cursor"):
             params["cursor"] = checkpoint["cursor"]
         data = self.http.json(self.source.url + "?" + urlencode(params))
@@ -248,15 +370,25 @@ class StructuredConnector:
                 raise ValueError("missing_clawhub_owner_identity")
             native_id = owner + "/" + slug
             version = row.get("latestVersion") or {}
+            stats = row.get("stats") if isinstance(row.get("stats"), dict) else {}
+            popularity = {key: value for key, value in (
+                ("installs", next((v for v in map(_int, (stats.get("installs"), stats.get("installsAllTime"),
+                                                         stats.get("installsCurrent"))) if v is not None), None)),
+                ("downloads", _int(stats.get("downloads"))), ("stars", _int(stats.get("stars")))) if value is not None}
             r = Resource(item_id="clawhub:" + native_id, type="skill", name=row.get("displayName") or slug,
                          summary=str(row.get("summary") or "")[:12000], url=f"https://clawhub.ai/{owner}/skills/{slug}",
-                         version=version.get("version"), popularity=row.get("stats") or {}, manifest=row,
-                         metadata={"resolution": "registry_metadata"})
+                         version=version.get("version"), popularity=popularity, manifest=row,
+                         agents=sorted(set(SKILL_AGENTS) | set(self.source.config.get("agents", []))),
+                         license=normalize_license(row.get("license")),
+                         metadata={"resolution": "registry_metadata", "author": owner, "installs_scope": "item",
+                                   "source_updated_at": row.get("updatedAt")})
             records.append(Record(native_id=native_id, resource=r, raw=row))
         cursor = data.get("nextCursor")
         if cursor and cursor == checkpoint.get("cursor"):
             raise ValueError("clawhub_cursor_did_not_advance")
-        return Page(records=records, complete=not bool(cursor), checkpoint={"cursor": cursor})
+        count = int(checkpoint.get("count", 0)) + len(records)
+        limit = int(self.source.config.get("max_items", CLAWHUB_MAX_ITEMS))
+        return Page(records=records, complete=not bool(cursor) or count >= limit, checkpoint={"cursor": cursor, "count": count})
 
 
 def safe_path(path: str) -> str:
@@ -275,3 +407,98 @@ def _known_model_ids(known: dict) -> set[str]:
         if isinstance(metadata, dict) and metadata.get("canonical_id"):
             ids.add(metadata["canonical_id"])
     return ids
+
+
+# -- Tandem official entries (recommend KB remedies.v1.json -> catalog shape) ------------------
+KB_TYPES = {"hook": "hook", "skill": "skill", "rule": "rule", "flow": "workflow", "mcp": "mcp_server",
+            "agent": "subagent", "model": "guide"}
+KB_LICENSE = "MIT"
+
+
+def _hook_event(template: str | None) -> str | None:
+    """'hook-post-tool-use@1' -> 'PostToolUse'; 'hook-stop@1' -> 'Stop'."""
+    if not template or not template.startswith("hook-"):
+        return None
+    return "".join(part.capitalize() for part in template.removeprefix("hook-").split("@")[0].split("-"))
+
+
+def _hook_install(rule: dict) -> dict | None:
+    remedy = rule.get("remedy") or {}
+    if remedy.get("kind") != "hook":
+        return None
+    event, matcher, command = _hook_event(remedy.get("template")), None, None
+    text = "".join(line for line, _ in rule.get("file") or [])
+    try:
+        hooks = json.loads(text).get("hooks") if text else None
+    except ValueError:
+        hooks = None
+    if isinstance(hooks, dict) and hooks:
+        event, groups = next(iter(hooks.items()))
+        group = groups[0] if isinstance(groups, list) and groups else {}
+        matcher = group.get("matcher")
+        command = ((group.get("hooks") or [{}])[0]).get("command")
+    if not event:
+        return None
+    hook = {"event": event, "command": command or f"~/.tandem/hooks/{rule['id']}.sh"}
+    if matcher:
+        hook["matcher"] = matcher
+    return hook
+
+
+def _kb_body(rule: dict) -> str:
+    explain = rule.get("explain") or {}
+    parts = [f"# {rule['title']}", rule.get("summary", "")]
+    for heading, key in (("原理", "mechanism"), ("试用", "trial"), ("局限", "limitation")):
+        if explain.get(key):
+            parts += [f"## {heading}", explain[key]]
+    if rule.get("steps"):
+        parts += ["## 步骤", "\n".join(f"{i}. {step}" for i, step in enumerate(rule["steps"], 1))]
+    if rule.get("file"):
+        parts += ["## 改动预览", "```json\n" + "\n".join(line for line, _ in rule["file"]) + "\n```"]
+    return "\n\n".join(p for p in parts if p)
+
+
+def official_entries(kb: dict) -> list[dict]:
+    """Export recommend KB rules (``remedies-v1``) as catalog-shaped official entries."""
+    if not isinstance(kb, dict) or not isinstance(kb.get("rules"), list):
+        raise ValueError("invalid_kb_catalog")
+    entries = []
+    for rule in kb["rules"]:
+        remedy, problem = rule.get("remedy") or {}, rule.get("problem") or {}
+        kind = "guide" if remedy.get("kind") == "removal" else KB_TYPES.get(remedy.get("dim"), "guide")
+        features = [{"feature": "friction", "value": value, "origin": "curated", "evidence": "Tandem KB problem type"}
+                    for value in problem.get("types", [])]
+        features += [{"feature": "dimension", "value": remedy["dim"], "origin": "curated", "evidence": "Tandem KB"}] \
+            if remedy.get("dim") else []
+        features += [{"feature": "scene", "value": value, "origin": "curated", "evidence": "Tandem KB gate"}
+                     for value in (rule.get("gates") or {}).get("scenes") or []]
+        features += [{"feature": "tag", "value": value, "origin": "curated", "evidence": "Tandem KB tag"}
+                     for value in rule.get("tags", [])]
+        install = {"kb_rule": rule["id"]}
+        if remedy.get("template"):
+            install["template"] = remedy["template"]
+        if hook := _hook_install(rule):
+            install["hook"] = hook
+        agents = remedy.get("agents") or {"claude_code": "native", "codex": "manual"}
+        risk = rule.get("risk") or {}
+        entries.append({
+            "id": rule["id"], "type": kind, "name": rule["title"], "summary": rule.get("summary", ""),
+            "official": True, "agents": [a for a, support in agents.items() if support != "unsupported"],
+            "install": install, "features": features, "license": KB_LICENSE, "difficulty": remedy.get("level", 2),
+            "version": str(rule.get("version", 1)), "body": _kb_body(rule), "risk": list(risk.get("flags", [])),
+            "metadata": {"origin": "tandem-kb", "kb_rule": rule["id"], "remedy_kind": remedy.get("kind"),
+                         "dim": remedy.get("dim"), "agent_support": agents, "risk_level": risk.get("level", "low"),
+                         "cost": rule.get("cost") or {}, "catalog_ref": rule.get("catalog_ref"),
+                         "explain": rule.get("explain") or {}, "track": rule.get("track") or {},
+                         "problem_types": problem.get("types", [])},
+        })
+    return entries
+
+
+def official_resource(entry: dict) -> Resource:
+    return Resource(item_id="kb:" + entry["id"], type=entry["type"], name=entry["name"], summary=entry.get("summary", ""),
+                    url="", body=entry.get("body", ""), body_policy="licensed", license=entry.get("license", KB_LICENSE),
+                    agents=entry.get("agents", []), official=True, difficulty=entry.get("difficulty", 2),
+                    version=entry.get("version"), features=[Feature.model_validate(f) for f in entry.get("features", [])],
+                    install=entry.get("install", {}), risk=entry.get("risk", []),
+                    metadata=entry.get("metadata", {"origin": "tandem-kb", "kb_rule": entry["id"]}))

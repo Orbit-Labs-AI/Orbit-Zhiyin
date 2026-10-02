@@ -1,0 +1,9 @@
+{
+ "note": "Plugin bundling .mcp.json; the root .mcp.json is the repository's own dev config.",
+ "files": {
+  "LICENSE": "MIT License\n\nCopyright (c) 2026 Example\n",
+  ".mcp.json": "{\"mcpServers\": {\"dev-only\": {\"command\": \"node\", \"args\": [\"dev.js\"]}}}",
+  "plugins/db/.claude-plugin/plugin.json": "{\"name\": \"db\", \"description\": \"Database tools\"}",
+  "plugins/db/.mcp.json": "{\"mcpServers\": {\"postgres\": {\"command\": \"npx\", \"args\": [\"-y\", \"@example/pg-mcp\"], \"env\": {\"DATABASE_URL\": \"${DATABASE_URL}\", \"LITERAL\": \"s3cr3t-value\"}}, \"docs\": {\"type\": \"http\", \"url\": \"https://mcp.example.com/mcp\"}}}"
+ }
+}

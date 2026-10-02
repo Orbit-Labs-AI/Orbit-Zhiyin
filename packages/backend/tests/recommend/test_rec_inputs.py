@@ -130,8 +130,11 @@ def test_compute_shape(tmp_path):
                                               "session_uids": [f"s{i}" for i in range(6)]}]
     assert facts["usage"]["skill"]["pdf"]["calls"] == 6
     assert facts["usage"]["mcp"]["fs"]["sessions"] == 1
-    assert facts["model_mix"] == [{"model_id": "claude-x", "effort": "high", "sessions": 6,
-                                   "readonly_sessions": 3, "tokens": 750}]
+    assert facts["model_mix"] == [
+        {"model_id": "claude-x", "effort": "high", "agent": "claude_code", "sessions": 4,
+         "readonly_sessions": 2, "tokens": 500},
+        {"model_id": "claude-x", "effort": "high", "agent": "codex", "sessions": 2,
+         "readonly_sessions": 1, "tokens": 250}]
     day1 = facts["session_days"][1]
     assert day1["session_uid"] == "s1"
     assert day1["problems"] == ["permission_friction", "tool_env_failure"]

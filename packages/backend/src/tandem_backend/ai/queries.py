@@ -18,7 +18,13 @@ METRICS = ["sessions", "hours", "human_messages", "corrections", "correction_rat
            "tool_failures", "tool_failure_rate"]
 _FIELDS = {
     "scope": {"type": "object", "additionalProperties": False,
-              "properties": {"days": {"type": "integer", "minimum": 1, "maximum": 365}}},
+              "properties": {"days": {"type": "integer", "minimum": 1, "maximum": 365},
+                             "start_ms": {"type": "integer", "minimum": 0},
+                             "end_ms": {"type": "integer", "minimum": 0},
+                             "project_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                             "source_ids": {"type": "array", "maxItems": 50,
+                                            "items": {"type": "string", "minLength": 1,
+                                                      "maxLength": 128}}}},
     "session_uid": {"type": "string", "minLength": 1, "maxLength": 128},
     "q": {"type": "string", "minLength": 1, "maxLength": 80},
     "metric": {"type": "string", "enum": METRICS},
@@ -68,6 +74,8 @@ def run(api: str, params: dict | None, *, reads, appdb=None, home=None) -> dict:
                  "sessions": p.get("sessions"), "weekly_count": p.get("weekly_count")}
                 for p in problems[:limit] if isinstance(p, dict)]
     else:
+        # Persisted exclusions (AN-16.1) apply to every whitelisted SQL query.
+        scope = {**scope, "_exclude": _excluded(appdb)}
         with reads() as conn:
             rows = _SQL[api](conn, params, scope, limit, home, appdb)
     rows, _ = redact_value(list(rows)[:20])
@@ -81,17 +89,32 @@ def run(api: str, params: dict | None, *, reads, appdb=None, home=None) -> dict:
             "numbers": sorted(numbers)}
 
 
+def _excluded(appdb) -> list[str]:
+    from ..sessionops import exclusion
+
+    if appdb is None:
+        return exclusion.merged(None)
+    try:
+        return exclusion.excluded_uids(appdb)
+    except Exception:  # noqa: BLE001 - app.db without the table: nothing excluded.
+        return []
+
+
+def _filters(scope: dict) -> dict:
+    return {"source_ids": scope.get("source_ids") or None, "exclude": scope.get("_exclude") or None}
+
+
 def _metrics(conn, params, scope, limit, home, appdb):
     start, end, pid = P.window(scope)
-    cur = P.metrics(conn, start, end, pid, home)
-    prev = P.metrics(conn, start - (end - start), start, pid, home)
+    cur = P.metrics(conn, start, end, pid, home, **_filters(scope))
+    prev = P.metrics(conn, start - (end - start), start, pid, home, **_filters(scope))
     names = [params["metric"]] if params.get("metric") else METRICS
     return [{"metric": m, "value": cur[m], "prev": prev[m] if prev["sessions"] else None} for m in names]
 
 
 def _sessions(conn, params, scope, limit, home, appdb):
     start, end, pid = P.window(scope)
-    where, args = P.window_sql(start, end, pid, home)
+    where, args = P.window_sql(start, end, pid, home, **_filters(scope))
     if params.get("session_uid"):
         where, args = "s.session_uid=?", [params["session_uid"]]
     if params.get("q"):
@@ -113,7 +136,7 @@ def _sessions(conn, params, scope, limit, home, appdb):
 def _problems(conn, params, scope, limit, home, appdb):
     """Fallback when features is not wired: error classes as problem-like rows."""
     start, end, pid = P.window(scope)
-    where, args = P.window_sql(start, end, pid, home)
+    where, args = P.window_sql(start, end, pid, home, **_filters(scope))
     rows = conn.execute(
         f"SELECT error_class, COUNT(*) n, COUNT(DISTINCT session_uid) FROM tool_call WHERE session_uid IN"
         f" (SELECT s.session_uid FROM session s WHERE {where}) AND error_class IS NOT NULL"
@@ -141,7 +164,7 @@ def _search(conn, params, scope, limit, home, appdb):
 
 def _projects(conn, params, scope, limit, home, appdb):
     start, end, _ = P.window(scope)
-    where, args = P.window_sql(start, end, None, home)
+    where, args = P.window_sql(start, end, None, home, **_filters(scope))
     rows = conn.execute(
         f"SELECT p.project_id, p.name, COUNT(*) n,"
         f" ROUND(SUM(MAX(COALESCE(s.ended_at,s.started_at)-s.started_at,0))/3600000.0,1),"
@@ -155,7 +178,7 @@ def _projects(conn, params, scope, limit, home, appdb):
 
 def _tools(conn, params, scope, limit, home, appdb):
     start, end, pid = P.window(scope)
-    where, args = P.window_sql(start, end, pid, home)
+    where, args = P.window_sql(start, end, pid, home, **_filters(scope))
     rows = conn.execute(
         f"SELECT name, COUNT(*) n, SUM(status IN ('failed','error')), SUM(approval IS NOT NULL),"
         f" (SELECT error_class FROM tool_call x WHERE x.name=t.name AND x.error_class IS NOT NULL"

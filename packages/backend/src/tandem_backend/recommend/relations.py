@@ -39,32 +39,51 @@ def _allows(c: dict) -> list[str]:
     return [m.group(1) for line, mark in lines if mark != " " for m in _ALLOW.finditer(line)]
 
 
-def _pair(a: dict, b: dict) -> list[tuple[str, str]]:
-    out = []
-    pa, ta, ka = _problem(a)
-    pb, tb, kb_ = _problem(b)
+RULE_KINDS, ENFORCE_KINDS = {"rule", "prompt"}, {"hook", "permission_rule"}
+PRIORITY = ("conflicts", "duplicates", "complements")
+
+
+def _resource(c: dict) -> set[str]:
+    """Resource ids a card installs: its source item and, for KB cards, the catalog item it wraps."""
+    source = c.get("source") or {}
+    item, origin = source.get("item_id"), source.get("origin")
+    ref = source.get("catalog_ref") or (c.get("kb") or {}).get("catalog_ref")
+    ids = {f"{origin}:{item}"} if item else set()
+    if ref:
+        ids.add(f"catalog:{ref}")
+    if origin == "catalog" and item:
+        ids.add(f"catalog:{item}")
+    return ids
+
+
+def _pair(a: dict, b: dict) -> tuple[str, str] | None:
+    """At most one relation per pair: conflicts > duplicates > complements."""
+    _, ta, ka = _problem(a)
+    _, _, kb_ = _problem(b)
     la, lb = _links(a), _links(b)
-    item_a, item_b = (a.get("source") or {}).get("item_id"), (b.get("source") or {}).get("item_id")
-    if pa and pa == pb and a.get("kind") == b.get("kind"):
-        out.append(("duplicates", "同一问题的同类方案，保留一张"))
-    elif item_a and item_a == item_b:
-        out.append(("duplicates", "指向同一资源"))
-    elif la.get("content_hash") and la.get("content_hash") == lb.get("content_hash"):
-        out.append(("duplicates", "内容相同"))
-    if set(la.get("conflicts_with") or []) & _names(b) or set(lb.get("conflicts_with") or []) & _names(a):
-        out.append(("conflicts", "知识库标注两者冲突"))
-    same_problem = (pa and pa == pb) or (ka and ka == kb_ and ta == tb)
+    same_key = bool(ka) and ka == kb_
     kinds = {a.get("kind"), b.get("kind")}
-    if same_problem and kinds == {"rule", "hook"}:
+    enforce_pair = bool(kinds & RULE_KINDS) and bool(kinds & ENFORCE_KINDS) and len(kinds) == 2
+    paired = bool(set(la.get("pairs_with") or []) & _names(b) or set(lb.get("pairs_with") or []) & _names(a))
+    found: dict[str, str] = {}
+    if set(la.get("conflicts_with") or []) & _names(b) or set(lb.get("conflicts_with") or []) & _names(a):
+        found["conflicts"] = "知识库标注两者冲突"
+    elif same_key and enforce_pair and not paired:  # a curated pairing outranks the heuristic
         if ta in LADDER_TYPES:
-            out.append(("complements", "验证阶梯：规则写清单，hook 兜底"))
+            found["complements"] = "验证阶梯：规则写清单，hook 兜底"
         else:
-            out.append(("conflicts", "同一约束不要同时写进规则与 hook，保留 hook"))
-    if set(la.get("pairs_with") or []) & _names(b) or set(lb.get("pairs_with") or []) & _names(a):
-        out.append(("complements", "知识库建议搭配使用"))
-    elif same_problem and kinds == {"rule", "workflow"}:
-        out.append(("complements", "验证阶梯：规则 + 工作流"))
-    return out
+            found["conflicts"] = "同一约束不要同时写进规则与 hook，保留 hook"
+    if same_key and a.get("kind") == b.get("kind"):
+        found["duplicates"] = "同一问题的同类方案，保留一张"
+    elif _resource(a) & _resource(b):
+        found["duplicates"] = "指向同一资源"
+    elif la.get("content_hash") and la.get("content_hash") == lb.get("content_hash"):
+        found["duplicates"] = "内容相同"
+    if paired:
+        found.setdefault("complements", "知识库建议搭配使用")
+    elif same_key and kinds == {"rule", "workflow"}:
+        found.setdefault("complements", "验证阶梯：规则 + 工作流")
+    return next(((rel, found[rel]) for rel in PRIORITY if rel in found), None)
 
 
 def relations(cands: list[dict], deny: list[str] | None = None) -> list[dict]:
@@ -73,11 +92,11 @@ def relations(cands: list[dict], deny: list[str] | None = None) -> list[dict]:
     for a, b in combinations(cands, 2):
         if _id(a) == _id(b):
             continue
-        for relation, reason in _pair(a, b):
-            key = (_id(a), _id(b), relation)
-            if key not in seen:
-                seen.add(key)
-                out.append({"a": _id(a), "b": _id(b), "relation": relation, "reason": reason})
+        found = _pair(a, b)
+        key = frozenset((_id(a), _id(b)))
+        if found and key not in seen:
+            seen.add(key)
+            out.append({"a": _id(a), "b": _id(b), "relation": found[0], "reason": found[1]})
     for c in cands:
         if c.get("kind") != "permission_rule" or not deny:
             continue
