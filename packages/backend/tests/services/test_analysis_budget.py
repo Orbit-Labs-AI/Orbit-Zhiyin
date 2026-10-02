@@ -64,11 +64,12 @@ def test_estimate_events_counts_the_scoped_events():
     db = sqlite3.connect(":memory:")
     db.executescript("""
         CREATE TABLE session (session_uid TEXT, source_id TEXT, project_id TEXT, root_uid TEXT);
-        CREATE TABLE event (session_uid TEXT, ts INTEGER);""")
+        CREATE TABLE event (session_uid TEXT, kind TEXT, ts INTEGER);""")
     db.executemany("INSERT INTO session VALUES (?,?,?,?)",
                    [("s1", "a", "p1", "s1"), ("s2", "a", "p2", "s2"), ("s3", "b", "p1", "s3")])
-    db.executemany("INSERT INTO event VALUES (?,?)",
-                   [(s, ts) for s in ("s1", "s2", "s3") for ts in (100, 200, 300)])
+    db.executemany("INSERT INTO event VALUES (?,?,?)",
+                   [(s, k, ts) for s in ("s1", "s2", "s3") for k, ts in
+                    (("message.user", 100), ("tool.call", 200), ("message.user", 300))])
 
     @contextmanager
     def connect():
@@ -82,9 +83,11 @@ def test_estimate_events_counts_the_scoped_events():
         return SimpleNamespace(**{**base, **kw})
 
     assert estimate_events(store, scope()) == 9
-    assert estimate_events(store, scope(source_ids=["a"])) == 6
-    assert estimate_events(store, scope(source_ids=["a"], project_ids=["p1"])) == 3
+    # Without project/root filters the count is an index-only upper bound (sources ignored).
+    assert estimate_events(store, scope(source_ids=["a"])) == 9
     assert estimate_events(store, scope(from_ts=200, until_ts=300)) == 3
+    assert estimate_events(store, scope(source_ids=["a"], from_ts=200)) == 6
+    assert estimate_events(store, scope(source_ids=["a"], project_ids=["p1"])) == 3
     assert estimate_events(store, scope(project_ids=[])) == 0
     assert estimate_events(SimpleNamespace(), scope()) is None
 

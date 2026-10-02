@@ -164,28 +164,45 @@ def rules_digest() -> str:
 def estimate_events(store, scope) -> int | None:
     """Upper bound on the events a scope selects (sources, projects, roots, time window).
 
-    One indexed count, far cheaper than the analysis itself; the supervisor sizes the
-    task's time budget from it. ``None`` when the store cannot answer (legacy stores).
+    Far cheaper than the analysis itself; the supervisor sizes the task's time budget from
+    it. Without project/root filters it counts on the (kind, ts) index only (a time window
+    on a real home: a join over every event took 12 s under load). ``None`` when the store
+    cannot answer (legacy stores).
     """
+    import json
+
     connect = getattr(store, "connect", None)
     if connect is None:
         return None
-    where, args = [], []
-    for column, values in (("s.source_id", scope.source_ids), ("s.project_id", scope.project_ids),
-                           ("s.root_uid", scope.root_session_uids)):
-        if values is not None:
-            where.append(f"{column} IN ({','.join('?' * len(values))})" if values else "0")
-            args.extend(values)
-    if scope.from_ts is not None:
-        where.append("(e.ts IS NULL OR e.ts >= ?)")
-        args.append(scope.from_ts)
-    if scope.until_ts is not None:
-        where.append("(e.ts IS NULL OR e.ts < ?)")
-        args.append(scope.until_ts)
-    sql = ("SELECT count(*) FROM event e JOIN session s ON s.session_uid = e.session_uid"
-           + (" WHERE " + " AND ".join(where) if where else ""))
+    narrow = scope.project_ids is not None or scope.root_session_uids is not None
     try:
         with connect() as db:
+            if not narrow:
+                if scope.from_ts is None and scope.until_ts is None:
+                    return int(db.execute("SELECT count(*) FROM event").fetchone()[0])
+                kinds = [row[0] for row in db.execute("SELECT DISTINCT kind FROM event")]
+                where, args = ["kind IN (SELECT value FROM json_each(?))"], [json.dumps(kinds)]
+                for clause, value in (("ts >= ?", scope.from_ts), ("ts < ?", scope.until_ts)):
+                    if value is not None:
+                        where.append(clause)
+                        args.append(value)
+                return int(db.execute("SELECT count(*) FROM event WHERE " + " AND ".join(where),
+                                      args).fetchone()[0])
+            where, args = [], []
+            for column, values in (("s.source_id", scope.source_ids),
+                                   ("s.project_id", scope.project_ids),
+                                   ("s.root_uid", scope.root_session_uids)):
+                if values is not None:
+                    where.append(f"{column} IN ({','.join('?' * len(values))})" if values else "0")
+                    args.extend(values)
+            if scope.from_ts is not None:
+                where.append("(e.ts IS NULL OR e.ts >= ?)")
+                args.append(scope.from_ts)
+            if scope.until_ts is not None:
+                where.append("(e.ts IS NULL OR e.ts < ?)")
+                args.append(scope.until_ts)
+            sql = ("SELECT count(*) FROM event e JOIN session s ON s.session_uid = e.session_uid"
+                   + (" WHERE " + " AND ".join(where) if where else ""))
             return int(db.execute(sql, args).fetchone()[0])
     except Exception:  # noqa: BLE001  sizing is advisory; the analysis reports real errors.
         return None

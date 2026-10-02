@@ -9,6 +9,7 @@ Errors are classified so the gateway can answer 422 / 404 / 503 without guessing
 from __future__ import annotations
 
 import os
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -17,6 +18,7 @@ from .sections import ResultMemo, SectionNotFound, compute_section, estimate_eve
 from .worker_protocol import WorkerIO, debug_delay, peak_rss_bytes, tree_rss_bytes
 
 PREWARM_NICENESS = 10
+SIZE_AFTER_S = 3.0
 
 
 def classify(error: Exception) -> dict:
@@ -74,10 +76,17 @@ class AnalysisWorker:
         try:
             scope = Scope(**job["scope"])
             store = CanonicalStore(self.home, max_events=self.max_events)
-            # Size report first: the supervisor scales this task's time budget from it.
-            self.io.send("sized", job=job["id"], events=estimate_events(store, scope))
+            # Size report: the supervisor scales this task's time budget from it. Only tasks
+            # still running after SIZE_AFTER_S pay for the count (cache hits finish first).
+            sizer = threading.Timer(SIZE_AFTER_S, lambda: self.io.send(
+                "sized", job=job["id"], events=estimate_events(store, scope)))
+            sizer.daemon = True
+            sizer.start()
             params = {**job.get("params", {}), "_rev": job.get("rev")}
-            body = compute_section(job["section"], store, scope, params, self.memo)
+            try:
+                body = compute_section(job["section"], store, scope, params, self.memo)
+            finally:
+                sizer.cancel()
             self.io.send("done", job=job["id"], status="completed", body=body,
                          duration_ms=round((time.perf_counter() - started) * 1000),
                          rss=peak_rss_bytes(), rss_now=tree_rss_bytes(), niced=self.niced)
