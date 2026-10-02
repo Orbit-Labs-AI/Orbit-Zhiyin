@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 CONTRACT = "tandem-app-analytics-v1"
 PLAIN_SECTIONS = ("overview", "tools", "projects", "text", "tasks", "instruction", "statistics",
-                  "lexical")
+                  "lexical", "bottleneck")
 CLIENT_ERRORS = {"not_found": 404, "invalid_request": 422, "analysis_scope_too_large": 422}
 
 
@@ -78,6 +78,12 @@ def failure_error(error: dict | None) -> ApiError:
         return ApiError(503, code, message, retryable=True, retry_after=1)
     return ApiError(503, "analysis_unavailable", f"{code}: {message}", retryable=True,
                     retry_after=5)
+
+
+class RecommendationBody(BaseModel):
+    context: dict = Field(default_factory=dict)
+    family: Family | None = None
+    limit: int = Field(default=6, ge=1, le=20, strict=True)
 
 
 class RecomputeRequest(BaseModel):
@@ -214,6 +220,41 @@ def router(gw: Gateway) -> APIRouter:
             raise ApiError(422, "invalid_request", str(error)) from error
         params = {"window": window, "target_agent": target_agent, "family": family}
         return serve("presentation", scope, params, wait_ms, if_none_match)
+
+    def drop_none(**values) -> dict:
+        return {k: v for k, v in values.items() if v is not None}
+
+    @api.get("/v1/analytics/recommendations")
+    def recommendations(scope=scope_dependency,
+                        target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+                        kind: Literal["skill", "agent", "hook", "prompt"] | None = None,
+                        limit: int = Query(6, ge=1, le=20), family: Family | None = None,
+                        wait_ms: int = wait, if_none_match: str | None = Header(None)):
+        params = drop_none(context={"agent": target_agent}, kind=kind, limit=limit, family=family)
+        return serve("recommendations", scope, params, wait_ms, if_none_match)
+
+    @api.post("/v1/analytics/recommendations")
+    def contextual_recommendations(request: RecommendationBody, scope=scope_dependency,
+                                   wait_ms: int = wait):
+        from ..recommend.contracts import RecommendationContext
+
+        try:
+            context = RecommendationContext.model_validate(request.context)
+        except ValueError as error:
+            raise ApiError(422, "invalid_request", str(error)) from error
+        params = drop_none(context=context.model_dump(mode="json"), family=request.family,
+                           limit=request.limit)
+        return serve("recommendations", scope, params, wait_ms, None)
+
+    @api.get("/v1/analysis")
+    def analysis(project_id: str | None = None, model: str | None = None,
+                 before: str | None = None, audience: str = "user", scene: str = "auto",
+                 wait_ms: int = wait, if_none_match: str | None = Header(None)):
+        from ..analytics.inputs import Scope
+
+        params = drop_none(project_id=project_id, model=model, before=before,
+                           audience=audience, scene=scene)
+        return serve("analysis", Scope(), params, wait_ms, if_none_match)
 
     @api.post("/v1/analytics/recompute", status_code=202)
     def recompute(request: RecomputeRequest):
