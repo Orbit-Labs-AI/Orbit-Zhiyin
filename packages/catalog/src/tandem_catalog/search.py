@@ -6,6 +6,7 @@ semantic route scans an fp16 matrix exactly.
 """
 
 import json
+import sqlite3
 import threading
 from collections import OrderedDict, defaultdict
 
@@ -101,8 +102,12 @@ def _lexical(conn, index, mask, text, limit, prefix):
         return [], {}
     k = max(limit * 4, MIN_K)
     while True:
-        rows = conn.execute("SELECT rowid,bm25(chunk_fts,4.0,1.0) AS s FROM chunk_fts WHERE chunk_fts MATCH ? "
-                            "ORDER BY s,rowid LIMIT ?", (match, k)).fetchall()
+        try:
+            rows = conn.execute("SELECT rowid,bm25(chunk_fts,4.0,1.0) AS s FROM chunk_fts WHERE chunk_fts MATCH ? "
+                                "ORDER BY s,rowid LIMIT ?", (match, k)).fetchall()
+        except sqlite3.OperationalError:
+            # An FTS syntax edge must cost only this route, not the feature/remedy/semantic recall.
+            return None, {}
         owners = index.items_of([r[0] for r in rows])
         hits, passages = [], {}
         for (rowid, score), owner in zip(rows, owners, strict=True):
@@ -231,6 +236,9 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
         routes, passages = {}, {}
         routes["feature"], wanted = _features(index, mask, query_features, request.per_route)
         routes["lexical"], passages = _lexical(conn, index, mask, text, request.per_route, request.prefix)
+        if routes["lexical"] is None:
+            routes["lexical"] = []
+            response["degraded"] = ["lexical:OperationalError"]
         if request.problem_type:
             friction = [Feature(feature="friction", value=request.problem_type)]
             routes["remedy"], _ = _features(index, mask, friction, request.per_route, curated_only=True)
