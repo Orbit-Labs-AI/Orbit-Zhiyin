@@ -15,6 +15,10 @@ from tandem_data.payload import restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
+# Bumped when read_analysis returns different values for the same database; analysis
+# caches key on it. 1.1: undated session metadata stays visible under until_ts.
+READER_VERSION = "analysis-input-reader-1.1"
+
 
 @dataclass(frozen=True)
 class AnalysisScope:
@@ -424,10 +428,11 @@ def read_analysis(
         if scope.until_ts is not None:
             historical_metadata = {}
             for event in events:
-                if (
-                    event["ts"] is not None
-                    and event["ts"] < scope.until_ts
-                    and event["kind"] in ("session.meta", "setting.change", "session.title")
+                # Undated metadata (time quality missing, e.g. a title record) has no position
+                # on the clock, so it belongs to the session in every cutoff; dated metadata
+                # counts only before the cutoff. Events arrive in seq order.
+                if event["kind"] in ("session.meta", "setting.change", "session.title") and (
+                    event["ts"] is None or event["ts"] < scope.until_ts
                 ):
                     historical_metadata.setdefault(event["session_uid"], []).append(event)
             latest_visible_turn = {}

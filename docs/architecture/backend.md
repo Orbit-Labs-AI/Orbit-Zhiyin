@@ -60,8 +60,8 @@
 | 路径 | 返回什么 |
 | --- | --- |
 | `GET /health` | 版本与导入规模 |
-| `GET /v1/projects` | 项目 ID、名称和会话数 |
-| `GET /v1/sessions` | 会话列表，可按项目筛选 |
+| `GET /v1/projects` | 项目 ID、名称和会话数（main / 全部 kind），默认隐藏无会话项目 |
+| `GET /v1/sessions` | 会话列表，含模型与 kind，可按项目与 kind（默认 main）筛选 |
 | `GET /v1/sessions/{id}/events` | 可分页回看的统一事件 |
 | `GET /v1/analysis` | 易读结果与分析细节，可按项目、模型、时间筛选 |
 | `GET /v1/catalog` | skills 与其他公开资源的固定版本、来源状态 |

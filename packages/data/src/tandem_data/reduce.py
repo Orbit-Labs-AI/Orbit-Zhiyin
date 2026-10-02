@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
+import shlex
 import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -53,13 +55,104 @@ def project_for(
     key = (cwd, recorded_remote, recorded_root)
     if cache is not None and key in cache:
         return cache[key]
-    result = _project_for(store, cwd, recorded_remote, recorded_root)
+    live = {v for v in cache.values() if v} if cache is not None else set()
+    result = _project_for(store, cwd, recorded_remote, recorded_root, live)
     if cache is not None:
         cache[key] = result
     return result
 
 
-def _project_for(store, cwd, recorded_remote, recorded_root):
+# Agent worktree layouts: <repo>/.claude/worktrees/<name>, <repo>/.work/<name>, ... A deleted
+# worktree directory belongs to <repo>, not to a project of its own.
+_WORKTREE = re.compile(
+    r"^(?P<repo>.+?)/(?:\.claude/worktrees|\.work|\.worktrees|\.git/worktrees)/[^/]+(?:/.*)?$"
+)
+# Directories that hold unrelated projects; a path never folds into them.
+_SHARED_ROOTS = frozenset(
+    (
+        "/",
+        "/tmp",
+        "/private",
+        "/private/tmp",
+        "/private/var",
+        "/var",
+        "/var/folders",
+        "/Users",
+        "/home",
+        "/opt",
+        "/usr",
+        "/Volumes",
+        "/mnt",
+        "/workspace",
+        "/workspaces",
+    )
+)
+
+
+def _shared_root(path: Path) -> bool:
+    """True for home, its parents, its direct children (~/Projects) and system roots."""
+    home = Path.home()
+    return (
+        str(path) in _SHARED_ROOTS
+        or path == home
+        or path in home.parents
+        or path.parent == home
+        or _system_temp(path)
+    )
+
+
+def _system_temp(path: Path) -> bool:
+    """/var/folders/<a>/<b>/T and above hold every process's temporary directories."""
+    text = str(path).removeprefix("/private")
+    return text.startswith("/var/folders") and len(Path(text).parts) <= 6
+
+
+def _probe_dir(path: Path) -> Path | None:
+    """Where to ask Git about a missing directory: its worktree's repo, else the nearest
+    existing ancestor below any shared root (a deleted subdirectory of a checkout)."""
+    match = _WORKTREE.match(str(path))
+    if match and Path(match["repo"]).is_dir():
+        return Path(match["repo"])
+    for parent in path.parents:
+        if _shared_root(parent):
+            return None
+        if parent.is_dir():
+            return parent
+    return None
+
+
+def _enclosing_project(store, path: Path, live, missing=False) -> str | None:
+    """The outermost project in use whose root or recorded path encloses ``path``.
+
+    Only projects of sessions outside this derivation and projects assigned during it
+    (``live``) qualify, so stale rows from earlier projections never attract paths. Git
+    projects win over plain paths. A deleted directory does not fold into a plain
+    directory that still exists: that is a workspace that held a removed project.
+    """
+    candidates = {}
+    for row in store.db.execute(
+        "SELECT project_id,key_type,key,paths FROM project WHERE key_type<>'bucket' AND"
+        " (project_id IN (SELECT project_id FROM session WHERE project_id IS NOT NULL)"
+        " OR project_id IN (SELECT value FROM json_each(?)))"
+        " ORDER BY key_type IN ('git_remote','git_root') DESC, project_id",
+        (canonical(sorted(live)),),
+    ):
+        roots = set(json.loads(row["paths"]))
+        if row["key_type"] in ("path", "git_root"):
+            roots.add(row["key"])
+        for root in roots:
+            candidates.setdefault(root, (row["project_id"], row["key_type"]))
+    for parent in (*reversed(path.parents), path):
+        found = candidates.get(str(parent))
+        if found is None or _shared_root(parent):
+            continue
+        if missing and found[1] == "path" and parent.is_dir():
+            continue
+        return found[0]
+    return None
+
+
+def _project_for(store, cwd, recorded_remote, recorded_root, live=()):
     if not cwd and not recorded_remote and not recorded_root:
         return None
     for override in store.db.execute(
@@ -70,12 +163,19 @@ def _project_for(store, cwd, recorded_remote, recorded_root):
     root = recorded_root
     remote = normalize_remote(recorded_remote)
     path = Path(cwd).expanduser() if cwd else None
-    if remote is None and path and path.is_dir():
-        common = _git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    missing = path is not None and not path.is_dir()
+    probe = _probe_dir(path) if missing else path
+    if remote is None and probe:
+        common = _git(probe, "rev-parse", "--path-format=absolute", "--git-common-dir")
         if common:
             common_path = Path(common)
             root = str(common_path.parent) if common_path.name == ".git" else common
-            remote = remote or normalize_remote(_git(path, "config", "--get", "remote.origin.url"))
+            remote = remote or normalize_remote(_git(probe, "config", "--get", "remote.origin.url"))
+    if missing and not remote and not root:
+        # Repository gone too: name the worktree's repository, not the worktree.
+        match = _WORKTREE.match(str(path))
+        if match:
+            path = Path(match["repo"])
     if remote:
         key_type, key = "git_remote", remote
     elif root:
@@ -86,6 +186,11 @@ def _project_for(store, cwd, recorded_remote, recorded_root):
         key_type, key = "bucket", "temporary_workspace"
     else:
         key_type, key = "path", str(path) if path else cwd
+        enclosing = _enclosing_project(store, Path(key), live, missing) if path else None
+        if enclosing is not None:
+            # A plain directory inside another project's tree (/repo/src under /repo).
+            _add_path(store, enclosing, cwd)
+            return enclosing
     project_id = uid("project", key_type, key)
     existing = store.db.execute(
         "SELECT paths FROM project WHERE project_id=?", (project_id,)
@@ -98,6 +203,18 @@ def _project_for(store, cwd, recorded_remote, recorded_root):
         (project_id, key_type, key, key.rsplit("/", 1)[-1], remote, canonical(sorted(paths))),
     )
     return project_id
+
+
+def _add_path(store, project_id, cwd):
+    if not cwd:
+        return
+    row = store.db.execute("SELECT paths FROM project WHERE project_id=?", (project_id,)).fetchone()
+    paths = set(json.loads(row[0])) if row else set()
+    if cwd not in paths:
+        paths.add(cwd)
+        store.db.execute(
+            "UPDATE project SET paths=? WHERE project_id=?", (canonical(sorted(paths)), project_id)
+        )
 
 
 def _model(store, provider, raw):
@@ -273,6 +390,24 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         metas[session_uid] = values
         progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
     progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})
+    # Resolve sessions with a recorded Git identity first, then shallow directories, so
+    # /repo exists before /repo/src looks for an enclosing project; the result no longer
+    # depends on session order.
+    for session_uid, values in sorted(
+        metas.items(),
+        key=lambda item: (
+            not (item[1].get("git_remote") or recorded_roots.get(item[0])),
+            len(Path(item[1].get("cwd") or "/").parts),
+            item[0],
+        ),
+    ):
+        project_for(
+            store,
+            values.get("cwd"),
+            values.get("git_remote"),
+            recorded_roots.get(session_uid),
+            cache=project_cache,
+        )
     for index, (session_uid, values) in enumerate(metas.items()):
         current, seen = session_uid, {session_uid}
         while metas.get(current, {}).get("parent_uid"):
