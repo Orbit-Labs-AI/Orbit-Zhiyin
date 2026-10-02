@@ -250,10 +250,6 @@ class Store:
             migration = files("tandem_data").joinpath(f"migrations/{number:03d}.sql")
             if version < number and migration.is_file():
                 self.db.executescript("BEGIN IMMEDIATE;\n" + migration.read_text() + "\nCOMMIT;")
-        # Index-only upgrades apply after logical migrations, including to existing v5 stores.
-        self.db.executescript(
-            files("tandem_data").joinpath("migrations/projection_indexes.sql").read_text()
-        )
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (

@@ -32,6 +32,15 @@ CREATE INDEX IF NOT EXISTS fk_connector_checkpoint_file_id ON connector_checkpoi
 CREATE INDEX IF NOT EXISTS fk_connector_record_link_record_uid ON connector_record_link(record_uid);
 CREATE INDEX IF NOT EXISTS fk_inventory_scan_project_id ON inventory_scan(project_id);
 
+-- The former projection_fk_* indexes duplicated the fk_* set above.
+DROP INDEX IF EXISTS projection_fk_tool_session;
+DROP INDEX IF EXISTS projection_fk_tool_turn;
+DROP INDEX IF EXISTS projection_fk_model_session;
+DROP INDEX IF EXISTS projection_fk_model_turn;
+DROP INDEX IF EXISTS projection_fk_link_session;
+DROP INDEX IF EXISTS projection_fk_link_turn;
+DROP INDEX IF EXISTS projection_fk_session_spawn;
+
 -- Product query paths (session lists, per-tool history, per-file version lookup).
 CREATE INDEX IF NOT EXISTS session_by_started ON session(started_at);
 CREATE INDEX IF NOT EXISTS session_by_project_started ON session(project_id, started_at);
