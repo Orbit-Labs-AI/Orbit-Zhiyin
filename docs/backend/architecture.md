@@ -12,6 +12,9 @@
 | `analysis_reports / narrative` | 中间推导怎样展示，推荐的依据和下一步在哪里？ |
 | `evaluation / pipeline_eval / reader_eval` | 规则有没有误判，事实有没有丢，读者能否理解？ |
 | `cli / api` | 团队怎样复跑，前端怎样接入同一逻辑？ |
+| `analytics/inputs / features / text / service` | 目标契约与旧库怎样分开，哪些测量可用，哪些必须保持未知？ |
+
+新的 Feature Analytics 入口与旧画像分析并存。`analytics` CLI 和 `/v1/analytics/*` 共用无缓存的测量引擎，支持严格范围、覆盖、工具/流程/节律、文本表示与二维坐标。输入映射、真实案例、特征字典与待补字段见 [Feature Analytics MVP](feature-analytics.md)。
 
 项目目前按会话工作目录分组，没有足够元数据把所有目录可靠地合成 Git 仓库。数学计算的含义与假设见 [建模说明](modeling.md)。下面是接口与数据边界的细节。
 

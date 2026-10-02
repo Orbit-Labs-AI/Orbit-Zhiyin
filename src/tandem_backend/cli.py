@@ -21,7 +21,7 @@ def demo_home(path: Path) -> Path:
     for index, request in enumerate(("请给初学者写一份程序教程，把思路讲清楚。", "请用两段话介绍项目报告的结构。", "先做最小可运行版本，再测试。")):
         sid = f"demo-{index}"
         rows = [
-            {"type": "session_meta", "timestamp": "2026-01-01T00:00:00Z", "payload": {"id": sid, "cwd": "/fictional/sample-project", "source": "cli", "cli_version": "synthetic"}},
+            {"type": "session_meta", "timestamp": "2026-01-01T00:00:00Z", "payload": {"id": sid, "cwd": "/fictional/sample-project", "source": "cli", "thread_source": "user", "cli_version": "synthetic"}},
             {"type": "event_msg", "timestamp": "2026-01-01T00:00:01Z", "payload": {"type": "task_started", "turn_id": f"turn-{index}"}},
             {"type": "turn_context", "timestamp": "2026-01-01T00:00:01Z", "payload": {"turn_id": f"turn-{index}", "model": "demo-model"}},
             {"type": "response_item", "timestamp": "2026-01-01T00:00:02Z", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": request}]}},
@@ -66,6 +66,16 @@ def main(argv: list[str] | None = None) -> None:
     report.add_argument("--project-id")
     report.add_argument("--model")
     report.add_argument("--scene", help="只分析指定任务场景")
+    analytics = sub.add_parser("analytics", help="计算有覆盖说明的特征、聚类和二维坐标")
+    analytics.add_argument("--output", type=Path, help="完整 JSON，仅建议保存在 .local 下")
+    analytics.add_argument("--display-timezone", default="UTC")
+    analytics.add_argument("--from-ts", type=int)
+    analytics.add_argument("--until-ts", type=int)
+    for flag in ("project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
+        analytics.add_argument("--" + flag, action="append")
+    analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
+    analytics.add_argument("--scene")
+    analytics.add_argument("--no-text", action="store_true", help="只计算确定性测量，跳过文本表示")
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     for command in (report, demo):
@@ -130,6 +140,28 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "demo":
         args.db = str(args.output / "demo.sqlite")
     store = Store(args.db)
+    if args.command == "analytics":
+        from .analytics.inputs import Scope
+        from .analytics.service import analyze_store
+        try:
+            scope = Scope(display_timezone=args.display_timezone, project_ids=args.project_id,
+                          legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
+                          effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
+                          root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],
+                          include_children=args.include_children, scene=args.scene)
+            result = analyze_store(store, scope, not args.no_text)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+        counts = result["overview"]["counts"]
+        print(f"主会话 {counts['main_sessions']}；确认真人消息 {counts['human_messages']}；来源未知 {counts['human_origin_unknown']}。")
+        print(f"工具调用 {result['effective_samples']['tools']}；文本样本 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")
+        print(json.dumps({"clustering": result['text'].get('clustering'),
+                          "coverage": {k: v['status'] for k, v in result['coverage'].items()},
+                          "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
+        return
     if args.command == "evidence":
         with store.connect() as conn:
             row = conn.execute("SELECT data FROM events WHERE id=?", (args.event_id,)).fetchone()

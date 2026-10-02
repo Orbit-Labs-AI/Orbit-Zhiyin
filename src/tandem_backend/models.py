@@ -39,6 +39,7 @@ class Session:
     parent_id: str | None = None
     source_kind: str = "user"
     cli_version: str = "unknown"
+    analytics_metadata: dict = field(default_factory=dict)
 
 
 @dataclass

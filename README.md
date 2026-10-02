@@ -6,6 +6,8 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 Tandem 后端读取本地 Codex 记录，按项目和模型整理，分析用户的协作要求与实际卡点，再找有对应处理办法的资源。中文解释是否容易理解，是当前 demo 的评价目标。当前 MVP 范围由三位成员确认；前端 [demo](docs/design/demo/tandem-demo.html) 仅作设计参考。
 
+分析入口遵循 [analysis-input-v1](docs/plan/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
+
 需要 Python 3.11 或更新版本。在仓库根目录运行：
 
 ```sh
@@ -57,6 +59,8 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 
 ## 看实现与版本报告
 
+- [Feature Analytics MVP：真实数据案例、特征字典与输入缺口](docs/backend/feature-analytics.md)
+  — 运行 `.venv/bin/tandem --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
 - [先验这条链路](docs/backend/acceptance.md)
 - [今晚先跑通什么](docs/backend/plan.md)
 - [当前版本：完整过滤凭据并核对交付证据](docs/backend/versions/v0.13.6.md)

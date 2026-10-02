@@ -250,6 +250,14 @@ def parse_rollout(
                     "未命名会话" if cutoff else redact(str(md.get("title") or "未命名会话")), timestamp,
                     payload.get("forked_from_id"), "user", str(payload.get("cli_version", "unknown")),
                 )
+                # Native provenance, not a reinterpretation of legacy source_kind=user.
+                thread_source = payload.get("thread_source")
+                main = thread_source == "user" and source in ("cli", "vscode", "exec", "appServer")
+                result.session.analytics_metadata = {
+                    "kind": "main" if main else "unknown", "native_source": source,
+                    "thread_source": thread_source, "forked_from": payload.get("forked_from_id"),
+                    "root_uid": sid if main else None, "parent_uid": None,
+                }
                 continue
             if not result.session:
                 continue
@@ -278,6 +286,7 @@ def parse_rollout(
                     event_kind = "user_message" if role == "user" else "assistant_message"
                     details = {"phase": phase, "original_chars": len(text), "message_digest": stable_id(text)}
                     if role == "user":
+                        details["origin"] = payload.get("origin", "unknown")
                         details["input_format"] = "question_reply" if original.strip().startswith(
                             "<send_user_message_question_reply>") else "prompt"
                     else:
@@ -326,6 +335,8 @@ def parse_rollout(
                             "source_type": kind, "source_subtype": ptype,
                             "input_format": "question_reply" if original.strip().startswith(
                                 "<send_user_message_question_reply>") else "prompt"}
+                        mirror_details["origin"] = payload.get("origin", "human" if ptype == "user_message"
+                            and result.session.analytics_metadata.get("kind") == "main" else "unknown")
                         if ptype == "agent_message":
                             mirror_details["writing_measurements"] = {surface: measure_length(text, {"surface": surface})
                                                                       for surface in ("reply", "summary", "body")}
@@ -370,6 +381,13 @@ def parse_rollout(
     # mirror is still evidence when no canonical copy of that content exists.
     canonical = {(e.turn_id, e.kind, e.details["message_digest"]) for e in result.events if e.kind.endswith("message")}
     result.events.extend(e for e in mirrors if (e.turn_id, e.kind, e.details["message_digest"]) not in canonical)
+    human_receipts = {(e.turn_id, e.details["message_digest"]) for e in mirrors
+                      if e.kind == "user_message" and e.details.get("origin") == "human"}
+    for event in result.events:
+        if event.kind == "user_message" and event.details.get("origin", "unknown") == "unknown":
+            if ((event.turn_id, event.details["message_digest"]) in human_receipts
+                    or event.details.get("input_format") == "question_reply"):
+                event.details.update(origin="human", origin_basis="native_user_receipt")
     result.events.sort(key=lambda e: e.ordinal)
     for event in result.events:
         if event.turn_id in turn_models:
