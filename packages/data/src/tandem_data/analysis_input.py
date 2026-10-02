@@ -395,6 +395,9 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             reasons.append("truncated_text")
         source_agents = {source["agent"] for source in sources}
         coverage = {
+            "sessions": {"status": "available", "rows": len(session_rows)},
+            "projects": {"status": "available", "rows": len(project_rows)},
+            "turns": {"status": "available", "rows": len(turn_rows)},
             "events": {
                 "status": "partial" if reasons or time_unknown else "available",
                 "rows": len(selected),
