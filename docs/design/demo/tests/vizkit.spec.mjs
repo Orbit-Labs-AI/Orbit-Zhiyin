@@ -7,7 +7,11 @@
 //   6. 状态：空数据与样本不足；深色模式下系列色、文字色与语义色（--vz-*）取自主题变量；表格视图行数与数据一致；
 //   7. 时间线原语：密度泳道的桶数 ≤ 像素桶数且无逐事件刻度、关键时刻在窄宽度合并成簇、now 标记、range 收窄后窗外事件不画、只有阶段也有有效范围；
 //   8. minimap：拖视窗平移（位移 = 鼠标位移）、拖手柄缩放（另一端不动）、Home 复位并报告 null、↑ 缩小视窗；
-//   9. 其他：bar 的 hatch 斜纹与 <pattern>、diverging 的 deadband、mood 色阶 6 档、KPI 环比文案（▲▼ + 变化量 + 上期）。
+//   9. 其他：bar 的 hatch 斜纹与 <pattern>、diverging 的 deadband、mood 色阶 6 档、KPI 环比文案（▲▼ + 变化量 + 上期）；
+//  10. 视觉语言：刻度 / 数值 / KPI 环比用等宽字体（var(--mono)），名称与说明仍是 UI 无衬线；spec.head 输出 .eb / .ct / .cap 层级；
+//  11. 动效：首次绘制 svg 带 vz-in（线描入、柱升起），重绘不再带；prefers-reduced-motion 下 computed animation-name 为 none；
+//  12. 回放：播放头可拖并吸附到事件、onPlayhead 回调；[ ] 逐事件；VZ.replay 走到末尾自动停且回放中未发生的事件隐藏；
+//      axisMode 'steps' 事件等距、刻度为整数步；⌘ / Ctrl + 滚轮以光标为锚缩放并通过 onView 同步 minimap 视窗，Home 复位。
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
@@ -314,4 +318,121 @@ test('kpi delta shows direction, magnitude and the previous value', async ({ pag
   const tiles = await page.locator('#content .vz-kpi').count();
   expect(tiles).toBe(5);
   await expect(page.locator('#content .vz-kpi').first().locator('.vz-kpi-d')).toContainText('上期');
+});
+
+test('ticks and values are monospace, names stay sans, and spec.head uses the card hierarchy', async ({ page }) => {
+  await openGallery(page);
+  await mountOne(page, 'bar-h', 720, { head: { eyebrow: '工具调用', title: 'Bash 占了 44% 的调用', sub: '近 30 天 · 调用次数', evidence: { label: '证据 →', act: 'vzNoop' } } });
+  const fonts = await page.evaluate(() => { const el = window.__vzInst.el; const f = (s) => getComputedStyle(el.querySelector(s)).fontFamily; return { ax: f('text.vz-ax'), val: f('text.vz-val'), cat: f('text.vz-cat'), kpi: getComputedStyle(document.querySelector('#content .vz-kpi-d')).fontFamily }; });
+  expect(fonts.ax).toMatch(/Mono/); expect(fonts.val).toMatch(/Mono/); expect(fonts.kpi).toMatch(/Mono/);
+  expect(fonts.cat).not.toMatch(/JetBrains/);
+  const el = page.locator('#vzLab .vz[data-lab="bar-h"]');
+  await expect(el.locator('.vz-head .eb')).toHaveText('工具调用');
+  await expect(el.locator('.vz-head .ct')).toHaveText('Bash 占了 44% 的调用');
+  await expect(el.locator('.vz-head .cap')).toHaveText('近 30 天 · 调用次数');
+  await expect(el.locator('.vz-head button.lnk[data-act="vzNoop"]')).toHaveText('证据 →');
+  // the head is part of every view, including the table twin
+  await page.evaluate(() => VZ.setView(window.__vzInst.el, 'table'));
+  await expect(el.locator('.vz-head .ct')).toHaveCount(1);
+  await expect(el.locator('table')).toHaveCount(1);
+});
+
+test('first draw animates once and reduced motion turns the entrance off', async ({ page }) => {
+  await openGallery(page);
+  await mountOne(page, 'line', 720);
+  const read = () => page.evaluate(() => { const el = window.__vzInst.el; const svg = el.querySelector('svg.vz-svg'); return { entering: svg.classList.contains('vz-in'), line: getComputedStyle(el.querySelector('path.vz-line')).animationName, pathLength: el.querySelector('path.vz-line').getAttribute('pathLength') }; });
+  const first = await read();
+  expect(first.entering).toBe(true); expect(first.line).toBe('vz-draw'); expect(first.pathLength).toBe('1');
+  await page.evaluate(() => VZ.draw(window.__vzInst.el));                 // a redraw (resize, legend toggle) must not replay the entrance
+  const again = await read();
+  expect(again.entering).toBe(false); expect(again.line).toBe('none');
+  await mountOne(page, 'bar', 720);
+  expect(await page.evaluate(() => getComputedStyle(window.__vzInst.el.querySelector('path.vz-bar')).animationName)).toBe('vz-rise');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await mountOne(page, 'line', 720);
+  const reduced = await read();
+  expect(reduced.entering).toBe(true); expect(reduced.line).toBe('none');
+  await mountOne(page, 'tl-dense', 720);
+  expect(await page.evaluate(() => getComputedStyle(window.__vzInst.el.querySelector('.vz-now .ring')).animationName)).toBe('none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+});
+
+test('playhead drags with snapping, steps the events with [ ], and replay walks to the end', async ({ page }) => {
+  await openGallery(page);
+  const m = await mountOne(page, 'tl-dense', 720);
+  const state = () => page.evaluate(() => { const inst = window.__vzInst; const el = inst.el; const svg = el.querySelector('svg.vz-svg'); return { ph: inst.spec.playhead, T: inst.model.F.range[1], future: el.querySelectorAll('.vz-future').length, playing: svg.classList.contains('vz-playing'), x: +svg.querySelector('.vz-playhead').getAttribute('transform').match(/translate\(([-\d.]+)/)[1], evTs: inst.model.evTs.length, snapped: inst.model.evTs.includes(inst.spec.playhead) };
+  });
+  const s0 = await state();
+  expect(s0.ph).toBe(s0.T); expect(s0.future).toBe(0);                     // not playing: the playhead rests at the end, nothing is faded
+  const plot = page.locator('#vzLab .vz[data-lab="tl-dense"] .vz-plot');
+  await plot.scrollIntoViewIfNeeded();
+  const box = await plot.boundingBox();
+  const hy = box.y + m.yB + 12;                                             // the ▼ handle lives under the lanes
+  await page.mouse.move(box.x + s0.x, hy);
+  await page.mouse.down();
+  await page.mouse.move(box.x + s0.x - 60, hy, { steps: 4 });
+  await page.mouse.move(box.x + s0.x - 120, hy, { steps: 4 });
+  await page.mouse.up();
+  const s1 = await state();
+  expect(s1.ph).toBeLessThan(s0.T); expect(s1.future).toBeGreaterThan(0); expect(s1.playing).toBe(false);
+  expect(Math.abs(s1.x - (s0.x - 120))).toBeLessThan(7);                  // within the 6px snap radius of the pointer
+  expect(s1.snapped).toBe(true);                                           // and snapped onto an event
+  const last = await page.evaluate(() => VZ_LAST.playhead);
+  expect(last.done).toBe(true); expect(last.t).toBe(s1.ph);
+  await expect(page.locator('#vzLab .vz[data-lab="tl-dense"] [data-vz-live]')).toContainText('播放头');
+  // [ and ] step to the previous / next event
+  await plot.focus();
+  await page.keyboard.press(']');
+  const s2 = await state(); expect(s2.ph).toBeGreaterThan(s1.ph); expect(s2.snapped).toBe(true);
+  await page.keyboard.press('[');
+  expect((await state()).ph).toBe(s1.ph);
+  // replay: future events are hidden while it runs and it stops at the end on its own
+  const run = await page.evaluate(() => new Promise((res) => { const el = window.__vzInst.el; let mid = null; VZ.replay(el, { ms: 400, onTick: () => { if (!mid) { const svg = el.querySelector('svg.vz-svg'); mid = { playing: svg.classList.contains('vz-playing'), hidden: getComputedStyle(el.querySelector('.vz-future')).opacity }; } }, onDone: (t) => res({ t, mid, playing: VZ.playing(el) }) }); }));
+  expect(run.mid.playing).toBe(true); expect(run.mid.hidden).toBe('0');
+  expect(run.playing).toBe(false);
+  const s3 = await state();
+  expect(s3.ph).toBe(s3.T); expect(s3.future).toBe(0); expect(s3.playing).toBe(false);
+  // Space starts the built-in replay; a second Space stops it where it is
+  await plot.focus();
+  await page.keyboard.press(' ');
+  expect(await page.evaluate(() => VZ.playing(window.__vzInst.el))).toBe(true);
+  await page.keyboard.press(' ');
+  const s4 = await state(); expect(await page.evaluate(() => VZ.playing(window.__vzInst.el))).toBe(false); expect(s4.ph).toBeLessThan(s4.T);
+});
+
+test('steps layout spaces events evenly and ⌘/Ctrl + wheel zooms around the cursor', async ({ page }) => {
+  await openGallery(page);
+  await mountOne(page, 'tl-dense', 720, { axisMode: 'steps' });
+  const st = await page.evaluate(() => { const inst = window.__vzInst; const F = inst.model.F; const labels = Array.from(inst.el.querySelectorAll('text.vz-ax')).map((t) => t.textContent); const span = inst.el.querySelector('.vz-span'); return { steps: F.steps, stepPx: F.stepPx, labels, axl: Array.from(inst.el.querySelectorAll('text.vz-axl')).map((t) => t.textContent), spanW: span ? +span.getAttribute('width') : null, nan: /NaN|Infinity/.test(inst.el.innerHTML), n: inst.model.evTs.length }; });
+  expect(st.nan).toBe(false); expect(st.steps).toBe(true); expect(st.stepPx).toBeGreaterThan(0);
+  expect(st.labels.filter((l) => /^\d+$/.test(l)).length).toBeGreaterThan(2);     // integer step ticks
+  expect(st.axl).toContain('步');                                                   // axis title says the unit
+  expect(Math.abs(st.spanW - Math.max(4, st.stepPx))).toBeLessThan(0.2);          // a span is exactly one step wide
+  // time layout again, then zoom: the range narrows around the cursor and the minimap window follows
+  await mountOne(page, 'tl-dense', 720);
+  await page.evaluate(() => { const lab = document.getElementById('vzLab'); const mm = document.createElement('div'); mm.className = 'vz'; mm.dataset.vz = 'minimap'; mm.style.width = '720px'; lab.appendChild(mm); VZ.mount(mm, VZ_DEMO.byId('minimap').spec()); });
+  const plot = page.locator('#vzLab .vz[data-lab="tl-dense"] .vz-plot');
+  await plot.scrollIntoViewIfNeeded();
+  const box = await plot.boundingBox();
+  const before = await page.evaluate(() => window.__vzInst.model.F.range.slice());
+  const cx = box.x + box.width * 0.6, cy = box.y + box.height / 2;
+  const tAt = await page.evaluate((fx) => window.__vzInst.model.F.inv(fx), box.width * 0.6);
+  await page.mouse.move(cx, cy);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -300);
+  await page.keyboard.up('Control');
+  await expect.poll(() => page.evaluate(() => window.__vzInst.spec.range[1] - window.__vzInst.spec.range[0])).toBeLessThan(before[1] - before[0]);
+  const after = await page.evaluate(() => ({ range: window.__vzInst.spec.range.slice(), extent: window.__vzInst.spec.extent.slice(), view: VZ_LAST.view, mm: (VZ._inst.get(document.querySelector('#vzLab .vz[data-vz="minimap"]')) || {}).spec.window }));
+  expect(after.extent).toEqual(before);
+  expect(after.range[0]).toBeLessThan(tAt); expect(after.range[1]).toBeGreaterThan(tAt);   // the cursor's moment stays inside the window
+  expect(after.view.zoom).toBe(true); expect(after.mm).toEqual(after.range);                 // onView synced the minimap window
+  // a plain wheel over the chart scrolls the page instead of zooming
+  await page.mouse.wheel(0, 100);
+  expect(await page.evaluate(() => window.__vzInst.spec.range.slice())).toEqual(after.range);
+  // zooming out past the full extent clamps to it (the plain wheel scrolled the pane, so put the pointer back on the plot first)
+  await plot.scrollIntoViewIfNeeded();
+  const box2 = await plot.boundingBox();
+  await page.mouse.move(box2.x + box2.width * 0.6, box2.y + box2.height / 2);
+  for (let k = 0; k < 6; k++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, 500); await page.keyboard.up('Control'); }
+  await expect.poll(() => page.evaluate(() => window.__vzInst.spec.range.slice())).toEqual(before);
 });

@@ -443,6 +443,7 @@ VZ._bind = function (el, inst) {
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault(); const f = Math.exp(-e.deltaY * 0.0025); const ns = clamp(span / f, full / (spec.maxZoom || 12), full); if (Math.abs(ns - span) < 1e-9) return;
       const t = F.inv(x); const k = (t - a) / span; let na = t - k * ns, nb = na + ns; if (na < ext[0]) { na = ext[0]; nb = na + ns; } if (nb > ext[1]) { nb = ext[1]; na = nb - ns; }
+      if (ns >= full - 1e-9) { na = ext[0]; nb = ext[1]; }   // 缩回全程时落在精确的端点上，不留浮点误差
       VZ._setRange(inst, [na, nb]);
     } else if ((e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) && span < full - 1e-9) {
       e.preventDefault(); const d = (e.deltaX || e.deltaY) / F.pw * span; const na = clamp(a + d, ext[0], ext[1] - span); VZ._setRange(inst, [na, na + span]);
