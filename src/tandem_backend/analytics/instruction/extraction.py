@@ -58,6 +58,9 @@ ACTIONS = (
     ("push", re.compile(r"推送|\bpush\b", re.I)),
     ("commit", re.compile(r"提交|\bcommit\b", re.I)),
     ("deploy", re.compile(r"部署|\bdeploy\b", re.I)),
+    ("check", re.compile(r"检查|\bcheck\b", re.I)),
+    ("process", re.compile(r"处理|\bprocess\b", re.I)),
+    ("operate", re.compile(r"操作|\boperate\b", re.I)),
     ("read", re.compile(r"读取|\bread\b", re.I)),
 )
 

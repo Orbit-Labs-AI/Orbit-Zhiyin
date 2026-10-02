@@ -184,3 +184,34 @@ def test_file_named_if_is_not_a_condition():
     result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
     assert len(result["active"]) == 2 and not result["unresolved"]
     assert all(c["targets"] == ["if.py"] for c in result["active"])
+
+
+@pytest.mark.parametrize("unknown", [
+    message("你好", uid="hello", task_id=None),
+    message("你好", uid="hello", ts=None),
+])
+def test_empty_observation_does_not_make_scope_unresolved(unknown):
+    rows = extract(message("只修改 a.py"), unknown)
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"}, at=100)
+    assert result["status"] == "resolved" and not result["unresolved"]
+    # Explicit replacement metadata remains relevant even without a recognized command.
+    next(row for row in rows if row["event_uid"] == "hello")["supersedes_instruction_ids"] = ["missing"]
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"}, at=100)
+    assert result["status"] == "needs_confirmation"
+
+
+@pytest.mark.parametrize("verb", ["修改", "编辑", "处理", "读取", "检查", "操作"])
+def test_every_supported_chinese_scope_verb_detects_a_contradiction(verb):
+    rows = extract(message(f"只{verb} a.py"), message(f"不要{verb} a.py", uid="v", seq=1))
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
+    assert result["conflicts"]
+    assert all(c["action"] is not None for c in result["history"])
+    assert not any(c["feature"] in ("allowed_scope", "prohibited_actions") for c in result["active"])
+
+
+@pytest.mark.parametrize("verb", ["modify", "edit", "read", "change"])
+def test_every_supported_english_scope_verb_detects_a_contradiction(verb):
+    rows = extract(message(f"Only {verb} a.py"), message(f"Do not {verb} a.py", uid="v", seq=1))
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
+    assert result["conflicts"]
+    assert not any(c["feature"] in ("allowed_scope", "prohibited_actions") for c in result["active"])

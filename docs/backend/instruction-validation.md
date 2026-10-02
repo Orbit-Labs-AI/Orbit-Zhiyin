@@ -8,13 +8,13 @@
 
 | 类别 | 方法与范围 | 结果 | 边界 |
 | --- | --- | --- | --- |
-| 单元 | 正文、结构计数、提取、汇总、时点解析；来源、重复、未知、截断、冲突与显式替换 | 25 项通过 | 只验证定义过的行为 |
+| 单元 | 正文、结构计数、提取、汇总、时点解析；来源、重复、未知、截断、冲突与显式替换 | 37 项通过 | 只验证定义过的行为 |
 | 功能／mock | mock legacy adapter，检查 engine、CLI、API 结果及筛选一致；另用合成原生日志贯穿导入和 SQLite | 3 项通过 | 合成导入不冒称真实数据 E2E |
 | 真实端到端 | 固定快照原生日志重新解析 → SQLite → CLI → 实际 localhost HTTP → 详情与筛选 | 通过；重解析 36 个会话、41,740 事件 | 只有 9 条可确认真人消息；零明确指令命中正例 |
 | 性能 | 100／1,000／10,000 条合成消息，提取＋汇总＋结构＋解析，三次计时；单独测提取内存 | 最大批次中位数 3.3921 s，2,948 条/s，提取峰值 35.41 MiB | 本机 Python 3.12.3、macOS arm64；不是服务器 SLA |
 | 正确性／质量 | 48 个构造输入，逐例比较八字段与类别的完整预期；中英正反例 | 48/48 完全匹配 | 规则回归集，不是独立真实世界准确率 |
 
-Instruction 共 76 项 pytest 测试。完整仓库 `pytest -q`：474 passed，耗时 6.14 s；`ruff check src tests scripts` 通过。现有 Starlette/AnyIO 依赖弃用提示 1 条，未改变依赖。`tandem demo` 通过；`tandem evaluate` 的 readability 8/8、pipeline 34/34、probe 12/12。均未把结果写回用户历史。
+Instruction 共 88 项 pytest 测试。完整仓库 `pytest -q`：486 passed，耗时 6.31 s；`ruff check src tests scripts` 通过。现有 Starlette/AnyIO 依赖弃用提示 1 条，未改变依赖。`tandem demo` 通过；`tandem evaluate` 的 readability 8/8、pipeline 34/34、probe 12/12。均未把结果写回用户历史。
 
 Codex review 另指出后半句条件错误约束前半句计划，已拆分独立命令并增加 5 项中英文条件／文件名回归测试；例如“先给方案，等我确认后再改文件”中的计划要求保持无条件有效。
 
@@ -61,6 +61,8 @@ PYTHONPATH=src python -m tandem_backend evaluate --output .local/instruction-val
 ```
 
 真实 E2E 是显式运行的本地测试，不进入需要私有历史的 CI；必须有匹配数据源的既存固定快照，并使用尚不存在数据库的新输出目录。CI 使用合成测试，不需要私有文件。HTTP 通过绑定本机临时端口启动真实 uvicorn 进程；没有使用 TestClient 替代此项。
+
+复审还修复了无约束普通消息污染范围状态、检查／处理／操作动词漏报冲突，并补充 12 项回归测试。完整测试 486 项通过；性能和真实 E2E 数字对应 `b17d0ee` 的复验，后续两项修复另由单元和全量回归验证。
 
 ## 待完成
 

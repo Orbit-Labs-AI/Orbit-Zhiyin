@@ -17,6 +17,8 @@ def resolve_instruction_scope(instructions, task, at=None):
     for row in sorted(instructions, key=lambda r: (r["seq"], r["event_uid"])):
         if row["session_uid"] != task["session_uid"]:
             continue
+        if not row["constraints"] and not row.get("supersedes_instruction_ids"):
+            continue  # A greeting/unknown observation is not an unresolved instruction.
         if row.get("task_id") not in (None, task["task_id"]):
             continue
         if at is not None and row.get("ts") is not None and row["ts"] > at:
