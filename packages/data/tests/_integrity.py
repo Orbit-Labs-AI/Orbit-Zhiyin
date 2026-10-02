@@ -1,8 +1,9 @@
 """Logical digest and synthetic relation trees shared by the import-path tests.
 
 The digest covers logical output only (L1 accounting, L2 events and links, L3 tables,
-issues), never capture timestamps. After merging package (d) it should delegate to
-``tandem_data.validation.integrity.logical_digest``.
+issues), never capture timestamps. ``logical_digest`` delegates to
+``tandem_data.validation.integrity.logical_digest``; ``differing_tables`` still compares
+per table to locate a difference.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import sqlite3
 from pathlib import Path
 
 from tandem_data.contract import canonical
+from tandem_data.validation.integrity import logical_digest as validation_logical_digest
 
 TIME_COLUMNS = {
     "captured_at",
@@ -87,7 +89,7 @@ def table_digests(home) -> dict[str, str]:
 
 
 def logical_digest(home) -> str:
-    return hashlib.sha256(canonical(table_digests(home)).encode()).hexdigest()
+    return validation_logical_digest(home)
 
 
 def differing_tables(left, right) -> list[str]:
@@ -118,17 +120,26 @@ def assert_integrity(store) -> None:
         ).fetchone()[0]
         == 0
     )
-    # The search index must match event text exactly and keep its row triggers.
-    store.db.execute("INSERT INTO event_fts(event_fts, rank) VALUES('integrity-check', 1)")
-    from tandem_data.parallel import EVENT_FTS_TRIGGERS
+    # The search index must cover exactly the searchable events and keep its row triggers.
+    store.db.execute("INSERT INTO event_search(event_search, rank) VALUES('integrity-check', 1)")
+    from tandem_data.parallel import EVENT_SEARCH_TRIGGERS, SEARCHED
 
+    indexed = {row[0] for row in store.db.execute("SELECT rowid FROM event_search")}
+    expected = {
+        row[0]
+        for row in store.db.execute(
+            f"SELECT rowid FROM event WHERE kind IN {SEARCHED} AND text IS NOT NULL"
+        )
+    }
+    assert indexed == expected
     triggers = {
         name: " ".join(sql.split())
         for name, sql in store.db.execute(
-            "SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name='event'"
+            "SELECT name,sql FROM sqlite_master WHERE type='trigger' "
+            "AND tbl_name='event' AND name LIKE 'event_search%'"
         )
     }
-    assert triggers == EVENT_FTS_TRIGGERS
+    assert triggers == EVENT_SEARCH_TRIGGERS
     assert not store.db.execute(
         "SELECT 1 FROM temp.sqlite_master WHERE name LIKE 'fts_%'"
     ).fetchone()

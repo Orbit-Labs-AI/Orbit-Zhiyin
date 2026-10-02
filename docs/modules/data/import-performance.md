@@ -25,7 +25,7 @@
 ## 两段式映射
 
 1. **worker**：白名单内的独立文件（`claude_code`、无 `parentSession` 的 `pi`、无继承前缀的 `dsh`）在只读连接上完成 prepare、map、envelope、脱敏与事件契约校验（`pipeline.map_native`）。worker 看到的 store 是只记录 identity / issue / raw_record 更新的门面；mapper 一旦读写其他状态就抛 `NeedsWriter`，该文件退回写者串行。
-2. **写者**：按原拓扑顺序回放（`pipeline.apply_mapped`）。存在性用一次批量查询加内存字典判断，常见路径批量写入（`_insert_rows`）；遇到已存在事件、同记录重复或映射错误时先 flush，再走原 apply 逻辑，所以 `seq`、folded / replayed 判断不变。
+2. **写者**：按原拓扑顺序回放（`pipeline.apply_mapped`）。存在性用一次批量查询加内存字典判断，常见路径批量写入（`_insert_rows` 委托 `store.insert_rows`，`event.ext` 照常经 payload 打包）；遇到已存在事件、同记录重复或映射错误时先 flush，再走原 apply 逻辑，所以 `seq`、folded / replayed 判断不变。
 
 依赖前序文件 L2 的 mapper 留在写者串行：Codex fork / 历史、DSH 旧代、带 `parentSession` 的 pi、Kimi 索引，以及 OpenCode / Hermes 数据库。
 
