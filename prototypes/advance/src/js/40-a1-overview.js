@@ -64,9 +64,9 @@ PAGES.overview = () => {
   const peakV = hmap.H[peak[0]][peak[1]];
   const heatLine = S.ov.heat === 'msgs' ? '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + f1(st.fric) + '%';
   // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
-  const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => ({ name: t.name, n: t.n, err: t.err })) : []) : toolRows(L).slice(0, 6);
+  const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => { const why = typeof lvtpRateWhy === 'function' ? lvtpRateWhy(t) : null; return { name: t.name, n: t.n, err: why ? null : t.err, why: why || (t.err == null ? '状态未知，不计算错误率' : null) }; }) : []) : toolRows(L).slice(0, 6);
   const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;
-  const terr = (t) => t.err == null ? '<span class="mono e">—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
+  const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
   return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
