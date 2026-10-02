@@ -84,6 +84,26 @@ test('A6 mood series: medians and bands from the server buckets, signed mood gly
   expect(errors).toEqual([]);
 });
 
+// B13: a topic at +1.0 keeps its bar inside the ruler (the value text is not covered); one friction class reads as one
+test('A6 B13: ±1 topic bars stay inside the ruler; a single friction class is not called "前两类"', async ({ page }) => {
+  test.skip(!!PASS, 'fixture values');
+  const d = fx('s4/sentiment-mood.json');
+  d.topics[0].avg_balance = 1; d.topics[1].avg_balance = -1;
+  d.friction = d.friction.slice(0, 1);
+  const { errors } = await openSent(page, { 'GET /v1/uiview/sentiment': d });
+  await expect(page.locator('#main .sn-fric[data-act="fricGo"]')).toHaveCount(1);
+  await expect(page.locator('#main .sn-foot').first()).not.toContainText('前两类');
+  await expect(page.locator('#main .sn-foot').first()).toContainText(await page.locator('#main .sn-fric-n').first().textContent());
+  await expect(page.locator('#main .sn-topic').first().locator('.mono').last()).toHaveText('+1.0');
+  const geo = await page.locator('#main .sn-topic').evaluateAll((els) => els.map((e) => {
+    const div = e.querySelector('.sn-div').getBoundingClientRect(); const bar = e.querySelector('.sn-div .bar').getBoundingClientRect();
+    const val = e.querySelector('.row > .mono:last-child').getBoundingClientRect();
+    return { inL: bar.left >= div.left - 0.5, inR: bar.right <= div.right + 0.5, clear: bar.right <= val.left + 0.5 };
+  }));
+  geo.forEach((g) => expect(g).toEqual({ inL: true, inR: true, clear: true }));
+  expect(errors).toEqual([]);
+});
+
 test('A6 interactions: friction / phrase sources navigate to real sessions', async ({ page }) => {
   test.skip(!!PASS, 'fixture ids');
   const { errors, gw } = await openSent(page);
