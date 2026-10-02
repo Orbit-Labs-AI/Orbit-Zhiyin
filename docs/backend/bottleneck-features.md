@@ -46,7 +46,7 @@ print(families["outcome"]["acceptance_results"])
 
 统一 JSON 的 `bottleneck_features` 包含 interaction/respond/cost_time/outcome；`sessions[*]` 和 `projects[*]` 也含相同结构，使用各自成员范围。`GET /v1/analytics/bottleneck` 返回总体四组结果及原有 scope/coverage/digest 等元数据；会话详情 API 可查看单会话树。`tandem analytics --output ...` 自动包含新结构，无需新 CLI。
 
-版本为 `feature-analytics-v2`，四组输出子契约为 `bottleneck-features-v1`。旧导入位置和字段仍可使用；新 benchmark 应读取新分组。v2 还修正重复调用计数、模型活动误计累计记录、会话缺开始时间时错误补造开始、非法 Token／时延和缓存重复计量。机器可读定义在 `analytics/dictionary.py`。
+整合 main 的 Preference/Task 与主观结果后，版本为 `feature-analytics-v2.2-bottleneck`，四组输出子契约为 `bottleneck-features-v1`。旧导入位置和字段仍可使用；新 benchmark 应读取新分组。v2 还修正重复调用计数、模型活动误计累计记录、会话缺开始时间时错误补造开始、非法 Token／时延和缓存重复计量。机器可读定义在 `analytics/dictionary.py`。
 
 ## 口径与依赖
 
@@ -89,3 +89,7 @@ tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
 - 四模块合成数据：确认纠偏率 0.5，工具调用 2 次，Token 350；执行耗时总和 20,000 ms、并集 15,000 ms；显式完整验收集合通过。排除子代理后，构建验收回到未知。
 - 可在本地 `.local/bottleneck-fixture-result.json` 查看该虚构样本的完整结果；生成物不进入 Git。
 - 审查按用户本轮要求，仅将 P0/P1 作为阻断项；其他问题可记录为后续工作，后续合并沿用同一优先级标准。本轮是本地逐模块自查，不冒充 PR 的 Codex review。测试中已有一条 Starlette/AnyIO 弃用提示，不影响通过，未扩大依赖升级范围。
+
+本轮合并整合（2026-10-02）：同步 main `2029e2d`，保留 Preference/Task、Instruction、主观结果与四组瓶颈分析入口和字段字典。新增共存回归验证：显式用户接受与客观检查失败分别保留，不能相互覆盖。任务身份的跨族统一仍为后续工作。
+
+整合验证：Python 3.11 下 770 项测试、Ruff、`git diff --check`、synthetic demo 和 evaluate（8/8、34/34、12/12）通过。本机锁定的 SciPy 1.15.3 wheel 存在 macOS 动态库加载错误，临时测试环境使用 SciPy 1.16.3；仓库锁文件不变，锁定依赖另由 Linux CI 验证。
