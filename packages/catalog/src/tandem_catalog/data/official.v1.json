@@ -1,0 +1,1507 @@
+[
+ {
+  "id": "readonly-allowlist",
+  "type": "hook",
+  "name": "只读命令自动放行",
+  "summary": "把 git status、ls、gh pr view 等只读命令加入权限白名单，不再逐次审批。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "readonly-allowlist",
+   "template": "permission-allow@1"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "permission_friction",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "hook",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "permission",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "approval",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "readonly",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "bash",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "git",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "settings",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 1,
+  "version": "1",
+  "body": "# 只读命令自动放行\n\n把 git status、ls、gh pr view 等只读命令加入权限白名单，不再逐次审批。\n\n## 原理\n\n权限摩擦优先用权限规则解决：只放行只读命令，写命令照常审批。\n\n## 试用\n\n新开会话运行 git status，确认不再弹出审批；7 天后看审批次数。\n\n## 局限\n\n只覆盖列出的命令前缀；带管道或重定向的命令仍会审批。\n\n## 步骤\n\n1. 预览将写入 settings.json 的放行规则\n2. 确认写入（会先备份原文件）\n3. 新开会话运行 git status，确认不再弹出审批\n4. 7 天后在效果追踪里看审批次数变化\n\n## 改动预览\n\n```json\n{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(git status:*)\",\n      \"Bash(git diff:*)\",\n      \"Bash(git log:*)\",\n      \"Bash(ls:*)\",\n    ]\n  }\n}\n```",
+  "risk": [
+   "writes_settings"
+  ],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "readonly-allowlist",
+   "remedy_kind": "permission_rule",
+   "dim": "hook",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "manual"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 1,
+    "context_tokens": 0,
+    "reversible": true
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话里你手动批准了约 {weekly} 次/周只读命令（{heads}）。",
+    "mechanism": "权限摩擦优先用权限规则解决：只放行只读命令，写命令照常审批。",
+    "trial": "新开会话运行 git status，确认不再弹出审批；7 天后看审批次数。",
+    "limitation": "只覆盖列出的命令前缀；带管道或重定向的命令仍会审批。"
+   },
+   "track": {
+    "triggered": "只读命令审批次数",
+    "mechanical": "白名单命中次数",
+    "guardrail": "误放行的写命令次数"
+   },
+   "problem_types": [
+    "permission_friction"
+   ]
+  }
+ },
+ {
+  "id": "fewer-permission-prompts",
+  "type": "hook",
+  "name": "用 Agent 自带的权限模式减少审批",
+  "summary": "在 Claude Code 中切换到 acceptEdits 等内置权限模式，或用自带的审批记忆。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "fewer-permission-prompts"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "permission_friction",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "hook",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "permission",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "approval",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "builtin",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 1,
+  "version": "1",
+  "body": "# 用 Agent 自带的权限模式减少审批\n\n在 Claude Code 中切换到 acceptEdits 等内置权限模式，或用自带的审批记忆。\n\n## 原理\n\n不想写规则文件时，先用 Agent 内置的权限模式。\n\n## 试用\n\n下一个会话开启内置模式，观察审批次数。\n\n## 局限\n\n放行范围比白名单宽，敏感仓库慎用。\n\n## 步骤\n\n1. 在会话中切换到内置的宽松权限模式\n2. 只在可信仓库使用\n3. 7 天后对比审批次数",
+  "risk": [
+   "broader_permissions"
+  ],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "fewer-permission-prompts",
+   "remedy_kind": "builtin",
+   "dim": "hook",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "medium",
+   "cost": {
+    "setup_minutes": 1
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话里频繁出现审批等待。",
+    "mechanism": "不想写规则文件时，先用 Agent 内置的权限模式。",
+    "trial": "下一个会话开启内置模式，观察审批次数。",
+    "limitation": "放行范围比白名单宽，敏感仓库慎用。"
+   },
+   "track": {
+    "triggered": "审批次数",
+    "mechanical": "使用内置模式的会话数",
+    "guardrail": "非预期写入次数"
+   },
+   "problem_types": [
+    "permission_friction"
+   ]
+  }
+ },
+ {
+  "id": "retry-breaker",
+  "type": "hook",
+  "name": "重复失败熔断：同一命令失败 2 次先诊断",
+  "summary": "同一命令连续失败两次后暂停，先检查认证与环境再继续。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "retry-breaker",
+   "template": "hook-post-tool-use@1",
+   "hook": {
+    "event": "PostToolUse",
+    "command": "~/.tandem/hooks/retry-breaker.sh",
+    "matcher": "Bash"
+   }
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "tool_env_failure",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "hook",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "retry",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "failure",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "hook",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "bash",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "debugging",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 重复失败熔断：同一命令失败 2 次先诊断\n\n同一命令连续失败两次后暂停，先检查认证与环境再继续。\n\n## 原理\n\n工具/环境失败优先用 hook 在执行层拦截，比提示词更可靠。\n\n## 试用\n\n下次连续失败时，确认 Agent 先停下来检查环境。\n\n## 局限\n\n只拦截完全相同的命令；参数变化的重试不计入。\n\n## 步骤\n\n1. 预览将写入的 Hook 与脚本\n2. 确认安装（脚本放在 ~/.tandem/hooks，可随时删除）\n3. 下次连续失败时 Agent 会先检查认证与环境\n\n## 改动预览\n\n```json\n{\n  \"hooks\": {\n    \"PostToolUse\": [{\n      \"matcher\": \"Bash\",\n      \"hooks\": [{ \"type\": \"command\", \"command\": \"~/.tandem/hooks/retry-breaker.sh\" }]\n    }]\n  }\n}\n```",
+  "risk": [
+   "runs_script"
+  ],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "retry-breaker",
+   "remedy_kind": "hook",
+   "dim": "hook",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "adaptation_required"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 3,
+    "reversible": true
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话出现「失败后原样重试」，约 {weekly} 次/周。",
+    "mechanism": "工具/环境失败优先用 hook 在执行层拦截，比提示词更可靠。",
+    "trial": "下次连续失败时，确认 Agent 先停下来检查环境。",
+    "limitation": "只拦截完全相同的命令；参数变化的重试不计入。"
+   },
+   "track": {
+    "triggered": "重复失败序列",
+    "mechanical": "熔断触发次数",
+    "guardrail": "任务完成率"
+   },
+   "problem_types": [
+    "tool_env_failure"
+   ]
+  }
+ },
+ {
+  "id": "systematic-debugging",
+  "type": "skill",
+  "name": "系统化排错 Skill：复现→假设→最小修复",
+  "summary": "把重复试错改为复现、收集证据、单一假设和最小修复。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "systematic-debugging"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "tool_env_failure",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "friction",
+    "value": "buggy_output",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "skill",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "debugging",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "retry_control",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "skill",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "verification",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 系统化排错 Skill：复现→假设→最小修复\n\n把重复试错改为复现、收集证据、单一假设和最小修复。\n\n## 原理\n\n排错方法类问题用 skill 固化流程。\n\n## 试用\n\n下次出错时说「按系统化排错处理」，对比首次有效验证前的调用数。\n\n## 局限\n\n提供流程，不强制计数；需配合熔断 hook。\n\n## 步骤\n\n1. 预览 Skill 内容与来源许可\n2. 安装到 ~/.claude/skills\n3. 出错时显式引用该 Skill",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "systematic-debugging",
+   "remedy_kind": "skill",
+   "dim": "skill",
+   "agent_support": {
+    "claude_code": "manual",
+    "codex": "manual"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 5,
+    "context_tokens": 600
+   },
+   "catalog_ref": "superpowers-systematic-debugging",
+   "explain": {
+    "reason_template": "{k} 个会话里出现反复失败或修复后仍出错。",
+    "mechanism": "排错方法类问题用 skill 固化流程。",
+    "trial": "下次出错时说「按系统化排错处理」，对比首次有效验证前的调用数。",
+    "limitation": "提供流程，不强制计数；需配合熔断 hook。"
+   },
+   "track": {
+    "triggered": "同参数重复失败",
+    "mechanical": "Skill 调用次数",
+    "guardrail": "测试通过率"
+   },
+   "problem_types": [
+    "tool_env_failure",
+    "buggy_output"
+   ]
+  }
+ },
+ {
+  "id": "env-quirks-rule",
+  "type": "rule",
+  "name": "AGENTS.md：写明 {software} 的环境约定",
+  "summary": "把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "env-quirks-rule",
+   "template": "agents-md-section@1"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "tool_env_failure",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "environment",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "agents-md",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "failure",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 1,
+  "version": "1",
+  "body": "# AGENTS.md：写明 {software} 的环境约定\n\n把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。\n\n## 原理\n\n可预知的环境约定写成规则，开场就让 Agent 知道。\n\n## 试用\n\n下次用到 {software} 时观察 Agent 是否先检查环境。\n\n## 局限\n\n规则只是提醒；认证失效等仍需人工处理。\n\n## 步骤\n\n1. 复制片段\n2. 粘贴到项目根目录 AGENTS.md\n3. 下次使用时观察是否先检查环境\n\n## 改动预览\n\n```json\n## {software} 环境\n- 使用前先检查登录与版本，未就绪就停下来告诉我\n- 失败两次后不要原样重试\n```",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "env-quirks-rule",
+   "remedy_kind": "rule",
+   "dim": "rule",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 2,
+    "context_tokens": 80
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{software} 在 {k} 个会话里失败，约 {weekly} 次/周。",
+    "mechanism": "可预知的环境约定写成规则，开场就让 Agent 知道。",
+    "trial": "下次用到 {software} 时观察 Agent 是否先检查环境。",
+    "limitation": "规则只是提醒；认证失效等仍需人工处理。"
+   },
+   "track": {
+    "triggered": "{software} 相关失败",
+    "mechanical": "规则被引用次数",
+    "guardrail": "会话时长"
+   },
+   "problem_types": [
+    "tool_env_failure"
+   ]
+  }
+ },
+ {
+  "id": "verify-checklist",
+  "type": "rule",
+  "name": "完成前自检清单",
+  "summary": "要求 Agent 在声称完成前运行测试/编译并贴出结果。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "verify-checklist",
+   "template": "agents-md-section@1"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "missing_verification",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "verification",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "testing",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "agents-md",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 1,
+  "version": "1",
+  "body": "# 完成前自检清单\n\n要求 Agent 在声称完成前运行测试/编译并贴出结果。\n\n## 原理\n\n缺验证先用规则约定，仍无效再升级为 Stop hook。\n\n## 试用\n\n下一个任务结束时检查回复是否附带测试输出。\n\n## 局限\n\n规则可能被忽略；需要强制时用 Stop hook。\n\n## 步骤\n\n1. 复制片段\n2. 粘贴到全局或项目 AGENTS.md\n3. 检查下一次完成回复是否附带验证结果\n\n## 改动预览\n\n```json\n## 完成前\n- 声称完成前运行测试或编译，并贴出命令与结果\n- 无法验证时明确说明原因\n```",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "verify-checklist",
+   "remedy_kind": "rule",
+   "dim": "rule",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 1,
+    "context_tokens": 60
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话在没有验证证据时就宣布完成。",
+    "mechanism": "缺验证先用规则约定，仍无效再升级为 Stop hook。",
+    "trial": "下一个任务结束时检查回复是否附带测试输出。",
+    "limitation": "规则可能被忽略；需要强制时用 Stop hook。"
+   },
+   "track": {
+    "triggered": "缺验收证据的完成声明",
+    "mechanical": "回复中贴出验证结果的比例",
+    "guardrail": "会话时长"
+   },
+   "problem_types": [
+    "missing_verification"
+   ]
+  }
+ },
+ {
+  "id": "stop-verify-hook",
+  "type": "hook",
+  "name": "Stop hook：没有验证结果不结束",
+  "summary": "在会话结束前检查是否运行过测试，没有则提醒 Agent 补验证。",
+  "official": true,
+  "agents": [
+   "claude_code"
+  ],
+  "install": {
+   "kb_rule": "stop-verify-hook",
+   "template": "hook-stop@1",
+   "hook": {
+    "event": "Stop",
+    "command": "~/.tandem/hooks/stop-verify-hook.sh"
+   }
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "missing_verification",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "hook",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "verification",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "hook",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "stop",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "testing",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 3,
+  "version": "1",
+  "body": "# Stop hook：没有验证结果不结束\n\n在会话结束前检查是否运行过测试，没有则提醒 Agent 补验证。\n\n## 原理\n\n规则无效时升级为执行层 hook（RC-06 第 2 行）。\n\n## 试用\n\n让 Agent 完成一个小改动，确认结束前会运行测试。\n\n## 局限\n\n需要项目有可运行的测试命令。\n\n## 步骤\n\n1. 预览 Stop hook 与检查脚本\n2. 安装到项目 .claude/settings.json\n3. 确认结束前会补跑测试",
+  "risk": [
+   "runs_script",
+   "may_block_stop"
+  ],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "stop-verify-hook",
+   "remedy_kind": "hook",
+   "dim": "hook",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "unsupported"
+   },
+   "risk_level": "medium",
+   "cost": {
+    "setup_minutes": 5
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "已有规则后仍有 {k} 个会话缺验证证据。",
+    "mechanism": "规则无效时升级为执行层 hook（RC-06 第 2 行）。",
+    "trial": "让 Agent 完成一个小改动，确认结束前会运行测试。",
+    "limitation": "需要项目有可运行的测试命令。"
+   },
+   "track": {
+    "triggered": "缺验收证据的完成声明",
+    "mechanical": "hook 拦截次数",
+    "guardrail": "会话被卡住次数"
+   },
+   "problem_types": [
+    "missing_verification"
+   ]
+  }
+ },
+ {
+  "id": "completion-contract",
+  "type": "rule",
+  "name": "开场模板：先写完成条件",
+  "summary": "新任务先写目标、完成条件、不要做和验证方式四行。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "completion-contract",
+   "template": "prompt-snippet@1"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "wrong_approach",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "prompt",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "planning",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "acceptance",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "template",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 开场模板：先写完成条件\n\n新任务先写目标、完成条件、不要做和验证方式四行。\n\n## 原理\n\n方向问题默认不装东西，先改开场方式。\n\n## 试用\n\n开新任务时先填四行，对比纠偏次数。\n\n## 局限\n\n依赖你自己的习惯，没有自动检查。\n\n## 步骤\n\n1. 复制模板\n2. 开新任务时先填四行\n3. 也可写进 AGENTS.md，让 Agent 在你没写时追问\n\n## 改动预览\n\n```json\n目标：\n完成条件：（怎样算做完，可验证）\n不要做：\n验证方式：（测试 / 编译 / 线上检查）\n```",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "completion-contract",
+   "remedy_kind": "prompt",
+   "dim": "rule",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 0
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话出现方向纠偏。",
+    "mechanism": "方向问题默认不装东西，先改开场方式。",
+    "trial": "开新任务时先填四行，对比纠偏次数。",
+    "limitation": "依赖你自己的习惯，没有自动检查。"
+   },
+   "track": {
+    "triggered": "纠偏次数",
+    "mechanical": "首条消息写明完成条件的比例",
+    "guardrail": "首轮完成率"
+   },
+   "problem_types": [
+    "wrong_approach"
+   ]
+  }
+ },
+ {
+  "id": "clear-and-restate",
+  "type": "workflow",
+  "name": "纠偏两次后：清空上下文并重述需求",
+  "summary": "同一方向纠偏两次仍不对时，/clear 后用完成条件模板重新开始。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "clear-and-restate"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "wrong_approach",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "flow",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "workflow",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "correction",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "context",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 纠偏两次后：清空上下文并重述需求\n\n同一方向纠偏两次仍不对时，/clear 后用完成条件模板重新开始。\n\n## 原理\n\n纠偏螺旋里继续追加说明效果差，重启上下文更省。\n\n## 试用\n\n下次第二次纠偏后清空重述，对比完成时间。\n\n## 局限\n\n会丢失会话内的临时上下文，需要先总结。\n\n## 步骤\n\n1. 第二次纠偏后停下\n2. 让 Agent 用 5 行总结已知事实\n3. /clear 后用完成条件模板重述",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "clear-and-restate",
+   "remedy_kind": "workflow",
+   "dim": "flow",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 0
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话出现连续纠偏。",
+    "mechanism": "纠偏螺旋里继续追加说明效果差，重启上下文更省。",
+    "trial": "下次第二次纠偏后清空重述，对比完成时间。",
+    "limitation": "会丢失会话内的临时上下文，需要先总结。"
+   },
+   "track": {
+    "triggered": "连续纠偏段数",
+    "mechanical": "纠偏后重启次数",
+    "guardrail": "任务完成率"
+   },
+   "problem_types": [
+    "wrong_approach"
+   ]
+  }
+ },
+ {
+  "id": "repeated-instruction-rule",
+  "type": "rule",
+  "name": "把重复说的要求写进规则：{instruction}",
+  "summary": "你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "repeated-instruction-rule",
+   "template": "agents-md-section@1"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "repeated_instruction",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "agents-md",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "instruction",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "preference",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 1,
+  "version": "1",
+  "body": "# 把重复说的要求写进规则：{instruction}\n\n你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。\n\n## 原理\n\n重复指令首选规则文件（RC-06 第 1 行）。\n\n## 试用\n\n写入后观察 7 天内是否还需要重复说明。\n\n## 局限\n\n规则过多会增加常驻上下文。\n\n## 步骤\n\n1. 确认要写入的要求原文\n2. 粘贴到全局 AGENTS.md\n3. 7 天后看重复说明次数\n\n## 改动预览\n\n```json\n## 约定\n- {instruction}\n```",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "repeated-instruction-rule",
+   "remedy_kind": "rule",
+   "dim": "rule",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 1,
+    "context_tokens": 40
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话里你重复提出相同要求。",
+    "mechanism": "重复指令首选规则文件（RC-06 第 1 行）。",
+    "trial": "写入后观察 7 天内是否还需要重复说明。",
+    "limitation": "规则过多会增加常驻上下文。"
+   },
+   "track": {
+    "triggered": "重复说明次数",
+    "mechanical": "规则行被遵守的会话比例",
+    "guardrail": "纠偏次数"
+   },
+   "problem_types": [
+    "repeated_instruction"
+   ]
+  }
+ },
+ {
+  "id": "humanizer-zh",
+  "type": "skill",
+  "name": "中文表达润色 Skill",
+  "summary": "让回复更自然、少术语堆砌，必要时附解释。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "humanizer-zh"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "communication_gap",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "skill",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "writing",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "chinese",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "style",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "skill",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 中文表达润色 Skill\n\n让回复更自然、少术语堆砌，必要时附解释。\n\n## 原理\n\n表达类问题用 skill 固化风格。\n\n## 试用\n\n下次写说明文档时引用该 Skill，对比改写次数。\n\n## 局限\n\n风格偏好因人而异，可能需要调整。\n\n## 步骤\n\n1. 预览 Skill 与来源许可\n2. 安装到 ~/.claude/skills\n3. 写中文文档时引用",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "humanizer-zh",
+   "remedy_kind": "skill",
+   "dim": "skill",
+   "agent_support": {
+    "claude_code": "manual",
+    "codex": "manual"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 3,
+    "context_tokens": 500
+   },
+   "catalog_ref": "humanizer-zh",
+   "explain": {
+    "reason_template": "{k} 个会话里你要求改写或解释术语。",
+    "mechanism": "表达类问题用 skill 固化风格。",
+    "trial": "下次写说明文档时引用该 Skill，对比改写次数。",
+    "limitation": "风格偏好因人而异，可能需要调整。"
+   },
+   "track": {
+    "triggered": "要求改写/解释的次数",
+    "mechanical": "Skill 调用次数",
+    "guardrail": "回复长度"
+   },
+   "problem_types": [
+    "communication_gap"
+   ]
+  }
+ },
+ {
+  "id": "split-rules-file",
+  "type": "guide",
+  "name": "拆分过长的规则文件",
+  "summary": "把超过 200 行的 AGENTS.md / CLAUDE.md 按目录拆分，减少每个会话的常驻上下文。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "split-rules-file"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "resident_cost",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "removal",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "context",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "rules",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "agents-md",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 3,
+  "version": "1",
+  "body": "# 拆分过长的规则文件\n\n把超过 200 行的 AGENTS.md / CLAUDE.md 按目录拆分，减少每个会话的常驻上下文。\n\n## 原理\n\n常驻成本只能做减法（RC-06 第 12 行）。\n\n## 试用\n\n拆分后对比会话启动 tokens 与纠偏次数。\n\n## 局限\n\n拆分后子目录规则只在对应目录生效。\n\n## 步骤\n\n1. 预览建议拆出的段落\n2. 移到子目录的 AGENTS.md\n3. 7 天后看纠偏是否增加",
+  "risk": [
+   "edits_rules"
+  ],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "split-rules-file",
+   "remedy_kind": "removal",
+   "dim": "rule",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "medium",
+   "cost": {
+    "setup_minutes": 15
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{name} 有 {lines} 行，每个会话都要加载。",
+    "mechanism": "常驻成本只能做减法（RC-06 第 12 行）。",
+    "trial": "拆分后对比会话启动 tokens 与纠偏次数。",
+    "limitation": "拆分后子目录规则只在对应目录生效。"
+   },
+   "track": {
+    "triggered": "每会话常驻 tokens",
+    "mechanical": "规则文件行数",
+    "guardrail": "纠偏次数"
+   },
+   "problem_types": [
+    "resident_cost"
+   ]
+  }
+ },
+ {
+  "id": "trim-resident",
+  "type": "guide",
+  "name": "精简常驻上下文",
+  "summary": "移除或缩短每个会话都加载但很少用到的内容。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "trim-resident"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "resident_cost",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "rule",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "removal",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "context",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "tokens",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 精简常驻上下文\n\n移除或缩短每个会话都加载但很少用到的内容。\n\n## 原理\n\n常驻成本只能做减法（RC-06 第 12 行）。\n\n## 试用\n\n精简后观察相关能力是否仍可用。\n\n## 局限\n\n删掉的内容需要时要重新加载。\n\n## 步骤\n\n1. 预览要精简的内容\n2. 确认修改（会备份）\n3. 需要时可从备份恢复",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "trim-resident",
+   "remedy_kind": "removal",
+   "dim": "rule",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 5
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{name} 每个会话常驻约 {tokens} tokens。",
+    "mechanism": "常驻成本只能做减法（RC-06 第 12 行）。",
+    "trial": "精简后观察相关能力是否仍可用。",
+    "limitation": "删掉的内容需要时要重新加载。"
+   },
+   "track": {
+    "triggered": "每会话常驻 tokens",
+    "mechanical": "常驻 tokens",
+    "guardrail": "相关失败次数"
+   },
+   "problem_types": [
+    "resident_cost"
+   ]
+  }
+ },
+ {
+  "id": "disable-unused",
+  "type": "guide",
+  "name": "停用长期未用的组件",
+  "summary": "停用安装后从未调用的 skill / MCP，释放上下文与启动时间。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "disable-unused"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "installed_unused",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "mcp",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "removal",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "unused",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "mcp",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "skill",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 停用长期未用的组件\n\n停用安装后从未调用的 skill / MCP，释放上下文与启动时间。\n\n## 原理\n\n闲置组件只做减法，可随时恢复。\n\n## 试用\n\n停用后 7 天内是否需要重新启用。\n\n## 局限\n\n低频但重要的组件请保留。\n\n## 步骤\n\n1. 预览要删除的配置项\n2. 确认停用（会备份）\n3. 需要时可在资源库重新安装",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "disable-unused",
+   "remedy_kind": "removal",
+   "dim": "mcp",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 1
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{name} 在 {k} 个会话里从未被调用。",
+    "mechanism": "闲置组件只做减法，可随时恢复。",
+    "trial": "停用后 7 天内是否需要重新启用。",
+    "limitation": "低频但重要的组件请保留。"
+   },
+   "track": {
+    "triggered": "每会话常驻 tokens",
+    "mechanical": "已停用组件数",
+    "guardrail": "重新启用次数"
+   },
+   "problem_types": [
+    "installed_unused"
+   ]
+  }
+ },
+ {
+  "id": "context-handoff",
+  "type": "workflow",
+  "name": "上下文过 60% 先总结再继续",
+  "summary": "长会话在自动压缩前先写交接摘要，避免丢失约定。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "context-handoff"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "context_loss",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "flow",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "context",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "workflow",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "compaction",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "handoff",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 上下文过 60% 先总结再继续\n\n长会话在自动压缩前先写交接摘要，避免丢失约定。\n\n## 原理\n\n上下文丢失先用交接流程，必要时再写成规则。\n\n## 试用\n\n下一个长会话在 60% 时总结，对比压缩后返工。\n\n## 局限\n\n需要你或悬浮组件提醒触发。\n\n## 步骤\n\n1. 复制片段\n2. 粘贴到全局 AGENTS.md\n3. 悬浮组件会在 60% 时提醒你\n\n## 改动预览\n\n```json\n## 长会话\n- 上下文超过 60% 时，先用 10 行总结：目标、已做、决定、待办\n- 总结后再继续；不要等到自动压缩\n```",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "context-handoff",
+   "remedy_kind": "workflow",
+   "dim": "flow",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 1,
+    "context_tokens": 50
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话出现上下文压力后丢失约定。",
+    "mechanism": "上下文丢失先用交接流程，必要时再写成规则。",
+    "trial": "下一个长会话在 60% 时总结，对比压缩后返工。",
+    "limitation": "需要你或悬浮组件提醒触发。"
+   },
+   "track": {
+    "triggered": "压缩后重复说明",
+    "mechanical": "主动总结次数",
+    "guardrail": "长会话摩擦率"
+   },
+   "problem_types": [
+    "context_loss"
+   ]
+  }
+ },
+ {
+  "id": "verify-ladder",
+  "type": "workflow",
+  "name": "验证阶梯：编译→单测→端到端",
+  "summary": "按成本从低到高逐级验证，每级通过再进入下一级。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "verify-ladder"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "missing_verification",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "friction",
+    "value": "buggy_output",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "flow",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "verification",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "workflow",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "testing",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 验证阶梯：编译→单测→端到端\n\n按成本从低到高逐级验证，每级通过再进入下一级。\n\n## 原理\n\n验证缺口用流程模板补齐（RC-16）。\n\n## 试用\n\n下一个任务按三级验证，对比返工次数。\n\n## 局限\n\n没有测试的项目只能做到编译级。\n\n## 步骤\n\n1. 先编译或类型检查\n2. 再跑相关单测\n3. 最后做一次端到端或线上检查",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "verify-ladder",
+   "remedy_kind": "workflow",
+   "dim": "flow",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 2
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话缺验证或交付后仍有错误。",
+    "mechanism": "验证缺口用流程模板补齐（RC-16）。",
+    "trial": "下一个任务按三级验证，对比返工次数。",
+    "limitation": "没有测试的项目只能做到编译级。"
+   },
+   "track": {
+    "triggered": "交付后返工",
+    "mechanical": "逐级验证的会话比例",
+    "guardrail": "会话时长"
+   },
+   "problem_types": [
+    "missing_verification",
+    "buggy_output"
+   ]
+  }
+ },
+ {
+  "id": "split-mixed-session",
+  "type": "workflow",
+  "name": "一个会话只做一件事",
+  "summary": "多个不相关任务混在同一会话时，拆成独立会话或 worktree。",
+  "official": true,
+  "agents": [
+   "claude_code",
+   "codex"
+  ],
+  "install": {
+   "kb_rule": "split-mixed-session"
+  },
+  "features": [
+   {
+    "feature": "friction",
+    "value": "wrong_approach",
+    "origin": "curated",
+    "evidence": "Tandem KB problem type"
+   },
+   {
+    "feature": "dimension",
+    "value": "flow",
+    "origin": "curated",
+    "evidence": "Tandem KB"
+   },
+   {
+    "feature": "tag",
+    "value": "workflow",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "session",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "focus",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   },
+   {
+    "feature": "tag",
+    "value": "worktree",
+    "origin": "curated",
+    "evidence": "Tandem KB tag"
+   }
+  ],
+  "license": "MIT",
+  "difficulty": 2,
+  "version": "1",
+  "body": "# 一个会话只做一件事\n\n多个不相关任务混在同一会话时，拆成独立会话或 worktree。\n\n## 原理\n\n方向问题先调整工作方式，不装东西（RC-06 第 11 行）。\n\n## 试用\n\n新任务开新会话，对比纠偏次数。\n\n## 局限\n\n强相关的连续任务不必拆分。\n\n## 步骤\n\n1. 新任务开新会话\n2. 并行任务用 git worktree 隔离\n3. 结束时写一行交接",
+  "risk": [],
+  "metadata": {
+   "origin": "tandem-kb",
+   "kb_rule": "split-mixed-session",
+   "remedy_kind": "workflow",
+   "dim": "flow",
+   "agent_support": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk_level": "low",
+   "cost": {
+    "setup_minutes": 0
+   },
+   "catalog_ref": null,
+   "explain": {
+    "reason_template": "{k} 个会话出现纠偏，且不少会话同时处理多个任务。",
+    "mechanism": "方向问题先调整工作方式，不装东西（RC-06 第 11 行）。",
+    "trial": "新任务开新会话，对比纠偏次数。",
+    "limitation": "强相关的连续任务不必拆分。"
+   },
+   "track": {
+    "triggered": "混合会话比例",
+    "mechanical": "每会话任务数",
+    "guardrail": "会话数"
+   },
+   "problem_types": [
+    "wrong_approach"
+   ]
+  }
+ }
+]

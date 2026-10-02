@@ -68,7 +68,8 @@ class Record(Contract):
 
 class SourceSpec(Contract):
     source_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,79}$")
-    kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local"]
+    kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local",
+                  "snapshot", "kb"]
     url: str
     enabled: bool = True
     priority: int = Field(default=50, ge=0, le=100)

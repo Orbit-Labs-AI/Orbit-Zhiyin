@@ -6,6 +6,8 @@ from ..contracts import SourceSpec
 def default_sources() -> list[SourceSpec]:
     return [
         SourceSpec(source_id="tandem-seeds", kind="bundle", url="bundled:skills.json", priority=100),
+        # Tandem's reviewed remedy templates; the gateway points config.file at the recommend KB.
+        SourceSpec(source_id="tandem-kb", kind="kb", url="bundled:official.v1.json", priority=100),
         SourceSpec(source_id="anthropic-skills", kind="github", url="https://github.com/anthropics/skills", priority=90,
                    config={"repo": "anthropics/skills", "agents": ["claude_code", "codex"], "official": True}),
         SourceSpec(source_id="claude-plugins", kind="github", url="https://github.com/anthropics/claude-plugins-official", priority=90,

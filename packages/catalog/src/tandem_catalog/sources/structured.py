@@ -13,6 +13,7 @@ from ..models import canonical_model_id, normalize_effort, resolve_benchmark_mod
 
 MAX_SOURCE_FILE = 64 * 1024 * 1024
 FILE_KINDS = {"models_dev", "litellm", "swe_bench", "gemini"}
+OFFICIAL_FILE = "data/official.v1.json"
 
 
 def _number(value) -> float | None:
@@ -88,6 +89,12 @@ class StructuredConnector:
                              "trial": row.get("trial"), "limitations": row.get("limitations")})
                 records.append(Record(native_id=row["id"], resource=r, raw=row))
             return Page(records=records, complete=True, revision=digest(rows))
+        if self.source.kind == "snapshot":
+            # Seed rows are written once by snapshot.import_snapshot and retired by the real
+            # source; a scheduled visit must neither re-add nor remove them.
+            return Page(records=[], complete=True, mode="incremental", revision=state.get("revision"))
+        if self.source.kind == "kb":
+            return self._kb(state)
         if self.source.kind == "mcp":
             return self._mcp(checkpoint, state)
         if self.source.kind == "clawhub":
@@ -99,6 +106,21 @@ class StructuredConnector:
         self.known_models = set(state.get("known_models") or ()) | _known_model_ids(state.get("known") or {})
         parser = getattr(self, "_" + self.source.kind)
         return Page(records=list(parser(data)), complete=True, revision=revision)
+
+    def _kb(self, state):
+        """Tandem's reviewed remedy templates as official catalog items (read-only view of the KB)."""
+        if self.source.config.get("file"):
+            data = self._load()
+        else:
+            data = json.loads(files("tandem_catalog").joinpath(OFFICIAL_FILE).read_text())
+        revision = digest(data)
+        if revision == state.get("revision"):
+            return Page(records=[], complete=True, mode="incremental", revision=revision)
+        entries = official_entries(data) if isinstance(data, dict) and "rules" in data else data
+        if not isinstance(entries, list) or not entries:
+            raise ValueError("invalid_kb_catalog")
+        records = [Record(native_id=entry["id"], resource=official_resource(entry), raw=entry) for entry in entries]
+        return Page(records=records, complete=True, revision=revision)
 
     def _mcp(self, checkpoint, state):
         params = {"limit": 100, "version": "latest"}
@@ -275,3 +297,98 @@ def _known_model_ids(known: dict) -> set[str]:
         if isinstance(metadata, dict) and metadata.get("canonical_id"):
             ids.add(metadata["canonical_id"])
     return ids
+
+
+# -- Tandem official entries (recommend KB remedies.v1.json -> catalog shape) ------------------
+KB_TYPES = {"hook": "hook", "skill": "skill", "rule": "rule", "flow": "workflow", "mcp": "mcp_server",
+            "agent": "subagent", "model": "guide"}
+KB_LICENSE = "MIT"
+
+
+def _hook_event(template: str | None) -> str | None:
+    """'hook-post-tool-use@1' -> 'PostToolUse'; 'hook-stop@1' -> 'Stop'."""
+    if not template or not template.startswith("hook-"):
+        return None
+    return "".join(part.capitalize() for part in template.removeprefix("hook-").split("@")[0].split("-"))
+
+
+def _hook_install(rule: dict) -> dict | None:
+    remedy = rule.get("remedy") or {}
+    if remedy.get("kind") != "hook":
+        return None
+    event, matcher, command = _hook_event(remedy.get("template")), None, None
+    text = "".join(line for line, _ in rule.get("file") or [])
+    try:
+        hooks = json.loads(text).get("hooks") if text else None
+    except ValueError:
+        hooks = None
+    if isinstance(hooks, dict) and hooks:
+        event, groups = next(iter(hooks.items()))
+        group = groups[0] if isinstance(groups, list) and groups else {}
+        matcher = group.get("matcher")
+        command = ((group.get("hooks") or [{}])[0]).get("command")
+    if not event:
+        return None
+    hook = {"event": event, "command": command or f"~/.tandem/hooks/{rule['id']}.sh"}
+    if matcher:
+        hook["matcher"] = matcher
+    return hook
+
+
+def _kb_body(rule: dict) -> str:
+    explain = rule.get("explain") or {}
+    parts = [f"# {rule['title']}", rule.get("summary", "")]
+    for heading, key in (("原理", "mechanism"), ("试用", "trial"), ("局限", "limitation")):
+        if explain.get(key):
+            parts += [f"## {heading}", explain[key]]
+    if rule.get("steps"):
+        parts += ["## 步骤", "\n".join(f"{i}. {step}" for i, step in enumerate(rule["steps"], 1))]
+    if rule.get("file"):
+        parts += ["## 改动预览", "```json\n" + "\n".join(line for line, _ in rule["file"]) + "\n```"]
+    return "\n\n".join(p for p in parts if p)
+
+
+def official_entries(kb: dict) -> list[dict]:
+    """Export recommend KB rules (``remedies-v1``) as catalog-shaped official entries."""
+    if not isinstance(kb, dict) or not isinstance(kb.get("rules"), list):
+        raise ValueError("invalid_kb_catalog")
+    entries = []
+    for rule in kb["rules"]:
+        remedy, problem = rule.get("remedy") or {}, rule.get("problem") or {}
+        kind = "guide" if remedy.get("kind") == "removal" else KB_TYPES.get(remedy.get("dim"), "guide")
+        features = [{"feature": "friction", "value": value, "origin": "curated", "evidence": "Tandem KB problem type"}
+                    for value in problem.get("types", [])]
+        features += [{"feature": "dimension", "value": remedy["dim"], "origin": "curated", "evidence": "Tandem KB"}] \
+            if remedy.get("dim") else []
+        features += [{"feature": "scene", "value": value, "origin": "curated", "evidence": "Tandem KB gate"}
+                     for value in (rule.get("gates") or {}).get("scenes") or []]
+        features += [{"feature": "tag", "value": value, "origin": "curated", "evidence": "Tandem KB tag"}
+                     for value in rule.get("tags", [])]
+        install = {"kb_rule": rule["id"]}
+        if remedy.get("template"):
+            install["template"] = remedy["template"]
+        if hook := _hook_install(rule):
+            install["hook"] = hook
+        agents = remedy.get("agents") or {"claude_code": "native", "codex": "manual"}
+        risk = rule.get("risk") or {}
+        entries.append({
+            "id": rule["id"], "type": kind, "name": rule["title"], "summary": rule.get("summary", ""),
+            "official": True, "agents": [a for a, support in agents.items() if support != "unsupported"],
+            "install": install, "features": features, "license": KB_LICENSE, "difficulty": remedy.get("level", 2),
+            "version": str(rule.get("version", 1)), "body": _kb_body(rule), "risk": list(risk.get("flags", [])),
+            "metadata": {"origin": "tandem-kb", "kb_rule": rule["id"], "remedy_kind": remedy.get("kind"),
+                         "dim": remedy.get("dim"), "agent_support": agents, "risk_level": risk.get("level", "low"),
+                         "cost": rule.get("cost") or {}, "catalog_ref": rule.get("catalog_ref"),
+                         "explain": rule.get("explain") or {}, "track": rule.get("track") or {},
+                         "problem_types": problem.get("types", [])},
+        })
+    return entries
+
+
+def official_resource(entry: dict) -> Resource:
+    return Resource(item_id="kb:" + entry["id"], type=entry["type"], name=entry["name"], summary=entry.get("summary", ""),
+                    url="", body=entry.get("body", ""), body_policy="licensed", license=entry.get("license", KB_LICENSE),
+                    agents=entry.get("agents", []), official=True, difficulty=entry.get("difficulty", 2),
+                    version=entry.get("version"), features=[Feature.model_validate(f) for f in entry.get("features", [])],
+                    install=entry.get("install", {}), risk=entry.get("risk", []),
+                    metadata=entry.get("metadata", {"origin": "tandem-kb", "kb_rule": entry["id"]}))
