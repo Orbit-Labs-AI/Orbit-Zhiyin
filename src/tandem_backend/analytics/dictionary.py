@@ -46,3 +46,8 @@ define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by
        "record", "Bucket reported timestamps in display_timezone; unknown clocks excluded; models count requests not snapshots", "event/tool/model timestamps")
 define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
+
+# Family-owned definitions retain the established global lookup surface.
+from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES  # noqa: E402
+
+FEATURES.update(INSTRUCTION_FEATURES)
