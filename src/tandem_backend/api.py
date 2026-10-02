@@ -66,7 +66,11 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
     def feature_sessions(scope=scope_dependency, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
         result = analytics_section("sessions", scope)
         result["total"] = len(result["sessions"])
-        result["sessions"] = result["sessions"][offset:offset + limit]
+        fields = ("session_uid", "kind", "project_id", "legacy_project_id", "title", "features",
+                  "cluster_id", "novelty", "embedding_x", "embedding_y", "effective_samples", "unknown_counts")
+        result["sessions"] = [{**{k: s.get(k) for k in fields}, "usage": {
+            k: s["usage"][k] for k in ("status", "request_count", "total_tokens", "cost_usd")}}
+            for s in result["sessions"][offset:offset + limit]]
         return result
 
     @app.get("/v1/analytics/sessions/{session_id}")

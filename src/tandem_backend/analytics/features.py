@@ -257,7 +257,7 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
              and c.get("measurement") == "delta" and c.get("call_uid") and c.get("boundary_reliable") is True]
     # Stable canonical call IDs prevent mirrored records from becoming new requests.
     valid = list({c["call_uid"]: c for c in valid}.values())
-    snapshots, legacy = {}, {}
+    snapshots, legacy, regressed_keys = {}, {}, set()
     for e in sorted(events, key=lambda e: (e["session_uid"], e["seq"], e["event_uid"])):
         if e["kind"] != "model.usage":
             continue
@@ -265,6 +265,10 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
         if a.get("measurement") == "cumulative":
             key = a.get("snapshot_key")
             if key and a.get("usage_scope") in ("session_snapshot", "session_model_snapshot"):
+                previous_total = token_total(snapshots.get(key, {}))
+                current_total = token_total(a)
+                if previous_total is not None and current_total is not None and current_total < previous_total:
+                    regressed_keys.add(key)
                 snapshots[key] = {**a, "session_uid": e["session_uid"], "event_uid": e["event_uid"]}
             elif a.get("reported") is not None:
                 legacy[e["session_uid"]] = {"event_uid": e["event_uid"], "reported": a["reported"],
@@ -278,7 +282,7 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
     bounded_or_excluded = bool(scope.excluded_session_uids) or not scope.include_children
     for a in snapshots.values():
         value = token_total(a)
-        if value is not None and a.get("coverage") in ("self", "root_tree"):
+        if a["snapshot_key"] not in regressed_keys and value is not None and a.get("coverage") in ("self", "root_tree"):
             snapshot_totals.append({"snapshot_key": a["snapshot_key"], "session_uid": a["session_uid"],
                                     "coverage": a["coverage"], "total_tokens": value,
                                     "event_uid": a["event_uid"]})
@@ -306,6 +310,7 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
             "known_call_tokens": sum(token_total(c) for c in known_calls) if known_calls else None,
             "token_complete_call_n": len(known_calls), "token_unknown_call_n": len(valid) - len(known_calls),
             "token_buckets": {k: sum(c[k] for c in valid) if valid and all(c.get(k) is not None for c in valid) else None for k in TOKEN_BUCKETS},
+            "token_bucket_basis": "call_delta_known_rows",
             "cost_usd": sum(costs) if valid and records_complete and len(costs) == len(valid) == len(model_calls or []) else None,
             "cost_effective_n": len(costs), "cost_unknown_n": len(valid) - len(costs),
             "cost_sources": sorted({c["cost_source"] for c in valid if c.get("cost_source")}),
@@ -314,6 +319,7 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
             "median_ttft_ms": median(ttft) if ttft else None, "ttft_effective_n": len(ttft),
             "models": dict(Counter(c.get("model_id") or "unknown" for c in valid)) if model_calls is not None else None,
             "cumulative_snapshots": snapshot_totals or None, "legacy_latest_reports": list(legacy.values()) or None,
+            "cumulative_regressed_keys": sorted(regressed_keys),
             "cumulative_note": "快照不按日期分摊、不推算请求、不与逐次值相加；旧报告不提供规范总量"}
 
 

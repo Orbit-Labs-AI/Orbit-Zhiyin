@@ -194,6 +194,47 @@ def test_cumulative_latest_not_summed_and_tree_does_not_add_children():
     u = usage([request(sid="child")], es, [session(), session("child", "subagent")], Scope())
     assert u["total_tokens"] == 8000 and u["total_basis"] == "cumulative_snapshot"
     assert usage(None, es, [session()], Scope(from_ts=0))["total_tokens"] is None
+    es.append(snapshot("regressed", 2, 100))
+    u = usage(None, es, [session()], Scope())
+    assert u["total_tokens"] is None and u["cumulative_regressed_keys"] == ["cycle"]
+
+
+def test_mixed_model_turn_does_not_attribute_all_tools_to_either_model():
+    b = bundle(calls=[call()], models=[request(), request("other", model_id="model-b")])
+    r = analyze_bundle(b, Scope(model_ids=["model-a"]), with_text=False)
+    assert r["overview"]["usage"]["request_count"] == 1
+    assert r["tools"]["totals"]["call_count"] == 0
+    assert r["selection"]["model_ambiguous_turns_excluded"] == 1
+
+
+def test_legacy_import_does_not_upgrade_user_role_or_override_explicit_nonhuman(tmp_path):
+    from tandem_backend.importers.codex import parse_rollout
+    path = tmp_path / "native.jsonl"
+    rows = [
+        {"type": "session_meta", "payload": {"id": "s", "source": "vscode", "thread_source": "user"}},
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": "请修复测试"}},
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "origin": "peer", "content": "请修改报告"}},
+        {"type": "event_msg", "payload": {"type": "user_message", "message": "请修改报告"}},
+    ]
+    path.write_text("\n".join(json.dumps(r) for r in rows))
+    p = parse_rollout(path)
+    assert p.session.analytics_metadata["kind"] == "main"
+    assert p.events[0].details["origin"] == "unknown"
+    assert p.events[1].details["origin"] == "peer"
+
+
+def test_scope_does_not_mutate_bundle_and_digest_changes_with_source_and_scope():
+    b = bundle()
+    original = copy.deepcopy(b)
+    a = analyze_bundle(b, with_text=False)
+    limited = analyze_bundle(b, Scope(project_ids=[]), with_text=False)
+    assert b == original
+    assert a["analysis_digest"] != limited["analysis_digest"]
+
+
+def test_text_json_is_serializable_with_real_clustering():
+    es = [{"entity_id": str(i), "text": "测试程序", "ts": i} for i in range(4)]
+    json.dumps(representation(es), allow_nan=False)
 
 
 @pytest.mark.parametrize("text", ["不对，请重新来", "还是不行", "wrong, try again", "你理解错了。", "改成两段"])

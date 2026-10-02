@@ -274,6 +274,12 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         and (scope.effort_raw is None or c.get("effort_raw") in scope.effort_raw)]
     model_filter = scope.model_ids is not None or scope.effort_raw is not None
     matching_turns = {c.get("turn_uid") for c in model_calls or [] if c.get("turn_uid")}
+    ambiguous_turns = set()
+    if model_filter:
+        selected_calls = {c["call_uid"] for c in model_calls or []}
+        ambiguous_turns = {c.get("turn_uid") for c in bundle.model_calls or [] if c["session_uid"] in ids
+                           and c.get("turn_uid") in matching_turns and c["call_uid"] not in selected_calls}
+        matching_turns -= ambiguous_turns
     def event_member(e):
         return (scope.contains(e.get("ts")) and (not model_filter or e.get("turn_uid") in matching_turns)
                 and (scope.scene is None or e.get("attrs", {}).get("scene") == scope.scene))
@@ -312,6 +318,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         if result and result["event_uid"] not in member_ids:
             context_events.append(result)
     diagnostics = {"excluded_sessions": dict(excluded), "replayed_events_excluded": len(replayed),
+                   "model_ambiguous_turns_excluded": len(ambiguous_turns),
                    "context_events": context_events,
                    "time_unknown_events": sum(e.get("ts") is None for e in all_events),
                    "time_unknown_excluded_from_bounded_counts": sum(e.get("ts") is None for e in all_events)

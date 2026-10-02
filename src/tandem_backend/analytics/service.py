@@ -77,6 +77,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
               "correction_signal_rate": correction / human_count if human_count else None}
     meta["coverage"]["human_origin"] = {**meta["coverage"].get("human_origin", {}),
         "status": "partial" if unknown_origin else "available", "rows": human_count, "unknown_rows": unknown_origin}
+    meta["coverage"]["sample_exclusions"] = {"status": "excluded",
+        "rows": sum(diagnostics["excluded_sessions"].values()), "reasons": diagnostics["excluded_sessions"]}
     languages = Counter()
     for r in rows:
         languages.update({v["language"]: v["count"] for v in r["language_signals"]})
@@ -90,12 +92,15 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         ids = {sid for r in rs for sid in r["included_session_uids"]}
         pcs = None if calls is None else [c for c in calls if c["session_uid"] in ids]
         pe = [e for e in events if e["session_uid"] in ids]
+        ph = sum(human(e, main_ids) for e in pe)
+        pu = sum(r["unknown_counts"]["human_origin"] for r in rs)
         projects.append({"project_id": pid, "legacy_project_id": legacy, "name": names.get((pid, legacy)),
             "identity_quality": "canonical" if pid is not None else "legacy_path",
             "session_count": len(rs), "main_session_count": sum(r["kind"] == "main" for r in rs),
-            "human_message_count": sum(human(e, main_ids) for e in pe),
+            "human_message_count": ph if ph or not pu else None,
+            "effective_samples": {"human_messages": ph}, "unknown_counts": {"human_origin": pu},
             "turn_count": len({(e["session_uid"], e["turn_uid"]) for e in pe if e.get("turn_uid")}) or None,
-            "correction_signal_count": sum(r["features"]["correction_signal_count"] or 0 for r in rs),
+            "correction_signal_count": sum(r["features"]["correction_signal_count"] or 0 for r in rs) if ph else None,
             "tools": tool_summary(pcs, all_tools["status"]),
             "usage": usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
                            pe, [s for s in sessions if s["session_uid"] in ids], scope, complete_models),
@@ -110,6 +115,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                     row["features"][key] = None
             row["prompt_structure"] = None
             row["subjective_outcome_candidates"] = None
+            row["workflow"] = None
+        all_workflow = {"status": "unavailable", "transitions": None, "sequences": None}
         rhythm = None
     return {**meta, "feature_schema_version": FEATURE_VERSION, "feature_dictionary": FEATURES,
             "analysis_digest": stable_id(bundle.versions.get("content_digest"), asdict(scope), FEATURE_VERSION),
@@ -120,7 +127,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "overview": {"counts": counts, "usage": all_usage, "activity_rhythm": rhythm,
                          "top_tools": (all_tools["by_tool"] or [])[:10] if all_tools["by_tool"] is not None else None,
                          "top_languages": [{"language": k, "count": n, "basis": "file_extension_in_human_text"}
-                                           for k, n in languages.most_common()]},
+                                           for k, n in languages.most_common()] if human_count or not unknown_origin else None},
             "sessions": rows, "tools": {**all_tools, "transitions": all_workflow["transitions"]},
             "workflow": all_workflow, "projects": projects, "text": text,
             "limitations": ["日志跨度不是实际工作时长", "词面纠偏和结构约束只是代理信号",

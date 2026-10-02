@@ -1,6 +1,7 @@
 """Local unsupervised representation; no labels and no remote services."""
 
 import warnings
+from importlib.metadata import version
 
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -53,6 +54,7 @@ def temporal_novelty(entities):
 def representation(entities, eps=.35, min_samples=2):
     entities = sorted((e for e in entities if len(e.get("text", "").strip()) >= 2), key=lambda e: e["entity_id"])
     base = {"vectorizer_version": VECTOR_VERSION, "unit": "main_session",
+            "library_versions": {name: version(name) for name in ("scikit-learn", "numpy", "scipy")},
             "parameters": {"ngram_range": [2, 4], "max_features": 20_000, "svd_max_dimensions": 32,
                            "random_state": 0, "dbscan_cosine_eps": eps, "dbscan_min_samples": min_samples},
             "effective_n": len(entities), "axes_meaning": "visualization only",
