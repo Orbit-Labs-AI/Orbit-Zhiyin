@@ -209,6 +209,7 @@ class Gateway:
     def close(self) -> None:
         self.stopping.set()
         self.platform.close()
+        self._close_services()
         with self.lock:
             if self.prewarm_timer is not None:
                 self.prewarm_timer.cancel()
@@ -218,6 +219,21 @@ class Gateway:
         self.reads.close()
         self.snapshots.close()
         self.appdb.close()
+
+    def _close_services(self) -> None:
+        """Area services created by their routers (features hub, lazy AI service)."""
+        from .. import features
+
+        for close in (lambda: features.get().close(), lambda: self._ai.close()):
+            try:
+                close()
+            except (AttributeError, RuntimeError):
+                pass  # Never created (router not mounted or AI never used).
+
+    @property
+    def rec_settings(self) -> dict:
+        """Recommend memory settings (ai_generate, level), edited via /v1/platform/recommend."""
+        return self.platform.settings.get("recommend")
 
     # -- worker events -------------------------------------------------------------------
     def _emit(self, topic: str, event: str, data: dict) -> int:

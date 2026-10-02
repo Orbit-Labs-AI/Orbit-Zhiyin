@@ -78,6 +78,17 @@ def router(gw: Gateway) -> APIRouter:
         p.refresh()
         return flags
 
+    @api.get("/v1/platform/recommend")
+    def get_recommend():
+        return p.settings.get("recommend")
+
+    @api.put("/v1/platform/recommend")
+    def put_recommend(patch: dict[str, Any]):
+        try:
+            return p.settings.put_recommend(patch)
+        except SettingsError as error:
+            raise ApiError(422, "invalid_request", str(error)) from None
+
     @api.get("/v1/platform/storage")
     def platform_storage():
         report = storage.latest_report(p.appdb)

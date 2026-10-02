@@ -12,6 +12,8 @@ from pathlib import Path
 DEFAULTS = {
     "telemetry": {"enabled": False, "retention_days": 14, "slow_ms": 500, "export_dir": None},
     "flags": {"notifications": True, "slow_log": True, "maintenance": True, "json_logs": True},
+    # Recommend memory settings: AI-generated candidates; audience level 0..4 (None = any).
+    "recommend": {"ai_generate": False, "level": None},
 }
 
 
@@ -84,6 +86,22 @@ class PlatformSettings:
             flags[key] = value
         self.put("flags", flags)
         return flags
+
+    def put_recommend(self, patch: dict) -> dict:
+        cfg = self.get("recommend")
+        for key, value in patch.items():
+            if key == "ai_generate":
+                if not isinstance(value, bool):
+                    raise SettingsError("ai_generate must be a boolean")
+            elif key == "level":
+                if value is not None and (not isinstance(value, int) or isinstance(value, bool)
+                                          or not 0 <= value <= 4):
+                    raise SettingsError("level must be null or 0..4")
+            else:
+                raise SettingsError(f"unknown recommend setting: {key}")
+            cfg[key] = value
+        self.put("recommend", cfg)
+        return cfg
 
     def flag(self, name: str) -> bool:
         with self.lock:
