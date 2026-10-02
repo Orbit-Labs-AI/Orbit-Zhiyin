@@ -74,6 +74,24 @@ def test_candidate_install_tracks_exposes_links_and_reverts(setup):
         assert db.execute("SELECT label FROM label").fetchone()[0] == "not_useful"
 
 
+def test_kb_candidate_installs_through_its_kb_catalog_entry(setup):
+    """A KB-origin card (the one slate hygiene keeps over its ``catalog:kb:<id>`` twin) plans
+    from the ``kb:<id>`` entry the official tandem-kb source publishes."""
+    svc, _, _ = setup
+    hook = {"event": "PreToolUse", "matcher": "Bash", "command": "echo synthetic-guard",
+            "id": "retry-breaker"}
+    entry = {"id": "kb:retry-breaker", "kind": "hook", "name": "retry breaker",
+             "install": {"hook": hook}, "license": {"spdx": "MIT"}}
+    asked = []
+    svc.catalog_lookup = lambda item_id: asked.append(item_id) or (entry if item_id == entry["id"] else None)
+    add_candidate(svc.appdb, "cand-kb", {
+        "source": {"origin": "kb", "item_id": "retry-breaker", "catalog_ref": None},
+        "target_agents": ["claude_code"], "problem": {"type": "x"}})
+    plan = svc.plan({"type": "candidate", "id": "cand-kb"}, agents=["claude_code"])
+    assert plan["status"] == "ready" and asked == ["kb:retry-breaker"]
+    assert plan["kind"] == "hook"
+
+
 def test_unknown_candidate_warns_without_tracking(setup):
     svc, _, _ = setup
     with svc.appdb.write() as db:

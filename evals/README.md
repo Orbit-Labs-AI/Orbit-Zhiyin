@@ -36,7 +36,7 @@ bash scripts/test-local-codex-recommend.sh
 
 每次运行创建 `.local/codex-recommend/run-<时间>-<标识>/`，保存 `data/tandem.db`、selection / import / verify / analytics / recommendations / summary JSON 和 `report.md`。原生来源按当前数据层契约就地只读索引，不另存原始日志副本；后续回查证据仍依赖来源文件。真实结果只留在忽略目录。显式 `--output` 必须是新目录，避免旧会话混入新样本；仓库内输出必须位于 `.local`。
 
-投影或核验时若检测到来源追加了内容，会对同一组选中文件最多尝试三次；来源持续变化、缺失或核验不完整时失败退出，不缩小样本或忽略核验错误。
+采集后来源被追加不影响本次运行：重算只投影已采集的字节，追加部分留给下一次导入。若某文件在采集后被改写，导入会跳过该文件（`skipped_files`，核验为 partial、状态 changed），脚本对同一组选中文件重新导入，最多尝试三次；来源持续被改写、缺失或核验不完整时失败退出，不缩小样本或忽略核验错误。
 
 退出码 0 表示完成并产生 Skill 推荐，2 表示链路完成但没有匹配，1 表示导入／核验／分析失败。零推荐不会回退到构造数据或自动降低门槛；具体原因保留在 recommendations.json 的 assessments、excluded_resources 和 diagnostics。未提供成本及改善假设时，收益仍为未知。
 

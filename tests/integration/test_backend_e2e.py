@@ -88,6 +88,9 @@ def e2e(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(user_home))
     monkeypatch.setenv("TANDEM_INSTALL_HOME", str(user_home))
     monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
+    # No network: the background catalog refresher still imports the bundled library seed,
+    # but never schedules the first network sync.
+    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "0")
     for name in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "ANTHROPIC_API_KEY", "XDG_DATA_HOME"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(engines, "FALLBACK_DIRS", ())
@@ -156,6 +159,20 @@ def import_sessions(client, root: Path) -> None:
     assert wait_for(finished, 120, 0.1, "import job")["status"] == "completed"
 
 
+def catalog_settled(client) -> None:
+    """The refresher imports the bundled library seed once the gateway starts; every source it
+    publishes moves the catalog generation, which keys the recommendation run. It reports the
+    first-sync state (``disabled`` here) only after that import, so wait for it before runs."""
+    wait_for(lambda: client.get("/v1/catalog/status").json()["first_sync"]["state"] != "pending",
+             120, 0.1, "catalog seed import")
+
+
+def plan_status(client, candidate_id: str) -> str | None:
+    response = client.post("/v1/install/plans", json={
+        "source": {"type": "candidate", "id": candidate_id}, "agents": ["claude_code"], "fetch": True})
+    return response.json().get("status") if response.status_code == 201 else None
+
+
 def recommendations(client) -> dict:
     def ready():
         response = client.get("/v1/recommendations", params={"wait_ms": 3000})
@@ -183,8 +200,9 @@ def install_and_check(client, source: dict, user_home: Path) -> dict:
 def test_backend_end_to_end(e2e):
     client, gateway, codex_root, user_home = e2e
     import_sessions(client, codex_root)
+    catalog_settled(client)
 
-    # Features and recommendations; the second call reuses the persisted run.
+    # Features and recommendations; with unchanged inputs the second call reuses the run.
     profile = ok(client.get("/v1/features/profile"))
     assert profile["n_sessions"] > 0 and profile["scope_hash"]
     first = recommendations(client)
@@ -203,8 +221,12 @@ def test_backend_end_to_end(e2e):
     ok(client.delete(f"/v1/labels/{label['label_id']}"))
     assert ok(client.get(f"/v1/recommendations/{seen}"))["labels"][0]["undone_at"]
 
-    # Install the top candidate under the temporary HOME, then follow it through to revert.
-    card = next(i for i in items if i["source"]["origin"] == "catalog")
+    # Install an evidence-backed card (not a「资料库推荐」catalog_only filler, which is often
+    # link-only) under the temporary HOME, then follow it through to revert.
+    backed = [i for i in items if i.get("basis") != "catalog_only" and i["evidence"]["session_uids"]]
+    assert backed, items
+    card = next((i for i in backed if plan_status(client, i["candidate_id"]) == "ready"), None)
+    assert card is not None, [(i["candidate_id"], i["source"]) for i in backed]
     candidate = card["candidate_id"]
 
     before = {p: p.read_bytes() for p in user_home.rglob("*") if p.is_file()}

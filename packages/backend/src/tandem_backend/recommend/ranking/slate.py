@@ -4,12 +4,17 @@ Within one problem a second candidate of the same dimension is folded into the
 first card's `alternatives` instead of taking a slot.
 """
 
-from .rank import basis
+from .hygiene import LIBRARY_CAP
+from .rank import basis as _basis
 
 LAMBDA = .8
 PER_PROBLEM = 2
 KIND_CAPS = {"skill": 2, "removal": 2, "builtin": 1, "generate": 1}
 GENERIC_CAP = 3
+
+
+def basis(cand: dict) -> str:
+    return cand.get("basis") or _basis(cand)
 
 
 def _tags(cand: dict) -> set[str]:
@@ -39,6 +44,8 @@ def order_key(cand: dict) -> tuple:
 def select(cands: list[dict], limit: int = 30) -> list[dict]:
     """Pick and rank passing candidates; non-selected ones get `excluded` set in place."""
     pool = sorted(cands, key=order_key)
+    library = [c for c in pool if basis(c) == "catalog_only"]  # 资料库推荐: below the evidence slate
+    pool = [c for c in pool if basis(c) != "catalog_only"]
     driven = [c for c in pool if basis(c) != "generic"]
     if driven:
         for c in pool:
@@ -88,6 +95,14 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
             max_sim[c["rec_key"]] = max(max_sim[c["rec_key"]], _jaccard(tags[c["rec_key"]], tags[key]))
     for c in remaining:
         c["excluded"] = "cap:slate"
+    shelf = 0
+    for c in library:
+        if len(chosen) < limit and shelf < LIBRARY_CAP and c["rec_key"] not in seen:
+            seen.add(c["rec_key"])
+            chosen.append(c)
+            shelf += 1
+        else:
+            c["excluded"] = "cap:catalog_only"
     for i, c in enumerate(chosen, 1):
         c["rank"] = i
         c["excluded"] = None

@@ -3,7 +3,6 @@ the share-card payload. Thin handlers over ``tandem_backend.exporting``."""
 
 from __future__ import annotations
 
-import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -19,7 +18,6 @@ from .auth import ApiError
 if TYPE_CHECKING:
     from .gateway import Gateway
 
-DAY_MS = 86_400_000
 SHARE_WINDOW_DAYS = 30
 
 
@@ -31,7 +29,10 @@ class ReportRequest(BaseModel):
 
 
 class ShareCardRequest(BaseModel):
-    scope: dict | None = None
+    scope: dict | None = None  # only display_timezone is read; the window is ``period``
+    period: str = str(SHARE_WINDOW_DAYS)
+    agents: list[str] | None = None
+    project: str | None = None
     hide_numbers: bool = False
     theme: Literal["light", "dark", "system"] = "system"
     save: bool = True
@@ -42,13 +43,6 @@ def _scope(raw: dict) -> dict:
         return report.build_scope(raw)
     except (ValueError, TypeError) as error:  # analytics_scope raises ApiError itself
         raise ApiError(422, "invalid_request", str(error)) from error
-
-
-def _share_scope(raw: dict | None) -> dict:
-    if raw is not None:
-        return _scope(raw)
-    today = int(time.time() * 1000) // DAY_MS * DAY_MS  # Day-aligned so the cache key holds.
-    return _scope({"from_ts": today - SHARE_WINDOW_DAYS * DAY_MS})
 
 
 def router(gw: Gateway) -> APIRouter:
@@ -126,12 +120,21 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.post("/v1/export/share_card")
     def share_card(body: ShareCardRequest):
-        scope = _share_scope(body.scope)
-        fetched, h = report.fetch_sections(gw, sharecard.PERSONA_SECTIONS, scope)
-        bodies = {name: value[0] for name, value in fetched.items()}
-        result = sharecard.payload(bodies, hide_numbers=body.hide_numbers, theme=body.theme)
+        from ..uiview import fetch, overview
+
+        tz = (body.scope or {}).get("display_timezone")
+        scope = fetch.default_scope(tz)
+        params = {"period": body.period, "agents": body.agents or None,
+                  "project": body.project or None, "vs": None}
+        try:
+            page, freshness, _ = fetch.persona_page(gw, scope, params, overview.today_in(tz),
+                                                    wait_ms=3000)
+        except ValueError as error:
+            raise ApiError(422, "invalid_request", str(error)) from error
+        result = sharecard.payload(page, hide_numbers=body.hide_numbers, theme=body.theme)
+        h = (page or {}).get("meta", {}).get("scope_hash")
         result["scope_hash"] = h
-        if any(state == "computing" for _, state in fetched.values()):
+        if freshness == "computing":
             result["freshness"] = "computing"
         if result["eligible"] and body.save:
             from .sections import rules_digest

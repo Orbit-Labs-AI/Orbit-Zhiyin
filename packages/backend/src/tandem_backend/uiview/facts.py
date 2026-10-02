@@ -60,7 +60,8 @@ AGENT_NAMES = {"claude_code": ("Claude Code", "Claude"), "codex": ("Codex", "Cod
                "gemini": ("Gemini CLI", "Gemini"), "gemini_cli": ("Gemini CLI", "Gemini"),
                "deepseek": ("DeepSeek Harness", "DeepSeek"), "dsh": ("DeepSeek Harness", "DeepSeek"),
                "copilot": ("Copilot CLI", "Copilot"), "opencode": ("OpenCode", "OpenCode"),
-               "pi": ("Pi", "Pi"), "hermes": ("Hermes Agent", "Hermes")}
+               "pi": ("Pi", "Pi"), "hermes": ("Hermes Agent", "Hermes"),
+               "kimi": ("Kimi CLI", "Kimi")}
 
 
 def _tz(name: str | None):
@@ -206,6 +207,17 @@ def _human(conn, mains: str):
     return first, texts
 
 
+def _moods(conn, mains: list[str]) -> dict[str, float]:
+    """Mean emotion score per main session in −1..1 (same rule as ``/v1/uiview/sentiment``)."""
+    from .a4a6_sentiment import fetch_humans, session_balances
+
+    try:
+        balances, _ = session_balances(fetch_humans(conn, mains))
+    except Exception:  # noqa: BLE001 - older stores lack the view; mood stays null
+        return {}
+    return {uid: round(v, 3) for uid, v in balances.items()}
+
+
 def _instruction_index(result: dict):
     verify, structured = set(), set()
     for rec in ((result.get("instruction") or {}).get("records")) or []:
@@ -343,6 +355,7 @@ def build_facts(conn, result: dict, scope) -> dict:
     tok, cumulative, models, efforts = _models(conn, uids, root_of)
     first, texts = _human(conn, main_json)
     topics = _topics(result, root_of)
+    moods = _moods(conn, [s["session_uid"] for s in mains])
     extra_tools = _children_tools(result, root_of)
     signals: dict[str, Counter] = defaultdict(Counter)
     for signal in ((result.get("bottleneck_recommendations") or {}).get("signals")) or []:
@@ -384,7 +397,7 @@ def build_facts(conn, result: dict, scope) -> dict:
             "corr": corr, "corr_basis": "lexical_candidate" if corr is not None else None,
             "steps": steps, "verify": verify, "out": out,
             "out_basis": "estimate" if out else None, "fric": fric, "fric_basis": fric_basis,
-            "topic": topic_of(first_text, topics.get(uid)), "mood": None,
+            "topic": topic_of(first_text, topics.get(uid)), "mood": moods.get(uid),
             "tok": tok.get(uid), "tok_basis": (None if uid not in tok else "cumulative_estimate"
                                                if uid in cumulative else "l1_model_call"),
             "model": models[uid].most_common(1)[0][0] if models.get(uid) else None,
@@ -422,7 +435,7 @@ def _meta(rows: list[dict], excluded: list[dict], counts: dict, tz_name: str) ->
         "basis": {"dur": "active_estimate", "span": "observed_span", "msgs": "analysis",
                   "tools": "analysis", "errors": "l1_tool_status", "steps": "l1_turn_steps",
                   "verify": "instruction_or_validation_candidate", "topic": "rule_mapping",
-                  "mood": "unavailable"},
+                  "mood": "lexical_emotion_mean"},
     }
 
 
@@ -454,6 +467,11 @@ LIVE_STATES = frozenset(("running", "awaiting_approval", "failing"))
 DICT_FIELDS = ("a", "p", "corr_basis", "out", "out_basis", "fric", "fric_basis", "topic",
                "tok_basis", "model", "effort", "title_source")
 ID_PREFIX = "session_"
+# Per-session persona units (from ``aux``) so the client can re-derive the persona on any
+# subset: dk/dn = turns with ≥ STEP_THRESHOLD steps / turns, vk = verified turns,
+# op = structured opening (0 / 1 / null), t0 / t1 = observed interval (ms).
+AUX_KEYS = ("dk", "dn", "vk", "op", "t0", "t1")
+STEP_THRESHOLD = 5
 WIRE_TITLE_LEN = 40
 
 
@@ -471,6 +489,18 @@ def overlay_live(body: dict, realtime: dict | None) -> dict:
     return {**body, "rows": rows}
 
 
+WIRE_KEYS = (*ROW_KEYS, *AUX_KEYS)
+
+
+def aux_units(a: dict | None) -> dict:
+    if not a:
+        return dict.fromkeys(AUX_KEYS)
+    turns = a.get("turns") or []
+    return {"dk": sum(1 for t in turns if t[0] >= STEP_THRESHOLD), "dn": len(turns),
+            "vk": sum(1 for t in turns if t[1]), "op": a.get("open"), "t0": a.get("t0"),
+            "t1": a.get("t1")}
+
+
 def compact(body: dict) -> dict:
     """Columnar wire form: ``fields`` + ``rows`` (lists), dictionary-coded strings.
 
@@ -479,13 +509,14 @@ def compact(body: dict) -> dict:
     Session ids drop the shared ``session_`` prefix (``meta.id_prefix``); booleans are 0 / 1;
     floats keep one decimal. Keeps ≈ 200 KB per 1000 sessions.
     """
-    rows = body.get("rows") or []
+    rows = [{**r, **aux_units((body.get("aux") or {}).get(r["id"]))}
+            for r in body.get("rows") or []]
     dicts: dict[str, list] = {f: [] for f in DICT_FIELDS}
     index: dict[str, dict] = {f: {} for f in DICT_FIELDS}
     out = []
     for row in rows:
         values = []
-        for key in ROW_KEYS:
+        for key in WIRE_KEYS:
             value = row.get(key)
             if key == "id" and isinstance(value, str) and value.startswith(ID_PREFIX):
                 value = value[len(ID_PREFIX):]
@@ -502,7 +533,7 @@ def compact(body: dict) -> dict:
                 value = round(value, 1)
             values.append(value)
         out.append(values)
-    fields = list(ROW_KEYS)
+    fields = list(WIRE_KEYS)
     constants = {}
     if out:
         for i in range(len(fields) - 1, 0, -1):  # never fold ``id``

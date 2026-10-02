@@ -11,7 +11,8 @@ First start and refresh (no network in ``router()``): the offline sources (bundl
 list and the recommend KB as ``tandem-kb`` official items) are published synchronously, so
 the library is never empty. Once the gateway has started, a background refresher imports
 the bundled library snapshot (a fresh home only) and then asks the catalog to sync due
-sources every ``REFRESH_TICK_S``; each source's ``refresh_seconds`` (24 h, MCP 1 h) decides
+sources every ``REFRESH_TICK_S`` (a library with no network data syncs right after start and
+reports it as ``first_sync`` in ``/v1/catalog/status``); each source's ``refresh_seconds`` (24 h, MCP 1 h) decides
 what is due, and an active catalog job skips the tick.
 """
 
@@ -116,6 +117,7 @@ ETAG_PREFIXES = ("/v1/catalog/items", "/v1/catalog/library", "/v1/catalog/facets
 
 REFRESH_TICK_S = 15 * 60  # How often due sources are checked; sources decide their own cadence.
 FIRST_SYNC_DELAY_S = 60.0  # Let the app settle (and the seed land) before the first network sync.
+FIRST_RUN_DELAY_S = 3.0  # Empty library (no network source ever completed): sync almost at once.
 KB_SOURCE = "tandem-kb"
 
 
@@ -150,8 +152,13 @@ def _autosync_enabled() -> bool:
 
 
 def _refresher(ref: weakref.ref, service, poll_s: float = 1.0) -> None:
-    """Waits for the gateway to start; holds only a weak reference so test gateways can go."""
-    seeded, next_sync = False, None
+    """Waits for the gateway to start; holds only a weak reference so test gateways can go.
+
+    First run (G7): while no network source has ever completed, the sync starts
+    ``FIRST_RUN_DELAY_S`` after start (retried each poll while another catalog job runs) and is
+    reported by ``service.first_sync_state()``; afterwards due sources sync every tick.
+    """
+    seeded, next_sync, first = False, None, False
     while True:
         gw = ref()
         if gw is None or gw.stopping.is_set():
@@ -165,15 +172,38 @@ def _refresher(ref: weakref.ref, service, poll_s: float = 1.0) -> None:
                     service.bootstrap()
                 except Exception:  # noqa: BLE001 - a broken seed never stops the gateway.
                     log.warning("catalog seed import failed", exc_info=True)
-                next_sync = time.monotonic() + FIRST_SYNC_DELAY_S
+                first = _needs_first_sync(service)
+                next_sync = time.monotonic() + (FIRST_RUN_DELAY_S if first else FIRST_SYNC_DELAY_S)
+                due_at = int((time.time() + FIRST_RUN_DELAY_S) * 1000) if first else None
+                _track(service, "disabled" if not _autosync_enabled() else "scheduled" if first else "not_needed",
+                       due_at=due_at)
             if _autosync_enabled() and time.monotonic() >= next_sync:
                 next_sync = time.monotonic() + REFRESH_TICK_S
                 try:
-                    refresh_tick(service)
+                    job = refresh_tick(service)
+                    if first and job is None:  # Another catalog job: retry soon, not in 15 min.
+                        next_sync = time.monotonic() + FIRST_RUN_DELAY_S
+                        _track(service, "deferred")
+                    elif first:
+                        _track(service, "started", job_id=job["job_id"])
+                        first = False
                 except Exception:  # noqa: BLE001
                     log.warning("catalog refresh failed to start", exc_info=True)
         if stopping.wait(poll_s):
             return
+
+
+def _needs_first_sync(service) -> bool:
+    try:
+        return bool(service.needs_network_sync())
+    except Exception:  # noqa: BLE001 - a stand-in or busy store: treat as already synced.
+        return False
+
+
+def _track(service, state: str, **fields) -> None:
+    track = getattr(service, "track_first_sync", None)
+    if track is not None:
+        track(state, **fields)
 
 
 def bootstrap(service) -> None:
@@ -223,7 +253,7 @@ def router(gw: Gateway) -> APIRouter:
 
     @outer.get("/v1/catalog/status", tags=["resource catalog"])
     def status():  # Registered before catalog_router's /status, so this one answers.
-        return {**service.store.stats(), "coverage": service.coverage()}
+        return {**service.store.stats(), "coverage": service.coverage(), "first_sync": service.first_sync_state()}
 
     outer.include_router(catalog_router(service, decorate, profile=library_profile, installed_summary=installed_summary))
     return outer

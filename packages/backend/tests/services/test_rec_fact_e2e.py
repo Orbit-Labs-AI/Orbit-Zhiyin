@@ -20,6 +20,14 @@ def test_unlabelled_codex_logs_yield_cards(client_factory, tmp_path, monkeypatch
     source = add_codex(client, codex)
     assert wait_job(client, run_job(client, "import", [source])["id"])["status"] == "completed"
     assert wait_job(client, run_job(client, "inventory", [source])["id"])["status"] == "completed"
+    # exec_approval_request/response carry call_id + decision onto the tool calls.
+    tools = client.get("/v1/uiview/tools").json()
+    asked = tools["kpis"]["approvals"]
+    assert asked["count"] > 0 and asked["timed_n"] == asked["count"], asked
+    assert sum(b["n"] for b in tools["approval"]["histogram"]) == asked["timed_n"]
+    assert tools["approval"]["readonly_prompted"]["n"] > 0
+    exec_rate = {t["key"]: t["approval_rate"] for t in tools["tools"]}["exec_command"]
+    assert exec_rate is not None and exec_rate > 0
     body, deadline = None, time.monotonic() + 180
     while time.monotonic() < deadline:
         response = client.get("/v1/recommendations", params={"wait_ms": 3000})

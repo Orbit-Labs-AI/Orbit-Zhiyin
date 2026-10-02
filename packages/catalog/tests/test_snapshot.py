@@ -231,3 +231,21 @@ def test_bundled_seed_is_small_valid_and_covers_every_library_kind():
         for item in source["items"]:
             Resource.model_validate(item)
             assert len(item.get("body", "").encode()) <= BODY_LIMIT
+
+
+def test_bundled_seed_has_fixed_source_mappings():
+    """Guards the shipped snapshot: hook names from plugin dirs, no skill-internal rules, one row per mirror."""
+    from tandem_catalog.snapshot import bundled_seed, load_seed
+
+    doc = load_seed(bundled_seed())
+    items = [r for source in doc["sources"].values() for r in source["items"]]
+    by_kind: dict[str, list[dict]] = {}
+    for r in items:
+        by_kind.setdefault(r["type"], []).append(r)
+    assert all(by_kind.get(kind) for kind in ("skill", "plugin", "subagent", "command", "rule", "hook", "workflow",
+                                              "mcp_server"))
+    assert not [r for r in by_kind["hook"] if r["name"] == "hooks"]
+    assert not [r for r in by_kind["rule"] if r["name"].startswith("_") or not r.get("summary")]
+    assert len(by_kind["mcp_server"]) >= 100 and len({r["item_id"] for r in items}) == len(items)
+    keys = [(r["type"], r["name"].lower(), r.get("summary", "")) for r in items]
+    assert len(set(keys)) == len(keys)

@@ -16,6 +16,9 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import asdict, is_dataclass
+from typing import Annotated
+
+from fastapi import Query
 
 from ..analytics.common import quantile as _quantile
 from ..recommend.outcomes import newcombe as _newcombe
@@ -26,6 +29,12 @@ CONTRACT = "tandem-uiview-a4a6-v1"
 DAY_MS = 86_400_000
 WEEK_MS = 7 * DAY_MS
 ADAPTERS = ("a4a6_tools", "a4a6_projects", "a4a6_sentiment")
+
+# Repeated query parameter (``?agent=a&agent=b``). Kept at module level and imported by
+# name: the adapters use ``from __future__ import annotations``, so FastAPI resolves route
+# annotations against module globals and a function-local alias stays ForwardRef('many'),
+# which makes ``/v1/openapi.json`` fail with a 500.
+ManyQuery = Annotated[list[str] | None, Query()]
 
 
 # -- scope -------------------------------------------------------------------------------
@@ -176,6 +185,41 @@ def ui_meta(scope, rev: dict, coverage: dict, *, params: dict | None = None, **e
     return {"contract": CONTRACT, "scope_hash": scope_hash(scope, params),
             "data_rev": rev.get("data_rev"), "inventory_rev": rev.get("inventory_rev"),
             "generated_at": int(time.time() * 1000), "coverage": coverage, **extra}
+
+
+# -- shared filters (same names as /v1/uiview/overview) ---------------------------------
+
+FACETS = ("topic", "outcome", "fric", "hour")
+
+
+def agent_list(agent: list[str] | None, agents: str | None) -> list[str] | None:
+    """``agents=a,b`` (overview style) merged with the older repeated ``agent=`` alias."""
+    out = [*(agent or []), *(a.strip() for a in (agents or "").split(","))]
+    out = sorted({a for a in out if a})
+    return out or None
+
+
+def facet_sessions(gw, facets: dict, tz: str | None = None, wait_ms: int = 0):
+    """Main-session ids whose ``uiview_facts`` row matches topic / outcome / fric / hour.
+
+    Returns ``(None, None)`` without a facet, ``(ids, None)`` when matched, and
+    ``(None, response)`` with a 202 while the fact rows are still computing.
+    """
+    from fastapi.responses import JSONResponse
+
+    from . import derive, fetch
+
+    f = {k: facets.get(k) for k in FACETS if facets.get(k) not in (None, "")}
+    if not f:
+        return None, None
+    body, freshness, job_id = fetch.fetch(gw, fetch.default_scope(tz), wait_ms=wait_ms)
+    if body is None:
+        if freshness == "none":
+            return [], None
+        return None, JSONResponse({"meta": {"contract": CONTRACT, "freshness": "computing",
+                                            "job_id": job_id}}, status_code=202)
+    return sorted(r["id"] for r in body.get("rows") or []
+                  if not r.get("excluded") and derive.passes(r, f)), None
 
 
 # -- routes ------------------------------------------------------------------------------

@@ -272,9 +272,15 @@ def _rec_candidate_row(appdb, sid) -> dict | None:
         if key in card and key not in row:
             row[key] = json.dumps(card[key]) if isinstance(card[key], (dict, list)) else card[key]
     # rec-engine-v2 cards name their catalog entry in ``source`` rather than ``catalog_item_id``.
+    # A KB card's entry is the rule the official ``tandem-kb`` source publishes as ``kb:<id>``:
+    # slate hygiene keeps the evidence-backed KB card and drops its ``catalog:kb:<id>`` twin,
+    # so without this the remedy the user is shown could not be installed from its card.
     source = card.get("source") or {}
-    if not row.get("catalog_item_id") and source.get("origin") == "catalog" and source.get("item_id"):
-        row["catalog_item_id"] = source["item_id"]
+    if not row.get("catalog_item_id") and source.get("item_id"):
+        if source.get("origin") == "catalog":
+            row["catalog_item_id"] = source["item_id"]
+        elif source.get("origin") == "kb":
+            row["catalog_item_id"] = f"kb:{source['item_id']}"
     return row
 
 

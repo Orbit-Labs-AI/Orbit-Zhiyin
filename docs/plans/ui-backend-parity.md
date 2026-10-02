@@ -43,7 +43,7 @@
 
 **本轮新增和修复：**
 - 新增来源：`wshobson/agents`、`obra/superpowers`、`anthropics/claude-code`、`openai/skills`、`VoltAgent/awesome-claude-code-subagents`、`ComposioHQ/awesome-claude-skills`、Gemini CLI 扩展（审计实测 2082 条）、ClawHub（带下载量）、`tandem-kb`（Tandem 官方条目 25 条）。
-- 新增离线种子快照 `library-seed.v1`：1256 条，0.9 MB，首启时导入，联网同步后退役。
+- 新增离线种子快照 `library-seed.v1`：1277 条，1.3 MB（2026-10-03 用修复后的来源重打：hook 按插件目录命名、无 skill 内部规则、镜像去重；MCP 注册表实测 ≥ 24000 个），首启时导入，联网同步后退役。
 - 新增后台定时刷新。
 - HttpClient 对 5xx、429 和超时做退避重试。
 - MCP 这类长分页源改为分段发布，中途失败时保留已经拉取的页。

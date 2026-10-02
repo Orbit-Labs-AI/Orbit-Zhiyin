@@ -37,18 +37,25 @@ def notes(client, kind=None):
     return client.get(f"/v1/notifications?state=all{query}").json()["items"]
 
 
-def test_weekly_report_skips_without_export_or_when_disabled(gateway_factory):
+def test_weekly_report_skips_without_export_or_when_disabled(gateway_factory, monkeypatch):
+    # Every call passes an explicit local time, and the export package is forced absent:
+    # with the real one merged, an enabled run would freeze W41 and later calls in this
+    # test would see an already-run week (the real export path is covered by the stand-in
+    # test below).
+    monkeypatch.setattr(tasks, "_export", lambda: None)
     _, gw = gateway_factory(started=False)
     monday = at(5, 10)
     with gw.state.lock:
         gw.state.state["settings"]["weekly_report"] = True  # Default is off.
-    result = tasks.weekly_report(gw, monday)
-    if tasks._export() is None:
-        assert result == {"skipped": "export_unavailable", "week": "2026-W41"}
+    assert tasks.weekly_report(gw, at(5, 8)) == {"skipped": "not_due"}
+    assert tasks.weekly_report(gw, monday) == {"skipped": "export_unavailable",
+                                               "week": "2026-W41"}
     with gw.state.lock:
         gw.state.state["settings"]["weekly_report"] = False
     assert tasks.weekly_report(gw, monday) == {"skipped": "disabled", "week": "2026-W41"}
-    assert tasks.weekly_report(gw, at(5, 8)) == {"skipped": "not_due"}
+    # Disabled wins over the schedule: before Monday 09:00 it still says why it is idle.
+    assert tasks.weekly_report(gw, at(5, 8)) == {"skipped": "disabled"}
+    assert tasks.last_weekly_key(gw) is None  # nothing was frozen or notified
 
 
 def test_source_watch_notifies_new_roots_once(gateway_factory, tmp_path):
@@ -135,3 +142,6 @@ def test_weekly_report_with_export_stand_in(gateway_factory, monkeypatch):
     assert item["payload"] == {"snapshot_id": "snap-1", "week": "2026-W41"}
     assert tasks.weekly_report(gw, at(8, 10)) == {"skipped": "not_due"}
     assert tasks.weekly_due(at(12, 9), tasks.last_weekly_key(gw)) == "2026-W42"
+    with gw.state.lock:
+        gw.state.state["settings"]["weekly_report"] = False
+    assert tasks.weekly_report(gw, at(8, 10)) == {"skipped": "disabled"}  # W41 already ran

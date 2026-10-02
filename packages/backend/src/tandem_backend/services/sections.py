@@ -164,3 +164,4 @@ def compute_section(name: str, store, scope, params: dict, memo: ResultMemo) -> 
     return section.compute(store, scope, params, memo)
 
 from ..recommend import section as _recommend_section  # noqa: E402,F401  registers recommend_inputs
+from ..uiview import section as _uiview_section  # noqa: E402,F401  registers uiview_facts
