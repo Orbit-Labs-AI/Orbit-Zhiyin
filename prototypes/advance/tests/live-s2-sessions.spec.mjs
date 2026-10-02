@@ -115,6 +115,14 @@ test('message text loads only when opened, paged from /events', async ({ page })
   await page.locator('#tlInsp [data-act="lvsMsgs"]').click();
   await expect(page.locator('#lvsMsgBox .lvs-msg')).toHaveCount(4);
   await expect(page.locator('#lvsMsgBox')).toContainText('不要改 CI 配置，只改脚本');
+  // R4-02: the time · role label sits in its own column, fully visible, left of the message body.
+  const geo = await page.evaluate(() => [...document.querySelectorAll('#lvsMsgBox .lvs-msg')].map((r) => {
+    const k = r.querySelector('.k'); const v = r.querySelector('.v'); const kb = k.getBoundingClientRect(); const vb = v.getBoundingClientRect();
+    return { kRight: kb.right, vLeft: vb.left, kClip: k.scrollWidth - k.clientWidth, vx: Math.round(vb.left), role: k.textContent.split(' · ')[1] };
+  }));
+  for (const g of geo) { expect(g.kRight).toBeLessThanOrEqual(g.vLeft); expect(g.kClip).toBeLessThanOrEqual(0); }
+  expect(new Set(geo.map((g) => g.vx)).size).toBe(1);
+  expect(geo.map((g) => g.role)).toEqual(expect.arrayContaining(['你', 'Agent']));
   expect(gw.count(EV)).toBe(1);
   expect(gw.seen.find((x) => x.path === EV).query).toContain('limit=200');
   expect(errors).toEqual([]);
