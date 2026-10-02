@@ -1,0 +1,295 @@
+{
+ "item_id": "seed:systematic-debugging",
+ "kind": "skill",
+ "name": "Systematic Debugging",
+ "summary": "先复现并定位原因，再修改和验证，减少没有依据的重试。",
+ "author": null,
+ "license": "MIT",
+ "official": false,
+ "agents": [
+  "claude_code",
+  "codex"
+ ],
+ "difficulty": 2,
+ "risk_level": 0,
+ "risk": [],
+ "version": null,
+ "updated_at": 1790958829254,
+ "installs": 0,
+ "stars": 0,
+ "origin": "remote",
+ "url": "https://github.com/obra/superpowers",
+ "body_policy": "metadata",
+ "canonical_of": null,
+ "status": "active",
+ "language": "any",
+ "version_id": "948f8c2e71856f0c20f77a9efb3e377f06d5d4ef6d131b7d3028c169c937859b",
+ "content_hash": "145f66bf46ca10db0316aa5fe91c9c12d0461588205e525a11ebe9c51b94b3a6",
+ "readme": null,
+ "readme_policy": "link_only",
+ "manifest": {},
+ "features": [
+  {
+   "feature": "agent",
+   "value": "claude_code",
+   "weight": 1,
+   "origin": "declared",
+   "evidence": "source compatibility"
+  },
+  {
+   "feature": "agent",
+   "value": "codex",
+   "weight": 1,
+   "origin": "declared",
+   "evidence": "source compatibility"
+  },
+  {
+   "feature": "dimension",
+   "value": "actionability",
+   "weight": 1.0,
+   "origin": "curated",
+   "evidence": "Tandem reviewed seed"
+  },
+  {
+   "feature": "dimension",
+   "value": "grounding",
+   "weight": 1.0,
+   "origin": "curated",
+   "evidence": "Tandem reviewed seed"
+  },
+  {
+   "feature": "dimension",
+   "value": "verification",
+   "weight": 1.0,
+   "origin": "curated",
+   "evidence": "Tandem reviewed seed"
+  },
+  {
+   "feature": "domain",
+   "value": "testing",
+   "weight": 1.0,
+   "origin": "extracted",
+   "evidence": "text contains: 验证"
+  },
+  {
+   "feature": "friction",
+   "value": "repeated_tool_failure",
+   "weight": 1.0,
+   "origin": "curated",
+   "evidence": "Tandem reviewed seed"
+  },
+  {
+   "feature": "friction",
+   "value": "retry_same_call",
+   "weight": 0.6,
+   "origin": "extracted",
+   "evidence": "text contains: 重试"
+  },
+  {
+   "feature": "scene",
+   "value": "coding",
+   "weight": 1.0,
+   "origin": "curated",
+   "evidence": "Tandem reviewed seed"
+  }
+ ],
+ "versions": [
+  {
+   "version_id": "948f8c2e71856f0c20f77a9efb3e377f06d5d4ef6d131b7d3028c169c937859b",
+   "version": null,
+   "commit_sha": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+   "content_hash": "145f66bf46ca10db0316aa5fe91c9c12d0461588205e525a11ebe9c51b94b3a6",
+   "size": 0,
+   "created_at": 1790958829254
+  }
+ ],
+ "permissions": {
+  "flags": [],
+  "level": 0,
+  "estimate": true,
+  "allowed_tools": [],
+  "declared_env": []
+ },
+ "components": [],
+ "related": [
+  {
+   "card": {
+    "item_id": "kb:systematic-debugging",
+    "kind": "skill",
+    "name": "系统化排错 Skill：复现→假设→最小修复",
+    "summary": "把重复试错改为复现、收集证据、单一假设和最小修复。",
+    "author": null,
+    "license": "MIT",
+    "official": true,
+    "agents": [
+     "claude_code",
+     "codex"
+    ],
+    "difficulty": 2,
+    "risk_level": 0,
+    "risk": [],
+    "version": "1",
+    "updated_at": 1790958829217,
+    "installs": 0,
+    "stars": 0,
+    "origin": "remote",
+    "url": "",
+    "body_policy": "licensed",
+    "canonical_of": null
+   },
+   "relation": "similar",
+   "score": 0.2353
+  },
+  {
+   "card": {
+    "item_id": "seed:doc-coauthoring",
+    "kind": "skill",
+    "name": "Doc Co-Authoring",
+    "summary": "通过背景梳理、结构修改和读者测试核对文档是否易懂。",
+    "author": null,
+    "license": "repository_specific",
+    "official": false,
+    "agents": [
+     "claude_code",
+     "codex"
+    ],
+    "difficulty": 2,
+    "risk_level": 0,
+    "risk": [],
+    "version": null,
+    "updated_at": 1790958829254,
+    "installs": 0,
+    "stars": 0,
+    "origin": "remote",
+    "url": "https://github.com/anthropics/skills",
+    "body_policy": "metadata",
+    "canonical_of": null
+   },
+   "relation": "similar",
+   "score": 0.2353
+  },
+  {
+   "card": {
+    "item_id": "kb:verify-ladder",
+    "kind": "workflow",
+    "name": "验证阶梯：编译→单测→端到端",
+    "summary": "按成本从低到高逐级验证，每级通过再进入下一级。",
+    "author": null,
+    "license": "MIT",
+    "official": true,
+    "agents": [
+     "claude_code",
+     "codex"
+    ],
+    "difficulty": 2,
+    "risk_level": 0,
+    "risk": [],
+    "version": "1",
+    "updated_at": 1790958829217,
+    "installs": 0,
+    "stars": 0,
+    "origin": "remote",
+    "url": "",
+    "body_policy": "licensed",
+    "canonical_of": null
+   },
+   "relation": "similar",
+   "score": 0.2
+  },
+  {
+   "card": {
+    "item_id": "kb:completion-contract",
+    "kind": "rule",
+    "name": "开场模板：先写完成条件",
+    "summary": "新任务先写目标、完成条件、不要做和验证方式四行。",
+    "author": null,
+    "license": "MIT",
+    "official": true,
+    "agents": [
+     "claude_code",
+     "codex"
+    ],
+    "difficulty": 2,
+    "risk_level": 0,
+    "risk": [],
+    "version": "1",
+    "updated_at": 1790958829217,
+    "installs": 0,
+    "stars": 0,
+    "origin": "remote",
+    "url": "",
+    "body_policy": "licensed",
+    "canonical_of": null
+   },
+   "relation": "similar",
+   "score": 0.1875
+  },
+  {
+   "card": {
+    "item_id": "kb:verify-checklist",
+    "kind": "rule",
+    "name": "完成前自检清单",
+    "summary": "要求 Agent 在声称完成前运行测试/编译并贴出结果。",
+    "author": null,
+    "license": "MIT",
+    "official": true,
+    "agents": [
+     "claude_code",
+     "codex"
+    ],
+    "difficulty": 1,
+    "risk_level": 0,
+    "risk": [],
+    "version": "1",
+    "updated_at": 1790958829217,
+    "installs": 0,
+    "stars": 0,
+    "origin": "remote",
+    "url": "",
+    "body_policy": "licensed",
+    "canonical_of": null
+   },
+   "relation": "similar",
+   "score": 0.1875
+  }
+ ],
+ "sources": [
+  {
+   "source_id": "tandem-seeds",
+   "native_id": "systematic-debugging",
+   "status": "active",
+   "fetched_at": 1790958829254
+  }
+ ],
+ "install": {
+  "ref": {
+   "source": "catalog_item",
+   "id": "seed:systematic-debugging"
+  },
+  "targets": [
+   "claude_code",
+   "codex"
+  ],
+  "hints": {},
+  "license_ok": false,
+  "installable": false,
+  "reason": "license_not_permissive"
+ },
+ "resident_tokens_est": 0,
+ "scan": {
+  "verdict": "safe",
+  "reasons": [],
+  "level": 0,
+  "estimate": true,
+  "commands": []
+ },
+ "first_seen": 1790958829254,
+ "last_seen": 1790958829254,
+ "source_kind": "community",
+ "source_label": "社区 · MIT",
+ "license_spdx": "MIT",
+ "compat_label": "Claude Code · Codex",
+ "stars_scope": "repo",
+ "updated_scope": "repo",
+ "installed": null
+}

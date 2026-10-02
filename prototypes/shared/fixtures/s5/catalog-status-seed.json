@@ -1,0 +1,183 @@
+{
+ "contract": "catalog-v1",
+ "schema_version": 3,
+ "generation": 2,
+ "items": 35,
+ "listable": 34,
+ "chunks": 177,
+ "versions": 35,
+ "features": 324,
+ "blobs": 95,
+ "by_type": {
+  "benchmark": 1,
+  "guide": 5,
+  "hook": 6,
+  "mcp_server": 1,
+  "plugin": 1,
+  "rule": 6,
+  "skill": 8,
+  "subagent": 1,
+  "workflow": 6
+ },
+ "embeddings": [],
+ "coverage": {
+  "by_kind": {
+   "benchmark": 1,
+   "guide": 5,
+   "hook": 6,
+   "mcp_server": 1,
+   "plugin": 1,
+   "rule": 6,
+   "skill": 8,
+   "subagent": 1,
+   "workflow": 6
+  },
+  "by_source": {
+   "tandem-kb": {
+    "kind": "kb",
+    "items": 25,
+    "last_ok_at": 1790958829217,
+    "error": null,
+    "enabled": true
+   },
+   "tandem-seeds": {
+    "kind": "bundle",
+    "items": 10,
+    "last_ok_at": 1790958829254,
+    "error": null,
+    "enabled": true
+   },
+   "anthropic-skills": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "claude-plugins": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "mcp-official": {
+    "kind": "mcp",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "openai-plugins": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "awesome-copilot": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "claude-code-plugins": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "litellm": {
+    "kind": "litellm",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "models-dev": {
+    "kind": "models_dev",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "openai-skills": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "swe-bench": {
+    "kind": "swe_bench",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "superpowers": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "wshobson-agents": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "gemini-extensions": {
+    "kind": "gemini",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "clawhub": {
+    "kind": "clawhub",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "voltagent-subagents": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "composio-skills": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": false
+   }
+  },
+  "seeded": true,
+  "last_sync_at": null,
+  "partial_sources": [
+   "anthropic-skills",
+   "claude-plugins",
+   "mcp-official",
+   "openai-plugins",
+   "awesome-copilot",
+   "claude-code-plugins",
+   "litellm",
+   "models-dev",
+   "openai-skills",
+   "swe-bench",
+   "superpowers",
+   "wshobson-agents",
+   "gemini-extensions",
+   "clawhub",
+   "voltagent-subagents"
+  ]
+ }
+}

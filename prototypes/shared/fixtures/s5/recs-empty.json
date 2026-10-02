@@ -1,0 +1,52 @@
+{
+ "run": null,
+ "items": [],
+ "dims": [
+  {
+   "id": "all",
+   "label": "全部",
+   "count": 0
+  },
+  {
+   "id": "rule",
+   "label": "规则与 Prompt",
+   "count": 0
+  },
+  {
+   "id": "skill",
+   "label": "Skills",
+   "count": 0
+  },
+  {
+   "id": "hook",
+   "label": "Hooks",
+   "count": 0
+  },
+  {
+   "id": "mcp",
+   "label": "插件 / MCP",
+   "count": 0
+  },
+  {
+   "id": "agent",
+   "label": "子代理",
+   "count": 0
+  },
+  {
+   "id": "model",
+   "label": "模型与思考",
+   "count": 0
+  },
+  {
+   "id": "flow",
+   "label": "工作流 / 架构",
+   "count": 0
+  }
+ ],
+ "problems": [],
+ "meta": {
+  "scope_hash": "3cfea89cc57d992d5d25ec5f736b6318",
+  "freshness": "none",
+  "job_id": null
+ }
+}

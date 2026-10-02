@@ -1,0 +1,1190 @@
+{
+ "run": {
+  "run_id": "2594b01c5d2c4a7f",
+  "status": "ready",
+  "created_at": 1790958784438,
+  "engine_version": "rec-engine-v2",
+  "kb_version": "kb-v1@77a35753",
+  "inputs_digest": "61e23b4cdfb1fd1389155b5a629299c2",
+  "freshness": "fresh"
+ },
+ "items": [
+  {
+   "rec_key": "catalog:subagent:github.com:1100776768:plugins/pr-review-toolkit/agents/silent-failure-hunter.md",
+   "problem": null,
+   "kind": "subagent",
+   "dim": "agent",
+   "level": 2,
+   "audience_min": 1,
+   "title": "silent-failure-hunter",
+   "summary": "",
+   "match_basis": "profile",
+   "routes": {
+    "feature": {
+     "rank": 8,
+     "raw": 0.061061000000000004
+    }
+   },
+   "fusion": 0.00588235,
+   "evidence": {
+    "session_uids": [],
+    "signal_ids": [],
+    "counts": {
+     "sessions": 0,
+     "events": 0
+    }
+   },
+   "source": {
+    "origin": "catalog",
+    "item_id": "subagent:github.com:1100776768:plugins/pr-review-toolkit/agents/silent-failure-hunter.md",
+    "url": "https://github.com/anthropics/claude-plugins-official/blob/ab024cdcfa7ca80be204acd4907656ba5a968589/plugins/pr-review-toolkit/agents/silent-failure-hunter.md",
+    "license": "Apache-2.0",
+    "version": "6e6a9b9a1206b9ca6bec3cb2f9658172b1139923513ab8b9adce6eff2c881e6f",
+    "verified": true
+   },
+   "target": {
+    "agents": [
+     "claude_code",
+     "codex",
+     "pi",
+     "dsh",
+     "kimi",
+     "hermes",
+     "opencode"
+    ],
+    "scope": "user",
+    "project_id": null,
+    "path_hint": null
+   },
+   "track": {
+    "triggered": "使用次数",
+    "mechanical": "调用次数",
+    "guardrail": "会话摩擦率",
+    "follow_days": 7,
+    "extend_days": 28
+   },
+   "trial": {
+    "steps": [],
+    "metric": "使用次数",
+    "follow_days": 7
+   },
+   "alternatives": [],
+   "generate": null,
+   "agents": {
+    "claude_code": "native"
+   },
+   "risk": {
+    "level": "low",
+    "flags": []
+   },
+   "unit_minutes": 1.0,
+   "tags": [
+    ".md",
+    ".ts",
+    "python"
+   ],
+   "file": null,
+   "feature_overlap": {
+    "score": 0.06106,
+    "matched": [
+     "ftype:.ts",
+     "ftype:.md",
+     "cmd:python",
+     "friction:retry_same_call"
+    ]
+   },
+   "gates": {
+    "passed": true,
+    "checks": {
+     "profile_evidence": "n/a",
+     "bottleneck_evidence": "n/a",
+     "scene_ok": "n/a",
+     "language_ok": "n/a",
+     "source_verified": true,
+     "agent_supported": true,
+     "not_installed": true,
+     "not_dismissed": true,
+     "evidence_ok": "n/a",
+     "risk_ok": true,
+     "license_ok": true,
+     "audience_ok": "n/a",
+     "requirements_ok": "n/a"
+    },
+    "reasons": []
+   },
+   "score": {
+    "benefit": 0.15,
+    "confidence": 0.5,
+    "p_effective": 0.5,
+    "fit": 0.6196,
+    "cost": 0.2167,
+    "risk": 0.05,
+    "personal": 1,
+    "decay": 1.0,
+    "priority": 1.41,
+    "utility": 0.014098
+   },
+   "rank": 1,
+   "links": {
+    "kb_id": null,
+    "pairs_with": [],
+    "conflicts_with": [],
+    "content_hash": "1cb6a8f273023bcec2329e9b55cf283cdddd2b89bf4d51977aecc7e26659a300"
+   },
+   "basis": "profile",
+   "explain": {
+    "reason": "silent-failure-hunter",
+    "mechanism": "",
+    "capability": "",
+    "trial": "下次遇到同类情况时观察是否改善，7 天后看效果追踪",
+    "limitation": "",
+    "source": "template"
+   },
+   "excluded": null,
+   "ui": {
+    "dim": "agent",
+    "type": "子代理",
+    "icon": "bot",
+    "lvl": 2,
+    "aud": 1,
+    "title": "silent-failure-hunter",
+    "gain": "0 个会话出现",
+    "why": "silent-failure-hunter",
+    "ev": "0 个会话",
+    "evq": {
+     "session_uids": []
+    },
+    "compat": "Claude Code · 转换给 Codex · 转换给 Pi · 转换给 dsh · 转换给 kimi · 转换给 Hermes · 转换给 OpenCode",
+    "primary": "预览并安装",
+    "target": "",
+    "file": [],
+    "steps": [],
+    "commands": [],
+    "track": [
+     [
+      "使用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "调用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "会话摩擦率",
+      9.0,
+      null,
+      "%"
+     ]
+    ],
+    "save": {
+     "min_month": 0,
+     "label": "—",
+     "low": 0,
+     "high": 0,
+     "basis": "没有可折算的问题证据"
+    },
+    "tok": 100,
+    "n": [
+     null,
+     null
+    ]
+   },
+   "candidate_id": "94f001b0d81b595c",
+   "run_id": "2594b01c5d2c4a7f"
+  },
+  {
+   "rec_key": "catalog:command:github.com:1100776768:plugins/code-modernization/commands/modernize-brief.md",
+   "problem": null,
+   "kind": "prompt",
+   "dim": "rule",
+   "level": 2,
+   "audience_min": 0,
+   "title": "modernize-brief",
+   "summary": "Write the phased Modernization Brief — the plan a steering committee approves and the build commands execute against",
+   "match_basis": "profile",
+   "routes": {
+    "feature": {
+     "rank": 11,
+     "raw": 0.055014
+    }
+   },
+   "fusion": 0.0056338,
+   "evidence": {
+    "session_uids": [],
+    "signal_ids": [],
+    "counts": {
+     "sessions": 0,
+     "events": 0
+    }
+   },
+   "source": {
+    "origin": "catalog",
+    "item_id": "command:github.com:1100776768:plugins/code-modernization/commands/modernize-brief.md",
+    "url": "https://github.com/anthropics/claude-plugins-official/blob/ab024cdcfa7ca80be204acd4907656ba5a968589/plugins/code-modernization/commands/modernize-brief.md",
+    "license": "Apache-2.0",
+    "version": "0450af0b9b1e361d0266afb196fad72d5088342f45222ea9495173b53c410d1d",
+    "verified": true
+   },
+   "target": {
+    "agents": [
+     "claude_code",
+     "codex",
+     "pi",
+     "dsh",
+     "kimi",
+     "hermes",
+     "opencode"
+    ],
+    "scope": "user",
+    "project_id": null,
+    "path_hint": null
+   },
+   "track": {
+    "triggered": "使用次数",
+    "mechanical": "调用次数",
+    "guardrail": "会话摩擦率",
+    "follow_days": 7,
+    "extend_days": 28
+   },
+   "trial": {
+    "steps": [],
+    "metric": "使用次数",
+    "follow_days": 7
+   },
+   "alternatives": [],
+   "generate": null,
+   "agents": {
+    "claude_code": "native"
+   },
+   "risk": {
+    "level": "low",
+    "flags": []
+   },
+   "unit_minutes": 1.0,
+   "tags": [
+    ".md",
+    ".py",
+    "python"
+   ],
+   "file": null,
+   "feature_overlap": {
+    "score": 0.055013,
+    "matched": [
+     "ftype:.py",
+     "ftype:.md",
+     "cmd:python"
+    ]
+   },
+   "gates": {
+    "passed": true,
+    "checks": {
+     "profile_evidence": "n/a",
+     "bottleneck_evidence": "n/a",
+     "scene_ok": "n/a",
+     "language_ok": "n/a",
+     "source_verified": true,
+     "agent_supported": true,
+     "not_installed": true,
+     "not_dismissed": true,
+     "evidence_ok": "n/a",
+     "risk_ok": true,
+     "license_ok": true,
+     "audience_ok": "n/a",
+     "requirements_ok": "n/a"
+    },
+    "reasons": []
+   },
+   "score": {
+    "benefit": 0.15,
+    "confidence": 0.5,
+    "p_effective": 0.5,
+    "fit": 0.6146,
+    "cost": 0.2167,
+    "risk": 0.05,
+    "personal": 1,
+    "decay": 1.0,
+    "priority": 1.39,
+    "utility": 0.013942
+   },
+   "rank": 2,
+   "links": {
+    "kb_id": null,
+    "pairs_with": [],
+    "conflicts_with": [],
+    "content_hash": "6a88372173f531668fba9abbfa938ca84c9464e94fda2412af5e4845e6b282d1"
+   },
+   "basis": "profile",
+   "explain": {
+    "reason": "Write the phased Modernization Brief — the plan a steering committee approves and the build commands execute against",
+    "mechanism": "",
+    "capability": "Write the phased Modernization Brief — the plan a steering committee approves and the build commands execute against",
+    "trial": "下次遇到同类情况时观察是否改善，7 天后看效果追踪",
+    "limitation": "",
+    "source": "template"
+   },
+   "excluded": null,
+   "ui": {
+    "dim": "rule",
+    "type": "Prompt",
+    "icon": "rule",
+    "lvl": 2,
+    "aud": 0,
+    "title": "modernize-brief",
+    "gain": "0 个会话出现",
+    "why": "Write the phased Modernization Brief — the plan a steering committee approves and the build commands execute against",
+    "ev": "0 个会话",
+    "evq": {
+     "session_uids": []
+    },
+    "compat": "Claude Code · 转换给 Codex · 转换给 Pi · 转换给 dsh · 转换给 kimi · 转换给 Hermes · 转换给 OpenCode",
+    "primary": "预览并安装",
+    "target": "",
+    "file": [],
+    "steps": [],
+    "commands": [],
+    "track": [
+     [
+      "使用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "调用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "会话摩擦率",
+      9.0,
+      null,
+      "%"
+     ]
+    ],
+    "save": {
+     "min_month": 0,
+     "label": "—",
+     "low": 0,
+     "high": 0,
+     "basis": "没有可折算的问题证据"
+    },
+    "tok": 100,
+    "n": [
+     null,
+     null
+    ]
+   },
+   "candidate_id": "9f1a3f76f31accbf",
+   "run_id": "2594b01c5d2c4a7f"
+  },
+  {
+   "rec_key": "catalog:skill:github.com:1061953414:skills/claude-api/SKILL.md",
+   "problem": null,
+   "kind": "skill",
+   "dim": "skill",
+   "level": 2,
+   "audience_min": 1,
+   "title": "claude-api",
+   "summary": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.\nTRIGGER — read BEFORE opening the target file; don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).\nSKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file).",
+   "match_basis": "profile",
+   "routes": {
+    "feature": {
+     "rank": 1,
+     "raw": 0.09402
+    },
+    "profile": {
+     "rank": 10,
+     "raw": 0.710001
+    }
+   },
+   "fusion": 0.01227166,
+   "evidence": {
+    "session_uids": [],
+    "signal_ids": [],
+    "counts": {
+     "sessions": 0,
+     "events": 0
+    }
+   },
+   "source": {
+    "origin": "catalog",
+    "item_id": "skill:github.com:1061953414:skills/claude-api/SKILL.md",
+    "url": "https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/SKILL.md",
+    "license": "Apache-2.0",
+    "version": "5c05e34ba0191aa683bc2fbf8a38d9345fecbe2306437d52d2999d20dd27464c",
+    "verified": true
+   },
+   "target": {
+    "agents": [
+     "claude_code",
+     "codex",
+     "pi",
+     "dsh",
+     "kimi",
+     "hermes",
+     "opencode"
+    ],
+    "scope": "user",
+    "project_id": null,
+    "path_hint": null
+   },
+   "track": {
+    "triggered": "使用次数",
+    "mechanical": "调用次数",
+    "guardrail": "会话摩擦率",
+    "follow_days": 7,
+    "extend_days": 28
+   },
+   "trial": {
+    "steps": [],
+    "metric": "使用次数",
+    "follow_days": 7
+   },
+   "alternatives": [],
+   "generate": null,
+   "agents": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk": {
+    "level": "low",
+    "flags": []
+   },
+   "unit_minutes": 1.0,
+   "tags": [
+    ".md",
+    ".py",
+    ".ts",
+    ".tsx",
+    "python"
+   ],
+   "file": null,
+   "feature_overlap": {
+    "score": 0.094019,
+    "matched": [
+     "ftype:.py",
+     "ftype:.ts",
+     "lang:typescript",
+     "ftype:.md",
+     "cmd:python"
+    ]
+   },
+   "gates": {
+    "passed": true,
+    "checks": {
+     "profile_evidence": "n/a",
+     "bottleneck_evidence": "n/a",
+     "scene_ok": "n/a",
+     "language_ok": "n/a",
+     "source_verified": true,
+     "agent_supported": true,
+     "not_installed": true,
+     "not_dismissed": true,
+     "evidence_ok": "n/a",
+     "risk_ok": true,
+     "license_ok": true,
+     "audience_ok": "n/a",
+     "requirements_ok": "n/a"
+    },
+    "reasons": []
+   },
+   "score": {
+    "benefit": 0.15,
+    "confidence": 0.5,
+    "p_effective": 0.5,
+    "fit": 0.7095,
+    "cost": 0.4167,
+    "risk": 0.05,
+    "personal": 1,
+    "decay": 1.0,
+    "priority": 1.38,
+    "utility": 0.013782
+   },
+   "rank": 3,
+   "links": {
+    "kb_id": null,
+    "pairs_with": [],
+    "conflicts_with": [],
+    "content_hash": "efa3a298aa0f1eb42319d8283d42f21614d4acb7cd298a8543ff957d14b1e85f"
+   },
+   "basis": "profile",
+   "explain": {
+    "reason": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.\nTRIGGER — read BEFORE opening the target file; don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).\nSKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file).",
+    "mechanism": "",
+    "capability": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.\nTRIGGER — read BEFORE opening the target file; don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).\nSKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file).",
+    "trial": "下次遇到同类情况时观察是否改善，7 天后看效果追踪",
+    "limitation": "",
+    "source": "template"
+   },
+   "excluded": null,
+   "ui": {
+    "dim": "skill",
+    "type": "Skill",
+    "icon": "book",
+    "lvl": 2,
+    "aud": 1,
+    "title": "claude-api",
+    "gain": "0 个会话出现",
+    "why": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.\nTRIGGER — read BEFORE opening the target file; don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).\nSKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file).",
+    "ev": "0 个会话",
+    "evq": {
+     "session_uids": []
+    },
+    "compat": "Claude Code · Codex · 转换给 Pi · 转换给 dsh · 转换给 kimi · 转换给 Hermes · 转换给 OpenCode",
+    "primary": "预览并安装",
+    "target": "",
+    "file": [],
+    "steps": [],
+    "commands": [],
+    "track": [
+     [
+      "使用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "调用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "会话摩擦率",
+      9.0,
+      null,
+      "%"
+     ]
+    ],
+    "save": {
+     "min_month": 132,
+     "label": "≈ 2.2 h",
+     "low": 90,
+     "high": 180,
+     "basis": "合成：按 4 个会话折算"
+    },
+    "tok": 500,
+    "n": [
+     null,
+     null
+    ]
+   },
+   "candidate_id": "252667ab78141eda",
+   "run_id": "2594b01c5d2c4a7f"
+  },
+  {
+   "rec_key": "catalog:subagent:github.com:1061953414:skills/skill-creator/agents/grader.md",
+   "problem": null,
+   "kind": "subagent",
+   "dim": "agent",
+   "level": 2,
+   "audience_min": 1,
+   "title": "grader",
+   "summary": "",
+   "match_basis": "profile",
+   "routes": {
+    "feature": {
+     "rank": 17,
+     "raw": 0.055014
+    }
+   },
+   "fusion": 0.00519481,
+   "evidence": {
+    "session_uids": [],
+    "signal_ids": [],
+    "counts": {
+     "sessions": 0,
+     "events": 0
+    }
+   },
+   "source": {
+    "origin": "catalog",
+    "item_id": "subagent:github.com:1061953414:skills/skill-creator/agents/grader.md",
+    "url": "https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/skill-creator/agents/grader.md",
+    "license": "Apache-2.0",
+    "version": "1662a2ee9b845a958f7a04d117edbc487c04a69fe010b9e901eb62d198bbef99",
+    "verified": true
+   },
+   "target": {
+    "agents": [
+     "claude_code",
+     "codex",
+     "pi",
+     "dsh",
+     "kimi",
+     "hermes",
+     "opencode"
+    ],
+    "scope": "user",
+    "project_id": null,
+    "path_hint": null
+   },
+   "track": {
+    "triggered": "使用次数",
+    "mechanical": "调用次数",
+    "guardrail": "会话摩擦率",
+    "follow_days": 7,
+    "extend_days": 28
+   },
+   "trial": {
+    "steps": [],
+    "metric": "使用次数",
+    "follow_days": 7
+   },
+   "alternatives": [],
+   "generate": null,
+   "agents": {
+    "claude_code": "native",
+    "codex": "native"
+   },
+   "risk": {
+    "level": "low",
+    "flags": []
+   },
+   "unit_minutes": 1.0,
+   "tags": [
+    ".md",
+    ".py",
+    "python"
+   ],
+   "file": null,
+   "feature_overlap": {
+    "score": 0.055013,
+    "matched": [
+     "ftype:.py",
+     "ftype:.md",
+     "cmd:python"
+    ]
+   },
+   "gates": {
+    "passed": true,
+    "checks": {
+     "profile_evidence": "n/a",
+     "bottleneck_evidence": "n/a",
+     "scene_ok": "n/a",
+     "language_ok": "n/a",
+     "source_verified": true,
+     "agent_supported": true,
+     "not_installed": true,
+     "not_dismissed": true,
+     "evidence_ok": "n/a",
+     "risk_ok": true,
+     "license_ok": true,
+     "audience_ok": "n/a",
+     "requirements_ok": "n/a"
+    },
+    "reasons": []
+   },
+   "score": {
+    "benefit": 0.15,
+    "confidence": 0.5,
+    "p_effective": 0.5,
+    "fit": 0.6056,
+    "cost": 0.2167,
+    "risk": 0.05,
+    "personal": 1,
+    "decay": 1.0,
+    "priority": 1.37,
+    "utility": 0.013667
+   },
+   "rank": 4,
+   "links": {
+    "kb_id": null,
+    "pairs_with": [],
+    "conflicts_with": [],
+    "content_hash": "c0657780276cb65491703acb6f27b1757d1844ae64662dab69956eae41849eb8"
+   },
+   "basis": "profile",
+   "explain": {
+    "reason": "grader",
+    "mechanism": "",
+    "capability": "",
+    "trial": "下次遇到同类情况时观察是否改善，7 天后看效果追踪",
+    "limitation": "",
+    "source": "template"
+   },
+   "excluded": null,
+   "ui": {
+    "dim": "agent",
+    "type": "子代理",
+    "icon": "bot",
+    "lvl": 2,
+    "aud": 1,
+    "title": "grader",
+    "gain": "0 个会话出现",
+    "why": "grader",
+    "ev": "0 个会话",
+    "evq": {
+     "session_uids": []
+    },
+    "compat": "Claude Code · Codex · 转换给 Pi · 转换给 dsh · 转换给 kimi · 转换给 Hermes · 转换给 OpenCode",
+    "primary": "预览并安装",
+    "target": "",
+    "file": [],
+    "steps": [],
+    "commands": [],
+    "track": [
+     [
+      "使用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "调用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "会话摩擦率",
+      9.0,
+      null,
+      "%"
+     ]
+    ],
+    "save": {
+     "min_month": 0,
+     "label": "—",
+     "low": 0,
+     "high": 0,
+     "basis": "没有可折算的问题证据"
+    },
+    "tok": 100,
+    "n": [
+     null,
+     null
+    ]
+   },
+   "candidate_id": "22c44b797f01ee15",
+   "run_id": "2594b01c5d2c4a7f"
+  },
+  {
+   "rec_key": "catalog:command:github.com:1100776768:plugins/agent-sdk-dev/commands/new-sdk-app.md",
+   "problem": null,
+   "kind": "prompt",
+   "dim": "rule",
+   "level": 2,
+   "audience_min": 0,
+   "title": "new-sdk-app",
+   "summary": "Create and setup a new Claude Agent SDK application",
+   "match_basis": "profile",
+   "routes": {
+    "feature": {
+     "rank": 6,
+     "raw": 0.07298
+    }
+   },
+   "fusion": 0.00606061,
+   "evidence": {
+    "session_uids": [],
+    "signal_ids": [],
+    "counts": {
+     "sessions": 0,
+     "events": 0
+    }
+   },
+   "source": {
+    "origin": "catalog",
+    "item_id": "command:github.com:1100776768:plugins/agent-sdk-dev/commands/new-sdk-app.md",
+    "url": "https://github.com/anthropics/claude-plugins-official/blob/ab024cdcfa7ca80be204acd4907656ba5a968589/plugins/agent-sdk-dev/commands/new-sdk-app.md",
+    "license": "Apache-2.0",
+    "version": "f8f12b68dc6ae9aca8ebab1a50cd943b6214c6d11e59e29545e77905ebf6457c",
+    "verified": true
+   },
+   "target": {
+    "agents": [
+     "claude_code",
+     "codex",
+     "pi",
+     "dsh",
+     "kimi",
+     "hermes",
+     "opencode"
+    ],
+    "scope": "user",
+    "project_id": null,
+    "path_hint": null
+   },
+   "track": {
+    "triggered": "使用次数",
+    "mechanical": "调用次数",
+    "guardrail": "会话摩擦率",
+    "follow_days": 7,
+    "extend_days": 28
+   },
+   "trial": {
+    "steps": [],
+    "metric": "使用次数",
+    "follow_days": 7
+   },
+   "alternatives": [],
+   "generate": null,
+   "agents": {
+    "claude_code": "native"
+   },
+   "risk": {
+    "level": "low",
+    "flags": []
+   },
+   "unit_minutes": 1.0,
+   "tags": [
+    ".py",
+    ".ts",
+    "pnpm",
+    "python"
+   ],
+   "file": null,
+   "feature_overlap": {
+    "score": 0.072979,
+    "matched": [
+     "ftype:.py",
+     "ftype:.ts",
+     "cmd:pnpm lint",
+     "cmd:python"
+    ]
+   },
+   "gates": {
+    "passed": true,
+    "checks": {
+     "profile_evidence": "n/a",
+     "bottleneck_evidence": "n/a",
+     "scene_ok": "n/a",
+     "language_ok": "n/a",
+     "source_verified": true,
+     "agent_supported": true,
+     "not_installed": true,
+     "not_dismissed": true,
+     "evidence_ok": "n/a",
+     "risk_ok": true,
+     "license_ok": true,
+     "audience_ok": "n/a",
+     "requirements_ok": "n/a"
+    },
+    "reasons": []
+   },
+   "score": {
+    "benefit": 0.15,
+    "confidence": 0.5,
+    "p_effective": 0.5,
+    "fit": 0.5732,
+    "cost": 0.2167,
+    "risk": 0.05,
+    "personal": 1,
+    "decay": 1.0,
+    "priority": 1.27,
+    "utility": 0.012668
+   },
+   "rank": 5,
+   "links": {
+    "kb_id": null,
+    "pairs_with": [],
+    "conflicts_with": [],
+    "content_hash": "4ceb432f33f6a812b6ad4b70c828e53d2c0512f10a1cded3dbda76fd7beee00b"
+   },
+   "basis": "profile",
+   "explain": {
+    "reason": "Create and setup a new Claude Agent SDK application",
+    "mechanism": "",
+    "capability": "Create and setup a new Claude Agent SDK application",
+    "trial": "下次遇到同类情况时观察是否改善，7 天后看效果追踪",
+    "limitation": "",
+    "source": "template"
+   },
+   "excluded": null,
+   "ui": {
+    "dim": "rule",
+    "type": "Prompt",
+    "icon": "rule",
+    "lvl": 2,
+    "aud": 0,
+    "title": "new-sdk-app",
+    "gain": "0 个会话出现",
+    "why": "Create and setup a new Claude Agent SDK application",
+    "ev": "0 个会话",
+    "evq": {
+     "session_uids": []
+    },
+    "compat": "Claude Code · 转换给 Codex · 转换给 Pi · 转换给 dsh · 转换给 kimi · 转换给 Hermes · 转换给 OpenCode",
+    "primary": "预览并安装",
+    "target": "",
+    "file": [],
+    "steps": [],
+    "commands": [],
+    "track": [
+     [
+      "使用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "调用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "会话摩擦率",
+      9.0,
+      null,
+      "%"
+     ]
+    ],
+    "save": {
+     "min_month": 0,
+     "label": "—",
+     "low": 0,
+     "high": 0,
+     "basis": "没有可折算的问题证据"
+    },
+    "tok": 100,
+    "n": [
+     null,
+     null
+    ]
+   },
+   "candidate_id": "ae93b4d29de46859",
+   "run_id": "2594b01c5d2c4a7f"
+  },
+  {
+   "rec_key": "catalog:subagent:github.com:1100776768:plugins/skill-creator/skills/skill-creator/agents/grader.md",
+   "problem": null,
+   "kind": "subagent",
+   "dim": "agent",
+   "level": 2,
+   "audience_min": 1,
+   "title": "grader",
+   "summary": "",
+   "match_basis": "profile",
+   "routes": {
+    "feature": {
+     "rank": 18,
+     "raw": 0.055014
+    }
+   },
+   "fusion": 0.00512821,
+   "evidence": {
+    "session_uids": [],
+    "signal_ids": [],
+    "counts": {
+     "sessions": 0,
+     "events": 0
+    }
+   },
+   "source": {
+    "origin": "catalog",
+    "item_id": "subagent:github.com:1100776768:plugins/skill-creator/skills/skill-creator/agents/grader.md",
+    "url": "https://github.com/anthropics/claude-plugins-official/blob/ab024cdcfa7ca80be204acd4907656ba5a968589/plugins/skill-creator/skills/skill-creator/agents/grader.md",
+    "license": "Apache-2.0",
+    "version": "f9bbe43ea9032aae42a72bdcde5ca35393b979920a5d4d7801cf50fb0c445c22",
+    "verified": true
+   },
+   "target": {
+    "agents": [
+     "claude_code",
+     "codex",
+     "pi",
+     "dsh",
+     "kimi",
+     "hermes",
+     "opencode"
+    ],
+    "scope": "user",
+    "project_id": null,
+    "path_hint": null
+   },
+   "track": {
+    "triggered": "使用次数",
+    "mechanical": "调用次数",
+    "guardrail": "会话摩擦率",
+    "follow_days": 7,
+    "extend_days": 28
+   },
+   "trial": {
+    "steps": [],
+    "metric": "使用次数",
+    "follow_days": 7
+   },
+   "alternatives": [],
+   "generate": null,
+   "agents": {
+    "claude_code": "native"
+   },
+   "risk": {
+    "level": "low",
+    "flags": []
+   },
+   "unit_minutes": 1.0,
+   "tags": [
+    ".md",
+    ".py",
+    "python"
+   ],
+   "file": null,
+   "feature_overlap": {
+    "score": 0.055013,
+    "matched": [
+     "ftype:.py",
+     "ftype:.md",
+     "cmd:python"
+    ]
+   },
+   "gates": {
+    "passed": true,
+    "checks": {
+     "profile_evidence": "n/a",
+     "bottleneck_evidence": "n/a",
+     "scene_ok": "n/a",
+     "language_ok": "n/a",
+     "source_verified": true,
+     "agent_supported": true,
+     "not_installed": true,
+     "not_dismissed": true,
+     "evidence_ok": "n/a",
+     "risk_ok": true,
+     "license_ok": true,
+     "audience_ok": "n/a",
+     "requirements_ok": "n/a"
+    },
+    "reasons": []
+   },
+   "score": {
+    "benefit": 0.15,
+    "confidence": 0.5,
+    "p_effective": 0.5,
+    "fit": 0.6043,
+    "cost": 0.2167,
+    "risk": 0.05,
+    "personal": 1,
+    "decay": 1.0,
+    "priority": 1.36,
+    "utility": 0.013625
+   },
+   "rank": 6,
+   "links": {
+    "kb_id": null,
+    "pairs_with": [],
+    "conflicts_with": [],
+    "content_hash": "d8c888e338fc2ea2acae7398ac6ca30b0597dd626051966a5a9abdfeaa3a6305"
+   },
+   "basis": "profile",
+   "explain": {
+    "reason": "grader",
+    "mechanism": "",
+    "capability": "",
+    "trial": "下次遇到同类情况时观察是否改善，7 天后看效果追踪",
+    "limitation": "",
+    "source": "template"
+   },
+   "excluded": null,
+   "ui": {
+    "dim": "agent",
+    "type": "子代理",
+    "icon": "bot",
+    "lvl": 2,
+    "aud": 1,
+    "title": "grader",
+    "gain": "0 个会话出现",
+    "why": "grader",
+    "ev": "0 个会话",
+    "evq": {
+     "session_uids": []
+    },
+    "compat": "Claude Code · 转换给 Codex · 转换给 Pi · 转换给 dsh · 转换给 kimi · 转换给 Hermes · 转换给 OpenCode",
+    "primary": "预览并安装",
+    "target": "",
+    "file": [],
+    "steps": [],
+    "commands": [],
+    "track": [
+     [
+      "使用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "调用次数",
+      null,
+      null,
+      ""
+     ],
+     [
+      "会话摩擦率",
+      9.0,
+      null,
+      "%"
+     ]
+    ],
+    "save": {
+     "min_month": 0,
+     "label": "—",
+     "low": 0,
+     "high": 0,
+     "basis": "没有可折算的问题证据"
+    },
+    "tok": 100,
+    "n": [
+     null,
+     null
+    ]
+   },
+   "candidate_id": "417884a2f9fbc987",
+   "run_id": "2594b01c5d2c4a7f"
+  }
+ ],
+ "dims": [
+  {
+   "id": "all",
+   "label": "全部",
+   "count": 6
+  },
+  {
+   "id": "rule",
+   "label": "规则与 Prompt",
+   "count": 2
+  },
+  {
+   "id": "skill",
+   "label": "Skills",
+   "count": 1
+  },
+  {
+   "id": "hook",
+   "label": "Hooks",
+   "count": 0
+  },
+  {
+   "id": "mcp",
+   "label": "插件 / MCP",
+   "count": 0
+  },
+  {
+   "id": "agent",
+   "label": "子代理",
+   "count": 3
+  },
+  {
+   "id": "model",
+   "label": "模型与思考",
+   "count": 0
+  },
+  {
+   "id": "flow",
+   "label": "工作流 / 架构",
+   "count": 0
+  }
+ ],
+ "problems": [],
+ "meta": {
+  "scope_hash": "3cfea89cc57d992d5d25ec5f736b6318",
+  "freshness": "fresh",
+  "job_id": null
+ }
+}

@@ -1,0 +1,104 @@
+{
+ "generation": 2,
+ "total": 34,
+ "kind": [
+  {
+   "value": "skill",
+   "count": 8
+  },
+  {
+   "value": "hook",
+   "count": 6
+  },
+  {
+   "value": "rule",
+   "count": 6
+  },
+  {
+   "value": "workflow",
+   "count": 6
+  },
+  {
+   "value": "guide",
+   "count": 5
+  },
+  {
+   "value": "mcp_server",
+   "count": 1
+  },
+  {
+   "value": "plugin",
+   "count": 1
+  },
+  {
+   "value": "subagent",
+   "count": 1
+  }
+ ],
+ "license": [
+  {
+   "value": "MIT",
+   "count": 30
+  },
+  {
+   "value": "repository_specific",
+   "count": 3
+  },
+  {
+   "value": "Apache-2.0",
+   "count": 1
+  }
+ ],
+ "risk_level": [
+  {
+   "value": 0,
+   "count": 23
+  },
+  {
+   "value": 1,
+   "count": 6
+  },
+  {
+   "value": 2,
+   "count": 5
+  }
+ ],
+ "origin": [
+  {
+   "value": "remote",
+   "count": 34
+  }
+ ],
+ "official": {
+  "true": 25,
+  "false": 9
+ },
+ "difficulty": [
+  {
+   "value": 2,
+   "count": 23
+  },
+  {
+   "value": 1,
+   "count": 7
+  },
+  {
+   "value": 3,
+   "count": 3
+  },
+  {
+   "value": 4,
+   "count": 1
+  }
+ ],
+ "agent": [
+  {
+   "value": "claude_code",
+   "count": 28
+  },
+  {
+   "value": "codex",
+   "count": 28
+  }
+ ]
+}
