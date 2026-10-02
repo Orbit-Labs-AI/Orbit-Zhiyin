@@ -34,6 +34,10 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--no-store", action="store_true", help="不写入 app.db 历史")
     history = ev.add_parser("history", parents=[home], help="最近的评测运行")
     history.add_argument("--limit", type=int, default=20)
+    label = sub.add_parser("label", parents=[home], help="逐条标注最新推荐的准确性（EV-02.1）")
+    label.add_argument("--kind", choices=("candidate", "problem"), default="candidate")
+    label.add_argument("--limit", type=int, default=20)
+    label.add_argument("--labeler", default="user")
     return parser
 
 
@@ -46,6 +50,8 @@ def main(argv: list[str] | None = None, *, input_fn: Callable[[str], str] = inpu
         return int(exc.code or 0) and 2
     home = (args.home or default_home()).expanduser()
     try:
+        if args.command == "label":
+            return _label(args, home, input_fn, out)
         return {"list": _list, "run": _run, "history": _history}[args.action](args, home, out)
     except ValueError as exc:
         print(f"错误：{exc}", file=sys.stderr)
@@ -118,3 +124,19 @@ def _history(args, home: Path, out) -> int:
         print("还没有评测记录。", file=out)
     return 0
 
+
+
+def _label(args, home: Path, input_fn, out) -> int:
+    if not (home / "app.db").is_file():
+        print("还没有 app.db；先在 App 里生成一次推荐。", file=out)
+        return 0
+    from ..appdb import AppDB
+    from .labels import label_loop
+
+    db = AppDB(home / "app.db")
+    try:
+        label_loop(db, home / "tandem.db", kind=args.kind, limit=args.limit,
+                   labeler=args.labeler, input_fn=input_fn, out=out)
+    finally:
+        db.close()
+    return 0

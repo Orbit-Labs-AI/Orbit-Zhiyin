@@ -83,3 +83,8 @@ def test_one_run_at_a_time(client):
     third = client.post("/v1/eval/runs", json={"suites": ["ok"]})
     assert third.status_code == 202
     _wait(client, third.json()["run_id"])
+
+
+def test_label_summary_route(client):
+    body = client.get("/v1/eval/labels/summary?days=30").json()
+    assert body == {"rows": [], "total_labels": 0}

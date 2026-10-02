@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from ..evalrun import registry, runner
+from ..evalrun import labels, registry, runner
 from ..evalrun import store as eval_store
 from .auth import ApiError
 
@@ -90,5 +90,10 @@ def router(gw: Gateway) -> APIRouter:
         if report is None:
             raise ApiError(404, "not_found", f"Unknown eval run {run_id}")
         return report
+
+    @api.get("/v1/eval/labels/summary")
+    def label_summary(days: int = Query(90, ge=1, le=3650)):
+        with gw.appdb.read() as conn:
+            return labels.summary(conn, days)
 
     return api
