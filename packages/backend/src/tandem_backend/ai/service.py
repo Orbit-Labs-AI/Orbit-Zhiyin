@@ -182,8 +182,23 @@ class AIService:
         cost = prices.estimate(tokens, task["out_budget"] * calls, model)
         return {"tokens": tokens, "cost_usd": cost, "calls": calls}
 
+    def _validate(self, task: dict, req: dict) -> None:
+        """Request checks shared by preview and submit (B15): a bad scope or a missing goal is a
+        422, not an empty pack that looks like "no data"."""
+        from . import queries  # lazy: keeps the pack modules out of gateway start-up
+
+        try:
+            queries.check_scope(req.get("scope"))
+        except ValueError as error:
+            raise AIError(422, "invalid_scope", str(error)) from None
+        manual = req.get("goal_source") in (None, "manual")
+        if task["task_id"].startswith("generate.") and manual and not str(req.get("goal") or "").strip() \
+                and not (req.get("slots") or {}).get("goal"):
+            raise AIError(422, "goal_required", "请先写下要解决的问题（goal 不能为空）")
+
     def preview(self, task_id: str, req: dict) -> dict:
         task = self._task(task_id)
+        self._validate(task, req)
         engine_id, _ = self._pick_engine(req.get("engine"), task)
         pack = self._pack(task, req)
         grants = self.consent_store.grants().get(engine_id or "", {})
@@ -206,6 +221,7 @@ class AIService:
     def submit(self, task_id: str, req: dict, *, waiter: bool = False,
                skip_preview: bool = False) -> dict:
         task = self._task(task_id)
+        self._validate(task, req)
         settings = self.consent_store.settings()
         if settings["mode"] == "stats":
             raise AIError(403, "ai_disabled", "AI 未开启（设置 → AI 引擎）")
