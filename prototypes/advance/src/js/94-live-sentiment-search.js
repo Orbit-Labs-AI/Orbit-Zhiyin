@@ -136,8 +136,23 @@ function lvSearchItems(q, have) {
       : [h.snippet && h.snippet !== h.title ? h.snippet : null, s ? s.title : null, when].filter(Boolean).join(' · ');
     out.push({ g: LVS_GROUP[kind] || '结果', t: h.title || h.snippet || h.id, sub, icon: LVS_ICON[kind] || 'search', run: () => lvOpenRef(h) });
   }));
-  if (e.data && e.data.partial && e.data.partial.length && !out.length) out.push({ g: '搜索', t: '索引仍在建立，结果可能不完整', icon: 'info', run: () => {} });
+  const note = lvSearchNote(e.data || {}); if (note) out.push(note);
+  const many = lvSearchAtLeast(e.data || {}); if (many) out.push(many);
   return out;
+}
+// round 3: /v1/search says which sources are missing (partial_reasons) and which kinds hit the per-source cap
+const LVS_REASON = { index_building: '索引仍在建立', timeout: '查询超时', queued_timeout: '排队超时', overloaded: '本机繁忙', error: '查询出错' };
+function lvSearchNote(d) {
+  const reasons = d.partial_reasons || {}; const kinds = Object.keys(reasons).length ? Object.keys(reasons) : (d.partial || []);
+  if (d.complete !== false && !kinds.length) return null;
+  const by = {}; kinds.forEach((k) => { const why = LVS_REASON[reasons[k]] || reasons[k] || '暂不可用'; (by[why] = by[why] || []).push(LVS_GROUP[k] || k); });
+  const parts = Object.keys(by).map((why) => Array.from(new Set(by[why])).join('、') + ' ' + why);
+  return { g: '搜索', t: '结果不完整：' + (parts.length ? parts.join('；') : '部分来源未返回'), sub: (d.results || []).length ? '' : '没有结果不代表没有匹配', icon: 'info', run: () => {} };
+}
+function lvSearchAtLeast(d) {
+  const xs = (d.counts_at_least || []).filter((k) => d.counts && d.counts[k] != null);
+  if (!xs.length) return null;
+  return { g: '搜索', t: '匹配较多：' + xs.map((k) => (LVS_GROUP[k] || k) + ' 至少 ' + fmt(d.counts[k]) + ' 条').join('、'), sub: '只列出最相关的结果，可输入更具体的词', icon: 'info', run: () => {} };
 }
 function lvRuleGoal() {
   const V = LVS.view; const xs = V && V.phrases ? V.phrases.filter((p) => p[2] === '纠偏').slice(0, 4) : [];
