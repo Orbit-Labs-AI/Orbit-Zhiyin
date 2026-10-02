@@ -19,7 +19,7 @@ from tandem_backend.analytics.service import analyze_store
 from tandem_backend.api import create_app
 from tandem_backend.cli import demo_home, main
 from tandem_backend.data_access.ingest import ingest, ingest_staging, maintain
-from tandem_backend.data_access.store import CanonicalStore
+from tandem_backend.data_access.store import CanonicalStore, ReportSnapshot
 
 
 @pytest.fixture
@@ -86,6 +86,16 @@ def test_analysis_keeps_context_out_of_members_and_historical_status(data):
     assert result["overview"]["counts"]["human_messages"] == 0
     assert all(c["result_event_uid"] is None for c in bundle["tool_calls"])
     assert analyze_store(store, Scope(project_ids=[]), with_text=False)["overview"]["counts"]["events"] == 0
+
+
+def test_narrative_does_not_treat_child_agent_prompts_as_human_preferences(data):
+    bundle = CanonicalStore(data[0]).read_bundle()
+    sid = bundle["sessions"][0]["session_uid"]
+    expected = sum(e["kind"] == "message.user" and e["attrs"].get("origin") == "human"
+                   and e["session_uid"] != sid for e in bundle["events"])
+    bundle["sessions"][0]["kind"] = "subagent"
+    snapshot = ReportSnapshot(bundle)
+    assert sum(e.kind == "user_message" for e in snapshot.events()) == expected
 
 
 def test_sql_scope_applies_before_analysis_memory_budget(tmp_path):

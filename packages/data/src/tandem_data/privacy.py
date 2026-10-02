@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 
-REDACTION_VERSION = "1.1.0"
+REDACTION_VERSION = "1.1.1"
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",
@@ -25,11 +25,43 @@ def secret_key(key: str) -> bool:
     normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
     return bool(
         re.search(
-            r"(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?)$",
+            r"(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?|cookies?|set_cookie)$",
             normalized,
         )
         or re.search(r"(?:^|_)(?:secret|password|passwd)(?:_|$)", normalized)
     )
+
+
+_AUTH_HEADERS = r"(?:Proxy-Authorization|Authorization|Set-Cookie|Cookie)"
+_QUOTED_HEADER = re.compile(
+    r"(?P<q>[\"'])(?P<prefix>"
+    + _AUTH_HEADERS
+    + r"[ \t]*:[ \t]*)(?:\\.|(?!(?P=q))[^\r\n\\])*(?P=q)",
+    re.I,
+)
+_RAW_HEADER = re.compile(
+    r"(\b" + _AUTH_HEADERS + r"[ \t]*:[ \t]*)[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*", re.I
+)
+
+
+def _redact_headers(text: str) -> str:
+    protected = {}
+
+    def quoted(match):
+        index = len(protected)
+        marker = f"\x00tandem_header_{index}\x00"
+        while marker in text or marker in protected:
+            index += 1
+            marker = f"\x00tandem_header_{index}\x00"
+        protected[marker] = match["q"] + match["prefix"] + "<redacted:header>" + match["q"]
+        return marker
+
+    # Protect complete quoted header arguments so curl's surrounding command stays parseable.
+    text = _QUOTED_HEADER.sub(quoted, text)
+    text = _RAW_HEADER.sub(lambda match: match[1] + "<redacted:header>", text)
+    for marker, header in protected.items():
+        text = text.replace(marker, header)
+    return text
 
 
 def redact(text: str) -> str:
@@ -41,6 +73,7 @@ def redact(text: str) -> str:
                 return json.dumps(clean, ensure_ascii=False, separators=(",", ":"))
         except (ValueError, TypeError):
             pass
+    text = _redact_headers(text)
     text = re.sub(
         r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
         "<redacted:private_key>",
@@ -56,7 +89,7 @@ def redact(text: str) -> str:
     )
 
     def assignment(match):
-        if not is_secret_key(match["key"]):
+        if not is_secret_key(match["key"]) or match["value"].startswith("<redacted:"):
             return match[0]
         value = match["value"]
         quote = value[0] if value[0] in (chr(34), chr(39)) else ""
@@ -65,7 +98,12 @@ def redact(text: str) -> str:
     # JSON/YAML keys and shell assignments, including quoted values with spaces.
     assignment_pattern = r"(?P<prefix>\b(?P<key>[A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*[=:]\s*)(?P<value>\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s\"'`,;}{]+)"
     text = re.sub(assignment_pattern, assignment, text)
-    return re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1<redacted:credentials>@", text)
+    return re.sub(
+        r"\b([a-z][a-z0-9+.-]*://)[^\s/@:]+(?::[^\s/@]*)?@",
+        r"\1<redacted:credentials>@",
+        text,
+        flags=re.I,
+    )
 
 
 def _json_secrets(value, key=""):

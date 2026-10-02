@@ -53,8 +53,11 @@ class ReportSnapshot:
         self._sessions = [report_session(s, projects.get(s["project_id"])) for s in bundle["sessions"]]
         members = set(bundle["statistical_members"]["event_uids"])
         self._events = [report_event(e) for e in bundle["events"] if e["event_uid"] in members]
+        mains = {s["session_uid"] for s in bundle["sessions"] if s["kind"] == "main"}
         calls = {c[key]: c for c in bundle["tool_calls"] for key in ("call_event_uid", "result_event_uid") if c[key]}
         for event in self._events:
+            if event.kind == "user_message" and event.session_id not in mains:
+                event.kind = "context"
             call = calls.get(event.id)
             if call:
                 event.tool = call["name_raw"]

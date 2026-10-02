@@ -257,3 +257,59 @@ def test_secret_bearing_tool_arguments_have_no_offline_digest():
     data = event.envelope("r", 0, "test")
     assert data["attrs"]["argument_digest"] is None
     assert data["attrs"]["input"]["password"] == "<redacted:secret>"
+
+
+@pytest.mark.parametrize("header", ["Authorization", "Proxy-Authorization", "Cookie", "Set-Cookie"])
+def test_authentication_header_values_are_atomic_secrets(header):
+    import shlex
+
+    from tandem_data.privacy import redact
+
+    value = (
+        "Basic dW5pdDpzZWNyZXQ="
+        if "Authorization" in header
+        else "session=unit-cookie-value; tracking=another-value"
+    )
+    raw = f"{header}: {value}\r\nAccept: text/plain"
+    cleaned = redact(raw)
+    assert value not in cleaned
+    assert "dW5pdDpzZWNyZXQ=" not in cleaned
+    assert "unit-cookie-value" not in cleaned
+    assert "another-value" not in cleaned
+    assert "Accept: text/plain" in cleaned
+    command = f"curl -H '{header}: {value}' -H 'Authorization: Negotiate private-scheme-value' https://example.invalid"
+    cleaned = redact(command)
+    assert "private-scheme-value" not in cleaned and "unit-cookie-value" not in cleaned
+    assert shlex.split(cleaned)[-1] == "https://example.invalid"
+    assert sanitize({"headers": {header: value}})["headers"][header] == "<redacted:secret>"
+
+
+def test_raw_auth_headers_are_absent_from_published_events_but_preserved_in_l0(tmp_path):
+    token = "dW5pdDpzZWNyZXQ="
+    cookie = "fixture-cookie-secret"
+    body = f"Authorization: Basic {token}\r\nCookie: session={cookie}\r\nAccept: application/json"
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("pi", tmp_path / "source")
+        records = [
+            {"type": "session", "id": "s"},
+            {"type": "message", "id": "u", "message": {"role": "user", "content": body}},
+        ]
+        store.capture_stream(
+            source, "session.jsonl", [(canonical(row) + "\n").encode() for row in records]
+        )
+        store.rebuild()
+        event = dict(store.db.execute("SELECT * FROM event WHERE kind='message.user'").fetchone())
+        assert token not in canonical(event) and cookie not in canonical(event)
+        raw = store.read_raw(event["record_uid"])
+        assert token.encode() in raw and cookie.encode() in raw
+        assert store.verify()["unparsed"] == 0
+
+
+@pytest.mark.parametrize("scheme", ["postgresql", "rediss", "HTTPS"])
+def test_credentialed_uri_schemes_are_redacted(scheme):
+    from tandem_data.privacy import redact
+
+    value = f"{scheme}://fixture-user:fixture-password@example.invalid/db"
+    cleaned = redact(value)
+    assert "fixture-user" not in cleaned and "fixture-password" not in cleaned
+    assert "example.invalid/db" in cleaned
