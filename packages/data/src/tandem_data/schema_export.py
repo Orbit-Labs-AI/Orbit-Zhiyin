@@ -7,7 +7,11 @@ from importlib.resources import files
 
 def table_schemas():
     connection = sqlite3.connect(":memory:")
-    connection.executescript(files("tandem_data").joinpath("migrations/001.sql").read_text())
+    for migration in sorted(
+        files("tandem_data").joinpath("migrations").iterdir(), key=lambda p: p.name
+    ):
+        if migration.name.endswith(".sql"):
+            connection.executescript(migration.read_text())
     tables = {}
     for name, sql in connection.execute(
         "SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'event_fts%' ORDER BY name"

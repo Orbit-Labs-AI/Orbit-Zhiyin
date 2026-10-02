@@ -20,27 +20,40 @@ def candidates(home: Path | None = None) -> list[dict]:
         "dsh": [home / ".dsh"],
         "pi": [home / ".pi/agent"],
         "hermes": [home / ".hermes"],
-        "opencode": [home / ".local/share/opencode"],
+        "opencode": [
+            Path(os.environ.get("XDG_DATA_HOME", str(home / ".local/share"))) / "opencode"
+        ],
+        "kimi": [home / ".kimi-code"],
     }
     for agent, variable in (
         ("claude_code", "CLAUDE_CONFIG_DIR"),
         ("codex", "CODEX_HOME"),
         ("dsh", "DSH_HOME"),
         ("hermes", "HERMES_HOME"),
+        ("pi", "PI_CODING_AGENT_DIR"),
+        ("kimi", "KIMI_CODE_HOME"),
     ):
         if os.getenv(variable):
             roots[agent].append(Path(os.environ[variable]).expanduser())
-    return [
-        {"agent": agent, "root": str(root.resolve())}
+    desktop = home / "Library/Application Support/Claude/local-agent-mode-sessions"
+    if desktop.is_dir():
+        roots["claude_code"].extend(desktop.glob("**/.claude"))
+    found = {
+        (agent, str(root.resolve()))
         for agent, paths in roots.items()
-        for root in dict.fromkeys(paths)
+        for root in paths
         if root.is_dir()
-    ]
+    }
+    return [{"agent": agent, "root": root} for agent, root in sorted(found)]
 
 
 def inputs(agent: str, root: Path):
     patterns = {
-        "claude_code": ("projects/**/*.jsonl",),
+        "claude_code": (
+            "projects/**/*.jsonl",
+            "projects/**/agent-*.meta.json",
+            "projects/**/custom-title.json",
+        ),
         "codex": (
             "sessions/**/*.jsonl",
             "sessions/**/*.jsonl.zst",
@@ -51,6 +64,7 @@ def inputs(agent: str, root: Path):
         "pi": ("sessions/**/*.jsonl",),
         "hermes": ("state.db",),
         "opencode": ("opencode.db", "opencode.dev.db"),
+        "kimi": ("session_index.jsonl", "sessions/*/*/agents/*/wire.jsonl"),
     }
     if agent not in patterns:
         raise ValueError(
@@ -61,7 +75,9 @@ def inputs(agent: str, root: Path):
             path
             for pattern in patterns[agent]
             for path in root.glob(pattern)
-            if path.is_file() and path.resolve().is_relative_to(root.resolve())
+            if path.is_file()
+            and not path.is_symlink()
+            and path.resolve().is_relative_to(root.resolve())
         }
     )
     if agent == "dsh":
@@ -77,5 +93,14 @@ def inputs(agent: str, root: Path):
     else:
         for path in found:
             yield InputFile(
-                path, "subagent_transcript" if "subagents" in path.parts else "transcript"
+                path,
+                "subagent_metadata"
+                if path.name.endswith(".meta.json") and agent == "claude_code"
+                else "session_title"
+                if path.name == "custom-title.json" and agent == "claude_code"
+                else "session_index"
+                if path.name == "session_index.jsonl" and agent == "kimi"
+                else "subagent_transcript"
+                if "subagents" in path.parts
+                else "transcript",
             )

@@ -28,9 +28,12 @@ class RecommendationRequest(BaseModel):
     limit: int = Field(default=6, ge=1, le=20, strict=True)
 
 
-def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Path = ".local/catalog.json",
-               recommendation_catalog: str | Path | None = None) -> FastAPI:
-    store = Store(db)
+def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local/catalog.json",
+               recommendation_catalog: str | Path | None = None, *, home: str | Path | None = None) -> FastAPI:
+    from tandem_data.paths import default_home
+
+    from .data_access.store import CanonicalStore
+    store = Store(db) if db is not None else CanonicalStore(home if home is not None else default_home())
     app = FastAPI(title="Tandem 本地轨迹分析", version=__version__)
 
     def analytics_scope(
@@ -162,13 +165,20 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
         return analyze(store)["projects"]
 
     @app.get("/v1/sessions")
-    def sessions(project_id: str | None = None, limit: int = Query(50, ge=1, le=200)):
+    def sessions(project_id: str | None = None, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
         # Paths stay in the local ledger; listing sessions does not expose home-directory paths.
+        items = (store.session_page(project_id, offset=offset, limit=limit)["items"]
+                 if hasattr(store, "session_page") else store.sessions(project_id)[offset:offset + limit])
         return [{k: s[k] for k in ("id", "title", "project_id", "project", "model", "started_at")}
-                for s in store.sessions(project_id)[:limit]]
+                for s in items]
 
     @app.get("/v1/sessions/{session_id}/events")
-    def events(session_id: str, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
+    def events(session_id: str, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500), after_seq: int | None = Query(None, ge=-1)):
+        if hasattr(store, "event_page"):
+            page = store.event_page(session_id, offset=offset, after_seq=after_seq, limit=limit)
+            if page is None:
+                raise HTTPException(404, "会话不存在或不在分析范围内")
+            return page
         items = store.events(session_id=session_id)
         if not any(s["id"] == session_id for s in store.sessions()):
             raise HTTPException(404, "会话不存在")
@@ -189,6 +199,11 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
 
     @app.get("/v1/evidence/{event_id}")
     def evidence(event_id: str):
+        if hasattr(store, "evidence"):
+            item = store.evidence(event_id)
+            if item is None:
+                raise HTTPException(404, "证据不存在或不在分析范围内")
+            return item
         with store.connect() as conn:
             row = conn.execute("SELECT data FROM events WHERE id=?", (event_id,)).fetchone()
         if not row:

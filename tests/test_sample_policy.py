@@ -55,7 +55,7 @@ def test_tightened_policy_survives_a_later_import_failure(tmp_path, monkeypatch)
     def cannot_read(*args, **kwargs):
         raise OSError("source temporarily unavailable")
 
-    monkeypatch.setattr("tandem_backend.store.parse_rollout", cannot_read)
+    monkeypatch.setattr("tandem_backend.legacy.store.parse_rollout", cannot_read)
     with pytest.raises(OSError):
         import_codex(store, home, exclude_sessions={"demo-0"})
     assert store.counts()["sessions"] == 0

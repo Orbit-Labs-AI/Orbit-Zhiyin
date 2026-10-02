@@ -227,3 +227,5 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 - `tandem demo`、`tandem evaluate` 和推荐演示脚本在临时目录中通过；显式空目录、Agent 和 family 命令行参数已验证。
 - 离线构建 wheel 并在临时目录导入：七份接收 JSON、七份 Schema 均随包发布，默认旧资源适配及新 service 可用。
 - 独立检查未发现 P0/P1 阻塞问题。上述检查不代表权重已校准或真实收益已得到验证。
+
+PR #26 同步 main 的统一数据层后，API 默认保留 `CanonicalStore` 和 `home` 参数，并支持推荐目录配置；CLI 同时传递两个配置。Python 3.13 全量测试 1,068 项通过、1 项 connector staging 集成测试因本机缺少构建产物跳过；另补充 canonical 数据与显式空推荐目录的 GET/POST 联调回归。推荐演示、demo、evaluate、workspace 构建与资源打包检查通过，均使用合成数据。

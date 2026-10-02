@@ -11,6 +11,8 @@ from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
 from tandem_backend.analytics.recommendations.diagnosis import diagnose_bottlenecks
 from tandem_backend.analytics.service import analyze_bundle
 from tandem_backend.api import create_app
+from tandem_backend.cli import demo_home
+from tandem_backend.data_access.ingest import ingest
 from tandem_backend.recommend.service import recommend
 
 
@@ -65,6 +67,24 @@ def write_family(directory, family, items):
     (directory / (family + ".json")).write_text(json.dumps({
         "schema_version": "recommendation-catalog-v1", "family": family, "items": items,
     }), encoding="utf-8")
+
+
+def test_canonical_api_preserves_explicit_recommendation_catalog(tmp_path):
+    data_home, catalog_directory = tmp_path / "data", tmp_path / "catalog"
+    catalog_directory.mkdir()
+    ingest(data_home, "codex", demo_home(tmp_path / "fictional-codex"))
+    with TestClient(create_app(home=data_home, recommendation_catalog=catalog_directory)) as client:
+        assert client.get("/health").json()["counts"]["events"] > 0
+        responses = [client.get("/v1/analytics/recommendations?target_agent=codex&family=skills"),
+                     client.post("/v1/analytics/recommendations", json={
+                         "context": {"agent": "codex"}, "family": "skills",
+                     })]
+    for response in responses:
+        assert response.status_code == 200
+        result = response.json()["bottleneck_recommendations"]
+        assert result["states"] and result["recommendations"] == []
+        assert result["family"] == "skills" and result["target_agent"] == "codex"
+        assert len([d for d in result["diagnostics"] if d.get("reason") == "missing"]) == 7
 
 
 @pytest.fixture

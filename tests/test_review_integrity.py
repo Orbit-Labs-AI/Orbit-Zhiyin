@@ -12,7 +12,7 @@ from tandem_backend.analysis import analyze
 from tandem_backend.analysis_reports import bottlenecks_markdown, process_markdown, profile_markdown
 from tandem_backend.bottlenecks import unexplained_terms
 from tandem_backend.cli import demo_home, main
-from tandem_backend.importers import codex
+from tandem_backend.legacy import codex
 from tandem_backend.narrative import explain, markdown
 from tandem_backend.privacy import direct_user_text
 from tandem_backend.recommend import recommend
@@ -28,7 +28,7 @@ def test_explicit_policy_reset_cannot_preserve_excluded_rows_on_interruption(tmp
     def unavailable(*args, **kwargs):
         raise OSError('unavailable')
 
-    monkeypatch.setattr('tandem_backend.store.parse_rollout', unavailable)
+    monkeypatch.setattr('tandem_backend.legacy.store.parse_rollout', unavailable)
     with pytest.raises(OSError):
         import_codex(store, home, reset_sample_policy=True, **narrowing)
     assert store.counts()['sessions'] == 0

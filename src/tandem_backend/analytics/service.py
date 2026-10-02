@@ -201,7 +201,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
 
 
 def analyze_store(store, scope=None, with_text=True):
-    return analyze_bundle(legacy_bundle(store), scope, with_text)
+    bundle = store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
+    return analyze_bundle(bundle, scope, with_text)
 
 
 def response_section(result, key):

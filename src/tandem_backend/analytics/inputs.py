@@ -75,6 +75,7 @@ class AnalysisInputBundle:
     versions: dict = field(default_factory=dict)
     sample_boundary: dict = field(default_factory=dict)
     input_contract: str = "analysis-input-v1"
+    statistical_members: dict | None = None
 
     @classmethod
     def from_dict(cls, data):
@@ -93,8 +94,15 @@ class AnalysisInputBundle:
                 cov[name] = coverage("partial" if fields[name] is not None else "unavailable",
                                      len(fields[name]) if fields[name] is not None else None,
                                      "调用方未声明完整覆盖")
+        versions = data.get("versions", {})
+        if "projection_run_id" in data:
+            versions = {k: data.get(k) for k in ("db_schema_version", "parser_version",
+                        "derivation_version", "redaction_version", "projection_run_id")}
+            versions.update(storage="tandem-session-v1", content_digest=stable_id(
+                versions, data.get("sample_boundary"), data.get("statistical_members")))
         return cls(sessions=data.get("sessions", []), coverage=cov, **fields,
-                   versions=data.get("versions", {}), sample_boundary=data.get("sample_boundary", {}))
+                   versions=versions, sample_boundary=data.get("sample_boundary", {}),
+                   statistical_members=data.get("statistical_members"))
 
 
 KINDS = {"user_message": "message.user", "assistant_message": "message.assistant",
@@ -238,6 +246,8 @@ def legacy_bundle(store: Store) -> AnalysisInputBundle:
 
 def select(bundle: AnalysisInputBundle, scope: Scope):
     """Select members, then keep bounded linked context without counting it."""
+    if bundle.statistical_members is not None:
+        return select_canonical(bundle, scope)
     if scope.project_ids and bundle.coverage.get("projects", {}).get("status") == "unavailable":
         raise ValueError("规范 project_id 不可用；路径分组请使用 legacy_project_ids")
     if (scope.model_ids or scope.effort_raw) and bundle.model_calls is None:
@@ -366,6 +376,39 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
                        if scope.from_ts is not None or scope.until_ts is not None else 0,
                    "selected_event_ids": member_ids}
     return sessions, members, calls, model_calls, diagnostics
+
+
+def select_canonical(bundle, scope):
+    """Honor the data layer's scoped membership; linked context is never counted twice."""
+    ids = set(bundle.statistical_members["event_uids"])
+    events = bundle.events or []
+    if scope.scene:
+        humans = [Event(e["event_uid"], e["session_uid"], e["seq"], "user_message", None,
+                        text=e.get("text") or "", details=e["attrs"])
+                  for e in events if e["kind"] == "message.user" and e["attrs"].get("origin") == "human"]
+        contexts, active, selected = task_contexts(humans), {}, set()
+        for event in events:
+            eid, sid = event["event_uid"], event["session_uid"]
+            if eid in contexts:
+                active[sid] = contexts[eid]["scene"]
+            if eid in ids and active.get(sid) == scope.scene:
+                selected.add(eid)
+        ids = selected
+    members = [e for e in events if e["event_uid"] in ids]
+    calls = None if bundle.tool_calls is None else [c for c in bundle.tool_calls
+            if c.get("call_event_uid") in ids or c.get("result_event_uid") in ids]
+    models = None if bundle.model_calls is None else [c for c in bundle.model_calls if c["usage_event_uid"] in ids]
+    visible = {e["session_uid"] for e in members}
+    roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}
+    sessions = [s for s in bundle.sessions if s["session_uid"] in visible | roots]
+    linked_results = {c.get("result_event_uid") for c in calls or []}
+    diagnostics = {"excluded_sessions": {}, "replayed_events_excluded": 0,
+                   "model_ambiguous_turns_excluded": 0,
+                   "context_events": [e for e in events if e["event_uid"] not in ids and e["event_uid"] in linked_results],
+                   "time_unknown_events": sum(e.get("ts") is None for e in members),
+                   "time_unknown_excluded_from_bounded_counts": sum(e.get("ts") is None for e in events if e["event_uid"] not in ids),
+                   "selected_event_ids": ids}
+    return sessions, members, calls, models, diagnostics
 
 
 def metadata(bundle, scope, diagnostics):
