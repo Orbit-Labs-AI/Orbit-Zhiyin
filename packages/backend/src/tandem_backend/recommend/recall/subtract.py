@@ -3,6 +3,14 @@
 from .kb_route import from_rule
 
 DIM_BY_TYPE = {"rule": "rule", "skill": "skill", "mcp": "mcp", "plugin": "mcp", "hook": "hook"}
+EVIDENCE_SESSIONS = 20
+
+
+def recent_sessions(inputs: dict, limit: int = EVIDENCE_SESSIONS) -> list[str]:
+    """Newest root sessions: the ones that loaded (and never called) the component."""
+    days = [d for d in (inputs.get("facts") or {}).get("session_days") or () if d.get("session_uid")]
+    days.sort(key=lambda d: d.get("started_at") or 0, reverse=True)
+    return [d["session_uid"] for d in days[:limit]]
 
 
 def recall(problems: list[dict], rules, inputs: dict, memory: dict) -> tuple[list, dict]:
@@ -33,6 +41,8 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict) -> tuple[lis
                      "unit_minutes": round(int(v.get("tokens") or 0) / 1000 * .2, 4)})
         cand["target"].update({"path_hint": v.get("config_path"), "scope": "user", "project_id": None})
         cand["source"]["item_id"] = v.get("inv_id") or rule.id
+        if not cand["evidence"]["session_uids"]:
+            cand["evidence"]["session_uids"] = recent_sessions(inputs)
         payload[key] = cand
         rows.append((key, 1. if problem["status"] == "active" else .5))
     rows.sort(key=lambda row: (-row[1], row[0]))

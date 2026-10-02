@@ -74,6 +74,7 @@ def compute(store, scope, params, memo) -> dict:
     with store.connect() as conn:
         facts, agents = _facts(conn, root_of, roots, signals, diagnostics, result)
         inventory = _inventory(conn, diagnostics)
+        projects = _projects(conn, {r.get("project_id") for r in roots}, diagnostics)
     starts = [r["started_at"] for r in roots if r.get("started_at") is not None]
     first, last = (min(starts), max(starts)) if starts else (None, None)
     weeks = max(1.0, ((last - first) / (7 * 86_400_000)) if starts else 1.0)
@@ -84,10 +85,34 @@ def compute(store, scope, params, memo) -> dict:
         "sessions": {"main": len(roots), "first_ts": first, "last_ts": last,
                      "weeks": round(weeks, 3)},
         "signals": signals, "assessments": assessments, "tasks": _tasks(result),
-        "facts": facts, "inventory": inventory, "profile": _profile(scope, diagnostics),
+        "facts": facts, "inventory": inventory, "projects": projects, "profile": _profile(scope, diagnostics),
         "legacy_cards": (br.get("recommendations") or [])[:20], "diagnostics": diagnostics,
     }
     return cap(inputs)
+
+
+def _projects(conn, ids: set, diagnostics: list) -> dict[str, dict]:
+    """{project_id: {name: basename(root), root}} for the selected sessions' projects, so cards
+    name a project directory instead of its opaque id."""
+    ids = sorted(i for i in ids if i)
+    if not ids:
+        return {}
+    try:
+        rows = conn.execute(f"SELECT project_id, name, paths FROM project WHERE project_id IN {UIDS}",
+                            (json.dumps(ids),)).fetchall()
+    except Exception as error:  # noqa: BLE001 - optional, never fail the section
+        diagnostics.append({"source": "projects", "status": "unavailable", "reason": str(error)})
+        return {}
+    out = {}
+    for project_id, name, paths in rows:
+        try:
+            parsed = json.loads(paths) if paths else []
+        except ValueError:
+            parsed = []
+        root = next((str(p) for p in parsed if p), None) if isinstance(parsed, list) else None
+        base = root.rstrip("/").rsplit("/", 1)[-1] if root else None
+        out[project_id] = {"name": base or name, "root": root}
+    return out
 
 
 def _tasks(result: dict) -> list[dict]:

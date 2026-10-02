@@ -4,12 +4,21 @@ Also hosts the RawCand builders shared by the other new routes, so every
 candidate has the same shape whatever route produced it.
 """
 
+import json
+import os
+import re
+
 from .. import mechanism
 from ..kb import Rule
+from ..narrate import audience_default
 
-PATHS = {"permission_rule": "~/.claude/settings.json", "hook": "~/.claude/settings.json",
-         "skill": "~/.claude/skills/{id}/SKILL.md", "subagent": "~/.claude/agents/{id}.md",
-         "rule": "AGENTS.md", "prompt": "AGENTS.md"}
+# Where a remedy lands, per the Agent the user runs most (user scope; project scope swaps
+# the home prefix for the project's directory name).
+PATHS = {"claude_code": {"permission_rule": "~/.claude/settings.json", "hook": "~/.claude/settings.json",
+                         "skill": "~/.claude/skills/{id}/SKILL.md", "subagent": "~/.claude/agents/{id}.md",
+                         "rule": "AGENTS.md", "prompt": "AGENTS.md"},
+         "codex": {"permission_rule": "~/.codex/config.toml", "hook": "~/.codex/config.toml",
+                   "skill": "~/.codex/skills/{id}/SKILL.md", "rule": "AGENTS.md", "prompt": "AGENTS.md"}}
 
 
 class _Keep(dict):
@@ -33,10 +42,61 @@ def evidence_of(problem: dict | None) -> dict:
             "counts": {"sessions": problem["sessions"], "events": len(ev["event_ids"])}}
 
 
+def top_agent(inputs: dict) -> str | None:
+    used = sorted(((a, n) for a, n in (inputs.get("agents") or {}).items() if n), key=lambda kv: (-kv[1], kv[0]))
+    return used[0][0] if used else None
+
+
 def target_agents(support: dict, inputs: dict) -> list[str]:
-    used = sorted((inputs.get("agents") or {}).items(), key=lambda kv: (-kv[1], kv[0]))
-    agents = [agent for agent, _ in used if support.get(agent, "unknown") != "unsupported"]
-    return agents or sorted(agent for agent, value in support.items() if value != "unsupported")
+    """Agents the user runs that the remedy can reach; the support matrix only without usage."""
+    used = sorted(((a, n) for a, n in (inputs.get("agents") or {}).items() if n), key=lambda kv: (-kv[1], kv[0]))
+    if used:
+        return [agent for agent, _ in used if support.get(agent, support.get("*", "unknown")) != "unsupported"]
+    return sorted(agent for agent, value in support.items() if value != "unsupported")
+
+
+def project_name(project_id: str | None, inputs: dict) -> str | None:
+    """Directory name of a project (``inputs.projects``); never the opaque project id."""
+    info = (inputs.get("projects") or {}).get(project_id) or {}
+    root = info.get("root")
+    return (os.path.basename(str(root).rstrip("/")) if root else None) or info.get("name")
+
+
+def path_hint(kind: str, rule_id: str, inputs: dict, project: str | None) -> str | None:
+    """Landing path for the top Agent; project scope → ``<project name>/...``."""
+    path = PATHS.get(top_agent(inputs) or "claude_code", PATHS["claude_code"]).get(kind)
+    if not path:
+        return None
+    path = path.format(id=rule_id)
+    if project is None:
+        return path
+    name = project_name(project, inputs)
+    local = path[2:] if path.startswith("~/") else path
+    return f"{name}/{local}" if name else local
+
+
+def _toml(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def allow_file(heads: list[str], agent: str | None) -> list[list[str]]:
+    """Read-only allowlist snippet for the measured command heads ('+' = added line)."""
+    if agent == "codex":
+        lines = [["# ~/.codex/config.toml", " "]]
+        for head in heads:
+            lines += [["[[permissions.allow]]", "+"], [f"command = {_toml(head)}", "+"]]
+        return lines
+    body = [[f"      {_toml(f'Bash({head}:*)')},", "+"] for head in heads]
+    return [["{", " "], ['  "permissions": {', " "], ['    "allow": [', " "], *body, ["    ]", " "], ["  }", " "],
+            ["}", " "]]
+
+
+def _title(rule: Rule, values: dict) -> str:
+    """Filled title; a slot without a value drops the part after the colon."""
+    title = fill(rule.title, values)
+    if "{" in title:
+        title = re.split(r"[：:]", rule.title)[0].strip()
+    return title
 
 
 def project_of(problem: dict | None) -> str | None:
@@ -58,18 +118,21 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
     shown = {**values, **{name: "…" for name in rule.remedy.slots if name not in values}}
     project = project_of(problem)
     scope = "project" if rule.remedy.scope == "project" or project else "user"
-    path = PATHS.get(rule.remedy.kind)
-    if path and scope == "project" and project and path.startswith("~/.claude"):
-        path = path.replace("~/.claude", f"{project}/.claude")
+    path = path_hint(rule.remedy.kind, rule.id, inputs, project if scope == "project" else None)
+    file = [[fill(line, shown), mark] for line, mark in rule.file]
+    if rule.remedy.kind == "permission_rule" and values.get("head_list"):
+        file = allow_file([str(h) for h in values["head_list"]], top_agent(inputs))
+    audience = (rule.audience_min if "audience_min" in rule.model_fields_set
+                else audience_default(rule.remedy.kind, rule.remedy.level))
     return {
         "rec_key": rec_key, "problem": problem, "kind": rule.remedy.kind, "dim": rule.remedy.dim,
-        "level": rule.remedy.level, "audience_min": rule.audience_min,
-        "title": fill(rule.title, shown), "summary": fill(rule.summary, shown), "match_basis": match_basis,
+        "level": rule.remedy.level, "audience_min": audience,
+        "title": _title(rule, values), "summary": fill(rule.summary, shown), "match_basis": match_basis,
         "routes": {}, "fusion": 0., "evidence": evidence_of(problem),
         "source": {"origin": origin, "item_id": rule.id, "url": None, "license": None,
-                   "version": str(rule.version), "verified": True},
+                   "version": str(rule.version), "verified": True, "catalog_ref": rule.catalog_ref},
         "target": {"agents": target_agents(rule.remedy.agents, inputs), "scope": scope, "project_id": project,
-                   "path_hint": path.format(id=rule.id) if path else None},
+                   "path_hint": path},
         "track": {**rule.track.model_dump(), "extend_days": 28},
         "trial": {"steps": [fill(step, shown) for step in rule.steps], "metric": rule.track.triggered,
                   "follow_days": rule.track.follow_days},
@@ -78,7 +141,7 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
         "prior": rule.benefit.prior.model_dump(), "cost": rule.cost.model_dump(), "risk": rule.risk.model_dump(),
         "requirements": {"tools": [], "software": [values["software"]] if "software" in values else []},
         "gates_hint": rule.gates.model_dump(), "unit_minutes": rule.benefit.unit_minutes, "tags": list(rule.tags),
-        "file": [[fill(line, shown), mark] for line, mark in rule.file] or None,
+        "file": file or None,
         "explain_hints": {**rule.explain.model_dump(), "vars": values},
     }
 

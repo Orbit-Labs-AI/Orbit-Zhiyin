@@ -7,6 +7,7 @@ cheap (no model calls), so the gateway can rebuild it on every engine run.
 
 import hashlib
 import math
+import re
 from datetime import datetime
 
 RULE_TO_PROBLEM = {
@@ -35,6 +36,18 @@ FACT_PROBLEMS = {
     "test_failures": ("buggy_output", "buggy_output:test", "count",
                       "{k} 个会话里同一测试反复失败（{commands}）"),
 }
+
+MAX_INSTRUCTION = 24
+_REPEATED = re.compile(r"重复(?:要求|说明|提出)[：:]\s*(.+)")
+
+
+def instruction_of(signal: dict) -> str | None:
+    """The repeated requirement, for「写进规则：{instruction}」: the signal's own wording
+    (after「重复要求：」) when present, else its group; cut to 24 characters."""
+    match = _REPEATED.search(str(signal.get("reason") or ""))
+    text = (match.group(1) if match else (signal.get("scope") or {}).get("group")) or ""
+    text = text.strip().rstrip("。.")
+    return text[:MAX_INSTRUCTION] or None
 
 
 def wilson_lo(k: int, n: int, z: float = 1.96) -> float:
@@ -141,6 +154,8 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         a.add_ids(a.signals, [signal.get("signal_id")])
         if signal.get("reason"):
             a.reasons.append(signal["reason"])
+        if type_ == "repeated_instruction" and "instruction" not in a.vars and (text := instruction_of(signal)):
+            a.vars = {**a.vars, "instruction": text}
     assessed: dict[str, set] = {}
     for assessment in inputs.get("assessments") or ():
         type_ = RULE_TO_PROBLEM.get(assessment.get("rule_id"))
