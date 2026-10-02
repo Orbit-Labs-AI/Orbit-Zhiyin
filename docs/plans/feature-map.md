@@ -891,8 +891,8 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | DT-14 | 模型清单与公开成绩 | MVP：models.dev、LiteLLM、SWE-bench；v1：其余 | PR 中（wip/yhyfhgs-backend）：`tandem_catalog/models.py`、`/v1/catalog/models` | `packages/catalog` 表已建；数据导入计划 | genius-FXC（来源）/ yhyfhgs（实现） | yhyfhgs / genius-FXC | DT-11 | 2 |  |
 | DT-14.1 | **新增** 上下文窗口与自动压缩阈值表 | v2（随契约 V-A9） | PR 中（wip/yhyfhgs-backend）：`realtime/context_windows.py` | 按 Agent × 模型的 `context_window_tokens`、`auto_compact_ratio`，供占用换算与压缩刻度 | yhyfhgs | MistyHuang03 | DT-14、DT-08 | 3 | 服务 POP-03、POP-10、HUD-08 |
 | DT-15 | 存储、迁移与导出 | MVP | 已实现 | `~/Library/Application Support/Tandem/{tandem.db, raw/}`、`user_version = 5`、`event_fts`、`tandem-data export / verify / stats` | yhyfhgs | MistyHuang03 | — | 15 |  |
-| DT-16 | 补充通道：Hooks 与 OTel | P1（不进 MVP） | 计划 | 审批等待时长、实时「等待审批」；作为可撤销的采集类安装项（IN-07） | yhyfhgs | MistyHuang03 | IN-07 | 10 |  |
-| DT-17 | 额度快照 | v1 | 部分 | PR #11 保留 Codex `rate_limits` 于 attrs；L3 化与跨 Agent 计划 | yhyfhgs | MistyHuang03 | DT-08 | 1 |  |
+| DT-16 | 补充通道：Hooks 与 OTel | P1（不进 MVP） | 部分（wip/yhyfhgs-backend）：`install/collect`，Claude Code 只读 hooks，Codex 仅 notify | 审批等待时长、实时「等待审批」；作为可撤销的采集类安装项（IN-07） | yhyfhgs | MistyHuang03 | IN-07 | 10 |  |
+| DT-17 | 额度快照 | v1 | 部分（wip/yhyfhgs-backend）：`quota/`，额度窗口为代理口径 | PR #11 保留 Codex `rate_limits` 于 attrs；L3 化与跨 Agent 计划 | yhyfhgs | MistyHuang03 | DT-08 | 1 |  |
 | DT-18 | 本机 `/insights` 产物对照读取 | MVP（只读对照） | PR 中（wip/yhyfhgs-backend）：`evalrun/insights_reader.py`（仅评测对照） | 只读 `~/.claude/usage-data/{session-meta,facets}`，供 EV-01.1 | yhyfhgs | MistyHuang03 | — | 0 |  |
 | DT-19 | staging → canonical 桥接 | MVP | 已实现 | `bridge.import_connector()`、`connector_checkpoint`、`connector_record_link` | yhyfhgs | MistyHuang03 | DT-03、DT-04 | 2 |  |
 | DT-20 | legacy 库适配（过渡） | MVP（过渡） | 已实现 | main `analytics/inputs.py::legacy_bundle()`；canonical 接入后退役 | yhyfhgs | MistyHuang03 | — | 0 |  |
@@ -925,7 +925,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | AN-12 | 趋势与对比 | MVP（`group_by`、日序列）；v1（周序列、`compare_previous`、`change_flags`） | 部分 | main `cost_time/activity()`；PR #32 `model_effort / bucket / compare_previous` | MistyHuang03 | genius-FXC | AN-01、AN-10 | 22 |  |
 | AN-13 | 实时状态 | v1（只服务菜单栏 / HUD） | PR 中（wip/yhyfhgs-backend）：`realtime/` | PR #32「最后观测状态」；`watch.ts` 只采集 | yhyfhgs | MistyHuang03 | DT-02 | 28 |  |
 | AN-13.1 | **新增** 实时关注事件队列 | v1 | PR 中（wip/yhyfhgs-backend）：`platform/notify.py` | 事件 key（`session_uid + kind`）去重、忽略计时（如 1 小时）、会话结束即过期、多事件优先级、状态项角标单一来源；约 80 行规则 | yhyfhgs | genius-FXC | AN-13 | 8 | 服务 POP-02/09/10、MB-13、HUD；修 BUG-74 |
-| AN-14 | 固定口径快照与报告 | MVP（导出）；v1（`report_snapshot` 表） | 部分 | main `application/reports.py`、`cli report`；PR #32 同源导出 | MistyHuang03 | genius-FXC | AN-01、AN-06、AN-08 | 17 |  |
+| AN-14 | 固定口径快照与报告 | MVP（导出）；v1（`report_snapshot` 表） | 部分（wip/yhyfhgs-backend）：`exporting/`，`report_snapshot` 缺 weekly / menubar，persona_fixed / rec_top 无端点 | main `application/reports.py`、`cli report`；PR #32 同源导出 | MistyHuang03 | genius-FXC | AN-01、AN-06、AN-08 | 17 |  |
 | AN-15 | 质量下降诊断 | v1 | 计划 | `change_flags` 触发后依次查模型 / 档位、harness 版本、压缩、上下文、skill 移除 | MistyHuang03 | yhyfhgs | AN-12、AN-06、DT-09 | 1 |  |
 | AN-16 | 分析输入适配与范围 | MVP（第一件事） | 部分 | main `analytics/inputs.py`（`Scope`、`legacy_bundle`、`select`）、`data_access/store.py`；PR #32 `context.py`；PR #34 重算进度与大库分析已合入；**canonical 适配闭环（`canonical_bundle()`）计划** | yhyfhgs | MistyHuang03 | DT-19、DT-20 | 49 | 负责人调整见 §3.3；Scope 扩展：`source_ids`、`cluster_ids`（A6-09）、`friction_types / signal_types`（A6-08 → A3）、`bucket_tz`（v1） |
 | AN-16.1 | **新增** 会话排除名单持久化与日志定位 | MVP | PR 中（wip/yhyfhgs-backend）：`sessionops/exclusion.py`、`locate.py` | `session_exclusion` 表（或 `label(target_kind = session, kind = excluded)`）+ `POST /v1/sessions/{id}/exclude` + `GET /v1/sessions/{id}/source_files` | yhyfhgs | MistyHuang03 | AN-16、DT-04、DT-21 | 3 | 服务 A3-10、SET-20；配 EV-01「排除 / 恢复」断言；修 BUG-19 |
@@ -954,7 +954,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | RC-11 | 冷启动 | v1 | PR 中（wip/yhyfhgs-backend）：`recommend/recall/`（generic 路） | main `narrative.explain()`「证据不足」分支 | MistyHuang03 | yhyfhgs | RC-01 | 1 |  |
 | RC-12 | install_plan 生成 | MVP（claude_code、codex × 规则 / 权限 / hook / skill）；v1（其余 Agent） | PR 中（wip/yhyfhgs-backend）：`install/plan.py` | Advance `51-install.js`、Lite `configCode()` 为示意 | yhyfhgs | genius-FXC | IN-01、AI-06（可选） | 23 |  |
 | RC-13 | 效果追踪登记与先验回写 | MVP（登记 + `effect_status`）；v1（先验回写） | PR 中（wip/yhyfhgs-backend）：`recommend/outcomes.py` | main `evaluation_plan` 雏形 | MistyHuang03 | yhyfhgs | EV-07、IN-03 | 9 |  |
-| RC-14 | 跨 Agent 额度与任务分配建议 | v1 | 计划 | 计划 | MistyHuang03 | yhyfhgs | DT-17 | 0 |  |
+| RC-14 | 跨 Agent 额度与任务分配建议 | v1 | 部分（wip/yhyfhgs-backend）：`quota/advice`，只按 agent / model | 计划 | MistyHuang03 | yhyfhgs | DT-17 | 0 |  |
 | RC-15 | 试用方法与推荐解释 | MVP | PR 中（wip/yhyfhgs-backend）：`recommend/narrate.py` | main `recommend/explain.py`、`legacy.trial_method()`、`narrative.explain()`；`mechanism` 与显式证据集合计划 | genius-FXC | MistyHuang03 | EV-09、AI-12（可选） | 12 |  |
 | RC-15.1 | **新增** 交接 / 压缩前提示语模板 | v1 | PR 中（wip/yhyfhgs-backend）：`recommend/handoff.py` | L0：由 AN-02 当前任务、最近改动文件、AN-19 `verify_*` 未完成项拼出可粘回 Agent 的交接文本；有 AI-03 facet 缓存时填 `goal`；不即时调模型 | genius-FXC | MistyHuang03 | AN-02、AN-19、AI-03（可选） | 4 | 服务 HUD-04、HUD-08、SIM-04、POP-10「复制提示语」 |
 | RC-16 | workflow 改造建议（规则型模板） | MVP（验证阶梯、大杂烩拆分）；v1（4 条 + AI-10 入列） | PR 中（wip/yhyfhgs-backend）：`recommend/recall/`（template 路） | Advance `worktree / headless`、Lite `worktree / session-handoff` 为示意 | MistyHuang03 | yhyfhgs | AN-05、RC-06 | 2 |  |
@@ -970,14 +970,14 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | AI-02 | 任务注册表与分级路由 | MVP | PR 中（wip/yhyfhgs-backend）：`ai/registry.py`、`capabilities.py` | `TASKS` 常量字典、模型槽位、代码 gate、重试与降级；YAML v1 | MistyHuang03 | yhyfhgs | AI-01 | 21 |  |
 | AI-03 | 逐会话 facet（`facet.session`） | MVP（可关闭） | PR 中（wip/yhyfhgs-backend）：`ai/tasks_analysis.py` | 用户触发回填 ≤ 200、七项 schema、5–10 会话打包、精确缓存 | MistyHuang03 | yhyfhgs | AN-02、AN-05、AN-16、AI-01、AI-02、AI-08、AI-11 | 14 |  |
 | AI-03.1 | 长会话分块摘要 | v1 | 计划 | > 30,000 字符分块 + facet v1 扩展字段 | MistyHuang03 | yhyfhgs | AI-03、AN-07、AN-09 | 1 |  |
-| AI-04.1 | 反馈语 / 情绪分类（`classify.feedback`） | v1 | 计划 | 歧义候选复判、A6-10「不准确」复判 | MistyHuang03 | yhyfhgs | AN-05、AN-17 | 4 |  |
-| AI-04.2 | 失败簇命名（`cluster.failure_names`） | v1 | 计划 | 按 `error_class` 分组取簇名 | MistyHuang03 | yhyfhgs | AN-04、DT-06 | 2 |  |
-| AI-04.3 | 主题簇命名（`cluster.topic_names`） | v1 | 计划 | 在 AN-18 簇上命名，纯展示层 | MistyHuang03 | yhyfhgs | AN-18、AI-03 | 2 |  |
-| AI-04.4 | **新增** 失败原因即时推断（`classify.failure_cause`，可选） | v1 | 计划 | 仅当 AN-04 `error_class = unknown` 且用户开启 AI：取 ≤ 4 次失败输出尾部（脱敏、≤ 1K token）→ `{cause ≤ 20 字, confidence}`；评测并入 EV-04.1 | MistyHuang03 | yhyfhgs | AI-02、AN-04、AN-13 | 2 | 服务 POP-09「可能原因」；AI-04.2 是离线簇命名，不覆盖单次实时推断 |
+| AI-04.1 | 反馈语 / 情绪分类（`classify.feedback`） | v1 | PR 中（wip/yhyfhgs-backend）：`classify.feedback` | 歧义候选复判、A6-10「不准确」复判 | MistyHuang03 | yhyfhgs | AN-05、AN-17 | 4 |  |
+| AI-04.2 | 失败簇命名（`cluster.failure_names`） | v1 | PR 中（wip/yhyfhgs-backend）：`cluster.failure_names` | 按 `error_class` 分组取簇名 | MistyHuang03 | yhyfhgs | AN-04、DT-06 | 2 |  |
+| AI-04.3 | 主题簇命名（`cluster.topic_names`） | v1 | PR 中（wip/yhyfhgs-backend）：`cluster.topic_names` | 在 AN-18 簇上命名，纯展示层 | MistyHuang03 | yhyfhgs | AN-18、AI-03 | 2 |  |
+| AI-04.4 | **新增** 失败原因即时推断（`classify.failure_cause`，可选） | v1 | PR 中（wip/yhyfhgs-backend）：`classify.failure_cause` | 仅当 AN-04 `error_class = unknown` 且用户开启 AI：取 ≤ 4 次失败输出尾部（脱敏、≤ 1K token）→ `{cause ≤ 20 字, confidence}`；评测并入 EV-04.1 | MistyHuang03 | yhyfhgs | AI-02、AN-04、AN-13 | 2 | 服务 POP-09「可能原因」；AI-04.2 是离线簇命名，不覆盖单次实时推断 |
 | AI-05.1 | 概览叙述（`narrate.overview`） | MVP | PR 中（wip/yhyfhgs-backend）：`ai/tasks_analysis.py` | 降级 = main `narrative.explain()` | genius-FXC | MistyHuang03 | AN-01、AN-06、AN-12、RC-05、AI-03 | 8 |  |
-| AI-05.2 | 单会话复盘（`narrate.session_review`） | v1 | 计划 | `lessons[]` 绑定机制直通 AI-06 | genius-FXC | MistyHuang03 | AI-03、AN-09 | 2 |  |
-| AI-05.3 | 周报叙述（`narrate.weekly`） | v1 | 计划 | 降级 = main `analysis_reports.py` | genius-FXC | MistyHuang03 | AN-14、EV-07、EV-09 | 3 |  |
-| AI-05.4 | 人格解读文案（`narrate.persona`） | v1 | 计划 | MVP 用类型文案库 | genius-FXC | MistyHuang03 | AN-08、AN-06 | 13 |  |
+| AI-05.2 | 单会话复盘（`narrate.session_review`） | v1 | PR 中（wip/yhyfhgs-backend）：`narrate.session_review` | `lessons[]` 绑定机制直通 AI-06 | genius-FXC | MistyHuang03 | AI-03、AN-09 | 2 |  |
+| AI-05.3 | 周报叙述（`narrate.weekly`） | v1 | 部分（wip/yhyfhgs-backend）：`narrate.weekly` 单次调用，未分节 | 降级 = main `analysis_reports.py` | genius-FXC | MistyHuang03 | AN-14、EV-07、EV-09 | 3 |  |
+| AI-05.4 | 人格解读文案（`narrate.persona`） | v1 | PR 中（wip/yhyfhgs-backend）：`narrate.persona` | MVP 用类型文案库 | genius-FXC | MistyHuang03 | AN-08、AN-06 | 13 |  |
 | AI-06.1 | 规则片段生成（`generate.rule`） | MVP | PR 中（wip/yhyfhgs-backend）：`ai/generate/` | ≤ 5 条可验证祈使句 + 标记块；入口 → 证据包 | genius-FXC | MistyHuang03 | RC-01、RC-06、RC-12、AI-08 | 12 |  |
 | AI-06.3 | Hook 生成（`generate.hook`） | MVP | PR 中（wip/yhyfhgs-backend）：`ai/generate/` | 六个 hook 模板的 matcher / 阈值 / 提示语 / 命令头；脚本体 = 仓库模板 | genius-FXC | MistyHuang03 | RC-01、RC-12、AI-07.3 | 4 |  |
 | AI-06.4 | SKILL.md 生成（`generate.skill`） | MVP | PR 中（wip/yhyfhgs-backend）：`ai/generate/` | `skills/procedure@1`；RC 侧检索优先，无匹配才露出 | genius-FXC | MistyHuang03 | RC-06、RC-02、AI-08 | 6 |  |
@@ -1012,7 +1012,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | EV-04.1 | facet 与 AI-04.1 质量 | MVP（0 标注项）；v1（κ） | PR 中（wip/yhyfhgs-backend）：`evalrun/suites/facet_quality.py` | Schema 有效率、幻觉率 = 0、重复一致率、`failed` 率 | MistyHuang03 | yhyfhgs | AI-03、AI-04.1、EV-02 | 2 |  |
 | EV-04.2 | 簇命名评测 | v1 | 计划 | 名称 lint、同名率、`inaccurate` 率 | MistyHuang03 | genius-FXC | AI-04、AN-18 | 3 |  |
 | EV-05 | 曝光评估 | MVP | PR 中（wip/yhyfhgs-backend）：`GET /v1/recommendations/metrics` | 采纳 / 不适用 / 撤销率按 `remedy_rule × surface`；问题覆盖率 | genius-FXC | MistyHuang03 | RC-10、AN-06 | 14 | 负责人调整见 §3.3（原 MistyHuang03） |
-| EV-05.1 | 时间切分回放 | v1 | PR 中（wip/yhyfhgs-backend）：`evals/recommendation/replay.py` | HitRate@3 / NDCG@3；有 / 无 AI-12 | MistyHuang03 | yhyfhgs | RC-02…RC-05、AI-12 | 0 |  |
+| EV-05.1 | 时间切分回放 | v1 | 部分（wip/yhyfhgs-backend）：时间切分回放用合成快照，含有 / 无 AI 重排；缺清单历史（V7） | HitRate@3 / NDCG@3；有 / 无 AI-12 | MistyHuang03 | yhyfhgs | RC-02…RC-05、AI-12 | 0 |  |
 | EV-05.2 | 打分与闸门消融、RC-09 / RC-17 评测 | v1 | PR 中（wip/yhyfhgs-backend）：`replay --ablate`（仅按召回路） | 回放上逐项消融 | MistyHuang03 | genius-FXC | EV-05.1、RC-09、RC-17 | 4 |  |
 | EV-06 | 生成物装前评测 | MVP（规则 / 白名单 / hook）；v1（skill、judge） | PR 中（wip/yhyfhgs-backend）：`ai/generate/checks.py`（judge 未做） | `hooks.schema.json` 等三份 Schema 已在 main `data/recommend/` | MistyHuang03 | yhyfhgs | AI-06、AI-07、IN-05、DT-13 | 13 |  |
 | EV-06.1 | description 触发评测 | v1；`claude plugin eval` v2 | 计划 | 20 正 + 20 反真实引擎触发率 | MistyHuang03 | genius-FXC | EV-06、AI-01 | 1 |  |
@@ -1041,7 +1041,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | IN-04 | ledger 与撤销 | MVP | PR 中（wip/yhyfhgs-backend）：`install/service.py` | append-only `install_ledger`；单条与整批撤销；用户改过的文件不自动撤销 | yhyfhgs | MistyHuang03 | IN-03 | 16 |  |
 | IN-05 | 风险闸门与静态扫描 | MVP | PR 中（wip/yhyfhgs-backend）：`install/risk.py` | safe / caution / dangerous；第三方 skill 入库先扫描；lethal trifecta 警告；main `resource_fetch` 只读 Markdown 为最低安全线 | MistyHuang03 | yhyfhgs | DT-13 | 6 |  |
 | IN-06 | 生命周期状态机 | MVP（状态）；v1（自动流转） | PR 中（wip/yhyfhgs-backend）：`install/lifecycle.py` | 候选 → 待批 → 已安装 → 观察中 → 保留 / 改写 / 撤销 → 闲置 → 归档 | genius-FXC | yhyfhgs | IN-04 | 7 |  |
-| IN-07 | Tandem 自身采集类安装 | P1 | 计划 | `cleanupPeriodDays`、statusline 包装、只读 Hooks；同样走预览 → 确认 → 撤销 | yhyfhgs | MistyHuang03 | IN-01、DT-16 | 3 |  |
+| IN-07 | Tandem 自身采集类安装 | P1 | 部分（wip/yhyfhgs-backend）：`install/collect`，Codex 仅 notify | `cleanupPeriodDays`、statusline 包装、只读 Hooks；同样走预览 → 确认 → 撤销 | yhyfhgs | MistyHuang03 | IN-01、DT-16 | 3 |  |
 | IN-08 | 资源库条目获取 | MVP | PR 中（wip/yhyfhgs-backend）：`install/fetch.py` | main `resource_fetch.GitHubSourceClient.fetch()` 已做下载 + 校验（sha、SPDX、≤ 250 KB）；写入目标路径计划 | genius-FXC | yhyfhgs | DT-11、IN-05 | 2 |  |
 
 ### 6.7 前端 FE（24 个）
@@ -1069,10 +1069,10 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | FE-17 | 菜单栏面板、悬浮组件、桌面小组件 | v1（运行中 / 空闲、人格、Top 推荐）；P1（审批、压缩前） | 部分 | Advance `60-menubar-panel / 61-hud / 62-widgets`；Lite 无 | genius-FXC | MistyHuang03 | AN-13、AN-13.1、AN-14、RC-05 | 39 |  |
 | FE-18 | 通知 | v1 | 部分 | Advance `70-sim.js` 模拟；Lite 无 | genius-FXC | MistyHuang03 | FE-18.1、AN-13、AI-02、AN-14 | 19 |  |
 | FE-18.1 | **新增** 通知投递策略引擎 | v1 | PR 中（wip/yhyfhgs-backend）：`platform/notify.py` | 事件类型（`just_finished / failing / awaiting_approval / context_pressure / ai_job 完成 / 周报 / 新来源`）× 渠道（系统横幅 / HUD / 菜单栏角标）× 静音 / 勿扰 / 暂停提醒计时 × 去重与冷却（同 `session_uid + kind` 冷却窗口）；`notification_policy` 存 analysis.db 用户状态表；事件源 = AN-13 SSE、AI-02 作业完成、AN-14 周报完成 | genius-FXC | yhyfhgs | AN-13.1、AI-02、AN-14、DT-21 | 15 | 服务 SIM-08、SET-22 / SET-23、HUD-09「暂停提醒」、HUD-08「不再提示此类」、SIM-03「忽略 1 小时」、NT-*；AN-13 只产事件、不决定投递 |
-| FE-19 | 导出与分享卡 | MVP | 部分 | Advance `55-exports.js`（文本模拟）；Lite 真实下载 Markdown / CSV / SVG | genius-FXC | MistyHuang03 | AN-14、AN-01、AN-08.2 | 14 |  |
+| FE-19 | 导出与分享卡 | MVP | 部分（wip/yhyfhgs-backend）：`/v1/export/*` 后端已合入，前端未接 | Advance `55-exports.js`（文本模拟）；Lite 真实下载 Markdown / CSV / SVG | genius-FXC | MistyHuang03 | AN-14、AN-01、AN-08.2 | 14 |  |
 | FE-20 | 不确定性与来源的界面语义 | MVP | 计划 | 两版 Demo 只有「样本不足」「示例」标注；`{value, n, lo, hi, basis, status}`、`coverage / freshness` 渲染计划 | genius-FXC | MistyHuang03 | AN-01、AN-10、AN-16 | 11 |  |
 | FE-21 | Lite / Advance 模式 | MVP | 部分 | Lite = 8 页（FE-03…FE-10 + FE-02 / FE-14 / FE-19 子集 + 最小设置面板）；Advance = 全部 | genius-FXC | yhyfhgs | — | 0 |  |
-| FE-22 | 用量与额度视图 | v1 | 计划 | `metrics(tokens_*, cost_*, cache_*)`、`quota_window`（v1）；现有 `overview.usage` 可先接 | genius-FXC | MistyHuang03 | AN-01、AN-11、DT-17 | 1 |  |
+| FE-22 | 用量与额度视图 | v1 | 部分（wip/yhyfhgs-backend）：`/v1/usage` 后端已合入，前端未接 | `metrics(tokens_*, cost_*, cache_*)`、`quota_window`（v1）；现有 `overview.usage` 可先接 | genius-FXC | MistyHuang03 | AN-01、AN-11、DT-17 | 1 |  |
 | FE-23 | **新增** macOS 宿主原生能力 | MVP（helper 启停与随机令牌、目录选择、「在 Finder 中显示」、默认编辑器打开）；v1（SMAppService 登录项、系统级全局热键、通知授权与专注模式、系统分享菜单、低电量暂停索引、更新检查）；P1（会话 → 终端定位） | PR 中 | 分支 `apps/macos/Tandem.swift`（PR #33）：AppKit / WKWebView 宿主、helper 启停与随机令牌、目录选择与保存面板已有；其余缺 | yhyfhgs | genius-FXC | DT-21、DT-09（真实路径）、DT-02（pid / tty） | 14 | 服务 SET-04 / 11 / 15 / 23 / 24、KB-03、EXP-07、A5-07、A5-12、A9-17、POP-04 / POP-09「在终端中处理」（失败降级为复制命令 + 打开 cwd） |
 
 ### 6.8 本次映射新增的 feature（20 个）与不新增的建议

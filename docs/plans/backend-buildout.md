@@ -13,8 +13,8 @@
 3. 推荐从「每个根会话 × 已审核条目」的离线匹配，改成问题层 → 9 路召回 → 13 道闸门 → 打分 → MMR → 落库保留的完整链路。离线回放 hit@3 = 1.0、nDCG@3 = 0.8108；命中缓存的读取 p95 为 4.8 ms。
 4. AI 模组从零实现，覆盖本机 Claude Code / Codex headless、API key、Fake 四种引擎，以及授权、上下文包预览、任务注册、预算、生成与自检、问答。默认关闭（`mode=stats`），AI 自己产生的会话在导入时剔除。
 5. 一键安装覆盖探测、落点、预览、风险、原子写、账本、撤销和下载校验全链路。在 2.2 MB 的 `~/.claude.json` 上，apply 155 ms、revert 6.5 ms；Claude Code 与 Codex 的往返评测共 61 项检查全部通过。
-6. 平台层补齐了遥测、ETag、健康、诊断、日志、维护、通知、实时状态、采集暂停和评测运行器。导出、额度、采集类 hooks、v1 AI 任务、推荐评测和端到端测试在第 3 轮进行中。
-7. 集成分支现有两例确定性测试失败（§8），UI 接线全部只在夹具模式下跑过，没有对真实网关验收。
+6. 平台层补齐了遥测、ETag、健康、诊断、日志、维护、通知、实时状态、采集暂停和评测运行器。第 3 轮又合入导出、额度、采集类 hooks、七个 v1 AI 任务、推荐时间切分评测和端到端测试，均有缺口（见 §8）。
+7. 全量 pytest 在正常负载下的结果见 §8.2「验证」；高负载下只剩计时类失败。UI 接线全部只在夹具模式下跑过，没有对真实网关验收。
 
 ## 1. 架构：数据库分工与 app.db 单写者规则
 
@@ -481,7 +481,7 @@ UI 接入（夹具模式）：
 - 设置页的通知矩阵、勿扰预设、全局稍后、测试通知、存储、采集暂停、健康卡和诊断卡。
 - 通知帧驱动横幅、HUD 和菜单栏角标。
 
-**导出**（AN-14 / FE-19）在第 3 轮进行中：`wip/be-gap-export` 已有表白名单与 CSV 流式输出、按分析分节组装报告、`report_snapshot` 表、分享卡载荷和 `/v1/export/*` 路由，尚未合入。
+**导出**（AN-14 / FE-19）第 3 轮已合入：表白名单（tool_calls / sessions / model_calls）与单快照 CSV 流式输出（RFC 4180、公式注入防护、脱敏、范围过滤、默认排除 `session_exclusion`）、按分析分节组装的 Markdown / JSON 报告、`report_snapshot` 表、分享卡载荷和 `/v1/export/*` 路由；24 个测试。缺口：`report_snapshot` 的 `weekly` / `menubar` 类型不在 CHECK 列表中，`persona_fixed` / `rec_top` 还没有生产端点。
 
 **剩余**
 
@@ -499,36 +499,47 @@ UI 接入（夹具模式）：
 
 - **已实现**：代码与测试都在分支上，未在真实数据上验收；
 - **部分**：主体已有，但有写明的缺口；
-- **进行中**：第 3 轮在途的包（ai-v1-tasks、collect-hooks、quota、rec-eval、export、e2e），范围按包名和设计稿推定；
 - **计划**：本分支未涉及。
 
 DT、AN 两行只列本分支触及的项，其余数据与分析 feature 的现状以 feature-map §6 为准。
 
-| 模块 | 已实现 | 部分 | 进行中 | 计划 |
-| --- | --- | --- | --- | --- |
-| DT | DT-02.1、DT-12.2、DT-13、DT-14.1、DT-22、DT-23、DT-24 | DT-11（不默认联网，内容少）、DT-12（详情 `scan` 为空）、DT-14（成绩只做精确匹配）、DT-18（只读对照器仅供评测） | DT-16（collect-hooks）、DT-17（quota） | DT-01.1、DT-06.1 |
-| AN | AN-01.2、AN-13、AN-13.1、AN-16.1 | AN-11（hook 只有 agent 级用量，MCP 常驻开销未知） | AN-14（export） | AN-05 / 06 / 09 / 12 / 15 / 19 由 `MistyHuang03` 推进，本分支不改 |
-| RC | RC-01、RC-02、RC-03、RC-03.1、RC-04（新公式）、RC-05、RC-06（MVP 行）、RC-07、RC-09、RC-09.1、RC-10、RC-11、RC-12、RC-13、RC-15、RC-15.1、RC-17 | RC-08（仅轻量一条）、RC-16（`mixed_sessions` 依赖可选字段） | RC-14（quota） | — |
-| AI | AI-01、AI-02、AI-03、AI-05.1、AI-06.1、AI-06.3、AI-06.4、AI-06.5、AI-06.6、AI-06.7、AI-07.1、AI-07.2、AI-07.3、AI-08、AI-09、AI-10、AI-12、AI-13 | AI-11（每日上限不比较下一作业估算；自动回填未调度） | AI-03.1、AI-04.1–AI-04.4、AI-05.2–AI-05.4、AI-06.8、AI-07.4（ai-v1-tasks） | — |
-| EV | EV-01.1、EV-02.1、EV-04.1、EV-05、EV-05.1、EV-07、EV-10、EV-12、EV-13、EV-15 | EV-02（只有汇总，没有标注数据）、EV-03（适配到运行器）、EV-05.2（只能按召回路消融）、EV-06（judge 为 skipped）、EV-11（上限估算检查失败）、EV-14（漏 AWS / SSH 两类） | EV-05.1 / EV-05.2 扩展（rec-eval）、跨模块端到端（e2e） | EV-01.2、EV-04、EV-04.2、EV-06.1、EV-07.1、EV-08、EV-09.1 |
-| IN | IN-02、IN-03、IN-04、IN-05、IN-06、IN-08 | IN-01（Codex 落点待验证 V6，`MIN_VERSIONS` 为占位） | IN-07（collect-hooks） | — |
-| FE（后端侧） | FE-18.1 | UI 接线 FE-09 / 10 / 11 / 12 / 13 / 15 / 17 / 18 在 `wip/yhyfhgs-ui-live-backend` 上，只在夹具模式验证 | FE-19（export）、FE-22（quota） | FE-20 |
+| 模块 | 已实现 | 部分 | 计划 |
+| --- | --- | --- | --- |
+| DT | DT-02.1、DT-12.2、DT-13、DT-14.1、DT-22、DT-23、DT-24 | DT-11（不默认联网，内容少）、DT-12（详情 `scan` 为空）、DT-14（成绩只做精确匹配）、DT-16（仅 Claude Code 只读 hooks 与 Codex notify）、DT-17（额度窗口为代理口径）、DT-18（只读对照器仅供评测） | DT-01.1、DT-06.1 |
+| AN | AN-01.2、AN-13、AN-13.1、AN-16.1 | AN-11（hook 只有 agent 级用量，MCP 常驻开销未知）、AN-14（快照类型 weekly / menubar 缺，persona_fixed / rec_top 无端点） | AN-05 / 06 / 09 / 12 / 15 / 19 由 `MistyHuang03` 推进，本分支不改 |
+| RC | RC-01、RC-02、RC-03、RC-03.1、RC-04（新公式）、RC-05、RC-06（MVP 行）、RC-07、RC-09、RC-09.1、RC-10、RC-11、RC-12、RC-13、RC-15、RC-15.1、RC-17 | RC-08（仅轻量一条）、RC-14（只按 agent / model，无任务类型维度）、RC-16（`mixed_sessions` 依赖可选字段） | — |
+| AI | AI-01、AI-02、AI-03、AI-04.1–AI-04.4、AI-05.1–AI-05.4、AI-06.1、AI-06.3–AI-06.7、AI-07.1–AI-07.3、AI-08、AI-09、AI-10、AI-12、AI-13 | AI-05.3（`narrate.weekly` 单次调用，未分节）、AI-11（每日上限不比较下一作业估算；自动回填未调度） | AI-03.1、AI-06.8、AI-07.4 |
+| EV | EV-01.1、EV-02.1、EV-04.1、EV-05、EV-05.1（合成快照）、EV-07、EV-10、EV-12、EV-13、EV-15 | EV-02（只有汇总，没有标注数据）、EV-03（适配到运行器）、EV-05.1（真实历史回放缺清单历史，V7）、EV-05.2（只能按召回路消融）、EV-06（judge 为 skipped）、EV-11（上限估算检查失败）、EV-14（漏 AWS / SSH 两类）、跨模块端到端（推荐卡片无安装规格的链路未通） | EV-01.2、EV-04、EV-04.2、EV-06.1、EV-07.1、EV-08、EV-09.1 |
+| IN | IN-02、IN-03、IN-04、IN-05、IN-06、IN-08 | IN-01（Codex 落点待验证 V6，`MIN_VERSIONS` 为占位）、IN-07（Codex 只接 notify，已有 notify 时拒绝覆盖） | — |
+| FE（后端侧） | FE-18.1、FE-19（导出）、FE-22（用量 payload） | UI 接线 FE-09 / 10 / 11 / 12 / 13 / 15 / 17 / 18 在 `wip/yhyfhgs-ui-live-backend` 上，只在夹具模式验证 | FE-20 |
 
-### 8.2 测试与已知失败
+### 8.2 验证
 
-- 各区域分支合入前，自身测试和 ruff 都是干净的。合并过程中最近一次后端整套运行（`packages/backend/tests`）为 2,083 通过、2 失败。
-- 在 `28e42bf` 上单独复跑，有两例确定性失败，都属于合并后的接线问题：
-  1. `tests/features/search/test_linked_resolution.py::test_ledger_from_real_install_tables`：期望 `method='ledger'`，实际为 `'name'`。install 给账本加了 `inv_id` / `catalog_item_id` 列之后，features 优先使用显式列，但测试场景里没有 `link` 行。
-  2. `tests/platform/test_routes.py::test_close_releases_area_services`：关闭顺序记录为 `['features', 'features', 'ai']`。platform 的 `Gateway.close()` 和 features 路由都会关闭 FeatureService，导致关闭两次。
-- 其余高负载下出现过的失败都是计时断言（ai 引擎、遥测、推荐性能、预热），单独运行时通过。`tests/integration/test_modular_pipeline.py` 需要先执行 `pnpm --dir packages/connectors build`。
+最终验证按以下通道在集成分支上跑过：
+
+| 通道 | 结果 |
+| --- | --- |
+| ruff check（`check.sh` 的全部路径）与 `ruff format --check` data | 干净 |
+| 后端全量 pytest | 第一次 2564 通过 / 1 跳过 / 1 失败（`Gateway.close` 重复关闭，已修）；修复后最近一次在高负载机器（load 67–99，耗时 732 s，正常 167 s）上为 2561 通过、4 失败 |
+| 连接器（`pnpm`） | typecheck、35 个 node 测试、tsc build 通过；并发下有 1 个计时抖动，单独运行通过 |
+| Swift catalog-macos | 验证已运行，具体结果未在本文记录 |
+| 端到端（`tests/integration/test_backend_e2e.py`） | 2 个测试通过：合成会话 → 导入 → 特征 → 推荐 → 曝光 / 标签 / 撤销 → 由 v2 资源库候选生成安装计划 |
+
+剩余失败及原因：
+
+- 4 个 services worker 计时测试（`test_analytics_flow` 等）仅在极端高负载下失败，单独运行通过；属计时断言，不是逻辑缺陷。
+- `test_engine::test_perf_200_candidates` 等性能断言在并发下偶发超时，同样是环境因素。
+- 之前的两例确定性失败（账本链接解析、`Gateway.close` 重复关闭）已在验证中修复。
+- `tests/integration/test_modular_pipeline.py` 需要先执行 `pnpm --dir packages/connectors build`。
+- 真实网关验收仍未做：UI 接线、hooks 与 Codex notify 都只在夹具或临时 HOME 下测试过。
 
 ### 8.3 下一轮缺口（按优先级）
 
-1. **修复两例集成失败**（§8.2），并让 e2e 包在真实 Gateway（临时 HOME）上把「推荐 → 安装 → 追踪 → 撤销」与「生成 → 安装」两条链各跑通一次。
+1. **补齐端到端**：知识库来源的推荐卡片（如 `kb:retry-breaker`、`kb:systematic-debugging`）还没有安装规格或模板，不能从候选直接安装；「推荐 → 安装 → 追踪 → 撤销」与「生成 → 安装」两条链还要补完。
 2. **`rerank.fit` 移出 GET 路径**：改为后台作业加 run 级缓存，GET 只读取结果。
 3. **修复评测发现的两处缺陷**：脱敏补上 AWS key 和 SSH 私钥（EV-14）；提交作业前按估算判断是否超出每日上限（EV-11）。
 4. **平台维护扩展点**：允许各区域注册维护任务（`auto_facet_new`、资源库定时同步）；网关关闭时调用 `Realtime.close()`；ingest-worker 新增 tandem.db 维护操作。
 5. **真实环境验证清单**：Codex `.rules` 语法、skills 目录与 hook 事件（V6）；`MIN_VERSIONS`；resume 参数；实时状态阈值与 `permission.request` 字段名；连接器 status / error_class 的真实取值；insights 的 token 口径。每项都应在 EV 运行器里有 `--real` 冒烟检查。
 6. **资源库内容与复测**：确定默认来源和首次同步策略，在空闲机器上复测 20k 条构建与检索；成绩到模型的模糊对齐。
 7. **UI 对真实网关验收**：两版原型在 live 模式下逐页对接真实网关；补齐 A7 的会话数和常驻 token 字段、Lite 标签入口、HUD 和小组件推荐、安装面板的项目选择。
-8. **第 3 轮合入后的补接线**：export 接分享卡和菜单栏 MB-06；quota 接 RC-14 / FE-22；collect-hooks 接 hook 级使用量（AN-11）和审批等待（HUD-03）。
+8. **第 3 轮合入后的补接线**：export 补 `weekly` / `menubar` 快照类型并接菜单栏 MB-06；quota 补任务类型维度（依赖 AN-12）；collect-hooks 接 hook 级使用量（AN-11）和审批等待（HUD-03），Codex 改用 hooks.json 并处理已有 notify；`narrate.weekly` 分节调用与 weekly_report 可读性场景预算；AI-03.1、AI-06.8、AI-07.4 未做。
