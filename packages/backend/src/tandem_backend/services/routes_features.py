@@ -53,6 +53,7 @@ def router(gw: Gateway) -> APIRouter:
     def vocab():
         return svc.vocab()
 
+    @api.get("/v1/features/linked")
     @api.get("/v1/inventory/linked")
     def linked(project_id: Many = None, agent: Many = None,
                type: str | None = None, status: str | None = None):
