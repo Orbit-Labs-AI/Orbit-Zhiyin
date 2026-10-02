@@ -8,6 +8,7 @@
 .tl-ov .vz-plot{border-radius:4px}
 .tl-box{min-height:120px}
 /* 阶段带：浅色列（推断的阶段虚线描边）；泳道背景不再交替，避免与阶段列叠成格子 */
+.tl-box .vz-svg text,.tl-box .tl-deco{pointer-events:none}   /* 刻度文字不挡播放头手柄与事件 */
 .tl-box .vz-lane{fill:none;stroke:var(--hair)}
 .tl-box .vz-lane.alt{fill:none}
 .tl-box .vz-phase{fill:var(--sunken);fill-opacity:.55;stroke:var(--line);stroke-opacity:.9}
@@ -69,6 +70,10 @@
 .tl-cmp .vz-lane.alt{fill:none}
 .tl-cmp .vz-lane{fill:none;stroke:var(--hair)}
 .tl-cmp .vz-phase{fill:var(--sunken);fill-opacity:.55;stroke:var(--line)}
+/* 差异表：指标列不折行，阶段占比允许换行 */
+.tl-cmp-tbl th:first-child,.tl-cmp-tbl td:first-child{white-space:nowrap}
+.tl-cmp-tbl td:last-child{white-space:nowrap}
+.tl-ph{display:inline-block;font:11px/15px var(--mono);color:var(--ink-2);max-width:160px;text-align:right}
 /* 列表截断提示 */
 .tl-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:6px;height:32px;border:1px dashed var(--line);border-radius:8px;background:none;color:var(--ink-3);font-size:12px}
 .tl-more b{color:var(--ink-1);font-weight:600}
