@@ -96,6 +96,26 @@ class CatalogService:
         return {"items": items, "generation": result.get("generation"), "routes": result["routes"],
                 "vector": result["vector"], "ranking_version": result["ranking_version"]}
 
+    def library(self, *, profile: dict | None = None, tab: str = "for", kinds=(), agents=(), q: str = "",
+                sort: str = "fit", exclude=(), limit: int = 20, cursor: str | None = None) -> dict:
+        """A8 library view: hybrid retrieval seeds lexical candidates, query.library scores parts."""
+        from . import query
+        lexical = {}
+        features = [Feature(feature=f["feature"], value=f["value"], weight=max(0.01, min(10, f["weight"])),
+                            origin="declared", evidence="profile")
+                    for f in sorted((profile or {}).get("features") or [], key=lambda f: -f["weight"])[:40]] \
+            if (profile or {}).get("ok") else []
+        if tab == "for" and (q.strip() or features):
+            kinds_ = [k for k in kinds if k] or list(query.LIBRARY_KINDS)
+            ranked = sorted(profile.get("features") or [], key=lambda f: -f["weight"]) if features else []
+            labels = " ".join(dict.fromkeys(str(f.get("label") or f["value"]) for f in ranked[:12]))
+            result = self.match(MatchRequest(text=(q.strip() or labels)[:8000], features=[] if q.strip() else features,
+                                             types=kinds_, agents=list(agents), excluded_ids=list(exclude)[:1000],
+                                             purpose="library", limit=100, per_route=200, prefix=bool(q.strip())))
+            lexical = {item["item_id"]: float(item["score"]) for item in result["items"]}
+        return query.library(self.store, profile=profile, lexical=lexical, tab=tab, kinds=kinds, agents=agents, q=q,
+                             sort=sort, exclude=exclude, limit=limit, cursor=cursor)
+
     def add_local(self, payload: dict | LocalItem) -> dict:
         """Idempotent local item (AI-generated or user-authored); requires a passing self-check."""
         item = payload if isinstance(payload, LocalItem) else LocalItem.model_validate(payload)

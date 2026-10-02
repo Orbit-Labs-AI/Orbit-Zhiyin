@@ -46,7 +46,7 @@ def test_gateway_serves_catalog_reads_local_writes_and_sync(client, monkeypatch)
     assert facets["total"] == page["total"] and facets["kind"]
     item_id = page["items"][0]["item_id"]
     detail = client.get(f"/v1/catalog/items/{item_id}").json()
-    assert detail["item_id"] == item_id and detail["scan"] is None and "install" in detail
+    assert detail["item_id"] == item_id and detail["scan"]["estimate"] is True and "install" in detail
     found = client.get("/v1/catalog/search", params={"q": "调试"}).json()
     assert found["items"] and "snippet" in found["items"][0]
 

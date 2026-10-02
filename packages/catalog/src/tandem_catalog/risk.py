@@ -65,3 +65,46 @@ def assess(resource: Resource) -> tuple[list[str], int]:
     score = sum(WEIGHTS.get(flag, 1) for flag in flags)
     level = 0 if score == 0 else 1 if score <= 2 else 2 if score <= 4 else 3
     return sorted(flags), level
+
+
+def _commands(resource: Resource) -> list[str]:
+    """Shell commands a hook / MCP server would run, from its manifest and install declaration."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            head = node.get("command") or node.get("cmd")
+            if isinstance(head, str):
+                args = node.get("args") if isinstance(node.get("args"), list) else []
+                found.append(" ".join([head, *map(str, args)]))
+            for key, value in node.items():
+                if key not in ("command", "cmd", "args"):
+                    walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+    walk(resource.manifest.get("hooks"))
+    walk(resource.install)
+    if resource.type == "mcp_server":
+        for package in resource.manifest.get("packages") or []:
+            if isinstance(package, dict) and package.get("identifier"):
+                found.append(f"{package.get('registryType') or package.get('registry_type') or 'package'} "
+                             f"{package['identifier']}")
+    return found
+
+
+def scan(resource: Resource, flags: list[str] | None = None, level: int | None = None) -> dict:
+    """Per-item static scan for the detail page: an estimate from text, never an audit result."""
+    if flags is None or level is None:
+        flags, level = assess(resource)
+    reasons = list(flags)
+    commands = _commands(resource)
+    if commands and "runs_command" not in reasons:
+        reasons.append("runs_command")
+    destructive = "destructive" in reasons or any(DESTRUCTIVE.search(c) for c in commands)
+    if destructive and "destructive" not in reasons:
+        reasons.append("destructive")
+    reasons.extend(f"needs_secret:{e['name']}" for e in declared_env(resource.manifest) if e["secret"])
+    verdict = "dangerous" if destructive or level >= 3 else "safe" if level == 0 and not commands else "caution"
+    return {"verdict": verdict, "reasons": sorted(set(reasons)), "level": level, "estimate": True,
+            "commands": [c[:300] for c in commands[:10]]}
