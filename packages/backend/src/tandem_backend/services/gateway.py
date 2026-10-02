@@ -337,6 +337,7 @@ class Gateway:
             routes_realtime,
             routes_recommend,
             routes_sessionops,
+            routes_shell,
         )
 
         @asynccontextmanager
@@ -364,6 +365,7 @@ class Gateway:
             routes_eval,
             routes_realtime,
             routes_sessionops,
+            routes_shell,
         ):
             app.include_router(module.router(self))
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().

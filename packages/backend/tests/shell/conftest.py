@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -32,16 +31,6 @@ def fast_config() -> SupervisorConfig:
     return SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0,
                             backoff_s=(0.1, 0.2, 0.4, 0.8), tick_s=0.05,
                             light_timeout_s=60.0, heavy_timeout_s=120.0)
-
-
-def wait_for(predicate, timeout: float = 60.0, interval: float = 0.05, message: str = ""):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        value = predicate()
-        if value:
-            return value
-        time.sleep(interval)
-    raise AssertionError(f"timed out waiting for {message or predicate}")
 
 
 @pytest.fixture
