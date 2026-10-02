@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import zstandard
 
+from tandem_data import SCHEMA_VERSION
 from tandem_data.contract import canonical
 from tandem_data.service import ImportRequest, ImportService, event_page
 from tandem_data.store import Store
@@ -1226,7 +1227,7 @@ def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
         assert len(rows(store, "project")) == 2
         assert rows(store, "project_override")[0]["project_id"] == "old"
         assert rows(store, "session")[0]["project_id"] == "old"
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 

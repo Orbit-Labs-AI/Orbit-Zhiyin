@@ -3,8 +3,13 @@
 The logical event contract is unchanged: writers pass ordinary ``ext`` JSON and readers
 receive it back byte-for-byte. Physically, every string of at least ``THRESHOLD`` UTF-8
 bytes is stored once in ``content_blob`` (zstd, keyed by the sha256 of its UTF-8) and its
-position in ``ext`` holds ``{"$blob": <sha256>, "len": <chars>}``. ``event.text`` stays
-inline because full-text search and analysis read it directly.
+position in ``ext`` holds ``{"$blob": <sha256>, "len": <chars>}``.
+
+Since v9 the same store also holds large ``event.text`` of non-message kinds (tool output and
+the like): the column then holds ``TEXT_MARK + sha256`` (65 characters). Message and title
+text stays inline because full-text search and analysis read it directly. A non-message text
+that natively starts with ``TEXT_MARK`` is stored with one extra leading mark. Readers call
+:func:`restore_text` (or :func:`restore_row`) to get the logical text back.
 
 A reference is recognised only by that exact two-key shape with a 64-hex digest. Native
 dicts that happen to have that shape, or are exactly ``{"$lit": ...}``, are stored wrapped as
@@ -24,6 +29,16 @@ import zstandard as zstd
 from tandem_data.contract import canonical
 
 THRESHOLD = 4096
+# Kinds whose text stays inline (full-text search, titles, writing measurements).
+INLINE_TEXT_KINDS = frozenset({"message.user", "message.assistant", "session.title"})
+TEXT_THRESHOLD = 1024
+# U+FDD0 is a Unicode noncharacter; it does not occur in ordinary text.
+TEXT_MARK = "\ufdd0"
+# Same predicate as the event_text_blob_* triggers in migration 009.
+TEXT_REFERENCE_SQL = (
+    "kind NOT IN ('message.user','message.assistant','session.title') AND length(text)=65 "
+    "AND substr(text,1,1)=char(64976) AND substr(text,2,1)<>char(64976)"
+)
 MARKER = "$blob"
 LITERAL = "$lit"
 _HEX = re.compile(r"[0-9a-f]{64}")
@@ -64,14 +79,64 @@ def pack_json(connection, ext: str) -> str:
         return ext
     compressor = None
     for digest, raw in pending.items():
-        if connection.execute("SELECT 1 FROM content_blob WHERE sha256=?", (digest,)).fetchone():
-            continue
-        compressor = compressor or zstd.ZstdCompressor(level=_LEVEL)
-        connection.execute(
-            "INSERT INTO content_blob(sha256,codec,raw_len,data) VALUES(?,?,?,?)",
-            (digest, "zstd", len(raw), compressor.compress(raw)),
-        )
+        compressor = _store_blob(connection, raw, digest, compressor)
     return canonical(packed)
+
+
+def _store_blob(connection, raw: bytes, digest: str, compressor=None):
+    if connection.execute("SELECT 1 FROM content_blob WHERE sha256=?", (digest,)).fetchone():
+        return compressor
+    compressor = compressor or zstd.ZstdCompressor(level=_LEVEL)
+    connection.execute(
+        "INSERT INTO content_blob(sha256,codec,raw_len,data) VALUES(?,?,?,?)",
+        (digest, "zstd", len(raw), compressor.compress(raw)),
+    )
+    return compressor
+
+
+def pack_text(connection, kind, text):
+    """Return stored ``event.text`` for logical text, writing a blob when it is large."""
+    if text is None or kind in INLINE_TEXT_KINDS:
+        return text
+    if text.startswith(TEXT_MARK):
+        return TEXT_MARK + text
+    if len(text) * 4 < TEXT_THRESHOLD:
+        return text
+    raw = text.encode()
+    if len(raw) < TEXT_THRESHOLD or not _has_table(connection):
+        return text
+    digest = hashlib.sha256(raw).hexdigest()
+    _store_blob(connection, raw, digest)
+    return TEXT_MARK + digest
+
+
+def restore_text(connection, kind, text, cache: dict | None = None):
+    """Inverse of :func:`pack_text`."""
+    if not text or text[0] != TEXT_MARK or kind in INLINE_TEXT_KINDS:
+        return text
+    if text[1:2] == TEXT_MARK:
+        return text[1:]
+    return _fetch(connection, text[1:], {} if cache is None else cache)
+
+
+def restore_row(connection, row, cache: dict | None = None) -> dict:
+    """``dict(row)`` of an ``event`` row with its logical text."""
+    event = dict(row)
+    text = event.get("text")
+    if text and text[0] == TEXT_MARK:
+        event["text"] = restore_text(connection, event["kind"], text, cache)
+    return event
+
+
+def _fetch(connection, digest: str, cache: dict) -> str:
+    if digest not in cache:
+        row = connection.execute(
+            "SELECT codec,raw_len,data FROM content_blob WHERE sha256=?", (digest,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Dangling content_blob reference {digest}")
+        cache[digest] = _decode(row[0], row[1], row[2], digest)
+    return cache[digest]
 
 
 def _pack(value, pending, changed):
@@ -97,27 +162,26 @@ def _pack(value, pending, changed):
 
 
 def pack_row(connection, table: str, values: dict) -> dict:
-    """Storage hook for ``store.insert``/``insert_rows``: only ``event.ext`` is affected."""
-    if table != "event" or not isinstance(values.get("ext"), str):
+    """Storage hook for ``store.insert``/``insert_rows``: only ``event.ext``/``text`` change."""
+    if table != "event":
         return values
-    stored = pack_json(connection, values["ext"])
-    return values if stored is values["ext"] else {**values, "ext": stored}
+    if isinstance(values.get("ext"), str):
+        stored = pack_json(connection, values["ext"])
+        if stored is not values["ext"]:
+            values = {**values, "ext": stored}
+    text = values.get("text")
+    if text is not None:
+        stored = pack_text(connection, values.get("kind"), text)
+        if stored is not text:
+            values = {**values, "text": stored}
+    return values
 
 
 def restore(connection, value, cache: dict | None = None):
     """Inverse of packing for a decoded ``ext`` value."""
     if isinstance(value, dict):
         if is_reference(value):
-            digest = value[MARKER]
-            cache = {} if cache is None else cache
-            if digest not in cache:
-                row = connection.execute(
-                    "SELECT codec,raw_len,data FROM content_blob WHERE sha256=?", (digest,)
-                ).fetchone()
-                if row is None:
-                    raise ValueError(f"Dangling content_blob reference {digest}")
-                cache[digest] = _decode(row[0], row[1], row[2], digest)
-            return cache[digest]
+            return _fetch(connection, value[MARKER], {} if cache is None else cache)
         if list(value) == [LITERAL] and isinstance(value[LITERAL], dict):
             value = value[LITERAL]  # Escaped native dict: restore its members only.
         return {key: restore(connection, item, cache) for key, item in value.items()}
@@ -158,6 +222,10 @@ def verify(connection) -> dict:
             "AND length(t.value)=64 AND t.path NOT LIKE '%.\"$lit\"' GROUP BY t.value"
         )
     )
+    for digest, count in connection.execute(
+        f"SELECT substr(text,2), COUNT(*) FROM event WHERE {TEXT_REFERENCE_SQL} GROUP BY 1"
+    ):
+        counted[digest] = counted.get(digest, 0) + count
     blobs = 0
     for digest, codec, raw_len, data, refs in connection.execute(
         "SELECT sha256,codec,raw_len,data,refs FROM content_blob"

@@ -5,6 +5,7 @@ from importlib.resources import files
 import pytest
 import zstandard
 
+from tandem_data import SCHEMA_VERSION
 from tandem_data.analysis_input import AnalysisScope, read_analysis
 from tandem_data.contract import canonical
 from tandem_data.service import ImportRequest, ImportService
@@ -223,7 +224,7 @@ def test_both_v5_variants_migrate_without_losing_data(tmp_path, v5_variant):
             db.execute("UPDATE schema_manifest SET schema_version=5")
             db.execute("INSERT INTO source_scan VALUES('s',1,'full',0,0,0,0)")
     with Store(home) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
         if v5_variant == "inventory":
             assert store.db.execute("SELECT name FROM inventory_item").fetchone()[0] == "test"
@@ -231,6 +232,6 @@ def test_both_v5_variants_migrate_without_losing_data(tmp_path, v5_variant):
             assert store.db.execute("SELECT selection FROM source_scan").fetchone()[0] == "full"
         store.rebuild()
         bundle = read_analysis(home, AnalysisScope("UTC"))
-        assert bundle["db_schema_version"] == 8
+        assert bundle["db_schema_version"] == SCHEMA_VERSION
         assert "inventory" in bundle["coverage"]
         assert "source_scans" in bundle["coverage"]

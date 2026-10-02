@@ -1,4 +1,4 @@
-"""v6 (with or without the reserved 007 FK indexes) and v7 stores upgrade to v8 in place."""
+"""v6 (with or without the reserved 007 FK indexes) and v7 stores upgrade to the latest version in place."""
 
 import json
 import re
@@ -17,7 +17,6 @@ V8_INDEXES = (
     "session_by_project_started",
     "session_by_source_started",
     "tool_by_name_started",
-    "record_by_file_locator",
     "source_file_unprojected",
     "source_file_projection_versions",
 )
@@ -26,6 +25,7 @@ FK_INDEXES = re.findall(
     files("tandem_data").joinpath("migrations/008.sql").read_text(),
 )
 LEGACY_FTS = """
+DROP TRIGGER event_text_blob_ai; DROP TRIGGER event_text_blob_ad; DROP TRIGGER event_text_blob_au;
 DROP TRIGGER event_blob_ai; DROP TRIGGER event_blob_ad; DROP TRIGGER event_blob_au;
 DROP TABLE content_blob;
 DROP TRIGGER event_search_ai; DROP TRIGGER event_search_ad; DROP TRIGGER event_search_au;
@@ -90,7 +90,9 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
     write_sessions(source)
     home = tmp_path / "home"
     with monkeypatch.context() as patch:
-        patch.setattr(payload, "THRESHOLD", 1 << 40)  # Older layouts had inline ext only.
+        # Older layouts had inline ext and text only.
+        patch.setattr(payload, "THRESHOLD", 1 << 40)
+        patch.setattr(payload, "TEXT_THRESHOLD", 1 << 40)
         with import_home(home, source) as store:
             store.db.execute(
                 "INSERT INTO inventory_scan VALUES(1,'root','pi','/synthetic','global',NULL,1,'test','{}','[]')"
@@ -106,8 +108,10 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
 
     with Store(home) as store:
         db = store.db
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 8
-        assert db.execute("SELECT schema_version FROM schema_manifest").fetchone()[0] == 8
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+        assert (
+            db.execute("SELECT schema_version FROM schema_manifest").fetchone()[0] == SCHEMA_VERSION
+        )
         names = {r[0] for r in db.execute("SELECT name FROM sqlite_master")}
         assert set(V8_INDEXES) | set(FK_INDEXES) | {"content_blob", "event_search"} <= names
         assert not {n for n in names if n.startswith("event_fts")}
@@ -129,9 +133,9 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
         db.execute("DROP INDEX session_by_started")
     assert snapshot(home) == before
 
-    # Reopening a v8 store does not run 008 again.
+    # Reopening an up-to-date store does not run 008 again.
     with Store(home) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert not store.db.execute(
             "SELECT 1 FROM sqlite_master WHERE name='session_by_started'"
         ).fetchone()

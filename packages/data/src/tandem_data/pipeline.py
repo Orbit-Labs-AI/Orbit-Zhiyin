@@ -3,7 +3,7 @@
 import json
 from collections import defaultdict
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from tandem_data import MAPPER_VERSION, REDUCER_VERSION, payload
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import canonical, now_ms, validate_event
 from tandem_data.privacy import REDACTION_VERSION
@@ -230,6 +230,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                     "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
                 ).fetchone()
                 if existing:
+                    existing = payload.restore_row(store.db, existing)
                     relation = (
                         "replayed" if existing["session_uid"] != draft.session_uid else "duplicate"
                     )
@@ -242,6 +243,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                             replacement = dict(incoming)
                             for field in ("attrs", "ext", "native_key"):
                                 replacement[field] = canonical(replacement[field])
+                            replacement["text"] = payload.pack_text(
+                                store.db, replacement["kind"], replacement["text"]
+                            )
                             fields = [field for field in replacement if field != "event_uid"]
                             store.db.execute(
                                 "UPDATE event SET "
@@ -249,9 +253,12 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                                 + " WHERE event_uid=?",
                                 [replacement[field] for field in fields] + [draft.event_uid],
                             )
-                            existing = store.db.execute(
-                                "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
-                            ).fetchone()
+                            existing = payload.restore_row(
+                                store.db,
+                                store.db.execute(
+                                    "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
+                                ).fetchone(),
+                            )
                             attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
                         merged, merged_ext = (
                             _merge(attrs, incoming["attrs"]),
@@ -306,7 +313,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                                     canonical(merged),
                                     canonical(merged_ext),
                                     stamp,
-                                    text,
+                                    payload.pack_text(store.db, existing["kind"], text),
                                     draft.event_uid,
                                 ),
                             )

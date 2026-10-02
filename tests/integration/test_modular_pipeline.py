@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from tandem_data import SCHEMA_VERSION
 from tandem_data.analysis_input import AnalysisScope, read_analysis
 from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store
@@ -352,7 +353,7 @@ def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_ve
         for name in names:
             store.db.execute(f'DROP INDEX "{name}"')
     with Store(home) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert store.db.execute("SELECT count(*) FROM inventory_scan").fetchone()[0] == 0
         assert store.db.execute("SELECT count(*) FROM inventory_item").fetchone()[0] == 0
         store.db.execute("BEGIN")

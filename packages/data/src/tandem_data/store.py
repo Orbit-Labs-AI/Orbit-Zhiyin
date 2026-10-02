@@ -19,6 +19,8 @@ import zstandard as zstd
 from tandem_data import SCHEMA_VERSION, payload
 from tandem_data.contract import RawRecord, canonical, now_ms, shape, uid
 
+PAGE_SIZE = 16384
+
 SQL_TABLES = {
     "codex": ("threads", "thread_spawn_edges"),
     "hermes": ("sessions", "messages", "session_model_usage", "system_prompts"),
@@ -162,6 +164,10 @@ class Store:
         os.close(descriptor)
         self.db = sqlite3.connect(self.db_path, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        # Only takes effect before the first page is written (a new store). Rows average
+        # ~1.5 KB, so 4 KiB pages leave a quarter of each leaf empty; existing stores keep
+        # their page size until a VACUUM.
+        self.db.execute(f"PRAGMA page_size = {PAGE_SIZE}")
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA busy_timeout = 5000")
@@ -845,7 +851,7 @@ class Store:
         blobs = payload.verify(self.db)
         cache = {}
         for row in self.db.execute("SELECT * FROM event"):
-            envelope = dict(row)
+            envelope = payload.restore_row(self.db, row, cache)
             for name in ("attrs", "ext", "native_key"):
                 envelope[name] = json.loads(envelope[name])
             envelope["ext"] = payload.restore(self.db, envelope["ext"], cache)
