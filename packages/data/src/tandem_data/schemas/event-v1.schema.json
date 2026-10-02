@@ -1,0 +1,625 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://actionmesh.ai/tandem/contracts/event-v1",
+  "title": "Tandem L2 event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_uid",
+    "session_uid",
+    "record_uid",
+    "native_key",
+    "event_path",
+    "seq",
+    "ts",
+    "kind",
+    "actor",
+    "attrs",
+    "ext",
+    "text_truncated",
+    "contract_version",
+    "mapper_version"
+  ],
+  "properties": {
+    "event_uid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_uid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_uid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "native_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "native_key": {
+      "type": "array",
+      "minItems": 1
+    },
+    "event_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "parent_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "turn_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "call_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "text_truncated": {
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "contract_version": {
+      "const": 1
+    },
+    "mapper_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "session.meta",
+        "session.title",
+        "setting.change",
+        "turn.start",
+        "turn.end",
+        "message.user",
+        "message.assistant",
+        "reasoning",
+        "tool.call",
+        "tool.result",
+        "model.usage",
+        "context.inject",
+        "context.compaction",
+        "permission.request",
+        "permission.decision",
+        "branch",
+        "hook.run",
+        "subagent.spawn",
+        "subagent.result",
+        "plan.update",
+        "file.change",
+        "link",
+        "queue",
+        "error",
+        "ui.state",
+        "unknown"
+      ]
+    },
+    "actor": {
+      "enum": [
+        "human",
+        "assistant",
+        "system",
+        "tool",
+        "hook",
+        "subagent",
+        "harness"
+      ]
+    },
+    "ext": {
+      "type": "object"
+    },
+    "attrs": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "$ref": "#/$defs/time"
+        },
+        "origin": {
+          "enum": [
+            "human",
+            "queued",
+            "notification",
+            "peer",
+            "automation",
+            "injected",
+            "unknown"
+          ]
+        },
+        "usage_scope": {
+          "enum": [
+            "call",
+            "session_snapshot",
+            "session_model_snapshot"
+          ]
+        },
+        "measurement": {
+          "enum": [
+            "delta",
+            "cumulative"
+          ]
+        },
+        "coverage": {
+          "enum": [
+            "self",
+            "root_tree",
+            "unknown"
+          ]
+        },
+        "request_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request_key": {
+          "type": "array",
+          "minItems": 1
+        },
+        "snapshot_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "counter_cycle": {
+          "type": "string"
+        },
+        "input_tokens": {
+          "$ref": "#/$defs/token"
+        },
+        "cache_read_tokens": {
+          "$ref": "#/$defs/token"
+        },
+        "cache_write_tokens": {
+          "$ref": "#/$defs/token"
+        },
+        "output_tokens": {
+          "$ref": "#/$defs/token"
+        },
+        "reasoning_tokens": {
+          "$ref": "#/$defs/token"
+        },
+        "cost_usd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "duration_ms": {
+          "$ref": "#/$defs/token"
+        },
+        "original_chars": {
+          "$ref": "#/$defs/token"
+        },
+        "message_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_format": {
+          "enum": [
+            "prompt",
+            "question_reply",
+            null
+          ]
+        },
+        "argument_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "argument_digest_basis": {
+          "enum": [
+            "canonical_json",
+            null
+          ]
+        },
+        "is_wrapper": {
+          "type": "boolean"
+        },
+        "status_scope": {
+          "enum": [
+            "direct_command",
+            "tool_protocol",
+            "outer_wrapper",
+            "inner_aggregate",
+            "unknown"
+          ]
+        },
+        "known_command_results": {
+          "$ref": "#/$defs/token"
+        },
+        "failed_command_results": {
+          "$ref": "#/$defs/token"
+        },
+        "unknown_return_values": {
+          "$ref": "#/$defs/token"
+        },
+        "artifact_body_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "writing_measurements": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "reply": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "required": [
+                "chars",
+                "surface",
+                "quality",
+                "complete"
+              ],
+              "properties": {
+                "chars": {
+                  "$ref": "#/$defs/token"
+                },
+                "surface": {
+                  "type": "string"
+                },
+                "quality": {
+                  "enum": [
+                    "measured",
+                    "reported",
+                    "estimated",
+                    "missing"
+                  ]
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "summary": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "required": [
+                "chars",
+                "surface",
+                "quality",
+                "complete"
+              ],
+              "properties": {
+                "chars": {
+                  "$ref": "#/$defs/token"
+                },
+                "surface": {
+                  "type": "string"
+                },
+                "quality": {
+                  "enum": [
+                    "measured",
+                    "reported",
+                    "estimated",
+                    "missing"
+                  ]
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "body": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "required": [
+                "chars",
+                "surface",
+                "quality",
+                "complete"
+              ],
+              "properties": {
+                "chars": {
+                  "$ref": "#/$defs/token"
+                },
+                "surface": {
+                  "type": "string"
+                },
+                "quality": {
+                  "enum": [
+                    "measured",
+                    "reported",
+                    "estimated",
+                    "missing"
+                  ]
+                },
+                "complete": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "token": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "time": {
+      "type": "object",
+      "required": [
+        "source_field",
+        "semantics",
+        "quality",
+        "reported"
+      ],
+      "properties": {
+        "source_field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reported": {
+          "type": "object"
+        },
+        "quality": {
+          "enum": [
+            "reported",
+            "estimated",
+            "missing"
+          ]
+        },
+        "semantics": {
+          "enum": [
+            "created",
+            "request_start",
+            "started",
+            "completed",
+            "written",
+            "unknown"
+          ]
+        },
+        "timezone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timezone_source": {
+          "enum": [
+            "reported",
+            "local_inferred",
+            "unknown"
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ts": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "properties": {
+              "time": {
+                "properties": {
+                  "quality": {
+                    "const": "missing"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "attrs": {
+            "properties": {
+              "time": {
+                "properties": {
+                  "quality": {
+                    "enum": [
+                      "reported",
+                      "estimated"
+                    ]
+                  },
+                  "source_field": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "message.user"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "required": [
+              "origin"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "tool.call"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attrs": {
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "tool.result"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "model.usage"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "required": [
+              "usage_scope",
+              "measurement",
+              "coverage",
+              "reported"
+            ],
+            "oneOf": [
+              {
+                "required": [
+                  "request_key"
+                ],
+                "properties": {
+                  "usage_scope": {
+                    "const": "call"
+                  },
+                  "measurement": {
+                    "const": "delta"
+                  }
+                }
+              },
+              {
+                "required": [
+                  "snapshot_key"
+                ],
+                "properties": {
+                  "usage_scope": {
+                    "enum": [
+                      "session_snapshot",
+                      "session_model_snapshot"
+                    ]
+                  },
+                  "measurement": {
+                    "const": "cumulative"
+                  },
+                  "request_id": {
+                    "type": "null"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
