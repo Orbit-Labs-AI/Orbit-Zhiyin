@@ -44,7 +44,9 @@ test('a 304 / identical feed body does not re-apply the feed', async ({ page }) 
   await openLive(page, 'tools');
   await expect.poll(() => page.evaluate(() => LV.ready('tools'))).toBe(true);
   const n = await page.evaluate(() => {
-    const f = LV.feeds.tools[0]; let applied = 0; const a0 = f.apply; f.apply = function () { applied++; return a0.apply(this, arguments); };
+    const f = LV.feeds.tools[0]; let applied = 0; const a0 = f.apply;
+    LV.pump('tools');   // settle: whatever is current is applied first
+    f.apply = function () { applied++; return a0.apply(this, arguments); };
     // same data objects, newer updatedAt (what a 304 leaves behind)
     lvFeedRes(f).forEach((x) => { x.r.updatedAt = (x.r.updatedAt || 0) + 1000; });
     LV.pump('tools');
@@ -71,14 +73,14 @@ test('stage size is cached and follows viewport resizes', async ({ page }) => {
 
 test('A3: picking a session swaps the detail pane only and moves the selection', async ({ page }) => {
   const errors = collectErrors(page);
-  await stubGateway(page, ['core']);
+  await stubGateway(page, ['core', 's2']);
   await openLive(page, 'sessions');
   await expect(page.locator('#slist .srow').nth(2)).toBeVisible();
-  await page.evaluate(() => { $('#slist').__keep = 1; $('#sessQ').__keep = 1; });
+  await frames(page, 4);
   await countRenders(page);
   const id = await page.locator('#slist .srow').nth(2).getAttribute('data-id');
   // checked in the same task as the click: a later detail arrival may still re-render the page
-  const st = await page.evaluate((x) => { $('#slist .srow[data-id="' + x + '"]').click(); return {
+  const st = await page.evaluate((x) => { window.__R.render = 0; $('#slist').__keep = 1; $('#sessQ').__keep = 1; $('#slist .srow[data-id="' + x + '"]').click(); return {
     keep: $('#slist').__keep === 1 && $('#sessQ').__keep === 1, sel: S.sess.sel,
     on: $$('#slist .srow.sel').map((b) => b.dataset.id), pressed: $$('#slist .srow[aria-pressed="true"]').map((b) => b.dataset.id),
     title: ($('#main .sb-title') || {}).textContent, want: BYID[x].title, renders: window.__R.render }; }, id);
