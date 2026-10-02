@@ -193,6 +193,10 @@ class ClaudeMapper(BaseMapper):
                         )
                     elif result.get("interrupted"):
                         event.attrs["status"] = "interrupted"
+                    elif event.attrs.get("status") == "unknown":
+                        # Claude Code omits is_error on success; a paired result
+                        # without the flag is a protocol-level completion.
+                        event.attrs["status"] = "completed"
                     event.ext["toolUseResult"] = data.get("toolUseResult", result)
             events.extend(contents)
             if (

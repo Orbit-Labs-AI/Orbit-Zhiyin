@@ -180,13 +180,17 @@ def _tools(conn, params, scope, limit, home, appdb):
     start, end, pid = P.window(scope)
     where, args = P.window_sql(start, end, pid, home, **_filters(scope))
     rows = conn.execute(
-        f"SELECT name, COUNT(*) n, SUM(status IN ('failed','error')), SUM(approval IS NOT NULL),"
+        f"SELECT name, COUNT(*) n, SUM(status IN ({P.FAILED_SQL})), SUM(approval IS NOT NULL),"
         f" (SELECT error_class FROM tool_call x WHERE x.name=t.name AND x.error_class IS NOT NULL"
-        f"  GROUP BY error_class ORDER BY COUNT(*) DESC LIMIT 1), MAX(mcp_server)"
+        f"  GROUP BY error_class ORDER BY COUNT(*) DESC LIMIT 1), MAX(mcp_server),"
+        f" SUM(status IN ({P.KNOWN_SQL})), SUM(status IN ('declined','denied'))"
         f" FROM tool_call t WHERE session_uid IN (SELECT s.session_uid FROM session s WHERE {where})"
-        f" GROUP BY name ORDER BY SUM(status IN ('failed','error')) DESC, n DESC LIMIT ?", [*args, limit]).fetchall()
-    return [{"tool": r[0], "calls": r[1], "failures": int(r[2] or 0),
-             "failure_rate": round((r[2] or 0) / r[1], 3) if r[1] else 0.0, "approvals": int(r[3] or 0),
+        f" GROUP BY name ORDER BY SUM(status IN ({P.FAILED_SQL})) DESC, n DESC LIMIT ?", [*args, limit]).fetchall()
+    # Failure rate over known outcomes only; unknown results must not inflate it to 100%.
+    return [{"tool": r[0], "calls": r[1], "failures": int(r[2] or 0), "known": int(r[6] or 0),
+             "failure_rate": round((r[2] or 0) / r[6], 3) if r[6] else None,
+             "unknown_share": round((r[1] - (r[6] or 0)) / r[1], 3) if r[1] else None,
+             "rejected": int(r[7] or 0), "approvals": int(r[3] or 0),
              "top_error_class": r[4], "mcp_server": r[5]} for r in rows]
 
 

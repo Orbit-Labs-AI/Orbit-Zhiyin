@@ -82,6 +82,27 @@ def ratio(a, b):
     return a / b if a is not None and b else None
 
 
+# Tool rates are only reported when explicit outcomes cover at least this share
+# of calls whose outcome could have been success or failure. Below it the known
+# subset is biased (e.g. only errors carry a status) and a rate would mislead.
+MIN_STATUS_COVERAGE = .5
+
+
+def status_coverage(known, unknown):
+    """Share of outcome-eligible calls with an explicit success/failure status."""
+    if known is None or unknown is None or known + unknown == 0:
+        return None
+    return known / (known + unknown)
+
+
+def covered_ratio(numerator, known, unknown):
+    """``numerator / known`` unless the known subset covers too few calls."""
+    coverage = status_coverage(known, unknown)
+    if coverage is None or coverage < MIN_STATUS_COVERAGE:
+        return None
+    return ratio(numerator, known)
+
+
 def quantile(values, q):
     if not values:
         return None

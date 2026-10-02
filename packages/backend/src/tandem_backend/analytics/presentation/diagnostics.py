@@ -8,6 +8,8 @@ root causes, financial savings, or project completion.
 import math
 from collections import Counter, defaultdict
 
+from ..common import covered_ratio, status_coverage
+
 RULE_VERSION = "presentation-diagnostics-v1"
 RECOMMENDATION_CATEGORIES = (
     "prompt", "skill", "hooks", "plugin_mcp", "subagent", "model", "workflow",
@@ -94,6 +96,9 @@ def _tool_rates(calls, source, duration_rows):
                               ("success", "failed", "rejected", "interrupted", "running"))
     measured = bool(calls) or source == "available"
     refs = _refs([c for c in calls if c.get("tool_result_status") in ("success", "failed")], "call_uid")
+    # A known subset covering few calls (e.g. only errors carry a status) is
+    # biased; withhold the rate instead of reporting 100% failure.
+    covered = covered_ratio(1, eligible, unknown) is not None
     return {"call_count": len(calls) if measured else None,
             "known_success_count": statuses["success"] if measured else None,
             "known_failure_count": statuses["failed"] if measured else None,
@@ -101,12 +106,13 @@ def _tool_rates(calls, source, duration_rows):
             "unknown_status_count": unknown if measured else None,
             **{s + "_count": statuses[s] if measured else None
                for s in ("rejected", "interrupted", "running")},
-            "success_rate": _rate(statuses["success"] if measured else None,
-                                  eligible if measured else None, source=source,
+            "status_coverage": status_coverage(eligible, unknown) if measured else None,
+            "success_rate": _rate(statuses["success"] if measured and covered else None,
+                                  eligible if measured and covered else None, source=source,
                                   unknown_n=unknown if measured else None,
                                   basis="known successful calls / (known successful + known failed calls)", refs=refs),
-            "error_rate": _rate(statuses["failed"] if measured else None,
-                                eligible if measured else None, source=source,
+            "error_rate": _rate(statuses["failed"] if measured and covered else None,
+                                eligible if measured and covered else None, source=source,
                                 unknown_n=unknown if measured else None,
                                 basis="known failed calls / (known successful + known failed calls)", refs=refs),
             "average_execution_duration_ms": _duration_summary(calls, duration_rows, source)}

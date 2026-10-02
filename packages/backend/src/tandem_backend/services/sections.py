@@ -16,9 +16,13 @@ from typing import Any, Literal
 
 Compute = Callable[[Any, Any, dict, "ResultMemo"], dict]
 SESSION_SUMMARY_FIELDS = ("session_uid", "kind", "project_id", "legacy_project_id", "title",
+                          "agent", "source_id", "parent_uid", "root_uid", "started_at",
+                          "ended_at", "status",
                           "features", "cluster_id", "novelty", "embedding_x", "embedding_y",
                           "effective_samples", "unknown_counts")
 SESSION_USAGE_FIELDS = ("status", "request_count", "total_tokens", "cost_usd")
+MOMENT_EVENT_KINDS = ("permission.request", "context.compaction", "turn.interrupted")
+MAX_KEY_MOMENTS = 200
 
 
 class SectionNotFound(KeyError):
@@ -90,9 +94,88 @@ def _sessions(store, scope, params, memo):
         memo.sections(store, scope, ["sessions"], True, params.get("_rev")), "sessions")
     result["sessions"] = [
         {**{k: s.get(k) for k in SESSION_SUMMARY_FIELDS},
-         "usage": {k: (s.get("usage") or {}).get(k) for k in SESSION_USAGE_FIELDS}}
+         "usage": {k: (s.get("usage") or {}).get(k) for k in SESSION_USAGE_FIELDS},
+         "outcome": session_outcome(s)}
         for s in result["sessions"]]
     return result
+
+
+def session_outcome(row: dict) -> dict:
+    """Compact, separately sourced outcome facts; never a single inferred success verdict."""
+    objective = row.get("objective_outcomes") or {}
+    feedback = (row.get("subjective_outcomes") or {}).get("counts") or {}
+    totals = (row.get("tools") or {}).get("totals") or {}
+    outcome = (row.get("bottleneck_features") or {}).get("outcome") or {}
+    return {"session_status": row.get("status"),
+            "task_success": objective.get("task_success"),
+            "tool_failure_count": totals.get("known_failure_count"),
+            "explicit_tool_failures": objective.get("explicit_tool_failures"),
+            "validation_result_counts": outcome.get("validation_result_counts"),
+            "accepted_feedback_count": feedback.get("accepted_feedback_count"),
+            "rejected_feedback_count": feedback.get("rejected_feedback_count"),
+            "rework_feedback_count": feedback.get("rework_feedback_count")}
+
+
+def _store_facts(store, session_uids: list[str]) -> dict:
+    """Model/effort mix and notable protocol events read straight from the canonical store."""
+    connect = getattr(store, "connect", None)
+    if connect is None or not session_uids:
+        return {"status": "unavailable", "models": None, "efforts": None, "events": None}
+    marks = ",".join("?" * len(session_uids))
+    try:
+        with connect() as db:
+            rows = db.execute(
+                f"SELECT c.model_raw, c.effort_raw, COUNT(*) FROM event e JOIN event_context c "
+                f"USING(event_uid) WHERE e.session_uid IN ({marks}) AND e.kind='model.usage' "
+                f"GROUP BY 1, 2", session_uids).fetchall()
+            if not rows:  # no usage events: fall back to the context of any event
+                rows = db.execute(
+                    f"SELECT c.model_raw, c.effort_raw, COUNT(*) FROM event e JOIN event_context "
+                    f"c USING(event_uid) WHERE e.session_uid IN ({marks}) AND "
+                    f"(c.model_raw IS NOT NULL OR c.effort_raw IS NOT NULL) GROUP BY 1, 2",
+                    session_uids).fetchall()
+            kinds = ",".join("?" * len(MOMENT_EVENT_KINDS))
+            events = db.execute(
+                f"SELECT session_uid, event_uid, seq, ts, kind FROM event WHERE session_uid IN "
+                f"({marks}) AND kind IN ({kinds}) ORDER BY session_uid, seq LIMIT ?",
+                [*session_uids, *MOMENT_EVENT_KINDS, MAX_KEY_MOMENTS]).fetchall()
+    except Exception as error:  # noqa: BLE001 - detail must still render without these facts
+        return {"status": "unavailable", "reason": type(error).__name__, "models": None,
+                "efforts": None, "events": None}
+    models, efforts = {}, {}
+    for model, effort, n in rows:
+        models[model or "unknown"] = models.get(model or "unknown", 0) + n
+        efforts[effort or "unknown"] = efforts.get(effort or "unknown", 0) + n
+    return {"status": "available", "models": models, "efforts": efforts,
+            "events": [dict(zip(("session_uid", "event_uid", "seq", "ts", "kind"), r, strict=True))
+                       for r in events]}
+
+
+def key_moments(row: dict, events: list[dict] | None) -> list[dict]:
+    """Tool failures, correction signals, user feedback and protocol interruptions, in order."""
+    moments = {}
+
+    def add(session_uid, event_uid, seq, ts, tag):
+        if not event_uid:
+            return
+        item = moments.setdefault(event_uid, {"session_uid": session_uid, "event_uid": event_uid,
+                                              "seq": seq, "ts": ts, "types": []})
+        if tag not in item["types"]:
+            item["types"].append(tag)
+
+    for call in row.get("tool_sequence") or []:
+        if call.get("status") == "failed":
+            add(call.get("session_uid"), call.get("call_event_uid"), call.get("seq"),
+                call.get("started_at"), "tool_failure")
+    for signal in row.get("correction_signals") or []:
+        add(row.get("session_uid"), signal.get("event_uid"), None, None, "correction")
+    for item in row.get("subjective_outcome_candidates") or []:
+        add(row.get("session_uid"), item.get("event_uid"), None, item.get("ts"), "user_feedback")
+    for event in events or []:
+        add(event["session_uid"], event["event_uid"], event["seq"], event["ts"], event["kind"])
+    ordered = sorted(moments.values(), key=lambda m: (
+        m["ts"] is None, m["ts"] or 0, m["session_uid"] or "", m["seq"] or 0, m["event_uid"]))
+    return ordered[:MAX_KEY_MOMENTS]
 
 
 def _session_detail(store, scope, params, memo):
@@ -104,6 +187,17 @@ def _session_detail(store, scope, params, memo):
                None)
     if row is None:
         raise SectionNotFound("会话不在本次分析范围内")
+    facts = _store_facts(store, row.get("included_session_uids") or [row["session_uid"]])
+    row = {**row,
+           "outcome": session_outcome(row),
+           "models": {"status": facts["status"], "models": facts["models"],
+                      "efforts": facts["efforts"], "reason": facts.get("reason"),
+                      "basis": "event_context of model.usage events (any event as fallback)"},
+           "key_moments": key_moments(row, facts["events"]),
+           "signals": {"correction": row.get("correction_signals"),
+                       "language": row.get("language_signals"),
+                       "tool_failure_count": session_outcome(row)["tool_failure_count"],
+                       "feedback": (row.get("subjective_outcomes") or {}).get("counts")}}
     return {**result, "session": row}
 
 

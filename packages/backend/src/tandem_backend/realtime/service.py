@@ -193,7 +193,8 @@ class Realtime:
         now_ms = int(now_s * 1000)
         with self.lock, timed("realtime.refresh"):
             paused = self._paused()
-            tails = self._tails(now_ms)
+            # Paused collection means tandem.db is not being updated: any state would be stale.
+            tails = [] if paused else self._tails(now_ms)
             if self.hooks is not None:
                 try:
                     self.hooks.poll()
@@ -229,11 +230,23 @@ class Realtime:
             status = "paused"
         else:
             status = "active" if any(i["state"] in ACTIVE for i in items) else "idle"
-        return {"generated_at": now_ms, "status": status, "counts": counts,
-                "today": {"sessions_started": sum(1 for t, _ in pairs
-                                                  if (t.started_at or 0) >= midnight),
-                          "sessions_finished": finished},
-                "sessions": items}
+        idle = sum(1 for i in items if i["state"] == "idle")
+        return {"generated_at": now_ms, "status": status, "counts": {**counts, "idle": idle},
+                "today": None if paused else {
+                    "sessions_started": sum(1 for t, _ in pairs
+                                            if (t.started_at or 0) >= midnight),
+                    "sessions_finished": finished},
+                "reason": "collection_paused" if paused else None,
+                # Only live and recently finished sessions; idle ones are counted, not listed.
+                "sessions": [i for i in items if i["state"] != "idle"]}
+
+    def prewarm(self) -> None:
+        """Warm the tail query (page cache, statement cache) without notifying anyone."""
+        try:
+            if not self._paused():
+                self._tails(int(self.clock() * 1000))
+        except Exception:  # noqa: BLE001 - best effort only
+            pass
 
     def _item(self, tail: SessionTail, state: SessionState, now_ms: int) -> dict:
         flags = set(state.flags)
