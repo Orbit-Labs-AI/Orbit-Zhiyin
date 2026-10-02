@@ -1,0 +1,31 @@
+{
+  "sources": [
+    {
+      "id": "src-claude",
+      "agent": "claude_code",
+      "name": "Claude Code",
+      "enabled": true,
+      "sessions": 96,
+      "last_scan": "2026-10-01T07:10:00Z",
+      "status": "ok"
+    },
+    {
+      "id": "src-codex",
+      "agent": "codex",
+      "name": "Codex",
+      "enabled": true,
+      "sessions": 32,
+      "last_scan": "2026-10-01T07:10:00Z",
+      "status": "ok"
+    },
+    {
+      "id": "src-gemini",
+      "agent": "gemini_cli",
+      "name": "Gemini CLI",
+      "enabled": false,
+      "sessions": null,
+      "last_scan": null,
+      "status": "disabled"
+    }
+  ]
+}
