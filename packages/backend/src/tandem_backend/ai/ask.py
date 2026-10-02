@@ -55,6 +55,9 @@ def out_of_scope(question: str) -> dict:
     return {"answer": OUT_OF_SCOPE, "refs": [], "next": "none", "pages": route_pages(question)}
 
 
+SCOPE_KEYS = ("days", "start_ms", "end_ms", "project_id", "source_ids")
+
+
 class _Q:
     """Runs whitelisted queries for one answer and collects their refs."""
 
@@ -63,8 +66,10 @@ class _Q:
         self.refs: list[dict] = []
 
     def __call__(self, api: str, **params) -> list[dict]:
-        if "scope" in queries.SCHEMAS[api]["properties"] and self.scope.get("days"):
-            params.setdefault("scope", {"days": int(self.scope["days"])})
+        if "scope" in queries.SCHEMAS[api]["properties"]:
+            scope = {k: self.scope[k] for k in SCOPE_KEYS if self.scope.get(k) not in (None, [])}
+            if scope:  # Forwarded as given (days/start_ms/end_ms/project_id/source_ids).
+                params.setdefault("scope", scope)
         try:
             r = queries.run(api, params, reads=self.reads, appdb=self.appdb, home=self.home)
         except Exception:  # noqa: BLE001 - no tandem.db yet: answer degrades, never 500
