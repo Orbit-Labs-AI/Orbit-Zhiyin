@@ -4,7 +4,7 @@
   --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;
   --serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC",serif;
   --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
-  --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#a99bff;--acc:#ff8a52;
+  --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#a99bff;--acc:#9fb5bc;--orbit:#a3adb0;
   color-scheme:light;
 }
 html,body{margin:0;height:100%;background:#000;overflow:hidden}
@@ -50,4 +50,11 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .row{white-space:nowrap}.row .ln{display:inline-block;margin:0 .12em}
 .cursor{position:absolute;left:0;top:0;width:28px;height:28px;transform-origin:6px 3px;pointer-events:none;opacity:0;z-index:5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
 .cursor svg{display:block}
-.cursor .ripple{position:absolute;left:6px;top:3px;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,138,82,.9);opacity:0}
+.cursor .ripple{position:absolute;left:6px;top:3px;width:46px;height:46px;border-radius:50%;border:2px solid rgba(163,173,176,.95);opacity:0}
+.orbit{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none}
+.compass{display:block}
+.compass .cp-hc{font:600 34px var(--serif);fill:#fff}
+.compass .cp-hs{font:500 17px var(--mono);fill:rgba(255,255,255,.5)}
+.compass .cp-l{font:700 38px var(--serif);fill:#fff}
+.compass .cp-s{font:500 18px var(--mono);fill:rgba(255,255,255,.6)}
+.md.acc,.lt.acc{font-weight:400}
