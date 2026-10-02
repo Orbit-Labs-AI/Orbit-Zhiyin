@@ -46,6 +46,7 @@ def analytics_scope(
 ):
     """Same parameters as api/routes.py; an explicit empty value (``x=``) means []."""
     from ..analytics.inputs import Scope
+    from ..sessionops.exclusion import merged
 
     def explicit(values):
         return [] if values == [""] else values
@@ -57,7 +58,7 @@ def analytics_scope(
                      model_ids=explicit(model_ids), effort_raw=effort_raw,
                      from_ts=from_ts, until_ts=until_ts,
                      root_session_uids=explicit(root_session_uids),
-                     excluded_session_uids=excluded_session_uids or [],
+                     excluded_session_uids=merged(excluded_session_uids),
                      include_children=include_children, scene=scene)
     except ValueError as error:
         raise ApiError(422, "invalid_request", str(error)) from error
