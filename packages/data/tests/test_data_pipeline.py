@@ -280,3 +280,33 @@ def test_rebuild_is_atomic_when_connector_contract_breaks(tmp_path, monkeypatch)
             store.rebuild(mapper_version="2")
         assert [tuple(row) for row in store.db.execute("SELECT * FROM event ORDER BY seq")] == old
         assert store.verify()["integrity"] == "ok"
+
+
+def test_tandem_ai_sessions_are_excluded(tmp_path):
+    from tandem_data.pipeline import TANDEM_AI_MARKER
+
+    with Store(tmp_path / "data") as store:
+        marked = claude_rows()
+        for row in marked:
+            row["sessionId"] = "session-marker"
+            row["uuid"] = "m-" + row["uuid"]
+            if "parentUuid" in row:
+                row["parentUuid"] = "m-" + row["parentUuid"]
+        marked[0]["message"]["content"] = f"{TANDEM_AI_MARKER} task=facet.session job=aj_1]\nhi"
+        in_cwd = claude_rows()
+        for row in in_cwd:
+            row["sessionId"] = "session-cwd"
+            row["cwd"] = str(store.home / "agent-cwd")
+        capture(store, "claude_code", tmp_path, claude_rows())
+        capture(store, "claude_code", tmp_path, marked, filename="marker.jsonl")
+        capture(store, "claude_code", tmp_path, in_cwd, filename="cwd.jsonl")
+        result = store.rebuild()
+        natives = [r[0] for r in store.db.execute("SELECT native_id FROM session")]
+        assert natives == ["session-a"] and result["sessions"] == 1
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM raw_record WHERE json_extract(note,'$.reason')='tandem_ai_session'"
+            ).fetchone()[0]
+            > 0
+        )
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
