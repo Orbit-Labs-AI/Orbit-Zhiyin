@@ -1,0 +1,1 @@
+{"items": [{"item_id": "inv_fx1", "type": "rule", "name": "AGENTS.md", "agent": "codex", "scope": "project", "project_id": "proj_alpha", "config_path": "~/Code/alpha-app/AGENTS.md"}], "summary": {"total": 1}, "coverage": {"inventory": {"status": "available"}}}
