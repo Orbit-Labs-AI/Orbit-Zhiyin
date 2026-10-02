@@ -11,7 +11,12 @@ brushing and window switches never wait for the analysis engine.
   with the newest cached fact rows (clock fields stay the request's own timezone).
 
 Freshness follows the analytics snapshots: ``fresh`` / ``stale`` (200) or ``computing``
-(202 with ``job_id``).
+(202 with ``job_id`` and ``progress``).
+
+Every route takes ``days`` (7 / 30 / 90 / 0 = all time). Omitted, the first-open fast path
+(``services.fastpath``) serves the widest ready window and otherwise computes the last
+7 days first while 30 days and all time warm in the background; ``meta.window`` says which
+window was served and the state of the wider ones.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from ..uiview import facts, fetch, overview, persona, routes_sessions
+from . import fastpath
 from .auth import ApiError
 from .routes_analytics import analytics_scope
 
@@ -61,19 +67,26 @@ def router(gw: Gateway) -> APIRouter:
     api = APIRouter()
     scope_dependency = Depends(facts_scope)
 
-    def load(scope, wait_ms: int):
-        body, freshness, job_id = fetch.fetch(gw, asdict(scope), wait_ms=wait_ms)
+    def load(scope, wait_ms: int, days: int | None = None):
+        fastpath.check_days(days)
+        base = asdict(scope)
+        scope_dict, window = fastpath.choose(gw, fetch.SECTION, base, days)
+        body, freshness, job_id = fetch.fetch(gw, scope_dict, wait_ms=wait_ms)
+        if days is None and freshness != "none":
+            fastpath.follow_up(gw, fetch.SECTION, base, window)
         if body is None:
             if freshness == "none":
-                return None, {"freshness": "none", "job_id": None}
+                return None, {"freshness": "none", "job_id": None, "window": window}
             progress_of = getattr(gw.supervisor.analysis, "progress_of", None)
             progress = progress_of(job_id) if progress_of is not None else None
             return None, JSONResponse({"meta": {"freshness": "computing", "job_id": job_id,
-                                                "progress": progress}}, status_code=202)
+                                                "progress": progress, "window": window}},
+                                      status_code=202)
         realtime = getattr(gw, "realtime", None)
         latest = realtime.latest() if realtime is not None else None
         body = facts.overlay_live(body, latest)
-        body["meta"] = {**body.get("meta", {}), "freshness": freshness, "job_id": job_id}
+        body["meta"] = {**body.get("meta", {}), "freshness": freshness, "job_id": job_id,
+                        "window": window}
         return body, None
 
     def empty(meta: dict) -> dict:
@@ -82,8 +95,8 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/uiview/facts")
     def get_facts(request: Request, scope=scope_dependency,
-                  wait_ms: int = Query(0, ge=0, le=3000)):
-        body, early = load(scope, wait_ms)
+                  wait_ms: int = Query(0, ge=0, le=3000), days: int | None = None):
+        body, early = load(scope, wait_ms, days)
         if isinstance(early, Response):
             return early
         if body is None:
@@ -108,12 +121,13 @@ def router(gw: Gateway) -> APIRouter:
                      metric: Literal["n", "h", "tok"] = "n",
                      from_ts: int | None = None, until_ts: int | None = None,
                      edition: Literal["advance", "lite"] = "advance",
-                     today: str | None = None, wait_ms: int = Query(0, ge=0, le=3000)):
+                     today: str | None = None, wait_ms: int = Query(0, ge=0, le=3000),
+                     days: int | None = None):
         if range_ not in RANGES:
             raise ApiError(422, "invalid_request", f"range must be one of {RANGES}")
         if from_ts is not None and until_ts is not None and until_ts <= from_ts:
             raise ApiError(422, "invalid_request", "until_ts must be after from_ts")
-        body, early = load(scope, wait_ms)
+        body, early = load(scope, wait_ms, days)
         if isinstance(early, Response):
             return early
         body = body or empty(early)
@@ -124,7 +138,7 @@ def router(gw: Gateway) -> APIRouter:
                   "from_ts": from_ts, "until_ts": until_ts, "edition": edition}
         payload = overview.build(body, params, day)
         payload["meta"].update({k: body["meta"].get(k) for k in
-                                ("freshness", "job_id", "data_rev", "scope_hash")})
+                                ("freshness", "job_id", "data_rev", "scope_hash", "window")})
         return payload
 
     def persona_params(period: str, agents: str | None, project: str | None,
@@ -132,8 +146,9 @@ def router(gw: Gateway) -> APIRouter:
         return {"period": period, "agents": _agents(agents), "project": project or None,
                 "vs": vs}
 
-    def persona_call(fn, scope, params: dict, today: str | None, wait_ms: int):
-        body, early = load(scope, wait_ms)
+    def persona_call(fn, scope, params: dict, today: str | None, wait_ms: int,
+                     days: int | None = None):
+        body, early = load(scope, wait_ms, days)
         if isinstance(early, Response):
             return early
         body = body or empty(early)
@@ -142,22 +157,23 @@ def router(gw: Gateway) -> APIRouter:
         except ValueError as error:
             raise ApiError(422, "invalid_request", str(error)) from error
         payload["meta"].update({k: body["meta"].get(k) for k in
-                                ("freshness", "job_id", "data_rev", "scope_hash")})
+                                ("freshness", "job_id", "data_rev", "scope_hash", "window")})
         return payload
 
     @api.get("/v1/uiview/persona")
     def get_persona(scope=scope_dependency, period: str = "90", agents: str | None = None,
                     project: str | None = None, vs: Literal["past"] | None = None,
-                    today: str | None = None, wait_ms: int = Query(0, ge=0, le=3000)):
+                    today: str | None = None, wait_ms: int = Query(0, ge=0, le=3000),
+                    days: int | None = None):
         return persona_call(persona.page, scope, persona_params(period, agents, project, vs),
-                            today, wait_ms)
+                            today, wait_ms, days)
 
     @api.get("/v1/uiview/persona/reveal")
     def get_reveal(scope=scope_dependency, period: str = "90", agents: str | None = None,
                    project: str | None = None, today: str | None = None,
-                   wait_ms: int = Query(0, ge=0, le=3000)):
+                   wait_ms: int = Query(0, ge=0, le=3000), days: int | None = None):
         return persona_call(persona.reveal, scope, persona_params(period, agents, project, None),
-                            today, wait_ms)
+                            today, wait_ms, days)
 
     def fact_overlay() -> dict | None:
         rows = fetch.latest_rows(gw)

@@ -33,6 +33,9 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     if old is None and failure and (failure["error"].get("code") in CLIENT_ERRORS
                                     or analysis.circuit_open(SECTION, h, revision)):
         raise failure_error(failure["error"])  # A stable error, never an endless 202.
+    remember = getattr(getattr(gw, "state", None), "remember_scope", None)
+    if remember is not None:
+        remember(scope_dict)  # The prewarm reuses the client's timezone and filters.
     task = analysis.submit(SECTION, scope_dict, {}, h, "interactive", revision, rules)
     if task is not None and wait_ms:
         task.done.wait(wait_ms / 1000)
@@ -68,10 +71,16 @@ def default_scope(tz: str | None = None) -> dict:
 
 def latest_rows(gw, tz: str | None = None) -> dict[str, dict] | None:
     """Newest cached fact rows by session id (never enqueues a computation)."""
+    from ..services.fastpath import windowed
     from ..services.sections import rules_digest
     from ..services.snapshots import scope_hash
 
-    snapshot = gw.snapshots.latest(SECTION, scope_hash(default_scope(tz), {}), rules_digest())
+    base, rules = default_scope(tz), rules_digest()
+    snapshot = None
+    for days in (0, 30, 7):  # The widest window computed so far (first-open fast path).
+        snapshot = gw.snapshots.latest(SECTION, scope_hash(windowed(base, days), {}), rules)
+        if snapshot is not None:
+            break
     if snapshot is None:
         return None
     return {r["id"]: r for r in snapshot.body.get("rows") or [] if not r.get("excluded")}

@@ -66,6 +66,7 @@ class SupervisorConfig:
     rss_kill_bytes: int = 4_000_000_000
     analysis_idle_s: float = 300.0
     max_failures: int = 3
+    max_preemptions: int = 2  # an interactive task may interrupt the same prewarm this often
     tick_s: float = 0.2
     worker_env: dict[str, str] = field(default_factory=dict)
     plan: dict = field(default_factory=dict)  # ingest_plan overrides (head_sessions, …)
@@ -352,6 +353,7 @@ class AnalysisTask:
     dispatched_at: float | None = None
     events: int | None = None
     rss: int | None = None
+    preemptions: int = 0
     done: threading.Event = field(default_factory=threading.Event)
 
     @property
@@ -438,8 +440,13 @@ class AnalysisQueue:
             self.pending.append(task)
             running = self.running
             if (priority == "interactive" and running is not None
-                    and running.priority == "prewarm"):
-                self._drop(running, "preempted")
+                    and running.priority == "prewarm"
+                    and running.preemptions < self.config.max_preemptions):
+                # The prewarm goes back to the queue (behind the interactive task) instead
+                # of being lost; after ``max_preemptions`` it is allowed to finish.
+                running.preemptions += 1
+                running.status, running.dispatched_at = "queued", None
+                self.pending.append(running)
                 self.running = None
                 self.worker.kill("preempted")
                 return task  # The exit callback dispatches the interactive task.

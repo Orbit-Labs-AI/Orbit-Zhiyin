@@ -11,7 +11,7 @@ import time
 
 import httpx
 import pytest
-from conftest import AUTH, BASE, PORT, TOKEN, wait_for
+from conftest import ALL_TIME, AUTH, BASE, PORT, TOKEN, wait_for
 from fastapi.testclient import TestClient
 
 from tandem_backend.services.auth import validate_token
@@ -91,7 +91,7 @@ def test_reads_and_fallback_without_database(client_factory):
     assert response.headers["x-total-count"] == "0"
     legacy = client.get("/v1/analytics/statistics")  # Not a gateway route: create_app().
     assert legacy.status_code == 503 and legacy.json()["error"]["code"] == "no_projection"
-    overview = client.get("/v1/analytics/overview")
+    overview = client.get("/v1/analytics/overview", params=ALL_TIME)
     assert overview.status_code == 200
     assert overview.json()["overview"] is None
     assert overview.json()["meta"]["freshness"] == "none"

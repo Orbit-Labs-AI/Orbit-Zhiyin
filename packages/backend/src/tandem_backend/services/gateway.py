@@ -217,6 +217,8 @@ class Gateway:
     def start(self) -> None:
         self.revisions.load(self.home)
         self.supervisor.start()
+        if self.revisions.snapshot()["data_rev"] is not None:
+            self.schedule_prewarm(heavy=False)  # Cold caches after a restart or an upgrade.
         self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True,
                                             name="tandem-sync")
         self.sync_thread.start()
@@ -288,24 +290,55 @@ class Gateway:
             self.prewarm_timer.start()
 
     def prewarm(self) -> list[str]:
+        """Warm the first screens after an import or a cold start, most likely first.
+
+        1. ``uiview_facts`` then the light sections for the last 7 days, 30 days and all
+           time (the first-open fast path's windows): the facts pass computes the whole
+           analysis of a window, so the light sections after it are cache reads;
+        2. the default range setting when it is another window, then recent MRU scopes;
+        3. heavy sections and recommendations after an import's full phase.
+        Scopes are built like the routes build them (client timezone from the MRU, default
+        sources, persistent session exclusions) so the snapshot keys match.
+        """
+        from dataclasses import asdict
+
+        from ..uiview.fetch import SECTION as FACTS
+        from . import fastpath
+        from .routes_analytics import analytics_scope
+
         rev = self.revisions.snapshot()
         if rev["data_rev"] is None or self.stopping.is_set():
             return []
         state = self.state.snapshot()
+        mru = state["mru_scopes"]
+        tz = next((s.get("display_timezone") for s in mru if s.get("display_timezone")), "UTC")
+        try:
+            base = asdict(analytics_scope(display_timezone=tz))
+        except Exception:  # noqa: BLE001  an invalid stored timezone falls back to UTC
+            base = asdict(analytics_scope())
+        work: list[tuple[str, dict]] = []
+        for days in fastpath.LADDER:
+            scope = fastpath.windowed(base, days)
+            work += [(FACTS, scope), *((name, scope) for name in LIGHT)]
         # default_range_days 0 means "all time" (the scope-less default).
-        scopes = [default_scope(state["settings"].get("default_range_days", 30) or None)]
-        scopes += [s for s in state["mru_scopes"][: self.prewarm_mru] if s not in scopes]
-        sections = LIGHT + (HEAVY if self.prewarm_heavy else ())
-        # Light sections of every scope first, then heavy ones.
-        work = [(name, scope) for name in sections for scope in scopes]
-        if self.prewarm_heavy:  # /v1/recommendations defaults to the all-time scope.
+        configured = state["settings"].get("default_range_days", 30) or 0
+        if configured not in fastpath.LADDER:
+            work += [(name, fastpath.windowed(base, configured)) for name in LIGHT]
+        scopes = [s for s in mru[: self.prewarm_mru]]
+        work += [(name, scope) for name in LIGHT for scope in scopes]
+        if self.prewarm_heavy:
             from ..recommend.inputs import SECTION
 
-            work.append((SECTION, default_scope(None)))
+            windows = [fastpath.windowed(base, d) for d in fastpath.LADDER]
+            work += [(name, scope) for name in HEAVY for scope in [*windows, *scopes]]
+            work.append((SECTION, default_scope(None)))  # /v1/recommendations: all time
         rules = rules_digest()
-        queued = []
+        queued, seen = [], set()
         for name, scope in work:
             h = scope_hash(scope, {})
+            if (name, h) in seen:
+                continue
+            seen.add((name, h))
             key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
             if self.snapshots.get(key) is not None:
                 continue

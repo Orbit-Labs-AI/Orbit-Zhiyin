@@ -8,6 +8,11 @@
    no database yet → 200 with ``meta.freshness = "none"``
 6. failures map to 404 / 422 / 503 (+ Retry-After); the old snapshot keeps serving
 
+Every route accepts ``days`` (7 / 30 / 90 / 0 = all time) as shorthand for ``from_ts`` at a
+UTC day boundary. ``/v1/analytics/overview`` without ``days``, ``from_ts`` or ``until_ts``
+uses the first-open fast path (``services.fastpath``): the widest ready window, else the
+last 7 days now and wider windows in the background; ``meta.window`` reports both.
+
 Responses keep the existing section keys and only add a top-level ``meta``.
 """
 
@@ -43,8 +48,10 @@ def analytics_scope(
     excluded_session_uids: Annotated[list[str] | None, Query()] = None,
     include_children: bool = True, scene: str | None = None,
     source_ids: Annotated[list[str] | None, Query()] = None,
+    days: int | None = None,
 ):
-    """Same parameters as api/routes.py; an explicit empty value (``x=``) means []."""
+    """Same parameters as api/routes.py; an explicit empty value (``x=``) means [].
+    ``days`` (7 / 30 / 90 / 0) sets ``from_ts`` to that window's first UTC day."""
     from ..analytics.inputs import Scope
     from ..appdata.sources_scope import default_source_ids
     from ..sessionops.exclusion import merged
@@ -52,6 +59,13 @@ def analytics_scope(
     def explicit(values):
         return [] if values == [""] else values
 
+    if days is not None:
+        from . import fastpath
+
+        fastpath.check_days(days)
+        if from_ts is not None or until_ts is not None:
+            raise ApiError(422, "invalid_request", "days cannot be combined with from_ts/until_ts")
+        from_ts = fastpath.window_start(days)
     try:
         return Scope(display_timezone=display_timezone,
                      source_ids=default_source_ids(explicit(source_ids)),
@@ -114,15 +128,18 @@ def router(gw: Gateway) -> APIRouter:
         return JSONResponse(body, headers={"ETag": tag})
 
     def serve(name: str, scope, params: dict, wait_ms: int, if_none_match: str | None,
-              page: tuple[int, int] | None = None):
+              page: tuple[int, int] | None = None, window: dict | None = None):
         section = SECTIONS[name]
+
+        def meta_(*args, **extra):  # adds the fast-path window to every meta
+            return meta(*args, **extra, **({"window": window} if window is not None else {}))
         rules = rules_digest()
         scope_dict = asdict(scope)
         h = scope_hash(scope_dict, params)
         rev = gw.revisions.snapshot()
         token = name if page is None else f"{name}[{page[0]}:{page[1]}]"
         if rev["data_rev"] is None:
-            return JSONResponse({section.key: None, "meta": meta(
+            return JSONResponse({section.key: None, "meta": meta_(
                 h, rules, "none", None, rev, "none", reason="no_projection")})
         gw.state.remember_scope(scope_dict)
         current = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
@@ -131,7 +148,7 @@ def router(gw: Gateway) -> APIRouter:
         if snapshot is not None:
             if if_none_match is not None and tag in [t.strip() for t in if_none_match.split(",")]:
                 return Response(status_code=304, headers={"ETag": tag})
-            return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "cache"), tag, page)
+            return render(snapshot, meta_(h, rules, "fresh", snapshot, rev, "cache"), tag, page)
         analysis = gw.supervisor.analysis
         revision = (rev["data_rev"], rev["inventory_rev"])
         old = gw.snapshots.latest(name, h, rules)
@@ -139,7 +156,7 @@ def router(gw: Gateway) -> APIRouter:
             task = analysis.submit(name, scope_dict, params, h, "interactive", revision, rules)
             extra = {"job_id": task.id} if task else {"circuit": "open"}
             old_tag = etag(rules, old.key.data_rev, old.key.inventory_rev, h, token)
-            return render(old, meta(h, rules, "stale", old, rev, "cache", **extra), old_tag, page)
+            return render(old, meta_(h, rules, "stale", old, rev, "cache", **extra), old_tag, page)
         failure = analysis.failure(name, h, revision)
         if failure and (failure["error"].get("code") in CLIENT_ERRORS
                         or analysis.circuit_open(name, h, revision)):
@@ -152,11 +169,11 @@ def router(gw: Gateway) -> APIRouter:
             if task.status == "completed":
                 snapshot = gw.snapshots.get(current)
                 if snapshot is not None:
-                    return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "computed"),
+                    return render(snapshot, meta_(h, rules, "fresh", snapshot, rev, "computed"),
                                   tag, page)
             elif task.status == "failed":
                 raise failure_error(task.error)
-        return JSONResponse({"meta": meta(h, rules, "computing", None, rev, "none",
+        return JSONResponse({"meta": meta_(h, rules, "computing", None, rev, "none",
                                           job_id=task.id, progress=analysis.progress(task))},
                             status_code=202)
 
@@ -167,7 +184,20 @@ def router(gw: Gateway) -> APIRouter:
                   if_none_match: str | None = Header(None)):
             return serve(name, scope, {}, wait_ms, if_none_match)
 
-        return plain
+        def windowed(scope=scope_dependency, wait_ms: int = wait,
+                     if_none_match: str | None = Header(None), days: int | None = None):
+            from ..analytics.inputs import Scope
+            from . import fastpath
+
+            if days is not None or scope.from_ts is not None or scope.until_ts is not None:
+                return serve(name, scope, {}, wait_ms, if_none_match)
+            base = asdict(scope)
+            chosen, window = fastpath.choose(gw, name, base, None)
+            response = serve(name, Scope(**chosen), {}, wait_ms, if_none_match, window=window)
+            fastpath.follow_up(gw, name, base, window)
+            return response
+
+        return windowed if name == "overview" else plain
 
     for name in PLAIN_SECTIONS:
         api.add_api_route(f"/v1/analytics/{name}", plain_route(name), methods=["GET"], name=name)
