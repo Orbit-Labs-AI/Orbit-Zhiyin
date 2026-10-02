@@ -55,7 +55,7 @@ test('first-launch step 3 completes its steps one by one', async ({ page }) => {
   const errors = await openDemo(page);
   await page.evaluate(() => { openOnboarding(0); ACT.obNext(); ACT.obStart(); });
   const seen = new Set();
-  await expect.poll(async () => { const p = await page.evaluate(() => (typeof OB !== 'undefined' && OB ? OB.prog : null)); seen.add(p); return p; }, { timeout: 6000 }).toBeGreaterThanOrEqual(3);
+  await expect.poll(async () => { const p = await page.evaluate(() => (typeof OB !== 'undefined' && OB ? OB.prog : null)); seen.add(p); return p; }, { timeout: 10000 }).toBeGreaterThanOrEqual(3);   // the Genesis sequence reaches step 4 at ≈ 6.7 s
   expect([...seen].filter((x) => typeof x === 'number').length, 'progress should pass through intermediate steps').toBeGreaterThan(2);
   expect(errors).toEqual([]);
 });

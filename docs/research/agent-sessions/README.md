@@ -191,7 +191,7 @@ flowchart LR
 | 训练轨迹 | 无专门格式（evals 用原生 JSONL） | ShareGPT（`<think>`、`<tool_call>`、`<tool_response>`），需显式开启；还有 batch_runner、trajectory_compressor | 无 | 无 | 无专门格式；rollout 本身可回放到 Responses API | 无 |
 | 跨 agent 导入 | 只导入 pi 格式的 JSONL | 导入 Claude Code、Codex 会话，只保留文本轮次 | 子代理可调用外部产品；兼容 Claude Code 与 Codex 的 hook 协议 | 无 | 导入 Claude Code、Cursor 会话，有损，只保留文本 | 无；它的 JSONL 被 Codex、Hermes 读取，Hermes 的 trace 导出也采用它的形状 |
 
-## 6. 异同分析与对 Tandem 的启示
+## 6. 异同分析与对 Orbit 的启示
 
 ### 6.1 共同点与差异的来源
 

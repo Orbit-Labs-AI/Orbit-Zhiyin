@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from tandem_data.contract import canonical
+from tandem_data.payload import restore_json, restore_row
 from tandem_data.privacy import redact, sanitize
 from tandem_data.store import insert
 
@@ -31,7 +32,7 @@ class RetainedProjection:
                 self.files[row["file_id"]] = {**dict(row), "source_status": "changed"}
         for file_id, info in self.files.items():
             self.events.extend(
-                {**dict(r), "source_status": info["source_status"]}
+                {**restore_row(store.db, r), "source_status": info["source_status"]}
                 for r in store.db.execute(
                     "SELECT e.* FROM event e JOIN raw_record r USING(record_uid) WHERE r.file_id=? ORDER BY e.session_uid,e.seq",
                     (file_id,),
@@ -60,7 +61,7 @@ class RetainedProjection:
             attrs = json.loads(event["attrs"])
             attrs.update(source_status=status, preserved_mapper_version=event["mapper_version"])
             event["attrs"] = canonical(sanitize(attrs))
-            event["ext"] = canonical(sanitize(json.loads(event["ext"])))
+            event["ext"] = canonical(sanitize(restore_json(store.db, event["ext"])))
             if event["text"] is not None:
                 event["text"] = redact(event["text"])
             insert(store.db, "event", event)

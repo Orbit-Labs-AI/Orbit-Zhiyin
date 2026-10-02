@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
+from tandem_data.payload import restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
@@ -171,7 +172,11 @@ def read_analysis(
                     "Narrow --project-id / --from-ts / --until-ts, or explicitly raise --max-events before the command. "
                     "No partial analysis was returned."
                 )
-        events = [decoded(row) for row in connection.execute(query, params)]
+        texts: dict = {}
+        events = [
+            decoded(restore_row(connection, row, texts))
+            for row in connection.execute(query, params)
+        ]
 
         def member(event):
             return (
@@ -230,22 +235,41 @@ def read_analysis(
             )
         ]
         selected_ids = {event["event_uid"] for event in selected}
+        # Push member filters into SQLite: json_each binds any selection size, and only
+        # matching rows are decoded (previously every call/model/session row was).
+        # Unary + keeps these terms off indexes, so SQLite scans in the same order as
+        # the former unfiltered reads and row order stays byte-identical.
+        member_param = {"members": json.dumps(sorted(members))}
         tools = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM v_analysis_tool_call")
-            if row["call_event_uid"] in members or row["result_event_uid"] in members
+            for row in connection.execute(
+                "SELECT * FROM v_analysis_tool_call"
+                " WHERE +call_event_uid IN (SELECT value FROM json_each(:members))"
+                " OR +result_event_uid IN (SELECT value FROM json_each(:members))",
+                member_param,
+            )
         ]
         # A later result must not leak status/exit code into a historical snapshot.
-        event_lookup = {event["event_uid"]: event for event in events}
+        event_lookup = {}
+        for event in events:
+            event_lookup.setdefault(event["event_uid"], event)
+        last_decision_ts = {}
+        if scope.until_ts is not None and tools:
+            # One query for every call's last permission decision (was one query per call).
+            last_decision_ts = dict(
+                connection.execute(
+                    "SELECT call_uid, ts FROM (SELECT c.call_uid, e.ts, ROW_NUMBER() OVER ("
+                    "PARTITION BY c.call_uid ORDER BY e.seq DESC) AS rank FROM tool_call_event c"
+                    " JOIN event e USING(event_uid) WHERE c.role='permission.decision'"
+                    " AND c.call_uid IN (SELECT value FROM json_each(:calls))) WHERE rank=1",
+                    {"calls": json.dumps([tool["call_uid"] for tool in tools])},
+                ).fetchall()
+            )
         for tool in tools:
             result = event_lookup.get(tool["result_event_uid"])
             if scope.until_ts is not None:
-                decisions = connection.execute(
-                    "SELECT e.* FROM tool_call_event c JOIN event e USING(event_uid) WHERE c.call_uid=? AND c.role='permission.decision' ORDER BY e.seq",
-                    (tool["call_uid"],),
-                ).fetchall()
-                decision = decisions[-1] if decisions else None
-                if decision is None or decision["ts"] is None or decision["ts"] >= scope.until_ts:
+                decision_ts = last_decision_ts.get(tool["call_uid"])
+                if decision_ts is None or decision_ts >= scope.until_ts:
                     tool["approval"], tool["approval_wait_ms"] = None, None
             if (
                 result
@@ -267,15 +291,16 @@ def read_analysis(
                 )
         models = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM v_analysis_model_call")
-            if row["usage_event_uid"] in members
+            for row in connection.execute(
+                "SELECT * FROM v_analysis_model_call"
+                " WHERE +usage_event_uid IN (SELECT value FROM json_each(:members))",
+                member_param,
+            )
         ]
         # Native unknown-time tool returns can be context for a selected invocation; never statistical members.
         for tool in tools:
             if tool["result_event_uid"] and tool["result_event_uid"] not in selected_ids:
-                result = next(
-                    (e for e in events if e["event_uid"] == tool["result_event_uid"]), None
-                )
+                result = event_lookup.get(tool["result_event_uid"])
                 if result and result["ts"] is None and scope.until_ts is None:
                     selected.append(result)
                     selected_ids.add(result["event_uid"])
@@ -283,9 +308,11 @@ def read_analysis(
         roots = {event["root_uid"] for event in selected}
         session_rows = [
             {**decoded(row), "agent": source_agents.get(row["source_id"])}
-            for row in connection.execute("SELECT * FROM session")
-            if row["session_uid"] in sessions | roots
-            and (scope.agent_ids is None or source_agents.get(row["source_id"]) in scope.agent_ids)
+            for row in connection.execute(
+                "SELECT * FROM session WHERE +session_uid IN (SELECT value FROM json_each(:ids))",
+                {"ids": json.dumps(sorted(sessions | roots))},
+            )
+            if scope.agent_ids is None or source_agents.get(row["source_id"]) in scope.agent_ids
         ]
         if scope.until_ts is not None:
             last_ends = {

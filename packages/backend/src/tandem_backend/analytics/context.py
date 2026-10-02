@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Any
 
 from .bottleneck import analyze_bottleneck
@@ -53,9 +54,10 @@ class AnalysisContext:
         """Select statistical members once; keep linked context separately."""
         return cls(bundle, scope, *select(bundle, scope))
 
-    @property
-    def main_ids(self) -> set[str]:
-        return {s["session_uid"] for s in self.sessions if s.get("kind") == "main"}
+    @cached_property
+    def main_ids(self) -> frozenset[str]:
+        """Main-session ids, computed once; per-event membership checks stay O(1)."""
+        return frozenset(s["session_uid"] for s in self.sessions if s.get("kind") == "main")
 
     @property
     def event_status(self) -> str:
@@ -90,6 +92,10 @@ class AnalysisContext:
             "context": self.context_groups,
         }[kind]
         return [row for sid in sorted(ids) for row in groups.get(sid, [])]
+
+    def seed_families(self, ids: set[str], value: Record) -> None:
+        """Store families computed elsewhere (a worker) for exactly this scope."""
+        self._families.setdefault(tuple(sorted(ids)), value)
 
     def families(self, ids: set[str]) -> Record:
         """Reuse identical scopes; never average ratios or merge interval totals."""

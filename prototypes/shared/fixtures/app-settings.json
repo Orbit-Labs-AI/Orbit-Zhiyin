@@ -1,0 +1,5 @@
+{
+  "sync_mode": "live",
+  "default_range_days": 30,
+  "display_timezone": "Asia/Shanghai"
+}

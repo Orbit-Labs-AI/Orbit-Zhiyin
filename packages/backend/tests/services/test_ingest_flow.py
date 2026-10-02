@@ -6,7 +6,11 @@ import statistics
 import threading
 import time
 
+import pytest
 from conftest import SESSIONS, SSEReader, add_codex, fast_config, run_job, wait_for, wait_job
+
+# Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
+pytestmark = pytest.mark.serial
 
 
 def _p99(values):

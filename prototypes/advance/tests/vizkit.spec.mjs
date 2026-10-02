@@ -35,6 +35,10 @@ async function openGallery(page) {
   await page.evaluate(() => { S.win.zoom = true; applyWin(); });
   await go(page, 'vizkit');
   await expect(page.locator('#content .vz[data-vz="line"] svg.vz-svg')).toBeVisible();
+  // the welcome notification lands 800 ms after load (99-init.js) at the top right, over the lab mounts on small stages:
+  // wait for it and clear it so pointer tests never hit it
+  await expect(page.locator('#notes .nt')).toHaveCount(1);
+  await page.evaluate(() => $$('#notes .nt').forEach((n) => n.remove()));
   return errors;
 }
 // 把所有示例 spec 挂到固定宽度的容器里，返回 id 列表

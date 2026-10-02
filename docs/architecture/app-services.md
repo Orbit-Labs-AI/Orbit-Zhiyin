@@ -1,8 +1,8 @@
-# Tandem App 服务层：封装、UI 衔接与分析快照
+# Orbit App 服务层：封装、UI 衔接与分析快照
 
 > 状态：已定方案，服务层（§5.1 包 A）按本文实现于 `packages/backend/src/tandem_backend/services/`，实现细节与基准见 §7。审计基于 `main`（`0459c8f`）；性能数字来自合成数据，不含真实会话。
 > 回答三个问题：Q3 数据模块如何封装为 App 的一部分（多个本地服务）；Q4 数据模块如何与 Lite / Advance 的对应环节衔接；Q7 分析模块如何与 UI 衔接并打包进 App（高可用、低延迟）。
-> 关联：[功能映射](../plans/feature-map.md)（§5 前端→后端、§6.1 DT、§6.2 AN、§6.10 缺口对照）、[模块契约](../plans/module-contract.md)（§3.1 Scope / meta、§5.3 前端 API）、[缺口对照](../plans/backend-gap.md)、[后端架构](backend.md)、[数据管线](data-pipeline.md)、[模块接入表](module-map.md)。
+> 关联：[功能映射](../plans/feature-map.md)（§5 前端→后端、§6.1 DT、§6.2 AN、§6.10 缺口对照）、[模块契约](../plans/module-contract.md)（§3.1 Scope / meta、§5.3 前端 API）、[缺口对照](../audits/backend-gap.md)、[后端架构](backend.md)、[数据管线](data-pipeline.md)、[模块接入表](module-map.md)。
 
 ## 0. 结论先行
 
@@ -56,7 +56,7 @@
 ### 2.2 进程拓扑
 
 ```text
-Tandem.app (Swift AppKit + WKWebView)           ← 原生能力：目录选择 / bookmark、保存面板、窗口、通知
+Orbit.app (Swift AppKit + WKWebView)           ← 原生能力：目录选择 / bookmark、保存面板、窗口、通知
    │  Process() 拉起，注入 TANDEM_API_TOKEN / TANDEM_PARENT_PID；读取 stdout 首行 {"port":N}
    ▼
 tandem-helper gateway  (127.0.0.1:随机端口，Bearer token)
@@ -131,7 +131,7 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 
 ### 2.8 打包
 
-- **形态**：`Tandem.app/Contents/{MacOS/Tandem（Swift 宿主）, Resources/ui/{advance.html, lite.html}, Resources/helper/tandem-helper/（PyInstaller onedir）}`。`tandem-helper` 是**一个**冻结可执行文件，用子命令区分角色：`gateway`、`worker ingest`、`worker analysis`；gateway 以自身可执行文件路径拉起 worker（冻结环境下不能用 `python -m`）。
+- **形态**：`Orbit.app/Contents/{MacOS/Orbit（Swift 宿主）, Resources/ui/{advance.html, lite.html}, Resources/helper/tandem-helper/（PyInstaller onedir）}`。`tandem-helper` 是**一个**冻结可执行文件，用子命令区分角色：`gateway`、`worker ingest`、`worker analysis`；gateway 以自身可执行文件路径拉起 worker（冻结环境下不能用 `python -m`）。
 - **复用**：`origin/feat/data-app-integration` 的 `apps/macos/Tandem.swift`（Process 拉起、令牌与端口握手、`NSOpenPanel` + security-scoped bookmark、退出时终止 helper）与 `apps/macos/build.py`（PyInstaller + swiftc + `codesign` + 可选公证）。**不重做**；本设计只把 helper 入口由单进程 `desktop.py` 换成 `tandem-helper` 三角色，并增加 Lite 页面资源。
 - **Node 连接器**：MVP 不随包分发。Python 原生映射器已覆盖七个 Agent；TS 连接器（FSEvents 增量、`tandem-ingest`）作为 v1 的可选 sidecar，打成单个 Node 可执行文件由 ingest-worker 拉起，经现有 `bridge.import_connector()` 汇入。理由：少带约 40 MB 运行时与一套签名 / 升级面；轮询对 MVP 的“近实时”足够（自适应 2 s → 30 s）。
 - **体积与签名（需实机测量）**：scikit-learn / scipy / jieba 使 onedir 体积需实测（预期 200 MB 量级）；PyInstaller 加载 numpy 动态库可能需要 `disable-library-validation` 之类的 entitlement；当前为非 Sandbox 独立分发，Developer ID + Hardened Runtime + 公证需用户提供身份。Sandbox 版（App Store）另立目标，不在本文范围。

@@ -1,0 +1,58 @@
+{
+  "total": 2,
+  "next_offset": null,
+  "sessions": [
+    {
+      "session_uid": "fx-s1",
+      "kind": "main",
+      "project_id": "fx-p1",
+      "legacy_project_id": null,
+      "title": "合成会话：修复导入进度条",
+      "features": {
+        "user_message_count": 12,
+        "tool_call_count": 48,
+        "first_observed_ts": 1790812800000
+      },
+      "usage": {
+        "status": "partial",
+        "request_count": null,
+        "total_tokens": null,
+        "cost_usd": null
+      }
+    },
+    {
+      "session_uid": "fx-s2",
+      "kind": "main",
+      "project_id": "fx-p2",
+      "legacy_project_id": null,
+      "title": "合成会话：整理分析快照",
+      "features": {
+        "user_message_count": 5,
+        "tool_call_count": null,
+        "first_observed_ts": null
+      },
+      "usage": {
+        "status": "unknown",
+        "request_count": null,
+        "total_tokens": null,
+        "cost_usd": null
+      }
+    }
+  ],
+  "meta": {
+    "contract": "tandem-app-v1",
+    "scope_hash": "sha256:fx-sessions",
+    "data_rev": 42,
+    "rules_version": "rules-fx",
+    "freshness": "fresh",
+    "computed_at": "2026-10-01T07:20:00Z",
+    "source": "cache",
+    "duration_ms": 12,
+    "coverage": {
+      "rows": 128
+    },
+    "selection": {
+      "main_sessions": 128
+    }
+  }
+}

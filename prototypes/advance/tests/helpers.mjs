@@ -12,13 +12,23 @@ export async function openDemo(page, hash = '') {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.goto(hash ? '#' + hash : '');
   await expect(page.locator('#main')).not.toBeEmpty();
+  // narrow stages collapse the sidebar with a 0.2 s grid transition right after load; measure only once it has settled
+  await settle(page);
   return errors;
 }
 
 export async function go(page, route) {
   await page.evaluate((r) => go(r), route);
   await expect.poll(() => page.evaluate(() => S.route)).toBe(route);
+  await settle(page);
 }
+
+// Wait for the finite animations of a page change (the enter cascade lifts blocks for ~0.7 s, 37-motion.js) so pointer tests
+// measure boxes at their resting place; infinite ones (live pulse, spinners) are ignored.
+export const settle = (page) => page.evaluate(() => Promise.race([
+  Promise.all(document.getAnimations().filter((a) => { const t = a.effect && a.effect.getTiming(); return t && t.iterations !== Infinity; }).map((a) => a.finished.catch(() => {}))),
+  new Promise((r) => setTimeout(r, 1500))
+]));
 
 // Close whatever an entry point opened so the next one starts from the plain window.
 export const closeAll = (page) => page.evaluate(() => {

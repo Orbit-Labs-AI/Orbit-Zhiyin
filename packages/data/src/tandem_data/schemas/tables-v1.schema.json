@@ -119,6 +119,42 @@
       ],
       "x-ddl": "CREATE TABLE connector_record_link (\n  connector_db TEXT NOT NULL, external_record_uid TEXT NOT NULL,\n  record_uid TEXT NOT NULL REFERENCES raw_record, PRIMARY KEY(connector_db, external_record_uid)\n) STRICT"
     },
+    "content_blob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "codec",
+        "raw_len",
+        "data",
+        "refs"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "codec": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "raw_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "data": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "refs": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE content_blob (\n  sha256 TEXT PRIMARY KEY CHECK(length(sha256) = 64),\n  codec TEXT NOT NULL CHECK(codec IN ('zstd')),\n  raw_len INTEGER NOT NULL CHECK(raw_len >= 0),\n  data BLOB NOT NULL,\n  refs INTEGER NOT NULL DEFAULT 0 CHECK(refs >= 0)\n) STRICT"
+    },
     "event": {
       "type": "object",
       "additionalProperties": false,
@@ -1173,7 +1209,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE record_event (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  event_uid TEXT NOT NULL REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  relation TEXT NOT NULL CHECK(relation IN ('mapped','folded','replayed','duplicate')),\n  contribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(contribution)),\n  PRIMARY KEY(record_uid, event_uid)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"record_event\" (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  event_uid TEXT NOT NULL REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  relation TEXT NOT NULL CHECK(relation IN ('mapped','folded','replayed','duplicate')),\n  contribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(contribution)),\n  PRIMARY KEY(record_uid, event_uid)\n) STRICT, WITHOUT ROWID"
     },
     "record_location": {
       "type": "object",
@@ -1219,7 +1255,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE record_location (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  revision_uid TEXT NOT NULL REFERENCES source_reference,\n  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,\n  PRIMARY KEY(record_uid, revision_uid)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"record_location\" (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  revision_uid TEXT NOT NULL REFERENCES source_reference,\n  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,\n  PRIMARY KEY(record_uid, revision_uid)\n) STRICT, WITHOUT ROWID"
     },
     "schema_manifest": {
       "type": "object",
@@ -2085,7 +2121,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE tool_call_event (\n  call_uid TEXT NOT NULL REFERENCES tool_call, event_uid TEXT NOT NULL REFERENCES event,\n  role TEXT NOT NULL, PRIMARY KEY(call_uid, event_uid)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"tool_call_event\" (\n  call_uid TEXT NOT NULL REFERENCES tool_call, event_uid TEXT NOT NULL REFERENCES event,\n  role TEXT NOT NULL, PRIMARY KEY(call_uid, event_uid)\n) STRICT, WITHOUT ROWID"
     },
     "turn": {
       "type": "object",
