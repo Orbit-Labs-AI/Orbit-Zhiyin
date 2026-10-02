@@ -344,7 +344,7 @@ function drawCompass(st) {
   const prof = []; for (let s = 0; s <= N; s++) {
     const a = s / N * 360, dd = ((a - st.deg) % 360 + 540) % 360 - 180;
     const swell = (.45 + .55 * sp) * Math.exp(-dd * dd / (2 * sig * sig)) + .18 * sp * Math.exp(-(dd + sig) * (dd + sig) / (2 * sig * sig * 2.5)) * Math.sin(dd / 6);
-    prof.push(Math.max(.04, (val(a / 15) / 1.6 * .75 + swell * .55)) * (1 - col));
+    prof.push(Math.max(.04, (val(((a / 15 - .5) % 24 + 24) % 24) / 1.6 * .75 + swell * .55)) * (1 - col));   // each hour's value sits on the middle of its sector, as in the app
   }
   const ring = (k) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(lerp(CP.R0 + CP.BAND * prof[s] * k, 300, col), s / N * 360)); return d + 'Z'; };
   const sw = clamp(st.sweep ?? 1);
