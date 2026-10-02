@@ -55,13 +55,17 @@ def test_extracted_history_is_used_without_request_override():
     assert state["used_for_ranking"] and state["effective"][0]["evidence"][0]["event_uid"]
 
 
-def test_project_over_global_and_current_task_instruction_over_project():
+def test_history_instruction_stays_evidence_and_explicit_task_request_overrides_project():
     project = analysis_with("以后所有项目我喜欢详细回答", "以后这个项目我喜欢简短回答")
     task = analysis_with("以后所有项目我喜欢详细回答", "以后这个项目我喜欢简短回答", "这次详细回答")
     assert top(recommend(project, catalog=choice_catalog())) == "brief"
-    assert top(recommend(task, catalog=choice_catalog())) == "detailed"
-    state = recommend(task, catalog=choice_catalog())["states"][0]["preference_state"]
-    assert state["effective"][0]["origin"] == "task_instruction"
+    assert top(recommend(task, catalog=choice_catalog())) == "brief"
+    result = recommend(task, catalog=choice_catalog(), context={"preferences": [
+        {"scope": "task", "target_id": task["tasks"]["records"][0]["task_id"],
+         "dimension": "detail", "value": "detailed"}]})
+    assert top(result) == "detailed"
+    state = result["states"][0]["preference_state"]
+    assert state["effective"][0]["origin"] == "request"
 
 
 def test_revision_and_revocation_are_respected():

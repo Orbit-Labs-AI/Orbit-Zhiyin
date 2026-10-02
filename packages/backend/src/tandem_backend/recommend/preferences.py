@@ -6,7 +6,7 @@ from ..analytics.preference import resolve_effective_preferences
 from .recall._common import ranked
 
 _SCOPE_RANK = {"global": 0, "project": 1, "task": 2}
-_ORIGIN_RANK = {"analytics": 0, "task_instruction": 1, "request": 2}
+_ORIGIN_RANK = {"analytics": 0, "request": 1}
 
 
 def _priority(pref):
@@ -21,7 +21,8 @@ def resolve_preferences(analysis, row, tasks, context):
     """An ambiguous multi-task root cannot borrow one task's preferences.
 
     History retains the existing revoke/time/conflict semantics. At a given
-    scope current request input wins over task instructions, then history.
+    scope current request input wins over explicit preference history.
+    Historical Instruction observations never become effective preferences.
     Unresolved higher-scope conflicts never fall back to lower-scope values.
     """
     task = tasks[0] if len(tasks) == 1 else {"project_id": row.get("project_id"),
@@ -31,11 +32,11 @@ def resolve_preferences(analysis, row, tasks, context):
     at = until - 1 if until is not None else None
     candidates, unresolved = [], []
     preferences = analysis.get("preferences") or {}
-    for section, origin in (("records", "analytics"), ("task_instructions", "task_instruction")):
+    for section, origin in (("records", "analytics"),):
         # These are structured extraction records, never raw/persona text.
         records = [r for r in preferences.get(section) or []
-                   if r.get("status") in {"observed", "instruction"} and r.get("preference_evidence")
-                   and r.get("confirmation") in {"explicit_human_statement", "task_instruction"}]
+                   if r.get("status") == "observed" and r.get("preference_evidence")
+                   and r.get("confirmation") == "explicit_human_statement"]
         resolved = resolve_effective_preferences(records, task, at=at)
         unresolved.extend(resolved["unresolved"] or [])
         for record in resolved["applicable"] or []:
@@ -75,7 +76,7 @@ def resolve_preferences(analysis, row, tasks, context):
     return {"preference_ids": row.get("preference_ids"), "used_for_ranking": bool(effective),
             "effective": effective, "conflicts": conflicts, "unresolved": unresolved,
             "task_id": task_id, "project_id": project,
-            "precedence": "task > project > global; same scope: request > instruction > history"}
+            "precedence": "task > project > global; same scope: request > explicit history"}
 
 
 def match_preferences(state, item):

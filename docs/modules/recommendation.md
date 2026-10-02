@@ -8,7 +8,7 @@
 
 ## 三层偏好与收益输入
 
-`POST /v1/analytics/recommendations` 的 `context.preferences` 接受显式偏好；`state.py` 同时复用 analytics 的偏好历史解析器。作用域优先级为 `task > project > global`，同范围内为本次请求 > 当前任务指令 > 历史偏好。撤销、修改、生效时间和冲突沿用 analytics 语义。多个值冲突时不任选其一，也不回退到低范围值；根会话有多个未选定任务时不应用某一个任务的偏好。
+`POST /v1/analytics/recommendations` 的 `context.preferences` 接受显式偏好；`state.py` 同时复用 analytics 的偏好历史解析器。作用域优先级为 `task > project > global`，同范围内为本次请求 > 显式偏好历史。Instruction 的历史要求只作为证据，不进入有效偏好；当前任务的明确覆盖通过 `context.preferences` 提供。撤销、修改、生效时间和冲突沿用 analytics 语义。多个值冲突时不任选其一，也不回退到低范围值；根会话有多个未选定任务时不应用某一个任务的偏好。
 
 ```json
 {

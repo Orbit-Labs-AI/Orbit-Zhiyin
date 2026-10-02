@@ -3,36 +3,13 @@
 from collections import Counter, defaultdict
 from typing import Any
 
+from ..respond.order import ordered_calls as ordered_calls
 from ..respond.rules import result_status
 from .contracts import metric
 
 Record = dict[str, Any]
 EVIDENCE_LIMIT = 50
 
-
-def ordered_calls(calls: list[Record]) -> tuple[list[list[Record]], int]:
-    """Split tied orders; exclude sessions whose missing seq prevents adjacency claims."""
-    sessions = defaultdict(list)
-    for call in calls:
-        sessions[call["session_uid"]].append(call)
-    runs, unknown = [], 0
-    for rows in sessions.values():
-        if any(not isinstance(c.get("seq"), int) or isinstance(c.get("seq"), bool) for c in rows):
-            unknown += len(rows)
-            continue
-        counts = Counter(c["seq"] for c in rows)
-        run = []
-        for call in sorted(rows, key=lambda c: (c["seq"], c["call_uid"])):
-            if counts[call["seq"]] > 1:
-                unknown += 1
-                if run:
-                    runs.append(run)
-                run = []
-            else:
-                run.append(call)
-        if run:
-            runs.append(run)
-    return runs, unknown
 
 
 def transition_matrix(runs: list[list[Record]], field: str) -> Record:

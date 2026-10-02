@@ -8,6 +8,8 @@ from ...models import stable_id
 from ..common import clauses, evidence, semantic_coverage, semantic_messages
 from .rules import CHANGE, EXPLICIT, GLOBAL, PROJECT, REPORTED, REVOKE, TASK, preference_values
 
+PREFERENCE_VERSION = "preference-v2"
+
 
 def _scope(statement, session, task_id):
     if TASK.search(statement):
@@ -54,14 +56,16 @@ def _ordered(records):
 def extract_explicit_preferences(events, sessions, task_by_event=None):
     messages = semantic_messages(events, sessions)
     session_map = {s["session_uid"]: s for s in sessions}
-    records, candidates, instructions = [], [], []
+    records, candidates = [], []
     for event in messages:
         for index, statement in enumerate(clauses(event["semantic_text"])):
             if REPORTED.search(statement) or event["semantic_text"].rstrip().endswith(("?", "？")):
                 continue
-            values = preference_values(statement)
             explicit = bool(EXPLICIT.search(statement) or (PROJECT.search(statement) or GLOBAL.search(statement)) and CHANGE.search(statement) or REVOKE.search(statement))
-            if not values or not explicit and not TASK.search(statement):
+            if not explicit:
+                continue
+            values = preference_values(statement)
+            if not values:
                 continue
             scope = _scope(statement, session_map[event["session_uid"]], (task_by_event or {}).get(event["event_uid"]))
             for kind, value, polarity in values:
@@ -89,9 +93,6 @@ def extract_explicit_preferences(events, sessions, task_by_event=None):
                     record.update(status="candidate", effective_at=None, time_basis="future_schedule_unresolved")
                     record["missing_reasons"].append("scheduled_effective_time_not_parsed")
                     candidates.append(record)
-                elif TASK.search(statement) and not EXPLICIT.search(statement):
-                    record.update(status="instruction", confirmation="task_instruction")
-                    instructions.append(record)
                 else:
                     records.append(record)
     # No total order is invented across sessions with missing/equal timestamps.
@@ -118,8 +119,9 @@ def extract_explicit_preferences(events, sessions, task_by_event=None):
             group[record["preference_id"]] = record
     return {"records": records if events is not None else None,
             "candidates": candidates if events is not None else None,
-            "task_instructions": instructions if events is not None else None,
-            "coverage": semantic_coverage(events, messages), "family_version": "preference-v1"}
+            # Compatibility key only. Instruction is the sole task-local extractor.
+            "task_instructions": [] if events is not None else None,
+            "coverage": semantic_coverage(events, messages), "family_version": PREFERENCE_VERSION}
 
 
 def resolve_effective_preferences(history, task=None, at=None):
