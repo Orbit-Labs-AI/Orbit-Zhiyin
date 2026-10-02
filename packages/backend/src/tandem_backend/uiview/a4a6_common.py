@@ -178,6 +178,41 @@ def ui_meta(scope, rev: dict, coverage: dict, *, params: dict | None = None, **e
             "generated_at": int(time.time() * 1000), "coverage": coverage, **extra}
 
 
+# -- shared filters (same names as /v1/uiview/overview) ---------------------------------
+
+FACETS = ("topic", "outcome", "fric", "hour")
+
+
+def agent_list(agent: list[str] | None, agents: str | None) -> list[str] | None:
+    """``agents=a,b`` (overview style) merged with the older repeated ``agent=`` alias."""
+    out = [*(agent or []), *(a.strip() for a in (agents or "").split(","))]
+    out = sorted({a for a in out if a})
+    return out or None
+
+
+def facet_sessions(gw, facets: dict, tz: str | None = None, wait_ms: int = 0):
+    """Main-session ids whose ``uiview_facts`` row matches topic / outcome / fric / hour.
+
+    Returns ``(None, None)`` without a facet, ``(ids, None)`` when matched, and
+    ``(None, response)`` with a 202 while the fact rows are still computing.
+    """
+    from fastapi.responses import JSONResponse
+
+    from . import derive, fetch
+
+    f = {k: facets.get(k) for k in FACETS if facets.get(k) not in (None, "")}
+    if not f:
+        return None, None
+    body, freshness, job_id = fetch.fetch(gw, fetch.default_scope(tz), wait_ms=wait_ms)
+    if body is None:
+        if freshness == "none":
+            return [], None
+        return None, JSONResponse({"meta": {"contract": CONTRACT, "freshness": "computing",
+                                            "job_id": job_id}}, status_code=202)
+    return sorted(r["id"] for r in body.get("rows") or []
+                  if not r.get("excluded") and derive.passes(r, f)), None
+
+
 # -- routes ------------------------------------------------------------------------------
 
 def register_all(api, gw) -> list[str]:

@@ -439,6 +439,7 @@ def register(api, gw) -> None:
     from fastapi import Query
 
     from ..services.auth import ApiError
+    from . import a4a6_common as common
 
     many = Annotated[list[str] | None, Query()]
 
@@ -453,11 +454,19 @@ def register(api, gw) -> None:
         return getattr(gw, "persona_lookup", None)
 
     @api.get("/v1/uiview/projects")
-    def projects(project_id: many = None, agent: many = None, since: int | None = None,
-                 until: int | None = None, group: str = "project"):
+    def projects(project_id: many = None, agent: many = None, agents: str | None = None,
+                 since: int | None = None, until: int | None = None, group: str = "project",
+                 topic: str | None = None, outcome: str | None = None,
+                 fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
+                 tz: str | None = None, wait_ms: int = Query(0, ge=0, le=3000)):
         if group not in ("project", "folder"):
             raise ApiError(400, "invalid_request", "group 只接受 project|folder")
-        scope = scope_of(project_id, agent, since, until)
+        ids, early = common.facet_sessions(
+            gw, {"topic": topic, "outcome": outcome, "fric": fric, "hour": hour}, tz, wait_ms)
+        if early is not None:
+            return early
+        scope = {**scope_of(project_id, common.agent_list(agent, agents), since, until),
+                 "session_uids": ids}
         with gw.reads.read() as conn:
             return build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
 
