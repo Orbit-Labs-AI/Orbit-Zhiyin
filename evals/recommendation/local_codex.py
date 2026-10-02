@@ -14,6 +14,7 @@ from tandem_data.service import ImportRequest, ImportService
 from tandem_data.source_reader import SourceUnavailable
 from tandem_data.store import Store
 
+from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
 from tandem_backend.analytics.inputs import Scope
 from tandem_backend.analytics.service import analyze_store
 from tandem_backend.data_access.store import CanonicalStore
@@ -99,6 +100,9 @@ def run(source, output, *, latest=20, catalog=DEFAULT_CATALOG, context=None, sco
         progress({"stage": "recommend"})
     result = recommend(analysis, context=context, catalog=loaded.items, family="skills", limit=6)
     save(output / "recommendations.json", result)
+    grouped = diagnostics(analysis, result, loaded.items)
+    save(output / "diagnostics.json", grouped)
+    (output / "diagnostics.txt").write_text(terminal_text(grouped) + "\n", encoding="utf-8")
     save(output / "context.json", context.model_dump(mode="json"))
     save(output / "catalog.json", payload)
     cards = result["recommendations"]

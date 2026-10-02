@@ -1,3 +1,3 @@
 """Disposable, measurement-first analytics over analysis-input-v1."""
 
-FEATURE_VERSION = "feature-analytics-v2.6-semantic-cascade"
+FEATURE_VERSION = "feature-analytics-v2.7-fact-diagnostics"

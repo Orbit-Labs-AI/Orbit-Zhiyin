@@ -274,3 +274,32 @@ def test_analysis_time_scope_is_preserved_in_supplied_diagnosis():
     assert result["scope"]["until_ts"] == 130
     assert result["recommendations"] == []
     assert result["signals"] == []
+
+
+def test_every_skill_retains_decision_even_when_ranking_limit_excludes_it(analyzed):
+    catalog = [ready_item("strong"), ready_item("weak", friction={"setup_cost": 1.0}),
+               ready_item("denied", compatibility={"agents": {"codex": "unsupported"}})]
+    before = deepcopy(catalog)
+    result = recommend(analyzed, catalog=catalog, context={"agent": "codex"}, limit=1)
+    assessments = {r["resource_id"]: r for r in result["resource_assessments"]}
+    assert set(assessments) == {"strong", "weak", "denied"}
+    assert assessments["strong"]["status"] == "selected"
+    assert assessments["strong"]["selected_cards"] == 1
+    assert assessments["weak"]["status"] == "not_selected_after_ranking"
+    assert assessments["weak"]["matched_signal_ids"]
+    assert assessments["weak"]["selected_cards"] == 0
+    assert assessments["denied"]["status"] == "excluded"
+    assert assessments["denied"]["evaluated_candidates"] == 0
+    assert assessments["denied"]["eligible"] is False
+    assert all(row["effect_status"] == "unmeasured" for row in assessments.values())
+    assert catalog == before
+    assert result == recommend(analyzed, catalog=list(reversed(catalog)), context={"agent": "codex"}, limit=1)
+
+
+def test_audit_does_not_hide_catalogue_when_no_signal_or_invent_fallback_resources():
+    data = analyze_bundle(correction_bundle([("fictional-a", 8, 0)]), with_text=False)
+    result = recommend(data, catalog=[ready_item()], context={"agent": "codex"})
+    assert result["resource_assessments"][0]["status"] == "no_observed_signal"
+    assert result["resource_assessments"][0]["evaluated_candidates"] == 0
+    assert result["resource_assessments"][0]["highest_priority"] is None
+    assert recommend(data, catalog=[])["resource_assessments"] == []

@@ -18,6 +18,8 @@ Preference 一键验证：`bash scripts/check-preference.sh`。指定 `--db /pat
 
 这里的构造预期用于发现规则错误；读者评价另见[方法与限制](../docs/modules/evaluation/reader-review.md)。自动通过不代表真实推荐效果或人类认可。
 
+已有本机 canonical 快照时，运行 `bash scripts/check-feature-diagnostics.sh`，直接在终端查看八个特征族和每个 Skill 的输入使用、有效观察、未知原因与推荐依据。使用仓库 `.venv`，无需 `uv`，不导入来源、不调用模型。默认七天窗口以快照最新事件为截止点，默认本机快照为 `.local/backend-nine-hour/p0-data`；其他目录用 `--home` 指定。完整结果留在新建的忽略目录，详见[特征与 Skill 诊断](../docs/modules/analytics/fact-diagnostics.md)。
+
 推荐构造验收：`uv run python -m evals.recommendation.demo`；显式资源目录验证：`uv run python -m evals.recommendation.catalog /path/to/catalog --agent codex`。后者只校验提供的 JSON，不读取历史、不抓取资源。
 
 推荐偏好／收益验收：`bash scripts/test-recommend.sh`。运行推荐模块和报告集成测试，再用四个已抓取公共 Skill 的内容审阅元数据生成用户／项目／任务对照案例、收益敏感性与边界报告。输出在 `.local/recommendation-validation/`，失败返回非零退出码。`--skip-tests` 只重生成案例并明确标记自动测试未运行，`--output /path/to/output` 可指定目录。该工具不执行上游 Skill，不读取真实用户历史，不自动联网；可选的本地抓取快照仅用于核对固定来源。
