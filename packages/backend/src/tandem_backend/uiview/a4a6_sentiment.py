@@ -535,6 +535,7 @@ def register(api, gw) -> None:
     from fastapi import Query
 
     from ..services.auth import ApiError
+    from ..services.routes_data import mark_empty
     from . import a4a6_common as common
 
     @api.get("/v1/uiview/sentiment")
@@ -561,5 +562,6 @@ def register(api, gw) -> None:
                  "agent_ids": common.agent_list(agent, agents), "session_uids": ids,
                  "excluded_cwd_prefix": str(Path(gw.home) / "agent-cwd")}
         params = {"since": since, "until": until, "days": days, "bucket": bucket, "tz": tz}
-        with gw.reads.read() as conn:
-            return build_sentiment(conn, gw.appdb, scope, params, now_ms=int(time.time() * 1000))
+        with gw.reads.read(empty=True) as conn:
+            body = build_sentiment(conn, gw.appdb, scope, params, now_ms=int(time.time() * 1000))
+            return mark_empty(body) if gw.reads.is_empty(conn) else body

@@ -4,6 +4,12 @@
 use one ``mode=ro`` connection per thread. When the projection is pending (an import
 captured files but has not rebuilt yet) a previous response for the same request is
 returned with ``X-Tandem-Freshness: stale``; without one the answer is 503 + Retry-After.
+
+Before the first import there is no tandem.db at all. That is an empty state, not a
+transient one: routes that read with ``ReadPool.read(empty=True)`` run against an empty
+in-memory copy of the canonical schema, so lists and summaries answer 200 with their
+usual shape (``X-Tandem-Freshness: none``; dict bodies also get ``meta.freshness =
+"none"`` and ``meta.reason = "no_projection"``) and a lookup by id answers 404.
 """
 
 from __future__ import annotations
@@ -27,6 +33,23 @@ if TYPE_CHECKING:
     from .gateway import Gateway
 
 SESSION_FIELDS = ("id", "title", "project_id", "project", "model", "started_at")
+NO_DATABASE = {"freshness": "none", "reason": "no_projection"}
+
+
+class NoDatabase(ApiError):
+    """tandem.db does not exist yet (nothing imported). Routes that do not read with
+    ``empty=True`` keep answering 503 ``no_projection``."""
+
+    def __init__(self):
+        super().__init__(503, "no_projection", "No canonical database yet; import a source",
+                         retryable=True, retry_after=2)
+
+
+def mark_empty(body):
+    """Tag a body read from the empty schema; lists keep their shape (header only)."""
+    if isinstance(body, dict):
+        body["meta"] = {**(body.get("meta") or {}), **NO_DATABASE}
+    return body
 
 
 class ReadPool:
@@ -38,12 +61,31 @@ class ReadPool:
         self.lock = threading.Lock()
         self.connections: list[sqlite3.Connection] = []
 
+    def _placeholder(self) -> sqlite3.Connection:
+        """Empty canonical schema in memory: the same tables and views, no rows."""
+        connection = getattr(self.local, "empty", None)
+        if connection is None:
+            from tandem_data.schema_export import create_schema
+
+            connection = sqlite3.connect(":memory:", check_same_thread=False,
+                                         isolation_level=None)
+            connection.row_factory = sqlite3.Row
+            create_schema(connection)
+            connection.execute("PRAGMA query_only = ON")
+            self.local.empty = connection
+            with self.lock:
+                self.connections.append(connection)
+        return connection
+
+    def is_empty(self, connection) -> bool:
+        """True when ``connection`` is the stand-in yielded before the first import."""
+        return connection is not None and connection is getattr(self.local, "empty", None)
+
     def _connection(self) -> sqlite3.Connection:
         connection = getattr(self.local, "connection", None)
         if connection is None:
             if not self.path.is_file():
-                raise ApiError(503, "no_projection", "No canonical database yet; import a source",
-                               retryable=True, retry_after=2)
+                raise NoDatabase()
             connection = sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True,
                                          check_same_thread=False, isolation_level=None)
             connection.row_factory = sqlite3.Row
@@ -55,13 +97,20 @@ class ReadPool:
         return connection
 
     @contextmanager
-    def read(self, check: bool = True):
+    def read(self, check: bool = True, empty: bool = False):
+        """``empty=True``: with no tandem.db yet, yield the empty schema (``is_empty``)
+        instead of raising 503; a pending projection or a busy database still raise."""
         from tandem_data.query import current_projection
 
-        connection = self._connection()
+        try:
+            connection = self._connection()
+        except NoDatabase:
+            if not empty:
+                raise
+            connection = self._placeholder()
         try:
             connection.execute("BEGIN")
-            if check:
+            if check and not self.is_empty(connection):
                 current_projection(connection)
             yield connection
         except ValueError as error:
@@ -110,17 +159,24 @@ def router(gw: Gateway) -> APIRouter:
     api = APIRouter()
     last_good = LastGood()
 
-    def served(request: Request, produce, headers: dict | None = None):
+    def served(request: Request, build, *, check: bool = True):
+        """``build(db)`` inside one read. No tandem.db yet → the empty schema, tagged with
+        ``X-Tandem-Freshness: none`` and never remembered, so the first import's
+        ``projection_pending`` stays a retryable 503 instead of a stale empty list."""
         key = request.url.path + "?" + request.url.query
         try:
-            body = jsonable_encoder(produce())
+            with gw.reads.read(check=check, empty=True) as db:
+                empty = gw.reads.is_empty(db)
+                body = jsonable_encoder(build(db))
         except ApiError as error:
             cached = last_good.get(key) if error.code == "projection_pending" else None
             if cached is None:
                 raise
             return JSONResponse(cached, headers={"X-Tandem-Freshness": "stale"})
+        if empty:
+            return JSONResponse(mark_empty(body), headers={"X-Tandem-Freshness": "none"})
         last_good.remember(key, body)
-        return JSONResponse(body, headers={"X-Tandem-Freshness": "fresh", **(headers or {})})
+        return JSONResponse(body, headers={"X-Tandem-Freshness": "fresh"})
 
     @api.get("/v1/status")
     def status():
@@ -163,15 +219,14 @@ def router(gw: Gateway) -> APIRouter:
 
         total_header = {}
 
-        def produce():
+        def produce(db):
             clause, params = (" WHERE s.project_id=?", [project_id]) if project_id else ("", [])
             base = " FROM session s LEFT JOIN project p ON p.project_id=s.project_id" + clause
-            with gw.reads.read() as db:
-                total_header["X-Total-Count"] = str(db.execute("SELECT count(*)" + base,
-                                                               params).fetchone()[0])
-                rows = db.execute("SELECT s.*,p.name AS project_name" + base +
-                                  " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
-                                  [*params, limit, offset]).fetchall()
+            total_header["X-Total-Count"] = str(db.execute("SELECT count(*)" + base,
+                                                           params).fetchone()[0])
+            rows = db.execute("SELECT s.*,p.name AS project_name" + base +
+                              " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
+                              [*params, limit, offset]).fetchall()
             items = [report_session(dict(r), {"name": r["project_name"]}) for r in rows]
             return [{k: s[k] for k in SESSION_FIELDS} for s in items]
 
@@ -186,17 +241,16 @@ def router(gw: Gateway) -> APIRouter:
 
         from ..data_access.store import report_event
 
-        def produce():
-            with gw.reads.read() as db:
-                if not db.execute("SELECT 1 FROM session WHERE session_uid=?",
-                                  (session_id,)).fetchone():
-                    raise ApiError(404, "not_found", "会话不存在或不在分析范围内")
-                total = db.execute("SELECT count(*) FROM event WHERE session_uid=?",
-                                   (session_id,)).fetchone()[0]
-                rows = [decoded(row) for row in db.execute(
-                    "SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c USING(event_uid)"
-                    " WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ? OFFSET ?",
-                    (session_id, after_seq if after_seq is not None else -1, limit, offset))]
+        def produce(db):
+            if not db.execute("SELECT 1 FROM session WHERE session_uid=?",
+                              (session_id,)).fetchone():
+                raise ApiError(404, "not_found", "会话不存在或不在分析范围内")
+            total = db.execute("SELECT count(*) FROM event WHERE session_uid=?",
+                               (session_id,)).fetchone()[0]
+            rows = [decoded(row) for row in db.execute(
+                "SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c USING(event_uid)"
+                " WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ? OFFSET ?",
+                (session_id, after_seq if after_seq is not None else -1, limit, offset))]
             return {"total": total, "items": [report_event(e).to_dict() for e in rows],
                     "next_after_seq": rows[-1]["seq"] if rows else None}
 
@@ -204,41 +258,35 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/projects")
     def projects(request: Request):
-        def produce():
-            with gw.reads.read() as db:
-                rows = db.execute(
-                    "SELECT p.project_id,p.name,COUNT(s.session_uid) AS sessions,"
-                    " MAX(s.started_at) AS last_started_at FROM project p"
-                    " LEFT JOIN session s ON s.project_id=p.project_id"
-                    " GROUP BY p.project_id ORDER BY sessions DESC, p.project_id").fetchall()
+        def produce(db):
+            rows = db.execute(
+                "SELECT p.project_id,p.name,COUNT(s.session_uid) AS sessions,"
+                " MAX(s.started_at) AS last_started_at FROM project p"
+                " LEFT JOIN session s ON s.project_id=p.project_id"
+                " GROUP BY p.project_id ORDER BY sessions DESC, p.project_id").fetchall()
             return [dict(r) for r in rows]
 
         return served(request, produce)
 
     @api.get("/v1/sources")
     def sources(request: Request):
-        def produce():
+        def produce(db):
             configured = gw.state.snapshot()["sources"]
-            with gw.reads.read(check=False) as db:
-                rows = db.execute(
-                    "SELECT s.source_id,s.agent,s.label,s.enabled,x.selection,x.discovered_files,"
-                    "x.indexed_files,x.capture_errors,x.cancelled,"
-                    "(SELECT COUNT(*) FROM session t WHERE t.source_id=s.source_id) AS sessions"
-                    " FROM source s LEFT JOIN source_scan x USING(source_id)"
-                    " ORDER BY s.source_id").fetchall()
+            rows = db.execute(
+                "SELECT s.source_id,s.agent,s.label,s.enabled,x.selection,x.discovered_files,"
+                "x.indexed_files,x.capture_errors,x.cancelled,"
+                "(SELECT COUNT(*) FROM session t WHERE t.source_id=s.source_id) AS sessions"
+                " FROM source s LEFT JOIN source_scan x USING(source_id)"
+                " ORDER BY s.source_id").fetchall()
             return [{**dict(r), "app_enabled": configured.get(r["source_id"], {}).get("enabled")}
                     for r in rows]
 
-        return served(request, produce)
+        return served(request, produce, check=False)
 
     @api.get("/v1/inventory")
     def inventory(request: Request):
         from tandem_data.inventory import read_inventory_connection
 
-        def produce():
-            with gw.reads.read(check=False) as db:
-                return read_inventory_connection(db)
-
-        return served(request, produce)
+        return served(request, read_inventory_connection, check=False)
 
     return api

@@ -207,6 +207,74 @@ def test_facets_wait_for_facts(gw):
     assert gw.client.get("/v1/uiview/tools").status_code == 200  # no facet: no facts needed
 
 
+# -- empty home ------------------------------------------------------------------------------
+
+EMPTY_LISTS = ("/v1/sessions", "/v1/projects", "/v1/sources")
+EMPTY_DICTS = ("/v1/inventory", "/v1/analytics/tool_calls", "/v1/uiview/sessions",
+               "/v1/uiview/projects", "/v1/uiview/sentiment")
+ALREADY_EMPTY = ("/v1/uiview/facts", "/v1/uiview/overview", "/v1/uiview/persona",
+                 "/v1/uiview/persona/reveal", "/v1/uiview/tools", "/v1/sessions/excluded")
+BY_ID = ("/v1/sessions/s0/events", "/v1/sessions/s0/resume", "/v1/sessions/s0/source_location",
+         "/v1/uiview/sessions/s0", "/v1/uiview/sessions/s0/suggest_b",
+         "/v1/uiview/projects/p1")
+
+
+def _client(home):
+    config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0, tick_s=0.05)
+    gateway = Gateway(home, config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
+    return gateway, TestClient(gateway.app(token=TOKEN, port=PORT),
+                               base_url=f"http://127.0.0.1:{PORT}",
+                               headers={"Authorization": f"Bearer {TOKEN}"})
+
+
+def test_empty_home_lists_answer_200_with_the_populated_shape(gw, tmp_path, monkeypatch):
+    """Before the first import (no tandem.db) lists and summaries are an empty state:
+    200 with the same keys as with data, plus freshness ``none``; ids are 404."""
+    monkeypatch.setenv("HOME", str(tmp_path / "user-home"))
+    empty_gw, client = _client(tmp_path / "empty-home")
+    try:
+        assert not (tmp_path / "empty-home" / "tandem.db").exists()
+        for path in EMPTY_LISTS:
+            r = client.get(path)
+            assert r.status_code == 200 and r.json() == [], (path, r.status_code, r.text[:200])
+            assert r.headers["x-tandem-freshness"] == "none"
+        assert client.get("/v1/sessions").headers["x-total-count"] == "0"
+        for path in EMPTY_DICTS:
+            r = client.get(path)
+            assert r.status_code == 200, (path, r.status_code, r.text[:200])
+            body = r.json()
+            assert body["meta"]["freshness"] == "none", path
+            assert body["meta"]["reason"] == "no_projection", path
+            full = gw.client.get(path).json()  # same route on the seeded home
+            assert set(body) - {"meta"} == set(full) - {"meta"}, (path, set(body) ^ set(full))
+            assert set(full.get("meta") or {}) <= set(body["meta"]), path
+        assert client.get("/v1/inventory").json()["items"] is None
+        assert client.get("/v1/analytics/tool_calls").json()["items"] == []
+        assert client.get("/v1/uiview/sessions").json()["rows"] == []
+        assert client.get("/v1/uiview/projects").json()["projects"] == []
+        assert client.get("/v1/uiview/sentiment").json()["meta"]["n_sessions"] == 0
+        for path in ALREADY_EMPTY:
+            assert client.get(path).status_code == 200, path
+        for path in BY_ID:
+            r = client.get(path)
+            assert r.status_code == 404 and r.json()["error"]["code"] == "not_found", path
+        assert not (tmp_path / "empty-home" / "tandem.db").exists()  # reads never create it
+
+        # tandem.db exists but nothing is published yet (first import still publishing):
+        # transient, so still a retryable 503 and never the earlier empty body as stale.
+        from tandem_data.store import Store
+
+        with Store(tmp_path / "empty-home"):
+            pass
+        for path in (*EMPTY_LISTS[:2], "/v1/analytics/tool_calls", "/v1/uiview/projects",
+                     "/v1/uiview/sentiment"):
+            r = client.get(path)
+            assert r.status_code == 503, (path, r.status_code, r.text[:200])
+            assert r.json()["error"]["code"] == "projection_pending" and r.headers["retry-after"]
+    finally:
+        empty_gw.close()
+
+
 # -- share card ------------------------------------------------------------------------------
 
 def test_share_card_matches_uiview_persona():
