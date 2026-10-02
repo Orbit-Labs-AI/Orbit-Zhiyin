@@ -1,4 +1,4 @@
-# Tandem Catalog
+# Orbit Catalog
 
 独立的资源采集、版本、索引与检索包，Python 3.13，公共 import 为 tandem_catalog，CLI 为 tandem-catalog。使用根 uv workspace，数据合同和 DDL 由 packages/data 提供，数据库仍是独立的 catalog.db。
 

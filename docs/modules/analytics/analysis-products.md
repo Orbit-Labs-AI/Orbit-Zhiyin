@@ -116,7 +116,7 @@ uv run python scripts/validate_analysis_products.py \
 复用已有统一数据库生成报告，不再导入：
 
 ```sh
-uv run tandem --home /实际的Tandem数据目录 analysis-report \
+uv run tandem --home /实际的Orbit数据目录 analysis-report \
   --display-timezone Asia/Shanghai --output .local/ui-report
 ```
 

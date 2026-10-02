@@ -1,4 +1,4 @@
-# Tandem / 同频
+# Orbit
 
 ActionMesh-AI 的本地跨 Agent 会话分析项目，目标交付为 macOS App。当前可运行部分是统一数据层、Python 后端、CLI、本机 API 和两套独立 UI 原型；尚无原生 App target 或安装包。
 

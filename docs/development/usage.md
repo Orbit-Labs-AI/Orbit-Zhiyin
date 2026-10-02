@@ -25,7 +25,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 ## 先试后端
 
-Tandem 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/tandem-demo.html) 仍是设计参考。
+Orbit 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/tandem-demo.html) 仍是设计参考。
 
 分析入口遵循 [analysis-input-v1](../contracts/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
 

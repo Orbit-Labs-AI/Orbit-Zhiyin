@@ -306,7 +306,7 @@ Demo 的主题 / 结果 / 摩擦 / 时段芯片（FB-04…FB-06）、A1-23 星�
 | `allow_rule_matches:<rule_id>` | 装后 `tool_call(kind = shell)` 的 `command_head` 命中该放行规则前缀的次数 | `install_plan.targets[].content`、`tool_call.command_head` | 计数 | measured | MVP |
 | `would_prompt_count:<key>`、`denied_count` | §2.4 对应信号次数 | `signal` | 计数 / 有 shell 的会话 | measured | MVP |
 | `destructive_allowed_count` | §2.4 `risky_command`（命令族命中）且该调用 `approval ≠ declined`、未被 hook 拦截的次数；护栏必须为 0 | `signal(risky_command)`、`tool_call.approval`、`hook.run` | 计数 | measured | MVP |
-| `hook_runs:<hook_id>` | `event.kind = hook.run ∧ attrs.hook_id` 的次数（Tandem 写入的 hook 带固定 id） | `event.kind = hook.run` | 计数 | measured | MVP |
+| `hook_runs:<hook_id>` | `event.kind = hook.run ∧ attrs.hook_id` 的次数（Orbit 写入的 hook 带固定 id） | `event.kind = hook.run` | 计数 | measured | MVP |
 | `false_block_count:<hook_id>` | hook 以退出码 2 拦截后，同轮或下一轮用户 / Agent 手动执行同一 `command_head` 且成功的次数 | `hook.run.attrs.exit_code`、后续 `tool_call` | 计数 | measured | MVP |
 | `retry_loop_count[:<command_head>]` | AN-05 `retry_loop` 信号数（基于 `respond.retry_links`）；替代 RC 的 `retry_runs`、`ai.md` 的 `confirmed_same_argument_failed_retries`、EV 的 `consecutive_failed_calls`（后两者只作 main 别名） | `signal(retry_loop)` | 有工具调用的会话 | measured | MVP |
 | `skill_invocations:<skill>`（= `by_skill`） | `tool_call.kind = skill ∧ skill = <name>` 次数 | `tool_call.skill` | 计数 | measured | MVP |
