@@ -332,11 +332,14 @@ function buildCompass() {
   const tk = ['', '', '']; for (let i = 0; i < 120; i++) { const w = i % 30 === 0 ? 2 : i % 5 === 0 ? 1 : 0; tk[w] += 'M' + f2(cpt(389, i * 3)) + 'L' + f2(cpt([381, 375, 368][w], i * 3)); }
   const h = '<defs><radialGradient id="cpFace"><stop offset="0" stop-color="' + W + '.06)"/><stop offset=".75" stop-color="' + W + '.025)"/><stop offset="1" stop-color="' + W + '0)"/></radialGradient>' +
     '<radialGradient id="cpBody" cx="400" cy="400" r="340" gradientUnits="userSpaceOnUse"><stop offset=".72" stop-color="#123843" stop-opacity="0"/><stop offset=".78" stop-color="#1f6577" stop-opacity=".75"/><stop offset=".9" stop-color="#4fb3c8" stop-opacity=".45"/><stop offset="1" stop-color="#eaf7f9" stop-opacity="0"/></radialGradient>' +
-    '<filter id="cpSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter></defs>' +
+    '<filter id="cpSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>' +
+    '<radialGradient id="cpHead"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="#cfe9ef" stop-opacity=".6"/><stop offset="1" stop-color="#a3adb0" stop-opacity="0"/></radialGradient></defs>' +
+    '<clipPath id="cpTickClip"><path/></clipPath><clipPath id="cpAurClip"><path/></clipPath>' +
     '<g class="cp-dial"><circle cx="400" cy="400" r="396" fill="url(#cpFace)" stroke="' + W + '.5)" stroke-width="2"/><circle cx="400" cy="400" r="390" fill="none" stroke="' + W + '.15)"/>' +
-    '<path d="' + tk[0] + '" stroke="' + W + '.2)"/><path d="' + tk[1] + '" stroke="' + W + '.42)" stroke-width="1.4"/><path d="' + tk[2] + '" stroke="#fff" stroke-width="2.4"/>' +
+    '<g class="cp-ticks"><path d="' + tk[0] + '" stroke="' + W + '.2)"/><path d="' + tk[1] + '" stroke="' + W + '.42)" stroke-width="1.4"/><path d="' + tk[2] + '" stroke="#fff" stroke-width="2.4"/>' +
     '<path d="M400 8L390 -10L410 -10Z" fill="var(--orbit)"/>' +
-    [0, 3, 6, 9, 12, 15, 18, 21].map((hh) => { const card = hh % 6 === 0, q = cpt(card ? 343 : 352, hh * 15); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" class="' + (card ? 'cp-hc' : 'cp-hs') + '">' + String(hh).padStart(2, '0') + '</text>'; }).join('') + '</g>' +
+    [0, 3, 6, 9, 12, 15, 18, 21].map((hh) => { const card = hh % 6 === 0, q = cpt(card ? 343 : 352, hh * 15); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" class="' + (card ? 'cp-hc' : 'cp-hs') + '">' + String(hh).padStart(2, '0') + '</text>'; }).join('') + '</g></g>' +
+    '<g class="cp-trace" fill="none" stroke-linecap="round"></g>' +
     '<g id="cpAur"><path class="body" fill="url(#cpBody)" fill-rule="evenodd"/><path class="glow" fill="none" stroke="#ffd9b8" stroke-width="9" stroke-linecap="round" filter="url(#cpSoft)" opacity=".8"/>' + RIB.map((c, i) => '<path class="rib" fill="none" stroke="' + c + '" stroke-width="' + (2 + i * .5).toFixed(2) + '" stroke-opacity="' + (.7 + i * .05).toFixed(2) + '"/>').join('') + '</g>' +
     '<g id="cpPlanets">' + AGC.map((c) => '<g class="pl"><circle r="16" fill="' + c + '" opacity=".2"/><circle r="7.5" fill="' + c + '" stroke="#000" stroke-width="2"/></g>').join('') + '</g>' +
     '<g class="cp-core"><circle cx="400" cy="400" r="184" fill="rgba(8,9,11,.94)" stroke="' + W + '.2)"/><circle cx="400" cy="400" r="' + CP.RR + '" fill="none" stroke="' + W + '.1)" stroke-dasharray="2 6"/><path d="M400 220V580M220 400H580" stroke="' + W + '.1)" stroke-width="1.4"/>' +
@@ -350,8 +353,19 @@ function buildCompass() {
   svg.style.overflow = 'visible'; svg.innerHTML = h; k.rig.appendChild(svg); k.svg = svg;
   return svg;
 }
-/* st: { deg: needle bearing, mine: 0..1 blend to your real persona, speed: needle deg/beat, grow, sweep (aurora reveal),
-   orbit (planet phase), settle (planets to their headings), dial, core, collapse (aurora → one ring), tip (needle label) } */
+/* st: { deg: needle bearing, mine: 0..1 blend to your real persona, speed: needle deg/beat, grow, sweep (aurora reveal:
+   a wedge from sweepFrom, default north, clockwise), orbit (planet phase), settle (planets to their headings), dial, core,
+   collapse (aurora → one ring), tip (needle label), ticks (0..1: ticks and hour labels revealed clockwise from north),
+   trace (0..1: head of a light running once around the ticks; traceA its strength),
+   lock: { D: { k: 0..1+ (petal pulled to s; may overshoot), s: strength, letter, sy: letter flip scaleY, fill } … } } */
+// a pie wedge (clip) from bearing a0, span degrees clockwise
+function cpWedge(a0, span) {
+  if (span >= 359.9) return 'M-200 -200H1000V1000H-200Z';
+  if (span <= 0) return 'M400 400Z';
+  const p0 = cpt(560, a0), p1 = cpt(560, a0 + span);
+  return 'M400 400L' + f2(p0) + 'A560 560 0 ' + (span > 180 ? 1 : 0) + ' 1 ' + f2(p1) + 'Z';
+}
+function cpArc(r, a0, a1) { const p0 = cpt(r, a0), p1 = cpt(r, a1); return 'M' + f2(p0) + 'A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + f2(p1); }
 function drawCompass(st) {
   const svg = buildCompass(), P = personaAt(st.deg, st.mine || 0);
   // aurora: radius profile = rhythm (Catmull-Rom over the hours) + a swell around the needle that stretches with speed
@@ -363,11 +377,23 @@ function drawCompass(st) {
     prof.push(Math.max(.04, (val(((a / 15 - .5) % 24 + 24) % 24) / 1.6 * .75 + swell * .55)) * (1 - col));   // each hour's value sits on the middle of its sector, as in the app
   }
   const ring = (k) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(lerp(CP.R0 + CP.BAND * prof[s] * k, 300, col), s / N * 360)); return d + 'Z'; };
-  const sw = clamp(st.sweep ?? 1);
+  const sw = clamp(st.sweep ?? 1), aur = svg.querySelector('#cpAur');
   const ribs = svg.querySelectorAll('#cpAur .rib');
-  ribs.forEach((p, i) => { p.setAttribute('d', ring(Math.pow((i + 1) / RIB.length, .85))); p.style.strokeDasharray = sw < 1 ? (sw * 2400).toFixed(0) + ' 4000' : ''; });
+  ribs.forEach((p, i) => { p.setAttribute('d', ring(Math.pow((i + 1) / RIB.length, .85))); });
+  // the aurora is revealed by a wedge that opens clockwise from sweepFrom
+  if (sw < 1) { svg.querySelector('#cpAurClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); aur.setAttribute('clip-path', 'url(#cpAurClip)'); } else aur.removeAttribute('clip-path');
   svg.querySelector('#cpAur .body').setAttribute('d', ring(1) + ring(0));
-  svg.querySelector('#cpAur .body').style.opacity = (sw * (1 - col)).toFixed(3);
+  svg.querySelector('#cpAur .body').style.opacity = (Math.min(1, sw * 4) * (1 - col)).toFixed(3);
+  // ticks drawn on clockwise from north, and a light that runs once around them
+  const tkv = clamp(st.ticks ?? 1), tg = svg.querySelector('.cp-ticks');
+  if (tkv < 1) { svg.querySelector('#cpTickClip path').setAttribute('d', cpWedge(0, tkv * 360)); tg.setAttribute('clip-path', 'url(#cpTickClip)'); } else tg.removeAttribute('clip-path');
+  const trg = svg.querySelector('.cp-trace'), tr = st.trace, ta = st.traceA ?? 1;
+  if (tr != null && tr > 0 && ta > .001) {
+    const head = tr * 360, n = 14, tail = 120; let h = '';
+    for (let j = 0; j < n; j++) { const a0 = Math.max(0, head - tail * (j + 1) / n), a1 = Math.max(0, head - tail * j / n); if (a1 - a0 < .2) continue; h += '<path d="' + cpArc(379, a0, a1) + '" stroke="var(--orbit)" stroke-width="' + (9 - j * .5).toFixed(1) + '" stroke-opacity="' + ((1 - j / n) * .9 * ta).toFixed(3) + '"/>'; }
+    const hp = cpt(379, head); h += '<circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="18" fill="url(#cpHead)" opacity="' + ta.toFixed(3) + '"/><circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="5" fill="#fff" opacity="' + ta.toFixed(3) + '"/>';
+    trg.innerHTML = h;
+  } else if (trg.firstChild) trg.innerHTML = '';
   // the bright crest that rides on the outer ribbon at the needle
   let gd = ''; for (let s = -24; s <= 24; s++) { const a = st.deg + s * (1.2 + sp), idx = Math.round((((a % 360) + 360) % 360) / 360 * N); gd += (s > -24 ? 'L' : 'M') + f2(cpt(CP.R0 + CP.BAND * prof[idx] + 2, a)); }
   const gl = svg.querySelector('#cpAur .glow'); gl.setAttribute('d', gd); gl.style.opacity = (.35 + .55 * sp) * sw * (1 - col) * (st.dial ?? 1);
@@ -380,12 +406,18 @@ function drawCompass(st) {
   // rose and its tip letters
   const gr = clamp(st.grow ?? 1);
   'DIMV'.split('').forEach((x, i) => {
-    const a = axisOf(P.v, i), len = Math.max(1, roseLen(a.strong) * E.out(clamp(gr * 1.5 - i * .15))), q = rosePt(AXR2[x], len, CP.RR * .18);
+    const a = axisOf(P.v, i), lk = st.lock && st.lock[x], g0 = E.out(clamp(gr * 1.5 - i * .15));
+    let len = roseLen(a.strong);
+    if (lk) len = lerp(len, roseLen(lk.s), lk.k);             // a locked axis is pulled to its own strength
+    len = Math.max(1, len * g0); const q = rosePt(AXR2[x], len, CP.RR * .18);
     const g = svg.querySelector('#cpRose .pt[data-k="' + x + '"]'); g.querySelector('.a').setAttribute('d', q[0]); g.querySelector('.b').setAttribute('d', q[1]);
     const lb = svg.querySelector('#cpLbl .lb[data-k="' + x + '"]'), tip = cpt(len + 30, AXR2[x]), sc = [tip[0], tip[1] + (AXR2[x] === 0 ? -30 : 30)];
     const t1 = lb.querySelector('.cp-l'), t2 = lb.querySelector('.cp-s');
-    t1.setAttribute('x', tip[0].toFixed(1)); t1.setAttribute('y', tip[1].toFixed(1)); t1.textContent = a.letter;
-    t2.setAttribute('x', sc[0].toFixed(1)); t2.setAttribute('y', sc[1].toFixed(1)); t2.textContent = Math.round(a.strong);
+    t1.setAttribute('x', tip[0].toFixed(1)); t1.setAttribute('y', tip[1].toFixed(1)); t1.textContent = lk && lk.letter ? lk.letter : a.letter;
+    t2.setAttribute('x', sc[0].toFixed(1)); t2.setAttribute('y', sc[1].toFixed(1)); t2.textContent = Math.round(lk && lk.k > .5 ? lk.s : a.strong);
+    const sy = lk && lk.sy != null ? lk.sy : 1;
+    t1.setAttribute('transform', sy < .999 ? 'translate(' + f2(tip) + ') scale(1 ' + Math.max(.02, sy).toFixed(3) + ') translate(' + (-tip[0]).toFixed(1) + ' ' + (-tip[1]).toFixed(1) + ')' : '');
+    t1.style.fill = lk && lk.fill ? lk.fill : ''; t2.style.fill = lk && lk.fill2 ? lk.fill2 : '';
     lb.style.opacity = (gr * (st.core ?? 1)).toFixed(3);
   });
   svg.querySelector('#cpNeedle').setAttribute('transform', 'rotate(' + st.deg.toFixed(2) + ' 400 400)');
