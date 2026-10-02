@@ -4,6 +4,38 @@ import { uid, hash, sessionUid, timestamp, durationMs, pathValue, stableJson } f
 import { validateEvent } from './contract.ts';
 import { projectFor } from './project.ts';
 import type { ConnectorStore } from './store.ts';
+import { basename } from 'node:path';
+
+function activeHistory(store:ConnectorStore,source:string,metas:Map<string,Obj>,index:Obj):Map<string,number>|null {
+  if(metas.size<2)return null;
+  const aliases=new Map<string,string>(),files=new Map<string,{path:string,mtime:string}>();
+  for(const [file] of metas){
+    const row=store.file(file)!;const stem=basename(row.path).replace(/\.zst$/,'').replace(/\.jsonl$/,'');
+    const native=stem.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)?.at(-1);
+    aliases.set(native??stem.replace(/^rollout-/,''),file);files.set(file,{path:row.path,mtime:row.mtime_ns??'0'});
+  }
+  const parents=new Map<string,string>();
+  for(const [file,meta] of metas){const parent=aliases.get(string(object(meta.history_base).thread_id)??'');if(parent&&parent!==file)parents.set(file,parent);}
+  if(!parents.size)return null;
+  const pointed=new Set(parents.values()),sinks=[...metas.keys()].filter(file=>!pointed.has(file));
+  const currentPath=string(index.rollout_path);
+  let active=currentPath?[...files].find(([,file])=>file.path===currentPath||basename(file.path).replace(/\.zst$/,'')===basename(currentPath).replace(/\.zst$/,''))?.[0]:undefined;
+  if(!active){
+    active=sinks.sort((a,b)=>{
+      const pa=basename(files.get(a)!.path),pb=basename(files.get(b)!.path);
+      return pa.localeCompare(pb)||(BigInt(files.get(a)!.mtime)>BigInt(files.get(b)!.mtime)?1:-1);
+    }).at(-1);
+    if(sinks.length>1)store.diagnostic(source,'active_history_inferred','Multiple history branches; selected the latest native filename pending current index');
+  }
+  if(!active)return null;
+  const bounds=new Map<string,number>();let current:string|undefined=active,limit=Infinity;
+  while(current&&!bounds.has(current)){
+    bounds.set(current,limit);
+    const meta=metas.get(current)!;const base=object(meta.history_base);
+    limit=Math.min(limit,number(base.end_ordinal_exclusive)??Infinity);current=parents.get(current);
+  }
+  return bounds;
+}
 
 interface Candidate { event: StandardEvent; key: string; priority: number; record: RawRecord; position: number; slot: number; }
 interface Context {
@@ -83,7 +115,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     const nativeKey=[ctx.source,ctx.session,key];
     const time:Obj={source_field:ts===null?null:sourceField,semantics:ts===null?'unknown':semantics,quality:ts===null?'missing':'reported',reported};
     const shared=nonNull({model_raw:string(settings.model),provider:string(settings.model_provider_id)??string(ctx.meta.model_provider),effort_raw:string(settings.effort)??string(settings.reasoning_effort),native_turn_id:turn});
-    result.push({key,priority,record:row,position:row.ordinal,slot:result.length,event:{event_uid:uid(nativeKey,kind,eventPath),native_key:nativeKey,event_path:eventPath,contract_version:1,mapper_version:'codex-connector/0.2.0',session_uid:ctx.session,seq:0,ts,kind,actor,
+    result.push({key,priority,record:row,position:row.ordinal,slot:result.length,event:{event_uid:uid(nativeKey,kind,eventPath),native_key:nativeKey,event_path:eventPath,contract_version:1,mapper_version:'codex-connector/0.2.1',session_uid:ctx.session,seq:0,ts,kind,actor,
       turn_uid:turn ? uid(ctx.session,'turn',turn) : null,parent_uid:null,call_id:call,text,text_truncated:text?.includes('<truncated:sha256:') ? 1 : 0,
       attrs:{...shared,...attrs,time,order:{quality:'reported',basis:'native_ordinal_or_line'}},ext:{native:body},record_uid:row.record_uid,native_id:native}});
   }
@@ -255,7 +287,15 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
   const usedLegacy=new Set<string>();
   let lastSnapshot:string|null=null,snapshotIdentity:string|null=null;
   const titleRows: RawRecord[]=[];
+  for(const row of store.records(session)){
+    const body=bodyOf(row),p=object(body.payload);
+    if(body.type==='session_meta'&&p.id===native)ctx.fileMeta.set(row.file_id,p);
+    if(body.type==='state_index')index=p;
+  }
+  const history=activeHistory(store,source,ctx.fileMeta,index);
+  const inHistory=(row:RawRecord)=>!history||!ctx.fileMeta.has(row.file_id)||(history.has(row.file_id)&&row.ordinal<history.get(row.file_id)!);
   for (const row of store.records(session)) {
+    if(!inHistory(row))continue;
     const body=bodyOf(row), p=object(body.payload), type=string(body.type);
     if (type==='session_meta' && p.id===native) {
       meta={...meta,...p}; ctx.fileMeta.set(row.file_id,p);
@@ -339,6 +379,7 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
   }
   const note=(row:RawRecord,disposition:Disposition,ref: string|null,reason:string|null) => store.db.prepare('UPDATE raw_record SET disposition=?,ref_event_uid=?,note=? WHERE record_uid=?').run(disposition,ref,reason,row.record_uid);
   for (const row of store.records(session)) {
+    if(!inHistory(row)){note(row,'ignored',null,'reverted_history:outside_active_chain');continue;}
     if (!row.body || ['invalid_json_or_shape','oversized_line','invalid_ordinal','missing_session_meta'].includes(row.note??'')) continue;
     const body=bodyOf(row), p=object(body.payload), fileMeta=ctx.fileMeta.get(row.file_id) ?? meta;
     const spawnFile=object(object(fileMeta.source).subagent).thread_spawn;

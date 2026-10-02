@@ -37,12 +37,15 @@ export class ConnectorStore {
       });
     }
     const redaction=this.db.prepare("SELECT version FROM pipeline_version WHERE component='redaction'").get()?.version;
-    if (migrated||redaction!=='codex-redact/0.2.1') {
+    const derivation=this.db.prepare("SELECT version FROM pipeline_version WHERE component='derivation'").get()?.version;
+    if (migrated||redaction!=='codex-redact/0.2.1'||derivation!=='codex-derive/0.2.1') {
       this.transaction(()=>{
-        for (const row of this.db.prepare('SELECT record_uid,body FROM raw_record WHERE body IS NOT NULL').iterate()) {
-          this.db.prepare('UPDATE raw_record SET body=? WHERE record_uid=?').run(JSON.stringify(sanitize(JSON.parse(String(row.body)))),String(row.record_uid));
-        }
+        if(migrated||redaction!=='codex-redact/0.2.1') for (const row of this.db.prepare('SELECT record_uid,body FROM raw_record WHERE body IS NOT NULL').iterate()) {
+            this.db.prepare('UPDATE raw_record SET body=? WHERE record_uid=?').run(JSON.stringify(sanitize(JSON.parse(String(row.body)))),String(row.record_uid));
+          }
         this.db.prepare("UPDATE pipeline_version SET version='codex-redact/0.2.1' WHERE component='redaction'").run();
+        this.db.prepare("UPDATE pipeline_version SET version='codex-derive/0.2.1' WHERE component='derivation'").run();
+        this.db.prepare("UPDATE pipeline_version SET version='codex-connector/0.2.1' WHERE component='parser'").run();
         this.db.prepare('INSERT OR IGNORE INTO dirty_session SELECT DISTINCT session_uid FROM current_record WHERE session_uid IS NOT NULL').run();
       });
       for (const source of this.db.prepare('SELECT source_id FROM source').all()) rebuildSource(this,String(source.source_id));

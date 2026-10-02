@@ -119,7 +119,7 @@ uv run --project packages/data tandem-data --home .local/canonical verify
 
 ## Codex 口径
 
-- 递归读取 `sessions/` 与 `archived_sessions/` 的 `rollout-*.jsonl(.zst)`。归档移动或压缩替换保持逻辑文件身份；revert 产生的多个 rollout 分别索引、在同一线程内标准化。
+- 递归读取 `sessions/` 与 `archived_sessions/` 的 `rollout-*.jsonl(.zst)`。归档移动或压缩替换保持逻辑文件身份；revert 产生的多个 rollout 分别索引；按 threads.rollout_path 的活动文件追溯 history_base，并限制前代的 end_ordinal_exclusive，撤销尾部只留 L0/L1。没有当前索引且出现多个分支时，按原生文件名顺序推定并提示覆盖缺口。
 - 最高版本 `state_<n>.sqlite` 只读打开，不用 `immutable=1`。在一个读事务内读取支持的 `threads` 元数据列、`thread_spawn_edges`、`projects` 与 `project_roots`；账号 ID 不读取。库暂时不可读时保留已有索引、报告失败，正文扫描继续。
 - `session_index.jsonl` 按追加日志读取；标题优先级是 `threads.name` → 索引的最后一条 → `threads.title/preview`。`external_agent_session_imports.json.records` 标记导入来源，默认不计入主会话用量。
 - 按记录形状兼容 legacy 与 paginated，不按 `cli_version` 切分。消息首选 UI 的 `item_completed` 或旧 `user_message/agent_message`；匹配的 Responses 表示去重，未匹配的 user/developer 表示作为注入上下文保留。
@@ -150,7 +150,7 @@ pnpm test
 pnpm build
 ```
 
-28 项构造回归覆盖消息与工具双表示、缓存口径、单次/累计分离、空时间与时钟回退、guardian、子代理继承、同线程多 rollout、半行追加、改写/移动/压缩/删除、WAL 索引、隐私、维护锁、未知类型、漂移、监听降级、v1 迁移与 CLI。测试不包含真实会话内容。CI 对 Node 24、26 执行同一检查。
+29 项构造回归覆盖消息与工具双表示、缓存口径、单次/累计分离、空时间与时钟回退、guardian、子代理继承、同线程多 rollout、半行追加、改写/移动/压缩/删除、WAL 索引、隐私、维护锁、未知类型、漂移、监听降级、v1 迁移与 CLI。测试不包含真实会话内容。CI 对 Node 24、26 执行同一检查。
 
 已对有界真实 Codex rollout 实际执行导入、重算、查询、重复导入、事件 Schema 校验和原文 SHA 对账；真实日志和结果仅保留在 `.local/`。授权本机验证可以限定范围，避免默认扫描全量正文：
 

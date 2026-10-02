@@ -234,12 +234,35 @@ test('legacy child threads without a cutoff use the first turn absent from the p
 test('revert segments with the same thread ID keep distinct ordinal ranges and deduplicate response IDs',async()=>sandbox(async s=>{
   await writeFile(s.file,await fixture());
   await writeFile(join(s.home,'archived_sessions','rollout-revert-main.jsonl'),
-    jsonLine('session_meta',{id:'main',session_id:'main',history_base:{thread_id:'old-rollout',end_ordinal_exclusive:25}},25)+
+    jsonLine('session_meta',{id:'main',session_id:'main',history_base:{thread_id:'main',end_ordinal_exclusive:25}},25)+
     jsonLine('event_msg',{type:'task_started',turn_id:'revert-turn'},26)+
     jsonLine('turn_context',{turn_id:'revert-turn',model:'gpt-revert'},27)+
     jsonLine('token_usage_record',{turn_id:'revert-turn',response_id:'new-response',usage:{input_tokens:10,output_tokens:5}},28));
   await s.connector.ingest();
   assert.equal(scalar(s,'SELECT count(*) n FROM session'),1); assert.equal(scalar(s,'SELECT count(*) n FROM model_call'),2);
+  assert.equal(scalar(s,'SELECT count(*) n FROM turn'),2);
+}));
+test('active revert chain bounds the predecessor and excludes disconnected branches selected by the index',async()=>sandbox(async s=>{
+  const root=join(s.home,'sessions','rollout-root.jsonl'),oldBranch=join(s.home,'sessions','rollout-z-old-branch.jsonl'),active=join(s.home,'sessions','rollout-active.jsonl');
+  await writeFile(root,
+    jsonLine('session_meta',{id:'reverted',session_id:'reverted'},0)+
+    jsonLine('event_msg',{type:'task_started',turn_id:'keep'},1)+
+    jsonLine('token_usage_record',{turn_id:'keep',response_id:'keep-request',usage:{input_tokens:10,output_tokens:5}},2)+
+    jsonLine('event_msg',{type:'task_complete',turn_id:'keep'},3)+
+    jsonLine('event_msg',{type:'task_started',turn_id:'undone'},4)+
+    jsonLine('token_usage_record',{turn_id:'undone',response_id:'undone-request',usage:{input_tokens:100,output_tokens:50}},5));
+  await writeFile(oldBranch,jsonLine('session_meta',{id:'reverted',session_id:'reverted',history_base:{thread_id:'root',end_ordinal_exclusive:4}},4)+
+    jsonLine('event_msg',{type:'user_message',turn_id:'old-sibling',message:'discard old sibling'},5));
+  await writeFile(active,jsonLine('session_meta',{id:'reverted',session_id:'reverted',history_base:{thread_id:'root',end_ordinal_exclusive:4}},4)+
+    jsonLine('event_msg',{type:'task_started',turn_id:'current'},5)+
+    jsonLine('token_usage_record',{turn_id:'current',response_id:'current-request',usage:{input_tokens:20,output_tokens:10}},6));
+  const index=new DatabaseSync(join(s.home,'state_5.sqlite'));index.exec('CREATE TABLE threads(id TEXT,rollout_path TEXT)');
+  index.prepare('INSERT INTO threads VALUES(?,?)').run('reverted',active);index.close();
+  const result=await s.connector.ingest();
+  assert.equal(result.accounting.unparsed??0,0);assert.equal(scalar(s,'SELECT count(*) n FROM model_call'),2);
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE text='discard old sibling'"),0);
+  assert.equal(scalar(s,"SELECT count(*) n FROM model_call WHERE request_id='undone-request'"),0);
+  assert.ok(scalar(s,"SELECT count(*) n FROM current_record WHERE note='reverted_history:outside_active_chain'")>=3);
   assert.equal(scalar(s,'SELECT count(*) n FROM turn'),2);
 }));
 test('an incomplete zstd frame leaves its cursor unchanged and succeeds after completion',async()=>sandbox(async s=>{
