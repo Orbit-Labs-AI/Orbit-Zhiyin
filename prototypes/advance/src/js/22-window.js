@@ -22,7 +22,17 @@ let WIN_LAST = null, WIN_SIG = '';
   if (sd && typeof sd === 'object') { if (typeof sd.show === 'boolean') S.side = sd.show; if (sd.open && typeof sd.open === 'object') Object.keys(S.sideOpen).forEach((k) => { if (typeof sd.open[k] === 'boolean') S.sideOpen[k] = sd.open[k]; }); }
   ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].forEach((d) => { const h = document.createElement('div'); h.className = 'rz'; h.dataset.rz = d; h.setAttribute('aria-hidden', 'true'); $('#win').appendChild(h); });
 })();
-function stageSize() { return { w: desk.clientWidth, h: desk.clientHeight }; }
+// the stage size is cached (reading clientWidth after a render forces a synchronous layout): a window resize drops the cache
+// (capture listener, before 99-init's applyWin), and a ResizeObserver on #desk catches any other size change and re-lays
+// the window out
+let STAGE = null;
+function stageSize() { if (!STAGE) STAGE = { w: desk.clientWidth, h: desk.clientHeight }; return STAGE; }
+window.addEventListener('resize', () => { STAGE = null; }, true);
+if (typeof ResizeObserver === 'function') new ResizeObserver(() => {
+  const w = desk.clientWidth, h = desk.clientHeight;
+  if (STAGE && STAGE.w === w && STAGE.h === h) return;
+  STAGE = { w, h }; applyWin(); if (typeof setPlace === 'function') setPlace();
+}).observe(desk);
 // Native shell (WKWebView, window.__ORBIT_NATIVE__): body.native hides the fake desktop and the real NSWindow is the window,
 // so #win fills the viewport ("native" mode: never moved / resized by the page) and window ops go to the host as messages.
 // nativeWin(type) posts close / minimize / zoom / fullscreen and returns true when a host took it; otherwise the caller keeps

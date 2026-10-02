@@ -90,11 +90,14 @@ function regress(pts) {
   if (!sxx || !syy) return null;
   const b = sxy / sxx; return { b, a: my - b * mx, r: sxy / Math.sqrt(sxx * syy), n };
 }
+// one pass over L groups the rows by project (and counts them per agent) instead of filtering L once per project / agent
 function projRows(L) {
+  const by = new Map(), ai = {}; AG.forEach((a, j) => { ai[a.id] = j; });
+  PJ.forEach((p) => by.set(p.id, { xs: [], split: new Array(AG.length).fill(0) }));
+  L.forEach((s) => { const g = by.get(s.p); if (!g) return; g.xs.push(s); const j = ai[s.a]; if (j != null) g.split[j]++; });
   return PJ.map((p) => {
-    const xs = L.filter((s) => s.p === p.id); const st = stats(xs);
-    const split = AG.map((a) => xs.filter((s) => s.a === a.id).length);
-    return { p, xs, st, split, pers: persona(xs, 8) };
+    const g = by.get(p.id); const xs = g.xs;
+    return { p, xs, st: stats(xs), split: g.split, pers: persona(xs, 8) };
   });
 }
 function visibleRecs() { return RECS.filter((r) => r.aud <= S.recs.aud && !S.recs.gone.has(r.id)); }

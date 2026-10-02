@@ -20,7 +20,10 @@ function render() {
   if (S.pop) renderPop(); else $('#pop').hidden = true;
   if (!$('#set').hidden) renderSet();
   $('#win').classList.toggle('gone', S.winGone);
-  applyWin();
+  // the window rect cannot change while the page renders (stageSize is cached, 22-window.js): re-place only the dependants
+  // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
+  placeDeps();
+  if (window.__lvRendered) window.__lvRendered();
 }
 function renderMain() {
   const m = $('#main'); const c = $('#content'); const top = c ? c.scrollTop : 0;

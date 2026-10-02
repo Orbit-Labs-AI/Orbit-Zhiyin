@@ -53,7 +53,7 @@ function countTag(root) {
 }
 function countUp(root, opt) {
   opt = opt || {}; root = root || document;
-  const scope = opt.scope || S.route;
+  const scope = opt.scope || S.route; const todo = [];
   $$('[data-count]', root).forEach((el, i) => {
     const to = parseFloat(el.dataset.count); if (!isFinite(to)) return;
     const key = el.dataset.ck || scope + ':' + i;
@@ -63,11 +63,18 @@ function countUp(root, opt) {
     const final = el.textContent; const m = final.match(NUM_RE); if (!m) return;
     const dec = el.dataset.dec != null ? +el.dataset.dec : ((m[2].split('.')[1] || '').length);
     const pre = m[1], suf = el.dataset.suffix != null && !m[3] ? el.dataset.suffix : m[3], group = m[2].includes(',');
-    // keep the box as wide as the final value while digits are missing (tabular-nums keeps each digit the same width)
-    if (getComputedStyle(el).display !== 'inline') el.style.minWidth = el.getBoundingClientRect().width + 'px';
-    const run = { el, from, to, dec, pre, suf, group, final, t0: 0, dur: opt.dur || 600 };
-    MOTION.runs = MOTION.runs.filter((r) => r.el !== el); MOTION.runs.push(run);
-    el.textContent = pre + countFmt(from, dec, group) + suf;
+    todo.push({ el, from, to, dec, pre, suf, group, final, t0: 0, dur: opt.dur || 600 });
+  });
+  if (!todo.length) { if (MOTION.runs.length && !MOTION.raf) MOTION.raf = requestAnimationFrame(countTick); return; }
+  // keep the box as wide as the final value while digits are missing (tabular-nums keeps each digit the same width);
+  // all widths are read before any text is written, so a re-render with many changed numbers forces one layout, not one each
+  const widths = todo.map((r) => getComputedStyle(r.el).display !== 'inline' ? r.el.getBoundingClientRect().width : null);
+  const els = new Set(todo.map((r) => r.el)); MOTION.runs = MOTION.runs.filter((r) => !els.has(r.el));
+  todo.forEach((run, i) => {
+    const el = run.el;
+    if (widths[i] != null) el.style.minWidth = widths[i] + 'px';
+    MOTION.runs.push(run);
+    el.textContent = run.pre + countFmt(run.from, run.dec, run.group) + run.suf;
     setTimeout(() => countEnd(run), run.dur + 300);   // settles even when rAF is throttled (hidden tab)
   });
   if (MOTION.runs.length && !MOTION.raf) MOTION.raf = requestAnimationFrame(countTick);

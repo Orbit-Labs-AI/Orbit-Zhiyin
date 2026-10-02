@@ -304,6 +304,22 @@ function updSessList() {
   if (!sl || (list.length && !selOk) || (!list.length && S.sess.sel)) { const n0 = $('#sessQ'); const pos = n0 ? n0.selectionStart : null; renderMain(); const n = $('#sessQ'); if (n && n0) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } return; }
   sl.innerHTML = sessRows(list); if (sc) { sc.textContent = sessCountShort(list); sc.title = sessCount(list); }
 }
+// 单个模式下点选会话：只换右侧详情并切换列表行的 .sel，不重建整页（上千行的列表不必重新解析）。页面 HTML 仍由
+// PAGES.sessions()（含 live 包装）生成，取出末尾的详情栏；结构对不上或处于对比模式时返回 false，由调用方整页渲染。
+const SESS_DET_OPEN = '<div class="stack" style="min-width:0">', SESS_DET_CLOSE = '</div></div></div>';
+function sessPickPartial() {
+  if (S.route !== 'sessions' || S.sess.mode === 'cmp') return false;
+  const m = $('#main'); const host = m && m.querySelector('.sess > .stack'); const sl = $('#slist');
+  if (!host || !sl) return false;
+  const html = PAGES.sessions(); const i = html.lastIndexOf(SESS_DET_OPEN);
+  if (i < 0 || html.slice(-SESS_DET_CLOSE.length) !== SESS_DET_CLOSE || !sl.querySelector('[data-act="pickSession"][data-id="' + S.sess.sel + '"]')) return false;
+  host.innerHTML = html.slice(i + SESS_DET_OPEN.length, html.length - SESS_DET_CLOSE.length);
+  sl.querySelectorAll('.srow').forEach((b) => { const on = b.dataset.id === S.sess.sel || b.dataset.id === S.sess.cmp; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
+  if (PAGES.sessions.after) PAGES.sessions.after();
+  RENDER_HOOKS.forEach((fn) => { try { fn(m, false); } catch (e) { console.error(e); } });
+  if (window.__lvRendered) window.__lvRendered();
+  return true;
+}
 /* ---------- 页面 ---------- */
 // 启示卡（live）：服务端文案 + 动作按钮，沿用演示的 tl-ai 段落与按钮行
 function sessInsightLive(x) {
@@ -355,7 +371,7 @@ PAGES.sessions = () => {
 };
 PAGES.sessions.after = () => {
   const q = $('#sessQ');
-  if (q) { q.addEventListener('compositionstart', () => { q.dataset.ime = '1'; }); q.addEventListener('compositionend', () => { delete q.dataset.ime; ACT.sessQ(q, { isComposing: false }); }); }
+  if (q && !q.dataset.bound) { q.dataset.bound = '1'; q.addEventListener('compositionstart', () => { q.dataset.ime = '1'; }); q.addEventListener('compositionend', () => { delete q.dataset.ime; ACT.sessQ(q, { isComposing: false }); }); }
   if (S.sess.mode === 'cmp') { const T = Math.max(...$$('.tl-cmp').map((el) => traj(BYID[el.dataset.id]).T)); $$('.tl-cmp').forEach((el) => { el.dataset.deco = '0'; VZ.mount(el, cmpSpec(BYID[el.dataset.id], T, el.dataset.cmp === 'b')); }); return; }
   const box = $('#tlBox'); if (!box) return;
   updTimeline();
@@ -384,7 +400,7 @@ Object.assign(ACT, {
       if (id === S.sess.sel || id === S.sess.cmp) return;
       if (S.sess.turn === 'B' || !S.sess.cmp) { S.sess.cmp = id; S.sess.turn = 'A'; } else { S.sess.sel = id; S.sess.turn = 'B'; }
     } else { S.sess.sel = id; const s = BYID[id]; S.sess.ph = s ? traj(s).T : 0; S.sess.hi = null; S.sess.view = null; S.sess.zoom = 1; S.sess.ev = null; S.sess.evd = null; S.sess.brush = null; }
-    render();
+    if (!sessPickPartial()) render();
   },
   sessMode: (el) => { S.sess.mode = el.dataset.v; stopPlay(); S.sess.turn = 'A'; if (S.sess.mode === 'cmp' && !S.sess.cmp) { const l = sessList().filter((x) => x.id !== S.sess.sel && x.p === BYID[S.sess.sel].p); S.sess.cmp = l[0] ? l[0].id : null; } render(); },
   swapCmp: () => { const a = S.sess.sel; S.sess.sel = S.sess.cmp; S.sess.cmp = a; S.sess.last = S.sess.sel; render(); },
