@@ -1,85 +1,134 @@
-/* ============ A1 overview ============ */
+/* ============ A1 overview ============
+ * 结构：先下结论（AI 解读 + 三栏微型证据）→ 五张指标卡（环比三件套 + 极性着色 + 带周期的迷你线）→ 会话结果构成
+ * → Agent 趋势（VZ 堆叠柱：周末底纹 / 均值线 / 本图图例 / 堆叠·分组·100% / 刷选重算指标卡）+ 人格卡（双向条）
+ * → 活跃节律（VZ 热力图：消息数 / 纠偏率）+ 工具 Top 6（浅条 + 错误率微型条）+ 本周建议。
+ * 页面状态放在 S.ov；图表在 PAGES.overview.after 里用 VZ.mount 挂载。 */
+S.ov = S.ov || { stack: 'stacked', heat: 'msgs', hidden: [], lede: null, synced: '2 分钟前已同步', brush: null };
+let OV_T = null;   // 「重新生成」的打字定时器：连点只保留最后一次（BUG-66）
+function ovDaily(fn, endDay, n) { const out = []; for (let k = n - 1; k >= 0; k--) { const d = endDay - k; out.push(fn(ALL.filter((s) => s.d === d && pass(s, { noExtra: true })))); } return out; }
+function ovTrend(fn, endDay) { return S.range === 7 ? ovDaily(fn, endDay, 7) : weekly(fn, endDay, 12); }
+// 指标卡：delta 为 VZ.delta2 的输入（▲▼ + 变化量 + 上期值，按极性着色）；brushed 时不比上期，只说明范围
+function ovTiles(L, P, brushed) {
+  const st = stats(L); const endDay = win(S.range)[1]; const tl = S.range === 7 ? '近 7 天' : '近 12 周';
+  const cmp = S.compare && !brushed && P;
+  const dl = (cur, prev, o) => cmp ? Object.assign({ cur, prev }, o) : null;
+  const sub = brushed ? '刷选范围' : S.compare && !P ? '无可比上期' : '';
+  const autoD = cmp && P.auto ? { text: (st.auto - P.auto >= 0 ? '▲ +' : '▼ −') + f1(Math.abs(st.auto - P.auto)) + ' · 上期 ' + f1(P.auto) + '×', cls: '' } : null;
+  const tiles = [
+    { k: 'n', label: '会话', value: fmt(st.n), delta: dl(st.n, P && P.n, { unit: 'pct', fmt: 'int' }), trend: ovTrend((x) => x.length, endDay), r: 'sessions' },
+    { k: 'h', label: '协作时长', value: f1(st.hours).replace('.0', ''), unit: 'h', delta: dl(st.hours, P && P.hours, { unit: 'pct', fmt: (v) => f1(v) + 'h' }), trend: ovTrend((x) => sum(x, (s) => s.dur), endDay), r: 'sessions' },
+    { k: 'm', label: '你发出的消息', value: fmt(st.msgs), delta: dl(st.msgs, P && P.msgs, { unit: 'pct', fmt: 'int' }), sub: f1(st.per) + ' 条 / 会话', trend: ovTrend((x) => sum(x, (s) => s.msgs), endDay), r: 'sentiment' },
+    { k: 'a', label: '自主比', value: f1(st.auto), unit: '×', delta: autoD, trend: ovTrend((x) => stats(x).auto, endDay), r: 'persona' },
+    { k: 'f', label: '摩擦率', value: f1(st.fric), unit: '%', delta: dl(st.fric, P && P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }), trend: ovTrend((x) => stats(x).fric, endDay), r: 'sentiment' }
+  ];
+  return tiles.map((t) => VZ.kpi({ label: t.label, value: t.value, unit: t.unit, delta: t.delta, sub: t.sub && !t.delta ? t.sub : sub, trend: t.trend, trendLabel: tl, act: 'go', attrs: ' data-r="' + t.r + '" data-k="' + t.k + '"', tf: 'def|' + t.k })).join('');
+}
+// AI 解读三栏的 24px 微型证据：完成率环 / 摩擦类型条 / 建议数
+function ovMini(kind, a, b) {
+  if (kind === 'ring') { const r = 9, c = 2 * Math.PI * r; return '<svg class="ov-mini" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="3"/><circle cx="12" cy="12" r="' + r + '" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-dasharray="' + (c * a / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 12 12)"/></svg>'; }
+  if (kind === 'bars') { const mx = Math.max(1, ...a); return '<svg class="ov-mini" width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">' + a.slice(0, 3).map((v, i) => '<rect x="0" y="' + (i * 8) + '" width="' + Math.max(2, v / mx * 36).toFixed(1) + '" height="6" rx="1.5" fill="' + (i === 0 ? 'var(--crit)' : 'var(--h2)') + '"/>').join('') + '</svg>'; }
+  return '<svg class="ov-mini" width="' + (Math.max(1, a + b) * 9) + '" height="24" viewBox="0 0 ' + (Math.max(1, a + b) * 9) + ' 24" aria-hidden="true">' + Array.from({ length: a + b }, (_, i) => '<rect x="' + (i * 9) + '" y="8" width="7" height="7" rx="1.5" fill="' + (i < a ? 'var(--ai)' : 'none') + '" stroke="var(--ai)" stroke-width="1.2"/>').join('') + '</svg>';
+}
 PAGES.overview = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
-  const pers = persona(L);
-  const d = (cur, prev, unit, goodDown) => {
-    if (!S.compare) return ['', 'var(--ink-3)'];
-    if (!P || !prev) return ['无可比上期', 'var(--ink-3)'];
-    const diff = unit === 'pt' ? cur - prev : (cur - prev) / prev * 100;
-    const txt = (diff >= 0 ? '↑ ' : '↓ ') + (unit === 'pt' ? f1(Math.abs(diff)) + ' pt' : unit === 'x' ? f1(Math.abs(cur - prev)) + '×' : Math.round(Math.abs(diff)) + '%');
-    const col = goodDown == null ? 'var(--ink-2)' : ((diff < 0) === goodDown ? 'var(--good)' : 'var(--crit)');
-    return [txt, col];
-  };
-  const endDay = win(S.range)[1];
-  const tiles = [
-    ['n', '会话', fmt(st.n), '', d(st.n, P && P.n), weekly((x) => x.length, endDay, 12), 'sessions'],
-    ['h', '协作时长', f1(st.hours).replace('.0', ''), 'h', d(st.hours, P && P.hours), weekly((x) => sum(x, (s) => s.dur), endDay, 12), 'sessions'],
-    ['m', '你发出的消息', fmt(st.msgs), '', [f1(st.per) + ' 条 / 会话', 'var(--ink-2)'], weekly((x) => sum(x, (s) => s.msgs), endDay, 12), 'sentiment'],
-    ['a', '自主比', f1(st.auto), '×', d(st.auto, P && P.auto, 'x'), weekly((x) => stats(x).auto, endDay, 12), 'persona'],
-    ['f', '摩擦率', f1(st.fric), '%', d(st.fric, P && P.fric, 'pt', true), weekly((x) => stats(x).fric, endDay, 12), 'sentiment']
-  ];
+  const pers = personaNow();   // 与侧栏、报告同一口径（BUG-06）
+  const note = personaScopeNote();
+  S.ov.brush = null;
   const fr = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]);
   const topF = fr[0];
   const projC = {}; L.forEach((s) => { if (s.corr) projC[s.p] = (projC[s.p] || 0) + s.corr; });
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
   const topR = visibleRecs().filter((r) => !S.installed.has(r.id)).slice(0, 3);
+  const okN = L.filter((s) => s.out === 'ok').length;
   const ai = [
-    ['做得好', 'okc', 'var(--good)', Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + L.filter((s) => s.verify).length + ' 个会话', 'evGood'],
-    ['卡在哪', 'alert', 'var(--crit)', topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad'],
-    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec']
+    ['做得好', 'okc', 'var(--good)', Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
+    ['卡在哪', 'alert', 'var(--crit)', topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
+    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
+  const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
+  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。');
+  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : '本地 Claude Code 生成 · 9/30 23:10';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
-  const vis = AG.map((a) => S.agents.has(a.id));
+  const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
+  const vis = AG.map((a) => !S.ov.hidden.includes(a.name));
   const tot = ser.map((b) => b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0));
-  const mx = Math.max(1, ...tot);
-  const step = mx <= 4 ? 1 : mx <= 8 ? 2 : mx <= 16 ? 4 : mx <= 40 ? 10 : mx <= 80 ? 20 : Math.ceil(mx / 4 / 10) * 10;
-  const top = Math.ceil(mx / step) * step;
-  const W = 720, H = 170, x0 = 30, pw2 = W - x0 - 4, slot = pw2 / ser.length, bw = Math.min(16, slot * 0.62);
-  let bars = '';
-  ser.forEach((b, i) => {
-    let y = H; const last = (() => { let l = -1; b.v.forEach((v, j) => { if (vis[j] && v > 0) l = j; }); return l; })();
-    b.v.forEach((v, j) => {
-      if (!vis[j] || v <= 0) return;
-      const h = v / top * H; const yy = y - h;
-      const x = x0 + i * slot + (slot - bw) / 2;
-      bars += j === last ? '<path d="M' + x.toFixed(1) + ' ' + (y - 1).toFixed(1) + 'V' + (yy + 3).toFixed(1) + 'q0 -3 3 -3h' + (bw - 6).toFixed(1) + 'q3 0 3 3V' + (y - 1).toFixed(1) + 'Z" fill="' + AG[j].c + '"/>' : '<rect x="' + x.toFixed(1) + '" y="' + yy.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, h - 2).toFixed(1) + '" fill="' + AG[j].c + '"/>';
-      y = yy;
-    });
-    bars += '<rect x="' + (x0 + i * slot).toFixed(1) + '" y="0" width="' + slot.toFixed(1) + '" height="' + H + '" fill="transparent" class="hov" data-tf="trend|' + i + '"/>';
-  });
-  let grid = ''; for (let v = 0; v <= top; v += step) { const y = H - v / top * H; grid += '<line x1="' + x0 + '" x2="' + W + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="var(--hair)"/><text x="' + (x0 - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + (S.metric === 'tok' ? v + 'M' : v) + '</text>'; }
-  const every = Math.ceil(ser.length / 6);
-  const xl = ser.map((b, i) => i % every === 0 ? '<text x="' + (x0 + i * slot + slot / 2).toFixed(1) + '" y="' + (H + 16) + '" text-anchor="middle">' + b.lbl + '</text>' : '').join('');
-  const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? '百万 tokens' : '会话';
-  const table = '<div class="scroll-x"><table class="tbl"><thead><tr><th>' + (ser.length > 31 ? '周起始' : '日期') + '</th>' + AG.filter((a, j) => vis[j]).map((a) => '<th style="text-align:right">' + a.short + '</th>').join('') + '<th style="text-align:right">合计</th></tr></thead><tbody>' + ser.map((b, i) => '<tr><td class="mono">' + b.lbl + '</td>' + b.v.map((v, j) => vis[j] ? '<td class="mono" style="text-align:right">' + (S.metric === 'n' ? v : f1(v)) + '</td>' : '').join('') + '<td class="mono" style="text-align:right;font-weight:600">' + (S.metric === 'n' ? tot[i] : f1(tot[i])) + '</td></tr>').join('') + '</tbody></table></div>';
   const hmap = heat(L); CUR.heat = hmap;
-  const hmx = Math.max(1, ...hmap.H.flat());
   let peak = [0, 0]; hmap.H.forEach((r, di) => r.forEach((v, h) => { if (v > hmap.H[peak[0]][peak[1]]) peak = [di, h]; }));
   const night = stats(L.filter((s) => s.h < 3)), day = stats(L.filter((s) => s.h >= 9 && s.h < 18));
   const ratio = day.fric ? night.fric / day.fric : 0;
-  const cells = hmap.H.map((r, di) => r.map((v, h) => '<rect x="' + (18 + h * 13) + '" y="' + (di * 13) + '" width="11" height="11" rx="2" fill="var(--h' + Math.min(5, Math.floor(v / hmx * 5.999)) + ')" data-tf="heat|' + di + '|' + h + '" data-act="heatCell" data-h="' + h + '" style="cursor:pointer"/>').join('')).join('');
+  const peakV = hmap.H[peak[0]][peak[1]];
+  const heatLine = S.ov.heat === 'msgs' ? '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + f1(st.fric) + '%';
   const trows = toolRows(L).slice(0, 6); const tmx = Math.max(1, trows[0].n);
+  const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
+  const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
   return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
-    '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>2 分钟前已同步</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
+    '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12.5px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
-    '<div class="card pad ov-ai" id="aiCard"><div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap" style="font-size:11.5px" data-aigen>本地 Claude Code 生成 · 9/30 23:10</span><button type="button" class="btn sm gh" data-act="regen" style="margin-left:auto">重新生成</button></div><p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + (pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + st.n + ' 个会话，至少需要 30 个才给出协作画像。') + '</p></div>' +
-    ai.map((g) => '<div class="col" style="gap:6px"><div class="row" style="font-size:12px;font-weight:600">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</div><p style="margin:0;font-size:12.5px;line-height:1.55;color:var(--ink-2)">' + esc(g[3]) + '</p>' + (g[4] ? '<button type="button" class="lnk" data-act="' + g[5] + '" style="align-self:flex-start;margin-top:auto">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
-    '<div class="tiles">' + tiles.map((t) => '<button type="button" class="card tile" data-act="go" data-r="' + t[6] + '" data-tf="def|' + t[0] + '"><span class="row" style="justify-content:space-between;width:100%"><span style="font-size:12px;color:var(--ink-2)">' + t[1] + '</span>' + spark(t[5]) + '</span><span class="row" style="align-items:baseline;gap:3px"><span class="v">' + t[2] + '</span><span style="font-size:13px;color:var(--ink-3)">' + t[3] + '</span></span><span style="font-size:11.5px;color:' + t[4][1] + ';font-weight:600;white-space:nowrap">' + (t[4][0] || '&nbsp;') + '</span></button>').join('') + '</div>' +
-    '<div class="two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 使用趋势</span><span class="cap">' + (ser.length > 31 ? '每周' : '每日') + unitName + ' · 按 Agent 堆叠</span></div><div class="seg" role="group" aria-label="度量">' + [['n', '会话'], ['h', '时长'], ['tok', 'Tokens']].map((m) => '<button type="button" data-act="metric" data-v="' + m[0] + '" class="' + (S.metric === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="视图"><button type="button" data-act="view" data-v="chart" class="' + (S.view === 'chart' ? 'on' : '') + '" aria-label="图表视图" style="padding:0 6px">' + ic('chart', 14) + '</button><button type="button" data-act="view" data-v="table" class="' + (S.view === 'table' ? 'on' : '') + '" aria-label="表格视图" style="padding:0 6px">' + ic('grid', 14) + '</button></div></div>' +
-    '<div class="legend" style="margin-bottom:8px">' + AG.map((a, j) => '<button type="button" class="' + (vis[j] ? '' : 'off') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="点击只看该 Agent；⌥ 点击多选"><span class="sq" style="background:' + a.c + '"></span>' + a.name + '<b class="mono" style="color:var(--ink-1)">' + (S.metric === 'n' ? L.filter((s) => s.a === a.id).length : f1(sum(ser, (b) => b.v[j]))) + '</b></button>').join('') + '</div>' +
-    (S.view === 'chart' ? '<svg class="chart" viewBox="0 0 ' + W + ' ' + (H + 22) + '" role="img" aria-label="每日各 Agent 会话数堆叠柱状图">' + grid + bars + '<line x1="' + x0 + '" x2="' + W + '" y1="' + H + '" y2="' + H + '" stroke="var(--line)"/>' + xl + '</svg>' : table) + '</div>' +
-    '<button type="button" class="card pad" data-act="go" data-r="persona" style="text-align:left;display:flex;flex-direction:column;gap:10px"><span class="row" style="justify-content:space-between;width:100%"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + st.n + '</span></span>' +
-    (pers.ok ? '<span class="serif" style="font-size:40px;line-height:44px;font-weight:600;letter-spacing:.04em">' + pers.code + '</span><span class="row" style="align-items:baseline"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span>' + [0, 1, 2, 3].map((i) => { const a = axisView(pers, i); return '<span style="display:grid;grid-template-columns:50px minmax(0,1fr) 50px 24px;align-items:center;gap:8px;font-size:12px;width:100%"><span style="color:' + (a.leftWins ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (a.leftWins ? 700 : 400) + '"><span class="mono">' + a.ax.L + '</span> ' + a.ax.Ln + '</span><span class="track" style="height:6px"><span class="mid"></span><span class="fill" style="height:6px;left:' + Math.min(a.pos, 50) + '%;width:' + Math.abs(a.pos - 50) + '%"></span><span class="knob" style="width:12px;height:12px;margin-left:-6px;top:-3px;left:' + a.pos + '%"></span></span><span style="text-align:right;color:' + (!a.leftWins ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (!a.leftWins ? 700 : 400) + '">' + a.ax.Rn + ' <span class="mono">' + a.ax.R + '</span></span><span class="mono" style="text-align:right;font-weight:600">' + a.strong + '</span></span>'; }).join('') : '<span class="cap">再积累 ' + (30 - st.n) + ' 个会话后揭晓</span>') +
-    '<span class="row" style="margin-top:auto;justify-content:space-between;width:100%"><span class="cap">点击查看完整画像</span>' + ic('arrow', 14) + '</span></button></div>' +
+    // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
+    '<div class="card pad ov-ai" id="aiCard"><div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap" style="font-size:11.5px" data-aigen>' + ledeWhen + '</span><button type="button" class="btn sm gh" data-act="regen" style="margin-left:auto">重新生成</button></div><p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>' + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '</div>' +
+    ai.map((g) => '<div class="col ov-aic"><div class="row" style="justify-content:space-between"><span class="row" style="font-size:12px;font-weight:600;gap:6px">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div><p style="margin:0;font-size:12.5px;line-height:1.55;color:var(--ink-2)">' + esc(g[3]) + '</p>' + (g[4] ? '<button type="button" class="lnk" data-act="' + g[5] + '" style="align-self:flex-start;margin-top:auto">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
+    '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
+    // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
+    '<div class="card ov-out"><div class="row" style="gap:10px;flex-wrap:wrap"><span class="eb">会话结果</span><span class="ct">' + outLine + '</span><span class="cap">' + st.n + ' 个会话 · 点击一段只看该结果</span></div><div class="vz" data-vz="ov-out" style="flex:1;min-width:200px"></div></div>' +
+    '<div class="two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 使用趋势</span><span class="cap">' + (ser.length > 31 ? '每周' : '每日') + unitName + (S.metric === 'tok' ? ' <span class="bdg">示例</span>' : '') + ' · ' + ({ stacked: '按 Agent 堆叠', grouped: '按 Agent 分组', pct: '各 Agent 占比' })[S.ov.stack] + '</span></div></div><div class="row ov-ctl"><div class="seg" role="group" aria-label="度量">' + [['n', '会话'], ['h', '时长'], ['tok', 'Tokens']].map((m) => '<button type="button" data-act="metric" data-v="' + m[0] + '" class="' + (S.metric === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="堆叠方式">' + [['stacked', '堆叠'], ['grouped', '分组'], ['pct', '100%']].map((m) => '<button type="button" data-act="stackMode" data-v="' + m[0] + '" class="' + (S.ov.stack === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="视图"><button type="button" data-act="view" data-v="chart" class="' + (S.view === 'chart' ? 'on' : '') + '" aria-label="图表视图" style="padding:0 6px">' + ic('chart', 14) + '</button><button type="button" data-act="view" data-v="table" class="' + (S.view === 'table' ? 'on' : '') + '" aria-label="表格视图" style="padding:0 6px">' + ic('grid', 14) + '</button></div></div>' +
+    '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap" style="font-size:11px;margin-top:6px">图例只影响本图（点击隐藏 · ⌥ 点击只看）· 在图上拖选一段时间，指标卡按该范围重算</div></div>' +
+    // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
+    '<div class="card pad ov-pers"><div class="row" style="justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
+    (pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : '<span class="cap">再积累 ' + (30 - pers.n) + ' 个会话后揭晓</span>') +
+    (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
+    '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three">' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">活跃节律</span><span class="cap">消息数 · 周 × 小时</span></div></div><svg viewBox="0 0 332 106" style="width:100%;height:auto" role="img" aria-label="一周七天乘二十四小时的活跃热力图">' + WD.map((w, i) => '<text x="0" y="' + (i * 13 + 9) + '" font-size="10" fill="var(--ink-3)">' + w + '</text>').join('') + cells + '<rect x="' + (18 + peak[1] * 13 - 2) + '" y="' + (peak[0] * 13 - 2) + '" width="15" height="15" rx="4" fill="none" stroke="var(--ink-1)" stroke-width="1.5"/>' + [0, 6, 12, 18, 23].map((h) => '<text x="' + (18 + h * 13 + 5.5) + '" y="104" font-size="10" text-anchor="middle" font-family="var(--mono)" fill="var(--ink-3)">' + h + '</text>').join('') + '</svg><div class="row" style="justify-content:space-between;margin-top:8px;flex-wrap:wrap;gap:8px"><span style="font-size:12px;color:var(--ink-2)"><b style="color:var(--ink-1)">高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时</b>' + (ratio ? ' · 深夜纠偏率为白天 ' + f1(ratio) + '×' : '') + '</span><span class="row" style="gap:2px" aria-label="颜色图例：少到多"><span class="cap" style="font-size:10.5px;margin-right:3px">少</span>' + [1, 2, 3, 4, 5].map((k) => '<span style="width:9px;height:9px;border-radius:2px;background:var(--h' + k + ')"></span>').join('') + '<span class="cap" style="font-size:10.5px;margin-left:3px">多</span></span></div><div class="cap" style="font-size:11px;margin-top:6px">点击格子：查看该时段的会话</div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="col" style="gap:6px">' + trows.map((t) => '<button type="button" data-act="openTool" data-t="' + t.name + '" style="display:grid;grid-template-columns:66px minmax(0,1fr) 44px 62px;align-items:center;gap:8px;height:22px;border:0;background:none;padding:0;text-align:left"><span class="mono" style="font-size:12px">' + t.name + '</span><span style="height:10px"><span style="display:block;height:10px;width:' + (t.n / tmx * 100).toFixed(1) + '%;min-width:2px;border-radius:0 4px 4px 0;background:var(--ink-2)"></span></span><span class="mono" style="font-size:11.5px;text-align:right">' + fmt(t.n) + '</span><span class="row" style="justify-content:flex-end;gap:3px;font-size:11px;color:' + (t.err > 0.1 ? 'var(--crit)' : 'var(--ink-3)') + ';font-weight:' + (t.err > 0.1 ? 600 : 400) + '">' + (t.err > 0.1 ? ic('alert', 12) : '') + '<span class="mono">' + f1(t.err * 100) + '%</span></span></button>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">右列为错误率 · 超过 10% 以图标标出</div></div>' +
+    // 活跃节律：固定格宽、消息数 / 纠偏率切换、数值图例（评审 A1-V11）
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">活跃节律</span><span class="cap">周 × 小时</span></div><div class="seg" role="group" aria-label="热力图度量"><button type="button" data-act="heatMode" data-v="msgs" class="' + (S.ov.heat === 'msgs' ? 'on' : '') + '">消息数</button><button type="button" data-act="heatMode" data-v="corr" class="' + (S.ov.heat === 'corr' ? 'on' : '') + '">纠偏率</button></div></div>' +
+    '<div class="ov-heat-line"><b>' + heatLine + '</b>' + (S.ov.heat === 'msgs' ? '<button type="button" class="lnk" data-act="heatCell" data-h="' + peak[1] + '" data-d="' + peak[0] + '">证据 →</button>' : '') + '</div>' +
+    '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap" style="font-size:11px;margin-top:6px">点击格子：查看该小时开始的会话（筛选只按小时，不分星期）</div></div>' +
+    // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="ov-tools">' + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span><span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span></button>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">右侧为错误率（刻度 0–20%）· 超过 10% 标红</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="col" style="gap:8px">' + (topR.length ? topR.map((r) => '<div class="row" style="min-height:48px;gap:10px"><span style="width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;background:var(--sunken)">' + ic(r.icon) + '</span><button type="button" data-act="openRec" data-id="' + r.id + '" style="flex:1;min-width:0;border:0;background:none;padding:0;text-align:left"><span style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.title) + '</span><span style="display:block;font-size:11.5px;color:var(--ink-3)"><span class="mono" style="color:var(--ink-2)">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>' +
     '</div></div></div>';
 };
-TIPS.trend = (i) => { const b = CUR.trend && CUR.trend[+i]; if (!b) return ''; const vis = AG.map((a) => S.agents.has(a.id)); const t = b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0); const fmtv = (v) => S.metric === 'n' ? v : f1(v); return '<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:6px"><b>' + (b.a === b.b ? mdz(b.a) + ' 周' + WD[wd(b.a)] : md(b.a) + ' – ' + md(b.b)) + '</b><span class="mono" style="opacity:.75">' + fmtv(t) + (S.metric === 'n' ? ' 个会话' : S.metric === 'h' ? ' h' : 'M') + '</span></div>' + b.v.map((v, j) => vis[j] && v ? '<div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:2px;background:' + AG[j].c + '"></span><b class="mono">' + fmtv(v) + '</b><span style="opacity:.8">' + AG[j].name + '</span></div>' : '').join(''); };
+// 图表挂载：趋势（堆叠 / 分组 / 100%）、结果构成、人格双向条、节律热力图
+PAGES.overview.after = () => {
+  const L = sel(); const ser = CUR.trend || []; const pers = personaNow();
+  const last = ser.length - 1; const weeklyB = ser.length > 31;
+  const days = last >= 0 ? ser[last].b - ser[last].a + 1 : 0; const partial = weeklyB && days < 7;
+  const pct = S.ov.stack === 'pct';
+  const totals = ser.map((b) => b.v.reduce((x, v) => x + v, 0));
+  const unit = S.metric === 'n' ? ' 个会话' : S.metric === 'h' ? ' h' : 'M';
+  const fmtV = (v) => S.metric === 'n' ? fmt(v) : f1(v);
+  const series0 = AG.map((a, j) => ({ name: a.name, color: a.c, values: ser.map((b, i) => pct ? (totals[i] ? b.v[j] / totals[i] * 100 : null) : b.v[j]), total: fmtV(sum(ser, (b) => b.v[j])) + (S.metric === 'n' ? '' : unit) }));
+  // 周末底纹：相邻的周六 / 周日合并成一段（只有日桶时）
+  const bands = []; if (!weeklyB) ser.forEach((b, i) => { if (wd(b.a) >= 5) { const prev = bands[bands.length - 1]; if (prev && prev.to === i - 1 && wd(b.a) === 6) prev.to = i; else bands.push({ from: i, to: i, label: bands.length ? '' : '周末' }); } });
+  const vis = AG.map((a) => !S.ov.hidden.includes(a.name));
+  const full = ser.slice(0, partial ? last : ser.length).map((b) => b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0));
+  const avg = full.length ? full.reduce((a, b) => a + b, 0) / full.length : 0;
+  VZ.mount('ov-trend', {
+    type: 'bar', title: 'Agent 使用趋势', height: 190, stacked: !(S.ov.stack === 'grouped'), view: S.view, hidden: S.ov.hidden, animate: false,
+    x: { values: ser.map((b) => b.lbl) }, series: series0,
+    y: { format: pct ? (v) => Math.round(v) + '%' : S.metric === 'tok' ? (v) => (v ? v + 'M' : '0') : S.metric === 'h' ? '1f' : 'int', max: pct ? 100 : undefined, label: pct ? '占比' : S.metric === 'h' ? '小时' : S.metric === 'tok' ? '百万 tokens' : '会话' },
+    bands, refs: pct || !avg ? [] : [{ y: avg, label: (weeklyB ? '周均 ' : '日均 ') + fmtV(avg) }],
+    hatch: partial ? [last] : [], notes: partial ? [{ i: last, text: '本周进行中（' + days + '/7 天）' }] : [],
+    brush: true,
+    onLegend: (name, on, o) => { S.ov.hidden = o.hidden; },
+    onBrush: (r) => ACT.ovBrushed(r),
+    onSelect: (i) => { const b = ser[i]; if (!b) return; toast((b.a === b.b ? md(b.a) : md(b.a) + ' – ' + md(b.b)) + ' · ' + fmtV(b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0)) + unit); }
+  });
+  const st = stats(L);
+  VZ.mount('ov-out', { type: 'share', title: '会话结果构成', legend: 'bottom', barH: 12, height: 24, animate: false, unit: ' 个会话', items: [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] })), n: st.n, onSelect: (i, d) => { S.outcome = d.id; go('sessions'); } });
+  if (pers.ok) VZ.mount('ov-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: [0, 1, 2, 3].map((i) => { const a = axisView(pers, i); const sgn = a.ax.k === 'I' ? 1 : -1; return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: +((50 - a.val) * sgn * -1 / 50).toFixed(2), hint: a.ax.dim + ' · 强度 ' + a.strong }; }), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: (v) => String(Math.round(Math.abs(v) * 50 + 50)), axis: false, rowH: 26, barH: 8, legend: false, animate: false });
+  const H = CUR.heat; if (!H) return;
+  const corr = S.ov.heat === 'corr';
+  const values = corr ? H.H.map((r, i) => r.map((v, h) => (v ? H.C[i][h] / v * 100 : null))) : H.H;
+  const mx = Math.max(1, ...values.flat().filter((v) => v != null));
+  VZ.mount('ov-heat', {
+    type: 'heatmap', title: '活跃节律 · ' + (corr ? '纠偏率' : '消息数'), rows: WD, cols: Array.from({ length: 24 }, (_, h) => h % 6 ? '' : String(h)), values, ramp: corr ? 'corr' : 'accent', cellMax: 13, gap: 2, peak: !corr, min: 0, animate: false,
+    format: corr ? 'pct' : 'int', unit: corr ? '纠偏率' : '条消息', scaleLabels: ['0', (corr ? f1(mx) + '%' : fmt(mx) + ' 条')], scaleNote: corr ? '灰格：该时段没有消息' : null,
+    tipHead: (r, c) => '周' + WD[r] + ' ' + c + ':00–' + (c + 1) + ':00', tipExtra: (r, c) => { const v = H.H[r][c], k = H.C[r][c]; return corr ? VZ.tipRow('var(--ink-4)', '消息', fmt(v) + ' 条 · 纠偏 ' + k + ' 次', { kind: 'rect' }) : VZ.tipRow(VZ.sem.corr, '纠偏', k + ' 次' + (v ? '（' + f1(k / v * 100) + '%）' : ''), { kind: 'rect' }); },
+    onSelect: (i, d) => ACT.heatCell({ dataset: { h: String(d.c), d: String(d.r) } })
+  });
+};
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
 function recPrimaryBtn(r, small) {
   const inst = S.installed.has(r.id);
@@ -92,7 +141,19 @@ Object.assign(ACT, {
   compare: () => { S.compare = !S.compare; render(); },
   metric: (el) => { S.metric = el.dataset.v; render(); },
   view: (el) => { S.view = el.dataset.v; render(); },
-  heatCell: (el) => { S.hour = +el.dataset.h; go('sessions'); toast('已筛选 ' + el.dataset.h + ':00–' + (+el.dataset.h + 1) + ':00 开始的会话'); },
+  stackMode: (el) => { S.ov.stack = el.dataset.v; render(); },
+  heatMode: (el) => { S.ov.heat = el.dataset.v; render(); },
+  // 刷选：指标卡按刷选的桶范围重算（不整页重绘，保留刷选框）；清除后恢复整段
+  ovBrushed: (r) => {
+    const ser = CUR.trend || []; const box = $('#ovBrush'); const tiles = $('#ovTiles'); if (!tiles) return;
+    if (!r || !ser.length) { S.ov.brush = null; if (box) box.hidden = true; const pw = prevWin(S.range); tiles.innerHTML = ovTiles(sel(), pw ? stats(sel({ win: pw })) : null); return; }
+    const a = Math.min(r[0], r[1]), b = Math.max(r[0], r[1]); S.ov.brush = [a, b];
+    const sub = sel({ win: [ser[a].a, ser[b].b] });
+    tiles.innerHTML = ovTiles(sub, null, true);
+    if (box) { box.hidden = false; $('#ovBrushTxt').textContent = '已刷选 ' + md(ser[a].a) + ' – ' + md(ser[b].b) + ' · ' + sub.length + ' 个会话，指标卡已按该范围重算'; }
+  },
+  ovBrushClear: () => { const el = $('[data-vz="ov-trend"]'); const inst = el && VZ._inst.get(el); if (inst) { inst.brushRange = null; const r = el.querySelector('.vz-brush'); if (r) r.setAttribute('hidden', ''); } ACT.ovBrushed(null); },
+  heatCell: (el) => { const h = +el.dataset.h; const d = el.dataset.d; S.hour = h; go('sessions'); toast('已筛选 ' + h + ':00–' + (h + 1) + ':00 开始的会话' + (d != null ? '（按小时，不分星期：周' + WD[+d] + '的格子只决定小时）' : '')); },
   openTool: (el) => { S.tools.open = el.dataset.t; go('tools'); },
   evGood: () => { S.outcome = 'ok'; go('sessions'); },
   evBad: () => { const fr = Object.entries(countBy(sel(), 'fric')).sort((a, b) => b[1] - a[1]); if (fr[0]) S.fric = fr[0][0]; go('sessions'); },
@@ -101,16 +162,19 @@ Object.assign(ACT, {
     const p = personaNow(); const el = $('#aiLead'); if (!el) return;
     const variants = p.ok ? ['你像一位' + p.zh + '：' + p.line, '一句话：你把大块目标交给 Agent，并且很在意结果是否真的可用。', '你的协作重心在「交出去」和「收回来」两端：委托得多，验收也严。'] : ['样本不足，暂不下结论。'];
     const txt = variants[Math.floor(Math.random() * variants.length)];
-    el.textContent = ''; $('[data-aigen]').innerHTML = '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> 本地 Claude Code 生成中…';
-    let i = 0; const t = setInterval(() => { i += 2; el.textContent = txt.slice(0, i); if (i >= txt.length) { clearInterval(t); const g = $('[data-aigen]'); if (g) g.textContent = '本地 Claude Code 生成 · 刚刚'; } }, 30);
+    if (OV_T) clearInterval(OV_T);   // 连点只保留最后一次（BUG-66）
+    el.textContent = ''; const g0 = $('[data-aigen]'); if (g0) g0.innerHTML = '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> 本地 Claude Code 生成中…';
+    const key = S.range + '|' + (p.ok ? p.code : '-') + '|' + Array.from(S.agents).join(',');
+    let i = 0; OV_T = setInterval(() => { i += 2; el.textContent = txt.slice(0, i); if (i >= txt.length) { clearInterval(OV_T); OV_T = null; S.ov.lede = { key, txt }; const g = $('[data-aigen]'); if (g) g.textContent = '本地 Claude Code 生成 · 刚刚'; } }, 30);
   },
   reindex: () => reindex(),
   report: () => openReport(),
   ovMore: (el) => openDD(el, [{ t: '重新索引', k: '⌘R', v: () => reindex() }, { t: '导出工具明细 CSV…', v: () => openCSV() }, { t: '键盘快捷键', k: '?', v: () => openKeys() }], (v) => v())
 });
+let OV_IDX = null;
 function reindex() {
+  if (OV_IDX) return;   // 正在索引时不重复启动
   const s = $('[data-sync]'); if (s) s.innerHTML = '<span class="spin" style="width:11px;height:11px;vertical-align:-1px"></span> 正在索引…';
   const c = $('#content'); if (c) c.classList.add('stale');
-  setTimeout(() => { if (c) c.classList.remove('stale'); const s2 = $('[data-sync]'); if (s2) s2.textContent = '刚刚已同步'; toast('索引完成：新增 0 个会话，2,416 个会话均已是最新'); }, 1200);
+  OV_IDX = setTimeout(() => { OV_IDX = null; S.ov.synced = '刚刚已同步'; const c2 = $('#content'); if (c2) c2.classList.remove('stale'); const s2 = $('[data-sync]'); if (s2) s2.textContent = S.ov.synced; toast('索引完成：新增 0 个会话，2,416 个会话均已是最新'); }, 1200);
 }
-
