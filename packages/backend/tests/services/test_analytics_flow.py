@@ -164,3 +164,15 @@ def test_recompute_and_prewarm(client_factory, codex_root):
                          json={"sections": ["instruction"], "scope": {"from_ts": 5}})
     assert queued.status_code == 202 and queued.json()["jobs"][0]["job_id"]
     _ready(gateway, "instruction")
+
+
+def test_warmup_route_queues_on_the_worker(client_factory, codex_root):
+    client, gateway = client_factory()
+    assert client.post("/v1/analytics/warmup").status_code == 409  # nothing imported yet
+    source = add_codex(client, codex_root)
+    assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
+        "status"] == "completed"
+    body = client.post("/v1/analytics/warmup").json()
+    assert body["status"] == "queued" and body["queued"] == len(body["job_ids"]) > 0
+    wait_for(lambda: {f.data["section"] for f in bus_events(gateway, "analysis.ready")}
+             >= {"uiview_facts", "overview"}, 120, 0.1, "warmup")

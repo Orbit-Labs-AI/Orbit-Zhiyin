@@ -219,6 +219,17 @@ def router(gw: Gateway) -> APIRouter:
         params = {"task_id": task_id} if task_id is not None else {}
         return serve("preferences", scope, params, wait_ms, if_none_match)
 
+    @api.post("/v1/analytics/warmup")
+    def warmup():
+        """Queue the first-screen prewarm (7 days → 30 days → all time) on the analysis
+        worker. Overrides the create_app() route, which warmed inside the gateway process."""
+        rev = gw.revisions.snapshot()
+        if rev["data_rev"] is None:
+            raise ApiError(409, "no_projection", "No published data to analyse", retryable=True)
+        queued = gw.prewarm()
+        return {"status": "queued" if queued else "ready", "queued": len(queued),
+                "job_ids": queued, "data_rev": rev["data_rev"]}
+
     @api.post("/v1/analytics/recompute", status_code=202)
     def recompute(request: RecomputeRequest):
         unknown = [s for s in request.sections if s not in SECTIONS]
