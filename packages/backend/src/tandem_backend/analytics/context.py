@@ -93,6 +93,34 @@ class AnalysisContext:
         }[kind]
         return [row for sid in sorted(ids) for row in groups.get(sid, [])]
 
+    @cached_property
+    def _context_positions(self) -> dict[str, list[tuple[int, Record]]]:
+        groups: dict[str, list[tuple[int, Record]]] = defaultdict(list)
+        for i, event in enumerate(self.diagnostics["context_events"]):
+            groups[event["session_uid"]].append((i, event))
+        return groups
+
+    def tree_context_events(self, ids: set[str]) -> list[Record]:
+        """Context events of ``ids`` in their global order, without scanning all of them."""
+        if len(ids) == 1:
+            return list(self.context_groups.get(next(iter(ids)), ()))
+        pairs = [pair for sid in ids for pair in self._context_positions.get(sid, ())]
+        pairs.sort(key=lambda pair: pair[0])
+        return [event for _, event in pairs]
+
+    @cached_property
+    def _session_positions(self) -> dict[str, int] | None:
+        """Selection positions, or None when uids repeat (callers then scan the list)."""
+        positions = {s["session_uid"]: i for i, s in enumerate(self.sessions)}
+        return positions if len(positions) == len(self.sessions) else None
+
+    def tree_sessions(self, ids: set[str]) -> list[Record]:
+        """Sessions of ``ids`` in selection order, without scanning the whole selection."""
+        positions = self._session_positions
+        if positions is None:
+            return [s for s in self.sessions if s["session_uid"] in ids]
+        return [self.sessions[i] for i in sorted(positions[sid] for sid in ids if sid in positions)]
+
     def seed_families(self, ids: set[str], value: Record) -> None:
         """Store families computed elsewhere (a worker) for exactly this scope."""
         self._families.setdefault(tuple(sorted(ids)), value)

@@ -345,12 +345,16 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             "status": "unknown",
             "timezone_source": "unknown",
         }
-        event_cwd = None
+        # Only metadata events and events naming a git root contribute here; the
+        # substring test is a superset of both (checked again below), so the other
+        # events are neither fetched nor decoded twice (derive_sessions reads them).
         for row in store.db.execute(
-            "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
+            "SELECT kind,attrs,text FROM event WHERE session_uid=? AND (kind IN "
+            "('session.meta','setting.change','session.title') OR instr(attrs,'\"git_root\"')>0) "
+            "ORDER BY seq",
+            (session_uid,),
         ):
             attrs = json.loads(row["attrs"])
-            event_cwd = event_cwd or attrs.get("cwd")
             if isinstance(attrs.get("git_root"), str):
                 recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
@@ -392,8 +396,18 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         if not values.get("timezone"):
             values["timezone"], values["timezone_source"] = None, "unknown"
         # Same fallback as _derive_session, so session and turn projects agree.
-        if not values.get("cwd") and event_cwd:
-            values["cwd"] = event_cwd
+        if not values.get("cwd"):
+            # First event (by seq) carrying a cwd, read lazily: the filtered scan above
+            # skips ordinary events.
+            for row in store.db.execute(
+                "SELECT attrs FROM event WHERE session_uid=? AND instr(attrs,'\"cwd\"')>0 "
+                "ORDER BY seq",
+                (session_uid,),
+            ):
+                event_cwd = json.loads(row["attrs"]).get("cwd")
+                if event_cwd:
+                    values["cwd"] = event_cwd
+                    break
         metas[session_uid] = values
         progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
     progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})
@@ -444,8 +458,11 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
     progress({"stage": "derive_sessions", "completed": 0, "total": len(metas)})
     for index, (session_uid, meta) in enumerate(metas.items()):
         events = []
+        # Only the columns _derive_session reads: text and ext can be large.
         for row in store.db.execute(
-            "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
+            "SELECT event_uid,record_uid,seq,kind,ts,call_id,turn_uid,attrs FROM event "
+            "WHERE session_uid=? ORDER BY seq",
+            (session_uid,),
         ):
             event = dict(row)
             event["attrs"] = json.loads(event["attrs"])
@@ -488,6 +505,17 @@ def _link_spawns(store, metas, spawn_ids):
                 "WHERE session_uid=? AND spawn_call_uid IS NULL",
                 (row[0], session_uid),
             )
+
+
+def _insert_grouped(db, table, rows):
+    """Insert rows in order, one executemany per run of rows with the same columns."""
+    run = []
+    for row in rows:
+        if run and list(row) != list(run[0]):
+            insert_rows(db, table, run)
+            run = []
+        run.append(row)
+    insert_rows(db, table, run)
 
 
 def _derive_session(store, session_uid, meta, events, recorded_root=None, shared_projects=None):
@@ -760,14 +788,13 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
     insert_rows(store.db, "event_context", contexts)
     if turn_updates:
         store.db.executemany("UPDATE event SET turn_uid=? WHERE event_uid=?", turn_updates)
+    # Same rows in the same order as row-by-row inserts, written per table in batches
+    # (foreign keys are deferred, so tool_call rows may precede their turn rows).
+    call_events = []
     for values, call in tools.values():
-        insert(store.db, "tool_call", values)
         for role, field in (("call", "call_event_uid"), ("result", "result_event_uid")):
             if values.get(field):
-                store.db.execute(
-                    "INSERT INTO tool_call_event VALUES(?,?,?)",
-                    (values["call_uid"], values[field], role),
-                )
+                call_events.append((values["call_uid"], values[field], role))
         if call:
             features[("tool_category", values["kind"])] += 1
             for feature, field in (
@@ -780,14 +807,14 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             for filename in json.loads(values["files"]):
                 if Path(filename).suffix:
                     features[("file_extension", Path(filename).suffix)] += 1
-    for evidence in permission_evidence:
-        store.db.execute("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", evidence)
-    for turn in turns.values():
-        insert(store.db, "turn", turn)
-    for (feature, value), count in features.items():
-        store.db.execute(
-            "INSERT INTO session_feature VALUES(?,?,?,?)", (session_uid, feature, value, count)
-        )
+    _insert_grouped(store.db, "tool_call", [values for values, _ in tools.values()])
+    store.db.executemany("INSERT INTO tool_call_event VALUES(?,?,?)", call_events)
+    store.db.executemany("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", permission_evidence)
+    insert_rows(store.db, "turn", turns.values())
+    store.db.executemany(
+        "INSERT INTO session_feature VALUES(?,?,?,?)",
+        [(session_uid, feature, value, count) for (feature, value), count in features.items()],
+    )
     action_times = [
         e["ts"]
         for e in events

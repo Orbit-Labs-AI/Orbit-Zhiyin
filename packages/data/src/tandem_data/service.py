@@ -37,16 +37,114 @@ class ImportRequest:
     rebuild: bool = True
 
 
+# Background maintenance per store home. A new writer on the same home stops it (an
+# interrupted VACUUM rolls back cleanly) and waits, so imports never queue behind
+# maintenance; the next import end schedules it again.
+class _Maintenance:
+    def __init__(self, home: Path):
+        self.home = home
+        self.stop = threading.Event()
+        self.connection: sqlite3.Connection | None = None
+        self.result: dict | None = None
+        self.thread = threading.Thread(target=self.run, name="tandem-maintenance", daemon=True)
+
+    def run(self) -> None:
+        fd = None
+        # Sequential imports (one call per source) follow each other within milliseconds;
+        # the grace period lets the next one cancel this run before any work starts.
+        if self.stop.wait(MAINTENANCE_GRACE_SECONDS):
+            self.result = {"action": "interrupted"}
+            self._finish()
+            return
+        try:
+            fd = _lock(self.home)
+            with Store(self.home) as store:
+                self.connection = store.db
+                if self.stop.is_set():
+                    self.result = {"action": "interrupted"}
+                    return
+                self.result = store.maintain()
+        except RuntimeError:
+            # Another process holds the writer lock; it maintains at its own import end.
+            self.result = {"action": "busy"}
+        except (OSError, ValueError, sqlite3.Error) as error:
+            # Interrupted by a new writer (the VACUUM rolled back) or the store went away.
+            self.result = {"action": "interrupted", "error": type(error).__name__}
+        finally:
+            self.connection = None
+            if fd is not None:
+                os.close(fd)
+            self._finish()
+
+    def _finish(self) -> None:
+        with _MAINTENANCE_LOCK:
+            if _MAINTENANCE.get(self.home) is self:
+                del _MAINTENANCE[self.home]
+
+    def interrupt(self) -> None:
+        self.stop.set()
+        connection = self.connection
+        if connection is not None:
+            connection.interrupt()
+
+
+_MAINTENANCE: dict[Path, _Maintenance] = {}
+_MAINTENANCE_LOCK = threading.Lock()
+MAINTENANCE_MODES = ("background", "wait", "off")
+MAINTENANCE_GRACE_SECONDS = 1.0
+
+
+def _yield_maintenance(home: Path) -> None:
+    with _MAINTENANCE_LOCK:
+        running = _MAINTENANCE.get(home)
+    if running is None or running.thread is threading.current_thread():
+        return
+    running.interrupt()
+    running.thread.join()
+
+
+def wait_for_maintenance(home: str | Path) -> dict | None:
+    """Block until background maintenance on ``home`` finishes; returns its result."""
+    with _MAINTENANCE_LOCK:
+        running = _MAINTENANCE.get(Path(home).expanduser().resolve())
+    if running is None:
+        return None
+    running.thread.join()
+    return running.result
+
+
+def _lock(home: Path) -> int:
+    fd = os.open(home / "import.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(fd)
+        raise RuntimeError("Another import worker is active") from error
+    return fd
+
+
 class ImportService:
-    """Use one instance per worker thread; never share a SQLite connection across threads."""
+    """Use one instance per worker thread; never share a SQLite connection across threads.
+
+    ``maintenance`` runs ``Store.maintain`` (compaction) after an import has published,
+    outside its timing: ``background`` (default) on a separate connection in a daemon
+    thread, ``wait`` synchronously before the import call returns (CLI and benchmarks;
+    reported as ``result["maintenance"]``), ``off`` never. WAL readers keep reading their
+    snapshot while a VACUUM runs and see the compacted file on their next transaction; a
+    page size change needs the only connection and otherwise keeps the current size.
+    """
 
     def __init__(
         self,
         store: Store,
         progress: Callable[[dict], None] | None = None,
         workers: int | None = None,
+        maintenance: str = "background",
     ):
         """``workers=1`` keeps the serial whole-source path; the default is parallel."""
+        if maintenance not in MAINTENANCE_MODES:
+            raise ValueError(f"maintenance must be one of {MAINTENANCE_MODES}")
+        self.maintenance = maintenance
         self.store = store
         self.progress = progress or (lambda _: None)
         self.workers = parallel.default_workers() if workers is None else max(1, workers)
@@ -61,19 +159,41 @@ class ImportService:
 
     @contextmanager
     def writer(self):
-        fd = os.open(self.store.home / "import.lock", os.O_CREAT | os.O_RDWR, 0o600)
+        _yield_maintenance(self.store.home)
+        fd = _lock(self.store.home)
         try:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise RuntimeError("Another import worker is active") from error
             yield
         finally:
             os.close(fd)
 
+    def maintain(self, *, force: bool = False) -> dict:
+        """Synchronous post-import maintenance on this service's connection."""
+        with self.writer():
+            return self.store.maintain(force=force)
+
+    def _after_publish(self, result: dict) -> dict:
+        """Import end hook: compaction is scheduled after the import has published."""
+        if self.maintenance == "wait":
+            result["maintenance"] = self.maintain()
+        elif self.maintenance == "background":
+            home = self.store.home
+            with _MAINTENANCE_LOCK:
+                if home in _MAINTENANCE:
+                    return result
+                job = _MAINTENANCE[home] = _Maintenance(home)
+                job.thread.start()
+            result["maintenance"] = {"action": "scheduled"}
+        return result
+
     _writer = writer  # Compatibility for earlier callers.
 
     def import_source(self, request: ImportRequest, cancel: threading.Event | None = None) -> dict:
+        result = self._import_source(request, cancel)
+        if "projection" in result:
+            self._after_publish(result)
+        return result
+
+    def _import_source(self, request: ImportRequest, cancel: threading.Event | None) -> dict:
         if request.agent not in MAPPERS:
             raise ValueError(f"Unknown connector: {request.agent}")
         if request.limit is not None and request.limit < 1:
@@ -196,7 +316,7 @@ class ImportService:
                     )
                 else:
                     result["projection"] = self.store.rebuild(
-                        source_ids=stale_sources, progress=self.progress
+                        source_ids=stale_sources, progress=self.progress, optimize=False
                     )
                 result["skipped_files"] = result["projection"].get("skipped_files", 0)
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)
@@ -269,7 +389,10 @@ class ImportService:
 
     def import_progressive(self, requests, cancel: threading.Event | None = None, **options):
         """First import, newest sessions first; see ``scheduler.import_progressive``."""
-        return scheduler.import_progressive(self, list(requests), cancel=cancel, **options)
+        summary = scheduler.import_progressive(self, list(requests), cancel=cancel, **options)
+        if summary.get("batches"):
+            self._after_publish(summary)
+        return summary
 
     def pause_collection(self) -> dict:
         return scheduler.pause(self.store.home)

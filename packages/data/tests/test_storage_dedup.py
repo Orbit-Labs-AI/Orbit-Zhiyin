@@ -11,8 +11,16 @@ import pytest
 
 from tandem_data import payload
 from tandem_data.query import event_page, trajectory_page
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import PAGE_SIZE, SMALL_PAGE_SIZE, Store, insert_rows, readonly_connection
+from tandem_data.service import ImportRequest, ImportService, wait_for_maintenance
+from tandem_data.store import (
+    PAGE_SIZE,
+    SMALL_PAGE_SIZE,
+    TINY_PAGE_SIZE,
+    Store,
+    insert_rows,
+    readonly_connection,
+    target_page_size,
+)
 from tandem_data.validation.integrity import logical_digest
 
 BIG = 48_000
@@ -115,7 +123,7 @@ def write_sessions(root: Path) -> dict[str, str]:
 
 def import_home(home: Path, source: Path) -> Store:
     store = Store(home)
-    ImportService(store).import_source(ImportRequest("claude_code", source))
+    ImportService(store, maintenance="off").import_source(ImportRequest("claude_code", source))
     return store
 
 
@@ -300,9 +308,9 @@ def test_compaction_keeps_logical_contents(tmp_path, corpus):
     before, digest = dump(home), logical_digest(home)
     with Store(home) as store:
         assert store.db.execute("PRAGMA page_size").fetchone()[0] == PAGE_SIZE
-        # A small store moves to small pages once (no other connection is open), then stays.
+        # A tiny store moves to tiny pages once (no other connection is open), then stays.
         assert store.compact()
-        assert store.db.execute("PRAGMA page_size").fetchone()[0] == SMALL_PAGE_SIZE
+        assert store.db.execute("PRAGMA page_size").fetchone()[0] == TINY_PAGE_SIZE
         assert store.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert not store.compact()
         assert store.compact(force=True)
@@ -322,4 +330,98 @@ def test_compaction_keeps_page_size_while_a_reader_is_open(tmp_path, corpus):
         assert store.compact()  # Falls back to a plain VACUUM; WAL mode is kept.
         assert store.db.execute("PRAGMA page_size").fetchone()[0] == PAGE_SIZE
         assert store.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    assert logical_digest(home) == digest
+
+
+def test_page_size_tiers_have_hysteresis():
+    mib = 1 << 20
+    assert target_page_size(5 * mib, PAGE_SIZE) == TINY_PAGE_SIZE
+    assert target_page_size(8 * mib, PAGE_SIZE) == SMALL_PAGE_SIZE
+    assert target_page_size(8 * mib, SMALL_PAGE_SIZE) == SMALL_PAGE_SIZE
+    assert target_page_size(8 * mib, TINY_PAGE_SIZE) == TINY_PAGE_SIZE
+    assert target_page_size(13 * mib, TINY_PAGE_SIZE) == SMALL_PAGE_SIZE
+    assert target_page_size(20 * mib, SMALL_PAGE_SIZE) == SMALL_PAGE_SIZE
+    assert target_page_size(20 * mib, PAGE_SIZE) == PAGE_SIZE
+    assert target_page_size(40 * mib, SMALL_PAGE_SIZE) == PAGE_SIZE
+
+
+def _pages(home: Path) -> str:
+    with readonly_connection(home / "tandem.db") as db:
+        sessions = [r[0] for r in db.execute("SELECT session_uid FROM session ORDER BY 1")]
+    return json.dumps([event_page(home, s, limit=1000) for s in sessions], ensure_ascii=False)
+
+
+def test_parallel_import_maintains_after_publish(tmp_path, corpus):
+    """Parallel imports (the default) used to skip compaction entirely."""
+    source, _ = corpus
+    serial, parallel_home = tmp_path / "serial", tmp_path / "parallel"
+    with Store(serial) as store:
+        ImportService(store, workers=1, maintenance="off").import_source(
+            ImportRequest("claude_code", source)
+        )
+    with Store(parallel_home) as store:
+        service = ImportService(store, workers=2, maintenance="wait")
+        try:
+            result = service.import_source(ImportRequest("claude_code", source))
+        finally:
+            service.close()
+        maintenance = result["maintenance"]
+        assert maintenance["action"] == "vacuum"
+        assert maintenance["bytes"] < maintenance["bytes_before"]
+        assert store.db.execute("PRAGMA page_size").fetchone()[0] == TINY_PAGE_SIZE
+        assert store.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert store.db.execute("PRAGMA auto_vacuum").fetchone()[0] == 2
+        assert store.verify()["integrity"] == "ok"
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
+        # A second maintenance finds nothing left to rewrite.
+        assert ImportService(store, workers=1).maintain()["action"] in (
+            "none",
+            "incremental_vacuum",
+        )
+    assert logical_digest(parallel_home) == logical_digest(serial)
+    assert _pages(parallel_home) == _pages(serial)
+
+
+def test_background_maintenance_keeps_reads_stable(tmp_path, corpus):
+    """WAL readers keep their snapshot during the VACUUM and read the same pages after it."""
+    source, _ = corpus
+    home = tmp_path / "home"
+    import_home(home, source).db.close()
+    expected, digest = _pages(home), logical_digest(home)
+    with readonly_connection(home / "tandem.db") as reader:
+        reader.execute("BEGIN")
+        snapshot = reader.execute("SELECT COUNT(*),group_concat(event_uid) FROM event").fetchone()
+        with Store(home) as store:
+            service = ImportService(store, workers=1, maintenance="background")
+            assert service._after_publish({})["maintenance"] == {"action": "scheduled"}
+            during = [_pages(home)]
+            result = wait_for_maintenance(home)
+            during.append(_pages(home))
+        assert tuple(
+            reader.execute("SELECT COUNT(*),group_concat(event_uid) FROM event").fetchone()
+        ) == tuple(snapshot)
+        reader.execute("COMMIT")
+    assert result["action"] == "vacuum"
+    # The open reader keeps WAL mode and the page size; only a plain VACUUM ran.
+    assert all(page == expected for page in during)
+    assert _pages(home) == expected
+    assert logical_digest(home) == digest
+    with Store(home) as store:
+        assert store.db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert store.verify()["integrity"] == "ok"
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
+
+
+def test_new_import_interrupts_background_maintenance(tmp_path, corpus):
+    source, _ = corpus
+    home = tmp_path / "home"
+    import_home(home, source).db.close()
+    digest = logical_digest(home)
+    with Store(home) as store:
+        service = ImportService(store, workers=1, maintenance="background")
+        service._after_publish({})
+        # The writer lock is never refused because of our own maintenance.
+        result = service.import_source(ImportRequest("claude_code", source))
+        assert "error" not in result
+        wait_for_maintenance(home)
     assert logical_digest(home) == digest
