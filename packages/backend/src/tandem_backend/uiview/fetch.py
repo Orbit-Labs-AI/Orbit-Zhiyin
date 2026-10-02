@@ -42,3 +42,37 @@ def _attach(snapshot, h: str) -> dict:
     meta = {**(snapshot.body.get("meta") or {}), "scope_hash": h,
             "data_rev": snapshot.key.data_rev, "inventory_rev": snapshot.key.inventory_rev}
     return {**snapshot.body, "meta": meta}
+
+
+def default_scope(tz: str | None = None) -> dict:
+    """The scope ``/v1/uiview/facts`` uses when only a display timezone is given."""
+    from dataclasses import asdict
+
+    from ..services.routes_uiview import facts_scope
+
+    return asdict(facts_scope(display_timezone=tz or "UTC"))
+
+
+def latest_rows(gw, tz: str | None = None) -> dict[str, dict] | None:
+    """Newest cached fact rows by session id (never enqueues a computation)."""
+    from ..services.sections import rules_digest
+    from ..services.snapshots import scope_hash
+
+    snapshot = gw.snapshots.latest(SECTION, scope_hash(default_scope(tz), {}), rules_digest())
+    if snapshot is None:
+        return None
+    return {r["id"]: r for r in snapshot.body.get("rows") or [] if not r.get("excluded")}
+
+
+def persona_page(gw, scope_dict: dict, params: dict, today, *, wait_ms: int = 0):
+    """(A2 persona payload | None, freshness, job_id) — what ``/v1/uiview/persona`` returns."""
+    from . import facts, persona
+
+    body, freshness, job_id = fetch(gw, scope_dict, wait_ms=wait_ms)
+    if body is None:
+        return None, freshness, job_id
+    realtime = getattr(gw, "realtime", None)
+    body = facts.overlay_live(body, realtime.latest() if realtime is not None else None)
+    page = persona.page(body, params, today)
+    page["meta"].update({k: body["meta"].get(k) for k in ("data_rev", "scope_hash")})
+    return page, freshness, job_id

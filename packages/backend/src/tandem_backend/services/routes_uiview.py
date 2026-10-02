@@ -7,6 +7,8 @@ brushing and window switches never wait for the analysis engine.
 - ``GET /v1/uiview/facts`` — one columnar row per main session (ETag / 304 on data_rev).
 - ``GET /v1/uiview/overview`` — A1 / Lite home (tiles, outcome, trend, heat, tools, insight).
 - ``GET /v1/uiview/persona`` and ``/persona/reveal`` — A2 / Lite persona and reveal subset.
+- ``/v1/uiview/sessions*`` — A3 / Lite list and detail (``uiview.routes_sessions``), overlaid
+  with the newest cached fact rows (clock fields stay the request's own timezone).
 
 Freshness follows the analytics snapshots: ``fresh`` / ``stale`` (200) or ``computing``
 (202 with ``job_id``).
@@ -22,7 +24,7 @@ from typing import TYPE_CHECKING, Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, Response
 
-from ..uiview import facts, fetch, overview, persona
+from ..uiview import facts, fetch, overview, persona, routes_sessions
 from .auth import ApiError
 from .routes_analytics import analytics_scope
 
@@ -155,4 +157,11 @@ def router(gw: Gateway) -> APIRouter:
         return persona_call(persona.reveal, scope, persona_params(period, agents, project, None),
                             today, wait_ms)
 
+    def fact_overlay() -> dict | None:
+        rows = fetch.latest_rows(gw)
+        clock = ("d", "h", "mi", "live", "excluded")
+        return {uid: {k: v for k, v in r.items() if k not in clock}
+                for uid, r in rows.items()} if rows else None
+
+    api.include_router(routes_sessions.router(gw, facts_provider=fact_overlay))
     return api
