@@ -642,6 +642,10 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
         if final_boundary and final_boundary["kind"] == "turn.end"
         else "unknown"
     )
+    if not action_times:
+        # Sessions without turn/message boundaries (tool-only subagent or review rollouts)
+        # still span their timestamped events.
+        action_times = [e["ts"] for e in events if e["ts"] is not None]
     store.db.execute(
         "UPDATE session SET started_at=?,ended_at=?,status=? WHERE session_uid=?",
         (
