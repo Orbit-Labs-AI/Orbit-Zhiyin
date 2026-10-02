@@ -51,7 +51,7 @@ def test_v1_history_upgrades_in_place_and_old_runs_stay_readable(tmp_path):
     # Reopening a current database is a no-op; a newer one is refused.
     AnalysisHistory(path)
     with history.connect() as db:
-        db.execute("PRAGMA user_version=3")
+        db.execute("PRAGMA user_version=4")
     with pytest.raises(ValueError, match="Unsupported"):
         AnalysisHistory(path)
 
