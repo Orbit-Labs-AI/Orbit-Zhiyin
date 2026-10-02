@@ -76,7 +76,7 @@ CREATE TABLE source_boundary (
   source_id TEXT PRIMARY KEY REFERENCES source, last_ingest_scope TEXT NOT NULL,
   observed_at INTEGER NOT NULL
 ) STRICT;
-INSERT INTO pipeline_version VALUES('parser','codex-connector/0.2.1'),('derivation','codex-derive/0.2.1'),('redaction','codex-redact/0.2.1');
+INSERT INTO pipeline_version VALUES('parser','codex-connector/0.2.1'),('derivation','codex-derive/0.2.1'),('redaction','codex-redact/0.2.2');
 INSERT OR IGNORE INTO dirty_session SELECT session_uid FROM session;
 INSERT OR IGNORE INTO dirty_session SELECT DISTINCT session_uid FROM current_record WHERE session_uid IS NOT NULL;
 UPDATE session SET started_at=NULL WHERE started_at=0;

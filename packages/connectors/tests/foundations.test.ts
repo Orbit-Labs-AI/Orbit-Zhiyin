@@ -62,3 +62,9 @@ test('SQLite migration is repeatable, private and rejects invalid event attribut
       native_key:['s','r'],event_path:'message.text',contract_version:1,mapper_version:'test'}));
   } finally { await rm(dir,{recursive:true,force:true}); }
 });
+test('Basic authentication, cookie headers and credentialed URI schemes are redacted',()=>{
+  const text='Authorization: Basic dXNlcjpwYXNzd29yZA==\nCookie: sid=opaque-session-value\nSet-Cookie: auth=opaque-cookie-value; HttpOnly\npostgres://alice:opaque-db-password@db.example/test';
+  const result=JSON.stringify(sanitize({text,cookie:'opaque-structured-cookie',setCookie:'opaque-set-cookie'}));
+  for(const secret of ['dXNlcjpwYXNzd29yZA==','opaque-session-value','opaque-cookie-value','opaque-db-password','opaque-structured-cookie','opaque-set-cookie'])assert.ok(!result.includes(secret));
+  assert.ok(result.includes('db.example/test'));
+});

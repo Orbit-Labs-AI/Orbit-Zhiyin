@@ -5,7 +5,7 @@ const hiddenKeys = /^(creator_user_id|creator_account_id)$/i;
 function secretKey(key:string):boolean {
   const normalized=key.replace(/([a-z0-9])([A-Z])/g,'$1_$2').toLowerCase().replace(/[^a-z0-9]+/g,'_');
   // Do not match plural token counters or token_usage objects. Credentials may use vendor prefixes and camelCase.
-  return /(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?)$/.test(normalized)
+  return /(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?|cookies?|set_cookie)$/.test(normalized)
     || /(?:^|_)(?:secret|password|passwd)(?:_|$)/.test(normalized);
 }
 export function redact(text: string): string {
@@ -13,8 +13,10 @@ export function redact(text: string): string {
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '<redacted:private_key>')
     .replace(/(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g, '<redacted:api_key>')
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}/gi, 'Bearer <redacted:token>')
+    .replace(/Basic\s+[A-Za-z0-9+/]{4,}={0,2}/gi, 'Basic <redacted:credentials>')
+    .replace(/((?:Cookie|Set-Cookie)\s*:\s*)[^\r\n]+/gi,'$1<redacted:cookie>')
     .replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*["']?)[^\s"'`,;}{]{8,}/gi, '$1<redacted:secret>')
-    .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/g, '$1<redacted:credentials>@');
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, '$1<redacted:credentials>@');
 }
 /** L0 alone holds original bytes. L1/L2 never hold inline media, credentials or account identities. */
 export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024, toolBudget = 8192): Json {
