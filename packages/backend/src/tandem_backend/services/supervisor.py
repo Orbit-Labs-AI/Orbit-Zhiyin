@@ -13,8 +13,8 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   three failures open a circuit for that key. A task whose budget already hit the cap
   fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout
 - analysis RSS (the worker and its process-pool children) above 1.5 GB recycles the worker
-  after the task; above ``rss_kill_bytes`` (4 GB) while running (heartbeat RSS) kills it
-  and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
+  after the task; above ``rss_kill_bytes`` (half the RAM, 4–16 GB) while running (heartbeat
+  RSS) kills it and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
 - analysis runs a killed or crashed worker left ``running`` in ``analysis.sqlite`` are
   failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
 """
@@ -46,6 +46,20 @@ def _heavy_timeout_default() -> float:
         return 120.0
 
 
+def physical_memory_bytes() -> int | None:
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError, AttributeError):
+        return None
+
+
+def default_rss_kill_bytes() -> int:
+    """Half the machine's memory, within 4–16 GB: a real home's all-time analysis needs
+    several GB, so the guard protects the machine without failing normal work."""
+    total = physical_memory_bytes() or 8 * 2**30
+    return int(min(max(total // 2, 4 * 2**30), 16 * 2**30))
+
+
 @dataclass
 class SupervisorConfig:
     heartbeat_s: float = 5.0
@@ -63,7 +77,7 @@ class SupervisorConfig:
     # Ceiling of every budget (sized allowance and per-timeout doubling included).
     max_budget_s: float = 900.0
     rss_limit_bytes: int = 1_500_000_000
-    rss_kill_bytes: int = 4_000_000_000
+    rss_kill_bytes: int = field(default_factory=lambda: default_rss_kill_bytes())
     analysis_idle_s: float = 300.0
     max_failures: int = 3
     max_preemptions: int = 2  # an interactive task may interrupt the same prewarm this often
