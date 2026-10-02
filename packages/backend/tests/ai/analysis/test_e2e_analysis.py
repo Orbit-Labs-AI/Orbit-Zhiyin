@@ -88,3 +88,18 @@ def test_facet_job_writes_ai_facet(client):
     with gw.appdb.read() as db:
         rows = db.execute("SELECT session_uid, status FROM ai_facet").fetchall()
     assert {r[0] for r in rows} == set(uids) and {r[1] for r in rows} == {"ok"}
+
+
+def test_auto_facet_new_respects_setting_and_skips_faceted(client, monkeypatch):
+    from tandem_backend.ai import auto, auto_facet_new
+
+    c, gw, _ = client
+    monkeypatch.setattr(auto, "WINDOW_DAYS", 100000)
+    assert auto_facet_new(gw) == {"status": "skipped", "reason": "disabled"}
+    assert c.put("/v1/ai/consent", json={"settings": {"auto_facet_new": True}}).status_code == 200
+    first = auto_facet_new(gw, limit=3)
+    assert first["status"] == "submitted" and first["sessions"] == 3
+    assert _wait(c, first["job_id"])["status"] == "ok"
+    with gw.appdb.read() as db:
+        faceted = {r[0] for r in db.execute("SELECT session_uid FROM ai_facet")}
+    assert len(faceted) == 3 and not faceted & set(auto.new_session_uids(gw, 50))
