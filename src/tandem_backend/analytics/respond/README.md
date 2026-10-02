@@ -83,7 +83,7 @@ result = analyze_respond(events, calls, sessions, main_ids={"s"})
 
 输入沿用 analysis-input-v1。L2 `call_id` 可位于事件或 attrs，工具名为 attrs.name/name_raw，分类为 attrs.category；L3 使用 call_uid。源身份可用 event.source_id，session_uid 必须稳定。错误原因仅消费明确 error_class/failure_reason，不读取 stdout 词语来判断成败。
 
-可选扩展：task_uid、argument_digest_kind、retry_of_call_uid、child_session_uid/parent_session_uid。调用结果范围使用 status_scope；外层成功遇内部失败为失败，内部未知为未知，原始状态仍保留。已知成功+失败是成功率分母，拒绝／中断／运行中／未知另列。
+可选扩展：task_uid、argument_digest_kind、retry_of_call_uid、child_session_uid/parent_session_uid。调用结果范围使用 status_scope；外层成功遇内部失败为失败，内部未知为未知，原始状态仍保留。设置历史截止时间时，validation_result 和 validation_report 均需在截止前可见，无时间或未来报告不返回。已知成功+失败是成功率分母，拒绝／中断／运行中／未知另列。
 
 可靠区间要求 UTC 毫秒端点与 interval_reliable=true 或 duration_source=native_bounds。L2 配对时，调用和返回都必须明确声明可靠原生端点；不把事件写入时间冒充执行时间。Cost/Time 消费此处的区间；Outcome 消费此处的状态与证据，工具成功不等于任务成功。
 
@@ -106,7 +106,7 @@ python -m pytest -q tests/bottleneck/test_respond.py tests/bottleneck/test_integ
 ruff check src tests
 ```
 
-2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器后，在隔离提交副本中 556 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器并修复两项 P1 后，在隔离提交副本中 564 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
 
 ## 补充特征与函数
 

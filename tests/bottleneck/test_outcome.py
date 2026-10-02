@@ -118,3 +118,14 @@ def test_acceptance_becomes_visible_only_after_both_criteria_and_result(make_cal
     r = analyze_outcome([c], es, {"s"})
     assert r["acceptance_results"][0]["available_at"] == 500
     assert analyze_outcome([c], es, {"s"}, until_ts=400)["acceptance_results"] == []
+
+
+@pytest.mark.parametrize("other_session, expected", [("child", "unknown"), ("s", "passed")])
+def test_unclocked_result_sequences_only_order_one_session(make_call, make_event, other_session, expected):
+    calls = [make_call("root-failed", ended_at=None, result_seq=2, status="failed", validation=validation()),
+             make_call("other-passed", session_uid=other_session, root_session_uid="s",
+                       ended_at=None, result_seq=50, status="success", validation=validation())]
+    criterion = acceptance(criteria=[{"criterion_uid": "test", "kind": "test"}])
+    result = analyze_outcome(calls, [make_event(acceptance=criterion)], {"s"})
+    assert result["acceptance_results"][0]["acceptance_result"] == expected
+    assert result["task_success"] is (True if expected == "passed" else None)

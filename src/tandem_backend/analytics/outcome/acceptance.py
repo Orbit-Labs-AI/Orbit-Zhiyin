@@ -44,7 +44,8 @@ def match_acceptance_criteria(criteria, validations):
             if all(timestamp(v.get("available_at")) for v in matched):
                 last = max(v["available_at"] for v in matched)
                 latest = [v for v in matched if v["available_at"] == last]
-            elif all(isinstance(v.get("result_seq"), int) for v in matched):
+            elif (len({v["session_uid"] for v in matched}) == 1
+                  and all(isinstance(v.get("result_seq"), int) for v in matched)):
                 last = max(v["result_seq"] for v in matched)
                 latest = [v for v in matched if v["result_seq"] == last]
             states = {v["validation_result"] for v in latest}
