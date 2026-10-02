@@ -54,7 +54,7 @@ def decoded(row):
 
 
 def read_analysis(
-    home: str | Path, scope: AnalysisScope, *, max_events=100000, include_native=True
+    home: str | Path, scope: AnalysisScope, *, max_events=None, include_native=True
 ) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
 
@@ -140,21 +140,22 @@ def read_analysis(
             + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
             + " ORDER BY session_uid,seq"
         )
-        # Check cardinality without loading/decoding potentially huge native payloads.
-        # The same read transaction and selector keep this check consistent with the read.
-        if not isinstance(max_events, int) or isinstance(max_events, bool) or max_events < 0:
-            raise ValueError("max_events must be a nonnegative integer")
-        budget_params = {**params, "event_budget": max_events + 1}
-        budget_query = query.removesuffix(" ORDER BY session_uid,seq")
-        count = connection.execute(
-            "SELECT COUNT(*) FROM (" + budget_query + " LIMIT :event_budget)", budget_params
-        ).fetchone()[0]
-        if count > max_events:
-            raise ValueError(
-                f"Analysis event limit exceeded ({max_events}, including turn context). "
-                "Narrow --project-id / --from-ts / --until-ts, or explicitly raise --max-events before the command. "
-                "No partial analysis was returned."
-            )
+        if max_events is not None:
+            # Check cardinality without loading/decoding potentially huge native payloads.
+            # The same read transaction and selector keep this check consistent with the read.
+            if not isinstance(max_events, int) or isinstance(max_events, bool) or max_events < 0:
+                raise ValueError("max_events must be a nonnegative integer")
+            budget_params = {**params, "event_budget": max_events + 1}
+            budget_query = query.removesuffix(" ORDER BY session_uid,seq")
+            count = connection.execute(
+                "SELECT COUNT(*) FROM (" + budget_query + " LIMIT :event_budget)", budget_params
+            ).fetchone()[0]
+            if count > max_events:
+                raise ValueError(
+                    f"Analysis event limit exceeded ({max_events}, including turn context). "
+                    "Narrow --project-id / --from-ts / --until-ts, or explicitly raise --max-events before the command. "
+                    "No partial analysis was returned."
+                )
         events = [decoded(row) for row in connection.execute(query, params)]
 
         def member(event):
@@ -406,6 +407,15 @@ def read_analysis(
         time_unknown = sum(e["ts"] is None for e in selected)
         truncated = sum(e["text_truncated"] for e in selected)
         reasons = []
+        scans = [
+            dict(row)
+            for row in connection.execute("SELECT * FROM source_scan")
+            if unrestricted or row["source_id"] in relevant_sources
+        ]
+        if any(row["selection"] == "sample" for row in scans):
+            reasons.append("sampled_source_files")
+        if any(row["cancelled"] or row["indexed_files"] < row["discovered_files"] for row in scans):
+            reasons.append("source_scan_incomplete")
         diagnostics = [
             decoded(row)
             for row in connection.execute(
@@ -423,6 +433,8 @@ def read_analysis(
         )
         if capture_errors:
             reasons.append("capture_errors_or_incomplete_frames")
+        if any(row["code"] == "source_unavailable" for row in diagnostics):
+            reasons.append("source_unavailable_preserved_facts")
         if unparsed:
             reasons.append("unparsed_source_records")
         if any(row["code"] == "inherited_parent_evidence_unavailable" for row in diagnostics):
@@ -436,6 +448,16 @@ def read_analysis(
             connection, until_ts=scope.until_ts, project_ids=scope.project_ids
         )
         coverage = {
+            "source_scans": {
+                "status": "partial"
+                if any(
+                    s["selection"] == "sample" or s["capture_errors"] or s["cancelled"]
+                    for s in scans
+                )
+                else "available",
+                "rows": len(scans),
+                "scans": scans,
+            },
             "sessions": {"status": "available", "rows": len(session_rows)},
             "projects": {"status": "available", "rows": len(project_rows)},
             "turns": {"status": "available", "rows": len(turn_rows)},

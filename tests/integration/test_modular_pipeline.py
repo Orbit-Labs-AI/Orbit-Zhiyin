@@ -338,21 +338,21 @@ def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
     assert store.evidence(full["events"][0]["event_uid"]) is not None
 
 
-@pytest.mark.parametrize("schema_version", [4, 5])
+@pytest.mark.parametrize("schema_version", [4, 5, 6])
 def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_version):
     home, _ = data
     with Store(home) as store:
         if schema_version == 4:
             store.db.execute("DROP TABLE inventory_item")
             store.db.execute("DROP TABLE inventory_scan")
-            store.db.execute("PRAGMA user_version=4")
-            store.db.execute("UPDATE schema_manifest SET schema_version=4")
+        store.db.execute(f"PRAGMA user_version={schema_version}")
+        store.db.execute("UPDATE schema_manifest SET schema_version=?", (schema_version,))
         names = [r[0] for r in store.db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'projection_fk_%'")]
         assert len(names) == 7
         for name in names:
             store.db.execute(f'DROP INDEX "{name}"')
     with Store(home) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
         assert store.db.execute("SELECT count(*) FROM inventory_scan").fetchone()[0] == 0
         assert store.db.execute("SELECT count(*) FROM inventory_item").fetchone()[0] == 0
         store.db.execute("BEGIN")

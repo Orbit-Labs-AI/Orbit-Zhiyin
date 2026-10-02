@@ -26,9 +26,15 @@ class Connector(Protocol):
 def text_content(content) -> str:
     if isinstance(content, str):
         return content
+    if isinstance(content, dict):
+        if isinstance(content.get("text"), str):
+            return content["text"]
+        if "content" in content:
+            return text_content(content["content"])
+        return json.dumps(content, ensure_ascii=False)
     if not isinstance(content, list):
         return ""
-    return "\n".join(block.get("text", "") for block in content if isinstance(block, dict))
+    return "\n".join(block if isinstance(block, str) else text_content(block) for block in content)
 
 
 def decode_json(value, fallback=None):
@@ -282,8 +288,12 @@ class BaseMapper:
             ]
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
+        elif isinstance(content, dict):
+            content = [content]
         result = []
         for index, block in enumerate(content or []):
+            if isinstance(block, str):
+                block = {"type": "text", "text": block}
             if not isinstance(block, dict):
                 result.append(
                     self.make(

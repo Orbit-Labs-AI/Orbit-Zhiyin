@@ -7,6 +7,7 @@ class HermesMapper(BaseMapper):
         self.active_uids = set()
         self.parents = {}
         self.settings = {}
+        self.prompt_sessions = {}
 
         def inspect(record):
             table, row = record.data.get("table"), record.data.get("row", {})
@@ -15,6 +16,8 @@ class HermesMapper(BaseMapper):
             if table == "sessions":
                 self.parents[row["id"]] = row.get("parent_session_id")
                 self.settings[row["id"]] = (row.get("model"), row.get("billing_provider"))
+                if row.get("system_prompt_hash"):
+                    self.prompt_sessions.setdefault(row["system_prompt_hash"], []).append(row["id"])
 
         self.prepare_each(records, inspect)
 
@@ -220,6 +223,26 @@ class HermesMapper(BaseMapper):
             )
             return Mapping([usage])
         if table == "system_prompts":
+            events = []
+            for native in self.prompt_sessions.get(row.get("hash"), []):
+                self.session_uid = self.store.identity(record.source_id, str(native))
+                events.append(
+                    self.make(
+                        record,
+                        "context.inject",
+                        "system_prompt",
+                        text=row.get("prompt"),
+                        native_key=[
+                            record.source_id,
+                            self.session_uid,
+                            "system_prompt",
+                            row["hash"],
+                        ],
+                        attrs={"origin": "injected", "context_type": "system_prompt"},
+                    )
+                )
+            if events:
+                return Mapping(events)
             return Mapping(
                 disposition="ignored",
                 reason="deduplicated prompt retained in L0; session rows carry prompt hash",

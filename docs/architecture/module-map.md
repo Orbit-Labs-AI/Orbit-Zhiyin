@@ -28,7 +28,7 @@ flowchart TD
 | 功能 | 对外入口 | 实现归属 | 契约 / 验证 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | 授权来源导入、进度与重算 | CLI ingest / import-connector；ImportService | data/connectors、service、bridge、pipeline | data 测试；根 integration 桥接回归 | 后端已实现，UI 待接入 |
-| 会话与证据浏览 | /v1/sessions、/v1/evidence | backend/api + data_access + data/query | 分页、只读、范围与过期版本回归 | API 已实现 |
+| 会话与证据浏览 | /v1/sessions、/v1/evidence、trajectory、records/source | backend/api + data_access + data/query | 分页、只读、范围与过期版本回归 | API 已实现 |
 | 特征分析 | analytics CLI；/v1/analytics/* | backend/analytics，各特征族保持独立目录 | analysis-input；模块和集成测试 | 已实现能力见各特征族说明 |
 | 统计分析与运行历史 | /v1/analytics/statistics、lexical、compare、runs；analysis-history | backend/analytics/products；data/analysis_history | 数值与词频独立预期、并发及快照完整性回归 | 已实现；[方法与记录](../modules/analytics/statistics-history.md) |
 | UI 分析组合与本地验收 | analysis-report；/v1/analytics/products*；evals.analytics.products | backend/analytics/products | analysis-products-v1；模块与服务流程组合测试 | API / 报告完成；两版原型待接入，见[说明](../modules/analytics/analysis-products.md) |

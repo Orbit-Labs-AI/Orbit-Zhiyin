@@ -1,6 +1,6 @@
 # 数据与分析模块对照 UI 的后端缺口
 
-2026-10-02。核对基线：main `6f31203`（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），数据侧安装清单另按 `feat/local-inventory` `069310b`；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/tandem-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
+2026-10-02。核对基线：main `9eb18b4`，并计入本文所在分支的 [PR #35](https://github.com/ActionMesh-AI/Hackathon/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/tandem-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
 
 本文回答一个问题：**要让两版 UI 的每个页面和按钮接上真实数据与真实动作，数据模块和分析模块还差什么，另外还需要哪些后端程序。** 八个分析族各自的功能缺口已写在 [analysis-review.md](analysis-review.md)，本文不重复逐族展开，只在页面与横切能力里引用；数据获取的目标方案见 [data-acquisition.md](data-acquisition.md)，统计口径见 [analysis-inputs.md](../contracts/analysis-inputs.md)。
 
@@ -10,7 +10,7 @@
 
 1. **数据底座已经能支撑大多数"事实类"数字。** 7 个 Agent（Claude Code、Codex、DSH、pi、Hermes、OpenCode、Kimi）可离线导入 L0–L3，`tool_call` 有耗时、退出码、错误类别、审批等待，`model_call` 有五类 token，会话有子代理层级、压缩事件和按轮归属的真人文本。概览、工具、项目三页的大部分数字属于"可派生"：字段在库里，缺按 UI 形状聚合的接口。
 2. **最大的阻塞项是语义标注层（G-A2）。** UI 会话对象里的 `corr`、`fric`、`mood`、`topic`、`title`、`verify`、`out`，以及轨迹里的阶段、关键时刻、情绪泳道，都需要逐条打标。分析模块已经在消费 `attrs.interaction`、`attrs.acceptance`，但数据层和分析层都没有任何代码产出这些标注，真实数据上纠偏、验收基本是 unknown；摩擦率、自主比、人格、情绪页、关键时刻都卡在这里。
-3. **UI 说的"轨迹"和"人格"，后端都还没有对应物。** `profiling/trajectory.py` 是"原回复 → 改写 → 评价"的修改链审计，不是泳道时间轴；`profiling/portrait.py` 统计的是 8 类明确要求，不是四轴 16 型人格。两者都要新建（G-A4、G-A5），不能在现有结构上改名。
+3. **原生记录轨迹已具备，但 UI 的语义泳道与"人格"仍缺失。** `profiling/trajectory.py` 是"原回复 → 改写 → 评价"的修改链审计，不是泳道时间轴；`profiling/portrait.py` 统计的是 8 类明确要求，不是四轴 16 型人格。`/v1/sessions/{id}/trajectory` 已提供完整原生记录索引；阶段、关键时刻、泳道聚合与人格仍需实现（G-A4、G-A5），不能把原生轨迹接口等同于 UI 的完整时间轴。
 4. **会写入或调用外部的能力几乎为零。** 写回 Agent 配置、备份与撤销、7 天效果追踪、实时监听与推送、LLM 调用（AI 解读、问本地 Agent、生成工坊）、全文搜索接口、CSV 与分享卡导出、用户设置与纠错的持久化，在后端都还没有实现（G-B）。
 5. **资源目录有了引擎，缺内容和接线。** `packages/catalog` 已有采集、版本、FTS 和本地向量检索，但默认不联网同步，内置种子只有 10 条 skill；推荐引擎读取的 7 个 family 目录 JSON 全为空；推荐卡片也缺 UI 需要的难度、受众、diff、目标路径、教程和追踪指标（G-R）。
 6. **按 Lite 优先补齐的最短路径**是：G-A2 规则版标注 → G-A1 统计接口 → G-A3 会话结果 → G-A4 轨迹接口 → G-A5 人格 → G-R1 资源内容 → G-B8 搜索 → G-B9 导出。Advance 在此之上再补实时、安装闭环、效果追踪、LLM 执行层与生成工坊。
@@ -22,11 +22,11 @@
 | 能力 | 现状 |
 | --- | --- |
 | 会话导入 | 7 个 connector（`tandem_data/connectors/`）。来源目录只读，`--home` 不能放在来源目录内 |
-| 存储 | L0 不可变归档（zstd，按 sha 去重）→ L1 逐行记账（mapped / folded / replayed / duplicate / ignored / unparsed）→ L2 `event`（26 种 kind，过 JSON Schema 校验）→ L3 `session / turn / tool_call / model_call / usage_snapshot / link / session_feature`。迁移在 `migrations/`，`user_version = 5` |
-| 增量 | Python 端按文件 stat 跳过；文件变了重新归档整个文件，L1 复用未变的行，L2/L3 按来源整源重建；`ImportService.watch` 是 2 秒轮询。TS 端只有 Codex，支持真正的 offset/inode 增量和 `fs.watch` 递归监听，经 `import-connector` 桥接进统一库 |
-| 安装清单 | `inventory/`（`feat/local-inventory`，尚未进 main）：skill / mcp / hook / plugin / rule / scheduled_task 六类，10 种目录布局；只存名称、路径、哈希与可空的 enabled，不存命令、env、正文 |
-| 脱敏 | `privacy.py`：密钥字段、认证头、私钥、常见 token 前缀、URL 凭据；L2 文本截到 8 KB。L0 归档保留原文 |
-| 对外接口 | `read_analysis(home, AnalysisScope)` 返回 `analysis-input-v1`；`event_page` 按 seq 游标分页；`tandem-data export` 导出 11 张表或视图 |
+| 存储 | L0 来源位置 / 版本 / 哈希索引（原生扫描不复制整份 session，旧归档兼容）→ L1 逐行记账（mapped / folded / replayed / duplicate / ignored / unparsed）→ L2 `event`（过 JSON Schema 校验）→ L3 `session / turn / tool_call / model_call / usage_snapshot / link / session_feature`。迁移在 `migrations/`，`user_version = 6` |
+| 增量 | Python 端按文件 stat 跳过；文件变了流式更新索引，L1 复用未变的行，L2/L3 按来源重建；归档移动 / 压缩替换按哈希保留记录身份，来源删除时保留已发布事实并标明缺口；`ImportService.watch` 是 2 秒轮询。TS 端只有 Codex，支持真正的 offset/inode 增量和 `fs.watch` 递归监听，经 `import-connector` 桥接进统一库 |
+| 安装清单 | `inventory/`（PR #31，已进 main）：skill / mcp / hook / plugin / rule / scheduled_task 六类，10 种目录布局；只存名称、路径、哈希与可空的 enabled，不存命令、env、正文 |
+| 脱敏 | `privacy.py`：密钥字段、认证头、私钥、常见 token 前缀、URL 凭据；L2 正文和字段不再按长度截断。原文留在来源，通过位置 / 主键与哈希校验按需读取 |
+| 对外接口 | `read_analysis(home, AnalysisScope)` 返回 `analysis-input-v1`；`event_page` 按 seq 游标分页；`trajectory_page` 返回含未知 / 忽略 / 重放记录的完整轨迹，`record_source` 打开原文；`tandem-data export` 导出 11 张表或视图 |
 
 ### 1.2 分析模块（`packages/backend`）
 
@@ -80,7 +80,7 @@ Advance 的轨迹返回 `{T, ev, phases, ctx, moments, users}`，事件分 11 �
 | --- | --- | --- |
 | `user`、`reply` | `message.user`、`message.assistant`，按 `turn_uid` 归轮 | 已有 |
 | `read`、`edit`、`bash`、`web`、`sub` | `tool_call.kind`（Codex 的 CommandExecution / FileChange / WebSearch / MCP；Claude 按工具名）、子代理 `session.parent_uid` | 部分：缺跨 Agent 的工具名 → 泳道映射表（G-D8） |
-| `ev[].cmd`、`res`、`err`、`w` | `tool_call.command_head`、`exit_code`、截断后的结果文本、`error_class`、`duration_*` | 已有 |
+| `ev[].cmd`、`res`、`err`、`w` | `tool_call.command_head`、`exit_code`、完整结果文本、`error_class`、`duration_*` | 已有 |
 | `phase`、`phases` | 无 | **缺失**（G-A4） |
 | `moment`、`moments` | 无 | **缺失**（G-A4） |
 | `ctx` 上下文占比曲线 | 只有 `context.compaction` 事件；占用与窗口大小未入库 | **缺失**（G-D2） |
@@ -93,7 +93,7 @@ Advance 的轨迹返回 `{T, ev, phases, ctx, moments, users}`，事件分 11 �
 | --- | --- | --- |
 | `TOOLS`：调用数、错误率、平均耗时、需审批比例、典型命令 | `tool_call`、`approval_wait_ms`、`command_head` | 可派生 |
 | `TRANS`：P(下一个工具 \| 当前工具) | Respond 的转移图是事件状态转移，不是工具名转移 | 部分（G-A6） |
-| `FAILS`：失败原因聚类 | `error_class`、退出码、截断输出 | 部分：缺按退出码与输出文本的聚类 |
+| `FAILS`：失败原因聚类 | `error_class`、退出码、完整输出 | 部分：缺按退出码与输出文本的聚类 |
 | `WAITS`：审批等待分桶 | `approval_wait_ms`（请求与处理端点齐全时） | 可派生 |
 | MCP 调用数与常驻 tokens | 调用数可从 `tool_call.mcp_server` 得出；工具 schema 常驻开销未采集 | 部分（G-D7） |
 | 子代理派发数、最大并行、并行 ≥ 4 时被停止比例 | Respond 的并行区间；子代理终止状态 | 部分 |
@@ -132,7 +132,7 @@ Advance 的轨迹返回 `{T, ev, phases, ctx, moments, users}`，事件分 11 �
 | --- | --- | --- | --- |
 | **概览** | 指标卡（会话、时长、消息、自主比、摩擦率 / Lite 纠偏率）+ 12 周火花线 + 与上一等长周期的差值；各 Agent 趋势（会话 / 时长 / Tokens 可切换，可切表格）；周 × 小时热力图（Advance 消息与纠偏，Lite 协作分钟数）并下钻；工具 Top 6；AI 解读；本周 3 条建议 | `/v1/analytics/overview`；Cost-Time 只有按日、按小时活动 | G-A1 统计接口（分组、分桶、环比、下钻成员）；G-A2 纠偏标注；自主比口径替换原型的"工具 ×1.54 ÷ 消息"；G-B2 AI 解读（无 LLM 时用 `narrative.py` 模板） |
 | **协作人格 / 画像** | Advance：四轴 16 型、月度演变、证据、优势与盲点 → 建议、反馈"不像我"；Lite：每会话散点、6–9 月逐月画像（不受顶部时间筛选截断）、8 个趣味标签 | `portrait.py` 只有 8 类明确要求的计数与 Wilson 区间，`stability = unverified` | G-A5 四轴与历史；G-B10 "不像我"反馈存储；Lite 散点须用行为轴，不能直接套文本聚类坐标 |
-| **会话与轨迹** | 列表（搜索、按天分组、最后聊天时间排序、工具密度条码、运行中实时时长）；7 项指标；泳道时间轴（时间 / 步数轴、缩放、回放、关键时刻跳转）；A/B 对比；在 Agent 中继续、在 Finder 中显示、复制 ID；启示与"不准确"反馈；Lite 关键任务时间轴与 4 个抽象任务节点 | `/v1/sessions`、`/v1/sessions/{id}/events`、`/v1/analytics/sessions/{id}` | G-A4 轨迹接口；G-A3 结果判定；G-D2 上下文曲线；G-D4 标题；G-B8 会话搜索；G-B12 resume 命令与日志路径；G-D1 运行中追加事件；日志损坏的缺口标注可用 L1 `unparsed` 与 `ingest_issue` 派生 |
+| **会话与轨迹** | 列表（搜索、按天分组、最后聊天时间排序、工具密度条码、运行中实时时长）；7 项指标；泳道时间轴（时间 / 步数轴、缩放、回放、关键时刻跳转）；A/B 对比；在 Agent 中继续、在 Finder 中显示、复制 ID；启示与"不准确"反馈；Lite 关键任务时间轴与 4 个抽象任务节点 | `/v1/sessions`、`/v1/sessions/{id}/events`、`/v1/sessions/{id}/trajectory`、`/v1/records/{id}/source`、`/v1/analytics/sessions/{id}` | G-A4 轨迹接口；G-A3 结果判定；G-D2 上下文曲线；G-D4 标题；G-B8 会话搜索；G-B12 resume 命令与日志路径；G-D1 运行中追加事件；日志损坏的缺口标注可用 L1 `unparsed` 与 `ingest_issue` 派生 |
 | **工具调用** | 明细（调用、错误率、平均耗时、审批比例、30 天趋势、只看失败、展开最近 20 次调用）；4 张汇总卡；转移矩阵（Lite 按行归一化）；失败原因；审批等待分布与只读命令白名单；闲置 MCP；子代理并行度 | `/v1/analytics/tools` 有工具汇总；原始字段齐全 | G-A6 工具页聚合；G-D7 MCP 常驻开销；白名单生成需要只读命令前缀表 |
 | **项目分析** | 项目表（会话、时长、Agent 构成、项目级人格）；跨项目回归（自主比 × 摩擦率，面积 = 时长，输出 b、a、r、n 与残差）；本项目与整体 6 项对比；高频工作流（支持度 40%）；配置覆盖；Lite 完成度 × Tokens 散点 | `/v1/analytics/projects` 按项目聚合 | G-A7 回归、对比、序列挖掘、完成度分布；G-D6 安装清单按项目关联；"按文件夹"合并 |
 | **情绪与语义** | Advance：语言占比、逐条情绪曲线（置信度 ≥ 0.6、按消息加权）、摩擦分类（可改判）、主题与平均情绪、高频反馈语（同义归并与出处）、情绪前因；"仅统计"模式下整页关闭。Lite：反馈语计数、主题、摩擦类型占比，没有情绪曲线 | Subjective Outcome 有明确接受 / 拒绝 / 返工；Preference / Instruction 有明确要求抽取 | G-A8 整页；G-A2 摩擦标注；G-B10 改判存储 |
@@ -185,7 +185,7 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 | G-D9 | 全文搜索接口 | `event_fts`（FTS5）与触发器已建，但没有任何 MATCH 查询，CLI 与服务也没有搜索入口 | 命令面板、会话搜索、反馈语出处 | 在 `query.py` 增加按 Scope 过滤的 FTS 查询与高亮片段，供 G-B8 使用 |
 | G-D10 | 用户状态存储 | canonical 库是只读派生；排除的会话、停用的来源、标签改判、"不像我 / 不准确 / 不适用 / 不感兴趣"反馈、名称映射覆盖都无处存放 | 全局排除与恢复、设置、所有纠错入口 | 新建独立可写的应用状态库（与 `tandem.db` 分开，重建不丢）；分析读取时合并 |
 | G-D11 | 自定义来源 | 只有 7 个固定 connector | 设置·自定义来源（JSONL、SQLite、Markdown，沙盒下用安全书签授权） | 通用导入器：字段映射配置 → L2 事件；先做 JSONL |
-| G-D12 | 可配置脱敏 | `privacy.py` 规则固定；L0 归档保留原文，与 UI"入库前执行"的说法冲突 | 设置·隐私（6 类规则开关、自定义正则、样例测试命中） | 规则可配置并版本化，变更后触发 L2 重建；UI 文案改为"进入分析前执行，原始归档仅本机保留"，或提供不保留 L0 正文的选项 |
+| G-D12 | 可配置脱敏 | `privacy.py` 规则固定；原生采集只保存索引，表内脱敏，显式原文访问不脱敏；旧归档仍兼容 | 设置·隐私（6 类规则开关、自定义正则、样例测试命中） | 规则可配置并版本化，变更后触发 L2 重建；UI 区分"分析表已脱敏"与"显式打开未脱敏来源"；保持新原生采集不复制整份 session |
 | G-D13 | 数据管理 | 有表级导出；没有存储占用统计、清除全部数据、导出全部 JSON | 设置·隐私 | 在服务层提供占用统计、带确认词的清除、全量 JSON 导出 |
 | G-D14 | 首次索引优先级 | 导入不区分时间，只有进度回调 | 首次启动"先索引最近 90 天，约 40 秒" | 导入支持按文件修改时间倒序与时间窗口，先近后远；进度按阶段上报 |
 | G-D15 | 逐次成本 | Claude Code、Codex 的逐次请求没有成本；只有原生上报的 cost | 设计本身不显示金额 | 不建价目表（§8）；保留原生 cost 作附加信息 |
@@ -200,7 +200,7 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 | G-A1 | 统计接口 | `overview` 只有总量；Cost-Time 只有按日、按小时 | 概览指标卡与火花线、趋势、热力图、菜单栏 7 天柱、小组件、Lite 协作分钟数 | 一个接口支持 `metric × group_by(agent / project / model) × bucket(day / week / month / weekday×hour)`，返回 `n / value / 区间 / 上期值`；每个格子可回查成员会话；分母与单位随结果返回 |
 | G-A2 | 语义标注层 | Interaction、Outcome 等待 `attrs.interaction`、`attrs.acceptance`，无生产者；纠偏只有词面候选 | 纠偏、摩擦、情绪、主题名、标题、verify、关键时刻、启示 | 先做规则版：纠偏、摩擦类型、验证要求、反馈语都以"规则候选"产出并带证据；LLM 版作为可选增强（逐会话 facet：目标、任务类型、结果、摩擦类型、摘要），结果带来源标签 `rule / model / user`，用户改判优先；标注写入分析侧存储，不改 canonical 库 |
 | G-A3 | 会话结果判定 | 无 `out`；`task_success` 恒为 null | 会话结果、Lite 完成度、Agent 对比、建议证据 | 结合轮次状态、验证结果、用户接受 / 拒绝 / 放弃信号，输出 ok / part / fail / unknown / live，并附判定依据 |
-| G-A4 | 轨迹接口 | `trajectory.py` 是修改链审计 | 两版会话页时间轴、Lite 任务节点、A/B 对比、关键时刻跳转、回放 | 新接口返回：按泳道分组的事件（时间轴与步数轴两种坐标）、阶段带（调研 / 规划 / 实现 / 验证 / 调试 / 交付）、关键时刻（目标、偏离、纠偏、连续失败、验证通过、放弃）、上下文曲线、用户消息与标注；Lite 的 4 个任务节点由阶段聚合得到；对比用同一坐标规则 |
+| G-A4 | 语义轨迹接口 | 原生 `trajectory_page` 和原文索引已实现；`profiling/trajectory.py` 仍是修改链审计，未做语义泳道 | 两版会话页时间轴、Lite 任务节点、A/B 对比、关键时刻跳转、回放 | 新接口返回：按泳道分组的事件（时间轴与步数轴两种坐标）、阶段带（调研 / 规划 / 实现 / 验证 / 调试 / 交付）、关键时刻（目标、偏离、纠偏、连续失败、验证通过、放弃）、上下文曲线、用户消息与标注；Lite 的 4 个任务节点由阶段聚合得到；对比用同一坐标规则 |
 | G-A5 | 四轴人格与历史 | `portrait.py` 只有要求计数 | Advance A2、Lite 画像、小组件、首次启动揭晓、分享卡 | 四轴各自由行为事实计算并带区间（按天 bootstrap），不满足门槛时该位显示"?"；全局与项目级共用；按月快照，每个月只用当时可见的数据；输出优势、盲点及对应建议 ID |
 | G-A6 | 工具页聚合 | 有工具汇总与事件状态转移 | 工具明细、转移矩阵、失败原因、审批等待、白名单、闲置 MCP、子代理并行 | 工具名转移矩阵（含样本数，Lite 行归一化）；按退出码与输出文本的失败聚类；审批等待分桶；从只读命令前缀生成白名单候选；已装未用（G-D6 × 调用记录）；并行度分布与被停止比例 |
 | G-A7 | 项目分析 | 只有按项目聚合与 `cross_project_candidate` 标记 | 跨项目回归、6 项对比、工作流、配置覆盖、Lite 完成度散点 | 最小二乘回归（b、a、r、n、残差）；项目 vs 整体同口径对比；高频动作序列挖掘（支持度阈值可调，列出支持会话）；配置覆盖读 G-D6；验收与反馈状态分布 |
@@ -237,7 +237,7 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 | G-B9 | 导出 | 只有 CLI 写 Markdown / JSON | Markdown 报告（可选章节）、工具 CSV、会话 CSV、分享卡（Advance PNG 1080×1350，Lite SVG）、导出全部 JSON；导出数字与页面同源（同一 Scope 与数据版本） | 两版 |
 | G-B10 | 设置与持久化 | 无 | 六分区：通用（外观、悬浮组件、小组件、登录启动、默认时间范围）；数据源（检测到的 Agent、版本、状态、最后同步、启用开关、自定义来源、工具名映射、索引方式、暂停采集、立即重新索引）；隐私（脱敏规则、存储位置与占用、导出、清除）；分析（引擎与执行者、人格规则说明、已排除会话、每周报告）；通知（投递矩阵）；关于。全部存 G-D10 | 两版（Lite 取子集） |
 | G-B11 | 首次启动与后台调度 | 无 | 来源检测与会话计数；90 天优先索引；统计 → 轨迹 → 语义 → 人格分阶段完成并上报进度；关窗后台继续、完成后通知；索引方式（FSEvents 实时 / 每小时 / 手动，低电量降级）；周报定时 | Advance（Lite 只需同步入口与进度） |
-| G-B12 | 系统动作所需数据 | 无 resume 命令与日志路径接口 | 后端提供每个会话的日志文件路径、所在项目路径、各 Agent 的 resume 与非交互调用命令模板；打开终端、Finder、编辑器由 App 执行 | 两版 |
+| G-B12 | 系统动作所需数据 | `record_source` 已提供经校验的原文路径 / 主键 / 字节范围；没有 resume 命令接口 | 基于已有原文索引补充会话入口与项目路径、各 Agent 的 resume 与非交互调用命令模板；打开终端、Finder、编辑器由 App 执行 | 两版 |
 
 ## 8. 本文采用的默认口径
 

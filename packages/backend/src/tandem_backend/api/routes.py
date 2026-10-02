@@ -287,6 +287,30 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             raise HTTPException(404, "会话不存在")
         return {"total": len(items), "items": [e.to_dict() for e in items[offset:offset + limit]]}
 
+    @app.get("/v1/sessions/{session_id}/trajectory")
+    def trajectory(session_id: str, after: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000),
+                   run_id: int | None = None, include_children: bool = True):
+        from tandem_data.query import trajectory_page
+        if db is not None:
+            raise HTTPException(409, "原文索引需要 canonical 数据库")
+        try:
+            return trajectory_page(canonical_home, session_id, after=after, limit=limit,
+                                   run_id=run_id, include_children=include_children)
+        except KeyError:
+            raise HTTPException(404, "会话不存在") from None
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
+
+    @app.get("/v1/records/{record_uid}/source")
+    def source_record(record_uid: str, include_content: bool = False):
+        from tandem_data.source_reader import record_source
+        if db is not None:
+            raise HTTPException(409, "原文索引需要 canonical 数据库")
+        try:
+            return record_source(canonical_home, record_uid, include_content=include_content)
+        except KeyError:
+            raise HTTPException(404, "原始记录不存在") from None
+
     @app.get("/v1/analysis")
     def analysis(project_id: str | None = None, model: str | None = None, before: str | None = None,
                  audience: str = "user", scene: str = "auto"):
