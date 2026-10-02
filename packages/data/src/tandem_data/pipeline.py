@@ -10,6 +10,7 @@ from tandem_data.connectors.base import Mapping
 from tandem_data.contract import canonical, now_ms, validate_event
 from tandem_data.privacy import REDACTION_VERSION, record_redactions
 from tandem_data.query import outdated_sources
+from tandem_data.source_reader import SourceUnavailable
 from tandem_data.store import insert
 
 
@@ -30,6 +31,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
     from tandem_data.reduce import derive
 
     override_version = mapper_version
+    progress({"stage": "reset_projection"})
     mapper_version = mapper_version or MAPPER_VERSION
     sequences = defaultdict(int)
     parent_keys = {}
@@ -50,6 +52,10 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         sessions = "SELECT session_uid FROM session_identity WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
         evidence = "SELECT event_uid FROM event WHERE session_uid IN (" + sessions + ")"
         source_files = "SELECT file_id FROM source_file WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
+        from tandem_data.retained import RetainedProjection
+
+        retained = RetainedProjection(store)
+        store._unavailable_files = set(retained.files)
         store.db.execute(
             "DELETE FROM tool_call_event WHERE call_uid IN (SELECT call_uid FROM tool_call WHERE session_uid IN ("
             + sessions
@@ -71,16 +77,13 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         store.db.execute(
             "DELETE FROM ingest_issue WHERE stage IN ('l2','l3') AND source_id IN (SELECT source_id FROM rebuild_scope)"
         )
+        # Walk file-local rows once. Two passes (including a global UID IN-list)
+        # rewrote every current record twice and caused random primary-key IO.
+        current = "EXISTS(SELECT 1 FROM file_record f WHERE f.record_uid=raw_record.record_uid)"
         store.db.execute(
-            "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id IN ("
-            + source_files
-            + ")",
+            f"UPDATE raw_record SET disposition=CASE WHEN {current} THEN 'unparsed' ELSE 'ignored' END,"
+            f"note=CASE WHEN {current} THEN '{{}}' ELSE ? END WHERE file_id IN ({source_files})",
             (canonical({"reason": "superseded source row version"}),),
-        )
-        store.db.execute(
-            "UPDATE raw_record SET disposition='unparsed',note='{}' WHERE file_id IN ("
-            + source_files
-            + ") AND record_uid IN (SELECT record_uid FROM file_record)"
         )
         infos = list(
             store.db.execute(
@@ -89,15 +92,12 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
             )
         )
         mappers = {}
-        for position, info in enumerate(infos, 1):
-            progress(
-                {
-                    "stage": "prepare",
-                    "agent": info["agent"],
-                    "completed": position,
-                    "total": len(infos),
-                }
-            )
+        retained.restore(store, sequences, first_by_native)
+        progress({"stage": "prepare", "completed": 0, "total": len(infos)})
+        for index, info in enumerate(infos):
+            progress({"stage": "prepare", "completed": index, "total": len(infos)})
+            if info["file_id"] in retained.files:
+                continue
             if info["role"] == "legacy_transcript":
                 store.db.execute(
                     "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id=?",
@@ -115,6 +115,8 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
             mapper = MAPPERS[info["agent"]](store, info)
             try:
                 mapper.prepare(store.iter_file(info["file_id"]))
+            except SourceUnavailable:
+                raise  # Never publish a partial replacement from changed evidence.
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 store.issue(
                     info["source_id"],
@@ -207,10 +209,33 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                     (canonical({"reason": "native_mapping_error"}), record.record_uid),
                 )
                 return
-            # Keep all source fields on one event, with bounded/redacted projection copies.
-            # Exact bytes (including media and unknown fields) are always addressed in L0.
-            if result.events:
+            # Legacy stream imports retain their compatibility payload. Native imports
+            # address unrecognized records through L0/L1 instead of copying raw JSON.
+            if (
+                result.events
+                and json.loads(mapper.info["watermark"]).get("capture") != "source_reference"
+            ):
                 result.events[0].ext = {"native": record.data, **result.events[0].ext}
+            else:
+                for draft in result.events:
+                    if draft.kind == "unknown":
+                        draft.ext = {
+                            "native_type": record.native_type,
+                            "source_record_uid": record.record_uid,
+                        }
+            # L1 keeps the source locator instead of another copy of every native payload.
+            table = record.data.get("table") if mapper.info["format"] == "sqlite_rows" else None
+            row = record.data.get("row", {})
+            if mapper.session_uid and (
+                not table
+                or result.events
+                or row.get("session_id")
+                or table in ("session", "sessions", "threads")
+            ):
+                store.db.execute(
+                    "UPDATE raw_record SET session_uid=? WHERE record_uid=?",
+                    (mapper.session_uid, record.record_uid),
+                )
             # Contract errors are implementation bugs: abort and retain the previous published projection.
             with record_redactions():
                 prepared = [
@@ -238,6 +263,23 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                     if relation != "replayed":
                         attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
                         incoming = {**prepared_envelope, "seq": existing["seq"]}
+                        if attrs.get("source_status") == "missing":
+                            # A live representation wins over a preserved one with
+                            # the same native identity, including shorter corrected text.
+                            replacement = dict(incoming)
+                            for field in ("attrs", "ext", "native_key"):
+                                replacement[field] = canonical(replacement[field])
+                            fields = [field for field in replacement if field != "event_uid"]
+                            store.db.execute(
+                                "UPDATE event SET "
+                                + ",".join(f"{field}=?" for field in fields)
+                                + " WHERE event_uid=?",
+                                [replacement[field] for field in fields] + [draft.event_uid],
+                            )
+                            existing = store.db.execute(
+                                "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
+                            ).fetchone()
+                            attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
                         merged, merged_ext = (
                             _merge(attrs, incoming["attrs"]),
                             _merge(ext, incoming["ext"]),
@@ -268,11 +310,32 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                                         file_id=record.file_id,
                                         detail={"field": token},
                                     )
-                        if merged != attrs or merged_ext != ext or stamp != existing["ts"]:
+                        text = existing["text"]
+                        if incoming["text"] and (not text or incoming["text"].startswith(text)):
+                            text = incoming["text"]
+                            for field in (
+                                "original_chars",
+                                "message_digest",
+                                "writing_measurements",
+                            ):
+                                if field in incoming["attrs"]:
+                                    merged[field] = incoming["attrs"][field]
+                        if (
+                            merged != attrs
+                            or merged_ext != ext
+                            or stamp != existing["ts"]
+                            or text != existing["text"]
+                        ):
                             relation = "folded"
                             store.db.execute(
-                                "UPDATE event SET attrs=?,ext=?,ts=? WHERE event_uid=?",
-                                (canonical(merged), canonical(merged_ext), stamp, draft.event_uid),
+                                "UPDATE event SET attrs=?,ext=?,ts=?,text=? WHERE event_uid=?",
+                                (
+                                    canonical(merged),
+                                    canonical(merged_ext),
+                                    stamp,
+                                    text,
+                                    draft.event_uid,
+                                ),
                             )
                     store.db.execute(
                         "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
@@ -333,10 +396,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
             )
 
         parent_indexes = {}
-        for position, info in enumerate(infos, 1):
-            progress(
-                {"stage": "map", "agent": info["agent"], "completed": position, "total": len(infos)}
-            )
+        mapped_records = 0
+        progress({"stage": "map", "completed": 0, "total": len(infos), "records": 0})
+        for index, info in enumerate(infos):
             mapper = mappers.get(info["file_id"])
             if mapper is None:
                 continue
@@ -360,11 +422,49 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.
                 map_record(mapper, record)
+                mapped_records += 1
+                if mapped_records % 500 == 0:
+                    progress(
+                        {
+                            "stage": "map",
+                            "completed": index,
+                            "total": len(infos),
+                            "records": mapped_records,
+                        }
+                    )
+            progress(
+                {
+                    "stage": "map",
+                    "completed": index + 1,
+                    "total": len(infos),
+                    "records": mapped_records,
+                }
+            )
             for record in store.iter_versions(info["file_id"], "table:session_model_usage"):
                 map_record(mapper, record)
             # Finish a parent's duplicate/folded evidence before mapping copied child prefixes.
             pending = _resolve_links(store, pending, final=False)
         _resolve_links(store, pending, final=True)
+        # Lower DSH generations remain browsable in the same trajectory, although
+        # only the highest generation contributes canonical facts.
+        from pathlib import PurePosixPath
+
+        dsh_sessions = {
+            (m.info["source_id"], str(PurePosixPath(m.info["relative_path"]).parent)): m.session_uid
+            for m in mappers.values()
+            if m.info["agent"] == "dsh" and m.session_uid
+        }
+        for info in infos:
+            if info["role"] == "legacy_transcript":
+                session_uid = dsh_sessions.get(
+                    (info["source_id"], str(PurePosixPath(info["relative_path"]).parent))
+                )
+                if session_uid:
+                    store.db.execute(
+                        "UPDATE raw_record SET session_uid=? WHERE file_id=?",
+                        (session_uid, info["file_id"]),
+                    )
+        retained.finish(store, infos)
         for event_uid, native_key in parent_keys.items():
             if native_key in first_by_native and first_by_native[native_key] != event_uid:
                 store.db.execute(
@@ -381,7 +481,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                 record_uid=row["record_uid"],
                 file_id=row["file_id"],
             )
-        progress({"stage": "derive", "completed": 0, "total": None})
+        progress({"stage": "derive"})
         derive(store, scoped=True, progress=progress)
         for info in infos:
             store.db.execute(
@@ -396,6 +496,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
 
         if not outdated_sources(store.db):
             store.db.execute("UPDATE schema_manifest SET redaction_version=?", (REDACTION_VERSION,))
+        progress({"stage": "validate_projection"})
         dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
         if dangling:
             raise ValueError("Projection contains broken foreign keys")
@@ -419,6 +520,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                 ).fetchone()[0],
             ),
         )
+    progress({"stage": "published", "completed": len(infos), "total": len(infos)})
     return {
         "events": count,
         "sessions": store.db.execute("SELECT COUNT(*) FROM session").fetchone()[0],

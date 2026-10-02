@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache
 
-REDACTION_VERSION = "1.1.1"
+REDACTION_VERSION = "1.2.0"
 _RECORD_CACHE = ContextVar("record_redactions", default=None)
 
 
@@ -36,7 +36,7 @@ def is_secret_key(key: str) -> bool:
     return secret_key(key)
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=4096)
 def secret_key(key: str) -> bool:
     normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).lower()
     normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
@@ -200,10 +200,5 @@ def sanitize(value, key=""):
         ):
             return f"<opaque:sha256:{digest}>"
         clean = redact(value)
-        limit = (
-            8192 if key in ("output", "stdout", "stderr", "aggregated_output", "result") else 32768
-        )
-        if len(clean.encode()) > limit:
-            return clean.encode()[:limit].decode(errors="ignore") + f"<truncated:sha256:{digest}>"
         return clean
     return value

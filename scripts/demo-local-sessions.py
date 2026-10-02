@@ -33,7 +33,7 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     token = secrets.token_hex(32)
-    app = create_desktop_app(output / "data", token, ROOT / "docs/design/demo/tandem-demo.html")
+    app = create_desktop_app(output / "data", token, ROOT / "prototypes/advance/tandem-demo.html")
     results, used, selected, ids = [], set(), {}, []
     with TestClient(app, headers={"Authorization": "Bearer " + token}) as client:
         sources = client.get("/v1/app/discovery").json()["items"]

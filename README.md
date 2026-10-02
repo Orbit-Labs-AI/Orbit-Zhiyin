@@ -1,116 +1,59 @@
-# Hackathon
+# Tandem / 同频
 
-ActionMesh AI 团队的 Hackathon 比赛项目。
+ActionMesh-AI 的本地跨 Agent 会话分析项目，目标交付为 macOS App。当前包含统一数据层、Python 后端、CLI、本机 API、两套 UI 原型，以及接入真实本地数据的 Advance Mac App。构建和验收见 [桌面接入](docs/development/mac-app.md)。
 
-## 项目资料
+## 开始开发
 
-- 仓库初始化：2026-09-30
-- 设计参考：[docs/design](docs/design/README.md)（Lite / Advance 的设计归属、Demo 与视觉案例）
-- 数据方案：[docs/plan/data-acquisition.md](docs/plan/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
-- 会话格式调研：[docs/research/agent-sessions](docs/research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
-- 分析开发输入：[docs/plan/analysis-inputs.md](docs/plan/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
-- 分析补全建议：[docs/plan/analysis-review.md](docs/plan/analysis-review.md)（后端规范、八族边界及 Lite / Advance 所需的分析功能）
-- Codex 数据连接器：[packages/connectors](packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
-- 会话数据实现：[packages/data](packages/data/README.md)（实际 SQLite 数据库、L0/L1 归档、L2/L3 预处理和 connector 桥接）
-- Mac App 封装与真实 UI 接入：[运行与验收](docs/backend/mac-app.md)（原生宿主、开屏导入、后台任务、七来源构造验收与本机样本展示）
-- App 数据入口：[模块边界与接入方式](docs/backend/data-pipeline.md)（macOS、统一 workspace、分页查询、重算与旧库兼容）
-
-## App 版本
-
-| 版本 | 设计来源 | 设计参考 |
-| --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](docs/design/demo/tandem-benchmark-demo.html)、[范围与审查](docs/design/demo/benchmark-review.md) |
-| **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](docs/design/demo/tandem-demo.html)、[视觉案例 v1](docs/design/visual-cases-v1/) |
-
-版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。这项规定仅记录现有设计的版本归属，两套设计并行保留，具体说明见[设计资料](docs/design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
-
-## 先试后端
-
-Tandem 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](docs/design/demo/tandem-benchmark-demo.html) 与 [Advance Demo](docs/design/demo/tandem-demo.html) 仍是设计参考。
-
-分析入口遵循 [analysis-input-v1](docs/plan/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
-
-需要 Python 3.13 和 uv（`.python-version` 固定运行时）。backend 与 data 共用根目录 `uv.lock`：
+需要 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0；完整检查还需 Swift 5.9+（macOS Command Line Tools）。在仓库根运行：
 
 ```sh
-uv sync --locked --all-packages --dev
+bash scripts/bootstrap.sh
 uv run tandem demo
-uv run tandem evaluate
-uv run pytest -q tests
-uv run pytest -q packages/data/tests
+pnpm dev --home .local/demo/data
 ```
 
-demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”直接展示。结果目录同时保存 `profile.md / bottlenecks.md / process.md / report.md` 及对应 JSON。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
+Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明位于 <http://127.0.0.1:8765/docs>。
+上面的启动命令读取刚生成的 Demo 数据库。使用自己的已初始化开发库时可运行 `pnpm dev --home .tandem`；实际来源须显式执行 `tandem ingest` 才会导入。
+完整 CLI、真实来源授权和旧库兼容说明见[使用指南](docs/development/usage.md)。
+
+## 仓库入口
+
+| 位置 | 职责 |
+| --- | --- |
+| [packages/backend](packages/backend/README.md) | 应用编排、API/CLI、画像、特征分析、推荐、报告 |
+| [packages/data](packages/data/README.md) | 原生来源、L0–L3、canonical SQLite、查询与导入服务 |
+| [packages/catalog](packages/catalog/README.md) | 资源采集、版本、索引与检索 |
+| [packages/catalog-macos](packages/catalog-macos/README.md) | macOS Swift 异步客户端 |
+| [packages/connectors](packages/connectors/README.md) | TypeScript Codex staging producer |
+| [prototypes](prototypes/README.md) | Lite / Advance 示例数据原型 |
+| [apps/desktop](apps/desktop/README.md) | 原生宿主、离线资源与随包 Python 服务 |
+| [tests](tests/README.md) | 跨模块集成与服务流程验收 |
+| [evals](evals/README.md) | 质量评测及显式启用的真实数据验收 |
+| [benchmarks](benchmarks/README.md) | 性能与内存评测 |
+| [scripts](scripts/README.md) | 启动、检查与安装验证入口 |
+| [docs](docs/README.md) | 架构、契约、开发指南、计划、研究与版本记录 |
+
+正式桌面入口未来放在 `apps/desktop/`；Catalog 和 Swift 客户端已接入，但仍没有原生 App target。
+
+## 验证
 
 ```sh
-.venv/bin/tandem demo --view profile
-.venv/bin/tandem demo --view bottlenecks
-.venv/bin/tandem demo --view process
+pnpm check                 # 模块、跨包、服务流程、文档、构建与安装后验收
+pnpm check:integration     # 只跑跨包与服务流程，自动构建 staging producer
+pnpm --filter @tandem/prototype-advance exec playwright install chromium
+pnpm check:ui              # Lite 数据检查 + Advance 浏览器行为测试
 ```
 
-不指定想要哪个 skill，也能先生成画像与瓶颈；资源目录只参与最后的匹配。推导过程见 [画像怎样产生](docs/backend/profiling.md)。这次展示使用 CLI，无需接入前端。
+CI 调用同一套命令。测试不自动读取本机 Agent 历史；性能与真实数据评测单独运行。
+分类和执行条件见[测试指南](docs/development/testing.md)。
 
-`evaluate` 跑文字对照、整条链路的构造场景，以及新增措辞和组合要求；`--suite pipeline / probe` 可以分别选择。结果保留误报、漏报和证据检查。这些样例用于改进规则；在独立临时数据库中运行，正常数据不会被改写。
+## 集成约定
 
-## 导入本地数据
-
-```sh
-uv run tandem discover
-uv run tandem ingest --agent codex --root "$HOME/.codex"
-uv run tandem ingest --agent claude_code --root "$HOME/.claude"
-uv run tandem verify
-uv run tandem report
-uv run tandem analytics --display-timezone Asia/Shanghai
-uv run tandem serve
-```
-
-`discover` 只列来源，`ingest` 才启用指定根目录。CLI、App 和 API 默认共用 `~/Library/Application Support/Tandem/`（`tandem.db` 与 `raw/`），可用 `TANDEM_HOME` 或 `--home` 指定；仓库开发可用 `--home .tandem`。报告在 `.local/report/`，API 文档在 <http://127.0.0.1:8765/docs>。真实数据只留在本地，API 默认只监听本机。
-
-统一数据层完整保留 L0，分析用 `analytics --from-ts / --until-ts`（UTC 毫秒、右端不包含）与 `--exclude-session`（canonical session UID）选择样本，范围与数据版本随结果返回。不要把评价中用户给出的标准重新当作历史偏好导入。旧命令 `import --codex-home` 默认也进入新数据层。
-
-已有 MVP 库需显式通过 `--db .local/tandem.sqlite` 使用兼容模式，原有持久采样策略保持原样。新入口不会改写旧库或静默忽略旧采样参数。迁移需显式从原始来源或 staging 重新导入；旧 JSON ledger 无法补出缺失的 L0/L1。
-
-## 核对推荐来源
-
-离线目录自带 10 个公开来源的固定版本。需要重新核对时运行：
-
-```sh
-.venv/bin/tandem catalog-refresh
-```
-
-它从 GitHub 官方 API 读取仓库信息和 Markdown，核对版本与内容哈希，结果保存在 `.local/catalog.json`。`--latest` 才会更新到当前默认分支，`--resource-id humanizer-zh` 可以只核对一个来源。导入和分析不需要联网。
-
-目录包括规则、skills、插件、MCP、hooks、基准和代理。现阶段只对分析中有明确匹配的 skill 建议一次小范围试用：必须同时有画像证据、瓶颈证据，以及适合场景和语言的资源。真实收益需要另测。
-
-## 看实现与版本报告
-
-- [Preference 与 Task 特征族：实现及五类验证](docs/backend/analytics/validation.md)
-  — 新增 `/v1/analytics/preferences`、`/v1/analytics/tasks`；证据、范围、版本与未知状态可追溯。
-- [Feature Analytics MVP：真实数据案例、特征字典与输入缺口](docs/backend/feature-analytics.md)
-  — 运行 `.venv/bin/tandem --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
-- [先验这条链路](docs/backend/acceptance.md)
-- [今晚先跑通什么](docs/backend/plan.md)
-- [当前版本：完整过滤凭据并核对交付证据](docs/backend/versions/v0.13.6.md)
-- [怎样验“说人话”](docs/backend/reader-review.md)
-- [各版记录](docs/backend/versions/README.md)
-- [模块与接口](docs/backend/architecture.md)
-- [这些数字说明什么](docs/backend/modeling.md)
-- [调研与取舍](docs/backend/research.md)
-
-官方 dsh 源码作为固定版本的 submodule 放在 `third_party/deepseek-harness`。需要查源码时运行 `git submodule update --init --depth 1`；它不参与后端启动。
-
-## 使用标准 Codex Connector
-
-采集进程使用 TypeScript、Node ≥24.7 与 pnpm，输出独立 staging 库；通过 `packages/data` 的归档桥接进入统一数据库，避免两套 schema 共写同一个文件。
-
-```sh
-cd packages/connectors
-pnpm install --frozen-lockfile
-pnpm check
-pnpm tandem --help
-```
-
-初始化、增量导入、重算、监听、数据契约和真实来源验证范围见 [Connector README](packages/connectors/README.md)。
-
-已有 staging 用 `uv run tandem import-connector --connector-home .local/codex-staging` 接入，源文件已删除也可从归档处理。普通 `tandem ingest --agent codex` 可直接使用 Python canonical connector。两种采集方式最终使用同一份 Python L2/L3 规则，两个包不得共写同一份 SQLite。
-- [多 Agent 数据导入模块与一键验收](docs/backend/agent-connectors.md)（统一 Python canonical 链路）
+- [前端指标计算规则](docs/modules/analytics/presentation-metrics.md)：八族特征、画像与瓶颈的呈现口径。
+- [UI 分析与端到端验收](docs/modules/analytics/analysis-products.md)：工具占比、调用转移、情绪表达及开发者本地 session 验证。
+- [分析补全建议](docs/plans/analysis-review.md)：八族边界与 Lite / Advance 的分析功能缺口。
+- [后端缺口](docs/plans/backend-gap.md)：数据、分析、推荐与横切后端程序对照两版 UI 的差距与补齐顺序。
+- [模块接入表](docs/architecture/module-map.md)：功能、入口、实现、契约、测试与缺口。
+- [目录迁移说明](docs/development/structure-migration.md)：活跃分支如何接入新结构。
+- [设计资料](docs/design/README.md)：Lite 属于 `genius-FXC`，Advance 属于 `yhyfhgs`；MVP 范围仍由三位成员共同确认。
+- [协作规则](AGENTS.md)：`main` 通过 PR 更新，合并与关闭由 `yhyfhgs` 决定。

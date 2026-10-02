@@ -88,6 +88,19 @@ class ImportService:
                 if request.files is None and request.limit is None
                 else "sample",
             }
+            if result["selection"] == "full":
+                # Mark absences before indexing so an archived/renamed file can be
+                # matched by its decoded hash without creating duplicate identities.
+                seen = {str(item.path.relative_to(root)) for item in available}
+                for file in self.store.db.execute(
+                    "SELECT file_id,relative_path FROM source_file WHERE source_id=?", (source_id,)
+                ).fetchall():
+                    if file["relative_path"] not in seen:
+                        self.store.db.execute(
+                            "UPDATE source_file SET status='gone_upstream' WHERE file_id=?",
+                            (file["file_id"],),
+                        )
+            self.progress({"stage": "capture", "completed": 0, "total": len(selected)})
             for item in selected:
                 if cancel and cancel.is_set():
                     result["cancelled"] = True
@@ -146,6 +159,23 @@ class ImportService:
                 "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",
                 (source_id,),
             ).fetchone()[0]
+            result["unknown_events"] = self.store.db.execute(
+                "SELECT COUNT(*) FROM event e JOIN session_identity s USING(session_uid) WHERE s.source_id=? AND e.kind='unknown'",
+                (source_id,),
+            ).fetchone()[0]
+            result["discovered_files"] = len(available)
+            self.store.db.execute(
+                "INSERT OR REPLACE INTO source_scan VALUES(?,?,?,?,?,?,?)",
+                (
+                    source_id,
+                    now_ms(),
+                    result["selection"],
+                    len(available),
+                    result["files"],
+                    result["capture_errors"],
+                    int(result["cancelled"]),
+                ),
+            )
             return result
 
     def watch(self, request: ImportRequest, stop: threading.Event, interval: float = 2.0):

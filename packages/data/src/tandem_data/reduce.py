@@ -40,7 +40,21 @@ def _git(path: Path, *args) -> str | None:
         return None
 
 
-def project_for(store, cwd: str | None, recorded_remote=None, recorded_root=None) -> str | None:
+def project_for(
+    store, cwd: str | None, recorded_remote=None, recorded_root=None, *, cache=None
+) -> str | None:
+    # One projection is a single transaction. Repeated sessions in the same cwd
+    # must not launch the same Git probes twice per session. Never cache across runs.
+    key = (cwd, recorded_remote, recorded_root)
+    if cache is not None and key in cache:
+        return cache[key]
+    result = _project_for(store, cwd, recorded_remote, recorded_root)
+    if cache is not None:
+        cache[key] = result
+    return result
+
+
+def _project_for(store, cwd, recorded_remote, recorded_root):
     if not cwd and not recorded_remote and not recorded_root:
         return None
     for override in store.db.execute(
@@ -51,7 +65,7 @@ def project_for(store, cwd: str | None, recorded_remote=None, recorded_root=None
     root = recorded_root
     remote = normalize_remote(recorded_remote)
     path = Path(cwd).expanduser() if cwd else None
-    if path and path.is_dir():
+    if remote is None and path and path.is_dir():
         common = _git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
         if common:
             common_path = Path(common)
@@ -169,6 +183,7 @@ def _duration(call, result, attrs):
 
 
 def derive(store, *, scoped=False, progress=None):
+    project_cache = {}
     progress = progress or (lambda _: None)
     identities = {
         row["session_uid"]: dict(row)
@@ -179,7 +194,8 @@ def derive(store, *, scoped=False, progress=None):
     }
     metas = {}
     recorded_roots = {}
-    for session_uid, identity in identities.items():
+    progress({"stage": "derive_metadata", "completed": 0, "total": len(identities)})
+    for index, (session_uid, identity) in enumerate(identities.items()):
         values = {
             "session_uid": session_uid,
             "source_id": identity["source_id"],
@@ -232,7 +248,9 @@ def derive(store, *, scoped=False, progress=None):
         if not values.get("timezone"):
             values["timezone"], values["timezone_source"] = None, "unknown"
         metas[session_uid] = values
-    for session_uid, values in metas.items():
+        progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
+    progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})
+    for index, (session_uid, values) in enumerate(metas.items()):
         current, seen = session_uid, {session_uid}
         while metas.get(current, {}).get("parent_uid"):
             parent = metas[current]["parent_uid"]
@@ -249,12 +267,17 @@ def derive(store, *, scoped=False, progress=None):
             seen.add(current)
         values["root_uid"] = current
         values["project_id"] = project_for(
-            store, values.get("cwd"), values.get("git_remote"), recorded_roots.get(session_uid)
+            store,
+            values.get("cwd"),
+            values.get("git_remote"),
+            recorded_roots.get(session_uid),
+            cache=project_cache,
         )
         insert(store.db, "session", values)
+        progress({"stage": "derive_projects", "completed": index + 1, "total": len(metas)})
 
-    for position, (session_uid, meta) in enumerate(metas.items(), 1):
-        progress({"stage": "derive", "completed": position, "total": len(metas)})
+    progress({"stage": "derive_sessions", "completed": 0, "total": len(metas)})
+    for index, (session_uid, meta) in enumerate(metas.items()):
         events = []
         for row in store.db.execute(
             "SELECT event_uid,kind,attrs,call_id,record_uid,seq,ts,turn_uid FROM event WHERE session_uid=? ORDER BY seq",
@@ -263,10 +286,13 @@ def derive(store, *, scoped=False, progress=None):
             event = dict(row)
             event["attrs"] = json.loads(event["attrs"])
             events.append(event)
-        _derive_session(store, session_uid, meta, events, recorded_roots.get(session_uid))
+        _derive_session(
+            store, session_uid, meta, events, recorded_roots.get(session_uid), project_cache
+        )
+        progress({"stage": "derive_sessions", "completed": index + 1, "total": len(metas)})
 
 
-def _derive_session(store, session_uid, meta, events, recorded_root=None):
+def _derive_session(store, session_uid, meta, events, recorded_root=None, shared_projects=None):
     current_turn = None
     turns = {}
     context = {"cwd": None, "provider": None, "model_raw": None, "effort_raw": None}
@@ -287,7 +313,9 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None):
                 context[field] = attrs[field]
         cwd = context["cwd"]
         if cwd not in project_cache:
-            project_cache[cwd] = project_for(store, cwd, meta.get("git_remote"), recorded_root)
+            project_cache[cwd] = project_for(
+                store, cwd, meta.get("git_remote"), recorded_root, cache=shared_projects
+            )
         project_id = project_cache[cwd]
         insert(
             store.db,

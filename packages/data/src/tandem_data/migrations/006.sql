@@ -1,33 +1,37 @@
--- Source replacement must not scan every other source for each deleted parent row.
-CREATE INDEX IF NOT EXISTS fk_project_override_project_id ON project_override(project_id);
-CREATE INDEX IF NOT EXISTS fk_event_record_uid ON event(record_uid);
-CREATE INDEX IF NOT EXISTS fk_session_project_id ON session(project_id);
-CREATE INDEX IF NOT EXISTS fk_session_spawn_call_uid ON session(spawn_call_uid);
-CREATE INDEX IF NOT EXISTS fk_session_imported_from ON session(imported_from);
-CREATE INDEX IF NOT EXISTS fk_session_forked_from ON session(forked_from);
-CREATE INDEX IF NOT EXISTS fk_session_root_uid ON session(root_uid);
-CREATE INDEX IF NOT EXISTS fk_session_parent_uid ON session(parent_uid);
-CREATE INDEX IF NOT EXISTS fk_session_source_id ON session(source_id);
-CREATE INDEX IF NOT EXISTS fk_event_context_project_id ON event_context(project_id);
-CREATE INDEX IF NOT EXISTS fk_turn_last_event_uid ON turn(last_event_uid);
-CREATE INDEX IF NOT EXISTS fk_turn_first_event_uid ON turn(first_event_uid);
-CREATE INDEX IF NOT EXISTS fk_turn_trigger_event_uid ON turn(trigger_event_uid);
-CREATE INDEX IF NOT EXISTS fk_turn_project_id ON turn(project_id);
-CREATE INDEX IF NOT EXISTS fk_tool_call_subagent_session_uid ON tool_call(subagent_session_uid);
-CREATE INDEX IF NOT EXISTS fk_tool_call_result_event_uid ON tool_call(result_event_uid);
-CREATE INDEX IF NOT EXISTS fk_tool_call_call_event_uid ON tool_call(call_event_uid);
-CREATE INDEX IF NOT EXISTS fk_tool_call_turn_uid ON tool_call(turn_uid);
-CREATE INDEX IF NOT EXISTS fk_tool_call_session_uid ON tool_call(session_uid);
-CREATE INDEX IF NOT EXISTS fk_model_call_turn_uid ON model_call(turn_uid);
-CREATE INDEX IF NOT EXISTS fk_model_call_session_uid ON model_call(session_uid);
-CREATE INDEX IF NOT EXISTS fk_link_event_uid ON link(event_uid);
-CREATE INDEX IF NOT EXISTS fk_link_turn_uid ON link(turn_uid);
-CREATE INDEX IF NOT EXISTS fk_link_session_uid ON link(session_uid);
-CREATE INDEX IF NOT EXISTS fk_ingest_issue_record_uid ON ingest_issue(record_uid);
-CREATE INDEX IF NOT EXISTS fk_ingest_issue_file_id ON ingest_issue(file_id);
-CREATE INDEX IF NOT EXISTS fk_ingest_issue_source_id ON ingest_issue(source_id);
-CREATE INDEX IF NOT EXISTS fk_connector_checkpoint_file_id ON connector_checkpoint(file_id);
-CREATE INDEX IF NOT EXISTS fk_connector_record_link_record_uid ON connector_record_link(record_uid);
-CREATE INDEX IF NOT EXISTS fk_inventory_scan_project_id ON inventory_scan(project_id);
+-- L0 is a source reference for native imports. Historical archives remain readable.
+CREATE TABLE source_revision_new (
+  revision_uid TEXT PRIMARY KEY, file_id TEXT NOT NULL REFERENCES source_file,
+  revision INTEGER NOT NULL CHECK(revision > 0), archive_uid TEXT REFERENCES archive_blob,
+  captured_at INTEGER NOT NULL, source_stat TEXT NOT NULL CHECK(json_valid(source_stat)),
+  record_count INTEGER NOT NULL CHECK(record_count >= 0), UNIQUE(file_id, revision)
+) STRICT;
+INSERT INTO source_revision_new SELECT * FROM source_revision;
+DROP TABLE source_revision;
+ALTER TABLE source_revision_new RENAME TO source_revision;
+CREATE TABLE source_reference (
+  revision_uid TEXT PRIMARY KEY REFERENCES source_revision,
+  sha256 TEXT NOT NULL, byte_len INTEGER NOT NULL CHECK(byte_len >= 0),
+  encoding TEXT NOT NULL CHECK(encoding IN ('jsonl','jsonl_zstd','json','sqlite_rows'))
+) STRICT;
+CREATE TABLE record_location (
+  record_uid TEXT NOT NULL REFERENCES raw_record,
+  revision_uid TEXT NOT NULL REFERENCES source_reference,
+  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,
+  PRIMARY KEY(record_uid, revision_uid)
+) STRICT;
+CREATE INDEX record_location_revision ON record_location(revision_uid, ordinal);
+CREATE INDEX source_revision_archive ON source_revision(archive_uid);
+CREATE INDEX raw_record_session ON raw_record(session_uid, file_id, ordinal);
+-- Small cumulative numeric observations survive mutable native SQLite rows.
+CREATE TABLE usage_observation (
+  record_uid TEXT PRIMARY KEY REFERENCES raw_record,
+  observation TEXT NOT NULL CHECK(json_valid(observation))
+) STRICT;
+CREATE TABLE source_scan (
+  source_id TEXT PRIMARY KEY REFERENCES source,
+  scanned_at INTEGER NOT NULL, selection TEXT NOT NULL,
+  discovered_files INTEGER NOT NULL, indexed_files INTEGER NOT NULL,
+  capture_errors INTEGER NOT NULL, cancelled INTEGER NOT NULL
+) STRICT;
 UPDATE schema_manifest SET schema_version=6;
 PRAGMA user_version=6;

@@ -42,7 +42,7 @@ def main():
         "TANDEM_TEST_SOURCES": str(run / "sources.json"),
         "TANDEM_SCREENSHOTS": str(run / "screenshots"),
     }
-    subprocess.run(["node", "docs/design/demo/build.mjs"], cwd=ROOT, check=True)
+    subprocess.run(["node", "prototypes/advance/build.mjs"], cwd=ROOT, check=True)
     with (run / "server.log").open("w") as log:
         process = subprocess.Popen(
             [
@@ -52,7 +52,7 @@ def main():
                 "--home",
                 str(run / "data"),
                 "--assets",
-                str(ROOT / "docs/design/demo/tandem-demo.html"),
+                str(ROOT / "prototypes/advance/tandem-demo.html"),
                 "--discovery-manifest",
                 str(run / "sources.json"),
             ],
@@ -75,7 +75,7 @@ def main():
                     "--project=mac-14",
                     "--workers=1",
                 ],
-                cwd=ROOT / "docs/design/demo",
+                cwd=ROOT / "prototypes/advance",
                 env=env,
                 check=True,
             )

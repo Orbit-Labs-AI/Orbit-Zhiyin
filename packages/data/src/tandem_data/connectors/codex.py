@@ -14,10 +14,35 @@ class CodexMapper(BaseMapper):
         self.cut = None
         self.parent = None
         self.header_record_uid = None
+        self.prepared_turn = None
+        self.ui_keys = {}
+        self.ui_messages = {}
+        self.rollback_ranges = []
+        self.human_starts = []
+        self.last_human_turn = None
         self.prepare_each(records, self.prepare_record)
 
     def prepare_record(self, record):
         data, payload = record.data, record.data.get("payload", {})
+        if data.get("type") in ("turn_context", "event_msg"):
+            self.prepared_turn = payload.get("turn_id", self.prepared_turn)
+        if data.get("type") == "event_msg":
+            is_human = payload.get("type") == "user_message" or (
+                payload.get("type") == "item_completed"
+                and payload.get("item", {}).get("type") == "UserMessage"
+            )
+            if is_human and (
+                self.prepared_turn is None or self.prepared_turn != self.last_human_turn
+            ):
+                self.human_starts.append(record.ordinal)
+                self.last_human_turn = self.prepared_turn
+            if payload.get("type") == "thread_rolled_back":
+                count = payload.get("num_turns")
+                if isinstance(count, int) and count > 0 and self.human_starts:
+                    start = self.human_starts[max(0, len(self.human_starts) - count)]
+                    self.rollback_ranges.append((start, record.ordinal))
+                    self.human_starts = [x for x in self.human_starts if x < start]
+                    self.last_human_turn = None
         if data.get("type") == "session_meta" and not self.header:
             self.header = payload
             self.header_record_uid = record.record_uid
@@ -38,14 +63,37 @@ class CodexMapper(BaseMapper):
                 role = "user" if item["type"] == "UserMessage" else "assistant"
                 signature = (
                     role,
-                    payload.get("turn_id"),
+                    self.prepared_turn,
                     hashlib.sha256(text_content(item.get("content")).encode()).hexdigest(),
                 )
-                self.messages.setdefault(signature, []).append((record.ordinal, item.get("id")))
+                native = item.get("id") or "ui:" + record.record_uid
+                self.ui_keys[record.record_uid] = native
+                self.ui_messages[native] = {**item, "role": role}
+                self.messages.setdefault(signature, []).append((record.ordinal, native))
+        if data.get("type") == "event_msg" and payload.get("type") in (
+            "user_message",
+            "agent_message",
+        ):
+            role = "user" if payload["type"] == "user_message" else "assistant"
+            signature = (
+                role,
+                self.prepared_turn,
+                hashlib.sha256(
+                    text_content(payload.get("message", payload.get("content"))).encode()
+                ).hexdigest(),
+            )
+            native = payload.get("id") or "ui:" + record.record_uid
+            self.ui_keys[record.record_uid] = native
+            self.ui_messages[native] = {
+                "role": role,
+                "content": payload.get("message", payload.get("content")),
+                "phase": payload.get("phase"),
+            }
+            self.messages.setdefault(signature, []).append((record.ordinal, native))
 
     def native_key(self, record):
         payload = record.data.get("payload", {})
-        native = payload.get("id")
+        native = payload.get("id") if isinstance(payload, dict) else None
         return (
             [record.source_id, self.session_uid, native] if native else super().native_key(record)
         )
@@ -59,9 +107,19 @@ class CodexMapper(BaseMapper):
         if reason:
             return Mapping(disposition="ignored", reason=reason)
         data, typ = record.data, record.data.get("type")
+        if data.get("table") in ("threads", "thread_spawn_edges", "projects", "project_roots"):
+            typ = {
+                "threads": "state_index",
+                "thread_spawn_edges": "spawn_edge",
+                "projects": "project_index",
+                "project_roots": "project_root",
+            }[data["table"]]
+            data = {"type": typ, "payload": data["row"]}
         if self.info["role"] == "import_ledger" and "records" in data:
             events = []
-            for index, item in enumerate(data["records"]):
+            entries = data["records"]
+            entries = entries.values() if isinstance(entries, dict) else entries
+            for index, item in enumerate(entries):
                 mapped = self.map(replace(record, data={"type": "import_ledger", "payload": item}))
                 for event in mapped.events:
                     event.event_path += f".{index}"
@@ -88,6 +146,15 @@ class CodexMapper(BaseMapper):
             if self.header.get("history_mode") == "paginated"
             else data.get("ordinal", record.ordinal)
         )
+        if (
+            getattr(self, "history_excluded", False)
+            or ordinal >= getattr(self, "history_end", float("inf"))
+            or any(start <= record.ordinal < end for start, end in self.rollback_ranges)
+        ):
+            return Mapping(
+                disposition="ignored",
+                reason="superseded native branch; retained in source trajectory",
+            )
         if (
             self.cut is not None
             and record.record_uid != self.header_record_uid
@@ -162,12 +229,40 @@ class CodexMapper(BaseMapper):
                     ],
                     reason="modified inherited setup; no identical parent record",
                 )
+            if refs:
+                return Mapping(disposition="replayed", references=refs, reason="inherited prefix")
+            # The native cutoff proves this is supplied history, not new child behavior.
+            # Parent history may have been compacted/replaced since the fork. Preserve
+            # the child's actual evidence as context, without inventing a parent link.
+            self.store.issue(
+                record.source_id,
+                "inherited_parent_evidence_unavailable",
+                file_id=record.file_id,
+                record_uid=record.record_uid,
+                detail={"native_type": record.native_type, "parent_native_id": self.parent},
+            )
             return Mapping(
-                disposition="replayed" if refs else "unparsed",
-                references=refs,
-                reason="inherited prefix"
-                if refs
-                else "inherited prefix: canonical record not resolved",
+                [
+                    self.make(
+                        record,
+                        "context.inject",
+                        "inherited.unresolved_context",
+                        actor="harness",
+                        attrs={
+                            "origin": "injected",
+                            "inherited_prefix": True,
+                            "parent_evidence": "unavailable",
+                            "native_type": record.native_type,
+                        },
+                        native_key=[
+                            record.source_id,
+                            self.session_uid,
+                            record.record_uid,
+                            "inherited",
+                        ],
+                    )
+                ],
+                reason="native inherited prefix retained; parent evidence unavailable",
             )
         if typ == "session_meta":
             source = payload.get("source", {})
@@ -197,14 +292,6 @@ class CodexMapper(BaseMapper):
             )
             event.ext = payload
             return Mapping([event])
-        if typ == "event_msg" and payload.get("type") == "thread_rolled_back":
-            return Mapping(
-                [
-                    self.make(
-                        record, "branch", "rollback", attrs={"num_turns": payload.get("num_turns")}
-                    )
-                ]
-            )
         if typ == "turn_context":
             self.native_turn = payload.get("turn_id", self.native_turn)
             self.model = payload.get("model", self.model)
@@ -240,9 +327,501 @@ class CodexMapper(BaseMapper):
                 ]
             )
         if typ == "response_item":
-            return self._map_response(record, data, typ, payload)
+            item_type = payload.get("type")
+            turn = payload.get("internal_chat_message_metadata_passthrough", {}).get(
+                "turn_id", self.native_turn
+            )
+            if item_type == "message":
+                role = payload.get("role")
+                signature = (
+                    role,
+                    turn,
+                    hashlib.sha256(text_content(payload.get("content")).encode()).hexdigest(),
+                )
+                candidates = self.messages.get(signature, [])
+                matching = [
+                    (ordinal, native)
+                    for ordinal, native in candidates
+                    if native == payload.get("id")
+                ]
+                if not matching:
+                    matching = [
+                        (ordinal, native)
+                        for ordinal, native in candidates
+                        if (turn is not None or abs(ordinal - record.ordinal) <= 2)
+                        and native not in self.matched_messages
+                        and (
+                            not payload.get("phase")
+                            or not self.ui_messages[native].get("phase")
+                            or payload["phase"] == self.ui_messages[native]["phase"]
+                        )
+                    ]
+                pair = (
+                    min(matching, key=lambda item: abs(item[0] - record.ordinal))
+                    if matching
+                    else None
+                )
+                key_id = pair[1] if pair else payload.get("id")
+                if pair:
+                    self.matched_messages.add(key_id)
+                key = (
+                    [record.source_id, self.session_uid, key_id]
+                    if key_id
+                    else self.native_key(record)
+                )
+                origin = (
+                    "human"
+                    if role == "user"
+                    and (pair or data.get("metadata", {}).get("user_input_order") is not None)
+                    else "unknown"
+                    if role == "assistant"
+                    else "injected"
+                )
+                return Mapping(
+                    self.message(
+                        record,
+                        {
+                            **payload,
+                            **self.ui_messages[key_id],
+                            "phase": self.ui_messages[key_id].get("phase") or payload.get("phase"),
+                        }
+                        if pair
+                        else payload,
+                        origin=origin,
+                        key=key,
+                        native_turn_id=turn,
+                    )
+                )
+            if item_type in (
+                "function_call",
+                "custom_tool_call",
+                "local_shell_call",
+                "tool_search_call",
+                "web_search_call",
+                "image_generation_call",
+            ):
+                call_id = str(payload.get("call_id", payload.get("id", record.record_uid)))
+                key = [record.source_id, self.session_uid, "tool", call_id]
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "tool.call",
+                            "tool.call",
+                            actor="assistant",
+                            call_id=call_id,
+                            native_key=key,
+                            attrs={
+                                "name": payload.get(
+                                    "name",
+                                    "tool_search" if item_type == "tool_search_call" else item_type,
+                                ),
+                                "input": decode_json(
+                                    payload.get(
+                                        "arguments", payload.get("input", payload.get("action"))
+                                    )
+                                ),
+                                "native_turn_id": turn,
+                            },
+                            ext=payload,
+                        )
+                    ]
+                )
+            if item_type in (
+                "function_call_output",
+                "custom_tool_call_output",
+                "tool_search_output",
+            ):
+                call_id = str(payload.get("call_id", record.record_uid))
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "tool.result",
+                            "tool.result",
+                            actor="tool",
+                            call_id=call_id,
+                            native_key=[record.source_id, self.session_uid, "tool", call_id],
+                            text=text_content(payload.get("output", payload.get("tools"))),
+                            attrs={"status": "unknown", "native_turn_id": turn},
+                            ext={key: value for key, value in payload.items() if key != "output"},
+                        )
+                    ]
+                )
+            if item_type == "reasoning":
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "reasoning",
+                            "reasoning",
+                            actor="assistant",
+                            text=text_content(payload.get("summary"))
+                            or text_content(payload.get("content")),
+                            ext={key: value for key, value in payload.items() if key != "summary"},
+                        )
+                    ]
+                )
+            if item_type == "agent_message":
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "message.user",
+                            "peer.message",
+                            actor="subagent",
+                            text=text_content(payload.get("content")) or None,
+                            attrs={"origin": "peer", "input_format": None},
+                            ext=payload,
+                        )
+                    ]
+                )
+            if item_type in ("compaction", "compaction_summary", "context_compaction"):
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "context.compaction",
+                            item_type,
+                            text=text_content(payload.get("summary", payload.get("content"))),
+                            ext=payload,
+                        )
+                    ]
+                )
+            return self.unknown(record)
         if typ == "event_msg":
-            return self._map_event(record, data, typ, payload)
+            etype = payload.get("type")
+            self.native_turn = payload.get("turn_id", self.native_turn)
+            if etype == "thread_goal_updated":
+                return Mapping(
+                    [self.make(record, "plan.update", "thread.goal", actor="harness", ext=payload)]
+                )
+            if etype == "thread_settings_applied":
+                settings = payload.get("thread_settings", {})
+                self.model = settings.get("model", self.model)
+                self.effort = settings.get("reasoning_effort", self.effort)
+                self.provider = settings.get("model_provider", self.provider)
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "setting.change",
+                            "thread_settings",
+                            attrs={
+                                "model_raw": self.model,
+                                "provider": self.provider,
+                                "effort_raw": self.effort,
+                            },
+                            ext=settings,
+                        )
+                    ]
+                )
+            if etype in (
+                "task_started",
+                "turn_started",
+                "task_complete",
+                "turn_complete",
+                "turn_aborted",
+            ):
+                started = etype in ("task_started", "turn_started")
+                field = "started_at" if started else "completed_at"
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "turn.start" if started else "turn.end",
+                            etype,
+                            attrs={
+                                "status": "active"
+                                if started
+                                else "interrupted"
+                                if etype == "turn_aborted"
+                                else "failed"
+                                if payload.get("error")
+                                else "completed",
+                                "duration_ms": payload.get("duration_ms"),
+                            },
+                            ext=payload,
+                            ts_value=payload.get(field),
+                            ts_field="payload." + field,
+                            ts_unit="seconds",
+                            semantics="started" if started else "completed",
+                        )
+                    ]
+                )
+            if etype == "token_count":
+                info = payload.get("info") or {}
+                events = []
+                if info.get("total_token_usage"):
+                    events.append(
+                        self.usage(
+                            record,
+                            info["total_token_usage"],
+                            "codex",
+                            scope="session_snapshot",
+                            path="info.total_token_usage",
+                        )
+                    )
+                if info.get("last_token_usage") and not self.has_calls:
+                    # Legacy logs lack response identity. Only changed cumulative observations identify a new call.
+                    total = canonical(info.get("total_token_usage"))
+                    if total != getattr(self, "last_total", None):
+                        events.append(
+                            self.usage(
+                                record,
+                                info["last_token_usage"],
+                                "codex",
+                                request_key=[record.source_id, self.session_uid, record.record_uid],
+                                path="info.last_token_usage",
+                                boundary_evidence="changed_cumulative_usage",
+                            )
+                        )
+                    self.last_total = total
+                return (
+                    Mapping(events)
+                    if events
+                    else Mapping(
+                        disposition="ignored", reason="rate-limit observation without usage"
+                    )
+                )
+            if etype in ("user_message", "agent_message"):
+                return Mapping(
+                    self.message(
+                        record,
+                        {
+                            "role": "user" if etype == "user_message" else "assistant",
+                            "content": payload.get("message", payload.get("content", "")),
+                            "phase": payload.get("phase"),
+                        },
+                        origin="human",
+                        key=[record.source_id, self.session_uid, self.ui_keys[record.record_uid]],
+                    )
+                )
+            if etype in ("agent_reasoning", "agent_reasoning_raw_content"):
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "reasoning",
+                            etype,
+                            actor="assistant",
+                            text=text_content(payload.get("text", payload.get("content"))),
+                            ext=payload,
+                        )
+                    ]
+                )
+            if etype in (
+                "exec_command_begin",
+                "exec_command_end",
+                "mcp_tool_call_begin",
+                "mcp_tool_call_end",
+                "patch_apply_begin",
+                "patch_apply_end",
+                "dynamic_tool_call_request",
+                "dynamic_tool_call_response",
+            ):
+                return self.legacy_tool(record, payload)
+            if etype == "item_completed":
+                item = payload.get("item", {})
+                itype, native = item.get("type"), item.get("id")
+                native = native or self.ui_keys.get(record.record_uid)
+                key = (
+                    [record.source_id, self.session_uid, native]
+                    if native
+                    else self.native_key(record)
+                )
+                if itype in ("UserMessage", "AgentMessage"):
+                    events = self.message(
+                        record,
+                        {"role": "user" if itype == "UserMessage" else "assistant", **item},
+                        key=key,
+                    )
+                    for event in events:
+                        event.attrs["native_turn_id"] = payload.get("turn_id")
+                    return Mapping(events)
+                if itype == "Reasoning":
+                    return Mapping(
+                        [
+                            self.make(
+                                record,
+                                "reasoning",
+                                "reasoning",
+                                actor="assistant",
+                                native_key=key,
+                                text="\n".join(item.get("summary_text", []))
+                                or "\n".join(item.get("raw_content", [])),
+                                ext=item,
+                            )
+                        ]
+                    )
+                if itype == "FunctionCallOutput":
+                    call_id = str(native or record.record_uid)
+                    return Mapping(
+                        [
+                            self.make(
+                                record,
+                                "tool.result",
+                                "tool.result",
+                                actor="tool",
+                                call_id=call_id,
+                                native_key=[record.source_id, self.session_uid, "tool", call_id],
+                                text=text_content(item.get("output")),
+                                attrs={"status": "unknown", "native_turn_id": self.native_turn},
+                                ext=item,
+                            )
+                        ]
+                    )
+                if (
+                    itype
+                    in (
+                        "CommandExecution",
+                        "McpToolCall",
+                        "FileChange",
+                        "WebSearch",
+                        "CollabAgentToolCall",
+                        "ImageView",
+                    )
+                    or itype == "Extension"
+                    and item.get("kind") in ("web.search", "clock.sleep", "image_gen.generation")
+                ):
+                    call_id = str(native or record.record_uid)
+                    key = [record.source_id, self.session_uid, "tool", call_id]
+                    name = {
+                        "CommandExecution": "exec_command",
+                        "McpToolCall": f"mcp__{item.get('server')}__{item.get('tool')}",
+                        "FileChange": "apply_patch",
+                        "WebSearch": "web.search",
+                        "CollabAgentToolCall": item.get("tool", "subagent"),
+                        "ImageView": "view_image",
+                        "Extension": item.get("kind"),
+                    }[itype]
+                    args = item.get(
+                        "arguments",
+                        {"command": " ".join(item.get("command", []))}
+                        if itype == "CommandExecution"
+                        else {"action": item.get("action"), "query": item.get("query")}
+                        if itype in ("WebSearch", "Extension")
+                        else item.get("changes"),
+                    )
+                    if itype == "ImageView":
+                        args = {"path": item.get("path")}
+                    elif itype == "Extension" and item.get("kind") == "clock.sleep":
+                        args = {"duration_ms": item.get("durationMs")}
+                    elif itype == "Extension" and item.get("kind") == "image_gen.generation":
+                        # revisedPrompt is the completed tool's rewrite, not the original user input.
+                        args = item.get("arguments")
+                    call = self.make(
+                        record,
+                        "tool.call",
+                        "tool.call",
+                        actor="assistant",
+                        call_id=call_id,
+                        native_key=key,
+                        attrs={
+                            "name": name,
+                            "input": args,
+                            "category": "subagent" if itype == "CollabAgentToolCall" else None,
+                            "duration_ms": item.get("duration_ms"),
+                            "native_turn_id": self.native_turn,
+                        },
+                        ts_value=payload.get("started_at_ms"),
+                        ts_field="payload.started_at_ms",
+                        ts_unit="milliseconds",
+                        semantics="started",
+                    )
+                    result = self.make(
+                        record,
+                        "tool.result",
+                        "tool.result",
+                        actor="tool",
+                        call_id=call_id,
+                        native_key=key,
+                        text=item.get(
+                            "aggregated_output",
+                            text_content(item.get("result", {}).get("content"))
+                            if isinstance(item.get("result"), dict)
+                            else None,
+                        ),
+                        attrs={
+                            "status": str(item.get("status") or "unknown").lower(),
+                            "status_scope": "direct_command"
+                            if itype == "CommandExecution"
+                            else "tool_protocol",
+                            "exit_code": item.get("exit_code"),
+                            "duration_ms": item.get("duration_ms"),
+                            "native_turn_id": self.native_turn,
+                        },
+                        ts_value=payload.get("completed_at_ms"),
+                        ts_field="payload.completed_at_ms",
+                        ts_unit="milliseconds",
+                        semantics="completed",
+                        ext={
+                            k: v
+                            for k, v in item.items()
+                            if k not in ("aggregated_output", "stdout", "stderr", "result")
+                        },
+                    )
+                    return Mapping([call, result])
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "context.compaction"
+                            if itype == "ContextCompaction"
+                            else "subagent.spawn"
+                            if "SubAgent" in str(itype)
+                            else "plan.update"
+                            if itype == "Plan"
+                            else "hook.run"
+                            if itype == "HookPrompt"
+                            else "unknown",
+                            "item",
+                            ext=item,
+                        )
+                    ]
+                )
+            kind = {
+                "thread_rolled_back": "branch",
+                "undo_started": "branch",
+                "undo_completed": "branch",
+                "request_user_input": "permission.request",
+                "request_permissions": "permission.request",
+                "exec_approval_request": "permission.request",
+                "apply_patch_approval_request": "permission.request",
+                "elicitation_request": "permission.request",
+                "elicitation_response": "permission.decision",
+                "request_user_input_response": "permission.decision",
+                "exec_approval_response": "permission.decision",
+                "apply_patch_approval_response": "permission.decision",
+                "plan_update": "plan.update",
+                "error": "error",
+                "warning": "error",
+                "context_compacted": "context.compaction",
+                "session_configured": "setting.change",
+                "item_started": "ui.state",
+                "agent_message_delta": "ui.state",
+                "agent_reasoning_delta": "ui.state",
+                "exec_command_output_delta": "ui.state",
+                "collab_agent_spawn_begin": "subagent.spawn",
+                "collab_agent_spawn_end": "subagent.spawn",
+                "collab_agent_interaction_begin": "subagent.spawn",
+                "collab_agent_interaction_end": "subagent.result",
+                "collab_waiting_begin": "subagent.spawn",
+                "collab_waiting_end": "subagent.result",
+                "collab_close_begin": "subagent.result",
+                "collab_close_end": "subagent.result",
+            }.get(etype, "unknown")
+            return Mapping(
+                [
+                    self.make(
+                        record,
+                        kind,
+                        "event_msg." + str(etype),
+                        text=text_content(payload.get("message", payload.get("text"))) or None,
+                        ext=payload,
+                    )
+                ]
+            )
         if typ in ("compacted", "compaction", "world_state"):
             return Mapping(
                 [
@@ -250,6 +829,7 @@ class CodexMapper(BaseMapper):
                         record,
                         "context.inject" if typ == "world_state" else "context.compaction",
                         typ,
+                        text=text_content(payload.get("message", payload.get("summary"))) or None,
                         ext=payload,
                     )
                 ]
@@ -267,6 +847,66 @@ class CodexMapper(BaseMapper):
                 ]
             )
         return self.unknown(record)
+
+    def legacy_tool(self, record, payload):
+        typ = payload["type"]
+        call_id = str(payload.get("call_id", payload.get("id", record.record_uid)))
+        started = typ.endswith(("_begin", "_request"))
+        invocation = payload.get("invocation") or {}
+        name = (
+            "exec_command"
+            if typ.startswith("exec_")
+            else "apply_patch"
+            if typ.startswith("patch_")
+            else "mcp__"
+            + str(invocation.get("server", "unknown"))
+            + "__"
+            + str(invocation.get("tool", "unknown"))
+            if typ.startswith("mcp_")
+            else payload.get("tool", "unknown")
+        )
+        attrs = {"name": name, "native_turn_id": self.native_turn}
+        if started:
+            attrs["input"] = payload.get(
+                "arguments",
+                invocation.get("arguments", payload.get("command", payload.get("changes"))),
+            )
+        else:
+            attrs.update(
+                status=payload.get("status")
+                or (
+                    "failed"
+                    if payload.get("error")
+                    or payload.get("exit_code") not in (None, 0)
+                    or payload.get("success") is False
+                    else "completed"
+                    if payload.get("exit_code") == 0 or payload.get("success") is True
+                    else "unknown"
+                ),
+                exit_code=payload.get("exit_code"),
+                duration_ms=payload.get("duration_ms"),
+            )
+        return Mapping(
+            [
+                self.make(
+                    record,
+                    "tool.call" if started else "tool.result",
+                    "tool.call" if started else "tool.result",
+                    actor="assistant" if started else "tool",
+                    call_id=call_id,
+                    native_key=[record.source_id, self.session_uid, "tool", call_id],
+                    text=None
+                    if started
+                    else text_content(
+                        payload.get(
+                            "aggregated_output", payload.get("output", payload.get("result"))
+                        )
+                    ),
+                    attrs=attrs,
+                    ext=payload,
+                )
+            ]
+        )
 
     def _map_index(self, record, data, typ, payload):
         """Apply allowlisted index metadata to its native session identity."""
@@ -319,332 +959,3 @@ class CodexMapper(BaseMapper):
                 )
             ]
         )
-
-    def _map_response(self, record, data, typ, payload):
-        """Map a Responses item while keeping injected content separate from human input."""
-        item_type = payload.get("type")
-        turn = payload.get("internal_chat_message_metadata_passthrough", {}).get(
-            "turn_id", self.native_turn
-        )
-        if item_type == "message":
-            role = payload.get("role")
-            signature = (
-                role,
-                turn,
-                hashlib.sha256(text_content(payload.get("content")).encode()).hexdigest(),
-            )
-            candidates = self.messages.get(signature, [])
-            matching = [
-                (ordinal, native) for ordinal, native in candidates if native == payload.get("id")
-            ]
-            if not matching:
-                matching = [
-                    (ordinal, native)
-                    for ordinal, native in candidates
-                    if abs(ordinal - record.ordinal) <= 2 and native not in self.matched_messages
-                ]
-            pair = (
-                min(matching, key=lambda item: abs(item[0] - record.ordinal)) if matching else None
-            )
-            key_id = pair[1] if pair else payload.get("id")
-            if pair:
-                self.matched_messages.add(key_id)
-            key = (
-                [record.source_id, self.session_uid, key_id] if key_id else self.native_key(record)
-            )
-            origin = (
-                "human"
-                if role == "user"
-                and (pair or data.get("metadata", {}).get("user_input_order") is not None)
-                else "unknown"
-                if role == "assistant"
-                else "injected"
-            )
-            return Mapping(
-                self.message(record, payload, origin=origin, key=key, native_turn_id=turn)
-            )
-        if item_type in ("function_call", "custom_tool_call"):
-            call_id = str(payload.get("call_id", payload.get("id", record.record_uid)))
-            key = [record.source_id, self.session_uid, "tool", call_id]
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "tool.call",
-                        "tool.call",
-                        actor="assistant",
-                        call_id=call_id,
-                        native_key=key,
-                        attrs={
-                            "name": payload.get("name", "unknown"),
-                            "input": decode_json(payload.get("arguments", payload.get("input"))),
-                            "native_turn_id": turn,
-                        },
-                        ext=payload,
-                    )
-                ]
-            )
-        if item_type in ("function_call_output", "custom_tool_call_output"):
-            call_id = str(payload.get("call_id", record.record_uid))
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "tool.result",
-                        "tool.result",
-                        actor="tool",
-                        call_id=call_id,
-                        native_key=[record.source_id, self.session_uid, "tool", call_id],
-                        text=text_content(payload.get("output")),
-                        attrs={"status": "unknown", "native_turn_id": turn},
-                        ext={key: value for key, value in payload.items() if key != "output"},
-                    )
-                ]
-            )
-        if item_type == "reasoning":
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "reasoning",
-                        "reasoning",
-                        actor="assistant",
-                        text=text_content(payload.get("summary")),
-                        ext={key: value for key, value in payload.items() if key != "summary"},
-                    )
-                ]
-            )
-        if item_type == "agent_message":
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "message.user",
-                        "peer.message",
-                        actor="subagent",
-                        text=text_content(payload.get("content")) or None,
-                        attrs={"origin": "peer", "input_format": None},
-                        ext=payload,
-                    )
-                ]
-            )
-        return self.unknown(record)
-
-    def _map_event(self, record, data, typ, payload):
-        """Map native UI lifecycle, tool completion and usage observations."""
-        etype = payload.get("type")
-        self.native_turn = payload.get("turn_id", self.native_turn)
-        if etype == "thread_settings_applied":
-            settings = payload.get("thread_settings", {})
-            self.model = settings.get("model", self.model)
-            self.effort = settings.get("reasoning_effort", self.effort)
-            self.provider = settings.get("model_provider", self.provider)
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "setting.change",
-                        "thread_settings",
-                        attrs={
-                            "model_raw": self.model,
-                            "provider": self.provider,
-                            "effort_raw": self.effort,
-                        },
-                        ext=settings,
-                    )
-                ]
-            )
-        if etype in ("task_started", "task_complete", "turn_aborted"):
-            started = etype == "task_started"
-            field = "started_at" if started else "completed_at"
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "turn.start" if started else "turn.end",
-                        etype,
-                        attrs={
-                            "status": "active"
-                            if started
-                            else "interrupted"
-                            if etype == "turn_aborted"
-                            else "failed"
-                            if payload.get("error")
-                            else "completed",
-                            "duration_ms": payload.get("duration_ms"),
-                        },
-                        ext=payload,
-                        ts_value=payload.get(field),
-                        ts_field="payload." + field,
-                        ts_unit="seconds",
-                        semantics="started" if started else "completed",
-                    )
-                ]
-            )
-        if etype == "token_count":
-            info = payload.get("info") or {}
-            events = []
-            if info.get("total_token_usage"):
-                events.append(
-                    self.usage(
-                        record,
-                        info["total_token_usage"],
-                        "codex",
-                        scope="session_snapshot",
-                        path="info.total_token_usage",
-                    )
-                )
-            if info.get("last_token_usage") and not self.has_calls:
-                # Legacy logs lack response identity. Only changed cumulative observations identify a new call.
-                total = canonical(info.get("total_token_usage"))
-                if total != getattr(self, "last_total", None):
-                    events.append(
-                        self.usage(
-                            record,
-                            info["last_token_usage"],
-                            "codex",
-                            request_key=[record.source_id, self.session_uid, record.record_uid],
-                            path="info.last_token_usage",
-                            boundary_evidence="changed_cumulative_usage",
-                        )
-                    )
-                self.last_total = total
-            return (
-                Mapping(events)
-                if events
-                else Mapping(disposition="ignored", reason="rate-limit observation without usage")
-            )
-        if etype == "user_message":
-            return Mapping(
-                self.message(
-                    record,
-                    {"role": "user", "content": payload.get("message", "")},
-                    origin="human",
-                )
-            )
-        if etype == "item_completed":
-            item = payload.get("item", {})
-            itype, native = item.get("type"), item.get("id")
-            key = (
-                [record.source_id, self.session_uid, native] if native else self.native_key(record)
-            )
-            if itype in ("UserMessage", "AgentMessage"):
-                events = self.message(
-                    record,
-                    {"role": "user" if itype == "UserMessage" else "assistant", **item},
-                    key=key,
-                )
-                for event in events:
-                    event.attrs["native_turn_id"] = payload.get("turn_id")
-                return Mapping(events)
-            if itype == "Reasoning":
-                return Mapping(
-                    [
-                        self.make(
-                            record,
-                            "reasoning",
-                            "reasoning",
-                            actor="assistant",
-                            native_key=key,
-                            text="\n".join(item.get("summary_text", [])),
-                            ext=item,
-                        )
-                    ]
-                )
-            if (
-                itype
-                in (
-                    "CommandExecution",
-                    "McpToolCall",
-                    "FileChange",
-                    "WebSearch",
-                    "CollabAgentToolCall",
-                )
-                or itype == "Extension"
-                and item.get("kind") == "web.search"
-            ):
-                call_id = str(native or record.record_uid)
-                key = [record.source_id, self.session_uid, "tool", call_id]
-                name = {
-                    "CommandExecution": "exec_command",
-                    "McpToolCall": f"mcp__{item.get('server')}__{item.get('tool')}",
-                    "FileChange": "apply_patch",
-                    "WebSearch": "web.search",
-                    "CollabAgentToolCall": item.get("tool", "subagent"),
-                    "Extension": "web.search",
-                }[itype]
-                args = item.get(
-                    "arguments",
-                    {"command": " ".join(item.get("command", []))}
-                    if itype == "CommandExecution"
-                    else {"action": item.get("action"), "query": item.get("query")}
-                    if itype in ("WebSearch", "Extension")
-                    else item.get("changes"),
-                )
-                call = self.make(
-                    record,
-                    "tool.call",
-                    "tool.call",
-                    actor="assistant",
-                    call_id=call_id,
-                    native_key=key,
-                    attrs={
-                        "name": name,
-                        "input": args,
-                        "category": "subagent" if itype == "CollabAgentToolCall" else None,
-                        "duration_ms": item.get("duration_ms"),
-                        "native_turn_id": self.native_turn,
-                    },
-                    ts_value=payload.get("started_at_ms"),
-                    ts_field="payload.started_at_ms",
-                    ts_unit="milliseconds",
-                    semantics="started",
-                )
-                result = self.make(
-                    record,
-                    "tool.result",
-                    "tool.result",
-                    actor="tool",
-                    call_id=call_id,
-                    native_key=key,
-                    text=item.get(
-                        "aggregated_output",
-                        text_content(item.get("result", {}).get("content"))
-                        if isinstance(item.get("result"), dict)
-                        else None,
-                    ),
-                    attrs={
-                        "status": item.get("status", "unknown").lower(),
-                        "status_scope": "direct_command"
-                        if itype == "CommandExecution"
-                        else "tool_protocol",
-                        "exit_code": item.get("exit_code"),
-                        "duration_ms": item.get("duration_ms"),
-                        "native_turn_id": self.native_turn,
-                    },
-                    ts_value=payload.get("completed_at_ms"),
-                    ts_field="payload.completed_at_ms",
-                    ts_unit="milliseconds",
-                    semantics="completed",
-                    ext={
-                        k: v
-                        for k, v in item.items()
-                        if k not in ("aggregated_output", "stdout", "stderr", "result")
-                    },
-                )
-                return Mapping([call, result])
-            return Mapping(
-                [
-                    self.make(
-                        record,
-                        "context.compaction"
-                        if itype == "ContextCompaction"
-                        else "subagent.spawn"
-                        if "SubAgent" in str(itype)
-                        else "unknown",
-                        "item",
-                        ext=item,
-                    )
-                ]
-            )
-        return Mapping([self.make(record, "unknown", "event_msg", ext=payload)])

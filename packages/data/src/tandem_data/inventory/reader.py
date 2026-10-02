@@ -8,12 +8,16 @@ import stat
 import tomllib
 from pathlib import Path
 
+import json5
+import yaml
+
 from tandem_data.contract import canonical, uid
 from tandem_data.privacy import redact
 
 KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task")
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ENTRIES = 10000
+EXCLUDED_DIRECTORIES = {".trash", ".git", "node_modules", "__pycache__"}
 
 
 class ScanReader:
@@ -32,21 +36,25 @@ class ScanReader:
 
     def safe(self, path: Path) -> Path:
         target = path.resolve()
+        if ".trash" in path.parts or ".trash" in target.parts:
+            raise ValueError("excluded_trash")
         if not any(target.is_relative_to(root) for root in self.allowed):
             raise ValueError("outside_allowed_roots")
         # Even explicitly allowed directories do not authorize credential inputs.
         if any(
-            part in ("backups", ".env")
-            or part.startswith((".credentials", ".env."))
-            or "oauth" in part.lower()
+            part in ("backups", ".env", "credentials") or part.startswith((".credentials", ".env."))
             for part in target.parts
         ):
             raise ValueError("credential_path")
-        if target.name in ("auth.json", "mcp-auth.json") or target.suffix == ".key":
+        if (
+            target.name in ("auth.json", "mcp-auth.json")
+            or target.suffix == ".key"
+            or ("oauth" in target.name.lower() and target.suffix in (".json", ".yaml", ".toml"))
+        ):
             raise ValueError("credential_path")
         return target
 
-    def read(self, path: Path, kinds) -> bytes | None:
+    def read(self, path: Path, kinds, *, required=False) -> bytes | None:
         try:
             target = self.safe(path)
             info = target.stat()
@@ -58,7 +66,9 @@ class ScanReader:
                 raise ValueError("file_too_large")
             return raw
         except FileNotFoundError:
-            if path.is_symlink():
+            if required:
+                self.issue(path, kinds, "missing_reference")
+            elif path.is_symlink():
                 self.issue(path, kinds, "broken_symlink")
         except (OSError, ValueError, RuntimeError) as error:
             self.issue(
@@ -66,19 +76,55 @@ class ScanReader:
             )
         return None
 
-    def document(self, path: Path, kinds) -> dict:
-        raw = self.read(path, kinds)
+    def document(self, path: Path, kinds, *, expected=dict, required=False):
+        raw = self.read(path, kinds, required=required)
+        empty = [] if expected is list else {}
         if raw is None:
-            return {}
+            return empty
         try:
-            text = raw.decode("utf-8")
-            value = tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
-            if not isinstance(value, dict):
+            text = raw.decode("utf-8-sig")
+            if path.suffix in (".yaml", ".yml"):
+                # Reject aliases before construction: cycles and exponential alias
+                # expansion must not reach hashing or traversal. Never execute tags.
+                if any(isinstance(event, yaml.AliasEvent) for event in yaml.parse(text)):
+                    raise ValueError("yaml_alias")
+
+                class StaticLoader(yaml.SafeLoader):
+                    pass
+
+                def expression(loader, node):
+                    self.issue(path, kinds, "dynamic_yaml_expression")
+                    return {"$expression": loader.construct_scalar(node)}
+
+                StaticLoader.add_constructor("tag:yaml.org,2002:js", expression)
+                value = yaml.load(text, Loader=StaticLoader)
+                if value is None:
+                    value = empty
+            elif path.suffix == ".toml":
+                value = tomllib.loads(text)
+            elif path.suffix == ".jsonc":
+                value = json5.loads(text)
+            else:
+                value = json.loads(text)
+            if not isinstance(value, expected):
                 raise ValueError
+            pending = [(value, 0)]
+            nodes = 0
+            while pending:
+                node, depth = pending.pop()
+                nodes += 1
+                if depth > 64 or nodes > MAX_ENTRIES * 4:
+                    raise ValueError
+                if isinstance(node, dict):
+                    if any(not isinstance(key, str) for key in node):
+                        raise ValueError
+                    pending.extend((child, depth + 1) for child in node.values())
+                elif isinstance(node, list):
+                    pending.extend((child, depth + 1) for child in node)
             return value
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, yaml.YAMLError, RecursionError):
             self.issue(path, kinds, "invalid_document")
-            return {}
+            return empty
 
     def children(self, path: Path, kinds) -> list[Path]:
         try:
@@ -101,6 +147,19 @@ class ScanReader:
             )
         return []
 
+    def directories(self, path: Path, kinds):
+        """Directory-only layouts must not reinterpret sidecar files as packages."""
+        for child in self.children(path, kinds):
+            if child.name.startswith("."):
+                continue
+            try:
+                if self.safe(child).is_dir():
+                    yield child
+                elif child.is_symlink():
+                    self.issue(child, kinds, "broken_directory_link")
+            except (OSError, ValueError, RuntimeError):
+                self.issue(child, kinds, "unsafe_directory_path")
+
     def walk(self, path: Path, kinds, depth=5, ancestors=frozenset()):
         """No unrestricted home traversal; follow links only inside authorized roots."""
         try:
@@ -113,6 +172,8 @@ class ScanReader:
                     self.issue(path, kinds, "broken_or_non_directory_symlink")
                 return
             for child in self.children(path, kinds):
+                if child.name in EXCLUDED_DIRECTORIES:
+                    continue
                 try:
                     resolved = self.safe(child)
                     if resolved.is_dir():
@@ -126,6 +187,37 @@ class ScanReader:
                     self.issue(child, kinds, "unsafe_path")
         except (OSError, ValueError, RuntimeError):
             self.issue(path, kinds, "unsafe_path")
+
+    def skill_documents(self, path: Path, depth=5, ancestors=frozenset()):
+        """A SKILL.md marks a resource boundary, not a subtree to search for more skills."""
+        try:
+            target = self.safe(path)
+            if target in ancestors:
+                self.issue(path, ("skill",), "symlink_cycle")
+                return
+            if not target.is_dir():
+                if path.is_symlink():
+                    self.issue(path, ("skill",), "broken_or_non_directory_symlink")
+                return
+            entries = self.children(path, ("skill",))
+            document = path / "SKILL.md"
+            if document in entries:
+                yield document
+                return
+            for child in entries:
+                if child.name in EXCLUDED_DIRECTORIES:
+                    continue
+                try:
+                    resolved = self.safe(child)
+                    if resolved.is_dir():
+                        if depth:
+                            yield from self.skill_documents(child, depth - 1, ancestors | {target})
+                        else:
+                            self.issue(child, ("skill",), "depth_limit")
+                except (OSError, ValueError, RuntimeError):
+                    self.issue(child, ("skill",), "unsafe_path")
+        except (OSError, ValueError, RuntimeError):
+            self.issue(path, ("skill",), "unsafe_path")
 
     def add(
         self,

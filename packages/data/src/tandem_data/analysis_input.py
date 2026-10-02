@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.query import current_projection
 from tandem_data.scope import validate_scope
@@ -23,6 +25,8 @@ class AnalysisScope:
     root_session_uids: tuple[str, ...] | None = None
     excluded_session_uids: tuple[str, ...] = ()
     include_children: bool = True
+    agent_ids: tuple[str, ...] | None = None
+    source_ids: tuple[str, ...] | None = None
 
     def __post_init__(self):
         validate_scope(self.display_timezone, self.from_ts, self.until_ts)
@@ -51,11 +55,11 @@ def decoded(row):
 
 
 class AnalysisLimitExceeded(ValueError):
-    """Requested facts exceed the in-memory feature-analysis budget."""
+    """An explicit consumer budget was exceeded; never return a partial analysis."""
 
 
 def read_analysis(
-    home: str | Path, scope: AnalysisScope, *, max_events=100000, max_bytes=64 * 1024 * 1024
+    home: str | Path, scope: AnalysisScope, *, max_events=None, max_bytes=None, include_native=True
 ) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
 
@@ -69,6 +73,11 @@ def read_analysis(
         sources = [
             decoded(row) for row in connection.execute("SELECT * FROM source ORDER BY source_id")
         ]
+        source_agents = {source["source_id"]: source["agent"] for source in sources}
+        session_agents = {
+            row["session_uid"]: source_agents.get(row["source_id"])
+            for row in connection.execute("SELECT session_uid,source_id FROM session")
+        }
         files = [
             decoded(row)
             for row in connection.execute(
@@ -91,11 +100,23 @@ def read_analysis(
             "root_uid NOT IN (SELECT value FROM json_each(:excluded))",
         ]
         params = {"excluded": json.dumps(scope.excluded_session_uids)}
+        if scope.agent_ids is not None:
+            # Apply to members AND linked context before the event memory budget.
+            allowed.append(
+                "session_uid IN (SELECT s.session_uid FROM session s JOIN source src USING(source_id) "
+                "WHERE src.agent IN (SELECT value FROM json_each(:agents)))"
+            )
+            params["agents"] = json.dumps(scope.agent_ids)
         if scope.root_session_uids is not None:
             allowed.append("root_uid IN (SELECT value FROM json_each(:roots))")
             params["roots"] = json.dumps(scope.root_session_uids)
         if not scope.include_children:
             allowed.append("session_uid=root_uid")
+        if scope.source_ids is not None:
+            allowed.append(
+                "session_uid IN (SELECT session_uid FROM session WHERE source_id IN (SELECT value FROM json_each(:sources)))"
+            )
+            params["sources"] = json.dumps(scope.source_ids)
         members_sql = list(allowed)
         for field, values in (("project_id", scope.project_ids), ("effort_raw", scope.effort_raw)):
             if values is not None:
@@ -113,10 +134,22 @@ def read_analysis(
                 params[bound] = value
         # The canonical selector below classifies members vs earlier turn context.
         # Metadata outside the selected turn is retained solely to reconstruct a cutoff.
+        event_columns = "v.*"
+        if not include_native:
+            # Native extension payloads can dwarf all measured facts. Analysis and
+            # reports use attrs/text/IDs; evidence readers keep the full default.
+            names = [
+                row["name"] for row in connection.execute("PRAGMA table_info(v_analysis_event)")
+            ]
+            event_columns = (
+                ",".join(f'v."{name}"' for name in names if name != "ext") + ", '{}' AS ext"
+            )
         query = (
             "WITH members AS (SELECT event_uid,session_uid,turn_uid FROM v_analysis_event v WHERE "
             + " AND ".join(members_sql)
-            + ") SELECT v.* FROM v_analysis_event v WHERE "
+            + ") SELECT "
+            + event_columns
+            + " FROM v_analysis_event v WHERE "
             + " AND ".join(allowed)
             + " AND (event_uid IN (SELECT event_uid FROM members) OR turn_uid IN (SELECT turn_uid FROM members)"
             + " OR event_uid IN (SELECT x.event_uid FROM tool_call_event x JOIN v_analysis_tool_call t USING(call_uid)"
@@ -124,32 +157,44 @@ def read_analysis(
             + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
             + " ORDER BY session_uid,seq"
         )
-        # Bound both row count and encoded payload size before allocating Python objects.
-        # This applies equally to many small records and a few unusually large records.
-        probe = query.replace(
-            "SELECT v.* FROM v_analysis_event",
-            "SELECT length(CAST(v.attrs AS BLOB))+length(CAST(v.ext AS BLOB))+COALESCE(length(CAST(v.text AS BLOB)),0) AS payload_bytes FROM v_analysis_event",
-        )
-        total_bytes = 0
-        for row_count, candidate in enumerate(
-            connection.execute(probe + " LIMIT :budget", {**params, "budget": max_events + 1}), 1
-        ):
-            total_bytes += candidate["payload_bytes"]
-            if row_count > max_events or total_bytes > max_bytes:
-                raise AnalysisLimitExceeded(
-                    "Narrow scope or read SQL views in batches; event limit exceeded or payload byte budget exceeded"
-                )
-        events = []
-        for row in connection.execute(query, params):
-            events.append(decoded(row))
-            if len(events) > max_events:
-                raise AnalysisLimitExceeded(
-                    "Narrow scope or read SQL views in batches; event limit exceeded"
-                )
+        # Budgets are opt-in at the consuming boundary. Complete CLI/native reads
+        # stay available; the App bounds both record count and encoded payload bytes.
+        for label, budget in (("max_events", max_events), ("max_bytes", max_bytes)):
+            if budget is not None and (
+                not isinstance(budget, int) or isinstance(budget, bool) or budget < 0
+            ):
+                raise ValueError(f"{label} must be a nonnegative integer")
+        if max_events is not None or max_bytes is not None:
+            ext_bytes = "length(CAST(v.ext AS BLOB))+" if include_native else ""
+            probe = query.replace(
+                "SELECT " + event_columns + " FROM v_analysis_event",
+                "SELECT "
+                + ext_bytes
+                + "length(CAST(v.attrs AS BLOB))+COALESCE(length(CAST(v.text AS BLOB)),0) AS payload_bytes FROM v_analysis_event",
+            )
+            budget_params = dict(params)
+            if max_events is not None:
+                probe += " LIMIT :event_budget"
+                budget_params["event_budget"] = max_events + 1
+            total_bytes = 0
+            for count, row in enumerate(connection.execute(probe, budget_params), 1):
+                total_bytes += row["payload_bytes"]
+                if (max_events is not None and count > max_events) or (
+                    max_bytes is not None and total_bytes > max_bytes
+                ):
+                    raise AnalysisLimitExceeded(
+                        "Analysis event limit exceeded or payload byte budget exceeded. "
+                        "Narrow --project-id / --from-ts / --until-ts or explicitly raise --max-events; no partial analysis was returned."
+                    )
+        events = [decoded(row) for row in connection.execute(query, params)]
 
         def member(event):
             return (
                 (scope.project_ids is None or event["project_id"] in scope.project_ids)
+                and (
+                    scope.agent_ids is None
+                    or session_agents.get(event["session_uid"]) in scope.agent_ids
+                )
                 and (scope.model_ids is None or canonical_model(event) in scope.model_ids)
                 and (scope.effort_raw is None or event["effort_raw"] in scope.effort_raw)
                 and (
@@ -258,12 +303,13 @@ def read_analysis(
         sessions = {event["session_uid"] for event in selected}
         roots = {event["root_uid"] for event in selected}
         session_rows = [
-            decoded(row)
+            {**decoded(row), "agent": source_agents.get(row["source_id"])}
             for row in connection.execute(
                 "SELECT * FROM session WHERE session_uid IN (SELECT value FROM json_each(?))",
                 (json.dumps(sorted(sessions | roots)),),
             )
             if row["session_uid"] in sessions | roots
+            and (scope.agent_ids is None or source_agents.get(row["source_id"]) in scope.agent_ids)
         ]
         if scope.until_ts is not None:
             last_ends = {
@@ -299,13 +345,17 @@ def read_analysis(
             )
             if row["turn_uid"] in selected_turns
         ]
+        # Query order is session/seq. Keep selected endpoints in one pass instead
+        # of scanning the full event corpus once per turn (quadratic at real scale).
+        turn_bounds = {}
+        for event in selected:
+            bounds = turn_bounds.setdefault(
+                event["turn_uid"], [event["event_uid"], event["event_uid"]]
+            )
+            bounds[1] = event["event_uid"]
         for turn in turn_rows:
-            available = [event for event in selected if event["turn_uid"] == turn["turn_uid"]]
-            if available:
-                turn["first_event_uid"], turn["last_event_uid"] = (
-                    available[0]["event_uid"],
-                    available[-1]["event_uid"],
-                )
+            if bounds := turn_bounds.get(turn["turn_uid"]):
+                turn["first_event_uid"], turn["last_event_uid"] = bounds
             if scope.until_ts is not None and (
                 turn["ended_at"] is None or turn["ended_at"] >= scope.until_ts
             ):
@@ -318,15 +368,18 @@ def read_analysis(
             )
             if row["event_uid"] in members
         ]
-        unrestricted = (
+        source_wide = (
             scope.root_session_uids is None
             and scope.project_ids is None
             and scope.model_ids is None
+            and scope.agent_ids is None
             and scope.effort_raw is None
             and scope.from_ts is None
             and scope.until_ts is None
             and not scope.excluded_session_uids
+            and scope.include_children
         )
+        unrestricted = source_wide and scope.source_ids is None
         relevant_sources = {row["source_id"] for row in session_rows}
         relevant_files = set()
         ordered_sessions = sorted(sessions)
@@ -340,6 +393,13 @@ def read_analysis(
                     chunk,
                 )
             )
+        if source_wide and scope.source_ids is not None:
+            # Selecting a source includes its failed/unmapped files even if it has
+            # no publishable session. Other sources cannot affect this selection.
+            relevant_sources = {
+                s["source_id"] for s in sources if s["source_id"] in scope.source_ids
+            }
+            relevant_files = {f["file_id"] for f in files if f["source_id"] in relevant_sources}
         if not unrestricted:
             sources = [source for source in sources if source["source_id"] in relevant_sources]
             files = [file for file in files if file["file_id"] in relevant_files]
@@ -410,6 +470,30 @@ def read_analysis(
         time_unknown = sum(e["ts"] is None for e in selected)
         truncated = sum(e["text_truncated"] for e in selected)
         reasons = []
+        scans = [
+            dict(row)
+            for row in connection.execute("SELECT * FROM source_scan")
+            if unrestricted or row["source_id"] in relevant_sources
+        ]
+        sampled_scans = sum(row["selection"] == "sample" for row in scans)
+        incomplete_scans = sum(
+            bool(
+                row["cancelled"]
+                or row["capture_errors"]
+                or (row["selection"] == "full" and row["indexed_files"] < row["discovered_files"])
+            )
+            for row in scans
+        )
+        missing_scans = len(
+            {row["source_id"] for row in sources} - {row["source_id"] for row in scans}
+        )
+        scan_reason_counts = {
+            "sampled_source_files": sampled_scans,
+            "source_scan_incomplete": incomplete_scans,
+            "source_scan_boundary_unknown": missing_scans,
+        }
+        # Discovery completeness and selected-event evidence are separate dimensions.
+        # An unknown source inventory must not downgrade unrelated, fully observed rows.
         diagnostics = [
             decoded(row)
             for row in connection.execute(
@@ -427,23 +511,57 @@ def read_analysis(
         )
         if capture_errors:
             reasons.append("capture_errors_or_incomplete_frames")
+        if any(row["code"] == "source_unavailable" for row in diagnostics):
+            reasons.append("source_unavailable_preserved_facts")
         if unparsed:
             reasons.append("unparsed_source_records")
+        if any(row["code"] == "inherited_parent_evidence_unavailable" for row in diagnostics):
+            reasons.append("inherited_parent_evidence_unavailable")
         if unknown:
             reasons.append("unknown_event_types")
         if truncated:
             reasons.append("truncated_text")
+        if time_unknown:
+            reasons.append("missing_timestamps")
+        diagnostic_counts = Counter(row["code"] for row in diagnostics)
+        reason_counts = {
+            "capture_errors_or_incomplete_frames": capture_errors,
+            "source_unavailable_preserved_facts": diagnostic_counts["source_unavailable"],
+            "unparsed_source_records": unparsed,
+            "inherited_parent_evidence_unavailable": diagnostic_counts[
+                "inherited_parent_evidence_unavailable"
+            ],
+            "unknown_event_types": unknown,
+            "truncated_text": truncated,
+            "missing_timestamps": time_unknown,
+        }
+        pairing_counts = Counter(tool["pairing_quality"] or "unknown" for tool in tools)
+        pairing_reasons = {
+            "missing_call": "tool_results_without_calls",
+            "missing_result": "tool_calls_without_results",
+            "outside_cutoff": "tool_results_outside_time_scope",
+        }
+        tool_reason_counts = Counter()
+        for quality, count in pairing_counts.items():
+            if quality != "native_id":
+                tool_reason_counts[pairing_reasons.get(quality, "ambiguous_tool_pairing")] += count
         source_agents = {source["agent"] for source in sources}
         inventory = read_inventory_connection(
             connection, until_ts=scope.until_ts, project_ids=scope.project_ids
         )
         coverage = {
-            "sessions": {"status": "available", "rows": len(session_rows)},
-            "projects": {"status": "available", "rows": len(project_rows)},
-            "turns": {"status": "available", "rows": len(turn_rows)},
+            "source_scans": {
+                **dataset_coverage(
+                    None if missing_scans and not scans else len(scans),
+                    reason_counts=scan_reason_counts,
+                ),
+                "scans": scans,
+            },
+            "sessions": dataset_coverage(len(session_rows)),
+            "projects": dataset_coverage(len(project_rows)),
+            "turns": dataset_coverage(len(turn_rows)),
             "events": {
-                "status": "partial" if reasons or time_unknown else "available",
-                "rows": len(selected),
+                **dataset_coverage(len(selected), reasons=reasons, reason_counts=reason_counts),
                 "statistical_rows": len(members),
                 "unknown_rows": unknown,
                 "truncated_rows": truncated,
@@ -451,29 +569,40 @@ def read_analysis(
                     e["attrs"].get("context_type") == "inherited_history" for e in selected
                 ),
                 "time_unknown_rows": time_unknown,
-                "reasons": reasons,
+                "truncated_by_kind": dict(
+                    Counter(e["kind"] for e in selected if e["text_truncated"])
+                ),
             },
             "tool_call": {
-                "status": "partial"
-                if any(t["pairing_quality"] != "native_id" for t in tools)
-                else "available",
-                "rows": len(tools),
+                **dataset_coverage(len(tools), reason_counts=tool_reason_counts),
+                "pairing_quality_counts": dict(pairing_counts),
             },
             "model_call": {
-                "status": "unavailable"
-                if source_agents == {"hermes"}
-                else "partial"
-                if "hermes" in source_agents or unparsed
-                else "available",
-                "rows": len(models),
+                **dataset_coverage(
+                    None if source_agents == {"hermes"} else len(models),
+                    reasons=["cumulative_usage_only"]
+                    if source_agents == {"hermes"}
+                    else ["mixed_model_usage_granularity"]
+                    if "hermes" in source_agents
+                    else (),
+                    reason_counts={"unparsed_source_records": unparsed},
+                ),
                 "reason": "Hermes supplies cumulative snapshots rather than per-call usage"
                 if "hermes" in source_agents
                 else None,
             },
-            "usage_snapshot": {"status": "available", "rows": len(snapshots)},
+            "usage_snapshot": dataset_coverage(len(snapshots)),
             "inventory": inventory["coverage"],
-            "catalog": {"status": "unavailable", "reason": "Catalog is a separate dataset"},
+            "catalog": {
+                **dataset_coverage(None, reasons=["catalog_not_connected"]),
+                "reason": "Catalog is a separate dataset",
+            },
         }
+        if not include_native:
+            coverage["native_event_payload"] = {
+                **dataset_coverage(None, excluded=True, reasons=["native_payload_on_demand"]),
+                "reason": "Analysis omits event.ext; complete stored evidence remains available by event/record UID",
+            }
         return {
             "input_contract": "analysis-input-v1",
             "db_schema_version": manifest["schema_version"],

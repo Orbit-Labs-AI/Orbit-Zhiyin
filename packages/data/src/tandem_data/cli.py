@@ -73,6 +73,7 @@ def main(argv=None):
         "--home",
         default=default_home(),
     )
+    parser.add_argument("--no-progress", action="store_true")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
     commands.add_parser("discover")
@@ -96,6 +97,7 @@ def main(argv=None):
     inventory.add_argument("--project-id")
     inventory.add_argument("--allow-root", action="append", type=Path, default=[])
     inventory.add_argument("--claude-config", type=Path)
+    inventory.add_argument("--skill-root", action="append", type=Path, default=[])
     commands.add_parser("inventory", help="Read latest installation observations")
     commands.add_parser("rebuild")
     bridge = commands.add_parser("import-connector")
@@ -107,6 +109,9 @@ def main(argv=None):
     export.add_argument("--output", type=Path, required=True)
     export.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     args = parser.parse_args(argv)
+    from tandem_data.progress import TerminalProgress
+
+    progress = TerminalProgress(enabled=not args.no_progress)
     if args.command == "discover":
         print(canonical(candidates()))
         return
@@ -116,7 +121,7 @@ def main(argv=None):
         parser.error("--home must be outside the Agent source root")
     if args.command == "scan-inventory" and any(
         Path(args.home).expanduser().resolve().is_relative_to(path.expanduser().resolve())
-        for path in args.allow_root
+        for path in (*args.allow_root, *args.skill_root)
     ):
         parser.error("--home must be outside every --allow-root")
     with Store(args.home) as store:
@@ -128,7 +133,7 @@ def main(argv=None):
         elif args.command in ("scan", "ingest"):
             from tandem_data.service import ImportRequest, ImportService
 
-            result = ImportService(store).import_source(
+            result = ImportService(store, progress=progress).import_source(
                 ImportRequest(
                     agent=args.agent,
                     root=args.root,
@@ -148,6 +153,7 @@ def main(argv=None):
                     project_id=args.project_id,
                     allowed_roots=tuple(args.allow_root),
                     claude_config=args.claude_config,
+                    skill_roots=tuple(args.skill_root),
                 ),
             )
         elif args.command == "inventory":
@@ -158,14 +164,14 @@ def main(argv=None):
             from tandem_data.service import ImportService
 
             with ImportService(store).writer():
-                result = store.rebuild()
+                result = store.rebuild(progress=progress)
         elif args.command == "import-connector":
             from tandem_data.bridge import import_connector
             from tandem_data.service import ImportService
 
             with ImportService(store).writer():
                 result = import_connector(store, args.connector_home)
-                result["projection"] = store.rebuild()
+                result["projection"] = store.rebuild(progress=progress)
         elif args.command == "stats":
             result = statistics(store)
         elif args.command == "verify":

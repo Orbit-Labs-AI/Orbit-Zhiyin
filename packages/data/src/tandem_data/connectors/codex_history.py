@@ -13,10 +13,13 @@ def prepare_history(store, infos, mappers):
         if info["agent"] != "codex" or mapper is None:
             continue
         mapper.excluded_records = {}
-        if info["role"] == "index_db":
+        if info["role"] in ("index_db", "state_index"):
             for record in store.iter_file(info["file_id"]):
                 payload = record.data.get("payload", {})
-                if record.data.get("type") == "state_index" and payload.get("rollout_path"):
+                is_index = record.data.get("type") == "state_index"
+                if record.data.get("table") == "threads":
+                    payload, is_index = record.data["row"], True
+                if is_index and payload.get("rollout_path"):
                     active_paths[info["source_id"], str(payload.get("id"))] = payload[
                         "rollout_path"
                     ]
@@ -41,16 +44,20 @@ def prepare_history(store, infos, mappers):
                 (
                     f["file_id"]
                     for f in files
-                    if Path(f["relative_path"]).name == Path(active_paths.get(key, "")).name
+                    if Path(f["relative_path"]).name.removesuffix(".zst").removesuffix(".zstd")
+                    == Path(active_paths.get(key, ""))
+                    .name.removesuffix(".zst")
+                    .removesuffix(".zstd")
                 ),
                 None,
             )
             if current is None:
                 sinks = [f for f in files if f["file_id"] not in set(parents.values())]
-                current = max(sinks or files, key=lambda f: f["relative_path"])["file_id"]
-                if len(sinks) > 1:
-                    store.issue(key[0], "active_history_inferred", detail={"session": key[1]})
-            bounds, limit = {}, float("inf")
+                if len(sinks) == 1:
+                    current = sinks[0]["file_id"]
+                else:
+                    store.issue(key[0], "ambiguous_active_history", detail={"session": key[1]})
+            bounds, limit = ({} if current else None), float("inf")
             while current and current not in bounds:
                 bounds[current] = limit
                 base = mappers[current].header.get("history_base") or {}
@@ -58,7 +65,7 @@ def prepare_history(store, infos, mappers):
                 if isinstance(end, int) and not isinstance(end, bool):
                     limit = min(limit, end)
                 current = parents.get(current)
-            for rank, file_id in enumerate(reversed(bounds)):
+            for rank, file_id in enumerate(reversed(bounds or {})):
                 ranks[file_id] = rank
         # Exact archived/moved copies share one projection, with both captures retained.
         seen = set()
@@ -82,6 +89,9 @@ def prepare_history(store, infos, mappers):
                     )
                     continue
                 payload = record.data.get("payload") or {}
+                if not isinstance(payload, dict):
+                    previous.append(record.record_uid)
+                    continue  # Unknown payloads still reach the mapper and L1 ledger.
                 typ = payload.get("type")
                 if record.data.get("type") == "event_msg":
                     if typ in ("task_started", "turn_started"):

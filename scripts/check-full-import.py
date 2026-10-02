@@ -117,7 +117,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     home = output / "data"
     token = secrets.token_hex(32)
-    app = create_desktop_app(home, token, ROOT / "docs/design/demo/tandem-demo.html")
+    app = create_desktop_app(home, token, ROOT / "prototypes/advance/tandem-demo.html")
     report = (
         json.loads((output / "results.json").read_text())
         if args.verify_only
@@ -251,6 +251,7 @@ def main():
         report["validation_status"] = (
             "passed"
             if report["snapshot_complete"]
+            and report["verification"]["integrity"] == "ok"
             and report["verification"]["unparsed"] == 0
             and not any(row["stage"] == "capture" for row in report["diagnostics"])
             and all(check["status_code"] == 200 for check in report["read_checks"].values())

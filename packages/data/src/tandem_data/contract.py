@@ -199,10 +199,6 @@ class EventDraft:
                 "aborted": "interrupted",
                 "in_progress": "running",
             }.get(attrs["status"], attrs["status"])
-        truncated = 0
-        if text is not None and len(text.encode("utf-8")) > 8192:
-            text = text.encode("utf-8")[:8192].decode("utf-8", errors="ignore")
-            truncated = 1
         return {
             "event_uid": self.event_uid,
             "session_uid": self.session_uid,
@@ -218,7 +214,7 @@ class EventDraft:
             "turn_uid": None,
             "call_id": self.call_id,
             "text": text,
-            "text_truncated": truncated,
+            "text_truncated": 0,
             "attrs": sanitize(attrs),
             "ext": sanitize(self.ext),
             "contract_version": 1,

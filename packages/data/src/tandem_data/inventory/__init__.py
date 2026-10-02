@@ -7,12 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tandem_data.contract import canonical, now_ms, uid
+from tandem_data.coverage import dataset_coverage
 from tandem_data.store import Store, insert, readonly_connection
 
 from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
-SCANNER_VERSION = "1.0.0"
+SCANNER_VERSION = "1.2.0"
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class InventoryRequest:
     project_id: str | None = None
     allowed_roots: tuple[Path, ...] = ()
     claude_config: Path | None = None
+    skill_roots: tuple[Path, ...] = ()
 
 
 def scan_inventory(store: Store, request: InventoryRequest) -> dict:
@@ -34,12 +36,13 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
 
     if request.agent not in SUPPORTED:
         raise ValueError(f"Unsupported inventory agent: {request.agent}")
-    if request.project_id and request.agent != "project":
-        raise ValueError("project_id requires the project layout")
     if request.claude_config and request.agent != "claude_code":
         raise ValueError("claude_config requires claude_code")
     root = request.root.expanduser().resolve()
-    allowed = tuple(path.expanduser().resolve(strict=True) for path in request.allowed_roots)
+    allowed = tuple(
+        path.expanduser().resolve(strict=True)
+        for path in (*request.allowed_roots, *request.skill_roots)
+    )
     if any(store.home.is_relative_to(path) for path in (root, *allowed)):
         raise ValueError("Data home must be outside all inventory source roots")
     source_key = uid("inventory_source", request.agent, str(root), request.project_id)
@@ -52,6 +55,11 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
             ).fetchone()
         ):
             raise ValueError("Unknown project_id")
+        if request.skill_roots:
+            from .adapters import skills
+
+            for skill_root in request.skill_roots:
+                skills(reader, skill_root.expanduser().resolve())
         try:
             if not root.is_dir():
                 reader.issue(root, SUPPORTED[request.agent], "root_unavailable")
@@ -96,7 +104,7 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
                     source_key,
                     request.agent,
                     str(root),
-                    "project" if request.agent == "project" else "global",
+                    "project" if request.agent == "project" or request.project_id else "global",
                     request.project_id,
                     now_ms(),
                     SCANNER_VERSION,
@@ -129,7 +137,10 @@ def read_inventory_connection(connection, *, until_ts=None, project_ids=None) ->
     empty = {
         "items": None,
         "scans": [],
-        "coverage": {"status": "unavailable", "rows": None, "reason": "no_inventory_scan"},
+        "coverage": {
+            **dataset_coverage(None, reasons=["no_inventory_scan"]),
+            "reason": "no_inventory_scan",
+        },
     }
     if not connection.execute("SELECT 1 FROM sqlite_master WHERE name='inventory_scan'").fetchone():
         return empty
@@ -177,17 +188,16 @@ def read_inventory_connection(connection, *, until_ts=None, project_ids=None) ->
             ):
                 continue
             items.append(item)
-    status = (
-        "partial"
-        if any(s["status"] != "available" for scan in scans for s in scan["coverage"].values())
-        else "available"
+    incomplete_layouts = sum(
+        s["status"] != "available" for scan in scans for s in scan["coverage"].values()
     )
     return {
         "items": items,
         "scans": scans,
         "coverage": {
-            "status": status,
-            "rows": len(items),
+            **dataset_coverage(
+                len(items), reason_counts={"inventory_layout_incomplete": incomplete_layouts}
+            ),
             "boundary": "explicit_roots_only",
             "semantics": "observed_configuration_not_usage",
             "scan_ids": [scan["scan_id"] for scan in scans],

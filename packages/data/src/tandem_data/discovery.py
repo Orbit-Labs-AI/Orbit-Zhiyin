@@ -62,6 +62,9 @@ def inputs(agent: str, root: Path):
             "sessions/**/*.jsonl.zst",
             "archived_sessions/**/*.jsonl",
             "archived_sessions/**/*.jsonl.zst",
+            "session_index.jsonl",
+            "state_*.sqlite",
+            "external_agent_session_imports.json",
         ),
         "dsh": ("sessions/**/session*.jsonl", "sessions/**/session*.jsonl.zstd"),
         "pi": ("sessions/**/*.jsonl",),
@@ -110,6 +113,10 @@ def inputs(agent: str, root: Path):
             for version, path in entries:
                 yield InputFile(path, "transcript" if version == highest else "legacy_transcript")
     else:
+        if agent == "codex":
+            states = [p for p in found if re.fullmatch(r"state_\d+\.sqlite", p.name)]
+            latest = max(states, key=lambda p: int(p.stem.split("_")[-1]), default=None)
+            found = [p for p in found if p.suffix != ".sqlite" or p == latest]
         for path in found:
             yield InputFile(
                 path,
@@ -119,6 +126,12 @@ def inputs(agent: str, root: Path):
                 if path.name == "custom-title.json" and agent == "claude_code"
                 else "session_index"
                 if path.name == "session_index.jsonl" and agent == "kimi"
+                else "title_index"
+                if path.name == "session_index.jsonl" and agent == "codex"
+                else "state_index"
+                if agent == "codex" and path.suffix == ".sqlite"
+                else "import_ledger"
+                if path.name == "external_agent_session_imports.json"
                 else "subagent_transcript"
                 if "subagents" in path.parts
                 else "transcript",
