@@ -1,12 +1,16 @@
 import AppKit
 import Darwin
 import Security
+import UserNotifications
 import WebKit
 
-// Orbit native host: owns process lifetime, the window and system dialogs; the bundled
-// tandem-helper gateway owns all data logic and serves the single-file UI at /app.
+// Orbit native host: owns process lifetime, windows, the menu-bar item, floating panels and
+// system dialogs; the bundled tandem-helper gateway owns all data logic and serves the
+// single-file UI at /app. Every surface is the same page: /app?surface=panel|hud|widgets.
 let appVersion = "0.0.1"
 let bundleID = "ai.actionmesh.orbit"
+let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
+                      "resizeSurface", "commands", "surface:panel", "surface:hud", "surface:widgets"]
 
 func dataHome() -> URL {
     if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
@@ -31,32 +35,74 @@ func jsString(_ value: String) -> String {
     return String(array.dropFirst().dropLast())
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler,
-    WKNavigationDelegate, WKUIDelegate
+func jsonLiteral(_ value: Any) -> String {
+    guard let data = try? JSONSerialization.data(withJSONObject: value),
+          let json = String(data: data, encoding: .utf8) else { return "null" }
+    return json
+}
+
+enum Surface: String { case main, panel, hud, widgets }
+
+/// WKUserContentController retains its handlers; this proxy keeps that reference weak so
+/// every web view shares one handler implementation (AppDelegate.handle) without a cycle.
+final class BridgeProxy: NSObject, WKScriptMessageHandler {
+    weak var app: AppDelegate?
+    init(_ app: AppDelegate) { self.app = app }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        app?.receive(message)
+    }
+}
+
+/// One web view showing one surface of the UI.
+final class WebHost {
+    let surface: Surface
+    let webView: WKWebView
+    var loaded = false
+    init(surface: Surface, webView: WKWebView) { self.surface = surface; self.webView = webView }
+}
+
+/// Borderless floating panel (HUD, widgets): may take key for text input without activating
+/// Orbit; drag with ⌘ held, or by the top 12 pt strip, to move it (the page fills the rest).
+final class FloatingPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown,
+           event.modifierFlags.contains(.command) || event.locationInWindow.y > frame.height - 12 {
+            performDrag(with: event)
+            return
+        }
+        super.sendEvent(event)
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate,
+    NSPopoverDelegate, NSMenuItemValidation, UNUserNotificationCenterDelegate
 {
     let home = dataHome()
     var window: NSWindow!
-    var webView: WKWebView!
+    var hosts: [Surface: WebHost] = [:]
+    var statusItem: NSStatusItem?
+    var popover: NSPopover?
+    var hudPanel: FloatingPanel?
+    var widgetsPanel: FloatingPanel?
     var backend: Process?
     var origin: URL?
     var token = ""
     var stopping = false
     var restarts = 0
-    var loaded = false
     var output = Data()
     var bookmarks: [URL] = []
+    var notificationsAsked = false
+    lazy var bridge = BridgeProxy(self)
+
+    var mainWebView: WKWebView { hosts[.main]!.webView }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         buildMenu()
         token = randomToken()
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
-        config.userContentController.add(self, name: "tandem")
-        webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = self
-        webView.uiDelegate = self
-        webView.setValue(false, forKey: "drawsBackground")  // No white flash before the page paints.
+        let main = makeHost(.main)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
@@ -64,16 +110,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = false
+        window.isReleasedWhenClosed = false  // Closing hides it; the menu-bar item keeps Orbit running.
         window.backgroundColor = NSColor(red: 0xf5 / 255, green: 0xf4 / 255, blue: 0xf0 / 255, alpha: 1)
         window.minSize = NSSize(width: 960, height: 640)
-        window.contentView = webView
+        window.contentView = main.webView
         window.delegate = self
         window.center()
         window.setFrameAutosaveName("OrbitMainWindow")  // Remembers size and position.
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        if Bundle.main.bundleIdentifier != nil { UNUserNotificationCenter.current().delegate = self }
+        buildStatusItem()
+        if UserDefaults.standard.object(forKey: "hudVisible") as? Bool ?? true { setPanel(.hud, visible: true) }
+        if UserDefaults.standard.bool(forKey: "widgetsVisible") { setPanel(.widgets, visible: true) }
+        // Smoke checks without Accessibility access: ORBIT_DEBUG_SURFACES=panel,hud,widgets opens
+        // those surfaces at launch without persisting their visibility.
+        for name in (ProcessInfo.processInfo.environment["ORBIT_DEBUG_SURFACES"] ?? "").split(separator: ",") {
+            switch Surface(rawValue: name.trimmingCharacters(in: .whitespaces)) {
+            case .hud: (hudPanel ?? makePanel(.hud)).orderFrontRegardless()
+            case .widgets: (widgetsPanel ?? makePanel(.widgets)).orderFrontRegardless()
+            case .panel:
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    if let button = self.statusItem?.button { self.statusClicked(button) }
+                }
+            default: break
+            }
+        }
         restoreBookmarks()
         startBackend()
+    }
+
+    // MARK: web views
+
+    func makeHost(_ surface: Surface) -> WebHost {
+        if let existing = hosts[surface] { return existing }
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        config.userContentController.add(bridge, name: "tandem")
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        webView.setValue(false, forKey: "drawsBackground")  // No white flash; surfaces stay transparent.
+        webView.underPageBackgroundColor = .clear
+        let host = WebHost(surface: surface, webView: webView)
+        hosts[surface] = host
+        if let origin = origin { load(host, origin) }
+        return host
+    }
+
+    func host(of webView: WKWebView?) -> WebHost? { hosts.values.first { $0.webView === webView } }
+
+    func pageURL(_ origin: URL, _ surface: Surface) -> URL {
+        var parts = URLComponents(url: origin.appendingPathComponent("app"), resolvingAgainstBaseURL: false)!
+        if surface != .main { parts.queryItems = [URLQueryItem(name: "surface", value: surface.rawValue)] }
+        return parts.url!
+    }
+
+    func endpoint(_ origin: URL) -> String {
+        origin.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    func bootstrapScript(_ origin: URL) -> String {
+        let native: [String: Any] = ["v": 1, "app": appVersion, "platform": "macos", "features": nativeFeatures]
+        return "window.__TANDEM_TOKEN__ = \(jsString(token)); window.__TANDEM_ENDPOINT__ = \(jsString(endpoint(origin)));" +
+            " window.__ORBIT_NATIVE__ = \(jsonLiteral(native));"
+    }
+
+    /// Installs the document-start bootstrap and loads the page, or (after a helper restart)
+    /// keeps the page and hands it the new endpoint and token.
+    func load(_ host: WebHost, _ origin: URL) {
+        let controller = host.webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        controller.addUserScript(WKUserScript(source: bootstrapScript(origin), injectionTime: .atDocumentStart,
+                                              forMainFrameOnly: true))
+        if host.loaded {
+            host.webView.evaluateJavaScript(bootstrapScript(origin))
+            dispatch("tandem:endpoint", ["endpoint": endpoint(origin), "token": token], to: host)
+        } else {
+            host.loaded = true
+            host.webView.load(URLRequest(url: pageURL(origin, host.surface)))
+        }
+    }
+
+    func dispatch(_ event: String, _ detail: [String: Any], to host: WebHost?) {
+        guard let host = host else { return }
+        host.webView.evaluateJavaScript(
+            "window.dispatchEvent(new CustomEvent(\(jsString(event)), {detail: \(jsonLiteral(detail))}));")
     }
 
     // MARK: menu
@@ -82,46 +204,185 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
         let app = NSMenu(title: "Orbit"); appItem.submenu = app
-        app.addItem(withTitle: "About Orbit", action: #selector(showAbout(_:)), keyEquivalent: "")
+        app.addItem(command("关于 Orbit", "about"))
         app.addItem(.separator())
-        app.addItem(withTitle: "Hide Orbit", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let others = app.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        app.addItem(command("设置…", "settings", key: ","))
+        app.addItem(.separator())
+        app.addItem(withTitle: "隐藏 Orbit", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let others = app.addItem(withTitle: "隐藏其他", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         others.keyEquivalentModifierMask = [.command, .option]
-        app.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        app.addItem(withTitle: "全部显示", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
-        app.addItem(withTitle: "Quit Orbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        app.addItem(withTitle: "退出 Orbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let editItem = NSMenuItem(); main.addItem(editItem)
-        let edit = NSMenu(title: "Edit"); editItem.submenu = edit
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        let edit = NSMenu(title: "编辑"); editItem.submenu = edit
+        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        for (title, action, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"),
-                                     ("Select All", "selectAll:", "a")] {
+        for (title, action, key) in [("剪切", "cut:", "x"), ("拷贝", "copy:", "c"), ("粘贴", "paste:", "v"),
+                                     ("全选", "selectAll:", "a")] {
             edit.addItem(withTitle: title, action: Selector((action)), keyEquivalent: key)
         }
 
+        let viewItem = NSMenuItem(); main.addItem(viewItem)
+        let view = NSMenu(title: "显示"); viewItem.submenu = view
+        view.addItem(command("命令面板", "palette", key: "k"))
+        view.addItem(command("切换 Lite / Advance", "toggleEdition", key: "l", mods: [.command, .control]))
+        view.addItem(.separator())
+        view.addItem(command("刷新", "refresh", key: "r"))
+        let reload = view.addItem(withTitle: "重新载入页面", action: #selector(reloadPage(_:)), keyEquivalent: "r")
+        reload.keyEquivalentModifierMask = [.command, .shift]
+
         let windowItem = NSMenuItem(); main.addItem(windowItem)
-        let win = NSMenu(title: "Window"); windowItem.submenu = win
-        win.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        win.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
-        let full = win.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        let win = NSMenu(title: "窗口"); windowItem.submenu = win
+        win.addItem(withTitle: "最小化", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        win.addItem(withTitle: "缩放", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        let full = win.addItem(withTitle: "进入全屏幕", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         full.keyEquivalentModifierMask = [.command, .control]
         win.addItem(.separator())
-        win.addItem(withTitle: "Reload", action: #selector(reloadPage(_:)), keyEquivalent: "r")
+        win.addItem(withTitle: "Orbit 主窗口", action: #selector(showMain(_:)), keyEquivalent: "0")
+        let hud = win.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "h")
+        hud.keyEquivalentModifierMask = [.command, .option]
+        let widgets = win.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "w")
+        widgets.keyEquivalentModifierMask = [.command, .option]
         NSApp.windowsMenu = win
         NSApp.mainMenu = main
     }
 
-    @objc func showAbout(_ sender: Any?) {
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Orbit", .applicationVersion: appVersion, .version: appVersion,
-        ])
+    func command(_ title: String, _ cmd: String, key: String = "", mods: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(sendCommand(_:)), keyEquivalent: key)
+        item.keyEquivalentModifierMask = mods
+        item.representedObject = cmd
+        item.target = self
+        return item
+    }
+
+    /// Menu commands go to the main window's page as tandem:command.
+    @objc func sendCommand(_ sender: NSMenuItem) {
+        guard let cmd = sender.representedObject as? String else { return }
+        showMain(nil)
+        dispatch("tandem:command", ["cmd": cmd], to: hosts[.main])
     }
 
     @objc func reloadPage(_ sender: Any?) {
-        if let origin = origin { webView.load(URLRequest(url: origin.appendingPathComponent("app"))) }
+        guard let origin = origin else { return }
+        let target = hosts.values.first { $0.webView.window?.isKeyWindow == true } ?? hosts[.main]!
+        target.webView.load(URLRequest(url: pageURL(origin, target.surface)))
+    }
+
+    @objc func showMain(_ sender: Any?) {
+        popover?.performClose(nil)
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func toggleHUD(_ sender: Any?) { setPanel(.hud, visible: !(hudPanel?.isVisible ?? false)) }
+    @objc func toggleWidgets(_ sender: Any?) { setPanel(.widgets, visible: !(widgetsPanel?.isVisible ?? false)) }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(toggleHUD(_:)) { item.state = hudPanel?.isVisible == true ? .on : .off }
+        if item.action == #selector(toggleWidgets(_:)) { item.state = widgetsPanel?.isVisible == true ? .on : .off }
+        return true
+    }
+
+    // MARK: menu-bar item and floating panels
+
+    func buildStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let image = NSImage(named: "StatusIcon") {
+            image.isTemplate = true  // orbit-mark-small.svg rendered verbatim; the menu bar tints it.
+            image.size = NSSize(width: image.size.width * 16 / max(image.size.height, 1), height: 16)
+            item.button?.image = image
+        } else {
+            item.button?.title = "Orbit"
+        }
+        item.button?.toolTip = "Orbit"
+        item.button?.target = self
+        item.button?.action = #selector(statusClicked(_:))
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        statusItem = item
+    }
+
+    @objc func statusClicked(_ sender: NSStatusBarButton) {
+        if NSApp.currentEvent?.type == .rightMouseUp || NSApp.currentEvent?.modifierFlags.contains(.control) == true {
+            let menu = NSMenu()
+            menu.addItem(withTitle: "打开 Orbit", action: #selector(showMain(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "").target = self
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "退出 Orbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+            statusItem?.menu = menu
+            sender.performClick(nil)  // Shows the menu; detach it so left clicks open the popover again.
+            statusItem?.menu = nil
+            return
+        }
+        if let popover = popover, popover.isShown { popover.performClose(nil); return }
+        let pop = popover ?? makePopover()
+        pop.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+        pop.contentViewController?.view.window?.makeKey()
+    }
+
+    func makePopover() -> NSPopover {
+        let host = makeHost(.panel)
+        let controller = NSViewController()
+        controller.view = host.webView
+        let pop = NSPopover()
+        pop.behavior = .transient
+        pop.animates = true
+        pop.contentSize = NSSize(width: 360, height: 560)
+        pop.contentViewController = controller
+        pop.delegate = self
+        popover = pop
+        return pop
+    }
+
+    func setPanel(_ surface: Surface, visible: Bool) {
+        guard surface == .hud || surface == .widgets else { return }
+        UserDefaults.standard.set(visible, forKey: surface == .hud ? "hudVisible" : "widgetsVisible")
+        let existing = surface == .hud ? hudPanel : widgetsPanel
+        if !visible { existing?.orderOut(nil); return }
+        let panel = existing ?? makePanel(surface)
+        panel.orderFrontRegardless()
+    }
+
+    func makePanel(_ surface: Surface) -> FloatingPanel {
+        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let size = surface == .hud ? NSSize(width: 340, height: 200) : NSSize(width: 320, height: 620)
+        let offset: CGFloat = surface == .hud ? 0 : 360  // Widgets sit left of the HUD by default.
+        let frame = NSRect(x: screen.maxX - size.width - 20 - offset, y: screen.maxY - size.height - 20,
+                           width: size.width, height: size.height)
+        let panel = FloatingPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
+                                  backing: .buffered, defer: false)
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false  // The page draws its own card shadow on a transparent body.
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.isReleasedWhenClosed = false
+        panel.contentView = makeHost(surface).webView
+        panel.setFrameAutosaveName(surface == .hud ? "OrbitHUD" : "OrbitWidgets")  // Remembers position.
+        if surface == .hud { hudPanel = panel } else { widgetsPanel = panel }
+        return panel
+    }
+
+    func resizeSurface(_ host: WebHost, height raw: Double) {
+        let height = CGFloat(min(max(raw, 80), 900))
+        switch host.surface {
+        case .panel: popover?.contentSize = NSSize(width: popover?.contentSize.width ?? 360, height: height)
+        case .hud, .widgets:
+            guard let panel = host.webView.window else { return }
+            var frame = panel.frame
+            frame.origin.y += frame.height - height  // Keep the top edge where the user put it.
+            frame.size.height = height
+            panel.setFrame(frame, display: true, animate: false)
+        case .main: break
+        }
     }
 
     // MARK: backend
@@ -181,7 +442,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             DispatchQueue.main.async {
                 guard let self = self, self.origin == origin else { return }
                 if (response as? HTTPURLResponse)?.statusCode == 200 {
-                    self.backendReady(origin)
+                    for host in self.hosts.values { self.load(host, origin) }
                 } else if attempt < 120 {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.waitUntilReady(attempt: attempt + 1) }
                 } else {
@@ -189,27 +450,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 }
             }
         }.resume()
-    }
-
-    func bootstrapScript(_ origin: URL) -> String {
-        let endpoint = jsString(origin.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
-        return "window.__TANDEM_TOKEN__ = \(jsString(token)); window.__TANDEM_ENDPOINT__ = \(endpoint); window.__ORBIT_NATIVE__ = true;"
-    }
-
-    func backendReady(_ origin: URL) {
-        let controller = webView.configuration.userContentController
-        controller.removeAllUserScripts()
-        controller.addUserScript(WKUserScript(source: bootstrapScript(origin), injectionTime: .atDocumentStart,
-                                              forMainFrameOnly: true))
-        if loaded {
-            // Helper restarted: keep the page, hand it the new endpoint and token.
-            let endpoint = jsString(origin.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
-            webView.evaluateJavaScript(bootstrapScript(origin) +
-                "window.dispatchEvent(new CustomEvent('tandem:endpoint', {detail: {endpoint: \(endpoint), token: \(jsString(token))}}));")
-        } else {
-            loaded = true
-            webView.load(URLRequest(url: origin.appendingPathComponent("app")))
-        }
     }
 
     func backendExited(_ process: Process) {
@@ -229,7 +469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         alert.addButton(withTitle: "好"); alert.runModal()
     }
 
-    // MARK: bridge
+    // MARK: bridge (page -> host)
 
     func restoreBookmarks() {
         for data in UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? [] {
@@ -239,25 +479,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
-    func dispatch(_ event: String, _ detail: [String: Any]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: detail),
-              let json = String(data: data, encoding: .utf8) else { return }
-        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent(\(jsString(event)), {detail: \(json)}));")
-    }
-
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, let origin = origin,
+    /// The one message handler for every web view: only the gateway's own pages may call it.
+    func receive(_ message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame, let origin = origin, let host = host(of: message.webView),
               let url = message.frameInfo.request.url, url.scheme == "http", url.host == origin.host,
               url.port == origin.port, let body = message.body as? [String: Any],
-              let action = body["action"] as? String else { return }
+              let type = (body["type"] ?? body["action"]) as? String else { return }
         let id = body["id"] ?? NSNull()
-        switch action {
-        case "close": window.performClose(nil)
-        case "minimize": window.miniaturize(nil)
-        case "zoom": window.zoom(nil)
-        case "fullscreen": window.toggleFullScreen(nil)
-        case "chooseFolder": chooseFolder(id: id)
-        case "save": save(body, id: id)
+        switch type {
+        case "close", "minimize", "zoom", "fullscreen": windowOp(type, host)
+        case "chooseFolder": chooseFolder(body, id: id, host: host)
+        case "save": save(body, id: id, host: host)
         case "openExternal":
             if let raw = body["url"] as? String, let target = URL(string: raw),
                ["http", "https"].contains(target.scheme?.lowercased() ?? "") { NSWorkspace.shared.open(target) }
@@ -265,47 +497,124 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if let path = body["path"] as? String, FileManager.default.fileExists(atPath: path) {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
+        case "notify": notify(body)
+        case "openMain": openMain(route: body["route"] as? String)
+        case "resizeSurface":
+            if let height = (body["height"] as? NSNumber)?.doubleValue { resizeSurface(host, height: height) }
         default: break
         }
     }
 
-    func chooseFolder(id: Any) {
+    func windowOp(_ op: String, _ host: WebHost) {
+        switch host.surface {
+        case .main:
+            switch op {
+            case "close": window.performClose(nil)
+            case "minimize": window.miniaturize(nil)
+            case "zoom": window.zoom(nil)
+            default: window.toggleFullScreen(nil)
+            }
+        case .panel: if op == "close" { popover?.performClose(nil) }
+        case .hud, .widgets: if op == "close" { setPanel(host.surface, visible: false) }
+        }
+    }
+
+    func openMain(route: String?) {
+        showMain(nil)
+        if let route = route, !route.isEmpty {
+            dispatch("tandem:command", ["cmd": "route", "route": route], to: hosts[.main])
+        }
+    }
+
+    /// Sheet on the main window; a free-standing panel for the popover and floating surfaces.
+    func present(_ panel: NSSavePanel, for host: WebHost, _ done: @escaping (NSApplication.ModalResponse) -> Void) {
+        if host.surface == .main, window.isVisible {
+            panel.beginSheetModal(for: window, completionHandler: done)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.begin(completionHandler: done)
+        }
+    }
+
+    func chooseFolder(_ body: [String: Any], id: Any, host: WebHost) {
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
         panel.allowsMultipleSelection = false; panel.showsHiddenFiles = true
-        panel.beginSheetModal(for: window) { [weak self] response in
+        panel.prompt = "选择"
+        if let purpose = body["purpose"] as? String, !purpose.isEmpty {
+            let agent = (body["agent"] as? String).map { " · \($0)" } ?? ""
+            panel.message = purpose + agent
+        }
+        if let raw = body["defaultPath"] as? String, !raw.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: (raw as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        present(panel, for: host) { [weak self] response in
             guard let self = self else { return }
             guard response == .OK, let url = panel.url else {
-                self.dispatch("tandem:folder", ["id": id, "path": NSNull()]); return
+                self.dispatch("tandem:folder", ["id": id, "path": NSNull(), "cancelled": true], to: host); return
             }
             if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
                 var saved = UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? []
                 saved.append(bookmark); UserDefaults.standard.set(saved, forKey: "sourceBookmarks")
             }
             if url.startAccessingSecurityScopedResource() { self.bookmarks.append(url) }
-            self.dispatch("tandem:folder", ["id": id, "path": url.path])
+            self.dispatch("tandem:folder", ["id": id, "path": url.path, "cancelled": false], to: host)
         }
     }
 
-    func save(_ body: [String: Any], id: Any) {
+    func save(_ body: [String: Any], id: Any, host: WebHost) {
         let data: Data
         if let text = body["text"] as? String { data = Data(text.utf8) }
         else if let encoded = body["base64"] as? String, let decoded = Data(base64Encoded: encoded) { data = decoded }
-        else { dispatch("tandem:saved", ["id": id, "ok": false, "error": "no content"]); return }
-        guard data.count <= 200_000_000 else { dispatch("tandem:saved", ["id": id, "ok": false, "error": "too large"]); return }
+        else { dispatch("tandem:saved", ["id": id, "ok": false, "error": "no content"], to: host); return }
+        guard data.count <= 200_000_000 else {
+            dispatch("tandem:saved", ["id": id, "ok": false, "error": "too large"], to: host); return
+        }
         let panel = NSSavePanel()
         let name = (body["filename"] as? String).map { ($0 as NSString).lastPathComponent } ?? "orbit-export"
         panel.nameFieldStringValue = name.isEmpty ? "orbit-export" : name
-        panel.beginSheetModal(for: window) { [weak self] response in
+        present(panel, for: host) { [weak self] response in
             guard response == .OK, let url = panel.url else {
-                self?.dispatch("tandem:saved", ["id": id, "ok": false, "path": NSNull()]); return
+                self?.dispatch("tandem:saved", ["id": id, "ok": false, "cancelled": true], to: host); return
             }
             do {
                 try data.write(to: url, options: .atomic)
-                self?.dispatch("tandem:saved", ["id": id, "ok": true, "path": url.path])
+                self?.dispatch("tandem:saved", ["id": id, "ok": true, "path": url.path], to: host)
             } catch {
-                self?.dispatch("tandem:saved", ["id": id, "ok": false, "error": error.localizedDescription])
+                self?.dispatch("tandem:saved", ["id": id, "ok": false, "error": error.localizedDescription], to: host)
             }
         }
+    }
+
+    // MARK: notifications
+
+    /// System notification; authorization is requested on first use and denial is silent.
+    func notify(_ body: [String: Any]) {
+        guard Bundle.main.bundleIdentifier != nil, let title = body["title"] as? String else { return }
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body["body"] as? String ?? ""
+        if let route = body["route"] as? String { content.userInfo = ["route": route] }
+        let id = (body["id"] as? String) ?? (body["id"] as? NSNumber)?.stringValue ?? UUID().uuidString
+        let request = UNNotificationRequest(identifier: "orbit.\(id)", content: content, trigger: nil)
+        let post = { center.add(request) { _ in } }
+        if notificationsAsked { post(); return }
+        center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
+            DispatchQueue.main.async { self?.notificationsAsked = true }
+            if granted { post() }
+        }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let route = response.notification.request.content.userInfo["route"] as? String
+        DispatchQueue.main.async { self.openMain(route: route) }
+        completionHandler()
     }
 
     // MARK: navigation
@@ -328,16 +637,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         return nil
     }
 
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { reloadPage(nil) }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard let host = host(of: webView), let origin = origin else { return }
+        webView.load(URLRequest(url: pageURL(origin, host.surface)))
+    }
 
     // MARK: lifecycle
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { window.makeKeyAndOrderFront(nil) }
+        showMain(nil)
         return true
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // Closing the main window hides it; Orbit keeps running in the menu bar until ⌘Q.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         stopping = true
