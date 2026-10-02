@@ -1,8 +1,8 @@
 # Feature 到前端指标：映射、计算与降维规则
 
-这层把已经合入的八个特征族转换为前端可直接使用的指标、坐标和建议，不再读取原始日志或重新做语义提取。设计依据是团队的《前端-交互流程.md》及其分析模块文档；四轴名称沿用《agent轨迹数据处理方向与分析工具.md》。本次不扩大暂缓特征的范围。
+这层把已经合入的八个特征族转换为前端可直接使用的指标、坐标和建议，不再读取原始日志或重新做语义提取。设计同时核对了原始 Lite / Advance UI 的实际渲染代码，逐项来源见[原始 UI 对照](original-ui-mapping.md)；四轴名称沿用《agent轨迹数据处理方向与分析工具.md》。本次不扩大暂缓特征的范围。
 
-入口为 `build_presentation(analysis)`，输入是同一筛选范围的 `analyze_bundle`／`analyze_store` 输出。结果版本为 `presentation-v1`；诊断规则为 `presentation-diagnostics-v1`；画像规则为 `collaboration-profile-v1`。纯代码计算，不调用模型或外部 API，也不修改输入。
+入口为 `build_presentation(analysis)`，输入是同一筛选范围的 `analyze_bundle`／`analyze_store` 输出。结果版本为 `presentation-v2`；诊断规则为 `presentation-diagnostics-v1`；画像规则为 `collaboration-profile-v1`。纯代码计算，不调用模型或外部 API，也不修改输入。v2 将 `overview.collaboration_duration` 从不可用改为 UI 定义的累计会话观测跨度；人工工时始终在独立的 `human_work_duration` 中保持未知，消费者需按版本升级标签与说明。
 
 ## 1. 分层与页面合同
 
@@ -87,7 +87,18 @@ pooled_rate = Σ numerator_session / Σ denominator_session
 - `overview.messages`：确认真人来源消息数；来源不明另列。
 - 会话 `turns`：明确 `(session_uid, turn_uid)` 去重，不能用消息数除以二推算。
 - `timeline`：每个任务在每个会话内的边界段保留 `start_ts/end_ts`、顺序、`boundary_status`、结束原因和证据。缺结束时间保留开放任务，不把助手最后回复当作结束。
-- `observed_session_span_ms` 是 `last_event-first_event`，只表示日志跨度。`overview.collaboration_duration` 保持不可用。
+- `observed_session_span_ms` 是所选会话自身的 `last_event-first_event`，只表示日志跨度。`overview.collaboration_duration` 是这些跨度之和，包含空闲与并行重叠；`human_work_duration` 保持不可用。
+- `statistics.counts` 提供项目、主会话、子代理、未知类型、轮次、真人消息、助手消息、事件与工具数。项目优先 canonical ID，再用无歧义的 legacy 别名；未分配项目单列，不算一个项目。
+- `statistics.time` 提供首末事件、观测范围、跨度总和／均值／中位数／区间并集、时间已知／未知会话数。只出现一个事件时跨度为零；缺事件边界为未知。未展开的子代理只有个数，不借父会话时间填充。
+- `statistics.activity.active_dates` 是实际有事件的本地日期集合大小，不能用首末日期差替代。会话、项目均保留局部明细，按 Agent／项目／日期筛选后重算。
+- `timeline_recent` 按任务中已观察到的最后真人消息降序，用于原始 Lite 的近期任务；不把任务消息时间解释成完成时间。
+
+```text
+span_i = max(selected_own_event_ts_i) - min(selected_own_event_ts_i)
+span_sum = Σ span_i
+span_union = length(union([first_i, last_i]))
+active_dates = size(union(local_date(selected_own_event_ts)))
+```
 
 ### 日／小时活动量
 
@@ -103,6 +114,8 @@ intensity(d) = log(1 + count(d)) / log(1 + max_selected_day_count)
 
 三个系列分别继承各自的事件／调用／请求覆盖状态。真人来源全部未知或来源部分覆盖且没有已知活动时，桶次数和热度保留 `null`，不能显示成确定的零工作量。
 
+`statistics.activity.message_weekday_hour` 直接计算每条真人消息的 `(ISO星期, 本地小时)` 联合分布，对应 Advance 热力图，不能用两个边缘分布相乘制造。`observed_span_by_hour` 将会话区间按本地整点和时区偏移变化切分，单位为分钟，对应 Lite 小时图；并行跨度分别计入。`overview.agent_activity` 提供按 Agent 的每日会话起点和真人消息；每日 Token 必须另按有效请求口径计算，不摊分未知总量。
+
 例：三天已知消息数为 `0、3、15`，热度分别是 `0、0.5、1`，比例分别是 `0、1/6、5/6`。热度最大值来自当前筛选，切换窗口后颜色可能变化；跨窗口比较应看原始次数、分母及覆盖，不能把颜色当效率改善。
 
 ### 工具、语言和任务标签排行
@@ -116,6 +129,8 @@ domain_rate(k) = 带标签 k 的不同任务数 / 至少有一个领域标签的
 ```
 
 同任务跨会话只计一次；未知标签任务不进入已知分母，单独列 `unknown_n`。一个任务同时涉及 software 与 writing，两类可以各为 100%，不要求加总等于 100%。它与普通排行的份额不同。
+
+v2 的 `semantics.domain_details` 在六个父类下提供 27 个细分领域，见[领域规则与语料](task-taxonomy.md)。每项包含不同任务／会话／项目数及可下钻 ID，按事件证据投影到项目和会话；`task_type` 独立保留“创建／修改／测试／解释”等动作。112 条构造语料用于回归验证，不能视为真实用户准确率。词面命中只作为可解释的任务题材候选，不宣称已经完成向量语义分类。
 
 ## 4. 诊断指标与工具转移
 

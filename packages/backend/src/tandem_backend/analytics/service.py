@@ -20,6 +20,7 @@ from .outcome_subjective import aggregate_subjective_outcomes
 from .preference import extract_explicit_preferences, summarize_preferences
 from .task import segment_tasks, summarize_task_distribution
 from .task.representation import representation
+from .task.taxonomy import TAXONOMY_VERSION
 
 
 def analyze_bundle(bundle, scope=None, with_text=True):
@@ -75,7 +76,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         root_events = [e for member in sorted(included) for e in groups[member]]
         context_events = [e for e in diagnostics["context_events"] if e["session_uid"] in included]
         root_calls = None if calls is None else [c for member in sorted(included) for c in call_groups[member]]
-        data = session_features(s, own, root_calls, main_ids, supported, event_status)
+        data = session_features(s, own, root_calls, main_ids, supported, event_status,
+                                scope.display_timezone)
         data["workflow"] = workflow(root_events + context_events, root_calls, main_ids, supported)
         data["usage"] = usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in included],
                               root_events, [p for p in sessions if p["session_uid"] in included], scope, complete_models)
@@ -149,6 +151,9 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "turn_count": len({(e["session_uid"], e["turn_uid"]) for e in pe if e.get("turn_uid")}) or None,
             "correction_signal_count": sum(r["features"]["correction_signal_count"] or 0 for r in rs) if ph else None,
             "subjective_outcomes": aggregate_subjective_outcomes([r["subjective_outcomes"] for r in rs], event_status),
+            "activity_rhythm": activity([s for s in sessions if s["session_uid"] in ids], pe,
+                                        pcs, None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
+                                        main_ids & ids, scope) if bundle.events is not None else None,
             "tools": tool_summary(pcs, all_tools["status"]),
             "usage": usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
                            pe, [s for s in sessions if s["session_uid"] in ids], scope, complete_models),
@@ -176,7 +181,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         all_workflow = {"status": "unavailable", "transitions": None, "sequences": None}
         rhythm = None
     result = {**meta, "feature_schema_version": FEATURE_VERSION, "feature_dictionary": FEATURES,
-            "analysis_digest": stable_id(bundle.versions.get("content_digest"), asdict(scope), FEATURE_VERSION, INSTRUCTION_VERSION),
+            "analysis_digest": stable_id(bundle.versions.get("content_digest"), asdict(scope), FEATURE_VERSION,
+                                         INSTRUCTION_VERSION, TAXONOMY_VERSION),
             "effective_samples": {"main_sessions": len(main_ids), "human_messages": human_count,
                                   "tools": len(calls) if calls is not None else None, "text_sessions": len(entities)},
             "unknown_counts": {"human_origin": unknown_origin, "session_kind": counts["session_kind_unknown"],

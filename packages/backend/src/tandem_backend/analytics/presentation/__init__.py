@@ -1,6 +1,6 @@
 """Versioned, deterministic feature-to-display rules; no new extraction or model calls."""
 
-PRESENTATION_VERSION = "presentation-v1"
+PRESENTATION_VERSION = "presentation-v2"
 
 
 def build_presentation(analysis):

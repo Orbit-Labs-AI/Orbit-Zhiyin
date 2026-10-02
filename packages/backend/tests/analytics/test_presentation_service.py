@@ -27,7 +27,7 @@ def test_all_eight_families_feed_serializable_immutable_sections():
     analysis = analyze_bundle(fixture_bundle(), Scope(display_timezone="Asia/Shanghai"), with_text=False)
     snapshot = copy.deepcopy(analysis)
     view = build_presentation(analysis)
-    assert view["schema_version"] == "presentation-v1"
+    assert view["schema_version"] == "presentation-v2"
     assert view["overview"]["sessions"]["value"] == analysis["overview"]["counts"]["main_sessions"]
     assert view["overview"]["correction_rate"] == view["diagnostics"]["correction_rate"]
     assert view["tools"]["call_count"] >= 1
@@ -35,7 +35,9 @@ def test_all_eight_families_feed_serializable_immutable_sections():
     assert view["projects"][0]["declared_acceptance_sets"]
     assert view["profile"]["code"] is None
     assert view["resources"]["popular"]["value"] is None
-    assert view["overview"]["collaboration_duration"]["value"] is None
+    assert view["overview"]["collaboration_duration"]["value"] == sum(
+        s["features"]["observed_session_span_ms"] for s in analysis["sessions"])
+    assert view["overview"]["human_work_duration"]["value"] is None
     json.dumps(view, allow_nan=False)
     view["scope"]["display_timezone"] = "changed"
     assert analysis == snapshot

@@ -8,6 +8,8 @@ from . import PRESENTATION_VERSION
 from .diagnostics import build_diagnostics
 from .metrics import activity_view, measure, ranked_counts, unavailable
 from .profile import build_profile
+from .statistics import build_statistics, project_statistics
+from .topics import topic_inventory
 
 
 def _tokens(usage):
@@ -38,6 +40,16 @@ def _scoped_task(task, ids, event_ids):
                     for label, refs in task.get("label_evidence", {}).get(field, {}).items()}
         result["label_evidence"][field] = {label: refs for label, refs in evidence.items() if refs}
         result[field] = sorted(result["label_evidence"][field]) or None
+    details = []
+    detail_evidence = {}
+    for detail in task.get("domain_details") or []:
+        refs = [ref for ref in task.get("label_evidence", {}).get("domain_details", {}).get(detail["id"], [])
+                if ref["session_uid"] in ids]
+        if refs:
+            detail_evidence[detail["id"]] = refs
+            details.append({**detail, "evidence": refs})
+    result["domain_details"] = details or None
+    result["label_evidence"]["domain_details"] = detail_evidence
     history = [h for h in task.get("task_goal_history", [])
                if (h.get("evidence") or {}).get("session_uid") in ids]
     result["task_goal_history"] = history
@@ -87,7 +99,10 @@ def _session(row, analysis):
         "session_uid": row["session_uid"], "title": row.get("title"),
         "kind": row.get("kind"), "agent": row.get("agent"),
         "project_id": row.get("project_id"), "legacy_project_id": row.get("legacy_project_id"),
+        "first_activity_ts": features.get("first_observed_ts"),
         "last_activity_ts": features.get("last_observed_ts"),
+        "active_dates": features.get("observed_event_dates"),
+        "observed_timestamp_n": features.get("observed_timestamp_n"),
         "time_basis": "last selected observed event, unknown timestamps sort last",
         "task_ids": row.get("task_ids"),
         "turns": measure(features.get("turn_count"), "turn", "distinct session_uid/turn_uid",
@@ -97,6 +112,14 @@ def _session(row, analysis):
                             unknown_n=row.get("unknown_counts", {}).get("human_origin")),
         "tool_calls": diagnostic["tools"]["call_count"],
         "correction_rate": diagnostic["correction_rate"],
+        "correction_count": measure(diagnostic["correction_rate"]["numerator"], "human_message",
+                                    "confirmed correction messages; no lexical candidates",
+                                    status=diagnostic["correction_rate"]["status"],
+                                    unknown_n=diagnostic["correction_rate"]["unknown_n"]),
+        "errors": measure(diagnostic["tools"]["known_failure_count"], "tool_call", "known failed tool calls",
+                          status=diagnostic["tools"]["error_rate"]["status"],
+                          unknown_n=diagnostic["tools"]["unknown_status_count"]),
+        "domain_details": topic_inventory(sub),
         "tools": diagnostic["tools"], "outcomes": diagnostic["outcomes"],
         "tokens": _tokens(row["usage"]),
         "observed_session_span_ms": measure(features.get("observed_session_span_ms"), "ms",
@@ -106,17 +129,30 @@ def _session(row, analysis):
     }
 
 
-def _timeline(tasks):
+def _timeline(tasks, instructions=()):
     if tasks is None:
         return None
     rows = []
+    events = {r["event_uid"]: r for r in instructions or []}
     for task in tasks:
         for boundary in task["task_boundaries"]:
             start, end = boundary.get("start") or {}, boundary.get("end") or {}
+            segment = _scoped_task(task, {boundary["session_uid"]}, set(events))
+            observations = [events[e] for e in task.get("human_evidence_ids", []) if e in events
+                            and events[e]["session_uid"] == boundary["session_uid"]
+                            and events[e].get("seq") is not None
+                            and (start.get("seq") is None or events[e].get("seq", -1) >= start["seq"])
+                            and (end.get("seq") is None or events[e].get("seq", -1) < end["seq"]
+                                 or boundary.get("end_inclusive") and events[e].get("seq") == end["seq"])]
+            times = [e["ts"] for e in observations if e.get("ts") is not None]
             rows.append({"task_id": task["task_id"], "session_uid": boundary["session_uid"],
-                         "title": task.get("task_title"), "goal": task.get("task_goal"),
-                         "domain": task.get("domain"), "task_type": task.get("task_type"),
-                         "expected_artifacts": task.get("expected_artifacts"),
+                         "title": segment.get("task_title"), "goal": segment.get("task_goal"),
+                         "domain": segment.get("domain"), "task_type": segment.get("task_type"),
+                         "domain_details": segment.get("domain_details"),
+                         "last_activity_ts": max(times, default=start.get("ts")),
+                         "human_observation_count": len(observations),
+                         "activity_basis": "selected human task evidence; not inferred task completion",
+                         "expected_artifacts": segment.get("expected_artifacts"),
                          "start_ts": start.get("ts"), "end_ts": end.get("ts"),
                          "start_seq": start.get("seq"), "end_seq": end.get("seq"),
                          "boundary_status": boundary.get("status"),
@@ -136,11 +172,19 @@ def _project(project, analysis):
                     "project_ids": [project["project_id"]] if project.get("project_id") is not None else None,
                     "legacy_project_ids": [project["legacy_project_id"]] if project.get("legacy_project_id") is not None else None}
     diagnostic = build_diagnostics(sub)
+    project_sub = {**analysis, "overview": {**analysis["overview"],
+                   "activity_rhythm": project.get("activity_rhythm")}}
+    statistics = project_statistics(project_sub, rows)
     agents = Counter(r["agent"] for r in rows if r.get("agent") and r.get("kind") == "main")
     unknown = sum(not r.get("agent") for r in rows if r.get("kind") == "main")
     return {
         "project_id": project.get("project_id"), "legacy_project_id": project.get("legacy_project_id"),
         "name": project.get("name"), "session_count": project["main_session_count"],
+        "statistics": statistics,
+        "first_activity_ts": statistics["time"]["first_observed_ts"],
+        "last_activity_ts": statistics["time"]["last_observed_ts"],
+        "observed_session_span_ms": statistics["time"]["observed_session_span_sum_ms"],
+        "domain_details": topic_inventory(sub),
         "turn_count": project["turn_count"], "messages": project["human_message_count"],
         "tokens": _tokens(project["usage"]),
         "agent_composition": ranked_counts(dict(agents), basis="main_session", unknown_n=unknown),
@@ -158,6 +202,7 @@ def _project(project, analysis):
 def build_presentation(analysis):
     """One immutable display snapshot. Input is analyze_bundle/analyze_store's result."""
     diagnostic = build_diagnostics(analysis)
+    statistics = build_statistics(analysis)
     profile = build_profile(analysis)
     overview = analysis["overview"]
     counts = overview["counts"]
@@ -172,6 +217,8 @@ def build_presentation(analysis):
     sessions.sort(key=lambda r: (r["last_activity_ts"] is None,
                                  -(r["last_activity_ts"] or 0), r["session_uid"]))
     work_duration = unavailable("human_work_duration_is_not_observed", "ms")
+    timeline = _timeline(analysis["tasks"]["records"], analysis["instruction"].get("records"))
+    topics = topic_inventory(analysis)
     result = {
         "schema_version": PRESENTATION_VERSION,
         "source_feature_version": analysis.get("feature_schema_version"),
@@ -179,6 +226,8 @@ def build_presentation(analysis):
         "presentation_digest": stable_id(analysis.get("analysis_digest"), PRESENTATION_VERSION,
                                           analysis.get("bottleneck_recommendations")),
         "scope": scope, "coverage": coverage, "selection": analysis.get("selection"),
+        "sample_boundary": analysis.get("sample_boundary"),
+        "statistics": statistics,
         "family_versions": {
             "task": analysis["tasks"].get("family_version"),
             "instruction": analysis["instruction"].get("schema_version"),
@@ -190,7 +239,15 @@ def build_presentation(analysis):
                                 status=session_status, unknown_n=counts.get("session_kind_unknown")),
             "messages": measure(counts["human_messages"], "human_message", "confirmed human-origin messages",
                                 status=events, unknown_n=counts.get("human_origin_unknown")),
-            "collaboration_duration": work_duration,
+            "projects": statistics["counts"]["projects"],
+            "turns": statistics["counts"]["turns"],
+            "collaboration_duration": {**statistics["time"]["observed_session_span_sum_ms"],
+                                       "display_label": "累计会话观测跨度", "includes_idle_and_parallel_overlap": True},
+            "human_work_duration": work_duration,
+            "time": statistics["time"],
+            "active_dates": statistics["activity"]["active_dates"],
+            "activity_details": statistics["activity"],
+            "agent_activity": (overview.get("activity_rhythm") or {}).get("agent_series"),
             "correction_rate": diagnostic["correction_rate"],
             "tokens": _tokens(overview["usage"]),
             "profile_summary": profile.get("headline"),
@@ -208,10 +265,13 @@ def build_presentation(analysis):
                                                status=events, unknown_n=counts.get("human_origin_unknown")),
         },
         "profile": profile, "diagnostics": diagnostic, "tools": diagnostic["tools"],
-        "sessions": sessions, "timeline": _timeline(analysis["tasks"]["records"]),
+        "sessions": sessions, "timeline": timeline,
+        "timeline_recent": sorted(timeline, key=lambda r: (r["last_activity_ts"] is None,
+                                   -(r["last_activity_ts"] or 0), r["task_id"])) if timeline is not None else None,
         "projects": [_project(project, analysis) for project in analysis["projects"]],
         "semantics": {
             "interest_domains": analysis["tasks"]["summary"].get("domain"),
+            "domain_details": topics,
             "explicit_preferences": profile.get("preferences"),
             "feedback_terms": ranked_counts(correction_terms, basis="lexical_feedback_signal_occurrences",
                                             status=events, unknown_n=counts.get("human_origin_unknown")),
