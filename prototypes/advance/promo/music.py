@@ -2,11 +2,12 @@
 
     uv run --with numpy --with scipy python promo/music.py   ->  promo/out/soundtrack.wav
 
-Sections (beats), same grid as promo.js and STORYBOARD.md: 0-8 cold open (a blip per word and per agent chip, the
-planets fall onto the mark) · 8-13 the Orbit mark is traced · 13.8-17 odometer ticks · 16-29.5 groove (a climbing tone
-under the sparkline, a pluck per growing bar) · 29.5-46 compass (chord per slow type, a tick per flick, a settle chord
-on yours) · 46-58 recommend (a blip per suggestion, install clicks) · 58-79 trajectory, insight, studio · 79-86 build ·
-87-101 seven features · 101-108 the compass tilts into an orbit · 107.5 end card, tail to 120.
+Sections (beats), same grid as promo.js and STORYBOARD.md: 0-8 open (a blip per word, chip and planet) · 7.9-14.6
+the mark is traced, tips over and we dive into it (a swirl of ticks) · 14.6-33 groove A under the sentiment ride, the
+numbers and the overview wall (a blip per phrase, odometer ticks, a pluck per bar) · 33.5-46 the compass in half time
+(a tick and a scale note each time the needle passes a type, never a break) · 46 the landing chord, broken beat ·
+50.6-84 groove A with an arp (recommend, trajectory, insight, studio) · 84-90.5 build · 90.8-100.6 the features ·
+101-109 half time, the aurora collapses and the mark returns · 109.2 end card, tail to 118.
 Transitions only get a soft whoosh.
 """
 import os
@@ -18,7 +19,7 @@ from scipy import signal
 SR = 48000
 BPM = 124
 BEAT = 60 / BPM
-END = 120
+END = 118
 N = int((END * BEAT + 1.5) * SR)
 rng = np.random.default_rng(7)
 L = np.zeros(N)
@@ -200,13 +201,17 @@ def chord_at(b):
     return int((b // 4) % 4)
 
 
-def groove(b0, b1, kick_on=True, clap_on=True, hats=True, bassline=True, arp=False, lvl=1.0):
+KICKS = {'four': (0, 1, 2, 3), 'half': (0, 2.5), 'broken': (0, 1.75, 2.5)}
+CLAPS = {'four': (1, 3), 'half': (2,), 'broken': (1, 3)}
+
+
+def groove(b0, b1, kick_on=True, clap_on=True, hats=True, bassline=True, arp=False, lvl=1.0, style='four'):
     b = b0
     while b < b1 - 1e-9:
         bi = round(b * 4) / 4
-        if kick_on and abs(bi - round(bi)) < 1e-6:
+        if kick_on and any(abs(bi % 4 - k) < 1e-6 for k in KICKS[style]):
             put(kick(), bi, 0.95 * lvl, to='kick')
-        if clap_on and abs(bi % 2 - 1) < 1e-6:
+        if clap_on and any(abs(bi % 4 - k) < 1e-6 for k in CLAPS[style]):
             put(clap(), bi, 0.55 * lvl, 0.0, to='verbsend')
         if hats:
             frac = bi % 1
@@ -231,137 +236,135 @@ def pads(b0, b1, gain=0.22, cutoff=1800):
         b = nb
 
 
-# cold open: the words land one by one, then the five agent chips, a soft riser into the logo
+PENT = [57, 60, 62, 64, 67]
+
+# open: the words and chips, the planets fall onto the mark, the mark is traced, it tips over and we dive into it
 put(pad((45, 52), 8 * BEAT, 600, 1.5), 0, 0.28, to='verbsend')
 for i, m in enumerate((76, 79, 83)):
     put(blip(m, 0.8), 0.25 + i * 0.6, 0.2, -0.2 + i * 0.2, to='verbsend')
 for i, m in enumerate((81, 84, 88, 91, 93)):
-    put(blip(m), 0.95 + i * 0.375, 0.26, (-0.5 + i * 0.25), to='verbsend')
-for i, m in enumerate((79, 83)):
-    put(blip(m, 0.8), 4 + i * 0.5, 0.18, -0.2 + i * 0.4, to='verbsend')
-for i, m in enumerate((81, 86, 84)):
-    put(blip(m, 0.8), 6 + i * 0.4, 0.18, -0.3 + i * 0.3, to='verbsend')
-put(riser(4 * BEAT, 300, 3000), 4, 0.3, to='verbsend')
-put(reverse_swell(1.0 * BEAT), 7, 0.5)
-
-# the five Agents orbit and fall onto the mark; the mark is traced with a rising shimmer
+    put(blip(m), 2.2 + i * 0.375, 0.24, (-0.5 + i * 0.25), to='verbsend')
+for i, m in enumerate((79, 83, 81, 86, 84)):
+    put(blip(m, 0.8), (4, 4.5, 6, 6.4, 6.8)[i], 0.16, -0.3 + i * 0.15, to='verbsend')
 for i in range(5):
     put(blip(76 + [0, 3, 7, 10, 12][i], 0.5), 7.5 + i * 0.12, 0.12, -0.4 + i * 0.2, to='verbsend')
 t = tt(2.4 * BEAT)
 f = 440 * 2 ** (np.clip(t / (2.4 * BEAT), 0, 1) * 1.2)
 put(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(1, t * 8) * np.clip((2.4 * BEAT - t) * 3, 0, 1), 7.9, 0.06, 0, to='verbsend')
-# logo: a soft bloom rather than a hit
-put(boom(3.0, 55, 28), 10.3, 0.45, to='verbsend')
-put(crash(3), 8, 0.3, 0.2)
-put(pad(CHORDS[0], 6 * BEAT, 1600, 0.4), 8, 0.3, to='verbsend')
-for i, m in enumerate((81, 88, 84)):
-    put(blip(m, 1.2), 9 + i * 0.75, 0.16, -0.3 + i * 0.3, to='verbsend')
-put(riser(2.5 * BEAT, 400, 4000), 11.5, 0.22, to='verbsend')
+put(boom(3.0, 55, 28), 10.3, 0.42, to='verbsend')
+pads(8, 14.6, 0.16, 1300)
+groove(10.3, 12.8, kick_on=False, clap_on=False, hats=True, bassline=True, lvl=0.45)
+k = 0.0                                                     # the dive: a swirl of ticks that speeds up
+while k < 1.8:
+    put(tick(), 12.8 + k, 0.12 + 0.2 * k / 1.8, np.sin(k * 9) * 0.6)
+    k += 0.25 * (1 - k / 2.1) + 0.04
+put(riser(1.8 * BEAT, 300, 6000), 12.8, 0.35, to='verbsend')
+put(reverse_swell(0.8 * BEAT), 13.8, 0.6)
 
-# 1 · the numbers roll: a ratchet of ticks that slows down for each number
+# the sentiment ride: groove A, a blip as each phrase stands up
+put(crash(2.5), 14.6, 0.4, 0.2)
+groove(14.6, 22.3, arp=False, lvl=0.85)
+pads(14.6, 22.3, 0.16)
+for i in range(8):
+    put(blip(PENT[i % 5] + 24, 0.5), 15 + i * 0.82, 0.13, -0.5 + i * 0.14, to='verbsend')
+# numbers roll (the groove keeps going), they fly into the tiles, the tiles open into the wall
+groove(22.3, 27.8, clap_on=False, lvl=0.8)
 for i in range(3):
-    b0 = 13.8 + i * 0.5
-    t = 0.0
-    while t < 1.9:
-        put(tick(), b0 + t, 0.22 * (1 - t / 2.2), -0.4 + i * 0.4)
-        t += 0.05 + 0.12 * (t / 1.9) ** 1.5
-put(whoosh(1.4 * BEAT), 17.2, 0.25, 0)
-groove(14, 16, kick_on=True, clap_on=False, hats=True, bassline=False, lvl=0.5)
-# drop 1
-put(crash(), 16, 0.4, 0.3)
-groove(16, 29.5, arp=False)
-pads(14, 29.5, 0.15)
-
-# 2 · the sparkline runs forward: a gliding tone that climbs with it
-t = tt(2.8 * BEAT)
-f = 440 * 2 ** (np.clip(t / (2.8 * BEAT), 0, 1) ** 1.3)
-put(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(1, t * 8) * np.clip((2.8 * BEAT - t) * 4, 0, 1), 19.8, 0.07, 0.2, to='verbsend')
-put(whoosh(1.2 * BEAT), 22.4, 0.24, 0.4)
-
-# 3 · bars grow one by one: a pluck per column, climbing the A-minor pentatonic
-PENT = [57, 60, 62, 64, 67]
+    b0 = 22.3 + i * 0.5
+    t_ = 0.0
+    while t_ < 1.9:
+        put(tick(), b0 + t_, 0.18 * (1 - t_ / 2.2), -0.4 + i * 0.4)
+        t_ += 0.05 + 0.12 * (t_ / 1.9) ** 1.5
+put(whoosh(1.4 * BEAT), 25.7, 0.24, 0)
+groove(27.8, 33.3, arp=True)
+pads(22.3, 33.5, 0.15)
 for i in range(30):
-    m = PENT[i % 5] + 12 * (i // 10)
-    put(pluck(m, 0.3), 23.2 + i * 0.12, 0.11, -0.6 + i * 0.04, to='verbsend')
+    put(pluck(PENT[i % 5] + 12 * (i // 10), 0.25), 28.6 + i * 0.07, 0.08, -0.6 + i * 0.04, to='verbsend')
+put(whoosh(2 * BEAT), 33.2, 0.3, -0.3)
 
-# 4 · the bars curl into the compass: the band sweeps round, the rose grows
-put(whoosh(2 * BEAT), 29.4, 0.3, -0.3)
-put(riser(3 * BEAT, 500, 5000), 29.6, 0.18, to='verbsend')
-pads(29.5, 37.25, 0.18, 1500)
-for k in range(10):
-    put(blip(PENT[k % 5] + 24, 0.5), 30 + k * 0.25, 0.07, np.sin(k / 10 * 2 * np.pi) * 0.7, to='verbsend')
-put(stab((57, 64, 69), 1.4), 31.6, 0.22, to='verbsend')
-groove(32.5, 37.25, kick_on=True, clap_on=False, hats=True, bassline=True, lvl=0.6)
+# 01 · the compass: half-time groove that never stops; a tick and a note each time the needle passes a type
+groove(33.5, 46, style='half', lvl=0.8, arp=False)
+pads(33.5, 46, 0.19, 1500)
+put(riser(2.4 * BEAT, 500, 4500), 33.8, 0.16, to='verbsend')
 
-# 5 · sixteen types: three slow ones with a chord each, twelve flicks (a tick and a rising blip each), then yours
-for b_, ch in ((32.5, (57, 60, 64)), (34.5, (53, 57, 60)), (36, (55, 59, 62))):
-    put(stab(ch, 1.4), b_, 0.26, to='verbsend')
-FD = [.6, .5, .4, .32, .28, .26, .26, .28, .34, .42, .55, .75]
-bb = 37.25
-for i, d in enumerate(FD):
-    put(tick(), bb, 0.32, 0.15)
-    put(blip(69 + [0, 3, 5, 7, 10, 12, 15, 12, 10, 7, 5, 3][i], 0.35), bb, 0.12, -0.2 + i * 0.04, to='verbsend')
-    bb += d
-put(riser(5 * BEAT, 250, 3500), 37.25, 0.22, to='verbsend')
-put(pad((45, 52), 5 * BEAT, 900, 0.5), 37.25, 0.2, to='verbsend')
-put(boom(2.6, 52, 26), 42.25, 0.5, to='verbsend')
-put(stab((57, 60, 64, 69), 1.8), 42.25, 0.32, to='verbsend')
-put(crash(2.5), 42.25, 0.28)
-for k, m in enumerate((81, 84, 88, 93)):
-    put(blip(m, 0.7), 42.6 + k * 0.25, 0.2, -0.3 + k * 0.2, to='verbsend')
-groove(43, 46, lvl=0.75)
-pads(42.25, 46, 0.17)
 
-# 02 · recommend: a coin-like blip as each suggestion arrives, climbing; the counter lands on a chord
-put(whoosh(1 * BEAT), 45.6, 0.24, 0.3)
-groove(46, 58, arp=True)
-pads(46, 58, 0.16)
+def sweep(b):
+    if b < 37:
+        return -150.0
+    p = min(1.0, (b - 37) / 9)
+    e = 16 * p ** 5 if p < .5 else 1 - (-2 * p + 2) ** 5 / 2
+    return -150 + 1230 * e
+
+
+prev = np.floor(sweep(37) / 22.5)
+SCALE = [57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93]
+for k in range(1, 4501):
+    bb = 37 + k * 9 / 4500
+    cur = np.floor(sweep(bb) / 22.5)
+    if cur != prev:
+        idx = int(cur) % 16
+        put(tick(), bb, 0.22, 0.1)
+        put(blip(SCALE[idx], 0.3), bb, 0.08, -0.5 + idx / 16, to='verbsend')
+        prev = cur
+put(riser(4 * BEAT, 300, 3500), 41.5, 0.2, to='verbsend')
+put(boom(2.6, 52, 26), 46, 0.45, to='verbsend')
+put(stab((57, 60, 64, 69), 1.8), 46, 0.3, to='verbsend')
+put(crash(2.5), 46, 0.28)
+groove(46.5, 50.6, style='broken', lvl=0.85)
+pads(46, 50.6, 0.17)
+
+# 02 · recommend: groove A with an arp, a rising blip per suggestion; the install clicks
+put(whoosh(1 * BEAT), 50.2, 0.24, 0.3)
+groove(50.6, 63, arp=True)
+pads(50.6, 63, 0.16)
 for i in range(12):
-    put(blip(PENT[i % 5] + 24 + 12 * (i // 5), 0.45), 46.4 + i * 0.45 + 0.25, 0.14, -0.5 + i * 0.09, to='verbsend')
-put(stab((57, 64, 69, 72), 1.4), 51.9, 0.24, to='verbsend')
-for b_ in (54.4, 56):
+    put(blip(PENT[i % 5] + 24 + 12 * (i // 5), 0.45), 50.9 + i * 0.5 + 0.25, 0.13, -0.5 + i * 0.09, to='verbsend')
+put(stab((57, 64, 69, 72), 1.4), 56.9, 0.22, to='verbsend')
+for b_ in (59.4, 61):
     put(tick(), b_, 0.4, 0.2)
-put(blip(88, 1.2), 56.2, 0.2, 0, to='verbsend')
+put(blip(88, 1.2), 61.2, 0.18, 0, to='verbsend')
 
-# 03 · trajectory, insight, studio
-put(whoosh(1.2 * BEAT), 57.6, 0.24, -0.3)
-groove(58, 79, arp=True)
-pads(58, 79, 0.16)
-for b_ in (60.1, 63.6, 66.2, 70.8, 75.4):
-    put(whoosh(0.9 * BEAT), b_ - 0.4, 0.18, 0.3)
-put(tick(), 69.4, 0.35, 0.2)
+# 03 · trajectory, insight, studio: groove A with sixteenth hats, a soft air movement at each change
+groove(63, 84, arp=True, lvl=0.95)
+pads(63, 84, 0.16)
+for b_ in (63, 65.1, 68.6, 71.2, 75.8, 79.6, 81.4):
+    put(whoosh(0.9 * BEAT), b_ - 0.4, 0.17, 0.3)
+put(tick(), 74.4, 0.35, 0.2)
 
-# 04 · ask (build), a gap, then the features
-groove(79, 86, kick_on=False, clap_on=False, hats=True, bassline=False, arp=True, lvl=0.75)
-pads(79, 86, 0.2, 2600)
-b_ = 81.0
-while b_ < 86:
-    step = 0.5 if b_ < 83 else 0.25 if b_ < 85 else 0.125
-    put(snare(0.12, 0.4), b_, 0.08 + 0.22 * (b_ - 81) / 5, 0.1)
+# 04 · ask: a build that keeps the hats, a half-beat breath, then the features
+groove(84, 90.5, kick_on=False, clap_on=False, hats=True, bassline=False, arp=True, lvl=0.75)
+pads(84, 90.5, 0.2, 2600)
+b_ = 86.0
+while b_ < 90.5:
+    step = 0.5 if b_ < 88 else 0.25 if b_ < 89.5 else 0.125
+    put(snare(0.12, 0.4), b_, 0.08 + 0.22 * (b_ - 86) / 4.5, 0.1)
     b_ += step
-put(riser(7 * BEAT, 250, 6000), 79, 0.4, to='verbsend')
-for k in (79, 81, 83, 84, 85):
+put(riser(6.5 * BEAT, 250, 6000), 84, 0.38, to='verbsend')
+for k in (84, 86, 88, 89, 90):
     put(kick(0.4), k, 0.45, to='kick')
-put(reverse_swell(1.0 * BEAT), 86, 0.6)
-put(crash(), 87, 0.5, -0.2)
-groove(87, 101, arp=True, lvl=1.0)
-pads(87, 101, 0.17)
-for i in range(7):
-    put(whoosh(0.7 * BEAT), 87 + i * 2 - 0.65, 0.16, 0.4 if i % 2 else -0.4)
+put(reverse_swell(0.6 * BEAT), 90.2, 0.6)
+put(crash(), 90.8, 0.45, -0.2)
+groove(90.8, 100.6, arp=True, lvl=1.0)
+pads(90.8, 100.6, 0.17)
+for b_ in (92.6, 94, 95.8, 97.4, 98.8):
+    put(whoosh(0.7 * BEAT), b_ - 0.5, 0.15, 0.3)
+for b_ in (96.6, 97.9):
+    put(tick(), b_, 0.35, 0.2)
+put(stab((53, 57, 60), 1.0), 99.2, 0.2, to='verbsend')
 
-# close: your compass, it tilts back into an orbit, the mark is traced, the end card
-put(crash(2.5), 101, 0.3)
-groove(101, 107.5, kick_on=False, clap_on=False, hats=True, bassline=True, arp=True, lvl=0.55)
-pads(101, 108, 0.2, 2200)
-put(riser(3 * BEAT, 300, 3000), 104.2, 0.18, to='verbsend')
-t = tt(2.4 * BEAT)
-f = 520 * 2 ** (np.clip(t / (2.4 * BEAT), 0, 1) * 1.2)
-put(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(1, t * 8) * np.clip((2.4 * BEAT - t) * 3, 0, 1), 105.2, 0.06, 0, to='verbsend')
-put(boom(4.0, 55, 24), 107.5, 0.55, to='verbsend')
-put(crash(4), 107.5, 0.3)
-put(pad((45, 52, 57, 60, 64), 12 * BEAT, 1400, 0.3), 107.5, 0.3, to='verbsend')
+# close: your compass, the aurora collapses into a ring, the ring grows into the mark, the end card
+put(whoosh(1.4 * BEAT), 100.5, 0.26, -0.2)
+groove(101, 105.6, style='half', clap_on=False, arp=True, lvl=0.6)
+pads(101, 109, 0.2, 2200)
+put(riser(1.6 * BEAT, 300, 3000), 104.4, 0.18, to='verbsend')
+t = tt(4 * BEAT)
+f = 520 * 2 ** (np.clip(t / (4 * BEAT), 0, 1) * 1.2)
+put(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(1, t * 8) * np.clip((4 * BEAT - t) * 3, 0, 1), 105.8, 0.06, 0, to='verbsend')
+put(boom(4.0, 55, 24), 109.2, 0.5, to='verbsend')
+put(crash(4), 109.2, 0.28)
+put(pad((45, 52, 57, 60, 64), 9 * BEAT, 1400, 0.3), 109.2, 0.3, to='verbsend')
 for i, m in enumerate((81, 84, 88, 93)):
-    put(blip(m, 1.2), 109.4 + i * 1.5, 0.2, -0.4 + i * 0.27, to='verbsend')
+    put(blip(m, 1.2), 110.6 + i * 1.2, 0.18, -0.4 + i * 0.27, to='verbsend')
 
 # ---------------- mix ----------------
 duck = np.ones(N)

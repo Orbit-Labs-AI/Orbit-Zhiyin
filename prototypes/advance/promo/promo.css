@@ -11,7 +11,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smoothing:antialiased}
 .stage{position:relative;width:1920px;height:1080px;background:#000;overflow:hidden;flex:none;transform-origin:50% 50%}
 .cam{position:absolute;inset:0;transform-style:preserve-3d;opacity:0}
-.rig{position:absolute;left:0;top:0;transform-origin:0 0}
+.rig{position:absolute;left:0;top:0;transform-origin:0 0;transform-style:preserve-3d}
 .rig iframe{display:block;border:0;background:transparent;width:1600px;height:1000px}
 .glow{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(46% 50% at 50% 50%,rgba(255,255,255,.075),transparent 72%)}
 .fx{position:absolute;inset:0;pointer-events:none}
@@ -58,3 +58,15 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .compass .cp-l{font:700 38px var(--serif);fill:#fff}
 .compass .cp-s{font:500 18px var(--mono);fill:rgba(255,255,255,.6)}
 .md.acc,.lt.acc{font-weight:400}
+.tag{white-space:nowrap;pointer-events:none;z-index:6}
+.phr{position:absolute;display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:rgba(14,15,18,.92);border:1px solid rgba(255,255,255,.16);color:#fff;font:600 24px var(--sans);white-space:nowrap;transform-origin:50% 100%;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;z-index:6}
+.phr i{width:10px;height:10px;border-radius:50%}
+.phr b{font:600 18px var(--mono);color:rgba(255,255,255,.6)}
+.phr small{font:500 16px var(--mono);color:rgba(255,255,255,.45);letter-spacing:.1em}
+.compass .cp-tc{font:700 30px var(--mono);fill:#fff;letter-spacing:.12em}
+.compass .cp-tn{font:600 24px var(--sans);fill:var(--acc)}
+.ph-d.crit{color:#ff8a7a}.ph-d.warn{color:#f3c56b}.ph-d.good{color:#7fd6a4}
+.sv-t{background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hole{position:absolute;inset:0;pointer-events:none}
+.slot{position:relative;display:inline-block;height:1.12em;width:4.4em;overflow:hidden;vertical-align:bottom}
+.slot>span{position:absolute;left:0;top:0;white-space:nowrap}
