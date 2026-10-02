@@ -116,7 +116,8 @@ def _catalog_lookup(gw: Gateway) -> Callable[[str], dict | None]:
 
                 stores[path] = CatalogStore(path)
             store = stores[path]
-        return store.detail(item_id)
+        view = getattr(store, "install_view", None)  # B16: skip the cold related-items index
+        return view(item_id) if callable(view) else store.detail(item_id)
 
     def lookup(item_id: str) -> dict | None:
         found = None

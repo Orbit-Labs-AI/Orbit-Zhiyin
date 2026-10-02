@@ -267,6 +267,54 @@ def check_path(path: str | Path, env: Env | None, env_info: dict, project_path: 
     return None
 
 
+def follow_link(path: str | Path, home: Path) -> str | None:
+    """Real path behind a symlinked target that may be written in place of the link (B6).
+
+    ``~/.codex/AGENTS.md -> ~/.agents/AGENTS.md`` is a common dotfiles layout. Writing the
+    link path would replace the link with a copy, so the write goes to the resolved file,
+    allowed only when it stays inside the user's home, outside ``.git`` and ``~/Library``,
+    and is a regular file (or a new file in an existing directory).
+    """
+    lexical = os.path.abspath(str(path))
+    real = os.path.realpath(lexical)
+    if real == lexical:
+        return None
+    home_real = os.path.realpath(str(home))
+    if not _inside(real, home_real) or real == home_real or ".git" in Path(real).parts \
+            or _inside(real, os.path.join(home_real, "Library")):
+        return None
+    if os.path.lexists(real):
+        return real if os.path.isfile(real) and not os.path.islink(real) else None
+    return real if os.path.isdir(os.path.dirname(real)) else None
+
+
+REASON_TEXT = {
+    "agent_not_supported_v1": "这个 Agent 暂不支持自动安装。",
+    "not_mappable": "这个 Agent 没有对应的落地位置。",
+    "codex_project_rules_unsupported_v1": "Codex 暂不支持项目级权限规则，请改装到用户级。",
+    "codex_project_skills_unsupported_v1": "Codex 暂不支持项目级 Skill，请改装到用户级。",
+    "codex_project_prompts_unsupported_v1": "Codex 暂不支持项目级命令，请改装到用户级。",
+    "codex_project_hooks_unsupported_v1": "Codex 暂不支持项目级 Hook，请改装到用户级。",
+    "codex_project_mcp_unsupported_v1": "Codex 暂不支持项目级 MCP，请改装到用户级。",
+    "codex_has_no_subagent_files": "Codex 没有子代理文件，无法安装此类条目。",
+    "codex_plugin_install_unsupported_v1": "Codex 暂不支持插件安装。",
+    "codex_settings_unsupported_v1": "Codex 暂不支持写入此类设置。",
+    "capability_unavailable": "当前 Agent 版本不支持这类条目。",
+    "skipped_binary": "二进制文件不会被写入，请手动复制。",
+    "path_policy:managed_layer": "目标是企业托管配置，Tandem 不会改写。",
+    "path_policy:project_shared_settings": "项目共享的 .claude/settings.json 不自动改写，请改装到本地层 settings.local.json。",
+    "path_policy:outside_agent_roots": "目标不在 Agent 配置目录内，未自动写入。",
+    "path_policy:symlink_escape": "目标是指向主目录之外的符号链接，未自动写入；请在链接指向的文件里手动添加。",
+}
+
+
+def reason_text(reason: str | None) -> str | None:
+    """Human-readable sentence for an unmappable ``reason`` code (never shows the raw code)."""
+    if not reason:
+        return None
+    return REASON_TEXT.get(reason) or REASON_TEXT.get(reason.split(":", 1)[0]) or "这个目标无法自动安装。"
+
+
 # ---- resolution -----------------------------------------------------------------------------
 
 def _validate(spec: dict) -> None:
@@ -293,7 +341,8 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
     out: list[dict] = []
 
     def unmappable(agent: str, reason: str, **extra) -> None:
-        out.append({"idx": len(out), "agent": agent, "kind": kind, "mappable": False, "reason": reason, **extra})
+        out.append({"idx": len(out), "agent": agent, "kind": kind, "mappable": False, "reason": reason,
+                    "reason_text": reason_text(reason), **extra})
 
     for agent in spec.get("agents") or []:
         info = infos.get(agent)
@@ -317,12 +366,17 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
         def target(path: str, content, *, action=None, pointer=None, row=row, agent=agent, note=note,
                    **extra) -> None:
             reason = check_path(path, env, env_info, project)
+            shown = display(path, home)
+            if reason == "symlink_escape" and (real := follow_link(path, home)):
+                extra = {**extra, "link_path": path}
+                shown = f"{shown} → {display(real, home)}"
+                path, reason = real, None
             if reason:
                 unmappable(agent, f"path_policy:{reason}", path=path)
                 return
             act = action or row.action
             t = {"idx": len(out), "agent": agent, "scope": row.scope or scope, "path": path,
-                 "display": display(path, home), "action": act,
+                 "display": shown, "action": act,
                  "pointer": pointer if act == "merge_json" else None, "content": content,
                  "write_mode": row.write_mode if act == "merge_json" else "set", "file_mode": None,
                  "block_id": f"tandem:{spec['id']}" if act in ("md_block", "toml_block") else None,
