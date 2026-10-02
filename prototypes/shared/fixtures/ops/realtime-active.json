@@ -1,0 +1,212 @@
+{
+  "generated_at": 1790000000000,
+  "status": "active",
+  "counts": {
+    "running": 1,
+    "awaiting_approval": 1,
+    "failing": 1,
+    "just_finished": 1,
+    "context_pressure": 1
+  },
+  "today": {
+    "sessions_started": 7,
+    "sessions_finished": 4
+  },
+  "sessions": [
+    {
+      "session_uid": "fx-rt-run",
+      "agent": "claude_code",
+      "project_id": "fx-p1",
+      "project": "fx-tandem",
+      "title": "合成会话：整理 HUD 绑定",
+      "state": "running",
+      "flags": [
+        "context_pressure"
+      ],
+      "since": 1789998615000,
+      "running_s": 1385,
+      "current_tool": "Edit src/js/98-live-ops.js",
+      "density": [
+        1,
+        0,
+        2,
+        3,
+        1,
+        4,
+        2,
+        5,
+        3,
+        6
+      ],
+      "context": {
+        "used_tokens": 182000,
+        "window_tokens": 200000,
+        "ratio": 0.91,
+        "auto_compact_ratio": 0.92,
+        "basis": "usage"
+      },
+      "failure": null,
+      "approval": null,
+      "outcome": null,
+      "dismissed_until": null,
+      "lanes": {
+        "human": [
+          1789999965000,
+          1789999500000
+        ],
+        "tool": [
+          1789999980000,
+          1789999950000,
+          1789999910000,
+          1789999870000,
+          1789999800000,
+          1789999740000,
+          1789999600000,
+          1789999390000,
+          1789999100000
+        ],
+        "error": [
+          1789999870000
+        ]
+      }
+    },
+    {
+      "session_uid": "fx-rt-fail",
+      "agent": "codex",
+      "project_id": "fx-p2",
+      "project": "fx-rules",
+      "title": "合成会话：生成规则",
+      "state": "failing",
+      "flags": [
+        "failing"
+      ],
+      "since": 1789999460000,
+      "running_s": 540,
+      "current_tool": "Bash make publish",
+      "density": [
+        0,
+        0,
+        1,
+        1,
+        2,
+        2,
+        1,
+        3,
+        2,
+        2
+      ],
+      "context": {
+        "used_tokens": 40000,
+        "window_tokens": 272000,
+        "ratio": 0.15,
+        "auto_compact_ratio": null,
+        "basis": "usage"
+      },
+      "failure": {
+        "n": 5,
+        "command_head": "make publish",
+        "error_class_share": {
+          "auth": 0.8,
+          "other": 0.2
+        },
+        "cause_hint": "合成样本：令牌过期（5 次里 4 次是 401）"
+      },
+      "approval": null,
+      "outcome": null,
+      "dismissed_until": null,
+      "lanes": {
+        "human": [],
+        "tool": [
+          1789999940000,
+          1789999880000,
+          1789999820000,
+          1789999760000,
+          1789999700000
+        ],
+        "error": [
+          1789999940000,
+          1789999880000,
+          1789999820000,
+          1789999760000,
+          1789999700000
+        ]
+      }
+    },
+    {
+      "session_uid": "fx-rt-wait",
+      "agent": "codex",
+      "project_id": "fx-p3",
+      "project": "fx-hub",
+      "title": "合成会话：同步分支",
+      "state": "awaiting_approval",
+      "flags": [
+        "awaiting_approval"
+      ],
+      "since": 1789999820000,
+      "running_s": 180,
+      "current_tool": "Bash git push origin fx-branch",
+      "density": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1
+      ],
+      "context": null,
+      "failure": null,
+      "approval": {
+        "wait_s": 180,
+        "command": "git push origin fx-branch",
+        "basis": "hook"
+      },
+      "outcome": null,
+      "dismissed_until": null,
+      "lanes": {
+        "human": [],
+        "tool": [
+          1789999800000
+        ],
+        "error": []
+      }
+    },
+    {
+      "session_uid": "fx-rt-done",
+      "agent": "claude_code",
+      "project_id": "fx-p1",
+      "project": "fx-tandem",
+      "title": "合成会话：修好导出",
+      "state": "just_finished",
+      "flags": [],
+      "since": 1789999880000,
+      "running_s": 0,
+      "current_tool": null,
+      "density": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "context": null,
+      "failure": null,
+      "approval": null,
+      "outcome": null,
+      "dismissed_until": null,
+      "lanes": {
+        "human": [],
+        "tool": [],
+        "error": []
+      }
+    }
+  ]
+}

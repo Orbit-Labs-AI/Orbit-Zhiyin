@@ -1,0 +1,16 @@
+{
+  "generated_at": 1790000000000,
+  "status": "idle",
+  "counts": {
+    "running": 0,
+    "awaiting_approval": 0,
+    "failing": 0,
+    "just_finished": 0,
+    "context_pressure": 0
+  },
+  "today": {
+    "sessions_started": 0,
+    "sessions_finished": 0
+  },
+  "sessions": []
+}

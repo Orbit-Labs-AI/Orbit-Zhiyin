@@ -1,0 +1,11 @@
+{
+  "answer": "FX 合成回答：概览里会话数为 128。",
+  "refs": [
+    {
+      "kind": "session",
+      "id": "fx-s1"
+    }
+  ],
+  "next": "none",
+  "source": "template"
+}

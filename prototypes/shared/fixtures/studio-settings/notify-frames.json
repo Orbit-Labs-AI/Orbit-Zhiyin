@@ -1,0 +1,45 @@
+{
+  "comment": "SSE frames on topics=notify (and the collection service frame)",
+  "frames": [
+    {
+      "id": "1",
+      "event": "notification",
+      "data": {
+        "id": "fx-n2",
+        "type": "awaiting_approval",
+        "severity": "urgent",
+        "session_uid": "fx-s1",
+        "title": "FX 等你确认",
+        "body": "合成：请求执行 git push",
+        "channels": [
+          "banner",
+          "hud",
+          "badge"
+        ],
+        "count": 1,
+        "ts": "2026-10-01T07:12:00Z",
+        "payload": {}
+      }
+    },
+    {
+      "id": "2",
+      "event": "attention",
+      "data": {
+        "active": 2,
+        "urgent": 1,
+        "by_type": {
+          "awaiting_approval": 1,
+          "failing": 1
+        }
+      }
+    },
+    {
+      "id": "3",
+      "event": "service",
+      "data": {
+        "name": "collection",
+        "state": "paused"
+      }
+    }
+  ]
+}

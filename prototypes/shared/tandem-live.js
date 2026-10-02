@@ -11,7 +11,7 @@
 const TandemLive = (function () {
   'use strict';
   const STATES = ['idle', 'loading', 'ready', 'stale', 'computing', 'empty', 'error', 'importing'];
-  const TOPICS = 'job,data,analysis,service';
+  const TOPICS = 'job,data,analysis,service,notify';
   // UI agent id -> agent names a source may report in /v1/status sources[].agent
   const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'] };
   const ACTIVE_JOB = ['queued', 'pending', 'running'];
@@ -360,6 +360,53 @@ const TandemLive = (function () {
         if (restart || C.mode === 'live') { C.connectEvents(); C.ensureStatus().catch(() => {}); }
       });
     };
+    /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
+    // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
+    // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    C.send = function (method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const q = o.query ? encodePairs(Object.keys(o.query).sort().filter((k) => o.query[k] != null).map((k) => [k, String(o.query[k])])) : '';
+      const init = { method, headers: headers(body != null ? { 'Content-Type': 'application/json' } : null), signal: o.signal };
+      if (body != null) init.body = JSON.stringify(body);
+      return Promise.resolve().then(() => fetchFn(urlFor(path, q), init)).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+      }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
+    };
+    // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down
+    // (503), no connection, or mock mode. Anything else (403 consent_required, 409, 422 …) is a real answer to show.
+    C.unavailable = (e) => !!e && !isAbort(e) && (!e.status || e.status === 404 || e.status === 501 || e.status === 503);
+    // pollJob(id, onUpdate, {intervalMs, signal}): GET /v1/ai/jobs/{id} until the job leaves queued / pending / running;
+    // an ai.job (or job) frame for the same id on /v1/events polls at once instead of waiting for the interval.
+    C.pollJob = function (id, onUpdate, o) {
+      o = o || {};
+      const every = o.intervalMs || 700; let wake = null, stopped = false;
+      const off = C.on('event', (ev) => { const d = ev.data || {}; if ((ev.name === 'ai.job' || ev.name === 'job') && (d.job_id === id || d.id === id) && wake) wake(); });
+      if (o.signal) o.signal.addEventListener('abort', () => { stopped = true; if (wake) wake(); }, { once: true });
+      const nap = () => new Promise((resolve) => { const t = timers.setTimeout(() => { wake = null; resolve(); }, every); wake = () => { timers.clearTimeout(t); wake = null; resolve(); }; });
+      return (async () => {
+        try {
+          for (;;) {
+            if (stopped) throw abortError();
+            const job = (await C.send('GET', '/v1/ai/jobs/' + encodeURIComponent(id), null, { signal: o.signal })).data || {};
+            if (onUpdate) onUpdate(job);
+            if (ACTIVE_JOB.indexOf(job.status) < 0) return job;
+            await nap();
+          }
+        } finally { off(); }
+      })();
+    };
+    // collection pause / resume arrives as a service frame {name:'collection', state}; it is a user setting, not a service
+    // health state, so it moves to C.collection and never raises the「服务异常」banner.
+    C.collection = null;
+    C.on('event', (ev) => {
+      if (ev.name === 'service' && ev.data && ev.data.name === 'collection') { delete C.services.collection; C.collection = ev.data.state; changed(); }
+    });
+    /* ==== end studio-settings ==== */
     C.start = function () {
       if (C.mode !== 'live') return C;
       if (!C.endpoint) C.error = { code: 'no_endpoint', message: '未配置本地服务地址', retryable: false };
@@ -367,8 +414,329 @@ const TandemLive = (function () {
       if (win.addEventListener) win.addEventListener('tandem:endpoint', (e) => { C.setEndpoint(e && e.detail); });
       return C;
     };
+
+    /* ==== recs: recommendations (A7 / A1 / Lite / menubar top), detail, relations, exposure, labels, recompute ====
+       Reads go through C.get / C.resource like every other page. Writes (POST / DELETE) use send(); a write never
+       changes a resource by itself: the caller invalidates the recommendation resources afterwards. */
+    function send(method, path, body) {
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode' }));
+      const h = headers(body !== undefined ? { 'Content-Type': 'application/json' } : null);
+      return Promise.resolve().then(() => fetchFn(urlFor(path), { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      });
+    }
+    const REC_PATH = '/v1/recommendations';
+    const seen = new Set();   // surface|candidate_id already reported as `view` in this page session
+    C.recs = {
+      PATH: REC_PATH,
+      SURFACE_LIMIT: { A7: 50, A1: 3, lite: 3, menubar: 1 },
+      // resource descriptor for a surface (same shape as a bind() resource); A7 asks for the full list, the top
+      // surfaces ask for the backend's stable 24-hour slate
+      desc(surface, extra) { return { name: surface, path: REC_PATH, query: Object.assign({ surface, limit: C.recs.SURFACE_LIMIT[surface] || 30 }, extra || {}), waitMs: 800 }; },
+      resource(surface, scope) { const d = C.recs.desc(surface); return C.resource(d.path, { scope, query: d.query, waitMs: d.waitMs }); },
+      detail(id, signal) { return C.get(REC_PATH + '/' + encodeURIComponent(id), { signal }); },
+      relations(ids, signal) {
+        const xs = Array.from(new Set(ids || [])).slice(0, 20);
+        if (xs.length < 2) return Promise.resolve({ status: 200, data: { pairs: [] } });
+        return C.get(REC_PATH + '/relations?' + xs.map((x) => 'candidate_id=' + encodeURIComponent(x)).join('&'), { signal });
+      },
+      exposure(id, surface, action, position) { return send('POST', REC_PATH + '/' + encodeURIComponent(id) + '/exposure', { surface, action: action || 'view', position: position == null ? null : position }); },
+      // batched `view` exposure; ids already reported for this surface are skipped, so a re-render sends nothing
+      viewed(surface, ids) {
+        const items = []; (ids || []).forEach((id, i) => { const k = surface + '|' + id; if (id && !seen.has(k)) { seen.add(k); items.push({ candidate_id: id, position: i, action: 'view' }); } });
+        if (!items.length) return Promise.resolve(null);
+        return send('POST', REC_PATH + '/exposures', { surface, items: items.slice(0, 50) }).catch((e) => { items.forEach((it) => seen.delete(surface + '|' + it.candidate_id)); throw e; });
+      },
+      label(id, label, reason) { return send('POST', '/v1/labels', Object.assign({ target_kind: 'candidate', target_id: id, label }, reason ? { reason } : {})); },
+      unlabel(labelId) { return send('DELETE', '/v1/labels/' + encodeURIComponent(labelId)); },
+      recompute(scope, force) { return send('POST', REC_PATH + '/recompute', { scope: scopeBody(scope, C.status, now()), force: !!force }); },
+      invalidate() { return C.invalidate((r) => r.path === REC_PATH || r.path.indexOf(REC_PATH + '/') === 0); }
+    };
+    libraryInstall(C, { fetchFn, headers });   // C.li: library-install section below
+    ops(C, { fetchFn, headers, timers });       // C.ops: ops section below
     return C;
   }
+  // recompute takes the analytics scope as a JSON object: list keys stay lists, the rest are scalars
+  const SCOPE_LISTS = ['source_ids', 'project_ids', 'model_ids', 'excluded_session_uids'];
+  function scopeBody(scope, status, now) {
+    const o = {};
+    scopePairs(scope, status, now == null ? Date.now() : now).forEach((kv) => {
+      if (SCOPE_LISTS.indexOf(kv[0]) >= 0) { o[kv[0]] = o[kv[0]] || []; if (kv[1] !== '') o[kv[0]].push(kv[1]); }
+      else o[kv[0]] = kv[0] === 'from_ts' ? Number(kv[1]) : kv[1];
+    });
+    return o;
+  }
+
+  /* ==== recs: Cand -> the prototype's RECS row ====
+     The backend's Cand carries `ui` already shaped like the A7 rows (dim, type, icon, lvl, aud, title, gain, why, ev,
+     evq, compat, primary, target, file, steps, track). Missing numbers stay null so the page prints「—」, never 0. */
+  function recSaveHours(c) {
+    // ranking: benefit = 1 − exp(−weekly_minutes / 30) → minutes per week → hours per month (4.33 weeks)
+    const b = c && c.score && c.score.benefit;
+    if (b == null || !Number.isFinite(b) || b <= 0 || b >= 1) return null;
+    return Math.round(-30 * Math.log(1 - b) * 4.33 / 60 * 10) / 10;
+  }
+  function recRow(c) {
+    const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
+    const track = (u.track || []).map((t) => [t[0], t[1] == null ? null : t[1], t[2] == null ? null : t[2], t[3] || '']);
+    return {
+      id: c.candidate_id, rec_key: c.rec_key, run_id: c.run_id, live: true,
+      dim: u.dim || c.dim || 'rule', type: u.type || c.kind || '—', icon: u.icon || 'rule', lvl: u.lvl || c.level || 1, aud: u.aud != null ? u.aud : (c.audience_min || 0),
+      title: u.title || c.title || '', gain: u.gain || '—', why: u.why || ((c.explain || {}).reason) || '', ev: u.ev || (n + ' 个会话'), evq: u.evq || {},
+      compat: u.compat || '', c2: 'var(--a2)', primary: u.primary || '查看方案', target: u.target || '', file: (u.file || []).map((l) => [String(l[0] == null ? '' : l[0]), l[1] || ' ']),
+      steps: u.steps || [], track,
+      x: { save: recSaveHours(c), tok: null, n: [n, n] },
+      priority: c.score ? c.score.priority : null, source: c.source || null
+    };
+  }
+  const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
+
+  /* ======== library-install: A8 资源库 (/v1/catalog/*) and the install sheet (/v1/install/*) ========
+     Owned by the library-install binding (Advance src/js/97-live-library-install.js, Lite @tandem-live block). Attached to
+     every client as C.li by one line in create(). Catalog reads go through C.resource so they keep ETag / states; writes and
+     the install flow use C.li.send (JSON body, error.code / error.detail or FastAPI's string detail). A route that is missing,
+     not implemented, unavailable or offline (liDegraded) lets the page fall back to its demo data with the 示例数据 badge. */
+  const LI_KINDS = { Skill: ['skill'], Hook: ['hook'], '插件': ['plugin', 'marketplace'], '子代理': ['subagent'], MCP: ['mcp_server'] };
+  const LI_LABEL = { skill: 'Skill', hook: 'Hook', plugin: '插件', marketplace: '插件', subagent: '子代理', mcp_server: 'MCP', command: '命令', rule: '规则', workflow: '工作流', guide: '指南', output_style: '输出风格', lsp_server: 'LSP' };
+  const LI_TABS = { for: { sort: 'updated' }, peer: { sort: 'stars' }, hot: { sort: 'installs' }, local: { sort: 'updated', origin: 'local' } };
+  const LI_DEGRADE = [0, 404, 405, 501, 503];
+  function liDegraded(err) { return !!err && (err.code === 'mock_mode' || LI_DEGRADE.indexOf(err.status || 0) >= 0); }
+  function liKindQS(kind) { const ks = LI_KINDS[kind] || []; return ks.length ? '?' + ks.map((k) => 'kind=' + encodeURIComponent(k)).join('&') : ''; }
+  // Library list request: a search box query uses /v1/catalog/search (ranked, no paging), otherwise /v1/catalog/items with
+  // the tab's sort / origin and keyset paging through next_cursor.
+  function liListRequest(o) {
+    o = o || {}; const tab = LI_TABS[o.tab] || LI_TABS.for; const q = String(o.q || '').trim();
+    if (q) return { path: '/v1/catalog/search' + liKindQS(o.kind), query: { q, limit: o.limit || 30 } };
+    const query = { sort: tab.sort, order: 'desc', limit: o.limit || 30 };
+    if (tab.origin) query.origin = tab.origin;
+    if (o.cursor) query.cursor = o.cursor;
+    return { path: '/v1/catalog/items' + liKindQS(o.kind), query };
+  }
+  function liFacetsRequest(o) { const tab = LI_TABS[(o || {}).tab] || LI_TABS.for; return { path: '/v1/catalog/facets', query: tab.origin ? { origin: tab.origin } : null }; }
+  const liItemPath = (id) => '/v1/catalog/items/' + String(id).split('/').map(encodeURIComponent).join('/');
+  // Preview → rows the sheet draws: one block per target with its diff lines ({n, op, text, gap}) and selectable units.
+  function liTargets(preview) {
+    return ((preview && preview.targets) || []).map((t) => ({
+      idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
+      disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
+      units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
+      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
+    }));
+  }
+  // Selection sent with preview / apply: selected_units only lists targets whose units were narrowed.
+  function liSelection(sel) {
+    sel = sel || {}; const out = { disabled_targets: Array.from(sel.disabled || []).map(Number).sort((a, b) => a - b) };
+    const su = {}; Object.keys(sel.units || {}).forEach((k) => { su[String(k)] = Array.from(sel.units[k]); });
+    if (Object.keys(su).length) out.selected_units = su;
+    return out;
+  }
+
+  function libraryInstall(C, ctx) {
+    function send(method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const h = ctx.headers(body != null ? { 'Content-Type': 'application/json' } : null);
+      const q = o.query ? Object.keys(o.query).filter((k) => o.query[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o.query[k])).join('&') : '';
+      const url = C.endpoint + path + (q ? (path.indexOf('?') >= 0 ? '&' : '?') + q : '');
+      return Promise.resolve().then(() => ctx.fetchFn(url, { method, headers: h, body: body != null ? JSON.stringify(body) : undefined, signal: o.signal })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        const code = info.code || (data && typeof data.detail === 'string' ? data.detail : 'http_' + res.status);
+        throw Object.assign(new Error(info.message || code), { status: res.status, code, detail: info.detail != null ? info.detail : null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      }, (e) => { if (e && e.name === 'AbortError') throw e; throw Object.assign(new Error((e && e.message) || 'offline'), { status: 0, code: 'offline', retryable: true }); });
+    }
+    const body = (r) => r.data;
+    const L = {
+      send, degraded: liDegraded,
+      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, LI_KINDS, LI_LABEL, LI_TABS },
+      kindLabel: (k) => LI_LABEL[k] || k || '—',
+      listRequest: liListRequest, facetsRequest: liFacetsRequest,
+      /* catalog */
+      items: (o) => { const r = liListRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      facets: (o) => { const r = liFacetsRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      item: (id, o) => send('GET', liItemPath(id), null, o).then(body),
+      addLocal: (item) => send('POST', '/v1/catalog/local', item).then(body),
+      removeLocal: (id) => send('DELETE', '/v1/catalog/local/' + String(id).split('/').map(encodeURIComponent).join('/')).then(() => true),
+      /* install */
+      environment: (refresh) => send('GET', '/v1/install/environment', null, { query: refresh ? { refresh: 1 } : null }).then(body),
+      plan: (req) => send('POST', '/v1/install/plans', req).then(body),
+      preview: (planId, sel) => { const s = liSelection(sel); const narrowed = s.disabled_targets.length || s.selected_units; return (narrowed ? send('POST', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview', s) : send('GET', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview')).then(body); },
+      fetch: (req) => send('POST', '/v1/install/fetch', req).then(body),
+      revert: (installId, targets) => send('POST', '/v1/install/' + encodeURIComponent(installId) + '/revert', targets ? { targets } : {}).then(body),
+      state: (st) => send('GET', '/v1/install/state', null, { query: st ? { state: st } : null }).then(body),
+      ledger: (o) => send('GET', '/v1/install/ledger', null, { query: o || null }).then(body),
+      install: (id) => send('GET', '/v1/install/' + encodeURIComponent(id)).then(body),
+      // plan → (fetch + re-plan when the source must be downloaded first) → preview. Resolves {env, plan, preview}; preview is
+      // null when the plan is link_only / unmappable (the sheet shows plan.links / plan.warnings instead).
+      prepare(source, o) {
+        o = o || {};
+        // the environment only narrows the agents; without it the backend picks its defaults
+        const env = o.env ? Promise.resolve(o.env) : L.environment().catch(() => null);
+        return env.then((envData) => {
+          let agents = o.agents;
+          if (!agents && envData) {
+            const ok = (envData.agents || []).filter((a) => a.installed && a.install_support === 'full').map((a) => a.agent);
+            const want = o.itemAgents && o.itemAgents.length ? ok.filter((a) => o.itemAgents.indexOf(a) >= 0) : ok;
+            agents = want.length ? want : ok.length ? ok : undefined;
+          }
+          const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
+          return L.plan(req).then((plan) => {
+            if (plan.status !== 'needs_fetch') return plan;
+            const fr = source.type === 'catalog' ? { catalog_id: source.id } : { source: source.spec || source };
+            return L.fetch(fr).then(() => L.plan(Object.assign({}, req, { fetch: true })));
+          }).then((plan) => {
+            if (plan.status !== 'ready') return { env: envData, plan, preview: null };
+            const sel = { disabled: o.defaultOff ? o.defaultOff(plan) : [] };
+            return L.preview(plan.plan_id, sel).then((preview) => ({ env: envData, plan, preview, sel }));
+          });
+        });
+      },
+      // apply with the digest the person confirmed; a 409 preview_stale re-previews with the same selection and resolves
+      // {stale: true, preview} so the sheet goes back to the diff instead of writing what was never shown.
+      apply(st) {
+        const s = liSelection(st.sel); const req = Object.assign({ plan_id: st.plan.plan_id, preview_digest: st.preview.preview_digest }, s);
+        if (st.overrideRisk) req.override_risk = true;
+        return send('POST', '/v1/install/apply', req).then((r) => ({ stale: false, result: r.data }), (e) => {
+          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail }));
+          throw e;
+        });
+      }
+    };
+    C.li = L;
+  }
+  /* ======== end library-install ======== */
+
+  /* ======== ops: realtime (menu bar · popover · HUD · widgets), session ops (A3 / A4), export (EXP) ========
+     Owned by the ops binding (Advance src/js/98-live-ops.js). Attached to every client as C.ops by one line in create().
+     - realtime: GET /v1/analytics/realtime?lanes=1 once, then /v1/analytics/realtime/stream (SSE `event: realtime`, a full
+       snapshot per frame) with exponential backoff; C.ops.rt holds the last snapshot, every frame calls C.changed().
+     - sessionops: exclude / include / excluded list, resume command, raw-log location, tool-call drilldown (keyset cursor).
+     - export: tables, CSV text, report (markdown), share-card payload, snapshots.
+     Writes go through C.send; a route that is missing / unavailable / offline (C.unavailable) lets the page keep its demo. */
+  const RT_PATH = '/v1/analytics/realtime';
+  const RT_ACTIVE = ['running', 'awaiting_approval', 'failing'];
+  const hasFlag = (s, f) => (s.flags || []).indexOf(f) >= 0;
+  // snapshot → what the menu bar / popover / HUD / widgets need: the primary running session, the open alerts, the others
+  function rtDerive(snap) {
+    const ss = (snap && snap.sessions) || [];
+    const active = ss.filter((s) => RT_ACTIVE.indexOf(s.state) >= 0);
+    const primary = active.find((s) => s.state === 'running') || active[0] || null;
+    return {
+      status: (snap && snap.status) || 'idle', paused: !!snap && snap.status === 'paused',
+      primary, active, others: active.filter((s) => s !== primary),
+      failing: ss.filter((s) => s.state === 'failing' || hasFlag(s, 'failing')),
+      waiting: ss.filter((s) => s.state === 'awaiting_approval' || hasFlag(s, 'awaiting_approval')),
+      ctx: ss.filter((s) => hasFlag(s, 'context_pressure')),
+      finished: ss.filter((s) => s.state === 'just_finished'),
+      counts: (snap && snap.counts) || {}, today: (snap && snap.today) || {}
+    };
+  }
+  const rtCtxPct = (s) => (s && s.context && s.context.ratio != null ? Math.round(s.context.ratio * 100) : null);
+  const rtCtxTh = (s) => (s && s.context && s.context.auto_compact_ratio != null ? Math.round(s.context.auto_compact_ratio * 100) : 80);
+  // lanes (timestamps of the last 20 minutes) → n buckets of bucketSec covering the last `minutes`: [{tool, err, user}]
+  function rtBuckets(s, nowMs, minutes, bucketSec) {
+    const n = Math.max(1, Math.round(minutes * 60 / bucketSec)); const from = nowMs - minutes * 60000;
+    const b = []; for (let i = 0; i < n; i++) b.push({ tool: 0, err: 0, user: 0 });
+    const L = (s && s.lanes) || {};
+    const put = (ts, k) => { if (ts == null || ts < from || ts > nowMs) return; b[Math.min(n - 1, Math.floor((ts - from) / (minutes * 60000) * n))][k]++; };
+    (L.tool || []).forEach((t) => put(t, 'tool')); (L.error || []).forEach((t) => put(t, 'err')); (L.human || []).forEach((t) => put(t, 'user'));
+    return b;
+  }
+  function sseFrames(buf, onFrame) {
+    let i; buf = buf.replace(/\r\n?/g, '\n');
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const raw = buf.slice(0, i); buf = buf.slice(i + 2); let name = 'message'; const data = [];
+      raw.split('\n').forEach((line) => { if (!line || line[0] === ':') return; const k = line.indexOf(':'); const f = k < 0 ? line : line.slice(0, k); let v = k < 0 ? '' : line.slice(k + 1); if (v[0] === ' ') v = v.slice(1); if (f === 'event') name = v; else if (f === 'data') data.push(v); });
+      if (data.length) { let p = null; try { p = JSON.parse(data.join('\n')); } catch (e) { p = null; } if (p) onFrame(name, p); }
+    }
+    return buf;
+  }
+  // A3 / A4 / EXP request helpers (pure, tested in node)
+  function toolCallsQuery(f) {
+    f = f || {}; const q = { limit: f.limit || 50, status: f.status || 'all' };
+    ['name', 'command_head', 'mcp_server', 'skill', 'kind', 'error_class', 'session_uid', 'from_ts', 'until_ts', 'cursor'].forEach((k) => { if (f[k] != null && f[k] !== '') q[k] = f[k]; });
+    return q;
+  }
+  const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
+  function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
+  const BLOCKED = { insufficient_data: '样本不足（每个维度至少 30 个任务、10 个活跃天），暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
+
+  function ops(C, ctx) {
+    const enc = encodeURIComponent;
+    const body = (r) => r.data;
+    const O = {
+      rt: null, rtError: null, stream: { connected: false, attempt: 0, frames: 0 },
+      helpers: { rtDerive, rtCtxPct, rtCtxTh, rtBuckets, sseFrames, toolCallsQuery, reportSections, BLOCKED, RESUME_OFF },
+      derive: () => rtDerive(O.rt),
+      /* realtime */
+      realtime: () => C.send('GET', RT_PATH, null, { query: { lanes: 1 } }).then((r) => { O.rt = r.data; O.rtError = null; C.changed(); return r.data; }, (e) => { O.rtError = e; C.changed(); throw e; }),
+      dismiss: (uid, seconds) => C.send('POST', RT_PATH + '/' + enc(uid) + '/dismiss', { seconds: seconds || 3600 }).then(body),
+      // stream(): keeps /v1/analytics/realtime/stream open; resolves when stopped. A 404 / 501 ends it (no stream route).
+      startStream() {
+        if (C.mode !== 'live' || O.run) return;
+        const run = O.run = { on: true, ctrl: null, stop: new AbortController() };
+        const sleep = (ms) => new Promise((res) => { const t = ctx.timers.setTimeout(res, ms); run.stop.signal.addEventListener('abort', () => { ctx.timers.clearTimeout(t); res(); }, { once: true }); });
+        run.done = (async () => {
+          while (run.on) {
+            const ctrl = run.ctrl = new AbortController(); let status = 0;
+            try {
+              const res = await ctx.fetchFn(C.endpoint + RT_PATH + '/stream?lanes=1', { headers: ctx.headers({ Accept: 'text/event-stream' }), signal: ctrl.signal });
+              status = res.status;
+              if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+              O.stream.connected = true; O.stream.attempt = 0;
+              const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+              for (;;) {
+                const step = await reader.read(); if (step.done) break;
+                buf = sseFrames(buf + dec.decode(step.value, { stream: true }), (name, p) => { if (name === 'realtime') { O.rt = p; O.rtError = null; O.stream.frames++; C.changed(); } });
+              }
+            } catch (e) { /* reconnect below */ }
+            O.stream.connected = false;
+            if (!run.on || status === 404 || status === 501) break;
+            const delay = Math.min(30000, 2000 * Math.pow(2, O.stream.attempt)); O.stream.attempt++;
+            await sleep(delay);
+          }
+          if (O.run === run) O.run = null;
+        })();
+      },
+      stopStream() { const run = O.run; if (!run) return Promise.resolve(); O.run = null; run.on = false; run.stop.abort(); if (run.ctrl) run.ctrl.abort(); return run.done; },
+      /* sessionops */
+      exclude: (uid, reason, note) => C.send('POST', '/v1/sessions/' + enc(uid) + '/exclude', Object.assign({}, reason ? { reason } : {}, note ? { note } : {})).then(body),
+      include: (uid) => C.send('DELETE', '/v1/sessions/' + enc(uid) + '/exclude').then(body),
+      EXCLUDED: '/v1/sessions/excluded',
+      resume: (uid) => C.send('GET', '/v1/sessions/' + enc(uid) + '/resume').then(body),
+      locate: (uid) => C.send('GET', '/v1/sessions/' + enc(uid) + '/source_location').then(body),
+      toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
+      /* export */
+      tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
+      csv(table, f) {
+        if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+        f = f || {}; const q = [['table', table]];
+        ['from_ts', 'until_ts', 'limit'].forEach((k) => { if (f[k] != null) q.push([k, String(f[k])]); });
+        (f.project_id || []).forEach((x) => q.push(['project_id', x])); (f.agent || []).forEach((x) => q.push(['agent', x]));
+        const url = C.endpoint + '/v1/export/csv?' + q.map((kv) => enc(kv[0]) + '=' + enc(kv[1])).join('&');
+        return Promise.resolve().then(() => ctx.fetchFn(url, { headers: ctx.headers({ Accept: 'text/csv' }) })).then(async (res) => {
+          const text = await res.text();
+          if (res.ok) return text;
+          let info = {}; try { info = (JSON.parse(text) || {}).error || {}; } catch (e) { info = {}; }
+          throw Object.assign(new Error(info.message || 'HTTP ' + res.status), { status: res.status, code: info.code || 'http_' + res.status });
+        }, (e) => { throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network' }); });
+      },
+      report: (keys, scope, o) => C.send('POST', '/v1/export/report', { sections: reportSections(keys), scope: scopeBody(scope, C.status), format: 'markdown', save: !!(o && o.save) }).then(body),
+      shareCard: (o) => { o = o || {}; return C.send('POST', '/v1/export/share_card', { hide_numbers: !!o.hideNumbers, theme: o.theme || 'system', save: !!o.save }).then(body); },
+      snapshots: (kind) => C.send('GET', '/v1/export/snapshots', null, { query: kind ? { kind } : null }).then(body)
+    };
+    C.ops = O;
+  }
+  /* ======== end ops ======== */
+
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -440,6 +808,7 @@ const TandemLive = (function () {
     }
   };
 
-  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui };
+  const opsHelpers = { rtDerive, rtCtxPct, rtCtxTh, rtBuckets, sseFrames, toolCallsQuery, reportSections, BLOCKED, RESUME_OFF };
+  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui, recs, ops: opsHelpers };
 })();
 if (typeof module === 'object' && module && module.exports) module.exports = TandemLive;

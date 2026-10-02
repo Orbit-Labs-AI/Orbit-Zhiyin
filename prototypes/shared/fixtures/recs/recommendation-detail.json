@@ -1,0 +1,116 @@
+{
+  "item": {
+    "candidate_id": "fxc-allow",
+    "run_id": "fx-run-1",
+    "rec_key": "kb:fx-readonly-allow",
+    "kind": "permission_rule",
+    "dim": "hook",
+    "level": 1,
+    "audience_min": 0,
+    "title": "只读命令自动放行",
+    "score": {
+      "benefit": 0.42,
+      "confidence": 0.7,
+      "p_effective": 0.6,
+      "fit": 0.8,
+      "cost": 0.1,
+      "risk": 0.05,
+      "personal": 1.0,
+      "decay": 1.0,
+      "priority": 61.5
+    },
+    "evidence": {
+      "session_uids": [
+        "fx-s1",
+        "fx-s2"
+      ],
+      "counts": {
+        "sessions": 12,
+        "events": 22
+      }
+    },
+    "explain": {
+      "reason": "合成样本：12 个会话里手动批准了只读命令。",
+      "source": "template"
+    },
+    "trial": {
+      "steps": [
+        "预览将写入的放行规则",
+        "确认写入",
+        "7 天后看审批次数"
+      ],
+      "follow_days": 7
+    },
+    "source": {
+      "origin": "kb",
+      "item_id": "fx-readonly-allow"
+    },
+    "ui": {
+      "dim": "hook",
+      "type": "Hook",
+      "icon": "bolt",
+      "lvl": 1,
+      "aud": 0,
+      "title": "只读命令自动放行",
+      "gain": "−48 次审批 / 月",
+      "why": "合成样本：12 个会话里手动批准了只读命令。",
+      "ev": "12 个会话",
+      "evq": {
+        "session_uids": [
+          "fx-s1",
+          "fx-s2"
+        ]
+      },
+      "compat": "Claude Code · Codex",
+      "primary": "预览并安装",
+      "target": "~/.claude/settings.json",
+      "file": [
+        [
+          "{",
+          " "
+        ],
+        [
+          "  \"permissions\": { \"allow\": [\"Bash(git status:*)\"] }",
+          "+"
+        ],
+        [
+          "}",
+          " "
+        ]
+      ],
+      "steps": [
+        "预览将写入的放行规则",
+        "确认写入",
+        "7 天后看审批次数"
+      ],
+      "track": [
+        [
+          "每周审批次数",
+          null,
+          null,
+          "次"
+        ],
+        [
+          "相关会话摩擦率",
+          null,
+          null,
+          "%"
+        ]
+      ]
+    }
+  },
+  "alternatives": [],
+  "state": {
+    "rec_key": "kb:fx-readonly-allow",
+    "status": "shown",
+    "snooze_until": null,
+    "shown_count": 1
+  },
+  "labels": [],
+  "exposures": {
+    "count": 1,
+    "last_ts": 1790000000000
+  },
+  "tracking": null,
+  "outcome": null
+}

@@ -1,0 +1,58 @@
+{
+  "mode": "agent",
+  "default_engine": "claude_code",
+  "grants": {
+    "claude_code": {
+      "summary": true,
+      "snippets": false,
+      "rules": true,
+      "raw": false
+    },
+    "codex": {
+      "summary": true,
+      "snippets": false,
+      "rules": false,
+      "raw": false
+    }
+  },
+  "data_classes": [
+    {
+      "id": "summary",
+      "label": "结构化摘要",
+      "desc": "计数与时序",
+      "allowed_engines": [
+        "claude_code",
+        "codex"
+      ]
+    },
+    {
+      "id": "snippets",
+      "label": "脱敏片段",
+      "desc": "关键时刻前后",
+      "allowed_engines": [
+        "claude_code",
+        "codex"
+      ]
+    },
+    {
+      "id": "rules",
+      "label": "规则文件",
+      "desc": "AGENTS.md 等",
+      "allowed_engines": [
+        "claude_code",
+        "codex"
+      ]
+    },
+    {
+      "id": "raw",
+      "label": "原文",
+      "desc": "仅本机模型",
+      "allowed_engines": []
+    }
+  ],
+  "settings": {
+    "daily_usd_cap": 2.0,
+    "auto_facet_new": false,
+    "slots": {}
+  }
+}

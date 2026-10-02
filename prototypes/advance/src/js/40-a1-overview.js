@@ -39,7 +39,7 @@ PAGES.overview = () => {
   const topF = fr[0];
   const projC = {}; L.forEach((s) => { if (s.corr) projC[s.p] = (projC[s.p] || 0) + s.corr; });
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
-  const topR = visibleRecs().filter((r) => !S.installed.has(r.id)).slice(0, 3);
+  const topR = recTop('A1').slice(0, 3);
   const okN = L.filter((s) => s.out === 'ok').length;
   const ai = [
     ['做得好', 'okc', 'var(--good)', Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
@@ -86,7 +86,7 @@ PAGES.overview = () => {
     '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap ov-foot" title="筛选只按小时，不分星期">点击格子查看该小时开始的会话</div></div>' +
     // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="ov-tools">' + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err"><span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span></span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>' +
-    '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>' +
+    ovRecsCard(topR) +
     '</div></div></div>';
 };
 // 图表挂载：趋势（堆叠 / 分组 / 100%）、结果构成、人格双向条、节律热力图
@@ -131,6 +131,10 @@ PAGES.overview.after = () => {
   });
 };
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
+// 「本周建议」card (also appended to the live overview by 97-live-recs.js)
+function ovRecsCard(topR) {
+  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>';
+}
 function recPrimaryBtn(r, small) {
   const inst = S.installed.has(r.id);
   if (inst) return '<button type="button" class="btn' + (small ? ' sm' : '') + '" data-act="openRec" data-id="' + r.id + '" data-tab="track">已安装 · 追踪中</button>';

@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "item_id": "local:0123456789abcdef0123456789abcdef",
+      "kind": "skill",
+      "name": "paper-audit-loop",
+      "summary": "只读审查 → 归档 → 最小修改（本地生成，合成夹具）",
+      "author": "fixture-org",
+      "license": "user-generated",
+      "official": false,
+      "agents": [
+        "claude_code"
+      ],
+      "difficulty": "easy",
+      "risk_level": 1,
+      "risk": [],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": 0,
+      "stars": 0,
+      "origin": "local",
+      "url": "https://example.invalid/paper-audit-loop",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": null
+    }
+  ],
+  "next_cursor": null,
+  "total": 1,
+  "generation": 7
+}
