@@ -140,12 +140,3 @@ def approx_rows(path: Path, table: Table) -> int | None:
             return connection.execute(f"SELECT MAX(rowid) FROM {table.source}").fetchone()[0] or 0
     except sqlite3.Error:
         return None
-
-
-def excluded_sessions(appdb) -> list[str]:
-    """Persisted exclusions (session-ops ``session_exclusion``); absent table means none."""
-    try:
-        with appdb.read() as db:
-            return [r[0] for r in db.execute("SELECT session_uid FROM session_exclusion")]
-    except sqlite3.OperationalError:
-        return []

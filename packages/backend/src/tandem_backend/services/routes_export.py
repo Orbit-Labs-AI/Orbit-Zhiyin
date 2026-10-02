@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from ..exporting import csv_export, report, sharecard, snapshots
 from ..exporting.tables import SCOPE_FILTERS, TABLES, describe, header
+from ..sessionops.exclusion import excluded_uids
 from .auth import ApiError
 
 if TYPE_CHECKING:
@@ -71,7 +72,7 @@ def router(gw: Gateway) -> APIRouter:
         unknown = set(request.query_params) - {"table", *SCOPE_FILTERS}
         if unknown:
             raise ApiError(422, "invalid_request", f"Unknown filters: {sorted(unknown)}")
-        excluded = [] if include_excluded else csv_export.excluded_sessions(gw.appdb)
+        excluded = [] if include_excluded else excluded_uids(gw.appdb)
         sql, params = csv_export.query(spec, project_ids=project_id or [], agents=agent or [],
                                        from_ts=from_ts, until_ts=until_ts, excluded=excluded,
                                        limit=limit)
