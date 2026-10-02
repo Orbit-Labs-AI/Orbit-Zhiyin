@@ -198,12 +198,12 @@ test('brand: no visible "Tandem" in the title, pages, settings, onboarding or me
 });
 
 // The App icon and the menu-bar item are the official Orbit logo (docs/design/logo/orbit-*.svg, via tools/brand-icon.mjs):
-// the full rendition from 48px up, the heavier small rendition below; the tile uses the logo's 22.5% corner; the page has the
+// the full rendition from 128px up (as macOS does), the heavier small rendition below; the tile uses the logo's 22.5% corner; the page has the
 // icon as its favicon.
 test('App icon and menu-bar item use the official Orbit logo vectors', async ({ page }) => {
   const errors = await openDemo(page);
   const r = await page.evaluate(() => ({
-    big: appIcon(64).includes(ORBIT_ICON), small: appIcon(32).includes(ORBIT_SMALL), glyph: GLYPH.includes(ORBIT_SMALL) && GLYPH.includes('currentColor'),
+    big: appIcon(128).includes(ORBIT_ICON) && appIcon(64).includes(ORBIT_SMALL), small: appIcon(32).includes(ORBIT_SMALL), glyph: GLYPH.includes(ORBIT_SMALL) && GLYPH.includes('currentColor'),
     menubar: !!document.querySelector('#mbar .glyph .orbit-mark polygon'),
     radius: (() => { const s = document.createElement('span'); s.className = 'appicon'; s.style.width = '100px'; s.style.height = '100px'; document.body.appendChild(s); const v = parseFloat(getComputedStyle(s).borderTopLeftRadius); s.remove(); return v; })(),
     favicon: (document.querySelector('link[rel="icon"]') || {}).href || ''
