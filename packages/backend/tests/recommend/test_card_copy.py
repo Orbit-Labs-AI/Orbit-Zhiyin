@@ -107,3 +107,13 @@ def test_plugin_cache_removals_disable_the_plugin_without_absolute_paths():
     for cand in payload.values():
         assert home not in str(_card(cand)["ui"])
     assert subtract.tilde("/Users/someone/x") == "~/x" and subtract.tilde("AGENTS.md") == "AGENTS.md"
+
+
+def test_session_claiming_card_without_uids_is_gated():
+    from tandem_backend.recommend.ranking import gates
+
+    mix = [{"model_id": "m", "effort": "high", "agent": "claude_code", "sessions": 90, "readonly_sessions": 70,
+            "tokens": 10}]
+    rows, payload = models.recall({**INPUTS, "facts": {"model_mix": mix}})
+    value, reason = gates._bottleneck_evidence(payload[rows[0][0]], INPUTS, MEMORY)
+    assert value is False and reason == "没有可回看的会话证据"

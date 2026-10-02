@@ -39,9 +39,9 @@ RULE_FOR = {"review_loop": "pr-review-cap", "parallel_conflict": "worktree-isola
             "late_build_failure": "project-build-hook", "polling": "headless-poll",
             "deploy_platform_mix": "deploy-target-rule"}
 CODEX_MIX = [{"model_id": "gpt-5-codex", "effort": "xhigh", "agent": "codex", "sessions": 10,
-              "readonly_sessions": 6, "tokens": 900_000},
+              "readonly_sessions": 6, "tokens": 900_000, "readonly_session_uids": [f"c{i}" for i in range(6)]},
              {"model_id": "opus", "effort": "high", "agent": "claude_code", "sessions": 10,
-              "readonly_sessions": 5, "tokens": 500_000}]
+              "readonly_sessions": 5, "tokens": 500_000, "readonly_session_uids": [f"o{i}" for i in range(5)]}]
 
 
 def inputs_for(facts: dict, main: int = 30, agents=None) -> dict:

@@ -46,6 +46,10 @@ def _profile_evidence(raw, inputs, memory):
 
 def _bottleneck_evidence(raw, inputs, memory):
     problem = raw.get("problem")
+    evidence = raw.get("evidence") or {}
+    if not problem and (evidence.get("counts") or {}).get("sessions"):
+        # a card that claims sessions (e.g. the model route) must let A3 open them
+        return (True, "") if evidence.get("session_uids") else (False, "没有可回看的会话证据")
     if not problem or raw.get("kind") == "removal":  # removal stands on inventory facts, not sessions
         return NA, ""
     uids = (raw.get("evidence") or {}).get("session_uids") or (problem.get("evidence") or {}).get("session_uids")
