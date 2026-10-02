@@ -38,7 +38,7 @@ ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.erro
 
 /* ---- sources ---- */
 const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],
-  [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/opencode/i, 'opencode'], [/deepseek|\bdsh\b|\.dsh/i, 'dsh'], [/(^|\/)\.pi(\/|$)/i, 'pi']];
+  [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/opencode/i, 'opencode'], [/deepseek|\bdsh\b|\.dsh/i, 'dsh'], [/(^|\/)\.?pi(\/|$)/i, 'pi']];
 LVN.agentFromPath = (path) => { const hit = LVN_PATHS.find((x) => x[0].test(path || '')); return hit ? hit[1] : null; };
 // addSource({agent?, path?, purpose?}) → {ok, source, agent, root} | {cancelled:true}; throws {message, path?} on failure.
 // In the native shell it asks the host for a folder (chooseFolder → tandem:folder); in a browser the caller passes path.
@@ -150,12 +150,31 @@ LVN.reveal = async function (period) {
   const sh = await lvnTry('/v1/shell/reveal', { query: { display_timezone: TL_TZ || 'UTC' } });
   return LVN.personaOf(sh && sh.reason !== 'computing' ? sh : null);
 };
+// Recommendations for Genesis' 看看优化建议 line: load the A7 list once (it may still be computing right after the import)
+LVN.loadRecs = async function (ms) {
+  if (typeof lvRecSync !== 'function' || TL.mode !== 'live') return;
+  const t0 = Date.now(); TL.recs.invalidate();
+  while (Date.now() - t0 < (ms || 8000)) {
+    const r = TL.recs.resource('A7', lvScope());
+    try { await TL.load(r); } catch (e) { return; }
+    if (r.data) { lvRecSync(); return; }
+    if (r.state !== 'computing') return;
+    await lvnSleep(800); r.dirty = true;
+  }
+};
 async function lvnAfter(ob) {
-  const L = ob.live; if (L.after) return; L.after = true; lvnStop(L);
-  lvnStage(L, 'stats', { status: 'running' }); lvnDraw(ob);
-  await lvnSpine(L.rev0);
+  const L = ob.live; if (L.after) return; L.after = true; lvnStop(L); L.err = null;
+  lvnStage(L, 'stats', { status: 'running', note: null }); lvnStage(L, 'persona', { status: 'pending', note: null }); lvnDraw(ob);
+  // the import is in but the analysis did not come back: keep the first run open (no onboarded:true) and offer a retry
+  if (!(await lvnSpine(L.rev0)) || !ALL.length) {
+    L.after = false;
+    lvnStage(L, 'stats', { status: 'failed', note: ALL.length ? '本机服务没有返回分析结果' : '没有读到会话' });
+    L.err = ALL.length ? '会话已导入，但分析结果暂时读不到（本机服务没有响应）。可以重试。' : '导入完成，但没有读到任何会话。检查来源目录后重试。';
+    if (OB !== ob || OVL !== 'ob') notify({ t: '首次分析没有完成', b: L.err, a1: '重试', on1: () => { openOnboarding(1); } });
+    lvnDraw(ob); return;
+  }
   lvnStage(L, 'stats', { status: 'done', note: fmt(ALL.length) + ' 个会话' }); lvnStage(L, 'persona', { status: 'running' }); lvnDraw(ob);
-  const per = await LVN.reveal(OB.recent ? '90' : 'all');
+  const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all'), LVN.loadRecs().catch(() => null)]);
   lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
   TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
   TL.send('POST', '/v1/catalog/sync', {}).catch(() => { /* library keeps its seed rows */ });
@@ -172,6 +191,8 @@ async function lvnAfter(ob) {
 }
 LVN.obImport = async function () {
   const ob = OB; const L = ob && ob.live; if (!L || L.starting || (L.job && !L.err)) return;
+  // 重试 after a completed import whose analysis failed: only redo the analysis half
+  if (L.err && L.job && L.job.status === 'completed') { L.rev0 = LV.rev; lvnAfter(ob); return; }
   const chosen = L.sources.filter((x) => L.sel.has(x.id));
   if (!chosen.length) return;
   L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: '准备来源' });
@@ -225,14 +246,14 @@ if (LV.live) {
       const host = ORBIT.native.hasHost();
       const path = host ? null : (L.manual.path || '').trim();
       if (!host && !path) { L.err = '先填写会话日志所在的文件夹路径'; drawOB(); const f = $('#obPath'); if (f) f.focus(); return; }
-      L.adding = true; L.err = null; drawOB();
+      L.adding = true; L.err = null; L.added = null; drawOB();
       try {
         const r = await LVN.addSource({ agent: L.manual.agent, path });
         if (r && r.ok) {
           L.touched = true; L.manual.path = '';
           const id = r.source && r.source.id; if (id) L.sel.add(id);
           await LVN.loadOb(ob); if (id) L.sel.add(id); lvnSyncSrc(L);
-          toast('已添加来源：' + r.root);
+          L.added = r.root;   // shown inline under the list: a toast would sit on top of the sheet
         }
       } catch (e) { L.err = e.message || '添加失败'; if (e.path) L.manual.path = e.path; }
       finally { L.adding = false; lvnDraw(ob); }

@@ -189,7 +189,12 @@ test('native: tandem:command settings / palette / about / route / toggleEdition 
   const cmd = (d) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('tandem:command', { detail: x })), d);
   await cmd({ cmd: 'about' });
   await expect(page.locator('#modal')).toBeVisible();
+  // the product version is the App shell's (0.0.1), the service's own version (0.13.6) only on the 本机服务 row (J08 / B20)
   await expect(page.locator('#modal [data-about="version"]')).toHaveText('0.0.1');
+  await expect(page.locator('#modal')).toContainText('Orbit 0.0.1 · 本地的跨 Agent 会话分析');
+  await expect(page.locator('#modal')).not.toContainText('Orbit 0.13.6');
+  await expect(page.locator('#modal [data-about="rows"] .row').first()).toContainText('0.0.1');
+  await expect(page.locator('#modal [data-about="rows"]')).toContainText('Orbit · 0.13.6 · tandem-app-v1');
   await expect(page.locator('#modal [data-about="rows"]')).toContainText('Kimi CLI');
   await cmd({ cmd: 'palette' });
   expect(await page.evaluate(() => MODAL_KEY)).toBe('palette');
@@ -231,6 +236,77 @@ test('native: 添加文件夹 asks the host (chooseFolder) and posts the picked 
   await expect.poll(() => posted.sources.length).toBe(1);
   expect(posted.sources[0]).toEqual({ agent: 'hermes', root: '/fx/picked/hermes-home', enabled: true });
   expect(errors).toEqual([]);
+});
+
+test('first run: the spine never comes back after the import → no onboarded:true, error + 重试 redoes only the analysis (J09)', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const errors = collectErrors(page);
+  const { map, posted } = firstRun({ 'POST /v1/app/jobs': (req) => { posted.jobs.push(1); return { status: 202, body: fx('s7/job-completed.json') }; }, ['GET /v1/app/jobs/' + JOB]: fx('s7/job-completed.json') });
+  const gw = await stubGateway(page, ['core', 's7'], map);
+  await page.clock.install({ time: new Date('2026-10-03T12:00:00+08:00') });
+  await openLive(page, 'overview');
+  await page.locator('#overlay [data-act="obNext"]').click();
+  await expect(page.locator('#overlay label.srcrow')).toHaveCount(8);
+  gw.set('GET /v1/uiview/facts', { status: 500, body: { error: { code: 'internal', message: 'boom' } } });
+  await page.locator('#overlay [data-act="obStart"]').click();
+  await expect(page.locator('#overlay [data-stage="stats"]')).toHaveAttribute('data-st', 'running');
+  await page.clock.runFor(32_000);
+  await expect(page.locator('#overlay [data-stage="stats"]')).toHaveAttribute('data-st', 'failed');
+  await expect(page.locator('#overlay [data-ob="err"]')).toContainText('重试');
+  await expect(page.locator('#genBox')).toHaveCount(0);
+  expect(posted.settings.some((b) => b.onboarded === true)).toBe(false);
+  // retry: the facts come back, no second import job, Genesis plays and onboarded:true is sent
+  gw.set('GET /v1/uiview/facts', fx('core/facts.json'));
+  await page.locator('#overlay [data-act="obStart"]').click();
+  await page.clock.runFor(2_000);
+  await expect(page.locator('#genBox')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#genBox [data-g="count"]')).toContainText('26 个会话');
+  expect(posted.jobs.length).toBe(1);
+  await expect.poll(() => posted.settings.some((b) => b.onboarded === true)).toBe(true);
+  expect(errors.filter((e) => !/500|Internal|boom/i.test(e))).toEqual([]);
+});
+
+test('first run: Genesis 看看优化建议 counts the live recommendations (J10); added source shows inline, ~ path, sheet fits 900 px (B14)', async ({ page }) => {
+  await clock(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const errors = collectErrors(page);
+  const recs = fx('s5/recs-full.json');
+  const disc = fx('s7/discovery.json'); disc[0] = Object.assign({}, disc[0], { root: '/Users/someone/Projects/x/.claude/projects' });
+  const ob = fx('s7/onboarding.json'); ob.sources = ob.sources.map((x) => (x.agent === disc[0].agent ? Object.assign({}, x, { root: disc[0].root }) : x));
+  const { map } = firstRun({ 'GET /v1/recommendations': recs, 'GET /v1/app/discovery': disc, 'GET /v1/shell/onboarding': ob });
+  const gw = await stubGateway(page, ['core', 's7'], map, { native: NATIVE });
+  await openLive(page, 'overview');
+  await page.locator('#overlay [data-act="obNext"]').click();
+  await expect(page.locator('#overlay label.srcrow')).toHaveCount(8);
+  await expect(page.locator('#overlay [data-ob="sources"]')).toContainText('~/Projects/x/.claude/projects');
+  await expect(page.locator('#overlay [data-ob="sources"]')).not.toContainText('/Users/someone');
+  // native 添加文件夹 on auto with a bare `pi` folder (J13): recognised, confirmed inline instead of a toast over the sheet
+  await page.locator('#overlay [data-act="obAddFolder"]').click();
+  await expect.poll(() => page.evaluate(() => window.__nativeMsgs.filter((m) => m.type === 'chooseFolder').length)).toBe(1);
+  const id = await page.evaluate(() => window.__nativeMsgs.find((m) => m.type === 'chooseFolder').id);
+  await page.evaluate((i) => window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id: i, path: '/Users/someone/fx-src/pi', cancelled: false } })), id);
+  await expect(page.locator('#overlay [data-ob="added"]')).toContainText('~/fx-src/pi');
+  await expect(page.locator('#toast')).toBeHidden();
+  const fits = async () => { const b = await page.locator('#overlay .obox').boundingBox(); const sh = await page.evaluate(() => { const o = $('#overlay .obox'); return o.scrollHeight - o.clientHeight; }); return b.y >= 0 && b.y + b.height <= 900 && sh <= 1; };
+  expect(await fits()).toBe(true);
+  await page.locator('#overlay [data-act="obStart"]').click();
+  await expect(page.locator('#overlay [data-ob="stages"] .step')).toHaveCount(4);
+  expect(await fits()).toBe(true);
+  await expect(page.locator('#overlay [data-act="obBgImport"]')).toBeInViewport();
+  gw.set('GET /v1/uiview/facts', fx('core/facts.json'));
+  gw.set('GET /v1/app/jobs/' + JOB, fx('s7/job-completed.json'));
+  await expect(page.locator('#genBox')).toBeVisible({ timeout: 10_000 });
+  const n = await page.evaluate(() => visibleRecs().length);
+  expect(n).toBeGreaterThan(0);
+  await expect(page.locator('#genBox .g-next .g-nc').first()).toHaveText(new RegExp('^' + n + ' 条'));
+  expect(errors).toEqual([]);
+});
+
+test('agentFromPath: a bare pi folder is pi (J13)', async ({ page }) => {
+  await stubGateway(page, ['core', 's7'], { 'GET /v1/app/state': fx('s7/app-state-full.json') });
+  await openLive(page, 'overview');
+  expect(await page.evaluate(() => ['/x/fx-src/pi', '/h/.pi/agent/sessions', '/h/pi', '/h/pipeline', '/h/api'].map(LVN.agentFromPath))).toEqual(['pi', 'pi', 'pi', null, null]);
 });
 
 test('about in live without the route: honest empty state, no demo copy', async ({ page }) => {
