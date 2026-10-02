@@ -1,0 +1,7 @@
+{
+ "_doc": "slice 1 (A1/A2/Lite): bodies captured from r4 on a synthetic home (.work/release/fixtures/full, 2026-10-03, Asia/Shanghai); *-settled are synthetic edits that settle the M axis for the reveal test. Query-dependent routes are dispatched in live-s1.spec.mjs.",
+ "GET /v1/uiview/facts": "facts.json",
+ "GET /v1/app/discovery": "discovery.json",
+ "GET /v1/install/environment": "install-environment.json",
+ "GET /v1/uiview/projects": "projects.json"
+}

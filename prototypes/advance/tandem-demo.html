@@ -5269,6 +5269,8 @@ RENDER_HOOKS.push((mainEl, entered) => {
  *   标题栏右侧给一个「已应用 Advance 筛选 · 清除」chip。
  * - 每页给「在 Advance 中查看明细 →」（edOpen，见 26-edition.js）。
  * - 动效标记：人格码 data-hero="code"、指纹 data-hero="fp"、大数字 data-count / data-dec（count-up 与进入编排由 37-motion.js 统一处理）。 */
+// today's day index: the demo's running sessions sit on day 120; live rows of today on LASTDAY
+const liteToday = () => (LV.live ? LASTDAY : 120);
 const liteFiltered = () => S.agents.size < AG.length || !!S.project || !!S.topic || !!S.outcome || !!S.fric || S.hour != null;
 function liteRight() {
   const seg = '<div class="seg" role="group" aria-label="时间范围">' + [[7, '7 天'], [30, '30 天'], [90, '90 天'], [0, '全部']].map((x) => '<button type="button" data-act="range" data-v="' + x[0] + '" class="' + (S.range === x[0] ? 'on' : '') + '" aria-pressed="' + (S.range === x[0]) + '">' + x[1] + '</button>').join('') + '</div>';
@@ -5303,9 +5305,11 @@ PAGES['l-home'] = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
   const pers = personaNow();
-  const lede = pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。';
+  // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
+  const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
+  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。';
   const ev = st.n ? Math.round(st.verify) + '% 的会话要求验证 · ' + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + Math.round(st.ok) + '%' : '这段时间没有会话';
-  const hero = '<div class="card pad l-hero"><div class="col l-lede"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap">本地 Claude Code 生成 · 9/30 23:10</span></div>' +
+  const hero = '<div class="card pad l-hero"><div class="col l-lede"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap">' + (LV.live ? esc(ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' +
     '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
       : '<div class="ov-code l-code"><span class="eb">协作画像</span><span class="serif ov-code-l" data-hero="code">????</span><span class="cap">再积累 ' + Math.max(0, 30 - pers.n) + ' 个会话后揭晓</span></div>') + '</div>';
@@ -5332,6 +5336,7 @@ PAGES['l-home'] = () => {
 /* ---------- 2 协作画像：超大四字母 + 指纹 → 四个维度 → 月度演变 ---------- */
 PAGES['l-persona'] = () => {
   const L = personaScope(); const p = persona(L);
+  if (p.pending) return liteBar('协作画像', rangeLabel() + ' · ' + L.length + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona">' + LV.pend(360) + LV.pend(220) + '</div></div>';
   if (!p.ok) {
     return liteBar('协作画像', rangeLabel() + ' · ' + p.n + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona"><div class="card pe-low l-low"><div class="ov-code"><span class="serif ov-code-l" data-hero="code">????</span></div><div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">样本不足</span><p class="serif l-say" style="margin:0">所选范围只有 ' + p.n + ' 个会话，至少需要 30 个才给出协作画像。</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn p l-big" data-act="range" data-v="30">看近 30 天</button><button type="button" class="btn l-big" data-act="range" data-v="0">看全部历史</button></div></div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
   }
@@ -5346,9 +5351,10 @@ PAGES['l-persona'] = () => {
     const a = axisView(p, i); const lw = a.leftWins;
     return '<div class="ax l-ax"><span class="l-pole' + (lw ? ' on' : '') + '"><b class="mono">' + a.ax.L + '</b>' + a.ax.Ln + '</span><span class="track"><span class="mid"></span><span class="fill" style="left:' + Math.min(a.pos, 50) + '%;width:' + Math.abs(a.pos - 50) + '%"></span><span class="knob" style="left:' + a.pos + '%"></span></span><span class="l-pole r' + (lw ? '' : ' on') + '">' + a.ax.Rn + '<b class="mono">' + a.ax.R + '</b></span><span class="mono l-axv" data-count="' + a.strong + '">' + a.strong + '</span></div>';
   }).join('') + '</div>';
-  const months = ['jun', 'jul', 'aug', 'sep'].map((k) => ({ k, m: ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
+  const cm = peCurMonth();
+  const months = peMonthKeys().map((k) => ({ k, m: LV.live ? +k.slice(5) : ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
   const evo = '<div class="card pad l-evo"><div class="hd"><div class="grow"><span class="ct">演变</span><span class="cap">按月重算 · 点击在 Advance 中查看那个月</span></div>' + liteAdv('persona') + '</div><div class="evo">' +
-    months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === 'sep' ? 'on' : '') + '"' + (m.k === 'sep' ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === 'sep' ? ' · 本月' : '') + '</span><span class="serif l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
+    months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === cm ? 'on' : '') + '"' + (m.k === cm ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === cm ? ' · 本月' : '') + '</span><span class="serif l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
   return liteBar('协作画像', 'n=' + p.n + ' · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + rangeLabel()) +
     '<div class="content" id="content"><div class="lite l-persona">' + hero + axes + evo + '</div></div>';
 };
@@ -5356,7 +5362,7 @@ PAGES['l-persona'] = () => {
 /* ---------- 3 会话轨迹：最近 8 个会话 → 选中会话的大标题 + 四个数字 + 关键步骤时间线 + AI 洞察 ---------- */
 function liteSessList() {
   const w = win(S.range);
-  const all = ALL.filter((s) => (s.d === 120 || (s.d >= w[0] && s.d <= w[1])) && sessOk(s)).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
+  const all = ALL.filter((s) => (s.d === liteToday() || (s.d >= w[0] && s.d <= w[1])) && sessOk(s)).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
   const top = all.slice(0, 8);
   const cur = BYID[S.sess.sel];
   // 从别处 openSession 进来：选中的会话不在最近 8 个里时也放进列表（替换最后一个）
@@ -5379,7 +5385,7 @@ PAGES['l-sessions'] = () => {
   if (!s || !list.includes(s)) s = list[0];
   if (!s) return liteBar('会话轨迹', rangeLabel()) + '<div class="content" id="content"><div class="lite l-sessions">' + empty('没有匹配的会话。试试放宽时间范围' + (liteFiltered() ? '，或清除 Advance 筛选' : '') + '。') + '</div></div>';
   const tr = traj(s); const T = tr.T; const o = OUT[s.out] || OUT.ok;
-  const rows = list.map((x) => { const ox = OUT[x.out] || OUT.ok; return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === 120 ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
+  const rows = list.map((x) => { const ox = OUT[x.out] || OUT.ok; return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === liteToday() ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
   const nums = [
     liteCount(VZ.kpi({ label: '你的消息', value: String(s.msgs), unit: '轮' }), s.msgs),
     liteCount(VZ.kpi({ label: '工具调用', value: String(s.tools), unit: '次' }), s.tools),
@@ -5394,7 +5400,7 @@ PAGES['l-sessions'] = () => {
   for (let i = xs.length - 1; i >= 0; i--) xs[i] = Math.min(xs[i], i === xs.length - 1 ? 100 : xs[i + 1] - 8);
   const nodes = tr.moments.map((m, i) => '<span class="l-node' + (m[3] ? ' bad' : '') + '" style="left:' + xs[i].toFixed(2) + '%" data-tip="' + esc(relT(Math.round(m[0] * 10) / 10) + ' · ' + m[1]) + '">' + (i + 1) + '</span>').join('');
   const steps = tr.moments.map((m, i) => '<li class="' + (m[3] ? 'bad' : '') + '"><span class="l-sn mono">' + (i + 1) + '</span><span class="mono l-st">' + relT(Math.round(m[0] * 10) / 10) + '</span><b>' + esc(m[1]) + '</b><span class="l-sd">' + esc(m[2]) + '</span></li>').join('');
-  const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === 120 ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
+  const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === liteToday() ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
     '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins"><span class="aib">' + ic('spark', 11) + 'AI 洞察</span><p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
   const tl = '<div class="card pad l-tlc"><div class="hd"><div class="grow"><span class="ct">关键步骤</span><span class="cap">' + tr.moments.length + ' 个关键时刻 · 全程 ' + (s.live ? liveMin() + 'm' : dur(T)) + '</span></div>' + liteAdv('sessions', '在 Advance 中回放') + '</div>' +
     '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol></div>';
@@ -5479,14 +5485,18 @@ PAGES.overview = () => {
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
   const topR = recTop('A1').slice(0, 3);
   const okN = L.filter((s) => s.out === 'ok').length;
+  // live: the insight texts come from /v1/uiview/overview (L0 template, same scope); the micro evidence stays spine-derived
+  const OVL = LV.live ? (LV.ready('overview') && LV.ov ? LV.ov : null) : undefined; const ins = OVL && OVL.insight;
+  const pendTxt = LV.live && !OVL && LV.feedState('overview') !== 'error';   // 404 / 501: the spine-derived texts stay, tools say 暂无数据
   const ai = [
-    ['做得好', 'okc', 'var(--good)', Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
-    ['卡在哪', 'alert', 'var(--crit)', topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
-    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
+    ['做得好', 'okc', 'var(--good)', ins && ins.good ? ins.good.text : Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
+    ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
+    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
-  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。');
-  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : '本地 Claude Code 生成 · 9/30 23:10';
+  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。');
+  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
+  const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
   const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
   const vis = AG.map((a) => !S.ov.hidden.includes(a.name));
@@ -5497,7 +5507,10 @@ PAGES.overview = () => {
   const ratio = day.fric ? night.fric / day.fric : 0;
   const peakV = hmap.H[peak[0]][peak[1]];
   const heatLine = S.ov.heat === 'msgs' ? '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + f1(st.fric) + '%';
-  const trows = toolRows(L).slice(0, 6); const tmx = Math.max(1, trows[0].n);
+  // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
+  const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => ({ name: t.name, n: t.n, err: t.err })) : []) : toolRows(L).slice(0, 6);
+  const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;
+  const terr = (t) => t.err == null ? '<span class="mono e">—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
   return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
@@ -5505,8 +5518,8 @@ PAGES.overview = () => {
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
     // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
-    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button></div><p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>' + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span></div>' +
-    ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div><p class="ov-aip">' + esc(g[3]) + '</p>' + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
+    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button></div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span></div>' +
+    ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
     '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
     // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
     '<div class="card ov-out"><div class="ov-out-t" title="' + outLine + '"><span class="eb">会话结果</span><span class="ct">完成 <span class="mono">' + Math.round(outc[0].value / Math.max(1, st.n) * 100) + '%</span></span><span class="cap">' + st.n + ' 个会话 · 点击色段只看该结果</span></div><div class="vz" data-vz="ov-out"></div></div>' +
@@ -5514,7 +5527,7 @@ PAGES.overview = () => {
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
     '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : '<span class="cap">再积累 ' + (30 - pers.n) + ' 个会话后揭晓</span>') +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : '<span class="cap">再积累 ' + (30 - pers.n) + ' 个会话后揭晓</span>') +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three ov-three">' +
@@ -5523,7 +5536,7 @@ PAGES.overview = () => {
     '<div class="ov-heat-line"><b>' + heatLine + '</b>' + (S.ov.heat === 'msgs' ? '<button type="button" class="lnk" data-act="heatCell" data-h="' + peak[1] + '" data-d="' + peak[0] + '">证据 →</button>' : '') + '</div>' +
     '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap ov-foot" title="筛选只按小时，不分星期">点击格子查看该小时开始的会话</div></div>' +
     // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="ov-tools">' + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err"><span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span></span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 ' + tkinds + ' 种</button></div><div class="ov-tools">' + (pendTxt ? LV.pend(180) : LV.live && !OVL ? LV.na() : LV.live && !trows.length ? LV.na('这段时间没有工具调用') : '') + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err">' + terr(t) + '</span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>' +
     ovRecsCard(topR) +
     '</div></div></div>';
 };
@@ -5603,12 +5616,13 @@ Object.assign(ACT, {
   evRec: () => go('recs'),
   regen: () => {
     const p = personaNow(); const el = $('#aiLead'); if (!el) return;
-    const variants = p.ok ? ['你像一位' + p.zh + '：' + p.line, '一句话：你把大块目标交给 Agent，并且很在意结果是否真的可用。', '你的协作重心在「交出去」和「收回来」两端：委托得多，验收也严。'] : ['样本不足，暂不下结论。'];
+    const lv = LV.live && LV.ov && LV.ov.insight && LV.ov.insight.lede;
+    const variants = lv ? [lv] : p.ok ? ['你像一位' + p.zh + '：' + p.line, '一句话：你把大块目标交给 Agent，并且很在意结果是否真的可用。', '你的协作重心在「交出去」和「收回来」两端：委托得多，验收也严。'] : ['样本不足，暂不下结论。'];
     const txt = variants[Math.floor(Math.random() * variants.length)];
     if (OV_T) clearInterval(OV_T);   // 连点只保留最后一次（BUG-66）
-    el.textContent = ''; const g0 = $('[data-aigen]'); if (g0) g0.innerHTML = '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> 本地 Claude Code 生成中…';
+    el.textContent = ''; const g0 = $('[data-aigen]'); if (g0) g0.innerHTML = '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + (LV.live ? '本地生成中…' : '本地 Claude Code 生成中…');
     const key = S.range + '|' + (p.ok ? p.code : '-') + '|' + Array.from(S.agents).join(',');
-    let i = 0; OV_T = setInterval(() => { i += 2; el.textContent = txt.slice(0, i); if (i >= txt.length) { clearInterval(OV_T); OV_T = null; S.ov.lede = { key, txt }; const g = $('[data-aigen]'); if (g) g.textContent = '本地 Claude Code 生成 · 刚刚'; } }, 30);
+    let i = 0; OV_T = setInterval(() => { i += 2; el.textContent = txt.slice(0, i); if (i >= txt.length) { clearInterval(OV_T); OV_T = null; S.ov.lede = { key, txt }; const g = $('[data-aigen]'); if (g) g.textContent = LV.live ? '规则模板 · 本地生成 · 刚刚' : '本地 Claude Code 生成 · 刚刚'; } }, 30);
   },
   reindex: () => reindex(),
   report: () => openReport(),
@@ -5619,6 +5633,11 @@ function reindex() {
   if (OV_IDX) return;   // 正在索引时不重复启动
   const s = $('[data-sync]'); if (s) s.innerHTML = '<span class="spin" style="width:11px;height:11px;vertical-align:-1px"></span> 正在索引…';
   const c = $('#content'); if (c) c.classList.add('stale');
+  if (LV.live) {   // live: reload the spine (ETag → 304 when nothing changed) and report the real count
+    OV_IDX = true;
+    Promise.resolve(LV.loadSpine()).then(() => { OV_IDX = null; S.ov.synced = '刚刚已同步'; const c2 = $('#content'); if (c2) c2.classList.remove('stale'); const s2 = $('[data-sync]'); if (s2) s2.textContent = S.ov.synced; toast(LV.state === 'error' ? '刷新失败，稍后重试' : '索引完成：' + fmt(ALL.length) + ' 个会话均已是最新'); });
+    return;
+  }
   OV_IDX = setTimeout(() => { OV_IDX = null; S.ov.synced = '刚刚已同步'; const c2 = $('#content'); if (c2) c2.classList.remove('stale'); const s2 = $('[data-sync]'); if (s2) s2.textContent = S.ov.synced; toast('索引完成：新增 0 个会话，2,416 个会话均已是最新'); }, 1200);
 }
 
@@ -5641,6 +5660,10 @@ function peAxisRows(p, prev) {
 }
 // 每轴证据微型图：D 每会话消息数分布、P/I 项目按结构度排序的时长、M 每日会话数分布、V 项目按求证度排序的时长
 function peEvidence(L, st, p, i) {
+  if (LV.live) {   // live: the server's per-axis evidence (unit counts the client cannot see until G1)
+    const ax = (p.axes || [])[i]; const e = ax && ax.evidence;
+    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax ? ax.n_units + ' 个' + ({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] : '—', vals: [0], lbl: '暂无证据' };
+  }
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.min(n - 1, Math.floor(v / max * n))]++; }); return out; };
   const byProj = (key) => PJ.slice().sort((a, b) => a[key] - b[key]).map((pj) => sum(L.filter((s) => s.p === pj.id), (s) => s.dur) / 60);
   if (i === 0) return { txt: '每会话 ' + f1(st.per) + ' 条消息 · 每轮 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs), 10, 20), lbl: '消息数 0 → 20+ 的会话数' };
@@ -5653,7 +5676,7 @@ function peRelax(w) {
   const out = []; const n = (o) => ALL.filter((s) => s.d >= o.w[0] && s.d <= o.w[1] && !s.live && sourceEnabled(s) && (o.allAg || S.agents.has(s.a)) && (o.noProj || !S.project || s.p === S.project)).length;
   if (S.project) out.push({ k: 'project', t: '项目 · ' + PJI[S.project].name, n: n({ w, noProj: true }) });
   if (S.agents.size < AG.length) out.push({ k: 'agents', t: 'Agent · ' + AG.filter((a) => S.agents.has(a.id)).map((a) => a.short).join(' / '), n: n({ w, allAg: true }) });
-  if (S.persona.period !== 'all') out.push({ k: 'period', t: '周期 · ' + PERIODS[S.persona.period][2], n: n({ w: [0, 119] }) });
+  if (S.persona.period !== 'all') out.push({ k: 'period', t: '周期 · ' + PERIODS[S.persona.period][2], n: n({ w: [0, LASTDAY] }) });
   return out;
 }
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
@@ -5737,9 +5760,9 @@ function fp2SVG(L, p, size, opt) {
   const axes = ['D', 'I', 'M', 'V'];
   const av = axes.map((x, i) => axisView(p, i));
   const minor = [45, 135, 225, 315].map((d) => fpRosePt(d, RR * 0.4, RR * 0.1)).map((x) => '<g class="fp-minor"><path d="' + x[0] + '" fill="var(--ink-4)"/><path d="' + x[1] + '" fill="var(--line)" stroke="var(--ink-4)" stroke-width=".8" stroke-linejoin="round"/></g>').join('');
-  const major = axes.map((x, i) => { const q = fpRosePt(AXR[x], fpRoseLen(av[i].strong), RR * 0.18), ink = av[i].strong < 55 ? 'var(--ink-3)' : 'var(--ink-1)'; return '<g class="fp-pt" data-k="' + x + '"><path d="' + q[1] + '" fill="var(--surface)" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/><path d="' + q[0] + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/></g>'; }).join('');
+  const major = axes.map((x, i) => { const q = fpRosePt(AXR[x], fpRoseLen(av[i].strong), RR * 0.18), un = p.axes && p.axes[i] ? p.axes[i].letter === '?' : av[i].strong < 55, ink = un ? 'var(--ink-3)' : 'var(--ink-1)'; return '<g class="fp-pt" data-k="' + x + '"><path d="' + q[1] + '" fill="var(--surface)" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/><path d="' + q[0] + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/></g>'; }).join('');
   const lbl = axes.map((x, i) => {
-    const a = av[i]; const ch = a.strong < 55 ? '?' : a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
+    const a = av[i]; const sl = p.axes && p.axes[i] && p.axes[i].letter; const ch = sl ? sl : a.strong < 55 ? '?' : a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
     const q = pt(C, len + 11 * k, rad);
     const sq = [q[0], q[1] + (d === 0 ? -13 : 13) * k];
     return '<g class="fp-ax" data-k="' + x + '"><text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 15 * k + '" font-family="var(--serif)" font-weight="600" fill="' + (ch === '?' ? 'var(--ink-3)' : 'var(--ink-1)') + '" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + ch + '</text>' +
@@ -5765,16 +5788,25 @@ function fp2SVG(L, p, size, opt) {
 }
 TIPS.fpp = (id) => { const F = CUR.fp; const x = F && F.pl.find((q) => q.a.id === id); if (!x) return ''; return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + x.a.c + ';vertical-align:-1px"></span> <b>' + x.a.name + ' · 协作重心 ' + x.hm + ' · ' + x.n + ' 个会话</b>\n<span style="opacity:.75">该 Agent 会话开始时刻的圆形平均</span>'; };
 TIPS.fph = (h) => { const F = CUR.fp; if (!F) return ''; const xs = F.byH[+h]; const by = AG.map((a) => [a, xs.filter((s) => s.a === a.id).length]).filter((x) => x[1]); return '<b>' + h + ':00–' + (+h + 1) + ':00 · ' + xs.length + ' 个会话</b>\n' + (by.length ? by.map((x) => '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + x[0].c + ';vertical-align:-1px"></span> ' + x[0].short + ' ' + x[1]).join(' · ') : '这个小时没有会话') + '\n<span style="opacity:.75">' + (S.persona.fpHour === +h ? '再点一次收起' : '点击展开这个小时的会话点') + '</span>'; };
+// previous calendar month of a month period (null for 近 90 天 / 全部)
+function pePrevKey(k) { const ks = peMonthKeys(); const i = ks.indexOf(k); return i > 0 ? ks[i - 1] : null; }
+function peMonthLbl(k) { return LV.live ? k : '2026-0' + ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k]; }
 PAGES.persona = () => {
+  if (!PERIODS[S.persona.period]) S.persona.period = '90';
+  if (LV.live && S.persona.vs === 'pop') S.persona.vs = 'past';   // no population baseline in live (POP is a demo constant)
   const per = PERIODS[S.persona.period];
-  const L = personaScope([per[0], per[1]]); const p = persona(L);
+  const L = personaScope([per[0], per[1]]);
+  // live: the full /v1/uiview/persona payload for this period (axes, evidence, traits, strengths, blind spots, months)
+  const p = LV.live && L.length >= 30 && !lvHasUnits(L) ? LV.personaFor(S.persona.period, L) : persona(L);
   const note = personaScopeNote();
-  const months = ['jun', 'jul', 'aug', 'sep'].map((k) => ({ k, lbl: '2026-0' + ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
-  const prevKey = { sep: 'aug', aug: 'jul', jul: 'jun', jun: null, '90': null, all: null }[S.persona.period];
+  const months = peMonthKeys().map((k) => ({ k, lbl: peMonthLbl(k), p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
+  const prevKey = pePrevKey(S.persona.period);
   const prev = prevKey ? persona(personaScope([PERIODS[prevKey][0], PERIODS[prevKey][1]])) : null;
-  const filt = (S.project ? PJI[S.project].name + ' · ' : '') + (S.agents.size < 5 ? AG.filter((a) => S.agents.has(a.id)).map((a) => a.short).join(' / ') + ' · ' : '');
-  const right = '<div class="seg" role="group" aria-label="统计周期">' + [['sep', '9 月'], ['90', '近 90 天'], ['all', '全部']].map((x) => '<button type="button" data-act="period" data-v="' + x[0] + '" class="' + (S.persona.period === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div><button type="button" class="btn gh" data-act="method">' + ic('info', 14) + '算法说明</button><button type="button" class="btn" data-act="share">' + ic('share', 14) + '导出分享卡</button><button type="button" class="btn ai" data-act="ask" data-ctx="persona">' + ic('spark', 14) + '让 Agent 写一份自述</button>';
+  const filt = (S.project ? PJI[S.project].name + ' · ' : '') + (S.agents.size < AG.length ? AG.filter((a) => S.agents.has(a.id)).map((a) => a.short).join(' / ') + ' · ' : '');
+  const cm = peCurMonth();
+  const right = '<div class="seg" role="group" aria-label="统计周期">' + [[cm, PERIODS[cm][2]], ['90', '近 90 天'], ['all', '全部']].map((x) => '<button type="button" data-act="period" data-v="' + x[0] + '" class="' + (S.persona.period === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div><button type="button" class="btn gh" data-act="method">' + ic('info', 14) + '算法说明</button><button type="button" class="btn" data-act="share">' + ic('share', 14) + '导出分享卡</button><button type="button" class="btn ai" data-act="ask" data-ctx="persona">' + ic('spark', 14) + '让 Agent 写一份自述</button>';
   const allOff = AG.every((a) => S.srcOff.has(a.id));
+  if (p.pending) return tbar('协作人格', filt + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="stack">' + LV.pend(420) + LV.pend(260) + '</div></div>';
   if (!p.ok) {
     const frac = Math.min(1, L.length / 30); const a = frac * Math.PI * 2; const x = 56 + 46 * Math.sin(a), y = 56 - 46 * Math.cos(a);
     const relax = peRelax([per[0], per[1]]);
@@ -5787,13 +5819,14 @@ PAGES.persona = () => {
   }
   CUR.persona = p;
   const traits = [];
-  if (p.v.D >= 55) traits.push('高吞吐'); else if (p.v.D <= 45) traits.push('亲自掌舵');
+  if (LV.live) (p.traits || []).forEach((t) => traits.push(t));
+  else if (p.v.D >= 55) traits.push('高吞吐'); else if (p.v.D <= 45) traits.push('亲自掌舵');
   if (p.v.I >= 55) traits.push('边做边想'); else if (p.v.I <= 45) traits.push('先规划');
   if (p.v.M >= 55) traits.push('多线程'); else if (p.v.M <= 45) traits.push('单线专注');
   if (p.v.V >= 55) traits.push('验收严格'); else if (p.v.V <= 45) traits.push('信任结果');
-  traits.push('中英混用');
-  const st = p.st;
-  const conts = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (!LV.live) traits.push('中英混用');
+  const st = p.st || stats(L); if (p.avgS == null) Object.assign(p, { avgS: 0, avgA: 0 });
+  const conts = LV.live && p.blind_spots ? p.blind_spots.map((b) => [b.type, b.n]) : Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const recFor = { '方向错误': 'deploy-target', '工具 / 环境失败': 'retry-breaker', '改动过度': 'paper-audit', '误解需求': 'acceptance', '并行会话冲突': 'worktree', '流程过重（子代理）': 'pr-wrapup', '额度 / 用量中断': 'summary-compact' };
   const fitRows = AG.map((a) => { const xs = L.filter((s) => s.a === a.id); const st2 = stats(xs); const f = fitOf(xs); const okp = st2.ok / 100; const ci = f == null ? null : Math.round(1.96 * Math.sqrt(okp * (1 - okp) / xs.length) * 100); return { a, n: xs.length, f, st: st2, ci, off: S.srcOff.has(a.id) }; });
   CUR.peMonths = months;
@@ -5813,14 +5846,14 @@ PAGES.persona = () => {
     '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
     '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>玫瑰 · 主角越长，该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--orbit)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span style="width:14px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3))"></span>轨道 · 每小时会话数，按 Agent 分层（峰值 ' + CUR.fp.mxH + '）· ' + (S.persona.fpHour != null ? '<button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '点击展开') + '</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>行星 · 各 Agent 的协作重心</span></div></div></div></div>' +
     '<div class="three pe-three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
-    '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button><button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button></div></div>' +
+    '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button>' + (LV.live ? '' : '<button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button>') + '</div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +
     '<div class="pe-ev">' + evos.map((e, i) => { const a = axisView(p, i); return '<div class="pe-evi" title="' + esc(e.lbl) + '"><span class="row" style="justify-content:space-between;gap:6px"><span class="mono pe-evl">' + a.ax.dim + ' · ' + a.letter + '</span>' + VZ.spark(e.vals, { bars: true, w: 72, h: 20, color: 'var(--h3)', last: 'var(--h3)', label: e.lbl }) + '</span><span class="pe-evt">' + esc(e.txt) + '</span></div>'; }).join('') + '</div>' +
     '<div class="cap pe-foot" title="中线为 50；落在 45–55（灰带）记为未定型">细刻度 = ' + (S.persona.vs === 'pop' ? '全体用户均值（示例）' : prev && prev.ok ? '上个月' : '无可比时段') + ' · 灰带为未定型</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">优势与盲点</span></div></div><div class="col pe-sw">' +
-    [['整段委托', '每轮自主 ' + f1(st.auto) + ' 步', p.v.D >= 55], ['验收严格', Math.round(st.verify) + '% 要求验证', p.v.V >= 55], ['节奏稳定', '日均 ' + f1(p.avgS) + ' 个会话', true]].filter((x) => x[2]).map((x) => '<div class="pe-swr">' + ic('okc', 14, 'color:var(--good)') + '<b>' + x[0] + '</b><span class="m">' + x[1] + '</span></div>').join('') +
+    (LV.live ? (p.strengths || []).map((x) => [x.text, '强度 ' + x.strong + ' · n=' + x.n_units, true]) : [['整段委托', '每轮自主 ' + f1(st.auto) + ' 步', p.v.D >= 55], ['验收严格', Math.round(st.verify) + '% 要求验证', p.v.V >= 55], ['节奏稳定', '日均 ' + f1(p.avgS) + ' 个会话', true]]).filter((x) => x[2]).map((x) => '<div class="pe-swr">' + ic('okc', 14, 'color:var(--good)') + '<b>' + x[0] + '</b><span class="m">' + x[1] + '</span></div>').join('') +
     '<div class="pe-swsep"></div>' +
-    (conts.length ? conts.map((c) => '<div class="pe-swr">' + ic('alert', 14, 'color:var(--crit)') + '<b title="' + esc(c[0]) + '">' + c[0] + '</b><span class="m">出现在 ' + c[1] + ' 个会话</span><button type="button" class="lnk" data-act="openRec" data-id="' + recFor[c[0]] + '">建议 →</button></div>').join('') : '<span class="cap">这段时间没有明显盲点。</span>') + '</div></div>' +
+    (conts.length ? conts.map((c) => '<div class="pe-swr">' + ic('alert', 14, 'color:var(--crit)') + '<b title="' + esc(c[0]) + '">' + c[0] + '</b><span class="m">出现在 ' + c[1] + ' 个会话</span>' + (LV.live ? '<button type="button" class="lnk" data-act="go" data-r="recs">建议 →</button>' : '<button type="button" class="lnk" data-act="openRec" data-id="' + recFor[c[0]] + '">建议 →</button>') + '</div>').join('') : '<span class="cap">这段时间没有明显盲点。</span>') + '</div></div>' +
     // 契合度：中性条 + 透明度随 n + 95% 区间（评审 A2-V07）；来源停用的 Agent 不可点（BUG-49）
     '<div class="card pad"><div class="pe-fit-h"><span class="ct">与 Agent 的契合度</span><span class="cap">0–100 · 细线为 95% 区间</span></div><div class="col" style="gap:12px">' +
     fitRows.map((r) => '<' + (r.off || !r.n ? 'div' : 'button type="button" data-act="soloAgent" data-a="' + r.a.id + '"') + ' class="pe-fit' + (r.off ? ' off' : '') + '"><span class="row pe-fit-t"><span class="dot" style="background:' + r.a.c + '"></span><span style="flex:1">' + r.a.name + '</span>' + (r.off ? '<span class="cap" style="font-size:11px">来源已停用</span>' : '<b class="mono">' + (r.f == null ? '—' : r.f) + '</b>') + '</span><span class="pe-fit-bar" style="opacity:' + (r.n < 20 ? 0.5 : 1) + '"><span class="fill" style="width:' + (r.f || 0) + '%"></span>' + (r.ci != null ? '<span class="ci" style="left:' + Math.max(0, r.f - r.ci) + '%;width:' + Math.min(100 - Math.max(0, r.f - r.ci), r.ci * 2) + '%"></span>' : '') + '</span><span class="pe-fit-m">' + (r.off ? '到设置里重新启用后参与计算' : r.n < 5 ? '样本少（' + r.n + ' 个会话），不计分' : '<span class="nw" title="n=' + r.n + (r.n < 20 ? '（样本少）' : '') + ' · 95% 区间 ±' + r.ci + ' · 完成率 ' + Math.round(r.st.ok) + '% · 摩擦率 ' + f1(r.st.fric) + '%">n=' + r.n + ' ±' + r.ci + ' · 完成 ' + Math.round(r.st.ok) + '% · 摩擦 ' + f1(r.st.fric) + '%</span>') + '</span></' + (r.off || !r.n ? 'div' : 'button') + '>').join('') +
@@ -5829,7 +5862,7 @@ PAGES.persona = () => {
 };
 PAGES.persona.after = () => {
   const p = CUR.persona; if (!p || !$('[data-vz="pe-axes"]')) return;
-  const prevKey = { sep: 'aug', aug: 'jul', jul: 'jun', jun: null, '90': null, all: null }[S.persona.period];
+  const prevKey = pePrevKey(S.persona.period);
   const prev = prevKey ? persona(personaScope([PERIODS[prevKey][0], PERIODS[prevKey][1]])) : null;
   VZ.mount('pe-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: peAxisRows(p, prev), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: peNum, refLabel: S.persona.vs === 'pop' ? '全体用户（示例）' : '上月', axis: false, rowH: 34, barH: 10, legend: false, animate: false, onSelect: () => ACT.axisJump() });
   const months = CUR.peMonths || [];
@@ -5855,7 +5888,7 @@ Object.assign(ACT, {
   },
   method: () => openMethod(),
   share: () => openShare(),
-  reveal: () => openReveal(),
+  reveal: () => (LV.live ? peLiveReveal() : openReveal()),
   openSession: (el) => {
     const s = BYID[el.dataset.id];
     if (!s || !sourceEnabled(s) || S.excluded.has(s.id)) { toast('此会话的来源已停用或已从分析中排除'); return; }
@@ -5865,7 +5898,7 @@ Object.assign(ACT, {
       if (S[key] != null && S[key] !== value) S[key] = null;
     }
     const w = win(S.range);
-    if (s.d !== 120 && (s.d < w[0] || s.d > w[1])) S.range = 0;
+    if (s.d !== (LV.live ? -1 : 120) && (s.d < w[0] || s.d > w[1])) S.range = 0;
     S.sess.sel = s.id; S.sess.mode = 'single'; S.sess.cmp = null; S.sess.q = ''; S.sess.ph = traj(s).T;
     go('sessions');
   }
@@ -5885,6 +5918,20 @@ function fpOrbitIn(svg) {
   return out;
 }
 RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) { const svg = m.querySelector('svg.fp2'); fpWobble(svg); fpOrbitIn(svg); } });
+
+// live reveal: GET /v1/uiview/persona/reveal for the shown scope first; a settled code plays the same compass / genesis reveal
+// on the real rows (openReveal → persona(L) → personaLive), an unsettled one says which candidates are closest instead of a fake reveal
+function peLiveReveal() {
+  const period = S.route === 'persona' ? S.persona.period : ({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range];
+  const e = LV.reveal(period); const go2 = () => {
+    const d = e.data;
+    if (!d) { toast(e.state === 'error' ? '揭晓数据暂不可用' : '正在准备揭晓…'); return; }
+    if (!d.ok) { toast('样本不足（' + d.n + ' 个会话，少于 ' + ((d.low && d.low.need) || 30) + ' 个），暂时不能揭晓'); return; }
+    if (!d.classified) { const c = (d.candidates || [])[0]; toast('部分维度尚未定型，暂时不能揭晓' + (c ? ' · 最接近 ' + c.code + ' ' + c.zh + ' ' + Math.round(c.match) + '%' : '')); return; }
+    openReveal(S.route === 'persona' ? { L: personaScope([PERIODS[period][0], PERIODS[period][1]]) } : undefined);
+  };
+  if (e.data || e.state === 'error') go2(); else { const t0 = Date.now(); const iv = setInterval(() => { if (e.data || e.state === 'error' || Date.now() - t0 > 8000) { clearInterval(iv); go2(); } }, 100); }
+}
 
 /* ============ A3 sessions & trajectory ============
  * 轨迹时间线建在 VZ（36-vizkit.js）的 timeline / minimap / playhead 原语上：总览条（刷子视窗）+ 主时间线（关键时刻徽章、阶段带、
@@ -8874,6 +8921,193 @@ if (LV.live) {
   TL.on('resync', () => LV.loadSpine());
   window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
   setTimeout(() => LV.loadSpine(), 0);
+}
+
+/* ============ live persona + A1 overview feed (slice 1) ============
+   Mock mode: nothing here runs (LV.live is false), persona() stays the demo formula and PERIODS keeps the demo months.
+   Live mode:
+   - persona(L, minN) → personaLive: a JS port of uiview/persona.py (Wilson 95% axes, insufficient / experimental) when
+     the rows carry the G1 unit counts (dk / dn / vk / op / t0 / t1). Until facts ships them, L is matched against the
+     scopes the server can answer (7 / 30 / 90 / all, the last four calendar months, under the current Agent / project
+     filters) and the memoised GET /v1/uiview/persona for that scope is returned; months come from that payload's
+     months[]. A single-project subset uses /v1/uiview/projects[].persona. Any other subset → {ok:false} (样本不足).
+   - PERIODS is rebuilt from LASTDAY's calendar months (keys YYYY-MM, which the server accepts as period=).
+   - LV.ov: the /v1/uiview/overview payload for the current scope (tools top, insight); tiles / trend / heat stay
+     client-derived from the spine (same formulas; parity is tested against the server).
+   - LV.reveal(period): GET /v1/uiview/persona/reveal for the reveal overlay (candidates when the code is not settled). */
+const LVP = { full: new Map(), mini: {}, proj: new Map(), sigKey: null, sigs: null };
+const lvpSig = (L) => (L && L.length ? L.length + '|' + L[0].id + '|' + L[L.length - 1].id : '0');
+// last 4 calendar months ending at LASTDAY's month: {k: 'YYYY-MM', m, y, a, b} (day indices clipped to the spine)
+function lvMonths(count) {
+  const t = new Date(DAY0 + LASTDAY * 86400000); const y = t.getUTCFullYear(), mo = t.getUTCMonth(); const out = [];
+  for (let back = (count || 4) - 1; back >= 0; back--) {
+    const f = Date.UTC(y, mo - back, 1), l = Date.UTC(y, mo - back + 1, 0); const d = new Date(f);
+    out.push({ k: d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'), m: d.getUTCMonth() + 1, y: d.getUTCFullYear(),
+      a: Math.max(0, Math.round((f - DAY0) / 86400000)), b: Math.min(LASTDAY, Math.round((l - DAY0) / 86400000)) });
+  }
+  return out;
+}
+function lvBuildPeriods() {
+  if (!LV.live) return;
+  Object.keys(PERIODS).forEach((k) => { delete PERIODS[k]; });
+  lvMonths().forEach((m) => { PERIODS[m.k] = [m.a, m.b, m.m + ' 月']; });
+  PERIODS['90'] = [Math.max(0, LASTDAY - 89), LASTDAY, '近 90 天'];
+  PERIODS.all = [0, LASTDAY, '全部'];
+  if (!PERIODS[S.persona.period]) S.persona.period = '90';
+  LVP.sigKey = null;
+}
+// month keys the A2 / Lite evolution rows show (mock: the demo's four months)
+function peMonthKeys() { return LV.live ? lvMonths().map((m) => m.k) : ['jun', 'jul', 'aug', 'sep']; }
+const peCurMonth = () => { const k = peMonthKeys(); return k[k.length - 1]; };
+
+/* ---- G1 port of uiview/persona.py (used when facts rows carry dk / dn / vk / op / t0 / t1) ---- */
+const LVP_MIN_UNITS = { D: 30, I: 30, M: 10, V: 30 };
+function lvWilson(k, n) {
+  if (n <= 0) return [0, 1];
+  const z = 1.96, p = k / n, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den;
+  const h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+const lvHasUnits = (L) => L.length > 0 && L.every((s) => s.dn != null);
+function lvUnits(L) {
+  let dk = 0, dn = 0, vk = 0, ik = 0, inn = 0; const byDay = {};
+  L.forEach((s) => {
+    dk += s.dk || 0; dn += s.dn || 0; vk += s.vk || 0;
+    if (s.op != null) { inn++; if (s.op === 0) ik++; }
+    (byDay[s.d] = byDay[s.d] || []).push(s);
+  });
+  let multi = 0; const days = Object.values(byDay);
+  days.forEach((xs) => {
+    if (new Set(xs.map((s) => s.a)).size >= 2) { multi++; return; }
+    const sp = xs.filter((s) => s.t0 != null && s.t1 != null).map((s) => [s.t0, s.t1]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    let end = null; for (const [a, b] of sp) { if (end != null && a < end) { multi++; return; } end = end == null ? b : Math.max(end, b); }
+  });
+  return { D: [dk, dn], I: [ik, inn], M: [multi, days.length], V: [vk, dn] };
+}
+const LVP_LR = { D: ['D 委托', '掌舵 S'], I: ['P 规划', '即兴 I'], M: ['M 多线', '专注 F'], V: ['V 求证', '信任 T'] };
+const LVP_HI = { D: ['D', 'S'], I: ['I', 'P'], M: ['M', 'F'], V: ['V', 'T'] };
+function lvPersonaCompute(L, minN) {
+  const n = L.length; const days = new Set(L.map((s) => s.d)).size;
+  if (n < (minN || 30) || !n) return { ok: false, classified: false, n, days, conf: '低' };
+  const u = lvUnits(L);
+  const axes = AXES.map((ax) => {
+    const k = ax.k, kk = u[k][0], nn = u[k][1];
+    const value = nn ? 100 * kk / nn : null; let [lo, hi] = lvWilson(kk, nn); lo = Math.round(lo * 1000) / 10; hi = Math.round(hi * 1000) / 10;
+    let letter = '?', state = 'experimental';
+    if (nn < LVP_MIN_UNITS[k] || days < 10 || value == null) state = 'insufficient';
+    else if (lo >= 55) { letter = LVP_HI[k][0]; state = 'settled'; } else if (hi <= 45) { letter = LVP_HI[k][1]; state = 'settled'; }
+    return { k, value: value == null ? null : Math.round(value * 10) / 10, lo, hi, n_units: nn, k_units: kk, letter, state,
+      strong: value == null ? null : Math.round(Math.max(value, 100 - value)), left: LVP_LR[k][0], right: LVP_LR[k][1], dim: ax.dim, q: ax.q, sig: ax.sig };
+  });
+  const code = axes.map((a) => a.letter).join('');
+  const t = TYPES[code];
+  return { ok: true, classified: !!t, n, days, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。',
+    v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
+}
+
+/* ---- server payload → the demo's persona shape (+ axes / server extras) ---- */
+function lvAvg(L) {
+  const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); }); const d = Object.values(by);
+  return { avgS: d.length ? L.length / d.length : 0, avgA: d.length ? d.reduce((a, l) => a + new Set(l.map((s) => s.a)).size, 0) / d.length : 0 };
+}
+function lvShape(b, L) {
+  if (!b || !b.ok) return { ok: false, classified: false, n: b && b.n != null ? b.n : L ? L.length : 0, server: b || null };
+  const v = {}; ['D', 'I', 'M', 'V'].forEach((k) => { const x = b.v && b.v[k]; v[k] = x == null ? 50 : x; });
+  const t = TYPES[b.code];
+  const out = Object.assign({}, b, { ok: true, classified: b.classified != null ? !!b.classified : !!t, n: b.n, v, code: b.code,
+    zh: b.zh || (t ? t[0] : '尚未定型'), en: b.en || (t ? t[1] : 'Undetermined'), line: b.line || (t ? t[2] : '有维度落在 45–55 之间，暂不下结论。'),
+    conf: b.conf || (b.n >= 100 ? '高' : '中'), axes: b.axes || [], server: b });
+  if (L) { out.st = stats(L); Object.assign(out, lvAvg(L)); }
+  return out;
+}
+// the scopes the server answers: {period, w}; matched to a row list by signature (cached per spine rev + filters)
+function lvpScopes() {
+  const ag = Array.from(S.agents).sort().join(',') + '/' + Array.from(S.srcOff).sort().join(',');
+  const key = LV.rev + '|' + LASTDAY + '|' + ag + '|' + (S.project || '');
+  if (LVP.sigKey === key) return LVP.sigs;
+  const m = new Map();
+  const add = (period, w) => { const sg = lvpSig(sel({ win: w, noExtra: true })); if (!m.has(sg)) m.set(sg, period); };
+  [7, 30, 90].forEach((r) => add(String(r), win(r)));
+  add('all', [0, LASTDAY]);
+  lvMonths().forEach((x) => add(x.k, [x.a, x.b]));
+  LVP.sigKey = key; LVP.sigs = m;
+  return m;
+}
+function lvpQuery(period) {
+  const sc = LV.scope();
+  return { period, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project || null, display_timezone: TL_TZ || 'UTC' };
+}
+const lvpKey = (period) => JSON.stringify(lvpQuery(period));
+// full /v1/uiview/persona payload for a period under the current filters → {state, data}; refetches (keeping the last
+// data on screen) when the spine revision moved
+function lvpFetch(period, path, store) {
+  const key = lvpKey(period) + path;
+  let e = store.get(key);
+  if (e && (e.rev === LV.rev || e.loading)) return e;
+  if (!e) { e = { rev: null, loading: false, data: null, state: 'pending' }; store.set(key, e); }
+  e.loading = true; const rev = LV.rev;
+  TL.get(path, { query: lvpQuery(period) }).then((res) => {
+    e.loading = false;
+    if (res.state === 'computing' || res.data == null) { e.loading = true; setTimeout(() => { e.loading = false; e.rev = null; TL.changed(); }, 1200); return; }
+    e.rev = rev; e.data = res.data; e.state = 'ready';
+    if (path === '/v1/uiview/persona') {
+      (res.data.months || []).forEach((x) => { LVP.mini[lvpKey(x.k)] = x; });
+    }
+  }, (err) => { e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err; }).then(() => TL.changed());
+  return e;
+}
+LV.personaFor = function (period, L) {
+  const e = lvpFetch(period, '/v1/uiview/persona', LVP.full);
+  if (e.data) return lvShape(e.data, L);
+  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: true };
+  return { ok: false, classified: false, n: L ? L.length : 0, pending: true };
+};
+LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
+// single-project subsets: /v1/uiview/projects[].persona (persona_pending until the backend computes it → 样本不足)
+function lvProjPersona(pid, L) {
+  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { range: sc.range, agent: sc.agents, display_timezone: TL_TZ || 'UTC' });
+  let e = LVP.proj.get(path);
+  if (!e || (e.rev !== LV.rev && !e.loading)) {
+    e = e || { rev: null, loading: false, map: {} }; LVP.proj.set(path, e); e.loading = true; const rev = LV.rev;
+    TL.get(path).then((res) => {
+      e.loading = false; if (res.data == null) return; e.rev = rev; e.map = {};
+      (res.data.projects || []).forEach((p) => { e.map[p.project_id || p.id] = p.persona || null; });
+    }, () => { e.loading = false; e.rev = rev; }).then(() => TL.changed());
+  }
+  const pp = e.map[pid];
+  if (pp && pp.code && pp.v) return lvShape(Object.assign({ ok: true, n: pp.n || L.length }, pp), L);
+  return { ok: false, classified: false, n: L.length };
+}
+function personaLive(L, minN) {
+  L = L || [];
+  if (lvHasUnits(L)) { const p = lvPersonaCompute(L, minN); if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); } return p; }
+  if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
+  const period = lvpScopes().get(lvpSig(L));
+  if (period) {
+    const full = LVP.full.get(lvpKey(period) + '/v1/uiview/persona');
+    if (full && full.data) return lvShape(full.data, L);
+    const mini = LVP.mini[lvpKey(period)];
+    if (mini) return lvShape(mini, L);
+    // calendar months arrive with a period payload's months[]; only an explicitly shown month (A2) fetches its own
+    if (/^\d{4}-\d{2}$/.test(period)) return { ok: false, classified: false, n: L.length, pending: true };
+    return LV.personaFor(period, L);
+  }
+  const p0 = L[0].p;
+  if (minN && L.every((s) => s.p === p0)) return lvProjPersona(p0, L);
+  return { ok: false, classified: false, n: L.length };
+}
+
+/* ---- A1 overview feed: tools top + insight for the current scope ---- */
+LV.ov = null;
+if (LV.live) {
+  persona = personaLive;
+  lvBuildPeriods();
+  S.ov.synced = '已同步';
+  const h0 = LV.hydrate;
+  LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
+  LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
+    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC' }) }],
+  (d) => { LV.ov = d.ov || null; });
 }
 
 /* ============ live binding: A6 sentiment + command palette search (slice 4) ============
