@@ -78,7 +78,7 @@ CREATE INDEX item_relation_reverse ON item_relation(b, relation);
 -- (item, ordinal) is resolved by the in-memory index, so it needs no separate SQL index.
 CREATE TABLE resource_chunk (
  item_id TEXT NOT NULL, ordinal INTEGER NOT NULL, chunk_rowid INTEGER NOT NULL, field TEXT NOT NULL,
- heading TEXT NOT NULL, text_hash TEXT, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)
+ heading TEXT NOT NULL, text_hash BLOB, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)
 ) WITHOUT ROWID, STRICT;
 CREATE VIRTUAL TABLE chunk_fts USING fts5(
  title, content, content='', contentless_delete=1, detail=column,
@@ -88,15 +88,16 @@ CREATE TRIGGER chunk_deleted AFTER DELETE ON resource_chunk BEGIN
  DELETE FROM chunk_fts WHERE rowid = old.chunk_rowid;
 END;
 CREATE TABLE embedding_model (
- model_id TEXT PRIMARY KEY, dimensions INTEGER NOT NULL, descriptor TEXT NOT NULL,
- created_at INTEGER NOT NULL
+ model_key INTEGER PRIMARY KEY, model_id TEXT NOT NULL UNIQUE, dimensions INTEGER NOT NULL,
+ descriptor TEXT NOT NULL, created_at INTEGER NOT NULL
 ) STRICT;
--- vector: little-endian float16, L2-normalised before quantisation.
+-- vector: little-endian float16, L2-normalised before quantisation; text_hash: 16-byte chunk digest.
+-- Rowid table: rows arrive in random text_hash order, which leaves a WITHOUT ROWID b-tree ~30% empty.
 CREATE TABLE embedding_cache (
- model_id TEXT NOT NULL REFERENCES embedding_model, text_hash TEXT NOT NULL,
+ model_key INTEGER NOT NULL REFERENCES embedding_model, text_hash BLOB NOT NULL,
  dimensions INTEGER NOT NULL, vector BLOB NOT NULL,
- PRIMARY KEY(model_id, text_hash), CHECK(length(vector) = dimensions * 2)
-) WITHOUT ROWID, STRICT;
+ PRIMARY KEY(model_key, text_hash), CHECK(length(vector) = dimensions * 2)
+) STRICT;
 CREATE TABLE model_info (
  item_id TEXT PRIMARY KEY REFERENCES catalog_item, canonical_id TEXT NOT NULL,
  provider TEXT NOT NULL, model_id TEXT NOT NULL, family TEXT, aliases TEXT NOT NULL,

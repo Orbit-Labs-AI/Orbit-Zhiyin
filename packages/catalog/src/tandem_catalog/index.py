@@ -148,7 +148,7 @@ class CatalogIndex:
         with self._lock:
             if model_id not in self._matrices:
                 rows = conn.execute("SELECT c.chunk_rowid,e.vector FROM resource_chunk c JOIN embedding_cache e "
-                                    "ON e.model_id=? AND e.text_hash=c.text_hash WHERE c.embed=1 ORDER BY c.chunk_rowid",
+                                    "ON e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash WHERE c.embed=1 ORDER BY c.chunk_rowid",
                                     (model_id,)).fetchall()
                 vectors = np.frombuffer(b"".join(r[1] for r in rows), dtype="<f2").reshape(len(rows), dimensions)
                 rowids = np.array([r[0] for r in rows], dtype=np.int64)

@@ -109,7 +109,7 @@ def register_model(store, encoder: Encoder):
         descriptor = canonical_json(encoder.descriptor)
         if row and (row["dimensions"] != encoder.dimensions or row["descriptor"] != descriptor):
             raise ValueError("embedding_model_identity_conflict")
-        conn.execute("INSERT OR IGNORE INTO embedding_model VALUES(?,?,?,?)",
+        conn.execute("INSERT OR IGNORE INTO embedding_model(model_id,dimensions,descriptor,created_at) VALUES(?,?,?,?)",
                      (encoder.model_id, encoder.dimensions, descriptor, int(time.time() * 1000)))
 
 
@@ -129,7 +129,7 @@ def blocked_scores(matrix: np.ndarray, query: np.ndarray) -> np.ndarray:
 
 def _pending(conn, model_id: str) -> int:
     return conn.execute("SELECT count(*) FROM resource_chunk c WHERE c.embed=1 AND NOT EXISTS (SELECT 1 FROM "
-                        "embedding_cache e WHERE e.model_id=? AND e.text_hash=c.text_hash)", (model_id,)).fetchone()[0]
+                        "embedding_cache e WHERE e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash)", (model_id,)).fetchone()[0]
 
 
 def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None, cancelled=lambda: False):
@@ -146,7 +146,7 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
         with store.connect(True) as conn:
             rows = conn.execute("SELECT c.item_id,c.ordinal,c.text_hash FROM resource_chunk c JOIN catalog_item i USING(item_id) "
                                 "WHERE c.embed=1 AND NOT EXISTS (SELECT 1 "
-                                "FROM embedding_cache e WHERE e.model_id=? AND e.text_hash=c.text_hash) "
+                                "FROM embedding_cache e WHERE e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash) "
                                 "ORDER BY CASE i.type WHEN 'skill' THEN 0 WHEN 'workflow' THEN 1 WHEN 'rule' THEN 2 "
                                 "WHEN 'hook' THEN 3 WHEN 'command' THEN 4 WHEN 'subagent' THEN 5 WHEN 'plugin' THEN 6 "
                                 "WHEN 'mcp_server' THEN 7 ELSE 8 END,c.ordinal,c.item_id LIMIT ?",
@@ -162,8 +162,9 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
         reused += len(rows) - len(missing)
         with store.writer(), store.connect() as conn:
             # Text-keyed: a sync that replaced the chunk meanwhile only leaves a reusable cache row.
+            key = conn.execute("SELECT model_key FROM embedding_model WHERE model_id=?", (encoder.model_id,)).fetchone()[0]
             conn.executemany("INSERT OR IGNORE INTO embedding_cache VALUES(?,?,?,?)",
-                             [(encoder.model_id, text_hash, encoder.dimensions, vector.astype("<f2").tobytes())
+                             [(key, text_hash, encoder.dimensions, vector.astype("<f2").tobytes())
                               for text_hash, vector in zip(missing, encoded, strict=True)])
             conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
         indexed += len(rows)

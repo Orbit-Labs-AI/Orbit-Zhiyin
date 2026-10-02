@@ -471,7 +471,7 @@ class CatalogStore:
                                "RETURNING value", (len(pieces),)).fetchone()[0])
         rowids = range(end - len(pieces) + 1, end + 1)
         conn.executemany("INSERT INTO resource_chunk VALUES(?,?,?,?,?,?,?)",
-                         [(item_id, c["ordinal"], rowid, c["field"], c["heading"], c["text_hash"] if c["embed"] else None, c["embed"])
+                         [(item_id, c["ordinal"], rowid, c["field"], c["heading"], bytes.fromhex(c["text_hash"]) if c["embed"] else None, c["embed"])
                           for rowid, c in zip(rowids, pieces, strict=True)])
         title = " ".join(lexical_tokens(resource.name))
         conn.executemany("INSERT INTO chunk_fts(rowid,title,content) VALUES(?,?,?)",
@@ -619,7 +619,7 @@ class CatalogStore:
                     "blobs": count("SELECT count(*) FROM blob"),
                     "by_type": {r[0]: r[1] for r in conn.execute("SELECT type,count(*) FROM catalog_item WHERE status='active' GROUP BY type")},
                     "embeddings": [{**dict(r), "descriptor": json.loads(r["descriptor"])} for r in conn.execute(
-                        "SELECT m.*,(SELECT count(*) FROM resource_chunk c JOIN embedding_cache e ON e.model_id=m.model_id "
+                        "SELECT m.*,(SELECT count(*) FROM resource_chunk c JOIN embedding_cache e ON e.model_key=m.model_key "
                         "AND e.text_hash=c.text_hash WHERE c.embed=1) AS indexed_chunks FROM embedding_model m")]}
 
     def load_resource(self, conn, doc_sha: str, body_sha: str | None) -> Resource:
@@ -702,7 +702,7 @@ class CatalogStore:
             chunk_ids = {r[0] for r in conn.execute("SELECT chunk_rowid FROM resource_chunk")}
             fts_ids = {r[0] for r in conn.execute("SELECT rowid FROM chunk_fts")}
             missing_fts, orphan_fts = len(chunk_ids - fts_ids), len(fts_ids - chunk_ids)
-            invalid_vectors = count("SELECT count(*) FROM embedding_cache e JOIN embedding_model m USING(model_id) "
+            invalid_vectors = count("SELECT count(*) FROM embedding_cache e JOIN embedding_model m USING(model_key) "
                                     "WHERE e.dimensions!=m.dimensions OR length(e.vector)!=e.dimensions*2")
             invalid_versions = count("SELECT count(*) FROM catalog_item i LEFT JOIN item_version v ON v.version_id=i.latest_version "
                                      "WHERE v.version_id IS NULL OR i.content_hash!=v.content_hash")

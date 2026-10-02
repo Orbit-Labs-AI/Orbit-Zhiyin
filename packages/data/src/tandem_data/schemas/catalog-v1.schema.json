@@ -411,13 +411,14 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "model_id": {
-          "type": "string",
-          "x-sql-type": "TEXT"
+        "model_key": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
         },
         "text_hash": {
           "type": "string",
-          "x-sql-type": "TEXT"
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
         },
         "dimensions": {
           "type": "integer",
@@ -430,16 +431,16 @@
         }
       },
       "required": [
-        "model_id",
+        "model_key",
         "text_hash",
         "dimensions",
         "vector"
       ],
-      "x-ddl": "CREATE TABLE embedding_cache (\n model_id TEXT NOT NULL REFERENCES embedding_model, text_hash TEXT NOT NULL,\n dimensions INTEGER NOT NULL, vector BLOB NOT NULL,\n PRIMARY KEY(model_id, text_hash), CHECK(length(vector) = dimensions * 2)\n) WITHOUT ROWID, STRICT",
+      "x-ddl": "CREATE TABLE embedding_cache (\n model_key INTEGER NOT NULL REFERENCES embedding_model, text_hash BLOB NOT NULL,\n dimensions INTEGER NOT NULL, vector BLOB NOT NULL,\n PRIMARY KEY(model_key, text_hash), CHECK(length(vector) = dimensions * 2)\n) STRICT",
       "x-foreign-keys": [
         {
           "table": "embedding_model",
-          "from": "model_id",
+          "from": "model_key",
           "to": null
         }
       ]
@@ -448,6 +449,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "model_key": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
         "model_id": {
           "type": "string",
           "x-sql-type": "TEXT"
@@ -466,12 +471,13 @@
         }
       },
       "required": [
+        "model_key",
         "model_id",
         "dimensions",
         "descriptor",
         "created_at"
       ],
-      "x-ddl": "CREATE TABLE embedding_model (\n model_id TEXT PRIMARY KEY, dimensions INTEGER NOT NULL, descriptor TEXT NOT NULL,\n created_at INTEGER NOT NULL\n) STRICT",
+      "x-ddl": "CREATE TABLE embedding_model (\n model_key INTEGER PRIMARY KEY, model_id TEXT NOT NULL UNIQUE, dimensions INTEGER NOT NULL,\n descriptor TEXT NOT NULL, created_at INTEGER NOT NULL\n) STRICT",
       "x-foreign-keys": []
     },
     "item_agent": {
@@ -872,7 +878,8 @@
             "string",
             "null"
           ],
-          "x-sql-type": "TEXT"
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
         },
         "embed": {
           "type": "integer",
@@ -888,7 +895,7 @@
         "text_hash",
         "embed"
       ],
-      "x-ddl": "CREATE TABLE resource_chunk (\n item_id TEXT NOT NULL, ordinal INTEGER NOT NULL, chunk_rowid INTEGER NOT NULL, field TEXT NOT NULL,\n heading TEXT NOT NULL, text_hash TEXT, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)\n) WITHOUT ROWID, STRICT",
+      "x-ddl": "CREATE TABLE resource_chunk (\n item_id TEXT NOT NULL, ordinal INTEGER NOT NULL, chunk_rowid INTEGER NOT NULL, field TEXT NOT NULL,\n heading TEXT NOT NULL, text_hash BLOB, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)\n) WITHOUT ROWID, STRICT",
       "x-foreign-keys": []
     },
     "sync_run": {
