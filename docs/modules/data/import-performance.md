@@ -29,6 +29,8 @@
 
 依赖前序文件 L2 的 mapper 留在写者串行：Codex fork / 历史、DSH 旧代、带 `parentSession` 的 pi、Kimi 索引，以及 OpenCode / Hermes 数据库。
 
+事件契约校验（`contract.validate_event`）先走手写的 `event_certainly_valid`：它按 `event-v1.schema.json` 逐项判定，只在确定合法时放行；任何不确定（非法输入，或 `1.0` 这类少见但合法的形态）都交给 `Draft202012Validator`，所以非法事件抛出的 `ValidationError` 与之前相同。jsonschema 逐事件校验原占串行导入 CPU 约 40%。修改 schema 时须同步该函数；`tests/test_contract_fast.py` 用合成导入产生的信封做逐字段变异，断言快速判定从不接受 schema 拒绝的输入。
+
 写者连接在会话内把 `cache_size` 提到 256 MiB（只升不降，不影响结果）；默认 2 MiB 时每批写入反复读回索引页，10 万事件规模约慢 4 倍。
 
 ## 受影响会话闭包
