@@ -196,7 +196,7 @@ def test_kb_source_maps_all_remedies_as_curated_official_items(tmp_path):
     store.register([SourceSpec(source_id="tandem-kb", kind="kb", url="bundled:kb", priority=100,
                                config={"file": str(REMEDIES)})])
     [result] = CatalogSync(store, http=None).sync(["tandem-kb"])
-    assert result["status"] == "completed" and result["seen"] == 17
+    assert result["status"] == "completed" and result["seen"] == 25
     rules = json.loads(REMEDIES.read_text())["rules"]
     with store.connect(True) as conn:
         rows = {r["item_id"]: dict(r) for r in conn.execute("SELECT item_id,type,official,listable FROM catalog_item")}

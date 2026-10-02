@@ -54,7 +54,7 @@ def test_empty_home_serves_official_hooks_immediately(gateway):
     status = client.get("/v1/catalog/status").json()
     coverage = status["coverage"]
     assert status["items"] >= 27 and coverage["seeded"] is True
-    assert coverage["by_source"]["tandem-kb"]["items"] == 17 and coverage["by_kind"]["hook"] >= 3
+    assert coverage["by_source"]["tandem-kb"]["items"] == 25 and coverage["by_kind"]["hook"] >= 3
     assert "mcp-official" in coverage["partial_sources"] and coverage["last_sync_at"] is None
 
 
