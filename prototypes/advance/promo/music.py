@@ -377,7 +377,7 @@ for i in range(3):
         t_ += 0.05 + 0.12 * (t_ / 1.6) ** 1.5
 
 # 4b · particles -> compass (b24.6-28)
-sparkle(25.4, 0.8, 26, 0.07)                                        # 186 burst into particles
+sparkle(25.0, 0.8, 26, 0.07)                                        # 186 bursts into particles (30-persona b25.0)
 put(reverse_swell(1.4 * BEAT), 25.6, 0.55)                          # the tilted orbit flips flat (b27.0)
 put(glide(3000, 9000, 1.2 * BEAT) * 0.6 + hp(noise(1.2 * BEAT), 8000) * 0.15, 27.0, 0.08, 0.3, to='verbsend')  # the light traces the ring
 for i in range(8):                                                  # particles land on the dial
@@ -448,7 +448,7 @@ put(riser(1.8 * BEAT, 500, 5000), 55.6, 0.22, to='verbsend')
 put(crash(2.0), 57.4, 0.3, -0.2)
 groove(57.4, 63.4, arp=True, lvl=0.95)
 pads(57.4, 63.4, 0.16)
-arr_ = 58.5                                                         # arrivals: interval 0.5 -> 0.3, last at 62.9
+arr_ = 58.2                                                         # arrivals = 40-recs ARR: 58.2, gaps 0.5 -> 0.3, last at 62.6
 for i in range(12):
     put(blip(PENT[i % 5] + 24 + 12 * (i // 5), 0.4), arr_, 0.15, -0.5 + i * 0.09, to='verbsend')
     put(tick(), arr_, 0.12, 0.2)
@@ -471,8 +471,8 @@ groove(70.0, 78.8, arp=True, lvl=0.92)
 pads(70.0, 79.4, 0.16)
 put(whoosh(1.0 * BEAT), 69.4, 0.2, 0.2)
 for i in range(7):
-    put(tick(), 70.4 + i * 0.25, 0.3, -0.4 + i * 0.13)
-    put(blip(PENT[i % 5] + 24 + 12 * (i // 5), 0.25), 70.4 + i * 0.25, 0.11, -0.4 + i * 0.13, to='verbsend')
+    put(tick(), 70.5 + i * 0.25, 0.3, -0.4 + i * 0.13)                # 40-recs DAY0 = 70.5, DAYG = 0.25
+    put(blip(PENT[i % 5] + 24 + 12 * (i // 5), 0.25), 70.5 + i * 0.25, 0.11, -0.4 + i * 0.13, to='verbsend')
 
 # 5d · before / after: three descending slides + strike scratches, then the "有效" chord
 for i, b_ in enumerate((73.4, 74.4, 75.4)):
@@ -496,16 +496,16 @@ pads(79.4, 83.4, 0.2, 2400)
 groove(83.4, 101.0, arp=True, lvl=0.95)
 hats16(83.4, 101.0)
 pads(83.4, 101.0, 0.16)
-for b_, d in ((83.6, 0.8), (89.7, 0.6), (95.2, 0.4), (96.4, 0.4), (97.6, 0.4), (98.8, 0.4), (100.0, 0.4)):
+for b_, d in ((83.9, 0.8), (88.7, 0.6), (95.2, 0.4), (96.4, 0.4), (97.6, 0.4), (98.8, 0.4), (100.0, 0.4)):   # plane push-ins at 83.6 / 88.4 peak a little later
     put(whoosh(d * BEAT), b_ - d / 2, 0.2, 0.3)
-put(whoosh(0.3 * BEAT), 92.3, 0.34, -0.3)                           # the 3D whip into Ask
-for i in range(11):                                                 # 我上周为什么总在返工？ typed
-    put(tick(), 92.6 + i * 0.13, 0.1, -0.2 + 0.04 * i)
+put(whoosh(0.4 * BEAT), 91.95, 0.34, -0.3)                          # the 3D whip into Ask (50-montage b92.0-92.38)
+for i in range(11):                                                 # 我上周为什么总在返工？ typed: char k at 92.3 + k * 1.55 / 11
+    put(tick(), 92.3 + (i + 1) * 1.55 / 11, 0.1, -0.2 + 0.04 * i)
 put(clack(86), 94.4, 0.22, 0)                                       # send: AI shimmer
 for i, m in enumerate((84, 88, 91, 96, 100)):
     put(blip(m, 0.5), 94.4 + i * 0.06, 0.08, -0.4 + i * 0.2, to='verbsend')
-for i in range(2):                                                  # ⌘K 部署
-    put(tick(), 98.4 + i * 0.2, 0.14, 0.2)
+for b_ in (97.97, 98.18):                                           # ⌘K 部署 (50-montage drive 97.75-98.4)
+    put(tick(), b_, 0.14, 0.2)
 put(clack(84), 99.4, 0.24, -0.2)                                    # click Lite
 put(whoosh(0.5 * BEAT), 100.4, 0.22, 0.4)                           # dark-mode wipe
 

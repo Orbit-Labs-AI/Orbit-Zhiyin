@@ -164,11 +164,20 @@ K.pop = (at = 0, gap = .15, dur = .3) => (el, tl) => el.querySelectorAll('.pill'
 // GWI / Apple: a circular portal. The hole (#hole0 / #hole1, which holds deck 0 / 1) opens from a point on screen to
 // cover the frame; at = (b, dur), from = [x, y] or () => [x, y] (e.g. () => elXY(1, sel)), r1 = final radius.
 // pre = beats before b during which the hole is already shut (so the deck behind it can be framed unseen).
-function portal(hole, b, dur, from, r1 = 2300, ez = E.in, pre = .6) {
-  let c = null;
+// ring = colour of an outline that rides the edge of the opening and thins out as it grows (the GWI star iris), or null.
+// The centre is recorded in PORTAL[hole] from its first frame on, so the scene behind can put something under it.
+const PORTAL = {};
+function portal(hole, b, dur, from, r1 = 2300, ez = E.in, pre = .6, ring = 'rgba(226,96,43,.95)') {
+  let c = null, rg = null;
   every(b - pre, b + dur + .1, (p, bb) => {
-    const h = $('#hole' + hole); if (!c) c = typeof from === 'function' ? from() : from;
-    const q = clamp((bb - b) / dur);
-    h.style.clipPath = bb < b ? 'circle(0px at ' + c[0] + 'px ' + c[1] + 'px)' : q >= 1 ? 'none' : 'circle(' + (r1 * ez(q)).toFixed(1) + 'px at ' + c[0].toFixed(1) + 'px ' + c[1].toFixed(1) + 'px)';
+    const h = $('#hole' + hole); if (!c) { c = typeof from === 'function' ? from() : from; PORTAL[hole] = c; }
+    const q = clamp((bb - b) / dur), r = r1 * ez(q);
+    h.style.clipPath = bb < b ? 'circle(0px at ' + c[0] + 'px ' + c[1] + 'px)' : q >= 1 ? 'none' : 'circle(' + r.toFixed(1) + 'px at ' + c[0].toFixed(1) + 'px ' + c[1].toFixed(1) + 'px)';
+    if (!ring) return;
+    if (!rg) { rg = document.createElement('div'); rg.className = 'portal-ring'; stage.insertBefore(rg, fxEl); }
+    const a = bb < b || q >= 1 ? 0 : Math.min(1, q * 12) * (1 - E.in(clamp((q - .55) / .45)));
+    const w = lerp(5, 1.2, E.out(q));
+    rg.style.cssText = 'position:absolute;left:' + c[0].toFixed(1) + 'px;top:' + c[1].toFixed(1) + 'px;width:' + (2 * r).toFixed(1) + 'px;height:' + (2 * r).toFixed(1) + 'px;margin:' + (-r).toFixed(1) + 'px 0 0 ' + (-r).toFixed(1) + 'px;border-radius:50%;pointer-events:none;' +
+      'border:' + w.toFixed(2) + 'px solid ' + ring + ';box-shadow:0 0 ' + (18 * (1 - q) + 4).toFixed(1) + 'px ' + ring + ',inset 0 0 ' + (14 * (1 - q) + 3).toFixed(1) + 'px ' + ring + ';opacity:' + a.toFixed(3);
   });
 }
