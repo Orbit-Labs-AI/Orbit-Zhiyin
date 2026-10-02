@@ -76,6 +76,26 @@ LIMITATIONS = [
     "缺少事件不等于没有发生；未知保持 null",
     "聚类和坐标不带人格或任务成功含义",
 ]
+# Sections whose value is the same with and without the text representation; a
+# ``with_text=True`` computation also serves the ``with_text=False`` request of the scope.
+TEXT_FREE_SECTIONS = (
+    "overview",
+    "tools",
+    "workflow",
+    "bottleneck_features",
+    "tasks",
+    "instruction",
+    "lexical",
+)
+
+
+def text_variant_meta(meta: Record, content_digest, with_text: bool) -> Record:
+    """``meta`` as the other ``with_text`` variant reports it (only the digest differs)."""
+    from .products.contracts import RULE_VERSIONS
+
+    return {**meta, "analysis_digest": stable_id(content_digest, RULE_VERSIONS, with_text)}
+
+
 # Row fields that depend on other sessions or on the whole selection; never cached per row.
 CROSS_SESSION_FIELDS = (
     "coverage",
@@ -214,6 +234,11 @@ def _compute_chunk(payload: tuple) -> dict[str, Record]:
     return {sid: session_row_core(context, context.session_map[sid]) for sid in sids}
 
 
+# Each spawned worker holds its chunk's trees on top of the parent's whole selection, so
+# memory grows with the worker count while the speed-up flattens after a few processes.
+DEFAULT_MAX_WORKERS = 4
+
+
 def _idle_cores() -> int:
     """Cores not already claimed by runnable work: ``cpu_count - 1-minute load``.
 
@@ -230,12 +255,25 @@ def _idle_cores() -> int:
 
 def _max_workers() -> int:
     limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")  # "0"/"1" disables process workers
-    return int(limit) if limit and limit.isdigit() else _idle_cores()
+    if limit and limit.isdigit():
+        return int(limit)
+    return max(1, min(_idle_cores(), DEFAULT_MAX_WORKERS))
 
 
-def _wants_parallel(misses: int, parallel: bool | None) -> bool:
+# Above this many selected events the pool is skipped: every worker unpickles its chunk's
+# trees next to the parent's whole selection, and on a real home (30 days ≈ 450k events)
+# the process tree peaked at 16 GB for a ~2x speed-up of the row step only.
+PARALLEL_MAX_EVENTS = 150_000
+
+
+def _parallel_max_events() -> int:
+    value = os.environ.get("TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS")
+    return int(value) if value and value.isdigit() else PARALLEL_MAX_EVENTS
+
+
+def _wants_parallel(misses: int, parallel: bool | None, events: int = 0) -> bool:
     if parallel is None:
-        if misses < PARALLEL_MIN_MISSES:
+        if misses < PARALLEL_MIN_MISSES or events > _parallel_max_events():
             return False
         limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")
         floor = 2 if limit and limit.isdigit() else PARALLEL_MIN_WORKERS
@@ -299,7 +337,9 @@ def compute_row_cores(
 
     ``executor`` lets a caller share one pool with other whole-selection jobs.
     """
-    parallel = executor is not None or _wants_parallel(len(sids), parallel)
+    parallel = executor is not None or _wants_parallel(
+        len(sids), parallel, len(context.events or ())
+    )
     ROW_STATS["computed"] += len(sids)
     if parallel and len(sids) > 1:
         chunks = [sids[i : i + PARALLEL_CHUNK] for i in range(0, len(sids), PARALLEL_CHUNK)]
@@ -507,7 +547,8 @@ class AnalysisSections:
         if self._executor is not None or "cores" in self._memo:
             return
         _, _, missing = self._row_plan()
-        if not _wants_parallel(len(missing), self.parallel) or len(missing) < 2:
+        events = len(self.context.events or ())
+        if not _wants_parallel(len(missing), self.parallel, events) or len(missing) < 2:
             return
         whole = []
         if "bottleneck_features" in names:
@@ -738,6 +779,7 @@ class AnalysisSections:
             )
             from .products.contracts import RULE_VERSIONS
 
+            self.content_digest = digest  # lets the cache derive the other text variant
             meta.update(
                 {
                     "feature_schema_version": FEATURE_VERSION,

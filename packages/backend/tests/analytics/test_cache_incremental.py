@@ -266,3 +266,53 @@ def test_legacy_stores_are_not_cached(tmp_path):
     assert not cache_module.supports_cache(store)
     result = analyze_store(store, with_text=False)
     assert "freshness" not in result
+
+
+def test_sections_computed_as_dependencies_are_stored_for_later_reads(tmp_path):
+    """A full pass (bottleneck_recommendations, with text) also fills the other sections'
+    cache, and its text-free sections serve the ``with_text=False`` request of the scope:
+    each equal to computing it alone."""
+    home, _ = build_home(tmp_path, 12)
+    store = CanonicalStore(home)
+    cache = AnalysisCache(store)
+    cache.sections(Scope(), ["bottleneck_recommendations"], with_text=True)
+    clear_memory_cache()
+    texted = cache.sections(Scope(), ["sessions", "projects"], with_text=True)
+    plain = cache.sections(Scope(), ["overview", "tools", "instruction"], with_text=False)
+    assert texted["freshness"]["cache_hit"] is True and plain["freshness"]["cache_hit"] is True
+    drop_sections(store)
+    texted_alone = cache.sections(Scope(), ["sessions", "projects"], with_text=True)
+    plain_alone = cache.sections(Scope(), ["overview", "tools", "instruction"], with_text=False)
+    assert plain_alone["freshness"]["cache_hit"] is False
+
+    def same(a, b):
+        return json.loads(normalized(a)) | {"freshness": None} == (
+            json.loads(normalized(b)) | {"freshness": None})
+
+    assert same(texted, texted_alone) and same(plain, plain_alone)
+
+
+def test_large_sections_only_point_at_the_section_cache_in_the_run_snapshot(
+    tmp_path, monkeypatch
+):
+    home, _ = build_home(tmp_path, 6)
+    store = CanonicalStore(home)
+    monkeypatch.setattr(cache_module, "RUN_SNAPSHOT_SECTION_BYTES", 1)
+    result = AnalysisCache(store).sections(Scope(), ["sessions", "overview"], with_text=False)
+    history = history_for(store)
+    run = history.list_runs(engine="features")["items"][0]
+    snapshot = history.result(run["run_id"])
+    assert snapshot["sessions"]["stored_in"] == "analysis_section"
+    assert snapshot["sessions"]["json_bytes"] > 0
+    assert snapshot["analysis_digest"] == result["analysis_digest"]
+
+
+def test_large_selections_skip_the_process_pool(monkeypatch):
+    from tandem_backend.analytics import service
+
+    monkeypatch.setattr(service, "_max_workers", lambda: 4)
+    assert service._wants_parallel(500, None, 10_000) is True
+    assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is False
+    monkeypatch.setenv("TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS", "1000000")
+    assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is True
+    assert service._wants_parallel(500, True, 10**9) is True  # explicit request wins

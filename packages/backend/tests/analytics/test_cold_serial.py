@@ -48,7 +48,8 @@ def test_busy_machine_runs_serially(monkeypatch):
     assert service._max_workers() == 1
     assert not service._wants_parallel(2500, None)
     monkeypatch.setattr(service.os, "getloadavg", lambda: (3.4, 3.0, 3.0))
-    assert service._max_workers() == 10
+    # 10 idle cores, capped for memory (each worker holds its chunk next to the parent).
+    assert service._max_workers() == service.DEFAULT_MAX_WORKERS
     assert service._wants_parallel(2500, None)
     assert not service._wants_parallel(10, None)
     monkeypatch.setenv("TANDEM_ANALYSIS_WORKERS", "1")

@@ -6,10 +6,19 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
 
 - heartbeat every ``heartbeat_s`` (5 s); no message for ``stale_s`` (15 s) → kill + restart
 - crash restarts back off 0.5 / 1 / 2 / 4 s; more than 5 within 60 s → ``degraded``
-- analysis tasks time out (light 20 s, heavy 120 s): kill, task ``failed(timeout)``,
-  the previous snapshot keeps serving; three failures (one for on-demand legacy sections)
-  open a circuit for that key, after which routes answer 503 without re-running it
-- analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
+- analysis tasks time out (light 20 s, heavy 120 s; ``TANDEM_ANALYSIS_HEAVY_TIMEOUT_S``
+  overrides the heavy base) plus a per-event allowance once the worker reports the scope's
+  event count; each timed-out retry of the same key doubles that budget, all capped at
+  ``max_budget_s``: kill, task ``failed(timeout)``, the previous snapshot keeps serving;
+  three failures (one for on-demand legacy sections) open a circuit for that key, after
+  which routes answer 503 without re-running it. A task whose budget already hit the cap
+  fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout; sections
+  with their own ``timeout_s`` use it as the base
+- analysis RSS (the worker and its process-pool children) above 1.5 GB recycles the worker
+  after the task; above ``rss_kill_bytes`` (¾ of RAM, 4–24 GB) while running (heartbeat
+  RSS) kills it and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
+- analysis runs a killed or crashed worker left ``running`` in ``analysis.sqlite`` are
+  failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
 """
 
 from __future__ import annotations
@@ -29,6 +38,31 @@ from .sections import SECTIONS
 from .snapshots import SnapshotKey, SnapshotStore
 from .worker_protocol import HEARTBEAT_ENV, decode, encode
 
+HEAVY_TIMEOUT_ENV = "TANDEM_ANALYSIS_HEAVY_TIMEOUT_S"
+
+
+def _heavy_timeout_default() -> float:
+    try:
+        return float(os.environ.get(HEAVY_TIMEOUT_ENV) or 120.0)
+    except ValueError:
+        return 120.0
+
+
+def physical_memory_bytes() -> int | None:
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError, AttributeError):
+        return None
+
+
+def default_rss_kill_bytes() -> int:
+    """Three quarters of the machine's memory, within 4–24 GB. Measured on a real home
+    (1.9k sessions / 770k events): the all-time analysis peaks near 17 GB, 30 days near
+    10 GB; the guard protects the machine (a smaller Mac fails that window explicitly
+    with ``analysis_scope_too_large`` instead of swapping) without failing normal work."""
+    total = physical_memory_bytes() or 8 * 2**30
+    return int(min(max(total * 3 // 4, 4 * 2**30), 24 * 2**30))
+
 
 @dataclass
 class SupervisorConfig:
@@ -39,10 +73,18 @@ class SupervisorConfig:
     restart_window_s: float = 60.0
     max_restarts: int = 5
     light_timeout_s: float = 20.0
-    heavy_timeout_s: float = 120.0
+    heavy_timeout_s: float = field(default_factory=_heavy_timeout_default)
+    # Seconds per 1 000 selected events on top of the base budget (sized after start).
+    # Measured: ~0.39 s/k for a light section on a 772k-event home (read + analyse).
+    light_s_per_kevent: float = 0.6
+    heavy_s_per_kevent: float = 1.2
+    # Ceiling of every budget (sized allowance and per-timeout doubling included).
+    max_budget_s: float = 900.0
     rss_limit_bytes: int = 1_500_000_000
+    rss_kill_bytes: int = field(default_factory=lambda: default_rss_kill_bytes())
     analysis_idle_s: float = 300.0
     max_failures: int = 3
+    max_preemptions: int = 2  # an interactive task may interrupt the same prewarm this often
     tick_s: float = 0.2
     worker_env: dict[str, str] = field(default_factory=dict)
     plan: dict = field(default_factory=dict)  # ingest_plan overrides (head_sessions, …)
@@ -139,8 +181,7 @@ class WorkerProcess:
             with self.lock:
                 if proc is self.proc:
                     self.last_hb = time.monotonic()
-            if message.get("t") != "hb":
-                self.on_message(message)
+            self.on_message(message)  # Heartbeats too: analysis reads their live RSS.
         proc.wait()
         with self.lock:
             if proc is not self.proc:
@@ -328,6 +369,9 @@ class AnalysisTask:
     status: str = "queued"
     error: dict | None = None
     dispatched_at: float | None = None
+    events: int | None = None
+    rss: int | None = None
+    preemptions: int = 0
     done: threading.Event = field(default_factory=threading.Event)
 
     @property
@@ -355,6 +399,8 @@ class AnalysisQueue:
         self.running: AnalysisTask | None = None
         self.failures: dict[tuple, dict] = {}
         self.dispatched: dict[tuple, int] = {}
+        self.home = home
+        self.open_runs: set[str] = set()
         self.recent: dict[str, AnalysisTask] = {}  # job_id → task, newest RECENT_JOBS kept.
         self.worker = WorkerProcess("analysis", home, config, self._message, self._exit,
                                     on_state, self._dispatch)
@@ -364,6 +410,31 @@ class AnalysisQueue:
         with self.lock:
             record = self.failures.get((section, scope_hash))
             return dict(record) if record and record["rev"] == rev else None
+
+    def progress_of(self, job_id: str | None) -> dict | None:
+        """``progress`` for a queued or running job id (None once it finished)."""
+        with self.lock:
+            task = next((t for t in self.tasks.values() if t.id == job_id), None)
+        return self.progress(task) if task is not None else None
+
+    def progress(self, task: AnalysisTask) -> dict:
+        """What a 202 reports: queue position or elapsed time against the budget, the sized
+        event count and the previous failure of the same key, so a client sees progress
+        and a bounded end instead of an open-ended ``computing``."""
+        with self.lock:
+            record = self.failures.get((task.section, task.scope_hash))
+            info = {"status": task.status, "attempt": self.dispatched.get(task.merge_key, 0),
+                    "events": task.events,
+                    "last_error": (record or {}).get("error", {}).get("code")
+                    if record and record["rev"] == (task.data_rev, task.inventory_rev) else None}
+            if task.status == "queued":
+                order = sorted(self.pending, key=lambda t: t.priority != "interactive")
+                info["queue_position"] = order.index(task) if task in order else None
+            elif task.dispatched_at is not None:
+                info["elapsed_s"] = round(time.monotonic() - task.dispatched_at, 1)
+                info["budget_s"] = round(self._budget(task)[0], 1)
+                info["rss_bytes"] = task.rss
+            return info
 
     def circuit_open(self, section: str, scope_hash: str, rev: tuple[int, int]) -> bool:
         record = self.failure(section, scope_hash, rev)
@@ -411,8 +482,13 @@ class AnalysisQueue:
             self.pending.append(task)
             running = self.running
             if (priority == "interactive" and running is not None
-                    and running.priority == "prewarm"):
-                self._drop(running, "preempted")
+                    and running.priority == "prewarm"
+                    and running.preemptions < self.config.max_preemptions):
+                # The prewarm goes back to the queue (behind the interactive task) instead
+                # of being lost; after ``max_preemptions`` it is allowed to finish.
+                running.preemptions += 1
+                running.status, running.dispatched_at = "queued", None
+                self.pending.append(running)
                 self.running = None
                 self.worker.kill("preempted")
                 return task  # The exit callback dispatches the interactive task.
@@ -424,11 +500,27 @@ class AnalysisQueue:
         self.tasks.pop(task.merge_key, None)
         task.done.set()
 
-    def _timeout_for(self, task: AnalysisTask) -> float:
+    def _budget(self, task: AnalysisTask) -> tuple[float, bool]:
+        """(seconds, capped): base budget plus the per-event allowance, doubled for each
+        earlier timeout of the same key and revision, at most ``max_budget_s``."""
         section = SECTIONS[task.section]
+        heavy = section.cost == "heavy"
+        base = self.config.heavy_timeout_s if heavy else self.config.light_timeout_s
         if section.timeout_s is not None:
-            return section.timeout_s
-        return self.config.heavy_timeout_s if section.cost == "heavy" else self.config.light_timeout_s
+            base = section.timeout_s  # sections that declare their own budget
+        wanted = base
+        if task.events:
+            rate = self.config.heavy_s_per_kevent if heavy else self.config.light_s_per_kevent
+            wanted += rate * task.events / 1000
+        record = self.failure(task.section, task.scope_hash, (task.data_rev, task.inventory_rev))
+        # A scope that outgrew the budget gets more time on each retry instead of being
+        # killed at the same point three times in a row.
+        wanted *= 2 ** (record or {}).get("timeouts", 0)
+        cap = max(base, self.config.max_budget_s)
+        return min(wanted, cap), wanted > cap
+
+    def _timeout_for(self, task: AnalysisTask) -> float:
+        return self._budget(task)[0]
 
     def _dispatch(self) -> None:
         with self.lock:
@@ -468,9 +560,79 @@ class AnalysisQueue:
         if record is None or record["rev"] != rev:
             record = {"rev": rev, "count": 0}
         record.update(count=record["count"] + 1, error=error)
+        if error.get("code") == "timeout":
+            record["timeouts"] = record.get("timeouts", 0) + 1
         self.failures[key] = record
 
+    def _abort_running(self, error: dict, reason: str) -> None:
+        """Fail the in-flight task without a rerun and kill its worker (lock held)."""
+        task, self.running = self.running, None
+        if task is None:
+            return
+        task.error = error
+        self._record_failure(task, error)
+        self._drop(task, "failed")
+        self.publish("analysis", "analysis.failed", {
+            "section": task.section, "scope_hash": task.scope_hash,
+            "code": error["code"], "job_id": task.id})
+        self.worker.kill(reason)
+
+    def _fail_open_runs(self, reason: str) -> None:
+        """A killed worker never reaches the run's ``except``: close its runs here."""
+        with self.lock:
+            runs, self.open_runs = self.open_runs, set()
+        if not runs:
+            return
+        try:
+            from tandem_data.analysis_history import AnalysisHistory
+
+            AnalysisHistory(self.home / "analysis.sqlite").fail_runs(
+                runs, f"analysis worker exited ({reason})")
+        except Exception:  # noqa: BLE001  history is best effort; never break supervision
+            pass
+
+    def fail_stale_runs(self) -> int:
+        """Gateway start: runs older than any budget belong to a process that is gone."""
+        path = self.home / "analysis.sqlite"
+        if not path.exists():
+            return 0
+        try:
+            from tandem_data.analysis_history import AnalysisHistory
+
+            older = int((self.config.max_budget_s + 60) * 1000)
+            return AnalysisHistory(path).fail_stale(
+                older_than_ms=older, reason="analysis process exited before finishing")
+        except Exception:  # noqa: BLE001
+            return 0
+
     def _message(self, message: dict) -> None:
+        kind = message.get("t")
+        if kind == "run" and message.get("run_id"):
+            with self.lock:
+                (self.open_runs.add if message.get("active") else self.open_runs.discard)(
+                    message["run_id"])
+            return
+        if kind == "hb":
+            rss = int(message.get("rss") or 0)
+            with self.lock:
+                task = self.running
+                if task is None or message.get("job") != task.id or not message.get("live"):
+                    return
+                task.rss = rss
+                if rss > self.config.rss_kill_bytes:
+                    self._abort_running({
+                        "code": "analysis_scope_too_large", "retryable": False,
+                        "message": f"analysis used {rss // 1_000_000} MB, over the "
+                                   f"{self.config.rss_kill_bytes // 1_000_000} MB worker limit; "
+                                   "narrow the time window, projects or sessions"}, "rss_limit")
+            return
+        if message.get("t") == "sized":
+            with self.lock:
+                task = self.running
+                if task is not None and task.id == message.get("job"):
+                    events = message.get("events")
+                    task.events = events if isinstance(events, int) and events >= 0 else None
+            return
         if message.get("t") != "done":
             return
         with self.lock:
@@ -496,12 +658,15 @@ class AnalysisQueue:
                 self.publish("analysis", "analysis.failed", {
                     "section": task.section, "scope_hash": task.scope_hash,
                     "code": error.get("code"), "job_id": task.id})
-            if int(message.get("rss") or 0) > self.config.rss_limit_bytes:
+            # Prefer the live tree RSS: the peak never drops once one large task ran.
+            rss = message.get("rss_now")
+            if int(rss if rss is not None else message.get("rss") or 0) > self.config.rss_limit_bytes:
                 self.worker.kill("rss_recycle")
                 return
         self._dispatch()
 
     def _exit(self, reason: str | None) -> None:
+        self._fail_open_runs(reason or "crash")
         with self.lock:
             task, self.running = self.running, None
             if task is not None:
@@ -528,13 +693,21 @@ class AnalysisQueue:
             if task is not None and task.dispatched_at is not None and (
                     now - task.dispatched_at > self._timeout_for(task)):
                 self.running = None
-                task.error = {"code": "timeout", "message": "analysis exceeded its time budget",
-                              "retryable": True}
+                budget, capped = self._budget(task)
+                size = f" ({task.events} events)" if task.events is not None else ""
+                if capped:
+                    task.error = {"code": "analysis_scope_too_large", "retryable": False,
+                                  "events": task.events, "message":
+                                  f"Scope too large{size}: analysis exceeded {budget:.0f} s; "
+                                  "narrow the time window, projects or sessions"}
+                else:
+                    task.error = {"code": "timeout", "retryable": True, "events": task.events,
+                                  "message": f"analysis exceeded its {budget:.0f} s budget{size}"}
                 self._record_failure(task, task.error)
                 self._drop(task, "failed")
                 self.publish("analysis", "analysis.failed", {
                     "section": task.section, "scope_hash": task.scope_hash,
-                    "code": "timeout", "job_id": task.id})
+                    "code": task.error["code"], "job_id": task.id})
                 self.worker.kill("timeout")
             elif (task is None and not self.pending and self.worker.running()
                   and now - self.worker.last_activity > self.config.analysis_idle_s):
@@ -567,6 +740,8 @@ class Supervisor:
 
     def start(self) -> None:
         self.thread.start()
+        threading.Thread(target=self.analysis.fail_stale_runs, daemon=True,
+                         name="analysis-stale-runs").start()
 
     def _watch(self) -> None:
         while not self.stopping.wait(self.config.tick_s):

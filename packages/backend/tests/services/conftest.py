@@ -185,3 +185,8 @@ def wait_job(client, job_id: str, timeout: float = 120.0) -> dict:
 def bus_events(gateway: Gateway, name: str) -> list:
     frames, _ = gateway.bus.since(0)
     return [f for f in frames if f.event == name]
+
+
+# The overview without a window serves the first-open fast path (7 days first); tests that
+# assert the all-time snapshot lifecycle ask for all time explicitly.
+ALL_TIME = {"days": 0}

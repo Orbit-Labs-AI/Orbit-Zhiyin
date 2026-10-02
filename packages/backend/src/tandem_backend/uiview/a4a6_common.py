@@ -212,7 +212,11 @@ def facet_sessions(gw, facets: dict, tz: str | None = None, wait_ms: int = 0):
     f = {k: facets.get(k) for k in FACETS if facets.get(k) not in (None, "")}
     if not f:
         return None, None
-    body, freshness, job_id = fetch.fetch(gw, fetch.default_scope(tz), wait_ms=wait_ms)
+    from ..services import fastpath
+
+    # Same window the overview serves (first-open fast path), not a separate all-time run.
+    scope, _ = fastpath.choose(gw, fetch.SECTION, fetch.default_scope(tz), None)
+    body, freshness, job_id = fetch.fetch(gw, scope, wait_ms=wait_ms)
     if body is None:
         if freshness == "none":
             return [], None

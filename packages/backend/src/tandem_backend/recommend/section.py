@@ -187,7 +187,10 @@ def readonly_head(command_head: str | None) -> str | None:
 
 
 def compute(store, scope, params, memo) -> dict:
-    result = memo.analysis(store, scope, False, params.get("_rev"))
+    from ..services.sections import WITH_TEXT
+
+    result = memo.sections(store, scope, ["bottleneck_recommendations", "sessions", "tasks"],
+                           WITH_TEXT, params.get("_rev"))
     br = result.get("bottleneck_recommendations") or {}
     signals, assessments = br.get("signals") or [], br.get("assessments") or []
     roots = [r for r in result.get("sessions") or [] if r.get("session_uid")]
