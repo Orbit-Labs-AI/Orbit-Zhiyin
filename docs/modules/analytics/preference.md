@@ -88,3 +88,32 @@ service 只提取一次 Instruction，再传给证据适配器；分析缓存摘
 2026-10-02 对已有本地数据库做只读抽查，沿用最近七日快照的筛选窗口：199 条真人消息中，Explicit 仍为 0；Instruction 有 7 条消息命中控制要求，其中白名单产生 3 条历史证据。2 条核验要求来自 2 个不同任务和会话，可计入支持；另 1 条自主性要求带未求值条件，保留待解析。可观察任务分母为 19。这验证了历史通路能保留原先 Explicit 路径遗漏的信号，不代表已经得到稳定偏好，也不是人工标注准确率。
 
 当前新增通路只能利用 Instruction 已经识别的信号，不能修复它的规则召回不足。工具、回答风格、纠正反馈、行为代理、时间衰减、长期偏好评分、按聚类建立画像与推荐权重均未在本轮实现。
+
+## 本地验证脚本
+
+先在当前分支的 checkout 根目录安装依赖：`bash scripts/bootstrap.sh`。使用 Python 3.13 和根 `uv.lock`，不需要模型或外部服务。
+
+```sh
+# 默认只运行构造样本回归，不读取真实会话。
+bash scripts/check-preference.sh
+
+# 回归通过后，读取显式指定的 canonical 库；可复现上面的七日快照窗口。
+bash scripts/check-preference.sh \
+  --db /path/to/canonical/tandem.db \
+  --from-ts 1790322173000 \
+  --until-ts 1790926973000
+
+# 已跑过回归时，可单独运行快照诊断。
+uv run --locked python -m evals.analytics.preference_local \
+  --db /path/to/canonical/tandem.db
+```
+
+`--from-ts` 包含下界，`--until-ts` 不包含上界，均为 UTC 毫秒；不传时间时读取所提供快照中的全部可见主会话用户消息。可重复传 `--project-id`、`--exclude-session`。`--max-messages` 默认 100000，超限报错，避免静默截断；`--help` 查看参数。
+
+每次默认创建独立 `.local/preference-check/run-*` 目录，终端显示汇总与实际路径。也可用 `--output .local/my-preference-check` 指定一个尚不存在的目录。输出包括：
+
+- `summary.json`：真人与可用文本数量、显式记录数、历史证据来源／状态／缺失原因、支持任务数、比例、样本摘要和分阶段耗时。
+- `preferences.json`：Explicit 记录、统一 Evidence 和按任务去重汇总，用于追溯具体来源。
+- `instruction.json`：已提取控制要求，可核对为何某条要求没有进入四类白名单或没有计入支持。
+
+脚本复用现有提取函数，只从 `v_analysis_event` 读取现成投影，数据库以 `mode=ro`、`query_only` 和同一读事务打开。支持旧 canonical 快照的共同消息字段，不读取原始归档、不触发导入或迁移；不支持 connector staging 或旧 JSON ledger。它验证证据引用和本地通路，不保证快照投影为最新版本，也不等于完整服务验收或人工准确率。没有证据时明确返回 `no_evidence`；非零数量不是测试通过的硬编码条件。所有逐条内容保存在忽略目录，不提交。
