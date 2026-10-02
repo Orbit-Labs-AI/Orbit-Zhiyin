@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from tandem_data.command_spec import command_spec
 from tandem_data.contract import TOKENS, canonical, uid
 from tandem_data.store import insert
 
@@ -121,7 +122,7 @@ TOOL_KINDS = {
 }
 
 
-def tool_metadata(name, attrs):
+def tool_metadata(name, attrs, *, cwd=None, project_id=None):
     kind = next((key for key, names in TOOL_KINDS.items() if name.lower() in names), "other")
     if attrs.get("category") in TOOL_KINDS:
         kind = attrs["category"]
@@ -158,6 +159,15 @@ def tool_metadata(name, attrs):
         "mcp_tool": tool,
         "skill": skill,
         "command_head": head,
+        "command_spec": canonical(
+            command_spec(
+                command,
+                cwd=(args or {}).get("workdir", attrs.get("cwd", cwd)),
+                project_id=project_id,
+            )
+        )
+        if kind == "shell" and isinstance(command, str)
+        else None,
         "files": canonical(files),
     }
 
@@ -378,7 +388,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 "native_call_id": event["call_id"],
                 "call_event_uid": event["event_uid"],
                 "result_event_uid": None,
-                **tool_metadata(attrs["name"], attrs),
+                **tool_metadata(attrs["name"], attrs, cwd=context["cwd"], project_id=project_id),
                 "subagent_session_uid": attrs.get("subagent_session_uid"),
                 "status": attrs.get("status") or "unknown",
                 "pairing_quality": "missing_result",
@@ -421,7 +431,12 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                         "project_id": project_id,
                         "native_call_id": event["call_id"],
                         "result_event_uid": event["event_uid"],
-                        **tool_metadata(attrs.get("name") or "unknown", attrs),
+                        **tool_metadata(
+                            attrs.get("name") or "unknown",
+                            attrs,
+                            cwd=context["cwd"],
+                            project_id=project_id,
+                        ),
                         "status": "ambiguous" if matches else "orphan_result",
                         "pairing_quality": "ambiguous" if matches else "missing_call",
                         "ended_at": event["ts"],

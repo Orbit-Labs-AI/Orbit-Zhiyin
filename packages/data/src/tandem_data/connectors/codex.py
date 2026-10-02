@@ -1,3 +1,5 @@
+import shlex
+
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
 from tandem_data.contract import canonical, uid
 
@@ -754,7 +756,11 @@ class CodexMapper(BaseMapper):
                     }[itype]
                     args = item.get(
                         "arguments",
-                        {"command": " ".join(item.get("command", []))}
+                        {
+                            "command": shlex.join(item.get("command", []))
+                            if isinstance(item.get("command"), list)
+                            else item.get("command")
+                        }
                         if itype == "CommandExecution"
                         else {"action": item.get("action"), "query": item.get("query")}
                         if itype in ("WebSearch", "Extension")

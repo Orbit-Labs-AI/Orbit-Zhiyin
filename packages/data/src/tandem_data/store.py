@@ -144,9 +144,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version not in (1, 2, 3, 4, 5, 6, 7):
+        elif version not in (1, 2, 3, 4, 5, 6, 7, 8):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1 through 7")
+            raise ValueError(f"Unsupported database version {version}; expected 1 through 8")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -215,6 +215,9 @@ class Store:
                     self.db.execute("PRAGMA foreign_keys=ON")
         if version < 7:
             sql = files("tandem_data").joinpath("migrations/007.sql").read_text()
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 8:
+            sql = files("tandem_data").joinpath("migrations/008.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
         # Index-only upgrades apply after logical migrations, including to existing v5 stores.
         self.db.executescript(

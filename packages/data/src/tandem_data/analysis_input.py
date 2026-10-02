@@ -45,6 +45,7 @@ JSON_COLUMNS = {
     "source_stat",
     "note",
     "detail",
+    "command_spec",
 }
 
 

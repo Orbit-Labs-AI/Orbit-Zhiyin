@@ -60,4 +60,4 @@ def test_v6_upgrade_backfills_quality_from_evidence_and_preserves_identity(tmp_p
         models = [dict(row) for row in store.db.execute("SELECT * FROM model_call ORDER BY call_uid")]
         assert [r["call_uid"] for r in models] == ["m0", "m1", "m2"]
         assert [r["boundary_quality"] for r in models] == ["reported", "observed", "unknown"]
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 8

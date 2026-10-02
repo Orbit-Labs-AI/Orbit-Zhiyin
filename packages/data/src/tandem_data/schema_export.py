@@ -28,6 +28,7 @@ def table_schemas(database="canonical"):
                 "watermark",
                 "source_stat",
                 "request_json",
+                "command_spec",
             ):
                 typ = "object"
             if column in ("native_key", "locator", "paths", "files"):
