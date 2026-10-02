@@ -102,3 +102,29 @@ def test_explicit_days_and_validation():
         analytics_scope(days=5)
     with pytest.raises(ApiError):
         analytics_scope(days=7, from_ts=1)
+
+
+def test_cold_auto_skips_empty_small_windows():
+    from contextlib import contextmanager
+
+    gw, _ = fake_gateway()
+    newest = {"ts": fastpath.window_start(30) + 1}  # last event 3 weeks ago
+
+    class Reads:
+        @contextmanager
+        def read(self, check=True):
+            class DB:
+                def execute(self, sql, params=()):
+                    if "DISTINCT kind" in sql:
+                        return iter([("message.user",)])
+                    return SimpleNamespace(fetchone=lambda: (1,) if params[1] <= newest["ts"]
+                                           else None)
+            yield DB()
+
+    gw.reads = Reads()
+    base = asdict(analytics_scope())
+    _, window = fastpath.choose(gw, "uiview_facts", base, None)
+    assert window["days"] == 30 and [w["days"] for w in window["wider"]] == [0]
+    newest["ts"] = 0  # nothing within 30 days either
+    _, window = fastpath.choose(gw, "uiview_facts", base, None)
+    assert window["days"] == 0 and window["wider"] == []

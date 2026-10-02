@@ -5,8 +5,8 @@ last 7 days take seconds. Screens that accept ``days``:
 
 - ``days`` omitted ("auto"): the widest window (all time → 30 → 7 days) whose snapshot is
   fresh for the current data revision; otherwise the widest older (stale) snapshot;
-  otherwise the 7-day window is computed now (interactive) and 30 days / all time are
-  queued at prewarm priority.
+  otherwise the 7-day window (or the smallest one holding any event) is computed now
+  (interactive) and the wider windows are queued at prewarm priority.
 - ``days`` = 7 / 30 / 90 / 0 (0 = all time): exactly that window.
 
 Windows start at a UTC day boundary (``days - 1`` days before today), so one day maps to one
@@ -101,9 +101,30 @@ def choose(gw, section: str, base: dict, days: int | None,
     states = {d: state(gw, section, windowed(base, d), params) for d in LADDER}
     chosen = next((d for d in (0, 30, 7) if states[d] == "ready"), None)
     if chosen is None:
-        chosen = next((d for d in (0, 30, 7) if states[d] == "stale"), FAST_DAYS)
+        chosen = next((d for d in (0, 30, 7) if states[d] == "stale"), None)
+    if chosen is None:
+        # The smallest window that holds any event: after a quiet week, 7 days is empty.
+        chosen = next((d for d in LADDER if d and has_events(gw, d) is not False), 0)
     wider = [{"days": d, "state": states[d]} for d in LADDER if _wider(d, chosen)]
     return windowed(base, chosen), {"days": chosen, "requested": "auto", "wider": wider}
+
+
+def has_events(gw, days: int) -> bool | None:
+    """Whether any event falls in the window (all sources; one indexed probe per kind on
+    ``event_by_kind_time``); ``None`` when the gateway cannot tell."""
+    import json
+
+    reads = getattr(gw, "reads", None)
+    if reads is None:
+        return None
+    try:
+        with reads.read(check=False) as db:
+            kinds = [row[0] for row in db.execute("SELECT DISTINCT kind FROM event")]
+            return db.execute(
+                "SELECT 1 FROM event WHERE kind IN (SELECT value FROM json_each(?)) AND ts >= ?"
+                " LIMIT 1", (json.dumps(kinds), window_start(days))).fetchone() is not None
+    except Exception:  # noqa: BLE001  advisory: the caller falls back to the 7-day window
+        return None
 
 
 def follow_up(gw, section: str, base: dict, window: dict, params: dict | None = None) -> dict:
