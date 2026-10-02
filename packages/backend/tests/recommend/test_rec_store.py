@@ -173,7 +173,7 @@ def test_views_stay_out_of_memory_rev_and_decay_at_read(db):
     assert [c["rec_key"] for c in ordered] == ["kb:a", "kb:b"]  # 1/.7225 < 2: stays first
     states["kb:a"]["shown_count"] = 9
     states["kb:b"] = {**states["kb:a"], "rec_key": "kb:b", "shown_count": 0}
-    cards.append({**a, "rec_key": "kb:c", "score": {}})  # rank 3 slot, never shown
+    cards.append({**a, "rec_key": "kb:c", "rank": 3, "score": {}})  # rank 3 slot, never shown
     ordered = store.apply_decay(cards, states)
     assert ordered[0]["score"]["decay"] == .5  # floor: position 1 → 2, ties keep slate order
     assert [c["rec_key"] for c in ordered] == ["kb:a", "kb:b", "kb:c"]

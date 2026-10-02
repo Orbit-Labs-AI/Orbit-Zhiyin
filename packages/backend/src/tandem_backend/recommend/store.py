@@ -148,7 +148,7 @@ def candidates(conn: sqlite3.Connection, run_id: str, *, passed: bool = True,
     if audience is not None:
         where.append("COALESCE(audience_min, 0) <= ?")
         params.append(audience)
-    order = "rank" if passed else "priority DESC"
+    order = "rank IS NULL, rank, priority DESC" if passed else "priority DESC"
     rows = conn.execute(f"SELECT candidate_id, run_id, card FROM rec_candidate WHERE "
                         f"{' AND '.join(where)} ORDER BY {order} LIMIT ?",
                         (*params, limit)).fetchall()
@@ -405,10 +405,12 @@ def read_decay(state: dict | None, card: dict) -> float:
 
 
 def apply_decay(cards: list[dict], states_by_key: dict[str, dict]) -> list[dict]:
-    """Stable re-order: a card's slate position is stretched by 1/decay (at most doubled)."""
+    """Stable re-order: a card's display position is stretched by 1/decay (at most doubled)."""
     for card in cards:
         card.setdefault("score", {})["decay"] = round(
             read_decay(states_by_key.get(card["rec_key"]), card), 4)
+    # Base order: AI display order (rerank.fit) when present, else the slate's own order.
+    cards = sorted(cards, key=lambda c: c.get("display_rank") or c.get("rank") or 10**6)
     order = {id(c): i for i, c in enumerate(cards)}
     return sorted(cards, key=lambda c: ((order[id(c)] + 1) / c["score"]["decay"], order[id(c)]))
 
