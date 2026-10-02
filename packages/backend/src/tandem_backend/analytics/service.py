@@ -16,6 +16,7 @@ from .instruction import (
     summarize_control_patterns,
 )
 from .outcome_subjective import aggregate_subjective_outcomes
+from .preference import PREFERENCE_EVIDENCE_VERSION, PREFERENCE_VERSION
 from .semantic import analyze_semantics
 from .task.representation import representation
 from .task.taxonomy import TAXONOMY_VERSION
@@ -27,6 +28,7 @@ def _session_rows(
     instruction_groups: dict,
     task_ids: dict,
     preference_ids: dict,
+    preference_evidence_ids: dict,
     with_text: bool,
 ) -> tuple[list[Record], Record, int]:
     """Assemble session details and optional text coordinates from one selection."""
@@ -92,6 +94,9 @@ def _session_rows(
             "embedding_y": None,
             "task_ids": task_ids[sid] if semantic_events is not None else None,
             "preference_ids": preference_ids[sid] if semantic_events is not None else None,
+            "preference_evidence_ids": preference_evidence_ids[sid]
+            if semantic_events is not None
+            else None,
         }
         rows.append(row)
         prompts = [e for e in own if human(e, main_ids) and e.get("text")]
@@ -247,8 +252,17 @@ def analyze_context(
     complete_models = bundle.coverage.get("model_calls", {}).get("status") == "available"
     supported, event_status = context.supported_kinds, context.event_status
     rows, text, text_count = _session_rows(
-        context, meta, instruction_groups, semantic.task_ids, semantic.preference_ids, with_text
+        context,
+        meta,
+        instruction_groups,
+        semantic.task_ids,
+        semantic.preference_ids,
+        semantic.preference_evidence_ids,
+        with_text,
     )
+    projections = {p["entity_id"]: p for p in text.get("coordinates") or []}
+    for item in preferences["evidence"] or []:
+        item["cluster_id"] = projections.get(item["session_uid"], {}).get("cluster_id")
     all_tools = tool_summary(calls, bundle.coverage.get("tool_calls", {}).get("status", "partial"))
     all_workflow = workflow(events + diagnostics["context_events"], calls, main_ids, supported)
     all_usage = usage(model_calls, events, sessions, scope, complete_models)
@@ -313,6 +327,8 @@ def analyze_context(
             FEATURE_VERSION,
             INSTRUCTION_VERSION,
             TAXONOMY_VERSION,
+            PREFERENCE_VERSION,
+            PREFERENCE_EVIDENCE_VERSION,
         ),
         "effective_samples": {
             "main_sessions": len(main_ids),
