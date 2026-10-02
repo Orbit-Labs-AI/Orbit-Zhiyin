@@ -205,10 +205,12 @@ def derive(store, *, scoped=False, progress=None):
             "status": "unknown",
             "timezone_source": "unknown",
         }
+        event_cwd = None
         for row in store.db.execute(
             "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
         ):
             attrs = json.loads(row["attrs"])
+            event_cwd = event_cwd or attrs.get("cwd")
             if isinstance(attrs.get("git_root"), str):
                 recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
@@ -247,6 +249,9 @@ def derive(store, *, scoped=False, progress=None):
                     values["title"], values["title_source"] = row["text"], attrs.get("title_source")
         if not values.get("timezone"):
             values["timezone"], values["timezone_source"] = None, "unknown"
+        # Same fallback as _derive_session, so session and turn projects agree.
+        if not values.get("cwd") and event_cwd:
+            values["cwd"] = event_cwd
         metas[session_uid] = values
         progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
     progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})

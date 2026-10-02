@@ -11,8 +11,11 @@ class ClaudeMapper(BaseMapper):
 
         def inspect(record):
             data = record.data
-            if data.get("sessionId") and not self.header:
-                self.header = data
+            # Leading queue-operation/mode/title lines carry sessionId but no
+            # context; take each header field from the first record that has it.
+            for name in ("sessionId", "cwd", "gitBranch", "version", "entrypoint"):
+                if data.get(name) and name not in self.header:
+                    self.header[name] = data[name]
             message = data.get("message")
             if (
                 data.get("type") == "assistant"
@@ -79,9 +82,9 @@ class ClaudeMapper(BaseMapper):
                     kind=kind,
                     parent_native_id=parent,
                     cwd=self.header.get("cwd"),
-                    git_branch=data.get("gitBranch"),
-                    harness_version=data.get("version"),
-                    client=data.get("entrypoint"),
+                    git_branch=self.header.get("gitBranch"),
+                    harness_version=self.header.get("version"),
+                    client=self.header.get("entrypoint"),
                 )
             )
             self.first = False
