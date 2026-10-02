@@ -14,7 +14,8 @@
         "request_json",
         "snapshot_id",
         "error_type",
-        "error_message"
+        "error_message",
+        "owner_pid"
       ],
       "properties": {
         "run_id": {
@@ -64,6 +65,13 @@
             "null"
           ],
           "x-sql-type": "TEXT"
+        },
+        "owner_pid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
         }
       },
       "x-foreign-keys": [
@@ -73,7 +81,7 @@
           "to": "snapshot_id"
         }
       ],
-      "x-ddl": "CREATE TABLE analysis_run (\n    run_id TEXT PRIMARY KEY,\n    engine TEXT NOT NULL,\n    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),\n    started_at INTEGER NOT NULL,\n    finished_at INTEGER,\n    request_json TEXT NOT NULL CHECK(json_valid(request_json)),\n    snapshot_id TEXT REFERENCES analysis_snapshot(snapshot_id),\n    error_type TEXT,\n    error_message TEXT,\n    CHECK((status = 'completed' AND snapshot_id IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'failed' AND error_type IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'running' AND snapshot_id IS NULL AND finished_at IS NULL))\n)"
+      "x-ddl": "CREATE TABLE analysis_run (\n    run_id TEXT PRIMARY KEY,\n    engine TEXT NOT NULL,\n    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),\n    started_at INTEGER NOT NULL,\n    finished_at INTEGER,\n    request_json TEXT NOT NULL CHECK(json_valid(request_json)),\n    snapshot_id TEXT REFERENCES analysis_snapshot(snapshot_id),\n    error_type TEXT,\n    error_message TEXT, owner_pid INTEGER,\n    CHECK((status = 'completed' AND snapshot_id IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'failed' AND error_type IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'running' AND snapshot_id IS NULL AND finished_at IS NULL))\n)"
     },
     "analysis_snapshot": {
       "type": "object",

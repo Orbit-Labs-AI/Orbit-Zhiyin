@@ -69,3 +69,63 @@ def test_threaded_runs_and_schema_export_are_consistent(tmp_path):
     )
     assert table_schemas("analysis") == schema
     assert set(schema["$defs"]) == {"analysis_run", "analysis_snapshot"}
+
+
+def _dead_pid() -> int:
+    import subprocess
+    import sys
+
+    process = subprocess.Popen([sys.executable, "-c", "pass"])
+    process.wait()
+    return process.pid
+
+
+def test_runs_of_killed_processes_are_failed_instead_of_running_forever(tmp_path):
+    history = AnalysisHistory(tmp_path / "analysis.sqlite")
+    killed, legacy, live = [history.start("features", {"index": i}) for i in range(3)]
+    with history.connect() as connection:
+        connection.execute("UPDATE analysis_run SET owner_pid=? WHERE run_id=?", (_dead_pid(), killed))
+        connection.execute("UPDATE analysis_run SET owner_pid=NULL WHERE run_id=?", (legacy,))
+    history.start("features", {"index": 3})  # Any later start sweeps orphans.
+    assert history.get_run(killed)["status"] == "failed"
+    assert history.get_run(killed)["error_type"] == "Interrupted"
+    assert history.get_run(legacy)["status"] == "failed"
+    assert history.get_run(live)["status"] == "running"  # This process is still alive.
+
+
+def test_history_retention_and_reuse_bound_growth(tmp_path):
+    from tandem_data.analysis_history import RETAINED_SNAPSHOTS
+
+    history = AnalysisHistory(tmp_path / "analysis.sqlite")
+    for index in range(RETAINED_SNAPSHOTS + 5):
+        history.complete(history.start("products", {"index": index}), {"index": index})
+    history.complete(history.start("features", {"other": True}), {"other": True})
+    with history.connect() as connection:
+        count = connection.execute("SELECT COUNT(*) FROM analysis_snapshot").fetchone()[0]
+    assert count == RETAINED_SNAPSHOTS + 1  # Per-engine cap; other engines untouched.
+    kept = history.list_runs(engine="products", status="completed", limit=200)["items"]
+    assert sorted(r["request"]["index"] for r in kept) == list(range(5, RETAINED_SNAPSHOTS + 5))
+    assert history.reuse("products", {"index": 0}) is None  # Pruned: recompute.
+    run_id, result = history.reuse("products", {"index": 7})
+    assert result == {"index": 7} and history.get_run(run_id)["status"] == "completed"
+    assert history.result(run_id) == {"index": 7}
+
+
+def test_version_one_history_is_migrated_in_place(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "analysis.sqlite"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        files("tandem_data").joinpath("migrations/analysis/001.sql").read_text()
+        + "\nPRAGMA user_version=1;"
+    )
+    connection.execute(
+        "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json) "
+        "VALUES('old','products','running',1,'{}')"
+    )
+    connection.commit()
+    connection.close()
+    history = AnalysisHistory(path)
+    history.recover_interrupted()
+    assert history.get_run("old")["status"] == "failed"

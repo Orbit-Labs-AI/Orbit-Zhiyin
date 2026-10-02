@@ -21,9 +21,37 @@ def history_for(store: Any) -> AnalysisHistory:
     raise ValueError("Persistent analysis requires a store home or database path")
 
 
-def recorded(store: Any, engine: str, request: dict, compute: Callable[[], dict]) -> dict:
-    """Persist every success or failure; identical successful results share only their payload."""
+def data_revision(store: Any) -> list[int] | None:
+    """Published canonical revision (projection run, inventory scan), or None when unknown."""
+    home = getattr(store, "home", None)
+    if not isinstance(home, (str, Path)) or not hasattr(store, "analysis_bundle"):
+        return None
+    path = Path(home) / "tandem.db"
+    if not path.is_file():
+        return None
+    import sqlite3
+
+    from tandem_data.store import readonly_connection
+
+    try:
+        with readonly_connection(path) as db:
+            run = db.execute("SELECT MAX(run_id) FROM projection_run").fetchone()[0]
+            scan = db.execute("SELECT COALESCE(MAX(scan_id),0) FROM inventory_scan").fetchone()[0]
+    except sqlite3.Error:
+        return None
+    return None if run is None else [run, scan]
+
+
+def recorded(store: Any, engine: str, request: dict, compute: Callable[[], dict], *,
+             reuse: bool = False) -> dict:
+    """Persist every success or failure; identical successful results share only their payload.
+
+    With ``reuse`` and a known canonical revision, an identical completed request (same
+    scope, revision and runtime) is served from its verified snapshot instead of recomputed."""
     history = history_for(store)
+    revision = data_revision(store) if reuse else None
+    if revision is not None:
+        request = {**request, "data_revision": revision}
     request = {
         **request,
         "runtime": {
@@ -41,6 +69,8 @@ def recorded(store: Any, engine: str, request: dict, compute: Callable[[], dict]
             },
         },
     }
+    if revision is not None and (hit := history.reuse(engine, request)) is not None:
+        return hit[1]
     run_id = history.start(engine, request)
     try:
         result = compute()

@@ -15,6 +15,20 @@ from pathlib import Path
 from typing import Any
 
 Record = dict[str, Any]
+SCHEMA_VERSION = 2
+RETAINED_SNAPSHOTS = 16  # Newest distinct results kept per engine; older ones are pruned.
+
+
+def _alive(pid: int | None) -> bool:
+    if pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _json(value: Any) -> str:
@@ -39,12 +53,14 @@ class AnalysisHistory:
         with self.connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version > 1:
+            if version > SCHEMA_VERSION:
                 raise ValueError("Unsupported analysis history schema")
-            if version == 0:
-                schema = files("tandem_data").joinpath("migrations/analysis/001.sql").read_text()
+            for number in range(version + 1, SCHEMA_VERSION + 1):
+                schema = files("tandem_data").joinpath(f"migrations/analysis/{number:03d}.sql")
                 connection.executescript(
-                    "BEGIN IMMEDIATE;\n" + schema + "\nPRAGMA user_version=1;\nCOMMIT;"
+                    "BEGIN IMMEDIATE;\n"
+                    + schema.read_text()
+                    + f"\nPRAGMA user_version={number};\nCOMMIT;"
                 )
 
     @contextmanager
@@ -61,13 +77,55 @@ class AnalysisHistory:
 
     def start(self, engine: str, request: Record) -> str:
         """Create an execution even when an identical analysis has previously completed."""
+        self.recover_interrupted()
         run_id = uuid.uuid4().hex
         with self.connect() as connection:
             connection.execute(
-                "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json) VALUES(?,?,'running',?,?)",
-                (run_id, engine, time.time_ns() // 1_000_000, _json(request)),
+                "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json,owner_pid) VALUES(?,?,'running',?,?,?)",
+                (run_id, engine, time.time_ns() // 1_000_000, _json(request), os.getpid()),
             )
         return run_id
+
+    def recover_interrupted(self) -> int:
+        """Fail running rows whose owner process is gone (a worker killed on timeout)."""
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT run_id,owner_pid FROM analysis_run WHERE status='running'"
+            ).fetchall()
+            stale = [row["run_id"] for row in rows if not _alive(row["owner_pid"])]
+            now = time.time_ns() // 1_000_000
+            for run_id in stale:
+                connection.execute(
+                    "UPDATE analysis_run SET status='failed',finished_at=?,error_type='Interrupted',"
+                    "error_message='analysis process exited before finishing' "
+                    "WHERE run_id=? AND status='running'",
+                    (now, run_id),
+                )
+        return len(stale)
+
+    def reuse(self, engine: str, request: Record) -> tuple[str, Record] | None:
+        """Record a completed run backed by the newest identical request's verified snapshot."""
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT run_id,snapshot_id FROM analysis_run WHERE engine=? AND status='completed' "
+                "AND request_json=? ORDER BY started_at DESC,rowid DESC LIMIT 1",
+                (engine, _json(request)),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            result = self.result(row["run_id"])
+        except (KeyError, ValueError):
+            return None  # Pruned or corrupt: recompute instead of serving it.
+        now = time.time_ns() // 1_000_000
+        run_id = uuid.uuid4().hex
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO analysis_run(run_id,engine,status,started_at,finished_at,request_json,snapshot_id,owner_pid) "
+                "SELECT ?,?,'completed',?,?,?,snapshot_id,? FROM analysis_snapshot WHERE snapshot_id=?",
+                (run_id, engine, now, now, _json(request), os.getpid(), row["snapshot_id"]),
+            )
+        return run_id, result
 
     def complete(self, run_id: str, result: Record) -> str:
         """Atomically publish the complete result and finish exactly one running execution."""
@@ -96,7 +154,36 @@ class AnalysisHistory:
                 "UPDATE analysis_run SET status='completed',finished_at=?,snapshot_id=? WHERE run_id=?",
                 (now, snapshot_id, run_id),
             )
+            engine = connection.execute(
+                "SELECT engine FROM analysis_run WHERE run_id=?", (run_id,)
+            ).fetchone()[0]
+            self._prune(connection, engine)
         return snapshot_id
+
+    @staticmethod
+    def _prune(connection: sqlite3.Connection, engine: str) -> None:
+        """Keep the newest ``RETAINED_SNAPSHOTS`` distinct results per engine.
+
+        Completed runs that reference a pruned result are removed with it, so history size
+        stays bounded instead of growing by a full snapshot per call."""
+        keep = [
+            row[0]
+            for row in connection.execute(
+                "SELECT snapshot_id FROM analysis_run WHERE engine=? AND status='completed' "
+                "GROUP BY snapshot_id ORDER BY MAX(started_at) DESC LIMIT ?",
+                (engine, RETAINED_SNAPSHOTS),
+            )
+        ]
+        marks = ",".join("?" * len(keep))
+        connection.execute(
+            f"DELETE FROM analysis_run WHERE engine=? AND status='completed' "
+            f"AND snapshot_id NOT IN ({marks})",
+            (engine, *keep),
+        )
+        connection.execute(
+            "DELETE FROM analysis_snapshot WHERE snapshot_id NOT IN "
+            "(SELECT snapshot_id FROM analysis_run WHERE snapshot_id IS NOT NULL)"
+        )
 
     def fail(self, run_id: str, error: BaseException) -> None:
         """Record calculation failures; completed snapshots are never overwritten."""
