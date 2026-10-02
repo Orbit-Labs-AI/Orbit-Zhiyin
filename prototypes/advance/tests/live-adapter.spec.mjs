@@ -9,7 +9,7 @@
 //  5. live Lite     same bindings in the single-file Lite page
 //  6. Lite edition  Advance's Lite pages: l-home / l-sessions reuse the bound pages, l-recs is bound, l-persona shows 示例数据
 //  7. recs          A7 / A1 / Lite / menubar read /v1/recommendations (fixtures/recs); exposure, labels with undo, recompute;
-//                   404 / 503 before any live data keep the demo rows with 示例数据
+//                   404 / 503 before any live data show A7's honest empty state (recommendations are personal data)
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +31,9 @@ function collectErrors(page, allow) {
     const url = m.location().url || '';
     if (/fonts\.(googleapis|gstatic)\.com/.test(url)) return;
     if (allow && allow(m.text(), url)) return;
+    // v0.0.1 optional routes this fixture gateway does not serve (first-run state, native popover, A1 uiview): the page
+    // degrades on 404 by design; their own flows are covered in live-s6 / live-s7 / live-s8 and live-core
+    if (/status of 404/.test(m.text()) && /^http:\/\/tandem\.test\/v1\/(app\/state|shell\/popover|uiview\/overview)(\?|$)/.test(url)) return;
     errors.push(m.text());
   });
   return errors;
@@ -277,8 +280,9 @@ test('live recs: A7 from fixtures, exposure, 不适用 with reason and 8-second 
   const gw = await gateway(page);
   gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
   await page.goto('http://tandem.test/app#token=fx-token');
-  // A1: the overview gets 本周建议 with the backend's A1 slate first
-  const a1 = page.locator('#content [data-tl="recs-a1"]');
+  // A1: the overview's own 本周建议 card (no appended block) lists the backend's A1 slate first
+  await expect(page.locator('#content [data-tl="recs-a1"]')).toHaveCount(0);
+  const a1 = page.locator('#content .ov-recs');
   await expect(a1.locator('.ov-recn').first()).toHaveText('长会话交接摘要');
   await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A1')).toBe(true);
   // A7: the demo renderer with fixture rows; save estimate from score.benefit, a missing one prints —
@@ -327,7 +331,9 @@ test('live recs in the Lite edition: l-home 本周最值得做的一件事 and l
   gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
   await page.goto('http://tandem.test/app#token=fx-token');
   await page.evaluate(() => edSet('lite'));
-  await expect(page.locator('#content [data-tl="recs-lite"] .rc-title')).toHaveText('长会话交接摘要');
+  // l-home's own 本周最值得做的一件事 card (no appended recs-lite block) takes the lite slate's first rec
+  await expect(page.locator('#content [data-tl="recs-lite"]')).toHaveCount(0);
+  await expect(page.locator('#content .l-one .rc-title')).toHaveText('长会话交接摘要');
   await page.evaluate(() => go('l-recs'));
   await expect(page.locator('#content .l-rc')).toHaveCount(3);
   await expect(page.locator('#content .l-rc').first()).toContainText('长会话交接摘要');
@@ -336,23 +342,23 @@ test('live recs in the Lite edition: l-home 本周最值得做的一件事 and l
 });
 
 for (const mode of ['missing', 'down']) {
-  test('live recs degrade: ' + mode + ' before any live data keeps the demo rows with 示例数据', async ({ page }) => {
+  // recommendations are personal data: a missing / down endpoint shows A7's honest empty state, never the demo rows
+  test('live recs degrade: ' + mode + ' before any live data shows the honest empty state, no demo rows', async ({ page }) => {
     ONLY('mac-14');
     test.setTimeout(60_000);
-  test.setTimeout(60_000);
     const errors = collectErrors(page, (text, url) => /status of (404|503)/.test(text) && /^http:\/\/tandem\.test\/v1\/recommendations/.test(url));
     const gw = await gateway(page);
     gw.rec = { mode, hidden: new Set(), posts: [] };
     await page.goto('http://tandem.test/app#token=fx-token');
     await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
     await expect(page.locator('#content [data-tl="recs-a1"]')).toHaveCount(0);
+    await expect(page.locator('#content .ov-recs .ov-rec')).toHaveCount(0);
     await page.evaluate(() => go('recs'));
-    await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
-    await expect(page.locator('#content .rcard').first()).toBeVisible();
-    await expect(page.locator('#content')).toContainText('PR 收尾');
-    // the demo 不适用 keeps its own behaviour (no label request)
-    await page.locator('#content .rcard [data-act="dismissRec"]').first().click();
-    await expect(page.locator('#toast')).toContainText('不适用');
+    await expect(page.locator('#content [data-tl="recs-empty"]')).toHaveAttribute('data-state', 'error');
+    await expect(page.locator('#content [data-tl="recs-empty"]')).toContainText('建议服务暂时不可用');
+    await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+    await expect(page.locator('#content .rcard')).toHaveCount(0);
+    await expect(page.locator('#content')).not.toContainText('PR 收尾');
     expect(gw.rec.posts).toEqual([]);
     expect(errors).toEqual([]);
   });
