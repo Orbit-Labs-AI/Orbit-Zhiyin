@@ -3,6 +3,7 @@ registration on the maintenance thread."""
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta, timezone
 
 from synthetic import write_codex_tree
@@ -98,8 +99,39 @@ def test_analysis_watcher_fires_once(gateway_factory):
     gw.snapshots.put(key, {"overview": {"counts": {"main_sessions": 12}}})
     assert watcher.check() == ["analysis_ready"]
     (item,) = [n for n in notes(client, "system") if n["title"] == "首次分析完成"]
-    assert item["payload"]["sessions"] == 12
+    # Counted like the onboarding payload (no session db here), never the overview's number.
+    assert item["payload"]["sessions"] == 0 and item["payload"]["range_days"] == 30
+    assert item["body"] == "最近 30 天 0 个会话，可以查看概览了。"
     assert watcher.check() == []  # never twice
+
+
+def test_analysis_ready_states_range_and_matches_onboarding(gateway_factory, tmp_path):
+    """J18: the notification names its range and uses the onboarding counting rule."""
+    from datetime import UTC
+
+    root = tmp_path / "agents" / "codex"
+    now = datetime.now(UTC).timestamp()
+    write_codex_tree(root, 30, now=now, spacing_hours=48)  # one session every 2 days: ~60 days
+    client, gw = gateway_factory(discovery=lambda: [{"agent": "codex", "root": str(root)}])
+    source = client.post("/v1/app/sources", json={"agent": "codex", "root": str(root)}).json()["id"]
+    job = client.post("/v1/app/jobs", json={"kind": "import", "source_ids": [source]}).json()
+    deadline = time.monotonic() + 90
+    while client.get(f"/v1/app/jobs/{job['id']}").json()["status"] in ("queued", "running"):
+        assert time.monotonic() < deadline, "import job"
+        time.sleep(0.05)
+    revs = gw.revisions.snapshot()
+    scope = default_scope(gw, 30)
+    key = SnapshotKey("overview", scope_hash(scope, {}), revs["data_rev"], revs["inventory_rev"],
+                      rules_digest())
+    gw.snapshots.put(key, {"overview": {"counts": {"main_sessions": 999}}})
+    gw.shell_watcher.check()
+    (item,) = [n for n in notes(client, "system") if n["title"] == "首次分析完成"]
+    onboarding = client.get("/v1/shell/onboarding").json()
+    total = {s["id"]: s for s in onboarding["progress"]["stages"]}["semantic"]["total"]
+    in_range = sum(now - i * 48 * 3600 - 60 >= scope["from_ts"] / 1000 for i in range(30))
+    assert total == 30 and 0 < in_range < total
+    assert item["payload"]["sessions"] == in_range and item["payload"]["total"] == total
+    assert item["body"] == f"最近 30 天 {in_range} 个会话（共导入 {total} 个），可以查看概览了。"
 
 
 def test_watcher_tap_ignores_unrelated_frames(gateway_factory):
