@@ -28,6 +28,20 @@ function lvtpScopeNote() {
 }
 const lvtpMs = (ms) => ms == null ? '—' : ms < 10000 ? f1(ms / 1000) + ' s' : ms < 600000 ? Math.round(ms / 1000) + ' s' : f1(ms / 60000) + ' m';
 const lvtpPct = (v) => v == null ? '—' : f1(v * 100) + '%';
+// round 3: a success / failure rate is null when explicit outcomes cover < 50% of calls (rate_reason, status_coverage);
+// it renders "—" with the reason, never 0% or NaN. Server fields win; counts are the fallback for merged rows.
+const LVTP_MIN_COV = 0.5;
+function lvtpRateWhy(c) {
+  if (!c) return null;
+  const known = c.known != null ? c.known : null; const unknown = c.unknown != null ? c.unknown : (known != null && c.n != null ? Math.max(0, c.n - known) : null);
+  let cov = c.status_coverage != null ? c.status_coverage : (known != null && unknown != null && known + unknown ? known / (known + unknown) : null);
+  let why = c.rate_reason || null;
+  if (!why && known === 0) why = 'no_known_status';
+  if (!why && cov != null && cov < LVTP_MIN_COV) why = 'status_coverage_below_min';
+  if (!why) return null;
+  if (why === 'no_known_status') return '没有记录到明确成败的调用，不计算错误率';
+  return (cov != null ? '只有 ' + Math.round(cov * 100) + '% 的调用记录了明确成败' : '记录了明确成败的调用') + '（不足 ' + Math.round((c.min_status_coverage || LVTP_MIN_COV) * 100) + '%），不计算错误率';
+}
 const lvtpTrend = (k, mul) => (k && k.trend ? k.trend.map((t) => t.value == null ? null : t.value * (mul || 1)) : null);
 const lvtpHours = (h) => h == null ? 0 : typeof h === 'object' ? (h.value || 0) : h;
 const lvtpAgent = (bid) => AGI[LV.agentOf(bid).id] || null;
@@ -96,9 +110,9 @@ function lvtpMerge(list) {
   const by = {}; const out = [];
   (list || []).forEach((t) => {
     const u = lvtpUnified(t); let g = by[u.name];
-    if (!g) { g = by[u.name] = { name: u.name, q: u.q, kind: t.kind, mcp: t.mcp_server, n: 0, failed: 0, known: 0, ap: 0, p50: [0, 0], p95: [0, 0], daily: [], aliases: [] }; out.push(g); }
+    if (!g) { g = by[u.name] = { name: u.name, q: u.q, kind: t.kind, mcp: t.mcp_server, n: 0, failed: 0, known: 0, unknown: 0, why: null, ap: 0, p50: [0, 0], p95: [0, 0], daily: [], aliases: [] }; out.push(g); }
     const n = t.n || 0;
-    g.n += n; g.failed += t.failed || 0; g.known += t.known != null ? t.known : n; g.ap += (t.approval_rate || 0) * n;
+    g.n += n; g.failed += t.failed || 0; g.known += t.known != null ? t.known : n; g.unknown += t.unknown != null ? t.unknown : (t.known != null ? Math.max(0, n - t.known) : 0); if (t.rate_reason && !g.why) g.why = t.rate_reason; g.ap += (t.approval_rate || 0) * n;
     if (t.p50_ms != null) { g.p50[0] += t.p50_ms * n; g.p50[1] += n; }
     if (t.p95_ms != null) { g.p95[0] += t.p95_ms * n; g.p95[1] += n; }
     (t.daily || []).forEach((v, i) => { g.daily[i] = (g.daily[i] || 0) + (v || 0); });
@@ -110,7 +124,8 @@ function lvtpMerge(list) {
   });
   return out.map((g) => {
     const p50 = g.p50[1] ? g.p50[0] / g.p50[1] : null, p95 = g.p95[1] ? g.p95[0] / g.p95[1] : null;
-    return { name: g.name, n: g.n, err: g.known ? g.failed / g.known : 0, fails: g.failed, avg: lvtpMs(p50), ap: g.n ? g.ap / g.n : 0, cmds: [],
+    const errWhy = lvtpRateWhy({ n: g.n, known: g.known, unknown: g.unknown, rate_reason: g.why && g.known && g.known / (g.known + g.unknown) >= LVTP_MIN_COV ? null : g.why });
+    return { name: g.name, n: g.n, err: errWhy ? null : g.failed / g.known, errWhy, fails: g.failed, avg: lvtpMs(p50), ap: g.n ? g.ap / g.n : 0, cmds: [],
       p50: p50 != null ? p50 / 1000 : 0, p95: p95 != null ? p95 / 1000 : 0, daily: g.daily, kind: g.kind, mcp: g.mcp, q: g.q, aliases: g.aliases.sort((a, c) => c.n - a.n || (a.name < c.name ? -1 : 1)) };
   }).sort((a, c) => c.n - a.n);
 }
@@ -177,12 +192,12 @@ function lvToolsPage() {
   const head = (meta) => tbar('工具调用', meta, actions) + '<div class="content" id="content">' + filterRow(chip) + lvtpScopeNote();
   if (fs === 'error' && !b) return head('—') + empty('本地服务暂不提供工具统计') + '</div>';
   if (!b) return head('正在读取…') + '<div class="stack" data-lv="pending"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + [0, 1, 2, 3].map(() => '<div class="card tile">' + LV.pend(64) + '</div>').join('') + '</div><div class="card pad">' + LV.pend(260) + '</div></div></div>';
-  const H = b.header || {}; const K = b.kpis || {};
+  const H = b.header || {}; const K = b.kpis || {}; const kWhy = K.error_rate ? lvtpRateWhy(Object.assign({ n: K.calls && K.calls.value }, K.error_rate)) : null;
   if (!H.calls) return head('0 次调用') + empty(b.meta && b.meta.freshness === 'none' ? '还没有导入会话，工具统计会在导入后出现' : '所选范围内没有工具调用') + '</div>';
   const all = toolRows(); let rows = all.slice();
   if (T.failOnly) rows = rows.filter((r) => r.fails > 0);
   const key = T.failOnly && T.sort === 'n' ? 'fails' : T.sort;
-  const num = (r) => key === 'avg' ? r.p50 : r[key];
+  const num = (r) => key === 'avg' ? r.p50 : key === 'err' ? (r.err == null ? -1 : r.err) : r[key];
   rows.sort((a, c) => (key === 'name' ? a.name.localeCompare(c.name) : num(a) - num(c)) * T.dir);
   const mxn = Math.max(1, ...rows.map((r) => T.failOnly ? r.fails : r.n));
   const mxDur = Math.max(0.001, ...all.map((r) => r.p95));
@@ -193,8 +208,8 @@ function lvToolsPage() {
     const open = T.open === r.name; const v = T.failOnly ? r.fails : r.n;
     let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + esc(r.name) + '" aria-expanded="' + open + '"><td class="mono tt-name"' + (lvtpHasAliases(r) ? ' data-tip="' + esc('各 Agent 的原始工具名：' + lvtpAliasText(r.aliases)) + '"' : '') + '>' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + esc(r.name) + '</td>' +
       '<td class="tt-n"><span class="row" style="gap:8px"><span class="tt-bar"><i style="width:' + (v / mxn * 100).toFixed(1) + '%"></i></span><span class="mono tt-num">' + fmt(v) + '</span></span></td>' +
-      '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
-      '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(r.p50) + ' s · p95 ' + f1(r.p95) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(r.p95 / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(r.p50 / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
+      (r.err == null ? '<td class="tt-err" data-lv="rate-na" data-tip="' + esc(r.errWhy || '状态未知，不计算错误率') + '"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:0%"></i></span><span class="mono" style="min-width:44px;text-align:right;color:var(--ink-3)">—</span></span></td>' : '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
+      '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(r.p50) + ' s · p95 ' + f1(r.p95) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(r.p95 / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(r.p50 / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>') +
       '<td class="mono tt-ap" style="text-align:right">' + (r.ap ? Math.round(r.ap * 100) + '%' : '—') + '</td><td class="tt-sp">' + VZ.spark(spark(r), { w: 80, h: 22, label: r.name + '：' + rangeLabel() + '每日调用' }) + '</td></tr>';
     if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px" data-lv="tool-calls">' + (lvtpHasAliases(r) ? '<div class="cap" data-lv="tool-aliases" style="padding:0 0 2px">原始工具名 · <span class="mono">' + esc(lvtpAliasText(r.aliases)) + '</span></div>' : '') + lvtpCallRows(r.name) + '</div></td></tr>';
     return h;
@@ -223,7 +238,7 @@ function lvToolsPage() {
   const SA = K.subagent || {}; const pg4 = b.parallel && b.parallel.stopped_share_ge4;
   const kpis = [
     VZ.kpi({ label: T.failOnly ? '失败次数' : '工具调用', value: fmt(T.failOnly ? (K.error_rate && K.error_rate.failed) || 0 : (K.calls && K.calls.value) || 0), delta: T.failOnly ? null : { cur: (K.calls && K.calls.value) || 0, prev: K.calls ? K.calls.prev : null, fmt: 'int' }, trend: T.failOnly ? null : lvtpTrend(K.calls), trendLabel: '近 12 周', tip: K.calls && K.calls.per_session != null ? '每会话 ' + Math.round(K.calls.per_session) + ' 次 · ' + fmt(H.sessions || 0) + ' 个会话' : null }),
-    VZ.kpi({ label: '错误率', value: K.error_rate && K.error_rate.value != null ? f1(K.error_rate.value * 100) : '—', unit: '%', delta: { cur: K.error_rate && K.error_rate.value != null ? Math.round(K.error_rate.value * 1000) / 10 : null, prev: K.error_rate && K.error_rate.prev != null ? Math.round(K.error_rate.prev * 1000) / 10 : null, unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }, trend: lvtpTrend(K.error_rate, 100), trendLabel: '近 12 周', tip: K.error_rate ? fmt(K.error_rate.failed || 0) + ' 次失败' + (K.error_rate.shell_share != null ? ' · 命令占 ' + Math.round(K.error_rate.shell_share * 100) + '%' : '') + (K.error_rate.unknown ? ' · ' + fmt(K.error_rate.unknown) + ' 次状态未知' : '') : null }),
+    VZ.kpi({ label: '错误率', value: K.error_rate && K.error_rate.value != null && !kWhy ? f1(K.error_rate.value * 100) : '—', unit: '%', delta: { cur: K.error_rate && K.error_rate.value != null && !kWhy ? Math.round(K.error_rate.value * 1000) / 10 : null, prev: K.error_rate && K.error_rate.prev != null ? Math.round(K.error_rate.prev * 1000) / 10 : null, unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }, trend: lvtpTrend(K.error_rate, 100), trendLabel: '近 12 周', tip: kWhy ? kWhy + (K.error_rate.unknown ? ' · ' + fmt(K.error_rate.unknown) + ' 次状态未知' : '') : K.error_rate ? fmt(K.error_rate.failed || 0) + ' 次失败' + (K.error_rate.shell_share != null ? ' · 命令占 ' + Math.round(K.error_rate.shell_share * 100) + '%' : '') + (K.error_rate.unknown ? ' · ' + fmt(K.error_rate.unknown) + ' 次状态未知' : '') : null }),
     VZ.kpi({ label: '需要你审批', value: fmt((K.approvals && K.approvals.count) || 0), delta: { cur: (K.approvals && K.approvals.count) || 0, prev: K.approvals ? K.approvals.prev : null, goodDown: true, fmt: 'int' }, trend: lvtpTrend(K.approvals), trendLabel: '近 12 周', tip: K.approvals && K.approvals.median_wait_ms != null ? '等待中位数 ' + lvtpMs(K.approvals.median_wait_ms) : '没有记录等待时长' }),
     VZ.kpi({ label: '子代理派发', value: fmt(SA.dispatches || 0), delta: { cur: SA.dispatches || 0, prev: SA.prev != null ? SA.prev : null, fmt: 'int' }, tip: SA.dispatches ? '平均 ' + lvtpMs(SA.avg_duration_ms) + ' · 最多并行 ' + (SA.max_parallel || 0) : '所选范围内没有子代理派发' })
   ].join('');
@@ -234,7 +249,7 @@ function lvToolsPage() {
     '<div class="hd tt-sub"><div class="grow"><span class="ct">失败后原样重试 · Top ' + Math.min(5, RETRIES.length || 5) + '</span><span class="cap" title="同一命令失败后未改参数直接重跑 · 次数与最长连跑">未改参数直接重跑</span></div></div><div class="col" style="gap:4px">' + (RETRIES.length ? RETRIES.slice(0, 5).map((r) => '<div class="tt-retry"><span class="mono tt-cmd" title="' + esc(r[0]) + '">' + esc(r[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (r[1] / rmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v" title="重试 ' + r[1] + ' 次 · 最长连跑 ' + r[2] + ' 次">×' + r[1] + ' · 连跑 ' + r[2] + '</span></div>').join('') : '<span class="cap" data-lv="na">没有发现失败后原样重试的命令</span>') + '</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">失败原因</span><span class="cap">' + fmt(FT.total || 0) + ' 次失败 · 按输出聚类' + (FT.unknown_status ? ' · ' + fmt(FT.unknown_status) + ' 次状态未知' : '') + '</span></div></div><div class="col" style="gap:5px">' + (FAILS.length ? FAILS.map((f) => '<button type="button" class="tt-fail' + (T.openFail === f[0] ? ' on' : '') + '" data-act="openFail" data-k="' + esc(f[0]) + '" aria-expanded="' + (T.openFail === f[0]) + '"><span class="tt-fail-n">' + esc(f[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (f[1] / fmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">' + f[1] + '% · ' + fmt(f[3]) + ' 次</span></button>' + (T.openFail === f[0] ? '<div class="tt-fail-x"><span class="mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">典型：' + esc(f[2]) + '</span>' + (f[4] && f[4].some((u) => BYID[u]) ? '<button type="button" class="btn sm" data-act="openSession" data-id="' + esc(f[4].find((u) => BYID[u])) + '">相关会话 →</button>' : '') + '</div>' : '')).join('') : '<span class="cap" data-lv="na">所选范围内没有失败的调用</span>') + '</div></div>' +
     '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div>' + waitsBody + roCta + '</div>' +
-    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个' + (cov.inventory === 'available' ? '已连接' : '在用（配置未扫描）') + '</span></div></div>' + (mcp.length ? mcp.map((x) => '<div class="row" style="font-size:12px"><span class="mono" style="width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(x.server) + '">mcp·' + esc(x.server) + '</span><span style="flex:1;color:var(--ink-2)">' + fmt(x.calls || 0) + ' 次 · 失败 ' + lvtpPct(x.err) + (x.resident_tokens ? ' · 常驻 ≈ ' + VZ.fmt(x.resident_tokens, 'k') + ' tokens' : '') + '</span>' + (x.calls ? '<span class="tag">在用</span>' : '<span class="tag">未调用</span>') + '</div>').join('') : '<span class="cap" data-lv="na">所选范围内没有 MCP 调用</span>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(SA.dispatches || 0) + ' 次' + (b.parallel && b.parallel.max ? ' · 最多并行 ' + b.parallel.max + ' 个' : '') + '</span></div></div>' + (SA.dispatches ? '<div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + (pg4 && pg4.value != null ? '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">' + Math.round(pg4.value * 100) + '%</b> 被你中途停止（' + pg4.n + ' 次）' : '并行 ≥ 4 的派发样本不足') + '</div>' : '<span class="cap" data-lv="na">所选范围内没有子代理派发</span>') + '</div></div></div></div></div>';
+    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个' + (cov.inventory === 'available' ? '已连接' : '在用（配置未扫描）') + '</span></div></div>' + (mcp.length ? mcp.map((x) => '<div class="row" style="font-size:12px"><span class="mono" style="width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(x.server) + '">mcp·' + esc(x.server) + '</span><span style="flex:1;color:var(--ink-2)">' + fmt(x.calls || 0) + ' 次 · 失败 ' + (lvtpRateWhy(Object.assign({ n: x.calls }, x)) ? '<span data-tip="' + esc(lvtpRateWhy(Object.assign({ n: x.calls }, x))) + '">—</span>' : lvtpPct(x.err)) + (x.resident_tokens ? ' · 常驻 ≈ ' + VZ.fmt(x.resident_tokens, 'k') + ' tokens' : '') + '</span>' + (x.calls ? '<span class="tag">在用</span>' : '<span class="tag">未调用</span>') + '</div>').join('') : '<span class="cap" data-lv="na">所选范围内没有 MCP 调用</span>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(SA.dispatches || 0) + ' 次' + (b.parallel && b.parallel.max ? ' · 最多并行 ' + b.parallel.max + ' 个' : '') + '</span></div></div>' + (SA.dispatches ? '<div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + (pg4 && pg4.value != null ? '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">' + Math.round(pg4.value * 100) + '%</b> 被你中途停止（' + pg4.n + ' 次）' : '并行 ≥ 4 的派发样本不足') + '</div>' : '<span class="cap" data-lv="na">所选范围内没有子代理派发</span>') + '</div></div></div></div></div>';
 }
 
 /* ---------- A5 page ---------- */
