@@ -1139,12 +1139,12 @@ class CodexMapper(BaseMapper):
                             "native_turn_id": self.native_turn,
                             **({"duration_unmeasured": True} if unmeasured else {}),
                         },
-                        # Equal bounds with a sub-ms native duration describe a command
-                        # still running in the background, not its runtime: no end time.
+                        # Keep the reported observation time even when startup bounds
+                        # cannot establish completion; written time is not execution time.
                         ts_value=None if unmeasured else completed_at,
-                        ts_field="payload.completed_at_ms",
-                        ts_unit="milliseconds",
-                        semantics="completed",
+                        ts_field="timestamp" if unmeasured else "payload.completed_at_ms",
+                        ts_unit="iso" if unmeasured else "milliseconds",
+                        semantics="written" if unmeasured else "completed",
                         ext={
                             k: v
                             for k, v in item.items()
