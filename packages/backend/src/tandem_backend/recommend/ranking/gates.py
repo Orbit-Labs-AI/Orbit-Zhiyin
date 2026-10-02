@@ -44,7 +44,7 @@ def _profile_evidence(raw, inputs, memory):
 
 def _bottleneck_evidence(raw, inputs, memory):
     problem = raw.get("problem")
-    if not problem:
+    if not problem or raw.get("kind") == "removal":  # removal stands on inventory facts, not sessions
         return NA, ""
     uids = (raw.get("evidence") or {}).get("session_uids") or (problem.get("evidence") or {}).get("session_uids")
     return (True, "") if uids else (False, "没有可回看的会话证据")

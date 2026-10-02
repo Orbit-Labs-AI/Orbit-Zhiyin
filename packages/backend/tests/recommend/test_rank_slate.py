@@ -107,3 +107,12 @@ def test_generic_only_when_nothing_else_passes():
 def test_tie_break_by_rec_key():
     ranked = select([cand("b", 1, pid="p1"), cand("a", 1, "hook", "hook", pid="p2")])
     assert ranked[0]["rec_key"] == "a"
+
+
+def test_utility_orders_clipped_priorities():
+    low = cand("a-low", 0, "hook", "hook", "p1")
+    high = cand("z-high", 0, "skill", "skill", "p2")
+    low["score"]["utility"], high["score"]["utility"] = -.002, .001
+    assert [c["rec_key"] for c in select([low, high])] == ["z-high", "a-low"]
+    weak = score(permission_raw(problem={"problem_id": "p", "weekly_count": .1, "wilson_lo": .05}), {}, INPUTS, MEMORY)
+    assert weak["priority"] == 0 and weak["utility"] < 0

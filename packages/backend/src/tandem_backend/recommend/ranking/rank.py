@@ -98,10 +98,12 @@ def score(raw: dict, gates: dict, inputs: dict, memory: dict, *, max_fusion: flo
     personal = min(1.5, max(.5, personal))
     decay = _decay(raw, memory)
 
-    priority = round(100 * max(0., benefit * confidence * p_effective * fit / (1 + cost) - .1 * risk)
-                     * personal * decay, 2)
+    net = benefit * confidence * p_effective * fit / (1 + cost) - .1 * risk
+    priority = round(100 * max(0., net) * personal * decay, 2)
     r = 4
     return {"benefit": round(benefit, r), "confidence": round(confidence, r), "p_effective": round(p_effective, r),
             "fit": round(fit, r), "cost": round(cost, r), "risk": risk, "personal": round(personal, r),
-            "decay": round(decay, r), "priority": priority}
+            "decay": round(decay, r), "priority": priority,
+            # unclipped priority: weak evidence often clips priority to 0, utility keeps the order meaningful
+            "utility": round(net * personal * decay, 6)}
 

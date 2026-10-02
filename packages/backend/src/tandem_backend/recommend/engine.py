@@ -90,9 +90,8 @@ def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int 
     ranked = slate_mod.select(passing, limit=limit)
     for cand in passing:
         cand["ui"] = narrate.ui(cand, inputs, by_key[cand["rec_key"]])
-    rest = sorted((c for c in passing if c.get("rank") is None),
-                  key=lambda c: (-c["score"]["priority"], c["rec_key"]))
-    gated.sort(key=lambda c: (-c["score"]["priority"], c["rec_key"]))
+    rest = sorted((c for c in passing if c.get("rank") is None), key=slate_mod.order_key)
+    gated.sort(key=slate_mod.order_key)
     return ranked, rest, gated
 
 

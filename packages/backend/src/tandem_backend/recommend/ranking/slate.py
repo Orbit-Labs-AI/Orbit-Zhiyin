@@ -26,9 +26,19 @@ def _priority(cand: dict) -> float:
     return (cand.get("score") or {}).get("priority", 0.)
 
 
+def _utility(cand: dict) -> float:
+    score = cand.get("score") or {}
+    return score.get("utility", score.get("priority", 0.) / 100)
+
+
+def order_key(cand: dict) -> tuple:
+    """(-priority, -utility, rec_key): utility breaks ties among clipped-to-zero priorities."""
+    return -_priority(cand), -_utility(cand), cand["rec_key"]
+
+
 def select(cands: list[dict], limit: int = 30) -> list[dict]:
     """Pick and rank passing candidates; non-selected ones get `excluded` set in place."""
-    pool = sorted(cands, key=lambda c: (-_priority(c), c["rec_key"]))
+    pool = sorted(cands, key=order_key)
     driven = [c for c in pool if basis(c) != "generic"]
     if driven:
         for c in pool:
@@ -36,7 +46,11 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
                 c["excluded"] = "generic_suppressed"
         pool = driven
     generic_only = not driven
-    top = max((_priority(c) for c in pool), default=0) or 1.
+    top = max((abs(_utility(c)) for c in pool), default=0.) or 1.
+
+    def relevance(c):  # unclipped priority / pool max, so clipped-to-zero priorities still order
+        return _utility(c) / top
+
     tags = {c["rec_key"]: _tags(c) for c in pool}
 
     chosen: list[dict] = []
@@ -46,7 +60,7 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
     remaining = list(pool)
     max_sim = {c["rec_key"]: 0. for c in pool}
     while remaining and len(chosen) < limit and not (generic_only and len(chosen) >= GENERIC_CAP):
-        best = max(remaining, key=lambda c: LAMBDA * _priority(c) / top - (1 - LAMBDA) * max_sim[c["rec_key"]])
+        best = max(remaining, key=lambda c: LAMBDA * relevance(c) - (1 - LAMBDA) * max_sim[c["rec_key"]])
         remaining.remove(best)
         key, kind = best["rec_key"], best.get("kind")
         pid = (best.get("problem") or {}).get("problem_id")

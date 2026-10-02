@@ -44,6 +44,7 @@ def test_profile_and_bottleneck_evidence():
     g = run(with_dim, inputs={"profile": {"evidence_sessions": {"verbosity": 2}}})
     assert g["checks"]["profile_evidence"] is True
     assert run(raw(problem=None))["checks"]["bottleneck_evidence"] == NA
+    assert run(raw(kind="removal", evidence={}, problem=problem(evidence={})))["checks"]["bottleneck_evidence"] == NA
 
 
 def test_scene_and_language():
