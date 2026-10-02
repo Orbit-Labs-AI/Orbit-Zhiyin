@@ -42,6 +42,7 @@ class Remedy(_M):
     level: int = Field(ge=1, le=4)
     scope: Literal["user", "project"] = "user"
     template: str | None = None
+    path: str | None = None  # overrides the default target path for this kind
     alternatives: list[str] = Field(default_factory=list)
     pairs_with: list[str] = Field(default_factory=list)
     conflicts_with: list[str] = Field(default_factory=list)
@@ -108,6 +109,7 @@ class Rule(_M):
     tags: list[str] = Field(default_factory=list)
     file: list[tuple[str, str]] = Field(default_factory=list)
     steps: list[str] = Field(default_factory=list)
+    commands: list[str | None] = Field(default_factory=list)
     catalog_ref: str | None = None
 
 
@@ -131,6 +133,8 @@ def parse(raw: bytes) -> tuple[list[Rule], str]:
         refs = (*rule.remedy.alternatives, *rule.remedy.pairs_with, *rule.remedy.conflicts_with)
         if missing := [ref for ref in refs if ref not in known or ref == rule.id]:
             raise ValueError(f"kb rule {rule.id} references unknown ids {missing}")
+        if len(rule.commands) > len(rule.steps):
+            raise ValueError(f"kb rule {rule.id}: commands ({len(rule.commands)}) outnumber steps")
         for name, slot in rule.remedy.slots.items():
             if slot.required and slot.default is not None:
                 raise ValueError(f"kb rule {rule.id} slot {name}: required slots take no default")
