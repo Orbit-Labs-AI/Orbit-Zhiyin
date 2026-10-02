@@ -317,6 +317,27 @@ def _manual_steps(rec: dict) -> list[str]:
             "对照下方差异手动删除或保留这些内容；修改后可再次尝试撤销。"]
 
 
+def _known_items(rec: dict, backup: Path | None) -> list | None:
+    """List items at our pointer that are not the user's: what was there before our write
+    (backup, or nothing for a file an install created) plus other active installs' items.
+    ``None`` when the baseline is unknown, so a missing item stays ``already_reverted``."""
+    applied = rec.get("applied") or {}
+    if rec.get("action") != "merge_json" or not isinstance(applied.get("added"), list):
+        return None
+    if backup is not None:
+        try:
+            base = ops._get(ops._load_json(backup.read_bytes()),
+                            ops.parse_pointer(applied.get("pointer")))
+        except (OSError, OpConflict):
+            return None
+        known = list(base) if isinstance(base, list) else []
+    elif rec.get("created_file") or (rec.get("inherit") or {}).get("created_file"):
+        known = []
+    else:
+        return None
+    return known + list(rec.get("siblings") or [])
+
+
 def _revert_one(rec: dict, backup_dir: Path | None, lock_dir: Path) -> dict:
     path = Path(rec["path"])
     out = {"idx": rec["idx"], "path": rec["path"]}
@@ -345,11 +366,14 @@ def _revert_one(rec: dict, backup_dir: Path | None, lock_dir: Path) -> dict:
             return {**out, "status": "already_reverted"}
         target = {"action": rec.get("action"), "pointer": rec.get("pointer"),
                   "block_id": rec.get("block_id")}
-        undo = ops.unrender(applied, target, current)
+        inherit = rec.get("inherit") or {}
+        undo = ops.unrender(applied, target, current, known=_known_items(rec, backup),
+                            inherit=inherit)
         if undo["status"] == "reverted":
             if undo["delete"]:
                 path.unlink()
                 _remove_dirs(applied.get("created_dirs"))
+                _remove_dirs(inherit.get("created_dirs"))
             else:
                 _atomic_write(path, undo["new"], path.stat().st_mode & 0o777)
             return {**out, "status": "reverted"}

@@ -9,6 +9,7 @@ installed CLI's ``--help`` lists them.
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import re
@@ -29,7 +30,9 @@ from . import isolation, prices
 STDOUT_LIMIT = 4 * 1024 * 1024
 KILL_GRACE_S = 1.5
 FALLBACK_DIRS: tuple[str, ...] = ("/opt/homebrew/bin", "/usr/local/bin", "~/.local/bin",
-                                  "~/.claude/local", "~/.npm-global/bin")
+                                  "~/.claude/local", "~/.npm-global/bin",
+                                  "/Applications/*.app/Contents/Resources/codex-cli/bin",
+                                  "~/Applications/*.app/Contents/Resources/codex-cli/bin")
 API_URL = "https://api.anthropic.com/v1/messages"
 API_MODELS = {"cheap": "claude-haiku-4-5", "main": "claude-sonnet-5-5"}
 
@@ -67,10 +70,13 @@ def find_binary(name: str) -> str | None:
     found = shutil.which(name)
     if found:
         return found
-    for directory in FALLBACK_DIRS:
-        path = Path(directory).expanduser() / name
-        if path.is_file() and os.access(path, os.X_OK):
-            return str(path)
+    for pattern in FALLBACK_DIRS:
+        directory = os.path.expanduser(pattern)
+        candidates = sorted(glob.glob(directory)) if glob.has_magic(directory) else [directory]
+        for candidate in candidates:
+            path = Path(candidate) / name
+            if path.is_file() and os.access(path, os.X_OK):
+                return str(path)
     return None
 
 

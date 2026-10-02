@@ -75,3 +75,14 @@ def test_legacy_cards_and_muted_types():
     assert {p["type"] for p in out} == {"communication_gap", "context_loss"}
     muted = problems.build(inputs(legacy_cards=cards), {"muted_problem_types": ["communication_gap"]})
     assert muted == []
+
+
+def test_installed_unused_skips_items_without_usage_attribution():
+    inv = [{"inv_id": "cx", "type": "skill", "name": "codex-skill", "agent": "codex",
+            "usage": {"attributable": False, "basis": "usage_unavailable"}},
+           {"inv_id": "cc", "type": "skill", "name": "claude-skill", "agent": "claude_code",
+            "usage": {"attributable": True, "basis": "tool_call.skill"}}]
+    facts = {"usage": {"skill": {"other": {"calls": 3}}, "mcp": {}}}
+    sessions = {"main": 20, "weeks": 4, "first_ts": "2026-08-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
+    keys = {p["key"] for p in problems.build(inputs(inventory=inv, facts=facts, sessions=sessions))}
+    assert "installed_unused:cc" in keys and "installed_unused:cx" not in keys

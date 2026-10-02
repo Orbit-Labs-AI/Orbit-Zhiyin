@@ -654,6 +654,22 @@ class CatalogStore:
                         "SELECT m.*,(SELECT count(*) FROM resource_chunk c JOIN embedding_cache e ON e.model_key=m.model_key "
                         "AND e.text_hash=c.text_hash WHERE c.embed=1) AS indexed_chunks FROM embedding_model m")]}
 
+    def install_view(self, item_id: str) -> dict | None:
+        """Just what an install plan needs: the stored resource document (no body, features,
+        chunks, related items or retrieval index) plus status and parent bundles. A cold
+        ``detail()`` builds the similarity index first, which took 10+ s on a 15k-item catalog."""
+        with self.reader() as conn:
+            row = conn.execute("SELECT i.status,v.doc_sha FROM catalog_item i JOIN item_version v "
+                               "ON v.version_id=i.latest_version WHERE i.item_id=?", (item_id,)).fetchone()
+            if row is None:
+                return None
+            doc = json.loads(get_blob(conn, row["doc_sha"]))
+            doc.pop("body", None)
+            parents = [r[0] for r in conn.execute(
+                "SELECT parent_id FROM item_component WHERE child_id=? ORDER BY parent_id", (item_id,))]
+        return {"resource": {**doc, "item_id": doc.get("item_id") or item_id, "status": row["status"]},
+                "parents": parents}
+
     def load_resource(self, conn, doc_sha: str, body_sha: str | None) -> Resource:
         """A stored version as a Resource, with features re-extracted exactly as at publish."""
         body = get_blob(conn, body_sha)

@@ -96,7 +96,8 @@ class InstallService:
             idx = t["idx"]
             row = {"idx": idx, "agent": t.get("agent"), "scope": t.get("scope"), "display": t.get("display"),
                    "path": t.get("path"), "action": t.get("action"), "mappable": bool(t.get("mappable")),
-                   "reason": t.get("reason"), "requires_trust": bool(t.get("requires_trust")),
+                   "reason": t.get("reason"), "reason_text": t.get("reason_text"),
+                   "requires_trust": bool(t.get("requires_trust")),
                    "shared_layer": bool(t.get("shared_layer")), "note": t.get("note"), "group": t.get("group"),
                    "exists": False, "guard_hash": None, "units": [], "diff": {"lines": [], "adds": 0, "dels": 0},
                    "command": None, "conflict": None}
@@ -362,7 +363,7 @@ class InstallService:
         wanted = None if targets is None else {int(i) for i in targets}
         pending = [r for r in installed if r["target_idx"] not in done
                    and (wanted is None or r["target_idx"] in wanted)]
-        results = applier.revert_records([r["applied"] for r in pending], backup_dir=self.backups / install_id,
+        results = applier.revert_records([self._stacked(r) for r in pending], backup_dir=self.backups / install_id,
                                          lock_dir=self.lock_dir) if pending else []
         results += [{"idx": r["target_idx"], "path": r["path"], "status": "already_reverted"}
                     for r in installed if r["target_idx"] in done and (wanted is None or r["target_idx"] in wanted)]
@@ -395,6 +396,38 @@ class InstallService:
             invalidate()
         return {"install_id": install_id, "state": state["state"],
                 "ok": all(r["status"] in OK_REVERT for r in results), "results": results}
+
+    def _stacked(self, row: dict) -> dict:
+        """The ledger record plus what other installs on the same file did (B5).
+
+        ``inherit``: an earlier, already-reverted install created this file, so whichever
+        install is reverted last removes it (and its empty containers) instead of leaving
+        ``{"hooks": {}}`` behind. ``siblings``: list items other active installs put at the
+        same pointer, so a user edit to our item is told apart from another install's item.
+        """
+        rec = dict(row["applied"] or {})
+        if rec.get("action") not in ("merge_json", "md_block", "toml_block") or not row.get("path"):
+            return rec
+        others = [r for r in store.ledger_for_path(self.appdb, row["path"]) if r["install_id"] != row["install_id"]]
+        reverted = {(r["install_id"], r["target_idx"]) for r in others if r["action"] == "revert"}
+        inherit: dict = {"created_file": False, "created_paths": [], "created_dirs": []}
+        siblings: list = []
+        for other in others:
+            if other["action"] != "install":
+                continue
+            applied = (other["applied"] or {}).get("applied") or {}
+            gone = (other["install_id"], other["target_idx"]) in reverted
+            if gone and other.get("created_file") and other["ts"] <= row["ts"]:
+                inherit["created_file"] = True
+                inherit["created_paths"] += applied.get("created_paths") or []
+                inherit["created_dirs"] += applied.get("created_dirs") or []
+            if not gone and applied.get("pointer") == (rec.get("applied") or {}).get("pointer") \
+                    and isinstance(applied.get("added"), list):
+                siblings += applied["added"]
+        if inherit["created_file"]:
+            rec["inherit"] = inherit
+        rec["siblings"] = siblings
+        return rec
 
     def _after_revert(self, state: dict, now: int) -> None:
         """Recommend freezes tracking and labels the candidate not_useful; AI marks its artifact."""
