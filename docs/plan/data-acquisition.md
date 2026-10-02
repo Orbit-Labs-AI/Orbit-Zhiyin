@@ -129,7 +129,7 @@ Demo 各页需要的数据与来源：
 
 - **以 SQLite 为索引、JSONL 为正文。** `state_5.sqlite.threads` 有每个线程的 `rollout_path`、`cwd`、`title`、`model`、`reasoning_effort`、`tokens_used`、`git_sha / git_branch / git_origin_url`、`thread_source`、`agent_nickname / agent_role / agent_path`、`archived`、`project_id`；`thread_spawn_edges` 给出父子线程；`projects / project_roots` 是 Codex 自己的项目分组。`thread_history_1.sqlite` 是 Codex 按字节偏移增量投影的条目表（`thread_items`、`thread_turns`、`thread_history_projection_state.next_rollout_byte_offset`），可作对照，但不保证覆盖全部原始信息，正文仍以 rollout 为准。
 - **rollout 记录**（实测新格式）：顶层 `ordinal / timestamp / type / payload / metadata`；`type` 有 `session_meta`、`turn_context`、`response_item`、`event_msg`、`compacted`、`token_usage_record`、`world_state`、`inter_agent_communication_metadata`。`event_msg` 下有 `item_completed`（条目类型 `Reasoning / CommandExecution / AgentMessage / Extension(web.search) / UserMessage / SubAgentActivity / FileChange / ImageView / McpToolCall`）、`task_started / task_complete`、`token_count`、`thread_settings_applied`、`turn_aborted`；`response_item` 下有 `message`（`user / assistant / developer`）、`reasoning`（`summary` 与 `encrypted_content`）、`function_call / custom_tool_call` 及其输出、`compaction`。
-- **用量**：优先用 `token_usage_record`（每个 `response_id` 一条，含 `cached_input / cache_write_input / reasoning_output`，实测无重复）；旧文件只有 `token_count` 时用 `last_token_usage`，并跳过累计值未变化的重复事件（实测 2397 条中 8 条重复）；上下文超限时 Codex 会写一条合成的 `token_count`（总量等于上下文窗口、其余为 0），不能当作用量，`threads.tokens_used` 也会被它带偏。`rate_limits` 快照可用于额度展示。
+- **用量**：优先用 `token_usage_record`（每个 `response_id` 一条，含 `cached_input / cache_write_input / reasoning_output`，实测无重复）；旧文件只有 `token_count` 时，分别处理可确认请求归属的 `last_token_usage` 与 `total_token_usage` 累计快照，按 4.5 的粒度和身份规则去重（实测 2397 条中 8 条重复）。累计值未变只能说明快照部分重复，不能据此跳过仍有新单次信息的整条记录。上下文超限时 Codex 会写一条合成的 `token_count`（总量等于上下文窗口、其余为 0），不能当作用量，`threads.tokens_used` 也会被它带偏。`rate_limits` 快照可用于额度展示。
 - **坑**：
   - `thread_spawn` 派生的子代理会先重放父会话历史，真正属于自己的部分从 `subagent_history_start_ordinal` 开始（抽样中每个重放数条到数十条）→ 之前的记录标记为重放。**这条规则不适用于 guardian 评审文件**：本机 413 个 guardian 文件里的回合都是它自己的评审（只有自己的 `session_meta`，5,528 个 turn_id 中只有 1 个出现在其他文件），其中 410 个的起点序号恰好等于最大序号 + 1，照搬规则会把内容全部当重放丢掉。继承前缀是过滤过的（保留 system / developer / user 消息、`final_answer`、`compacted`、`event_msg` 等，去掉推理、工具调用、`token_usage_record`），不能拿它与父 rollout 逐行比对。
   - `thread_source` 区分 `user`、`subagent`、`guardian_review`（自动审批评审）、`automation`、`realtime_voice`；本机 890 个线程里，用户发起的只有 241 个，`guardian_review` 241 个、`subagent` 385 个，使用 `codex-auto-review` 模型的线程有 413 个 → 会话类型必须分开，否则人格与习惯统计会被系统线程污染。
@@ -367,7 +367,7 @@ flowchart TB
 - 同一请求在多条记录中重复的 usage，先改用请求身份作为 `native_key`（Claude 的 `message.id`、Codex 的 `response_id`，均带 `source_id`），再派生唯一的 `model.usage`。内容事件仍按各自记录与内容路径保留。合成事件在 `event_path` 中使用固定名称，例如 `derived.turn.start`。
 - SQLite 的累计行被原地改写时，每次变化先归档为新的行版本，L1 使用归档中的版本序号区分 `record_uid`；快照事件以该 `record_uid` 作为版本身份参与 `native_key`。重复读取未变化的行复用已归档版本，重算时沿用归档顺序，既保留连续快照，也不凭每次扫描的时刻生成新 ID。
 - 文本来源的 `record_uid = hash([source_id, 文件相对路径, generation, 原生记录序号])`；SQLite 行版本使用归档版本身份。事件的 `record_uid` 指向承接事件的正本记录，其他参与合并的记录通过 L1 的引用追溯；`native_id` 保留正本的原生 ID。`parent_uid` 保留原生树的关联，拆分不能仅因为 `seq` 相邻就制造父子关系；原生父 ID、逻辑父 ID 与多重来源关系仍保留在 `attrs` 或 `ext` 中。
-- 解析器调整了拆分、合并或 ID 规则时，从归档重建受影响会话的 L2 与 L3，在一个事务中替换旧事件集合；不能只 upsert 新 ID 而遗留旧映射。
+- 解析器调整了拆分、合并或 ID 规则时，从归档重建受影响会话的 L2 与 L3，在一个事务中替换旧事件集合，并更新 L1 的去向与事件引用；其他会话引用了这些事件时也要同步更新父关联和副本引用。不能只 upsert 新 ID 而遗留旧映射或悬空引用。
 
 **`seq` 是会话内的稳定投影顺序。** 连接器先确定来源顺序（Codex `ordinal`、DSH `seq`、Hermes `messages.id`、JSONL 行序；多文件按原生血缘衔接），再按内容块顺序和固定的合成事件位置展开，给每个保留事件分配唯一的整数 `seq`。同一来源、同一映射版本重复导入的 ID 与顺序必须一致。新增历史或映射升级可能重排 `seq`，因此 ID 不依赖它。
 
@@ -566,7 +566,7 @@ OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](../resea
 据此对 4.4、4.5 补充五条规则：
 
 1. **按来源顺序排序，不按时间戳。** `event.seq` 按 4.3 的展开规则生成，每个会话内唯一；缺失、回退或并发交错的时间不改变轨迹顺序。没有原生顺序的来源标明投影依据；跨会话通过父子与调用关系连接。`ts` 的时间语义、质量与可空规则见 4.5。
-2. **token 统一成互斥分桶。** `input_tokens` 不含缓存，`cache_read_tokens`、`cache_write_tokens` 单列，`output_tokens` 含思考，`reasoning_tokens` 是其中的思考部分；原始字段原样保存在 `attrs.reported`。注意各家口径不同：Anthropic 的 `input_tokens` 不含缓存；OpenAI / Codex、Copilot 的输入包含缓存命中部分，需要先减去；OpenCode、DeepSeek Harness 记录的输入已不含缓存。导出 ATIF 或 OTel 时再按对方口径相加。
+2. **token 统一成互斥分桶。** `input_tokens` 不含缓存，`cache_read_tokens`、`cache_write_tokens` 单列，`output_tokens` 含思考，`reasoning_tokens` 是其中的思考部分；原始字段原样保存在 `attrs.reported`。注意各家口径不同：Anthropic 的 `input_tokens` 不含缓存；OpenAI / Codex、Copilot 的输入包含缓存命中部分，需要先减去；OpenCode、DeepSeek Harness 记录的输入已不含缓存。OpenCode 的原生 output 不含 reasoning，归一时相加；Claude、Codex、pi 的输出已含思考，不再额外相加。导出 ATIF 或 OTel 时再按对方口径转换。
 3. **思考内容分格式保存。** `reasoning.attrs.format` 取 `text / summary / encrypted / redacted`；Anthropic 的 `signature`、OpenAI 的 `encrypted_content`、Gemini 的 `thoughtSignature` 都作为不透明数据保存，永不展示，也不参与检索。
 4. **分支与审批单独成类。** 表 4.4 中的 `branch`（`fork / rewind / rollback / resume`，来源：Claude 的 `parentUuid` 树与 `/rewind`、pi 的 `id / parentId` 树、Codex 的回滚）与 `permission.request / permission.decision`（`decision`、`source = config / hook / user / auto_review`、`wait_ms`）就是按这条加的；Claude 的 `toolDenialKind` 映射为 `source`：`user-rejected → user`、`permission-rule → config`、`automode-* → auto_review`。
 5. **附件内容寻址。** 内联的 base64 图片等移到按哈希存放的附件区，事件里只留哈希、类型和大小，避免事件表膨胀。
