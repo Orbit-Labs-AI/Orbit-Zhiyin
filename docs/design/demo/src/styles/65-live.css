@@ -1,0 +1,62 @@
+/* live surfaces: menu-bar panel charts, HUD density band, desktop widget sizes, settings matrix / AI channel.
+   The context bar (.ctxbar) is the one small chart shared by the panel, the HUD (.dk) and the large widget (S-V03). */
+.ctxbar{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ctxbar-h{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ctxbar-h b{color:var(--ink-1)}
+.ctxbar-t{position:relative;height:6px;border-radius:3px;background:var(--line)}
+.ctxbar-f{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink-1);transition:width .4s var(--ease)}
+.ctxbar-f.warn{background:var(--warn-m)}
+.ctxbar-th{position:absolute;top:-3px;width:1.5px;height:12px;background:var(--ink-3)}
+.ctxbar.dk{border-radius:9px;background:var(--hud-2);padding:6px 8px;grid-column:span 2}
+.ctxbar.dk .ctxbar-h{color:var(--hud-ink-3)}
+.ctxbar.dk .ctxbar-h b{color:var(--hud-ink);font-size:15px;font-weight:600}
+.ctxbar.dk .ctxbar-t{background:var(--hud-line)}
+.ctxbar.dk .ctxbar-f{background:var(--hud-ink)}
+.ctxbar.dk .ctxbar-f.warn{background:#f3b843}
+.ctxbar.dk .ctxbar-th{background:var(--hud-ink-3)}
+/* panel · last 7 days: one column per day, count on top, weekday under; today in ink (orange stays Claude's) */
+.pwk{display:flex;align-items:flex-end;gap:6px;height:64px;margin-top:6px}
+.pwk-c{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;min-width:0}
+.pwk-c b{font-size:10px;font-weight:500;color:var(--ink-3);line-height:1}
+.pwk-c i{display:block;width:100%;border-radius:2px 2px 1px 1px;background:var(--h2)}
+.pwk-c.today i{background:var(--ink-1)}
+.pwk-c.today b,.pwk-c.today>span{color:var(--ink-1);font-weight:600}
+.pwk-c>span{font-size:10px;line-height:1}
+.pm-base{white-space:nowrap}
+/* HUD · 20-minute density band and the metric grid (context bar spans the first row) */
+.hband{display:flex;flex-direction:column;gap:4px;min-width:0}
+.hband svg{display:block}
+.hk{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--hud-ink-2)}
+.hk.you{border-radius:50%;background:var(--hud-ink)}
+.hk.err{background:var(--vz-err)}
+.hgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.hcell{border-radius:9px;background:var(--hud-2);padding:6px 8px;min-width:0}
+.hgrid .ctxbar.dk{grid-column:1 / -1}
+/* desktop widgets · three sizes in one 364px column */
+.wg-menu{position:absolute;right:10px;top:8px;z-index:1}
+.wg-menu .ib{opacity:.45;transition:opacity .15s}
+.widgets:hover .wg-menu .ib,.wg-menu .ib:focus-visible{opacity:1}
+.wg.sq{aspect-ratio:1;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start}
+.wg.wk{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:12px;align-items:end}
+.wg-week{display:flex;align-items:flex-end;gap:5px;height:84px}
+.wg-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;min-width:0}
+.wg-col b{font-size:10px;font-weight:500;line-height:1;color:var(--ink-3);height:10px}
+.wg-stack{display:flex;flex-direction:column;justify-content:flex-end;gap:1px;width:100%}
+.wg-stack i{display:block;width:100%}
+.wg-stack i:first-child{border-radius:2px 2px 0 0}
+.wg-col>span.cap{font-size:9px;line-height:1}
+.wg-trend{display:flex;flex-direction:column;gap:4px;min-width:0}
+.wg-trend .vz-spark{display:block;max-width:100%}
+/* settings · notification matrix (every column is its own channel) and the AI channel list */
+.nmx th{text-align:center;vertical-align:bottom}
+.nmx th:first-child{text-align:left}
+.nmx td{text-align:center}
+.nmx td:first-child{text-align:left}
+.nmx input[type=checkbox]{width:15px;height:15px;accent-color:var(--ink-1);vertical-align:middle}
+.nmx-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:11px;color:var(--ink-3)}
+.nmx-legend b{color:var(--ink-2);font-weight:600}
+.aich{display:flex;flex-direction:column}
+.aich-r{padding:7px 0;border-bottom:1px solid var(--hair);gap:10px}
+.aich-r:last-child{border-bottom:0}
+.aich.off .aich-r{opacity:.55}
+.sw[disabled]{opacity:.45;pointer-events:none}
