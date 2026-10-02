@@ -6,8 +6,11 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
 
 - heartbeat every ``heartbeat_s`` (5 s); no message for ``stale_s`` (15 s) → kill + restart
 - crash restarts back off 0.5 / 1 / 2 / 4 s; more than 5 within 60 s → ``degraded``
-- analysis tasks time out (light 20 s, heavy 120 s): kill, task ``failed(timeout)``,
-  the previous snapshot keeps serving; three failures open a circuit for that key
+- analysis tasks time out (light 20 s, heavy 120 s, plus a per-event allowance once the
+  worker reports the scope's event count, capped at ``max_budget_s``): kill, task
+  ``failed(timeout)``, the previous snapshot keeps serving; three failures open a circuit
+  for that key. A task whose sized budget hit the cap fails ``analysis_scope_too_large``
+  (narrow the scope) instead of a bare timeout
 - analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
 """
 
@@ -39,6 +42,11 @@ class SupervisorConfig:
     max_restarts: int = 5
     light_timeout_s: float = 20.0
     heavy_timeout_s: float = 120.0
+    # Seconds per 1 000 selected events on top of the base budget (sized after start).
+    # Measured: ~0.39 s/k for a light section on a 772k-event home (read + analyse).
+    light_s_per_kevent: float = 0.6
+    heavy_s_per_kevent: float = 1.2
+    max_budget_s: float = 900.0
     rss_limit_bytes: int = 1_500_000_000
     analysis_idle_s: float = 300.0
     max_failures: int = 3
@@ -327,6 +335,7 @@ class AnalysisTask:
     status: str = "queued"
     error: dict | None = None
     dispatched_at: float | None = None
+    events: int | None = None
     done: threading.Event = field(default_factory=threading.Event)
 
     @property
@@ -399,9 +408,19 @@ class AnalysisQueue:
         self.tasks.pop(task.merge_key, None)
         task.done.set()
 
+    def _budget(self, task: AnalysisTask) -> tuple[float, bool]:
+        """(seconds, capped): base budget plus the per-event allowance, at most the cap."""
+        heavy = SECTIONS[task.section].cost == "heavy"
+        base = self.config.heavy_timeout_s if heavy else self.config.light_timeout_s
+        if not task.events:
+            return base, False
+        rate = self.config.heavy_s_per_kevent if heavy else self.config.light_s_per_kevent
+        wanted = base + rate * task.events / 1000
+        cap = max(base, self.config.max_budget_s)
+        return min(wanted, cap), wanted > cap
+
     def _timeout_for(self, task: AnalysisTask) -> float:
-        cost = SECTIONS[task.section].cost
-        return self.config.heavy_timeout_s if cost == "heavy" else self.config.light_timeout_s
+        return self._budget(task)[0]
 
     def _dispatch(self) -> None:
         with self.lock:
@@ -444,6 +463,13 @@ class AnalysisQueue:
         self.failures[key] = record
 
     def _message(self, message: dict) -> None:
+        if message.get("t") == "sized":
+            with self.lock:
+                task = self.running
+                if task is not None and task.id == message.get("job"):
+                    events = message.get("events")
+                    task.events = events if isinstance(events, int) and events >= 0 else None
+            return
         if message.get("t") != "done":
             return
         with self.lock:
@@ -501,13 +527,21 @@ class AnalysisQueue:
             if task is not None and task.dispatched_at is not None and (
                     now - task.dispatched_at > self._timeout_for(task)):
                 self.running = None
-                task.error = {"code": "timeout", "message": "analysis exceeded its time budget",
-                              "retryable": True}
+                budget, capped = self._budget(task)
+                size = f" ({task.events} events)" if task.events is not None else ""
+                if capped:
+                    task.error = {"code": "analysis_scope_too_large", "retryable": False,
+                                  "events": task.events, "message":
+                                  f"Scope too large{size}: analysis exceeded {budget:.0f} s; "
+                                  "narrow the time window, projects or sessions"}
+                else:
+                    task.error = {"code": "timeout", "retryable": True, "events": task.events,
+                                  "message": f"analysis exceeded its {budget:.0f} s budget{size}"}
                 self._record_failure(task, task.error)
                 self._drop(task, "failed")
                 self.publish("analysis", "analysis.failed", {
                     "section": task.section, "scope_hash": task.scope_hash,
-                    "code": "timeout", "job_id": task.id})
+                    "code": task.error["code"], "job_id": task.id})
                 self.worker.kill("timeout")
             elif (task is None and not self.pending and self.worker.running()
                   and now - self.worker.last_activity > self.config.analysis_idle_s):
