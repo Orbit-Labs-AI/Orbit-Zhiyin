@@ -105,9 +105,14 @@ const ev = (page, fn, arg) => page.evaluate(fn, arg);
 const goRoute = (page, r) => page.evaluate((r) => { if (typeof closeOverlay === 'function' && typeof OVL !== 'undefined' && OVL) closeOverlay(); if (typeof closeModal === 'function') closeModal(); go(r); }, r);
 const closeAll = (page) => page.evaluate(() => { try { if (OVL) closeOverlay(); } catch (e) { /* none */ } try { closeModal(); } catch (e) { /* none */ } try { closeSettings(); } catch (e) { /* none */ } });
 const feedSettled = (page, r, ms) => expect.poll(() => page.evaluate((r) => (LV.live ? LV.feedState(r) : 'ready'), r), { timeout: ms || 20_000 }).not.toBe('pending').catch(() => null);
+// 'Gemini CLI' / 'Copilot' are real catalog agent labels: fine on the library page, and on personal-data pages
+// only a leak when the synthetic data has no such agent.
 const mockLeak = (page) => page.evaluate(() => {
   const t = document.querySelector('#win') ? document.querySelector('#win').innerText : document.body.innerText;
-  return ['confluo', 'latentskill', 'Auto Finance', 'FHGS Website', 'Tweet Card', 'Gemini CLI', 'Copilot', 'yhyfhgs', '欢迎体验 Orbit 交互 Demo'].filter((w) => t.indexOf(w) >= 0);
+  const route = typeof S !== 'undefined' ? S.route : '';
+  const agents = (typeof AG !== 'undefined' ? AG : []).map((a) => [a.id, a.name, a.short].join(' ')).join(' ');
+  const catalogLabel = (w) => (w === 'Gemini CLI' || w === 'Copilot') && (route === 'library' || agents.indexOf(w) >= 0);
+  return ['confluo', 'latentskill', 'Auto Finance', 'FHGS Website', 'Tweet Card', 'Gemini CLI', 'Copilot', 'yhyfhgs', '欢迎体验 Orbit 交互 Demo'].filter((w) => t.indexOf(w) >= 0 && !catalogLabel(w));
 });
 
 // ---- route table shared by live and mock screenshots ----
@@ -196,7 +201,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   for (const r of ['7', '30', '90', 'all']) {
     mark(await step('a1-range-' + r, async (s) => {
       if (await ev(page, () => S.route) !== 'overview') await goRoute(page, 'overview');   // 查看完整画像 lands on persona
-      await need(page, 'range', { attr: { 'data-v': r } });
+      await need(page, 'range', { attr: { 'data-v': r === 'all' ? '0' : r } });   // 全部 is data-v="0"
       await feedSettled(page, 'overview');
       s.notes.push('S.range=' + await ev(page, () => S.range) + ' tiles=' + await ev(page, () => Array.from(document.querySelectorAll('#main .kpi .v, #main .tile .v, #main [class*=kpi] .mono')).slice(0, 5).map((e) => e.textContent.trim()).join('|')));
     }));
@@ -421,6 +426,28 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
 
   // ---------- settings ----------
   const TABS = ['general', 'sources', 'privacy', 'analysis', 'notify', 'about'];
+  // one real enabled write control per tab; each click must send the expected non-GET request
+  const SET_WRITES = {
+    general: { sel: '#set [data-act="setRange"]:not(.on):not([disabled])', method: 'PATCH', path: /\/v1\/app\/settings(\?|$)/ },
+    sources: { sel: '#set [data-act="setPause"]:not([disabled])', method: 'POST', path: /\/v1\/platform\/collection\/(pause|resume)(\?|$)/, revert: true },
+    privacy: { sel: '#set [data-act="setRule"]:not([disabled])', method: 'PUT', path: /\/v1\/privacy\/rules(\?|$)/, revert: true },
+    analysis: { sel: '#set [data-act="setWeekly"]:not([disabled])', method: 'PATCH', path: /\/v1\/app\/settings(\?|$)/, revert: true },
+    notify: { sel: '#set [data-act="setNotifPreset"][data-v="all"]:not([disabled])', method: 'PUT', path: /\/v1\/notifications\/policy(\?|$)/ },
+    about: { sel: '#set [data-act="tlsTel"]:not([disabled])', method: 'PUT', path: /\/v1\/platform\/telemetry(\?|$)/, revert: true },
+  };
+  const settingsWrite = async (page, w) => {
+    const loc = page.locator(w.sel).filter({ visible: true });
+    if (!(await loc.count())) throw new Error('no enabled write control ' + w.sel);
+    const reqP = page.waitForRequest((q) => q.method() === w.method && w.path.test(q.url().split('#')[0]), { timeout: 8000 });
+    const respP = reqP.then((q) => q.response());
+    await loc.first().click({ timeout: 5000 });
+    const q = await reqP.catch(() => null);
+    if (!q) throw new Error('clicking ' + w.sel + ' sent no ' + w.method + ' ' + w.path);
+    const r = await respP.catch(() => null);
+    if (!r || r.status() >= 400) throw new Error(w.method + ' ' + q.url() + ' → ' + (r ? r.status() : 'no response'));
+    await sleep(600);
+    return [w.method + ' ' + q.url().replace(/^https?:\/\/[^/]+/, '') + ' ' + r.status() + ' ' + (q.postData() || '').slice(0, 120)];
+  };
   for (const t of TABS) {
     mark(await step('settings-' + t, async (s) => {
       await ev(page, (t) => { openSettings(t); }, t); await sleep(1200);
@@ -430,14 +457,18 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
     }));
     await step('settings-' + t + '-write', async (s) => {
       const n0 = R.failed.length;
-      if (t === 'general') { if (!(await act(page, 'range', { within: '#set', nth: 1 })) && !(await act(page, 'method', { within: '#set' }))) { const sw = page.locator('#set .sw, #set [role=switch], #set input[type=checkbox]').filter({ visible: true }); if (await sw.count()) await sw.first().click(); else s.notes.push('no writable control'); } }
-      if (t === 'sources') { const sw = page.locator('#set [role=switch], #set input[type=checkbox], #set [data-act="setMap"]').filter({ visible: true }); if (await sw.count()) { await sw.first().click(); await sleep(800); await sw.first().click(); } else s.notes.push('no source toggle'); }
-      if (t === 'privacy') { const sw = page.locator('#set [role=switch], #set input[type=checkbox], #set .sw').filter({ visible: true }); if (await sw.count()) { await sw.first().click(); await sleep(600); await sw.first().click(); } else s.notes.push('no privacy toggle'); }
-      if (t === 'analysis') { if (!(await act(page, 'method', { within: '#set' })) && !(await act(page, 'studioAgent', { within: '#set' }))) s.notes.push('no analysis control'); }
-      if (t === 'notify') { if (!(await act(page, 'setNotifPreset', { within: '#set' })) && !(await act(page, 'setTestNotif', { within: '#set', wait: 1500 }))) s.notes.push('no notify control'); }
-      if (t === 'about') { if (!(await act(page, 'setUpdate', { within: '#set', wait: 1500 })) && !(await act(page, 'setExport', { within: '#set', wait: 1500 }))) s.notes.push('no about action'); }
+      const w = SET_WRITES[t];
+      await expect.poll(() => page.locator(w.sel).filter({ visible: true }).count(), { timeout: 8000 }).toBeGreaterThan(0).catch(() => null);
+      const reqs = await settingsWrite(page, w);
+      s.notes.push(t + ' writes: ' + reqs.join(' | '));
+      if (w.revert) {
+        const back = await settingsWrite(page, w); s.notes.push('revert: ' + back.join(' | '));
+        if (back[0].replace(/ \d{3} /, ' ') === reqs[0].replace(/ \d{3} /, ' ')) throw new Error(t + ' toggle sent the same write twice: ' + back[0]);
+      }
       await sleep(800);
-      s.notes.push('new failures: ' + JSON.stringify(R.failed.slice(n0).map((x) => x.method + ' ' + x.url + ' ' + x.status)));
+      const bad = R.failed.slice(n0);
+      s.notes.push('new failures: ' + JSON.stringify(bad.map((x) => x.method + ' ' + x.url + ' ' + x.status)));
+      if (bad.some((x) => w.path.test(x.url))) throw new Error(t + ' write failed: ' + JSON.stringify(bad));
     }, { shot: t !== 'about' });
   }
   await step('settings-close', async () => { await closeAll(page); }, { shot: false });
