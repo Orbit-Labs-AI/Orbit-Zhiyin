@@ -158,3 +158,29 @@ def test_scoped_autonomy_can_coexist_with_explicit_permission_and_empty_is_unkno
     assert not result["conflicts"]
     assert len(result["active"]) == 3
     assert resolve_instruction_scope([], {"session_uid": "s", "task_id": "task"})["status"] == "unknown"
+
+
+@pytest.mark.parametrize("text", [
+    "先给方案，等我确认后再改文件",
+    "Plan first, wait for my approval before editing",
+    "先给方案，如果测试通过，允许修改 a.py",
+])
+def test_later_condition_does_not_gate_the_prior_plan(text):
+    rows = extract(message(text))
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
+    assert any(c["value"] == "plan_first" and c["condition"] is None for c in result["active"])
+    assert any(c["state"] == "conditional" for c in result["history"])
+
+
+def test_leading_condition_stays_attached_to_its_command():
+    rows = extract(message("如果测试通过，请运行 pytest"))
+    assert rows[0]["features"]["verification_requirements"][0]["condition"] == "如果测试通过，请运行 pytest"
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
+    assert not result["active"] and result["unresolved"]
+
+
+def test_file_named_if_is_not_a_condition():
+    rows = extract(message("只修改 if.py"))
+    result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
+    assert len(result["active"]) == 2 and not result["unresolved"]
+    assert all(c["targets"] == ["if.py"] for c in result["active"])

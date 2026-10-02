@@ -87,7 +87,7 @@
 
 | 输入 | 预期 |
 | --- | --- |
-| 先给方案，等我确认后再改文件 | ask_first + plan_first；条件保留 |
+| 先给方案，等我确认后再改文件 | ask_first + plan_first；后续确认条件不限制前面的计划 |
 | 只修改 `src/a.py` | scoped + allowed_scope，文件证据 |
 | 不要推送，请运行测试 | 禁止推送 + 核验要求，否定不污染后半句 |
 | 验收标准：全部测试通过 | acceptance_criteria；不凭空判定已通过 |

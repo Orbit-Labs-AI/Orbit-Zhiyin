@@ -69,11 +69,19 @@ def _clauses(text):
         part = re.sub(r"^\s*(?:[-*+]\s+|\d+[.)、]\s*)", "", part).strip()
         if part and not REPORTING.search(part):
             # Independent commands separated by a comma have independent polarity.
-            pieces = ([part] if CONDITION.search(part) else re.split(
+            boundary = re.compile(
                 r"[，,]\s*(?=(?:请|不要|禁止|只(?:能)?修改|仅修改|先|使用|直接|运行|验收标准|"
-                r"please\b|do not\b|run\b|use\b))", part, flags=re.I))
-            yield from pieces
-
+                r"等(?:我|用户)|如果|除非|只有|若|然后|"
+                r"please\b|do not\b|run\b|use\b|wait\b|if\b|unless\b|when\b|then\b))", re.I)
+            start = 0
+            for match in boundary.finditer(part):
+                # A leading condition keeps its dependent command. A later
+                # condition starts a new command, never qualifying the prior one.
+                preceding = part[start:match.start()]
+                if not CONDITION.search(FILE.sub("", preceding)):
+                    yield preceding
+                    start = match.end()
+            yield part[start:]
 
 
 def _request_prefix(clause, start):
@@ -107,10 +115,12 @@ def extract_instruction_constraints(messages, *, main_ids):
         constraints, matched = [], set()
         for clause in _clauses(text):
             targets = sorted({m[0] for m in FILE.finditer(clause)})
-            condition = clause if CONDITION.search(clause) else None
+            # Filenames such as if.py are objects, not linguistic conditions.
+            match_text = FILE.sub(lambda m: " " * len(m[0]), clause)
+            condition = clause if CONDITION.search(match_text) else None
             for feature, rules in RULES.items():
                 for value, pattern in rules:
-                    match = pattern.search(clause)
+                    match = pattern.search(match_text)
                     if match is None or not _request_prefix(clause, match.start()):
                         continue
                     # Negated checks/format/tool requests are prohibitions, never positives.
@@ -133,7 +143,7 @@ def extract_instruction_constraints(messages, *, main_ids):
                         "event_uid": event["event_uid"], "session_uid": event["session_uid"],
                         "task_id": attrs.get("task_id"), "seq": event["seq"], "ts": event.get("ts"),
                         "targets": targets or None, "condition": condition,
-                        "action": next((name for name, rule in ACTIONS if rule.search(clause)), None),
+                        "action": next((name for name, rule in ACTIONS if rule.search(match_text)), None),
                         "source": "confirmed_human_text", "method": "explicit_lexical_rule",
                     })
         reasons = []
