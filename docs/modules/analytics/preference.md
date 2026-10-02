@@ -93,6 +93,8 @@ service 只提取一次 Instruction，再传给证据适配器；分析缓存摘
 
 先在当前分支的 checkout 根目录安装依赖：`bash scripts/bootstrap.sh`。使用 Python 3.13 和根 `uv.lock`，不需要模型或外部服务。
 
+入口优先使用 `uv`；如果 `uv` 不在 PATH 而当前 checkout 已有 `.venv`，使用已有虚拟环境并提示本次未同步依赖。
+
 ```sh
 # 默认只运行构造样本回归，不读取真实会话。
 bash scripts/check-preference.sh
