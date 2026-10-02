@@ -6918,6 +6918,9 @@ function genStop() {
   if (g.cv) g.cv.remove();
   if (g.land) g.land();
 }
+// The landing page shows the scope first launch just analysed (90 days when「只分析最近 90 天」is on, else all history):
+// Lite reads S.range, Advance's persona page its own period, so both are aligned and the numbers do not jump on arrival.
+function obScope() { if (!OB) return; S.range = OB.recent ? 90 : 0; S.persona.period = OB.recent ? '90' : 'all'; }
 // 05 落地：大人格码逐字母、指纹整体从 overlay FLIP 到画像页 [data-hero]；overlay 同时淡出，目标页内容随后淡入。
 // Lite 的 l-persona 或目标不在可视区时退化为原地缩小淡出。
 function genLand() {
@@ -6989,8 +6992,8 @@ Object.assign(ACT, {
   obRecent: () => { OB.recent = !OB.recent; drawOB(); },
   obStart: () => { AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); }); OB.step = 2; OB.prog = -1; const from = obSources(); genOpen('ob', { L: obSel(), from }); },
   genSkip: () => genFinal('skip'),
-  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => go('persona'), force: true }); }, 2600); },
-  obDone: () => genLand(),
+  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => { obScope(); go('persona'); }, force: true }); }, 2600); },
+  obDone: () => { obScope(); genLand(); },
   obShare: () => { closeOverlay(); render(); openShare(); },
   obReveal: () => { const L = obSel(); closeOverlay(); render(); openReveal({ L }); },
   revSkip: () => revealSkip(),
