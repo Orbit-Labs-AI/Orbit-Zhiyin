@@ -94,3 +94,52 @@ def test_context_and_catalog_errors_do_not_ingest_local_files(tmp_path, runner):
     with pytest.raises(ValueError, match="no valid"):
         runner.run(source, tmp_path / "invalid", catalog=empty)
     assert not (tmp_path / "invalid").exists()
+
+
+def test_live_append_between_indexing_and_projection_rescans_same_sample(tmp_path, runner):
+    source, output = tmp_path / "codex", tmp_path / "result"
+    path = transcript(source)
+    rescans = []
+
+    def progress(event):
+        if event["stage"] == "normalize" and not rescans:
+            row = json.loads(path.read_text().splitlines()[-1])
+            row["payload"]["item"]["id"] = "appended-command"
+            with path.open("a") as stream:
+                stream.write(json.dumps(row) + "\n")
+        if event["stage"] == "rescan":
+            rescans.append(event)
+
+    summary = runner.run(source, output, progress=progress)
+    assert summary["selected_files"] == 1 and summary["recommendation_count"] > 0
+    assert len(rescans) == 1
+    assert json.loads((output / "import.json").read_text())["attempt"] == 2
+    assert json.loads((output / "verify.json").read_text())["integrity"] == "ok"
+
+
+def test_continuously_changing_source_fails_after_three_attempts(tmp_path, runner):
+    source, output = tmp_path / "codex", tmp_path / "result"
+    path = transcript(source)
+    attempts = []
+
+    def progress(event):
+        if event["stage"] == "normalize":
+            attempts.append(event)
+            with path.open("a") as stream:
+                stream.write('{"type":"event_msg","payload":{"type":"task_complete"}}\n')
+
+    with pytest.raises(runner.SourceUnavailable, match="changed"):
+        runner.run(source, output, progress=progress)
+    assert len(attempts) == 3
+    assert not (output / "analytics.json").exists()
+
+
+def test_partial_source_verification_cannot_be_reported_as_success(tmp_path, runner, monkeypatch):
+    source, output = tmp_path / "codex", tmp_path / "result"
+    transcript(source)
+    monkeypatch.setattr(runner.Store, "verify", lambda _: {
+        "integrity": "partial", "unavailable_sources": [{"status": "missing"}]})
+    with pytest.raises(RuntimeError, match="verification was incomplete"):
+        runner.run(source, output)
+    assert json.loads((output / "verify.json").read_text())["integrity"] == "partial"
+    assert not (output / "recommendations.json").exists()

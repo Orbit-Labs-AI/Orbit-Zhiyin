@@ -11,6 +11,7 @@ from uuid import uuid4
 from tandem_data.cli import statistics
 from tandem_data.discovery import inputs
 from tandem_data.service import ImportRequest, ImportService
+from tandem_data.source_reader import SourceUnavailable
 from tandem_data.store import Store
 
 from tandem_backend.analytics.inputs import Scope
@@ -67,12 +68,27 @@ def run(source, output, *, latest=20, catalog=DEFAULT_CATALOG, context=None, sco
          "selection": "all" if latest == 0 else "latest_modified", "synthetic_activity": False})
     home = output / "data"
     with Store(home) as store:
-        imported = ImportService(store, progress=progress).import_source(ImportRequest("codex", source, files=tuple(selected)))
-        save(output / "import.json", {"import": imported, "stored": statistics(store)})
-        if imported["capture_errors"] or imported["cancelled"]:
-            raise RuntimeError("Import was incomplete; inspect local import.json")
-        verification = store.verify()
-        save(output / "verify.json", verification)
+        # Native inputs are now indexed in place. A live writer can append
+        # between indexing, projection and verification; rescan the SAME sample.
+        for attempt in range(1, 4):
+            try:
+                imported = ImportService(store, progress=progress).import_source(ImportRequest("codex", source, files=tuple(selected)))
+                save(output / "import.json", {"attempt": attempt, "import": imported, "stored": statistics(store)})
+                if imported["capture_errors"] or imported["cancelled"]:
+                    raise RuntimeError("Import was incomplete; inspect local import.json")
+                verification = store.verify()
+                save(output / "verify.json", verification)
+                if verification["integrity"] != "ok":
+                    unavailable = verification.get("unavailable_sources", [])
+                    if unavailable and all(item["status"] == "changed" for item in unavailable):
+                        raise SourceUnavailable("changed", "Source changed before verification")
+                    raise RuntimeError("Source verification was incomplete; inspect local verify.json")
+                break
+            except SourceUnavailable as error:
+                if error.status != "changed" or attempt == 3:
+                    raise
+                if progress:
+                    progress({"stage": "rescan", "attempt": attempt + 1, "reason": "source_changed"})
     if progress:
         progress({"stage": "analytics"})
     analysis = analyze_store(CanonicalStore(home), scope or Scope(), with_text=False)

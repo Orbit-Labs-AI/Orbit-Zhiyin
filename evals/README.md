@@ -27,11 +27,13 @@ subjective_outcomes 默认只使用构造质量样本；真实历史必须同时
 bash scripts/test-local-codex-recommend.sh
 ```
 
-这条命令明确启用真实来源，默认只读 `$CODEX_HOME`（未设置则 `~/.codex`）中最近更新的 20 个允许导入的会话文件，通过 Python canonical connector 导入独立数据库，核验归档，运行 analytics 和 Skill 推荐。它不会运行构造案例；默认资源是上述四个有固定来源的公共 Skill 内容审阅元数据。环境只默认确定 agent=codex，其余条件未知时保留 needs_context。
+这条命令明确启用真实来源，默认只读 `$CODEX_HOME`（未设置则 `~/.codex`）中最近更新的 20 个允许导入的会话文件，通过 Python canonical connector 在独立数据库中索引来源，核验证据，运行 analytics 和 Skill 推荐。它不会运行构造案例；默认资源是上述四个有固定来源的公共 Skill 内容审阅元数据。环境只默认确定 agent=codex，其余条件未知时保留 needs_context。
 
 `--latest 0` 导入全部允许的会话文件，`--codex-home /path/to/codex` 指定来源；`--context /path/to/context.json` 提供已确认的工具、权限和偏好，`--catalog /path/to/skills.json` 替换资源 envelope，`--from-ts / --until-ts` 用 UTC 毫秒选择分析范围。不会联网、安装或执行 Skill，也不会修改源日志。
 
-每次运行创建 `.local/codex-recommend/run-<时间>-<标识>/`，保存 `data/tandem.db`、原始归档、selection / import / verify / analytics / recommendations / summary JSON 和 `report.md`。真实结果只留在忽略目录。显式 `--output` 必须是新目录，避免旧会话混入新样本；仓库内输出必须位于 `.local`。
+每次运行创建 `.local/codex-recommend/run-<时间>-<标识>/`，保存 `data/tandem.db`、selection / import / verify / analytics / recommendations / summary JSON 和 `report.md`。原生来源按当前数据层契约就地只读索引，不另存原始日志副本；后续回查证据仍依赖来源文件。真实结果只留在忽略目录。显式 `--output` 必须是新目录，避免旧会话混入新样本；仓库内输出必须位于 `.local`。
+
+投影或核验时若检测到来源追加了内容，会对同一组选中文件最多尝试三次；来源持续变化、缺失或核验不完整时失败退出，不缩小样本或忽略核验错误。
 
 退出码 0 表示完成并产生 Skill 推荐，2 表示链路完成但没有匹配，1 表示导入／核验／分析失败。零推荐不会回退到构造数据或自动降低门槛；具体原因保留在 recommendations.json 的 assessments、excluded_resources 和 diagnostics。未提供成本及改善假设时，收益仍为未知。
 
