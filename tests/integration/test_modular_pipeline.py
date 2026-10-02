@@ -194,10 +194,10 @@ def test_new_import_does_not_silently_ignore_legacy_sample_policy_flags(tmp_path
 
 
 def test_staging_bridge_is_usable_after_native_source_is_gone(tmp_path):
-    repo = Path(__file__).resolve().parents[1]
+    repo = Path(__file__).resolve().parents[2]
     cli = repo / "packages/connectors/dist/cli.js"
     if not cli.exists() or not shutil.which("node"):
-        pytest.skip("Run pnpm check in packages/connectors for the staging integration test")
+        pytest.fail("Missing staging producer: run pnpm --dir packages/connectors build before integration tests")
     root = demo_home(tmp_path / "codex")
     for path in root.rglob("*.jsonl"):
         path.rename(path.with_name("rollout-" + path.name))

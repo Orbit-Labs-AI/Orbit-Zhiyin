@@ -21,9 +21,9 @@ jobs:
       - run: uv sync --locked --all-packages --dev
       - run: pnpm --dir packages/connectors install --frozen-lockfile
       - run: pnpm --dir packages/connectors check
-      - run: uv run --no-sync ruff check src tests packages/data/src packages/data/tests
+      - run: uv run --no-sync ruff check packages/backend/src packages/backend/tests tests packages/data/src packages/data/tests
       - run: uv run --no-sync ruff format --check packages/data/src packages/data/tests
-      - run: uv run --no-sync pytest -q tests
+      - run: uv run --no-sync pytest -q packages/backend/tests tests/integration
       - run: uv run --no-sync pytest -q packages/data/tests
       - run: uv build --all-packages
       - run: uv run --no-sync tandem demo

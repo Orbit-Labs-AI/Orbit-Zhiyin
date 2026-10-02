@@ -46,7 +46,7 @@ def request(uid="m", sid="s", **kw):
 
 
 def test_contract_section_eight_fixture():
-    raw = json.loads(Path("tests/fixtures/analysis-input-v1.json").read_text())
+    raw = json.loads((Path(__file__).parents[1] / "fixtures/analysis-input-v1.json").read_text())
     data = analyze_bundle(AnalysisInputBundle.from_dict(raw), Scope(**raw["scope"]), with_text=False)
     assert data["overview"]["counts"]["human_messages"] == 1
     tools = data["tools"]["totals"]

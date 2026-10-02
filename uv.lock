@@ -6,6 +6,7 @@ requires-python = "==3.13.*"
 members = [
     "tandem-backend",
     "tandem-data",
+    "tandem-workspace",
 ]
 
 [[package]]
@@ -430,7 +431,7 @@ wheels = [
 [[package]]
 name = "tandem-backend"
 version = "0.13.6"
-source = { editable = "." }
+source = { editable = "packages/backend" }
 dependencies = [
     { name = "fastapi" },
     { name = "markdown-it-py" },
@@ -442,13 +443,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.dev-dependencies]
 dev = [
     { name = "httpx" },
     { name = "pytest" },
@@ -469,13 +463,6 @@ requires-dist = [
     { name = "uvicorn", specifier = "==0.34.3" },
 ]
 provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "pytest", specifier = "==8.4.1" },
-    { name = "ruff", specifier = "==0.12.2" },
-]
 
 [[package]]
 name = "tandem-data"
@@ -502,6 +489,31 @@ requires-dist = [
 dev = [
     { name = "pytest", specifier = ">=8,<10" },
     { name = "ruff", specifier = ">=0.9,<1" },
+]
+
+[[package]]
+name = "tandem-workspace"
+version = "0.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "tandem-backend" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tandem-backend", editable = "packages/backend" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = "==0.28.1" },
+    { name = "pytest", specifier = "==8.4.1" },
+    { name = "ruff", specifier = "==0.12.2" },
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 """Repeatable quality/performance checks and opt-in real-data import -> CLI -> API checks.
 
-Run with PYTHONPATH=src python scripts/validate_subjective_outcomes.py --help.
+Run with PYTHONPATH=packages/backend/src python scripts/validate_subjective_outcomes.py --help.
 Real history is copied by a read-only SQLite backup; no raw content is printed.
 """
 
@@ -70,7 +70,7 @@ def performance(sizes, repeats):
 
 
 def quality():
-    path = ROOT / "tests/fixtures/subjective-outcome-quality.json"
+    path = ROOT / "packages/backend/tests/fixtures/subjective-outcome-quality.json"
     cases = json.loads(path.read_text())
     errors, positives, detected, true_positive = [], 0, 0, 0
     for case in cases:
@@ -126,7 +126,7 @@ def real_flow(source, codex_home, output):
     expected = analyze_bundle(b, with_text=False)
     analysis_seconds = time.perf_counter() - start
     full_output = output / "real-analytics.json"
-    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "packages/backend/src")}
     command = [sys.executable, "-m", "tandem_backend", "--db", str(snapshot), "analytics", "--no-text", "--output", str(full_output)]
     start = time.perf_counter()
     subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=True)

@@ -56,7 +56,7 @@ def test_visible_overload_respects_explicit_limit_and_records_measurement(tmp_pa
 
 
 def test_new_probe_has_no_feedback_path_to_history():
-    path = Path(__file__).parents[1] / "src/tandem_backend/data/pipeline_probe_cases.json"
+    path = Path(__file__).parents[2] / "src/tandem_backend/data/pipeline_probe_cases.json"
     result = pipeline_benchmark(path)
     assert result["cases"] == 12 and result["correct"] == 12
     assert result["history_updated"] is False

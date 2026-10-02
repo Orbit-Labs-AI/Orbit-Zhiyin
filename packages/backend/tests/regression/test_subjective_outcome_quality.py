@@ -7,7 +7,7 @@ import pytest
 
 from tandem_backend.analytics.outcome_subjective import analyze_subjective_outcomes
 
-CASES = json.loads((Path(__file__).parent / "fixtures/subjective-outcome-quality.json").read_text())
+CASES = json.loads((Path(__file__).parents[1] / "fixtures/subjective-outcome-quality.json").read_text())
 
 
 @pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])

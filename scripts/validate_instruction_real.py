@@ -36,7 +36,7 @@ def validate(source_ledger, codex_home, output):
             source.backup(destination)
             # Force the ordinary importer to actually reparse native files.
             destination.execute("UPDATE imports SET signature='instruction-e2e-reparse'")
-    environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
+    environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "packages/backend/src")}
     timings = {}
 
     def command(name, *args):
