@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import resource
+import subprocess
 import sys
 import threading
 import time
@@ -45,6 +46,37 @@ def peak_rss_bytes() -> int:
     """Peak resident set size; macOS reports bytes and Linux KiB."""
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return peak if sys.platform == "darwin" else peak * 1024
+
+
+def tree_rss_bytes(pid: int | None = None) -> int | None:
+    """Current resident set size of ``pid`` and all its descendants (process-pool workers
+    included); ``None`` when ``ps`` is unavailable. ``ps`` reports KiB on macOS and Linux."""
+    root = pid or os.getpid()
+    try:
+        out = subprocess.run(["ps", "-A", "-o", "pid=,ppid=,rss="], capture_output=True,
+                             text=True, timeout=5, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    children: dict[int, list[int]] = {}
+    rss: dict[int, int] = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) != 3 or not all(p.isdigit() for p in parts):
+            continue
+        child, parent, kib = map(int, parts)
+        children.setdefault(parent, []).append(child)
+        rss[child] = kib
+    if root not in rss:
+        return None
+    total, stack, seen = 0, [root], set()
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        total += rss.get(current, 0)
+        stack.extend(children.get(current, ()))
+    return total * 1024
 
 
 def debug_delay() -> None:
@@ -84,7 +116,12 @@ class WorkerIO:
     def start_heartbeat(self) -> threading.Thread:
         def beat():
             while not self.stopping.wait(self.heartbeat_s):
-                self.send("hb", job=self.current_job, rss=peak_rss_bytes())
+                job = self.current_job
+                # Live tree RSS only while a job runs (one ``ps`` per beat); idle beats
+                # report the peak as before.
+                live = tree_rss_bytes() if job is not None else None
+                self.send("hb", job=job, rss=live if live is not None else peak_rss_bytes(),
+                          live=live is not None)
 
         thread = threading.Thread(target=beat, daemon=True, name=f"{self.role}-hb")
         thread.start()

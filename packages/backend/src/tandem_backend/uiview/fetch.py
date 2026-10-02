@@ -23,8 +23,16 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     snapshot = gw.snapshots.get(key)
     if snapshot is not None:
         return _attach(snapshot, h), "fresh", None
-    task = gw.supervisor.analysis.submit(SECTION, scope_dict, {}, h, "interactive",
-                                         (rev["data_rev"], rev["inventory_rev"]), rules)
+    from ..services.routes_analytics import CLIENT_ERRORS, failure_error
+
+    analysis = gw.supervisor.analysis
+    revision = (rev["data_rev"], rev["inventory_rev"])
+    old = gw.snapshots.latest(SECTION, h, rules)
+    failure = analysis.failure(SECTION, h, revision)
+    if old is None and failure and (failure["error"].get("code") in CLIENT_ERRORS
+                                    or analysis.circuit_open(SECTION, h, revision)):
+        raise failure_error(failure["error"])  # A stable error, never an endless 202.
+    task = analysis.submit(SECTION, scope_dict, {}, h, "interactive", revision, rules)
     if task is not None and wait_ms:
         task.done.wait(wait_ms / 1000)
         if task.status == "completed":
@@ -32,9 +40,12 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
             if snapshot is not None:
                 return _attach(snapshot, h), "fresh", None
     job_id = task.id if task is not None else None
-    old = gw.snapshots.latest(SECTION, h, rules)
     if old is not None:
         return _attach(old, h), "stale", job_id
+    if task is None:  # Circuit open: nothing computes until a manual recompute.
+        raise failure_error((analysis.failure(SECTION, h, revision) or {}).get("error"))
+    if task.status == "failed":
+        raise failure_error(task.error)
     return None, "computing", job_id
 
 

@@ -66,8 +66,9 @@ def router(gw: Gateway) -> APIRouter:
         if body is None:
             if freshness == "none":
                 return None, {"freshness": "none", "job_id": None}
-            return None, JSONResponse({"meta": {"freshness": "computing", "job_id": job_id}},
-                                      status_code=202)
+            progress = gw.supervisor.analysis.progress_of(job_id)
+            return None, JSONResponse({"meta": {"freshness": "computing", "job_id": job_id,
+                                                "progress": progress}}, status_code=202)
         realtime = getattr(gw, "realtime", None)
         latest = realtime.latest() if realtime is not None else None
         body = facts.overlay_live(body, latest)

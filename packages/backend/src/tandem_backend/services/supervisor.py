@@ -12,7 +12,11 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   ``max_budget_s``: kill, task ``failed(timeout)``, the previous snapshot keeps serving;
   three failures open a circuit for that key. A task whose budget already hit the cap
   fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout
-- analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
+- analysis RSS (the worker and its process-pool children) above 1.5 GB recycles the worker
+  after the task; above ``rss_kill_bytes`` (4 GB) while running (heartbeat RSS) kills it
+  and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
+- analysis runs a killed or crashed worker left ``running`` in ``analysis.sqlite`` are
+  failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
 """
 
 from __future__ import annotations
@@ -59,6 +63,7 @@ class SupervisorConfig:
     # Ceiling of every budget (sized allowance and per-timeout doubling included).
     max_budget_s: float = 900.0
     rss_limit_bytes: int = 1_500_000_000
+    rss_kill_bytes: int = 4_000_000_000
     analysis_idle_s: float = 300.0
     max_failures: int = 3
     tick_s: float = 0.2
@@ -157,8 +162,7 @@ class WorkerProcess:
             with self.lock:
                 if proc is self.proc:
                     self.last_hb = time.monotonic()
-            if message.get("t") != "hb":
-                self.on_message(message)
+            self.on_message(message)  # Heartbeats too: analysis reads their live RSS.
         proc.wait()
         with self.lock:
             if proc is not self.proc:
@@ -347,6 +351,7 @@ class AnalysisTask:
     error: dict | None = None
     dispatched_at: float | None = None
     events: int | None = None
+    rss: int | None = None
     done: threading.Event = field(default_factory=threading.Event)
 
     @property
@@ -371,6 +376,8 @@ class AnalysisQueue:
         self.running: AnalysisTask | None = None
         self.failures: dict[tuple, dict] = {}
         self.dispatched: dict[tuple, int] = {}
+        self.home = home
+        self.open_runs: set[str] = set()
         self.worker = WorkerProcess("analysis", home, config, self._message, self._exit,
                                     on_state, self._dispatch)
 
@@ -379,6 +386,31 @@ class AnalysisQueue:
         with self.lock:
             record = self.failures.get((section, scope_hash))
             return dict(record) if record and record["rev"] == rev else None
+
+    def progress_of(self, job_id: str | None) -> dict | None:
+        """``progress`` for a queued or running job id (None once it finished)."""
+        with self.lock:
+            task = next((t for t in self.tasks.values() if t.id == job_id), None)
+        return self.progress(task) if task is not None else None
+
+    def progress(self, task: AnalysisTask) -> dict:
+        """What a 202 reports: queue position or elapsed time against the budget, the sized
+        event count and the previous failure of the same key, so a client sees progress
+        and a bounded end instead of an open-ended ``computing``."""
+        with self.lock:
+            record = self.failures.get((task.section, task.scope_hash))
+            info = {"status": task.status, "attempt": self.dispatched.get(task.merge_key, 0),
+                    "events": task.events,
+                    "last_error": (record or {}).get("error", {}).get("code")
+                    if record and record["rev"] == (task.data_rev, task.inventory_rev) else None}
+            if task.status == "queued":
+                order = sorted(self.pending, key=lambda t: t.priority != "interactive")
+                info["queue_position"] = order.index(task) if task in order else None
+            elif task.dispatched_at is not None:
+                info["elapsed_s"] = round(time.monotonic() - task.dispatched_at, 1)
+                info["budget_s"] = round(self._budget(task)[0], 1)
+                info["rss_bytes"] = task.rss
+            return info
 
     def circuit_open(self, section: str, scope_hash: str, rev: tuple[int, int]) -> bool:
         record = self.failure(section, scope_hash, rev)
@@ -480,7 +512,68 @@ class AnalysisQueue:
             record["timeouts"] = record.get("timeouts", 0) + 1
         self.failures[key] = record
 
+    def _abort_running(self, error: dict, reason: str) -> None:
+        """Fail the in-flight task without a rerun and kill its worker (lock held)."""
+        task, self.running = self.running, None
+        if task is None:
+            return
+        task.error = error
+        self._record_failure(task, error)
+        self._drop(task, "failed")
+        self.publish("analysis", "analysis.failed", {
+            "section": task.section, "scope_hash": task.scope_hash,
+            "code": error["code"], "job_id": task.id})
+        self.worker.kill(reason)
+
+    def _fail_open_runs(self, reason: str) -> None:
+        """A killed worker never reaches the run's ``except``: close its runs here."""
+        with self.lock:
+            runs, self.open_runs = self.open_runs, set()
+        if not runs:
+            return
+        try:
+            from tandem_data.analysis_history import AnalysisHistory
+
+            AnalysisHistory(self.home / "analysis.sqlite").fail_runs(
+                runs, f"analysis worker exited ({reason})")
+        except Exception:  # noqa: BLE001  history is best effort; never break supervision
+            pass
+
+    def fail_stale_runs(self) -> int:
+        """Gateway start: runs older than any budget belong to a process that is gone."""
+        path = self.home / "analysis.sqlite"
+        if not path.exists():
+            return 0
+        try:
+            from tandem_data.analysis_history import AnalysisHistory
+
+            older = int((self.config.max_budget_s + 60) * 1000)
+            return AnalysisHistory(path).fail_stale(
+                older_than_ms=older, reason="analysis process exited before finishing")
+        except Exception:  # noqa: BLE001
+            return 0
+
     def _message(self, message: dict) -> None:
+        kind = message.get("t")
+        if kind == "run" and message.get("run_id"):
+            with self.lock:
+                (self.open_runs.add if message.get("active") else self.open_runs.discard)(
+                    message["run_id"])
+            return
+        if kind == "hb":
+            rss = int(message.get("rss") or 0)
+            with self.lock:
+                task = self.running
+                if task is None or message.get("job") != task.id or not message.get("live"):
+                    return
+                task.rss = rss
+                if rss > self.config.rss_kill_bytes:
+                    self._abort_running({
+                        "code": "analysis_scope_too_large", "retryable": False,
+                        "message": f"analysis used {rss // 1_000_000} MB, over the "
+                                   f"{self.config.rss_kill_bytes // 1_000_000} MB worker limit; "
+                                   "narrow the time window, projects or sessions"}, "rss_limit")
+            return
         if message.get("t") == "sized":
             with self.lock:
                 task = self.running
@@ -513,12 +606,15 @@ class AnalysisQueue:
                 self.publish("analysis", "analysis.failed", {
                     "section": task.section, "scope_hash": task.scope_hash,
                     "code": error.get("code"), "job_id": task.id})
-            if int(message.get("rss") or 0) > self.config.rss_limit_bytes:
+            # Prefer the live tree RSS: the peak never drops once one large task ran.
+            rss = message.get("rss_now")
+            if int(rss if rss is not None else message.get("rss") or 0) > self.config.rss_limit_bytes:
                 self.worker.kill("rss_recycle")
                 return
         self._dispatch()
 
     def _exit(self, reason: str | None) -> None:
+        self._fail_open_runs(reason or "crash")
         with self.lock:
             task, self.running = self.running, None
             if task is not None:
@@ -592,6 +688,8 @@ class Supervisor:
 
     def start(self) -> None:
         self.thread.start()
+        threading.Thread(target=self.analysis.fail_stale_runs, daemon=True,
+                         name="analysis-stale-runs").start()
 
     def _watch(self) -> None:
         while not self.stopping.wait(self.config.tick_s):

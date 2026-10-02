@@ -87,3 +87,55 @@ def test_estimate_events_counts_the_scoped_events():
     assert estimate_events(store, scope(from_ts=200, until_ts=300)) == 3
     assert estimate_events(store, scope(project_ids=[])) == 0
     assert estimate_events(SimpleNamespace(), scope()) is None
+
+
+def test_progress_reports_budget_attempts_and_last_error(tmp_path):
+    queue, _ = _queue(tmp_path)
+    task = _run(queue, 5.0, 100_000)
+    info = queue.progress(task)
+    assert info["status"] == "running" and info["attempt"] == 1 and info["events"] == 100_000
+    assert info["budget_s"] == 80.0 and 4.5 < info["elapsed_s"] < 10
+    assert queue.progress_of(task.id)["attempt"] == 1 and queue.progress_of("nope") is None
+
+
+def test_timeouts_double_the_sized_budget_then_report_scope_too_large(tmp_path):
+    queue, _ = _queue(tmp_path, max_budget_s=200.0)
+    first = _run(queue, 81.0, 100_000)  # 20 + 60 s
+    assert first.error["code"] == "timeout"
+    second = _run(queue, 159.0, 100_000)  # doubled: 160 s
+    assert second.status == "running"
+    second.dispatched_at = time.monotonic() - 161.0
+    queue.check()
+    assert second.error["code"] == "timeout"
+    third = _run(queue, 201.0, 100_000)  # 320 s wanted, capped at 200 s
+    assert third.error["code"] == "analysis_scope_too_large"
+
+
+def test_live_rss_over_the_kill_limit_fails_the_task(tmp_path):
+    queue, published = _queue(tmp_path, rss_kill_bytes=1_000)
+    killed = []
+    queue.worker.kill = killed.append
+    task = queue.submit("overview", {}, {}, "h", "interactive", REV, "r")
+    queue._message({"t": "hb", "job": task.id, "rss": 999, "live": True})
+    assert task.status == "running" and task.rss == 999
+    queue._message({"t": "hb", "job": task.id, "rss": 5_000, "live": False})  # peak only
+    assert task.status == "running"
+    queue._message({"t": "hb", "job": task.id, "rss": 5_000, "live": True})
+    assert task.status == "failed" and task.error["code"] == "analysis_scope_too_large"
+    assert killed == ["rss_limit"] and published[-1][2]["code"] == "analysis_scope_too_large"
+
+
+def test_runs_left_open_by_a_dead_worker_are_failed(tmp_path):
+    from tandem_data.analysis_history import AnalysisHistory
+
+    history = AnalysisHistory(tmp_path / "analysis.sqlite")
+    run_id = history.start("features", {})
+    queue, _ = _queue(tmp_path)
+    queue._message({"t": "run", "run_id": run_id, "active": True})
+    queue._exit("timeout")
+    run = history.get_run(run_id)
+    assert run["status"] == "failed" and run["error_type"] == "WorkerTerminated"
+    stale = history.start("features", {})
+    with history.connect() as db:
+        db.execute("UPDATE analysis_run SET started_at=0 WHERE run_id=?", (stale,))
+    assert queue.fail_stale_runs() == 1

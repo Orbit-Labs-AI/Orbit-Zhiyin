@@ -14,7 +14,7 @@ import traceback
 from pathlib import Path
 
 from .sections import ResultMemo, SectionNotFound, compute_section, estimate_events
-from .worker_protocol import WorkerIO, debug_delay, peak_rss_bytes
+from .worker_protocol import WorkerIO, debug_delay, peak_rss_bytes, tree_rss_bytes
 
 PREWARM_NICENESS = 10
 
@@ -44,6 +44,11 @@ class AnalysisWorker:
         self.niced = False
 
     def serve(self) -> None:
+        import tandem_data.analysis_history as analysis_history
+
+        # Report open analysis runs so the supervisor can fail them if it kills us.
+        analysis_history.RUN_OBSERVER = lambda run_id, active: self.io.send(
+            "run", run_id=run_id, active=active)
         self.io.start_heartbeat()
         self.io.send("ready", role="analysis", pid=os.getpid())
         for message in self.io.ops():
@@ -75,13 +80,13 @@ class AnalysisWorker:
             body = compute_section(job["section"], store, scope, params, self.memo)
             self.io.send("done", job=job["id"], status="completed", body=body,
                          duration_ms=round((time.perf_counter() - started) * 1000),
-                         rss=peak_rss_bytes(), niced=self.niced)
+                         rss=peak_rss_bytes(), rss_now=tree_rss_bytes(), niced=self.niced)
         except Exception as error:
             if not isinstance(error, (ValueError, SectionNotFound)):
                 traceback.print_exc()
             self.io.send("done", job=job["id"], status="failed", error=classify(error),
                          duration_ms=round((time.perf_counter() - started) * 1000),
-                         rss=peak_rss_bytes(), niced=self.niced)
+                         rss=peak_rss_bytes(), rss_now=tree_rss_bytes(), niced=self.niced)
         finally:
             self.io.current_job = None
 

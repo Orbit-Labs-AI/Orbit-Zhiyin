@@ -157,7 +157,8 @@ def router(gw: Gateway) -> APIRouter:
             elif task.status == "failed":
                 raise failure_error(task.error)
         return JSONResponse({"meta": meta(h, rules, "computing", None, rev, "none",
-                                          job_id=task.id, progress=None)}, status_code=202)
+                                          job_id=task.id, progress=analysis.progress(task))},
+                            status_code=202)
 
     wait = Query(0, ge=0, le=3000)
 

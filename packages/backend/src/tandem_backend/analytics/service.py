@@ -212,9 +212,16 @@ def _compute_chunk(payload: tuple) -> dict[str, Record]:
     return {sid: session_row_core(context, context.session_map[sid]) for sid in sids}
 
 
+# Each spawned worker holds its chunk's trees on top of the parent's whole selection, so
+# memory grows with the worker count while the speed-up flattens after a few processes.
+DEFAULT_MAX_WORKERS = 4
+
+
 def _max_workers() -> int:
     limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")  # "0"/"1" disables process workers
-    return int(limit) if limit and limit.isdigit() else os.cpu_count() or 1
+    if limit and limit.isdigit():
+        return int(limit)
+    return max(1, min(os.cpu_count() or 1, DEFAULT_MAX_WORKERS))
 
 
 def _wants_parallel(misses: int, parallel: bool | None) -> bool:
