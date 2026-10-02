@@ -6,13 +6,14 @@ frame so open lists and analytics views can refresh.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from .. import platform
-from ..sessionops import exclusion
+from ..sessionops import exclusion, resume
 from .auth import ApiError
 
 if TYPE_CHECKING:
@@ -84,6 +85,14 @@ def router(gw: Gateway) -> APIRouter:
             {"session_uid": i["session_uid"],
              **{k: sessions.get(i["session_uid"], {}).get(k) for k in fields},
              **{k: i[k] for k in ("reason", "note", "excluded_at", "source")}} for i in items]}
+
+    @api.get("/v1/sessions/{session_uid}/resume")
+    def resume_command(session_uid: str):
+        with gw.reads.read() as db:
+            row = session_row(db, session_uid)
+            row["last_event_ts"] = db.execute("SELECT max(ts) FROM event WHERE session_uid = ?",
+                                              (session_uid,)).fetchone()[0]
+        return resume.build(row, int(time.time() * 1000))
 
     return api
 
