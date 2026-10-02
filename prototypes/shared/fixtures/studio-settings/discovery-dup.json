@@ -1,0 +1,34 @@
+[
+ {
+  "id": "src-fx-cc",
+  "agent": "claude_code",
+  "root": "/Users/fx/.claude/projects",
+  "files": 45,
+  "status": "available",
+  "enabled": true
+ },
+ {
+  "id": "src-fx-cc-tmp",
+  "agent": "claude_code",
+  "root": "/private/var/folders/47/fx0000/T/orbit-journey-fx/.claude/projects",
+  "files": 0,
+  "status": "empty",
+  "enabled": false
+ },
+ {
+  "id": "src-fx-codex",
+  "agent": "codex",
+  "root": "/Users/fx/Library/Application Support/Some Long Folder/codex/sessions",
+  "files": 35,
+  "status": "available",
+  "enabled": true
+ },
+ {
+  "id": "src-fx-pi",
+  "agent": "pi",
+  "root": "/Users/fx/.pi/agent/sessions",
+  "files": 0,
+  "status": "empty",
+  "enabled": false
+ }
+]

@@ -27,7 +27,10 @@ let srcRows = () => AG.map((a) => ({ name: a.name, ver: a.ver, path: a.path, n: 
 let srcMissing = () => (S.extraSrc.some((x) => /cursor/i.test(x.name)) ? [] : [{ name: 'Cursor', v: 'Cursor', hint: '未检测到 · 可以手动指定数据库位置' }]);
 let srcIndexed = () => fmt(2416 + S.extraSrc.length * 37);
 let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '', on: S.rules[k], locked: false }));
-function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
+// A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
+// swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
+function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
+function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
 function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
@@ -58,7 +61,7 @@ function renderSet() {
       card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), '暂停后菜单栏图标不显示状态角标，也不产生任何事件') + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', '已索引 ' + srcIndexed() + ' 个会话') + '</div>');
   } else if (t === 'privacy') {
     const rd = redact(S.ruleSample);
-    body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), r.label) + '</div>').join('') +
+    body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), String(r.label).replace(/<[^>]*>/g, '').trim()) + '</div>').join('') +
       (S.ruleTest ? '<div class="col" style="gap:8px;margin-top:12px"><label class="eb" for="rdIn">测试文本</label><textarea id="rdIn" data-in="setTestIn" rows="4" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:8px 10px;font:12px/1.6 var(--mono);color:var(--ink-1);resize:vertical">' + esc(S.ruleSample) + '</textarea><div class="row" style="justify-content:space-between"><span class="eb">入库后</span><span class="mono cap" id="rdN" style="font-size:11px">命中 ' + rd.n + ' 处</span></div><div id="rdOut" style="padding:8px 10px;border-radius:8px;background:var(--sunken);font:12px/1.7 var(--mono);white-space:pre-wrap;word-break:break-all">' + rd.html + '</div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setTest">' + (S.ruleTest ? '收起测试' : '测试规则…') + '</button>') +
       card('匿名贡献', S.anon ? '已开启：只上传人格代码与已装资源名，用于「相似用户」统计' : '关闭：不上传任何内容。开启后只上传人格代码与已装资源名', '<div class="row" style="gap:10px">' + swBtn(S.anon, 'setAnon', '', '匿名贡献') + '<span class="cap" style="font-size:11px">会话内容、项目名、路径永远不会上传</span></div>') +
@@ -91,7 +94,7 @@ function resetDemo() {
 }
 Object.assign(ACT, {
   openSettings: (el) => openSettings(el && el.dataset ? el.dataset.tab : undefined),
-  setTab: (el) => { S.setTab = el.dataset.v; renderSet(); },
+  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); },
   setClose: () => closeSettings(),
   setTheme: (el) => { setTheme(el.dataset.v); render(); },
   setHud: () => toggleHud(),
