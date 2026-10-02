@@ -17,15 +17,15 @@
 .g-fp{width:var(--gd)}
 .g-fp svg{display:block;width:100%;height:auto}
 .g-over{position:absolute;left:8px;top:8px;width:var(--gd);height:var(--gd);overflow:visible;pointer-events:none}
-.g-ring0{fill:none;stroke:var(--ink-3);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
+.g-ring0{fill:none;stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
 .g-ticks{stroke:var(--ink-3);stroke-width:1.2;opacity:0}
+/* 扫掠扇形：跟在指针（fp2SVG 的 .fp-needle，由 js 逐帧写 transform）身后转一圈 */
 .g-hand{transform-origin:200px 200px;transform-box:view-box;opacity:0}
-.g-hand line{stroke:var(--ink-1);stroke-width:1.4;stroke-linecap:round}
 .g-wedge{fill:var(--ink-1);opacity:.07}
 .gen:not(.run) .g-over{display:none}
-.gen.run .g-fp .g-base,.gen.run .g-fp .g-band,.gen.run .g-fp .g-core,.gen.run .g-fp .fps,.gen.run .g-fp text{opacity:0}
-.gen .g-fp .fps{transform-origin:200px 200px;transform-box:view-box}
-/* 生长：雷达（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
+.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-compass,.fp-ax,.fps){opacity:0}
+.gen .g-fp :is(.fps,.fp-core,.fp-compass){transform-origin:200px 200px;transform-box:view-box}
+/* 生长：罗盘玫瑰主角（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
 .gen .pet{transform-origin:200px 200px;transform-box:view-box;animation:grow .6s var(--ease) var(--g-grow,0ms) both}
 .gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
 .gen.skip,.gen.skip *{animation:none!important}
