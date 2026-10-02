@@ -1,5 +1,8 @@
 -- install: plans (re-buildable, swept after 30 days), the append-only ledger and per-install
--- lifecycle state. ts / *_at columns are epoch milliseconds; JSON columns are compact UTF-8.
+-- lifecycle state. inv_id/catalog_item_id link a written target to its inventory item and
+-- catalog entry (features' linked inventory reads them as method=ledger); InstallService adds
+-- them to ledgers created before they existed.
+-- ts / *_at columns are epoch milliseconds; JSON columns are compact UTF-8.
 CREATE TABLE IF NOT EXISTS install_plan (
   plan_id TEXT PRIMARY KEY,
   source_type TEXT NOT NULL,
@@ -36,7 +39,9 @@ CREATE TABLE IF NOT EXISTS install_ledger (
   blob_ref TEXT,
   evidence_refs TEXT,
   tracking_id TEXT,
-  note TEXT
+  note TEXT,
+  inv_id TEXT,
+  catalog_item_id TEXT
 ) STRICT;
 CREATE INDEX IF NOT EXISTS install_ledger_install ON install_ledger(install_id, ts);
 CREATE INDEX IF NOT EXISTS install_ledger_ts ON install_ledger(ts DESC);

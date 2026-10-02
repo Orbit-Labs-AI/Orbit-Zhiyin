@@ -133,8 +133,8 @@ def _from_catalog(item: dict, *, cache_dir, fetcher, allow_network: bool) -> tup
     source = item.get("source")
     lic = _license(item.get("license"))
     base = {"kind": kind, "id": slug(item["id"]), "title": name, "agents": item.get("agents"),
-            "source": {"type": "catalog", "id": item["id"], "template": None, "license": lic,
-                       "sha256": (source or {}).get("sha256")}}
+            "source": {"type": "catalog", "id": item["id"], "catalog_item_id": item["id"], "template": None,
+                       "license": lic, "sha256": (source or {}).get("sha256")}}
     install = item.get("install") or {}
     if kind in ("mcp", "plugin", "hook"):
         payload = install.get(kind) if isinstance(install, dict) else None
