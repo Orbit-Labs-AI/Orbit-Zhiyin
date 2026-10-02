@@ -73,11 +73,12 @@ def _session_rows(
             scope,
             complete_models,
         )
+        tool_status = bundle.coverage.get("tool_calls", {}).get("status", "partial")
+        # Partial dataset coverage is about pairing quality of observed calls; a session whose
+        # own calls were read and are empty observed zero calls (null is for unavailable data).
         data["tools"] = tool_summary(
-            root_calls, bundle.coverage.get("tool_calls", {}).get("status", "partial")
+            root_calls, "available" if root_calls == [] and tool_status == "partial" else tool_status
         )
-        if root_calls == [] and data["tools"]["status"] != "available":
-            data["features"]["tool_call_count"] = None
         data["instruction"] = {
             "schema_version": INSTRUCTION_VERSION,
             "records": instruction_groups[sid] if instruction_available else None,

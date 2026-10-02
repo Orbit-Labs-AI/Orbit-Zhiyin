@@ -347,3 +347,13 @@ def test_api_all_surfaces_validation_scope_and_cli_json(tmp_path, capsys):
     r = json.loads(output.read_text())
     assert r["overview"]["counts"]["human_messages"] == 1
     assert "主会话" in capsys.readouterr().out
+
+
+def test_partial_tool_coverage_session_without_calls_counts_zero():
+    """a1a3-B9: a session with no tool calls under partial pairing coverage has 0, not null."""
+    raw = {"input_contract": "analysis-input-v1", "sessions": [session()], "events": [event()],
+           "tool_calls": [], "model_calls": [], "coverage": {"tool_calls": {"status": "partial"}}}
+    result = analyze_bundle(AnalysisInputBundle.from_dict(raw), with_text=False)
+    row = result["sessions"][0]
+    assert row["features"]["tool_call_count"] == 0
+    assert row["tools"]["totals"]["call_count"] == 0
