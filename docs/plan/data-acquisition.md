@@ -177,9 +177,9 @@ Demo 各页需要的数据与来源：
 - **权威来源只有 `state.db`**（SQLite；日志模式默认 WAL，但链接的 SQLite 有 WAL 缺陷时会保持 DELETE 模式，两种都要支持，WAL 模式下必须连同 `-wal` 一起读）：`sessions`（含 `parent_session_id`、`model`、`model_config`、`end_reason`、token 与成本）、`messages`、`session_model_usage`（按会话 × 模型 × 供应商 × 计费方式 × 任务累计；`task=''` 是主循环，其余是压缩、标题生成等辅助调用，正好对应 `model_call.purpose`）。`sessions/*.json(l)`、`pending_messages/` 只在故障时出现，作补充。
 - **顺序与身份**：一律按 `messages.id` 排序（时间戳可能回退）；会话 ID 形如本地时区的 `YYYYMMDD_HHMMSS_<hex>`（ACP 会话为 uuid4），只当标识用，时间取 `sessions.started_at`，不要从 ID 解析；`message_uid` 在压缩代际、分支拷贝中保持不变，是跨行去重的键；工具调用 ID 可能重复，用 `tool_call_uid` 区分。
 - **压缩、回退、分支都保留旧行**：就地压缩把被摘要替代的旧行改为 `active=0, compacted=1`，保留下来的尾部原行改为 `active=0, compacted=0` 并以同 `message_uid` 的新行重新插入，再加一条摘要行；rewind、编辑、重新生成把分歧后的行软删除（`active=0`）；`/branch` 新建子会话并拷贝完整历史（新 `id`、同 `message_uid`）。连接器要读**包括非活跃行在内的全部行**，分别映射为 `context.compaction` 与 `branch`，这样才不丢信息。
-- **子代理**：`delegate_task` 新建子会话（`parent_session_id` 与 `model_config._delegate_from` 指向父会话；`source` 通常是 `subagent`，但在 gateway 回合下会继承 gateway 的来源，所以以 `_delegate_from` 判断），用量记在子会话上；异步委派完成时以一条 user 消息写回父会话。
+- **子代理**：`delegate_task` 新建子会话（`parent_session_id` 与 `model_config._delegate_from` 指向父会话；`source` 取自会话上下文，消息平台下是 `subagent`，TUI、Desktop、kanban 下会继承父会话的来源，所以以 `_delegate_from` 判断；压缩轮转出的延续会话也带着指向最初父会话的 `_delegate_from`，要与 `parent_session_id` 比对），用量记在子会话上；异步委派完成时以一条 user 消息写回父会话。
 - **审批**：不落事件。用户拒绝的命令是普通的工具结果 `{"status": "blocked", "user_summary": …}`，`permission.decision` 要从工具结果推断。
-- **跨 Agent 导入**：Hermes 能导入 Claude Code 与 Codex 的会话，与 Codex 一样要识别导入会话并链接原会话，避免重复计入。
+- **跨 Agent 导入**：Hermes 能导入 Claude Code 与 Codex 的会话，与 Codex 一样要识别导入会话并链接原会话，避免重复计入。导入只保留文本（工具调用压成 `[ran tool: <name>]`），CLI 导入不查重，所以要按文本内容与原会话比对。
 - **其他**：`sessions.auto_prune` 默认开启，已结束且 90 天不活跃的会话会被删除，和 Claude Code 的 30 天清理一样需要提前归档；超大工具输出放在 `cache/spillover/<tool_call_id>.txt`，24 小时后过期，需要及时归档；`logs/agent.log` 有每次 API 调用的耗时与 token，可作补充；`$HERMES_HOME/.env` 存密钥，连接器不读。
 
 #### Antigravity（P1：明文转录 + 摘要库；P2：protobuf 用量）
