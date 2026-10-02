@@ -4,14 +4,17 @@ Imported by the test modules (not a conftest, so platform-core can own that file
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
 import pytest
 
+import tandem_backend.platform.notify  # noqa: F401
 from tandem_backend.appdb import AppDB
-from tandem_backend.platform import notify
 from tandem_backend.services.events import EventBus
 from tandem_backend.services.jobs import AppState, JobConflict
+
+notify = sys.modules["tandem_backend.platform.notify"]  # package attr `notify` is a function
 
 
 class Clock:

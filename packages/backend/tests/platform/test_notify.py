@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from notify_fake import clock, gw  # noqa: E402,F401
 
-from tandem_backend.platform import notify  # noqa: E402
+notify = sys.modules["tandem_backend.platform.notify"]  # package attr `notify` is a function
 from tandem_backend.platform.notify import Notifier  # noqa: E402
 
 

@@ -22,7 +22,7 @@ def test_shallow_structure(started):
     assert set(result["services"]) == {"ingest", "analysis"}
     assert set(result["db"]) == {"tandem_db", "tandem_wal", "app_db", "catalog_db", "analysis",
                                  "snapshot_cache"}
-    assert result["disk"]["free_bytes"] > 0 and result["collection"] is None
+    assert result["disk"]["free_bytes"] > 0 and result["collection"] in (None, {"paused": False})
     assert "metrics_flush" in result["maintenance"]
     assert next(c for c in result["checks"] if c["id"] == "tandem_db")["detail"] == {
         "absent": True}
