@@ -1,3 +1,4 @@
+import json
 import shlex
 
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
@@ -6,7 +7,7 @@ from tandem_data.duration import native_duration_ms
 
 
 def select_history(store, mappers):
-    """Match native history_base file identities; excluded branches remain in L1."""
+    """Select native branches and exact mirrors without deleting their L0/L1 evidence."""
     import re
     from collections import defaultdict
     from pathlib import Path
@@ -21,18 +22,71 @@ def select_history(store, mappers):
                 if record.data.get("table") == "threads":
                     row = record.data["row"]
                     active_paths[(record.source_id, str(row.get("id")))] = row.get("rollout_path")
-        if mapper.header.get("id"):
-            groups[(mapper.info["source_id"], str(mapper.header["id"]))].append(mapper)
+        native = mapper.header.get("id", mapper.header.get("session_id"))
+        if native:
+            groups[(mapper.info["source_id"], str(native))].append(mapper)
     for identity, members in groups.items():
+        # A second path is not a second occurrence when the entire decoded file
+        # and native session identity agree. Repeated lines inside that file are
+        # still separate occurrences. Do not use text equality or a prefix match.
+        identical = defaultdict(list)
+        for mapper in members:
+            watermark = json.loads(mapper.info["watermark"])
+            digest = watermark.get("source_sha256")
+            if digest and mapper.info["format"] in ("jsonl", "jsonl_zstd"):
+                identical[(digest, mapper.info["role"])].append(mapper)
+        for copies in identical.values():
+            if len(copies) < 2:
+                continue
+            current_path = active_paths.get(identity)
+
+            def rank(mapper, current_path=current_path, native_id=identity[1]):
+                watermark = json.loads(mapper.info["watermark"])
+                name = Path(mapper.info["relative_path"]).name.removesuffix(".zst")
+                current = current_path and name == Path(current_path).name.removesuffix(".zst")
+                stem = name.removesuffix(".jsonl")
+                native_name = stem == native_id or stem.endswith("-" + native_id)
+                published = watermark.get("projected_revision") is not None
+                return (
+                    not current,
+                    not native_name,
+                    not (published and not watermark.get("mirror_file_id")),
+                    mapper.info["relative_path"],
+                )
+
+            original = min(copies, key=rank)
+            for copy in copies:
+                if copy is not original:
+                    copy.mirror_file_id = original.info["file_id"]
+        # Retain the representative across rebuilds, even if a newly discovered
+        # copy sorts before it. A diverging file is no longer marked as a mirror.
+        for mapper in members:
+            mirror = getattr(mapper, "mirror_file_id", None)
+            if json.loads(mapper.info["watermark"]).get("mirror_file_id") == mirror:
+                continue
+            if mirror:
+                store.db.execute(
+                    "UPDATE source_file SET watermark=json_set(watermark,'$.mirror_file_id',?) WHERE file_id=?",
+                    (mirror, mapper.info["file_id"]),
+                )
+            else:
+                store.db.execute(
+                    "UPDATE source_file SET watermark=json_remove(watermark,'$.mirror_file_id') WHERE file_id=?",
+                    (mapper.info["file_id"],),
+                )
+        all_members = members
+        members = [m for m in members if not getattr(m, "mirror_file_id", None)]
         if len(members) < 2 or not any(m.header.get("history_base") for m in members):
             continue
         aliases = {}
-        for mapper in members:
+        for mapper in all_members:
             stem = (
                 Path(mapper.info["relative_path"]).name.removesuffix(".zst").removesuffix(".jsonl")
             )
             ids = re.findall(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}", stem)
-            aliases[ids[-1] if ids else stem.removeprefix("rollout-")] = mapper
+            aliases[ids[-1] if ids else stem.removeprefix("rollout-")] = mappers.get(
+                getattr(mapper, "mirror_file_id", None), mapper
+            )
         parents = {}
         for mapper in members:
             base = mapper.header.get("history_base") or {}

@@ -51,6 +51,7 @@ def run(output):
         expected_unknown=0,
         expected_pending=0,
         layers=None,
+        expected_counts=None,
     ):
         before = {
             str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob("*.jsonl")
@@ -91,6 +92,10 @@ def run(output):
         if layers is not None:
             checks["logical_layers_equal"] = layers == section_digests(home)
             checks["no_changed_files"] = imported["changed"] == 0
+        if expected_counts is not None:
+            checks["exact_file_copy_preserves_analysis_counts"] = (
+                analysis["overview"]["counts"] == expected_counts
+            )
         folder = output / name
         folder.mkdir()
         grouped = diagnostics(analysis, recs, loaded.items)
@@ -112,6 +117,7 @@ def run(output):
         report["cases"].append(row)
         save(output / "summary.json", report)
         print(json.dumps(row, ensure_ascii=False), flush=True)
+        return row
 
     try:
         for name, tail, unparsed, unknown in (
@@ -137,7 +143,7 @@ def run(output):
             original = path.read_text()
             path.write_text(original + tail)
             home = output / f"data-{name}"
-            measure(
+            measured = measure(
                 name,
                 source,
                 home,
@@ -153,6 +159,10 @@ def run(output):
                 stat = path.stat()
                 os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1000000))
                 measure("mtime_only", source, home, layers=layers)
+                path.with_name("demo-0-copy.jsonl").write_bytes(path.read_bytes())
+                measure(
+                    "exact_file_copy", source, home, expected_counts=measured["analysis_counts"]
+                )
         report["status"] = (
             "passed" if all(r["status"] == "passed" for r in report["cases"]) else "failed"
         )
