@@ -3,6 +3,7 @@
 from urllib.parse import quote
 
 from ..analytics.recommendations.catalog import digest
+from .benefit import estimate_benefit
 
 KINDS = {"rules_prompts": "prompt", "skills": "skill", "plugins": "plugin", "mcp": "mcp",
          "hooks": "hook", "model_configs": "model_config", "workflows": "workflow"}
@@ -40,6 +41,11 @@ def explain_candidate(row):
                         "intervention": item.capability.model_dump(), "expected_effect": item.expected_effect.model_dump(),
                         "pending_requirements": pending},
         "hypothesis": signal["hypothesis"], "effect_status": "unmeasured", "source": source,
+        "preference_explanation": {"matches": features["preference_matches"],
+                                   "conflicts": state.preference_state.get("conflicts", []),
+                                   "precedence": state.preference_state.get("precedence")},
+        "benefit_estimate": estimate_benefit(item, matched, state.context_state.benefit_scenarios,
+                                            conditions=pending + (["agent_adaptation"] if decision.compatibility == "adaptation_required" else [])),
         "summary": item.capability.text, "setup_steps": (["先确认以下条件：" + "、".join(pending)] if pending else []) + item.action.setup_steps,
         "preview": item.action.preview, "limitations": item.action.limitations, "trial": item.action.trial,
         "evaluation_plan": {"target_metrics": sorted({m for s in matched for m in s["evaluation_metrics"]}),
