@@ -36,6 +36,21 @@ SESSION_FIELDS = ("id", "title", "project_id", "project", "model", "started_at",
 NO_DATABASE = {"freshness": "none", "reason": "no_projection"}
 
 
+def disambiguate_names(items: list[dict]) -> list[dict]:
+    """Suffix names used by several projects with the parent folder (or Git owner).
+    ``key``/``key_type`` are dropped: paths stay in the local ledger."""
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item["name"]] = counts.get(item["name"], 0) + 1
+    for item in items:
+        key, key_type = item.pop("key"), item.pop("key_type")
+        if counts[item["name"]] > 1 and key_type != "bucket":
+            parts = [p for p in key.replace("\\", "/").split("/") if p]
+            if len(parts) >= 2:
+                item["name"] = f"{item['name']} ({parts[-2]})"
+    return items
+
+
 class NoDatabase(ApiError):
     """tandem.db does not exist yet (nothing imported). Routes that do not read with
     ``empty=True`` keep answering 503 ``no_projection``."""
@@ -270,14 +285,23 @@ def router(gw: Gateway) -> APIRouter:
         return served(request, produce)
 
     @api.get("/v1/projects")
-    def projects(request: Request):
+    def projects(request: Request, include_empty: bool = False):
+        """Projects by session attribution. ``sessions`` counts main sessions, the same set
+        ``/v1/sessions?project_id=`` lists by default; ``sessions_all`` counts every kind.
+        Projects without any session (only event-level attribution) are hidden unless
+        ``include_empty``. Names shared by several projects get their parent folder."""
+
         def produce(db):
             rows = db.execute(
-                "SELECT p.project_id,p.name,COUNT(s.session_uid) AS sessions,"
+                "SELECT p.project_id,p.name,p.key_type,p.key,"
+                " COUNT(s.session_uid) FILTER (WHERE s.kind='main') AS sessions,"
+                " COUNT(s.session_uid) AS sessions_all,"
                 " MAX(s.started_at) AS last_started_at FROM project p"
                 " LEFT JOIN session s ON s.project_id=p.project_id"
-                " GROUP BY p.project_id ORDER BY sessions DESC, p.project_id").fetchall()
-            return [dict(r) for r in rows]
+                " GROUP BY p.project_id ORDER BY sessions DESC, sessions_all DESC, p.project_id"
+            ).fetchall()
+            items = [dict(r) for r in rows if include_empty or r["sessions_all"]]
+            return disambiguate_names(items)
 
         return served(request, produce)
 
