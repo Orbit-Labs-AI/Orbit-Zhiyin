@@ -48,7 +48,7 @@ uv build --project packages/data
 git diff --check
 ```
 
-实际日志、数据库、归档都保留在本机的 `.tandem/`，不提交。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不采集 Catalog。安装清单通过显式 `scan-inventory` 接入，见 [本机安装清单](../../docs/backend/local-inventory.md)。
+实际日志、数据库、归档都保留在本机的 `.tandem/`，不提交。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不采集 Catalog。七个内置 Agent 均支持通过显式 `scan-inventory --agent <agent> --root <配置根>` 接入安装清单，见 [本机安装清单](../../docs/backend/local-inventory.md)。
 
 ## 六类 Agent connector 与 App 模块
 
