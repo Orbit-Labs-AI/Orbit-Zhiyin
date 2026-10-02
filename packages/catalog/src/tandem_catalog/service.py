@@ -46,6 +46,7 @@ class CatalogService:
         self._jobs_lock = threading.Lock()
         self._jobs = {}
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tandem-catalog")
+        self.on_job_done = None  # Optional callback(job) for telemetry (set by the gateway).
 
     def encoder(self):
         with self._model_lock:
@@ -134,8 +135,21 @@ class CatalogService:
         known = {s["source_id"] for s in self.store.sources()}
         if set(request.source_ids) - known:
             raise ValueError("unknown_source")
-        return self._submit("sync", lambda cancel: CatalogSync(self.store, self.http).sync(
-            request.source_ids, force=request.force, max_pages=request.max_pages, cancelled=cancel))
+        http = self.http
+        if (request.offline or request.ttl is not None) and isinstance(http, HttpClient):
+            # Same cache file, per-run policy; the shared client keeps its defaults.
+            http = HttpClient(http.cache_dir, github_token=http.github_token, offline=request.offline,
+                              ttl=request.ttl, opener=http.opener)
+
+        def run(cancel):
+            try:
+                return CatalogSync(self.store, http).sync(request.source_ids, force=request.force,
+                                                          max_pages=request.max_pages, cancelled=cancel,
+                                                          concurrency=request.concurrency)
+            finally:
+                if http is not self.http:
+                    http.close()
+        return self._submit("sync", run)
 
     def start_embeddings(self, max_chunks: int | None = None) -> dict:
         if not self.model_dir and self._encoder is None:
@@ -158,6 +172,7 @@ class CatalogService:
         def run():
             with self._jobs_lock:
                 job["status"] = "running"
+            started = time.perf_counter()
             try:
                 result = operation(job["cancel"].is_set)
                 failed = kind == "sync" and any(r["status"] == "failed" for r in result)
@@ -166,6 +181,13 @@ class CatalogService:
             except Exception as exc:
                 with self._jobs_lock:
                     job.update(status="failed", error=str(exc)[:200] if isinstance(exc, (ValueError, RuntimeError)) else type(exc).__name__)
+            with self._jobs_lock:
+                job["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
+            if self.on_job_done is not None:
+                try:
+                    self.on_job_done(self.job(job["job_id"]))
+                except Exception:  # noqa: BLE001 - telemetry never fails a job.
+                    pass
         self._executor.submit(run)
         return self.job(job["job_id"])
 

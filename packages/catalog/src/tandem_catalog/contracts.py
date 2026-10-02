@@ -127,3 +127,6 @@ class SyncRequest(Contract):
     source_ids: list[str] = Field(default_factory=list, max_length=30)
     max_pages: int = Field(default=10000, ge=1, le=10000)
     force: bool = False
+    concurrency: int = Field(default=3, ge=1, le=8)
+    offline: bool = False  # Answer only from the local HTTP cache (no network).
+    ttl: int | None = Field(default=None, ge=0, le=7 * 86400)  # Seconds a cached response is trusted unrevalidated.
