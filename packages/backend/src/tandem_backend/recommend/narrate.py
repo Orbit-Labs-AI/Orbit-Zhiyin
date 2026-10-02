@@ -340,8 +340,8 @@ def _sessions(cand: dict) -> int:
     else the uids we carry."""
     problem = cand.get("problem") or {}
     evidence = cand.get("evidence") or {}
-    return int(problem.get("sessions") or (evidence.get("counts") or {}).get("sessions")
-               or len(evidence.get("session_uids") or ()))
+    counted = int(problem.get("sessions") or (evidence.get("counts") or {}).get("sessions") or 0)
+    return max(counted, len(evidence.get("session_uids") or ()))  # never fewer than A3 will open
 
 
 def _ev(cand: dict, sessions: int, uids: list) -> str:

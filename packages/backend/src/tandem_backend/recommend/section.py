@@ -150,6 +150,24 @@ def unwrap_command(command, depth: int = 0) -> str | None:
     return None
 
 
+SHORT = {"git": 2, "uv": 2, "pnpm": 2, "npm": 2, "docker": 2, "yarn": 2, "cargo": 2, "go": 2, "kubectl": 2,
+         "gh": 3}
+
+
+def short_head(head: str | None) -> str | None:
+    """The 1–3 word head used for sequences (``git status``, ``gh pr view``, ``pytest``)."""
+    words = (head or "").split()
+    return " ".join(words[:SHORT.get(words[0], 1)]) if words else None
+
+
+def _sequence_head(head: str | None, command) -> str | None:
+    """Stored heads as they are; an unwrapped command shortened to its 1–3 word head."""
+    real = real_head(head, command)
+    if real != head:
+        return short_head(real)
+    return " ".join(head.split()) if head else None
+
+
 def real_head(head: str | None, command=None) -> str | None:
     """``command_head`` unless it is a wrapper and the input command unwraps to something real."""
     if command is not None and (head is None or head in WRAPPER_HEADS):
@@ -478,10 +496,18 @@ def _classify_failures(conn, uids, root_of, failures) -> None:
 def _call_sequences(conn, uids, root_of) -> dict:
     """Per root: ordered (is_edit, head, failed, digest) tuples for sequence facts."""
     by_root: dict[str, list] = defaultdict(list)
-    for uid, name, head, status, digest in conn.execute(
+    wrappers = ",".join("?" * len(WRAPPER_HEADS))
+    try:
+        rows = conn.execute(
+            f"SELECT t.session_uid, t.name, t.command_head, t.status, t.argument_digest, "
+            f"{_INPUT.format(wrappers=wrappers)} FROM tool_call t "
+            f"WHERE t.session_uid IN {UIDS} ORDER BY t.started_at, t.rowid", (*WRAPPER_HEADS, uids)).fetchall()
+    except Exception:  # noqa: BLE001 - older stores: plain heads
+        rows = [(*row, None) for row in conn.execute(
             f"SELECT session_uid, name, command_head, status, argument_digest FROM tool_call "
-            f"WHERE session_uid IN {UIDS} ORDER BY started_at, rowid", (uids,)):
-        head = " ".join(head.split()) if head else None
+            f"WHERE session_uid IN {UIDS} ORDER BY started_at, rowid", (uids,))]
+    for uid, name, head, status, digest, command in rows:
+        head = _sequence_head(head, command)
         by_root[root_of.get(uid, uid)].append((name in EDIT_TOOLS, head, status in FAILED, digest))
     return by_root
 
@@ -718,11 +744,20 @@ def _calls_by_root(conn, root_of: dict) -> dict[str, list[dict]]:
         "session_uid", "name", "command_head", "status", "files", "started_at", "ended_at",
         "duration_ms"))
     calls: dict[str, list[dict]] = defaultdict(list)
-    for uid, name, head, status, files, start, end, duration in conn.execute(
+    command = (_INPUT.format(wrappers=",".join("?" * len(WRAPPER_HEADS)))
+               if {"call_event_uid", "kind"} <= cols else "NULL")
+    params = (*WRAPPER_HEADS, uids) if command != "NULL" else (uids,)
+    try:
+        rows = conn.execute(f"SELECT {pick}, {command} FROM tool_call t WHERE t.session_uid IN {UIDS} "
+                            f"ORDER BY COALESCE(t.started_at, 0), t.rowid", params).fetchall()
+    except Exception:  # noqa: BLE001 - no event table: plain heads
+        rows = [(*row, None) for row in conn.execute(
             f"SELECT {pick} FROM tool_call WHERE session_uid IN {UIDS} "
-            f"ORDER BY COALESCE(started_at, 0), rowid", (uids,)):
+            f"ORDER BY COALESCE(started_at, 0), rowid", (uids,))]
+    for uid, name, head, status, files, start, end, duration, wrapped in rows:
+        head = _sequence_head(head, wrapped)
         calls[root_of.get(uid, uid)].append({
-            "name": name, "head": " ".join(head.split()) if head else None, "status": status,
+            "name": name, "head": head, "status": status,
             "files": _files(files), "start": start, "end": end or start, "duration": duration})
     return calls
 

@@ -85,3 +85,13 @@ def test_denied_heads_never_become_allowlist_candidates():
     out = {p["key"]: p for p in problems.build({"sessions": {"main": 20, "weeks": 2}, "facts": facts})}
     perm = out["would_prompt:readonly_shell"]
     assert perm["vars"]["head_list"] == ["git status"] and perm["sessions"] == 6
+
+
+def test_sequences_see_unwrapped_short_heads(tmp_path):
+    store, rows = _db(tmp_path)
+    root_of = {r["session_uid"]: r["session_uid"] for r in rows}
+    with store.connect() as conn:
+        seqs = section._call_sequences(conn, json.dumps(sorted(root_of)), root_of)
+        calls = section._calls_by_root(conn, root_of)
+    assert [head for _, head, _, _ in seqs["s0"]][:2] == ["git status", "ls"]
+    assert [call["head"] for call in calls["s0"]][:3] == ["git status", "ls", "wrangler"]
