@@ -110,6 +110,7 @@ class ExecutionRecord(Contract):
     environment_digest: Digest | None = None
     check_definition_digest: Digest | None = None
     intervention_digest: Digest | None = None
+    skill_body_digest: Digest | None = None
     run_log_digest: Digest | None = None
     model_id: str
     reasoning_effort: str

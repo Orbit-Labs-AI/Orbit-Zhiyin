@@ -31,7 +31,7 @@ from tandem_backend.recommend.service import recommend
 
 from .contracts import METHODS, NONE_ACTION, ExecutionRecord, TemporalSample
 from .metrics import forward_utility, recommendation_quality
-from .score import bind_measurements, freeze_study, read_study
+from .score import bind_measurements, catalog_body_digests, freeze_study, read_study
 from .temporal import DAY_MS, digest_id, episode_index, history_scope, make_sample, rolling_anchors
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -353,6 +353,9 @@ def run(
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
     context = context or {"agent": "codex"}
     loaded = load_catalog(items=json.loads(CATALOG.read_text())["items"])
+    catalog_snapshot = {"schema_version": "recommendation-catalog-v1", "family": "skills", "items": [item.model_dump(mode="json") for item in loaded.items]}
+    bodies = catalog_body_digests(catalog_snapshot)
+    save(output / "skill-catalog.json", catalog_snapshot)
     wait_for_maintenance(home)
     if wrong_user_home is not None:
         wait_for_maintenance(wrong_user_home)
@@ -376,6 +379,7 @@ def run(
             "Exact pre-task repository snapshots and paired control executions are not supplied.",
             "Raw-history/profile LLM baselines are prepared locally; external history transmission is not authorized.",
             "Installed resources, tools and permissions are unknown unless supplied in context.",
+            "Retrospective replay fixes the current reviewed catalog and model; their availability at the historical anchor is not established.",
         ],
     }
     save(output / "summary.json", report)
@@ -546,6 +550,8 @@ def run(
                 },
                 "ours_rankings": rankings,
                 "plausible_actions": [NONE_ACTION, *[i.identity.id for i in loaded.items]],
+                "skill_body_digests": bodies,
+                "resource_availability": "retrospective replay using a fixed current catalog; historical availability unproven",
                 "raw_history_llm": {
                     "status": "not_executed",
                     "model": "gpt-6.1-sol",

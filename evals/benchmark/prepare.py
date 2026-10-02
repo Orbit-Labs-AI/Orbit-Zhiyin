@@ -95,6 +95,7 @@ def run(study, output, *, expected_manifest_digest=None):
                                 "method": method,
                                 "purpose": "method_comparison",
                                 "action_id": action,
+                                "expected_skill_body_digest": plan["skill_body_digests"].get(action),
                                 "seed": seed,
                                 "budget": {
                                     "total_tokens": budget,
@@ -114,6 +115,7 @@ def run(study, output, *, expected_manifest_digest=None):
                         "method": "oracle",
                         "purpose": "action_sweep",
                         "action_id": action,
+                        "expected_skill_body_digest": plan["skill_body_digests"].get(action),
                         "seed": config["seeds"][0],
                         "budget": {
                             "total_tokens": 10000,

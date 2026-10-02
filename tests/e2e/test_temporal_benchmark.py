@@ -62,6 +62,7 @@ def execution(api, s, uid, method, *, passed=True, action=None, **updates):
         "environment_digest": "c" * 64,
         "check_definition_digest": "d" * 64,
         "intervention_digest": "e" * 64,
+        "skill_body_digest": None if method == "no_recommendation" else "1" * 64,
         "run_log_digest": "f" * 64,
         "model_id": "fictional-model",
         "reasoning_effort": "medium",
@@ -390,6 +391,7 @@ def test_later_reviews_only_change_evaluation_and_actions_match_frozen_predictio
         "common_execution": config,
         "generic_policy": {"action": "skill-a"},
         "ours_rankings": {s.sample_id: ["skill-a"]},
+        "skill_body_digests": {"skill-a": "1" * 64},
     }
     review = c.TaskReview(
         task_uid="task-0",
@@ -405,6 +407,11 @@ def test_later_reviews_only_change_evaluation_and_actions_match_frozen_predictio
     records = [execution(api, s, "task-0", method) for method in ("no_recommendation", "ours")]
     reviewed, issues, ids = score.bind_measurements([s], plan, records, [review])
     assert not issues and ids == {"task-0"}
+    for body in (None, "2" * 64):
+        changed = execution(api, s, "task-0", "ours", skill_body_digest=body)
+        assert "execution_skill_body_differs_from_frozen_catalog" in {
+            i["code"] for i in score.bind_measurements([s], plan, [changed], [review])[1]
+        }
     assert reviewed[0].future_tasks[0].review_status == "independent_human_reviewed"
     assert s.future_tasks[0].review_status == "unreviewed"
     wrong = execution(api, s, "task-0", "ours", action="skill-b")
@@ -498,11 +505,13 @@ def test_frozen_manifest_coverage_pin_and_unactionable_forecast_are_enforced(
         "generic_policy": {"action": "skill-a"},
         "ours_rankings": {s.sample_id: ["skill-a"]},
         "plausible_actions": [api[0].NONE_ACTION, "skill-a"],
+        "skill_body_digests": {"skill-a": "1" * 64},
     }
     for path, value in (
         (study / "samples.json", [s.model_dump()]),
         (study / "method-plan.json", plan),
         (study / "episode-index.json", {}),
+        (study / "skill-catalog.json", {"schema_version": "recommendation-catalog-v1", "family": "skills", "items": [{"identity": {"id": "skill-a", "name": "fictional-skill", "version": "f" * 40}, "family": "skills", "source": {"origin": "github", "status": "verified", "url": "https://example.invalid/fictional", "source_path": "SKILL.md", "verified_sha": "f" * 40, "blob_sha": "b" * 40, "content_sha256": "1" * 64}}]}),
         (folder / "input-manifest.json", {}),
         (folder / "representation-inputs.json", {}),
         (
@@ -532,8 +541,17 @@ def test_frozen_manifest_coverage_pin_and_unactionable_forecast_are_enforced(
     assert "prediction_not_actionable_at_anchor_requires_new_contextual_study" in {
         i["code"] for i in result["issues"]
     }
+    # Editing and re-signing a catalog still cannot silently change the registered body.
+    catalog = json.loads((study / "skill-catalog.json").read_text())
+    catalog["items"][0]["source"]["content_sha256"] = "2" * 64
+    (study / "skill-catalog.json").write_text(json.dumps(catalog))
+    with pytest.raises(ValueError, match="artifact changed"):
+        score.read_study(study)
+    score.freeze_study(study)
+    with pytest.raises(ValueError, match="Skill body differs"):
+        score.read_study(study)
     (study / "study-manifest.json").write_text(
-        json.dumps({"schema_version": "frozen-benchmark-study-v1", "artifacts": {}})
+        json.dumps({"schema_version": "frozen-benchmark-study-v2", "artifacts": {}})
     )
     with pytest.raises(ValueError, match="artifact coverage"):
         score.read_study(study)

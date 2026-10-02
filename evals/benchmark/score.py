@@ -8,11 +8,38 @@ import re
 from pathlib import Path
 
 from evals.analytics.robustness import save
+from tandem_backend.recommend.contracts import CatalogEnvelope, RecommendationItem
 
 from .contracts import NONE_ACTION, ExecutionRecord, TaskReview, TemporalSample
 from .metrics import forward_utility, recommendation_quality, validate_records
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def catalog_body_digests(envelope):
+    """Bind each action to its reviewed immutable source and parsed Skill body."""
+    catalog = CatalogEnvelope.model_validate(envelope)
+    if catalog.family != "skills" or not catalog.items:
+        raise ValueError("Frozen benchmark catalog must contain Skills")
+    expected = {}
+    for raw in catalog.items:
+        item = RecommendationItem.model_validate(raw)
+        source = item.source
+        if (
+            item.family != "skills"
+            or not item.identity.version
+            or source.origin != "github"
+            or source.status != "verified"
+            or not source.url
+            or not source.source_path
+            or any(not value or not re.fullmatch(r"[0-9a-f]{40}", value) for value in (source.verified_sha, source.blob_sha))
+            or not source.content_sha256
+            or not re.fullmatch(r"[0-9a-f]{64}", source.content_sha256)
+            or item.identity.id in expected
+        ):
+            raise ValueError("Frozen Skill needs a unique identity, version and immutable source body")
+        expected[item.identity.id] = source.content_sha256
+    return expected
 
 
 def file_digest(path):
@@ -25,7 +52,7 @@ def file_digest(path):
 
 def freeze_study(output):
     output = Path(output)
-    names = ["samples.json", "method-plan.json", "episode-index.json"]
+    names = ["samples.json", "method-plan.json", "episode-index.json", "skill-catalog.json"]
     for path in sorted(output.glob("anchor-*/input-manifest.json")):
         if not path.parent.name.endswith("-future"):
             names.extend(
@@ -36,7 +63,7 @@ def freeze_study(output):
                 ]
             )
     manifest = {
-        "schema_version": "frozen-benchmark-study-v1",
+        "schema_version": "frozen-benchmark-study-v2",
         "artifacts": {name: file_digest(output / name) for name in names},
         "meaning": "Forecasts and sampling remain immutable; later human reviews and measurements are separate inputs.",
     }
@@ -54,9 +81,9 @@ def read_study(study, *, expected_manifest_digest=None):
     manifest = json.loads((study / "study-manifest.json").read_text())
     artifacts = manifest.get("artifacts")
     if (
-        manifest.get("schema_version") != "frozen-benchmark-study-v1"
+        manifest.get("schema_version") != "frozen-benchmark-study-v2"
         or not isinstance(artifacts, dict)
-        or not {"samples.json", "method-plan.json", "episode-index.json"} <= set(artifacts)
+        or not {"samples.json", "method-plan.json", "episode-index.json", "skill-catalog.json"} <= set(artifacts)
         or any(
             not isinstance(v, str) or not re.fullmatch(r"[0-9a-f]{64}", v)
             for v in artifacts.values()
@@ -73,6 +100,14 @@ def read_study(study, *, expected_manifest_digest=None):
     if len({s.sample_id for s in samples}) != len(samples):
         raise ValueError("Frozen study has repeated sample identities")
     plan = json.loads((study / "method-plan.json").read_text())
+    bodies = catalog_body_digests(json.loads((study / "skill-catalog.json").read_text()))
+    actions = plan.get("plausible_actions", [])
+    if (
+        plan.get("skill_body_digests") != bodies
+        or len(actions) != len(set(actions))
+        or set(actions) != {NONE_ACTION, *bodies}
+    ):
+        raise ValueError("Frozen action set or Skill body differs from its catalog snapshot")
     actionability = {}
     for sample in samples:
         name = (
@@ -139,6 +174,11 @@ def bind_measurements(samples, plan, measurements, reviews, *, actionability=Non
             reviewed.add(task.task_uid)
     config = plan["common_execution"]
     for record in measurements:
+        expected_body = plan.get("skill_body_digests", {}).get(record.action_id)
+        if expected_body is not None and record.skill_body_digest != expected_body:
+            issues.append(
+                {"code": "execution_skill_body_differs_from_frozen_catalog", "sample_id": record.sample_id, "action_id": record.action_id}
+            )
         if record.purpose == "action_sweep":
             if record.action_id not in plan.get("plausible_actions", []):
                 issues.append(

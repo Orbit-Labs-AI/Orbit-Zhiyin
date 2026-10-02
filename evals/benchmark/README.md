@@ -11,6 +11,8 @@ bash scripts/check-benchmark.sh
 
 默认三个相隔一天的滚动锚点，最近锚点距离快照最后观测 72 小时；历史 3/7/14/30 天、未来 1/3/5/10 个任务。`--anchor-ts UTC_MS` 可重复指定锚点。来源为已有 canonical 数据库，不再扫描或启用来源，不调用模型、不安装或执行 Skill；真实输出只写入新建的忽略目录。默认资源为四个有固定来源的审阅 Skill。
 
+这是使用当前固定资源目录与模型的历史重放。资源与模型是否在历史锚点时已可用尚未证明，不把重放结果描述为当时实际可部署的效果。`skill-catalog.json` 冻结完整审阅元数据、版本、来源 commit、blob 和正文摘要；同名资源不能在测量时静默换内容。
+
 脚本优先使用 `.local/backend-nine-hour/current-data`，未准备时回退到原阶段的 `p0-data`；其他快照用 `--home` 指定。旧 Mapper 投影不能直接分析，须先按数据契约重建；脚本不会隐式替用户迁移或重建数据。
 
 ## 三类评测
@@ -45,6 +47,7 @@ bash scripts/check-benchmark.sh
 
 - 精确 checkpoint（包括工作区文件）、任务输入、环境和验收检查定义的摘要。
 - 实际干预内容与原始执行日志摘要；方法、固定锚点、种子、模型及推理档位。
+- 使用 Skill 时提供实际正文的 `skill_body_digest`，必须等于冻结来源的 `content_sha256`（解析后的正文，不含 front matter）；缺失或换版会使测量 invalid。
 - 四类执行 Token 和推荐自身 Token、轮次、工具调用、墙钟时间、停止原因与验收结果。
 
 同任务不同方法必须使用相同 checkpoint、输入、环境、验收检查、模型、seed 和预算。默认模型固定 gpt-6.1-sol / medium；预算分别为 5k/10k/20k 总 Token、20 轮、50 个工具调用和 300 秒。总 Token 含未缓存输入、缓存读、缓存写、输出以及推荐开销。推荐开销与执行调用分开记录，不能重复相加。
@@ -61,7 +64,7 @@ Pass@Budget 只有验收通过、正常完成且所有预算均满足才为通�
 
 先由独立人员确认任务单位并保存开始前 checkpoint，随后按执行计划运行对照及 action sweep。测量 JSON 数组通过 `--execution-records` 提供。改变模型、预算、锚点，或用非冻结推荐动作冒充 Ours，会得到 invalid 并使运行失败。未执行的 raw_history_llm／oracle 方法比较没有冻结策略，不能仅提交声称属于这些方法的结果来获得分数。
 
-`study-manifest.json` 冻结样本、执行计划和全部过去输入／预测摘要。后续人工复核使用 `TaskReview` 数组，来源必须明确为 independent_human，包含边界、目标、证据、checkpoint、验收定义与复核时间；保持预测不变，另行评分：
+`study-manifest.json` 的 v2 契约冻结样本、执行计划、Skill 目录和全部过去输入／预测摘要。未冻结目录的旧研究不升级为完整证据，保留旧产物并另建研究。后续人工复核使用 `TaskReview` 数组，来源必须明确为 independent_human，包含边界、目标、证据、checkpoint、验收定义与复核时间；保持预测不变，另行评分：
 
 ```sh
 .venv/bin/python -m evals.benchmark.score --study .local/benchmark/run-01 --executions /path/to/executions.json --task-reviews /path/to/reviews.json --output .local/benchmark/score-01
@@ -78,6 +81,8 @@ Pass@Budget 只有验收通过、正常完成且所有预算均满足才为通�
 ```
 
 准备包只列出未来任务的真人证据身份、待复核字段和执行格子。`task-reviews.json` 与 `executions.json` 都为空数组，measurement 均为空；有待补环境、预测未冻结和缺少 checkpoint 的格子分别报告，不自动产生标签或执行结果。
+
+每个 Skill 执行格子列出期望正文摘要，用于执行后核对实际内容。调用方报告的摘要仍不是独立证明；研究者须检查正文与运行日志，不以照抄期望摘要代替执行。
 
 评分和准备都支持 `--expected-study-digest SHA256`，核对独立留存的 `study-manifest.json` 摘要。工具还检查每个样本的过去预测均被清单覆盖。仅有同目录哈希能发现意外修改，不能阻止调用方改完全部文件后自行重签；独立记录的摘要和日志真实性仍需研究者保障。
 
