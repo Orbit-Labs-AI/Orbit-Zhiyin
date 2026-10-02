@@ -58,6 +58,7 @@ class BaseMapper:
             self.header = first.data
 
     def prepare_each(self, records, callback):
+        """One malformed record must not prevent healthy neighbours from mapping."""
         self.preparation_failures = set()
         for record in records:
             try:
@@ -102,6 +103,23 @@ class BaseMapper:
         semantics="written",
         relation="mapped",
     ) -> EventDraft:
+        if text is not None and not isinstance(text, str):
+            raise ValueError("Native text must be a string")
+        for attr_name in (
+            "cwd",
+            "model_raw",
+            "provider",
+            "effort_raw",
+            "name",
+            "native_id",
+            "title",
+            "git_branch",
+            "git_sha",
+            "git_remote",
+        ):
+            value = (attrs or {}).get(attr_name)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"Native {attr_name} must be a string")
         stamp, time = time_fields(
             record.data.get(ts_field) if ts_value is None else ts_value,
             ts_field,
@@ -133,7 +151,7 @@ class BaseMapper:
             actor,
             stamp,
             attributes,
-            ext or {},
+            ext if ext is not None else {},
             text,
             call_id,
             str(record.data.get("uuid", record.data.get("id")))
@@ -153,7 +171,7 @@ class BaseMapper:
             record,
             "session.meta",
             "envelope.session",
-            native_key=[record.source_id, record.relative_path, "session"],
+            native_key=[record.source_id, record.relative_path, native_id, "session"],
             attrs=attrs,
         )
 
@@ -345,9 +363,11 @@ class BaseMapper:
                         text=text_content(block.get("content")),
                         native_key=key,
                         attrs={
-                            "status": "error"
-                            if block.get("is_error", block.get("isError"))
-                            else "completed",
+                            "status": "failed"
+                            if block.get("is_error", block.get("isError")) is True
+                            else "completed"
+                            if block.get("is_error", block.get("isError")) is False
+                            else "unknown",
                             **block_attrs,
                         },
                     )

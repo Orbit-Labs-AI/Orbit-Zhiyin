@@ -35,15 +35,16 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 - 已推送的提交不 amend、不强推，修正以新提交完成。
 - 禁止提交密钥、`.env` 与个人隐私数据。
 
-## 数据契约包检查
-
-修改 `packages/data/` 后，从该目录运行 `uv sync --locked --dev`、`uv run ruff check src tests`、`uv run ruff format --check src tests`、`uv run pytest`、`uv build`，并在仓库根运行 `git diff --check`。
-
-数据库的权威结构是 `packages/data/src/tandem_data/migrations/`。改变 DDL 后，用 `uv run python -m tandem_data.schema_export --output src/tandem_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.tandem/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。
-
 ## Codex Connector
 
 - 代码位于 `packages/connectors/`，TypeScript + Node ≥24.7；使用内置 `node:sqlite` 和 `node:zlib`，不引入原生扩展依赖。
 - 提交前在该目录执行 `pnpm check`（typecheck、构造样本回归、build）。CLI 文档与 SQL / JSON Schema 是分析模块和前端接入的数据契约。
 - 来源目录只读；仅在用户明确启用来源时导入。构造或脱敏样本进仓库，真实日志、原始归档和派生数据库只放本地忽略目录。
 - 新类型须有 L1 去向；不能通过跳过未知记录或把缺失成本/状态当成 0/成功来让检查通过。
+## 数据契约包检查
+
+目标是 macOS App。Python 统一为 3.13（`.python-version`），仓库根的 `uv.lock` 管理 backend 与 `packages/data` workspace；不要新增平行 Python 锁文件。
+
+从仓库根运行 `uv sync --locked --all-packages --dev`、`uv run ruff check src tests packages/data/src packages/data/tests`、`uv run ruff format --check packages/data/src packages/data/tests`、`uv run pytest -q tests`、`uv run pytest -q packages/data/tests`、`uv build --all-packages`、`uv run tandem demo`、`uv run tandem evaluate`、`git diff --check`。涉及 staging 桥接时，先在 `packages/connectors` 执行 `pnpm check`，避免跳过桥接集成回归。
+
+数据库的权威结构是 `packages/data/src/tandem_data/migrations/`。改变 DDL 后，用 `uv run python -m tandem_data.schema_export --output src/tandem_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.tandem/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。

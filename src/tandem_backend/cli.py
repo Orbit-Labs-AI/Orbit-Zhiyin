@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from tandem_data.paths import default_home
+
 from .analysis import analyze
 from .analysis_reports import bottlenecks_markdown, cli_summary, process_markdown, profile_markdown
 from .catalog import resources
@@ -46,15 +48,27 @@ def demo_home(path: Path) -> Path:
                     {"type": "response_item", "timestamp": "2026-01-01T00:00:04Z", "payload": {"type": "function_call_output", "call_id": f"c-{attempt}", "output": '{"exit_code":1}'}},
                 ])
             rows[-1:-1] = tools
-        (folder / f"{sid}.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
+        for ordinal, row in enumerate(rows):
+            if row["type"] == "response_item" and row["payload"].get("role") == "user":
+                row["metadata"] = {"user_input_order": ordinal}
+        (folder / f"{sid}.jsonl").write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
     return path
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
-    parser.add_argument("--db", default=".local/tandem.sqlite")
+    parser.add_argument("--home", type=Path, default=default_home(), help="L0–L3 数据目录，默认 macOS Application Support/Tandem")
+    parser.add_argument("--db", help="显式使用旧版 MVP 数据库（兼容模式）")
     parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
     sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("init", "rebuild", "verify", "stats", "discover"):
+        sub.add_parser(name)
+    ingest_parser = sub.add_parser("ingest", help="经统一 L0–L3 链路导入显式启用的来源")
+    ingest_parser.add_argument("--agent", required=True)
+    ingest_parser.add_argument("--root", type=Path, required=True)
+    ingest_parser.add_argument("--limit", type=int, help="仅用于样本验证")
+    staging = sub.add_parser("import-connector", help="从 TypeScript connector 的不可变归档桥接")
+    staging.add_argument("--connector-home", type=Path, required=True)
     imp = sub.add_parser("import", help="只读导入已授权的 Codex 数据目录")
     imp.add_argument("--codex-home", type=Path, required=True)
     imp.add_argument("--before", help="固定样本快照，ISO UTC 时间")
@@ -102,6 +116,39 @@ def main(argv: list[str] | None = None) -> None:
     evidence.add_argument("event_id")
     evidence.add_argument("--json", action="store_true", help="输出完整的已保存事件元数据")
     args = parser.parse_args(argv)
+    if args.command in ("ingest", "import-connector", "init", "rebuild", "verify", "stats", "discover"):
+        from .data_access.ingest import ingest, ingest_staging, maintain
+        if args.db:
+            parser.error("数据层命令使用 --home；--db 只用于旧版分析兼容")
+        try:
+            if args.command == "discover":
+                from tandem_data.discovery import candidates
+                result = candidates()
+            elif args.command == "ingest":
+                result = ingest(args.home, args.agent, args.root, limit=args.limit)
+            elif args.command == "import-connector":
+                result = ingest_staging(args.home, args.connector_home)
+            else:
+                result = maintain(args.home, args.command)
+        except (ValueError, OSError, RuntimeError) as exc:
+            parser.error(str(exc))
+        print(json.dumps(result, ensure_ascii=False))
+        imported = result.get("import", {}) if isinstance(result, dict) else {}
+        if imported.get("capture_errors") or imported.get("current_unparsed"):
+            raise SystemExit(2)
+        return
+    if args.command == "import" and args.db is None:
+        from .data_access.ingest import ingest
+        if args.before or args.exclude_session or args.reset_sample_policy:
+            parser.error("统一归档保留完整历史；analytics 用 --until-ts/--exclude-session 选择样本。旧版持久采样请显式传 --db。")
+        try:
+            result = ingest(args.home, "codex", args.codex_home)
+        except (ValueError, OSError, RuntimeError) as exc:
+            parser.error(str(exc))
+        print(json.dumps(result, ensure_ascii=False))
+        if result["import"].get("capture_errors") or result["import"].get("current_unparsed"):
+            raise SystemExit(2)
+        return
     if args.command in ("reader-pack", "reader-results"):
         from .reader_eval import make_pack, reader_results
 
@@ -115,7 +162,7 @@ def main(argv: list[str] | None = None) -> None:
         import uvicorn
 
         from .api import create_app
-        uvicorn.run(create_app(args.db, args.catalog_cache), host="127.0.0.1", port=args.port)
+        uvicorn.run(create_app(args.db, args.catalog_cache, home=args.home), host="127.0.0.1", port=args.port)
         return
     if args.command == "catalog-refresh":
         from .resource_fetch import refresh_catalog
@@ -138,8 +185,18 @@ def main(argv: list[str] | None = None) -> None:
                                      for k, suite in result.items() if isinstance(suite, dict)}}, ensure_ascii=False))
         return
     if args.command == "demo":
-        args.db = str(args.output / "demo.sqlite")
-    store = Store(args.db)
+        from .data_access.ingest import ingest
+        args.db = None
+        args.home = args.output / "data"
+        ingest(args.home, "codex", demo_home(args.output / "codex"))
+    if args.db:
+        store = Store(args.db)
+    else:
+        from .data_access.store import CanonicalStore
+        try:
+            store = CanonicalStore(args.home)
+        except ValueError as exc:
+            parser.error(str(exc))
     if args.command == "analytics":
         from .analytics.inputs import Scope
         from .analytics.service import analyze_store
@@ -163,15 +220,20 @@ def main(argv: list[str] | None = None) -> None:
                           "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
         return
     if args.command == "evidence":
-        with store.connect() as conn:
-            row = conn.execute("SELECT data FROM events WHERE id=?", (args.event_id,)).fetchone()
-        if not row:
+        if hasattr(store, "evidence"):
+            item = store.evidence(args.event_id)
+        else:
+            with store.connect() as conn:
+                row = conn.execute("SELECT data FROM events WHERE id=?", (args.event_id,)).fetchone()
+            item = json.loads(row[0]) if row else None
+        if not item:
             parser.error("证据不存在；请确认使用生成报告时的数据库。")
-        item = json.loads(row[0])
         if args.json:
             print(json.dumps(item, ensure_ascii=False, indent=2))
         else:
-            print(f"证据 {item['id']} · {item['kind']} · 原记录第 {item['ordinal']} 行")
+            position = (f"事件序号 {item['ordinal']} · 原始记录 {item['details']['record_uid']}"
+                        if item["details"].get("record_uid") else f"原记录第 {item['ordinal']} 行")
+            print(f"证据 {item['id']} · {item['kind']} · {position}")
             print(item['text'] or json.dumps(item['details'], ensure_ascii=False, indent=2))
         return
     if args.command == "import":
@@ -179,8 +241,9 @@ def main(argv: list[str] | None = None) -> None:
         print(json.dumps({"import": result.to_dict(), "stored": store.counts()}, ensure_ascii=False))
         return
     if args.command == "demo":
-        import_codex(store, demo_home(args.output / "codex"))
         args.audience, args.project_id, args.model, args.scene = "user", None, None, None
+    if hasattr(store, "report_snapshot"):
+        store = store.report_snapshot(args.project_id, args.model)
     data = analyze(store, args.project_id, args.model, scene=args.scene)
     result = explain(data, recommend(data, catalog=resources(args.catalog_cache)), args.audience)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -197,7 +260,7 @@ def main(argv: list[str] | None = None) -> None:
     # Remove only snapshots owned by this exporter when a rerun narrows the
     # sample. Leave unrelated user files alone.
     for old in evidence_folder.iterdir():
-        if old.is_file() and re.fullmatch(r'[0-9a-f]{24}', old.name) and old.name not in wanted:
+        if old.is_file() and re.fullmatch(r'(?:[0-9a-f]{24}|event_[0-9a-f]{64})', old.name) and old.name not in wanted:
             old.unlink()
     for event in store.events():
         if event.id in wanted:

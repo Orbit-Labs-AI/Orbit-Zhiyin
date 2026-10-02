@@ -6,14 +6,17 @@ class HermesMapper(BaseMapper):
     def prepare(self, records):
         self.active_uids = set()
         self.parents = {}
-        self.prepare_each(records, self.prepare_record)
+        self.settings = {}
 
-    def prepare_record(self, record):
-        table, row = record.data.get("table"), record.data.get("row", {})
-        if table == "messages" and row.get("active", 1) and row.get("message_uid"):
-            self.active_uids.add(row["message_uid"])
-        if table == "sessions":
-            self.parents[row["id"]] = row.get("parent_session_id")
+        def inspect(record):
+            table, row = record.data.get("table"), record.data.get("row", {})
+            if table == "messages" and row.get("active", 1) and row.get("message_uid"):
+                self.active_uids.add((row.get("session_id"), row["message_uid"]))
+            if table == "sessions":
+                self.parents[row["id"]] = row.get("parent_session_id")
+                self.settings[row["id"]] = (row.get("model"), row.get("billing_provider"))
+
+        self.prepare_each(records, inspect)
 
     def make(self, record, *args, **kwargs):
         row = record.data.get("row", {})
@@ -27,6 +30,7 @@ class HermesMapper(BaseMapper):
         native = row.get("session_id", row.get("id") if table == "sessions" else None)
         if native:
             self.session_uid = self.store.identity(record.source_id, str(native))
+            self.model, self.provider = self.settings.get(native, (None, None))
         if table == "sessions":
             origin = decode_json(row.get("origin_json"), {}) or {}
             kind = (
@@ -63,12 +67,15 @@ class HermesMapper(BaseMapper):
                     "billing_provider",
                 ),
             )
+            meta.ts, meta.attrs["time"] = time_fields(
+                row.get("started_at"), "row.started_at", "seconds", "created"
+            )
             return Mapping([meta])
         if table == "messages":
             if (
                 not row.get("active", 1)
                 and not row.get("compacted", 0)
-                and row.get("message_uid") not in self.active_uids
+                and (row.get("session_id"), row.get("message_uid")) not in self.active_uids
             ):
                 return Mapping(
                     [
@@ -95,13 +102,28 @@ class HermesMapper(BaseMapper):
             }
             if message["content"] is None:
                 message["content"] = ""
+            display = decode_json(row.get("display_metadata"), {}) or {}
+            origin = (
+                "injected"
+                if display.get("origin") in ("injected", "system") or row.get("_compressed_summary")
+                else "human"
+            )
             events = self.message(
                 record,
                 message,
                 key=key,
+                origin=origin,
                 active=bool(row.get("active", 1)),
                 compacted=bool(row.get("compacted", 0)),
             )
+            for event in events:
+                if event.kind == "tool.result":
+                    event.attrs["status_scope"] = "tool_protocol"
+                    event.attrs["effect_disposition"] = row.get("effect_disposition")
+                    if display.get("interrupted"):
+                        event.attrs["status"] = "interrupted"
+                    elif row.get("effect_disposition") == "none":
+                        event.attrs["status"] = "unknown"
             if row.get("_compressed_summary"):
                 for event in events:
                     event.kind = "context.compaction"
@@ -131,7 +153,9 @@ class HermesMapper(BaseMapper):
                 "reasoning_details",
                 "codex_reasoning_items",
             ):
-                if row.get(field):
+                if row.get(field) and (
+                    field != "reasoning" or row.get("reasoning") != row.get("reasoning_content")
+                ):
                     events.append(
                         self.make(
                             record,
@@ -164,7 +188,10 @@ class HermesMapper(BaseMapper):
                         "codex_reasoning_items",
                     ),
                 )
-            if not row.get("active", 1) and row.get("message_uid") in self.active_uids:
+            if (
+                not row.get("active", 1)
+                and (row.get("session_id"), row.get("message_uid")) in self.active_uids
+            ):
                 return Mapping(
                     disposition="duplicate",
                     references=[e.event_uid for e in events],
