@@ -72,9 +72,12 @@ def make_catalog(home: Path, items) -> sqlite3.Connection:
     schema = files("tandem_data").joinpath("migrations/catalog/schema.sql").read_text()
     db.executescript(schema)
     for item_id, kind, agents, status, feats in items:
-        db.execute("INSERT INTO catalog_item VALUES (?, ?, ?, '', '', ?, NULL, ?, 'en', 1, 0, "
-                   "'1', 'h', '{}', 0, 0)", (item_id, kind, item_id, status, json.dumps(agents)))
-        db.executemany("INSERT INTO item_feature VALUES (?, ?, ?, ?, 'curated', '')",
+        db.execute("INSERT INTO catalog_item(item_id,type,name,name_key,summary,url,status,agents,language,"
+                   "difficulty,official,updated_at,body_policy,latest_version,content_hash,metadata,first_seen,last_seen) "
+                   "VALUES (?, ?, ?, ?, '', '', ?, ?, 'en', 1, 0, 0, 'licensed', '1', 'h', '{}', 0, 0)",
+                   (item_id, kind, item_id, item_id, status, json.dumps(agents)))
+        db.executemany("INSERT INTO item_feature(item_id,feature,value,weight,origin,evidence) "
+                       "VALUES (?, ?, ?, ?, 'curated', '')",
                        [(item_id, f, v, w) for f, v, w in feats])
     return db
 

@@ -60,13 +60,45 @@ def test_gateway_serves_catalog_reads_local_writes_and_sync(client, monkeypatch)
 
 
 def test_cards_are_decorated_when_features_inventory_exists(client, monkeypatch):
-    import types
-
-    import tandem_backend
+    from tandem_backend import features
     created = client.post("/v1/catalog/local", json=LOCAL).json()
-    module = types.SimpleNamespace(linked_inventory=lambda: [
-        {"catalog_item_id": created["item_id"], "agent": "codex", "scope": "user", "state": "installed"}])
-    monkeypatch.setitem(__import__("sys").modules, "tandem_backend.features", module)
-    monkeypatch.setattr(tandem_backend, "features", module, raising=False)
+    linked = {"items": [{"inv_id": "i1", "agent": "codex", "scope": "user", "status": "active",
+                         "catalog": {"item_id": created["item_id"], "method": "ledger", "confidence": 1.0}},
+                        {"inv_id": "i2", "agent": "claude", "scope": "user", "status": "unused", "catalog": None}]}
+    monkeypatch.setattr(features, "linked_inventory", lambda: linked)
     card = client.get("/v1/catalog/items", params={"origin": "local"}).json()["items"][0]
-    assert card["installed"] == {"state": "installed", "agents": ["codex"], "scope": "user"}
+    assert card["installed"] == {"state": "active", "agents": ["codex"], "scope": "user"}
+
+
+def test_catalog_reads_answer_304_until_the_generation_moves(client):
+    first = client.get("/v1/catalog/items")
+    tag = first.headers["etag"]
+    assert client.get("/v1/catalog/items", headers={"If-None-Match": tag}).status_code == 304
+    assert client.get("/v1/catalog/items", params={"limit": 2}, headers={"If-None-Match": tag}).status_code == 200
+    assert "etag" not in client.get("/v1/catalog/status").headers  # Status and jobs are never cached.
+    client.post("/v1/catalog/local", json=LOCAL)
+    assert client.get("/v1/catalog/items", headers={"If-None-Match": tag}).status_code == 200
+
+
+def test_sync_passes_concurrency_offline_and_reports_durations(client, monkeypatch):
+    from tandem_backend import platform
+    from tandem_catalog.sync import CatalogSync
+    seen, recorded = {}, []
+    original = CatalogSync.sync
+
+    def spy(self, *args, **kwargs):
+        seen.update(concurrency=kwargs["concurrency"], offline=self.http.offline, ttl=self.http.ttl)
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(CatalogSync, "sync", spy)
+    monkeypatch.setattr(platform, "record", lambda name, value=1.0, **tags: recorded.append((name, value, tags)))
+    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"], "concurrency": 2,
+                                                    "offline": True, "ttl": 600})
+    job = wait_job(client, started.json()["job_id"])
+    assert seen == {"concurrency": 2, "offline": True, "ttl": 600}
+    assert job["duration_ms"] >= 0 and job["result"][0]["duration_ms"] >= 0
+    for _ in range(100):
+        if any(name == "catalog.sync" for name, *_ in recorded):
+            break
+        time.sleep(0.01)
+    assert {name for name, *_ in recorded} >= {"catalog.sync", "catalog.sync.source"}
+    assert client.post("/v1/catalog/sync", json={"concurrency": 99}).status_code == 422
