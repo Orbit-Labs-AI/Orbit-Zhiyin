@@ -1,7 +1,7 @@
 """Read-only local API for the future frontend, with a separate evaluation endpoint."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -12,6 +12,7 @@ from .catalog import resources
 from .evaluation import SCENE_BUDGETS, evaluate_text
 from .narrative import explain
 from .recommend import recommend
+from .recommend.contracts import Family, RecommendationContext
 from .store import Store
 
 
@@ -21,7 +22,14 @@ class EvaluationRequest(BaseModel):
     required_facts: list[str] = Field(default_factory=list, max_length=50)
 
 
-def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local/catalog.json", *, home: str | Path | None = None) -> FastAPI:
+class RecommendationRequest(BaseModel):
+    context: RecommendationContext = Field(default_factory=RecommendationContext)
+    family: Family | None = None
+    limit: int = Field(default=6, ge=1, le=20, strict=True)
+
+
+def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local/catalog.json",
+               recommendation_catalog: str | Path | None = None, *, home: str | Path | None = None) -> FastAPI:
     from tandem_data.paths import default_home
 
     from .data_access.store import CanonicalStore
@@ -68,6 +76,31 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     @app.get("/v1/analytics/bottleneck")
     def feature_bottleneck(scope=scope_dependency):
         return analytics_section("bottleneck_features", scope)
+
+    @app.get("/v1/analytics/recommendations")
+    def feature_recommendations(
+        scope=scope_dependency, target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+        kind: Literal["skill", "agent", "hook", "prompt"] | None = None, limit: int = Query(6, ge=1, le=20),
+        family: Family | None = None,
+    ):
+        from .analytics.service import response_section
+        from .recommend.service import recommend as recommend_resources
+
+        result = analytics_data(scope, False)
+        result["bottleneck_recommendations"] = recommend_resources(result, context={"agent": target_agent}, kind=kind,
+                                                                   limit=limit, family=family, catalog_directory=recommendation_catalog)
+        return response_section(result, "bottleneck_recommendations")
+
+    @app.post("/v1/analytics/recommendations")
+    def contextual_recommendations(request: RecommendationRequest, scope=scope_dependency):
+        from .analytics.service import response_section
+        from .recommend.service import recommend as recommend_resources
+
+        result = analytics_data(scope, False)
+        result["bottleneck_recommendations"] = recommend_resources(
+            result, context=request.context, family=request.family, limit=request.limit,
+            catalog_directory=recommendation_catalog)
+        return response_section(result, "bottleneck_recommendations")
 
     @app.get("/v1/analytics/sessions")
     def feature_sessions(scope=scope_dependency, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):

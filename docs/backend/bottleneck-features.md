@@ -1,12 +1,12 @@
 # 非语义 × Bottleneck 特征重构
 
-最初基于 main `c97c818`，已同步包含 Instruction 与 Codex Connector 的 main `f4a2cde`，个人分支 `refactor/genius-FXC-bottleneck`。依据团队《分析模块分类》以及四份开发草案，聚焦交互、执行、用量／时间、客观结果，不扩展人格、情绪或主观满意度。
+最初基于 main `c97c818`，四目录重构在个人分支 `refactor/genius-FXC-bottleneck` 实现，已由 yhyfhgs 通过 [PR #19](https://github.com/ActionMesh-AI/Hackathon/pull/19) 合并为 `d15f054`。合并后两项尚未进入 main 的 P1 修复在 `fix/genius-FXC-bottleneck-coverage` 补充提交，基于 main `4bccf1f`，保留统一数据层及 Preference、Task、Instruction、主观 Outcome。范围仍为四个非语义瓶颈特征族，不扩展人格或情绪分析。
 
 ## main 的结构与本次调整
 
 原有链路为 Codex 导入 → 隐私清理与统一事件 → SQLite → CLI/API。画像、瓶颈诊断、资源建议是一条既有分析链；`analytics` 是独立的测量链，接收 analysis-input-v1 或只读适配旧数据库，输出覆盖情况、特征和文本表示。
 
-本次拆分原来集中于 `analytics/features.py` 的测量，保留旧导入及字段含义。prompt 结构沿用 main 的 Instruction 实现和输入校验；语言信号和主观反馈候选仍留在兼容层，避免误归入客观 Outcome。新的四组特征由 `analytics/bottleneck.py` 编排，统一经过 `inputs.select` 的项目、时间、模型、会话树及排除筛选。
+本次拆分原来集中于 `analytics/features.py` 的测量，保留旧导入及字段含义。prompt 结构沿用 main 的 Instruction 实现和输入校验；主观反馈沿用 main 的 `outcome_subjective`，客观验证独立放在 `outcome`。新的四组特征由 `analytics/bottleneck.py` 编排，统一经过 `inputs.select` 的项目、时间、模型、会话树及排除筛选。
 
 ## 模块与交付位置
 
@@ -23,11 +23,11 @@
 
 ## 与 Preference / Task 的关系
 
-参考 [PR #13](https://github.com/ActionMesh-AI/Hackathon/pull/13) 的特征族目录、规则与字典分工；本分支只交付四个非语义 bottleneck 模块，没有合入该 PR 的语义模块。Preference 记录显式偏好与有效范围，Task 提取任务边界、目标和预期产物，和四族职责互补。
+参考 [PR #13](https://github.com/ActionMesh-AI/Hackathon/pull/13) 的特征族目录、规则与字典分工；该 PR 已进入 main，本分支同步继承其实现。Preference 记录显式偏好与有效范围，Task 提取任务边界、目标和预期产物，和四族职责互补，统一 service 同时保留全部输出。
 
 PR #13 的任务 ID 经来源／项目命名空间哈希，内部 `task_by_event` 只关联真人消息且未对外输出；本分支依赖事件与调用上的 `task_uid`／`attrs.task_id`。以后跨族联合分析时需要统一任务身份，并明确执行事件和子代理关联，不能直接按两个 ID 字段连接。Task 的目标／预期产物也不能替代 Interaction 的确认标签或 Outcome 的验收条件。
 
-两分支当前均声明 `feature-analytics-v2`，后续正式整合应统一版本／摘要口径。基于 `0c0d0f5` 与 PR #13 `d030c2a` 的临时整合验证有 530 项测试通过；冲突集中在 common.py、dictionary.py、features.py、service.py，已验证可同时保留双方能力。本次目录内拆分保持原函数逻辑和字段定义，不据此声称任务身份已经对齐。
+早期基于 `0c0d0f5` 与 PR #13 `d030c2a` 的临时整合验证有 530 项测试通过；共享文件已在同步 main 时正式整合。整体特征版本递增到 `feature-analytics-v2.2-bottleneck`，使包含四族的新结果与 main 的 `v2.1-subjective` 生成不同分析摘要；任务身份对齐仍是后续接入工作，不因代码共存就自动完成。
 
 ## 使用
 
@@ -46,7 +46,7 @@ print(families["outcome"]["acceptance_results"])
 
 统一 JSON 的 `bottleneck_features` 包含 interaction/respond/cost_time/outcome；`sessions[*]` 和 `projects[*]` 也含相同结构，使用各自成员范围。`GET /v1/analytics/bottleneck` 返回总体四组结果及原有 scope/coverage/digest 等元数据；会话详情 API 可查看单会话树。`tandem analytics --output ...` 自动包含新结构，无需新 CLI。
 
-整合 main 的 Preference/Task 与主观结果后，版本为 `feature-analytics-v2.2-bottleneck`，四组输出子契约为 `bottleneck-features-v1`。旧导入位置和字段仍可使用；新 benchmark 应读取新分组。v2 还修正重复调用计数、模型活动误计累计记录、会话缺开始时间时错误补造开始、非法 Token／时延和缓存重复计量。机器可读定义在 `analytics/dictionary.py`。
+整体版本为 `feature-analytics-v2.2-bottleneck`，四组输出子契约为 `bottleneck-features-v1`。旧导入位置和字段仍可使用；新 benchmark 应读取新分组。本次还修正重复调用计数、模型活动误计累计记录、会话缺开始时间时错误补造开始、非法 Token／时延和缓存重复计量。机器可读定义在各特征族的 `dictionary.py`，由 `analytics/dictionary.py` 汇集。
 
 ## 口径与依赖
 
@@ -76,7 +76,7 @@ tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
 
 最后两条只生成仓库自带的虚构数据；本次实际运行使用独立临时目录。逐模块用例验证文档正反例，集成用例验证共同筛选、子代理排除、未来证据隔离、输入不变、重复去重及 CLI/API 一致性。
 
-自查已修正：外层成功误充内部检查结果；验收可见时间早于条件确认；未来标注通过 L2 回退输出泄露；未知会话身份误记零；重复调用在旧字段与新分组统计不一致；同名快照跨会话覆盖。未合并 main，后续按仓库既有 Codex review 与负责人审批流程处理。
+自查已修正：外层成功误充内部检查结果；验收可见时间早于条件确认；未来标注通过 L2 回退输出泄露；未知会话身份误记零；重复调用在旧字段与新分组统计不一致；同名快照跨会话覆盖。四目录重构已经合并；最后两项 P1 的补充 PR 仍交由负责人决定是否合并。
 
 本轮验收记录（2026-10-02）：
 
@@ -90,6 +90,11 @@ tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
 - 可在本地 `.local/bottleneck-fixture-result.json` 查看该虚构样本的完整结果；生成物不进入 Git。
 - 审查按用户本轮要求，仅将 P0/P1 作为阻断项；其他问题可记录为后续工作，后续合并沿用同一优先级标准。本轮是本地逐模块自查，不冒充 PR 的 Codex review。测试中已有一条 Starlette/AnyIO 弃用提示，不影响通过，未扩大依赖升级范围。
 
-本轮合并整合（2026-10-02）：同步 main `2029e2d`，保留 Preference/Task、Instruction、主观结果与四组瓶颈分析入口和字段字典。新增共存回归验证：显式用户接受与客观检查失败分别保留，不能相互覆盖。任务身份的跨族统一仍为后续工作。
+并行提交 `5b17961` 附带的整合记录（2026-10-02，保留原记录）：同步 main `2029e2d`，保留 Preference/Task、Instruction、主观结果与四组瓶颈分析入口和字段字典。新增共存回归验证：显式用户接受与客观检查失败分别保留，不能相互覆盖。任务身份的跨族统一仍为后续工作。
 
-整合验证：Python 3.11 下 770 项测试、Ruff、`git diff --check`、synthetic demo 和 evaluate（8/8、34/34、12/12）通过。本机锁定的 SciPy 1.15.3 wheel 存在 macOS 动态库加载错误，临时测试环境使用 SciPy 1.16.3；仓库锁文件不变，锁定依赖另由 Linux CI 验证。
+该并行提交记录的验证（非本机复跑结论）：Python 3.11 下 770 项测试、Ruff、`git diff --check`、synthetic demo 和 evaluate（8/8、34/34、12/12）通过。本机锁定的 SciPy 1.15.3 wheel 存在 macOS 动态库加载错误，临时测试环境使用 SciPy 1.16.3；仓库锁文件不变，锁定依赖另由 Linux CI 验证。
+
+
+本机 `929934c` 复核（2026-10-02）：保留并行提交 `5b17961` 的共存回归，并修复复审中的两项 P1——明确 excluded 的工具数据不再通过 L2 回退重建，Go 列表参数的等号形式不算实际验证。Linux 隔离副本中 775 项后端测试通过，其中 84 项为本 PR 的瓶颈与共存回归；Ruff 与相对 main 的空白检查通过。累计四项 P1 均有对应回归，仍未将个人 Agent 历史用于端到端测试。
+
+补充 PR 验证（2026-10-02）：PR #19 实际合并的是 `5b17961`，未包含随后推送的两项 P1 修复。从最新 main `4bccf1f` 建立修复分支并合入 `929934c`，保留双方历史。Python 3.13.12 隔离副本、锁定依赖下 789 项后端测试和 91 项数据层测试通过，84 项瓶颈与共存回归全部保留。连接器 35 项构造测试、typecheck 和 build 通过，staging 桥接回归未跳过；Ruff、数据包格式检查、全包构建和 synthetic demo 通过。evaluate 为 8/8、34/34、12/12，history_updated=false；没有读取个人 Agent 历史。
