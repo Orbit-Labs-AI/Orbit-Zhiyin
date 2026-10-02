@@ -21,7 +21,7 @@ FAKE_SECRET = "sk-test0123456789abcdefXYZ"
 
 def migration_columns() -> dict[str, set[str]]:
     db = sqlite3.connect(":memory:")
-    for path in sorted(MIGRATIONS.glob("00*.sql")):
+    for path in sorted(MIGRATIONS.glob("[0-9][0-9][0-9].sql")):
         db.executescript(path.read_text())
     tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
     return {t: {r[1] for r in db.execute(f"PRAGMA table_info({t})")} for t in tables}
@@ -34,7 +34,7 @@ class World:
         self.home = home
         self.path = home / "tandem.db"
         self.db = sqlite3.connect(self.path, isolation_level=None)
-        for path in sorted(MIGRATIONS.glob("00*.sql")):
+        for path in sorted(MIGRATIONS.glob("[0-9][0-9][0-9].sql")):
             self.db.executescript(path.read_text())
         self.db.execute("INSERT INTO projection_run VALUES (1, 1, ?, ?, 0, 0, 0)",
                         (MAPPER_VERSION, REDUCER_VERSION))
