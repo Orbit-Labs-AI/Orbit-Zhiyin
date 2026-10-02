@@ -3,12 +3,20 @@
 import hashlib
 import re
 
-REDACTION_VERSION = "1.0.3"
+REDACTION_VERSION = "1.0.4"
 SECRET_KEYS = re.compile(
     r"(?:^|_)(?:api_?key|access_?token|refresh_?token|auth_?token|token|authorization|password|passwd|secret|private_key|secret_access_key)$",
     re.I,
 )
-HIDDEN_KEYS = {"creator_user_id", "creator_account_id"}
+HIDDEN_KEYS = {
+    "creator_user_id",
+    "creator_account_id",
+    "user_id",
+    "session_key",
+    "chat_id",
+    "display_name",
+    "origin_json",
+}
 
 
 def is_secret_key(key: str) -> bool:

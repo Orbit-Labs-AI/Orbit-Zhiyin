@@ -1188,3 +1188,34 @@ def test_pi_empty_session_info_clears_title(tmp_path):
         store.rebuild()
         assert rows(store, "session")[0]["title"] == ""
         assert_sound(store)
+
+
+def test_hermes_routing_identity_stays_in_raw_without_losing_lineage(tmp_path):
+    private = "private-routing-sentinel"
+    origin = canonical({"_delegate_from": "parent", "user_id": private})
+    records = [
+        sqlrow("sessions", {"id": "parent"}),
+        sqlrow(
+            "sessions",
+            {
+                "id": "child",
+                "parent_session_id": "parent",
+                "origin_json": origin,
+                "user_id": private,
+                "session_key": private,
+                "chat_id": private,
+                "display_name": private,
+            },
+        ),
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "hermes", records, "state.db", "sqlite_rows")
+        store.rebuild()
+        assert private not in canonical(rows(store, "event"))
+        child = next(row for row in rows(store, "session") if row["native_id"] == "child")
+        assert child["kind"] == "subagent" and child["parent_uid"] is not None
+        originals = [
+            json.loads(store.read_raw(row["record_uid"])) for row in rows(store, "raw_record")
+        ]
+        assert originals[1]["row"]["origin_json"] == origin
+        assert_sound(store)
