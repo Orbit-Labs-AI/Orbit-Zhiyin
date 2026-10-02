@@ -6,10 +6,13 @@ are pure functions of their own session tree, so they can be reused from ``sessi
 text coordinates) and global metadata are attached when rows are assembled.
 """
 
+import importlib
 import os
+import pickle
+import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor
 from dataclasses import asdict
 from multiprocessing import get_context
 from typing import Protocol
@@ -84,6 +87,8 @@ BOTTLENECK_COVERAGE = ("events", "tool_calls", "model_calls", "turns", "lineage"
 # Parallel cold computation: only worth the process start-up for many misses.
 PARALLEL_MIN_MISSES = 300
 PARALLEL_CHUNK = 200
+# Sections the parent computes while workers run the whole-selection jobs.
+PARENT_FIRST = ("tools", "workflow", "overview", "instruction", "text", "projects")
 # Observable counters (tests and the status endpoint): rows computed vs reused.
 ROW_STATS: Counter = Counter()
 
@@ -193,24 +198,103 @@ def _compute_chunk(payload: tuple) -> dict[str, Record]:
     return {sid: session_row_core(context, context.session_map[sid]) for sid in sids}
 
 
-def compute_row_cores(
-    context: AnalysisContext, sids: list[str], *, parallel: bool | None = None
-) -> dict[str, Record]:
-    """Compute rows serially, or by root chunks in spawned processes when there are many."""
+def _max_workers() -> int:
     limit = os.environ.get("TANDEM_ANALYSIS_WORKERS")  # "0"/"1" disables process workers
-    max_workers = int(limit) if limit and limit.isdigit() else os.cpu_count() or 1
+    return int(limit) if limit and limit.isdigit() else os.cpu_count() or 1
+
+
+def _wants_parallel(misses: int, parallel: bool | None) -> bool:
     if parallel is None:
-        parallel = len(sids) >= PARALLEL_MIN_MISSES and max_workers > 1
+        return misses >= PARALLEL_MIN_MISSES and _max_workers() > 1
+    return parallel
+
+
+def _context_blob(context: AnalysisContext) -> bytes:
+    """Pickle the whole selection once; several whole-selection jobs share the bytes."""
+    return pickle.dumps(
+        (
+            context.bundle,
+            context.scope,
+            context.sessions,
+            context.events,
+            context.calls,
+            context.model_calls,
+            context.diagnostics,
+        ),
+        protocol=pickle.HIGHEST_PROTOCOL,
+    )
+
+
+def _whole_selection_job(blob: bytes, job: str, scopes: list[tuple[str, ...]] | None = None):
+    """Worker entry point for one cross-session piece computed from the whole selection.
+
+    Every job is a pure function of the selection, so the worker result equals the
+    serial result; the parent only stores it where the lazy section would have.
+    """
+    context = AnalysisContext(*pickle.loads(blob))
+    if job == "families":
+        return context.families(set(context.session_map))
+    if job == "scoped_families":
+        return {key: context.families(set(key)) for key in scopes or []}
+    if job == "semantic":
+        return analyze_semantics(context)
+    if job == "lexical":
+        from .products.lexical import lexical_analysis
+
+        return lexical_analysis(context)
+    raise ValueError(f"Unknown analysis job: {job}")
+
+
+def _warm_import(module: str) -> None:
+    """Import a heavy module in a daemon thread while the parent waits on workers.
+
+    Purely a latency overlap: a later ``import`` of the same module waits for this one.
+    """
+
+    def load():
+        try:
+            importlib.import_module(module)
+        except Exception:  # the real import site reports any error
+            pass
+
+    threading.Thread(target=load, name=f"warm-import-{module}", daemon=True).start()
+
+
+def _spawn_pool(workers: int) -> ProcessPoolExecutor:
+    return ProcessPoolExecutor(workers, mp_context=get_context("spawn"))
+
+
+def _release_pool(executor: ProcessPoolExecutor) -> None:
+    # Every future has been collected; do not block on idle workers exiting.
+    executor.shutdown(wait=False)
+
+
+def compute_row_cores(
+    context: AnalysisContext,
+    sids: list[str],
+    *,
+    parallel: bool | None = None,
+    executor: ProcessPoolExecutor | None = None,
+) -> dict[str, Record]:
+    """Compute rows serially, or by root chunks in spawned processes when there are many.
+
+    ``executor`` lets a caller share one pool with other whole-selection jobs.
+    """
+    parallel = executor is not None or _wants_parallel(len(sids), parallel)
     ROW_STATS["computed"] += len(sids)
     if parallel and len(sids) > 1:
         chunks = [sids[i : i + PARALLEL_CHUNK] for i in range(0, len(sids), PARALLEL_CHUNK)]
-        workers = max(1, min(len(chunks), max_workers))
+        own = executor is None
         try:
-            with ProcessPoolExecutor(workers, mp_context=get_context("spawn")) as executor:
-                results = executor.map(_compute_chunk, [_chunk_bundle(context, c) for c in chunks])
+            pool = _spawn_pool(max(1, min(len(chunks), _max_workers()))) if own else executor
+            try:
+                results = pool.map(_compute_chunk, [_chunk_bundle(context, c) for c in chunks])
                 cores = {}
                 for result in results:
                     cores.update(result)
+            finally:
+                if own:
+                    _release_pool(pool)
             ROW_STATS["parallel_chunks"] += len(chunks)
             return cores
         except (OSError, RuntimeError) as error:  # BrokenProcessPool is a RuntimeError
@@ -357,11 +441,130 @@ class AnalysisSections:
         self.rows_computed = 0
         self.rows_reused = 0
         self._memo: dict[str, object] = {}
+        # Cold parallel computation (see ``_start_jobs``): futures by memo name.
+        self._executor: ProcessPoolExecutor | None = None
+        self._jobs: dict[str, Future] = {}
+        self._row_futures: list[Future] | None = None
 
     def _once(self, name: str, compute: Callable[[], object]):
         if name not in self._memo:
-            self._memo[name] = compute()
+            future = self._jobs.pop(name, None)
+            self._memo[name] = compute() if future is None else self._collect(future, compute)
         return self._memo[name]
+
+    # ---- cold parallel computation --------------------------------------------------
+
+    @staticmethod
+    def _collect(future: Future, fallback: Callable[[], object]):
+        """A worker result, or the serial computation if the worker pool failed."""
+        try:
+            return future.result()
+        except Exception as error:  # a real computation error re-raises from the fallback
+            ROW_STATS["parallel_fallbacks"] += 1
+            ROW_STATS[f"parallel_error:{type(error).__name__}"] += 1
+            return fallback()
+
+    def _row_plan(self) -> tuple[list[str], dict[str, Record], list[str]]:
+        def compute():
+            sids = [s["session_uid"] for s in _row_sessions(self.context)]
+            cached = self.row_cache.get(self.context, sids) if self.row_cache else {}
+            return sids, cached, [sid for sid in sids if sid not in cached]
+
+        return self._once("row_plan", compute)
+
+    def _start_jobs(self, names: list[str]) -> None:
+        """On a cold run, compute row chunks and whole-selection pieces in worker processes.
+
+        Workers start on the slowest independent pieces (global families, semantic
+        extraction, lexical analysis) while the parent assembles the rest; results are
+        collected where the lazy sections would have computed them.
+        """
+        if self._executor is not None or "cores" in self._memo:
+            return
+        _, _, missing = self._row_plan()
+        if not _wants_parallel(len(missing), self.parallel) or len(missing) < 2:
+            return
+        whole = []
+        if "bottleneck_features" in names:
+            whole.append(("families", "families"))
+        if {"sessions", "tasks", "preferences"} & set(names):
+            whole.append(("semantic", "semantic"))
+        if "lexical" in names:
+            whole.append(("section:lexical", "lexical"))
+        if "projects" in names:
+            whole.append(("project_families", "scoped_families"))
+        chunks = [missing[i : i + PARALLEL_CHUNK] for i in range(0, len(missing), PARALLEL_CHUNK)]
+        try:
+            self._executor = _spawn_pool(max(1, min(len(chunks) + len(whole), _max_workers())))
+            if whole:
+                blob = _context_blob(self.context)
+                for name, job in whole:
+                    scopes = self._project_scopes() if job == "scoped_families" else None
+                    self._jobs[name] = self._executor.submit(
+                        _whole_selection_job, blob, job, scopes
+                    )
+            if "statistics" in names:
+                _warm_import("scipy.stats")  # rank association; overlaps the parent's waits
+            self._row_futures = [
+                self._executor.submit(_compute_chunk, _chunk_bundle(self.context, chunk))
+                for chunk in chunks
+            ]
+        except (OSError, RuntimeError) as error:
+            ROW_STATS["parallel_fallbacks"] += 1
+            ROW_STATS[f"parallel_error:{type(error).__name__}"] += 1
+            self._finish_jobs()
+
+    def _finish_jobs(self) -> None:
+        if self._executor is not None:
+            for future in [*self._jobs.values(), *(self._row_futures or [])]:
+                future.cancel()
+            self._jobs, self._row_futures = {}, None
+            _release_pool(self._executor)
+            self._executor = None
+
+    def _fresh_rows(self, missing: list[str]) -> dict[str, Record]:
+        futures, self._row_futures = self._row_futures, None
+        if futures is None:
+            return compute_row_cores(self.context, missing, parallel=self.parallel)
+        ROW_STATS["computed"] += len(missing)
+        try:
+            cores = {}
+            for future in futures:
+                cores.update(future.result())
+            ROW_STATS["parallel_chunks"] += len(futures)
+            return cores
+        except Exception as error:
+            ROW_STATS["parallel_fallbacks"] += 1
+            ROW_STATS[f"parallel_error:{type(error).__name__}"] += 1
+            session_map = self.context.session_map
+            return {sid: session_row_core(self.context, session_map[sid]) for sid in missing}
+
+    def _project_scopes(self) -> list[tuple[str, ...]]:
+        """Predicted project member sets, mirroring ``_project_rows`` grouping.
+
+        A wrong prediction only wastes worker time: lookups are by exact member set.
+        """
+        context, members = self.context, defaultdict(set)
+        for s in _row_sessions(context):
+            sid = s["session_uid"]
+            included = {sid} | (context.children[sid] if context.scope.include_children else set())
+            members[(s.get("project_id"), s.get("legacy_project_id"))] |= included
+        return [tuple(sorted(ids)) for ids in members.values()]
+
+    def _seed_project_families(self) -> None:
+        future = self._jobs.pop("project_families", None)
+        if future is not None:
+            for key, value in self._collect(future, dict).items():
+                self.context.seed_families(set(key), value)
+
+    def _all_families(self) -> Record:
+        ids = set(self.context.session_map)
+        future = self._jobs.pop("families", None)
+        if future is not None:
+            self.context.seed_families(
+                ids, self._collect(future, lambda: self.context.families(ids))
+            )
+        return self.context.families(ids)
 
     # ---- shared building blocks -----------------------------------------------------
 
@@ -381,10 +584,8 @@ class AnalysisSections:
         """Session row cores in selection order, reused from the row cache when valid."""
 
         def compute():
-            sids = [s["session_uid"] for s in _row_sessions(self.context)]
-            cached = self.row_cache.get(self.context, sids) if self.row_cache else {}
-            missing = [sid for sid in sids if sid not in cached]
-            fresh = compute_row_cores(self.context, missing, parallel=self.parallel)
+            sids, cached, missing = self._row_plan()
+            fresh = self._fresh_rows(missing)
             self.rows_computed, self.rows_reused = len(fresh), len(sids) - len(fresh)
             ROW_STATS["reused"] += self.rows_reused
             if self.row_cache and fresh:
@@ -687,14 +888,15 @@ class AnalysisSections:
                 "transitions": self.all_workflow["transitions"],
             },
             "workflow": lambda: self.all_workflow,
-            "projects": lambda: _project_rows(
+            "projects": lambda: self._seed_project_families()
+            or _project_rows(
                 self.context,
                 self.rows(semantic=False),
                 self.instruction_groups,
                 self.all_tools["status"],
             ),
             "text": lambda: self.text,
-            "bottleneck_features": lambda: self.context.families(set(self.context.session_map)),
+            "bottleneck_features": self._all_families,
             "tasks": lambda: self.semantic.tasks,
             "preferences": lambda: self.semantic.preferences,
             "instruction": lambda: {
@@ -720,7 +922,19 @@ class AnalysisSections:
     def full(self, with_recommendations: bool = True) -> Record:
         """The complete result, identical to the historical single-pass engine."""
         names = [n for n in SECTIONS if with_recommendations or n != "bottleneck_recommendations"]
+        if self._executor is None and "cores" not in self._memo:
+            self._start_jobs(names)
+            try:
+                # Parent-side sections first, so worker results are ready when needed.
+                for name in sorted(names, key=_parent_first):
+                    self.section(name)
+            finally:
+                self._finish_jobs()
         return compose(self.meta, {name: self.section(name) for name in names})
+
+
+def _parent_first(name: str) -> int:
+    return PARENT_FIRST.index(name) if name in PARENT_FIRST else len(PARENT_FIRST)
 
 
 def compose(meta: Record, sections: dict) -> Record:
