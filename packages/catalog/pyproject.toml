@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tandem-catalog"
+version = "0.1.0"
+description = "Local resource acquisition, indexing and retrieval for Tandem"
+requires-python = ">=3.13,<3.14"
+dependencies = ["tandem-data==0.2.0", "fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "numpy>=2.2,<3", "PyYAML==6.0.3"]
+
+[project.optional-dependencies]
+embeddings = ["onnxruntime==1.30.0", "tokenizers==0.23.2"]
+
+[project.scripts]
+tandem-catalog = "tandem_catalog.cli:main"
+
+[tool.uv.sources]
+tandem-data = { workspace = true }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tandem_catalog = ["data/*.json"]

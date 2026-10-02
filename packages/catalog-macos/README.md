@@ -23,4 +23,4 @@ let result = try await catalog.search(query)
 
 `sync()` 可以由 App 的启动、唤醒或定期刷新调用，后端会检查各来源的下一次更新时间。`indexPendingChunks()` 分批补齐向量；中止或重启后可继续。`cancel(jobID:)` 在当前读取页/推理批次结束后暂停任务；取消等待的 Swift Task 本身不会修改 worker。
 
-完整架构、命令和接口见 [`docs/backend/catalog-architecture.md`](../../docs/backend/catalog-architecture.md)。测试：`swift test --package-path packages/catalog-macos`。
+完整架构、命令和接口见 [`docs/modules/catalog-architecture.md`](../../docs/modules/catalog-architecture.md)。测试：`swift test --package-path packages/catalog-macos`。

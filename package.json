@@ -1,0 +1,18 @@
+{
+  "name": "tandem-workspace",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24.7.0"
+  },
+  "scripts": {
+    "bootstrap": "bash scripts/bootstrap.sh",
+    "dev": "bash scripts/dev.sh",
+    "check": "bash scripts/check.sh",
+    "check:integration": "bash scripts/check.sh integration",
+    "check:ui": "bash scripts/check-ui.sh",
+    "check:installed": "bash scripts/check-installed.sh",
+    "check:docs": "uv run --no-sync python scripts/check-repository.py",
+    "build": "uv build --all-packages && pnpm --filter @tandem/connectors build && pnpm --filter @tandem/prototype-advance build"
+  }
+}

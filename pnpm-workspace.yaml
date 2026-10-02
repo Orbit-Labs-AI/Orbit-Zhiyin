@@ -1,0 +1,4 @@
+packages:
+  - packages/connectors
+  - prototypes/advance
+  - prototypes/lite

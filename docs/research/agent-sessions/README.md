@@ -4,7 +4,7 @@
 >
 > 回答三个问题：每个 agent 完成一次 chat 之后，落盘的 session 长什么样；它的内部结构怎样决定了这份 trajectory 的数据形态；六者有哪些异同。
 >
-> 本目录是 [数据获取与标准化方案](../../plan/data-acquisition.md)（模块 1）的源码级依据。方案中的结论多来自本机实测，这里从源码出发逐条给出出处（GitHub permalink），并补上本机没有安装的 Hermes 与 OpenCode。
+> 本目录是 [数据获取与标准化方案](../../plans/data-acquisition.md)（模块 1）的源码级依据。方案中的结论多来自本机实测，这里从源码出发逐条给出出处（GitHub permalink），并补上本机没有安装的 Hermes 与 OpenCode。
 
 ## 0. 结论先行
 
@@ -223,7 +223,7 @@ flowchart LR
 
 ### 6.2 对数据方案的补充与修正
 
-[data-acquisition.md](../../plan/data-acquisition.md) 已经吸收了这批报告的大部分结论（DSH 新旧两代格式、Claude Code 的单链回溯问题与子代理占位 usage、Codex 的原地改写与审批、Hermes 与 OpenCode 的接入要点）。与方案当前版本（`7621e70`）逐条比对后，下面几处仍与源码不一致或缺失：
+[data-acquisition.md](../../plans/data-acquisition.md) 已经吸收了这批报告的大部分结论（DSH 新旧两代格式、Claude Code 的单链回溯问题与子代理占位 usage、Codex 的原地改写与审批、Hermes 与 OpenCode 的接入要点）。与方案当前版本（`7621e70`）逐条比对后，下面几处仍与源码不一致或缺失：
 
 1. **pi**：方案写「首次助手回复前不落盘」。0.99.1 与 HEAD 都在首条 user（或 assistant）消息出现时建文件，用户的 prompt 先于首个回答落盘（[pi.md](pi.md) §4.1）。方案写「`subagent-artifacts/` 下的文件与主会话重复，跳过」，但 pi 源码中没有这个目录，pi 也没有内置子代理（§5.5），这条应删去或注明来自第三方扩展。方案列出的条目类型之外，还有 `usage`（缓存保温）、`context_edit`（重试时省略失败回合）、`custom_message`、`label`、`session_info`（§3.3）。
 2. **OpenCode**：方案写「V2 表（`session_v2`、`session_message`）」。HEAD 的库里没有 `session_v2` 表；V2 的表是 `session_message`、`session_input`、`session_context_epoch`，会话行仍在 `session` 表。另外两点值得写进连接器：revert 提交时会删除撤销点之后的消息行，并从会话累计中扣回这些消息的用量，没有提前归档就会丢失这部分历史；ID 的 48 位时间前缀约 795 天回绕一次，不要按 ID 排序或推算时间（[opencode.md](opencode.md) §2.4–§2.6、§5.4）。
