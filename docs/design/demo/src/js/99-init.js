@@ -1,0 +1,23 @@
+/* ============ clock, live counters, init ============ */
+let TICK = 0;
+setInterval(() => {
+  TICK++;
+  $$('[data-clock]').forEach((x) => { x.textContent = nowText(); });
+  $$('[data-live]').forEach((x) => { x.textContent = liveElapsed(); });
+  if (TICK % 4 === 0 && S.sim !== 'idle' && !S.paused) {
+    HUD_T++; S.live.tools++;
+    $$('[data-hudtool]').forEach((x) => { x.textContent = HUD_TOOLS[HUD_T % HUD_TOOLS.length]; });
+    $$('[data-livetools]').forEach((x) => { x.textContent = S.live.tools; });
+  }
+}, 1000);
+let RZ = null;
+window.addEventListener('resize', () => { clearTimeout(RZ); RZ = setTimeout(() => { desk.classList.toggle('wide', S.widgets && window.innerWidth >= 1500); renderWidgets(); renderHud(); }, 120); });
+(function init() {
+  document.documentElement.lang = 'zh-CN';
+  let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
+  if (PAGES[h]) S.route = h;
+  setTheme(S.theme);
+  S.widgets = window.innerWidth >= 1500;
+  render();
+  setTimeout(() => notify({ t: '欢迎体验 Tandem 交互 Demo', b: '数据都是示例。菜单栏右侧的「演示」菜单可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 15000, force: true }), 800);
+})();

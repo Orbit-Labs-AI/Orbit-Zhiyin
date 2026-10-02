@@ -1,3 +1,30 @@
+[submodule "third_party/pi"]
+	path = third_party/pi
+	url = https://github.com/earendil-works/pi.git
+	branch = main
+	shallow = true
 [submodule "third_party/deepseek-harness"]
 	path = third_party/deepseek-harness
 	url = https://github.com/deepseek-ai/deepseek-harness.git
+	branch = master
+	shallow = true
+[submodule "third_party/claude-agent-sdk-python"]
+	path = third_party/claude-agent-sdk-python
+	url = https://github.com/anthropics/claude-agent-sdk-python.git
+	branch = main
+	shallow = true
+[submodule "third_party/opencode"]
+	path = third_party/opencode
+	url = https://github.com/anomalyco/opencode.git
+	branch = dev
+	shallow = true
+[submodule "third_party/codex"]
+	path = third_party/codex
+	url = https://github.com/openai/codex.git
+	branch = main
+	shallow = true
+[submodule "third_party/hermes-agent"]
+	path = third_party/hermes-agent
+	url = https://github.com/NousResearch/hermes-agent.git
+	branch = main
+	shallow = true
