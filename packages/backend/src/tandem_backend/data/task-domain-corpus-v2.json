@@ -1,6 +1,6 @@
 {
-  "version": "task-domain-corpus-v2",
-  "taxonomy_version": "task-taxonomy-v2",
+  "version": "task-domain-corpus-v2.1",
+  "taxonomy_version": "task-taxonomy-v2.1",
   "source": "Original bilingual synthetic sentences authored for this repository; no user history, web text, or private prompts.",
   "split_policy": "Development cases exercise aliases and explicit exclusions. Heldout-style cases use alternative combinations and adversarial phrasing; authored by the same implementer, not a blind external benchmark.",
   "limitations": [
@@ -490,6 +490,26 @@
       "id": "negative-mentioned",
       "text": "React Vue API",
       "expected_details": []
+    },
+    {
+      "id": "dev-physics-spectrum",
+      "text": "请整理微分谱的实验记录",
+      "expected_details": []
+    },
+    {
+      "id": "dev-physics-cross-section",
+      "text": "请展示微分截面的测量结果",
+      "expected_details": []
+    },
+    {
+      "id": "dev-math-differential-equation",
+      "text": "请推导一阶微分方程",
+      "expected_details": ["math.calculus"]
+    },
+    {
+      "id": "dev-math-explicit-integral",
+      "text": "请计算微分谱曲线的积分",
+      "expected_details": ["math.calculus"]
     }
   ],
   "heldout": [
@@ -753,6 +773,26 @@
       "expected_details": [
         "writing.translation"
       ]
+    },
+    {
+      "id": "h-physics-second-order-spectrum",
+      "text": "请比较两条二阶微分谱的测量条件",
+      "expected_details": []
+    },
+    {
+      "id": "h-physics-cross-section-dataset",
+      "text": "请核对微分截面实验里的单位",
+      "expected_details": []
+    },
+    {
+      "id": "h-math-explicit-differentiate",
+      "text": "请对这个函数求微分",
+      "expected_details": ["math.calculus"]
+    },
+    {
+      "id": "h-math-physics-combined",
+      "text": "请解释微分截面曲线的积分步骤",
+      "expected_details": ["math.calculus"]
     }
   ]
 }

@@ -53,6 +53,19 @@ def test_forbidden_action_does_not_hide_current_request_after_contrast(fixtures)
     assert [d["id"] for d in result["domain_details"]] == ["design.visual"]
 
 
+@pytest.mark.parametrize("text, expected", [
+    ("请整理微分谱的实验记录", False),
+    ("请展示微分截面的测量结果", False),
+    ("请推导一阶微分方程", True),
+    ("请计算微分谱曲线的积分", True),
+])
+def test_physics_compound_terms_do_not_borrow_math_prefix(text, expected, fixtures):
+    session, event, _ = fixtures
+    result = extract_task_features(semantic_messages([event(text)], [session()]))
+    assert ("mathematics" in (result["domain"] or [])) is expected
+    assert ("math.calculus" in {d["id"] for d in result["domain_details"] or []}) is expected
+
+
 def test_specificity_does_not_turn_transition_matrix_into_math(fixtures):
     session, event, _ = fixtures
     result = extract_task_features(semantic_messages([event("请生成工具调用转移矩阵")], [session()]))

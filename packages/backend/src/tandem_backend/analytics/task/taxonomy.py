@@ -2,7 +2,7 @@
 
 import re
 
-TAXONOMY_VERSION = "task-taxonomy-v2"
+TAXONOMY_VERSION = "task-taxonomy-v2.1"
 DOMAIN_LABELS = {
     "software": "软件工程", "mathematics": "数学", "data_analysis": "数据工作",
     "writing": "写作与文档", "design": "设计", "education": "教育与学习",
@@ -11,7 +11,7 @@ DOMAIN_LABELS = {
 # proof) are not sufficient to establish a specialized subdomain by themselves.
 DOMAINS = {
     "software": r"代码|后端|前端|函数|接口|脚本|程序|软件|\b(?:code|api|backend|frontend|python|typescript|bug)\b",
-    "mathematics": r"数学|定理|积分|微分|线性代数|\b(?:mathematics|math|theorem|calculus)\b",
+    "mathematics": r"数学|定理|积分|微分(?!谱|截面)|线性代数|\b(?:mathematics|math|theorem|calculus)\b",
     "data_analysis": r"数据分析|数据集|统计|聚类|特征|\b(?:analytics|dataset|statistics|clustering)\b",
     "writing": r"文档|报告|文章|讲义|教程|\b(?:document|report|readme|essay|tutorial)\b",
     "design": r"界面|排版|配色|海报|\b(?:design|layout|poster|ui)\b",
@@ -49,7 +49,7 @@ DOMAIN_DETAILS = {
     "design.visual": _rule("视觉与平面设计", "design", r"海报|图标|标志设计|配色方案|插画|品牌视觉|\b(?:poster|logo|illustration|graphic\s+design|color\s+palette)\b"),
     "design.presentation": _rule("演示与排版设计", "design", r"幻灯片|演示文稿|演示设计|排版|\b(?:slide\s+deck|presentation\s+design|powerpoint|typography|typesetting)\b"),
     "math.linear_algebra": _rule("代数与线性代数", "mathematics", r"线性代数|特征值|行列式|矩阵求逆|多项式|方程组|\b(?:linear\s+algebra|eigenvalues?|determinant|polynomial|matrix\s+inverse)\b", r"矩阵|\bmatrix\b", _MATH_CONTEXT),
-    "math.calculus": _rule("微积分与分析", "mathematics", r"微积分|积分|微分|数学极限|导数|\b(?:calculus|integral|differentiat(?:ion|e)|derivative)\b"),
+    "math.calculus": _rule("微积分与分析", "mathematics", r"微积分|积分|微分(?!谱|截面)|数学极限|导数|\b(?:calculus|integral|differentiat(?:ion|e)|derivative)\b"),
     "math.probability": _rule("概率与统计理论", "mathematics", r"概率论|概率分布|贝叶斯定理|随机变量|\b(?:probability\s+(?:theory|distribution)|bayes\s+theorem|random\s+variable)\b"),
     "math.discrete": _rule("离散数学与优化理论", "mathematics", r"离散数学|图论|组合数学|数论|凸优化|\b(?:discrete\s+math|graph\s+theory|number\s+theory|combinatorics|convex\s+optimization)\b"),
     "education.lesson_design": _rule("课程与教学设计", "education", r"教案|教学设计|课程大纲|讲义|\b(?:lesson\s+plan|curriculum|syllabus|lecture\s+notes)\b"),

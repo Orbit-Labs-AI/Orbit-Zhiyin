@@ -160,6 +160,6 @@ def summarize_task_distribution(tasks, scope=None):
             out[field]["labels"] = {identifier: {"label": DOMAIN_DETAILS[identifier]["label"],
                                     "parent_id": DOMAIN_DETAILS[identifier]["parent_id"],
                                     "parent_label": DOMAIN_LABELS[DOMAIN_DETAILS[identifier]["parent_id"]]}
-                                    for identifier in counts if identifier in DOMAIN_DETAILS}
+                                    for identifier in sorted(counts) if identifier in DOMAIN_DETAILS}
             out[field]["taxonomy_versions"] = sorted({t.get("taxonomy_version") or "unknown" for t in tasks})
     return out
