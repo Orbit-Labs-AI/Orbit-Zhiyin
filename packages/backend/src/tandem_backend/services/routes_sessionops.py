@@ -13,7 +13,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from .. import platform
-from ..sessionops import exclusion, resume, toolcalls
+from ..sessionops import exclusion, locate, resume, toolcalls
 from .auth import ApiError
 
 if TYPE_CHECKING:
@@ -93,6 +93,12 @@ def router(gw: Gateway) -> APIRouter:
             row["last_event_ts"] = db.execute("SELECT max(ts) FROM event WHERE session_uid = ?",
                                               (session_uid,)).fetchone()[0]
         return resume.build(row, int(time.time() * 1000))
+
+    @api.get("/v1/sessions/{session_uid}/source_location")
+    def source_location(session_uid: str):
+        with gw.reads.read() as db:
+            session_row(db, session_uid)
+            return locate.locate(db, session_uid)
 
     @api.get("/v1/analytics/tool_calls")
     def tool_calls(
