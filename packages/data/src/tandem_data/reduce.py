@@ -302,6 +302,17 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         progress({"stage": "derive_sessions", "completed": index + 1, "total": len(metas)})
 
 
+def _insert_grouped(db, table, rows):
+    """Insert rows in order, one executemany per run of rows with the same columns."""
+    run = []
+    for row in rows:
+        if run and list(row) != list(run[0]):
+            insert_rows(db, table, run)
+            run = []
+        run.append(row)
+    insert_rows(db, table, run)
+
+
 def _derive_session(store, session_uid, meta, events, recorded_root=None, shared_projects=None):
     current_turn = None
     turns = {}
@@ -554,14 +565,13 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
     insert_rows(store.db, "event_context", contexts)
     if turn_updates:
         store.db.executemany("UPDATE event SET turn_uid=? WHERE event_uid=?", turn_updates)
+    # Same rows in the same order as row-by-row inserts, written per table in batches
+    # (foreign keys are deferred, so tool_call rows may precede their turn rows).
+    call_events = []
     for values, call in tools.values():
-        insert(store.db, "tool_call", values)
         for role, field in (("call", "call_event_uid"), ("result", "result_event_uid")):
             if values.get(field):
-                store.db.execute(
-                    "INSERT INTO tool_call_event VALUES(?,?,?)",
-                    (values["call_uid"], values[field], role),
-                )
+                call_events.append((values["call_uid"], values[field], role))
         if call:
             features[("tool_category", values["kind"])] += 1
             for feature, field in (
@@ -574,14 +584,14 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             for filename in json.loads(values["files"]):
                 if Path(filename).suffix:
                     features[("file_extension", Path(filename).suffix)] += 1
-    for evidence in permission_evidence:
-        store.db.execute("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", evidence)
-    for turn in turns.values():
-        insert(store.db, "turn", turn)
-    for (feature, value), count in features.items():
-        store.db.execute(
-            "INSERT INTO session_feature VALUES(?,?,?,?)", (session_uid, feature, value, count)
-        )
+    _insert_grouped(store.db, "tool_call", [values for values, _ in tools.values()])
+    store.db.executemany("INSERT INTO tool_call_event VALUES(?,?,?)", call_events)
+    store.db.executemany("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", permission_evidence)
+    insert_rows(store.db, "turn", turns.values())
+    store.db.executemany(
+        "INSERT INTO session_feature VALUES(?,?,?,?)",
+        [(session_uid, feature, value, count) for (feature, value), count in features.items()],
+    )
     action_times = [
         e["ts"]
         for e in events
