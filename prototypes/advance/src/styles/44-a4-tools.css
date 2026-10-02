@@ -1,10 +1,19 @@
 /* A4 工具调用（js/43-a4-tools.js）。单色度量条：中性灰，颜色只落在状态（错误率超阈值 → --vz-err，中途停止 → --vz-corr）。
    明细表：调用条 6px、错误率 40px 微型条、耗时 p50 / p95 两段条、迷你线为真实日序列；转移矩阵是 HTML grid（格子固定 36–44px，文字恒定 11px）。 */
-.tt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
+.tt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto 1fr;gap:12px;align-items:stretch}   /* 失败原因按内容高，余量给审批卡 */
 .tt-matrix{grid-row:span 2}
 .tt-mcp{grid-column:1 / -1;display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,1.4fr);gap:20px}
-@container main (max-width:799px){.tt-grid{grid-template-columns:minmax(0,1fr)}.tt-matrix{grid-row:auto}.tt-mcp{grid-column:auto;grid-template-columns:minmax(0,1fr)}}
-.tt-retry{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(48px,1fr) auto;gap:8px;align-items:center;font-size:12px;min-height:22px}
+@container main (max-width:799px){.tt-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:none}.tt-matrix{grid-row:auto}.tt-mcp{grid-column:auto;grid-template-columns:minmax(0,1fr)}}
+.tt-retry{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(48px,1fr) 84px;gap:8px;align-items:center;font-size:12px;min-height:22px}   /* 末列定宽：各行条形起止对齐 */
+.tt-retry .tt-fail-v{min-width:0}
+.tt-ins{gap:4px;margin-top:12px;font-size:12px;line-height:1.5;color:var(--ink-2)}
+.tt-ins b{color:var(--ink-1)}
+.tt-sub{margin:16px 0 6px;padding-top:12px;border-top:1px solid var(--hair)}
+.tt-wait-note{font-size:11px;margin-top:4px}
+.tt-cta{padding:8px 10px;border-radius:8px;background:var(--sunken);margin-top:auto;flex-wrap:wrap;gap:8px}
+.tt-cta-t{flex:1;min-width:160px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.tt-cta-t b{color:var(--ink-1)}
+.tt-par-note{align-items:flex-start;gap:6px;font-size:11px;line-height:1.45;color:var(--ink-2)}
 .tt-retry .tt-cmd{font-size:11px;color:var(--ink-1)}
 .tbl.tt td{padding:6px 8px}
 .tbl.tt .mono{font-size:12px}
@@ -28,23 +37,23 @@
 /* 调用链矩阵：行 = 上一步、列 = 下一步；格子按 grid 列固定，悬停高亮整行整列（.hl 由 JS 切换） */
 .tm{display:grid;gap:2px;align-items:center;margin-top:2px;width:max-content;max-width:100%;overflow-x:auto}
 .tm-h{font-size:11px;color:var(--ink-3);text-align:center;padding:0 0 2px;white-space:nowrap}
-.tm-corner{text-align:left;font-size:10px;padding-right:6px}
-.tm-rh{font-size:11px;color:var(--ink-2);padding-right:6px;white-space:nowrap;text-align:right}
+.tm-corner{text-align:right;font-size:10px;padding-right:6px;cursor:help}
+.tm-rh{font-size:11px;line-height:32px;color:var(--ink-2);padding-right:6px;white-space:nowrap;text-align:right}
 .tm-c{height:32px;min-width:36px;border:0;border-radius:4px;font:600 11px var(--mono);font-variant-numeric:tabular-nums;padding:0;display:grid;place-items:center;cursor:default;transition:box-shadow .12s,opacity .12s}
 .tm-c.diag{box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--ink-1) 35%,transparent)}
 .tm-c.peak{box-shadow:inset 0 0 0 2px var(--ink-1)}
-.tm-n{font-size:11px;color:var(--ink-3);text-align:right;padding-left:6px;white-space:nowrap}
+.tm-n{font-size:11px;line-height:32px;color:var(--ink-3);text-align:right;padding-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tm.has-hl .tm-c:not(.hl){opacity:.45}
 .tm.has-hl .tm-rh.hl,.tm.has-hl .tm-h.hl,.tm.has-hl .tm-n.hl{color:var(--ink-1);font-weight:600}
 .tm-c:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 /* 失败原因：浅灰条 + 「31% · 190 次」，展开给典型输出与「相关会话」 */
-.tt-fail{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;border:0;background:none;padding:3px 0;text-align:left;width:100%;border-radius:6px}
+.tt-fail{display:grid;grid-template-columns:118px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;border:0;background:none;padding:4px 6px;margin:0 -6px;text-align:left;width:calc(100% + 12px);border-radius:6px}   /* 悬停底色外扩，文字仍与卡片标题对齐 */
 .tt-fail:hover,.tt-fail.on{background:var(--bg)}
 .tt-fail-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tt-fail-bar{height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .tt-fail-bar i{display:block;height:100%;border-radius:0 3px 3px 0;background:var(--ink-4);min-width:2px}
 .tt-fail.on .tt-fail-bar i{background:var(--ink-2)}
-.tt-fail-v{font-size:11px;color:var(--ink-2);white-space:nowrap;text-align:right;min-width:84px}   /* 定宽让各行条形终点对齐 */
+.tt-fail-v{font-size:11px;color:var(--ink-2);white-space:nowrap;text-align:right;min-width:84px;font-variant-numeric:tabular-nums}   /* 定宽让各行条形终点对齐 */
 .tt-fail-x{display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 8px;border-radius:6px;background:var(--sunken);color:var(--ink-2)}
 @container main (max-width:639px){.tt-fail{grid-template-columns:96px minmax(0,1fr) auto}}
 /* MCP 服务：说明紧跟在列表下，不再被推到卡片底部留出空洞 */
