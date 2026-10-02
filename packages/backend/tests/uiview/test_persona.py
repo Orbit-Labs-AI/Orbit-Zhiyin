@@ -93,7 +93,7 @@ def test_reveal_subset():
     assert len(out["particles"]) == out["particles_total"] == 150
     assert set(out["particles"][0]) == {"h", "mi", "dur", "a"}
     matches = [c["match"] for c in out["candidates"]]
-    assert matches == sorted(matches, reverse=True) and len(matches) == 3
+    assert matches == sorted(matches, reverse=True) and len(matches) == 6
 
 
 def test_months_window_resolution():

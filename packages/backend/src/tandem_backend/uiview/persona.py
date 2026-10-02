@@ -270,7 +270,7 @@ def strengths(p: dict) -> list[dict]:
              "strong": a["strong"], "n_units": a["n_units"]} for a in settled[:3]]
 
 
-def candidates(p: dict, top: int = 3) -> list[dict]:
+def candidates(p: dict, top: int = 6) -> list[dict]:
     if not p["ok"] or not p["v"] or any(v is None for v in p["v"].values()):
         return []
     scored = []
@@ -279,7 +279,8 @@ def candidates(p: dict, top: int = 3) -> list[dict]:
                  for i, spec in enumerate(AXES)]
         scored.append((-round(sum(parts) / 4, 1), code, zh, en))
     scored.sort()
-    return [{"code": c, "zh": zh, "en": en, "match": -s} for s, c, zh, en in scored[:top]]
+    return [{"code": c, "zh": zh, "en": en, "match": -s, "basis": "axis_distance"}
+            for s, c, zh, en in scored[:top]]
 
 
 def relax(rows: list[dict], window, f: dict, period: str, label: str, first: int,
