@@ -1242,6 +1242,27 @@ if(TL.mode==='live'){
   TL.start();
 }
 /* ==== @tandem-live block end ==== */
+/* ==== @tandem-live recs block: 优化建议 in live mode. GET /v1/recommendations (surface A7) replaces RECOMMENDATIONS rows and keeps
+   the page renderer; view / open / copy exposure go to the gateway. Never live yet and the endpoint is missing or down
+   (404 / 501 / 503 / offline): the demo rows stay, with 示例数据. Shared client: TandemLive recs section. ==== */
+const LVR={applied:null};
+TL.bind('recs',()=>[TL.recs.desc('A7')],d=>({items:(d.A7&&d.A7.items)||[]}));
+function lvRecAgents(compat){if(/所有/.test(compat||''))return AG.map(a=>a.id);const ids=[['cc',/Claude/],['cx',/Codex/],['gm',/Gemini/],['ds',/DeepSeek/],['cp',/Copilot/]].filter(x=>x[1].test(compat||'')).map(x=>x[0]);return ids.length?ids:['cc'];}
+function lvRecRow(c){const r=TandemLive.recs.row(c);return {id:r.id,rec_key:r.rec_key,live:true,dim:r.dim==='rule'?'prompt':r.dim,type:r.type,icon:['bolt','book','bot','branch','gauge','puzzle','rule'].includes(r.icon)?r.icon:'rule',title:r.title,desc:r.why,gain:r.gain,agents:lvRecAgents(r.compat),score:r.priority==null?0:r.priority,reason:'live',n:r.x.n[0],file:(r.target||'').split('/').pop()||'—',code:r.file.filter(l=>l[1]!=='-').map(l=>l[0]).join('\n'),steps:r.steps};}
+function lvRecDegraded(){if(LVR.applied)return false;const r=TL.recs.resource('A7',{range:S.range,agents:S.agent==='all'?null:[S.agent],projects:null,tz:TL_TZ});const e=r.error;return r.state==='error'&&(!e||!e.status||[404,501,503].includes(e.status));}
+if(TL.mode==='live'){
+  const baseRecsPage=PAGES.recs,baseEvidence=evidence;
+  evidence=r=>r.live?r.n:baseEvidence(r);
+  PAGES.recs=()=>{const v=lvView('recs');const d=v&&v.res&&v.res.A7&&v.res.A7.data;if(d&&d!==LVR.applied){const rows=(d.items||[]).map(lvRecRow);RECOMMENDATIONS.splice(0,RECOMMENDATIONS.length,...rows);rows.forEach(r=>{REC[r.id]=r;});LVR.applied=d;}return baseRecsPage();};
+  const lvRecRender=render;
+  render=function(){lvRecRender();if(S.route!=='recs')return;const c=$('#content');if(!c)return;const strip=c.querySelector(':scope > [data-tl="strip"]');if(lvRecDegraded()){if(strip&&!strip.querySelector('[data-tl="sample"]'))strip.insertAdjacentHTML('beforeend','<div>'+TLU.sample()+'</div>');const note=c.querySelector('.footer-note');if(note)note.textContent='TANDEM / 同频 · 本机数据 · 本页为示例数据';}const ids=[...c.querySelectorAll('[data-act="rec"][data-id]')].map(el=>el.dataset.id).filter(id=>REC[id]&&REC[id].live);if(ids.length)TL.recs.viewed('A7',[...new Set(ids)]).catch(()=>{});};
+  const ex=(id,action)=>{if(REC[id]&&REC[id].live)TL.recs.exposure(id,'A7',action).catch(()=>{});};
+  const baseRec=ACT.rec,baseCopy=ACT['copy-config'],baseRecTab=ACT['rec-tab'];
+  ACT.rec=el=>{baseRec(el);ex(el.dataset.id,'open');};
+  if(baseRecTab)ACT['rec-tab']=el=>{baseRecTab(el);if(el.dataset.value==='preview')ex(S.rec,'preview');};
+  if(baseCopy)ACT['copy-config']=el=>{baseCopy(el);ex(S.rec,'copy');};
+}
+/* ==== @tandem-live recs block end ==== */
 readLocation();render();
 
 </script></body></html>

@@ -328,3 +328,27 @@ for (const mode of ['missing', 'down']) {
     expect(errors).toEqual([]);
   });
 }
+
+test('live Lite recs: 优化建议 reads the fixtures; 404 before any live data keeps the demo rows with 示例数据', async ({ page }) => {
+  ONLY('mac-14');
+  test.setTimeout(60_000);
+  const errors = collectErrors(page, (text, url) => /status of 404/.test(text) && /^http:\/\/tandem\.test\/v1\/recommendations/.test(url));
+  const gw = await gateway(page);
+  gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
+  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.evaluate(() => go('recs'));
+  await expect(page.locator('#content .rec-card')).toHaveCount(3);
+  await expect(page.locator('#content')).toContainText('只读命令自动放行');
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+  await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A7')).toBe(true);
+  await page.locator('#content .rec-card').filter({ hasText: '长会话交接摘要' }).locator('[data-act="rec"]').click();
+  await expect(page.locator('#recDetail')).toContainText('长会话交接摘要');
+  await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/fxc-handoff/exposure' && x.body.action === 'open')).toBe(true);
+  // a fresh page against a gateway without the endpoint keeps the demo rows
+  gw.rec.mode = 'missing';
+  await page.reload();
+  await page.evaluate(() => go('recs'));
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
+  await expect(page.locator('#content')).toContainText('先写完成条件');
+  expect(errors).toEqual([]);
+});
