@@ -19,6 +19,8 @@ from .store import readonly_connection
 FINGERPRINT_VERSION = "analysis-fingerprint-v1"
 
 # Per-session aggregates first, then one GROUP BY root_uid over the session table.
+# ``{members}`` is a json_object over every session column, so in-place metadata
+# updates (title, status, repository fields ...) also change the tree fingerprint.
 # The aggregates use the (session_uid, seq) unique index and the projection foreign-key
 # indexes, so no payload pages are read.
 TREE_SQL = """
@@ -37,10 +39,7 @@ SELECT s.root_uid AS root_uid,
        min(ev.lo) AS min_ts, max(ev.hi) AS max_ts, total(ev.untimed) AS untimed_events,
        total(tc.n) AS tool_calls, max(tc.r) AS tool_rowid,
        total(mc.n) AS model_calls, max(mc.r) AS model_rowid,
-       group_concat(s.session_uid || char(31) || s.kind || char(31) || s.status || char(31)
-         || coalesce(s.parent_uid, '') || char(31) || coalesce(s.project_id, '') || char(31)
-         || s.source_id || char(31) || coalesce(s.title, '') || char(31)
-         || coalesce(s.started_at, '') || char(31) || coalesce(s.ended_at, ''), char(30)) AS members
+       group_concat({members}, char(30)) AS members
 FROM session s
 LEFT JOIN ev USING(session_uid)
 LEFT JOIN tc USING(session_uid)
@@ -104,8 +103,10 @@ class Fingerprints:
 
 
 def _tree(row) -> TreeFingerprint:
-    members = sorted((row["members"] or "").split("\x1e")) if row["members"] else []
-    fields = [member.split("\x1f") for member in members]
+    members = sorted(
+        (json.loads(text) for text in row["members"].split("\x1e")),
+        key=lambda member: member["session_uid"],
+    )
     counts = (
         row["sessions"],
         row["session_rowid"],
@@ -120,14 +121,13 @@ def _tree(row) -> TreeFingerprint:
         int(row["model_calls"]),
         row["model_rowid"],
     )
+    projects = {member.get("project_id") for member in members}
     return TreeFingerprint(
         root_uid=row["root_uid"],
         fp=digest(FINGERPRINT_VERSION, counts, members),
-        session_uids=tuple(f[0] for f in fields),
-        project_ids=tuple(
-            sorted({f[4] or None for f in fields}, key=lambda v: (v is None, v or ""))
-        ),
-        source_ids=tuple(sorted({f[5] for f in fields})),
+        session_uids=tuple(member["session_uid"] for member in members),
+        project_ids=tuple(sorted(projects, key=lambda v: (v is None, v or ""))),
+        source_ids=tuple(sorted({member.get("source_id") for member in members})),
         min_ts=row["min_ts"],
         max_ts=row["max_ts"],
         untimed_events=int(row["untimed_events"]),
@@ -146,8 +146,10 @@ def read_fingerprints(connection) -> Fingerprints:
         for name in GLOBAL_TABLES
         if name in existing
     ]
+    columns = [row[1] for row in connection.execute('PRAGMA table_info("session")')]
+    members = "json_object(" + ",".join(f"'{c}',s.\"{c}\"" for c in columns) + ")"
     trees = {}
-    for row in connection.execute(TREE_SQL):
+    for row in connection.execute(TREE_SQL.format(members=members)):
         tree = _tree(row)
         trees[tree.root_uid] = tree
     return Fingerprints(run, digest(global_parts), trees)

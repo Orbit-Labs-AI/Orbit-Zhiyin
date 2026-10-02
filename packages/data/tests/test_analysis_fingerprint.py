@@ -135,3 +135,13 @@ def test_rowid_or_count_changes_alone_invalidate_the_tree(tmp_path):
     assert after.trees[root].fp != before.trees[root].fp
     others = set(before.trees) - {root}
     assert all(after.trees[r].fp == before.trees[r].fp for r in others)
+
+    # In-place session metadata updates are part of the tree identity as well.
+    other = next(iter(others))
+    connection = sqlite3.connect(home / "tandem.db")
+    connection.execute("UPDATE session SET title='renamed' WHERE root_uid=?", (other,))
+    connection.commit()
+    connection.close()
+    renamed = fingerprints(home)
+    assert renamed.trees[other].fp != after.trees[other].fp
+    assert renamed.trees[root].fp == after.trees[root].fp
