@@ -274,7 +274,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         visible_events = []
         for e in all_events:
             attrs = dict(e.get("attrs", {}))
-            for key in ("interaction", "acceptance", "validation", "validation_result"):
+            for key in ("interaction", "acceptance", "validation", "validation_result", "validation_report"):
                 if attrs.get(key) and not annotation_visible(attrs[key], scope.until_ts):
                     attrs[key] = None
             visible_events.append({**e, "attrs": attrs})
@@ -340,7 +340,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
                         "result_seq", "validation_result", "validation_report"):
                 c[key] = None
             c.update(duration_quality="missing", duration_source=None, interval_reliable=False)
-        for key in ("validation", "validation_result"):
+        for key in ("validation", "validation_result", "validation_report"):
             if c.get(key) and not annotation_visible(c[key], scope.until_ts):
                 c[key] = None
         calls.append(c)

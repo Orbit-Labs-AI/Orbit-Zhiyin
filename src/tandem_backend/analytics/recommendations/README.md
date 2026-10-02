@@ -96,3 +96,5 @@ result = recommend_bottlenecks(
 ## 验证记录
 
 新增 90 项合成测试覆盖规则门槛、候选/未知/未来证据、跨任务/版本/根会话隔离、资源准入、排序以及 service/API/CLI 对接。独立审查发现的孤立子代理跨根凑样本 P1 已修复并加入回归。Ruff、现有 synthetic demo 与 evaluate 通过；评测结果 readability 8/8、pipeline 34/34、probe 12/12，这些分数验证的是既有合成规则，不代表推荐的真实收益。未读取个人历史进行端到端测试。
+
+同步 main `5af85bb` 与四模块证据边界修复 `8697deb` 后，后端完整测试 **654 项通过**，Ruff 与 `git diff --check` 通过；遗留 Starlette/AnyIO 弃用提示不影响结果。新合入的数据契约包和 TypeScript 连接器与 main 内容一致，本次没有修改其实现。

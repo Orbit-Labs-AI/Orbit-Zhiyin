@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
@@ -146,3 +147,26 @@ def test_instruction_observation_does_not_invent_objective_acceptance():
     assert outcome["validation_result_counts"] == {"passed": 2}
     assert outcome["acceptance_results"] == []
     assert outcome["task_success"] is None
+
+
+@pytest.mark.parametrize("available_offset", [None, 12000, 20000])
+@pytest.mark.parametrize("l2_only", [False, True])
+def test_validation_reports_respect_cutoff_in_l2_and_l3(available_offset, l2_only):
+    data = fixture()
+    base = data["sessions"][0]["started_at"]
+    report = {"report_uid": "not-yet-visible-report", "source": "synthetic",
+              "available_at": base + available_offset if available_offset is not None else None}
+    call = data["tool_calls"][0]
+    call["validation_report"] = dict(report)
+    start = next(e for e in data["events"] if e["event_uid"] == call["call_event_uid"])
+    result = next(e for e in data["events"] if e["event_uid"] == call["result_event_uid"])
+    start["attrs"]["call_id"] = result["attrs"]["call_id"] = "synthetic-native-call"
+    result["attrs"]["validation_report"] = dict(report)
+    if l2_only:
+        data["tool_calls"] = None
+        data["coverage"]["tool_calls"]["status"] = "unavailable"
+    before = copy.deepcopy(data)
+    assert "not-yet-visible-report" in json.dumps(analyze(data))
+    bounded = analyze(data, Scope(until_ts=base + 12000))
+    assert "not-yet-visible-report" not in json.dumps(bounded)
+    assert data == before

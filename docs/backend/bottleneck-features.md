@@ -83,6 +83,8 @@ tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
 - main 基线 398 项测试通过；重构后 467 项通过，新增 69 项。Ruff 与 `git diff --check` 通过。
 - 同步 main 后按职责进一步拆分四目录，再次运行 467 项测试全部通过；逐一核对 30 个函数的语法树及 93 条字段定义，拆分前后相同。
 - main 后续合入 Instruction 与连接器后，解决共享字段字典、兼容函数和 service 的冲突；包含一项新增跨模块边界回归的隔离提交副本，556 项测试和 Ruff 通过。隔离副本不包含工作区中另一项推荐模块开发的未提交文件。
+- PR #19 首轮 review 的两项 P1 已修复：`validation_report` 在 L2/L3 都按截止时间过滤；缺少结果时间时只在同一会话内按 `result_seq` 排序，跨会话相互矛盾的证据保持未知。增加 8 项回归后，564 项测试通过，本分支合计新增 78 项瓶颈测试。
+- 连接器未作代码修改；在临时 Linux Node 24.7.0 环境运行 `pnpm check`，typecheck、35 项构造样本测试、build 和构建后 CLI 帮助均通过。Windows 原生补充运行因该已有模块的路径／POSIX 权限假设失败，本 PR 不扩大到连接器的平台兼容改造。
 - 隔离临时目录中的 synthetic demo 通过；evaluate 的 readability 8/8、pipeline 34/34、probe 12/12，history_updated=false。
 - 四模块合成数据：确认纠偏率 0.5，工具调用 2 次，Token 350；执行耗时总和 20,000 ms、并集 15,000 ms；显式完整验收集合通过。排除子代理后，构建验收回到未知。
 - 可在本地 `.local/bottleneck-fixture-result.json` 查看该虚构样本的完整结果；生成物不进入 Git。

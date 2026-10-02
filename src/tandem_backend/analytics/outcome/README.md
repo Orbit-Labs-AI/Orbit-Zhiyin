@@ -42,7 +42,7 @@ added: 2026-10-02
 | `validation_runs[*].validation_result` | 检查 · 通过／失败／中断／未知 | 直接命令结果或匹配内部报告才能支持结论；包装层成功不证明内部通过。 |
 | `acceptance_results` | 验收项 · 状态及证据 | 按验收项 ID、任务、会话树、种类、对象版本与覆盖匹配；缺依据保留未知。 |
 | `validation_runs[*].validation_scope` | 检查 · 覆盖范围 | 要求项目、产物、修订和 full/subset；subset 还须 files/test_ids，不跨版本或向全量外推。 |
-| `validation_runs[*].validation_evidence` | 检查／验收项 · 引用 | 保留调用、报告和修订；按结果可见时间或可比较的返回顺序选择证据，不按调用开始时间。 |
+| `validation_runs[*].validation_evidence` | 检查／验收项 · 引用 | 保留调用、报告和修订；按结果可见时间或同一会话的返回顺序选择证据，不按调用开始时间。 |
 
 统一输出位于 `bottleneck_features.outcome`，同时提供总体、会话树和项目范围。缺失保持 `null`，候选不当确认，已知子集不等于完整总体；有效数、未知数与证据一起解释指标。
 
@@ -64,7 +64,7 @@ added: 2026-10-02
 - 有来源且 executed=true 的验证元数据可以识别检查；完整的直接 pytest/ruff/mypy/tsc/cargo/go 检查命令也可识别，但不会猜测其验收项或覆盖版本。仅 command_head、不完整命令、帮助／收集／列表模式、复合命令和被拒绝执行的请求不算已执行验证。
 - 命令级协议返回支持通过／失败／中断／未知。包装层成功不能证明内部通过；内部报告须有匹配调用 ID、报告 ID、对象范围和可见时间。
 - `collect_acceptance_criteria` 消费上游 Instruction 的确认标签；`match_acceptance_criteria` 按验收项 ID、任务、会话树、检查类别、对象版本及覆盖范围匹配。
-- 局部范围不扩展到全量，v1 不证明 v2。重复检查按结果可见时间／结果记录顺序更新，不能按调用开始顺序挑选较新的结论；无法比较且互相矛盾时保留未知。
+- 局部范围不扩展到全量，v1 不证明 v2。重复检查按结果可见时间／结果记录顺序更新，不能按调用开始顺序挑选较新的结论；无法比较且互相矛盾时保留未知；不同会话的局部 result_seq 不能用于相互排序。
 - `summarize_objective_outcomes` 仅在明确且完整的验收集合下计算对应 task_success；无条件、集合不完整、多集合汇总或有未验证项时不声称全部成功。某项明确失败可以证明该完整集合没有全部通过。
 
 
@@ -113,7 +113,7 @@ python -m pytest -q tests/bottleneck/test_outcome.py tests/bottleneck/test_integ
 ruff check src tests
 ```
 
-2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器后，在隔离提交副本中 556 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器并修复两项 P1 后，在隔离提交副本中 564 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
 
 ## 补充特征与函数
 
