@@ -149,14 +149,17 @@ def install_error_handlers(app: FastAPI) -> None:
                                        "retryable": False}}, status_code=422)
 
 
-def default_scope(days: int, now: datetime | None = None) -> dict:
-    """Last ``days`` UTC days from the start of a day, so one day maps to one scope hash."""
-    now = now or datetime.now(UTC)
-    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+def default_scope(days: int | None, now: datetime | None = None) -> dict:
+    """Last ``days`` UTC days from the start of a day, so one day maps to one scope hash
+    (``None``: all time, the default of scope-less routes such as recommendations)."""
     from dataclasses import asdict
 
     from ..analytics.inputs import Scope
 
+    if days is None:
+        return asdict(Scope())
+    now = now or datetime.now(UTC)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return asdict(Scope(from_ts=int(start.timestamp() * 1000)))
 
 
@@ -276,18 +279,23 @@ class Gateway:
         scopes = [default_scope(state["settings"].get("default_range_days", 30))]
         scopes += [s for s in state["mru_scopes"][: self.prewarm_mru] if s not in scopes]
         sections = LIGHT + (HEAVY if self.prewarm_heavy else ())
+        # Light sections of every scope first, then heavy ones.
+        work = [(name, scope) for name in sections for scope in scopes]
+        if self.prewarm_heavy:  # /v1/recommendations defaults to the all-time scope.
+            from ..recommend.inputs import SECTION
+
+            work.append((SECTION, default_scope(None)))
         rules = rules_digest()
         queued = []
-        for name in sections:  # Light sections of every scope first, then heavy ones.
-            for scope in scopes:
-                h = scope_hash(scope, {})
-                key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
-                if self.snapshots.get(key) is not None:
-                    continue
-                task = self.supervisor.analysis.submit(
-                    name, scope, {}, h, "prewarm", (rev["data_rev"], rev["inventory_rev"]), rules)
-                if task is not None:
-                    queued.append(task.id)
+        for name, scope in work:
+            h = scope_hash(scope, {})
+            key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
+            if self.snapshots.get(key) is not None:
+                continue
+            task = self.supervisor.analysis.submit(
+                name, scope, {}, h, "prewarm", (rev["data_rev"], rev["inventory_rev"]), rules)
+            if task is not None:
+                queued.append(task.id)
         return queued
 
     def _sync_loop(self) -> None:
