@@ -101,12 +101,17 @@ def _empty(status: str, diagnostics: list) -> dict:
 
 
 @_timed
-def build_slate(inputs: dict, memory: dict, *, catalog=None, recall: Callable | None = None) -> dict:
-    """RecInputs + Memory → Slate (passing ranked 1..N, then passing-unranked and gated with rank None)."""
+def build_slate(inputs: dict, memory: dict, *, catalog=None, recall: Callable | None = None, features=None) -> dict:
+    """RecInputs + Memory → Slate (passing ranked 1..N, then passing-unranked and gated with rank None).
+
+    ``features`` (the features module API) adds the profile × catalog feature route and
+    replaces ``inputs.profile`` with the live profile for scoring."""
     recall = recall or _default_recall()
     if recall is None:
         return _empty("no_matching", [{"source": "recall", "status": "unavailable"}])
-    rr = recall(inputs, memory, catalog=catalog)
+    rr = recall(inputs, memory, catalog=catalog, **({"features": features} if features is not None else {}))
+    if rr.get("profile") is not None:
+        inputs = {**inputs, "profile": rr["profile"]}
     ranked, rest, gated = rank_candidates(rr.get("candidates") or [], inputs, memory)
     problems = rr.get("problems") or []
     return {"engine_version": ENGINE_VERSION, "kb_version": rr.get("kb_version"),
