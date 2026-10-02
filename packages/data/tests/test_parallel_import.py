@@ -155,3 +155,35 @@ def test_changed_source_during_parallel_map_aborts_publication(tmp_path, workers
         with pytest.raises(SourceUnavailable):
             rebuild(store, workers=workers)
         assert store.db.execute("SELECT COUNT(*) FROM projection_run").fetchone()[0] == before
+
+
+def test_cached_source_paths_match_source_reader(tmp_path):
+    from tandem_data import parallel
+    from tandem_data.discovery import inputs
+    from tandem_data.source_reader import SourceUnavailable, source_path
+
+    root = tmp_path / "pi"
+    outside = tmp_path / "outside"
+    (root / "sessions/a").mkdir(parents=True)
+    outside.mkdir()
+    (root / "sessions/a/one.jsonl").write_text("{}\n")
+    (outside / "two.jsonl").write_text("{}\n")
+    (root / "sessions/linked").symlink_to(outside, target_is_directory=True)
+    (root / "sessions/a/alias.jsonl").symlink_to(root / "sessions/a/one.jsonl")
+    found = list(inputs("pi", root))
+    assert [str(item.path.relative_to(root)) for item in found] == ["sessions/a/one.jsonl"]
+    assert parallel.relative_paths(root, found) == {"sessions/a/one.jsonl"}
+    locate = parallel._SourcePaths(root)
+    for relative in (
+        "sessions/a/one.jsonl",
+        "sessions/a/alias.jsonl",
+        "sessions/linked/two.jsonl",
+        "sessions/a/missing.jsonl",
+    ):
+        outcomes = []
+        for resolve in (lambda r: source_path(root, r), locate):
+            try:
+                outcomes.append(str(resolve(relative)))
+            except SourceUnavailable as error:
+                outcomes.append(error.status)
+        assert outcomes[0] == outcomes[1], relative

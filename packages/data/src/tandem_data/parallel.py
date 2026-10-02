@@ -241,6 +241,50 @@ def _append_plan(store, file, path_stat, role):
     return file["record_count"], length, length
 
 
+def _relative(prefix, root, path):
+    text = str(path)
+    if text.startswith(prefix):
+        return text[len(prefix) :]
+    return str(Path(path).relative_to(root))
+
+
+def relative_paths(root, items) -> set[str]:
+    """``{str(item.path.relative_to(root))}`` without pathlib's per-path ancestor walk."""
+    prefix = os.path.join(str(root), "")
+    return {_relative(prefix, root, item.path) for item in items}
+
+
+class _SourcePaths:
+    """``source_reader.source_path`` with the root and parent directories resolved once.
+
+    A non-symlink file resolves to its resolved parent plus its own name, so caching the
+    parent keeps the same containment check without re-walking every path component.
+    String checks replace ``Path.is_relative_to``, which builds every ancestor path.
+    """
+
+    def __init__(self, root):
+        self.root = Path(root).resolve()
+        self.prefix = os.path.join(str(self.root), "")
+        self.parents = {}
+
+    def relative(self, path):
+        return _relative(self.prefix, self.root, path)
+
+    def __call__(self, relative):
+        path = os.path.join(str(self.root), relative)
+        if os.path.islink(path):
+            raise SourceUnavailable("changed", "Indexed source path no longer belongs to its root")
+        folder, name = os.path.split(path)
+        parent = self.parents.get(folder)
+        if parent is None:
+            parent = self.parents[folder] = os.path.join(os.path.realpath(folder), "")
+        if not (parent + name).startswith(self.prefix):
+            raise SourceUnavailable("changed", "Indexed source path no longer belongs to its root")
+        if not os.path.isfile(path):
+            raise SourceUnavailable("missing", "Indexed source is no longer available")
+        return Path(path)
+
+
 def capture(store, source_id, root, selected, pool, cancel, progress, result, agent):
     """Capture selected inputs: stat-unchanged files in one transaction, the rest in workers."""
     files = {
@@ -256,12 +300,13 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
         "SELECT 1 FROM ingest_issue WHERE source_id=? AND stage='l1' LIMIT 1", (source_id,)
     ).fetchone()
     skipped, jobs = [], []
+    locate = _SourcePaths(root)
     for item in selected:
-        relative = str(item.path.relative_to(root))
+        relative = locate.relative(item.path)
         file = files.get(relative)
         encoding = capture_encoding(item.path, item.role, agent)
         try:
-            current = source_stat(source_path(root, relative))
+            current = source_stat(locate(relative))
         except (OSError, ValueError):
             current = None  # index_file reports the failure in order.
         if (

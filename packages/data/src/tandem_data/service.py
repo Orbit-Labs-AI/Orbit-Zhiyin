@@ -83,8 +83,8 @@ class ImportService:
         with self.writer():
             source_id = self.store.add_source(request.agent, root)
             available = list(inputs(request.agent, root))
-            allowed = {item.path.resolve(): item for item in available}
             if request.files is not None:
+                allowed = {item.path.resolve(): item for item in available}
                 selected = []
                 for file in request.files:
                     path = (root / file).resolve() if not file.is_absolute() else file.resolve()
@@ -108,7 +108,7 @@ class ImportService:
             if result["selection"] == "full":
                 # Mark absences before indexing so an archived/renamed file can be
                 # matched by its decoded hash without creating duplicate identities.
-                seen = {str(item.path.relative_to(root)) for item in available}
+                seen = parallel.relative_paths(root, available)
                 if self.workers != 1:
                     scheduler.mark_missing(self.store, source_id, seen)
                 for file in self.store.db.execute(
@@ -166,7 +166,7 @@ class ImportService:
                     }
                 )
             if result["selection"] == "full" and not result["cancelled"]:
-                seen = {str(item.path.relative_to(root)) for item in available}
+                seen = parallel.relative_paths(root, available)
                 for row in self.store.db.execute(
                     "SELECT * FROM source_file WHERE source_id=?", (source_id,)
                 ).fetchall():
