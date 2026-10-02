@@ -382,11 +382,7 @@ def _attrs_ok(attrs, kind, ts) -> bool:
         scope, measurement = attrs["usage_scope"], attrs["measurement"]
         if scope == "call":
             return measurement == "delta" and "request_key" in attrs
-        return (
-            measurement == "cumulative"
-            and "snapshot_key" in attrs
-            and get("request_id") is None
-        )
+        return measurement == "cumulative" and "snapshot_key" in attrs and get("request_id") is None
     return True
 
 
