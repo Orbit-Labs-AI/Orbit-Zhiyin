@@ -40,6 +40,7 @@ class AnalysisContext:
     children: dict[str, set[str]] = field(init=False)
     _families: dict[tuple[str, ...], Record] = field(default_factory=dict, init=False)
     _call_pieces: dict[str, tuple] = field(default_factory=dict, init=False)
+    _pieces_handed_out: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
         self.event_groups = group_sessions(self.events)
@@ -171,7 +172,11 @@ class AnalysisContext:
         }
         effective = None
         if self.calls is not None or any_paired:
-            # Fresh one-level copies, exactly as project_call_sequence hands them out.
+            if len(key) == 1 and key[0] not in self._pieces_handed_out:
+                # The session's own scope takes the projected rows themselves; every other
+                # scope gets one-level copies, exactly as project_call_sequence hands out.
+                self._pieces_handed_out.add(key[0])
+                return paired, normalized, list(pieces[0][2])
             effective = []
             for p in pieces:
                 for original in p[2]:

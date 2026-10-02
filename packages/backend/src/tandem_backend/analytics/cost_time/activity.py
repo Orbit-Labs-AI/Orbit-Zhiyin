@@ -2,14 +2,26 @@
 
 from collections import Counter
 from datetime import datetime, timezone
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from ..common import human, timestamp
 from .tokens import prepare_requests
 
 
+@lru_cache(maxsize=1 << 18)
+def _local_parts(ts, zone_name):
+    """(day, hour, weekday) of one timestamp; the same timestamps recur in every scope."""
+    try:
+        dt = datetime.fromtimestamp(ts / 1000, timezone.utc).astimezone(ZoneInfo(zone_name))
+    except (ValueError, OverflowError, OSError):
+        return None
+    return dt.date().isoformat(), str(dt.hour), dt.isoweekday()
+
+
 def activity(sessions, events, calls, model_calls, main_ids, scope):
-    zone = ZoneInfo(scope.display_timezone)
+    zone_name = scope.display_timezone
+    ZoneInfo(zone_name)  # an unknown zone still fails here, before any timestamp
     def buckets(records):
         day, hour, weekday, weekday_hour, unknown = Counter(), Counter(), Counter(), Counter(), 0
         for ts in records:
@@ -18,15 +30,15 @@ def activity(sessions, events, calls, model_calls, main_ids, scope):
                 continue
             if not scope.contains(ts):
                 continue
-            try:
-                dt = datetime.fromtimestamp(ts / 1000, timezone.utc).astimezone(zone)
-            except (ValueError, OverflowError, OSError):
+            parts = _local_parts(ts, zone_name)
+            if parts is None:
                 unknown += 1
                 continue
-            day[dt.date().isoformat()] += 1
-            hour[str(dt.hour)] += 1
-            weekday[str(dt.isoweekday())] += 1
-            weekday_hour[f"{dt.isoweekday()}:{dt.hour}"] += 1
+            d, h, w = parts
+            day[d] += 1
+            hour[h] += 1
+            weekday[str(w)] += 1
+            weekday_hour[f"{w}:{h}"] += 1
         return {"by_day": dict(sorted(day.items())), "by_hour": dict(sorted(hour.items(), key=lambda x: int(x[0]))),
                 "weekday_distribution": dict(sorted(weekday.items())),
                 "by_weekday_hour": dict(sorted(weekday_hour.items())), "active_days": len(day),

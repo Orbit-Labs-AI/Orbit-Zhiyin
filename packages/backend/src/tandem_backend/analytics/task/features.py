@@ -2,6 +2,7 @@
 
 import re
 from collections import Counter, defaultdict
+from functools import lru_cache
 
 from ...models import stable_id
 from ..common import chronological_messages, clauses, evidence, semantic_coverage, semantic_messages
@@ -20,48 +21,70 @@ ARTIFACT = re.compile(r"(?<![\w.])(?:[\w.-]+/)*[\w.-]+\.(?:md|pdf|docx|tex|json|
 PRODUCE = re.compile(r"写|生成|创建|输出|交付|保存|导出|提供|\b(?:write|create|generate|deliver|export|save)\b", re.I)
 
 
+TASK_TYPE_PATTERNS = tuple((label, re.compile(pattern, re.I)) for label, pattern in TASK_TYPES.items())
+# Pure text functions below are memoized: the same message text is classified once as a
+# single message and again inside its merged task, and repeats across sessions.
+_MEMO_SIZE = 1 << 16
+
+
 def request_clauses(text):
     """Do not classify forbidden actions, quoted material or enduring preferences as tasks."""
+    return list(_request_clauses(text))
+
+
+@lru_cache(maxsize=_MEMO_SIZE)
+def _request_clauses(text):
     text = re.sub(r'“[^”]*”|「[^」]*」|"[^"\n]*"|`[^`\n]*`', '', text)
     parts = [p.strip() for p in re.split(r"[，,]|但是|但|而(?=不是)|\bbut\b", text, flags=re.I)]
-    return [c for part in parts for c in clauses(part)
-            if not NEGATIVE.search(c) and not PREFERENCE_ONLY.search(c) and not REFERENCE.search(c)
-            and not ((STATUS.search(c) or STATUS_SUFFIX.search(c)) and not REQUEST.search(c))]
+    return tuple(c for part in parts for c in clauses(part)
+                 if not NEGATIVE.search(c) and not PREFERENCE_ONLY.search(c) and not REFERENCE.search(c)
+                 and not ((STATUS.search(c) or STATUS_SUFFIX.search(c)) and not REQUEST.search(c)))
+
+
+@lru_cache(maxsize=_MEMO_SIZE)
+def _clause_facts(clause):
+    """Read-only facts of one clause; callers copy every mutable value they hand out."""
+    if CLOSE.fullmatch(clause):
+        return None
+    types = tuple(label for label, pattern in TASK_TYPE_PATTERNS if pattern.search(clause))
+    domains = details = ()
+    if types or REQUEST.search(clause):
+        domains, details = domain_matches(clause)
+        domains, details = tuple(domains), tuple(details)
+    verb = PRODUCE.search(clause)
+    artifacts = tuple(match.group(0) for match in ARTIFACT.finditer(clause, verb.end())) if verb else ()
+    return types, domains, details, artifacts
 
 
 def extract_task_features(task_events):
     labels = {"domain": {}, "domain_details": {}, "task_type": {}}
     artifacts, requests, detail_metadata = {}, [], {}
     for event in task_events:
-        for clause in request_clauses(event["semantic_text"]):
-            if CLOSE.fullmatch(clause):
+        for clause in _request_clauses(event["semantic_text"]):
+            facts = _clause_facts(clause)
+            if facts is None:
                 continue
-            found_action = False
-            for label, pattern in TASK_TYPES.items():
-                if re.search(pattern, clause, re.I):
-                    labels["task_type"].setdefault(label, []).append(evidence(event, clause))
-                    found_action = True
+            types, domains, details, names = facts
+            found_action = bool(types)
+            for label in types:
+                labels["task_type"].setdefault(label, []).append(evidence(event, clause))
             # Bare topic mentions/status lines do not establish a current request.
-            # Vague follow-ups can still stay inside a task via segment_tasks.
-            if found_action or REQUEST.search(clause):
-                domains, details = domain_matches(clause)
-                for label in domains:
-                    labels["domain"].setdefault(label, []).append(evidence(event, clause))
-                for detail in details:
-                    identifier = detail["id"]
-                    detail_metadata[identifier] = {key: detail[key] for key in
-                                                   ("id", "label", "parent_id", "parent_label", "rule_id")}
-                    labels["domain_details"].setdefault(identifier, []).append({
-                        **evidence(event, clause), **{key: detail[key] for key in
-                        ("matched_terms", "match_basis", "context_term", "rule_id")}})
+            # Vague follow-ups can still stay inside a task via segment_tasks
+            # (domains/details are empty unless the clause is an action or a request).
+            for label in domains:
+                labels["domain"].setdefault(label, []).append(evidence(event, clause))
+            for detail in details:
+                identifier = detail["id"]
+                detail_metadata[identifier] = {key: detail[key] for key in
+                                               ("id", "label", "parent_id", "parent_label", "rule_id")}
+                labels["domain_details"].setdefault(identifier, []).append({
+                    **evidence(event, clause), "matched_terms": list(detail["matched_terms"]),
+                    **{key: detail[key] for key in ("match_basis", "context_term", "rule_id")}})
             if found_action:
                 requests.append((event, clause))
-            verb = PRODUCE.search(clause)
-            if verb:
-                for match in ARTIFACT.finditer(clause, verb.end()):
-                    name = match.group(0)
-                    artifacts.setdefault(name, {"name": name, "format": name.rsplit(".", 1)[1].lower() if "." in name else None,
-                                                "evidence": evidence(event, clause), "status": "requested"})
+            for name in names:
+                artifacts.setdefault(name, {"name": name, "format": name.rsplit(".", 1)[1].lower() if "." in name else None,
+                                            "evidence": evidence(event, clause), "status": "requested"})
     first = requests[0] if requests else None
     goal = first[1] if first else None
     # Goal amendments are explicit versions; ordinary follow-ups do not replace the goal.
