@@ -4,7 +4,7 @@
   --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;
   --serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC",serif;
   --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
-  --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#a99bff;
+  --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#a99bff;--acc:#ff8a52;
   color-scheme:light;
 }
 html,body{margin:0;height:100%;background:#000;overflow:hidden}
@@ -35,8 +35,19 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .mark{width:280px;height:auto;display:block}
 .word{font-family:var(--serif);font-weight:600;font-size:118px;letter-spacing:.02em}
 .letter{font-family:var(--serif);font-weight:700;font-size:300px;line-height:1}
+.odo{display:inline-flex;font-size:150px;font-weight:700;line-height:1;letter-spacing:-.01em;transform-origin:50% 50%;will-change:transform}
+.odo .dg{display:inline-block;height:1em;overflow:hidden}
+.odo .st{display:block;line-height:1}
+.odo-u{font-size:64px;font-weight:600;margin-left:8px}
 .dimv-l{display:block;font-family:var(--mono);font-size:26px;letter-spacing:.24em;color:rgba(255,255,255,.6);text-align:center;margin-top:10px}
 
 .play{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);font:600 15px var(--sans);padding:10px 22px;border-radius:999px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;z-index:10}
 .render .play{display:none}
 .dbg{position:absolute;right:12px;top:8px;font:14px var(--mono);color:#0f0;z-index:9}
+.acc{color:var(--acc)}
+.ln.sv>span{background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ln.ai>span{color:var(--ai)}
+.row{white-space:nowrap}.row .ln{display:inline-block;margin:0 .12em}
+.cursor{position:absolute;left:0;top:0;width:28px;height:28px;transform-origin:6px 3px;pointer-events:none;opacity:0;z-index:5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.cursor svg{display:block}
+.cursor .ripple{position:absolute;left:6px;top:3px;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,138,82,.9);opacity:0}

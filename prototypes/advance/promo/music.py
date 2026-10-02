@@ -2,9 +2,10 @@
 
     uv run --with numpy --with scipy python promo/music.py   ->  promo/out/soundtrack.wav
 
-Sections (beats): 0-8 cold open (blips on the agent chips, riser) · 8 logo bloom · 14-32 groove (overview) ·
-32-36 four DIMV chords · 37.6-64 groove (persona, trajectory) · 64-71 build · 72-88 groove (eight features) ·
-88-96 calm desktop · 96 end card, tail to 106. Transitions only get a soft whoosh; there are no hits on cuts.
+Sections (beats): 0-8 cold open (a blip per word and per agent chip) · 8 logo bloom · 13.8-17 odometer ticks ·
+16-29.5 groove (a climbing tone under the sparkline, a pluck per growing bar) · 29.5-34 ring (a blip per hour) ·
+34-38 compass (a tick each time the needle passes a code) · 38 settle chord · 38-64 groove · 64-71 build ·
+72-88 groove (eight features) · 88-96 calm · 96 end card, tail to 106. Transitions only get a soft whoosh.
 """
 import os
 import wave
@@ -228,13 +229,16 @@ def pads(b0, b1, gain=0.22, cutoff=1800):
         b = nb
 
 
-# cold open: drone, blips on the five agent chips, a soft riser into the logo
+# cold open: the words land one by one, then the five agent chips, a soft riser into the logo
 put(pad((45, 52), 8 * BEAT, 600, 1.5), 0, 0.28, to='verbsend')
-put(blip(76, 0.8), 0.25, 0.22, 0, to='verbsend')
+for i, m in enumerate((76, 79, 83)):
+    put(blip(m, 0.8), 0.25 + i * 0.6, 0.2, -0.2 + i * 0.2, to='verbsend')
 for i, m in enumerate((81, 84, 88, 91, 93)):
-    put(blip(m), 1.5 + i * 0.375, 0.3, (-0.5 + i * 0.25), to='verbsend')
-put(blip(79, 0.8), 4, 0.2, -0.2, to='verbsend')
-put(blip(83, 0.8), 6, 0.2, 0.2, to='verbsend')
+    put(blip(m), 0.95 + i * 0.375, 0.26, (-0.5 + i * 0.25), to='verbsend')
+for i, m in enumerate((79, 83)):
+    put(blip(m, 0.8), 4 + i * 0.5, 0.18, -0.2 + i * 0.4, to='verbsend')
+for i, m in enumerate((81, 86, 84)):
+    put(blip(m, 0.8), 6 + i * 0.4, 0.18, -0.3 + i * 0.3, to='verbsend')
 put(riser(4 * BEAT, 300, 3000), 4, 0.3, to='verbsend')
 put(reverse_swell(1.0 * BEAT), 7, 0.5)
 
@@ -244,34 +248,75 @@ put(crash(3), 8, 0.3, 0.2)
 put(pad(CHORDS[0], 6 * BEAT, 1600, 0.4), 8, 0.3, to='verbsend')
 for i, m in enumerate((81, 88, 84)):
     put(blip(m, 1.2), 9 + i * 0.75, 0.16, -0.3 + i * 0.3, to='verbsend')
-put(riser(2.5 * BEAT, 400, 4000), 11.5, 0.25, to='verbsend')
-groove(14, 16, kick_on=True, clap_on=False, hats=True, bassline=False, lvl=0.55)
+put(riser(2.5 * BEAT, 400, 4000), 11.5, 0.22, to='verbsend')
 
-# drop 1: overview
-put(crash(), 16, 0.45, 0.3)
-groove(16, 31, arp=True)
-pads(14, 32, 0.15)
-for b in (19.25, 23.4, 27.6):          # component changes: a soft air movement, nothing more
-    put(whoosh(0.9 * BEAT), b - 0.4, 0.22, 0.3)
-put(reverse_swell(1.0 * BEAT), 31, 0.5)
+# 1 · the numbers roll: a ratchet of ticks that slows down for each number
+for i in range(3):
+    b0 = 13.8 + i * 0.5
+    t = 0.0
+    while t < 1.9:
+        put(tick(), b0 + t, 0.22 * (1 - t / 2.2), -0.4 + i * 0.4)
+        t += 0.05 + 0.12 * (t / 1.9) ** 1.5
+put(whoosh(1.4 * BEAT), 17.2, 0.25, 0)
+groove(14, 16, kick_on=True, clap_on=False, hats=True, bassline=False, lvl=0.5)
+# drop 1
+put(crash(), 16, 0.4, 0.3)
+groove(16, 29.5, arp=False)
+pads(14, 29.5, 0.15)
 
-# DIMV: four chords land with the letters, then resolve
-for i, b in enumerate((32, 33, 34, 35)):
-    put(stab((45 + (0, 3, 7, 12)[i], 57 + (0, 3, 7, 12)[i], 64 + (0, 0, 3, 3)[i]), 1.0), b, 0.34, to='verbsend')
-    put(kick(0.6, 0.7), b, 0.55, to='kick')
-put(pad((45, 57, 60, 64), 2 * BEAT, 1500, 0.1), 36, 0.3, to='verbsend')
-put(boom(2.0, 50, 26), 36, 0.35, to='verbsend')
+# 2 · the sparkline runs forward: a gliding tone that climbs with it
+t = tt(2.8 * BEAT)
+f = 440 * 2 ** (np.clip(t / (2.8 * BEAT), 0, 1) ** 1.3)
+put(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(1, t * 8) * np.clip((2.8 * BEAT - t) * 4, 0, 1), 19.8, 0.07, 0.2, to='verbsend')
+put(whoosh(1.2 * BEAT), 22.4, 0.24, 0.4)
 
-# persona (calm) and trajectory
-groove(37.6, 40, kick_on=True, clap_on=False, hats=True, bassline=True, lvl=0.7)
-groove(40, 48, lvl=0.85)
-pads(37.6, 48, 0.17)
-put(whoosh(1.2 * BEAT), 43, 0.22, -0.3)
-put(crash(2), 48, 0.35)
-groove(48, 63.5, arp=True)
-pads(48, 63.5, 0.16)
-for b in (47.7, 51.6, 57.6):
-    put(whoosh(0.9 * BEAT), b - 0.4, 0.22, 0.3)
+# 3 · bars grow one by one: a pluck per column, climbing the A-minor pentatonic
+PENT = [57, 60, 62, 64, 67]
+for i in range(30):
+    m = PENT[i % 5] + 12 * (i // 10)
+    put(pluck(m, 0.3), 23.2 + i * 0.12, 0.11, -0.6 + i * 0.04, to='verbsend')
+
+# 4 · bars curl into the ring, the hours appear clockwise
+put(whoosh(2 * BEAT), 29.4, 0.3, -0.3)
+groove(29.5, 33.5, kick_on=False, clap_on=False, hats=True, bassline=True, lvl=0.6)
+pads(29.5, 34, 0.18, 1400)
+for h in range(24):
+    put(blip(PENT[h % 5] + 24, 0.4), 30 + h * 0.13, 0.08, np.sin(h / 24 * 2 * np.pi) * 0.7, to='verbsend')
+
+# 5 · the compass: a tick each time the needle passes a code (same needle function as promo.js), a settle chord
+def needle(b):
+    p = min(1.0, max(0.0, (b - 34) / 4))
+    if p < .8:
+        return 8 - 1943 * (1 - p / .8) ** 4
+    q = (p - .8) / .2
+    return 8 * np.cos(np.pi * q * 1.5) * (1 - q)
+
+
+prev = np.floor((needle(34) + 11.25) / 22.5)
+for k in range(1, 4001):
+    bb = 34 + k * 4 / 4000
+    cur = np.floor((needle(bb) + 11.25) / 22.5)
+    if cur != prev:
+        put(tick(), bb, 0.3, 0.1)
+        prev = cur
+put(riser(4 * BEAT, 300, 2500), 34, 0.25, to='verbsend')
+put(pad((45, 52), 4 * BEAT, 900, 0.5), 34, 0.2, to='verbsend')
+put(boom(2.4, 52, 26), 38, 0.5, to='verbsend')
+put(stab((57, 60, 64, 69), 1.6), 38, 0.32, to='verbsend')
+put(crash(2.5), 38, 0.3)
+
+# persona type, evolution (lines run forward), trajectory
+groove(38, 47.5, lvl=0.85)
+pads(38, 48, 0.17)
+t = tt(3 * BEAT)
+f = 330 * 2 ** (1.0 * np.clip(t / (3 * BEAT), 0, 1))
+put(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.minimum(1, t * 8) * np.clip((3 * BEAT - t) * 4, 0, 1), 43.2, 0.06, -0.2, to='verbsend')
+put(whoosh(1 * BEAT), 42.3, 0.22, -0.3)
+put(crash(2), 47.6, 0.3)
+groove(47.6, 63.5, arp=True)
+pads(47.6, 63.5, 0.16)
+for b in (47.6, 55.6):
+    put(whoosh(1 * BEAT), b - 0.4, 0.22, 0.3)
 
 # build: ask the local agent
 groove(63.5, 71, kick_on=False, clap_on=False, hats=True, bassline=False, arp=True, lvl=0.75)
