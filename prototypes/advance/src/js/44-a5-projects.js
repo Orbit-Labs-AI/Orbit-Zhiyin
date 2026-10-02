@@ -10,10 +10,37 @@ const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'gm', 'ds', 'cp'], Hooks: ['cc'], Sk
 VZ.types.pscatter = Object.assign({}, VZ.types.scatter, {
   name: '项目散点',
   render(spec, w, h, ctx) {
-    const out = VZ.types.scatter.render(spec, w, h, ctx); const m = out.model; const fit = m && m.fit; let g = '';
-    const P = spec.points || [];
-    if (fit) P.forEach((p, i) => { if (!m.has(i)) return; const [x, y] = m.at(i); const yf = clamp(m.F.y(fit.pred(p.x)), m.F.yT, m.F.yB); const res = p.y - fit.pred(p.x); if (Math.abs(y - yf) < 2) return; g += '<line class="pj-res" x1="' + VZ.r1(x) + '" x2="' + VZ.r1(x) + '" y1="' + VZ.r1(y) + '" y2="' + VZ.r1(yf) + '" style="--c:' + (res > 0 ? VZ.sem.corr : VZ.sem.good) + '"/>'; });
+    // 标签自行放置（基础 scatter 的避让不认识回归线与残差竖线，标签会压在虚线上）：先画点，再按 8 个候选位打分选位
+    const out = VZ.types.scatter.render(Object.assign({}, spec, { labels: false }), w, h, ctx); const m = out.model; const fit = m && m.fit; let g = '';
+    const P = spec.points || []; const F = m.F; const segs = [];
+    if (fit) P.forEach((p, i) => { if (!m.has(i)) return; const [x, y] = m.at(i); const yf = clamp(F.y(fit.pred(p.x)), F.yT, F.yB); const res = p.y - fit.pred(p.x); if (Math.abs(y - yf) < 2) return; segs.push([x, y, x, yf]); g += '<line class="pj-res" x1="' + VZ.r1(x) + '" x2="' + VZ.r1(x) + '" y1="' + VZ.r1(y) + '" y2="' + VZ.r1(yf) + '" style="--c:' + (res > 0 ? VZ.sem.corr : VZ.sem.good) + '"/>'; });
     let body = out.body; const k = body.indexOf('<circle class="vz-dot'); body = k >= 0 ? body.slice(0, k) + g + body.slice(k) : body + g;
+    const ids = P.map((_, i) => i).filter((i) => m.has(i));
+    if (fit && ids.length > 1) { const lo = ids.reduce((a, i) => P[i].x < P[a].x ? i : a), hi = ids.reduce((a, i) => P[i].x > P[a].x ? i : a); segs.push([m.at(lo)[0], F.y(fit.pred(P[lo].x)), m.at(hi)[0], F.y(fit.pred(P[hi].x))]); }
+    if (spec.labels !== false && ids.length) {
+      const rmx = Math.max(1e-9, ...ids.map((i) => VZ.num(P[i].r) || 0)); const rMax = spec.rMax || 20; const rad = (p) => 4 + Math.sqrt((VZ.num(p.r) || 0) / rmx) * (rMax - 4);
+      const isSel = (i) => spec.selected != null && (spec.selected === i || spec.selected === P[i].id);
+      const boxes = ids.map((i) => { const [x, y] = m.at(i); const r = rad(P[i]); return [x - r, y - r, x + r, y + r, i]; });
+      // 轴标题占位：左上「↑ 摩擦率」、右下 x 轴标题
+      if (spec.y && spec.y.label) boxes.push([F.x0, F.yT, F.x0 + 8 + VZ.tw(spec.y.label, 11), F.yT + 15, -1]);
+      if (spec.x && spec.x.label) boxes.push([F.x1 - VZ.tw(spec.x.label, 11) - 6, F.yB - 18, F.x1, F.yB, -1]);
+      const hitSeg = (b, sg) => { for (let t = 0; t <= 1.0001; t += 1 / 24) { const x = sg[0] + (sg[2] - sg[0]) * t, y = sg[1] + (sg[3] - sg[1]) * t; if (x > b[0] - 2 && x < b[2] + 2 && y > b[1] - 2 && y < b[3] + 2) return 1; } return 0; };
+      let lb = '';
+      ids.slice().sort((a, c) => (isSel(c) - isSel(a)) || (rad(P[c]) - rad(P[a]))).forEach((i) => {
+        const p = P[i]; if (p.label == null || p.label === '') return; const [cx, cy] = m.at(i); const r = rad(p); const tw = VZ.tw(p.label, 11); const d = r * 0.71;
+        const cands = [[cx + r + 5, cy + 4, 'start'], [cx - r - 5, cy + 4, 'end'], [cx + d + 4, cy - d - 2, 'start'], [cx - d - 4, cy - d - 2, 'end'], [cx, cy - r - 6, 'middle'], [cx + d + 4, cy + d + 10, 'start'], [cx - d - 4, cy + d + 10, 'end'], [cx, cy + r + 13, 'middle']];
+        let best = null;
+        cands.forEach(([lx, ly, an], ci) => {
+          const bx0 = an === 'start' ? lx : an === 'end' ? lx - tw : lx - tw / 2; const b = [bx0, ly - 11, bx0 + tw, ly + 3];
+          if (b[0] < F.x0 + 2 || b[2] > w - 2 || b[1] < F.yT - 2 || b[3] > F.yB + 2) return;
+          let sc = ci * 0.5; boxes.forEach((o) => { if (o[4] !== i && b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]) sc += 1000; }); segs.forEach((sg) => { sc += hitSeg(b, sg) * 8; });
+          if (!best || sc < best.sc) best = { sc, lx, ly, an, b };
+        });
+        if (!best || best.sc >= 1000) return;
+        boxes.push(best.b.concat([-1])); lb += VZ.txt(best.lx, best.ly, p.label, { class: 'vz-lbl pj-lbl' + (isSel(i) ? ' vz-strong' : ''), 'text-anchor': best.an });
+      });
+      const kh = body.indexOf('<circle class="vz-hit'); body = kh >= 0 ? body.slice(0, kh) + lb + body.slice(kh) : body + lb;
+    }
     // A / B：A 为选中项目（实心墨色），B 为对比项目（描边环 + 字母）；只在对比模式下标字母
     (spec.marks2 || []).forEach((mk) => { const i = P.findIndex((p) => p.id === mk.id); if (i < 0 || !m.has(i)) return; const [x, y] = m.at(i); body += (mk.ring ? '<circle class="pj-ring" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(y) + '" r="' + VZ.r1(mk.r + 3) + '"/>' : '') + VZ.txt(x, y + 4, mk.letter, { class: 'pj-ab' + (mk.ring ? ' ring' : ''), 'text-anchor': 'middle' }); });
     return { body, model: m };

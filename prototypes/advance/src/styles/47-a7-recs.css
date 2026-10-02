@@ -7,23 +7,25 @@
 .rcard{gap:6px;cursor:default}
 .rcard:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .rcard.inst{opacity:1;background:color-mix(in srgb,var(--surface) 70%,var(--sunken))}
-.rc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);min-height:20px}
+.rc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);min-height:20px}
 .rc-top .lvl{margin-right:1px}
 .rc-save{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
 .rc-save b{font:600 15px/18px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums}
 .rc-save .u{font-size:11px;color:var(--ink-3)}
-.rc-title{font-size:13.5px;font-weight:600;line-height:19px;color:var(--ink-1)}
+.rc-title{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .rc-why{font-size:12px;line-height:17px;color:var(--ink-2)}
 .rc-why .lnk{font-size:12px;color:var(--ink-2);white-space:nowrap}
-.rc-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3);padding-top:2px}
+.rc-meta{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);padding-top:2px}
 .rc-meta .mono{font-variant-numeric:tabular-nums}
 .rc-ag{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
 .rc-ag .dot{width:7px;height:7px;box-shadow:0 0 0 1px var(--surface)}
 .rc-ag .dot+.dot{margin-left:-2px}
 .rc-ag>span:not(.dot){margin-left:4px;color:var(--ink-2)}
-.rc-tok{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);white-space:nowrap}
+.rc-tok{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);white-space:nowrap}
 .rc-tok.good{color:var(--good)}
-.rc-foot{display:flex;align-items:center;gap:6px;padding-top:4px}
+.rc-foot{display:flex;align-items:center;gap:8px;padding-top:4px}
+/* 原指标：靠右；换行后仍贴右边，不在下一行左侧悬空 */
+.rc-gain{margin-left:auto;color:var(--ink-2);white-space:nowrap}
 .rc-foot .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 /* detail head: three KPI cells, separated by hairlines */
 .rc-kpis{display:flex;flex-wrap:wrap;gap:0 14px;margin:12px 0 0;border-top:1px solid var(--hair)}
@@ -31,7 +33,7 @@
 .rc-kpi .v{font:600 18px/24px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums;white-space:nowrap}
 .rc-kpi .v small{font:500 11px/1 var(--mono);color:var(--ink-3);margin-left:4px}
 .rc-kpi .v.good{color:var(--good)}
-.rc-kpi .cap{font-size:11px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-kpi .cap{font-size:11px;line-height:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty}
 .rc-kpi .rc-ag{flex-wrap:wrap}
 .rc-kpi .rc-ag .dot{width:9px;height:9px}
 /* evidence block + baseline strip */
@@ -41,15 +43,22 @@
 .rc-base>span b{font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink-1)}
 .rc-base .cap{font-size:11px}
 /* preview tab: facts column + diff */
-.rc-pv{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start}
+/* 预览：事实（写入路径 | 安装范围）两列并排在上，代码满宽在下——代码不再被挤成 190px 窄列 */
+.rc-pv{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.rc-pv-f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 20px;align-items:start}
+.rc-path{font-size:11px;line-height:15px;color:var(--ink-3);overflow-wrap:anywhere}
+.rc-pv label{gap:6px;min-height:20px}
+/* 详情页脚：来源说明独占一行，操作按钮右对齐 */
+.rc-dfoot{padding:12px 18px 14px;border-top:1px solid var(--hair);flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.rc-dfoot-n{flex:1 1 100%;font-size:11px;gap:6px}
 .rc-pv input[type=radio]{margin:0 6px 0 0}
 /* tracking: 7 + ▲ + 7 segments, then one dumbbell per metric */
 .rc-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 16px repeat(7,minmax(0,1fr));gap:3px;align-items:center}
 .rc-days i{display:block;height:6px;border-radius:2px;background:var(--line)}
 .rc-days i.base{background:var(--h3)}
 .rc-days i.on{background:var(--accent)}
-.rc-days i.mark{height:auto;background:none;border-radius:0;font:9px/1 var(--mono);color:var(--ink-1);text-align:center}
-.rc-dlbl{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.rc-days i.mark{height:auto;background:none;border-radius:0;font:10px/1 var(--mono);color:var(--ink-1);text-align:center}
+.rc-dlbl{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .rc-verdict{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);color:var(--ink-2)}
 .rc-verdict.good{color:var(--good);background:var(--good-bg);border-color:transparent}
 .rc-verdict.bad{color:var(--crit);background:var(--crit-bg);border-color:transparent}
@@ -74,5 +83,5 @@
 .inst-undo .bar i{display:block;height:100%;background:var(--ink-1)}
 .inst-undo.off{color:var(--ink-3)}
 .inst-undo.off .bar i{background:var(--good)}
-@container main (max-width:799px){.rc-pv{grid-template-columns:minmax(0,1fr)}}
+@container main (max-width:799px){.rc-pv-f{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){.inst-undo .bar i{transition:none!important}}
