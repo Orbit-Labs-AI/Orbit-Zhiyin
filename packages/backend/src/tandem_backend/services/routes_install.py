@@ -38,7 +38,7 @@ class InstallApiError(ApiError):
 
 
 class Source(BaseModel):
-    type: Literal["candidate", "catalog", "artifact", "spec"]
+    type: Literal["candidate", "catalog", "artifact", "spec", "collect"]
     id: str | None = None
     spec: dict | None = None
 
@@ -160,6 +160,12 @@ def router(gw: Gateway) -> APIRouter:
     @api.get("/v1/install/environment")
     def environment(refresh: int = Query(0, ge=0, le=1)):
         return call(svc.environment, bool(refresh))
+
+    @api.get("/v1/install/collect")
+    def collect_status():
+        from ..install.collect import status
+
+        return call(status, svc)
 
     @api.post("/v1/install/plans", status_code=201)
     def create_plan(body: PlanRequest):

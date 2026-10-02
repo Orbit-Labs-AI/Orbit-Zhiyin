@@ -14,7 +14,7 @@ import re
 import sqlite3
 from pathlib import PurePosixPath
 
-from . import store
+from . import collect, store
 from . import targets as targets_mod
 from .env import FULL_SUPPORT, inventory_names
 from .errors import PlanError
@@ -384,8 +384,11 @@ def _name(spec: dict) -> str:
 
 def make_plan(source: dict, *, agents=None, scope: str = "user", project_path: str | None = None,
               fetch: bool = False, service) -> dict:
-    spec, extra = build_spec(source, appdb=service.appdb, catalog_lookup=service.catalog_lookup,
-                             cache_dir=service.cache_dir, fetcher=service.fetcher, allow_network=fetch)
+    if (source or {}).get("type") == "collect":
+        spec, extra, scope = collect.spec(service.home), {"status": "ready"}, "user"
+    else:
+        spec, extra = build_spec(source, appdb=service.appdb, catalog_lookup=service.catalog_lookup,
+                                 cache_dir=service.cache_dir, fetcher=service.fetcher, allow_network=fetch)
     env_info = service.environment()
     spec["agents"] = list(agents or spec.get("agents") or _default_agents(env_info))
     spec["scope"] = scope or spec.get("scope") or "user"
@@ -398,7 +401,8 @@ def make_plan(source: dict, *, agents=None, scope: str = "user", project_path: s
     status, warnings, targets = extra["status"], [], []
     if status == "ready":
         try:
-            targets = targets_mod.resolve_targets(spec, env_info, env=service.env)
+            resolve = collect.resolve_targets if spec["kind"] == "collect" else targets_mod.resolve_targets
+            targets = resolve(spec, env_info, env=service.env)
         except targets_mod.PlanError as error:
             raise PlanError(error.code, error.message, http=error.http) from None
         if spec.get("ai_text"):
