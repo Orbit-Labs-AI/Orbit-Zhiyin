@@ -1,0 +1,2546 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tandem.local/schema/events/v1",
+  "title": "Tandem standard event v1",
+  "type": "object",
+  "properties": {
+    "event_uid": {
+      "type": "string"
+    },
+    "session_uid": {
+      "type": "string"
+    },
+    "seq": {
+      "type": "integer"
+    },
+    "ts": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "session.meta",
+        "session.title",
+        "setting.change",
+        "turn.start",
+        "turn.end",
+        "message.user",
+        "message.assistant",
+        "reasoning",
+        "tool.call",
+        "tool.result",
+        "model.usage",
+        "context.inject",
+        "context.compaction",
+        "permission.decision",
+        "branch",
+        "hook.run",
+        "subagent.spawn",
+        "subagent.result",
+        "plan.update",
+        "file.change",
+        "error",
+        "ui.state",
+        "link",
+        "queue",
+        "unknown"
+      ]
+    },
+    "actor": {
+      "enum": [
+        "human",
+        "assistant",
+        "system",
+        "tool",
+        "hook",
+        "subagent",
+        "harness"
+      ]
+    },
+    "turn_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parent_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "call_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "text_truncated": {
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "attrs": {
+      "type": "object"
+    },
+    "ext": {
+      "type": "object"
+    },
+    "record_uid": {
+      "type": "string"
+    },
+    "native_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "native_key": {
+      "type": "array",
+      "minItems": 1
+    },
+    "event_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_version": {
+      "const": 1
+    },
+    "mapper_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "event_uid",
+    "session_uid",
+    "seq",
+    "ts",
+    "kind",
+    "actor",
+    "turn_uid",
+    "parent_uid",
+    "call_id",
+    "text",
+    "text_truncated",
+    "attrs",
+    "ext",
+    "record_uid",
+    "native_id",
+    "native_key",
+    "event_path",
+    "contract_version",
+    "mapper_version"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "session.meta"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/session.meta"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "session.title"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/session.title"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "setting.change"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/setting.change"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "turn.start"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/turn.start"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "turn.end"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/turn.end"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "message.user"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/message.user"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "message.assistant"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/message.assistant"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "reasoning"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/reasoning"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "tool.call"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/tool.call"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "tool.result"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/tool.result"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "model.usage"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/model.usage"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "context.inject"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/context.inject"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "context.compaction"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/context.compaction"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "permission.decision"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/permission.decision"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "branch"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/branch"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "hook.run"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/hook.run"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "subagent.spawn"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/subagent.spawn"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "subagent.result"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/subagent.result"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "plan.update"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/plan.update"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "file.change"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/file.change"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/error"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "ui.state"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/ui.state"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "link"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/link"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "queue"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/queue"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "unknown"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "$ref": "#/definitions/unknown"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "ts": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attrs": {
+            "properties": {
+              "time": {
+                "properties": {
+                  "quality": {
+                    "const": "missing"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "attrs": {
+            "properties": {
+              "time": {
+                "properties": {
+                  "quality": {
+                    "enum": [
+                      "reported",
+                      "estimated"
+                    ]
+                  },
+                  "source_field": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "session.meta": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "approval_policy": {},
+        "approvals_reviewer": {
+          "type": "string"
+        },
+        "sandbox_policy": {},
+        "history_mode": {
+          "type": "string"
+        },
+        "thread_source": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "session.title": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "setting.change": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "settings": {
+          "type": "object"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "turn.start": {
+      "type": "object",
+      "properties": {
+        "trigger": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "integer"
+        },
+        "model_context_window": {
+          "type": "integer"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "trigger",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "turn.end": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "completed",
+            "interrupted",
+            "failed"
+          ]
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "ttft_ms": {
+          "type": "number"
+        },
+        "error": {},
+        "reason": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "message.user": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "enum": [
+            "human",
+            "queued",
+            "notification",
+            "peer",
+            "automation",
+            "injected",
+            "unknown"
+          ]
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_format": {
+          "enum": [
+            "prompt",
+            "question_reply",
+            null
+          ]
+        },
+        "message_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "original_chars": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "writing_measurements": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "artifact_body_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "origin",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "message.assistant": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_format": {
+          "enum": [
+            "prompt",
+            "question_reply",
+            null
+          ]
+        },
+        "message_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "original_chars": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "writing_measurements": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "artifact_body_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "reasoning": {
+      "type": "object",
+      "properties": {
+        "encrypted": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "array"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "enum": [
+            "text",
+            "summary",
+            "encrypted",
+            "redacted"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "tool.call": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "arguments": {},
+        "input": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "mcp_server": {
+          "type": "string"
+        },
+        "mcp_tool": {
+          "type": "string"
+        },
+        "command": {
+          "type": "array"
+        },
+        "command_head": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array"
+        },
+        "is_wrapper": {
+          "type": "boolean"
+        },
+        "parent_wrapper_id": {
+          "type": "string"
+        },
+        "attribution": {
+          "type": "object"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "argument_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "argument_digest_scope": {
+          "enum": [
+            "canonical_redacted",
+            "literal_redacted",
+            "unavailable"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "category",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "tool.result": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed",
+            "declined",
+            "interrupted",
+            "unknown",
+            "in_progress"
+          ]
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "started_at": {
+          "type": "integer"
+        },
+        "ended_at": {
+          "type": "integer"
+        },
+        "approval": {
+          "type": "string"
+        },
+        "is_error": {
+          "type": "boolean"
+        },
+        "output": {},
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "duration_source": {
+          "enum": [
+            "reported",
+            "native_bounds",
+            "event_difference",
+            "unknown"
+          ]
+        },
+        "duration_quality": {
+          "enum": [
+            "reported",
+            "estimated",
+            "missing"
+          ]
+        },
+        "status_scope": {
+          "enum": [
+            "command",
+            "tool",
+            "outer_script",
+            "unknown"
+          ]
+        },
+        "known_command_results": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "failed_command_results": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "unknown_return_values": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "model.usage": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "input_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cache_read_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cache_write_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasoning_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "estimated": {
+          "type": "boolean"
+        },
+        "accounting": {
+          "enum": [
+            "exact",
+            "legacy",
+            "snapshot"
+          ]
+        },
+        "native_usage": {
+          "type": "object"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "usage_scope": {
+          "enum": [
+            "call",
+            "session_snapshot",
+            "session_model_snapshot"
+          ]
+        },
+        "measurement": {
+          "enum": [
+            "delta",
+            "cumulative"
+          ]
+        },
+        "request_key": {
+          "type": "array",
+          "minItems": 1
+        },
+        "snapshot_key": {
+          "type": "string"
+        },
+        "coverage": {
+          "enum": [
+            "self",
+            "root_tree",
+            "unknown"
+          ]
+        },
+        "reported": {
+          "type": "object"
+        },
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "counter_cycle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "accounting",
+        "estimated",
+        "time",
+        "order",
+        "usage_scope",
+        "measurement",
+        "coverage",
+        "reported"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "request_key"
+          ],
+          "properties": {
+            "usage_scope": {
+              "const": "call"
+            },
+            "measurement": {
+              "const": "delta"
+            }
+          }
+        },
+        {
+          "required": [
+            "snapshot_key"
+          ],
+          "properties": {
+            "usage_scope": {
+              "enum": [
+                "session_snapshot",
+                "session_model_snapshot"
+              ]
+            },
+            "measurement": {
+              "const": "cumulative"
+            },
+            "request_id": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "context.inject": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "context": {
+          "type": "object"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "context_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "context.compaction": {
+      "type": "object",
+      "properties": {
+        "compaction_response_id": {
+          "type": "string"
+        },
+        "window_id": {},
+        "window_number": {
+          "type": "integer"
+        },
+        "replacement_count": {
+          "type": "integer"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "permission.decision": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "decision",
+        "source",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "branch": {
+      "type": "object",
+      "properties": {
+        "forked_from": {
+          "type": "string"
+        },
+        "ordinal_exclusive": {
+          "type": "integer"
+        },
+        "history_base": {
+          "type": "object"
+        },
+        "num_turns": {
+          "type": "integer"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "hook.run": {
+      "type": "object",
+      "properties": {
+        "fragments": {
+          "type": "array"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "subagent.spawn": {
+      "type": "object",
+      "properties": {
+        "child_id": {
+          "type": "string"
+        },
+        "agent_path": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "child_id",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "subagent.result": {
+      "type": "object",
+      "properties": {
+        "child_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "child_id",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "plan.update": {
+      "type": "object",
+      "properties": {
+        "plan": {},
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "file.change": {
+      "type": "object",
+      "properties": {
+        "changes": {},
+        "status": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "error": {},
+        "reason": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "ui.state": {
+      "type": "object",
+      "properties": {
+        "state_kind": {
+          "type": "string"
+        },
+        "snapshot": {},
+        "windows": {
+          "type": "array"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state_kind",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "link": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "ref",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "queue": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "unknown": {
+      "type": "object",
+      "properties": {
+        "native_type": {
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/time"
+        },
+        "order": {
+          "type": "object",
+          "properties": {
+            "quality": {
+              "enum": [
+                "reported",
+                "derived"
+              ]
+            },
+            "basis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "quality",
+            "basis"
+          ]
+        },
+        "native_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "native_type",
+        "time",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "time": {
+      "type": "object",
+      "properties": {
+        "source_field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "semantics": {
+          "enum": [
+            "created",
+            "request_start",
+            "started",
+            "completed",
+            "written",
+            "unknown"
+          ]
+        },
+        "quality": {
+          "enum": [
+            "reported",
+            "estimated",
+            "missing"
+          ]
+        },
+        "reported": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "source_field",
+        "semantics",
+        "quality",
+        "reported"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

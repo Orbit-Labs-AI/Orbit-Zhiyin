@@ -158,7 +158,7 @@ def legacy_bundle(store: Store) -> AnalysisInputBundle:
         if e.id in contexts:
             active[e.session_id] = contexts[e.id]
         ctx = active.get(e.session_id, {})
-        attrs.update(scene=ctx.get("scene"), task_id=ctx.get("task_id"), task_id_source="legacy_derived")
+        attrs.update(scene=ctx.get("scene"), task_id=ctx.get("task_id"), task_id_source="legacy_inferred")
         attrs["time"] = {"source_field": "timestamp", "semantics": "written",
                          "quality": "reported" if e.timestamp else "missing"}
         if e.kind == "usage":
