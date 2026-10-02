@@ -7,7 +7,7 @@ from markdown_it import MarkdownIt
 
 _MARKDOWN = MarkdownIt("commonmark")
 PLATFORM_TAGS = ('recommended_plugins', 'skills_instructions', 'environment_context',
-                 'permissions', 'collaboration_mode', 'multi_agent_role', 'multi_agent_mode', 'app-context')
+                 'permissions', 'collaboration_mode', 'multi_agent_role', 'multi_agent_mode', 'app-context', 'INSTRUCTIONS')
 
 
 def without_platform_blocks(text: str) -> str:
@@ -76,6 +76,6 @@ def direct_user_text(text: str) -> str:
     text = without_platform_blocks(text)
     if text.startswith(("# AGENTS.md", "<external_")):
         return ""
-    if "<INSTRUCTIONS>" in text or text.startswith("<turn_aborted>"):
+    if text.startswith("<turn_aborted>"):
         return ""
     return redact(text.strip())

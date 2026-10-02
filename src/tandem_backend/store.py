@@ -167,7 +167,8 @@ def _sample_policy(store: Store, codex_home: Path, before: str | None,
             raise ValueError("已有固定快照；扩大范围需要显式使用 --reset-sample-policy。")
         effective = {"before": cutoff if reset else cutoff or old_cutoff,
                      "exclude": sorted(set(exclude_sessions or []) | (set() if reset else set(previous["exclude"])))}
-        tightening = (not reset and effective != previous)
+        tightening = bool(set(effective['exclude']) - set(previous['exclude'])) or bool(
+            effective['before'] and (not old_cutoff or effective['before'] < old_cutoff))
         if tightening:
             # Old rows must not remain visible under a newly restricted scope,
             # even if reading a later source fails midway through this batch.
@@ -189,7 +190,7 @@ def import_codex(store: Store, codex_home: Path, before: str | None = None,
     before, exclude_sessions = sample["before"], set(sample["exclude"])
     summary.sample_policy = sample
     metadata = metadata_index(codex_home)
-    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 23})
+    policy = json.dumps({"before": before, "exclude": sorted(exclude_sessions or []), "parser": 24})
     paths = sorted({p.resolve() for folder in ("sessions", "archived_sessions")
                     for p in (codex_home / folder).rglob("*.jsonl")})
     for path in paths:

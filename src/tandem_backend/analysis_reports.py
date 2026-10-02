@@ -3,11 +3,11 @@
 from .feedback import RULES, SCENE_LABELS
 
 
-def _link(eid: str) -> str:
-    return f'[证据](http://127.0.0.1:8765/v1/evidence/{eid})'
+def _link(eid: str, base: str) -> str:
+    return f'[证据](<{base.rstrip("/")}/{eid}>)'
 
 
-def profile_markdown(data: dict) -> str:
+def profile_markdown(data: dict, evidence_base: str = '/v1/evidence') -> str:
     profile = data['profile']
     lines = ['# 你的协作画像', '', profile['headline'], '',
              '下面分别看任务、明确要求和协作过程。它们描述这批历史，不直接给你定型。', '',
@@ -23,7 +23,7 @@ def profile_markdown(data: dict) -> str:
         lines += ['<details>', '<summary>查看原始要求</summary>', '']
         for example in observation['examples'][:2]:
             scene = SCENE_LABELS.get(example['scene'], example['scene'])
-            lines += [f"{scene} · {_link(example['event_id'])}", '', '> ' + example['quote'].replace('\n', '\n> '), '']
+            lines += [f"{scene} · {_link(example['event_id'], evidence_base)}", '', '> ' + example['quote'].replace('\n', '\n> '), '']
         lines += ['</details>', '']
     interaction = profile['interaction']
     lines += ['## 协作怎么推进', '']
@@ -43,17 +43,19 @@ def profile_markdown(data: dict) -> str:
     return '\n'.join(lines)
 
 
-def bottlenecks_markdown(data: dict) -> str:
+def bottlenecks_markdown(data: dict, evidence_base: str = '/v1/evidence') -> str:
     dossiers = data['bottleneck_details']
-    lines = ['# 哪些地方值得回看', '', f"这批记录有 {len(dossiers)} 处候选或修改记录。先还原发生顺序，再判断原因。", '']
+    missing = sum(d['type'] == 'data_gap' for d in dossiers)
+    lines = ['# 哪些地方值得回看', '', f"这批记录有 {len(dossiers) - missing} 处候选或修改记录，另有 {missing} 处材料缺口。先还原发生顺序，再判断原因。", '']
     if not dossiers:
         lines += ['现有规则没有找到能关联要求与交付的具体卡点；失败次数或缺少反馈都不足以单独下结论。', '']
-    for dossier in dossiers:
+    candidates = [d for d in dossiers if d['type'] != 'data_gap']
+    for dossier in candidates[:3]:
         label = SCENE_LABELS.get(dossier['scene'], dossier['scene'])
         lines += ['## ' + label, '', dossier['observed'], '', '发生顺序：', '']
         for item in dossier['sequence']:
             role = {'user_message': '你的要求', 'assistant_message': 'Agent 回复', 'tool_result': '工具结果'}.get(item['kind'], item['kind'])
-            lines += [f"**{role}** · {_link(item['event_id'])}", '',
+            lines += [f"**{role}** · {_link(item['event_id'], evidence_base)}", '',
                       '> ' + (item['text'] or '正文未留存；通过证据接口查看状态与统计。').replace('\n', '\n> '), '']
         lines += ['还需要核对：', ''] + ['- ' + missing for missing in dossier['missing_evidence']] + ['']
         pair = next((p for p in data['profile']['preference_audit']['pairs'] if p['bottleneck_id'] == dossier['id']), None)
@@ -65,10 +67,17 @@ def bottlenecks_markdown(data: dict) -> str:
             lines += ['后续链路：修改要求发生在回复之后。', '',
                       f"改写回复：{content_label}；明确的前后相对评价：{direction_label}。", '',
                       '完整元数据与前后回复计数见 profile.json 的 preference_audit。相对评价仍需人工核验，不能直接说明改写有效。', '']
+    if len(candidates) > 3:
+        lines += [f'其余 {len(candidates) - 3} 处的完整顺序见 bottlenecks.json。', '']
+    if missing:
+        lines += ['## 哪些材料还不足', '',
+                  f'{missing} 处交付无法仅凭日志核对。下面展示前三处；完整记录见 bottlenecks.json。', '']
+        for gap in [d for d in dossiers if d['type'] == 'data_gap'][:3]:
+            lines += [gap['observed'] + ' · ' + '、'.join(_link(eid, evidence_base) for eid in gap['evidence_ids']), '']
     return '\n'.join(lines)
 
 
-def process_markdown(data: dict) -> str:
+def process_markdown(data: dict, evidence_base: str = '/v1/evidence') -> str:
     counts = data['counts']
     lines = ['# 从数据到判断', '',
              f"本次采用 {counts['sessions']} 个会话、{counts['events']} 条统一事件。每条判断可回到来源类型、行号和原始用户要求。", '',
@@ -76,7 +85,7 @@ def process_markdown(data: dict) -> str:
              '## 标准化做了什么', ''] + ['- ' + rule for rule in data['normalization']['rules']]
     lines += ['', '## 一条记录如何参与分析', '']
     for example in data['normalization']['examples'][:4]:
-        lines += [f"来源 `{example['source_type']}/{example['source_subtype']}`，第 {example['line']} 行 → `{example['kind']}` · {_link(example['event_id'])}", '',
+        lines += [f"来源 `{example['source_type']}/{example['source_subtype']}`，第 {example['line']} 行 → `{example['kind']}` · {_link(example['event_id'], evidence_base)}", '',
                   '> ' + (example['text'] or '仅保留必要元数据。').replace('\n', '\n> '), '']
         if example['extracted_signals']:
             descriptions = [f"{RULES[s['dimension']][0]}（{SCENE_LABELS.get(s['scene'], s['scene'])}）" for s in example['extracted_signals']]

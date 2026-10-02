@@ -102,7 +102,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     portrait = profile(preferences, contexts, observed, events, context_by_id)
     portrait['preference_audit'] = audit_revisions(bottlenecks, all_events, context_by_id)
     return {
-        "schema_version": "1.8", "analysis_version": "context-v19",
+        "schema_version": "1.8", "analysis_version": "context-v20",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "ledger_sample_policies": policies,
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
@@ -115,7 +115,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
         "preferences": preferences, "contexts": contexts, "bottlenecks": bottlenecks, "timing": duration,
         "data_gaps": gaps,
         "profile": portrait,
-        "bottleneck_details": diagnostic_details(bottlenecks, gaps, all_events),
+        "bottleneck_details": diagnostic_details(bottlenecks, gaps, all_events, context_by_id),
         "normalization": normalization(events, observed, policies, bottlenecks),
         "limitations": ["没有反馈不代表满意。", "规则识别的是候选证据，需要回看上下文。",
                         "同一任务或 fork 的会话可能相关；参考区间不能证明长期偏好。",

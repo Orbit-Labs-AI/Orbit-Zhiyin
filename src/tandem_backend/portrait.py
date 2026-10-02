@@ -7,7 +7,7 @@ persona weights, desired resource names, or thresholds fitted to a user's corpus
 from collections import Counter, defaultdict
 from statistics import median
 
-from .models import Event
+from .models import Event, stable_id
 
 
 def profile(preferences: list[dict], contexts: list[dict], observed: list,
@@ -75,7 +75,7 @@ def profile(preferences: list[dict], contexts: list[dict], observed: list,
     }
 
 
-def diagnostic_details(findings: list[dict], gaps: list[dict], events: list[Event]) -> list[dict]:
+def diagnostic_details(findings: list[dict], gaps: list[dict], events: list[Event], contexts: dict | None = None) -> list[dict]:
     """Show the requirement/delivery/follow-up sequence separately from any skill."""
     by_id = {event.id: event for event in events}
     output = []
@@ -97,6 +97,18 @@ def diagnostic_details(findings: list[dict], gaps: list[dict], events: list[Even
             'sequence': [event_preview(event) for event in sequence], 'missing_evidence': missing,
             'causal_status': 'unverified', 'time_saved': None,
         })
+    covered = {eid for finding in findings for eid in finding['evidence_ids']}
+    for gap in gaps:
+        if gap['response_event_id'] in covered:
+            continue
+        ids = [gap['request_event_id'], gap['response_event_id']]
+        sequence = sorted((by_id[eid] for eid in ids if eid in by_id), key=lambda e: e.ordinal)
+        context = (contexts or {}).get(gap['request_event_id'], {})
+        output.append({'id': stable_id('data_gap', *ids, gap['code']), 'type': 'data_gap', 'code': gap['code'],
+                       'scene': context.get('scene', 'conversation'), 'status': 'evidence_gap',
+                       'observed': gap['message'], 'profile_dimensions': [], 'profile_evidence_ids': [ids[0]],
+                       'evidence_ids': ids, 'sequence': [event_preview(e) for e in sequence],
+                       'missing_evidence': [gap['message']], 'causal_status': 'unverified', 'time_saved': None})
     return output
 
 

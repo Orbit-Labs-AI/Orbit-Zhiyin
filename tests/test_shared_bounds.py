@@ -9,7 +9,7 @@ from tandem_backend.models import Event
 
 @pytest.mark.parametrize('request_text', [
     '摘要和正文各不超过10字。', '摘要与正文分别最多10字。',
-    '摘要、正文均控制在10字以内。', '开头及正文各10字以内。',
+    '摘要、正文均控制在10字以内。', '开头及正文各10字以内。', '摘要和正文各自不超过10字。',
 ])
 def test_one_distributive_bound_creates_two_independent_contracts(request_text):
     observed = signals([Event('u', 's', 1, 'user_message', None, text=request_text)])

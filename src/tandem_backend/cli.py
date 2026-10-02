@@ -152,25 +152,44 @@ def main(argv: list[str] | None = None) -> None:
     data = analyze(store, args.project_id, args.model, scene=args.scene)
     result = explain(data, recommend(data, catalog=resources(args.catalog_cache)), args.audience)
     args.output.mkdir(parents=True, exist_ok=True)
+    # Local evidence snapshots let every report work without a running server or
+    # a particular port. Only already-normalized, redacted events are copied.
+    evidence_folder = args.output / 'evidence'
+    evidence_folder.mkdir(exist_ok=True)
+    wanted = {eid for p in data['profile']['observations'] for eid in p['evidence_ids']}
+    wanted.update(eid for d in data['bottleneck_details'] for eid in d['evidence_ids'])
+    wanted.update(e['event_id'] for e in data['normalization']['examples'])
+    wanted.update(result['main_evidence_ids'])
+    wanted.update(eid for rec in result['recommendations'] for eid in rec['evidence_ids'])
+    wanted.update(eid for pair in data['profile']['preference_audit']['pairs'] for eid in pair['evidence_ids'])
+    # Remove only snapshots owned by this exporter when a rerun narrows the
+    # sample. Leave unrelated user files alone.
+    for old in evidence_folder.iterdir():
+        if old.is_file() and re.fullmatch(r'[0-9a-f]{24}', old.name) and old.name not in wanted:
+            old.unlink()
+    for event in store.events():
+        if event.id in wanted:
+            (evidence_folder / event.id).write_text(json.dumps(event.to_dict(), ensure_ascii=False, indent=2))
+    evidence_base = str(evidence_folder.resolve())
     (args.output / "analysis.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
-    (args.output / "report.md").write_text(markdown(result))
+    (args.output / "report.md").write_text(markdown(result, evidence_base))
     for name, value, render in (
         ('profile', data['profile'], profile_markdown),
         ('bottlenecks', data['bottleneck_details'], bottlenecks_markdown),
         ('process', data['normalization'], process_markdown),
     ):
         (args.output / f'{name}.json').write_text(json.dumps(value, ensure_ascii=False, indent=2))
-        (args.output / f'{name}.md').write_text(render(data))
+        (args.output / f'{name}.md').write_text(render(data, evidence_base))
     views = {'profile': profile_markdown, 'bottlenecks': bottlenecks_markdown, 'process': process_markdown}
     if args.view in views:
-        text = views[args.view](data)
+        text = views[args.view](data, evidence_base)
         # Folding is useful in saved Markdown; terminals display the actual text.
         text = '\n'.join(line for line in text.splitlines()
                          if line not in ('<details>', '</details>', '<summary>查看原始要求</summary>'))
-        text = re.sub(r'\[证据\]\(http://127\.0\.0\.1:8765/v1/evidence/([^)]+)\)', r'证据 ID：\1', text)
+        text = re.sub(r'\[证据\]\(<[^>]+/([^/>]+)>\)', r'证据 ID：\1', text)
         print(text)
     elif args.view == 'recommendations':
-        print(markdown(result))
+        print(markdown(result, evidence_base))
     else:
         print(cli_summary(data, result['recommendations']))
     print(f"完整结果：{args.output.resolve()}（profile / bottlenecks / process / report 的 Markdown 与 JSON）")

@@ -20,6 +20,19 @@ MAX_TEXT = 12_000
 MAX_LINE = 32 * 1024 * 1024
 
 
+def bounded_lines(stream):
+    """Keep a physical line's buffer bounded, draining rejected records in chunks."""
+    ordinal = 0
+    while raw := stream.readline(MAX_LINE + 1):
+        ordinal += 1
+        if len(raw) > MAX_LINE:
+            while raw and not raw.endswith(b'\n'):
+                raw = stream.readline(MAX_LINE + 1)
+            yield ordinal, None
+        else:
+            yield ordinal, raw
+
+
 def metadata_index(codex_home: Path) -> dict[str, dict]:
     """Optional desktop metadata, in a consistent read-only SQLite transaction."""
     paths = sorted(codex_home.glob("state_*.sqlite"), key=lambda p: (
@@ -180,8 +193,8 @@ def parse_rollout(
                 prompt.details['model_basis'] = 'following_turn_context'
 
     with path.open("rb") as stream:
-        for ordinal, raw in enumerate(stream, 1):
-            if len(raw) > MAX_LINE:
+        for ordinal, raw in bounded_lines(stream):
+            if raw is None:
                 result.warnings.append({"line": ordinal, "code": "oversized_line"})
                 continue
             if not raw.endswith(b"\n"):
@@ -294,7 +307,7 @@ def parse_rollout(
                     if next_turn != turn_id:
                         model = turn_models.get(next_turn, 'unknown')
                     turn_id = next_turn
-                    bind_leading_prompts(turn_id)
+                    bind_leading_prompts(turn_id, model)
                     event_kind = "turn_started"
                 elif ptype in ("task_complete", "task_interrupted", "turn_aborted"):
                     pending_prompts.clear()

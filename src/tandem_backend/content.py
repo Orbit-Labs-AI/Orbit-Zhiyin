@@ -59,7 +59,7 @@ def _shared_surfaces(text: str, start: int, end: int) -> list[str]:
     if not cap:
         return []
     target = r'摘要|总结|概要|概述|开头|首段|首层|正文|全文|完整证明|完整回复|回答|回复|报告'
-    coordinated = re.search(r'((?:' + target + r')(?:\s*(?:和|与|及|、)\s*(?:' + target + r'))+)\s*(?:各|分别|均|都)\s*(?:控制在|最多|限于)?\s*$', clause[:cap.start()])
+    coordinated = re.search(r'((?:' + target + r')(?:\s*(?:和|与|及|、)\s*(?:' + target + r'))+)\s*(?:各(?:自)?|分别|均|都)\s*(?:控制在|最多|限于)?\s*$', clause[:cap.start()])
     if not coordinated:
         return []
     surfaces = []

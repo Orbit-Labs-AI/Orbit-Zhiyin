@@ -108,7 +108,7 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
             "main_evidence_ids": primary["evidence_ids"] if primary else [], "details": analysis}
 
 
-def markdown(result: dict) -> str:
+def markdown(result: dict, evidence_base: str = '/v1/evidence') -> str:
     """Keep a short first layer; evidence and full details can be opened separately."""
     title = "先看哪件事" if result["audience"] == "user" else "这次分析得到了什么"
     lines = ["# " + title, "", result["summary"], ""]
@@ -132,13 +132,13 @@ def markdown(result: dict) -> str:
         if caveat:
             lines.extend([caveat, ""])
         ids = primary["evidence_ids"]
-        links = [f"[要求](http://127.0.0.1:8765/v1/evidence/{ids[0]})"]
-        links.extend(f"[相关记录 {i}](http://127.0.0.1:8765/v1/evidence/{eid})" for i, eid in enumerate(ids[1:], 1))
+        links = [f"[要求](<{evidence_base.rstrip('/')}/{ids[0]}>)"]
+        links.extend(f"[相关记录 {i}](<{evidence_base.rstrip('/')}/{eid}>)" for i, eid in enumerate(ids[1:], 1))
         lines.extend(["回看证据：" + " · ".join(links), ""])
     elif result["findings"]:
         first = result["findings"][0]
         lines.extend(["> " + first["example"].replace("\n", "\n> "), "",
-                      f"[回看要求](http://127.0.0.1:8765/v1/evidence/{first['evidence_ids'][0]})", ""])
+                      f"[回看要求](<{evidence_base.rstrip('/')}/{first['evidence_ids'][0]}>)", ""])
     for index, rec in enumerate(result.get("recommendations", [])[:2]):
         if primary and rec["bottleneck_id"] == primary["id"]:
             reason = "它的方法与上面的要求和这次记录相符，可以先做一次小对照。"

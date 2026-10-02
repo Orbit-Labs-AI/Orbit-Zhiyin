@@ -15,14 +15,17 @@ from .models import Event, stable_id
 
 def unexplained_terms(text: str) -> list[str]:
     """A local definition marker reduces false alarms; this is not semantic grading."""
-    terms = []
-    for match in re.finditer(r"\b(?:KL|JS|POMDP|latent|embedding|factorize|z_u)\b", text, re.I):
+    terms, defined = [], set()
+    matches = list(re.finditer(r"\b(?:KL|JS|POMDP|latent|embedding|factorize|z_u)\b", text, re.I))
+    for match in matches:
         following = text[match.end():match.end() + 120]
         definition = re.match(r"\s*(?:[:：（(]|是指?|表示|指的是|即)\s*([^。;；\n）)]+)", following)
         if definition and (len(re.findall(r"[\u4e00-\u9fff]", definition[1])) >= 4 or
                            len(re.findall(r"\b[a-z]+\b", definition[1], re.I)) >= 4):
-            continue
-        terms.append(match[0])
+            defined.add(match[0].lower())
+    for match in matches:
+        if match[0].lower() not in defined and match[0].lower() not in {term.lower() for term in terms}:
+            terms.append(match[0])
     return terms
 
 
@@ -171,7 +174,8 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                         "language_evidence_id": context["language_evidence_id"],
                         "language_basis": context["language_basis"],
                         "profile_evidence_ids": list(dict.fromkeys(s.event_id for s in workflow)),
-                        "evidence_ids": [request.id for request in pending_requests] + [x.id for x in consecutive],
+                        "evidence_ids": [request.id for request in pending_requests] +
+                                        [eid for x in consecutive for eid in (calls[x.call_id].id, x.id)],
                         "reason": "同一轮中，相同工具参数连续三次返回失败；可能需要先补定位步骤。预期失败测试或环境问题也会产生这个模式。",
                         "observed_failures": 3,
                     })
