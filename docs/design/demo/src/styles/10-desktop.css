@@ -1,0 +1,14 @@
+/* desktop stage */
+.desk{position:relative;height:100%;overflow:hidden;background:var(--desk)}
+.wall{position:absolute;inset:0;pointer-events:none}
+.mbar{position:absolute;left:0;right:0;top:0;height:28px;z-index:55;display:flex;align-items:center;gap:2px;padding:0 8px;background:var(--menubar);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:0 .5px 0 rgba(0,0,0,.14);font-size:13px;color:var(--ink-1)}
+.mbar button{height:22px;padding:0 9px;border:0;border-radius:5px;background:transparent;white-space:nowrap}
+.mbar button:hover,.mbar button.on{background:var(--field)}
+.mbar .app{font-weight:700}
+.mbar .sp{flex:1}
+.mbar .demo{font-weight:600;color:var(--ai)}
+.mbar .glyph{position:relative;width:34px;display:grid;place-items:center;padding:0}
+.mbar .glyph .badge{position:absolute;right:4px;top:2px;width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1.5px var(--menubar)}
+.mbar .sys{display:flex;align-items:center;gap:12px;padding:0 6px 0 8px;color:var(--ink-1)}
+.mbar .compact{display:none}
+

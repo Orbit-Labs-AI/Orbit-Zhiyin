@@ -16,7 +16,7 @@
 
 - **在线画布**（可平移缩放、留评论）：<https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>
 - **源文件**：`visual-cases-v1/` 下的 `canvas.json` 与 `*.dc.html`。它们依赖 claude.ai Design 画布的运行时（`support.js`），不能直接用浏览器打开，用于留档、比对和必要时重新发布。
-- **可交互 Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>；本地版 `demo/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。
+- **可交互 Demo**：在线版 <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8>；本地版 `demo/tandem-demo.html` 是单个 HTML 文件，用浏览器直接打开即可，不需要构建或联网（联网时会加载 Google Fonts）。它由 `demo/src/` 构建生成，修改方法见下文「修改 Demo」。
 
 ## 可交互 Demo
 
@@ -33,6 +33,27 @@ Demo 把画布里的主应用、菜单栏面板、悬浮组件、桌面小组件
 - 菜单栏右侧的 **「演示」** 菜单可以模拟会话完成、等你确认、连续失败、上下文即将压缩、每周报告、发现新数据源，以及切换空闲状态、重播首次启动与人格揭晓、重置数据。
 - 快捷键：⌘K 命令面板，⌘, 设置，⌘⇧S 分享卡，⌘⇧E 报告，⌥⌘P 悬浮组件，⌃⌥T 菜单栏面板，Space 回放轨迹，? 查看全部。浏览器占用的组合在 Demo 中改用 ⌥（如 ⌥1–⌥9 切换页面）。
 - 限制：数据是示例；写文件、运行命令、调用 Agent 与下载都只是模拟，导出内容以可复制的文本给出。
+
+## 修改 Demo
+
+`demo/tandem-demo.html` 是构建产物，**不要直接改它**：源码在 `demo/src/`，下一次构建会覆盖对产物的直接修改。
+
+- `src/index.html` 是页面骨架，`/*@css*/` 与 `/*@js*/` 两个占位符各出现一次；`src/styles/*.css` 与 `src/js/*.js` 按文件名排序后拼接进去，文件之间隔一行空行。
+- 文件名必须是 `NN-名称.css` 或 `NN-名称.js`，两位数字前缀决定拼接顺序；其他名字的文件会让构建报错。`00-utils.js` 必须排在第一位，因为它开头的 `"use strict"` 对整段脚本生效。
+- 后面的文件会改写前面文件里的同名函数：`80-history.js` 改写 `go` 并包装 `ACT.studioStart`，`42-a3-sessions.js` 改写 `base`。改这些函数时两处一起看。
+- 测试用系统里的 Google Chrome（`channel: 'chrome'`）；没装 Chrome 时先运行 `npx playwright install chrome`。依赖用 pnpm 11 安装，需要 Node 20 以上。
+
+| 命令（在 `demo/` 下运行） | 作用 |
+| --- | --- |
+| `pnpm install` | 安装依赖 |
+| `pnpm build` | 由 `src/` 生成 `tandem-demo.html` |
+| `pnpm check` | 检查提交的 `tandem-demo.html` 是否与源码一致，提交前必须通过 |
+| `pnpm test` | 构建后跑 Playwright：每个页面在 6 种窗口尺寸下的渲染与横向溢出检查，以及浮层、菜单、模拟事件和快捷键的交互检查 |
+| `pnpm test:ui` | 只在 mac-14 尺寸下构建并测试 |
+| `node tests/shoot.mjs --sizes mac-14,compact --full` | 把各页面截图到 `demo/shots/`（不提交），用于目视检查 |
+| `node build.mjs --artifact <文件>` | 生成发布到 claude.ai 的版本（去掉 doctype、html、head、body 这几行），再发布到上面的同一个 Demo 地址 |
+
+源码与产物一起提交；PR 中 `tandem-demo.html` 的差异会被折叠（见仓库根目录的 `.gitattributes`）。
 
 ## 画板索引
 
