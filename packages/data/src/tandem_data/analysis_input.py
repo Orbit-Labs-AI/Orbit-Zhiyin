@@ -199,6 +199,32 @@ def read_analysis(
                     )
                 }
                 candidates = found if candidates is None else candidates & found
+        if scope.from_ts is not None or scope.until_ts is not None:
+            # Time windows: sessions with an event in the window, found on the (kind, ts)
+            # index (one range per kind) instead of scanning every event through the view.
+            # A superset of the members' sessions; the exact ts predicate stays below.
+            bounds = " AND ".join(
+                clause
+                for clause, value in (
+                    ("ts >= :from_ts", scope.from_ts),
+                    ("ts < :until_ts", scope.until_ts),
+                )
+                if value is not None
+            )
+            kinds = [row[0] for row in connection.execute("SELECT DISTINCT kind FROM event")]
+            found = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT session_uid FROM event WHERE kind IN"
+                    " (SELECT value FROM json_each(:kinds)) AND " + bounds,
+                    {
+                        "kinds": json.dumps(kinds),
+                        "from_ts": scope.from_ts,
+                        "until_ts": scope.until_ts,
+                    },
+                )
+            }
+            candidates = found if candidates is None else candidates & found
         candidate_sql = []
         if candidates is not None:
             params["candidates"] = _keys(candidates)

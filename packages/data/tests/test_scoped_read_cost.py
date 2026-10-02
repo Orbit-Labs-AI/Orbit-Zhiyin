@@ -85,3 +85,38 @@ def test_scoped_read_does_not_scan_unrelated_events_and_tool_calls(tmp_path, mon
     # whole-table tool_call decode (~300 steps per unrelated event before the fix).
     per_unrelated_event = (large_cost - small_cost) * 100 / added
     assert per_unrelated_event < 100, (small_cost, large_cost, added)
+
+
+def test_time_window_read_selects_the_same_members_through_the_kind_time_index(
+    tmp_path, monkeypatch
+):
+    """A window keeps exactly the events with ts in range (plus their context) and
+    leaves out sessions with no event in it; candidates come from the (kind, ts) index."""
+    with build(tmp_path / "w", 2) as store:
+        db = store.db
+        old = db.execute("SELECT session_uid FROM session ORDER BY session_uid").fetchall()[0][0]
+        # Move one whole session a year back: it has no event in the window.
+        db.execute("UPDATE event SET ts = ts - 365 * 86400000 WHERE session_uid=?", (old,))
+        db.commit()
+        start = db.execute("SELECT min(ts) FROM event WHERE session_uid<>?", (old,)).fetchone()[0]
+        expected = {
+            row[0]
+            for row in db.execute(
+                "SELECT event_uid FROM v_analysis_event WHERE ts >= ?", (start + 1,))
+        }
+    queries = []
+    original = analysis_input.readonly_connection
+
+    @contextmanager
+    def tracing(path):
+        with original(path) as connection:
+            connection.set_trace_callback(queries.append)
+            yield connection
+
+    monkeypatch.setattr(analysis_input, "readonly_connection", tracing)
+    bundle = read_analysis(store.home, AnalysisScope("UTC", from_ts=start + 1),
+                           include_native=False)
+    members = {e["event_uid"] for e in bundle["events"] if (e.get("ts") or 0) >= start + 1}
+    assert members == expected and expected
+    assert old not in {s["session_uid"] for s in bundle["sessions"]}
+    assert any("SELECT DISTINCT session_uid FROM event WHERE kind IN" in q for q in queries)
