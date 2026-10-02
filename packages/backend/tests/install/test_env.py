@@ -174,3 +174,21 @@ def test_time_budget_and_memo(env, tmp_path):
     warm = time.perf_counter() - start
     assert first is second
     assert cold < 0.5 and warm < 0.01
+
+
+def test_projects_ordered_by_recent_session_activity(tmp_path):
+    from tandem_backend.install.env import project_paths
+
+    dirs = [tmp_path / n for n in ("old", "busy", "idle")]
+    for d in dirs:
+        d.mkdir()
+    path = tmp_path / "t.db"
+    make_db(path, dirs)
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE session (session_uid TEXT, project_id TEXT, started_at INTEGER, ended_at INTEGER)")
+        db.executemany("INSERT INTO session VALUES (?,?,?,?)",
+                       [("s1", "p0", 100, 200), ("s2", "p1", 300, None), ("s3", "p1", 50, 60)])
+    assert project_paths(Reads(path)) == [str(dirs[1]), str(dirs[0]), str(dirs[2])]
+    with sqlite3.connect(path) as db:
+        db.execute("DROP TABLE session")
+    assert project_paths(Reads(path)) == [str(d) for d in reversed(dirs)]  # no sessions: newest row first
