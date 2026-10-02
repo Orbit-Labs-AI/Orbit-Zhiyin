@@ -11,4 +11,8 @@ if TYPE_CHECKING:
 
 
 def router(gw: Gateway) -> APIRouter:
-    return APIRouter()
+    from ..platform import routes_notify
+
+    api = APIRouter()
+    api.include_router(routes_notify.router(gw))
+    return api
