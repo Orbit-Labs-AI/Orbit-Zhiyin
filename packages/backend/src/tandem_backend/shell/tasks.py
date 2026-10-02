@@ -4,7 +4,8 @@
   transcripts → one ``new_source`` notification per root, ever.
 * ``weekly_report`` (checked hourly): after local Monday 09:00, once per ISO week, freeze
   last week's report through the export package and notify ``weekly``. Skipped when the
-  ``weekly_report`` setting is false or the export package is not merged yet.
+  ``weekly_report`` setting is false (checked first, on any day) or the export package is
+  not merged yet.
 
 Both are registered with ``Maintenance.register`` and can be triggered by hand through
 ``POST /v1/platform/maintenance/run {"task": "source_watch" | "weekly_report"}``.
@@ -86,10 +87,12 @@ def _export():
 def weekly_report(gw, now_local: datetime | None = None) -> dict:
     now_local = now_local or datetime.now().astimezone()
     key = weekly_due(now_local, last_weekly_key(gw))
+    # The setting outranks the schedule: a disabled report says "disabled" on any day,
+    # not "not_due" on Monday morning or after this week already ran.
+    if gw.state.snapshot()["settings"].get("weekly_report", True) is False:
+        return {"skipped": "disabled", **({"week": key} if key else {})}
     if key is None:
         return {"skipped": "not_due"}
-    if gw.state.snapshot()["settings"].get("weekly_report", True) is False:
-        return {"skipped": "disabled", "week": key}
     exp = _export()
     if exp is None:
         return {"skipped": "export_unavailable", "week": key}
