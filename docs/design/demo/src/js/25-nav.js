@@ -23,16 +23,17 @@ function renderMain() {
   if (PAGES[S.route].after) PAGES[S.route].after();
 }
 /* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
-   then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. Runs after every page render
+   then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. The page title never
+   shrinks — a clipped title counts as overflow too (its .grow box hides what sticks out). Runs after every page render
    and on 'tandem:layout' (window resize, sidebar toggle). */
 function tbarFit() {
   const tb = $('#main .tbar'); if (!tb) return;
   const tr = tb.querySelector('.tright'); if (!tr) return;
   let more = tb.querySelector('.tmore');
   if (more) { const pop = more.querySelector('.tmore-pop'); while (pop.firstChild) tr.appendChild(pop.firstChild); more.remove(); }
-  const ts = tb.querySelector('.tsearch'), meta = tb.querySelector('.meta');
+  const ts = tb.querySelector('.tsearch'), meta = tb.querySelector('.meta'), grow = tb.querySelector('.grow');
   if (ts && !ts.dataset.ico) { ts.classList.remove('ico-only'); if (meta && meta.scrollWidth > meta.clientWidth + 0.5) ts.classList.add('ico-only'); }
-  const fits = () => tb.scrollWidth <= tb.clientWidth + 0.5;
+  const fits = () => tb.scrollWidth <= tb.clientWidth + 0.5 && (!grow || grow.scrollWidth <= grow.clientWidth + 0.5);
   if (fits() || !tr.children.length) return;
   more = document.createElement('div'); more.className = 'tmore';
   more.innerHTML = '<button type="button" class="ib" data-act="tmore" aria-label="更多工具栏项" aria-expanded="false" data-tip="更多工具栏项">' + ic('more') + '</button><div class="tmore-pop" hidden></div>';
