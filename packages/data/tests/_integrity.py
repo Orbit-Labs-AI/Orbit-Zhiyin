@@ -96,8 +96,19 @@ def differing_tables(left, right) -> list[str]:
 
 
 def assert_integrity(store) -> None:
-    """verify(), an empty foreign_key_check and a consistent L1 ledger."""
-    assert store.verify()["integrity"] == "ok"
+    """verify(), an empty foreign_key_check and a consistent L1 ledger.
+
+    ``partial`` is only accepted for originals deleted upstream, whose published facts
+    are retained by design; every other indexed source must re-verify byte for byte.
+    """
+    report = store.verify()
+    gone = {
+        row[0]
+        for row in store.db.execute("SELECT file_id FROM source_file WHERE status='gone_upstream'")
+    }
+    missing = {item["file_id"] for item in report["unavailable_sources"]}
+    assert missing <= gone, missing - gone
+    assert report["integrity"] == ("partial" if missing else "ok")
     assert store.db.execute("PRAGMA foreign_key_check").fetchall() == []
     assert (
         store.db.execute(
