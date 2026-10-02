@@ -1,6 +1,6 @@
 /* ============ ui plumbing: theme, tooltip, toast, sheets (#modal), dropdown menus, notifications ============ */
 const desk = $('#desk');
-const APP_MARK = '<svg width="20" height="15" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="#f2f2f4" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg>';
+const APP_MARK = appMark(32);
 function setTheme(t) {
   S.theme = t; store.set('theme', t);
   if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
