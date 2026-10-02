@@ -1,4 +1,4 @@
--- Owned only by tandem_catalog. Session/analysis databases are never opened here.
+-- Catalog bootstrap (schema v2). Separate database; never applied to tandem.db.
 CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
 INSERT INTO catalog_meta VALUES ('contract', 'catalog-v1'), ('generation', '0');
 CREATE TABLE catalog_source (

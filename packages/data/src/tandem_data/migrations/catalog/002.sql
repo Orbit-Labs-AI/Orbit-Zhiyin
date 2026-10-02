@@ -1,4 +1,4 @@
--- Align FTS rowids with chunk rowids: O(1) deletes instead of scanning an UNINDEXED column.
+-- catalog.db only: align FTS rowids with chunk rowids for indexed deletion.
 CREATE TEMP TABLE fts_rebuild AS
  SELECT c.rowid AS chunk_rowid,f.chunk_id,f.item_id,f.title,f.content
  FROM resource_chunk c JOIN chunk_fts f USING(chunk_id);

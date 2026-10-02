@@ -124,3 +124,15 @@ def test_read_only_open_during_sync_and_mmr_determinism(store):
         reader = CatalogStore(store.path)
         first = search(reader, MatchRequest(text="调试"))
     assert first == search(store, MatchRequest(text="调试"))
+
+
+def test_bilingual_lexical_fallback_does_not_invent_profile_features(store):
+    row = Record(native_id="debug", resource=Resource(item_id="debug", type="skill", name="Systematic Debugging",
+                 summary="Reproduce the failure and investigate its root cause.", url="https://example.org"))
+    publish(store, [row])
+    result = search(store, MatchRequest(text="调试"))
+    assert result["items"][0]["item_id"] == "debug"
+    assert result["routes"]["lexical"] == 1
+    assert result["routes"]["feature"] == 0
+    assert result["items"][0]["matched_features"] == []
+    assert result["vector"]["status"] == "not_configured"

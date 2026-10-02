@@ -40,12 +40,12 @@ class CatalogStore:
             if version not in (0, 1, SCHEMA_VERSION):
                 raise ValueError("unsupported_catalog_schema")
             if version == 0:
-                schema = files("tandem_catalog").joinpath("schema.sql").read_text()
+                schema = files("tandem_data").joinpath("migrations/catalog/schema.sql").read_text()
                 conn.executescript("BEGIN IMMEDIATE;\n" + schema +
                                    f"\nPRAGMA application_id={APPLICATION_ID};"
                                    f"\nPRAGMA user_version={SCHEMA_VERSION}; COMMIT;")
             elif version == 1:
-                migration = files("tandem_catalog").joinpath("migrations/002.sql").read_text()
+                migration = files("tandem_data").joinpath("migrations/catalog/002.sql").read_text()
                 conn.executescript("BEGIN IMMEDIATE;\n" + migration + "\nPRAGMA user_version=2; COMMIT;")
             conn.execute("PRAGMA journal_mode=WAL")
 

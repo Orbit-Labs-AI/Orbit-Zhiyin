@@ -5,12 +5,19 @@ from collections import defaultdict
 
 import numpy as np
 
-from .contracts import Feature, MatchRequest, Resource, canonical_json
-from .features import extract, lexical_tokens
+from .contracts import Feature, MatchRequest, canonical_json
+from .features import lexical_tokens
 from .vectors import normalize_vectors
 
-RANKING_VERSION = "hybrid-rrf60-mmr80-v1"
-ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 1.0}
+RANKING_VERSION = "hybrid-rrf60-mmr80-v2"
+ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
+STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 将 并 要 如何 是否 以及 进行 帮助 and or the of to a in for with on at by an as is".split())
+QUERY_ALIASES = {
+    "调试": "debug debugging", "排错": "debugging", "根因": "root cause", "重试": "retry",
+    "论文": "paper scientific", "引用": "citation citations", "无障碍": "accessibility",
+    "网页": "web", "键盘": "keyboard", "性能": "performance", "文档": "document",
+    "测试": "testing", "优化": "optimization", "验证": "verification",
+}
 
 
 def eligibility(request: MatchRequest) -> tuple[str, list]:
@@ -49,7 +56,10 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
 
 
 def _lexical(conn, where, args, text, limit):
-    tokens = list(dict.fromkeys(lexical_tokens(text)))[:80]
+    # Bilingual lexical expansion keeps offline search useful. It does not create
+    # inferred profile features or promote broad topic matches into a separate route.
+    expanded = text + " " + " ".join(value for key, value in QUERY_ALIASES.items() if key in text)
+    tokens = [token for token in dict.fromkeys(lexical_tokens(expanded)) if token not in STOP_WORDS][:80]
     if not tokens:
         return [], {}
     match = " OR ".join('"' + token.replace('"', '""') + '"' for token in tokens)
@@ -91,7 +101,7 @@ def _features(conn, where, args, features, limit):
 
 def _semantic(conn, where, args, encoder, text, limit):
     query = normalize_vectors(encoder.encode([text], query=True), 1, encoder.dimensions)[0]
-    rows = conn.execute("SELECT c.*,e.vector,e.dimensions FROM chunk_embedding e "
+    rows = conn.execute("SELECT c.chunk_id,c.item_id,e.vector,e.dimensions FROM chunk_embedding e "
                         "JOIN resource_chunk c USING(chunk_id) JOIN catalog_item i ON i.item_id=c.item_id "
                         "WHERE e.model_id=? AND " + where, [encoder.model_id, *args])
     best, passages, scanned = {}, {}, 0
@@ -109,9 +119,11 @@ def _semantic(conn, where, args, encoder, text, limit):
             item_id, score = row["item_id"], float(score)
             if score > 0 and score > best.get(item_id, float("-inf")):
                 best[item_id] = score
-                passages[item_id] = {k: row[k] for k in row.keys() if k != "vector"}
+                passages[item_id] = row["chunk_id"]
     hits = sorted(best.items(), key=lambda x: (-x[1], x[0]))[:limit]
-    return hits, {key: passages[key] for key, _ in hits}, scanned
+    snippets = {key: dict(conn.execute("SELECT * FROM resource_chunk WHERE chunk_id=?", (passages[key],)).fetchone())
+                for key, _ in hits}
+    return hits, snippets, scanned
 
 
 def _similarity(left, right):
@@ -135,8 +147,6 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
         if response["gates"]:
             return response
     query_features = list(request.features)
-    if request.text:
-        query_features += extract(Resource(item_id="query", type="guide", name="query", summary=request.text, url=""))
     if request.problem_type:
         query_features.append(Feature(feature="friction", value=request.problem_type))
     text = request.text or " ".join(f.value for f in query_features)

@@ -145,3 +145,12 @@ def test_v1_migration_realigns_fts_rowids_without_losing_history(store):
     assert migrated.verify()["ok"]
     publish(migrated, [record("kept")])
     assert migrated.verify()["ok"] and migrated.stats()["versions"] == 2
+
+
+def test_catalog_field_dictionary_matches_data_package_ddl():
+    import json
+    from importlib.resources import files
+
+    from tandem_catalog.schema_export import table_schemas
+    expected = json.loads(files("tandem_data").joinpath("schemas/catalog-v1.schema.json").read_text())
+    assert expected == table_schemas()

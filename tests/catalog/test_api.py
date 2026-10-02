@@ -26,6 +26,11 @@ def test_api_builds_searches_and_keeps_disabled_sources_disabled(tmp_path):
         item_id = result["items"][0]["item_id"]
         detail = client.get("/v1/catalog/items/detail", params={"item_id": item_id}).json()
         assert detail["version_id"] == result["items"][0]["version_id"]
+        from tandem_backend.recommend.sources.normalize import catalog_resource
+        draft = catalog_resource(detail["resource"])
+        assert draft.identity.id == item_id
+        assert draft.evidence_quality.status == "draft"
+        assert draft.source.status == "draft"
         assert client.post("/v1/catalog/embeddings", json={}).status_code == 422
         assert client.post("/v1/catalog/sync", json={"source_ids": ["not-registered"]}).status_code == 422
         assert client.post("/v1/catalog/search", json={"limit": 5000}).status_code == 422
