@@ -444,6 +444,144 @@
       ],
       "x-ddl": "CREATE TABLE ingest_issue (\n  issue_uid TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES source,\n  file_id TEXT REFERENCES source_file, record_uid TEXT REFERENCES raw_record,\n  stage TEXT NOT NULL CHECK(stage IN ('l1','l2','l3')), code TEXT NOT NULL,\n  severity TEXT NOT NULL CHECK(severity IN ('info','warning','error')),\n  detail TEXT NOT NULL CHECK(json_valid(detail)), detected_at INTEGER NOT NULL\n) STRICT"
     },
+    "inventory_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scan_id",
+        "inv_id",
+        "type",
+        "name",
+        "config_path",
+        "locator",
+        "enabled",
+        "evidence",
+        "config",
+        "content_hash"
+      ],
+      "properties": {
+        "scan_id": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "inv_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "type": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "name": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "config_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "locator": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        },
+        "enabled": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "evidence": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "config": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "content_hash": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "inventory_scan",
+          "from": "scan_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE inventory_item (\n  scan_id INTEGER NOT NULL REFERENCES inventory_scan, inv_id TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('skill','mcp','hook','plugin','rule','scheduled_task')),\n  name TEXT NOT NULL, config_path TEXT NOT NULL, locator TEXT NOT NULL,\n  enabled INTEGER CHECK(enabled IN (0,1)),\n  evidence TEXT NOT NULL CHECK(evidence IN ('file','configured','cached','installed')),\n  config TEXT NOT NULL CHECK(json_valid(config)), content_hash TEXT NOT NULL,\n  PRIMARY KEY(scan_id, inv_id)\n) STRICT"
+    },
+    "inventory_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scan_id",
+        "source_key",
+        "agent",
+        "root_path",
+        "scope",
+        "project_id",
+        "observed_at",
+        "scanner_version",
+        "coverage",
+        "diagnostics"
+      ],
+      "properties": {
+        "scan_id": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "source_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "agent": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "root_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "scope": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "observed_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "scanner_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "coverage": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "diagnostics": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE inventory_scan (\n  scan_id INTEGER PRIMARY KEY, source_key TEXT NOT NULL, agent TEXT NOT NULL,\n  root_path TEXT NOT NULL, scope TEXT NOT NULL CHECK(scope IN ('global','project')),\n  project_id TEXT REFERENCES project, observed_at INTEGER NOT NULL,\n  scanner_version TEXT NOT NULL,\n  coverage TEXT NOT NULL CHECK(json_valid(coverage)),\n  diagnostics TEXT NOT NULL CHECK(json_valid(diagnostics))\n) STRICT"
+    },
     "link": {
       "type": "object",
       "additionalProperties": false,
@@ -655,7 +793,7 @@
           "x-sql-type": "TEXT"
         },
         "coverage": {
-          "type": "string",
+          "type": "object",
           "x-sql-type": "TEXT"
         },
         "input_tokens": {
@@ -1981,7 +2119,7 @@
           "x-sql-type": "TEXT"
         },
         "coverage": {
-          "type": "string",
+          "type": "object",
           "x-sql-type": "TEXT"
         },
         "provider": {
