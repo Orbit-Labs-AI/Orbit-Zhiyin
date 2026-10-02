@@ -6,6 +6,7 @@ from .contracts import Feature, Resource, digest
 
 FEATURE_VERSION = "features-1"
 CHUNK_VERSION = "heading-1200-120-v1"
+EMBED_CHUNKS = 4
 
 # This shared vocabulary is deliberately small. Source text cannot add curated friction.
 VOCABULARY = {
@@ -77,6 +78,8 @@ def chunks(resource: Resource) -> list[dict]:
             if not text or (field, text) in seen:
                 continue
             seen.add((field, text))
+            # Overview + first three body chunks get vectors; FTS indexes every chunk.
             result.append({"field": field, "heading": heading[:300], "text": text,
-                           "text_hash": digest(text), "ordinal": len(result), "start": start})
+                           "text_hash": digest(text), "ordinal": len(result), "start": start,
+                           "embed": int(len(result) < EMBED_CHUNKS)})
     return result

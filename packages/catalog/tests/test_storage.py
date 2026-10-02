@@ -135,16 +135,16 @@ def test_chunk_provenance_and_no_silent_body_cutoff():
     assert all(len(c["text"]) <= 1200 and c["text_hash"] for c in result)
 
 
-def test_v1_migration_realigns_fts_rowids_without_losing_history(store):
-    publish(store, [record("old"), record("kept")])
-    with store.connect() as conn:
-        conn.execute("UPDATE chunk_fts SET rowid=rowid+100")
-        conn.execute("PRAGMA user_version=1")
-    migrated = CatalogStore(store.path)
-    assert migrated.stats()["schema_version"] == 2
-    assert migrated.verify()["ok"]
-    publish(migrated, [record("kept")])
-    assert migrated.verify()["ok"] and migrated.stats()["versions"] == 2
+def test_v2_catalog_is_backed_up_and_rebuilt_as_v3(tmp_path):
+    path = tmp_path / "catalog.db"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE catalog_item(item_id TEXT)")
+        conn.execute("PRAGMA application_id=1413696583")
+        conn.execute("PRAGMA user_version=2")
+    store = CatalogStore(path)
+    assert store.stats()["schema_version"] == 3 and store.verify()["ok"]
+    with sqlite3.connect(tmp_path / "catalog.db.v2.bak") as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
 
 
 def test_catalog_field_dictionary_matches_data_package_ddl():

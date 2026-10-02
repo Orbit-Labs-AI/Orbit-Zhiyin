@@ -94,8 +94,7 @@ def test_content_cache_reuse_and_deleted_chunks_cannot_match(store):
     assert encoder.calls == count
     publish(store, [])
     assert search(store, MatchRequest(text="debug"), encoder)["items"] == []
-    with store.connect(True) as conn:
-        assert conn.execute("SELECT count(*) FROM chunk_embedding").fetchone()[0] == 0
+    assert store.stats()["chunks"] == 0 and store.verify()["ok"]
 
 
 def test_stale_embedding_cannot_attach_to_new_version(store):
@@ -109,7 +108,7 @@ def test_stale_embedding_cannot_attach_to_new_version(store):
     result = index_embeddings(store, RacingEncoder())
     assert result["pending"] == 0
     with store.connect(True) as conn:
-        assert conn.execute("SELECT 1 FROM chunk_embedding WHERE chunk_id=?", (original,)).fetchone() is None
+        assert conn.execute("SELECT 1 FROM resource_chunk WHERE chunk_rowid=?", (int(original),)).fetchone() is None
 
 
 @pytest.mark.parametrize("vectors", [[[0, 0, 0]], [[float("nan"), 1, 0]], [[1, 2]], [[float("inf"), 0, 0]]])

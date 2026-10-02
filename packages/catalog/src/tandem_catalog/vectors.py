@@ -1,6 +1,7 @@
 """Versioned local embeddings, resumable materialization, exact cosine search primitives."""
 
 import hashlib
+import json
 import time
 from pathlib import Path
 from typing import Protocol
@@ -113,8 +114,32 @@ def register_model(store, encoder: Encoder):
                      (encoder.model_id, encoder.dimensions, descriptor, int(time.time() * 1000)))
 
 
-def index_embeddings(store, encoder: Encoder, *, batch_size=32, max_chunks=None, cancelled=lambda: False):
-    """Missing (current chunk, model) pairs are the durable queue; completed batches survive crashes."""
+BLOCK_ROWS = 16384
+
+
+def blocked_scores(matrix: np.ndarray, query: np.ndarray) -> np.ndarray:
+    """Exact cosine over an fp16 matrix, converted to fp32 in bounded blocks (no ANN)."""
+    scores = np.empty(len(matrix), dtype=np.float32)
+    query = np.asarray(query, dtype=np.float32)
+    for start in range(0, len(matrix), BLOCK_ROWS):
+        scores[start:start + BLOCK_ROWS] = matrix[start:start + BLOCK_ROWS].astype(np.float32) @ query
+    if not np.isfinite(scores).all():
+        raise ValueError("invalid_cosine_scores")
+    return np.clip(scores, -1, 1)
+
+
+def _pending(conn, model_id: str) -> int:
+    return conn.execute("SELECT count(*) FROM resource_chunk c WHERE c.embed=1 AND NOT EXISTS (SELECT 1 FROM "
+                        "embedding_cache e WHERE e.model_id=? AND e.text_hash=c.text_hash)", (model_id,)).fetchone()[0]
+
+
+def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None, cancelled=lambda: False):
+    """Embed chunks (embed=1) whose text has no vector for this model; completed batches survive crashes.
+
+    Vectors are keyed by text hash, so republished or copied text never needs re-encoding.
+    """
+    from .store import get_blob
+
     if batch_size < 1 or (max_chunks is not None and max_chunks < 0):
         raise ValueError("invalid_embedding_batch_limit")
     register_model(store, encoder)
@@ -122,40 +147,31 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=32, max_chunks=None,
     while not cancelled() and (max_chunks is None or indexed < max_chunks):
         limit = min(batch_size, max_chunks - indexed) if max_chunks is not None else batch_size
         with store.connect(True) as conn:
-            rows = conn.execute("SELECT c.* FROM resource_chunk c JOIN catalog_item i USING(item_id) LEFT JOIN chunk_embedding e "
-                                "ON e.chunk_id=c.chunk_id AND e.model_id=? WHERE e.chunk_id IS NULL "
+            rows = conn.execute("SELECT c.ordinal,c.text_hash,v.chunks_sha FROM resource_chunk c JOIN catalog_item i USING(item_id) "
+                                "JOIN item_version v ON v.version_id=c.version_id WHERE c.embed=1 AND NOT EXISTS (SELECT 1 "
+                                "FROM embedding_cache e WHERE e.model_id=? AND e.text_hash=c.text_hash) "
                                 "ORDER BY CASE i.type WHEN 'skill' THEN 0 WHEN 'workflow' THEN 1 WHEN 'rule' THEN 2 "
                                 "WHEN 'hook' THEN 3 WHEN 'command' THEN 4 WHEN 'subagent' THEN 5 WHEN 'plugin' THEN 6 "
-                                "WHEN 'mcp_server' THEN 7 ELSE 8 END,CASE c.field WHEN 'metadata' THEN 0 ELSE 1 END,"
-                                "c.item_id,c.ordinal LIMIT ?", (encoder.model_id, limit)).fetchall()
+                                "WHEN 'mcp_server' THEN 7 ELSE 8 END,c.ordinal,c.item_id LIMIT ?",
+                                (encoder.model_id, limit)).fetchall()
             if not rows:
                 break
-            cache = {}
+            blobs, missing = {}, {}
             for row in rows:
-                cached = conn.execute("SELECT vector FROM embedding_cache WHERE model_id=? AND text_hash=?",
-                                      (encoder.model_id, row["text_hash"])).fetchone()
-                if cached:
-                    cache[row["text_hash"]] = cached[0]
-        missing = {row["text_hash"]: row["text"] for row in rows if row["text_hash"] not in cache}
-        if missing:
-            encoded = normalize_vectors(encoder.encode(list(missing.values())), len(missing), encoder.dimensions)
-            cache.update({key: vector.tobytes() for key, vector in zip(missing, encoded, strict=True)})
-            computed += len(missing)
-        now = int(time.time() * 1000)
+                if row["chunks_sha"] not in blobs:
+                    blobs[row["chunks_sha"]] = json.loads(get_blob(conn, row["chunks_sha"]))
+                missing.setdefault(row["text_hash"], blobs[row["chunks_sha"]][row["ordinal"]])
+        encoded = normalize_vectors(encoder.encode(list(missing.values())), len(missing), encoder.dimensions)
+        computed += len(missing)
+        reused += len(rows) - len(missing)
         with store.writer(), store.connect() as conn:
-            for text_hash, blob in cache.items():
-                conn.execute("INSERT OR IGNORE INTO embedding_cache VALUES(?,?,?,?)",
-                             (encoder.model_id, text_hash, encoder.dimensions, blob))
-            for row in rows:
-                # A sync may have changed this document while inference was running.
-                cursor = conn.execute("INSERT OR IGNORE INTO chunk_embedding "
-                                      "SELECT chunk_id,?,text_hash,?,?,? FROM resource_chunk WHERE chunk_id=? AND text_hash=?",
-                                      (encoder.model_id, encoder.dimensions, cache[row["text_hash"]], now, row["chunk_id"], row["text_hash"]))
-                indexed += cursor.rowcount
-                reused += int(row["text_hash"] not in missing and cursor.rowcount > 0)
+            # Text-keyed: a sync that replaced the chunk meanwhile only leaves a reusable cache row.
+            conn.executemany("INSERT OR IGNORE INTO embedding_cache VALUES(?,?,?,?)",
+                             [(encoder.model_id, text_hash, encoder.dimensions, vector.astype("<f2").tobytes())
+                              for text_hash, vector in zip(missing, encoded, strict=True)])
             conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
+        indexed += len(rows)
     with store.connect(True) as conn:
-        pending = conn.execute("SELECT count(*) FROM resource_chunk c LEFT JOIN chunk_embedding e "
-                               "ON e.chunk_id=c.chunk_id AND e.model_id=? WHERE e.chunk_id IS NULL", (encoder.model_id,)).fetchone()[0]
+        pending = _pending(conn, encoder.model_id)
     return {"model_id": encoder.model_id, "indexed": indexed, "computed": computed, "reused": reused,
             "pending": pending, "status": "ready" if pending == 0 else "partial"}

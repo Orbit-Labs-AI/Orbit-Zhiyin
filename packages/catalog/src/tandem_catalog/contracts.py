@@ -68,7 +68,7 @@ class Record(Contract):
 
 class SourceSpec(Contract):
     source_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,79}$")
-    kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub"]
+    kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local"]
     url: str
     enabled: bool = True
     priority: int = Field(default=50, ge=0, le=100)
@@ -103,6 +103,7 @@ class MatchRequest(Contract):
     limit: int = Field(default=20, ge=1, le=100)
     per_route: int = Field(default=100, ge=10, le=500)
     model_id: str | None = None
+    prefix: bool = False  # Treat the last >=3-char query token as a prefix (type-ahead).
 
 
 class SyncRequest(Contract):
