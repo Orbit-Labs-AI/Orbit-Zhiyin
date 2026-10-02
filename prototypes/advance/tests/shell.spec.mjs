@@ -17,7 +17,7 @@
 //                      A toolbar that cannot fit its page title moves items into the » popover instead of clipping it.
 //  4. settings         openSettings() → #set fully inside the viewport, six tabs visible, each tab renders, main window
 //                      inactive (grey lights); Esc closes it.
-//  5. menu-bar panel   click the Tandem status item → #pop right edge aligns with the status item (±1.5px), 6px under the bar.
+//  5. menu-bar panel   click the Orbit status item → #pop right edge aligns with the status item (±1.5px), 6px under the bar.
 //  6. HUD              the pill never covers the window's title row; when any snap point is free of the window and the
 //                      visible desktop widgets it covers neither — checked at the default layout and again with the window
 //                      shrunk to 900×600 in a corner, where the top row is certainly free.

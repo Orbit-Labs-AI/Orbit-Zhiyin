@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tandem 交互 Demo</title>
+<title>Orbit 交互 Demo</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&display=swap">
 <style>
 /* Tokens, fonts, resets.
@@ -13,6 +13,8 @@
    numbers, eyebrows, meta and code. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
+   --orbit is the brand slate of the Orbit mark; it is used only by the mark, the north half of the compass needle and the
+   00 reference triangle on the persona compass.
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
    Fonts: UI = system-ui (SF Pro / PingFang in Chrome); the brand serif / mono come from Google Fonts when online and fall
@@ -23,6 +25,7 @@
 --ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
 --accent:#17181b;--accent-ink:#ffffff;--accent-tint:rgba(23,24,27,.1);--sel:rgba(23,24,27,.07);--sel-off:rgba(23,24,27,.045);--focus:rgba(0,103,244,.5);
 --ai:#5a3fd0;--ai-bg:#efecff;
+--orbit:#5f6b6f;
 --good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#17181b;--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
@@ -42,6 +45,7 @@
 --ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#f2f2f4;--accent-ink:#17181b;--accent-tint:rgba(255,255,255,.16);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
 --ai:#b4a8ff;--ai-bg:#2f2954;
+--orbit:#a3adb0;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
@@ -56,6 +60,7 @@ color-scheme:dark}}
 --ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#f2f2f4;--accent-ink:#17181b;--accent-tint:rgba(255,255,255,.16);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
 --ai:#b4a8ff;--ai-bg:#2f2954;
+--orbit:#a3adb0;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
@@ -796,14 +801,15 @@ svg{display:block}
 .ov-recm .mono{color:var(--ink-2)}
 @container main (max-width:639px){.ov-tool{grid-template-columns:56px minmax(0,1fr) 40px 44px;gap:6px}}
 
-/* A2 persona: low-sample relax chips, fingerprint v2 compass (bezel ticks / stacked density ring / rhythm band / compass rose + needle), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass (bezel ticks / smooth five-layer orbit band + hour hit areas + Agent planets / rhythm band / compass rose + needle), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
-.fp2 .fps path{transition:opacity .15s}
+/* 小时热区叠在轨道环带上，本身透明：悬停 / 聚焦时罩一层浅色，选中时描边，其余小时罩一层纸色（等价于原来的 .dim 变淡） */
+.fp2 .fps path{transition:fill .15s,fill-opacity .15s}
 .fp2 .fps{cursor:pointer;outline:none}
-.fp2 .fps.dim{opacity:.3}
-.fp2 .fps:hover path,.fp2 .fps:focus-visible path{filter:brightness(1.12)}
+.fp2 .fps.dim path:first-child{fill:var(--surface);fill-opacity:.62}
+.fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field)}
 .fp2 .fps.sel path:first-child{fill:var(--field);stroke:var(--ink-1);stroke-width:1.5}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
@@ -841,6 +847,11 @@ svg{display:block}
 .pe-fit-h .cap{font-size:11px}
 .pe-fit-m{font-size:11px;line-height:15px;color:var(--ink-3)}
 .pe-fit-m .nw{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 行星：画在 00 上方的轨道上，按 --pa（该 Agent 的协作重心）转到位；入场时 WAAPI 从 0° 转到 --pa */
+.fp2 .fp-pl{transform:rotate(var(--pa,0deg));transform-origin:200px 200px;transform-box:view-box}
+.fp2 .fp-pl .fp-pd{transition:r .15s}
+.fp2 .fp-pl[data-tf]{cursor:default}
+.fp2 .fp-pl[data-tf]:hover .fp-pd{r:5.6}
 
 /* A3 会话与轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
    事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
@@ -1384,7 +1395,8 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 /* mono meta mixed with CJK: a mono space is .6em, which makes「10 月 1 日」read letter-spaced — tighten spaces only */
 .pop .mono{word-spacing:-.25em}
 @keyframes slideout{to{opacity:0;transform:translateX(24px)}}
-.appicon{width:32px;height:32px;border-radius:8px;background:#1c1c1e;display:grid;place-items:center;flex:none}
+/* App 图标：Orbit 标志，暖白底 + 石板灰（图标本身不随深浅色变化，所以在这里把 --orbit 固定为浅色值） */
+.appicon{--orbit:#5f6b6f;width:32px;height:32px;border-radius:8px;background:#f5f4f0;box-shadow:inset 0 0 0 .5px rgba(23,24,27,.14),0 1px 2px rgba(20,22,26,.12);display:grid;place-items:center;flex:none}
 
 /* live surfaces: menu-bar panel charts, HUD density band, desktop widget sizes, settings matrix / AI channel.
    The context bar (.ctxbar) is the one small chart shared by the panel, the HUD (.dk) and the large widget (S-V03). */
@@ -1548,6 +1560,9 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-wedge{fill:var(--ink-1);opacity:.07}
 .gen:not(.run) .g-over{display:none}
 .gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-compass,.fp-ax,.fps){opacity:0}
+/* 首次启动 01：.g-fp 与 .g-over 同步从倾斜轨道视角翻正（js 逐帧写 transform）；Orbit 内弧收拢成指针 */
+.g-fp,.g-over{transform-origin:50% 50%}
+.g-arc{fill:none;stroke:var(--orbit);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
 .gen .g-fp :is(.fps,.fp-core,.fp-compass){transform-origin:200px 200px;transform-box:view-box}
 /* 生长：罗盘玫瑰主角（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
 .gen .pet{transform-origin:200px 200px;transform-box:view-box;animation:grow .6s var(--ease) var(--g-grow,0ms) both}
@@ -1652,7 +1667,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
   <svg class="wall" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1440 900"><circle cx="1180" cy="1040" r="430" fill="none" stroke="var(--desk-2)" stroke-width="70"/><circle cx="1180" cy="1040" r="620" fill="none" stroke="var(--desk-2)" stroke-width="34" opacity=".6"/><circle cx="1180" cy="1040" r="790" fill="none" stroke="var(--desk-2)" stroke-width="14" opacity=".45"/></svg>
   <header class="mbar" id="mbar" aria-label="菜单栏"></header>
   <aside class="widgets" id="widgets" aria-label="桌面小组件" hidden></aside>
-  <section class="panel win" id="win" aria-label="Tandem 主窗口" data-mode="win">
+  <section class="panel win" id="win" aria-label="Orbit 主窗口" data-mode="win">
     <div class="wtop" id="wtop"></div>
     <nav class="side" id="side" aria-label="主导航"></nav>
     <div class="main" id="main"></div>
@@ -1660,7 +1675,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
   </section>
   <section class="panel set" id="set" aria-label="设置" hidden></section>
   <div class="hud" id="hud"></div>
-  <div class="pop" id="pop" role="dialog" aria-label="Tandem 菜单栏面板" hidden></div>
+  <div class="pop" id="pop" role="dialog" aria-label="Orbit 菜单栏面板" hidden></div>
   <div class="dd" id="dd" role="menu" hidden></div>
   <div class="notes" id="notes" aria-live="polite"></div>
   <div class="scrim" id="scrim" hidden></div>
@@ -1746,7 +1761,56 @@ const I = {
   slash: 'M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M5 19L19 5'
 };
 function ic(n, s, st) { return '<svg class="ico" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" aria-hidden="true"' + (st ? ' style="' + st + '"' : '') + '><path d="' + I[n] + '"/></svg>'; }
-const GLYPH = '<svg width="18" height="14" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg>';
+// Orbit 标志：docs/design/logo/generate.py 的 spiral 变体，一条锥形螺旋（1.6 圈，半径 9 → 16，轴向抬升 14，起始相位 0.6），
+// 正交投影 yaw 20° / pitch 45°；两端收细，近处粗、远处细，内圈从外环下方穿过处断开。线宽与断口按输出像素给，
+// 所以 16px 的菜单栏图标也清楚。orbitGeom 也给 Genesis 用（倾斜椭圆轨道、内弧收拢成指针），结果按参数缓存。
+const ORBIT = { turns: 1.6, r0: 9, r1: 16, rise: 14, phase: 0.6, yaw: 20, pitch: 45, taper: 0.12, N: 220 };
+const ORBIT_CACHE = {};
+// t ∈ [0, 1] 沿螺旋 → [屏幕 x, 屏幕 y, 深度]（单位 = 外圈半径，深度越大越近）
+function orbitAt(t, yaw, pitch) {
+  const Y = yaw * Math.PI / 180, P = pitch * Math.PI / 180, th = 2 * Math.PI * ORBIT.turns * t + ORBIT.phase, r = ORBIT.r0 + (ORBIT.r1 - ORBIT.r0) * t;
+  const x = r * Math.cos(th), y = r * Math.sin(th), z = ORBIT.rise * t;
+  const x1 = x * Math.cos(Y) - y * Math.sin(Y), y1 = x * Math.sin(Y) + y * Math.cos(Y);
+  return [x1 / ORBIT.r1, -(y1 * Math.sin(P) + z * Math.cos(P)) / ORBIT.r1, -(y1 * Math.cos(P) - z * Math.sin(P)) / ORBIT.r1];
+}
+// 投影点、弧长与断口：runs = 断开后的连续段（下标区间），第一段是内弧，第二段是外环
+function orbitGeom(yaw, pitch) {
+  const key = yaw + '|' + pitch; if (ORBIT_CACHE[key]) return ORBIT_CACHE[key];
+  const n = ORBIT.N, p = []; for (let k = 0; k <= n; k++) p.push(orbitAt(k / n, yaw, pitch));
+  const len = [0]; for (let k = 1; k <= n; k++) len.push(len[k - 1] + Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]));
+  const far = [];
+  for (let i = 0; i < n; i++) for (let j = i + 3; j < n; j++) {
+    const a = p[i], b = p[i + 1], c = p[j], d = p[j + 1], den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]); if (Math.abs(den) < 1e-12) continue;
+    const u = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den, v = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den;
+    if (u >= 0 && u < 1 && v >= 0 && v < 1) far.push(a[2] + u * (b[2] - a[2]) < c[2] + v * (d[2] - c[2]) ? i : j);
+  }
+  const xs = p.map((q) => q[0]), ys = p.map((q) => q[1]), zs = p.map((q) => q[2]);
+  const box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  return (ORBIT_CACHE[key] = { p, len, far, box, z0: Math.min(...zs), z1: Math.max(...zs) });
+}
+// 标志 SVG：w × h 像素框内居中；o = { wMin, wMax（线宽，像素）, gap（断口，像素）, pad, fill, cls }
+function orbitMark(w, h, o) {
+  o = o || {}; const g = orbitGeom(ORBIT.yaw, ORBIT.pitch), n = ORBIT.N, pad = o.pad == null ? 1 : o.pad;
+  const sc = Math.min((w - 2 * pad) / (g.box[2] - g.box[0]), (h - 2 * pad) / (g.box[3] - g.box[1]));
+  const ox = w / 2 - (g.box[0] + g.box[2]) / 2 * sc, oy = h / 2 - (g.box[1] + g.box[3]) / 2 * sc;
+  const P = g.p.map((q) => [ox + q[0] * sc, oy + q[1] * sc]), L = g.len.map((x) => x * sc), T = L[n];
+  const wMin = o.wMin || 1, wMax = o.wMax || 1.6, gap = o.gap == null ? 1.4 : o.gap;
+  const wd = P.map((q, k) => { const e = Math.min(1, L[k] / (T * ORBIT.taper), (T - L[k]) / (T * ORBIT.taper)); return Math.max(Math.min(0.5, wMin), (wMin + (wMax - wMin) * (g.p[k][2] - g.z0) / (g.z1 - g.z0)) * Math.sin(e * Math.PI / 2)); });
+  const cut = P.map(() => false); g.far.forEach((i) => { const r = gap / 2 + wd[i]; L.forEach((l, k) => { if (Math.abs(l - L[i]) < r) cut[k] = true; }); });
+  const runs = []; let cur = []; for (let k = 0; k <= n; k++) { if (cut[k]) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(k); } if (cur.length > 1) runs.push(cur);
+  const f = (x, y) => x.toFixed(2) + ' ' + y.toFixed(2);
+  let d = '';
+  runs.forEach((run) => {
+    const lf = [], rt = [];
+    run.forEach((k) => { const a = P[Math.max(0, k - 1)], b = P[Math.min(n, k + 1)], ln = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / ln, ny = (b[0] - a[0]) / ln, hw = wd[k] / 2; lf.push(f(P[k][0] + nx * hw, P[k][1] + ny * hw)); rt.push(f(P[k][0] - nx * hw, P[k][1] - ny * hw)); });
+    d += 'M' + lf.concat(rt.reverse()).join('L') + 'Z';
+    [run[0], run[run.length - 1]].forEach((k) => { const r = wd[k] / 2; d += 'M' + f(P[k][0] - r, P[k][1]) + 'a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 1 0 ' + (2 * r).toFixed(2) + ' 0a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 1 0 ' + (-2 * r).toFixed(2) + ' 0Z'; });
+  });
+  return '<svg class="orbit-mark' + (o.cls ? ' ' + o.cls : '') + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><path d="' + d + '" fill="' + (o.fill || 'currentColor') + '"/></svg>';
+}
+// 菜单栏状态项（模板图标：单色跟随菜单栏文字）与 App 图标（暖白底 + 石板灰标志，图标本身不随深浅色变化）
+const GLYPH = orbitMark(20, 15, { wMin: 1.05, wMax: 1.7, gap: 1.5, pad: 0.6 });
+const appMark = (px) => orbitMark(Math.round(px * 0.74), Math.round(px * 0.6), { wMin: Math.max(1.1, px / 44), wMax: Math.max(1.9, px / 15), gap: Math.max(1.5, px / 24), pad: 0.5, fill: 'var(--orbit)' });
 
 /* ============ sample data (all values are examples) ============ */
 const AG = [
@@ -1772,7 +1836,7 @@ const PJ = [
     titles: ['同步 team-hub collab 并审核日报', '合并 PR 并清理分支', '统一 AGENTS.md 并删除旧规则文件', '处理 Codex review 意见', '整理项目索引', '清理过期会话与权限'] },
   { id: 'hackathon', name: 'Hackathon', path: '~/Projects/ActionMesh AI/Hackathon', git: 'ActionMesh-AI/Hackathon', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
     flow: [['讨论需求', '3 轮对话'], ['写规则', 'Edit AGENTS.md'], ['开 PR', 'gh pr create'], ['处理 review', '@codex review'], ['合并', 'gh pr merge']], cover: [['AGENTS.md', '2.5 KB', '10/1 更新', 1], ['Hooks', '0', '可加 review 收敛规则', 0], ['Skills', '0', '可加 PR 收尾', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '安装 PR 收尾 Skill：最多两轮 review，只修 P0 / P1', rec: 'pr-wrapup',
-    titles: ['设计 Tandem Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
+    titles: ['设计 Orbit Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
   { id: 'quant', name: 'Auto Finance & Quant', path: '~/Projects/Auto Finance & Quant', git: 'yhyfhgs/Auto-Finance-Quant', q: 18, h: 16, A: 8.2, fr: 7.4, I: 66, V: 70, err: 0.05, tags: ['Python', 'uv', '回测'], topics: { quant: 1 }, fric: { '误解需求': 4, '工具 / 环境失败': 2 },
     flow: [['拉数据', 'datahub sync'], ['清洗', 'pandas'], ['回测', 'pytest -q'], ['出图', 'matplotlib'], ['写结论', 'Edit report.md']], cover: [['AGENTS.md', '1.6 KB', '9/12 更新', 1], ['Hooks', '0', '可加单测守卫', 0], ['Skills', '0', '无需', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '改动后自动跑相关单测的 Hook，减少「误解需求」类返工', rec: 'acceptance',
     titles: ['生成因子衰减综述对比表', '回测数据清洗', '整理 datahub 接口', '修复 equity 模块单测', '更新加密套利监控脚本', '写宏观指标看板'] },
@@ -1915,7 +1979,7 @@ function genSessions() {
     s.title = P.titles[n % P.titles.length] + ['', '（续）', ' · 收尾', ' · 返工', ' · 复盘'][Math.floor(n / P.titles.length) % 5];
   });
   all.push(FEAT);
-  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Tandem Mac App 视觉案例' });
+  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
   all.push({ id: 'sess-1001-0903', d: 120, a: 'cx', p: 'teamhub', h: 9, mi: 3, dur: 12, msgs: 3, tools: 34, errors: 0, corr: 0, out: 'ok', verify: true, mood: 0.35, topic: 'git', title: '同步 team-hub collab 并审核日报' });
   all.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi));
   all.forEach((s, i) => {
@@ -1961,12 +2025,12 @@ const RECS = [
   { id: 'deploy-target', dim: 'rule', type: '规则', icon: 'rule', lvl: 1, aud: 0, title: 'AGENTS.md：写明部署目标与禁用平台', gain: '覆盖 4 类方向偏离', why: '4 次部署被引向 Vercel，而你的项目约定是 Cloudflare。', ev: '4 个会话', evq: { fric: '方向错误' }, compat: '所有 Agent', c2: 'var(--a3)', primary: '复制片段', target: 'Confluo/AGENTS.md',
     file: [['## 部署', '+'], ['- 部署目标：Cloudflare Pages（wrangler）', '+'], ['- 不要使用 Vercel、Netlify 或其他平台', '+'], ['- 部署前先运行 npx wrangler whoami，未登录就停下来告诉我', 'ai'], ['- 部署后验证：线上 200、HTTPS、www 跳转', '+']],
     steps: ['复制片段', '粘贴到项目根目录的 AGENTS.md「部署」小节', '下次部署时观察 Agent 是否先检查登录状态'], track: [['部署方向偏离', 4, 0, '次'], ['部署会话平均时长', 47, 33, '分钟'], ['部署类会话摩擦率', 12.4, 6.2, '%']] },
-  { id: 'think-medium', dim: 'model', type: '模型与思考', icon: 'gauge', lvl: 1, aud: 1, title: '只读审查任务改用 thinking medium', gain: '−28% tokens', why: '审阅类会话中思考 token 占 61%，medium 与 high 的结论一致率为 94%。', ev: '22 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code', c2: 'var(--a1)', primary: '应用到 latentskill', target: 'latentskill · Tandem 任务预设',
+  { id: 'think-medium', dim: 'model', type: '模型与思考', icon: 'gauge', lvl: 1, aud: 1, title: '只读审查任务改用 thinking medium', gain: '−28% tokens', why: '审阅类会话中思考 token 占 61%，medium 与 high 的结论一致率为 94%。', ev: '22 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code', c2: 'var(--a1)', primary: '应用到 latentskill', target: 'latentskill · Orbit 任务预设',
     file: [['# latentskill · 审查类任务预设', ' '], ['match: 只读审查（以 Read / Grep 为主，没有 Edit）', '+'], ['thinking: medium', '+'], ['fallback: high（出现 Edit 时自动恢复）', 'ai']],
-    steps: ['应用预设到 latentskill', '审查类会话开始时 Tandem 会提示建议档位', '7 天后对比 token 与结论一致率'], track: [['审查会话 tokens', 410, 296, 'k'], ['结论一致率', 100, 94, '%'], ['平均耗时', 21, 16, '分钟']] },
+    steps: ['应用预设到 latentskill', '审查类会话开始时 Orbit 会提示建议档位', '7 天后对比 token 与结论一致率'], track: [['审查会话 tokens', 410, 296, 'k'], ['结论一致率', 100, 94, '%'], ['平均耗时', 21, 16, '分钟']] },
   { id: 'retry-breaker', dim: 'hook', type: 'Hook', icon: 'bolt', lvl: 2, aud: 1, title: '重复失败熔断：同一命令失败 2 次先诊断', gain: '重复失败 −68%', why: '有 23 段「失败后原样重试」的序列，最长一次连续 4 次。', ev: '17 个会话', evq: { fric: '工具 / 环境失败' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '预览并安装', target: '~/.claude/settings.json',
-    file: [['{', ' '], ['  "hooks": {', '+'], ['    "PostToolUse": [', '+'], ['      {', '+'], ['        "matcher": "Bash",', '+'], ['        "hooks": [', '+'], ['          { "type": "command",', '+'], ['            "command": "~/.tandem/hooks/retry-breaker.sh" }', 'ai'], ['        ]', '+'], ['      }', '+'], ['    ]', '+'], ['  }', '+'], ['}', ' ']],
-    steps: ['预览将写入的 Hook 与脚本', '确认安装（脚本放在 ~/.tandem/hooks，可随时删除）', '下次出现连续失败时，Agent 会先停下来检查认证与环境'], track: [['重复失败序列', 23, 7, '段'], ['失败后浪费时长', 58, 17, '分钟'], ['工具类摩擦', 12, 5, '次']] },
+    file: [['{', ' '], ['  "hooks": {', '+'], ['    "PostToolUse": [', '+'], ['      {', '+'], ['        "matcher": "Bash",', '+'], ['        "hooks": [', '+'], ['          { "type": "command",', '+'], ['            "command": "~/.orbit/hooks/retry-breaker.sh" }', 'ai'], ['        ]', '+'], ['      }', '+'], ['    ]', '+'], ['  }', '+'], ['}', ' ']],
+    steps: ['预览将写入的 Hook 与脚本', '确认安装（脚本放在 ~/.orbit/hooks，可随时删除）', '下次出现连续失败时，Agent 会先停下来检查认证与环境'], track: [['重复失败序列', 23, 7, '段'], ['失败后浪费时长', 58, 17, '分钟'], ['工具类摩擦', 12, 5, '次']] },
   { id: 'worktree', dim: 'flow', type: '工作流', icon: 'branch', lvl: 3, aud: 1, title: '并行会话改用 git worktree 隔离', gain: '并行冲突 −5 次 / 月', why: '多个会话同时改同一仓库，产生了 5 次冲突与 2 次覆盖。', ev: '9 个会话', evq: { fric: '并行会话冲突' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '查看教程', target: '教程（不写入文件）',
     file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Hackathon-a feat/a', '+'], ['git worktree add ../Hackathon-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Hackathon-a', '+']],
     steps: ['为每个要并行的任务建一个 worktree', '在各自目录启动 Agent', '完成后在主目录合并并清理 worktree', '也可以交给生成工坊做成一个 Skill'], track: [['并行冲突', 5, 0, '次'], ['覆盖他人改动', 2, 0, '次'], ['并行会话数', 41, 44, '次']] },
@@ -1990,21 +2054,21 @@ const RECS = [
     steps: ['交给生成工坊，用你的 19 个会话生成定制版', '审阅并安装', '下次审稿时说「按 paper-audit」'], track: [['每次审稿的指令数', 9, 5, '条'], ['审稿会话时长', 66, 49, '分钟'], ['改动过度类纠偏', 4, 1, '次']] },
   { id: 'headless', dim: 'flow', type: '工作流', icon: 'clock', lvl: 4, aud: 2, title: '长时间采集改为 headless + 定时检查', gain: '人工查看进度 −15 次 / 周', why: '轨迹采集期间你平均每 40 分钟手动问一次进度。', ev: '8 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · DeepSeek', c2: 'var(--a4)', primary: '查看教程', target: '教程（需要 cron 与脚本）',
     file: [['# 每 30 分钟检查一次采集进度', ' '], ['*/30 * * * * claude -p "检查 runs/ 的进度，异常时总结原因" >> ~/logs/collect.log', '+']],
-    steps: ['确认采集脚本能无人值守运行', '配置 cron 或 launchd 定时任务', '异常时由 Tandem 发通知'], track: [['手动查看进度', 15, 2, '次 / 周'], ['异常发现延迟', 95, 30, '分钟'], ['采集中断', 3, 1, '次']] }
+    steps: ['确认采集脚本能无人值守运行', '配置 cron 或 launchd 定时任务', '异常时由 Orbit 发通知'], track: [['手动查看进度', 15, 2, '次 / 周'], ['异常发现延迟', 95, 30, '分钟'], ['采集中断', 3, 1, '次']] }
 ];
 const RECI = {}; RECS.forEach((r) => { RECI[r.id] = r; });
 
 const LIB = [
   { id: 'worktree-conductor', kind: 'Skill', icon: 'branch', src: '社区 · MIT', desc: '为每个并行会话自动建立独立 worktree，结束后合并并清理。', m: 94, sc: [96, 92, 74], why: ['你每周约 10 次并行会话，5 次改到同一仓库', '同为 DIMV 的用户安装后冲突减少 72%'], compat: 'Claude Code · Codex', users: 3100, peer: 68, rec: 'worktree' },
-  { id: 'retry-breaker', kind: 'Hook', icon: 'bolt', src: 'Tandem 官方', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, sc: [88, 95, 81], why: ['23 段「失败后原样重试」，最长 4 次', '覆盖你第二大的摩擦：工具 / 环境失败'], compat: 'Claude Code · Codex', users: 1800, peer: 52, rec: 'retry-breaker' },
+  { id: 'retry-breaker', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, sc: [88, 95, 81], why: ['23 段「失败后原样重试」，最长 4 次', '覆盖你第二大的摩擦：工具 / 环境失败'], compat: 'Claude Code · Codex', users: 1800, peer: 52, rec: 'retry-breaker' },
   { id: 'release-verifier', kind: '子代理', icon: 'bot', src: '社区 · Apache-2.0', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, sc: [90, 84, 79], why: ['61% 的会话你会要求验证线上结果', '可以把验收从主会话中拆出去'], compat: 'Claude Code · Gemini CLI', users: 940, peer: 43, rec: 'deploy-target' },
   { id: 'paper-audit-loop', kind: 'Skill', icon: 'book', src: '本地生成', local: true, desc: '只读审查 → 归档 → 最小修改 → 编译 → 页数检查。', m: 84, sc: [86, 88, 70], why: ['你在 19 个会话里重复这五步', '由你的本地 Agent 依据你的会话生成'], compat: 'Claude Code', users: 0, peer: 0, rec: 'paper-audit' },
   { id: 'cloudflare-deploy', kind: '插件', icon: 'plug', src: '社区 · MIT', desc: 'wrangler 登录检查、Pages 部署与域名验证命令集。', m: 81, sc: [78, 90, 72], why: ['部署类会话里 4 次走错平台', 'wrangler 未登录导致 37 次失败'], compat: 'Claude Code · Codex', users: 5600, peer: 39, rec: 'deploy-target' },
-  { id: 'readonly-allowlist', kind: 'Hook', icon: 'bolt', src: 'Tandem 官方', desc: '把 git status、ls、gh pr view 等只读命令加入白名单。', m: 79, sc: [74, 92, 70], why: ['212 次只读命令需要你手动批准', '审批平均等待 38 秒'], compat: 'Claude Code · Codex', users: 12000, peer: 61, rec: 'ro-allow' },
+  { id: 'readonly-allowlist', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '把 git status、ls、gh pr view 等只读命令加入白名单。', m: 79, sc: [74, 92, 70], why: ['212 次只读命令需要你手动批准', '审批平均等待 38 秒'], compat: 'Claude Code · Codex', users: 12000, peer: 61, rec: 'ro-allow' },
   { id: 'gh-review-digest', kind: 'MCP', icon: 'puzzle', src: '社区 · MIT', desc: '把多轮 review 意见合并成一份按优先级排序的清单。', m: 74, sc: [70, 82, 66], why: ['review 循环最长 11 轮', '与 PR 收尾 Skill 搭配效果最好'], compat: 'Claude Code', users: 2200, peer: 27, rec: 'pr-wrapup' },
   { id: 'citation-checker', kind: '子代理', icon: 'bot', src: '社区 · MIT', desc: '核对论文引用与 BibTeX，一致性问题列成表。', m: 71, sc: [64, 86, 60], why: ['9 次纠偏与引用格式有关', '只读，不会改你的文件'], compat: 'Claude Code · Gemini CLI', users: 780, peer: 18, rec: 'citation-checker' },
   { id: 'bilingual-report', kind: 'Skill', icon: 'book', src: '社区 · CC BY', desc: '英文交付后自动附中文版，术语表保持一致。', m: 66, sc: [72, 58, 64], why: ['你常在英文结果后要求翻译', '中英混用占 7%'], compat: '所有 Agent', users: 1100, peer: 22, rec: 'acceptance' },
-  { id: 'context-saver', kind: 'Hook', icon: 'bolt', src: 'Tandem 官方', desc: '上下文超过 60% 时提醒先总结，再继续。', m: 63, sc: [60, 70, 58], why: ['9 次压缩后需要重复说明约定', '长会话摩擦率 11.2%'], compat: 'Claude Code', users: 4300, peer: 31, rec: 'summary-compact' },
+  { id: 'context-saver', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '上下文超过 60% 时提醒先总结，再继续。', m: 63, sc: [60, 70, 58], why: ['9 次压缩后需要重复说明约定', '长会话摩擦率 11.2%'], compat: 'Claude Code', users: 4300, peer: 31, rec: 'summary-compact' },
   { id: 'commit-coach', kind: 'Skill', icon: 'book', src: '社区 · MIT', desc: '按约定格式写提交信息，并提醒小步提交。', m: 58, sc: [62, 50, 61], why: ['你的仓库要求 type(scope): 描述', '小步提交时你的满意度更高'], compat: '所有 Agent', users: 6800, peer: 47, rec: 'acceptance' },
   { id: 'headless-scheduler', kind: '插件', icon: 'clock', src: '社区 · MIT', desc: '把长任务改成 headless 运行，定时汇报进度。', m: 55, sc: [52, 64, 48], why: ['采集任务期间频繁手动查看进度', '适合专家用户'], compat: 'Claude Code', users: 900, peer: 12, rec: 'headless' }
 ];
@@ -2592,7 +2656,7 @@ function visibleRecs() { return RECS.filter((r) => r.aud <= S.recs.aud && !S.rec
 
 /* ============ ui plumbing: theme, tooltip, toast, sheets (#modal), dropdown menus, notifications ============ */
 const desk = $('#desk');
-const APP_MARK = '<svg width="20" height="15" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="#f2f2f4" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg>';
+const APP_MARK = appMark(32);
 function setTheme(t) {
   S.theme = t; store.set('theme', t);
   if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
@@ -2925,7 +2989,7 @@ function tbarFit() {
   while (!fits() && tr.children.length) pop.prepend(tr.lastElementChild);
 }
 window.addEventListener('tandem:layout', tbarFit);
-/* menu bar: Apple menu, app menus (never fold with the window width), status items: demo (flask) · Tandem · control centre · Wi-Fi · battery · clock */
+/* menu bar: Apple menu, app menus (never fold with the window width), status items: demo (flask) · Orbit · control centre · Wi-Fi · battery · clock */
 const APPLE = '<svg width="14" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M16.37 12.7c-.03-2.6 2.13-3.86 2.23-3.92-1.22-1.78-3.11-2.02-3.78-2.05-1.61-.16-3.14.95-3.96.95-.82 0-2.08-.93-3.42-.9-1.76.03-3.38 1.02-4.29 2.6-1.83 3.17-.47 7.87 1.31 10.44.87 1.26 1.91 2.67 3.27 2.62 1.31-.05 1.81-.85 3.4-.85 1.59 0 2.03.85 3.42.82 1.41-.03 2.31-1.28 3.17-2.55 1-1.46 1.41-2.87 1.43-2.95-.03-.01-2.75-1.05-2.78-4.21zM13.76 5.05c.72-.88 1.21-2.1 1.08-3.31-1.04.04-2.3.69-3.05 1.57-.67.78-1.26 2.02-1.1 3.21 1.16.09 2.35-.59 3.07-1.47z"/></svg>';
 const SYS_ICONS = '<span class="sysicon" aria-hidden="true"><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x=".55" y=".55" width="14.9" height="4.9" rx="2.45"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><rect x=".55" y="6.55" width="14.9" height="4.9" rx="2.45"/><circle cx="13" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg></span>' +
   '<span class="sysicon" aria-hidden="true"><svg width="16" height="12" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 7a14 14 0 0 1 19 0M5.5 10.5a9.5 9.5 0 0 1 13 0M8.8 14a5 5 0 0 1 6.4 0"/></svg></span>' +
@@ -2934,7 +2998,7 @@ function renderMbar() {
   const badge = S.paused || S.sim === 'idle' ? 'transparent' : S.sim === 'stuck' ? 'var(--crit-m)' : S.sim === 'waiting' || S.sim === 'ctx' ? 'var(--warn-m)' : S.sim === 'done' ? 'var(--good-m)' : 'var(--a1)';
   const shape = S.sim === 'waiting' ? 'border-radius:1.5px' : S.sim === 'stuck' ? 'border-radius:1.5px;transform:rotate(45deg)' : '';
   const m = (id, label) => '<button type="button" data-act="menu" data-m="' + id + '">' + label + '</button>';
-  $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Tandem</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
+  $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Orbit</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
     '<span class="sp"></span><span class="status"><button type="button" class="glyph" data-act="menu" data-m="demo" aria-label="演示菜单" data-tip="演示菜单：模拟会话事件、播放首次启动与人格揭晓">' + ic('flask', 15) + '<span class="mark" style="background:var(--ai)"></span></button>' +
     '<button type="button" class="glyph' + (S.pop ? ' on' : '') + '" data-act="pop" aria-label="打开菜单栏面板" aria-expanded="' + S.pop + '">' + GLYPH + (S.paused || S.sim === 'idle' ? '' : '<span class="badge' + (S.sim === 'running' ? ' live' : '') + '" style="background:' + badge + ';' + shape + '"></span>') + '</button>' +
     SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>';
@@ -3140,7 +3204,7 @@ Object.assign(ACT, {
    pages ⌥1–9 (⌘1–9 in the app), main window ⌥0 (⌘0), sidebar ⌃⌘S, full screen ⌃⌘F, minimise ⌘M. */
 const MENUS = {
   apple: () => [{ t: '关于本机', v: demoOnly }, { sep: 1 }, { t: '系统设置…', v: demoOnly }, { t: 'App Store…', v: demoOnly }, { sep: 1 }, { t: '最近使用的项目', sub: 1, v: demoOnly }, { sep: 1 }, { t: '强制退出…', k: '⌥⌘⎋', v: demoOnly }, { sep: 1 }, { t: '睡眠', v: demoOnly }, { t: '重新启动…', v: demoOnly }, { t: '关机…', v: demoOnly }, { sep: 1 }, { t: '锁定屏幕', k: '⌃⌘Q', v: demoOnly }, { t: '退出登录…', k: '⇧⌘Q', v: demoOnly }],
-  app: () => [{ t: '关于 Tandem', v: () => openAbout() }, { sep: 1 }, { t: '设置…', k: '⌘,', v: () => openSettings() }, { sep: 1 }, { t: S.paused ? '恢复采集' : '暂停采集', v: () => { S.paused = !S.paused; render(); toast(S.paused ? '已暂停采集，菜单栏图标不再显示状态角标' : '已恢复采集'); } }, { sep: 1 }, { t: '服务', sub: 1, v: demoOnly }, { sep: 1 }, { t: '隐藏 Tandem', k: '⌘H', v: () => ACT.winMin() }, { t: '隐藏其他', k: '⌥⌘H', v: demoOnly }, { t: '全部显示', v: () => showMain() }, { sep: 1 }, { t: '退出 Tandem', k: '⌘Q', v: () => toast('这是 Demo：退出不可用') }],
+  app: () => [{ t: '关于 Orbit', v: () => openAbout() }, { sep: 1 }, { t: '设置…', k: '⌘,', v: () => openSettings() }, { sep: 1 }, { t: S.paused ? '恢复采集' : '暂停采集', v: () => { S.paused = !S.paused; render(); toast(S.paused ? '已暂停采集，菜单栏图标不再显示状态角标' : '已恢复采集'); } }, { sep: 1 }, { t: '服务', sub: 1, v: demoOnly }, { sep: 1 }, { t: '隐藏 Orbit', k: '⌘H', v: () => ACT.winMin() }, { t: '隐藏其他', k: '⌥⌘H', v: demoOnly }, { t: '全部显示', v: () => showMain() }, { sep: 1 }, { t: '退出 Orbit', k: '⌘Q', v: () => toast('这是 Demo：退出不可用') }],
   file: () => [{ t: '导出报告…', k: '⇧⌘E', v: () => openReport() }, { t: '导出分享卡…', k: '⇧⌘S', v: () => openShare() }, { t: '导出工具明细 CSV…', v: () => openCSV() }, { sep: 1 }, { t: '关闭窗口', k: '⌘W', v: () => ACT.winClose() }],
   edit: () => [{ t: '撤销', k: '⌘Z', v: () => undoInstall() }, { t: '重做', k: '⇧⌘Z', dis: true }, { sep: 1 }, { t: '剪切', k: '⌘X', v: () => editCmd('cut') }, { t: '拷贝', k: '⌘C', v: () => editCmd('copy') }, { t: '粘贴', k: '⌘V', v: () => editCmd('paste') }, { t: '全选', k: '⌘A', v: () => editCmd('selectAll') }, { sep: 1 }, { t: '查找…', k: '⌘F', v: () => findCmd() }],
   view: () => [{ h: '外观' }, { t: '跟随系统', on: S.theme === 'system', v: () => { setTheme('system'); render(); } }, { t: '浅色', on: S.theme === 'light', v: () => { setTheme('light'); render(); } }, { t: '深色', on: S.theme === 'dark', v: () => { setTheme('dark'); render(); } }, { sep: 1 }, { t: '悬浮组件', k: '⌥⌘P', on: S.hud.show, v: () => toggleHud() }, { t: '桌面小组件', on: S.widgets, v: () => { S.widgets = !S.widgets; render(); } }, { t: S.ed === 'lite' ? '切换到 Advance' : '切换到 Lite', k: '⌃⌘L', v: () => edToggle() }, { t: (winNarrow() ? S.sideOver : S.side) ? '隐藏侧边栏' : '显示侧边栏', k: '⌃⌘S', v: () => toggleSide() }, { sep: 1 }, { t: S.win.full ? '退出全屏' : '进入全屏', k: '⌃⌘F', v: () => winFullToggle() }],
@@ -5046,8 +5110,9 @@ function reindex() {
 }
 
 /* ============ A2 persona ============
- * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（罗盘表盘：外框 120 道刻度与 24 小时方位 /
- * 外环 24 段按 Agent 堆叠的密度环，点击一段展开该小时的会话点 / 节律带 / 内盘罗盘玫瑰 + 指向协作重心的指针）→ 四个维度（VZ 双向条：45–55 未定型带、对照刻度、
+ * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（Orbit 罗盘：外框 120 道刻度与 24 小时方位 /
+ * 轨道环带（五层平滑，每个 Agent 一层）+ 24 个小时热区，点击展开该小时的会话点 / Agent 行星停在各自的协作重心 / 节律带 /
+ * 内盘罗盘玫瑰 + 指向协作重心的指针）→ 四个维度（VZ 双向条：45–55 未定型带、对照刻度、
  * 数值跟随胜出极、每轴证据微型图）+ 优势与盲点 + 契合度（中性条、透明度随 n、95% 区间、Agent 色只在圆点）。
  * 人格口径统一走 personaScope（BUG-06）；样本不足时列出放宽哪个筛选能补到多少（A2-V08），全部来源停用时引导到设置（BUG-50）。 */
 const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
@@ -5079,15 +5144,39 @@ function peRelax(w) {
   return out;
 }
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
-// 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、外环 R0 → R0+RH、节律带 98 → 118、内盘 92、玫瑰半径 RR、指针半长 NL。
-// Genesis（56-onboarding.js）的粒子落点与玫瑰生长共用这一组常量。
-const FPG = { R0: 124, RH: 38, RR: 70, NL: 86 };
+// 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道环带 R0 → R0+RH、行星轨道 PR、节律带 98 → 118、内盘 92、
+// 玫瑰半径 RR、指针半长 NL（= 0.8 × RR，短于字母位，不压住分数）。Genesis（56-onboarding.js）的粒子落点、环带扫描与玫瑰生长共用这一组常量。
+const FPG = { R0: 124, RH: 38, RR: 70, NL: 56, PR: 160 };
+let FP_UID = 0;
 // 协作重心：会话开始时刻在 24 小时表盘上的圆形平均（0° = 00:00，顺时针）；没有会话时指向 00
 function fpHeading(L) {
   let sx = 0, cx = 0; L.forEach((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; sx += Math.sin(a); cx += Math.cos(a); });
   const deg = Math.abs(sx) + Math.abs(cx) < 1e-9 ? 0 : (Math.atan2(sx, cx) * 180 / Math.PI + 360) % 360;
   const mins = Math.round(deg / 360 * 1440) % 1440;
   return { deg: +deg.toFixed(1), hm: Math.floor(mins / 60) + ':' + String(mins % 60).padStart(2, '0') };
+}
+// 轨道环带（与宣传片共用的规格）：每个 Agent 一层，层高 = 该小时该 Agent 的会话数 ÷ 全天最大的小时总数 × RH；
+// 小时值放在该小时扇区的中线上，小时之间用周期 Catmull-Rom 平滑，每 2° 采样，按 AG 顺序逐层叠加。
+// 行星：每个有会话的 Agent 一颗，停在它自己的协作重心上（轨道半径 PR）。
+function fpOrbit(L) {
+  const hrs = Array.from({ length: 24 }, () => AG.map(() => 0)); L.forEach((s) => { const i = AG.findIndex((a) => a.id === s.a); if (i >= 0) hrs[s.h][i]++; });
+  const mx = Math.max(1, ...hrs.map((r) => r.reduce((x, y) => x + y, 0)));
+  const N = 180, cum = new Array(N + 1).fill(0), layers = [];
+  const cr = (i, x) => { const h0 = Math.floor(x), f = x - h0, v = (k) => hrs[((h0 + k) % 24 + 24) % 24][i], a = v(-1), b = v(0), c = v(1), d = v(2); return 0.5 * (2 * b + (-a + c) * f + (2 * a - 5 * b + 4 * c - d) * f * f + (-a + 3 * b - 3 * c + d) * f * f * f); };
+  AG.forEach((ag, i) => {
+    const inner = cum.slice();
+    for (let s = 0; s <= N; s++) cum[s] += Math.max(0, cr(i, s / N * 24 - 0.5)) / mx * FPG.RH;
+    layers.push({ a: ag, inner, outer: cum.slice(), n: hrs.reduce((x, r) => x + r[i], 0) });
+  });
+  const planets = AG.map((ag) => { const xs = L.filter((s) => s.a === ag.id); if (!xs.length) return null; const hd = fpHeading(xs); return { a: ag, n: xs.length, deg: hd.deg, hm: hd.hm }; }).filter(Boolean);
+  return { hrs, mx, layers, planets };
+}
+// 一层环带的路径：外缘顺时针，内缘逆时针收口
+function fpLayerD(ly) {
+  const N = ly.outer.length - 1, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
+  for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f(pt(200, FPG.R0 + 1 + ly.outer[s], s / N * Math.PI * 2));
+  for (let s = N; s >= 0; s--) d += 'L' + f(pt(200, FPG.R0 + 1 + ly.inner[s], s / N * Math.PI * 2));
+  return d + 'Z';
 }
 // 玫瑰主角长度：随该轴强度（50 → 85+）从 0.36 长到 1.0 × RR（实际强度多在 55–80，按 85 封顶让形状可读）；u 用于 Genesis 生长（0 = 强度 50 的长度）
 const fpRoseLen = (strong, u) => FPG.RR * (0.36 + 0.64 * clamp((strong - 50) / 35, 0, 1) * (u == null ? 1 : u));
@@ -5097,29 +5186,32 @@ function fpRosePt(deg, len, w) {
   const tip = f(pt(200, len, a)), r = f(pt(200, w, a + Math.PI / 4)), l = f(pt(200, w, a - Math.PI / 4));
   return ['M200 200L' + tip + 'L' + r + 'Z', 'M200 200L' + tip + 'L' + l + 'Z'];
 }
-// 协作指纹 · 罗盘表盘（评审 A2-V01/02/03）：外框 120 道刻度与 24 小时方位；外环 24 段按 Agent 堆叠的密度环（选中小时展开会话点）；
-// 节律带；内盘是罗盘玫瑰（四个主角朝 D I M V，长度 = 该轴强度，端点标胜出极与分数），指针指向协作重心（--hd，CSS rotate）
+// 协作指纹 · Orbit 罗盘（评审 A2-V01/02/03）：外框 120 道刻度与 24 小时方位；轨道环带（五层平滑，每个 Agent 一层）上有 24 个透明的
+// 小时热区（选中小时展开会话点）与 Agent 行星（各自的协作重心）；节律带；内盘是罗盘玫瑰（四个主角朝 D I M V，长度 = 该轴强度，
+// 端点标胜出极与分数），指针指向全体协作重心（--hd，CSS rotate），画在字母与分数下层。环带的 .fp-sweep 遮罩与行星的 --pa 留给入场动画。
 function fp2SVG(L, p, size, opt) {
-  opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const k = sm ? 1.25 : 1;
+  opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const k = sm ? 1.25 : 1; const uid = 'fpm' + (++FP_UID);
   const byH = Array.from({ length: 24 }, () => []); L.forEach((s) => byH[s.h].push(s));
   const mxH = Math.max(1, ...byH.map((x) => x.length));
-  CUR.fp = { byH, mxH };
+  const orb = fpOrbit(L);
+  CUR.fp = { byH, mxH, pl: orb.planets };
   const f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
   const sector = (r0, r1, a0, a1) => { const p0 = pt(C, r0, a0), p1 = pt(C, r1, a0), p2 = pt(C, r1, a1), p3 = pt(C, r0, a1); const lg = a1 - a0 > Math.PI ? 1 : 0; return 'M' + f(p0) + 'L' + f(p1) + 'A' + r1 + ' ' + r1 + ' 0 ' + lg + ' 1 ' + f(p2) + 'L' + f(p3) + 'A' + r0 + ' ' + r0 + ' 0 ' + lg + ' 0 ' + f(p0) + 'Z'; };
   const sel = S.persona.fpHour;
+  // 轨道环带：五层连续平滑的 Agent 色带，叠成一条有厚度起伏的轨道（遮罩 .fp-sweep 从 00 顺时针展开）
+  const band5 = '<g class="fp-orb" mask="url(#' + uid + ')">' + orb.layers.map((ly, i) => ly.n ? '<path class="fpo" data-a="' + ly.a.id + '" d="' + fpLayerD(ly) + '" fill="' + ly.a.c + '" fill-opacity="' + (0.95 - i * 0.05).toFixed(2) + '"/>' : '').join('') + '</g>';
+  // 24 个透明的小时热区：悬停提示该小时按 Agent 的会话数，点击展开会话点；选中时其余小时罩一层纸色
   let ring = '';
   byH.forEach((xs, h) => {
-    const a0 = h / 24 * Math.PI * 2 + 0.02, a1 = (h + 1) / 24 * Math.PI * 2 - 0.02; const on = sel == null || sel === h;
-    let r = R0 + 1;
-    const total = xs.length; const hh = total / mxH * RH;
-    ring += '<g class="fps' + (sel === h ? ' sel' : '') + (!on ? ' dim' : '') + '" data-h="' + h + '"' + (opt.interactive ? ' data-tf="fph|' + h + '" data-act="fpHour" tabindex="0" role="button" aria-label="' + h + ':00–' + (h + 1) + ':00 · ' + total + ' 个会话"' : '') + '><path d="' + sector(R0, R0 + RH + 2, a0, a1) + '" fill="transparent"/>';
-    AG.forEach((a) => { const n = xs.filter((s) => s.a === a.id).length; if (!n) return; const seg = n / total * hh; ring += '<path d="' + sector(r, r + Math.max(1.5, seg - 1), a0, a1) + '" fill="' + a.c + '"/>'; r += seg; });
-    ring += '</g>';
+    const a0 = h / 24 * Math.PI * 2, a1 = (h + 1) / 24 * Math.PI * 2; const on = sel == null || sel === h;
+    ring += '<g class="fps' + (sel === h ? ' sel' : '') + (!on ? ' dim' : '') + '" data-h="' + h + '"' + (opt.interactive ? ' data-tf="fph|' + h + '" data-act="fpHour" tabindex="0" role="button" aria-label="' + h + ':00–' + (h + 1) + ':00 · ' + xs.length + ' 个会话"' : '') + '><path d="' + sector(R0, R0 + RH + 2, a0, a1) + '" fill="transparent"/></g>';
   });
   // 选中小时：展开该小时的会话点（角度 = 开始分钟，半径 = 时长），这时才能悬停到单个会话
   let dots = '';
   if (sel != null) dots = byH[sel].map((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; const q = pt(C, R0 + 4 + Math.min(s.dur, 126) / 126 * (RH - 6), a); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="4" fill="' + agent(s.a).c + '" stroke="var(--surface)" stroke-width="1.5"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join('');
-  // 外框：120 道刻度（每 3°），整点较长、每 6 小时最长；每 3 小时一个方位数字，00 / 06 / 12 / 18 用衬线当作四方位；00 外侧基准三角
+  // 行星：画在 (200, 200 − PR)，外层按 --pa（该 Agent 的协作重心）旋转到位；实心 Agent 色 + 浅色光晕
+  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><circle cx="200" cy="' + (C - FPG.PR) + '" r="9" fill="' + x.a.c + '" fill-opacity=".2"/><circle class="fp-pd" cx="200" cy="' + (C - FPG.PR) + '" r="4.6" fill="' + x.a.c + '" stroke="var(--surface)" stroke-width="1.3"/></g>').join('') + '</g>';
+  // 外框：120 道刻度（每 3°），整点较长、每 6 小时最长；每 3 小时一个方位数字，00 / 06 / 12 / 18 用衬线当作四方位；00 外侧基准三角（--orbit）
   const tk = ['', '', '']; for (let i = 0; i < 120; i++) { const w = i % 30 === 0 ? 2 : i % 5 === 0 ? 1 : 0; const a = i * 3 * Math.PI / 180; tk[w] += 'M' + f(pt(C, 194.5, a)) + 'L' + f(pt(C, [190.5, 187.5, 184][w], a)); }
   const hrs = [0, 3, 6, 9, 12, 15, 18, 21].filter((h) => !sm || h % 6 === 0).map((h) => { const card = h % 6 === 0; const q = pt(C, card ? (sm ? 170 : 171.5) : 176, h * 15 * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central"' + (card ? ' font-size="' + (sm ? 17 : 15) + '" font-family="var(--serif)" font-weight="700" fill="var(--ink-1)" paint-order="stroke" stroke="var(--bg)" stroke-width="4"' : ' font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)"') + '>' + String(h).padStart(2, '0') + '</text>'; }).join('');
   // 中环：节律带（每半小时一个采样点，半径 98 → 118）+ 24 个小刻度
@@ -5128,35 +5220,37 @@ function fp2SVG(L, p, size, opt) {
   let ticks = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; ticks += 'M' + f(pt(C, 92, a)) + 'L' + f(pt(C, h % 6 ? 95 : 98, a)); }
   let band = ''; for (let i = 0; i < 48; i++) { const h = Math.floor(i / 2); const v = (i % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; band += (i ? 'L' : 'M') + f(pt(C, 98 + v * 20, i / 48 * Math.PI * 2)); }
   band += 'Z'; let inner = ''; for (let i = 0; i < 48; i++) inner += (i ? 'L' : 'M') + f(pt(C, 98, i / 48 * Math.PI * 2));
-  // 内盘：罗盘玫瑰。四个次角（45°）固定短；四个主角朝 D I M V，长度随强度；未定型区（强度 < 55）画成浅灰圆心
+  // 内盘：罗盘玫瑰。四个次角（45°）固定短；四个主角朝 D I M V，长度随强度；深色面与字母都按分值判定（强度 < 55 = 未定型：浅灰、「?」）
   const axes = ['D', 'I', 'M', 'V'];
   const av = axes.map((x, i) => axisView(p, i));
   const minor = [45, 135, 225, 315].map((d) => fpRosePt(d, RR * 0.4, RR * 0.1)).map((x) => '<g class="fp-minor"><path d="' + x[0] + '" fill="var(--ink-4)"/><path d="' + x[1] + '" fill="var(--line)" stroke="var(--ink-4)" stroke-width=".8" stroke-linejoin="round"/></g>').join('');
-  const major = axes.map((x, i) => { const q = fpRosePt(AXR[x], fpRoseLen(av[i].strong), RR * 0.18); return '<g class="fp-pt" data-k="' + x + '"><path d="' + q[1] + '" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.1" stroke-linejoin="round"/><path d="' + q[0] + '" fill="var(--ink-1)" stroke="var(--ink-1)" stroke-width="1.1" stroke-linejoin="round"/></g>'; }).join('');
+  const major = axes.map((x, i) => { const q = fpRosePt(AXR[x], fpRoseLen(av[i].strong), RR * 0.18), ink = av[i].strong < 55 ? 'var(--ink-3)' : 'var(--ink-1)'; return '<g class="fp-pt" data-k="' + x + '"><path d="' + q[1] + '" fill="var(--surface)" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/><path d="' + q[0] + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/></g>'; }).join('');
   const lbl = axes.map((x, i) => {
-    const a = av[i]; const ch = p.code ? p.code[i] : a.strong < 55 ? '?' : a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
-    const q = pt(C, len + 11 * k, rad); const side = d === 90 || d === 270;
+    const a = av[i]; const ch = a.strong < 55 ? '?' : a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
+    const q = pt(C, len + 11 * k, rad);
     const sq = [q[0], q[1] + (d === 0 ? -13 : 13) * k];
     return '<g class="fp-ax" data-k="' + x + '"><text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 15 * k + '" font-family="var(--serif)" font-weight="600" fill="' + (ch === '?' ? 'var(--ink-3)' : 'var(--ink-1)') + '" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + ch + '</text>' +
       (opt.labels && !sm ? '<text x="' + sq[0].toFixed(1) + '" y="' + sq[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 9 * k + '" font-family="var(--mono)" fill="var(--ink-3)" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + a.strong + '</text>' : '') + '</g>';
   }).join('');
-  // 指针：细长双头菱形，北半实心、南半空心；--hd = 协作重心
+  // 指针：细长双头菱形，北半 --orbit 实心、南半空心描边；--hd = 协作重心。画在玫瑰之上、字母与分数之下
   const hd = fpHeading(L); const NL = FPG.NL;
-  const needle = '<g class="fp-compass"><g class="fp-needle" data-hd="' + hd.deg + '" style="--hd:' + hd.deg + 'deg"><title>协作重心 ' + hd.hm + '</title><g class="fp-nd"><path d="M200 ' + (C - NL) + 'L203.6 200L196.4 200Z" fill="var(--ink-1)" stroke="var(--surface)" stroke-width="1" stroke-linejoin="round"/><path d="M200 ' + (C + NL) + 'L203.6 200L196.4 200Z" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.1" stroke-linejoin="round"/></g></g>' +
+  const needle = '<g class="fp-compass"><g class="fp-needle" data-hd="' + hd.deg + '" style="--hd:' + hd.deg + 'deg"><title>协作重心 ' + hd.hm + '</title><g class="fp-nd"><path class="fp-nn" d="M200 ' + (C - NL) + 'L203.6 200L196.4 200Z" fill="var(--orbit)" stroke="var(--surface)" stroke-width="1" stroke-linejoin="round"/><path class="fp-ns" d="M200 ' + (C + NL) + 'L203.6 200L196.4 200Z" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.1" stroke-linejoin="round"/></g></g>' +
     '<circle cx="200" cy="200" r="7" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.4"/><circle cx="200" cy="200" r="2" fill="var(--ink-1)"/></g>';
   const hub = (fpRoseLen(55) - 1).toFixed(1);
-  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 24 小时罗盘刻度，外环每段是该小时的会话数、按 Agent 堆叠，中环是节律带，内盘罗盘玫瑰的四个主角长度是四个维度的强度；指针指向协作重心 ' + hd.hm + '" style="overflow:visible;max-width:100%;height:auto">' +
+  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 24 小时罗盘刻度；轨道环带按小时叠出各 Agent 的会话数，环带外缘的行星停在各 Agent 的协作重心；中环是节律带，内盘罗盘玫瑰的四个主角长度是四个维度的强度；指针指向协作重心 ' + hd.hm + '" style="overflow:visible;max-width:100%;height:auto">' +
+    '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask></defs>' +
     '<g class="fp-base"><circle cx="200" cy="200" r="198" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.1"/><circle cx="200" cy="200" r="179.5" fill="none" stroke="var(--bg)" stroke-width="31"/><circle cx="200" cy="200" r="195" fill="none" stroke="var(--ink-3)" stroke-width=".6"/><circle cx="200" cy="200" r="164" fill="none" stroke="var(--line)"/>' +
     '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".8"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-3)" stroke-width="1.1"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-1)" stroke-width="1.6"/>' +
-    '<path d="M200 3L194.5 -7L205.5 -7Z" fill="var(--ink-1)"/>' +
-    '<circle cx="200" cy="200" r="' + R0 + '" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/></g>' +
+    '<path class="fp-n0" d="M200 3L194.5 -7L205.5 -7Z" fill="var(--orbit)"/>' +
+    '<circle cx="200" cy="200" r="' + R0 + '" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="' + FPG.PR + '" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/></g>' +
     '<g class="fp-hours">' + hrs + '</g>' +
     '<g class="fp-band"><path d="' + band + inner + '" fill="var(--h2)" fill-opacity=".7" fill-rule="evenodd"/><path d="' + ticks + '" stroke="var(--ink-3)" stroke-width="1"/></g>' +
-    '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' +
+    band5 + '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' + planets +
     '<g class="fp-core"><circle cx="200" cy="200" r="92" fill="var(--bg)" stroke="var(--line)"/><circle cx="200" cy="200" r="' + hub + '" fill="var(--sunken)" stroke="var(--hair)"/><circle cx="200" cy="200" r="' + RR + '" fill="none" stroke="var(--line)" stroke-dasharray="1.5 3"/>' +
     '<path d="M200 110V290M110 200H290" stroke="var(--line)" stroke-width=".8"/>' + minor + '</g>' +
-    '<g class="fp-rose pet">' + major + '</g><g class="fp-axl">' + lbl + '</g>' + needle + '</svg>';
+    '<g class="fp-rose pet">' + major + '</g>' + needle + '<g class="fp-axl">' + lbl + '</g></svg>';
 }
+TIPS.fpp = (id) => { const F = CUR.fp; const x = F && F.pl.find((q) => q.a.id === id); if (!x) return ''; return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + x.a.c + ';vertical-align:-1px"></span> <b>' + x.a.name + ' · 协作重心 ' + x.hm + ' · ' + x.n + ' 个会话</b>\n<span style="opacity:.75">该 Agent 会话开始时刻的圆形平均</span>'; };
 TIPS.fph = (h) => { const F = CUR.fp; if (!F) return ''; const xs = F.byH[+h]; const by = AG.map((a) => [a, xs.filter((s) => s.a === a.id).length]).filter((x) => x[1]); return '<b>' + h + ':00–' + (+h + 1) + ':00 · ' + xs.length + ' 个会话</b>\n' + (by.length ? by.map((x) => '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + x[0].c + ';vertical-align:-1px"></span> ' + x[0].short + ' ' + x[1]).join(' · ') : '这个小时没有会话') + '\n<span style="opacity:.75">' + (S.persona.fpHour === +h ? '再点一次收起' : '点击展开这个小时的会话点') + '</span>'; };
 PAGES.persona = () => {
   const per = PERIODS[S.persona.period];
@@ -5203,7 +5297,7 @@ PAGES.persona = () => {
     '<div class="pe-evw"><div class="eb" style="margin-bottom:8px">演变 · 按月重算 · 点击切换</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap" style="font-size:11px;margin-top:4px">四个维度逐月的值 · 中线 50，灰带 45–55 为未定型 · 跨过中线的月份字母会变</div></div></div>' +
     '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
-    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>内核 · 罗盘玫瑰，主角越长该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--ink-1)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>外环 · 每段是该小时的会话数（峰值 ' + CUR.fp.mxH + '），按 Agent 堆叠；点击展开' + (S.persona.fpHour != null ? ' · <button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '') + '</span></div></div></div></div>' +
+    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>内核 · 罗盘玫瑰，主角越长该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--orbit)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span style="width:14px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3))"></span>轨道 · 每小时各 Agent 的会话数（峰值 ' + CUR.fp.mxH + '），点击展开</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>行星 · 各 Agent 的协作重心' + (S.persona.fpHour != null ? ' · <button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '') + '</span></div></div></div></div>' +
     '<div class="three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
     '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button><button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button></div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +
@@ -5262,13 +5356,21 @@ Object.assign(ACT, {
     go('sessions');
   }
 });
-// 进入画像页（Advance persona / Lite l-persona）：指针做一次阻尼晃动后定位到协作重心；Genesis 落地时（overlay 仍开着）不晃，
-// 免得飞入的表盘与页面上的指针角度对不上。减少动态效果时静止。
+// 进入画像页（Advance persona / Lite l-persona）：指针做一次阻尼晃动后定位到协作重心，轨道环带随扫描遮罩从 00 顺时针展开（0.9 s），
+// 行星从 00 出发沿轨道运行到各自的协作重心（1.2 s，彼此错开 60 ms）。Genesis 落地时（overlay 仍开着）都不播，
+// 免得飞入的表盘与页面对不上。减少动态效果时静止。
 function fpWobble(svg) {
   const nd = svg && svg.querySelector('.fp-nd'); if (!nd || !nd.animate || reduceMotion()) return null;
   return nd.animate([-40, 24, -12, 6, -2, 0].map((d) => ({ transform: 'rotate(' + d + 'deg)' })), { duration: 1400, easing: 'cubic-bezier(.37,0,.63,1)' });
 }
-RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) fpWobble(m.querySelector('svg.fp2')); });
+function fpOrbitIn(svg) {
+  if (!svg || reduceMotion()) return [];
+  const out = [], sw = svg.querySelector('.fp-sweep');
+  if (sw && sw.animate) out.push(sw.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 900, easing: 'cubic-bezier(.45,.05,.35,1)' }));
+  svg.querySelectorAll('.fp-pl').forEach((el, i) => { if (el.animate) out.push(el.animate([{ transform: 'rotate(0deg)', opacity: 0 }, { opacity: 1, offset: 0.12 }, { transform: 'rotate(' + el.dataset.pa + 'deg)', opacity: 1 }], { duration: 1200, delay: i * 60, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' })); });
+  return out;
+}
+RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) { const svg = m.querySelector('svg.fp2'); fpWobble(svg); fpOrbitIn(svg); } });
 
 /* ============ A3 sessions & trajectory ============
  * 轨迹时间线建在 VZ（36-vizkit.js）的 timeline / minimap / playhead 原语上：总览条（刷子视窗）+ 主时间线（关键时刻徽章、阶段带、
@@ -5662,7 +5764,7 @@ Object.assign(ACT, {
   tlOpenLog: () => { const s = BYID[S.sess.sel]; if (s) toast('已在原始日志中打开（演示）：' + agent(s.a).path); },
   hiStat: (el) => { const v = el.dataset.v; if (!v) return; S.sess.hi = S.sess.hi === v ? null : v; render(); },
   moment: (el) => { S.sess.evd = null; S.sess.ev = null; tlSeek(+el.dataset.t); },
-  resume: () => { const s = BYID[S.sess.sel]; const ag = agent(s.a); const cmd = ag.resume + ' ' + s.id.replace('sess-', ''); openModal(modalHead('在 ' + ag.name + ' 中继续这个会话', '会在终端中打开；Demo 不会执行任何命令') + '<div class="mb col"><div class="row" style="padding:10px 12px;border-radius:9px;background:var(--sunken);border:1px solid var(--line)"><span class="mono" style="flex:1;font-size:12.5px;word-break:break-all">cd ' + esc(PJI[s.p].path) + ' &amp;&amp; ' + esc(cmd) + '</span><button type="button" class="btn sm" data-act="copyCmd" data-v="' + esc('cd "' + PJI[s.p].path.replace('~', '$HOME') + '" && ' + cmd) + '">复制</button></div><p class="cap" style="margin:0">Tandem 只负责打开终端并填入命令，确认前不会运行。</p></div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="resumeGo">在终端中打开</button></div>'); },
+  resume: () => { const s = BYID[S.sess.sel]; const ag = agent(s.a); const cmd = ag.resume + ' ' + s.id.replace('sess-', ''); openModal(modalHead('在 ' + ag.name + ' 中继续这个会话', '会在终端中打开；Demo 不会执行任何命令') + '<div class="mb col"><div class="row" style="padding:10px 12px;border-radius:9px;background:var(--sunken);border:1px solid var(--line)"><span class="mono" style="flex:1;font-size:12.5px;word-break:break-all">cd ' + esc(PJI[s.p].path) + ' &amp;&amp; ' + esc(cmd) + '</span><button type="button" class="btn sm" data-act="copyCmd" data-v="' + esc('cd "' + PJI[s.p].path.replace('~', '$HOME') + '" && ' + cmd) + '">复制</button></div><p class="cap" style="margin:0">Orbit 只负责打开终端并填入命令，确认前不会运行。</p></div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="resumeGo">在终端中打开</button></div>'); },
   resumeGo: () => { closeModal(); toast('已在终端中打开（演示）'); },
   copyCmd: (el) => copyText(el.dataset.v, '命令'),
   sessMore: (el) => { const s = BYID[S.sess.sel]; openDD(el, [{ t: '复制会话 ID', v: () => copyText(s.id, '会话 ID') }, { t: '在 Finder 中显示日志', v: () => toast('已在 Finder 中显示（演示）：' + agent(s.a).path) }, { sep: 1 }, { t: S.excluded.has(s.id) ? '重新计入分析' : '标记为不计入分析', v: () => { if (S.excluded.has(s.id)) S.excluded.delete(s.id); else S.excluded.add(s.id); render(); toast(S.excluded.has(s.id) ? '已从统计中排除这个会话，所有页面已重算；它仍留在列表里，可随时恢复' : '已重新计入分析'); } }], (v) => v()); },
@@ -6030,7 +6132,7 @@ PAGES.recs = () => {
     else body = inst ? trackView(r, inst) : '<div class="col" style="gap:10px;align-items:flex-start"><span style="font-size:13px;color:var(--ink-2)">安装后开始追踪：安装前 7 天作为基准（n = ' + x.n[0] + '），安装后 7 天逐项对比，给出 95% 区间与结论。</span><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + t[1] + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div>' + recPrimaryBtn(r) + '</div>';
     detail = '<div class="card" style="overflow:hidden"><div style="padding:14px 18px 0" class="col"><div class="row" style="flex-wrap:wrap;font-size:12px;color:var(--ink-2)">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b>' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '<span style="flex:1"></span><span class="tag">适合：' + AUD[r.aud] + '</span></div><h2 class="serif" style="margin:4px 0 0;font-size:22px;line-height:1.3">' + esc(r.title) + '</h2>' +
       '<div class="rc-kpis"><div class="rc-kpi"><span class="eb">每月节省时间 · 估计</span><span class="v">' + recSave(r.id) + '<small>/ 月</small></span><span class="cap">原指标：' + esc(r.gain) + '</span></div><div class="rc-kpi"><span class="eb">常驻 token</span><span class="v' + (x.tok < 0 ? ' good' : '') + '">' + recTok(r.id) + (x.tok ? '<small>/ 会话</small>' : '') + '</span><span class="cap">' + (x.tok > 0 ? '每个会话启动时载入' : x.tok < 0 ? '从每个会话的上下文里释放' : '不占用会话上下文') + '</span></div><div class="rc-kpi"><span class="eb">适用 Agent</span><span class="row" style="gap:6px;min-height:24px">' + agentDots(r, true) + '</span><span class="cap">' + (/转换/.test(r.compat) ? 'Codex 用转换后的等价配置' : /所有/.test(r.compat) ? '以 AGENTS.md 片段形式通用' : '其余 Agent 转换为 AGENTS.md 片段') + '</span></div></div></div>' +
-      '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:8px 10px;font-size:13px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row rc-dfoot"><span class="row cap rc-dfoot-n">' + ic('grad', 13) + 'Tandem 模板库 · MIT · <button type="button" class="lnk" data-act="recTab" data-v="tut" style="font-size:11px">教程 ' + r.steps.length + ' 步</button></span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
+      '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:8px 10px;font-size:13px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row rc-dfoot"><span class="row cap rc-dfoot-n">' + ic('grad', 13) + 'Orbit 模板库 · MIT · <button type="button" class="lnk" data-act="recTab" data-v="tut" style="font-size:11px">教程 ' + r.steps.length + ' 步</button></span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
   }
   return tbar('优化建议', vis.length + ' 条 · 按每月节省时间排序 · 9 月 30 日 23:10 更新', '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
     '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
@@ -6108,7 +6210,7 @@ const libAll = (x) => Math.max(2, Math.round(x.peer * 0.46 + 3));
 const LIB_BASE = ['design-review（Skill）', 'browser（MCP）', 'block-claude-md（Hook）', 'commit-format（Hook）', 'zh-default（规则）', 'surge-cli（插件）', 'gh-helper（插件）', 'arxiv-reader（MCP）', 'pdf-tools（插件）', 'latex-lint（Hook）', 'daily-sync（Skill）'];
 // One list behind both the toolbar count and the 已安装 sheet (BUG-29).
 function installedItems() {
-  const recs = RECS.filter((r) => S.installed.has(r.id)).map((r) => ({ t: r.title.split('：')[0] + '（' + r.type + '，Tandem 安装）', undo: 'uninstall', id: r.id }));
+  const recs = RECS.filter((r) => S.installed.has(r.id)).map((r) => ({ t: r.title.split('：')[0] + '（' + r.type + '，Orbit 安装）', undo: 'uninstall', id: r.id }));
   const libs = LIB.filter(libInst).map((x) => ({ t: x.id + '（' + x.kind + '，资源库）', undo: 'libUninstall', id: x.id }));
   const studio = [...S.libInst].filter((k) => /^studio:/.test(k)).map((k) => ({ t: k.slice(7) + '（生成工坊）', undo: 'studioUninstall', id: k }));
   return recs.concat(libs, studio, LIB_BASE.map((t) => ({ t })));
@@ -6176,13 +6278,13 @@ const CTX_PH = { u: '[user]', m: '[email]', k: '[key]', ip: '[host]' };
 const GEN = {
   Skill: { file: '~/.claude/skills/pr-wrapup/SKILL.md', lines: [['---', ' '], ['name: pr-wrapup', '+'], ['description: 合并前收尾。触发 review，只修 P0/P1，', '+'], ['  最多两轮，之后合并并删除分支', '+'], ['---', ' '], ['# PR 收尾', '+'], ['1. 确认 CI 通过、review 为 Completed', '+'], ['2. 只处理 P0 / P1；其余回复理由', '+'], ['3. 第二轮后仍有意见：停止并汇报', 'ai'], ['4. 合并方式沿用仓库约定（merge commit）', '+'], ['5. 合并后删除远端与本地分支', '+'], ['', ' '], ['## 不要做', '+'], ['- 不要为 P2 意见开启新一轮 review', '+']] },
   Hook: { file: '~/.claude/settings.json', lines: RECI['retry-breaker'].file },
-  '规则': { file: 'AGENTS.md', lines: [['## 协作约定（由 Tandem 依据你的纠偏生成）', '+'], ['- 我说「直接合并」时，不再发起新一轮 review', '+'], ['- 简单任务不要启动子代理；需要时先问我', '+'], ['- 只改与任务相关的文件，其他文件不要动', 'ai'], ['- 部署目标是 Cloudflare Pages，不要用 Vercel', '+']] },
+  '规则': { file: 'AGENTS.md', lines: [['## 协作约定（由 Orbit 依据你的纠偏生成）', '+'], ['- 我说「直接合并」时，不再发起新一轮 review', '+'], ['- 简单任务不要启动子代理；需要时先问我', '+'], ['- 只改与任务相关的文件，其他文件不要动', 'ai'], ['- 部署目标是 Cloudflare Pages，不要用 Vercel', '+']] },
   '子代理': { file: '~/.claude/agents/citation-checker.md', lines: RECI['citation-checker'].file },
-  '工作流': { file: '~/.tandem/workflows/collect-monitor.md', lines: [['# 采集监控工作流', ' '], ['1. headless 运行采集脚本：claude -p "…"', '+'], ['2. 每 30 分钟检查 runs/ 的进度', '+'], ['3. 失败时总结原因并通过 Tandem 通知我', 'ai'], ['4. 完成后汇总耗时与产出', '+']] }
+  '工作流': { file: '~/.orbit/workflows/collect-monitor.md', lines: [['# 采集监控工作流', ' '], ['1. headless 运行采集脚本：claude -p "…"', '+'], ['2. 每 30 分钟检查 runs/ 的进度', '+'], ['3. 失败时总结原因并通过 Orbit 通知我', 'ai'], ['4. 完成后汇总耗时与产出', '+']] }
 };
 // Step ids: 0 pack · 1 analyse · 2 draft · 3 self-check · 4 replay + judge · 5 review · 6 cross-check (strict only)
 const TPLS = {
-  v1: { name: 'Tandem 生成流程 v1', seq: [0, 1, 2, 3, 4, 5], desc: '打包上下文 → 分析模式 → 起草 → 自检 → 回放 dry-run + judge → 审阅' },
+  v1: { name: 'Orbit 生成流程 v1', seq: [0, 1, 2, 3, 4, 5], desc: '打包上下文 → 分析模式 → 起草 → 自检 → 回放 dry-run + judge → 审阅' },
   quick: { name: '快速草稿', seq: [0, 2, 5], desc: '打包上下文 → 起草 → 审阅（不做自检、回放与 judge）' },
   strict: { name: '严格模式', seq: [0, 1, 2, 3, 6, 4, 5], desc: 'v1 基础上要求第二个 Agent 交叉自检' }
 };
@@ -6204,7 +6306,7 @@ function replayRows() {
 function studioLogs(i) {
   const ag = agent(S.studio.agent); const tok = ctxTokens();
   return [
-    ['$ ' + ag.cli + ' --output-format stream-json' + (S.studio.agent === 'cc' ? ' --model claude-opus-5-5' : ''), '› 读取上下文包 tandem-ctx-1001.json（' + f1(tok / 1000) + 'k tokens）', '› 已脱敏 ' + ctxHits() + ' 处'].concat(tok > CTX_LIMIT ? ['! 超出 ' + f1(CTX_LIMIT / 1000) + 'k 上限 ' + f1((tok - CTX_LIMIT) / 1000) + 'k：原始片段将被截断'] : []),
+    ['$ ' + ag.cli + ' --output-format stream-json' + (S.studio.agent === 'cc' ? ' --model claude-opus-5-5' : ''), '› 读取上下文包 orbit-ctx-1001.json（' + f1(tok / 1000) + 'k tokens）', '› 已脱敏 ' + ctxHits() + ' 处'].concat(tok > CTX_LIMIT ? ['! 超出 ' + f1(CTX_LIMIT / 1000) + 'k 上限 ' + f1((tok - CTX_LIMIT) / 1000) + 'k：原始片段将被截断'] : []),
     ['› 识别到 5 条可执行规则，置信度 ≥ 0.8', '› 检查已安装内容：无同名冲突'],
     ['› 草拟 ' + stFile()],
     ['› 规范：frontmatter 与结构合法，名称不与已安装 14 项冲突', '› 安全：未发现 rm -rf、强推、读取凭据'],
@@ -6272,7 +6374,7 @@ PAGES.studio = () => {
   const adds = g.lines.filter((l) => l[1] === '+' || l[1] === 'ai').length, ais = g.lines.filter((l) => l[1] === 'ai').length;
   const hist = S.history.filter((h) => h.kind === 'studio').length + 8;
   return tbar('生成工坊', '用你的本地 Agent 生成 Skills、Hooks 与规则', '<button type="button" class="btn" data-act="studioHistory">历史产物 · ' + hist + '</button><button type="button" class="btn" data-act="studioTpl">工作流模板</button>') +
-    '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t"><b>Tandem 自己不调用任何云端模型。</b>生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包。</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
+    '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t"><b>Orbit 自己不调用任何云端模型。</b>生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包。</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
     '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
     '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)">' + esc(st.goal) + '</textarea><span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span></label>' +
     '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? f1(c[3] / 1000) + 'k' : '') + '</span></label>').join('') + '</div></div>' +
@@ -6292,7 +6394,7 @@ PAGES.studio.after = () => { const l = $('#studioLog'); if (l) l.scrollTop = l.s
 function ctxPreviewHTML() {
   const c = S.studio.ctx; const tok = ctxTokens();
   const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
-  return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(agent(S.studio.agent).cli) + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Tandem 服务器。') + '</span></div></div>';
+  return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(agent(S.studio.agent).cli) + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Orbit 服务器。') + '</span></div></div>';
 }
 function ctxBundle() {
   const c = S.studio.ctx;
@@ -6327,9 +6429,9 @@ Object.assign(ACT, {
   studioEditor: () => toast('已在默认编辑器中打开草稿（演示）'),
   studioSave: () => { const g = GEN[S.studio.type]; const id = 'my-' + (S.studio.type === 'Skill' ? 'pr-wrapup' : S.studio.type); if (LIB.find((x) => x.id === id)) { toast('资源库里已经有这一项', { act: '去看看', onAct: () => { S.lib.tab = 'local'; go('library'); } }); return; } LIB.unshift({ id, kind: S.studio.type === '规则' ? 'Skill' : S.studio.type === '工作流' ? '插件' : S.studio.type, icon: 'spark', src: '本地生成', local: true, desc: '由本地 ' + agent(S.studio.agent).name + ' 生成：' + g.file.split('/').pop(), m: 90, sc: [92, 90, 80], why: ['依据你的会话生成', '只在本机'], compat: agent(S.studio.agent).name, users: 0, peer: 0, rec: null }); S.history.unshift({ t: S.studio.type + ' · ' + stFile() + '（资源库）', when: '刚刚', kind: 'studio' }); toast('已存入资源库 ›「本地生成」', { act: '去看看', onAct: () => { S.lib.tab = 'local'; go('library'); } }); },
   studioHistory: () => openModal(modalHead('历史产物', '由生成工坊产出的内容；安装与撤销记录在建议卡里') + '<div class="mb col" style="gap:6px">' + S.history.filter((h) => h.kind === 'studio').concat([{ t: 'Skill · design-review', when: '9/26' }, { t: 'Hook · block-claude-md', when: '9/22' }, { t: '规则 · 中文默认', when: '9/18' }, { t: 'Skill · daily-sync', when: '9/12' }, { t: 'Hook · latex-lint', when: '9/03' }, { t: '子代理 · ref-finder', when: '8/29' }, { t: 'Skill · paper-blueprint', when: '8/20' }, { t: '规则 · 小步提交', when: '8/11' }]).map((h) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);font-size:13px"><span>' + esc(h.t) + '</span><span class="cap mono">' + h.when + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'),
-  studioTpl: () => openModal(modalHead('工作流模板', 'Tandem 把一次生成拆成可观察的步骤；模板决定走哪些步') + '<div class="mb col" style="gap:10px">' + Object.keys(TPLS).map((k) => '<label class="row" style="align-items:flex-start;gap:8px;font-size:13px"><input type="radio" name="tpl" value="' + k + '"' + (S.studio.tpl === k ? ' checked' : '') + ' style="margin-top:3px;accent-color:var(--ink-1)"><span class="col" style="gap:1px"><b>' + esc(TPLS[k].name) + '</b><span class="cap">' + esc(TPLS[k].desc) + '</span></span></label>').join('') + '</div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="studioTplUse">使用所选模板</button></div>'),
+  studioTpl: () => openModal(modalHead('工作流模板', 'Orbit 把一次生成拆成可观察的步骤；模板决定走哪些步') + '<div class="mb col" style="gap:10px">' + Object.keys(TPLS).map((k) => '<label class="row" style="align-items:flex-start;gap:8px;font-size:13px"><input type="radio" name="tpl" value="' + k + '"' + (S.studio.tpl === k ? ' checked' : '') + ' style="margin-top:3px;accent-color:var(--ink-1)"><span class="col" style="gap:1px"><b>' + esc(TPLS[k].name) + '</b><span class="cap">' + esc(TPLS[k].desc) + '</span></span></label>').join('') + '</div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="studioTplUse">使用所选模板</button></div>'),
   studioTplUse: () => { const r = $('#modal input[name="tpl"]:checked'); const k = r ? r.value : S.studio.tpl; const run = S.studio.run; if (run && !run.done && !run.stopped) { toast('运行中不能更换模板，先停止'); return; } S.studio.tpl = TPLS[k] ? k : 'v1'; if (run) S.studio.run = null; closeModal(); render(); toast('模板已切换为「' + TPLS[S.studio.tpl].name + '」'); },
-  ctxPreview: () => { openModal(modalHead('将发送给 ' + agent(S.studio.agent).name + ' 的上下文包', '逐项预览 · 本机进程间传递，不经过 Tandem 服务器') + '<div class="mb" id="ctxPrev">' + ctxPreviewHTML() + '</div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制 JSON</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); },
+  ctxPreview: () => { openModal(modalHead('将发送给 ' + agent(S.studio.agent).name + ' 的上下文包', '逐项预览 · 本机进程间传递，不经过 Orbit 服务器') + '<div class="mb" id="ctxPrev">' + ctxPreviewHTML() + '</div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制 JSON</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); },
   copyBundle: () => copyText(JSON.stringify(ctxBundle(), null, 2), '上下文包')
 });
 
@@ -6444,7 +6546,7 @@ const UNDO_SEC = 10;
 function libFile(x) {
   const k = x.kind;
   if (k === 'Hook') return { target: '~/.claude/settings.json', file: [['{', ' '], ['  "hooks": {', ' '], ['    "PreToolUse": [', ' '], ['      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "~/.claude/hooks/' + x.id + '.sh" }] }', '+'], ['    ]', ' '], ['  }', ' '], ['}', ' ']] };
-  if (k === 'MCP') return { target: '~/.claude.json · mcpServers', file: [['{', ' '], ['  "mcpServers": {', ' '], ['    "' + x.id + '": {', '+'], ['      "command": "npx",', '+'], ['      "args": ["-y", "@tandem/' + x.id + '"]', '+'], ['    }', '+'], ['  }', ' '], ['}', ' ']] };
+  if (k === 'MCP') return { target: '~/.claude.json · mcpServers', file: [['{', ' '], ['  "mcpServers": {', ' '], ['    "' + x.id + '": {', '+'], ['      "command": "npx",', '+'], ['      "args": ["-y", "@orbit/' + x.id + '"]', '+'], ['    }', '+'], ['  }', ' '], ['}', ' ']] };
   if (k === '插件') return { target: '~/.claude/plugins/' + x.id + '/plugin.json', file: [['{', '+'], ['  "name": "' + x.id + '",', '+'], ['  "description": "' + x.desc + '",', '+'], ['  "source": "' + x.src + '",', '+'], ['  "commands": ["' + x.id.replace(/-.*$/, '') + '"]', '+'], ['}', '+']] };
   if (k === '子代理') return { target: '~/.claude/agents/' + x.id + '.md', file: [['---', '+'], ['name: ' + x.id, '+'], ['description: ' + x.desc, '+'], ['tools: Read, Grep, Bash(curl:*)', '+'], ['---', '+'], ['', '+'], ['你是独立的检查者：只读，不修改仓库；结果用表格汇报。', '+']] };
   return { target: '~/.claude/skills/' + x.id + '/SKILL.md', file: [['---', '+'], ['name: ' + x.id, '+'], ['description: ' + x.desc, '+'], ['source: ' + x.src, '+'], ['---', '+'], ['', '+'], ['# ' + x.id, '+'], ['', '+'], ['触发时按以下顺序执行，每步完成后汇报再继续。', 'ai']] };
@@ -6492,7 +6594,7 @@ function drawInstall() {
     const nc = $('#modal .code'); if (nc) nc.scrollTop = top;
     return;
   }
-  const bk = st.bk || ('…/Tandem/backups/' + name + '.1001-' + nowText().slice(-5).replace(':', ''));
+  const bk = st.bk || ('…/Orbit/backups/' + name + '.1001-' + nowText().slice(-5).replace(':', ''));
   const codexOk = /Codex|所有/.test(f.compat || '');
   const facts = '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono row" style="font-size:12px;word-break:break-all;flex-wrap:wrap">' + esc(f.target) + scopeLine + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(bk) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + adds + (dels ? ' / −' + dels : '') + ' 行' + (st.codex ? ' · 含 Codex 等价配置' : '') + '</span></div>';
   if (st.step === 2) {
@@ -6547,7 +6649,7 @@ Object.assign(ACT, {
     if (f.lib) S.libInst.add(f.lib);
     if (f.studio) S.libInst.add('studio:' + f.key);
     S.instLog.unshift({ t: '安装 ' + f.title + (codex ? '（含 Codex）' : '') + (f.scope === 'proj' ? '（仅 ' + f.scopeName + '）' : ''), when: '刚刚', target: f.target });
-    LAST_INSTALL = f; st.step = 3; st.at = Date.now(); st.t = Date.now(); st.bk = '…/Tandem/backups/' + f.target.split('/').pop() + '.1001-' + nowText().slice(-5).replace(':', '');
+    LAST_INSTALL = f; st.step = 3; st.at = Date.now(); st.t = Date.now(); st.bk = '…/Orbit/backups/' + f.target.split('/').pop() + '.1001-' + nowText().slice(-5).replace(':', '');
     renderMain(); drawInstall(); instTick();
   },
   instUndo: () => { if (instBusy()) return; const f = INST.info; closeModal(); INST = null; undoInstall(f); },
@@ -6715,7 +6817,7 @@ function openKeys() {
   openModal(modalHead('键盘快捷键', '浏览器占用的组合在 Demo 里改用 ⌥，括号里是 App 内的按键') + '<div class="mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:0 20px">' + KEYS.map((k) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);gap:12px"><span style="font-size:13px">' + esc(k[1]) + '</span><span class="kbd">' + esc(kb(k[0])) + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
 }
 function openAbout() {
-  openModal(modalHead('关于这个 Demo', 'Tandem 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品（暂定名 Tandem / 同频）的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>名称、MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
+  openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品（暂定名 Orbit / 同频）的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>名称、MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
 }
 function openMethod() {
   const p = personaNow();
@@ -6743,7 +6845,7 @@ function filterNote() {
 }
 function reportMD() {
   const L = sel(); const st = stats(L); const p = personaNow(); const fn = filterNote();
-  const out = ['# Tandem 协作报告 · ' + rangeLabel(), '', '> ' + winLabel() + ' · 示例数据 · 生成于 ' + nowText(), ''];
+  const out = ['# Orbit 协作报告 · ' + rangeLabel(), '', '> ' + winLabel() + ' · 示例数据 · 生成于 ' + nowText(), ''];
   if (fn) out.push('> 筛选：' + fn, '');
   if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
   if (S.rep.has('persona')) {
@@ -6804,22 +6906,23 @@ Object.assign(ACT, {
   copyCSV: () => copyText(CUR.csv || '', 'CSV'),
   shareTheme: (el) => { S.shareDark = el.dataset.v === 'dark'; $('#shareBody').innerHTML = shareBody(); },
   shareNum: () => { S.shareNoNum = !S.shareNoNum; $('#shareBody').innerHTML = shareBody(); },
-  shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Tandem，全部分析在本机完成。', '分享文案'); },
+  shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Orbit，全部分析在本机完成。', '分享文案'); },
   shareSave: () => toast('浏览器 Demo 不能下载文件；App 会把 1080×1350 的 PNG 存到「下载」')
 });
 
 /* ============ onboarding & reveal (overlay) ============
  * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
  * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
- *   01 导入  选中来源行的 Agent 色点化作会话粒子，沿曲线流向中央；来源列表收拢淡出，罗盘外框画出，计数器累加；
- *            表盘中心出现指南针，指针自由快转（寻找方向），粒子汇入时逐渐减速，转满整圈停在 00 接上 02
- *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），
- *            再汇入外环的小时密度段（fp2SVG 的几何，FPG）
+ *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成罗盘外框；
+ *            标志的内弧收拢成指针，随后指针自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
+ *            来源列表收拢淡出，计数器累加；粒子汇入时指针逐渐减速，转满整圈停在 00 接上 02
+ *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），再汇入轨道环带；
+ *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着指针公转，扫完走最短弧滑到各自的协作重心（fp2SVG 的几何，FPG）
  *   03 生长  罗盘玫瑰四个主角（.pet）从中心长出并伸到各轴强度；字母位在两极之间翻牌时指针左右寻向，
  *            最后一个字母锁定时摆向协作重心，阻尼振荡后停住
  *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（指针轻颤），其余淡出，胜出的一张飞入四字母（指针定住），给出匹配度
  *   05 落地  「查看完整画像」：大人格码与指纹（含指针）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
- * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），其余是 CSS keyframes + WAAPI，节点只建一次。
+ * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、环带扫描与行星在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
  * 跳过 / Esc / 在后台继续随时可用；closeOverlay() 取消全部计时器、动画帧与动画；prefers-reduced-motion 直接给最终态。 */
 let OB = null, REV = null, GNS = null;
 function closeOverlay() {
@@ -6860,7 +6963,7 @@ function drawOB() {
   const top = '<div class="row">' + dots + '<span class="mono cap" style="font-size:11px">' + (s + 1) + ' / 4</span><span style="flex:1"></span>' + (s < 3 ? '<button type="button" class="btn sm gh" data-act="obClose">跳过</button>' : '') + '</div>';
   let b = '';
   if (s === 0) {
-    b = '<span class="appicon" style="width:56px;height:56px;border-radius:14px"><svg width="32" height="24" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="#f5f4f0" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg></span><div><div class="eb">Tandem</div><h2 class="serif" style="margin:4px 0 0;font-size:28px;line-height:1.2">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Tandem 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
+    b = '<span class="appicon ob-mark" style="width:56px;height:56px;border-radius:14px">' + appMark(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:28px;line-height:1.2">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1) {
@@ -6906,10 +7009,10 @@ function genHTML(g) {
   const hr = S.persona.fpHour, cur = CUR.fp; S.persona.fpHour = null;
   const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
   S.persona.fpHour = hr; CUR.fp = cur;
-  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）
+  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）、首次启动的 Orbit 内弧
   let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
   const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
-  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g></svg>';
+  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
   const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? (ch === '?' ? '未定型' : a.name) + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
   const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '暂不匹配' : '样本不足') + '</span><span class="cap">' + (p.ok ? '有维度落在 45–55 之间，先不下结论' : '已选来源的会话少于 30 个') + '</span>';
@@ -6930,13 +7033,15 @@ function genHTML(g) {
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
 }
 // 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 指南针 .fp-compass /
-// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 外环每小时一段 .fps）
+// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 轨道环带的扫描遮罩 .fp-sweep / 行星 .fp-pl）与翻正用的两层（.g-fp、.g-over）
 function genMark(g) {
-  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; if (!svg) return;
+  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; g.pls = []; g.tiltEls = []; if (!svg) return;
   g.rose = Array.from(svg.querySelectorAll('.fp-rose .fp-pt')).map((el) => Array.from(el.querySelectorAll('path')));
   g.axl = g.p.ok ? Array.from(svg.querySelectorAll('.fp-ax')) : [];
   g.nd = svg.querySelector('.fp-needle'); g.hd = g.nd ? +g.nd.dataset.hd : 0;
-  g.segs = Array.from(svg.querySelectorAll('g.ring > g.fps'));
+  g.sweepEl = svg.querySelector('.fp-sweep');
+  g.pls = Array.from(svg.querySelectorAll('.fp-pl')).map((el) => ({ el, deg: +el.dataset.pa }));
+  g.tiltEls = [g.box.querySelector('.g-fp'), g.box.querySelector('.g-over')].filter(Boolean); g.arc = g.box.querySelector('.g-arc');
   g.slotL = Array.from(g.box.querySelectorAll('.g-slot .L'));
 }
 // 玫瑰主角从强度 50 的长度伸到各轴强度（u 可以超过 1，配合 genBack 的回弹）
@@ -6946,11 +7051,14 @@ function genRose(g, u) {
 }
 // 指针角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫针的速度；02 匀速扫一圈；
 // 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向协作重心，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
+// 首次启动：Orbit 内弧先在 00 收拢成指针（G_HOLD 之前指针停在 00），再从静止起转，快转两圈后减速落到 00
+const G_HOLD = 960;
 function genNeedle(g, t) {
-  const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, w0 = 1.25;
+  const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, ob = g.mode === 'ob', t0 = ob ? G_HOLD : 0, w0 = ob ? 0 : 1.25;
+  if (t < t0) return 0;
   if (t < P) {
-    const N = Math.max(1, Math.round((w0 + ws) / 2 * P / 360)), u = t / P;
-    return (u * u * u - 2 * u * u + u) * w0 * P + (3 * u * u - 2 * u * u * u) * N * 360 + (u * u * u - u * u) * ws * P;
+    const D = P - t0, N = ob ? 2 : Math.max(1, Math.round((w0 + ws) / 2 * D / 360)), u = (t - t0) / D;
+    return (u * u * u - 2 * u * u + u) * w0 * D + (3 * u * u - 2 * u * u * u) * N * 360 + (u * u * u - u * u) * ws * D;
   }
   if (t < P + sw) return (t - P) / sw * 360;
   const cd = 300, ts = P + sw + cd, A0 = 360 + ws * cd / 2;
@@ -6966,6 +7074,24 @@ function genNeedle(g, t) {
 function genAnim(g, el, kf, o) {
   if (!el || !el.animate) return null;
   const a = el.animate(kf, Object.assign({ fill: 'both', easing: G_EASE }, o)); g.anims.push(a); return a;
+}
+// 01 的 Orbit 母题：表盘从倾斜轨道视角翻正（rotateX 64° → 0°、转角 8° → 0°、0.62 → 1 倍），0.2–1.5 s；粒子与内弧用同一投影
+const G_TILT = 1500;
+function genTiltAt(t) { const u = genIO((t - 200) / (G_TILT - 200)); return { a: 64 * (1 - u), z: 8 * (1 - u), s: 0.62 + 0.38 * u }; }
+function genProj(q, k) {
+  const ca = Math.cos(k.a * Math.PI / 180), cz = Math.cos(k.z * Math.PI / 180), sz = Math.sin(k.z * Math.PI / 180);
+  const dx = (q[0] - 200) * k.s, dy = (q[1] - 200) * ca * k.s;
+  return [200 + dx * cz - dy * sz, 200 + dx * sz + dy * cz];
+}
+function genTilt(g, t) {
+  const k = genTiltAt(t), done = t >= G_TILT;
+  g.tiltEls.forEach((el) => { el.style.transform = done ? '' : 'rotate(' + k.z.toFixed(2) + 'deg) scale(' + k.s.toFixed(4) + ') rotateX(' + k.a.toFixed(2) + 'deg)'; });
+  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 00 方向的指针北半：每个采样点从弧上滑到指针上对应的位置
+  if (g.arc) {
+    const u = genIO((t - 420) / 540), n = 28, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
+    for (let i = 0; i <= n; i++) { const A = pt(200, 112, (235 + i / n * 225) * Math.PI / 180), B = [200, 200 - FPG.NL * i / n]; d += (i ? 'L' : 'M') + f([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u]); }
+    g.arc.setAttribute('d', d); g.arc.style.opacity = String(clamp(1 - (t - 960) / 160, 0, 1));
+  }
 }
 function genStage(g, t) { const s = g.box.querySelector('[data-g="stage"]'); if (!s) return; s.textContent = t; if (!g.done) s.animate([{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: G_EASE }); }
 function genCount(g) {
@@ -6991,6 +7117,9 @@ function genOpen(mode, opt) {
   box.innerHTML = genHTML(g); g.box = box; genMark(g);
   if (opt.final || reduceMotion()) { genFinal('init'); return; }
   genRose(g, 0);
+  if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '1';
+  g.pls.forEach((x) => { x.el.style.opacity = '0'; });
+  if (ob) genTilt(g, 0);
   if (kids) {
     // 来源列表：留在原位收拢、模糊、淡出；盒子用 clip-path 从旧尺寸展开到新尺寸，新内容随后上浮淡入
     const gh = document.createElement('div'); gh.className = 'g-ghost'; gh.setAttribute('aria-hidden', 'true'); gh.inert = true;
@@ -7020,7 +7149,7 @@ function genParticles(g, from) {
     const a = (s.h + s.mi / 60) / 24 * Math.PI * 2;
     const src = from && from[s.a];
     const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, FPG.R0 + 4 + Math.min(s.dur, 126) / 126 * (FPG.RH - 6), a), pour: pt(200, FPG.R0 + byH[s.h] / mxH * FPG.RH * 0.55, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
-    if (ob) { q.e = R() * 1050; q.fl = 700 + R() * 260; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
+    if (ob) { q.e = R() * 1050; q.fl = 760 + R() * 300; q.turns = 0.55 + R() * 0.6; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
     else { q.e = R() * 260; q.fl = 380 + R() * 220; q.gs = pt(200, 250 + R() * 90, R() * Math.PI * 2); }
     q.dep = Math.max(T.place + a / (Math.PI * 2) * g.sweep, q.e + q.fl + 60); q.land = q.dep + 380; q.pourAt = q.land + 240;
     parts.push(q);
@@ -7032,8 +7161,8 @@ function genDraw(g, t, orc, sr) {
   const cv = g.cv, dpr = window.devicePixelRatio || 1, W = orc.width, H = orc.height;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const x = g.ctx; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
-  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top;
-  const U = (q) => [ox + q[0] * k, oy + q[1] * k];
+  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top, tl = g.mode === 'ob' && t < G_TILT ? genTiltAt(t) : null;
+  const U = (q) => { if (tl) q = genProj(q, tl); return [ox + q[0] * k, oy + q[1] * k]; };
   const cloud = (p, tt) => U(pt(200, p.cr, p.ca + tt * 0.0011));
   const lerp = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
   let arrived = 0, live = 0;
@@ -7041,8 +7170,14 @@ function genDraw(g, t, orc, sr) {
   for (const p of g.parts) {
     if (t < p.e) { live++; continue; }
     let pos, r = p.r * k, al = 1;
-    if (t < p.e + p.fl) {
-      // 导入 / 汇集：二次贝塞尔，从来源图标（或表盘外一圈）弯向中央的会话云
+    if (t < p.e + p.fl && p.turns) {
+      // 导入（首次启动）：从来源图标被拉进倾斜的椭圆轨道，沿轨道顺时针螺旋收进中央的会话云；轨道随表盘一起翻正
+      const u = (t - p.e) / p.fl, v = genIO(u), th = p.ca + (p.e + p.fl) * 0.0011 - (1 - v) * p.turns * Math.PI * 2;
+      const sp = U(pt(200, p.cr + (196 - p.cr) * (1 - v) * (1 - v), th)), j = genIO(u / 0.38);
+      pos = [p.sx + (sp[0] - p.sx) * j, p.sy + (sp[1] - p.sy) * j];
+      al = Math.min(1, (t - p.e) / 160); r *= 0.65 + 0.35 * v;
+    } else if (t < p.e + p.fl) {
+      // 汇集（揭晓）：二次贝塞尔，从表盘外一圈弯向中央的会话云
       const u = genIO((t - p.e) / p.fl), st = p.gs ? U(p.gs) : [p.sx, p.sy], en = cloud(p, t);
       const cx = (st[0] + en[0]) / 2 - (en[1] - st[1]) * p.bend, cy = (st[1] + en[1]) / 2 + (en[0] - st[0]) * p.bend, v = 1 - u;
       pos = [v * v * st[0] + 2 * v * u * cx + u * u * en[0], v * v * st[1] + 2 * v * u * cy + u * u * en[1]];
@@ -7062,11 +7197,27 @@ function genTick(g) {
   if (GNS !== g || g.done) return;
   const t = performance.now() - g.t0, T = g.T;
   // 先读布局（overlay 与指纹的位置），再写 canvas / 文本 / 属性
-  const orc = $('#overlay').getBoundingClientRect(), sr = g.svg ? g.svg.getBoundingClientRect() : null;
+  // 指纹的未变换位置：.g-dial 的内框（.fp-wrap 留 8px 纸边）；翻正期间 .g-fp 带 3D 变换，不能直接量 svg
+  const orc = $('#overlay').getBoundingClientRect(), dl = g.svg ? g.box.querySelector('[data-g="dial"]') : null, dr = dl ? dl.getBoundingClientRect() : null;
+  const sr = dr ? { left: dr.left + 8, top: dr.top + 8, width: dr.width - 16 } : null;
   if (g.cv && sr) genDraw(g, t, orc, sr);
   if (!g.counted) { genCount(g); if (g.arrived >= g.N) g.counted = true; }
   if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genRose(g, genBack(u)); if (u >= 1) g.roseDone = true; }
   if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
+  if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
+  // 02：环带在指针扫过处长出（比指针晚 450 ms，等粒子落位）；行星依次出现、跟在指针后公转，扫完走最短弧滑到各自的协作重心
+  const P = T.place, sw = g.sweep;
+  if (g.sweepEl && !g.swept) { const v = clamp((t - P - 450) / sw, 0, 1); g.sweepEl.style.strokeDashoffset = (1 - v).toFixed(4); if (v >= 1) { g.sweepEl.style.strokeDashoffset = ''; g.swept = true; } }
+  if (g.pls.length && !g.settled) {
+    let all = true;
+    g.pls.forEach((x, i) => {
+      const ride = (tt) => clamp((tt - P) / sw, 0, 1) * 360 - 16 - 9 * i, t1 = P + sw, ra = ride(t1), d = ((x.deg - ra) % 360 + 540) % 360 - 180;
+      const u = clamp((t - t1 - i * 60) / 800, 0, 1), a = t < t1 ? ride(t) : ra + d * genIO(u);
+      x.el.style.opacity = String(clamp((t - P - 120 - i * 110) / 220, 0, 1)); x.el.style.transform = 'rotate(' + a.toFixed(2) + 'deg)';
+      if (u < 1) all = false;
+    });
+    if (all) { g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; }); g.settled = true; }
+  }
   if (t >= T.grow + 60) g.slotL.forEach((el, i) => {
     if (g.locked[i]) return;
     const f = Math.floor((t - T.grow) / 85); if (f === g.flips[i]) return; g.flips[i] = f;
@@ -7124,16 +7275,17 @@ function genPlay(g) {
   const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
   const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 指针扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 生长 · 罗盘玫瑰长出 D I M V'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
   genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
-  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）
-  A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: ob ? 900 : 600, delay: ob ? 150 : 0 });
+  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）。
+  // 首次启动时外框先是 Orbit 标志的倾斜椭圆（石板灰、留一道缺口），随翻正补全并换成外框的墨色
+  if (ob) A(q('.g-ring0'), [{ strokeDashoffset: 0.17, stroke: 'var(--orbit)', strokeWidth: 4.5 }, { strokeDashoffset: 0.12, stroke: 'var(--orbit)', strokeWidth: 4.5, offset: 0.4 }, { strokeDashoffset: 0, stroke: 'var(--ink-2)', strokeWidth: 1.2 }], { duration: G_TILT, easing: 'ease-in-out' });
+  else A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 600 });
   A(q('.g-ticks'), fade, { duration: 500, delay: ob ? 500 : 200 });
   qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
-  A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 360 : 80 });
-  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 420 : 120, easing: G_SPRING });
-  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入，外环每小时一段在指针过后长出
+  A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
+  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
+  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
   qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
-  g.segs.forEach((el) => { const h = +el.dataset.h; A(el, [{ opacity: 0, transform: 'scale(.76)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: T.place + (h + 0.5) / 24 * sw + 520, easing: G_SPRING }); });
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
   // 03：玫瑰主角（.pet，CSS grow）从中心长出并在 rAF 里伸到各轴强度；字母位翻牌（指针寻向），按顺序锁定
   [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
@@ -7155,6 +7307,9 @@ function genFinal(how) {
   const box = g.box, ob = g.mode === 'ob', p = g.p, q = (s) => box.querySelector(s);
   box.querySelectorAll('.g-ghost').forEach((el) => el.remove()); box.classList.remove('run', 'g-morph'); box.classList.add('skip');
   genRose(g, 1); if (g.nd) g.nd.style.transform = '';
+  if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '';
+  g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; });
+  g.tiltEls.forEach((el) => { el.style.transform = ''; });
   g.slotL.forEach((el, i) => { el.textContent = p.ok ? p.code[i] : '—'; el.parentNode.classList.add('lock'); });
   const cw = q('[data-g="cards"]'); if (cw) cw.innerHTML = ''; g.cards = null;
   g.arrived = g.N; genCount(g);
@@ -7286,7 +7441,7 @@ const RULE_RE = {
   '手机号': [/(^|\D)1[3-9]\d{9}(?!\d)/g, '$1‹PHONE›'],
   '自定义正则 2 条': [/内部代号-[A-Z0-9]+|工号\s*\d{5,}/g, '‹CODE›']
 };
-const ENGINE_TXT = { stats: '只做计数与时序统计。语义主题、情绪曲线、AI 解读与生成工坊都不可用。', agent: '语义分析交给你本机的 Agent（默认 Claude Code），用它自己的登录与额度；Tandem 只传结构化摘要。', ollama: '用本机模型（如 qwen3:8b）做语义分析，完全离线但较慢；生成工坊仍然需要本地 Agent。' };
+const ENGINE_TXT = { stats: '只做计数与时序统计。语义主题、情绪曲线、AI 解读与生成工坊都不可用。', agent: '语义分析交给你本机的 Agent（默认 Claude Code），用它自己的登录与额度；Orbit 只传结构化摘要。', ollama: '用本机模型（如 qwen3:8b）做语义分析，完全离线但较慢；生成工坊仍然需要本地 Agent。' };
 const NEV = [['waiting', '有会话等你确认'], ['done', '会话完成（超过 10 分钟的）'], ['stuck', '同一命令连续失败 / 长时间无进展'], ['ctx', '上下文即将压缩'], ['weekly', '每周报告已生成']];
 const NEV_COL = [['横幅', '右上角滑入，7 秒后自动收起'], ['悬浮组件', '胶囊切换为该事件的状态'], ['菜单栏角标', '图标角标变色 / 变形']];
 // what leaves the machine when the analysis engine is a local Agent or model (settings › 分析 › AI 通道)
@@ -7331,11 +7486,11 @@ function renderSet() {
       card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), '暂停后菜单栏图标不显示状态角标，也不产生任何事件') + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话') + '</div>');
   } else if (t === 'privacy') {
     const rd = redact(S.ruleSample);
-    body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Tandem 的数据库', Object.keys(S.rules).map((k) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + k + '</span><span class="mono cap" style="font-size:11px">' + esc(RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '') + '</span>' + swBtn(S.rules[k], 'setRule', ' data-k="' + esc(k) + '"', k) + '</div>').join('') +
+    body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', Object.keys(S.rules).map((k) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + k + '</span><span class="mono cap" style="font-size:11px">' + esc(RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '') + '</span>' + swBtn(S.rules[k], 'setRule', ' data-k="' + esc(k) + '"', k) + '</div>').join('') +
       (S.ruleTest ? '<div class="col" style="gap:8px;margin-top:12px"><label class="eb" for="rdIn">测试文本</label><textarea id="rdIn" data-in="setTestIn" rows="4" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:8px 10px;font:12px/1.6 var(--mono);color:var(--ink-1);resize:vertical">' + esc(S.ruleSample) + '</textarea><div class="row" style="justify-content:space-between"><span class="eb">入库后</span><span class="mono cap" id="rdN" style="font-size:11px">命中 ' + rd.n + ' 处</span></div><div id="rdOut" style="padding:8px 10px;border-radius:8px;background:var(--sunken);font:12px/1.7 var(--mono);white-space:pre-wrap;word-break:break-all">' + rd.html + '</div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setTest">' + (S.ruleTest ? '收起测试' : '测试规则…') + '</button>') +
       card('匿名贡献', S.anon ? '已开启：只上传人格代码与已装资源名，用于「相似用户」统计' : '关闭：不上传任何内容。开启后只上传人格代码与已装资源名', '<div class="row" style="gap:10px">' + swBtn(S.anon, 'setAnon', '', '匿名贡献') + '<span class="cap" style="font-size:11px">会话内容、项目名、路径永远不会上传</span></div>') +
-      card('数据存储', '', '<div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="mono" style="font-size:12px;flex:1;min-width:200px">~/Library/Application Support/Tandem</span><b class="mono" style="font-size:12px">812 MB</b></div><div class="row" style="flex-wrap:wrap;gap:8px"><button type="button" class="btn sm" data-act="setFinder">在 Finder 中显示</button><button type="button" class="btn sm" data-act="setExport">导出全部（JSON）</button><button type="button" class="btn sm dg" data-act="setClear">清除全部数据…</button></div></div>');
+      card('数据存储', '', '<div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="mono" style="font-size:12px;flex:1;min-width:200px">~/Library/Application Support/Orbit</span><b class="mono" style="font-size:12px">812 MB</b></div><div class="row" style="flex-wrap:wrap;gap:8px"><button type="button" class="btn sm" data-act="setFinder">在 Finder 中显示</button><button type="button" class="btn sm" data-act="setExport">导出全部（JSON）</button><button type="button" class="btn sm dg" data-act="setClear">清除全部数据…</button></div></div>');
   } else if (t === 'analysis') {
     const chOff = S.engine === 'stats';
     body = card('分析引擎', '语义分析与生成依赖此项', '<div class="col" style="gap:8px">' + seg('setEngine', S.engine, [['stats', '仅统计'], ['agent', '本地 Agent'], ['ollama', '本机模型（Ollama）']], '分析引擎') + '<span style="font-size:13px;line-height:1.5;color:var(--ink-2)">' + ENGINE_TXT[S.engine] + '</span>' + (S.engine === 'agent' ? '<div class="row" style="gap:8px"><span class="cap">执行者</span><button type="button" class="chip sm" data-act="studioAgent">' + agent(S.studio.agent).name + ic('chev', 12) + '</button></div>' : '') + '</div>') +
@@ -7349,7 +7504,7 @@ function renderSet() {
     body = card('投递矩阵', '克制是默认值：只有需要你动作，或带来明确结果时才打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + NEV_COL.map((c, i) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + [0, 1, 2].map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + NEV_COL.map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">用菜单栏右侧的「演示」菜单模拟事件，可以看到这里的设置立即生效；每一列独立生效。</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
       card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div><span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span><div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时在展开的卡片里给出「先总结进度」建议' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
   } else {
-    body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px;border-radius:16px"><svg width="38" height="28" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="#f2f2f4" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg></span><div style="font-size:22px;font-weight:700">Tandem</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">关于这个 Demo</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
+    body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px;border-radius:16px">' + appMark(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">关于这个 Demo</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
   }
   el.innerHTML = '<div class="ptop"><div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div><span class="ptitle">' + curTab[1] + '</span></div>' +
     '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
@@ -7386,10 +7541,10 @@ Object.assign(ACT, {
   setTest: () => { S.ruleTest = !S.ruleTest; renderSet(); const a = $('#rdIn'); if (a) a.focus(); },
   setTestIn: (el) => { S.ruleSample = el.value; const r = redact(S.ruleSample); const o = $('#rdOut'); if (o) o.innerHTML = r.html; const c = $('#rdN'); if (c) c.textContent = '命中 ' + r.n + ' 处'; },
   setAnon: () => { S.anon = !S.anon; render(); toast(S.anon ? '已开启匿名贡献：只上传人格代码与已装资源名' : '已关闭匿名贡献'); },
-  setFinder: () => toast('已在 Finder 中显示（演示）：~/Library/Application Support/Tandem'),
+  setFinder: () => toast('已在 Finder 中显示（演示）：~/Library/Application Support/Orbit'),
   setExport: () => {
     const L = sel({ range: 0, noExtra: true }); const p = persona(L);
-    CUR.exportJSON = JSON.stringify({ app: 'Tandem', version: '1.0-demo', exported_at: '2026-10-01T15:30:00+08:00', sources: AG.map((a) => ({ agent: a.name, path: a.path, enabled: !S.srcOff.has(a.id), sessions: a.all })).concat(S.extraSrc.map((x) => ({ agent: x.name, path: x.path, enabled: true, sessions: x.n }))), persona: p.ok ? { code: p.code, name: p.zh, scores: { D: Math.round(p.v.D), I: Math.round(p.v.I), M: Math.round(p.v.M), V: Math.round(p.v.V) } } : null, installed: Array.from(S.installed.keys()), redaction_rules: Object.keys(S.rules).filter((k) => S.rules[k]), sessions: L.slice(-3).map((s) => ({ id: s.id, agent: agent(s.a).name, project: PJI[s.p].name, date: md(s.d), minutes: Math.round(s.dur), messages: s.msgs, tool_calls: s.tools, outcome: s.out })), sessions_total: L.length }, null, 2);
+    CUR.exportJSON = JSON.stringify({ app: 'Orbit', version: '1.0-demo', exported_at: '2026-10-01T15:30:00+08:00', sources: AG.map((a) => ({ agent: a.name, path: a.path, enabled: !S.srcOff.has(a.id), sessions: a.all })).concat(S.extraSrc.map((x) => ({ agent: x.name, path: x.path, enabled: true, sessions: x.n }))), persona: p.ok ? { code: p.code, name: p.zh, scores: { D: Math.round(p.v.D), I: Math.round(p.v.I), M: Math.round(p.v.M), V: Math.round(p.v.V) } } : null, installed: Array.from(S.installed.keys()), redaction_rules: Object.keys(S.rules).filter((k) => S.rules[k]), sessions: L.slice(-3).map((s) => ({ id: s.id, agent: agent(s.a).name, project: PJI[s.p].name, date: md(s.d), minutes: Math.round(s.dur), messages: s.msgs, tool_calls: s.tools, outcome: s.out })), sessions_total: L.length }, null, 2);
     openModal(modalHead('导出全部（JSON）', '这里只显示结构与最近 3 个会话；App 会导出完整文件') + '<div class="mb"><pre class="code" style="padding:12px;white-space:pre-wrap;max-height:50vh">' + esc(CUR.exportJSON) + '</pre></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyExport">复制 JSON</button></div>', 'wide');
   },
   copyExport: () => copyText(CUR.exportJSON || '', 'JSON'),
@@ -7434,7 +7589,7 @@ function popLiveCard() {
     ctxBar(S.live.ctx) +
     '<div class="row" style="margin-top:4px"><button type="button" class="btn sm" data-act="popTraj">查看轨迹</button><button type="button" class="btn sm gh" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒') + '</button></div></div>';
 }
-/* the panel hangs 6px under the menu bar with its right edge aligned to the Tandem status item */
+/* the panel hangs 6px under the menu bar with its right edge aligned to the Orbit status item */
 function popPlace() {
   const el = $('#pop'); if (el.hidden) return;
   const g = $('.mbar [data-act="pop"]'); const d = desk.getBoundingClientRect();
@@ -7455,7 +7610,7 @@ function renderPop() {
   const today = available.filter((s) => s.d === 120 && (!simIdle() || !s.live));
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
-  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Tandem <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
+  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
   // last 7 days: one column per day, count on top, today in ink (the orange stays reserved for Claude), weekday underneath
   const days = []; for (let d = 114; d <= 120; d++) days.push([d, available.filter((s) => s.d === d && !(s.live && simIdle())).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
@@ -7465,7 +7620,7 @@ function renderPop() {
   const rec = top ? '<div class="sec row" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic(top.icon, 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(top.title) + '</div><div class="cap" style="font-size:11px">本周最值得做 · ' + top.gain + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + top.id + '">预览</button></div>' : '';
   const doneS = BYID[DONE_ID];
   const doneBadge = S.sim === 'done' && doneS ? '<button type="button" class="bdg" data-act="popSess" data-id="' + DONE_ID + '" style="background:var(--good-bg);color:var(--good);border:0" data-tip="' + esc(doneS.title) + '">刚刚完成 1 个</button>' : '';
-  const cxRow = (lbl) => sourceEnabled({ a: 'cx' }) ? (S.sim === 'waiting' ? '<div class="sec col" style="gap:6px;background:var(--warn-bg)"><div class="row"><span style="width:9px;height:9px;border-radius:2px;background:var(--warn-m)"></span><b style="font-size:13px">Codex · team-hub</b><span style="flex:1"></span><span class="cap" style="font-size:11px">等你确认 · 2 分钟</span></div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--surface)">git push origin collab</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudGo" data-v="waiting">在终端中处理</button><span class="cap" style="font-size:11px">Tandem 不会代你批准</span></div></div>' : '<button type="button" class="sec row" data-act="popSess" data-id="sess-1001-0903" style="width:100%;border:0;border-top:1px solid var(--hair);background:none;text-align:left;font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Codex · team-hub · 同步 collab 并审核日报</span><span class="mono cap" style="font-size:11px">09:03 · 12m ✓</span></button>') : '';
+  const cxRow = (lbl) => sourceEnabled({ a: 'cx' }) ? (S.sim === 'waiting' ? '<div class="sec col" style="gap:6px;background:var(--warn-bg)"><div class="row"><span style="width:9px;height:9px;border-radius:2px;background:var(--warn-m)"></span><b style="font-size:13px">Codex · team-hub</b><span style="flex:1"></span><span class="cap" style="font-size:11px">等你确认 · 2 分钟</span></div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--surface)">git push origin collab</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudGo" data-v="waiting">在终端中处理</button><span class="cap" style="font-size:11px">Orbit 不会代你批准</span></div></div>' : '<button type="button" class="sec row" data-act="popSess" data-id="sess-1001-0903" style="width:100%;border:0;border-top:1px solid var(--hair);background:none;text-align:left;font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Codex · team-hub · 同步 collab 并审核日报</span><span class="mono cap" style="font-size:11px">09:03 · 12m ✓</span></button>') : '';
   let html;
   if (S.paused) {
     html = head('采集已暂停', '不会产生事件，也不会更新统计') + '<div class="sec row"><span style="flex:1;font-size:13px;color:var(--ink-2)">恢复后会补齐暂停期间的会话。</span><button type="button" class="btn sm p" data-act="setPause">恢复采集</button></div>' + foot;
@@ -8020,7 +8175,7 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
   // the default window leaves the column free. 「显示 › 桌面小组件」toggles them at any size.
   S.widgets = window.innerWidth >= WIDE_MIN;
   render();
-  setTimeout(() => notify({ t: '欢迎体验 Tandem 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
+  setTimeout(() => notify({ t: '欢迎体验 Orbit 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
 })();
 </script>
 </body>

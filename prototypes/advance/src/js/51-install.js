@@ -10,7 +10,7 @@ const UNDO_SEC = 10;
 function libFile(x) {
   const k = x.kind;
   if (k === 'Hook') return { target: '~/.claude/settings.json', file: [['{', ' '], ['  "hooks": {', ' '], ['    "PreToolUse": [', ' '], ['      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "~/.claude/hooks/' + x.id + '.sh" }] }', '+'], ['    ]', ' '], ['  }', ' '], ['}', ' ']] };
-  if (k === 'MCP') return { target: '~/.claude.json · mcpServers', file: [['{', ' '], ['  "mcpServers": {', ' '], ['    "' + x.id + '": {', '+'], ['      "command": "npx",', '+'], ['      "args": ["-y", "@tandem/' + x.id + '"]', '+'], ['    }', '+'], ['  }', ' '], ['}', ' ']] };
+  if (k === 'MCP') return { target: '~/.claude.json · mcpServers', file: [['{', ' '], ['  "mcpServers": {', ' '], ['    "' + x.id + '": {', '+'], ['      "command": "npx",', '+'], ['      "args": ["-y", "@orbit/' + x.id + '"]', '+'], ['    }', '+'], ['  }', ' '], ['}', ' ']] };
   if (k === '插件') return { target: '~/.claude/plugins/' + x.id + '/plugin.json', file: [['{', '+'], ['  "name": "' + x.id + '",', '+'], ['  "description": "' + x.desc + '",', '+'], ['  "source": "' + x.src + '",', '+'], ['  "commands": ["' + x.id.replace(/-.*$/, '') + '"]', '+'], ['}', '+']] };
   if (k === '子代理') return { target: '~/.claude/agents/' + x.id + '.md', file: [['---', '+'], ['name: ' + x.id, '+'], ['description: ' + x.desc, '+'], ['tools: Read, Grep, Bash(curl:*)', '+'], ['---', '+'], ['', '+'], ['你是独立的检查者：只读，不修改仓库；结果用表格汇报。', '+']] };
   return { target: '~/.claude/skills/' + x.id + '/SKILL.md', file: [['---', '+'], ['name: ' + x.id, '+'], ['description: ' + x.desc, '+'], ['source: ' + x.src, '+'], ['---', '+'], ['', '+'], ['# ' + x.id, '+'], ['', '+'], ['触发时按以下顺序执行，每步完成后汇报再继续。', 'ai']] };
@@ -58,7 +58,7 @@ function drawInstall() {
     const nc = $('#modal .code'); if (nc) nc.scrollTop = top;
     return;
   }
-  const bk = st.bk || ('…/Tandem/backups/' + name + '.1001-' + nowText().slice(-5).replace(':', ''));
+  const bk = st.bk || ('…/Orbit/backups/' + name + '.1001-' + nowText().slice(-5).replace(':', ''));
   const codexOk = /Codex|所有/.test(f.compat || '');
   const facts = '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono row" style="font-size:12px;word-break:break-all;flex-wrap:wrap">' + esc(f.target) + scopeLine + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(bk) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + adds + (dels ? ' / −' + dels : '') + ' 行' + (st.codex ? ' · 含 Codex 等价配置' : '') + '</span></div>';
   if (st.step === 2) {
@@ -113,7 +113,7 @@ Object.assign(ACT, {
     if (f.lib) S.libInst.add(f.lib);
     if (f.studio) S.libInst.add('studio:' + f.key);
     S.instLog.unshift({ t: '安装 ' + f.title + (codex ? '（含 Codex）' : '') + (f.scope === 'proj' ? '（仅 ' + f.scopeName + '）' : ''), when: '刚刚', target: f.target });
-    LAST_INSTALL = f; st.step = 3; st.at = Date.now(); st.t = Date.now(); st.bk = '…/Tandem/backups/' + f.target.split('/').pop() + '.1001-' + nowText().slice(-5).replace(':', '');
+    LAST_INSTALL = f; st.step = 3; st.at = Date.now(); st.t = Date.now(); st.bk = '…/Orbit/backups/' + f.target.split('/').pop() + '.1001-' + nowText().slice(-5).replace(':', '');
     renderMain(); drawInstall(); instTick();
   },
   instUndo: () => { if (instBusy()) return; const f = INST.info; closeModal(); INST = null; undoInstall(f); },

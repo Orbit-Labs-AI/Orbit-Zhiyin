@@ -1,6 +1,6 @@
 # Signal 层、指标引擎与下钻
 
-`analytics/signals/` 是八族之上的横向派生层，不是第九个族。它只读取 `AnalysisContext` 与 `analyze_context` 的结果，把八族事实转成 `signal`，再派生 `problem`（AN-06）、关键时刻（AN-09）、会话结果（AN-19）和会话事实补字段（AN-02）。设计依据见 [分析模块设计](../../plans/analysis-module.md) §2.3、§2.4、§3.2、§4，缺口与任务包见 [分析模块审计](../../plans/analysis-audit.md) §1、§2.2、§5。
+`analytics/signals/` 是八族之上的横向派生层，不是第九个族。它只读取 `AnalysisContext` 与 `analyze_context` 的结果，把八族事实转成 `signal`，再派生 `problem`（AN-06）、关键时刻（AN-09）、会话结果（AN-19）和会话事实补字段（AN-02）。设计依据见 [分析模块设计](../../plans/analysis-module.md) §2.3、§2.4、§3.2、§4，缺口与任务包见 [分析模块审计](../../audits/analysis-audit.md) §1、§2.2、§5。
 
 版本：`rules_version = signals-v1.0`（[dictionary.py](../../../packages/backend/src/tandem_backend/analytics/signals/dictionary.py)）。词表、阈值或映射变化时必须同步提升版本号。
 

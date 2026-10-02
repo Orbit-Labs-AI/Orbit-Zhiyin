@@ -243,7 +243,7 @@ class Component extends DCLogic {
     const R = [
       ['默认 · 部署 Confluo 演示', 'var(--a1)', 'Confluo · 14:02 · 42m · 142 次工具', '完成', 'var(--good)', 90, 9, 1, false],
       ['选中 · 审阅 ICLR 稿件第 3 节', 'var(--a1)', 'latentskill · 10:20 · 1h08m · 96 次工具', '完成', 'var(--good)', 70, 2, 1, true],
-      ['运行中 · 设计 Tandem 视觉案例', 'var(--a1)', 'Hackathon · 15:12 · 运行中 18m', '运行中', 'var(--ink-2)', 50, 1, 0.6, false]
+      ['运行中 · 设计 Orbit 视觉案例', 'var(--a1)', 'Hackathon · 15:12 · 运行中 18m', '运行中', 'var(--ink-2)', 50, 1, 0.6, false]
     ];
     const rows = R.map(r => { const c = code(r[5], r[6], r[7]); return { t: r[0], c: r[1], m: r[2], o: r[3], oc: r[4], bar: c.d, err: c.x, bg: r[8] ? 'var(--bg)' : 'transparent', ring: r[8] ? 'inset 0 0 0 1.5px var(--ink-1)' : 'none' }; });
     const steps = [

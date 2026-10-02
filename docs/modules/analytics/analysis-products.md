@@ -116,7 +116,7 @@ uv run python scripts/validate_analysis_products.py \
 复用已有统一数据库生成报告，不再导入：
 
 ```sh
-uv run tandem --home /实际的Tandem数据目录 analysis-report \
+uv run tandem --home /实际的Orbit数据目录 analysis-report \
   --display-timezone Asia/Shanghai --output .local/ui-report
 ```
 
@@ -155,4 +155,4 @@ uv run tandem --home /实际的Tandem数据目录 analysis-report \
 | 长期偏好与人工纠错 | 当前仍限于本次筛选内的显式历史；窗口前背景补入、偏好冲突裁决、任务拆合与标签持久化需后续标注接口。 |
 | 隐含情绪和复杂主题 | 只提供保守规则与可选本地文本表示；不声称理解隐含情绪，不把无名称文本簇解释为人格。 |
 
-产品设计依据：[Lite 范围](../../design/lite-review.md)、[设计归属与画板索引](../../design/README.md)。这份文档记录当前代码能提供什么；新增产品范围仍由三位成员共同确认。
+产品设计依据：[Lite 范围](../../design/lite-review.md)、[设计归属](../../design/README.md)、[画板索引](../../design/boards.md)。这份文档记录当前代码能提供什么；新增产品范围仍由三位成员共同确认。
