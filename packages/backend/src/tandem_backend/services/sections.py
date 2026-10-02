@@ -151,13 +151,27 @@ def _compact_section(key: str) -> Compute:
     return compute
 
 
+def _summarised(body: dict, *nested: str) -> dict:
+    """Swap ``sample_boundary.files`` for count + digest (the list is /v1/analytics/sample_files)."""
+    from ..analytics.service import boundary_summary
+
+    body = dict(body)
+    if isinstance(body.get("sample_boundary"), dict):
+        body["sample_boundary"] = boundary_summary(body["sample_boundary"])
+    for key in nested:
+        if isinstance(body.get(key), dict):
+            body[key] = _summarised(body[key])
+    return body
+
+
 def _products(store, scope, params, memo):
     """Former synchronous gateway fallback; the gateway pages ``sessions`` of this body."""
     from ..analytics.products import analyze_product_store
 
-    return analyze_product_store(store, scope, bucket=params.get("bucket", "day"),
+    body = analyze_product_store(store, scope, bucket=params.get("bucket", "day"),
                                  with_text=bool(params.get("with_text")),
                                  compare_previous=bool(params.get("compare_previous")))
+    return _summarised(body)
 
 
 def _presentation(store, scope, params, memo):
@@ -172,7 +186,7 @@ def _presentation(store, scope, params, memo):
 
         result["bottleneck_recommendations"] = recommend(result, context={"agent": target},
                                                          family=family)
-    return build_presentation(result)
+    return _summarised(build_presentation(result))
 
 
 def _recommendations(store, scope, params, memo):
@@ -204,7 +218,8 @@ def _scope_comparison(store, scope, params, memo):
     from ..analytics.inputs import Scope
     from ..analytics.products.service import compare_scopes
 
-    return compare_scopes(store, Scope(**params["first"]), Scope(**params["second"]))
+    return _summarised(compare_scopes(store, Scope(**params["first"]), Scope(**params["second"])),
+                       "first", "second")
 
 
 def _catalog_requests(store, scope, params, memo):

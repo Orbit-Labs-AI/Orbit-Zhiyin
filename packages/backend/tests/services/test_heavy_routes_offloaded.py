@@ -77,6 +77,11 @@ def test_heavy_route_runs_in_supervised_worker(imported, section, method, path, 
     assert body["meta"]["freshness"] == "fresh"
     if key is not None:
         assert key in body
+    for boundary in (body.get("sample_boundary"), *(body.get(k, {}).get("sample_boundary")
+                                                    for k in ("first", "second")
+                                                    if isinstance(body.get(k), dict))):
+        if boundary:  # The file list is opt-in via /v1/analytics/sample_files.
+            assert "files" not in boundary and "file_count" in boundary
 
 
 def test_invalid_presentation_window_is_rejected_without_analysis(imported):
