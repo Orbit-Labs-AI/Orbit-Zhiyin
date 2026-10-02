@@ -28,7 +28,7 @@ def test_estimates_then_import_progress(gateway_factory, tmp_path):
 
     before = client.get("/v1/shell/onboarding").json()
     assert before["state"] == "onboarding"
-    assert before["settings"] == {"onboarded": False, "onboarding_step": None,
+    assert before["settings"] == {"onboarded": False, "onboarding_step": 0,
                                   "recent_days": 90}
     (source,) = before["sources"]
     assert source["est_sessions"] == FILES == source["files"] and source["estimate"] is True

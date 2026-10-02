@@ -40,6 +40,8 @@ def notes(client, kind=None):
 def test_weekly_report_skips_without_export_or_when_disabled(gateway_factory):
     _, gw = gateway_factory(started=False)
     monday = at(5, 10)
+    with gw.state.lock:
+        gw.state.state["settings"]["weekly_report"] = True  # Default is off.
     result = tasks.weekly_report(gw, monday)
     if tasks._export() is None:
         assert result == {"skipped": "export_unavailable", "week": "2026-W41"}
@@ -110,6 +112,8 @@ def test_weekly_report_with_export_stand_in(gateway_factory, monkeypatch):
     from types import SimpleNamespace
 
     client, gw = gateway_factory()
+    with gw.state.lock:
+        gw.state.state["settings"]["weekly_report"] = True  # Default is off.
     saved = []
     report = SimpleNamespace(
         DEFAULT_SECTIONS=("overview", "metrics", "persona"), SECTION_IDS=("overview", "metrics"),
