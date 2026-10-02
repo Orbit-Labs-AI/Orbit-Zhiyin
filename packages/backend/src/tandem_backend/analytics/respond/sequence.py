@@ -3,13 +3,19 @@
 from collections import Counter, defaultdict
 
 from ..common import human, ratio
-from .order import ordered_calls
+from .calls import native_sequence, ordered_call_group, sequence_sort_key
 from .rules import STATES, result_status
 
 
 def workflow(events, calls, main_ids, supported_kinds=None):
     sequences, transitions = defaultdict(list), Counter()
-    for e in sorted(events, key=lambda e: (e["session_uid"], e["seq"], e["event_uid"])):
+    valid_events = [e for e in events if native_sequence(e.get("seq"))]
+    ambiguous_sessions = {e["session_uid"] for e in events if not native_sequence(e.get("seq"))}
+    positions = Counter((e["session_uid"], e["seq"]) for e in valid_events)
+    ambiguous_sessions.update(sid for (sid, _), n in positions.items() if n > 1)
+    for e in sorted(valid_events, key=lambda e: sequence_sort_key(e, "event_uid")):
+        if e["session_uid"] in ambiguous_sessions:
+            continue
         state = "HUMAN_MESSAGE" if human(e, main_ids) else STATES.get(e["kind"])
         if state:
             sequences[e["session_uid"]].append((state, e["event_uid"]))
@@ -35,10 +41,19 @@ def workflow(events, calls, main_ids, supported_kinds=None):
     counts["rollback_rewind_count"] = (sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind") for e in events)
                                        if supported_kinds is None or "branch" in supported_kinds else None)
     consecutive, same, max_failures, digest_eligible = 0, 0, 0, 0
-    ordered_groups, order_unknown = ordered_calls(calls or [])
-    for group in ordered_groups:
+    by_session = defaultdict(list)
+    for c in calls or []:
+        by_session[c["session_uid"]].append(c)
+    unknown_call_sessions = []
+    order_unknown = 0
+    for sid, group in by_session.items():
+        ordered = ordered_call_group(group)
+        if ordered is None:
+            unknown_call_sessions.append(sid)
+            order_unknown += len(group)
+            continue
         previous, run = None, 0
-        for c in group:
+        for c in ordered:
             failed = c.get("status") == "failed" or bool(c.get("failed_command_results"))
             run = run + 1 if failed else 0
             max_failures = max(max_failures, run)
@@ -55,8 +70,9 @@ def workflow(events, calls, main_ids, supported_kinds=None):
             "repeated_transition_rate": ratio(repeated, count), "max_repeated_transition_run": runs,
             "transitions": [{"from": a, "to": b, "count": n, "probability": n / totals[a]}
                             for (a, b), n in sorted(transitions.items())],
-            "consecutive_failed_calls": consecutive if calls is not None and not order_unknown else None,
-            "max_consecutive_failure_run": max_failures if calls is not None and not order_unknown else None,
+            "consecutive_failed_calls": consecutive if calls is not None and not unknown_call_sessions else None,
+            "max_consecutive_failure_run": max_failures if calls is not None and not unknown_call_sessions else None,
+            "sequence_unknown_session_uids": sorted(unknown_call_sessions),
             "confirmed_same_argument_failed_retries": same if digest_eligible and not order_unknown else None,
             "retry_eligible_pairs": digest_eligible if calls is not None and not order_unknown else None,
             "order_unknown_n": order_unknown if calls is not None else None, "sequences": dict(sequences)}
@@ -64,8 +80,10 @@ def workflow(events, calls, main_ids, supported_kinds=None):
 
 def analyze_execution_sequence(calls):
     """Stricter retry links alongside the compatible v1 workflow counters."""
-    retries, failures = [], []
+    groups, retries, failures, unknown_sessions = defaultdict(list), [], [], []
+    order_unknown = 0
     for c in calls or []:
+        groups[c["session_uid"]].append(c)
         status = result_status(c)
         if status in ("failed", "rejected", "interrupted"):
             code = c.get("error_class") or c.get("failure_reason")
@@ -75,8 +93,12 @@ def analyze_execution_sequence(calls):
                              "failure_reason": code, "exit_code": c.get("exit_code"),
                              "status_scope": c.get("status_scope"), "source": "explicit_protocol",
                              "evidence_event_uid": c.get("result_event_uid")})
-    ordered_groups, order_unknown = ordered_calls(calls or [])
-    for ordered in ordered_groups:
+    for sid, group in groups.items():
+        ordered = ordered_call_group(group)
+        if ordered is None:
+            unknown_sessions.append(sid)
+            order_unknown += len(group)
+            continue
         prior, previous = {}, None
         for c in ordered:
             explicit = c.get("retry_of_call_uid")
@@ -103,5 +125,6 @@ def analyze_execution_sequence(calls):
             prior[c["call_uid"]], previous = c, c
     return {"retry_order_unknown_n": order_unknown if calls is not None else None,
             "retry_links": retries if calls is not None else None,
+            "retry_sequence_unknown_session_uids": sorted(unknown_sessions),
             "failure_reasons": failures if calls is not None else None,
             "failure_reason_unknown_n": sum(r["failure_reason"] is None for r in failures) if calls is not None else None}

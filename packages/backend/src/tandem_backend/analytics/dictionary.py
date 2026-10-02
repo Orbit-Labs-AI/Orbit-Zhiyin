@@ -4,6 +4,7 @@ from .cost_time.dictionary import FEATURES as COST_TIME_FEATURES
 from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES
 from .interaction.dictionary import FEATURES as INTERACTION_FEATURES
 from .outcome.dictionary import FEATURES as OUTCOME_FEATURES
+from .preference.dictionary import EVIDENCE_FEATURES as PREFERENCE_EVIDENCE_FEATURES
 from .preference.dictionary import FEATURES as PREFERENCE_FEATURES
 from .respond.dictionary import FEATURES as RESPOND_FEATURES
 from .task.dictionary import FEATURES as TASK_FEATURES
@@ -64,6 +65,7 @@ define("feedback_target", "delivery relation", "Explicit same-session delivery/a
 define("feedback_evidence", "evidence record", "event_uid, normalized redacted evidence_text, seq, ts and available_at; missing clock is sequence-only", "confirmed human event", kind="direct_observation")
 define("accepted_feedback_count rejected_feedback_count confirmed_completion_count confirmed_incompletion_count rework_feedback_count", "linked feedback message", "Count only linked explicit feedback in selected scope; not unique tasks, satisfaction or task success", "subjective_outcomes.feedback", "linked feedback messages", "proxy")
 FEATURES.update(PREFERENCE_FEATURES)
+FEATURES.update(PREFERENCE_EVIDENCE_FEATURES)
 FEATURES.update(TASK_FEATURES)
 # Family-owned definitions retain the established global lookup surface.
 FEATURES.update(INSTRUCTION_FEATURES)

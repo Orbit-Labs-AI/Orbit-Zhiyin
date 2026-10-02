@@ -96,6 +96,8 @@
 
 ## 对外接入
 
+`instruction-v1.1-format-values` 在原有 `format_requirements` 约束中增加 `format_values`（table／list／json／markdown）和 `format_relation`（single／combined／alternative／unknown）。原有 `value=format` 及当前任务控制语义不变，范围解析器也保持原规则。Preference 仅消费四类结构化字段作为较低等级历史证据，详见 [Preference 说明](../../../../../../docs/modules/analytics/preference.md)。
+
 - `GET /v1/analytics/instruction`：共享筛选、覆盖信息、本族版本、records 与 summary；不运行聚类。
 - 会话详情 `GET /v1/analytics/sessions/{id}`：`session.instruction`。
 - overview 的 `instruction` 和每个 project 的 `instruction`：同一筛选下的消息级汇总。

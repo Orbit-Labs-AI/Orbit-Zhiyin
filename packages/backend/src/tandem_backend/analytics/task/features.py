@@ -5,37 +5,55 @@ from collections import Counter, defaultdict
 
 from ...models import stable_id
 from ..common import chronological_messages, clauses, evidence, semantic_coverage, semantic_messages
-from .taxonomy import DOMAINS, TASK_TYPES, TAXONOMY_VERSION
+from .taxonomy import DOMAIN_DETAILS, DOMAIN_LABELS, TASK_TYPES, TAXONOMY_VERSION, domain_matches
 
 NEW_TASK = re.compile(r"^(?:好的[，, ]*)?(?:新任务|另一个任务|另外一个任务|换个任务|换一个任务|next task\b|new task\b)", re.I)
 REVISION = re.compile(r"^(?:请)?(?:目标改为|目标改成|改为|改成|修改目标|change the goal\b)", re.I)
 CLOSE = re.compile(r"^(?:这个)?任务(?:已经)?(?:结束|完成|取消)[了。.!！\s]*$|^(?:task complete|cancel this task)[.!\s]*$", re.I)
 PREFERENCE_ONLY = re.compile(r"^(?:我(?:更)?(?:喜欢|偏好|倾向)|以后|今后|始终|默认|从现在起|撤销|取消之前|i prefer\b|from now on\b|always\b)", re.I)
-NEGATIVE = re.compile(r"^(?:请)?(?:不要|不必|不用|无需|不需要|do not\b|don't\b|no need to\b)", re.I)
+NEGATIVE = re.compile(r"^(?:(?:请|please|也|并且|并)\s*)*(?:不要|不必|不用|无需|不需要|禁止|并非|不是|do not\b|don't\b|no need to\b|not\b)", re.I)
+REFERENCE = re.compile(r"^(?:任务标题|任务名称|会话标题|历史任务|历史记录|原文|引用|标题|他说|她说|例如|比如|假如|假设|如果|示例|(?:task\s+)?title\s*:|quote\s*:|for example\b|if\b)", re.I)
+STATUS = re.compile(r"^(?:(?:这个|该|本次|昨天|之前|刚刚|目前|现在|我们|我|他|她|they|we|i)\s*)*(?:已经|已|刚|曾|完成了|实现了|修复了|分析了|\b(?:have|has|had)\s+(?:already\s+)?|(?:implemented|fixed|created|analyzed|analysed|completed)\b)", re.I)
+STATUS_SUFFIX = re.compile(r"(?:已完成|已修复|已实现|已发布|(?:is|was|has been)\s+(?:completed|fixed|implemented|published))\s*[.。!！]*$", re.I)
+REQUEST = re.compile(r"请|帮我|需要你|希望你|能否|可以.{0,3}(?:吗|么)|怎么|如何|\b(?:please|could you|can you|how (?:to|do|can))\b", re.I)
 ARTIFACT = re.compile(r"(?<![\w.])(?:[\w.-]+/)*[\w.-]+\.(?:md|pdf|docx|tex|json|csv|xlsx|pptx|html|py|ts|js)\b|报告|文档|表格|脚本|讲义|\b(?:report|document|spreadsheet)\b", re.I)
 PRODUCE = re.compile(r"写|生成|创建|输出|交付|保存|导出|提供|\b(?:write|create|generate|deliver|export|save)\b", re.I)
 
 
 def request_clauses(text):
     """Do not classify forbidden actions, quoted material or enduring preferences as tasks."""
-    parts = [p.strip() for p in re.split(r"[，,]|\bbut\b", text, flags=re.I)]
-    return [c for part in parts for c in clauses(part) if not NEGATIVE.search(c) and not PREFERENCE_ONLY.search(c)
-            and not re.match(r"例如|比如|假如|假设|如果|示例|他说|她说|\b(?:if|for example)\b", c, re.I)]
+    text = re.sub(r'“[^”]*”|「[^」]*」|"[^"\n]*"|`[^`\n]*`', '', text)
+    parts = [p.strip() for p in re.split(r"[，,]|但是|但|而(?=不是)|\bbut\b", text, flags=re.I)]
+    return [c for part in parts for c in clauses(part)
+            if not NEGATIVE.search(c) and not PREFERENCE_ONLY.search(c) and not REFERENCE.search(c)
+            and not ((STATUS.search(c) or STATUS_SUFFIX.search(c)) and not REQUEST.search(c))]
 
 
 def extract_task_features(task_events):
-    labels = {"domain": {}, "task_type": {}}
-    artifacts, requests = {}, []
+    labels = {"domain": {}, "domain_details": {}, "task_type": {}}
+    artifacts, requests, detail_metadata = {}, [], {}
     for event in task_events:
         for clause in request_clauses(event["semantic_text"]):
             if CLOSE.fullmatch(clause):
                 continue
             found_action = False
-            for field, vocabulary in (("domain", DOMAINS), ("task_type", TASK_TYPES)):
-                for label, pattern in vocabulary.items():
-                    if re.search(pattern, clause, re.I):
-                        labels[field].setdefault(label, []).append(evidence(event, clause))
-                        found_action |= field == "task_type"
+            for label, pattern in TASK_TYPES.items():
+                if re.search(pattern, clause, re.I):
+                    labels["task_type"].setdefault(label, []).append(evidence(event, clause))
+                    found_action = True
+            # Bare topic mentions/status lines do not establish a current request.
+            # Vague follow-ups can still stay inside a task via segment_tasks.
+            if found_action or REQUEST.search(clause):
+                domains, details = domain_matches(clause)
+                for label in domains:
+                    labels["domain"].setdefault(label, []).append(evidence(event, clause))
+                for detail in details:
+                    identifier = detail["id"]
+                    detail_metadata[identifier] = {key: detail[key] for key in
+                                                   ("id", "label", "parent_id", "parent_label", "rule_id")}
+                    labels["domain_details"].setdefault(identifier, []).append({
+                        **evidence(event, clause), **{key: detail[key] for key in
+                        ("matched_terms", "match_basis", "context_term", "rule_id")}})
             if found_action:
                 requests.append((event, clause))
             verb = PRODUCE.search(clause)
@@ -52,10 +70,14 @@ def extract_task_features(task_events):
         if REVISION.search(clause):
             goal = clause
             history.append({"goal": goal, "evidence": evidence(event, clause)})
-    return {"domain": sorted(labels["domain"]) or None, "task_type": sorted(labels["task_type"]) or None,
+    return {"domain": sorted(labels["domain"]) or None,
+            "domain_details": [{**detail_metadata[identifier], "taxonomy_version": TAXONOMY_VERSION,
+                                "status": "candidate", "evidence": labels["domain_details"][identifier]}
+                               for identifier in sorted(detail_metadata)] or None,
+            "task_type": sorted(labels["task_type"]) or None,
             "task_title": goal[:60] if goal else None, "task_goal": goal,
             "task_goal_history": history, "expected_artifacts": list(artifacts.values()) or None,
-            "label_evidence": labels, "taxonomy_version": TAXONOMY_VERSION, "method": "lexical_rules",
+            "label_evidence": labels, "taxonomy_version": TAXONOMY_VERSION, "method": "contextual_hierarchical_rules",
             "semantic_status": "candidate" if goal else "unknown",
             "missing_reasons": [key for key in ("domain", "task_type") if not labels[key]]
                                + ([] if goal else ["goal_not_explicit"]) + ([] if artifacts else ["artifact_not_explicit"])}
@@ -118,18 +140,26 @@ def segment_tasks(events, sessions):
                         "human_evidence_ids": [e["event_uid"] for e in message_groups[key]],
                         "observed_message_count": len(message_groups[key])})
     return {"records": records, "task_by_event": assignments,
-            "coverage": semantic_coverage(events, messages), "family_version": "task-v1"}
+            "coverage": semantic_coverage(events, messages), "family_version": "task-v2"}
 
 
 def summarize_task_distribution(tasks, scope=None):
     if tasks is None:
-        return {"task_count": None, "domain": None, "task_type": None, "scope": scope}
+        return {"task_count": None, "domain": None, "domain_details": None, "task_type": None, "scope": scope}
     tasks = list({r["task_id"]: r for r in tasks}.values())
     out = {"task_count": len(tasks), "scope": scope, "counting": "distinct task_id; multi-label totals may exceed task_count"}
-    for field in ("domain", "task_type"):
-        counts = Counter(label for record in tasks for label in set(record[field] or []))
-        known = sum(bool(t[field]) for t in tasks)
+    for field in ("domain", "domain_details", "task_type"):
+        values = [{detail["id"] for detail in (record.get(field) or []) if isinstance(detail, dict) and detail.get("id")}
+                  if field == "domain_details" else set(record.get(field) or []) for record in tasks]
+        counts = Counter(label for labels in values for label in labels)
+        known = sum(bool(labels) for labels in values)
         out[field] = {"counts": dict(sorted(counts.items())), "effective_n": known,
                       "unknown_n": len(tasks) - known,
                       "rates": {k: v / known for k, v in sorted(counts.items())} if known else None}
+        if field == "domain_details":
+            out[field]["labels"] = {identifier: {"label": DOMAIN_DETAILS[identifier]["label"],
+                                    "parent_id": DOMAIN_DETAILS[identifier]["parent_id"],
+                                    "parent_label": DOMAIN_LABELS[DOMAIN_DETAILS[identifier]["parent_id"]]}
+                                    for identifier in sorted(counts) if identifier in DOMAIN_DETAILS}
+            out[field]["taxonomy_versions"] = sorted({t.get("taxonomy_version") or "unknown" for t in tasks})
     return out
