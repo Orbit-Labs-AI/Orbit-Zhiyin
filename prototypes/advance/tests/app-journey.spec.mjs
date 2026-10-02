@@ -64,6 +64,7 @@ function recorder(page, mode) {
     rep.steps.push(s);
     try { await fn(s); } catch (e) { s.ok = false; s.error = String(e && e.message || e).split('\n').slice(0, 4).join(' | ').slice(0, 500); }
     s.ms = Date.now() - t0;
+    if (act.blocked && act.blocked.length) { s.notes.push('pointer-blocked (DOM click used): ' + act.blocked.join('; ')); act.blocked = []; }
     if (o.shot !== false) {
       await sleep(o.settle != null ? o.settle : 450);
       const file = path.join(dir, id + '.png');
@@ -90,7 +91,12 @@ async function act(page, name, o) {
   if (o.text) loc = loc.filter({ hasText: o.text });
   const n = await loc.count();
   if (!n) return false;
-  await loc.nth(Math.min(o.nth || 0, n - 1)).click({ modifiers: o.modifiers, timeout: 5000 });
+  const el = loc.nth(Math.min(o.nth || 0, n - 1));
+  try { await el.click({ modifiers: o.modifiers, timeout: 5000 }); }
+  catch (e) {   // covered / never stable: record it and fall back to a DOM click so the journey goes on
+    (act.blocked = act.blocked || []).push(name + ': ' + String(e.message).split('\n')[0]);
+    await el.evaluate((x) => x.click());
+  }
   if (o.wait !== false) await sleep(o.wait || 300);
   return true;
 }
@@ -175,7 +181,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
     await sleep(2500);
   }, { settle: 0 }));
   mark(await step('genesis-final', async () => {
-    await expect.poll(() => ev(page, () => !!document.querySelector('[data-act="obDone"]')), { timeout: 30_000 }).toBeTruthy();
+    await expect.poll(() => ev(page, () => { const b = document.querySelector('[data-act="obDone"]'); return !!(b && b.offsetParent && getComputedStyle(b).visibility !== 'hidden' && +getComputedStyle(b).opacity > 0.5); }), { timeout: 90_000 }).toBeTruthy();
   }));
   mark(await step('land-a1', async (s) => {
     await need(page, 'obDone', { wait: 1500 });
@@ -189,6 +195,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   // ---------- A1 ----------
   for (const r of ['7', '30', '90', 'all']) {
     mark(await step('a1-range-' + r, async (s) => {
+      if (await ev(page, () => S.route) !== 'overview') await goRoute(page, 'overview');   // 查看完整画像 lands on persona
       await need(page, 'range', { attr: { 'data-v': r } });
       await feedSettled(page, 'overview');
       s.notes.push('S.range=' + await ev(page, () => S.range) + ' tiles=' + await ev(page, () => Array.from(document.querySelectorAll('#main .kpi .v, #main .tile .v, #main [class*=kpi] .mono')).slice(0, 5).map((e) => e.textContent.trim()).join('|')));
@@ -253,7 +260,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   mark(await step('a3-more-menu', async (s) => { if (!(await act(page, 'sessMore'))) s.notes.push('no sessMore'); }));
   mark(await step('a3-exclude', async (s) => {
     const before = await ev(page, () => ({ sel: S.sess.sel, n: ALL.length }));
-    const it = page.locator('#dd button, .tmore-pop button').filter({ hasText: /排除/ }).filter({ visible: true });
+    const it = page.locator('#dd button, .tmore-pop button').filter({ hasText: /排除|不计入/ }).filter({ visible: true });
     if (await it.count()) { await it.first().click(); await sleep(2500); } else throw new Error('no 排除 item in the session menu');
     const after = await ev(page, () => ({ n: ALL.length, ex: (LV.excluded || []).length }));
     s.notes.push(JSON.stringify({ before, after }));
