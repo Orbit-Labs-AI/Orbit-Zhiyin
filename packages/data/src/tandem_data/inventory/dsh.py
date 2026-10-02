@@ -74,12 +74,26 @@ def _entries(reader, entries, path, prefix="", depth=0):
                 reader.issue(path, ("scheduled_task",), "storage_root_unresolved")
 
 
-def _bundle(reader, root, name, seen, depth=0):
-    if depth > 5:
-        reader.issue(root, KINDS, "bundle_depth_limit")
-        return
+def _bundle(reader, root, name, seen, *, enabled=None):
     folder = local_path(reader, name, root / "node_modules", KINDS)
-    if folder is None or folder in seen:
+    if folder is None:
+        return
+    # Shipped bundles can live beside the DSH installation rather than the
+    # profile. Probe only named packages under explicitly authorized roots.
+    if not (folder / "package.json").exists():
+        for base in reader.allowed:
+            found = False
+            for candidate in (base / name, base / "node_modules" / name):
+                try:
+                    manifest = reader.safe(candidate / "package.json")
+                    if manifest.is_file():
+                        folder, found = candidate, True
+                        break
+                except (OSError, ValueError, RuntimeError):
+                    continue
+            if found:
+                break
+    if folder in seen:
         return
     seen.add(folder)
     path = folder / "package.json"
@@ -87,7 +101,8 @@ def _bundle(reader, root, name, seen, depth=0):
     if not doc:
         reader.issue(path, KINDS, "bundle_manifest_unavailable")
         return
-    reader.add("plugin", name, path, evidence="installed", raw=_source_bytes(doc))
+    before = set(reader.items)
+    reader.add("plugin", name, path, evidence="installed", enabled=enabled, raw=_source_bytes(doc))
     dsh = reader.mapping(doc, "dsh", path, KINDS)
     bundle = reader.mapping(dsh, "bundle", path, KINDS)
     if "patch" in bundle:
@@ -95,6 +110,10 @@ def _bundle(reader, root, name, seen, depth=0):
         if patch:
             _entries(reader, reader.document(patch, KINDS, expected=list, required=True), patch)
     skills(reader, folder / "skills")
+    for key in set(reader.items) - before:
+        reader.items[key]["config"]["plugin"] = name
+        if enabled is False:
+            reader.items[key]["enabled"] = 0
 
 
 def _profile(reader, root):
@@ -103,7 +122,8 @@ def _profile(reader, root):
     dsh = reader.mapping(doc, "dsh", path, ("plugin",))
     profile = reader.mapping(dsh, "profile", path, ("plugin",))
     seen = set()
-    for i, name in enumerate(array(reader, profile, "bundles", path, ("plugin",))):
+    bundles = array(reader, profile, "bundles", path, ("plugin",))
+    for i, name in enumerate(bundles):
         if isinstance(name, str):
             reader.add(
                 "plugin",
@@ -112,9 +132,18 @@ def _profile(reader, root):
                 f"bundles/{i}",
                 raw=_source_bytes(name),
             )
-            _bundle(reader, root, name, seen)
+            _bundle(reader, root, name, seen, enabled=True)
         else:
             reader.issue(path, ("plugin",), "invalid_bundle")
+    for name in reader.mapping(doc, "dependencies", path, ("plugin",)):
+        reader.add(
+            "plugin",
+            name,
+            path,
+            "dependencies/" + name,
+            config={"source_kind": "profile_dependency"},
+        )
+        _bundle(reader, root, name, seen, enabled=name in bundles)
     for filename in ("cordis.yml", "cordis.patch.yml"):
         path = root / filename
         _entries(reader, reader.document(path, KINDS, expected=list), path)
@@ -153,6 +182,6 @@ def dsh(reader, root):
         reader, [{"id": key, "config": value} for key, value in legacy.items()], path, "legacy"
     )
     _profile(reader, root)
-    for profile in reader.children(root / "profiles", KINDS):
+    for profile in reader.directories(root / "profiles", KINDS):
         _profile(reader, profile)
     _schedule(reader, root / "storages")

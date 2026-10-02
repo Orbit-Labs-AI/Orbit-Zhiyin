@@ -12,7 +12,7 @@ from tandem_data.store import Store, insert, readonly_connection
 from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
-SCANNER_VERSION = "1.1.1"
+SCANNER_VERSION = "1.2.0"
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,7 @@ class InventoryRequest:
     project_id: str | None = None
     allowed_roots: tuple[Path, ...] = ()
     claude_config: Path | None = None
+    skill_roots: tuple[Path, ...] = ()
 
 
 def scan_inventory(store: Store, request: InventoryRequest) -> dict:
@@ -37,7 +38,10 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
     if request.claude_config and request.agent != "claude_code":
         raise ValueError("claude_config requires claude_code")
     root = request.root.expanduser().resolve()
-    allowed = tuple(path.expanduser().resolve(strict=True) for path in request.allowed_roots)
+    allowed = tuple(
+        path.expanduser().resolve(strict=True)
+        for path in (*request.allowed_roots, *request.skill_roots)
+    )
     if any(store.home.is_relative_to(path) for path in (root, *allowed)):
         raise ValueError("Data home must be outside all inventory source roots")
     source_key = uid("inventory_source", request.agent, str(root), request.project_id)
@@ -50,6 +54,11 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
             ).fetchone()
         ):
             raise ValueError("Unknown project_id")
+        if request.skill_roots:
+            from .adapters import skills
+
+            for skill_root in request.skill_roots:
+                skills(reader, skill_root.expanduser().resolve())
         try:
             if not root.is_dir():
                 reader.issue(root, SUPPORTED[request.agent], "root_unavailable")

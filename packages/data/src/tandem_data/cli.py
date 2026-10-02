@@ -96,6 +96,7 @@ def main(argv=None):
     inventory.add_argument("--project-id")
     inventory.add_argument("--allow-root", action="append", type=Path, default=[])
     inventory.add_argument("--claude-config", type=Path)
+    inventory.add_argument("--skill-root", action="append", type=Path, default=[])
     commands.add_parser("inventory", help="Read latest installation observations")
     commands.add_parser("rebuild")
     bridge = commands.add_parser("import-connector")
@@ -116,7 +117,7 @@ def main(argv=None):
         parser.error("--home must be outside the Agent source root")
     if args.command == "scan-inventory" and any(
         Path(args.home).expanduser().resolve().is_relative_to(path.expanduser().resolve())
-        for path in args.allow_root
+        for path in (*args.allow_root, *args.skill_root)
     ):
         parser.error("--home must be outside every --allow-root")
     with Store(args.home) as store:
@@ -148,6 +149,7 @@ def main(argv=None):
                     project_id=args.project_id,
                     allowed_roots=tuple(args.allow_root),
                     claude_config=args.claude_config,
+                    skill_roots=tuple(args.skill_root),
                 ),
             )
         elif args.command == "inventory":

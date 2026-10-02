@@ -54,6 +54,12 @@ def test_pi_packages_extensions_skills_mcp_and_unknown_dynamic_hooks(tmp_path):
             "skills": ["./extra"],
         },
     )
+    write(
+        root,
+        "npm/node_modules/@example/tool/package.json",
+        {"name": "@example/tool", "pi": {"skills": []}},
+    )
+    write(root, "git/example.test/pkg/package.json", {"name": "pkg", "pi": {"skills": []}})
     write(root, "extra/review/SKILL.md", "private skill")
     write(root, "extensions/custom.ts", 'throw new Error("MUST NOT EXECUTE")')
     write(

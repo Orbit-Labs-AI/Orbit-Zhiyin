@@ -17,6 +17,7 @@ from tandem_data.privacy import redact
 KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task")
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ENTRIES = 10000
+EXCLUDED_DIRECTORIES = {".trash", ".git", "node_modules", "__pycache__"}
 
 
 class ScanReader:
@@ -35,6 +36,8 @@ class ScanReader:
 
     def safe(self, path: Path) -> Path:
         target = path.resolve()
+        if ".trash" in path.parts or ".trash" in target.parts:
+            raise ValueError("excluded_trash")
         if not any(target.is_relative_to(root) for root in self.allowed):
             raise ValueError("outside_allowed_roots")
         # Even explicitly allowed directories do not authorize credential inputs.
@@ -144,6 +147,19 @@ class ScanReader:
             )
         return []
 
+    def directories(self, path: Path, kinds):
+        """Directory-only layouts must not reinterpret sidecar files as packages."""
+        for child in self.children(path, kinds):
+            if child.name.startswith("."):
+                continue
+            try:
+                if self.safe(child).is_dir():
+                    yield child
+                elif child.is_symlink():
+                    self.issue(child, kinds, "broken_directory_link")
+            except (OSError, ValueError, RuntimeError):
+                self.issue(child, kinds, "unsafe_directory_path")
+
     def walk(self, path: Path, kinds, depth=5, ancestors=frozenset()):
         """No unrestricted home traversal; follow links only inside authorized roots."""
         try:
@@ -156,6 +172,8 @@ class ScanReader:
                     self.issue(path, kinds, "broken_or_non_directory_symlink")
                 return
             for child in self.children(path, kinds):
+                if child.name in EXCLUDED_DIRECTORIES:
+                    continue
                 try:
                     resolved = self.safe(child)
                     if resolved.is_dir():
@@ -169,6 +187,37 @@ class ScanReader:
                     self.issue(child, kinds, "unsafe_path")
         except (OSError, ValueError, RuntimeError):
             self.issue(path, kinds, "unsafe_path")
+
+    def skill_documents(self, path: Path, depth=5, ancestors=frozenset()):
+        """A SKILL.md marks a resource boundary, not a subtree to search for more skills."""
+        try:
+            target = self.safe(path)
+            if target in ancestors:
+                self.issue(path, ("skill",), "symlink_cycle")
+                return
+            if not target.is_dir():
+                if path.is_symlink():
+                    self.issue(path, ("skill",), "broken_or_non_directory_symlink")
+                return
+            entries = self.children(path, ("skill",))
+            document = path / "SKILL.md"
+            if document in entries:
+                yield document
+                return
+            for child in entries:
+                if child.name in EXCLUDED_DIRECTORIES:
+                    continue
+                try:
+                    resolved = self.safe(child)
+                    if resolved.is_dir():
+                        if depth:
+                            yield from self.skill_documents(child, depth - 1, ancestors | {target})
+                        else:
+                            self.issue(child, ("skill",), "depth_limit")
+                except (OSError, ValueError, RuntimeError):
+                    self.issue(child, ("skill",), "unsafe_path")
+        except (OSError, ValueError, RuntimeError):
+            self.issue(path, ("skill",), "unsafe_path")
 
     def add(
         self,

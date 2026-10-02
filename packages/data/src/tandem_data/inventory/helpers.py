@@ -38,7 +38,7 @@ def local_path(reader, value, base, kinds):
     return path
 
 
-def references(reader, values, path, kind, *, prefix="references"):
+def references(reader, values, path, kind, *, prefix="references", container=None):
     if not isinstance(values, list):
         reader.issue(path, (kind,), "invalid_references")
         return
@@ -68,10 +68,12 @@ def references(reader, values, path, kind, *, prefix="references"):
         if local is None:
             continue
         try:
-            if not reader.safe(local).exists():
+            if container is not None and not local.resolve().is_relative_to(container.resolve()):
+                reader.issue(path, (kind,), "component_outside_plugin")
+            elif not reader.safe(local).exists():
                 reader.issue(local, (kind,), "missing_reference")
-            elif kind == "skill" and local.name != "SKILL.md":
-                skills(reader, local)
+            elif kind == "skill":
+                skills(reader, local.parent if local.name == "SKILL.md" else local)
             else:
                 reader.file(local, kind)
         except OSError:

@@ -42,10 +42,15 @@ def _plugins(reader, root):
         if "skills" in manifest:
             values = manifest["skills"]
             references(
-                reader, [values] if isinstance(values, str) else values, manifest_path, "skill"
+                reader,
+                [values] if isinstance(values, str) else values,
+                manifest_path,
+                "skill",
+                container=folder,
             )
         else:
-            reader.file(folder / "SKILL.md", "skill", name=name)
+            if (folder / "SKILL.md").exists():
+                skills(reader, folder)
         if "systemPrompt" in manifest:
             reader.add(
                 "rule",
@@ -55,7 +60,9 @@ def _plugins(reader, root):
                 raw=_source_bytes(manifest["systemPrompt"]),
             )
         if "systemPromptPath" in manifest:
-            references(reader, [manifest["systemPromptPath"]], manifest_path, "rule")
+            references(
+                reader, [manifest["systemPromptPath"]], manifest_path, "rule", container=folder
+            )
         capabilities = reader.mapping(entry, "capabilities", path, ("mcp",))
         servers = reader.mapping(capabilities, "mcpServers", path, ("mcp",))
         for key in set(reader.items) - before:
@@ -120,7 +127,7 @@ def kimi(reader, root):
     _plugins(reader, root)
     # Enumerate only native directory levels. Never open task output or message bodies
     # except the bounded wire needed to fold authoritative cron additions/deletions.
-    for workdir in reader.children(root / "sessions", ("scheduled_task",)):
-        for session in reader.children(workdir, ("scheduled_task",)):
-            for agent in reader.children(session / "agents", ("scheduled_task",)):
+    for workdir in reader.directories(root / "sessions", ("scheduled_task",)):
+        for session in reader.directories(workdir, ("scheduled_task",)):
+            for agent in reader.directories(session / "agents", ("scheduled_task",)):
                 _cron(reader, agent)

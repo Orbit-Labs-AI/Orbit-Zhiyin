@@ -1,6 +1,7 @@
 """Hermes profile-local skills, plugin manifests, hooks and durable cron jobs."""
 
 from .adapters import _source_bytes, mcp, rules, skills
+from .components import plugin_components
 from .helpers import array, manifests, task
 from .reader import KINDS
 
@@ -21,9 +22,12 @@ def _profile(reader, root):
     enabled = array(reader, config, "enabled", path, ("plugin",))
     disabled = array(reader, config, "disabled", path, ("plugin",))
     for path in manifests(
-        reader, root / "plugins", ("plugin.yaml", "plugin.yml"), ("plugin", "hook", "skill")
+        reader,
+        root / "plugins",
+        ("plugin.yaml", "plugin.yml", "plugin.json"),
+        ("plugin", "hook", "skill", "mcp"),
     ):
-        manifest = reader.document(path, ("plugin", "hook", "skill"))
+        manifest = reader.document(path, ("plugin", "hook", "skill", "mcp"))
         if not manifest:
             continue
         name = str(path.parent.relative_to(root / "plugins"))
@@ -37,7 +41,17 @@ def _profile(reader, root):
         reader.add(
             "plugin", name, path, evidence="file", enabled=state, raw=_source_bytes(manifest)
         )
-        for i, event in enumerate(array(reader, manifest, "provides_hooks", path, ("hook",))):
+        if path.name == "plugin.json":
+            plugin_components(reader, path.parent, manifest, path, name, enabled=state)
+            mcp_path = path.parent / "mcp.json"
+            before_mcp = set(reader.items)
+            mcp(reader, reader.document(mcp_path, ("mcp",)), mcp_path)
+            for key in set(reader.items) - before_mcp:
+                reader.items[key]["config"]["plugin"] = name
+                if state is False:
+                    reader.items[key]["enabled"] = 0
+        hook_key = "provides_hooks" if "provides_hooks" in manifest else "hooks"
+        for i, event in enumerate(array(reader, manifest, hook_key, path, ("hook",))):
             if isinstance(event, str):
                 reader.add(
                     "hook",
@@ -56,7 +70,7 @@ def _profile(reader, root):
             reader.items[key]["config"]["plugin"] = name
             if state is False:
                 reader.items[key]["enabled"] = 0
-    for folder in reader.children(root / "hooks", ("hook",)):
+    for folder in reader.directories(root / "hooks", ("hook",)):
         path = folder / "HOOK.yaml"
         doc = reader.document(path, ("hook",))
         if doc:
@@ -79,5 +93,5 @@ def _profile(reader, root):
 
 def hermes(reader, root):
     _profile(reader, root)
-    for profile in reader.children(root / "profiles", KINDS):
+    for profile in reader.directories(root / "profiles", KINDS):
         _profile(reader, profile)

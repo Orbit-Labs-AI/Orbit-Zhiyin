@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import yaml
+
 from .reader import KINDS, ScanReader
 
 SUPPORTED = {
@@ -14,8 +16,8 @@ SUPPORTED = {
     "opencode": ("skill", "mcp", "plugin", "rule"),
     "claude_code": ("skill", "mcp", "hook", "plugin", "rule"),
     "common": ("skill", "rule"),
-    "project": ("skill", "mcp", "hook", "plugin", "rule"),
-    "claude_desktop": ("scheduled_task",),
+    "project": KINDS,
+    "claude_desktop": KINDS,
 }
 
 
@@ -51,7 +53,7 @@ def mcp(reader, doc, path, key="mcpServers", prefix="", project_path=None):
         )
 
 
-def hooks(reader, doc, path, *, disabled=False):
+def hooks(reader, doc, path, *, disabled=False, prefix=""):
     for event, groups in reader.mapping(doc, "hooks", path, ("hook",)).items():
         if not isinstance(groups, list):
             reader.issue(path, ("hook",), "invalid_hook_event")
@@ -68,7 +70,7 @@ def hooks(reader, doc, path, *, disabled=False):
                     "hook",
                     event,
                     path,
-                    f"hooks/{event}/{i}/{j}",
+                    f"{prefix}hooks/{event}/{i}/{j}",
                     enabled=False if disabled else hook.get("enabled"),
                     raw=_source_bytes(hook),
                     config={
@@ -81,18 +83,38 @@ def hooks(reader, doc, path, *, disabled=False):
 
 
 def skills(reader, directory, overrides=()):
-    for path in reader.walk(directory, ("skill",)):
-        if path.name != "SKILL.md":
+    for path in reader.skill_documents(directory):
+        raw = reader.read(path, ("skill",))
+        if raw is None:
             continue
+        name = path.parent.name
+        try:
+            text = raw.decode("utf-8-sig")
+            if text.startswith("---\n") and "\n---" in text[4:]:
+                header = text[4:].split("\n---", 1)[0]
+                if len(header) > 16384 or any(
+                    isinstance(e, yaml.AliasEvent) for e in yaml.parse(header)
+                ):
+                    raise ValueError
+                meta = yaml.safe_load(header)
+                if isinstance(meta, dict) and "name" in meta:
+                    if not isinstance(meta["name"], str) or not meta["name"].strip():
+                        raise ValueError
+                    name = meta["name"].strip()
+        except (ValueError, UnicodeError, yaml.YAMLError, RecursionError):
+            reader.issue(path, ("skill",), "invalid_skill_frontmatter")
         enabled = None
         for rule in overrides:
-            selector = rule.get("path")
-            selected = Path(selector).expanduser() if isinstance(selector, str) else None
-            if selected is not None and not selected.is_absolute():
-                selected = reader.root / selected
-            if rule.get("name") == path.parent.name or selected in (path, path.parent):
-                enabled = rule.get("enabled")
-        reader.file(path, "skill", name=path.parent.name, enabled=enabled)
+            try:
+                selector = rule.get("path")
+                selected = Path(selector).expanduser() if isinstance(selector, str) else None
+                if selected is not None and not selected.is_absolute():
+                    selected = reader.root / selected
+                if rule.get("name") == name or selected in (path, path.parent):
+                    enabled = rule.get("enabled")
+            except (OSError, ValueError, RuntimeError):
+                reader.issue(path, ("skill",), "invalid_skill_selector")
+        reader.add("skill", name, path, enabled=enabled, evidence="file", raw=raw)
 
 
 def rules(reader, root, names, directory="rules"):
@@ -105,9 +127,9 @@ def rules(reader, root, names, directory="rules"):
 
 def plugin_cache(reader, root, configured):
     components = ("plugin", "skill", "mcp", "hook")
-    for market in reader.children(root / "plugins/cache", components):
-        for plugin in reader.children(market, components):
-            for version in reader.children(plugin, components):
+    for market in reader.directories(root / "plugins/cache", components):
+        for plugin in reader.directories(market, components):
+            for version in reader.directories(plugin, components):
                 manifest = version / ".codex-plugin/plugin.json"
                 doc = reader.document(manifest, components)
                 if not doc:
@@ -128,21 +150,11 @@ def plugin_cache(reader, root, configured):
                     config={"version": version.name},
                     raw=_source_bytes(doc),
                 )
-                skills(reader, version / "skills")
-                mcp(reader, reader.document(version / ".mcp.json", ("mcp",)), version / ".mcp.json")
-                hooks(
-                    reader,
-                    reader.document(version / "hooks/hooks.json", ("hook",)),
-                    version / "hooks/hooks.json",
-                    disabled=enabled is False,
+                from .components import plugin_components
+
+                plugin_components(
+                    reader, version, doc, manifest, key, enabled=enabled, evidence="cached"
                 )
-                # Components are cache observations too; no effective enablement inference.
-                for item in reader.items.values():
-                    if Path(item["config_path"]).is_relative_to(version):
-                        item["evidence"] = "cached"
-                        item["config"]["plugin"] = key
-                        if enabled is False:
-                            item["enabled"] = 0
 
 
 def codex(reader: ScanReader, root: Path):
@@ -160,12 +172,27 @@ def codex(reader: ScanReader, root: Path):
             continue
         reader.add(
             "skill",
-            rule.get("name") or Path(str(rule.get("path", "unknown"))).name,
+            rule.get("name")
+            or (
+                Path(str(rule.get("path", "unknown"))).parent.name
+                if Path(str(rule.get("path", ""))).name == "SKILL.md"
+                else Path(str(rule.get("path", "unknown"))).name
+            ),
             path,
             f"skills/config/{i}",
             enabled=rule.get("enabled"),
             raw=_source_bytes(rule),
         )
+    from .helpers import local_path
+
+    for rule in config:
+        if isinstance(rule.get("path"), str):
+            target = local_path(reader, rule["path"], root, ("skill",))
+            if target:
+                if target.exists():
+                    skills(reader, target.parent if target.name == "SKILL.md" else target, config)
+                else:
+                    reader.issue(path, ("skill",), "missing_reference")
     rules(reader, root, ("AGENTS.md", "AGENTS.override.md"))
     plugins = reader.mapping(doc, "plugins", path, ("plugin",))
     for name, value in plugins.items():
@@ -184,7 +211,7 @@ def codex(reader: ScanReader, root: Path):
     hook_path = root / "hooks.json"
     hooks(reader, reader.document(hook_path, ("hook",)), hook_path)
     hooks(reader, doc, path)
-    for task in reader.children(root / "automations", ("scheduled_task",)):
+    for task in reader.directories(root / "automations", ("scheduled_task",)):
         task_path = task / "automation.toml"
         task_doc = reader.document(task_path, ("scheduled_task",))
         if task_doc:
@@ -251,13 +278,48 @@ def claude(reader: ScanReader, root: Path):
                     ),
                 },
             )
+    from .components import COMPONENT_KINDS, plugin_components
+    from .helpers import local_path
+
+    for name, entries in reader.mapping(doc, "plugins", path, ("plugin",)).items():
+        for entry in entries if isinstance(entries, list) else []:
+            if not isinstance(entry, dict) or "installPath" not in entry:
+                continue
+            folder = local_path(reader, entry["installPath"], root, COMPONENT_KINDS)
+            if folder and not folder.is_relative_to(root / "plugins/cache"):
+                manifest_path = folder / ".claude-plugin/plugin.json"
+                manifest = reader.document(manifest_path, COMPONENT_KINDS, required=True)
+                if manifest:
+                    plugin_components(
+                        reader, folder, manifest, manifest_path, name, enabled=plugins.get(name)
+                    )
     plugin_cache(reader, root, plugins)
+    from .claude_desktop import synced_plugins
+
+    synced_plugins(reader, root / "plugins/synced", plugins)
     # The account-bearing ~/.claude.json is NOT implicitly read beside an approved root.
     path = root / ".mcp.json"
     mcp(reader, reader.document(path, ("mcp",)), path)
 
 
 def project(reader: ScanReader, root: Path):
+    from .dsh import dsh
+    from .kimi import kimi
+    from .native import opencode, pi
+
+    opencode(reader, root, config_only=True)
+    for directory, adapter in (
+        (".pi", pi),
+        (".opencode", opencode),
+        (".kimi-code", kimi),
+        (".dsh", dsh),
+    ):
+        path = root / directory
+        try:
+            if reader.safe(path).is_dir():
+                adapter(reader, path)
+        except (OSError, ValueError, RuntimeError):
+            reader.issue(path, KINDS, "unsafe_project_config_root")
     claude(reader, root / ".claude")
     codex_root = root / ".codex"
     path = codex_root / "config.toml"
@@ -282,27 +344,9 @@ def project(reader: ScanReader, root: Path):
 
 
 def desktop(reader: ScanReader, root: Path):
-    # Bounded walk only under the explicitly selected desktop session directory.
-    for path in reader.walk(root, ("scheduled_task",)):
-        if path.name != "scheduled-tasks.json":
-            continue
-        doc = reader.document(path, ("scheduled_task",))
-        tasks = doc.get("tasks")
-        if not isinstance(tasks, list):
-            reader.issue(path, ("scheduled_task",), "unsupported_task_layout")
-            continue
-        for i, task in enumerate(tasks):
-            if not isinstance(task, dict):
-                reader.issue(path, ("scheduled_task",), "invalid_task")
-                continue
-            reader.add(
-                "scheduled_task",
-                task.get("name", task.get("id", str(i))),
-                path,
-                f"tasks/{i}",
-                enabled=task.get("enabled"),
-                raw=_source_bytes(task),
-            )
+    from .claude_desktop import scan_desktop
+
+    scan_desktop(reader, root)
 
 
 def scan_layout(reader: ScanReader, agent: str):
