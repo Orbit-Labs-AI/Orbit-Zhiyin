@@ -16,7 +16,9 @@ from tandem_backend.recommend.catalog import load_catalog
 from tandem_backend.recommend.service import recommend
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_HOME = ROOT / ".local/backend-nine-hour/p0-data"
+DEFAULT_HOME = ROOT / ".local/backend-nine-hour/current-data"
+if not (DEFAULT_HOME / "tandem.db").is_file():
+    DEFAULT_HOME = ROOT / ".local/backend-nine-hour/p0-data"
 DEFAULT_CATALOG = ROOT / "evals/recommendation/fixtures/reviewed-skills.json"
 
 

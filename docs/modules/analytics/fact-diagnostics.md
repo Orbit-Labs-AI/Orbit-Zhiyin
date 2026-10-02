@@ -10,7 +10,7 @@ Orbit 的诊断输出把八个特征族的输入数量、有效观察、未知�
 bash scripts/check-feature-diagnostics.sh
 ```
 
-命令直接在终端输出，不依赖 `uv`，不调用模型，也不重新扫描或导入来源。默认读取 `.local/backend-nine-hour/p0-data/tandem.db`；这是本机验收快照的位置，其他机器需显式指定已经导入的 canonical 数据目录：
+命令直接在终端输出，不依赖 `uv`，不调用模型，也不重新扫描或导入来源。默认优先读取 `.local/backend-nine-hour/current-data/tandem.db`，没有该目录时使用 `.local/backend-nine-hour/p0-data/tandem.db`；这些是本机验收快照的位置，其他机器需显式指定已经导入的 canonical 数据目录：
 
 ```sh
 bash scripts/check-feature-diagnostics.sh --home /path/to/canonical-home --days 7
