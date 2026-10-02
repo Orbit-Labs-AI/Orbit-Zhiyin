@@ -1,0 +1,196 @@
+"""Build Orbit.app: native Swift host + frozen tandem-helper gateway + single-file Advance UI.
+
+Usage (from the repository root, after ``bash scripts/bootstrap.sh``):
+
+    uv run python apps/desktop/build.py            # full build -> .local/macos-build/
+    uv run python apps/desktop/build.py --skip-helper   # reuse the last PyInstaller output
+
+Outputs in ``.local/macos-build/``: ``Orbit.app``, ``Orbit-0.0.1-arm64.zip`` and
+``Orbit-0.0.1-arm64.dmg``. Signing is ad-hoc unless ``TANDEM_SIGN_IDENTITY`` names a
+Developer ID identity; ``TANDEM_NOTARY_PROFILE`` additionally notarizes and staples.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import plistlib
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+HERE = ROOT / "apps/desktop"
+OUTPUT = ROOT / ".local/macos-build"
+NAME = "Orbit"
+VERSION = "0.0.1"
+BUILD = "1"
+BUNDLE_ID = "ai.actionmesh.orbit"
+APP = OUTPUT / f"{NAME}.app"
+ARTIFACT = f"{NAME}-{VERSION}-arm64"
+LOGO = ROOT / "docs/design/logo"
+PYINSTALLER = "pyinstaller==6.22.3"
+
+COLLECT_ALL = ["tandem_backend", "tandem_data", "tandem_catalog", "jieba"]
+COLLECT_DATA = ["jsonschema_specifications"]
+COPY_METADATA = ["tandem-backend", "tandem-data", "tandem-catalog", "scikit-learn", "numpy",
+                 "scipy", "jieba", "fastapi", "pydantic", "uvicorn", "jsonschema"]
+HIDDEN_IMPORTS = ["uvicorn.logging", "uvicorn.loops", "uvicorn.loops.auto", "uvicorn.protocols",
+                  "uvicorn.protocols.http", "uvicorn.protocols.http.auto",
+                  "uvicorn.protocols.http.h11_impl", "uvicorn.protocols.websockets",
+                  "uvicorn.protocols.websockets.auto", "uvicorn.lifespan", "uvicorn.lifespan.on",
+                  "tandem_backend.services.worker_ingest", "tandem_backend.services.worker_analysis",
+                  "tandem_backend.services.gateway", "tandem_backend.api.routes"]
+EXCLUDES = ["tkinter", "matplotlib", "IPython", "pytest", "onnxruntime", "tokenizers", "torch"]
+
+
+def run(*args, **kwargs):
+    print("+", " ".join(map(str, args)), flush=True)
+    subprocess.run(list(map(str, args)), cwd=ROOT, check=True, **kwargs)
+
+
+def build_ui(resources: Path) -> None:
+    """Single-file Advance UI (Lite is a sidebar switch inside it)."""
+    run("node", "prototypes/advance/build.mjs", "--out", resources / "orbit.html")
+
+
+def build_helper() -> Path:
+    args = ["uv", "run", "--with", PYINSTALLER, "pyinstaller", "--noconfirm", "--clean",
+            "--name", "tandem-helper", "--onedir", "--console",
+            "--distpath", OUTPUT / "dist", "--workpath", OUTPUT / "work", "--specpath", OUTPUT,
+            "--target-arch", "arm64", "--osx-bundle-identifier", f"{BUNDLE_ID}.helper"]
+    for name in COLLECT_ALL:
+        args += ["--collect-all", name]
+    for name in COLLECT_DATA:
+        args += ["--collect-data", name]
+    for name in COPY_METADATA:
+        args += ["--copy-metadata", name]
+    for name in HIDDEN_IMPORTS:
+        args += ["--hidden-import", name]
+    for name in EXCLUDES:
+        args += ["--exclude-module", name]
+    run(*args, HERE / "server_entry.py")
+    return OUTPUT / "dist/tandem-helper"
+
+
+def build_host(contents: Path) -> None:
+    run("xcrun", "swiftc", "-O", "-target", "arm64-apple-macos15.0", "-framework", "AppKit",
+        "-framework", "WebKit", "-framework", "Security", HERE / "Orbit.swift",
+        "-o", contents / f"MacOS/{NAME}")
+
+
+def _mark(file: str) -> tuple[str, str | None, str | None]:
+    svg = (LOGO / file).read_text(encoding="utf-8")
+    group = re.search(r'<g fill="[^"]*"(?: transform="([^"]*)")?>([\s\S]*?)</g>', svg)
+    tile = re.search(r"<rect[^>]*/>", svg)
+    if not group:
+        raise SystemExit(f"{file}: no <g> with the mark")
+    return group.group(2), group.group(1), tile.group(0) if tile else None
+
+
+def small_icon_svg() -> str:
+    """The icon tile with the logo's small rendition (heavier strokes), exactly as
+    prototypes/advance/tools/brand-icon.mjs composes appIcon(px < 128)."""
+    _, transform, tile = _mark("orbit-icon.svg")
+    small, _, _ = _mark("orbit-mark-small.svg")
+    if not transform or not tile:
+        raise SystemExit("orbit-icon.svg: missing tile or mark transform")
+    ink = re.search(r'<g fill="([^"]*)"', (LOGO / "orbit-icon.svg").read_text()).group(1)
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" '
+            f'height="1024">{tile}<g fill="{ink}" transform="{transform}">{small}</g></svg>')
+
+
+def build_icon(resources: Path) -> None:
+    """Orbit.icns from the published artwork, rendered verbatim (never redrawn)."""
+    work = OUTPUT / "icon"
+    shutil.rmtree(work, ignore_errors=True)
+    iconset = work / "Orbit.iconset"
+    iconset.mkdir(parents=True)
+    renderer = work / "render_svg"
+    run("xcrun", "swiftc", "-O", HERE / "render_svg.swift", "-o", renderer)
+    small = work / "orbit-icon-small.svg"
+    small.write_text(small_icon_svg(), encoding="utf-8")
+    for points in (16, 32, 128, 256, 512):
+        for scale in (1, 2):
+            px = points * scale
+            name = f"icon_{points}x{points}{'@2x' if scale == 2 else ''}.png"
+            target = iconset / name
+            if px == 1024:
+                shutil.copy2(LOGO / "orbit-icon.png", target)
+            else:  # < 128 px: the small rendition, as brand-icon.mjs does.
+                run(renderer, small if px < 128 else LOGO / "orbit-icon.svg", target, px)
+    run("iconutil", "-c", "icns", iconset, "-o", resources / f"{NAME}.icns")
+
+
+def write_plist(contents: Path) -> None:
+    with (contents / "Info.plist").open("wb") as handle:
+        plistlib.dump({
+            "CFBundleName": NAME,
+            "CFBundleDisplayName": NAME,
+            "CFBundleIdentifier": BUNDLE_ID,
+            "CFBundleExecutable": NAME,
+            "CFBundleIconFile": NAME,
+            "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": VERSION,
+            "CFBundleVersion": BUILD,
+            "CFBundleDevelopmentRegion": "zh_CN",
+            "LSMinimumSystemVersion": "15.0",
+            "LSApplicationCategoryType": "public.app-category.developer-tools",
+            "NSHighResolutionCapable": True,
+            "NSHumanReadableCopyright": "ActionMesh AI",
+            "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
+        }, handle)
+
+
+def sign(identity: str) -> None:
+    flags = [] if identity == "-" else ["--options", "runtime", "--timestamp"]
+    run("codesign", "--force", "--deep", "--sign", identity, *flags, APP)
+    run("codesign", "--verify", "--deep", "--strict", "--verbose=2", APP)
+
+
+def package() -> None:
+    archive = OUTPUT / f"{ARTIFACT}.zip"
+    archive.unlink(missing_ok=True)
+    run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", APP, archive)
+    dmg = OUTPUT / f"{ARTIFACT}.dmg"
+    dmg.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(dir=OUTPUT) as stage:
+        run("ditto", APP, Path(stage) / APP.name)
+        os.symlink("/Applications", Path(stage) / "Applications")
+        run("hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-ov", "-format", "UDZO", dmg)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--skip-helper", action="store_true", help="reuse .local/macos-build/dist")
+    args = parser.parse_args()
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    helper = OUTPUT / "dist/tandem-helper" if args.skip_helper else build_helper()
+    if not (helper / "tandem-helper").exists():
+        raise SystemExit(f"missing helper build at {helper}")
+    shutil.rmtree(APP, ignore_errors=True)
+    contents = APP / "Contents"
+    (contents / "MacOS").mkdir(parents=True)
+    resources = contents / "Resources"
+    resources.mkdir()
+    shutil.copytree(helper, resources / "backend", symlinks=True)
+    build_ui(resources)
+    build_icon(resources)
+    build_host(contents)
+    write_plist(contents)
+    identity = os.environ.get("TANDEM_SIGN_IDENTITY", "-")
+    sign(identity)
+    profile = os.environ.get("TANDEM_NOTARY_PROFILE")
+    if profile and identity != "-":
+        notarize = OUTPUT / f"{ARTIFACT}-notarize.zip"
+        run("ditto", "-c", "-k", "--keepParent", APP, notarize)
+        run("xcrun", "notarytool", "submit", notarize, "--keychain-profile", profile, "--wait")
+        run("xcrun", "stapler", "staple", APP)
+    package()
+    print(APP)
+
+
+if __name__ == "__main__":
+    main()
