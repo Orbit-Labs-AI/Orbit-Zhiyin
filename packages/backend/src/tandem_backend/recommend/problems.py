@@ -33,6 +33,7 @@ MIN_SESSIONS, MIN_WILSON_LO, MIN_DENOMINATOR = 3, .05, 5
 # heterogeneous heavy user (390 sessions over many projects) is not held to a 5 % share.
 REF_N, FLOOR_WILSON_LO = 60, .01
 MAX_IDS = 50
+MIN_READONLY_PROMPTS = 2
 # Inventory facts (unused / resident) are measurements, not k-of-n recurrences: a fixed
 # confidence instead of a Wilson bound whose numerator equals its denominator.
 INVENTORY_CONFIDENCE = {"resident_cost": .8, "installed_unused": .5}
@@ -261,13 +262,19 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         a.n = max(main, len(assessed.get(a.type, ())), a.k)
 
     facts = inputs.get("facts") or {}
-    prompts = facts.get("readonly_prompts") or []
+    every = facts.get("readonly_prompts") or []
+    # Allowed prompts only; a head the user ever denied is no allow-list candidate (a4a6-B8).
+    denied = facts.get("readonly_denied") or {}
+    prompts = [row for row in every if not row.get("denied") and not denied.get(row.get("command_head"))
+               and int(row.get("count") or 0) >= MIN_READONLY_PROMPTS]
     if prompts:
         a = acc("permission_friction", "would_prompt:readonly_shell")
         ranked = sorted(prompts, key=lambda row: (-int(row.get("count") or 0), str(row.get("command_head"))))
         for row in ranked:
             a.add_ids(a.sessions, row.get("session_uids") or ())
-        a.k = int(facts.get("readonly_prompt_sessions") or max((row.get("sessions") or 0) for row in prompts))
+        widest = max(int(row.get("sessions") or 0) for row in prompts)
+        a.k = (int(facts.get("readonly_prompt_sessions") or widest) if len(prompts) == len(every)
+               else max(widest, len({u for row in prompts for u in row.get("session_uids") or ()})))
         a.n = max(main, a.k)
         a.weekly = sum(int(row.get("count") or 0) for row in prompts)
         a.unit = "次审批"
