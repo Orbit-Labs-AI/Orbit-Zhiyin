@@ -16,9 +16,23 @@ import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
 const WIDTHS = [360, 720, 1200];
+// Resolve a CSS custom property to the colour the browser paints for it ("rgb(…)"), through a probe element inside `sel`
+// (--vz-* tokens live on .vz). Colour assertions compare against these instead of literal values, so a theme tweak in
+// 00-base.css / 36-viz.css cannot break the tests while a chart that stops reading the token still fails.
+const cssColor = (page, name, sel) => page.evaluate(([n, s]) => {
+  const host = (s && document.querySelector(s)) || document.body;
+  const defined = getComputedStyle(host).getPropertyValue(n).trim() !== '';
+  const p = document.createElement('i'); p.style.color = 'var(' + n + ')'; host.appendChild(p);
+  const c = getComputedStyle(p).color; p.remove();
+  return defined ? c : null;
+}, [name, sel || null]);
+const RGB = /^rgba?\(\d+, \d+, \d+(, 0?\.\d+)?\)$/;
 
 async function openGallery(page) {
   const errors = await openDemo(page);
+  // zoom the window: the content column is then ≥ 744px at every project, so a 720px lab mount never runs under the
+  // window's resize handles, and the chart tests stay independent of the shell's default window placement
+  await page.evaluate(() => { S.win.zoom = true; applyWin(); });
   await go(page, 'vizkit');
   await expect(page.locator('#content .vz[data-vz="line"] svg.vz-svg')).toBeVisible();
   return errors;
@@ -164,16 +178,19 @@ test('empty data and low samples show their states', async ({ page }) => {
 test('dark mode resolves series and text colors from the theme variables', async ({ page }) => {
   await openGallery(page);
   await mountOne(page, 'bar', 720);
+  // the first series is the first agent hue (--a1), axis ticks are the tertiary ink (--ink-3) — in both themes
   const read = () => page.evaluate(() => { const el = document.querySelector('#vzLab .vz[data-lab="bar"]'); return { bar: getComputedStyle(el.querySelector('path.vz-bar[data-s="0"]')).fill, ax: getComputedStyle(el.querySelector('text.vz-ax')).fill }; });
+  const want = async () => ({ bar: await cssColor(page, '--a1'), ax: await cssColor(page, '--ink-3') });
   await page.evaluate(() => { setTheme('light'); });
-  const light = await read();
-  expect(light.bar).toBe('rgb(226, 96, 43)');
-  expect(light.ax).toBe('rgb(98, 102, 111)');
+  const light = await read(), lightWant = await want();
+  expect(light).toEqual(lightWant);
   await page.evaluate(() => { setTheme('dark'); });
-  const dark = await read();
-  expect(dark.bar).toBe('rgb(217, 89, 38)');
-  expect(dark.ax).toBe('rgb(154, 158, 167)');
+  const dark = await read(), darkWant = await want();
+  expect(dark).toEqual(darkWant);
   await page.evaluate(() => { setTheme('system'); });
+  // real colours, and the dark theme retunes both tokens (otherwise the equalities above would prove nothing)
+  for (const c of [light.bar, light.ax, dark.bar, dark.ax]) expect(c).toMatch(RGB);
+  expect(dark.bar).not.toBe(light.bar); expect(dark.ax).not.toBe(light.ax);
 });
 
 test('table view has one row per datum and switches in place', async ({ page }) => {
@@ -297,14 +314,19 @@ test('hatch, deadband, mood ramp and semantic tokens render from the theme', asy
   const sc = await page.evaluate(() => Array.from(document.querySelectorAll('#vzLab .vz[data-lab="heat-mood"] .vz-scale i')).map((i) => getComputedStyle(i).backgroundColor));
   expect(sc).toHaveLength(6); expect(new Set(sc).size).toBe(6);
   await mountOne(page, 'tl-dense', 720);
+  // failed calls = --vz-err (the shell's critical status marker), correction markers = --vz-corr, the now marker = --vz-accent
   const read = () => page.evaluate(() => { const el = window.__vzInst.el; return { err: getComputedStyle(el.querySelector('.vz-dens-err')).fill, corr: getComputedStyle(el.querySelector('.vz-marker.alert rect')).fill, now: getComputedStyle(el.querySelector('.vz-now line')).stroke }; });
+  const want = async () => ({ err: await cssColor(page, '--vz-err', '#vzLab .vz'), corr: await cssColor(page, '--vz-corr', '#vzLab .vz'), now: await cssColor(page, '--vz-accent', '#vzLab .vz') });
   await page.evaluate(() => setTheme('light'));
-  const light = await read();
+  const light = await read(), lightWant = await want(), critLight = await cssColor(page, '--crit-m');
   await page.evaluate(() => setTheme('dark'));
-  const dark = await read();
+  const dark = await read(), darkWant = await want();
   await page.evaluate(() => setTheme('system'));
-  expect(light.err).toBe('rgb(208, 59, 59)'); expect(light.corr).toBe('rgb(200, 130, 11)'); expect(light.now).toBe('rgb(10, 132, 255)');
-  expect(dark.corr).toBe('rgb(224, 160, 48)');
+  expect(light).toEqual(lightWant); expect(dark).toEqual(darkWant);
+  for (const c of [...Object.values(light), ...Object.values(dark)]) expect(c).toMatch(RGB);
+  expect(light.err).toBe(critLight);                                       // one colour, one meaning: error = the status crit marker
+  expect(new Set([light.err, light.corr, light.now]).size).toBe(3);        // and the three semantics never collapse into one hue
+  expect(dark.corr).not.toBe(light.corr); expect(dark.now).not.toBe(light.now);   // amber and the accent are retuned for dark
 });
 
 test('kpi delta shows direction, magnitude and the previous value', async ({ page }) => {
