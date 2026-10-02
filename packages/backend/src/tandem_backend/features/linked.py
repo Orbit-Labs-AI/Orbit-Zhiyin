@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sqlite3
 import threading
@@ -147,8 +148,8 @@ def _catalog(conn, rev) -> dict | None:
             body = json.loads(row["metadata"] or "{}").get("body_sha256")
         except (ValueError, AttributeError):
             body = None
-        if body:
-            by_hash.setdefault(body, item)
+        if isinstance(body, str) and body:  # raw-byte sha256 hex, optionally "sha256:"-prefixed
+            by_hash.setdefault(body.removeprefix("sha256:").lower(), item)
     index = {"name": by_name, "hash": by_hash, "id": by_id}
     with _lock:
         for stale in [k for k in _catalog_cache if k[0] == path]:
@@ -174,6 +175,47 @@ def _match(item, catalog) -> tuple[dict, str, float] | None:
             if hit is not None:
                 return hit, "alias", 0.6
     return None
+
+
+def _ledger(conn, items, catalog) -> dict[str, str]:
+    """inv_id -> catalog item id for components Tandem installed from the catalog.
+
+    Uses explicit ``inv_id``/``catalog_item_id`` ledger columns when present; otherwise joins
+    install's real tables: live ``install_state`` rows with ``source_type='catalog'`` and the
+    paths their ``install`` ledger entries wrote. A shared config file (e.g. several MCP
+    servers in one JSON) only links when the catalog name matches the component.
+    """
+    if _has(conn, "main", "install_ledger", ("inv_id", "catalog_item_id")):
+        return {r[0]: r[1] for r in conn.execute(
+            "SELECT inv_id, catalog_item_id FROM main.install_ledger "
+            "WHERE inv_id IS NOT NULL AND catalog_item_id IS NOT NULL ORDER BY rowid")}
+    if not (_has(conn, "main", "install_ledger", ("path",))
+            and _has(conn, "main", "install_state", ("source_type", "source_id", "state"))):
+        return {}
+    by_path: dict[str, set[str]] = {}
+    for path, item_id in conn.execute(
+            "SELECT l.path, s.source_id FROM main.install_ledger l "
+            "JOIN main.install_state s ON s.install_id = l.install_id "
+            "WHERE l.action = 'install' AND l.path IS NOT NULL AND s.source_type = 'catalog' "
+            "AND s.source_id IS NOT NULL AND s.state != 'reverted'"):
+        by_path.setdefault(_norm_path(path), set()).add(item_id)
+    out = {}
+    for item in items:
+        ids = by_path.get(_norm_path(item["config_path"]))
+        if not ids:
+            continue
+        if len(ids) == 1:
+            out[item["inv_id"]] = next(iter(ids))
+            continue
+        known = (catalog or {}).get("id", {})
+        named = [i for i in sorted(ids) if i in known and norm(known[i]["name"]) == norm(item["name"])]
+        if named:
+            out[item["inv_id"]] = named[0]
+    return out
+
+
+def _norm_path(path: str) -> str:
+    return os.path.normpath(os.path.expanduser(path))
 
 
 def _usage(conn, column, d30, d90, project_ids) -> dict[tuple[str, str], dict]:
@@ -246,11 +288,7 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
     has_links = _has(conn, "main", "inv_link")
     links = ({r["inv_id"]: dict(r) for r in conn.execute("SELECT * FROM main.inv_link")}
              if has_links else {})
-    ledger = {}
-    if _has(conn, "main", "install_ledger", ("inv_id", "catalog_item_id")):
-        ledger = {r[0]: r[1] for r in conn.execute(
-            "SELECT inv_id, catalog_item_id FROM main.install_ledger "
-            "WHERE inv_id IS NOT NULL AND catalog_item_id IS NOT NULL ORDER BY rowid")}
+    ledger = _ledger(conn, items, catalog)
     upserts, matches = [], {}
     for item in items:
         inv_id, link = item["inv_id"], links.get(item["inv_id"])

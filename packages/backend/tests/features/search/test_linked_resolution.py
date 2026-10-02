@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from conftest import NOW
 
+from tandem_backend import appdb as appdb_schema
 from tandem_backend.features.linked import compute_linked, norm
 
 REVS = {"data": 1, "inventory": 1, "catalog": "1"}
@@ -66,6 +69,43 @@ def test_ledger_outranks_matching_and_marks_installed(world):
     assert items["s1"]["catalog"]["method"] == "ledger" and items["s1"]["tandem_installed"]
     assert not items["s2"]["tandem_installed"]
     assert result["summary"]["tandem_installed"] == 1
+
+
+def test_ledger_from_real_install_tables(world):
+    schema = Path(appdb_schema.__file__).parent / "schema" / "install.sql"
+    world.a.executescript(schema.read_text())
+    world.item("cat-pdf", "skill", "pdf_tools")
+    world.item("cat-pw", "mcp_server", "playwright")
+    world.item("cat-gh", "mcp_server", "github")
+    for install_id, item_id, path, state in [
+            ("in1", "cat-ledger-pdf", "/cfg/s1", "active"),
+            ("in2", "cat-pw", "/cfg/shared.json", "active"),
+            ("in3", "cat-gh", "/cfg/shared.json", "active"),
+            ("in4", "cat-gone", "/cfg/s3", "reverted")]:
+        world.a.execute("INSERT INTO install_state (install_id, plan_id, source_type, source_id, "
+                        "title, kind, agents, scope, preview_digest, state, installed_at) "
+                        "VALUES (?, 'p', 'catalog', ?, 't', 'skill', '[]', 'global', 'd', ?, 1)",
+                        (install_id, item_id, state))
+        world.a.execute("INSERT INTO install_ledger (entry_id, ts, actor, action, install_id, "
+                        "path) VALUES (?, 1, 'tandem', 'install', ?, ?)",
+                        (f"e-{install_id}", install_id, path))
+    world.inventory("claude_code", [
+        {"inv_id": "s1", "type": "skill", "name": "pdf-tools"},
+        {"inv_id": "m1", "type": "mcp", "name": "playwright", "config_path": "/cfg/shared.json"},
+        {"inv_id": "m2", "type": "mcp", "name": "other", "config_path": "/cfg/shared.json"},
+        {"inv_id": "s3", "type": "skill", "name": "pdf-tools"}])
+    items = by_id(run(world, revs={**REVS, "data": 7}))
+    assert items["s1"]["catalog"]["method"] == "ledger" and items["s1"]["tandem_installed"]
+    assert items["m1"]["catalog"]["item_id"] == "cat-pw" and items["m1"]["tandem_installed"]
+    assert not items["m2"]["tandem_installed"]
+    assert items["s3"]["catalog"]["method"] == "name" and not items["s3"]["tandem_installed"]
+
+
+def test_prefixed_body_sha256_matches(world):
+    world.item("cat-hash", "skill", "other-name", body_sha256="sha256:H-S1")
+    world.inventory("claude_code", [{"inv_id": "s1", "type": "skill", "name": "x",
+                                     "content_hash": "h-s1"}])
+    assert by_id(run(world, revs={**REVS, "data": 8}))["s1"]["catalog"]["method"] == "hash"
 
 
 def test_missing_ledger_and_app_tables_degrade(world):
