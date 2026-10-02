@@ -180,18 +180,20 @@ def _match(item, catalog) -> tuple[dict, str, float] | None:
 def _ledger(conn, items, catalog) -> dict[str, str]:
     """inv_id -> catalog item id for components Tandem installed from the catalog.
 
-    Uses explicit ``inv_id``/``catalog_item_id`` ledger columns when present; otherwise joins
-    install's real tables: live ``install_state`` rows with ``source_type='catalog'`` and the
-    paths their ``install`` ledger entries wrote. A shared config file (e.g. several MCP
-    servers in one JSON) only links when the catalog name matches the component.
+    Explicit ``inv_id``/``catalog_item_id`` ledger columns win; rows without them (older
+    entries, installs whose inventory id was unknown) fall back to install's real tables: live
+    ``install_state`` rows with ``source_type='catalog'`` and the paths their ``install`` ledger
+    entries wrote. A shared config file (e.g. several MCP servers in one JSON) only links when
+    the catalog name matches the component.
     """
+    explicit: dict[str, str] = {}
     if _has(conn, "main", "install_ledger", ("inv_id", "catalog_item_id")):
-        return {r[0]: r[1] for r in conn.execute(
+        explicit = {r[0]: r[1] for r in conn.execute(
             "SELECT inv_id, catalog_item_id FROM main.install_ledger "
             "WHERE inv_id IS NOT NULL AND catalog_item_id IS NOT NULL ORDER BY rowid")}
     if not (_has(conn, "main", "install_ledger", ("path",))
             and _has(conn, "main", "install_state", ("source_type", "source_id", "state"))):
-        return {}
+        return explicit
     by_path: dict[str, set[str]] = {}
     for path, item_id in conn.execute(
             "SELECT l.path, s.source_id FROM main.install_ledger l "
@@ -211,7 +213,7 @@ def _ledger(conn, items, catalog) -> dict[str, str]:
         named = [i for i in sorted(ids) if i in known and norm(known[i]["name"]) == norm(item["name"])]
         if named:
             out[item["inv_id"]] = named[0]
-    return out
+    return out | explicit
 
 
 def _norm_path(path: str) -> str:
