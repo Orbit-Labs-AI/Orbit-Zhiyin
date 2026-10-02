@@ -33,6 +33,8 @@ function palItems(q) {
   return out;
 }
 function openPalette() {
+  // BUG-53: the first-launch / reveal overlay (z 110) sits above sheets (z 100); a palette opened under it would take focus unseen.
+  if (!$('#overlay').hidden) return;
   PAL = { q: '', i: 0, items: [] };
   openModal('<label class="row" style="padding:12px 14px;border-bottom:1px solid var(--line)">' + ic('search', 16, 'color:var(--ink-3)') + '<span class="vh">命令面板搜索</span><input id="palQ" data-in="palQ" autofocus placeholder="搜索页面、会话、项目、建议与操作…" autocomplete="off" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:15px;color:var(--ink-1)"><span class="kbd">Esc</span></label><div id="palList" role="listbox" aria-label="结果" style="max-height:min(420px,58vh);overflow:auto;padding:6px"></div><div class="row cap" style="padding:8px 14px;border-top:1px solid var(--hair);font-size:11px;gap:14px;flex-wrap:wrap"><span>↑↓ 选择</span><span>↩ 打开</span><span>Esc 关闭</span><span style="margin-left:auto">试试输入「部署」</span></div>', 'pal');
   MODAL_KEY = 'palette'; drawPal();
@@ -46,6 +48,18 @@ function drawPal() {
 }
 Object.assign(ACT, {
   palQ: (el) => { PAL.q = el.value; PAL.i = 0; drawPal(); },
-  palPick: (el) => { const it = PAL.items[+el.dataset.i]; closeModal(); if (it) it.run(); }
+  palPick: (el) => palRun(+el.dataset.i)
 });
-
+// Run a result, then make sure the keyboard has somewhere to continue from: a page change re-renders #main, which would
+// otherwise drop focus to <body> (BUG-59). The page title takes focus unless the action opened its own sheet or overlay.
+function palRun(i) {
+  const it = PAL ? PAL.items[i] : null; closeModal(); if (it) it.run();
+  setTimeout(() => { const a = document.activeElement; if (a && a !== document.body) return; const h = $('#main .tbar h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }, 30);
+}
+// Capture phase runs before the document-level handler in 85-keyboard.js: while an IME is composing (isComposing / keyCode 229)
+// Return only commits the composition and the arrows move inside the candidate list (BUG-56); a settled Return goes through palRun.
+document.addEventListener('keydown', (e) => {
+  if (MODAL_KEY !== 'palette' || !PAL || $('#modal').hidden) return;
+  const ime = e.isComposing || e.keyCode === 229;
+  if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (ime) { e.stopPropagation(); return; } if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); palRun(PAL.i); } }
+}, true);

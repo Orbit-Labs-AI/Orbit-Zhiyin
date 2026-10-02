@@ -1,0 +1,12 @@
+/* flows: command palette, ask-the-local-agent, exports, first launch and reveal — small polish only, visual language unchanged. */
+.modal.pal #palList .eb{position:sticky;top:0;z-index:1;background:var(--raised);padding-top:8px}
+.palrow .ico{flex:none}
+.palrow .k{flex:none}
+.modal.pal input::placeholder{color:var(--ink-3)}
+.ask-a{transition:min-height .15s}
+.ask-a .caret{color:var(--ink-1)}
+.srcrow label,.srcrow{cursor:default}
+.srcrow:hover{background:var(--bg)}
+.obox .step{align-items:center}
+.reveal:focus{outline:none}
+.reveal:focus-visible{outline:none}
