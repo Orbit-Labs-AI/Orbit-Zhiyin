@@ -1,6 +1,7 @@
 """Install environment (DT-22): where each local agent keeps its config, and what it can take.
 
-Only ``os.stat`` / ``os.scandir`` touch the agent directories; no file body is read. The
+Agent directories are only ``os.stat`` / ``os.scandir``-ed, except that without an inventory scan
+the few JSON/TOML config files holding MCP servers, hooks and plugins are parsed for counts. The
 ``--version`` probes run in a minimal environment (macOS GUI processes get a short PATH, so
 binaries are found in fixed candidate dirs), in parallel, and are cached on
 ``(path, mtime_ns, size)`` for 24 h. A full answer is memoised in process for 2 s.
@@ -14,6 +15,7 @@ import re
 import subprocess
 import threading
 import time
+import tomllib
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -311,7 +313,7 @@ def _query(reads, sql: str, params=()) -> list | None:
 
 def all_installed_counts(reads) -> dict[str, dict] | None:
     rows = _query(reads, LATEST_COUNTS)
-    if rows is None:
+    if not rows:  # no db, or a db whose inventory was never scanned: counts are unknown, not zero
         return None
     counts: dict[str, dict] = {}
     for agent, kind, n in rows:
@@ -331,6 +333,32 @@ def inventory_names(reads, agent: str | None = None, kind: str | None = None) ->
            "(SELECT MAX(scan_id) FROM inventory_scan GROUP BY source_key) AND (?1 IS NULL OR s.agent = ?1) "
            "AND (?2 IS NULL OR i.type = ?2)")
     return {r[0] for r in _query(reads, sql, (agent, kind)) or []}
+
+
+def _load(path: Path, parse=json.loads):
+    try:
+        doc = parse(path.read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def _size(value) -> int:
+    return len(value) if isinstance(value, dict | list) else 0
+
+
+def file_counts(agent: str, env: Env, root: Path, dirs: dict) -> dict:
+    """Cheap counts from the agent's own config files when no inventory scan exists."""
+    counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0)}
+    if agent == "claude_code":
+        hooks = _load(root / "settings.json").get("hooks")
+        counts["hook"] = sum(_size(g.get("hooks")) for groups in (hooks.values() if isinstance(hooks, dict) else ())
+                             if isinstance(groups, list) for g in groups if isinstance(g, dict))
+        counts["mcp"] = _size(_load(claude_json_path(env)).get("mcpServers"))
+        counts["plugin"] = _size(_load(root / "plugins/installed_plugins.json").get("plugins"))
+    elif agent == "codex":
+        counts["mcp"] = _size(_load(root / "config.toml", tomllib.loads).get("mcp_servers"))
+    return counts
 
 
 # Most recent session activity first; projects without sessions follow, newest row first.
@@ -418,8 +446,8 @@ def _environment(env: Env, reads, cache_dir: Path | None, projects: bool, refres
         full = agent in FULL_SUPPORT
         if counts is not None:
             agent_counts = counts.get(agent, dict.fromkeys(COUNT_KINDS, 0))
-        elif full and has_dir:  # no tandem.db yet: fall back to cheap directory counts
-            agent_counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0)}
+        elif full and has_dir:  # no inventory scan yet: fall back to cheap config-file counts
+            agent_counts = file_counts(agent, env, root, dirs)
         else:
             agent_counts = None
         caps = capabilities(agent, version) if full else {**dict.fromkeys(CAPABILITIES, False), "basis": "assumed"}
@@ -430,7 +458,7 @@ def _environment(env: Env, reads, cache_dir: Path | None, projects: bool, refres
             "root": display(root, h), "root_abs": str(root), "profiles": profiles,
             "install_support": "full" if full else "read_only", "capabilities": caps,
             "layers": layers, "dirs": dirs, "installed_counts": agent_counts,
-            "counts_basis": "inventory" if counts is not None else ("files" if agent_counts else None),
+            "counts_basis": "inventory" if counts is not None else ("files" if agent_counts else "unknown"),
             "unsupported_reason": None if full else "agent_not_supported_v1",
         })
     project_list = [project_info(p) for p in project_paths(reads)] if projects else []
