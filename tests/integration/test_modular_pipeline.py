@@ -323,3 +323,16 @@ def test_recorded_git_remote_needs_no_local_git_probe(tmp_path, monkeypatch):
         pid = project_for(store, str(tmp_path), "https://example.com/team/repo.git")
         row = store.db.execute("SELECT * FROM project WHERE project_id=?", (pid,)).fetchone()
         assert row["key_type"] == "git_remote" and row["key"] == "example.com/team/repo"
+
+
+def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
+    store = CanonicalStore(data[0])
+    full = store.read_bundle()
+    compact = store.read_bundle(include_native=False)
+    assert any(e["ext"] for e in full["events"])
+    assert all(e["ext"] == {} for e in compact["events"])
+    assert [{k: v for k, v in e.items() if k != "ext"} for e in full["events"]] == [
+        {k: v for k, v in e.items() if k != "ext"} for e in compact["events"]]
+    assert compact["coverage"]["native_event_payload"]["status"] == "excluded"
+    assert all(e["ext"] == {} for e in store.analysis_bundle().events)
+    assert store.evidence(full["events"][0]["event_uid"]) is not None

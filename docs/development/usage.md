@@ -93,6 +93,8 @@ uv run tandem --home .tandem --max-events 500000 analytics --no-text --display-t
 uv run tandem --home .tandem --max-events 500000 report --output .local/report
 ```
 
+读取轮次首尾事件改为单次遍历，不再为每一轮扫描整个事件集合。分析和报告只读取所需的标准字段，不批量解码 event.ext 中的重复原生副本；覆盖说明会标记 native_event_payload 为 excluded，完整已存证据仍可按事件/记录 ID 回看，原始归档不变。
+
 `--max-events` 是命令前的全局参数，调大上限会增加内存和计算需求。`--no-text` 只跳过 TF-IDF/SVD 文本表示、聚类和时间新颖度，其他分析仍运行；全量文本新颖度需要对历史前缀反复拟合，大库会更慢。缺失或未知值仍保留覆盖说明，不能当成零成本或成功。
 
 ## 核对推荐来源
