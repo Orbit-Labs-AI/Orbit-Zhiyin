@@ -22,9 +22,24 @@ def register_tracking(*args, **kwargs):
 
 
 def mark_reverted(*args, **kwargs):
+    """``mark_reverted(appdb, install_id, at)``: stops tracking, records a system
+    ``not_useful/reverted`` label and hides the card; install needs no separate label."""
     from .outcomes import mark_reverted as _mark
 
     return _mark(*args, **kwargs)
 
 
-__all__ = ["mark_reverted", "recommend", "register_tracking", "run", "trial_method"]
+def label(appdb, candidate_id: str, value: str, reason: str | None = None, *,
+          labeler: str = "system", now: int | None = None) -> str:
+    """Record a candidate label from another module (e.g. install ``useful``); returns label_id."""
+    import time
+
+    from .store import add_label
+
+    with appdb.write() as conn:
+        label_id, _ = add_label(conn, "candidate", candidate_id, value, reason, labeler=labeler,
+                                now=now or int(time.time() * 1000))
+    return label_id
+
+
+__all__ = ["label", "mark_reverted", "recommend", "register_tracking", "run", "trial_method"]
