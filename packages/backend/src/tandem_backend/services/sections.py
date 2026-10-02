@@ -88,6 +88,16 @@ def _session_detail(store, scope, params, memo):
     return {**result, "session": row}
 
 
+def _sample_files(store, scope, params, memo):
+    """Full sample-boundary file list; section bodies only carry its count and digest."""
+    from ..analytics.service import response_section
+
+    data = memo.analysis(store, scope, False, params.get("_rev"))
+    result = response_section(data, "overview")
+    result.pop("overview")
+    return {**result, "files": (data.get("sample_boundary") or {}).get("files") or []}
+
+
 def _preferences(store, scope, params, memo):
     from ..analytics.preference import resolve_effective_preferences
     from ..analytics.service import response_section
@@ -122,9 +132,11 @@ for _name, _cost, _text in (("overview", "light", False), ("tools", "light", Fal
 register(Section("sessions", "sessions", "light", _sessions, True))
 register(Section("session", "session", "heavy", _session_detail, True))
 register(Section("preferences", "preferences", "light", _preferences, False))
+register(Section("sample_files", "files", "light", _sample_files, False))
 
-LIGHT = tuple(name for name, s in SECTIONS.items() if s.cost == "light" and name != "session")
-HEAVY = tuple(name for name, s in SECTIONS.items() if s.cost == "heavy" and name != "session")
+ON_DEMAND = frozenset({"session", "sample_files"})
+LIGHT = tuple(name for name, s in SECTIONS.items() if s.cost == "light" and name not in ON_DEMAND)
+HEAVY = tuple(name for name, s in SECTIONS.items() if s.cost == "heavy" and name not in ON_DEMAND)
 
 _RULES: str | None = None
 

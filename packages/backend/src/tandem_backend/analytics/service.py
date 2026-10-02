@@ -408,6 +408,18 @@ def analyze_store(store, scope: Scope | None = None, with_text: bool = True) -> 
     return recorded(store, "features", {"scope": asdict(scope), "with_text": with_text}, compute)
 
 
+def boundary_summary(boundary: Record | None) -> Record | None:
+    """Sample boundary without the per-file list: count + digest stay O(1) in every section.
+
+    The file list itself is served page by page from ``/v1/analytics/sample_files``.
+    """
+    if not boundary or "files" not in boundary:
+        return boundary
+    files = boundary["files"] or []
+    summary = {k: v for k, v in boundary.items() if k != "files"}
+    return {**summary, "file_count": len(files), "files_digest": stable_id(files)}
+
+
 def response_section(result: Record, key: str) -> Record:
     """Attach shared scope and coverage metadata to an API section."""
     shared = {
@@ -428,4 +440,5 @@ def response_section(result: Record, key: str) -> Record:
             "coverage_report",
         )
     }
+    shared["sample_boundary"] = boundary_summary(shared["sample_boundary"])
     return {**shared, key: result[key]}
