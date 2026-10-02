@@ -19,6 +19,7 @@ from contextlib import AbstractContextManager
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
+from .. import platform
 from .engines import EngineRequest, EngineResult
 from .errors import CallFailed, Cancelled
 
@@ -61,6 +62,7 @@ class RunContext:
         self.pack = job["pack"]
         self.template = job.get("template") or "v1"
         self.engine = job["engine"]
+        self.home = runner.svc.home
         self.params = job.get("params") or {}
         self.slot = job.get("slot") or self.task["slot"]
         self.cancel_event = job["cancel"]
@@ -290,6 +292,7 @@ class Runner:
         ctx = RunContext(self, job)
         self.emit(ctx, None, None, None, status="running")
         result, error = None, None
+        t0 = time.monotonic()
         try:
             run = ctx.task["run"] or default_run
             result = run(ctx, job["pack"])
@@ -327,7 +330,25 @@ class Runner:
                                         "facets": result.get("facets"),
                                         "artifact_id": artifact_id, "error": error}
         self.emit(ctx, None, None, error, status=status)
+        self._report(ctx, job, status, error, artifact_id, time.monotonic() - t0)
         self._finish(job_id)
+
+    def _report(self, ctx: RunContext, job: dict, status: str, error, artifact_id,
+                elapsed_s: float) -> None:
+        """Platform telemetry for every job; a notification only for jobs a person started
+        (not ``run()`` callers waiting synchronously, not background ``params.auto`` runs)."""
+        task_id = ctx.task["task_id"]
+        platform.record("ai.job", elapsed_s * 1000, task=task_id, engine=ctx.engine,
+                        status=status)
+        if status == "cancelled" or job["job_id"] in self.waiters or ctx.params.get("auto"):
+            return
+        title = ctx.task.get("title") or task_id
+        platform.notify({"type": "ai_job_done", "key": f"ai_job_done:{job['job_id']}",
+                         "title": f"AI 任务{'完成' if status != 'failed' else '失败'}：{title}",
+                         "body": error or "", "severity": "attention" if status == "failed"
+                         else "info",
+                         "payload": {"job_id": job["job_id"], "task_id": task_id,
+                                     "status": status, "artifact_id": artifact_id}})
 
     def _finish(self, job_id: str) -> None:
         with self.lock:
@@ -412,6 +433,10 @@ class Runner:
                  usage.get("cache_read"), usage.get("cache_write"), usage.get("output"),
                  (len(system) + len(prompt)) // 4, result.cost_usd, result.cost_source,
                  result.latency_ms, status, now_ms()))
+        tags = {"task": task_id, "engine": ctx.engine}
+        platform.record("ai.tokens", sum(usage.values()), **tags)
+        if result.cost_usd:
+            platform.record("ai.cost_usd", result.cost_usd, **tags)
 
     def cache_get(self, key: str) -> dict | None:
         now = now_ms()
