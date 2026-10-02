@@ -9,6 +9,9 @@ from tandem_data import MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
+# Trajectory totals per (home, session, children, publication); a publication is immutable.
+_TOTALS: dict[tuple, int] = {}
+
 
 def current_projection(connection):
     manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
@@ -73,17 +76,36 @@ def trajectory_page(home, session_uid, *, after=0, limit=100, run_id=None, inclu
             "SELECT 1 FROM session_identity WHERE session_uid=?", (session_uid,)
         ).fetchone():
             raise KeyError(session_uid)
-        scope = "WITH RECURSIVE selected(id) AS (SELECT ? UNION SELECT s.session_uid FROM session s JOIN selected p ON s.parent_uid=p.id WHERE ?) "
+        # Each candidate source is a separate index-driven select (session, evidence, file);
+        # an OR across them made SQLite scan every current file_record row per request.
+        scope = (
+            "WITH RECURSIVE selected(id) AS (SELECT ? UNION SELECT s.session_uid FROM session s JOIN selected p ON s.parent_uid=p.id WHERE ?), "
+            "ids(record_uid) AS MATERIALIZED ("
+            "SELECT record_uid FROM raw_record WHERE session_uid IN (SELECT id FROM selected) "
+            "UNION SELECT x.record_uid FROM event e JOIN record_event x USING(event_uid) WHERE e.session_uid IN (SELECT id FROM selected) "
+            "UNION SELECT t.record_uid FROM source_file sf JOIN raw_record t ON t.file_id=sf.file_id "
+            "WHERE sf.format<>'sqlite_rows' AND sf.role IN ('transcript','subagent_transcript','legacy_transcript') "
+            "AND sf.file_id IN (SELECT file_id FROM raw_record WHERE session_uid IN (SELECT id FROM selected))) "
+        )
         where = (
-            "FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id "
+            "FROM ids JOIN raw_record r ON r.record_uid=ids.record_uid JOIN file_record c ON c.record_uid=r.record_uid "
+            "JOIN source_file f ON f.file_id=r.file_id "
             "LEFT JOIN record_location l ON l.record_uid=r.record_uid AND l.revision_uid=(SELECT revision_uid FROM source_revision v WHERE v.file_id=f.file_id ORDER BY revision DESC LIMIT 1) "
-            "WHERE r.session_uid IN (SELECT id FROM selected) OR r.record_uid IN "
-            "(SELECT x.record_uid FROM record_event x JOIN event e USING(event_uid) WHERE e.session_uid IN (SELECT id FROM selected)) OR (f.format<>'sqlite_rows' "
-            "AND f.role IN ('transcript','subagent_transcript','legacy_transcript') AND f.file_id IN "
-            "(SELECT file_id FROM raw_record WHERE session_uid IN (SELECT id FROM selected)))"
         )
         args = (session_uid, include_children)
-        total = db.execute(scope + "SELECT COUNT(*) " + where, args).fetchone()[0]
+        key = (
+            str(Path(home).resolve()),
+            session_uid,
+            bool(include_children),
+            run["run_id"],
+            run["completed_at"],
+        )
+        total = _TOTALS.get(key)
+        if total is None:
+            total = db.execute(scope + "SELECT COUNT(*) " + where, args).fetchone()[0]
+            if len(_TOTALS) >= 256:
+                _TOTALS.clear()
+            _TOTALS[key] = total
         records = []
         for row in db.execute(
             scope
