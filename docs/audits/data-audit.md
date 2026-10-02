@@ -245,8 +245,8 @@ TS 连接器（只有 Codex）已经实现真正的追加增量：按 inode、si
 `ImportService.import_progressive()` 的流程：
 
 1. 一次发现全部 Agent 的输入，按 mtime 倒序排列。
-2. **首批**取最近 N 个文件（默认约 200 个会话或最近 7 天，二者取先到）：capture → 闭包投影 → 发布，UI 立即可用。
-3. 其余文件按每批约 500 个在后台导入，每批结束发布一次，支持取消、暂停（DT-02.1）和进度回调。
+2. **首批**按会话分组（同一会话的主文件、subagent 与 meta 文件同批）后取最新的组，满足任一条件即截止：已满 200 个会话、下一组早于最近 7 天、源文件累计超过 6 MB（`FIRST_BATCH_BYTES`）；至少包含最新一组。首批 capture → 闭包投影 → 发布，UI 立即可用。
+3. 其余文件不再按固定文件数切分，而是**每个来源一批**（按该来源最新剩余会话的先后排序），每个来源只再整体投影一次；每批在同一写事务内 capture 并发布，支持取消、暂停（DT-02.1）和进度回调。规则见 `tandem_data.scheduler.plan_batches`。
 4. 补全期间 `source_scan.selection='progressive'`，coverage 标为 partial，与 `fix/analysis-coverage-status` 的覆盖契约对齐。
 5. 首导时可以先停 FTS 触发器，补全完成后统一 `rebuild`。代价是补全期间检索结果不全，需要给出 coverage 提示。
 
