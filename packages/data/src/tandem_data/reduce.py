@@ -115,27 +115,34 @@ def _probe_dir(path: Path) -> Path | None:
     return None
 
 
-def _enclosing_project(store, path: Path, live) -> str | None:
+def _enclosing_project(store, path: Path, live, missing=False) -> str | None:
     """The outermost project in use whose root or recorded path encloses ``path``.
 
     Only projects of sessions outside this derivation and projects assigned during it
-    (``live``) qualify, so stale rows from earlier projections never attract paths.
+    (``live``) qualify, so stale rows from earlier projections never attract paths. Git
+    projects win over plain paths. A deleted directory does not fold into a plain
+    directory that still exists: that is a workspace that held a removed project.
     """
     candidates = {}
     for row in store.db.execute(
         "SELECT project_id,key_type,key,paths FROM project WHERE key_type<>'bucket' AND"
         " (project_id IN (SELECT project_id FROM session WHERE project_id IS NOT NULL)"
-        " OR project_id IN (SELECT value FROM json_each(?)))",
+        " OR project_id IN (SELECT value FROM json_each(?)))"
+        " ORDER BY key_type IN ('git_remote','git_root') DESC, project_id",
         (canonical(sorted(live)),),
     ):
         roots = set(json.loads(row["paths"]))
         if row["key_type"] in ("path", "git_root"):
             roots.add(row["key"])
         for root in roots:
-            candidates.setdefault(root, row["project_id"])
+            candidates.setdefault(root, (row["project_id"], row["key_type"]))
     for parent in (*reversed(path.parents), path):
-        if not _shared_root(parent) and str(parent) in candidates:
-            return candidates[str(parent)]
+        found = candidates.get(str(parent))
+        if found is None or _shared_root(parent):
+            continue
+        if missing and found[1] == "path" and parent.is_dir():
+            continue
+        return found[0]
     return None
 
 
@@ -173,7 +180,7 @@ def _project_for(store, cwd, recorded_remote, recorded_root, live=()):
         key_type, key = "bucket", "temporary_workspace"
     else:
         key_type, key = "path", str(path) if path else cwd
-        enclosing = _enclosing_project(store, Path(key), live) if path else None
+        enclosing = _enclosing_project(store, Path(key), live, missing) if path else None
         if enclosing is not None:
             # A plain directory inside another project's tree (/repo/src under /repo).
             _add_path(store, enclosing, cwd)
@@ -375,10 +382,16 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         metas[session_uid] = values
         progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
     progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})
-    # Resolve shallow directories first so /repo exists before /repo/src looks for an
-    # enclosing project; the result no longer depends on session order.
+    # Resolve sessions with a recorded Git identity first, then shallow directories, so
+    # /repo exists before /repo/src looks for an enclosing project; the result no longer
+    # depends on session order.
     for session_uid, values in sorted(
-        metas.items(), key=lambda item: (len(Path(item[1].get("cwd") or "/").parts), item[0])
+        metas.items(),
+        key=lambda item: (
+            not (item[1].get("git_remote") or recorded_roots.get(item[0])),
+            len(Path(item[1].get("cwd") or "/").parts),
+            item[0],
+        ),
     ):
         project_for(
             store,

@@ -70,3 +70,12 @@ def test_nested_plain_directories_join_the_outer_project(tmp_path):
         str(outer / "src"),
         str(outer / "src/demo"),
     }
+
+
+def test_deleted_project_inside_a_plain_workspace_stays_separate(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    removed = workspace / "removed-project"
+    ids, projects = build(tmp_path, [workspace, removed / "docs", removed])
+    assert ids[0] != ids[1] == ids[2]
+    assert projects[ids[1]]["key"] == str(removed)
