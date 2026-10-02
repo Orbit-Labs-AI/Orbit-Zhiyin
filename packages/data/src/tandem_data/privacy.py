@@ -3,8 +3,24 @@
 import hashlib
 import json
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
+from functools import lru_cache
 
 REDACTION_VERSION = "1.1.1"
+_RECORD_CACHE = ContextVar("record_redactions", default=None)
+
+
+@contextmanager
+def record_redactions():
+    """Reuse identical strings within one record, then discard all cached content."""
+    token = _RECORD_CACHE.set({"values": {}, "chars": 0})
+    try:
+        yield
+    finally:
+        _RECORD_CACHE.reset(token)
+
+
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",
@@ -20,6 +36,7 @@ def is_secret_key(key: str) -> bool:
     return secret_key(key)
 
 
+@lru_cache(maxsize=1024)
 def secret_key(key: str) -> bool:
     normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).lower()
     normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
@@ -65,6 +82,18 @@ def _redact_headers(text: str) -> str:
 
 
 def redact(text: str) -> str:
+    cache = _RECORD_CACHE.get()
+    eligible = cache is not None and len(text) <= 131072
+    if eligible and text in cache["values"]:
+        return cache["values"][text]
+    clean = _redact_text(text)
+    if eligible and cache["chars"] + len(text) + len(clean) <= 1048576:
+        cache["values"][text] = clean
+        cache["chars"] += len(text) + len(clean)
+    return clean
+
+
+def _redact_text(text: str) -> str:
     if text.lstrip().startswith(("{", "[")):
         try:
             parsed = json.loads(text)

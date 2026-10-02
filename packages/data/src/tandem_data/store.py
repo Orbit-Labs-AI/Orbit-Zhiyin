@@ -113,9 +113,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version not in (1, 2, 3, 4, 5):
+        elif version not in (1, 2, 3, 4, 5, 6):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1, 2, 3, 4 or 5")
+            raise ValueError(f"Unsupported database version {version}; expected 1, 2, 3, 4, 5 or 6")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -157,6 +157,9 @@ class Store:
                 raise
         if version < 5:
             sql = files("tandem_data").joinpath("migrations/005.sql").read_text()
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 6:
+            sql = files("tandem_data").joinpath("migrations/006.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
@@ -664,15 +667,19 @@ class Store:
             raise ValueError("L0 record hash mismatch")
         return data
 
-    def rebuild(self, *, mapper_version=None, source_ids=None) -> dict:
+    def rebuild(self, *, mapper_version=None, source_ids=None, progress=None) -> dict:
         from tandem_data.pipeline import rebuild
 
-        return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
+        return rebuild(
+            self, mapper_version=mapper_version, source_ids=source_ids, progress=progress
+        )
 
-    def verify(self) -> dict:
+    def verify(self, progress=None) -> dict:
+        progress = progress or (lambda _: None)
         from tandem_data.contract import validate_event
 
         checked = 0
+        archive_total = self.db.execute("SELECT COUNT(*) FROM archive_blob").fetchone()[0]
         for blob in self.db.execute("SELECT * FROM archive_blob"):
             digest = hashlib.sha256()
             with self._decoded(self.home / blob["path"], "jsonl") as handle:
@@ -681,6 +688,7 @@ class Store:
             if digest.hexdigest() != blob["sha256"]:
                 raise ValueError("L0 archive hash mismatch")
             checked += 1
+            progress({"stage": "verify_archives", "completed": checked, "total": archive_total})
         # Verify locators and every L1 digest with linear reads, including superseded rows.
         records_verified = 0
         for revision in self.db.execute(
@@ -709,11 +717,18 @@ class Store:
         ).fetchone()[0]
         if inconsistent:
             raise ValueError("L1 dispositions disagree with evidence links")
-        for row in self.db.execute("SELECT * FROM event"):
+        event_total = self.db.execute("SELECT COUNT(*) FROM event").fetchone()[0]
+        progress({"stage": "verify_events", "completed": 0, "total": event_total})
+        for event_number, row in enumerate(self.db.execute("SELECT * FROM event"), 1):
             envelope = dict(row)
             for name in ("attrs", "ext", "native_key"):
                 envelope[name] = json.loads(envelope[name])
             validate_event(envelope)
+            if event_number % 5000 == 0:
+                progress(
+                    {"stage": "verify_events", "completed": event_number, "total": event_total}
+                )
+        progress({"stage": "verify_integrity", "completed": 0, "total": None})
         if self.db.execute("PRAGMA foreign_key_check").fetchall():
             raise ValueError("Broken foreign keys")
         if self.db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":

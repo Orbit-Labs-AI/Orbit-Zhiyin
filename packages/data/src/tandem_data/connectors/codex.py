@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import replace
 
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
@@ -12,12 +13,14 @@ class CodexMapper(BaseMapper):
         self.matched_messages = set()
         self.cut = None
         self.parent = None
+        self.header_record_uid = None
         self.prepare_each(records, self.prepare_record)
 
     def prepare_record(self, record):
         data, payload = record.data, record.data.get("payload", {})
         if data.get("type") == "session_meta" and not self.header:
             self.header = payload
+            self.header_record_uid = record.record_uid
             source = payload.get("source", {})
             subagent = source.get("subagent", {}) if isinstance(source, dict) else {}
             spawn = subagent.get("thread_spawn", {}) if isinstance(subagent, dict) else {}
@@ -25,7 +28,7 @@ class CodexMapper(BaseMapper):
             self.parent = payload.get("parent_thread_id", payload.get("forked_from_id"))
             self.parent = self.parent or spawn.get("parent_thread_id")
             self.parent_candidates = {}
-            self.parent_cursor = -1
+            self.parent_cursor = (-1, -1)
         if data.get("type") == "token_usage_record":
             self.has_calls = True
             self.usage_records.append((record.ordinal, payload.get("response_id")))
@@ -33,7 +36,11 @@ class CodexMapper(BaseMapper):
             item = payload.get("item", {})
             if item.get("type") in ("UserMessage", "AgentMessage"):
                 role = "user" if item["type"] == "UserMessage" else "assistant"
-                signature = (role, payload.get("turn_id"), text_content(item.get("content")))
+                signature = (
+                    role,
+                    payload.get("turn_id"),
+                    hashlib.sha256(text_content(item.get("content")).encode()).hexdigest(),
+                )
                 self.messages.setdefault(signature, []).append((record.ordinal, item.get("id")))
 
     def native_key(self, record):
@@ -76,8 +83,16 @@ class CodexMapper(BaseMapper):
             self.model = self.header.get("model")
             self.provider = self.header.get("model_provider")
         # Copied prefix is excluded only with explicit native boundary evidence.
-        ordinal = data.get("ordinal", record.ordinal)
-        if self.cut is not None and ordinal > 0 and ordinal < self.cut:
+        ordinal = (
+            record.ordinal
+            if self.header.get("history_mode") == "paginated"
+            else data.get("ordinal", record.ordinal)
+        )
+        if (
+            self.cut is not None
+            and record.record_uid != self.header_record_uid
+            and ordinal < self.cut
+        ):
             if data.get("type") == "turn_context":
                 self.model = payload.get("model", self.model)
                 self.effort = payload.get("effort", self.effort)
@@ -85,16 +100,47 @@ class CodexMapper(BaseMapper):
                 self.model = payload.get("state", {}).get("model", self.model)
             refs = []
             candidates = self.parent_candidates.get(self.record_signature(record), [])
-            candidate = next((item for item in candidates if item[0] > self.parent_cursor), None)
-            if candidate:
-                self.parent_cursor = candidate[0]
+            for candidate in candidates:
+                if candidate[0] <= self.parent_cursor:
+                    continue
                 refs = [
                     row[0]
                     for row in self.store.db.execute(
-                        "SELECT event_uid FROM record_event WHERE record_uid=?",
-                        (candidate[1],),
+                        "SELECT event_uid FROM record_event WHERE record_uid=?", (candidate[1],)
                     )
                 ]
+                if refs:
+                    self.parent_cursor = candidate[0]
+                    break
+            if not refs and self.header.get("history_mode") == "paginated":
+                # Codex serializes forked paginated history with new rollout/item/turn IDs
+                # and may replace compacted instructions. The explicit prefix boundary
+                # identifies context, not a second execution of the parent's actions.
+                item = payload.get("item") if isinstance(payload.get("item"), dict) else {}
+                content = text_content(payload.get("content")) or text_content(item.get("content"))
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "context.inject",
+                            "inherited.reconstructed",
+                            actor="harness",
+                            text=content or None,
+                            native_key=[record.source_id, record.record_uid, "inherited_context"],
+                            attrs={
+                                "origin": "injected",
+                                "inherited_prefix": True,
+                                "context_type": "inherited_history",
+                                "native_turn_id": None,
+                                "parent_native_id": self.parent,
+                                "native_kind": typ,
+                                "parent_event_match": "unavailable_after_native_reconstruction",
+                            },
+                            ext=payload,
+                        )
+                    ],
+                    reason="native paginated inherited context; not a new action",
+                )
             if not refs and (
                 typ == "world_state"
                 or typ == "response_item"
@@ -282,7 +328,11 @@ class CodexMapper(BaseMapper):
         )
         if item_type == "message":
             role = payload.get("role")
-            signature = (role, turn, text_content(payload.get("content")))
+            signature = (
+                role,
+                turn,
+                hashlib.sha256(text_content(payload.get("content")).encode()).hexdigest(),
+            )
             candidates = self.messages.get(signature, [])
             matching = [
                 (ordinal, native) for ordinal, native in candidates if native == payload.get("id")

@@ -2,11 +2,14 @@
 
 import json
 from collections import defaultdict
+from dataclasses import replace
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from tandem_data import MAPPER_VERSION, REDUCER_VERSION, mapper_version_for
 from tandem_data.connectors import MAPPERS
+from tandem_data.connectors.base import Mapping
 from tandem_data.contract import canonical, now_ms, validate_event
-from tandem_data.privacy import REDACTION_VERSION
+from tandem_data.privacy import REDACTION_VERSION, record_redactions
+from tandem_data.query import outdated_sources
 from tandem_data.store import insert
 
 
@@ -22,9 +25,11 @@ def _merge(old, new):
     return result
 
 
-def rebuild(store, *, mapper_version=None, source_ids=None):
+def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
+    progress = progress or (lambda _: None)
     from tandem_data.reduce import derive
 
+    override_version = mapper_version
     mapper_version = mapper_version or MAPPER_VERSION
     sequences = defaultdict(int)
     parent_keys = {}
@@ -84,7 +89,15 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             )
         )
         mappers = {}
-        for info in infos:
+        for position, info in enumerate(infos, 1):
+            progress(
+                {
+                    "stage": "prepare",
+                    "agent": info["agent"],
+                    "completed": position,
+                    "total": len(infos),
+                }
+            )
             if info["role"] == "legacy_transcript":
                 store.db.execute(
                     "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id=?",
@@ -133,6 +146,13 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             if info["file_id"] in mappers
         }
         by_file = {info["file_id"]: info for info in infos}
+        files_by_native = defaultdict(list)
+        for info in infos:
+            mapper = mappers.get(info["file_id"])
+            if mapper and mapper.header.get("id"):
+                files_by_native[(info["source_id"], str(mapper.header["id"]))].append(
+                    info["file_id"]
+                )
         ordered, visiting, visited = [], set(), set()
 
         def visit(info):
@@ -142,14 +162,18 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             visiting.add(file_id)
             mapper = mappers.get(file_id)
             header = mapper.header if mapper else {}
-            parent_id = header.get(
+            parent_id = getattr(mapper, "parent", None) or header.get(
                 "parentSession", header.get("parent_thread_id", header.get("forked_from_id"))
             )
             parent_file = getattr(mapper, "parent_file_id", None) or by_native.get(
                 (info["source_id"], str(parent_id))
             )
-            if parent_file and parent_file != file_id:
-                visit(by_file[parent_file])
+            parent_files = files_by_native.get((info["source_id"], str(parent_id)), [])
+            for candidate in dict.fromkeys(
+                [*parent_files, *([parent_file] if parent_file else [])]
+            ):
+                if candidate != file_id:
+                    visit(by_file[candidate])
             visiting.remove(file_id)
             visited.add(file_id)
             ordered.append(info)
@@ -163,6 +187,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
         ):
             visit(info)
         infos = ordered
+        file_order = {info["file_id"]: i for i, info in enumerate(infos)}
 
         def map_record(mapper, record):
             if record.record_uid in getattr(mapper, "preparation_failures", set()):
@@ -187,10 +212,18 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             if result.events:
                 result.events[0].ext = {"native": record.data, **result.events[0].ext}
             # Contract errors are implementation bugs: abort and retain the previous published projection.
-            prepared = [
-                (draft, draft.envelope(record.record_uid, 0, mapper_version))
-                for draft in result.events
-            ]
+            with record_redactions():
+                prepared = [
+                    (
+                        draft,
+                        draft.envelope(
+                            record.record_uid,
+                            0,
+                            override_version or mapper_version_for(record.agent),
+                        ),
+                    )
+                    for draft in result.events
+                ]
             for _, envelope in prepared:
                 validate_event(envelope)
             relations = []
@@ -275,7 +308,13 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                     (draft.session_uid, record.record_uid),
                 )
             if result.references:
-                pending.append((record, result))
+                # Deferred links need identities only, not potentially megabytes of native payload.
+                pending.append(
+                    (
+                        replace(record, data={}),
+                        Mapping(disposition=result.disposition, references=result.references),
+                    )
+                )
             if relations:
                 disposition = next(
                     kind
@@ -293,49 +332,39 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 ),
             )
 
-        for info in infos:
+        parent_indexes = {}
+        for position, info in enumerate(infos, 1):
+            progress(
+                {"stage": "map", "agent": info["agent"], "completed": position, "total": len(infos)}
+            )
             mapper = mappers.get(info["file_id"])
             if mapper is None:
                 continue
             if info["agent"] == "codex" and mapper.cut is not None and mapper.parent:
-                parent_file = by_native.get((info["source_id"], str(mapper.parent)))
-                mapper.parent_candidates = defaultdict(list)
-                if parent_file:
-                    for parent_record in store.iter_file(parent_file):
-                        mapper.parent_candidates[mapper.record_signature(parent_record)].append(
-                            (parent_record.ordinal, parent_record.record_uid)
-                        )
+                parent_files = tuple(
+                    sorted(
+                        files_by_native.get((info["source_id"], str(mapper.parent)), []),
+                        key=file_order.get,
+                    )
+                )
+                if parent_files not in parent_indexes:
+                    candidates = defaultdict(list)
+                    for rank, parent_file in enumerate(parent_files):
+                        for parent_record in store.iter_file(parent_file):
+                            candidates[mapper.record_signature(parent_record)].append(
+                                ((rank, parent_record.ordinal), parent_record.record_uid)
+                            )
+                    parent_indexes[parent_files] = candidates
+                mapper.parent_candidates = parent_indexes[parent_files]
             for record in store.iter_file(info["file_id"]):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.
                 map_record(mapper, record)
             for record in store.iter_versions(info["file_id"], "table:session_model_usage"):
                 map_record(mapper, record)
-        for record, result in pending:
-            resolved = [
-                event_uid
-                for event_uid in result.references
-                if store.db.execute(
-                    "SELECT 1 FROM event WHERE event_uid=?", (event_uid,)
-                ).fetchone()
-            ]
-            if len(resolved) != len(set(result.references)):
-                store.db.execute(
-                    "UPDATE raw_record SET disposition='unparsed',note=? WHERE record_uid=?",
-                    (canonical({"reason": "canonical reference unresolved"}), record.record_uid),
-                )
-                store.issue(
-                    record.source_id,
-                    "unresolved_canonical_reference",
-                    record_uid=record.record_uid,
-                    file_id=record.file_id,
-                )
-            else:
-                for event_uid in resolved:
-                    store.db.execute(
-                        "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
-                        (record.record_uid, event_uid, result.disposition or "folded"),
-                    )
+            # Finish a parent's duplicate/folded evidence before mapping copied child prefixes.
+            pending = _resolve_links(store, pending, final=False)
+        _resolve_links(store, pending, final=True)
         for event_uid, native_key in parent_keys.items():
             if native_key in first_by_native and first_by_native[native_key] != event_uid:
                 store.db.execute(
@@ -352,17 +381,20 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 record_uid=row["record_uid"],
                 file_id=row["file_id"],
             )
-        derive(store, scoped=True)
+        progress({"stage": "derive", "completed": 0, "total": None})
+        derive(store, scoped=True, progress=progress)
         for info in infos:
             store.db.execute(
                 "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
-                (mapper_version, REDUCER_VERSION, REDACTION_VERSION, info["file_id"]),
+                (
+                    override_version or mapper_version_for(info["agent"]),
+                    REDUCER_VERSION,
+                    REDACTION_VERSION,
+                    info["file_id"],
+                ),
             )
 
-        if not store.db.execute(
-            "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.mapper_version'),'') <> ? LIMIT 1",
-            (mapper_version,),
-        ).fetchone():
+        if not outdated_sources(store.db):
             store.db.execute("UPDATE schema_manifest SET redaction_version=?", (REDACTION_VERSION,))
         dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
         if dangling:
@@ -392,4 +424,40 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
         "sessions": store.db.execute("SELECT COUNT(*) FROM session").fetchone()[0],
         "records": store.db.execute("SELECT COUNT(*) FROM raw_record").fetchone()[0],
         "issues": store.db.execute("SELECT COUNT(*) FROM ingest_issue").fetchone()[0],
+        "current_unparsed": store.db.execute(
+            "SELECT COUNT(*) FROM raw_record JOIN file_record USING(record_uid) WHERE disposition='unparsed'"
+        ).fetchone()[0],
     }
+
+
+def _resolve_links(store, pending, *, final):
+    remaining = []
+    for record, result in pending:
+        targets = list(dict.fromkeys(result.references))
+        complete = all(
+            store.db.execute("SELECT 1 FROM event WHERE event_uid=?", (event_uid,)).fetchone()
+            for event_uid in targets
+        )
+        if not complete:
+            if not final:
+                remaining.append((record, result))
+                continue
+            store.db.execute(
+                "UPDATE raw_record SET disposition='unparsed',note=? WHERE record_uid=?",
+                (canonical({"reason": "canonical reference unresolved"}), record.record_uid),
+            )
+            store.issue(
+                record.source_id,
+                "unresolved_canonical_reference",
+                record_uid=record.record_uid,
+                file_id=record.file_id,
+            )
+            continue
+        store.db.executemany(
+            "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
+            (
+                (record.record_uid, event_uid, result.disposition or "folded")
+                for event_uid in targets
+            ),
+        )
+    return remaining

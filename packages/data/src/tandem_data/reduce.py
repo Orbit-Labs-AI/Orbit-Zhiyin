@@ -168,7 +168,8 @@ def _duration(call, result, attrs):
     return None, "unknown", "missing"
 
 
-def derive(store, *, scoped=False):
+def derive(store, *, scoped=False, progress=None):
+    progress = progress or (lambda _: None)
     identities = {
         row["session_uid"]: dict(row)
         for row in store.db.execute(
@@ -189,7 +190,7 @@ def derive(store, *, scoped=False):
             "timezone_source": "unknown",
         }
         for row in store.db.execute(
-            "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
+            "SELECT kind,attrs,text FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
         ):
             attrs = json.loads(row["attrs"])
             if isinstance(attrs.get("git_root"), str):
@@ -252,10 +253,12 @@ def derive(store, *, scoped=False):
         )
         insert(store.db, "session", values)
 
-    for session_uid, meta in metas.items():
+    for position, (session_uid, meta) in enumerate(metas.items(), 1):
+        progress({"stage": "derive", "completed": position, "total": len(metas)})
         events = []
         for row in store.db.execute(
-            "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
+            "SELECT event_uid,kind,attrs,call_id,record_uid,seq,ts,turn_uid FROM event WHERE session_uid=? ORDER BY seq",
+            (session_uid,),
         ):
             event = dict(row)
             event["attrs"] = json.loads(event["attrs"])
@@ -291,6 +294,8 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None):
             "event_context",
             {"event_uid": event["event_uid"], "project_id": project_id, **context},
         )
+        if kind == "context.inject" and attrs.get("inherited_prefix"):
+            continue  # Copied setup must not open or extend the child's execution turns.
         native_turn = attrs.get("native_turn_id")
         new_trigger = kind == "message.user" and attrs.get("origin") in (
             "human",

@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 import zstandard
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
+from tandem_data.analysis_input import AnalysisLimitExceeded, AnalysisScope, read_analysis
 from tandem_data.bridge import import_connector
 from tandem_data.contract import canonical
 from tandem_data.schema_export import table_schemas
@@ -84,6 +84,30 @@ def test_verified_pi_fork_is_not_new_behavior(tmp_path):
             == 2
         )
         assert store.verify()["unparsed"] == 0
+
+
+def test_analysis_byte_budget_is_checked_before_event_decoding(tmp_path, monkeypatch):
+    from tandem_data import analysis_input
+
+    decoded_events = []
+    original = analysis_input.decoded
+
+    def track_decoding(row):
+        if "event_uid" in row.keys():
+            decoded_events.append(row["event_uid"])
+        return original(row)
+
+    monkeypatch.setattr(analysis_input, "decoded", track_decoding)
+    with Store(tmp_path / "data") as store:
+        stream(store, "pi", tmp_path / "source", pi_rows())
+        store.rebuild()
+        with pytest.raises(AnalysisLimitExceeded, match="byte budget"):
+            read_analysis(store.home, AnalysisScope("UTC"), max_bytes=8192)
+        assert decoded_events == []
+        empty = read_analysis(
+            store.home, AnalysisScope("UTC", project_ids=()), max_events=0, max_bytes=0
+        )
+        assert empty["events"] == []
 
 
 def test_real_sqlite_reader_is_readonly_and_preserves_versions(tmp_path):

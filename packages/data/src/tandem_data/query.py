@@ -5,13 +5,27 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from tandem_data import MAPPER_VERSION, MAPPER_VERSIONS, REDUCER_VERSION
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
 
 class ProjectionUnavailable(ValueError):
     """Published facts need rebuilding; this is not an invalid user selection."""
+
+
+def outdated_sources(connection):
+    """Find stale sources using each connector's version, plus shared derivation/redaction."""
+    return {
+        row[0]
+        for row in connection.execute(
+            "SELECT DISTINCT f.source_id FROM source_file f JOIN source s USING(source_id) WHERE "
+            "COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) "
+            "OR COALESCE(json_extract(watermark,'$.mapper_version'),'') <> COALESCE((SELECT value FROM json_each(?) WHERE key=s.agent),?) "
+            "OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>?",
+            (json.dumps(MAPPER_VERSIONS), MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
+        )
+    }
 
 
 def current_projection(connection):
@@ -23,11 +37,7 @@ def current_projection(connection):
     if not run or revisions != run["l1_revision_count"]:
         raise ProjectionUnavailable("Projection is pending; rebuild before analysis")
     obsolete = run["mapper_version"] != MAPPER_VERSION or run["reducer_version"] != REDUCER_VERSION
-    incomplete = connection.execute(
-        "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) "
-        "OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>? LIMIT 1",
-        (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
-    ).fetchone()
+    incomplete = outdated_sources(connection)
     if obsolete or incomplete:
         raise ProjectionUnavailable(
             "Projection version is obsolete or incomplete; rebuild before analysis"

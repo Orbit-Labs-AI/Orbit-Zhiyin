@@ -50,7 +50,13 @@ def decoded(row):
     return result
 
 
-def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) -> dict:
+class AnalysisLimitExceeded(ValueError):
+    """Requested facts exceed the in-memory feature-analysis budget."""
+
+
+def read_analysis(
+    home: str | Path, scope: AnalysisScope, *, max_events=100000, max_bytes=64 * 1024 * 1024
+) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
 
     Empty selections mean zero members. Time-unknown facts do not enter bounded statistics.
@@ -118,11 +124,28 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
             + " ORDER BY session_uid,seq"
         )
+        # Bound both row count and encoded payload size before allocating Python objects.
+        # This applies equally to many small records and a few unusually large records.
+        probe = query.replace(
+            "SELECT v.* FROM v_analysis_event",
+            "SELECT length(CAST(v.attrs AS BLOB))+length(CAST(v.ext AS BLOB))+COALESCE(length(CAST(v.text AS BLOB)),0) AS payload_bytes FROM v_analysis_event",
+        )
+        total_bytes = 0
+        for row_count, candidate in enumerate(
+            connection.execute(probe + " LIMIT :budget", {**params, "budget": max_events + 1}), 1
+        ):
+            total_bytes += candidate["payload_bytes"]
+            if row_count > max_events or total_bytes > max_bytes:
+                raise AnalysisLimitExceeded(
+                    "Narrow scope or read SQL views in batches; event limit exceeded or payload byte budget exceeded"
+                )
         events = []
         for row in connection.execute(query, params):
             events.append(decoded(row))
             if len(events) > max_events:
-                raise ValueError("Narrow scope or read SQL views in batches; event limit exceeded")
+                raise AnalysisLimitExceeded(
+                    "Narrow scope or read SQL views in batches; event limit exceeded"
+                )
 
         def member(event):
             return (
@@ -424,6 +447,9 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                 "statistical_rows": len(members),
                 "unknown_rows": unknown,
                 "truncated_rows": truncated,
+                "inherited_context_rows": sum(
+                    e["attrs"].get("context_type") == "inherited_history" for e in selected
+                ),
                 "time_unknown_rows": time_unknown,
                 "reasons": reasons,
             },
