@@ -2,7 +2,12 @@ import { hash } from './util.ts';
 import type { Json } from './types.ts';
 
 const hiddenKeys = /^(creator_user_id|creator_account_id)$/i;
-const secretKeys = /^(api_?key|access_?token|refresh_?token|authorization|password|secret)$/i;
+function secretKey(key:string):boolean {
+  const normalized=key.replace(/([a-z0-9])([A-Z])/g,'$1_$2').toLowerCase().replace(/[^a-z0-9]+/g,'_');
+  // Do not match plural token counters or token_usage objects. Credentials may use vendor prefixes and camelCase.
+  return /(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?)$/.test(normalized)
+    || /(?:^|_)(?:secret|password|passwd)(?:_|$)/.test(normalized);
+}
 export function redact(text: string): string {
   return text
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '<redacted:private_key>')
@@ -14,11 +19,19 @@ export function redact(text: string): string {
 /** L0 alone holds original bytes. L1/L2 never hold inline media, credentials or account identities. */
 export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024, toolBudget = 8192): Json {
   if (/^(output|aggregated_output|formatted_output|stdout|stderr|result)$/.test(key)) maxBytes=Math.min(maxBytes,toolBudget);
-  if (secretKeys.test(key)) return '<redacted:secret>';
+  if (secretKey(key)) return '<redacted:secret>';
   if (typeof value === 'string') {
+    if (/^\s*[\[{]/.test(value)) {
+      try {
+        const parsed=JSON.parse(value);
+        const cleaned=sanitize(parsed,'',maxBytes,toolBudget);
+        if (JSON.stringify(parsed)!==JSON.stringify(cleaned)) return JSON.stringify(cleaned);
+      } catch { /* Non-JSON text follows the normal string redaction path. */ }
+    }
     if (/^data:[^,]+;base64,/.test(value)) return `<attachment:sha256:${hash(value)}>`;
-    if (key === 'encrypted_content') return `<opaque:sha256:${hash(value)}>`;
+    if (key === 'encrypted_content') return /^<opaque:sha256:[0-9a-f]{64}>$/.test(value)?value:`<opaque:sha256:${hash(value)}>`;
     const clean = redact(value);
+    if (/<truncated:sha256:[0-9a-f]{64}>$/.test(clean)) return clean;
     // Bounded copies in L1/L2; the complete native field is still addressable in L0.
     return Buffer.byteLength(clean) <= maxBytes ? clean : `${Buffer.from(clean).subarray(0,maxBytes).toString('utf8')}<truncated:sha256:${hash(value)}>`;
   }

@@ -338,3 +338,17 @@ test('v1 staging migration rebuilds nullable L2/L3 without losing archived origi
     assert.deepEqual(await readRawRecord(migrated,uid(file,0)),Buffer.from(native.split('\n')[0]+'\n'));
   } finally {migrated.close();}
 }));
+test('a redaction upgrade re-cleans cached L1 and republishes L2 without touching L0',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());await s.connector.ingest();
+  const row=s.store.db.prepare("SELECT record_uid,body FROM current_record WHERE native_type='response_item:function_call' LIMIT 1").get()!;
+  const body=JSON.parse(String(row.body));body.payload.arguments=JSON.stringify({token:'opaque-old-cache-secret'});
+  s.store.db.prepare('UPDATE raw_record SET body=? WHERE record_uid=?').run(JSON.stringify(body),String(row.record_uid));
+  s.store.db.prepare("UPDATE pipeline_version SET version='codex-redact/0.2.0' WHERE component='redaction'").run();
+  const original=await readRawRecord(s.store,String(row.record_uid));
+  const upgraded=new ConnectorStore(s.store.directory);
+  try {
+    assert.ok(!String(upgraded.db.prepare('SELECT body FROM raw_record WHERE record_uid=?').get(String(row.record_uid))?.body).includes('opaque-old-cache-secret'));
+    assert.ok(!JSON.stringify(upgraded.db.prepare('SELECT attrs,ext FROM event').all()).includes('opaque-old-cache-secret'));
+    assert.deepEqual(await readRawRecord(upgraded,String(row.record_uid)),original);
+  } finally {upgraded.close();}
+}));

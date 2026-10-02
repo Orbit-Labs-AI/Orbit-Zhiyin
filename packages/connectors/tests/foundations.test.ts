@@ -37,6 +37,19 @@ test('sanitized copies omit identities and redact nested secrets and media', () 
   assert.ok(!output.includes(secret)); assert.ok(!output.includes('private-person'));
   assert.ok(output.includes('attachment:sha256:')); assert.ok(output.includes('opaque:sha256:'));
 });
+test('credential variants are redacted without replacing native usage counters or identity keys',()=>{
+  const value=sanitize({token:'opaque-token-value',client_secret:'opaque-client-value',secret_access_key:'opaque-secret-value',
+    clientSecret:'opaque-camel-value',AWS_SECRET_ACCESS_KEY:'opaque-aws-value',nested:{refreshToken:'opaque-refresh-value'},
+    input_tokens:10,last_token_usage:{input_tokens:20},request_key:['source','identity'],snapshot_key:'snapshot-identity'});
+  const serialized=JSON.stringify(value);
+  assert.ok(!serialized.includes('opaque-'));
+  assert.ok(serialized.includes('"input_tokens":10'));assert.ok(serialized.includes('"last_token_usage":{"input_tokens":20}'));
+  assert.ok(serialized.includes('snapshot-identity'));
+  const wrapped=JSON.stringify(sanitize({arguments:JSON.stringify({token:'opaque-nested-token',clientSecret:'opaque-nested-secret',input_tokens:12})}));
+  assert.ok(!wrapped.includes('opaque-nested'));assert.ok(wrapped.includes('input_tokens'));
+  const opaque=sanitize({encrypted_content:'ciphertext',output:'z'.repeat(20000)});
+  assert.deepEqual(sanitize(opaque),opaque);
+});
 test('SQLite migration is repeatable, private and rejects invalid event attributes', async () => {
   const dir = await mkdtemp(join(tmpdir(),'tandem-db-'));
   try {

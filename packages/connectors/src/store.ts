@@ -4,6 +4,7 @@ import { resolve, join } from 'node:path';
 import { uid } from './util.ts';
 import type { SourceFile, RawRecord, StandardEvent } from './types.ts';
 import { rebuildSource } from './normalize.ts';
+import { sanitize } from './privacy.ts';
 
 export class ConnectorStore {
   readonly db: DatabaseSync;
@@ -28,10 +29,21 @@ export class ConnectorStore {
         this.db.exec('PRAGMA user_version=1');
       });
     } else if (version !== 1 && version !== 2) { this.db.close(); throw new Error(`Unsupported tandem.db version: ${version}`); }
-    if (version === 0 || version === 1) {
+    const migrated=version===0||version===1;
+    if (migrated) {
       this.transaction(()=>{
         this.db.exec(readFileSync(new URL('../schema/002.sql',import.meta.url),'utf8'));
         this.db.exec('PRAGMA user_version=2');
+      });
+    }
+    const redaction=this.db.prepare("SELECT version FROM pipeline_version WHERE component='redaction'").get()?.version;
+    if (migrated||redaction!=='codex-redact/0.2.1') {
+      this.transaction(()=>{
+        for (const row of this.db.prepare('SELECT record_uid,body FROM raw_record WHERE body IS NOT NULL').iterate()) {
+          this.db.prepare('UPDATE raw_record SET body=? WHERE record_uid=?').run(JSON.stringify(sanitize(JSON.parse(String(row.body)))),String(row.record_uid));
+        }
+        this.db.prepare("UPDATE pipeline_version SET version='codex-redact/0.2.1' WHERE component='redaction'").run();
+        this.db.prepare('INSERT OR IGNORE INTO dirty_session SELECT DISTINCT session_uid FROM current_record WHERE session_uid IS NOT NULL').run();
       });
       for (const source of this.db.prepare('SELECT source_id FROM source').all()) rebuildSource(this,String(source.source_id));
     }
