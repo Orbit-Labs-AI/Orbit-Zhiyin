@@ -4,16 +4,15 @@ The bottleneck feature families live in interaction/respond/cost_time/outcome.
 Existing callers keep their imports and v1 field meanings.
 """
 
-import re
 from collections import Counter
 from statistics import mean, median
 
-from ..privacy import direct_user_text
 from .common import human, quantile, ratio
 from .cost_time import activity, token_total, usage
 from .instruction.structure import FILE, structure
 from .interaction import correction_terms
 from .outcome import legacy_objective_candidates
+from .outcome_subjective import analyze_subjective_outcomes
 from .respond import tool_summary, workflow
 
 __all__ = ["activity", "correction_terms", "human", "quantile", "ratio", "session_features",
@@ -44,7 +43,7 @@ def text_lengths(events):
             "quality": "lower_bound" if exact < len(values) else "normalized_text"}
 
 
-def session_features(session, events, calls, main_ids, supported_kinds=None):
+def session_features(session, events, calls, main_ids, supported_kinds=None, event_status="available"):
     users = [e for e in events if human(e, main_ids)]
     assistants = [e for e in events if e["kind"] == "message.assistant"]
     unknown_humans = sum(e["kind"] == "message.user" and e.get("attrs", {}).get("origin", "unknown") == "unknown" for e in events)
@@ -55,18 +54,11 @@ def session_features(session, events, calls, main_ids, supported_kinds=None):
     structures = [s for e in users if (s := structure(e)) is not None]
     languages = Counter(ext.lower() for e in users for ext in FILE.findall(e.get("text") or ""))
     objective = legacy_objective_candidates(calls)
-    # Subjective signals require a prior final delivery, and explicitly shared task identity.
-    feedback, delivered = [], {}
-    for e in events:
-        a = e.get("attrs", {})
-        if e["kind"] == "message.assistant" and a.get("phase") == "final" and a.get("task_id"):
-            delivered[a["task_id"]] = e["event_uid"]
-        elif human(e, main_ids) and a.get("task_id") in delivered:
-            text = direct_user_text(e.get("text") or "").strip()
-            m = re.fullmatch(r"(可以了|这样可以|解决了|还是不行|不对|算了)[。！!\s]*", text)
-            if m:
-                feedback.append({"event_uid": e["event_uid"], "delivery_event_uid": delivered[a["task_id"]],
-                                 "signal": "positive" if m[1] in ("可以了", "这样可以", "解决了") else "negative"})
+    subjective = analyze_subjective_outcomes(events, main_ids, event_status)
+    feedback = None if subjective["feedback"] is None else [
+        {key: f[key] for key in ("event_uid", "delivery_event_uid", "signal")}
+        for f in subjective["feedback"] if f["delivery_event_uid"] is not None
+        and f["signal"] in ("positive", "negative")]
     main = session["session_uid"] in main_ids
     features = {"user_message_count": len(users) if main and (users or not unknown_humans) else None,
                 "assistant_message_count": len(assistants), "turn_count": len({e["turn_uid"] for e in events if e.get("turn_uid")}) or None,
@@ -88,5 +80,6 @@ def session_features(session, events, calls, main_ids, supported_kinds=None):
             "prompt_structure": structures, "language_signals": [{"language": LANG[k], "extension": k, "count": n,
                 "basis": "human_text_file_extension"} for k, n in languages.most_common()],
             "objective_outcomes": objective, "subjective_outcome_candidates": feedback,
+            "subjective_outcomes": subjective,
             "task_success": None, "tool_sequence": calls,
             "human_evidence_ids": [e["event_uid"] for e in users]}
