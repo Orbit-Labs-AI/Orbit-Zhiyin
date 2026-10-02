@@ -333,6 +333,13 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?) WHERE file_id=?",
                 (mapper_version, REDUCER_VERSION, info["file_id"]),
             )
+        from tandem_data.privacy import REDACTION_VERSION
+
+        if not store.db.execute(
+            "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.mapper_version'),'') <> ? LIMIT 1",
+            (mapper_version,),
+        ).fetchone():
+            store.db.execute("UPDATE schema_manifest SET redaction_version=?", (REDACTION_VERSION,))
         dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
         if dangling:
             raise ValueError("Projection contains broken foreign keys")

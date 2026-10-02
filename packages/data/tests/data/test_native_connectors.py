@@ -819,3 +819,69 @@ def test_kimi_contiguous_stream_is_one_response_block_with_all_evidence(tmp_path
             == 3
         )
         assert_sound(store)
+
+
+def test_inline_media_and_provider_signatures_are_opaque_but_raw_is_exact(tmp_path):
+    data = {
+        "type": "message",
+        "id": "a",
+        "message": {
+            "role": "assistant",
+            "content": [
+                {"type": "image", "data": "synthetic-inline-image", "mimeType": "image/png"},
+                {
+                    "type": "thinking",
+                    "thinking": "reasoning",
+                    "thoughtSignature": "synthetic-signature",
+                },
+                {
+                    "type": "document",
+                    "source": {"type": "base64", "data": "synthetic-inline-document"},
+                },
+            ],
+        },
+    }
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "pi", [{"type": "session", "id": "s"}, data])
+        store.rebuild()
+        projected = canonical(rows(store, "event"))
+        assert "synthetic-inline-image" not in projected
+        assert "synthetic-inline-document" not in projected
+        assert "synthetic-signature" not in projected
+        record = store.db.execute(
+            "SELECT record_uid FROM raw_record WHERE native_type='message'"
+        ).fetchone()[0]
+        assert json.loads(store.read_raw(record)) == data
+        assert_sound(store)
+
+
+def test_malformed_native_text_does_not_abort_neighbouring_records(tmp_path):
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "s"},
+                {
+                    "type": "message",
+                    "id": "bad",
+                    "message": {"role": "user", "content": [{"type": "text", "text": False}]},
+                },
+                {"type": "message", "id": "good", "message": {"role": "user", "content": "valid"}},
+            ],
+        )
+        store.rebuild()
+        assert store.verify()["unparsed"] == 1
+        assert store.db.execute("SELECT text FROM v_human_message").fetchone()[0] == "valid"
+
+
+def test_invalid_json_sidecar_is_not_mistaken_for_an_incomplete_jsonl_tail(tmp_path):
+    root = tmp_path / "claude"
+    path = root / "projects/p/s/subagents/agent-c.meta.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{bad")
+    with Store(tmp_path / "data") as store:
+        result = ImportService(store).import_source(ImportRequest("claude_code", root))
+        assert result["current_unparsed"] == 1
+        assert store.verify()["unparsed"] == 1

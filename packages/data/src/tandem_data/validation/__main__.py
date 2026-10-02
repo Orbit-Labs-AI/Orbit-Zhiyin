@@ -108,7 +108,11 @@ def benchmark(folder, count=1000):
         service = ImportService(store)
         cold = service.import_source(ImportRequest("pi", root))
         warm = service.import_source(ImportRequest("pi", root))
+        started = time.perf_counter()
+        store.rebuild()
+        rebuild_seconds = round(time.perf_counter() - started, 4)
         return {
+            "rebuild_seconds": rebuild_seconds,
             "records": count + 1,
             "bytes": path.stat().st_size,
             "cold_seconds": cold["elapsed_seconds"],

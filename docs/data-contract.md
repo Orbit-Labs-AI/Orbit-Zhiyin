@@ -151,7 +151,7 @@ JOIN source_revision v USING(revision_uid) WHERE re.event_uid=:event_uid;
 
 ## 6. Connector 接口与跨语言对接
 
-连接器可以提交 `Store.capture_stream(source_id, relative_path, chunks, format_name=...)`，格式为 jsonl、jsonl_zstd 或 sqlite_rows。只提交完整原始字节，不让分析团队重写日志解析。映射器实现 `prepare(records)` 与 `map(RawRecord) -> Mapping`，输出 `EventDraft`；用 `register_mapper` 注册。库负责 ID、seq、Schema 校验、多对多贡献、版本与事务，不把来源类型映射规则混进分析算法。
+连接器可以提交 `Store.capture_stream(source_id, relative_path, chunks, format_name=...)`，格式为 jsonl、jsonl_zstd、sqlite_rows，或白名单 sidecar 的单文档 json。只提交完整原始字节，不让分析团队重写日志解析。映射器实现 `prepare(records)` 与 `map(RawRecord) -> Mapping`，输出 `EventDraft`；用 `register_mapper` 注册。库负责 ID、seq、Schema 校验、多对多贡献、版本与事务，不把来源类型映射规则混进分析算法。
 
 TypeScript connector 的 `archive_chunk / generation` 库通过 `import-connector` 接入：按 generation 和 offset 重组原字节，验证每块大小/哈希，导入 L0/L1，然后按本契约重算。`connector_checkpoint` 避免重复导入旧 generation；`connector_record_link` 连接旧 record_uid 和 canonical record_uid。staging 的旧 L2/L3 不被直接复制，原来的 event_uid 也不冒充新事件 ID。
 
@@ -166,10 +166,13 @@ TypeScript connector 的 `archive_chunk / generation` 库通过 `import-connecto
 | DSH | v0–v4 已研究的事件、拼接 zstd、流式合并、工具与审批 | v0 本机真实样本 + v4/多帧/半帧构造样本 | 未出现的新插件事件转 unknown；缺父会话时根树分析排除并告警 |
 | pi | 消息树、模型/effort、工具/usage、显式 fork 复制段 | 本机真实样本 + fork 构造样本 | 父文件未登记时不能可靠认定复制段；clone 导入无血缘证据不猜测 |
 | Hermes | session/message 与累计行的只读 SQL 导出和版本化 | 实际创建的 SQLite 来源 + 行 A→B→A 样本 | 本机未安装；未验证真实运行版本，按 partial 接入。只有累计值，不生成 model_call |
-| OpenCode | V1 message/part、V2 session_message 基本内容与用量 | V1 SQL 构造样本 | 本机未安装；V2 工具结构与运行版本需更多黄金样本，按 partial 接入 |
+| OpenCode | V1 message/part、V2 session_message 内容/工具/用量与原地更新 | V1/V2 SQL、WAL、更新/删除和 CLI E2E | 本机未安装；尚无真实 session，原生运行版本按 partial 接入 |
+| Kimi Code | wire 1.x、session_index、loop 内容/工具、usage 去重、控制事件 | wire 1.5 构造样本、内容分片归并、CLI E2E | 本机无 session；早期 .kimi Python CLI 的另一套 wire 不在本版验证范围 |
 
 本轮使用的真实样本仅用于本机验证，没有提交正文或数据库；不是全量历史回填。Antigravity/protobuf、Copilot 元数据、配置 inventory 和 catalog 未在本包实现，入口明确为 unavailable，不以空数组假装已完整观察。
 
 结构验证包含 JSON Schema、真实外键、索引唯一性、L0 哈希、记录全记账、重复导入、SQL 行观测版本、fork 去重、Schema 升级失败时旧投影保留、UTC/null 质量、截断前篇幅、只读来源和桥接 record 对照。具体测试以包内测试和 CI 为准。
 
 SQLite 使用 STRICT 表、WAL、显式启用 foreign_keys 和外键检查；需要 FTS5 的构建。外键需要逐连接启用，见 [SQLite 官方说明](https://www.sqlite.org/foreignkeys.html)。zstd 原生多帧与尾帧检查采用官方库的逐帧 EOF 接口，见 [python-zstandard 解压接口](https://python-zstandard.readthedocs.io/en/latest/decompressor.html)。
+
+当前存储 user_version=3，逻辑契约仍为 v1。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](backend/agent-connectors.md)。

@@ -3,7 +3,7 @@
 import hashlib
 import re
 
-REDACTION_VERSION = "1.0.0"
+REDACTION_VERSION = "1.0.1"
 SECRET_KEYS = re.compile(
     r"^(api_?key|access_?token|refresh_?token|authorization|password|secret)$", re.I
 )
@@ -37,6 +37,20 @@ def sanitize(value, key=""):
     if SECRET_KEYS.fullmatch(key):
         return "<redacted:secret>"
     if isinstance(value, dict):
+        if value.get("type") == "base64" and isinstance(value.get("data"), str):
+            value = {
+                **value,
+                "data": "<opaque:sha256:"
+                + hashlib.sha256(value["data"].encode()).hexdigest()
+                + ">",
+            }
+        elif value.get("type") == "image" and isinstance(value.get("data"), str):
+            value = {
+                **value,
+                "data": "<opaque:sha256:"
+                + hashlib.sha256(value["data"].encode()).hexdigest()
+                + ">",
+            }
         return {
             name: sanitize(item, name) for name, item in value.items() if name not in HIDDEN_KEYS
         }
@@ -45,7 +59,15 @@ def sanitize(value, key=""):
     if isinstance(value, str):
         digest = hashlib.sha256(value.encode()).hexdigest()
         if (
-            key in ("encrypted_content", "signature", "thinkingSignature")
+            key
+            in (
+                "encrypted_content",
+                "encrypted",
+                "signature",
+                "thinkingSignature",
+                "thoughtSignature",
+                "textSignature",
+            )
             or value.startswith("data:")
             and ";base64," in value[:128]
         ):

@@ -99,6 +99,23 @@ class BaseMapper:
         semantics="written",
         relation="mapped",
     ) -> EventDraft:
+        if text is not None and not isinstance(text, str):
+            raise ValueError("Native text must be a string")
+        for attr_name in (
+            "cwd",
+            "model_raw",
+            "provider",
+            "effort_raw",
+            "name",
+            "native_id",
+            "title",
+            "git_branch",
+            "git_sha",
+            "git_remote",
+        ):
+            value = (attrs or {}).get(attr_name)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"Native {attr_name} must be a string")
         stamp, time = time_fields(
             record.data.get(ts_field) if ts_value is None else ts_value,
             ts_field,

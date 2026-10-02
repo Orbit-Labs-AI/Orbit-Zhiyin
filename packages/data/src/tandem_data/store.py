@@ -109,9 +109,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version not in (1, 2):
+        elif version not in (1, 2, 3):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1 or 2")
+            raise ValueError(f"Unsupported database version {version}; expected 1, 2 or 3")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -127,6 +127,9 @@ class Store:
 
         if version < 2:
             sql = files("tandem_data").joinpath("migrations/002.sql").read_text()
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 3:
+            sql = files("tandem_data").joinpath("migrations/003.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
@@ -395,7 +398,9 @@ class Store:
                         data, locator, native_type, native_id, shape_hash = (
                             {},
                             canonical(["line", ordinal]),
-                            "pending_tail" if not line.endswith(b"\n") else "invalid",
+                            "pending_tail"
+                            if format_name in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n")
+                            else "invalid",
                             None,
                             None,
                         )
