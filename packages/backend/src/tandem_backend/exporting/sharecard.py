@@ -1,9 +1,12 @@
 """Share-card payload (EXP-03/04): experimental persona with a hard sample-size gate.
 
-The persona is ``analytics.presentation.profile.build_profile`` over the same tasks /
-instruction / preferences snapshots the pages read; ``n_units`` per axis is the profile's
-``effective_task_n``. Gate: every axis ≥ 30 units and ≥ 10 active days, and every axis
-settled (no ``?`` in the code). Rendering (PNG/SVG) belongs to the frontend.
+The card reads the A2 persona (``/v1/uiview/persona`` payload, ``uiview-persona-v0``), so the
+card and the page always show the same code. Gate: the persona is ``ok`` (≥ 30 sessions),
+no axis is ``insufficient`` (per-axis units and ≥ 10 active days, as on the page), and the
+code is settled (no ``?``). Rendering (PNG/SVG) belongs to the frontend.
+
+``persona_profile`` / ``gate`` / ``blocked_reason`` remain for the report's persona section
+(``presentation.profile`` four axes).
 """
 
 from __future__ import annotations
@@ -58,26 +61,46 @@ def blocked_reason(profile: dict | None, gate_: dict) -> str | None:
     return None
 
 
-def stats(overview_body: dict | None, profile: dict | None, days: int | None,
-          hide_numbers: bool) -> list[dict]:
-    counts = ((overview_body or {}).get("overview") or {}).get("counts") or {}
-    rows = [("会话", counts.get("main_sessions"), "个"), ("活跃天数", days, "天"),
-            ("任务", ((profile or {}).get("coverage") or {}).get("task_n"), "个")]
+def card_gate(p: dict | None) -> dict:
+    from ..uiview import persona
+
+    axes = [{"axis": a["k"], "n_units": a["n_units"], "state": a["state"]}
+            for a in (p or {}).get("axes") or []]
+    return {"min_units": dict(persona.MIN_UNITS), "min_active_days": persona.MIN_DAYS,
+            "min_sessions": persona.MIN_SESSIONS, "axes": axes,
+            "sessions": (p or {}).get("n"), "active_days": (p or {}).get("days")}
+
+
+def card_reason(p: dict | None, gate_: dict) -> str | None:
+    if p is None:
+        return "persona_unavailable"
+    if not p.get("ok") or any(a["state"] == "insufficient" for a in gate_["axes"]):
+        return "insufficient_data"
+    if not p.get("code") or "?" in p["code"]:
+        return "unsettled_code"
+    return None
+
+
+def stats(p: dict, hide_numbers: bool) -> list[dict]:
+    turns = next((a["n_units"] for a in p.get("axes") or [] if a["k"] == "D"), None)
+    rows = [("会话", p.get("n"), "个"), ("活跃天数", p.get("days"), "天"), ("对话轮次", turns, "轮")]
     return [{"label": label, "value": None if hide_numbers else value, "unit": unit,
              "hidden": hide_numbers} for label, value, unit in rows]
 
 
-def payload(bodies: dict[str, dict | None], *, hide_numbers: bool = False,
-            theme: str = "system") -> dict:
-    profile = persona_profile(bodies)
-    days = active_days(bodies.get("overview"))
-    gate_ = gate(profile, days)
-    reason = blocked_reason(profile, gate_)
+def payload(p: dict | None, *, hide_numbers: bool = False, theme: str = "system") -> dict:
+    """Card from a ``uiview.persona.page`` payload (``None`` when the facts are missing)."""
+    gate_ = card_gate(p)
+    reason = card_reason(p, gate_)
     eligible = reason is None
-    code = persona_code(profile) if eligible else None
+    code = p["code"] if eligible else None
     type_name, copy = copy_for(code)
-    return {"eligible": eligible, "blocked_reason": reason,
-            "gate": {k: v for k, v in gate_.items() if k != "passed"},
-            "code": code, "type_name": type_name, "copy": copy if eligible else None,
-            "stats": stats(bodies.get("overview"), profile, days, hide_numbers) if eligible else [],
+    axes = [{k: a[k] for k in ("k", "value", "letter", "left", "right")}
+            for a in p["axes"]] if eligible else []
+    return {"eligible": eligible, "blocked_reason": reason, "gate": gate_,
+            "code": code, "type_name": type_name or (p["zh"] if eligible else None),
+            "copy": copy if eligible else None, "axes": axes,
+            "period": ((p or {}).get("meta") or {}).get("period"),
+            "method": ((p or {}).get("meta") or {}).get("method"),
+            "stats": stats(p, hide_numbers) if eligible else [],
             "theme": theme, "disclaimer": DISCLAIMER, "generated_at": int(time.time() * 1000)}

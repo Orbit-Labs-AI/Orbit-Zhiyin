@@ -1,31 +1,34 @@
-"""Share-card gate (EXP-04), copy lookup and hide_numbers; snapshot storage and pruning."""
+"""Share-card gate (EXP-04) over the A2 persona payload, copy lookup and hide_numbers;
+snapshot storage and pruning."""
 
 from __future__ import annotations
 
 import pytest
 
-from tandem_backend.exporting import report, sharecard, snapshots
+from tandem_backend.exporting import snapshots
 from tandem_backend.exporting.type_copy import TYPES, copy_for
+from tandem_backend.uiview import fetch
 
-OVERVIEW = {"overview": {"counts": {"main_sessions": 42}, "activity_rhythm": {"active_days": 10}}}
 
-
-def profile(code="DPMV", n=30):
-    return {"axes": {f"axis{i}": {"direction": None if ch == "?" else ch, "effective_task_n": n}
-                     for i, ch in enumerate(code)},
-            "headline": "h", "coverage": {"task_n": 50}}
+def page(code="DPMV", n=30, days=10, units=30, ok=True):
+    axes = [{"k": k, "value": 70.0, "letter": ch, "left": "l", "right": "r",
+             "n_units": units, "state": "insufficient" if units < 30 or days < 10 else
+             ("experimental" if ch == "?" else "settled")}
+            for k, ch in zip("DIMV", code, strict=True)]
+    return {"meta": {"period": "30", "method": "uiview-persona-v0", "scope_hash": "h" * 32},
+            "ok": ok and n >= 30, "n": n, "days": days, "code": code, "zh": "页面类型",
+            "axes": axes}
 
 
 @pytest.fixture
 def canned(monkeypatch):
-    state = {"profile": profile(), "overview": OVERVIEW}
-    monkeypatch.setattr(sharecard, "persona_profile", lambda bodies: state["profile"])
+    state = {"page": page(), "freshness": "fresh", "calls": []}
 
-    def fetch(gw, names, scope_dict, wait_ms=3000):
-        return ({n: (state["overview"] if n == "overview" else {}, "fresh") for n in names},
-                "h" * 32)
+    def persona_page(gw, scope, params, today, wait_ms=0):
+        state["calls"].append(params)
+        return state["page"], state["freshness"], None
 
-    monkeypatch.setattr(report, "fetch_sections", fetch)
+    monkeypatch.setattr(fetch, "persona_page", persona_page)
     return state
 
 
@@ -37,43 +40,47 @@ def card(client, **body):
 
 def test_eligible_card_with_copy_and_snapshot(env, canned):
     client, _, _ = env
-    body = card(client, theme="dark")
+    body = card(client, theme="dark", agents=["codex"], period="90")
+    assert canned["calls"][-1] == {"period": "90", "agents": ["codex"], "project": None,
+                                   "vs": None}
     assert body["eligible"] and body["blocked_reason"] is None and body["code"] == "DPMV"
     assert body["type_name"] == TYPES["DPMV"][0] == "总设计师"
     assert body["copy"]["headline"] == "先把规格写清楚，再让每个 Agent 各司其职。"
     assert body["disclaimer"] == "实验性画像，仅供参考" and body["theme"] == "dark"
-    assert body["gate"]["min_units"] == 30 and body["gate"]["active_days"] == 10
-    assert {s["label"]: s["value"] for s in body["stats"]} == {"会话": 42, "活跃天数": 10, "任务": 50}
+    assert body["gate"]["min_units"]["D"] == 30 and body["gate"]["active_days"] == 10
+    assert body["method"] == "uiview-persona-v0" and [a["k"] for a in body["axes"]] == list("DIMV")
+    assert {s["label"]: s["value"] for s in body["stats"]} == {"会话": 30, "活跃天数": 10,
+                                                              "对话轮次": 30}
     items = client.get("/v1/export/snapshots", params={"kind": "share_card"}).json()["items"]
     assert [i["snapshot_id"] for i in items] == [body["snapshot_id"]]
     assert items[0]["summary"] == "DPMV 总设计师"
     assert "snapshot_id" not in card(client, save=False)
 
 
-@pytest.mark.parametrize(("code", "n", "days", "reason"), [
-    ("DPMV", 29, 10, "insufficient_data"), ("DPMV", 30, 9, "insufficient_data"),
-    ("DPMV", 30, 10, None), ("DP?V", 30, 10, "unsettled_code"),
-    ("DP?V", 29, 10, "insufficient_data")])
-def test_gate_boundaries(env, canned, code, n, days, reason):
+@pytest.mark.parametrize(("code", "n", "days", "units", "reason"), [
+    ("DPMV", 29, 10, 30, "insufficient_data"), ("DPMV", 30, 9, 30, "insufficient_data"),
+    ("DPMV", 30, 10, 29, "insufficient_data"), ("DPMV", 30, 10, 30, None),
+    ("DP?V", 30, 10, 30, "unsettled_code"), ("DP?V", 30, 10, 29, "insufficient_data")])
+def test_gate_boundaries(env, canned, code, n, days, units, reason):
     client, _, _ = env
-    canned["profile"] = profile(code, n)
-    canned["overview"] = {"overview": {"counts": {}, "activity_rhythm": {"active_days": days}}}
+    canned["page"] = page(code, n, days, units)
     body = card(client)
     assert body["blocked_reason"] == reason and body["eligible"] is (reason is None)
     if reason:
         assert body["code"] is None and body["copy"] is None and body["stats"] == []
-        assert "snapshot_id" not in body
-    assert [a["n_units"] for a in body["gate"]["axes"]] == [n] * 4
+        assert body["axes"] == [] and "snapshot_id" not in body
+    assert [a["n_units"] for a in body["gate"]["axes"]] == [units] * 4
 
 
-def test_persona_unavailable_and_unknown_code(env, canned):
+def test_persona_unavailable_computing_and_unknown_code(env, canned):
     client, _, _ = env
-    canned["profile"] = None
-    assert card(client)["blocked_reason"] == "persona_unavailable"
-    canned["profile"] = profile("CEAS")
+    canned["page"], canned["freshness"] = None, "computing"
+    body = card(client)
+    assert body["blocked_reason"] == "persona_unavailable" and body["freshness"] == "computing"
+    canned["page"], canned["freshness"] = page("CEAS"), "fresh"
     body = card(client)
     assert body["eligible"] and body["code"] == "CEAS"
-    assert body["type_name"] is None and body["copy"] is None
+    assert body["type_name"] == "页面类型" and body["copy"] is None  # page copy as fallback
     assert copy_for("CEAS") == (None, None)
 
 
@@ -81,17 +88,6 @@ def test_hide_numbers(env, canned):
     client, _, _ = env
     stats = card(client, hide_numbers=True)["stats"]
     assert stats and all(s["hidden"] and s["value"] is None for s in stats)
-
-
-def test_real_profile_from_empty_sections_is_gated():
-    bodies = {"tasks": {"scope": {"display_timezone": "UTC"}, "tasks": {"records": []},
-                        "coverage": {}},
-              "instruction": {"instruction": {"records": []}},
-              "preferences": {"preferences": {"records": []}}, "overview": OVERVIEW}
-    result = sharecard.payload(bodies)
-    assert result["blocked_reason"] == "insufficient_data"
-    assert [a["n_units"] for a in result["gate"]["axes"]] == [0, 0, 0, 0]
-    assert sharecard.payload({**bodies, "tasks": None})["blocked_reason"] == "persona_unavailable"
 
 
 def test_snapshot_crud_and_prune(env):
