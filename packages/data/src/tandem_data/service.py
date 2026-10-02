@@ -197,10 +197,9 @@ class ImportService:
                         source_ids=stale_sources, progress=self.progress
                     )
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)
-            result["current_unparsed"] = self.store.db.execute(
-                "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",
-                (source_id,),
-            ).fetchone()[0]
+            result["current_unparsed"] = self._current_unparsed(
+                source_id, unchanged=not result["changed"] and "projection" not in result
+            )
             result["unknown_events"] = self.store.db.execute(
                 "SELECT COUNT(*) FROM event e JOIN session_identity s USING(session_uid) WHERE s.source_id=? AND e.kind='unknown'",
                 (source_id,),
@@ -219,6 +218,39 @@ class ImportService:
                 ),
             )
             return result
+
+    def _current_unparsed(self, source_id: str, *, unchanged: bool) -> int:
+        """Unparsed current records of one source; reused while L1 and L2 are unchanged.
+
+        The count visits every raw record of the source, which dominated no-change
+        rescans. Dispositions only change when a file gains a revision (capture) or a
+        projection publishes (a new ``projection_run`` row), so a rescan that changed
+        neither reuses the value computed for the same stamp on this store.
+        """
+        db = self.store.db
+        stamp = (
+            tuple(
+                db.execute("SELECT COALESCE(MAX(rowid),0),COUNT(*) FROM projection_run").fetchone()
+            ),
+            tuple(
+                db.execute(
+                    "SELECT COUNT(*),COALESCE(SUM(json_extract(watermark,'$.revision')),0),"
+                    "group_concat(json_extract(watermark,'$.source_sha256')) FROM source_file "
+                    "WHERE source_id=?",
+                    (source_id,),
+                ).fetchone()
+            ),
+        )
+        memo = self.store.__dict__.setdefault("_unparsed_memo", {})
+        cached = memo.get(source_id)
+        if unchanged and cached is not None and cached[0] == stamp:
+            return cached[1]
+        count = db.execute(
+            "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",
+            (source_id,),
+        ).fetchone()[0]
+        memo[source_id] = (stamp, count)
+        return count
 
     def watch(self, request: ImportRequest, stop: threading.Event, interval: float = 2.0):
         """Portable polling fallback; SQLite WAL changes are seen by each read transaction."""
