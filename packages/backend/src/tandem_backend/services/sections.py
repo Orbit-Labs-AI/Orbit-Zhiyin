@@ -148,3 +148,5 @@ def compute_section(name: str, store, scope, params: dict, memo: ResultMemo) -> 
     if section is None:
         raise SectionNotFound(f"Unknown section {name}")
     return section.compute(store, scope, params, memo)
+
+from ..recommend import section as _recommend_section  # noqa: E402,F401  registers recommend_inputs

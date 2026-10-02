@@ -1,0 +1,309 @@
+"""`/v1/recommendations`, labels and outcomes routes on a FastAPI app with a fake gateway."""
+
+from __future__ import annotations
+
+import sqlite3
+import threading
+from contextlib import contextmanager
+from types import SimpleNamespace
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from tandem_backend.appdb import AppDB
+from tandem_backend.recommend import inputs as rec_inputs
+from tandem_backend.recommend import runs
+from tandem_backend.services import routes_recommend
+from tandem_backend.services.gateway import install_error_handlers
+from tandem_backend.services.snapshots import Snapshot, SnapshotKey
+
+
+def legacy_card(i, kind="skill"):
+    return {"resource_id": f"res{i}", "kind": kind, "name": f"Resource {i}",
+            "reason": f"why {i}", "summary": "s", "priority_score": 90 - i,
+            "compatibility": "compatible", "setup_steps": ["step"],
+            "evidence": [{"kind": "tool_call", "session_uid": f"s{i}", "id": "e",
+                          "task_uid": None}]}
+
+
+INPUTS = {"version": "rec-inputs-v1", "signals": [{"signal_id": "x"}],
+          "sessions": {"main": 10, "first_ts": 0, "last_ts": 1, "weeks": 1},
+          "facts": {"session_days": []},
+          "legacy_cards": [legacy_card(0, "hook"), legacy_card(1), legacy_card(2, "mcp"),
+                           legacy_card(3, "prompt")]}
+
+
+class FakeReads:
+    def __init__(self, path):
+        self.path = path
+
+    @contextmanager
+    def read(self):
+        conn = sqlite3.connect(self.path)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    tandem = tmp_path / "tandem.db"
+    conn = sqlite3.connect(tandem)
+    conn.executescript("""
+        CREATE TABLE session (session_uid TEXT PRIMARY KEY, title TEXT);
+        CREATE TABLE tool_call (session_uid TEXT, name TEXT, command_head TEXT, files TEXT,
+                                started_at INTEGER);
+        INSERT INTO session VALUES ('s1', '修复登录');
+        INSERT INTO tool_call VALUES ('s1','Bash','pytest -q','[]',1),
+                                     ('s1','Edit',NULL,'["a.py"]',2),
+                                     ('s1','Write',NULL,'[{"path":"b.py"}]',3);""")
+    conn.commit()
+    conn.close()
+    gw = SimpleNamespace(appdb=AppDB(tmp_path / "app.db"), reads=FakeReads(tandem))
+    state = {"inputs": dict(INPUTS), "freshness": "fresh"}
+
+    def fetch(gw_, scope_dict, *, wait_ms=0):
+        if state["inputs"] is None:
+            return None, state["freshness"], "job1" if state["freshness"] == "computing" else None
+        from tandem_backend.services.snapshots import scope_hash
+        return ({**state["inputs"], "scope": scope_dict,
+                 "scope_hash": scope_hash(scope_dict, {}), "data_rev": 1, "inventory_rev": 1},
+                state["freshness"], None)
+
+    monkeypatch.setattr(rec_inputs, "fetch", fetch)
+    monkeypatch.setattr(runs, "_engine", lambda: (runs.legacy_slate, runs.LEGACY_ENGINE))
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(routes_recommend.router(gw))
+    client = TestClient(app)
+    yield client, gw, state
+    gw.appdb.close()
+
+
+def test_legacy_list_reuse_and_dims(env):
+    client, gw, _ = env
+    first = client.get("/v1/recommendations")
+    assert first.status_code == 200
+    body = first.json()
+    assert body["run"]["engine_version"] == "legacy-v1"
+    assert body["run"]["freshness"] == "fresh"
+    assert [i["rec_key"] for i in body["items"]] == [f"legacy:res{i}" for i in range(4)]
+    item = body["items"][0]
+    assert item["ui"]["icon"] == "bolt" and item["ui"]["ev"] == "1 个会话"
+    assert item["candidate_id"] and item["dim"] == "hook"
+    dims = {d["id"]: d["count"] for d in body["dims"]}
+    assert dims == {"all": 4, "rule": 1, "skill": 1, "hook": 1, "mcp": 1, "agent": 0,
+                    "model": 0, "flow": 0}
+    again = client.get("/v1/recommendations")
+    assert again.json()["run"]["run_id"] == body["run"]["run_id"]  # same digest reused
+    recompute = client.post("/v1/recommendations/recompute", json={"scope": {}})
+    assert recompute.json()["reused"] is True
+    forced = client.post("/v1/recommendations/recompute", json={"scope": {}, "force": True})
+    assert forced.json()["reused"] is False
+    assert client.get("/v1/recommendations?dim=skill").json()["items"][0]["dim"] == "skill"
+    runs_body = client.get("/v1/recommendations/runs").json()["runs"]
+    assert len(runs_body) == 1 and runs_body[0]["n_passed"] == 4  # forced run replaced
+    assert runs_body[0]["top"] == ["Resource 0", "Resource 1", "Resource 2"]
+
+
+def test_label_changes_memory_and_hides(env):
+    client, _, _ = env
+    items = client.get("/v1/recommendations").json()["items"]
+    run_id = items[0]["run_id"]
+    target = items[0]["candidate_id"]
+    bad = client.post("/v1/labels", json={"target_kind": "candidate", "target_id": target,
+                                          "label": "not_applicable"})
+    assert bad.status_code == 422
+    label = client.post("/v1/labels", json={"target_kind": "candidate", "target_id": target,
+                                            "label": "not_applicable",
+                                            "reason": "has_equivalent"}).json()
+    assert label["effect"]["status"] == "not_applicable"
+    body = client.get("/v1/recommendations").json()
+    assert body["run"]["run_id"] != run_id  # memory_rev changed -> new run
+    assert "legacy:res0" not in [i["rec_key"] for i in body["items"]]
+    assert client.delete(f"/v1/labels/{label['label_id']}").json() == {"ok": True}
+    assert client.delete("/v1/labels/nope").status_code == 404
+    keys = [i["rec_key"] for i in client.get("/v1/recommendations").json()["items"]]
+    assert "legacy:res0" in keys
+    snooze = client.post("/v1/labels", json={"target_kind": "candidate", "target_id": target,
+                                             "label": "snooze"}).json()
+    assert snooze["effect"]["hidden_until"] is not None
+    missing = client.post("/v1/labels", json={"target_kind": "candidate", "target_id": "x",
+                                              "label": "useful"})
+    assert missing.status_code == 404
+
+
+def test_surfaces_use_top_snapshot(env):
+    client, gw, _ = env
+    menubar = client.get("/v1/recommendations?surface=menubar").json()["items"]
+    assert len(menubar) == 1
+    a1 = client.get("/v1/recommendations?surface=A1").json()["items"]
+    assert [i["rec_key"] for i in a1] == [f"legacy:res{i}" for i in range(3)]
+    with gw.appdb.read() as conn:
+        top = conn.execute("SELECT run_id FROM rec_top WHERE surface='A1'").fetchone()[0]
+    # A new run (exposure changes memory) keeps serving the same A1 snapshot.
+    client.post(f"/v1/recommendations/{a1[0]['candidate_id']}/exposure",
+                json={"surface": "A1", "position": 0, "action": "view"})
+    again = client.get("/v1/recommendations?surface=A1").json()["items"]
+    assert [i["candidate_id"] for i in again] == [i["candidate_id"] for i in a1]
+    assert again[0]["run_id"] == top
+
+
+def test_exposures_detail_tracking_outcome(env):
+    client, _, _ = env
+    items = client.get("/v1/recommendations").json()["items"]
+    cid = items[1]["candidate_id"]
+    one = client.post(f"/v1/recommendations/{cid}/exposure",
+                      json={"surface": "A7", "position": 1, "action": "view"}).json()
+    assert one["state"]["shown_count"] == 1
+    batch = client.post("/v1/recommendations/exposures", json={"surface": "A7", "items": [
+        {"candidate_id": cid, "position": 1, "action": "preview"},
+        {"candidate_id": "missing", "position": 2}]}).json()
+    assert batch["missing"] == ["missing"]
+    assert client.post("/v1/recommendations/missing/exposure",
+                       json={"surface": "A7"}).status_code == 404
+    assert client.post(f"/v1/recommendations/{cid}/exposure",
+                       json={"surface": "nope"}).status_code == 422
+    tracking = client.post(f"/v1/recommendations/{cid}/tracking",
+                           json={"install_id": "inst-1"}).json()
+    assert tracking["tracking_id"]
+    detail = client.get(f"/v1/recommendations/{cid}").json()
+    assert detail["item"]["rec_key"] == "legacy:res1"
+    assert detail["state"]["status"] == "installed"
+    assert detail["exposures"]["count"] == 2
+    assert detail["outcome"]["effect_status"] == "tracking"
+    assert client.get("/v1/recommendations/unknown").status_code == 404
+    outcome = client.get("/v1/outcomes/inst-1").json()
+    assert outcome["effect_status"] == "tracking" and outcome["windows"] == []
+    assert client.get("/v1/outcomes/none").status_code == 404
+    metrics = client.get("/v1/recommendations/metrics").json()["rows"]
+    assert metrics[0]["group"] == "legacy" and metrics[0]["shown"] == 1
+    # Installed items are hidden from the list.
+    keys = [i["rec_key"] for i in client.get("/v1/recommendations").json()["items"]]
+    assert "legacy:res1" not in keys
+
+
+def test_relations_fallback_and_handoff(env):
+    client, _, _ = env
+    items = client.get("/v1/recommendations").json()["items"]
+    ids = "&".join(f"candidate_id={i['candidate_id']}" for i in items[:2])
+    pairs = client.get(f"/v1/recommendations/relations?{ids}")
+    assert pairs.status_code == 200 and "pairs" in pairs.json()
+    assert client.get(f"/v1/recommendations/relations?candidate_id={items[0]['candidate_id']}"
+                      ).status_code == 422
+    handoff = client.get("/v1/recommendations/handoff/s1").json()
+    assert handoff["parts"] == {"task": "修复登录", "recent_files": ["b.py", "a.py"],
+                                "verify_pending": True, "last_test_command": "pytest -q"}
+    assert handoff["text"].startswith("继续上一个任务：修复登录")
+    assert client.get("/v1/recommendations/handoff/zzz").status_code == 404
+
+
+def test_computing_none_and_stale(env):
+    client, _, state = env
+    state["inputs"], state["freshness"] = None, "none"
+    none = client.get("/v1/recommendations")
+    assert none.status_code == 200 and none.json()["meta"]["freshness"] == "none"
+    assert client.post("/v1/recommendations/recompute", json={}).status_code == 409
+    state["freshness"] = "computing"
+    computing = client.get("/v1/recommendations")
+    assert computing.status_code == 202
+    assert computing.json()["meta"] == {"scope_hash": computing.json()["meta"]["scope_hash"],
+                                        "freshness": "computing", "job_id": "job1"}
+    assert client.post("/v1/recommendations/recompute", json={}).status_code == 202
+    state["inputs"], state["freshness"] = dict(INPUTS), "fresh"
+    client.get("/v1/recommendations")
+    state["inputs"], state["freshness"] = None, "computing"
+    stale = client.get("/v1/recommendations").json()
+    assert stale["meta"]["freshness"] == "stale" and stale["items"]
+    assert client.post("/v1/recommendations/recompute",
+                       json={"scope": {"bogus": 1}}).status_code == 422
+
+
+def test_engine_slate_stores_gated_and_failure_falls_back(env, monkeypatch):
+    client, gw, _ = env
+
+    def build_slate(inputs, memory, *, catalog=None):
+        cand = runs.legacy_slate(inputs)["candidates"][0]
+        gated = {**cand, "rec_key": "kb:gated", "rank": None,
+                 "gates": {"passed": False, "checks": {"installed": False},
+                           "reasons": ["已安装等价项"]}}
+        return {"engine_version": "rec-engine-v2", "kb_version": "kb1", "catalog_generation": 3,
+                "status": "ready", "problems": [{"problem_id": "p"}], "candidates": [cand, gated],
+                "routes": {"kb": 1}, "diagnostics": []}
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build_slate, "rec-engine-v2"))
+    body = client.get("/v1/recommendations?include_gated=true").json()
+    assert body["run"]["kb_version"] == "kb1" and body["problems"] == [{"problem_id": "p"}]
+    assert [g["rec_key"] for g in body["gated"]] == ["kb:gated"]
+    assert "ui" not in body["gated"][0]
+    run_id = body["run"]["run_id"]
+    assert client.get("/v1/recommendations").json()["run"]["run_id"] == run_id  # stable digest
+
+    def broken(inputs, memory, *, catalog=None):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(runs, "_engine", lambda: (broken, "rec-engine-v3"))
+    body = client.get("/v1/recommendations").json()
+    assert body["run"]["engine_version"] == "legacy-v1" and len(body["items"]) == 4
+
+
+def test_concurrent_runs_coalesce(env):
+    client, gw, _ = env
+    results = []
+
+    def call():
+        results.append(client.get("/v1/recommendations").json()["run"]["run_id"])
+
+    threads = [threading.Thread(target=call) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(set(results)) == 1
+
+
+class FakeTask:
+    def __init__(self, status="queued"):
+        self.id, self.status = "job9", status
+        self.done = threading.Event()
+
+
+def test_inputs_fetch_states():
+    from tandem_backend.services.sections import rules_digest
+    from tandem_backend.services.snapshots import scope_hash
+
+    h = scope_hash({}, {})
+    key = SnapshotKey("recommend_inputs", h, 2, 1, rules_digest())
+    snapshots = {}
+    old = Snapshot(SnapshotKey("recommend_inputs", h, 1, 1, rules_digest()), {"v": "old"}, 0, 0)
+    revision = {"data_rev": 2, "inventory_rev": 1}
+    gw = SimpleNamespace(
+        revisions=SimpleNamespace(snapshot=lambda: revision),
+        snapshots=SimpleNamespace(get=lambda k: snapshots.get(k),
+                                  latest=lambda *a: snapshots.get("latest")),
+        supervisor=SimpleNamespace(analysis=SimpleNamespace(submit=lambda *a: FakeTask())))
+    assert rec_inputs.fetch(gw, {}) == (None, "computing", "job9")
+    snapshots["latest"] = old
+    data, freshness, job = rec_inputs.fetch(gw, {})
+    assert (data["v"], freshness, job, data["data_rev"]) == ("old", "stale", "job9", 1)
+    snapshots[key] = Snapshot(key, {"v": "new"}, 0, 0)
+    data, freshness, _ = rec_inputs.fetch(gw, {})
+    assert (data["v"], data["scope_hash"], freshness) == ("new", h, "fresh")
+    revision["data_rev"] = None
+    assert rec_inputs.fetch(gw, {}) == (None, "none", None)
+
+
+def test_real_gateway_wiring(tmp_path):
+    from tandem_backend.services.gateway import Gateway
+
+    token = "synthetic-test-token-0123456789abcdef"
+    gateway = Gateway(tmp_path / "home", discovery=lambda: [], prewarm_debounce_s=3600.0)
+    app = gateway.app(token=token, port=8765)
+    with TestClient(app, base_url="http://127.0.0.1:8765",
+                    headers={"Authorization": f"Bearer {token}"}) as client:
+        body = client.get("/v1/recommendations").json()
+        assert body["meta"]["freshness"] == "none" and body["items"] == []
+        assert client.post("/v1/recommendations/recompute", json={}).status_code == 409
+        assert client.get("/v1/recommendations/metrics").json() == {"rows": []}
