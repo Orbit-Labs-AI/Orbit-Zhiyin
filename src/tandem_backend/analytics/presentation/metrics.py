@@ -54,7 +54,8 @@ def ranked_counts(counts, *, basis, unknown_n=0, status="available"):
                      for k, v in sorted(counts.items(), key=lambda p: (-p[1], p[0]))]}
 
 
-def activity_view(rhythm, scope, event_status="available"):
+def activity_view(rhythm, scope, event_status="available", *, source_statuses=None,
+                  human_origin_unknown_n=0):
     """Separate activity units; log-scaled heatmap intensity is local to this selection."""
     if rhythm is None:
         return {"status": "unavailable", "series": None, "reason": "events_unavailable"}
@@ -72,6 +73,7 @@ def activity_view(rhythm, scope, event_status="available"):
         except (ValueError, OverflowError, OSError):
             pass
     result = {}
+    source_statuses = source_statuses or {}
     for name in ("human_messages", "tool_calls", "model_requests"):
         source = rhythm.get(name)
         if source is None:
@@ -81,14 +83,22 @@ def activity_view(rhythm, scope, event_status="available"):
         maximum = max(days.values(), default=0)
         total = sum(days.values())
         unknown = source.get("time_unknown_n", 0)
+        origin_unknown = human_origin_unknown_n if name == "human_messages" else 0
+        source_status = source_statuses.get(name, event_status)
+        status = ("unavailable" if source_status in ("unavailable", "excluded") else
+                  "partial" if unknown or origin_unknown or source_status != "available" else "available")
+        measurable = status == "available" or total > 0
         result[name] = {
-            "status": "partial" if unknown or event_status != "available" else "available",
+            "status": status,
             "known_n": total, "time_unknown_n": unknown,
-            "by_day": [{"date": day, "count": days.get(day, 0),
+            "human_origin_unknown_n": origin_unknown,
+            "count_basis": "observed subset; partial zero-only selections remain null",
+            "by_day": [{"date": day, "count": days.get(day, 0) if measurable else None,
                         "share": days.get(day, 0) / total if total else None,
-                        "intensity": log1p(days.get(day, 0)) / log1p(maximum) if maximum else 0.0}
+                        "intensity": (log1p(days.get(day, 0)) / log1p(maximum) if maximum else 0.0)
+                                      if measurable else None}
                        for day in dates or sorted(days)],
-            "by_hour": [{"hour": hour, "count": source["by_hour"].get(str(hour), 0),
+            "by_hour": [{"hour": hour, "count": source["by_hour"].get(str(hour), 0) if measurable else None,
                          "share": source["by_hour"].get(str(hour), 0) / total if total else None}
                         for hour in range(24)],
         }

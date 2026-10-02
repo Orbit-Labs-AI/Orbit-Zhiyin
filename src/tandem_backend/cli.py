@@ -85,11 +85,13 @@ def main(argv: list[str] | None = None) -> None:
     analytics.add_argument("--display-timezone", default="UTC")
     analytics.add_argument("--from-ts", type=int)
     analytics.add_argument("--until-ts", type=int)
-    for flag in ("project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
+    for flag in ("project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session", "agent-id"):
         analytics.add_argument("--" + flag, action="append")
     analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
     analytics.add_argument("--scene")
     analytics.add_argument("--no-text", action="store_true", help="只计算确定性测量，跳过文本表示")
+    analytics.add_argument("--presentation", action="store_true", help="输出八个特征族到前端的确定性指标映射")
+    analytics.add_argument("--window", choices=("7d", "30d", "90d", "all"), help="滚动时间窗口；until-ts 可指定历史截止")
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     for command in (report, demo):
@@ -199,19 +201,30 @@ def main(argv: list[str] | None = None) -> None:
             parser.error(str(exc))
     if args.command == "analytics":
         from .analytics.inputs import Scope
+        from .analytics.presentation.metrics import window_scope
         from .analytics.service import analyze_store
         try:
             scope = Scope(display_timezone=args.display_timezone, project_ids=args.project_id,
                           legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
                           effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
                           root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],
-                          include_children=args.include_children, scene=args.scene)
-            result = analyze_store(store, scope, not args.no_text)
+                          include_children=args.include_children, scene=args.scene,
+                          agent_ids=[] if args.agent_id == [""] else args.agent_id)
+            scope = window_scope(scope, args.window)
+            result = analyze_store(store, scope, not (args.no_text or args.presentation))
+            if args.presentation:
+                from .analytics.presentation import build_presentation
+                result = build_presentation(result)
         except ValueError as exc:
             parser.error(str(exc))
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+        if args.presentation:
+            print(json.dumps({"schema_version": result["schema_version"], "scope": result["scope"],
+                              "sessions": result["overview"]["sessions"],
+                              "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
+            return
         counts = result["overview"]["counts"]
         print(f"主会话 {counts['main_sessions']}；确认真人消息 {counts['human_messages']}；来源未知 {counts['human_origin_unknown']}。")
         print(f"工具调用 {result['effective_samples']['tools']}；文本样本 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")

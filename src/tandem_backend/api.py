@@ -34,6 +34,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         effort_raw: Annotated[list[str] | None, Query()] = None, from_ts: int | None = None, until_ts: int | None = None,
         root_session_uids: Annotated[list[str] | None, Query()] = None, excluded_session_uids: Annotated[list[str] | None, Query()] = None,
         include_children: bool = True, scene: str | None = None,
+        agent_ids: Annotated[list[str] | None, Query()] = None,
     ):
         from .analytics.inputs import Scope
         try:
@@ -44,6 +45,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
                          model_ids=[] if model_ids == [""] else model_ids, effort_raw=effort_raw,
                          from_ts=from_ts, until_ts=until_ts,
                          root_session_uids=[] if root_session_uids == [""] else root_session_uids,
+                         agent_ids=[] if agent_ids == [""] else agent_ids,
                          excluded_session_uids=excluded_session_uids or [], include_children=include_children, scene=scene)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -60,6 +62,16 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     def analytics_section(key, scope):
         from .analytics.service import response_section
         return response_section(analytics_data(scope, key in ("sessions", "text", "projects")), key)
+
+    @app.get("/v1/analytics/presentation")
+    def presentation(scope=scope_dependency, window: str | None = None):
+        from .analytics.presentation import build_presentation
+        from .analytics.presentation.metrics import window_scope
+        try:
+            selected_scope = window_scope(scope, window)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return build_presentation(analytics_data(selected_scope, with_text=False))
 
     @app.get("/v1/analytics/overview")
     def feature_overview(scope=scope_dependency):

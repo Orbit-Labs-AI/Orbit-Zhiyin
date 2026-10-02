@@ -75,7 +75,7 @@ def _duration_summary(calls, duration_rows, source):
     total = math.fsum(values) if values else None
     missing = len(calls) - len(reliable) - len(estimated)
     return {"value": total / len(values) if values else None, "unit": "ms",
-            "status": "unavailable" if source == "unavailable" else
+            "status": "unavailable" if source in ("unavailable", "excluded") else
                       "insufficient_data" if not values else
                       "partial" if source != "available" or len(values) < len(calls) else "available",
             "numerator": total, "denominator": len(values), "known_n": len(values),
@@ -149,7 +149,7 @@ def _transitions(calls, source):
             refs.append({"session_uid": sid, "from_call_uid": previous["call_uid"],
                          "to_call_uid": following["call_uid"]})
     totals = [sum(row) for row in counts]
-    return {"status": "unavailable" if calls is None or source == "unavailable" else
+    return {"status": "unavailable" if calls is None or source in ("unavailable", "excluded") else
                       "partial" if excluded or source != "available" else "available",
             "nodes": [{"name_raw": None, "kind": None, "group": "other", "label": "其他工具"}
                       if key is other else {"name_raw": key[0], "kind": key[1]} for key in nodes]
@@ -254,6 +254,13 @@ def build_diagnostics(analysis: dict) -> dict:
     """Map analyze_bundle or its same-scope session/project subview to the UI."""
     families = analysis.get("bottleneck_features") or {}
     interaction, respond = families.get("interaction") or {}, families.get("respond") or {}
+    outcome = families.get("outcome") or {}
+    # A user exclusion overrides an older feature engine's L2 reconstruction.
+    # Keep this boundary even when newer engines already enforce it upstream.
+    excluded_tools = (families.get("source_coverage") or {}).get("tool_calls", {}).get("status") == "excluded"
+    if excluded_tools:
+        respond = {"status": "excluded", "tool_sequence": None}
+        outcome = {"status": "excluded"}
     correction, corrected = _corrections(interaction)
     calls, source = respond.get("tool_sequence"), respond.get("status", "unavailable")
     durations = (families.get("cost_time") or {}).get("durations") or {}
@@ -280,7 +287,7 @@ def build_diagnostics(analysis: dict) -> dict:
              "retry_links": retry_links,
              "confirmed_retry_count": sum(r.get("state") == "confirmed" for r in retry_links) if retry_measured else None,
              "candidate_retry_count": sum(r.get("state") == "candidate" for r in retry_links) if retry_measured else None}
-    outcomes, validation_failures, rework = _outcomes(analysis, families.get("outcome") or {})
+    outcomes, validation_failures, rework = _outcomes(analysis, outcome)
     failed_calls = [c for c in calls or [] if c.get("tool_result_status") == "failed"]
     findings = [
         _finding("confirmed_correction", "已确认的协作纠偏", correction, _refs(corrected, "event_uid"),
