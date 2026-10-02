@@ -48,6 +48,7 @@ class CatalogService:
         self._jobs = {}
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tandem-catalog")
         self.on_job_done = None  # Optional callback(job) for telemetry (set by the gateway).
+        self._first_sync = {"state": "pending", "job_id": None, "due_at": None}
 
     def encoder(self):
         with self._model_lock:
@@ -206,6 +207,28 @@ class CatalogService:
         return not any(s["spec"].get("kind") == "snapshot" or
                        (s["completed_at"] and s["spec"].get("kind") not in OFFLINE_KINDS)
                        for s in self.store.sources())
+
+    def needs_network_sync(self) -> bool:
+        """No network source has ever completed: the library holds only offline/seed rows."""
+        return not any(s["completed_at"] and s["spec"].get("kind") not in OFFLINE_KINDS for s in self.store.sources())
+
+    def track_first_sync(self, state: str, *, job_id: str | None = None, due_at: int | None = None) -> None:
+        """Gateway scheduler hook: pending / scheduled / deferred / disabled / not_needed / job."""
+        with self._jobs_lock:
+            self._first_sync = {"state": state, "job_id": job_id, "due_at": due_at}
+
+    def first_sync_state(self) -> dict:
+        """First-run library sync for the UI: ``state`` is the scheduler state or, once started, the job's."""
+        with self._jobs_lock:
+            info = dict(self._first_sync)
+            job = self._jobs.get(info["job_id"]) if info["job_id"] else None
+            if job is not None:
+                info["state"] = job["status"]
+                info["error"] = job["error"]
+                results = job["result"] or []
+                info["sources"] = {"completed": sum(r.get("status") == "completed" for r in results),
+                                   "failed": sorted(r["source_id"] for r in results if r.get("status") == "failed")}
+        return info
 
     def coverage(self) -> dict:
         """Library coverage for the settings page and the first-start progress bar."""

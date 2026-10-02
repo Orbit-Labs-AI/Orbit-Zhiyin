@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 import types
 import weakref
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -126,3 +128,81 @@ def test_refresher_waits_for_start_then_seeds_and_syncs(monkeypatch):
     holder.stopping.set()
     thread.join(2)
     assert calls[:2] == ["seed", "sync"] and not thread.is_alive()
+
+
+GEMINI = Path(__file__).resolve().parents[3] / "catalog/tests/fixtures/library/gemini_mini.json"
+
+
+class OnlyGemini:
+    """Injected fetcher: the Gemini extension list answers, every other host is down."""
+
+    def json(self, url, immutable=False):
+        if url == "https://geminicli.com/extensions.json":
+            return json.loads(GEMINI.read_text())
+        raise RuntimeError("http_500")
+
+    def get(self, url, immutable=False):
+        raise RuntimeError("http_500")
+
+    def get_many(self, urls, workers=12, immutable=False):
+        raise RuntimeError("http_500")
+
+
+def wait_first_sync(client, states=("completed", "failed", "cancelled")):
+    for _ in range(3000):
+        first = client.get("/v1/catalog/status").json()["first_sync"]
+        if first["state"] in states:
+            return first
+        time.sleep(0.01)
+    raise AssertionError(f"first sync did not finish: {first}")
+
+
+def test_fresh_install_schedules_one_first_sync_without_blocking(gateway, monkeypatch):
+    gw, client = gateway
+    monkeypatch.setattr(routes_catalog, "FIRST_RUN_DELAY_S", 0.0)
+    service = service_of(gw)
+    service.http = OnlyGemini()
+    assert service.needs_network_sync()
+    assert client.get("/v1/catalog/status").json()["first_sync"]["state"] == "pending"
+
+    gw.platform.started = True  # The refresher polls once a second.
+    first = wait_first_sync(client)
+    assert first["job_id"] and first["sources"]["completed"] >= 1
+    assert "mcp-official" in first["sources"]["failed"]
+    assert not service.needs_network_sync()
+    gemini = client.get("/v1/catalog/items", params={"source_id": "gemini-extensions"}).json()
+    assert gemini["total"] >= 1
+    # Reads keep working on the seeded library while other sources failed.
+    assert client.get("/v1/catalog/items", params={"kind": "hook"}).json()["total"] >= 3
+
+
+def test_first_sync_respects_disabled_autosync(gateway, monkeypatch):
+    gw, client = gateway
+    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "0")
+    service = service_of(gw)
+    service.http = OnlyGemini()
+    gw.platform.started = True
+    first = wait_first_sync(client, ("disabled",))
+    assert first["job_id"] is None and service.needs_network_sync()
+
+
+def test_first_sync_retries_soon_when_another_job_runs(monkeypatch):
+    states, ticks = [], iter([None, {"job_id": "j1"}])
+    service = types.SimpleNamespace(bootstrap=lambda: None, needs_network_sync=lambda: True,
+                                    track_first_sync=lambda state, **kw: states.append((state, kw.get("job_id"))))
+    monkeypatch.setattr(routes_catalog, "refresh_tick", lambda svc: next(ticks, None))
+    monkeypatch.setattr(routes_catalog, "FIRST_RUN_DELAY_S", 0.0)
+
+    class Holder:
+        stopping = threading.Event()
+        platform = types.SimpleNamespace(started=True)
+    holder = Holder()
+    thread = threading.Thread(target=routes_catalog._refresher, args=(weakref.ref(holder), service, 0.01), daemon=True)
+    thread.start()
+    for _ in range(200):
+        if ("started", "j1") in states:
+            break
+        time.sleep(0.01)
+    holder.stopping.set()
+    thread.join(2)
+    assert [s for s, _ in states] == ["scheduled", "deferred", "started"] and states[-1][1] == "j1"
