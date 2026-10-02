@@ -10,6 +10,9 @@ Rules kept honest:
   Error rates use known results only; text never decides success.
 - failure reasons: ``error_class`` first, else regex rules over the redacted result text.
 - resident tokens of an MCP server are only filled when inventory measured them.
+- tool rows group by ``sessionops.toolcalls.tool_name_key`` (case-folded + a short alias
+  map), so one tool spelled Bash / bash by two agents is one row; ``aliases`` keeps the
+  original spellings and the drilldown accepts the key or any of them.
 - every constant below marked 待验证 is a first guess to be checked against real data.
 """
 
@@ -27,7 +30,7 @@ from fastapi import Depends, Query
 from tandem_data.privacy import redact
 
 from ..features.vocab import command_info
-from ..sessionops.toolcalls import args_summary
+from ..sessionops.toolcalls import args_summary, tool_name_key
 from . import a4a6_common as common
 
 NAME = "tools"
@@ -85,11 +88,25 @@ def node_of(kind: str | None) -> str:
 
 
 def tool_key(row: dict, group_by: str = "name") -> str:
+    """Row key: the kind, ``mcp·<server>``, or the normalised tool name, so Bash / bash from
+    two agents are one row. ``GET /v1/analytics/tool_calls?name=`` takes the key or any alias."""
     if group_by == "kind":
         return row["kind"] or "other"
     if row["kind"] == "mcp" and row["mcp_server"]:
         return f"mcp·{row['mcp_server']}"
-    return row["name_raw"]
+    return tool_name_key(row["name_raw"])
+
+
+def aliases(items) -> list[dict]:
+    """Original spellings behind one row: ``[{name, agents, n}]``, most used first."""
+    seen: dict[str, dict] = {}
+    for r in items:
+        a = seen.setdefault(r["name_raw"], {"name": r["name_raw"], "agents": set(), "n": 0})
+        a["n"] += 1
+        if r["agent"]:
+            a["agents"].add(r["agent"])
+    return [{**a, "agents": sorted(a["agents"])}
+            for a in sorted(seen.values(), key=lambda a: (-a["n"], a["name"]))]
 
 
 # -- reads -------------------------------------------------------------------------------
@@ -176,8 +193,10 @@ def table(rows, group_by: str = "name", tz: ZoneInfo | None = None) -> list[dict
                 if i is not None:
                     daily[i] += 1
         first = items[0]
+        names = aliases(items) if group_by == "name" else []
         out.append({
-            "key": key, "name": key if group_by == "kind" else first["name_raw"],
+            "key": key, "name": key if group_by == "kind" else names[0]["name"],
+            "aliases": names,
             "kind": first["kind"], "mcp_server": first["mcp_server"] if group_by == "name"
             else None, **c, "err": common.rate(c["failed"], c["known"]), "lo": lo, "hi": hi,
             "p50_ms": common.quantile(durations, 0.5), "p90_ms": common.quantile(durations, 0.9),
@@ -250,15 +269,15 @@ def _sequence(items) -> list[dict]:
 
 
 def retries(rows, conn=None) -> list[dict]:
-    """Adjacent failed calls in one session with the same (name, argument digest)."""
+    """Adjacent failed calls in one session with the same (tool name key, argument digest)."""
     runs: list[tuple[dict, int]] = []
     for items in _session_order(rows).values():
         seq = _sequence(items)
         length = 1
         for prev, cur in zip(seq, seq[1:], strict=False):
             same = (prev["state"] == cur["state"] == "failed" and cur["argument_digest"]
-                    and (prev["name_raw"], prev["argument_digest"])
-                    == (cur["name_raw"], cur["argument_digest"]))
+                    and (tool_name_key(prev["name_raw"]), prev["argument_digest"])
+                    == (tool_name_key(cur["name_raw"]), cur["argument_digest"]))
             if same:
                 length += 1
                 continue

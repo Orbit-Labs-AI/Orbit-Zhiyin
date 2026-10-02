@@ -3,6 +3,7 @@ import math
 import pytest
 
 from tandem_backend.analytics.inputs import Scope
+from tandem_backend.sessionops import toolcalls
 from tandem_backend.uiview import a4a6_common as common
 from tandem_backend.uiview import a4a6_tools as tools
 
@@ -92,6 +93,55 @@ def test_matrix_rows_sum_to_one_and_order_exclusion(tandem, conn):
     assert m["pairs"] == 566 - 40 and "other" in m["nodes"]  # mcp falls into other.
     chain = m["top_chain"]
     assert chain and chain["support_sessions"] >= 3 and len(chain["probs"]) == 2
+
+
+def test_mixed_case_tool_names_from_two_agents_are_one_row(tandem, conn):
+    """claude_code says Bash/Edit/Grep/Read/WebSearch, codex bash/edit/grep/read/web.search:
+    one row per tool, original spellings kept, drilldown by key or alias returns the same calls."""
+    spellings = {"claude_code": (("Bash", "shell"), ("Edit", "file.edit"), ("Grep", "search"),
+                                 ("Read", "file.read"), ("WebSearch", "web.search")),
+                 "codex": (("bash", "shell"), ("edit", "file.edit"), ("grep", "search"),
+                           ("read", "file.read"), ("web.search", "web.search"))}
+    at = T0
+    for agent, calls in spellings.items():
+        for s in range(2):
+            uid = f"{agent}-{s}"
+            tandem.session(uid, agent=agent)
+            for i, (name, kind) in enumerate(calls):
+                for k in range(i + 1):  # Bash ×1 … WebSearch ×5 per session.
+                    at += 1000
+                    failed = agent == "codex" and k == 0
+                    tandem.call(uid, name=name, kind=kind, at=at, head="ls" if kind == "shell" else None,
+                                status="failed" if failed else "success",
+                                approval="approved" if agent == "codex" and kind == "shell" else None,
+                                wait=6000 if agent == "codex" and kind == "shell" else None)
+    body = build(conn)
+    rows = {t["key"]: t for t in body["tools"]}
+    assert set(rows) == {"bash", "edit", "grep", "read", "websearch"}
+    assert body["header"]["tool_kinds"] == 5
+    for i, key in enumerate(("bash", "edit", "grep", "read", "websearch")):
+        row = rows[key]
+        assert row["n"] == 2 * 2 * (i + 1) and row["failed"] == 2 and row["known"] == row["n"]
+        assert row["err"] == pytest.approx(2 / row["n"]) and sum(row["daily"]) == row["n"]
+        cc, cx = spellings["claude_code"][i][0], spellings["codex"][i][0]
+        assert sorted((a["name"], a["agents"], a["n"]) for a in row["aliases"]) == sorted(
+            [(cc, ["claude_code"], row["n"] // 2), (cx, ["codex"], row["n"] // 2)])
+        assert row["name"] in (cc, cx)
+        for name in (key, cc, cx, cc.upper()):
+            got = toolcalls.query(conn, {"name": name}, limit=200)["items"]
+            assert len(got) == row["n"], name
+            failed = toolcalls.query(conn, {"name": name, "status": "failed"}, limit=200)["items"]
+            assert len(failed) == row["failed"], name
+    assert sum(r["n"] for r in rows.values()) == body["header"]["calls"]
+    assert sum(r["failed"] for r in rows.values()) == body["kpis"]["error_rate"]["failed"]
+    assert rows["bash"]["approval_rate"] == pytest.approx(0.5)  # codex's bash calls only.
+    asked = body["kpis"]["approvals"]["count"]
+    assert asked == round(sum(r["approval_rate"] * r["n"] for r in rows.values())) == 2
+    assert {b["bucket"]: b["n"] for b in body["approval"]["histogram"]}["5–15s"] == asked
+    assert toolcalls.tool_name_spellings("WebSearch") == ["web.search", "web_search", "websearch"]
+    assert toolcalls.tool_name_key("MultiEdit") == "multiedit"
+    kinds = {t["key"] for t in build(conn, params={"group_by": "kind"})["tools"]}
+    assert kinds == {"shell", "file.edit", "search", "file.read", "web.search"}
 
 
 def test_retries(tandem, conn):
