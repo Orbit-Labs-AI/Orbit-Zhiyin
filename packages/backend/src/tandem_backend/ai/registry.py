@@ -8,7 +8,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-TASK_MODULES = ("tandem_backend.ai.tasks_analysis", "tandem_backend.ai.generate")
+TASK_MODULES = ("tandem_backend.ai.tasks_analysis", "tandem_backend.ai.tasks_v1", "tandem_backend.ai.generate")
 ENGINES = ("claude_code", "codex", "api_key", "fake")
 STAGES = ("pack", "analyse", "draft", "check", "replay", "review", "cross")
 _extra: dict[str, dict] = {}
