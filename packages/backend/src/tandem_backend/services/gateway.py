@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
 from .. import __version__
+from ..appdb import AppDB
 from .auth import TOKEN_ENV, ApiError, GuardMiddleware, error_body, validate_token
 from .events import EventBus
 from .jobs import AppState, JobConflict, JobService
@@ -174,6 +175,7 @@ class Gateway:
         self.revisions = Revisions()
         self.snapshots = SnapshotStore(self.home / "cache" / "ui.sqlite")
         self.reads = ReadPool(self.home / "tandem.db")
+        self.appdb = AppDB(self.home / "app.db")
         self.supervisor = Supervisor(self.home, self.config, self.snapshots, self.bus.publish,
                                      self._published)
         self.jobs = JobService(self.state, self.supervisor.ingest, self.bus.publish)
@@ -207,6 +209,7 @@ class Gateway:
         self.state.save()  # Persist the scope MRU used for prewarm.
         self.reads.close()
         self.snapshots.close()
+        self.appdb.close()
 
     # -- worker events -------------------------------------------------------------------
     def _published(self, entry: dict) -> None:
@@ -277,7 +280,17 @@ class Gateway:
 
     # -- application ---------------------------------------------------------------------
     def app(self, *, token: str, port: int | None, hosts=None) -> FastAPI:
-        from . import routes_analytics, routes_app, routes_data
+        from . import (
+            routes_ai,
+            routes_analytics,
+            routes_app,
+            routes_catalog,
+            routes_data,
+            routes_features,
+            routes_install,
+            routes_platform,
+            routes_recommend,
+        )
 
         @asynccontextmanager
         async def lifespan(_: FastAPI):
@@ -294,6 +307,9 @@ class Gateway:
         app.include_router(routes_data.router(self))
         app.include_router(routes_app.router(self))
         app.include_router(routes_analytics.router(self))
+        for module in (routes_catalog, routes_features, routes_recommend, routes_ai,
+                       routes_install, routes_platform):
+            app.include_router(module.router(self))
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
         app.state.gateway = self
         guard_kwargs = {"hosts": hosts} if hosts else {}
