@@ -1,0 +1,75 @@
+{
+ "task_id": "generate.skill",
+ "engine": "claude_code",
+ "items": [
+  {
+   "key": "goal",
+   "label": "目标",
+   "desc": "本次分析或生成要解决的问题",
+   "data_class": "summary",
+   "enabled": true,
+   "tokens": 7,
+   "redaction_hits": 0,
+   "preview": [
+    "text: \"\"",
+    "source: \"ask\""
+   ],
+   "consent": "missing"
+  },
+  {
+   "key": "evidence",
+   "label": "证据片段",
+   "desc": "≤5 条已脱敏的原话或错误片段（不可用）",
+   "data_class": "snippets",
+   "enabled": true,
+   "tokens": 1,
+   "redaction_hits": 0,
+   "preview": [],
+   "consent": "missing"
+  },
+  {
+   "key": "tool_evidence",
+   "label": "工具证据",
+   "desc": "证据会话中的命令、文件类型、验证命令与连续失败（不可用）",
+   "data_class": "summary",
+   "enabled": true,
+   "tokens": 19,
+   "redaction_hits": 0,
+   "preview": [
+    "command_heads: [\"pnpm test\", \"git push\"]",
+    "file_exts: []",
+    "verify_commands: []",
+    "failure_runs: []"
+   ],
+   "consent": "missing"
+  },
+  {
+   "key": "inventory",
+   "label": "已装组件",
+   "desc": "最近一次扫描到的 Skill / MCP / Hook / 插件 / 规则（不可用）",
+   "data_class": "summary",
+   "enabled": true,
+   "tokens": 1,
+   "redaction_hits": 0,
+   "preview": [],
+   "consent": "missing"
+  }
+ ],
+ "total_tokens": 28,
+ "input_budget": 12000,
+ "over_budget": false,
+ "est_cost_usd": 0.01519,
+ "est_calls": 1,
+ "redaction_hits": 0,
+ "preview_digest": "sha256:73da3890d723adb8f3ad53b612bc2bda5a73144db8383875943f9bb86f729ece",
+ "stages": [
+  "pack",
+  "analyse",
+  "draft",
+  "check",
+  "replay",
+  "review",
+  "cross"
+ ],
+ "_note": "shape captured from the synthetic gateway (fx home, no AI consent); tool_evidence.command_heads filled in by hand. Previews are compact `key: value` dumps with JSON-quoted strings and empty fields."
+}

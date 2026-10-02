@@ -35,13 +35,37 @@ if (TL.mode === 'live') {
   [['sum', '相关会话摘要', '只含结构化统计与 AI 摘要，不含原文'], ['fric', '摩擦与纠偏统计', '等待上下文预览'], ['rules', '现有规则文件', '等待上下文预览'], ['raw', '原始对话片段', '默认关闭；开启后逐条确认']].forEach((x) => {
     const c = CTX.find((y) => y[0] === x[0]); if (c) { c[1] = x[1]; c[2] = x[2]; c[3] = 0; } CTX_HITS[x[0]] = 0; CTX_SAMPLE[x[0]] = [];
   });
+  // the demo's prefilled goal quotes a demo rec (「PR 收尾」): live starts with an empty goal until the user writes one or
+  // picks a real rec (recToStudio sets goal + from)
+  if (S.studio.from === 'A7 建议「PR 收尾」') { S.studio.goal = ''; S.studio.from = ''; }
   Object.assign(STUDIO_COPY, { mine: '从你的会话提炼可执行规则', replay: '历史会话回放 · 第二视角评分', hist: 0, detected: '正在检测本地 Agent…' });
   ctxBundle = function () { return TLS.preview || { goal: S.studio.goal, type: S.studio.type, items: [] }; };
   TL.bind('studio', [{ name: 'engines', path: '/v1/ai/engines', scope: false }], (d) => d.engines);
   const engines = () => { const v = TL_VIEWS.studio; const d = v && v.res.engines.data; return d && d.engines ? d : null; };
   const tlsEngine = () => { const d = engines(); if (!d) return null; if (TLS.engine) return TLS.engine; const e = d.engines.find((x) => tlsAgOf(x.id) === S.studio.agent); return e ? e.id : d.default_engine; };
+  studioRunner = function () {
+    const d = engines(); const id = tlsEngine(); const e = d && id ? d.engines.find((x) => x.id === id) : null;
+    return e ? { name: e.name || id, cli: e.name || id } : agent(S.studio.agent);
+  };
   const tlsSel = () => { const items = {}; CTX.forEach((c) => { items[c[0]] = !!S.studio.ctx[c[0]]; }); return { items }; };
   const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel())].join('|');
+  // the pack previews are compact dumps (`key: value` per field, JSON-quoted strings): drop empty fields, unquote strings,
+  // name the fields, and leave out the goal's own bookkeeping (source) — the goal text is what gets sent
+  const TLS_FIELD = { text: '', command_heads: '命令', file_exts: '文件类型', verify_commands: '验证命令', failure_runs: '连续失败' };
+  function tlsPrevLines(key, lines) {
+    const out = [];
+    (lines || []).forEach((l0) => {
+      const l = String(l0); const m = /^([A-Za-z_][\w.]*): (.*)$/.exec(l);
+      if (!m) { out.push(l); return; }
+      const k = m[1]; let v = m[2].trim();
+      if (/^(\[\]|\{\}|""|null|none|None)$/.test(v)) return;
+      if (key === 'goal' && k === 'source') return;
+      if (/^".*"$/.test(v)) { try { v = JSON.parse(v); } catch (e) { v = v.slice(1, -1); } }
+      const name = TLS_FIELD[k] != null ? TLS_FIELD[k] : k;
+      out.push(name ? name + ' · ' + v : v);
+    });
+    return out;
+  }
   function tlsApplyPreview(d) {
     if (!TLS.ctxDemo) TLS.ctxDemo = CTX.slice();
     const redact = TLS.ctxDemo.find((c) => c[0] === 'redact');
@@ -49,7 +73,7 @@ if (TL.mode === 'live') {
     (d.items || []).forEach((it) => {
       CTX.push([it.key, it.label || it.key, (it.consent === 'missing' ? '需要授权 · ' : '') + (it.desc || ''), it.tokens || 0]);
       CTX_HITS[it.key] = it.redaction_hits || 0;
-      CTX_SAMPLE[it.key] = (it.preview || []).map((l) => String(l).replace(/\{\{/g, '{ {'));
+      CTX_SAMPLE[it.key] = tlsPrevLines(it.key, it.preview).map((l) => l.replace(/\{\{/g, '{ {'));
       if (S.studio.ctx[it.key] == null) S.studio.ctx[it.key] = !!it.enabled;
     });
     if (redact) CTX.push(redact);
@@ -347,13 +371,25 @@ if (TL.mode === 'live') {
     const disc = discList(); const st = TL.resource(R.state).data; const conf = {}; ((st && st.sources) || []).forEach((x) => { conf[x.id] = x; });
     const look = (agentId) => { const m = lvAgentOf(agentId); const a = AGI[m.id]; const slot = m.slot; return { m, a, c: a ? a.c : slot ? 'var(--a' + slot + ')' : 'var(--a0)', t: a ? a.t : slot ? 'var(--a' + slot + 't)' : 'var(--a0t)' }; };
     if (!disc) return AG.map((a) => ({ name: esc(a.name), ver: esc(a.ver || ''), path: esc(a.path || '—'), n: fmt(a.all || 0), st: ['—', 'minus', 'var(--ink-3)', '—'], on: true, t: a.t, c: a.c, attrs: ' data-ag="' + esc(a.key || a.id) + '" disabled' }));
-    return disc.map((x) => {
+    // discovery is the union of the default roots and the configured ones: an agent that has a configured or non-empty
+    // root does not also list its empty, never-enabled default (a duplicate「没有会话文件」row for the same agent)
+    const real = (x) => x.enabled || conf[x.id] || x.status !== 'empty';
+    const has = new Set(disc.filter(real).map((x) => x.agent));
+    return disc.filter((x) => real(x) || !has.has(x.agent)).map((x) => {
       const L = look(x.agent); const s0 = ST_SRC[x.status] || [esc(x.status || '—'), 'minus', 'var(--ink-3)']; const c = conf[x.id] || {};
       const env = (LV.env || []).find((e) => e.agent === x.agent);
-      return { name: esc(L.m.name), ver: esc((env && env.version) || (L.a && L.a.ver !== '—' ? L.a.ver : '') || ''), path: esc(x.root || '—'), n: fmt(L.a ? L.a.all : 0), st: s0.concat([c.last_import_at ? ago(c.last_import_at) : x.files != null ? x.files + ' 个文件' : '—']), on: !!x.enabled, t: L.t, c: L.c,
+      return { name: esc(L.m.name), ver: esc((env && env.version) || (L.a && L.a.ver !== '—' ? L.a.ver : '') || ''), path: esc(tlsPath(x.root)), n: fmt(L.a ? L.a.all : 0), st: s0.concat([c.last_import_at ? ago(c.last_import_at) : x.files != null ? x.files + ' 个文件' : '—']), on: !!x.enabled, t: L.t, c: L.c,
         attrs: ' data-src="' + esc(x.id) + '" data-ag="' + esc(x.agent) + '" data-root="' + esc(x.root || '') + '"' };
     });
   };
+  // a root as the row shows it: the user's home reads「~」and a long path keeps its head and tail, so「· N 个会话」stays visible
+  function tlsPath(root) {
+    if (!root) return '—';
+    const p = String(root).replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~');
+    if (p.length <= 40) return p;
+    const seg = p.split('/'); const tail = seg.slice(-2).join('/');
+    return (seg[0] || '/' + seg[1]) + '/…/' + (tail.length > 32 ? '…' + tail.slice(-31) : tail);
+  }
   srcMissing = function () {
     const ab = TL.resource(R.about).data; const disc = discList() || [];
     const have = new Set(disc.map((x) => x.agent)); const maps = (ab && ab.components && ab.components.mappers) || [];
@@ -453,6 +489,7 @@ if (TL.mode === 'live') {
   });
   wrap('setMap', (base, el, ev) => {
     TL.send('GET', R.tmap).then((x) => {
+      if (!setOpen() || S.setTab !== 'sources') return;   // answered after the user left the tab: no late sheet over another tab
       const d = x.data || {}; const ags = AG.filter((a) => (d.kinds || []).some((k) => (k.names || []).some((n) => lvAgentOf(n.agent).id === a.id)));
       openModal(modalHead('工具名映射表', '各 Agent 的工具名归一后才能跨 Agent 统计 · 规则 ' + esc(d.version || '')) + '<div class="mb scroll-x" data-tl="tool-map"><table class="tbl"><thead><tr><th>统一名</th>' + ags.map((a) => '<th>' + esc(a.short) + '</th>').join('') + '</tr></thead><tbody>' +
         (d.kinds || []).map((k) => '<tr><td style="font-weight:600">' + esc(k.label || k.kind) + '</td>' + ags.map((a) => '<td class="mono" style="font-size:12px">' + esc((k.names || []).filter((n) => n.agent && lvAgentOf(n.agent).id === a.id).map((n) => n.name).join(' · ') || '—') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');

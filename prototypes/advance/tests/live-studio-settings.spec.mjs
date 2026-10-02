@@ -8,6 +8,7 @@
 //  4. settings    storage, collection pause, notify matrix / preset / snooze / test, AI 通道 consent, health + diagnostics
 //  5. notify      notification frame → banner + menu-bar badge, attention → HUD list, collection frame → paused, no banner
 //  6. ask         presets from the gateway, preset answer, free question through an ask.question job
+//  7. regressions  no demo goal in live, readable pack preview, one row per agent with ~ paths, sheets closed on tab change
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -51,6 +52,7 @@ async function gateway(page, opts = {}) {
     const core = { '/v1/status': 'status', '/v1/analytics/overview': 'overview', '/v1/app/sources': 'app-sources', '/v1/app/settings': 'app-settings' };
     if (m === 'GET' && core[p]) return json(FX(core[p]));
     const K = m + ' ' + p;
+    if (state.extra && state.extra[K] !== undefined) return json(state.extra[K]);
     if (K === 'POST /v1/ai/jobs') return state.job === 'consent' ? json({ error: { code: 'consent_required', message: '需要授权', detail: { missing: ['snippets'] } } }, 403) : json(SS('ai-job-created'), 202);
     if (K === 'GET /v1/ai/jobs/fx-job-1') { state.jobPolls++; return json(state.job === 'stuck' || state.jobPolls < 2 ? SS('ai-job-running') : SS('ai-job-done')); }
     if (K === 'GET /v1/ai/jobs/fx-ask-1') return json(SS('ask-job-done'));
@@ -83,6 +85,7 @@ test('studio live: engines, context preview, job stages, artifact lines and chec
   await expect(page.locator('#content .st-ctx')).toContainText(['相关会话摘要 · 12 个', '摩擦统计', '需要授权 · 关键时刻前后']);
   await expect(page.locator('#stTok')).toContainText('上限 16.0k');
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+  await page.locator('#studioGoal').fill('合并前收尾：最多两轮 review');   // live has no prefilled goal
   await page.locator('[data-act="studioStart"]').click();
   await expect(page.locator('#studioLog')).toContainText('$ POST /v1/ai/jobs · generate.skill · claude_code');
   await expect(page.locator('#content .bdg').filter({ hasText: '待审阅' })).toBeVisible();
@@ -107,12 +110,14 @@ test('studio live: stop cancels the job; consent_required stops the run with the
   await page.goto('http://tandem.test/app#token=fx-token');
   await page.evaluate(() => go('studio'));
   await expect(page.locator('#stTok')).toContainText('上限 16.0k');
+  await page.locator('#studioGoal').fill('合并前收尾：最多两轮 review');   // live has no prefilled goal
   await page.locator('[data-act="studioStart"]').click();
   await expect(page.locator('#studioLog')).toContainText('任务 fx-job-1');
   await page.locator('[data-act="studioStop"]').click();
   await expect(page.locator('#studioLog')).toContainText('任务 fx-job-1 · cancelled');
   expect(sent(gw, 'POST', '/v1/ai/jobs/fx-job-1/cancel')).toHaveLength(1);
   gw.job = 'consent';
+  await page.locator('#studioGoal').fill('合并前收尾：最多两轮 review');   // live has no prefilled goal
   await page.locator('[data-act="studioStart"]').click();
   await expect(page.locator('#studioLog')).toContainText('! 需要授权：snippets');
   await expect(page.locator('#modal [data-tl="consent"]')).toContainText('脱敏片段');   // the real consent dialog
@@ -126,6 +131,7 @@ test('degrade: without AI and platform routes the studio says so (no demo flow) 
   await page.goto('http://tandem.test/app#token=fx-token');
   await page.evaluate(() => go('studio'));
   await expect(page.locator('#content')).toContainText('已检测：本地服务暂不提供生成接口');
+  await page.locator('#studioGoal').fill('合并前收尾：最多两轮 review');   // live has no prefilled goal
   await page.locator('[data-act="studioStart"]').click();
   await expect(page.locator('#toast')).toContainText('本地服务暂不提供生成接口');
   await expect(page.locator('#studioLog')).not.toContainText('--output-format stream-json');
@@ -228,5 +234,51 @@ test('ask live: presets from the gateway, a preset answer and a free question vi
   await page.locator('#modal [data-act="askSend"]').click();
   await expect(page.locator('#askA')).toContainText('FX 自由提问回答');
   expect(sent(gw, 'POST', '/v1/ai/ask')[1].body).toEqual({ context: 'overview', question: 'FX 自由问题' });
+  expect(errors).toEqual([]);
+});
+
+test('regressions: no demo goal, readable pack preview, deduped sources with ~ paths, settings sheets never stack (B15–B17, J17)', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, allow404);
+  const rules = { rules: [{ id: 'secrets', label: '密钥、令牌与带认证的地址', placeholder: '[密钥已隐藏]', enabled: true, locked: true }, { id: 'email', label: '邮箱地址', placeholder: '[email]', enabled: true, locked: false }] };
+  await gateway(page, { extra: { 'POST /v1/ai/preview': SS('ai-preview-pack'), 'GET /v1/app/discovery': SS('discovery-dup'), 'GET /v1/privacy/rules': rules, 'GET /v1/app/tool_map': FX('s6/v1-app-tool_map') } });
+  await page.goto('http://tandem.test/app#token=fx-token');
+  // B15: the demo's prefilled goal and its「来自 A7 建议」caption never show in live
+  await page.evaluate(() => go('studio'));
+  await expect(page.locator('#studioGoal')).toHaveValue('');
+  await expect(page.locator('#content')).not.toContainText('来自 A7');
+  await expect(page.locator('#content .st-ctx')).toContainText(['工具证据']);
+  await page.locator('#content [data-act="ctxPreview"]').first().click();
+  const modal = page.locator('#modal');
+  await expect(modal).toContainText('命令 · ["pnpm test", "git push"]');
+  for (const raw of ['source:', 'text:', 'file_exts', 'verify_commands: []']) await expect(modal).not.toContainText(raw);
+  await expect(modal).toContainText('暂无可发送的内容');
+  await expect(modal).toContainText('将发送给 Claude Code 的上下文包');
+  await expect(modal).toContainText('由 Claude Code 读取');
+  await page.evaluate(() => closeModal());
+  // B17: one row per agent (the empty default root of an agent that has a real one is dropped), home shown as ~
+  await page.evaluate(() => openSettings('sources'));
+  const set = page.locator('#set');
+  await expect(set.locator('.srcrow').filter({ hasText: 'Claude Code' })).toHaveCount(1);
+  await expect(set).toContainText('~/.claude/projects · ');
+  await expect(set).not.toContainText('/Users/fx');
+  await expect(set).not.toContainText('orbit-journey');
+  await expect(set.locator('.srcrow').filter({ hasText: 'Pi' })).toContainText('没有会话文件');   // an empty agent with no other root keeps its row
+  // B16 / J17: a sheet opened from one tab never covers the next one; real pointer clicks reach the controls
+  await set.locator('[data-act="setMap"]').click();
+  await expect(modal).toBeVisible();
+  await page.evaluate(() => openSettings('privacy'));
+  await expect(modal).toBeHidden();
+  await expect(set.locator('[data-act="setRule"][data-k="secrets"]')).toHaveAttribute('aria-label', '密钥、令牌与带认证的地址 始终开启');
+  await set.locator('[data-act="setRule"][data-k="email"]').click({ timeout: 3000 });
+  await page.evaluate(() => openSettings('analysis'));
+  await set.locator('[data-act="method"]').click({ timeout: 3000 });
+  await expect(modal).toContainText('协作人格如何计算');
+  await page.evaluate(() => ACT.setTab({ dataset: { v: 'notify' } }));
+  await expect(modal).toBeHidden();
+  await expect(page.locator('#tip')).toBeHidden();
+  await set.locator('[data-act="setNotifPreset"]').first().click({ timeout: 3000 });
+  await page.evaluate(() => openSettings('about'));
+  await set.locator('[data-act="setUpdate"]').click({ timeout: 3000 });
   expect(errors).toEqual([]);
 });

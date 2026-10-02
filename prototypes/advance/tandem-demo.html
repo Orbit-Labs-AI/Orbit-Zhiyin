@@ -7007,7 +7007,7 @@ PAGES.studio = () => {
   return tbar('生成工坊', '用你的本地 Agent 生成 Skills、Hooks 与规则', '<button type="button" class="btn" data-act="studioHistory">历史产物 · ' + hist + '</button><button type="button" class="btn" data-act="studioTpl">工作流模板</button>') +
     '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不调用云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录与额度</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
     '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
-    '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)">' + esc(st.goal) + '</textarea><span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span></label>' +
+    '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)" placeholder="一句话写清要生成什么，例如：提交前先跑测试，失败就停下汇报">' + esc(st.goal) + '</textarea>' + (st.from ? '<span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span>' : '') + '</label>' +
     '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? f1(c[3] / 1000) + 'k' : '') + '</span></label>').join('') + '</div></div>' +
     '<div class="col" style="gap:6px"><span class="eb">执行者</span><button type="button" data-act="studioAgent" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:left"><span style="width:28px;height:28px;border-radius:7px;background:' + ag.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + ag.c) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:13px;line-height:18px">' + ag.name + '</b><span class="mono cap" style="font-size:11px;line-height:14px">' + ag.model + '</span></span>' + ic('chev', 12, 'color:var(--ink-3)') + '</button><span class="cap" style="font-size:11px">已检测：' + STUDIO_COPY.detected + '</span></div>' +
     '<div class="row" style="justify-content:space-between;font-size:12px"><span class="row" style="gap:6px;min-width:0"><span class="eb">模板</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(TPLS[st.tpl].name) + ' · ' + TPLS[st.tpl].seq.length + ' 步</span></span><button type="button" class="lnk" data-act="studioTpl">更换</button></div>' +
@@ -7022,10 +7022,12 @@ PAGES.studio = () => {
     '<div class="row st-acts"><button type="button" class="btn p" data-act="studioInstall"' + (run && run.done && !run.installed ? '' : ' disabled') + '>' + (run && run.installed ? '已安装' : '安装') + '</button><button type="button" class="btn" data-act="studioEditor"' + (run && (run.done || run.stopped) ? '' : ' disabled') + '>在编辑器中打开</button><button type="button" class="btn" data-act="studioSave"' + (run && run.done ? '' : ' disabled') + '>存入资源库</button></div></div></div></div></div>';
 };
 PAGES.studio.after = () => { const l = $('#studioLog'); if (l) l.scrollTop = l.scrollHeight; };
+// who reads the context pack (preview title + footer); live mode names the gateway's engine instead of the demo agent
+let studioRunner = () => agent(S.studio.agent);
 function ctxPreviewHTML() {
   const c = S.studio.ctx; const tok = ctxTokens();
-  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
-  return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(agent(S.studio.agent).cli) + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Orbit 服务器。') + '</span></div></div>';
+  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? ((CTX_SAMPLE[x[0]] || []).length ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">暂无可发送的内容</span>') : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
+  return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(studioRunner().cli || studioRunner().name || '所选 Agent') + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Orbit 服务器。') + '</span></div></div>';
 }
 function ctxBundle() {
   const c = S.studio.ctx;
@@ -7062,7 +7064,7 @@ Object.assign(ACT, {
   studioHistory: () => openModal(modalHead('历史产物', '由生成工坊产出的内容；安装与撤销记录在建议卡里') + '<div class="mb col" style="gap:6px">' + S.history.filter((h) => h.kind === 'studio').concat([{ t: 'Skill · design-review', when: '9/26' }, { t: 'Hook · block-claude-md', when: '9/22' }, { t: '规则 · 中文默认', when: '9/18' }, { t: 'Skill · daily-sync', when: '9/12' }, { t: 'Hook · latex-lint', when: '9/03' }, { t: '子代理 · ref-finder', when: '8/29' }, { t: 'Skill · paper-blueprint', when: '8/20' }, { t: '规则 · 小步提交', when: '8/11' }]).map((h) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);font-size:13px"><span>' + esc(h.t) + '</span><span class="cap mono">' + h.when + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'),
   studioTpl: () => openModal(modalHead('工作流模板', 'Orbit 把一次生成拆成可观察的步骤；模板决定走哪些步') + '<div class="mb col" style="gap:10px">' + Object.keys(TPLS).map((k) => '<label class="row" style="align-items:flex-start;gap:8px;font-size:13px"><input type="radio" name="tpl" value="' + k + '"' + (S.studio.tpl === k ? ' checked' : '') + ' style="margin-top:3px;accent-color:var(--ink-1)"><span class="col" style="gap:1px"><b>' + esc(TPLS[k].name) + '</b><span class="cap">' + esc(TPLS[k].desc) + '</span></span></label>').join('') + '</div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="studioTplUse">使用所选模板</button></div>'),
   studioTplUse: () => { const r = $('#modal input[name="tpl"]:checked'); const k = r ? r.value : S.studio.tpl; const run = S.studio.run; if (run && !run.done && !run.stopped) { toast('运行中不能更换模板，先停止'); return; } S.studio.tpl = TPLS[k] ? k : 'v1'; if (run) S.studio.run = null; closeModal(); render(); toast('模板已切换为「' + TPLS[S.studio.tpl].name + '」'); },
-  ctxPreview: () => { openModal(modalHead('将发送给 ' + agent(S.studio.agent).name + ' 的上下文包', '逐项预览 · 本机进程间传递，不经过 Orbit 服务器') + '<div class="mb" id="ctxPrev">' + ctxPreviewHTML() + '</div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制 JSON</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); },
+  ctxPreview: () => { openModal(modalHead('将发送给 ' + esc(studioRunner().name) + ' 的上下文包', '逐项预览 · 本机进程间传递，不经过 Orbit 服务器') + '<div class="mb" id="ctxPrev">' + ctxPreviewHTML() + '</div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制 JSON</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); },
   copyBundle: () => copyText(JSON.stringify(ctxBundle(), null, 2), '上下文包')
 });
 
@@ -8228,7 +8230,10 @@ let srcRows = () => AG.map((a) => ({ name: a.name, ver: a.ver, path: a.path, n: 
 let srcMissing = () => (S.extraSrc.some((x) => /cursor/i.test(x.name)) ? [] : [{ name: 'Cursor', v: 'Cursor', hint: '未检测到 · 可以手动指定数据库位置' }]);
 let srcIndexed = () => fmt(2416 + S.extraSrc.length * 37);
 let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '', on: S.rules[k], locked: false }));
-function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
+// A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
+// swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
+function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
+function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
 function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
@@ -8259,7 +8264,7 @@ function renderSet() {
       card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), '暂停后菜单栏图标不显示状态角标，也不产生任何事件') + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', '已索引 ' + srcIndexed() + ' 个会话') + '</div>');
   } else if (t === 'privacy') {
     const rd = redact(S.ruleSample);
-    body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), r.label) + '</div>').join('') +
+    body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), String(r.label).replace(/<[^>]*>/g, '').trim()) + '</div>').join('') +
       (S.ruleTest ? '<div class="col" style="gap:8px;margin-top:12px"><label class="eb" for="rdIn">测试文本</label><textarea id="rdIn" data-in="setTestIn" rows="4" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:8px 10px;font:12px/1.6 var(--mono);color:var(--ink-1);resize:vertical">' + esc(S.ruleSample) + '</textarea><div class="row" style="justify-content:space-between"><span class="eb">入库后</span><span class="mono cap" id="rdN" style="font-size:11px">命中 ' + rd.n + ' 处</span></div><div id="rdOut" style="padding:8px 10px;border-radius:8px;background:var(--sunken);font:12px/1.7 var(--mono);white-space:pre-wrap;word-break:break-all">' + rd.html + '</div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setTest">' + (S.ruleTest ? '收起测试' : '测试规则…') + '</button>') +
       card('匿名贡献', S.anon ? '已开启：只上传人格代码与已装资源名，用于「相似用户」统计' : '关闭：不上传任何内容。开启后只上传人格代码与已装资源名', '<div class="row" style="gap:10px">' + swBtn(S.anon, 'setAnon', '', '匿名贡献') + '<span class="cap" style="font-size:11px">会话内容、项目名、路径永远不会上传</span></div>') +
@@ -8292,7 +8297,7 @@ function resetDemo() {
 }
 Object.assign(ACT, {
   openSettings: (el) => openSettings(el && el.dataset ? el.dataset.tab : undefined),
-  setTab: (el) => { S.setTab = el.dataset.v; renderSet(); },
+  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); },
   setClose: () => closeSettings(),
   setTheme: (el) => { setTheme(el.dataset.v); render(); },
   setHud: () => toggleHud(),
@@ -10848,13 +10853,37 @@ if (TL.mode === 'live') {
   [['sum', '相关会话摘要', '只含结构化统计与 AI 摘要，不含原文'], ['fric', '摩擦与纠偏统计', '等待上下文预览'], ['rules', '现有规则文件', '等待上下文预览'], ['raw', '原始对话片段', '默认关闭；开启后逐条确认']].forEach((x) => {
     const c = CTX.find((y) => y[0] === x[0]); if (c) { c[1] = x[1]; c[2] = x[2]; c[3] = 0; } CTX_HITS[x[0]] = 0; CTX_SAMPLE[x[0]] = [];
   });
+  // the demo's prefilled goal quotes a demo rec (「PR 收尾」): live starts with an empty goal until the user writes one or
+  // picks a real rec (recToStudio sets goal + from)
+  if (S.studio.from === 'A7 建议「PR 收尾」') { S.studio.goal = ''; S.studio.from = ''; }
   Object.assign(STUDIO_COPY, { mine: '从你的会话提炼可执行规则', replay: '历史会话回放 · 第二视角评分', hist: 0, detected: '正在检测本地 Agent…' });
   ctxBundle = function () { return TLS.preview || { goal: S.studio.goal, type: S.studio.type, items: [] }; };
   TL.bind('studio', [{ name: 'engines', path: '/v1/ai/engines', scope: false }], (d) => d.engines);
   const engines = () => { const v = TL_VIEWS.studio; const d = v && v.res.engines.data; return d && d.engines ? d : null; };
   const tlsEngine = () => { const d = engines(); if (!d) return null; if (TLS.engine) return TLS.engine; const e = d.engines.find((x) => tlsAgOf(x.id) === S.studio.agent); return e ? e.id : d.default_engine; };
+  studioRunner = function () {
+    const d = engines(); const id = tlsEngine(); const e = d && id ? d.engines.find((x) => x.id === id) : null;
+    return e ? { name: e.name || id, cli: e.name || id } : agent(S.studio.agent);
+  };
   const tlsSel = () => { const items = {}; CTX.forEach((c) => { items[c[0]] = !!S.studio.ctx[c[0]]; }); return { items }; };
   const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel())].join('|');
+  // the pack previews are compact dumps (`key: value` per field, JSON-quoted strings): drop empty fields, unquote strings,
+  // name the fields, and leave out the goal's own bookkeeping (source) — the goal text is what gets sent
+  const TLS_FIELD = { text: '', command_heads: '命令', file_exts: '文件类型', verify_commands: '验证命令', failure_runs: '连续失败' };
+  function tlsPrevLines(key, lines) {
+    const out = [];
+    (lines || []).forEach((l0) => {
+      const l = String(l0); const m = /^([A-Za-z_][\w.]*): (.*)$/.exec(l);
+      if (!m) { out.push(l); return; }
+      const k = m[1]; let v = m[2].trim();
+      if (/^(\[\]|\{\}|""|null|none|None)$/.test(v)) return;
+      if (key === 'goal' && k === 'source') return;
+      if (/^".*"$/.test(v)) { try { v = JSON.parse(v); } catch (e) { v = v.slice(1, -1); } }
+      const name = TLS_FIELD[k] != null ? TLS_FIELD[k] : k;
+      out.push(name ? name + ' · ' + v : v);
+    });
+    return out;
+  }
   function tlsApplyPreview(d) {
     if (!TLS.ctxDemo) TLS.ctxDemo = CTX.slice();
     const redact = TLS.ctxDemo.find((c) => c[0] === 'redact');
@@ -10862,7 +10891,7 @@ if (TL.mode === 'live') {
     (d.items || []).forEach((it) => {
       CTX.push([it.key, it.label || it.key, (it.consent === 'missing' ? '需要授权 · ' : '') + (it.desc || ''), it.tokens || 0]);
       CTX_HITS[it.key] = it.redaction_hits || 0;
-      CTX_SAMPLE[it.key] = (it.preview || []).map((l) => String(l).replace(/\{\{/g, '{ {'));
+      CTX_SAMPLE[it.key] = tlsPrevLines(it.key, it.preview).map((l) => l.replace(/\{\{/g, '{ {'));
       if (S.studio.ctx[it.key] == null) S.studio.ctx[it.key] = !!it.enabled;
     });
     if (redact) CTX.push(redact);
@@ -11160,13 +11189,25 @@ if (TL.mode === 'live') {
     const disc = discList(); const st = TL.resource(R.state).data; const conf = {}; ((st && st.sources) || []).forEach((x) => { conf[x.id] = x; });
     const look = (agentId) => { const m = lvAgentOf(agentId); const a = AGI[m.id]; const slot = m.slot; return { m, a, c: a ? a.c : slot ? 'var(--a' + slot + ')' : 'var(--a0)', t: a ? a.t : slot ? 'var(--a' + slot + 't)' : 'var(--a0t)' }; };
     if (!disc) return AG.map((a) => ({ name: esc(a.name), ver: esc(a.ver || ''), path: esc(a.path || '—'), n: fmt(a.all || 0), st: ['—', 'minus', 'var(--ink-3)', '—'], on: true, t: a.t, c: a.c, attrs: ' data-ag="' + esc(a.key || a.id) + '" disabled' }));
-    return disc.map((x) => {
+    // discovery is the union of the default roots and the configured ones: an agent that has a configured or non-empty
+    // root does not also list its empty, never-enabled default (a duplicate「没有会话文件」row for the same agent)
+    const real = (x) => x.enabled || conf[x.id] || x.status !== 'empty';
+    const has = new Set(disc.filter(real).map((x) => x.agent));
+    return disc.filter((x) => real(x) || !has.has(x.agent)).map((x) => {
       const L = look(x.agent); const s0 = ST_SRC[x.status] || [esc(x.status || '—'), 'minus', 'var(--ink-3)']; const c = conf[x.id] || {};
       const env = (LV.env || []).find((e) => e.agent === x.agent);
-      return { name: esc(L.m.name), ver: esc((env && env.version) || (L.a && L.a.ver !== '—' ? L.a.ver : '') || ''), path: esc(x.root || '—'), n: fmt(L.a ? L.a.all : 0), st: s0.concat([c.last_import_at ? ago(c.last_import_at) : x.files != null ? x.files + ' 个文件' : '—']), on: !!x.enabled, t: L.t, c: L.c,
+      return { name: esc(L.m.name), ver: esc((env && env.version) || (L.a && L.a.ver !== '—' ? L.a.ver : '') || ''), path: esc(tlsPath(x.root)), n: fmt(L.a ? L.a.all : 0), st: s0.concat([c.last_import_at ? ago(c.last_import_at) : x.files != null ? x.files + ' 个文件' : '—']), on: !!x.enabled, t: L.t, c: L.c,
         attrs: ' data-src="' + esc(x.id) + '" data-ag="' + esc(x.agent) + '" data-root="' + esc(x.root || '') + '"' };
     });
   };
+  // a root as the row shows it: the user's home reads「~」and a long path keeps its head and tail, so「· N 个会话」stays visible
+  function tlsPath(root) {
+    if (!root) return '—';
+    const p = String(root).replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~');
+    if (p.length <= 40) return p;
+    const seg = p.split('/'); const tail = seg.slice(-2).join('/');
+    return (seg[0] || '/' + seg[1]) + '/…/' + (tail.length > 32 ? '…' + tail.slice(-31) : tail);
+  }
   srcMissing = function () {
     const ab = TL.resource(R.about).data; const disc = discList() || [];
     const have = new Set(disc.map((x) => x.agent)); const maps = (ab && ab.components && ab.components.mappers) || [];
@@ -11266,6 +11307,7 @@ if (TL.mode === 'live') {
   });
   wrap('setMap', (base, el, ev) => {
     TL.send('GET', R.tmap).then((x) => {
+      if (!setOpen() || S.setTab !== 'sources') return;   // answered after the user left the tab: no late sheet over another tab
       const d = x.data || {}; const ags = AG.filter((a) => (d.kinds || []).some((k) => (k.names || []).some((n) => lvAgentOf(n.agent).id === a.id)));
       openModal(modalHead('工具名映射表', '各 Agent 的工具名归一后才能跨 Agent 统计 · 规则 ' + esc(d.version || '')) + '<div class="mb scroll-x" data-tl="tool-map"><table class="tbl"><thead><tr><th>统一名</th>' + ags.map((a) => '<th>' + esc(a.short) + '</th>').join('') + '</tr></thead><tbody>' +
         (d.kinds || []).map((k) => '<tr><td style="font-weight:600">' + esc(k.label || k.kind) + '</td>' + ags.map((a) => '<td class="mono" style="font-size:12px">' + esc((k.names || []).filter((n) => n.agent && lvAgentOf(n.agent).id === a.id).map((n) => n.name).join(' · ') || '—') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
