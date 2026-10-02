@@ -943,7 +943,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
   PRIMARY KEY (model_id, effort, harness, benchmark, benchmark_version, source_id)) STRICT;
 ```
 
-`attrs` 的字段约定（共有 `time` 契约与每种 `kind` 一份 JSON Schema）与上面的 DDL 一起放进仓库，作为连接器、分析、前端三方的契约。M0 必须校验 `ts` 与时间质量的对应关系、时区与时区来源的对应关系，以及 `model.usage` 的 scope、measurement、snapshot_key 组合；SQL 草图允许空时间，语义约束由 Schema 与导入校验共同执行。
+上面是设计草图；实际表结构以 `packages/data` 的迁移文件与生成的字段字典为准（PR #9），连接器的 staging 表以 `packages/connectors/schema/` 为准（PR #11）。`attrs` 的字段约定（共有 `time` 契约与每种 `kind` 一份 JSON Schema）与上面的 DDL 一起放进仓库，作为连接器、分析、前端三方的契约。M0 必须校验 `ts` 与时间质量的对应关系、时区与时区来源的对应关系，以及 `model.usage` 的 scope、measurement、snapshot_key 组合；SQL 草图允许空时间，语义约束由 Schema 与导入校验共同执行。
 
 ## 8. 实施计划
 
@@ -952,7 +952,11 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 - **会话侧**：Claude Code（含子代理、第二账号与桌面版索引）、Codex（含归档目录与子代理）、DeepSeek Harness；pi 作为最简单的连接器模板一并接入；Antigravity 读明文转录与摘要库；OpenCode 与 Hermes Agent 本机未安装，按源码调研写连接器，安装后跑一次生成样本再测试。
 - **生态侧**：官方 MCP Registry、Claude 官方插件市场与 `anthropics/skills`、`openai/skills` 与 Codex 官方插件、models.dev（模型清单与价格）。Hooks、子代理、命令先从这些来源的插件内容里拆出来。
 - **暂不做**：Hooks 与 OpenTelemetry 补充通道、反代、Antigravity 的 protobuf 用量解码、用模型给条目打标签、向量检索。
-- **实现形态**：采集与标准化做成独立于界面的本地进程（命令行 + 常驻监听），只负责写数据库；Mac App 只读数据库，界面技术不影响数据层。采集进程用 TypeScript（Node ≥ 24）：与 DeepSeek Harness 同栈，可以直接复用它 MIT 许可的分片解码代码（`@deepseek-ai/dsh-session` 的 `decodeStorageRecord`）；Node 自带 zstd 解压（本机 Node 26.8 已验证 `zlib.zstdDecompressSync`）和 `node:sqlite`，不引入原生依赖，功能不够时再换 better-sqlite3。先写最小原型验证 Claude Code 与 Codex 两个连接器，遇到性能或打包问题再调整。
+- **实现形态**（2026-10-02 按仓库现状更新）：采集与标准化独立于界面，只负责写数据库，Mac App 与分析模块只读（`query_only`、`busy_timeout`，一次查询在一个读事务内完成）。目前分三层：
+  - **连接器**：TypeScript 的 `packages/connectors`（Node ≥ 24.7，内置 SQLite 与 zstd，PR #11 未合并），先实现 Codex，写入独立的 staging 库，不直接写统一库。
+  - **数据契约与预处理**：Python 3.13 + uv 的 `packages/data`（`tandem_data`，PR #9 未合并），以 `tandem-session-v1` 为权威契约，实现 L0–L3、六种格式的映射、用 `import-connector` 从 staging 桥接（校验分块哈希、保留记录对照），并用 `read_analysis` 提供分析输入；字段设计见该分支的 `docs/data-contract.md`。
+  - **分析与后端**：已合并到 main 的 Python `src/tandem_backend`（命令行 `tandem`，含特征分析 MVP），按 [analysis-inputs.md](analysis-inputs.md) 的口径读取 L2 / L3。
+  - Codex 目前有三处解析实现（TS 连接器、`tandem_data` 的映射、后端的 `importers/codex.py`），要收敛到以 `tandem-session-v1` 为准的一条链路，避免三套去重与用量口径各自为政。
 
 ### 8.2 步骤
 
@@ -986,11 +990,12 @@ L2 契约的回归样本至少覆盖：
 | 生态来源的条款与许可 | 不能随意转载正文 | 默认只存元数据与链接；正文仅在许可允许时保存；成绩数据注明出处 |
 | GitHub API 限流 | 抓取慢 | 构建脚本在 CI 上用令牌运行，App 只下载快照 |
 | 模型名持续变化 | 成本与对比失真 | 未识别模型单独标出；价目表带版本号 |
+| 同一来源多处解析（Codex 目前有三处） | 去重、用量与身份口径不一致，统计对不上 | 以 `tandem-session-v1` 为唯一权威契约，其余实现改为桥接或退役；三方共用同一组脱敏样本做回归 |
 
 默认做法（实现中遇到反例再调整）：
 
 1. 接入顺序：Claude Code → Codex → DeepSeek Harness → pi → Antigravity → OpenCode、Hermes Agent → 其他（见 8.1）。
-2. 采集进程：TypeScript 命令行 + 常驻监听，写 SQLite（见 8.1）。
+2. 实现分层：TypeScript 连接器写 staging 库，Python `packages/data` 按 `tandem-session-v1` 建统一库并提供分析输入，后端只读（见 8.1）。
 3. 原始归档默认开启、不设保留期；图片等二进制只记引用；设置里可以关闭或清除。
 4. 生态快照先在本机用构建脚本生成；本仓库是私有仓库，对外分发快照时再选公开托管位置。
 5. Hooks 与 OpenTelemetry 不进 MVP；菜单栏的实时状态先用 3.3 的只读信号判断（Claude 的 `sessions/<pid>.json`、Codex 的写锁、会话文件是否在写入），「等待审批」状态等接入 Hooks 后再做。
