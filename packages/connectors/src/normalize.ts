@@ -36,6 +36,32 @@ function activeHistory(store:ConnectorStore,source:string,metas:Map<string,Obj>,
   }
   return bounds;
 }
+function legacyRollbackRows(store:ConnectorStore,session:string,accepted:(row:RawRecord)=>boolean):Set<string> {
+  const rows=new Map<string,RawRecord[]>();
+  for(const row of store.records(session))if(accepted(row)){const values=rows.get(row.file_id)??[];values.push(row);rows.set(row.file_id,values);}
+  const excluded=new Set<string>();
+  for(const values of rows.values()){
+    const starts:{ordinal:number,turn:string|null,human:boolean}[]=[];
+    for(const row of values){
+      const p=object(bodyOf(row).payload),type=string(p.type);
+      if(['task_started','turn_started'].includes(type??''))starts.push({ordinal:row.ordinal,turn:row.turn_native_id,human:false});
+      if(type==='user_message'||(type==='item_completed'&&object(p.item).type==='UserMessage')){
+        const latest=starts.at(-1);
+        if(!latest|| (row.turn_native_id!==null&&latest.turn!==row.turn_native_id) || (row.turn_native_id===null&&latest.human))starts.push({ordinal:row.ordinal,turn:row.turn_native_id,human:true});
+        else latest.human=true;
+      }
+      if(type==='thread_rolled_back'){
+        const count=number(p.num_turns),users=starts.filter(start=>start.human);
+        if(count!==null&&count>0&&Number.isInteger(count)&&users.length){
+          const cutoff=users[Math.max(0,users.length-count)]!.ordinal;
+          for(const prior of values)if(prior.ordinal>=cutoff&&prior.ordinal<row.ordinal)excluded.add(prior.record_uid);
+          while(starts.length&&starts.at(-1)!.ordinal>=cutoff)starts.pop();
+        }
+      }
+    }
+  }
+  return excluded;
+}
 
 interface Candidate { event: StandardEvent; key: string; priority: number; record: RawRecord; position: number; slot: number; }
 interface Context {
@@ -293,7 +319,9 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
     if(body.type==='state_index')index=p;
   }
   const history=activeHistory(store,source,ctx.fileMeta,index);
-  const inHistory=(row:RawRecord)=>!history||!ctx.fileMeta.has(row.file_id)||(history.has(row.file_id)&&row.ordinal<history.get(row.file_id)!);
+  const inChain=(row:RawRecord)=>!history||!ctx.fileMeta.has(row.file_id)||(history.has(row.file_id)&&row.ordinal<history.get(row.file_id)!);
+  const rolled=legacyRollbackRows(store,session,inChain);
+  const inHistory=(row:RawRecord)=>inChain(row)&&!rolled.has(row.record_uid);
   for (const row of store.records(session)) {
     if(!inHistory(row))continue;
     const body=bodyOf(row), p=object(body.payload), type=string(body.type);

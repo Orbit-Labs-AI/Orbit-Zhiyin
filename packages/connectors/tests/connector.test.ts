@@ -98,6 +98,7 @@ test('rewrites replace the current projection while retaining previous raw gener
 test('archival moves and .zst replacement preserve one logical file, with streaming concatenated-frame decoding',async()=>sandbox(async s=>{
   const original=await fixture(); await writeFile(s.file,original); await s.connector.ingest();
   const count=scalar(s,'SELECT count(*) n FROM event'),fileId=s.store.db.prepare("SELECT file_id FROM source_file WHERE role='transcript'").get()?.file_id;
+  const oldRecord=s.store.db.prepare("SELECT record_uid FROM current_record WHERE native_type='session_meta'").get()!;
   const archived=join(s.home,'archived_sessions','rollout-main.jsonl'); await rename(s.file,archived);
   assert.equal((await s.connector.ingest()).records_added,0);
   const split=original.indexOf('\n',original.indexOf('\n')+1)+1;
@@ -108,6 +109,7 @@ test('archival moves and .zst replacement preserve one logical file, with stream
   assert.equal(s.store.db.prepare("SELECT file_id FROM source_file WHERE role='transcript'").get()?.file_id,fileId);
   const record=s.store.db.prepare("SELECT record_uid FROM current_record WHERE native_type='session_meta'").get()!;
   assert.equal((await readRawRecord(s.store,String(record.record_uid))).toString(),original.split('\n')[0]+'\n');
+  assert.equal((await readRawRecord(s.store,String(oldRecord.record_uid))).toString(),original.split('\n')[0]+'\n');
 }));
 test('thread_spawn inherited prefix is excluded; guardian records remain independent of that cutoff',async()=>sandbox(async s=>{
   await writeFile(s.file,await fixture());
@@ -264,6 +266,23 @@ test('active revert chain bounds the predecessor and excludes disconnected branc
   assert.equal(scalar(s,"SELECT count(*) n FROM model_call WHERE request_id='undone-request'"),0);
   assert.ok(scalar(s,"SELECT count(*) n FROM current_record WHERE note='reverted_history:outside_active_chain'")>=3);
   assert.equal(scalar(s,'SELECT count(*) n FROM turn'),2);
+}));
+test('legacy rollback excludes the preceding user turn without losing its raw evidence',async()=>sandbox(async s=>{
+  await writeFile(s.file,
+    jsonLine('session_meta',{id:'legacy-rollback',history_mode:'legacy'},0)+
+    jsonLine('event_msg',{type:'task_started',turn_id:'retained'},1)+jsonLine('event_msg',{type:'user_message',message:'retain'},2)+
+    jsonLine('token_usage_record',{turn_id:'retained',response_id:'retain-usage',usage:{input_tokens:10,output_tokens:5}},3)+
+    jsonLine('event_msg',{type:'task_complete',turn_id:'retained'},4)+
+    jsonLine('event_msg',{type:'task_started',turn_id:'removed'},5)+jsonLine('event_msg',{type:'user_message',message:'remove'},6)+
+    jsonLine('token_usage_record',{turn_id:'removed',response_id:'remove-usage',usage:{input_tokens:100,output_tokens:50}},7)+
+    jsonLine('event_msg',{type:'task_complete',turn_id:'removed'},8)+jsonLine('event_msg',{type:'thread_rolled_back',num_turns:1},9)+
+    jsonLine('event_msg',{type:'task_started',turn_id:'resumed'},10)+jsonLine('event_msg',{type:'user_message',message:'resume'},11));
+  await s.connector.ingest();
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE text='remove'"),0);
+  assert.equal(scalar(s,"SELECT count(*) n FROM model_call WHERE request_id='remove-usage'"),0);
+  assert.equal(scalar(s,'SELECT count(*) n FROM turn'),2);
+  const removed=s.store.db.prepare("SELECT record_uid FROM current_record WHERE ordinal=6").get()!;
+  assert.ok((await readRawRecord(s.store,String(removed.record_uid))).toString().includes('remove'));
 }));
 test('an incomplete zstd frame leaves its cursor unchanged and succeeds after completion',async()=>sandbox(async s=>{
   const bytes=zstdCompressSync(await fixture());

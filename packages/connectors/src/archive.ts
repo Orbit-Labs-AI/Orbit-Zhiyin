@@ -50,8 +50,13 @@ export async function* archivedBytes(store: ConnectorStore, fileId: string, gene
 export async function readRawRecord(store: ConnectorStore, recordUid: string): Promise<Buffer> {
   const record = store.db.prepare(`SELECT r.*, f.format FROM raw_record r JOIN source_file f USING(file_id) WHERE record_uid=?`).get(recordUid);
   if (!record) throw new Error('Unknown raw record');
-  const native = Readable.from(archivedBytes(store,String(record.file_id),Number(record.generation)));
-  const stream = record.format === 'jsonl_zstd' ? Readable.from(decompressFrames(native)) : native;
+  const chunks=archivedBytes(store,String(record.file_id),Number(record.generation));
+  const first=await chunks.next();
+  const magic=!first.done&&first.value.length>=4?first.value.readUInt32LE():null;
+  const compressed=magic===0xfd2fb528||(magic!==null&&magic>=0x184d2a50&&magic<=0x184d2a5f);
+  const native = Readable.from((async function*(){if(!first.done)yield first.value;yield* chunks;})());
+  // The logical file's current format can differ from this immutable generation.
+  const stream = compressed ? Readable.from(decompressFrames(native)) : native;
   const start = Number(record.byte_offset), end = start + Number(record.byte_len);
   let cursor = 0;
   const parts: Buffer[] = [];
