@@ -172,6 +172,33 @@ def test_validation_reports_respect_cutoff_in_l2_and_l3(available_offset, l2_onl
     assert data == before
 
 
+def test_excluded_tool_dataset_cannot_be_rebuilt_from_retained_events():
+    data = fixture()
+    for call in data["tool_calls"]:
+        start = next(e for e in data["events"] if e["event_uid"] == call["call_event_uid"])
+        result = next(e for e in data["events"] if e["event_uid"] == call["result_event_uid"])
+        start["attrs"].update(call_id=call["call_uid"], name_raw=call["name_raw"],
+                              started_at=call["started_at"], interval_reliable=True)
+        result["attrs"].update(call_id=call["call_uid"], ended_at=call["ended_at"], interval_reliable=True)
+    data["tool_calls"] = None
+    data["coverage"]["tool_calls"]["status"] = "unavailable"
+    fallback = analyze(data)["bottleneck_features"]
+    assert fallback["respond"]["tools"]["totals"]["call_count"] == 2
+    assert fallback["outcome"]["task_success"] is True
+    data["coverage"]["tool_calls"]["status"] = "excluded"
+    result = analyze(data)
+    for family in (result["bottleneck_features"], result["sessions"][0]["bottleneck_features"],
+                   result["projects"][0]["bottleneck_features"]):
+        assert family["respond"]["status"] == "excluded"
+        assert family["respond"]["tool_sequence"] is None
+        assert family["respond"]["tools"]["status"] == "excluded"
+        assert family["respond"]["tools"]["totals"] is None
+        assert family["cost_time"]["durations"]["execution_duration_sum_ms"] is None
+        assert family["outcome"]["status"] == "excluded"
+        assert family["outcome"]["validation_runs"] is None
+        assert family["outcome"]["task_success"] is None
+
+
 def test_bottleneck_coexists_with_semantic_and_subjective_families():
     data = fixture()
     data["events"][0]["text"] = "请修复代码。以后这个项目用中文。验收标准：全部测试通过。"

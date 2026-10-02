@@ -61,7 +61,9 @@ def test_matching_ids_without_object_revision_still_unknown(make_call, make_even
 
 
 @pytest.mark.parametrize("command", ["echo pytest passed", "pytest --collect-only", "pytest --version",
-                                     "pytest --fixtures", "cargo test --no-run", "pytest && echo ok"])
+                                     "pytest --fixtures", "cargo test --no-run", "pytest && echo ok",
+                                     "go test -list=.", "go test --list=.", "go test -list .",
+                                     "go test -args -test.list=."])
 def test_mentions_dry_runs_and_compound_commands_never_become_passed_tests(make_call, command):
     r = extract_validation_runs([make_call(command_head=command, command_complete=True)])
     assert r["validation_runs"] == []

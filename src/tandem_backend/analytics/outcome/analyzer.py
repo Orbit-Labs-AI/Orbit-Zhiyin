@@ -14,7 +14,7 @@ def analyze_outcome(calls, events, main_ids, until_ts=None, dataset_status="avai
     extracted = extract_validation_runs(calls, until_ts)
     criteria = collect_acceptance_criteria(events, main_ids, until_ts)
     accepted = match_acceptance_criteria(criteria["criteria"], extracted["validation_runs"])
-    return {"status": dataset_status if calls is not None else "unavailable", "grain": "validation/criterion",
+    return {"status": dataset_status if calls is not None or dataset_status == "excluded" else "unavailable", "grain": "validation/criterion",
             **extracted, "acceptance_results": accepted,
             "unusable_criteria_events": criteria["unusable_criteria_events"],
             "validation_result_counts": dict(Counter(r["validation_result"] for r in extracted["validation_runs"] or [])) if calls is not None else None,
