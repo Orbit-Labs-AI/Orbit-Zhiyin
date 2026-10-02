@@ -224,7 +224,14 @@ def router(gw: Gateway) -> APIRouter:
             if item is None:
                 raise ApiError(404, "not_found", "Unknown recommendation")
             key = item["rec_key"]
-            alternatives = store.by_keys(conn, item["run_id"], item.get("alternatives") or [])
+            # alternatives hold rec_key strings (kb route) or folded summaries {rec_key,title,kind,priority} (slate);
+            # stored cards win, a folded summary without a stored card is returned as-is.
+            alts = [a if isinstance(a, dict) else {"rec_key": a} for a in item.get("alternatives") or []
+                    if isinstance(a, (str, dict))]
+            cards = {c["rec_key"]: c for c in store.by_keys(conn, item["run_id"],
+                                                             [a["rec_key"] for a in alts if a.get("rec_key")])}
+            alternatives = [cards.get(a.get("rec_key")) or a for a in alts
+                            if a.get("rec_key") in cards or len(a) > 1]
             state = store.states(conn, [key]).get(key)
             tracking = conn.execute("SELECT * FROM tracking WHERE rec_key=? ORDER BY "
                                     "registered_at DESC LIMIT 1", (key,)).fetchone()

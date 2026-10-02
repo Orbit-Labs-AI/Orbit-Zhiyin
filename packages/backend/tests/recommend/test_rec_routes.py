@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -183,6 +184,23 @@ def test_exposures_detail_tracking_outcome(env):
     # Installed items are hidden from the list.
     keys = [i["rec_key"] for i in client.get("/v1/recommendations").json()["items"]]
     assert "legacy:res1" not in keys
+
+
+def test_detail_mixed_alternatives(env):
+    """Alternatives mix kb rec_key strings and slate-folded summaries; detail must not 500 on dicts."""
+    client, gw, _ = env
+    items = client.get("/v1/recommendations").json()["items"]
+    cid, other = items[0]["candidate_id"], items[1]["rec_key"]
+    folded = {"rec_key": "kb:folded", "title": "Folded", "kind": "skill", "priority": 2}
+    with gw.appdb.write() as conn:
+        card = json.loads(conn.execute("SELECT card FROM rec_candidate WHERE candidate_id=?", (cid,)).fetchone()[0])
+        card["alternatives"] = [other, folded, {"rec_key": other}, "kb:missing"]
+        conn.execute("UPDATE rec_candidate SET card=? WHERE candidate_id=?", (json.dumps(card), cid))
+    resp = client.get(f"/v1/recommendations/{cid}")
+    assert resp.status_code == 200
+    alts = resp.json()["alternatives"]
+    assert [a["rec_key"] for a in alts] == [other, "kb:folded", other]
+    assert alts[0]["candidate_id"] == items[1]["candidate_id"] and alts[1] == folded
 
 
 def test_relations_fallback_and_handoff(env):

@@ -197,7 +197,7 @@ def by_keys(conn: sqlite3.Connection, run_id: str, rec_keys: list[str]) -> list[
     rows = conn.execute("SELECT candidate_id, run_id, card, rec_key FROM rec_candidate WHERE "
                         "run_id=? AND rec_key IN (SELECT value FROM json_each(?))",
                         (run_id, dumps(rec_keys))).fetchall()
-    found = {r["rec_key"]: _card(r) for r in rows}
+    found = {r["rec_key"]: {**_card(r), "rec_key": r["rec_key"]} for r in rows}
     return [found[k] for k in rec_keys if k in found]
 
 
