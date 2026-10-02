@@ -245,7 +245,7 @@ def _artifact_delivery(text: str) -> bool:
     completed = r"已(?:经)?(?:完成|写入|写到|保存|生成|更新|创建|写好|补充)|(?:完成|写入|保存|生成|更新|创建|写好)(?:了|完成)"
     uncertain = r"无法|不能|未能|尚未|还没|未|没有|计划|准备|打算|预计|接下来|随后|将|会|需要|请|待|是否|不确定"
     for link in re.finditer(r"\[[^\]]+\]\([^)]*\.(?:md|tex|docx)(?::\d+)?\)", text, re.I):
-        left = max(text.rfind(c, 0, link.start()) for c in "。；;\n") + 1
+        left = max(text.rfind(c, 0, link.start()) for c in "。；;\n，,") + 1
         before = text[max(left, link.start() - 70):link.start()]
         for action in re.finditer(completed, before):
             # Negative or prospective wording around the action leaves delivery

@@ -123,7 +123,7 @@ def reader_constraints(text: str, event_id: str) -> tuple[list[dict], set[str]]:
                 excluded.add(key)
                 continue
             # A mentioned person's background alone does not define the requested reader.
-            cue = list(re.finditer(r'给|让|面向|供|适合|为|读者(?:是|为|包括|[:：])|受众(?:是|为|包括|[:：])', prefix))
+            cue = list(re.finditer(r'给|让|面向|供|适合|(?<![成认作以行因题称名])为|读者(?:是|为|包括|[:：])|受众(?:是|为|包括|[:：])', prefix))
             governed = False
             if cue:
                 between = prefix[cue[-1].end():]

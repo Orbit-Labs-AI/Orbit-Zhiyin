@@ -96,7 +96,7 @@ def evidence_checks(store: Store, data: dict, recs: list[dict]) -> dict:
         source_valid &= bool(resource and re.fullmatch(r"[0-9a-f]{40}", sha) and
                              rec.get("source_url") == f"{resource['url']}/blob/{sha}/{resource['source_path']}")
         language_valid &= bool(bottleneck and resource and rec.get("language") == bottleneck["language"] and
-                               resource["language"] in (bottleneck["language"], "any"))
+                               resource["language"] in (*bottleneck["language"].split('_or_'), "any"))
         language_valid &= all(i in events and events[i].kind == "user_message" for i in rec.get("context_evidence_ids", []))
     no_profile = recommend({**data, "preferences": []}) == []
     no_incident = recommend({**data, "bottlenecks": []}) == []

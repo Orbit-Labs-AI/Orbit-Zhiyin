@@ -26,6 +26,7 @@ def without_platform_blocks(text: str) -> str:
     return text.strip()
 
 _PATTERNS = [
+    (r'''(?i)((?:["']?)(?:api[_-]?key|access[_-]?token|password|secret)(?:["']?)\s*[=:]\s*)(["'])(?:\\.|(?!\2)[^\\\r\n])+\2''', r'\1\2[密钥已隐藏]\2'),
     (r"\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{15,}|github_pat_[A-Za-z0-9_]{15,})", "[密钥已隐藏]"),
     (r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]{12,}", r"\1[密钥已隐藏]"),
     (r"(?i)((?:api[_-]?key|access[_-]?token|password|secret)\s*[=:]\s*)[^\s,;\"']{8,}", r"\1[密钥已隐藏]"),
