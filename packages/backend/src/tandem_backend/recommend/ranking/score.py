@@ -16,6 +16,8 @@ def score_candidate(features: dict, policy: RankingPolicy) -> tuple[float, dict]
     weights = {"task_match": policy.task_weight, "trigger_match": policy.trigger_weight,
                "effect_match": policy.effect_weight, "context_match": policy.context_weight,
                "evidence_quality": policy.evidence_weight, "fusion_match": policy.fusion_weight}
+    if features.get("preference_active") is True:
+        weights["preference_match"] = policy.preference_weight
     positive = {name: weight * _unit(features.get(name)) for name, weight in weights.items()}
     penalties = {"friction": policy.friction_weight * _unit(features.get("friction")),
                  "risk": policy.risk_weight * _unit(features.get("risk"))}

@@ -47,3 +47,15 @@ def test_stream_provenance_is_not_presented_as_an_empty_chat_message():
     assert display['category'] == 'context'
     assert display['body'] is None
     assert '原始证据' in display['summary']
+
+
+def test_attachment_blocks_are_limited_by_visible_text_not_an_arbitrary_item_count():
+    event = {'kind': 'context.inject', 'ext': {'attachment': {
+        'type': 'file', 'content': [{'text': str(i)} for i in range(30)]}}}
+    display = event_display(event)
+    assert display['body'].endswith('29')
+    assert not display['body_truncated']
+    event['ext']['attachment']['content'] = [{'text': 'x' * 5000}, {'text': 'y' * 5000}]
+    display = event_display(event)
+    assert len(display['body']) == 8192
+    assert display['body_truncated']

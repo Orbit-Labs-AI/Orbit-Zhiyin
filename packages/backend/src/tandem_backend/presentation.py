@@ -97,8 +97,15 @@ def _text(value, depth=0):
     if isinstance(value, str):
         return value.strip() or None
     if isinstance(value, list):
-        parts = [_text(item, depth + 1) for item in value[:20]]
-        return "\n".join(part for part in parts if part) or None
+        parts, chars = [], 0
+        for item in value:
+            part = _text(item, depth + 1)
+            if part:
+                chars += len(part) + bool(parts)
+                parts.append(part)
+                if chars > 8192:
+                    break  # Keep the overflow character so the preview is marked truncated.
+        return "\n".join(parts) or None
     if isinstance(value, dict):
         for name in ("text", "content", "stdout", "summary"):
             candidate = _text(value.get(name), depth + 1)
