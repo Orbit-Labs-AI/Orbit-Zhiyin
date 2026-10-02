@@ -1,7 +1,8 @@
 """Install environment (DT-22): where each local agent keeps its config, and what it can take.
 
-Agent directories are only ``os.stat`` / ``os.scandir``-ed, except that without an inventory scan
-the few JSON/TOML config files holding MCP servers, hooks and plugins are parsed for counts. The
+Agent directories are only ``os.stat`` / ``os.scandir``-ed, except for a few small config files:
+Claude's ``plugins/installed_plugins.json`` index (so the plugin count means installed plugins) and,
+without an inventory scan, the JSON/TOML files holding MCP servers and hooks, parsed for counts. The
 ``--version`` probes run in a minimal environment (macOS GUI processes get a short PATH, so
 binaries are found in fixed candidate dirs), in parallel, and are cached on
 ``(path, mtime_ns, size)`` for 24 h. A full answer is memoised in process for 2 s.
@@ -226,14 +227,33 @@ def layer(layer_id: str, path: Path, home: Path, managed: bool = False) -> dict:
             "size": size, "mtime": mtime, "writable": (not managed) and _writable(path), "managed": managed}
 
 
-def dir_info(path: Path | None, home: Path) -> dict | None:
+def _entries(path: Path) -> int:
+    return sum(1 for e in os.scandir(path) if not e.name.startswith("."))
+
+
+def _skills(path: Path) -> int:
+    """Skill folders only: entries (symlinks followed) holding a ``SKILL.md``."""
+    return sum(1 for e in os.scandir(path) if not e.name.startswith(".") and (Path(e.path) / "SKILL.md").is_file())
+
+
+def _plugins(path: Path) -> int:
+    """Installed plugins per ``installed_plugins.json``; cache/marketplace folders are not plugins."""
+    try:
+        doc = json.loads((path / "installed_plugins.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return 0
+    plugins = doc.get("plugins") if isinstance(doc, dict) else None
+    return len(plugins) if isinstance(plugins, dict) else 0
+
+
+def dir_info(path: Path | None, home: Path, counter: Callable[[Path], int] = _entries) -> dict | None:
     if path is None:
         return None
+    exists = path.is_dir()
     try:
-        count = sum(1 for e in os.scandir(path) if not e.name.startswith("."))
-        exists = True
+        count = counter(path) if exists else 0
     except OSError:
-        count, exists = 0, False
+        count = 0
     return {"path": str(path), "display": display(path, home), "exists": exists, "count": count}
 
 
@@ -256,7 +276,9 @@ def _claude(env: Env, root: Path) -> tuple[list, dict, list]:
     layers = [layer("user_settings", root / "settings.json", h), layer("local_settings", root / "settings.local.json", h),
               layer("claude_md", root / "CLAUDE.md", h), layer("mcp_user", claude_json_path(env), h),
               layer("managed", MANAGED_SETTINGS, h, managed=True)]
-    dirs = {name: dir_info(root / name, h) for name in ("skills", "agents", "commands", "plugins", "hooks", "rules")}
+    counters = {"skills": _skills, "plugins": _plugins}
+    dirs = {name: dir_info(root / name, h, counters.get(name, _entries))
+            for name in ("skills", "agents", "commands", "plugins", "hooks", "rules")}
     dirs["prompts"] = None
     profiles = []
     try:
@@ -273,7 +295,7 @@ def _codex(env: Env, root: Path) -> tuple[list, dict, list]:
     # 待验证 V6：Codex 的用户 skills 目录在 ~/.codex/skills 与 ~/.agents/skills 之间并不确定。
     options = [root / "skills", h / ".agents/skills"]
     chosen = next((p for p in options if p.is_dir()), options[1])
-    skills = dir_info(chosen, h)
+    skills = dir_info(chosen, h, _skills)
     skills["alternatives"] = [str(p) for p in options if p != chosen]
     dirs = {"skills": skills, "agents": None, "commands": None, "plugins": None,
             "hooks": dir_info(root / "hooks", h), "rules": dir_info(root / "rules", h),

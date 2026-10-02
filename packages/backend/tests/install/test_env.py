@@ -220,3 +220,26 @@ def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
     cx = agent(result, "codex")
     assert cx["counts_basis"] == "files" and cx["installed_counts"]["mcp"] == 1
     assert agent(result, "hermes")["counts_basis"] == "unknown"
+
+
+def test_dir_counts_mean_installed_plugins_and_real_skills(env, tmp_path):
+    claude = env.home / ".claude"
+    plugins = claude / "plugins"
+    for d in ("cache", "marketplaces", "repos"):
+        (plugins / d).mkdir(parents=True)
+    (plugins / "config.json").write_text("{}", "utf-8")
+    (plugins / "installed_plugins.json").write_text('{"version": 2, "plugins": {}}', "utf-8")
+    (claude / "skills/notes-only").mkdir()  # no SKILL.md: not a skill
+    (claude / "skills/README.md").write_text("x", "utf-8")
+    target = tmp_path / "linked-skill"
+    target.mkdir()
+    (target / "SKILL.md").write_text("---\nname: linked\n---\n", "utf-8")
+    (claude / "skills/linked").symlink_to(target)
+    dirs = agent(environment(env), "claude_code")["dirs"]
+    assert dirs["plugins"]["count"] == 0
+    assert dirs["skills"]["count"] == 2  # x + linked
+
+    envmod._memo.clear()
+    (plugins / "installed_plugins.json").write_text(
+        '{"version": 2, "plugins": {"a@m": [{"scope": "user"}], "b@m": [{}, {}]}}', "utf-8")
+    assert agent(environment(env), "claude_code")["dirs"]["plugins"]["count"] == 2
