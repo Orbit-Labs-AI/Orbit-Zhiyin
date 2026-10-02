@@ -21,18 +21,19 @@
 
 ## 1. 范围、方法与版本
 
-| Agent | 仓库与分析 commit | 语言 | 源码 HEAD 版本 | 本机版本与数据 | 依据 |
+| Agent | 仓库与固定提交 | 语言 | 固定提交上的版本 | 本机版本与数据 | 依据 |
 | --- | --- | --- | --- | --- | --- |
-| pi | [`earendil-works/pi@88ff80b`](https://github.com/earendil-works/pi/tree/88ff80b986e34d4fbd1fa94a4df65c60ae964516)（2026-10-01） | TypeScript | coding-agent 0.99.2 | 0.99.1，2 个会话 | 源码 + 本机 |
-| Hermes Agent | [`NousResearch/hermes-agent@44a1ce9`](https://github.com/NousResearch/hermes-agent/tree/44a1ce9724502b9c692faaef00af3054bf11f1a6)（2026-10-01） | Python | 未标版本号；`state.db` schema v31 | 未安装 | 源码 |
-| DSH | [`deepseek-ai/deepseek-harness@639ed01`](https://github.com/deepseek-ai/deepseek-harness/tree/639ed015397290b3745d163aafe02ffee4aa3f84)（2026-09-29） | TypeScript（cordis 插件） | 0.2.0-rc.2，会话格式 v4 | 0.1.1-rc.2（格式 v0），79 个会话 | 源码 + 本机 |
-| OpenCode | [`anomalyco/opencode@63cf236`](https://github.com/anomalyco/opencode/tree/63cf236140b11c15cd645e90a7ded77bdc2193b4)（2026-10-01） | TypeScript（Bun + Effect） | 1.18.34 | 未安装 | 源码 |
-| Codex | [`openai/codex@9552906`](https://github.com/openai/codex/tree/9552906b2b8358121f71695e1e6602791cdcecc0)（2026-10-01） | Rust | 仓库内为 `0.0.0-dev`，发版另打 tag | Codex Desktop，`cli_version` 0.98–0.159，906 个 rollout | 源码 + 本机 |
-| Claude Code | CLI 闭源；参考 [`claude-agent-sdk-python@db750b2`](https://github.com/anthropics/claude-agent-sdk-python/tree/db750b20a88ae9645b1674d95193a88c89a265f9)（0.2.163，捆绑 CLI 2.1.286）、[`claude-agent-sdk-typescript@0e21ebb`](https://github.com/anthropics/claude-agent-sdk-typescript/tree/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47)、[`claude-code@6160717`](https://github.com/anthropics/claude-code/tree/6160717d8994f236ab381cf534fc1cde5347c12f)（CHANGELOG） | — | 2.1.286 | 2.1.285，126 个主会话、269 个子代理文件 | SDK 源码 + 类型定义 + CHANGELOG + 本机 |
+| pi | [`earendil-works/pi@7fbbd5f`](https://github.com/earendil-works/pi/tree/7fbbd5f4a1d982bb02d63472dde0774fa639f99b)（2026-10-01） | TypeScript | coding-agent 1.0.0 | 已装 0.99.1；`~/.pi/agent/sessions` 下 2 个会话 | 源码 + 本机 |
+| Hermes Agent | [`NousResearch/hermes-agent@10c6188`](https://github.com/NousResearch/hermes-agent/tree/10c6188de188871f64a88dd95bc6b262adb0c307)（2026-10-02） | Python | 未标版本号；`state.db` schema v31 | 未安装 | 源码 |
+| DSH | [`deepseek-ai/deepseek-harness@639ed01`](https://github.com/deepseek-ai/deepseek-harness/tree/639ed015397290b3745d163aafe02ffee4aa3f84)（2026-09-29） | TypeScript（cordis 插件） | 0.2.0-rc.2，会话格式 v4 | 已装 0.1.1-rc.2（写格式 v0）；`~/.dsh/sessions` 下 79 个会话 | 源码 + 本机 |
+| OpenCode | [`anomalyco/opencode@1ddb087`](https://github.com/anomalyco/opencode/tree/1ddb0873aee50d209d1a8d7f91b89c5daf692d49)（2026-10-02） | TypeScript（Bun + Effect） | 1.18.34 | 未安装 | 源码 |
+| Codex | [`openai/codex@4dd51f4`](https://github.com/openai/codex/tree/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8)（2026-10-02） | Rust | Cargo workspace 为 `0.0.0`、npm 包为 `0.0.0-dev`，发版时注入 | Codex Desktop；`~/.codex` 下 906 个 rollout，其中记录的 `cli_version` 为 0.98–0.159 | 源码 + 本机 |
+| Claude Code | CLI 闭源；参考 [`claude-agent-sdk-python@bfb895c`](https://github.com/anthropics/claude-agent-sdk-python/tree/bfb895c6ef46e095191938b4eda798a025957c09)（0.2.163，捆绑 CLI 2.1.287）、[`claude-agent-sdk-typescript@9d8cb9c`](https://github.com/anthropics/claude-agent-sdk-typescript/tree/9d8cb9c1ae68672c343d75723440b73afe5b993c)、[`claude-code@52c7644`](https://github.com/anthropics/claude-code/tree/52c76441cae91f6891e4712306bffb057ff6fec5)（CHANGELOG） | — | 2.1.287 | 已装 CLI 2.1.285（转录的 `version` 为 2.1.247–2.1.284）；只统计 `~/.claude`：126 个主会话、269 个子代理文件 | SDK 源码 + 类型定义 + CHANGELOG + 本机 |
 
 方法：
 
-- 源码一律只读，按上表 commit 分析；文中链接都固定到该 commit。
+- 源码一律只读。上表提交就是本仓库 [`third_party/`](../../../third_party/README.md) 子模块固定的提交，即 2026-10-02 各上游默认分支的最新提交；Claude 的 TS SDK 与 claude-code 两个仓库不收录为子模块，直接链接 GitHub。文中链接都固定到这些提交。
+- 报告初稿按 2026-10-01 前后的提交分析，之后迁移到上表提交：permalink 按 `git diff` 重新定位行号，并逐条核对引用行内容。两次提交之间与会话有关的变化写在各报告 §0 的「迁移核对」一行。
 - 本机数据只读，只统计结构（记录类型、字段集合、出现率、版本），不摘录任何对话正文。示例中的正文全部换成 `<user prompt>`、`<assistant text>`、`<tool output>` 等占位符，路径中的用户名写作 `~`，项目名写作 `<project>`。凭据文件（`~/.codex/auth.json`、`~/.dsh/.credentials.yaml`、`~/.pi/agent/auth.json` 等）没有打开。
 - 所有 Mermaid 图都在 Mermaid 11 下做过解析与渲染检查；示例 JSON/JSONL 逐行可解析。
 
@@ -272,19 +273,25 @@ flowchart LR
 
 ## 8. 复现
 
-源码浅克隆到指定 commit（以 pi 为例，其余仓库替换 URL 与 commit 即可）：
+参考源码以 git 子模块放在本仓库的 [`third_party/`](../../../third_party/README.md)，固定在上表提交。在仓库根目录运行：
 
 ```bash
-git init pi && git -C pi remote add origin https://github.com/earendil-works/pi.git && git -C pi fetch --depth 1 origin 88ff80b986e34d4fbd1fa94a4df65c60ae964516 && git -C pi checkout FETCH_HEAD
+git submodule update --init --depth 1
 ```
 
-| 仓库 | commit |
-| --- | --- |
-| `https://github.com/earendil-works/pi.git` | `88ff80b986e34d4fbd1fa94a4df65c60ae964516` |
-| `https://github.com/NousResearch/hermes-agent.git` | `44a1ce9724502b9c692faaef00af3054bf11f1a6` |
-| `https://github.com/deepseek-ai/deepseek-harness.git` | `639ed015397290b3745d163aafe02ffee4aa3f84` |
-| `https://github.com/anomalyco/opencode.git` | `63cf236140b11c15cd645e90a7ded77bdc2193b4` |
-| `https://github.com/openai/codex.git` | `9552906b2b8358121f71695e1e6602791cdcecc0` |
-| `https://github.com/anthropics/claude-agent-sdk-python.git` | `db750b20a88ae9645b1674d95193a88c89a265f9` |
-| `https://github.com/anthropics/claude-agent-sdk-typescript.git` | `0e21ebb22c36caca1220c34ae6c9fe8ddad40e47` |
-| `https://github.com/anthropics/claude-code.git` | `6160717d8994f236ab381cf534fc1cde5347c12f` |
+Claude 的 TS SDK 与 claude-code 仓库不是子模块，需要时单独浅克隆到指定 commit（其余仓库也可以这样取，替换 URL 与 commit 即可）：
+
+```bash
+git init claude-code && git -C claude-code remote add origin https://github.com/anthropics/claude-code.git && git -C claude-code fetch --depth 1 origin 52c76441cae91f6891e4712306bffb057ff6fec5 && git -C claude-code checkout FETCH_HEAD
+```
+
+| 仓库 | commit | 本仓库位置 |
+| --- | --- | --- |
+| `https://github.com/earendil-works/pi.git` | `7fbbd5f4a1d982bb02d63472dde0774fa639f99b` | `third_party/pi` |
+| `https://github.com/NousResearch/hermes-agent.git` | `10c6188de188871f64a88dd95bc6b262adb0c307` | `third_party/hermes-agent` |
+| `https://github.com/deepseek-ai/deepseek-harness.git` | `639ed015397290b3745d163aafe02ffee4aa3f84` | `third_party/deepseek-harness` |
+| `https://github.com/anomalyco/opencode.git` | `1ddb0873aee50d209d1a8d7f91b89c5daf692d49` | `third_party/opencode` |
+| `https://github.com/openai/codex.git` | `4dd51f4a5f2037f8aa322fe7807315e6530a4ec8` | `third_party/codex` |
+| `https://github.com/anthropics/claude-agent-sdk-python.git` | `bfb895c6ef46e095191938b4eda798a025957c09` | `third_party/claude-agent-sdk-python` |
+| `https://github.com/anthropics/claude-agent-sdk-typescript.git` | `9d8cb9c1ae68672c343d75723440b73afe5b993c` | 不收录 |
+| `https://github.com/anthropics/claude-code.git` | `52c76441cae91f6891e4712306bffb057ff6fec5` | 不收录 |
