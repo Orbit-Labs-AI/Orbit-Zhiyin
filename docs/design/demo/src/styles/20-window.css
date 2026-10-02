@@ -77,14 +77,14 @@
 .tsearch.ico-only span,.tsearch.ico-only kbd{display:none}
 .content{flex:1;min-height:0;overflow:auto;padding:0 20px 24px;overscroll-behavior:contain}
 .frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-/* 8px resize handles (only in windowed mode) */
-.rz{position:absolute;z-index:7}
-.rz.n{left:10px;right:10px;top:0;height:6px;cursor:ns-resize}
-.rz.s{left:10px;right:10px;bottom:0;height:6px;cursor:ns-resize}
-.rz.e{top:10px;bottom:10px;right:0;width:6px;cursor:ew-resize}
-.rz.w{top:10px;bottom:10px;left:0;width:6px;cursor:ew-resize}
-.rz.nw{left:0;top:0;width:10px;height:10px;cursor:nwse-resize}
-.rz.ne{right:0;top:0;width:10px;height:10px;cursor:nesw-resize}
-.rz.sw{left:0;bottom:0;width:10px;height:10px;cursor:nesw-resize}
-.rz.se{right:0;bottom:0;width:10px;height:10px;cursor:nwse-resize}
+/* 8px resize handles (only in windowed mode); addressed by data-rz so the class names never collide with controls (.sw) */
+.rz{position:absolute;z-index:7;background:transparent}
+.rz[data-rz="n"]{left:10px;right:10px;top:0;height:6px;cursor:ns-resize}
+.rz[data-rz="s"]{left:10px;right:10px;bottom:0;height:6px;cursor:ns-resize}
+.rz[data-rz="e"]{top:10px;bottom:10px;right:0;width:6px;cursor:ew-resize}
+.rz[data-rz="w"]{top:10px;bottom:10px;left:0;width:6px;cursor:ew-resize}
+.rz[data-rz="nw"]{left:0;top:0;width:10px;height:10px;cursor:nwse-resize}
+.rz[data-rz="ne"]{right:0;top:0;width:10px;height:10px;cursor:nesw-resize}
+.rz[data-rz="sw"]{left:0;bottom:0;width:10px;height:10px;cursor:nesw-resize}
+.rz[data-rz="se"]{right:0;bottom:0;width:10px;height:10px;cursor:nwse-resize}
 .win:not([data-mode="win"]) .rz{display:none}

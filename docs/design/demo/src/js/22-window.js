@@ -13,7 +13,7 @@ let WIN_LAST = null, WIN_SIG = '';
   if (w && typeof w === 'object') { ['x', 'y', 'w', 'h'].forEach((k) => { if (typeof w[k] === 'number' && isFinite(w[k])) S.win[k] = w[k]; }); if (w.zoom === true) S.win.zoom = true; }
   const sd = store.get('side', null);
   if (sd && typeof sd === 'object') { if (typeof sd.show === 'boolean') S.side = sd.show; if (sd.open && typeof sd.open === 'object') Object.keys(S.sideOpen).forEach((k) => { if (typeof sd.open[k] === 'boolean') S.sideOpen[k] = sd.open[k]; }); }
-  ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].forEach((d) => { const h = document.createElement('div'); h.className = 'rz ' + d; h.dataset.rz = d; h.setAttribute('aria-hidden', 'true'); $('#win').appendChild(h); });
+  ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].forEach((d) => { const h = document.createElement('div'); h.className = 'rz'; h.dataset.rz = d; h.setAttribute('aria-hidden', 'true'); $('#win').appendChild(h); });
 })();
 function stageSize() { return { w: desk.clientWidth, h: desk.clientHeight }; }
 function winRect() {

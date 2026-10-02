@@ -49,7 +49,7 @@ test('window model: fit / move / resize / minimum / zoom / full screen / persist
   let r = await winBox(page);
   if (r.mode === 'fit') {
     expect(r.x).toBe(PAD); expect(r.y).toBe(MB + PAD); expect(r.w).toBe(vw.width - PAD * 2); expect(r.h).toBe(vw.height - MB - PAD * 2);
-    await expect(page.locator('#win .rz.se')).toBeHidden();
+    await expect(page.locator('#win .rz[data-rz="se"]')).toBeHidden();
   } else {
     expect(r.mode).toBe('win');
     expect(r.w).toBe(Math.min(1180, vw.width - PAD * 2)); expect(r.h).toBe(Math.min(760, vw.height - MB - PAD * 2));
@@ -60,12 +60,12 @@ test('window model: fit / move / resize / minimum / zoom / full screen / persist
     const r2 = await winBox(page);
     expect(r2.x).toBe(clampN(r.x + 60, 0, vw.width - r.w)); expect(r2.y).toBe(clampN(r.y + 40, MB, vw.height - r.h)); expect(r2.w).toBe(r.w);
     // resize from the bottom-right corner
-    let se = await box(page, '#win .rz.se');
+    let se = await box(page, '#win .rz[data-rz="se"]');
     await drag(page, { x: se.x + 5, y: se.y + 5 }, { x: se.x + 5 - 100, y: se.y + 5 - 80 });
     const r3 = await winBox(page);
     expect(r3.w).toBe(Math.max(MIN.w, r2.w - 100)); expect(r3.h).toBe(Math.max(MIN.h, r2.h - 80)); expect(r3.x).toBe(r2.x); expect(r3.y).toBe(r2.y);
     // never below 900×600
-    se = await box(page, '#win .rz.se');
+    se = await box(page, '#win .rz[data-rz="se"]');
     await drag(page, { x: se.x + 5, y: se.y + 5 }, { x: Math.max(1, se.x - 1500), y: Math.max(1, se.y - 1500) });
     const r4 = await winBox(page);
     expect(r4.w).toBe(MIN.w); expect(r4.h).toBe(MIN.h);
