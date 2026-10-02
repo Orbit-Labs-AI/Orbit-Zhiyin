@@ -58,7 +58,7 @@ uv run tandem-data --home .tandem inventory
 
 ## 快照与分析契约
 
-存储迁移 005 新增 `inventory_scan` 和 `inventory_item`，`user_version=5`，事件契约仍为 v1。扫描沿用单写者锁，并在一个事务中发布完整快照。每次显式扫描产生一个新快照；来源中的删除会在下一次可见清单中消失，旧快照仍保留。会话 L2/L3 重算不删除安装观察。
+存储迁移 005 新增 `inventory_scan` 和 `inventory_item`；来源索引迁移 006 后，组合存储为 `user_version=6`，事件契约仍为 v1。扫描沿用单写者锁，并在一个事务中发布完整快照。每次显式扫描产生一个新快照；来源中的删除会在下一次可见清单中消失，旧快照仍保留。会话 L2/L3 重算不删除安装观察。
 
 App 可直接调用：
 

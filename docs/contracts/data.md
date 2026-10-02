@@ -2,7 +2,7 @@
 
 数据库契约为 `tandem-session-v1`；分析对象契约为 `analysis-input-v1`。本文件描述已经实现的结构。字段字典由实际 DDL 生成，不能把旧设计草图或 TypeScript staging 库当成这一版。
 
-- 权威 DDL：[001.sql](../../packages/data/src/tandem_data/migrations/001.sql)
+- 权威 DDL：[迁移目录](../../packages/data/src/tandem_data/migrations/)，当前来源索引迁移为 [006.sql](../../packages/data/src/tandem_data/migrations/006.sql)
 - L2 语义校验：[event-v1.schema.json](../../packages/data/src/tandem_data/schemas/event-v1.schema.json)
 - 全部表的字段、类型、可空性、外键和建表语句：[tables-v1.schema.json](../../packages/data/src/tandem_data/schemas/tables-v1.schema.json)
 - 可运行命令：[packages/data](../../packages/data/README.md)
@@ -10,12 +10,12 @@
 
 ## 1. 为什么分成这几层
 
-L0 保存不可再生的来源字节。L1 说明这些字节中的每条记录去了哪里。L2 保存可追溯的统一事实。L3 保存便于分析复用的实体和配对结果。数据库不实现画像、情绪判断、推荐或因果归因；分析团队从统一事实出发开发自己的算法。
+L0 保存来源位置、版本和哈希，不复制原生 session。L1 说明每条原生记录的位置与处理去向。L2 保存可追溯的统一事实。L3 保存便于分析复用的实体和配对结果。数据库不实现画像、情绪判断、推荐或因果归因；分析团队从统一事实出发开发自己的算法。
 
 ```mermaid
 flowchart LR
-  INPUT["Agent 文件 / SQLite 行导出 / connector 分块归档"] --> BLOB["L0 archive_blob · zstd 原始字节"]
-  BLOB --> REV["source_revision · 不可变捕获版本"]
+  INPUT["Agent 文件 / SQLite 行导出 / connector 分块归档"] --> BLOB["L0 source_reference · 来源位置与哈希"]
+  BLOB --> REV["source_revision · 来源索引版本"]
   REV --> RAW["L1 raw_record · 原生位置 / 版本 / 哈希 / 去向"]
   RAW --> RE["record_event · 多对多追溯"]
   RE --> EVENT["L2 event · 统一事件事实"]
@@ -39,20 +39,21 @@ L2 的 `session_uid` 引用 `session_identity`，L3 `session` 再复用同一 ID
 | --- | --- | --- |
 | `source` | 一个已明确登记的 Agent 数据根目录 | `source_id`、`agent`、`root_path`、`label`、`enabled`、`discovered_at`；同 Agent 多账号分开登记 |
 | `source_file` | 来源内的一个逻辑路径 | `file_id`、`source_id`、`relative_path`、`role`、`format`、`status`、`watermark`、`last_scan_at`；唯一键 `(source_id, relative_path)` |
-| `archive_blob` | 一份按内容哈希寻址的不可变原始字节 | `archive_uid`、`path`、`sha256`、`byte_len`、`stored_len`、`codec`、`created_at`；zstd 文件在 `raw/` |
+| `source_reference` | 一份原生来源索引 | `revision_uid`、`sha256`、`byte_len`、`encoding`；原文仍在来源目录 |
+| `record_location` | 某次扫描中的记录位置 | `record_uid`、`revision_uid`、`ordinal`、`byte_offset`、`byte_len` |
+| `source_scan` | 最近一次扫描边界 | 来源、时间、全量/样本、发现数、索引数、失败数和取消状态 |
+| `archive_blob` | 兼容旧库和显式归档导入的原始字节 | `archive_uid`、`path`、`sha256`、`byte_len`、`stored_len`、`codec`、`created_at`；zstd 文件在 `raw/` |
 | `source_revision` | 一个文件的一次已成功索引的捕获版本 | `revision_uid`、`file_id`、递增 `revision`、`archive_uid`、`captured_at`、`source_stat`、`record_count` |
 | `raw_record` | 一条原生记录的一个内容版本 | `record_uid`、`file_id`、`revision_uid`、`locator`、`version`、`ordinal`、`byte_offset`、`byte_len`、`sha256`、`native_type`、`native_id`、`harness_version`、`shape_hash`、`session_uid`、`disposition`、`note` |
 | `file_record` | 当前文件位置使用哪个记录版本 | `(file_id, locator) → record_uid`；与不可变的历史记录分开 |
 | `record_event` | 一条原记录对一个事件的贡献 | `(record_uid, event_uid)`、`relation`、`contribution`；真实外键约束 |
 | `ingest_issue` | 一项采集、映射或派生缺口 | 来源与记录引用、`stage`、`code`、`severity`、`detail`、`detected_at` |
 
-`locator` 为结构化 JSON：JSONL 使用 `["line", physical_ordinal]`；SQL 行使用 `["row", table_name, primary_key_object]`。`byte_offset / byte_len` 定位归档解码后的记录字节；压缩源会先解开保存层的 zstd，再解开源文件的原生 zstd。SQL 中的 BLOB 使用可逆的 `$binary` base64 编码。
+`locator` 为结构化 JSON：JSONL 使用 `["line", physical_ordinal]`；SQL 行使用 `["row", table_name, primary_key_object]`。原生索引按字节位置或主键读取并校验记录哈希；压缩源使用解码偏移。SQL BLOB 在显式原文读取中用 `$binary` base64 表示。
 
-文件追加时，未变化的行复用原 `record_uid`，只有新增或改变的行生成新版本。SQL 行 A→B→A 会产生三个观测版本，不能用相同内容哈希把最后一个 A 当成第一次观测。文件整体哈希不变时不产生新 `source_revision`。上游文件删除后标为 `gone_upstream`，保留已归档的字节和当前已知记录。
+文件追加或改写时，未变化行复用 `record_uid`，`record_location` 更新当前偏移。SQL 行 A→B→A 产生三个观测版本，历史索引不会假称旧内容仍然可读。上游文件删除后保留已有表和索引，原文返回 `missing`；记录改写返回 `changed`。已有旧归档不会被迁移删除。
 
-**当前采集实现是流式、不可变整文件快照，索引按行增量复用。** 尚未实现本包自己的追加字节分块归档或 FSEvents 守护程序。长文件频繁变化会产生整文件压缩快照，适合手动批量导入；实时采集可以由 TypeScript connector 的增量分块归档承担，再经桥接进入本库。不要把本包的手动 `scan` 描述成实时监听。
-
-归档先于解码发布。不完整 zstd 帧会保存原始 blob、记录带 `archive_uid` 的缺口，并保留之前成功索引的投影；不会把半帧当成完整来源。非法 JSON 行保留 L1 定位，标为 `unparsed`。图片等内联大字段通过记录和内容路径回到 L0，L2 不复制完整 base64。
+**原生 `capture_file` / `ImportService` 流式读取来源并建立索引，不创建整文件快照。** 不完整压缩帧和读取期间变化会回滚本次索引，保留之前已发布的 L2/L3；非法 JSON 行保留定位并标记 `unparsed`。`capture_stream` 与显式 staging 桥接仍提供旧归档兼容，App 的无复制路径不使用它们。完整接口与边界见 [来源索引与轨迹](../modules/data/indexed-trajectories.md)。
 
 ### 记录去向
 
@@ -90,11 +91,11 @@ Codex 使用 `session_meta.id` 作为线程身份；`session_id` 是根线程的
 | --- | --- |
 | `attrs.origin` | 区分 human、queued、notification、peer、automation、injected、unknown；默认真人视图进一步只取 main 会话 |
 | `attrs.phase` | 保留原生 commentary/final 等阶段；缺失不猜测 |
-| `attrs.original_chars / message_digest` | 对完整、脱敏后且展示截断前的规范正文计数和摘要；8 KiB 截断不会改变测量 |
+| `attrs.original_chars / message_digest` | 对完整、脱敏后的规范正文计数和摘要；正文不再有长度截断 |
 | `attrs.writing_measurements.reply` | 可见回复的字符数、surface、measured 质量和 complete 标记；无法确定正文/摘要边界时 `body / summary` 为空 |
 | `attrs.artifact_body_present` | 当前没有可靠的跨 Agent 正文边界提取，保持未知 |
 | `attrs.input_format` | 普通 user 文本为 prompt；专门问答回执尚未在全部来源可靠提取，不能声称 question_reply 完整覆盖 |
-| `attrs.argument_digest / argument_digest_basis` | 普通完整参数采用规范 JSON 摘要；含凭据或需要脱敏/截断的输入不发布摘要，避免成为离线猜测秘密的校验器 |
+| `attrs.argument_digest / argument_digest_basis` | 普通完整参数采用规范 JSON 摘要；含凭据或需要脱敏的输入不发布摘要，避免成为离线猜测秘密的校验器 |
 | `attrs.is_wrapper / status_scope` | 保留编排外层的标志；未确认状态作用范围时为 unknown，不能把外层完成外推到内层全部成功 |
 | `attrs.known_command_results / failed_command_results / unknown_return_values` | 没有原生统计证据时为空；不从输出里的 error 单词猜计数 |
 
@@ -168,7 +169,7 @@ staging schema v1/v2 的 `archive_chunk / raw_record` 都已实际对接。v2 �
 | 来源 | 本次实现 | 已验证 | 仍需明确的边界 |
 | --- | --- | --- | --- |
 | Claude Code | JSONL、子代理文件身份、消息/思考/工具/usage、响应去重 | 构造拆行/重复样本 + 本机真实样本 | 桌面索引、子代理 .meta、workflow journal 未单独采集，spawn_call_uid 可空 |
-| Codex | rollout、两套消息表示、逐次 usage、累计快照、原生轮次与设置、staging metadata 桥接 | 本机真实样本 + 实际 TypeScript CLI → staging → 本库 | 本包直接 scan 尚不读全部旁路索引/导入 ledger；完整旁路归属请走 staging 桥接。旧格式/找不到正本的复制段标 partial，保留 L0 |
+| Codex | rollout、两套消息表示、逐次 usage、累计快照、原生轮次与设置、staging metadata 桥接 | 本机真实样本 + 实际 TypeScript CLI → staging → 本库 | 直接 scan 读取最高版本 state 索引、标题与导入账本；只读取白名单元数据列。旧格式/找不到正本的复制段标 partial，保留 L0 |
 | DSH | v0–v4 已研究的事件、拼接 zstd、流式合并、工具与审批 | v0 本机真实样本 + v4/多帧/半帧构造样本 | 未出现的新插件事件转 unknown；缺父会话时根树分析排除并告警 |
 | pi | 消息树、模型/effort、工具/usage、显式 fork 复制段 | 本机真实样本 + fork 构造样本 | 父文件未登记时不能可靠认定复制段；clone 导入无血缘证据不猜测 |
 | Hermes | session/message 与累计行的只读 SQL 导出和版本化 | 实际创建的 SQLite 来源 + 行 A→B→A 样本 | 本机未安装；未验证真实运行版本，按 partial 接入。只有累计值，不生成 model_call |
@@ -177,10 +178,10 @@ staging schema v1/v2 的 `archive_chunk / raw_record` 都已实际对接。v2 �
 
 本轮使用的真实样本仅用于本机验证，没有提交正文或数据库；不是全量历史回填。共同 Codex 样本为 6 个归档/空闲 rollout：1,203 条原生记录 → 1,491 条 canonical 事件，4 个 main、1 个 subagent、1 个 review，149 条逐次请求记录、默认分析视图 136 条，unparsed=0、unknown=0。未采集 guardian 的外部父线程时保留一项血缘诊断，review 本身不进入默认分析。重复桥接新增为 0，1,203 个 record crosswalk 可按原文 SHA 核对。另有 Claude/DSH/pi 本机样本与实际 SQLite 构造来源验证。
 
-Antigravity/protobuf、Copilot 元数据和 catalog 未在本包实现。配置 inventory 已通过显式扫描接入，保留未扫描、已知为空、部分失败的区别；来源、隐私与快照语义见 [本机安装清单](../modules/data/local-inventory.md)。L2 脱敏版本记录于 `schema_manifest`，当前 `1.0.1` 覆盖 token/client_secret/secret_access_key、camelCase、环境变量前缀与 JSON 字符串内嵌凭据；计量字段与 request_key 保留。L0 的明确原文读取不执行脱敏。
+Antigravity/protobuf、Copilot 元数据和 catalog 未在本包实现。配置 inventory 已通过显式扫描接入，保留未扫描、已知为空、部分失败的区别；来源、隐私与快照语义见 [本机安装清单](../modules/data/local-inventory.md)。L2 脱敏版本记录于 `schema_manifest`，当前 `1.2.0` 覆盖 token/client_secret/secret_access_key、camelCase、环境变量前缀与 JSON 字符串内嵌凭据；计量字段与 request_key 保留。L0 的明确原文读取不执行脱敏。
 
-结构验证包含 JSON Schema、真实外键、索引唯一性、L0 哈希、记录全记账、重复导入、SQL 行观测版本、fork 去重、Schema 升级失败时旧投影保留、UTC/null 质量、截断前篇幅、只读来源和桥接 record 对照。具体测试以包内测试和 CI 为准。
+结构验证包含 JSON Schema、真实外键、索引唯一性、L0 哈希、记录全记账、重复导入、SQL 行观测版本、fork 去重、Schema 升级失败时旧投影保留、UTC/null 质量、完整正文篇幅、只读来源和桥接 record 对照。具体测试以包内测试和 CI 为准。
 
 SQLite 使用 STRICT 表、WAL、显式启用 foreign_keys 和外键检查；需要 FTS5 的构建。外键需要逐连接启用，见 [SQLite 官方说明](https://www.sqlite.org/foreignkeys.html)。zstd 原生多帧与尾帧检查采用官方库的逐帧 EOF 接口，见 [python-zstandard 解压接口](https://python-zstandard.readthedocs.io/en/latest/decompressor.html)。
 
-当前存储 user_version=5，逻辑契约仍为 v1。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](../modules/data/agent-connectors.md)。
+当前存储 user_version=6，逻辑契约仍为 v1。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](../modules/data/agent-connectors.md)。

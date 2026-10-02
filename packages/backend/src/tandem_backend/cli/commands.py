@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> None:
 def _main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
     parser.add_argument("--home", type=Path, default=default_home(), help="L0–L3 数据目录，默认 macOS Application Support/Tandem")
-    parser.add_argument("--max-events", type=int, default=100000, help="分析/报告读取事件上限，含上下文；默认 100000，可显式调大")
+    parser.add_argument("--max-events", type=int, default=None, help="可选的分析/报告事件预算，含上下文；默认不限制，超限明确报错")
     parser.add_argument("--no-progress", action="store_true", help="关闭 stderr 进度输出")
     parser.add_argument("--db", help="显式使用旧版 MVP 数据库（兼容模式）")
     parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
@@ -140,7 +140,7 @@ def _main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     from tandem_data.progress import TerminalProgress
     progress = TerminalProgress(enabled=not args.no_progress)
-    if args.max_events < 1:
+    if args.max_events is not None and args.max_events < 1:
         parser.error("--max-events 必须是正整数")
     if args.command in ("ingest", "import-connector", "init", "rebuild", "verify", "stats", "discover"):
         from ..data_access.ingest import ingest, ingest_staging, maintain

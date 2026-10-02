@@ -2,6 +2,8 @@
 
 本模块按 `yhyfhgs` 的选择统一在 `packages/data` 的 Python 实现内。它复用 PR #9 的 canonical 数据契约，不建立第二套 canonical 数据库；PR #11 的 TypeScript Codex staging 仍可通过原有归档桥接接入。
 
+当前原生采集改用来源引用，完整正文和 App trajectory 接口见 [来源索引](indexed-trajectories.md)。历史实测数值对应当时版本。
+
 ## 运行与查看
 
 需要 Python ≥ 3.13、uv，支持 macOS / Linux。在仓库根目录运行：
@@ -59,7 +61,7 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 | --- | --- |
 | `service.py` | 来源导入任务、单写者、进度、取消、轮询 |
 | `discovery.py` | 根目录、环境变量、路径白名单、DSH 代次选择；不读取凭据 |
-| `store.py` | SQLite 迁移、不可变 zstd 原始归档、L1 行版本、原文读取与哈希校验 |
+| `store.py` | SQLite 迁移、来源索引与旧归档兼容、L1 行版本、原文读取与哈希校验 |
 | `connectors/base.py` | 小型 mapper 协议、公共消息块与 usage 归一；不承担文件 IO |
 | `connectors/{claude_code,opencode,dsh,pi,hermes,kimi}.py` | 原生语义、身份、时间、分片/重放规则 |
 | `pipeline.py` | 按来源重建 L2、记录全记账、去重、证据关联、事务发布 |
@@ -67,7 +69,7 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 | `reduce.py` | L3 项目、轮次、工具配对、逐请求用量、独立累计快照、基础特征 |
 | `analysis_input.py` | 分析范围、覆盖说明、只读分析输入 |
 | `query.py` | 统一投影新鲜度检查、App 游标读取；分析/导出/分页都拒绝过期版本 |
-| `migrations/` | 权威 DDL；契约仍为 v1，存储 user_version=4（兼容升级 v1） |
+| `migrations/` | 权威 DDL；契约仍为 v1，存储 user_version=6（兼容升级 v1） |
 | `validation/` | 原生格式构造样本、真实样本验证、离线查看页、性能测量 |
 | `tests/data/` | 单元、语义回归、SQLite/WAL 功能测试、CLI 和完整模块 E2E |
 
@@ -75,13 +77,13 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 
 ## 数据与正确性
 
-- **无损的依据是 L0/L1**：原始 JSONL、JSON 元数据与原生 zstd 文件按字节归档；SQLite 使用一个只读事务导出白名单表的完整行（包括未知列），按主键和行哈希保存每次版本。不是对源数据库做物理备份。
-- L1 记录保留来源、位置、版本、SHA256、去向和 `record_event`。半行进入待补齐账本；完成后重读。改写与删除替换当前投影，历史原件仍能取回。损坏压缩尾帧不推进游标。
-- L2 是可查询的脱敏投影；`ext.native` 留下未映射字段的有界副本。长文本有截断标记，媒体/签名可通过原始记录追溯；不能把 L2 预览当成完整原文。未知字段/类型不破坏原始归档。
-- `verify` 对原始归档、每条 L1 记录的偏移/长度/哈希、证据关联、L2 Schema、外键与 SQLite 完整性逐项检查，不只是把去向数量相加。
+- 原生 JSONL / JSON / zstd 和白名单 SQLite 表只读索引；L0 保存位置和哈希，不复制整个 session。SQLite 通过一次读事务按主键建立行索引。
+- L1 记录来源、位置、版本、哈希、去向和事件关联。半行待补齐；损坏压缩帧不会推进索引。上游删除或改写后，原文读取明确报告不可用状态。
+- L2 保存完整脱敏正文，取消文本和字段长度截断。未知类型保留 L1 索引和诊断，可按需打开原文；内联媒体与加密字段使用引用。
+- `verify` 校验当前引用、记录摘要、旧归档、证据关联、Schema、外键和数据库完整性；不可读来源报告 partial。
 - 时间按各来源声明的单位转换；缺失时间仍为 null。排序使用 native seq/行序；SQLite V2 按 `(session_id, seq)`，不以消息 ID 的字典序充当轨迹顺序。
 - 累计快照和逐次用量分开存储，零成本与未知成本不同；不按公开价目表猜账单。模型原名和路由保留，规范模型映射沿用 `model_alias`。
-- 来源快照先保存，重建失败时回滚 L2/L3；`watermark.projected_revision` 只在成功发布时更新。取消/失败后可恢复。未变化来源不解压、不重建，变化来源单独重算；模型/mapper/reducer 版本改变会使旧投影失效。
+- 来源索引先提交，重建失败时回滚 L2/L3；`watermark.projected_revision` 只在成功发布时更新。取消/失败后可恢复。未变化来源不解压、不重建，变化来源单独重算；模型/mapper/reducer 版本改变会使旧投影失效。
 
 ## 来源差异与覆盖
 
@@ -94,7 +96,7 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 | Hermes | sessions/messages/session_model_usage/system_prompts、稳定 message_uid、inactive/compacted/rewind、tool_call_uid、秒时间、分模型累计版本 | 原生只有累计用量时不生成虚构 model_call；无成功字段的工具状态保持 unknown |
 | Kimi Code | `~/.kimi-code` / `KIMI_CODE_HOME`、wire 1.x 持久事件、index 工作目录、agent 分离、loop 消息/工具、usage.record 与 step.end 去重、控制/审批/compaction/branch | 新 Kimi Code wire 1.0–1.5；早期 `~/.kimi` Python CLI 的另一套 wire 及迁移副本尚未宣称兼容。本机尚无真实样本 |
 
-性能取舍：本版捕获变化文件时仍写完整不可变快照，L1 复用未变化行，L2/L3 按变化来源重建。尚未实现 append-only 字节块归档和单会话尾追；不能把热扫描耗时理解为持续追加大文件的耗时。内存以当前解析记录和 mapper 索引为主，最大单行仍影响峰值。这样保留可验证的事务和回放语义，后续可在 Store 内替换采集策略而不改变 App 与 mapper 接口。
+性能取舍：变化文件流式重建索引，L1 复用未变化记录，L2/L3 按来源重算。未变化文件快速跳过；SQLite 每次读取事务快照。未实现单会话尾追，长文件重算成本仍存在。
 
 ## 验证证据
 
