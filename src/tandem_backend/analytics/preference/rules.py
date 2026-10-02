@@ -27,7 +27,7 @@ def preference_values(statement):
                 prefix = statement[max(0, match.start() - 16):match.start()]
                 # Revocation of a preference is a history operation, not "avoid the value".
                 polarity = "avoid" if not REVOKE.search(statement) and re.search(
-                    r"(?:不要|不用|不再|不喜欢|避免|别用|do not use|don't like|avoid)\s*(?:使用|用)?\s*$", prefix, re.I) else "prefer"
+                    r"(?:不要|不用|不再|不喜欢|不偏好|不倾向|避免|别用|do not use|don't like|avoid)\s*(?:使用|用)?\s*$", prefix, re.I) else "prefer"
                 # "Short code" describes the artifact, not the speaker's answer preference.
                 if kind == "detail" and re.search(r"(?:代码|函数|变量|code|function)", statement, re.I) and not re.search(r"回答|说明|解释|回复|answer|explanation", statement, re.I):
                     continue

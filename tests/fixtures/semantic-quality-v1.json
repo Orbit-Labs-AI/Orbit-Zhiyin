@@ -3,35 +3,293 @@
   "source": "Independent hand-authored synthetic acceptance cases; no private history",
   "limitations": "Small development acceptance set, not an unbiased real-world accuracy estimate",
   "preference": [
-    {"id":"p-project-zh", "text":"以后这个项目都用中文", "values":["zh"], "scope":"project", "instructions":0, "candidates":0},
-    {"id":"p-global-en", "text":"I prefer English for all projects", "values":["en"], "scope":"global", "instructions":0, "candidates":0},
-    {"id":"p-unknown-scope", "text":"我喜欢简短回答", "values":["brief"], "scope":"unknown", "instructions":0, "candidates":0},
-    {"id":"p-oneoff", "text":"这次请简短一点", "values":[], "instructions":1, "candidates":0},
-    {"id":"p-quoted", "text":"他说我喜欢详细回答", "values":[], "instructions":0, "candidates":0},
-    {"id":"p-blockquote", "text":"> 我喜欢详细回答", "values":[], "instructions":0, "candidates":0},
-    {"id":"p-code", "text":"```text\n以后所有项目都用英文\n```", "values":[], "instructions":0, "candidates":0},
-    {"id":"p-question", "text":"我喜欢英文吗？", "values":[], "instructions":0, "candidates":0},
-    {"id":"p-frequency", "text":"这个项目调用了 pytest 80 次", "values":[], "instructions":0, "candidates":0},
-    {"id":"p-artifact-not-style", "text":"我喜欢简短代码", "values":[], "instructions":0, "candidates":0},
-    {"id":"p-format", "text":"以后这个项目默认用 Markdown", "values":["markdown"], "scope":"project", "instructions":0, "candidates":0},
-    {"id":"p-tool", "text":"我偏好这个项目用 pytest", "values":["pytest"], "scope":"project", "instructions":0, "candidates":0},
-    {"id":"p-workflow", "text":"以后所有任务先规划", "values":["plan_first"], "scope":"global", "instructions":0, "candidates":0},
-    {"id":"p-avoid", "text":"以后这个项目不要用英文", "values":["en"], "scope":"project", "polarity":"avoid", "instructions":0, "candidates":0},
-    {"id":"p-future", "text":"以后所有项目从明天开始用英文", "values":[], "instructions":0, "candidates":1},
-    {"id":"p-alternatives", "text":"以后这个项目用中文或者英文", "values":[], "instructions":0, "candidates":2}
+    {
+      "id": "p-project-zh",
+      "text": "以后这个项目都用中文",
+      "values": [
+        "zh"
+      ],
+      "scope": "project",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-global-en",
+      "text": "I prefer English for all projects",
+      "values": [
+        "en"
+      ],
+      "scope": "global",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-unknown-scope",
+      "text": "我喜欢简短回答",
+      "values": [
+        "brief"
+      ],
+      "scope": "unknown",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-oneoff",
+      "text": "这次请简短一点",
+      "values": [],
+      "instructions": 1,
+      "candidates": 0
+    },
+    {
+      "id": "p-quoted",
+      "text": "他说我喜欢详细回答",
+      "values": [],
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-blockquote",
+      "text": "> 我喜欢详细回答",
+      "values": [],
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-code",
+      "text": "```text\n以后所有项目都用英文\n```",
+      "values": [],
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-question",
+      "text": "我喜欢英文吗？",
+      "values": [],
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-frequency",
+      "text": "这个项目调用了 pytest 80 次",
+      "values": [],
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-artifact-not-style",
+      "text": "我喜欢简短代码",
+      "values": [],
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-format",
+      "text": "以后这个项目默认用 Markdown",
+      "values": [
+        "markdown"
+      ],
+      "scope": "project",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-tool",
+      "text": "我偏好这个项目用 pytest",
+      "values": [
+        "pytest"
+      ],
+      "scope": "project",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-workflow",
+      "text": "以后所有任务先规划",
+      "values": [
+        "plan_first"
+      ],
+      "scope": "global",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-avoid",
+      "text": "以后这个项目不要用英文",
+      "values": [
+        "en"
+      ],
+      "scope": "project",
+      "polarity": "avoid",
+      "instructions": 0,
+      "candidates": 0
+    },
+    {
+      "id": "p-future",
+      "text": "以后所有项目从明天开始用英文",
+      "values": [],
+      "instructions": 0,
+      "candidates": 1
+    },
+    {
+      "id": "p-alternatives",
+      "text": "以后这个项目用中文或者英文",
+      "values": [],
+      "instructions": 0,
+      "candidates": 2
+    }
   ],
   "task": [
-    {"id":"t-debug", "text":"请修复 Python 代码", "domain":["software"], "task_type":["debug"], "artifact_names":[]},
-    {"id":"t-report", "text":"请编写报告 report.md", "domain":["writing"], "task_type":["create"], "artifact_names":["报告","report.md"]},
-    {"id":"t-math", "text":"请证明这个数学定理", "domain":["mathematics"], "task_type":["explain"], "artifact_names":[]},
-    {"id":"t-research", "text":"调研后端接口", "domain":["software"], "task_type":["research"], "artifact_names":[]},
-    {"id":"t-unknown", "text":"帮我处理一下", "domain":[], "task_type":[], "artifact_names":[]},
-    {"id":"t-negative", "text":"不要修复代码，请总结文档", "domain":["writing"], "task_type":["summarize"], "artifact_names":[]},
-    {"id":"t-reading", "text":"请解释 README.md", "domain":["writing"], "task_type":["explain"], "artifact_names":[]},
-    {"id":"t-multilabel", "text":"请修复代码，并编写报告", "domain":["software","writing"], "task_type":["create","debug"], "artifact_names":["报告"]},
-    {"id":"t-english", "text":"Please create a report", "domain":["writing"], "task_type":["create"], "artifact_names":["report"]},
-    {"id":"t-design", "text":"请修改界面配色", "domain":["design"], "task_type":["modify"], "artifact_names":[]},
-    {"id":"t-example", "text":"例如修复代码", "domain":[], "task_type":[], "artifact_names":[]},
-    {"id":"t-preference", "text":"以后这个项目都用中文", "domain":[], "task_type":[], "artifact_names":[]}
+    {
+      "id": "t-debug",
+      "text": "请修复 Python 代码",
+      "domain": [
+        "software"
+      ],
+      "task_type": [
+        "debug"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-report",
+      "text": "请编写报告 report.md",
+      "domain": [
+        "writing"
+      ],
+      "task_type": [
+        "create"
+      ],
+      "artifact_names": [
+        "报告",
+        "report.md"
+      ]
+    },
+    {
+      "id": "t-math",
+      "text": "请证明这个数学定理",
+      "domain": [
+        "mathematics"
+      ],
+      "task_type": [
+        "explain"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-research",
+      "text": "调研后端接口",
+      "domain": [
+        "software"
+      ],
+      "task_type": [
+        "research"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-unknown",
+      "text": "帮我处理一下",
+      "domain": [],
+      "task_type": [],
+      "artifact_names": []
+    },
+    {
+      "id": "t-negative",
+      "text": "不要修复代码，请总结文档",
+      "domain": [
+        "writing"
+      ],
+      "task_type": [
+        "summarize"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-reading",
+      "text": "请解释 README.md",
+      "domain": [
+        "writing"
+      ],
+      "task_type": [
+        "explain"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-multilabel",
+      "text": "请修复代码，并编写报告",
+      "domain": [
+        "software",
+        "writing"
+      ],
+      "task_type": [
+        "create",
+        "debug"
+      ],
+      "artifact_names": [
+        "报告"
+      ]
+    },
+    {
+      "id": "t-english",
+      "text": "Please create a report",
+      "domain": [
+        "writing"
+      ],
+      "task_type": [
+        "create"
+      ],
+      "artifact_names": [
+        "report"
+      ]
+    },
+    {
+      "id": "t-design",
+      "text": "请修改界面配色",
+      "domain": [
+        "design"
+      ],
+      "task_type": [
+        "modify"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-example",
+      "text": "例如修复代码",
+      "domain": [],
+      "task_type": [],
+      "artifact_names": []
+    },
+    {
+      "id": "t-preference",
+      "text": "以后这个项目都用中文",
+      "domain": [],
+      "task_type": [],
+      "artifact_names": []
+    },
+    {
+      "id": "t-grade",
+      "text": "请继续批改这份作业",
+      "domain": [
+        "education"
+      ],
+      "task_type": [
+        "grade"
+      ],
+      "artifact_names": []
+    },
+    {
+      "id": "t-remove-upload",
+      "text": "请删除报告里的测试字段后上传",
+      "domain": [
+        "writing"
+      ],
+      "task_type": [
+        "modify",
+        "publish"
+      ],
+      "artifact_names": []
+    }
   ]
 }
