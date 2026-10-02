@@ -1,51 +1,42 @@
-/* Tandem promo stage: a fixed 1920×1080 pure-black frame. The app runs live in #app; #cam/#rig are the camera
-   (3D tilt around the frame centre, then pan/zoom onto a point of the app); #fx holds the kinetic type. */
+/* Tandem promo stage: a fixed 1920×1080 pure-black frame. Two live copies of the app (#app0/#app1) each show one
+   component at a time (everything else is hidden); the .cam/.rig pairs are their cameras; #fx holds the type. */
 :root{
   --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;
   --serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC",serif;
   --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
-  --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#8f7bff;
+  --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#a99bff;
   color-scheme:light;
 }
 html,body{margin:0;height:100%;background:#000;overflow:hidden}
 body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smoothing:antialiased}
 .stage{position:relative;width:1920px;height:1080px;background:#000;overflow:hidden;flex:none;transform-origin:50% 50%}
-.cam{position:absolute;inset:0;transform-origin:960px 540px;transform-style:preserve-3d}
+.cam{position:absolute;inset:0;transform-style:preserve-3d;opacity:0}
 .rig{position:absolute;left:0;top:0;transform-origin:0 0}
 .rig iframe{display:block;border:0;background:transparent;width:1600px;height:1000px}
-.glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 55% at 50% 52%,rgba(255,255,255,.07),transparent 70%);opacity:0}
+.glow{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(46% 50% at 50% 50%,rgba(255,255,255,.075),transparent 72%)}
 .fx{position:absolute;inset:0;pointer-events:none}
-.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;mix-blend-mode:normal}
 
-/* kinetic type */
-.k{position:absolute;color:#fff;white-space:nowrap;will-change:transform,opacity,filter}
-.k.c{left:50%;top:50%;transform:translate(-50%,-50%)}
-.mono{font-family:var(--mono);letter-spacing:.02em}
+/* type: every line is a mask the words rise through */
+.k{position:absolute;color:#fff;white-space:nowrap}
+.ln{display:block;overflow:hidden;padding:.06em 0 .12em;margin:-.06em 0 -.12em}
+.ln>span{display:inline-block;will-change:transform,opacity,filter}
+.eb{font-family:var(--mono);font-size:20px;letter-spacing:.34em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.lt{font-size:40px;font-weight:400;color:rgba(255,255,255,.72);letter-spacing:.01em}
+.md{font-size:58px;font-weight:500;letter-spacing:.005em}
+.hv{font-size:108px;font-weight:700;letter-spacing:-.012em;line-height:1.08}
+.xl{font-size:200px;font-weight:700;letter-spacing:-.02em;line-height:1}
 .serif{font-family:var(--serif)}
-.eb{font-family:var(--mono);font-size:22px;letter-spacing:.32em;text-transform:uppercase;color:rgba(255,255,255,.55)}
-.h1{font-size:96px;font-weight:600;letter-spacing:-.01em}
-.h2{font-size:64px;font-weight:600}
-.h3{font-size:40px;font-weight:500}
-.dim{color:rgba(255,255,255,.5)}
-.cap{position:absolute;left:96px;bottom:84px;color:#fff;white-space:normal;max-width:470px}
-.cap .eb{display:block;margin-bottom:14px}
-.cap .t{display:block;font-size:56px;line-height:1.15;font-weight:600;letter-spacing:.01em}
-.cap .s{display:block;margin-top:16px;font-size:24px;line-height:1.5;color:rgba(255,255,255,.62)}
-.cap.r{left:auto;right:96px;text-align:right}
-.cap.top{bottom:auto;top:84px}
-.letter{font-family:var(--serif);font-weight:700;font-size:520px;line-height:1;color:#fff}
-.mark{width:300px;height:auto;display:block}
-.word{font-family:var(--serif);font-weight:600;font-size:120px;letter-spacing:.02em}
-.agent{display:inline-flex;align-items:center;gap:22px;font-family:var(--mono);font-size:60px;font-weight:600}
-.agent i{width:26px;height:26px;border-radius:50%;display:inline-block}
-.bar{position:absolute;left:0;right:0;height:0;background:#000;z-index:2}
-.bar.t{top:0}.bar.b{bottom:0}
-.scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#fff,transparent);opacity:.9}
+.mono{font-family:var(--mono)}
+.dim{color:rgba(255,255,255,.45)}
+.ai{color:var(--ai)}
+.gap{height:18px}
+.chip{display:inline-flex;align-items:center;gap:14px;font-family:var(--mono);font-size:30px;color:rgba(255,255,255,.86)}
+.chip i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.mark{width:280px;height:auto;display:block}
+.word{font-family:var(--serif);font-weight:600;font-size:118px;letter-spacing:.02em}
+.letter{font-family:var(--serif);font-weight:700;font-size:300px;line-height:1}
+.dimv-l{display:block;font-family:var(--mono);font-size:26px;letter-spacing:.24em;color:rgba(255,255,255,.6);text-align:center;margin-top:10px}
 
 .play{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);font:600 15px var(--sans);padding:10px 22px;border-radius:999px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;z-index:10}
 .render .play{display:none}
-.h1,.h3{white-space:nowrap}
 .dbg{position:absolute;right:12px;top:8px;font:14px var(--mono);color:#0f0;z-index:9}
-.scrim{position:absolute;inset:0;pointer-events:none}
-.scrim.l{background:linear-gradient(90deg,#000 0,rgba(0,0,0,.94) 27%,rgba(0,0,0,0) 50%),linear-gradient(0deg,rgba(0,0,0,.55),transparent 40%)}
-.scrim.r{background:linear-gradient(270deg,#000 0,rgba(0,0,0,.94) 27%,rgba(0,0,0,0) 50%),linear-gradient(0deg,rgba(0,0,0,.55),transparent 40%)}

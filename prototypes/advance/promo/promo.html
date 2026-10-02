@@ -8,12 +8,11 @@
 </head>
 <body>
 <div class="stage" id="stage">
-  <div class="cam" id="cam">
-    <div class="rig" id="rig"><iframe id="app" src="../tandem-demo.html#overview" title="Tandem" scrolling="no"></iframe></div>
-  </div>
   <div class="glow" id="glow"></div>
+  <!-- two live copies of the app take turns, so an outgoing and an incoming component can overlap in a transition -->
+  <div class="cam" id="cam0"><div class="rig" id="rig0"><iframe id="app0" src="../tandem-demo.html#overview" title="Tandem A" scrolling="no"></iframe></div></div>
+  <div class="cam" id="cam1"><div class="rig" id="rig1"><iframe id="app1" src="../tandem-demo.html#overview" title="Tandem B" scrolling="no"></iframe></div></div>
   <div class="fx" id="fx"></div>
-  <div class="flash" id="flash"></div>
 </div>
 <button type="button" class="play" id="play">▶ 播放（含配乐）</button>
 <script src="promo.js"></script>

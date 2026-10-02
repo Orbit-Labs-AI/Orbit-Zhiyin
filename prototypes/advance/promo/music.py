@@ -2,9 +2,9 @@
 
     uv run --with numpy --with scipy python promo/music.py   ->  promo/out/soundtrack.wav
 
-Sections (beats): 0-8 cold open (blips on the agent names, riser) · 8 impact · 8-16 pad + fly-in build ·
-16-32 drop 1 · 32-36 four DIMV hits · 36-48 groove · 48-64 groove · 64-72 build (roll, riser, gap) ·
-72-88 drop 2 (accent on every cut) · 88-96 hero · 96 final impact, tail to 108.
+Sections (beats): 0-8 cold open (blips on the agent chips, riser) · 8 logo bloom · 14-32 groove (overview) ·
+32-36 four DIMV chords · 37.6-64 groove (persona, trajectory) · 64-71 build · 72-88 groove (eight features) ·
+88-96 calm desktop · 96 end card, tail to 106. Transitions only get a soft whoosh; there are no hits on cuts.
 """
 import os
 import wave
@@ -15,7 +15,7 @@ from scipy import signal
 SR = 48000
 BPM = 124
 BEAT = 60 / BPM
-END = 108
+END = 106
 N = int((END * BEAT + 1.5) * SR)
 rng = np.random.default_rng(7)
 L = np.zeros(N)
@@ -228,94 +228,81 @@ def pads(b0, b1, gain=0.22, cutoff=1800):
         b = nb
 
 
-# cold open: drone, blips on the five agent names, ticks, riser into the logo
+# cold open: drone, blips on the five agent chips, a soft riser into the logo
 put(pad((45, 52), 8 * BEAT, 600, 1.5), 0, 0.28, to='verbsend')
+put(blip(76, 0.8), 0.25, 0.22, 0, to='verbsend')
 for i, m in enumerate((81, 84, 88, 91, 93)):
-    put(blip(m), i * 0.75, 0.35, (-0.5 + i * 0.25), to='verbsend')
-for b in range(4, 8):
-    put(tick(), b, 0.5, 0.2)
-    put(tick(), b + .5, 0.3, -0.2)
-put(riser(4 * BEAT), 4, 0.45, to='verbsend')
-put(reverse_swell(1.0 * BEAT), 7, 0.9)
+    put(blip(m), 1.5 + i * 0.375, 0.3, (-0.5 + i * 0.25), to='verbsend')
+put(blip(79, 0.8), 4, 0.2, -0.2, to='verbsend')
+put(blip(83, 0.8), 6, 0.2, 0.2, to='verbsend')
+put(riser(4 * BEAT, 300, 3000), 4, 0.3, to='verbsend')
+put(reverse_swell(1.0 * BEAT), 7, 0.5)
 
-# logo impact
-put(boom(), 8, 1.0, to='verbsend')
-put(crash(3), 8, 0.7, 0.2)
-put(stab(CHORDS[0], 1.8), 8, 0.35, to='verbsend')
-pads(8, 16, 0.2, 1200)
-put(whoosh(1 * BEAT), 11, 0.8, -0.3)
-put(kick(0.6, 1.4), 12, 0.9, to='kick')
-for b in (13, 14, 15, 15.5):
-    put(kick(), b, 0.6, to='kick')
-for k in range(16):
-    put(snare(0.12), 14 + k * 0.125, 0.12 + 0.3 * k / 16, 0.1)
-put(riser(2 * BEAT, 500, 6000), 14, 0.4)
-put(reverse_swell(0.5 * BEAT), 15.5, 1.0)
+# logo: a soft bloom rather than a hit
+put(boom(3.0, 55, 28), 8, 0.55, to='verbsend')
+put(crash(3), 8, 0.3, 0.2)
+put(pad(CHORDS[0], 6 * BEAT, 1600, 0.4), 8, 0.3, to='verbsend')
+for i, m in enumerate((81, 88, 84)):
+    put(blip(m, 1.2), 9 + i * 0.75, 0.16, -0.3 + i * 0.3, to='verbsend')
+put(riser(2.5 * BEAT, 400, 4000), 11.5, 0.25, to='verbsend')
+groove(14, 16, kick_on=True, clap_on=False, hats=True, bassline=False, lvl=0.55)
 
-# drop 1
-put(crash(), 16, 0.8, 0.3)
-put(boom(1.2, 80, 40), 16, 0.6)
-groove(16, 31.5, arp=True)
-pads(16, 32, 0.16)
-for b in (20, 24, 28):
-    put(whoosh(0.5 * BEAT), b - 0.5, 0.55, 0.3)
-    put(stab(CHORDS[chord_at(b)], 0.7), b, 0.22, to='verbsend')
-put(whoosh(1 * BEAT), 31, 0.8)
+# drop 1: overview
+put(crash(), 16, 0.45, 0.3)
+groove(16, 31, arp=True)
+pads(14, 32, 0.15)
+for b in (19.25, 23.4, 27.6):          # component changes: a soft air movement, nothing more
+    put(whoosh(0.9 * BEAT), b - 0.4, 0.22, 0.3)
+put(reverse_swell(1.0 * BEAT), 31, 0.5)
 
-# DIMV: four hits, then the name
+# DIMV: four chords land with the letters, then resolve
 for i, b in enumerate((32, 33, 34, 35)):
-    put(boom(0.9, 90, 40), b, 0.9)
-    put(stab((45 + (0, 3, 7, 12)[i], 57 + (0, 3, 7, 12)[i]), 0.8), b, 0.4, to='verbsend')
-    put(snare(0.3), b, 0.35)
-put(boom(2.0), 36, 0.8, to='verbsend')
-put(crash(), 36, 0.6)
-put(stab(CHORDS[0], 1.6), 36, 0.35, to='verbsend')
-put(riser(2 * BEAT, 400, 5000), 36, 0.3)
+    put(stab((45 + (0, 3, 7, 12)[i], 57 + (0, 3, 7, 12)[i], 64 + (0, 0, 3, 3)[i]), 1.0), b, 0.34, to='verbsend')
+    put(kick(0.6, 0.7), b, 0.55, to='kick')
+put(pad((45, 57, 60, 64), 2 * BEAT, 1500, 0.1), 36, 0.3, to='verbsend')
+put(boom(2.0, 50, 26), 36, 0.35, to='verbsend')
 
-# persona + trajectory grooves
-groove(38, 48, clap_on=True, arp=False, lvl=0.85)
-pads(38, 48, 0.17)
-put(crash(2), 44, 0.4)
-put(stab(CHORDS[chord_at(44)], 0.7), 44, 0.25, to='verbsend')
-put(crash(), 48, 0.6)
-groove(48, 60, arp=True)
-pads(48, 64, 0.16)
-put(stab(CHORDS[chord_at(56)], 0.7), 56, 0.25, to='verbsend')
-put(whoosh(0.5 * BEAT), 55.5, 0.5)
-groove(60, 64, kick_on=True, clap_on=False, arp=True, lvl=0.8)
+# persona (calm) and trajectory
+groove(37.6, 40, kick_on=True, clap_on=False, hats=True, bassline=True, lvl=0.7)
+groove(40, 48, lvl=0.85)
+pads(37.6, 48, 0.17)
+put(whoosh(1.2 * BEAT), 43, 0.22, -0.3)
+put(crash(2), 48, 0.35)
+groove(48, 63.5, arp=True)
+pads(48, 63.5, 0.16)
+for b in (47.7, 51.6, 57.6):
+    put(whoosh(0.9 * BEAT), b - 0.4, 0.22, 0.3)
 
 # build: ask the local agent
-groove(64, 71.5, kick_on=False, clap_on=False, hats=True, bassline=False, arp=True, lvl=0.8)
-pads(64, 71.5, 0.2, 2600)
-b = 64.0
-while b < 71.5:
+groove(63.5, 71, kick_on=False, clap_on=False, hats=True, bassline=False, arp=True, lvl=0.75)
+pads(63.5, 71, 0.2, 2600)
+b = 66.0
+while b < 71:
     step = 0.5 if b < 68 else 0.25 if b < 70 else 0.125
-    put(snare(0.12), b, 0.15 + 0.4 * (b - 64) / 7.5, 0.1)
+    put(snare(0.12, 0.4), b, 0.08 + 0.22 * (b - 66) / 5, 0.1)
     b += step
-put(riser(7.5 * BEAT, 250, 7000), 64, 0.55, to='verbsend')
-for k in (64, 66, 68, 69, 70, 70.5, 71):
-    put(kick(0.4), k, 0.55, to='kick')
+put(riser(7 * BEAT, 250, 6000), 64, 0.4, to='verbsend')
+for k in (64, 66, 68, 69, 70):
+    put(kick(0.4), k, 0.45, to='kick')
+put(reverse_swell(1.0 * BEAT), 71, 0.6)
 
-# drop 2
-put(boom(1.6, 90, 35), 72, 1.0)
-put(crash(), 72, 0.8, -0.2)
-groove(72, 88, arp=True, lvl=1.05)
+# drop 2: eight features
+put(crash(), 72, 0.5, -0.2)
+groove(72, 88, arp=True, lvl=1.0)
 pads(72, 88, 0.17)
 for b in range(74, 88, 2):
-    put(whoosh(0.4 * BEAT), b - 0.4, 0.45, 0.4 if b % 4 else -0.4)
-    put(stab(CHORDS[chord_at(b)], 0.6), b, 0.24, to='verbsend')
-    put(boom(0.5, 100, 50), b, 0.35)
+    put(whoosh(0.7 * BEAT), b - 0.65, 0.16, 0.4 if b % 4 else -0.4)
 
-# hero + end card
-put(crash(), 88, 0.5)
-groove(88, 95.5, kick_on=True, clap_on=False, hats=True, bassline=True, arp=True, lvl=0.7)
-pads(88, 96, 0.2, 2400)
-put(reverse_swell(1.5 * BEAT), 94.5, 1.0)
-put(boom(4.0, 70, 24), 96, 1.0, to='verbsend')
-put(crash(4), 96, 0.7)
-put(pad((45, 52, 57, 60, 64), 12 * BEAT, 1400, 0.05), 96, 0.3, to='verbsend')
+# desktop (calm) + end card
+put(crash(2.5), 88, 0.3)
+groove(88, 95, kick_on=False, clap_on=False, hats=True, bassline=True, arp=True, lvl=0.6)
+pads(88, 96, 0.2, 2200)
+put(reverse_swell(1.2 * BEAT), 94.8, 0.6)
+put(boom(4.0, 55, 24), 96, 0.6, to='verbsend')
+put(crash(4), 96, 0.35)
+put(pad((45, 52, 57, 60, 64), 10 * BEAT, 1400, 0.3), 96, 0.3, to='verbsend')
 for i, m in enumerate((81, 84, 88, 93)):
-    put(blip(m, 1.2), 97 + i * 1.5, 0.22, -0.4 + i * 0.27, to='verbsend')
+    put(blip(m, 1.2), 97 + i * 1.5, 0.2, -0.4 + i * 0.27, to='verbsend')
 
 # ---------------- mix ----------------
 duck = np.ones(N)
@@ -341,7 +328,7 @@ mix /= np.max(np.abs(mix)) + 1e-9
 mix = np.tanh(mix * 1.8) / np.tanh(1.8)
 fade = np.ones(N)
 fade[-int(1.2 * SR):] = np.linspace(1, 0, int(1.2 * SR))
-mix *= fade[:, None] * 0.93
+mix *= fade[:, None] * 0.7
 
 os.makedirs(os.path.join(os.path.dirname(__file__), 'out'), exist_ok=True)
 path = os.path.join(os.path.dirname(__file__), 'out', 'soundtrack.wav')

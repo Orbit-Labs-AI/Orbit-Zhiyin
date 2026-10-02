@@ -14,7 +14,7 @@ const root = path.join(here, '..');
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const FPS = +opt('--fps', 60), SCALE = +opt('--scale', 2), FROM = +opt('--from', 0);
-const out = path.resolve(opt('--out', path.join(root, '..', '..', '.work', 'promo', 'tandem-promo.mp4')));
+const out = path.resolve(opt('--out', path.join(here, 'out', 'tandem-promo.mp4')));
 const audio = path.join(here, 'out', 'soundtrack.wav');
 const framesDir = opt('--frames', null);
 // --only 16,20.5,…: capture just the frames at these beats (into --frames) for a quick contact sheet
@@ -58,7 +58,7 @@ for (let f = 0; f < total; f++) {
   await ctx.clock.runFor(ms);
   await page.evaluate((t) => PROMO.sync(t), FROM + (f + 1) / FPS);
   if (ONLY) { const beat = (FROM + (f + 1) / FPS) * BPM / 60; const hit = ONLY.find((b) => Math.abs(b - beat) < BPM / 60 / FPS / 2 + 1e-9); if (hit === undefined) continue;
-    const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 85 }); fs.writeFileSync(path.join(framesDir, 'b' + String(hit).padStart(6, '0') + '.jpg'), Buffer.from(data, 'base64')); continue; }
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 85 }); fs.writeFileSync(path.join(framesDir, 'b' + hit.toFixed(2).padStart(6, '0') + '.jpg'), Buffer.from(data, 'base64')); continue; }
   const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 94, optimizeForSpeed: true });
   const buf = Buffer.from(data, 'base64');
   if (framesDir) fs.writeFileSync(path.join(framesDir, String(f).padStart(5, '0') + '.jpg'), buf);
