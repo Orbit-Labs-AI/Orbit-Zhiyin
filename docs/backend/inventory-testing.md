@@ -2,7 +2,9 @@
 
 本文定义本仓库安装清单模块的验收标准，覆盖七个内置 Agent connector、SQLite 快照、CLI 和分析接口。它是工程验收依据，不是外部认证，也不代表已验证所有 Agent 版本或整台机器的运行时状态。
 
-实现与使用说明见 [本机安装清单](local-inventory.md)，字段含义见 [数据契约](../data-contract.md)。本轮针对 scanner `1.1.1`，存储 `user_version=5`，分析输入仍为 `analysis-input-v1`。
+实现与使用说明见 [本机安装清单](local-inventory.md)，字段含义见 [数据契约](../data-contract.md)。初次验收针对 scanner `1.1.1`，存储 `user_version=5`，分析输入仍为 `analysis-input-v1`。
+
+后续 scanner `1.2.0` 的真实漏项、修正和新增回归见 [完整性复核记录](inventory-audit.md)。初次验收结果仅代表当时列明的路径，不能代替来源完整性验证。
 
 ## 1. 什么才算通过
 

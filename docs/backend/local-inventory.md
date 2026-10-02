@@ -4,6 +4,8 @@
 
 详细的可执行测试矩阵、通过标准与验证边界见 [安装清单测试与验收](inventory-testing.md)。
 
+此次完整性复核、已修复漏项与证据边界见 [完整性复核记录](inventory-audit.md)。
+
 ## 使用方式
 
 从仓库根运行；每条 `scan-inventory` 命令都显式授权一个来源。`--home` 必须位于所有来源目录之外。
@@ -17,7 +19,7 @@ uv run tandem-data --home .tandem inventory
 
 项目配置用 `--agent project --root /path/to/project`。所有 Agent 布局均可传 `--project-id` 关联已有 canonical project；不存在的 ID 会被拒绝。未关联的项目仍可在不限定项目的清单中看到，但不会混入指定项目的分析。项目根在数据目录的上级时，应把 `--home` 放到项目之外。
 
-默认不跟随越出来源目录的符号链接。确需读取共享 Skill 目录时，增加 `--allow-root /path/to/shared-skills`；这只允许扫描器跟随已知配置入口的链接，不会遍历整个新增目录。不要把整个用户主目录作为授权范围。
+默认不跟随越出来源目录的符号链接。确需读取共享 Skill 目录时，增加 `--allow-root /path/to/shared-skills`；这允许扫描器读取已知配置引用和声明的包位置，不会遍历整个新增目录；需要额外发现 Skills 时使用 `--skill-root`。不要把整个用户主目录作为授权范围。
 
 扫描错误返回退出码 2，并输出结构化诊断；已有的其他有效项仍会发布。`inventory` 仅读取数据库，不触碰来源。`discover` 和会话 `scan` 的行为保持原有语义，不自动启用安装清单。
 
@@ -26,7 +28,7 @@ uv run tandem-data --home .tandem inventory
 | 来源布局 | 读取入口 |
 | --- | --- |
 | `codex` | `config.toml` 的 MCP、插件声明、Skill 开关；`skills/`；`AGENTS.md`、`AGENTS.override.md`、`rules/`；`hooks.json`；`plugins/cache/<market>/<plugin>/<version>/` 中的插件 manifest、Skills、`.mcp.json`、`hooks/hooks.json`；`automations/<id>/automation.toml` |
-| `claude_code` | `settings.json`、`settings.local.json` 的 Hooks、插件开关、MCP；`skills/`、`CLAUDE.md`、`rules/`、`.mcp.json`；`plugins/installed_plugins.json` v2 和同样的插件缓存结构 |
+| `claude_code` | `settings.json`、`settings.local.json` 的 Hooks、插件开关、MCP；`skills/`、`CLAUDE.md`、`rules/`、`.mcp.json`；`plugins/installed_plugins.json` v2、已授权 installPath、插件缓存与 `plugins/synced/` 的组件 |
 | Claude 全局 MCP | 仅在显式传入 `--claude-config` 后读取该文件的 `mcpServers` 和 `projects.*.mcpServers`；不自动寻找根目录外的 `~/.claude.json` |
 | `dsh` | 全局及 `profiles/*/` 的 `cordis.yml`、`cordis.patch.yml`、`package.json` 中的 `dsh.profile.bundles` 和已授权的 bundle manifest/patch；旧版 `settings.yaml`；`skills/`、`AGENTS.md`；默认 `storages/schedule.json` v1 |
 | `pi` | `settings.json` 的 packages、extensions、skills；`extensions/` 入口文件、`skills/`、`AGENTS.md`、`mcp.json` |
@@ -35,7 +37,7 @@ uv run tandem-data --home .tandem inventory
 | `kimi` | `config.toml` 的 hooks 和 extra_skill_dirs；`mcp.json`、`skills/`、`AGENTS.md`；`plugins/installed.json` v1 及已授权的 `kimi.plugin.json`；`sessions/*/*/agents/*/cron/*.json` 与同目录 wire 中的 cron 新增／删除记录 |
 | `common` | 所选共享目录的 `AGENTS.md`、`rules/`、`skills/` |
 | `project` | 项目根规则文件；`.github/copilot-instructions.md`、`.cursor/rules/`；`.agents/skills/`、`.codex/skills/`、`.codex/rules/`、`.codex/config.toml` 中的 MCP；`.claude/` 配置及根 `.mcp.json` |
-| `claude_desktop` | 显式指定会话目录下的 `scheduled-tasks.json`，支持对象中的 `tasks` 数组；其他结构报告 `unsupported_task_layout` |
+| `claude_desktop` | Claude 应用数据根的桌面 MCP 配置、extension 安装记录、固定账户层级中的 remoteMcpServersConfig、Cowork 插件及 RPM 组件、Skills；scheduled-tasks.json 兼容 tasks / scheduledTasks；会话 MCP 明确标记为缓存观察 |
 
 扫描只支持表中路径及格式，不宣称覆盖整台机器。七个内置会话 connector 均有扫描适配器；系统 crontab/launchd、远程安装和市场目录不是本版的安装事实源。目录读取有深度、文件数量和单文件 2 MiB 上限，触限会报告部分覆盖。新增适配器声明的本地资源路径仅在已授权目录内展开；远程 URL、glob、未知启动 cwd 和无法解析的引用报告 partial，不发起下载。市场中可安装的插件不算本机已安装。
 
@@ -50,7 +52,7 @@ uv run tandem-data --home .tandem inventory
 - `installed`：Claude 的安装登记表声明了安装。
 - `cached`：插件缓存中存在文件；缓存可能来自已禁用或曾安装的插件。
 
-同名配置声明、安装登记和缓存观察分别保留，以便核对来源；`rows` 是观察条数，不能直接当成去重后的插件安装数量。`enabled=null` 表示没有明确开关；此模块不计算配置继承、项目覆盖、运行时生效状态。技能名称默认采用目录名。任务仅保留名称与已知启用状态，不持久化任务正文。Hooks 保留事件类型与索引，不保留命令正文。
+同名配置声明、安装登记和缓存观察分别保留，以便核对来源；`rows` 是观察条数，不能直接当成去重后的插件安装数量。`enabled=null` 表示没有明确开关；此模块不计算配置继承、项目覆盖、运行时生效状态。技能名称优先采用安全解析的 frontmatter name，缺失时采用目录名。发现 SKILL.md 后停止深入辅助目录，排除 .trash。任务仅保留名称与已知启用状态，不持久化任务正文。Hooks 保留事件类型与索引，不保留命令正文。
 
 配置不进入 L0 原始归档。账号、环境变量值、headers、命令、参数、URL、提示词、规则和 Skill 正文不入库；文件正文只用于生成哈希。凭据文件、`.env`、OAuth 文件和备份目录不会作为输入打开，符号链接到这些文件也会拒绝。JSON/TOML 解析错误只保存错误代码，不保存可能包含凭据的解析器异常原文。
 
@@ -106,3 +108,14 @@ uv run tandem-data --home .tandem scan-inventory --agent kimi --root ~/.kimi-cod
 - Hermes：`third_party/hermes-agent/hermes_cli/plugins_discovery.py`、`gateway/hooks.py`、`cron/jobs.py`。
 - OpenCode：`third_party/opencode/packages/core/src/config.ts`、`src/config/mcp.ts`、`src/v1/config/config.ts`。
 - Kimi：[配置路径](https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/data-locations.html)、[Hooks](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/hooks.html)、[安装登记源码](https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/app/plugin/store.ts)、[只读 cron 合并源码](https://github.com/MoonshotAI/kimi-code/blob/main/apps/vis/server/src/lib/cron-store.ts)。
+
+## 共享目录与 Claude 应用数据根
+
+```sh
+uv run tandem-data --home .tandem scan-inventory --agent codex --root ~/.codex --skill-root ~/.agents/skills
+uv run tandem-data --home .tandem scan-inventory --agent claude_desktop --root "$HOME/Library/Application Support/Claude"
+```
+
+`--skill-root` 可重复使用，明确授权并扫描额外 Skill 根；`--allow-root` 仍用于允许配置引用（DSH 还会在明确授权的安装根下按声明包名查找 manifest），不会遍历整个用户目录。数据 home 不得位于任何授权根之内。
+
+Claude Desktop 的远程连接器来自最新可读账户会话快照，使用 `cached` 证据和原生 `source_observed_at`，不声称是实时账号安装列表。同步插件与插件内联／自定义路径组件已接入，marketplace 中仅可安装的条目不会被计入。
