@@ -176,7 +176,8 @@ def build_presentation(analysis):
         "schema_version": PRESENTATION_VERSION,
         "source_feature_version": analysis.get("feature_schema_version"),
         "source_analysis_digest": analysis.get("analysis_digest"),
-        "presentation_digest": stable_id(analysis.get("analysis_digest"), PRESENTATION_VERSION),
+        "presentation_digest": stable_id(analysis.get("analysis_digest"), PRESENTATION_VERSION,
+                                          analysis.get("bottleneck_recommendations")),
         "scope": scope, "coverage": coverage, "selection": analysis.get("selection"),
         "family_versions": {
             "task": analysis["tasks"].get("family_version"),
@@ -219,14 +220,16 @@ def build_presentation(analysis):
             "meaning": "兴趣标签、反馈词面线索与已确认摩擦分别显示；词频不证明情绪或纠偏。",
         },
         "recommendations": diagnostic["recommendations"],
+        "resource_recommendations": analysis.get("bottleneck_recommendations"),
         "resources": {
             "matching_signals": {"task_distribution": analysis["tasks"]["summary"],
                                  "explicit_preferences": profile.get("preferences"),
                                  "findings": diagnostic["findings"]},
-            "for_you": unavailable("catalog_capability_and_agent_compatibility_mapping_required"),
+            "for_you": analysis.get("bottleneck_recommendations") or unavailable("resource_recommendation_engine_not_provided"),
             "same_persona": unavailable("no_consented_cohort_usage_dataset"),
             "popular": unavailable("no_resource_usage_dataset"),
             "catalog_endpoint": "/v1/catalog",
+            "recommendation_endpoint": "/v1/analytics/recommendations",
         },
         "capabilities": {
             "profile_code": "partial_feature_support",

@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from dataclasses import asdict
 
 from ..models import stable_id
+from ..recommend.service import recommend as recommend_resources
 from . import FEATURE_VERSION
 from .bottleneck import analyze_bottleneck
 from .common import human
@@ -174,7 +175,7 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             row["workflow"] = None
         all_workflow = {"status": "unavailable", "transitions": None, "sequences": None}
         rhythm = None
-    return {**meta, "feature_schema_version": FEATURE_VERSION, "feature_dictionary": FEATURES,
+    result = {**meta, "feature_schema_version": FEATURE_VERSION, "feature_dictionary": FEATURES,
             "analysis_digest": stable_id(bundle.versions.get("content_digest"), asdict(scope), FEATURE_VERSION, INSTRUCTION_VERSION),
             "effective_samples": {"main_sessions": len(main_ids), "human_messages": human_count,
                                   "tools": len(calls) if calls is not None else None, "text_sessions": len(entities)},
@@ -195,6 +196,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                             "summary": instruction_summary},
             "limitations": ["日志跨度不是实际工作时长", "词面纠偏和结构约束只是代理信号",
                             "缺少事件不等于没有发生；未知保持 null", "聚类和坐标不带人格或任务成功含义"]}
+    result["bottleneck_recommendations"] = recommend_resources(result)
+    return result
 
 
 def analyze_store(store, scope=None, with_text=True):

@@ -92,6 +92,9 @@ def main(argv: list[str] | None = None) -> None:
     analytics.add_argument("--no-text", action="store_true", help="只计算确定性测量，跳过文本表示")
     analytics.add_argument("--presentation", action="store_true", help="输出八个特征族到前端的确定性指标映射")
     analytics.add_argument("--window", choices=("7d", "30d", "90d", "all"), help="滚动时间窗口；until-ts 可指定历史截止")
+    analytics.add_argument("--recommendation-catalog", type=Path, help="读取该目录的七类推荐 JSON，缺失时不回退种子")
+    analytics.add_argument("--recommendation-agent", default="generic", help="推荐适配的 Agent 标识")
+    analytics.add_argument("--recommendation-family", choices=("rules_prompts", "skills", "plugins", "mcp", "hooks", "model_configs", "workflows"))
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     for command in (report, demo):
@@ -110,6 +113,7 @@ def main(argv: list[str] | None = None) -> None:
     reader_results.add_argument("--output", type=Path)
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--recommendation-catalog", type=Path, help="配置推荐资源 JSON 目录")
     refresh = sub.add_parser("catalog-refresh", help="显式核对公开 GitHub 资源来源，不执行安装")
     refresh.add_argument("--output", type=Path, default=Path(".local/catalog.json"))
     refresh.add_argument("--latest", action="store_true")
@@ -164,7 +168,8 @@ def main(argv: list[str] | None = None) -> None:
         import uvicorn
 
         from .api import create_app
-        uvicorn.run(create_app(args.db, args.catalog_cache, home=args.home), host="127.0.0.1", port=args.port)
+        uvicorn.run(create_app(args.db, args.catalog_cache, home=args.home,
+                               recommendation_catalog=args.recommendation_catalog), host="127.0.0.1", port=args.port)
         return
     if args.command == "catalog-refresh":
         from .resource_fetch import refresh_catalog
@@ -212,6 +217,11 @@ def main(argv: list[str] | None = None) -> None:
                           agent_ids=[] if args.agent_id == [""] else args.agent_id)
             scope = window_scope(scope, args.window)
             result = analyze_store(store, scope, not (args.no_text or args.presentation))
+            if args.recommendation_catalog is not None or args.recommendation_family or args.recommendation_agent != "generic":
+                from .recommend.service import recommend as recommend_resources
+                result["bottleneck_recommendations"] = recommend_resources(
+                    result, context={"agent": args.recommendation_agent}, family=args.recommendation_family,
+                    catalog_directory=args.recommendation_catalog)
             if args.presentation:
                 from .analytics.presentation import build_presentation
                 result = build_presentation(result)

@@ -249,6 +249,8 @@ priority = 100 × r × support × coverage
 
 每条建议携带 `rule_id/rule_version/evidence_refs/priority_score`。`expected_effect=null`、`installable=false`；配置名称、适配 Agent、代码预览和安装动作需要后续可信资源条目与能力清单，不由排序公式补造。
 
+具体资源卡片复用同范围的 `bottleneck_recommendations`，输出在 `resource_recommendations` 与 `resources.for_you`。其规则／BM25／效果方向／环境召回、RRF 融合、兼容性过滤、加权排序和 MMR 去重由已有[推荐引擎](../../src/tandem_backend/recommend/README.md)负责；本展示层不重新评分。上面的诊断 `priority_score` 仅排列回看建议，与资源卡片的试用优先级分别解释。
+
 ## 8. 明确保留不可用的展示与所需输入
 
 | 展示 | 当前处理 | 后续需要的规范输入 |
@@ -257,7 +259,7 @@ priority = 100 × r × support × coverage
 | AGENTS.md、hooks、skills、MCP、配置子代理覆盖 | `configuration_coverage` 不可用 | 带项目／Agent／版本／采集时间的配置盘点；明确已检查不存在与未采集的区别 |
 | 真人协作工时 | `collaboration_duration` 不可用 | 经用户认可的人工投入测量、暂停／并行／离开口径；不能用会话跨度代替 |
 | 完整十六类型 | 四轴缺口可见，`code` 为空 | 明确探索／加速／专精／编排选择的独立字段及语义验收；不从缺信号倒推 |
-| 为你推荐资源 | 输出 `matching_signals` 和既有 `/v1/catalog` 入口，不自动排序资源 | 资源能力、兼容 Agent／版本、可信安装内容及问题映射 |
+| 为你推荐资源 | `resources.for_you` 和 `resource_recommendations` 原样保留同范围推荐引擎结果；另保留 `matching_signals` | 继续补齐七类可信资源及环境清单；缺资源／证据时保留引擎的空结果，不伪造推荐 |
 | 同人格正在用、热门 | `same_persona/popular` 不可用 | 有授权的群体使用数据、时间窗、去重身份、足够覆盖与适用范围 |
 | 预计节省时间／Token／费用、ROI | `expected_effect=null`；不新增费用估算 | 同类任务、相同验收约束的实际干预前后或对照数据，包含额外配置开销 |
 | 高频语义词、真实兴趣词频 | `semantic_terms` 不可用；已有领域候选和偏好仍可展示 | 有明确文本来源、分词、词义归并、语言与文档频率口径的语义计数；现有 n-gram 权重不是词频 |
@@ -273,6 +275,8 @@ GET /v1/analytics/presentation?window=7d&agent_ids=codex&display_timezone=Asia/S
 ```
 
 列表筛选沿用重复 query 参数方式，例如 `agent_ids=codex&agent_ids=claude_code`；值须匹配来源中的真实 Agent ID。支持共享筛选及上面的 `window` 规则。历史时间参数使用 UTC 毫秒，非法时区或冲突时间条件返回校验错误。
+
+`agent_ids` 筛选历史数据来源，`target_agent` 指资源适配目标（generic / codex / claude_code），两者独立；可用 `family` 选择推荐资源族。CLI 对应 `--recommendation-agent`、`--recommendation-family`、`--recommendation-catalog`；显式空目录仍为空，不回退种子。展示摘要还包含推荐目录、目标和策略的结果，资源条件改变会更新 `presentation_digest`。
 
 导出：
 
@@ -311,4 +315,4 @@ presentation = build_presentation(analysis)
 
 这些测试验证规则和对接，不证明规则提取在真实语言上的准确率，也不证明建议已经改善效率。真实语义质量和产品阈值仍需团队人工验收；不以合成测试通过率对外宣称人格准确率。
 
-2026-10-02（Asia/Shanghai）在 Python 3.13.12 / Linux 上验证：后端 837 项通过、1 项 staging 桥接测试因未构建 Node 连接器而跳过；数据层 101 项通过。锁定依赖同步、规定目录 Ruff 检查及数据层格式检查、两包构建、`tandem demo`、`tandem evaluate`、`git diff --check` 通过；评价的 readability / pipeline / probe 分别为 8/8、34/34、12/12。构造的 canonical demo 数据成功导出 `presentation-v1` JSON；未读取或导入个人会话。远端 CI 状态单独查看 PR。
+2026-10-02（Asia/Shanghai）在 Python 3.13.12 / Linux 上验证：合入 main 的推荐模块后，后端 1,129 项通过、1 项 staging 桥接测试因未构建 Node 连接器而跳过；数据层 101 项通过。锁定依赖同步、规定目录 Ruff 检查及数据层格式检查、两包构建、`tandem demo`、`tandem evaluate`、`git diff --check` 通过；评价的 readability / pipeline / probe 分别为 8/8、34/34、12/12。构造的 canonical demo 数据成功导出 `presentation-v1` JSON，验证显式空资源目录和目标 Agent 不被展示层覆盖；未读取或导入个人会话。远端 CI 状态单独查看 PR。

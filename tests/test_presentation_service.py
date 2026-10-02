@@ -161,3 +161,33 @@ def test_snapshot_total_retains_authoritative_evidence_and_separate_bucket_basis
     assert tokens["evidence_refs"] == [{"session_uid": "s", "event_uid": "snapshot-event"}]
     assert tokens["basis"] == "cumulative_snapshot"
     assert tokens["bucket_basis"] == "call_delta_known_rows"
+
+
+def test_presentation_preserves_explicit_recommendation_catalog_and_agent(monkeypatch, tmp_path):
+    bundle = fixture_bundle()
+
+    class FixtureStore:
+        def analysis_bundle(self, scope):
+            return bundle
+
+    monkeypatch.setattr("tandem_backend.api.Store", lambda _: FixtureStore())
+    monkeypatch.setattr("tandem_backend.cli.Store", lambda _: FixtureStore())
+    empty_catalog = tmp_path / "empty-catalog"
+    empty_catalog.mkdir()
+    client = TestClient(create_app(db=tmp_path / "unused.db", recommendation_catalog=empty_catalog))
+    response = client.get("/v1/analytics/presentation", params={"target_agent": "codex", "family": "hooks"})
+    assert response.status_code == 200, response.text
+    view = response.json()
+    resource_result = view["resources"]["for_you"]
+    assert resource_result == view["resource_recommendations"]
+    assert resource_result["recommendations"] == []
+    assert resource_result["target_agent"] == "codex"
+    assert resource_result["family"] == "hooks"
+    output = tmp_path / "presentation.json"
+    main(["--db", str(tmp_path / "unused.db"), "analytics", "--presentation",
+          "--recommendation-catalog", str(empty_catalog), "--recommendation-agent", "codex",
+          "--recommendation-family", "hooks", "--output", str(output)])
+    assert json.loads(output.read_text(encoding="utf-8")) == view
+    generic = client.get("/v1/analytics/presentation").json()
+    assert generic["source_analysis_digest"] == view["source_analysis_digest"]
+    assert generic["presentation_digest"] != view["presentation_digest"]
