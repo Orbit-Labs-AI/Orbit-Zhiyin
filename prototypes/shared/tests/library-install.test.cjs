@@ -73,7 +73,7 @@ test('catalog reads and writes go to /v1/catalog with the token; FastAPI string 
   assert.ok(gw.calls.every((c) => c.headers.Authorization === 'Bearer tok'));
 });
 
-test('prepare: environment narrows agents, needs_fetch fetches then re-plans, preview follows with the default selection', async () => {
+test('prepare: environment narrows agents, needs_fetch re-plans with fetch:true (no /v1/install/fetch, J02), preview follows with the default selection', async () => {
   const gw = gateway({
     'GET /v1/install/environment': () => json(FX('install-environment')),
     'POST /v1/install/plans': (u, body, n) => json(n === 1 ? FX('install-plan-needs-fetch') : FX('install-plan'), 201),
@@ -85,7 +85,8 @@ test('prepare: environment narrows agents, needs_fetch fetches then re-plans, pr
   const plans = gw.calls.filter((c) => c.path === '/v1/install/plans');
   assert.deepEqual(plans[0].body, { source: { type: 'catalog', id: 'fx:hook/retry-guard' }, scope: 'user', agents: ['claude_code', 'codex'] });
   assert.equal(plans[1].body.fetch, true);
-  assert.deepEqual(gw.calls.find((c) => c.path === '/v1/install/fetch').body, { catalog_id: 'fx:hook/retry-guard' });
+  assert.deepEqual(plans[1].body, Object.assign({}, plans[0].body, { fetch: true }));
+  assert.equal(gw.calls.filter((c) => c.path === '/v1/install/fetch').length, 0);
   assert.deepEqual(gw.calls.at(-1).body, { disabled_targets: [1] });
   assert.equal(r.preview.preview_digest, 'sha256:fx-digest-b');
 });
@@ -103,6 +104,7 @@ test('prepare: an unchanged selection uses GET preview; link_only plans resolve 
   const b = await C.li.prepare({ type: 'catalog', id: 'x' });
   assert.equal(b.preview, null);
   assert.deepEqual(b.plan.links, ['https://example.invalid/x']);
+  assert.equal(b.reason, '该资源只能按来源说明手动安装');
 });
 
 test('apply: sends the confirmed digest and selection; 409 preview_stale re-previews instead of writing', async () => {

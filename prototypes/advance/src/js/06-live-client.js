@@ -537,6 +537,16 @@ const TandemLive = (function () {
     return out;
   }
 
+  // Why a plan cannot be written automatically (unmappable / link_only / anything not ready): the targets' own reasons first.
+  const LI_LINK_REASON = { kind_not_installable: '这类资源不能自动安装', license: '许可不允许自动安装', no_install_declaration: '目录条目没有声明安装方式', needs_plugin: '需要先安装它所在的插件' };
+  function liPlanReason(plan) {
+    if (!plan || plan.status === 'ready') return null;
+    const rs = (plan.targets || []).filter((t) => !t.mappable).map((t) => t.reason_text || t.reason).filter(Boolean);
+    const out = rs.filter((r, i) => rs.indexOf(r) === i);
+    if (plan.link_reason) out.push(LI_LINK_REASON[plan.link_reason] || plan.link_reason);
+    return out.length ? out.join('；') : plan.status === 'link_only' ? '该资源只能按来源说明手动安装' : plan.status === 'unmappable' ? '已检测的 Agent 都不支持这类资源' : null;
+  }
+
   function libraryInstall(C, ctx) {
     function send(method, path, body, o) {
       o = o || {};
@@ -556,7 +566,7 @@ const TandemLive = (function () {
     const body = (r) => r.data;
     const L = {
       send, degraded: liDegraded,
-      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, LI_KINDS, LI_LABEL, LI_TABS },
+      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, liPlanReason, LI_KINDS, LI_LABEL, LI_TABS },
       kindLabel: (k) => LI_LABEL[k] || k || '—',
       listRequest: liListRequest, facetsRequest: liFacetsRequest,
       /* catalog */
@@ -588,12 +598,10 @@ const TandemLive = (function () {
             agents = want.length ? want : ok.length ? ok : undefined;
           }
           const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
-          return L.plan(req).then((plan) => {
-            if (plan.status !== 'needs_fetch') return plan;
-            const fr = source.type === 'catalog' ? { catalog_id: source.id } : o.catalogId ? { catalog_id: o.catalogId } : { source: source.spec || source };   // a candidate backed by a catalog item fetches that item
-            return L.fetch(fr).then(() => L.plan(Object.assign({}, req, { fetch: true })));
-          }).then((plan) => {
-            if (plan.status !== 'ready') return { env: envData, plan, preview: null };
+          // needs_fetch: the same plan request again with fetch: true (the backend downloads the source itself; candidate,
+          // catalog and artifact sources never go through /v1/install/fetch, which is only a manual remote prefetch)
+          return L.plan(req).then((plan) => plan.status === 'needs_fetch' ? L.plan(Object.assign({}, req, { fetch: true })) : plan).then((plan) => {
+            if (plan.status !== 'ready') return { env: envData, plan, preview: null, reason: liPlanReason(plan) };
             const sel = { disabled: o.defaultOff ? o.defaultOff(plan) : [] };
             return L.preview(plan.plan_id, sel).then((preview) => ({ env: envData, plan, preview, sel }));
           });
@@ -604,8 +612,10 @@ const TandemLive = (function () {
       apply(st) {
         const s = liSelection(st.sel); const req = Object.assign({ plan_id: st.plan.plan_id, preview_digest: st.preview.preview_digest }, s);
         if (st.overrideRisk) req.override_risk = true;
+        if (st.surface) req.surface = st.surface;   // recommend exposure surface (A7 | lite | A8 | A9 | menubar)
         return send('POST', '/v1/install/apply', req).then((r) => ({ stale: false, result: r.data }), (e) => {
-          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail }));
+          // 409 preview_stale: the files changed after the preview; show the fresh diff (its digest is error.detail.preview_digest)
+          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail, digest: (e.detail && e.detail.preview_digest) || preview.preview_digest }));
           throw e;
         });
       }
