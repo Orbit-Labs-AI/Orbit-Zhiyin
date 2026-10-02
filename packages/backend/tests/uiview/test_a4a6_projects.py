@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
-from a4a6_ps_fixture import DAY, MIN, T0, Tandem, ro
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
@@ -18,6 +17,8 @@ from tandem_backend.features.service import FeatureService
 from tandem_backend.services.gateway import install_error_handlers
 from tandem_backend.uiview import a4a6_projects as P
 from tandem_backend.uiview import a4a6_sentiment as S
+
+from .a4a6_ps_fixture import DAY, MIN, T0, Tandem, ro
 
 FLOW = ["git status", "pytest -q", "git commit"]
 

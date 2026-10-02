@@ -145,6 +145,7 @@ def test_slate_covers_every_dimension(tmp_path):
                 "readonly_prompt_sessions": 8}
     inputs = inputs_for({**facts, **readonly, "model_mix": CODEX_MIX}, main=len(roots),
                         agents={"claude_code": 15, "codex": 6})
+    inputs["projects"] = {"proj-b": {"root": "/work/proj-b"}}
     inputs["signals"] = [{"signal_id": f"gap-{r['session_uid']}", "rule_id": "acceptance_evidence_gap",
                           "metrics": [{"value": 1}], "scope": {"root_session_uid": r["session_uid"]},
                           "evidence": [{"session_uid": r["session_uid"], "id": f"ev-{r['session_uid']}"}]}

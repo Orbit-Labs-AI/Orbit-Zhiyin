@@ -6,11 +6,12 @@ import json
 from zoneinfo import ZoneInfo
 
 import pytest
-from a4a6_ps_fixture import DAY, MIN, T0, Tandem, ro
 
 from tandem_backend.analytics.interaction.rules import correction_terms
 from tandem_backend.appdb import AppDB
 from tandem_backend.uiview import a4a6_sentiment as S
+
+from .a4a6_ps_fixture import DAY, MIN, T0, Tandem, ro
 
 UTC = ZoneInfo("UTC")
 CORRECTIONS = ["别用子代理", "不要改别的文件", "用 Cloudflare 不是 Vercel", "你改错了",
