@@ -47,6 +47,7 @@ CI 调用同一套命令。测试不自动读取本机 Agent 历史；性能与�
 ## 集成约定
 
 - [分析补全建议](docs/plans/analysis-review.md)：八族边界与 Lite / Advance 的分析功能缺口。
+- [后端缺口](docs/plans/backend-gap.md)：数据、分析、推荐与横切后端程序对照两版 UI 的差距与补齐顺序。
 - [模块接入表](docs/architecture/module-map.md)：功能、入口、实现、契约、测试与缺口。
 - [目录迁移说明](docs/development/structure-migration.md)：活跃分支如何接入新结构。
 - [设计资料](docs/design/README.md)：Lite 属于 `genius-FXC`，Advance 属于 `yhyfhgs`；MVP 范围仍由三位成员共同确认。

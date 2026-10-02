@@ -87,6 +87,18 @@ def main(argv=None):
     ingest.add_argument("--root", type=Path, required=True)
     ingest.add_argument("--file", type=Path, required=True)
     ingest.add_argument("--no-rebuild", action="store_true")
+    inventory = commands.add_parser(
+        "scan-inventory", help="Read explicitly enabled configuration roots"
+    )
+    from tandem_data.inventory.adapters import SUPPORTED
+
+    inventory.add_argument("--agent", choices=SUPPORTED, required=True)
+    inventory.add_argument("--root", type=Path, required=True)
+    inventory.add_argument("--project-id")
+    inventory.add_argument("--allow-root", action="append", type=Path, default=[])
+    inventory.add_argument("--claude-config", type=Path)
+    inventory.add_argument("--skill-root", action="append", type=Path, default=[])
+    commands.add_parser("inventory", help="Read latest installation observations")
     commands.add_parser("rebuild")
     bridge = commands.add_parser("import-connector")
     bridge.add_argument("--connector-home", type=Path, required=True)
@@ -103,10 +115,15 @@ def main(argv=None):
     if args.command == "discover":
         print(canonical(candidates()))
         return
-    if args.command in ("scan", "ingest") and Path(args.home).expanduser().resolve().is_relative_to(
-        args.root.expanduser().resolve()
-    ):
+    if args.command in ("scan", "ingest", "scan-inventory") and Path(
+        args.home
+    ).expanduser().resolve().is_relative_to(args.root.expanduser().resolve()):
         parser.error("--home must be outside the Agent source root")
+    if args.command == "scan-inventory" and any(
+        Path(args.home).expanduser().resolve().is_relative_to(path.expanduser().resolve())
+        for path in (*args.allow_root, *args.skill_root)
+    ):
+        parser.error("--home must be outside every --allow-root")
     with Store(args.home) as store:
         if args.command == "init":
             result = {
@@ -125,6 +142,24 @@ def main(argv=None):
                     rebuild=not args.no_rebuild,
                 )
             )
+        elif args.command == "scan-inventory":
+            from tandem_data.inventory import InventoryRequest, scan_inventory
+
+            result = scan_inventory(
+                store,
+                InventoryRequest(
+                    agent=args.agent,
+                    root=args.root,
+                    project_id=args.project_id,
+                    allowed_roots=tuple(args.allow_root),
+                    claude_config=args.claude_config,
+                    skill_roots=tuple(args.skill_root),
+                ),
+            )
+        elif args.command == "inventory":
+            from tandem_data.inventory import read_inventory
+
+            result = read_inventory(store.home)
         elif args.command == "rebuild":
             from tandem_data.service import ImportService
 
@@ -172,7 +207,11 @@ def main(argv=None):
                         handle.write(canonical(data) + "\n")
                 result = {"export": str(args.output), "table": args.table}
         print(canonical(result))
-        if result.get("capture_errors") or result.get("current_unparsed"):
+        if (
+            result.get("capture_errors")
+            or result.get("current_unparsed")
+            or (args.command == "scan-inventory" and result["status"] == "partial")
+        ):
             raise SystemExit(2)
 
 

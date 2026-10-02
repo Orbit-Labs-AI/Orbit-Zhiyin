@@ -177,10 +177,10 @@ staging schema v1/v2 的 `archive_chunk / raw_record` 都已实际对接。v2 �
 
 本轮使用的真实样本仅用于本机验证，没有提交正文或数据库；不是全量历史回填。共同 Codex 样本为 6 个归档/空闲 rollout：1,203 条原生记录 → 1,491 条 canonical 事件，4 个 main、1 个 subagent、1 个 review，149 条逐次请求记录、默认分析视图 136 条，unparsed=0、unknown=0。未采集 guardian 的外部父线程时保留一项血缘诊断，review 本身不进入默认分析。重复桥接新增为 0，1,203 个 record crosswalk 可按原文 SHA 核对。另有 Claude/DSH/pi 本机样本与实际 SQLite 构造来源验证。
 
-Antigravity/protobuf、Copilot 元数据、配置 inventory 和 catalog 未在本包实现，入口明确为 unavailable，不以空数组假装已完整观察。L2 脱敏版本记录于 `schema_manifest`，当前 `1.0.1` 覆盖 token/client_secret/secret_access_key、camelCase、环境变量前缀与 JSON 字符串内嵌凭据；计量字段与 request_key 保留。L0 的明确原文读取不执行脱敏。
+Antigravity/protobuf、Copilot 元数据和 catalog 未在本包实现。配置 inventory 已通过显式扫描接入，保留未扫描、已知为空、部分失败的区别；来源、隐私与快照语义见 [本机安装清单](../modules/data/local-inventory.md)。L2 脱敏版本记录于 `schema_manifest`，当前 `1.0.1` 覆盖 token/client_secret/secret_access_key、camelCase、环境变量前缀与 JSON 字符串内嵌凭据；计量字段与 request_key 保留。L0 的明确原文读取不执行脱敏。
 
 结构验证包含 JSON Schema、真实外键、索引唯一性、L0 哈希、记录全记账、重复导入、SQL 行观测版本、fork 去重、Schema 升级失败时旧投影保留、UTC/null 质量、截断前篇幅、只读来源和桥接 record 对照。具体测试以包内测试和 CI 为准。
 
 SQLite 使用 STRICT 表、WAL、显式启用 foreign_keys 和外键检查；需要 FTS5 的构建。外键需要逐连接启用，见 [SQLite 官方说明](https://www.sqlite.org/foreignkeys.html)。zstd 原生多帧与尾帧检查采用官方库的逐帧 EOF 接口，见 [python-zstandard 解压接口](https://python-zstandard.readthedocs.io/en/latest/decompressor.html)。
 
-当前存储 user_version=4，逻辑契约仍为 v1。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](../modules/data/agent-connectors.md)。
+当前存储 user_version=5，逻辑契约仍为 v1。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](../modules/data/agent-connectors.md)。
