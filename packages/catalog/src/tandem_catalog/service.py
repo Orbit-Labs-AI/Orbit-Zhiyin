@@ -1,5 +1,6 @@
 """Small application boundary: public catalog operations and cancellable background jobs."""
 
+import hashlib
 import os
 import threading
 import time
@@ -7,13 +8,21 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .contracts import MatchRequest, SourceSpec, SyncRequest
+from .contracts import (
+    Feature,
+    LocalItem,
+    MatchRequest,
+    Resource,
+    SourceSpec,
+    SyncRequest,
+    canonical_json,
+)
 from .network import HttpClient
-from .search import search
+from .search import query_text, remember_queries, search
 from .sources import default_sources
-from .store import CatalogStore
+from .store import CatalogBusy, CatalogStore
 from .sync import CatalogSync
-from .vectors import LocalE5Encoder, index_embeddings
+from .vectors import LocalE5Encoder, index_embeddings, normalize_vectors
 
 
 def default_home() -> Path:
@@ -26,7 +35,10 @@ class CatalogService:
         existing = {s["source_id"] for s in self.store.sources()}
         missing = [s for s in default_sources() if s.source_id not in existing]
         if missing:
-            self.store.register(missing)
+            try:
+                self.store.register(missing)
+            except CatalogBusy:  # Another process is syncing; defaults are registered next start.
+                pass
         self.http = http or HttpClient(self.store.path.parent / "catalog-http-cache")
         self.model_dir = model_dir
         self._encoder = encoder
@@ -34,6 +46,7 @@ class CatalogService:
         self._jobs_lock = threading.Lock()
         self._jobs = {}
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tandem-catalog")
+        self.on_job_done = None  # Optional callback(job) for telemetry (set by the gateway).
 
     def encoder(self):
         with self._model_lock:
@@ -50,7 +63,68 @@ class CatalogService:
             return result
         return search(self.store, request, encoder)
 
+    def match_many(self, requests: list[MatchRequest]) -> list[dict]:
+        """Batch-encode all query texts once, then run searches in parallel; order is preserved."""
+        if not requests:
+            return []
+        try:
+            encoder = self.encoder()
+        except Exception:
+            encoder = None
+        if encoder is not None:
+            texts = list(dict.fromkeys(query_text(r) for r in requests
+                                       if query_text(r) and r.model_id in (None, encoder.model_id)))
+            if texts:
+                vectors = normalize_vectors(encoder.encode(texts, query=True), len(texts), encoder.dimensions)
+                remember_queries(encoder, texts, vectors)
+        if len(requests) == 1:
+            return [self.match(requests[0])]
+        with ThreadPoolExecutor(max_workers=min(4, len(requests)), thread_name_prefix="tandem-match") as pool:
+            return list(pool.map(self.match, requests))
+
+    def search_cards(self, q: str, kinds=(), agents=(), limit: int = 20, prefix: bool = True) -> dict:
+        """Library search box: hybrid retrieval returned as list cards plus snippet and score."""
+        from .query import _cards
+        limit = max(1, min(100, limit))
+        result = self.match(MatchRequest(text=q, types=list(kinds), agents=list(agents), limit=limit,
+                                         per_route=max(50, limit * 3), prefix=prefix))
+        with self.store.reader() as conn:
+            cards = _cards(conn, [item["item_id"] for item in result["items"]])
+        items = [{**cards[item["item_id"]], "snippet": (item["passage"] or {}).get("text", "")[:300],
+                  "score": item["score"], "score_parts": item["score_parts"]}
+                 for item in result["items"] if item["item_id"] in cards]
+        return {"items": items, "generation": result.get("generation"), "routes": result["routes"],
+                "vector": result["vector"], "ranking_version": result["ranking_version"]}
+
+    def add_local(self, payload: dict | LocalItem) -> dict:
+        """Idempotent local item (AI-generated or user-authored); requires a passing self-check."""
+        item = payload if isinstance(payload, LocalItem) else LocalItem.model_validate(payload)
+        if item.self_check is None:
+            raise ValueError("self_check_required")
+        if item.self_check.get("passed") is not True:
+            raise ValueError("self_check_failed")
+        body = item.body.replace("\r\n", "\n").strip()
+        if not body:
+            raise ValueError("invalid_query")
+        item_id = "local:" + hashlib.sha256(canonical_json({"kind": item.kind, "body": body}).encode()).hexdigest()[:32]
+        features = [f for f in item.features if f.feature != "generic"]
+        features.append(Feature(feature="generic", value="0", origin="declared", evidence="local item"))
+        resource = Resource(item_id=item_id, type=item.kind, name=item.name, summary=item.summary, url="",
+                            body=body, body_policy="licensed", license="user-generated", agents=item.agents,
+                            features=features, manifest=item.manifest, install=item.install,
+                            metadata={"origin": "local", "template_id": item.template_id,
+                                      "template_version": item.template_version, "job_id": item.job_id,
+                                      "self_check": item.self_check})
+        return self.store.upsert_local(resource)
+
+    def remove_local(self, item_id: str) -> bool:
+        if not item_id.startswith("local:"):
+            raise ValueError("not_a_local_item")
+        return self.store.remove_local(item_id)
+
     def set_enabled(self, source_id: str, enabled: bool):
+        if source_id == "local":
+            raise ValueError("local_source_not_configurable")
         row = next((s for s in self.store.sources() if s["source_id"] == source_id), None)
         if row is None:
             raise ValueError("unknown_source")
@@ -61,8 +135,21 @@ class CatalogService:
         known = {s["source_id"] for s in self.store.sources()}
         if set(request.source_ids) - known:
             raise ValueError("unknown_source")
-        return self._submit("sync", lambda cancel: CatalogSync(self.store, self.http).sync(
-            request.source_ids, force=request.force, max_pages=request.max_pages, cancelled=cancel))
+        http = self.http
+        if (request.offline or request.ttl is not None) and isinstance(http, HttpClient):
+            # Same cache file, per-run policy; the shared client keeps its defaults.
+            http = HttpClient(http.cache_dir, github_token=http.github_token, offline=request.offline,
+                              ttl=request.ttl, opener=http.opener)
+
+        def run(cancel):
+            try:
+                return CatalogSync(self.store, http).sync(request.source_ids, force=request.force,
+                                                          max_pages=request.max_pages, cancelled=cancel,
+                                                          concurrency=request.concurrency)
+            finally:
+                if http is not self.http:
+                    http.close()
+        return self._submit("sync", run)
 
     def start_embeddings(self, max_chunks: int | None = None) -> dict:
         if not self.model_dir and self._encoder is None:
@@ -85,6 +172,7 @@ class CatalogService:
         def run():
             with self._jobs_lock:
                 job["status"] = "running"
+            started = time.perf_counter()
             try:
                 result = operation(job["cancel"].is_set)
                 failed = kind == "sync" and any(r["status"] == "failed" for r in result)
@@ -93,6 +181,13 @@ class CatalogService:
             except Exception as exc:
                 with self._jobs_lock:
                     job.update(status="failed", error=str(exc)[:200] if isinstance(exc, (ValueError, RuntimeError)) else type(exc).__name__)
+            with self._jobs_lock:
+                job["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
+            if self.on_job_done is not None:
+                try:
+                    self.on_job_done(self.job(job["job_id"]))
+                except Exception:  # noqa: BLE001 - telemetry never fails a job.
+                    pass
         self._executor.submit(run)
         return self.job(job["job_id"])
 

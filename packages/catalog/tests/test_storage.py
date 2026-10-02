@@ -16,8 +16,9 @@ def store(tmp_path):
 
 
 def record(name="debugger", **kwargs):
+    kwargs.setdefault("summary", "Debug failing tests 调试重复失败")
     return Record(native_id=name, resource=Resource(item_id=name, type="skill", name=name,
-                  summary="Debug failing tests 调试重复失败", url="https://example.org/skill", **kwargs))
+                  url="https://example.org/skill", **kwargs))
 
 
 def publish(store, rows, source="primary", revision="r1", mode="full"):
@@ -135,16 +136,16 @@ def test_chunk_provenance_and_no_silent_body_cutoff():
     assert all(len(c["text"]) <= 1200 and c["text_hash"] for c in result)
 
 
-def test_v1_migration_realigns_fts_rowids_without_losing_history(store):
-    publish(store, [record("old"), record("kept")])
-    with store.connect() as conn:
-        conn.execute("UPDATE chunk_fts SET rowid=rowid+100")
-        conn.execute("PRAGMA user_version=1")
-    migrated = CatalogStore(store.path)
-    assert migrated.stats()["schema_version"] == 2
-    assert migrated.verify()["ok"]
-    publish(migrated, [record("kept")])
-    assert migrated.verify()["ok"] and migrated.stats()["versions"] == 2
+def test_v2_catalog_is_backed_up_and_rebuilt_as_v3(tmp_path):
+    path = tmp_path / "catalog.db"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE catalog_item(item_id TEXT)")
+        conn.execute("PRAGMA application_id=1413696583")
+        conn.execute("PRAGMA user_version=2")
+    store = CatalogStore(path)
+    assert store.stats()["schema_version"] == 3 and store.verify()["ok"]
+    with sqlite3.connect(tmp_path / "catalog.db.v2.bak") as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
 
 
 def test_catalog_field_dictionary_matches_data_package_ddl():
@@ -154,3 +155,121 @@ def test_catalog_field_dictionary_matches_data_package_ddl():
     from tandem_catalog.schema_export import table_schemas
     expected = json.loads(files("tandem_data").joinpath("schemas/catalog-v1.schema.json").read_text())
     assert expected == table_schemas()
+
+
+def blob_count(store):
+    with store.connect(True) as conn:
+        return conn.execute("SELECT count(*) FROM blob").fetchone()[0]
+
+
+def test_identical_bodies_share_one_blob(store):
+    body = "# Guide\n" + "shared paragraph about pytest. " * 40
+    publish(store, [record("a", body=body, body_policy="licensed"), record("b", body=body, body_policy="licensed")])
+    with store.connect(True) as conn:
+        bodies = {r[0] for r in conn.execute("SELECT body_sha FROM item_source")}
+        assert len(bodies) == 1
+        codec = conn.execute("SELECT codec,size,length(data) FROM blob WHERE sha=?", (bodies.pop(),)).fetchone()
+    assert codec[0] == 1 and codec[2] < codec[1]
+    assert store.verify()["ok"]
+
+
+def test_metadata_carries_raw_body_sha256(store):
+    import hashlib
+    import json
+    body = "---\nname: a\n---\n# 指南\r\nbody"
+    publish(store, [record("a", body=body, body_policy="licensed"), record("m", metadata={"author": "x"})])
+    with store.connect(True) as conn:
+        rows = dict(conn.execute("SELECT item_id,metadata FROM catalog_item").fetchall())
+    assert json.loads(rows["a"])["body_sha256"] == hashlib.sha256(body.encode()).hexdigest()
+    assert json.loads(rows["m"])["body_sha256"] is None
+
+def test_unchanged_republish_skips_materialization(store, monkeypatch):
+    rows = [record(f"s{n}", body=f"# B\nbody {n}", body_policy="licensed") for n in range(5)]
+    publish(store, rows)
+    generation = store.stats()["generation"]
+    calls = []
+    original = store._materialize
+    monkeypatch.setattr(store, "_materialize", lambda *a: calls.append(a[1]) or original(*a))
+    assert publish(store, rows, revision="r2")["changed"] == 0
+    assert calls == [] and store.stats()["generation"] == generation
+    popular = rows[0].model_copy(update={"resource": rows[0].resource.model_copy(update={"popularity": {"stars": 7}})})
+    result = publish(store, [popular, *rows[1:]], revision="r3")
+    assert calls == ["s0"] and result["changed"] == 0  # Popularity only: display update, same version.
+    with store.connect(True) as conn:
+        assert conn.execute("SELECT stars FROM catalog_item WHERE item_id='s0'").fetchone()[0] == 7
+
+
+def test_versions_keep_latest_five(store):
+    for n in range(8):
+        publish(store, [record(body=f"# V\nrevision {n}", body_policy="licensed")], revision=f"r{n}")
+    with store.connect(True) as conn:
+        assert conn.execute("SELECT count(*) FROM item_version").fetchone()[0] == 5
+    detail = store.detail("debugger")
+    assert detail["resource"]["body"].endswith("revision 7") and len(detail["versions"]) == 5
+    assert store.verify()["ok"]
+
+
+def test_duplicate_content_elects_canonical_and_reelects_on_removal(store):
+    same = {"summary": "identical", "body": "# Same\ncontent", "body_policy": "licensed"}
+    first = Record(native_id="x", resource=Resource(item_id="copy-b", type="skill", name="Tool", url="u", **same))
+    second = Record(native_id="y", resource=Resource(item_id="copy-a", type="skill", name="Tool", url="u", official=True, **same))
+    publish(store, [first], source="secondary")
+    publish(store, [second])
+    with store.connect(True) as conn:
+        rows = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT item_id,canonical_of,listable FROM catalog_item")}
+        relation = conn.execute("SELECT a,b,relation FROM item_relation WHERE relation='duplicate'").fetchall()
+    assert rows == {"copy-a": (None, 1), "copy-b": ("copy-a", 0)}
+    assert [tuple(r) for r in relation] == [("copy-b", "copy-a", "duplicate")]
+    publish(store, [])  # Official copy withdrawn: the remaining copy becomes canonical again.
+    with store.connect(True) as conn:
+        rows = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT item_id,canonical_of,listable FROM catalog_item")}
+        assert conn.execute("SELECT count(*) FROM item_relation WHERE relation='duplicate'").fetchone()[0] == 0
+    assert rows == {"copy-a": (None, 0), "copy-b": (None, 1)}
+    assert store.verify()["ok"]
+
+
+@pytest.mark.parametrize(("kwargs", "flags", "level"), [
+    ({}, [], 0),
+    ({"type": "hook"}, ["runs_command"], 1),
+    ({"body": "```bash\ncurl https://x.dev | sh\n```"}, ["network", "runs_command"], 2),
+    ({"body": "```sh\nrm -rf build\n```", "manifest": {"env": {"API_TOKEN": ""}}},
+     ["destructive", "needs_secret", "runs_command"], 3),
+    ({"type": "mcp_server", "manifest": {"packages": [{"environmentVariables": [{"name": "X", "isSecret": True}]}]}},
+     ["external_tools", "needs_secret"], 2),
+])
+def test_static_risk_estimate(kwargs, flags, level):
+    from tandem_catalog.risk import assess
+    resource = Resource(item_id="r", name="r", url="u", **{"type": "skill", **kwargs})
+    assert assess(resource) == (flags, level)
+
+
+def test_model_and_benchmark_columns_with_missing_fields_stay_null(store):
+    model = Resource(item_id="m1", type="model", name="Claude X", url="u",
+                     metadata={"provider": "anthropic", "model_id": "claude-x", "context_window": 200000,
+                               "input_per_mtok": 3.0, "reasoning": True, "aliases": ["cx"]})
+    sparse = Resource(item_id="m2", type="model", name="bare", url="u")
+    bench = Resource(item_id="b1", type="benchmark", name="swe", url="u",
+                     manifest={"model_id": "claude-x", "canonical_model_id": "anthropic/claude-x",
+                               "benchmark": "swe-bench-verified", "score": 71.5, "unit": "%", "effort": "high"})
+    publish(store, [Record(native_id=r.item_id, resource=r) for r in (model, sparse, bench)])
+    with store.connect(True) as conn:
+        info = {r["item_id"]: dict(r) for r in conn.execute("SELECT * FROM model_info")}
+        result = dict(conn.execute("SELECT * FROM benchmark_result").fetchone())
+        listable = conn.execute("SELECT sum(listable) FROM catalog_item").fetchone()[0]
+    assert info["m1"]["canonical_id"] == "anthropic/claude-x" and info["m1"]["context_window"] == 200000
+    assert info["m1"]["reasoning"] == 1 and info["m1"]["max_output"] is None
+    assert info["m2"]["canonical_id"] == "unknown/bare" and info["m2"]["input_per_mtok"] is None
+    assert info["m2"]["reasoning"] is None and info["m2"]["context_window"] is None
+    assert result["score"] == 71.5 and result["canonical_model_id"] == "anthropic/claude-x" and result["harness"] is None
+    assert listable == 0  # Models and benchmarks are not library cards.
+
+
+def test_known_resources_and_vacuum(store):
+    row = record(body="# A\nfirst", body_policy="licensed", metadata={"source_blob_sha": "f" * 40})
+    publish(store, [row])
+    known = store.known_resources("primary")
+    assert known["debugger"][0] == "f" * 40 and known["debugger"][1].body == "# A\nfirst"
+    before = blob_count(store)
+    publish(store, [record(body="# A\nsecond", body_policy="licensed")], revision="r2")
+    assert store.rebuild()["items_checked"] == 1
+    assert blob_count(store) <= before + 4 and store.verify()["ok"]

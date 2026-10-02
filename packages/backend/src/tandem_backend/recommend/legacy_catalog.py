@@ -4,6 +4,8 @@ The bundled catalog is a reproducible offline seed. An explicit refresh can prov
 newer source verification without allowing remote text to alter capability tags.
 """
 
+import copy
+import functools
 import json
 import re
 from importlib.resources import files
@@ -37,8 +39,13 @@ def _cached_updates(path: Path) -> dict[str, dict]:
     return by_id
 
 
+@functools.lru_cache(maxsize=1)
+def _seeds() -> tuple[dict, ...]:
+    return tuple(json.loads(files("tandem_catalog").joinpath("data/skills.json").read_text()))
+
+
 def resources(cache_file: str | Path | None = None) -> list[dict]:
-    seeds = json.loads(files("tandem_catalog").joinpath("data/skills.json").read_text())
+    seeds = copy.deepcopy(list(_seeds()))  # Cached parse; callers may still mutate their copy.
     if not cache_file or not Path(cache_file).is_file():
         return seeds
     try:
