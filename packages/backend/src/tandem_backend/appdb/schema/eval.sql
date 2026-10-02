@@ -1,0 +1,4 @@
+-- Evaluation runs (EV-12): one row per run, one row per check; latest 200 runs kept.
+CREATE TABLE IF NOT EXISTS eval_run (run_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL, finished_at INTEGER, status TEXT NOT NULL CHECK(status IN ('queued','running','done','failed','cancelled')), suites TEXT NOT NULL CHECK(json_valid(suites)), fail_under REAL, score REAL, passed INTEGER CHECK(passed IS NULL OR passed IN (0,1)), params TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(params)), summary TEXT CHECK(summary IS NULL OR json_valid(summary))) STRICT;
+CREATE TABLE IF NOT EXISTS eval_check (run_id TEXT NOT NULL, suite TEXT NOT NULL, check_id TEXT NOT NULL, passed INTEGER NOT NULL CHECK(passed IN (0,1)), value REAL, threshold REAL, detail TEXT NOT NULL DEFAULT '', PRIMARY KEY(run_id, suite, check_id)) STRICT;
+CREATE INDEX IF NOT EXISTS eval_run_started ON eval_run(started_at DESC);
