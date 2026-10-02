@@ -42,7 +42,11 @@ DEFAULT_POLICY: dict[str, Any] = {
     "rate_limit": {"per_minute": 6, "per_hour": 40},
     "muted_types": [],
     "snooze_default_s": 3600,
+    # Minimum run length before a type is worth a notification (SIM-01: "会话完成(超过
+    # 10 分钟)"); the realtime badge state is unaffected.
+    "min_run_s": {"just_finished": 600},
 }
+MIN_RUN_TYPES = ("just_finished",)
 
 PRESETS = {
     "quiet": {"awaiting_approval": ["banner", "hud", "badge"], "failing": ["hud", "badge"],
@@ -130,9 +134,18 @@ def validate_policy(policy: dict) -> dict:
     if isinstance(snooze, bool) or not isinstance(snooze, int) or not 60 <= snooze <= 86400:
         raise ValueError("snooze_default_s must be an integer in 60..86400")
     muted = sorted({normalize_type(t) for t in policy["muted_types"]}, key=PRIORITY.get)
+    min_run: dict[str, int] = {}
+    for name, seconds in dict(policy.get("min_run_s") or {}).items():
+        name = normalize_type(name)
+        if name not in MIN_RUN_TYPES:
+            raise ValueError(f"min_run_s applies to {list(MIN_RUN_TYPES)}")
+        if isinstance(seconds, bool) or not isinstance(seconds, int) or not 0 <= seconds <= 86400:
+            raise ValueError(f"min_run_s.{name} must be an integer in 0..86400")
+        min_run[name] = seconds
     return {"matrix": {**{t: [] for t in TYPES}, **matrix}, "quiet_hours": quiet,
             "cooldown_s": {**{t: 0 for t in TYPES}, **cooldown}, "rate_limit": rate,
-            "muted_types": muted, "snooze_default_s": snooze}
+            "muted_types": muted, "snooze_default_s": snooze,
+            "min_run_s": {**DEFAULT_POLICY["min_run_s"], **min_run}}
 
 
 def _in_window(minute: int, start: int, end: int) -> bool:
