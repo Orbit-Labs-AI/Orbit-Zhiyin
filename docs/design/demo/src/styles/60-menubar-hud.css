@@ -22,7 +22,7 @@
 .hud .lane{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:center;font-size:11px;color:var(--hud-ink-3)}
 .snap{position:absolute;z-index:39;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid var(--ink-1);background:var(--accent-tint);box-shadow:0 0 0 1.5px var(--bg);pointer-events:none}
 .snap.near{background:var(--ink-1)}
-.widgets{position:absolute;z-index:5;left:24px;top:40px;width:364px;display:flex;flex-direction:column;gap:20px}
+.widgets{position:absolute;z-index:5;left:24px;top:42px;width:364px;display:flex;flex-direction:column;gap:20px}
 .wg{border-radius:20px;background:var(--wg);color:var(--ink-1);box-shadow:0 10px 30px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge);padding:14px 16px;overflow:hidden;text-align:left;border:0;width:100%}
 .wg .lbl{font:600 10px/13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .wg-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}

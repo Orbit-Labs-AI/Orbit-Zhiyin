@@ -49,9 +49,15 @@ function snapPts(w) {
   const xs = { l: 16, c: (W - w) / 2, r: W - w - 16 }, ys = { t: MB_H + 8, b: H - 44 - 16 };
   return [['t', 'r'], ['t', 'l'], ['t', 'c'], ['b', 'r'], ['b', 'l'], ['b', 'c']].map((p) => ({ k: p[0] + p[1], x: Math.max(4, xs[p[1]]), y: ys[p[0]] }));
 }
+// "occupied" = the main window (unless closed) and the visible desktop widgets: the pill should cover neither by default
+function widgetsRect() {
+  const el = $('#widgets'); if (!el || el.hidden || !el.offsetHeight) return null;
+  const d = desk.getBoundingClientRect(), r = el.getBoundingClientRect();
+  return { x: r.left - d.left, y: r.top - d.top, w: r.width, h: r.height };
+}
 function hudHitsWin(x, y, w, h) {
-  if (S.winGone) return false; const r = WIN_LAST || winRect();
-  return x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y;
+  const hit = (r) => !!r && x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y;
+  return hit(S.winGone ? null : (WIN_LAST || winRect())) || hit(widgetsRect());
 }
 function nearestSnap(x, y, w) { let best = null, bd = Infinity; snapPts(w).forEach((p) => { const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } }); return best; }
 function showSnaps(w) { hideSnaps(); snapPts(w).forEach((p) => { const s = document.createElement('div'); s.className = 'snap'; s.dataset.k = p.k; s.style.left = (p.x + w / 2) + 'px'; s.style.top = (p.y + 22) + 'px'; desk.appendChild(s); }); }

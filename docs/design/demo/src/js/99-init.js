@@ -18,8 +18,9 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   if (PAGES[h]) S.route = h;
   setTheme(S.theme);
-  // desktop widgets sit on the desktop layer; show them by default only when the default window leaves room for them
-  S.widgets = window.innerWidth >= WIN_DEF.w + 24 + 364 + 24 + STAGE_PAD;
+  // desktop widgets sit on the desktop layer, left of the window; shown by default on stages ≥ 1500px (as published), where
+  // the default window leaves the column free. 「显示 › 桌面小组件」toggles them at any size.
+  S.widgets = window.innerWidth >= WIDE_MIN;
   render();
   setTimeout(() => notify({ t: '欢迎体验 Tandem 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
 })();

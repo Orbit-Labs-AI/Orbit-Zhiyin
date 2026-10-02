@@ -1,12 +1,17 @@
 /* ============ window manager ============ */
-// The stage (#desk) is fixed; the main window is S.win = {x, y, w, h, zoom, full} (x / y null = centred). winRect() turns it
-// into the effective rect for the current stage: "win" (clamped to the stage, never below WIN_MIN), "zoom" (fills the area
-// under the menu bar), "full" (fills the stage, menu bar slides away, ⌃⌘F / green light) or "fit" (stage smaller than
-// WIN_MIN + margins, e.g. 820px wide: 16px margins, the inner layout adapts through container queries).
-// applyWin() writes the rect, keeps the sidebar flags coherent (a window narrower than SIDE_MIN_WIN hides the sidebar and
-// shows it as an overlay on demand) and fires window 'tandem:layout' whenever the content size or the sidebar changed —
-// pages and vizkit re-measure on it. Drag the title row to move, 8px edges / corners to resize, double-click to zoom.
-const MB_H = 24, WIN_MIN = { w: 900, h: 600 }, WIN_DEF = { w: 1180, h: 760 }, STAGE_PAD = 16, SIDE_MIN_WIN = 900;
+// The stage (#desk) is fixed; the main window is S.win = {x, y, w, h, zoom, full}. All four null = the published layout:
+// the window fills the stage under the menu bar with 24px side / 18px top and bottom margins and, at ≥ 1500px with the
+// desktop widgets shown, starts right of the widget column (24 + 364 + 24) so the widgets stay visible on the desktop layer.
+// An untouched window keeps following the viewport; once the user moves or resizes it the rect is explicit and persisted
+// (localStorage 'win') and only gets clamped to the stage. winRect() turns S.win into the effective rect: "win" (never below
+// WIN_MIN), "zoom" (fills the area under the menu bar), "full" (fills the stage, menu bar slides away, ⌃⌘F / green light)
+// or "fit" (stage smaller than WIN_MIN + margins, e.g. 820px wide: 16px margins, the inner layout adapts through
+// container queries). applyWin() writes the rect, keeps the sidebar flags coherent (a window narrower than SIDE_MIN_WIN
+// hides the sidebar and shows it as an overlay on demand) and fires window 'tandem:layout' whenever the content size or
+// the sidebar changed — pages and vizkit re-measure on it. Drag the title row to move, 8px edges / corners to resize,
+// double-click to zoom.
+const MB_H = 24, WIN_MIN = { w: 900, h: 600 }, STAGE_PAD = 16, SIDE_MIN_WIN = 900;
+const WIN_GAP = { x: 24, y: 18 }, WG_COL = 24 + 364 + 24, WIDE_MIN = 1500;
 let WIN_LAST = null, WIN_SIG = '';
 (function loadShell() {
   const w = store.get('win', null);
@@ -23,13 +28,14 @@ function winRect() {
   if (W.zoom) return { x: 0, y: MB_H, w: st.w, h: areaH, mode: 'zoom' };
   const maxW = st.w - STAGE_PAD * 2, maxH = areaH - STAGE_PAD * 2;
   if (maxW < WIN_MIN.w || maxH < WIN_MIN.h) return { x: STAGE_PAD, y: MB_H + STAGE_PAD, w: Math.max(240, maxW), h: Math.max(240, maxH), mode: 'fit' };
-  const w = clamp(W.w || WIN_DEF.w, WIN_MIN.w, maxW), h = clamp(W.h || WIN_DEF.h, WIN_MIN.h, maxH);
-  let x;
-  if (W.x == null) { const room = S.widgets ? 24 + 364 + 24 : 0; x = Math.round(room + (st.w - room - w) / 2); if (x + w > st.w - STAGE_PAD) x = Math.round((st.w - w) / 2); }
-  else x = clamp(W.x, 0, st.w - w);
-  const y = W.y == null ? Math.round(MB_H + (areaH - h) / 2) : clamp(W.y, MB_H, st.h - h);
+  const left = widgetsWide() ? WG_COL : WIN_GAP.x;
+  const w = clamp(W.w == null ? st.w - left - WIN_GAP.x : W.w, WIN_MIN.w, maxW), h = clamp(W.h == null ? areaH - WIN_GAP.y * 2 : W.h, WIN_MIN.h, maxH);
+  const x = W.x == null ? Math.min(left, st.w - w) : clamp(W.x, 0, st.w - w);
+  const y = W.y == null ? Math.min(MB_H + WIN_GAP.y, st.h - h) : clamp(W.y, MB_H, st.h - h);
   return { x, y, w, h, mode: 'win' };
 }
+// the desktop widgets get their own column left of the window only when the stage is wide enough (≥ 1500px, as published)
+function widgetsWide() { return S.widgets && stageSize().w >= WIDE_MIN; }
 function applyWin() {
   const r = winRect(); const w = $('#win');
   w.style.left = r.x + 'px'; w.style.top = r.y + 'px'; w.style.width = r.w + 'px'; w.style.height = r.h + 'px';
@@ -87,7 +93,8 @@ document.addEventListener('pointermove', (e) => {
   if (!WDRAG) return;
   const dx = e.clientX - WDRAG.sx, dy = e.clientY - WDRAG.sy; const st = stageSize(), r0 = WDRAG.r0;
   if (!WDRAG.moved) { if (Math.hypot(dx, dy) < 3) return; WDRAG.moved = true; try { $('#win').setPointerCapture(WDRAG.id); } catch (err) { /* ignore */ } }
-  if (WDRAG.kind === 'move') { S.win.x = clamp(r0.x + dx, 0, Math.max(0, st.w - r0.w)); S.win.y = clamp(r0.y + dy, MB_H, Math.max(MB_H, st.h - r0.h)); }
+  // moving also pins the current size: from here on the window is the user's and no longer follows the viewport
+  if (WDRAG.kind === 'move') { S.win.x = clamp(r0.x + dx, 0, Math.max(0, st.w - r0.w)); S.win.y = clamp(r0.y + dy, MB_H, Math.max(MB_H, st.h - r0.h)); S.win.w = r0.w; S.win.h = r0.h; }
   else {
     const d = WDRAG.dir; let x = r0.x, y = r0.y, w = r0.w, h = r0.h;
     if (d.includes('e')) w = clamp(r0.w + dx, WIN_MIN.w, st.w - r0.x);

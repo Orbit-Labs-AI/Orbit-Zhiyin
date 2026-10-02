@@ -4,9 +4,10 @@ const S = {
   project: null, topic: null, outcome: null, fric: null, hour: null,
   compare: true, metric: 'n', view: 'chart', theme: store.get('theme', 'system'),
   // shell: sidebar shown (user intent) / sidebar as an overlay in a narrow window / collapsible groups / key window /
-  // main window rect {x,y,w,h} (null x,y = centred) + zoom / full-screen flags (loaded from localStorage in 22-window.js)
+  // main window rect {x,y,w,h} (all null = fills the stage and follows the viewport; set once the user moved or resized it)
+  // + zoom / full-screen flags (loaded from localStorage in 22-window.js)
   side: true, sideOver: false, sideOpen: { insight: true, action: true, agents: true, pins: true }, keyWin: 'main',
-  win: { x: null, y: null, w: 1180, h: 760, zoom: false, full: false }, setPos: null,
+  win: { x: null, y: null, w: null, h: null, zoom: false, full: false }, setPos: null,
   winGone: false, widgets: false,
   persona: { period: 'sep', vs: 'past' },
   sess: { sel: FEAT_ID, q: '', mode: 'single', cmp: null, zoom: 1, axis: 'time', ph: 30.8, playing: false, hi: null },

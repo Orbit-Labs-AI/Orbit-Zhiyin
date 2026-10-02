@@ -9,7 +9,7 @@ function go(route, keepScroll) {
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
 function render() {
-  applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderHud(); renderWidgets();
+  applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
   if (!$('#set').hidden) renderSet();
   $('#win').classList.toggle('gone', S.winGone);
