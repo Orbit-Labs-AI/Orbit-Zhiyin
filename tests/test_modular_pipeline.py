@@ -49,6 +49,9 @@ def test_default_import_publishes_layers_without_using_mvp_parser(tmp_path, monk
     assert result["versions"]["storage"] == "tandem-session-v1"
     assert result["overview"]["counts"]["main_sessions"] == 3
     assert result["overview"]["counts"]["human_messages"] == 5
+    for entity in ("sessions", "projects", "turns"):
+        assert result["coverage"][entity]["status"] == "available"
+        assert result["coverage"][entity]["rows"] > 0
 
 
 def test_all_supported_agents_feed_the_same_analysis_contract(tmp_path):
