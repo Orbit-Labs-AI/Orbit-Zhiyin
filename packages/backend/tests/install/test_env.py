@@ -192,3 +192,26 @@ def test_projects_ordered_by_recent_session_activity(tmp_path):
     with sqlite3.connect(path) as db:
         db.execute("DROP TABLE session")
     assert project_paths(Reads(path)) == [str(d) for d in reversed(dirs)]  # no sessions: newest row first
+
+
+def test_dir_counts_mean_installed_plugins_and_real_skills(env, tmp_path):
+    claude = env.home / ".claude"
+    plugins = claude / "plugins"
+    for d in ("cache", "marketplaces", "repos"):
+        (plugins / d).mkdir(parents=True)
+    (plugins / "config.json").write_text("{}", "utf-8")
+    (plugins / "installed_plugins.json").write_text('{"version": 2, "plugins": {}}', "utf-8")
+    (claude / "skills/notes-only").mkdir()  # no SKILL.md: not a skill
+    (claude / "skills/README.md").write_text("x", "utf-8")
+    target = tmp_path / "linked-skill"
+    target.mkdir()
+    (target / "SKILL.md").write_text("---\nname: linked\n---\n", "utf-8")
+    (claude / "skills/linked").symlink_to(target)
+    dirs = agent(environment(env), "claude_code")["dirs"]
+    assert dirs["plugins"]["count"] == 0
+    assert dirs["skills"]["count"] == 2  # x + linked
+
+    envmod._memo.clear()
+    (plugins / "installed_plugins.json").write_text(
+        '{"version": 2, "plugins": {"a@m": [{"scope": "user"}], "b@m": [{}, {}]}}', "utf-8")
+    assert agent(environment(env), "claude_code")["dirs"]["plugins"]["count"] == 2
