@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 
-from . import cached_section, default_scope
+from . import cached_section, default_scope, now_ms
 
 READY_SECTIONS = frozenset({"overview", "tasks", "instruction", "preferences"})
 DONE = ("completed", "partial")
@@ -32,6 +32,22 @@ def emit(gw, event: dict) -> int | None:
         return notifier.emit(event)
     except Exception:  # noqa: BLE001 - producers never fail because of notifications.
         return None
+
+
+def analysis_ready(gw, days: int, scope: dict, settings: dict) -> dict:
+    """「首次分析完成」: counts main sessions the way the onboarding payload does (J18), for
+    the default range (same window as the overview) and for everything imported (the
+    onboarding total over ``recent_days``), and says which is which."""
+    from .onboarding import _main_sessions
+
+    recent = int(settings.get("recent_days") or 90)
+    sessions = _main_sessions(gw, scope.get("from_ts"))
+    total = _main_sessions(gw, now_ms() - recent * 86_400_000)
+    text = f"最近 {days} 天 {sessions} 个会话" + (f"（共导入 {total} 个）" if total != sessions else "")
+    return {"type": "system", "key": "analysis_ready", "title": "首次分析完成",
+            "body": f"{text}，可以查看概览了。",
+            "payload": {"data_rev": gw.revisions.snapshot()["data_rev"], "sessions": sessions,
+                        "range_days": days, "total": total, "total_days": recent}}
 
 
 class AnalysisWatcher:
@@ -80,17 +96,12 @@ class AnalysisWatcher:
         if gw.revisions.snapshot()["data_rev"] is None:
             return sent
         settings = gw.state.snapshot()["settings"]
-        scope = default_scope(gw, settings.get("default_range_days") or 30)
+        days = settings.get("default_range_days") or 30
+        scope = default_scope(gw, days)
         if not already_sent(gw, "analysis_ready"):
             body, freshness, _ = cached_section(gw, "overview", scope)
             if body is not None:
-                sessions = ((body.get("overview") or {}).get("counts") or {}).get(
-                    "main_sessions")
-                emit(gw, {"type": "system", "key": "analysis_ready", "title": "首次分析完成",
-                          "body": f"已分析 {sessions} 个会话，可以查看概览了。"
-                          if sessions is not None else "可以查看概览了。",
-                          "payload": {"data_rev": gw.revisions.snapshot()["data_rev"],
-                                      "sessions": sessions}})
+                emit(gw, analysis_ready(gw, days, scope, settings))
                 sent.append("analysis_ready")
         if not already_sent(gw, "persona_ready"):
             from .reveal import persona_summary

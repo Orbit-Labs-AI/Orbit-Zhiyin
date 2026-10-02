@@ -19,7 +19,7 @@ from . import targets as targets_mod
 from .env import FULL_SUPPORT, inventory_names
 from .errors import PlanError
 from .fetch import FetchError, fetch_source, read_tree
-from .templates import READONLY_ALLOWLIST, render_template
+from .templates import READONLY_ALLOWLIST, READONLY_VOCAB, render_template
 
 REQUIRED = {"permission_rule": ("allow",), "rule": ("text",), "skill": ("name", "files"),
             "subagent": ("name", "text"), "command": ("name", "text"), "hook": ("event", "command"),
@@ -327,6 +327,101 @@ def _rec_candidate_row(appdb, sid) -> dict | None:
     return row
 
 
+# ---- KB remedies -----------------------------------------------------------------------------------
+# A KB card is a remedy Tandem writes itself (allowlist, rule block, its own hook template, a
+# skill or subagent file it authored). Its install payload comes from the rule's own preview
+# lines and templates on the card; the catalog's ``kb:<id>`` twin only mirrors the prose and
+# carries no install payload, so routing these through the catalog yields link_only / 422.
+
+KB_KINDS = ("permission_rule", "rule", "hook", "skill", "subagent")
+HOOK_TIMEOUT_S = 10  # same as ai/generate/render.py
+_PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
+_ALLOW_LINE = re.compile(r"Bash\((.+?):\*\)|^\s*command\s*=\s*\"(.+)\"\s*$")
+_CODEX_NOTE = re.compile(r"^（Codex[:：].*）$")
+_FRONT_NAME = re.compile(r"^name:\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*$", re.M)
+
+
+def _hook_template(rule_id: str):
+    """Tandem's own hook script template for a KB hook rule (``retry-breaker``, ``stop-verify``)."""
+    try:
+        from ..ai.generate import templates  # noqa: PLC0415 - optional, data-only use
+
+        found = templates.load()
+    except Exception:  # noqa: BLE001
+        return None
+    for tid in (rule_id, rule_id.removesuffix("-hook")):
+        if tid in found and found[tid].kind == "hook":
+            return found[tid]
+    return None
+
+
+def _kb_hook(rule_id: str, text: str) -> dict | None:
+    if (tpl := _hook_template(rule_id)) is not None:
+        stem = tpl.script_name[:-3]
+        base = "{tandem.hooks}/" + tpl.script_name
+        matcher = tpl.defaults.get("matcher", "*")
+        return {"event_bindings": [{"event": e["event"], "matcher": matcher if e.get("matcher") is None
+                                    else e["matcher"]} for e in tpl.events],
+                "command": f'python3 "{base}" --config "{base[:-3]}.config.json"', "timeout": HOOK_TIMEOUT_S,
+                "script": {"name": tpl.script_name, "text": tpl.body},
+                "extra_files": [{"name": f"{stem}.config.json",
+                                 "text": json.dumps(tpl.defaults, ensure_ascii=False, indent=2) + "\n"}]}
+    try:  # a plain command hook: the preview is the settings.json fragment itself
+        doc = json.loads(text)
+    except ValueError:
+        return None
+    return _hook_from_manifest(doc) if isinstance(doc, dict) else None
+
+
+def _kb_spec(card: dict | None) -> dict | None:
+    """InstallSpec for a ``kb``-origin card of an installable kind, else ``None``. Stored cards
+    keep the filled preview (``file``), ``kind``, ``target`` and ``problem.vars``, not the rule."""
+    source = (card or {}).get("source") or {}
+    kind = (card or {}).get("kind")
+    if source.get("origin") != "kb" or kind not in KB_KINDS:
+        return None
+    rid = str(source.get("item_id") or "")
+    values = ((card.get("problem") or {}).get("vars")) or {}
+    lines = [(t, m) for t, m in card.get("file") or [] if isinstance(t, str)]
+    text = "\n".join(t for t, _ in lines if not _CODEX_NOTE.match(t.strip()))
+    # Unfilled slots show as "…" (required, no value) or a literal "{name}" on the card.
+    missing = list(dict.fromkeys(_PLACEHOLDER.findall(text))) + (["…"] if "…" in text else [])
+    if missing:
+        raise PlanError("candidate_not_renderable", "推荐还有未填写的内容（卡片中显示为 … 或 {名称}），"
+                        "暂不能一键安装", detail={"missing": missing})
+    target = card.get("target") or {}
+    agents, title = target.get("agents") or None, card.get("title") or rid
+    template = None
+    if kind == "permission_rule":
+        found = (_ALLOW_LINE.search(line) for line, _ in lines)
+        heads = values.get("head_list") or [m.group(1) or m.group(2) for m in found if m]
+        allow = [h for h in dict.fromkeys(" ".join(str(h).split()) for h in heads) if h in READONLY_VOCAB]
+        if heads and not allow:
+            raise PlanError("not_readonly", "推荐的命令都不在只读词表内", detail={"rejected": list(heads)})
+        spec = render_template(READONLY_ALLOWLIST, {"allow": allow or None, "id": slug(rid), "title": title}, agents)
+        return {**spec, "source": {**spec["source"], "type": "kb", "id": rid, "catalog_item_id": f"kb:{rid}"}}
+    if kind == "hook":
+        payload = _kb_hook(rid, text)
+        if payload is None:
+            raise PlanError("candidate_not_renderable", "KB hook 没有可安装的模板或命令")
+        template = (payload.get("script") or {}).get("name")
+    elif not text.strip():
+        return None  # e.g. a skill that lives in the catalog (``catalog_ref``)
+    elif kind == "rule":
+        payload = {"text": text}
+    else:
+        path = PurePosixPath(str(target.get("path_hint") or ""))
+        found = _FRONT_NAME.search(text)
+        name = found.group(1) if found else (path.parent.name if kind == "skill" else path.stem) or slug(rid)
+        payload = ({"name": name, "files": [{"rel": "SKILL.md", "text": text.rstrip("\n") + "\n"}]}
+                   if kind == "skill" else {"name": name, "text": text.rstrip("\n") + "\n"})
+    ai_text = sorted({t for t, m in lines if m == "ai" and t.strip()}) if kind != "hook" else []
+    return {"kind": kind, "id": slug(rid), "title": title, "agents": agents, "payload": payload,
+            "ai_text": ai_text or None,
+            "source": {"type": "kb", "id": rid, "catalog_item_id": f"kb:{rid}", "template": template,
+                       "license": None, "sha256": None}}
+
+
 # AI artifacts name their files by symbolic target; the prefix says which agent it is for.
 SYMBOLIC_AGENTS = {"claude": "claude_code", "codex": "codex", "agents": "codex"}
 _AI_MARKER = re.compile(r"^<!-- /?tandem:rule\b.*-->$")
@@ -401,13 +496,22 @@ def build_spec(source: dict, *, appdb, catalog_lookup=None, cache_dir, fetcher=N
         agents = _json(row.get("target_agents"))
         spec = _json(row.get("install_spec"))
         template = row.get("remedy_rule") or row.get("template")
+        card = _json(row.get("card"))
+        card = card if isinstance(card, dict) else {}
         extra = {"status": "ready"}
         if isinstance(spec, dict) and spec:
             spec = {**spec, "id": spec.get("id") or slug(sid)}
         elif template == READONLY_ALLOWLIST:
             spec = render_template(template, _json(row.get("template_params")) or {}, agents)
+        elif (kb_spec := _kb_spec(card)) is not None:
+            spec = kb_spec
         elif row.get("catalog_item_id"):
-            spec, extra = build_spec({"type": "catalog", "id": row["catalog_item_id"]}, appdb=appdb,
+            item_id = row["catalog_item_id"]
+            # A KB card for a third-party resource (``catalog_ref``) installs that catalog item.
+            ref = (card.get("source") or {}).get("catalog_ref") if (card.get("source") or {}).get("origin") == "kb" else None
+            if ref and (catalog_lookup or default_catalog_lookup)(ref):
+                item_id = ref
+            spec, extra = build_spec({"type": "catalog", "id": item_id}, appdb=appdb,
                                      catalog_lookup=catalog_lookup, cache_dir=cache_dir, fetcher=fetcher,
                                      allow_network=allow_network)
         else:

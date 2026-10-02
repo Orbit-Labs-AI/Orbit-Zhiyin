@@ -280,6 +280,29 @@ def test_widget_counts_and_problem_filter(env, monkeypatch):
     assert client.get("/v1/recommendations").json()["counts"]["state"]["not_applicable"] == 1
 
 
+def test_detail_with_folded_alternatives(env, monkeypatch):
+    """R1: slate folding stores alternatives as dict stubs; detail must not 500 on them."""
+    client, _, _ = env
+
+    def build_slate(inputs, memory, *, catalog=None):
+        cards = runs.legacy_slate(inputs)["candidates"]
+        cards[0]["alternatives"] = [
+            {"rec_key": cards[3]["rec_key"], "title": "Resource 3", "kind": "prompt",
+             "priority": 1}, "kb:not-in-run", cards[1]["rec_key"]]
+        cards[3]["excluded"] = f"folded:{cards[0]['rec_key']}"
+        return {"engine_version": "rec-engine-v2", "kb_version": "kb1", "catalog_generation": 1,
+                "status": "ready", "problems": [], "candidates": cards, "routes": {},
+                "diagnostics": []}
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build_slate, "rec-engine-v2"))
+    first = client.get("/v1/recommendations").json()["items"][0]
+    resp = client.get(f"/v1/recommendations/{first['candidate_id']}")
+    assert resp.status_code == 200, resp.text
+    alts = resp.json()["alternatives"]
+    assert [a["rec_key"] for a in alts] == ["legacy:res3", "legacy:res1"]
+    assert all(a["candidate_id"] for a in alts)
+
+
 def test_concurrent_runs_coalesce(env):
     client, gw, _ = env
     results = []
