@@ -19,6 +19,7 @@ import pickle
 import shutil
 import sqlite3
 import tempfile
+import time
 import weakref
 from concurrent.futures import Future, ProcessPoolExecutor
 from dataclasses import dataclass, replace
@@ -285,6 +286,50 @@ class _SourcePaths:
         return Path(path)
 
 
+CAPTURE_GROUP_FILES = 256
+CAPTURE_GROUP_SECONDS = 1.0
+
+
+class _CommitGroup:
+    """Commit captured files in groups instead of one durable COMMIT per file.
+
+    Each file keeps its own savepoint, so a failing file still rolls back alone and is
+    reported as before. A crash loses at most one uncommitted group, which the next scan
+    captures again because its watermark was never written. Inside an outer transaction
+    (progressive batches) the caller's transaction is used unchanged.
+    """
+
+    def __init__(self, store):
+        self.store = store
+        self.batch = None
+        self.files = 0
+        self.started = 0.0
+
+    def next(self):
+        if self.batch is not None and (
+            self.files >= CAPTURE_GROUP_FILES
+            or time.monotonic() - self.started >= CAPTURE_GROUP_SECONDS
+        ):
+            self.close()
+        if self.batch is None and not self.store.db.in_transaction:
+            from tandem_data.scheduler import batch_transaction
+
+            self.batch = batch_transaction(self.store)
+            self.batch.__enter__()
+            self.files, self.started = 0, time.monotonic()
+        self.files += 1
+
+    def close(self):
+        batch, self.batch = self.batch, None
+        if batch is not None:
+            batch.__exit__(None, None, None)
+
+    def abort(self):
+        batch, self.batch = self.batch, None
+        if batch is not None:
+            batch.__exit__(RuntimeError, RuntimeError("capture aborted"), None)
+
+
 def capture(store, source_id, root, selected, pool, cancel, progress, result, agent):
     """Capture selected inputs: stat-unchanged files in one transaction, the rest in workers."""
     files = {
@@ -338,11 +383,13 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
     executor = pool.executor(sum(1 for _, job in jobs if job))
     futures = [executor.submit(scan_lines, *job) if job else None for _, job in jobs]
     progress({"stage": "capture", "completed": 0, "total": len(selected)})
+    group = _CommitGroup(store)
     try:
         for (item, job), future in zip(jobs, futures, strict=True):
             if cancel and cancel.is_set():
                 result["cancelled"] = True
                 break
+            group.next()
             if job is None:
                 result["files"] += 1
             else:
@@ -370,7 +417,9 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
                     "total": len(selected),
                 }
             )
+        group.close()
     finally:
+        group.abort()
         for future in futures:
             if future is not None:
                 future.cancel()

@@ -187,3 +187,41 @@ def test_cached_source_paths_match_source_reader(tmp_path):
             except SourceUnavailable as error:
                 outcomes.append(error.status)
         assert outcomes[0] == outcomes[1], relative
+
+
+def test_grouped_capture_isolates_a_failing_file(tmp_path, monkeypatch):
+    import tandem_data.parallel as parallel
+    from tandem_data.discovery import inputs
+
+    root = dict(_sources(tmp_path))["claude_code"]
+    target = sorted(root.rglob("*.jsonl"))[1]
+    original = parallel.index_file
+
+    def flaky(store, source_id, path, role, scan=None):
+        if path == target:
+            with store.transaction():
+                store.db.execute(
+                    "UPDATE source SET label='partial' WHERE source_id=?", (source_id,)
+                )
+                raise ValueError("simulated capture failure")
+        return original(store, source_id, path, role, scan)
+
+    monkeypatch.setattr(parallel, "index_file", flaky)
+    monkeypatch.setattr(parallel, "CAPTURE_GROUP_FILES", 2)
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store, workers=8)
+        service.pool.threshold = 0
+        result = service.import_source(ImportRequest("claude_code", root))
+        service.close()
+        assert result["capture_errors"] == 1
+        assert result["files"] == len(list(inputs("claude_code", root))) - 1
+        # The failing file's savepoint rolled back alone; its neighbours were committed.
+        assert store.db.execute("SELECT label FROM source").fetchone()[0] is None
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM ingest_issue WHERE code='capture_failed'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert store.db.execute("SELECT COUNT(*) FROM source_file").fetchone()[0] == result["files"]
+        assert not store.db.in_transaction
