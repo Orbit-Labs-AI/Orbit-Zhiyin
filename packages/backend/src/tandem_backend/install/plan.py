@@ -98,6 +98,61 @@ def _legacy_item(entry: dict) -> dict:
             "license": entry.get("license"), "agents": entry.get("agents") or ["claude_code"]}
 
 
+_GITHUB = re.compile(r"github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?(?:/|$)")
+
+
+def _mcp_from_manifest(manifest: dict) -> dict | None:
+    """MCP registry ``server.json`` → install payload: a remote URL, else an npm/pypi package."""
+    name = slug(str(manifest.get("name") or "").rsplit("/", 1)[-1])
+    for remote in manifest.get("remotes") or []:
+        if isinstance(remote, dict) and str(remote.get("url", "")).startswith("https://"):
+            return {"name": name, "transport": "sse" if remote.get("type") == "sse" else "http",
+                    "url": remote["url"]}
+    for package in manifest.get("packages") or []:
+        if not isinstance(package, dict) or (package.get("transport") or {}).get("type", "stdio") != "stdio":
+            continue
+        ident = package.get("identifier")
+        version = package.get("version")
+        if package.get("registryType") == "npm" and ident:
+            return {"name": name, "transport": "stdio", "command": "npx",
+                    "args": ["-y", f"{ident}@{version}" if version else ident]}
+        if package.get("registryType") == "pypi" and ident:
+            return {"name": name, "transport": "stdio", "command": "uvx",
+                    "args": [f"{ident}=={version}" if version else ident]}
+    return None
+
+
+def catalog_item(detail: dict) -> dict:
+    """Map a catalog ``detail()`` result (or its ``resource``) onto the item shape install uses:
+    ``{id, kind, name, description, url, source, install, license, agents}`` where ``source`` is
+    ``{type:'github', repo, ref, path}`` (pinned to the indexed commit) and ``install`` carries a
+    ready ``mcp`` / ``plugin`` / ``hook`` payload when the resource declares one."""
+    res = detail.get("resource") if isinstance(detail.get("resource"), dict) else detail
+    kind = {"mcp_server": "mcp"}.get(res.get("type"), res.get("type"))
+    meta, manifest, declared = res.get("metadata") or {}, res.get("manifest") or {}, res.get("install") or {}
+    found = _GITHUB.search(res.get("url") or "")
+    repo = meta.get("repository") or (found.group(1) if found else None)
+    path = res.get("repo_path") or ""
+    if kind == "skill" and path:
+        path = "" if str(PurePosixPath(path).parent) == "." else str(PurePosixPath(path).parent)
+    source = ({"type": "github", "repo": repo, "ref": res["commit_sha"], "path": path}
+              if repo and res.get("commit_sha") and res.get("repo_path") else None)
+    install = None
+    if kind == "mcp":
+        payload = declared.get("mcp") or _mcp_from_manifest(manifest)
+        install = {"mcp": payload} if payload else None
+    elif kind == "plugin" and declared.get("name") and declared.get("marketplace"):
+        payload = {"plugin": declared["name"], "marketplace": declared["marketplace"]}
+        if repo:
+            payload["marketplace_source"] = {"source": "github", "repo": repo}
+        install = {"plugin": payload}
+    elif kind == "hook" and isinstance(declared.get("hook"), dict):
+        install = {"hook": declared["hook"]}
+    return {"id": res.get("item_id"), "kind": kind, "name": res.get("name") or res.get("item_id"),
+            "description": res.get("summary"), "url": res.get("url"), "source": source, "install": install,
+            "license": res.get("license"), "agents": res.get("agents") or None}
+
+
 def default_catalog_lookup(item_id: str) -> dict | None:
     """``tandem_catalog`` item if that API exists, else the bundled legacy seed catalog."""
     try:

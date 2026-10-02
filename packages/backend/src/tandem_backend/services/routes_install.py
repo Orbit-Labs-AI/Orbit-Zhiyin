@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, Query
@@ -68,6 +69,7 @@ class ApplyRequest(SelectionRequest):
     plan_id: str
     preview_digest: str
     override_risk: bool = False
+    surface: str = "A7"  # recommend exposure surface for candidate installs
 
 
 class RevertRequest(BaseModel):
@@ -89,16 +91,35 @@ class FetchRequest(BaseModel):
 
 
 def _catalog_lookup(gw: Gateway) -> Callable[[str], dict | None]:
-    from ..install.plan import default_catalog_lookup
+    """Catalog item by id: the gateway's CatalogService when it exposes one, else a read-only
+    ``catalog.db`` in the Tandem home, else the bundled legacy seed. Every catalog answer is
+    mapped through ``install.plan.catalog_item`` (source / install.{mcp|plugin|hook} / license / agents)."""
+    from ..install.plan import catalog_item, default_catalog_lookup
+
+    stores: dict = {}
+
+    def detail(item_id: str) -> dict | None:
+        service = getattr(gw, "catalog", None)
+        if callable(getattr(service, "item", None)):
+            return service.item(item_id)
+        store = getattr(service, "store", None)
+        if store is None:
+            path = Path(gw.home) / "catalog.db"
+            if not path.is_file():
+                return None
+            if path not in stores:
+                from tandem_catalog.store import CatalogStore
+
+                stores[path] = CatalogStore(path)
+            store = stores[path]
+        return store.detail(item_id)
 
     def lookup(item_id: str) -> dict | None:
-        service = getattr(gw, "catalog", None)
-        item = getattr(service, "item", None)
-        if callable(item):
-            with contextlib.suppress(Exception):
-                found = item(item_id)
-                if found:
-                    return found
+        found = None
+        with contextlib.suppress(Exception):
+            found = detail(item_id)
+        if found:
+            return catalog_item(found) if ("resource" in found or "item_id" in found) else found
         return default_catalog_lookup(item_id)
 
     return lookup
@@ -109,7 +130,13 @@ def router(gw: Gateway) -> APIRouter:
     from ..install.service import InstallService
 
     api = APIRouter()
-    svc = InstallService(gw.appdb, gw.home, reads=gw.reads, jobs=gw.jobs, catalog_lookup=_catalog_lookup(gw))
+    def artifact_status(artifact_id: str, status: str, install_id: str) -> None:
+        from ..ai.service import service as ai_service
+
+        ai_service(gw).set_artifact_status(artifact_id, status, install_id=install_id)
+
+    svc = InstallService(gw.appdb, gw.home, reads=gw.reads, jobs=gw.jobs, catalog_lookup=_catalog_lookup(gw),
+                         artifact_status=artifact_status)
     set_default_service(svc)
     gw.install = svc
     with contextlib.suppress(Exception):  # settle installs a crash left half-recorded
@@ -163,7 +190,7 @@ def router(gw: Gateway) -> APIRouter:
     @api.post("/v1/install/apply")
     def apply(body: ApplyRequest):
         return call(svc.apply, body.plan_id, body.preview_digest, body.selected_units, body.disabled_targets,
-                    body.override_risk)
+                    body.override_risk, body.surface)
 
     @api.post("/v1/install/revert")
     def revert_many(body: RevertManyRequest):

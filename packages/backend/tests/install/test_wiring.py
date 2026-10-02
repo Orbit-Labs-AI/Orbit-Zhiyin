@@ -116,3 +116,51 @@ def test_old_ledger_gets_link_columns(tmp_path, env):
     with db.read() as conn:
         assert {"inv_id", "catalog_item_id"} <= {r[1] for r in conn.execute("PRAGMA table_info(install_ledger)")}
     db.close()
+
+
+SHA = "a" * 40
+
+
+def test_catalog_item_maps_catalog_resources():
+    from tandem_backend.install.plan import catalog_item
+
+    skill = catalog_item({"resource": {
+        "item_id": "skill:github.com:1:skills/foo/SKILL.md", "type": "skill", "name": "foo", "license": "MIT",
+        "url": f"https://github.com/acme/skills/blob/{SHA}/skills/foo/SKILL.md", "commit_sha": SHA,
+        "repo_path": "skills/foo/SKILL.md", "agents": ["claude_code"], "metadata": {"repository": "acme/skills"}}})
+    assert skill["kind"] == "skill" and skill["install"] is None and skill["agents"] == ["claude_code"]
+    assert skill["source"] == {"type": "github", "repo": "acme/skills", "ref": SHA, "path": "skills/foo"}
+
+    mcp = catalog_item({"item_id": "mcp:io.github.acme/docs", "type": "mcp_server", "name": "Docs",
+                        "url": "https://example.com", "license": "CC0-1.0 (registry metadata)",
+                        "manifest": {"name": "io.github.acme/docs", "packages": [
+                            {"registryType": "npm", "identifier": "@acme/docs-mcp", "version": "1.2.0",
+                             "transport": {"type": "stdio"}}]}})
+    assert mcp["kind"] == "mcp" and mcp["source"] is None
+    assert mcp["install"]["mcp"] == {"name": "docs", "transport": "stdio", "command": "npx",
+                                     "args": ["-y", "@acme/docs-mcp@1.2.0"]}
+    remote = catalog_item({"item_id": "mcp:x/r", "type": "mcp_server", "name": "r", "url": "",
+                           "manifest": {"name": "x/r", "remotes": [{"type": "sse", "url": "https://r.example/sse"}]}})
+    assert remote["install"]["mcp"]["transport"] == "sse"
+
+    plugin = catalog_item({"item_id": "plugin:marketplace:1:lint", "type": "plugin", "name": "lint",
+                           "url": "https://github.com/acme/tools", "install": {"marketplace": "tools", "name": "lint"}})
+    assert plugin["install"]["plugin"] == {"plugin": "lint", "marketplace": "tools",
+                                           "marketplace_source": {"source": "github", "repo": "acme/tools"}}
+
+
+def test_route_lookup_prefers_gateway_catalog_then_seed(tmp_path):
+    from types import SimpleNamespace
+
+    from tandem_backend.services.routes_install import _catalog_lookup
+
+    resource = {"item_id": "mcp:acme/docs", "type": "mcp_server", "name": "docs", "url": "",
+                "manifest": {"name": "acme/docs", "remotes": [{"type": "streamable-http", "url": "https://d.example"}]}}
+    store = SimpleNamespace(detail=lambda i: {"resource": resource} if i == "mcp:acme/docs" else None)
+    lookup = _catalog_lookup(SimpleNamespace(catalog=SimpleNamespace(store=store), home=tmp_path))
+    assert lookup("mcp:acme/docs")["install"]["mcp"]["url"] == "https://d.example"
+    assert lookup("missing-item-id") is None
+    shaped = {"id": "x", "kind": "mcp", "install": {"mcp": {"name": "x", "url": "https://x"}}}
+    direct = _catalog_lookup(SimpleNamespace(catalog=SimpleNamespace(item=lambda i: shaped), home=tmp_path))
+    assert direct("x") is shaped
+    assert _catalog_lookup(SimpleNamespace(home=tmp_path))("missing-item-id") is None  # no catalog.db
