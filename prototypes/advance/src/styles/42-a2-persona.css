@@ -13,7 +13,7 @@
 .pe-evo{margin-top:12px}
 .pe-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair)}
 .pe-evi{display:flex;flex-direction:column;gap:3px;min-width:0}
-.pe-evi .cap{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pe-evt{font-size:11px;line-height:15px;color:var(--ink-3);text-wrap:pretty;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .pe-fit{display:flex;flex-direction:column;gap:3px;border:0;background:none;padding:0;text-align:left;width:100%;color:inherit;border-radius:6px}
 .pe-fit.off{opacity:.6}
 .pe-fit-bar{position:relative;height:6px;border-radius:3px;background:var(--sunken);display:block;width:100%}
@@ -43,3 +43,20 @@
 .pe-fit-h .cap{font-size:11px}
 .pe-fit-m{font-size:11px;line-height:15px;color:var(--ink-3)}
 .pe-fit-m .nw{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* pass 2: hero line in the AI-prose serif + three mono facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
+.pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--serif);color:var(--ink-1);text-wrap:balance}
+.pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--sans)}
+.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--sans);font-weight:500}
+.pe-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-3)}
+.pe-facts b{color:var(--ink-1);font-weight:600}
+.pe-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pe-sw{gap:10px;align-items:stretch}
+.pe-swr{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;column-gap:8px;row-gap:0;font-size:13px;line-height:18px}
+.pe-swr b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pe-swr .m{grid-column:2/-1;grid-row:2;font-size:11px;line-height:15px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.pe-swr .lnk{grid-column:3;grid-row:1;font-size:12px;white-space:nowrap}
+.pe-swsep{height:1px;background:var(--hair);margin:2px 0}
+.pe-fit-t{width:100%;font-size:13px}
+.pe-fit-t b{font-variant-numeric:tabular-nums}
+/* mid widths: the three cards wrap 2 + 1 — the fit card takes the full row instead of leaving half of it empty */
+@container main (max-width:799px){.pe-three>:nth-child(3){grid-column:1/-1}}
