@@ -40,6 +40,10 @@ LARGE_STORE_MIN_BYTES = 32 << 20
 # Maintenance VACUUMs when this share of the used pages is slack (dbstat ``unused``); free
 # pages alone are returned with ``incremental_vacuum`` instead of a full rewrite.
 VACUUM_SLACK = 0.12
+# After a check, later maintenance skips the dbstat scan until the store grows by this
+# factor or this share of its pages is free (state in ``maintenance.json`` in the home).
+MAINTAIN_GROWTH = 1.25
+MAINTAIN_FREE_SHARE = 0.05
 
 
 def target_page_size(size_bytes: int, page_size: int) -> int:
@@ -857,6 +861,27 @@ class Store:
         size = self.db.execute("PRAGMA page_size").fetchone()[0]
         pages = self.db.execute("PRAGMA page_count").fetchone()[0]
         free = self.db.execute("PRAGMA freelist_count").fetchone()[0]
+        target = target_page_size(pages * size, size)
+        state = self.home / "maintenance.json"
+        try:
+            checked = json.loads(state.read_text())["pages"]
+        except (OSError, ValueError, KeyError, TypeError):
+            checked = 0
+        if (
+            not force
+            and target == size
+            and checked
+            and pages < MAINTAIN_GROWTH * checked
+            and free < MAINTAIN_FREE_SHARE * pages
+        ):
+            # Steady state (watch rescans, appends): skip the full dbstat scan.
+            return {
+                "action": "none",
+                "free_pages": free,
+                "page_size": size,
+                "bytes": pages * size,
+                "seconds": round(time.perf_counter() - started, 4),
+            }
         unused = self.db.execute(
             "SELECT COALESCE(SUM(unused),0) FROM dbstat WHERE aggregate=TRUE"
         ).fetchone()[0]
@@ -867,7 +892,6 @@ class Store:
             "free_pages": free,
             "slack": round(unused / used_bytes, 4),
         }
-        target = target_page_size(pages * size, size)
         if force or target != size or unused > VACUUM_SLACK * used_bytes:
             self._vacuum(size, target)
             result["action"] = "vacuum"
@@ -878,7 +902,9 @@ class Store:
         else:
             result["action"] = "none"
         result["page_size"] = self.db.execute("PRAGMA page_size").fetchone()[0]
-        result["bytes"] = result["page_size"] * self.db.execute("PRAGMA page_count").fetchone()[0]
+        pages = self.db.execute("PRAGMA page_count").fetchone()[0]
+        result["bytes"] = result["page_size"] * pages
+        state.write_text(json.dumps({"pages": pages, "page_size": result["page_size"]}))
         result["seconds"] = round(time.perf_counter() - started, 4)
         return result
 
