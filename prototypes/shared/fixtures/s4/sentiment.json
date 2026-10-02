@@ -1,0 +1,431 @@
+{
+ "meta": {
+  "engine": null,
+  "mode": "stats",
+  "last_job_at": null,
+  "remote": true,
+  "method": "lexical_rules+ai_facet",
+  "definition_version": "a6-corr-v1",
+  "experimental": true,
+  "note": "词面候选规则，未经人工标注验证；仅供趋势参考",
+  "privacy": "synthetic",
+  "window": {
+   "since": 1788393600000,
+   "until": 1790985600000
+  },
+  "bucket": "day",
+  "n_sessions": 26,
+  "n_messages": 120
+ },
+ "language_mix": {
+  "zh": 66,
+  "en": 42,
+  "mixed": 6,
+  "unknown": 6,
+  "n": 120
+ },
+ "series": [
+  {
+   "bucket": "2026-09-04",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-05",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-06",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-07",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-08",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-09",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-10",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-11",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-12",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-13",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-14",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-15",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-16",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-17",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-18",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-19",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-20",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-21",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-22",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-23",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-24",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-25",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-26",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-27",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 0,
+   "corr_hot": false
+  },
+  {
+   "bucket": "2026-09-28",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 2,
+   "corr_hot": true
+  },
+  {
+   "bucket": "2026-09-29",
+   "n_sessions": 1,
+   "explicit_n": 0,
+   "p25": null,
+   "p50": null,
+   "p75": null,
+   "corr": 1,
+   "corr_hot": false
+  }
+ ],
+ "friction": [
+  {
+   "type": "tool_env_failure",
+   "label": "工具 / 环境失败",
+   "sessions": 10,
+   "prev": 3,
+   "delta": 7,
+   "avg_balance": null,
+   "type_source": "rule",
+   "typical": [
+    "示例：测试还是失败",
+    "示例：命令找不到"
+   ],
+   "session_uids": [
+    "session_fx011",
+    "session_fx017",
+    "session_fx012",
+    "session_fx018",
+    "session_fx013",
+    "session_fx014",
+    "session_fx009",
+    "session_fx015",
+    "session_fx010",
+    "session_fx016"
+   ]
+  },
+  {
+   "type": "direction",
+   "label": "方向错误",
+   "sessions": 18,
+   "prev": null,
+   "delta": null,
+   "avg_balance": null,
+   "type_source": "rule",
+   "typical": [
+    "示例：不是这个意思"
+   ],
+   "session_uids": [
+    "session_fx011",
+    "session_fx022",
+    "session_fx017",
+    "session_fx001",
+    "session_fx023",
+    "session_fx007",
+    "session_fx002",
+    "session_fx013",
+    "session_fx008",
+    "session_fx019",
+    "session_fx014",
+    "session_fx025",
+    "session_fx020",
+    "session_fx004",
+    "session_fx026",
+    "session_fx010",
+    "session_fx005",
+    "session_fx016"
+   ]
+  }
+ ],
+ "topics": [
+  {
+   "id": "git",
+   "label": "Git 与版本管理",
+   "label_source": "taxonomy",
+   "sessions": 6,
+   "avg_balance": null,
+   "session_uids": [
+    "session_fx012",
+    "session_fx024",
+    "session_fx008",
+    "session_fx020",
+    "session_fx004",
+    "session_fx016"
+   ]
+  },
+  {
+   "id": "software.testing_debugging",
+   "label": "测试与调试",
+   "label_source": "taxonomy",
+   "sessions": 5,
+   "avg_balance": null,
+   "session_uids": [
+    "session_fx011",
+    "session_fx022",
+    "session_fx006",
+    "session_fx017",
+    "session_fx001"
+   ]
+  }
+ ],
+ "phrases": [
+  {
+   "text": "示例：继续下一步",
+   "n": 12,
+   "sessions": 9,
+   "category": "其他",
+   "event_uids": [
+    "event_fx1"
+   ]
+  },
+  {
+   "text": "示例：不是这个意思",
+   "n": 7,
+   "sessions": 6,
+   "category": "纠偏",
+   "event_uids": [
+    "event_fx2"
+   ]
+  },
+  {
+   "text": "示例：测试都过了",
+   "n": 4,
+   "sessions": 4,
+   "category": "验证",
+   "event_uids": [
+    "event_fx3"
+   ]
+  }
+ ],
+ "drivers": [
+  {
+   "key": "long_session",
+   "label": "会话超过 90 分钟",
+   "n_a": 6,
+   "n_b": 20,
+   "status": "ok",
+   "diff": -0.21,
+   "lo": -0.4,
+   "hi": -0.02
+  },
+  {
+   "key": "consecutive_failures",
+   "label": "连续失败 ≥ 2 次",
+   "n_a": 2,
+   "n_b": 6,
+   "status": "insufficient",
+   "diff": null,
+   "lo": null,
+   "hi": null
+  }
+ ],
+ "drivers_note": "组间差异仅为相关，不代表原因；样本来自显式情绪表述"
+}
