@@ -7,6 +7,7 @@ from contextlib import closing
 from pathlib import Path
 
 from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
 
@@ -21,8 +22,8 @@ def current_projection(connection):
     obsolete = run["mapper_version"] != MAPPER_VERSION or run["reducer_version"] != REDUCER_VERSION
     incomplete = connection.execute(
         "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) "
-        "OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? LIMIT 1",
-        (MAPPER_VERSION, REDUCER_VERSION),
+        "OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>? LIMIT 1",
+        (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
     ).fetchone()
     if obsolete or incomplete:
         raise ValueError("Projection version is obsolete or incomplete; rebuild before analysis")

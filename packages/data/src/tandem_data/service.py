@@ -22,6 +22,7 @@ from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import now_ms
 from tandem_data.discovery import inputs
+from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.query import event_page as event_page
 from tandem_data.store import Store
 
@@ -133,8 +134,8 @@ class ImportService:
             stale_sources = {
                 row[0]
                 for row in self.store.db.execute(
-                    "SELECT DISTINCT source_id FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>?",
-                    (MAPPER_VERSION, REDUCER_VERSION),
+                    "SELECT DISTINCT source_id FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>?",
+                    (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
                 )
             }
             if request.rebuild and not result["cancelled"] and stale_sources:

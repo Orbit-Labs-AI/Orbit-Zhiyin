@@ -1068,3 +1068,22 @@ def test_touching_unchanged_file_refreshes_stat_cache_not_capture_provenance(tmp
             store.db.execute("SELECT source_stat FROM source_revision").fetchone()[0]
             == captured_stat
         )
+
+
+def test_sqlite_blob_is_only_recoverable_from_l0(tmp_path):
+    import base64
+
+    root = tmp_path / "hermes"
+    root.mkdir()
+    value = b"synthetic binary attachment"
+    with sqlite3.connect(root / "state.db") as db:
+        db.execute("CREATE TABLE sessions(id TEXT PRIMARY KEY,avatar BLOB)")
+        db.execute("INSERT INTO sessions VALUES(?,?)", ("s", value))
+    with Store(tmp_path / "data") as store:
+        ImportService(store).import_source(ImportRequest("hermes", root))
+        encoded = base64.b64encode(value).decode()
+        assert encoded not in canonical(rows(store, "event"))
+        record = store.db.execute("SELECT record_uid FROM raw_record").fetchone()[0]
+        native = json.loads(store.read_raw(record))
+        assert base64.b64decode(native["row"]["avatar"]["$binary"]) == value
+        assert_sound(store)

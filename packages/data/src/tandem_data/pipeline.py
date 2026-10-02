@@ -6,6 +6,7 @@ from collections import defaultdict
 from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import canonical, now_ms, validate_event
+from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import insert
 
 
@@ -330,10 +331,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
         derive(store, scoped=True)
         for info in infos:
             store.db.execute(
-                "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?) WHERE file_id=?",
-                (mapper_version, REDUCER_VERSION, info["file_id"]),
+                "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
+                (mapper_version, REDUCER_VERSION, REDACTION_VERSION, info["file_id"]),
             )
-        from tandem_data.privacy import REDACTION_VERSION
 
         if not store.db.execute(
             "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.mapper_version'),'') <> ? LIMIT 1",

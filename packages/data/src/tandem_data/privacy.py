@@ -3,7 +3,7 @@
 import hashlib
 import re
 
-REDACTION_VERSION = "1.0.2"
+REDACTION_VERSION = "1.0.3"
 SECRET_KEYS = re.compile(
     r"(?:^|_)(?:api_?key|access_?token|refresh_?token|auth_?token|token|authorization|password|passwd|secret|private_key|secret_access_key)$",
     re.I,
@@ -49,6 +49,13 @@ def sanitize(value, key=""):
     if is_secret_key(key):
         return "<redacted:secret>"
     if isinstance(value, dict):
+        if isinstance(value.get("$binary"), str):
+            value = {
+                **value,
+                "$binary": "<opaque:sha256:"
+                + hashlib.sha256(value["$binary"].encode()).hexdigest()
+                + ">",
+            }
         if value.get("type") == "base64" and isinstance(value.get("data"), str):
             value = {
                 **value,
