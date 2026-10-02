@@ -73,6 +73,7 @@ def main(argv=None):
         "--home",
         default=default_home(),
     )
+    parser.add_argument("--no-progress", action="store_true")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
     commands.add_parser("discover")
@@ -108,6 +109,9 @@ def main(argv=None):
     export.add_argument("--output", type=Path, required=True)
     export.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     args = parser.parse_args(argv)
+    from tandem_data.progress import TerminalProgress
+
+    progress = TerminalProgress(enabled=not args.no_progress)
     if args.command == "discover":
         print(canonical(candidates()))
         return
@@ -129,7 +133,7 @@ def main(argv=None):
         elif args.command in ("scan", "ingest"):
             from tandem_data.service import ImportRequest, ImportService
 
-            result = ImportService(store).import_source(
+            result = ImportService(store, progress=progress).import_source(
                 ImportRequest(
                     agent=args.agent,
                     root=args.root,
@@ -160,14 +164,14 @@ def main(argv=None):
             from tandem_data.service import ImportService
 
             with ImportService(store).writer():
-                result = store.rebuild()
+                result = store.rebuild(progress=progress)
         elif args.command == "import-connector":
             from tandem_data.bridge import import_connector
             from tandem_data.service import ImportService
 
             with ImportService(store).writer():
                 result = import_connector(store, args.connector_home)
-                result["projection"] = store.rebuild()
+                result["projection"] = store.rebuild(progress=progress)
         elif args.command == "stats":
             result = statistics(store)
         elif args.command == "verify":

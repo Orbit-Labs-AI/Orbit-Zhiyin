@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+from functools import lru_cache
 
 REDACTION_VERSION = "1.2.0"
 HIDDEN_KEYS = {
@@ -20,6 +21,7 @@ def is_secret_key(key: str) -> bool:
     return secret_key(key)
 
 
+@lru_cache(maxsize=4096)
 def secret_key(key: str) -> bool:
     normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).lower()
     normalized = re.sub(r"[^a-z0-9]+", "_", normalized)

@@ -213,6 +213,10 @@ class Store:
                     raise
                 finally:
                     self.db.execute("PRAGMA foreign_keys=ON")
+        # Index-only upgrades apply after logical migrations, including to existing v5 stores.
+        self.db.executescript(
+            files("tandem_data").joinpath("migrations/projection_indexes.sql").read_text()
+        )
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (
@@ -725,11 +729,13 @@ class Store:
             raise ValueError("L0 record hash mismatch")
         return data
 
-    def rebuild(self, *, mapper_version=None, source_ids=None) -> dict:
+    def rebuild(self, *, mapper_version=None, source_ids=None, progress=None) -> dict:
         from tandem_data.pipeline import rebuild
 
         try:
-            return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
+            return rebuild(
+                self, mapper_version=mapper_version, source_ids=source_ids, progress=progress
+            )
         finally:
             self._unavailable_files = set()
 

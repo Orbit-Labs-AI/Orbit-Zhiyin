@@ -52,7 +52,9 @@ def decoded(row):
     return result
 
 
-def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) -> dict:
+def read_analysis(
+    home: str | Path, scope: AnalysisScope, *, max_events=None, include_native=True
+) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
 
     Empty selections mean zero members. Time-unknown facts do not enter bounded statistics.
@@ -109,10 +111,22 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
                 params[bound] = value
         # The canonical selector below classifies members vs earlier turn context.
         # Metadata outside the selected turn is retained solely to reconstruct a cutoff.
+        event_columns = "v.*"
+        if not include_native:
+            # Native extension payloads can dwarf all measured facts. Analysis and
+            # reports use attrs/text/IDs; evidence readers keep the full default.
+            names = [
+                row["name"] for row in connection.execute("PRAGMA table_info(v_analysis_event)")
+            ]
+            event_columns = (
+                ",".join(f'v."{name}"' for name in names if name != "ext") + ", '{}' AS ext"
+            )
         query = (
             "WITH members AS (SELECT event_uid,session_uid,turn_uid FROM v_analysis_event v WHERE "
             + " AND ".join(members_sql)
-            + ") SELECT v.* FROM v_analysis_event v WHERE "
+            + ") SELECT "
+            + event_columns
+            + " FROM v_analysis_event v WHERE "
             + " AND ".join(allowed)
             + " AND (event_uid IN (SELECT event_uid FROM members) OR turn_uid IN (SELECT turn_uid FROM members)"
             + " OR event_uid IN (SELECT x.event_uid FROM tool_call_event x JOIN v_analysis_tool_call t USING(call_uid)"
@@ -120,11 +134,23 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
             + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
             + " ORDER BY session_uid,seq"
         )
-        events = []
-        for row in connection.execute(query, params):
-            events.append(decoded(row))
-            if max_events is not None and len(events) > max_events:
-                raise ValueError("Narrow scope or read SQL views in batches; event limit exceeded")
+        if max_events is not None:
+            # Check cardinality without loading/decoding potentially huge native payloads.
+            # The same read transaction and selector keep this check consistent with the read.
+            if not isinstance(max_events, int) or isinstance(max_events, bool) or max_events < 0:
+                raise ValueError("max_events must be a nonnegative integer")
+            budget_params = {**params, "event_budget": max_events + 1}
+            budget_query = query.removesuffix(" ORDER BY session_uid,seq")
+            count = connection.execute(
+                "SELECT COUNT(*) FROM (" + budget_query + " LIMIT :event_budget)", budget_params
+            ).fetchone()[0]
+            if count > max_events:
+                raise ValueError(
+                    f"Analysis event limit exceeded ({max_events}, including turn context). "
+                    "Narrow --project-id / --from-ts / --until-ts, or explicitly raise --max-events before the command. "
+                    "No partial analysis was returned."
+                )
+        events = [decoded(row) for row in connection.execute(query, params)]
 
         def member(event):
             return (
@@ -263,13 +289,17 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
             for row in connection.execute("SELECT * FROM turn")
             if row["turn_uid"] in selected_turns
         ]
+        # Query order is session/seq. Keep selected endpoints in one pass instead
+        # of scanning the full event corpus once per turn (quadratic at real scale).
+        turn_bounds = {}
+        for event in selected:
+            bounds = turn_bounds.setdefault(
+                event["turn_uid"], [event["event_uid"], event["event_uid"]]
+            )
+            bounds[1] = event["event_uid"]
         for turn in turn_rows:
-            available = [event for event in selected if event["turn_uid"] == turn["turn_uid"]]
-            if available:
-                turn["first_event_uid"], turn["last_event_uid"] = (
-                    available[0]["event_uid"],
-                    available[-1]["event_uid"],
-                )
+            if bounds := turn_bounds.get(turn["turn_uid"]):
+                turn["first_event_uid"], turn["last_event_uid"] = bounds
             if scope.until_ts is not None and (
                 turn["ended_at"] is None or turn["ended_at"] >= scope.until_ts
             ):
@@ -401,6 +431,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
             reasons.append("source_unavailable_preserved_facts")
         if unparsed:
             reasons.append("unparsed_source_records")
+        if any(row["code"] == "inherited_parent_evidence_unavailable" for row in diagnostics):
+            reasons.append("inherited_parent_evidence_unavailable")
         if unknown:
             reasons.append("unknown_event_types")
         if truncated:
@@ -453,6 +485,11 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
             "inventory": inventory["coverage"],
             "catalog": {"status": "unavailable", "reason": "Catalog is a separate dataset"},
         }
+        if not include_native:
+            coverage["native_event_payload"] = {
+                "status": "excluded",
+                "reason": "Analysis omits event.ext; complete stored evidence remains available by event/record UID",
+            }
         return {
             "input_contract": "analysis-input-v1",
             "db_schema_version": manifest["schema_version"],
