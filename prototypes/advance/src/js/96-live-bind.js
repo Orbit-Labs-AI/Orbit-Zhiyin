@@ -35,6 +35,7 @@ ACT.lvRecompute = (el) => {
   if (!jobs.length) LV.loadSpine();
   render();
 };
+ACT.lvRetry = (el) => { if (el) el.disabled = true; TL.retry(); LV.loadSpine(); render(); };
 function lvJobNote() {
   const j = LV.job; if (!j || j.elapsed_s == null) return '';
   return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
@@ -54,7 +55,10 @@ function lvStrip(route) {
     : failed.length ? '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.unavailable(failed[0].error)) + '</span>' + lvRecBtn()
       : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
   const b = lvSpineBadge() || page;
-  const html = TLU.progress(TL) + TLU.banner(TL) + (b ? '<div>' + b + '</div>' : '');
+  // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
+  let banner = TLU.banner(TL);
+  if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');
+  const html = TLU.progress(TL) + banner + (b ? '<div>' + b + '</div>' : '');
   return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';
 }
 

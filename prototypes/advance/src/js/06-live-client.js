@@ -175,6 +175,17 @@ const TandemLive = (function () {
       });
     };
     C.inflightCount = () => inflight.size;
+    // retry(): refetch every resource that failed transiently (network / 5xx; not analysis_unavailable or 4xx) now
+    C.retry = function () {
+      let n = 0;
+      resources.forEach((r) => {
+        if (r.state !== 'error' || !r.error || !r.error.retryable || (r.error.status && r.error.status < 500)) return;
+        if (r.retryTimer) { timers.clearTimeout(r.retryTimer); r.retryTimer = null; }
+        r.dirty = true; n++;
+      });
+      emit('retry'); changed();
+      return n;
+    };
 
     /* ---- resources ---- */
     C.resource = function (path, o) {
@@ -206,7 +217,7 @@ const TandemLive = (function () {
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
         const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
-        C.failure = null;
+        C.failure = null; r.fails = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
@@ -217,7 +228,11 @@ const TandemLive = (function () {
         // answer, so no banner and no Retry-After loop: the page offers 重新计算 (C.recompute) instead
         if (isUnavailable(e)) { r.error.retryable = false; return; }
         if (!e.status || e.status >= 500) C.failure = r.error;
-        if (e.retryAfter != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, e.retryAfter);
+        // a network failure / 5xx is transient: retry on Retry-After, else with backoff (base · 2ⁿ, capped), so a resource
+        // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
+        r.fails = (r.fails || 0) + 1;
+        const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
+        if (wait != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, wait);
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
     };
@@ -388,6 +403,7 @@ const TandemLive = (function () {
           const h = headers({ Accept: 'text/event-stream' }); if (C.events.lastId != null) h['Last-Event-ID'] = C.events.lastId;
           const res = await fetchFn(C.endpoint + '/v1/events?topics=' + TOPICS, { headers: h, signal: ctrl.signal });
           if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+          if (C.events.attempt > 0) C.retry();   // back after an outage: refetch what failed meanwhile
           C.events.connected = true; C.events.attempt = 0; changed();
           const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
           for (;;) {
