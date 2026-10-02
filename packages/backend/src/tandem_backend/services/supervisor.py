@@ -13,7 +13,7 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   three failures open a circuit for that key. A task whose budget already hit the cap
   fails ``analysis_scope_too_large`` (narrow the scope) instead of a bare timeout
 - analysis RSS (the worker and its process-pool children) above 1.5 GB recycles the worker
-  after the task; above ``rss_kill_bytes`` (half the RAM, 4–16 GB) while running (heartbeat
+  after the task; above ``rss_kill_bytes`` (¾ of RAM, 4–24 GB) while running (heartbeat
   RSS) kills it and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
 - analysis runs a killed or crashed worker left ``running`` in ``analysis.sqlite`` are
   failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
@@ -54,10 +54,12 @@ def physical_memory_bytes() -> int | None:
 
 
 def default_rss_kill_bytes() -> int:
-    """Half the machine's memory, within 4–16 GB: a real home's all-time analysis needs
-    several GB, so the guard protects the machine without failing normal work."""
+    """Three quarters of the machine's memory, within 4–24 GB. Measured on a real home
+    (1.9k sessions / 770k events): the all-time analysis peaks near 17 GB, 30 days near
+    10 GB; the guard protects the machine (a smaller Mac fails that window explicitly
+    with ``analysis_scope_too_large`` instead of swapping) without failing normal work."""
     total = physical_memory_bytes() or 8 * 2**30
-    return int(min(max(total // 2, 4 * 2**30), 16 * 2**30))
+    return int(min(max(total * 3 // 4, 4 * 2**30), 24 * 2**30))
 
 
 @dataclass

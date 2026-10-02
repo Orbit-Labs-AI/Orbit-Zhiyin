@@ -125,7 +125,7 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | worker 退出（崩溃 / OOM） | 指数退避重启 0.5 → 1 → 2 → 4 s；60 s 内超过 5 次进入 `degraded`，停止自动拉起并经 SSE 通知，UI 提示“后台服务异常，可重试” |
 | 分析任务超时（基础：轻量 20 s / 重型 120 s，可配；worker 上报范围事件数后加每千事件 0.6 / 1.2 s；同键同修订每超时一次预算翻倍；统一封顶 `max_budget_s`=900 s） | 杀 analysis-worker 并重启；任务记 `failed(timeout)`；旧快照保留；已到封顶仍超时记 `analysis_scope_too_large`（422） |
 | analysis-worker 进程树（含进程池子进程）RSS > 1.5 GB | 当前任务完成后回收重启 |
-| 运行中心跳进程树 RSS > `rss_kill_bytes`（物理内存一半，限定 4–16 GB） | 立即杀 worker，任务记 `analysis_scope_too_large` |
+| 运行中心跳进程树 RSS > `rss_kill_bytes`（物理内存 ¾，限定 4–24 GB；真实库全时段峰值约 17 GB） | 立即杀 worker，任务记 `analysis_scope_too_large` |
 | worker 被杀或崩溃时未结束的 `analysis_run` | worker 实时上报运行 id，supervisor 将其标为 `failed(WorkerTerminated)`；gateway 启动时把早于最大预算的 `running` 行同样标记 |
 | gateway 崩溃 | 宿主 `/health` 连续 3 次失败（2 s 间隔）→ 重启 gateway（新端口、新令牌），通过 `evaluateJavaScript` 设置 `window.__TANDEM_ENDPOINT__ = {base, token}` 并触发 `tandem:endpoint` 事件，适配层重连，不整页刷新；子 worker 因 stdin 关闭自行退出，不会残留 |
 | 宿主退出 | gateway 父进程看门退出；ingest 在文件边界取消，已发布数据不受损（既有语义） |
