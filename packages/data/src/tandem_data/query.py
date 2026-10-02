@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION
+from tandem_data import MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION, payload
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
@@ -44,14 +44,15 @@ def event_page(
             "SELECT * FROM event WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ?",
             (session_uid, after_seq, limit),
         )
+        cache: dict = {}
         return [
             {
                 **dict(row),
                 "attrs": json.loads(row["attrs"]),
-                "ext": json.loads(row["ext"]),
+                "ext": payload.restore(db, json.loads(row["ext"]), cache),
                 "native_key": json.loads(row["native_key"]),
             }
-            for row in rows
+            for row in rows.fetchall()
         ]
 
 
