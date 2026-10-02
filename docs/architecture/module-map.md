@@ -28,7 +28,7 @@ flowchart TD
 | 功能 | 对外入口 | 实现归属 | 契约 / 验证 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | 授权来源导入、进度与重算 | CLI ingest / import-connector；ImportService | data/connectors、service、bridge、pipeline | data 测试；根 integration 桥接回归 | 后端已实现，UI 待接入 |
-| 会话与证据浏览 | /v1/sessions、/v1/evidence | backend/api + data_access + data/query | 分页、只读、范围与过期版本回归 | API 已实现 |
+| 会话与证据浏览 | /v1/sessions、/v1/evidence、trajectory、records/source | backend/api + data_access + data/query | 分页、只读、范围与过期版本回归 | API 已实现 |
 | 特征分析 | analytics CLI；/v1/analytics/* | backend/analytics，各特征族保持独立目录 | analysis-input；模块和集成测试 | 已实现能力见各特征族说明 |
 | 画像、瓶颈与报告 | report / demo；/v1/analysis | application/reports → profiling / recommendation / reporting | 既有回归；服务流程检查 CLI/API 输出一致 | 两个入口共用报告用例 |
 | 资源匹配与推荐 | /v1/analytics/recommendations GET/POST；analytics CLI | backend/recommend/service + analytics/recommendations 诊断 | 七类 JSON/Schema；recall、ranking 与 API/CLI 回归 | 最新 main 已接入；UI 待接入 |

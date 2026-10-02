@@ -1,6 +1,6 @@
 # Tandem 数据契约与预处理
 
-本包提供实际可建库的 SQLite DDL、L0 原始归档、L1 全记录记账、L2 映射、L3 派生、分析读取和 TypeScript connector 归档桥接。设计与字段见 [数据契约](../../docs/contracts/data.md)。无需数据库服务器；Python 3.13 + uv。
+本包提供实际可建库的 SQLite DDL、L0 来源索引、L1 全记录记账、L2 完整正文映射、L3 派生、分析读取和旧归档兼容。原生扫描不复制完整 session；Mac App 可通过索引打开原文与完整轨迹，见 [索引与 App 接口](../../docs/modules/data/indexed-trajectories.md)。设计与字段见 [数据契约](../../docs/contracts/data.md)。无需数据库服务器；Python 3.13 + uv。
 
 从仓库根目录运行：
 
@@ -16,7 +16,7 @@ uv run --project packages/data tandem-data --home .tandem rebuild
 
 `discover` 只列来源；`scan` 明确启用指定根目录。`--limit N` 只用于样本验证，不能声称全量回填。源目录与 `--home` 必须分开。七个内置 agent 名称为 `claude_code / codex / dsh / pi / hermes / opencode / kimi`；未实现的新来源可通过 `capture_stream` 和 `register_mapper` 对接。
 
-TypeScript Codex connector 使用单独的 staging 目录，不能直接写本包的 `tandem.db`：
+以下是显式的旧归档兼容入口，会复制归档。要求索引式采集的 App 应使用上面的原生 `scan`。TypeScript Codex connector 使用单独的 staging 目录，不能直接写本包的 `tandem.db`：
 
 ```sh
 node packages/connectors/dist/cli.js ingest --codex-home ~/.codex --data-dir .local/codex-staging
@@ -48,7 +48,7 @@ uv build --project packages/data
 git diff --check
 ```
 
-实际日志、数据库、归档都保留在本机的 `.tandem/`，不提交。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不扫描安装清单和 Catalog。
+实际日志保留在 Agent 来源目录，索引和派生数据库放本机 `.tandem/`，不提交。旧归档保留兼容。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不扫描安装清单和 Catalog。
 
 ## 六类 Agent connector 与 App 模块
 
@@ -59,4 +59,4 @@ git diff --check
 bash scripts/check-data.sh --real --open
 ```
 
-不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `read_analysis` 只读查询。存储 user_version=4，事件契约仍为 v1；原 v1 数据库自动应用索引迁移。变化文件采用不可变完整快照，未变化文件快速跳过，重算按来源隔离。
+不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `trajectory_page` / `record_source` / `read_analysis` 只读查询。存储 user_version=5，事件契约仍为 v1；旧库自动迁移。变化文件更新来源索引，未变化文件快速跳过，重算按来源隔离；源文件改写或删除时，原文接口明确返回不可用状态。
