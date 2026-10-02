@@ -22,4 +22,4 @@ tandem-data = { workspace = true }
 where = ["src"]
 
 [tool.setuptools.package-data]
-tandem_catalog = ["data/*.json"]
+tandem_catalog = ["data/*.json", "data/*.json.gz"]
