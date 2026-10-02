@@ -363,6 +363,8 @@ def analyze_context(
     from .products.lexical import lexical_analysis
     from .products.statistics import statistical_analysis
 
+    result["inventory"] = bundle.inventory
+    result["inventory_scans"] = bundle.inventory_scans
     result["lexical"] = lexical_analysis(context)
     result["statistics"] = statistical_analysis(context, result)
     result["analysis_methods"] = dict(RULE_VERSIONS)

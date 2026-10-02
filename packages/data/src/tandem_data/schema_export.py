@@ -32,6 +32,14 @@ def table_schemas(database="canonical"):
                 typ = "object"
             if column in ("native_key", "locator", "paths", "files"):
                 typ = "array"
+            # Same column names can have different contracts in different tables.
+            # In particular, model-call coverage is TEXT, not inventory JSON.
+            typ = {
+                ("inventory_item", "locator"): "string",
+                ("inventory_item", "config"): "object",
+                ("inventory_scan", "coverage"): "object",
+                ("inventory_scan", "diagnostics"): "array",
+            }.get((name, column), typ)
             properties[column] = {
                 "type": typ if notnull or primary else [typ, "null"],
                 "x-sql-type": sql_type,

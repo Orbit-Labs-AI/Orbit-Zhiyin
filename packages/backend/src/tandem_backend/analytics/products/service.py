@@ -108,8 +108,11 @@ def build_products(
         "sessions": rows,
         "projects": projects,
         "configuration": {
-            "status": "unavailable",
-            "reason": "configuration inventory is supplied by the separate data-layer feature",
+            "status": bundle.coverage.get("inventory", {}).get("status", "unavailable"),
+            "items": bundle.inventory,
+            "scans": bundle.inventory_scans,
+            "scope": "latest imported configuration observations before cutoff, separate from session membership",
+            "meaning": "configuration is not proof of actual tool use; analysis never scans sources",
         },
         "context_capacity": {
             "status": "unavailable",

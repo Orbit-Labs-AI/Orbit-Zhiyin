@@ -148,7 +148,7 @@ uv run tandem --home /实际的Tandem数据目录 analysis-report \
 | 项目 | 当前处理与后续条件 |
 | --- | --- |
 | 四字母人格和百分制四轴 | 提供真实行为与月度证据，`type_code=null`；待团队确认维度、分母和独立标注后校准评分。 |
-| 配置覆盖 | `configuration.status=unavailable`；由并行的本地配置清单工作提供扫描快照，分析请求不自行扫描用户目录。 |
+| 配置覆盖 | 已透传主干配置清单及扫描诊断；未扫描时 `configuration.status=unavailable`，分析请求不自行扫描用户目录。 |
 | 上下文占用与额度 | `context_capacity.status=unavailable`；需来源给出明确占用、容量和额度窗口，不能由累计 Token 反推。 |
 | 实时推送 | 已提供最后观测状态；连续采集与推送需 App 调用已有 ImportService watch 并刷新分析，尚未新增 SSE 订阅。 |
 | 任意任务要求与成果符合度 | 有明确验收标准和产物版本时可核对；任意自然语言要求不能自动转成已确认验收。 |
