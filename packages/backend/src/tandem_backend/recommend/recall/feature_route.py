@@ -12,6 +12,33 @@ import json
 from .catalog_route import TYPE_KIND, from_item
 
 K = 20
+# Profile-only matches (no friction) need real overlap: a share of the profile weight, more than
+# one matched feature or one specific feature (framework, MCP, skill, domain, software …), and a
+# matched feature seen in enough sessions. Generic namespaces alone (a language, ``tool:browser``,
+# a shell command) match half the catalog.
+GENERIC_NS = {"tool", "cmd", "cmdfam", "cmdcls", "lang", "ftype", "agent"}
+MIN_PROFILE_SCORE, MIN_PROFILE_SESSIONS = .08, 3
+
+
+def _sessions_by_id(profile: dict) -> dict[str, int]:
+    out: dict[str, int] = {}
+    entries = list(profile.get("tags") or ())
+    for group in (profile.get("groups") or {}).values():
+        entries += list(group or ())
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("id"):
+            out[entry["id"]] = max(out.get(entry["id"], 0), int(entry.get("sessions") or 0))
+    return out
+
+
+def precise(match: dict, sessions: dict[str, int]) -> bool:
+    """A profile-only match worth showing (see GENERIC_NS / MIN_PROFILE_*)."""
+    matched = [m for m in match.get("matched") or () if m.get("feature") != "friction"]
+    ids = {m["id"] for m in matched}
+    specific = [i for i in ids if i.split(":", 1)[0] not in GENERIC_NS]
+    if not specific and (len(ids) < 2 or float(match.get("score") or 0) < MIN_PROFILE_SCORE):
+        return False
+    return max((sessions.get(i, 0) for i in ids), default=0) >= MIN_PROFILE_SESSIONS
 
 
 def signals(problems: list[dict]) -> list[dict]:
@@ -59,7 +86,9 @@ def recall(problems: list[dict], inputs: dict, features, catalog, *, agent: str 
         return [], {}
     items = _items(catalog, [m["item_id"] for m in matches])
     by_type = {p["type"]: p for p in problems if p["status"] == "active"}
+    sessions = _sessions_by_id(profile)
     rows, payload = [], {}
+    dropped = 0
     for match in matches:
         item = items.get(match["item_id"])
         if item is None:
@@ -67,9 +96,13 @@ def recall(problems: list[dict], inputs: dict, features, catalog, *, agent: str 
         item["tags"] = sorted({m["value"] for m in match.get("matched") or () if m["feature"] != "friction"})
         problem = next((by_type[m["value"]] for m in match.get("matched") or ()
                         if m["feature"] == "friction" and m["value"] in by_type), None)
+        if problem is None and not precise(match, sessions):
+            dropped += 1
+            continue
         cand = from_item(item, problem, inputs, match_basis="catalog_feature" if problem else "profile")
         cand["feature_overlap"] = {"score": match["score"],
                                    "matched": [m["id"] for m in match.get("matched") or ()][:10]}
         rows.append((cand["rec_key"], float(match["score"]) + 1e-6))
         payload[cand["rec_key"]] = cand
+    meta["feature_dropped"] = dropped
     return rows, payload
