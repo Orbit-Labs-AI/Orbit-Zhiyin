@@ -68,4 +68,4 @@ PYTHONPATH=src python -m tandem_backend evaluate --output .local/instruction-val
 
 - 真实正例、独立人工标签、复杂否定和条件例外的质量评估。
 - 更大规模、长文本、并发、冲突密集输入与其他平台性能验证。
-- 团队口径确认与前端消费验收；未把 AI 测试结果标成成员已经确认。
+- 规则外口径细化、独立人工质量评审与前端消费验收。此次 MVP 范围确认及 `yhyfhgs` 对 PR #16 的合并授权，用户已在本次对话确认满足；AI 技术测试仍与人工质量评审区分。
