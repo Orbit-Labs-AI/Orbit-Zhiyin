@@ -80,24 +80,24 @@
 
 | 类型 | 证据与方法 | 完成边界 |
 | --- | --- | --- |
-| 单元 | [函数测试](../../../../tests/test_subjective_outcomes.py) | 覆盖上述每个函数，包含失效输入和语义边界。 |
+| 单元 | [函数测试](../../../../tests/regression/test_subjective_outcomes.py) | 覆盖上述每个函数，包含失效输入和语义边界。 |
 | 功能 mock | 同文件的 `test_mock_store_api_and_cli_share_the_family` | mock 输入适配器，在真实 TestClient 和 CLI 上比较 JSON、会话详情、项目聚合与历史窗口。 |
-| 端到端真实数据 | [验证脚本](../../../../scripts/validate_subjective_outcomes.py) 的 `real_flow` | 只读备份现有 SQLite，在副本使导入缓存失效，重新解析原始 Codex 日志；保持截止时间与排除名单，核对 CLI/API 和源证据引用。 |
-| 性能 | 同脚本的 `performance` | 1千／1万／5万事件、同一任务的连续交付与反馈；预热后重复3次，单独测量分配峰值；另测完整 analytics `--no-text` 计算。 |
-| 正确性／质量 | [49例质量集](../../../../tests/fixtures/subjective-outcome-quality.json)、[质量测试](../../../../tests/test_subjective_outcome_quality.py) | 独立保存预期标签，逐例比对接受、完成、返工三个维度，覆盖中文、英文、条件、引用、拒收及冲突。 |
+| 端到端真实数据 | [验证脚本](../../../../../../evals/analytics/subjective_outcomes.py) 的 `real_flow` | 只读备份现有 SQLite，在副本使导入缓存失效，重新解析原始 Codex 日志；保持截止时间与排除名单，核对 CLI/API 和源证据引用。 |
+| 性能 | [独立性能脚本](../../../../../../benchmarks/analytics/subjective_outcomes.py) 的 `performance` | 1千／1万／5万事件、同一任务的连续交付与反馈；预热后重复3次，单独测量分配峰值；另测完整 analytics `--no-text` 计算。 |
+| 正确性／质量 | [49例质量集](../../../../tests/fixtures/subjective-outcome-quality.json)、[质量测试](../../../../tests/regression/test_subjective_outcome_quality.py) | 独立保存预期标签，逐例比对接受、完成、返工三个维度，覆盖中文、英文、条件、引用、拒收及冲突。 |
 
 质量集是为本规则口径构造的输入，不是独立标注的真实分布；同一组样例通过不能说明长文本、反讽、隐喻和跨任务反馈已经可靠。性能数字也不代表并发服务 SLA。
 
-在仓库根目录运行，先按 `requirements-dev.lock` 准备环境：
+在仓库根目录运行，先执行 `uv sync --locked --all-packages --dev`：
 
 ```sh
-python -m pytest -q
-ruff check src tests scripts
-PYTHONPATH=src python -m tandem_backend demo
-PYTHONPATH=src python -m tandem_backend evaluate
-PYTHONPATH=src python scripts/validate_subjective_outcomes.py
+uv run python -m pytest -q
+uv run ruff check packages/backend/src packages/backend/tests packages/data/src packages/data/tests tests scripts evals benchmarks
+uv run python -m tandem_backend demo
+uv run python -m tandem_backend evaluate
+uv run python -m evals.analytics.subjective_outcomes
 # 真实全流程需要本机已授权的历史库和已有固定快照策略：
-PYTHONPATH=src python scripts/validate_subjective_outcomes.py \
+uv run python -m evals.analytics.subjective_outcomes \
   --real-db /path/to/existing/history.sqlite --codex-home /path/to/codex
 ```
 

@@ -18,7 +18,7 @@ tandem-data = { workspace = true }
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.2"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/backend/tests", "packages/data/tests", "tests/integration"]
+testpaths = ["packages/backend/tests", "packages/data/tests", "tests/integration", "tests/e2e"]
 
 [tool.ruff]
 src = ["packages/backend/src"]

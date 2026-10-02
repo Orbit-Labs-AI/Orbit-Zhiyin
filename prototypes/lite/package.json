@@ -1,0 +1,9 @@
+{
+  "name": "@tandem/prototype-lite",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "check": "node check-benchmark.cjs",
+    "test": "node check-benchmark.cjs"
+  }
+}

@@ -1,0 +1,9 @@
+# 模块说明
+
+- [分析与画像](../architecture/backend.md)：当前默认入口与历史算法语义。
+- [画像推导](analytics/profiling.md)、[特征分析](analytics/feature-analytics.md)、[瓶颈特征](analytics/bottleneck-features.md)。
+- [Preference](analytics/preference.md)、[Task](analytics/task.md)及[验证范围](analytics/validation.md)。
+- [数据连接器](data/agent-connectors.md)。
+- [读者评价](evaluation/reader-review.md)。
+
+算法说明中的实验结果属于原文所注明的版本和样本，目录迁移没有重新证明历史结论。

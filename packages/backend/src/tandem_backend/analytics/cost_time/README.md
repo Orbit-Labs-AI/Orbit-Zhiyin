@@ -16,7 +16,7 @@ added: 2026-10-02
 
 认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/ActionMesh-AI/Hackathon/issues/4)。实现与合成样例的技术检查已完成；勾选需按团队模板完成最终口径确认和验收，本页不代替成员确认。未来补充项见末尾。
 
-[四模块总览](../../../../docs/backend/bottleneck-features.md) · [合成测试](../../../../tests/bottleneck/test_cost_time.py) · [共享虚构数据集](../../../../tests/fixtures/bottleneck-features-v1.json)
+[四模块总览](../../../../../../docs/modules/analytics/bottleneck-features.md) · [合成测试](../../../../tests/bottleneck/test_cost_time.py) · [共享虚构数据集](../../../../tests/fixtures/bottleneck-features-v1.json)
 
 ## 范围
 
@@ -100,8 +100,8 @@ result = analyze_cost_time(sessions, events, calls, model_calls, {"s"},
 自动验收：[`test_cost_time.py`](../../../../tests/bottleneck/test_cost_time.py)；跨模块范围、未来信息隔离和 CLI/API 一致性见 [test_integration.py](../../../../tests/bottleneck/test_integration.py)。全部使用合成事件、虚构数据或临时 SQLite，不读取个人 Agent 历史。
 
 ```bash
-python -m pytest -q tests/bottleneck/test_cost_time.py tests/bottleneck/test_integration.py
-ruff check src tests
+uv run python -m pytest -q packages/backend/tests/bottleneck/test_cost_time.py packages/backend/tests/bottleneck/test_integration.py
+uv run ruff check packages/backend/src packages/backend/tests packages/data/src packages/data/tests tests
 ```
 
 2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器并修复两项 P1 后，在隔离提交副本中 564 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
