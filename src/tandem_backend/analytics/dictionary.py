@@ -48,6 +48,13 @@ define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by
 define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
 
+
+define("user_acceptance", "feedback message", "Explicit accepted/rejected/mixed clauses after a linked prior final delivery; no silence inference", "confirmed human text + delivery/task identity", kind="proxy")
+define("user_confirmed_completion", "feedback target", "Explicit human completion/incompletion, independent of acceptance; scope retained", "confirmed human text + linked delivery", kind="proxy")
+define("rework_feedback", "feedback message", "Explicit revision request; retain request and explicit reason; new requirements alone are not rework", "confirmed human text + linked delivery", kind="proxy")
+define("feedback_target", "delivery relation", "Explicit same-session delivery/artifact/version or latest prior shared task; heuristic legacy task IDs remain candidates", "event.attrs + seq", kind="deterministic_derived")
+define("feedback_evidence", "evidence record", "event_uid, normalized redacted evidence_text, seq, ts and available_at; missing clock is sequence-only", "confirmed human event", kind="direct_observation")
+define("accepted_feedback_count rejected_feedback_count confirmed_completion_count confirmed_incompletion_count rework_feedback_count", "linked feedback message", "Count only linked explicit feedback in selected scope; not unique tasks, satisfaction or task success", "subjective_outcomes.feedback", "linked feedback messages", "proxy")
 FEATURES.update(PREFERENCE_FEATURES)
 FEATURES.update(TASK_FEATURES)
 # Family-owned definitions retain the established global lookup surface.

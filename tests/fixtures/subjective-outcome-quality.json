@@ -1,0 +1,327 @@
+[
+  {
+    "id": "cn-accept",
+    "text": "这个可以了！",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-accept-thanks",
+    "text": "这样可以，谢谢。",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-accept-reject-conflict",
+    "text": "可以了，但不能接受。",
+    "expected": [
+      "mixed",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-reject",
+    "text": "这版还是不行",
+    "expected": [
+      "rejected",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-criteria-reject",
+    "text": "这份报告不符合要求",
+    "expected": [
+      "rejected",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-completed",
+    "text": "我确认整个任务完成了",
+    "expected": [
+      null,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "cn-problem-fixed",
+    "text": "问题已经解决了",
+    "expected": [
+      null,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "cn-incomplete",
+    "text": "任务尚未完成",
+    "expected": [
+      null,
+      false,
+      false
+    ]
+  },
+  {
+    "id": "cn-unresolved",
+    "text": "问题还没解决",
+    "expected": [
+      null,
+      false,
+      false
+    ]
+  },
+  {
+    "id": "cn-rework-reason",
+    "text": "请重写这份报告，因为缺少结果",
+    "expected": [
+      null,
+      null,
+      true
+    ]
+  },
+  {
+    "id": "cn-accept-addition",
+    "text": "可以了，另外新增导出功能",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-accept-rework",
+    "text": "这个可以了，不过请重写结论",
+    "expected": [
+      "accepted",
+      null,
+      true
+    ]
+  },
+  {
+    "id": "cn-conflicting-completion",
+    "text": "任务完成了。任务尚未完成。",
+    "expected": [
+      null,
+      null,
+      false
+    ]
+  },
+  {
+    "id": "en-accept",
+    "text": "Looks good, thanks.",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "en-fixed",
+    "text": "The issue has been resolved.",
+    "expected": [
+      null,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "en-rejected",
+    "text": "It doesn't work.",
+    "expected": [
+      "rejected",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "en-rework",
+    "text": "Please revise the report.",
+    "expected": [
+      null,
+      null,
+      true
+    ]
+  },
+  {
+    "id": "en-incomplete",
+    "text": "The task is incomplete.",
+    "expected": [
+      null,
+      false,
+      false
+    ]
+  },
+  {
+    "id": "en-combination",
+    "text": "Looks good. The task is completed.",
+    "expected": [
+      "accepted",
+      true,
+      false
+    ]
+  },
+  {
+    "id": "en-conflict",
+    "text": "Accepted, but rejected.",
+    "expected": [
+      "mixed",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "cn-question",
+    "text": "这个可以了吗？",
+    "expected": null
+  },
+  {
+    "id": "cn-incomplete-question",
+    "text": "任务没有完成吗？",
+    "expected": null
+  },
+  {
+    "id": "cn-condition",
+    "text": "如果修复测试，可以了。",
+    "expected": null
+  },
+  {
+    "id": "cn-example",
+    "text": "例如，可以了。",
+    "expected": null
+  },
+  {
+    "id": "cn-instruction",
+    "text": "请回答，可以了。",
+    "expected": null
+  },
+  {
+    "id": "cn-quoted",
+    "text": "他说“可以了”。",
+    "expected": null
+  },
+  {
+    "id": "cn-blockquote",
+    "text": "> 任务完成了",
+    "expected": null
+  },
+  {
+    "id": "cn-fence",
+    "text": "```\n请重写这份报告\n```",
+    "expected": null
+  },
+  {
+    "id": "cn-denial",
+    "text": "我没有说可以了",
+    "expected": null
+  },
+  {
+    "id": "cn-no-rework",
+    "text": "不需要返工",
+    "expected": null
+  },
+  {
+    "id": "cn-new-request",
+    "text": "请新增 PDF 导出",
+    "expected": null
+  },
+  {
+    "id": "cn-abandon",
+    "text": "算了",
+    "expected": null
+  },
+  {
+    "id": "cn-ack",
+    "text": "好的",
+    "expected": null
+  },
+  {
+    "id": "cn-politeness",
+    "text": "谢谢",
+    "expected": null
+  },
+  {
+    "id": "cn-literal",
+    "text": "`可以了`",
+    "expected": null
+  },
+  {
+    "id": "cn-future",
+    "text": "任务完成了再通知我",
+    "expected": null
+  },
+  {
+    "id": "cn-metadata",
+    "text": "<INSTRUCTIONS>\n可以了\n</INSTRUCTIONS>",
+    "expected": null
+  },
+  {
+    "id": "en-condition",
+    "text": "If this works, looks good.",
+    "expected": null
+  },
+  {
+    "id": "en-question",
+    "text": "The issue is resolved?",
+    "expected": null
+  },
+  {
+    "id": "en-negation",
+    "text": "Not accepted",
+    "expected": null
+  },
+  {
+    "id": "en-example",
+    "text": "For example, accepted.",
+    "expected": null
+  },
+  {
+    "id": "en-quoted",
+    "text": "\"Looks good\"",
+    "expected": null
+  },
+  {
+    "id": "en-request",
+    "text": "Please confirm the task is completed.",
+    "expected": null
+  },
+  {
+    "id": "en-addition",
+    "text": "Add a new download button.",
+    "expected": null
+  },
+  {
+    "id": "empty",
+    "text": "",
+    "expected": null
+  },
+  {
+    "id": "cn-meta-multiline",
+    "text": "请分析下面这条反馈：\n可以了",
+    "expected": null
+  },
+  {
+    "id": "cn-if-multiline",
+    "text": "如果验收通过：\n可以了",
+    "expected": null
+  },
+  {
+    "id": "en-meta-multiline",
+    "text": "Classify this feedback:\nLooks good.",
+    "expected": null
+  },
+  {
+    "id": "cn-example-multiline",
+    "text": "下面是示例：\n可以了",
+    "expected": null
+  }
+]
