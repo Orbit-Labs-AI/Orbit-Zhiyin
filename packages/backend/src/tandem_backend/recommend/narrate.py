@@ -352,6 +352,11 @@ def _ev(cand: dict, sessions: int, uids: list) -> str:
     return f"{sessions} 个会话" if sessions else ""
 
 
+def _tilde(path: str) -> str:
+    from .recall.subtract import tilde
+    return tilde(path) if path.startswith("/") else path
+
+
 def _commands(steps: list, trial, raw: dict) -> list:
     """Copyable command per step (None where a step has none); [] when the card has none."""
     commands = (trial.get("commands") if isinstance(trial, dict) else None) or raw.get("commands") or []
@@ -384,7 +389,7 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
         # evq filters A3 to exactly these sessions; {} (no jump) when there is nothing to resolve
         "evq": {"session_uids": list(uids)} if uids else {},
         "compat": _compat(cand.get("agents") or {}, inputs),
-        "primary": primary, "target": (cand.get("target") or {}).get("path_hint") or "",
+        "primary": primary, "target": _tilde((cand.get("target") or {}).get("path_hint") or ""),
         "file": [list(line) for line in raw.get("file") or []],
         "steps": [clean(s) for s in steps],
         "commands": _commands(steps, trial, raw),

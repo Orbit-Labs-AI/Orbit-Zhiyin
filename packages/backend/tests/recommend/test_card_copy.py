@@ -80,3 +80,30 @@ def test_slate_cards_never_show_placeholder_numbers():
     for cand in slate["candidates"]:
         ui = cand.get("ui") or {}
         assert "0 个会话出现" not in str(ui.get("gain")) and "−0 " not in str(ui.get("gain"))
+
+
+def test_plugin_cache_removals_disable_the_plugin_without_absolute_paths():
+    import os
+
+    from tandem_backend.recommend.recall import subtract
+
+    home = os.path.expanduser("~")
+    cache = f"{home}/.claude/plugins/cache/vendor/bio-pack/1.2.0/skills/fold/SKILL.md"
+    inv = [{"inv_id": "s1", "type": "skill", "name": "fold", "resident_tokens": 2400, "config_path": cache,
+            "agent": "claude_code"},
+           {"inv_id": "s2", "type": "skill", "name": "dock", "resident_tokens": 2100,
+            "config_path": cache.replace("fold", "dock"), "agent": "claude_code"},
+           {"inv_id": "r1", "type": "rule", "name": "AGENTS.md", "lines": 300, "resident_tokens": 900,
+            "config_path": f"{home}/work/AGENTS.md"}]
+    probs = problems.build({"sessions": {"main": 30, "weeks": 4}, "facts": {}, "inventory": inv})
+    rules, _ = kb.load()
+    rows, payload = subtract.recall(probs, rules, {"facts": {}}, {})
+    plugin = payload["removal:plugin:bio-pack@vendor"]
+    assert len([k for k in payload if k.startswith("removal:plugin:")]) == 1
+    assert plugin["title"].startswith("停用插件 bio-pack") and plugin["rec_key"] == "removal:plugin:bio-pack@vendor"
+    assert plugin["target"]["path_hint"] == "~/.claude/settings.json · enabledPlugins"
+    rule = next(c for k, c in payload.items() if not k.startswith("removal:plugin:"))
+    assert rule["target"]["path_hint"] == "~/work/AGENTS.md"
+    for cand in payload.values():
+        assert home not in str(_card(cand)["ui"])
+    assert subtract.tilde("/Users/someone/x") == "~/x" and subtract.tilde("AGENTS.md") == "AGENTS.md"
