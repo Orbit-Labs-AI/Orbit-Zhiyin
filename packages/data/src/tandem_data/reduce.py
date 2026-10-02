@@ -334,6 +334,7 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
     }
     metas = {}
     recorded_roots = {}
+    spawn_ids = {}  # child session -> native id of the parent's spawning tool call
     progress({"stage": "derive_metadata", "completed": 0, "total": len(identities)})
     for index, (session_uid, identity) in enumerate(identities.items()):
         values = {
@@ -345,10 +346,12 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             "status": "unknown",
             "timezone_source": "unknown",
         }
+        event_cwd = None
         for row in store.db.execute(
             "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
         ):
             attrs = json.loads(row["attrs"])
+            event_cwd = event_cwd or attrs.get("cwd")
             if isinstance(attrs.get("git_root"), str):
                 recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
@@ -369,6 +372,8 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
                 ):
                     if attrs.get(name) is not None:
                         values[name] = attrs[name]
+                if attrs.get("spawn_native_call_id"):
+                    spawn_ids[session_uid] = str(attrs["spawn_native_call_id"])
                 if attrs.get("forked_from_uid"):
                     values["forked_from"] = attrs["forked_from_uid"]
                 if attrs.get("forked_from_native"):
@@ -387,6 +392,9 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
                     values["title"], values["title_source"] = row["text"], attrs.get("title_source")
         if not values.get("timezone"):
             values["timezone"], values["timezone_source"] = None, "unknown"
+        # Same fallback as _derive_session, so session and turn projects agree.
+        if not values.get("cwd") and event_cwd:
+            values["cwd"] = event_cwd
         metas[session_uid] = values
         progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
     progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})
@@ -447,6 +455,40 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             store, session_uid, meta, events, recorded_roots.get(session_uid), project_cache
         )
         progress({"stage": "derive_sessions", "completed": index + 1, "total": len(metas)})
+    _link_spawns(store, metas, spawn_ids)
+
+
+def _link_spawns(store, metas, spawn_ids):
+    """Parent spawn call <-> child session, from either side's native evidence."""
+    for session_uid, native_call in spawn_ids.items():
+        parent = metas[session_uid].get("parent_uid")
+        row = store.db.execute(
+            "SELECT call_uid FROM tool_call WHERE session_uid=? AND native_call_id=? "
+            "AND call_event_uid IS NOT NULL ORDER BY started_at LIMIT 1",
+            (parent, native_call),
+        ).fetchone()
+        if parent and row:
+            store.db.execute(
+                "UPDATE session SET spawn_call_uid=? WHERE session_uid=?", (row[0], session_uid)
+            )
+            store.db.execute(
+                "UPDATE tool_call SET subagent_session_uid=? "
+                "WHERE call_uid=? AND subagent_session_uid IS NULL",
+                (session_uid, row[0]),
+            )
+    # Calls whose parent-side evidence named the child (Claude agentId, Codex thread id).
+    for session_uid in metas:
+        row = store.db.execute(
+            "SELECT call_uid FROM tool_call WHERE subagent_session_uid=? "
+            "AND call_event_uid IS NOT NULL ORDER BY started_at LIMIT 1",
+            (session_uid,),
+        ).fetchone()
+        if row:
+            store.db.execute(
+                "UPDATE session SET spawn_call_uid=? "
+                "WHERE session_uid=? AND spawn_call_uid IS NULL",
+                (row[0], session_uid),
+            )
 
 
 def _derive_session(store, session_uid, meta, events, recorded_root=None, shared_projects=None):

@@ -8,12 +8,32 @@ class ClaudeMapper(BaseMapper):
     def prepare(self, records):
         self.header = {}
         self.usage_records = {}
+        # Agent/Task tool_use id -> spawned agentId (from the paired toolUseResult).
+        self.spawned = {}
 
         def inspect(record):
             data = record.data
-            if data.get("sessionId") and not self.header:
-                self.header = data
+            # Leading queue-operation/mode/title lines carry sessionId but no
+            # context; take each header field from the first record that has it.
+            for name in ("sessionId", "cwd", "gitBranch", "version", "entrypoint"):
+                if data.get(name) and name not in self.header:
+                    self.header[name] = data[name]
             message = data.get("message")
+            result = data.get("toolUseResult")
+            if (
+                data.get("type") == "user"
+                and isinstance(result, dict)
+                and result.get("agentId")
+                and isinstance(message, dict)
+                and isinstance(message.get("content"), list)
+            ):
+                for block in message["content"]:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "tool_result"
+                        and block.get("tool_use_id")
+                    ):
+                        self.spawned[str(block["tool_use_id"])] = str(result["agentId"])
             if (
                 data.get("type") == "assistant"
                 and isinstance(message, dict)
@@ -72,6 +92,7 @@ class ClaudeMapper(BaseMapper):
                 native = native + ":" + PurePosixPath(record.relative_path).stem
                 if "workflows" in PurePosixPath(record.relative_path).parts:
                     kind = "workflow_agent"
+            self.session_kind = kind
             events.append(
                 self.meta(
                     record,
@@ -79,9 +100,9 @@ class ClaudeMapper(BaseMapper):
                     kind=kind,
                     parent_native_id=parent,
                     cwd=self.header.get("cwd"),
-                    git_branch=data.get("gitBranch"),
-                    harness_version=data.get("version"),
-                    client=data.get("entrypoint"),
+                    git_branch=self.header.get("gitBranch"),
+                    harness_version=self.header.get("version"),
+                    client=self.header.get("entrypoint"),
                 )
             )
             self.first = False
@@ -101,6 +122,11 @@ class ClaudeMapper(BaseMapper):
             origin = {"task-notification": "notification"}.get(origin, origin)
             if origin not in ("human", "queued", "notification", "peer", "automation", "injected"):
                 origin = "unknown"
+            if origin == "human" and typ == "user":
+                # A subagent's prompts come from the parent agent or the workflow script.
+                origin = {"subagent": "peer", "workflow_agent": "automation"}.get(
+                    getattr(self, "session_kind", "main"), origin
+                )
             body_text = text_content(message.get("content"))
             if (
                 data.get("isMeta")
@@ -142,6 +168,12 @@ class ClaudeMapper(BaseMapper):
             for event in contents:
                 if data.get("parentUuid"):
                     event.parent_native_key = [record.source_id, data["parentUuid"]]
+                agent = self.spawned.get(str(event.call_id)) if event.kind == "tool.call" else None
+                if agent and self.header.get("sessionId"):
+                    # Subagent transcripts live at <sessionId>/subagents/agent-<agentId>.jsonl.
+                    event.attrs["subagent_session_uid"] = self.store.identity(
+                        record.source_id, f"{self.header['sessionId']}:agent-{agent}"
+                    )
             if contents:
                 contents[0].ext["envelope"] = unused(
                     data,
@@ -325,6 +357,60 @@ class ClaudeMapper(BaseMapper):
                     attrs={
                         "child_native_id": data["agentId"],
                         "status": "running" if typ == "started" else typ,
+                    },
+                    ext=data,
+                )
+            )
+        elif typ == "result" and data.get("agentId"):
+            # Workflow journal: an agent's final output.
+            result = data.get("result")
+            events.append(
+                self.make(
+                    record,
+                    "subagent.result",
+                    "agent.result",
+                    text=result if isinstance(result, str) else None,
+                    attrs={"child_native_id": data["agentId"], "status": "completed"},
+                    ext=unused(data, ("result",)) if isinstance(result, str) else data,
+                )
+            )
+        elif typ == "result":
+            # Print-mode / SDK final summary; usage stays in ext (already counted per call).
+            failed = data.get("is_error") or str(data.get("subtype", "")).startswith("error")
+            events.append(
+                self.make(
+                    record,
+                    "turn.end",
+                    "result",
+                    text=data.get("result") if isinstance(data.get("result"), str) else None,
+                    attrs={
+                        "status": "failed" if failed else "completed",
+                        "duration_ms": data.get("duration_ms"),
+                    },
+                    ext=unused(data, ("result",)),
+                )
+            )
+        elif typ == "relocated":
+            events.append(
+                self.make(
+                    record,
+                    "setting.change",
+                    "relocated",
+                    attrs={"relocated_cwd": data.get("relocatedCwd")},
+                    ext=data,
+                )
+            )
+        elif typ == "continued-in" and data.get("continuedInSessionId"):
+            target = str(data["continuedInSessionId"])
+            events.append(
+                self.make(
+                    record,
+                    "link",
+                    "continued-in",
+                    attrs={
+                        "link_kind": "continued_in",
+                        "ref": self.store.identity(record.source_id, target),
+                        "continued_in_native_id": target,
                     },
                     ext=data,
                 )

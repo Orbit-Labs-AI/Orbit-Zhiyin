@@ -539,7 +539,11 @@ def read_analysis(
             reasons.append("truncated_text")
         if time_unknown:
             reasons.append("missing_timestamps")
-        diagnostic_counts = Counter(row["code"] for row in diagnostics)
+        diagnostic_counts = Counter()
+        for row in diagnostics:
+            # Per-file diagnostics carry the number of records they stand for.
+            per_file = row["code"] == "inherited_parent_evidence_unavailable"
+            diagnostic_counts[row["code"]] += row["detail"].get("records", 1) if per_file else 1
         reason_counts = {
             "capture_errors_or_incomplete_frames": capture_errors,
             "source_unavailable_preserved_facts": diagnostic_counts["source_unavailable"],

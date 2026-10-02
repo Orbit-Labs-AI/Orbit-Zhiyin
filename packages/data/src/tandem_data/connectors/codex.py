@@ -111,6 +111,30 @@ TOOL_APPROVALS = frozenset(
 )
 
 
+def _compact(value):
+    """Drop null and empty fields recursively (serialisers differ in emitting them)."""
+    if isinstance(value, dict):
+        items = ((key, _compact(item)) for key, item in value.items())
+        return {key: item for key, item in items if item not in (None, "", [], {})}
+    if isinstance(value, list):
+        return [_compact(item) for item in value]
+    return value
+
+
+def _unmeasured_command(item, started_at, completed_at):
+    """Unified-exec startup items: started == completed and duration ~µs (B5)."""
+    if not isinstance(started_at, int) or not isinstance(completed_at, int):
+        return False
+    if completed_at - started_at > 1:
+        return False
+    native = item.get("duration")
+    if isinstance(native, dict):
+        millis = (native.get("secs") or 0) * 1000 + (native.get("nanos") or 0) / 1e6
+    else:
+        millis = item.get("duration_ms")
+    return not isinstance(millis, int | float) or millis < 1
+
+
 def _decision(value):
     """ReviewDecision: a plain string (approved / approved_for_session / denied / abort) or an
     externally tagged object such as ``{"approved_execpolicy_amendment": {...}}``."""
@@ -145,6 +169,8 @@ class CodexMapper(BaseMapper):
         self.rollback_ranges = []
         self.human_starts = []
         self.last_human_turn = None
+        # spawn_agent call_id -> child thread id (SubAgentActivity / collab_agent_spawn_end).
+        self.spawned = {}
         self.prepare_each(records, self.prepare_record)
 
     def prepare_record(self, record):
@@ -176,13 +202,30 @@ class CodexMapper(BaseMapper):
             self.cut = payload.get("subagent_history_start_ordinal") if spawn else None
             self.parent = payload.get("parent_thread_id", payload.get("forked_from_id"))
             self.parent = self.parent or spawn.get("parent_thread_id")
+            self.session_kind = (
+                "review"
+                if isinstance(source, dict) and "guardian" in canonical(source)
+                else "subagent"
+                if payload.get("parent_thread_id", spawn.get("parent_thread_id"))
+                else "main"
+            )
             self.parent_candidates = {}
             self.parent_cursor = -1
         if data.get("type") == "token_usage_record":
             self.has_calls = True
             self.usage_records.append((record.ordinal, payload.get("response_id")))
+        if data.get("type") == "event_msg" and payload.get("type") == "collab_agent_spawn_end":
+            if payload.get("call_id") and payload.get("new_thread_id"):
+                self.spawned.setdefault(str(payload["call_id"]), str(payload["new_thread_id"]))
         if data.get("type") == "event_msg" and payload.get("type") == "item_completed":
             item = payload.get("item", {})
+            if (
+                item.get("type") == "SubAgentActivity"
+                and item.get("kind") == "started"
+                and item.get("id")
+                and item.get("agent_thread_id")
+            ):
+                self.spawned.setdefault(str(item["id"]), str(item["agent_thread_id"]))
             if item.get("type") in ("UserMessage", "AgentMessage"):
                 role = "user" if item["type"] == "UserMessage" else "assistant"
                 signature = (role, self.prepared_turn, text_content(item.get("content")))
@@ -216,9 +259,73 @@ class CodexMapper(BaseMapper):
             [record.source_id, self.session_uid, native] if native else super().native_key(record)
         )
 
+    def message(self, record, message, *, origin="human", **kwargs):
+        # Review (guardian) and subagent threads start from a prompt written by the
+        # harness or the parent agent, not by the person.
+        if origin == "human" and message.get("role") == "user":
+            kind = getattr(self, "session_kind", "main")
+            origin = {"review": "automation", "subagent": "peer"}.get(kind, origin)
+        return super().message(record, message, origin=origin, **kwargs)
+
+    def child_link(self, record, call_id):
+        child = getattr(self, "spawned", {}).get(str(call_id))
+        if not child:
+            return {}
+        return {"subagent_session_uid": self.store.identity(record.source_id, child)}
+
     @staticmethod
     def record_signature(record):
         return uid("native_payload", record.data.get("type"), record.data.get("payload"))
+
+    @staticmethod
+    def loose_signature(typ, payload):
+        """Match a child's copied context item when it is not a byte-identical line.
+
+        Paginated forks copy the parent's *model context*, re-serialised (empty fields
+        dropped) and partly taken from compaction ``replacement_history``; messages are
+        therefore matched by role and text, other items with empty fields removed."""
+        if not isinstance(payload, dict):
+            return None
+        if typ == "response_item" and payload.get("type") == "message":
+            text = text_content(payload.get("content")).strip()
+            return uid("inherited_message", payload.get("role"), text) if text else None
+        if typ == "event_msg" and payload.get("type") in ("user_message", "agent_message"):
+            text = text_content(payload.get("message", payload.get("content"))).strip()
+            return uid("inherited_event", payload["type"], text) if text else None
+        return uid("inherited_item", typ, _compact(payload))
+
+    @classmethod
+    def parent_signatures(cls, record):
+        """Signatures under which a parent record can stand for a child's inherited copy."""
+        data, payload = record.data, record.data.get("payload")
+        signatures = [cls.record_signature(record), cls.loose_signature(data.get("type"), payload)]
+        if data.get("type") == "compacted" and isinstance(payload, dict):
+            for item in payload.get("replacement_history") or []:
+                signatures.append(cls.loose_signature("response_item", item))
+        return [signature for signature in dict.fromkeys(signatures) if signature]
+
+    def inherited_refs(self, record):
+        """Events of the parent record this inherited copy replays; [] when none is found."""
+        exact = self.record_signature(record)
+        loose = self.loose_signature(record.data.get("type"), record.data.get("payload"))
+        for signature in (exact, loose):
+            candidates = self.parent_candidates.get(signature, []) if signature else []
+            candidate = next((item for item in candidates if item[0] > self.parent_cursor), None)
+            if candidate is None and signature == loose and candidates:
+                # Compaction re-copies older items: any matching parent record is evidence.
+                candidate = candidates[-1]
+            if candidate is None:
+                continue
+            refs = [
+                row[0]
+                for row in self.store.db.execute(
+                    "SELECT event_uid FROM record_event WHERE record_uid=?", (candidate[1],)
+                )
+            ] or list(getattr(self, "replayed_refs", {}).get(candidate[1], ()))
+            if refs:
+                self.parent_cursor = max(self.parent_cursor, candidate[0])
+                return refs
+        return []
 
     def map(self, record):
         data, typ = record.data, record.data.get("type")
@@ -320,18 +427,7 @@ class CodexMapper(BaseMapper):
                 self.effort = payload.get("effort", self.effort)
             elif data.get("type") == "world_state":
                 self.model = payload.get("state", {}).get("model", self.model)
-            refs = []
-            candidates = self.parent_candidates.get(self.record_signature(record), [])
-            candidate = next((item for item in candidates if item[0] > self.parent_cursor), None)
-            if candidate:
-                self.parent_cursor = candidate[0]
-                refs = [
-                    row[0]
-                    for row in self.store.db.execute(
-                        "SELECT event_uid FROM record_event WHERE record_uid=?",
-                        (candidate[1],),
-                    )
-                ]
+            refs = self.inherited_refs(record)
             if not refs and (
                 typ == "world_state"
                 or typ == "response_item"
@@ -358,12 +454,13 @@ class CodexMapper(BaseMapper):
             # The native cutoff proves this is supplied history, not new child behavior.
             # Parent history may have been compacted/replaced since the fork. Preserve
             # the child's actual evidence as context, without inventing a parent link.
+            # One diagnostic per child file (upserted with the running count), not per record.
+            self.unresolved_inherited = getattr(self, "unresolved_inherited", 0) + 1
             self.store.issue(
                 record.source_id,
                 "inherited_parent_evidence_unavailable",
                 file_id=record.file_id,
-                record_uid=record.record_uid,
-                detail={"native_type": record.native_type, "parent_native_id": self.parent},
+                detail={"records": self.unresolved_inherited, "parent_native_id": self.parent},
             )
             return Mapping(
                 [
@@ -550,6 +647,7 @@ class CodexMapper(BaseMapper):
                                     and isinstance(payload.get("status"), str)
                                     else {}
                                 ),
+                                **self.child_link(record, call_id),
                             },
                             ext=payload,
                         )
@@ -839,6 +937,10 @@ class CodexMapper(BaseMapper):
                     elif itype == "Extension" and item.get("kind") == "image_gen.generation":
                         # revisedPrompt is the completed tool's rewrite, not the original user input.
                         args = item.get("arguments")
+                    completed_at = payload.get("completed_at_ms")
+                    unmeasured = itype == "CommandExecution" and _unmeasured_command(
+                        item, payload.get("started_at_ms"), completed_at
+                    )
                     call = self.make(
                         record,
                         "tool.call",
@@ -852,6 +954,7 @@ class CodexMapper(BaseMapper):
                             "category": "subagent" if itype == "CollabAgentToolCall" else None,
                             "duration_ms": item.get("duration_ms"),
                             "native_turn_id": self.native_turn,
+                            **self.child_link(record, call_id),
                         },
                         ts_value=payload.get("started_at_ms"),
                         ts_field="payload.started_at_ms",
@@ -879,8 +982,11 @@ class CodexMapper(BaseMapper):
                             "exit_code": item.get("exit_code"),
                             "duration_ms": item.get("duration_ms"),
                             "native_turn_id": self.native_turn,
+                            **({"duration_unmeasured": True} if unmeasured else {}),
                         },
-                        ts_value=payload.get("completed_at_ms"),
+                        # Equal bounds with a sub-ms native duration describe a command
+                        # still running in the background, not its runtime: no end time.
+                        ts_value=None if unmeasured else completed_at,
                         ts_field="payload.completed_at_ms",
                         ts_unit="milliseconds",
                         semantics="completed",
