@@ -14,11 +14,13 @@
   <svg class="wall" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1440 900"><circle cx="1180" cy="1040" r="430" fill="none" stroke="var(--desk-2)" stroke-width="70"/><circle cx="1180" cy="1040" r="620" fill="none" stroke="var(--desk-2)" stroke-width="34" opacity=".6"/><circle cx="1180" cy="1040" r="790" fill="none" stroke="var(--desk-2)" stroke-width="14" opacity=".45"/></svg>
   <header class="mbar" id="mbar" aria-label="菜单栏"></header>
   <aside class="widgets" id="widgets" aria-label="桌面小组件" hidden></aside>
-  <section class="win" id="win" aria-label="Tandem 主窗口">
+  <section class="panel win" id="win" aria-label="Tandem 主窗口" data-mode="win">
+    <div class="wtop" id="wtop"></div>
     <nav class="side" id="side" aria-label="主导航"></nav>
     <div class="main" id="main"></div>
+    <div class="sidescrim" id="sidescrim" data-act="sideScrim"></div>
   </section>
-  <section class="win set" id="set" aria-label="设置" hidden></section>
+  <section class="panel set" id="set" aria-label="设置" hidden></section>
   <div class="hud" id="hud"></div>
   <div class="pop" id="pop" role="dialog" aria-label="Tandem 菜单栏面板" hidden></div>
   <div class="dd" id="dd" role="menu" hidden></div>
@@ -27,7 +29,7 @@
   <div class="modal" id="modal" role="dialog" aria-modal="true" hidden></div>
   <div class="overlay" id="overlay" hidden></div>
   <div class="toast" id="toast" role="status" hidden></div>
-  <div class="tip" id="tip" hidden></div>
+  <div class="tip" id="tip" role="tooltip" hidden></div>
 </div>
 <script>
 /*@js*/

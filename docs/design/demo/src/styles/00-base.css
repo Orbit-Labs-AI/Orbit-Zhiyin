@@ -1,53 +1,72 @@
-/* Layout: a Mac desktop stage (menu bar, the Tandem window, popover, live HUD, widgets, notifications); under 900px it becomes one full-screen app with a drawer sidebar. */
+/* Tokens, fonts, resets.
+   Stage = a Mac desktop: fixed 24px menu bar, desktop widgets under the windows, a resizable main window, a settings panel,
+   floating HUD, menu-bar panel and notifications. Visual language (unchanged from the published demo): warm paper — warm
+   grey desk, warm white window and sidebar material, white cards; serif for titles / persona code / AI prose; mono for
+   numbers, eyebrows, meta and code; the system accent --accent only drives controls (selection, switches, focus, menus).
+   Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
+   Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
+   Fonts: UI = system-ui (SF Pro / PingFang in Chrome); the brand serif / mono come from Google Fonts when online and fall
+   back to Georgia + Songti SC / Menlo offline (ui-serif / ui-monospace are ignored by Chrome). */
 :root{
 --desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
---bg:#f5f4f0;--sb:#ecebe5;--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:#fbfaf8;--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;
+--bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
 --ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
---ai:#5a3fd0;--ai-bg:#efecff;--focus:#2f6feb;
---good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
---pri:#17181b;--pri-ink:#ffffff;--tip:#17181b;--tip-ink:#f3f4f6;--toast-act:#a9c7ff;--scrim:rgba(17,19,24,.32);
+--accent:#007aff;--accent-ink:#ffffff;--accent-tint:rgba(0,122,255,.14);--sel:rgba(23,24,27,.07);--sel-off:rgba(23,24,27,.045);--focus:rgba(0,103,244,.5);
+--ai:#5a3fd0;--ai-bg:#efecff;
+--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#34c759;--warn-m:#ffcc00;--crit-m:#ff383c;
+--pri:var(--accent);--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:var(--accent);--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
 --h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
 --hud:rgba(22,23,26,.95);--hud-2:rgba(255,255,255,.08);--hud-line:rgba(255,255,255,.12);--hud-ink:#f1f1f3;--hud-ink-2:#c3c6cc;--hud-ink-3:#969aa3;
---sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 1px rgba(20,24,30,.08);--sh-win:0 1px 2px rgba(0,0,0,.05),0 22px 60px rgba(20,24,30,.22),0 0 0 1px rgba(20,24,30,.1);
---sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
---serif:"Source Serif 4","Songti SC","Noto Serif SC",Georgia,serif;
---mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+--wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 .5px rgba(20,24,30,.12);--sh-win:0 0 0 .5px rgba(20,24,30,.18),0 22px 60px rgba(20,24,30,.24),0 1px 2px rgba(0,0,0,.05);
+--ease:cubic-bezier(.2,.8,.2,1);
+--sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
+--serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC","Noto Serif SC",serif;
+--mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace;
+--side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
---desk:#202227;--desk-2:#2a2d33;--menubar:rgba(30,31,34,.88);
---bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#202124;--sunken:#141517;--line:#2d2f34;--hair:#232529;
---ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
---ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;
---good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
---pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;--toast-act:#1f58d6;--scrim:rgba(0,0,0,.5);
---a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
---h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
---hud:rgba(46,47,52,.96);
---sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.1);--sh-win:0 22px 60px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.1);
+--desk:#0f0f11;--desk-2:#18181b;--menubar:rgba(32,32,36,.84);
+--bg:#161619;--sb:rgba(38,38,43,.9);--field:rgba(255,255,255,.08);--surface:#2f2f34;--raised:rgba(50,50,56,.96);--sunken:#1e1e22;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
+--ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
+--accent:#0a84ff;--accent-ink:#ffffff;--accent-tint:rgba(10,132,255,.24);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
+--ai:#b4a8ff;--ai-bg:#2f2954;
+--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
+--tip:#3a3a40;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
+--a1:#e0632f;--a1t:#452418;--a2:#3f8ce8;--a2t:#1a2f48;--a3:#1fa878;--a3t:#143627;--a4:#d08e0a;--a4t:#3d2a0c;--a5:#d85a88;--a5t:#44222d;
+--h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--hud:rgba(40,40,45,.96);
+--wg:#28282d;--wg-edge:rgba(255,255,255,.12);
+--sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
 color-scheme:dark}}
 :root[data-theme="dark"]{
---desk:#202227;--desk-2:#2a2d33;--menubar:rgba(30,31,34,.88);
---bg:#0f1012;--sb:#17181b;--field:rgba(255,255,255,.07);--surface:#1a1b1e;--raised:#202124;--sunken:#141517;--line:#2d2f34;--hair:#232529;
---ink-1:#ededef;--ink-2:#bdc0c7;--ink-3:#9a9ea7;--ink-4:#5f636a;
---ai:#b4a8ff;--ai-bg:#2a2447;--focus:#7aa7ff;
---good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;
---pri:#ededef;--pri-ink:#0f1012;--tip:#ededef;--tip-ink:#0f1012;--toast-act:#1f58d6;--scrim:rgba(0,0,0,.5);
---a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;
---h0:#1c1d20;--h1:#2a2c30;--h2:#43464c;--h3:#6c7078;--h4:#a6aab2;--h5:#ededef;
---hud:rgba(46,47,52,.96);
---sh-card:0 0 0 1px rgba(255,255,255,.02);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.08);--sh-pop:0 16px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.1);--sh-win:0 22px 60px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.1);
+--desk:#0f0f11;--desk-2:#18181b;--menubar:rgba(32,32,36,.84);
+--bg:#161619;--sb:rgba(38,38,43,.9);--field:rgba(255,255,255,.08);--surface:#2f2f34;--raised:rgba(50,50,56,.96);--sunken:#1e1e22;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
+--ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
+--accent:#0a84ff;--accent-ink:#ffffff;--accent-tint:rgba(10,132,255,.24);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
+--ai:#b4a8ff;--ai-bg:#2f2954;
+--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
+--tip:#3a3a40;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
+--a1:#e0632f;--a1t:#452418;--a2:#3f8ce8;--a2t:#1a2f48;--a3:#1fa878;--a3t:#143627;--a4:#d08e0a;--a4t:#3d2a0c;--a5:#d85a88;--a5t:#44222d;
+--h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--hud:rgba(40,40,45,.96);
+--wg:#28282d;--wg-edge:rgba(255,255,255,.12);
+--sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
 color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.45 var(--sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden}
-button,input,textarea,select{font:inherit;color:inherit;margin:0}
+body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
+input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
+button,input,textarea,select{font:inherit;color:inherit;margin:0;line-height:1.25}
 button{cursor:default}
 a{color:inherit}
-:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+h1,h2,h3{line-height:1.25}
+:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+:focus:not(:focus-visible){outline:none}
+input[type="checkbox"],input[type="radio"],input[type="range"],progress{accent-color:var(--accent)}
 svg{display:block}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .serif{font-family:var(--serif)}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-
