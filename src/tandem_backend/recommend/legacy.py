@@ -3,8 +3,8 @@
 Popularity is deliberately absent. A match supports a trial, not an effectiveness claim.
 """
 
-from .catalog import skills
-from .feedback import SCENE_LABELS
+from ..catalog import skills
+from ..feedback import SCENE_LABELS
 
 
 def trial_method(resource: dict, bottleneck: dict) -> str:
