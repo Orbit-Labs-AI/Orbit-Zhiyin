@@ -65,7 +65,19 @@ function hudPlace() {
   h.style.left = right ? 'auto' : x + 'px'; h.style.right = right ? Math.max(4, W - x - pw) + 'px' : 'auto';
   h.style.top = bottom ? 'auto' : y + 'px'; h.style.bottom = bottom ? Math.max(4, H - y - ph) + 'px' : 'auto';
   h.style.flexDirection = bottom ? 'column-reverse' : 'column'; h.style.alignItems = right ? 'flex-end' : 'flex-start';
+  notesPlace();
 }
+/* notifications hang 8px under the menu bar, or 8px under the HUD pill when the pill sits in the top-right corner they use */
+function notesPlace() {
+  const box = $('#notes'); if (!box) return;
+  const pill = $('#hudPill'); let top = MB_H + 8;
+  if (pill && !$('#hud').hidden) {
+    const r = pill.getBoundingClientRect(), d = desk.getBoundingClientRect(); const w = Math.min(344, d.width - 32);
+    if (r.top - d.top < MB_H + 60 && r.right - d.left > d.width - 16 - w && r.left - d.left < d.width - 16) top = Math.round(r.bottom - d.top) + 8;
+  }
+  box.style.top = top + 'px';
+}
+new MutationObserver(() => notesPlace()).observe($('#notes'), { childList: true });
 function toggleHud() { S.hud.show = !S.hud.show; if (!S.hud.show) S.hud.open = false; render(); toast(S.hud.show ? '已显示悬浮组件 · ' + kb('⌥⌘P') + ' 隐藏' : '已隐藏悬浮组件 · ' + kb('⌥⌘P') + ' 重新显示'); }
 let HDRAG = null;
 $('#hud').addEventListener('pointerdown', (e) => {

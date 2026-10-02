@@ -12,7 +12,7 @@
 .mbar .sp{flex:1;min-width:8px}
 .mbar .status{display:flex;align-items:center;flex:none}
 .mbar .glyph{position:relative;width:30px;padding:0;display:inline-grid;place-items:center;color:var(--ink-1)}
-.mbar .glyph .badge{position:absolute;right:5px;top:3px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--menubar)}
+.mbar .glyph .badge,.mbar .glyph .mark{position:absolute;right:5px;top:3px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--menubar)}
 .mbar .sysicon{width:28px;display:inline-grid;place-items:center}
 .mbar .clock{padding:0 4px 0 8px;font-variant-numeric:tabular-nums}
 .desk.fs .mbar{transform:translateY(-100%)}
