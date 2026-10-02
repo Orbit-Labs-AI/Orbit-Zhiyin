@@ -45,7 +45,7 @@ function askAnswer(ctx, i) {
   const rows = toolRows(L).sort((a, b) => b.fails - a.fails);
   if (i === 0) return rows[0].name + ' 失败最多：' + fmt(rows[0].fails) + ' 次（错误率 ' + f1(rows[0].err * 100) + '%）。其中最多的是「' + FAILS[0][0] + '」，占 ' + FAILS[0][1] + '%。\n\n装「重复失败熔断」后，同一命令失败 2 次会先停下诊断，不再原样重试。';
   if (i === 1) { const b = toolRows(L).find((r) => r.name === 'Bash'); return 'Bash 有 ' + Math.round(b.ap * 100) + '% 的调用需要你审批，其中大部分是 git status、ls、gh pr view 这类只读命令。\n\n把只读命令放进允许列表，每月大约能少 212 次审批；含写操作的命令仍然需要你确认。'; }
-  return S.tools.figma ? 'figma 这个 MCP 近 30 天没有被调用过，但每个会话都会加载它的工具描述（约 2.1k tokens）。可以先移除，需要时再装回来。' : 'figma 已经移除了。剩下的 browser MCP 失败率 7.8%，主要是页面加载超时，可以把等待时间调长一点。';
+  return !S.installed.has('remove-figma') ? 'figma 这个 MCP 近 30 天没有被调用过，但每个会话都会加载它的工具描述（约 2.1k tokens）。可以先移除，需要时再装回来。' : 'figma 已经移除了。剩下的 browser MCP 失败率 7.8%，主要是页面加载超时，可以把等待时间调长一点。';
 }
 function openAsk(ctx) {
   if (S.engine === 'stats') { toast('仅统计模式下无法使用 Agent 问答，请在设置中切换分析引擎'); return; }
@@ -77,6 +77,5 @@ Object.assign(ACT, {
     if (inp) inp.value = '';
   },
   askCopy: () => { if (!ASK || !ASK.text) { toast('还没有回答'); return; } copyText(ASK.text, '回答'); },
-  askStudio: () => { S.studio.goal = '依据这次问答继续：' + (ASK && ASK.q ? ASK.q : '把问答结论做成规则') + '\n\n' + (ASK && ASK.text ? ASK.text.slice(0, 160) : ''); S.studio.type = '规则'; S.studio.from = '问本地 Agent · ' + ASKN[ASK ? ASK.ctx : 'overview']; S.studio.run = null; clearInterval(ASKT); closeModal(); go('studio'); }
+  askStudio: () => { const r = S.studio.run; if (r && !r.done && !r.stopped) { toast('生成工坊正在运行，先停止或等它完成再交给它', { act: '去看看', onAct: () => go('studio') }); return; } S.studio.goal = '依据这次问答继续：' + (ASK && ASK.q ? ASK.q : '把问答结论做成规则') + '\n\n' + (ASK && ASK.text ? ASK.text.slice(0, 160) : ''); S.studio.type = '规则'; S.studio.from = '问本地 Agent · ' + ASKN[ASK ? ASK.ctx : 'overview']; S.studio.run = null; clearInterval(ASKT); closeModal(); go('studio'); }
 });
-
