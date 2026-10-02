@@ -1,5 +1,7 @@
 """Native execution durations, observed spans and separately reported estimates."""
 
+from collections import defaultdict
+
 from ...profiling.analysis import union_duration
 from ..common import nonnegative_number, quantile, timestamp
 from ..respond import execution_intervals
@@ -32,8 +34,11 @@ def summarize_durations(calls, events, intervals=None):
                      "source": source, "quality": "reliable" if duration is not None else "estimated" if estimate is not None else "unknown",
                      "evidence_event_uids": [v for v in (c.get("call_event_uid"), c.get("result_event_uid")) if v]})
     spans = []
-    for sid in sorted({e["session_uid"] for e in events or []}):
-        es = [e for e in events if e["session_uid"] == sid]
+    by_session = defaultdict(list)
+    for e in events or []:
+        by_session[e["session_uid"]].append(e)
+    for sid in sorted(by_session):
+        es = by_session[sid]
         timed = [e for e in es if timestamp(e.get("ts"))]
         times = [e["ts"] for e in timed]
         spans.append({"session_uid": sid, "first_observed_ts": min(times, default=None),
