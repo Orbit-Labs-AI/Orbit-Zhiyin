@@ -21,14 +21,14 @@ import math
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 
-from . import derive
+from . import derive, facts
 from .typecopy import AXES, SOURCE, TYPES, copy
 
 METHOD = "uiview-persona-v0"
 MIN_SESSIONS = 30
 MIN_DAYS = 10
 MIN_UNITS = {"D": 30, "I": 30, "M": 10, "V": 30}
-STEP_THRESHOLD = 5
+STEP_THRESHOLD = facts.STEP_THRESHOLD
 UNITS = {"D": "turn", "I": "session_opening", "M": "active_day", "V": "turn"}
 LEFT_RIGHT = {"D": ("D 委托", "掌舵 S"), "I": ("P 规划", "即兴 I"), "M": ("M 多线", "专注 F"),
               "V": ("V 求证", "信任 T")}

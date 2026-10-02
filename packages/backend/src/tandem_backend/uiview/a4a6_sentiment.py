@@ -151,6 +151,9 @@ def scope_sql(scope: dict | None, alias: str = "s") -> tuple[str, list]:
     if scope.get("until_ts") is not None:
         sql.append(f"{alias}.started_at < ?")
         params.append(scope["until_ts"])
+    if scope.get("session_uids") is not None:
+        sql.append(f"{alias}.session_uid IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(scope["session_uids"])))
     if scope.get("excluded_cwd_prefix"):
         sql.append(f"({alias}.cwd IS NULL OR {alias}.cwd NOT LIKE ?)")
         params.append(scope["excluded_cwd_prefix"] + "%")
@@ -532,13 +535,17 @@ def register(api, gw) -> None:
     from fastapi import Query
 
     from ..services.auth import ApiError
+    from . import a4a6_common as common
 
     many = Annotated[list[str] | None, Query()]
 
     @api.get("/v1/uiview/sentiment")
-    def sentiment(project_id: many = None, agent: many = None, since: int | None = None,
-                  until: int | None = None, days: int = Query(30, ge=1, le=730),
-                  bucket: str = "auto", tz: str | None = None):
+    def sentiment(project_id: many = None, agent: many = None, agents: str | None = None,
+                  since: int | None = None, until: int | None = None,
+                  days: int = Query(30, ge=1, le=730), bucket: str = "auto",
+                  tz: str | None = None, topic: str | None = None, outcome: str | None = None,
+                  fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
+                  wait_ms: int = Query(0, ge=0, le=3000)):
         if bucket not in ("auto", "day", "week"):
             raise ApiError(400, "invalid_request", "bucket 只接受 auto|day|week")
         if since is not None and until is not None and since >= until:
@@ -548,7 +555,12 @@ def register(api, gw) -> None:
                 ZoneInfo(tz)
             except Exception as exc:  # noqa: BLE001
                 raise ApiError(400, "invalid_request", "tz 不是有效的 IANA 时区") from exc
-        scope = {"project_ids": project_id or None, "agent_ids": agent or None,
+        ids, early = common.facet_sessions(
+            gw, {"topic": topic, "outcome": outcome, "fric": fric, "hour": hour}, tz, wait_ms)
+        if early is not None:
+            return early
+        scope = {"project_ids": project_id or None,
+                 "agent_ids": common.agent_list(agent, agents), "session_uids": ids,
                  "excluded_cwd_prefix": str(Path(gw.home) / "agent-cwd")}
         params = {"since": since, "until": until, "days": days, "bucket": bucket, "tz": tz}
         with gw.reads.read() as conn:

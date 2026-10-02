@@ -32,7 +32,7 @@ def test_rows_match_analysis_counts():
 def test_every_row_has_the_prototype_shape():
     for row in _rows():
         assert set(facts.ROW_KEYS) <= set(row)
-        assert row["mood"] is None
+        assert row["mood"] is None or -1 <= row["mood"] <= 1
         assert row["corr_basis"] == "lexical_candidate"
         assert row["out"] in ("ok", "part", "fail", None)
         assert row["out"] is None or row["out_basis"] == "estimate"

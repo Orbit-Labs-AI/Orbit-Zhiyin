@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter, defaultdict
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
@@ -622,8 +623,21 @@ def register(api, gw) -> None:
     @api.get("/v1/uiview/tools")
     def uiview_tools(scope=scope_dependency,
                      group_by: Literal["name", "kind"] = "name",
-                     agent: Annotated[list[str] | None, Query()] = None):
-        params = {"group_by": group_by, "agent": sorted(agent or [])}
+                     agent: Annotated[list[str] | None, Query()] = None,
+                     agents: str | None = None, topic: str | None = None,
+                     outcome: str | None = None, fric: str | None = None,
+                     hour: int | None = Query(None, ge=0, le=23),
+                     wait_ms: int = Query(0, ge=0, le=3000)):
+        facets = {"topic": topic, "outcome": outcome, "fric": fric, "hour": hour}
+        params = {"group_by": group_by, "agent": common.agent_list(agent, agents) or [],
+                  **{k: v for k, v in facets.items() if v not in (None, "")}}
+        ids, early = common.facet_sessions(gw, facets, scope.display_timezone, wait_ms)
+        if early is not None:
+            return early
+        if ids is not None:
+            current = scope.root_session_uids
+            scope = replace(scope, root_session_uids=ids if current is None
+                            else sorted(set(ids) & set(current)))
         rev = gw.revisions.snapshot()
         if rev.get("data_rev") is None:
             return {"meta": common.ui_meta(scope, rev, {}, params=params, freshness="none",
