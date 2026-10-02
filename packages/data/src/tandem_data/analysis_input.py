@@ -236,7 +236,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         roots = {event["root_uid"] for event in selected}
         session_rows = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM session")
+            for row in connection.execute(
+                "SELECT * FROM session WHERE session_uid IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(sessions | roots)),),
+            )
             if row["session_uid"] in sessions | roots
         ]
         if scope.until_ts is not None:
@@ -259,12 +262,18 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         project_ids = {event["project_id"] for event in selected}
         project_rows = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM project")
+            for row in connection.execute(
+                "SELECT * FROM project WHERE project_id IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(p for p in project_ids if p is not None)),),
+            )
             if row["project_id"] in project_ids
         ]
         turn_rows = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM turn")
+            for row in connection.execute(
+                "SELECT * FROM turn WHERE turn_uid IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(selected_turns)),),
+            )
             if row["turn_uid"] in selected_turns
         ]
         for turn in turn_rows:
@@ -280,7 +289,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                 turn["ended_at"], turn["status"] = None, "unknown"
         snapshots = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM usage_snapshot")
+            for row in connection.execute(
+                "SELECT * FROM usage_snapshot WHERE event_uid IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(members)),),
+            )
             if row["event_uid"] in members
         ]
         unrestricted = (
