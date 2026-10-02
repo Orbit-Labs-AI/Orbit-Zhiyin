@@ -4,7 +4,9 @@ from .cost_time.dictionary import FEATURES as COST_TIME_FEATURES
 from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES
 from .interaction.dictionary import FEATURES as INTERACTION_FEATURES
 from .outcome.dictionary import FEATURES as OUTCOME_FEATURES
+from .preference.dictionary import FEATURES as PREFERENCE_FEATURES
 from .respond.dictionary import FEATURES as RESPOND_FEATURES
+from .task.dictionary import FEATURES as TASK_FEATURES
 
 FEATURES = {}
 
@@ -54,5 +56,14 @@ FEATURES.update(INTERACTION_FEATURES)
 FEATURES.update(RESPOND_FEATURES)
 FEATURES.update(COST_TIME_FEATURES)
 FEATURES.update(OUTCOME_FEATURES)
+
+define("user_acceptance", "feedback message", "Explicit accepted/rejected/mixed clauses after a linked prior final delivery; no silence inference", "confirmed human text + delivery/task identity", kind="proxy")
+define("user_confirmed_completion", "feedback target", "Explicit human completion/incompletion, independent of acceptance; scope retained", "confirmed human text + linked delivery", kind="proxy")
+define("rework_feedback", "feedback message", "Explicit revision request; retain request and explicit reason; new requirements alone are not rework", "confirmed human text + linked delivery", kind="proxy")
+define("feedback_target", "delivery relation", "Explicit same-session delivery/artifact/version or latest prior shared task; heuristic legacy task IDs remain candidates", "event.attrs + seq", kind="deterministic_derived")
+define("feedback_evidence", "evidence record", "event_uid, normalized redacted evidence_text, seq, ts and available_at; missing clock is sequence-only", "confirmed human event", kind="direct_observation")
+define("accepted_feedback_count rejected_feedback_count confirmed_completion_count confirmed_incompletion_count rework_feedback_count", "linked feedback message", "Count only linked explicit feedback in selected scope; not unique tasks, satisfaction or task success", "subjective_outcomes.feedback", "linked feedback messages", "proxy")
+FEATURES.update(PREFERENCE_FEATURES)
+FEATURES.update(TASK_FEATURES)
 # Family-owned definitions retain the established global lookup surface.
 FEATURES.update(INSTRUCTION_FEATURES)

@@ -101,6 +101,25 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
     def feature_text(scope=scope_dependency):
         return analytics_section("text", scope)
 
+    @app.get("/v1/analytics/tasks")
+    def feature_tasks(scope=scope_dependency):
+        return analytics_section("tasks", scope)
+
+    @app.get("/v1/analytics/preferences")
+    def feature_preferences(scope=scope_dependency, task_id: str | None = None):
+        from .analytics.preference import resolve_effective_preferences
+        from .analytics.service import response_section
+        data = analytics_data(scope, with_text=False)
+        task = None
+        if task_id is not None:
+            task = next((t for t in data["tasks"]["records"] or [] if t["task_id"] == task_id), None)
+            if task is None:
+                raise HTTPException(404, "任务不在本次分析范围内")
+        result = response_section(data, "preferences")
+        result["preferences"]["effective"] = resolve_effective_preferences(
+            data["preferences"]["records"], task, at=scope.until_ts - 1 if scope.until_ts is not None else None)
+        return result
+
     @app.get("/health")
     def health():
         return {"status": "ok", "version": __version__, "counts": store.counts()}
