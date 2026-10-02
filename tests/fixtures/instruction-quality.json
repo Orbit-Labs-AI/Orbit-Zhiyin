@@ -282,5 +282,88 @@
     "id": "quotation-only",
     "text": "\"Do not run tests\"",
     "expected": {}
+  },
+  {
+    "id": "english-habit",
+    "text": "We run tests every day",
+    "expected": {}
+  },
+  {
+    "id": "program-behavior",
+    "text": "程序会运行测试",
+    "expected": {}
+  },
+  {
+    "id": "past-check",
+    "text": "昨天运行了测试",
+    "expected": {}
+  },
+  {
+    "id": "explain-phrase",
+    "text": "请解释先给方案是什么意思",
+    "expected": {}
+  },
+  {
+    "id": "separate-polarity",
+    "text": "不要推送，请运行测试",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ],
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "negated-order",
+    "text": "不要先给方案",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "unneeded-test",
+    "text": "不需要运行测试",
+    "expected": {}
+  },
+  {
+    "id": "negative-autonomy",
+    "text": "Do not proceed autonomously",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "single-quote",
+    "text": "'Proceed autonomously' is a quote",
+    "expected": {}
+  },
+  {
+    "id": "statement-autonomy",
+    "text": "程序无需确认",
+    "expected": {}
+  },
+  {
+    "id": "english-please-test",
+    "text": "Please run tests",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "verify-after-change",
+    "text": "修改后请运行测试",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
   }
 ]

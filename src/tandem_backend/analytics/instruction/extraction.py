@@ -68,7 +68,23 @@ def _clauses(text):
     for part in re.split(r"[。；;！!？?\n]+|\.(?=\s|$)", text):
         part = re.sub(r"^\s*(?:[-*+]\s+|\d+[.)、]\s*)", "", part).strip()
         if part and not REPORTING.search(part):
-            yield part
+            # Independent commands separated by a comma have independent polarity.
+            pieces = ([part] if CONDITION.search(part) else re.split(
+                r"[，,]\s*(?=(?:请|不要|禁止|只(?:能)?修改|仅修改|先|使用|直接|运行|验收标准|"
+                r"please\b|do not\b|run\b|use\b))", part, flags=re.I))
+            yield from pieces
+
+
+
+def _request_prefix(clause, start):
+    """Reject narrative/metalinguistic prefixes before a matched directive."""
+    prefix = re.split(r"[，,]", clause[:start])[-1].strip()
+    if CONDITION.search(prefix):
+        return True
+    return bool(re.fullmatch(
+        r"(?:(?:请你?|必须|务必|需要你?|记得|然后|再|并且|并|还要|提交前|修改后|完成后|"
+        r"执行后|确认后|最后|先|现在)\s*)*|"
+        r"(?:(?:please|you must|you should|then|first)\s*)*", prefix, re.I))
 
 
 def extract_instruction_constraints(messages, *, main_ids):
@@ -95,7 +111,7 @@ def extract_instruction_constraints(messages, *, main_ids):
             for feature, rules in RULES.items():
                 for value, pattern in rules:
                     match = pattern.search(clause)
-                    if match is None:
+                    if match is None or not _request_prefix(clause, match.start()):
                         continue
                     # Negated checks/format/tool requests are prohibitions, never positives.
                     if feature == "verification_requirements" and RULES["acceptance_criteria"][0][1].search(clause):

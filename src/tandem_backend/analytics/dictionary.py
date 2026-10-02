@@ -1,5 +1,7 @@
 """Machine-readable feature meanings shared by all analytics endpoints."""
 
+from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES
+
 FEATURES = {}
 
 
@@ -34,9 +36,6 @@ define("consecutive_failed_calls", "adjacent failed pair", "Adjacent failed logi
 define("confirmed_same_argument_failed_retries", "adjacent failed pair", "Same tool, literal argument digest and known equal status_scope; wrapper-level only when wrapper", "tool_call + L2 attrs")
 define("correction_signal_count", "human message", "Messages matching conservative correction lexical markers; evidence only", "confirmed human text", kind="proxy")
 define("correction_signal_rate", "ratio", "Signal messages / confirmed human messages", "confirmed human text", "confirmed human messages in main sessions", "proxy")
-define("prompt_char_count prompt_line_count paragraph_count question_mark_count bullet_count numbered_list_count code_block_count url_count file_reference_count explicit_format_request_count explicit_tool_mention_count constraint_marker_count",
-       "occurrence", "Structural regex counts over normalized human text; removed code fences stay unknown", "confirmed human text", kind="proxy")
-define("constraint_density", "marker / character", "Constraint marker count / retained normalized prompt chars", "confirmed human text", "retained prompt chars", "proxy")
 define("language_signals", "file extension occurrence", "Map explicit file extensions; no guessing language from semantics", "confirmed human text", kind="proxy")
 define("request_count", "model request", "Unique call_uid with call/delta and reliable boundary", "model_call")
 define("total_tokens", "token", "input_tokens + cache_read_tokens + cache_write_tokens + output_tokens; reasoning already included", "compatible complete usage buckets")
@@ -48,6 +47,4 @@ define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroi
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
 
 # Family-owned definitions retain the established global lookup surface.
-from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES  # noqa: E402
-
 FEATURES.update(INSTRUCTION_FEATURES)
