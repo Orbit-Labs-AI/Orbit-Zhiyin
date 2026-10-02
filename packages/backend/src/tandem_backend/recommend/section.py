@@ -12,6 +12,7 @@ import json
 import math
 import re
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
 
 from ..services.sections import Section, register
@@ -74,7 +75,7 @@ def compute(store, scope, params, memo) -> dict:
     with store.connect() as conn:
         facts, agents = _facts(conn, root_of, roots, signals, diagnostics, result)
         facts.update(_kb_facts(conn, root_of, roots, diagnostics))
-        inventory = _inventory(conn, diagnostics)
+        inventory = _inventory(conn, diagnostics, getattr(store, "home", None))
         projects = _projects(conn, {r.get("project_id") for r in roots}, diagnostics)
     starts = [r["started_at"] for r in roots if r.get("started_at") is not None]
     first, last = (min(starts), max(starts)) if starts else (None, None)
@@ -86,7 +87,7 @@ def compute(store, scope, params, memo) -> dict:
         "sessions": {"main": len(roots), "first_ts": first, "last_ts": last,
                      "weeks": round(weeks, 3)},
         "signals": signals, "assessments": assessments, "tasks": _tasks(result),
-        "facts": facts, "inventory": inventory, "projects": projects, "profile": _profile(scope, diagnostics),
+        "facts": facts, "inventory": inventory, "projects": projects, "profile": _profile(scope, diagnostics, getattr(store, "home", None)),
         "legacy_cards": (br.get("recommendations") or [])[:20], "diagnostics": diagnostics,
     }
     return cap(inputs)
@@ -746,11 +747,36 @@ def _linked_item(item: dict) -> dict:
             "catalog_item_id": (item.get("catalog") or {}).get("item_id")}
 
 
-def _inventory(conn, diagnostics: list) -> list[dict] | None:
+def _unbound(home) -> bool:
+    """The analysis worker has no FeatureService bound (only the gateway binds one); it
+    reads the feature layer directly from ``home``, read-only."""
+    from .. import features
+
+    return features.current() is None and home is not None and Path(home, "app.db").is_file()
+
+
+def _linked_readonly(home) -> dict:
+    """features.linked_inventory without a bound service: read-only, nothing persisted."""
+    from ..features.linked import catalog_rev, compute_linked, open_connection
+
+    conn = open_connection(Path(home))
+    try:
+        data = conn.execute("SELECT MAX(run_id) FROM t.projection_run").fetchone()[0]
+        inventory = conn.execute("SELECT COALESCE(MAX(scan_id), 0) FROM t.inventory_scan"
+                                 ).fetchone()[0]
+        revs = {"data": data, "inventory": inventory, "catalog": catalog_rev(conn) or "0"}
+        return compute_linked(conn, revs=revs, write=None)
+    finally:
+        conn.close()
+
+
+def _inventory(conn, diagnostics: list, home=None) -> list[dict] | None:
     try:
         from ..features import linked_inventory
     except ImportError:
         linked_inventory = None
+    if linked_inventory is not None and _unbound(home):
+        linked_inventory = partial(_linked_readonly, home)
     if linked_inventory is not None:
         try:
             return [_linked_item(item) for item in linked_inventory().get("items") or ()]
@@ -801,11 +827,28 @@ def file_size(path: str | None) -> tuple[int, int] | None:
     return lines, math.ceil(len(data) / 3.5)
 
 
-def _profile(scope, diagnostics: list) -> dict | None:
+def _profile_readonly(home, scope) -> dict:
+    """features.profile without a bound service: built from the materialized session
+    features over a read-only hub; nothing is cached or materialized here."""
+    from types import SimpleNamespace
+
+    from ..features.hub import QueryHub
+    from ..features.profile import build_profile
+
+    hub = QueryHub(Path(home), Path(home, "app.db"), workers=1)
+    try:
+        return build_profile(SimpleNamespace(hub=hub), scope)
+    finally:
+        hub.close()
+
+
+def _profile(scope, diagnostics: list, home=None) -> dict | None:
     try:
         from ..features import profile
     except ImportError:
         return None
+    if _unbound(home):
+        profile = partial(_profile_readonly, home)
     try:
         return profile(scope)
     except Exception as error:  # noqa: BLE001
