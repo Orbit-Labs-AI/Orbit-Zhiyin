@@ -155,6 +155,11 @@ class Store:
             except BaseException:
                 self.db.close()
                 raise
+        # Index-only upgrades apply to existing stores without changing the logical
+        # schema version (including separately developed additive schema migrations).
+        self.db.executescript(
+            files("tandem_data").joinpath("migrations/projection_indexes.sql").read_text()
+        )
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (

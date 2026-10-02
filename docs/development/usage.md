@@ -70,7 +70,7 @@ uv run tandem serve
 
 ## 真实历史的进度、取消与大库分析
 
-首次全量导入会归档原文、逐条脱敏/校验并生成 L2/L3；文件数不等于会话数。终端在 stderr 显示 `capture → reset_projection → prepare → map → derive → validate_projection → published` 的阶段、文件/记录数量与耗时，stdout 仍是 JSON。`--no-progress` 可关闭进度。单个大文件和事务更新期间只显示当前阶段，不提供虚假的总完成百分比或剩余时间。同一项目的 Git 探测在单次重算内复用，下次重算重新探测。
+首次全量导入会归档原文、逐条脱敏/校验并生成 L2/L3；文件数不等于会话数。终端在 stderr 显示 `capture → reset_projection → prepare → map → derive → validate_projection → published` 的阶段、文件/记录数量与耗时，stdout 仍是 JSON。`--no-progress` 可关闭进度。单个大文件和事务更新期间只显示当前阶段，不提供虚假的总完成百分比或剩余时间。同一项目的 Git 探测在单次重算内复用，下次重算重新探测。打开数据库时幂等补齐派生表的外键索引，避免延迟外键检查随数据量增长反复扫描子表；逻辑 schema 版本和字段契约不变。
 
 Ctrl+C 以退出码 130 结束；当前投影事务回滚，已提交的原始归档保留。重新运行原来的 `ingest` 会跳过未变化文件并重新执行未完成的标准化；已有归档可直接用 `uv run tandem --home .tandem rebuild` 重算。未完成标准化时不能运行分析，不能把 L1 默认的 `unparsed` 数量当成已确认的解析错误。
 
