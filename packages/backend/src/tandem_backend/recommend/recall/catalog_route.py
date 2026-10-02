@@ -8,12 +8,14 @@ catalog service we fall back to a small BM25 over the bundled legacy seeds.
 """
 
 import math
+import re
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from functools import lru_cache
 
+from ..narrate import TRIAL_FALLBACK, TYPE_LABEL, TYPE_ZH, audience_default
 from .kb_route import evidence_of, project_of, target_agents
 from .sparse import tokenize
 
@@ -27,6 +29,15 @@ KIND_DIM = {"rule": "rule", "prompt": "rule", "permission_rule": "hook", "skill"
             "mcp": "mcp", "plugin": "mcp", "subagent": "agent", "model": "model", "workflow": "flow",
             "builtin": "hook", "removal": "rule", "generate": "skill"}
 PER_PROBLEM, TIMEOUT_S, MIN_PROFILE_EVIDENCE = 8, 2., 3
+MAX_TRIAL = 60
+# Evaluation protocol wording (A/B comparisons, statistics) is not a user's trial method.
+EVAL_TRIAL = re.compile(r"对照|对比.*前后|统计")
+NOT_INSTALLABLE = ("不是可直接安装", "不能直接")
+
+
+def _user_trial(text: str | None) -> str:
+    text = (text or "").strip()
+    return text if text and len(text) <= MAX_TRIAL and not EVAL_TRIAL.search(text) else TRIAL_FALLBACK
 
 
 def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: str) -> dict:
@@ -34,9 +45,13 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
     kind = item["kind"]
     support = item.get("support") or {agent: "native" for agent in item.get("agents") or ()}
     risk_flags = list(item.get("risk") or ())
+    limitation = item.get("limitation") or ""
+    level = 4 if any(word in limitation for word in NOT_INSTALLABLE) else min(4, max(1, int(item.get("difficulty") or 2)))
+    mechanism = (f"资源库条目：用{TYPE_LABEL.get(kind, kind)}应对「{TYPE_ZH.get(problem['type'], problem['type'])}」"
+                 if problem else "")
     return {
         "rec_key": "catalog:" + item["item_id"], "problem": problem, "kind": kind, "dim": KIND_DIM.get(kind, "skill"),
-        "level": min(4, max(1, int(item.get("difficulty") or 2))), "audience_min": 1 if kind in ("plugin", "mcp") else 0,
+        "level": level, "audience_min": audience_default(kind, level),
         "title": item["name"], "summary": item.get("summary") or "", "match_basis": match_basis,
         "routes": {}, "fusion": 0., "evidence": evidence_of(problem),
         "source": {"origin": "catalog", "item_id": item["item_id"], "url": item.get("url"),
@@ -55,8 +70,8 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         "risk": {"level": "medium" if len(risk_flags) > 1 else "low", "flags": risk_flags},
         "requirements": {"tools": [], "software": []}, "gates_hint": {"scenes": None, "language": None},
         "unit_minutes": 1., "tags": list(item.get("tags") or ()), "file": None,
-        "explain_hints": {"reason_template": (problem or {}).get("reason") or "", "mechanism": "",
-                          "trial": item.get("trial") or "", "limitation": item.get("limitation") or "",
+        "explain_hints": {"reason_template": (problem or {}).get("reason") or "", "mechanism": mechanism,
+                          "trial": _user_trial(item.get("trial")), "limitation": limitation,
                           "vars": dict((problem or {}).get("vars") or {})},
     }
 
