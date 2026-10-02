@@ -89,6 +89,7 @@ class ImportService:
                 if request.files is None and request.limit is None
                 else "sample",
             }
+            self.progress({"stage": "capture", "completed": 0, "total": len(selected)})
             for item in selected:
                 if cancel and cancel.is_set():
                     result["cancelled"] = True
@@ -145,7 +146,9 @@ class ImportService:
             ).fetchone()
             if request.rebuild and not result["cancelled"] and (stale_sources or unpublished):
                 self.progress({"stage": "normalize", "agent": request.agent})
-                result["projection"] = self.store.rebuild(source_ids=stale_sources)
+                result["projection"] = self.store.rebuild(
+                    source_ids=stale_sources, progress=self.progress
+                )
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)
             result["current_unparsed"] = self.store.db.execute(
                 "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",
