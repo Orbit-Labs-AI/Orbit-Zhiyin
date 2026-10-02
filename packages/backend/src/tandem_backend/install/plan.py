@@ -26,7 +26,7 @@ REQUIRED = {"permission_rule": ("allow",), "rule": ("text",), "skill": ("name", 
             "mcp": ("name",), "plugin": ("plugin", "marketplace"), "setting": ("settings",)}
 FILE_KINDS = ("skill", "subagent", "command", "rule")
 INVENTORY_KIND = {"skill": "skill", "mcp": "mcp", "hook": "hook", "plugin": "plugin", "rule": "rule"}
-SUMMARY_KEYS = ("idx", "agent", "scope", "display", "action", "mappable", "reason", "requires_trust",
+SUMMARY_KEYS = ("idx", "agent", "scope", "display", "action", "mappable", "reason", "reason_text", "requires_trust",
                 "shared_layer", "note", "group")
 
 

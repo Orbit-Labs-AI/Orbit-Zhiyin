@@ -96,7 +96,8 @@ class InstallService:
             idx = t["idx"]
             row = {"idx": idx, "agent": t.get("agent"), "scope": t.get("scope"), "display": t.get("display"),
                    "path": t.get("path"), "action": t.get("action"), "mappable": bool(t.get("mappable")),
-                   "reason": t.get("reason"), "requires_trust": bool(t.get("requires_trust")),
+                   "reason": t.get("reason"), "reason_text": t.get("reason_text"),
+                   "requires_trust": bool(t.get("requires_trust")),
                    "shared_layer": bool(t.get("shared_layer")), "note": t.get("note"), "group": t.get("group"),
                    "exists": False, "guard_hash": None, "units": [], "diff": {"lines": [], "adds": 0, "dels": 0},
                    "command": None, "conflict": None}
