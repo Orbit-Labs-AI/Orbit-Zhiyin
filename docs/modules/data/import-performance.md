@@ -108,6 +108,25 @@
 - **full 首次导入**：wall 与 CPU 的加速比一致，都约 4.2–4.3×，说明差距不是负载造成的。上一轮同口径测量为 472.8 s → 107.7 s（4.39×），同样未达标。
 - **full 渐进全程**：比值 1.305 与上限 1.3 只差 0.5%。渐进导入与普通导入不是同一时段运行：渐进运行开始时负载 16.4，普通导入开始时负载 10.8，判为临界未达标。
 
+### 首导写者剖析与重叠（`wip/yhyfhgs-fullimport`）
+
+med 首导（默认 workers，基准锁内，load≈12）按阶段计时，写者共 12.6 s：
+
+| 阶段 | 耗时 | 说明 |
+| --- | --- | --- |
+| map（含 L2 批量插入 2.6 s、父链接、invalid 扫描、FTS 收尾） | 5.1 s | `executemany` 插入 event 本身约 2.2 s，主要是随机主键 B 树与触发器 |
+| derive_sessions + derive_metadata | 2.6 s | `_derive_session` 1.7 s，其余为逐会话两次读事件与 JSON 解码 |
+| capture（写者 `index_file` 1.5 s） | 2.0 s | |
+| 发布校验（范围内外键、记账、水位、COMMIT） | 1.3 s | `MapPlan.validate` 0.7 s |
+| prepare（等待 worker 阶段 A） | 1.2 s | 写者空等 |
+| reset_projection / 索引重建 / FTS | 0.4 / 0.13 / 0.07 s | |
+
+据此做的改动（结果不变：small、med 的 `logical_digest` 与 `8dca571` 逐字节相同，med 为 `424f28b4…`；`verify` ok、`foreign_key_check` 空、记账不一致 0）：
+
+- **捕获与映射重叠**：首导时 `parallel.capture` 每写完一个行格式文件就提交其 `map_file` 任务；`MapPlan` 只在重新构造的任务与之完全相等时复用该 future，否则取消并清理溢出文件。渐进批次传 `premap=False`。
+- **derive**：元数据阶段只取元数据事件与含 `git_root` 的事件；会话阶段只读用到的列；tool_call / tool_call_event / turn / session_feature 按表 `executemany`。
+- **映射收尾**：父事件链接一次 `executemany`；invalid 记录扫描限定本次重建文件（其他来源的 L2 问题不会被删除）；水位更新一次 `executemany`。
+
 ## 合并注意
 
 本包与进行中的 `feat/data-app-integration` 在 `pipeline.py`、`service.py` 有文本冲突，解决时注意语义：
