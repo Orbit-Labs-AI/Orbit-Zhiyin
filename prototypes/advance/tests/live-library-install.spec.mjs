@@ -142,7 +142,7 @@ test('live install: preview, target selection, preview_stale re-confirm, apply, 
   await page.locator('#modal [data-act="instDo"]').click();
   // 409 preview_stale: back to the diff with a notice, nothing written
   await expect(page.locator('#modal [data-tl="inst-stale"]')).toContainText('重新生成预览');
-  expect(gw.seen.filter((s) => s.path === '/v1/install/apply')[0].body).toEqual({ plan_id: 'plan-fx-1', preview_digest: 'sha256:fx-digest-b', disabled_targets: [1] });
+  expect(gw.seen.filter((s) => s.path === '/v1/install/apply')[0].body).toEqual({ plan_id: 'plan-fx-1', preview_digest: 'sha256:fx-digest-b', disabled_targets: [1], surface: 'A8' });
   await page.waitForTimeout(450);
   await page.locator('#modal [data-act="instNext"]').click();
   await page.waitForTimeout(450);
@@ -190,6 +190,10 @@ test('live Lite library: catalog cards, detail and install (preview_stale re-con
   await expect(lib.locator('.lib-feature')).toHaveCount(3);
   await expect(lib.locator('.lib-row')).toHaveCount(1);
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+  // B09: the official source label is Orbit's; B08: raw `agent: … command: …` index metadata never reaches a card
+  await expect(lib).toContainText('Orbit 官方');
+  await expect(lib).not.toContainText('Tandem 官方');
+  await expect(lib).not.toContainText(/(?:^|\s)(?:agent|command|dimension):\s/);
   await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="li-detail"]').evaluate((el) => el.click());
   await expect(page.locator('#modal [data-tl="lib-readme"]')).toContainText('同一命令连续失败两次后暂停');
   await expect(page.locator('#modal [data-tl="lib-versions"]')).toContainText('0.9.0');

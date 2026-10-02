@@ -191,7 +191,7 @@ function liDraw() {
     html = modalHead('预览变更 · ' + name, '正在生成安装计划…') + liProg(1) + '<div class="mb" data-tl="inst-loading">' + TLU.skeleton() + '</div><div class="mf">' + close + '</div>';
   } else if (st.step === 9) {
     const pl = st.plan || {};
-    html = modalHead('安装 ' + name, pl.status === 'link_only' ? '该资源只能按来源说明手动安装' : '没有可自动写入的目标') + '<div class="mb col" style="gap:8px" data-tl="inst-manual">' + (pl.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') + (pl.links || []).map((u) => liLink(u, esc(u), 'lnk mono')).join('') + '</div><div class="mf">' + close + '</div>';
+    html = modalHead('安装 ' + name, pl.status === 'link_only' ? '该资源只能按来源说明手动安装' : '没有可自动写入的目标') + '<div class="mb col" style="gap:8px" data-tl="inst-manual" data-status="' + esc(pl.status || '') + '">' + (st.reason ? '<div class="tl-banner" role="status" data-tl="inst-reason">' + esc(st.reason) + '</div>' : '') + (pl.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') + (pl.links || []).map((u) => liLink(u, esc(u), 'lnk mono')).join('') + '</div><div class="mf">' + close + '</div>';
   } else if (st.step === 1) {
     const pv = st.preview, ts = TL.li.helpers.liTargets(pv), tot = pv.totals || {};
     const sc = $('#modal .mb'); const top = sc ? sc.scrollTop : 0;
@@ -235,11 +235,12 @@ function liRepreview() {
 }
 function liDemoExtra(x) { return { id: x.name, kind: TL.li.kindLabel(x.kind), desc: x.summary || '', src: x.origin === 'local' ? '本地生成' : (x.license || '社区'), compat: liAgents(x.agents), rec: null }; }
 function liInstall(x) {
-  const st = { live: true, card: x, step: 0, t: Date.now(), sel: { disabled: new Set(), units: {} }, busy: true, overrideRisk: false };
+  // x.source: {type: 'candidate' | 'catalog' | 'artifact', id}; x.surface: where the install started (A7 | lite | A8 | A9)
+  const st = { live: true, card: x, step: 0, t: Date.now(), sel: { disabled: new Set(), units: {} }, busy: true, overrideRisk: false, surface: x.surface || 'A8' };
   INST = st; liDraw();
-  TL.li.prepare(x.source || { type: 'catalog', id: x.item_id }, { itemAgents: x.agents, catalogId: x.catalogId, defaultOff: (plan) => (plan.targets || []).filter((t) => t.agent !== (plan.agents || [])[0]).map((t) => t.idx) }).then((r) => {
+  TL.li.prepare(x.source || { type: 'catalog', id: x.item_id }, { itemAgents: x.agents, defaultOff: (plan) => (plan.targets || []).filter((t) => t.agent !== (plan.agents || [])[0]).map((t) => t.idx) }).then((r) => {
     if (INST !== st) return;
-    st.plan = r.plan; st.preview = r.preview; st.busy = false; st.step = r.preview ? 1 : 9;
+    st.plan = r.plan; st.preview = r.preview; st.reason = r.reason || null; st.busy = false; st.step = r.preview ? 1 : 9;
     if (r.sel) st.sel.disabled = new Set(r.sel.disabled);
     liDraw();
   }, (e) => {
@@ -281,7 +282,22 @@ function liInstalledSheet(more) {
   });
 }
 
-const liBase = { openInstall, libInstalled: ACT.libInstalled };
+const liBase = { openInstall, libInstalled: ACT.libInstalled, studioInstall: ACT.studioInstall, studioUndo: ACT.studioUndo };
+// A9 生成工坊「安装」: a reviewed AI artifact goes through the same sheet with source {type: 'artifact'}; without a live
+// artifact (mock run, job still running) the demo sheet stays.
+function liStudioInstall(el, e) {
+  const run = S.studio && S.studio.run; const art = run && run.live && run.art && run.art.artifact_id ? run.art : null;
+  if (!art || typeof liInstall !== 'function') return liBase.studioInstall(el, e);
+  if (!run.done) { toast('生成完成后才能安装'); return; }
+  if (run.installed) { toast('已经安装过了；要重装先撤销'); return; }
+  liInstall({ item_id: 'art:' + art.artifact_id, name: art.title || art.name || (S.studio.type + ' · ' + art.artifact_id), kind: art.kind || null, summary: art.summary || '', source: { type: 'artifact', id: art.artifact_id }, surface: 'A9',
+    onDone: (res) => { run.installed = res.install_id; run.liveInstall = res.install_id; if (typeof refreshStudio === 'function') refreshStudio(); } });
+}
+function liStudioUndo(el, e) {
+  const run = S.studio && S.studio.run;
+  if (!run || !run.liveInstall) return liBase.studioUndo(el, e);
+  liUndo(run.liveInstall, S.studio.type).then((ok) => { if (ok) { run.installed = null; run.liveInstall = null; if (typeof refreshStudio === 'function') refreshStudio(); } });
+}
 // A demo sheet opened while the live routes are degraded carries the 示例数据 badge under its title.
 function liMarkSample() { const mh = $('#modal .mh h2'); if (mh && !$('#modal [data-tl="sample"]')) mh.insertAdjacentHTML('afterend', '<div>' + TLU.sample() + '</div>'); }
 if (TL.mode === 'live') {
@@ -325,10 +341,11 @@ if (TL.mode === 'live') {
       const card = isLive() ? liCard(el.dataset.id) || (S.li.detail && S.li.detail.id === el.dataset.id ? S.li.detail.data || S.li.detail.card : null) : null;
       if (!card) return base.getLib(el);
       if (liInstalledId(card)) { toast('「' + card.name + '」已经安装'); return; }
-      liInstall(card);
+      liInstall(Object.assign({}, card, { surface: S.route === 'l-library' || /^l-/.test(S.route) ? 'lite' : 'A8' }));
     },
     liRevert: (el) => { const id = el.dataset.id; liUndo(id, null).then(() => { if (S.li.sheet) liInstalledSheet(); }); },
     libInstalled: () => liInstalledSheet(false),
+    studioInstall: liStudioInstall, studioUndo: liStudioUndo,
     liOpen: (el) => { const url = el.dataset.url; if (/^https?:\/\//.test(url || '')) ORBIT.native.request('openExternal', { url }); },
     liSyncRetry: () => { S.li.sync = null; liSyncStart(0); },
     liLedgerMore: () => liInstalledSheet(true),
