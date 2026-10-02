@@ -40,6 +40,8 @@ const PJ = [
     titles: ['整理下载目录', '咖啡数据回归分析', '读论文并写笔记', '量化因子衰减综述溯源', '配置新机器环境'] }
 ];
 const PJI = {}; PJ.forEach((p) => { PJI[p.id] = p; });
+// sidebar user row (25-nav sideFoot): the demo persona; live mode (90-live-core) swaps in a neutral local-user label
+const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
   cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
   cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
@@ -47,10 +49,10 @@ const AFF = {
   ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
   cp: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
-const DAY0 = Date.UTC(2026, 5, 3);
-const LASTDAY = 119;
+let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
+let LASTDAY = 119;
 const dayDate = (d) => new Date(DAY0 + d * 86400000);
-const wd = (d) => (2 + d) % 7;
+const wd = (d) => (new Date(DAY0 + d * 86400000).getUTCDay() + 6) % 7;   // 0 = Monday
 const WD = ['一', '二', '三', '四', '五', '六', '日'];
 const md = (d) => { const x = dayDate(d); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate(); };
 const mdz = (d) => { const x = dayDate(d); return (x.getUTCMonth() + 1) + ' 月 ' + x.getUTCDate() + ' 日'; };

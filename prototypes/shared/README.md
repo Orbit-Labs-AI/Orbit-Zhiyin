@@ -36,3 +36,17 @@ pnpm --filter @tandem/prototype-lite check    # benchmark 检查 + sync --check 
 - `tests/`：`node --test`，覆盖 ETag/304、合并与取消、陈旧→刷新、202→`analysis.ready`、503 保留上一屏、SSE 重连 / 续传 / resync、live 失败不回退、示例数据徽标、Scope 序列化。
 - `prototypes/advance/tests/live-adapter.spec.mjs`：Playwright 用 `page.route` 模拟 gateway，覆盖 mock 不变与 live 各页面。
 - `fixtures/*.json`：手写合成夹具（含 `meta`、`202 computing`、`stale`、`503`、空态），不依赖后端实现，也不含真实会话。
+
+## 优化建议（recs 段）
+
+- 适配层 `tandem-live.js` 的 recs 段：`TandemLive.recs.row(cand)` 把 `/v1/recommendations` 的 `Cand.ui` 映射为原型 `RECS` 行（节省时间由 `score.benefit` 折算，缺失为 `null` →「—」）；`C.recs` 提供 `desc / resource(surface)`、`detail`、`relations`、`exposure`、`viewed`（按 surface 去重的批量 view）、`label / unlabel`、`recompute`、`invalidate`。
+- Advance：`src/js/97-live-recs.js` 在 live 下替换 `RECS / RECI / REC_X`，沿用 A7、A1「本周建议」、Lite 首页与 l-recs、菜单栏的原渲染器；`recOrder / recTop(surface)` 把后端 A1 / lite / menubar 稳定置顶排在前面。不适用（含原因）/ 稍后 / 不再推荐同类写 label，8 秒内可撤销。
+- Lite 单文件：`@tandem-live recs block` 绑定「优化建议」页。
+- 降级：从未取得 live 数据且端点 404 / 501 / 503 / 离线时保留演示数据并标「示例数据」；取得过 live 数据后失败只保留上一屏。
+- 夹具：`fixtures/recs/*.json`（每个端点一份，合成数据）；单测 `tests/tandem-live-recs.test.cjs`。
+
+## 运行态、会话操作与导出（ops 段）
+
+- 适配层 `C.ops`（`tandem-live.js` 中 `ops` 分区）：`realtime()` 读 `/v1/analytics/realtime?lanes=1`，`startStream()` 保持 `/v1/analytics/realtime/stream`（每帧完整快照，指数退避重连，404 / 501 时停止）；`dismiss`；`exclude / include / resume / locate / toolCalls`；`csv`（文本）、`report`、`shareCard`、`snapshots`。纯函数 `TandemLive.ops.rtDerive / rtBuckets / toolCallsQuery / reportSections` 在 node 中测试。
+- Advance 绑定 `advance/src/js/98-live-ops.js`：快照写入 demo 自身的状态（`S.simBase / S.attn / S.waitOpen`、`S.live` 的 t0 / ctx / tools、`HUD_TOOLS`、`liveBuckets`），菜单栏面板、HUD 和桌面小组件里写着具体会话的卡片按原样式换成实时内容；live 会话页增加「不计入分析 / 复制继续命令 / 定位原始日志」与已排除列表，live 工具页点行看调用明细；导出报告、工具 CSV 与分享卡读 `/v1/export/*`。
+- 路由缺失（404 / 501）、503 或离线时保留 demo 数据并标「示例数据」。fixtures 在 `fixtures/ops/`，Playwright 用例在 `advance/tests/live-ops.spec.mjs`。

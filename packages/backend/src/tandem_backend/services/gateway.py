@@ -27,6 +27,10 @@ from fastapi.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
 from .. import __version__
+from ..appdata.wipe import apply_pending
+from ..appdb import AppDB
+from ..platform.middleware import PlatformMiddleware
+from ..platform.runtime import Platform
 from .auth import TOKEN_ENV, ApiError, GuardMiddleware, error_body, validate_token
 from .events import EventBus
 from .jobs import AppState, JobConflict, JobService
@@ -36,6 +40,7 @@ from .snapshots import SnapshotKey, SnapshotStore, scope_hash
 from .supervisor import Supervisor, SupervisorConfig
 
 PARENT_ENV = "TANDEM_PARENT_PID"
+HOURLY_SYNC_S = 3600.0  # sync_mode "hour"
 STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
                 405: "method_not_allowed", 409: "conflict", 422: "invalid_request",
                 503: "service_unavailable"}
@@ -146,15 +151,27 @@ def install_error_handlers(app: FastAPI) -> None:
                                        "retryable": False}}, status_code=422)
 
 
-def default_scope(days: int, now: datetime | None = None) -> dict:
-    """Last ``days`` UTC days from the start of a day, so one day maps to one scope hash."""
-    now = now or datetime.now(UTC)
-    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+def default_scope(days: int | None, now: datetime | None = None) -> dict:
+    """Last ``days`` UTC days from the start of a day, so one day maps to one scope hash
+    (``None``: all time, the default of scope-less routes such as recommendations)."""
     from dataclasses import asdict
 
     from ..analytics.inputs import Scope
 
+    if days is None:
+        return asdict(Scope())
+    now = now or datetime.now(UTC)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return asdict(Scope(from_ts=int(start.timestamp() * 1000)))
+
+
+def next_sync_interval(mode: str | None, interval: float, changed: bool,
+                       bounds: tuple[float, float], hourly: float = 3600.0) -> float:
+    """``hour``: a fixed hourly import; ``live``: adaptive 2 s → 30 s backoff."""
+    low, high = bounds
+    if mode == "hour":
+        return hourly
+    return low if changed else min(high, interval * 2)
 
 
 class Gateway:
@@ -167,6 +184,7 @@ class Gateway:
 
         self.home = home.expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.cleared = apply_pending(self.home)  # A pending "clear all data" runs first.
         self.config = config or SupervisorConfig()
         self.discovery = discovery or candidates
         self.bus = EventBus(heartbeat_s=heartbeat_s)
@@ -174,17 +192,21 @@ class Gateway:
         self.revisions = Revisions()
         self.snapshots = SnapshotStore(self.home / "cache" / "ui.sqlite")
         self.reads = ReadPool(self.home / "tandem.db")
-        self.supervisor = Supervisor(self.home, self.config, self.snapshots, self.bus.publish,
+        self.appdb = AppDB(self.home / "app.db")
+        self.platform = Platform(self)
+        self.supervisor = Supervisor(self.home, self.config, self.snapshots, self._emit,
                                      self._published)
-        self.jobs = JobService(self.state, self.supervisor.ingest, self.bus.publish)
+        self.jobs = JobService(self.state, self.supervisor.ingest, self._emit)
         self.supervisor.ingest.jobs = self.jobs
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
+        self.hourly_sync_s = HOURLY_SYNC_S
         self.prewarm_timer: threading.Timer | None = None
         self.prewarm_heavy = False
         self.lock = threading.Lock()
         self.stopping = threading.Event()
         self.legacy = LegacyApp(self._legacy_factory)
+        self.sync_thread: threading.Thread | None = None
 
     def _legacy_factory(self) -> FastAPI:
         from ..api.routes import create_app
@@ -195,10 +217,15 @@ class Gateway:
     def start(self) -> None:
         self.revisions.load(self.home)
         self.supervisor.start()
-        threading.Thread(target=self._sync_loop, daemon=True, name="tandem-sync").start()
+        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True,
+                                            name="tandem-sync")
+        self.sync_thread.start()
+        self.platform.start()
 
     def close(self) -> None:
         self.stopping.set()
+        self.platform.close()
+        self._close_services()
         with self.lock:
             if self.prewarm_timer is not None:
                 self.prewarm_timer.cancel()
@@ -207,8 +234,33 @@ class Gateway:
         self.state.save()  # Persist the scope MRU used for prewarm.
         self.reads.close()
         self.snapshots.close()
+        self.appdb.close()
+
+    def _close_services(self) -> None:
+        """Area services created by their routers (features hub, lazy AI service)."""
+        from .. import features, privacy_rules
+        from ..appdata import sources_scope
+
+        privacy_rules.bind(None)
+        sources_scope.set_provider(None)
+        # bind(None) closes the bound hub; module helpers then fall back to "unbound".
+        features.bind(None)
+        ai = getattr(self, "_ai", None)
+        if ai is not None:
+            ai.close()
+
+    @property
+    def rec_settings(self) -> dict:
+        """Recommend memory settings (ai_generate, level), edited via /v1/platform/recommend."""
+        return self.platform.settings.get("recommend")
 
     # -- worker events -------------------------------------------------------------------
+    def _emit(self, topic: str, event: str, data: dict) -> int:
+        """Publish to SSE and let the platform observe (metrics, notifications)."""
+        frame_id = self.bus.publish(topic, event, data)
+        self.platform.observe(topic, event, data)
+        return frame_id
+
     def _published(self, entry: dict) -> None:
         before, after = self.revisions.update(
             data_rev=entry.get("data_rev"), inventory_rev=entry.get("inventory_rev") or 0,
@@ -217,7 +269,7 @@ class Gateway:
         if (before["data_rev"], before["inventory_rev"]) == (after["data_rev"],
                                                              after["inventory_rev"]):
             return  # Nothing new was published (for example a cancelled batch).
-        self.bus.publish("data", "data.published", {
+        self._emit("data", "data.published", {
             "data_rev": after["data_rev"], "inventory_rev": after["inventory_rev"],
             "phase": entry.get("phase"), "counts": after["counts"],
             "sources": [entry.get("source_id")] if entry.get("source_id") else []})
@@ -240,44 +292,78 @@ class Gateway:
         if rev["data_rev"] is None or self.stopping.is_set():
             return []
         state = self.state.snapshot()
-        scopes = [default_scope(state["settings"].get("default_range_days", 30))]
+        # default_range_days 0 means "all time" (the scope-less default).
+        scopes = [default_scope(state["settings"].get("default_range_days", 30) or None)]
         scopes += [s for s in state["mru_scopes"][: self.prewarm_mru] if s not in scopes]
         sections = LIGHT + (HEAVY if self.prewarm_heavy else ())
+        # Light sections of every scope first, then heavy ones.
+        work = [(name, scope) for name in sections for scope in scopes]
+        if self.prewarm_heavy:  # /v1/recommendations defaults to the all-time scope.
+            from ..recommend.inputs import SECTION
+
+            work.append((SECTION, default_scope(None)))
         rules = rules_digest()
         queued = []
-        for name in sections:  # Light sections of every scope first, then heavy ones.
-            for scope in scopes:
-                h = scope_hash(scope, {})
-                key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
-                if self.snapshots.get(key) is not None:
-                    continue
-                task = self.supervisor.analysis.submit(
-                    name, scope, {}, h, "prewarm", (rev["data_rev"], rev["inventory_rev"]), rules)
-                if task is not None:
-                    queued.append(task.id)
+        for name, scope in work:
+            h = scope_hash(scope, {})
+            key = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
+            if self.snapshots.get(key) is not None:
+                continue
+            task = self.supervisor.analysis.submit(
+                name, scope, {}, h, "prewarm", (rev["data_rev"], rev["inventory_rev"]), rules)
+            if task is not None:
+                queued.append(task.id)
         return queued
 
     def _sync_loop(self) -> None:
         """Continuous sync (opt-in): adaptive polling 2 s → 30 s while nothing changes."""
         low, high = self.sync_interval_s
         interval = low
+        collection = self.platform.collection
         while not self.stopping.wait(interval):
+            if collection.paused:
+                interval = high
+                continue  # Collection paused (DT-02.1); explicit re-index still works.
             state = self.state.snapshot()
             enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-            if state["settings"].get("sync_mode") != "live" or not enabled:
+            catch_up = collection.consume_catch_up()
+            mode = state["settings"].get("sync_mode")
+            if (mode not in ("live", "hour") and not catch_up) or not enabled:
                 interval = high
                 continue
             last = next((j for j in self.state.jobs() if j.get("origin") == "sync"), None)
             changed = bool(last and any(r.get("changed") for r in last.get("results") or []))
-            interval = low if changed else min(high, interval * 2)
+            interval = next_sync_interval(mode, interval, changed, self.sync_interval_s,
+                                          getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
             try:
                 self.jobs.submit("import", enabled, phase="full", origin="sync")
             except (JobConflict, ValueError):
+                collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
                 interval = low  # A user job is running; check again soon.
 
     # -- application ---------------------------------------------------------------------
     def app(self, *, token: str, port: int | None, hosts=None) -> FastAPI:
-        from . import routes_analytics, routes_app, routes_data
+        from . import (
+            pages,
+            routes_ai,
+            routes_analytics,
+            routes_app,
+            routes_catalog,
+            routes_data,
+            routes_eval,
+            routes_export,
+            routes_features,
+            routes_install,
+            routes_platform,
+            routes_quota,
+            routes_realtime,
+            routes_recommend,
+            routes_sessionops,
+            routes_settings,
+            routes_shell,
+            routes_uiview,
+            routes_uiview_a4a6,
+        )
 
         @asynccontextmanager
         async def lifespan(_: FastAPI):
@@ -294,9 +380,30 @@ class Gateway:
         app.include_router(routes_data.router(self))
         app.include_router(routes_app.router(self))
         app.include_router(routes_analytics.router(self))
+        for module in (
+            routes_catalog,
+            routes_features,
+            routes_recommend,
+            routes_ai,
+            routes_install,
+            routes_platform,
+            routes_eval,
+            routes_realtime,
+            routes_sessionops,
+            routes_quota,
+            routes_export,
+            routes_settings,
+            routes_shell,
+            routes_uiview,
+            routes_uiview_a4a6,
+        ):
+            app.include_router(module.router(self))
+        app.include_router(pages.router())  # /app, /lite, / (token-free, see PAGE_PATHS).
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
         app.state.gateway = self
         guard_kwargs = {"hosts": hosts} if hosts else {}
+        guard_kwargs["public_paths"] = pages.PAGE_PATHS
+        app.add_middleware(PlatformMiddleware, platform=self.platform)  # Inside the guard.
         app.add_middleware(GuardMiddleware, token=token, port=port, **guard_kwargs)
         return app
 

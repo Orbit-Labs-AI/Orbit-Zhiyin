@@ -94,8 +94,7 @@ def test_content_cache_reuse_and_deleted_chunks_cannot_match(store):
     assert encoder.calls == count
     publish(store, [])
     assert search(store, MatchRequest(text="debug"), encoder)["items"] == []
-    with store.connect(True) as conn:
-        assert conn.execute("SELECT count(*) FROM chunk_embedding").fetchone()[0] == 0
+    assert store.stats()["chunks"] == 0 and store.verify()["ok"]
 
 
 def test_stale_embedding_cannot_attach_to_new_version(store):
@@ -109,7 +108,7 @@ def test_stale_embedding_cannot_attach_to_new_version(store):
     result = index_embeddings(store, RacingEncoder())
     assert result["pending"] == 0
     with store.connect(True) as conn:
-        assert conn.execute("SELECT 1 FROM chunk_embedding WHERE chunk_id=?", (original,)).fetchone() is None
+        assert conn.execute("SELECT 1 FROM resource_chunk WHERE chunk_rowid=?", (int(original),)).fetchone() is None
 
 
 @pytest.mark.parametrize("vectors", [[[0, 0, 0]], [[float("nan"), 1, 0]], [[1, 2]], [[float("inf"), 0, 0]]])
@@ -136,3 +135,66 @@ def test_bilingual_lexical_fallback_does_not_invent_profile_features(store):
     assert result["routes"]["feature"] == 0
     assert result["items"][0]["matched_features"] == []
     assert result["vector"]["status"] == "not_configured"
+
+
+def test_prefix_query_matches_partial_last_token(store):
+    publish(store, [record("profiler", summary="performance profiling flamegraph")])
+    assert search(store, MatchRequest(text="flameg"))["items"] == []
+    assert search(store, MatchRequest(text="flameg", prefix=True))["items"][0]["item_id"] == "profiler"
+
+
+def test_lexical_k_doubles_until_filtered_items_found(store, monkeypatch):
+    import tandem_catalog.search as module
+    rows = [record(f"p{n:03}", summary="retry retry retry wording", agents=["claude_code"]) for n in range(60)]
+    rows.append(record("only-codex", summary="retry once, among many other unrelated words here", agents=["codex"]))
+    publish(store, rows)
+    monkeypatch.setattr(module, "MIN_K", 1)  # First window (40 chunks) holds only filtered-out items.
+    result = search(store, MatchRequest(text="retry", agents=["codex"], per_route=10))
+    assert [i["item_id"] for i in result["items"]] == ["only-codex"]
+
+
+def test_match_many_equals_individual_matches(tmp_path):
+    from tandem_catalog.service import CatalogService
+    service = CatalogService(tmp_path / "catalog.db", encoder=ToyEncoder())
+    try:
+        service.store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test", priority=99)])
+        publish(service.store, [record("a"), record("b", summary="fault isolation runbook"), record("c", summary="writing")])
+        index_embeddings(service.store, service.encoder())
+        requests = [MatchRequest(text=t) for t in ("故障排查", "debug", "writing", "debug")]
+        batch = service.match_many(requests)
+        assert [r["items"] for r in batch] == [service.match(r)["items"] for r in requests]
+        assert batch[0]["vector"]["status"] == "ready"
+    finally:
+        service.close()
+
+
+def test_fp16_scores_preserve_fp32_top10():
+    from tandem_catalog.vectors import blocked_scores
+    rng = np.random.default_rng(7)
+    matrix = normalize_vectors(rng.normal(size=(5000, 64)), 5000, 64)
+    overlaps = []
+    for _ in range(20):
+        query = normalize_vectors(rng.normal(size=(1, 64)), 1, 64)[0]
+        exact = set(np.argsort(-(matrix @ query))[:10])
+        approx = set(np.argsort(-blocked_scores(matrix.astype("<f2"), query))[:10])
+        overlaps.append(len(exact & approx) / 10)
+    assert np.mean(overlaps) >= 0.95
+
+
+@pytest.mark.parametrize("text", ["tool_env_failure", "node_repl", "exec_command shell", "a_b", "__init__", "ab_"])
+def test_snake_case_query_matches_fts_split_not_phrase(store, text):
+    rows = [record("envfix", summary="tool env failure triage for node repl and exec command shell, a b init ab")]
+    publish(store, rows)
+    result = search(store, MatchRequest(purpose="library", text=text))
+    assert "degraded" not in result
+    assert [i["item_id"] for i in result["items"]] == ["envfix"]
+
+
+def test_lexical_fts_error_degrades_only_that_route(store, monkeypatch):
+    import tandem_catalog.search as module
+    publish(store, [record("envfix", features=[Feature(feature="friction", value="tool_env", origin="curated")])])
+    monkeypatch.setattr(module, "match_expression", lambda text, prefix=False: '"a b"')  # phrase: unsupported here
+    result = search(store, MatchRequest(text="tool env", features=[Feature(feature="friction", value="tool_env")]))
+    assert result["degraded"] == ["lexical:OperationalError"]
+    assert result["routes"]["lexical"] == 0
+    assert [i["item_id"] for i in result["items"]] == ["envfix"]

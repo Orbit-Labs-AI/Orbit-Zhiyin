@@ -1,0 +1,10 @@
+{
+  "job_id": "fx-job-1",
+  "status": "queued",
+  "cached": false,
+  "estimate": {
+    "tokens": 5000,
+    "cost_usd": 0.03,
+    "calls": 2
+  }
+}

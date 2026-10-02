@@ -73,6 +73,8 @@ const I = {
   flask: 'M9 3h6M10 3v6.2L4.7 18.4A1.5 1.5 0 0 0 6 20.7h12a1.5 1.5 0 0 0 1.3-2.3L14 9.2V3M7.5 15h9',
   slash: 'M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M5 19L19 5'
 };
-function ic(n, s, st) { return '<svg class="ico" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" aria-hidden="true"' + (st ? ' style="' + st + '"' : '') + '><path d="' + I[n] + '"/></svg>'; }
+// unknown names (live data: e.g. recommend/narrate.py emits icon 'flow') fall back instead of writing d="undefined"
+const IC_ALIAS = { flow: 'branch' };
+function ic(n, s, st) { return '<svg class="ico" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" aria-hidden="true"' + (st ? ' style="' + st + '"' : '') + '><path d="' + (I[n] || I[IC_ALIAS[n]] || I.rule) + '"/></svg>'; }
 // 菜单栏状态项 GLYPH 与 App 图标 appIcon(px) 用官方 logo 矢量，见 01-brand.js（tools/brand-icon.mjs 生成）
 

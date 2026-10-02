@@ -1,0 +1,8 @@
+{
+ "_doc": "slice 8 (ops + surfaces): synthetic popover / attention from the r4 capture on a synthetic home, ops fixtures copied from ../ops. Realtime is served by the spec (timestamps shifted to the pinned clock).",
+ "GET /v1/shell/popover": "popover.json",
+ "GET /v1/notifications/attention": "attention.json",
+ "POST /v1/export/report": "export-report.json",
+ "POST /v1/export/share_card": "export-share-card.json",
+ "GET /v1/analytics/tool_calls": "tool-calls-p1.json"
+}

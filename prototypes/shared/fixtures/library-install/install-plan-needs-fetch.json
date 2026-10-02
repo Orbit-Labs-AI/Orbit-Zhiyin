@@ -1,0 +1,19 @@
+{
+  "plan_id": "plan-fx-0",
+  "status": "needs_fetch",
+  "title": "retry-guard",
+  "kind": "hook",
+  "source": {
+    "type": "catalog",
+    "id": "fx:hook/retry-guard"
+  },
+  "agents": [
+    "claude_code"
+  ],
+  "scope": "user",
+  "warnings": [],
+  "links": [],
+  "fetch": null,
+  "targets": [],
+  "already_installed": null
+}

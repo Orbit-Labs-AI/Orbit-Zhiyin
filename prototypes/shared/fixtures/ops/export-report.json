@@ -1,0 +1,19 @@
+{
+  "scope": {},
+  "scope_hash": "fx-scope",
+  "sections": [
+    {
+      "id": "overview",
+      "title": "概览",
+      "status": "ok"
+    },
+    {
+      "id": "metrics",
+      "title": "核心指标",
+      "status": "ok"
+    }
+  ],
+  "format": "markdown",
+  "markdown": "# Orbit 协作报告（合成样本）\n\n## 概览\n\n- 会话：96\n- 活跃天数：21\n\n## 核心指标\n\n| 指标 | 数值 |\n| --- | ---: |\n| 会话 | 96 |\n",
+  "snapshot_id": null
+}

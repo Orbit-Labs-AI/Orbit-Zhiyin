@@ -1,0 +1,17 @@
+{
+ "totals": {
+  "calls": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "cost_usd": 0.0
+ },
+ "by_day": [],
+ "by_task": [],
+ "by_engine": [],
+ "estimate_error": {
+  "median_abs_ratio": null,
+  "n": 0
+ },
+ "today_cost_usd": 0,
+ "daily_cap": 2.0
+}

@@ -14,7 +14,9 @@ from collections import deque
 from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 
-TOPICS = frozenset({"job", "data", "analysis", "service"})
+from ..platform.telemetry import gauge
+
+TOPICS = frozenset({"job", "data", "analysis", "service", "notify"})
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,8 @@ class EventBus:
         with self.lock:
             self.waiters.add(waiter)
             cursor = self.next_id - 1 if last_id is None else last_id
+            clients = len(self.waiters)
+        gauge("sse.clients", clients)
         try:
             yield b"retry: 2000\n\n"
             while not self.closed:
@@ -104,3 +108,5 @@ class EventBus:
         finally:
             with self.lock:
                 self.waiters.discard(waiter)
+                clients = len(self.waiters)
+            gauge("sse.clients", clients)

@@ -1,0 +1,220 @@
+{
+ "contract": "catalog-v1",
+ "schema_version": 3,
+ "generation": 7,
+ "items": 1291,
+ "listable": 1290,
+ "chunks": 4945,
+ "versions": 1291,
+ "features": 7011,
+ "blobs": 1703,
+ "by_type": {
+  "benchmark": 1,
+  "command": 60,
+  "guide": 5,
+  "hook": 22,
+  "mcp_server": 301,
+  "plugin": 251,
+  "rule": 66,
+  "skill": 408,
+  "subagent": 151,
+  "workflow": 26
+ },
+ "embeddings": [],
+ "coverage": {
+  "by_kind": {
+   "benchmark": 1,
+   "command": 60,
+   "guide": 5,
+   "hook": 22,
+   "mcp_server": 301,
+   "plugin": 251,
+   "rule": 66,
+   "skill": 408,
+   "subagent": 151,
+   "workflow": 26
+  },
+  "by_source": {
+   "tandem-kb": {
+    "kind": "kb",
+    "items": 25,
+    "last_ok_at": 1790958767851,
+    "error": null,
+    "enabled": true
+   },
+   "tandem-seeds": {
+    "kind": "bundle",
+    "items": 10,
+    "last_ok_at": 1790958767855,
+    "error": null,
+    "enabled": true
+   },
+   "anthropic-skills": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "claude-plugins": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "mcp-official": {
+    "kind": "mcp",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "openai-plugins": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "awesome-copilot": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "claude-code-plugins": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "litellm": {
+    "kind": "litellm",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "models-dev": {
+    "kind": "models_dev",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "openai-skills": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "swe-bench": {
+    "kind": "swe_bench",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "superpowers": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "wshobson-agents": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "gemini-extensions": {
+    "kind": "gemini",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "clawhub": {
+    "kind": "clawhub",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "voltagent-subagents": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": true
+   },
+   "composio-skills": {
+    "kind": "github",
+    "items": 0,
+    "last_ok_at": null,
+    "error": null,
+    "enabled": false
+   },
+   "seed-anthropic-skills": {
+    "kind": "snapshot",
+    "items": 23,
+    "last_ok_at": 1790958767896,
+    "error": null,
+    "enabled": true
+   },
+   "seed-awesome-copilot": {
+    "kind": "snapshot",
+    "items": 253,
+    "last_ok_at": 1790958768309,
+    "error": null,
+    "enabled": true
+   },
+   "seed-claude-plugins": {
+    "kind": "snapshot",
+    "items": 159,
+    "last_ok_at": 1790958769494,
+    "error": null,
+    "enabled": true
+   },
+   "seed-mcp-official": {
+    "kind": "snapshot",
+    "items": 300,
+    "last_ok_at": 1790958770763,
+    "error": null,
+    "enabled": true
+   },
+   "seed-openai-plugins": {
+    "kind": "snapshot",
+    "items": 521,
+    "last_ok_at": 1790958770983,
+    "error": null,
+    "enabled": true
+   }
+  },
+  "seeded": true,
+  "last_sync_at": null,
+  "partial_sources": [
+   "anthropic-skills",
+   "claude-plugins",
+   "mcp-official",
+   "openai-plugins",
+   "awesome-copilot",
+   "claude-code-plugins",
+   "litellm",
+   "models-dev",
+   "openai-skills",
+   "swe-bench",
+   "superpowers",
+   "wshobson-agents",
+   "gemini-extensions",
+   "clawhub",
+   "voltagent-subagents"
+  ]
+ }
+}

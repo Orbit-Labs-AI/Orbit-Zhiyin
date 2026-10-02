@@ -1,0 +1,14 @@
+{
+ "_doc": "slice 5 (A7 recs / A8 library / install) stubGateway manifest. Synthetic data captured from r4 on a synthetic home (release/fixtures empty+full) plus the round-2 install fixtures.",
+ "GET /v1/recommendations": "recs-full.json",
+ "GET /v1/catalog/items": "catalog-items-seed.json",
+ "GET /v1/catalog/facets": "catalog-facets-seed.json",
+ "GET /v1/catalog/status": "catalog-status-synced.json",
+ "GET /v1/install/state": "install-state-empty.json",
+ "GET /v1/install/ledger": "install-ledger-empty.json",
+ "POST /v1/install/plans": "install-plan.json",
+ "GET /v1/install/plans/plan-fx-1/preview": "install-preview.json",
+ "POST /v1/install/plans/plan-fx-1/preview": "install-preview.json",
+ "POST /v1/install/apply": "install-apply.json",
+ "POST /v1/install/inst-fx-1/revert": "install-revert.json"
+}

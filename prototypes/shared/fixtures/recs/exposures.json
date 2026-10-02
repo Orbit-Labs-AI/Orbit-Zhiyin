@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "states": {
+    "kb:fx-readonly-allow": {
+      "rec_key": "kb:fx-readonly-allow",
+      "status": "shown",
+      "snooze_until": null,
+      "shown_count": 1
+    }
+  },
+  "missing": []
+}

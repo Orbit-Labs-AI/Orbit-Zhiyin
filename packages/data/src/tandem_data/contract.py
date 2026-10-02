@@ -224,8 +224,213 @@ class EventDraft:
 
 _validator = None
 
+# Hand-written acceptance check for event-v1.schema.json. It only ever answers "certainly
+# valid"; anything it does not recognise (including valid but unusual values such as
+# 1.0 for an integer) falls back to the full jsonschema validator, which then raises the
+# same ValidationError as before. Keep in sync with the schema (see test_contract_fast).
+_TOP = frozenset(
+    (
+        "event_uid", "session_uid", "record_uid", "native_id", "native_key", "event_path",
+        "seq", "ts", "parent_uid", "turn_uid", "call_id", "text", "text_truncated",
+        "contract_version", "mapper_version", "kind", "actor", "ext", "attrs",
+    )
+)  # fmt: skip
+_REQUIRED = (
+    "event_uid", "session_uid", "record_uid", "native_key", "event_path", "seq", "ts",
+    "kind", "actor", "attrs", "ext", "text_truncated", "contract_version", "mapper_version",
+)  # fmt: skip
+_KIND_SET = frozenset(KINDS)
+_ACTORS = frozenset(("human", "assistant", "system", "tool", "hook", "subagent", "harness"))
+_ORIGINS = frozenset(
+    ("human", "queued", "notification", "peer", "automation", "injected", "unknown")
+)
+_ENUMS = {
+    "origin": _ORIGINS,
+    "usage_scope": frozenset(("call", "session_snapshot", "session_model_snapshot")),
+    "measurement": frozenset(("delta", "cumulative")),
+    "coverage": frozenset(("self", "root_tree", "unknown")),
+    "status_scope": frozenset(
+        ("direct_command", "tool_protocol", "outer_wrapper", "inner_aggregate", "unknown")
+    ),
+}
+_NULLABLE_ENUMS = {
+    "input_format": frozenset(("prompt", "question_reply")),
+    "argument_digest_basis": frozenset(("canonical_json",)),
+}
+_TOKEN_ATTRS = (
+    "input_tokens", "cache_read_tokens", "cache_write_tokens", "output_tokens",
+    "reasoning_tokens", "duration_ms", "original_chars", "known_command_results",
+    "failed_command_results", "unknown_return_values",
+)  # fmt: skip
+_NULLABLE_STR_ATTRS = (
+    "request_id", "message_digest", "argument_digest", "provider", "model_raw", "effort_raw",
+)  # fmt: skip
+_TIME_QUALITY = frozenset(("reported", "estimated", "missing"))
+_TIME_SEMANTICS = frozenset(
+    ("created", "request_start", "started", "completed", "written", "unknown")
+)
+_TIMEZONE_SOURCES = frozenset(("reported", "local_inferred", "unknown"))
+_MEASURE_QUALITY = frozenset(("measured", "reported", "estimated", "missing"))
+
+
+def _nonempty_str(value) -> bool:
+    return type(value) is str and len(value) > 0
+
+
+def _str_or_none(value) -> bool:
+    return value is None or type(value) is str
+
+
+def _token(value) -> bool:
+    return value is None or (type(value) is int and value >= 0)
+
+
+def _member(value, allowed) -> bool:
+    return type(value) is str and value in allowed
+
+
+def _measurement_ok(value) -> bool:
+    if value is None:
+        return True
+    if type(value) is not dict:
+        return False
+    for name in ("chars", "surface", "quality", "complete"):
+        if name not in value:
+            return False
+    return (
+        _token(value["chars"])
+        and type(value["surface"]) is str
+        and _member(value["quality"], _MEASURE_QUALITY)
+        and type(value["complete"]) is bool
+    )
+
+
+def _time_ok(time, ts) -> bool:
+    if type(time) is not dict:
+        return False
+    for name in ("source_field", "semantics", "quality", "reported"):
+        if name not in time:
+            return False
+    source_field, quality = time["source_field"], time["quality"]
+    if not (
+        _str_or_none(source_field)
+        and type(time["reported"]) is dict
+        and _member(quality, _TIME_QUALITY)
+        and _member(time["semantics"], _TIME_SEMANTICS)
+    ):
+        return False
+    if "timezone" in time and not _str_or_none(time["timezone"]):
+        return False
+    if "timezone_source" in time and not _member(time["timezone_source"], _TIMEZONE_SOURCES):
+        return False
+    if ts is None:
+        return quality == "missing"
+    return quality != "missing" and _nonempty_str(source_field)
+
+
+def _attrs_ok(attrs, kind, ts) -> bool:
+    if type(attrs) is not dict or "time" not in attrs or not _time_ok(attrs["time"], ts):
+        return False
+    get = attrs.get
+    for name, allowed in _ENUMS.items():
+        if name in attrs and not _member(attrs[name], allowed):
+            return False
+    for name, allowed in _NULLABLE_ENUMS.items():
+        value = get(name)
+        if value is not None and not _member(value, allowed):
+            return False
+    for name in _TOKEN_ATTRS:
+        if name in attrs and not _token(attrs[name]):
+            return False
+    for name in _NULLABLE_STR_ATTRS:
+        if name in attrs and not _str_or_none(attrs[name]):
+            return False
+    if "request_key" in attrs:
+        value = attrs["request_key"]
+        if type(value) is not list or not value:
+            return False
+    if "snapshot_key" in attrs and not _nonempty_str(attrs["snapshot_key"]):
+        return False
+    if "counter_cycle" in attrs and type(attrs["counter_cycle"]) is not str:
+        return False
+    if "cost_usd" in attrs:
+        value = attrs["cost_usd"]
+        if value is not None and not (type(value) in (int, float) and value >= 0):
+            return False
+    if "is_wrapper" in attrs and type(attrs["is_wrapper"]) is not bool:
+        return False
+    if "artifact_body_present" in attrs:
+        value = attrs["artifact_body_present"]
+        if value is not None and type(value) is not bool:
+            return False
+    if "writing_measurements" in attrs:
+        value = attrs["writing_measurements"]
+        if value is not None:
+            if type(value) is not dict:
+                return False
+            for name in ("reply", "summary", "body"):
+                if name in value and not _measurement_ok(value[name]):
+                    return False
+    if kind == "message.user":
+        return "origin" in attrs
+    if kind == "tool.call":
+        return _nonempty_str(get("name"))
+    if kind == "model.usage":
+        for name in ("usage_scope", "measurement", "coverage", "reported"):
+            if name not in attrs:
+                return False
+        scope, measurement = attrs["usage_scope"], attrs["measurement"]
+        if scope == "call":
+            return measurement == "delta" and "request_key" in attrs
+        return measurement == "cumulative" and "snapshot_key" in attrs and get("request_id") is None
+    return True
+
+
+def event_certainly_valid(event) -> bool:
+    """True only when ``event`` satisfies event-v1.schema.json (no false positives)."""
+    if type(event) is not dict:
+        return False
+    for name in _REQUIRED:
+        if name not in event:
+            return False
+    for name in event:
+        if name not in _TOP:
+            return False
+    get = event.get
+    kind, ts = event["kind"], event["ts"]
+    if not (
+        _nonempty_str(event["event_uid"])
+        and _nonempty_str(event["session_uid"])
+        and _nonempty_str(event["record_uid"])
+        and _nonempty_str(event["event_path"])
+        and _nonempty_str(event["mapper_version"])
+        and _str_or_none(get("native_id"))
+        and _str_or_none(get("parent_uid"))
+        and _str_or_none(get("turn_uid"))
+        and _str_or_none(get("call_id"))
+        and _str_or_none(get("text"))
+        and type(event["native_key"]) is list
+        and event["native_key"]
+        and type(event["seq"]) is int
+        and event["seq"] >= 0
+        and (ts is None or type(ts) is int)
+        and type(event["text_truncated"]) is int
+        and event["text_truncated"] in (0, 1)
+        and type(event["contract_version"]) is int
+        and event["contract_version"] == 1
+        and _member(kind, _KIND_SET)
+        and _member(event["actor"], _ACTORS)
+        and type(event["ext"]) is dict
+    ):
+        return False
+    if kind in ("tool.call", "tool.result") and not _nonempty_str(get("call_id")):
+        return False
+    return _attrs_ok(event["attrs"], kind, ts)
+
 
 def validate_event(event: dict) -> None:
+    if event_certainly_valid(event):
+        return
     global _validator
     if _validator is None:
         schema = json.loads(

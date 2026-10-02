@@ -1,19 +1,22 @@
-"""Retain published facts when an indexed original disappears.
+"""Retain published facts when an indexed original disappears or is rewritten.
 
 Only existing L1/L2 rows are carried through a rebuild. No native payload is
 recreated, and retained facts explicitly remain marked as unavailable evidence.
+A file rewritten after capture (``changed``) is retained only until the next scan
+captures its new revision.
 """
 
 import json
 from pathlib import Path
 
 from tandem_data.contract import canonical
+from tandem_data.payload import restore_json, restore_row
 from tandem_data.privacy import redact, sanitize
 from tandem_data.store import insert
 
 
 class RetainedProjection:
-    def __init__(self, store):
+    def __init__(self, store, changed=()):
         self.files = {}
         self.events = []
         self.links = []
@@ -24,10 +27,12 @@ class RetainedProjection:
             "(SELECT archive_uid FROM source_revision v WHERE v.file_id=f.file_id ORDER BY revision DESC LIMIT 1) IS NULL"
         ):
             if not (Path(row["root_path"]) / row["relative_path"]).exists():
-                self.files[row["file_id"]] = dict(row)
-        for file_id in self.files:
+                self.files[row["file_id"]] = {**dict(row), "source_status": "missing"}
+            elif row["file_id"] in changed:
+                self.files[row["file_id"]] = {**dict(row), "source_status": "changed"}
+        for file_id, info in self.files.items():
             self.events.extend(
-                dict(r)
+                {**restore_row(store.db, r), "source_status": info["source_status"]}
                 for r in store.db.execute(
                     "SELECT e.* FROM event e JOIN raw_record r USING(record_uid) WHERE r.file_id=? ORDER BY e.session_uid,e.seq",
                     (file_id,),
@@ -49,13 +54,14 @@ class RetainedProjection:
 
     def restore(self, store, sequences, first_by_native):
         for event in self.events:
+            status = event.pop("source_status")
             event["seq"] = sequences[event["session_uid"]]
             sequences[event["session_uid"]] += 1
             event["turn_uid"] = None
             attrs = json.loads(event["attrs"])
-            attrs.update(source_status="missing", preserved_mapper_version=event["mapper_version"])
+            attrs.update(source_status=status, preserved_mapper_version=event["mapper_version"])
             event["attrs"] = canonical(sanitize(attrs))
-            event["ext"] = canonical(sanitize(json.loads(event["ext"])))
+            event["ext"] = canonical(sanitize(restore_json(store.db, event["ext"])))
             if event["text"] is not None:
                 event["text"] = redact(event["text"])
             insert(store.db, "event", event)
@@ -66,14 +72,15 @@ class RetainedProjection:
                 (row["disposition"], row["note"], row["record_uid"]),
             )
         for file_id, info in self.files.items():
-            store.db.execute(
-                "UPDATE source_file SET status='gone_upstream' WHERE file_id=?", (file_id,)
-            )
+            if info["source_status"] == "missing":
+                store.db.execute(
+                    "UPDATE source_file SET status='gone_upstream' WHERE file_id=?", (file_id,)
+                )
             store.issue(
                 info["source_id"],
                 "source_unavailable",
                 file_id=file_id,
-                detail={"status": "missing", "facts": "previously_published"},
+                detail={"status": info["source_status"], "facts": "previously_published"},
             )
 
     def finish(self, store, infos):

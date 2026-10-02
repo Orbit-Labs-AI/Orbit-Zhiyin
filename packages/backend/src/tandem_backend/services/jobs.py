@@ -28,8 +28,12 @@ TRANSITIONS = {
 KINDS = ("import", "inventory", "rebuild", "verify", "backup")
 IMPORT_PHASES = ("auto", "full", "head", "window", "rest")
 SETTINGS_KEYS = {"onboarded": bool, "recent_days": int, "default_range_days": int,
-                 "sync_mode": str}
-SYNC_MODES = ("off", "live")
+                 "sync_mode": str, "weekly_report": bool, "onboarding_step": int}
+SYNC_MODES = ("off", "hour", "live")
+# (minimum, maximum) for integer settings; ``None`` is accepted where listed in NULLABLE.
+INT_RANGES = {"recent_days": (1, 36_500), "default_range_days": (0, 36_500),
+              "onboarding_step": (0, 4)}
+NULLABLE = frozenset({"recent_days"})  # None: import the whole history.
 JOURNAL_LIMIT = 100
 
 
@@ -48,7 +52,7 @@ class JobRunner(Protocol):
 def _default_state() -> dict:
     return {"sources": {}, "jobs": {}, "mru_scopes": [],
             "settings": {"onboarded": False, "recent_days": 90, "default_range_days": 30,
-                         "sync_mode": "off"}}
+                         "sync_mode": "off", "weekly_report": False, "onboarding_step": 0}}
 
 
 class AppState:
@@ -106,15 +110,26 @@ class AppState:
     def update_settings(self, values: dict) -> dict:
         for key, value in values.items():
             expected = SETTINGS_KEYS.get(key)
-            if expected is None or not isinstance(value, expected) or (
-                    expected is int and (isinstance(value, bool) or value < 1)):
+            if expected is None:
                 raise ValueError(f"Invalid setting {key}")
+            if value is None and key in NULLABLE:
+                continue
+            if not isinstance(value, expected) or (expected is int and isinstance(value, bool)):
+                raise ValueError(f"Invalid setting {key}")
+            if key in INT_RANGES and not INT_RANGES[key][0] <= value <= INT_RANGES[key][1]:
+                low, high = INT_RANGES[key]
+                raise ValueError(f"{key} must be within {low}..{high}")
             if key == "sync_mode" and value not in SYNC_MODES:
-                raise ValueError("sync_mode must be off or live")
+                raise ValueError("sync_mode must be off, hour or live")
         with self.lock:
             self.state["settings"].update(values)
             self.save()
             return dict(self.state["settings"])
+
+    def _plan(self) -> dict:
+        """Import plan overrides from settings: ``recent_days`` bounds file age (None: all)."""
+        days = self.state["settings"].get("recent_days")
+        return {"max_age_days": days} if days else {}
 
     def remember_scope(self, scope: dict, limit: int = 5) -> None:
         """MRU of analysed scopes for prewarm; persisted with the next save."""
@@ -152,6 +167,7 @@ class AppState:
                    "selection": "sample" if limit or files_by_source else "full",
                    "limit": limit, "files_by_source": files_by_source,
                    "phase": (phase or "auto") if kind == "import" else None, "origin": origin,
+                   "plan": self._plan() if kind == "import" else {},
                    "started_at": None, "finished_at": None, "cancel_requested": False,
                    "progress": {}, "results": [], "published": [], "error": None}
             self.state["jobs"][job["id"]] = job

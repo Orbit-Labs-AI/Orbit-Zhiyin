@@ -1,0 +1,980 @@
+{
+  "schema_version": "remedies-v1",
+  "origin": "Tandem template library (written and reviewed in this repository; no third-party text)",
+  "rules": [
+    {
+      "id": "readonly-allowlist", "title": "只读命令自动放行",
+      "summary": "把 git status、ls、gh pr view 等只读命令加入权限白名单，不再逐次审批。",
+      "problem": {"types": ["permission_friction"], "key_prefix": "would_prompt:readonly_shell"},
+      "remedy": {"kind": "permission_rule", "dim": "hook", "agents": {"claude_code": "native", "codex": "manual"}, "level": 1,
+                 "template": "permission-allow@1", "alternatives": ["fewer-permission-prompts"]},
+      "benefit": {"unit": "次审批", "unit_minutes": 0.5, "prior": {"alpha": 9, "beta": 1}},
+      "cost": {"setup_minutes": 1, "context_tokens": 0, "reversible": true},
+      "risk": {"level": "low", "flags": ["writes_settings"]},
+      "track": {"triggered": "只读命令审批次数", "mechanical": "白名单命中次数", "guardrail": "误放行的写命令次数"},
+      "explain": {"reason_template": "{k} 个会话里你手动批准了约 {weekly} 次/周只读命令（{heads}）。",
+                  "mechanism": "权限摩擦优先用权限规则解决：只放行只读命令，写命令照常审批。",
+                  "trial": "新开会话运行 git status，确认不再弹出审批；7 天后看审批次数。",
+                  "limitation": "只覆盖列出的命令前缀；带管道或重定向的命令仍会审批。"},
+      "tags": ["permission", "approval", "readonly", "bash", "git", "settings"],
+      "file": [["{", " "], ["  \"permissions\": {", " "], ["    \"allow\": [", " "], ["      \"Bash(git status:*)\",", "+"],
+               ["      \"Bash(git diff:*)\",", "+"], ["      \"Bash(git log:*)\",", "+"], ["      \"Bash(ls:*)\",", "+"], ["    ]", " "], ["  }", " "], ["}", " "]],
+      "steps": ["预览将写入 settings.json 的放行规则", "确认写入（会先备份原文件）", "新开会话运行 git status，确认不再弹出审批", "7 天后在效果追踪里看审批次数变化"]
+    },
+    {
+      "id": "fewer-permission-prompts", "title": "用 Agent 自带的权限模式减少审批",
+      "summary": "在 Claude Code 中切换到 acceptEdits 等内置权限模式，或用自带的审批记忆。",
+      "problem": {"types": ["permission_friction"]},
+      "remedy": {"kind": "builtin", "dim": "hook", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+                 "alternatives": ["readonly-allowlist"]},
+      "benefit": {"unit": "次审批", "unit_minutes": 0.5, "prior": {"alpha": 6, "beta": 2}},
+      "cost": {"setup_minutes": 1},
+      "risk": {"level": "medium", "flags": ["broader_permissions"]},
+      "track": {"triggered": "审批次数", "mechanical": "使用内置模式的会话数", "guardrail": "非预期写入次数"},
+      "explain": {"reason_template": "{k} 个会话里频繁出现审批等待。",
+                  "mechanism": "不想写规则文件时，先用 Agent 内置的权限模式。",
+                  "trial": "下一个会话开启内置模式，观察审批次数。",
+                  "limitation": "放行范围比白名单宽，敏感仓库慎用。"},
+      "tags": ["permission", "approval", "builtin"],
+      "steps": ["在会话中切换到内置的宽松权限模式", "只在可信仓库使用", "7 天后对比审批次数"]
+    },
+    {
+      "id": "retry-breaker", "title": "重复失败熔断：同一命令失败 2 次先诊断",
+      "summary": "同一命令连续失败两次后暂停，先检查认证与环境再继续。",
+      "problem": {"types": ["tool_env_failure"]},
+      "remedy": {"kind": "hook", "dim": "hook", "agents": {"claude_code": "native", "codex": "adaptation_required"}, "level": 2,
+                 "template": "hook-post-tool-use@1", "pairs_with": ["systematic-debugging", "env-quirks-rule"]},
+      "benefit": {"unit": "段重复失败", "unit_minutes": 2, "prior": {"alpha": 8, "beta": 2}},
+      "cost": {"setup_minutes": 3, "reversible": true},
+      "risk": {"level": "low", "flags": ["runs_script"]},
+      "track": {"triggered": "重复失败序列", "mechanical": "熔断触发次数", "guardrail": "任务完成率"},
+      "explain": {"reason_template": "{k} 个会话出现「失败后原样重试」，约 {weekly} 次/周。",
+                  "mechanism": "工具/环境失败优先用 hook 在执行层拦截，比提示词更可靠。",
+                  "trial": "下次连续失败时，确认 Agent 先停下来检查环境。",
+                  "limitation": "只拦截完全相同的命令；参数变化的重试不计入。"},
+      "tags": ["retry", "failure", "hook", "bash", "debugging"],
+      "file": [["{", " "], ["  \"hooks\": {", "+"], ["    \"PostToolUse\": [{", "+"], ["      \"matcher\": \"Bash\",", "+"],
+               ["      \"hooks\": [{ \"type\": \"command\", \"command\": \"~/.tandem/hooks/retry-breaker.sh\" }]", "ai"], ["    }]", "+"], ["  }", "+"], ["}", " "]],
+      "steps": ["预览将写入的 Hook 与脚本", "确认安装（脚本放在 ~/.tandem/hooks，可随时删除）", "下次连续失败时 Agent 会先检查认证与环境"]
+    },
+    {
+      "id": "systematic-debugging", "title": "系统化排错 Skill：复现→假设→最小修复",
+      "summary": "把重复试错改为复现、收集证据、单一假设和最小修复。",
+      "problem": {"types": ["tool_env_failure", "buggy_output"]},
+      "remedy": {"kind": "skill", "dim": "skill", "agents": {"claude_code": "manual", "codex": "manual"}, "level": 2,
+                 "pairs_with": ["retry-breaker"]},
+      "benefit": {"unit": "次返工", "unit_minutes": 5, "prior": {"alpha": 4, "beta": 3}},
+      "cost": {"setup_minutes": 5, "context_tokens": 600},
+      "track": {"triggered": "同参数重复失败", "mechanical": "Skill 调用次数", "guardrail": "测试通过率"},
+      "explain": {"reason_template": "{k} 个会话里出现反复失败或修复后仍出错。",
+                  "mechanism": "排错方法类问题用 skill 固化流程。",
+                  "trial": "下次出错时说「按系统化排错处理」，对比首次有效验证前的调用数。",
+                  "limitation": "提供流程，不强制计数；需配合熔断 hook。"},
+      "tags": ["debugging", "retry_control", "skill", "verification"],
+      "steps": ["预览 Skill 内容与来源许可", "安装到 ~/.claude/skills", "出错时显式引用该 Skill"],
+      "catalog_ref": "superpowers-systematic-debugging"
+    },
+    {
+      "id": "env-quirks-rule", "title": "AGENTS.md：写明 {software} 的环境约定",
+      "summary": "把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。",
+      "problem": {"types": ["tool_env_failure"], "key_prefix": "tool_env_failure:"},
+      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+                 "scope": "project", "template": "agents-md-section@1", "slots": {"software": {"required": true}}},
+      "benefit": {"unit": "次环境失败", "unit_minutes": 2, "prior": {"alpha": 5, "beta": 3}},
+      "cost": {"setup_minutes": 2, "context_tokens": 80},
+      "track": {"triggered": "{software} 相关失败", "mechanical": "规则被引用次数", "guardrail": "会话时长"},
+      "explain": {"reason_template": "{software} 在 {k} 个会话里失败，约 {weekly} 次/周。",
+                  "mechanism": "可预知的环境约定写成规则，开场就让 Agent 知道。",
+                  "trial": "下次用到 {software} 时观察 Agent 是否先检查环境。",
+                  "limitation": "规则只是提醒；认证失效等仍需人工处理。"},
+      "tags": ["environment", "rule", "agents-md", "failure"],
+      "file": [["## {software} 环境", "+"], ["- 使用前先检查登录与版本，未就绪就停下来告诉我", "ai"], ["- 失败两次后不要原样重试", "+"]],
+      "steps": ["复制片段", "粘贴到项目根目录 AGENTS.md", "下次使用时观察是否先检查环境"]
+    },
+    {
+      "id": "verify-checklist", "title": "完成前自检清单",
+      "summary": "要求 Agent 在声称完成前运行测试/编译并贴出结果。",
+      "problem": {"types": ["missing_verification"]},
+      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+                 "template": "agents-md-section@1", "pairs_with": ["stop-verify-hook"]},
+      "benefit": {"unit": "次漏验", "unit_minutes": 6, "prior": {"alpha": 5, "beta": 3}},
+      "cost": {"setup_minutes": 1, "context_tokens": 60},
+      "track": {"triggered": "缺验收证据的完成声明", "mechanical": "回复中贴出验证结果的比例", "guardrail": "会话时长"},
+      "explain": {"reason_template": "{k} 个会话在没有验证证据时就宣布完成。",
+                  "mechanism": "缺验证先用规则约定，仍无效再升级为 Stop hook。",
+                  "trial": "下一个任务结束时检查回复是否附带测试输出。",
+                  "limitation": "规则可能被忽略；需要强制时用 Stop hook。"},
+      "generic": true,
+      "tags": ["verification", "testing", "rule", "agents-md"],
+      "file": [["## 完成前", "+"], ["- 声称完成前运行测试或编译，并贴出命令与结果", "+"], ["- 无法验证时明确说明原因", "ai"]],
+      "steps": ["复制片段", "粘贴到全局或项目 AGENTS.md", "检查下一次完成回复是否附带验证结果"]
+    },
+    {
+      "id": "stop-verify-hook", "title": "Stop hook：没有验证结果不结束",
+      "summary": "在会话结束前检查是否运行过测试，没有则提醒 Agent 补验证。",
+      "problem": {"types": ["missing_verification"]},
+      "remedy": {"kind": "hook", "dim": "hook", "agents": {"claude_code": "native", "codex": "unsupported"}, "level": 3,
+                 "template": "hook-stop@1", "pairs_with": ["verify-checklist"]},
+      "benefit": {"unit": "次漏验", "unit_minutes": 6, "prior": {"alpha": 4, "beta": 2}},
+      "cost": {"setup_minutes": 5},
+      "risk": {"level": "medium", "flags": ["runs_script", "may_block_stop"]},
+      "track": {"triggered": "缺验收证据的完成声明", "mechanical": "hook 拦截次数", "guardrail": "会话被卡住次数"},
+      "explain": {"reason_template": "已有规则后仍有 {k} 个会话缺验证证据。",
+                  "mechanism": "规则无效时升级为执行层 hook。",
+                  "trial": "让 Agent 完成一个小改动，确认结束前会运行测试。",
+                  "limitation": "需要项目有可运行的测试命令。"},
+      "audience_min": 1,
+      "tags": ["verification", "hook", "stop", "testing"],
+      "steps": ["预览 Stop hook 与检查脚本", "安装到项目 .claude/settings.json", "确认结束前会补跑测试"]
+    },
+    {
+      "id": "completion-contract", "title": "开场模板：先写完成条件",
+      "summary": "新任务先写目标、完成条件、不要做和验证方式四行。",
+      "problem": {"types": ["wrong_approach"]},
+      "remedy": {"kind": "prompt", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 2,
+                 "template": "prompt-snippet@1"},
+      "benefit": {"unit": "次纠偏", "unit_minutes": 4, "prior": {"alpha": 3, "beta": 3}},
+      "cost": {"setup_minutes": 0},
+      "track": {"triggered": "纠偏次数", "mechanical": "首条消息写明完成条件的比例", "guardrail": "首轮完成率"},
+      "explain": {"reason_template": "{k} 个会话出现方向纠偏。",
+                  "mechanism": "方向问题默认不装东西，先改开场方式。",
+                  "trial": "开新任务时先填四行，对比纠偏次数。",
+                  "limitation": "依赖你自己的习惯，没有自动检查。"},
+      "generic": true,
+      "tags": ["prompt", "planning", "acceptance", "template"],
+      "file": [["目标：", "+"], ["完成条件：（怎样算做完，可验证）", "ai"], ["不要做：", "+"], ["验证方式：（测试 / 编译 / 线上检查）", "+"]],
+      "steps": ["复制模板", "开新任务时先填四行", "也可写进 AGENTS.md，让 Agent 在你没写时追问"]
+    },
+    {
+      "id": "clear-and-restate", "title": "纠偏两次后：清空上下文并重述需求",
+      "summary": "同一方向纠偏两次仍不对时，/clear 后用完成条件模板重新开始。",
+      "problem": {"types": ["wrong_approach"]},
+      "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2,
+                 "pairs_with": ["completion-contract"]},
+      "benefit": {"unit": "段纠偏循环", "unit_minutes": 8, "prior": {"alpha": 3, "beta": 2}},
+      "cost": {"setup_minutes": 0},
+      "track": {"triggered": "连续纠偏段数", "mechanical": "纠偏后重启次数", "guardrail": "任务完成率"},
+      "explain": {"reason_template": "{k} 个会话出现连续纠偏。",
+                  "mechanism": "纠偏螺旋里继续追加说明效果差，重启上下文更省。",
+                  "trial": "下次第二次纠偏后清空重述，对比完成时间。",
+                  "limitation": "会丢失会话内的临时上下文，需要先总结。"},
+      "predicate": "correction_spiral",
+      "tags": ["workflow", "correction", "context"],
+      "steps": ["第二次纠偏后停下", "让 Agent 用 5 行总结已知事实", "/clear 后用完成条件模板重述"]
+    },
+    {
+      "id": "repeated-instruction-rule", "title": "把重复说的要求写进规则：{instruction}",
+      "summary": "你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。",
+      "problem": {"types": ["repeated_instruction"]},
+      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+                 "template": "agents-md-section@1", "slots": {"instruction": {"required": true}}},
+      "benefit": {"unit": "次重复说明", "unit_minutes": 1, "prior": {"alpha": 6, "beta": 2}},
+      "cost": {"setup_minutes": 1, "context_tokens": 40},
+      "track": {"triggered": "重复说明次数", "mechanical": "规则行被遵守的会话比例", "guardrail": "纠偏次数"},
+      "explain": {"reason_template": "{k} 个会话里你重复提出相同要求。",
+                  "mechanism": "重复指令首选规则文件。",
+                  "trial": "写入后观察 7 天内是否还需要重复说明。",
+                  "limitation": "规则过多会增加常驻上下文。"},
+      "tags": ["rule", "agents-md", "instruction", "preference"],
+      "file": [["## 约定", "+"], ["- {instruction}", "ai"]],
+      "steps": ["确认要写入的要求原文", "粘贴到全局 AGENTS.md", "7 天后看重复说明次数"]
+    },
+    {
+      "id": "humanizer-zh", "title": "中文表达润色 Skill",
+      "summary": "让回复更自然、少术语堆砌，必要时附解释。",
+      "problem": {"types": ["communication_gap"]},
+      "remedy": {"kind": "skill", "dim": "skill", "agents": {"claude_code": "manual", "codex": "manual"}, "level": 2},
+      "benefit": {"unit": "次改写请求", "unit_minutes": 2, "prior": {"alpha": 3, "beta": 3}},
+      "cost": {"setup_minutes": 3, "context_tokens": 500},
+      "track": {"triggered": "要求改写/解释的次数", "mechanical": "Skill 调用次数", "guardrail": "回复长度"},
+      "explain": {"reason_template": "{k} 个会话里你要求改写或解释术语。",
+                  "mechanism": "表达类问题用 skill 固化风格。",
+                  "trial": "下次写说明文档时引用该 Skill，对比改写次数。",
+                  "limitation": "风格偏好因人而异，可能需要调整。"},
+      "gates": {"language": ["zh"]},
+      "tags": ["writing", "chinese", "style", "skill"],
+      "steps": ["预览 Skill 与来源许可", "安装到 ~/.claude/skills", "写中文文档时引用"],
+      "catalog_ref": "humanizer-zh"
+    },
+    {
+      "id": "split-rules-file", "title": "拆分过长的规则文件",
+      "summary": "把超过 200 行的 AGENTS.md / CLAUDE.md 按目录拆分，减少每个会话的常驻上下文。",
+      "problem": {"types": ["resident_cost"], "key_prefix": "resident_cost:rules_file"},
+      "remedy": {"kind": "removal", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 3,
+                 "alternatives": ["trim-resident"]},
+      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 4, "beta": 2}},
+      "cost": {"setup_minutes": 15},
+      "risk": {"level": "medium", "flags": ["edits_rules"]},
+      "track": {"triggered": "每会话常驻 tokens", "mechanical": "规则文件行数", "guardrail": "纠偏次数"},
+      "explain": {"reason_template": "{name} 有 {lines} 行，每个会话都要加载。",
+                  "mechanism": "常驻成本只能做减法。",
+                  "trial": "拆分后对比会话启动 tokens 与纠偏次数。",
+                  "limitation": "拆分后子目录规则只在对应目录生效。"},
+      "audience_min": 1,
+      "tags": ["removal", "context", "rules", "agents-md"],
+      "steps": ["预览建议拆出的段落", "移到子目录的 AGENTS.md", "7 天后看纠偏是否增加"]
+    },
+    {
+      "id": "trim-resident", "title": "精简常驻上下文",
+      "summary": "移除或缩短每个会话都加载但很少用到的内容。",
+      "problem": {"types": ["resident_cost"]},
+      "remedy": {"kind": "removal", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
+      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 4, "beta": 2}},
+      "cost": {"setup_minutes": 5},
+      "track": {"triggered": "每会话常驻 tokens", "mechanical": "常驻 tokens", "guardrail": "相关失败次数"},
+      "explain": {"reason_template": "{name} 每个会话常驻约 {tokens} tokens。",
+                  "mechanism": "常驻成本只能做减法。",
+                  "trial": "精简后观察相关能力是否仍可用。",
+                  "limitation": "删掉的内容需要时要重新加载。"},
+      "tags": ["removal", "context", "tokens"],
+      "steps": ["预览要精简的内容", "确认修改（会备份）", "需要时可从备份恢复"]
+    },
+    {
+      "id": "disable-unused", "title": "停用长期未用的组件",
+      "summary": "停用安装后从未调用的 skill / MCP，释放上下文与启动时间。",
+      "problem": {"types": ["installed_unused"]},
+      "remedy": {"kind": "removal", "dim": "mcp", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
+      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 6, "beta": 1}},
+      "cost": {"setup_minutes": 1},
+      "track": {"triggered": "每会话常驻 tokens", "mechanical": "已停用组件数", "guardrail": "重新启用次数"},
+      "explain": {"reason_template": "{name} 在 {k} 个会话里从未被调用。",
+                  "mechanism": "闲置组件只做减法，可随时恢复。",
+                  "trial": "停用后 7 天内是否需要重新启用。",
+                  "limitation": "低频但重要的组件请保留。"},
+      "tags": ["removal", "unused", "mcp", "skill"],
+      "steps": ["预览要删除的配置项", "确认停用（会备份）", "需要时可在资源库重新安装"]
+    },
+    {
+      "id": "context-handoff", "title": "上下文过 60% 先总结再继续",
+      "summary": "长会话在自动压缩前先写交接摘要，避免丢失约定。",
+      "problem": {"types": ["context_loss"]},
+      "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
+      "benefit": {"unit": "次重复说明", "unit_minutes": 3, "prior": {"alpha": 4, "beta": 2}},
+      "cost": {"setup_minutes": 1, "context_tokens": 50},
+      "track": {"triggered": "压缩后重复说明", "mechanical": "主动总结次数", "guardrail": "长会话摩擦率"},
+      "explain": {"reason_template": "{k} 个会话出现上下文压力后丢失约定。",
+                  "mechanism": "上下文丢失先用交接流程，必要时再写成规则。",
+                  "trial": "下一个长会话在 60% 时总结，对比压缩后返工。",
+                  "limitation": "需要你或悬浮组件提醒触发。"},
+      "generic": true,
+      "tags": ["context", "workflow", "compaction", "handoff"],
+      "file": [["## 长会话", "+"], ["- 上下文超过 60% 时，先用 10 行总结：目标、已做、决定、待办", "ai"], ["- 总结后再继续；不要等到自动压缩", "+"]],
+      "steps": ["复制片段", "粘贴到全局 AGENTS.md", "悬浮组件会在 60% 时提醒你"]
+    },
+    {
+      "id": "verify-ladder", "title": "验证阶梯：编译→单测→端到端",
+      "summary": "按成本从低到高逐级验证，每级通过再进入下一级。",
+      "problem": {"types": ["missing_verification", "buggy_output"]},
+      "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2,
+                 "pairs_with": ["verify-checklist"]},
+      "benefit": {"unit": "次返工", "unit_minutes": 6, "prior": {"alpha": 3, "beta": 2}},
+      "cost": {"setup_minutes": 2},
+      "track": {"triggered": "交付后返工", "mechanical": "逐级验证的会话比例", "guardrail": "会话时长"},
+      "explain": {"reason_template": "{k} 个会话缺验证或交付后仍有错误。",
+                  "mechanism": "验证缺口用流程模板补齐。",
+                  "trial": "下一个任务按三级验证，对比返工次数。",
+                  "limitation": "没有测试的项目只能做到编译级。"},
+      "predicate": "verification_gap",
+      "tags": ["verification", "workflow", "testing"],
+      "steps": ["先编译或类型检查", "再跑相关单测", "最后做一次端到端或线上检查"]
+    },
+    {
+      "id": "split-mixed-session", "title": "一个会话只做一件事",
+      "summary": "多个不相关任务混在同一会话时，拆成独立会话或 worktree。",
+      "problem": {"types": ["wrong_approach"]},
+      "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
+      "benefit": {"unit": "次纠偏", "unit_minutes": 4, "prior": {"alpha": 3, "beta": 2}},
+      "cost": {"setup_minutes": 0},
+      "track": {"triggered": "混合会话比例", "mechanical": "每会话任务数", "guardrail": "会话数"},
+      "explain": {"reason_template": "{k} 个会话出现纠偏，且不少会话同时处理多个任务。",
+                  "mechanism": "方向问题先调整工作方式，不装东西。",
+                  "trial": "新任务开新会话，对比纠偏次数。",
+                  "limitation": "强相关的连续任务不必拆分。"},
+      "predicate": "mixed_sessions",
+      "tags": ["workflow", "session", "focus", "worktree"],
+      "steps": ["新任务开新会话", "并行任务用 git worktree 隔离", "结束时写一行交接"]
+    },
+    {
+      "id": "pr-review-cap",
+      "title": "PR review 最多两轮，只修 P0 / P1",
+      "summary": "用一个 skill 约定 review 轮数和修复范围，避免 review 与修改无休止来回。",
+      "problem": {
+        "types": [
+          "review_loop"
+        ]
+      },
+      "remedy": {
+        "kind": "skill",
+        "dim": "skill",
+        "agents": {
+          "claude_code": "native",
+          "codex": "adaptation_required"
+        },
+        "level": 2,
+        "template": "procedure@1",
+        "path": "~/.claude/skills/pr-review-cap/SKILL.md"
+      },
+      "benefit": {
+        "unit": "轮 review",
+        "unit_minutes": 8,
+        "prior": {
+          "alpha": 4,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 3,
+        "context_tokens": 250
+      },
+      "risk": {
+        "level": "low",
+        "flags": []
+      },
+      "track": {
+        "triggered": "每个 PR 的 review 轮数",
+        "mechanical": "skill 调用次数",
+        "guardrail": "合并后回滚或返修次数"
+      },
+      "explain": {
+        "reason_template": "{k} 个会话里 PR review 和修改来回了 {rounds_median} 轮以上，最多 {rounds_max} 轮。",
+        "mechanism": "拉锯的根源是没有收尾标准：先约定轮数上限和只修高优先级问题，其余记成后续事项。",
+        "trial": "下一个 PR 让 Agent 按这个 skill 收尾，看是否两轮内结束。",
+        "limitation": "只约束 Agent 自己的 review 循环；人工 reviewer 的要求仍需单独处理。"
+      },
+      "audience_min": 1,
+      "tags": [
+        "review",
+        "pr",
+        "github",
+        "skill",
+        "loop"
+      ],
+      "file": [
+        [
+          "---",
+          " "
+        ],
+        [
+          "name: pr-review-cap",
+          "+"
+        ],
+        [
+          "description: 收尾 PR review，最多两轮，只修 P0 / P1",
+          "+"
+        ],
+        [
+          "---",
+          " "
+        ],
+        [
+          "1. 运行 gh pr view 和 gh pr checks，汇总 review 意见并标出 P0 / P1 / P2",
+          "+"
+        ],
+        [
+          "2. 只修 P0 / P1，P2 记到 PR 描述的后续事项",
+          "+"
+        ],
+        [
+          "3. 第二轮后仍有意见时停下来，列出分歧交给人决定",
+          "+"
+        ],
+        [
+          "（Codex：同样内容写进 AGENTS.md 的「PR review」小节）",
+          "ai"
+        ]
+      ],
+      "steps": [
+        "预览 SKILL.md",
+        "安装到 ~/.claude/skills/pr-review-cap/",
+        "下一个 PR 收尾时让 Agent 使用这个 skill",
+        "7 天后看每个 PR 的 review 轮数"
+      ],
+      "commands": [
+        null,
+        "mkdir -p ~/.claude/skills/pr-review-cap",
+        "gh pr checks",
+        null
+      ]
+    },
+    {
+      "id": "worktree-isolation",
+      "title": "并行任务各用一个 git worktree",
+      "summary": "同一仓库同时开多个会话时，每个会话在独立的 worktree 和分支上工作，互不覆盖。",
+      "problem": {
+        "types": [
+          "parallel_conflict"
+        ]
+      },
+      "remedy": {
+        "kind": "workflow",
+        "dim": "flow",
+        "agents": {
+          "claude_code": "manual",
+          "codex": "manual"
+        },
+        "level": 3
+      },
+      "benefit": {
+        "unit": "次冲突",
+        "unit_minutes": 15,
+        "prior": {
+          "alpha": 4,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 5
+      },
+      "risk": {
+        "level": "low",
+        "flags": []
+      },
+      "track": {
+        "triggered": "并行会话改同一文件的次数",
+        "mechanical": "使用 worktree 的会话数",
+        "guardrail": "合并冲突次数"
+      },
+      "explain": {
+        "reason_template": "{pairs} 对同时进行的会话改到了同一批文件（如 {files_examples}）。",
+        "mechanism": "并行冲突是工作方式问题：用独立工作区把会话隔开，比事后合并便宜。",
+        "trial": "下次并行开两个会话时，各自在新建的 worktree 里启动。",
+        "limitation": "worktree 需要各自安装依赖；共享的本地数据库或端口仍可能冲突。"
+      },
+      "audience_min": 1,
+      "tags": [
+        "worktree",
+        "git",
+        "parallel",
+        "branch",
+        "workflow"
+      ],
+      "steps": [
+        "为第二个任务新建 worktree 和分支",
+        "在新目录里启动 Agent 会话",
+        "任务完成后合并分支",
+        "清理不再需要的 worktree"
+      ],
+      "commands": [
+        "git worktree add ../<repo>-a -b <branch>",
+        "cd ../<repo>-a && claude",
+        "git merge <branch>",
+        "git worktree remove ../<repo>-a"
+      ]
+    },
+    {
+      "id": "readonly-reviewer-subagent",
+      "title": "只读审查交给只读子代理",
+      "summary": "长时间只读不改的审查交给只有 Read / Grep 权限的子代理，主会话只拿结论。",
+      "problem": {
+        "types": [
+          "readonly_review"
+        ]
+      },
+      "remedy": {
+        "kind": "subagent",
+        "dim": "agent",
+        "agents": {
+          "claude_code": "native",
+          "codex": "adaptation_required"
+        },
+        "level": 2,
+        "template": "reviewer@1",
+        "path": "~/.claude/agents/readonly-reviewer.md"
+      },
+      "benefit": {
+        "unit": "次审查",
+        "unit_minutes": 10,
+        "prior": {
+          "alpha": 3,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 3,
+        "context_tokens": 150
+      },
+      "risk": {
+        "level": "low",
+        "flags": []
+      },
+      "track": {
+        "triggered": "主会话里的只读调用次数",
+        "mechanical": "子代理调用次数",
+        "guardrail": "审查结论被推翻次数"
+      },
+      "explain": {
+        "reason_template": "{k} 个会话只读不改，平均读了 {reads_median} 次、持续约 {minutes_median} 分钟。",
+        "mechanism": "只读审查不需要写权限：交给工具受限的子代理，既安全又不占主会话上下文。",
+        "trial": "下次审查代码时让主会话调用 readonly-reviewer，看结论是否够用。",
+        "limitation": "子代理看不到主会话的历史对话，需要在调用时说清审查范围。"
+      },
+      "audience_min": 1,
+      "tags": [
+        "subagent",
+        "review",
+        "readonly",
+        "agent",
+        "context"
+      ],
+      "file": [
+        [
+          "---",
+          " "
+        ],
+        [
+          "name: readonly-reviewer",
+          "+"
+        ],
+        [
+          "description: 只读审查代码并给出结论，不修改文件",
+          "+"
+        ],
+        [
+          "tools: Read, Grep",
+          "+"
+        ],
+        [
+          "---",
+          " "
+        ],
+        [
+          "只阅读和搜索代码，按严重程度列出问题和对应位置；不做任何修改。",
+          "+"
+        ],
+        [
+          "（Codex：在 AGENTS.md 写「审查时只读」小节）",
+          "ai"
+        ]
+      ],
+      "steps": [
+        "预览子代理定义",
+        "安装到 ~/.claude/agents/readonly-reviewer.md",
+        "审查任务时让主会话调用 readonly-reviewer",
+        "7 天后对比主会话的只读调用次数"
+      ],
+      "commands": [
+        null,
+        "mkdir -p ~/.claude/agents",
+        null,
+        null
+      ]
+    },
+    {
+      "id": "repeated-workflow-skill",
+      "title": "把重复的多步流程做成 skill",
+      "summary": "多个会话重复同一串命令时，按你的会话生成一个 skill，一句话触发整段流程。",
+      "problem": {
+        "types": [
+          "repeated_workflow"
+        ],
+        "key_prefix": "repeated_workflow:"
+      },
+      "remedy": {
+        "kind": "generate",
+        "dim": "skill",
+        "agents": {
+          "claude_code": "native",
+          "codex": "adaptation_required"
+        },
+        "level": 2,
+        "template": "procedure@1",
+        "slots": {
+          "sequence": {
+            "required": true
+          },
+          "sessions": {
+            "required": true
+          }
+        }
+      },
+      "benefit": {
+        "unit": "次流程",
+        "unit_minutes": 4,
+        "prior": {
+          "alpha": 3,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 10,
+        "context_tokens": 300
+      },
+      "risk": {
+        "level": "medium",
+        "flags": [
+          "generated_content"
+        ]
+      },
+      "track": {
+        "triggered": "手动重复这串步骤的次数",
+        "mechanical": "skill 调用次数",
+        "guardrail": "流程中途失败次数"
+      },
+      "explain": {
+        "reason_template": "{sessions} 个会话重复同一串步骤：{sequence}。",
+        "mechanism": "重复的多步流程适合固化成 skill：步骤和检查点写一次，之后按名字调用。",
+        "trial": "生成草稿后先预览，下次需要这串步骤时直接调用 skill。",
+        "limitation": "生成内容需要人工审阅；流程里的参数可能需要手动改成占位符。"
+      },
+      "audience_min": 1,
+      "tags": [
+        "skill",
+        "workflow",
+        "repeat",
+        "automation",
+        "generate"
+      ],
+      "steps": [
+        "交给生成工坊按会话证据生成 skill 草稿",
+        "审阅步骤：{sequence}",
+        "安装到 ~/.claude/skills/",
+        "7 天后看手动重复次数"
+      ]
+    },
+    {
+      "id": "project-build-hook",
+      "title": "编辑后自动运行 {build_command}",
+      "summary": "在项目里加一个 PostToolUse hook，每次 Edit / Write 后自动构建，问题当场暴露。",
+      "problem": {
+        "types": [
+          "late_build_failure"
+        ]
+      },
+      "remedy": {
+        "kind": "hook",
+        "dim": "hook",
+        "agents": {
+          "claude_code": "native",
+          "codex": "manual"
+        },
+        "level": 2,
+        "scope": "project",
+        "template": "post-edit-check@1",
+        "slots": {
+          "build_command": {
+            "required": true
+          }
+        }
+      },
+      "benefit": {
+        "unit": "次构建失败",
+        "unit_minutes": 10,
+        "prior": {
+          "alpha": 4,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 3
+      },
+      "risk": {
+        "level": "medium",
+        "flags": [
+          "runs_command"
+        ]
+      },
+      "track": {
+        "triggered": "会话末尾的构建失败次数",
+        "mechanical": "hook 触发次数",
+        "guardrail": "hook 拖慢编辑的次数"
+      },
+      "explain": {
+        "reason_template": "{k} 个会话连续改了约 {edits_median} 处才运行 {build_command}，结果构建失败。",
+        "mechanism": "改完才构建会把错误攒到最后：编辑后立即构建，让 Agent 在出错的那一步就修。",
+        "trial": "在项目里改一个文件，确认 hook 自动运行构建并把错误反馈给 Agent。",
+        "limitation": "构建很慢的项目会拖慢每次编辑，可以改成只构建改动的部分。"
+      },
+      "audience_min": 1,
+      "tags": [
+        "hook",
+        "build",
+        "compile",
+        "posttooluse",
+        "project"
+      ],
+      "file": [
+        [
+          "{",
+          " "
+        ],
+        [
+          "  \"hooks\": {",
+          " "
+        ],
+        [
+          "    \"PostToolUse\": [{",
+          "+"
+        ],
+        [
+          "      \"matcher\": \"Edit|Write\",",
+          "+"
+        ],
+        [
+          "      \"hooks\": [{",
+          "+"
+        ],
+        [
+          "        \"type\": \"command\",",
+          "+"
+        ],
+        [
+          "        \"command\": \"{build_command}\"",
+          "ai"
+        ],
+        [
+          "      }]",
+          "+"
+        ],
+        [
+          "    }]",
+          "+"
+        ],
+        [
+          "  }",
+          " "
+        ],
+        [
+          "}",
+          " "
+        ]
+      ],
+      "steps": [
+        "预览将写入项目 .claude/settings.json 的 hook",
+        "确认构建命令：{build_command}",
+        "确认写入（会先备份原文件）",
+        "改一个文件，确认 hook 自动构建"
+      ],
+      "commands": [
+        null,
+        "{build_command}",
+        null,
+        null
+      ]
+    },
+    {
+      "id": "headless-poll",
+      "title": "长任务改成无人值守的定时检查",
+      "summary": "用 headless 模式加 cron 或 launchd 定时检查进度，不再在会话里反复手动查看。",
+      "problem": {
+        "types": [
+          "polling"
+        ]
+      },
+      "remedy": {
+        "kind": "workflow",
+        "dim": "flow",
+        "agents": {
+          "claude_code": "native",
+          "codex": "native"
+        },
+        "level": 4
+      },
+      "benefit": {
+        "unit": "次检查",
+        "unit_minutes": 1,
+        "prior": {
+          "alpha": 2,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 15
+      },
+      "risk": {
+        "level": "medium",
+        "flags": [
+          "runs_command"
+        ]
+      },
+      "track": {
+        "triggered": "会话里手动查看进度的次数",
+        "mechanical": "定时任务运行次数",
+        "guardrail": "定时任务失败次数"
+      },
+      "explain": {
+        "reason_template": "{k} 个会话里反复手动查看进度，每个会话约 {checks_median} 次（如 {targets}）。",
+        "mechanism": "等待和轮询不需要人盯着：交给 headless 模式定时检查，有结果再通知。",
+        "trial": "把一个长任务的状态检查写成定时任务，跑一天看是否还需要手动查看。",
+        "limitation": "定时任务在后台运行命令，需要先确认命令只读；电脑休眠时不会执行。"
+      },
+      "audience_min": 2,
+      "tags": [
+        "headless",
+        "cron",
+        "launchd",
+        "polling",
+        "automation",
+        "workflow"
+      ],
+      "steps": [
+        "写一条只读的检查命令",
+        "用 headless 模式试跑一次",
+        "加到 crontab 或 launchd 定时运行",
+        "一天后确认不再需要手动查看"
+      ],
+      "commands": [
+        null,
+        "claude -p \"检查日志末尾并总结进度\" --allowedTools Read",
+        "*/30 * * * * claude -p \"检查日志末尾并总结进度\" --allowedTools Read >> ~/poll.log",
+        null
+      ]
+    },
+    {
+      "id": "deploy-target-rule",
+      "title": "在项目规则里写明部署目标",
+      "summary": "同一项目出现多个部署平台的命令时，在 AGENTS.md 写清用哪个平台、哪条命令。",
+      "problem": {
+        "types": [
+          "deploy_platform_mix"
+        ],
+        "key_prefix": "deploy_platform_mix:"
+      },
+      "remedy": {
+        "kind": "rule",
+        "dim": "rule",
+        "agents": {
+          "claude_code": "native",
+          "codex": "native"
+        },
+        "level": 1,
+        "scope": "project",
+        "template": "paragraph@1"
+      },
+      "benefit": {
+        "unit": "次误部署",
+        "unit_minutes": 10,
+        "prior": {
+          "alpha": 3,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 2,
+        "context_tokens": 60
+      },
+      "risk": {
+        "level": "low",
+        "flags": []
+      },
+      "track": {
+        "triggered": "非目标平台的部署命令次数",
+        "mechanical": "规则命中次数",
+        "guardrail": "部署失败次数"
+      },
+      "explain": {
+        "reason_template": "{project} 里同时出现 {platforms} 的部署命令，涉及 {k} 个会话。",
+        "mechanism": "部署目标是项目约定：写进规则文件，Agent 每次都会读到。",
+        "trial": "下次让 Agent 部署时，确认它直接使用规则里的平台和命令。",
+        "limitation": "如果确实需要多平台部署，要在规则里分别写清各自用途。"
+      },
+      "audience_min": 0,
+      "tags": [
+        "deploy",
+        "rule",
+        "vercel",
+        "wrangler",
+        "netlify",
+        "project"
+      ],
+      "file": [
+        [
+          "## 部署",
+          "+"
+        ],
+        [
+          "- 本项目只部署到：<平台>（候选：{platforms}）",
+          "ai"
+        ],
+        [
+          "- 部署命令：<命令>",
+          "ai"
+        ],
+        [
+          "- 不要使用其他平台的部署命令",
+          "+"
+        ]
+      ],
+      "steps": [
+        "确认 {project} 实际使用的部署平台",
+        "复制「部署」小节到项目 AGENTS.md",
+        "下次部署时确认 Agent 遵守"
+      ]
+    },
+    {
+      "id": "codex-effort-medium",
+      "title": "Codex 只读任务改用 medium 推理档",
+      "summary": "高推理档的 Codex 会话里有相当比例只读不改，给只读任务单独配一个 medium 档 profile。",
+      "problem": {
+        "types": [
+          "high_effort_readonly"
+        ]
+      },
+      "remedy": {
+        "kind": "model",
+        "dim": "model",
+        "agents": {
+          "codex": "native"
+        },
+        "level": 1,
+        "path": "~/.codex/config.toml model_reasoning_effort"
+      },
+      "benefit": {
+        "unit": "会话",
+        "unit_minutes": 0.5,
+        "prior": {
+          "alpha": 3,
+          "beta": 2
+        }
+      },
+      "cost": {
+        "setup_minutes": 1
+      },
+      "risk": {
+        "level": "low",
+        "flags": [
+          "quality_tradeoff"
+        ]
+      },
+      "track": {
+        "triggered": "只读会话 tokens",
+        "mechanical": "medium 档会话数",
+        "guardrail": "结论一致率"
+      },
+      "explain": {
+        "reason_template": "{n} 个高推理档 Codex 会话里有 {k} 个（{share}%）只读不改。",
+        "mechanism": "只读任务对推理深度要求低，降档主要省 tokens 和等待时间。",
+        "trial": "只读审查时用 readonly profile 启动 Codex，7 天后对比 tokens 与结论一致率。",
+        "limitation": "收益为估算；复杂审查仍建议用高推理档。"
+      },
+      "audience_min": 1,
+      "tags": [
+        "model",
+        "effort",
+        "codex",
+        "reasoning",
+        "tokens",
+        "readonly"
+      ],
+      "file": [
+        [
+          "[profiles.readonly]",
+          "+"
+        ],
+        [
+          "model_reasoning_effort = \"medium\"",
+          "+"
+        ]
+      ],
+      "steps": [
+        "把 readonly profile 加到 ~/.codex/config.toml",
+        "只读任务用这个 profile 启动 Codex",
+        "7 天后对比 tokens 与结论一致率"
+      ],
+      "commands": [
+        null,
+        "codex --profile readonly",
+        null
+      ]
+    }
+  ]
+}

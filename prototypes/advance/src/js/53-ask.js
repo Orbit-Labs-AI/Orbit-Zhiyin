@@ -51,7 +51,7 @@ function openAsk(ctx) {
   if (S.engine === 'stats') { toast('仅统计模式下无法使用 Agent 问答，请在设置中切换分析引擎'); return; }
   clearInterval(ASKT); ASK = { ctx: ASKQ[ctx] ? ctx : 'overview', q: '', text: '' };
   const c = ASK.ctx;
-  openModal(modalHead('问本地 Agent', '本地 ' + agent(S.studio.agent).name + ' · ' + ASKN[c] + ' · ' + rangeLabel() + ' · Demo 为预置回答') +
+  openModal(modalHead('问本地 Agent', '本地 ' + agent(S.studio.agent).name + ' · ' + ASKN[c] + ' · ' + rangeLabel() + (typeof LV !== 'undefined' && LV.live ? '' : ' · Demo 为预置回答')) +
     '<div class="mb col" style="gap:10px"><div class="row" style="flex-wrap:wrap;gap:6px">' + ASKQ[c].map((q, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(q) + '</button>').join('') + '</div>' +
     '<div class="ask-a" id="askA" aria-live="polite"><span class="cap ask-empty">选一个问题，或在下方输入你自己的问题</span></div>' +
     '<div class="row"><label class="vh" for="askIn">你的问题</label><input id="askIn" placeholder="输入问题，回车发送" autocomplete="off" style="' + FIELD + ';height:32px"><button type="button" class="btn p" data-act="askSend" style="height:32px">发送</button></div></div>' +

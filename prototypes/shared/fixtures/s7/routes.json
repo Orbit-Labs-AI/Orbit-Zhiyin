@@ -1,0 +1,8 @@
+{
+  "_doc": "slice 7 (first run + native): synthetic home captured from r4 (/fx paths, real agent ids). Tests swap facts / jobs with gw.set.",
+  "GET /v1/app/state": "app-state-empty.json",
+  "GET /v1/shell/onboarding": "onboarding.json",
+  "GET /v1/app/discovery": "discovery.json",
+  "GET /v1/app/about": "about.json",
+  "GET /v1/uiview/persona/reveal": "persona-reveal.json"
+}

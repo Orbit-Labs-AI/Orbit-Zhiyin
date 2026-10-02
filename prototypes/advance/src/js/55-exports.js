@@ -46,7 +46,7 @@ function shareCard(sp) {
   const g = petals(p, 40, 0.68); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
   const nAg = new Set(L.map((s) => s.a)).size;
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
-    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--mono);letter-spacing:.32em">TANDEM</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--mono);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
     '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/></svg>' +
     '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--serif)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--mono);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--serif)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--serif);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
@@ -74,3 +74,68 @@ Object.assign(ACT, {
   shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Orbit，全部分析在本机完成。', '分享文案'); },
   shareSave: () => toast('浏览器 Demo 不能下载文件；App 会把 1080×1350 的 PNG 存到「下载」')
 });
+/* ---- saving exports (live / native): ORBIT.native.request('save') → tandem:saved; the browser fallback downloads a Blob.
+   A saved file gets a toast with「在 Finder 中显示」(reveal). Used by 98-live-ops.js; the mock demo keeps its copy buttons. */
+function expStamp() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function expSave(filename, mime, data) {
+  const payload = Object.assign({ filename, mime }, data);
+  return ORBIT.native.request('save', payload, { timeoutMs: 120000 }).then((r) => {
+    r = r || {};
+    if (r.cancelled) return r;
+    if (r.ok === false) { toast('保存失败：' + (r.error || '未知错误')); return r; }
+    if (r.path) toast('已保存 ' + filename, { act: '在 Finder 中显示', onAct: () => ORBIT.native.request('reveal', { path: r.path }) });
+    else toast('已下载 ' + filename);
+    return r;
+  }, (e) => { toast('保存失败：' + ((e && (e.message || e.code)) || '未知错误')); return { ok: false }; });
+}
+/* share card → 1080 × 1350 PNG drawn with canvas 2D (WebKit taints a canvas that draws SVG foreignObject, so the HTML card
+   cannot be rasterised as is). The model mirrors shareCard(): colours, code letters, names, quote, stats, glyph, QR seed. */
+function shareModel(sp) {
+  const p = sp.p; const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
+  const g = petals(p, 40, 0.68); const nAg = new Set(sp.L.map((s) => s.a)).size;
+  return { code: p.code, label: sp.label, zh: p.zh, en: p.en, q, glyph: g,
+    axes: AXES.map((ax, i) => { const v = axisView(p, i); return { L: v.letter, name: v.name, strong: v.strong + '%' }; }),
+    stats: [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [String(nAg), 'Agent'], [f1(p.st.auto) + '×', '自主比']], foot: '全部分析在本机完成' };
+}
+async function sharePNG(m, dark, noNum) {
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* fonts optional */ }
+  const W = 1080, H = 1350, u = W / 100; const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d'); const cs = getComputedStyle(document.documentElement);
+  const F = { serif: cs.getPropertyValue('--serif').trim() || 'serif', mono: cs.getPropertyValue('--mono').trim() || 'monospace', sans: cs.getPropertyValue('--sans').trim() || 'sans-serif' };
+  const C = dark ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
+  const L = 7.5 * u, R = W - 7.5 * u;
+  const text = (t, px, py, font, col, align) => { x.font = font; x.fillStyle = col; x.textAlign = align || 'left'; x.fillText(t, px, py); };
+  x.fillStyle = C.bg; x.fillRect(0, 0, W, H); x.textBaseline = 'alphabetic';
+  if ('letterSpacing' in x) x.letterSpacing = (0.32 * 2.6 * u).toFixed(1) + 'px';
+  text('ORBIT', L, 7 * u + 2.6 * u, '700 ' + 2.6 * u + 'px ' + F.mono, C.ink);
+  if ('letterSpacing' in x) x.letterSpacing = '0px';
+  text('我的 AI 协作人格 · ' + m.label, R, 7 * u + 2.6 * u, 2.5 * u + 'px ' + F.sans, C.ink3, 'right');
+  if (m.glyph && typeof Path2D === 'function') {
+    const k = 32 * u / 80; x.save(); x.translate(W - 5 * u - 32 * u, 12 * u); x.scale(k, k);
+    x.fillStyle = C.mn; x.fill(new Path2D(m.glyph.minor)); x.fillStyle = C.mj; x.fill(new Path2D(m.glyph.major)); x.restore();
+  }
+  let cx = L; const by = 7 * u + 2.6 * u + 9 * u + 12.6 * u;
+  m.axes.forEach((a) => {
+    x.font = '600 ' + 14 * u + 'px ' + F.serif; const w1 = x.measureText(a.L).width; x.font = 2.6 * u + 'px ' + F.sans; const w2 = x.measureText(a.name).width;
+    text(a.L, cx, by, '600 ' + 14 * u + 'px ' + F.serif, C.ink); text(a.name, cx, by + 3.8 * u, 2.6 * u + 'px ' + F.sans, C.ink2);
+    if (!noNum && a.strong) text(a.strong, cx, by + 7.2 * u, '600 ' + 2.4 * u + 'px ' + F.mono, C.ink3);
+    cx += Math.max(w1, w2) + 3.4 * u;
+  });
+  let y = by + (noNum ? 4 : 7.2) * u + 7 * u + 7.6 * u;
+  text(m.zh || '', L, y, '600 ' + 8.4 * u + 'px ' + F.serif, C.ink); y += 4.7 * u;
+  text(m.en || '', L, y, 'italic 400 ' + 3.6 * u + 'px ' + F.serif, C.ink3); y += 5 * u + 5.6 * u;
+  text('「' + (m.q[0] || ''), L, y, '500 ' + 4.6 * u + 'px ' + F.serif, C.ink); y += 6.9 * u;
+  text((m.q[1] || '') + '」', L, y, '500 ' + 4.6 * u + 'px ' + F.serif, C.ink);
+  if (!noNum && m.stats.length) {
+    y += 6 * u; x.fillStyle = C.line; x.fillRect(L, y, R - L, Math.max(1, u / 4)); y += 4 * u + 5.4 * u;
+    const cw = (R - L - 6 * u) / 4;
+    m.stats.slice(0, 4).forEach((s, i) => { const sx = L + i * (cw + 2 * u); text(String(s[0]), sx, y, '600 ' + 5.4 * u + 'px ' + F.mono, C.ink); text(s[1], sx, y + 3.4 * u, 2.4 * u + 'px ' + F.sans, C.ink3); });
+  }
+  const qs = 14 * u, qx = R - qs, qy = H - 6.5 * u - qs, N = 17, cell = qs / (N + 2); const r = rng(hash(m.code));
+  x.fillStyle = C.ink;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { if ((i < 5 && j < 5) || (i > N - 6 && j < 5) || (i < 5 && j > N - 6)) continue; if (r() < 0.45) x.fillRect(qx + (i + 1) * cell, qy + (j + 1) * cell, cell, cell); }
+  [[0, 0], [N - 5, 0], [0, N - 5]].forEach((f) => { x.strokeStyle = C.ink; x.lineWidth = cell; x.strokeRect(qx + (f[0] + 1.5) * cell, qy + (f[1] + 1.5) * cell, 4 * cell, 4 * cell); x.fillRect(qx + (f[0] + 2.5) * cell, qy + (f[1] + 2.5) * cell, 2 * cell, 2 * cell); });
+  text('测测你和 AI 是哪种搭档', L, H - 6.5 * u - 4.4 * u, '600 ' + 3.4 * u + 'px ' + F.sans, C.ink);
+  text(m.foot || '', L, H - 6.5 * u, 2.3 * u + 'px ' + F.sans, C.ink3);
+  return cv.toDataURL('image/png').split(',')[1];
+}

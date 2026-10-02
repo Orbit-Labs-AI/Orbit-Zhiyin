@@ -73,14 +73,30 @@ def inputs(agent: str, root: Path):
         raise ValueError(
             f"No discovery rules for {agent}; use capture_stream with a registered mapper"
         )
+    # Resolve the root and each directory once: a non-symlink file resolves to its
+    # resolved parent plus its name. String prefixes avoid Path.is_relative_to.
+    resolved_root = os.path.join(str(root.resolve()), "")
+    folders = {}
+
+    def real(folder):
+        hit = folders.get(folder)
+        if hit is None:
+            if folder == folder.parent or folder.name == ".." or os.path.islink(folder):
+                hit = os.path.realpath(folder)
+            else:
+                hit = os.path.join(real(folder.parent), folder.name)
+            folders[folder] = hit
+        return hit
+
+    def contained(path):
+        return os.path.join(real(path.parent), path.name).startswith(resolved_root)
+
     found = sorted(
         {
             path
             for pattern in patterns[agent]
             for path in root.glob(pattern)
-            if path.is_file()
-            and not path.is_symlink()
-            and path.resolve().is_relative_to(root.resolve())
+            if path.is_file() and not path.is_symlink() and contained(path)
         }
     )
     if agent == "dsh":

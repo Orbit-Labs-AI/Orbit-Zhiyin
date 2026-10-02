@@ -42,7 +42,8 @@ define("max_repeated_transition_run", "transition", "Longest adjacent run of an 
 define("consecutive_failed_calls", "adjacent failed pair", "Adjacent failed logical calls in the same session", "tool_call status + seq")
 define("confirmed_same_argument_failed_retries", "adjacent failed pair", "Same tool, literal argument digest and known equal status_scope; wrapper-level only when wrapper", "tool_call + L2 attrs")
 define("correction_signal_count", "human message", "Messages matching conservative correction lexical markers; evidence only", "confirmed human text", kind="proxy")
-define("correction_signal_rate", "ratio", "Signal messages / confirmed human messages", "confirmed human text", "confirmed human messages in main sessions", "proxy")
+define("correction_signal_rate", "ratio", "Signal messages / confirmed human messages; null per session below 3 messages", "confirmed human text", "confirmed human messages in main sessions", "proxy")
+define("correction_signal_rate_n correction_signal_rate_ci", "message / interval", "Per-session denominator and 95% Wilson interval of correction_signal_rate", "confirmed human text", "confirmed human messages in main sessions", "proxy")
 define("language_signals", "file extension occurrence", "Map explicit file extensions; no guessing language from semantics", "confirmed human text", kind="proxy")
 define("request_count", "model request", "Unique call_uid with call/delta and reliable boundary", "model_call")
 define("total_tokens", "token", "input_tokens + cache_read_tokens + cache_write_tokens + output_tokens; reasoning already included", "compatible complete usage buckets")
@@ -50,7 +51,7 @@ define("cost_usd", "USD", "Sum complete request costs with source; price estimat
 define("median_latency_ms median_ttft_ms", "ms", "Median reliable request metric, not differences between message times", "model_call", "requests with metric")
 define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by_hour tool_calls_by_day model_usage_by_day active_days weekday_distribution hour_distribution",
        "record", "Bucket reported timestamps in display_timezone; unknown clocks excluded; models count requests not snapshots", "event/tool/model timestamps")
-define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
+define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Word TF-IDF (jieba + English words, boilerplate lines stripped); cosine DBSCAN below 20 sessions, else seeded k-means chosen by silhouette with a 60% size cap, insufficient when no partition passes; PCA of character 2-4 gram TF-IDF/SVD for visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
 
 FEATURES.update(INTERACTION_FEATURES)

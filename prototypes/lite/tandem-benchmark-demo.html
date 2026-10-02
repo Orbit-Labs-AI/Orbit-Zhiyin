@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="light">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tandem · 个人协作 Benchmark</title>
+<title>Orbit · 个人协作 Benchmark</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2317181b'/%3E%3Ctext x='8' y='24' font-size='25' fill='white'%3Et%3C/text%3E%3C/svg%3E">
 <style>:root{
 --desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
@@ -207,7 +207,7 @@ body{font-size:13px}button{cursor:pointer}button:disabled{cursor:default}
 </style></head>
 <body>
 <div class="desk" id="desk">
-  <div class="desktop-label"><b>Tandem</b><span>同频 · Your personal agent benchmark</span><span class="stage-meta">交互 Demo / 示例数据</span></div>
+  <div class="desktop-label"><b>Orbit</b><span>Your personal agent benchmark</span><span class="stage-meta">交互 Demo / 示例数据</span></div>
   <div class="win" id="win"><button class="drawer-scrim" id="drawerScrim" aria-label="关闭导航" hidden></button><aside class="side" id="side" aria-label="主导航"></aside><main class="main" id="main"></main></div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
@@ -589,11 +589,11 @@ function rankRows(rows){const max=Math.max(1,...rows.map(r=>r.n));return rows.ma
 function writeLocation(){const params=new URLSearchParams({range:String(S.range),agent:S.agent,project:S.project});try{history.replaceState(null,'','#'+S.route+'?'+params);}catch{}}
 function readLocation(){const [route,query]=(location.hash.slice(1)||'overview').split('?'),params=new URLSearchParams(query);if(ROUTES.some(r=>r[0]===route))S.route=route;const range=Number(params.get('range'));if(params.has('range')&&[0,7,30,90].includes(range))S.range=range;S.agent=AGI[params.get('agent')]?params.get('agent'):'all';S.project=PJI[params.get('project')]?params.get('project'):'all';}
 function go(route){if(!ROUTES.some(r=>r[0]===route))return;S.route=route;S.drawer=false;writeLocation();render();$('#content').scrollTop=0;}
-function renderSide(){const list=filtered(),p=persona(list);$('#side').innerHTML=`<div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="side-brand">${GLYPH} Tandem <small>同频</small></div><button class="search" data-act="search">${ic('search')}<span>搜索会话、功能</span><span class="kbd">⌘K</span></button><div class="sect">洞察 <span class="mono">01 — 06</span></div><nav class="nav" aria-label="数据洞察">${ROUTES.slice(0,6).map(r=>navButton(r,list)).join('')}</nav><div class="sect">改进 <span class="mono">07 — 08</span></div><nav class="nav" aria-label="改进与资源">${ROUTES.slice(6).map(r=>navButton(r,list)).join('')}</nav><div class="sect">Agents <span>会话</span></div><div class="nav">${AG.map(a=>`<button class="ag${S.agent!=='all'&&S.agent!==a.id?' off':''}" data-act="agent" data-id="${a.id}" aria-pressed="${S.agent===a.id}"><i class="dot" style="background:${a.c}"></i><span class="lb">${a.name}</span><span class="ct">${list.filter(s=>s.a===a.id).length}</span></button>`).join('')}</div><div class="foot"><div class="privacy"><div class="row">${ic('shield')}示例数据 · 本地演示</div><span>以自己的历史为基准<br>当前样本截至 2026 / 09 / 30</span></div><div class="me"><span class="av">fx</span><div class="identity"><b class="small">genius-FXC</b><div class="cap">${p.ok?p.code+' · '+p.zh:'积累你的协作画像'}</div></div><button class="ib" data-act="settings" aria-label="偏好设置">${ic('settings')}</button></div></div>`;}
+function renderSide(){const list=filtered(),p=persona(list);$('#side').innerHTML=`<div class="lights" aria-hidden="true"><i></i><i></i><i></i></div><div class="side-brand">${GLYPH} Orbit</div><button class="search" data-act="search">${ic('search')}<span>搜索会话、功能</span><span class="kbd">⌘K</span></button><div class="sect">洞察 <span class="mono">01 — 06</span></div><nav class="nav" aria-label="数据洞察">${ROUTES.slice(0,6).map(r=>navButton(r,list)).join('')}</nav><div class="sect">改进 <span class="mono">07 — 08</span></div><nav class="nav" aria-label="改进与资源">${ROUTES.slice(6).map(r=>navButton(r,list)).join('')}</nav><div class="sect">Agents <span>会话</span></div><div class="nav">${AG.map(a=>`<button class="ag${S.agent!=='all'&&S.agent!==a.id?' off':''}" data-act="agent" data-id="${a.id}" aria-pressed="${S.agent===a.id}"><i class="dot" style="background:${a.c}"></i><span class="lb">${a.name}</span><span class="ct">${list.filter(s=>s.a===a.id).length}</span></button>`).join('')}</div><div class="foot"><div class="privacy"><div class="row">${ic('shield')}示例数据 · 本地演示</div><span>以自己的历史为基准<br>当前样本截至 2026 / 09 / 30</span></div><div class="me"><span class="av">fx</span><div class="identity"><b class="small">genius-FXC</b><div class="cap">${p.ok?p.code+' · '+p.zh:'积累你的协作画像'}</div></div><button class="ib" data-act="settings" aria-label="偏好设置">${ic('settings')}</button></div></div>`;}
 function navButton(r,list){return `<button data-act="go" data-id="${r[0]}" ${S.route===r[0]?'aria-current="page"':''}>${ic(r[2])}<span class="lb">${r[1]}</span>${r[0]==='sessions'?`<span class="ct">${list.length}</span>`:r[0]==='recs'?`<span class="bd">${RECOMMENDATIONS.length}</span>`:''}</button>`;}
 function filters(){return `<div class="filterline"><div class="seg" role="group" aria-label="时间范围">${[7,30,90,0].map(n=>`<button data-act="range" data-value="${n}" class="${S.range===n?'on':''}" aria-pressed="${S.range===n}">${n?n+' 天':'全部'}</button>`).join('')}</div><select class="select" aria-label="Agent 筛选" data-change="agent"><option value="all">Agent · 全部</option>${AG.map(a=>`<option value="${a.id}" ${S.agent===a.id?'selected':''}>${a.name}</option>`).join('')}</select><select class="select" aria-label="项目筛选" data-change="project"><option value="all">项目 · 全部</option>${PJ.map(p=>`<option value="${p.id}" ${S.project===p.id?'selected':''}>${p.name}</option>`).join('')}</select><span class="spacer"></span><span class="scope-note mono">${scopeLabel()}</span></div>`;}
 const PAGES={};
-function render(){const scroll=$('#content')?.scrollTop||0;renderSide();document.documentElement.dataset.theme=S.theme;$('#win').classList.toggle('drawer',S.drawer);$('#drawerScrim').hidden=!S.drawer;$('#side').inert=innerWidth<=900&&!S.drawer;const route=ROUTES.find(r=>r[0]===S.route);$('#main').innerHTML=`<header class="tbar"><button class="ib burger" data-act="drawer" aria-label="打开导航" aria-expanded="${S.drawer}">${ic('burger')}</button><div class="grow"><h1>${route[1]}</h1><div class="meta">${route[3]}</div></div><div class="actions">${button(`${S.syncing?'<i class="spin"></i>':ic('sync')}${S.syncing?'同步中':S.synced?'已同步':'同步'}`,'sync',S.syncing?'disabled':'','gh')}${button(ic('down')+'导出','export')}${button(ic('share')+'分享','share')}</div></header><div class="content" id="content">${filters()}${PAGES[S.route]()}<div class="footer-note">TANDEM / 同频 · 个人协作基准 · 所有统计与推荐均为示例</div></div>`;$('#content').scrollTop=scroll;}
+function render(){const scroll=$('#content')?.scrollTop||0;renderSide();document.documentElement.dataset.theme=S.theme;$('#win').classList.toggle('drawer',S.drawer);$('#drawerScrim').hidden=!S.drawer;$('#side').inert=innerWidth<=900&&!S.drawer;const route=ROUTES.find(r=>r[0]===S.route);$('#main').innerHTML=`<header class="tbar"><button class="ib burger" data-act="drawer" aria-label="打开导航" aria-expanded="${S.drawer}">${ic('burger')}</button><div class="grow"><h1>${route[1]}</h1><div class="meta">${route[3]}</div></div><div class="actions">${button(`${S.syncing?'<i class="spin"></i>':ic('sync')}${S.syncing?'同步中':S.synced?'已同步':'同步'}`,'sync',S.syncing?'disabled':'','gh')}${button(ic('down')+'导出','export')}${button(ic('share')+'分享','share')}</div></header><div class="content" id="content">${filters()}${PAGES[S.route]()}<div class="footer-note">ORBIT · 个人协作基准 · 所有统计与推荐均为示例</div></div>`;$('#content').scrollTop=scroll;}
 
 /* 01 / Overview */
 function dailyChart(list){const [start,end]=windowDays(),n=end-start+1,W=Math.max(520,n*10),H=152,left=32,right=12,step=(W-left-right)/n;const values=Array.from({length:n},(_,i)=>sum(list.filter(s=>s.d===start+i),s=>s.msgs)),max=Math.max(1,...values);return `<div class="chart-scroll"><svg class="chart daily" viewBox="0 0 ${W} ${H}" role="img" aria-label="按日发出消息数的工作强度分布">${[0,.5,1].map(v=>`<line x1="${left}" x2="${W}" y1="${116-v*94}" y2="${116-v*94}" stroke="var(--hair)"/><text x="25" y="${120-v*94}" text-anchor="end">${Math.round(max*v)}</text>`).join('')}${values.map((v,i)=>`<rect x="${left+i*step+2}" y="${116-v/max*94}" width="${Math.max(1,step-4)}" height="${v/max*94}" rx="2" fill="var(--ink-2)"><title>${md(start+i)} · ${v} 条消息</title></rect>`).join('')}${[0,Math.floor((n-1)/3),Math.floor((n-1)*2/3),n-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>`<text x="${left+i*step+step/2}" y="140" text-anchor="middle">${md(start+i)}</text>`).join('')}</svg></div>`;}
@@ -627,7 +627,7 @@ PAGES.sentiment=()=>{const list=filtered(),st=stats(list);if(!list.length)return
 function evidence(r){const xs=filtered(),st=stats(xs);switch(r.reason){case'friction':return xs.filter(s=>s.corr).length;case'errors':return xs.filter(s=>s.errors).length;case'git':return xs.filter(s=>s.topic==='git').length;case'design':return xs.filter(s=>s.topic==='design').length;case'verify':return xs.filter(s=>s.verify).length;case'tokens':return xs.filter(s=>s.tok>1e6).length;case'parallel':return xs.filter(s=>xs.some(t=>t!==s&&t.end-t.dur<s.end&&t.end>s.end-s.dur)).length;case'duration':return xs.filter(s=>s.dur>60).length;default:return st.n;}}
 function recommendations(){return RECOMMENDATIONS.filter(r=>(S.dimension==='all'||r.dim===S.dimension)&&(S.agent==='all'||r.agents.includes(S.agent))).sort((a,b)=>(b.score+Math.min(10,evidence(b)/10))-(a.score+Math.min(10,evidence(a)/10)));}
 function installKey(r,target=S.target){return r.id+':'+target;}
-function configCode(r){return S.custom[installKey(r)]||`# 目标 Agent：${AGI[S.target].name}\n# Tandem 配置示意 / 实际接入前需适配 Agent 格式\n\n${r.code}`;}
+function configCode(r){return S.custom[installKey(r)]||`# 目标 Agent：${AGI[S.target].name}\n# Orbit 配置示意 / 实际接入前需适配 Agent 格式\n\n${r.code}`;}
 function recCard(r,i){const n=evidence(r);return `<article class="card rec-card${S.rec===r.id?' selected':''}"><div class="row between"><span class="row"><span class="bdg">${r.type}</span><span class="rank">推荐 #${i+1}</span></span><span class="benefit">预计 ${r.gain}</span></div><h3>${r.title}</h3><p class="note">${r.desc}</p><div class="note">${n?'关联 '+n+' 个当前范围会话':'暂无相关会话证据 · 通用配置参考'}</div><div class="bottom"><span class="note">${r.agents.length===5?'适配所有 Agent':r.agents.map(id=>AGI[id].short).join(' · ')}</span>${button('预览并安装 '+ic('chevr'),'rec',`data-id="${r.id}"`,'sm')}</div></article>`;}
 PAGES.recs=()=>{const items=recommendations();if(S.rec&&!items.some(r=>r.id===S.rec))S.rec=null;return `<div class="rec-tabs" role="group" aria-label="优化建议分类">${DIMS.map(([id,label])=>`<button class="chip${S.dimension===id?' on':''}" data-act="dimension" data-value="${id}" aria-pressed="${S.dimension===id}">${label}</button>`).join('')}</div><div class="row between note" style="margin:2px 0 16px"><span>${items.length} 项建议 · 按推荐程度排序</span><span>预计效果为演示估算，尚未验证</span></div>${items.length?`<div class="rec-layout${S.rec?' expanded':''}"><div class="rec-list">${items.map(recCard).join('')}</div>${S.rec?recDetail(REC[S.rec]):''}</div>`:empty('此分类暂无适配当前 Agent 的建议。')}`;};
 function recDetail(r){if(!r.agents.includes(S.target))S.target=r.agents[0];let body='';if(S.recTab==='preview')body=`<span class="preview-path">${esc(r.file)} · ${AGI[S.target].name}</span><pre class="code-block">${esc(configCode(r))}</pre><div class="row between" style="margin-top:12px"><span class="note">行为 / 配置示意，非已验证安装脚本</span>${button(ic('copy')+'复制内容','copy-config','','sm')}</div>`;else if(S.recTab==='tutorial')body=`<h3>把配置融入下一次协作</h3><ol class="tutorial">${r.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><div class="insight">Demo 安装只保存页面内的模拟状态，不写入 Agent 配置，不执行命令。</div>`;else body=`<h2>${r.title}</h2><p class="note" style="font-size:13px;margin:14px 0">${r.desc}</p><div class="insight"><div class="row">${ic('spark')} 为什么推荐</div>${evidence(r)?`当前筛选有 ${evidence(r)} 个相关会话，可从这项配置开始验证效果。`:'目前没有足够的相关会话证据，可以先预览通用方案。'}</div><p class="note" style="margin-top:16px">预计效果：${r.gain}。先在一个任务中试用，再用完成情况、纠偏次数和 Token 用量进行前后对比。</p>`;return `<section class="card rec-detail" id="recDetail" tabindex="-1"><div class="detail-head"><div class="row between" style="margin-bottom:14px"><span class="row">${ic(r.icon)}<b>${r.type} 配置详情</b></span><button class="ib" data-act="close-rec" aria-label="关闭配置详情">${ic('x')}</button></div><div class="row between"><span class="note">适配 Agent</span><select class="select" data-change="target" aria-label="配置目标 Agent">${r.agents.map(id=>`<option value="${id}" ${S.target===id?'selected':''}>${AGI[id].name}</option>`).join('')}</select></div><div class="seg" role="group" aria-label="配置内容" style="margin-top:14px">${[['about','程序说明'],['preview','预览代码'],['tutorial','教程']].map(([id,label])=>`<button data-act="rec-tab" data-value="${id}" class="${S.recTab===id?'on':''}" aria-pressed="${S.recTab===id}">${label}</button>`).join('')}</div></div><div class="detail-body">${body}</div><div class="detail-foot">${button(ic('spark')+'Agent 定制','customize','','ai')}${S.installed[installKey(r)]?button('撤销模拟安装','uninstall'):button('预览并安装','install','','p')}</div></section>`;}
@@ -643,10 +643,10 @@ function openModal(title,content,footer='',wide=false){modalReturnFocus=document
 function closeModal(){$('#modal').hidden=true;$('#scrim').hidden=true;$('#win').inert=false;$('#modal').innerHTML='';if(modalReturnFocus?.isConnected)modalReturnFocus.focus();else $('#main h1')?.focus();}
 function download(name,text,type='text/plain;charset=utf-8'){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('已导出 '+name);}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('已复制到剪贴板');}catch{openModal('复制内容','<p class="note">浏览器未允许直接访问剪贴板，请手动复制。</p><textarea readonly aria-label="待复制内容">'+esc(text)+'</textarea>');$('#modal textarea').select();}}
-function reportText(){const st=stats(filtered()),p=persona(filtered());return `# Tandem · 个人协作 Benchmark\n\n${scopeLabel()} · ${S.agent==='all'?'全部 Agent':AGI[S.agent].name} · ${S.project==='all'?'全部项目':PJI[S.project].name}\n\n- 会话：${st.n}\n- 协作时长：${f1(st.hours)} 小时（含并行重叠）\n- 发出消息：${st.msgs}\n- 纠偏消息：${st.corr}\n- 纠偏率：${st.msgs?f1(st.fric)+'%':'暂无数据'}\n- 工具调用：${st.tools}\n- 调用失败：${st.errors}\n- Tokens：${st.tok}\n- 协作画像：${p.ok?p.code+' · '+p.zh:'样本不足 30 个会话'}\n\n全部内容均为示例数据；画像不是心理测评。\n` ;}
-function sharePreview(){const list=filtered(),st=stats(list),p=persona(list);return `<div class="share-preview"><div class="eyebrow">TANDEM / YOUR COLLABORATION SIGNATURE</div><div class="persona-code">${p.ok?p.code:'????'}</div><h2>${p.ok?p.zh:'画像正在生长'}</h2><p class="note" style="margin-top:9px">${p.ok?p.line:'还需要更多协作会话，才能形成稳定画像。'}</p><div class="tiles">${[['会话',st.n],['协作时长',f1(st.hours)+'h'],['消息',st.msgs],['纠偏率',st.msgs?f1(st.fric)+'%':'—']].map(([l,v])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div><p class="note" style="margin-top:24px">${scopeLabel()} · 示例数据</p></div><p class="note" style="margin-top:12px">分享内容仅含汇总与画像，不含会话原文、项目路径或个人标识。</p>`;}
-function shareText(){const st=stats(filtered()),p=persona(filtered());return `我的 Tandem 协作画像：${p.ok?p.code+' · '+p.zh:'画像正在生长'}\n${scopeLabel()}\n${st.n} 次会话 · ${f1(st.hours)} 小时 · ${st.msgs} 条消息 · 纠偏率 ${st.msgs?f1(st.fric)+'%':'暂无数据'}\n个人协作 Benchmark / 示例数据，非心理测评。`;}
-function shareSVG(){const st=stats(filtered()),p=persona(filtered());return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080"><rect width="1080" height="1080" fill="#f5f4f0"/><rect x="60" y="60" width="960" height="960" rx="24" fill="#fff" stroke="#e3e1dc"/><g fill="#17181b" text-anchor="middle" font-family="Georgia, Microsoft YaHei, serif"><text x="540" y="166" font-size="22" letter-spacing="4">TANDEM / 同频</text><text x="540" y="400" font-size="150">${p.ok?p.code:'????'}</text><text x="540" y="493" font-size="48">${p.ok?p.zh:'画像正在生长'}</text><text x="540" y="570" font-size="24">${esc(p.ok?p.line:'更多协作，让画像慢慢浮现。')}</text>${[['会话',st.n],['时长',f1(st.hours)+'h'],['消息',st.msgs],['纠偏率',st.msgs?f1(st.fric)+'%':'—']].map(([l,v],i)=>`<text x="${230+i*205}" y="755" font-size="38">${v}</text><text x="${230+i*205}" y="808" font-size="22" fill="#62666f">${l}</text>`).join('')}<text x="540" y="921" font-size="20" fill="#62666f">${scopeLabel()} · 示例数据 / 非心理测评</text></g></svg>`;}
+function reportText(){const st=stats(filtered()),p=persona(filtered());return `# Orbit · 个人协作 Benchmark\n\n${scopeLabel()} · ${S.agent==='all'?'全部 Agent':AGI[S.agent].name} · ${S.project==='all'?'全部项目':PJI[S.project].name}\n\n- 会话：${st.n}\n- 协作时长：${f1(st.hours)} 小时（含并行重叠）\n- 发出消息：${st.msgs}\n- 纠偏消息：${st.corr}\n- 纠偏率：${st.msgs?f1(st.fric)+'%':'暂无数据'}\n- 工具调用：${st.tools}\n- 调用失败：${st.errors}\n- Tokens：${st.tok}\n- 协作画像：${p.ok?p.code+' · '+p.zh:'样本不足 30 个会话'}\n\n全部内容均为示例数据；画像不是心理测评。\n` ;}
+function sharePreview(){const list=filtered(),st=stats(list),p=persona(list);return `<div class="share-preview"><div class="eyebrow">ORBIT / YOUR COLLABORATION SIGNATURE</div><div class="persona-code">${p.ok?p.code:'????'}</div><h2>${p.ok?p.zh:'画像正在生长'}</h2><p class="note" style="margin-top:9px">${p.ok?p.line:'还需要更多协作会话，才能形成稳定画像。'}</p><div class="tiles">${[['会话',st.n],['协作时长',f1(st.hours)+'h'],['消息',st.msgs],['纠偏率',st.msgs?f1(st.fric)+'%':'—']].map(([l,v])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div><p class="note" style="margin-top:24px">${scopeLabel()} · 示例数据</p></div><p class="note" style="margin-top:12px">分享内容仅含汇总与画像，不含会话原文、项目路径或个人标识。</p>`;}
+function shareText(){const st=stats(filtered()),p=persona(filtered());return `我的 Orbit 协作画像：${p.ok?p.code+' · '+p.zh:'画像正在生长'}\n${scopeLabel()}\n${st.n} 次会话 · ${f1(st.hours)} 小时 · ${st.msgs} 条消息 · 纠偏率 ${st.msgs?f1(st.fric)+'%':'暂无数据'}\n个人协作 Benchmark / 示例数据，非心理测评。`;}
+function shareSVG(){const st=stats(filtered()),p=persona(filtered());return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080"><rect width="1080" height="1080" fill="#f5f4f0"/><rect x="60" y="60" width="960" height="960" rx="24" fill="#fff" stroke="#e3e1dc"/><g fill="#17181b" text-anchor="middle" font-family="Georgia, Microsoft YaHei, serif"><text x="540" y="166" font-size="22" letter-spacing="4">ORBIT</text><text x="540" y="400" font-size="150">${p.ok?p.code:'????'}</text><text x="540" y="493" font-size="48">${p.ok?p.zh:'画像正在生长'}</text><text x="540" y="570" font-size="24">${esc(p.ok?p.line:'更多协作，让画像慢慢浮现。')}</text>${[['会话',st.n],['时长',f1(st.hours)+'h'],['消息',st.msgs],['纠偏率',st.msgs?f1(st.fric)+'%':'—']].map(([l,v],i)=>`<text x="${230+i*205}" y="755" font-size="38">${v}</text><text x="${230+i*205}" y="808" font-size="22" fill="#62666f">${l}</text>`).join('')}<text x="540" y="921" font-size="20" fill="#62666f">${scopeLabel()} · 示例数据 / 非心理测评</text></g></svg>`;}
 function showInstall(){const r=REC[S.rec];openModal('预览并安装',`<p class="note">目标：${AGI[S.target].name} · ${r.file}</p><pre class="code-block">${esc(configCode(r))}</pre><div class="insight" style="margin-top:14px">这是模拟安装，仅在此浏览器保存已安装标记。不会写入本机配置或执行代码。</div>`,button('返回查看','close-modal')+button('确认模拟安装','confirm-install','','p'),true);}
 function openSearch(){openModal('搜索会话与功能','<label class="search-field">'+ic('search')+'<input id="globalQ" data-input="global" aria-label="搜索会话与功能" placeholder="输入功能、项目或会话关键词"></label><div class="pal-results" id="searchResults"></div>');searchResults('');}
 function searchResults(query){const q=query.trim().toLowerCase(),routes=ROUTES.filter(r=>!q||r[1].toLowerCase().includes(q)),sessions=q?filtered().filter(s=>(s.title+' '+PJI[s.p].name).toLowerCase().includes(q)).sort((a,b)=>b.end-a.end).slice(0,12):[];$('#searchResults').innerHTML=routes.map(r=>`<button data-act="search-route" data-id="${r[0]}"><b>${r[1]}</b><div class="note">${r[3]}</div></button>`).join('')+sessions.map(s=>`<button data-act="search-session" data-id="${s.id}"><b>${esc(s.title)}</b><div class="note">${PJI[s.p].name} · ${endedAt(s)}</div></button>`).join('')||'<p class="note" style="padding:20px">当前筛选范围没有匹配结果。</p>';}
@@ -674,10 +674,10 @@ const ACT={
   'library-tab':el=>{S.libTab=el.dataset.value;render();},
   sync:()=>{if(S.syncing)return;S.syncing=true;render();setTimeout(()=>{S.syncing=false;S.synced=new Date();render();toast('示例数据同步完成 · 共 '+ALL.filter(s=>s.d<=119&&!s.live).length+' 个会话；未读取本机日志');},850);},
   export:()=>openModal('导出个人 Benchmark',`<p class="note">导出当前日期、Agent 和项目筛选范围内的数据。以下预览可复制，也可下载为文件。</p><textarea readonly aria-label="导出报告预览" style="margin-top:12px">${esc(reportText())}</textarea>`,button('下载会话 CSV','download-csv')+button('下载报告 Markdown','download-report','','p'),true),
-  'download-report':()=>download('tandem-benchmark-report.md',reportText(),'text/markdown;charset=utf-8'),
-  'download-csv':()=>{const quote=v=>'"'+String(v).replaceAll('"','""')+'"';const rows=[['session_id','title','project','agent','last_chat','duration_minutes','messages','tool_calls','errors','corrections','tokens'],...filtered().sort((a,b)=>b.end-a.end).map(s=>[s.id,s.title,PJI[s.p].name,AGI[s.a].name,endedAt(s),Math.round(s.dur),s.msgs,s.tools,s.errors,s.corr,s.tok])];download('tandem-sessions.csv','\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n'),'text/csv;charset=utf-8');},
+  'download-report':()=>download('orbit-report-'+new Date().toLocaleDateString('sv-SE')+'.md',reportText(),'text/markdown;charset=utf-8'),
+  'download-csv':()=>{const quote=v=>'"'+String(v).replaceAll('"','""')+'"';const rows=[['session_id','title','project','agent','last_chat','duration_minutes','messages','tool_calls','errors','corrections','tokens'],...filtered().sort((a,b)=>b.end-a.end).map(s=>[s.id,s.title,PJI[s.p].name,AGI[s.a].name,endedAt(s),Math.round(s.dur),s.msgs,s.tools,s.errors,s.corr,s.tok])];download('orbit-sessions-'+new Date().toLocaleDateString('sv-SE')+'.csv','\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n'),'text/csv;charset=utf-8');},
   share:()=>openModal('分享你的协作画像',sharePreview(),button(ic('copy')+'复制分享文字','copy-share')+button(ic('down')+'保存分享卡 SVG','download-share','','p'),true),
-  'copy-share':()=>copy(shareText()),'download-share':()=>download('tandem-persona.svg',shareSVG(),'image/svg+xml;charset=utf-8'),
+  'copy-share':()=>copy(shareText()),'download-share':()=>download('orbit-persona-'+new Date().toLocaleDateString('sv-SE')+'.svg',shareSVG(),'image/svg+xml;charset=utf-8'),
   settings:()=>openModal('偏好设置',`<div class="row between"><span>外观</span><select class="select" data-change="theme" aria-label="外观主题"><option value="light" ${S.theme==='light'?'selected':''}>浅色 · 暖白</option><option value="dark" ${S.theme==='dark'?'selected':''}>深色</option></select></div><div class="insight" style="margin-top:20px">此 Demo 使用固定的示例会话，不接入账号或本机日志。外观与模拟安装标记保存在当前浏览器。</div><p class="note" style="margin-top:14px">快捷键：Ctrl / ⌘ K 搜索；Alt + 1–8 切换页面；Esc 关闭弹窗。</p>`),
   search:openSearch,'close-modal':closeModal,
   'search-route':el=>{const id=el.dataset.id;closeModal();go(id);},
@@ -707,9 +707,9 @@ window.addEventListener('hashchange',()=>{readLocation();render();});
 const TandemLive = (function () {
   'use strict';
   const STATES = ['idle', 'loading', 'ready', 'stale', 'computing', 'empty', 'error', 'importing'];
-  const TOPICS = 'job,data,analysis,service';
+  const TOPICS = 'job,data,analysis,service,notify';
   // UI agent id -> agent names a source may report in /v1/status sources[].agent
-  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'] };
+  const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'], pi: ['pi'], km: ['kimi', 'kimi_cli'], hm: ['hermes', 'hermes_agent'], oc: ['opencode'] };
   const ACTIVE_JOB = ['queued', 'pending', 'running'];
 
   function abortError() { const e = new Error('aborted'); e.name = 'AbortError'; return e; }
@@ -1056,6 +1056,53 @@ const TandemLive = (function () {
         if (restart || C.mode === 'live') { C.connectEvents(); C.ensureStatus().catch(() => {}); }
       });
     };
+    /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
+    // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
+    // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    C.send = function (method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const q = o.query ? encodePairs(Object.keys(o.query).sort().filter((k) => o.query[k] != null).map((k) => [k, String(o.query[k])])) : '';
+      const init = { method, headers: headers(body != null ? { 'Content-Type': 'application/json' } : null), signal: o.signal };
+      if (body != null) init.body = JSON.stringify(body);
+      return Promise.resolve().then(() => fetchFn(urlFor(path, q), init)).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+      }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
+    };
+    // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down
+    // (503), no connection, or mock mode. Anything else (403 consent_required, 409, 422 …) is a real answer to show.
+    C.unavailable = (e) => !!e && !isAbort(e) && (!e.status || e.status === 404 || e.status === 501 || e.status === 503);
+    // pollJob(id, onUpdate, {intervalMs, signal}): GET /v1/ai/jobs/{id} until the job leaves queued / pending / running;
+    // an ai.job (or job) frame for the same id on /v1/events polls at once instead of waiting for the interval.
+    C.pollJob = function (id, onUpdate, o) {
+      o = o || {};
+      const every = o.intervalMs || 700; let wake = null, stopped = false;
+      const off = C.on('event', (ev) => { const d = ev.data || {}; if ((ev.name === 'ai.job' || ev.name === 'job') && (d.job_id === id || d.id === id) && wake) wake(); });
+      if (o.signal) o.signal.addEventListener('abort', () => { stopped = true; if (wake) wake(); }, { once: true });
+      const nap = () => new Promise((resolve) => { const t = timers.setTimeout(() => { wake = null; resolve(); }, every); wake = () => { timers.clearTimeout(t); wake = null; resolve(); }; });
+      return (async () => {
+        try {
+          for (;;) {
+            if (stopped) throw abortError();
+            const job = (await C.send('GET', '/v1/ai/jobs/' + encodeURIComponent(id), null, { signal: o.signal })).data || {};
+            if (onUpdate) onUpdate(job);
+            if (ACTIVE_JOB.indexOf(job.status) < 0) return job;
+            await nap();
+          }
+        } finally { off(); }
+      })();
+    };
+    // collection pause / resume arrives as a service frame {name:'collection', state}; it is a user setting, not a service
+    // health state, so it moves to C.collection and never raises the「服务异常」banner.
+    C.collection = null;
+    C.on('event', (ev) => {
+      if (ev.name === 'service' && ev.data && ev.data.name === 'collection') { delete C.services.collection; C.collection = ev.data.state; changed(); }
+    });
+    /* ==== end studio-settings ==== */
     C.start = function () {
       if (C.mode !== 'live') return C;
       if (!C.endpoint) C.error = { code: 'no_endpoint', message: '未配置本地服务地址', retryable: false };
@@ -1063,8 +1110,339 @@ const TandemLive = (function () {
       if (win.addEventListener) win.addEventListener('tandem:endpoint', (e) => { C.setEndpoint(e && e.detail); });
       return C;
     };
+
+    /* ==== recs: recommendations (A7 / A1 / Lite / menubar top), detail, relations, exposure, labels, recompute ====
+       Reads go through C.get / C.resource like every other page. Writes (POST / DELETE) use send(); a write never
+       changes a resource by itself: the caller invalidates the recommendation resources afterwards. */
+    function send(method, path, body) {
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode' }));
+      const h = headers(body !== undefined ? { 'Content-Type': 'application/json' } : null);
+      return Promise.resolve().then(() => fetchFn(urlFor(path), { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      });
+    }
+    const REC_PATH = '/v1/recommendations';
+    const seen = new Set();   // surface|candidate_id already reported as `view` in this page session
+    C.recs = {
+      PATH: REC_PATH,
+      SURFACE_LIMIT: { A7: 50, A1: 3, lite: 3, menubar: 1 },
+      // resource descriptor for a surface (same shape as a bind() resource); A7 asks for the full list, the top
+      // surfaces ask for the backend's stable 24-hour slate
+      desc(surface, extra) { return { name: surface, path: REC_PATH, query: Object.assign({ surface, limit: C.recs.SURFACE_LIMIT[surface] || 30 }, extra || {}), waitMs: 800 }; },
+      resource(surface, scope) { const d = C.recs.desc(surface); return C.resource(d.path, { scope, query: d.query, waitMs: d.waitMs }); },
+      detail(id, signal) { return C.get(REC_PATH + '/' + encodeURIComponent(id), { signal }); },
+      relations(ids, signal) {
+        const xs = Array.from(new Set(ids || [])).slice(0, 20);
+        if (xs.length < 2) return Promise.resolve({ status: 200, data: { pairs: [] } });
+        return C.get(REC_PATH + '/relations?' + xs.map((x) => 'candidate_id=' + encodeURIComponent(x)).join('&'), { signal });
+      },
+      exposure(id, surface, action, position) { return send('POST', REC_PATH + '/' + encodeURIComponent(id) + '/exposure', { surface, action: action || 'view', position: position == null ? null : position }); },
+      // batched `view` exposure; ids already reported for this surface are skipped, so a re-render sends nothing
+      viewed(surface, ids) {
+        const items = []; (ids || []).forEach((id, i) => { const k = surface + '|' + id; if (id && !seen.has(k)) { seen.add(k); items.push({ candidate_id: id, position: i, action: 'view' }); } });
+        if (!items.length) return Promise.resolve(null);
+        return send('POST', REC_PATH + '/exposures', { surface, items: items.slice(0, 50) }).catch((e) => { items.forEach((it) => seen.delete(surface + '|' + it.candidate_id)); throw e; });
+      },
+      label(id, label, reason) { return send('POST', '/v1/labels', Object.assign({ target_kind: 'candidate', target_id: id, label }, reason ? { reason } : {})); },
+      unlabel(labelId) { return send('DELETE', '/v1/labels/' + encodeURIComponent(labelId)); },
+      recompute(scope, force) { return send('POST', REC_PATH + '/recompute', { scope: scopeBody(scope, C.status, now()), force: !!force }); },
+      invalidate() { return C.invalidate((r) => r.path === REC_PATH || r.path.indexOf(REC_PATH + '/') === 0); }
+    };
+    libraryInstall(C, { fetchFn, headers });   // C.li: library-install section below
+    ops(C, { fetchFn, headers, timers });       // C.ops: ops section below
     return C;
   }
+  // recompute takes the analytics scope as a JSON object: list keys stay lists, the rest are scalars
+  const SCOPE_LISTS = ['source_ids', 'project_ids', 'model_ids', 'excluded_session_uids'];
+  function scopeBody(scope, status, now) {
+    const o = {};
+    scopePairs(scope, status, now == null ? Date.now() : now).forEach((kv) => {
+      if (SCOPE_LISTS.indexOf(kv[0]) >= 0) { o[kv[0]] = o[kv[0]] || []; if (kv[1] !== '') o[kv[0]].push(kv[1]); }
+      else o[kv[0]] = kv[0] === 'from_ts' ? Number(kv[1]) : kv[1];
+    });
+    return o;
+  }
+
+  /* ==== recs: Cand -> the prototype's RECS row ====
+     The backend's Cand carries `ui` already shaped like the A7 rows (dim, type, icon, lvl, aud, title, gain, why, ev,
+     evq, compat, primary, target, file, steps, track). Missing numbers stay null so the page prints「—」, never 0. */
+  function recSaveHours(c) {
+    // ranking: benefit = 1 − exp(−weekly_minutes / 30) → minutes per week → hours per month (4.33 weeks)
+    const b = c && c.score && c.score.benefit;
+    if (b == null || !Number.isFinite(b) || b <= 0 || b >= 1) return null;
+    return Math.round(-30 * Math.log(1 - b) * 4.33 / 60 * 10) / 10;
+  }
+  function recRow(c) {
+    const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
+    const track = (u.track || []).map((t) => [t[0], t[1] == null ? null : t[1], t[2] == null ? null : t[2], t[3] || '']);
+    return {
+      id: c.candidate_id, rec_key: c.rec_key, run_id: c.run_id, live: true,
+      dim: u.dim || c.dim || 'rule', type: u.type || c.kind || '—', icon: u.icon || 'rule', lvl: u.lvl || c.level || 1, aud: u.aud != null ? u.aud : (c.audience_min || 0),
+      title: u.title || c.title || '', gain: u.gain || '—', why: u.why || ((c.explain || {}).reason) || '', ev: u.ev || (n + ' 个会话'), evq: u.evq || {},
+      compat: u.compat || '', c2: 'var(--a2)', primary: u.primary || '查看方案', target: u.target || '', file: (u.file || []).map((l) => [String(l[0] == null ? '' : l[0]), l[1] || ' ']),
+      steps: u.steps || [], track,
+      x: { save: recSaveHours(c), tok: null, n: [n, n] },
+      priority: c.score ? c.score.priority : null, source: c.source || null
+    };
+  }
+  const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
+
+  /* ======== library-install: A8 资源库 (/v1/catalog/*) and the install sheet (/v1/install/*) ========
+     Owned by the library-install binding (Advance src/js/97-live-library-install.js, Lite @tandem-live block). Attached to
+     every client as C.li by one line in create(). Catalog reads go through C.resource so they keep ETag / states; writes and
+     the install flow use C.li.send (JSON body, error.code / error.detail or FastAPI's string detail). A route that is missing,
+     not implemented, unavailable or offline (liDegraded) lets the page fall back to its demo data with the 示例数据 badge. */
+  const LI_KINDS = { Skill: ['skill'], Hook: ['hook'], '插件': ['plugin', 'marketplace'], '子代理': ['subagent'], MCP: ['mcp_server'] };
+  const LI_LABEL = { skill: 'Skill', hook: 'Hook', plugin: '插件', marketplace: '插件', subagent: '子代理', mcp_server: 'MCP', command: '命令', rule: '规则', workflow: '工作流', guide: '指南', output_style: '输出风格', lsp_server: 'LSP' };
+  const LI_TABS = { for: { sort: 'updated' }, peer: { sort: 'stars' }, hot: { sort: 'installs' }, local: { sort: 'updated', origin: 'local' } };
+  const LI_DEGRADE = [0, 404, 405, 501, 503];
+  function liDegraded(err) { return !!err && (err.code === 'mock_mode' || LI_DEGRADE.indexOf(err.status || 0) >= 0); }
+  function liKindQS(kind) { const ks = LI_KINDS[kind] || []; return ks.length ? '?' + ks.map((k) => 'kind=' + encodeURIComponent(k)).join('&') : ''; }
+  // Library list request: a search box query uses /v1/catalog/search (ranked, no paging), otherwise /v1/catalog/items with
+  // the tab's sort / origin and keyset paging through next_cursor.
+  function liListRequest(o) {
+    o = o || {}; const tab = LI_TABS[o.tab] || LI_TABS.for; const q = String(o.q || '').trim();
+    if (q) return { path: '/v1/catalog/search' + liKindQS(o.kind), query: { q, limit: o.limit || 30 } };
+    const query = { sort: tab.sort, order: 'desc', limit: o.limit || 30 };
+    if (tab.origin) query.origin = tab.origin;
+    if (o.cursor) query.cursor = o.cursor;
+    return { path: '/v1/catalog/items' + liKindQS(o.kind), query };
+  }
+  function liFacetsRequest(o) { const tab = LI_TABS[(o || {}).tab] || LI_TABS.for; return { path: '/v1/catalog/facets', query: tab.origin ? { origin: tab.origin } : null }; }
+  const liItemPath = (id) => '/v1/catalog/items/' + String(id).split('/').map(encodeURIComponent).join('/');
+  // Preview → rows the sheet draws: one block per target with its diff lines ({n, op, text, gap}) and selectable units.
+  function liTargets(preview) {
+    return ((preview && preview.targets) || []).map((t) => ({
+      idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
+      disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
+      units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
+      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
+    }));
+  }
+  // Selection sent with preview / apply: selected_units only lists targets whose units were narrowed.
+  function liSelection(sel) {
+    sel = sel || {}; const out = { disabled_targets: Array.from(sel.disabled || []).map(Number).sort((a, b) => a - b) };
+    const su = {}; Object.keys(sel.units || {}).forEach((k) => { su[String(k)] = Array.from(sel.units[k]); });
+    if (Object.keys(su).length) out.selected_units = su;
+    return out;
+  }
+
+  // Why a plan cannot be written automatically (unmappable / link_only / anything not ready): the targets' own reasons first.
+  const LI_LINK_REASON = { kind_not_installable: '这类资源不能自动安装', license: '许可不允许自动安装', no_install_declaration: '目录条目没有声明安装方式', needs_plugin: '需要先安装它所在的插件' };
+  function liPlanReason(plan) {
+    if (!plan || plan.status === 'ready') return null;
+    const rs = (plan.targets || []).filter((t) => !t.mappable).map((t) => t.reason_text || t.reason).filter(Boolean);
+    const out = rs.filter((r, i) => rs.indexOf(r) === i);
+    if (plan.link_reason) out.push(LI_LINK_REASON[plan.link_reason] || plan.link_reason);
+    return out.length ? out.join('；') : plan.status === 'link_only' ? '该资源只能按来源说明手动安装' : plan.status === 'unmappable' ? '已检测的 Agent 都不支持这类资源' : null;
+  }
+
+  function libraryInstall(C, ctx) {
+    function send(method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const h = ctx.headers(body != null ? { 'Content-Type': 'application/json' } : null);
+      const q = o.query ? Object.keys(o.query).filter((k) => o.query[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o.query[k])).join('&') : '';
+      const url = C.endpoint + path + (q ? (path.indexOf('?') >= 0 ? '&' : '?') + q : '');
+      return Promise.resolve().then(() => ctx.fetchFn(url, { method, headers: h, body: body != null ? JSON.stringify(body) : undefined, signal: o.signal })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        const code = info.code || (data && typeof data.detail === 'string' ? data.detail : 'http_' + res.status);
+        throw Object.assign(new Error(info.message || code), { status: res.status, code, detail: info.detail != null ? info.detail : null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      }, (e) => { if (e && e.name === 'AbortError') throw e; throw Object.assign(new Error((e && e.message) || 'offline'), { status: 0, code: 'offline', retryable: true }); });
+    }
+    const body = (r) => r.data;
+    const L = {
+      send, degraded: liDegraded,
+      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, liPlanReason, LI_KINDS, LI_LABEL, LI_TABS },
+      kindLabel: (k) => LI_LABEL[k] || k || '—',
+      listRequest: liListRequest, facetsRequest: liFacetsRequest,
+      /* catalog */
+      items: (o) => { const r = liListRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      facets: (o) => { const r = liFacetsRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      item: (id, o) => send('GET', liItemPath(id), null, o).then(body),
+      addLocal: (item) => send('POST', '/v1/catalog/local', item).then(body),
+      removeLocal: (id) => send('DELETE', '/v1/catalog/local/' + String(id).split('/').map(encodeURIComponent).join('/')).then(() => true),
+      /* install */
+      environment: (refresh) => send('GET', '/v1/install/environment', null, { query: refresh ? { refresh: 1 } : null }).then(body),
+      plan: (req) => send('POST', '/v1/install/plans', req).then(body),
+      preview: (planId, sel) => { const s = liSelection(sel); const narrowed = s.disabled_targets.length || s.selected_units; return (narrowed ? send('POST', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview', s) : send('GET', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview')).then(body); },
+      fetch: (req) => send('POST', '/v1/install/fetch', req).then(body),
+      revert: (installId, targets) => send('POST', '/v1/install/' + encodeURIComponent(installId) + '/revert', targets ? { targets } : {}).then(body),
+      state: (st) => send('GET', '/v1/install/state', null, { query: st ? { state: st } : null }).then(body),
+      ledger: (o) => send('GET', '/v1/install/ledger', null, { query: o || null }).then(body),
+      install: (id) => send('GET', '/v1/install/' + encodeURIComponent(id)).then(body),
+      // plan → (fetch + re-plan when the source must be downloaded first) → preview. Resolves {env, plan, preview}; preview is
+      // null when the plan is link_only / unmappable (the sheet shows plan.links / plan.warnings instead).
+      prepare(source, o) {
+        o = o || {};
+        // the environment only narrows the agents; without it the backend picks its defaults
+        const env = o.env ? Promise.resolve(o.env) : L.environment().catch(() => null);
+        return env.then((envData) => {
+          let agents = o.agents;
+          if (!agents && envData) {
+            const ok = (envData.agents || []).filter((a) => a.installed && a.install_support === 'full').map((a) => a.agent);
+            const want = o.itemAgents && o.itemAgents.length ? ok.filter((a) => o.itemAgents.indexOf(a) >= 0) : ok;
+            agents = want.length ? want : ok.length ? ok : undefined;
+          }
+          const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
+          // needs_fetch: the same plan request again with fetch: true (the backend downloads the source itself; candidate,
+          // catalog and artifact sources never go through /v1/install/fetch, which is only a manual remote prefetch)
+          return L.plan(req).then((plan) => plan.status === 'needs_fetch' ? L.plan(Object.assign({}, req, { fetch: true })) : plan).then((plan) => {
+            if (plan.status !== 'ready') return { env: envData, plan, preview: null, reason: liPlanReason(plan) };
+            const sel = { disabled: o.defaultOff ? o.defaultOff(plan) : [] };
+            return L.preview(plan.plan_id, sel).then((preview) => ({ env: envData, plan, preview, sel }));
+          });
+        });
+      },
+      // apply with the digest the person confirmed; a 409 preview_stale re-previews with the same selection and resolves
+      // {stale: true, preview} so the sheet goes back to the diff instead of writing what was never shown.
+      apply(st) {
+        const s = liSelection(st.sel); const req = Object.assign({ plan_id: st.plan.plan_id, preview_digest: st.preview.preview_digest }, s);
+        if (st.overrideRisk) req.override_risk = true;
+        if (st.surface) req.surface = st.surface;   // recommend exposure surface (A7 | lite | A8 | A9 | menubar)
+        return send('POST', '/v1/install/apply', req).then((r) => ({ stale: false, result: r.data }), (e) => {
+          // 409 preview_stale: the files changed after the preview; show the fresh diff (its digest is error.detail.preview_digest)
+          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail, digest: (e.detail && e.detail.preview_digest) || preview.preview_digest }));
+          throw e;
+        });
+      }
+    };
+    C.li = L;
+  }
+  /* ======== end library-install ======== */
+
+  /* ======== ops: realtime (menu bar · popover · HUD · widgets), session ops (A3 / A4), export (EXP) ========
+     Owned by the ops binding (Advance src/js/98-live-ops.js). Attached to every client as C.ops by one line in create().
+     - realtime: GET /v1/analytics/realtime?lanes=1 once, then /v1/analytics/realtime/stream (SSE `event: realtime`, a full
+       snapshot per frame) with exponential backoff; C.ops.rt holds the last snapshot, every frame calls C.changed().
+     - sessionops: exclude / include / excluded list, resume command, raw-log location, tool-call drilldown (keyset cursor).
+     - export: tables, CSV text, report (markdown), share-card payload, snapshots.
+     Writes go through C.send; a route that is missing / unavailable / offline (C.unavailable) lets the page keep its demo. */
+  const RT_PATH = '/v1/analytics/realtime';
+  const RT_ACTIVE = ['running', 'awaiting_approval', 'failing'];
+  const hasFlag = (s, f) => (s.flags || []).indexOf(f) >= 0;
+  // snapshot → what the menu bar / popover / HUD / widgets need: the primary running session, the open alerts, the others
+  function rtDerive(snap) {
+    const ss = (snap && snap.sessions) || [];
+    const active = ss.filter((s) => RT_ACTIVE.indexOf(s.state) >= 0);
+    const primary = active.find((s) => s.state === 'running') || active[0] || null;
+    return {
+      status: (snap && snap.status) || 'idle', paused: !!snap && snap.status === 'paused',
+      primary, active, others: active.filter((s) => s !== primary),
+      failing: ss.filter((s) => s.state === 'failing' || hasFlag(s, 'failing')),
+      waiting: ss.filter((s) => s.state === 'awaiting_approval' || hasFlag(s, 'awaiting_approval')),
+      ctx: ss.filter((s) => hasFlag(s, 'context_pressure')),
+      finished: ss.filter((s) => s.state === 'just_finished'),
+      counts: (snap && snap.counts) || {}, today: (snap && snap.today) || {}
+    };
+  }
+  const rtCtxPct = (s) => (s && s.context && s.context.ratio != null ? Math.round(s.context.ratio * 100) : null);
+  const rtCtxTh = (s) => (s && s.context && s.context.auto_compact_ratio != null ? Math.round(s.context.auto_compact_ratio * 100) : 80);
+  // lanes (timestamps of the last 20 minutes) → n buckets of bucketSec covering the last `minutes`: [{tool, err, user}]
+  function rtBuckets(s, nowMs, minutes, bucketSec) {
+    const n = Math.max(1, Math.round(minutes * 60 / bucketSec)); const from = nowMs - minutes * 60000;
+    const b = []; for (let i = 0; i < n; i++) b.push({ tool: 0, err: 0, user: 0 });
+    const L = (s && s.lanes) || {};
+    const put = (ts, k) => { if (ts == null || ts < from || ts > nowMs) return; b[Math.min(n - 1, Math.floor((ts - from) / (minutes * 60000) * n))][k]++; };
+    (L.tool || []).forEach((t) => put(t, 'tool')); (L.error || []).forEach((t) => put(t, 'err')); (L.human || []).forEach((t) => put(t, 'user'));
+    return b;
+  }
+  function sseFrames(buf, onFrame) {
+    let i; buf = buf.replace(/\r\n?/g, '\n');
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const raw = buf.slice(0, i); buf = buf.slice(i + 2); let name = 'message'; const data = [];
+      raw.split('\n').forEach((line) => { if (!line || line[0] === ':') return; const k = line.indexOf(':'); const f = k < 0 ? line : line.slice(0, k); let v = k < 0 ? '' : line.slice(k + 1); if (v[0] === ' ') v = v.slice(1); if (f === 'event') name = v; else if (f === 'data') data.push(v); });
+      if (data.length) { let p = null; try { p = JSON.parse(data.join('\n')); } catch (e) { p = null; } if (p) onFrame(name, p); }
+    }
+    return buf;
+  }
+  // A3 / A4 / EXP request helpers (pure, tested in node)
+  function toolCallsQuery(f) {
+    f = f || {}; const q = { limit: f.limit || 50, status: f.status || 'all' };
+    ['name', 'command_head', 'mcp_server', 'skill', 'kind', 'error_class', 'session_uid', 'from_ts', 'until_ts', 'cursor'].forEach((k) => { if (f[k] != null && f[k] !== '') q[k] = f[k]; });
+    return q;
+  }
+  const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
+  function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
+  const BLOCKED = { insufficient_data: '样本不足（每个维度至少 30 个任务、10 个活跃天），暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
+
+  function ops(C, ctx) {
+    const enc = encodeURIComponent;
+    const body = (r) => r.data;
+    const O = {
+      rt: null, rtError: null, stream: { connected: false, attempt: 0, frames: 0 },
+      helpers: { rtDerive, rtCtxPct, rtCtxTh, rtBuckets, sseFrames, toolCallsQuery, reportSections, BLOCKED, RESUME_OFF },
+      derive: () => rtDerive(O.rt),
+      /* realtime */
+      realtime: () => C.send('GET', RT_PATH, null, { query: { lanes: 1 } }).then((r) => { O.rt = r.data; O.rtError = null; C.changed(); return r.data; }, (e) => { O.rtError = e; C.changed(); throw e; }),
+      dismiss: (uid, seconds) => C.send('POST', RT_PATH + '/' + enc(uid) + '/dismiss', { seconds: seconds || 3600 }).then(body),
+      // stream(): keeps /v1/analytics/realtime/stream open; resolves when stopped. A 404 / 501 ends it (no stream route).
+      startStream() {
+        if (C.mode !== 'live' || O.run) return;
+        const run = O.run = { on: true, ctrl: null, stop: new AbortController() };
+        const sleep = (ms) => new Promise((res) => { const t = ctx.timers.setTimeout(res, ms); run.stop.signal.addEventListener('abort', () => { ctx.timers.clearTimeout(t); res(); }, { once: true }); });
+        run.done = (async () => {
+          while (run.on) {
+            const ctrl = run.ctrl = new AbortController(); let status = 0;
+            try {
+              const res = await ctx.fetchFn(C.endpoint + RT_PATH + '/stream?lanes=1', { headers: ctx.headers({ Accept: 'text/event-stream' }), signal: ctrl.signal });
+              status = res.status;
+              if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+              O.stream.connected = true; O.stream.attempt = 0;
+              const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+              for (;;) {
+                const step = await reader.read(); if (step.done) break;
+                buf = sseFrames(buf + dec.decode(step.value, { stream: true }), (name, p) => { if (name === 'realtime') { O.rt = p; O.rtError = null; O.stream.frames++; C.changed(); } });
+              }
+            } catch (e) { /* reconnect below */ }
+            O.stream.connected = false;
+            if (!run.on || status === 404 || status === 501) break;
+            const delay = Math.min(30000, 2000 * Math.pow(2, O.stream.attempt)); O.stream.attempt++;
+            await sleep(delay);
+          }
+          if (O.run === run) O.run = null;
+        })();
+      },
+      stopStream() { const run = O.run; if (!run) return Promise.resolve(); O.run = null; run.on = false; run.stop.abort(); if (run.ctrl) run.ctrl.abort(); return run.done; },
+      /* sessionops */
+      exclude: (uid, reason, note) => C.send('POST', '/v1/sessions/' + enc(uid) + '/exclude', Object.assign({}, reason ? { reason } : {}, note ? { note } : {})).then(body),
+      include: (uid) => C.send('DELETE', '/v1/sessions/' + enc(uid) + '/exclude').then(body),
+      EXCLUDED: '/v1/sessions/excluded',
+      resume: (uid) => C.send('GET', '/v1/sessions/' + enc(uid) + '/resume').then(body),
+      locate: (uid) => C.send('GET', '/v1/sessions/' + enc(uid) + '/source_location').then(body),
+      toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
+      /* export */
+      tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
+      csv(table, f) {
+        if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+        f = f || {}; const q = [['table', table]];
+        ['from_ts', 'until_ts', 'limit'].forEach((k) => { if (f[k] != null) q.push([k, String(f[k])]); });
+        (f.project_id || []).forEach((x) => q.push(['project_id', x])); (f.agent || []).forEach((x) => q.push(['agent', x]));
+        const url = C.endpoint + '/v1/export/csv?' + q.map((kv) => enc(kv[0]) + '=' + enc(kv[1])).join('&');
+        return Promise.resolve().then(() => ctx.fetchFn(url, { headers: ctx.headers({ Accept: 'text/csv' }) })).then(async (res) => {
+          const text = await res.text();
+          if (res.ok) return text;
+          let info = {}; try { info = (JSON.parse(text) || {}).error || {}; } catch (e) { info = {}; }
+          throw Object.assign(new Error(info.message || 'HTTP ' + res.status), { status: res.status, code: info.code || 'http_' + res.status });
+        }, (e) => { throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network' }); });
+      },
+      report: (keys, scope, o) => C.send('POST', '/v1/export/report', { sections: reportSections(keys), scope: scopeBody(scope, C.status), format: 'markdown', save: !!(o && o.save) }).then(body),
+      shareCard: (o) => { o = o || {}; return C.send('POST', '/v1/export/share_card', { hide_numbers: !!o.hideNumbers, theme: o.theme || 'system', save: !!o.save }).then(body); },
+      snapshots: (kind) => C.send('GET', '/v1/export/snapshots', null, { query: kind ? { kind } : null }).then(body)
+    };
+    C.ops = O;
+  }
+  /* ======== end ops ======== */
+
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1085,6 +1463,7 @@ const TandemLive = (function () {
     '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+  const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const ui = {
     DASH, esc, num, pct, money, hm,
     ensureStyle(doc) {
@@ -1102,9 +1481,10 @@ const TandemLive = (function () {
     },
     banner(C) {
       if (!C || C.mode !== 'live') return '';
-      if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Tandem 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
+      if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Orbit 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
-      const bad = Object.keys(C.services).filter((k) => C.services[k] && C.services[k] !== 'ok');
+      // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
+      const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
       if (bad.length) return '<div class="tl-banner" role="alert" data-tl="degraded">服务异常：' + bad.map((k) => esc(k) + ' ' + ({ restarting: '重启中', degraded: '降级' }[C.services[k]] || esc(C.services[k]))).join('、') + ' · 显示上次结果</div>';
       return '';
     },
@@ -1136,7 +1516,8 @@ const TandemLive = (function () {
     }
   };
 
-  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui };
+  const opsHelpers = { rtDerive, rtCtxPct, rtCtxTh, rtBuckets, sseFrames, toolCallsQuery, reportSections, BLOCKED, RESUME_OFF };
+  return { create, detectMode, serializeScope, scopePairs, stateFrom, sourceIdsFor, takeHashToken, AGENT_KEYS, STATES, ui, recs, ops: opsHelpers };
 })();
 if (typeof module === 'object' && module && module.exports) module.exports = TandemLive;
 /* @tandem-live:generated end */
@@ -1160,12 +1541,70 @@ ACT.lvSess=el=>{S.lvSess=el.dataset.id;render();};
 if(TL.mode==='live'){
   Object.assign(PAGES,TL_PAGES);TLU.ensureStyle(document);
   const baseRender=render,baseSide=renderSide,baseSettings=ACT.settings;
-  render=function(){baseRender();const c=$('#content');if(c){const strip=TLU.strip(TL,S.route,TL_VIEWS[S.route]);if(strip)c.insertAdjacentHTML('afterbegin',strip);const note=c.querySelector('.footer-note');if(note)note.textContent='TANDEM / 同频 · 本机数据'+(TL.isBound(S.route)?'':' · 本页为示例数据');}lvSources();};
+  render=function(){baseRender();const c=$('#content');if(c){const strip=TLU.strip(TL,S.route,TL_VIEWS[S.route]);if(strip)c.insertAdjacentHTML('afterbegin',strip);const note=c.querySelector('.footer-note');if(note)note.textContent='ORBIT · 本机数据'+(TL.isBound(S.route)?'':' · 本页为示例数据');}lvSources();};
   renderSide=function(){baseSide();const st=TL.status,side=$('#side'),set=(q,t)=>{const el=side.querySelector(q);if(el)el.textContent=t;};set('[data-id="sessions"] .ct',TLU.num(st&&st.counts&&st.counts.sessions));AG.forEach(a=>{const keys=TandemLive.AGENT_KEYS[a.id]||[],src=((st&&st.sources)||[]).filter(s=>keys.includes(String(s.agent||'').toLowerCase())),on=src.filter(s=>s.enabled!==false);set(`.ag[data-id="${a.id}"] .ct`,!src.length?'—':!on.length?'停用':TLU.num(on.some(s=>s.sessions==null)?null:on.reduce((n,s)=>n+s.sessions,0)));});const pv=side.querySelector('.privacy .row');if(pv)pv.innerHTML=ic('shield')+(st?'本机数据 · 已连接':TL.error?'本机服务未连接':'正在连接本机服务');set('.me .cap','—');};
   ACT.settings=()=>{baseSettings();$('#modal .mb').insertAdjacentHTML('beforeend','<div data-tl="sources" style="margin-top:16px"></div>');lvSources();};
   TL.start();
 }
+/* ---- library-install (Lite): 资源库 from /v1/catalog/* and a compact install sheet over /v1/install/* (TandemLive C.li).
+   Tabs map to sort (为你推荐 → 最近更新, 同人格正在用 → Star, 热门 → 安装量), the search box (debounced) to /v1/catalog/search,
+   预览 to the item detail, 安装 to plan → preview diff → 确认写入 with the confirmed preview_digest (409 preview_stale
+   re-previews), 撤销 to revert. Missing / unavailable routes or offline: the demo page and 示例数据. ---- */
+const LI_LITE={q:'',qT:0,detail:null,inst:null,last:null,degraded:false},LI_AG={claude_code:'Claude Code',codex:'Codex',gemini:'Gemini CLI'};
+const liLiteReq=()=>TL.li.listRequest({tab:S.libTab,kind:'全部',q:LI_LITE.q});
+TL.bind('library',()=>{const r=liLiteReq(),f=TL.li.facetsRequest({tab:S.libTab});return [{name:'list',path:r.path,query:r.query,scope:false},{name:'facets',path:f.path,query:f.query,scope:false}];},d=>({items:d.list.items||[],total:d.list.total,facets:d.facets||{}}));
+const LI_LITE_DEMO=PAGES.library;
+const LI_LITE_TAGDUMP=/(?:^|\s)(?:agent|command|dimension|domain|file_type|friction|software|tag|kind|lang|language|topic|scene|tool|ftype|cmd):\s*\S+/gi;
+const liLiteDesc=x=>String(x.summary||x.snippet||'').replace(LI_LITE_TAGDUMP,'').replace(/\s{2,}/g,' ').trim();
+function liLiteBody(vm){const items=vm.items,featured=items.slice(0,3),more=items.slice(3),src=x=>x.official?'Orbit 官方':x.origin==='local'?'本地生成':esc(x.author||'社区')+' · '+esc(x.license||'许可未知');
+  return `<div class="stack" data-tl="library"><div class="row between" style="flex-wrap:wrap"><div class="seg" role="group" aria-label="资源浏览方式">${[['for','最近更新'],['peer','高星'],['hot','热门']].map(([id,label])=>`<button data-act="library-tab" data-value="${id}" class="${S.libTab===id?'on':''}" aria-pressed="${S.libTab===id}">${label}</button>`).join('')}</div><label class="search-field">${ic('search')}<input type="search" id="libQ" data-input="library" value="${esc(S.libQ)}" placeholder="搜索配置与资源" aria-label="搜索配置与资源"></label></div><div><div class="section-title"><h2>${LI_LITE.q?'搜索「'+esc(LI_LITE.q)+'」':'资源目录'}</h2><span class="cap">共 ${TLU.num(vm.total!=null?vm.total:vm.facets.total)} 项 · 本机资源目录</span></div>${featured.length?`<div class="three">${featured.map(x=>`<article class="card lib-feature" data-tl-item="${esc(x.item_id)}"><div class="row between"><span class="row">${ic('library')}<span class="note">${esc(TL.li.kindLabel(x.kind))} / ${src(x)}</span></span><div class="match" title="风险等级">${TLU.num(x.risk_level)}</div></div><h3>${esc(x.name)}</h3><p class="note">${esc(liLiteDesc(x))}</p><div class="note">${x.installs?fmt(x.installs)+' 次安装':'—'}${x.stars!=null?' · '+TLU.num(x.stars)+' Star':''}</div><div class="row between" style="flex-wrap:wrap"><span class="note">${esc((x.agents||[]).map(a=>LI_AG[a]||a).join(' · ')||'—')}</span>${button(x.installed?'已安装':'预览','li-detail',`data-id="${esc(x.item_id)}"`,'sm')}</div></article>`).join('')}</div>`:empty(LI_LITE.q?'没有匹配的资源。换个关键词。':'资源目录还是空的。',false)}</div>${more.length?`<section class="card pad">${titleHTML('更多资源','中列为风险等级')}${more.map(x=>`<div class="lib-row" data-tl-item="${esc(x.item_id)}">${ic('library')}<div><b>${esc(x.name)}</b><div class="note">${esc(liLiteDesc(x))}</div></div><span class="lib-sort-note mono">风险 ${TLU.num(x.risk_level)}</span>${button('预览','li-detail',`data-id="${esc(x.item_id)}"`,'sm')}</div>`).join('')}</section>`:''}</div>`;}
+TL_PAGES.library=()=>{if(S.libQ.trim()!==LI_LITE.q){clearTimeout(LI_LITE.qT);LI_LITE.qT=setTimeout(()=>{LI_LITE.q=S.libQ.trim();if(S.route==='library'){render();const i=$('#libQ');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}},280);}
+  const v=lvView('library');LI_LITE.degraded=!!(v&&!v.vm&&v.state==='error'&&TL.li.degraded(v.error));if(LI_LITE.degraded)return LI_LITE_DEMO();
+  if(v&&!v.vm&&v.state==='loading'&&LI_LITE.last)return liLiteBody(LI_LITE.last);return TLU.body(v,vm=>{LI_LITE.last=vm;return liLiteBody(vm);});};
+function liLiteCard(id){const v=TL_VIEWS.library;return v&&v.vm?v.vm.items.find(x=>x.item_id===id)||null:null;}
+function liLiteDetail(){const D=LI_LITE.detail;if(!D)return;const x=D.data||D.card||{name:D.id};const p=x.permissions||{},ins=x.install||{};
+  const body=!D.data?(D.error?TLU.errorCard(D.error):TLU.skeleton()):`<div data-tl="lib-detail"><p class="note">${esc(x.summary||'')}</p><p class="note">${esc(TL.li.kindLabel(x.kind))} · ${esc(x.license||'许可未知')} · 风险 ${TLU.num(p.level!=null?p.level:x.risk_level)}${(p.flags||[]).length?' · '+esc(p.flags.join('、')):''}${x.version?' · v'+esc(x.version):''}</p>${x.readme?`<pre class="code-block" data-tl="lib-readme">${esc(x.readme)}</pre>`:'<p class="note" data-tl="lib-readme">许可不允许内嵌正文</p>'}<p class="note" data-tl="lib-versions">版本：${(x.versions||[]).map(r=>esc(r.version||r.version_id)).join('、')||'—'}</p></div>`;
+  openModal(esc(x.name||D.id),body,button('关闭','close-modal')+(D.data&&ins.installable?button('安装','li-install',`data-id="${esc(D.id)}"`,'p'):''),true);}
+function liLiteInstallDraw(){const st=LI_LITE.inst;if(!st)return;const x=st.card;let body,foot=button('关闭','close-modal');
+  if(st.error)body=TLU.errorCard(st.error);else if(!st.preview&&!st.result)body=st.plan?`<div class="note" data-tl="inst-manual">${st.reason?`<div class="insight" data-tl="inst-reason">${esc(st.reason)}</div>`:''}${(st.plan.warnings||[]).map(esc).join('<br>')}${(st.plan.links||[]).map(u=>`<br><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`).join('')}</div>`:TLU.skeleton();
+  else if(st.result)body=`<div data-tl="inst-done"><p class="note">已写入 ${(st.result.written||[]).map(w=>esc(w.display||w.path)).join('、')}，修改前已备份。</p></div>`,foot=button('撤销','li-undo')+button('完成','close-modal','','p');
+  else{const ts=TL.li.helpers.liTargets(st.preview),tot=st.preview.totals||{};body=`<div data-tl="inst-preview">${st.notice?`<div class="tl-banner" role="alert" data-tl="inst-stale">${esc(st.notice)}</div>`:''}<p class="note">将修改 ${TLU.num(tot.files)} 个文件 · +${TLU.num(tot.adds)} / −${TLU.num(tot.dels)} 行 · 确认前不会改动任何文件</p>${ts.map(t=>`<label class="row" style="gap:6px;margin-top:10px"><input type="checkbox" data-act="li-target" data-i="${t.idx}"${st.sel.disabled.has(t.idx)?'':' checked'}${t.mappable?'':' disabled'}><span class="mono">${esc(t.display)}</span><span class="note">${esc(LI_AG[t.agent]||t.agent)}</span></label>${st.sel.disabled.has(t.idx)?'<p class="note">已取消，不写入这个文件</p>':`<pre class="code-block">${t.lines.map(l=>l.gap?'⋯':(l.op==='+'?'+ ':l.op==='-'?'− ':l.op==='ai'?'✦ ':'  ')+esc(l.text)).join('\n')}</pre>`}`).join('')}${st.preview.requires_override?`<label class="row" style="gap:6px;margin-top:10px"><input type="checkbox" data-act="li-override"${st.override?' checked':''}>我已了解风险，仍然写入</label>`:''}</div>`;
+    foot=button('取消','close-modal')+`<button type="button" class="btn p" data-act="li-apply"${st.busy||!st.preview.can_apply||!tot.files||(st.preview.requires_override&&!st.override)?' disabled':''}>${st.busy?'正在处理…':'确认写入'}</button>`;}
+  openModal('预览并安装 · '+esc(x.name),body,foot,true);}
+function liLiteSample(){const h=$('#modal .mh h2');if(h&&!$('#modal [data-tl="sample"]'))h.insertAdjacentHTML('beforeend',' '+TLU.sample());}
+Object.assign(ACT,{
+  'li-detail':el=>{const id=el.dataset.id;LI_LITE.detail={id,card:liLiteCard(id),data:null,error:null};liLiteDetail();TL.li.item(id).then(d=>{if(LI_LITE.detail&&LI_LITE.detail.id===id){LI_LITE.detail.data=d;liLiteDetail();}},e=>{if(LI_LITE.detail&&LI_LITE.detail.id===id){LI_LITE.detail.error=e;liLiteDetail();}});},
+  'li-install':el=>{const D=LI_LITE.detail;const x=(D&&D.data)||liLiteCard(el.dataset.id);if(!x)return;const st=LI_LITE.inst={card:x,sel:{disabled:new Set(),units:{}},busy:true,surface:'lite'};liLiteInstallDraw();
+    TL.li.prepare({type:'catalog',id:x.item_id},{itemAgents:x.agents,defaultOff:plan=>(plan.targets||[]).filter(t=>t.agent!==(plan.agents||[])[0]).map(t=>t.idx)}).then(r=>{if(LI_LITE.inst!==st)return;Object.assign(st,{plan:r.plan,preview:r.preview,reason:r.reason||null,busy:false});if(r.sel)st.sel.disabled=new Set(r.sel.disabled);liLiteInstallDraw();},e=>{if(LI_LITE.inst!==st)return;st.busy=false;st.error=e;liLiteInstallDraw();if(TL.li.degraded(e))liLiteSample();});},
+  'li-target':el=>{const st=LI_LITE.inst;if(!st||st.busy)return;const i=+el.dataset.i;if(el.checked)st.sel.disabled.delete(i);else st.sel.disabled.add(i);st.busy=true;st.notice=null;liLiteInstallDraw();TL.li.preview(st.plan.plan_id,st.sel).then(pv=>{st.preview=pv;st.busy=false;liLiteInstallDraw();},e=>{st.busy=false;st.error=e;liLiteInstallDraw();});},
+  'li-override':el=>{const st=LI_LITE.inst;if(st){st.override=el.checked;st.overrideRisk=el.checked;liLiteInstallDraw();}},
+  'li-apply':()=>{const st=LI_LITE.inst;if(!st||st.busy)return;st.busy=true;liLiteInstallDraw();TL.li.apply(st).then(r=>{st.busy=false;if(r.stale){st.preview=r.preview;st.notice='文件在预览之后被改动过，已重新生成预览，请再确认一次。';}else{st.result=r.result;st.preview=null;TL.invalidate(x=>/^\/v1\/(catalog|install)\//.test(x.path));}liLiteInstallDraw();},e=>{st.busy=false;st.error=e;liLiteInstallDraw();});},
+  'li-undo':()=>{const st=LI_LITE.inst;if(!st||!st.result)return;TL.li.revert(st.result.install_id).then(()=>{LI_LITE.inst=null;closeModal();TL.invalidate(x=>/^\/v1\/(catalog|install)\//.test(x.path));render();toast('已撤销「'+st.card.name+'」，文件已从备份恢复');},e=>toast('撤销失败：'+(e.message||e.code)));}
+});
+if(TL.mode==='live'){PAGES.library=TL_PAGES.library;const r0=render;render=function(){r0();if(S.route!=='library'||!LI_LITE.degraded)return;const strip=$('#content > [data-tl="strip"]');if(strip&&!strip.querySelector('[data-tl="sample"]'))strip.insertAdjacentHTML('beforeend','<div>'+TLU.sample()+'</div>');const note=$('#content .footer-note');if(note&&!/示例数据/.test(note.textContent))note.textContent+=' · 本页为示例数据';};}
+/* ---- end library-install (Lite) ---- */
 /* ==== @tandem-live block end ==== */
+/* ==== @tandem-live recs block: 优化建议 in live mode. GET /v1/recommendations (surface A7) replaces RECOMMENDATIONS rows and keeps
+   the page renderer; view / open / copy exposure go to the gateway. Never live yet and the endpoint is missing or down
+   (404 / 501 / 503 / offline): the demo rows stay, with 示例数据. Shared client: TandemLive recs section. ==== */
+const LVR={applied:null};
+TL.bind('recs',()=>[TL.recs.desc('A7')],d=>({items:(d.A7&&d.A7.items)||[]}));
+function lvRecAgents(compat){if(/所有/.test(compat||''))return AG.map(a=>a.id);const ids=[['cc',/Claude/],['cx',/Codex/],['gm',/Gemini/],['ds',/DeepSeek/],['cp',/Copilot/]].filter(x=>x[1].test(compat||'')).map(x=>x[0]);return ids.length?ids:['cc'];}
+function lvRecRow(c){const r=TandemLive.recs.row(c);return {id:r.id,rec_key:r.rec_key,live:true,dim:r.dim==='rule'?'prompt':r.dim,type:r.type,icon:['bolt','book','bot','branch','gauge','puzzle','rule'].includes(r.icon)?r.icon:'rule',title:r.title,desc:r.why,gain:r.gain,agents:lvRecAgents(r.compat),score:r.priority==null?0:r.priority,reason:'live',n:r.x.n[0],file:(r.target||'').split('/').pop()||'—',code:r.file.filter(l=>l[1]!=='-').map(l=>l[0]).join('\n'),steps:r.steps};}
+function lvRecDegraded(){if(LVR.applied)return false;const r=TL.recs.resource('A7',{range:S.range,agents:S.agent==='all'?null:[S.agent],projects:null,tz:TL_TZ});const e=r.error;return r.state==='error'&&(!e||!e.status||[404,501,503].includes(e.status));}
+if(TL.mode==='live'){
+  const baseRecsPage=PAGES.recs,baseEvidence=evidence;
+  evidence=r=>r.live?r.n:baseEvidence(r);
+  PAGES.recs=()=>{const v=lvView('recs');const d=v&&v.res&&v.res.A7&&v.res.A7.data;if(d&&d!==LVR.applied){const rows=(d.items||[]).map(lvRecRow);RECOMMENDATIONS.splice(0,RECOMMENDATIONS.length,...rows);rows.forEach(r=>{REC[r.id]=r;});LVR.applied=d;}return baseRecsPage();};
+  const lvRecRender=render;
+  render=function(){lvRecRender();if(S.route!=='recs')return;const c=$('#content');if(!c)return;const strip=c.querySelector(':scope > [data-tl="strip"]');if(lvRecDegraded()){if(strip&&!strip.querySelector('[data-tl="sample"]'))strip.insertAdjacentHTML('beforeend','<div>'+TLU.sample()+'</div>');const note=c.querySelector('.footer-note');if(note)note.textContent='ORBIT · 本机数据 · 本页为示例数据';}const ids=[...c.querySelectorAll('[data-act="rec"][data-id]')].map(el=>el.dataset.id).filter(id=>REC[id]&&REC[id].live);if(ids.length)TL.recs.viewed('A7',[...new Set(ids)]).catch(()=>{});};
+  const ex=(id,action)=>{if(REC[id]&&REC[id].live)TL.recs.exposure(id,'A7',action).catch(()=>{});};
+  const baseRec=ACT.rec,baseCopy=ACT['copy-config'],baseRecTab=ACT['rec-tab'];
+  ACT.rec=el=>{baseRec(el);ex(el.dataset.id,'open');};
+  if(baseRecTab)ACT['rec-tab']=el=>{baseRecTab(el);if(el.dataset.value==='preview')ex(S.rec,'preview');};
+  if(baseCopy)ACT['copy-config']=el=>{baseCopy(el);ex(S.rec,'copy');};
+}
+/* ==== @tandem-live recs block end ==== */
 readLocation();render();
 
 </script></body></html>

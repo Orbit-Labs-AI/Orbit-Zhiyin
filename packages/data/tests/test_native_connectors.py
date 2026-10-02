@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import zstandard
 
+from tandem_data import SCHEMA_VERSION
 from tandem_data.contract import canonical
 from tandem_data.service import ImportRequest, ImportService, event_page
 from tandem_data.store import Store
@@ -174,6 +175,36 @@ def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
         unknown = store.db.execute("SELECT ext FROM event WHERE kind='unknown'").fetchone()[0]
         assert json.loads(unknown)["native"]["new_field"] == {"number": 12}
         assert_sound(store)
+
+
+def test_claude_result_without_error_flag_is_completed(tmp_path):
+    # Synthetic: Claude Code omits is_error on success; only explicit errors are failures.
+    common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture", "promptId": "p"}
+    records = [{**common, "type": "user", "uuid": "u", "message": {"content": "Edit files"}}]
+    for i in range(4):
+        records.append(
+            {
+                **common,
+                "type": "assistant",
+                "uuid": f"a{i}",
+                "message": {
+                    "id": f"r{i}",
+                    "model": "test",
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                    "content": [{"type": "tool_use", "id": f"c{i}", "name": "Edit", "input": {}}],
+                },
+            }
+        )
+        block = {"type": "tool_result", "tool_use_id": f"c{i}", "content": "ok"}
+        if i == 3:
+            block["is_error"] = True
+        records.append({**common, "type": "user", "uuid": f"t{i}", "message": {"content": [block]}})
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records)
+        store.rebuild()
+        statuses = sorted(r["status"] for r in rows(store, "tool_call"))
+        assert statuses == ["completed"] * 3 + ["failed"]
+        assert {r["status_scope"] for r in rows(store, "tool_call")} == {"tool_protocol"}
 
 
 @pytest.mark.parametrize("version", [0, 1, 2, 3, 4])
@@ -1103,7 +1134,7 @@ def test_touching_unchanged_file_refreshes_stat_cache_not_capture_provenance(tmp
     file.parent.mkdir(parents=True)
     file.write_text(canonical({"type": "session", "id": "s", "timestamp": ISO}) + "\n")
     with Store(tmp_path / "data") as store:
-        service = ImportService(store)
+        service = ImportService(store, workers=1)  # Observes the serial line indexer.
         request = ImportRequest("pi", root)
         service.import_source(request)
         captured_stat = store.db.execute("SELECT source_stat FROM source_revision").fetchone()[0]
@@ -1226,7 +1257,7 @@ def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
         assert len(rows(store, "project")) == 2
         assert rows(store, "project_override")[0]["project_id"] == "old"
         assert rows(store, "session")[0]["project_id"] == "old"
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 
@@ -1277,3 +1308,53 @@ def test_hermes_routing_identity_stays_in_raw_without_losing_lineage(tmp_path):
         ]
         assert originals[1]["row"]["origin_json"] == origin
         assert_sound(store)
+
+
+@pytest.mark.parametrize(
+    "lead",
+    [
+        {"type": "queue-operation", "operation": "enqueue", "sessionId": "s1", "timestamp": ISO},
+        {"type": "mode", "mode": "plan", "sessionId": "s1"},
+        {"type": "custom-title", "customTitle": "t", "sessionId": "s1"},
+        {"type": "ai-title", "aiTitle": "t", "sessionId": "s1"},
+    ],
+)
+def test_claude_metadata_comes_from_later_records_when_first_line_lacks_cwd(tmp_path, lead):
+    context = {
+        "sessionId": "s1",
+        "timestamp": ISO,
+        "cwd": "/synthetic/repo",
+        "gitBranch": "feature-x",
+        "version": "9.9.9",
+        "entrypoint": "cli",
+    }
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "claude_code",
+            [
+                lead,
+                {
+                    **context,
+                    "type": "user",
+                    "uuid": "u",
+                    "message": {"role": "user", "content": "hi"},
+                },
+                {
+                    **context,
+                    "type": "assistant",
+                    "uuid": "a",
+                    "message": {"id": "m", "content": [{"type": "text", "text": "ok"}]},
+                },
+            ],
+            path="projects/-synthetic-repo/s1.jsonl",
+        )
+        store.rebuild()
+        (session,) = rows(store, "session")
+        assert session["cwd"] == "/synthetic/repo"
+        assert session["git_branch"] == "feature-x"
+        assert session["harness_version"] == "9.9.9"
+        assert session["client"] == "cli"
+        assert session["project_id"] is not None
+        assert {t["project_id"] for t in rows(store, "turn")} <= {session["project_id"]}

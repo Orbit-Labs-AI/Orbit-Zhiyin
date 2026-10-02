@@ -8,7 +8,7 @@ from .formats import format_arguments
 from .structure import FILE
 from .text import instruction_text
 
-INSTRUCTION_VERSION = "instruction-v1.1-format-values"
+INSTRUCTION_VERSION = "instruction-v1.2-zh-lexicon"
 FIELDS = (
     "requested_autonomy", "execution_order", "verification_requirements",
     "allowed_scope", "prohibited_actions", "acceptance_criteria",
@@ -22,12 +22,14 @@ RULES = {
         ("scoped", r"(?:^|[，,]\s*)(?:请)?(?:只(?:能|允许)?|仅)(?:修改|编辑|处理|读取|检查)|\bonly (?:modify|edit|read|change)\b"),
     ),
     "execution_order": (
-        ("plan_first", r"先(?:给出?|提供|写|制定)?(?:计划|方案|规划)|\b(?:plan first|first (?:make|write|provide) (?:a )?plan)\b"),
-        ("discuss_first", r"先(?:讨论|沟通|分析)|\b(?:discuss first|first discuss)\b"),
+        ("plan_first", r"先(?:给出?|提供|写|制定)?(?:计划|方案|规划)|先(?:出|列|做|拟)(?:个|一个|一份)?(?:计划|方案|规划|大纲)|(?:制定|撰写|给出?)(?:一份|一个|个)?(?:详细的?)?(?:计划|规划)|\b(?:plan first|first (?:make|write|provide) (?:a )?plan|(?:make|write|propose|draft|outline) (?:a |the )?plan)\b"),
+        ("discuss_first", r"先(?:讨论|沟通|分析|调研|研究|评估|梳理)|\b(?:discuss first|first discuss)\b"),
         ("execute_first", r"(?:^|[，,]\s*)(?:请)?直接(?:开始)?(?:执行|实现|修改|动手)|\b(?:execute first|start implementing)\b"),
     ),
     "verification_requirements": (
-        ("requested", r"(?:运行|执行|补充|补齐|添加|完成|通过|检查|验证|确保).{0,28}(?:测试|检查|构建|pytest|ruff|lint|mypy|typecheck|build)|\b(?:run|add|write|pass|check|verify)\b.{0,35}\b(?:tests?|pytest|ruff|lint|build|typecheck)\b"),
+        ("requested", r"(?:运行|执行|补充|补齐|添加|完成|通过|检查|验证|确保).{0,28}(?:测试|检查|构建|pytest|ruff|lint|mypy|typecheck|build)|\b(?:run|add|write|pass|check|verify)\b.{0,35}\b(?:tests?|pytest|ruff|lint|build|typecheck)\b"
+                      r"|(?:仔细|认真|再次|重新)(?:检查|核对|确认|验证|复查)|(?:检查|核对|验证|复查|自测)(?:一下|一遍)?(?:是否|有没有|无误|正确)|确保.{0,24}(?:正确|无误|一致|可运行|能运行|能跑|没有?问题)"
+                      r"|\b(?:double[- ]check|make sure .{0,30}\b(?:works?|pass(?:es)?|correct)|verify (?:that|the|it))\b"),
     ),
     "allowed_scope": (
         ("restricted", r"(?:^|[，,]\s*)(?:请)?(?:只(?:能|允许)?|仅(?:限)?)(?:修改|编辑|处理|读取|检查|操作)|(?:^|[，,]\s*)(?:现在)?(?:允许|可以)(?:修改|编辑|读取|处理)|\b(?:only (?:modify|edit|read|change)|you may (?:modify|edit|read))\b"),

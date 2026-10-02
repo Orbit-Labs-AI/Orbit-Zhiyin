@@ -1,0 +1,784 @@
+{
+ "meta": {
+  "contract": "uiview-facts-v1",
+  "version": "uiview-v1",
+  "method": "uiview-persona-v0",
+  "type_copy": "exporting.type_copy",
+  "today": "2026-10-03",
+  "period": "90",
+  "period_label": "近 90 天",
+  "window": [
+   "2026-07-06",
+   "2026-10-03"
+  ],
+  "filters": {},
+  "display_timezone": "Asia/Shanghai",
+  "freshness": "fresh",
+  "job_id": null,
+  "data_rev": 7,
+  "scope_hash": "2fa38bdd75a714a081958529654f9a9d"
+ },
+ "ok": true,
+ "classified": false,
+ "n": 111,
+ "conf": "高",
+ "code": "SI?T",
+ "zh": "尚未定型",
+ "en": "Undetermined",
+ "line": "有维度落在 45–55 之间，暂不下结论。",
+ "low": {
+  "n": 111,
+  "need": 30
+ },
+ "axes": [
+  {
+   "k": "D",
+   "value": 21.5,
+   "letter": "S",
+   "strong": 78,
+   "left": "D 委托",
+   "right": "掌舵 S",
+   "state": "settled"
+  },
+  {
+   "k": "I",
+   "value": 100.0,
+   "letter": "I",
+   "strong": 100,
+   "left": "P 规划",
+   "right": "即兴 I",
+   "state": "settled"
+  },
+  {
+   "k": "M",
+   "value": 63.6,
+   "letter": "?",
+   "strong": 64,
+   "left": "M 多线",
+   "right": "专注 F",
+   "state": "experimental"
+  },
+  {
+   "k": "V",
+   "value": 31.3,
+   "letter": "T",
+   "strong": 69,
+   "left": "V 求证",
+   "right": "信任 T",
+   "state": "settled"
+  }
+ ],
+ "candidates": [
+  {
+   "code": "SIMT",
+   "zh": "即兴乐手",
+   "en": "The Jammer",
+   "match": 77.7,
+   "basis": "axis_distance"
+  },
+  {
+   "code": "SIFT",
+   "zh": "搭档",
+   "en": "The Partner",
+   "match": 70.9,
+   "basis": "axis_distance"
+  },
+  {
+   "code": "SIMV",
+   "zh": "实验家",
+   "en": "The Experimenter",
+   "match": 68.3,
+   "basis": "axis_distance"
+  },
+  {
+   "code": "DIMT",
+   "zh": "冲浪者",
+   "en": "The Surfer",
+   "match": 63.5,
+   "basis": "axis_distance"
+  },
+  {
+   "code": "SIFV",
+   "zh": "雕刻师",
+   "en": "The Sculptor",
+   "match": 61.5,
+   "basis": "axis_distance"
+  },
+  {
+   "code": "DIFT",
+   "zh": "漫游者",
+   "en": "The Wanderer",
+   "match": 56.6,
+   "basis": "axis_distance"
+  }
+ ],
+ "particles": [
+  {
+   "h": 10,
+   "mi": 44,
+   "dur": 0.97,
+   "a": "claude_code"
+  },
+  {
+   "h": 14,
+   "mi": 53,
+   "dur": 0.42,
+   "a": "codex"
+  },
+  {
+   "h": 7,
+   "mi": 32,
+   "dur": 0.49,
+   "a": "claude_code"
+  },
+  {
+   "h": 16,
+   "mi": 11,
+   "dur": 9.14,
+   "a": "claude_code"
+  },
+  {
+   "h": 20,
+   "mi": 13,
+   "dur": 10.99,
+   "a": "dsh"
+  },
+  {
+   "h": 12,
+   "mi": 9,
+   "dur": 0.35,
+   "a": "opencode"
+  },
+  {
+   "h": 19,
+   "mi": 4,
+   "dur": 5.74,
+   "a": "claude_code"
+  },
+  {
+   "h": 13,
+   "mi": 59,
+   "dur": 0.2,
+   "a": "pi"
+  },
+  {
+   "h": 16,
+   "mi": 8,
+   "dur": 0.75,
+   "a": "codex"
+  },
+  {
+   "h": 9,
+   "mi": 38,
+   "dur": 5.58,
+   "a": "claude_code"
+  },
+  {
+   "h": 22,
+   "mi": 6,
+   "dur": 0.49,
+   "a": "claude_code"
+  },
+  {
+   "h": 10,
+   "mi": 7,
+   "dur": 1.82,
+   "a": "claude_code"
+  },
+  {
+   "h": 11,
+   "mi": 11,
+   "dur": 9.57,
+   "a": "kimi"
+  },
+  {
+   "h": 8,
+   "mi": 55,
+   "dur": 2.8,
+   "a": "dsh"
+  },
+  {
+   "h": 15,
+   "mi": 35,
+   "dur": 0.17,
+   "a": "claude_code"
+  },
+  {
+   "h": 12,
+   "mi": 30,
+   "dur": 6.2,
+   "a": "hermes"
+  },
+  {
+   "h": 14,
+   "mi": 58,
+   "dur": 2.84,
+   "a": "claude_code"
+  },
+  {
+   "h": 12,
+   "mi": 2,
+   "dur": 0.88,
+   "a": "codex"
+  },
+  {
+   "h": 13,
+   "mi": 28,
+   "dur": 0.17,
+   "a": "codex"
+  },
+  {
+   "h": 7,
+   "mi": 24,
+   "dur": 0.9,
+   "a": "codex"
+  },
+  {
+   "h": 12,
+   "mi": 45,
+   "dur": 9.2,
+   "a": "codex"
+  },
+  {
+   "h": 17,
+   "mi": 46,
+   "dur": 0.07,
+   "a": "claude_code"
+  },
+  {
+   "h": 15,
+   "mi": 36,
+   "dur": 10.0,
+   "a": "codex"
+  },
+  {
+   "h": 11,
+   "mi": 44,
+   "dur": 4.2,
+   "a": "codex"
+  },
+  {
+   "h": 12,
+   "mi": 28,
+   "dur": 5.4,
+   "a": "claude_code"
+  },
+  {
+   "h": 12,
+   "mi": 4,
+   "dur": 3.77,
+   "a": "dsh"
+  },
+  {
+   "h": 12,
+   "mi": 28,
+   "dur": 0.54,
+   "a": "claude_code"
+  },
+  {
+   "h": 14,
+   "mi": 53,
+   "dur": 1.43,
+   "a": "opencode"
+  },
+  {
+   "h": 16,
+   "mi": 40,
+   "dur": 1.73,
+   "a": "kimi"
+  },
+  {
+   "h": 17,
+   "mi": 44,
+   "dur": 1.05,
+   "a": "claude_code"
+  },
+  {
+   "h": 19,
+   "mi": 20,
+   "dur": 6.72,
+   "a": "codex"
+  },
+  {
+   "h": 8,
+   "mi": 21,
+   "dur": 6.18,
+   "a": "hermes"
+  },
+  {
+   "h": 9,
+   "mi": 45,
+   "dur": 1.58,
+   "a": "hermes"
+  },
+  {
+   "h": 10,
+   "mi": 24,
+   "dur": 4.3,
+   "a": "hermes"
+  },
+  {
+   "h": 11,
+   "mi": 59,
+   "dur": 14.3,
+   "a": "claude_code"
+  },
+  {
+   "h": 15,
+   "mi": 8,
+   "dur": 0.95,
+   "a": "dsh"
+  },
+  {
+   "h": 9,
+   "mi": 58,
+   "dur": 6.6,
+   "a": "claude_code"
+  },
+  {
+   "h": 14,
+   "mi": 23,
+   "dur": 1.03,
+   "a": "codex"
+  },
+  {
+   "h": 9,
+   "mi": 26,
+   "dur": 0.68,
+   "a": "codex"
+  },
+  {
+   "h": 17,
+   "mi": 20,
+   "dur": 1.9,
+   "a": "pi"
+  },
+  {
+   "h": 17,
+   "mi": 38,
+   "dur": 1.13,
+   "a": "codex"
+  },
+  {
+   "h": 8,
+   "mi": 40,
+   "dur": 8.68,
+   "a": "claude_code"
+  },
+  {
+   "h": 10,
+   "mi": 0,
+   "dur": 1.35,
+   "a": "codex"
+  },
+  {
+   "h": 12,
+   "mi": 54,
+   "dur": 8.64,
+   "a": "claude_code"
+  },
+  {
+   "h": 12,
+   "mi": 31,
+   "dur": 0.75,
+   "a": "codex"
+  },
+  {
+   "h": 17,
+   "mi": 7,
+   "dur": 1.45,
+   "a": "codex"
+  },
+  {
+   "h": 11,
+   "mi": 12,
+   "dur": 0.07,
+   "a": "codex"
+  },
+  {
+   "h": 11,
+   "mi": 35,
+   "dur": 0.52,
+   "a": "claude_code"
+  },
+  {
+   "h": 15,
+   "mi": 32,
+   "dur": 6.73,
+   "a": "claude_code"
+  },
+  {
+   "h": 15,
+   "mi": 39,
+   "dur": 4.37,
+   "a": "dsh"
+  },
+  {
+   "h": 11,
+   "mi": 12,
+   "dur": 2.68,
+   "a": "codex"
+  },
+  {
+   "h": 14,
+   "mi": 56,
+   "dur": 2.58,
+   "a": "pi"
+  },
+  {
+   "h": 17,
+   "mi": 13,
+   "dur": 1.71,
+   "a": "claude_code"
+  },
+  {
+   "h": 18,
+   "mi": 40,
+   "dur": 1.59,
+   "a": "kimi"
+  },
+  {
+   "h": 18,
+   "mi": 51,
+   "dur": 9.72,
+   "a": "claude_code"
+  },
+  {
+   "h": 11,
+   "mi": 19,
+   "dur": 1.67,
+   "a": "dsh"
+  },
+  {
+   "h": 14,
+   "mi": 54,
+   "dur": 0.22,
+   "a": "codex"
+  },
+  {
+   "h": 19,
+   "mi": 3,
+   "dur": 2.17,
+   "a": "codex"
+  },
+  {
+   "h": 15,
+   "mi": 17,
+   "dur": 0.17,
+   "a": "codex"
+  },
+  {
+   "h": 18,
+   "mi": 58,
+   "dur": 2.03,
+   "a": "kimi"
+  },
+  {
+   "h": 19,
+   "mi": 5,
+   "dur": 2.32,
+   "a": "codex"
+  },
+  {
+   "h": 11,
+   "mi": 3,
+   "dur": 1.4,
+   "a": "kimi"
+  },
+  {
+   "h": 12,
+   "mi": 54,
+   "dur": 0.25,
+   "a": "pi"
+  },
+  {
+   "h": 13,
+   "mi": 25,
+   "dur": 10.23,
+   "a": "claude_code"
+  },
+  {
+   "h": 15,
+   "mi": 14,
+   "dur": 1.97,
+   "a": "claude_code"
+  },
+  {
+   "h": 21,
+   "mi": 38,
+   "dur": 2.23,
+   "a": "codex"
+  },
+  {
+   "h": 10,
+   "mi": 45,
+   "dur": 0.24,
+   "a": "kimi"
+  },
+  {
+   "h": 17,
+   "mi": 36,
+   "dur": 1.97,
+   "a": "codex"
+  },
+  {
+   "h": 12,
+   "mi": 17,
+   "dur": 12.22,
+   "a": "codex"
+  },
+  {
+   "h": 18,
+   "mi": 15,
+   "dur": 5.47,
+   "a": "codex"
+  },
+  {
+   "h": 19,
+   "mi": 17,
+   "dur": 0.52,
+   "a": "opencode"
+  },
+  {
+   "h": 19,
+   "mi": 26,
+   "dur": 11.69,
+   "a": "claude_code"
+  },
+  {
+   "h": 8,
+   "mi": 8,
+   "dur": 7.53,
+   "a": "pi"
+  },
+  {
+   "h": 11,
+   "mi": 10,
+   "dur": 2.94,
+   "a": "claude_code"
+  },
+  {
+   "h": 17,
+   "mi": 59,
+   "dur": 10.72,
+   "a": "claude_code"
+  },
+  {
+   "h": 10,
+   "mi": 17,
+   "dur": 0.96,
+   "a": "claude_code"
+  },
+  {
+   "h": 13,
+   "mi": 0,
+   "dur": 4.48,
+   "a": "claude_code"
+  },
+  {
+   "h": 13,
+   "mi": 41,
+   "dur": 1.12,
+   "a": "codex"
+  },
+  {
+   "h": 11,
+   "mi": 23,
+   "dur": 2.51,
+   "a": "hermes"
+  },
+  {
+   "h": 13,
+   "mi": 46,
+   "dur": 11.38,
+   "a": "codex"
+  },
+  {
+   "h": 7,
+   "mi": 21,
+   "dur": 3.16,
+   "a": "claude_code"
+  },
+  {
+   "h": 8,
+   "mi": 27,
+   "dur": 7.12,
+   "a": "codex"
+  },
+  {
+   "h": 15,
+   "mi": 12,
+   "dur": 7.84,
+   "a": "opencode"
+  },
+  {
+   "h": 16,
+   "mi": 58,
+   "dur": 4.83,
+   "a": "claude_code"
+  },
+  {
+   "h": 17,
+   "mi": 25,
+   "dur": 4.43,
+   "a": "codex"
+  },
+  {
+   "h": 17,
+   "mi": 43,
+   "dur": 3.0,
+   "a": "claude_code"
+  },
+  {
+   "h": 16,
+   "mi": 9,
+   "dur": 0.31,
+   "a": "claude_code"
+  },
+  {
+   "h": 16,
+   "mi": 44,
+   "dur": 9.12,
+   "a": "claude_code"
+  },
+  {
+   "h": 19,
+   "mi": 16,
+   "dur": 4.14,
+   "a": "claude_code"
+  },
+  {
+   "h": 9,
+   "mi": 26,
+   "dur": 3.17,
+   "a": "claude_code"
+  },
+  {
+   "h": 10,
+   "mi": 56,
+   "dur": 2.36,
+   "a": "claude_code"
+  },
+  {
+   "h": 13,
+   "mi": 27,
+   "dur": 1.7,
+   "a": "claude_code"
+  },
+  {
+   "h": 13,
+   "mi": 47,
+   "dur": 1.72,
+   "a": "codex"
+  },
+  {
+   "h": 14,
+   "mi": 34,
+   "dur": 0.66,
+   "a": "claude_code"
+  },
+  {
+   "h": 16,
+   "mi": 18,
+   "dur": 4.23,
+   "a": "codex"
+  },
+  {
+   "h": 21,
+   "mi": 29,
+   "dur": 1.25,
+   "a": "claude_code"
+  },
+  {
+   "h": 9,
+   "mi": 38,
+   "dur": 10.83,
+   "a": "codex"
+  },
+  {
+   "h": 14,
+   "mi": 18,
+   "dur": 12.29,
+   "a": "claude_code"
+  },
+  {
+   "h": 12,
+   "mi": 31,
+   "dur": 0.22,
+   "a": "dsh"
+  },
+  {
+   "h": 15,
+   "mi": 41,
+   "dur": 1.01,
+   "a": "claude_code"
+  },
+  {
+   "h": 20,
+   "mi": 11,
+   "dur": 3.65,
+   "a": "pi"
+  },
+  {
+   "h": 20,
+   "mi": 21,
+   "dur": 13.69,
+   "a": "pi"
+  },
+  {
+   "h": 10,
+   "mi": 5,
+   "dur": 0.67,
+   "a": "codex"
+  },
+  {
+   "h": 16,
+   "mi": 40,
+   "dur": 0.1,
+   "a": "opencode"
+  },
+  {
+   "h": 10,
+   "mi": 25,
+   "dur": 1.12,
+   "a": "codex"
+  },
+  {
+   "h": 15,
+   "mi": 2,
+   "dur": 2.89,
+   "a": "pi"
+  },
+  {
+   "h": 15,
+   "mi": 33,
+   "dur": 5.16,
+   "a": "claude_code"
+  },
+  {
+   "h": 15,
+   "mi": 50,
+   "dur": 0.7,
+   "a": "claude_code"
+  },
+  {
+   "h": 16,
+   "mi": 34,
+   "dur": 4.13,
+   "a": "codex"
+  },
+  {
+   "h": 17,
+   "mi": 15,
+   "dur": 1.17,
+   "a": "claude_code"
+  },
+  {
+   "h": 18,
+   "mi": 56,
+   "dur": 5.85,
+   "a": "claude_code"
+  }
+ ],
+ "particles_total": 111
+}

@@ -1,0 +1,62 @@
+{
+  "task_id": "generate.skill",
+  "engine": "claude_code",
+  "items": [
+    {
+      "key": "sessions",
+      "label": "相关会话摘要 · 12 个",
+      "desc": "合成夹具：只含结构化统计",
+      "data_class": "summary",
+      "enabled": true,
+      "tokens": 4200,
+      "redaction_hits": 3,
+      "preview": [
+        "fx-s1 · tandem-fixture · 「合成会话 A」 · 纠偏 1",
+        "cwd: /Users/[user]/fixture"
+      ],
+      "consent": "granted"
+    },
+    {
+      "key": "friction",
+      "label": "摩擦统计",
+      "desc": "方向错误 2 · 重试 3",
+      "data_class": "summary",
+      "enabled": true,
+      "tokens": 800,
+      "redaction_hits": 0,
+      "preview": [
+        "方向错误 2 · 重试 3"
+      ],
+      "consent": "granted"
+    },
+    {
+      "key": "snippets",
+      "label": "脱敏片段 · 4 段",
+      "desc": "关键时刻前后",
+      "data_class": "snippets",
+      "enabled": false,
+      "tokens": 5100,
+      "redaction_hits": 2,
+      "preview": [
+        "[you] 合成片段"
+      ],
+      "consent": "missing"
+    }
+  ],
+  "total_tokens": 5000,
+  "input_budget": 16000,
+  "over_budget": false,
+  "est_cost_usd": 0.03,
+  "est_calls": 2,
+  "redaction_hits": 3,
+  "preview_digest": "sha256:fx-preview",
+  "payload": {},
+  "stages": [
+    "pack",
+    "analyse",
+    "draft",
+    "check",
+    "replay",
+    "review"
+  ]
+}

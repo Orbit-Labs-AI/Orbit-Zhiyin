@@ -85,11 +85,15 @@ def test_status_without_database_is_fast_and_onboarding(client_factory):
 
 def test_reads_and_fallback_without_database(client_factory):
     client, _ = client_factory()
-    response = client.get("/v1/sessions")
-    assert response.status_code == 503 and response.headers["retry-after"]
-    assert response.json()["error"]["code"] == "no_projection"
-    legacy = client.get("/v1/analytics/statistics")  # Not a gateway route: create_app().
+    response = client.get("/v1/sessions")  # Nothing imported yet: empty, not unavailable.
+    assert response.status_code == 200 and response.json() == []
+    assert response.headers["x-tandem-freshness"] == "none"
+    assert response.headers["x-total-count"] == "0"
+    legacy = client.get("/v1/analytics/runs")  # Not a gateway route: create_app().
     assert legacy.status_code == 503 and legacy.json()["error"]["code"] == "no_projection"
+    products = client.get("/v1/analytics/products/sessions")  # Worker-backed: empty state.
+    assert products.status_code == 200
+    assert products.json()["meta"]["freshness"] == "none"
     overview = client.get("/v1/analytics/overview")
     assert overview.status_code == 200
     assert overview.json()["overview"] is None
@@ -135,3 +139,19 @@ def test_helper_exits_when_parent_disappears(tmp_path):
         if process.poll() is None:
             process.kill()
             process.wait()
+
+
+def test_analytics_routes_apply_agent_ids_and_reject_unknown_filters(client_factory):
+    """a1a3-B10: filters are applied (part of the scope hash) or fail with 422."""
+    client, _gateway = client_factory()
+    base = client.get("/v1/analytics/sessions")
+    assert base.status_code == 200 and base.json()["meta"]["freshness"] == "none"
+    scoped = client.get("/v1/analytics/sessions", params={"agent_ids": "codex"})
+    assert scoped.status_code == 200
+    assert scoped.json()["meta"]["scope_hash"] != base.json()["meta"]["scope_hash"]
+    for params in ({"weekday": 1, "hour": 5}, {"query": "x"}, {"bogus": "1"}):
+        response = client.get("/v1/analytics/overview", params=params)
+        assert response.status_code == 422, params
+        assert all(key in response.json()["error"]["message"] for key in params)
+    detail = client.get("/v1/analytics/sessions/s1", params={"hour": 5})
+    assert detail.status_code == 422

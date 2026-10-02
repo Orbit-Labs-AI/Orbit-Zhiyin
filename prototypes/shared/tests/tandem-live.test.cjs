@@ -257,7 +257,7 @@ test('live failure never falls back to demo data', async () => {
   assert.doesNotMatch(html, /DEMO/);
   assert.match(html, /读取失败/);
   assert.equal(C.error.code, 'network');
-  assert.match(TandemLive.ui.banner(C), /无法连接 Tandem 本地服务/);
+  assert.match(TandemLive.ui.banner(C), /无法连接 Orbit 本地服务/);
   await C.stopEvents();
   // mock mode never requests anything
   let n = 0;

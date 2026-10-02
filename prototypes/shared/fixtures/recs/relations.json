@@ -1,0 +1,10 @@
+{
+  "pairs": [
+    {
+      "a": "fxc-allow",
+      "b": "fxc-handoff",
+      "relation": "complements",
+      "reason": "合成样本：两条建议互补"
+    }
+  ]
+}

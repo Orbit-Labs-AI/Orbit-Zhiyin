@@ -1,5 +1,5 @@
 /* ============ shared visuals ============ */
-const agent = (id) => AGI[id];
+const agent = (id) => AGI[id] || { id, name: id, short: id, c: 'var(--a0)', t: 'var(--a0t)' };   // live: an id the spine does not carry
 const CUR = {};
 const OUT = { ok: ['okc', 'var(--good)', '完成'], part: ['half', 'var(--warn)', '部分完成'], fail: ['xc', 'var(--crit)', '放弃'], live: ['clock', 'var(--a1)', '运行中'] };
 function spark(arr, w, h) {

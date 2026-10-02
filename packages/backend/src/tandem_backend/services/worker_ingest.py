@@ -23,6 +23,77 @@ from tandem_data.store import Store, readonly_connection
 from .ingest_plan import Batch, plan_batches
 from .worker_protocol import WorkerIO, debug_delay
 
+# User-level skill directories shared outside the agent root (Codex reads ~/.agents/skills).
+SHARED_SKILL_ROOTS = {"codex": (".agents/skills",)}
+
+
+def _link_targets(root: Path, user_home: Path, data_home: Path) -> tuple[Path, ...]:
+    """Targets of symlinks at most two levels below ``root`` that live elsewhere in the
+    user's home (dotfile repos, a second account sharing hooks/plugins/skills). The data
+    home, the home directory itself and anything containing them are never authorized."""
+    out: list[Path] = []
+    try:
+        level = [root]
+        for _depth in range(2):
+            nxt = []
+            for parent in level:
+                try:
+                    children = sorted(parent.iterdir())[:500]
+                except OSError:
+                    continue
+                for child in children:
+                    if child.is_symlink():
+                        try:
+                            target = child.resolve(strict=True)
+                        except (OSError, RuntimeError):
+                            continue
+                        if (target.is_relative_to(user_home) and target != user_home
+                                and not target.is_relative_to(root)
+                                and not data_home.is_relative_to(target)
+                                and target not in out):
+                            out.append(target)
+                    if child.is_dir():
+                        nxt.append(child)
+            level = nxt
+    except OSError:
+        pass
+    return tuple(out)
+
+
+def inventory_request(source: dict, data_home: Path, user_home: Path | None = None) -> dict:
+    """InventoryRequest kwargs for one enabled source: the agent root plus the symlink
+    targets it points at, the user-level Claude config (MCP only) and shared skill roots.
+    Explicit ``allowed_roots`` / ``claude_config`` / ``skill_roots`` on the source win."""
+    user_home = (user_home or Path.home()).resolve()
+    data_home = Path(data_home).resolve()
+    agent, root = source["agent"], Path(source["root"]).expanduser()
+    resolved = root.resolve()
+    kwargs: dict = {"agent": agent, "root": root}
+    if "allowed_roots" in source:
+        kwargs["allowed_roots"] = tuple(Path(p) for p in source["allowed_roots"] or ())
+    elif resolved.is_dir():
+        kwargs["allowed_roots"] = _link_targets(resolved, user_home, data_home)
+    if agent == "claude_code":
+        if "claude_config" in source:
+            config = source["claude_config"]
+            kwargs["claude_config"] = Path(config) if config else None
+        else:
+            # CLAUDE_CONFIG_DIR=<root> keeps .claude.json inside the root; the default
+            # ~/.claude account keeps it next to it as ~/.claude.json.
+            for candidate in (resolved / ".claude.json",
+                              *((user_home / ".claude.json",)
+                                if resolved == user_home / ".claude" else ())):
+                if candidate.is_file():
+                    kwargs["claude_config"] = candidate
+                    break
+    if "skill_roots" in source:
+        kwargs["skill_roots"] = tuple(Path(p) for p in source["skill_roots"] or ())
+    else:
+        kwargs["skill_roots"] = tuple(
+            path for rel in SHARED_SKILL_ROOTS.get(agent, ())
+            if (path := user_home / rel).is_dir() and not data_home.is_relative_to(path.resolve()))
+    return kwargs
+
 
 def revision(home: Path) -> dict:
     """Published revision read back after a batch: run id, inventory scan and counts."""
@@ -39,7 +110,8 @@ def revision(home: Path) -> dict:
 
 def _partial(results: list[dict]) -> bool:
     return any(r.get("error") or r.get("capture_errors") or r.get("current_unparsed")
-               or r.get("unparsed") or r.get("status") == "partial" for r in results)
+               or r.get("unparsed") or r.get("skipped_files") or r.get("status") == "partial"
+               for r in results)
 
 
 class IngestWorker:
@@ -85,9 +157,12 @@ class IngestWorker:
         if source["id"] in job.get("files_by_source", {}):
             return [Batch("selection", tuple(Path(p) for p in job["files_by_source"][source["id"]]))]
         phase = job.get("phase") or "auto"
-        if phase == "full" or job.get("limit"):
+        if job.get("limit") or (phase == "full" and not job.get("plan", {}).get("max_age_days")):
             return [None]  # One request over every allowlisted file (or the first N).
         plan = plan_batches(source["agent"], Path(source["root"]), **job.get("plan", {}))
+        if phase == "full":  # Age-bounded full import: one request over the kept files.
+            files = tuple(path for batch in plan for path in batch.files)
+            return [Batch("full", files)] if files else []
         return [b for b in plan if phase == "auto" or b.phase == phase]
 
     def run(self, job: dict) -> None:
@@ -99,28 +174,33 @@ class IngestWorker:
             with Store(self.home) as store:
                 service = ImportService(store, progress=lambda p: self.io.send(
                     "progress", job=job["id"], progress=p, phase=self.phase))
-                kind = job["kind"]
-                if kind in ("verify", "rebuild", "backup"):
-                    with service.writer():
-                        if kind == "verify":
-                            results.append({"kind": "verify", **store.verify()})
-                        elif kind == "rebuild":
-                            ids = {s["id"] for s in job.get("sources", [])} or None
-                            results.append(store.rebuild(source_ids=ids, progress=service.progress))
-                        else:
-                            results.append(self._backup(store))
-                    if kind == "rebuild":
-                        self._publish(job, "rebuild")
-                elif kind == "inventory":
-                    from tandem_data.inventory import InventoryRequest, scan_inventory
+                try:
+                    kind = job["kind"]
+                    if kind in ("verify", "rebuild", "backup"):
+                        with service.writer():
+                            if kind == "verify":
+                                results.append({"kind": "verify", **store.verify()})
+                            elif kind == "rebuild":
+                                ids = {s["id"] for s in job.get("sources", [])} or None
+                                results.append(store.rebuild(source_ids=ids, progress=service.progress))
+                            else:
+                                results.append(self._backup(store))
+                        if kind == "rebuild":
+                            self._publish(job, "rebuild")
+                    elif kind == "inventory":
+                        from tandem_data.inventory import InventoryRequest, scan_inventory
 
-                    for source in job["sources"]:
-                        result = scan_inventory(store, InventoryRequest(source["agent"],
-                                                                        Path(source["root"])))
-                        results.append({"source_id": source["id"], **result})
-                    self._publish(job, "inventory")
-                else:
-                    self._import(job, service, results)
+                        for source in job["sources"]:
+                            result = scan_inventory(
+                                store, InventoryRequest(**inventory_request(source, self.home)))
+                            results.append({"source_id": source["id"], **result})
+                        self._publish(job, "inventory")
+                    else:
+                        self._import(job, service, results)
+                finally:
+                    # Stop the import process pool before reporting done, so the next
+                    # job never sees this thread still alive ("worker busy").
+                    service.close()
             status = ("cancelled" if self.cancel.is_set() else
                       "partial" if _partial(results) else "completed")
             self.io.send("done", job=job["id"], status=status, results=results, error=None)

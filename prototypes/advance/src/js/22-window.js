@@ -22,9 +22,26 @@ let WIN_LAST = null, WIN_SIG = '';
   if (sd && typeof sd === 'object') { if (typeof sd.show === 'boolean') S.side = sd.show; if (sd.open && typeof sd.open === 'object') Object.keys(S.sideOpen).forEach((k) => { if (typeof sd.open[k] === 'boolean') S.sideOpen[k] = sd.open[k]; }); }
   ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].forEach((d) => { const h = document.createElement('div'); h.className = 'rz'; h.dataset.rz = d; h.setAttribute('aria-hidden', 'true'); $('#win').appendChild(h); });
 })();
-function stageSize() { return { w: desk.clientWidth, h: desk.clientHeight }; }
+// the stage size is cached (reading clientWidth after a render forces a synchronous layout): a window resize drops the cache
+// (capture listener, before 99-init's applyWin), and a ResizeObserver on #desk catches any other size change and re-lays
+// the window out
+let STAGE = null;
+function stageSize() { if (!STAGE) STAGE = { w: desk.clientWidth, h: desk.clientHeight }; return STAGE; }
+window.addEventListener('resize', () => { STAGE = null; }, true);
+if (typeof ResizeObserver === 'function') new ResizeObserver(() => {
+  const w = desk.clientWidth, h = desk.clientHeight;
+  if (STAGE && STAGE.w === w && STAGE.h === h) return;
+  STAGE = { w, h }; applyWin(); if (typeof setPlace === 'function') setPlace();
+}).observe(desk);
+// Native shell (WKWebView, window.__ORBIT_NATIVE__): body.native hides the fake desktop and the real NSWindow is the window,
+// so #win fills the viewport ("native" mode: never moved / resized by the page) and window ops go to the host as messages.
+// nativeWin(type) posts close / minimize / zoom / fullscreen and returns true when a host took it; otherwise the caller keeps
+// the simulated behaviour (browser, mock).
+function nativeShell() { const n = window.ORBIT && window.ORBIT.native; return n ? !!n.isNative : !!window.__ORBIT_NATIVE__; }
+function nativeWin(type) { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.post(type, {})); }
 function winRect() {
   const st = stageSize(), W = S.win;
+  if (nativeShell()) return { x: 0, y: 0, w: st.w, h: st.h, mode: 'native' };
   if (W.full) return { x: 0, y: 0, w: st.w, h: st.h, mode: 'full' };
   const areaH = st.h - MB_H;
   if (W.zoom) return { x: 0, y: MB_H, w: st.w, h: areaH, mode: 'zoom' };
@@ -70,8 +87,8 @@ function saveWin() { store.set('win', { x: S.win.x, y: S.win.y, w: S.win.w, h: S
 function saveSide() { store.set('side', { show: S.side, open: S.sideOpen }); }
 function winNarrow() { return (WIN_LAST || winRect()).w < SIDE_MIN_WIN; }
 function toggleSide() { if (winNarrow()) S.sideOver = !S.sideOver; else { S.side = !S.side; S.sideOver = false; saveSide(); } applyWin(); renderWtop(); }
-function winZoomToggle() { if (S.win.full) return; S.win.zoom = !S.win.zoom; saveWin(); applyWin(); renderWtop(); }
-function winFullToggle() { S.win.full = !S.win.full; S.sideOver = false; applyWin(); renderWtop(); renderWidgets(); }
+function winZoomToggle() { if (nativeWin('zoom')) return; if (S.win.full) return; S.win.zoom = !S.win.zoom; saveWin(); applyWin(); renderWtop(); }
+function winFullToggle() { if (nativeWin('fullscreen')) return; S.win.full = !S.win.full; S.sideOver = false; applyWin(); renderWtop(); renderWidgets(); }
 function showMain() { S.winGone = false; S.pop = false; S.keyWin = 'main'; render(); }
 function keyWinApply() { $('#win').classList.toggle('inactive', S.keyWin !== 'main'); $('#set').classList.toggle('inactive', S.keyWin !== 'set'); }
 document.addEventListener('pointerdown', (e) => {

@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "retention_days": 7,
+  "slow_ms": 500,
+  "export_dir": "~/.tandem-fixture/exports",
+  "stats": {
+    "series": 12,
+    "rows": 3400,
+    "bytes_est": 204800,
+    "since": "2026-09-24T00:00:00Z"
+  }
+}

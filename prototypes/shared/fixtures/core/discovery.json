@@ -1,0 +1,26 @@
+[
+ {
+  "id": "source_fx_cc",
+  "agent": "claude_code",
+  "root": "~/.claude",
+  "files": 0,
+  "status": "empty",
+  "enabled": false
+ },
+ {
+  "id": "source_fx_cx",
+  "agent": "codex",
+  "root": "~/.codex",
+  "files": 0,
+  "status": "empty",
+  "enabled": false
+ },
+ {
+  "id": "source_fx_km",
+  "agent": "kimi",
+  "root": "~/.kimi",
+  "files": null,
+  "status": "permission_denied",
+  "enabled": false
+ }
+]

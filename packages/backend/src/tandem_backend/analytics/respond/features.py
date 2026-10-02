@@ -4,7 +4,7 @@ import math
 from collections import Counter, defaultdict
 
 from ...profiling.analysis import union_duration
-from ..common import quantile, ratio, timestamp
+from ..common import MIN_STATUS_COVERAGE, covered_ratio, quantile, status_coverage, timestamp
 from .rules import result_status
 
 
@@ -29,14 +29,19 @@ def tool_summary(calls, dataset_status="available"):
                 intervals.append((a, b))
         # One O(n log n) sort; quantile() re-sorting an ordered list is linear.
         ordered = sorted(durations)
+        known = statuses["success"] + statuses["failed"]
         out = {"call_count": len(items), "paired_result_count": sum(bool(c.get("result_event_uid")) for c in items),
                "unpaired_count": sum(not c.get("result_event_uid") for c in items),
                "known_success_count": statuses["success"], "known_failure_count": statuses["failed"],
                **{k + "_count": statuses[k] for k in ("rejected", "interrupted", "running")},
                "unknown_status_count": statuses["unknown"],
-               "eligible_status_count": statuses["success"] + statuses["failed"],
-               "success_rate": ratio(statuses["success"], statuses["success"] + statuses["failed"]),
-               "failure_rate": ratio(statuses["failed"], statuses["success"] + statuses["failed"]),
+               "eligible_status_count": known,
+               "status_coverage": status_coverage(known, statuses["unknown"]),
+               "success_rate": covered_ratio(statuses["success"], known, statuses["unknown"]),
+               "failure_rate": covered_ratio(statuses["failed"], known, statuses["unknown"]),
+               "rate_reason": None if covered_ratio(1, known, statuses["unknown"]) is not None else
+                              "no_known_status" if not known else "status_coverage_below_min",
+               "min_status_coverage": MIN_STATUS_COVERAGE,
                "median_duration_ms": quantile(ordered, .5), "p25_duration_ms": quantile(ordered, .25),
                "p75_duration_ms": quantile(ordered, .75), "p90_duration_ms": quantile(ordered, .9),
                "duration_sum_ms": sum(durations) if durations else None,

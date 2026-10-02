@@ -54,8 +54,10 @@ class ApiError(Exception):
 class GuardMiddleware:
     """Pure ASGI middleware so SSE streams are not buffered."""
 
-    def __init__(self, app, token: str, port: int | None, hosts=LOOPBACK_HOSTS):
+    def __init__(self, app, token: str, port: int | None, hosts=LOOPBACK_HOSTS,
+                 public_paths=()):
         self.app = app
+        self.public_paths = frozenset(public_paths)  # GET pages loaded before the token exists.
         self.token = validate_token(token).encode()
         self.port = port
         self.hosts = tuple(hosts)
@@ -67,7 +69,8 @@ class GuardMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
-        failure = self.check(headers)
+        public = scope.get("method") in ("GET", "HEAD") and scope.get("path") in self.public_paths
+        failure = self.check(headers, require_token=not public)
 
         async def secured(message):
             if message["type"] == "http.response.start":
@@ -87,13 +90,16 @@ class GuardMiddleware:
             return
         await self.app(scope, receive, secured)
 
-    def check(self, headers: dict[str, str]) -> tuple[int, str, str] | None:
+    def check(self, headers: dict[str, str],
+              require_token: bool = True) -> tuple[int, str, str] | None:
         host = headers.get("host", "")
         if host not in self.authorities:
             return 403, "invalid_host", "Host is not this local gateway"
         origin = headers.get("origin")
         if origin is not None and origin not in self.origins:
             return 403, "invalid_origin", "Cross-origin requests are not allowed"
+        if not require_token:
+            return None
         scheme, _, supplied = headers.get("authorization", "").partition(" ")
         if scheme.lower() != "bearer" or not hmac.compare_digest(supplied.strip().encode(),
                                                                    self.token):

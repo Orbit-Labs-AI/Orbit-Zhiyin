@@ -1,13 +1,11 @@
-/* ============ live binding (TandemLive, js/06-live-client.js) ============
-   Mock mode (file://, opened on its own) changes nothing. Live mode (served by the gateway at /app, or ?live=1) replaces the
-   bound pages with API-backed renderers, overlays the sidebar counts and the settings › 数据源 list, and puts the status strip
-   (import progress, service banner, stale / computing badge, 示例数据 on pages that are not bound yet) at the top of the content.
-   Hooks wrap render / renderSide / renderSet from here; no other file changes. The demo's sel() / stats() / persona() and
-   15-derive are not used to show anything on bound pages. */
-const TL = TandemLive.create({ onChange: () => render() });
-const TLU = TandemLive.ui;
+/* ============ live binding: status strip + endpoint wiring (TandemLive, js/06-live-client.js; core in 90-live-core.js) ============
+   Mock mode (file://, opened on its own) changes nothing. Live mode keeps every polished page: 90-live-core hydrates the
+   demo globals from /v1/uiview/facts and page feeds (LV.feed) overwrite page constants right before each render. This file
+   only puts the status strip (import progress, service banner, connecting / computing / stale / failed badge) at the top of
+   the content and keeps the sidebar footer honest. TL_VIEWS / lvScope / lvView / TL_PAGES / lvKey stay as the round-2
+   compatibility surface used by 97-* / 98-* until their slices move to LV.feed. */
 const TL_VIEWS = {};
-const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
+const TL_PAGES = {};
 function lvScope() {
   const on = AG.filter((a) => S.agents.has(a.id) && !S.srcOff.has(a.id)).map((a) => a.id);
   return { range: S.range, agents: on.length === AG.length ? null : on, projects: null, tz: TL_TZ };
@@ -17,106 +15,39 @@ function lvTable(cols, rows, rowAttr) {
   return '<table class="tl-table"><thead><tr>' + cols.map((c) => '<th' + (c.n ? ' class="n"' : '') + '>' + c.t + '</th>').join('') + '</tr></thead><tbody>' +
     rows.map((r) => '<tr' + (rowAttr ? rowAttr(r) : '') + '>' + cols.map((c) => '<td' + (c.n ? ' class="n"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
-const lvKpi = (label, value) => '<div class="tl-card tl-kpi"><b>' + value + '</b><span>' + label + '</span></div>';
-// Lite edition (26-edition.js): the same bound renderers serve its pages, under the Lite top bar and without Advance filters.
-function lvPage(title, meta, v, body) {
-  const lite = S.ed === 'lite';
-  return (lite ? liteBar(title, meta) : tbar(title, meta)) + '<div class="content" id="content">' + (lite ? '' : filterRow()) + TLU.body(v, body) + '</div>';
-}
-
-TL.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview', waitMs: 800 }], (d) => {
-  const o = d.ov.overview || {}; const c = o.counts || {}; const u = o.usage || {};
-  return { counts: c, usage: u, coverage: d.ov.meta && d.ov.meta.coverage };
-});
-TL.bind('sessions', (scope) => {
-  const res = [{ name: 'list', path: '/v1/analytics/sessions', query: { offset: 0, limit: 50 } }];
-  if (S.lvSess) res.push({ name: 'events', path: '/v1/sessions/' + encodeURIComponent(S.lvSess) + '/events', query: { limit: 200 }, scope: false });
-  return res;
-}, (d) => ({ total: d.list.total, rows: d.list.sessions || [], events: d.events ? d.events.items || [] : null }));
-TL.bind('tools', [{ name: 't', path: '/v1/analytics/tools' }], (d) => { const t = d.t.tools || {}; return { totals: t.totals || {}, rows: t.by_tool || [] }; });
-TL.bind('projects', [{ name: 'p', path: '/v1/analytics/projects' }], (d) => { const p = d.p.projects || {}; return { status: p.status, rows: p.records || [] }; });
-
-const TL_PAGES = {
-  overview() {
-    const v = lvView('overview');
-    return lvPage('概览', '本机数据 · ' + rangeLabel(), v, (vm) => '<div class="tl-grid" data-tl="overview">' +
-      lvKpi('会话', TLU.num(vm.counts.sessions)) + lvKpi('真人消息', TLU.num(vm.counts.human_messages)) + lvKpi('工具调用', TLU.num(vm.counts.tool_calls)) +
-      lvKpi('项目', TLU.num(vm.counts.projects)) + lvKpi('活跃天数', TLU.num(vm.counts.active_days)) + lvKpi('模型请求', TLU.num(vm.usage.request_count)) +
-      lvKpi('Token', TLU.num(vm.usage.total_tokens)) + lvKpi('费用', TLU.money(vm.usage.cost_usd)) + '</div>');
-  },
-  sessions() {
-    const v = lvView('sessions');
-    return lvPage('会话与轨迹', v && v.vm ? TLU.num(v.vm.total) + ' 个会话' : '', v, (vm) => {
-      const list = lvTable([
-        { t: '会话', v: (s) => esc(s.title || s.session_uid) },
-        { t: '消息', n: 1, v: (s) => TLU.num(s.features && s.features.user_message_count) },
-        { t: '工具', n: 1, v: (s) => TLU.num(s.features && s.features.tool_call_count) },
-        { t: 'Token', n: 1, v: (s) => TLU.num(s.usage && s.usage.total_tokens) }
-      ], vm.rows, (s) => ' data-tl-sel data-act="lvSess" data-id="' + esc(s.session_uid) + '"' + (S.lvSess === s.session_uid ? ' class="on"' : ''));
-      const ev = vm.events == null ? '<div class="cap">选择一个会话查看事件</div>' : vm.events.length ? vm.events.map((e) => '<div class="tl-ev">#' + TLU.num(e.seq) + ' · ' + TLU.hm(e.ts) + ' · ' + esc(e.kind) + ' · ' + esc(e.summary || '') + '</div>').join('') : TLU.empty('该会话没有事件');
-      return '<div class="stack" data-tl="sessions"><div class="tl-card">' + list + '</div><div class="tl-card" data-tl="events">' + ev + '</div></div>';
-    });
-  },
-  tools() {
-    const v = lvView('tools');
-    return lvPage('工具调用', v && v.vm ? TLU.num(v.vm.totals.call_count) + ' 次调用' : '', v, (vm) => '<div class="stack" data-tl="tools"><div class="tl-grid">' +
-      lvKpi('调用', TLU.num(vm.totals.call_count)) + lvKpi('明确失败', TLU.num(vm.totals.known_failure_count)) + lvKpi('状态未知', TLU.num(vm.totals.unknown_status_count)) + lvKpi('失败率', TLU.pct(vm.totals.failure_rate)) + '</div>' +
-      '<div class="tl-card">' + lvTable([
-        { t: '工具', v: (r) => esc(r.name) }, { t: '调用', n: 1, v: (r) => TLU.num(r.call_count) }, { t: '成功', n: 1, v: (r) => TLU.num(r.known_success_count) },
-        { t: '失败', n: 1, v: (r) => TLU.num(r.known_failure_count) }, { t: '未知', n: 1, v: (r) => TLU.num(r.unknown_status_count) }, { t: '中位时长 ms', n: 1, v: (r) => TLU.num(r.median_duration_ms) }
-      ], vm.rows) + '</div></div>');
-  },
-  projects() {
-    const v = lvView('projects');
-    return lvPage('项目习惯', v && v.vm ? v.vm.rows.length + ' 个项目' : '', v, (vm) => '<div class="tl-card" data-tl="projects">' + lvTable([
-      { t: '项目', v: (r) => esc(r.name || r.project_id) }, { t: '会话', n: 1, v: (r) => TLU.num(r.session_count) }, { t: '真人消息', n: 1, v: (r) => TLU.num(r.human_message_count) },
-      { t: '工具调用', n: 1, v: (r) => TLU.num(r.tool_call_count) }, { t: '最近', n: 1, v: (r) => TLU.hm(r.last_observed_ts) }
-    ], vm.rows) + '</div>');
-  }
-};
+const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
-// A Lite route whose Advance counterpart is bound (l-home → overview, l-sessions → sessions) shows that live page; the
-// others (l-persona, l-recs) keep their demo page and the 示例数据 badge.
-const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
-if (TL.mode === 'live') {
-  Object.keys(TL_PAGES).forEach((k) => { PAGES[k] = TL_PAGES[k]; });
-  Object.keys(TO_ADV).forEach((r) => { if (lvKey(r) !== r) PAGES[r] = TL_PAGES[lvKey(r)]; });
+function lvSpineBadge() {
+  if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
+  if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
+  if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
+  return '';
+}
+function lvStrip(route) {
+  const k = lvKey(route);
+  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
+  const b = lvSpineBadge() || page;
+  const html = TLU.progress(TL) + TLU.banner(TL) + (b ? '<div>' + b + '</div>' : '');
+  return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';
+}
+
+if (LV.live) {
   TLU.ensureStyle(document);
-  const baseRender = render, baseSide = renderSide, baseSet = renderSet;
-  const lvSources = () => { const r = TL.resource('/v1/app/sources'); if (r.dirty && !r.loading) TL.load(r); return r; };
+  const baseRender = render, baseSide = renderSide;
   render = function () {
+    LV.pump(S.route);
     baseRender();
     const c = $('#content'); if (!c) return;
     const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
-    const strip = TLU.strip(TL, lvKey(S.route), TL_VIEWS[lvKey(S.route)]);
+    const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
   renderSide = function () {
     baseSide();
-    const st = TL.status; const side = $('#side');
-    const set = (sel, text) => { const el = side.querySelector(sel); if (el) el.textContent = text; };
-    set('[data-r="sessions"] .ct, [data-r="l-sessions"] .ct', TLU.num(st && st.counts && st.counts.sessions));
-    set('[data-r="projects"] .ct', TLU.num(st && st.counts && st.counts.projects));
-    AG.forEach((a) => {
-      const keys = TandemLive.AGENT_KEYS[a.id] || [];
-      const src = ((st && st.sources) || []).filter((s) => keys.indexOf(String(s.agent || '').toLowerCase()) >= 0);
-      const on = src.filter((s) => s.enabled !== false);
-      set('.ag[data-a="' + a.id + '"] .ct', !st ? '—' : !src.length ? '—' : !on.length ? '停用' : TLU.num(on.some((s) => s.sessions == null) ? null : on.reduce((n, s) => n + s.sessions, 0)));
-    });
-    side.querySelectorAll('[data-act="pinProject"] .ct').forEach((el) => { el.textContent = '—'; });
-    set('.me .pc', '—');
-    set('.sb-foot .pv .row.cap span', st ? '已索引 ' + TLU.num(st.counts && st.counts.sessions) + ' 个会话 · 本机服务' : TL.error ? '本机服务未连接' : '正在连接本机服务');
-  };
-  renderSet = function () {
-    baseSet();
-    if ($('#set').hidden || S.setTab !== 'sources') return;
-    const card = $$('#set .card').find((x) => { const t = x.querySelector('.ct'); return t && t.textContent === '已检测到的 Agent'; });
-    if (!card) return;
-    const r = lvSources(); const box = card.lastElementChild;
-    box.setAttribute('data-tl', 'sources');
-    box.innerHTML = r.data ? ((r.data.sources || []).map((s) => '<div class="srcrow" style="opacity:' + (s.enabled === false ? 0.55 : 1) + '"><div style="min-width:0"><b style="font-size:13px">' + esc(s.name || s.agent) + '</b><div class="cap" style="font-size:11px">' + esc(s.id) + ' · ' + (s.enabled === false ? '已停用' : '已启用') + '</div></div><span class="when">' + TLU.num(s.sessions) + ' 个会话 · ' + TLU.hm(s.last_scan) + '</span></div>').join('') || TLU.empty('尚未发现数据来源'))
-      : r.state === 'error' ? TLU.errorCard(r.error) : TLU.skeleton();
+    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
+    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
   };
   TL.start();
 }

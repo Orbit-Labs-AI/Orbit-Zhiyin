@@ -1,0 +1,149 @@
+{
+ "q": "示例",
+ "took_ms": 1.2,
+ "index": {
+  "state": "ready",
+  "docs": 120,
+  "data_rev": "3"
+ },
+ "counts": {
+  "session": 1,
+  "message": 1,
+  "command": 1,
+  "file": 1,
+  "project": 1
+ },
+ "results": [
+  {
+   "kind": "session",
+   "id": "session_fx005",
+   "title": "整理示例仓库的测试 #5",
+   "snippet": "整理示例仓库的测试 #5",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_fx005",
+   "project_id": null,
+   "agent": "claude_code",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_fx005"
+   }
+  },
+  {
+   "kind": "message",
+   "id": "event_fx8",
+   "title": "示例：请重构这个模块",
+   "snippet": "示例：请重构这个模块",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_fx008",
+   "project_id": null,
+   "agent": "claude_code",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_fx008",
+    "event_uid": "event_fx8"
+   }
+  },
+  {
+   "kind": "command",
+   "id": "command:session_fx008:pnpm test",
+   "title": "pnpm test 示例",
+   "snippet": "pnpm test 示例",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_fx008",
+   "project_id": null,
+   "agent": "claude_code",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_fx008",
+    "match": "pnpm test"
+   }
+  },
+  {
+   "kind": "file",
+   "id": "file:session_fx008:src/示例.ts",
+   "title": "src/示例.ts",
+   "snippet": "src/示例.ts",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_fx008",
+   "project_id": null,
+   "agent": "claude_code",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_fx008",
+    "match": "src/示例.ts"
+   }
+  },
+  {
+   "kind": "project",
+   "id": "proj_beta",
+   "title": "beta-lib 示例",
+   "snippet": "beta-lib 示例",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": null,
+   "project_id": "proj_beta",
+   "agent": null,
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "project",
+    "id": "proj_beta"
+   }
+  },
+  {
+   "kind": "message",
+   "id": "event_gone",
+   "title": "示例：已排除会话里的消息",
+   "snippet": "示例：已排除会话里的消息",
+   "marks": [
+    [
+     0,
+     2
+    ]
+   ],
+   "session_uid": "session_gone",
+   "project_id": null,
+   "agent": "codex",
+   "ts": 1790000000000,
+   "score": 0.01,
+   "ref": {
+    "page": "session",
+    "id": "session_gone",
+    "event_uid": "event_gone"
+   }
+  }
+ ],
+ "partial": []
+}

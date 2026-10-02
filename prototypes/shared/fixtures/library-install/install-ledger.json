@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {
+      "entry_id": "e-fx-1",
+      "ts": 1789000000000,
+      "actor": "user",
+      "action": "apply",
+      "install_id": "inst-fx-0",
+      "candidate_id": null,
+      "plan_id": "plan-fx-0",
+      "target_idx": 0,
+      "target_agent": "claude_code",
+      "path": "~/.claude/agents/release-check.md",
+      "op": "create",
+      "before_hash": null,
+      "after_hash": "sha256:a",
+      "backup_path": null,
+      "created_file": true,
+      "applied": true,
+      "blob_ref": null,
+      "evidence_refs": [],
+      "tracking_id": null,
+      "note": null
+    }
+  ],
+  "next": null
+}

@@ -1,0 +1,327 @@
+{
+ "version": "1.2.0",
+ "kinds": [
+  {
+   "kind": "shell",
+   "label": "终端命令",
+   "names": [
+    {
+     "agent": null,
+     "name": "commandexecution",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "exec",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "pwsh",
+     "calls": null
+    },
+    {
+     "agent": "codex",
+     "name": "exec_command",
+     "calls": 364
+    },
+    {
+     "agent": "claude_code",
+     "name": "bash",
+     "calls": 297
+    },
+    {
+     "agent": "dsh",
+     "name": "bash",
+     "calls": 89
+    },
+    {
+     "agent": "hermes",
+     "name": "terminal",
+     "calls": 83
+    },
+    {
+     "agent": "kimi",
+     "name": "shell",
+     "calls": 62
+    },
+    {
+     "agent": "pi",
+     "name": "bash",
+     "calls": 59
+    },
+    {
+     "agent": "opencode",
+     "name": "bash",
+     "calls": 45
+    }
+   ]
+  },
+  {
+   "kind": "file.read",
+   "label": "读文件",
+   "names": [
+    {
+     "agent": null,
+     "name": "read_file",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "view_image",
+     "calls": null
+    },
+    {
+     "agent": "claude_code",
+     "name": "read",
+     "calls": 145
+    },
+    {
+     "agent": "pi",
+     "name": "read",
+     "calls": 30
+    }
+   ]
+  },
+  {
+   "kind": "file.edit",
+   "label": "改文件",
+   "names": [
+    {
+     "agent": null,
+     "name": "filechange",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "multiedit",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "str_replace_editor",
+     "calls": null
+    },
+    {
+     "agent": "claude_code",
+     "name": "edit",
+     "calls": 122
+    },
+    {
+     "agent": "codex",
+     "name": "apply_patch",
+     "calls": 95
+    },
+    {
+     "agent": "pi",
+     "name": "edit",
+     "calls": 16
+    }
+   ]
+  },
+  {
+   "kind": "file.write",
+   "label": "写文件",
+   "names": [
+    {
+     "agent": null,
+     "name": "write",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "write_file",
+     "calls": null
+    }
+   ]
+  },
+  {
+   "kind": "search",
+   "label": "搜索代码",
+   "names": [
+    {
+     "agent": null,
+     "name": "find",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "glob",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "search",
+     "calls": null
+    },
+    {
+     "agent": "claude_code",
+     "name": "grep",
+     "calls": 63
+    },
+    {
+     "agent": "pi",
+     "name": "grep",
+     "calls": 13
+    }
+   ]
+  },
+  {
+   "kind": "web.search",
+   "label": "网页搜索",
+   "names": [
+    {
+     "agent": null,
+     "name": "web_search",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "websearch",
+     "calls": null
+    },
+    {
+     "agent": "codex",
+     "name": "web.search",
+     "calls": 15
+    }
+   ]
+  },
+  {
+   "kind": "web.fetch",
+   "label": "抓取网页",
+   "names": [
+    {
+     "agent": null,
+     "name": "web.fetch",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "web_fetch",
+     "calls": null
+    },
+    {
+     "agent": "claude_code",
+     "name": "webfetch",
+     "calls": 24
+    }
+   ]
+  },
+  {
+   "kind": "subagent",
+   "label": "子代理",
+   "names": [
+    {
+     "agent": null,
+     "name": "agent",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "delegate_task",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "spawn_agent",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "subagent",
+     "calls": null
+    },
+    {
+     "agent": "claude_code",
+     "name": "task",
+     "calls": 24
+    }
+   ]
+  },
+  {
+   "kind": "skill",
+   "label": "技能",
+   "names": [
+    {
+     "agent": null,
+     "name": "skill",
+     "calls": null
+    }
+   ]
+  },
+  {
+   "kind": "plan",
+   "label": "计划/待办",
+   "names": [
+    {
+     "agent": null,
+     "name": "todo/write",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "todo_write",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "todowrite",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "update_plan",
+     "calls": null
+    }
+   ]
+  },
+  {
+   "kind": "ask_user",
+   "label": "向你提问",
+   "names": [
+    {
+     "agent": null,
+     "name": "ask_user_question",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "askuserquestion",
+     "calls": null
+    },
+    {
+     "agent": null,
+     "name": "request_user_input",
+     "calls": null
+    }
+   ]
+  },
+  {
+   "kind": "mcp",
+   "label": "MCP 工具",
+   "names": [
+    {
+     "agent": "claude_code",
+     "name": "search_issues",
+     "calls": 36
+    },
+    {
+     "agent": "codex",
+     "name": "search_issues",
+     "calls": 30
+    }
+   ]
+  },
+  {
+   "kind": "other",
+   "label": "其他",
+   "names": []
+  }
+ ],
+ "observed": 19,
+ "mcp": {
+  "pattern": "mcp__<server>__<tool>"
+ },
+ "editable": false
+}

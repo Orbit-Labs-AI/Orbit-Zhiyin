@@ -53,7 +53,7 @@ def router(gw: Gateway) -> APIRouter:
                 "jobs": gw.state.jobs()[:50], "storage": gw.revisions.snapshot(),
                 "services": gw.supervisor.services(),
                 "capabilities": {"sse": True, "phased_import": True, "export": False,
-                                 "sync_modes": ["off", "live"]}}
+                                 "sync_modes": ["off", "hour", "live"]}}
 
     @api.get("/v1/app/discovery")
     def discovery():
@@ -156,7 +156,7 @@ def router(gw: Gateway) -> APIRouter:
                 "database_bytes": path.stat().st_size, "home": str(gw.home)}
 
     @api.get("/v1/events")
-    async def events(topics: str = "job,data,analysis,service",
+    async def events(topics: str = "job,data,analysis,service,notify",
                      last_event_id: str | None = Header(None)):
         wanted = {t.strip() for t in topics.split(",") if t.strip()}
         if not wanted or wanted - TOPICS:

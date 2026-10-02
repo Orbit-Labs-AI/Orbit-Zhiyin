@@ -1,0 +1,44 @@
+{
+  "matrix": {
+    "awaiting_approval": [
+      "banner",
+      "hud",
+      "badge"
+    ],
+    "done": [
+      "banner",
+      "hud",
+      "badge"
+    ],
+    "failing": [
+      "banner",
+      "hud",
+      "badge"
+    ],
+    "context_pressure": [
+      "banner",
+      "hud",
+      "badge"
+    ],
+    "weekly": [
+      "banner",
+      "hud",
+      "badge"
+    ]
+  },
+  "quiet_hours": {
+    "enabled": false,
+    "start": "22:00",
+    "end": "08:00",
+    "allow": []
+  },
+  "cooldown_s": {},
+  "rate_limit": {
+    "per_minute": 3,
+    "per_hour": 20
+  },
+  "muted_types": [],
+  "snooze_default_s": 3600,
+  "updated_at": "2026-10-01T07:05:00Z",
+  "policy_rev": 4
+}

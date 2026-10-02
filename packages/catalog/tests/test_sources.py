@@ -1,8 +1,9 @@
 import hashlib
+from pathlib import Path
 
 import pytest
 
-from tandem_catalog.contracts import Page, SourceSpec
+from tandem_catalog.contracts import Page, Resource, SourceSpec
 from tandem_catalog.network import FetchError, validate_url
 from tandem_catalog.sources.github import GitHubConnector, frontmatter
 from tandem_catalog.sources.structured import StructuredConnector
@@ -116,3 +117,126 @@ def test_component_license_cannot_be_overridden_by_root_license():
     adapter = GitHubConnector(SourceSpec(source_id="git", kind="github", url="https://github.com/a/b", config={"repo": "a/b"}), None)
     assert adapter._license("skills/a/SKILL.md", {"license": "Proprietary"}, {"license": "MIT"}, {}) == "Proprietary"
     assert adapter._license("skills/a/SKILL.md", {"license": {"name": "MIT"}}, {"license": "MIT"}, {}) == "unrecognized_component_license"
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def git_sha(text: str) -> str:
+    data = text.encode()
+    return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+
+
+class FakeGitHub:
+    """Serves one synthetic repository revision; counts raw.githubusercontent.com downloads."""
+
+    def __init__(self, files: dict[str, str], head: str):
+        self.files, self.head, self.raw = files, head, 0
+
+    def json(self, url, immutable=False):
+        if url.endswith("/repos/a/b"):
+            return {"id": 42, "default_branch": "main", "license": {"spdx_id": "MIT"}, "stargazers_count": 7}
+        if "/branches/" in url:
+            return {"commit": {"sha": self.head, "commit": {"committer": {"date": "2026-09-30T10:00:00Z"}}}}
+        assert "/git/trees/" + self.head in url
+        return {"tree": [{"path": p, "type": "blob", "sha": git_sha(t), "size": len(t)} for p, t in self.files.items()]}
+
+    def get(self, url, immutable=False):
+        self.raw += 1
+        return next(t.encode() for p, t in self.files.items() if url.endswith("/" + p))
+
+
+def crawl(adapter, state):
+    checkpoint, records = {}, []
+    while True:
+        page = adapter.fetch_page(checkpoint, state)
+        records += page.records
+        if page.complete:
+            return records
+        checkpoint = page.checkpoint
+
+
+def test_github_incremental_sync_downloads_only_changed_blobs():
+    files = {f"skills/s{i}/SKILL.md": f"---\nname: s{i}\ndescription: skill {i}\nlicense: MIT\n---\nbody {i}" for i in range(200)}
+    spec = SourceSpec(source_id="git", kind="github", url="https://github.com/a/b", config={"repo": "a/b"})
+    first = FakeGitHub(files, "a" * 40)
+    records = crawl(GitHubConnector(spec, first), {})
+    assert first.raw == 200 and len(records) == 200
+    meta = records[0].resource.metadata
+    assert meta["blob_sha"] == git_sha(files[records[0].native_id]) and meta["author"] == "a"
+    assert meta["source_updated_at"] == "2026-09-30T10:00:00Z" and records[0].resource.popularity == {"stars": 7}
+
+    known = {r.native_id: (r.resource.metadata["blob_sha"], r.resource, r.raw) for r in records}
+    files["skills/s5/SKILL.md"] += " changed"
+    second = FakeGitHub(files, "b" * 40)
+    again = crawl(GitHubConnector(spec, second), {"revision": "a" * 40, "known": known})
+    assert second.raw == 1 and len(again) == 200
+    changed = next(r for r in again if r.native_id == "skills/s5/SKILL.md")
+    assert changed.resource.body.endswith("changed") and changed.resource.commit_sha == "b" * 40
+    # Same head as the stored revision: no tree read, no downloads.
+    third = FakeGitHub(files, "b" * 40)
+    assert crawl(GitHubConnector(spec, third), {"revision": "b" * 40}) == [] and third.raw == 0
+
+
+def test_github_reuse_accepts_dict_form_and_rejects_stale_blob():
+    spec = SourceSpec(source_id="git", kind="github", url="https://github.com/a/b", config={"repo": "a/b"})
+    stored = Resource(item_id="skill:x", type="skill", name="x", url="https://github.com/a/b", metadata={"blob_sha": "1" * 40})
+    adapter = GitHubConnector(spec, None)
+    blobs = {"skills/x/SKILL.md": {"sha": "1" * 40, "size": 10}}
+    hit = adapter._reuse(("skills/x/SKILL.md", "skill"), {"stars": 3}, blobs, {"skills/x/SKILL.md": {"resource": stored.model_dump()}})
+    assert hit.resource.item_id == "skill:x" and hit.resource.popularity == {"stars": 3}
+    blobs["skills/x/SKILL.md"]["sha"] = "2" * 40
+    assert adapter._reuse(("skills/x/SKILL.md", "skill"), {}, blobs, {"skills/x/SKILL.md": ("1" * 40, stored, {})}) is None
+
+
+def file_source(kind, name, **config):
+    return SourceSpec(source_id=kind.replace("_", "-"), kind=kind, url="https://models.dev/api.json",
+                      config={"file": str(FIXTURES / name), **config})
+
+
+def test_models_dev_fixture_writes_normalized_keys_without_network():
+    page = StructuredConnector(file_source("models_dev", "models_dev_mini.json"), None).fetch_page({}, {})
+    rows = {r.native_id: r.resource.metadata for r in page.records}
+    sonnet = rows["anthropic/claude-3-5-sonnet-20241022"]
+    assert sonnet["canonical_id"] == "anthropic/claude-3-5-sonnet-20241022"
+    assert (sonnet["context_window"], sonnet["max_output"], sonnet["input_per_mtok"], sonnet["cache_read_per_mtok"]) == (100000, 4000, 1.5, 0.15)
+    assert sonnet["tool_call"] is True and sonnet["reasoning"] is False and sonnet["source_updated_at"] == "2024-10-22"
+    gpt = rows["openai/gpt-5"]
+    assert gpt["output_per_mtok"] is None and gpt["max_output"] is None and gpt["tool_call"] is None
+    bedrock = rows["amazon-bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0"]
+    assert bedrock["canonical_id"] == sonnet["canonical_id"] and bedrock["aliases"]
+    assert rows["anthropic/claude-3-5-sonnet-latest"]["canonical_id"] == "anthropic/claude-3-5-sonnet-latest"
+    unchanged = StructuredConnector(file_source("models_dev", "models_dev_mini.json"), None).fetch_page({}, {"revision": page.revision})
+    assert unchanged.records == [] and unchanged.mode == "incremental"
+
+
+def test_litellm_fixture_converts_prices_and_resolves_identity():
+    page = StructuredConnector(file_source("litellm", "litellm_mini.json"), None).fetch_page({}, {})
+    rows = {r.native_id: r.resource.metadata for r in page.records}
+    assert "sample_spec" not in rows
+    direct = rows["claude-3-5-sonnet-20241022"]
+    assert direct["input_per_mtok"] == 1.5 and direct["output_per_mtok"] == 7.5 and direct["cache_read_per_mtok"] == 0.15
+    assert direct["context_window"] == 100000 and direct["canonical_identity"] == "resolved"
+    assert rows["bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0"]["canonical_id"] == direct["canonical_id"]
+    assert rows["azure/gpt-5"]["canonical_id"] == "openai/gpt-5" and rows["azure/gpt-5"]["input_per_mtok"] is None
+    mystery = rows["fireworks_ai/mystery-model"]
+    assert mystery["canonical_identity"] == "unresolved" and mystery["canonical_id"] is None and mystery["context_window"] is None
+
+
+def test_swe_bench_fixture_normalizes_effort_score_and_model():
+    state = {"known_models": {"anthropic/claude-3-5-sonnet-20241022", "openai/gpt-5"}}
+    page = StructuredConnector(file_source("swe_bench", "swe_bench_mini.json"), None).fetch_page({}, state)
+    rows = [r.resource.manifest for r in page.records]
+    assert rows[0]["canonical_model_id"] == "anthropic/claude-3-5-sonnet-20241022" and rows[0]["score"] == 41.5
+    assert rows[0]["measured_at"] == "2024-10-22" and rows[0]["unit"] == "percent" and rows[0]["benchmark_version"] == "Verified"
+    assert (rows[1]["canonical_model_id"], rows[1]["effort"], rows[1]["measured_at"]) == ("openai/gpt-5", "high", "2025-08-01")
+    assert rows[2]["effort"] == "high" and rows[2]["effort_raw"] == "high" and rows[2]["score"] is None and rows[2]["measured_at"] is None
+    assert rows[3]["canonical_model_id"] is None and rows[3]["score"] is None
+    assert page.records[0].resource.metadata["source_updated_at"] == "2024-10-22"
+
+
+def test_source_file_must_be_absolute_and_present(tmp_path):
+    for path, code in (("relative.json", "source_file_must_be_absolute"), (str(tmp_path / "missing.json"), "source_file_not_found")):
+        spec = SourceSpec(source_id="models", kind="models_dev", url="https://models.dev/api.json", config={"file": path})
+        with pytest.raises(ValueError, match=code):
+            StructuredConnector(spec, None).fetch_page({}, {})

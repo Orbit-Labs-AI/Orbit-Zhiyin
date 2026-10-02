@@ -16,7 +16,16 @@ from pathlib import Path
 
 import zstandard as zstd
 
+from tandem_data import SCHEMA_VERSION, payload
 from tandem_data.contract import RawRecord, canonical, now_ms, shape, uid
+
+PAGE_SIZE = 16384
+# Bulk imports leave B-tree pages partly empty (random-key indexes, rows that grow when the
+# reducer fills turn_uid). ``optimize`` rewrites the file once it has grown by COMPACT_GROWTH
+# since it was opened or last compacted and is at least COMPACT_MIN_BYTES, so total compaction
+# work stays within a few file sizes and small stores are never rewritten implicitly.
+COMPACT_GROWTH = 1.5
+COMPACT_MIN_BYTES = 128 << 20
 
 SQL_TABLES = {
     "codex": ("threads", "thread_spawn_edges"),
@@ -58,18 +67,42 @@ def readonly_connection(path: str | Path):
     connection.execute("PRAGMA query_only = ON")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 5000")
+    _tune(connection)
     try:
         yield connection
     finally:
         connection.close()
 
 
+def _tune(connection) -> None:
+    # Large page cache and mmap for reads; temp B-trees stay in memory.
+    connection.execute("PRAGMA temp_store = MEMORY")
+    connection.execute("PRAGMA cache_size = -262144")
+    connection.execute("PRAGMA mmap_size = 1073741824")
+
+
 def insert(connection, table: str, values: dict) -> None:
+    values = payload.pack_row(connection, table, values)
     columns = ",".join(values)
     markers = ",".join("?" for _ in values)
     connection.execute(
         f"INSERT INTO {table} ({columns}) VALUES ({markers})", tuple(values.values())
     )
+
+
+def insert_rows(connection, table: str, rows: Iterable[dict]) -> int:
+    """Batch ``insert`` for rows sharing one column set (executemany)."""
+    rows = [payload.pack_row(connection, table, row) for row in rows]
+    if not rows:
+        return 0
+    columns = list(rows[0])
+    if any(list(row) != columns for row in rows):
+        raise ValueError("insert_rows requires identical columns in every row")
+    connection.executemany(
+        f"INSERT INTO {table} ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",
+        [tuple(row.values()) for row in rows],
+    )
+    return len(rows)
 
 
 def _json_cell(value):
@@ -137,16 +170,27 @@ class Store:
         os.close(descriptor)
         self.db = sqlite3.connect(self.db_path, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        # Only takes effect before the first page is written (a new store). Rows average
+        # ~1.5 KB, so 4 KiB pages leave a quarter of each leaf empty; existing stores keep
+        # their page size until a VACUUM.
+        self.db.execute(f"PRAGMA page_size = {PAGE_SIZE}")
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA busy_timeout = 5000")
+        # WAL + NORMAL keeps committed data across process crashes; only power loss
+        # can drop the last transactions, which a rescan recaptures from source files.
+        self.db.execute("PRAGMA synchronous = NORMAL")
+        _tune(self.db)
+        self._compacted_pages = self.db.execute("PRAGMA page_count").fetchone()[0]
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version not in (1, 2, 3, 4, 5, 6):
+        elif not 1 <= version <= SCHEMA_VERSION:
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1 through 6")
+            raise ValueError(
+                f"Unsupported database version {version}; expected 1 through {SCHEMA_VERSION}"
+            )
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -213,10 +257,12 @@ class Store:
                     raise
                 finally:
                     self.db.execute("PRAGMA foreign_keys=ON")
-        # Index-only upgrades apply after logical migrations, including to existing v5 stores.
-        self.db.executescript(
-            files("tandem_data").joinpath("migrations/projection_indexes.sql").read_text()
-        )
+        # 007 (reserved for feat/data-app-integration) and later: apply each migration file
+        # that exists and is newer than the opened store, so merge order does not matter.
+        for number in range(7, SCHEMA_VERSION + 1):
+            migration = files("tandem_data").joinpath(f"migrations/{number:03d}.sql")
+            if version < number and migration.is_file():
+                self.db.executescript("BEGIN IMMEDIATE;\n" + migration.read_text() + "\nCOMMIT;")
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (
@@ -730,14 +776,42 @@ class Store:
         return data
 
     def rebuild(self, *, mapper_version=None, source_ids=None, progress=None) -> dict:
-        from tandem_data.pipeline import rebuild
+        from tandem_data.pipeline import rebuild_retaining
 
+        # A source rewritten or truncated after capture must not block every other file:
+        # the failed attempt rolls back and is retried with that file's last facts retained.
         try:
-            return rebuild(
+            result = rebuild_retaining(
                 self, mapper_version=mapper_version, source_ids=source_ids, progress=progress
             )
         finally:
             self._unavailable_files = set()
+        self.optimize()
+        return result
+
+    def optimize(self) -> None:
+        """Post-import maintenance: drop unreferenced blobs, refresh planner stats."""
+        if self.db.in_transaction:
+            return
+        payload.collect_garbage(self.db)
+        self.db.execute("PRAGMA optimize")
+        self.db.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        self.compact()
+
+    def compact(self, *, force: bool = False) -> bool:
+        """VACUUM after enough growth since the last compaction; logical contents are unchanged."""
+        if self.db.in_transaction:
+            return False
+        pages = self.db.execute("PRAGMA page_count").fetchone()[0]
+        size = self.db.execute("PRAGMA page_size").fetchone()[0]
+        if not force and (
+            pages < COMPACT_GROWTH * self._compacted_pages or pages * size < COMPACT_MIN_BYTES
+        ):
+            return False
+        self.db.execute("VACUUM")
+        self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        self._compacted_pages = self.db.execute("PRAGMA page_count").fetchone()[0]
+        return True
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event
@@ -799,10 +873,15 @@ class Store:
         ).fetchone()[0]
         if inconsistent:
             raise ValueError("L1 dispositions disagree with evidence links")
+        blobs = payload.verify(self.db)
+        cache = {}
         for row in self.db.execute("SELECT * FROM event"):
-            envelope = dict(row)
+            envelope = payload.restore_row(self.db, row, cache)
             for name in ("attrs", "ext", "native_key"):
                 envelope[name] = json.loads(envelope[name])
+            envelope["ext"] = payload.restore(self.db, envelope["ext"], cache)
+            if len(cache) > 256:
+                cache.clear()
             validate_event(envelope)
         if self.db.execute("PRAGMA foreign_key_check").fetchall():
             raise ValueError("Broken foreign keys")
@@ -823,4 +902,5 @@ class Store:
             "records": total,
             "dispositions": counts,
             "unparsed": counts.get("unparsed", 0),
+            "content_blobs": blobs,
         }

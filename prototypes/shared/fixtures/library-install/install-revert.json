@@ -1,0 +1,12 @@
+{
+  "install_id": "inst-fx-1",
+  "state": "reverted",
+  "ok": true,
+  "results": [
+    {
+      "idx": 0,
+      "path": "~/.claude/settings.json",
+      "status": "reverted"
+    }
+  ]
+}

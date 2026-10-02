@@ -1,0 +1,97 @@
+{
+ "sources": [
+  {
+   "id": "source_3e4aefdbfa338c90faf7752ac2f43c5fe429d2248ea17bb53a3a453a1f5f7209",
+   "agent": "claude_code",
+   "root": "/fx/fx-src/claude_code",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  },
+  {
+   "id": "source_ed0e99a39311b5814ab59f02524c37deeb91be4b3cfbaf9ad202c0a668ebdbfd",
+   "agent": "codex",
+   "root": "/fx/fx-src/codex",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  },
+  {
+   "id": "source_964f91199b5dec14b6b3e38fdd7d534646b0e2a03218ec413d1fb35e67aa18ce",
+   "agent": "dsh",
+   "root": "/fx/fx-src/dsh",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  },
+  {
+   "id": "source_760dac069e16471128778b1d02a3a966efcdf08a505029e79252c43bab9efb40",
+   "agent": "hermes",
+   "root": "/fx/fx-src/hermes",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  },
+  {
+   "id": "source_eb03666b244c1e5d1f3e7690f4119f89d5be9582c517705fe77546c969189061",
+   "agent": "kimi",
+   "root": "/fx/fx-src/kimi",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  },
+  {
+   "id": "source_7034b7d5680b1a864d0bcc4a37c42caaa74042b07c0e27373af70c9816f56363",
+   "agent": "opencode",
+   "root": "/fx/fx-src/opencode",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  },
+  {
+   "id": "source_826dcf0ea8f066b054f4b91ef3f3876752adee20dafa1f4a0b7688898737ae6b",
+   "agent": "pi",
+   "root": "/fx/fx-src/pi",
+   "enabled": true,
+   "last_import_at": 1790958771473
+  }
+ ],
+ "settings": {
+  "onboarded": true,
+  "recent_days": 90,
+  "default_range_days": 30,
+  "sync_mode": "off",
+  "weekly_report": false,
+  "onboarding_step": 4
+ },
+ "jobs": [],
+ "storage": {
+  "data_rev": 7,
+  "inventory_rev": 0,
+  "projection": "ready",
+  "counts": {
+   "sessions": 111,
+   "events": 6784,
+   "projects": 5
+  },
+  "published_at": 1790958771471
+ },
+ "services": {
+  "ingest": {
+   "state": "ok",
+   "pid": 79424,
+   "restarts": 0,
+   "last_hb_age_s": 3.922
+  },
+  "analysis": {
+   "state": "ok",
+   "pid": 79474,
+   "restarts": 0,
+   "last_hb_age_s": 0.073
+  }
+ },
+ "capabilities": {
+  "sse": true,
+  "phased_import": true,
+  "export": false,
+  "sync_modes": [
+   "off",
+   "hour",
+   "live"
+  ]
+ }
+}

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import pytest
 
 from tandem_data import analysis_input
-from tandem_data.analysis_input import AnalysisScope, decoded, read_analysis
+from tandem_data.analysis_input import AnalysisScope, decoded, model_call_row, read_analysis
 from tandem_data.contract import canonical
 from tandem_data.store import Store, readonly_connection
 
@@ -123,10 +123,10 @@ def build(tmp_path, sessions: int):
         return store.home
 
 
-def full_scan(home, query, keep):
+def full_scan(home, query, keep, decode=decoded):
     """The former reader: decode every row, filter in Python, keep native scan order."""
     with readonly_connection(home / "tandem.db") as connection:
-        return [decoded(row) for row in connection.execute(query) if keep(row)]
+        return [decode(row) for row in connection.execute(query) if keep(row)]
 
 
 def legacy_approval_visible(home, call_uid, until_ts):
@@ -162,7 +162,10 @@ def test_pushdown_rows_match_former_full_scans(home, scope):
     sessions = {e["session_uid"] for e in data["events"]} | {e["root_uid"] for e in data["events"]}
 
     expected_models = full_scan(
-        home, "SELECT * FROM v_analysis_model_call", lambda r: r["usage_event_uid"] in members
+        home,
+        "SELECT * FROM v_analysis_model_call",
+        lambda r: r["usage_event_uid"] in members,
+        model_call_row,
     )
     assert expected_models and data["model_calls"] == expected_models
     expected_tools = full_scan(
@@ -238,3 +241,25 @@ def test_pushdown_binds_selections_beyond_the_sqlite_variable_limit(home):
     assert [s["session_uid"] for s in data["sessions"]] == [
         s["session_uid"] for s in read_analysis(home, AnalysisScope("UTC"))["sessions"]
     ]
+
+
+def test_undated_title_survives_a_bounded_scope(tmp_path):
+    """A title record without a timestamp still names the session under until_ts."""
+    rows = session_rows(1, 1000)
+    del rows[1]["time"]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(source, "s1.jsonl", [(canonical(r) + "\n").encode() for r in rows])
+        store.rebuild()
+        home = store.home
+    with readonly_connection(home / "tandem.db") as connection:
+        assert (
+            connection.execute("SELECT ts FROM event WHERE kind='session.title'").fetchone()[0]
+            is None
+        )
+    unbounded = read_analysis(home, AnalysisScope("Asia/Shanghai"))["sessions"][0]
+    bounded = read_analysis(home, AnalysisScope("Asia/Shanghai", until_ts=1000 + 1500))["sessions"][
+        0
+    ]
+    assert unbounded["title"] == bounded["title"] == "会话 1"
+    assert bounded["title_source"] == unbounded["title_source"]

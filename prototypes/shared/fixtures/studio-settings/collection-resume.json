@@ -1,0 +1,7 @@
+{
+  "paused": false,
+  "resumed_at": "2026-10-01T07:20:00Z",
+  "paused_ms": 300000,
+  "catch_up_job_id": "fx-catchup",
+  "catch_up_pending": true
+}

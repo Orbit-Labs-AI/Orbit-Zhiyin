@@ -1,0 +1,428 @@
+{
+ "T": 29.0,
+ "a": {
+  "id": "session_fx016",
+  "title": "修复示例构建脚本 #16",
+  "a": "dsh",
+  "dur": 29.0,
+  "T": 29.0,
+  "start_min": 532,
+  "lanes": [
+   "user",
+   "agent",
+   "sub",
+   "read",
+   "edit",
+   "bash",
+   "web"
+  ],
+  "events": [
+   {
+    "lane": "user",
+    "t": 0.0,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_00"
+   },
+   {
+    "lane": "read",
+    "t": 0.6,
+    "w": 0.02,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_01"
+   },
+   {
+    "lane": "read",
+    "t": 1.1,
+    "w": 0.02,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_02"
+   },
+   {
+    "lane": "bash",
+    "t": 2.4,
+    "w": 0.3,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_03"
+   },
+   {
+    "lane": "agent",
+    "t": 3.0,
+    "w": 0.5,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_04"
+   },
+   {
+    "lane": "user",
+    "t": 5.2,
+    "w": 0,
+    "err": false,
+    "corr": true,
+    "event_uid": "event_s2_05"
+   },
+   {
+    "lane": "edit",
+    "t": 6.0,
+    "w": 0.05,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_06"
+   },
+   {
+    "lane": "bash",
+    "t": 9.1,
+    "w": 0.4,
+    "err": true,
+    "corr": false,
+    "event_uid": "event_s2_07"
+   },
+   {
+    "lane": "bash",
+    "t": 10.2,
+    "w": 0.4,
+    "err": true,
+    "corr": false,
+    "event_uid": "event_s2_08"
+   },
+   {
+    "lane": "bash",
+    "t": 11.4,
+    "w": 0.4,
+    "err": true,
+    "corr": false,
+    "event_uid": "event_s2_09"
+   },
+   {
+    "lane": "sub",
+    "t": 12.0,
+    "w": 3.0,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_10"
+   },
+   {
+    "lane": "edit",
+    "t": 16.5,
+    "w": 0.05,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_11"
+   },
+   {
+    "lane": "bash",
+    "t": 20.0,
+    "w": 0.5,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_12"
+   },
+   {
+    "lane": "web",
+    "t": 22.0,
+    "w": 0.1,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_13"
+   },
+   {
+    "lane": "bash",
+    "t": 25.0,
+    "w": 0.6,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_14"
+   },
+   {
+    "lane": "agent",
+    "t": 27.5,
+    "w": 1.0,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_15"
+   },
+   {
+    "lane": "user",
+    "t": 28.4,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_16"
+   }
+  ],
+  "phases": [
+   {
+    "t": 0,
+    "t2": 2.4,
+    "phase": "explore",
+    "label": "探索",
+    "inferred": true
+   },
+   {
+    "t": 2.4,
+    "t2": 9.0,
+    "phase": "execute",
+    "label": "实施",
+    "inferred": true
+   },
+   {
+    "t": 9.0,
+    "t2": 20.0,
+    "phase": "debug",
+    "label": "调试",
+    "inferred": true
+   },
+   {
+    "t": 20.0,
+    "t2": 29.0,
+    "phase": "verify",
+    "label": "验证",
+    "inferred": true
+   }
+  ],
+  "moments": [
+   {
+    "t": 0.0,
+    "n": 1,
+    "label": "你给出目标",
+    "detail": "「修复示例构建脚本 #16」",
+    "alert": false,
+    "event_uid": null,
+    "rule": "goal"
+   },
+   {
+    "t": 5.2,
+    "n": 2,
+    "label": "你纠偏",
+    "detail": "「不要改 CI 配置，只改脚本」",
+    "alert": true,
+    "event_uid": null,
+    "rule": "correction"
+   },
+   {
+    "t": 9.1,
+    "n": 3,
+    "label": "连续失败",
+    "detail": "同一命令失败 3 次",
+    "alert": true,
+    "event_uid": null,
+    "rule": "streak"
+   },
+   {
+    "t": 25.0,
+    "n": 4,
+    "label": "验证通过",
+    "detail": "pnpm test 退出码 0",
+    "alert": false,
+    "event_uid": null,
+    "rule": "verified"
+   }
+  ],
+  "tools": 58,
+  "errors": 0
+ },
+ "b": {
+  "id": "session_fx010",
+  "title": "整理示例仓库的测试 #10",
+  "a": "codex",
+  "dur": 20.0,
+  "T": 20.0,
+  "start_min": 850,
+  "lanes": [
+   "user",
+   "agent",
+   "sub",
+   "read",
+   "edit",
+   "bash",
+   "web"
+  ],
+  "events": [
+   {
+    "lane": "user",
+    "t": 0.0,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_00"
+   },
+   {
+    "lane": "read",
+    "t": 1.0,
+    "w": 0.02,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_01"
+   },
+   {
+    "lane": "bash",
+    "t": 4.0,
+    "w": 0.3,
+    "err": true,
+    "corr": false,
+    "event_uid": "event_s2_02"
+   },
+   {
+    "lane": "edit",
+    "t": 6.0,
+    "w": 0.05,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_03"
+   },
+   {
+    "lane": "bash",
+    "t": 9.0,
+    "w": 0.3,
+    "err": true,
+    "corr": false,
+    "event_uid": "event_s2_04"
+   },
+   {
+    "lane": "user",
+    "t": 11.0,
+    "w": 0,
+    "err": false,
+    "corr": true,
+    "event_uid": "event_s2_05"
+   },
+   {
+    "lane": "agent",
+    "t": 12.0,
+    "w": 0.6,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_06"
+   },
+   {
+    "lane": "bash",
+    "t": 16.0,
+    "w": 0.3,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_07"
+   },
+   {
+    "lane": "agent",
+    "t": 19.0,
+    "w": 0.5,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_08"
+   },
+   {
+    "lane": "user",
+    "t": 19.8,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "event_uid": "event_s2_09"
+   }
+  ],
+  "phases": [
+   {
+    "t": 0,
+    "t2": 4.0,
+    "phase": "explore",
+    "label": "探索",
+    "inferred": true
+   },
+   {
+    "t": 4.0,
+    "t2": 16.0,
+    "phase": "execute",
+    "label": "实施",
+    "inferred": true
+   },
+   {
+    "t": 16.0,
+    "t2": 20.0,
+    "phase": "verify",
+    "label": "验证",
+    "inferred": true
+   }
+  ],
+  "moments": [
+   {
+    "t": 0.0,
+    "n": 1,
+    "label": "你给出目标",
+    "detail": "「整理示例仓库的测试 #10」",
+    "alert": false,
+    "event_uid": null,
+    "rule": "goal"
+   },
+   {
+    "t": 11.0,
+    "n": 2,
+    "label": "你纠偏",
+    "detail": "「先别改断言」",
+    "alert": true,
+    "event_uid": null,
+    "rule": "correction"
+   }
+  ],
+  "tools": 40,
+  "errors": 2
+ },
+ "table": [
+  {
+   "metric": "dur",
+   "label": "时长",
+   "a": 29.0,
+   "b": 20.0,
+   "delta": -9.0,
+   "pct": -31,
+   "better": "b"
+  }
+ ],
+ "phase_pct": {
+  "a": [
+   {
+    "phase": "explore",
+    "label": "探索",
+    "pct": 8
+   },
+   {
+    "phase": "execute",
+    "label": "实施",
+    "pct": 23
+   },
+   {
+    "phase": "debug",
+    "label": "调试",
+    "pct": 38
+   },
+   {
+    "phase": "verify",
+    "label": "验证",
+    "pct": 31
+   }
+  ],
+  "b": [
+   {
+    "phase": "explore",
+    "label": "探索",
+    "pct": 20
+   },
+   {
+    "phase": "execute",
+    "label": "实施",
+    "pct": 60
+   },
+   {
+    "phase": "verify",
+    "label": "验证",
+    "pct": 20
+   }
+  ]
+ },
+ "basis": {
+  "dur": "active_estimate",
+  "phases": "inferred"
+ }
+}

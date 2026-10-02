@@ -1,0 +1,61 @@
+{
+  "job_id": "fx-job-1",
+  "task_id": "generate.skill",
+  "engine": "claude_code",
+  "template": "v1",
+  "status": "succeeded",
+  "stage": "review",
+  "progress": [
+    6,
+    6
+  ],
+  "artifact_id": "fx-art-1",
+  "error": null,
+  "cached": false,
+  "stages": [
+    {
+      "id": "pack",
+      "status": "done",
+      "duration_ms": 400
+    },
+    {
+      "id": "analyse",
+      "status": "done",
+      "duration_ms": 1200
+    },
+    {
+      "id": "draft",
+      "status": "done",
+      "duration_ms": 2600
+    },
+    {
+      "id": "check",
+      "status": "done",
+      "duration_ms": 500
+    },
+    {
+      "id": "replay",
+      "status": "done",
+      "duration_ms": 900
+    },
+    {
+      "id": "review",
+      "status": "done",
+      "duration_ms": 0
+    }
+  ],
+  "log": [
+    "$ claude -p --output-format stream-json",
+    "› 读取上下文包（5.0k tokens）",
+    "› 草拟 SKILL.md",
+    "› 完成，等待你审阅"
+  ],
+  "result": {
+    "summary": "fx 合成产物"
+  },
+  "usage": {
+    "input": 5000,
+    "output": 900,
+    "cost_usd": 0.03
+  }
+}

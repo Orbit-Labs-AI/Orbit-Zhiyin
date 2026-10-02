@@ -86,7 +86,8 @@
         "error_message",
         "request_key",
         "input_fp",
-        "cache_hit"
+        "cache_hit",
+        "owner_pid"
       ],
       "properties": {
         "run_id": {
@@ -155,6 +156,13 @@
           "type": "integer",
           "x-sql-type": "INTEGER",
           "x-sql-default": "0"
+        },
+        "owner_pid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
         }
       },
       "x-foreign-keys": [
@@ -164,7 +172,7 @@
           "to": "snapshot_id"
         }
       ],
-      "x-ddl": "CREATE TABLE analysis_run (\n    run_id TEXT PRIMARY KEY,\n    engine TEXT NOT NULL,\n    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),\n    started_at INTEGER NOT NULL,\n    finished_at INTEGER,\n    request_json TEXT NOT NULL CHECK(json_valid(request_json)),\n    snapshot_id TEXT REFERENCES analysis_snapshot(snapshot_id),\n    error_type TEXT,\n    error_message TEXT, request_key TEXT, input_fp TEXT, cache_hit INTEGER NOT NULL DEFAULT 0 CHECK(cache_hit IN (0, 1)),\n    CHECK((status = 'completed' AND snapshot_id IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'failed' AND error_type IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'running' AND snapshot_id IS NULL AND finished_at IS NULL))\n)"
+      "x-ddl": "CREATE TABLE analysis_run (\n    run_id TEXT PRIMARY KEY,\n    engine TEXT NOT NULL,\n    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),\n    started_at INTEGER NOT NULL,\n    finished_at INTEGER,\n    request_json TEXT NOT NULL CHECK(json_valid(request_json)),\n    snapshot_id TEXT REFERENCES analysis_snapshot(snapshot_id),\n    error_type TEXT,\n    error_message TEXT, request_key TEXT, input_fp TEXT, cache_hit INTEGER NOT NULL DEFAULT 0 CHECK(cache_hit IN (0, 1)), owner_pid INTEGER,\n    CHECK((status = 'completed' AND snapshot_id IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'failed' AND error_type IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'running' AND snapshot_id IS NULL AND finished_at IS NULL))\n)"
     },
     "analysis_section": {
       "type": "object",

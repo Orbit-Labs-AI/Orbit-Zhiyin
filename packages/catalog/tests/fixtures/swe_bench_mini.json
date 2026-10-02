@@ -1,0 +1,17 @@
+{
+  "_note": "SYNTHETIC fixture: invented leaderboard rows and scores for tests only",
+  "leaderboards": [
+    {
+      "name": "Verified",
+      "results": [
+        {"name": "20241022_harness_claude", "folder": "20241022_harness_claude", "model_display": "Claude 3.5 Sonnet (20241022)",
+         "agent": "synthetic-harness", "resolved": "41.5", "date": "2024-10-22", "site": ["https://example.org/a"]},
+        {"name": "20250801_harness_gpt5", "model_display": "GPT-5 (32k thinking)", "agent": "synthetic-harness",
+         "resolved": 55, "date": "20250801", "site": "https://example.org/b"},
+        {"name": "20250901_harness_gpt5_high", "model_display": "GPT-5", "agent": "synthetic-harness",
+         "reasoning_effort": "high", "resolved": "n/a", "date": "not a date"},
+        {"name": "20250902_unknown", "model_display": "Totally New Model", "resolved": null}
+      ]
+    }
+  ]
+}

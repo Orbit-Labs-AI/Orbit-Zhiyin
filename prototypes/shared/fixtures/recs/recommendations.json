@@ -1,0 +1,330 @@
+{
+  "run": {
+    "run_id": "fx-run-1",
+    "status": "ready",
+    "created_at": 1790000000000,
+    "engine_version": "fx-1",
+    "kb_version": "fx",
+    "inputs_digest": "sha256:fx",
+    "freshness": "fresh"
+  },
+  "items": [
+    {
+      "candidate_id": "fxc-allow",
+      "run_id": "fx-run-1",
+      "rec_key": "kb:fx-readonly-allow",
+      "kind": "permission_rule",
+      "dim": "hook",
+      "level": 1,
+      "audience_min": 0,
+      "title": "只读命令自动放行",
+      "score": {
+        "benefit": 0.42,
+        "confidence": 0.7,
+        "p_effective": 0.6,
+        "fit": 0.8,
+        "cost": 0.1,
+        "risk": 0.05,
+        "personal": 1.0,
+        "decay": 1.0,
+        "priority": 61.5
+      },
+      "evidence": {
+        "session_uids": [
+          "fx-s1",
+          "fx-s2"
+        ],
+        "counts": {
+          "sessions": 12,
+          "events": 22
+        }
+      },
+      "explain": {
+        "reason": "合成样本：12 个会话里手动批准了只读命令。",
+        "source": "template"
+      },
+      "trial": {
+        "steps": [
+          "预览将写入的放行规则",
+          "确认写入",
+          "7 天后看审批次数"
+        ],
+        "follow_days": 7
+      },
+      "source": {
+        "origin": "kb",
+        "item_id": "fx-readonly-allow"
+      },
+      "ui": {
+        "dim": "hook",
+        "type": "Hook",
+        "icon": "bolt",
+        "lvl": 1,
+        "aud": 0,
+        "title": "只读命令自动放行",
+        "gain": "−48 次审批 / 月",
+        "why": "合成样本：12 个会话里手动批准了只读命令。",
+        "ev": "12 个会话",
+        "evq": {
+          "session_uids": [
+            "fx-s1",
+            "fx-s2"
+          ]
+        },
+        "compat": "Claude Code · Codex",
+        "primary": "预览并安装",
+        "target": "~/.claude/settings.json",
+        "file": [
+          [
+            "{",
+            " "
+          ],
+          [
+            "  \"permissions\": { \"allow\": [\"Bash(git status:*)\"] }",
+            "+"
+          ],
+          [
+            "}",
+            " "
+          ]
+        ],
+        "steps": [
+          "预览将写入的放行规则",
+          "确认写入",
+          "7 天后看审批次数"
+        ],
+        "track": [
+          [
+            "每周审批次数",
+            null,
+            null,
+            "次"
+          ],
+          [
+            "相关会话摩擦率",
+            null,
+            null,
+            "%"
+          ]
+        ]
+      }
+    },
+    {
+      "candidate_id": "fxc-handoff",
+      "run_id": "fx-run-1",
+      "rec_key": "kb:fx-session-handoff",
+      "kind": "skill",
+      "dim": "skill",
+      "level": 2,
+      "audience_min": 1,
+      "title": "长会话交接摘要",
+      "score": {
+        "benefit": 0.21,
+        "confidence": 0.7,
+        "p_effective": 0.6,
+        "fit": 0.8,
+        "cost": 0.1,
+        "risk": 0.05,
+        "personal": 1.0,
+        "decay": 1.0,
+        "priority": 33.2
+      },
+      "evidence": {
+        "session_uids": [
+          "fx-s1"
+        ],
+        "counts": {
+          "sessions": 6,
+          "events": 11
+        }
+      },
+      "explain": {
+        "reason": "合成样本：6 个长会话在上下文压缩后重复读取同一批文件。",
+        "source": "template"
+      },
+      "trial": {
+        "steps": [
+          "预览 SKILL.md",
+          "下次长会话里使用"
+        ],
+        "follow_days": 7
+      },
+      "source": {
+        "origin": "kb",
+        "item_id": "fx-session-handoff"
+      },
+      "ui": {
+        "dim": "skill",
+        "type": "Skill",
+        "icon": "book",
+        "lvl": 2,
+        "aud": 1,
+        "title": "长会话交接摘要",
+        "gain": "6 个会话出现",
+        "why": "合成样本：6 个长会话在上下文压缩后重复读取同一批文件。",
+        "ev": "6 个会话",
+        "evq": {
+          "session_uids": [
+            "fx-s1"
+          ]
+        },
+        "compat": "Claude Code · 转换给 Codex",
+        "primary": "预览并安装",
+        "target": "~/.claude/skills/handoff/SKILL.md",
+        "file": [
+          [
+            "---",
+            " "
+          ],
+          [
+            "name: handoff",
+            "+"
+          ],
+          [
+            "---",
+            " "
+          ]
+        ],
+        "steps": [
+          "预览 SKILL.md",
+          "下次长会话里使用"
+        ],
+        "track": [
+          [
+            "重复读取次数",
+            null,
+            null,
+            "次"
+          ]
+        ]
+      }
+    },
+    {
+      "candidate_id": "fxc-rule",
+      "run_id": "fx-run-1",
+      "rec_key": "kb:fx-verify-rule",
+      "kind": "rule",
+      "dim": "rule",
+      "level": 1,
+      "audience_min": 0,
+      "title": "AGENTS.md 写明验收命令",
+      "score": {
+        "benefit": null,
+        "confidence": 0.7,
+        "p_effective": 0.6,
+        "fit": 0.8,
+        "cost": 0.1,
+        "risk": 0.05,
+        "personal": 1.0,
+        "decay": 1.0,
+        "priority": 12.0
+      },
+      "evidence": {
+        "session_uids": [
+          "fx-s1"
+        ],
+        "counts": {
+          "sessions": 6,
+          "events": 11
+        }
+      },
+      "explain": {
+        "reason": "合成样本：4 个会话结束时没有运行测试。",
+        "source": "template"
+      },
+      "trial": {
+        "steps": [
+          "复制片段",
+          "粘贴到 AGENTS.md"
+        ],
+        "follow_days": 7
+      },
+      "source": {
+        "origin": "kb",
+        "item_id": "fx-verify-rule"
+      },
+      "ui": {
+        "dim": "rule",
+        "type": "规则",
+        "icon": "rule",
+        "lvl": 1,
+        "aud": 0,
+        "title": "AGENTS.md 写明验收命令",
+        "gain": "4 个会话出现",
+        "why": "合成样本：4 个会话结束时没有运行测试。",
+        "ev": "6 个会话",
+        "evq": {
+          "session_uids": [
+            "fx-s1"
+          ]
+        },
+        "compat": "所有 Agent",
+        "primary": "复制片段",
+        "target": "fixture/AGENTS.md",
+        "file": [
+          [
+            "## 验收",
+            "+"
+          ],
+          [
+            "- 结束前运行 pnpm check",
+            "+"
+          ]
+        ],
+        "steps": [
+          "复制片段",
+          "粘贴到 AGENTS.md"
+        ],
+        "track": []
+      }
+    }
+  ],
+  "dims": [
+    {
+      "id": "all",
+      "label": "全部",
+      "count": 3
+    },
+    {
+      "id": "rule",
+      "label": "规则与 Prompt",
+      "count": 1
+    },
+    {
+      "id": "skill",
+      "label": "Skills",
+      "count": 1
+    },
+    {
+      "id": "hook",
+      "label": "Hooks",
+      "count": 1
+    },
+    {
+      "id": "mcp",
+      "label": "插件 / MCP",
+      "count": 0
+    },
+    {
+      "id": "agent",
+      "label": "子代理",
+      "count": 0
+    },
+    {
+      "id": "model",
+      "label": "模型与思考",
+      "count": 0
+    },
+    {
+      "id": "flow",
+      "label": "工作流 / 架构",
+      "count": 0
+    }
+  ],
+  "problems": [],
+  "meta": {
+    "scope_hash": "fx-scope",
+    "freshness": "fresh",
+    "job_id": null
+  }
+}

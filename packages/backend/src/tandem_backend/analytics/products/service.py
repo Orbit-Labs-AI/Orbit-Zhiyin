@@ -11,8 +11,9 @@ from ..instruction import INSTRUCTION_VERSION
 from ..service import analyze_context
 from .contracts import PRODUCT_VERSION, RULE_VERSIONS
 from .feedback import analyze_feedback
-from .journey import interaction_habits, session_journey
+from .journey import interaction_habits, session_journey, task_index
 from .lexical import compare_vocabulary
+from .payload import compact
 from .statistics import compare_distributions
 from .summaries import feedback_associations, observed_languages, outcome_card, profile_history
 from .tools import analyze_tools
@@ -40,6 +41,7 @@ def build_products(
         context.event_status,
     )
     rows = []
+    index = task_index(tasks, instructions)
     for session in base["sessions"]:
         rows.append(
             {
@@ -53,7 +55,7 @@ def build_products(
                 "usage": session["usage"],
                 "duration": session["bottleneck_features"]["cost_time"]["durations"],
                 "journey": session_journey(
-                    context, session, tasks, instructions, base["preferences"]["records"]
+                    context, session, tasks, instructions, base["preferences"]["records"], index
                 ),
                 "outcomes": outcome_card(
                     session["bottleneck_features"]["outcome"], session["subjective_outcomes"]
@@ -195,9 +197,10 @@ def analyze_product_store(
         store,
         "products",
         request,
-        lambda: _product_store(
+        lambda: compact(_product_store(
             store, scope, bucket=bucket, with_text=with_text, compare_previous=compare_previous
-        ),
+        )),
+        reuse=True,
     )
 
 
@@ -208,7 +211,7 @@ def compare_scopes(store: Any, first: Scope, second: Scope) -> Record:
         left, right = _product_store(store, first), _product_store(store, second)
         if left["versions"].get("projection_run_id") != right["versions"].get("projection_run_id"):
             raise ValueError("分析期间数据版本已变化，请重试")
-        return {
+        return compact({
             "schema_version": "analysis-comparison-v1",
             "first_scope": asdict(first),
             "second_scope": asdict(second),
@@ -217,7 +220,7 @@ def compare_scopes(store: Any, first: Scope, second: Scope) -> Record:
             "vocabulary": compare_vocabulary(left["lexical"], right["lexical"]),
             "first": left,
             "second": right,
-        }
+        })
 
     return recorded(
         store, "comparison", {"first": asdict(first), "second": asdict(second)}, compute

@@ -52,9 +52,9 @@ Object.assign(ACT, {
     if (DD && DD.anchor === el) { closeDD(); return; }
     openDD(el, MENUS[el.dataset.m](), (v) => { if (typeof v === 'function') v(); }, { align: el.dataset.m === 'demo' ? 'right' : undefined });
   },
-  winClose: () => { S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
-  winMin: () => { S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
-  winZoom: (el, e) => { if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
+  winClose: () => { if (nativeWin('close')) return; S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
+  winMin: () => { if (nativeWin('minimize')) return; S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
+  winZoom: (el, e) => { if (nativeShell() && nativeWin(e && e.altKey ? 'zoom' : 'fullscreen')) return; if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
   winFull: () => winFullToggle(),
   pop: () => { S.pop = !S.pop; render(); }
 });
@@ -67,6 +67,6 @@ const MENUS = {
   edit: () => [{ t: '撤销', k: '⌘Z', v: () => undoInstall() }, { t: '重做', k: '⇧⌘Z', dis: true }, { sep: 1 }, { t: '剪切', k: '⌘X', v: () => editCmd('cut') }, { t: '拷贝', k: '⌘C', v: () => editCmd('copy') }, { t: '粘贴', k: '⌘V', v: () => editCmd('paste') }, { t: '全选', k: '⌘A', v: () => editCmd('selectAll') }, { sep: 1 }, { t: '查找…', k: '⌘F', v: () => findCmd() }],
   view: () => [{ h: '外观' }, { t: '跟随系统', on: S.theme === 'system', v: () => { setTheme('system'); render(); } }, { t: '浅色', on: S.theme === 'light', v: () => { setTheme('light'); render(); } }, { t: '深色', on: S.theme === 'dark', v: () => { setTheme('dark'); render(); } }, { sep: 1 }, { t: '悬浮组件', k: '⌥⌘P', on: S.hud.show, v: () => toggleHud() }, { t: '桌面小组件', on: S.widgets, v: () => { S.widgets = !S.widgets; render(); } }, { t: S.ed === 'lite' ? '切换到 Advance' : '切换到 Lite', k: '⌃⌘L', v: () => edToggle() }, { t: (winNarrow() ? S.sideOver : S.side) ? '隐藏侧边栏' : '显示侧边栏', k: '⌃⌘S', v: () => toggleSide() }, { sep: 1 }, { t: S.win.full ? '退出全屏' : '进入全屏', k: '⌃⌘F', v: () => winFullToggle() }],
   window: () => [{ t: '最小化', k: '⌘M', v: () => ACT.winMin() }, { t: S.win.zoom ? '恢复缩放' : '缩放', v: () => winZoomToggle() }, { sep: 1 }, { t: '主窗口', k: kb('⌥0'), on: !S.winGone, v: () => showMain() }, { t: '命令面板', k: '⌘K', v: () => openPalette() }, { t: '设置', k: '⌘,', v: () => openSettings() }, { sep: 1 }].concat(navRoutes().map((r, i) => ({ t: r[1], k: kb('⌥' + (i + 1)), on: S.route === r[0], v: () => go(r[0]) }))),
-  help: () => [{ t: '键盘快捷键', k: '?', v: () => openKeys() }, { t: '重新播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '关于这个 Demo', v: () => openAbout() }],
+  help: () => [{ t: '键盘快捷键', k: '?', v: () => openKeys() }, { t: '重新播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: LV.live ? '关于 Orbit' : '关于这个 Demo', v: () => openAbout() }],
   demo: () => [{ h: '模拟事件（会触发通知、菜单栏与悬浮组件）' }, { t: '会话完成', v: () => simEvent('done') }, { t: '有会话等你确认', v: () => simEvent('waiting') }, { t: '同一命令连续失败', v: () => simEvent('stuck') }, { t: '上下文即将压缩', v: () => simEvent('ctx') }, { t: '每周报告已生成', v: () => simEvent('weekly') }, { t: '发现新的数据来源', v: () => simEvent('newsrc') }, { sep: 1 }, { t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '重置演示数据', v: () => resetDemo() }]
 };

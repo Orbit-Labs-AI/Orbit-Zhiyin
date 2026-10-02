@@ -1,0 +1,10 @@
+{
+  "session_uid": "fx-s1",
+  "agent": "claude_code",
+  "native_id": "fx-native-1",
+  "cwd": "/tmp/fx project",
+  "running": true,
+  "available": false,
+  "disabled_reason": "running",
+  "commands": []
+}

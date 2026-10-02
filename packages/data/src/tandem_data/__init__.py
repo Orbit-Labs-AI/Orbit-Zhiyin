@@ -1,6 +1,6 @@
 """Tandem's local, source-backed data contract. See docs/data-contract.md."""
 
 CONTRACT_VERSION = 1
-SCHEMA_VERSION = 6
-MAPPER_VERSION = "1.3.2"
-REDUCER_VERSION = "1.2.0"
+SCHEMA_VERSION = 9
+MAPPER_VERSION = "1.3.6"
+REDUCER_VERSION = "1.2.4"

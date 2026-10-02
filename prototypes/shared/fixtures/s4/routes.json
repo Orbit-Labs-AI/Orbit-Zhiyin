@@ -1,0 +1,4 @@
+{
+ "_doc": "slice 4 (A6 + palette). Synthetic, built on core/facts.json session ids. sentiment.json has mood null everywhere (gap G2); sentiment-mood.json has some daily medians; search*.json answer /v1/search (tests pick by q).",
+ "GET /v1/uiview/sentiment": "sentiment.json"
+}

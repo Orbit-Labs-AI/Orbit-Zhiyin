@@ -42,7 +42,7 @@ def test_v1_history_upgrades_in_place_and_old_runs_stay_readable(tmp_path):
 
     history = AnalysisHistory(path)
     with history.connect() as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
         tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"session_result", "analysis_section", "analysis_row", "session_exclusion"} <= tables
     assert history.result("old") == {"value": 1}
@@ -51,7 +51,7 @@ def test_v1_history_upgrades_in_place_and_old_runs_stay_readable(tmp_path):
     # Reopening a current database is a no-op; a newer one is refused.
     AnalysisHistory(path)
     with history.connect() as db:
-        db.execute("PRAGMA user_version=3")
+        db.execute("PRAGMA user_version=4")
     with pytest.raises(ValueError, match="Unsupported"):
         AnalysisHistory(path)
 

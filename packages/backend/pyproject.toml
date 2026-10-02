@@ -35,4 +35,4 @@ tandem-catalog = { workspace = true }
 where = ["src"]
 
 [tool.setuptools.package-data]
-tandem_backend = ["data/*.json", "data/recommend/*.json"]
+tandem_backend = ["data/*.json", "data/recommend/*.json", "appdb/schema/*.sql", "install/assets/*.py", "ai/assets/templates/*.json", "ai/assets/templates/*/*"]

@@ -1,0 +1,123 @@
+{
+  "item_id": "fx:hook/retry-guard",
+  "kind": "hook",
+  "name": "retry-guard",
+  "summary": "同一命令失败两次后暂停（合成夹具）",
+  "author": "tandem",
+  "license": "MIT",
+  "official": true,
+  "agents": [
+    "claude_code"
+  ],
+  "difficulty": "easy",
+  "risk_level": 2,
+  "risk": [
+    "shell"
+  ],
+  "version": "1.0.0",
+  "updated_at": "2026-09-30T08:00:00Z",
+  "installs": 1800,
+  "stars": 210,
+  "origin": "remote",
+  "url": "https://example.invalid/retry-guard",
+  "body_policy": "licensed",
+  "canonical_of": null,
+  "installed": null,
+  "status": "active",
+  "language": "python",
+  "version_id": "v-fx-2",
+  "content_hash": "sha256:fx",
+  "readme": "# retry-guard\n\n同一命令连续失败两次后暂停，提示先检查认证与环境。",
+  "readme_policy": "inline",
+  "manifest": {
+    "hooks": [
+      "PreToolUse"
+    ]
+  },
+  "features": [],
+  "versions": [
+    {
+      "version_id": "v-fx-2",
+      "version": "1.0.0",
+      "commit_sha": "abc1234",
+      "content_hash": "sha256:fx",
+      "size": 2048,
+      "created_at": "2026-09-30T08:00:00Z"
+    },
+    {
+      "version_id": "v-fx-1",
+      "version": "0.9.0",
+      "commit_sha": "def5678",
+      "content_hash": "sha256:fx0",
+      "size": 1900,
+      "created_at": "2026-09-01T08:00:00Z"
+    }
+  ],
+  "permissions": {
+    "flags": [
+      "shell"
+    ],
+    "level": 2,
+    "estimate": true,
+    "allowed_tools": [
+      "Bash"
+    ],
+    "declared_env": []
+  },
+  "components": [],
+  "related": [
+    {
+      "card": {
+        "item_id": "fx:skill/worktree-helper",
+        "kind": "skill",
+        "name": "worktree-helper",
+        "summary": "为并行会话建立独立 worktree（合成夹具）",
+        "author": "fixture-org",
+        "license": "MIT",
+        "official": false,
+        "agents": [
+          "claude_code",
+          "codex"
+        ],
+        "difficulty": "easy",
+        "risk_level": 1,
+        "risk": [],
+        "version": "1.0.0",
+        "updated_at": "2026-09-30T08:00:00Z",
+        "installs": 3100,
+        "stars": 420,
+        "origin": "remote",
+        "url": "https://example.invalid/worktree-helper",
+        "body_policy": "licensed",
+        "canonical_of": null,
+        "installed": null
+      },
+      "relation": "similar",
+      "score": 0.4
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "fixture",
+      "native_id": "retry-guard",
+      "status": "active",
+      "fetched_at": "2026-09-30T08:00:00Z"
+    }
+  ],
+  "install": {
+    "ref": {
+      "source": "catalog_item",
+      "id": "fx:hook/retry-guard"
+    },
+    "targets": [
+      "claude_code"
+    ],
+    "hints": {},
+    "license_ok": true,
+    "installable": true
+  },
+  "resident_tokens_est": null,
+  "scan": null,
+  "first_seen": "2026-09-01T08:00:00Z",
+  "last_seen": "2026-09-30T08:00:00Z"
+}

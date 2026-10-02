@@ -1,0 +1,50 @@
+{
+  "plan_id": "plan-fx-1",
+  "status": "ready",
+  "title": "retry-guard",
+  "kind": "hook",
+  "source": {
+    "type": "catalog",
+    "id": "fx:hook/retry-guard",
+    "template": null,
+    "license": "MIT"
+  },
+  "agents": [
+    "claude_code",
+    "codex"
+  ],
+  "scope": "user",
+  "project_path": null,
+  "warnings": [],
+  "links": [],
+  "fetch": null,
+  "targets": [
+    {
+      "idx": 0,
+      "agent": "claude_code",
+      "scope": "user",
+      "display": "~/.claude/settings.json",
+      "action": "merge_json",
+      "mappable": true,
+      "reason": null,
+      "requires_trust": false,
+      "shared_layer": false,
+      "note": null,
+      "group": null
+    },
+    {
+      "idx": 1,
+      "agent": "codex",
+      "scope": "user",
+      "display": "~/.codex/hooks.json",
+      "action": "create",
+      "mappable": true,
+      "reason": null,
+      "requires_trust": false,
+      "shared_layer": false,
+      "note": null,
+      "group": null
+    }
+  ],
+  "already_installed": null
+}

@@ -1,0 +1,72 @@
+{
+  "mode": "agent",
+  "default_engine": "claude_code",
+  "engines": [
+    {
+      "id": "claude_code",
+      "name": "Claude Code",
+      "available": true,
+      "version": "2.1.0",
+      "logged_in": true,
+      "flags": [],
+      "slots": {
+        "cheap": "fx-small",
+        "main": "fx-main"
+      },
+      "consent": {
+        "summary": true,
+        "snippets": true,
+        "rules": true,
+        "raw": false
+      },
+      "quota": {
+        "status": "ok"
+      },
+      "checked_at": "2026-10-01T07:00:00Z"
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "available": true,
+      "version": "0.40.0",
+      "logged_in": true,
+      "flags": [],
+      "slots": {
+        "cheap": null,
+        "main": "fx-codex"
+      },
+      "consent": {
+        "summary": true,
+        "snippets": false,
+        "rules": false,
+        "raw": false
+      },
+      "quota": {
+        "status": "ok"
+      },
+      "checked_at": "2026-10-01T07:00:00Z"
+    },
+    {
+      "id": "gemini_cli",
+      "name": "Gemini CLI",
+      "available": false,
+      "version": null,
+      "logged_in": false,
+      "flags": [],
+      "slots": {
+        "cheap": null,
+        "main": null
+      },
+      "consent": {
+        "summary": false,
+        "snippets": false,
+        "rules": false,
+        "raw": false
+      },
+      "quota": {
+        "status": "unknown"
+      },
+      "checked_at": "2026-10-01T07:00:00Z"
+    }
+  ]
+}

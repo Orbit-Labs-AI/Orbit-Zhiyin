@@ -68,6 +68,10 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] in ("eval", "label"):  # EV-12 / EV-02.1 own their arguments.
+        from ..evalrun.cli import main as eval_main
+        raise SystemExit(eval_main(argv))
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
     parser.add_argument("--home", type=Path, default=default_home(), help="L0–L3 数据目录，默认 macOS Application Support/Tandem")
     parser.add_argument("--max-events", type=int, default=None, help="可选的分析/报告事件预算，含上下文；默认不限制，超限明确报错")
@@ -79,6 +83,8 @@ def _main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("init", "rebuild", "verify", "stats", "discover"):
         sub.add_parser(name)
+    for name in ("eval", "label"):
+        sub.add_parser(name, help=f"见 tandem {name} -h（选项写在 {name} 之后）")
     ingest_parser = sub.add_parser("ingest", help="经统一 L0–L3 链路导入显式启用的来源")
     ingest_parser.add_argument("--agent", required=True)
     ingest_parser.add_argument("--root", type=Path, required=True)
@@ -158,7 +164,15 @@ def _main(argv: list[str] | None = None) -> None:
     evidence = sub.add_parser("evidence", help="在终端回看一条判断引用的统一事件")
     evidence.add_argument("event_id")
     evidence.add_argument("--json", action="store_true", help="输出完整的已保存事件元数据")
+    install_parser = sub.add_parser("install", help="只读查看安装环境与安装账本（写入经 App 预览确认）")
+    install_sub = install_parser.add_subparsers(dest="install_command", required=True)
+    install_sub.add_parser("environment").add_argument("--json", action="store_true")
+    install_sub.add_parser("ledger").add_argument("--limit", type=int, default=50)
     args = parser.parse_args(argv)
+    if args.command == "install":
+        from ..install import cli as install_cli
+        install_cli(args)
+        return
     from tandem_data.progress import TerminalProgress
     progress = TerminalProgress(enabled=not args.no_progress)
     if args.max_events is not None and args.max_events < 1:
@@ -181,7 +195,7 @@ def _main(argv: list[str] | None = None) -> None:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
         imported = result.get("import", {}) if isinstance(result, dict) else {}
-        if imported.get("capture_errors") or imported.get("current_unparsed"):
+        if any(imported.get(k) for k in ("capture_errors", "current_unparsed", "skipped_files")):
             raise SystemExit(2)
         return
     if args.command == "import" and args.db is None:
@@ -193,7 +207,8 @@ def _main(argv: list[str] | None = None) -> None:
         except (ValueError, OSError, RuntimeError) as exc:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
-        if result["import"].get("capture_errors") or result["import"].get("current_unparsed"):
+        imported = result["import"]
+        if any(imported.get(k) for k in ("capture_errors", "current_unparsed", "skipped_files")):
             raise SystemExit(2)
         return
     if args.command in ("reader-pack", "reader-results"):

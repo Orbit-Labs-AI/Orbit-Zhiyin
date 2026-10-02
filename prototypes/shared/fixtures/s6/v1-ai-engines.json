@@ -1,0 +1,59 @@
+{
+ "mode": "stats",
+ "default_engine": null,
+ "engines": [
+  {
+   "id": "claude_code",
+   "name": "Claude Code",
+   "available": true,
+   "version": "2.1.287 (Claude Code)",
+   "logged_in": false,
+   "flags": [
+    "--safe-mode",
+    "--strict-mcp-config",
+    "--max-budget-usd",
+    "--model",
+    "--effort",
+    "--settings",
+    "--json-schema",
+    "--no-session-persistence"
+   ],
+   "slots": {
+    "cheap": "haiku",
+    "main": "sonnet"
+   },
+   "quota": {
+    "status": "unknown"
+   },
+   "checked_at": 1790958786528,
+   "consent": {
+    "summary": false,
+    "snippets": false,
+    "rules": false,
+    "raw": false
+   }
+  },
+  {
+   "id": "codex",
+   "name": "Codex",
+   "available": false,
+   "version": null,
+   "logged_in": null,
+   "flags": [],
+   "slots": {
+    "cheap": null,
+    "main": null
+   },
+   "quota": {
+    "status": "unknown"
+   },
+   "checked_at": 1790958786529,
+   "consent": {
+    "summary": false,
+    "snippets": false,
+    "rules": false,
+    "raw": false
+   }
+  }
+ ]
+}

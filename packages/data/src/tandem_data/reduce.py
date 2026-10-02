@@ -1,16 +1,22 @@
-"""Deterministic L3 derivation. No LLM, cost estimation, or inferred missing tokens."""
+"""Deterministic L3 derivation. No LLM and no inferred missing tokens.
+
+Cost is either the harness-reported value or, for a resolved model with complete token buckets,
+the versioned list price in ``tandem_data.models``; otherwise it stays NULL.
+"""
 
 from __future__ import annotations
 
 import fnmatch
 import json
-import shlex
+import re
 import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from tandem_data import models as model_catalog
 from tandem_data.contract import TOKENS, canonical, uid
+from tandem_data.shell import command_head
 from tandem_data.store import insert
 
 
@@ -48,13 +54,104 @@ def project_for(
     key = (cwd, recorded_remote, recorded_root)
     if cache is not None and key in cache:
         return cache[key]
-    result = _project_for(store, cwd, recorded_remote, recorded_root)
+    live = {v for v in cache.values() if v} if cache is not None else set()
+    result = _project_for(store, cwd, recorded_remote, recorded_root, live)
     if cache is not None:
         cache[key] = result
     return result
 
 
-def _project_for(store, cwd, recorded_remote, recorded_root):
+# Agent worktree layouts: <repo>/.claude/worktrees/<name>, <repo>/.work/<name>, ... A deleted
+# worktree directory belongs to <repo>, not to a project of its own.
+_WORKTREE = re.compile(
+    r"^(?P<repo>.+?)/(?:\.claude/worktrees|\.work|\.worktrees|\.git/worktrees)/[^/]+(?:/.*)?$"
+)
+# Directories that hold unrelated projects; a path never folds into them.
+_SHARED_ROOTS = frozenset(
+    (
+        "/",
+        "/tmp",
+        "/private",
+        "/private/tmp",
+        "/private/var",
+        "/var",
+        "/var/folders",
+        "/Users",
+        "/home",
+        "/opt",
+        "/usr",
+        "/Volumes",
+        "/mnt",
+        "/workspace",
+        "/workspaces",
+    )
+)
+
+
+def _shared_root(path: Path) -> bool:
+    """True for home, its parents, its direct children (~/Projects) and system roots."""
+    home = Path.home()
+    return (
+        str(path) in _SHARED_ROOTS
+        or path == home
+        or path in home.parents
+        or path.parent == home
+        or _system_temp(path)
+    )
+
+
+def _system_temp(path: Path) -> bool:
+    """/var/folders/<a>/<b>/T and above hold every process's temporary directories."""
+    text = str(path).removeprefix("/private")
+    return text.startswith("/var/folders") and len(Path(text).parts) <= 6
+
+
+def _probe_dir(path: Path) -> Path | None:
+    """Where to ask Git about a missing directory: its worktree's repo, else the nearest
+    existing ancestor below any shared root (a deleted subdirectory of a checkout)."""
+    match = _WORKTREE.match(str(path))
+    if match and Path(match["repo"]).is_dir():
+        return Path(match["repo"])
+    for parent in path.parents:
+        if _shared_root(parent):
+            return None
+        if parent.is_dir():
+            return parent
+    return None
+
+
+def _enclosing_project(store, path: Path, live, missing=False) -> str | None:
+    """The outermost project in use whose root or recorded path encloses ``path``.
+
+    Only projects of sessions outside this derivation and projects assigned during it
+    (``live``) qualify, so stale rows from earlier projections never attract paths. Git
+    projects win over plain paths. A deleted directory does not fold into a plain
+    directory that still exists: that is a workspace that held a removed project.
+    """
+    candidates = {}
+    for row in store.db.execute(
+        "SELECT project_id,key_type,key,paths FROM project WHERE key_type<>'bucket' AND"
+        " (project_id IN (SELECT project_id FROM session WHERE project_id IS NOT NULL)"
+        " OR project_id IN (SELECT value FROM json_each(?)))"
+        " ORDER BY key_type IN ('git_remote','git_root') DESC, project_id",
+        (canonical(sorted(live)),),
+    ):
+        roots = set(json.loads(row["paths"]))
+        if row["key_type"] in ("path", "git_root"):
+            roots.add(row["key"])
+        for root in roots:
+            candidates.setdefault(root, (row["project_id"], row["key_type"]))
+    for parent in (*reversed(path.parents), path):
+        found = candidates.get(str(parent))
+        if found is None or _shared_root(parent):
+            continue
+        if missing and found[1] == "path" and parent.is_dir():
+            continue
+        return found[0]
+    return None
+
+
+def _project_for(store, cwd, recorded_remote, recorded_root, live=()):
     if not cwd and not recorded_remote and not recorded_root:
         return None
     for override in store.db.execute(
@@ -65,12 +162,19 @@ def _project_for(store, cwd, recorded_remote, recorded_root):
     root = recorded_root
     remote = normalize_remote(recorded_remote)
     path = Path(cwd).expanduser() if cwd else None
-    if remote is None and path and path.is_dir():
-        common = _git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    missing = path is not None and not path.is_dir()
+    probe = _probe_dir(path) if missing else path
+    if remote is None and probe:
+        common = _git(probe, "rev-parse", "--path-format=absolute", "--git-common-dir")
         if common:
             common_path = Path(common)
             root = str(common_path.parent) if common_path.name == ".git" else common
-            remote = remote or normalize_remote(_git(path, "config", "--get", "remote.origin.url"))
+            remote = remote or normalize_remote(_git(probe, "config", "--get", "remote.origin.url"))
+    if missing and not remote and not root:
+        # Repository gone too: name the worktree's repository, not the worktree.
+        match = _WORKTREE.match(str(path))
+        if match:
+            path = Path(match["repo"])
     if remote:
         key_type, key = "git_remote", remote
     elif root:
@@ -81,6 +185,11 @@ def _project_for(store, cwd, recorded_remote, recorded_root):
         key_type, key = "bucket", "temporary_workspace"
     else:
         key_type, key = "path", str(path) if path else cwd
+        enclosing = _enclosing_project(store, Path(key), live, missing) if path else None
+        if enclosing is not None:
+            # A plain directory inside another project's tree (/repo/src under /repo).
+            _add_path(store, enclosing, cwd)
+            return enclosing
     project_id = uid("project", key_type, key)
     existing = store.db.execute(
         "SELECT paths FROM project WHERE project_id=?", (project_id,)
@@ -95,6 +204,18 @@ def _project_for(store, cwd, recorded_remote, recorded_root):
     return project_id
 
 
+def _add_path(store, project_id, cwd):
+    if not cwd:
+        return
+    row = store.db.execute("SELECT paths FROM project WHERE project_id=?", (project_id,)).fetchone()
+    paths = set(json.loads(row[0])) if row else set()
+    if cwd not in paths:
+        paths.add(cwd)
+        store.db.execute(
+            "UPDATE project SET paths=? WHERE project_id=?", (canonical(sorted(paths)), project_id)
+        )
+
+
 def _model(store, provider, raw):
     if not raw:
         return None, "unknown"
@@ -103,7 +224,17 @@ def _model(store, provider, raw):
         "ORDER BY provider<>'' DESC LIMIT 1",
         (raw, provider or ""),
     ).fetchone()
-    return (row[0], "resolved") if row else (raw, "unmapped")
+    if row:
+        return row[0], "resolved"
+    # Seed the alias table from the built-in normaliser; user rows (same key) always win.
+    known = model_catalog.canonical_model(raw)
+    if known is None:
+        return raw, "unmapped"
+    store.db.execute(
+        "INSERT OR IGNORE INTO model_alias(provider,model_raw,model_id,family) VALUES(?,?,?,?)",
+        (provider or "", raw, known[0], known[1]),
+    )
+    return known[0], "resolved"
 
 
 TOOL_KINDS = {
@@ -140,16 +271,8 @@ def tool_metadata(name, attrs):
                 files.append(args[key])
         command = args.get("command", args.get("cmd"))
         skill = args.get("skill") if kind == "skill" else attrs.get("skill")
-    head = None
-    if isinstance(command, str):
-        try:
-            words = shlex.split(command)
-            if words:
-                head = " ".join(
-                    words[:2] if words[0] in ("git", "uv", "pnpm", "npm", "docker") else words[:1]
-                )
-        except ValueError:
-            pass
+    # Effective program (cd/env/shell wrappers unwrapped); never a path or an assignment.
+    head = command_head(command)
     return {
         "name_raw": name,
         "name": tool if kind == "mcp" else name.lower(),
@@ -182,18 +305,35 @@ def _duration(call, result, attrs):
     return None, "unknown", "missing"
 
 
-def derive(store, *, scoped=False, progress=None):
+def _approve(values, call_uid, approval, evidence):
+    """Copy a permission decision onto one tool call and keep both events as its evidence."""
+    decision, wait, decision_event, request_event = approval
+    evidence.append((call_uid, decision_event, "permission.decision"))
+    if request_event:
+        evidence.append((call_uid, request_event, "permission.request"))
+    values["approval"] = decision
+    if wait is not None:
+        values["approval_wait_ms"] = wait
+
+
+def derive(store, *, scoped=False, progress=None, sessions=None):
+    """Derive L3 rows. ``sessions`` (SQL) narrows a scoped run to a session closure."""
     project_cache = {}
     progress = progress or (lambda _: None)
+    where = ""
+    if scoped:
+        where = " WHERE i.source_id IN (SELECT source_id FROM rebuild_scope)"
+        if sessions is not None:
+            where += f" AND i.session_uid IN ({sessions})"
     identities = {
         row["session_uid"]: dict(row)
         for row in store.db.execute(
-            "SELECT DISTINCT i.* FROM session_identity i JOIN event e USING(session_uid)"
-            + (" WHERE i.source_id IN (SELECT source_id FROM rebuild_scope)" if scoped else "")
+            "SELECT DISTINCT i.* FROM session_identity i JOIN event e USING(session_uid)" + where
         )
     }
     metas = {}
     recorded_roots = {}
+    spawn_ids = {}  # child session -> native id of the parent's spawning tool call
     progress({"stage": "derive_metadata", "completed": 0, "total": len(identities)})
     for index, (session_uid, identity) in enumerate(identities.items()):
         values = {
@@ -205,10 +345,12 @@ def derive(store, *, scoped=False, progress=None):
             "status": "unknown",
             "timezone_source": "unknown",
         }
+        event_cwd = None
         for row in store.db.execute(
             "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
         ):
             attrs = json.loads(row["attrs"])
+            event_cwd = event_cwd or attrs.get("cwd")
             if isinstance(attrs.get("git_root"), str):
                 recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
@@ -229,6 +371,8 @@ def derive(store, *, scoped=False, progress=None):
                 ):
                     if attrs.get(name) is not None:
                         values[name] = attrs[name]
+                if attrs.get("spawn_native_call_id"):
+                    spawn_ids[session_uid] = str(attrs["spawn_native_call_id"])
                 if attrs.get("forked_from_uid"):
                     values["forked_from"] = attrs["forked_from_uid"]
                 if attrs.get("forked_from_native"):
@@ -247,9 +391,30 @@ def derive(store, *, scoped=False, progress=None):
                     values["title"], values["title_source"] = row["text"], attrs.get("title_source")
         if not values.get("timezone"):
             values["timezone"], values["timezone_source"] = None, "unknown"
+        # Same fallback as _derive_session, so session and turn projects agree.
+        if not values.get("cwd") and event_cwd:
+            values["cwd"] = event_cwd
         metas[session_uid] = values
         progress({"stage": "derive_metadata", "completed": index + 1, "total": len(identities)})
     progress({"stage": "derive_projects", "completed": 0, "total": len(metas)})
+    # Resolve sessions with a recorded Git identity first, then shallow directories, so
+    # /repo exists before /repo/src looks for an enclosing project; the result no longer
+    # depends on session order.
+    for session_uid, values in sorted(
+        metas.items(),
+        key=lambda item: (
+            not (item[1].get("git_remote") or recorded_roots.get(item[0])),
+            len(Path(item[1].get("cwd") or "/").parts),
+            item[0],
+        ),
+    ):
+        project_for(
+            store,
+            values.get("cwd"),
+            values.get("git_remote"),
+            recorded_roots.get(session_uid),
+            cache=project_cache,
+        )
     for index, (session_uid, values) in enumerate(metas.items()):
         current, seen = session_uid, {session_uid}
         while metas.get(current, {}).get("parent_uid"):
@@ -289,6 +454,40 @@ def derive(store, *, scoped=False, progress=None):
             store, session_uid, meta, events, recorded_roots.get(session_uid), project_cache
         )
         progress({"stage": "derive_sessions", "completed": index + 1, "total": len(metas)})
+    _link_spawns(store, metas, spawn_ids)
+
+
+def _link_spawns(store, metas, spawn_ids):
+    """Parent spawn call <-> child session, from either side's native evidence."""
+    for session_uid, native_call in spawn_ids.items():
+        parent = metas[session_uid].get("parent_uid")
+        row = store.db.execute(
+            "SELECT call_uid FROM tool_call WHERE session_uid=? AND native_call_id=? "
+            "AND call_event_uid IS NOT NULL ORDER BY started_at LIMIT 1",
+            (parent, native_call),
+        ).fetchone()
+        if parent and row:
+            store.db.execute(
+                "UPDATE session SET spawn_call_uid=? WHERE session_uid=?", (row[0], session_uid)
+            )
+            store.db.execute(
+                "UPDATE tool_call SET subagent_session_uid=? "
+                "WHERE call_uid=? AND subagent_session_uid IS NULL",
+                (session_uid, row[0]),
+            )
+    # Calls whose parent-side evidence named the child (Claude agentId, Codex thread id).
+    for session_uid in metas:
+        row = store.db.execute(
+            "SELECT call_uid FROM tool_call WHERE subagent_session_uid=? "
+            "AND call_event_uid IS NOT NULL ORDER BY started_at LIMIT 1",
+            (session_uid,),
+        ).fetchone()
+        if row:
+            store.db.execute(
+                "UPDATE session SET spawn_call_uid=? "
+                "WHERE session_uid=? AND spawn_call_uid IS NULL",
+                (row[0], session_uid),
+            )
 
 
 def _derive_session(store, session_uid, meta, events, recorded_root=None, shared_projects=None):
@@ -303,6 +502,9 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
     tools = {}
     permissions = {}
     permission_evidence = []
+    # Decisions recorded before their tool call (Codex writes exec_approval_* before the
+    # completed CommandExecution item): applied when the call with that call_id appears.
+    pending_approvals = {}
     features = Counter()
     snapshots = {}
     for event in events:
@@ -393,6 +595,10 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             }
             tools[call_uid] = (values, event)
             open_tools[event["call_id"]].append(call_uid)
+            if event["call_id"] in pending_approvals:
+                _approve(
+                    values, call_uid, pending_approvals.pop(event["call_id"]), permission_evidence
+                )
         elif kind == "tool.result":
             matches = open_tools[event["call_id"]]
             if len(matches) == 1:
@@ -447,14 +653,17 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             call_id, start, request_event = permissions.get(
                 attrs.get("permission_id"), (event["call_id"], None, None)
             )
-            for tool_uid in open_tools.get(call_id, []):
-                permission_evidence.append((tool_uid, event["event_uid"], "permission.decision"))
-                if request_event:
-                    permission_evidence.append((tool_uid, request_event, "permission.request"))
-                values, _ = tools[tool_uid]
-                values["approval"] = attrs.get("decision")
-                if start is not None and event["ts"] is not None and event["ts"] >= start:
-                    values["approval_wait_ms"] = event["ts"] - start
+            wait = (
+                event["ts"] - start
+                if start is not None and event["ts"] is not None and event["ts"] >= start
+                else None
+            )
+            approval = (attrs.get("decision"), wait, event["event_uid"], request_event)
+            if open_tools.get(call_id):
+                for tool_uid in open_tools[call_id]:
+                    _approve(tools[tool_uid][0], tool_uid, approval, permission_evidence)
+            elif call_id is not None:
+                pending_approvals[call_id] = approval
         elif kind == "model.usage":
             provider, raw = (
                 attrs.get("provider", context["provider"]),
@@ -463,6 +672,14 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             model_id, resolution = _model(store, provider, raw)
             metrics = {token: attrs.get(token) for token in TOKENS}
             metrics.update(cost_usd=attrs.get("cost_usd"), cost_source=attrs.get("cost_source"))
+            if (
+                metrics["cost_usd"] is None
+                and resolution == "resolved"
+                and attrs["usage_scope"] == "call"
+            ):
+                price = model_catalog.cost_usd(model_id, metrics)
+                if price is not None:
+                    metrics.update(cost_usd=price, cost_source="price_table")
             if attrs["usage_scope"] == "call":
                 insert(
                     store.db,
@@ -601,6 +818,10 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
         if final_boundary and final_boundary["kind"] == "turn.end"
         else "unknown"
     )
+    if not action_times:
+        # Sessions without turn/message boundaries (tool-only subagent or review rollouts)
+        # still span their timestamped events.
+        action_times = [e["ts"] for e in events if e["ts"] is not None]
     store.db.execute(
         "UPDATE session SET started_at=?,ended_at=?,status=? WHERE session_uid=?",
         (
