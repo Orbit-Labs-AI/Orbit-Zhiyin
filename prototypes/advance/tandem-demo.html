@@ -3736,7 +3736,7 @@ const MENUS = {
   edit: () => [{ t: '撤销', k: '⌘Z', v: () => undoInstall() }, { t: '重做', k: '⇧⌘Z', dis: true }, { sep: 1 }, { t: '剪切', k: '⌘X', v: () => editCmd('cut') }, { t: '拷贝', k: '⌘C', v: () => editCmd('copy') }, { t: '粘贴', k: '⌘V', v: () => editCmd('paste') }, { t: '全选', k: '⌘A', v: () => editCmd('selectAll') }, { sep: 1 }, { t: '查找…', k: '⌘F', v: () => findCmd() }],
   view: () => [{ h: '外观' }, { t: '跟随系统', on: S.theme === 'system', v: () => { setTheme('system'); render(); } }, { t: '浅色', on: S.theme === 'light', v: () => { setTheme('light'); render(); } }, { t: '深色', on: S.theme === 'dark', v: () => { setTheme('dark'); render(); } }, { sep: 1 }, { t: '悬浮组件', k: '⌥⌘P', on: S.hud.show, v: () => toggleHud() }, { t: '桌面小组件', on: S.widgets, v: () => { S.widgets = !S.widgets; render(); } }, { t: S.ed === 'lite' ? '切换到 Advance' : '切换到 Lite', k: '⌃⌘L', v: () => edToggle() }, { t: (winNarrow() ? S.sideOver : S.side) ? '隐藏侧边栏' : '显示侧边栏', k: '⌃⌘S', v: () => toggleSide() }, { sep: 1 }, { t: S.win.full ? '退出全屏' : '进入全屏', k: '⌃⌘F', v: () => winFullToggle() }],
   window: () => [{ t: '最小化', k: '⌘M', v: () => ACT.winMin() }, { t: S.win.zoom ? '恢复缩放' : '缩放', v: () => winZoomToggle() }, { sep: 1 }, { t: '主窗口', k: kb('⌥0'), on: !S.winGone, v: () => showMain() }, { t: '命令面板', k: '⌘K', v: () => openPalette() }, { t: '设置', k: '⌘,', v: () => openSettings() }, { sep: 1 }].concat(navRoutes().map((r, i) => ({ t: r[1], k: kb('⌥' + (i + 1)), on: S.route === r[0], v: () => go(r[0]) }))),
-  help: () => [{ t: '键盘快捷键', k: '?', v: () => openKeys() }, { t: '重新播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '关于这个 Demo', v: () => openAbout() }],
+  help: () => [{ t: '键盘快捷键', k: '?', v: () => openKeys() }, { t: '重新播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: LV.live ? '关于 Orbit' : '关于这个 Demo', v: () => openAbout() }],
   demo: () => [{ h: '模拟事件（会触发通知、菜单栏与悬浮组件）' }, { t: '会话完成', v: () => simEvent('done') }, { t: '有会话等你确认', v: () => simEvent('waiting') }, { t: '同一命令连续失败', v: () => simEvent('stuck') }, { t: '上下文即将压缩', v: () => simEvent('ctx') }, { t: '每周报告已生成', v: () => simEvent('weekly') }, { t: '发现新的数据来源', v: () => simEvent('newsrc') }, { sep: 1 }, { t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '重置演示数据', v: () => resetDemo() }]
 };
 
@@ -7460,14 +7460,16 @@ let ABOUT = null;
 function aboutRows(a) {
   const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
   const app = (a && a.app) || {}, c = (a && a.components) || {}, rt = (a && a.runtime) || {};
-  return [['版本', app.version || (n && n.app) || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.contract].filter(Boolean).join(' · ') || '—'],
+  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row
+  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
     ['数据库结构', c.db_schema_version != null ? 'v' + c.db_schema_version : '—'], ['规则 / 分析', [c.rules_version, c.analytics_version].filter(Boolean).join(' · ') || '—'],
     ['脱敏规则', c.redaction_version || '—'], ['支持的 Agent', (c.mappers || []).map((k) => lvAgentOf(k).name).join('、') || '—'],
     ['运行环境', [rt.python && 'Python ' + rt.python, rt.platform, rt.arch].filter(Boolean).join(' · ') || '—']];
 }
 function drawAbout(first) {
   if (!first && (MODAL_KEY !== 'about' || $('#modal').hidden)) return;
-  const a = ABOUT, ver = a && a.data && a.data.app && a.data.app.version;
+  const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
+  const a = ABOUT, ver = (n && n.app) || (a && a.data && a.data.app && a.data.app.version);
   const body = !a || a.state === 'pending' ? LV.pend(180) : a.state === 'error' ? '<p style="margin:0">' + LV.na('暂时读不到版本信息（本机服务未响应）') + '</p>'
     : '<div class="col" data-about="rows" style="gap:0">' + aboutRows(a.data).map((r) => '<div class="row" style="justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--hair)"><span class="cap" style="font-size:12px;flex:none">' + esc(r[0]) + '</span><span class="mono" style="font-size:12px;text-align:right;min-width:0;overflow-wrap:anywhere">' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
   openModal(modalHead('关于 Orbit', 'Orbit' + (ver ? ' ' + ver : '') + ' · 本地的跨 Agent 会话分析') + '<div class="mb col" style="gap:12px;font-size:13px;line-height:1.65;color:var(--ink-2)"><div class="row" style="gap:12px"><span class="appicon" style="width:44px;height:44px;flex:none">' + appIcon(44) + '</span><div class="col" style="gap:2px"><b class="serif" style="font-size:20px;color:var(--ink-1)">Orbit</b><span class="mono cap" data-about="version">' + esc(ver || '—') + '</span></div></div>' + body + '<p class="cap" style="margin:0">全部数据只在本机；Orbit 不上传会话内容。</p></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); MODAL_KEY = 'about';
@@ -7715,6 +7717,8 @@ function drawOB() {
 // Live step 1 (OB.live, filled by 95-live-native.js): the sources come from /v1/shell/onboarding (estimates) and
 // /v1/app/discovery, 添加文件夹 goes through LVN.addSource() (native chooseFolder, or the path field in a browser), and once
 // 开始分析 has posted the import job the button row becomes the four onboarding stages driven by job frames.
+// 来源路径与 mock 一样显示成 ~/…（macOS / Linux 的用户主目录）
+const obTilde = (p) => String(p || '—').replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~');
 function obLiveStep() {
   const L = OB.live, rows = L.sources, host = window.ORBIT && ORBIT.native.hasHost();
   const ag = (x) => lvAgentOf(x.agent);
@@ -7722,7 +7726,7 @@ function obLiveStep() {
   const busy = !!(L.job || L.starting);
   const cnt = (x) => x.status === 'permission_denied' ? '无权限' : x.est ? fmt(x.est) : x.status === 'empty' ? '空' : '—';
   const list = L.state === 'loading' && !rows.length ? '<div class="srcrow"><span class="spin" style="width:14px;height:14px;margin:8px"></span><span class="cap">正在查找本机的 Agent 会话…</span><span></span><span></span></div>'
-    : rows.length ? rows.map((x) => { const m = ag(x); const dis = busy || x.status === 'permission_denied'; return '<label class="srcrow" data-src="' + esc(x.id) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + col(m, 't') + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + col(m, '')) + '</span><span style="min-width:0"><b style="font-size:13px">' + esc(m.name) + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.root || '—') + '</span></span><span class="mono cap" style="font-size:11px">' + cnt(x) + '</span><input type="checkbox" data-chg="obSrcL" data-s="' + esc(x.id) + '" data-a="' + esc(m.id) + '"' + (L.sel.has(x.id) ? ' checked' : '') + (dis ? ' disabled' : '') + ' aria-label="分析 ' + esc(m.name) + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>'; }).join('')
+    : rows.length ? rows.map((x) => { const m = ag(x); const dis = busy || x.status === 'permission_denied'; return '<label class="srcrow" data-src="' + esc(x.id) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + col(m, 't') + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + col(m, '')) + '</span><span style="min-width:0"><b style="font-size:13px">' + esc(m.name) + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(x.root || '') + '">' + esc(obTilde(x.root)) + '</span></span><span class="mono cap" style="font-size:11px">' + cnt(x) + '</span><input type="checkbox" data-chg="obSrcL" data-s="' + esc(x.id) + '" data-a="' + esc(m.id) + '"' + (L.sel.has(x.id) ? ' checked' : '') + (dis ? ' disabled' : '') + ' aria-label="分析 ' + esc(m.name) + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>'; }).join('')
     : '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">' + (L.state === 'error' ? '读取来源失败' : '没有找到 Agent 会话目录') + '</b><span class="cap" style="display:block;font-size:11px">' + (L.state === 'error' ? esc(L.loadErr || '本机服务没有响应') : '可以在下面手动添加文件夹') + '</span></span><span></span><span></span></div>';
   const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
   const add = '<div class="srcrow ob-add"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('plus', 15) + '</span><span class="row" style="gap:6px;min-width:0"><select class="ob-agent" data-chg="obAgent" aria-label="来源的 Agent"' + (busy ? ' disabled' : '') + ' style="height:26px;max-width:132px">' + opts + '</select>' +
@@ -7746,8 +7750,12 @@ function obLiveStep() {
     foot = (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (chosen.length ? '' : ' disabled') + '>开始分析</button></div>';
   }
-  return head + '<div class="card ob-srcs" data-ob="sources" style="padding:2px 0">' + list + add + '</div>' +
-    '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, busy ? 'noop' : 'obRecent', busy ? ' disabled' : '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">只导入 90 天内改动过的日志；之后可以在设置中扩展到全部历史</span></span></div>' +
+  // the sheet has to fit a 900 px App window: the source list scrolls inside its card (shorter while the four stages show),
+  // and once the import runs the 添加 row and the 90-day switch give their room to the stages and the footer
+  const cap = busy ? 'max-height:min(204px,24vh)' : 'max-height:max(160px,calc(100vh - 470px))';
+  return head + '<div class="card ob-srcs" data-ob="sources" style="padding:2px 0;flex:none;overflow:auto;' + cap + '">' + list + (busy ? '' : add) + '</div>' +
+    (L.added ? '<div class="row cap" data-ob="added" style="gap:4px;font-size:11px;color:var(--good);min-width:0">' + ic('check', 12, 'flex:none') + '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">已添加来源 ' + esc(obTilde(L.added)) + '</span></div>' : '') +
+    (busy ? '' : '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">只导入 90 天内改动过的日志；之后可以在设置中扩展到全部历史</span></span></div>') +
     '<div class="mono cap" data-ob="total" style="font-size:11px">' + (chosen.length ? '约 ' + fmt(tot) + ' 个会话（估计）' + (first ? ' · 最早 ' + day(first) : '') : '还没有选择来源') + '</div>' + foot;
 }
 
@@ -7789,8 +7797,7 @@ function genHTML(g) {
   const top = '<div class="row g-top">' + (ob ? '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= 2 ? 'on' : '') + '"></i>').join('') + '</div><span class="mono cap" data-g="n" style="font-size:11px">3 / 4</span>' : '') +
     '<span class="mono cap g-stage"' + (ob ? '' : ' id="revStage"') + ' data-g="stage"></span><span style="flex:1"></span><button type="button" class="btn sm gh" data-act="' + (ob ? 'genSkip' : 'revSkip') + '">跳过</button></div>';
   const head = ob ? '<div class="g-head" data-g="head"><h2 class="serif">正在建立你的协作画像</h2><p class="cap">每完成一步就先给你看结果，不用等到最后。</p></div><div class="g-bar"><i data-g="bar"></i></div>' : '';
-  const vr = visibleRecs();
-  const done = ob ? '<div class="g-next">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '按你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b class="g-nt">' + x[0] + '</b><span class="cap g-nc">' + x[1] + '</span></span></div>').join('') + '</div>' +
+  const done = ob ? '<div class="g-next">' + [['看看优化建议', genRecLine()], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '按你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b class="g-nt">' + x[0] + '</b><span class="cap g-nc">' + x[1] + '</span></span></div>').join('') + '</div>' +
       '<div class="g-foot"><button type="button" class="lnk" data-act="obReveal">播放揭晓动画</button><span class="row" style="gap:8px"><button type="button" class="btn" data-act="obShare">导出分享卡</button><button type="button" class="btn p" data-act="obDone" style="height:32px;padding:0 18px">查看完整画像</button></span></div>'
     : '<div class="g-foot"><span></span><span class="row" style="gap:8px"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></span></div>';
   return top + head +
@@ -7868,6 +7875,8 @@ function genCount(g) {
   const t = '已读取 ' + fmt(Math.round(g.L.length * f)) + ' 个会话 · ' + fmt(Math.round(g.st.tools * f)) + ' 次工具调用';
   if (el.textContent !== t) el.textContent = t;
 }
+// 「看看优化建议」的条数：与侧栏角标同源（visibleRecs，live 下是 GET /v1/recommendations 的 A7 列表）；定型时再读一次
+function genRecLine() { const vr = visibleRecs(); return vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'; }
 function genOpen(mode, opt) {
   genStop();
   // live: opt.p / opt.cands carry the server persona (/v1/uiview/persona/reveal, mapped in 95-live-native.js)
@@ -8091,6 +8100,7 @@ function genFinal(how) {
     genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
     const nn = q('[data-g="n"]'); if (nn) nn.textContent = '4 / 4'; box.querySelectorAll('.ob-dots i').forEach((i) => i.classList.add('on'));
     const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
+    const rl = box.querySelector('.g-next .g-nc'); if (rl) rl.textContent = genRecLine();
     if (OB) { OB.prog = 3; OB.step = 3; OB.drawn = 3; }
     const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
     render();
@@ -8277,7 +8287,7 @@ function renderSet() {
     body = card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + NEV_COL.map((c, i) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + [0, 1, 2].map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + NEV_COL.map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:6px">每列独立生效 · 用菜单栏「演示」菜单模拟事件即可预览</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
       card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div><span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span><div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时建议「先总结进度」' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
   } else {
-    body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px">' + appIcon(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">关于这个 Demo</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
+    body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px">' + appIcon(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">' + (LV.live ? '关于 Orbit' : '关于这个 Demo') + '</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
   }
   el.innerHTML = '<div class="ptop"><div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div><span class="ptitle">' + curTab[1] + '</span></div>' +
     '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
@@ -9966,7 +9976,7 @@ ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.erro
 
 /* ---- sources ---- */
 const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],
-  [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/opencode/i, 'opencode'], [/deepseek|\bdsh\b|\.dsh/i, 'dsh'], [/(^|\/)\.pi(\/|$)/i, 'pi']];
+  [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/opencode/i, 'opencode'], [/deepseek|\bdsh\b|\.dsh/i, 'dsh'], [/(^|\/)\.?pi(\/|$)/i, 'pi']];
 LVN.agentFromPath = (path) => { const hit = LVN_PATHS.find((x) => x[0].test(path || '')); return hit ? hit[1] : null; };
 // addSource({agent?, path?, purpose?}) → {ok, source, agent, root} | {cancelled:true}; throws {message, path?} on failure.
 // In the native shell it asks the host for a folder (chooseFolder → tandem:folder); in a browser the caller passes path.
@@ -10078,12 +10088,31 @@ LVN.reveal = async function (period) {
   const sh = await lvnTry('/v1/shell/reveal', { query: { display_timezone: TL_TZ || 'UTC' } });
   return LVN.personaOf(sh && sh.reason !== 'computing' ? sh : null);
 };
+// Recommendations for Genesis' 看看优化建议 line: load the A7 list once (it may still be computing right after the import)
+LVN.loadRecs = async function (ms) {
+  if (typeof lvRecSync !== 'function' || TL.mode !== 'live') return;
+  const t0 = Date.now(); TL.recs.invalidate();
+  while (Date.now() - t0 < (ms || 8000)) {
+    const r = TL.recs.resource('A7', lvScope());
+    try { await TL.load(r); } catch (e) { return; }
+    if (r.data) { lvRecSync(); return; }
+    if (r.state !== 'computing') return;
+    await lvnSleep(800); r.dirty = true;
+  }
+};
 async function lvnAfter(ob) {
-  const L = ob.live; if (L.after) return; L.after = true; lvnStop(L);
-  lvnStage(L, 'stats', { status: 'running' }); lvnDraw(ob);
-  await lvnSpine(L.rev0);
+  const L = ob.live; if (L.after) return; L.after = true; lvnStop(L); L.err = null;
+  lvnStage(L, 'stats', { status: 'running', note: null }); lvnStage(L, 'persona', { status: 'pending', note: null }); lvnDraw(ob);
+  // the import is in but the analysis did not come back: keep the first run open (no onboarded:true) and offer a retry
+  if (!(await lvnSpine(L.rev0)) || !ALL.length) {
+    L.after = false;
+    lvnStage(L, 'stats', { status: 'failed', note: ALL.length ? '本机服务没有返回分析结果' : '没有读到会话' });
+    L.err = ALL.length ? '会话已导入，但分析结果暂时读不到（本机服务没有响应）。可以重试。' : '导入完成，但没有读到任何会话。检查来源目录后重试。';
+    if (OB !== ob || OVL !== 'ob') notify({ t: '首次分析没有完成', b: L.err, a1: '重试', on1: () => { openOnboarding(1); } });
+    lvnDraw(ob); return;
+  }
   lvnStage(L, 'stats', { status: 'done', note: fmt(ALL.length) + ' 个会话' }); lvnStage(L, 'persona', { status: 'running' }); lvnDraw(ob);
-  const per = await LVN.reveal(OB.recent ? '90' : 'all');
+  const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all'), LVN.loadRecs().catch(() => null)]);
   lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
   TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
   TL.send('POST', '/v1/catalog/sync', {}).catch(() => { /* library keeps its seed rows */ });
@@ -10100,6 +10129,8 @@ async function lvnAfter(ob) {
 }
 LVN.obImport = async function () {
   const ob = OB; const L = ob && ob.live; if (!L || L.starting || (L.job && !L.err)) return;
+  // 重试 after a completed import whose analysis failed: only redo the analysis half
+  if (L.err && L.job && L.job.status === 'completed') { L.rev0 = LV.rev; lvnAfter(ob); return; }
   const chosen = L.sources.filter((x) => L.sel.has(x.id));
   if (!chosen.length) return;
   L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: '准备来源' });
@@ -10153,14 +10184,14 @@ if (LV.live) {
       const host = ORBIT.native.hasHost();
       const path = host ? null : (L.manual.path || '').trim();
       if (!host && !path) { L.err = '先填写会话日志所在的文件夹路径'; drawOB(); const f = $('#obPath'); if (f) f.focus(); return; }
-      L.adding = true; L.err = null; drawOB();
+      L.adding = true; L.err = null; L.added = null; drawOB();
       try {
         const r = await LVN.addSource({ agent: L.manual.agent, path });
         if (r && r.ok) {
           L.touched = true; L.manual.path = '';
           const id = r.source && r.source.id; if (id) L.sel.add(id);
           await LVN.loadOb(ob); if (id) L.sel.add(id); lvnSyncSrc(L);
-          toast('已添加来源：' + r.root);
+          L.added = r.root;   // shown inline under the list: a toast would sit on top of the sheet
         }
       } catch (e) { L.err = e.message || '添加失败'; if (e.path) L.manual.path = e.path; }
       finally { L.adding = false; lvnDraw(ob); }
