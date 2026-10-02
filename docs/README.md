@@ -10,7 +10,7 @@
 | [development](development/testing.md) | 使用、测试、调试和目录迁移 |
 | [modules](modules/README.md) | 各能力的算法、验证与限制 |
 | [design](design/README.md) | 设计规范、静态画板；可运行原型在根目录 prototypes |
-| [plans](plans/data-acquisition.md) | 方案与待完成工作，不能直接等同当前能力 |
+| [plans](plans/analysis-review.md) | 方案与待完成工作，不能直接等同当前能力 |
 | [research](research/agent-sessions/README.md) | 会话格式与技术研究 |
 | [releases](releases/backend/README.md) | 当时版本的历史交付记录 |
 | [archive](archive/backend-mvp-plan.md) | 已被当前结构替代的阶段性计划 |
