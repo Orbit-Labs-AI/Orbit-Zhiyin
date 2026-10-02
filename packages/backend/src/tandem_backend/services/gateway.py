@@ -344,6 +344,7 @@ class Gateway:
     # -- application ---------------------------------------------------------------------
     def app(self, *, token: str, port: int | None, hosts=None) -> FastAPI:
         from . import (
+            pages,
             routes_ai,
             routes_analytics,
             routes_app,
@@ -387,9 +388,11 @@ class Gateway:
             routes_settings,
         ):
             app.include_router(module.router(self))
+        app.include_router(pages.router())  # /app, /lite, / (token-free, see PAGE_PATHS).
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
         app.state.gateway = self
         guard_kwargs = {"hosts": hosts} if hosts else {}
+        guard_kwargs["public_paths"] = pages.PAGE_PATHS
         app.add_middleware(PlatformMiddleware, platform=self.platform)  # Inside the guard.
         app.add_middleware(GuardMiddleware, token=token, port=port, **guard_kwargs)
         return app
