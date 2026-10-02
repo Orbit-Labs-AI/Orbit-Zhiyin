@@ -1,13 +1,10 @@
 """Versioned projection redaction. Exact bytes remain only in the local L0 archive."""
 
 import hashlib
+import json
 import re
 
-REDACTION_VERSION = "1.0.4"
-SECRET_KEYS = re.compile(
-    r"(?:^|_)(?:api_?key|access_?token|refresh_?token|auth_?token|token|authorization|password|passwd|secret|private_key|secret_access_key)$",
-    re.I,
-)
+REDACTION_VERSION = "1.1.0"
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",
@@ -20,12 +17,30 @@ HIDDEN_KEYS = {
 
 
 def is_secret_key(key: str) -> bool:
-    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
-    normalized = re.sub(r"[^a-zA-Z0-9]+", "_", normalized).lower()
-    return SECRET_KEYS.search(normalized) is not None
+    return secret_key(key)
+
+
+def secret_key(key: str) -> bool:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    return bool(
+        re.search(
+            r"(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?)$",
+            normalized,
+        )
+        or re.search(r"(?:^|_)(?:secret|password|passwd)(?:_|$)", normalized)
+    )
 
 
 def redact(text: str) -> str:
+    if text.lstrip().startswith(("{", "[")):
+        try:
+            parsed = json.loads(text)
+            clean = _json_secrets(parsed)
+            if clean != parsed:
+                return json.dumps(clean, ensure_ascii=False, separators=(",", ":"))
+        except (ValueError, TypeError):
+            pass
     text = re.sub(
         r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
         "<redacted:private_key>",
@@ -53,31 +68,49 @@ def redact(text: str) -> str:
     return re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1<redacted:credentials>@", text)
 
 
+def _json_secrets(value, key=""):
+    if secret_key(key):
+        return "<redacted:secret>"
+    if isinstance(value, dict):
+        value = _opaque_fields(value)
+        return {
+            name: _json_secrets(item, name)
+            for name, item in value.items()
+            if name not in HIDDEN_KEYS
+        }
+    if isinstance(value, list):
+        return [_json_secrets(item, key) for item in value]
+    if isinstance(value, str):
+        return redact(value)
+    return value
+
+
+def _opaque_fields(value):
+    if isinstance(value.get("$binary"), str):
+        value = {
+            **value,
+            "$binary": "<opaque:sha256:"
+            + hashlib.sha256(value["$binary"].encode()).hexdigest()
+            + ">",
+        }
+    if value.get("type") == "base64" and isinstance(value.get("data"), str):
+        value = {
+            **value,
+            "data": "<opaque:sha256:" + hashlib.sha256(value["data"].encode()).hexdigest() + ">",
+        }
+    elif value.get("type") == "image" and isinstance(value.get("data"), str):
+        value = {
+            **value,
+            "data": "<opaque:sha256:" + hashlib.sha256(value["data"].encode()).hexdigest() + ">",
+        }
+    return value
+
+
 def sanitize(value, key=""):
     if is_secret_key(key):
         return "<redacted:secret>"
     if isinstance(value, dict):
-        if isinstance(value.get("$binary"), str):
-            value = {
-                **value,
-                "$binary": "<opaque:sha256:"
-                + hashlib.sha256(value["$binary"].encode()).hexdigest()
-                + ">",
-            }
-        if value.get("type") == "base64" and isinstance(value.get("data"), str):
-            value = {
-                **value,
-                "data": "<opaque:sha256:"
-                + hashlib.sha256(value["data"].encode()).hexdigest()
-                + ">",
-            }
-        elif value.get("type") == "image" and isinstance(value.get("data"), str):
-            value = {
-                **value,
-                "data": "<opaque:sha256:"
-                + hashlib.sha256(value["data"].encode()).hexdigest()
-                + ">",
-            }
+        value = _opaque_fields(value)
         return {
             name: sanitize(item, name) for name, item in value.items() if name not in HIDDEN_KEYS
         }

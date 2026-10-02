@@ -109,7 +109,7 @@ class PiMapper(BaseMapper):
                         else "failed"
                         if message.get("exitCode") is not None
                         else "unknown",
-                        "status_scope": "command",
+                        "status_scope": "direct_command",
                     },
                 )
                 return Mapping([call, result])

@@ -100,7 +100,16 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 )
                 continue
             mapper = MAPPERS[info["agent"]](store, info)
-            mapper.prepare(store.iter_file(info["file_id"]))
+            try:
+                mapper.prepare(store.iter_file(info["file_id"]))
+            except (ValueError, KeyError, TypeError, AttributeError) as error:
+                store.issue(
+                    info["source_id"],
+                    "file_preparation_error",
+                    file_id=info["file_id"],
+                    detail={"exception": type(error).__name__},
+                )
+                continue
             mappers[info["file_id"]] = mapper
 
         store.db.execute(
@@ -113,7 +122,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 info["source_id"],
                 str(
                     mappers[info["file_id"]].header.get(
-                        "session_id", mappers[info["file_id"]].header.get("id", "")
+                        "id", mappers[info["file_id"]].header.get("session_id", "")
                     )
                 ),
             ): info["file_id"]
@@ -149,9 +158,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
         infos = ordered
 
         def map_record(mapper, record):
+            if record.record_uid in getattr(mapper, "preparation_failures", set()):
+                return
             try:
-                if record.record_uid in getattr(mapper, "preparation_failures", ()):
-                    raise ValueError("native_preparation_error")
                 result = mapper.map(record)
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 store.issue(
@@ -281,6 +290,14 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             mapper = mappers.get(info["file_id"])
             if mapper is None:
                 continue
+            if info["agent"] == "codex" and mapper.cut is not None and mapper.parent:
+                parent_file = by_native.get((info["source_id"], str(mapper.parent)))
+                mapper.parent_candidates = defaultdict(list)
+                if parent_file:
+                    for parent_record in store.iter_file(parent_file):
+                        mapper.parent_candidates[mapper.record_signature(parent_record)].append(
+                            (parent_record.ordinal, parent_record.record_uid)
+                        )
             for record in store.iter_file(info["file_id"]):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.

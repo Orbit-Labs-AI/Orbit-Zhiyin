@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from contextlib import closing
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -58,7 +57,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
     A result after until_ts cannot enter historical context. No imported/review/auxiliary trees
     enter this default reader. Consumers of those sources can explicitly query the base tables.
     """
-    with closing(readonly_connection(Path(home) / "tandem.db")) as connection:
+    with readonly_connection(Path(home) / "tandem.db") as connection:
         connection.execute("BEGIN")
         manifest, run = current_projection(connection)
         sources = [
@@ -137,7 +136,13 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                     and event["ts"] < scope.until_ts
                     or event["ts"] is None
                     and event["kind"]
-                    not in ("tool.result", "permission.decision", "turn.end", "model.usage")
+                    not in (
+                        "tool.result",
+                        "permission.decision",
+                        "turn.end",
+                        "model.usage",
+                        "subagent.result",
+                    )
                     and event["seq"] <= last_seq.get(event["session_uid"], -1)
                 )
             )
@@ -191,6 +196,23 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             for row in connection.execute("SELECT * FROM session")
             if row["session_uid"] in sessions | roots
         ]
+        if scope.until_ts is not None:
+            last_ends = {
+                event["session_uid"]: event for event in events if event["kind"] == "turn.end"
+            }
+            for session in session_rows:
+                final_end = last_ends.get(session["session_uid"])
+                uncertain_end = final_end is not None and (
+                    final_end["ts"] is None or final_end["ts"] >= scope.until_ts
+                )
+                if (
+                    session["ended_at"] is None
+                    or session["ended_at"] >= scope.until_ts
+                    or uncertain_end
+                ):
+                    session["ended_at"], session["status"] = None, "unknown"
+                if session["started_at"] is not None and session["started_at"] >= scope.until_ts:
+                    session["started_at"] = None
         project_ids = {event["project_id"] for event in selected}
         project_rows = [
             decoded(row)

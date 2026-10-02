@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from contextlib import closing
 from pathlib import Path
 
 from tandem_data import MAPPER_VERSION, REDUCER_VERSION
@@ -36,7 +35,7 @@ def event_page(
     """Cursor pagination for the product App. Does not load L0 or full session histories."""
     if not 1 <= limit <= 1000:
         raise ValueError("limit must be between 1 and 1000")
-    with closing(readonly_connection(Path(home) / "tandem.db")) as db:
+    with readonly_connection(Path(home) / "tandem.db") as db:
         db.execute("BEGIN")
         current_projection(db)
         rows = db.execute(

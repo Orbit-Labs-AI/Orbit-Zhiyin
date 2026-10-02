@@ -10,7 +10,7 @@ import os
 import sqlite3
 import tempfile
 from collections.abc import Iterable
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from importlib.resources import files
 from pathlib import Path
 
@@ -24,13 +24,17 @@ SQL_TABLES = {
 }
 
 
-def readonly_connection(path: str | Path) -> sqlite3.Connection:
+@contextmanager
+def readonly_connection(path: str | Path):
     connection = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA query_only = ON")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 5000")
-    return connection
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def insert(connection, table: str, values: dict) -> None:
@@ -47,7 +51,7 @@ def _json_cell(value):
 
 def sqlite_rows(path: Path, agent: str) -> Iterable[bytes]:
     """One consistent read transaction. Only explicit session tables are exported."""
-    with closing(readonly_connection(path)) as connection:
+    with readonly_connection(path) as connection:
         connection.execute("BEGIN")
         available = {
             r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")

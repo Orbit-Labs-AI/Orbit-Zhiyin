@@ -138,10 +138,10 @@ def main(argv=None):
                     raise ValueError("Export must not write into an Agent source directory")
             if target == store.db_path or target.is_relative_to(store.raw_dir):
                 raise ValueError("Export must not overwrite the database or raw archive")
-            from contextlib import ExitStack, closing
+            from contextlib import ExitStack
 
             with ExitStack() as stack:
-                connection = stack.enter_context(closing(readonly_connection(store.db_path)))
+                connection = stack.enter_context(readonly_connection(store.db_path))
                 connection.execute("BEGIN")
                 current_projection(connection)
                 descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

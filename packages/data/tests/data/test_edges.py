@@ -323,3 +323,293 @@ def test_historical_scope_does_not_leak_future_tool_status(tmp_path):
         assert data["tool_calls"][0]["status"] == "unknown"
         assert data["tool_calls"][0]["result_event_uid"] is None
         assert not any(e["kind"] == "tool.result" for e in data["events"])
+
+
+def test_historical_scope_does_not_use_unknown_time_tool_outcome(tmp_path):
+    rows = [
+        {"type": "session", "id": "s"},
+        {
+            "type": "message",
+            "id": "u",
+            "timestamp": "2026-10-02T00:00:00Z",
+            "message": {"role": "user", "content": "task"},
+        },
+        {
+            "type": "message",
+            "id": "a",
+            "timestamp": "2026-10-02T00:00:01Z",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "toolCall",
+                        "id": "c",
+                        "name": "bash",
+                        "arguments": {"command": "test"},
+                    }
+                ],
+            },
+        },
+        {
+            "type": "message",
+            "id": "r",
+            "message": {
+                "role": "toolResult",
+                "toolCallId": "c",
+                "content": "failed later",
+                "isError": True,
+            },
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "pi", tmp_path / "source", rows)
+        store.rebuild()
+        from tandem_data.contract import time_fields
+
+        cutoff = time_fields("2026-10-02T00:00:02Z", "timestamp")[0]
+        data = read_analysis(store.home, AnalysisScope("Asia/Shanghai", until_ts=cutoff))
+        assert data["tool_calls"][0]["status"] == "unknown"
+        assert data["tool_calls"][0]["result_event_uid"] is None
+        assert not any(e["kind"] == "tool.result" for e in data["events"])
+
+
+def test_native_prepare_failure_is_record_local(tmp_path):
+    rows = [
+        {
+            "table": "session_message",
+            "key": {"id": "bad"},
+            "row": {"id": "bad", "type": "assistant", "data": "{}"},
+        },
+        {
+            "table": "session_message",
+            "key": {"id": "good"},
+            "row": {
+                "id": "good",
+                "session_id": "s",
+                "type": "user",
+                "data": canonical({"text": "valid", "time": {"created": 1000}}),
+            },
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "opencode", tmp_path / "source", rows, "opencode.db", "sqlite_rows")
+        store.rebuild()
+        assert (
+            store.db.execute("SELECT COUNT(*) FROM event WHERE kind='message.user'").fetchone()[0]
+            == 1
+        )
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM ingest_issue WHERE code='native_preparation_error'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert store.verify()["unparsed"] == 1
+
+
+def test_codex_root_trace_id_does_not_merge_threads_or_skip_guardian(tmp_path):
+    own = [
+        {"type": "session_meta", "ordinal": 0, "payload": {"id": "parent", "session_id": "parent"}},
+        {"type": "turn_context", "ordinal": 1, "payload": {"turn_id": "t", "model": "test"}},
+        {
+            "type": "event_msg",
+            "ordinal": 2,
+            "payload": {
+                "type": "item_completed",
+                "turn_id": "t",
+                "item": {
+                    "type": "UserMessage",
+                    "id": "u",
+                    "content": [{"type": "text", "text": "parent task"}],
+                },
+            },
+        },
+        {
+            "type": "token_usage_record",
+            "ordinal": 3,
+            "payload": {
+                "response_id": "parent-response",
+                "turn_id": "t",
+                "usage": {"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 2},
+            },
+        },
+    ]
+    child = [
+        {
+            "type": "session_meta",
+            "ordinal": 0,
+            "payload": {
+                "id": "child",
+                "session_id": "parent",
+                "parent_thread_id": "parent",
+                "source": {
+                    "subagent": {"thread_spawn": {"parent_thread_id": "parent", "depth": 1}}
+                },
+                "subagent_history_start_ordinal": 4,
+            },
+        },
+        *[{**r, "ordinal": i + 1} for i, r in enumerate(own[:3])],
+        {
+            "type": "token_usage_record",
+            "ordinal": 4,
+            "payload": {
+                "response_id": "child-response",
+                "usage": {"input_tokens": 5, "cached_input_tokens": 0, "output_tokens": 1},
+            },
+        },
+    ]
+    guardian = [
+        {
+            "type": "session_meta",
+            "ordinal": 0,
+            "payload": {
+                "id": "guardian",
+                "session_id": "parent",
+                "source": {"subagent": {"other": "guardian"}},
+                "subagent_history_start_ordinal": 2,
+            },
+        },
+        {
+            "type": "token_usage_record",
+            "ordinal": 1,
+            "payload": {
+                "response_id": "guardian-response",
+                "usage": {"input_tokens": 3, "cached_input_tokens": 0, "output_tokens": 1},
+            },
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", child, "a-child.jsonl")
+        stream(store, "codex", tmp_path / "source", own, "z-parent.jsonl")
+        stream(store, "codex", tmp_path / "source", guardian, "b-guardian.jsonl")
+        store.rebuild()
+        assert store.db.execute("SELECT COUNT(*) FROM session").fetchone()[0] == 3
+        assert store.db.execute("SELECT COUNT(*) FROM model_call").fetchone()[0] == 3
+        assert store.db.execute("SELECT COUNT(*) FROM v_analysis_model_call").fetchone()[0] == 2
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM raw_record WHERE disposition='replayed'"
+            ).fetchone()[0]
+            == 3
+        )
+        assert store.verify()["unparsed"] == 0
+
+
+def test_codex_assistant_mirrors_and_same_text_distinct_human_inputs(tmp_path):
+    rows = [
+        {"type": "session_meta", "payload": {"id": "s", "session_id": "s"}},
+        {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "t"}},
+    ]
+    for i in range(2):
+        rows.extend(
+            [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "id": f"raw-{i}",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "same task"}],
+                        "internal_chat_message_metadata_passthrough": {"turn_id": "t"},
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "item_completed",
+                        "turn_id": "t",
+                        "item": {
+                            "type": "UserMessage",
+                            "id": f"human-{i}",
+                            "content": [{"type": "text", "text": "same task"}],
+                        },
+                    },
+                },
+            ]
+        )
+    rows.extend(
+        [
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "item_completed",
+                    "turn_id": "t",
+                    "item": {
+                        "type": "AgentMessage",
+                        "id": "reply",
+                        "content": [{"type": "Text", "text": "visible reply"}],
+                    },
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "id": "reply",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "visible reply"}],
+                    "internal_chat_message_metadata_passthrough": {"turn_id": "t"},
+                },
+            },
+        ]
+    )
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", rows)
+        store.rebuild()
+        assert store.db.execute("SELECT COUNT(*) FROM v_human_message").fetchone()[0] == 2
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM event WHERE kind='message.assistant'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            store.db.execute("SELECT COUNT(*) FROM event WHERE kind='context.inject'").fetchone()[0]
+            == 0
+        )
+
+
+def test_legacy_codex_and_opencode_v2_assistant_remain_visible(tmp_path):
+    with Store(tmp_path / "data") as store:
+        stream(
+            store,
+            "codex",
+            tmp_path / "codex",
+            [
+                {"type": "session_meta", "payload": {"id": "c", "session_id": "c"}},
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "id": "a",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "legacy reply"}],
+                    },
+                },
+            ],
+        )
+        row = {
+            "table": "session_message",
+            "key": {"id": "a2"},
+            "row": {
+                "id": "a2",
+                "session_id": "s2",
+                "type": "assistant",
+                "seq": 1,
+                "data": canonical(
+                    {
+                        "content": [{"type": "text", "text": "v2 reply"}],
+                        "model": {"id": "test", "providerID": "p"},
+                        "time": {"created": 1234},
+                    }
+                ),
+            },
+        }
+        stream(store, "opencode", tmp_path / "opencode", [row], "opencode.db", "sqlite_rows")
+        store.rebuild()
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM event WHERE kind='message.assistant'"
+            ).fetchone()[0]
+            == 2
+        )

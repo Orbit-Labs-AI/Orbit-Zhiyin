@@ -133,6 +133,10 @@ class ClaudeMapper(BaseMapper):
                 },
             }
             contents = self.message(record, {"role": typ, **message}, origin=origin, **attrs)
+            if data.get("isCompactSummary"):
+                for event in contents:
+                    if event.kind == "context.inject":
+                        event.kind = "context.compaction"
             for event in contents:
                 if data.get("parentUuid"):
                     event.parent_native_key = [record.source_id, data["parentUuid"]]
@@ -163,7 +167,7 @@ class ClaudeMapper(BaseMapper):
                     event.attrs.update(
                         duration_ms=result.get("durationMs"),
                         exit_code=result.get("exitCode"),
-                        status_scope="tool",
+                        status_scope="tool_protocol",
                     )
                     denial = data.get("toolDenialKind")
                     if denial:

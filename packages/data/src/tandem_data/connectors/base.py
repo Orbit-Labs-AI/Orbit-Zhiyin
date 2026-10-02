@@ -72,6 +72,10 @@ class BaseMapper:
                     record_uid=record.record_uid,
                     detail={"exception": type(error).__name__},
                 )
+                self.store.db.execute(
+                    "UPDATE raw_record SET disposition='unparsed',note=? WHERE record_uid=?",
+                    ('{"reason":"native_preparation_error"}', record.record_uid),
+                )
 
     def native_key(self, record: RawRecord) -> list:
         native = record.data.get("uuid", record.data.get("id"))
@@ -368,7 +372,18 @@ class BaseMapper:
                         },
                     )
                 consumed = ("type", "tool_use_id", "toolCallId", "content", "is_error", "isError")
-            elif typ in ("image", "input_image", "document", "file", "audio"):
+            elif typ in (
+                "image",
+                "input_image",
+                "local_image",
+                "localImage",
+                "LocalImage",
+                "Image",
+                "document",
+                "file",
+                "audio",
+                "Audio",
+            ):
                 event = self.make(
                     record,
                     "context.inject",

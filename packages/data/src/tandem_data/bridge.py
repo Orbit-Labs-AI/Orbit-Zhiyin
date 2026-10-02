@@ -5,7 +5,6 @@ No upstream agent files are reread; the original bytes and record crosswalk are 
 """
 
 import hashlib
-from contextlib import closing
 from pathlib import Path
 
 import zstandard
@@ -19,7 +18,7 @@ def import_connector(store, connector_home: str | Path) -> dict:
     if home == store.home:
         raise ValueError("Staging and canonical database directories must differ")
     imported = skipped = 0
-    with closing(readonly_connection(home / "tandem.db")) as connection:
+    with readonly_connection(home / "tandem.db") as connection:
         connection.execute("BEGIN")
         required = {"archive_chunk", "raw_record", "source_file", "source"}
         tables = {

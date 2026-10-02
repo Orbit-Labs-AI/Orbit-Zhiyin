@@ -109,6 +109,8 @@ TOOL_KINDS = {
 
 def tool_metadata(name, attrs):
     kind = next((key for key, names in TOOL_KINDS.items() if name.lower() in names), "other")
+    if attrs.get("category") in TOOL_KINDS:
+        kind = attrs["category"]
     server, tool = attrs.get("mcp_server"), attrs.get("mcp_tool")
     if name.startswith("mcp__"):
         parts = name.split("__", 2)
@@ -549,9 +551,13 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None):
         and e["kind"] == "session.meta"
         and e["attrs"].get("time", {}).get("semantics") == "created"
     )
-    final_status = next(
-        (e["attrs"].get("status", "unknown") for e in reversed(events) if e["kind"] == "turn.end"),
-        "unknown",
+    final_boundary = next(
+        (e for e in reversed(events) if e["kind"] in ("turn.start", "turn.end")), None
+    )
+    final_status = (
+        final_boundary["attrs"].get("status", "unknown")
+        if final_boundary and final_boundary["kind"] == "turn.end"
+        else "unknown"
     )
     store.db.execute(
         "UPDATE session SET started_at=?,ended_at=?,status=? WHERE session_uid=?",

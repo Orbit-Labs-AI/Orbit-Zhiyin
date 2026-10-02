@@ -176,7 +176,7 @@ class EventDraft:
                 }
                 attrs.setdefault("artifact_body_present", None)
         if self.kind == "tool.call":
-            if "input" in attrs:
+            if attrs.get("input") is not None:
                 attrs["argument_digest"] = uid("arguments", attrs["input"])
                 attrs["argument_digest_basis"] = "canonical_json"
             attrs.setdefault("is_wrapper", attrs.get("name") in ("exec", "run_code"))

@@ -118,7 +118,7 @@ class HermesMapper(BaseMapper):
             )
             for event in events:
                 if event.kind == "tool.result":
-                    event.attrs["status_scope"] = "tool"
+                    event.attrs["status_scope"] = "tool_protocol"
                     event.attrs["effect_disposition"] = row.get("effect_disposition")
                     if display.get("interrupted"):
                         event.attrs["status"] = "interrupted"

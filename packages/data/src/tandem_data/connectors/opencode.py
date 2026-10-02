@@ -254,7 +254,7 @@ class OpenCodeMapper(BaseMapper):
                     call_id=message["callID"],
                     native_key=key,
                     text=message.get("output"),
-                    attrs={"status": "unknown", "status_scope": "command"},
+                    attrs={"status": "unknown", "status_scope": "direct_command"},
                 )
                 result.ts, result.attrs["time"] = time_fields(
                     message.get("time", {}).get("completed"),
@@ -305,7 +305,11 @@ class OpenCodeMapper(BaseMapper):
                 native_key=key,
                 call_id=block["id"],
                 text=text_content(state.get("content")) or state.get("error", {}).get("message"),
-                attrs={"status": state["status"], "status_scope": "tool", "name": block["name"]},
+                attrs={
+                    "status": state["status"],
+                    "status_scope": "tool_protocol",
+                    "name": block["name"],
+                },
                 ext=state,
             )
             result.ts, result.attrs["time"] = time_fields(
