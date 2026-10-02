@@ -22,10 +22,16 @@ from tandem_data.contract import RawRecord, canonical, now_ms, shape, uid
 PAGE_SIZE = 16384
 # Bulk imports leave B-tree pages partly empty (random-key indexes, rows that grow when the
 # reducer fills turn_uid). ``optimize`` rewrites the file once it has grown by COMPACT_GROWTH
-# since it was opened or last compacted and is at least COMPACT_MIN_BYTES, so total compaction
-# work stays within a few file sizes and small stores are never rewritten implicitly.
+# since it was opened or last compacted (always after the first import into a new store), so
+# total compaction work stays within a few file sizes.
 COMPACT_GROWTH = 1.5
-COMPACT_MIN_BYTES = 128 << 20
+# Every table and index owns at least one page (~130 objects), so 16 KiB pages cost a small
+# store ~2 MB of empty space; small stores are compacted to 4 KiB pages and move back to
+# PAGE_SIZE once they grow. The gap between the two bounds keeps a store near the boundary
+# from switching back and forth.
+SMALL_PAGE_SIZE = 4096
+SMALL_STORE_MAX_BYTES = 16 << 20
+LARGE_STORE_MIN_BYTES = 32 << 20
 
 SQL_TABLES = {
     "codex": ("threads", "thread_spawn_edges"),
@@ -793,7 +799,7 @@ class Store:
             return
         payload.collect_garbage(self.db)
         self.db.execute("PRAGMA optimize")
-        self.db.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        self.db.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchall()
         self.compact()
 
     def compact(self, *, force: bool = False) -> bool:
@@ -802,14 +808,37 @@ class Store:
             return False
         pages = self.db.execute("PRAGMA page_count").fetchone()[0]
         size = self.db.execute("PRAGMA page_size").fetchone()[0]
-        if not force and (
-            pages < COMPACT_GROWTH * self._compacted_pages or pages * size < COMPACT_MIN_BYTES
-        ):
+        target = size
+        if pages * size < SMALL_STORE_MAX_BYTES:
+            target = SMALL_PAGE_SIZE
+        elif pages * size >= LARGE_STORE_MIN_BYTES:
+            target = PAGE_SIZE
+        if not force and target == size and pages < COMPACT_GROWTH * self._compacted_pages:
             return False
-        self.db.execute("VACUUM")
-        self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        if target == size or not self._vacuum_page_size(target):
+            self.db.execute("VACUUM")
+        self.db.execute("PRAGMA main.wal_checkpoint(TRUNCATE)").fetchall()
         self._compacted_pages = self.db.execute("PRAGMA page_count").fetchone()[0]
         return True
+
+    def _vacuum_page_size(self, page_size: int) -> bool:
+        """VACUUM into a new page size; WAL stores must briefly leave WAL mode for that.
+
+        Leaving WAL needs the only connection; when a reader is open it is refused and the
+        caller falls back to a plain VACUUM with the current page size.
+        """
+        try:
+            mode = self.db.execute("PRAGMA journal_mode = DELETE").fetchall()[0][0]
+        except sqlite3.OperationalError:
+            return False
+        try:
+            if str(mode).lower() != "delete":
+                return False
+            self.db.execute(f"PRAGMA page_size = {page_size}")
+            self.db.execute("VACUUM")
+            return True
+        finally:
+            self.db.execute("PRAGMA journal_mode = WAL").fetchall()
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event
