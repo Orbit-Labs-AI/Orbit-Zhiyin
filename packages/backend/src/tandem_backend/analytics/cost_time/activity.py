@@ -10,7 +10,7 @@ from .tokens import prepare_requests
 
 
 @lru_cache(maxsize=1 << 18)
-def _local_parts(ts, zone_name):
+def local_parts(ts, zone_name):
     """(day, hour, weekday) of one timestamp; the same timestamps recur in every scope."""
     try:
         dt = datetime.fromtimestamp(ts / 1000, timezone.utc).astimezone(ZoneInfo(zone_name))
@@ -30,7 +30,7 @@ def activity(sessions, events, calls, model_calls, main_ids, scope):
                 continue
             if not scope.contains(ts):
                 continue
-            parts = _local_parts(ts, zone_name)
+            parts = local_parts(ts, zone_name)
             if parts is None:
                 unknown += 1
                 continue
