@@ -25,6 +25,16 @@ def _scan(service, roots):
     for agent, root in sorted(roots.items()):
         result = service.import_source(ImportRequest(agent, root))
         assert result["capture_errors"] == 0
+        # The memoised count must equal a fresh count after every kind of edit.
+        assert (
+            result["current_unparsed"]
+            == service.store.db.execute(
+                "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) "
+                "JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? "
+                "AND r.disposition='unparsed'",
+                (result["source_id"],),
+            ).fetchone()[0]
+        )
         if "projection" in result:
             kinds[result["projection"]["scope"]["kind"]] += 1
     return kinds
