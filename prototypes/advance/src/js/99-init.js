@@ -16,7 +16,10 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
 (function init() {
   document.documentElement.lang = 'zh-CN';
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
+  if (/^l-/.test(h)) S.ed = 'lite';
   if (PAGES[h]) S.route = h;
+  S.route = edRoute(S.route); if (!PAGES[S.route]) S.route = S.ed === 'lite' ? 'l-home' : 'overview';
+  $('#win').dataset.ed = S.ed;
   setTheme(S.theme);
   // desktop widgets sit on the desktop layer, left of the window; shown by default on stages ≥ 1500px (as published), where
   // the default window leaves the column free. 「显示 › 桌面小组件」toggles them at any size.

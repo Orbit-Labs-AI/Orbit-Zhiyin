@@ -1,0 +1,42 @@
+/* Editions: the Lite / Advance switch on top of the sidebar (a two-segment track with a sliding thumb, monochrome like every
+   other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
+   before the sidebar re-renders; the content then swaps under a View Transition (ed-side / ed-main) or the .ed-in fallback. */
+.edsw{position:relative;flex:none;display:grid;grid-template-columns:1fr 1fr;height:30px;margin:0 10px 10px;padding:2px;border-radius:9px;background:var(--field)}
+.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
+.edsw button[aria-checked="true"]{color:var(--ink-1)}
+.edsw button:hover{color:var(--ink-1)}
+.edsw-thumb{position:absolute;z-index:0;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:7px;background:var(--surface);box-shadow:var(--sh-raise);transition:transform .32s cubic-bezier(.3,1.35,.5,1)}
+.win[data-ed="advance"] .edsw-thumb{transform:translateX(100%)}
+.win[data-ed="lite"] .edsw button[data-v="lite"],.win[data-ed="advance"] .edsw button[data-v="advance"]{color:var(--ink-1)}
+.win[data-ed="lite"] .edsw button[data-v="advance"],.win[data-ed="advance"] .edsw button[data-v="lite"]{color:var(--ink-3)}
+/* Lite sidebar: four big rows (title + one-line live summary), a way back to Advance */
+.lnav{gap:4px;padding-top:2px}
+.lnav button{height:auto;min-height:48px;padding:7px 10px;gap:10px;border-radius:9px;align-items:center}
+.lnav .ln-i{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-2);transition:background .2s var(--ease),color .2s var(--ease)}
+.lnav button[aria-current="page"] .ln-i{background:var(--ink-1);color:var(--bg)}
+.lnav button[aria-current="page"] .ln-i .ico{color:inherit}
+.lnav .ln-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lnav .lb{font-size:13.5px;line-height:18px}
+.lnav .ln-s{font:11px/14px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
+.lnav .ln-k{font:10.5px var(--mono);color:var(--ink-4);opacity:0;transition:opacity .15s}
+.lnav button:hover .ln-k{opacity:1}
+.ln-more{display:flex;align-items:flex-start;gap:8px;width:100%;margin-top:14px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:transparent;color:var(--ink-3);font-size:11.5px;line-height:16px;text-align:left}
+.ln-more b{color:var(--ink-1);font-weight:600;margin-left:2px}
+.ln-more:hover{border-color:var(--ink-4)}
+.ln-more .ico{margin-top:1px;flex:none}
+/* edition swap: content gently scales + un-blurs in; the old page drifts back and blurs out */
+.win.ed-vt .main{view-transition-name:ed-main}
+.win.ed-vt .side{view-transition-name:ed-side}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-old(ed-main){animation:edOut .26s var(--ease) both}
+::view-transition-new(ed-main){animation:edIn .46s .06s var(--ease) both}
+::view-transition-old(ed-side){animation:edFade .2s ease-out both}
+::view-transition-new(ed-side){animation:edSideIn .36s var(--ease) both}
+::view-transition-group(ed-main),::view-transition-group(ed-side){animation-duration:.36s;animation-timing-function:var(--ease)}
+.main.ed-in{animation:edIn .46s var(--ease) both}
+.side.ed-in{animation:edSideIn .36s var(--ease) both}
+@keyframes edOut{to{opacity:0;transform:scale(.97);filter:blur(8px)}}
+@keyframes edIn{from{opacity:0;transform:scale(1.025) translateY(10px);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+@keyframes edFade{to{opacity:0}}
+@keyframes edSideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.edsw-thumb{transition:none}.main.ed-in,.side.ed-in{animation:none}}

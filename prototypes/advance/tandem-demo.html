@@ -202,6 +202,49 @@ svg{display:block}
 .rz[data-rz="se"]{right:0;bottom:0;width:10px;height:10px;cursor:nwse-resize}
 .win:not([data-mode="win"]) .rz{display:none}
 
+/* Editions: the Lite / Advance switch on top of the sidebar (a two-segment track with a sliding thumb, monochrome like every
+   other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
+   before the sidebar re-renders; the content then swaps under a View Transition (ed-side / ed-main) or the .ed-in fallback. */
+.edsw{position:relative;flex:none;display:grid;grid-template-columns:1fr 1fr;height:30px;margin:0 10px 10px;padding:2px;border-radius:9px;background:var(--field)}
+.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
+.edsw button[aria-checked="true"]{color:var(--ink-1)}
+.edsw button:hover{color:var(--ink-1)}
+.edsw-thumb{position:absolute;z-index:0;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:7px;background:var(--surface);box-shadow:var(--sh-raise);transition:transform .32s cubic-bezier(.3,1.35,.5,1)}
+.win[data-ed="advance"] .edsw-thumb{transform:translateX(100%)}
+.win[data-ed="lite"] .edsw button[data-v="lite"],.win[data-ed="advance"] .edsw button[data-v="advance"]{color:var(--ink-1)}
+.win[data-ed="lite"] .edsw button[data-v="advance"],.win[data-ed="advance"] .edsw button[data-v="lite"]{color:var(--ink-3)}
+/* Lite sidebar: four big rows (title + one-line live summary), a way back to Advance */
+.lnav{gap:4px;padding-top:2px}
+.lnav button{height:auto;min-height:48px;padding:7px 10px;gap:10px;border-radius:9px;align-items:center}
+.lnav .ln-i{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-2);transition:background .2s var(--ease),color .2s var(--ease)}
+.lnav button[aria-current="page"] .ln-i{background:var(--ink-1);color:var(--bg)}
+.lnav button[aria-current="page"] .ln-i .ico{color:inherit}
+.lnav .ln-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lnav .lb{font-size:13.5px;line-height:18px}
+.lnav .ln-s{font:11px/14px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
+.lnav .ln-k{font:10.5px var(--mono);color:var(--ink-4);opacity:0;transition:opacity .15s}
+.lnav button:hover .ln-k{opacity:1}
+.ln-more{display:flex;align-items:flex-start;gap:8px;width:100%;margin-top:14px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:transparent;color:var(--ink-3);font-size:11.5px;line-height:16px;text-align:left}
+.ln-more b{color:var(--ink-1);font-weight:600;margin-left:2px}
+.ln-more:hover{border-color:var(--ink-4)}
+.ln-more .ico{margin-top:1px;flex:none}
+/* edition swap: content gently scales + un-blurs in; the old page drifts back and blurs out */
+.win.ed-vt .main{view-transition-name:ed-main}
+.win.ed-vt .side{view-transition-name:ed-side}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-old(ed-main){animation:edOut .26s var(--ease) both}
+::view-transition-new(ed-main){animation:edIn .46s .06s var(--ease) both}
+::view-transition-old(ed-side){animation:edFade .2s ease-out both}
+::view-transition-new(ed-side){animation:edSideIn .36s var(--ease) both}
+::view-transition-group(ed-main),::view-transition-group(ed-side){animation-duration:.36s;animation-timing-function:var(--ease)}
+.main.ed-in{animation:edIn .46s var(--ease) both}
+.side.ed-in{animation:edSideIn .36s var(--ease) both}
+@keyframes edOut{to{opacity:0;transform:scale(.97);filter:blur(8px)}}
+@keyframes edIn{from{opacity:0;transform:scale(1.025) translateY(10px);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+@keyframes edFade{to{opacity:0}}
+@keyframes edSideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.edsw-thumb{transition:none}.main.ed-in,.side.ed-in{animation:none}}
+
 /* primitives: three button tiers (filled .p / bordered / plain .gh), 24px controls (20px .sm, 28px in the toolbar), 6px radius,
    ink (--pri / --ink-1) for the filled button, switch, selected filter token and count badge — one colour, as in the
    published demo; checkboxes / radios take the same ink through accent-color; AI purple only on .ai / .aib.
@@ -1986,8 +2029,15 @@ new MutationObserver(() => overlayPlace()).observe($('#overlay'), { attributes: 
 /* ============ navigation & render ============ */
 const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sessions', '会话与轨迹'], ['tools', '工具调用'], ['projects', '项目习惯'], ['sentiment', '情绪与语义'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
 const PAGES = {};
+// RENDER_HOOKS: fn(mainEl, entered) after every page render; entered = true only when go() changed the page (route enter
+// motion runs once per visit, not on every filter re-render). go() also translates a route to the current edition
+// (edRoute in 26-edition.js), so links such as go('persona') land on the Lite page while Lite is active.
+const RENDER_HOOKS = [];
+let ROUTE_ENTER = false;
 function go(route, keepScroll) {
-  if (!PAGES[route]) route = 'overview';
+  route = edRoute(route);
+  if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
+  if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
   render();
@@ -2006,6 +2056,8 @@ function renderMain() {
   const nc = $('#content'); if (nc) nc.scrollTop = top;
   tbarFit();
   if (PAGES[S.route].after) PAGES[S.route].after();
+  const entered = ROUTE_ENTER; ROUTE_ENTER = false;
+  RENDER_HOOKS.forEach((fn) => { try { fn(m, entered); } catch (e) { console.error(e); } });
 }
 /* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
    then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. The page title never
@@ -2051,6 +2103,7 @@ function renderWtop() {
 /* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
    redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
 function renderSide() {
+  if (S.ed === 'lite') { renderSideLite(); return; }
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
@@ -2058,14 +2111,17 @@ function renderSide() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
   const agents = AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
   const pins = ['confluo', 'latentskill', 'teamhub'].map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join('');
-  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
-  const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
-  $('#side').innerHTML = '<div class="sb-scroll">' +
+  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
     group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', 9) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', agents, '会话') +
-    group('pins', '置顶项目', pins) + '</div>' +
-    '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
+    group('pins', '置顶项目', pins) + '</div>' + sideFoot();
+}
+// the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
+function sideFoot() {
+  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
+  const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
+  return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
     '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
     '<div class="me"><span class="av" aria-hidden="true">yh</span><div style="flex:1;min-width:0"><div class="nm">yhyfhgs</div><div class="mono cap pc">' + (me.ok ? me.code + ' · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
@@ -2096,6 +2152,68 @@ function filterRow(right) {
 function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
 function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }
 
+/* ============ editions: Lite / Advance in one app ============ */
+// One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
+// benchmark, cut down to four pages with one big idea each. S.ed is persisted ('edition'); the switch sits on top of the
+// sidebar (also 「显示」menu, command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls
+// go('persona') lands on the matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
+// Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
+S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
+const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
+const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs', library: 'l-recs', studio: 'l-recs', tools: 'l-home', projects: 'l-home', sentiment: 'l-home' };
+const TO_ADV = { 'l-home': 'overview', 'l-persona': 'persona', 'l-sessions': 'sessions', 'l-recs': 'recs' };
+const ED_NAME = { lite: 'Lite', advance: 'Advance' };
+function navRoutes() { return S.ed === 'lite' ? LITE_ROUTES : ROUTES; }
+function edRoute(route, ed) {
+  ed = ed || S.ed;
+  if (ed === 'lite') return TO_LITE[route] || route;
+  return TO_ADV[route] || route;
+}
+function edSwitch() {
+  const b = (ed, hint) => '<button type="button" role="radio" data-act="edition" data-v="' + ed + '" aria-checked="' + (S.ed === ed) + '" data-tip="' + hint + '">' + ED_NAME[ed] + '</button>';
+  return '<div class="edsw" role="radiogroup" aria-label="界面版本" aria-keyshortcuts="Control+Meta+L"><span class="edsw-thumb" aria-hidden="true"></span>' +
+    b('lite', 'Lite：四页，只看最重要的结论 ' + kb('⌃⌘L')) + b('advance', 'Advance：全部页面、筛选与工具 ' + kb('⌃⌘L')) + '</div>';
+}
+function renderSideLite() {
+  const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
+  const n = sel({ noExtra: true }).length;
+  const sub = { 'l-home': rangeLabel() + ' · ' + n + ' 个会话', 'l-persona': (personaNow().ok ? personaNow().code + ' · ' + personaNow().zh : '样本不足'), 'l-sessions': '关键任务与时间线', 'l-recs': recN + ' 条待处理' };
+  const items = LITE_ROUTES.map((r, i) => '<button type="button" data-act="go" data-r="' + r[0] + '"' + (S.route === r[0] ? ' aria-current="page"' : '') + '><span class="ln-i">' + ic(r[2], 17) + '</span><span class="ln-t"><span class="lb">' + r[1] + '</span><span class="ln-s">' + esc(sub[r[0]]) + '</span></span><span class="ln-k">' + kb('⌥' + (i + 1)) + '</span></button>').join('');
+  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll"><div class="nav lnav">' + items + '</div>' +
+    '<button type="button" class="ln-more" data-act="edition" data-v="advance">' + ic('grid', 14) + '<span>需要明细、筛选与工具？<b>切到 Advance</b></span></button></div>' + sideFoot();
+}
+function edSet(ed) {
+  if (ed !== 'lite' && ed !== 'advance') return;
+  if (ed === S.ed) return;
+  const target = edRoute(S.route, ed);
+  const win = $('#win');
+  const swap = () => { S.ed = ed; store.set('edition', ed); win.dataset.ed = ed; closeDD(); go(target); };
+  const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  win.dataset.ed = ed;   // the existing thumb slides now; the content follows once it has moved
+  if (reduce) { swap(); return; }
+  setTimeout(() => {
+    if (typeof document.startViewTransition === 'function') {
+      win.classList.add('ed-vt');
+      let vt = null;
+      try { vt = document.startViewTransition(swap); } catch (e) { swap(); }
+      const done = () => win.classList.remove('ed-vt');
+      if (vt && vt.finished) vt.finished.then(done, done); else done();
+    } else {
+      swap();
+      const m = $('#main'), sd = $('#side');
+      [m, sd].forEach((el) => { el.classList.remove('ed-in'); void el.offsetWidth; el.classList.add('ed-in'); });
+    }
+  }, 170);
+}
+function edToggle() { edSet(S.ed === 'lite' ? 'advance' : 'lite'); }
+// Lite → Advance detail: switch edition, then open the given Advance route (e.g. a session, a tool table)
+function edOpen(route) { if (S.ed === 'lite') { const w = $('#win'); w.dataset.ed = 'advance'; S.ed = 'advance'; store.set('edition', 'advance'); } go(route); }
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey && e.metaKey && e.code === 'KeyL')) return;
+  if (!$('#overlay').hidden || !$('#modal').hidden) return;
+  e.preventDefault(); edToggle();
+});
+
 /* ============ actions ============ */
 const ACT = {};
 document.addEventListener('click', (e) => {
@@ -2115,6 +2233,8 @@ function editCmd(c) { toast(({ cut: '剪切', copy: '拷贝', paste: '粘贴', s
 function findCmd() { const q = $('#sessQ') || $('#libQ'); if (q) { q.focus(); q.select(); } else openPalette(); }
 Object.assign(ACT, {
   go: (el) => go(el.dataset.r),
+  edition: (el) => edSet(el.dataset.v),
+  edOpen: (el) => edOpen(el.dataset.r),
   sideToggle: () => toggleSide(),
   sideScrim: () => { S.sideOver = false; applyWin(); renderWtop(); },
   sideGroup: (el) => { const g = el.dataset.g; S.sideOpen[g] = S.sideOpen[g] === false; saveSide(); renderSide(); },
@@ -2161,8 +2281,8 @@ const MENUS = {
   app: () => [{ t: '关于 Tandem', v: () => openAbout() }, { sep: 1 }, { t: '设置…', k: '⌘,', v: () => openSettings() }, { sep: 1 }, { t: S.paused ? '恢复采集' : '暂停采集', v: () => { S.paused = !S.paused; render(); toast(S.paused ? '已暂停采集，菜单栏图标不再显示状态角标' : '已恢复采集'); } }, { sep: 1 }, { t: '服务', sub: 1, v: demoOnly }, { sep: 1 }, { t: '隐藏 Tandem', k: '⌘H', v: () => ACT.winMin() }, { t: '隐藏其他', k: '⌥⌘H', v: demoOnly }, { t: '全部显示', v: () => showMain() }, { sep: 1 }, { t: '退出 Tandem', k: '⌘Q', v: () => toast('这是 Demo：退出不可用') }],
   file: () => [{ t: '导出报告…', k: '⇧⌘E', v: () => openReport() }, { t: '导出分享卡…', k: '⇧⌘S', v: () => openShare() }, { t: '导出工具明细 CSV…', v: () => openCSV() }, { sep: 1 }, { t: '关闭窗口', k: '⌘W', v: () => ACT.winClose() }],
   edit: () => [{ t: '撤销', k: '⌘Z', v: () => undoInstall() }, { t: '重做', k: '⇧⌘Z', dis: true }, { sep: 1 }, { t: '剪切', k: '⌘X', v: () => editCmd('cut') }, { t: '拷贝', k: '⌘C', v: () => editCmd('copy') }, { t: '粘贴', k: '⌘V', v: () => editCmd('paste') }, { t: '全选', k: '⌘A', v: () => editCmd('selectAll') }, { sep: 1 }, { t: '查找…', k: '⌘F', v: () => findCmd() }],
-  view: () => [{ h: '外观' }, { t: '跟随系统', on: S.theme === 'system', v: () => { setTheme('system'); render(); } }, { t: '浅色', on: S.theme === 'light', v: () => { setTheme('light'); render(); } }, { t: '深色', on: S.theme === 'dark', v: () => { setTheme('dark'); render(); } }, { sep: 1 }, { t: '悬浮组件', k: '⌥⌘P', on: S.hud.show, v: () => toggleHud() }, { t: '桌面小组件', on: S.widgets, v: () => { S.widgets = !S.widgets; render(); } }, { t: (winNarrow() ? S.sideOver : S.side) ? '隐藏侧边栏' : '显示侧边栏', k: '⌃⌘S', v: () => toggleSide() }, { sep: 1 }, { t: S.win.full ? '退出全屏' : '进入全屏', k: '⌃⌘F', v: () => winFullToggle() }],
-  window: () => [{ t: '最小化', k: '⌘M', v: () => ACT.winMin() }, { t: S.win.zoom ? '恢复缩放' : '缩放', v: () => winZoomToggle() }, { sep: 1 }, { t: '主窗口', k: kb('⌥0'), on: !S.winGone, v: () => showMain() }, { t: '命令面板', k: '⌘K', v: () => openPalette() }, { t: '设置', k: '⌘,', v: () => openSettings() }, { sep: 1 }].concat(ROUTES.map((r, i) => ({ t: r[1], k: kb('⌥' + (i + 1)), on: S.route === r[0], v: () => go(r[0]) }))),
+  view: () => [{ h: '外观' }, { t: '跟随系统', on: S.theme === 'system', v: () => { setTheme('system'); render(); } }, { t: '浅色', on: S.theme === 'light', v: () => { setTheme('light'); render(); } }, { t: '深色', on: S.theme === 'dark', v: () => { setTheme('dark'); render(); } }, { sep: 1 }, { t: '悬浮组件', k: '⌥⌘P', on: S.hud.show, v: () => toggleHud() }, { t: '桌面小组件', on: S.widgets, v: () => { S.widgets = !S.widgets; render(); } }, { t: S.ed === 'lite' ? '切换到 Advance' : '切换到 Lite', k: '⌃⌘L', v: () => edToggle() }, { t: (winNarrow() ? S.sideOver : S.side) ? '隐藏侧边栏' : '显示侧边栏', k: '⌃⌘S', v: () => toggleSide() }, { sep: 1 }, { t: S.win.full ? '退出全屏' : '进入全屏', k: '⌃⌘F', v: () => winFullToggle() }],
+  window: () => [{ t: '最小化', k: '⌘M', v: () => ACT.winMin() }, { t: S.win.zoom ? '恢复缩放' : '缩放', v: () => winZoomToggle() }, { sep: 1 }, { t: '主窗口', k: kb('⌥0'), on: !S.winGone, v: () => showMain() }, { t: '命令面板', k: '⌘K', v: () => openPalette() }, { t: '设置', k: '⌘,', v: () => openSettings() }, { sep: 1 }].concat(navRoutes().map((r, i) => ({ t: r[1], k: kb('⌥' + (i + 1)), on: S.route === r[0], v: () => go(r[0]) }))),
   help: () => [{ t: '键盘快捷键', k: '?', v: () => openKeys() }, { t: '重新播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '关于这个 Demo', v: () => openAbout() }],
   demo: () => [{ h: '模拟事件（会触发通知、菜单栏与悬浮组件）' }, { t: '会话完成', v: () => simEvent('done') }, { t: '有会话等你确认', v: () => simEvent('waiting') }, { t: '同一命令连续失败', v: () => simEvent('stuck') }, { t: '上下文即将压缩', v: () => simEvent('ctx') }, { t: '每周报告已生成', v: () => simEvent('weekly') }, { t: '发现新的数据来源', v: () => simEvent('newsrc') }, { sep: 1 }, { t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '重置演示数据', v: () => resetDemo() }]
 };
@@ -3508,6 +3628,12 @@ VZ.types.minimap = {
   },
   table(spec) { const F = VZ.types.minimap.frame(spec, 600, 28); const ft = VZ.tfmt(spec, F); return { cols: ['时间段', '事件', '失败', '你的消息'], rows: VZ.types.minimap.bins(spec, F).map((b) => [ft(b.t0) + ' – ' + ft(b.t1), String(b.n), String(b.err), String(b.user)]) }; }
 };
+
+/* ============ Lite edition pages (l-home / l-persona / l-sessions / l-recs) ============ */
+// Placeholder pages; the Lite design lands here (owned by the Lite task).
+LITE_ROUTES.forEach((r) => {
+  PAGES[r[0]] = () => tbar(r[1], rangeLabel()) + '<div class="content" id="content"><div class="card pad" style="margin-top:16px">Lite · ' + r[1] + '</div></div>';
+});
 
 /* ============ A1 overview ============
  * 结构：先下结论（AI 解读 + 三栏微型证据）→ 五张指标卡（环比三件套 + 极性着色 + 带周期的迷你线）→ 会话结果构成
@@ -5132,6 +5258,7 @@ function palActions() {
     { t: '重新索引', k: kb('⌥R'), icon: 'sync', run: () => reindex() },
     { t: (S.hud.show ? '隐藏' : '显示') + '悬浮组件', k: kb('⌥⌘P'), icon: 'eye', run: () => toggleHud() },
     { t: '打开菜单栏面板', k: kb('⌃⌥T'), icon: 'bell', run: () => { S.pop = true; render(); } },
+    { t: S.ed === 'lite' ? '切换到 Advance（完整明细）' : '切换到 Lite（只看结论）', icon: 'grid', run: () => edToggle() },
     { t: (S.widgets ? '隐藏' : '显示') + '桌面小组件', icon: 'grid', run: () => { S.widgets = !S.widgets; render(); } },
     { t: '播放人格揭晓', icon: 'persona', run: () => openReveal() },
     { t: '播放首次启动', icon: 'spark', run: () => openOnboarding(0) },
@@ -5144,7 +5271,7 @@ function palItems(q) {
   q = q.trim().toLowerCase();
   const m = (t) => !q || String(t).toLowerCase().includes(q);
   const out = [];
-  ROUTES.forEach((r, i) => { if (m(r[1]) || m(r[0])) out.push({ g: '页面', t: r[1], k: kb('⌥' + (i + 1)), icon: r[0], run: () => go(r[0]) }); });
+  navRoutes().forEach((r, i) => { if (m(r[1]) || m(r[0])) out.push({ g: '页面', t: r[1], k: kb('⌥' + (i + 1)), icon: r[2] || r[0], run: () => go(r[0]) }); });
   if (q) PJ.forEach((p) => { if (m(p.name) || m(p.path)) out.push({ g: '项目', t: p.name, sub: p.path, icon: 'projects', run: () => { S.proj.sel = p.id; go('projects'); } }); });
   ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id) && (q ? m(s.title) || m(PJI[s.p].name) : s.d >= 119)).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
     .forEach((s) => out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => ACT.openSession({ dataset: { id: s.id } }) }));
@@ -6071,7 +6198,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && e.key === 'Enter') { e.preventDefault(); mainAction(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyM' && !typing) { e.preventDefault(); ACT.winMin(); return; }
   if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); goBack(); return; }
-  if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); go(ROUTES[+e.code.slice(5) - 1][0]); return; }
+  if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); return; }
   if (e.altKey && !mod && e.code === 'Digit0') { e.preventDefault(); showMain(); return; }
   if (e.altKey && !mod && e.code === 'KeyR') { e.preventDefault(); reindex(); return; }
   if (e.altKey && !mod && e.code === 'KeyT') { e.preventDefault(); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
@@ -6098,7 +6225,10 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
 (function init() {
   document.documentElement.lang = 'zh-CN';
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
+  if (/^l-/.test(h)) S.ed = 'lite';
   if (PAGES[h]) S.route = h;
+  S.route = edRoute(S.route); if (!PAGES[S.route]) S.route = S.ed === 'lite' ? 'l-home' : 'overview';
+  $('#win').dataset.ed = S.ed;
   setTheme(S.theme);
   // desktop widgets sit on the desktop layer, left of the window; shown by default on stages ≥ 1500px (as published), where
   // the default window leaves the column free. 「显示 › 桌面小组件」toggles them at any size.

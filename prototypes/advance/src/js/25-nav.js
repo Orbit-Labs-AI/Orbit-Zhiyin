@@ -1,8 +1,15 @@
 /* ============ navigation & render ============ */
 const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sessions', '会话与轨迹'], ['tools', '工具调用'], ['projects', '项目习惯'], ['sentiment', '情绪与语义'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
 const PAGES = {};
+// RENDER_HOOKS: fn(mainEl, entered) after every page render; entered = true only when go() changed the page (route enter
+// motion runs once per visit, not on every filter re-render). go() also translates a route to the current edition
+// (edRoute in 26-edition.js), so links such as go('persona') land on the Lite page while Lite is active.
+const RENDER_HOOKS = [];
+let ROUTE_ENTER = false;
 function go(route, keepScroll) {
-  if (!PAGES[route]) route = 'overview';
+  route = edRoute(route);
+  if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
+  if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
   render();
@@ -21,6 +28,8 @@ function renderMain() {
   const nc = $('#content'); if (nc) nc.scrollTop = top;
   tbarFit();
   if (PAGES[S.route].after) PAGES[S.route].after();
+  const entered = ROUTE_ENTER; ROUTE_ENTER = false;
+  RENDER_HOOKS.forEach((fn) => { try { fn(m, entered); } catch (e) { console.error(e); } });
 }
 /* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
    then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. The page title never
@@ -66,6 +75,7 @@ function renderWtop() {
 /* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
    redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
 function renderSide() {
+  if (S.ed === 'lite') { renderSideLite(); return; }
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
@@ -73,14 +83,17 @@ function renderSide() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
   const agents = AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
   const pins = ['confluo', 'latentskill', 'teamhub'].map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join('');
-  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
-  const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
-  $('#side').innerHTML = '<div class="sb-scroll">' +
+  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
     group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', 9) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', agents, '会话') +
-    group('pins', '置顶项目', pins) + '</div>' +
-    '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
+    group('pins', '置顶项目', pins) + '</div>' + sideFoot();
+}
+// the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
+function sideFoot() {
+  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
+  const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
+  return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
     '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
     '<div class="me"><span class="av" aria-hidden="true">yh</span><div style="flex:1;min-width:0"><div class="nm">yhyfhgs</div><div class="mono cap pc">' + (me.ok ? me.code + ' · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
