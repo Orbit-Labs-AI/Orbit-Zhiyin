@@ -1,0 +1,24 @@
+/* A2 persona: low-sample relax chips, fingerprint v2 (radar core / rhythm band / stacked density ring), axis evidence grid, fit rows */
+.pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
+.pe-relax{display:flex;gap:6px;flex-wrap:wrap}
+.pe-relax .chip b{margin-left:6px;font-size:11px}
+.fp2 .fps path{transition:opacity .15s}
+.fp2 .fps{cursor:pointer;outline:none}
+.fp2 .fps.dim{opacity:.3}
+.fp2 .fps:hover path,.fp2 .fps:focus-visible path{filter:brightness(1.12)}
+.fp2 .fps.sel path:first-child{fill:var(--field);stroke:var(--ink-1);stroke-width:1.5}
+.fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
+.fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
+.pe-fp-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--ink-2);margin-top:4px}
+.pe-evo{margin-top:12px}
+.pe-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair)}
+.pe-evi{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pe-evi .cap{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pe-fit{display:flex;flex-direction:column;gap:3px;border:0;background:none;padding:0;text-align:left;width:100%;color:inherit;border-radius:6px}
+.pe-fit.off{opacity:.6}
+.pe-fit-bar{position:relative;height:6px;border-radius:3px;background:var(--sunken);display:block;width:100%}
+.pe-fit-bar .fill{position:absolute;left:0;top:0;height:6px;border-radius:0 3px 3px 0;background:var(--ink-3)}
+.pe-fit-bar .ci{position:absolute;top:2px;height:2px;border-radius:1px;background:var(--ink-1);opacity:.55}
+.pe-evl{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@container main (max-width:1100px){.letters .L{font-size:72px}.persona-hero{grid-template-columns:minmax(0,1fr) 380px}}
+@container main (max-width:639px){.pe-ev{grid-template-columns:minmax(0,1fr)}}
