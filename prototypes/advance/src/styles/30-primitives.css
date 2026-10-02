@@ -7,7 +7,7 @@
 .pad{padding:14px 16px}
 .ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .cap{font-size:12px;line-height:16px;color:var(--ink-3)}
-.eb{font:600 11px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.eb{font:600 11px/14px var(--mono);letter-spacing:.08em;word-spacing:-.25em;text-transform:uppercase;color:var(--ink-3)}
 .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .hd .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}

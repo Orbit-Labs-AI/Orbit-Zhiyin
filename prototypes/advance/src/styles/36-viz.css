@@ -23,9 +23,9 @@
 .vz-svg .vz-lbl,.vz-svg .vz-nlbl,.vz-svg .vz-span-lbl,.vz-svg .vz-callout{font-size:11px;fill:var(--ink-2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .vz-svg .vz-callout{fill:var(--ink-1)}
 .vz-svg .vz-nlbl{fill:var(--ink-1)}
-.vz-svg .vz-span-lbl{font-size:10.5px;fill:var(--ink-1)}
-.vz-svg .vz-inbar{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:#fff}
-.vz-svg .vz-cv{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
+.vz-svg .vz-span-lbl{font-size:11px;fill:var(--ink-1)}
+.vz-svg .vz-inbar{font-size:10px;font-family:var(--mono);font-weight:600;fill:#fff}
+.vz-svg .vz-cv{font-size:10px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
 .vz-svg .vz-cv.on{fill:var(--bg)}
 .vz-svg .vz-ct-svg{font-size:12px;font-weight:600;fill:var(--ink-1)}
 .vz-grid{stroke:var(--hair);stroke-width:1;fill:none}
@@ -139,11 +139,11 @@
 .vz-tk{width:12px;height:2px;border-radius:1px;background:var(--c);flex:none}
 .vz-tk.rect{width:10px;height:10px;border-radius:2px}
 .vz-tv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
-.vz-tn{color:var(--ink-3);font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12.5px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
+.vz-tn{color:var(--ink-3);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
 .vz-empty-ic{stroke:var(--ink-4);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .vz-low b{display:block;color:var(--ink-1);font-size:13px}
-.vz-low .cap{display:block;font-size:11.5px}
+.vz-low .cap{display:block;font-size:12px}
 .vz-ring-bg{fill:none;stroke:var(--line);stroke-width:4}
 .vz-ring{fill:none;stroke:var(--ink-1);stroke-width:4;stroke-linecap:round}
 .vz-scale{display:flex;align-items:center;gap:3px;margin-top:8px;font-size:11px;flex-wrap:wrap}
