@@ -296,6 +296,16 @@ def _render_block(target: dict, current: bytes | None) -> dict:
         if existing.rstrip("\n") == block.rstrip("\n"):
             return {"new": current or b"", "status": "noop", "applied": applied}
         raise OpConflict("block_exists_different", detail={"block_id": block_id})
+    top = action == "toml_block" and target.get("position") == "top"
+    if top:  # root keys (Codex ``notify``) must precede every table
+        sep = "\n" if text.strip() else ""
+        applied.update(position="top", sep=sep)
+        new = block + sep + text
+        try:
+            tomllib.loads(new)
+        except tomllib.TOMLDecodeError as exc:
+            raise OpConflict("toml_invalid", str(exc)) from None
+        return {"new": new.encode(), "status": "create" if current is None else "modify", "applied": applied}
     if action == "toml_block":
         try:
             parsed = tomllib.loads(text)
@@ -339,7 +349,10 @@ def _unrender_block(applied: dict, current: bytes) -> dict:
     if sha256(text[start:end].encode()) != applied.get("block_sha256"):
         return {"status": "modified", "new": None, "delete": False}
     sep = applied.get("sep") or ""
-    if sep and text[:start].endswith(sep):
+    if applied.get("position") == "top":
+        if sep and text[end:].startswith(sep):
+            end += len(sep)
+    elif sep and text[:start].endswith(sep):
         start -= len(sep)
     new = text[:start] + text[end:]
     if applied.get("created_file") and not new.strip():
@@ -424,6 +437,8 @@ def reconstruct(applied: dict, base: bytes | None) -> bytes | None:
             t = {"action": "merge_json", "pointer": applied.get("pointer"),
                  "content": applied.get("added"), "write_mode": "set"}
             return _render_json(t, base)["new"]
+        if kind == "toml_block" and applied.get("position") == "top" and applied.get("block") is not None:
+            return (applied["block"] + (applied.get("sep") or "") + _text(base)).encode()
         if kind in ("md_block", "toml_block") and applied.get("block") is not None:
             return (_text(base) + (applied.get("sep") or "") + applied["block"]).encode()
     except OpConflict:
