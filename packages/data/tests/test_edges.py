@@ -735,3 +735,81 @@ def test_codex_completed_tools_and_compaction_have_canonical_destinations(tmp_pa
             store.db.execute("SELECT count(*) FROM event WHERE kind='plan.update'").fetchone()[0]
             == 1
         )
+
+
+def test_codex_approvals_link_to_their_tool_calls(tmp_path):
+    """exec / apply_patch approvals carry call_id + decision into L2 and land on the
+    tool_call (approval, approval_wait_ms) whether they precede or follow the call."""
+
+    def at(second, row):
+        return {**row, "timestamp": f"2026-09-01T10:00:{second:02d}Z"}
+
+    def msg(second, **payload):
+        return at(second, {"type": "event_msg", "payload": payload})
+
+    def item(second, **body):
+        return msg(second, type="item_completed", turn_id="t", item=body)
+
+    rows = [
+        at(0, {"type": "session_meta", "payload": {"id": "s", "session_id": "s", "cwd": "/w"}}),
+        msg(0, type="task_started", turn_id="t"),
+        at(0, {"type": "turn_context", "payload": {"turn_id": "t", "model": "test"}}),
+        # 1) Decision before the completed CommandExecution item (synthetic rollout order).
+        msg(1, type="exec_approval_request", call_id="c1", turn_id="t", command=["ls", "-la"]),
+        msg(5, type="exec_approval_response", call_id="c1", decision="approved"),
+        item(6, type="CommandExecution", id="c1", command=["ls", "-la"], status="completed",
+             exit_code=0, aggregated_output="ok"),
+        # 2) Call first, then a sub-command approval with an externally tagged decision.
+        at(10, {"type": "response_item", "payload": {"type": "function_call", "call_id": "c2",
+                                                     "name": "exec_command",
+                                                     "arguments": '{"cmd": "make"}'}}),
+        msg(11, type="exec_approval_request", call_id="c2", approval_id="a2", turn_id="t",
+            command=["make"]),
+        msg(13, type="exec_approval_response", call_id="c2", approval_id="a2",
+            decision={"approved_execpolicy_amendment": {"proposed_execpolicy_amendment": []}}),
+        at(14, {"type": "response_item", "payload": {"type": "function_call_output",
+                                                     "call_id": "c2", "output": "built"}}),
+        # 3) Patch approval denied.
+        msg(20, type="apply_patch_approval_request", call_id="p1", turn_id="t", changes={}),
+        msg(27, type="apply_patch_approval_response", call_id="p1", decision="denied"),
+        item(28, type="FileChange", id="p1", status="failed", changes={}),
+        # 4) No approval at all.
+        item(30, type="CommandExecution", id="c3", command=["pwd"], status="completed",
+             exit_code=0, aggregated_output="/w"),
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", rows)
+        store.rebuild()
+        assert store.verify()["unparsed"] == 0
+        events = store.db.execute(
+            "SELECT kind, call_id, json_extract(attrs,'$.permission_id') AS pid, "
+            "json_extract(attrs,'$.decision') AS decision FROM event "
+            "WHERE kind LIKE 'permission.%' ORDER BY seq"
+        ).fetchall()
+        assert [tuple(e) for e in events] == [
+            ("permission.request", "c1", "c1", None),
+            ("permission.decision", "c1", "c1", "approved"),
+            ("permission.request", "c2", "a2", None),
+            ("permission.decision", "c2", "a2", "approved_execpolicy_amendment"),
+            ("permission.request", "p1", "p1", None),
+            ("permission.decision", "p1", "p1", "denied"),
+        ]
+        tools = {
+            r["native_call_id"]: r
+            for r in store.db.execute(
+                "SELECT native_call_id, approval, approval_wait_ms, call_uid FROM tool_call"
+            )
+        }
+        assert set(tools) == {"c1", "c2", "p1", "c3"}
+        assert (tools["c1"]["approval"], tools["c1"]["approval_wait_ms"]) == ("approved", 4000)
+        assert (tools["c2"]["approval"], tools["c2"]["approval_wait_ms"]) == (
+            "approved_execpolicy_amendment",
+            2000,
+        )
+        assert (tools["p1"]["approval"], tools["p1"]["approval_wait_ms"]) == ("denied", 7000)
+        assert tools["c3"]["approval"] is None and tools["c3"]["approval_wait_ms"] is None
+        roles = store.db.execute(
+            "SELECT role, count(*) FROM tool_call_event WHERE role LIKE 'permission.%' "
+            "GROUP BY role ORDER BY role"
+        ).fetchall()
+        assert [tuple(r) for r in roles] == [("permission.decision", 3), ("permission.request", 3)]
