@@ -7,10 +7,18 @@
 // Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
 S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
 const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
-const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs', library: 'l-recs', studio: 'l-recs', tools: 'l-home', projects: 'l-home', sentiment: 'l-home' };
+const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs' };
 const TO_ADV = { 'l-home': 'overview', 'l-persona': 'persona', 'l-sessions': 'sessions', 'l-recs': 'recs' };
 const ED_NAME = { lite: 'Lite', advance: 'Advance' };
 function navRoutes() { return S.ed === 'lite' ? LITE_ROUTES : ROUTES; }
+// A page Lite does not have (tools, projects, sentiment, library, studio) is a request for detail: go() switches to Advance
+// and says so, instead of dropping the user on the Lite overview.
+function edFollow(route) {
+  if (S.ed !== 'lite' || TO_LITE[route] || /^l-/.test(route) || !ROUTES.some((r) => r[0] === route)) return;
+  S.ed = 'advance'; store.set('edition', 'advance'); $('#win').dataset.ed = 'advance';
+  const name = ROUTES.find((r) => r[0] === route)[1];
+  setTimeout(() => toast('「' + name + '」在 Advance 中，已切换到 Advance', { act: '回到 Lite', sec: 5, onAct: () => edSet('lite') }), 0);
+}
 function edRoute(route, ed) {
   ed = ed || S.ed;
   if (ed === 'lite') return TO_LITE[route] || route;

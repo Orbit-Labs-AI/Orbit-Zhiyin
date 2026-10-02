@@ -7,7 +7,7 @@ const PAGES = {};
 const RENDER_HOOKS = [];
 let ROUTE_ENTER = false;
 function go(route, keepScroll) {
-  route = edRoute(route);
+  edFollow(route); route = edRoute(route);
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
   if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
