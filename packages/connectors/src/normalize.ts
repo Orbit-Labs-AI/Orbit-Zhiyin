@@ -74,6 +74,11 @@ interface Context {
 }
 const nonNull = (value: Record<string,Json|undefined>): Obj => Object.fromEntries(Object.entries(value).filter(([,v])=>v!==null&&v!==undefined)) as Obj;
 function bodyOf(row: RawRecord): Obj { return row.body ? object(JSON.parse(row.body)) : {}; }
+function clearProjection(store:ConnectorStore,session:string):void {
+  store.db.prepare('DELETE FROM record_event WHERE event_uid IN (SELECT event_uid FROM event WHERE session_uid=?)').run(session);
+  store.db.prepare('DELETE FROM event_context WHERE event_uid IN (SELECT event_uid FROM event WHERE session_uid=?)').run(session);
+  for(const table of ['usage_snapshot','session_feature','link','turn','tool_call','model_call','event'])store.db.prepare(`DELETE FROM ${table} WHERE session_uid=?`).run(session);
+}
 function content(value: unknown): string {
   if (typeof value === 'string') return value;
   return array(value).map(item => string(object(item).text) ?? string(object(item).summary_text) ?? '').filter(Boolean).join('\n');
@@ -438,9 +443,7 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
       }
     }
   }
-  store.db.prepare('DELETE FROM record_event WHERE event_uid IN (SELECT event_uid FROM event WHERE session_uid=?)').run(session);
-  store.db.prepare('DELETE FROM event_context WHERE event_uid IN (SELECT event_uid FROM event WHERE session_uid=?)').run(session);
-  for (const table of ['usage_snapshot','session_feature','link','turn','tool_call','model_call','event']) store.db.prepare(`DELETE FROM ${table} WHERE session_uid=?`).run(session);
+  clearProjection(store,session);
   const events=[...winners.values()].sort((a,b)=>a.position-b.position||a.slot-b.slot||a.record.file_id.localeCompare(b.record.file_id));
   for (const wrapper of events.filter(candidate=>candidate.event.kind==='tool.call'&&candidate.event.attrs.is_wrapper)) {
     const id=wrapper.event.call_id;
@@ -553,6 +556,10 @@ export function rebuildSource(store: ConnectorStore, source: string): number {
     if (visited.has(session)) return;
     if (visiting.has(session)) { store.diagnostic(source,'lineage_cycle','Thread lineage contains a cycle'); return; }
     visiting.add(session);
+    if(!store.db.prepare('SELECT 1 FROM current_record WHERE session_uid=? LIMIT 1').get(session)){
+      store.transaction(()=>{clearProjection(store,session);store.db.prepare('DELETE FROM session WHERE session_uid=?').run(session);store.db.prepare('DELETE FROM dirty_session WHERE session_uid=?').run(session);});
+      visited.add(session);visiting.delete(session);return;
+    }
     for (const row of store.records(session)) {
       const body=bodyOf(row),p=object(body.payload);
       if (body.type==='session_meta' || body.type==='spawn_edge') {

@@ -38,13 +38,13 @@ export class ConnectorStore {
     }
     const redaction=this.db.prepare("SELECT version FROM pipeline_version WHERE component='redaction'").get()?.version;
     const derivation=this.db.prepare("SELECT version FROM pipeline_version WHERE component='derivation'").get()?.version;
-    if (migrated||redaction!=='codex-redact/0.2.2'||derivation!=='codex-derive/0.2.2') {
+    if (migrated||redaction!=='codex-redact/0.2.2'||derivation!=='codex-derive/0.2.3') {
       this.transaction(()=>{
         if(migrated||redaction!=='codex-redact/0.2.2') for (const row of this.db.prepare('SELECT record_uid,body FROM raw_record WHERE body IS NOT NULL').iterate()) {
             this.db.prepare('UPDATE raw_record SET body=? WHERE record_uid=?').run(JSON.stringify(sanitize(JSON.parse(String(row.body)))),String(row.record_uid));
           }
         this.db.prepare("UPDATE pipeline_version SET version='codex-redact/0.2.2' WHERE component='redaction'").run();
-        this.db.prepare("UPDATE pipeline_version SET version='codex-derive/0.2.2' WHERE component='derivation'").run();
+        this.db.prepare("UPDATE pipeline_version SET version='codex-derive/0.2.3' WHERE component='derivation'").run();
         this.db.prepare("UPDATE pipeline_version SET version='codex-connector/0.2.1' WHERE component='parser'").run();
         this.db.prepare('INSERT OR IGNORE INTO dirty_session SELECT DISTINCT session_uid FROM current_record WHERE session_uid IS NOT NULL').run();
       });

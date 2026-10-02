@@ -95,6 +95,13 @@ test('rewrites replace the current projection while retaining previous raw gener
   assert.equal(s.store.db.prepare("SELECT status FROM source_file WHERE role='transcript'").get()?.status,'gone_upstream');
   assert.equal(scalar(s,'SELECT count(*) n FROM event'),count);
 }));
+test('empty rewrites remove ghost sessions while retained generations remain readable',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());await s.connector.ingest();
+  const old=s.store.db.prepare('SELECT record_uid FROM current_record LIMIT 1').get()!;
+  await writeFile(s.file,'');await s.connector.ingest();
+  assert.equal(scalar(s,'SELECT count(*) n FROM session'),0);assert.equal(scalar(s,'SELECT count(*) n FROM event'),0);
+  assert.ok((await readRawRecord(s.store,String(old.record_uid))).length>0);
+}));
 test('archival moves and .zst replacement preserve one logical file, with streaming concatenated-frame decoding',async()=>sandbox(async s=>{
   const original=await fixture(); await writeFile(s.file,original); await s.connector.ingest();
   const count=scalar(s,'SELECT count(*) n FROM event'),fileId=s.store.db.prepare("SELECT file_id FROM source_file WHERE role='transcript'").get()?.file_id;
