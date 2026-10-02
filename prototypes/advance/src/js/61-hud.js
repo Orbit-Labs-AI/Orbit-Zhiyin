@@ -40,16 +40,23 @@ function hudBand() {
     '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="' + W + '" y1="' + base + '" y2="' + base + '" stroke="var(--hud-line)"/>' + g + '<line x1="' + (W - 1) + '" x2="' + (W - 1) + '" y1="0" y2="' + H + '" stroke="var(--hud-ink-3)" stroke-dasharray="2 2"/></svg>' +
     '<div class="row mono" style="justify-content:space-between;font-size:10px;color:var(--hud-ink-3)"><span>−20 分</span><span>−10</span><span>现在</span></div></div>';
 }
+/* the running session the HUD names (mock: the demo's running row; live: a row built from the realtime snapshot) and the
+   mock-only「另外 1 个会话」/「+1」fragments, as hooks that 98-live-ops.js replaces in live mode */
+function hudSess() { return BYID[LIVE_ID]; }
+function hudOther() {
+  return sourceEnabled({ a: 'cx' }) ? '<div class="col" style="gap:6px"><span style="font-size:11px;color:var(--hud-ink-3)">另外 1 个会话</span><div class="row" style="font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0">Codex · team-hub' + (S.hudSim === 'waiting' ? ' · <span style="color:#f3b843">等你确认 2 分钟</span>' : ' · 09:03 已完成') + '</span>' + (S.hudSim === 'waiting' ? '<button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>' : '<button type="button" class="hg" data-act="hudSess" data-id="sess-1001-0903">打开轨迹</button>') + '</div></div>' : '';
+}
+function hudPlus() { return sourceEnabled({ a: 'cx' }) ? '<span class="mono" style="font-size:11px;color:var(--hud-ink-3)" data-tip="另有 1 个会话今天已完成">+1</span>' : ''; }
 function hudCard() {
-  const s = BYID[LIVE_ID]; const tip = !S.hud.tipOff && S.live.ctx >= 60;
+  const s = hudSess(); const tip = !S.hud.tipOff && S.live.ctx >= 60;
   const d = liveBuckets(20, 30); const errs = sum(d.b, (x) => x.err), msgs = sum(d.b, (x) => x.user);
   const cell = (l, v, attr) => '<div class="hcell"><div style="font-size:11px;color:var(--hud-ink-3)">' + l + '</div><b class="mono" style="font-size:15px"' + (attr || '') + '>' + v + '</b></div>';
-  return '<div class="hcard" role="dialog" aria-label="会话详情"><div class="row"><span class="dot live" style="background:var(--a1)"></span><b style="font-size:13px">' + agent(s.a).name + '</b><span style="color:var(--hud-ink-3);font-size:12px">· ' + PJI[s.p].name + '</span><span style="flex:1"></span><span class="mono" data-live style="font-size:12px">' + liveElapsed() + '</span></div>' +
+  return '<div class="hcard" role="dialog" aria-label="会话详情"><div class="row"><span class="dot live" style="background:' + agent(s.a).c + '"></span><b style="font-size:13px">' + esc(agent(s.a).name) + '</b><span style="color:var(--hud-ink-3);font-size:12px">· ' + esc(sessProjName(s)) + '</span><span style="flex:1"></span><span class="mono" data-live style="font-size:12px">' + liveElapsed() + '</span></div>' +
     '<div class="col" style="gap:3px"><div class="serif" style="font-size:17px;font-weight:600;line-height:22px">' + esc(s.title) + '</div><div class="row" style="font-size:12px;color:var(--hud-ink-2)"><span style="padding:1px 6px;border-radius:4px;background:rgba(180,168,255,.18);color:#c9c0ff;font-weight:600">进行中</span><span class="mono" data-hudtool>' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span></div></div>' +
     hudBand() +
     '<div class="hgrid">' + ctxBar(S.live.ctx, { cls: 'dk' }) + cell('工具', S.live.tools, ' data-livetools') + cell('失败', errs) + cell('消息', msgs) + '</div>' +
     (tip ? '<div style="border-radius:12px;background:rgba(243,184,67,.12);padding:10px 12px;display:flex;flex-direction:column;gap:8px"><div style="font-size:12px;line-height:1.5;color:var(--hud-ink-2)" data-tip="压缩前先总结，避免丢失细节"><b style="color:#f3b843">上下文 ' + S.live.ctx + '%</b> · 先让 Agent 总结进度再继续</div><div class="row"><button type="button" class="hb" data-act="hudTip">复制提示语</button><button type="button" class="hg" data-act="hudTipOff">不再提示此类</button></div></div>' : '') +
-    (sourceEnabled({ a: 'cx' }) ? '<div class="col" style="gap:6px"><span style="font-size:11px;color:var(--hud-ink-3)">另外 1 个会话</span><div class="row" style="font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0">Codex · team-hub' + (S.hudSim === 'waiting' ? ' · <span style="color:#f3b843">等你确认 2 分钟</span>' : ' · 09:03 已完成') + '</span>' + (S.hudSim === 'waiting' ? '<button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>' : '<button type="button" class="hg" data-act="hudSess" data-id="sess-1001-0903">打开轨迹</button>') + '</div></div>' : '') +
+    hudOther() +
     '<div class="row" style="flex-wrap:wrap;border-top:1px solid var(--hud-line);padding-top:10px"><button type="button" class="hg" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒 30 分钟') + '</button><span style="flex:1"></span><button type="button" class="hg" data-act="hudHide">隐藏</button><button type="button" class="hb" data-act="hudTraj">打开轨迹</button></div></div>';
 }
 function hudPill() {
@@ -63,7 +70,8 @@ function hudPill() {
   if (st === 'waiting') return '<span style="width:10px;height:10px;border-radius:2px;background:#f3b843;flex:none"></span><b>Codex</b><span style="color:var(--hud-ink-2)">请求执行 git push</span><button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>';
   if (st === 'done') return ic('okc', 16, 'color:#5dd08a') + '<b>完成</b><span style="color:var(--hud-ink-2)">' + dur(doneS.dur) + ' · ' + doneS.tools + ' 步</span><button type="button" class="hb" data-act="hudTraj">查看</button>';
   if (st === 'ctx') return ic('gauge', 16, 'color:#f3b843') + '<b>上下文 78%</b><span style="color:var(--hud-ink-2)">latentskill 即将压缩</span><button type="button" class="hb" data-act="hudTip">复制提示语</button>';
-  return '<span class="dot live" style="width:9px;height:9px;background:var(--a1)"></span><b>' + PJI[BYID[LIVE_ID].p].name + '</b><span class="mono" data-live>' + liveElapsed() + '</span><span data-hudtool style="color:var(--hud-ink-2);max-width:150px;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span>' + dens + (sourceEnabled({ a: 'cx' }) ? '<span class="mono" style="font-size:11px;color:var(--hud-ink-3)" data-tip="另有 1 个会话今天已完成">+1</span>' : '');
+  const ls = hudSess();
+  return '<span class="dot live" style="width:9px;height:9px;background:' + agent(ls.a).c + '"></span><b>' + esc(sessProjName(ls)) + '</b><span class="mono" data-live>' + liveElapsed() + '</span><span data-hudtool style="color:var(--hud-ink-2);max-width:150px;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span>' + dens + hudPlus();
 }
 function renderHud() {
   const h = $('#hud');

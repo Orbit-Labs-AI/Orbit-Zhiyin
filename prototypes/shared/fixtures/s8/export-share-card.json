@@ -1,0 +1,60 @@
+{
+  "eligible": true,
+  "blocked_reason": null,
+  "gate": {
+    "min_units": 30,
+    "min_active_days": 10,
+    "axes": [
+      {
+        "axis": "autonomy",
+        "n_units": 44
+      },
+      {
+        "axis": "structure",
+        "n_units": 41
+      },
+      {
+        "axis": "concurrency",
+        "n_units": 52
+      },
+      {
+        "axis": "verification",
+        "n_units": 38
+      }
+    ],
+    "active_days": 21
+  },
+  "code": "DIMV",
+  "type_name": "指挥家",
+  "copy": {
+    "headline": "把目标交出去，把验收留给自己。",
+    "lines": [
+      "指挥家 · The Conductor",
+      "整段目标交给 Agent，多线并进，坚持亲自验收。"
+    ]
+  },
+  "stats": [
+    {
+      "label": "会话",
+      "value": 96,
+      "unit": "个",
+      "hidden": false
+    },
+    {
+      "label": "活跃天数",
+      "value": 21,
+      "unit": "天",
+      "hidden": false
+    },
+    {
+      "label": "任务",
+      "value": 58,
+      "unit": "个",
+      "hidden": false
+    }
+  ],
+  "theme": "system",
+  "disclaimer": "实验性画像，仅供参考",
+  "generated_at": 1790000000000,
+  "scope_hash": "fx-share"
+}

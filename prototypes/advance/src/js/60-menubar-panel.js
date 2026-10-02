@@ -15,6 +15,14 @@ function ctxBar(pct, opt) {
     '<div class="ctxbar-h"><span>' + (opt.label || '上下文') + ' <b class="mono">' + pct + '%</b></span><span class="mono">' + th + '% 压缩</span></div>' +
     '<div class="ctxbar-t"><span class="ctxbar-f' + (pct >= th - 5 ? ' warn' : '') + '" style="width:' + clamp(pct, 0, 100) + '%"></span><span class="ctxbar-th" style="left:' + th + '%"></span></div></div>';
 }
+/* day indices and the panel's dated / mock-only fragments, as hooks: mock returns the published text unchanged; live mode
+   (98-live-ops.js) swaps in the real calendar, the gateway's opening line and the real other sessions.
+   popDay(): today's day index (mock: the day after LASTDAY; live: LASTDAY is today). */
+function popDay() { return typeof LV !== 'undefined' && LV.live ? LASTDAY : LASTDAY + 1; }
+function popDate() { return '10 月 1 日 周四'; }
+function popYest() { return '9 月 30 日'; }
+function popOpening() { return '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Hackathon 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>'; }
+function sessProjName(s) { return s.pname != null ? s.pname : PJI[s.p].name; }
 function liveSession() { const s = BYID[LIVE_ID]; return s && !simIdle() && sourceEnabled(s) && !S.excluded.has(s.id) ? s : null; }
 function popLiveCard() {
   const s = liveSession(); if (!s) return '';
@@ -40,15 +48,15 @@ function renderPop() {
   const p = personaNow();
   const available = ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id));
   const attn = new Set([...S.attn].filter((k) => sourceEnabled({ a: k === 'stuck' ? 'cx' : 'cc' })));
-  const today = available.filter((s) => s.d === 120 && (!simIdle() || !s.live));
+  const T = popDay(); const today = available.filter((s) => s.d === T && (!simIdle() || !s.live));
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
   const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
   // last 7 days: one column per day, count on top, today in ink (the orange stays reserved for Claude), weekday underneath
-  const days = []; for (let d = 114; d <= 120; d++) days.push([d, available.filter((s) => s.d === d && !(s.live && simIdle())).length]);
+  const days = []; for (let d = T - 6; d <= T; d++) days.push([d, available.filter((s) => s.d === d && !(s.live && simIdle())).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
   const avg7 = sum(days, (x) => x[1]) / 7;
-  const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="mono cap" style="font-size:11px">日均 ' + f1(avg7) + ' · 今天 ' + today.length + '</span></div><div class="pwk" role="img" aria-label="近 7 天每天的会话数">' + days.map((x) => '<span class="pwk-c' + (x[0] === 120 ? ' today' : '') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话' + (x[0] === 120 ? '（今天）' : '') + '"><b class="mono">' + x[1] + '</b><i style="height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px"></i><span class="mono cap">' + (x[0] === 120 ? '今' : WD[wd(x[0])]) + '</span></span>').join('') + '</div></div>';
+  const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="mono cap" style="font-size:11px">日均 ' + f1(avg7) + ' · 今天 ' + today.length + '</span></div><div class="pwk" role="img" aria-label="近 7 天每天的会话数">' + days.map((x) => '<span class="pwk-c' + (x[0] === T ? ' today' : '') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话' + (x[0] === T ? '（今天）' : '') + '"><b class="mono">' + x[1] + '</b><i style="height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px"></i><span class="mono cap">' + (x[0] === T ? '今' : WD[wd(x[0])]) + '</span></span>').join('') + '</div></div>';
   const top = recTop('menubar')[0];
   const rec = top ? '<div class="sec row" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic(top.icon, 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(top.title) + '</div><div class="cap" style="font-size:11px">本周最值得做 · ' + top.gain + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + top.id + '">预览</button></div>' : '';
   const doneS = BYID[DONE_ID];
@@ -58,21 +66,21 @@ function renderPop() {
   if (S.paused) {
     html = head('采集已暂停', '不会产生事件，也不会更新统计') + '<div class="sec row"><span style="flex:1;font-size:13px;color:var(--ink-2)">恢复后会补齐暂停期间的会话。</span><button type="button" class="btn sm p" data-act="setPause">恢复采集</button></div>' + foot;
   } else if (attn.size) {
-    html = head('需要关注', '10 月 1 日 周四', '<span class="bdg" style="background:var(--crit-bg);color:var(--crit)">' + attn.size + ' 件事</span>') +
+    html = head('需要关注', popDate(), '<span class="bdg" style="background:var(--crit-bg);color:var(--crit)">' + attn.size + ' 件事</span>') +
       (attn.has('stuck') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('alert', 15, 'color:var(--crit)') + '<b style="font-size:13px">同一命令连续失败 4 次</b></div><div class="cap" style="font-size:12px">Codex · Surge 规则 · 15:02 开始</div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--sunken)">python gen_rules.py --publish</div><div style="font-size:12px;color:var(--ink-2)">可能原因：CDN token 过期（4 次输出里 3 次是 401）</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="popTerm">在终端中处理</button><button type="button" class="btn sm" data-act="popStuckSess">打开会话</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="stuck">忽略 1 小时</button></div></div>' : '') +
       (attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:13px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:12px">Claude Code · latentskill · 审阅第 3 节</div>' + ctxBar(78) + '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
       popLiveCard() + foot;
   } else if (simIdle()) {
-    const y = available.filter((s) => s.d === 119); const ys = stats(y);
+    const y = available.filter((s) => s.d === T - 1); const ys = stats(y);
     const base = stats(sel({ range: 30, noExtra: true }));
     const byDay = {}; sel({ range: 30, noExtra: true }).forEach((s) => { byDay[s.d] = (byDay[s.d] || 0) + 1; });
     const perDay = Object.keys(byDay).length ? sum(Object.values(byDay), (v) => v) / Object.keys(byDay).length : 0;
-    html = head('今天', '10 月 1 日 周四 · 还没有会话', doneBadge) + '<div class="sec col" style="gap:8px"><div class="row" style="justify-content:space-between"><b style="font-size:13px">昨天 · 9 月 30 日</b><span class="mono cap" style="font-size:11px">' + y.length + ' 会话 · ' + dur(sum(y, (s) => s.dur)) + '</span></div><div class="row" style="gap:18px;align-items:flex-start">' +
+    html = head('今天', popDate() + ' · 还没有会话', doneBadge) + '<div class="sec col" style="gap:8px"><div class="row" style="justify-content:space-between"><b style="font-size:13px">昨天 · ' + popYest() + '</b><span class="mono cap" style="font-size:11px">' + y.length + ' 会话 · ' + dur(sum(y, (s) => s.dur)) + '</span></div><div class="row" style="gap:18px;align-items:flex-start">' +
       popMetric('摩擦率', ys.fric, base.fric, (v) => f1(v) + '%', true) + popMetric('纠偏', ys.corr, base.n ? base.corr / base.n * Math.max(1, perDay) : 0, (v) => f1(v), true) + popMetric('完成率', ys.ok, base.ok, (v) => Math.round(v) + '%', false) +
       '</div><div class="cap" style="font-size:11px">基线 = 近 30 天均值' + (y.length ? '' : '；昨天没有会话') + '</div></div>' + week +
-      '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Hackathon 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>' + foot;
+      popOpening() + foot;
   } else {
-    html = head('今天', '10 月 1 日 周四 · ' + today.length + ' 会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)), doneBadge) + popLiveCard() + cxRow() + week + rec + foot;
+    html = head('今天', popDate() + ' · ' + today.length + ' 会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)), doneBadge) + popLiveCard() + cxRow() + week + rec + foot;
   }
   el.innerHTML = html;
 }

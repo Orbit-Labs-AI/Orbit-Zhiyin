@@ -1,0 +1,72 @@
+{
+  "generated_at": 1790000000000,
+  "status": "active",
+  "counts": {
+    "running": 1,
+    "awaiting_approval": 0,
+    "failing": 0,
+    "just_finished": 0,
+    "context_pressure": 0
+  },
+  "today": {
+    "sessions_started": 7,
+    "sessions_finished": 4
+  },
+  "sessions": [
+    {
+      "session_uid": "fx-rt-run",
+      "agent": "claude_code",
+      "project_id": "fx-p1",
+      "project": "fx-tandem",
+      "title": "合成会话：整理 HUD 绑定",
+      "state": "running",
+      "flags": [],
+      "since": 1789998615000,
+      "running_s": 1385,
+      "current_tool": "Edit src/js/98-live-ops.js",
+      "density": [
+        1,
+        0,
+        2,
+        3,
+        1,
+        4,
+        2,
+        5,
+        3,
+        6
+      ],
+      "context": {
+        "used_tokens": 82000,
+        "window_tokens": 200000,
+        "ratio": 0.41,
+        "auto_compact_ratio": 0.92,
+        "basis": "usage"
+      },
+      "failure": null,
+      "approval": null,
+      "outcome": null,
+      "dismissed_until": null,
+      "lanes": {
+        "human": [
+          1789999965000,
+          1789999500000
+        ],
+        "tool": [
+          1789999980000,
+          1789999950000,
+          1789999910000,
+          1789999870000,
+          1789999800000,
+          1789999740000,
+          1789999600000,
+          1789999390000,
+          1789999100000
+        ],
+        "error": [
+          1789999870000
+        ]
+      }
+    }
+  ]
+}
