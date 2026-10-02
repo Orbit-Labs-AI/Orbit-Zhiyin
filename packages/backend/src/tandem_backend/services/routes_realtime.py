@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Annotated
@@ -57,6 +58,8 @@ def router(gw: Gateway) -> APIRouter:
     api = APIRouter()
     rt = getattr(gw, "realtime", None) or Realtime(gw)
     gw.realtime = rt
+    if getattr(gw, "reads", None) is not None:  # cold first request was 0.6-7.7 s on real data
+        threading.Thread(target=rt.prewarm, name="realtime-prewarm", daemon=True).start()
 
     @api.get("/v1/analytics/realtime")
     def snapshot(lanes: int = Query(0, ge=0, le=1)):
