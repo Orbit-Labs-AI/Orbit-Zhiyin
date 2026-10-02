@@ -14,8 +14,10 @@ const MB_H = 24, WIN_MIN = { w: 900, h: 600 }, STAGE_PAD = 16, SIDE_MIN_WIN = 90
 const WIN_GAP = { x: 24, y: 18 }, WG_COL = 24 + 364 + 24, WIDE_MIN = 1500;
 let WIN_LAST = null, WIN_SIG = '';
 (function loadShell() {
+  // a user-placed window always has all four numbers (move pins the size, resize sets the origin); anything else — including
+  // rects the previous build stored on a zoom toggle with x / y null — means "follow the viewport"
   const w = store.get('win', null);
-  if (w && typeof w === 'object') { ['x', 'y', 'w', 'h'].forEach((k) => { if (typeof w[k] === 'number' && isFinite(w[k])) S.win[k] = w[k]; }); if (w.zoom === true) S.win.zoom = true; }
+  if (w && typeof w === 'object') { const num = (k) => typeof w[k] === 'number' && isFinite(w[k]); if (['x', 'y', 'w', 'h'].every(num)) { S.win.x = w.x; S.win.y = w.y; S.win.w = w.w; S.win.h = w.h; } if (w.zoom === true) S.win.zoom = true; }
   const sd = store.get('side', null);
   if (sd && typeof sd === 'object') { if (typeof sd.show === 'boolean') S.side = sd.show; if (sd.open && typeof sd.open === 'object') Object.keys(S.sideOpen).forEach((k) => { if (typeof sd.open[k] === 'boolean') S.sideOpen[k] = sd.open[k]; }); }
   ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].forEach((d) => { const h = document.createElement('div'); h.className = 'rz'; h.dataset.rz = d; h.setAttribute('aria-hidden', 'true'); $('#win').appendChild(h); });
