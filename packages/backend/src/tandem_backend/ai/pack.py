@@ -44,6 +44,9 @@ LIMITS = {"human": 500, "assistant": 300, "error": 200}
 FACET_SESSION_TOKENS = 6000
 FACET_MAX_SESSIONS = 200
 FACET_BATCH = 8
+FACET_RESERVE_TOKENS = 2000  # room for goal and the other items of a facet pack
+REPLAY_CALLS_MAX = 40  # per session, before the token budget halves it further
+REPLAY_TOKENS = 4000
 
 
 # ---------------------------------------------------------------- helpers
@@ -609,11 +612,13 @@ def _replay_calls(c: _Ctx):
     if pid:
         where, params = window_sql(c.start, c.end, pid, c.home)
     excl = f" AND s.session_uid NOT IN ({placeholders(evidence)})" if evidence else ""
+    rows: dict[str, list] = {}
     for (uid,) in c.conn.execute(f"SELECT s.session_uid FROM session s WHERE {where}{excl}"
                                  f" ORDER BY s.started_at DESC LIMIT 20", params + evidence):
         if len(normal) >= 5:
             break
-        if not _failure_runs(_tool_rows(c, [uid], 200)):
+        rows[uid] = _tool_rows(c, [uid], 200)
+        if not _failure_runs(rows[uid]):
             normal.append(uid)
     uids = evidence + normal
     titles = {r[0]: r[1] for r in c.conn.execute(
@@ -621,10 +626,51 @@ def _replay_calls(c: _Ctx):
         if uids else {}
     out = []
     for uid in uids:
-        calls = [{"tool_name": r[1], "kind": r[2], "command_head": r[3], "status": r[4], "error_class": r[5],
-                  "exit_code": r[6], "file_exts": _exts(r[7])} for r in _tool_rows(c, [uid], 200)]
+        calls = []
+        for r in rows.get(uid) or _tool_rows(c, [uid], 200):
+            call = {"tool_name": r[1], "kind": r[2], "command_head": r[3], "status": r[4], "error_class": r[5],
+                    "exit_code": r[6], "file_exts": _exts(r[7])}
+            calls.append({k: v for k, v in call.items() if v not in (None, [], "")})
         out.append({"session_uid": uid, "title": titles.get(uid) or "", "evidence": uid in evidence, "calls": calls})
     return out
+
+
+def _replay_keep(calls: list[dict], cap: int) -> list[int]:
+    """Indices to keep: head and tail plus a window around each failure (what hooks react to)."""
+    n = len(calls)
+    if n <= cap:
+        return list(range(n))
+    keep: dict[int, None] = {}
+    for i, call in enumerate(calls):
+        if call.get("status") in FAIL_STATUS or call.get("error_class"):
+            keep.update(dict.fromkeys(range(max(0, i - 2), min(n, i + 3))))
+    edge = max(1, cap // 8)
+    head_tail = list(range(min(edge, n))) + list(range(max(0, n - edge), n))
+    picked = sorted(dict.fromkeys(head_tail))
+    for i in keep:
+        if len(picked) >= cap:
+            break
+        if i not in picked:
+            picked.append(i)
+    return sorted(picked[:cap])
+
+
+def clip_replay(sessions, cap: int = REPLAY_CALLS_MAX, budget: int = REPLAY_TOKENS) -> list[dict]:
+    """Clip each session's calls (B11) until the item fits ``budget`` tokens; ``omitted_calls``
+    says how many were left out so the replay result is read as a sample."""
+    sessions = list(sessions or [])
+    while True:
+        out = []
+        for s in sessions:
+            calls = s.get("calls") or []
+            idx = _replay_keep(calls, cap)
+            item = {**s, "calls": [calls[i] for i in idx]}
+            if len(idx) < len(calls):
+                item["omitted_calls"] = len(calls) - len(idx) + int(s.get("omitted_calls") or 0)
+            out.append(item)
+        if cap <= 4 or est_tokens(out) <= budget:
+            return out
+        cap //= 2
 
 
 def _metrics(c: _Ctx):
@@ -849,17 +895,25 @@ def _items(c: _Ctx):
         return {}
     uids = facet_sessions(c)
     known = _existing_facets(c.appdb, uids, c.task.get("prompt_version"))
-    out, hits = {}, 0
-    for uid in uids:
+    budget = max(FACET_SESSION_TOKENS, int(c.task.get("input_budget") or 40_000) - FACET_RESERVE_TOKENS)
+    out, hits, tokens, queued = {}, 0, 0, 0
+    for k, uid in enumerate(uids):
         if len(out) >= FACET_MAX_SESSIONS:
+            queued = len(uids) - k
             break
         payload, n = redact_value(facet_payload(c.conn, uid))
         payload = clip_facet(payload)
         if known.get(uid) == content_hash(payload):
             continue
+        size = est_tokens({uid: payload})
+        if out and tokens + size > budget:  # B12: stay within the task budget; the rest waits
+            queued = len(uids) - k
+            break
         out[uid] = payload
         hits += n
+        tokens += size
     c.memo["items:hits"] = hits
+    c.memo["items:queued"] = queued
     return out
 
 
@@ -906,6 +960,8 @@ def _clip(key: str, value):
         return (value or [])[:3]
     if key == "items":
         return {uid: clip_facet(p) for uid, p in (value or {}).items()}
+    if key == "replay_calls":
+        return clip_replay(value)
     return value
 
 
@@ -1003,6 +1059,11 @@ def build(task: dict, *, reads, appdb, home, scope=None, selection=None, goal=No
             items[key] = {"key": key, "label": label, "desc": desc + ("（不可用）" if unavailable else ""),
                           "data_class": data_class, "enabled": enabled, "tokens": tokens,
                           "redaction_hits": hits, "preview": _preview(key, value)}
+            queued = c.memo.pop(f"{key}:queued", 0)
+            if queued:
+                items[key]["queued"] = queued
+                items[key]["desc"] += (f"（按输入预算先处理 {len(value or {})} 个会话，"
+                                       f"其余最多 {queued} 个排队，下次提交继续）")
             if enabled:
                 content[key] = value
                 collect_refs(value, refs, numbers, numeric=key in ("metrics", "friction", "transitions"))
