@@ -58,5 +58,6 @@ export function readStateIndex(path: string): Obj[] {
 }
 export function indexThreadId(record: Obj): string | null {
   const payload = object(record.payload);
+  if (!['state_index','title_index','spawn_edge','import_ledger'].includes(String(record.type))) return null;
   return string(payload.id) ?? string(payload.child_thread_id) ?? string(payload.imported_thread_id);
 }

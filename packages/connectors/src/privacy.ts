@@ -12,21 +12,21 @@ export function redact(text: string): string {
     .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/g, '$1<redacted:credentials>@');
 }
 /** L0 alone holds original bytes. L1/L2 never hold inline media, credentials or account identities. */
-export function sanitize(value: unknown, key = ''): Json {
+export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024): Json {
+  if (/^(output|aggregated_output|formatted_output|stdout|stderr|result)$/.test(key)) maxBytes=Math.min(maxBytes,8192);
   if (secretKeys.test(key)) return '<redacted:secret>';
   if (typeof value === 'string') {
     if (/^data:[^,]+;base64,/.test(value)) return `<attachment:sha256:${hash(value)}>`;
     if (key === 'encrypted_content') return `<opaque:sha256:${hash(value)}>`;
     const clean = redact(value);
     // Bounded copies in L1/L2; the complete native field is still addressable in L0.
-    const limit = /output|stdout|stderr|arguments|input|instructions|text|message/.test(key) ? 8192 : 32768;
-    return Buffer.byteLength(clean) <= limit ? clean : `${Buffer.from(clean).subarray(0,limit).toString('utf8')}<truncated:sha256:${hash(value)}>`;
+    return Buffer.byteLength(clean) <= maxBytes ? clean : `${Buffer.from(clean).subarray(0,maxBytes).toString('utf8')}<truncated:sha256:${hash(value)}>`;
   }
-  if (Array.isArray(value)) return value.map(item => sanitize(item,key));
+  if (Array.isArray(value)) return value.map(item => sanitize(item,key,maxBytes));
   if (value !== null && typeof value === 'object') {
     const result: { [key: string]: Json } = {};
     for (const [name, item] of Object.entries(value)) {
-      if (!hiddenKeys.test(name)) result[name] = sanitize(item,name);
+      if (!hiddenKeys.test(name)) result[name] = sanitize(item,name,maxBytes);
     }
     return result;
   }

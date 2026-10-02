@@ -1,8 +1,9 @@
 import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { decompressFrames } from './zstd.ts';
+import { createHash } from 'node:crypto';
 
-export interface Line { bytes: Buffer | null; offset: number; length: number; line: number; oversized: boolean; }
+export interface Line { bytes: Buffer | null; offset: number; length: number; line: number; oversized: boolean; sha256: string; }
 /** Offsets are in decompressed bytes for .zst files. Unterminated tails are retried, never committed. */
 export async function* lines(path: string, start = 0, firstLine = 0, maxLineBytes = 32 * 1024 * 1024, snapshotSize?: number): AsyncGenerator<Line> {
   const compressed = path.endsWith('.zst');
@@ -14,6 +15,7 @@ export async function* lines(path: string, start = 0, firstLine = 0, maxLineByte
   let parts: Buffer[] = [];
   let size = 0;
   let oversized = false;
+  let digest = createHash('sha256');
   try {
     for await (const chunk of stream) {
       const buffer = chunk as Buffer;
@@ -23,14 +25,16 @@ export async function* lines(path: string, start = 0, firstLine = 0, maxLineByte
         const end = newline === -1 ? buffer.length : newline + 1;
         const part = buffer.subarray(cursor,end);
         size += part.length;
+        digest.update(part);
         if (size > maxLineBytes) { oversized = true; parts = []; }
         if (!oversized) parts.push(part);
         if (newline !== -1) {
           line++;
-          const record = { bytes: oversized ? null : Buffer.concat(parts,size), offset, length: size, line, oversized };
+          const record = { bytes: oversized ? null : Buffer.concat(parts,size), offset, length: size, line, oversized, sha256:digest.digest('hex') };
           if (!compressed || offset >= start) yield record;
           offset += size;
           parts = []; size = 0; oversized = false;
+          digest = createHash('sha256');
         }
         cursor = end;
       }

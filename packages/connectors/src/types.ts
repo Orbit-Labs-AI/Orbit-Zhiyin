@@ -23,7 +23,7 @@ export interface SourceFile {
   watermark: string; status: string; last_scan_at: number | null;
 }
 export interface IngestResult {
-  source_id: string; files_seen: number; files_changed: number; records_added: number;
+  source_id: string; files_seen: number; files_changed: number; files_failed: number; records_added: number;
   sessions_rebuilt: number; maintenance_skipped: boolean;
   accounting: Record<string, number>; diagnostics: number;
 }
