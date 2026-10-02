@@ -1,0 +1,13 @@
+{
+  "job_id": "fx-ask-1",
+  "task_id": "ask.question",
+  "status": "succeeded",
+  "stages": [],
+  "log": [],
+  "result": {
+    "answer": "FX 自由提问回答。",
+    "refs": [],
+    "next": "none",
+    "source": "ai"
+  }
+}

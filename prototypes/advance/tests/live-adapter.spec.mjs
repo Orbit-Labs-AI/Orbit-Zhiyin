@@ -64,7 +64,12 @@ async function gateway(page) {
       // library-install: the full flow is covered in live-library-install.spec.mjs
       '/v1/catalog/items': () => FX('library-install/catalog-items'),
       '/v1/catalog/facets': () => FX('library-install/catalog-facets'),
-      '/v1/install/state': () => FX('library-install/install-state')
+      '/v1/install/state': () => FX('library-install/install-state'),
+      // studio-settings (97-live-studio-settings.js) reads these on every live page: notify policy, snooze, attention, collection
+      '/v1/platform/collection': () => FX('studio-settings/collection'),
+      '/v1/notifications/policy': () => FX('studio-settings/notify-policy'),
+      '/v1/notifications/snooze': () => FX('studio-settings/notify-snooze'),
+      '/v1/notifications/attention': () => FX('studio-settings/notify-attention')
     };
     const rec = recsRoute(u, route.request(), state); if (rec) return json(rec.body, rec.status || 200);
     if (routes[u.pathname]) return json(routes[u.pathname]());

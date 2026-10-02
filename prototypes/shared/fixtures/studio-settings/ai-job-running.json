@@ -1,0 +1,55 @@
+{
+  "job_id": "fx-job-1",
+  "task_id": "generate.skill",
+  "engine": "claude_code",
+  "template": "v1",
+  "status": "running",
+  "stage": "draft",
+  "progress": [
+    3,
+    6
+  ],
+  "artifact_id": null,
+  "error": null,
+  "cached": false,
+  "stages": [
+    {
+      "id": "pack",
+      "status": "done",
+      "duration_ms": 400,
+      "message": "3 项 · 5.0k tokens · 脱敏 3 处"
+    },
+    {
+      "id": "analyse",
+      "status": "done",
+      "duration_ms": 1200
+    },
+    {
+      "id": "draft",
+      "status": "running",
+      "duration_ms": null
+    },
+    {
+      "id": "check",
+      "status": "pending"
+    },
+    {
+      "id": "replay",
+      "status": "pending"
+    },
+    {
+      "id": "review",
+      "status": "pending"
+    }
+  ],
+  "log": [
+    "$ claude -p --output-format stream-json",
+    "› 读取上下文包（5.0k tokens）"
+  ],
+  "result": null,
+  "usage": {
+    "input": 0,
+    "output": 0,
+    "cost_usd": 0
+  }
+}
