@@ -34,6 +34,9 @@ class Section:
     with_text: bool = False
     timeout_s: float | None = None  # Overrides the supervisor's per-cost budget.
     prewarm: bool = True
+    # Strikes before the circuit opens (None: SupervisorConfig.max_failures). Expensive
+    # on-demand sections use 1 so a timed-out / killed run is reported, not re-run in a loop.
+    max_failures: int | None = None
 
 
 class ResultMemo:
@@ -188,16 +191,17 @@ def _legacy_report(store, scope, params, memo):
 # Legacy create_app() analyses that used to run synchronously inside the gateway process
 # (analyze_store / build_report on the gateway threadpool: no timeout, no RSS cap, GIL
 # starvation). On demand only (never prewarmed); products may run for minutes on a large home.
+_ON_DEMAND = {"prewarm": False, "max_failures": 1}
 for _name in ("statistics", "lexical"):
-    register(Section(_name, _name, "light", _compact_section(_name), prewarm=False))
+    register(Section(_name, _name, "light", _compact_section(_name), **_ON_DEMAND))
 register(Section("bottleneck", "bottleneck_features", "heavy",
-                 _compact_section("bottleneck_features"), prewarm=False))
+                 _compact_section("bottleneck_features"), **_ON_DEMAND))
 register(Section("recommendations", "bottleneck_recommendations", "heavy", _recommendations,
-                 prewarm=False))
-register(Section("analysis", "analysis", "heavy", _legacy_report, prewarm=False))
-register(Section("products", "products", "heavy", _products, timeout_s=1800, prewarm=False))
+                 **_ON_DEMAND))
+register(Section("analysis", "analysis", "heavy", _legacy_report, **_ON_DEMAND))
+register(Section("products", "products", "heavy", _products, timeout_s=1800, **_ON_DEMAND))
 register(Section("presentation", "presentation", "heavy", _presentation, timeout_s=1800,
-                 prewarm=False))
+                 **_ON_DEMAND))
 
 LIGHT = tuple(name for name, s in SECTIONS.items()
               if s.cost == "light" and name != "session" and s.prewarm)

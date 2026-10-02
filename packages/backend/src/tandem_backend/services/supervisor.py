@@ -7,7 +7,8 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
 - heartbeat every ``heartbeat_s`` (5 s); no message for ``stale_s`` (15 s) → kill + restart
 - crash restarts back off 0.5 / 1 / 2 / 4 s; more than 5 within 60 s → ``degraded``
 - analysis tasks time out (light 20 s, heavy 120 s): kill, task ``failed(timeout)``,
-  the previous snapshot keeps serving; three failures open a circuit for that key
+  the previous snapshot keeps serving; three failures (one for on-demand legacy sections)
+  open a circuit for that key, after which routes answer 503 without re-running it
 - analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
 """
 
@@ -339,6 +340,9 @@ class AnalysisTask:
                            self.rules)
 
 
+RECENT_JOBS = 256
+
+
 class AnalysisQueue:
     """Priority queue (interactive > prewarm) with same-key merging and a circuit breaker."""
 
@@ -351,6 +355,7 @@ class AnalysisQueue:
         self.running: AnalysisTask | None = None
         self.failures: dict[tuple, dict] = {}
         self.dispatched: dict[tuple, int] = {}
+        self.recent: dict[str, AnalysisTask] = {}  # job_id → task, newest RECENT_JOBS kept.
         self.worker = WorkerProcess("analysis", home, config, self._message, self._exit,
                                     on_state, self._dispatch)
 
@@ -362,7 +367,24 @@ class AnalysisQueue:
 
     def circuit_open(self, section: str, scope_hash: str, rev: tuple[int, int]) -> bool:
         record = self.failure(section, scope_hash, rev)
-        return bool(record and record["count"] >= self.config.max_failures)
+        spec = SECTIONS.get(section)
+        limit = (spec.max_failures if spec is not None and spec.max_failures is not None
+                 else self.config.max_failures)
+        return bool(record and record["count"] >= limit)
+
+    def job(self, job_id: str) -> dict | None:
+        """Status of a recent analysis task (the ``job_id`` a 202 response carries)."""
+        with self.lock:
+            task = self.recent.get(job_id)
+            if task is None:
+                return None
+            started = task.dispatched_at
+            return {"id": task.id, "kind": "analysis", "section": task.section,
+                    "scope_hash": task.scope_hash, "status": task.status,
+                    "priority": task.priority, "data_rev": task.data_rev,
+                    "elapsed_s": (round(time.monotonic() - started, 1)
+                                  if started is not None and task.status == "running" else None),
+                    "timeout_s": self._timeout_for(task), "error": task.error}
 
     def clear_failures(self, section: str, scope_hash: str) -> None:
         with self.lock:
@@ -383,6 +405,9 @@ class AnalysisQueue:
                     existing.priority = "interactive"  # Promote; the same computation serves both.
                 return existing
             self.tasks[task.merge_key] = task
+            self.recent[task.id] = task
+            while len(self.recent) > RECENT_JOBS:
+                self.recent.pop(next(iter(self.recent)))
             self.pending.append(task)
             running = self.running
             if (priority == "interactive" and running is not None

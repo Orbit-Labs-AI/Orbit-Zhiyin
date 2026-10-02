@@ -9,7 +9,9 @@ through the supervised analysis worker (202 → analysis.ready → 200 fresh).
 from __future__ import annotations
 
 import pytest
-from conftest import add_codex, bus_events, run_job, wait_for, wait_job
+from conftest import add_codex, bus_events, fast_config, run_job, wait_for, wait_job
+
+from tandem_backend.services.worker_protocol import DEBUG_DELAY_ENV
 
 ROUTES = [
     ("statistics", "get", "/v1/analytics/statistics", {}, "statistics"),
@@ -74,3 +76,34 @@ def test_invalid_presentation_window_is_rejected_without_analysis(imported):
     response = client.get("/v1/analytics/presentation", params={"window": "bogus"})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_timed_out_on_demand_route_reports_failure_instead_of_rerunning(client_factory,
+                                                                         codex_root):
+    config = fast_config(worker_env={DEBUG_DELAY_ENV: "600"})
+    client, gateway = client_factory(config=config)
+    source = add_codex(client, codex_root)
+    assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
+        "status"] == "completed"
+    config.light_timeout_s = 0.3  # Shorter than the worker's fixed 0.6 s start-up delay.
+    analysis = gateway.supervisor.analysis
+
+    first = client.get("/v1/analytics/statistics")
+    assert first.status_code == 202
+    job_id = first.json()["meta"]["job_id"]
+    assert client.get(f"/v1/analytics/jobs/{job_id}").json()["status"] in ("queued", "running")
+    wait_for(lambda: any(f.data["code"] == "timeout"
+                         for f in bus_events(gateway, "analysis.failed")), 30, message="timeout")
+    wait_for(lambda: analysis.running is None and not analysis.pending, 10)
+    job = client.get(f"/v1/analytics/jobs/{job_id}").json()
+    assert job["status"] == "failed" and job["error"]["code"] == "timeout"
+    assert job["section"] == "statistics"
+
+    dispatched = sum(analysis.dispatched.values())
+    for _ in range(3):  # Polling never restarts the expensive computation.
+        again = client.get("/v1/analytics/statistics")
+        assert again.status_code == 503
+        assert again.json()["error"]["code"] == "analysis_unavailable"
+        assert "timeout" in again.json()["error"]["message"]
+    assert sum(analysis.dispatched.values()) == dispatched
+    assert client.get("/v1/analytics/jobs/nope").status_code == 404

@@ -256,6 +256,16 @@ def router(gw: Gateway) -> APIRouter:
                            audience=audience, scene=scene)
         return serve("analysis", Scope(), params, wait_ms, if_none_match)
 
+    @api.get("/v1/analytics/jobs/{job_id}")
+    def analysis_job(job_id: str):
+        """Poll target for the ``job_id`` of a 202: queued / running / completed / failed
+        (with ``error.code`` such as ``timeout``); failed on-demand jobs are not re-run until
+        the data changes or ``/v1/analytics/recompute`` is called."""
+        job = gw.supervisor.analysis.job(job_id)
+        if job is None:
+            raise ApiError(404, "not_found", "分析任务不存在或已过期")
+        return job
+
     @api.post("/v1/analytics/recompute", status_code=202)
     def recompute(request: RecomputeRequest):
         unknown = [s for s in request.sections if s not in SECTIONS]
