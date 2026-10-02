@@ -306,4 +306,57 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 
 ## 7. 实现说明
 
-服务层位于 `packages/backend/src/tandem_backend/services/`，入口 `python -m tandem_backend.services gateway | worker ingest | worker analysis`（安装后为 `tandem-helper`）。模块划分、配置项与合成数据基准在实现完成后补充于本节。
+服务层位于 `packages/backend/src/tandem_backend/services/`，入口 `python -m tandem_backend.services gateway | worker ingest | worker analysis`（安装后为 `tandem-helper`，冻结后以 `<可执行文件> worker <role>` 拉起 worker）。`--home` 覆盖数据目录，默认沿用 `tandem_data.paths.default_home()`。
+
+### 7.1 模块
+
+| 模块 | 职责 |
+| --- | --- |
+| [`gateway.py`](../../packages/backend/src/tandem_backend/services/gateway.py) | 组装 FastAPI：自身路由先注册，`mount("/")` 懒加载回落 `create_app()`（无库时回 `503 no_projection`），lifespan 中转发其 shutdown；内存中的 `Revisions`（`data_rev / inventory_rev / counts`，启动时读一次库，之后只由 worker 的 `published` 更新）；去抖预热；持续同步轮询；`run_gateway` 绑定随机端口、stdout 首行打印 `{"port":N}`、`TANDEM_PARENT_PID` 看门 |
+| [`auth.py`](../../packages/backend/src/tandem_backend/services/auth.py) | 纯 ASGI 中间件（不缓冲 SSE）：Host 必须是本机回环加端口，Origin 若存在必须同源，`Authorization: Bearer`（`TANDEM_API_TOKEN` ≥ 32 字符，常量时间比较）；所有响应追加 `Cache-Control: no-store`、`nosniff`、`X-Frame-Options: DENY`、CSP 等；`ApiError` 统一错误体 |
+| [`supervisor.py`](../../packages/backend/src/tandem_backend/services/supervisor.py) | `WorkerProcess`（懒启动、心跳看门、退避重启、`degraded`）；`IngestRunner`（`JobRunner` 的 worker 实现，退避窗口内提交的任务在重新拉起后下发）；`AnalysisQueue`（`interactive > prewarm` 优先级、同键合并、崩溃重排一次、超时、熔断、RSS 回收、空闲回收、interactive 运行时暂停 ingest 的 rest 批次） |
+| [`worker_protocol.py`](../../packages/backend/src/tandem_backend/services/worker_protocol.py) | stdio JSON Lines；worker 的 fd 1 专供协议，库的 `print` 改走 stderr（写入 `logs/<role>.log`） |
+| [`worker_ingest.py`](../../packages/backend/src/tandem_backend/services/worker_ingest.py) / [`ingest_plan.py`](../../packages/backend/src/tandem_backend/services/ingest_plan.py) | 唯一写者；`phase=auto` 时按 mtime 切 head / window / rest，每批经 `ImportRequest.files` 调 `ImportService` 并回报新 `data_rev`；rest 按块（默认 200 个文件）在块间可暂停；取消在文件边界生效 |
+| [`worker_analysis.py`](../../packages/backend/src/tandem_backend/services/worker_analysis.py) / [`sections.py`](../../packages/backend/src/tandem_backend/services/sections.py) | 按 `SECTIONS` 注册表计算；同一 worker 内对同一 `(scope, with_text, rev)` 复用最近两次完整分析，避免各 section 重复跑整包；错误分类为 `not_found / invalid_request / analysis_scope_too_large / projection_pending / analysis_failed` |
+| [`snapshots.py`](../../packages/backend/src/tandem_backend/services/snapshots.py) | 快照键、内存 LRU 与 `cache/ui.sqlite`；损坏的缓存文件直接重建 |
+| [`jobs.py`](../../packages/backend/src/tandem_backend/services/jobs.py) | `AppState` 与 `JobService`；逐文件进度合并为“阶段变化或每 0.25 s 一帧”，避免一次导入挤满 1000 帧缓冲 |
+| [`events.py`](../../packages/backend/src/tandem_backend/services/events.py) | SSE 总线；`Last-Event-ID` 早于缓冲时先发无 id 的 `resync` 帧 |
+| [`routes_data.py`](../../packages/backend/src/tandem_backend/services/routes_data.py) / [`routes_app.py`](../../packages/backend/src/tandem_backend/services/routes_app.py) / [`routes_analytics.py`](../../packages/backend/src/tandem_backend/services/routes_analytics.py) | 直读、`/v1/app/*` 与 `/v1/events`、快照分析路由与 `POST /v1/analytics/recompute` |
+
+### 7.2 接口与已定取舍
+
+- 直读：`/v1/status`、`/health` 只读内存；`/v1/sessions`（保持既有列表形状，总数放 `X-Total-Count`）、`/v1/sessions/{id}/events`、`/v1/projects`、`/v1/sources`、`/v1/inventory` 用每线程一个 `mode=ro` 连接。`/v1/projects` 改为直读 `[{project_id, name, sessions, last_started_at}]`，不再在请求路径上跑 `profiling.analyze`。投影待重建时同一请求的上一份结果带 `X-Tandem-Freshness: stale` 返回，否则 `503 projection_pending` + `Retry-After`。
+- 分析：`/v1/analytics/{overview,sessions,sessions/{id},tools,projects,text,tasks,preferences,instruction}` 走 §4.2；其余 `/v1/analytics/*`（statistics、lexical、products、runs 等）仍由 `create_app()` 同步提供。会话列表快照只存紧凑摘要行，分页在 gateway 做，ETag 的 section 段带 `[offset:limit]`。`preferences?task_id=` 与会话详情把参数并入 `scope_hash`。
+- 快照失效按 `(data_rev, inventory_rev)` 整体判断；导入进行中命中旧快照时仍会排队重算（同键合并），去抖只作用于预热。预热范围为默认范围（最近 `default_range_days`，默认 30 天，UTC 日起点）加最近 5 个 MRU 范围；head / window 批次只预热轻量 section。
+- 分批导入的每一批以 `files` 子集调用 `ImportService`，因此 `source_scan.selection` 记为 `sample`；“上游已删除”标记仍只在 `phase=full` 的全量导入中执行。持续同步（`sync_mode=live`）使用 `phase=full`。
+- `/v1/app/export` 不在本包实现（`capabilities.export=false`）。`DesktopService` 合入后由其接管 `AppState` 部分。
+
+### 7.3 配置（`SupervisorConfig`）
+
+| 项 | 默认 | 说明 |
+| --- | --- | --- |
+| `heartbeat_s` / `stale_s` | 5 / 15 | worker 心跳间隔与判定卡死阈值（经 `TANDEM_WORKER_HEARTBEAT_S` 传给 worker） |
+| `backoff_s` / `max_restarts` / `restart_window_s` | 0.5,1,2,4 / 5 / 60 | 崩溃重启退避；窗口内超过次数进入 `degraded`，用户提交导入或重试时复位 |
+| `light_timeout_s` / `heavy_timeout_s` | 20 / 120 | 分析超时；按 section 的 `cost` 选择 |
+| `max_failures` | 3 | 同 `(section, scope_hash)` 在同一版本下的熔断阈值；数据版本变化或 `recompute` 解除 |
+| `rss_limit_bytes` / `analysis_idle_s` | 1.5 GB / 300 | analysis worker 回收条件 |
+| `plan` | `{}` | 传给 `plan_batches` 的覆盖（`head_sessions`、`head_days`、`window_days`、`rest_chunk`） |
+| `worker_env` | `{}` | 额外环境变量；`TANDEM_ANALYSIS_MAX_EVENTS` 设定分析事件预算，`TANDEM_WORKER_DEBUG_DELAY_MS` 仅供测试拉宽竞态窗口 |
+
+### 7.4 验证与基准
+
+- 测试：`uv run --no-sync pytest -q packages/backend/tests/services`（合成 Codex JSONL 70 个会话，真实子进程 worker 与 uvicorn），覆盖鉴权 401 / 403、无库 status、分批发布与 SSE 续传、导入中并发读、快照 202 → ready → fresh → 304 → stale、同键合并、杀 worker 恢复、超时熔断、卡死与 degraded、回落与 shutdown 转发。
+- 基准：[`benchmarks/gateway_latency.py`](../../benchmarks/gateway_latency.py)，`uv run python -m benchmarks.gateway_latency --sessions 300 --repeats 200 [--strict]`。客户端经回环 HTTP keep-alive 计时。阈值即 §4.5 的 p95 预算；`--strict` 超预算返回 1。
+
+2026-10-02 在 Apple M4 Pro、Python 3.13.15 上用 300 个合成会话的一次测量（ms）：
+
+| 项目 | p50 | p95 | 预算（p95） |
+| --- | --- | --- | --- |
+| `/v1/status` | 0.57 | 0.84 | 20 |
+| `/v1/sessions?limit=50`（直读） | 1.64 | 1.90 | 30 |
+| `/v1/sessions/{id}/events?limit=100` | 1.81 | 2.16 | 30 |
+| `/v1/analytics/overview`（命中快照） | 1.88 | 2.22 | 100 |
+| 同上 `If-None-Match` → 304 | 0.67 | 0.92 | 5 |
+| `/v1/analytics/sessions?limit=50`（快照分页） | 7.27 | 24.4 | 150 |
+
+同次测量：分批导入全程 4.6 s，首批（head）发布 0.64 s；300 会话的 overview 冷算 4.8 s（期间 UI 得到 202 / stale，不阻塞）。数字随机器变化，回归以预算判定。
