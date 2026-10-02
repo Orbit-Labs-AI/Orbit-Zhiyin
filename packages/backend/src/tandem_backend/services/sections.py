@@ -106,6 +106,53 @@ def _preferences(store, scope, params, memo):
     return result
 
 
+def _presentation(store, scope, params, memo):
+    from ..analytics.presentation import build_presentation
+    from ..analytics.presentation.metrics import window_scope
+
+    selected = window_scope(scope, params.get("window"))
+    result = dict(memo.analysis(store, selected, False, params.get("_rev")))
+    if params.get("target_agent", "generic") != "generic" or params.get("family"):
+        from ..recommend.service import recommend
+
+        result["bottleneck_recommendations"] = recommend(
+            result, context={"agent": params.get("target_agent", "generic")},
+            family=params.get("family"))
+    return build_presentation(result)
+
+
+def _recommendations(store, scope, params, memo):
+    from ..analytics.service import response_section
+    from ..recommend.service import recommend
+
+    result = dict(memo.analysis(store, scope, False, params.get("_rev")))
+    options = {k: params[k] for k in ("kind", "family") if params.get(k) is not None}
+    result["bottleneck_recommendations"] = recommend(
+        result, context=params.get("context") or {}, limit=params.get("limit", 6), **options)
+    return response_section(result, "bottleneck_recommendations")
+
+
+def _products(store, scope, params, memo):
+    from ..analytics.products import analyze_product_store
+
+    return analyze_product_store(store, scope, bucket=params.get("bucket", "day"),
+                                 with_text=bool(params.get("with_text")),
+                                 compare_previous=bool(params.get("compare_previous")))
+
+
+def _legacy_report(store, scope, params, memo):
+    """``/v1/analysis``: the CLI report use case; the scope is unused (params carry filters)."""
+    from ..application.reports import build_report
+
+    scene = params.get("scene", "auto")
+    _, result = build_report(store, project_id=params.get("project_id"),
+                             model=params.get("model"), before=params.get("before"),
+                             scene=scene if scene != "auto" else None,
+                             recommendation_scene=scene, audience=params.get("audience", "user"),
+                             catalog_cache=".local/catalog.json")
+    return result
+
+
 SECTIONS: dict[str, Section] = {}
 
 
@@ -122,9 +169,22 @@ for _name, _cost, _text in (("overview", "light", False), ("tools", "light", Fal
 register(Section("sessions", "sessions", "light", _sessions, True))
 register(Section("session", "session", "heavy", _session_detail, True))
 register(Section("preferences", "preferences", "light", _preferences, False))
+# Formerly legacy create_app() routes that ran analyze_store / build_report inside the
+# gateway process (no timeout, no RSS cap); now computed by the supervised worker only.
+ON_DEMAND = ("statistics", "lexical", "bottleneck", "presentation", "recommendations",
+             "products", "analysis")
+for _name, _key in (("statistics", "statistics"), ("lexical", "lexical"),
+                    ("bottleneck", "bottleneck_features")):
+    register(Section(_name, _key, "heavy", _section(_key, False)))
+register(Section("presentation", "presentation", "heavy", _presentation))
+register(Section("recommendations", "bottleneck_recommendations", "heavy", _recommendations))
+register(Section("products", "products", "heavy", _products))
+register(Section("analysis", "analysis", "heavy", _legacy_report))
 
-LIGHT = tuple(name for name, s in SECTIONS.items() if s.cost == "light" and name != "session")
-HEAVY = tuple(name for name, s in SECTIONS.items() if s.cost == "heavy" and name != "session")
+# Prewarm covers the UI's default sections; on-demand ones only run when requested.
+_PREWARM = [name for name in SECTIONS if name != "session" and name not in ON_DEMAND]
+LIGHT = tuple(name for name in _PREWARM if SECTIONS[name].cost == "light")
+HEAVY = tuple(name for name in _PREWARM if SECTIONS[name].cost == "heavy")
 
 _RULES: str | None = None
 
