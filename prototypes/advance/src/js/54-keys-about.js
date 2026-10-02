@@ -12,14 +12,16 @@ let ABOUT = null;
 function aboutRows(a) {
   const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
   const app = (a && a.app) || {}, c = (a && a.components) || {}, rt = (a && a.runtime) || {};
-  return [['版本', app.version || (n && n.app) || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.contract].filter(Boolean).join(' · ') || '—'],
+  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row
+  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
     ['数据库结构', c.db_schema_version != null ? 'v' + c.db_schema_version : '—'], ['规则 / 分析', [c.rules_version, c.analytics_version].filter(Boolean).join(' · ') || '—'],
     ['脱敏规则', c.redaction_version || '—'], ['支持的 Agent', (c.mappers || []).map((k) => lvAgentOf(k).name).join('、') || '—'],
     ['运行环境', [rt.python && 'Python ' + rt.python, rt.platform, rt.arch].filter(Boolean).join(' · ') || '—']];
 }
 function drawAbout(first) {
   if (!first && (MODAL_KEY !== 'about' || $('#modal').hidden)) return;
-  const a = ABOUT, ver = a && a.data && a.data.app && a.data.app.version;
+  const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
+  const a = ABOUT, ver = (n && n.app) || (a && a.data && a.data.app && a.data.app.version);
   const body = !a || a.state === 'pending' ? LV.pend(180) : a.state === 'error' ? '<p style="margin:0">' + LV.na('暂时读不到版本信息（本机服务未响应）') + '</p>'
     : '<div class="col" data-about="rows" style="gap:0">' + aboutRows(a.data).map((r) => '<div class="row" style="justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--hair)"><span class="cap" style="font-size:12px;flex:none">' + esc(r[0]) + '</span><span class="mono" style="font-size:12px;text-align:right;min-width:0;overflow-wrap:anywhere">' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
   openModal(modalHead('关于 Orbit', 'Orbit' + (ver ? ' ' + ver : '') + ' · 本地的跨 Agent 会话分析') + '<div class="mb col" style="gap:12px;font-size:13px;line-height:1.65;color:var(--ink-2)"><div class="row" style="gap:12px"><span class="appicon" style="width:44px;height:44px;flex:none">' + appIcon(44) + '</span><div class="col" style="gap:2px"><b class="serif" style="font-size:20px;color:var(--ink-1)">Orbit</b><span class="mono cap" data-about="version">' + esc(ver || '—') + '</span></div></div>' + body + '<p class="cap" style="margin:0">全部数据只在本机；Orbit 不上传会话内容。</p></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); MODAL_KEY = 'about';

@@ -1,7 +1,7 @@
 {
  "app": {
   "name": "Orbit",
-  "version": "0.0.1",
+  "version": "0.13.6",
   "contract": "tandem-app-v1"
  },
  "components": {
