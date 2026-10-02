@@ -21,6 +21,11 @@ RULE_TO_PROBLEM = {
 COMMUNICATION_RULES = {"explanation_revision", "long_response", "unexplained_terms"}
 DIMENSIONS = {"missing_verification": "verification", "buggy_output": "verification",
               "wrong_approach": "actionability", "context_loss": "grounding"}
+# Problem types lifted from SQL facts by ``_kb_problems`` (see section._kb_facts).
+FACT_TYPES = ("review_loop", "parallel_conflict", "readonly_review", "repeated_workflow",
+              "late_build_failure", "polling", "deploy_platform_mix")
+TYPES = (*dict.fromkeys(RULE_TO_PROBLEM.values()), "permission_friction", "communication_gap",
+         "resident_cost", "installed_unused", *FACT_TYPES)
 MIN_SESSIONS, MIN_WILSON_LO, MIN_DENOMINATOR = 3, .05, 5
 MAX_IDS = 50
 
@@ -134,6 +139,8 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         a.vars = {**a.vars, "software": software, "error_classes": sorted({str(r.get("error_class")) for r in rows})}
         a.reasons.append(f"{software} 在 {a.k} 个会话里失败")
 
+    _kb_problems(acc, facts, main)
+
     inventory = inputs.get("inventory")
     if inventory is not None:
         usage = facts.get("usage") or {}
@@ -197,3 +204,85 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
     order = {"active": 0, "below_threshold": 1, "insufficient": 2}
     output.sort(key=lambda p: (order[p["status"]], -p["weekly_count"], p["key"]))
     return output
+
+
+def _median(values) -> int:
+    ordered = sorted(int(v) for v in values)
+    return ordered[len(ordered) // 2] if ordered else 0
+
+
+def _top(values) -> str | None:
+    counts: dict[str, int] = {}
+    for value in values:
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    return max(sorted(counts), key=lambda v: counts[v]) if counts else None
+
+
+def _kb_problems(acc, facts: dict, main: int) -> None:
+    """Lift the per-session KB coverage facts into problems (k sessions out of ``main``)."""
+
+    def lift(type_, key, uids, count, unit, vars_, reason, projects=()):
+        uids = sorted({uid for uid in uids if uid})
+        if not uids:
+            return
+        a = acc(type_, key)
+        a.add_ids(a.sessions, uids)
+        a.k = len(uids)
+        a.n = max(main, a.k)
+        a.weekly = float(count)
+        a.unit = unit
+        a.projects.update(p for p in projects if p)
+        a.vars = {**a.vars, **vars_}
+        a.reasons.append(reason)
+
+    rows = facts.get("review_loops") or []
+    if rows:
+        rounds = [int(r.get("rounds") or 0) for r in rows]
+        lift("review_loop", "review_loop", [r.get("session_uid") for r in rows], sum(rounds), "轮 review",
+             {"rounds_median": _median(rounds), "rounds_max": max(rounds)},
+             f"{len(rows)} 个会话里 review 和修改来回了 {_median(rounds)} 轮以上")
+    rows = facts.get("parallel_conflicts") or []
+    if rows:
+        files = sorted({f for r in rows for f in r.get("files") or ()})
+        uids = [u for r in rows for u in (r.get("a"), r.get("b"))]
+        lift("parallel_conflict", "parallel_conflict", uids, len(rows), "对会话",
+             {"pairs": len(rows), "files_examples": "、".join(files[:3])},
+             f"{len(rows)} 对同时进行的会话改到了同一批文件",
+             projects=[r.get("project_id") for r in rows])
+    rows = facts.get("readonly_reviews") or []
+    if rows:
+        lift("readonly_review", "readonly_review", [r.get("session_uid") for r in rows], len(rows), "会话",
+             {"reads_median": _median(r.get("reads") or 0 for r in rows),
+              "minutes_median": _median(r.get("minutes") or 0 for r in rows)},
+             f"{len(rows)} 个会话只读不改，平均读了 {_median(r.get('reads') or 0 for r in rows)} 次")
+    for row in facts.get("repeated_workflows") or ():
+        sequence = [str(step) for step in row.get("sequence") or ()]
+        if not sequence:
+            continue
+        text = " → ".join(sequence)
+        lift("repeated_workflow", f"repeated_workflow:{text}", row.get("session_uids") or (),
+             int(row.get("sessions") or 0), "次流程",
+             {"sequence": text, "steps_list": sequence, "n_steps": len(sequence),
+              "sessions": int(row.get("sessions") or 0)},
+             f"{row.get('sessions')} 个会话重复同一串步骤：{text}")
+    rows = facts.get("late_build_failures") or []
+    if rows:
+        command = _top(r.get("build_command") for r in rows) or "build"
+        lift("late_build_failure", "late_build_failure", [r.get("session_uid") for r in rows], len(rows),
+             "次构建失败", {"build_command": command, "edits_median": _median(r.get("edits") or 0 for r in rows)},
+             f"{len(rows)} 个会话连续改了多处才跑 {command}，结果构建失败",
+             projects=[r.get("project_id") for r in rows])
+    rows = facts.get("polling") or []
+    if rows:
+        checks = [int(r.get("checks") or 0) for r in rows]
+        lift("polling", "polling", [r.get("session_uid") for r in rows], sum(checks), "次检查",
+             {"checks_median": _median(checks), "targets": "、".join(sorted({str(r.get("target")) for r in rows})[:3])},
+             f"{len(rows)} 个会话反复手动查看进度")
+    for row in facts.get("deploy_platforms") or ():
+        platforms = [str(p) for p in row.get("platforms") or ()]
+        project = row.get("project") or row.get("project_id") or ""
+        lift("deploy_platform_mix", f"deploy_platform_mix:{row.get('project_id')}", row.get("session_uids") or (),
+             int(row.get("sessions") or 0), "会话",
+             {"platforms": "、".join(platforms), "project": project, "n_platforms": len(platforms)},
+             f"{project} 里同时出现 {'、'.join(platforms)} 的部署命令", projects=[row.get("project_id")])
