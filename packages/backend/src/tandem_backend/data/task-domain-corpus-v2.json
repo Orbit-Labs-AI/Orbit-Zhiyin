@@ -1,0 +1,798 @@
+{
+  "version": "task-domain-corpus-v2.1",
+  "taxonomy_version": "task-taxonomy-v2.1",
+  "source": "Original bilingual synthetic sentences authored for this repository; no user history, web text, or private prompts.",
+  "split_policy": "Development cases exercise aliases and explicit exclusions. Heldout-style cases use alternative combinations and adversarial phrasing; authored by the same implementer, not a blind external benchmark.",
+  "limitations": [
+    "Deterministic lexical candidates, not semantic ground truth.",
+    "This synthetic set cannot estimate accuracy on real user populations.",
+    "Rules do not infer user skill, interest strength, personality, or task success."
+  ],
+  "development": [
+    {
+      "id": "dev-1-zh",
+      "text": "请实现 React 前端筛选组件",
+      "expected_details": [
+        "software.frontend"
+      ]
+    },
+    {
+      "id": "dev-1-en",
+      "text": "Build a responsive page in CSS",
+      "expected_details": [
+        "software.frontend"
+      ]
+    },
+    {
+      "id": "dev-2-zh",
+      "text": "请创建后端接口",
+      "expected_details": [
+        "software.backend_api"
+      ]
+    },
+    {
+      "id": "dev-2-en",
+      "text": "Implement a GraphQL endpoint",
+      "expected_details": [
+        "software.backend_api"
+      ]
+    },
+    {
+      "id": "dev-3-zh",
+      "text": "请添加单元测试",
+      "expected_details": [
+        "software.testing_debugging"
+      ]
+    },
+    {
+      "id": "dev-3-en",
+      "text": "Please debug the failing unit tests",
+      "expected_details": [
+        "software.testing_debugging"
+      ]
+    },
+    {
+      "id": "dev-4-zh",
+      "text": "请配置持续集成并部署",
+      "expected_details": [
+        "software.devops"
+      ]
+    },
+    {
+      "id": "dev-4-en",
+      "text": "Create a Docker deployment",
+      "expected_details": [
+        "software.devops"
+      ]
+    },
+    {
+      "id": "dev-5-zh",
+      "text": "请优化数据库索引",
+      "expected_details": [
+        "software.database"
+      ]
+    },
+    {
+      "id": "dev-5-en",
+      "text": "Explain the PostgreSQL query",
+      "expected_details": [
+        "software.database"
+      ]
+    },
+    {
+      "id": "dev-6-zh",
+      "text": "请重构软件架构",
+      "expected_details": [
+        "software.architecture"
+      ]
+    },
+    {
+      "id": "dev-6-en",
+      "text": "Refactor this module into microservices",
+      "expected_details": [
+        "software.architecture"
+      ]
+    },
+    {
+      "id": "dev-7-zh",
+      "text": "请编写自动化脚本",
+      "expected_details": [
+        "software.automation"
+      ]
+    },
+    {
+      "id": "dev-7-en",
+      "text": "Create a PowerShell script",
+      "expected_details": [
+        "software.automation"
+      ]
+    },
+    {
+      "id": "dev-8-zh",
+      "text": "请实现身份认证",
+      "expected_details": [
+        "software.security"
+      ]
+    },
+    {
+      "id": "dev-8-en",
+      "text": "Implement OAuth authentication",
+      "expected_details": [
+        "software.security"
+      ]
+    },
+    {
+      "id": "dev-9-zh",
+      "text": "请完善智能体提示词",
+      "expected_details": [
+        "software.ai_engineering"
+      ]
+    },
+    {
+      "id": "dev-9-en",
+      "text": "Build an LLM agent with RAG",
+      "expected_details": [
+        "software.ai_engineering"
+      ]
+    },
+    {
+      "id": "dev-10-zh",
+      "text": "请实现数据清洗",
+      "expected_details": [
+        "data.engineering"
+      ]
+    },
+    {
+      "id": "dev-10-en",
+      "text": "Build an ETL data pipeline",
+      "expected_details": [
+        "data.engineering"
+      ]
+    },
+    {
+      "id": "dev-11-zh",
+      "text": "请统计项目个数和时间",
+      "expected_details": [
+        "data.statistics"
+      ]
+    },
+    {
+      "id": "dev-11-en",
+      "text": "Analyze the dataset with descriptive statistics",
+      "expected_details": [
+        "data.statistics"
+      ]
+    },
+    {
+      "id": "dev-12-zh",
+      "text": "请生成活跃时段热力图",
+      "expected_details": [
+        "data.visualization"
+      ]
+    },
+    {
+      "id": "dev-12-en",
+      "text": "Create a scatter plot",
+      "expected_details": [
+        "data.visualization"
+      ]
+    },
+    {
+      "id": "dev-13-zh",
+      "text": "请实现特征提取和聚类",
+      "expected_details": [
+        "data.machine_learning"
+      ]
+    },
+    {
+      "id": "dev-13-en",
+      "text": "Build a machine learning classifier",
+      "expected_details": [
+        "data.machine_learning"
+      ]
+    },
+    {
+      "id": "dev-14-zh",
+      "text": "请编写安装指南",
+      "expected_details": [
+        "writing.technical"
+      ]
+    },
+    {
+      "id": "dev-14-en",
+      "text": "Update the README",
+      "expected_details": [
+        "writing.technical"
+      ]
+    },
+    {
+      "id": "dev-15-zh",
+      "text": "请撰写文献综述",
+      "expected_details": [
+        "writing.research"
+      ]
+    },
+    {
+      "id": "dev-15-en",
+      "text": "Revise this thesis",
+      "expected_details": [
+        "writing.research"
+      ]
+    },
+    {
+      "id": "dev-16-zh",
+      "text": "请撰写项目报告",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "dev-16-en",
+      "text": "Create a blog article",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "dev-17-zh",
+      "text": "请翻译这个段落",
+      "expected_details": [
+        "writing.translation"
+      ]
+    },
+    {
+      "id": "dev-17-en",
+      "text": "Translate the paragraph into French",
+      "expected_details": [
+        "writing.translation"
+      ]
+    },
+    {
+      "id": "dev-18-zh",
+      "text": "请优化交互原型",
+      "expected_details": [
+        "design.ux_ui"
+      ]
+    },
+    {
+      "id": "dev-18-en",
+      "text": "Create a wireframe for the user flow",
+      "expected_details": [
+        "design.ux_ui"
+      ]
+    },
+    {
+      "id": "dev-19-zh",
+      "text": "请创建一张海报",
+      "expected_details": [
+        "design.visual"
+      ]
+    },
+    {
+      "id": "dev-19-en",
+      "text": "Design a logo",
+      "expected_details": [
+        "design.visual"
+      ]
+    },
+    {
+      "id": "dev-20-zh",
+      "text": "请调整幻灯片排版",
+      "expected_details": [
+        "design.presentation"
+      ]
+    },
+    {
+      "id": "dev-20-en",
+      "text": "Create a slide deck",
+      "expected_details": [
+        "design.presentation"
+      ]
+    },
+    {
+      "id": "dev-21-zh",
+      "text": "请解释线性代数中的特征值",
+      "expected_details": [
+        "math.linear_algebra"
+      ]
+    },
+    {
+      "id": "dev-21-en",
+      "text": "Explain the determinant",
+      "expected_details": [
+        "math.linear_algebra"
+      ]
+    },
+    {
+      "id": "dev-22-zh",
+      "text": "请推导这个积分",
+      "expected_details": [
+        "math.calculus"
+      ]
+    },
+    {
+      "id": "dev-22-en",
+      "text": "Explain this calculus derivative",
+      "expected_details": [
+        "math.calculus"
+      ]
+    },
+    {
+      "id": "dev-23-zh",
+      "text": "请推导概率分布",
+      "expected_details": [
+        "math.probability"
+      ]
+    },
+    {
+      "id": "dev-23-en",
+      "text": "Explain this random variable",
+      "expected_details": [
+        "math.probability"
+      ]
+    },
+    {
+      "id": "dev-24-zh",
+      "text": "请解释图论中的路径问题",
+      "expected_details": [
+        "math.discrete"
+      ]
+    },
+    {
+      "id": "dev-24-en",
+      "text": "Explain convex optimization",
+      "expected_details": [
+        "math.discrete"
+      ]
+    },
+    {
+      "id": "dev-25-zh",
+      "text": "请编写课程大纲",
+      "expected_details": [
+        "education.lesson_design"
+      ]
+    },
+    {
+      "id": "dev-25-en",
+      "text": "Create a lesson plan",
+      "expected_details": [
+        "education.lesson_design"
+      ]
+    },
+    {
+      "id": "dev-26-zh",
+      "text": "请辅导初学者理解这个概念",
+      "expected_details": [
+        "education.tutoring"
+      ]
+    },
+    {
+      "id": "dev-26-en",
+      "text": "Please tutor a beginner",
+      "expected_details": [
+        "education.tutoring"
+      ]
+    },
+    {
+      "id": "dev-27-zh",
+      "text": "请批改这份作业",
+      "expected_details": [
+        "education.assessment"
+      ]
+    },
+    {
+      "id": "dev-27-en",
+      "text": "Please grade the homework",
+      "expected_details": [
+        "education.assessment"
+      ]
+    },
+    {
+      "id": "negative-quote",
+      "text": "“请实现后端接口”",
+      "expected_details": []
+    },
+    {
+      "id": "negative-blockquote",
+      "text": "> 请调试后端接口",
+      "expected_details": []
+    },
+    {
+      "id": "negative-title",
+      "text": "任务标题：实现数据库接口",
+      "expected_details": []
+    },
+    {
+      "id": "negative-title-en",
+      "text": "Task title: Build a React page",
+      "expected_details": []
+    },
+    {
+      "id": "negative-history",
+      "text": "历史记录：请实现数据清洗",
+      "expected_details": []
+    },
+    {
+      "id": "negative-report",
+      "text": "我已经修复后端接口",
+      "expected_details": []
+    },
+    {
+      "id": "negative-status-suffix",
+      "text": "后端接口已完成",
+      "expected_details": []
+    },
+    {
+      "id": "negative-report-en",
+      "text": "We have already created the database",
+      "expected_details": []
+    },
+    {
+      "id": "negative-report-en-suffix",
+      "text": "The API was implemented",
+      "expected_details": []
+    },
+    {
+      "id": "negative-negation",
+      "text": "请不要实现后端接口",
+      "expected_details": []
+    },
+    {
+      "id": "negative-example",
+      "text": "例如实现数据清洗",
+      "expected_details": []
+    },
+    {
+      "id": "negative-hypothesis",
+      "text": "如果修复后端接口",
+      "expected_details": []
+    },
+    {
+      "id": "negative-preference",
+      "text": "以后所有项目都用 React",
+      "expected_details": []
+    },
+    {
+      "id": "ambiguous-matrix",
+      "text": "请调整任务矩阵",
+      "expected_details": []
+    },
+    {
+      "id": "ambiguous-proof",
+      "text": "请上传付款证明",
+      "expected_details": []
+    },
+    {
+      "id": "ambiguous-ui",
+      "text": "请查看 UI",
+      "expected_details": []
+    },
+    {
+      "id": "ambiguous-go",
+      "text": "Please go ahead",
+      "expected_details": []
+    },
+    {
+      "id": "ambiguous-test-report",
+      "text": "请总结测试报告",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "ambiguous-test-report-en",
+      "text": "Summarize the test report",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "negative-mentioned",
+      "text": "React Vue API",
+      "expected_details": []
+    },
+    {
+      "id": "dev-physics-spectrum",
+      "text": "请整理微分谱的实验记录",
+      "expected_details": []
+    },
+    {
+      "id": "dev-physics-cross-section",
+      "text": "请展示微分截面的测量结果",
+      "expected_details": []
+    },
+    {
+      "id": "dev-math-differential-equation",
+      "text": "请推导一阶微分方程",
+      "expected_details": ["math.calculus"]
+    },
+    {
+      "id": "dev-math-explicit-integral",
+      "text": "请计算微分谱曲线的积分",
+      "expected_details": ["math.calculus"]
+    }
+  ],
+  "heldout": [
+    {
+      "id": "h-front",
+      "text": "Please update a Vue component for the frontend",
+      "expected_details": [
+        "software.frontend"
+      ]
+    },
+    {
+      "id": "h-api",
+      "text": "请修改服务端 webhook 的返回值",
+      "expected_details": [
+        "software.backend_api"
+      ]
+    },
+    {
+      "id": "h-debug",
+      "text": "请排查程序崩溃",
+      "expected_details": [
+        "software.testing_debugging"
+      ]
+    },
+    {
+      "id": "h-devops",
+      "text": "请完善容器编排",
+      "expected_details": [
+        "software.devops"
+      ]
+    },
+    {
+      "id": "h-db",
+      "text": "请修改 SQLite 数据表",
+      "expected_details": [
+        "software.database"
+      ]
+    },
+    {
+      "id": "h-arch",
+      "text": "请优化代码架构并执行模块拆分",
+      "expected_details": [
+        "software.architecture"
+      ]
+    },
+    {
+      "id": "h-cli",
+      "text": "Please modify the CLI parser",
+      "expected_details": [
+        "software.automation"
+      ]
+    },
+    {
+      "id": "h-sec",
+      "text": "请修复权限控制漏洞",
+      "expected_details": [
+        "software.security"
+      ]
+    },
+    {
+      "id": "h-ai",
+      "text": "请创建 MCP 子代理",
+      "expected_details": [
+        "software.ai_engineering"
+      ]
+    },
+    {
+      "id": "h-etl",
+      "text": "请调整数据导入和数据抽取流程",
+      "expected_details": [
+        "data.engineering"
+      ]
+    },
+    {
+      "id": "h-stats",
+      "text": "请实现分组统计",
+      "expected_details": [
+        "data.statistics"
+      ]
+    },
+    {
+      "id": "h-heat",
+      "text": "Please visualize a histogram",
+      "expected_details": [
+        "data.visualization"
+      ]
+    },
+    {
+      "id": "h-ml",
+      "text": "请优化特征工程中的降维步骤",
+      "expected_details": [
+        "data.machine_learning"
+      ]
+    },
+    {
+      "id": "h-doc",
+      "text": "请完善技术文档中的使用说明",
+      "expected_details": [
+        "writing.technical"
+      ]
+    },
+    {
+      "id": "h-paper",
+      "text": "Please revise the literature review",
+      "expected_details": [
+        "writing.research"
+      ]
+    },
+    {
+      "id": "h-blog",
+      "text": "请修改博客文案",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "h-localize",
+      "text": "Please implement localization",
+      "expected_details": [
+        "writing.translation"
+      ]
+    },
+    {
+      "id": "h-ux",
+      "text": "请修改界面布局与交互设计",
+      "expected_details": [
+        "design.ux_ui"
+      ]
+    },
+    {
+      "id": "h-icon",
+      "text": "请创建图标和插画",
+      "expected_details": [
+        "design.visual"
+      ]
+    },
+    {
+      "id": "h-ppt",
+      "text": "请修改演示文稿",
+      "expected_details": [
+        "design.presentation"
+      ]
+    },
+    {
+      "id": "h-algebra",
+      "text": "请推导矩阵求逆",
+      "expected_details": [
+        "math.linear_algebra"
+      ]
+    },
+    {
+      "id": "h-integral",
+      "text": "请解释微分方程里的导数",
+      "expected_details": [
+        "math.calculus"
+      ]
+    },
+    {
+      "id": "h-random",
+      "text": "Please derive the probability distribution",
+      "expected_details": [
+        "math.probability"
+      ]
+    },
+    {
+      "id": "h-discrete",
+      "text": "请证明组合数学中的恒等式",
+      "expected_details": [
+        "math.discrete"
+      ]
+    },
+    {
+      "id": "h-curriculum",
+      "text": "请创建教案",
+      "expected_details": [
+        "education.lesson_design"
+      ]
+    },
+    {
+      "id": "h-tutor",
+      "text": "请给学生讲解这个概念",
+      "expected_details": [
+        "education.tutoring"
+      ]
+    },
+    {
+      "id": "h-exam",
+      "text": "请生成试卷",
+      "expected_details": [
+        "education.assessment"
+      ]
+    },
+    {
+      "id": "h-transition",
+      "text": "请生成工具调用转移矩阵",
+      "expected_details": [
+        "data.visualization"
+      ]
+    },
+    {
+      "id": "h-negative-both",
+      "text": "不要实现前端组件，也不要创建后端接口",
+      "expected_details": []
+    },
+    {
+      "id": "h-quoted-history",
+      "text": "历史任务：调试 Python 程序；现在请编写博客文章",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "h-mixed-current",
+      "text": "我已经修复后端接口，现在请创建海报",
+      "expected_details": [
+        "design.visual"
+      ]
+    },
+    {
+      "id": "h-reported-noun",
+      "text": "数据库迁移已完成",
+      "expected_details": []
+    },
+    {
+      "id": "h-conditional",
+      "text": "If we build a React component",
+      "expected_details": []
+    },
+    {
+      "id": "h-test-field",
+      "text": "请删除报告里的测试字段后上传",
+      "expected_details": [
+        "writing.content"
+      ]
+    },
+    {
+      "id": "h-multi",
+      "text": "请实现前端筛选组件和后端接口",
+      "expected_details": [
+        "software.frontend",
+        "software.backend_api"
+      ]
+    },
+    {
+      "id": "h-negation-current",
+      "text": "不要实现后端接口，请创建一份文献综述",
+      "expected_details": [
+        "writing.research"
+      ]
+    },
+    {
+      "id": "h-duplicate",
+      "text": "请实现前端前端前端筛选组件",
+      "expected_details": [
+        "software.frontend"
+      ]
+    },
+    {
+      "id": "h-title-current",
+      "text": "标题：创建数据库；请翻译这个段落",
+      "expected_details": [
+        "writing.translation"
+      ]
+    },
+    {
+      "id": "h-physics-second-order-spectrum",
+      "text": "请比较两条二阶微分谱的测量条件",
+      "expected_details": []
+    },
+    {
+      "id": "h-physics-cross-section-dataset",
+      "text": "请核对微分截面实验里的单位",
+      "expected_details": []
+    },
+    {
+      "id": "h-math-explicit-differentiate",
+      "text": "请对这个函数求微分",
+      "expected_details": ["math.calculus"]
+    },
+    {
+      "id": "h-math-physics-combined",
+      "text": "请解释微分截面曲线的积分步骤",
+      "expected_details": ["math.calculus"]
+    }
+  ]
+}

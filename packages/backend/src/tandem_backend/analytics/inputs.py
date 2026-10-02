@@ -42,6 +42,7 @@ class Scope:
     include_children: bool = True
     scene: str | None = None
     legacy_project_ids: list[str] | None = None
+    agent_ids: list[str] | None = None
     source_ids: list[str] | None = None
 
     def __post_init__(self):
@@ -103,7 +104,11 @@ class AnalysisInputBundle:
                         "derivation_version", "redaction_version", "projection_run_id")}
             versions.update(storage="tandem-session-v1", content_digest=stable_id(
                 versions, data.get("sample_boundary"), data.get("statistical_members")))
-        return cls(sessions=data.get("sessions", []), coverage=cov, **fields,
+        source_agents = {s["source_id"]: s.get("agent")
+                         for s in data.get("sample_boundary", {}).get("sources", [])}
+        sessions = [{**s, "agent": source_agents.get(s.get("source_id"), s.get("agent"))}
+                    for s in data.get("sessions", [])]
+        return cls(sessions=sessions, coverage=cov, **fields,
                    versions=versions, sample_boundary=data.get("sample_boundary", {}),
                    statistical_members=data.get("statistical_members"),
                    inventory_scans=data.get("inventory_scans", []))
@@ -146,13 +151,18 @@ def legacy_bundle(store: Store) -> AnalysisInputBundle:
         sessions_raw = [json.loads(r[0]) for r in conn.execute("SELECT data FROM sessions ORDER BY id")]
         events_raw = [Event(**json.loads(r[0])) for r in conn.execute(
             "SELECT data FROM events ORDER BY session_id,ordinal")]
-        imports = [dict(r) for r in conn.execute("SELECT signature,policy,warnings FROM imports")]
+        imports = [dict(r) for r in conn.execute("SELECT session_id,signature,policy,warnings FROM imports")]
         policies = [dict(r) for r in conn.execute("SELECT source_root,data FROM sample_policies ORDER BY source_root")]
         schema = conn.execute("PRAGMA user_version").fetchone()[0]
     sessions, projects = [], {}
+    # Only this legacy Codex importer writes a numeric parser revision. Generic
+    # saved Session objects and their model names do not establish an Agent.
+    codex_sessions = {i["session_id"] for i in imports
+                      if type(json.loads(i["policy"]).get("parser")) is int}
     for s in sessions_raw:
         md = s.get("analytics_metadata", {})
         sessions.append({"session_uid": s["id"], "native_id": s["id"], "source_id": None,
+                         "agent": "codex" if s["id"] in codex_sessions or "native_source" in md else None,
                          "kind": md.get("kind", "unknown"), "root_uid": md.get("root_uid"),
                          "parent_uid": md.get("parent_uid"), "forked_from": s.get("parent_id"),
                          "replay_boundary_unknown": bool(s.get("parent_id")),
@@ -274,6 +284,8 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
             reason = "source_filter"
         elif scope.project_ids is not None and s.get("project_id") not in scope.project_ids:
             reason = "project_filter"
+        elif scope.agent_ids is not None and s.get("agent") not in scope.agent_ids:
+            reason = "agent_filter"
         elif scope.legacy_project_ids is not None and s.get("legacy_project_id") not in scope.legacy_project_ids:
             reason = "legacy_project_filter"
         if reason:
@@ -388,6 +400,9 @@ def select_canonical(bundle, scope):
     """Honor the data layer's scoped membership; linked context is never counted twice."""
     ids = set(bundle.statistical_members["event_uids"])
     events = bundle.events or []
+    allowed_sessions = {s["session_uid"] for s in bundle.sessions
+                        if scope.agent_ids is None or s.get("agent") in scope.agent_ids}
+    ids &= {e["event_uid"] for e in events if e["session_uid"] in allowed_sessions}
     if scope.source_ids is not None:
         source_sessions = {s["session_uid"] for s in bundle.sessions if s.get("source_id") in scope.source_ids}
         ids &= {e["event_uid"] for e in events if e["session_uid"] in source_sessions}
@@ -407,14 +422,15 @@ def select_canonical(bundle, scope):
     calls = None if bundle.tool_calls is None else [c for c in bundle.tool_calls
             if c.get("call_event_uid") in ids or c.get("result_event_uid") in ids]
     # L3 calls reference L2 events; native seq belongs to those events, not timestamps.
-    positions = {(e["session_uid"], e["event_uid"]): e["seq"] for e in events}
+    positions = {(e["session_uid"], e["event_uid"]): e.get("seq") for e in events}
     if calls is not None:
         calls = [{**c, "seq": positions.get((c["session_uid"], c.get("call_event_uid"))),
                   "result_seq": positions.get((c["session_uid"], c.get("result_event_uid")))} for c in calls]
     models = None if bundle.model_calls is None else [c for c in bundle.model_calls if c["usage_event_uid"] in ids]
     visible = {e["session_uid"] for e in members}
     roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}
-    sessions = [s for s in bundle.sessions if s["session_uid"] in visible | roots]
+    sessions = [s for s in bundle.sessions
+                if s["session_uid"] in (visible | roots) & allowed_sessions]
     linked_results = {c.get("result_event_uid") for c in calls or []}
     diagnostics = {"excluded_sessions": {}, "replayed_events_excluded": 0,
                    "model_ambiguous_turns_excluded": 0,

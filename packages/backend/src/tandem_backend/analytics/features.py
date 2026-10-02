@@ -5,9 +5,11 @@ Existing callers keep their imports and v1 field meanings.
 """
 
 from collections import Counter
+from datetime import datetime, timezone
 from statistics import mean, median
+from zoneinfo import ZoneInfo
 
-from .common import human, quantile, ratio
+from .common import human, quantile, ratio, timestamp
 from .cost_time import activity, token_total, usage
 from .instruction.structure import FILE, structure
 from .interaction import correction_terms
@@ -43,11 +45,21 @@ def text_lengths(events):
             "quality": "lower_bound" if exact < len(values) else "normalized_text"}
 
 
-def session_features(session, events, calls, main_ids, supported_kinds=None, event_status="available", *, with_workflow=True):
+def session_features(session, events, calls, main_ids, supported_kinds=None, event_status="available",
+                     display_timezone="UTC", *, with_workflow=True):
     users = [e for e in events if human(e, main_ids)]
     assistants = [e for e in events if e["kind"] == "message.assistant"]
     unknown_humans = sum(e["kind"] == "message.user" and e.get("attrs", {}).get("origin", "unknown") == "unknown" for e in events)
-    times = [e["ts"] for e in events if e.get("ts") is not None]
+    times, dates = [], set()
+    zone = ZoneInfo(display_timezone)
+    for e in events:
+        ts = e.get("ts")
+        if timestamp(ts):
+            try:
+                dates.add(datetime.fromtimestamp(ts / 1000, timezone.utc).astimezone(zone).date().isoformat())
+                times.append(ts)
+            except (ValueError, OverflowError, OSError):
+                pass
     lengths_u, lengths_a = text_lengths(users), text_lengths(assistants)
     corrections = [{"event_uid": e["event_uid"], "terms": terms} for e in users
                    if (terms := correction_terms(e.get("text") or ""))]
@@ -65,6 +77,8 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
                 "total_event_count": len(events), "first_observed_ts": min(times, default=None),
                 "last_observed_ts": max(times, default=None),
                 "observed_session_span_ms": max(times) - min(times) if times else None,
+                "observed_event_dates": sorted(dates), "observed_timestamp_n": len(times),
+                "time_unknown_event_count": len(events) - len(times),
                 "avg_user_message_chars": lengths_u["avg"], "median_user_message_chars": lengths_u["median"],
                 "avg_assistant_message_chars": lengths_a["avg"], "median_assistant_message_chars": lengths_a["median"],
                 "tool_call_count": len(calls) if calls is not None else None,

@@ -19,6 +19,7 @@ from .outcome_subjective import aggregate_subjective_outcomes
 from .preference import PREFERENCE_EVIDENCE_VERSION, PREFERENCE_VERSION
 from .semantic import analyze_semantics
 from .task.representation import representation
+from .task.taxonomy import TAXONOMY_VERSION
 
 
 def _session_rows(
@@ -59,7 +60,7 @@ def _session_rows(
             else [c for member in sorted(included) for c in call_groups[member]]
         )
         data = session_features(
-            s, own, root_calls, main_ids, supported, event_status, with_workflow=False
+            s, own, root_calls, main_ids, supported, event_status, scope.display_timezone, with_workflow=False
         )
         data["workflow"] = workflow(root_events + context_events, root_calls, main_ids, supported)
         data["usage"] = usage(
@@ -175,6 +176,9 @@ def _project_rows(
                 "subjective_outcomes": aggregate_subjective_outcomes(
                     [r["subjective_outcomes"] for r in rs], event_status
                 ),
+                "activity_rhythm": activity([s for s in sessions if s["session_uid"] in ids], pe,
+                    pcs, None if model_calls is None else context.members(ids, "models"),
+                    main_ids & ids, scope) if bundle.events is not None else None,
                 "tools": tool_summary(pcs, tool_status),
                 "usage": usage(
                     None
@@ -322,6 +326,7 @@ def analyze_context(
             asdict(scope),
             FEATURE_VERSION,
             INSTRUCTION_VERSION,
+            TAXONOMY_VERSION,
             PREFERENCE_VERSION,
             PREFERENCE_EVIDENCE_VERSION,
         ),
