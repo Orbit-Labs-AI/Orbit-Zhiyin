@@ -1,0 +1,32 @@
+[
+  {
+    "artifact_id": "fx-art-1",
+    "kind": "skill",
+    "name": "fx-wrapup",
+    "title": "FX 收尾",
+    "status": "draft",
+    "personalized": true,
+    "created_at": "2026-10-01T07:20:00Z",
+    "checks": {
+      "lint": "ok",
+      "scan": "ok",
+      "replay": "ok",
+      "judge": "skipped"
+    }
+  },
+  {
+    "artifact_id": "fx-art-0",
+    "kind": "rule",
+    "name": "fx-rule",
+    "title": "FX 规则",
+    "status": "archived",
+    "personalized": false,
+    "created_at": "2026-09-28T07:20:00Z",
+    "checks": {
+      "lint": "ok",
+      "scan": "ok",
+      "replay": "skipped",
+      "judge": "skipped"
+    }
+  }
+]

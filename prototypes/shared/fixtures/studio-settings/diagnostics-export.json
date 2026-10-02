@@ -1,0 +1,12 @@
+{
+  "path": "~/.tandem-fixture/exports/diagnostics-fx.zip",
+  "bytes": 20480,
+  "sha256": "sha256:fx",
+  "files": [
+    "README.txt",
+    "diagnostics.json",
+    "health.json",
+    "metrics.csv",
+    "logs/tandem.log"
+  ]
+}

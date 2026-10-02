@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "fx-n1",
+      "type": "failing",
+      "severity": "urgent",
+      "session_uid": "fx-s1",
+      "title": "FX 命令连续失败",
+      "body": "合成",
+      "count": 3,
+      "since": "2026-10-01T07:00:00Z",
+      "last_ts": "2026-10-01T07:10:00Z",
+      "payload": {}
+    }
+  ]
+}

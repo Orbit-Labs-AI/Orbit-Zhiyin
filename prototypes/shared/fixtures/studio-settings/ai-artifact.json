@@ -1,0 +1,78 @@
+{
+  "artifact_id": "fx-art-1",
+  "kind": "skill",
+  "template_id": "v1",
+  "name": "fx-wrapup",
+  "title": "FX 收尾",
+  "goal": "合成目标",
+  "goal_source": "ask",
+  "slots": {},
+  "payload": {},
+  "files": [
+    {
+      "target": "~/.claude/skills/fx-wrapup/SKILL.md",
+      "action": "create",
+      "content": "",
+      "sha256": "sha256:fx",
+      "lines": [
+        {
+          "text": "---",
+          "mark": "+",
+          "evidence": []
+        },
+        {
+          "text": "name: fx-wrapup",
+          "mark": "+",
+          "evidence": []
+        },
+        {
+          "text": "FX 合成行：第二轮后停止",
+          "mark": "ai",
+          "evidence": [
+            "fx-e1"
+          ]
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "lint": {
+      "status": "ok",
+      "issues": []
+    },
+    "scan": {
+      "status": "ok",
+      "hits": []
+    },
+    "replay": {
+      "status": "ok",
+      "recall": 1.0,
+      "false_block": 0,
+      "sessions": [
+        {
+          "session_uid": "fx-s1",
+          "title": "合成会话 A",
+          "result": "pass",
+          "reason": "FX 回放通过"
+        }
+      ]
+    },
+    "judge": {
+      "status": "skipped"
+    }
+  },
+  "evidence": {
+    "event_uids": [
+      "fx-e1"
+    ],
+    "session_uids": [
+      "fx-s1"
+    ],
+    "problem_ids": []
+  },
+  "personalized": true,
+  "content_hash": "sha256:fx",
+  "preview_digest": "sha256:fx-preview",
+  "status": "draft",
+  "created_at": "2026-10-01T07:20:00Z"
+}

@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-10-01T07:00:00Z",
+  "home": "~/.tandem-fixture",
+  "total_bytes": 157286400,
+  "components": [
+    {
+      "id": "tandem_db",
+      "label": "会话数据库",
+      "bytes": 104857600,
+      "rebuildable": false,
+      "hint": "",
+      "path": "~/.tandem-fixture/tandem.db"
+    },
+    {
+      "id": "snapshot_cache",
+      "label": "快照缓存",
+      "bytes": 52428800,
+      "rebuildable": true,
+      "hint": "可重建",
+      "path": "~/.tandem-fixture/cache"
+    }
+  ]
+}

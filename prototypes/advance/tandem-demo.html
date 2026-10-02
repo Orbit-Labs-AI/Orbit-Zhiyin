@@ -2028,7 +2028,7 @@ const QUOTES = { pos: ['「可以，这版很好，直接合并」', '「线上�
 const TandemLive = (function () {
   'use strict';
   const STATES = ['idle', 'loading', 'ready', 'stale', 'computing', 'empty', 'error', 'importing'];
-  const TOPICS = 'job,data,analysis,service';
+  const TOPICS = 'job,data,analysis,service,notify';
   // UI agent id -> agent names a source may report in /v1/status sources[].agent
   const AGENT_KEYS = { cc: ['claude_code', 'claude'], cx: ['codex'], gm: ['gemini', 'gemini_cli'], ds: ['dsh', 'deepseek', 'deepseek_harness'], cp: ['copilot', 'copilot_cli'] };
   const ACTIVE_JOB = ['queued', 'pending', 'running'];
@@ -2377,6 +2377,53 @@ const TandemLive = (function () {
         if (restart || C.mode === 'live') { C.connectEvents(); C.ensureStatus().catch(() => {}); }
       });
     };
+    /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
+    // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
+    // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    C.send = function (method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const q = o.query ? encodePairs(Object.keys(o.query).sort().filter((k) => o.query[k] != null).map((k) => [k, String(o.query[k])])) : '';
+      const init = { method, headers: headers(body != null ? { 'Content-Type': 'application/json' } : null), signal: o.signal };
+      if (body != null) init.body = JSON.stringify(body);
+      return Promise.resolve().then(() => fetchFn(urlFor(path, q), init)).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+      }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
+    };
+    // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down
+    // (503), no connection, or mock mode. Anything else (403 consent_required, 409, 422 …) is a real answer to show.
+    C.unavailable = (e) => !!e && !isAbort(e) && (!e.status || e.status === 404 || e.status === 501 || e.status === 503);
+    // pollJob(id, onUpdate, {intervalMs, signal}): GET /v1/ai/jobs/{id} until the job leaves queued / pending / running;
+    // an ai.job (or job) frame for the same id on /v1/events polls at once instead of waiting for the interval.
+    C.pollJob = function (id, onUpdate, o) {
+      o = o || {};
+      const every = o.intervalMs || 700; let wake = null, stopped = false;
+      const off = C.on('event', (ev) => { const d = ev.data || {}; if ((ev.name === 'ai.job' || ev.name === 'job') && (d.job_id === id || d.id === id) && wake) wake(); });
+      if (o.signal) o.signal.addEventListener('abort', () => { stopped = true; if (wake) wake(); }, { once: true });
+      const nap = () => new Promise((resolve) => { const t = timers.setTimeout(() => { wake = null; resolve(); }, every); wake = () => { timers.clearTimeout(t); wake = null; resolve(); }; });
+      return (async () => {
+        try {
+          for (;;) {
+            if (stopped) throw abortError();
+            const job = (await C.send('GET', '/v1/ai/jobs/' + encodeURIComponent(id), null, { signal: o.signal })).data || {};
+            if (onUpdate) onUpdate(job);
+            if (ACTIVE_JOB.indexOf(job.status) < 0) return job;
+            await nap();
+          }
+        } finally { off(); }
+      })();
+    };
+    // collection pause / resume arrives as a service frame {name:'collection', state}; it is a user setting, not a service
+    // health state, so it moves to C.collection and never raises the「服务异常」banner.
+    C.collection = null;
+    C.on('event', (ev) => {
+      if (ev.name === 'service' && ev.data && ev.data.name === 'collection') { delete C.services.collection; C.collection = ev.data.state; changed(); }
+    });
+    /* ==== end studio-settings ==== */
     C.start = function () {
       if (C.mode !== 'live') return C;
       if (!C.endpoint) C.error = { code: 'no_endpoint', message: '未配置本地服务地址', retryable: false };

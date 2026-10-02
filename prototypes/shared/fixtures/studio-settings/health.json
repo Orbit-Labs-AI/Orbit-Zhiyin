@@ -1,0 +1,37 @@
+{
+  "status": "degraded",
+  "version": "0.9.0-fx",
+  "uptime_s": 3600,
+  "generated_at": "2026-10-01T07:00:00Z",
+  "checks": [
+    {
+      "id": "db",
+      "status": "ok",
+      "ms": 3,
+      "detail": ""
+    },
+    {
+      "id": "ingest",
+      "status": "warn",
+      "ms": 12,
+      "detail": "FX 合成警告"
+    }
+  ],
+  "services": {
+    "ingest": {
+      "state": "running",
+      "pid": 1,
+      "restarts": 1,
+      "last_hb_age_s": 2
+    }
+  },
+  "disk": {
+    "free_bytes": 100000000000,
+    "total_bytes": 500000000000
+  },
+  "db": {},
+  "collection": {
+    "paused": false
+  },
+  "maintenance": {}
+}
