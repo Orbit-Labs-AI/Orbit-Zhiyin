@@ -5,7 +5,7 @@
 | 项 | 值 |
 | --- | --- |
 | 仓库 | GitHub `deepseek-ai/deepseek-harness`，默认分支 `master` |
-| 分析 commit | `639ed015397290b3745d163aafe02ffee4aa3f84`（2026-09-29，`release-dsh-0.2.0-rc.2` 合并） |
+| 分析 commit | `639ed015397290b3745d163aafe02ffee4aa3f84`（2026-09-29，`release-dsh-0.2.0-rc.2` 合并）；2026-10-02 核对仍是 `master` 的最新提交，本仓库子模块 `third_party/deepseek-harness` 固定在这个提交 |
 | HEAD 产品版本 | `@deepseek-ai/dsh` `0.2.0-rc.2`（[apps/cli/package.json:4](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/apps/cli/package.json#L4)） |
 | HEAD 会话格式（writer） | `SESSION_FORMAT_VERSION = 4`（[packages/core/session/src/types.ts:89](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/types.ts#L89)） |
 | 本机安装版本 | `@deepseek-ai/dsh` `0.1.1-rc.2`（`~/.local/lib/node_modules/@deepseek-ai/dsh/package.json`），写出会话格式 **v0** |
