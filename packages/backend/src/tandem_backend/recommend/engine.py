@@ -15,6 +15,7 @@ from .ranking import rank as rank_mod
 from .ranking import slate as slate_mod
 
 ENGINE_VERSION = "rec-engine-v2"
+NO_BENEFIT = "没有可估算的收益"
 INTERNAL = ("kb", "item", "prior", "cost", "requirements", "gates_hint", "explain_hints")
 
 
@@ -92,6 +93,8 @@ def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int 
     for raw in raws:
         gates = gate_mod.check(raw, inputs, memory)
         score = rank_mod.score(raw, gates, inputs, memory, max_fusion=max_fusion)
+        if gates["passed"] and score["benefit"] <= 0:  # nothing to gain is not a recommendation
+            gates = {**gates, "passed": False, "reasons": [*gates["reasons"], NO_BENEFIT]}
         cand = _cand(raw, gates, score)
         if gates["passed"]:
             cand["explain"] = narrate.explain(raw, raw.get("problem"), gates)

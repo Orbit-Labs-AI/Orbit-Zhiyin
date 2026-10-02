@@ -12,7 +12,7 @@ import json
 import math
 import re
 from collections import defaultdict
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 
 from ..services.sections import Section, register
@@ -26,6 +26,7 @@ READONLY_HEADS = ("git status", "git diff", "git log", "git show", "ls", "cat", 
 FAILURE_CLASSES = ("command_not_found", "missing_dependency", "permission_denied", "timeout",
                    "network")
 FAILED = ("failed", "error", "failure")
+DECLINED = ("declined", "denied", "rejected", "cancelled", "aborted")
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "apply_patch")
 RULE_PROBLEMS = {"correction_density": "wrong_approach",
                  "repeated_requirements": "repeated_instruction",
@@ -49,6 +50,130 @@ VERIFY = re.compile(r"^(pytest|python -m pytest|python3 -m pytest|npm (run )?tes
                     r"yarn test|vitest|jest|cargo test|go test|make( test)?|tsc|latexmk|swift test|"
                     r"xcodebuild test|uv run pytest)\b")
 MIN_UNVERIFIED_EDITS, MIN_TEST_FAILURES, MAX_TASK_DIRS = 5, 3, 5
+# Command heads that only wrap the real command (``/bin/zsh -lc "cd x && git status"``): the
+# call's input is re-read and unwrapped so read-only / software facts see the real command.
+WRAPPER_HEADS = ("cd", "bash", "sh", "zsh", "/bin/zsh", "/bin/bash", "/bin/sh", "/usr/bin/env", "env",
+                 "export", "source", "set", "pushd", "builtin")
+SHELLS = {"bash", "sh", "zsh", "dash", "fish"}
+PRELUDE = {"cd", "export", "source", ".", "set", "pushd", "popd", "builtin", "true", "unset", "for", "while",
+           "until", "if", "elif", "case", "done", "fi", "esac", "function", "{", "}", "echo", "printf", "sleep"}
+# Keywords that introduce the real command of their segment (``do git status``, ``time pytest``).
+LEADERS = {"do", "then", "else", "time", "nohup", "exec", "command", "!", "sudo"}
+SCOPE_TOP = 200
+TEXT_DUMPERS = {"cat", "sed", "awk", "head", "tail", "less", "nl", "jq", "echo", "printf", "rg", "grep"}
+_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# A call's own input command, only for wrapper heads (a correlated lookup per wrapped row).
+_INPUT = ("CASE WHEN t.command_head IN ({wrappers}) OR (t.command_head IS NULL AND t.kind = 'shell') "
+          "THEN (SELECT COALESCE(json_extract(e.attrs, '$.input.command'), json_extract(e.attrs, '$.input.cmd')) "
+          "FROM event e WHERE e.event_uid = t.call_event_uid) END")
+
+
+def is_approved(approval) -> bool:
+    """Allowed approvals only (approved, approved_for_session, allowed-once, …); denied and
+    aborted prompts are a signal against allow-listing, never a read-only prompt to remove."""
+    text = str(approval or "").lower().replace("_", "-")
+    return text.startswith("approved") or text.startswith("allow") or text in ("accept", "accepted", "yes")
+
+
+
+
+# Shell-ish tokens: quoted strings, operators, or bare words (with embedded quotes). A regex
+# scan that stops at the first real command is ~10x faster than shlex on 50k long commands.
+_TOKEN = re.compile(r"""(?P<op>&&|\|\||;;|\|&|[;|&\n])|(?P<paren>[()])|(?P<word>(?:[^\s;|&()"'\\]|\\.|"(?:\\.|[^"\\])*"|'[^']*')+)""")
+_QUOTED = re.compile(r"""\\(.)|"((?:\\.|[^"\\])*)"|'([^']*)'""")
+
+
+def _unquote(word: str) -> str:
+    return _QUOTED.sub(lambda m: m.group(1) or (m.group(2) or "").replace('\\"', '"') or m.group(3) or "", word)
+
+
+def _segments(text: str):
+    """Shell words grouped by ``&&`` / ``;`` / ``|`` / newlines, lazily (callers stop early)."""
+    current: list[str] = []
+    for match in _TOKEN.finditer(text):
+        if match.group("op"):
+            if current:
+                yield current
+            current = []
+        elif match.group("word"):
+            current.append(_unquote(match.group("word")))
+    if current:
+        yield current
+
+
+def _shell_script(words: list[str]) -> str | None:
+    first = words[0].rsplit("/", 1)[-1] if words else ""
+    if first in SHELLS and len(words) >= 3 and words[1].startswith("-") and "c" in words[1]:
+        return words[2]
+    return None
+
+
+@lru_cache(maxsize=65536)
+def _unwrap_text(text: str, depth: int) -> str | None:
+    return unwrap_command(text, depth)
+
+
+def unwrap_command(command, depth: int = 0) -> str | None:
+    """The first real command of a shell invocation: drops ``bash -lc`` / ``zsh -c`` wrappers,
+    ``cd x &&`` preludes and ``FOO=1`` assignments. None when nothing real is left."""
+    if command is None or depth > 3:
+        return None
+    if isinstance(command, str) and command.startswith("["):
+        try:
+            command = json.loads(command)
+        except ValueError:
+            pass
+    if isinstance(command, list):
+        argv = [str(token) for token in command]
+        script = _shell_script(argv)
+        if script is not None:
+            return unwrap_command(script, depth + 1)
+        segments = [argv]
+    else:
+        segments = _segments(str(command).strip())
+    for words in segments:
+        script = _shell_script(words)
+        if script is not None:
+            if inner := unwrap_command(script, depth + 1):
+                return inner
+            continue
+        while words and (_ASSIGN.match(words[0]) or words[0].rsplit("/", 1)[-1] == "env" or words[0] in LEADERS):
+            words = words[1:]
+        if not words:
+            continue
+        first = words[0].rsplit("/", 1)[-1]
+        if first in PRELUDE or first in SHELLS:
+            continue
+        # Up to four words: enough for readonly_head prefixes and software_of launchers
+        # (``gh pr view``, ``uv run pytest``, ``npx tsc``).
+        return " ".join([first, *words[1:4]])
+    return None
+
+
+SHORT = {"git": 2, "uv": 2, "pnpm": 2, "npm": 2, "docker": 2, "yarn": 2, "cargo": 2, "go": 2, "kubectl": 2,
+         "gh": 3}
+
+
+def short_head(head: str | None) -> str | None:
+    """The 1–3 word head used for sequences (``git status``, ``gh pr view``, ``pytest``)."""
+    words = (head or "").split()
+    return " ".join(words[:SHORT.get(words[0], 1)]) if words else None
+
+
+def _sequence_head(head: str | None, command) -> str | None:
+    """Stored heads as they are; an unwrapped command shortened to its 1–3 word head."""
+    real = real_head(head, command)
+    if real != head:
+        return short_head(real)
+    return " ".join(head.split()) if head else None
+
+
+def real_head(head: str | None, command=None) -> str | None:
+    """``command_head`` unless it is a wrapper and the input command unwraps to something real."""
+    if command is not None and (head is None or head in WRAPPER_HEADS):
+        unwrapped = _unwrap_text(command, 0) if isinstance(command, str) else unwrap_command(command)
+        return unwrapped or (None if head in WRAPPER_HEADS else head)
+    return None if head in WRAPPER_HEADS else head
 
 
 def readonly_head(command_head: str | None) -> str | None:
@@ -145,18 +270,23 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     uids = json.dumps(sorted(root_of))
     per_root = defaultdict(lambda: {"readonly_prompts": 0, "tool_failures": 0, "tokens": 0})
     readonly: dict[str, dict] = {}
+    denied: dict[str, int] = defaultdict(int)
     failures: dict[tuple, dict] = {}
+    software_roots: dict[str, set] = defaultdict(set)
     edit_roots: set[str] = set()
     any_approval = False
-    for head, error_class, status, approval, name, uid in conn.execute(
-            f"SELECT command_head, error_class, status, approval, name, session_uid FROM "
-            f"tool_call WHERE session_uid IN {UIDS}", (uids,)):
+    for head, error_class, status, approval, name, uid, command in _call_rows(conn, uids):
         root = root_of.get(uid, uid)
+        head = real_head(head, command)
         if name in EDIT_TOOLS:
             edit_roots.add(root)
+        if head and (software := software_of(head)):
+            software_roots[software].add(root)
         any_approval = any_approval or approval is not None
         matched = readonly_head(head) if approval is not None else None
-        if matched:
+        if matched and (not is_approved(approval) or status in DECLINED):
+            denied[matched] += 1
+        elif matched:
             entry = readonly.setdefault(matched, {"command_head": matched, "count": 0,
                                                   "sessions": set()})
             entry["count"] += 1
@@ -168,7 +298,10 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
                 _add_failure(failures, software_of(head), error_class, root)
     if not any_approval:
         _guard("permission_event", diagnostics, _permission_prompts, conn, uids, root_of, readonly,
-               per_root)
+               per_root, denied)
+    for matched, count in denied.items():
+        if matched in readonly:
+            readonly[matched]["denied"] = count
     _guard("failure_class", diagnostics, _classify_failures, conn, uids, root_of, failures)
     usage = {"skill": {}, "mcp": {}}
     for column, key in (("skill", "skill"), ("mcp_server", "mcp")):
@@ -196,6 +329,11 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
             problems_by_root[root].add(problem)
     sequences = _guard("call_sequence", diagnostics, _call_sequences, conn, uids, root_of) or {}
     task_kinds = _guard("task_types", diagnostics, _task_kinds, conn, uids, root_of, result) or {}
+    scope_sessions = {
+        "software": _top({k: len(v) for k, v in software_roots.items()}),
+        "projects": _top(_tally(r.get("project_id") for r in roots)),
+        "task_types": _top(_tally(t for kinds in task_kinds.values() for t in kinds.get("task_types") or ())),
+    }
     session_days = []
     for row in sorted(roots, key=lambda r: r.get("started_at") or 0):
         uid = row["session_uid"]
@@ -211,6 +349,8 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
         "readonly_prompts": sorted((_sessions(v) for v in readonly.values()),
                                    key=lambda v: -v["count"]),
         "readonly_prompt_sessions": len({r for v in readonly.values() for r in v["sessions"]}),
+        "readonly_denied": dict(sorted(denied.items())),
+        "scope_sessions": scope_sessions,
         "failures_by_software": sorted((_sessions(v) for v in failures.values()
                                         if len(v["sessions"]) >= 2), key=lambda v: -v["count"]),
         "usage": usage, "model_mix": model_mix, "session_days": session_days,
@@ -219,6 +359,33 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
         or _empty_compactions(),
     }
     return facts, dict(agents)
+
+
+def _call_rows(conn, uids: str):
+    """tool_call rows plus the input command of wrapper heads; older stores without
+    ``call_event_uid`` / ``kind`` keep the plain heads."""
+    wrappers = ",".join("?" * len(WRAPPER_HEADS))
+    try:
+        return conn.execute(
+            f"SELECT t.command_head, t.error_class, t.status, t.approval, t.name, t.session_uid, "
+            f"{_INPUT.format(wrappers=wrappers)} FROM tool_call t WHERE t.session_uid IN {UIDS}",
+            (*WRAPPER_HEADS, uids)).fetchall()
+    except Exception:  # noqa: BLE001 - schema drift: no unwrapping
+        return [(*row, None) for row in conn.execute(
+            f"SELECT command_head, error_class, status, approval, name, session_uid FROM "
+            f"tool_call WHERE session_uid IN {UIDS}", (uids,))]
+
+
+def _tally(values) -> dict:
+    out: dict = defaultdict(int)
+    for value in values:
+        if value:
+            out[value] += 1
+    return out
+
+
+def _top(counts: dict) -> dict:
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], str(kv[0])))[:SCOPE_TOP])
 
 
 def _sessions(entry: dict) -> dict:
@@ -279,7 +446,7 @@ def _command_text(value) -> str | None:
     return str(value)
 
 
-def _permission_prompts(conn, uids, root_of, readonly, per_root) -> None:
+def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None) -> None:
     """Codex keeps approvals as permission.request/decision events, not tool_call.approval."""
     requests, decisions = [], {}
     for uid, kind, call_id, command, decision in conn.execute(
@@ -293,8 +460,12 @@ def _permission_prompts(conn, uids, root_of, readonly, per_root) -> None:
             decisions[(uid, call_id)] = decision
     for uid, call_id, command in requests:
         decision = decisions.get((uid, call_id))
-        matched = readonly_head(command)
-        if not matched or (decision is not None and str(decision) not in APPROVED):
+        matched = readonly_head(real_head(None, command) or command)
+        if not matched:
+            continue
+        if decision is not None and str(decision) not in APPROVED and not is_approved(decision):
+            if denied is not None:
+                denied[matched] += 1
             continue
         root = root_of.get(uid, uid)
         entry = readonly.setdefault(matched, {"command_head": matched, "count": 0,
@@ -307,12 +478,17 @@ def _permission_prompts(conn, uids, root_of, readonly, per_root) -> None:
 def _classify_failures(conn, uids, root_of, failures) -> None:
     """Failed calls without ``error_class``: classify from exit code and result text."""
     status_in = ",".join("?" * len(FAILED))
-    for uid, head, exit_code, text in conn.execute(
-            f"SELECT t.session_uid, t.command_head, t.exit_code, substr(e.text, 1, 2000) FROM "
+    wrappers = ",".join("?" * len(WRAPPER_HEADS))
+    for uid, head, exit_code, text, command in conn.execute(
+            f"SELECT t.session_uid, t.command_head, t.exit_code, substr(e.text, 1, 2000), "
+            f"{_INPUT.format(wrappers=wrappers)} FROM "
             f"tool_call t LEFT JOIN event e ON e.event_uid = t.result_event_uid WHERE "
             f"t.error_class IS NULL AND t.status IN ({status_in}) AND t.session_uid IN {UIDS}",
-            (*FAILED, uids)):
-        error_class = classify_failure(exit_code, text)
+            (*WRAPPER_HEADS, *FAILED, uids)):
+        head = real_head(head, command)
+        # read / print commands echo file contents: their text says nothing about the failure
+        dumps = bool(readonly_head(head)) or software_of(head) in TEXT_DUMPERS
+        error_class = classify_failure(exit_code, None if dumps else text)
         if error_class and head:
             _add_failure(failures, software_of(head), error_class, root_of.get(uid, uid))
 
@@ -320,10 +496,18 @@ def _classify_failures(conn, uids, root_of, failures) -> None:
 def _call_sequences(conn, uids, root_of) -> dict:
     """Per root: ordered (is_edit, head, failed, digest) tuples for sequence facts."""
     by_root: dict[str, list] = defaultdict(list)
-    for uid, name, head, status, digest in conn.execute(
+    wrappers = ",".join("?" * len(WRAPPER_HEADS))
+    try:
+        rows = conn.execute(
+            f"SELECT t.session_uid, t.name, t.command_head, t.status, t.argument_digest, "
+            f"{_INPUT.format(wrappers=wrappers)} FROM tool_call t "
+            f"WHERE t.session_uid IN {UIDS} ORDER BY t.started_at, t.rowid", (*WRAPPER_HEADS, uids)).fetchall()
+    except Exception:  # noqa: BLE001 - older stores: plain heads
+        rows = [(*row, None) for row in conn.execute(
             f"SELECT session_uid, name, command_head, status, argument_digest FROM tool_call "
-            f"WHERE session_uid IN {UIDS} ORDER BY started_at, rowid", (uids,)):
-        head = " ".join(head.split()) if head else None
+            f"WHERE session_uid IN {UIDS} ORDER BY started_at, rowid", (uids,))]
+    for uid, name, head, status, digest, command in rows:
+        head = _sequence_head(head, command)
         by_root[root_of.get(uid, uid)].append((name in EDIT_TOOLS, head, status in FAILED, digest))
     return by_root
 
@@ -505,7 +689,8 @@ def _model_mix(conn, uids, root_of, edit_roots, per_root, diagnostics) -> list[d
         entry["tokens"] += tokens
     return sorted(({"model_id": e["model_id"], "effort": e["effort"], "agent": e["agent"],
                     "sessions": len(e["sessions"]),
-                    "readonly_sessions": len(e["sessions"] - edit_roots), "tokens": e["tokens"]}
+                    "readonly_sessions": len(e["sessions"] - edit_roots), "tokens": e["tokens"],
+                    "readonly_session_uids": sorted(e["sessions"] - edit_roots)[:MAX_UIDS]}
                    for e in mix.values()), key=lambda e: (-e["tokens"], str(e["agent"])))
 
 
@@ -559,11 +744,20 @@ def _calls_by_root(conn, root_of: dict) -> dict[str, list[dict]]:
         "session_uid", "name", "command_head", "status", "files", "started_at", "ended_at",
         "duration_ms"))
     calls: dict[str, list[dict]] = defaultdict(list)
-    for uid, name, head, status, files, start, end, duration in conn.execute(
+    command = (_INPUT.format(wrappers=",".join("?" * len(WRAPPER_HEADS)))
+               if {"call_event_uid", "kind"} <= cols else "NULL")
+    params = (*WRAPPER_HEADS, uids) if command != "NULL" else (uids,)
+    try:
+        rows = conn.execute(f"SELECT {pick}, {command} FROM tool_call t WHERE t.session_uid IN {UIDS} "
+                            f"ORDER BY COALESCE(t.started_at, 0), t.rowid", params).fetchall()
+    except Exception:  # noqa: BLE001 - no event table: plain heads
+        rows = [(*row, None) for row in conn.execute(
             f"SELECT {pick} FROM tool_call WHERE session_uid IN {UIDS} "
-            f"ORDER BY COALESCE(started_at, 0), rowid", (uids,)):
+            f"ORDER BY COALESCE(started_at, 0), rowid", (uids,))]
+    for uid, name, head, status, files, start, end, duration, wrapped in rows:
+        head = _sequence_head(head, wrapped)
         calls[root_of.get(uid, uid)].append({
-            "name": name, "head": " ".join(head.split()) if head else None, "status": status,
+            "name": name, "head": head, "status": status,
             "files": _files(files), "start": start, "end": end or start, "duration": duration})
     return calls
 
@@ -801,7 +995,7 @@ def _inventory(conn, diagnostics: list, home=None) -> list[dict] | None:
         parsed = parsed if isinstance(parsed, dict) else {}
         lines, tokens = parsed.get("lines"), parsed.get("resident_tokens")
         if type_ in ("skill", "rule") and (lines is None or tokens is None):
-            measured = file_size(path)
+            measured = file_size(path, type_)
             if measured:
                 lines = measured[0] if lines is None else lines
                 tokens = measured[1] if tokens is None else tokens
@@ -812,8 +1006,9 @@ def _inventory(conn, diagnostics: list, home=None) -> list[dict] | None:
     return out
 
 
-def file_size(path: str | None) -> tuple[int, int] | None:
-    """(lines, ceil(bytes / 3.5)) of a readable text file; contents are never kept."""
+def file_size(path: str | None, kind: str = "rule") -> tuple[int, int] | None:
+    """(lines, resident tokens) of a readable text file; contents are never kept. A skill only
+    keeps ``name`` + ``description`` resident (features.linked.resident_text)."""
     if not path:
         return None
     try:
@@ -824,6 +1019,9 @@ def file_size(path: str | None) -> tuple[int, int] | None:
     except OSError:
         return None
     lines = data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+    if kind == "skill":
+        from ..features.linked import estimate_tokens, resident_text
+        return lines, estimate_tokens(resident_text("skill", data.decode("utf-8", "ignore")))
     return lines, math.ceil(len(data) / 3.5)
 
 

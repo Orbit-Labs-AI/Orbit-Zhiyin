@@ -386,6 +386,8 @@ def _kb_spec(card: dict | None) -> dict | None:
     text = "\n".join(t for t, _ in lines if not _CODEX_NOTE.match(t.strip()))
     # Unfilled slots show as "…" (required, no value) or a literal "{name}" on the card.
     missing = list(dict.fromkeys(_PLACEHOLDER.findall(text))) + (["…"] if "…" in text else [])
+    # Cards show unfilled slots as a generic phrase; the card records which ones were unfilled.
+    missing += [n for n in (card.get("unfilled_slots") or []) if n not in missing]
     if missing:
         raise PlanError("candidate_not_renderable", "推荐还有未填写的内容（卡片中显示为 … 或 {名称}），"
                         "暂不能一键安装", detail={"missing": missing})
