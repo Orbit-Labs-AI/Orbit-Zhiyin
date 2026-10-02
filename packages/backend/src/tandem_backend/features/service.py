@@ -205,7 +205,7 @@ class FeatureService:
         result = run_search(self.home, q, kinds=kinds, scope=normalize(scope), limit=limit,
                             data_rev=self.data_rev(), tandem_db=self.home / "tandem.db",
                             catalog_db=self.home / "catalog.db", app_db=self.appdb.path,
-                            linked=self.linked_inventory, executor=self.hub.pool)
+                            linked=self.linked_inventory)  # search's own bounded pool
         platform.record("features.search", result["took_ms"], partial=bool(result["partial"]))
         for source in result["partial"]:
             platform.record("features.search.partial", source=source)
