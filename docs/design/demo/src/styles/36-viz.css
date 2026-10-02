@@ -1,4 +1,8 @@
-/* VZ · shared visualization kit (see js/36-vizkit.js). Colors only via tokens; text sizes are fixed px so charts never scale type with width. */
+/* VZ · shared visualization kit (see js/36-vizkit.js). Colors only via tokens; text sizes are fixed px so charts never scale type with width.
+   Semantic chart colors (critique §4): one color = one meaning. They read the shell's --sem-* tokens when present and fall back to the theme. */
+:root{--vz-err:var(--sem-err,var(--crit-m));--vz-corr:var(--sem-corr,#c8820b);--vz-good:var(--sem-good,var(--good-m));--vz-mood-neg:var(--sem-mood-neg,#5b5bd6);--vz-mood-pos:var(--sem-mood-pos,#2a9d8f)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--vz-corr:var(--sem-corr,#e0a030);--vz-mood-neg:var(--sem-mood-neg,#8f8cff);--vz-mood-pos:var(--sem-mood-pos,#3fc3ad)}}
+:root[data-theme="dark"]{--vz-corr:var(--sem-corr,#e0a030);--vz-mood-neg:var(--sem-mood-neg,#8f8cff);--vz-mood-pos:var(--sem-mood-pos,#3fc3ad)}
 .vz{position:relative;min-width:0;--vz-accent:var(--accent,#0a84ff)}
 .vz-plot{position:relative;outline:none;border-radius:8px;touch-action:pan-y}
 .vz-plot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -40,6 +44,9 @@
 .vz-ribbon{fill:var(--c);fill-opacity:.3;stroke:none}
 .vz-ribbon.vz-hot{fill-opacity:.6}
 .vz-dot.vz-hot,.vz-pt.vz-hot{stroke:var(--ink-1)}
+.vz-lo{opacity:.3}
+.vz-hatch{pointer-events:none}
+.vz-hatch-ln{stroke:var(--surface);stroke-width:2}
 .vz-svg .vz-sel{stroke:var(--ink-1);stroke-width:2}
 .vz-dot.vz-sel{stroke:var(--ink-1);stroke-width:2.5}
 .vz-xline{stroke:var(--ink-2);stroke-width:1;opacity:.7;pointer-events:none}
@@ -51,15 +58,15 @@
 .vz-fit{stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round}
 .vz-dot{fill:var(--c);stroke:var(--surface);stroke-width:2}
 .vz-bubble{fill-opacity:.85}
-.vz-flag{fill:var(--crit-m)}
+.vz-flag{fill:var(--vz-err)}
 .vz-range{stroke:none}
 .vz-target{stroke:var(--ink-1);stroke-width:2}
 .vz-dline{stroke:var(--ink-4);stroke-width:2;stroke-linecap:round}
 .vz-slope{stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round}
-.vz-slope.vz-good{stroke:var(--good-m)}
-.vz-slope.vz-bad{stroke:var(--crit-m)}
+.vz-slope.vz-good{stroke:var(--vz-good)}
+.vz-slope.vz-bad{stroke:var(--vz-err)}
 .vz-slope.vz-sel{stroke-width:3;stroke:var(--ink-1)}
-.vz-cell{fill:var(--h0);stroke:none}
+.vz-cell{fill:var(--h0);stroke:var(--hair);stroke-width:1}
 .vz-cell.vz-na{opacity:.45}
 .vz-peak{fill:none;stroke:var(--ink-1);stroke-width:1.5;pointer-events:none}
 .vz-whisker{stroke:var(--ink-4);stroke-width:1}
@@ -78,8 +85,8 @@
 .vz-marker line{stroke:var(--ink-4);stroke-width:1;stroke-dasharray:2 2}
 .vz-marker circle{fill:var(--ink-1);stroke:none}
 .vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--mono)}
-.vz-marker.alert circle{fill:var(--surface);stroke:var(--crit-m);stroke-width:1.5}
-.vz-marker.alert text{fill:var(--crit)}
+.vz-marker.alert circle{fill:var(--vz-corr)}
+.vz-marker.alert text{fill:#fff}
 .vz-playhead line{stroke:var(--ink-1);stroke-width:1}
 .vz-playhead path{fill:var(--ink-1)}
 .vz-legend{display:flex;gap:2px 10px;flex-wrap:wrap;margin:0 0 6px;min-width:0}
@@ -122,7 +129,9 @@
 .vz-kpi-d{font-size:11.5px;font-weight:600;white-space:nowrap;color:var(--ink-2)}
 .vz-kpi-d.vz-good{color:var(--good)}
 .vz-kpi-d.vz-bad{color:var(--crit)}
-.vz-tbl{margin-top:2px}
+.vz-tbl{margin-top:2px;max-height:360px;overflow:auto}
+.vz-tbl thead th{position:sticky;top:0;background:var(--surface);z-index:1}
+.vz-kpi-p{font-size:11px;color:var(--ink-4);margin-left:4px;white-space:nowrap}
 .vz-spark{display:block;overflow:visible;flex:none}
 .vz-tv-toggle{margin-left:auto}
 @media (prefers-reduced-motion:reduce){.vz *{transition:none!important;animation:none!important}}

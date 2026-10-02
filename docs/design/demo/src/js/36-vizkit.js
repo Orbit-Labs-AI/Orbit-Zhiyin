@@ -14,15 +14,16 @@
  *   VZ.setView(el, 'chart' | 'table')           图表 ↔ 表格切换（也可直接 spec.view）
  *   VZ.spark(values, opt) / VZ.kpi(opt)         迷你趋势线 / KPI tile（返回 HTML，不必 mount）
  *   VZ.color(i)                                 第 i 个系列的颜色：var(--a1..--a5)；第 6 个起折叠为灰色「其他」
- *   VZ.fmt(v, f), VZ.ticks(a, b, n), VZ.timeTicks(t0, t1, px), VZ.scale.linear/band, VZ.time.*  工具函数
+ *   VZ.sem                                      语义色 { err 失败, corr 纠偏/异常, good 改善, neg/pos 情绪发散, accent 选中, bar/barStrong 中性条 }
+ *   VZ.fmt(v, f), VZ.ticks(a, b, n), VZ.timeTicks(t0, t1, px), VZ.scale.linear/band, VZ.time.*, VZ.delta2(d)  工具函数
  *
  * 所有类型共用的 spec 字段：
  *   type       见下表                          title     图表名（写进 <title> 与 aria-label）
  *   desc       aria 补充说明                    height    绘图区高度 px（含坐标轴；默认按类型）
- *   legend     false 隐藏；'top'|'bottom'（默认 top；单系列自动不显示）
+ *   legend     false 隐藏；'top'|'bottom'（默认 top；单系列自动不显示）。点击 = 显示/隐藏，⌥ 点击 = 只看该系列，悬停 = 其他淡出
  *   hidden     初始隐藏的系列名数组              view      'chart' | 'table'
  *   empty      空数据文案（默认「暂无数据」）     minN / n  样本门槛：n < minN 时显示「样本不足 n / minN」
- *   onHover(i, d) onSelect(i, d) onBrush([a, b], meta) onLegend(name, visible) onFocus(i, d)  回调
+ *   onHover(i, d) onSelect(i, d) onBrush([a, b], meta) onLegend(name, visible, { hidden }) onFocus(i, d)  回调
  *   brush      true 允许在绘图区拖选（line/area/bar/histogram/timeline/scatter）
  *   selected   当前选中项（索引或 id），用描边高亮
  *   refs       [{ y, label, color }]           横向参考线（目标线）
@@ -34,15 +35,15 @@
  *
  * 类型与专有字段：
  *   line / area   series: [{ name, values: [n|null], color, band: [[lo, hi]], dash, width, area }]，curve: 'monotone'，endLabels，points
- *   bar           series 同上；stacked，horizontal，err: 每系列 { err: [n] } 误差；x.values 为类别
+ *   bar           series 同上；stacked，horizontal，err: 每系列 { err: [n] } 误差；x.values 为类别；labels: true | 'max'；hatch: [i] 斜纹标未完成的桶
  *   histogram     values: [n]，bins（数量）或 edges: [n]，format；marks 可标均值
- *   diverging     rows: [{ name, value, left, right, ref }]，domain: [-1, 1]，colors: [负, 正]，format
+ *   diverging     rows: [{ name, value, left, right, ref }]，domain: [-1, 1]，colors: [负, 正]（默认情绪发散色），deadband: [a, b] 中间「未定型」带，format
  *   ranked        rows: [{ name, value, share, meta, id }]，top（前 k 强调），format
  *   share         items: [{ name, value, color }]，单条 100% 比例条 + 图例
  *   bullet        rows: [{ name, value, target, ranges: [q1, q2, q3], format }]，max
  *   dumbbell      rows: [{ name, a, b, id }]，labels: ['安装前', '安装后']，format，goodDown
  *   slope         同 dumbbell 字段，纵向两列对比
- *   heatmap       rows: [str]，cols: [str]，values: [[n]]，ramp: 'gray' | 'accent' | 'crit'，showValues，peak，cellMax，format
+ *   heatmap       rows: [str]，cols: [str]，values: [[n]]，ramp: 'gray' | 'accent' | 'err' | 'corr' | 'good' | 'mood'（发散，值域自动对称）| 任意 var()，showValues，peak，cellMax，format，min / max
  *                 layout: 'calendar' 时 days: [{ t, v }]（t 毫秒）
  *   scatter       points: [{ x, y, r, label, id, color, series }]，fit（回归 + 95% CI），labels，rMax，x/y 同上
  *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format
@@ -50,13 +51,20 @@
  *   timeline      lanes: [{ id, label, h }]，events: [{ lane, t, t2, kind: 'tick' | 'dot' | 'span', color, label, err, id }]
  *                 range: [t0, t1]，unit: 'ms' | 'min'（min 时 start 为起始时刻的分钟数，刻度显示 HH:MM），playhead，markers: [{ t, label, n }]
  *   multiples     items: [{ title, spec }]，minW，shareY，height
- *   spark         values: [n]（也可 VZ.spark(values, { w, h, area, color }) 直接得到 HTML）
+ *   spark         values: [n]（也可 VZ.spark(values, { w: 80, h: 24, area, bars, color, last, ref, label }) 直接得到 HTML；默认 --ink-3 线 + 强调色末点）
+ *   kpi           VZ.kpi({ label, value, unit, delta: { cur, prev, unit: 'pct' | 'pt' | 'x', goodDown }, trend, trendLabel, sub, act, tip })：环比 = ▲▼ + 变化量 + 上期值
  *
- * 颜色只用 CSS 变量：系列色 --a1..--a5，语义色 --good/--warn/--crit(-m)，强调色 var(--accent, #0a84ff)，AI 紫 --ai，灰阶 --h0..--h5，墨色 --ink-1..4。
+ * 颜色只用 CSS 变量：系列色 --a1..--a5 只表示 Agent 身份；语义色走 VZ.sem（--vz-err / --vz-corr / --vz-good / --vz-mood-neg / --vz-mood-pos，缺省回落主题色）；
+ * 强调色 var(--accent, #0a84ff) 只用于选中 / 当前 / 刷选 / 迷你线末点；AI 紫 --ai；灰阶 --h0..--h5；墨色 --ink-1..4；单系列条默认中性灰。
  * 文字永远用墨色（--ink-*），颜色只落在图元上；浅深色自动适配；reduced-motion 下无过渡。
  */
-const VZ = { types: {}, _inst: new WeakMap(), ACC: 'var(--accent, #0a84ff)' };
+const VZ = { types: {}, _inst: new WeakMap(), ACC: 'var(--accent, #0a84ff)', _uid: 0 };
+// 语义色（评审 §4：一个颜色只对应一个含义）。值是 36-viz.css 的 --vz-* 变量，缺省回落到主题的 crit / good 与琥珀 / 冷紫 / 青绿。
+VZ.sem = { err: 'var(--vz-err)', corr: 'var(--vz-corr)', good: 'var(--vz-good)', neg: 'var(--vz-mood-neg)', pos: 'var(--vz-mood-pos)', accent: 'var(--accent, #0a84ff)', bar: 'var(--ink-4)', barStrong: 'var(--ink-3)' };
 VZ.color = (i, s) => (s && s.color) || (i < 5 ? 'var(--a' + (i + 1) + ')' : 'var(--h3)');
+// 斜纹（未完成的末桶、推断值）：每张 svg 自带一份 <pattern>，id 唯一
+VZ.hatchId = () => 'vzh' + (VZ._uid++);
+VZ.hatchDefs = (id) => '<defs><pattern id="' + id + '" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><line class="vz-hatch-ln" x1="0" y1="0" x2="0" y2="5"/></pattern></defs>';
 VZ.num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 VZ.r1 = (v) => Math.round(v * 10) / 10;
 VZ.tw = (s, size) => { s = String(s == null ? '' : s); let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? (c === 0x2022 || c === 0x2013 ? 0.5 : 0.8) : /[0-9]/.test(ch) ? 0.64 : /[A-Z%@#]/.test(ch) ? 0.74 : /[ .,:·/|'()\[\]]/.test(ch) ? 0.32 : /[mwMW]/.test(ch) ? 0.9 : 0.56; } return w * (size || 11); };
@@ -196,14 +204,15 @@ VZ.grid = function (F, o) {
   if (!F.ticks.some((v) => Math.abs(v) < 1e-9) && !o.noBase) g += '<line class="vz-base" x1="' + F.x0 + '" x2="' + F.x1 + '" y1="' + VZ.r1(F.yB) + '" y2="' + VZ.r1(F.yB) + '"/>';
   return g;
 };
-// x 轴：items [{ x, label, major }]；自动按宽度抽稀，保证标签不重叠。
+// x 轴：items [{ x, label, major }]；按实际标签宽度抽稀：主刻度（major）先保留，其余从左到右加入且不与已保留的重叠。
 VZ.axisX = function (F, items, o) {
   o = o || {}; if (!items.length) return '';
-  const y = F.yB + (o.dy || 15); const maxW = Math.max(12, ...items.map((it) => VZ.tw(it.label, 11))) + 12;
-  const every = o.every || Math.max(1, Math.ceil(items.length * maxW / Math.max(1, F.pw)));
+  const y = F.yB + (o.dy || 15); const tw = (it) => VZ.tw(it.label, 11);
+  let keep;
+  if (o.every) keep = items.filter((it, i) => i % o.every === 0 || (o.keepMajor && it.major));
+  else { const sel = items.filter((it) => it.major); const fits = (it) => sel.every((k) => k === it || Math.abs(k.x - it.x) >= (tw(k) + tw(it)) / 2 + 10); items.forEach((it) => { if (!it.major && fits(it)) sel.push(it); }); keep = items.filter((it) => sel.includes(it)); }
   let g = '';
-  items.forEach((it, i) => {
-    if (i % every && !(o.keepMajor && it.major)) return;
+  keep.forEach((it) => {
     const anchor = o.anchor || 'middle'; let x = it.x;
     if (anchor === 'middle') { const tw = VZ.tw(it.label, 11) + 4; x = Math.max(F.x0 + tw / 2 - 4, Math.min(F.x1 - tw / 2 + 2, x)); }
     g += (o.tick ? '<line class="vz-tick" x1="' + VZ.r1(it.x) + '" x2="' + VZ.r1(it.x) + '" y1="' + VZ.r1(F.yB) + '" y2="' + VZ.r1(F.yB + 4) + '"/>' : '') + VZ.txt(x, y, it.label, { class: 'vz-ax' + (it.major ? ' vz-major' : ''), 'text-anchor': anchor });
@@ -253,12 +262,21 @@ VZ.callouts = function (notes, F, pos) {
   return g;
 };
 /* ---------- 图例 / tooltip / 空状态 ---------- */
-VZ.legendHTML = function (spec, inst) {
+VZ.legendItems = function (spec) {
   const ser = spec.series || []; const t = VZ.types[spec.type];
-  const items = t && t.legend ? t.legend(spec) : ser.map((s, i) => ({ name: s.name == null ? '系列 ' + (i + 1) : s.name, color: VZ.color(i, s), kind: spec.type === 'bar' || s.area || spec.type === 'area' ? 'rect' : 'line', total: s.total }));
+  return t && t.legend ? t.legend(spec) : ser.map((s, i) => ({ name: s.name == null ? '系列 ' + (i + 1) : s.name, color: VZ.color(i, s), kind: spec.type === 'bar' || s.area || spec.type === 'area' ? 'rect' : 'line', total: s.total }));
+};
+// 图例只影响本图：点击 = 显示 / 隐藏该系列；⌥ 点击 = 只看该系列（再 ⌥ 点击恢复全部）；悬停 = 其他系列淡出。
+VZ.legendHTML = function (spec, inst) {
+  const items = VZ.legendItems(spec);
   if (spec.legend === false || (items.length < 2 && spec.legend !== true)) return '';
   const vis = inst ? items.map((it) => !inst.hidden.has(it.name)) : items.map(() => true);
-  return '<div class="vz-legend" role="group" aria-label="图例（点击切换系列）">' + items.map((it, i) => '<button type="button" class="vz-lg' + (vis[i] ? '' : ' off') + '" data-lg="' + esc(it.name) + '" aria-pressed="' + vis[i] + '"><span class="vz-sw ' + (it.kind || 'rect') + '" style="--c:' + it.color + '"></span><span class="vz-lgn">' + esc(it.name) + '</span>' + (it.total != null ? '<b class="vz-lgv">' + esc(it.total) + '</b>' : '') + '</button>').join('') + '</div>';
+  return '<div class="vz-legend" role="group" aria-label="图例（点击切换系列，⌥ 点击只看该系列）">' + items.map((it, i) => '<button type="button" class="vz-lg' + (vis[i] ? '' : ' off') + '" data-lg="' + esc(it.name) + '" data-si="' + i + '" aria-pressed="' + vis[i] + '"><span class="vz-sw ' + (it.kind || 'rect') + '" style="--c:' + it.color + '"></span><span class="vz-lgn">' + esc(it.name) + '</span>' + (it.total != null ? '<b class="vz-lgv">' + esc(it.total) + '</b>' : '') + '</button>').join('') + '</div>';
+};
+VZ._lgDim = function (inst, si) {
+  const svg = inst.el.querySelector('svg.vz-svg'); if (!svg) return;
+  const byS = svg.querySelectorAll('[data-s]'); const list = byS.length ? byS : svg.querySelectorAll('.vz-seg[data-i]'); const key = byS.length ? 'data-s' : 'data-i';
+  list.forEach((n) => n.classList.toggle('vz-lo', si >= 0 && +n.getAttribute(key) !== si));
 };
 VZ.tipRow = (color, name, value, o) => '<div class="vz-tr"><span class="vz-tk' + (o && o.kind === 'rect' ? ' rect' : '') + '" style="--c:' + (color || 'transparent') + '"></span><b class="vz-tv">' + esc(value) + '</b><span class="vz-tn">' + esc(name) + '</span></div>';
 VZ.tipHead = (t, sub) => '<div class="vz-th">' + esc(t) + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>';
@@ -388,9 +406,16 @@ VZ._bind = function (el, inst) {
   });
   const endBrush = (e) => { if (!brush) return; const b = brush; brush = null; VZ._brushEnd(inst, b, pos(e)[0]); };
   el.addEventListener('pointerup', endBrush); el.addEventListener('pointercancel', endBrush);
+  el.addEventListener('pointerover', (e) => { const lg = e.target.closest('.vz-lg'); if (lg) VZ._lgDim(inst, +lg.dataset.si); });
+  el.addEventListener('pointerout', (e) => { const lg = e.target.closest('.vz-lg'); if (lg && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.vz-lg') === lg)) VZ._lgDim(inst, -1); });
   el.addEventListener('click', (e) => {
     const lg = e.target.closest('.vz-lg');
-    if (lg) { const name = lg.dataset.lg; if (inst.hidden.has(name)) inst.hidden.delete(name); else inst.hidden.add(name); VZ.draw(el); if (inst.spec.onLegend) inst.spec.onLegend(name, !inst.hidden.has(name)); return; }
+    if (lg) {
+      const name = lg.dataset.lg; const names = VZ.legendItems(inst.spec).map((it) => it.name);
+      if (e.altKey) { const solo = names.every((n) => n === name ? !inst.hidden.has(n) : inst.hidden.has(n)); inst.hidden = new Set(solo ? [] : names.filter((n) => n !== name)); }
+      else if (inst.hidden.has(name)) inst.hidden.delete(name); else inst.hidden.add(name);
+      VZ.draw(el); if (inst.spec.onLegend) inst.spec.onLegend(name, !inst.hidden.has(name), { hidden: Array.from(inst.hidden) }); return;
+    }
     if (e.target.closest('.vz-tv-toggle')) { VZ.setView(el, inst.spec.view === 'table' ? 'chart' : 'table'); return; }
     if (brush) return;
     const i = indexAt(e); if (i < 0 || !inst.model) return;
@@ -480,11 +505,11 @@ VZ.types.line = {
     ser.forEach((s, j) => {
       if (!vis[j]) return; const c = VZ.color(j, s); const pts = []; let lastI = -1;
       for (let i = 0; i < n; i++) { const v = VZ.val((s.values || [])[i]); if (v == null) pts.push(null); else { pts.push([XA.xs[i], F.y(v)]); lastI = i; } }
-      if (s.band) { let up = '', dn = ''; s.band.forEach((b, i) => { if (!b || b[0] == null || XA.xs[i] == null) return; up += (up ? 'L' : 'M') + VZ.r1(XA.xs[i]) + ' ' + VZ.r1(F.y(b[1])); dn = 'L' + VZ.r1(XA.xs[i]) + ' ' + VZ.r1(F.y(b[0])) + dn; }); if (up) g += '<path class="vz-cband" d="' + up + dn + 'Z" style="--c:' + c + '"/>'; }
-      if (area || s.area) { const segs = []; let cur = []; pts.forEach((p) => { if (p) cur.push(p); else if (cur.length) { segs.push(cur); cur = []; } }); if (cur.length) segs.push(cur); segs.forEach((sg) => { g += '<path class="vz-area" d="' + VZ.linePath(sg, spec.curve) + 'L' + VZ.r1(sg[sg.length - 1][0]) + ' ' + VZ.r1(base) + 'L' + VZ.r1(sg[0][0]) + ' ' + VZ.r1(base) + 'Z" style="--c:' + c + '"/>'; }); }
+      if (s.band) { let up = '', dn = ''; s.band.forEach((b, i) => { if (!b || b[0] == null || XA.xs[i] == null) return; up += (up ? 'L' : 'M') + VZ.r1(XA.xs[i]) + ' ' + VZ.r1(F.y(b[1])); dn = 'L' + VZ.r1(XA.xs[i]) + ' ' + VZ.r1(F.y(b[0])) + dn; }); if (up) g += '<path class="vz-cband" data-s="' + j + '" d="' + up + dn + 'Z" style="--c:' + c + '"/>'; }
+      if (area || s.area) { const segs = []; let cur = []; pts.forEach((p) => { if (p) cur.push(p); else if (cur.length) { segs.push(cur); cur = []; } }); if (cur.length) segs.push(cur); segs.forEach((sg) => { g += '<path class="vz-area" data-s="' + j + '" d="' + VZ.linePath(sg, spec.curve) + 'L' + VZ.r1(sg[sg.length - 1][0]) + ' ' + VZ.r1(base) + 'L' + VZ.r1(sg[0][0]) + ' ' + VZ.r1(base) + 'Z" style="--c:' + c + '"/>'; }); }
       g += '<path class="vz-line' + (s.dash ? ' dash' : '') + '" data-s="' + j + '" d="' + VZ.linePath(pts, spec.curve) + '" style="--c:' + c + (s.width ? ';stroke-width:' + s.width + 'px' : '') + '"/>';
       const showPts = spec.points === true || (spec.points !== false && n <= 12);
-      if (showPts) pts.forEach((p) => { if (p) g += '<circle class="vz-pt" cx="' + VZ.r1(p[0]) + '" cy="' + VZ.r1(p[1]) + '" r="3.5" style="--c:' + c + '"/>'; });
+      if (showPts) pts.forEach((p) => { if (p) g += '<circle class="vz-pt" data-s="' + j + '" cx="' + VZ.r1(p[0]) + '" cy="' + VZ.r1(p[1]) + '" r="3.5" style="--c:' + c + '"/>'; });
       if (lastI >= 0) ends.push({ name: s.name || '', c, x: pts[lastI][0], y: pts[lastI][1] });
     });
     if (endLabels && ends.length) { ends.sort((a, b) => a.y - b.y); for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 13) ends[k].y = ends[k - 1].y + 13; ends.forEach((e) => { g += '<line class="vz-leader" x1="' + VZ.r1(e.x + 3) + '" y1="' + VZ.r1(e.y) + '" x2="' + VZ.r1(F.x1 + 6) + '" y2="' + VZ.r1(e.y) + '"/>' + VZ.txt(F.x1 + 8, e.y + 3.5, e.name, { class: 'vz-end' }); }); }
@@ -506,7 +531,8 @@ VZ.types.bar = {
     const fy = (v) => VZ.fmt(v, spec.y && spec.y.format);
     const P = VZ.xyPrep(spec, w, h, ctx, { zero: true, band: true, stacked });
     const { F, XA, n } = P; const base = F.y(Math.max(F.y0, Math.min(F.y1, 0)));
-    let g = VZ.grid(F) + VZ.bandsAndMarks(spec, F, XA);
+    const hatch = Array.isArray(spec.hatch) && spec.hatch.length ? spec.hatch : null; const pid = hatch ? VZ.hatchId() : null;
+    let g = (pid ? VZ.hatchDefs(pid) : '') + VZ.grid(F) + VZ.bandsAndMarks(spec, F, XA);
     const slot = XA.step; const gw = stacked ? Math.min(24, slot * 0.72) : Math.min(slot * 0.82, k * 24 + (k - 1) * 2); const bw = stacked ? gw : Math.max(2, (gw - (k - 1) * 2) / k);
     const selI = spec.selected; let maxI = -1, maxV = -Infinity;
     if (spec.labels === 'max') for (let i = 0; i < n; i++) { const t = ser.reduce((a, s, j) => a + (vis[j] ? (VZ.val((s.values || [])[i]) || 0) : 0), 0); if (t > maxV) { maxV = t; maxI = i; } }
@@ -523,6 +549,7 @@ VZ.types.bar = {
         const gap = stacked && !isFirst ? 2 : 0; const hgt = Math.max(0.5, yB - yT - gap); const ys = sg.v >= 0 ? yT : yT + gap;
         const d = isEnd ? VZ.barPath(x, ys, bw, hgt, sg.v >= 0 ? 'up' : 'down') : 'M' + VZ.r1(x) + ' ' + VZ.r1(ys) + 'h' + VZ.r1(bw) + 'v' + VZ.r1(hgt) + 'h' + VZ.r1(-bw) + 'Z';
         g += '<path class="vz-bar' + (selI != null && selI === i ? ' vz-sel' : '') + '" data-i="' + i + '" data-s="' + sg.j + '" d="' + d + '" style="--c:' + sg.c + '"/>';
+        if (hatch && hatch.indexOf(i) >= 0) g += '<path class="vz-hatch" d="' + d + '" fill="url(#' + pid + ')"/>';
         if (sg.e != null && !stacked) { const xm = x + bw / 2, ya = F.y(sg.v + sg.e), yb = F.y(sg.v - sg.e); g += '<path class="vz-err" d="M' + VZ.r1(xm) + ' ' + VZ.r1(ya) + 'V' + VZ.r1(yb) + 'M' + VZ.r1(xm - 4) + ' ' + VZ.r1(ya) + 'h8M' + VZ.r1(xm - 4) + ' ' + VZ.r1(yb) + 'h8"/>'; }
         if (!stacked && (spec.labels === true || (spec.labels === 'max' && i === maxI))) g += VZ.txt(x + bw / 2, sg.v >= 0 ? yT - 4 : yB + 11, fy(sg.v), { class: 'vz-val', 'text-anchor': 'middle' });
       });
@@ -549,7 +576,8 @@ VZ.types.bar = {
     const sx = VZ.scale.linear(v0, v1, F.x0, F.x1); const by = VZ.scale.band(n, F.yT, F.yB); const step = by.step;
     const gw = stacked ? Math.min(20, step * 0.68) : Math.min(step * 0.8, k * 18 + (k - 1) * 2); const bw = stacked ? gw : Math.max(2, (gw - (k - 1) * 2) / k);
     const ticks = VZ.ticks(v0, v1, Math.max(2, Math.floor(F.pw / 70)));
-    let g = ticks.map((t) => { const x = VZ.r1(sx(t)); return '<line class="vz-grid' + (t === 0 ? ' vz-base' : '') + '" x1="' + x + '" x2="' + x + '" y1="' + F.yT + '" y2="' + F.yB + '"/>' + VZ.txt(x, F.yB + 14, fy(t), { class: 'vz-ax', 'text-anchor': 'middle' }); }).join('');
+    const hatch = Array.isArray(spec.hatch) && spec.hatch.length ? spec.hatch : null; const pid = hatch ? VZ.hatchId() : null;
+    let g = (pid ? VZ.hatchDefs(pid) : '') + ticks.map((t) => { const x = VZ.r1(sx(t)); return '<line class="vz-grid' + (t === 0 ? ' vz-base' : '') + '" x1="' + x + '" x2="' + x + '" y1="' + F.yT + '" y2="' + F.yB + '"/>' + VZ.txt(x, F.yB + 14, fy(t), { class: 'vz-ax', 'text-anchor': 'middle' }); }).join('');
     const x0px = sx(Math.max(v0, Math.min(v1, 0)));
     for (let i = 0; i < n; i++) {
       const cy = by(i); let up = 0, dn = 0, kk = 0; let endX = x0px;
@@ -565,6 +593,7 @@ VZ.types.bar = {
         const gap = stacked && !isFirst ? 2 : 0; const wd = Math.max(0.5, xb - xa - gap); const xs = sg.v >= 0 ? xa + gap : xa;
         const d = isEnd ? VZ.barPath(xs, y, wd, bw, sg.v >= 0 ? 'right' : 'left') : 'M' + VZ.r1(xs) + ' ' + VZ.r1(y) + 'h' + VZ.r1(wd) + 'v' + VZ.r1(bw) + 'h' + VZ.r1(-wd) + 'Z';
         g += '<path class="vz-bar' + (spec.selected != null && spec.selected === i ? ' vz-sel' : '') + '" data-i="' + i + '" data-s="' + sg.j + '" d="' + d + '" style="--c:' + sg.c + '"/>';
+        if (hatch && hatch.indexOf(i) >= 0) g += '<path class="vz-hatch" d="' + d + '" fill="url(#' + pid + ')"/>';
         endX = Math.max(endX, xb);
       });
       const tot = stacked ? up : Math.max(...segs.map((s) => s.v || 0), 0);
@@ -637,8 +666,11 @@ VZ.types.diverging = {
     const valW = Math.ceil(Math.max(VZ.tw(fmt(dom[0]), 11), VZ.tw(fmt(dom[1]), 11))) + 8;
     const F = VZ.rowsFrame(spec, w, h, rows, { leftExtra: lW + valW, rightW: rW + valW, axis: spec.axis !== false });
     const sx = VZ.scale.linear(dom[0], dom[1], F.x0, F.x1); const cx = VZ.r1(sx(0)); const bh = Math.min(spec.barH || 12, F.step * 0.6);
-    const colors = spec.colors || ['var(--crit-m)', VZ.ACC];
-    let g = '<line class="vz-base" x1="' + cx + '" x2="' + cx + '" y1="' + F.yT + '" y2="' + F.yB + '"/>';
+    const colors = spec.colors || [VZ.sem.neg, VZ.sem.pos];
+    let g = '';
+    // deadband: [a, b]（如人格的 45–55「未定型」带），画在中线之后、条之前
+    if (spec.deadband) { const a = sx(spec.deadband[0]), b = sx(spec.deadband[1]); g += '<rect class="vz-band" x="' + VZ.r1(Math.min(a, b)) + '" y="' + F.yT + '" width="' + VZ.r1(Math.abs(b - a)) + '" height="' + VZ.r1(F.ph) + '" rx="2"/>'; }
+    g += '<line class="vz-base" x1="' + cx + '" x2="' + cx + '" y1="' + F.yT + '" y2="' + F.yB + '"/>';
     if (spec.axis !== false) g += VZ.axisBottom(F, sx, VZ.ticks(dom[0], dom[1], Math.max(2, Math.floor(F.pw / 60))).filter((t) => t !== 0), fmt);
     rows.forEach((r, i) => {
       const cy = F.by(i); const v = VZ.num(r.value); g += F.name(i);
@@ -746,8 +778,8 @@ VZ.types.dumbbell = {
     rows.forEach((r, i) => {
       const cy = F.by(i); const a = VZ.num(r.a), b = VZ.num(r.b); g += F.name(i);
       if (a != null && b != null) g += '<line class="vz-dline" x1="' + VZ.r1(sx(a)) + '" x2="' + VZ.r1(sx(b)) + '" y1="' + VZ.r1(cy) + '" y2="' + VZ.r1(cy) + '"/>';
-      if (a != null) g += '<circle class="vz-pt" data-i="' + i + '" cx="' + VZ.r1(sx(a)) + '" cy="' + VZ.r1(cy) + '" r="5" style="--c:' + C[0] + '"/>';
-      if (b != null) g += '<circle class="vz-pt" data-i="' + i + '" cx="' + VZ.r1(sx(b)) + '" cy="' + VZ.r1(cy) + '" r="5" style="--c:' + C[1] + '"/>';
+      if (a != null) g += '<circle class="vz-pt" data-i="' + i + '" data-s="0" cx="' + VZ.r1(sx(a)) + '" cy="' + VZ.r1(cy) + '" r="5" style="--c:' + C[0] + '"/>';
+      if (b != null) g += '<circle class="vz-pt" data-i="' + i + '" data-s="1" cx="' + VZ.r1(sx(b)) + '" cy="' + VZ.r1(cy) + '" r="5" style="--c:' + C[1] + '"/>';
       if (dW) { const d = VZ.delta(a, b, spec.goodDown); g += VZ.txt(w - 2, cy + 4, d.text, { class: 'vz-val ' + d.cls, 'text-anchor': 'end' }); }
       g += F.hit(i);
     });
@@ -772,7 +804,7 @@ VZ.types.slope = {
       const a = VZ.num(r.a), b = VZ.num(r.b); if (a == null || b == null) return; const d = VZ.delta(a, b, spec.goodDown);
       const sel = spec.selected != null && (spec.selected === i || spec.selected === r.id);
       g += '<line class="vz-slope ' + d.cls + (sel ? ' vz-sel' : '') + '" data-i="' + i + '" x1="' + F.x0 + '" y1="' + VZ.r1(sy(a)) + '" x2="' + F.x1 + '" y2="' + VZ.r1(sy(b)) + '"/>';
-      g += '<circle class="vz-pt" cx="' + F.x0 + '" cy="' + VZ.r1(sy(a)) + '" r="4" style="--c:' + C[0] + '"/><circle class="vz-pt" cx="' + F.x1 + '" cy="' + VZ.r1(sy(b)) + '" r="4" style="--c:' + C[1] + '"/>';
+      g += '<circle class="vz-pt" data-s="0" cx="' + F.x0 + '" cy="' + VZ.r1(sy(a)) + '" r="4" style="--c:' + C[0] + '"/><circle class="vz-pt" data-s="1" cx="' + F.x1 + '" cy="' + VZ.r1(sy(b)) + '" r="4" style="--c:' + C[1] + '"/>';
       g += VZ.txt(F.x0 - 8, ly[i] + 4, VZ.fitLbl(r.name || '', fmt(a), lblW - 10, 'end'), { class: 'vz-cat', 'text-anchor': 'end' }) + VZ.txt(F.x1 + 8, ry[i] + 4, VZ.fitLbl(r.name || '', fmt(b), lblW - 10, 'start'), { class: 'vz-cat' });
     });
     return { body: g, model: { kind: 'mark', n: rows.length, xs: [], has: () => true, tip: (i) => { const r = rows[i]; const a = VZ.num(r.a), b = VZ.num(r.b); return VZ.tipHead(r.name || '', VZ.delta(a, b, spec.goodDown).text) + VZ.tipRow(C[0], L[0], fmt(a), { kind: 'rect' }) + VZ.tipRow(C[1], L[1], fmt(b), { kind: 'rect' }); }, at: (i) => [(F.x0 + F.x1) / 2, (sy(VZ.num(rows[i].a) || 0) + sy(VZ.num(rows[i].b) || 0)) / 2], datum: (i) => rows[i] } };
@@ -781,10 +813,12 @@ VZ.types.slope = {
 };
 /* ---------- heatmap：矩阵（7×24 节律、转移矩阵）与日历 ---------- */
 VZ.rampFill = function (lvl, ramp) {
-  // lvl 0..5；gray 用 --h0..--h5；accent / crit / good 用 color-mix 从表面色到主色
+  // lvl 0..5；gray 用 --h0..--h5；accent / err / corr / good / ai / 任意 var() 用 color-mix 从表面色到主色（最低档落在 --sunken 上，深色模式下格子仍可见）；
+  // mood 是发散色：0–2 冷紫（负）、3–5 青绿（正），搭配对称的值域
   if (!ramp || ramp === 'gray') return 'var(--h' + lvl + ')';
-  const base = ramp === 'crit' ? 'var(--crit-m)' : ramp === 'good' ? 'var(--good-m)' : ramp === 'ai' ? 'var(--ai)' : ramp.startsWith('var(') ? ramp : VZ.ACC;
-  return 'color-mix(in oklab, ' + base + ' ' + [6, 22, 40, 58, 78, 100][lvl] + '%, var(--surface))';
+  if (ramp === 'mood') { const k = [[VZ.sem.neg, 100], [VZ.sem.neg, 62], [VZ.sem.neg, 26], [VZ.sem.pos, 26], [VZ.sem.pos, 62], [VZ.sem.pos, 100]][lvl]; return 'color-mix(in oklab, ' + k[0] + ' ' + k[1] + '%, var(--surface))'; }
+  const base = ramp === 'crit' || ramp === 'err' ? VZ.sem.err : ramp === 'corr' ? VZ.sem.corr : ramp === 'good' ? VZ.sem.good : ramp === 'ai' ? 'var(--ai)' : ramp.startsWith('var(') ? ramp : VZ.ACC;
+  return lvl === 0 ? 'color-mix(in oklab, ' + base + ' 7%, var(--sunken))' : 'color-mix(in oklab, ' + base + ' ' + [6, 22, 40, 58, 78, 100][lvl] + '%, var(--surface))';
 };
 VZ.types.heatmap = {
   name: '热力图',
@@ -799,6 +833,13 @@ VZ.types.heatmap = {
     return { rows, cols, gap, labW, cell, cellH, top, h: top + rows.length * (cellH + gap) - gap + bottom + 2, x: (c) => labW + c * (cell + gap), y: (r) => top + r * (cellH + gap) };
   },
   height: (spec, w) => spec.layout === 'calendar' ? VZ.types.heatmap.calGeo(spec, w).h : VZ.types.heatmap.geo(spec, w).h,
+  // 色阶值域：默认 [min(0, 最小值), 最大值]；mood 发散色默认对称 ±max|v|；spec.min / max 可覆盖
+  domain(spec, vals) {
+    vals = (vals || []).filter((v) => v != null);
+    let mn = spec.min != null ? spec.min : Math.min(0, ...vals), mx = spec.max != null ? spec.max : Math.max(1e-9, ...vals);
+    if (spec.ramp === 'mood' && spec.min == null && spec.max == null) { const amp = Math.max(1e-9, ...vals.map(Math.abs)); mn = -amp; mx = amp; }
+    return [mn, mx];
+  },
   calGeo(spec, w) {
     const days = (spec.days || []).filter((d) => d && d.t != null); const T = VZ.time; const gap = 2;
     const from = spec.from != null ? spec.from : Math.min(...days.map((d) => d.t)), to = spec.to != null ? spec.to : Math.max(...days.map((d) => d.t));
@@ -809,7 +850,7 @@ VZ.types.heatmap = {
   render(spec, w, h) {
     if (spec.layout === 'calendar') return VZ.types.heatmap.renderCal(spec, w, h);
     const G = VZ.types.heatmap.geo(spec, w); const V = spec.values || []; const fmt = (v) => VZ.fmt(v, spec.format);
-    const flat = V.flat().map(VZ.num).filter((v) => v != null); const mn = spec.min != null ? spec.min : Math.min(0, ...flat), mx = spec.max != null ? spec.max : Math.max(1e-9, ...flat);
+    const flat = V.flat().map(VZ.num).filter((v) => v != null); const [mn, mx] = VZ.types.heatmap.domain(spec, flat);
     const lvl = (v) => v == null ? -1 : clamp(Math.floor((v - mn) / (mx - mn || 1) * 5.999), 0, 5);
     let g = ''; const nC = G.cols.length, nR = G.rows.length;
     const every = Math.max(1, Math.ceil((Math.max(...G.cols.map((c) => VZ.tw(String(c), 10))) + 6) / (G.cell + G.gap)));
@@ -829,7 +870,7 @@ VZ.types.heatmap = {
   renderCal(spec, w, h) {
     const G = VZ.types.heatmap.calGeo(spec, w); const T = VZ.time; const fmt = (v) => VZ.fmt(v, spec.format);
     const byDay = {}; G.days.forEach((d) => { byDay[Math.floor((d.t - G.start) / T.D)] = d; });
-    const vals = G.days.map((d) => VZ.num(d.v)).filter((v) => v != null); const mn = Math.min(0, ...vals), mx = Math.max(1e-9, ...vals);
+    const vals = G.days.map((d) => VZ.num(d.v)).filter((v) => v != null); const [mn, mx] = VZ.types.heatmap.domain(spec, vals);
     const lvl = (v) => v == null ? -1 : clamp(Math.floor((v - mn) / (mx - mn || 1) * 5.999), 0, 5);
     let g = ''; ['一', '', '三', '', '五', '', '日'].forEach((l, i) => { if (l) g += VZ.txt(G.labW - 6, G.y(i) + G.cell / 2 + 3.5, l, { class: 'vz-ax', 'text-anchor': 'end' }); });
     const cells = []; let lastMonth = -1;
@@ -839,7 +880,7 @@ VZ.types.heatmap = {
     }
     return { body: g, model: { kind: 'mark', n: cells.length, xs: [], has: () => true, tip: (i) => { const c = cells[i]; return VZ.tipHead(T.ymd(c.t) + ' 周' + T.wd(c.t)) + VZ.tipRow(VZ.rampFill(Math.max(0, lvl(c.v)), spec.ramp), spec.unit || '', fmt(c.v), { kind: 'rect' }); }, at: (i) => { const k = Math.floor((cells[i].t - G.start) / T.D); return [G.x(Math.floor(k / 7)) + G.cell / 2, G.y(k % 7)]; }, datum: (i) => cells[i] } };
   },
-  extra(spec) { if (spec.scale === false) return ''; const fmt = (v) => VZ.fmt(v, spec.format); const flat = spec.layout === 'calendar' ? (spec.days || []).map((d) => VZ.num(d.v)) : (spec.values || []).flat().map(VZ.num); const vals = flat.filter((v) => v != null); if (!vals.length) return ''; const mn = spec.min != null ? spec.min : Math.min(0, ...vals), mx = spec.max != null ? spec.max : Math.max(...vals); return '<div class="vz-scale" aria-label="色阶：' + fmt(mn) + ' 到 ' + fmt(mx) + '"><span class="cap">' + esc(spec.scaleLabels ? spec.scaleLabels[0] : fmt(mn)) + '</span>' + [0, 1, 2, 3, 4, 5].map((l) => '<i style="background:' + VZ.rampFill(l, spec.ramp) + '"></i>').join('') + '<span class="cap">' + esc(spec.scaleLabels ? spec.scaleLabels[1] : fmt(mx)) + '</span>' + (spec.scaleNote ? '<span class="cap vz-scale-note">' + esc(spec.scaleNote) + '</span>' : '') + '</div>'; },
+  extra(spec) { if (spec.scale === false) return ''; const fmt = (v) => VZ.fmt(v, spec.format); const flat = spec.layout === 'calendar' ? (spec.days || []).map((d) => VZ.num(d.v)) : (spec.values || []).flat().map(VZ.num); const vals = flat.filter((v) => v != null); if (!vals.length) return ''; const [mn, mx] = VZ.types.heatmap.domain(spec, vals); return '<div class="vz-scale" aria-label="色阶：' + fmt(mn) + ' 到 ' + fmt(mx) + '"><span class="cap">' + esc(spec.scaleLabels ? spec.scaleLabels[0] : fmt(mn)) + '</span>' + [0, 1, 2, 3, 4, 5].map((l) => '<i style="background:' + VZ.rampFill(l, spec.ramp) + '"></i>').join('') + '<span class="cap">' + esc(spec.scaleLabels ? spec.scaleLabels[1] : fmt(mx)) + '</span>' + (spec.scaleNote ? '<span class="cap vz-scale-note">' + esc(spec.scaleNote) + '</span>' : '') + '</div>'; },
   table(spec) {
     if (spec.layout === 'calendar') return { cols: ['日期', spec.unit || '值'], rows: (spec.days || []).map((d) => [VZ.time.ymd(d.t), VZ.fmt(VZ.num(d.v), spec.format)]) };
     return { cols: [''].concat((spec.cols || []).map(String)), rows: (spec.rows || []).map((r, i) => [String(r)].concat(((spec.values || [])[i] || []).map((v) => VZ.fmt(VZ.num(v), spec.format)))) };
@@ -933,23 +974,35 @@ VZ.sparkBody = function (values, w, h, opt) {
   opt = opt || {}; const vals = (values || []).map(VZ.num); const valid = vals.filter((v) => v != null); if (!valid.length) return '';
   const mn = opt.min != null ? opt.min : (opt.zero ? Math.min(0, ...valid) : Math.min(...valid)), mx = opt.max != null ? opt.max : Math.max(...valid); const n = vals.length;
   const X = (i) => 2 + i * ((w - 4) / Math.max(1, n - 1)), Y = (v) => 2 + (1 - (v - mn) / ((mx - mn) || 1)) * (h - 4);
-  const c = opt.color || 'var(--ink-4)';
-  if (opt.bars) { const bw = Math.max(1, (w - 2) / n - 1); return vals.map((v, i) => v == null ? '' : '<rect x="' + VZ.r1(1 + i * (bw + 1)) + '" y="' + VZ.r1(Y(v)) + '" width="' + VZ.r1(bw) + '" height="' + VZ.r1(h - 2 - Y(v)) + '" rx="1" fill="' + (i === n - 1 ? (opt.last || 'var(--ink-1)') : c) + '"/>').join(''); }
+  // 评审 G-04 / D-02：线 --ink-3 1.5px，末点强调色（深色模式下 --ink-4 太淡）
+  const c = opt.color || 'var(--ink-3)'; const last = opt.last || VZ.ACC;
+  if (opt.bars) { const bw = Math.max(1, (w - 2) / n - 1); return vals.map((v, i) => v == null ? '' : '<rect x="' + VZ.r1(1 + i * (bw + 1)) + '" y="' + VZ.r1(Y(v)) + '" width="' + VZ.r1(bw) + '" height="' + VZ.r1(h - 2 - Y(v)) + '" rx="1" fill="' + (i === n - 1 ? last : c) + '"/>').join(''); }
   const pts = vals.map((v, i) => v == null ? null : [X(i), Y(v)]); let g = '';
   if (opt.area) { const sg = pts.filter(Boolean); if (sg.length) g += '<path d="' + VZ.linePath(sg) + 'L' + VZ.r1(sg[sg.length - 1][0]) + ' ' + (h - 2) + 'L' + VZ.r1(sg[0][0]) + ' ' + (h - 2) + 'Z" fill="' + c + '" fill-opacity=".12"/>'; }
   g += '<path d="' + VZ.linePath(pts) + '" fill="none" stroke="' + c + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>';
   if (opt.ref != null) g += '<line x1="2" x2="' + (w - 2) + '" y1="' + VZ.r1(Y(opt.ref)) + '" y2="' + VZ.r1(Y(opt.ref)) + '" stroke="var(--line)" stroke-dasharray="2 2"/>';
-  let last = -1; vals.forEach((v, i) => { if (v != null) last = i; });
-  if (last >= 0 && opt.dot !== false) g += '<circle cx="' + VZ.r1(X(last)) + '" cy="' + VZ.r1(Y(vals[last])) + '" r="2.5" fill="' + (opt.last || 'var(--ink-1)') + '" stroke="var(--surface)" stroke-width="1.5"/>';
+  let li = -1; vals.forEach((v, i) => { if (v != null) li = i; });
+  if (li >= 0 && opt.dot !== false) g += '<circle cx="' + VZ.r1(X(li)) + '" cy="' + VZ.r1(Y(vals[li])) + '" r="2.5" fill="' + last + '" stroke="var(--surface)" stroke-width="1.5"/>';
   return g;
 };
-VZ.spark = function (values, opt) { opt = opt || {}; const w = opt.w || 64, h = opt.h || 22; return '<svg class="vz-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"' + (opt.label ? ' role="img" aria-label="' + esc(opt.label) + '"' : ' aria-hidden="true"') + '>' + VZ.sparkBody(values, w, h, opt) + '</svg>'; };
+VZ.spark = function (values, opt) { opt = opt || {}; const w = opt.w || 80, h = opt.h || 24; return '<svg class="vz-spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"' + (opt.label ? ' role="img" aria-label="' + esc(opt.label) + '"' : ' aria-hidden="true"') + '>' + VZ.sparkBody(values, w, h, opt) + '</svg>'; };
 VZ.types.spark = { name: '迷你趋势', isEmpty: (spec) => !(spec.values || []).some((v) => VZ.num(v) != null), render: (spec, w, h) => ({ body: VZ.sparkBody(spec.values, w, h, spec), model: null }), table: (spec) => ({ cols: ['序号', '值'], rows: (spec.values || []).map((v, i) => [String(i + 1), VZ.fmt(VZ.num(v))]) }) };
-// KPI tile：{ label, value, unit, delta: { text, cls } | { cur, prev, unit: 'pct' | 'pt' | 'x', goodDown }, trend: [n], sub, act, tip, href }
+// 环比三件套（评审 A1-V01 / V03）：▲▼ 符号 + 变化量 + 上期值；按极性（goodDown）着色，中性指标灰色。
+// d: { cur, prev, unit: 'pct' | 'pt' | 'x', goodDown, fmt（上期值格式）, prevText: false 省略上期, none（无上期文案） } 或直接 { text, cls }
+VZ.delta2 = function (d) {
+  if (!d) return null; if (d.text != null) return d;
+  if (d.prev == null || d.cur == null) return { text: d.none || '无可比上期', cls: '' };
+  const diff = d.unit === 'pt' || d.unit === 'x' ? d.cur - d.prev : (d.prev ? (d.cur - d.prev) / Math.abs(d.prev) * 100 : null);
+  if (diff == null) return { text: '—', cls: '' };
+  const flat = Math.abs(diff) < 1e-9; const good = d.goodDown == null || flat ? null : (diff < 0) === d.goodDown;
+  const mag = d.unit === 'pt' ? VZ.fmt(Math.abs(diff), '1f') + ' pt' : d.unit === 'x' ? VZ.fmt(Math.abs(diff), '1f') + '×' : Math.round(Math.abs(diff)) + '%';
+  const prev = typeof d.fmt === 'function' ? d.fmt(d.prev) : VZ.fmt(d.prev, d.fmt);
+  return { text: (flat ? '± 0' : (diff > 0 ? '▲ ' : '▼ ') + mag) + (d.prevText === false ? '' : ' · 上期 ' + prev), cls: good == null ? '' : good ? 'vz-good' : 'vz-bad', diff };
+};
+// KPI tile：{ label, value, unit, delta（见 VZ.delta2）, trend: [n], trendLabel（迷你线周期，如「近 12 周」）, sub, act, attrs, tip, tf, cls }
 VZ.kpi = function (o) {
-  let d = o.delta || null;
-  if (d && d.text == null) { if (d.prev == null || d.cur == null) d = { text: d.none || '无可比上期', cls: '' }; else { const diff = d.unit === 'pt' || d.unit === 'x' ? d.cur - d.prev : (d.prev ? (d.cur - d.prev) / Math.abs(d.prev) * 100 : null); if (diff == null) d = { text: '—', cls: '' }; else { const good = d.goodDown == null ? null : (diff < 0) === d.goodDown; d = { text: (diff >= 0 ? '↑ ' : '↓ ') + (d.unit === 'pt' ? VZ.fmt(Math.abs(diff), '1f') + ' pt' : d.unit === 'x' ? VZ.fmt(Math.abs(diff), '1f') + '×' : Math.round(Math.abs(diff)) + '%'), cls: good == null ? '' : good ? 'vz-good' : 'vz-bad' }; } } }
-  return '<' + (o.act ? 'button type="button"' : 'div') + ' class="card tile vz-kpi' + (o.cls ? ' ' + o.cls : '') + '"' + (o.act ? ' data-act="' + esc(o.act) + '"' + (o.attrs || '') : '') + (o.tip ? ' data-tip="' + esc(o.tip) + '"' : '') + (o.tf ? ' data-tf="' + esc(o.tf) + '"' : '') + '><span class="row vz-kpi-h"><span class="vz-kpi-l">' + esc(o.label) + '</span>' + (o.trend ? VZ.spark(o.trend, Object.assign({ w: 64, h: 22 }, o.sparkOpt || {})) : '') + '</span><span class="row vz-kpi-v"><span class="v">' + esc(o.value) + '</span>' + (o.unit ? '<span class="vz-kpi-u">' + esc(o.unit) + '</span>' : '') + '</span><span class="vz-kpi-d ' + (d ? d.cls : '') + '">' + (d && d.text ? esc(d.text) : (o.sub ? esc(o.sub) : '&nbsp;')) + '</span></' + (o.act ? 'button' : 'div') + '>';
+  const d = VZ.delta2(o.delta);
+  return '<' + (o.act ? 'button type="button"' : 'div') + ' class="card tile vz-kpi' + (o.cls ? ' ' + o.cls : '') + '"' + (o.act ? ' data-act="' + esc(o.act) + '"' + (o.attrs || '') : '') + (o.tip ? ' data-tip="' + esc(o.tip) + '"' : '') + (o.tf ? ' data-tf="' + esc(o.tf) + '"' : '') + '><span class="row vz-kpi-h"><span class="vz-kpi-l">' + esc(o.label) + '</span>' + (o.trend ? VZ.spark(o.trend, Object.assign({ w: 80, h: 24, label: o.trendLabel ? o.label + '：' + o.trendLabel : null }, o.sparkOpt || {})) : '') + '</span><span class="row vz-kpi-v"><span class="v">' + esc(o.value) + '</span>' + (o.unit ? '<span class="vz-kpi-u">' + esc(o.unit) + '</span>' : '') + (o.trendLabel ? '<span class="vz-kpi-p">' + esc(o.trendLabel) + '</span>' : '') + '</span><span class="vz-kpi-d ' + (d ? d.cls : '') + '">' + (d && d.text ? esc(d.text) : (o.sub ? esc(o.sub) : '&nbsp;')) + '</span></' + (o.act ? 'button' : 'div') + '>';
 };
 /* ---------- multiples：小倍数 ---------- */
 VZ.types.multiples = {
@@ -1011,8 +1064,8 @@ VZ.types.timeline = {
   frame(spec, w, h) {
     const { top, mkY, phY } = VZ.types.timeline.top(spec); const L = VZ.lanes(spec.lanes || [], top, spec.laneGap);
     const labW = spec.laneLabels === false || !L.some((l) => l.label) ? 0 : Math.min(120, Math.ceil(Math.max(...L.map((l) => VZ.tw(l.label || '', 11))) + 12));
-    const ev = spec.events || []; const ts = ev.flatMap((e) => [e.t, e.t2 != null ? e.t2 : e.t]).filter((t) => VZ.num(t) != null);
-    const range = spec.range || [Math.min(...ts), Math.max(...ts)]; if (!(range[1] > range[0])) range[1] = range[0] + 1;
+    const ev = spec.events || []; const ts = ev.flatMap((e) => [e.t, e.t2 != null ? e.t2 : e.t]).concat((spec.spans || []).flatMap((s) => [s.t, s.t2]), (spec.markers || []).map((m) => m.t)).filter((t) => VZ.num(t) != null);
+    const range = spec.range ? spec.range.slice() : ts.length ? [Math.min(...ts), Math.max(...ts)] : [0, 1]; if (!(range[1] > range[0])) range[1] = range[0] + 1;
     const F = { x0: labW + 2, x1: w - 6, yT: top, yB: L.length ? L[L.length - 1].y1 : top + 40, w, h, L, labW, range, mkY, phY }; F.pw = F.x1 - F.x0; F.ph = F.yB - F.yT;
     F.sx = VZ.scale.linear(range[0], range[1], F.x0, F.x1); F.px = (t) => clamp(F.sx(t), F.x0, F.x1); return F;
   },
@@ -1025,7 +1078,7 @@ VZ.types.timeline = {
     const ph = spec.playhead;
     const ev = spec.events || [];
     ev.forEach((e, i) => {
-      const l = VZ.laneOf(L, e.lane); if (!l || VZ.num(e.t) == null) return; const x = F.px(e.t); const kind = e.kind || (e.t2 != null ? 'span' : 'tick'); const c = e.err ? 'var(--crit-m)' : (e.color || l.color || 'var(--ink-2)');
+      const l = VZ.laneOf(L, e.lane); if (!l || VZ.num(e.t) == null) return; const x = F.px(e.t); const kind = e.kind || (e.t2 != null ? 'span' : 'tick'); const c = e.err ? VZ.sem.err : (e.color || l.color || 'var(--ink-2)');
       const fut = ph != null && e.t > ph; const sel = spec.selected != null && (spec.selected === i || (e.id != null && spec.selected === e.id));
       const cls = 'vz-ev' + (e.err ? ' vz-err' : '') + (fut ? ' vz-future' : '') + (sel ? ' vz-sel' : '') + (e.dim ? ' vz-dim' : '');
       if (kind === 'span') { const x2 = Math.max(x + 4, F.px(e.t2)); const hh = Math.max(4, l.h - 6); g += '<rect class="' + cls + ' vz-span" data-i="' + i + '" x="' + VZ.r1(x) + '" y="' + VZ.r1(l.cy - hh / 2) + '" width="' + VZ.r1(x2 - x) + '" height="' + hh + '" rx="3" style="--c:' + c + '"/>' + (e.label && x2 - x > VZ.tw(e.label, 10.5) + 8 ? VZ.txt(x + 4, l.cy + 3.5, e.label, { class: 'vz-span-lbl' }) : ''); }
@@ -1038,7 +1091,7 @@ VZ.types.timeline = {
     if (ph != null) { const x = VZ.r1(F.px(ph)); g += '<g class="vz-playhead"><line x1="' + x + '" x2="' + x + '" y1="' + (F.yT - 2) + '" y2="' + (F.yB + 6) + '"/><path d="M' + x + ' ' + (F.yB + 10) + 'l-5 5 5 5 5-5z"/></g>'; }
     if (spec.axis !== false) { const ticks = VZ.timeTicks(F.range[0], F.range[1], F.pw, { unit, start: spec.start }); g += VZ.axisX(F, ticks.map((t) => ({ x: F.sx(t.t), label: t.label, major: t.major })), { dy: 16, tick: true }); }
     g += '<line class="vz-xline" x1="0" x2="0" y1="' + F.yT + '" y2="' + F.yB + '" hidden/>';
-    return { body: g, model: { kind: 'mark', n: ev.length, F, xs: [], has: (i) => !!VZ.laneOf(L, ev[i].lane), tip: (i) => { const e = ev[i]; const l = VZ.laneOf(L, e.lane) || {}; return VZ.tipHead(ft(e.t) + (e.t2 != null ? ' – ' + ft(e.t2) : ''), (l.label || '') + (e.err ? ' · 失败' : '')) + (e.label ? VZ.tipRow(e.err ? 'var(--crit-m)' : (e.color || l.color || 'var(--ink-2)'), e.sub || '', e.label, { kind: 'rect' }) : '') + (e.detail ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(e.detail) + '</span></div>' : ''); }, at: (i) => { const e = ev[i]; const l = VZ.laneOf(L, e.lane); return [F.px(e.t), l ? l.cy : F.yT]; }, datum: (i) => ev[i], brushRange: (a, c) => [F.sx.inv(a), F.sx.inv(c)], ft } };
+    return { body: g, model: { kind: 'mark', n: ev.length, F, xs: [], has: (i) => !!VZ.laneOf(L, ev[i].lane), tip: (i) => { const e = ev[i]; const l = VZ.laneOf(L, e.lane) || {}; return VZ.tipHead(ft(e.t) + (e.t2 != null ? ' – ' + ft(e.t2) : ''), (l.label || '') + (e.err ? ' · 失败' : '')) + (e.label ? VZ.tipRow(e.err ? VZ.sem.err : (e.color || l.color || 'var(--ink-2)'), e.sub || '', e.label, { kind: 'rect' }) : '') + (e.detail ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(e.detail) + '</span></div>' : ''); }, at: (i) => { const e = ev[i]; const l = VZ.laneOf(L, e.lane); return [F.px(e.t), l ? l.cy : F.yT]; }, datum: (i) => ev[i], brushRange: (a, c) => [F.sx.inv(a), F.sx.inv(c)], ft } };
   },
   table: (spec) => { const L = VZ.lanes(spec.lanes || []); const T = VZ.time; const unit = spec.unit || 'ms'; const ft = (t) => unit === 'min' ? (() => { const abs = (spec.start || 0) + t; return T.pad(Math.floor(abs / 60) % 24) + ':' + T.pad(Math.floor(abs % 60)); })() : T.md(t) + ' ' + T.hm(t); return { cols: ['时间', '泳道', '事件', '结果'], rows: (spec.events || []).map((e) => [ft(e.t) + (e.t2 != null ? ' – ' + ft(e.t2) : ''), (VZ.laneOf(L, e.lane) || {}).label || e.lane, e.label || '', e.err ? '失败' + (e.detail ? ' · ' + e.detail : '') : (e.detail || '')]) }; }
 };
