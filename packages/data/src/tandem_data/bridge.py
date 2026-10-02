@@ -107,20 +107,26 @@ def import_connector(store, connector_home: str | Path) -> dict:
                             "INSERT INTO connector_checkpoint VALUES(?,?,?,?,?) ON CONFLICT(connector_db,external_file_id,generation) DO UPDATE SET fingerprint=excluded.fingerprint",
                             (str(home), file["file_id"], generation, fingerprint, file_id),
                         )
+                        # One lookup of the file's current records instead of a query per line.
+                        targets = {
+                            row["locator"]: (row["record_uid"], row["sha256"])
+                            for row in store.db.execute(
+                                "SELECT f.locator,r.record_uid,r.sha256 FROM file_record f JOIN raw_record r USING(record_uid) WHERE f.file_id=?",
+                                (file_id,),
+                            )
+                        }
+                        links = []
                         for raw in connection.execute(
                             "SELECT record_uid,line_no,sha256 FROM raw_record WHERE file_id=? AND generation=?",
                             (file["file_id"], generation),
                         ):
-                            target = store.db.execute(
-                                "SELECT r.record_uid,r.sha256 FROM file_record f JOIN raw_record r USING(record_uid) WHERE f.file_id=? AND f.locator=?",
-                                (file_id, canonical(["line", raw["line_no"] - 1])),
-                            ).fetchone()
-                            if not target or target["sha256"] != raw["sha256"]:
+                            target = targets.get(canonical(["line", raw["line_no"] - 1]))
+                            if not target or target[1] != raw["sha256"]:
                                 raise ValueError("Connector record crosswalk checksum mismatch")
-                            store.db.execute(
-                                "INSERT OR REPLACE INTO connector_record_link VALUES(?,?,?)",
-                                (str(home), raw["record_uid"], target["record_uid"]),
-                            )
+                            links.append((str(home), raw["record_uid"], target[0]))
+                        store.db.executemany(
+                            "INSERT OR REPLACE INTO connector_record_link VALUES(?,?,?)", links
+                        )
                     imported += 1
                 store.db.execute(
                     "UPDATE source_file SET status=? WHERE file_id=?",
