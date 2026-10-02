@@ -191,6 +191,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "bottleneck_features": analyze_bottleneck(sessions, events if bundle.events is not None else None,
                 calls, model_calls, main_ids, scope, bundle.coverage, diagnostics["context_events"], supported),
             "tasks": tasks, "preferences": preferences,
+            "inventory": bundle.inventory,
+            "inventory_scans": bundle.inventory_scans,
             "instruction": {"schema_version": INSTRUCTION_VERSION,
                             "records": instruction_records if instruction_available else None,
                             "summary": instruction_summary},
