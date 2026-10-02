@@ -10,7 +10,7 @@ function filterNote() {
 }
 function reportMD() {
   const L = sel(); const st = stats(L); const p = personaNow(); const fn = filterNote();
-  const out = ['# Tandem 协作报告 · ' + rangeLabel(), '', '> ' + winLabel() + ' · 示例数据 · 生成于 ' + nowText(), ''];
+  const out = ['# Orbit 协作报告 · ' + rangeLabel(), '', '> ' + winLabel() + ' · 示例数据 · 生成于 ' + nowText(), ''];
   if (fn) out.push('> 筛选：' + fn, '');
   if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
   if (S.rep.has('persona')) {
@@ -71,6 +71,6 @@ Object.assign(ACT, {
   copyCSV: () => copyText(CUR.csv || '', 'CSV'),
   shareTheme: (el) => { S.shareDark = el.dataset.v === 'dark'; $('#shareBody').innerHTML = shareBody(); },
   shareNum: () => { S.shareNoNum = !S.shareNoNum; $('#shareBody').innerHTML = shareBody(); },
-  shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Tandem，全部分析在本机完成。', '分享文案'); },
+  shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Orbit，全部分析在本机完成。', '分享文案'); },
   shareSave: () => toast('浏览器 Demo 不能下载文件；App 会把 1080×1350 的 PNG 存到「下载」')
 });

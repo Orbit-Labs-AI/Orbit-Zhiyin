@@ -5,7 +5,13 @@ from dataclasses import asdict, dataclass
 
 from .context import AnalysisContext, Record
 from .instruction import extract_instruction_constraints, summarize_control_patterns
-from .preference import extract_explicit_preferences, summarize_preferences
+from .preference import (
+    PREFERENCE_EVIDENCE_VERSION,
+    build_preference_evidence,
+    extract_explicit_preferences,
+    summarize_preference_evidence,
+    summarize_preferences,
+)
 from .task import segment_tasks, summarize_task_distribution
 
 
@@ -18,6 +24,7 @@ class SemanticAnalysis:
     instruction_summary: Record
     task_ids: dict[str, list[str]]
     preference_ids: dict[str, list[str]]
+    preference_evidence_ids: dict[str, list[str]]
 
 
 def analyze_semantics(context: AnalysisContext) -> SemanticAnalysis:
@@ -45,9 +52,27 @@ def analyze_semantics(context: AnalysisContext) -> SemanticAnalysis:
             preference["preference_id"]
         )
     records = extract_instruction_constraints(context.events, main_ids=context.main_ids)
+    available_records = records if events is not None else None
+    preferences["evidence_schema_version"] = PREFERENCE_EVIDENCE_VERSION
+    preferences["evidence"] = build_preference_evidence(
+        preferences, available_records, context.sessions, task_result["task_by_event"]
+    )
+    preferences["evidence_summary"] = summarize_preference_evidence(
+        preferences["evidence"], available_records, context.sessions, task_result["task_by_event"]
+    )
+    preference_evidence_ids = defaultdict(list)
+    for item in preferences["evidence"] or []:
+        preference_evidence_ids[item["session_uid"]].append(item["evidence_id"])
     for record in records:
         instruction_groups[record["session_uid"]].append(record)
     summary = summarize_control_patterns(records, source_available=events is not None)
     return SemanticAnalysis(
-        tasks, preferences, records, instruction_groups, summary, task_ids, preference_ids
+        tasks,
+        preferences,
+        records,
+        instruction_groups,
+        summary,
+        task_ids,
+        preference_ids,
+        preference_evidence_ids,
     )

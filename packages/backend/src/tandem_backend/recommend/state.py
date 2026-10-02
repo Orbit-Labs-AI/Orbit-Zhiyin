@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from ..analytics.recommendations.diagnosis import diagnose_bottlenecks, feature_digest
 from .contracts import Evidence, RecommendationContext, RecommendationState
+from .preferences import resolve_preferences
 
 
 @dataclass
@@ -59,7 +60,7 @@ def build_states(analysis, bottlenecks=None, context=None, policy=None):
             workflow_state={"workflow": respond.get("workflow"), "retry_links": respond.get("retry_links")},
             interaction_state={k: interaction.get(k) for k in ("confirmed_correction_count", "confirmed_correction_rate", "repeated_requirement_count", "effective_samples", "unknown_counts")},
             outcome_state={k: outcome.get(k) for k in ("task_success", "validation_result_counts", "acceptance_results")},
-            cost_state=features.get("cost_time") or {}, preference_state={"preference_ids": row.get("preference_ids"), "used_for_ranking": False},
+            cost_state=features.get("cost_time") or {}, preference_state=resolve_preferences(analysis, row, task_records, context),
             context_state=context.model_copy(deep=True), bottleneck_vector=vector,
             task_text=" ".join(task_words + context_words), problem_text=" ".join(s["reason"] for s in own),
             desired_effect_text=" ".join(sorted({c for s in own for c in s["capabilities"]})), signals=deepcopy(own)))

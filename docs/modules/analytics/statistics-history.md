@@ -64,13 +64,13 @@ TF-IDF 均值使用每条消息内的词频比例乘以平滑 IDF，再对有效
 
 **读穿缓存。** canonical 库上的分析按「进程内 LRU → `analysis_section` → 惰性计算」查找：
 
-- `request_key` 由规范化 Scope、`with_text`、`algo_version` 和依赖库版本组成；`algo_version = H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION_VERSION, VECTOR_VERSION)`。
+- `request_key` 由规范化 Scope、`with_text`、`algo_version` 和依赖库版本组成；`algo_version = H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION_VERSION, TAXONOMY_VERSION, PREFERENCE_VERSION, PREFERENCE_EVIDENCE_VERSION, VECTOR_VERSION)`，凡进入 `analysis_digest` 的版本都在其中。
 - `input_fp` 由当前 projection run、项目／别名／清单等全局表计数和候选会话树指纹组成。树指纹由 [`analysis_fingerprint.py`](../../../packages/data/src/tandem_data/analysis_fingerprint.py) 用一条按 `root_uid` 分组的 SQL 计算：事件、工具调用、模型调用的数量与会话内 rowid 跨度、`max(seq)`、时间范围、会话表全部列，以及 mapper／reducer 版本。重投影让整棵树整体平移 rowid 不算变化；计数、跨度和 seq 都不变的原地改写无法识别。
-- 未命中时只计算端点需要的 section。会话行先查 `session_result`，只重算树指纹变化或缺失的根会话；会话树完整落在时间窗内且没有模型、档位、项目、来源过滤时记为 `full`，否则按过滤条件哈希。行指纹还包含时区、`include_children`、时间窗、覆盖状态等会话级计算读取的参数，所以不同时间窗不会误用彼此的行。需要重算的根会话不少于 300 个时，按约 200 个一块交给 spawn 进程池并行；`TANDEM_ANALYSIS_WORKERS=0` 或 `1` 可关闭。
-- 任务、偏好、文本表示、词频、统计和推荐都是惰性 section，只在端点需要时计算。
+- 未命中时只计算端点需要的 section。会话行先查 `session_result`，只重算树指纹变化或缺失的根会话；会话树完整落在时间窗内且没有模型、档位、项目、Agent、来源过滤时记为 `full`，否则按过滤条件哈希。行指纹还包含时区、`include_children`、时间窗、覆盖状态等会话级计算读取的参数，所以不同时间窗不会误用彼此的行。需要重算的根会话不少于 300 个时，按约 200 个一块交给 spawn 进程池并行；`TANDEM_ANALYSIS_WORKERS=0` 或 `1` 可关闭。
+- 任务、偏好、文本表示、词频、统计和推荐都是惰性 section，只在端点需要时计算。`task_ids`、`preference_ids`、`preference_evidence_ids`、文本坐标和全局覆盖属于跨会话字段，只在装配会话行时附加，不进入 `session_result`；偏好证据的 `cluster_id` 复用同一请求的文本 section（`with_text=False` 时为 null）。
 - 每个结果带 `freshness`：`input_fp`、`algo_version`、`computed_at`、`cache_hit`，未命中时还有本次重算／复用的会话行数。
 
-`features` 的 section 未命中时记录一次运行和本次算出的 section；全部命中时不再记录。`products`、`comparison` 和持久数据上的旧 `profile` 入口仍经 `recorded()`：先按相同请求与输入查找已完成的运行，命中时只追加一行 `cache_hit=1` 的轻量运行并复用原快照，不重复写结果。缓存只用于 canonical 库；`--db` 兼容模式没有指纹，每次照常计算并记录。
+`features` 的 section 未命中时记录一次运行和本次算出的 section（快照与公开结果同形，共享元数据如 `coverage_report` 在顶层）；全部命中时不再记录。`products`、`comparison` 和持久数据上的旧 `profile` 入口仍经 `recorded()`：先按相同请求与输入查找已完成的运行，命中时只追加一行 `cache_hit=1` 的轻量运行并复用原快照，不重复写结果。缓存只用于 canonical 库；`--db` 兼容模式没有指纹，每次照常计算并记录。
 
 **排除会话。** `POST /v1/sessions/{id}/exclude` 持久化排除，之后所有分析 Scope 的 `excluded_session_uids` 都自动并入它，`effective_samples` 随之减少；`DELETE` 后恢复，之前的缓存可再次命中。
 

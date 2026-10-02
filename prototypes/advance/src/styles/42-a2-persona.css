@@ -1,11 +1,12 @@
-/* A2 persona: low-sample relax chips, fingerprint v2 compass (bezel ticks / stacked density ring / rhythm band / compass rose + needle), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass (bezel ticks / smooth five-layer orbit band + hour hit areas + Agent planets / rhythm band / compass rose + needle), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
-.fp2 .fps path{transition:opacity .15s}
+/* 小时热区叠在轨道环带上，本身透明：悬停 / 聚焦时罩一层浅色，选中时描边，其余小时罩一层纸色（等价于原来的 .dim 变淡） */
+.fp2 .fps path{transition:fill .15s,fill-opacity .15s}
 .fp2 .fps{cursor:pointer;outline:none}
-.fp2 .fps.dim{opacity:.3}
-.fp2 .fps:hover path,.fp2 .fps:focus-visible path{filter:brightness(1.12)}
+.fp2 .fps.dim path:first-child{fill:var(--surface);fill-opacity:.62}
+.fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field)}
 .fp2 .fps.sel path:first-child{fill:var(--field);stroke:var(--ink-1);stroke-width:1.5}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
@@ -60,3 +61,8 @@
 .pe-fit-t b{font-variant-numeric:tabular-nums}
 /* mid widths: the three cards wrap 2 + 1 — the fit card takes the full row instead of leaving half of it empty */
 @container main (max-width:799px){.pe-three>:nth-child(3){grid-column:1/-1}}
+/* 行星：画在 00 上方的轨道上，按 --pa（该 Agent 的协作重心）转到位；入场时 WAAPI 从 0° 转到 --pa */
+.fp2 .fp-pl{transform:rotate(var(--pa,0deg));transform-origin:200px 200px;transform-box:view-box}
+.fp2 .fp-pl .fp-pd{transition:r .15s}
+.fp2 .fp-pl[data-tf]{cursor:default}
+.fp2 .fp-pl[data-tf]:hover .fp-pd{r:5.6}

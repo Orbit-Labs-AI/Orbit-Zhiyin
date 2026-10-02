@@ -1,0 +1,441 @@
+{
+  "schema_version": "recommendation-catalog-v1",
+  "family": "skills",
+  "items": [
+    {
+      "identity": {
+        "id": "skill:github.com:1172963839:plugins/superpowers/skills/systematic-debugging/SKILL.md",
+        "name": "systematic-debugging",
+        "version": "5fd93af4cd0c623e020d0cc7e9ce178b4ac1f70f"
+      },
+      "family": "skills",
+      "target_task": {
+        "text": "先复现失败并定位根因，再验证一个修复假设。",
+        "tags": [
+          "debug"
+        ]
+      },
+      "trigger": {
+        "rule_ids": [
+          "identical_retries",
+          "tool_failures"
+        ]
+      },
+      "capability": {
+        "text": "先复现失败并定位根因，再验证一个修复假设。",
+        "tags": [
+          "debugging",
+          "retry_control"
+        ]
+      },
+      "expected_effect": {
+        "targets": {
+          "identical_retries": 1.0,
+          "tool_failures": 1.0
+        }
+      },
+      "preference_support": {
+        "task_type": [
+          "debug"
+        ],
+        "capability": [
+          "debugging",
+          "retry_control"
+        ]
+      },
+      "compatibility": {
+        "agents": {
+          "codex": "manual",
+          "generic": "manual"
+        },
+        "languages": []
+      },
+      "requirements": {
+        "tools": [
+          "shell"
+        ],
+        "software": []
+      },
+      "friction": {
+        "setup_cost": 0.2,
+        "runtime_cost": 0.2
+      },
+      "risk_permission": {
+        "level": 0.1,
+        "required_permissions": [
+          "repository_read",
+          "repository_write"
+        ]
+      },
+      "evidence_quality": {
+        "status": "reviewed",
+        "score": 0.7,
+        "reviewed_by": "codex-content-review-for-evaluation-2026-10-02"
+      },
+      "source": {
+        "origin": "github",
+        "status": "verified",
+        "url": "https://github.com/openai/plugins",
+        "source_path": "plugins/superpowers/skills/systematic-debugging/SKILL.md",
+        "verified_sha": "5fd93af4cd0c623e020d0cc7e9ce178b4ac1f70f",
+        "blob_sha": "095d194ac041502905f15b01d22d294fb94db8b2",
+        "content_sha256": "c878ef4a7feaa79e147f053c7016cbeb79db49ebaacd62e9352b917daaf28fc8",
+        "verification": "CatalogSync snapshot; SHA-256 covers parsed body excluding front matter; Codex read the content to author evaluation metadata; execution untested",
+        "license": "MIT"
+      },
+      "family_features": {
+        "workflow_steps": [
+          "读取错误和调用边界",
+          "复现并比较有效实现",
+          "提出单个可证伪的假设",
+          "补回归并验证修复"
+        ],
+        "required_tools": [
+          "shell"
+        ]
+      },
+      "action": {
+        "preview": "先复现失败并定位根因，再验证一个修复假设。",
+        "setup_steps": [
+          "从固定 commit 核对原文和依赖；在隔离的构造项目中手工试用。"
+        ],
+        "trial": "固定任务、模型和验收标准，比较基线与使用 Skill 的结果及额外开销。",
+        "limitations": [
+          "这是内容审阅后的评测目录，不是完整执行验收；测试不安装或执行上游 Skill。",
+          "证据分、配置成本和运行成本是排序启发式，没有实测改善幅度。",
+          "来源中的效果宣传不作为收益参数。"
+        ]
+      }
+    },
+    {
+      "identity": {
+        "id": "skill:github.com:1172963839:plugins/superpowers/skills/test-driven-development/SKILL.md",
+        "name": "test-driven-development",
+        "version": "5fd93af4cd0c623e020d0cc7e9ce178b4ac1f70f"
+      },
+      "family": "skills",
+      "target_task": {
+        "text": "用失败测试描述目标行为，再实现最小改动并执行回归。",
+        "tags": [
+          "create",
+          "modify"
+        ]
+      },
+      "trigger": {
+        "rule_ids": [
+          "correction_density",
+          "validation_failures",
+          "acceptance_evidence_gap"
+        ]
+      },
+      "capability": {
+        "text": "用失败测试描述目标行为，再实现最小改动并执行回归。",
+        "tags": [
+          "verification"
+        ]
+      },
+      "expected_effect": {
+        "targets": {
+          "correction_density": 1.0,
+          "validation_failures": 1.0,
+          "acceptance_evidence_gap": 1.0
+        }
+      },
+      "preference_support": {
+        "task_type": [
+          "create",
+          "modify"
+        ],
+        "capability": [
+          "verification"
+        ]
+      },
+      "compatibility": {
+        "agents": {
+          "codex": "manual",
+          "generic": "manual"
+        },
+        "languages": []
+      },
+      "requirements": {
+        "tools": [
+          "shell"
+        ],
+        "software": []
+      },
+      "friction": {
+        "setup_cost": 0.2,
+        "runtime_cost": 0.2
+      },
+      "risk_permission": {
+        "level": 0.1,
+        "required_permissions": [
+          "repository_read",
+          "repository_write"
+        ]
+      },
+      "evidence_quality": {
+        "status": "reviewed",
+        "score": 0.7,
+        "reviewed_by": "codex-content-review-for-evaluation-2026-10-02"
+      },
+      "source": {
+        "origin": "github",
+        "status": "verified",
+        "url": "https://github.com/openai/plugins",
+        "source_path": "plugins/superpowers/skills/test-driven-development/SKILL.md",
+        "verified_sha": "5fd93af4cd0c623e020d0cc7e9ce178b4ac1f70f",
+        "blob_sha": "4320d8879a639d0536c2239bb80c9d7257ad8947",
+        "content_sha256": "d7b53d5fa320d5ab088f63623c11168bc7e68d21ffbb31a7d2ff731b4fa54464",
+        "verification": "CatalogSync snapshot; SHA-256 covers parsed body excluding front matter; Codex read the content to author evaluation metadata; execution untested",
+        "license": "MIT"
+      },
+      "family_features": {
+        "workflow_steps": [
+          "写出目标行为的失败测试",
+          "确认失败原因",
+          "实现最小改动",
+          "执行通过检查及重构"
+        ],
+        "required_tools": [
+          "shell"
+        ]
+      },
+      "action": {
+        "preview": "用失败测试描述目标行为，再实现最小改动并执行回归。",
+        "setup_steps": [
+          "从固定 commit 核对原文和依赖；在隔离的构造项目中手工试用。"
+        ],
+        "trial": "固定任务、模型和验收标准，比较基线与使用 Skill 的结果及额外开销。",
+        "limitations": [
+          "这是内容审阅后的评测目录，不是完整执行验收；测试不安装或执行上游 Skill。",
+          "证据分、配置成本和运行成本是排序启发式，没有实测改善幅度。",
+          "来源中的效果宣传不作为收益参数。"
+        ]
+      }
+    },
+    {
+      "identity": {
+        "id": "skill:github.com:1000362065:skills/pytest-coverage/SKILL.md",
+        "name": "pytest-coverage",
+        "version": "143a3d976b3c1603cc8932984d5e1f28501cb5fc"
+      },
+      "family": "skills",
+      "target_task": {
+        "text": "用 pytest-cov 找出未覆盖代码，并补充有实际断言的测试。",
+        "tags": [
+          "test"
+        ]
+      },
+      "trigger": {
+        "rule_ids": [
+          "correction_density",
+          "validation_failures",
+          "acceptance_evidence_gap"
+        ]
+      },
+      "capability": {
+        "text": "用 pytest-cov 找出未覆盖代码，并补充有实际断言的测试。",
+        "tags": [
+          "verification",
+          "validation_visibility"
+        ]
+      },
+      "expected_effect": {
+        "targets": {
+          "correction_density": 1.0,
+          "validation_failures": 1.0,
+          "acceptance_evidence_gap": 1.0
+        }
+      },
+      "preference_support": {
+        "task_type": [
+          "test"
+        ],
+        "capability": [
+          "verification",
+          "validation_visibility"
+        ]
+      },
+      "compatibility": {
+        "agents": {
+          "codex": "manual",
+          "generic": "manual"
+        },
+        "languages": [
+          "python"
+        ]
+      },
+      "requirements": {
+        "tools": [
+          "pytest"
+        ],
+        "software": [
+          "python",
+          "pytest-cov"
+        ]
+      },
+      "friction": {
+        "setup_cost": 0.2,
+        "runtime_cost": 0.2
+      },
+      "risk_permission": {
+        "level": 0.1,
+        "required_permissions": [
+          "repository_read",
+          "repository_write"
+        ]
+      },
+      "evidence_quality": {
+        "status": "reviewed",
+        "score": 0.7,
+        "reviewed_by": "codex-content-review-for-evaluation-2026-10-02"
+      },
+      "source": {
+        "origin": "github",
+        "status": "verified",
+        "url": "https://github.com/github/awesome-copilot",
+        "source_path": "skills/pytest-coverage/SKILL.md",
+        "verified_sha": "143a3d976b3c1603cc8932984d5e1f28501cb5fc",
+        "blob_sha": "38a8ed6f46942e861341e16b396e110d024d243c",
+        "content_sha256": "13821c68791a9aab10afc2c5329a33dd1ce8593447f009f196d7fc46a9fec5b3",
+        "verification": "CatalogSync snapshot; SHA-256 covers parsed body excluding front matter; Codex read the content to author evaluation metadata; execution untested",
+        "license": "MIT"
+      },
+      "family_features": {
+        "workflow_steps": [
+          "对目标模块生成覆盖报告",
+          "定位未覆盖分支",
+          "补充行为断言并重跑"
+        ],
+        "required_tools": [
+          "pytest"
+        ]
+      },
+      "action": {
+        "preview": "用 pytest-cov 找出未覆盖代码，并补充有实际断言的测试。",
+        "setup_steps": [
+          "从固定 commit 核对原文和依赖；在隔离的构造项目中手工试用。"
+        ],
+        "trial": "固定任务、模型和验收标准，比较基线与使用 Skill 的结果及额外开销。",
+        "limitations": [
+          "这是内容审阅后的评测目录，不是完整执行验收；测试不安装或执行上游 Skill。",
+          "证据分、配置成本和运行成本是排序启发式，没有实测改善幅度。",
+          "pytest 覆盖率不等于测试质量；预期失败须与业务失败区分。"
+        ]
+      }
+    },
+    {
+      "identity": {
+        "id": "skill:github.com:1061953414:skills/webapp-testing/SKILL.md",
+        "name": "webapp-testing",
+        "version": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4"
+      },
+      "family": "skills",
+      "target_task": {
+        "text": "用 Python Playwright 检查本地 Web 应用的渲染状态和交互行为。",
+        "tags": [
+          "test"
+        ]
+      },
+      "trigger": {
+        "rule_ids": [
+          "correction_density",
+          "tool_failures",
+          "validation_failures",
+          "acceptance_evidence_gap"
+        ]
+      },
+      "capability": {
+        "text": "用 Python Playwright 检查本地 Web 应用的渲染状态和交互行为。",
+        "tags": [
+          "verification",
+          "debugging"
+        ]
+      },
+      "expected_effect": {
+        "targets": {
+          "correction_density": 1.0,
+          "tool_failures": 1.0,
+          "validation_failures": 1.0,
+          "acceptance_evidence_gap": 1.0
+        }
+      },
+      "preference_support": {
+        "task_type": [
+          "test"
+        ],
+        "capability": [
+          "verification",
+          "debugging"
+        ]
+      },
+      "compatibility": {
+        "agents": {
+          "codex": "manual",
+          "generic": "manual"
+        },
+        "languages": []
+      },
+      "requirements": {
+        "tools": [
+          "playwright"
+        ],
+        "software": [
+          "python",
+          "chromium"
+        ]
+      },
+      "friction": {
+        "setup_cost": 0.2,
+        "runtime_cost": 0.2
+      },
+      "risk_permission": {
+        "level": 0.1,
+        "required_permissions": [
+          "repository_read",
+          "repository_write"
+        ]
+      },
+      "evidence_quality": {
+        "status": "reviewed",
+        "score": 0.7,
+        "reviewed_by": "codex-content-review-for-evaluation-2026-10-02"
+      },
+      "source": {
+        "origin": "github",
+        "status": "verified",
+        "url": "https://github.com/anthropics/skills",
+        "source_path": "skills/webapp-testing/SKILL.md",
+        "verified_sha": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+        "blob_sha": "4726215301db64a0cc4d41fc3219c61f37a30f4a",
+        "content_sha256": "830bd54146bc08d43e6fb986bd3a189490fb34c76109bc2d0bfa6a852e46ae53",
+        "verification": "CatalogSync snapshot; SHA-256 covers parsed body excluding front matter; Codex read the content to author evaluation metadata; execution untested",
+        "license": "Apache-2.0"
+      },
+      "family_features": {
+        "workflow_steps": [
+          "准备本地服务和浏览器",
+          "检查渲染后的 DOM",
+          "执行交互并核对结果",
+          "保存验证证据并关闭浏览器"
+        ],
+        "required_tools": [
+          "playwright"
+        ]
+      },
+      "action": {
+        "preview": "用 Python Playwright 检查本地 Web 应用的渲染状态和交互行为。",
+        "setup_steps": [
+          "从固定 commit 核对原文和依赖；在隔离的构造项目中手工试用。"
+        ],
+        "trial": "固定任务、模型和验收标准，比较基线与使用 Skill 的结果及额外开销。",
+        "limitations": [
+          "这是内容审阅后的评测目录，不是完整执行验收；测试不安装或执行上游 Skill。",
+          "证据分、配置成本和运行成本是排序启发式，没有实测改善幅度。",
+          "来源中的效果宣传不作为收益参数。"
+        ]
+      }
+    }
+  ]
+}

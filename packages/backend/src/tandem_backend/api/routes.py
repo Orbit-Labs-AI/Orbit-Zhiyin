@@ -64,6 +64,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         effort_raw: Annotated[list[str] | None, Query()] = None, from_ts: int | None = None, until_ts: int | None = None,
         root_session_uids: Annotated[list[str] | None, Query()] = None, excluded_session_uids: Annotated[list[str] | None, Query()] = None,
         include_children: bool = True, scene: str | None = None,
+        agent_ids: Annotated[list[str] | None, Query()] = None,
         source_ids: Annotated[list[str] | None, Query()] = None,
     ):
         from ..analytics.cache import with_exclusions
@@ -77,6 +78,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
                           model_ids=[] if model_ids == [""] else model_ids, effort_raw=effort_raw,
                           from_ts=from_ts, until_ts=until_ts,
                           root_session_uids=[] if root_session_uids == [""] else root_session_uids,
+                          agent_ids=[] if agent_ids == [""] else agent_ids,
                           excluded_session_uids=excluded_session_uids or [], include_children=include_children, scene=scene)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -137,6 +139,24 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     def without_recommendations():
         from ..analytics.service import SECTIONS
         return [name for name in SECTIONS if name != "bottleneck_recommendations"]
+
+    @app.get("/v1/analytics/presentation")
+    def presentation(scope=scope_dependency, window: str | None = None,
+                     target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+                     family: Family | None = None):
+        from ..analytics.presentation import build_presentation
+        from ..analytics.presentation.metrics import window_scope
+        try:
+            selected_scope = window_scope(scope, window)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        result = analytics_data(selected_scope, with_text=False)
+        if recommendation_catalog is not None or target_agent != "generic" or family:
+            from ..recommend.service import recommend as recommend_resources
+            result["bottleneck_recommendations"] = recommend_resources(
+                result, context={"agent": target_agent}, family=family,
+                catalog_directory=recommendation_catalog)
+        return build_presentation(result)
 
     @app.get("/v1/analytics/products")
     def analysis_products(scope=scope_dependency, bucket: Literal["day", "week", "month"] = "day",

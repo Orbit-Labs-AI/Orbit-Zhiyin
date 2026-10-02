@@ -69,6 +69,7 @@ added: 2026-10-02
 - `pair_tool_calls(events)` 根据来源、会话、原生调用 ID 配对 L2；调用与返回只算一次调用。镜像事件去重，多调用／多返回冲突、孤立返回和未配对项保留证据。返回必须位于调用之后。
 - `normalize_tool_calls` 去重 L3 调用；冲突不能贡献已知成功状态、耗时或验证结果。不修改输入。
 - `analyze_execution_sequence` 输出失败原因与重试关系。明确失败之后，同任务、工具、参数摘要类型与结果范围一致才确认同参数重试；显式 retry_of_call_uid 可支持修改参数后的重试。缺信息保留候选，跨任务／跨会话不猜测重试。
+- `tool_sequence.seq` 由 `call_event_uid` 连接所选范围内同会话的唯一 `tool.call` 原生序号，保留 `sequence_basis`；缺事件、重复位置、重放与身份冲突输出 `null` 和 `sequence_unknown_reason`，不按时间戳或列表位置补齐。含不明位置的会话不推断调用邻接或重试，工具次数和显式失败证据仍独立保留。
 - `build_execution_relations` 使用 parent_uid 或明确 spawn/join 事件关联子代理；forked_from 单列，角色名不构成父子关系。回滚／重启只接受明确事件。
 - `execution_intervals` 从可靠端点构建半开区间并计算同时运行片段；日志时间差不证明并行。
 - `analyze_respond` 汇总调用、轮次覆盖、执行序列、关系与配对诊断；L3 缺失且 L2 有实际调用时可返回标为 partial 的配对结果；coverage.tool_calls.status=excluded 时禁止回退重建，并保留 excluded 状态。

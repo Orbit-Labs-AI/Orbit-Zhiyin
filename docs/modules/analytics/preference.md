@@ -1,52 +1,130 @@
-# Preference：有证据的主观偏好
+# Preference：显式偏好与历史证据
 
-这组特征回答“用户明确喜欢什么，这句话适用于哪里，当时是否已经生效”。实现位于 `packages/backend/src/tandem_backend/analytics/preference/`，通过 `/v1/analytics/preferences` 与现有 `tandem analytics` 输出接入。方法是本地、确定性的规则提取，不调用模型或外部服务。
+这组特征回答“用户明确表达了什么偏好，以及过去在任务中怎样要求 agent 工作”。实现位于 `packages/backend/src/tandem_backend/analytics/preference/`，通过 `/v1/analytics/preferences` 与现有 `tandem analytics` 输出接入。处理在本地完成，使用确定性规则，不调用模型或外部服务。
 
-当前已完成模板要求的六类字段、范围解析、修改／撤销／重申关系，以及可复现的测试。它是明确表达的偏好提取 MVP，尚不能据此宣称完整理解用户；隐式偏好、人格、推荐权重均未实现。业务词表与验收口径仍待团队确认，本文记录的是代码行为和 AI 技术验收。
+Instruction 继续表示**当前任务控制要求**。Preference 不再重新解析普通任务要求，而消费 Instruction 已经识别的结构化结果。Explicit Preference 保留独立的提取、作用范围和版本历史，作为最高等级证据；两条路径在 `PreferenceEvidence` 层汇合。
 
-## 已完成的特征
+```mermaid
+flowchart LR
+    H[确认来源的真人消息] --> I[Instruction：当前任务要求]
+    H --> E[Explicit Preference：明确偏好]
+    I --> A[四类字段适配：较低等级历史证据]
+    A --> P[PreferenceEvidence]
+    E --> P
+    P --> S[按任务去重的历史支持统计]
+    E --> R[原有范围与版本解析]
+```
 
-| 字段／结果 | 粒度 | 含义与方法 | 缺失处理 |
-| --- | --- | --- | --- |
-| `preference_statement` | 一次偏好观察 | 保留经过既有脱敏、引用清理后的直接表达及匹配分句。 | 不恢复被删除的附件、代码或截断内容。 |
-| `preference_type`、`value` | 一次偏好观察 | 识别语言、详略、格式、工具、协作方式五类，词表保存在 `rules.py`。 | 未识别的表达不强行分类。 |
-| `preference_scope` | 一次偏好观察 | 区分 task／project／global／unknown；只有明确“所有项目”等表达才是全局。 | 没说范围就是 unknown；没有项目 ID 时保留缺失，旧路径 ID 标为 legacy_path。 |
-| `preference_evidence` | 一次观察的证据列表 | 保留 event_uid、session_uid、seq、ts、actor、直接表达；输入有 author_id 才填写 confirmed_by。 | 不虚构确认人；一条记录可回到真实消息。 |
-| `effective_at`、`effective_position` | 一个偏好版本 | 即时规则以消息观察时间为生效基准；UTC 毫秒，另留会话内顺序。 | 缺时钟为 null；明天／下周等将来计划转为候选，不提前应用。 |
-| `preference_history` | 版本关系 | 显式修改连接 supersedes，撤销连接 revokes，相同偏好再次表达连接 reaffirms。 | 不明确的冲突同时保留；跨会话缺时钟／同时间不能证明先后。 |
-| `polarity` | 一次偏好观察 | 区分 prefer 与 avoid；“用中文、不要英文”可以相容。 | 不把“不再用英文”解释为肯定英文。 |
-| `candidates`、`task_instructions` | 观察集合 | 截断、备选值、未解析的未来时间放候选；“这次简短一点”留作本次指令。 | 候选与临时指令不计入已观察偏好汇总。 |
+历史证据不自动变成全局偏好，也不进入当前生效规则。当前版本完成证据汇合与支持统计，尚未实现稳定偏好判定或推荐权重。
 
-“已观察”只说明观察到了符合规则的明确表达，不等于团队已确认分类准确。输入默认属于同一被分析用户；多用户身份隔离尚未实现。
+## 从 Instruction 消费什么
 
-## 分析函数与输入输出
-
-| 函数 | 输入 → 输出 | 已测内容 |
+| Instruction 字段 | 接受的值 | Preference 维度／值 |
 | --- | --- | --- |
-| `extract_explicit_preferences(events, sessions, task_by_event=None)` | analysis-input-v1 事件、会话、Task 映射 → records／candidates／task_instructions／coverage | 真人边界、引用／附件／代码、否定、范围、截断、版本关系、稳定 ID、无输入修改。 |
-| `resolve_effective_preferences(history, task=None, at=None)` | 偏好历史、任务的 task_id／project_id／legacy_project_id、UTC 毫秒 → applicable／conflicts／unresolved | 历史时点、缺时间、范围优先级、重申、撤销、冲突、项目身份质量。 |
-| `summarize_preferences(preferences, scope=None)` | 观察记录 → 类别／范围计数、缺时间计数 | 按 preference_id 去重；重复表达不当作偏好强度；输入不可用保留 null。 |
+| `requested_autonomy` | `ask_first`、`explicit` | `autonomy.ask_first`、`autonomy.autonomous` |
+| `execution_order` | `plan_first`、`discuss_first`、`execute_first` | `execution_style`，保留原值 |
+| `verification_requirements` | `requested` | `verification.requested` |
+| `format_requirements` | 结构化 `format_values` | `format.table/list/json/markdown` |
 
-处理顺序是确认 main 会话和真人来源 → 清理引文／平台材料 → 匹配明确表达 → 解析类别与作用范围 → 连接版本 → 按查询时点和范围选取。会话内顺序使用 seq；跨会话不凭文件名建立时间顺序。当前指令单独返回，历史偏好不覆盖它。
+`scoped` 授权、`allowed_scope`、`prohibited_actions`、`acceptance_criteria` 和结构计数不进入历史偏好证据。它们描述任务边界、目标或文本形式，不能直接证明个人偏好。工具选择作为后续扩展，本轮不消费。
 
-`at` 为包含该时刻的时间点；API 共用的 `until_ts` 是不包含上界，所以内部使用 `until_ts - 1`。缺时间记录不会进入历史时点查询。API 不提供 task_id 时只解析全局适用项；提供 task_id 后才解析该任务／项目。所有查询仅使用本次筛选内的历史，`from_ts` 之前的偏好不会自动补入。
+格式由 Instruction 在原有匹配位置补充 `format_values` 和 `format_relation`，原字段值仍是 `format`。适配器不读原文猜值：旧版只提供通用 `format` 时保留待解析证据；“JSON 或 Markdown”也保留待解析；“Markdown 表格”允许两个可组合值。Instruction 的定义、授权规则与范围解析不变。
 
-## 验收样例
+## 统一证据契约
 
-合成例子：时间 10 用户说“以后这个项目用中文”，20 重申，30 说“这个项目改用英文”，40 撤销英文偏好。查询时间 15 得到中文，35 得到英文，45 没有有效偏好；撤销不自动恢复更早的中文。所有结果都保留对应证据 ID。
+| 字段 | 含义 |
+| --- | --- |
+| `evidence_id`、`source_type`、`source_id` | 稳定证据 ID、来源类型及原 Preference／Instruction 记录 ID |
+| `dimension`、`value`、`polarity` | 统一维度、值与 prefer／avoid 极性；无法确定值时为 null |
+| `session_uid`、`task_id`、`task_identity_quality` | 会话与任务归属；优先使用 Task 族映射，来源局部任务 ID 仅在会话内去重 |
+| `project_id`、`legacy_project_id`、`cluster_id` | 项目与可选会话聚类上下文；复用同次分析的聚类 ID（-1 表示噪声），未计算或样本不足时为 null；不跨分析比较 ID |
+| `confidence` | 固定的证据等级：Explicit 为 1.0，Instruction 历史证据为 0.6；不是校准后的正确率或偏好强度 |
+| `observed_at`、`seq`、`evidence_event_uids`、`statement` | 观察时间、会话顺序、事件引用与经过既有清理的原话；观察时间不等于计划生效时间 |
+| `scope`、`operation`、`history` | Explicit 原有范围、修改／撤销／重申关系；Instruction 保持任务范围 |
+| `status`、`condition`、`targets`、`missing_reasons` | 可观察／待解析状态、条件、目标与缺失原因 |
+| `corroborates_evidence_id` | 同一事件、维度、值和极性已经有显式证据时，关联高等级证据，避免重复投票 |
 
-反例：“他说我喜欢详细回答”、引号里的示例、附件中的指令、工具调用 80 次，均不能证明本人偏好。“我喜欢简短回答”有明确内容但没有全局范围；“中文或者英文”保留待解析候选。
+Explicit 路径继续支持语言、详略、格式、工具、协作方式，保留 task／project／global／unknown 范围。旧类别 `collaboration.plan_first` 可明确映射为 `execution_style.plan_first`；`collaboration.act_directly` 混合自主授权和执行顺序，暂时保留原类别，不猜测拆分。最高等级证据仍须尊重自身范围、极性、撤销历史和待解析状态，不因等级高而默认全局生效。
 
-## 验证与真实数据效果
+## 为什么这样计数
 
-[五类测试记录](validation.md)提供测试命令、结果、真实性边界与性能。Preference 的单元和固定标注样例均已通过；mock API 验证 task_id、过滤与错误响应；真实日志重新导入后 CLI／API 记录一致。
+历史证据的统计单位是**任务**：同一任务中重复四次“无需确认”，只能形成一次自主执行支持。另一个任务没有提出自主要求时是未知；不能当成一次“希望先问”的反对票。
 
-固定真实快照有 9 条来源可确认的真人消息、918 条来源未知的用户角色消息；本族提取到 0 条明确偏好。这表示合格证据不足，不表示用户没有偏好。原文、完整结果和数据库只留在被忽略的 `.local/`。
+例如，两项可观察任务中，一项重复四次“无需确认”，另一项未提出要求，输出 `support_tasks=1`、`observed_tasks=2`、`task_rate=0.5`。这个比例表示任务中的要求出现率，不能解释为“用户有 50% 概率偏好自主执行”。
 
-## 待完成与待测试
+- 相同任务、维度和值只算一次支持；原始证据全部保留以便审计。跨会话合并必须有 Task 族的共同任务身份。
+- 同一任务出现“先问”和“无需确认”，或“直接执行”和“先规划／讨论”，保留冲突，不给任一方向投票。
+- 条件尚未求值、文本截断、任务身份缺失、格式未知或备选格式未确定时，保留待解析证据，不计入无条件支持。
+- 可组合的格式、先规划与先讨论可以共同出现；各值的比例之和不必为 1。
+- 分母是本次筛选中至少有一条可用、未截断真人正文且能归属任务的任务数；未提出要求不是相反偏好。
+- Explicit 引用与历史支持分层返回，不把多条较弱证据相加来覆盖明确偏好。只被重复识别为同一个显式事实的 Instruction 也不增加历史支持。
 
-- 尚未解析只说“对／好的”的上下文确认、代词指代、相对生效日期和未覆盖的工具名。
-- 一句里复杂的条件／否定、格式可组合关系、多条冲突之间的人工裁决尚需扩展。
-- 缺少独立的人工作真实历史标注；固定合成样例通过不能当作实际准确率。
-- 尚无多用户身份隔离、长期偏好强度、并发服务与大规模全文表示容量结论。
-- 下一步先改善 origin、规范 project_id 和可追溯的确认记录，再扩独立标注集；不为增加命中率而将未知消息算成人类。
+这些处理抑制重复提醒、任务局部约束和缺失信息造成的虚假强度。它们仍不能消除任务选择偏差：某项目反复要求测试可能是项目规范；判定长期或跨项目偏好需要后续证据与验证。
+
+## 函数与兼容性
+
+| 函数 | 输入 → 输出 |
+| --- | --- |
+| `extract_explicit_preferences(events, sessions, task_by_event=None)` | 真人事件 → 显式 records／candidates／coverage；普通任务要求不进入偏好词表解析 |
+| `instruction_to_preference_evidence(instructions, sessions, task_by_event=None, cluster_by_session=None)` | 四类已确认的 Instruction 约束 → 历史证据；不重新解析文本或调用 Instruction 范围解析器 |
+| `explicit_to_preference_evidence(preferences, sessions, task_by_event=None, cluster_by_session=None)` | 显式记录及候选 → 最高等级证据，保留范围、极性和历史 |
+| `build_preference_evidence(...)` | 两条路径 → 统一证据及同事实关联 |
+| `summarize_preference_evidence(evidence, instructions=None, sessions=(), task_by_event=None)` | 证据与观察样本 → 来源计数、按维度的显式引用、历史支持任务／会话数、比例、冲突和待解析引用 |
+| `resolve_effective_preferences(history, task=None, at=None)` | 显式偏好历史 → applicable／conflicts／unresolved；不消费历史 Instruction 证据 |
+| `summarize_preferences(preferences, scope=None)` | 原有显式记录 → 类别／范围计数 |
+
+`preferences` 增加 `evidence_schema_version`、`evidence`、`evidence_summary`；会话增加 `preference_evidence_ids`。原 `records`、`candidates`、`summary` 和 API `effective` 保持显式语义。兼容键 `task_instructions` 废弃为有输入时 `[]`、无输入时 `null`；“这次简短一点”等非显式要求不再由 Preference 单独分类。普通回答风格证据留待后续设计。
+
+service 只提取一次 Instruction，再传给证据适配器；分析缓存摘要包含 Instruction、Preference 与 Evidence 的各自版本。来源不可用保留 null，已观察但没有证据返回空集合，二者不混淆。默认输入属于同一被分析用户，多用户身份隔离尚未实现。
+
+`at` 为包含该时刻的时间点；API 的 `until_ts` 不包含上界，所以内部使用 `until_ts - 1`。跨会话缺时钟或同时间不臆造版本先后。所有查询仅使用本次筛选内的历史，`from_ts` 之前的偏好不会自动补入。
+
+## 验证与边界
+
+新增回归见 [证据测试](../../../packages/backend/tests/analytics/test_preference_evidence.py) 与 [格式参数测试](../../../packages/backend/tests/analytics/instruction/test_format_arguments.py)。覆盖四类白名单、不重复解析、任务去重、同任务冲突、缺失与否定、来源／回放／子会话边界、历史作用范围、API 筛选和 service 单次提取。现有 Instruction 与 Explicit Preference 的回归继续运行。
+
+[旧验收记录](validation.md)中的 9 条真人消息／918 条未知来源消息属于先前固定快照，不是当前本地数据全量。固定样例通过不能作为真实准确率；真实日志、数据库和逐条结果仅留本地，不提交。
+
+2026-10-02 对已有本地数据库做只读抽查，沿用最近七日快照的筛选窗口：199 条真人消息中，Explicit 仍为 0；Instruction 有 7 条消息命中控制要求，其中白名单产生 3 条历史证据。2 条核验要求来自 2 个不同任务和会话，可计入支持；另 1 条自主性要求带未求值条件，保留待解析。可观察任务分母为 19。这验证了历史通路能保留原先 Explicit 路径遗漏的信号，不代表已经得到稳定偏好，也不是人工标注准确率。
+
+当前新增通路只能利用 Instruction 已经识别的信号，不能修复它的规则召回不足。工具、回答风格、纠正反馈、行为代理、时间衰减、长期偏好评分、按聚类建立画像与推荐权重均未在本轮实现。
+
+## 本地验证脚本
+
+先在当前分支的 checkout 根目录安装依赖：`bash scripts/bootstrap.sh`。使用 Python 3.13 和根 `uv.lock`，不需要模型或外部服务。
+
+入口优先使用 `uv`；如果 `uv` 不在 PATH 而当前 checkout 已有 `.venv`，使用已有虚拟环境并提示本次未同步依赖。
+
+```sh
+# 默认只运行构造样本回归，不读取真实会话。
+bash scripts/check-preference.sh
+
+# 回归通过后，读取显式指定的 canonical 库；可复现上面的七日快照窗口。
+bash scripts/check-preference.sh \
+  --db /path/to/canonical/tandem.db \
+  --from-ts 1790322173000 \
+  --until-ts 1790926973000
+
+# 已跑过回归时，可单独运行快照诊断。
+uv run --locked python -m evals.analytics.preference_local \
+  --db /path/to/canonical/tandem.db
+```
+
+`--from-ts` 包含下界，`--until-ts` 不包含上界，均为 UTC 毫秒；不传时间时读取所提供快照中的全部可见主会话用户消息。可重复传 `--project-id`、`--exclude-session`。`--max-messages` 默认 100000，超限报错，避免静默截断；`--help` 查看参数。
+
+每次默认创建独立 `.local/preference-check/run-*` 目录，终端显示汇总与实际路径。也可用 `--output .local/my-preference-check` 指定一个尚不存在的目录。输出包括：
+
+- `summary.json`：真人与可用文本数量、显式记录数、历史证据来源／状态／缺失原因、支持任务数、比例、样本摘要和分阶段耗时。
+- `preferences.json`：Explicit 记录、统一 Evidence 和按任务去重汇总，用于追溯具体来源。
+- `instruction.json`：已提取控制要求，可核对为何某条要求没有进入四类白名单或没有计入支持。
+
+脚本复用现有提取函数，只从 `v_analysis_event` 读取现成投影，数据库以 `mode=ro`、`query_only` 和同一读事务打开。支持旧 canonical 快照的共同消息字段，不读取原始归档、不触发导入或迁移；不支持 connector staging 或旧 JSON ledger。它验证证据引用和本地通路，不保证快照投影为最新版本，也不等于完整服务验收或人工准确率。没有证据时明确返回 `no_evidence`；非零数量不是测试通过的硬编码条件。所有逐条内容保存在忽略目录，不提交。
+
+## 2026-10-02 本地 CI 复核
+
+本地使用 Python 3.13.15、Node 24.19.0、pnpm 11.25.0、uv 0.12.22；pnpm 与工作流固定版本一致，uv 本地补丁版本高于工作流的 0.12.8。
+
+- bootstrap、连接器 35 项测试及构建、Ruff／格式检查、Python 全量回归（1367 passed，1 项可选 E5 测试跳过）、原型产物与文档检查、wheel 独立安装及 CLI／API 资源验收通过。
+- `PLAYWRIGHT_CHANNEL=chrome pnpm check:ui`：16 passed，50 项按现有视口规则跳过。修复了静音测试在运行中的虚拟时钟上暂停到初始时刻的竞态；安装时钟提前一分钟，仍保留原有 30 分钟到期和手动覆盖断言。测试使用本机 Chrome；工作流指定的 Chromium 下载超时，未据此宣称两个浏览器环境完全等价。
+- `swift build --package-path packages/catalog-macos` 通过；`swift test` 因 Command Line Tools 缺少 XCTest 而失败，因此本地 `pnpm check` 整体仍未全绿。未绕过或删除该检查。
+- [远端运行记录](https://github.com/ActionMesh-AI/Hackathon/actions/runs/36999396005)的两个 job 均无执行步骤，注释指出账户付款失败或消费额度不足。需要管理员恢复 Actions 额度后重跑；这与上述本地测试结果分开记录。
