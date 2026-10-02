@@ -91,4 +91,4 @@ CLI 形如 `uv run tandem-data --home .tandem search "修复第 7"`。这些子�
 
 `read_usage_data(path)` 只读解析显式给定目录下的 `session-meta/*.json` 与 `facets/*.json`，也接受 `usage-data` 的上级目录，没有默认路径。以下文件记入 `errors` 后跳过：损坏的 JSON、顶层不是对象、超过 2 MiB、非普通文件（含符号链接）。所有值经过 `privacy.sanitize`。
 
-`match_sessions(home, report)` 按 `native_id` 匹配 Tandem 中 Claude Code 的 main 会话，并列出 insights 的数值字段（如 `tool_counts`），以及 Tandem 的工具次数、按工具计数和真人消息数，供 EV-01.1 一次性对照。insights 字段在 Claude Code 各版本间是否稳定尚未验证（V20），读取器不假设固定字段名。
+`match_sessions(home, report)` 按 `native_id` 匹配 Orbit 中 Claude Code 的 main 会话，并列出 insights 的数值字段（如 `tool_counts`），以及 Orbit 的工具次数、按工具计数和真人消息数，供 EV-01.1 一次性对照。insights 字段在 Claude Code 各版本间是否稳定尚未验证（V20），读取器不假设固定字段名。

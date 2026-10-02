@@ -114,10 +114,10 @@ PAGES['l-sessions'] = () => {
   const tr = traj(s); const T = tr.T; const o = OUT[s.out] || OUT.ok;
   const rows = list.map((x) => { const ox = OUT[x.out] || OUT.ok; return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === 120 ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
   const nums = [
-    liteCount(VZ.kpi({ label: '你的消息', value: String(s.msgs), sub: '轮' }), s.msgs),
-    liteCount(VZ.kpi({ label: '工具调用', value: String(s.tools), sub: '次' }), s.tools),
-    liteCount(VZ.kpi({ label: '工具错误', value: String(s.errors), sub: s.corr + ' 次纠偏', cls: s.errors >= 3 ? 'l-warn' : '' }), s.errors),
-    liteCount(VZ.kpi({ label: '时长', value: s.live ? String(liveMin()) : String(Math.round(s.dur)), unit: 'min', sub: s.live ? '运行中' : dur(s.dur) }), s.live ? liveMin() : s.dur)
+    liteCount(VZ.kpi({ label: '你的消息', value: String(s.msgs), unit: '轮' }), s.msgs),
+    liteCount(VZ.kpi({ label: '工具调用', value: String(s.tools), unit: '次' }), s.tools),
+    liteCount(VZ.kpi({ label: '工具错误', value: String(s.errors), unit: '次', sub: '纠偏 ' + s.corr + ' 次', cls: s.errors >= 3 ? 'l-warn' : '' }), s.errors),
+    liteCount(VZ.kpi({ label: '时长', value: s.live ? String(liveMin()) : String(Math.round(s.dur)), unit: 'min', sub: s.live ? '运行中' : s.dur >= 60 ? dur(s.dur) : '' }), s.live ? liveMin() : s.dur)
   ].join('');
   // 时间线：阶段带（宽度够才写名字）+ 关键时刻节点（编号，纠偏 / 失败用 crit）+ 节点列表
   const pc = (t) => clamp(t / T * 100, 0, 100).toFixed(2);

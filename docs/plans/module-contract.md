@@ -1,4 +1,4 @@
-# Tandem 模块契约（内部工作文件）
+# Orbit 模块契约（内部工作文件）
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
@@ -96,7 +96,7 @@ flowchart LR
 | 回链 | 任何对外展示的数字、句子、建议都能回到 `session_uid / event_uid / call_uid`，再经 `event.record_uid → raw_record → source_revision/archive_blob` 到原文（`Store.read_raw(record_uid)`，PR #9）；AI 产出的引用必须是真实存在的 `event_uid`，否则校验失败。 | main `GET /v1/evidence/{event_id}`、`cli evidence`、`feature_dictionary.provenance`；PR#9 `record_event` 多对多。 |
 | 统计口径 | 「确认真人消息」= `kind = message.user ∧ 会话 kind = main ∧ attrs.origin = human ∧ actor ∈ {human, user}`（main `analytics/features.py::human()`，= PR #9 视图 `v_human_message`）。比例类分母 = 窗口内有 ≥ 1 条确认真人消息的主会话数；`main_sessions` 只作规模。子代理 / workflow_agent 的工具与用量归根会话（`include_children`），不进真人分母；`review / automation / import / auxiliary` 默认排除。分母 < 5 显示「数据不足」，5–30 必须带区间。按**项目**与**模型 × 思考档位**分组展示，Agent 只作来源筛选（DA §4.5）。 | main `select()` 的排除原因枚举；Wilson 仅在旧链路 `analysis.wilson_interval()`；区间与「数据不足」为补充约定。 |
 | 时间 | UTC 毫秒存储；窗口 `[from_ts, until_ts)`；顺序用 `event.seq`，时间戳只用于时长与展示；时间未知的记录不进有界统计（`time_unknown_rows` 单列）。legacy `before` 是含截止点，换算 `until_ts = before + 1`。 | PR#9 `attrs.time.quality`；main `Scope` 校验与 `legacy_before_inclusive`。 |
-| 隐私 | L0 原文只在本机；L2 `text / attrs / ext` 为版本化脱敏副本（PR #9 `redaction_version = 1.0.0`，PR #11 `codex-redact/0.2.0`），文本 8 KiB 截断前先完成测量；任何出本机进程的内容只取脱敏文本并逐项预览；Tandem 自身不上传。 | PR#9 `privacy.py`、PR#11 `privacy.ts`、main `privacy.redact() / direct_user_text()`。 |
+| 隐私 | L0 原文只在本机；L2 `text / attrs / ext` 为版本化脱敏副本（PR #9 `redaction_version = 1.0.0`，PR #11 `codex-redact/0.2.0`），文本 8 KiB 截断前先完成测量；任何出本机进程的内容只取脱敏文本并逐项预览；Orbit 自身不上传。 | PR#9 `privacy.py`、PR#11 `privacy.ts`、main `privacy.redact() / direct_user_text()`。 |
 | 单写者 | `tandem.db` 只由 `tandem-data` 写；AN / RC / AI / EV 只读 `tandem.db`（`mode=ro`、`query_only`、`busy_timeout`，一次查询一个读事务）并写自己的 `analysis.db`；staging 与 canonical 目录分开。 | PR#9 `readonly_connection()`；PR#11 README「App 与其他模块只读」。 |
 
 ## 2. Feature ID 方案与顶层 feature
@@ -111,7 +111,7 @@ flowchart LR
 | 现状列 | 写**已存在的代码名称与接口**，格式 `main:<路径>（程度）` / `PR#9` / `PR#11` / `分支:<名>` / `Adv Demo` / `Lite Demo` / `计划`。已实现的部分以代码为准，契约只补缺口；一个 feature 可以同时列多个来源。 |
 | 对照列 | `Demo` 列写 [`feature-map.md`](feature-map.md) §5 的条目 ID（如 `A7-15`）；`DA` 列写 DA 章节号。 |
 | 产物 | 每个 feature 文档必须写：输入 → 处理 → 输出（引用 §3 的表与字段）、MVP 做法与后续迭代、复杂度与 token 成本、待验证项。模板见 §4。 |
-| 术语 | 「benchmark」只指 `benchmark_result`（公开模型成绩，DT-14）；Tandem 自己的检验叫「评测 EV」；用户与自己过去的比较叫「上期对比」（AN-12）。Lite Demo 标题里的「个人协作 Benchmark」是产品名，不是 EV。 |
+| 术语 | 「benchmark」只指 `benchmark_result`（公开模型成绩，DT-14）；Orbit 自己的检验叫「评测 EV」；用户与自己过去的比较叫「上期对比」（AN-12）。Lite Demo 标题里的「个人协作 Benchmark」是产品名，不是 EV。 |
 
 ### 2.2 DT 数据（对齐 DA 章节与 tandem-session-v1）
 
@@ -213,7 +213,7 @@ flowchart LR
 | EV-08 | 模型 × 档位的先验与用户数据合并 | 任务类型 → 相关基准映射；只用于先验与排序；超过 6 个月的成绩降权 | E5 | A7「thinking medium」 | 计划。 | v1 |
 | EV-09 | 「说人话」可读性评测 | readability-v2（7 个问题码、6 个篇幅预算）、链路对照、读者评审材料 | E3 / E7 | — | main `evaluation.evaluate_text()`（`SCENE_BUDGETS` 六场景；问题码 `empty_information / missing_fact / unsupported_claim / detail_overload / unexplained_jargon / inflated_language / unverified_certainty`；`score = 100 − 35·error − 12·warning`）、`benchmark()` 8 条对照、`POST /v1/evaluation`；`reader_eval.make_pack / reader_results`（`reader-pack-v1`，X / Y 两表、4 维 0–4 分、`acceptance.decision`）。 | MVP（已实现） |
 | EV-10 | 人工反馈与标注入口 | 「不像我」「不准确」「不适用」「有用 / 没用 + 原因」统一写 `label` | E7 | A2-09、A7-10、A8-07 | main 读者评审表（`ratings-{X,Y}.json`）是唯一人工入口；界面 `label` 与 `POST /v1/labels`：计划。 | MVP |
-| EV-11 | 自身 token 账本 | 记录 Tandem 每次 AI 调用的用量与费用 | — | SET-18 | 计划（随 AI-01）。 | MVP |
+| EV-11 | 自身 token 账本 | 记录 Orbit 每次 AI 调用的用量与费用 | — | SET-18 | 计划（随 AI-01）。 | MVP |
 
 ### 2.7 IN 安装
 
@@ -221,11 +221,11 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- |
 | IN-01 | 目标落点解析与跨 Agent 映射 | 按 `remedy.kind × agent × scope` 查落点表；无法映射项列出 | INST-05、INST-08 | 计划。 | MVP：Claude Code、Codex；v1：其余 |
 | IN-02 | 预览 | 结构化 diff（JSON / TOML 键级、Markdown 标记块级）、常驻与触发成本、风险标注、证据回链 | INST-02、INST-03、A7-13 | 计划（Adv Demo `51-install.js`、Lite Demo `recDetail()` 预览 Tab 为示意）。 | MVP |
-| IN-03 | 确认与写入 | 确认绑定内容哈希；写前备份；原子写；Tandem 标记块；只写用户层 / local 层 | INST-04、INST-06 | 计划。 | MVP |
+| IN-03 | 确认与写入 | 确认绑定内容哈希；写前备份；原子写；Orbit 标记块；只写用户层 / local 层 | INST-04、INST-06 | 计划。 | MVP |
 | IN-04 | ledger 与撤销 | append-only `install_ledger`；单条与整批撤销；用户改过的文件不自动撤销 | INST-07、A7-17、GL-03 | 计划（两个 Demo 的「撤销模拟安装」只改浏览器 localStorage）。 | MVP |
 | IN-05 | 风险闸门与静态扫描 | safe / caution / dangerous；第三方 skill 入库先扫描；lethal trifecta 警告 | A8-08、A7-16 | 计划。main `resource_fetch` 的「不执行仓库脚本、只读 Markdown」是入库前的最低安全线。 | MVP |
 | IN-06 | 生命周期状态机 | 候选 → 待批 → 已安装 → 观察中 → 保留 / 改写 / 撤销 → 闲置 → 归档 | A7-07 | 计划。 | MVP（状态）；v1（自动流转） |
-| IN-07 | Tandem 自身采集类安装 | 调大 `cleanupPeriodDays`、statusline 包装、只读 Hooks；同样走预览 → 确认 → 撤销 | SET-11 | 计划。 | P1 |
+| IN-07 | Orbit 自身采集类安装 | 调大 `cleanupPeriodDays`、statusline 包装、只读 Hooks；同样走预览 → 确认 → 撤销 | SET-11 | 计划。 | P1 |
 | IN-08 | 资源库条目获取 | 下载、校验内容哈希与许可、按类型写入目标路径；无许可证只给链接 | A8-08、A9-18 | main `resource_fetch.GitHubSourceClient.fetch()`（固定 commit、blob sha、sha256、SPDX license、≤ 250 KB）已做「下载 + 校验」；写入目标路径：计划。 | MVP |
 
 ### 2.8 FE 前端
@@ -551,7 +551,7 @@ CREATE TABLE install_state (install_id TEXT PRIMARY KEY, candidate_id TEXT, stat
  "items": [{"ref_id": "…", "json": {…}, "valid": true}, {"ref_id": "…", "error": "schema_invalid", "retried": 1}]}
 ```
 
-硬规则：静态前缀在前、会话数据在后，同批不换模型；JSON Schema 校验失败只重试该项一次；`refs` 中的 ID 必须存在；每次调用写 `ai_usage`（EV-11）；Tandem 自己发起的 Agent 会话用固定 `marker` + 临时 cwd，导入时经 `excluded_session_uids` 过滤。
+硬规则：静态前缀在前、会话数据在后，同批不换模型；JSON Schema 校验失败只重试该项一次；`refs` 中的 ID 必须存在；每次调用写 `ai_usage`（EV-11）；Orbit 自己发起的 Agent 会话用固定 `marker` + 临时 cwd，导入时经 `excluded_session_uids` 过滤。
 
 ### 3.7 评测数据集与指标表（EV）
 
@@ -668,7 +668,7 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 
 **6 安装与撤销（IN-01…IN-05）**
 
-预览显示键级 diff（只有 `permissions.allow` 数组新增 6 项）、常驻 token 0、风险 `widens_permissions`、证据回链；确认时回传 `preview_digest`；写前备份 `settings.json`；ledger 记前后 sha256。撤销：仅移除 Tandem 写入的 6 项（按值匹配），若用户此后手动改过该数组则提示人工处理。Codex 侧文件整份由 Tandem 拥有，撤销即删除。
+预览显示键级 diff（只有 `permissions.allow` 数组新增 6 项）、常驻 token 0、风险 `widens_permissions`、证据回链；确认时回传 `preview_digest`；写前备份 `settings.json`；ledger 记前后 sha256。撤销：仅移除 Orbit 写入的 6 项（按值匹配），若用户此后手动改过该数组则提示人工处理。Codex 侧文件整份由 Orbit 拥有，撤销即删除。
 
 **7 接口**：`GET /v1/recommendations?scope`（新增）→ 卡片；`GET /v1/recommendations/{id}`（新增）→ `candidate + install_plan 摘要 + tracking`；`POST /v1/install/preview {candidate_id}`（新增）→ `plan_id, targets, diff, risk_scan, preview_digest`；`POST /v1/install/apply {plan_id, preview_digest, selected_targets}`（新增）→ `install_id`；`GET /v1/outcomes/{install_id}`（新增）→ `rec_outcome[]`；`POST /v1/install/{install_id}/revert`（新增）；`GET /v1/analytics/sessions?scope&signal_kind=would_prompt`（现有路由 + 新增参数）→ 证据；`GET /v1/evidence/{event_id}`（现有）。
 
@@ -696,7 +696,7 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | --- | --- | --- |
 | 不出本机 | L0 原文、L2 原始字段、凭据、思考内容（`reasoning.attrs.format ∈ encrypted/redacted` 永不展示、检索、发送）、工具输出全文、文件内容 | PR#9 `Store.read_raw(record_uid)` 是唯一原文入口；PR#11 `raw --record`、`readRedactedRecord`；main 真实数据只在 `.local/` |
 | 可发给本机 Agent（经该 Agent 发往其服务商，发送前逐项预览） | 脱敏后的人类消息截断、答复截断、工具类别与命令头、错误类别、汇总统计、≤ 5 条证据片段、已有规则文件的相关段落 | 计划（AI-08） |
-| Tandem 自身 | 不上传任何用户数据；没有服务端；「匿名贡献」「与全体用户比」不在计划内；只有 Ollama 选项可称「完全离线」 | main / PR#9 / PR#11 均无网络写出；只有 `catalog-refresh` 显式联网读 GitHub |
+| Orbit 自身 | 不上传任何用户数据；没有服务端；「匿名贡献」「与全体用户比」不在计划内；只有 Ollama 选项可称「完全离线」 | main / PR#9 / PR#11 均无网络写出；只有 `catalog-refresh` 显式联网读 GitHub |
 | 调用隔离 | `--safe-mode --tools ""`（或等价）：不联网、不写入、不加载用户的 CLAUDE.md / Skills / Hooks / MCP；不落会话；固定标记 + 临时 cwd，导入时过滤 | 计划（AI-01） |
 | 本机写入 | 只写 `~/Library/Application Support/Tandem/`（0700 / 0600；`tandem.db`、`raw/`、`connectors/`、`analysis.db`）与用户确认后的 Agent 配置（用户层 / local 层）；原始归档可关闭、可一键清除 | PR#9 / PR#11 已按此目录与权限；`analysis.db`、清除：计划 |
 | 指令即数据 | 会话原文、生态条目正文里的指令只作数据；远程文本不能改写本地能力标签或触发安装 | main `privacy.direct_user_text()` 剥平台块与引用；`catalog.resources()` 只接收来源校验字段，能力标签以本地为准 |

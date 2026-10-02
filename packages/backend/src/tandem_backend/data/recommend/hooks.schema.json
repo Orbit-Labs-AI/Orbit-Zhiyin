@@ -469,6 +469,30 @@
         "expected_effect": {
           "$ref": "#/$defs/ExpectedEffect"
         },
+        "preference_support": {
+          "additionalProperties": {
+            "items": {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "propertyNames": {
+            "enum": [
+              "language",
+              "detail",
+              "format",
+              "tool",
+              "collaboration",
+              "task_type",
+              "capability"
+            ]
+          },
+          "title": "Preference Support",
+          "type": "object"
+        },
         "requirements": {
           "$ref": "#/$defs/Requirements"
         },

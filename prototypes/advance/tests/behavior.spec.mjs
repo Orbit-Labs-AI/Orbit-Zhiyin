@@ -14,8 +14,8 @@ test('disabled sources hide live sessions across entry points', async ({ page })
   await expect(page.locator('#hud')).toBeHidden();
   await expect(page.locator('#widgets [data-r="sessions"]')).not.toContainText('Hackathon');
   await page.evaluate(() => renderPop());
-  await expect(page.locator('#pop')).not.toContainText('设计 Tandem Mac App 视觉案例');
-  expect(await page.evaluate(() => palItems('设计 Tandem Mac App 视觉案例').filter((x) => x.g === '会话' && x.sub.startsWith('Claude Code ·')))).toEqual([]);
+  await expect(page.locator('#pop')).not.toContainText('设计 Orbit Mac App 视觉案例');
+  expect(await page.evaluate(() => palItems('设计 Orbit Mac App 视觉案例').filter((x) => x.g === '会话' && x.sub.startsWith('Claude Code ·')))).toEqual([]);
   await closeAll(page);
   await page.evaluate(() => openSettings('sources'));
   await page.locator('#set [data-act="setSrc"][data-a="cc"]').click();
@@ -29,9 +29,10 @@ test('disabled sources hide live sessions across entry points', async ({ page })
 test('mute expiration honors thirty minutes and manual overrides', async ({ page }) => {
   test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
   const time = new Date('2026-10-02T04:00:00Z');
-  await page.clock.install({ time });
-  // pause a second later: the installed clock may already have ticked past `time`, and pauseAt never moves backwards
-  await page.clock.pauseAt(new Date(time.getTime() + 1000));
+  // install starts a running clock; leave more headroom than the 30s test timeout
+  // so pauseAt cannot target the past after time spent between protocol calls.
+  await page.clock.install({ time: new Date(time.getTime() - 60_000) });
+  await page.clock.pauseAt(time);
   const errors = await openDemo(page);
   const muted = () => page.evaluate(() => S.hud.mute);
   await page.evaluate(() => ACT.hudMute());
@@ -115,7 +116,7 @@ test('palette session navigation adapts incompatible filters', async ({ page }) 
   const errors = await openDemo(page);
   const title = await page.evaluate(() => {
     S.agents = new Set(['cx']); S.project = 'surge'; S.topic = 'net'; S.outcome = 'fail'; S.fric = '方向错误'; S.hour = 0; S.range = 7;
-    const item = palItems('Tandem').find((x) => x.g === '会话' && x.sub.startsWith('Claude Code ·'));
+    const item = palItems('Orbit').find((x) => x.g === '会话' && x.sub.startsWith('Claude Code ·'));
     item.run();
     return item.t;
   });

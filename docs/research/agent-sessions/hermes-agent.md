@@ -853,14 +853,14 @@ VALUES ('20261002_101500_a1b2c3', '<model>', 'openrouter', 'https://openrouter.a
   - [tests/fixtures/session-resume-active-turn.json](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/tests/fixtures/session-resume-active-turn.json#L1)：TUI resume 的 RPC 载荷，**不是**落库格式，仅作参考。
 - 结论：要用真实数据验证（第 10 节“本机数据规模”一行也一样），需要在一台装有 Hermes 的机器上，以只读方式打开 `state.db` 跑第 9 节的查询。
 
-## 9. 对 Tandem 解析器的要点
+## 9. 对 Orbit 解析器的要点
 
 ### 9.1 发现与打开
 
 1. **找库**：先看 `HERMES_HOME`；没有则用平台默认目录（macOS 为 `~/.hermes`，可能带 `HERMES_DATA_DIR_SUFFIX` 后缀），读取 `<root>/state.db`，再枚举 `<root>/profiles/*/state.db`，**每个 profile 是一个独立的库**。各库的 `state_meta.store_instance_id` 可作为库的稳定 id，用来给消息 id 加命名空间（[hermes_state_schema.py:993](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_schema.py#L993)）；旧库升级后没有该键，复制或还原的库会共用同一值，需退回用库文件路径等作库标识。
 2. **只读打开**：用 `file:<path>?mode=ro` 打开，设置 busy_timeout ≥ 5s（Hermes 自己的读连接也是 5s，[hermes_state.py:185](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state.py#L185)），遇到 `SQLITE_BUSY` 和瞬时 `disk I/O error` 时短暂重试（Hermes 读连接靠 5s busy_timeout 等锁，锁冲突不再重试；只有只读打开遇到瞬时 `disk I/O error` 时重试 3 次、每次 50ms，[hermes_state.py:180](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state.py#L180)、[hermes_state.py:739](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state.py#L739)）。**不要**用 `immutable=1`（会读不到 WAL 中尚未 checkpoint 的提交），**不要**做 checkpoint、VACUUM 或任何写操作。分析量大时，可先用 SQLite backup API 拷到临时库再分析。
 3. **日志模式不固定**：可能是 WAL，也可能是 DELETE（见 4.2）。WAL 模式下只拷 `state.db` 而不带 `-wal` 会丢掉最近的提交；在 App Sandbox 中，需要授权整个目录，以便访问 `-wal`/`-shm` 这两个兄弟文件。
-4. **不要碰 `messages_fts_cjk`**：它依赖自定义 tokenizer `cjk_unicode61`，标准 SQLite 一触及就会报 `no such tokenizer`（[hermes_state_fts.py:46](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_fts.py#L46)）。基础表读取不受影响。全文检索建议由 Tandem 自建索引。
+4. **不要碰 `messages_fts_cjk`**：它依赖自定义 tokenizer `cjk_unicode61`，标准 SQLite 一触及就会报 `no such tokenizer`（[hermes_state_fts.py:46](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_fts.py#L46)）。基础表读取不受影响。全文检索建议由 Orbit 自建索引。
 5. **按版本做防御**：读取 `schema_version.version`（本 commit 为 31），再用 `PRAGMA table_info(messages)` 判断列是否存在。旧库可能缺列（Hermes 下次以写模式打开时才会补齐），也可能还是旧 FTS 布局；未知列和未知的 `display_kind` 一律容忍。
 
 ### 9.2 会话列表、项目归属、起止时间
@@ -886,8 +886,8 @@ ORDER BY s.started_at DESC;
 ```
 
 - Hermes 自己的“可列出”规则是：根会话，加上 branch 与 reset 子会话（[hermes_state_common.py:238](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_common.py#L238)）。
-- `source IN ('claude-code','codex-cli')` 是**从其他 agent 导入的副本**。用 `origin_json.imported_from.foreign_session_id`/`path` 和 Tandem 自己的 Claude Code、Codex 读取器去重，避免重复计数。
-- **项目/cwd**：分组键是 `COALESCE(NULLIF(git_repo_root,''), NULLIF(cwd,''))`（[hermes_state_sessions.py:31](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_sessions.py#L31)）。CLI 建行时只写 `cwd`，`git_repo_root` 起初为空；用过 TUI/Desktop 的话，`backfill_repo_roots` 可能已按相同 cwd 原地回填（[hermes_state_sessions.py:612-631](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_sessions.py#L612)），否则需要 Tandem 自己从 cwd 推 repo root。gateway（消息平台）会话没有 cwd。ACP 的旧行可能只把 cwd 放在 `model_config.cwd` 里。子会话会继承父会话的 cwd。
+- `source IN ('claude-code','codex-cli')` 是**从其他 agent 导入的副本**。用 `origin_json.imported_from.foreign_session_id`/`path` 和 Orbit 自己的 Claude Code、Codex 读取器去重，避免重复计数。
+- **项目/cwd**：分组键是 `COALESCE(NULLIF(git_repo_root,''), NULLIF(cwd,''))`（[hermes_state_sessions.py:31](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_sessions.py#L31)）。CLI 建行时只写 `cwd`，`git_repo_root` 起初为空；用过 TUI/Desktop 的话，`backfill_repo_roots` 可能已按相同 cwd 原地回填（[hermes_state_sessions.py:612-631](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_sessions.py#L612)），否则需要 Orbit 自己从 cwd 推 repo root。gateway（消息平台）会话没有 cwd。ACP 的旧行可能只把 cwd 放在 `model_config.cwd` 里。子会话会继承父会话的 cwd。
 - **时间**：`started_at`/`ended_at` 是 epoch 秒。`ended_at IS NULL` 可能表示仍在进行，也可能是进程崩溃留下的孤儿（Hermes 会在后续启动时用 `startup_orphan_reap` 等原因补写）。“最近活跃”时间取 `last_activity_at` 与 `MAX(messages.timestamp)` 中较新的那个（[hermes_state_common.py:256](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_common.py#L256)）。会话 id 里的时间是本地时区，**不要拿来解析时间**。
 - **标题**：`title` 可能为 NULL。这时可退回到第一条“合格”的 user 消息作预览：排除压缩摘要和 `hidden` 行（[hermes_state_common.py:129](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_state_common.py#L129)）。
 
@@ -970,10 +970,10 @@ ORDER BY m.id, tc.key;
 | WAL 与 DELETE 两种模式 | 只读连接加 busy 重试；不要单独拷贝主库文件；不要触发 checkpoint。 |
 | 并发写与原地改写 | 见 9.3 的增量同步策略；`active`/`compacted` 会翻转；轮转或压缩后同一逻辑消息会出现新 id。 |
 | 版本迁移 | 31 个 schema 版本，演进很快（列通过声明式方式补加）；FTS 布局还有独立版本；遇到新的 `display_kind` 和新列时保持兼容。 |
-| 自动清理 | `sessions.auto_prune` 默认开启，已结束且 90 天不活跃的会话会被删除（[hermes_cli/config_defaults.py:2265](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_cli/config_defaults.py#L2265)）。Tandem 需要自己留存快照。 |
+| 自动清理 | `sessions.auto_prune` 默认开启，已结束且 90 天不活跃的会话会被删除（[hermes_cli/config_defaults.py:2265](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_cli/config_defaults.py#L2265)）。Orbit 需要自己留存快照。 |
 | 多 profile | 每个 profile 一个库，消息 id 只在库内唯一；会话 id 理论上可能跨库重名，用 (store_instance_id, session_id) 作键；旧库升级后没有 `store_instance_id`，复制或还原的库会共用同一值，需退回用库文件路径等作库标识。 |
 | ID 格式不统一 | 时间戳格式（6/8/12 位 hex）、cron 的 `cron_<任务 id>_<时间>`、托管 room 的 `room_<32 位 hex>`、ACP 的 uuid4、API server 由客户端提供的任意字符串；自身导出再导入的会话保留原 id。 |
-| 隐私 | 库里有完整的工具输出（文件内容、命令输出）、未脱敏的工具参数，`api_content` 与系统提示词中可能含记忆（`MEMORY.md`/`USER.md`）。`security.redact_secrets` 默认开启（[agent/redact.py:90-97](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/agent/redact.py#L90)、[hermes_cli/config_defaults.py:1767](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_cli/config_defaults.py#L1767)），会脱敏 assistant 正文（[agent/chat_completion_helpers.py:1608](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/agent/chat_completion_helpers.py#L1608)）、terminal 输出与 read_file 内容中的密钥，但工具参数刻意不脱敏（[agent/chat_completion_helpers.py:1641-1655](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/agent/chat_completion_helpers.py#L1641)）。`reasoning_details`/`codex_reasoning_items` 含加密块。Tandem 应只在本地处理，默认不外传。 |
+| 隐私 | 库里有完整的工具输出（文件内容、命令输出）、未脱敏的工具参数，`api_content` 与系统提示词中可能含记忆（`MEMORY.md`/`USER.md`）。`security.redact_secrets` 默认开启（[agent/redact.py:90-97](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/agent/redact.py#L90)、[hermes_cli/config_defaults.py:1767](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/hermes_cli/config_defaults.py#L1767)），会脱敏 assistant 正文（[agent/chat_completion_helpers.py:1608](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/agent/chat_completion_helpers.py#L1608)）、terminal 输出与 read_file 内容中的密钥，但工具参数刻意不脱敏（[agent/chat_completion_helpers.py:1641-1655](https://github.com/NousResearch/hermes-agent/blob/10c6188de188871f64a88dd95bc6b262adb0c307/agent/chat_completion_helpers.py#L1641)）。`reasoning_details`/`codex_reasoning_items` 含加密块。Orbit 应只在本地处理，默认不外传。 |
 
 ## 10. 可比较维度速查表
 

@@ -74,5 +74,54 @@ const I = {
   slash: 'M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M5 19L19 5'
 };
 function ic(n, s, st) { return '<svg class="ico" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" aria-hidden="true"' + (st ? ' style="' + st + '"' : '') + '><path d="' + I[n] + '"/></svg>'; }
-const GLYPH = '<svg width="18" height="14" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg>';
+// Orbit 标志：docs/design/logo/generate.py 的 spiral 变体，一条锥形螺旋（1.6 圈，半径 9 → 16，轴向抬升 14，起始相位 0.6），
+// 正交投影 yaw 20° / pitch 45°；两端收细，近处粗、远处细，内圈从外环下方穿过处断开。线宽与断口按输出像素给，
+// 所以 16px 的菜单栏图标也清楚。orbitGeom 也给 Genesis 用（倾斜椭圆轨道、内弧收拢成指针），结果按参数缓存。
+const ORBIT = { turns: 1.6, r0: 9, r1: 16, rise: 14, phase: 0.6, yaw: 20, pitch: 45, taper: 0.12, N: 220 };
+const ORBIT_CACHE = {};
+// t ∈ [0, 1] 沿螺旋 → [屏幕 x, 屏幕 y, 深度]（单位 = 外圈半径，深度越大越近）
+function orbitAt(t, yaw, pitch) {
+  const Y = yaw * Math.PI / 180, P = pitch * Math.PI / 180, th = 2 * Math.PI * ORBIT.turns * t + ORBIT.phase, r = ORBIT.r0 + (ORBIT.r1 - ORBIT.r0) * t;
+  const x = r * Math.cos(th), y = r * Math.sin(th), z = ORBIT.rise * t;
+  const x1 = x * Math.cos(Y) - y * Math.sin(Y), y1 = x * Math.sin(Y) + y * Math.cos(Y);
+  return [x1 / ORBIT.r1, -(y1 * Math.sin(P) + z * Math.cos(P)) / ORBIT.r1, -(y1 * Math.cos(P) - z * Math.sin(P)) / ORBIT.r1];
+}
+// 投影点、弧长与断口：runs = 断开后的连续段（下标区间），第一段是内弧，第二段是外环
+function orbitGeom(yaw, pitch) {
+  const key = yaw + '|' + pitch; if (ORBIT_CACHE[key]) return ORBIT_CACHE[key];
+  const n = ORBIT.N, p = []; for (let k = 0; k <= n; k++) p.push(orbitAt(k / n, yaw, pitch));
+  const len = [0]; for (let k = 1; k <= n; k++) len.push(len[k - 1] + Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]));
+  const far = [];
+  for (let i = 0; i < n; i++) for (let j = i + 3; j < n; j++) {
+    const a = p[i], b = p[i + 1], c = p[j], d = p[j + 1], den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]); if (Math.abs(den) < 1e-12) continue;
+    const u = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den, v = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den;
+    if (u >= 0 && u < 1 && v >= 0 && v < 1) far.push(a[2] + u * (b[2] - a[2]) < c[2] + v * (d[2] - c[2]) ? i : j);
+  }
+  const xs = p.map((q) => q[0]), ys = p.map((q) => q[1]), zs = p.map((q) => q[2]);
+  const box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  return (ORBIT_CACHE[key] = { p, len, far, box, z0: Math.min(...zs), z1: Math.max(...zs) });
+}
+// 标志 SVG：w × h 像素框内居中；o = { wMin, wMax（线宽，像素）, gap（断口，像素）, pad, fill, cls }
+function orbitMark(w, h, o) {
+  o = o || {}; const g = orbitGeom(ORBIT.yaw, ORBIT.pitch), n = ORBIT.N, pad = o.pad == null ? 1 : o.pad;
+  const sc = Math.min((w - 2 * pad) / (g.box[2] - g.box[0]), (h - 2 * pad) / (g.box[3] - g.box[1]));
+  const ox = w / 2 - (g.box[0] + g.box[2]) / 2 * sc, oy = h / 2 - (g.box[1] + g.box[3]) / 2 * sc;
+  const P = g.p.map((q) => [ox + q[0] * sc, oy + q[1] * sc]), L = g.len.map((x) => x * sc), T = L[n];
+  const wMin = o.wMin || 1, wMax = o.wMax || 1.6, gap = o.gap == null ? 1.4 : o.gap;
+  const wd = P.map((q, k) => { const e = Math.min(1, L[k] / (T * ORBIT.taper), (T - L[k]) / (T * ORBIT.taper)); return Math.max(Math.min(0.5, wMin), (wMin + (wMax - wMin) * (g.p[k][2] - g.z0) / (g.z1 - g.z0)) * Math.sin(e * Math.PI / 2)); });
+  const cut = P.map(() => false); g.far.forEach((i) => { const r = gap / 2 + wd[i]; L.forEach((l, k) => { if (Math.abs(l - L[i]) < r) cut[k] = true; }); });
+  const runs = []; let cur = []; for (let k = 0; k <= n; k++) { if (cut[k]) { if (cur.length > 1) runs.push(cur); cur = []; } else cur.push(k); } if (cur.length > 1) runs.push(cur);
+  const f = (x, y) => x.toFixed(2) + ' ' + y.toFixed(2);
+  let d = '';
+  runs.forEach((run) => {
+    const lf = [], rt = [];
+    run.forEach((k) => { const a = P[Math.max(0, k - 1)], b = P[Math.min(n, k + 1)], ln = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / ln, ny = (b[0] - a[0]) / ln, hw = wd[k] / 2; lf.push(f(P[k][0] + nx * hw, P[k][1] + ny * hw)); rt.push(f(P[k][0] - nx * hw, P[k][1] - ny * hw)); });
+    d += 'M' + lf.concat(rt.reverse()).join('L') + 'Z';
+    [run[0], run[run.length - 1]].forEach((k) => { const r = wd[k] / 2; d += 'M' + f(P[k][0] - r, P[k][1]) + 'a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 1 0 ' + (2 * r).toFixed(2) + ' 0a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 1 0 ' + (-2 * r).toFixed(2) + ' 0Z'; });
+  });
+  return '<svg class="orbit-mark' + (o.cls ? ' ' + o.cls : '') + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><path d="' + d + '" fill="' + (o.fill || 'currentColor') + '"/></svg>';
+}
+// 菜单栏状态项（模板图标：单色跟随菜单栏文字）与 App 图标（暖白底 + 石板灰标志，图标本身不随深浅色变化）
+const GLYPH = orbitMark(20, 15, { wMin: 1.05, wMax: 1.7, gap: 1.5, pad: 0.6 });
+const appMark = (px) => orbitMark(Math.round(px * 0.74), Math.round(px * 0.6), { wMin: Math.max(1.1, px / 44), wMax: Math.max(1.9, px / 15), gap: Math.max(1.5, px / 24), pad: 0.5, fill: 'var(--orbit)' });
 

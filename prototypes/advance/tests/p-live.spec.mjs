@@ -118,7 +118,7 @@ test('HUD density band and pill bars follow the running session; a render mid-dr
   await expect(band.locator('rect')).toHaveCount(exp.cols + exp.err);
   await expect(band).toContainText('工具 ' + exp.tools);
   await expect(page.locator('#hud .hgrid .ctxbar.dk')).toHaveCount(1);
-  await expect(page.locator('#hud .hcard .serif')).toHaveText('设计 Tandem Mac App 视觉案例');
+  await expect(page.locator('#hud .hcard .serif')).toHaveText('设计 Orbit Mac App 视觉案例');
   // two renders give the same band (derived, not random)
   const svg1 = await band.locator('svg').innerHTML();
   await page.evaluate(() => renderHud());

@@ -51,7 +51,7 @@ def normalize_item(record, family=None):
     lists = [item.target_task.tags, item.trigger.tags, item.trigger.rule_ids,
              item.capability.tags, item.requirements.tools, item.requirements.software,
              item.requirements.resources, item.compatibility.os, item.compatibility.languages,
-             item.compatibility.frameworks, item.risk_permission.required_permissions]
+             item.compatibility.frameworks, item.risk_permission.required_permissions, *item.preference_support.values()]
     if any(any(not value.strip() for value in values) or len(set(values)) != len(values) for values in lists):
         raise ValueError("invalid_tag_list")
     if any(rule not in RULE_IDS for rule in item.trigger.rule_ids):

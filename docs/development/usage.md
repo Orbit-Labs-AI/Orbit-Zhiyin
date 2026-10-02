@@ -5,7 +5,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 ## 项目资料
 
 - 仓库初始化：2026-09-30
-- 设计参考：[docs/design](../design/README.md)（Lite / Advance 的设计归属、Demo 与视觉案例）
+- 设计参考：[docs/design](../design/README.md)（Lite / Advance 的设计归属、[Orbit 品牌](../design/brand.md)、[Demo 说明](../design/demo.md)与视觉案例）
 - 数据方案：[docs/plans/data-acquisition.md](../plans/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
 - 会话格式调研：[docs/research/agent-sessions](../research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
 - 分析开发输入：[docs/contracts/analysis-inputs.md](../contracts/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
@@ -21,11 +21,11 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 | **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html)、[范围与审查](../design/lite-review.md) |
 | **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](../../prototypes/advance/tandem-demo.html)、[视觉案例 v1](../design/visual-cases-v1/) |
 
-版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。这项规定仅记录现有设计的版本归属，两套设计并行保留，具体说明见[设计资料](../design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
+版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。两版已合为同一个 App（[`tandem-demo.html`](../../prototypes/advance/tandem-demo.html) 侧栏顶部切换），Lite 原稿保留为设计来源，具体说明见[设计资料](../design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
 
 ## 先试后端
 
-Tandem 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/tandem-demo.html) 仍是设计参考。
+Orbit 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/tandem-demo.html) 仍是设计参考。
 
 分析入口遵循 [analysis-input-v1](../contracts/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
 
@@ -97,6 +97,21 @@ uv run tandem --home .tandem --max-events 500000 report --output .local/report
 读取轮次首尾事件改为单次遍历，不再为每一轮扫描整个事件集合。分析和报告只读取所需的标准字段，不批量解码 event.ext 中的重复原生副本；覆盖说明会标记 native_event_payload 为 excluded，完整已存证据仍可按事件/记录 ID 回看，原始归档不变。
 
 `--max-events` 是命令前的全局参数，预算可用于控制内存和计算需求。`--no-text` 只跳过 TF-IDF/SVD 文本表示、聚类和时间新颖度，其他分析仍运行；全量文本新颖度需要对历史前缀反复拟合，大库会更慢。缺失或未知值仍保留覆盖说明，不能当成零成本或成功。
+
+## 如何理解 partial / unavailable / excluded
+
+终端会同时打印状态、缺口数量、原因和下一步；分析 JSON 与 API 的 `coverage_report`、Markdown 的“数据覆盖说明”使用同一套共享契约。
+
+| 状态 | 含义 | 处理 |
+| --- | --- | --- |
+| available | 输入可用，观察到的空集也可以是有效结果 | 不表示每个字段都已知，也不表示工具执行成功 |
+| partial | 已有事实可分析，但部分证据缺失或无法确定 | 按 reasons / reason_counts 定位缺口，保留未知值 |
+| unavailable | 没有这一类可用输入，例如未扫描安装配置 | 按需显式接入对应来源，不把缺失当零 |
+| excluded | 调用方按配置或范围主动省略 | 如 --no-text、按需读取原生扩展正文或会话筛选 |
+
+工具调用配对不足会分别显示缺调用、缺结果和时间范围之外的结果；事件覆盖会显示文本截断、缺时间、缺父证据等计数。没有额外排除任何会话时，sample_exclusions 为 available、rows=0。未启用的安装清单与独立 Catalog 不影响已有会话分析成功。
+
+旧快照曾保存截断文本时，升级后可从保留的归档重算恢复完整内容；已丢失的原文或父历史无法通过改状态恢复。旧库没有记录扫描边界时会显示 source_scan_boundary_unknown；需要确认完整来源范围，应在 Agent 来源目录之外的数据目录显式重新 ingest。架构与扩展方式见[模块化数据入口](../architecture/data-pipeline.md)。
 
 ## 核对推荐来源
 

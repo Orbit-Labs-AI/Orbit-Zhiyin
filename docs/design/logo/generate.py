@@ -1,12 +1,13 @@
-"""生成 Tandem logo（SVG，纯色线稿）及两个备选版本。
+"""生成 Orbit logo（SVG，纯色线稿）及两个备选版本。
 
 线条语言（由莫比乌斯带单线版沿用）：一笔画成，近处粗、远处细，投影交叉处较远的一支断开，
 两端渐细收笔，只用一种颜色。三个版本共用这套画法，只换曲线：
 
-- main：洛伦茨吸引子（σ=10, ρ=28, β=8/3）一段左右两翼各绕两圈的轨道，输出到 logo/；
-- rich：同一段轨道多取一圈（右翼多绕一圈），复杂度略增，输出到 logo/variants/rich/；
-- spiral：单环，一条半径由外向内收、同时沿轴向抬升 1.6 圈的锥形螺旋线，
-  斜看时内圈从外环下方穿过，输出到 logo/variants/spiral/。
+- main（spiral）：单环，一条半径由外向内收、同时沿轴向抬升 1.6 圈的锥形螺旋线，
+  斜看时内圈从外环下方穿过，输出到 logo/；App 原型的 orbitMark 用同一组参数实时绘制；
+- lorenz：洛伦茨吸引子（σ=10, ρ=28, β=8/3）一段左右两翼各绕两圈的轨道（改名前的 Tandem 主标志），
+  输出到 logo/variants/lorenz/；
+- rich：同一段轨道多取一圈（右翼多绕一圈），复杂度略增，输出到 logo/variants/rich/。
 
 纯 Python 实现，不依赖第三方库；积分初值与步长固定，结果可复现。
 
@@ -58,9 +59,9 @@ class Variant:
 
 
 VARIANTS = [
-    Variant(ROOT, "lorenz", yaw=-30, pitch=20, gap=20),
+    Variant(ROOT, "spiral", yaw=20, pitch=45, gap=20),
+    Variant(ROOT / "variants" / "lorenz", "lorenz", yaw=-30, pitch=20, gap=20),
     Variant(ROOT / "variants" / "rich", "lorenz", yaw=-30, pitch=20, gap=20, loops=4),
-    Variant(ROOT / "variants" / "spiral", "spiral", yaw=20, pitch=45, gap=20),
 ]
 
 
@@ -225,11 +226,11 @@ def main():
     for v in VARIANTS:
         v.out.mkdir(parents=True, exist_ok=True)
         files = {
-            "tandem-mark.svg": mark(v),
-            "tandem-mark-light.svg": mark(v, PAPER),
+            "orbit-mark.svg": mark(v),
+            "orbit-mark-light.svg": mark(v, PAPER),
             # 小尺寸版：线宽拉平加粗，远处细线在 48 px 以下不会消失
-            "tandem-mark-small.svg": mark(v, w_min=12, w_max=16, gap=v.gap * 1.5),
-            "tandem-icon.svg": icon(v),
+            "orbit-mark-small.svg": mark(v, w_min=12, w_max=16, gap=v.gap * 1.5),
+            "orbit-icon.svg": icon(v),
         }
         for name, text in files.items():
             (v.out / name).write_text(text)

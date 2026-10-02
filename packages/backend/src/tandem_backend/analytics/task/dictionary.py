@@ -2,6 +2,7 @@
 
 RULES = {
     "domain": "Versioned multi-label domain vocabulary over direct human requests; unknown=null",
+    "domain_details": "27 stable subdomain IDs with Chinese labels, six compatible parent domains, contextual rule IDs and per-session evidence; absent in old records=unknown, not zero",
     "task_type": "Versioned multi-label action vocabulary; forbidden actions excluded",
     "task_title": "First 60 retained characters of the current explicit goal; no generated facts",
     "task_goal": "Initial actionable request, amended only by an explicit goal-change statement",

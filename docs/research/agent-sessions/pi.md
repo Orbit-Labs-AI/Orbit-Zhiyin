@@ -1,6 +1,6 @@
 # Pi（earendil-works/pi）会话与轨迹数据分析
 
-> 用途：Tandem（本地跨 Agent 会话分析 Mac App）数据接入设计参考。
+> 用途：Orbit（本地跨 Agent 会话分析 Mac App）数据接入设计参考。
 > 约定：「源码 HEAD」指下文 commit 的源码行为；「本机 0.99.1」指本机已安装版本写出的真实文件。所有类型摘录均为**据源码整理的精简形式（非逐字）**，以 permalink 为准。
 
 ## 0. 元信息
@@ -160,7 +160,7 @@ sequenceDiagram
 ```text
 ~/.pi/agent/                                   ← getAgentDir()；PI_CODING_AGENT_DIR 可整体改根
 ├── settings.json                              ← 可含 "sessionDir"（自定义会话目录）
-├── auth.json, models-store.json               ← 凭据 / 模型目录缓存，与会话无关（Tandem 不应读取）
+├── auth.json, models-store.json               ← 凭据 / 模型目录缓存，与会话无关（Orbit 不应读取）
 ├── bin/, install/                             ← fd/rg 与 managed install（install/current-version 记版本）
 ├── sessions/                                  ← getSessionsDir()
 │   └── --<编码后的 cwd>--/                     ← 每个工作目录一个子目录
@@ -190,7 +190,7 @@ sequenceDiagram
 - 优先级：`--session-dir` > `PI_CODING_AGENT_SESSION_DIR` > settings 的 `sessionDir`（[packages/coding-agent/src/main.ts:688](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/main.ts#L688)）。启动时的 SettingsManager 合并全局 `~/.pi/agent/settings.json` 与项目 `<cwd>/.pi/settings.json`（[packages/coding-agent/src/core/settings-manager.ts:417](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/settings-manager.ts#L417)，`projectTrusted` 默认 true：[packages/coding-agent/src/core/settings-manager.ts:442](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/settings-manager.ts#L442)）。
 - **自定义目录是扁平的**：`SessionManager.create(cwd, sessionDir)` 直接用该目录，不再按 cwd 分子目录（[packages/coding-agent/src/core/session-manager.ts:1755](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/session-manager.ts#L1755)）；列表时按 header `cwd` 过滤（[packages/coding-agent/src/core/session-manager.ts:1907](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/session-manager.ts#L1907)）。
 - `--no-session` → `SessionManager.inMemory()`，不落盘（[packages/coding-agent/src/main.ts:364](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/main.ts#L364)）。
-- `--session <path>` 可打开/创建任意路径的文件（显式路径被保留，[packages/coding-agent/src/core/session-manager.ts:1053](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/session-manager.ts#L1053)），所以会话文件也可能位于会话根之外——Tandem 只能扫描已知根目录，这类文件会漏掉。
+- `--session <path>` 可打开/创建任意路径的文件（显式路径被保留，[packages/coding-agent/src/core/session-manager.ts:1053](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/session-manager.ts#L1053)），所以会话文件也可能位于会话根之外——Orbit 只能扫描已知根目录，这类文件会漏掉。
 
 ### 2.4 文件命名与 ID
 
@@ -565,7 +565,7 @@ model_change ─ thinking_level_change ─ system ─ user1 ─ assistant ─ to
 
 - `packages/durable`（README 标注 Experimental）是另一套「持久化 harness」：conversation / entry / task / submission / document 模型，entry `kind` 为 `pi.user`、`pi.assistant`、`pi.system`、`pi.tool-result`、`pi.reset`、`pi.compaction`，消息仍用 pi-ai 的 `Message`（[packages/durable/src/entries.ts:15](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/durable/src/entries.ts#L15)）；存储后端为 Memory / SQLite（表 `conversations`、`entries`、`tasks`、`submissions`、`documents` 等，[packages/durable/src/storage/sqlite/migrations.ts:9](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/durable/src/storage/sqlite/migrations.ts#L9)）/ JSONL（`main.jsonl` 提交标记 + sidecar，[packages/durable/src/storage/jsonl/storage.ts:28](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/durable/src/storage/jsonl/storage.ts#L28)）。
 - 使用方只有 `coding-agent/src/experimental/`：server 会话在 `~/.pi/agent/experimental/sessions/<id>/{meta.json, session.sqlite}`（[packages/coding-agent/src/experimental/session-catalog.ts:5](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/experimental/session-catalog.ts#L5)），durable TUI 在 `~/.pi/agent/experimental/durable-sessions/<sha256(cwd) 前 24 位>/<13 位毫秒>-<uuid>/session.sqlite`（[packages/coding-agent/src/experimental/durable/sessions.ts:20](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/experimental/durable/sessions.ts#L20)）；度假规划示例 `experimental/vacation/` 是 durable TUI 的副本，会话放在同样结构的 `~/.pi/agent/experimental/vacation-sessions/` 下（[packages/coding-agent/src/experimental/vacation/sessions.ts:20](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/experimental/vacation/sessions.ts#L20)）。`packages/server`、`client`、`protocol` 是远程会话的 CBOR 帧传输协议，不是存储格式。
-- **发行包不含这些代码**：`package.json` 的 `files` 排除 `dist/experimental`、`dist/cli/experimental`、`dist/client`（[packages/coding-agent/package.json:31](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/package.json#L31)）；`main.ts` 不分派到它；本机 0.99.1 安装目录中也没有 `dist/experimental` 与 `pi-durable`。Tandem 现阶段可忽略，只需在发现 `~/.pi/agent/experimental/` 时提示「不支持」。
+- **发行包不含这些代码**：`package.json` 的 `files` 排除 `dist/experimental`、`dist/cli/experimental`、`dist/client`（[packages/coding-agent/package.json:31](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/package.json#L31)）；`main.ts` 不分派到它；本机 0.99.1 安装目录中也没有 `dist/experimental` 与 `pi-durable`。Orbit 现阶段可忽略，只需在发现 `~/.pi/agent/experimental/` 时提示「不支持」。
 
 ### 5.7 导出、事件流与评测格式
 
@@ -690,7 +690,7 @@ model_change ─ thinking_level_change ─ system ─ user1 ─ assistant ─ to
 6. **工具 `details` 基本缺失**：未截断的 bash/read 结果不写 `details`（26/27），与 [packages/coding-agent/src/core/tools/bash.ts:339](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/tools/bash.ts#L339) 只在截断时设置一致；唯一的 `details: {}` 出现在 `isError: true` 的结果上，与工具抛异常时 `createErrorToolResult` 写 `{}` 一致（该条与前一条 assistant 相隔约 90 s，推断为超时或中止）。
 7. **会话粒度**：两次 `pi` 使用各产生一个文件、同在 `--Users-<user>--` 目录；两个 sessionId 的 UUIDv7 序列位前缀相同，与「进程内单调序列」实现一致（推断两者来自同一进程，例如 `/new`）。
 
-## 9. 对 Tandem 解析器的要点
+## 9. 对 Orbit 解析器的要点
 
 ### 9.1 发现与增量读取
 
@@ -733,7 +733,7 @@ model_change ─ thinking_level_change ─ system ─ user1 ─ assistant ─ to
 - **工具结果顺序**：按调用顺序而非完成顺序落盘；中止时可能缺结果；pi 发送请求时补的 `"No result provided"` 不在文件里。
 - **失败尝试仍在原始历史**：做「模型实际看到了什么」的分析时要应用 `context_edit` 与 compaction 投影；做「实际花了多少钱」时不要应用。
 - **并发写**：无文件锁，两个进程可能同时追加同一文件。
-- **隐私**：文件中有完整用户输入、模型输出与推理、工具参数（命令行、文件路径）、工具输出（文件内容）、system prompt 全文（含 AGENTS.md/skills 内容与 cwd 路径）、图片 base64、`thinkingSignature` 等。Tandem 应仅本地处理、默认脱敏展示、不上传；完全不需要读取 `auth.json` / `models-store.json`。
+- **隐私**：文件中有完整用户输入、模型输出与推理、工具参数（命令行、文件路径）、工具输出（文件内容）、system prompt 全文（含 AGENTS.md/skills 内容与 cwd 路径）、图片 base64、`thinkingSignature` 等。Orbit 应仅本地处理、默认脱敏展示、不上传；完全不需要读取 `auth.json` / `models-store.json`。
 
 ### 9.4 推荐解析流程（伪代码）
 

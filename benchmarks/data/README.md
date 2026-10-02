@@ -1,6 +1,6 @@
 # 数据导入基准与完整性回归
 
-只使用构造数据，不读取本机任何 Agent 目录。背景与基线见数据模块审计（`docs/plans/data-audit.md` §3、§5.6）。
+只使用构造数据，不读取本机任何 Agent 目录。背景与基线见数据模块审计（`docs/audits/data-audit.md` §3、§5.6）。
 
 ```sh
 uv run python -m benchmarks.data.synthetic --preset small --out .local/benchmarks/data/synthetic

@@ -14,6 +14,7 @@
 | 分析结果等价性 | tests/regression | 随 pnpm check 运行；见下文「性能与等价性」 |
 | UI 原型行为 | prototypes/advance/tests | pnpm check:ui |
 | 质量评测 | evals；运行时评价在 backend/evaluation | 见 evals/README |
+| 推荐偏好与收益 | evals/recommendation、backend/tests/recommend | bash scripts/test-recommend.sh |
 | 性能与内存 | benchmarks | 见 benchmarks/README |
 | 安装后验证 | scripts/check-installed.sh | pnpm check:installed |
 

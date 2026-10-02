@@ -56,3 +56,14 @@
 /* the peers card ends with its content instead of stretching to the list's height with an empty middle */
 .lb-two>.lb-peers{align-self:start}
 .lb-peers .lb-anon{margin-top:2px}
+/* pass 2: page title on the type scale (17), both list cards end with their content, empty list reads as a quiet line,
+   installed sheet rows: mono id + kind caption, action right-aligned */
+.lb-title{font-size:17px;line-height:22px;font-weight:600}
+.lb-two>.card{align-self:start}
+.lb-none{display:block;padding:12px 0 4px}
+.lb-irow{justify-content:space-between;gap:12px;min-height:36px;padding:6px 0;border-bottom:1px solid var(--hair)}
+.lb-irow:last-child{border-bottom:0}
+.lb-inm{min-width:0;display:flex;align-items:baseline;gap:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-inm b{font-size:12px;font-weight:600;color:var(--ink-1)}
+.lb-inm .cap{font-size:11px}
+.lb-pintro{text-wrap:balance}

@@ -121,6 +121,7 @@ def _analyze(store: Store, project_id: str | None = None, model: str | None = No
         "schema_version": "1.8", "analysis_version": "context-v25",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "ledger_sample_policies": policies,
+        "input_coverage": getattr(store, "bundle", {}).get("coverage"),
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
                    "events": len(events), "user_messages": len(users), "user_sessions": len(user_sessions),
                    "tool_calls": len(calls), "explicit_tool_failures": len(failed)},

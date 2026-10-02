@@ -1,4 +1,4 @@
-# Tandem 推荐模块设计（RC）：如何用分析结果做匹配推荐
+# Orbit 推荐模块设计（RC）：如何用分析结果做匹配推荐
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
@@ -29,7 +29,7 @@
 
 | 问题 | 本文答案 | 不在本文（去哪） |
 | --- | --- | --- |
-| 推荐什么 | §2.1 十二种 `remedy.kind` 与 main 七个 family 的对应 | 生态抓取与 Catalog 建库：`docs/plans/data-acquisition.md` §5–§6（DT-11、DT-12）；已实现部分见 main `docs/modules/catalog-architecture.md` |
+| 推荐什么 | §2.1 十二种 `remedy.kind` 与 main 七个 family 的对应 | 生态抓取与 Catalog 建库：`docs/plans/data-acquisition.md` §5–§6（DT-11、DT-12）；已实现部分见 main `docs/modules/catalog/architecture.md` |
 | 怎么从分析结果推出候选 | §3.1 问题 taxonomy（含 main `rule_id` 对照）→ §2.4 决策表 → §3.2 召回 | 信号与问题怎么检测：`analysis.md`（AN-05、AN-06） |
 | 怎么排序、去重、解释 | §3.3–§3.7 | 文案可读性检查：`evaluation.md`（EV-09） |
 | 怎么个性化 | §4 | 人格四轴：`analysis.md`（AN-08） |
@@ -109,13 +109,13 @@ main 的卡片 `kind` 来自 `KINDS[family]`（`prompt / skill / plugin / mcp / 
 | `generic` | `tandem.generic = true` | RC-11（v1） |
 | `kb_version` | `catalog_digest`（`load_catalog()` 已算） | — |
 
-`packages/catalog` 侧补充约定（DT-12 / DT-13，与 DA §6.3 一致）：`item_feature(feature = friction, value = <problem.type>)` 只对 Tandem 模板库与官方 / 精选条目人工标注（`origin = curated`），是进 A7 的必要条件；无 `friction` 标注的条目只进 A8。`item_version.manifest.resident_tokens_est`（skill 取 description 长度 ÷ 4；MCP 取工具数 × 150，估计；插件取组成之和）进 `friction.runtime_cost`。
+`packages/catalog` 侧补充约定（DT-12 / DT-13，与 DA §6.3 一致）：`item_feature(feature = friction, value = <problem.type>)` 只对 Orbit 模板库与官方 / 精选条目人工标注（`origin = curated`），是进 A7 的必要条件；无 `friction` 标注的条目只进 A8。`item_version.manifest.resident_tokens_est`（skill 取 description 长度 ÷ 4；MCP 取工具数 × 150，估计；插件取组成之和）进 `friction.runtime_cost`。
 
 ### 2.3 难度 L1–L4：按动作定义，不按类型
 
 | 级别 | 定义 | 典型动作 | 例子 | `friction.setup_cost` | Demo 不一致处（A7-05） |
 | --- | --- | --- | --- | --- | --- |
-| L1 一键 | Tandem 可完整渲染并写入用户层 / local 层，键级可撤销 | `merge_json`、`append_block`、`set_key`、`remove_pointer`、复制命令 | 只读放行、规则段、档位设置 | 0.05 | `deploy-target` 标 L1 却是复制片段 → 复制类按 L1 但 action = `clipboard`，主按钮「复制」 |
+| L1 一键 | Orbit 可完整渲染并写入用户层 / local 层，键级可撤销 | `merge_json`、`append_block`、`set_key`、`remove_pointer`、复制命令 | 只读放行、规则段、档位设置 | 0.05 | `deploy-target` 标 L1 却是复制片段 → 复制类按 L1 但 action = `clipboard`，主按钮「复制」 |
 | L2 复制粘贴 / 文件 | 新建文件或目录，无需凭据 | `create_file`、`create_dir`、hook 脚本 | skill、子代理、hook | 0.2 | — |
 | L3 需配置 | 需要凭据、外部安装命令、按 Agent 信任 | `run_command`、MCP 环境变量、Codex hook 信任 | MCP、插件、Codex hook | 0.6 | — |
 | L4 架构调整 | 改变工作方式，只给教程与命令 | `tutorial` | worktree、headless + 定时 | 1.0 | — |
@@ -221,7 +221,7 @@ flowchart LR
 | 2 | `bottleneck_evidence` | `problem.evidence_session_uids` 非空且都能回链 `event_uid / call_uid` | 全部 | 不展示 | MVP | `state.py` 校验 `signal.evidence` 属于根会话树；`features.grounded` |
 | 3 | `scene_ok` | 候选 `scenes` 含问题场景（筛选不能改写证据的场景） | **只在条目声明了 `scenes` 时检查**；其余 `n/a` | 不展示 | MVP | `legacy.recommend()` |
 | 4 | `language_ok` | 资源语言 ∈ 交付语言或 `any` | **只对文本类 kind（`rule / prompt / skill / subagent`）**；其余 `n/a` | 不展示 | MVP | `legacy.recommend()` |
-| 5 | `source_verified` | `source.status = verified ∧ content_sha256`；GitHub 来源另需仓库 URL、相对路径、40 位 `verified_sha`、许可非空；Tandem 模板库条目（`origin = local`）视为已核对 | 全部 | 不展示 | MVP | `filters._verified_source()` |
+| 5 | `source_verified` | `source.status = verified ∧ content_sha256`；GitHub 来源另需仓库 URL、相对路径、40 位 `verified_sha`、许可非空；Orbit 模板库条目（`origin = local`）视为已核对 | 全部 | 不展示 | MVP | `filters._verified_source()` |
 | 6 | `agent_supported` | `compatibility.agents[目标 Agent] ≠ unsupported`；`unknown` → `needs_context`；pi 不推 `mcp / subagent / 计划模式` | 全部 | 不展示 / `needs_context` | MVP | `filter_item`（`incompatible_agent`） |
 | 7 | `not_installed` | `inventory_item` 无同 `identity.id` / 同内容哈希 / 同前缀规则；规则类按「同 key 条目已存在」判定 | `installed_resources ≠ None` 时检查；未知 → `n/a` 并标「未扣除已装项」 | 转为「修改已有」或减法 | MVP（随 DT-09） | `filter_item`（`already_installed`）；内容哈希与前缀规则计划 |
 | 8 | `not_dismissed` | 无 `label ∈ {not_applicable, snooze 未过期}` 且规则级「不再提示」未开启 | 全部 | 不展示 | MVP | 计划（新增） |
@@ -256,7 +256,7 @@ MVP 只替换两个输入、固定一组常数：
 | `confidence` | `coverage × min(1, n / target_n)`（`rules.py`） | `problem.wilson_lo`（AN-06） | 一个数同时表达支持度与样本量 |
 | `friction.setup_cost / runtime_cost` | 条目自填 0–1 | §2.3 的 L 级常数；`runtime_cost = resident_tokens_est ÷ 2,000`（封顶 1） | 常数随 `tandem.level` 自动填 |
 | `expected_effect.targets[rule_id]` | 条目自填 0–1 | 按 kind 的先验均值常数（不更新）：`permission_rule / removal` 0.9、`hook` 0.8、`builtin` 0.7、`skill` 0.6、`rule / subagent / mcp / plugin` 0.5、`prompt / model / workflow` 0.4（估计，团队设定） | = 契约 §3.4 `prior_effect` 的 Beta 均值；v1 才回写 |
-| `evidence_quality.score` | 审核人填 | Tandem 模板库 1.0；官方 / 精选 0.8；社区固定版本 0.6 | 信任因子 |
+| `evidence_quality.score` | 审核人填 | Orbit 模板库 1.0；官方 / 精选 0.8；社区固定版本 0.6 | 信任因子 |
 | `risk_permission.level` | 条目自填 | low 0.1 / medium 0.5 / high 0.9 | 闸门 10 另处理 `flags` |
 
 卡片主数字仍是 `problem.weekly_count`（已计数）；`score_breakdown` 原样进 `candidate.score`，说明 Tab 显示三行：触发证据（`wilson_lo`、会话数）、先验（kind）、成本（L 级、常驻 token）。示例（契约 §4.2 只读放行）：`trigger = 1、effect = 0.9、context = 1、evidence = 1、fusion ≈ 0.5、friction = 0.05、risk = 0.1` → `base ≈ 0.87`，`× wilson_lo 0.31 × 1.0` → `score ≈ 0.27`、`priority_score ≈ 27`；`retry-breaker`（`wilson_lo 0.22`、L2、hook 先验 0.8）→ `priority_score ≈ 17`；两者并列时只读放行在前。
@@ -519,7 +519,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 | A7 不适用 + 撤销、保留 | A7-10、A7-15 保留 | RC-10 | `S.recs.gone` 内存；「降权」未实现 | 必选原因（统一枚举）；`label` 落库；降权 v1 | MVP（label）；v1（降权） |
 | A7 预览 Tab | A7-13、INST-02、INST-03、INST-05 | RC-12 `install_plan` | 文件内容静态；安装范围不传给安装流程（BUG-22）；新建标「修改」（BUG-23） | 按 Agent 分 targets 的键级 diff；`scope` 进 plan；不可映射列出 | MVP |
 | A7 效果追踪 Tab | A7-15、INST-06 | RC-13 `tracking` + EV-07 `rec_outcome` | 对比值静态，结论恒「有效」，无 n / 区间 | 四态结论、n、CI、护栏、混杂列表（= UG-EV-01，前端只做一次） | MVP |
-| A7 教程 Tab、详情底栏来源与许可 | A7-14、A7-16 | RC-01 `source`、`license` | 写死「Tandem 模板库 · MIT」 | 按条目 | MVP |
+| A7 教程 Tab、详情底栏来源与许可 | A7-14、A7-16 | RC-01 `source`、`license` | 写死「Orbit 模板库 · MIT」 | 按条目 | MVP |
 | A7 让本地 Agent 深度诊断 | A7-03 | AI-10（MVP 只展示）→ RC-06 映射入列（v1） | 模板回答，结果不能入列 | 诊断结果经 RC-06 映射成候选入列 | v1 |
 | A1 AI 解读「立刻可做」、本周建议 Top 3 | A1-11、A1-25 | RC-02 当前批次前 3（MVP）；RC-05 `rec_top` 快照（v1） | `visibleRecs()` 目录顺序前 3 | 快照 + 跳转定位到该候选 | MVP / v1 |
 | A1「卡在哪」证据 → A7 | A1-10 | `GET …/recommendations?problem_id[]` | `countBy(fric)` 取首 | 按 `problem_id` 反查候选 | MVP |

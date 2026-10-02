@@ -172,14 +172,17 @@ def test_pushdown_rows_match_former_full_scans(home, scope):
     )
     assert expected_tools
     assert [t["call_uid"] for t in data["tool_calls"]] == [t["call_uid"] for t in expected_tools]
-    expected_sessions = full_scan(
-        home, "SELECT * FROM session", lambda r: r["session_uid"] in sessions
-    )
+    # Session rows carry their source's agent (joined by read_analysis for agent scopes).
+    agents = {r["source_id"]: r["agent"] for r in full_scan(home, "SELECT * FROM source", bool)}
+    expected_sessions = [
+        {**row, "agent": agents.get(row["source_id"])}
+        for row in full_scan(home, "SELECT * FROM session", lambda r: r["session_uid"] in sessions)
+    ]
     assert [s["session_uid"] for s in data["sessions"]] == [
         s["session_uid"] for s in expected_sessions
     ]
     if scope.until_ts is None:
-        # Without a cutoff the reader must not alter the stored rows at all.
+        # Without a cutoff the reader must not alter the stored rows (beyond the joined agent).
         assert data["tool_calls"] == expected_tools
         assert data["sessions"] == expected_sessions
     else:
