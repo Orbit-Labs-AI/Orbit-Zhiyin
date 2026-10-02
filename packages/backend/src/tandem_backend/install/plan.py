@@ -124,6 +124,43 @@ def _mcp_from_manifest(manifest: dict) -> dict | None:
     return None
 
 
+_PLUGIN_VARS = ("${CLAUDE_PLUGIN_ROOT}", "$CLAUDE_PLUGIN_ROOT", "${CLAUDE_PLUGIN_DATA}")
+
+
+def _hook_from_manifest(manifest: dict) -> dict | None:
+    """A ``hooks.json`` document → one hook payload when it runs a single self-contained
+    command (any number of event/matcher bindings). Hooks that call scripts shipped inside
+    their plugin (``${CLAUDE_PLUGIN_ROOT}``) only work through that plugin: ``None``."""
+    hooks = manifest.get("hooks") if isinstance(manifest.get("hooks"), dict) else None
+    if not hooks:
+        return None
+    commands, bindings, timeouts = set(), [], set()
+    for event, entries in hooks.items():
+        if not isinstance(event, str) or not isinstance(entries, list):
+            return None
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                return None
+            for hook in entry["hooks"]:
+                if not isinstance(hook, dict) or hook.get("type", "command") != "command" \
+                        or not isinstance(hook.get("command"), str) or set(hook) - {"type", "command", "timeout"}:
+                    return None
+                commands.add(hook["command"])
+                timeouts.add(hook.get("timeout"))
+            binding = {"event": event, "matcher": entry.get("matcher")}
+            if binding not in bindings:
+                bindings.append(binding)
+    if len(commands) != 1 or len(timeouts) != 1:
+        return None
+    command = next(iter(commands))
+    if not command.strip() or any(v in command for v in _PLUGIN_VARS):
+        return None
+    payload: dict = {"command": command, "event_bindings": bindings, **bindings[0]}
+    if (timeout := next(iter(timeouts))) is not None:
+        payload["timeout"] = timeout
+    return payload
+
+
 def catalog_item(detail: dict) -> dict:
     """Map a catalog ``detail()`` result (or its ``resource``) onto the item shape install uses:
     ``{id, kind, name, description, url, source, install, license, agents}`` where ``source`` is
@@ -148,11 +185,14 @@ def catalog_item(detail: dict) -> dict:
         if repo:
             payload["marketplace_source"] = {"source": "github", "repo": repo}
         install = {"plugin": payload}
-    elif kind == "hook" and isinstance(declared.get("hook"), dict):
-        install = {"hook": declared["hook"]}
+    elif kind == "hook":
+        payload = declared.get("hook") if isinstance(declared.get("hook"), dict) else _hook_from_manifest(manifest)
+        install = {"hook": payload} if payload else None
+    parents = [p for p in detail.get("parents") or [] if isinstance(p, str)]
     return {"id": res.get("item_id"), "kind": kind, "name": res.get("name") or res.get("item_id"),
             "description": res.get("summary"), "url": res.get("url"), "source": source, "install": install,
-            "license": res.get("license"), "agents": res.get("agents") or None}
+            "license": res.get("license"), "agents": res.get("agents") or None,
+            "install_via": parents[0] if parents and install is None else None}
 
 
 def default_catalog_lookup(item_id: str) -> dict | None:
@@ -202,14 +242,17 @@ def _from_catalog(item: dict, *, cache_dir, fetcher, allow_network: bool) -> tup
             "source": {"type": "catalog", "id": item["id"], "catalog_item_id": item["id"], "template": None,
                        "license": lic, "sha256": (source or {}).get("sha256")}}
     install = item.get("install") or {}
+    link = {"links": [item.get("url")] if item.get("url") else []}
     if kind in ("mcp", "plugin", "hook"):
         payload = install.get(kind) if isinstance(install, dict) else None
         if not isinstance(payload, dict):
-            raise PlanError("catalog_not_installable", f"目录条目 {item['id']} 没有 {kind} 安装声明")
+            # B16: show the link (and the bundle that installs it) instead of a 422 install CTA
+            reason = "needs_plugin" if item.get("install_via") else "no_install_declaration"
+            return {**base, "payload": {}, **link, "link_reason": reason,
+                    "install_via": item.get("install_via")}, {"status": "link_only"}
         return {**base, "payload": dict(payload)}, {"status": "ready"}
     if kind not in FILE_KINDS:
-        raise PlanError("catalog_not_installable", f"不支持的目录条目类型：{kind!r}")
-    link = {"links": [item.get("url")] if item.get("url") else []}
+        return {**base, "payload": {}, **link, "link_reason": "kind_not_installable"}, {"status": "link_only"}
     if not source:
         return {**base, "payload": {}, **link}, {"status": "link_only"}
     if lic is None or lic.get("status") == "link_only":
@@ -453,6 +496,7 @@ def make_plan(source: dict, *, agents=None, scope: str = "user", project_path: s
                        "license": src.get("license")},
             "agents": spec["agents"], "scope": spec["scope"], "project_path": spec["project_path"],
             "warnings": warnings, "links": spec.get("links") or [],
+            "link_reason": spec.get("link_reason"), "install_via": spec.get("install_via"),
             "fetch": {k: extra["fetch"][k] for k in ("tree_sha256", "commit", "cached")} if extra.get("fetch") else None,
             "targets": [{k: t.get(k) for k in SUMMARY_KEYS} for t in targets],
             "already_installed": {"install_id": active["install_id"], "state": active["state"],

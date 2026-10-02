@@ -119,7 +119,9 @@ def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None
               max_risk: Risk = None, origin: str | None = None,
               official: bool | None = None, source_id: str | None = None, exclude: Strs = None,
               sort: str = "updated", order: str = "desc", limit: Annotated[int, Query(ge=1, le=100)] = 30,
-              cursor: str | None = None, include_duplicates: bool = False, id: Strs = None):
+              cursor: str | None = None, include_duplicates: bool = False, id: Strs = None,
+              type_: Annotated[list[str] | None, Query(alias="type")] = None):
+        kind = [*(kind or []), *(type_ or [])] or None  # ``?type=`` was silently ignored
         if id:
             if len(id) > 50:
                 raise HTTPException(422, "too_many_ids")
