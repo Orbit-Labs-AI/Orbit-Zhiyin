@@ -339,7 +339,9 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
                  "task_success": None, "validation_scope": None}
     subjective = analyze_subjective_outcomes(events, main_ids, event_status)
     feedback = None if subjective["feedback"] is None else [
-        f for f in subjective["feedback"] if f["delivery_event_uid"] is not None]
+        {key: f[key] for key in ("event_uid", "delivery_event_uid", "signal")}
+        for f in subjective["feedback"] if f["delivery_event_uid"] is not None
+        and f["signal"] in ("positive", "negative")]
     main = session["session_uid"] in main_ids
     features = {"user_message_count": len(users) if main and (users or not unknown_humans) else None,
                 "assistant_message_count": len(assistants), "turn_count": len({e["turn_uid"] for e in events if e.get("turn_uid")}) or None,

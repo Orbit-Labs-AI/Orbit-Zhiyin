@@ -258,3 +258,22 @@ def test_public_summary_and_aggregate_share_evidence_and_effective_counts():
     assert s["counts"] == r["counts"]
     assert aggregate_subjective_outcomes([r])["counts"] == r["counts"]
     assert r["feedback"][0]["feedback_evidence"]["event_uid"] == "f"
+
+
+def test_legacy_final_answer_phase_is_an_observed_delivery():
+    r = analyze_subjective_outcomes([delivery(phase="final_answer"), event("f", 2, "可以了")], {"s"})
+    assert r["effective_n"] == 1
+
+
+def test_rework_reason_does_not_borrow_another_sentences_cause():
+    f = classify_feedback("请重写报告。这个可以了，因为很清楚。")
+    assert f["rework_feedback"][0]["reason"] is None
+
+
+def test_legacy_candidates_keep_the_original_shape_and_polarities():
+    r = analyze_bundle(bundle([delivery(), event("f", 2, "可以了")]), with_text=False)
+    assert r["sessions"][0]["subjective_outcome_candidates"] == [
+        {"event_uid": "f", "delivery_event_uid": "d", "signal": "positive"}]
+    r = analyze_bundle(bundle([delivery(), event("f", 2, "可以了，但不能接受")]), with_text=False)
+    assert r["sessions"][0]["subjective_outcome_candidates"] == []
+    assert r["sessions"][0]["subjective_outcomes"]["feedback"][0]["signal"] == "mixed"

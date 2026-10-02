@@ -42,13 +42,10 @@ def classify_feedback(text):
                 complete |= c
                 incomplete |= i
                 if w:
-                    rework.append({"request": clause, "reason": None})
+                    reason = re.search(r"(?:因为|原因是|\bbecause\b)\s*([^，,。！？!?；;\n]+)", sentence, re.I)
+                    rework.append({"request": clause, "reason": reason[1].strip() if reason else None})
     if not evidence:
         return None
-    reason = re.search(r"(?:因为|原因是|\bbecause\b)\s*([^，,。！？!?；;\n]+)", clean, re.I)
-    if reason and rework:
-        for request in rework:
-            request["reason"] = reason[1].strip()
     acceptance = "mixed" if accepted and rejected else "accepted" if accepted else "rejected" if rejected else None
     completion = None if complete == incomplete else complete
     positive, negative = accepted or complete, rejected or incomplete or bool(rework)
@@ -64,7 +61,7 @@ def collect_deliveries(events, main_ids):
     for event in events:
         attrs = event.get("attrs", {})
         if (event["session_uid"] not in main_ids or event["kind"] != "message.assistant"
-                or attrs.get("phase") != "final" or not event.get("text")
+                or attrs.get("phase") not in ("final", "final_answer") or not event.get("text")
                 or event.get("actor") not in (None, "assistant", "unknown")
                 or attrs.get("replayed_from") or attrs.get("duplicate_of")):
             continue
