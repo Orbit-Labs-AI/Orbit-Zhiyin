@@ -29,7 +29,10 @@ def wilson(k: int, n: int, z: float = Z) -> tuple[float | None, float | None]:
     denom = 1 + z * z / n
     centre = (p + z * z / (2 * n)) / denom
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return max(0.0, centre - half), min(1.0, centre + half)
+    # The bounds are exactly 0 / 1 at the edges; avoid 0.9999999 float residue.
+    lo = 0.0 if k == 0 else max(0.0, centre - half)
+    hi = 1.0 if k == n else min(1.0, centre + half)
+    return lo, hi
 
 
 def wilson_lo(k: int, n: int, z: float = Z) -> float | None:

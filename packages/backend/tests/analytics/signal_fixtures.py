@@ -7,6 +7,7 @@ from tandem_backend.analytics.signals import build_signal_layer
 
 T0 = 1_790_000_000_000
 MIN = 60_000
+DAY = 24 * 60 * MIN
 
 
 class Session:
