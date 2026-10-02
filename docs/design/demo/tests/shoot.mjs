@@ -28,10 +28,12 @@ for (const s of sizes) {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   page.on('pageerror', (e) => console.error('[pageerror]', s, e.message));
   await page.goto('file://' + html);
-  await page.evaluate((t) => { setTheme(t); $$('.note').forEach((n) => n.remove()); }, theme);
+  await page.evaluate((t) => { setTheme(t); }, theme);
   for (const r of routes) {
-    await page.evaluate((x) => { go(x); document.querySelector('#main').scrollTop = 0; }, r);
+    // drop notification banners (the welcome banner arrives ~0.8s after load) so shots show the shell, not the toast stack
+    await page.evaluate((x) => { go(x); document.querySelector('#main').scrollTop = 0; document.querySelectorAll('.nt').forEach((n) => n.remove()); }, r);
     await page.waitForTimeout(250);
+    await page.evaluate(() => document.querySelectorAll('.nt').forEach((n) => n.remove()));
     const file = path.join(out, `${s}-${theme}-${r}.png`);
     if (args.includes('--full')) {
       // Capture the main pane's full scroll height by temporarily growing the viewport.
