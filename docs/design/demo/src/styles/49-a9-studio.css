@@ -1,0 +1,62 @@
+/* A9 生成工坊：上下文包 token 堆叠条、逐项预览、步骤进度轨、四道自检行、产物 diff 摘要。
+   颜色只表状态：灰阶表示上下文组成，超出上限 = --crit，进行中 = AI 紫，通过 = --good，提示 = --warn；其余全部墨色。 */
+.st-tok{display:flex;flex-direction:column;gap:5px}
+.st-tok-bar{position:relative;height:10px;border-radius:5px;background:var(--sunken);display:flex;gap:1px;overflow:visible}
+.st-tok-bar .st-seg{height:100%;flex:none;background:var(--h3);transition:width .25s var(--ease)}
+.st-tok-bar .st-seg:first-child{border-radius:5px 0 0 5px}
+.st-tok-bar .st-seg.sum{background:var(--h4)}
+.st-tok-bar .st-seg.fric{background:var(--h3)}
+.st-tok-bar .st-seg.rules{background:var(--h2)}
+.st-tok-bar .st-seg.raw{background:repeating-linear-gradient(135deg,var(--h2) 0 3px,var(--h1) 3px 6px)}
+.st-tok-lim{position:absolute;top:-3px;width:1.5px;height:16px;margin-left:-1px;background:var(--ink-2);transition:left .25s var(--ease)}
+.st-tok-lim::after{content:"上限";position:absolute;left:4px;top:-1px;font:10px var(--mono);color:var(--ink-3);white-space:nowrap}
+.st-tok.over .st-tok-bar{box-shadow:0 0 0 1.5px var(--crit)}
+.st-tok.over .st-tok-lim{background:var(--crit)}
+.st-tok.over .st-tok-lim::after{color:var(--crit)}
+.st-tok-cap{justify-content:space-between;font-size:11px;color:var(--ink-2)}
+.st-tok-cap .crit{color:var(--crit);font-weight:600}
+.st-ctx{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:start;padding:6px 0;border-bottom:1px solid var(--hair);font-size:12.5px;line-height:1.4}
+.st-ctx:last-child{border-bottom:0}
+.st-ctx input{margin:2px 0 0;width:14px;height:14px;flex:none}
+.st-sw{display:inline-block;width:8px;height:8px;border-radius:2px;flex:none;background:var(--h3)}
+.st-sw.sum{background:var(--h4)}.st-sw.rules{background:var(--h2)}.st-sw.raw{background:repeating-linear-gradient(135deg,var(--h2) 0 2px,var(--h1) 2px 4px)}
+/* steps: a vertical rail runs through the markers; done = ink, running = AI purple fading into the rail, pulsing marker */
+.st-steps .step{position:relative;grid-template-columns:22px minmax(0,1fr) 60px;align-items:center}
+.st-steps .step::before{content:"";position:absolute;left:10.25px;top:30px;bottom:-7px;width:1.5px;background:var(--line)}
+.st-steps .step:last-child::before{display:none}
+.st-steps .step.done::before{background:var(--ink-1)}
+.st-steps .step.run::before{background:linear-gradient(var(--ai),var(--line))}
+.st-steps .step .mk{position:relative;z-index:1;background:var(--surface);color:var(--ink-3);box-shadow:inset 0 0 0 1.5px var(--line)}
+.st-steps .step.done .mk{background:var(--ink-1);color:var(--surface);box-shadow:none}
+.st-steps .step.run .mk{background:var(--ai-bg);color:var(--ai);box-shadow:inset 0 0 0 1.5px var(--ai);animation:st-pulse 1.4s ease-out infinite}
+.st-steps .step.stop .mk{background:var(--crit-bg);color:var(--crit);box-shadow:none}
+.st-steps .step .t{font-size:12.5px;font-weight:600;color:var(--ink-1)}
+.st-steps .step.todo .t{color:var(--ink-3)}
+.st-steps .step .s{font-size:11.5px;color:var(--ink-3)}
+.st-lines{display:block;height:3px;width:min(160px,100%);margin-top:5px;border-radius:2px;background:var(--sunken);overflow:hidden}
+.st-lines b{display:block;height:100%;background:var(--ai);transition:width .2s var(--ease)}
+.st-dur{display:flex;align-items:center;justify-content:flex-end;gap:5px;font:11px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.st-dur i{display:block;width:40px;height:4px;border-radius:2px;background:var(--sunken);overflow:hidden;flex:none}
+.st-dur i b{display:block;height:100%;background:var(--ink-3)}
+@keyframes st-pulse{0%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 var(--ai-bg)}70%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 6px transparent}100%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 transparent}}
+/* four check rows (spec / safety / replay dry-run / judge) */
+.st-chk{display:grid;grid-template-columns:14px 72px minmax(0,1fr);gap:2px 8px;align-items:start;padding:6px 0;border-bottom:1px solid var(--hair);font-size:12px;line-height:1.45}
+.st-chk .ico{margin-top:2px}
+.st-chk .nm{font-weight:600;color:var(--ink-1)}
+.st-chk .rs{color:var(--ink-2)}
+.st-chk.pend .nm,.st-chk.skip .nm,.st-chk.pend .rs,.st-chk.skip .rs{color:var(--ink-3)}
+.st-chk.cur .rs{color:var(--ai)}
+.st-rp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 8px;font-size:11.5px}
+.st-rp .t{border:0;background:none;padding:0;text-align:left;color:var(--ink-1);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.st-rp .t:hover{text-decoration-color:var(--ink-3)}
+.st-rp .w{grid-column:1/-1;font-size:11px;margin-bottom:3px}
+.st-score{display:inline-block;width:46px;height:5px;border-radius:3px;background:var(--sunken);vertical-align:middle;overflow:hidden}
+.st-score b{display:block;height:100%;background:var(--ink-2)}
+.st-sum{font-size:11px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-inst{margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--good-bg);font-size:12px}
+/* per-item preview sheet */
+.st-prev{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+.st-prev.off{opacity:.6}
+.st-prev input,.modal #ctxPrev input{width:14px;height:14px;flex:none;accent-color:var(--ink-1)}
+.st-pre{padding:8px 10px;white-space:pre-wrap;word-break:break-word;font-size:11.5px;line-height:1.6;max-height:160px}
+mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;padding:0 2px;font-weight:600}
