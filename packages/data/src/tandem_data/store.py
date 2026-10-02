@@ -228,7 +228,7 @@ class Store:
                 "ctime_ns": before.st_ctime_ns,
             }
             previous = self.db.execute(
-                "SELECT f.file_id,f.role,f.status,r.source_stat,r.record_count FROM source_file f "
+                "SELECT f.file_id,f.role,f.status,f.watermark,r.source_stat,r.record_count FROM source_file f "
                 "JOIN source_revision r USING(file_id) WHERE f.source_id=? AND f.relative_path=? "
                 "ORDER BY r.revision DESC LIMIT 1",
                 (source_id, str(path.relative_to(root))),
@@ -236,7 +236,10 @@ class Store:
             if (
                 previous
                 and previous["status"] != "error"
-                and json.loads(previous["source_stat"]) == stat
+                and json.loads(previous["watermark"]).get(
+                    "last_source_stat", json.loads(previous["source_stat"])
+                )
+                == stat
             ):
                 changed_role = previous["role"] != role
                 self.db.execute(
@@ -342,7 +345,7 @@ class Store:
         )
         self.db.execute(
             "INSERT INTO source_file(file_id,source_id,relative_path,role,format,last_scan_at) "
-            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',role=excluded.role,last_scan_at=excluded.last_scan_at",
+            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',watermark=CASE WHEN role<>excluded.role THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=excluded.role,last_scan_at=excluded.last_scan_at",
             (file_id, source_id, relative_path, role, format_name, captured_at),
         )
         with self._index_transaction(source_id, file_id, uid("archive", sha)):
@@ -351,6 +354,11 @@ class Store:
                 (file_id,),
             ).fetchone()
             if latest and latest["archive_uid"] == uid("archive", sha):
+                # Cache the latest stat without mutating immutable capture provenance.
+                self.db.execute(
+                    "UPDATE source_file SET watermark=json_set(watermark,'$.last_source_stat',json(?)) WHERE file_id=?",
+                    (canonical(source_stat or {}), file_id),
+                )
                 return {"file_id": file_id, "changed": False, "records": latest["record_count"]}
             revision = latest["revision"] + 1 if latest else 1
             revision_uid = uid("revision", file_id, revision)
@@ -460,6 +468,7 @@ class Store:
                             "decoded_bytes": offset,
                             "records": count,
                             "capture": "immutable_snapshot",
+                            "last_source_stat": source_stat or {},
                         }
                     ),
                     file_id,

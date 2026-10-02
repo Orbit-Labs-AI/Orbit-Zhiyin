@@ -136,6 +136,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                     or event["ts"] is not None
                     and event["ts"] < scope.until_ts
                     or event["ts"] is None
+                    and event["kind"]
+                    not in ("tool.result", "permission.decision", "turn.end", "model.usage")
                     and event["seq"] <= last_seq.get(event["session_uid"], -1)
                 )
             )
@@ -153,8 +155,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             if (
                 result
                 and scope.until_ts is not None
-                and result["ts"] is not None
-                and result["ts"] >= scope.until_ts
+                and (result["ts"] is None or result["ts"] >= scope.until_ts)
             ):
                 tool.update(
                     result_event_uid=None,
@@ -180,7 +181,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                 result = next(
                     (e for e in events if e["event_uid"] == tool["result_event_uid"]), None
                 )
-                if result and result["ts"] is None:
+                if result and result["ts"] is None and scope.until_ts is None:
                     selected.append(result)
                     selected_ids.add(result["event_uid"])
         sessions = {event["session_uid"] for event in selected}
@@ -208,10 +209,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                     available[0]["event_uid"],
                     available[-1]["event_uid"],
                 )
-            if (
-                scope.until_ts is not None
-                and turn["ended_at"] is not None
-                and turn["ended_at"] >= scope.until_ts
+            if scope.until_ts is not None and (
+                turn["ended_at"] is None or turn["ended_at"] >= scope.until_ts
             ):
                 turn["ended_at"], turn["status"] = None, "unknown"
         snapshots = [
@@ -219,9 +218,50 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             for row in connection.execute("SELECT * FROM usage_snapshot")
             if row["event_uid"] in members
         ]
-        unparsed = connection.execute(
-            "SELECT COUNT(*) FROM v_raw_record_ledger WHERE is_current=1 AND disposition='unparsed'"
-        ).fetchone()[0]
+        unrestricted = (
+            scope.root_session_uids is None
+            and scope.project_ids is None
+            and scope.model_ids is None
+            and scope.effort_raw is None
+            and scope.from_ts is None
+            and scope.until_ts is None
+            and not scope.excluded_session_uids
+        )
+        relevant_sources = {row["source_id"] for row in session_rows}
+        relevant_files = set()
+        ordered_sessions = sorted(sessions)
+        for start in range(0, len(ordered_sessions), 500):
+            chunk = ordered_sessions[start : start + 500]
+            markers = ",".join("?" for _ in chunk)
+            relevant_files.update(
+                row[0]
+                for row in connection.execute(
+                    f"SELECT DISTINCT file_id FROM raw_record WHERE session_uid IN ({markers})",
+                    chunk,
+                )
+            )
+        if not unrestricted:
+            sources = [source for source in sources if source["source_id"] in relevant_sources]
+            files = [file for file in files if file["file_id"] in relevant_files]
+        unparsed = sum(
+            1
+            for row in connection.execute(
+                "SELECT file_id FROM v_raw_record_ledger WHERE is_current=1 AND disposition='unparsed'"
+            )
+            if unrestricted or row["file_id"] in relevant_files
+        )
+        if scope.until_ts is not None:
+            for session in session_rows:
+                visible_turns = [
+                    turn for turn in turn_rows if turn["session_uid"] == session["session_uid"]
+                ]
+                session["status"] = (
+                    max(visible_turns, key=lambda turn: turn["idx"])["status"]
+                    if visible_turns
+                    else "unknown"
+                )
+                if session["ended_at"] is None or session["ended_at"] >= scope.until_ts:
+                    session["ended_at"] = None
         unknown = sum(e["kind"] == "unknown" for e in selected)
         time_unknown = sum(e["ts"] is None for e in selected)
         truncated = sum(e["text_truncated"] for e in selected)
@@ -229,7 +269,12 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         diagnostics = [
             decoded(row)
             for row in connection.execute(
-                "SELECT * FROM ingest_issue ORDER BY stage,code,issue_uid"
+                "SELECT i.* FROM ingest_issue i LEFT JOIN raw_record r ON r.record_uid=i.record_uid ORDER BY i.stage,i.code,i.issue_uid"
+            )
+            if unrestricted
+            or (
+                row["source_id"] in relevant_sources
+                and (row["file_id"] is None or row["file_id"] in relevant_files)
             )
         ]
         capture_errors = sum(row["stage"] == "l1" for row in diagnostics)

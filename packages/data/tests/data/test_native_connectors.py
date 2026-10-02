@@ -936,3 +936,135 @@ def test_analysis_reader_rejects_obsolete_projection_without_new_input(tmp_path,
         )
         with pytest.raises(ValueError, match="incomplete"):
             read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+
+
+def test_untimed_tool_result_does_not_enter_historical_analysis(tmp_path):
+    from tandem_data.analysis_input import AnalysisScope, read_analysis
+    from tandem_data.contract import time_fields
+
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "s", "timestamp": ISO},
+                {
+                    "type": "message",
+                    "id": "u",
+                    "timestamp": ISO,
+                    "message": {"role": "user", "content": "check"},
+                },
+                {
+                    "type": "message",
+                    "id": "a",
+                    "timestamp": ISO,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "toolCall",
+                                "id": "c",
+                                "name": "bash",
+                                "arguments": {"command": "pwd"},
+                            }
+                        ],
+                    },
+                },
+                {
+                    "type": "message",
+                    "id": "r",
+                    "message": {
+                        "role": "toolResult",
+                        "toolCallId": "c",
+                        "isError": False,
+                        "content": "eventual result",
+                    },
+                },
+                {
+                    "type": "message",
+                    "id": "late",
+                    "timestamp": "2026-10-02T02:00:00Z",
+                    "message": {"role": "assistant", "content": "later"},
+                },
+            ],
+        )
+        store.rebuild()
+        until = time_fields("2026-10-02T01:00:00Z", "cutoff")[0]
+        bounded = read_analysis(store.home, AnalysisScope("UTC", until_ts=until))
+        assert bounded["tool_calls"][0]["status"] == "unknown"
+        assert bounded["tool_calls"][0]["result_event_uid"] is None
+        assert all(e["kind"] != "tool.result" for e in bounded["events"])
+        assert (
+            read_analysis(store.home, AnalysisScope("UTC"))["tool_calls"][0]["status"]
+            == "completed"
+        )
+
+
+def test_selected_session_coverage_excludes_unrelated_broken_hermes_source(tmp_path):
+    from tandem_data.analysis_input import AnalysisScope, read_analysis
+
+    with Store(tmp_path / "data") as store:
+        source = capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "s", "timestamp": ISO},
+                {
+                    "type": "message",
+                    "id": "u",
+                    "timestamp": ISO,
+                    "message": {"role": "user", "content": "healthy"},
+                },
+            ],
+        )
+        other = store.add_source("hermes", tmp_path / "other")
+        store.capture_stream(other, "broken.jsonl", [b"{bad\n"])
+        store.issue(other, "capture_failed", stage="l1")
+        store.rebuild()
+        session = store.db.execute(
+            "SELECT session_uid FROM session WHERE source_id=?", (source,)
+        ).fetchone()[0]
+        scoped = read_analysis(store.home, AnalysisScope("UTC", root_session_uids=(session,)))
+        assert scoped["coverage"]["events"]["status"] == "available"
+        assert scoped["coverage"]["model_call"]["status"] == "available"
+        assert not scoped["diagnostics"]
+        assert {s["agent"] for s in scoped["sample_boundary"]["sources"]} == {"pi"}
+        assert (
+            read_analysis(store.home, AnalysisScope("UTC"))["coverage"]["events"]["status"]
+            == "partial"
+        )
+
+
+def test_touching_unchanged_file_refreshes_stat_cache_not_capture_provenance(tmp_path, monkeypatch):
+    import os
+
+    root = tmp_path / "pi"
+    file = root / "sessions/s.jsonl"
+    file.parent.mkdir(parents=True)
+    file.write_text(canonical({"type": "session", "id": "s", "timestamp": ISO}) + "\n")
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store)
+        request = ImportRequest("pi", root)
+        service.import_source(request)
+        captured_stat = store.db.execute("SELECT source_stat FROM source_revision").fetchone()[0]
+        old = file.stat()
+        os.utime(file, ns=(old.st_atime_ns, old.st_mtime_ns + 1000000))
+        calls = []
+        original = store.capture_stream
+
+        def counted(*args, **kwargs):
+            calls.append(True)
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(store, "capture_stream", counted)
+        assert service.import_source(request)["changed"] == 0
+        assert len(calls) == 1
+        assert service.import_source(request)["changed"] == 0
+        assert len(calls) == 1
+        assert store.db.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0] == 1
+        assert (
+            store.db.execute("SELECT source_stat FROM source_revision").fetchone()[0]
+            == captured_stat
+        )
