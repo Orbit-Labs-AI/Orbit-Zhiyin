@@ -14,7 +14,7 @@ uv run --project packages/data tandem-data --home .tandem verify
 uv run --project packages/data tandem-data --home .tandem rebuild
 ```
 
-`discover` 只列来源；`scan` 明确启用指定根目录。`--limit N` 只用于样本验证，不能声称全量回填。源目录与 `--home` 必须分开。六个内置 agent 名称为 `claude_code / codex / dsh / pi / hermes / opencode`；未实现的新来源可通过 `capture_stream` 和 `register_mapper` 对接。
+`discover` 只列来源；`scan` 明确启用指定根目录。`--limit N` 只用于样本验证，不能声称全量回填。源目录与 `--home` 必须分开。七个内置 agent 名称为 `claude_code / codex / dsh / pi / hermes / opencode / kimi`；未实现的新来源可通过 `capture_stream` 和 `register_mapper` 对接。
 
 TypeScript Codex connector 使用单独的 staging 目录，不能直接写本包的 `tandem.db`：
 
@@ -49,3 +49,14 @@ git diff --check
 ```
 
 实际日志、数据库、归档都保留在本机的 `.tandem/`，不提交。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不扫描安装清单和 Catalog。
+
+## 六类 Agent connector 与 App 模块
+
+新增 connector 的来源差异、架构、存储语义、实测边界和开源依据见 [完整模块说明](../../docs/backend/agent-connectors.md)。
+
+```sh
+# 仓库根目录：一次运行测试、打包、六家原生样本、本机真实样本和离线查看页
+./scripts/check-connectors.sh --real --open
+```
+
+不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `read_analysis` 只读查询。存储 user_version=2，事件契约仍为 v1；原 v1 数据库自动应用索引迁移。变化文件采用不可变完整快照，未变化文件快速跳过，重算按来源隔离。

@@ -79,6 +79,18 @@ def sqlite_rows(path: Path, agent: str) -> Iterable[bytes]:
                 ).encode()
 
 
+def _record_lines(handle, format_name):
+    if format_name == "json":
+        # Only small, explicitly allowlisted sidecars use document JSON.
+        raw = handle.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            raise ValueError("Metadata document exceeds 16 MiB; original archive retained")
+        if raw:
+            yield raw
+    else:
+        yield from handle
+
+
 class Store:
     def __init__(self, home: str | Path):
         self.home = Path(home).expanduser().resolve()
@@ -201,7 +213,9 @@ class Store:
             chunks = sqlite_rows(path, source["agent"])
             format_name = "sqlite_rows"
             stat = {}
-        elif path.name.endswith((".jsonl", ".jsonl.zst", ".jsonl.zstd")):
+        elif path.name.endswith((".jsonl", ".jsonl.zst", ".jsonl.zstd")) or (
+            path.suffix == ".json" and role in ("subagent_metadata", "session_title")
+        ):
             before = path.stat()
             stat = {
                 "dev": before.st_dev,
@@ -223,15 +237,21 @@ class Store:
             ):
                 changed_role = previous["role"] != role
                 self.db.execute(
-                    "UPDATE source_file SET role=?,status='active',last_scan_at=? WHERE file_id=?",
-                    (role, now_ms(), previous["file_id"]),
+                    "UPDATE source_file SET watermark=CASE WHEN role<>? THEN json_remove(watermark,'$.projected_revision') ELSE watermark END,role=?,status='active',last_scan_at=? WHERE file_id=?",
+                    (role, role, now_ms(), previous["file_id"]),
                 )
                 return {
                     "file_id": previous["file_id"],
                     "changed": changed_role,
                     "records": previous["record_count"],
                 }
-            format_name = "jsonl_zstd" if path.suffix in (".zst", ".zstd") else "jsonl"
+            format_name = (
+                "json"
+                if path.suffix == ".json"
+                else "jsonl_zstd"
+                if path.suffix in (".zst", ".zstd")
+                else "jsonl"
+            )
 
             def contents():
                 with path.open("rb") as handle:
@@ -276,7 +296,7 @@ class Store:
         Source has to be registered. Callers provide bytes, not filesystem write privileges.
         A changed SQL primary-key row gets a monotonically increasing version, even A->B->A.
         """
-        if format_name not in ("jsonl", "jsonl_zstd", "sqlite_rows"):
+        if format_name not in ("jsonl", "jsonl_zstd", "sqlite_rows", "json"):
             raise ValueError("Unsupported record encoding")
         relative = Path(relative_path)
         if relative.is_absolute() or ".." in relative.parts:
@@ -353,10 +373,10 @@ class Store:
             self.db.execute("DELETE FROM file_record WHERE file_id=?", (file_id,))
             count, offset = 0, 0
             with self._decoded(blob_path, format_name) as handle:
-                for ordinal, line in enumerate(handle):
+                for ordinal, line in enumerate(_record_lines(handle, format_name)):
                     row_sha = hashlib.sha256(line).hexdigest()
                     try:
-                        if format_name != "sqlite_rows" and not line.endswith(b"\n"):
+                        if format_name in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
                             raise ValueError("pending_tail")
                         data = json.loads(line)
                         if not isinstance(data, dict):
@@ -366,7 +386,9 @@ class Store:
                             native_type = "table:" + data["table"]
                         else:
                             locator = canonical(["line", ordinal])
-                            native_type = str(data.get("type", "unknown"))
+                            native_type = str(
+                                data.get("type", role if format_name == "json" else "unknown")
+                            )
                         native_id = data.get("uuid", data.get("id"))
                         shape_hash = uid("shape", shape(data))
                     except (ValueError, KeyError, TypeError, UnicodeDecodeError):
@@ -490,9 +512,9 @@ class Store:
         if not info:
             return
         with self._decoded(self.home / info["path"], info["format"]) as handle:
-            for ordinal, line in enumerate(handle):
+            for ordinal, line in enumerate(_record_lines(handle, info["format"])):
                 try:
-                    if info["format"] != "sqlite_rows" and not line.endswith(b"\n"):
+                    if info["format"] in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
                         continue
                     data = json.loads(line)
                     if not isinstance(data, dict):
@@ -523,6 +545,48 @@ class Store:
                         row["captured_at"],
                     )
 
+    def iter_versions(self, file_id: str, native_type: str) -> Iterable[RawRecord]:
+        """Read historical SQL row versions with one sequential decode per revision."""
+        info = self.db.execute(
+            "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id) WHERE file_id=?",
+            (file_id,),
+        ).fetchone()
+        for revision in self.db.execute(
+            "SELECT v.*,a.path FROM source_revision v JOIN archive_blob a USING(archive_uid) WHERE file_id=? ORDER BY revision",
+            (file_id,),
+        ).fetchall():
+            targets = self.db.execute(
+                "SELECT * FROM raw_record WHERE revision_uid=? AND native_type=? ORDER BY byte_offset",
+                (revision["revision_uid"], native_type),
+            ).fetchall()
+            if not targets:
+                continue
+            with self._decoded(self.home / revision["path"], info["format"]) as handle:
+                position = 0
+                for row in targets:
+                    remaining = row["byte_offset"] - position
+                    while remaining:
+                        part = handle.read(min(remaining, 1024 * 1024))
+                        if not part:
+                            raise ValueError("Archive shorter than L1 locator")
+                        remaining -= len(part)
+                    raw = handle.read(row["byte_len"])
+                    if hashlib.sha256(raw).hexdigest() != row["sha256"]:
+                        raise ValueError("L0 record hash mismatch")
+                    position = row["byte_offset"] + row["byte_len"]
+                    yield RawRecord(
+                        row["record_uid"],
+                        info["source_id"],
+                        info["agent"],
+                        file_id,
+                        info["relative_path"],
+                        row["ordinal"],
+                        row["version"],
+                        native_type,
+                        json.loads(raw),
+                        revision["captured_at"],
+                    )
+
     def read_raw(self, record_uid: str) -> bytes:
         row = self.db.execute(
             "SELECT r.*,a.path,f.format FROM raw_record r JOIN source_revision v USING(revision_uid) "
@@ -543,10 +607,10 @@ class Store:
             raise ValueError("L0 record hash mismatch")
         return data
 
-    def rebuild(self, *, mapper_version=None) -> dict:
+    def rebuild(self, *, mapper_version=None, source_ids=None) -> dict:
         from tandem_data.pipeline import rebuild
 
-        return rebuild(self, mapper_version=mapper_version)
+        return rebuild(self, mapper_version=mapper_version, source_ids=source_ids)
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event
@@ -560,6 +624,34 @@ class Store:
             if digest.hexdigest() != blob["sha256"]:
                 raise ValueError("L0 archive hash mismatch")
             checked += 1
+        # Verify locators and every L1 digest with linear reads, including superseded rows.
+        records_verified = 0
+        for revision in self.db.execute(
+            "SELECT v.revision_uid,a.path,f.format FROM source_revision v JOIN archive_blob a USING(archive_uid) JOIN source_file f USING(file_id)"
+        ).fetchall():
+            targets = self.db.execute(
+                "SELECT byte_offset,byte_len,sha256 FROM raw_record WHERE revision_uid=? ORDER BY byte_offset",
+                (revision["revision_uid"],),
+            )
+            with self._decoded(self.home / revision["path"], revision["format"]) as handle:
+                position = 0
+                for target in targets:
+                    remaining = target["byte_offset"] - position
+                    while remaining:
+                        block = handle.read(min(remaining, 1024 * 1024))
+                        if not block:
+                            raise ValueError("Archive shorter than L1 locator")
+                        remaining -= len(block)
+                    data = handle.read(target["byte_len"])
+                    if hashlib.sha256(data).hexdigest() != target["sha256"]:
+                        raise ValueError("L1 record digest mismatch")
+                    position = target["byte_offset"] + target["byte_len"]
+                    records_verified += 1
+        inconsistent = self.db.execute(
+            "SELECT COUNT(*) FROM v_raw_record_ledger WHERE (disposition IN ('mapped','folded','replayed','duplicate') AND event_count=0) OR (disposition IN ('ignored','unparsed') AND event_count>0)"
+        ).fetchone()[0]
+        if inconsistent:
+            raise ValueError("L1 dispositions disagree with evidence links")
         for row in self.db.execute("SELECT * FROM event"):
             envelope = dict(row)
             for name in ("attrs", "ext", "native_key"):
@@ -578,6 +670,7 @@ class Store:
         return {
             "integrity": "ok",
             "archives_verified": checked,
+            "record_hashes_verified": records_verified,
             "records": total,
             "dispositions": counts,
             "unparsed": counts.get("unparsed", 0),

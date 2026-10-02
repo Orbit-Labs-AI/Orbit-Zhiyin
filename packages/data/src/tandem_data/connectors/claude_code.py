@@ -7,10 +7,26 @@ from tandem_data.contract import unused
 class ClaudeMapper(BaseMapper):
     def prepare(self, records):
         self.header = {}
-        for record in records:
-            if record.data.get("sessionId"):
-                self.header = record.data
-                break
+        self.usage_records = {}
+
+        def inspect(record):
+            data = record.data
+            if data.get("sessionId") and not self.header:
+                self.header = data
+            message = data.get("message")
+            if (
+                data.get("type") == "assistant"
+                and isinstance(message, dict)
+                and message.get("id")
+                and message.get("usage")
+                and not data.get("isApiErrorMessage")
+            ):
+                score = (bool(message.get("stop_reason")), record.ordinal)
+                previous = self.usage_records.get(message["id"])
+                if previous is None or score > previous[0]:
+                    self.usage_records[message["id"]] = (score, record.record_uid)
+
+        self.prepare_each(records, inspect)
 
     def native_key(self, record):
         if record.data.get("uuid"):
@@ -19,7 +35,34 @@ class ClaudeMapper(BaseMapper):
 
     def map(self, record):
         data = record.data
+        if self.info["role"] in ("subagent_metadata", "session_title"):
+            path = PurePosixPath(record.relative_path)
+            if self.info["role"] == "subagent_metadata":
+                parts = path.parts
+                parent = parts[parts.index("subagents") - 1]
+                native = parent + ":" + path.name.removesuffix(".meta.json")
+                event = self.meta(
+                    record,
+                    native,
+                    kind="workflow_agent" if "workflows" in parts else "subagent",
+                    parent_native_id=parent,
+                    depth=data.get("spawnDepth", 1),
+                    spawn_native_call_id=data.get("toolUseId"),
+                )
+            else:
+                self.session_uid = self.store.identity(
+                    record.source_id, str(data.get("sessionId", path.parent.name))
+                )
+                event = self.make(
+                    record,
+                    "session.title",
+                    "sidecar.title",
+                    text=data.get("customTitle", data.get("title")),
+                    attrs={"title_source": "custom"},
+                )
+            return Mapping([event])
         events = []
+        usage_references = []
         if self.first:
             parent = None
             native = str(self.header.get("sessionId", PurePosixPath(record.relative_path).stem))
@@ -77,7 +120,7 @@ class ClaudeMapper(BaseMapper):
                 events.append(
                     self.make(record, "turn.end", "interruption", attrs={"status": "interrupted"})
                 )
-                return Mapping(events)
+                return Mapping(events, references=usage_references)
             self.native_turn = data.get("promptId", self.native_turn)
             attrs = {
                 "cwd": data.get("cwd"),
@@ -140,22 +183,42 @@ class ClaudeMapper(BaseMapper):
                         event.attrs["status"] = "interrupted"
                     event.ext["toolUseResult"] = result
             events.extend(contents)
-            if typ == "assistant" and message.get("usage") and message.get("id"):
+            if (
+                typ == "assistant"
+                and message.get("usage")
+                and message.get("id")
+                and not data.get("isApiErrorMessage")
+            ):
+                usage_event = self.usage(
+                    record,
+                    message["usage"],
+                    "claude_code",
+                    request_id=message["id"],
+                    request_key=[record.source_id, message["id"]],
+                    stop_reason=message.get("stop_reason"),
+                    cwd=data.get("cwd"),
+                    coverage="unknown"
+                    if data.get("isSidechain") and not message.get("stop_reason")
+                    else "self",
+                    estimated=bool(data.get("isSidechain") and not message.get("stop_reason")),
+                )
+                if self.usage_records.get(message["id"], (None, None))[1] == record.record_uid:
+                    events.append(usage_event)
+                else:
+                    usage_references.append(usage_event.event_uid)
+            if data.get("isApiErrorMessage"):
                 events.append(
-                    self.usage(
+                    self.make(
                         record,
-                        message["usage"],
-                        "claude_code",
-                        request_id=message["id"],
-                        request_key=[record.source_id, message["id"]],
-                        stop_reason=message.get("stop_reason"),
-                        cwd=data.get("cwd"),
-                        coverage="unknown"
-                        if data.get("isSidechain") and not message.get("stop_reason")
-                        else "self",
-                        estimated=bool(data.get("isSidechain") and not message.get("stop_reason")),
+                        "error",
+                        "api_error",
+                        attrs={
+                            "error_class": data.get("error"),
+                            "status_code": data.get("apiErrorStatus"),
+                        },
                     )
                 )
+
         elif typ in ("custom-title", "ai-title", "agent-name"):
             events.append(
                 self.make(
@@ -242,4 +305,4 @@ class ClaudeMapper(BaseMapper):
                 or str(typ).startswith("artifact-")
                 else Mapping(events + self.unknown(record).events)
             )
-        return Mapping(events)
+        return Mapping(events, references=usage_references)

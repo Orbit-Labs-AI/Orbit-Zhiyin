@@ -272,7 +272,7 @@ def normalize_usage(reported: dict, dialect: str) -> dict:
 
     values = dict(zip(TOKENS, (read(name) for name in names), strict=True))
     if dialect == "claude_code":
-        values["reasoning_tokens"] = reported.get("output_tokens_details", {}).get(
+        values["reasoning_tokens"] = (reported.get("output_tokens_details") or {}).get(
             "thinking_tokens"
         )
     if dialect == "codex" and values["input_tokens"] is not None:

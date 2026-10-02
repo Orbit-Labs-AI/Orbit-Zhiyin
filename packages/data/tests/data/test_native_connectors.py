@@ -632,3 +632,190 @@ def test_unterminated_tail_and_concatenated_zstd_are_retried(tmp_path):
         assert service.import_source(request)["changed"] == 1
         assert rows(store, "session")[0]["title"] == "fixture"
         assert_sound(store)
+
+
+def test_claude_final_usage_replaces_placeholder_and_nullable_details(tmp_path):
+    common = {"type": "assistant", "sessionId": "s", "timestamp": ISO, "isSidechain": True}
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "claude_code",
+            [
+                {
+                    **common,
+                    "uuid": "a",
+                    "message": {
+                        "id": "r",
+                        "content": [{"type": "text", "text": "a"}],
+                        "stop_reason": None,
+                        "usage": {
+                            "input_tokens": 2,
+                            "output_tokens": 7,
+                            "output_tokens_details": None,
+                        },
+                    },
+                },
+                {
+                    **common,
+                    "uuid": "b",
+                    "message": {
+                        "id": "r",
+                        "content": [{"type": "text", "text": "b"}],
+                        "stop_reason": "end_turn",
+                        "usage": {
+                            "input_tokens": 2,
+                            "output_tokens": 305,
+                            "output_tokens_details": {"thinking_tokens": 199},
+                        },
+                    },
+                },
+                {
+                    **common,
+                    "uuid": "err",
+                    "isApiErrorMessage": True,
+                    "message": {
+                        "id": "synthetic",
+                        "content": [{"type": "text", "text": "error"}],
+                        "usage": {
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "output_tokens_details": None,
+                        },
+                    },
+                },
+            ],
+        )
+        store.rebuild()
+        assert len(rows(store, "model_call")) == 1
+        assert rows(store, "model_call")[0]["output_tokens"] == 305
+        assert rows(store, "model_call")[0]["reasoning_tokens"] == 199
+        assert not store.db.execute(
+            "SELECT * FROM ingest_issue WHERE code='conflicting_request_usage'"
+        ).fetchall()
+        assert_sound(store)
+
+
+def test_scoped_rebuild_preserves_other_sources_and_recovers_unpublished_capture(
+    tmp_path, monkeypatch
+):
+    from tandem_data.connectors.pi import PiMapper
+
+    pi_root = tmp_path / "pi"
+    dsh_root = tmp_path / "dsh"
+    (pi_root / "sessions").mkdir(parents=True)
+    (dsh_root / "sessions/p/s").mkdir(parents=True)
+    (pi_root / "sessions/a.jsonl").write_text(
+        canonical({"type": "session", "id": "p", "timestamp": ISO}) + "\n"
+    )
+    file = dsh_root / "sessions/p/s/session.jsonl"
+    file.write_text(canonical({"type": "session", "id": "d", "version": 4, "createdAt": T}) + "\n")
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store)
+        service.import_source(ImportRequest("pi", pi_root))
+        service.import_source(ImportRequest("dsh", dsh_root))
+
+        def forbid(*_):
+            raise AssertionError("Unchanged source should not be re-parsed")
+
+        monkeypatch.setattr(PiMapper, "map", forbid)
+        with file.open("a") as handle:
+            handle.write(
+                canonical({"type": "session/title", "seq": 0, "data": {"title": "changed"}}) + "\n"
+            )
+        result = service.import_source(ImportRequest("dsh", dsh_root, rebuild=False))
+        assert result["changed"] == 1
+        recovered = service.import_source(ImportRequest("dsh", dsh_root))
+        assert "projection" in recovered and len(rows(store, "session")) == 2
+        assert store.verify()["unparsed"] == 0
+
+
+def test_claude_json_sidecar_exact_archive_and_subagent_lineage(tmp_path):
+    root = tmp_path / "claude"
+    folder = root / "projects/project/s/subagents"
+    folder.mkdir(parents=True)
+    (root / "projects/project/s.jsonl").write_text(
+        canonical({"type": "user", "sessionId": "s", "uuid": "u", "message": {"content": "hi"}})
+        + "\n"
+    )
+    (folder / "agent-child.jsonl").write_text(
+        canonical(
+            {"type": "assistant", "sessionId": "s", "uuid": "a", "message": {"content": "reply"}}
+        )
+        + "\n"
+    )
+    raw = b'{\n "agentType": "explore", "toolUseId": "c", "spawnDepth": 1\n}'
+    (folder / "agent-child.meta.json").write_bytes(raw)
+    with Store(tmp_path / "data") as store:
+        ImportService(store).import_source(ImportRequest("claude_code", root))
+        assert len(rows(store, "session")) == 2
+        record = store.db.execute(
+            "SELECT record_uid FROM raw_record WHERE native_type='subagent_metadata'"
+        ).fetchone()
+        assert store.read_raw(record[0]) == raw
+        assert_sound(store)
+
+
+def test_incomplete_jsonl_tail_is_archived_and_retried(tmp_path):
+    root = tmp_path / "pi"
+    (root / "sessions").mkdir(parents=True)
+    file = root / "sessions/s.jsonl"
+    prefix = canonical({"type": "session", "id": "s", "timestamp": ISO}) + "\n"
+    message = canonical(
+        {"type": "message", "id": "m", "message": {"role": "user", "content": "hello"}}
+    )
+    file.write_text(prefix + message[:20])
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store)
+        service.import_source(ImportRequest("pi", root))
+        assert store.verify()["unparsed"] == 0
+        assert not rows(store, "v_human_message")
+        file.write_text(prefix + message + "\n")
+        service.import_source(ImportRequest("pi", root))
+        assert len(rows(store, "v_human_message")) == 1
+        assert_sound(store)
+
+
+def test_verify_detects_broken_l1_provenance(tmp_path):
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "pi", [{"type": "session", "id": "s"}])
+        store.rebuild()
+        store.db.execute("DELETE FROM record_event")
+        with pytest.raises(ValueError, match="evidence"):
+            store.verify()
+
+
+def test_kimi_contiguous_stream_is_one_response_block_with_all_evidence(tmp_path):
+    records = [{"type": "metadata", "protocol_version": "1.5", "created_at": T}]
+    for index, text in enumerate(["你", "好", "，世界"]):
+        records.append(
+            {
+                "type": "context.append_loop_event",
+                "time": T + index,
+                "event": {
+                    "type": "content.part",
+                    "stepUuid": "step",
+                    "part": {"type": "text", "text": text},
+                },
+            }
+        )
+    records.append(
+        {
+            "type": "context.append_loop_event",
+            "time": T + 4,
+            "event": {"type": "step.end", "uuid": "step"},
+        }
+    )
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "kimi", records, "sessions/w/s/agents/main/wire.jsonl")
+        store.rebuild()
+        event = store.db.execute("SELECT * FROM event WHERE kind='message.assistant'").fetchall()
+        assert len(event) == 1 and event[0]["text"] == "你好，世界"
+        assert json.loads(event[0]["attrs"])["partial"] is False
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM record_event WHERE event_uid=?", (event[0]["event_uid"],)
+            ).fetchone()[0]
+            == 3
+        )
+        assert_sound(store)

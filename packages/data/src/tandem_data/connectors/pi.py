@@ -82,6 +82,51 @@ class PiMapper(BaseMapper):
             )
         if typ == "message":
             message = data.get("message", {})
+            if message.get("role") == "bashExecution":
+                call_id = str(data.get("id", record.record_uid))
+                call = self.make(
+                    record,
+                    "tool.call",
+                    "bash.call",
+                    actor="human",
+                    call_id=call_id,
+                    attrs={"name": "bash", "input": {"command": message.get("command")}},
+                )
+                result = self.make(
+                    record,
+                    "tool.result",
+                    "bash.result",
+                    actor="tool",
+                    call_id=call_id,
+                    text=message.get("output"),
+                    attrs={
+                        "name": "bash",
+                        "exit_code": message.get("exitCode"),
+                        "status": "interrupted"
+                        if message.get("cancelled")
+                        else "completed"
+                        if message.get("exitCode") == 0
+                        else "failed"
+                        if message.get("exitCode") is not None
+                        else "unknown",
+                        "status_scope": "command",
+                    },
+                )
+                return Mapping([call, result])
+            if message.get("role") in ("branchSummary", "compactionSummary"):
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "branch"
+                            if message["role"] == "branchSummary"
+                            else "context.compaction",
+                            "message.summary",
+                            text=message.get("summary"),
+                            ext=message,
+                        )
+                    ]
+                )
             self.model = message.get("model", self.model)
             self.provider = message.get("provider", self.provider)
             self.effort = message.get("thinkingLevel", self.effort)

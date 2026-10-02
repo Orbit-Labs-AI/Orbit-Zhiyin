@@ -93,7 +93,7 @@ def _model(store, provider, raw):
 
 
 TOOL_KINDS = {
-    "shell": {"bash", "exec", "exec_command", "commandexecution", "shell", "pwsh"},
+    "shell": {"bash", "exec", "exec_command", "commandexecution", "shell", "pwsh", "terminal"},
     "file.read": {"read", "read_file", "view_image"},
     "file.edit": {"edit", "multiedit", "apply_patch", "filechange", "str_replace_editor"},
     "file.write": {"write", "write_file"},
@@ -166,11 +166,12 @@ def _duration(call, result, attrs):
     return None, "unknown", "missing"
 
 
-def derive(store):
+def derive(store, *, scoped=False):
     identities = {
         row["session_uid"]: dict(row)
         for row in store.db.execute(
             "SELECT DISTINCT i.* FROM session_identity i JOIN event e USING(session_uid)"
+            + (" WHERE i.source_id IN (SELECT source_id FROM rebuild_scope)" if scoped else "")
         )
     }
     metas = {}

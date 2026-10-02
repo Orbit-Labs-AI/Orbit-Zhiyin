@@ -30,9 +30,14 @@ class DshMapper(BaseMapper):
             if typ == "llm/retry-started":
                 attempt += 1
             key = (payload.get("turn"), payload.get("step"), attempt)
-            self.record_steps[record.record_uid] = key
+            if typ in CHUNKS or typ in ("assistant/message", "assistant/attempt"):
+                self.record_steps[record.record_uid] = key
             if typ == "assistant/message":
-                self.final_records[key] = record
+                self.final_records[key] = (record.record_uid, self.native_key(record))
+                if key in self.fragments:
+                    self.fragments[key]["text"].clear()
+                    self.fragments[key]["reasoning"].clear()
+                    self.fragments[key]["last"] = None
             if typ in CHUNKS:
                 fragment = self.fragments.setdefault(
                     key, {"records": [], "text": [], "reasoning": [], "usage": None, "last": record}
@@ -60,9 +65,9 @@ class DshMapper(BaseMapper):
         self.chunk_targets = {}
         for key, fragment in self.fragments.items():
             final = self.final_records.get(key)
-            target = final or fragment["last"]
+            target_key = final[1] if final else self.native_key(fragment["last"])
             # A stable stream evidence event is emitted even for tool-only/empty responses.
-            ref = uid("event", self.native_key(target), "context.inject", "stream.evidence")
+            ref = uid("event", target_key, "context.inject", "stream.evidence")
             for record_id in fragment["records"]:
                 self.chunk_targets[record_id] = ref
 
@@ -196,7 +201,10 @@ class DshMapper(BaseMapper):
                 if typ == "assistant/message"
                 else [self.make(record, "error", "attempt", ext=payload)]
             )
-            if key in self.fragments and self.final_records.get(key) == record:
+            if (
+                key in self.fragments
+                and self.final_records.get(key, (None,))[0] == record.record_uid
+            ):
                 events.append(self._stream_evidence(record))
             usage = payload.get("usage")
             if usage is None:
@@ -325,6 +333,8 @@ class DshMapper(BaseMapper):
             "llm/retry": "error",
             "llm/retry-started": "error",
             "agent/inbox/spliced": "queue",
+            "command/run": "context.inject",
+            "command/done": "context.inject",
             "session/title-llm-request": "context.inject",
             "web/deepseek-search-llm-request": "context.inject",
         }

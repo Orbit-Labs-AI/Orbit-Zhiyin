@@ -130,19 +130,16 @@ class ImportService:
                             (now_ms(), row["file_id"]),
                         )
             # A failed/cancelled previous run can leave new L1 revisions unpublished.
-            previous = self.store.db.execute(
-                "SELECT * FROM projection_run ORDER BY run_id DESC LIMIT 1"
-            ).fetchone()
-            revisions = self.store.db.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
-            stale = (
-                not previous
-                or previous["l1_revision_count"] != revisions
-                or previous["mapper_version"] != MAPPER_VERSION
-                or previous["reducer_version"] != REDUCER_VERSION
-            )
-            if request.rebuild and not result["cancelled"] and (stale or result["changed"]):
+            stale_sources = {
+                row[0]
+                for row in self.store.db.execute(
+                    "SELECT DISTINCT source_id FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>?",
+                    (MAPPER_VERSION, REDUCER_VERSION),
+                )
+            }
+            if request.rebuild and not result["cancelled"] and stale_sources:
                 self.progress({"stage": "normalize", "agent": request.agent})
-                result["projection"] = self.store.rebuild()
+                result["projection"] = self.store.rebuild(source_ids=stale_sources)
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)
             result["current_unparsed"] = self.store.db.execute(
                 "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",

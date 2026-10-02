@@ -35,17 +35,25 @@ def candidates(home: Path | None = None) -> list[dict]:
     ):
         if os.getenv(variable):
             roots[agent].append(Path(os.environ[variable]).expanduser())
-    return [
-        {"agent": agent, "root": str(root.resolve())}
+    desktop = home / "Library/Application Support/Claude/local-agent-mode-sessions"
+    if desktop.is_dir():
+        roots["claude_code"].extend(desktop.glob("**/.claude"))
+    found = {
+        (agent, str(root.resolve()))
         for agent, paths in roots.items()
-        for root in dict.fromkeys(paths)
+        for root in paths
         if root.is_dir()
-    ]
+    }
+    return [{"agent": agent, "root": root} for agent, root in sorted(found)]
 
 
 def inputs(agent: str, root: Path):
     patterns = {
-        "claude_code": ("projects/**/*.jsonl",),
+        "claude_code": (
+            "projects/**/*.jsonl",
+            "projects/**/agent-*.meta.json",
+            "projects/**/custom-title.json",
+        ),
         "codex": (
             "sessions/**/*.jsonl",
             "sessions/**/*.jsonl.zst",
@@ -67,7 +75,9 @@ def inputs(agent: str, root: Path):
             path
             for pattern in patterns[agent]
             for path in root.glob(pattern)
-            if path.is_file() and path.resolve().is_relative_to(root.resolve())
+            if path.is_file()
+            and not path.is_symlink()
+            and path.resolve().is_relative_to(root.resolve())
         }
     )
     if agent == "dsh":
@@ -84,7 +94,11 @@ def inputs(agent: str, root: Path):
         for path in found:
             yield InputFile(
                 path,
-                "session_index"
+                "subagent_metadata"
+                if path.name.endswith(".meta.json") and agent == "claude_code"
+                else "session_title"
+                if path.name == "custom-title.json" and agent == "claude_code"
+                else "session_index"
                 if path.name == "session_index.jsonl" and agent == "kimi"
                 else "subagent_transcript"
                 if "subagents" in path.parts

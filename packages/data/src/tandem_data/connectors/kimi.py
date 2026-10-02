@@ -7,7 +7,7 @@ one request's usage (usageScope only identifies its purpose); step.end mirrors i
 from pathlib import PurePosixPath
 
 from tandem_data.connectors.base import BaseMapper, Mapping, text_content
-from tandem_data.contract import time_fields
+from tandem_data.contract import canonical, time_fields
 
 
 class KimiMapper(BaseMapper):
@@ -15,6 +15,9 @@ class KimiMapper(BaseMapper):
         self.has_usage = False
         self.session_native, self.agent_id = None, "main"
         self.index = {}
+        self.content_groups = {}
+        self.completed_steps = set()
+        previous_group = None
         parts = PurePosixPath(self.info["relative_path"]).parts
         if "agents" in parts:
             position = parts.index("agents")
@@ -23,20 +26,68 @@ class KimiMapper(BaseMapper):
             self.session_native = parts[-2] if len(parts) > 1 else parts[-1]
 
         def inspect(record):
+            nonlocal previous_group
             if record.data.get("type") == "metadata":
                 self.header = record.data
             if record.data.get("type") == "usage.record":
                 self.has_usage = True
+            loop = record.data.get("event", {})
+            if record.data.get("type") == "context.append_loop_event" and isinstance(loop, dict):
+                if loop.get("type") == "step.end":
+                    self.completed_steps.add(loop.get("uuid"))
+                part = loop.get("part", {})
+                typ = part.get("type") if isinstance(part, dict) else None
+                if loop.get("type") == "content.part" and typ in ("text", "think"):
+                    signature = canonical(
+                        [
+                            loop.get("stepUuid"),
+                            typ,
+                            part.get("meta"),
+                            part.get("detailsIndex"),
+                            part.get("hidden"),
+                            part.get("reasoningKey"),
+                        ]
+                    )
+                    compatible = (
+                        previous_group
+                        and previous_group["signature"] == signature
+                        and previous_group["last_ordinal"] + 1 == record.ordinal
+                        and not part.get("encrypted")
+                        and not previous_group["part"].get("encrypted")
+                    )
+                    if not compatible:
+                        previous_group = {
+                            "first": record.record_uid,
+                            "signature": signature,
+                            "part": dict(part),
+                            "fragments": [],
+                            "step": loop.get("stepUuid"),
+                            "references": [],
+                        }
+                    previous_group["last_ordinal"] = record.ordinal
+                    previous_group["fragments"].append(
+                        part.get("text" if typ == "text" else "think", "")
+                    )
+                    self.content_groups[record.record_uid] = previous_group
 
         self.prepare_each(records, inspect)
         # Read only captured metadata. Index paths never grant access to other files.
-        for row in self.store.db.execute(
-            "SELECT file_id FROM source_file WHERE source_id=? AND role='session_index'",
-            (self.info["source_id"],),
-        ):
-            for record in self.store.iter_file(row["file_id"]):
-                if record.data.get("sessionId") == self.session_native:
-                    self.index.update(record.data)
+        cache = getattr(self.store, "_kimi_indexes", None)
+        if cache is None:
+            cache = self.store._kimi_indexes = {}
+        source_id = self.info["source_id"]
+        if source_id not in cache:
+            cache[source_id] = {}
+            for row in self.store.db.execute(
+                "SELECT file_id FROM source_file WHERE source_id=? AND role='session_index'",
+                (source_id,),
+            ):
+                for record in self.store.iter_file(row["file_id"]):
+                    if record.data.get("sessionId"):
+                        cache[source_id].setdefault(record.data["sessionId"], {}).update(
+                            record.data
+                        )
+        self.index = cache[source_id].get(self.session_native, {})
 
     def make(self, *args, **kwargs):
         kwargs.setdefault("ts_field", "time")
@@ -79,12 +130,14 @@ class KimiMapper(BaseMapper):
                 {
                     "type": "toolCall",
                     "id": call["id"],
-                    "name": call["name"],
-                    "arguments": call.get("arguments"),
+                    "name": call.get("name", call.get("function", {}).get("name")),
+                    "arguments": call.get("arguments", call.get("function", {}).get("arguments")),
                 }
             )
         message["content"] = blocks
-        origin = self._origin(message.get("origin"))
+        origin = (
+            "human" if message.get("role") == "assistant" else self._origin(message.get("origin"))
+        )
         if self.agent_id != "main" and origin == "human":
             origin = "injected"
         events = self.message(record, message, origin=origin, base_path=path)
@@ -145,14 +198,26 @@ class KimiMapper(BaseMapper):
             self.native_turn = loop.get("turnId", self.native_turn)
             sub = loop["type"]
             if sub == "content.part":
-                events.extend(
-                    self._message(
-                        record, {"role": "assistant", "content": [loop["part"]]}, "loop.part"
+                group = self.content_groups.get(record.record_uid)
+                if group and group["first"] != record.record_uid:
+                    return Mapping(
+                        disposition="folded",
+                        references=group["references"],
+                        reason="contiguous_stream_content",
                     )
+                part = dict(group["part"]) if group else loop["part"]
+                if group:
+                    field = "text" if part["type"] == "text" else "think"
+                    part[field] = "".join(group["fragments"])
+                messages = self._message(
+                    record, {"role": "assistant", "content": [part]}, "loop.part"
                 )
-                for event in events:
-                    event.attrs["partial"] = True
+                for event in messages:
+                    event.attrs["partial"] = loop.get("stepUuid") not in self.completed_steps
                     event.attrs["step_id"] = loop.get("stepUuid")
+                if group:
+                    group["references"] = [event.event_uid for event in messages]
+                events.extend(messages)
             elif sub == "tool.call":
                 events.append(
                     self.make(

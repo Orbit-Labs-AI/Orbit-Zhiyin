@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
-from tandem_data.contract import RawRecord, canonical, now_ms, validate_event
+from tandem_data.contract import canonical, now_ms, validate_event
 from tandem_data.store import insert
 
 
@@ -21,7 +21,7 @@ def _merge(old, new):
     return result
 
 
-def rebuild(store, *, mapper_version=None):
+def rebuild(store, *, mapper_version=None, source_ids=None):
     from tandem_data.reduce import derive
 
     mapper_version = mapper_version or MAPPER_VERSION
@@ -29,34 +29,57 @@ def rebuild(store, *, mapper_version=None):
     parent_keys = {}
     first_by_native = {}
     pending = []
+    store._kimi_indexes = {}
     with store.transaction():
+        store.db.execute(
+            "CREATE TEMP TABLE IF NOT EXISTS rebuild_scope(source_id TEXT PRIMARY KEY)"
+        )
+        store.db.execute("DELETE FROM rebuild_scope")
+        if source_ids is None:
+            store.db.execute("INSERT INTO rebuild_scope SELECT source_id FROM source")
+        else:
+            store.db.executemany(
+                "INSERT INTO rebuild_scope VALUES(?)", ((s,) for s in sorted(set(source_ids)))
+            )
+        sessions = "SELECT session_uid FROM session_identity WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
+        evidence = "SELECT event_uid FROM event WHERE session_uid IN (" + sessions + ")"
+        source_files = "SELECT file_id FROM source_file WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
+        store.db.execute(
+            "DELETE FROM tool_call_event WHERE call_uid IN (SELECT call_uid FROM tool_call WHERE session_uid IN ("
+            + sessions
+            + "))"
+        )
+        for table in ("record_event", "event_context"):
+            store.db.execute(f"DELETE FROM {table} WHERE event_uid IN ({evidence})")
         for table in (
-            "tool_call_event",
             "model_call",
             "usage_snapshot",
             "session_feature",
             "link",
-            "event_context",
-            "record_event",
             "tool_call",
             "turn",
             "session",
             "event",
         ):
-            store.db.execute(f"DELETE FROM {table}")
-        store.db.execute("DELETE FROM ingest_issue WHERE stage IN ('l2','l3')")
+            store.db.execute(f"DELETE FROM {table} WHERE session_uid IN ({sessions})")
         store.db.execute(
-            "UPDATE raw_record SET disposition='ignored',note='{"
-            + '"reason":"superseded source row version"'
-            + "}'"
+            "DELETE FROM ingest_issue WHERE stage IN ('l2','l3') AND source_id IN (SELECT source_id FROM rebuild_scope)"
         )
         store.db.execute(
-            "UPDATE raw_record SET disposition='unparsed',note='{}' WHERE record_uid IN (SELECT record_uid FROM file_record)"
+            "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id IN ("
+            + source_files
+            + ")",
+            (canonical({"reason": "superseded source row version"}),),
+        )
+        store.db.execute(
+            "UPDATE raw_record SET disposition='unparsed',note='{}' WHERE file_id IN ("
+            + source_files
+            + ") AND record_uid IN (SELECT record_uid FROM file_record)"
         )
         infos = list(
             store.db.execute(
                 "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id) "
-                "ORDER BY s.agent,f.source_id,f.relative_path"
+                "WHERE s.source_id IN (SELECT source_id FROM rebuild_scope) ORDER BY s.agent,f.source_id,f.relative_path"
             )
         )
         mappers = {}
@@ -147,10 +170,14 @@ def rebuild(store, *, mapper_version=None):
             if result.events:
                 result.events[0].ext = {"native": record.data, **result.events[0].ext}
             # Contract errors are implementation bugs: abort and retain the previous published projection.
-            for draft in result.events:
-                validate_event(draft.envelope(record.record_uid, 0, mapper_version))
+            prepared = [
+                (draft, draft.envelope(record.record_uid, 0, mapper_version))
+                for draft in result.events
+            ]
+            for _, envelope in prepared:
+                validate_event(envelope)
             relations = []
-            for draft in result.events:
+            for draft, prepared_envelope in prepared:
                 existing = store.db.execute(
                     "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
                 ).fetchone()
@@ -160,9 +187,7 @@ def rebuild(store, *, mapper_version=None):
                     )
                     if relation != "replayed":
                         attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
-                        incoming = draft.envelope(
-                            record.record_uid, existing["seq"], mapper_version
-                        )
+                        incoming = {**prepared_envelope, "seq": existing["seq"]}
                         merged, merged_ext = (
                             _merge(attrs, incoming["attrs"]),
                             _merge(ext, incoming["ext"]),
@@ -204,9 +229,7 @@ def rebuild(store, *, mapper_version=None):
                         (record.record_uid, draft.event_uid, relation),
                     )
                 else:
-                    envelope = draft.envelope(
-                        record.record_uid, sequences[draft.session_uid], mapper_version
-                    )
+                    envelope = {**prepared_envelope, "seq": sequences[draft.session_uid]}
                     sequences[draft.session_uid] += 1
                     envelope["native_key"] = canonical(envelope["native_key"])
                     envelope["attrs"] = canonical(envelope["attrs"])
@@ -261,24 +284,7 @@ def rebuild(store, *, mapper_version=None):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.
                 map_record(mapper, record)
-            versions = store.db.execute(
-                "SELECT r.*,v.captured_at FROM raw_record r JOIN source_revision v USING(revision_uid) "
-                "WHERE r.file_id=? AND r.native_type='table:session_model_usage' ORDER BY v.revision,r.ordinal",
-                (info["file_id"],),
-            ).fetchall()
-            for row in versions:
-                record = RawRecord(
-                    row["record_uid"],
-                    info["source_id"],
-                    info["agent"],
-                    info["file_id"],
-                    info["relative_path"],
-                    row["ordinal"],
-                    row["version"],
-                    row["native_type"],
-                    json.loads(store.read_raw(row["record_uid"])),
-                    row["captured_at"],
-                )
+            for record in store.iter_versions(info["file_id"], "table:session_model_usage"):
                 map_record(mapper, record)
         for record, result in pending:
             resolved = [
@@ -303,7 +309,7 @@ def rebuild(store, *, mapper_version=None):
                 for event_uid in resolved:
                     store.db.execute(
                         "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
-                        (record.record_uid, event_uid, result.disposition),
+                        (record.record_uid, event_uid, result.disposition or "folded"),
                     )
         for event_uid, native_key in parent_keys.items():
             if native_key in first_by_native and first_by_native[native_key] != event_uid:
@@ -321,7 +327,12 @@ def rebuild(store, *, mapper_version=None):
                 record_uid=row["record_uid"],
                 file_id=row["file_id"],
             )
-        derive(store)
+        derive(store, scoped=True)
+        for info in infos:
+            store.db.execute(
+                "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?) WHERE file_id=?",
+                (mapper_version, REDUCER_VERSION, info["file_id"]),
+            )
         dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
         if dangling:
             raise ValueError("Projection contains broken foreign keys")
@@ -340,7 +351,9 @@ def rebuild(store, *, mapper_version=None):
                 REDUCER_VERSION,
                 now_ms(),
                 count,
-                store.db.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0],
+                store.db.execute(
+                    "SELECT COALESCE(SUM(json_extract(watermark,'$.projected_revision')),0) FROM source_file"
+                ).fetchone()[0],
             ),
         )
     return {
