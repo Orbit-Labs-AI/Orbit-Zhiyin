@@ -163,6 +163,11 @@ def _render_json(target: dict, current: bytes | None) -> dict:
         if existing is not _ABSENT and not isinstance(existing, dict):
             raise OpConflict("container_type", detail={"pointer": pointer})
         base = existing if isinstance(existing, dict) else {}
+        if (len(parts) >= 2 and parts[-2] == "mcpServers" and existing is not _ABSENT
+                and any(_canon(base.get(k, _ABSENT)) != _canon(v) for k, v in content.items())):
+            # A same-name server we would partially overwrite is someone else's: refuse,
+            # like Codex's ``toml_table_exists``, instead of merging args/env together.
+            raise OpConflict("mcp_exists", detail={"pointer": pointer})
         added_map: dict[str, Any] = {}
         for key, value in content.items():
             if key not in base:
