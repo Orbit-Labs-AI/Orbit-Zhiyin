@@ -8,26 +8,26 @@ from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store
 
 
-def ingest(home: Path, agent: str, root: Path, *, limit=None):
+def ingest(home: Path, agent: str, root: Path, *, limit=None, progress=None):
     root, home = root.expanduser().resolve(), home.expanduser().resolve()
     if home.is_relative_to(root) or root.is_relative_to(home):
         raise ValueError("来源目录和 Tandem 数据目录必须分开")
     with Store(home) as store:
-        result = ImportService(store).import_source(ImportRequest(agent, root, limit=limit))
+        result = ImportService(store, progress=progress).import_source(ImportRequest(agent, root, limit=limit))
         return {"import": result, "stored": statistics(store)}
 
 
-def ingest_staging(home: Path, staging: Path):
+def ingest_staging(home: Path, staging: Path, *, progress=None):
     with Store(home) as store:
         with ImportService(store).writer():
             result = import_connector(store, staging)
-            store.rebuild()
+            store.rebuild(progress=progress)
             return {"import": result, "stored": statistics(store)}
 
 
-def maintain(home: Path, command: str):
+def maintain(home: Path, command: str, *, progress=None):
     with Store(home) as store:
         with ImportService(store).writer():
             if command in ("init", "rebuild"):
-                store.rebuild()
+                store.rebuild(progress=progress)
             return store.verify() if command == "verify" else statistics(store)

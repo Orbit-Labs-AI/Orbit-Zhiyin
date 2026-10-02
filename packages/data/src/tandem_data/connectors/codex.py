@@ -146,12 +146,40 @@ class CodexMapper(BaseMapper):
                     ],
                     reason="modified inherited setup; no identical parent record",
                 )
+            if refs:
+                return Mapping(disposition="replayed", references=refs, reason="inherited prefix")
+            # The native cutoff proves this is supplied history, not new child behavior.
+            # Parent history may have been compacted/replaced since the fork. Preserve
+            # the child's actual evidence as context, without inventing a parent link.
+            self.store.issue(
+                record.source_id,
+                "inherited_parent_evidence_unavailable",
+                file_id=record.file_id,
+                record_uid=record.record_uid,
+                detail={"native_type": record.native_type, "parent_native_id": self.parent},
+            )
             return Mapping(
-                disposition="replayed" if refs else "unparsed",
-                references=refs,
-                reason="inherited prefix"
-                if refs
-                else "inherited prefix: canonical record not resolved",
+                [
+                    self.make(
+                        record,
+                        "context.inject",
+                        "inherited.unresolved_context",
+                        actor="harness",
+                        attrs={
+                            "origin": "injected",
+                            "inherited_prefix": True,
+                            "parent_evidence": "unavailable",
+                            "native_type": record.native_type,
+                        },
+                        native_key=[
+                            record.source_id,
+                            self.session_uid,
+                            record.record_uid,
+                            "inherited",
+                        ],
+                    )
+                ],
+                reason="native inherited prefix retained; parent evidence unavailable",
             )
         if typ == "session_meta":
             source = payload.get("source", {})
@@ -260,7 +288,7 @@ class CodexMapper(BaseMapper):
                 return Mapping(
                     self.message(record, payload, origin=origin, key=key, native_turn_id=turn)
                 )
-            if item_type in ("function_call", "custom_tool_call"):
+            if item_type in ("function_call", "custom_tool_call", "tool_search_call"):
                 call_id = str(payload.get("call_id", payload.get("id", record.record_uid)))
                 key = [record.source_id, self.session_uid, "tool", call_id]
                 return Mapping(
@@ -273,7 +301,10 @@ class CodexMapper(BaseMapper):
                             call_id=call_id,
                             native_key=key,
                             attrs={
-                                "name": payload.get("name", "unknown"),
+                                "name": payload.get(
+                                    "name",
+                                    "tool_search" if item_type == "tool_search_call" else "unknown",
+                                ),
                                 "input": decode_json(
                                     payload.get("arguments", payload.get("input"))
                                 ),
@@ -283,7 +314,11 @@ class CodexMapper(BaseMapper):
                         )
                     ]
                 )
-            if item_type in ("function_call_output", "custom_tool_call_output"):
+            if item_type in (
+                "function_call_output",
+                "custom_tool_call_output",
+                "tool_search_output",
+            ):
                 call_id = str(payload.get("call_id", record.record_uid))
                 return Mapping(
                     [
@@ -299,6 +334,10 @@ class CodexMapper(BaseMapper):
                             ext={key: value for key, value in payload.items() if key != "output"},
                         )
                     ]
+                )
+            if item_type in ("compaction", "compaction_summary", "context_compaction"):
+                return Mapping(
+                    [self.make(record, "context.compaction", "response.compaction", ext=payload)]
                 )
             if item_type == "reasoning":
                 return Mapping(
@@ -331,6 +370,10 @@ class CodexMapper(BaseMapper):
         if typ == "event_msg":
             etype = payload.get("type")
             self.native_turn = payload.get("turn_id", self.native_turn)
+            if etype == "thread_goal_updated":
+                return Mapping(
+                    [self.make(record, "plan.update", "thread.goal", actor="harness", ext=payload)]
+                )
             if etype == "thread_settings_applied":
                 settings = payload.get("thread_settings", {})
                 self.model = settings.get("model", self.model)
@@ -452,6 +495,23 @@ class CodexMapper(BaseMapper):
                             )
                         ]
                     )
+                if itype == "FunctionCallOutput":
+                    call_id = str(native or record.record_uid)
+                    return Mapping(
+                        [
+                            self.make(
+                                record,
+                                "tool.result",
+                                "tool.result",
+                                actor="tool",
+                                call_id=call_id,
+                                native_key=[record.source_id, self.session_uid, "tool", call_id],
+                                text=text_content(item.get("output")),
+                                attrs={"status": "unknown", "native_turn_id": self.native_turn},
+                                ext=item,
+                            )
+                        ]
+                    )
                 if (
                     itype
                     in (
@@ -460,9 +520,10 @@ class CodexMapper(BaseMapper):
                         "FileChange",
                         "WebSearch",
                         "CollabAgentToolCall",
+                        "ImageView",
                     )
                     or itype == "Extension"
-                    and item.get("kind") == "web.search"
+                    and item.get("kind") in ("web.search", "clock.sleep", "image_gen.generation")
                 ):
                     call_id = str(native or record.record_uid)
                     key = [record.source_id, self.session_uid, "tool", call_id]
@@ -472,7 +533,8 @@ class CodexMapper(BaseMapper):
                         "FileChange": "apply_patch",
                         "WebSearch": "web.search",
                         "CollabAgentToolCall": item.get("tool", "subagent"),
-                        "Extension": "web.search",
+                        "ImageView": "view_image",
+                        "Extension": item.get("kind"),
                     }[itype]
                     args = item.get(
                         "arguments",
@@ -482,6 +544,13 @@ class CodexMapper(BaseMapper):
                         if itype in ("WebSearch", "Extension")
                         else item.get("changes"),
                     )
+                    if itype == "ImageView":
+                        args = {"path": item.get("path")}
+                    elif itype == "Extension" and item.get("kind") == "clock.sleep":
+                        args = {"duration_ms": item.get("durationMs")}
+                    elif itype == "Extension" and item.get("kind") == "image_gen.generation":
+                        # revisedPrompt is the completed tool's rewrite, not the original user input.
+                        args = item.get("arguments")
                     call = self.make(
                         record,
                         "tool.call",
@@ -515,7 +584,7 @@ class CodexMapper(BaseMapper):
                             else None,
                         ),
                         attrs={
-                            "status": item.get("status", "unknown").lower(),
+                            "status": str(item.get("status") or "unknown").lower(),
                             "status_scope": "direct_command"
                             if itype == "CommandExecution"
                             else "tool_protocol",

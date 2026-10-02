@@ -85,3 +85,18 @@ def test_previous_window_report_and_history_include_complete_baseline(tmp_path):
         history_for(store).result(run["run_id"])["comparison"]["baseline"]
         == product["comparison"]["baseline"]
     )
+
+
+def test_bounded_report_snapshot_retains_persistent_history(tmp_path):
+    from tandem_backend.profiling.analysis import analyze
+
+    home = tmp_path / "data"
+    ingest(home, "codex", demo_home(tmp_path / "source"))
+    store = CanonicalStore(home)
+    snapshot = store.report_snapshot(from_ts=1767225600000, until_ts=1767312000000)
+    assert snapshot.bundle["scope"]["from_ts"] == 1767225600000
+    assert snapshot.bundle["scope"]["until_ts"] == 1767312000000
+    result = analyze(snapshot)
+    history = history_for(store)
+    run = history.list_runs(engine="profile")["items"][0]
+    assert run["status"] == "completed" and history.result(run["run_id"]) == result
