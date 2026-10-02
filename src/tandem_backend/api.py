@@ -1,7 +1,7 @@
 """Read-only local API for the future frontend, with a separate evaluation endpoint."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -65,6 +65,18 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
     @app.get("/v1/analytics/bottleneck")
     def feature_bottleneck(scope=scope_dependency):
         return analytics_section("bottleneck_features", scope)
+
+    @app.get("/v1/analytics/recommendations")
+    def feature_recommendations(
+        scope=scope_dependency, target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+        kind: Literal["skill", "agent", "hook", "prompt"] | None = None, limit: int = Query(6, ge=1, le=20),
+    ):
+        from .analytics.recommendations import recommend_bottlenecks
+        from .analytics.service import response_section
+
+        result = analytics_data(scope, False)
+        result["bottleneck_recommendations"] = recommend_bottlenecks(result, target_agent=target_agent, kind=kind, limit=limit)
+        return response_section(result, "bottleneck_recommendations")
 
     @app.get("/v1/analytics/sessions")
     def feature_sessions(scope=scope_dependency, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
