@@ -1,0 +1,1273 @@
+{
+ "version": "replay-cases-v1",
+ "note": "全部为虚构样例，不含真实会话；relevant 等级按 recommendation-module.md §problem 类型表的默认解法优先序给出。",
+ "cases": [
+  {
+   "id": "permission-readonly",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "readonly_prompts": [
+      {
+       "command_head": "git status",
+       "count": 60,
+       "sessions": 9,
+       "session_uids": [
+        "perm-s0",
+        "perm-s1",
+        "perm-s2",
+        "perm-s3",
+        "perm-s4",
+        "perm-s5",
+        "perm-s6",
+        "perm-s7",
+        "perm-s8"
+       ]
+      },
+      {
+       "command_head": "ls",
+       "count": 30,
+       "sessions": 6,
+       "session_uids": [
+        "perm-s0",
+        "perm-s1",
+        "perm-s2",
+        "perm-s3",
+        "perm-s4",
+        "perm-s5"
+       ]
+      }
+     ],
+     "readonly_prompt_sessions": 9
+    },
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=permission_friction&kind=permission_rule": 3,
+    "type=permission_friction&kind=builtin": 2,
+    "type=permission_friction&kind=hook": 1
+   }
+  },
+  {
+   "id": "tool-failure-software",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "failures_by_software": [
+      {
+       "software": "wrangler",
+       "error_class": "auth",
+       "count": 14,
+       "sessions": 5,
+       "session_uids": [
+        "wr-s0",
+        "wr-s1",
+        "wr-s2",
+        "wr-s3",
+        "wr-s4"
+       ]
+      }
+     ]
+    },
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=tool_env_failure&kind=hook": 3,
+    "type=tool_env_failure&kind=skill": 2,
+    "type=tool_env_failure&kind=rule": 1
+   }
+  },
+  {
+   "id": "identical-retries",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "retry-sig1",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "retry-s1"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "retry-e1",
+        "session_uid": "retry-s1"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "retry-sig2",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "retry-s2"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "retry-e2",
+        "session_uid": "retry-s2"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "retry-sig3",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "retry-s3"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "retry-e3",
+        "session_uid": "retry-s3"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "retry-sig4",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "retry-s4"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "retry-e4",
+        "session_uid": "retry-s4"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "retry-sig5",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "retry-s5"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "retry-e5",
+        "session_uid": "retry-s5"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=tool_env_failure&kind=hook": 3,
+    "type=tool_env_failure&kind=skill": 2,
+    "type=tool_env_failure&kind=rule": 1
+   }
+  },
+  {
+   "id": "tool-failures-rate",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "tf-sig1",
+      "rule_id": "tool_failures",
+      "scope": {
+       "root_session_uid": "tf-s1"
+      },
+      "metrics": [
+       {
+        "value": 6,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "tf-e1",
+        "session_uid": "tf-s1"
+       }
+      ],
+      "reason": "虚构样例 tool_failures"
+     },
+     {
+      "signal_id": "tf-sig2",
+      "rule_id": "tool_failures",
+      "scope": {
+       "root_session_uid": "tf-s2"
+      },
+      "metrics": [
+       {
+        "value": 6,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "tf-e2",
+        "session_uid": "tf-s2"
+       }
+      ],
+      "reason": "虚构样例 tool_failures"
+     },
+     {
+      "signal_id": "tf-sig3",
+      "rule_id": "tool_failures",
+      "scope": {
+       "root_session_uid": "tf-s3"
+      },
+      "metrics": [
+       {
+        "value": 6,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "tf-e3",
+        "session_uid": "tf-s3"
+       }
+      ],
+      "reason": "虚构样例 tool_failures"
+     },
+     {
+      "signal_id": "tf-sig4",
+      "rule_id": "tool_failures",
+      "scope": {
+       "root_session_uid": "tf-s4"
+      },
+      "metrics": [
+       {
+        "value": 6,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "tf-e4",
+        "session_uid": "tf-s4"
+       }
+      ],
+      "reason": "虚构样例 tool_failures"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=tool_env_failure&kind=hook": 3,
+    "type=tool_env_failure&kind=skill": 2,
+    "type=tool_env_failure&kind=rule": 1
+   }
+  },
+  {
+   "id": "missing-verification",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "mv-sig1",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e1",
+        "session_uid": "mv-s1"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig2",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e2",
+        "session_uid": "mv-s2"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig3",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e3",
+        "session_uid": "mv-s3"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig4",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e4",
+        "session_uid": "mv-s4"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig5",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s5"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e5",
+        "session_uid": "mv-s5"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=missing_verification&kind=rule": 3,
+    "type=missing_verification&kind=hook": 2,
+    "type=missing_verification&kind=workflow": 2,
+    "type=missing_verification&kind=subagent": 1
+   }
+  },
+  {
+   "id": "correction-spiral",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "cd-sig1",
+      "rule_id": "correction_density",
+      "scope": {
+       "root_session_uid": "cd-s1"
+      },
+      "metrics": [
+       {
+        "value": 4,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "cd-e1",
+        "session_uid": "cd-s1"
+       }
+      ],
+      "reason": "虚构样例 correction_density"
+     },
+     {
+      "signal_id": "cd-sig2",
+      "rule_id": "correction_density",
+      "scope": {
+       "root_session_uid": "cd-s2"
+      },
+      "metrics": [
+       {
+        "value": 4,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "cd-e2",
+        "session_uid": "cd-s2"
+       }
+      ],
+      "reason": "虚构样例 correction_density"
+     },
+     {
+      "signal_id": "cd-sig3",
+      "rule_id": "correction_density",
+      "scope": {
+       "root_session_uid": "cd-s3"
+      },
+      "metrics": [
+       {
+        "value": 4,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "cd-e3",
+        "session_uid": "cd-s3"
+       }
+      ],
+      "reason": "虚构样例 correction_density"
+     },
+     {
+      "signal_id": "cd-sig4",
+      "rule_id": "correction_density",
+      "scope": {
+       "root_session_uid": "cd-s4"
+      },
+      "metrics": [
+       {
+        "value": 4,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "cd-e4",
+        "session_uid": "cd-s4"
+       }
+      ],
+      "reason": "虚构样例 correction_density"
+     },
+     {
+      "signal_id": "cd-sig5",
+      "rule_id": "correction_density",
+      "scope": {
+       "root_session_uid": "cd-s5"
+      },
+      "metrics": [
+       {
+        "value": 4,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "cd-e5",
+        "session_uid": "cd-s5"
+       }
+      ],
+      "reason": "虚构样例 correction_density"
+     },
+     {
+      "signal_id": "cd-sig6",
+      "rule_id": "correction_density",
+      "scope": {
+       "root_session_uid": "cd-s6"
+      },
+      "metrics": [
+       {
+        "value": 4,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "cd-e6",
+        "session_uid": "cd-s6"
+       }
+      ],
+      "reason": "虚构样例 correction_density"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=wrong_approach&kind=prompt": 3,
+    "type=wrong_approach&kind=rule": 2,
+    "type=wrong_approach&kind=workflow": 2
+   }
+  },
+  {
+   "id": "repeated-instruction",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "ri-sig1",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e1",
+        "session_uid": "ri-s1"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig2",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e2",
+        "session_uid": "ri-s2"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig3",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e3",
+        "session_uid": "ri-s3"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig4",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e4",
+        "session_uid": "ri-s4"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig5",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s5"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e5",
+        "session_uid": "ri-s5"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=repeated_instruction&kind=rule": 3,
+    "type=repeated_instruction&kind=hook": 2,
+    "type=repeated_instruction&kind=prompt": 1
+   }
+  },
+  {
+   "id": "buggy-output",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "vf-sig1",
+      "rule_id": "validation_failures",
+      "scope": {
+       "root_session_uid": "vf-s1"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "vf-e1",
+        "session_uid": "vf-s1"
+       }
+      ],
+      "reason": "虚构样例 validation_failures"
+     },
+     {
+      "signal_id": "vf-sig2",
+      "rule_id": "validation_failures",
+      "scope": {
+       "root_session_uid": "vf-s2"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "vf-e2",
+        "session_uid": "vf-s2"
+       }
+      ],
+      "reason": "虚构样例 validation_failures"
+     },
+     {
+      "signal_id": "vf-sig3",
+      "rule_id": "validation_failures",
+      "scope": {
+       "root_session_uid": "vf-s3"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "vf-e3",
+        "session_uid": "vf-s3"
+       }
+      ],
+      "reason": "虚构样例 validation_failures"
+     },
+     {
+      "signal_id": "vf-sig4",
+      "rule_id": "validation_failures",
+      "scope": {
+       "root_session_uid": "vf-s4"
+      },
+      "metrics": [
+       {
+        "value": 3,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "vf-e4",
+        "session_uid": "vf-s4"
+       }
+      ],
+      "reason": "虚构样例 validation_failures"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=buggy_output&kind=skill": 3,
+    "type=buggy_output&kind=subagent": 2,
+    "type=buggy_output&kind=workflow": 2,
+    "type=buggy_output&kind=prompt": 1
+   }
+  },
+  {
+   "id": "context-loss",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "ctx-sig1",
+      "rule_id": "context_pressure",
+      "scope": {
+       "root_session_uid": "ctx-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ctx-e1",
+        "session_uid": "ctx-s1"
+       }
+      ],
+      "reason": "虚构样例 context_pressure"
+     },
+     {
+      "signal_id": "ctx-sig2",
+      "rule_id": "context_pressure",
+      "scope": {
+       "root_session_uid": "ctx-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ctx-e2",
+        "session_uid": "ctx-s2"
+       }
+      ],
+      "reason": "虚构样例 context_pressure"
+     },
+     {
+      "signal_id": "ctx-sig3",
+      "rule_id": "context_pressure",
+      "scope": {
+       "root_session_uid": "ctx-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ctx-e3",
+        "session_uid": "ctx-s3"
+       }
+      ],
+      "reason": "虚构样例 context_pressure"
+     },
+     {
+      "signal_id": "ctx-sig4",
+      "rule_id": "context_pressure",
+      "scope": {
+       "root_session_uid": "ctx-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ctx-e4",
+        "session_uid": "ctx-s4"
+       }
+      ],
+      "reason": "虚构样例 context_pressure"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=context_loss&kind=rule": 3,
+    "type=context_loss&kind=skill": 2,
+    "type=context_loss&kind=workflow": 2
+   }
+  },
+  {
+   "id": "resident-rules-file",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": [
+     {
+      "inv_id": "inv-agents-md",
+      "type": "rule",
+      "name": "AGENTS.md",
+      "config_path": "~/fictional/AGENTS.md",
+      "enabled": true,
+      "content_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "lines": 420,
+      "resident_tokens": 6400,
+      "catalog_item_id": null
+     }
+    ],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=resident_cost&kind=removal": 3
+   }
+  },
+  {
+   "id": "installed-unused-mcp",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "usage": {
+      "mcp": {
+       "figma": {
+        "calls": 0
+       }
+      },
+      "skill": {}
+     }
+    },
+    "inventory": [
+     {
+      "inv_id": "inv-figma",
+      "type": "mcp",
+      "name": "figma",
+      "config_path": "~/fictional/.claude.json",
+      "enabled": true,
+      "content_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "lines": 0,
+      "resident_tokens": 900,
+      "catalog_item_id": null
+     }
+    ],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=installed_unused&kind=removal": 3
+   }
+  },
+  {
+   "id": "mixed-permission-and-retries",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "mix-sig1",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e1",
+        "session_uid": "mix-s1"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "mix-sig2",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e2",
+        "session_uid": "mix-s2"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "mix-sig3",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e3",
+        "session_uid": "mix-s3"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "mix-sig4",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e4",
+        "session_uid": "mix-s4"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "readonly_prompts": [
+      {
+       "command_head": "gh pr view",
+       "count": 40,
+       "sessions": 7,
+       "session_uids": [
+        "mixp-s0",
+        "mixp-s1",
+        "mixp-s2",
+        "mixp-s3",
+        "mixp-s4",
+        "mixp-s5",
+        "mixp-s6"
+       ]
+      }
+     ],
+     "readonly_prompt_sessions": 7
+    },
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "type=permission_friction&kind=permission_rule": 3,
+    "type=tool_env_failure&kind=hook": 3,
+    "type=permission_friction&kind=builtin": 2,
+    "type=tool_env_failure&kind=skill": 2
+   }
+  }
+ ]
+}
