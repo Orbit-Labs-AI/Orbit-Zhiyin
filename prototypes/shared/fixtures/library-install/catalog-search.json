@@ -1,0 +1,43 @@
+{
+  "items": [
+    {
+      "item_id": "fx:hook/retry-guard",
+      "kind": "hook",
+      "name": "retry-guard",
+      "summary": "同一命令失败两次后暂停（合成夹具）",
+      "author": "tandem",
+      "license": "MIT",
+      "official": true,
+      "agents": [
+        "claude_code"
+      ],
+      "difficulty": "easy",
+      "risk_level": 2,
+      "risk": [
+        "shell"
+      ],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": 1800,
+      "stars": 210,
+      "origin": "remote",
+      "url": "https://example.invalid/retry-guard",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": null,
+      "snippet": "失败两次后暂停，先诊断环境",
+      "score": 0.82,
+      "score_parts": {
+        "bm25": 0.6,
+        "vector": 0.22
+      }
+    }
+  ],
+  "generation": 7,
+  "routes": [
+    "bm25",
+    "vector"
+  ],
+  "vector": true,
+  "ranking_version": "fx-1"
+}

@@ -1,0 +1,113 @@
+{
+  "items": [
+    {
+      "item_id": "fx:skill/worktree-helper",
+      "kind": "skill",
+      "name": "worktree-helper",
+      "summary": "为并行会话建立独立 worktree（合成夹具）",
+      "author": "fixture-org",
+      "license": "MIT",
+      "official": false,
+      "agents": [
+        "claude_code",
+        "codex"
+      ],
+      "difficulty": "easy",
+      "risk_level": 1,
+      "risk": [],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": 3100,
+      "stars": 420,
+      "origin": "remote",
+      "url": "https://example.invalid/worktree-helper",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": null
+    },
+    {
+      "item_id": "fx:hook/retry-guard",
+      "kind": "hook",
+      "name": "retry-guard",
+      "summary": "同一命令失败两次后暂停（合成夹具）",
+      "author": "tandem",
+      "license": "MIT",
+      "official": true,
+      "agents": [
+        "claude_code"
+      ],
+      "difficulty": "easy",
+      "risk_level": 2,
+      "risk": [
+        "shell"
+      ],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": 1800,
+      "stars": 210,
+      "origin": "remote",
+      "url": "https://example.invalid/retry-guard",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": null
+    },
+    {
+      "item_id": "fx:mcp/doc-reader",
+      "kind": "mcp_server",
+      "name": "doc-reader",
+      "summary": "只读文档检索 MCP（合成夹具）",
+      "author": "fixture-org",
+      "license": null,
+      "official": false,
+      "agents": [
+        "claude_code"
+      ],
+      "difficulty": "easy",
+      "risk_level": 1,
+      "risk": [],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": null,
+      "stars": 95,
+      "origin": "remote",
+      "url": "https://example.invalid/doc-reader",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": null
+    },
+    {
+      "item_id": "fx:agent/release-check",
+      "kind": "subagent",
+      "name": "release-check",
+      "summary": "部署后独立检查线上状态（合成夹具）",
+      "author": "fixture-org",
+      "license": "Apache-2.0",
+      "official": false,
+      "agents": [
+        "claude_code",
+        "gemini"
+      ],
+      "difficulty": "easy",
+      "risk_level": 1,
+      "risk": [],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": 940,
+      "stars": 88,
+      "origin": "remote",
+      "url": "https://example.invalid/release-check",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": {
+        "state": "installed",
+        "agents": [
+          "claude_code"
+        ],
+        "scope": "user"
+      }
+    }
+  ],
+  "next_cursor": "fx-cursor-2",
+  "total": 5,
+  "generation": 7
+}

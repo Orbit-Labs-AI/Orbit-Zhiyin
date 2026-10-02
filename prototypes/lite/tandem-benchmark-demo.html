@@ -1063,8 +1063,127 @@ const TandemLive = (function () {
       if (win.addEventListener) win.addEventListener('tandem:endpoint', (e) => { C.setEndpoint(e && e.detail); });
       return C;
     };
+    libraryInstall(C, { fetchFn, headers });   // C.li: library-install section below
     return C;
   }
+
+  /* ======== library-install: A8 资源库 (/v1/catalog/*) and the install sheet (/v1/install/*) ========
+     Owned by the library-install binding (Advance src/js/97-live-library-install.js, Lite @tandem-live block). Attached to
+     every client as C.li by one line in create(). Catalog reads go through C.resource so they keep ETag / states; writes and
+     the install flow use C.li.send (JSON body, error.code / error.detail or FastAPI's string detail). A route that is missing,
+     not implemented, unavailable or offline (liDegraded) lets the page fall back to its demo data with the 示例数据 badge. */
+  const LI_KINDS = { Skill: ['skill'], Hook: ['hook'], '插件': ['plugin', 'marketplace'], '子代理': ['subagent'], MCP: ['mcp_server'] };
+  const LI_LABEL = { skill: 'Skill', hook: 'Hook', plugin: '插件', marketplace: '插件', subagent: '子代理', mcp_server: 'MCP', command: '命令', rule: '规则', workflow: '工作流', guide: '指南', output_style: '输出风格', lsp_server: 'LSP' };
+  const LI_TABS = { for: { sort: 'updated' }, peer: { sort: 'stars' }, hot: { sort: 'installs' }, local: { sort: 'updated', origin: 'local' } };
+  const LI_DEGRADE = [0, 404, 405, 501, 503];
+  function liDegraded(err) { return !!err && (err.code === 'mock_mode' || LI_DEGRADE.indexOf(err.status || 0) >= 0); }
+  function liKindQS(kind) { const ks = LI_KINDS[kind] || []; return ks.length ? '?' + ks.map((k) => 'kind=' + encodeURIComponent(k)).join('&') : ''; }
+  // Library list request: a search box query uses /v1/catalog/search (ranked, no paging), otherwise /v1/catalog/items with
+  // the tab's sort / origin and keyset paging through next_cursor.
+  function liListRequest(o) {
+    o = o || {}; const tab = LI_TABS[o.tab] || LI_TABS.for; const q = String(o.q || '').trim();
+    if (q) return { path: '/v1/catalog/search' + liKindQS(o.kind), query: { q, limit: o.limit || 30 } };
+    const query = { sort: tab.sort, order: 'desc', limit: o.limit || 30 };
+    if (tab.origin) query.origin = tab.origin;
+    if (o.cursor) query.cursor = o.cursor;
+    return { path: '/v1/catalog/items' + liKindQS(o.kind), query };
+  }
+  function liFacetsRequest(o) { const tab = LI_TABS[(o || {}).tab] || LI_TABS.for; return { path: '/v1/catalog/facets', query: tab.origin ? { origin: tab.origin } : null }; }
+  const liItemPath = (id) => '/v1/catalog/items/' + String(id).split('/').map(encodeURIComponent).join('/');
+  // Preview → rows the sheet draws: one block per target with its diff lines ({n, op, text, gap}) and selectable units.
+  function liTargets(preview) {
+    return ((preview && preview.targets) || []).map((t) => ({
+      idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
+      disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
+      units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
+      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
+    }));
+  }
+  // Selection sent with preview / apply: selected_units only lists targets whose units were narrowed.
+  function liSelection(sel) {
+    sel = sel || {}; const out = { disabled_targets: Array.from(sel.disabled || []).map(Number).sort((a, b) => a - b) };
+    const su = {}; Object.keys(sel.units || {}).forEach((k) => { su[String(k)] = Array.from(sel.units[k]); });
+    if (Object.keys(su).length) out.selected_units = su;
+    return out;
+  }
+
+  function libraryInstall(C, ctx) {
+    function send(method, path, body, o) {
+      o = o || {};
+      if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('TandemLive is in mock mode'), { code: 'mock_mode', status: 0 }));
+      const h = ctx.headers(body != null ? { 'Content-Type': 'application/json' } : null);
+      const q = o.query ? Object.keys(o.query).filter((k) => o.query[k] != null).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(o.query[k])).join('&') : '';
+      const url = C.endpoint + path + (q ? (path.indexOf('?') >= 0 ? '&' : '?') + q : '');
+      return Promise.resolve().then(() => ctx.fetchFn(url, { method, headers: h, body: body != null ? JSON.stringify(body) : undefined, signal: o.signal })).then(async (res) => {
+        let data = null; const text = await res.text();
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (res.status >= 200 && res.status < 300) return { status: res.status, data };
+        const info = (data && data.error) || {};
+        const code = info.code || (data && typeof data.detail === 'string' ? data.detail : 'http_' + res.status);
+        throw Object.assign(new Error(info.message || code), { status: res.status, code, detail: info.detail != null ? info.detail : null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500 });
+      }, (e) => { if (e && e.name === 'AbortError') throw e; throw Object.assign(new Error((e && e.message) || 'offline'), { status: 0, code: 'offline', retryable: true }); });
+    }
+    const body = (r) => r.data;
+    const L = {
+      send, degraded: liDegraded,
+      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, LI_KINDS, LI_LABEL, LI_TABS },
+      kindLabel: (k) => LI_LABEL[k] || k || '—',
+      listRequest: liListRequest, facetsRequest: liFacetsRequest,
+      /* catalog */
+      items: (o) => { const r = liListRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      facets: (o) => { const r = liFacetsRequest(o); return send('GET', r.path, null, { query: r.query }).then(body); },
+      item: (id, o) => send('GET', liItemPath(id), null, o).then(body),
+      addLocal: (item) => send('POST', '/v1/catalog/local', item).then(body),
+      removeLocal: (id) => send('DELETE', '/v1/catalog/local/' + String(id).split('/').map(encodeURIComponent).join('/')).then(() => true),
+      /* install */
+      environment: (refresh) => send('GET', '/v1/install/environment', null, { query: refresh ? { refresh: 1 } : null }).then(body),
+      plan: (req) => send('POST', '/v1/install/plans', req).then(body),
+      preview: (planId, sel) => { const s = liSelection(sel); const narrowed = s.disabled_targets.length || s.selected_units; return (narrowed ? send('POST', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview', s) : send('GET', '/v1/install/plans/' + encodeURIComponent(planId) + '/preview')).then(body); },
+      fetch: (req) => send('POST', '/v1/install/fetch', req).then(body),
+      revert: (installId, targets) => send('POST', '/v1/install/' + encodeURIComponent(installId) + '/revert', targets ? { targets } : {}).then(body),
+      state: (st) => send('GET', '/v1/install/state', null, { query: st ? { state: st } : null }).then(body),
+      ledger: (o) => send('GET', '/v1/install/ledger', null, { query: o || null }).then(body),
+      install: (id) => send('GET', '/v1/install/' + encodeURIComponent(id)).then(body),
+      // plan → (fetch + re-plan when the source must be downloaded first) → preview. Resolves {env, plan, preview}; preview is
+      // null when the plan is link_only / unmappable (the sheet shows plan.links / plan.warnings instead).
+      prepare(source, o) {
+        o = o || {};
+        // the environment only narrows the agents; without it the backend picks its defaults
+        const env = o.env ? Promise.resolve(o.env) : L.environment().catch(() => null);
+        return env.then((envData) => {
+          let agents = o.agents;
+          if (!agents && envData) {
+            const ok = (envData.agents || []).filter((a) => a.installed && a.install_support === 'full').map((a) => a.agent);
+            const want = o.itemAgents && o.itemAgents.length ? ok.filter((a) => o.itemAgents.indexOf(a) >= 0) : ok;
+            agents = want.length ? want : ok.length ? ok : undefined;
+          }
+          const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
+          return L.plan(req).then((plan) => {
+            if (plan.status !== 'needs_fetch') return plan;
+            const fr = source.type === 'catalog' ? { catalog_id: source.id } : { source: source.spec || source };
+            return L.fetch(fr).then(() => L.plan(Object.assign({}, req, { fetch: true })));
+          }).then((plan) => {
+            if (plan.status !== 'ready') return { env: envData, plan, preview: null };
+            const sel = { disabled: o.defaultOff ? o.defaultOff(plan) : [] };
+            return L.preview(plan.plan_id, sel).then((preview) => ({ env: envData, plan, preview, sel }));
+          });
+        });
+      },
+      // apply with the digest the person confirmed; a 409 preview_stale re-previews with the same selection and resolves
+      // {stale: true, preview} so the sheet goes back to the diff instead of writing what was never shown.
+      apply(st) {
+        const s = liSelection(st.sel); const req = Object.assign({ plan_id: st.plan.plan_id, preview_digest: st.preview.preview_digest }, s);
+        if (st.overrideRisk) req.override_risk = true;
+        return send('POST', '/v1/install/apply', req).then((r) => ({ stale: false, result: r.data }), (e) => {
+          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail }));
+          throw e;
+        });
+      }
+    };
+    C.li = L;
+  }
+  /* ======== end library-install ======== */
+
 
   /* ---- shared status components (HTML strings; both apps render pages as markup) ---- */
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

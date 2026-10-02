@@ -1,0 +1,72 @@
+{
+  "generation": 7,
+  "total": 5,
+  "kind": [
+    {
+      "value": "skill",
+      "count": 2
+    },
+    {
+      "value": "hook",
+      "count": 1
+    },
+    {
+      "value": "mcp_server",
+      "count": 1
+    },
+    {
+      "value": "subagent",
+      "count": 1
+    }
+  ],
+  "license": [
+    {
+      "value": "MIT",
+      "count": 3
+    },
+    {
+      "value": "Apache-2.0",
+      "count": 1
+    }
+  ],
+  "risk_level": [
+    {
+      "value": 1,
+      "count": 3
+    },
+    {
+      "value": 2,
+      "count": 2
+    }
+  ],
+  "origin": [
+    {
+      "value": "remote",
+      "count": 4
+    },
+    {
+      "value": "local",
+      "count": 1
+    }
+  ],
+  "official": {
+    "true": 1,
+    "false": 4
+  },
+  "difficulty": [
+    {
+      "value": "easy",
+      "count": 5
+    }
+  ],
+  "agent": [
+    {
+      "value": "claude_code",
+      "count": 5
+    },
+    {
+      "value": "codex",
+      "count": 1
+    }
+  ]
+}

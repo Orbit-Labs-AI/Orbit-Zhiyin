@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "item_id": "fx:plugin/deploy-kit",
+      "kind": "plugin",
+      "name": "deploy-kit",
+      "summary": "部署命令集插件（合成夹具）",
+      "author": "fixture-org",
+      "license": "MIT",
+      "official": false,
+      "agents": [
+        "claude_code"
+      ],
+      "difficulty": "easy",
+      "risk_level": 1,
+      "risk": [],
+      "version": "1.0.0",
+      "updated_at": "2026-09-30T08:00:00Z",
+      "installs": 5600,
+      "stars": 300,
+      "origin": "remote",
+      "url": "https://example.invalid/deploy-kit",
+      "body_policy": "licensed",
+      "canonical_of": null,
+      "installed": null
+    }
+  ],
+  "next_cursor": null,
+  "total": null,
+  "generation": 7
+}
