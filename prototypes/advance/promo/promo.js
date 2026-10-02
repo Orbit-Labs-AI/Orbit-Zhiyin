@@ -24,8 +24,9 @@ const stage = $('#stage'), fxEl = $('#fx'), glowEl = $('#glow');
 
 /* ---------- the two app copies ("decks") and their cameras ---------- */
 // x,y: the app point (frame px) put at screen point (ax, ay); s: zoom; rx/ry/rz: tilt around (ax, ay); z: dolly;
-// o: opacity; bl: blur. Tweens start from wherever the deck's camera is when they fire.
-const ZERO = { x: 800, y: 500, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 0, bl: 0 };
+// o: opacity; bl: blur; mx/my: directional (motion) blur in px along x / y, for whips. Tweens start from wherever the
+// deck's camera is when they fire.
+const ZERO = { x: 800, y: 500, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 0, bl: 0, mx: 0, my: 0 };
 const decks = [0, 1].map((i) => ({ i, frame: $('#app' + i), cam: $('#cam' + i), rig: $('#rig' + i), C: Object.assign({}, ZERO), W: null, D: null }));
 // deck 2 is not an app copy: it holds the promo's own compass (800 × 800 at the rig origin)
 decks.push({ i: 2, frame: null, cam: $('#cam2'), rig: $('#rig2'), C: Object.assign({}, ZERO), W: null, D: null, virtual: true });
@@ -105,9 +106,23 @@ function applyCams(t) {
     k.cam.style.transform = 'perspective(2400px) translateZ(' + c.z.toFixed(1) + 'px) rotateX(' + c.rx.toFixed(3) + 'deg) rotateY(' + c.ry.toFixed(3) + 'deg) rotateZ(' + c.rz.toFixed(3) + 'deg)';
     k.rig.style.transform = 'translate(' + (c.ax - c.x * c.s).toFixed(2) + 'px,' + (c.ay - c.y * c.s).toFixed(2) + 'px) scale(' + c.s.toFixed(4) + ')';
     k.cam.style.opacity = c.o.toFixed(3);
-    k.cam.style.filter = c.bl > .05 ? 'blur(' + c.bl.toFixed(2) + 'px)' : 'none';
+    const f = [];
+    if ((c.mx || 0) > .3 || (c.my || 0) > .3) { mblur(k.i).setAttribute('stdDeviation', (c.mx || 0).toFixed(1) + ' ' + (c.my || 0).toFixed(1)); f.push('url(#mb' + k.i + ')'); }
+    if (c.bl > .05) f.push('blur(' + c.bl.toFixed(2) + 'px)');
+    k.cam.style.filter = f.length ? f.join(' ') : 'none';
     k.cam.style.visibility = c.o < .002 ? 'hidden' : 'visible';
   }
+}
+// one directional-blur filter per deck (CSS blur() is round; a whip needs blur along its direction only)
+function mblur(i) {
+  let g = document.getElementById('mb' + i);
+  if (!g) {
+    let svg = document.getElementById('mbDefs');
+    if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'mbDefs'; svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.style.position = 'absolute'; stage.appendChild(svg); }
+    const fl = document.createElementNS('http://www.w3.org/2000/svg', 'filter'); fl.id = 'mb' + i; fl.setAttribute('x', '-20%'); fl.setAttribute('y', '-20%'); fl.setAttribute('width', '140%'); fl.setAttribute('height', '140%');
+    g = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur'); fl.appendChild(g); svg.appendChild(fl);
+  }
+  return g;
 }
 
 /* ---------- type ---------- */
@@ -461,7 +476,9 @@ function orbitAt(b) {
    copy so it follows the camera, counter-scaled so it keeps a constant size on screen */
 const CURSOR_SVG = '<svg viewBox="0 0 28 28" width="28" height="28"><path d="M6 3.5v19.2l4.6-4.4 3 6.9 3.3-1.4-2.9-6.8h6.5z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 const clicks = [];
-function clickAt(d, b, sel, fn) { clicks.push({ d, b, sel, fn }); at(b, () => { const el = find(d, sel); if (el) fn(app(d), el); else console.warn('promo: no click target', sel); }); }
+// o.bloom: colour of a press bloom (a radial fill under the pointer, then a soft glow that spreads to about 3×, as in
+// the GWI reference); o.size: its diameter on screen in px; o.glide: beats the pointer takes to reach the control.
+function clickAt(d, b, sel, fn, o = {}) { clicks.push({ d, b, sel, fn, o }); at(b, () => { const el = find(d, sel); if (el) fn(app(d), el); else console.warn('promo: no click target', sel); }); }
 function cursorEl(d) {
   const k = decks[d]; if (k.cursor) return k.cursor;
   const c = document.createElement('div'); c.className = 'cursor'; c.innerHTML = CURSOR_SVG + '<i class="ripple"></i>'; k.rig.appendChild(c); k.cursor = c; return c;
@@ -470,17 +487,40 @@ function applyCursors(t) {
   const b = t / BEAT;
   for (const k of decks) { const c = k.cursor; if (c) c.style.opacity = '0'; }
   for (const x of clicks) {
-    if (b < x.b - 1.3 || b > x.b + .9) continue;
+    const gl = x.o.glide || 1.1;
+    if (b < x.b - gl - .2 || b > x.b + .9) { if (x.bloom) x.bloom.style.opacity = '0'; continue; }
     if (!x.to) { const el = find(x.d, x.sel); if (!el) continue; const r = el.getBoundingClientRect(); x.to = [r.left + r.width * .5, r.top + r.height * .55]; x.from = [x.to[0] + 160, x.to[1] + 120]; }
     const c = cursorEl(x.d), s = decks[x.d].C.s;
-    const m = E.inOut(lp(b, x.b - 1.1, 1)), press = b >= x.b && b < x.b + .25 ? .82 : 1;
+    const m = E.inOut(lp(b, x.b - gl, gl - .1)), press = b >= x.b && b < x.b + .25 ? .82 : 1;
     const px = lerp(x.from[0], x.to[0], m), py = lerp(x.from[1], x.to[1], m);
     c.style.opacity = (E.out(lp(b, x.b - 1.3, .35)) * (1 - E.in(lp(b, x.b + .55, .35)))).toFixed(3);
     c.style.transform = 'translate(' + px.toFixed(2) + 'px,' + py.toFixed(2) + 'px) scale(' + (1.8 / s * press).toFixed(4) + ')';
     const rp = lp(b, x.b, .6); const ri = c.querySelector('.ripple');
     ri.style.opacity = b >= x.b ? (1 - rp).toFixed(3) : '0'; ri.style.transform = 'translate(-50%,-50%) scale(' + (.4 + rp * 1.6).toFixed(3) + ')';
+    if (x.o.bloom) {
+      if (!x.bloom) { x.bloom = document.createElement('div'); x.bloom.className = 'bloom'; x.bloom.innerHTML = '<i class="bf"></i><i class="bg"></i>'; x.bloom.style.setProperty('--c', x.o.bloom); decks[x.d].rig.insertBefore(x.bloom, c); }
+      const fp = E.out(lp(b, x.b, .14)), gp = E.out(lp(b, x.b + .05, .75)), sz = (x.o.size || 90) / s;
+      x.bloom.style.opacity = b >= x.b ? '1' : '0';
+      x.bloom.style.transform = 'translate(' + x.to[0].toFixed(1) + 'px,' + x.to[1].toFixed(1) + 'px)';
+      const bf = x.bloom.firstChild, bg = x.bloom.lastChild;
+      bf.style.width = bf.style.height = bg.style.width = bg.style.height = sz.toFixed(1) + 'px';
+      bf.style.transform = 'translate(-50%,-50%) scale(' + fp.toFixed(3) + ')'; bf.style.opacity = (1 - E.in(lp(b, x.b + .3, .5))).toFixed(3);
+      bg.style.transform = 'translate(-50%,-50%) scale(' + (1 + 2.2 * gp).toFixed(3) + ')'; bg.style.opacity = (.85 * (1 - gp)).toFixed(3);
+    }
   }
 }
+// screen (stage) position of a point given in deck d's frame px, or of an element of deck d (ax, ay = share of its box);
+// follows the deck's camera, tilts included. Used for portals and for type that has to meet a component on screen.
+function stageXY(d, fx, fy) {
+  const k = decks[d]; let pr = k.probe;
+  if (!pr) { pr = document.createElement('i'); pr.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0'; k.rig.appendChild(pr); k.probe = pr; }
+  pr.style.left = fx + 'px'; pr.style.top = fy + 'px';
+  const r = pr.getBoundingClientRect(), st = stage.getBoundingClientRect(), z = st.width / 1920;
+  return [(r.left - st.left) / z, (r.top - st.top) / z];
+}
+function elXY(d, sel, ax = .5, ay = .5) { const el = find(d, sel); if (!el) return [960, 540]; const r = el.getBoundingClientRect(); return stageXY(d, r.left + r.width * ax, r.top + r.height * ay); }
+// a per-frame function that is not tied to an app copy: every(b0, b1, (p, b) => …)
+const every = (b0, b1, fn) => drive(2, b0, b1, (p, b) => fn(p, b));
 
 
 /* ============================== scenes ==============================

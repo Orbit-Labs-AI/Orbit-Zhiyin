@@ -38,7 +38,7 @@ await ctx.clock.pauseAt(new Date('2026-10-01T15:30:01+08:00'));   // time moves 
 const page = await ctx.newPage();
 page.on('pageerror', (e) => console.error('[pageerror]', e.message));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error('[console]', m.text()); });
-await page.goto(base + '/promo/promo.html?render' + (args.includes('--debug') ? '&debug' : ''));
+await page.goto(base + '/promo/' + (process.env.PROMO_PAGE || 'promo.html') + '?render' + (args.includes('--debug') ? '&debug' : ''));
 for (let i = 0; i < 400 && !(await page.evaluate(() => !!window.PROMO && PROMO.ready)); i++) await ctx.clock.runFor(16);
 const DUR = +opt('--to', await page.evaluate(() => PROMO.duration));
 const BPM = await page.evaluate(() => BPM);

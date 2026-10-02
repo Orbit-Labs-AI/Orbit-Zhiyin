@@ -1,5 +1,5 @@
 /* v6 port: close: your compass, the aurora collapses to one ring, the ring becomes the Orbit mark */
-scene('70-close', () => {
+scene('60-close', () => {
   END = 118;
   drive(2, 100.7, 107.6, (p, b) => drawCompass({ deg: 4 * Math.sin((b - 101) * 1.5) * Math.exp(-(b - 101) * .5), speed: 0, mine: 1, grow: 1 + .02 * Math.sin((b - 101) * 1.6), sweep: 1, orbit: 0, settle: 1, tip: 0, needle: 1, core: 1 - E.inOut(lp(b, 104, 1.2)), dial: 1 - E.inOut(lp(b, 104.4, 1.6)), collapse: E.inOut(lp(b, 104.4, 1.6)) }));
   tween(2, 100.9, 2, () => framing(2, 'all', [960, 540, 900, 900]), E.quart, (T) => ({ s: T.s * .3, rz: -80, o: 0, bl: 6 }));
