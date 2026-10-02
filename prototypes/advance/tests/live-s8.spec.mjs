@@ -118,6 +118,45 @@ for (const sf of ['panel', 'hud', 'widgets']) {
   });
 }
 
+test('surface hud with no live session: the calm pill instead of an empty window; no demo welcome', async ({ page }) => {
+  ONLY();
+  const errors = collectErrors(page);
+  const idle = () => { const o = rtAt('realtime-calm.json'); o.sessions = []; Object.keys(o.counts).forEach((k) => { o.counts[k] = 0; }); return o; };
+  await setup(page, { 'GET /v1/analytics/realtime': idle }, { native: NATIVE });
+  await page.goto('http://tandem.test/app?live=1&surface=hud');
+  await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).not.toBe('connecting');
+  const pill = page.locator('#hudPill[data-tl="rt-calm"]');
+  await expect(pill).toBeVisible();
+  await expect(pill).toContainText('没有进行中的会话');
+  await expect.poll(async () => ((await msgs(page, 'resizeSurface')).at(-1) || {}).height).toBeGreaterThan(20);
+  await pill.locator('[data-act="popOpen"]').click();
+  await expect.poll(async () => (await msgs(page, 'openMain')).length).toBe(1);
+  await page.waitForTimeout(1200);
+  expect(await page.locator('#notes').innerText()).not.toContain('欢迎体验');
+  expect(errors).toEqual([]);
+});
+
+test('live main window: no demo welcome notification', async ({ page }) => {
+  ONLY();
+  await setup(page);
+  await openLive(page, 'overview');
+  await page.waitForTimeout(1500);
+  expect(await page.locator('#notes').innerText()).not.toMatch(/欢迎体验|数据都是示例/);
+});
+
+test('share card asks the gateway for the persona page scope (period + filters), not its 30-day default', async ({ page }) => {
+  ONLY();
+  const bodies = [];
+  await setup(page, { 'POST /v1/export/share_card': (req) => { bodies.push(req.postDataJSON()); return fx('s8/export-share-card.json'); } });
+  await openLive(page, 'overview');
+  const per = await page.evaluate(() => String(S.persona.period));
+  await page.evaluate(() => openShare());
+  await expect(page.locator('#modal [data-tl="share-card"]')).toBeVisible();
+  expect(bodies.length).toBe(1);
+  expect(bodies[0]).toMatchObject({ period: per, save: false });
+  expect(bodies[0].scope.display_timezone).toBeTruthy();
+});
+
 test('export: report / CSV / share PNG go through save; tandem:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
   ONLY();
   const errors = collectErrors(page);

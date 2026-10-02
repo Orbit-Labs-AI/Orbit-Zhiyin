@@ -11709,7 +11709,16 @@ if (LV.live) {
   const tloHud = renderHud;
   renderHud = function () {
     const d = TLO.d;
-    if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) { const h = $('#hud'); h.hidden = true; h.innerHTML = ''; return; }
+    if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) {
+      const h = $('#hud');
+      // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
+      if (ORBIT.native.surface === 'hud' && S.hud.show && LV.state !== 'connecting') {
+        S.hud.open = false; h.hidden = false;
+        h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-calm"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>Orbit</b><span style="color:var(--hud-ink-2)">' + (TLO.off ? '实时状态暂不可用' : '没有进行中的会话') + '</span><button type="button" class="hg" data-act="popOpen">打开 Orbit</button></div>';
+        return;
+      }
+      h.hidden = true; h.innerHTML = ''; return;
+    }
     if (!d.primary && S.hud.open) S.hud.open = false;
     tloHud();
     const c = $('#hud .hcard'); if (c) c.setAttribute('data-tl', 'rt-hud');
@@ -11855,7 +11864,12 @@ if (LV.live) {
   const tloShareOpen = openShare;
   openShare = function () {
     TLO.share = null;
-    TL.ops.shareCard({ hideNumbers: S.shareNoNum, theme: S.shareDark ? 'dark' : 'light' }).then((d) => {
+    // same scope as the persona the app shows (A2 / Genesis: S.persona.period + filters); without a period the gateway
+    // falls back to its own 30-day window and can refuse a card the persona page offers
+    const sc = LV.scope();
+    TL.send('POST', '/v1/export/share_card', { hide_numbers: !!S.shareNoNum, theme: S.shareDark ? 'dark' : 'light', save: false,
+      period: String(S.persona.period || '90'), agents: sc.agents || null, project: sc.project || null,
+      scope: { display_timezone: TL_TZ || 'UTC' } }).then((r) => r.data).then((d) => {
       if (d.freshness === 'computing') { toast('协作画像正在计算，稍后再试'); return; }
       if (!d.eligible) { toast(H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡'); return; }
       TLO.share = d;
