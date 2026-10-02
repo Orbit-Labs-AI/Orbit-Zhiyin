@@ -39,7 +39,8 @@ def revision(home: Path) -> dict:
 
 def _partial(results: list[dict]) -> bool:
     return any(r.get("error") or r.get("capture_errors") or r.get("current_unparsed")
-               or r.get("unparsed") or r.get("status") == "partial" for r in results)
+               or r.get("unparsed") or r.get("skipped_files") or r.get("status") == "partial"
+               for r in results)
 
 
 class IngestWorker:

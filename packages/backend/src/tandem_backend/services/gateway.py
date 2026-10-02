@@ -351,13 +351,18 @@ class Gateway:
             routes_catalog,
             routes_data,
             routes_eval,
+            routes_export,
             routes_features,
             routes_install,
             routes_platform,
+            routes_quota,
             routes_realtime,
             routes_recommend,
             routes_sessionops,
             routes_settings,
+            routes_shell,
+            routes_uiview,
+            routes_uiview_a4a6,
         )
 
         @asynccontextmanager
@@ -385,7 +390,12 @@ class Gateway:
             routes_eval,
             routes_realtime,
             routes_sessionops,
+            routes_quota,
+            routes_export,
             routes_settings,
+            routes_shell,
+            routes_uiview,
+            routes_uiview_a4a6,
         ):
             app.include_router(module.router(self))
         app.include_router(pages.router())  # /app, /lite, / (token-free, see PAGE_PATHS).

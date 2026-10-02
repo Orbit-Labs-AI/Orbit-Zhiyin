@@ -1,0 +1,148 @@
+"""Fact rows over the synthetic Codex 90 + Claude Code 60 store: analysis parity + basis."""
+
+import json
+import sqlite3
+import time
+from types import SimpleNamespace
+
+from tandem_backend.uiview import facts
+
+from .synth import analysed
+
+
+def _rows():
+    return analysed()[4]["rows"]
+
+
+def test_rows_match_analysis_counts():
+    _, store, _, result, body = analysed()
+    counts = result["overview"]["counts"]
+    rows = body["rows"]
+    assert len(rows) == counts["main_sessions"] == 150
+    assert sum(r["msgs"] for r in rows) == counts["human_messages"]
+    assert sum(r["corr"] for r in rows) == counts["correction_signals"]
+    with store.connect() as conn:
+        (calls,) = conn.execute("SELECT count(*) FROM tool_call").fetchone()
+    assert sum(r["tools"] for r in rows) == calls
+    assert body["meta"]["counts"]["main_sessions"] == len(rows)
+    assert {a["id"]: a["n"] for a in body["agents"]} == {"codex": 90, "claude_code": 60}
+    assert sum(p["n"] for p in body["projects"]) == 150
+
+
+def test_every_row_has_the_prototype_shape():
+    for row in _rows():
+        assert set(facts.ROW_KEYS) <= set(row)
+        assert row["mood"] is None
+        assert row["corr_basis"] == "lexical_candidate"
+        assert row["out"] in ("ok", "part", "fail", None)
+        assert row["out"] is None or row["out_basis"] == "estimate"
+        assert row["fric"] is None or row["fric"] in facts.FRIC
+        assert row["topic"] is None or row["topic"] in facts.TOPICS
+        assert 0 <= row["h"] <= 23 and 0 <= row["mi"] <= 59
+        assert row["dur"] <= row["span"] + 1e-6  # idle gaps are capped, never added
+
+
+def test_codex_unknown_tool_status_stays_null_not_zero():
+    rows = _rows()
+    codex = [r for r in rows if r["a"] == "codex"]
+    claude = [r for r in rows if r["a"] == "claude_code"]
+    assert codex and all(r["errors"] is None for r in codex)
+    assert claude and all(isinstance(r["errors"], int) for r in claude)
+    assert any(r["errors"] for r in claude)
+
+
+def test_tokens_sum_l1_model_calls():
+    _, store, _, _, body = analysed()
+    with store.connect() as conn:
+        (total,) = conn.execute(
+            "SELECT sum(COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0) + "
+            "COALESCE(cache_write_tokens,0) + COALESCE(output_tokens,0)) FROM model_call"
+        ).fetchone()
+    rows = body["rows"]
+    assert total and sum(r["tok"] for r in rows if r["tok"] is not None) == total
+    assert {r["tok_basis"] for r in rows} <= {"l1_model_call", "cumulative_estimate"}
+
+
+def test_all_null_tokens_stay_null():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE model_call (session_uid, model_id, effort_raw, coverage, "
+                 "input_tokens, cache_read_tokens, cache_write_tokens, output_tokens)")
+    conn.executemany("INSERT INTO model_call VALUES (?,?,?,?,?,?,?,?)",
+                     [("s1", "m", None, None, None, None, None, None),
+                      ("s2", "m", "high", None, 10, None, None, 5)])
+    tok, _, models, efforts = facts._models(conn, json.dumps(["s1", "s2"]),
+                                            {"s1": "s1", "s2": "s2"})
+    assert "s1" not in tok and tok["s2"] == 15
+    assert models["s1"]["m"] == 1 and efforts["s2"]["high"] == 1
+
+
+def test_excluded_sessions_come_back_flagged():
+    _, store, scope, result, _ = analysed()
+    gone = result["sessions"][0]["session_uid"]
+    trimmed = {**result, "sessions": [s for s in result["sessions"]
+                                      if s["session_uid"] != gone]}
+    fake = SimpleNamespace(display_timezone="UTC", excluded_session_uids=[gone])
+    with store.connect() as conn:
+        body = facts.build_facts(conn, trimmed, fake)
+    flagged = [r for r in body["rows"] if r["excluded"]]
+    assert [r["id"] for r in flagged] == [gone]
+    assert flagged[0]["msgs"] is None and flagged[0]["a"] in ("codex", "claude_code")
+    assert body["meta"]["counts"]["excluded"] == 1
+
+
+def test_compact_round_trip_and_live_overlay():
+    body = analysed()[4]
+    wire = facts.compact(body)
+    back = facts.expand(wire)
+    assert [r["id"] for r in back] == [r["id"] for r in body["rows"]]
+    assert back[5]["a"] == body["rows"][5]["a"] and back[5]["fric"] == body["rows"][5]["fric"]
+    uid = body["rows"][3]["id"]
+    live = facts.overlay_live(body, {"sessions": [{"session_uid": uid, "state": "running"}]})
+    row = next(r for r in live["rows"] if r["id"] == uid)
+    assert row["live"] and row["out"] == "live"
+    assert not next(r for r in body["rows"] if r["id"] == uid)["live"]  # snapshot untouched
+
+
+def _bulk(n: int) -> dict:
+    body = analysed()[4]
+    base = body["rows"]
+    rows = []
+    for i in range(n):
+        row = dict(base[i % len(base)])
+        row["id"] = f"session_{i:064x}"
+        rows.append(row)
+    return {**body, "rows": rows}
+
+
+def test_wire_size_and_build_speed():
+    _, store, scope, result, _ = analysed()
+    started = time.perf_counter()
+    with store.connect() as conn:
+        facts.build_facts(conn, result, scope)
+    assert time.perf_counter() - started < 1.0
+    import gzip
+
+    big = _bulk(2400)
+    started = time.perf_counter()
+    raw = json.dumps(facts.compact(big), ensure_ascii=False, separators=(",", ":")).encode()
+    assert time.perf_counter() - started < 1.0
+    assert len(raw) / 2.4 < 200_000  # ≤ 200 KB per 1000 sessions
+    assert len(gzip.compress(raw, 5)) < 300_000
+
+
+def test_section_reuses_the_memoised_analysis():
+    from tandem_backend.services.sections import SECTIONS
+    from tandem_backend.uiview import section
+
+    _, store, scope, result, body = analysed()
+    seen = []
+
+    class Memo:
+        def analysis(self, store_, scope_, with_text, revision):
+            seen.append((with_text, revision))
+            return result
+
+    out = section.compute(store, scope, {"_rev": 7}, Memo())
+    assert seen == [(False, 7)]
+    assert out["rows"] == body["rows"]
+    assert SECTIONS["uiview_facts"].cost == "heavy"

@@ -33,6 +33,7 @@ class TailCall:
 class SessionTail:
     session_uid: str
     agent: str | None = None
+    native_id: str | None = None  # the agent's own session id (hook events key)
     project_id: str | None = None
     project: str | None = None
     title: str | None = None

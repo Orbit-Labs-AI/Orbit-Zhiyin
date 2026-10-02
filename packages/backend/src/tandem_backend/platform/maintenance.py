@@ -37,7 +37,8 @@ class UnknownTask(KeyError):
 
 def _notify(event: dict) -> None:
     try:
-        from . import notify
+        # The submodule function (the package attribute ``notify`` is rebound to a wrapper).
+        from .notify import notify
 
         notify(event)
     except Exception:  # noqa: BLE001 - notifications are optional.
@@ -57,7 +58,18 @@ class Maintenance:
                     "SELECT task, started_at, ms, ok FROM maintenance_run WHERE id IN ("
                     "SELECT max(id) FROM maintenance_run GROUP BY task)"):
                 self.last[row[0]] = {"last_run": row[1], "ms": row[2], "ok": bool(row[3])}
+        self.intervals = dict(INTERVALS)
+        self.light = set(LIGHT)
         self.tasks = {name: getattr(self, f"_{name}") for name in INTERVALS}
+
+    def register(self, name: str, fn, interval_s: int, *, light: bool = False) -> None:
+        """Add a periodic task from another area (runs on this thread, idle-gated unless
+        ``light``); also reachable through ``/v1/platform/maintenance/run``."""
+        with self.lock:
+            self.tasks[name] = fn
+            self.intervals[name] = int(interval_s)
+            if light:
+                self.light.add(name)
 
     # -- scheduling --------------------------------------------------------------------
     def start(self) -> None:
@@ -83,7 +95,7 @@ class Maintenance:
         # First run of slow tasks waits one interval after startup, except quick ones.
         started = int(self.platform.started_at * 1000)
         out = []
-        for name, interval in INTERVALS.items():
+        for name, interval in list(self.intervals.items()):
             last = self.last.get(name, {}).get("last_run")
             reference = last if last is not None else started if interval > 600 else 0
             if now_ms - reference >= interval * 1000:
@@ -98,7 +110,7 @@ class Maintenance:
         for name in self.due():
             if self.stopping.is_set():
                 break
-            if busy and name not in LIGHT:
+            if busy and name not in self.light:
                 continue
             self.run(name)
             ran.append(name)
@@ -140,7 +152,7 @@ class Maintenance:
     def status(self) -> dict:
         started = int(self.platform.started_at * 1000)
         out = {}
-        for name, interval in INTERVALS.items():
+        for name, interval in list(self.intervals.items()):
             last = self.last.get(name, {})
             reference = last.get("last_run")
             if reference is None:
@@ -186,8 +198,8 @@ class Maintenance:
         except OSError:
             free = None
         if free is not None and free < DISK_LOW:
-            _notify({"type": "system", "kind": "disk_low", "dedupe_key": "system:disk_low",
-                     "title": "磁盘空间不足", "free_bytes": free})
+            _notify({"type": "system", "key": "system:disk_low", "title": "磁盘空间不足",
+                     "body": f"剩余 {free // 1024**2} MB", "payload": {"free_bytes": free}})
         return {"total_bytes": report["total_bytes"], "free_bytes": free}
 
     def _retention(self) -> dict:
@@ -239,7 +251,7 @@ class Maintenance:
         result = appdb_integrity(self.platform, force=True)["result"]
         if result != "ok":
             logs.log_event("integrity_failed", logging.ERROR, db="app.db", result=result)
-            _notify({"type": "system", "kind": "integrity", "dedupe_key": "system:integrity",
+            _notify({"type": "system", "key": "system:integrity",
                      "title": "应用数据库完整性检查失败"})
             raise RuntimeError(f"app.db quick_check: {result}")
         return {"app_db": result}

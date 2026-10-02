@@ -136,6 +136,13 @@ def router(gw: Gateway) -> APIRouter:
     def facets(session_uid: Annotated[list[str] | None, Query()] = None):
         return ai().facets(session_uid or [])
 
+    @api.get("/v1/ai/narratives")
+    def narratives(kind: str, key: str | None = None, session_uid: str | None = None,
+                   days: int | None = Query(None, ge=1, le=365), project_id: str | None = None):
+        params = {"session_uid": session_uid} if session_uid else {}
+        scope = {k: v for k, v in (("days", days), ("project_id", project_id)) if v} or None
+        return call(ai().narrative, kind, key or session_uid, params, scope)
+
     def ask_module():
         from ..ai import ask  # Lazy: keeps jieba & co. out of gateway start-up.
 

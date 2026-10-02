@@ -378,6 +378,37 @@ class AIService:
                               session_uids).fetchall()
         return [{**dict(row), "json": _loads(row["json"])} for row in rows]
 
+    def narrative(self, kind: str, key: str | None = None, params: dict | None = None,
+                  scope: dict | None = None) -> dict:
+        """Latest kept result of a narrate / cluster / classify task; else its L0 fallback
+        computed now (AI off, never run, or no result for ``key``)."""
+        from .tasks_v1 import NARRATIVE_KINDS
+
+        task_id = NARRATIVE_KINDS.get(kind)
+        if task_id is None:
+            raise AIError(400, "unknown_kind", f"未知叙述类型：{kind}",
+                          kinds=sorted(NARRATIVE_KINDS))
+        task = self._task(task_id)
+        with self.appdb.read() as db:
+            rows = db.execute("SELECT job_id, status, result, finished_at FROM ai_job WHERE "
+                              "task_id = ? AND status IN ('ok', 'fallback') AND result IS NOT NULL "
+                              "ORDER BY finished_at DESC LIMIT 50", (task_id,)).fetchall()
+        for row in rows:
+            result = _loads(row["result"]) or {}
+            if key is None or result.get("key") == key:
+                return {"kind": kind, "task_id": task_id, "key": result.get("key"),
+                        "status": row["status"], "source": result.get("source"),
+                        "job_id": row["job_id"], "finished_at": row["finished_at"],
+                        "result": result}
+        pack = self._pack(task, {"params": params or {}, "scope": scope})
+        output = task["fallback"](pack, "no_job") if task["fallback"] else None
+        if output is None:
+            raise AIError(404, "not_found", "还没有这类 AI 结果")
+        done = task["finalize"](output, pack, "fallback") if task["finalize"] else None
+        result = (done or {}).get("result", output)
+        return {"kind": kind, "task_id": task_id, "key": result.get("key"), "status": "fallback",
+                "source": "template", "job_id": None, "finished_at": None, "result": result}
+
     def today_cost(self) -> float:
         with self.appdb.read() as db:
             return db.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM ai_usage WHERE ts >= ?",

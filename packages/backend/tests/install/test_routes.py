@@ -169,3 +169,17 @@ def test_artifact_install_updates_ai_status(client):
     assert (status.get("status"), status.get("install_id")) == ("installed", applied["install_id"]), status
     c.post(f"/v1/install/{applied['install_id']}/revert")
     assert c.get("/v1/ai/artifacts/a1").json()["status"] == "reverted"
+
+
+def test_collect_plan_and_status_routes(client, fake_home):
+    c, _ = client
+    assert c.get("/v1/install/collect").json()["installed"] is False
+    plan = c.post("/v1/install/plans", json={"source": {"type": "collect"}, "agents": ["claude_code"]})
+    assert plan.status_code == 201 and plan.json()["kind"] == "collect"
+    pid = plan.json()["plan_id"]
+    preview = c.get(f"/v1/install/plans/{pid}/preview").json()
+    applied = c.post("/v1/install/apply", json={"plan_id": pid, "preview_digest": preview["preview_digest"]}).json()
+    status = c.get("/v1/install/collect").json()
+    assert status["installed"] and status["install_id"] == applied["install_id"]
+    assert status["events_path"].endswith("hooks/events.jsonl")
+    assert c.post(f"/v1/install/{applied['install_id']}/revert", json={}).json()["state"] == "reverted"

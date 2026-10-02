@@ -14,7 +14,7 @@ import re
 import sqlite3
 from pathlib import PurePosixPath
 
-from . import store
+from . import collect, store
 from . import targets as targets_mod
 from .env import FULL_SUPPORT, inventory_names
 from .errors import PlanError
@@ -167,11 +167,20 @@ def default_catalog_lookup(item_id: str) -> dict | None:
                 return found
     except Exception:  # noqa: BLE001 - optional dependency
         pass
+    seeds = []
     try:
         from ..recommend.legacy_catalog import resources  # noqa: PLC0415
+
+        seeds += resources()
     except Exception:  # noqa: BLE001
-        return None
-    for entry in resources():
+        pass
+    try:  # bottleneck seeds: recommend recalls them while catalog.db is still empty
+        from ..analytics.recommendations.catalog import load_catalog  # noqa: PLC0415
+
+        seeds += [e for e in load_catalog() if e.get("url")]
+    except Exception:  # noqa: BLE001
+        pass
+    for entry in seeds:
         if entry.get("id") == item_id:
             return _legacy_item(entry)
     return None
@@ -262,6 +271,10 @@ def _rec_candidate_row(appdb, sid) -> dict | None:
                 "target_agents", "scope"):
         if key in card and key not in row:
             row[key] = json.dumps(card[key]) if isinstance(card[key], (dict, list)) else card[key]
+    # rec-engine-v2 cards name their catalog entry in ``source`` rather than ``catalog_item_id``.
+    source = card.get("source") or {}
+    if not row.get("catalog_item_id") and source.get("origin") == "catalog" and source.get("item_id"):
+        row["catalog_item_id"] = source["item_id"]
     return row
 
 
@@ -384,8 +397,11 @@ def _name(spec: dict) -> str:
 
 def make_plan(source: dict, *, agents=None, scope: str = "user", project_path: str | None = None,
               fetch: bool = False, service) -> dict:
-    spec, extra = build_spec(source, appdb=service.appdb, catalog_lookup=service.catalog_lookup,
-                             cache_dir=service.cache_dir, fetcher=service.fetcher, allow_network=fetch)
+    if (source or {}).get("type") == "collect":
+        spec, extra, scope = collect.spec(service.home), {"status": "ready"}, "user"
+    else:
+        spec, extra = build_spec(source, appdb=service.appdb, catalog_lookup=service.catalog_lookup,
+                                 cache_dir=service.cache_dir, fetcher=service.fetcher, allow_network=fetch)
     env_info = service.environment()
     spec["agents"] = list(agents or spec.get("agents") or _default_agents(env_info))
     spec["scope"] = scope or spec.get("scope") or "user"
@@ -398,7 +414,8 @@ def make_plan(source: dict, *, agents=None, scope: str = "user", project_path: s
     status, warnings, targets = extra["status"], [], []
     if status == "ready":
         try:
-            targets = targets_mod.resolve_targets(spec, env_info, env=service.env)
+            resolve = collect.resolve_targets if spec["kind"] == "collect" else targets_mod.resolve_targets
+            targets = resolve(spec, env_info, env=service.env)
         except targets_mod.PlanError as error:
             raise PlanError(error.code, error.message, http=error.http) from None
         if spec.get("ai_text"):

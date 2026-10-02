@@ -195,7 +195,7 @@ def _main(argv: list[str] | None = None) -> None:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
         imported = result.get("import", {}) if isinstance(result, dict) else {}
-        if imported.get("capture_errors") or imported.get("current_unparsed"):
+        if any(imported.get(k) for k in ("capture_errors", "current_unparsed", "skipped_files")):
             raise SystemExit(2)
         return
     if args.command == "import" and args.db is None:
@@ -207,7 +207,8 @@ def _main(argv: list[str] | None = None) -> None:
         except (ValueError, OSError, RuntimeError) as exc:
             parser.error(str(exc))
         print(json.dumps(result, ensure_ascii=False))
-        if result["import"].get("capture_errors") or result["import"].get("current_unparsed"):
+        imported = result["import"]
+        if any(imported.get(k) for k in ("capture_errors", "current_unparsed", "skipped_files")):
             raise SystemExit(2)
         return
     if args.command in ("reader-pack", "reader-results"):

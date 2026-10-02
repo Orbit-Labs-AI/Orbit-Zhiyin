@@ -102,7 +102,12 @@ def exclude_tandem_ai_sessions(store) -> int:
     return len(uids)
 
 
-def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
+def rebuild(store, *, mapper_version=None, source_ids=None, progress=None, changed=frozenset()):
+    """Replace L2/L3 for the scope in one transaction.
+
+    ``changed`` lists indexed files whose live source no longer starts with their
+    captured revision; they keep their previously published facts (see ``Store.rebuild``).
+    """
     from tandem_data.reduce import derive
 
     progress = progress or (lambda _: None)
@@ -129,7 +134,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         source_files = "SELECT file_id FROM source_file WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
         from tandem_data.retained import RetainedProjection
 
-        retained = RetainedProjection(store)
+        retained = RetainedProjection(store, changed)
         store._unavailable_files = set(retained.files)
         store.db.execute(
             "DELETE FROM tool_call_event WHERE call_uid IN (SELECT call_uid FROM tool_call WHERE session_uid IN ("
@@ -182,7 +187,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
             try:
                 mapper.prepare(store.iter_file(info["file_id"]))
             except SourceUnavailable:
-                raise  # Never publish a partial replacement from changed evidence.
+                raise  # Roll back; Store.rebuild retries with this file retained.
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 store.issue(
                     info["source_id"],
@@ -306,7 +311,7 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                     if relation != "replayed":
                         attrs, ext = json.loads(existing["attrs"]), json.loads(existing["ext"])
                         incoming = {**prepared_envelope, "seq": existing["seq"]}
-                        if attrs.get("source_status") == "missing":
+                        if attrs.get("source_status") in ("missing", "changed"):
                             # A live representation wins over a preserved one with
                             # the same native identity, including shorter corrected text.
                             replacement = dict(incoming)
@@ -535,6 +540,8 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         derive(store, scoped=True, progress=progress)
         exclude_tandem_ai_sessions(store)
         for info in infos:
+            if info["file_id"] in changed:
+                continue  # Not projected: the next import rebuilds it from a fresh capture.
             store.db.execute(
                 "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
                 (mapper_version, REDUCER_VERSION, REDACTION_VERSION, info["file_id"]),
@@ -575,4 +582,5 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         "sessions": store.db.execute("SELECT COUNT(*) FROM session").fetchone()[0],
         "records": store.db.execute("SELECT COUNT(*) FROM raw_record").fetchone()[0],
         "issues": store.db.execute("SELECT COUNT(*) FROM ingest_issue").fetchone()[0],
+        "skipped_files": len(changed),
     }
