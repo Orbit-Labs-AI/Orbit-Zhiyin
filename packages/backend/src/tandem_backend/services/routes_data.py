@@ -32,7 +32,7 @@ from .auth import ApiError
 if TYPE_CHECKING:
     from .gateway import Gateway
 
-SESSION_FIELDS = ("id", "title", "project_id", "project", "model", "started_at")
+SESSION_FIELDS = ("id", "title", "project_id", "project", "model", "started_at", "kind", "agent")
 NO_DATABASE = {"freshness": "none", "reason": "no_projection"}
 
 
@@ -213,18 +213,31 @@ def router(gw: Gateway) -> APIRouter:
                 "projection": revisions["projection"], "counts": revisions["counts"]}
 
     @api.get("/v1/sessions")
-    def sessions(request: Request, project_id: str | None = None,
+    def sessions(request: Request, project_id: str | None = None, kind: str | None = None,
                  limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
-        from ..data_access.store import report_session
+        """Newest first. ``kind`` defaults to ``main`` (user sessions); ``all`` lists every
+        kind, or pass a comma list such as ``main,review``. ``model`` is the session's most
+        used model (``unknown`` when it reported none)."""
+        from ..data_access.store import (
+            SESSION_MODEL_SQL,
+            report_session,
+            session_filter,
+            session_kinds,
+        )
 
+        try:
+            kinds = session_kinds(kind)
+        except ValueError as error:
+            raise ApiError(422, "invalid_kind", str(error)) from error
         total_header = {}
 
         def produce(db):
-            clause, params = (" WHERE s.project_id=?", [project_id]) if project_id else ("", [])
-            base = " FROM session s LEFT JOIN project p ON p.project_id=s.project_id" + clause
+            clause, params = session_filter(project_id or None, kinds)
+            base = (" FROM session s LEFT JOIN source src ON src.source_id=s.source_id"
+                    " LEFT JOIN project p ON p.project_id=s.project_id" + clause)
             total_header["X-Total-Count"] = str(db.execute("SELECT count(*)" + base,
                                                            params).fetchone()[0])
-            rows = db.execute("SELECT s.*,p.name AS project_name" + base +
+            rows = db.execute("SELECT s.*,src.agent,p.name AS project_name," + SESSION_MODEL_SQL + base +
                               " ORDER BY s.started_at DESC,s.session_uid LIMIT ? OFFSET ?",
                               [*params, limit, offset]).fetchall()
             items = [report_session(dict(r), {"name": r["project_name"]}) for r in rows]

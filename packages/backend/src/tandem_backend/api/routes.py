@@ -400,11 +400,17 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         return analyze(store)["projects"]
 
     @app.get("/v1/sessions")
-    def sessions(project_id: str | None = None, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    def sessions(project_id: str | None = None, kind: str | None = None,
+                 limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
         # Paths stay in the local ledger; listing sessions does not expose home-directory paths.
-        items = (store.session_page(project_id, offset=offset, limit=limit)["items"]
-                 if hasattr(store, "session_page") else store.sessions(project_id)[offset:offset + limit])
-        return [{k: s[k] for k in ("id", "title", "project_id", "project", "model", "started_at")}
+        if hasattr(store, "session_page"):
+            try:
+                items = store.session_page(project_id, offset=offset, limit=limit, kind=kind)["items"]
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from error
+        else:
+            items = store.sessions(project_id)[offset:offset + limit]
+        return [{k: s.get(k) for k in ("id", "title", "project_id", "project", "model", "started_at", "kind", "agent")}
                 for s in items]
 
     @app.get("/v1/sessions/{session_id}/events")
