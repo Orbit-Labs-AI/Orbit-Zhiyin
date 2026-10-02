@@ -3,7 +3,8 @@
 :root{--vz-err:var(--sem-err,var(--crit-m));--vz-corr:var(--sem-corr,#c8820b);--vz-good:var(--sem-good,var(--good-m));--vz-mood-neg:var(--sem-mood-neg,#5b5bd6);--vz-mood-pos:var(--sem-mood-pos,#2a9d8f)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--vz-corr:var(--sem-corr,#e0a030);--vz-mood-neg:var(--sem-mood-neg,#8f8cff);--vz-mood-pos:var(--sem-mood-pos,#3fc3ad)}}
 :root[data-theme="dark"]{--vz-corr:var(--sem-corr,#e0a030);--vz-mood-neg:var(--sem-mood-neg,#8f8cff);--vz-mood-pos:var(--sem-mood-pos,#3fc3ad)}
-.vz{position:relative;min-width:0;--vz-accent:var(--accent,#0a84ff)}
+/* Selection affordances (brush, minimap window, now marker, hot marker) share the shell's monochrome --accent (= ink); their shapes and opacities keep them distinct from the ink playhead and selection stroke. */
+.vz{position:relative;min-width:0;--vz-accent:var(--accent,var(--ink-1))}
 .vz-plot{position:relative;outline:none;border-radius:8px;touch-action:pan-y}
 .vz-plot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* Type: ticks and numbers are monospace (same as the live demo's .chart text and .eb eyebrows); names, notes and axis titles stay in the UI sans. */

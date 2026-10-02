@@ -66,12 +66,12 @@
  *   kpi           VZ.kpi({ label, value, unit, delta: { cur, prev, unit: 'pct' | 'pt' | 'x', goodDown }, trend, trendLabel, sub, act, tip })：环比 = ▲▼ + 变化量 + 上期值
  *
  * 颜色只用 CSS 变量：系列色 --a1..--a5 只表示 Agent 身份；语义色走 VZ.sem（--vz-err / --vz-corr / --vz-good / --vz-mood-neg / --vz-mood-pos，缺省回落主题色）；
- * 强调色 var(--accent, #0a84ff) 只用于选中 / 当前 / 刷选 / 迷你线末点；AI 紫 --ai；灰阶 --h0..--h5；墨色 --ink-1..4；单系列条默认中性灰。
+ * 强调色 var(--accent) 在外壳里就是墨色（单色控件体系，蓝色只留给焦点环），只用于选中 / 当前 / 刷选 / 迷你线末点；AI 紫 --ai；灰阶 --h0..--h5；墨色 --ink-1..4；单系列条默认中性灰。
  * 文字永远用墨色（--ink-*），颜色只落在图元上；浅深色自动适配；reduced-motion 下无过渡。
  */
-const VZ = { types: {}, _inst: new WeakMap(), ACC: 'var(--accent, #0a84ff)', _uid: 0 };
+const VZ = { types: {}, _inst: new WeakMap(), ACC: 'var(--accent, #17181b)', _uid: 0 };
 // 语义色（评审 §4：一个颜色只对应一个含义）。值是 36-viz.css 的 --vz-* 变量，缺省回落到主题的 crit / good 与琥珀 / 冷紫 / 青绿。
-VZ.sem = { err: 'var(--vz-err)', corr: 'var(--vz-corr)', good: 'var(--vz-good)', neg: 'var(--vz-mood-neg)', pos: 'var(--vz-mood-pos)', accent: 'var(--accent, #0a84ff)', bar: 'var(--ink-4)', barStrong: 'var(--ink-3)' };
+VZ.sem = { err: 'var(--vz-err)', corr: 'var(--vz-corr)', good: 'var(--vz-good)', neg: 'var(--vz-mood-neg)', pos: 'var(--vz-mood-pos)', accent: 'var(--accent, #17181b)', bar: 'var(--ink-4)', barStrong: 'var(--ink-3)' };
 // 第 i 个系列的颜色；传入系列总数 n === 1 时（单一度量的柱 / 条）用中性 --ink-3，Agent 五色只表示身份（评审 G-03）
 VZ.color = (i, s, n) => (s && s.color) || (n === 1 ? 'var(--ink-3)' : i < 5 ? 'var(--a' + (i + 1) + ')' : 'var(--h3)');
 // 斜纹（未完成的末桶、推断值）：每张 svg 自带一份 <pattern>，id 唯一

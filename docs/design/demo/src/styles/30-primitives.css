@@ -1,5 +1,6 @@
 /* primitives: three button tiers (filled .p / bordered / plain .gh), 24px controls (20px .sm, 28px in the toolbar), 6px radius,
-   accent for selection, switches, checkboxes, segmented controls and filter tokens; AI purple only on .ai / .aib.
+   ink (--pri / --ink-1) for the filled button, switch, selected filter token and count badge — one colour, as in the
+   published demo; checkboxes / radios take the same ink through accent-color; AI purple only on .ai / .aib.
    Eyebrows (.eb), badges (.bdg), keycaps (.kbd) and every count stay mono — part of the demo's visual language. */
 .ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card);min-width:0}
@@ -12,8 +13,8 @@
 .btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
 .btn:hover{background:color-mix(in srgb,var(--surface) 92%,var(--ink-1))}
 .btn:active{background:color-mix(in srgb,var(--surface) 86%,var(--ink-1))}
-.btn.p{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:0 .5px 1px rgba(0,0,0,.12)}
-.btn.p:hover{background:color-mix(in srgb,var(--accent) 88%,#000)}
+.btn.p{background:var(--pri);border-color:transparent;color:var(--pri-ink);box-shadow:0 .5px 1px rgba(0,0,0,.12)}
+.btn.p:hover{background:color-mix(in srgb,var(--pri) 86%,var(--bg))}
 .btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
 .btn.ai:hover{background:color-mix(in srgb,var(--ai-bg) 90%,var(--ai))}
 .btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
@@ -29,8 +30,9 @@
 .seg button.on{background:var(--surface);color:var(--ink-1);font-weight:600;box-shadow:var(--sh-raise)}
 .chip{height:24px;padding:0 8px 0 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
 .chip:hover{background:color-mix(in srgb,var(--surface) 92%,var(--ink-1))}
-.chip.on{background:var(--accent-tint);border-color:transparent;color:var(--accent);box-shadow:none}
-.chip.on .ico{color:var(--accent)}
+.chip.on{background:var(--ink-1);border-color:var(--ink-1);color:var(--bg);box-shadow:none}
+.chip.on:hover{background:color-mix(in srgb,var(--ink-1) 86%,var(--bg))}
+.chip.on .ico{color:inherit}
 .chip.dash{border-style:dashed;color:var(--ink-2);background:transparent;box-shadow:none}
 .chip.sm{height:20px;font-size:12px;padding:0 7px;border-radius:5px}
 .tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--ink-2);white-space:nowrap}
@@ -39,9 +41,9 @@
 .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
 .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--surface);font:600 11px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
 .sw{position:relative;width:34px;height:20px;border-radius:999px;background:var(--ink-4);flex:none;border:0;padding:0;transition:background .15s}
-.sw.on{background:var(--accent)}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.08);transition:left .15s var(--ease)}
-.sw.on::after{left:16px}
+.sw.on{background:var(--ink-1)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.08);transition:left .15s var(--ease),background .15s}
+.sw.on::after{left:16px;background:var(--pri-ink)}
 .lnk{font-size:12px;color:var(--ink-1);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line);background:none;border:0;padding:0}
 .lnk:hover{text-decoration-color:var(--ink-3)}
 .lvl{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
