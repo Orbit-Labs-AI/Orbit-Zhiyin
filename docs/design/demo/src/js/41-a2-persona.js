@@ -1,0 +1,74 @@
+/* ============ A2 persona ============ */
+const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
+const POP = { D: 52, I: 54, M: 47, V: 58 };
+PAGES.persona = () => {
+  const per = PERIODS[S.persona.period];
+  const L = sel({ win: [per[0], per[1]] }); const p = persona(L);
+  const months = ['jun', 'jul', 'aug', 'sep'].map((k) => ({ k, lbl: '2026-0' + ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(sel({ win: [PERIODS[k][0], PERIODS[k][1]] })) }));
+  const prevKey = { sep: 'aug', aug: 'jul', jul: 'jun', jun: null, '90': null, all: null }[S.persona.period];
+  const prev = prevKey ? persona(sel({ win: [PERIODS[prevKey][0], PERIODS[prevKey][1]] })) : null;
+  const filt = (S.project ? PJI[S.project].name + ' · ' : '') + (S.agents.size < 5 ? AG.filter((a) => S.agents.has(a.id)).map((a) => a.short).join(' / ') + ' · ' : '');
+  const right = '<div class="seg" role="group" aria-label="统计周期">' + [['sep', '9 月'], ['90', '近 90 天'], ['all', '全部']].map((x) => '<button type="button" data-act="period" data-v="' + x[0] + '" class="' + (S.persona.period === x[0] ? 'on' : '') + '">' + x[1] + '</button>').join('') + '</div><button type="button" class="btn gh" data-act="method">' + ic('info', 14) + '算法说明</button><button type="button" class="btn" data-act="share">' + ic('share', 14) + '导出分享卡</button><button type="button" class="btn ai" data-act="ask" data-ctx="persona">' + ic('spark', 14) + '让 Agent 写一份自述</button>';
+  if (!p.ok) {
+    const frac = Math.min(1, L.length / 30); const a = frac * Math.PI * 2; const x = 56 + 46 * Math.sin(a), y = 56 - 46 * Math.cos(a);
+    return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--mono)" fill="var(--ink-1)">' + L.length + '/30</text></svg><div class="col"><h2 class="serif" style="margin:0;font-size:24px">再积累 ' + (30 - L.length) + ' 个会话后揭晓</h2><p style="margin:0;color:var(--ink-2)">当前筛选下样本太少，人格需要足够的会话才可靠。可以放宽筛选，或换一个统计周期。</p><div class="row"><button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div></div></div></div>';
+  }
+  CUR.persona = p;
+  const traits = [];
+  if (p.v.D >= 55) traits.push('高吞吐'); else if (p.v.D <= 45) traits.push('亲自掌舵');
+  if (p.v.I >= 55) traits.push('边做边想'); else if (p.v.I <= 45) traits.push('先规划');
+  if (p.v.M >= 55) traits.push('多线程'); else if (p.v.M <= 45) traits.push('单线专注');
+  if (p.v.V >= 55) traits.push('验收严格'); else if (p.v.V <= 45) traits.push('信任结果');
+  traits.push('中英混用');
+  const st = p.st;
+  const conts = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const recFor = { '方向错误': 'deploy-target', '工具 / 环境失败': 'retry-breaker', '改动过度': 'paper-audit', '误解需求': 'acceptance', '并行会话冲突': 'worktree', '流程过重（子代理）': 'pr-wrapup', '额度 / 用量中断': 'summary-compact' };
+  const fitRows = AG.map((a) => { const xs = L.filter((s) => s.a === a.id); return { a, n: xs.length, f: fitOf(xs), st: stats(xs) }; });
+  return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + per[2], right) +
+    '<div class="content" id="content"><div class="stack">' +
+    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">Your agent collaboration type · 你的协作人格</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
+    '<div class="letters">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
+    '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;font-style:italic;color:var(--ink-3)">' + p.en + '</span></div>' +
+    '<p style="margin:12px 0 0;max-width:580px;font-size:14.5px;line-height:1.65;color:var(--ink-2);text-wrap:pretty">' + esc(p.line) + ' 这段时间你平均每个会话只发 ' + f1(st.per) + ' 条消息，Agent 每轮自主走 ' + f1(st.auto) + ' 步；' + Math.round(st.verify) + '% 的会话会要求验证结果。</p>' +
+    '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></div>' +
+    '<div style="margin-top:22px"><div class="eb" style="margin-bottom:8px">演变 · 按月重算 · 点击切换</div><div class="evo">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 13, 'color:var(--ink-4)') : '')).join('') + '</div></div></div>' +
+    '<div class="fp-wrap"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + fpSVG(L, p, 400, { interactive: true, labels: true }) + '<div class="row" style="gap:12px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--ink-2);margin-top:4px"><span class="row" style="gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:var(--ink-1)"></span>内核 · 四维度</span><span class="row" style="gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:var(--ink-3)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>外环 · 每个点是一个会话，悬停查看</span></div></div></div>' +
+    '<div class="three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
+    '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button><button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button></div></div><div class="col" style="gap:14px">' +
+    [0, 1, 2, 3].map((i) => { const a = axisView(p, i); const gv = S.persona.vs === 'pop' ? POP[a.ax.k] : (prev && prev.ok ? prev.v[a.ax.k] : null); const gpos = gv == null ? null : (a.ax.k !== 'I' ? 100 - gv : gv); const ev = i === 0 ? '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步' : i === 1 ? '项目结构加权 · 规划型项目占 ' + Math.round(sum(L.filter((s) => PJI[s.p].I < 50), (s) => s.dur) / (st.hours * 60) * 100) + '% 时长' : i === 2 ? '日均 ' + f1(p.avgS) + ' 个会话 · 同日 ' + f1(p.avgA) + ' 个 Agent' : Math.round(st.verify) + '% 会话要求验证 · 完成率 ' + Math.round(st.ok) + '%'; return '<div class="col" style="gap:6px"><div class="ax"><span style="color:' + (a.leftWins ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (a.leftWins ? 700 : 400) + '"><span class="mono">' + a.ax.L + '</span> ' + a.ax.Ln + '</span><span class="track"><span class="mid"></span>' + (gpos != null ? '<span class="ghost" style="left:' + gpos + '%"></span>' : '') + '<span class="fill" style="left:' + Math.min(a.pos, 50) + '%;width:' + Math.abs(a.pos - 50) + '%"></span><span class="knob" style="left:' + a.pos + '%"></span></span><span style="text-align:right;color:' + (!a.leftWins ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (!a.leftWins ? 700 : 400) + '">' + a.ax.Rn + ' <span class="mono">' + a.ax.R + '</span></span><span class="mono" style="text-align:right;font-weight:700">' + a.strong + '</span></div><div class="mono cap" style="font-size:11px">' + ev + '</div></div>'; }).join('') +
+    '</div><div class="cap" style="margin-top:12px;font-size:11.5px">细线：' + (S.persona.vs === 'pop' ? '全体用户均值（示例）' : prev && prev.ok ? '上个月的位置' : '无可比时段') + ' · 中线为 50；落在 45–55 记为未定型</div></div>' +
+    '<div class="card pad"><div class="ct" style="margin-bottom:10px">优势与盲点</div><div class="col" style="gap:8px">' +
+    [['整段委托', '单轮平均 ' + f1(st.auto) + ' 步自主执行。', p.v.D >= 55], ['验收严格', Math.round(st.verify) + '% 的会话要求验证。', p.v.V >= 55], ['节奏稳定', '日均 ' + f1(p.avgS) + ' 个会话。', true]].filter((x) => x[2]).map((x) => '<div class="row" style="align-items:flex-start;font-size:12.5px;line-height:1.45">' + ic('okc', 15, 'color:var(--good);margin-top:1px') + '<span style="color:var(--ink-2)"><b style="color:var(--ink-1)">' + x[0] + '</b> ' + x[1] + '</span></div>').join('') +
+    '<div style="height:1px;background:var(--hair);margin:4px 0"></div>' +
+    (conts.length ? conts.map((c) => '<div class="row" style="align-items:flex-start;font-size:12.5px;line-height:1.45">' + ic('alert', 15, 'color:var(--crit);margin-top:1px') + '<span style="color:var(--ink-2);flex:1"><b style="color:var(--ink-1)">' + c[0] + '</b> 出现在 ' + c[1] + ' 个会话。 <button type="button" class="lnk" data-act="openRec" data-id="' + recFor[c[0]] + '">→ 建议</button></span></div>').join('') : '<span class="cap">这段时间没有明显盲点。</span>') + '</div></div>' +
+    '<div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="ct">与 Agent 的契合度</span><span class="cap" style="font-size:11px">0–100</span></div><div class="col" style="gap:9px">' +
+    fitRows.map((r) => '<button type="button" data-act="soloAgent" data-a="' + r.a.id + '" style="display:flex;flex-direction:column;gap:3px;border:0;background:none;padding:0;text-align:left;width:100%"><span class="row" style="font-size:12.5px;width:100%"><span class="dot" style="background:' + r.a.c + '"></span><span style="flex:1">' + r.a.name + '</span><b class="mono">' + (r.f == null ? '—' : r.f) + '</b></span><span style="height:6px;border-radius:3px;background:var(--sunken);display:block;width:100%"><span style="display:block;height:6px;width:' + (r.f || 0) + '%;border-radius:0 3px 3px 0;background:' + r.a.c + '"></span></span><span style="font-size:11px;color:var(--ink-3)">' + (r.n < 5 ? '样本少（' + r.n + ' 个会话），仅供参考' : r.n + ' 个会话 · 摩擦率 ' + f1(r.st.fric) + '% · 完成率 ' + Math.round(r.st.ok) + '%') + '</span></button>').join('') +
+    '</div><div class="cap" style="margin-top:10px;font-size:11px">综合完成率与摩擦率 · 点击只看该 Agent 的人格</div></div>' +
+    '</div></div></div>';
+};
+TIPS.axis = (i) => { const p = CUR.persona; if (!p) return ''; const a = axisView(p, +i); return '<b>' + a.ax.dim + '：' + a.ax.L + ' ' + a.ax.Ln + ' ↔ ' + a.ax.R + ' ' + a.ax.Rn + '</b>\n' + a.ax.q + '\n<span style="opacity:.8">信号：' + a.ax.sig + '</span>'; };
+Object.assign(ACT, {
+  period: (el) => { S.persona.period = el.dataset.v; render(); },
+  vs: (el) => { S.persona.vs = el.dataset.v; render(); },
+  axisJump: () => { const c = $('#axesCard'); if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.animate([{ boxShadow: '0 0 0 3px var(--focus)' }, { boxShadow: '0 0 0 0 transparent' }], { duration: 900 }); } },
+  notMe: (el) => openDD(el, [{ h: '哪里不像你？' }, { t: '描述太夸张了', v: 1 }, { t: '某个维度判断不对', v: 2 }, { t: '这段时间不代表我', v: 3 }, { t: '其他', v: 4 }], () => toast('已记录反馈，下次计算会降低相关信号的权重')),
+  soloAgent: (el) => { S.agents.clear(); S.agents.add(el.dataset.a); render(); toast('已只看 ' + agent(el.dataset.a).name + '；点侧边栏同一个 Agent 可恢复全部'); },
+  clearAllFilters: () => { S.project = null; S.topic = null; S.outcome = null; S.fric = null; S.hour = null; AG.forEach((a) => S.agents.add(a.id)); render(); },
+  method: () => openMethod(),
+  share: () => openShare(),
+  reveal: () => openReveal(),
+  openSession: (el) => {
+    const s = BYID[el.dataset.id];
+    if (!s || !sourceEnabled(s) || S.excluded.has(s.id)) { toast('此会话的来源已停用或已从分析中排除'); return; }
+    stopPlay();
+    S.agents.add(s.a);
+    for (const [key, value] of [['project', s.p], ['topic', s.topic], ['outcome', s.out], ['fric', s.fric], ['hour', s.h]]) {
+      if (S[key] != null && S[key] !== value) S[key] = null;
+    }
+    const w = win(S.range);
+    if (s.d !== 120 && (s.d < w[0] || s.d > w[1])) S.range = 0;
+    S.sess.sel = s.id; S.sess.mode = 'single'; S.sess.cmp = null; S.sess.q = ''; S.sess.ph = traj(s).T;
+    go('sessions');
+  }
+});
+
