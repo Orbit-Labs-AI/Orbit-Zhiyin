@@ -215,6 +215,11 @@ def test_truncated_zstd_preserves_l0_and_previous_projection(tmp_path):
         assert store.db.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0] == 1
         assert store.db.execute("SELECT event_uid FROM event").fetchone()[0] == old
         assert store.db.execute("SELECT status FROM source_file").fetchone()[0] == "error"
+        store.capture_stream(source, "session.jsonl.zstd", [full], format_name="jsonl_zstd")
+        issue = store.db.execute(
+            "SELECT detail FROM ingest_issue WHERE code='invalid_source_archive'"
+        ).fetchone()
+        assert json.loads(issue[0])["status"] == "resolved"
 
 
 def test_typescript_connector_archive_bridge_and_record_crosswalk(tmp_path):
