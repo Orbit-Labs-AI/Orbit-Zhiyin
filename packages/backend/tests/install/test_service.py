@@ -330,3 +330,12 @@ def test_sweeps(svc):
     assert (svc.backups / result["install_id"]).is_dir()
     assert svc.sweep_backups(keep=0) == 1 and not (svc.backups / result["install_id"]).exists()
     assert svc.sweep_plans(older_than_days=0) == 0  # still referenced by install_state
+
+
+def test_cli_ledger(svc, capsys):
+    from tandem_backend.cli.commands import main
+
+    _, _, result = run(svc, spec_source())
+    main(["--home", str(svc.home), "install", "ledger", "--limit", "2"])
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert len(lines) == 2 and {line["install_id"] for line in lines} == {result["install_id"]}

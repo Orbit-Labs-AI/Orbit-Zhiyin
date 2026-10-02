@@ -158,7 +158,15 @@ def _main(argv: list[str] | None = None) -> None:
     evidence = sub.add_parser("evidence", help="在终端回看一条判断引用的统一事件")
     evidence.add_argument("event_id")
     evidence.add_argument("--json", action="store_true", help="输出完整的已保存事件元数据")
+    install_parser = sub.add_parser("install", help="只读查看安装环境与安装账本（写入经 App 预览确认）")
+    install_sub = install_parser.add_subparsers(dest="install_command", required=True)
+    install_sub.add_parser("environment").add_argument("--json", action="store_true")
+    install_sub.add_parser("ledger").add_argument("--limit", type=int, default=50)
     args = parser.parse_args(argv)
+    if args.command == "install":
+        from ..install import cli as install_cli
+        install_cli(args)
+        return
     from tandem_data.progress import TerminalProgress
     progress = TerminalProgress(enabled=not args.no_progress)
     if args.max_events is not None and args.max_events < 1:
