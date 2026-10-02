@@ -11,17 +11,17 @@
 | 本机安装版本 | `@deepseek-ai/dsh` `0.1.1-rc.2`（`~/.local/lib/node_modules/@deepseek-ai/dsh/package.json`），写出会话格式 **v0** |
 | 语言 / 框架 | TypeScript（ESM），vendored Cordis 插件框架（一切皆插件：loop、LLM、工具、会话日志、持久化都可替换）；另有 Python SDK（`python/`，通过 `dsh --profile sdk` 子进程工作） |
 | 分析方法 | ① 读 HEAD 源码与 `docs/`、`.agents/notes/`、生成的 [persistence-catalog.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/persistence-catalog.md)；② 读本机 0.1.1-rc.2 的编译产物与 README；③ 用 `zstdcat` 流式解压本机 `~/.dsh/sessions/**/session.jsonl.zstd`，Python 只统计 key 集合 / 类型分布 / 计数，不输出正文；④ 不运行 dsh、不联网、不改任何文件 |
-| 隐私处理 | 报告不含任何对话正文、工具输出、文件内容；用户名写作 `~`，项目名写作 `<project>`；未打开 `~/.dsh/.credentials.yaml`，`settings.yaml` 只看了键名 |
+| 隐私处理 | 报告不含任何对话正文、工具输出、文件内容；用户名写作 `~`（会话目录名中写作 `<user>`，因为 `~` 在 projectKey 里是转义前缀），项目名写作 `<project>`；未打开 `~/.dsh/.credentials.yaml`，`settings.yaml` 只看了键名 |
 
 会话格式与产品版本的对应关系（来自仓库内的发布档案 [manifest.json](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/persistence-changes/releases/manifest.json) 与 [historical-formats/README.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/persistence-changes/historical-formats/README.md)）：
 
 | 产品 tag | 会话格式 | 物理文件名 | 关键形态 |
 | --- | --- | --- | --- |
 | `dsh-v0.0.1-rc.1` … `dsh-v0.1.2-rc.1`（含本机 `0.1.1-rc.2`） | v0 | `session.jsonl[.zstd]` | 流式增量是独立事件 `assistant/chunk`，物理上可打包成 `text-chunks`/`reasoning-chunks`/`tool-call-chunks` 行；system prompt 在 `request/header.header.system`；tool 结果是 `role:'user'` + `tool-result` 块 |
-| （无发布 tag，只在 PR #3349 的中间源码里存在） | v1 | `session.v1.jsonl[.zstd]` | 与 v0 同布局，仅版本号不同 |
+| （采集的 alpha/RC 发布档案中没有写 v1 的 tag；格式快照取自 PR #3349 相关中间源码树，代码仍按已发布格式兼容） | v1 | `session.v1.jsonl[.zstd]` | 与 v0 同布局，仅版本号不同 |
 | `dsh-v0.1.3-alpha.1` / `alpha.2` | v2 | `session.v2.jsonl[.zstd]` | 增量流改为嵌入 `assistant/message.data.stream`；新增 `assistant/attempt`；header 改 `isSeeded` |
-| `dsh-v0.1.5-alpha.1` … `dsh-v0.1.5-rc.2` | v3 | `session.v3.jsonl[.zstd]` | system prompt 变成 `system/message` 事件；`surfaceOp.replace` 端点改名 `startSeq/endSeq`；PTC 事件改名 |
-| HEAD（0.2.0-rc.2） | v4 | `session.v4.jsonl[.zstd]` | tool 结果改为 `role:'tool'` 扁平消息；message source 的 `plugin` 包装改为直接 `kind`；新增 `developer/message`、父会话 `subagent/catalog` |
+| `dsh-v0.1.5-alpha.1` … `dsh-v0.1.5-rc.2` | v3 | `session.v3.jsonl[.zstd]` | system prompt 变成 `system/message` 事件；`surfaceOp.replace` 端点改名 `startSeq/endSeq`；PTC 事件改名；新增 `subagent/catalog`、`image/offload`、`deliverables/presented` |
+| HEAD（0.2.0-rc.2） | v4 | `session.v4.jsonl[.zstd]` | tool 结果改为 `role:'tool'` 扁平消息；message source 的 `plugin` 包装改为直接 `kind`；新增 `developer/message`、`workspace/changes`；迁移为缺目录项的子代理在父会话尾部补写 `subagent/catalog`（该事件 v3 已有） |
 
 注意：仓库的发布记录仍写着 `latestReleasedVersion: 3`（[docs/session-format-status.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/session-format-status.md)），而 v4 只是「finalized」。0.1.6～0.2.0-rc.2 之间哪个发布版首次写出 v4，仓库内没有可核对记录（见文末「附：待确认事项」）。
 
@@ -165,6 +165,7 @@ sequenceDiagram
   Note over Store: system/message (first step or changed prompt), user/message (human prompt + injected context)
   AL->>Store: log envelope
   Note over Store: request/header (initial/resume/change/series), developer/message (tool add/remove), request/context (route change)
+  Note over Store: session/title fallback (deferred microtask, lands right after request/context), then session/title-llm-request when the provider title call starts
   AL->>Store: flush (checkpoint before llm/stream)
   AL->>LLM: stream(request)
   LLM-->>AL: chunks (reasoning, text, tool-call deltas, usage, finish)
@@ -190,7 +191,7 @@ sequenceDiagram
   Note over Store: assistant/message (final answer + stream + usage)
   AL->>Store: close step and turn
   Note over Store: step/end, turn/end (reason completed)
-  Note over Store: async session/title (fallback, then provider) + session/title-llm-request
+  Note over Store: optional provider session/title (async, may land after turn/end)
   AL-->>Entry: agent/status idle
   Entry-->>User: answer
 ```
@@ -202,7 +203,7 @@ sequenceDiagram
 | 层 | 规则 | 依据 |
 | --- | --- | --- |
 | Harness home | 显式配置 > `$DSH_HOME`（空白视为未设置）> `~/.dsh` | [home-paths/src/index.ts:87](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/util/home-paths/src/index.ts#L87)、[L98](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/util/home-paths/src/index.ts#L98) |
-| 会话根 | base bundle 行 `session-persistence-jsonl.config.root = dshHomePath('sessions')`，`compression` 默认 `'zstd'` | [cordis.patch.yml:130-133](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/bundle/base/cordis.patch.yml#L130)、[format.ts:42](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/src/format.ts#L42) |
+| 会话根 | base bundle 行 `session-persistence-jsonl.config.root = dshHomePath('sessions')`，`compression` 默认 `'zstd'` | [cordis.patch.yml:130-133](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/bundle/base/cordis.patch.yml#L130)、[session-persistence-jsonl/src/index.ts:68](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/src/index.ts#L68)、[L87](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/src/index.ts#L87) |
 | 非会话 KV | `storage-json.config.root = dshHomePath('storages')` | [cordis.patch.yml:168-171](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/bundle/base/cordis.patch.yml#L168) |
 | Profile 覆盖 | 层叠顺序：bundle patch → `$DSH_HOME/profiles/<name>/cordis.patch.yml` → `$DSH_HOME/cordis.patch.yml` → `--patch`；任一层可按 row id 整体替换 `session-persistence-jsonl` 的 `config`（换 root 或 `compression: 'none'`） | [docs/architecture.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/architecture.md)、`apps/cli/README.md` |
 | 本机实际 | `~/.dsh/profiles/web/cordis.patch.yml` 与 `cordis.yml` 均为空列表 `[]`，无 `~/.dsh/cordis.patch.yml`；`settings.yaml` 无会话 / 存储相关键 → 全部用默认值 | 本机核对 |
@@ -214,7 +215,7 @@ sequenceDiagram
 ```text
 $DSH_HOME/                                    # 默认 ~/.dsh
 ├── sessions/                                 # JSONL 会话根
-│   ├── --<projectKey(cwd)>--/                # 例：--Users-~-Projects-<project>--
+│   ├── --<projectKey(cwd)>--/                # 例：--Users-<user>-Projects-<project>--
 │   │   └── <encodeSegment(sessionId)>/       # 一个会话一个目录
 │   │       ├── session.jsonl.zstd            # v0 代（本机 0.1.1-rc.2 写出）
 │   │       ├── session.v4.jsonl.zstd         # v4 代（HEAD 写出；v1..v3 同理 session.vN.jsonl.zstd）
@@ -247,12 +248,13 @@ $TMPDIR/dsh-spill-XXXXXX/session-<sha256(sessionId)[0:12]>/<12hex>-<name>   # �
 | Web `session.create`（无指定 id） | `session-<uuid v4>` | [commands.ts:109](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/api/session-controller/src/commands.ts#L109) |
 | Web fork 子会话 | `session-<uuid v4>` | [commands.ts:266](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/api/session-controller/src/commands.ts#L266) |
 | Headless（无 `--session-id`） | `session-<uuid v4>` | [headless/src/index.ts:342](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/bundle/headless/src/index.ts#L342) |
-| TypeScript SDK 客户端 | `session-<32 位 hex>`（uuid 去掉连字符） | [sdk/client/src/api.ts:104](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/sdk/client/src/api.ts#L104) |
+| TypeScript / Python SDK 客户端 | `session-<32 位 hex>`（uuid 去掉连字符） | [sdk/client/src/api.ts:104](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/sdk/client/src/api.ts#L104)、[python/sdk/src/deepseek_harness/api.py:122](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/python/sdk/src/deepseek_harness/api.py#L122) |
+| ACP `session/new` | 裸 `<uuid v4>`（顶层会话，header 无 `origin`） | [acp/src/index.ts:199](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/acp/acp/src/index.ts#L199) |
 | 进程内子代理（spawn / fork / continuable） | 裸 `<uuid v4>` | [subagent-in-process-driver/src/index.ts:113](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent-in-process-driver/src/index.ts#L113)、[subagent/src/continuation.ts:110](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent/src/continuation.ts#L110) |
 | Webhook 触发的会话 | `webhook-<uuid v4>` | [webhook/src/session.ts:133](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/webhook/webhook/src/session.ts#L133) |
 | Agent loop 配置的 agent 未给 id | `<agentId>-session-<uuid v4>` | [agent-loop/src/index.ts:377](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/index.ts#L377) |
 
-所以本机同一项目下「`session-<uuid>` vs `<uuid>`」的区别是：前者是 Web 创建的顶层会话，后者是进程内子代理的子会话（header 带 `origin:'subagent'`、`parentSession`、`delegationDepth≥1`）；本机 25 个 `session-*` 全是顶层、54 个裸 uuid 全是子会话（§8）。**ID 只是不透明字符串**，解析器应以 header 字段判断类型，不要依赖前缀。
+所以本机同一项目下「`session-<uuid>` vs `<uuid>`」的区别是：前者是 Web 创建的顶层会话，后者是进程内子代理的子会话（header 带 `origin:'subagent'`、`parentSession`、`delegationDepth≥1`）；本机 25 个 `session-*` 全是顶层、54 个裸 uuid 全是子会话（§8），但这只是本机分布：ACP 创建的顶层会话也是裸 uuid。**ID 只是不透明字符串**，解析器应以 header 字段判断类型，不要依赖前缀。
 
 ### 2.4 `storages/*.json`
 
@@ -286,7 +288,7 @@ storage-json 的 `single` 布局是一个 `<unit>.json`（原子替换写），`
 
 ### 3.1 物理行：header + 事件行
 
-每个代文件是 JSONL：**第 1 行是 header，其后每行一条记录**。zstd 模式下文件是若干独立 zstd 帧的拼接：第一帧只含 header 行，之后每个持久化批次一帧，每帧都带 checksum（[session-persistence-jsonl/README.md「Physical encoding」](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/README.md)）。`zstd -dc` 可直接流式解出完整 JSONL。
+每个代文件是 JSONL：**第 1 行是 header，其后每行一条记录**。zstd 模式下文件是若干独立 zstd 帧的拼接：第一帧只含 header 行，之后每个持久化批次一帧，每帧都带 checksum；例外是从旧代迁移发布的新代，它由 header 帧 + 一个包含全部迁移事件的大帧组成，之后追加的批次才一批一帧（[generation.ts:746-765](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/src/generation.ts#L746)）（[session-persistence-jsonl/README.md「Physical encoding」](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/README.md)）。`zstd -dc` 可直接流式解出完整 JSONL。
 
 **HEAD v4 header 行**（[format.ts:83-96](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/src/format.ts#L83)；编码器 [session-format-v1-to-v2/src/codec.ts:155-176](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v1-to-v2/src/codec.ts#L155)）：
 
@@ -316,8 +318,8 @@ interface HeaderLine {
 | `time` | int | `Date.now()` epoch 毫秒（[index.ts:747](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/index.ts#L747)） |
 | `data` | JSON | 事件载荷（append 时校验必须是无损 JSON） |
 | `ignorable?` | `true` | 读者不认识该类型时可跳过；缺省 = 必需，未知必需事件必须拒读 |
-| `surfaceOp?` | `'append'` 或 `{op:'replace', startSeq, endSeq}` | 只出现在 5 种 surface 事件上（[types.ts:439-464](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/types.ts#L439)）；v0–v2 的 replace 端点名为 `start/end` |
-| `sourceEventSeqs?` | int[] | 该 surface 事件引用的更早事件（工具结果 → 其 `tool/call`；压缩检查点 → 被替换区间）；v2+ 物理上把连续 ≥3 个序号压成 `[start,end]` 对，v0/v1 也接受 range 对（本机未出现）（[codec.ts:217-232](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v1-to-v2/src/codec.ts#L217)）；`assistant/message` 在 v2+ 禁止携带 |
+| `surfaceOp?` | `'append'` 或 `{op:'replace', startSeq, endSeq}` | 5 种 surface 事件上必填、其他事件禁止（v3+ 格式强制；v0–v2 在 surface 事件上也可缺省）（[types.ts:439-464](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/types.ts#L439)、[L467-471](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/types.ts#L467)）；v0–v2 的 replace 端点名为 `start/end` |
+| `sourceEventSeqs?` | int[] | 该 surface 事件引用的更早事件（工具结果 → 其 `tool/call`；压缩检查点 → 被替换区间）；v2+ 物理上把连续 ≥3 个序号压成 `[start,end]` 对，v0/v1 也接受 range 对（本机未出现）（[codec.ts:217-232](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v1-to-v2/src/codec.ts#L217)）；`assistant/message` 自 v2 起不再引用 chunk，v3+ 格式上禁止携带 |
 
 **v0 打包行**（只在 v0/v1 存在，[session-format-v0-to-v1/src/codec.ts:203-295](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v0-to-v1/src/codec.ts#L203)）：`{type:'text-chunks'|'reasoning-chunks', seq0, time0, data:{turn, step, index, dt[], texts[]}}` 或 `{type:'tool-call-chunks', seq0, time0, data:{turn, step, index, id, name?, dt[], args[]}}`。一行代表 `texts.length`（或 `args.length`）个连续的 `assistant/chunk` 事件：第 i 个的 `seq = seq0 + i`，`time = time0 + dt[0] + … + dt[i-1]`，`dt.length = n - 1`；分别还原为 `text-delta` / `reasoning-delta` / `tool-call-delta` chunk。0.1.1-rc.2 README 说明只有 ≥3 个同块连续增量才打包（`packChunks` 默认开）。
 
@@ -345,7 +347,7 @@ interface HeaderLine {
 
 ### 3.3 插件事件（HEAD v4 全集，来源见 [persistence-catalog.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/persistence-catalog.md)）
 
-全部是 log-only（不进模型历史）：
+除 `image/offload`（消息投影：改写后续请求中被选中的图片块，不新增消息，[projection.ts:18-25](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/compaction/compaction-image-offload/src/projection.ts#L18)）外，全部是 log-only（不进模型历史）：
 
 | 类型 | `data` 要点 | 定义 |
 | --- | --- | --- |
@@ -360,7 +362,7 @@ interface HeaderLine {
 | `compaction/summary` | `{compactionId, summary: ContentBlock[], shadowedRange, shadowedSeqs, shadowedTokenCount, provider, model, maxTokens?, usage?, rawOutput?, llmStreamCall?}` | [compaction/src/types.ts:34](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/compaction/compaction/src/types.ts#L34) |
 | `compaction/prune` | `{shadowedRange, shadowedSeqs, shadowedTokenCount}` | [compaction/src/types.ts:82](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/compaction/compaction/src/types.ts#L82) |
 | `image/offload` | `{targets: ImageOffloadTarget[]}` | [compaction-image-offload/src/projection.ts:25](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/compaction/compaction-image-offload/src/projection.ts#L25) |
-| `goal/change` | `{kind:'goal/change', version:1, operation, goal\|cleared, roundsStarted, createdAt, updatedAt}` | [goal/src/domain.ts:24-66](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/goal/goal/src/domain.ts#L24) |
+| `goal/change` | `{kind:'goal/change', version:1, operation, goal, roundsStarted, createdAt, updatedAt}`；清除时为 `{kind, version:1, operation:'clear', cleared, clearedAt}` | [goal/src/domain.ts:24-66](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/goal/goal/src/domain.ts#L24) |
 | `hook/invoked` / `hook/result` | `{turn, point, dialect, matcher?, handlerId}` / `{turn, point, handlerId, decision, exitCode?, stderrSummary?, durationMs}` | [hook-protocol/src/types.ts:19-31](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/hooks/hook-protocol/src/types.ts#L19) |
 | `llm/retry` / `llm/retry-started` | `{retryId, turn, step, provider, mode, policyKey, retry, maxRetries?, delayMs, failure}` / `{retryId, turn, step, retry}` | [llm-retry/src/types.ts:9-38](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-retry/src/types.ts#L9) |
 | `model/selection` | `{provider, model, reasoningEffort?}` | [session-controller/src/types.ts:40](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/api/session-controller/src/types.ts#L40) |
@@ -383,7 +385,7 @@ interface HeaderLine {
 
 ### 3.4 消息方言：自定义的 provider 中立格式
 
-DSH 不落盘任何 provider 原生 wire 格式，而是自己的中立消息模型（[llm/src/message.ts:139-196](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/message.ts#L139)、[llm/src/types.ts:61-189](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/types.ts#L61)）：
+DSH 主对话不落盘 provider 原生 wire 格式（例外：辅助事件 `web/deepseek-search-llm-request` 的 `body` 是发往 DeepSeek Messages 端点的原样请求 JSON，[web-search-deepseek/src/provider.ts:55-77](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/web/web-search-deepseek/src/provider.ts#L55)），而是自己的中立消息模型（[llm/src/message.ts:139-196](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/message.ts#L139)、[llm/src/types.ts:61-189](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/types.ts#L61)）：
 
 ```ts
 interface MessageBase { readonly id: MessageId; readonly content: readonly ContentBlock[]; readonly source: MessageSource }
@@ -396,8 +398,8 @@ interface ToolResultMessage extends MessageBase { role: 'tool'; source: { kind: 
 
 - **内容块**（`ContentBlockMap`，[types.ts:137-145](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/types.ts#L137)）：`text{text}`、`reasoning{text}`、`image{attachment, offloaded?}`、`file{attachment}`、`tool-call{id, name, arguments}`、`tool-addition{toolName}`、`tool-removal{toolName}`。v0–v3 另有 `tool-result{toolCallId, content, isError}` 包装块，v4 起废弃。
 - **角色**：`system`（v3+）、`developer`（v4）、`user`、`assistant`、`tool`（v4；v0–v3 工具结果是 `role:'user'` + 单个 `tool-result` 块）。
-- **来源 `source.kind`**：`user`（人类；Web 加 `rpcId`、`clientTimeZone`）、`model`、`tool`、`system-prompt`，以及插件合并的 `runtime-context`、`agent-instructions`、`skill-catalog`、`skill-invocation`、`goal`、`compact-checkpoint`、`subagent-settled`、`subagent-report`、`agent-message`、`session-reference`、`time-context`、`tmux-context`、`plan-mode`、`hooks-*`、`schedule`、`webhook`、`tool-registry`… 可选 `form`（`instructions|catalog|snapshot|notice|relay|recall`）说明注入内容的语义（[message.ts:55-115](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/message.ts#L55)）。v0–v3 的插件来源是 `{kind:'plugin', plugin:'<名字>'}`，v4 迁移规则见 [v3-to-v4 README](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v3-to-v4/README.md)。
-- **推理内容**：`reasoning` 块明文落盘（DeepSeek 的 `reasoning_content` / Anthropic thinking 都折成它）；provider 签名 / 加密推理放在 `AssistantMessage.source.replayState`：DeepSeek 适配器为 `{response:{kind:'deepseek-messages', version:1, model}, blocks:[{type, signature?}]}`（[llm-deepseek/src/replay.ts:7-31](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/replay.ts#L7)，HEAD 走 `https://api.deepseek.com/anthropic` 的 Messages 接口）；pi-ai 适配器为 `{response:{kind:'pi-ai', version:2, api, provider, model, responseId?, stopReason…}, blocks:[{type, textSignature?|thinkingSignature?|thoughtSignature?, redacted?}]}`（[llm-pi-ai/src/replay.ts:16-35](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-pi-ai/src/replay.ts#L16)）。
+- **来源 `source.kind`**：`user`（人类；Web 加 `rpcId`、`clientTimeZone`）、`model`、`tool`、`system-prompt`，以及插件合并的 `runtime-context`、`agent-instructions`、`skill-catalog`、`skill-invocation`、`goal`、`compact-checkpoint`、`subagent-settled`、`subagent-report`（旧日志）、`agent-message`、`session-reference`、`time-context`、`tmux-context`、`plan-mode`、`hooks-*`、`schedule`、`webhook`、`tool-registry`… 可选 `form`（`instructions|catalog|snapshot|notice|relay|recall`）说明注入内容的语义（[message.ts:55-115](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/message.ts#L55)）。v0–v3 部分插件来源包装为 `{kind:'plugin', plugin:'<名字>'}`，其余已是直接 kind（本机 v0：包装 87 条，直接 kind 如 `skill-catalog` 76、`subagent-settled` 53、`agent-instructions` 40、`subagent-report` 38、`coordinator` 7）；v4 迁移把包装来源改为直接 kind：`@deepseek-ai/dsh-system-prompt` 在 system 消息上为 `system-prompt`、在其他角色上为 `runtime-context`，少数名字改名（如 `compact` → `compact-checkpoint`），白名单内的名字保留原名，其余为 `plugin:<原名>`（[session-format-v3-to-v4/src/sources.ts:44](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v3-to-v4/src/sources.ts#L44)、[L60](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v3-to-v4/src/sources.ts#L60)、[L64](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v3-to-v4/src/sources.ts#L64)；完整规则见 [v3-to-v4 README](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-format-v3-to-v4/README.md)）。
+- **推理内容**：`reasoning` 块明文落盘（DeepSeek 的 `reasoning_content` / Anthropic thinking 都折成它）；provider 签名 / 加密推理放在 `AssistantMessage.source.replayState`：DeepSeek 适配器为 `{response:{kind:'deepseek-messages', version:1, model}, blocks:[{type, signature?}]}`（[llm-deepseek/src/replay.ts:7-31](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/replay.ts#L7)，HEAD 走 `https://api.deepseek.com/anthropic` 的 Messages 接口）；pi-ai 适配器为 `{response:{kind:'pi-ai', version:2, api, provider, model, responseModel?, responseId?, providerThinkingLevel?, stopReason}, blocks:[{type, textSignature?|thinkingSignature?|thoughtSignature?, redacted?}]}`（[llm-pi-ai/src/replay.ts:16-35](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-pi-ai/src/replay.ts#L16)；`responseModel` 是 provider 报告的实际模型，0.1.1-rc.2 已支持，`providerThinkingLevel` 为 HEAD 新增，两者在本机 2,145 条 replayState 中都未出现）。
 - **嵌入流 `AssistantStreamRecord`**（v2+，[assistant-stream.ts:20-44](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/assistant-stream.ts#L20)）：`text-chunks{time0, index, dt[], texts[]}`、`reasoning-chunks{…}`、`tool-call-chunks{time0, index, dt[], id, name?, args[]}`、`chunk{time, chunk: StreamChunk}`；`StreamChunk` 为 `block-start | text-delta | reasoning-delta | tool-call-delta | block-end | usage | finish{reason, replayState?}`（[types.ts:452-464](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/types.ts#L452)）。这与 v0 的打包行同构，只是从顶层行搬进了消息事件。
 - **token 与 model**：`TokenUsage{inputTokens(未缓存), outputTokens, totalTokens?, cacheReadTokens?, cacheWriteTokens?, reasoningTokens?}`，四个计数**互不相交**（[types.ts:175-189](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/types.ts#L175)）；每个 step 一份，挂在 `assistant/message.data.usage`，也在嵌入流的 `usage` chunk 里。provider/model 在 `assistant/message.data.message.source.{provider,model}`，请求侧在 `request/header.header.config` 与 `request/context`。**没有 cost 字段**（日志不记录金额）。
 - **工具调用关联**：`assistant/message` 的 `tool-call.id` = `tool/call.data.callId` = `tool/result.data.message.toolCallId` = `source.callId`；`tool/result.sourceEventSeqs = [tool/call 的 seq]`（[tool-calls.ts:263-289](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/tool-calls.ts#L263)）。callId 由 provider 签发，格式不统一。
@@ -408,7 +410,7 @@ interface ToolResultMessage extends MessageBase { role: 'tool'; source: { kind: 
 
 - 唯一写入口是 `Session.append(type, data, surfaceIntent?)`：快照并校验 data 为无损 JSON、分配 `seq = log.length` 与 `time = Date.now()`、校验 surface 规则、推入内存日志，再同步发出 `session/event`（[index.ts:722-773](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/index.ts#L722)）。事件**一旦追加不可修改**；"修改"一律用新的 surface 事件 + `surfaceOp: replace` 表示。
 - Agent loop 的追加点：`turn/start`（[agent.ts:305](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L305)）、`step/start`（[L329](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L329)）、`system/message`（[L417](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L417)）、`user/message`（[L421](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L421)，只在首次尝试）、`request/header`（[L620-633](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L620)）、`developer/message`（[L643](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L643)）、`request/context`（[L665](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L665)）、`assistant/message`（[L520-529](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L520)；取消时带 `interrupted:true` 的前缀 [L451-465](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L451)）、`assistant/attempt`（[L469/L475/L492](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L469)）、`step/end`（[L356](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L356)，`finally` 中必写）、`turn/end`（[L385](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L385)，`finally` 中必写）、`tool/call` / `tool/result`（[tool-calls.ts:264](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/tool-calls.ts#L264)、[L282](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/tool-calls.ts#L282)）。
-- `request/header` 不是每步都写：每个 loop 实例首次请求写 `initial`（日志里还没有 header）或 `resume`；之后只有 header（config / tools）变化时写 `change`，或新消息系列时写 `series`（[agent.ts:618-634](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L618)）。`request/context` 只在 provider/model/contextWindow 变化时写（[L660-666](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L660)）。
+- `request/header` 不是每步都写：每个 loop 实例首次请求写 `initial`（日志里还没有 header）或 `resume`；之后只有 header（config / tools）变化时写 `change`，或 header 未变但开始新消息系列（包括压缩等 surface 替换之后）时写 `series`（[agent.ts:618-634](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L618)、[types.ts:265-272](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/types.ts#L265)）。`request/context` 在 provider/model/contextWindow/systemPromptUpdate 任一变化时写（[L660-666](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L660)）。
 - 工具调用在有界并发池里执行；`tool/call` 在调用**开始**时写，`tool/result` 按**模型给出的顺序**提交（[docs/agent-lifecycle.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/agent-lifecycle.md)）。所以 `tool/result.time` 可能晚于真实完成时间。单个调用内部的顺序是：`tools/pre-execute`（hook、策略，必要时 `approval/asked` → `approval/decided`）→ `tools/execute`（先 checkpoint flush，再执行工具体）→ `tools/post-execute`（[core/tools/src/index.ts:1505-1511](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/tools/src/index.ts#L1505)、[checkpoint-policy/src/index.ts:70-75](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-checkpoint-policy/src/index.ts#L70)）；本机 17 次审批都位于 `tool/call` 与 `tool/result` 之间。
 
 ### 4.2 批处理、追加与原子性
@@ -436,7 +438,7 @@ interface ToolResultMessage extends MessageBase { role: 'tool'; source: { kind: 
 
 ### 4.4 resume 与投影重建
 
-- resume 流程：`open(id,'write')` → `read(0)` → 追加 closers → `SessionStore.prepare(seed)`；构造函数在种子后追加一个**无标记的** `session/end-seed {}` 作为「历史 / 新工作」分界（[core/session/src/index.ts:615-622](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/index.ts#L615)）→ 首个请求写 `request/header{reason:'resume'}`。HEAD 打开旧代日志时会先迁移并发布 `session.v4.jsonl.zstd` 再返回写 handle。
+- resume 流程：`open(id,'write')` → `read(0)` → 追加 closers → `SessionStore.prepare(seed)`；构造函数在种子后追加一个**无标记的** `session/end-seed {}` 作为「历史 / 新工作」分界（若日志已以 `session/end-seed` 结尾则不重复追加）（[core/session/src/index.ts:615-622](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/index.ts#L615)）→ 首个请求写 `request/header{reason:'resume'}`。HEAD 打开旧代日志时会先迁移并发布 `session.v4.jsonl.zstd` 再返回写 handle。
 - 投影（projection）是对事件日志的纯折叠；`session-projection-cache` 把每个单元的状态与折叠到的 `seq` 写进 `storages`，下次只需重放尾部；行 `ver` 不匹配或身份（createdAt/cwd/formatVersion）不匹配即丢弃重建（[spec.ts:29-58](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-projection-cache/src/spec.ts#L29)）。会话列表只读 header + 缓存提示，不扫描日志正文。
 - 大会话：historical 代迁移分块流式进行（约 1 MiB 主线程切片），验证在 Worker Thread 中进行（[session-persistence-jsonl/README.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-persistence-jsonl/README.md)）。
 
@@ -455,8 +457,9 @@ Step     := step/start(k, s)
             [system/message]                 # v3+：第一个 step 写 surface 节点 0；之后仅在 prompt 变化时
             user/message*                    # 第一步：人类提示 + 注入上下文；后续步：steer / inject 进来的 next-step 输入
             [request/header] [developer/message] [request/context]
-            ( assistant/attempt | llm/retry llm/retry-started )*      # 失败 / 重试的尝试（v2+）
-            assistant/message                # 每个 step 恰好一个成功结算（取消时可带 interrupted:true，或没有）
+            ( assistant/attempt [llm/retry llm/retry-started]
+              [system/message] [request/header] [developer/message] [request/context] )*   # 失败 / 重试的尝试（v2+）；重试会重写有变化的 system 与请求信封事件
+            [assistant/message]              # 至多一个成功结算（取消时可带 interrupted:true）；最终失败的 step 没有
             ( tool/call [approval/asked approval/decided] [hook/invoked hook/result]
               [tool/ptc-dispatch-start tool/ptc-dispatch]* tool/result )*
             step/end(k, s)
@@ -471,7 +474,7 @@ v0 差异   := assistant/message 之前有逐增量 assistant/chunk（或打包�
 - **会话内是线性日志**：没有 parentId 树，身份就是 `seq`。所有「指向」都是对更早 `seq` 的引用：`sourceEventSeqs`（工具结果 → `tool/call`；压缩检查点 → `compaction/start`、`compaction/summary` 与被替换节点；v0 的 `assistant/message` → 它的 `assistant/chunk`）、`surfaceOp.replace{startSeq,endSeq}`、`developer/message.headerSeq`、`session/title.messageSeqs`、`compaction/*.shadowedSeqs|shadowedRange`、`command/done.sourceEventSeq`、`image/offload.targets[].seq`。因此引用关系是一个**只指向过去的 DAG**，叠加在线性序列上。
 - **按 id 配对**：工具 `callId`（`tool-call` 块 ↔ `tool/call` ↔ `tool/result`）、审批 `id`、hook `handlerId`、`compactionId`、`commandId`、`retryId`、PTC `subCallId`、消息 `id`（inbox 插入的消息 id = 后续 `user/message.id`，本机 97/97 个人类消息核对一致）。
 - **surface（模型可见历史）**：带 `surfaceOp` 的 5 种事件按顺序组成 surface；`replace` 用一个新节点遮蔽一段连续节点（不删除原事件）。`Session.deriveMessages()` 只投影当前 surface（[index.ts:860-881](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/session/src/index.ts#L860)）。分析「完整轨迹」读全日志；还原「模型当时看到的上下文」要按顺序应用 surfaceOp。
-- **跨会话**：header `parentSession`（fork 来源或子代理父会话）；父会话 `subagent/catalog.childId`（v3+）；父会话里的通知 `user/message.source.senderSessionId`（`subagent-settled`、`subagent-report`、`agent-message`）；`tool-workflow/agent-start` 记录 workflow 成员的子会话。
+- **跨会话**：header `parentSession`（fork 来源或子代理父会话）；父会话 `subagent/catalog.childId`（v3+）；父会话里的通知 `user/message.source.senderSessionId`（`subagent-settled`、`subagent-report`（旧日志）、`agent-message`）；`tool-workflow/agent-start` 记录 workflow 成员的子会话。
 
 ### 5.3 图 3：数据形态
 
@@ -481,11 +484,11 @@ erDiagram
   GENERATION_FILE ||--|| HEADER_LINE : "line 1"
   GENERATION_FILE ||--o{ EVENT : "lines 2..n"
   EVENT ||--o| MESSAGE : "surface events carry"
-  MESSAGE ||--|{ CONTENT_BLOCK : "content"
+  MESSAGE ||--o{ CONTENT_BLOCK : "content"
   EVENT ||--o{ STREAM_RECORD : "assistant message or attempt embeds"
   EVENT ||--o{ SOURCE_REF : "sourceEventSeqs and surfaceOp replace"
   SOURCE_REF }o--|| EVENT : "points to earlier seq"
-  TOOL_CALL ||--|| TOOL_RESULT : "same callId"
+  TOOL_CALL |o--|{ TOOL_RESULT : "same callId"
   TOOL_CALL ||--o| APPROVAL : "approval asked callId"
   HEADER_LINE ||--o| PARENT_SESSION : "parentSession"
   PARENT_SESSION ||--o{ CATALOG_ENTRY : "subagent catalog childId"
@@ -583,9 +586,9 @@ erDiagram
 ### 5.6 子代理
 
 - 进程内子代理（`subagent-spawn-in-process`、`subagent-fork-in-process`、continuable）各自是**独立会话目录**，与父会话同在 `--<cwd>--` 下；id 为裸 uuid；header `origin:'subagent'`、`parentSession`、`delegationDepth = 父 + 1`；fork 型子代理另带继承前缀。
-- 子会话初始 turn 内写 `subagent/descriptor{version, mode:'one-shot'|'continuable', provider, label, agentProvider?, agentModel?, …}`；子会话的第一条 `user/message{source.kind:'user'}` 是**父模型写的委派提示**，不是人类输入。
-- 父会话：`tool/call{name:'subagent', …}`（工具名随配置，本机为 `subagent`）+ 对应 `tool/result`；v3+ 另写 `subagent/catalog{childId, childCreatedAt, mode, label}`（[catalog.ts:143-165](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent/src/catalog.ts#L143)）；子代理结束时父会话收到 `user/message{source:{kind:'subagent-settled', form:'notice', senderSessionId, summary}}`，子代理主动汇报为 `subagent-report`（relay）。
-- 外部产品子代理（Claude Code、Codex、ACP、dsh-sdk）同样分配会话 id，但其完整轨迹保存在对应产品自己的存储中（[docs/subsystems/subagent.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/subsystems/subagent.md)）；本报告未展开。
+- continuable 子代理在创建时（任何 turn 之前）写 `subagent/descriptor{version, mode:'one-shot'|'continuable', provider, label, agentProvider?, agentModel?, …}`（[continuation-activation.ts:623-628](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent/src/continuation-activation.ts#L623)；本机 50/54 位于 seq 0），one-shot 子代理在初始 turn 内、首个请求前写（[subagent-in-process-driver/src/index.ts:81-90](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent-in-process-driver/src/index.ts#L81)；本机 4/54）；子会话的第一条 `user/message{source.kind:'user'}` 是**父模型写的委派提示**，不是人类输入。
+- 父会话：`tool/call{name:'subagent', …}`（工具名随配置，本机为 `subagent`）+ 对应 `tool/result`；v3+ 另写 `subagent/catalog{childId, childCreatedAt, mode, label}`（[catalog.ts:143-165](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent/src/catalog.ts#L143)）；子代理结束时父会话收到 `user/message{source:{kind:'subagent-settled', form:'notice', senderSessionId, summary}}`；子代理（或相邻 Agent）主动发来的消息在 HEAD 为 `agent-message`（`form:'relay'`、`senderSessionId`，[continuation-messages.ts:42-43](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent/src/continuation-messages.ts#L42)），`subagent-report` / `coordinator`（relay）只见于 v0–v3 旧日志，v4 迁移保留原名。
+- 外部产品子代理（Claude Code、Codex、ACP、dsh-sdk）也会分配 `<uuid>` 形式的会话 id，但不在父会话目录写子日志，父日志里只有委派的 `tool/call` / `tool/result`。Claude Code（`persistSession:false`，[subagent-claude-code/src/run.ts:330](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/subagent/subagent-claude-code/src/run.ts#L330)）与 Codex（ephemeral thread）的完整轨迹不落任何存储；ACP 与 dsh-sdk 子代理的轨迹留在子进程自己的会话日志 / 会话根下（各 provider README、[docs/subsystems/subagent.md](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/subsystems/subagent.md)）；本报告未展开。
 
 ### 5.7 导出与外发格式
 
@@ -634,7 +637,7 @@ erDiagram
 
 ### 7.1 HEAD v4（源码推导）
 
-文件：`~/.dsh/sessions/--Users-~-Projects-<project>--/session-<uuid>/session.v4.jsonl.zstd`（`zstd -dc` 后内容如下；header 单独一帧，其余行按 200 ms 批次分帧）。`request/context` 之后的 `session/title` 位置依赖异步调度，此处仅示意。审批事件只在策略为 `ask` 且需要询问时出现。
+文件：`~/.dsh/sessions/--Users-<user>-Projects-<project>--/session-<uuid>/session.v4.jsonl.zstd`（`zstd -dc` 后内容如下；header 单独一帧，其余行按 200 ms 批次分帧）。回退 `session/title` 由首条人类消息在微任务中触发追加，而 `user/message` → `request/header` → `request/context` 在同一段同步代码里写入，所以它紧跟第一个 step 的 `request/context`（[session-title/src/index.ts:499-522](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/session/session-title/src/index.ts#L499)、[agent.ts:419-425](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/core/agent-loop/src/agent.ts#L419)）；provider 标题的 `session/title-llm-request` 与结果异步写入（结果可能晚于 `turn/end`），本例省略。审批事件只在策略为 `ask` 且需要询问时出现。
 
 ```jsonl
 {"type":"session","version":4,"id":"session-<uuid>","createdAt":1790000000000,"cwd":"/Users/~/Projects/<project>","isSeeded":false,"delegationDepth":0,"agentPreset":"<preset-id>"}
@@ -645,7 +648,7 @@ erDiagram
 {"type":"system/message","seq":4,"time":1790000001020,"data":{"turn":1,"step":1,"message":{"role":"system","content":[{"type":"text","text":"<system prompt>"}],"source":{"kind":"system-prompt"},"id":"<msg-uuid-2>"}},"surfaceOp":"append"}
 {"type":"user/message","seq":5,"time":1790000001021,"data":{"role":"user","content":[{"type":"text","text":"<user prompt>"}],"source":{"kind":"user","rpcId":"<rpc-uuid>","clientTimeZone":"<time-zone>"},"id":"<msg-uuid-1>"},"surfaceOp":"append"}
 {"type":"user/message","seq":6,"time":1790000001022,"data":{"role":"user","content":[{"type":"text","text":"<runtime context>"}],"source":{"kind":"runtime-context","form":"snapshot","sections":[{"name":"<section name>","text":"<runtime context>"}]},"id":"<msg-uuid-3>"},"surfaceOp":"append"}
-{"type":"request/header","seq":7,"time":1790000001023,"data":{"header":{"config":{"provider":"deepseek-official","model":"deepseek-flash","reasoningEffort":"<effort>"},"tools":[{"name":"bash","description":"<tool description>","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}]},"reason":"initial"}}
+{"type":"request/header","seq":7,"time":1790000001023,"data":{"header":{"config":{"provider":"deepseek-official","model":"deepseek-flash","reasoningEffort":"<effort>","maxTokens":256000},"adapterDefaults":{"maxTokens":true},"tools":[{"name":"bash","description":"<tool description>","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}]},"reason":"initial"}}
 {"type":"request/context","seq":8,"time":1790000001024,"data":{"provider":"deepseek-official","model":"deepseek-flash","contextWindow":1000000,"systemPromptUpdate":"in-history"}}
 {"type":"session/title","seq":9,"time":1790000001030,"data":{"title":"<fallback title>","messageSeqs":[5],"source":{"kind":"fallback"}}}
 {"type":"assistant/message","seq":10,"time":1790000004000,"data":{"turn":1,"step":1,"message":{"role":"assistant","content":[{"type":"reasoning","text":"<reasoning>"},{"type":"tool-call","id":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}],"source":{"kind":"model","provider":"deepseek-official","model":"deepseek-flash","replayState":{"response":{"kind":"deepseek-messages","version":1,"model":"deepseek-flash"},"blocks":[{"type":"reasoning","signature":"<signature>"},{"type":"tool-call"}]}},"id":"<msg-uuid-4>"},"usage":{"inputTokens":1200,"outputTokens":80,"cacheReadTokens":3000,"totalTokens":4280},"stream":[{"type":"chunk","time":1790000002000,"chunk":{"type":"block-start","index":0,"blockType":"reasoning"}},{"type":"reasoning-chunks","time0":1790000002010,"index":0,"dt":[15,12],"texts":["<reasoning delta>","<reasoning delta>","<reasoning delta>"]},{"type":"chunk","time":1790000003000,"chunk":{"type":"block-end","index":0,"block":{"type":"reasoning","text":"<reasoning>"}}},{"type":"chunk","time":1790000003010,"chunk":{"type":"block-start","index":1,"blockType":"tool-call"}},{"type":"tool-call-chunks","time0":1790000003020,"index":1,"dt":[],"id":"<call-id>","name":"bash","args":["<arguments delta>"]},{"type":"tool-call-chunks","time0":1790000003030,"index":1,"dt":[9],"id":"<call-id>","args":["<arguments delta>","<arguments delta>"]},{"type":"chunk","time":1790000003900,"chunk":{"type":"block-end","index":1,"block":{"type":"tool-call","id":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}}},{"type":"chunk","time":1790000003950,"chunk":{"type":"usage","usage":{"inputTokens":1200,"outputTokens":80,"cacheReadTokens":3000,"totalTokens":4280}}},{"type":"chunk","time":1790000003960,"chunk":{"type":"finish","reason":{"kind":"tool-calls"},"replayState":{"response":{"kind":"deepseek-messages","version":1,"model":"deepseek-flash"},"blocks":[{"type":"reasoning","signature":"<signature>"},{"type":"tool-call"}]}}}]},"surfaceOp":"append"}
@@ -660,7 +663,7 @@ erDiagram
 {"type":"turn/end","seq":19,"time":1790000009020,"data":{"turn":1,"reason":{"kind":"completed"}}}
 ```
 
-说明：Web 新建会话在第一个 turn 之前通常还有 `permission/preset`、`sandbox/mode`、`approval/policy` 等预设事件（见 §7.2，本例省略）；第二个 step 的工具集合未变，所以没有新的 `request/header`；`provider:"deepseek-official"` 来自 [llm-deepseek-api-key/src/index.ts:15](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek-api-key/src/index.ts#L15)，`deepseek-flash` 与 `contextWindow` 来自 [llm-deepseek/src/models.ts:8](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/models.ts#L8)、[defaults.ts:6](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/defaults.ts#L6)，usage 的 `totalTokens` 由 DeepSeek 适配器按四项求和（[translate.ts:159](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/translate.ts#L159)）。v3 与 v4 的区别只在 `tool/result.message`（v3：`role:"user"` + `content:[{"type":"tool-result","toolCallId","content","isError"}]`）与插件 source 写法。
+说明：全新会话在第一个 turn 之前还有 `permission/preset`、`sandbox/mode`、`approval/policy` 三个预设事件：base bundle 中的 permission-presets 插件在 `session/created` 时为全新会话写入它们（[permission-presets/src/index.ts:245-250](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/interaction/permission-presets/src/index.ts#L245)、[L428-445](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/interaction/permission-presets/src/index.ts#L428)、[cordis.patch.yml:229-251](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/bundle/base/cordis.patch.yml#L229)；本机 23 个有 turn 的顶层会话都以这三个事件开头，见 §7.2），本例省略；官方路由把适配器默认输出上限物化进 `config.maxTokens`，并以 `adapterDefaults` 标记（[llm/src/index.ts:896-898](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/index.ts#L896)、[L945-952](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm/src/index.ts#L945)、[llm-deepseek/src/model-info.ts:77](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/model-info.ts#L77)、[defaults.ts:8](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/defaults.ts#L8)）；第二个 step 的工具集合未变，所以没有新的 `request/header`；`provider:"deepseek-official"` 来自 [llm-deepseek-api-key/src/index.ts:15](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek-api-key/src/index.ts#L15)，`deepseek-flash` 与 `contextWindow` 来自 [llm-deepseek/src/models.ts:8](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/models.ts#L8)、[defaults.ts:6](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/defaults.ts#L6)，usage 的 `totalTokens` 由 DeepSeek 适配器按四项求和（[translate.ts:159](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/llm-deepseek/src/translate.ts#L159)）。v3 与 v4 的区别只在 `tool/result.message`（v3：`role:"user"` + `content:[{"type":"tool-result","toolCallId","content","isError"}]`）与插件 source 写法。
 
 ### 7.2 本机 0.1.1-rc.2 / v0（本机数据脱敏）
 
@@ -681,41 +684,41 @@ erDiagram
 {"type":"session/title","seq":10,"time":1790000001030,"data":{"title":"<fallback title>","messageSeqs":[7],"source":{"kind":"fallback"}}}
 {"type":"request/header","seq":11,"time":1790000001031,"data":{"header":{"config":{"provider":"<provider>","model":"<model>"},"system":"<system prompt>","tools":[{"name":"bash","description":"<tool description>","parameters":{"type":"object"}}]},"reason":"initial"}}
 {"type":"request/context","seq":12,"time":1790000001032,"data":{"provider":"<provider>","model":"<model>","contextWindow":200000}}
-{"type":"assistant/chunk","seq":13,"time":1790000002000,"data":{"turn":1,"step":1,"chunk":{"type":"block-start","index":0,"blockType":"reasoning"}}}
-{"type":"reasoning-chunks","seq0":14,"time0":1790000002010,"data":{"turn":1,"step":1,"index":0,"dt":[15,12],"texts":["<reasoning delta>","<reasoning delta>","<reasoning delta>"]}}
-{"type":"assistant/chunk","seq":17,"time":1790000003000,"data":{"turn":1,"step":1,"chunk":{"type":"block-start","index":1,"blockType":"tool-call"}}}
-{"type":"assistant/chunk","seq":18,"time":1790000003010,"data":{"turn":1,"step":1,"chunk":{"type":"tool-call-delta","index":1,"id":"<call-id>","name":"bash","argumentsDelta":"<arguments delta>"}}}
-{"type":"tool-call-chunks","seq0":19,"time0":1790000003020,"data":{"turn":1,"step":1,"index":1,"id":"<call-id>","dt":[9,8],"args":["<arguments delta>","<arguments delta>","<arguments delta>"]}}
-{"type":"assistant/chunk","seq":22,"time":1790000003900,"data":{"turn":1,"step":1,"chunk":{"type":"block-end","index":0,"block":{"type":"reasoning","text":"<reasoning>"}}}}
-{"type":"assistant/chunk","seq":23,"time":1790000003901,"data":{"turn":1,"step":1,"chunk":{"type":"block-end","index":1,"block":{"type":"tool-call","id":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}}}}
-{"type":"assistant/chunk","seq":24,"time":1790000003950,"data":{"turn":1,"step":1,"chunk":{"type":"usage","usage":{"inputTokens":1200,"outputTokens":80,"cacheReadTokens":3000}}}}
-{"type":"assistant/chunk","seq":25,"time":1790000003960,"data":{"turn":1,"step":1,"chunk":{"type":"finish","reason":{"kind":"tool-calls"},"replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"reasoning","thinkingSignature":"<signature>"},{"type":"tool-call"}]}}}}
-{"type":"assistant/message","seq":26,"time":1790000003970,"data":{"turn":1,"step":1,"message":{"id":"<msg-uuid-4>","role":"assistant","content":[{"type":"reasoning","text":"<reasoning>"},{"type":"tool-call","id":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}],"source":{"kind":"model","provider":"<provider>","model":"<model>","replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"reasoning","thinkingSignature":"<signature>"},{"type":"tool-call"}]}}},"usage":{"inputTokens":1200,"outputTokens":80,"cacheReadTokens":3000}},"sourceEventSeqs":[13,14,15,16,17,18,19,20,21,22,23,24,25],"surfaceOp":"append"}
-{"type":"tool/call","seq":27,"time":1790000004000,"data":{"turn":1,"step":1,"callId":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}}
-{"type":"tool/result","seq":28,"time":1790000007000,"data":{"turn":1,"step":1,"message":{"id":"<msg-uuid-5>","role":"user","content":[{"type":"tool-result","toolCallId":"<call-id>","isError":false,"content":[{"type":"text","text":"<tool output>"}]}],"source":{"kind":"tool","callId":"<call-id>"}}},"sourceEventSeqs":[27],"surfaceOp":"append"}
-{"type":"step/end","seq":29,"time":1790000007010,"data":{"turn":1,"step":1}}
-{"type":"step/start","seq":30,"time":1790000007020,"data":{"turn":1,"step":2}}
-{"type":"assistant/chunk","seq":31,"time":1790000008000,"data":{"turn":1,"step":2,"chunk":{"type":"block-start","index":0,"blockType":"text"}}}
-{"type":"text-chunks","seq0":32,"time0":1790000008010,"data":{"turn":1,"step":2,"index":0,"dt":[20,18],"texts":["<assistant text delta>","<assistant text delta>","<assistant text delta>"]}}
-{"type":"assistant/chunk","seq":35,"time":1790000008900,"data":{"turn":1,"step":2,"chunk":{"type":"block-end","index":0,"block":{"type":"text","text":"<assistant text>"}}}}
-{"type":"assistant/chunk","seq":36,"time":1790000008950,"data":{"turn":1,"step":2,"chunk":{"type":"usage","usage":{"inputTokens":150,"outputTokens":60,"cacheReadTokens":4300}}}}
-{"type":"assistant/chunk","seq":37,"time":1790000008960,"data":{"turn":1,"step":2,"chunk":{"type":"finish","reason":{"kind":"stop"},"replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"text"}]}}}}
-{"type":"assistant/message","seq":38,"time":1790000008970,"data":{"turn":1,"step":2,"message":{"id":"<msg-uuid-6>","role":"assistant","content":[{"type":"text","text":"<assistant text>"}],"source":{"kind":"model","provider":"<provider>","model":"<model>","replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"text"}]}}},"usage":{"inputTokens":150,"outputTokens":60,"cacheReadTokens":4300}},"sourceEventSeqs":[31,32,33,34,35,36,37],"surfaceOp":"append"}
-{"type":"step/end","seq":39,"time":1790000009000,"data":{"turn":1,"step":2}}
-{"type":"turn/end","seq":40,"time":1790000009010,"data":{"turn":1,"reason":{"kind":"completed"}}}
+{"type":"session/title-llm-request","seq":13,"time":1790000001033,"data":{"titleProvider":"session-title-first-prompt-llm","messageSeqs":[7],"route":{"provider":"<provider>","model":"<model>"},"system":"<title system prompt>","messages":[{"id":"<msg-uuid-7>","role":"user","content":[{"type":"text","text":"<framed first prompt>"}],"source":{"kind":"plugin","plugin":"dsh-session-title-llm"}}],"maxTokens":64}}
+{"type":"assistant/chunk","seq":14,"time":1790000002000,"data":{"turn":1,"step":1,"chunk":{"type":"block-start","index":0,"blockType":"reasoning"}}}
+{"type":"reasoning-chunks","seq0":15,"time0":1790000002010,"data":{"turn":1,"step":1,"index":0,"dt":[15,12],"texts":["<reasoning delta>","<reasoning delta>","<reasoning delta>"]}}
+{"type":"assistant/chunk","seq":18,"time":1790000003000,"data":{"turn":1,"step":1,"chunk":{"type":"block-start","index":1,"blockType":"tool-call"}}}
+{"type":"tool-call-chunks","seq0":19,"time0":1790000003010,"data":{"turn":1,"step":1,"index":1,"id":"<call-id>","name":"bash","dt":[10,9,8],"args":["<arguments delta>","<arguments delta>","<arguments delta>","<arguments delta>"]}}
+{"type":"assistant/chunk","seq":23,"time":1790000003900,"data":{"turn":1,"step":1,"chunk":{"type":"block-end","index":0,"block":{"type":"reasoning","text":"<reasoning>"}}}}
+{"type":"assistant/chunk","seq":24,"time":1790000003901,"data":{"turn":1,"step":1,"chunk":{"type":"block-end","index":1,"block":{"type":"tool-call","id":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}}}}
+{"type":"assistant/chunk","seq":25,"time":1790000003950,"data":{"turn":1,"step":1,"chunk":{"type":"usage","usage":{"inputTokens":1200,"outputTokens":80,"cacheReadTokens":3000}}}}
+{"type":"assistant/chunk","seq":26,"time":1790000003960,"data":{"turn":1,"step":1,"chunk":{"type":"finish","reason":{"kind":"tool-calls"},"replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"reasoning","thinkingSignature":"<signature>"},{"type":"tool-call"}]}}}}
+{"type":"assistant/message","seq":27,"time":1790000003970,"data":{"turn":1,"step":1,"message":{"id":"<msg-uuid-4>","role":"assistant","content":[{"type":"reasoning","text":"<reasoning>"},{"type":"tool-call","id":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}],"source":{"kind":"model","provider":"<provider>","model":"<model>","replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"reasoning","thinkingSignature":"<signature>"},{"type":"tool-call"}]}}},"usage":{"inputTokens":1200,"outputTokens":80,"cacheReadTokens":3000}},"sourceEventSeqs":[14,15,16,17,18,19,20,21,22,23,24,25,26],"surfaceOp":"append"}
+{"type":"tool/call","seq":28,"time":1790000004000,"data":{"turn":1,"step":1,"callId":"<call-id>","name":"bash","arguments":"{\"command\":\"<command>\"}"}}
+{"type":"tool/result","seq":29,"time":1790000007000,"data":{"turn":1,"step":1,"message":{"id":"<msg-uuid-5>","role":"user","content":[{"type":"tool-result","toolCallId":"<call-id>","isError":false,"content":[{"type":"text","text":"<tool output>"}]}],"source":{"kind":"tool","callId":"<call-id>"}}},"sourceEventSeqs":[28],"surfaceOp":"append"}
+{"type":"step/end","seq":30,"time":1790000007010,"data":{"turn":1,"step":1}}
+{"type":"step/start","seq":31,"time":1790000007020,"data":{"turn":1,"step":2}}
+{"type":"assistant/chunk","seq":32,"time":1790000008000,"data":{"turn":1,"step":2,"chunk":{"type":"block-start","index":0,"blockType":"text"}}}
+{"type":"text-chunks","seq0":33,"time0":1790000008010,"data":{"turn":1,"step":2,"index":0,"dt":[20,18],"texts":["<assistant text delta>","<assistant text delta>","<assistant text delta>"]}}
+{"type":"assistant/chunk","seq":36,"time":1790000008900,"data":{"turn":1,"step":2,"chunk":{"type":"block-end","index":0,"block":{"type":"text","text":"<assistant text>"}}}}
+{"type":"assistant/chunk","seq":37,"time":1790000008950,"data":{"turn":1,"step":2,"chunk":{"type":"usage","usage":{"inputTokens":150,"outputTokens":60,"cacheReadTokens":4300}}}}
+{"type":"assistant/chunk","seq":38,"time":1790000008960,"data":{"turn":1,"step":2,"chunk":{"type":"finish","reason":{"kind":"stop"},"replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"text"}]}}}}
+{"type":"assistant/message","seq":39,"time":1790000008970,"data":{"turn":1,"step":2,"message":{"id":"<msg-uuid-6>","role":"assistant","content":[{"type":"text","text":"<assistant text>"}],"source":{"kind":"model","provider":"<provider>","model":"<model>","replayState":{"response":{"kind":"pi-ai","version":2,"api":"<api>","provider":"<provider>","model":"<model>","responseId":"<response-id>","stopReason":"<stop-reason>"},"blocks":[{"type":"text"}]}}},"usage":{"inputTokens":150,"outputTokens":60,"cacheReadTokens":4300}},"sourceEventSeqs":[32,33,34,35,36,37,38],"surfaceOp":"append"}
+{"type":"step/end","seq":40,"time":1790000009000,"data":{"turn":1,"step":2}}
+{"type":"turn/end","seq":41,"time":1790000009010,"data":{"turn":1,"reason":{"kind":"completed"}}}
 ```
 
-注意打包行占用多个 seq（例如 `seq0:14` 的 3 个成员占 14–16，下一行从 17 开始）。本机样本中的 `assistant/message.sourceEventSeqs` 全部指向 `assistant/chunk`，`tool/result.sourceEventSeqs` 全部指向 `tool/call`（§8）。
+注意打包行占用多个 seq（例如 `seq0:15` 的 3 个成员占 15–17，下一行从 18 开始）。0.1.1-rc.2 的打包器要求同一行内 tool-call 增量的 `id` 相同、`name` 的有无与取值一致（本机 `dsh-session/lib/index.js` 的 `continues()`）；pi-ai 适配器在每个增量上都带 `name`（本机 22,585/22,585 个 `tool-call-chunks` 行、5,911/5,911 个未打包的 `tool-call-delta` 都带），所以首个增量与后续增量打进同一行（本例 `seq0:19` 占 19–22）。§7.1 的 HEAD 示例拆成两行，是因为 DeepSeek 适配器只在第一个增量上带 `name`。`session/title-llm-request`（seq 13）在本机 23/25 个顶层会话中紧跟第一个 step 的 `request/context`（另 2 个顶层会话没有 turn）。本机样本中的 `assistant/message.sourceEventSeqs` 全部指向 `assistant/chunk`，`tool/result.sourceEventSeqs` 全部指向 `tool/call`（§8）。
 
 ## 8. 本机真实数据核对结果
 
-数据：`~/.dsh`（0.1.1-rc.2 写出，创建时间 2026-08-22 至 2026-08-30）。方法：`zstdcat` 流式解压 + Python 只统计键名、类型、计数；zstd 帧数用纯 Python 解析帧头得到（不解压）。
+数据：`~/.dsh`（0.1.1-rc.2 写出，创建时间 UTC 2026-08-22 至 2026-08-30，即北京时间 08-22 至 08-31）。方法：`zstdcat` 流式解压 + Python 只统计键名、类型、计数；zstd 帧数用纯 Python 解析帧头得到（不解压）。
 
 ### 8.1 目录与文件
 
 | 项 | 统计 |
 | --- | --- |
-| 项目目录 | 2 个：`--Users-~-…-<project-A>--`（76 个会话）、`--Users-~-…-<project-B>--`（3 个会话） |
+| 项目目录 | 2 个：`--Users-<user>-…-<project-A>--`（76 个会话）、`--Users-<user>-…-<project-B>--`（3 个会话） |
 | 会话目录 | 79 个：25 个 `session-<uuid>`（全部 `delegationDepth:0`、无 `origin`/`parentSession`），54 个 `<uuid>`（全部 `origin:'subagent'`、有 `parentSession`；depth 1/2/3 = 46/3/5） |
 | 目录内容 | 每个目录恰好 1 个 `session.jsonl.zstd`；无 `session.lock`、无其他代、无附件 / spill 文件 |
 | 父子关系 | 54 个子会话引用 11 个不同父会话，父会话全部在本机 |
@@ -725,9 +728,9 @@ erDiagram
 | zstd 帧 | 合计 125,036 帧，全部带 content checksum；每文件 2–12,297 帧（中位 587），即「1 个 header 帧 + 每批 1 帧」；79/79 文件的第 1 帧解压后恰好只有 header 一行，抽查第 2 帧全部以换行结尾（帧内都是完整行） |
 | 物理行 | 159,023 行 = 79 header + 52,092 普通事件行 + 106,852 打包行 |
 | 逻辑事件 | 632,449 个（打包行展开后）；其中 `assistant/chunk` 618,373 个，占 97.8% |
-| 单行最大 | 164 KB（最大行多为 `tool/result` 或 `request/header`）；每条 `request/header` 约 53 KB（v0 内含完整 system prompt + 工具 schema） |
+| 单行最大 | 164 KB（一条 `assistant/message`；超过 100 KB 的 48 行中 42 行是 `tool/result`）；`request/header` 每条约 33–53 KB（v0 内含完整 system prompt + 工具 schema） |
 | seq / time | 79/79 文件 seq 从 0 连续（含打包行展开）；`time` 单调不减；打包行 `dt.length = n-1` 全部成立 |
-| turn / step 编号 | turn 从 1 起连续（2 个会话无 turn）；step 在 turn 内从 1 起连续；79/79 文件以平衡的 `turn/end` 结尾 |
+| turn / step 编号 | turn 从 1 起连续（2 个会话无 turn）；step 在 turn 内从 1 起连续；79/79 文件没有未闭合的 turn（最后一条事件：`turn/end` 65、`session/end-seed` 10、`agent/inbox/spliced` 2、`session/title` 1、`approval/policy` 1） |
 
 ### 8.2 记录类型分布（物理行计数）
 
@@ -761,7 +764,7 @@ erDiagram
 | finish reason（chunk） | `tool-calls` 2,040、`stop` 103、`error` 58、`max-tokens` 2 |
 | `turn/end.reason` | `completed` 98、`error` 12（`NO_ADAPTER` 9、`PI_AI_ERROR` 3）、`aborted{parent}` 7、`max-tokens` 2 |
 | `assistant/message` | 2,147；带 `usage` 2,145（含 `cacheReadTokens` 2,092）；`interrupted:true` 2 |
-| provider（assistant 消息来源） | `openrouter` 1,167、`kimi-coding` 687、`openai-codex` 288、`xai` 5；全部经 pi-ai 适配器（`replayState.response.kind:'pi-ai', version:2`） |
+| provider（assistant 消息来源） | `openrouter` 1,167、`kimi-coding` 687、`openai-codex` 288、`xai` 5；均经 pi-ai 适配器：2,145 条带 `replayState`（`response.kind:'pi-ai', version:2`），另 2 条 `interrupted:true` 的没有 |
 | 推理签名 | `replayState.blocks[]` 中 `thinkingSignature` 1,562 个、`textSignature` 24 个（字符串，未解析） |
 | `request/header.reason` | `initial` 77、`change` 10、`resume` 3 |
 | `agent/inbox/spliced` | `next-turn` 226（取消 7）、`next-step` 257（取消 44） |
@@ -784,7 +787,7 @@ erDiagram
 | 失败尝试 | 只有 `finish{kind:'error'}` chunk | `assistant/attempt` | 错误统计口径不同 |
 | system prompt | `request/header.header.system` | `system/message` 事件 | 提取 prompt 位置不同 |
 | 工具结果 | `role:'user'` + `tool-result` 包装块 | `role:'tool'`，`toolCallId`/`isError` 在消息上 | 两套取值路径 |
-| 插件 source | `{kind:'plugin', plugin:'…'}` | `{kind:'<producer>'}` | 归类时做映射 |
+| 插件 source | 部分为 `{kind:'plugin', plugin:'…'}`（本机 87 条），其余已是直接 kind | 直接 `{kind:'<producer>'}` | 归类时做映射（规则见 §3.4） |
 | `surfaceOp.replace` | `{op, start, end}` | `{op, startSeq, endSeq}` | 两套键名 |
 | PTC 事件 | `tool/code-dispatch*` | `tool/ptc-dispatch*` | 重命名 |
 | 新增事件 | — | `system/message`、`developer/message`、`assistant/attempt`、`subagent/catalog`、`image/offload`、`deliverables/presented`、`workspace/changes`、`feedback/message-*` | 未知类型应容忍 |
@@ -813,7 +816,7 @@ erDiagram
 | 流式增量 | 顶层 `assistant/chunk` + 打包行（展开规则见 §3.1） | `assistant/message.data.stream` / `assistant/attempt.data.stream` | 同 v2 | 同 v2 |
 | system prompt | `request/header.data.header.system` | 同 v0 | `system/message` | 同 v3 |
 | 工具结果 | `data.message.content[0]`（`type:'tool-result'`）的 `toolCallId/isError/content` | 同 v0 | 同 v0 | `data.message.toolCallId/isError/content` |
-| 注入上下文来源 | `source:{kind:'plugin', plugin}` 或直接 kind | 同 v0 | 同 v0 | 直接 `source.kind`（映射表见 v3-to-v4 README） |
+| 注入上下文来源 | `source:{kind:'plugin', plugin}` 或直接 kind | 同 v0 | 同 v0 | 直接 `source.kind`（`@deepseek-ai/dsh-system-prompt` 在 system 消息上为 `system-prompt`、其他角色上为 `runtime-context`；白名单名字保留原名，其余为 `plugin:<原名>`；映射表见 v3-to-v4 README） |
 | 替换端点 | `surfaceOp:{op:'replace', start, end}` | 同 v0 | `{op:'replace', startSeq, endSeq}` | 同 v3 |
 | PTC 子调用 | `tool/code-dispatch*` | 同 v0 | `tool/ptc-dispatch*` | 同 v3 |
 | 失败尝试 | 仅 `finish{kind:'error'}` chunk | `assistant/attempt` | 同 v2 | 同 v2 |
@@ -830,10 +833,10 @@ erDiagram
 | 消息数 | 只数 `surfaceOp === 'append'` 的 surface 事件，按 `message.role`（`user/message` 的 data 本身就是消息）；`replace` 事件是压缩 / 裁剪的替身，不计入 |
 | 人类提问 | 顶层会话里 `user/message` 且 `source.kind === 'user'`；子会话里同样的消息是父模型的委派提示；其他 kind 都是注入上下文 |
 | 工具调用 | 以 `tool/call` 为准：`name`、`arguments`（原始 JSON 字符串，可能非法）；按 `callId` 找 `surfaceOp === 'append'` 的 `tool/result`；成功 = `!isError`（v4 在 message 上，v0–v3 在 tool-result 块上）；错误码 = `data.error.code`；耗时 = `result.time − call.time`（结果按模型顺序提交，是上界）；也可用 DSH 的 `toolMs` 口径 |
-| 审批 | `approval/asked.callId` ↔ `approval/decided.id`（同 `id`）→ `outcome`；策略变更看最后一个 `approval/policy` / `sandbox/mode` / `permission/preset`（`source:'delegation'` 表示从父会话继承） |
+| 审批 | `approval/asked` 与 `approval/decided` 按同一 `id` 配对取 `outcome`；`asked.callId` 关联 `tool/call.callId`；策略变更看最后一个 `approval/policy` / `sandbox/mode` / `permission/preset`（`source:'delegation'` 表示从父会话继承） |
 | token | 对每个 step 取 `assistant/message.data.usage`；失败重试的尝试按 token-meter 口径计入（[usage-projection.ts:117-150](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/llm/token-meter/src/usage-projection.ts#L117)：`llm/retry-started` 后的新尝试累加，同一 step 的重复样本替换）；总输入 = `inputTokens + cacheReadTokens + cacheWriteTokens`；压缩摘要另看 `compaction/summary.usage`；标题、搜索等辅助调用不记录 usage |
 | cost | 日志无金额字段，需按 `provider/model` 与价格表自算 |
-| 模型 | 每个 step 的 `assistant/message.data.message.source.provider/model`；请求意图在 `request/header.header.config`（含 `reasoningEffort`）；Web 用户选择在 `model/selection` |
+| 模型 | 每个 step 的 `assistant/message.data.message.source.provider/model`；请求意图在 `request/header.header.config`（含 `reasoningEffort`）；Web 用户选择在 `model/selection`；pi-ai 路由下 provider 报告的实际模型可能另记在 `source.replayState.response.responseModel`（可选，本机未出现） |
 | 首 token / 解码时间 | v2+ 从嵌入流的第一个非空增量时间计算（`time0`、`time0 + Σdt`）；v0 用 `assistant/chunk` 的 `time` |
 | 错误 | `turn/end.reason.kind` ∈ `error`（`error.code/message`）/ `aborted`（`reason.kind`：user / parent / hook / disposed）/ `interrupted` / `max-tokens` / `blocked`；`llm/retry.failure`；`assistant/attempt`（v2+）；工具错误见上 |
 | 压缩 | `compaction/summary` 次数、`shadowedTokenCount`、`usage`；`compaction/prune` 次数；`turn === null` 表示手动 |
@@ -842,8 +845,8 @@ erDiagram
 
 ### 9.4 陷阱
 
-- **多代文件**：HEAD 以写模式恢复一个旧会话后，目录里会同时有 `session.jsonl.zstd` 和 `session.v4.jsonl.zstd`；只读最高代，否则重复计数。迁移会**重新编号 seq**（v1→v2 删除 chunk 事件、v2→v3 插入 system 消息、v3→v4 可能插入 interrupted 收尾并追加 catalog），所以不能跨代复用 seq 或字节偏移。
-- **大文件**：单会话可达数 MB 压缩 / 数十 MB 解压；单行可超过 160 KB（`tool/result`、`request/header`）；v0 的逻辑事件约 98% 是流式 chunk。用流式解码 + 逐行 JSON 解析；不需要逐 token 时可只读打包行的 `seq0` 与长度来推进 seq。
+- **多代文件**：HEAD 以写模式恢复一个旧会话后，目录里会同时有 `session.jsonl.zstd` 和 `session.v4.jsonl.zstd`；只读最高代，否则重复计数。迁移会**重新编号 seq**（v1→v2 删除 chunk 事件，并可能补遗留重启的 interrupted `turn/end`、拆出 `goal/change`；v2→v3 插入 system 消息；v3→v4 可能插入 interrupted 收尾，补写的 catalog 只追加在尾部），所以不能跨代复用 seq 或字节偏移。
+- **大文件**：单会话可达数 MB 压缩 / 数十 MB 解压；单行可达 160 KB 以上（本机最大两行都是 `assistant/message`，`tool/result` 最大约 140 KB）；v0 的逻辑事件约 98% 是流式 chunk。用流式解码 + 逐行 JSON 解析；不需要逐 token 时可只读打包行的 `seq0` 与长度来推进 seq。
 - **增量读取**：文件只会在尾部追加完整的 zstd 帧（每批一帧），帧之间相互独立。可记录「最后一个完整帧的结束偏移 + 已读 seq + inode/size/mtime」，变化后从偏移继续解码新帧；最后一个帧可能正在写入（不完整），应等待而不是报错；raw 模式忽略没有换行结尾的最后一行。会话活跃时文件最多落后约 200 ms + I/O。
 - **崩溃 tail**：日志可能以未闭合的 `turn/start` 结束（崩溃后尚未 resume）；DSH 的只读路径会在内存补 `interrupted` 收尾，Tandem 也应把它显示为「中断」，不要写回。
 - **可选字段**：`usage`、`replayState`、`cwd`、`parentSession`、`meta`、`error`、`interrupted`、`startsSeries`、`adapterDefaults`、`tools` 都可能缺失；`isError` 在 v0 块上恒有，在 v4 消息上也由构造器写入。
@@ -879,13 +882,13 @@ for dir in glob($DSH_HOME/sessions/*/*/):
 | 默认路径与覆盖方式 | `~/.dsh/sessions/--<cwd 编码>--/<id>/session[.vN].jsonl.zstd`；`$DSH_HOME` 覆盖 home；profile / home `cordis.patch.yml` 或 `--patch` 可改 `session-persistence-jsonl` 的 `root` 与 `compression` |
 | 会话粒度（一文件/一目录/一行） | 一会话一目录；目录内每个格式代一个文件（读最高代）；文件内一行一事件（v0/v1 的打包行一行代表多个 chunk 事件） |
 | 项目/cwd 归属方式 | header `cwd`（绝对路径，权威）；上层目录名是 cwd 的有损可读编码；Web 另有 `workspace.json` 的 workspace → sessionIds |
-| 会话 ID 格式 | 不透明字符串：`session-<uuid>`（Web / headless / fork）、`session-<32hex>`（TS SDK）、`<uuid>`（进程内子代理）、`webhook-<uuid>`、`<agentId>-session-<uuid>` |
+| 会话 ID 格式 | 不透明字符串：`session-<uuid>`（Web / headless / fork）、`session-<32hex>`（TS / Python SDK）、`<uuid>`（进程内子代理、ACP 顶层会话）、`webhook-<uuid>`、`<agentId>-session-<uuid>` |
 | 记录 ID 与链接模型（线性/parentId 树/DAG） | 线性：`seq` 从 0 连续；在其上叠加只指向过去的引用 DAG（`sourceEventSeqs`、`surfaceOp.replace`、`headerSeq`、`messageSeqs`、`shadowedSeqs`）；消息另有 uuid `id`；无 parentId 树；跨会话靠 `parentSession` / `subagent/catalog` |
 | 消息方言（OpenAI Chat / Anthropic Messages / OpenAI Responses / 自定义） | 自定义 provider 中立格式（`role` + `content` 块 + `source`）；provider 原生响应元数据只放在 `replayState`（DeepSeek 适配器走 Anthropic Messages 兼容接口，pi-ai 适配器覆盖 OpenAI Completions / Responses / Anthropic 等） |
 | 角色表示 | `message.role` ∈ `system` / `developer` / `user` / `assistant` / `tool`（v4；v0–v3 工具结果为 `user` + `tool-result` 块，v0–v2 无 `system` 消息）；`source.kind` 区分人类、模型、工具、各类注入上下文 |
 | 推理内容是否落盘（是否加密/签名） | 是：`reasoning` 块明文落盘；provider 签名（`signature` / `thinkingSignature` / `textSignature` / `thoughtSignature`，可能是加密推理）存在 `source.replayState.blocks[]` 和 finish chunk 中 |
 | 工具调用表示与 call id 关联 | assistant `tool-call` 块 `{id, name, arguments}` + `tool/call` 事件 + `tool/result`（`toolCallId` / `source.callId`，`sourceEventSeqs` 指回 `tool/call`）；callId 由 provider 签发；参数是模型原样 JSON 字符串 |
-| 大工具输出处理（截断/外置） | 外置 + 截断：超过预算（HEAD 12,500 估算 token；0.1.1-rc.2 为 50,000 字节）时日志只留头尾预览与文件路径，全文在 `$TMPDIR/dsh-spill-*`（按天清理）；压缩阶段 tool-result-pruner 再裁剪（替换事件）；图片 / 文件进内容寻址附件库 |
+| 大工具输出处理（截断/外置） | 外置 + 截断：超过预算（HEAD 12,500 估算 token；0.1.1-rc.2 为 50,000 字节）时日志只留头尾预览与文件路径，全文在 `$TMPDIR/dsh-spill-*`（进程启动时一次性清理修改时间超过 `cleanupPeriodDays`（默认 30 天）的文件）；压缩阶段 tool-result-pruner 再裁剪（替换事件）；图片 / 文件进内容寻址附件库 |
 | token 与 cost 记录粒度 | token：每个 step 一份 `TokenUsage`（未缓存输入、输出、缓存读、缓存写、可选 total / reasoning），失败尝试的 usage 在嵌入流里；压缩摘要另有 usage；无 cost 字段 |
 | 模型/provider 记录位置 | `assistant/message.data.message.source.{provider, model}`；`request/header.header.config`（含 `reasoningEffort`）；`request/context`；`model/selection`；`compaction/summary.{provider, model}` |
 | 时间戳格式 | epoch 毫秒整数（事件 `time`、header `createdAt`、流 `time0` + `dt[]` 增量）；`workspace.json` 为 ISO-8601 字符串 |
@@ -894,10 +897,10 @@ for dir in glob($DSH_HOME/sessions/*/*/):
 | 压缩表示 | `compaction/start` → `compaction/summary` → `user/message`（`source.kind:'compact-checkpoint'`，`surfaceOp: replace` 遮蔽区间）→ `compaction/end`；裁剪 = `compaction/prune` + 替换型 `tool/result`；`image/offload`；原事件保留 |
 | 分支/fork/rewind 表示 | fork = 新会话（`parentSession` + `isSeeded`；v0 `seedLength`），复制源前缀 + `session/end-seed{inherited:true}` + 合成收尾（`turn/end{kind:'forked'}`）；rewind 通过任意 seq 处 fork 实现；无同文件分支树 |
 | 文件快照/undo | 无持久文件快照或 undo；turn 级改动快照只在 Host 临时目录、会话结束即删，日志只有 `workspace/changes{turn}`；`edit`/`write` 的 diff 在 `tool/result.meta.diffs` |
-| 子代理表示 | 独立会话目录（`origin:'subagent'`、`parentSession`、`delegationDepth`）+ 子侧 `subagent/descriptor`；父侧 `subagent/catalog`（v3+）、委派工具调用与 `subagent-settled` / `subagent-report` 通知消息 |
+| 子代理表示 | 独立会话目录（`origin:'subagent'`、`parentSession`、`delegationDepth`）+ 子侧 `subagent/descriptor`；父侧 `subagent/catalog`（v3+）、委派工具调用与 `subagent-settled` / `agent-message` / `subagent-report`（旧日志）通知消息 |
 | 标题/摘要 | `session/title` 事件（fallback / provider / user，最新为准）+ `session/title-llm-request`；投影缓存 `title` 行；无独立会话摘要（压缩摘要除外） |
 | 搜索/索引 | 可选 SQLite FTS5（`persisted_sessions` + `persisted_docs`），默认关闭；列表靠 header + 投影缓存 |
-| 导出/分享/训练格式 | Web 导出 ZIP（未压缩 `session[.vN].jsonl` + `subagents/` + 附件）；headless `--json` NDJSON；SDK `session.event` 通知；官方 DeepSeek 请求附带日志增量（`dsh_session_log`）；未见训练专用格式 |
+| 导出/分享/训练格式 | Web 导出 ZIP（明文 JSONL `session[.vN].jsonl` + `subagents/` + 附件，ZIP 条目用 DEFLATE 压缩，默认 level 6）；headless `--json` NDJSON；SDK `session.event` 通知；官方 DeepSeek 请求附带日志增量（`dsh_session_log`）；未见训练专用格式 |
 | 审批/权限事件是否落盘 | 是：`approval/asked`、`approval/decided`（含 `callId`、`outcome`）、`approval/policy`、`sandbox/mode`、`permission/preset`；hook 决策在 `hook/result` |
 | 错误/中断表示 | `turn/end.reason`（`error{LlmFailure}`、`aborted{cause}`、`interrupted`、`max-tokens`、`blocked`、`forked`）；`assistant/attempt`；`llm/retry{failure}`；`assistant/message{interrupted:true}`；工具 `isError` + `error{name, code}`；合成 `TOOL_NOT_STARTED` / `TOOL_OUTCOME_UNKNOWN` 结果 |
 | 版本字段与迁移 | header `version`（单调整数，当前 4）+ 文件名代号 `vN`；相邻迁移链 v0→v1→v2→v3→v4：读时在内存迁移，写时发布新代；未知必需事件拒读，`ignorable` 事件可跳过；`storages` 各 unit 有独立版本（workspace 2、projcache 7） |
@@ -957,10 +960,8 @@ for dir in glob($DSH_HOME/sessions/*/*/):
 
 ## 附：待确认事项
 
-1. **v4 首次发布的产品版本**：仓库发布记录仍为 `latestReleasedVersion: 3`（证据 tag `dsh-v0.1.5-alpha.1`），归档 manifest 只覆盖到 2026-09-12 的 `dsh-v0.1.5-rc.2`；0.1.6 / 0.1.7 / 0.2.0-rc.x 是否已写出 v4 无法在离线仓库中核对。
-2. **`session/title` 回退标题在 HEAD 中的确切位置**：v0 本机样本里它出现在 `request/header` 之前；HEAD 中标题服务异步追加，§7.1 中的位置只是示意。
-3. **HEAD 新建 Web 会话是否仍在第一个 turn 前写 `permission/preset` / `sandbox/mode` / `approval/policy`**：本机 v0 每个顶层会话都有，§7.1 的源码推导示例没有画出。
-4. **工具 `tool/result.time` 与真实完成时间的偏差**：源码表明结果按模型顺序提交，偏差大小取决于并发工具，未做量化。
-5. **外部产品子代理（Claude Code / Codex / ACP / dsh-sdk）在 DSH 侧留下的会话文件形态**：只确认它们分配会话 id，未展开其日志内容。
-6. **训练 / 分享专用导出格式**：源码中未发现，但未穷尽 `experimental/` 下的全部包。
+1. **v4 首次发布的产品版本**：仓库发布记录仍为 `latestReleasedVersion: 3`（证据 tag `dsh-v0.1.5-alpha.1`），归档 manifest 采集于 2026-09-12，最后一条是 2026-09-10 发布的 `dsh-v0.1.5-rc.2`；0.1.6 / 0.1.7 / 0.2.0-rc.x 是否已写出 v4 无法在离线仓库中核对。
+2. **工具 `tool/result.time` 与真实完成时间的偏差**：源码表明结果按模型顺序提交，偏差大小取决于并发工具，未做量化。
+3. **外部产品子代理（Claude Code / Codex / ACP / dsh-sdk）子进程侧的日志形态**：已确认它们都不在父会话目录写子日志、Claude Code 与 Codex 不落轨迹（§5.6）；ACP 与 dsh-sdk 子进程自己的日志内容未展开。
+4. **训练 / 分享专用导出格式**：源码中未发现，但未穷尽 `experimental/` 下的全部包。
 
