@@ -13,7 +13,8 @@
 //                      sidebar is hidden by default and the toggle shows it as an overlay that the content scrim closes.
 //  3. container query  at the same viewport, narrow the window (S.win.w = 1000) → the overview .two grid drops to one column
 //                      and the metric tiles to 3 per row; widen again → restored. Narrow stages assert the single column.
-//                      Thresholds follow 90-responsive.css: .two 780, .tiles 800 / 640, .sess 760 (content-column px).
+//                      Thresholds follow 90-responsive.css: .two and .tiles 800 (/ 640), .sess 760 (content-column px).
+//                      A toolbar that cannot fit its page title moves items into the » popover instead of clipping it.
 //  4. settings         openSettings() → #set fully inside the viewport, six tabs visible, each tab renders, main window
 //                      inactive (grey lights); Esc closes it.
 //  5. menu-bar panel   click the Tandem status item → #pop right edge aligns with the status item (±1.5px), 6px under the bar.
@@ -168,12 +169,12 @@ test('container queries: narrowing the window at a fixed viewport collapses page
   const cols = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).gridTemplateColumns.trim().split(/\s+/).length, sel);
   const mainW = () => page.evaluate(() => document.querySelector('#main').clientWidth);
   const mw = await mainW();
-  expect(await cols('.two')).toBe(mw >= 780 ? 2 : 1);
+  expect(await cols('.two')).toBe(mw >= 800 ? 2 : 1);
   expect(await cols('.tiles')).toBe(mw >= 800 ? 5 : mw >= 640 ? 3 : 2);
   const r = await winBox(page);
-  if (r.mode === 'win' && mw >= 780) {
+  if (r.mode === 'win' && mw >= 800) {
     await page.evaluate(() => { S.win.w = 1000; applyWin(); });
-    await expect.poll(() => mainW()).toBeLessThan(780);
+    await expect.poll(() => mainW()).toBeLessThan(800);
     expect(await cols('.two')).toBe(1); expect(await cols('.tiles')).toBe(3);
     await page.evaluate((w) => { S.win.w = w; applyWin(); }, r.w);
     await expect.poll(() => cols('.two')).toBe(2);
