@@ -42,14 +42,24 @@ def comparison_signal(event: Event | None) -> str | None:
         return None
     text = re.sub(r'“[^”\n]*”|"[^"\n]*"|`[^`\n]*`', '', event.text)
     for clause in re.split(r'[，,。；;\n]', text):
-        if re.search(r'是否|是不是|[?？]|没有|并非|未|不|如果|假如|若|倘|要是|希望|期望', clause):
+        if re.search(r'是否|是不是|[?？]|没有|并非|未|不|如果|假如|若|倘|要是', clause):
             continue
         if re.match(r'\s*(?:请|解释|介绍|讨论|假设|例如)', clause):
             continue
-        if re.search(r'(?:这一版|这版|现在这版|新版).{0,8}比(?:上一版|之前|原来).{0,6}更(?:清楚|好懂|易懂|直观)', clause):
-            return 'revised_preferred'
-        if re.search(r'(?:上一版|旧版|原来那版).{0,8}比(?:这一版|这版|新版).{0,6}更(?:清楚|好懂|易懂|直观)', clause):
-            return 'original_preferred'
+        expressions = [
+            (r'(?:这一版|这版|现在这版|新版).{0,8}比(?:上一版|之前|原来).{0,6}更(?:清楚|好懂|易懂|直观)', 'revised_preferred'),
+            (r'(?:上一版|旧版|原来那版).{0,8}比(?:这一版|这版|新版).{0,6}更(?:清楚|好懂|易懂|直观)', 'original_preferred'),
+        ]
+        # Keep predicates on either side of a reason separate, so a pattern
+        # cannot consume the earlier version mention before "because".
+        for predicate in re.split(r'因为|理由是|事实上', clause):
+            for expression, direction in expressions:
+                match = re.search(expression, predicate)
+                if not match:
+                    continue
+                if re.search(r'希望|期望', predicate[:match.start()]):
+                    continue
+                return direction
     return None
 
 

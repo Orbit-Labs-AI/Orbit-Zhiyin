@@ -111,13 +111,13 @@ def reader_constraints(text: str, event_id: str) -> tuple[list[dict], set[str]]:
     """Task readers are explicit requirements, not claims about the user's identity."""
     rules = [("first_year_student", "大一学生", r"大一学生|大学一年级|大学新生"),
              ("beginner", "初学者", r"初学者|零基础(?:的读者|的人)?|入门读者"),
-             ("developer", "项目开发者", r"开发者|工程师"),
+             ("developer", "项目开发者", r"(?:项目)?开发者|工程师"),
              ("general_reader", "非专业读者", r"非专业读者|普通读者|不了解背景的读者")]
     readers, excluded = {}, set()
     for key, label, pattern in rules:
         for match in re.finditer(pattern, text):
             left = max(text.rfind(c, 0, match.start()) for c in "，,。；;\n") + 1
-            prefix = text[max(left, match.start() - 16):match.start()]
+            prefix = text[left:match.start()]
             if re.search(NEGATION + r"[^，。；;\n]{0,10}$|不针对[^，。；;\n]{0,8}$", prefix):
                 readers.pop(key, None)
                 excluded.add(key)

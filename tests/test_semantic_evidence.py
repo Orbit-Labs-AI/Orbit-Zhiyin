@@ -47,3 +47,18 @@ def test_a_clarification_answer_can_supply_requirements_without_creating_another
 ])
 def test_reader_cue_governs_an_audience_without_borrowing_a_subject(text, expected):
     assert {r['id'] for r in reader_context(text, 'u')} == expected
+
+
+@pytest.mark.parametrize('text,direction', [
+    ('我希望采用这一版因为这一版比上一版更清楚。', 'revised_preferred'),
+    ('我期望保留旧版因为上一版比这一版更清楚。', 'original_preferred'),
+    ('我希望这一版比上一版更清楚，因为修改很多。', None),
+])
+def test_aspiration_is_scoped_to_its_predicate(text, direction):
+    assert comparison_signal(Event('u', 's', 1, 'user_message', None, text=text)) == direction
+
+
+def test_a_long_reader_list_preserves_the_single_governing_cue():
+    readers = reader_context('请面向大学一年级、零基础的人、项目开发者以及不了解背景的读者写教程。', 'u')
+    assert {r['id'] for r in readers} == {'first_year_student', 'beginner', 'developer', 'general_reader'}
+    assert {r['evidence_id'] for r in readers} == {'u'}
