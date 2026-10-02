@@ -47,8 +47,19 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
     risk_flags = list(item.get("risk") or ())
     limitation = item.get("limitation") or ""
     level = 4 if any(word in limitation for word in NOT_INSTALLABLE) else min(4, max(1, int(item.get("difficulty") or 2)))
-    mechanism = (f"资源库条目：用{TYPE_LABEL.get(kind, kind)}应对「{TYPE_ZH.get(problem['type'], problem['type'])}」"
-                 if problem else "")
+    label = TYPE_LABEL.get(kind, kind)
+    tags = "、".join(list(item.get("tags") or ())[:3])
+    if problem:
+        mechanism = f"资源库条目：用{label}应对「{TYPE_ZH.get(problem['type'], problem['type'])}」"
+        reason = problem.get("reason") or ""
+    else:  # Chinese copy for a profile match; the item's own (often English) text stays in capability
+        mechanism = (f"按你的使用画像（{tags}）从资源库匹配的{label}，没有对应的会话问题证据" if tags
+                     else f"从资源库匹配的{label}，没有对应的会话问题证据")
+        reason = f"资源库里与你常用的 {tags} 相关的{label}" if tags else f"资源库里可能适合你的{label}"
+    limitation = "；".join(x for x in (limitation, "来自公开资源库，效果未用你的数据验证；安装前请先看来源说明")
+                          if x)
+    steps = list(item.get("steps") or ()) or ["打开来源，查看说明与许可", "确认适用后按来源说明安装",
+                                              "7 天后看效果追踪"]
     return {
         "rec_key": "catalog:" + item["item_id"], "problem": problem, "kind": kind, "dim": KIND_DIM.get(kind, "skill"),
         "level": level, "audience_min": audience_default(kind, level),
@@ -61,7 +72,7 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
                    "project_id": project_of(problem), "path_hint": None},
         "track": {"triggered": (problem or {}).get("type") or "使用次数", "mechanical": "调用次数",
                   "guardrail": "会话摩擦率", "follow_days": 7, "extend_days": 28},
-        "trial": {"steps": list(item.get("steps") or ()), "metric": (problem or {}).get("type") or "使用次数",
+        "trial": {"steps": steps, "metric": (problem or {}).get("type") or "使用次数",
                   "follow_days": 7},
         "alternatives": [], "generate": None, "kb": None, "item": item, "agents": support,
         "prior": {"alpha": 2., "beta": 2.},
@@ -70,7 +81,7 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         "risk": {"level": "medium" if len(risk_flags) > 1 else "low", "flags": risk_flags},
         "requirements": {"tools": [], "software": []}, "gates_hint": {"scenes": None, "language": None},
         "unit_minutes": 1., "tags": list(item.get("tags") or ()), "file": None,
-        "explain_hints": {"reason_template": (problem or {}).get("reason") or "", "mechanism": mechanism,
+        "explain_hints": {"reason_template": reason, "mechanism": mechanism,
                           "trial": _user_trial(item.get("trial")), "limitation": limitation,
                           "vars": dict((problem or {}).get("vars") or {})},
     }

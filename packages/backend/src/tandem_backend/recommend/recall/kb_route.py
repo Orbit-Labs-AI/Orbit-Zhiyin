@@ -11,6 +11,7 @@ import re
 from .. import mechanism
 from ..kb import Rule
 from ..narrate import audience_default
+from ..ranking.hygiene import GENERIC
 
 # Where a remedy lands, per the Agent the user runs most (user scope; project scope swaps
 # the home prefix for the project's directory name).
@@ -114,8 +115,9 @@ def rule_key(rule: Rule, problem: dict | None, prefix: str = "kb") -> str:
 def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, match_basis: str,
               origin: str = "kb") -> dict:
     values = {**((problem or {}).get("vars") or {})}
-    # Unfilled required slots show as "…" in display text; the generative route asks AI to fill them.
-    shown = {**values, **{name: "…" for name in rule.remedy.slots if name not in values}}
+    # Unfilled slots read as a generic phrase (never "…" or a raw {slot}); the generative route
+    # asks AI to fill them.
+    shown = {**values, **{name: GENERIC.get(name, "相关项") for name in rule.remedy.slots if name not in values}}
     project = project_of(problem)
     scope = "project" if rule.remedy.scope == "project" or project else "user"
     path = rule.remedy.path.format(id=rule.id) if rule.remedy.path else path_hint(
@@ -149,12 +151,12 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
 
 
 def prefix_ok(rule: Rule, problem: dict) -> bool:
-    """Keyed rules need a matching key; on SQL-fact problems their required slots must be known
-    too (e.g. env-quirks on the generic retry fact has no software to name)."""
+    """Keyed rules need a matching key and their required slots known (e.g. env-quirks on a
+    problem without a software to name would title itself「写明 … 的环境约定」)."""
     prefix = rule.problem.key_prefix
     if prefix and not problem["key"].startswith(prefix):
         return False
-    return not (prefix and problem.get("basis") == "sql_fact" and missing_slots(rule, problem))
+    return not (prefix and missing_slots(rule, problem))
 
 
 def missing_slots(rule: Rule, problem: dict | None) -> list[str]:

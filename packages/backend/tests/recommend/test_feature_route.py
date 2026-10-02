@@ -49,7 +49,8 @@ class FakeFeatures:
         return [{"item_id": "fix-perm", "score": .7, "matched": [
                     {"id": "friction:permission_friction", "feature": "friction", "value": "permission_friction"}]},
                 {"item_id": "py-style", "score": .4, "matched": [
-                    {"id": "lang:python", "feature": "language", "value": "python"}]},
+                    {"id": "lang:python", "feature": "language", "value": "python"},
+                    {"id": "tool:bash", "feature": "tool_kind", "value": "bash"}]},
                 {"item_id": "gone", "score": .3, "matched": []}]
 
 
@@ -65,7 +66,7 @@ def test_feature_route_ties_friction_matches_to_problems(tmp_path):
     perm, style = by_key["catalog:fix-perm"], by_key["catalog:py-style"]
     assert perm["problem"]["type"] == "permission_friction" and perm["match_basis"] == "catalog_feature"
     assert perm["feature_overlap"]["matched"] == ["friction:permission_friction"]
-    assert style["problem"] is None and style["match_basis"] == "profile" and style["tags"] == ["python"]
+    assert style["problem"] is None and style["match_basis"] == "profile" and style["tags"] == ["bash", "python"]
     assert result["profile"]["tags"] == {"python": 1.0, "bash": .5}
     assert result["profile"]["languages"] == ["python"] and result["profile"]["evidence_sessions"]["python"] == 9
 
@@ -85,3 +86,36 @@ def test_features_shaped_inputs_profile_is_adapted():
     result = recall_all(make(facts=READONLY, profile=profile), {})
     assert result["profile"]["tags"]["python"] == 1.0
     assert not any(d["source"] == "catalog" and d["status"] == "failed" for d in result["diagnostics"])
+
+
+def test_profile_only_matches_need_real_overlap():
+    sessions = {"lang:python": 9, "tool:browser": 40, "fw:react": 2, "sw:wrangler": 5}
+    one_generic = {"score": .03, "matched": [{"id": "tool:browser", "feature": "tool_kind", "value": "browser"}]}
+    assert not feature_route.precise(one_generic, sessions)
+    two_generic = {"score": .12, "matched": [{"id": "tool:browser", "feature": "tool_kind", "value": "browser"},
+                                             {"id": "lang:python", "feature": "language", "value": "python"}]}
+    assert feature_route.precise(two_generic, sessions)
+    assert not feature_route.precise({**two_generic, "score": .03}, sessions)
+    specific = {"score": .02, "matched": [{"id": "sw:wrangler", "feature": "software", "value": "wrangler"}]}
+    assert feature_route.precise(specific, sessions)
+    thin = {"score": .5, "matched": [{"id": "fw:react", "feature": "framework", "value": "react"}]}
+    assert not feature_route.precise(thin, sessions)  # seen in too few sessions
+
+
+def _cand(i, plugin, basis="profile", kind="rule"):
+    return {"rec_key": f"catalog:{plugin}-{i}", "kind": kind, "dim": "rule", "basis": basis,
+            "source": {"origin": "catalog",
+                       "item_id": f"skill:github.com:42:plugins/{plugin}/skills/s{i}/SKILL.md"},
+            "score": {"priority": 10 - i * .1, "utility": .1 - i * .001}, "tags": [f"t{i}"]}
+
+
+def test_one_plugin_family_never_fills_the_slate():
+    from tandem_backend.recommend.ranking import hygiene, slate
+
+    assert hygiene.family(_cand(0, "bio")) == "github.com:42:plugins/bio"
+    assert hygiene.family({"source": {"origin": "kb", "item_id": "x"}}) is None
+    chosen = slate.select([_cand(i, "bio") for i in range(5)] + [_cand(9, "web")])
+    families = [hygiene.family(c) for c in chosen]
+    assert families.count("github.com:42:plugins/bio") == slate.FAMILY_CAP and "github.com:42:plugins/web" in families
+    shelf = slate.select([_cand(i, "bio", basis="catalog_only") for i in range(3)] + [_cand(7, "web", "catalog_only")])
+    assert [hygiene.family(c) for c in shelf] == ["github.com:42:plugins/bio", "github.com:42:plugins/web"]

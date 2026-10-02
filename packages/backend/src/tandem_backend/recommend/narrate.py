@@ -128,8 +128,8 @@ def explain(raw: dict, problem: dict | None, gates: dict) -> dict:
         reason = _filled(hints.get("reason_template"), values) or generic_reason(problem)
         if not _readable(reason):
             reason = generic_reason(problem)
-    else:
-        reason = clean(raw.get("summary") or raw.get("title") or "")
+    else:  # a Chinese template when the route gave one, else the item's own summary
+        reason = _filled(hints.get("reason_template"), values) or clean(raw.get("summary") or raw.get("title") or "")
     notes = [n for n in gates.get("notes", []) if n not in ACTION_NOTES]
     limitation = "；".join(clean(x) for x in [_filled(hints.get("limitation"), values), *notes] if x)
     return {"reason": reason, "mechanism": _filled(hints.get("mechanism"), values) or "",
@@ -217,14 +217,25 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
                      f"每次 {unit_minutes:g} 分钟 × 生效率 {round(p, 2):g}（估计）"}
 
 
-def _gain(cand: dict, raw: dict) -> str:
+def _estimated(cand: dict, raw: dict) -> bool:
+    v = {**((raw.get("explain_hints") or {}).get("vars") or {}), **((cand.get("problem") or {}).get("vars") or {})}
+    return v.get("tokens_basis") == "estimate"
+
+
+def _gain(cand: dict, raw: dict, save: dict | None = None) -> str:
+    """Headline number; never「0 个会话出现」or「−0 常驻 token」— no evidence, no number."""
     problem = cand.get("problem") or {}
     if cand.get("kind") == "removal":
-        return f"−{_tokens(cand, raw)} 常驻 token"
+        tokens = _tokens(cand, raw)
+        if tokens <= 0:
+            return ""
+        return f"≈ −{tokens} 常驻 token（估计）" if _estimated(cand, raw) else f"−{tokens} 常驻 token"
     weekly = float(problem.get("weekly_count") or 0)
     if weekly <= 0:
-        sessions = problem.get("sessions") or len((cand.get("evidence") or {}).get("session_uids") or [])
-        return f"{sessions} 个会话出现"
+        sessions = _sessions(cand)
+        if sessions > 0:
+            return f"{sessions} 个会话出现"
+        return (save or {}).get("label") if (save or {}).get("min_month") else ""
     unit = ((raw.get("kb") or {}).get("benefit") or {}).get("unit") or problem.get("unit") or "次"
     return f"−{max(1, round(weekly * WEEKS_PER_MONTH * _p(raw)))} {unit} / 月"
 
@@ -253,6 +264,8 @@ def _primary(cand: dict, raw: dict) -> tuple[str, int]:
         return "复制片段", level
     if level >= 4:
         return "查看方案", level
+    if (cand.get("source") or {}).get("origin") == "catalog" and not file:
+        return "查看方案", level  # nothing to preview or write: read the source first
     return "预览并安装", level
 
 
@@ -322,12 +335,26 @@ def _track(cand: dict, raw: dict, inputs: dict) -> list:
     return rows
 
 
+def _sessions(cand: dict) -> int:
+    """One count for ev, gain and evidence.counts: problem sessions, else the route's count,
+    else the uids we carry."""
+    problem = cand.get("problem") or {}
+    evidence = cand.get("evidence") or {}
+    counted = int(problem.get("sessions") or (evidence.get("counts") or {}).get("sessions") or 0)
+    return max(counted, len(evidence.get("session_uids") or ()))  # never fewer than A3 will open
+
+
 def _ev(cand: dict, sessions: int, uids: list) -> str:
     if cand.get("kind") == "removal":
         problem = cand.get("problem") or {}
         note = "均未调用" if problem.get("type") == "installed_unused" else "每次都加载"
         return f"{problem.get('sessions') or len(uids)} 个会话（{note}）"
-    return f"{sessions} 个会话"
+    return f"{sessions} 个会话" if sessions else ""
+
+
+def _tilde(path: str) -> str:
+    from .recall.subtract import tilde
+    return tilde(path) if path.startswith("/") else path
 
 
 def _commands(steps: list, trial, raw: dict) -> list:
@@ -346,8 +373,9 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
     the stored ``level`` column and ``ui.lvl`` agree."""
     raw = raw or cand
     problem = cand.get("problem") or {}
-    sessions = problem.get("sessions") or len((cand.get("evidence") or {}).get("session_uids") or [])
+    sessions = _sessions(cand)
     uids = (cand.get("evidence") or {}).get("session_uids") or (problem.get("evidence") or {}).get("session_uids") or []
+    save = _save(cand, raw, inputs)
     trial = cand.get("trial")
     dim = cand.get("dim")
     primary, level = _primary(cand, raw)
@@ -356,14 +384,16 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
     return {
         "dim": dim, "type": TYPE_LABEL.get(cand.get("kind"), cand.get("kind")),
         "icon": ICON.get(dim, "rule"), "lvl": level, "aud": cand.get("audience_min") or 0,
-        "title": clean(cand.get("title")), "gain": _gain(cand, raw),
+        "title": clean(cand.get("title")), "gain": _gain(cand, raw, save),
         "why": clean((cand.get("explain") or {}).get("reason")), "ev": _ev(cand, sessions, uids),
-        "evq": {"session_uids": list(uids)}, "compat": _compat(cand.get("agents") or {}, inputs),
-        "primary": primary, "target": (cand.get("target") or {}).get("path_hint") or "",
+        # evq filters A3 to exactly these sessions; {} (no jump) when there is nothing to resolve
+        "evq": {"session_uids": list(uids)} if uids else {},
+        "compat": _compat(cand.get("agents") or {}, inputs),
+        "primary": primary, "target": _tilde((cand.get("target") or {}).get("path_hint") or ""),
         "file": [list(line) for line in raw.get("file") or []],
         "steps": [clean(s) for s in steps],
         "commands": _commands(steps, trial, raw),
         "track": _track(cand, raw, inputs),
-        "save": _save(cand, raw, inputs), "tok": _tok(cand, raw),
+        "save": save, "tok": _tok(cand, raw),
         "n": [problem.get("denominator") if problem else None, None],
     }

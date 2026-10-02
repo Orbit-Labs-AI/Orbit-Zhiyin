@@ -23,6 +23,27 @@ GENERIC = {"software": "常用工具", "build_command": "构建命令", "instruc
 TEXT_FIELDS = ("title", "summary", "explain", "ui", "trial", "track", "file")
 
 
+def family(cand: dict) -> str | None:
+    """Source family of a catalog card: the plugin directory inside its repo
+    (``…:plugins/<name>/…``), else the repo; non-catalog cards have none."""
+    source = cand.get("source") or {}
+    if source.get("origin") != "catalog":
+        return None
+    item = str(source.get("item_id") or "")
+    parts = item.split(":", 3)  # kind:host:repo:path
+    if len(parts) < 4:
+        return item.split(":", 1)[-1].rsplit("/", 1)[0] or None
+    _kind, host, repo, path = parts
+    segments = path.split("/")
+    if "plugins" in segments[:-1]:
+        i = segments.index("plugins")
+        if i + 1 < len(segments):
+            return f"{host}:{repo}:plugins/{segments[i + 1]}"
+    if path.startswith("marketplace") or _kind == "plugin":
+        return f"{host}:{repo}:{path.split('/')[0]}"
+    return f"{host}:{repo}"
+
+
 def catalog_only(raw: dict) -> bool:
     """A catalog card standing on no problem and no evidence session."""
     if (raw.get("source") or {}).get("origin") != "catalog" or raw.get("problem"):
