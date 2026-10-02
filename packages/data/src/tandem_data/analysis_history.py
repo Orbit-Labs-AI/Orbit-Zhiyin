@@ -30,10 +30,14 @@ def _now() -> int:
     return time.time_ns() // 1_000_000
 
 
-def _json(value: Any) -> str:
-    """Keep byte identities stable and reject NaN or unsupported result values."""
+def _json(value: Any, *, sort_keys: bool = True) -> str:
+    """Reject NaN or unsupported values; requests sort keys for stable identities.
+
+    Result payloads keep their insertion order (``sort_keys=False``) so a cached result
+    serializes to the same bytes as the freshly computed one.
+    """
     return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        value, ensure_ascii=False, sort_keys=sort_keys, separators=(",", ":"), allow_nan=False
     )
 
 
@@ -147,7 +151,7 @@ class AnalysisHistory:
 
     def complete(self, run_id: str, result: Record) -> str:
         """Atomically publish the complete result and finish exactly one running execution."""
-        data = _json(result).encode("utf-8")
+        data = _json(result, sort_keys=False).encode("utf-8")
         snapshot_id = hashlib.sha256(data).hexdigest()
         now = time.time_ns() // 1_000_000
         with self.connect() as connection:
@@ -275,7 +279,7 @@ class AnalysisHistory:
 
     @staticmethod
     def _encode(value: Any) -> tuple[bytes, int, str]:
-        data = _json(value).encode("utf-8")
+        data = _json(value, sort_keys=False).encode("utf-8")
         return zlib.compress(data, 1), len(data), hashlib.sha256(data).hexdigest()
 
     @staticmethod
