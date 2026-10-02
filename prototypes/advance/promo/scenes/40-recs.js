@@ -87,15 +87,35 @@ scene('40-recs', () => {
     unscroll(D);
   });
   tween(0, 55.2, 0, CONV, E.lin, () => ({}));                               // visible only through #hole0 from here on
+  // the door opens onto one recommendation: until b56.1 card 0 waits at the belt's centre (the only place inside #content's
+  // clip) and the camera holds it big and flat right under the portal's centre (PORTAL[0], the 「建议 →」 click);
+  // b56.1–57.7 the camera pulls back (ease-in-out) into the conveyor framing while card 0 rejoins its slot, so the belt
+  // starts moving out of that card. HERO = how close the camera still is.
+  const PULL0 = 56.1, PULL = 1.6, HERO = (b) => (b < 55.2 || b >= PULL0 + PULL ? 0 : 1 - E.inOut(lp(b, PULL0, PULL)));
+  const heroCam = (b, D) => {
+    const el = card(D, IDS[0]), P = PORTAL[0] || [1650, 835];
+    const w = el ? el.offsetWidth * K0 : 400, h = el ? el.offsetHeight * K0 : 130;
+    const s = Math.min(1800 / w, 480 / h);                                  // card ≈ 1800 wide on screen (or 480 tall)
+    // the portal centre falls on the card's right part (its saving), so most of the card lies on screen as the door opens
+    return { x: CX - conv(b) * PITCH * (1 - HERO(b)) + .2 * w, y: CY, s, ax: P[0], ay: P[1], rx: 0, rz: 0 };
+  };
   // lay the cards out every frame: wrap the first two round to the end, focus by distance, then the 5b lift
   drive(0, 54.85, 66.6, (p, b, D) => {
     unscroll(D); still(D);
+    const hero = HERO(b);
+    if (b >= 55.2 && b < PULL0 + PULL + .1) {                               // the camera owns no tween here (b55.2–64.2)
+      const H = heroCam(b, D), C = decks[0].C, k = 1 - hero, ls = Math.exp(lerp(Math.log(H.s), Math.log(CONV.s), k));
+      // look-at and anchor blend so the point under the screen follows the card, the zoom blends in log space
+      for (const key of ['x', 'y', 'ax', 'ay', 'rx', 'rz']) C[key] = lerp(H[key], CONV[key], k);
+      C.s = ls;
+    }
     const c0 = conv(b), lift = E.inOut(lp(b, 64.2, .65)), fade = E.inOut(lp(b, 64.3, .6));
     IDS.forEach((id, i) => {
       const el = card(D, id), B = BASE[id]; if (!el || !B) return;
       let u = i - c0; if (u < -6) u += N;
-      const d = Math.abs(u), mine = id === RB;
-      const sc = K0 * lerp(1, .9, clamp(d)) * (mine ? 1 + .18 * lift : 1);
+      const d = Math.abs(u) * (i === 0 ? Math.pow(1 - hero, 3) : 1), mine = id === RB;   // card 0 stays sharp while the camera holds it
+      const sc = K0 * lerp(1, .9, clamp(d)) * (mine ? 1 + .26 * lift : 1);   // lifted: ≈ 1500 px wide on screen, title ≥ 24 px
+      if (i === 0) u *= 1 - hero;                                           // held at the centre (inside #content's clip)
       el.style.transform = 'translate(' + (CX + u * PITCH - B.x).toFixed(1) + 'px,' + (CY - B.y).toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
       const bl = Math.min(4.6, d * 2.3) * (mine ? 1 - lift : 1);
       el.style.filter = bl > .05 ? 'blur(' + bl.toFixed(2) + 'px)' : 'none';
@@ -113,12 +133,16 @@ scene('40-recs', () => {
       if (!f) { f = FLY[i] = {}; }
       if (!f.el) { f.el = document.createElement('div'); f.el.className = 'r-fly'; f.el.textContent = '+' + SAVE[i].toFixed(1) + ' h'; fxEl.appendChild(f.el); }
       if (!f.a) f.a = elXY(0, (D) => { const e = card(D, id); return e && e.querySelector('.rc-save b'); });
-      if (!f.z) { const n = fxEl.querySelector('.r-tot .r-n'), st = stage.getBoundingClientRect(), z = st.width / 1920; if (n) { const r = n.getBoundingClientRect(); f.z = [(r.left + r.width / 2 - st.left) / z, (r.top + r.height * .55 - st.top) / z]; } else f.z = [900, 330]; }
-      const e = E.inOut(q), x0 = f.a[0], y0 = f.a[1] - 20, x1 = f.z[0], y1 = f.z[1], cx = lerp(x0, x1, .5) + 140, cy = Math.min(y0, y1) - 170;
+      // the landing point sits just right of 「h / 月」 on the digits' mid-line, measured every frame (the total widens as it
+      // rolls); the chip's left edge stops there, so it never covers the digits or the unit, and it shrinks and fades
+      // into the unit over the last 40 % of the flight, while the total rolls on its arrival (ARR)
+      const u = fxEl.querySelector('.r-tot .r-u'), st = stage.getBoundingClientRect(), z = st.width / 1920;
+      let ux = 1180, uy = 330; if (u) { const r = u.getBoundingClientRect(); ux = (r.right - st.left) / z; uy = (r.top + r.height * .5 - st.top) / z; }
+      const e = E.inOut(q), sk = E.inOut(lp(q, .6, .4)), s = lerp(.7, 1.1, Math.sin(Math.PI * Math.min(1, e * 1.2))) * lerp(1, .42, sk);
+      const hw = f.el.offsetWidth * s / 2, x0 = f.a[0], y0 = f.a[1] - 20, x1 = ux + 26 + hw, y1 = uy, cx = lerp(x0, x1, .5) + 160, cy = Math.min(y0, y1) - 150;
       const x = (1 - e) * (1 - e) * x0 + 2 * (1 - e) * e * cx + e * e * x1, y = (1 - e) * (1 - e) * y0 + 2 * (1 - e) * e * cy + e * e * y1;
-      const s = lerp(.7, 1.1, Math.sin(Math.PI * Math.min(1, e * 1.2))) * (1 - .5 * E.in(lp(q, .5, .4)));
       f.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-50%) scale(' + s.toFixed(3) + ')';
-      f.el.style.opacity = (Math.min(1, q * 6) * (1 - E.in(lp(q, .58, .3)))).toFixed(3);
+      f.el.style.opacity = (Math.min(1, q * 6) * (1 - E.in(lp(q, .62, .38)))).toFixed(3);
     });
   });
   txt(57.5, 64.5, [['eb', '02 · 推荐 · 为指挥家定制']], { x: 960, y: 150, align: 'c' }, { outB: .5 });
@@ -140,7 +164,7 @@ scene('40-recs', () => {
 
   /* ---------- 5b lift → press → flip into the install sheet (b64–69.6) ---------- */
   txt(64.5, 69.7, [['r-eb', '<span class="r-ebl">每月可省</span><span class="r-ebn">' + '22.7 h' + '</span>']], { x: L, y: 112 }, { st: 0, outB: .6, tick: (el) => { const n = el.querySelector('.r-ebn'); if (n && TOTAL) n.textContent = TOTAL.toFixed(1) + ' h'; } });
-  tween(0, 64.2, .9, () => ({ ay: 470, rx: 0, rz: 0, s: CONV.s * 1.08 }), E.inOut);
+  tween(0, 64.2, .9, () => ({ ay: 480, rx: 0, rz: 0, s: CONV.s * 1.1 }), E.inOut);
   tag(0, 64.8, 66.15, (D) => card(D, RB), 'top', [['eb r-or', '对应你的盲点 · 工具 / 环境失败']], { gap: 34, at: .5, outB: .3, tick: pin() });
   clickAt(0, 66.0, (D) => { const c = card(D, RB); return c && c.querySelector('[data-act="install"]'); }, () => {}, { bloom: 'var(--a1)', glide: .9 });
   tween(0, 66.1, .32, () => ({ ry: 90, s: decks[0].C.s * .96 }), E.in);
