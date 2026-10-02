@@ -192,3 +192,31 @@ def test_projects_ordered_by_recent_session_activity(tmp_path):
     with sqlite3.connect(path) as db:
         db.execute("DROP TABLE session")
     assert project_paths(Reads(path)) == [str(d) for d in reversed(dirs)]  # no sessions: newest row first
+
+
+def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
+    """A tandem.db whose inventory was never scanned must not report zeros as inventory facts."""
+    import json
+
+    claude = env.home / ".claude"
+    (claude / "settings.json").write_text(json.dumps({"hooks": {
+        "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "a"},
+                                                     {"type": "command", "command": "b"}]}],
+        "Stop": [{"hooks": [{"type": "command", "command": "c"}]}]}}))
+    (env.home / ".claude.json").write_text(json.dumps({"mcpServers": {"one": {}, "two": {}}}))
+    (claude / "plugins/installed_plugins.json").write_text(json.dumps({"plugins": {"p@m": [{"scope": "user"}]}}))
+    (env.home / ".codex/config.toml").write_text('model = "x"\n[mcp_servers.alpha]\ncommand = "a"\n')
+    path = tmp_path / "tandem.db"
+    make_db(path)
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM inventory_item")
+        db.execute("DELETE FROM inventory_scan")
+    reads = Reads(path)
+    assert envmod.all_installed_counts(reads) is None
+    result = environment(env, reads=reads)
+    cc = agent(result, "claude_code")
+    assert cc["counts_basis"] == "files"
+    assert cc["installed_counts"] == {"skill": 1, "mcp": 2, "hook": 3, "plugin": 1, "rule": 0, "scheduled_task": 0}
+    cx = agent(result, "codex")
+    assert cx["counts_basis"] == "files" and cx["installed_counts"]["mcp"] == 1
+    assert agent(result, "hermes")["counts_basis"] == "unknown"
