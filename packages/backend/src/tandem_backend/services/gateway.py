@@ -227,13 +227,8 @@ class Gateway:
         """Area services created by their routers (features hub, lazy AI service)."""
         from .. import features
 
-        try:
-            hub = features.get()
-        except RuntimeError:
-            hub = None  # Features router never mounted.
-        if hub is not None:
-            features.bind(None)  # Module helpers fall back to "unbound", not a closed hub.
-            hub.close()
+        # bind(None) closes the bound hub; module helpers then fall back to "unbound".
+        features.bind(None)
         ai = getattr(self, "_ai", None)
         if ai is not None:
             ai.close()
