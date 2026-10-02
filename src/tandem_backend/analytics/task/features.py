@@ -4,7 +4,7 @@ import re
 from collections import Counter, defaultdict
 
 from ...models import stable_id
-from ..common import clauses, evidence, semantic_coverage, semantic_messages
+from ..common import chronological_messages, clauses, evidence, semantic_coverage, semantic_messages
 from .taxonomy import DOMAINS, TASK_TYPES, TAXONOMY_VERSION
 
 NEW_TASK = re.compile(r"^(?:好的[，, ]*)?(?:新任务|另一个任务|另外一个任务|换个任务|换一个任务|next task\b|new task\b)", re.I)
@@ -112,7 +112,9 @@ def segment_tasks(events, sessions):
     records = []
     for key, record in groups.items():
         record.pop("initial_types")
-        records.append({**record, **extract_task_features(message_groups[key]),
+        merged = chronological_messages(message_groups[key])
+        records.append({**record, **extract_task_features(merged),
+                        "goal_order_quality": "partial" if any(e.get("ts") is None for e in merged) else "reported_time_and_native_seq",
                         "human_evidence_ids": [e["event_uid"] for e in message_groups[key]],
                         "observed_message_count": len(message_groups[key])})
     return {"records": records, "task_by_event": assignments,

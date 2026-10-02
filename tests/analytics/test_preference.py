@@ -128,3 +128,11 @@ def test_determinism_no_mutation_and_summaries(fixtures):
     assert summarize_preferences(None)["record_count"] is None
     assert resolve_effective_preferences(None)["applicable"] is None
     assert extract_explicit_preferences(None, [s()])["records"] is None
+
+
+def test_global_revision_without_repeating_future_marker(fixtures):
+    s, e, _ = fixtures
+    records = extract_explicit_preferences([e("以后所有项目都用中文", "a", 0, ts=10),
+        e("所有项目改用英文", "b", 1, ts=20)], [s()])["records"]
+    assert [r["value"] for r in resolve_effective_preferences(records, at=15)["applicable"]] == ["zh"]
+    assert [r["value"] for r in resolve_effective_preferences(records, at=25)["applicable"]] == ["en"]

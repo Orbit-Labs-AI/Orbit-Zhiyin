@@ -89,3 +89,15 @@ def test_distribution_unknown_multilabel_and_no_input_mutation(fixtures):
     assert es == original
     assert summarize_task_distribution(None)["task_count"] is None
     assert summarize_task_distribution([])["domain"]["rates"] is None
+
+
+def test_cross_session_goal_order_uses_time_and_preserves_native_seq(fixtures):
+    from tandem_backend.analytics.common import chronological_messages
+    s, e, _ = fixtures
+    initial = e("请编写报告", "first", 0, sid="z", ts=10, task_id="t", task_id_source="native")
+    revision = e("目标改为编写脚本", "later", 0, sid="a", ts=20, task_id="t", task_id_source="native")
+    record = segment_tasks([revision, initial], [s("a"), s("z")])["records"][0]
+    assert [g["goal"] for g in record["task_goal_history"]] == ["请编写报告", "目标改为编写脚本"]
+    assert record["task_goal"] == "目标改为编写脚本"
+    skewed = [e("a", "second", 1, ts=0), e("b", "first", 0, ts=200)]
+    assert [m["event_uid"] for m in chronological_messages(skewed)] == ["first", "second"]

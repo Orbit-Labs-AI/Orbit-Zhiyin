@@ -60,7 +60,7 @@ def extract_explicit_preferences(events, sessions, task_by_event=None):
             if REPORTED.search(statement) or event["semantic_text"].rstrip().endswith(("?", "？")):
                 continue
             values = preference_values(statement)
-            explicit = bool(EXPLICIT.search(statement) or PROJECT.search(statement) and CHANGE.search(statement) or REVOKE.search(statement))
+            explicit = bool(EXPLICIT.search(statement) or (PROJECT.search(statement) or GLOBAL.search(statement)) and CHANGE.search(statement) or REVOKE.search(statement))
             if not values or not explicit and not TASK.search(statement):
                 continue
             scope = _scope(statement, session_map[event["session_uid"]], (task_by_event or {}).get(event["event_uid"]))

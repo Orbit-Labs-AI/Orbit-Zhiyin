@@ -1,6 +1,8 @@
 """Shared observation boundary; feature families must use the same human filter."""
 
 import re
+from collections import defaultdict
+from heapq import heappop, heappush
 
 from ..privacy import direct_user_text
 
@@ -54,3 +56,22 @@ def semantic_coverage(events, messages):
             "human_messages": len(messages), "usable_texts": len(messages) - missing,
             "unknown_origin": unknown, "missing_text": missing, "truncated_text": truncated}
 
+
+def chronological_messages(messages):
+    """Merge clocked sessions without violating any session's native sequence."""
+    groups = defaultdict(list)
+    for event in messages:
+        groups[event["session_uid"]].append(event)
+    queue = []
+    for sid, items in groups.items():
+        items.sort(key=lambda e: (e["seq"], e["event_uid"]))
+        ts = items[0].get("ts")
+        heappush(queue, (ts if ts is not None else float("inf"), sid, 0))
+    result = []
+    while queue:
+        _, sid, i = heappop(queue)
+        result.append(groups[sid][i])
+        if i + 1 < len(groups[sid]):
+            ts = groups[sid][i + 1].get("ts")
+            heappush(queue, (ts if ts is not None else float("inf"), sid, i + 1))
+    return result
