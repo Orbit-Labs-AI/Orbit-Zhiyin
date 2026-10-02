@@ -13,7 +13,7 @@
 | TypeScript SDK 仓库 | [`anthropics/claude-agent-sdk-typescript`](https://github.com/anthropics/claude-agent-sdk-typescript/tree/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47) @ `0e21ebb22c36caca1220c34ae6c9fe8ddad40e47`。仓库只有 `examples/session-stores/` 与 CHANGELOG，SDK 本体不开源 |
 | claude-code 仓库 | [`anthropics/claude-code`](https://github.com/anthropics/claude-code/tree/6160717d8994f236ab381cf534fc1cde5347c12f) @ `6160717d8994f236ab381cf534fc1cde5347c12f`。CHANGELOG 顶部为 2.1.286，另有插件、hooks 示例与 `mods/types/claude-code.d.ts`（由 2.1.277 生成） |
 | 本机类型定义 | `~/Library/Application Support/Code/agent-host/sdk-cache/claude/0.3.220/darwin-arm64/node_modules/@anthropic-ai/claude-agent-sdk/`：`sdk.d.ts`、`sdk-tools.d.ts`。npm 包 0.3.220，`package.json` 中 `claudeCodeVersion` = 2.1.220。下文简写为 `sdk.d.ts:<行号>`、`sdk-tools.d.ts:<行号>` |
-| 本机数据快照 | 2026-10-02，读取 `~/.claude`（只读）。当前会话文件与其他后台会话仍在写入，计数是快照值 |
+| 本机数据快照 | 2026-10-02，读取 `~/.claude`（只读）。当前会话文件与其他后台会话仍在写入，计数是快照值。本机另有 `~/.claude-account2/projects`（4 个主会话、48 个子代理文件，cli 2.1.284）、Desktop 的 `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`（1 个文件）与索引 `claude-code-sessions/<id>/<id>/local_<id>.json`（119 个），本文统计不含 |
 | 方法 | ① 读 SDK 源码，它是 CLI 磁盘格式的“官方读者”；② 公开类型定义（`sdk.d.ts`、`sdk-tools.d.ts`、hooks 类型）；③ CHANGELOG 中与 transcript/session/compact/rewind/fork/cleanup 相关的条目；④ 本机实证：Python 流式解析全部 JSONL，只输出 key 集合、类型分布、计数与比值。另外把 Python SDK 的链重建函数原样抽出（AST 提取，未安装依赖），在本机数据上执行 |
 
 **局限（务必阅读）**
@@ -32,9 +32,9 @@
 | 交互式 CLI / TUI（`claude`） | 读取输入、斜杠命令、渲染；`entrypoint:"cli"` | 本机 15/126 个主会话为 `cli` | `user`（`promptSource:"typed"`）、`~/.claude/history.jsonl`（只有 CLI 写，见 §2.5）、`mode`/`permission-mode` |
 | Headless `-p` / `--output-format stream-json` | 非交互运行，stdout 输出 NDJSON 形式的 `SDKMessage` 事件流 | SDK 启动命令固定为 `--output-format stream-json --verbose`：[src/claude_agent_sdk/_internal/transport/subprocess_cli.py:574](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/transport/subprocess_cli.py#L574) | transcript 与交互式相同；stdout 上的 `system/init`、`result` 等**不落盘** |
 | Agent SDK（Python / TS） | 以子进程拉起 CLI，经 stdin/stdout 控制协议交互；`resume`/`fork`/`session_id` 映射为 CLI 参数 | `CLAUDE_CODE_ENTRYPOINT=sdk-py`：[src/claude_agent_sdk/_internal/transport/subprocess_cli.py:822](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/transport/subprocess_cli.py#L822)；TS 包 `sdk.mjs` 默认设为 `sdk-ts` | `entrypoint:"sdk-py"`/`"sdk-ts"`（本机无样本）；可选 SessionStore 镜像 |
-| Claude Desktop（及 IDE 宿主） | 宿主内嵌 Claude Code，写入同一 `~/.claude/projects` 布局 | 本机 111/126 个主会话为 `claude-desktop`；IDE 的取值待确认 | 额外的 `queue-operation`、`bridge-session`、`atis-latch`、`frame-link`、`artifact-*`、`<sessionId>.desktop-released.json` |
+| Claude Desktop（及 IDE 宿主） | 宿主内嵌 Claude Code，写入同一 `~/.claude/projects` 布局 | 本机 111/126 个主会话为 `claude-desktop`；IDE 的取值待确认 | 本机只见于 Desktop 的 `custom-title`、`pr-link`、`frame-link`、`artifact-*`、`relocated`、`<sessionId>.desktop-released.json`；每个 Desktop 会话都有 `queue-operation`（CLI 只在输入排队时有）；`bridge-session`（cli 9/15）、`atis-latch`（cli 12/15）两种入口都有 |
 | 会话管理 / 持久化层 | 分配 sessionId（UUIDv4），把 cwd 编码为目录名；JSONL 追加；元数据重追加；30 天清理 | [src/claude_agent_sdk/_internal/sessions.py:104](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L104)、[src/claude_agent_sdk/_internal/session_mutations.py:12](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L12) | 全部 entry；`custom-title`/`ai-title`/`agent-name`/`last-prompt`/`cost-state` 等元数据行 |
-| 对话循环（query loop） | 组装上下文，调用 API，执行工具，再调用 API，直到 `stop_reason:"end_turn"` | `ResultMessage.num_turns`：[src/claude_agent_sdk/types.py:1340](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L1340)；本机序列（§5.1） | `attachment`（上下文注入）、`assistant`、`user(tool_result)`、`system/turn_duration`、`system/api_error` |
+| 对话循环（query loop） | 组装上下文，调用 API，执行工具，再调用 API，直到 `stop_reason:"end_turn"` | `ResultMessage.num_turns`：[src/claude_agent_sdk/types.py:1340](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L1340)；本机序列（§5.1） | `attachment`（上下文注入）、`assistant`、`user(tool_result)`、`system/turn_duration`（仅 CLI）、`system/api_error` |
 | Anthropic Messages API（流式 SSE） | `message_start → content_block_* → message_delta → message_stop`；响应 id 为 `msg_…`，请求 id 为 `req_…` | `sdk.d.ts:2884`（“One API assistant turn may produce several assistant messages sharing a message.id”）；`SDKPartialAssistantMessage`（`sdk.d.ts:4150`） | `assistant` 行，每个 content block 一行，`message` 为 BetaMessage 原样 |
 | 工具执行与权限 | 依次经过权限模式（default/acceptEdits/plan/bypassPermissions/dontAsk/auto）、规则、auto 模式分类器、hooks、SDK `canUseTool`，然后执行 | [src/claude_agent_sdk/types.py:25](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L25)；本机 `toolDenialKind` | `user(tool_result)` + `toolUseResult`；大输出写入 `tool-results/`；`permission-mode`；`serverClassifier*` 字段 |
 | Hooks | 外部命令通过 stdin 收到 JSON（含 `session_id`、`transcript_path`、`cwd`） | [src/claude_agent_sdk/types.py:299](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L299)、[mods/types/claude-code.d.ts:583](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/mods/types/claude-code.d.ts#L583) | `system/stop_hook_summary`、`attachment` 中的 `hook_success`/`hook_additional_context`/`hook_system_message` |
@@ -132,8 +132,8 @@ sequenceDiagram
     Note over Store: user 行（tool_result 加 toolUseResult, sourceToolAssistantUUID）, 大输出写 tool-results, 编辑类写 file-history-delta
     QL->>API: 携带 tool_result 的下一次请求
     API-->>QL: text block 与 end_turn
-    Note over Store: assistant 行（text, 新 message.id）, system turn_duration, 有 Stop hook 时写 system stop_hook_summary
-    QL->>Store: 回合结束重追加元数据
+    Note over Store: assistant 行（text, 新 message.id）, system turn_duration（仅 CLI）, 有 Stop hook 时写 system stop_hook_summary
+    QL->>Store: 重追加元数据（多数发生在每次请求前的 attachment 之后，此处集中展示）
     Note over Store: last-prompt（leafUuid）, custom-title, agent-name, atis-latch, 退出时 cost-state
     QL-->>CLI: 渲染输出, stream-json 模式下输出 result（不落盘）
     CLI-->>User: 回答
@@ -181,9 +181,9 @@ $CLAUDE_CONFIG_DIR（默认 ~/.claude）
 
 ### 2.2 cwd → 目录名编码
 
-- 规则：每个非 `[a-zA-Z0-9]` 字符替换为 `-`；结果长于 200 字符时，截断到 200 字符，再加 `-` 和原路径的 32 位哈希（base36）。依据：[src/claude_agent_sdk/_internal/sessions.py:61](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L61)、[src/claude_agent_sdk/_internal/sessions.py:43](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L43)、[src/claude_agent_sdk/_internal/sessions.py:104](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L104)、[src/claude_agent_sdk/_internal/sessions.py:81](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L81)（djb2 风格哈希）。SDK 注释说 CLI 用 `Bun.hash`，因此长路径可能不一致，需要按前缀回退匹配：[src/claude_agent_sdk/_internal/sessions.py:157](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L157)。TS 的 `SessionKey` 文档写的是“portable djb2 hash”（`sdk.d.ts:4710`）。
+- 规则：每个非 `[a-zA-Z0-9]` 字符替换为 `-`；结果长于 200 字符时，截断到 200 字符，再加 `-` 和原路径的 32 位哈希（base36）。依据：[src/claude_agent_sdk/_internal/sessions.py:61](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L61)、[src/claude_agent_sdk/_internal/sessions.py:43](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L43)、[src/claude_agent_sdk/_internal/sessions.py:104](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L104)、[src/claude_agent_sdk/_internal/sessions.py:81](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L81)。这个哈希不是教科书 djb2：`h = (h << 5) - h + c`（即 h×31+c，初值 0），每步截成有符号 32 位，最后取绝对值转 base36；只有注释称之为 djb2（[src/claude_agent_sdk/_internal/sessions.py:1517](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L1517)；TS `SessionKey` 文档的“portable djb2 hash”，`sdk.d.ts:4713`）。SDK 注释说 CLI 用 `Bun.hash`，因此长路径可能不一致，需要按前缀回退匹配：[src/claude_agent_sdk/_internal/sessions.py:157](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L157)。前缀回退会命中前 200 字符相同的另一个项目（[src/claude_agent_sdk/_internal/sessions.py:176](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L176)；CLI 的同类问题见 [CHANGELOG 2.1.224](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L2615)），需要再用 entry 的 `cwd` 核对。
 - 编码前先做 `realpath` 与 NFC 规范化：[src/claude_agent_sdk/_internal/sessions.py:1513](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L1513)。
-- 本机实测：126 个主会话中，125 个满足 `sanitize(第一个 cwd) == 目录名`，剩下 1 个由会话中后来的 cwd 命中（重定位）。唯一一个超过 200 字符的样本（原始编码 264 字符，目录名 207 字符），其后缀与 SDK 的 djb2 base36 结果**一致**。例：`/private/tmp/…` 编码为 `-private-tmp-…`，`/a/-b` 中 `/-` 变成 `--`，空格变成 `-`。
+- 本机实测：126 个主会话中，125 个满足 `sanitize(第一个 cwd) == 目录名`，剩下 1 个由会话中后来的 cwd 命中（重定位）。唯一一个超过 200 字符的样本（原始编码 264 字符，目录名 207 字符），其后缀与 SDK 哈希（h×31+c）的 base36 结果**一致**，与教科书 djb2（×33、初值 5381）不一致。例：`/private/tmp/…` 编码为 `-private-tmp-…`，`/a/-b` 中 `/-` 变成 `--`，空格变成 `-`。
 - **编码有损**（`-`、`/`、`.`、空格都映射为 `-`），不能反解。cwd 应读 entry 内的 `cwd` 字段。注意 `cwd` 会在会话中变化：本机 43/126 个文件含多个不同 `cwd`。
 - 覆盖：`CLAUDE_CODE_PROJECT_DIR_NAME` 可指定项目目录名（[CHANGELOG 2.1.234](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L2390)）。
 
@@ -256,7 +256,7 @@ $CLAUDE_CONFIG_DIR（默认 ~/.claude）
 | `file-history-snapshot` | 281 | 0.6% | 0 | 否 | 每个 prompt 一次快照 |
 | `permission-mode` | 232 | 0.5% | 0 | 否 | 本机取值：auto 206、plan 26 |
 | `pr-link` | 195 | 0.4% | 0 | 否 | 关联的 PR |
-| `cost-state` | 180 | 0.4% | 0 | 否 | 进程级累计成本快照 |
+| `cost-state` | 180 | 0.4% | 0 | 否 | 会话级累计成本快照 |
 | `frame-link` / `artifact-comment-monitor` / `artifact-autoreact-ledger` | 131 / 25 / 17 | <0.3% | 0 | 否 | Desktop Artifact 相关 |
 | `relocated` / `continued-in` | 13 / 1 | – | 0 | 否 | cwd 迁移 / 会话接续指针 |
 | `fork-context-ref` | 0 | – | 3 | 否 | 子代理 fork 时指向父上下文的指针 |
@@ -282,7 +282,7 @@ SDK 只把 `user/assistant/progress/system/attachment` 且带 `uuid` 的行视�
 | `gitBranch` | string | 分支名；`HEAD` 占 24%（推断为非 git 目录或 detached） | 100% | 100% | [src/claude_agent_sdk/_internal/sessions.py:463](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L463) 起 |
 | `slug` | string | plan 模式会话的 slug，等于 `plans/<slug>.md` | 7–8% | 2–20% | 本机 |
 | `sessionKind` | `"bg"` | 后台会话 | 2–3% | – | 本机 |
-| `session_id` | uuid | 蛇形重复字段，只在 2.1.258–2.1.260 出现 | 13–17% | – | 本机（版本特有） |
+| `session_id` | uuid | 蛇形重复字段，本机只见于 cli 文件（2.1.258–2.1.260、2.1.284） | 13–17% | – | 本机（随入口而非版本出现） |
 
 ### 3.3 `user` entry
 
@@ -346,7 +346,7 @@ content block：
 | `last-prompt` | `type, lastPrompt?, leafUuid, sessionId` | `leafUuid` 是写入前最后一个带 uuid 的 entry（本机 99.2%），即当时的链头指针。SDK 用 `lastPrompt` 作为会话摘要：[src/claude_agent_sdk/_internal/sessions.py:454](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L454) |
 | `custom-title` / `ai-title` / `agent-name` | `type, customTitle`（或 `aiTitle` / `agentName`）`, sessionId` | 标题取值优先级：customTitle > aiTitle > lastPrompt > summary > 首个 prompt：[src/claude_agent_sdk/_internal/sessions.py:421](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L421)；SDK `rename_session` 也追加 `custom-title`：[src/claude_agent_sdk/_internal/session_mutations.py:100](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L100) |
 | `mode` / `permission-mode` | `type, mode`（或 `permissionMode`）`, sessionId` | 会话模式与权限模式 |
-| `cost-state` | `type, sessionId, totalCostUSD, totalAPIDuration, totalAPIDurationWithoutRetries, totalToolDuration, totalLinesAdded, totalLinesRemoved, totalDuration, startTime, modelUsage{<model>:{inputTokens, outputTokens, thinkingTokens, cacheReadInputTokens, cacheCreationInputTokens, webSearchRequests, costUSD}}, hasUnknownModelCost` | 进程级累计值。本机 113 个文件每个只有一个 `startTime`，值单调不减 |
+| `cost-state` | `type, sessionId, totalCostUSD, totalAPIDuration, totalAPIDurationWithoutRetries, totalToolDuration, totalLinesAdded, totalLinesRemoved, totalDuration, startTime, modelUsage{<model>:{inputTokens, outputTokens, thinkingTokens, cacheReadInputTokens, cacheCreationInputTokens, webSearchRequests, costUSD}}, hasUnknownModelCost` | 会话级累计值（含子代理）：resume 时恢复累计值、headless 退出时保存（[CHANGELOG 2.1.277](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L870)），`/clear` 后从零开始（[2.1.211](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L2989)）。本机 115/115 个文件每个只有一个 `startTime`，值单调不减 |
 | `file-history-snapshot` | `type, messageId, snapshot{messageId, trackedFileBackups{<path>:{backupFileName, version, backupTime, realParentDir}}, timestamp}, isSnapshotUpdate` | `messageId` 指向 user 行：258 个为 prompt，12 个为其他 user 行，11 个在文件中找不到。`backupFileName` 为 `<hex16>@v<n>` 或 null（尚无备份）；路径可以是相对或绝对路径 |
 | `file-history-delta` | `type, messageId, snapshotMessageId, trackingPath, backup{backupFileName, version, backupTime, realParentDir}, timestamp` | `messageId` 指向发起编辑的 assistant 行，`snapshotMessageId` 指向 prompt。比旧版整份快照省空间（[CHANGELOG 2.1.208](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L3086)） |
 | `pr-link` | `type, sessionId, prNumber, prUrl, prRepository, timestamp` | 会话关联的 PR |
@@ -354,7 +354,7 @@ content block：
 | `atis-latch` | `type, atis, sessionId` | 语义待确认 |
 | `frame-link`、`artifact-comment-monitor`、`artifact-autoreact-ledger` | `v, artifacts{…}, accountUuid?` 等 | Desktop Artifact 状态 |
 | `relocated` | `type, sessionId, relocatedCwd` | 会话迁到新 cwd（参见 [CHANGELOG 2.1.251](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L1942)） |
-| `continued-in` | `type, timestamp, sessionId, continuedInSessionId` | 指向接续本会话的新会话（同目录），目标会话中没有反向引用。推断与 `/clear` 后可 `/rewind` 回旧会话有关（[CHANGELOG 2.1.191](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L3402)），待确认 |
+| `continued-in` | `type, timestamp, sessionId, continuedInSessionId` | 指向接续本会话的新会话（同目录），目标会话中没有反向引用。本机唯一样本来自一个以 `/compact` 结尾、没有 `/clear` 的 2.1.258 CLI 会话：目标是同目录的 `sessionKind:"bg"` 会话，首个消息类 entry 就是 `compact_boundary`，并有连续 22 个 entry 与源会话尾部的 `uuid`/`timestamp` 相同（`logicalParentUuid` 也对得上）。触发操作待确认（更像压缩后转入后台续接） |
 | `fork-context-ref`（子代理文件首行） | `type, agentId, parentSessionId, parentLastUuid, contextLength` | fork 型子代理不复制父上下文，只记指针（[CHANGELOG 2.1.118](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L4773)）。对应的 meta.json 有 `isFork:true` |
 | 本机未见：`tag`、`summary`、`content-replacement`、`progress`，以及 `forkedFrom` 字段 | `tag{tag}`、`summary{summary}`、`content-replacement{replacements}` | SDK 写入或兼容的类型：[src/claude_agent_sdk/_internal/session_mutations.py:112](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L112)、[src/claude_agent_sdk/_internal/session_mutations.py:454](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L454)、[src/claude_agent_sdk/_internal/session_mutations.py:392](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L392)。旧版 `summary` 行是否带 `leafUuid`，本机无样本，待确认 |
 
@@ -398,15 +398,15 @@ content block：
 - **结论：一次 API 响应的每个 content block 各写一行 `assistant` entry。** 这些行共享 `message.id` 与 `requestId`，各有自己的 `uuid`、`timestamp`、`apiBlockIndex`（0..n-1），并沿 `parentUuid` 串成链。
   - 类型依据：`sdk.d.ts:2884`。
   - 本机：主会话 13,799 个 assistant 行中 13,798 行只含 1 个 block；5,666 个 `message.id` 平均 2.44 行，最多 16 行。行数分布：1 行 1,030、2 行 2,150、3 行 2,002、4 行 277、5 行及以上 207。同一 `message.id` 的 `requestId` 100% 相同；有 `apiBlockIndex` 的组 100% 是 0..n-1。
-- **usage 重复**：主会话 4,647 个多行组中，组内每行 `usage` 与 `stop_reason` 完全相同（0 不一致），都是最终值（[CHANGELOG 2.1.97](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5193)、[2.1.98](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5142)）。所以 thinking 行上也写着 `stop_reason:"tool_use"`。直接对行求和会把 token 多算约 2.4 倍。
-- **子代理例外**：子代理 transcript 中 1,496 个组的 `usage` 不一致（都是最后一行最大）；23,616 个响应的最后一行 `stop_reason:null`，其 `output_tokens` 中位数只有 8。这说明子代理行常带流式占位 usage，2.1.281/2.1.284 尤其明显。子代理 token 不能只靠行内 usage，见 §9。
+- **usage 重复**：主会话 4,636 个多行组中，组内每行 `usage` 与 `stop_reason` 完全相同（0 不一致），都是最终值（[CHANGELOG 2.1.97](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5193)、[2.1.98](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5142)）。所以 thinking 行上也写着 `stop_reason:"tool_use"`。直接对行求和会把 token 多算约 2.5–3.1 倍（按字段：cache_read 2.47、cache_creation 2.87、input 3.12、output 3.14）。
+- **子代理例外**：子代理行常带流式占位 usage。约 88% 的响应（27,626 / 31,543 个 `message.id` 组；2.1.281 为 22,375 / 24,370）组内每一行都是 `stop_reason:null` 的占位值（`output_tokens` 中位数只有 8），组内没有最终值；组内 `usage` 不一致、最后一行最大的只是少数，所以“组内取最大”只能救回约 2k 个组。子代理 token 不能靠行内 usage，见 §9。
 - **工具结果可以插在同一响应的两行之间**：主会话 451 组、子代理 602 组出现这种情况，中间夹的主要是 `user(tool_result)`。说明 tool_use block 一完成工具就开始执行，结果可能先于后续 block 落盘。推断：assistant 行按 block 完成顺序入写队列；最终 usage 如何回填，待确认。
 - **文件顺序不等于时间戳顺序**：93/126 个主文件按行顺序看时间戳不单调。应以文件行序加 `parentUuid` 为准。`timestamp` 是“该 block 完成或该 entry 生成的时间”，SDK 说明它只用于展示，不要拿来排序（`sdk.d.ts:2884`）。
 - 其他时机（本机序列归纳）：
   - prompt 提交时写 `user`（Desktop 与排队输入先写 `queue-operation`）；
-  - 每次请求前写一组 `attachment`；
+  - 每次请求前写一组 `attachment`；元数据重追加（`last-prompt` 打头，随后 `custom-title`、`agent-name` 等）也多发生在这时，而不是回合结束：本机约 96% 的 `custom-title` 行紧跟 `last-prompt`，它们之前最近的消息类 entry 约 73% 是 attachment、21% 是 tool_use，是 `end_turn` 的不到 2%；
   - 每个 prompt 写一次 `file-history-snapshot`，每次编辑写一次 `file-history-delta`；
-  - 回合结束写 `system/turn_duration`，以及 `last-prompt` 等元数据；
+  - 回合结束写 `system/turn_duration`，但只见于 CLI 入口（本机 cli 15 个文件中 12 个有，Desktop 文件 0 行）；Desktop 会话的回合结束只能由 `end_turn` 与下一个真人 prompt 推断；
   - 进程退出或保存点写 `cost-state`（每文件 1.6 行）。
 - SessionStore 镜像在本地写成功后才发出，约 100ms 一批，在 `result` 时或积压超过 500 条 / 1 MiB 时 flush：[src/claude_agent_sdk/types.py:1631](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L1631)、[src/claude_agent_sdk/_internal/transcript_mirror_batcher.py:28](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/transcript_mirror_batcher.py#L28)。
 
@@ -420,13 +420,13 @@ content block：
 
 | 操作 | 数据表现 | 依据 |
 | --- | --- | --- |
-| `--resume <id>` | 沿用原 `sessionId`，追加到**同一文件** | SDK e2e 断言 `resumed.session_id == first.session_id`：[e2e-tests/test_session_store_resume_settings.py:94](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_session_store_resume_settings.py#L94)；参数映射见 [src/claude_agent_sdk/_internal/transport/subprocess_cli.py:649](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/transport/subprocess_cli.py#L649) |
+| `--resume <id>` | 沿用原 `sessionId`，继续写 `<sessionId>.jsonl`。例外：`--resume <id> --bg` 在 2.1.257 前静默开副本，之后会话被占用时开副本并提示（[CHANGELOG 2.1.257](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L1890)）；`-p --resume <file>` 遇到 transcript 中格式错误的 sessionId 时改用新 ID（[2.1.261](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L1641)） | SDK `fork_session` 选项说明（[src/claude_agent_sdk/types.py:2249](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L2249)–2251）；[CHANGELOG 2.1.199](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L3288)；store 版 e2e 只断言 ID 不变（[e2e-tests/test_session_store_resume_settings.py:94](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_session_store_resume_settings.py#L94)）；参数映射见 [src/claude_agent_sdk/_internal/transport/subprocess_cli.py:649](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/transport/subprocess_cli.py#L649) |
 | `--continue` | 选当前目录最近修改的非 sidechain 会话，然后同上 | [src/claude_agent_sdk/_internal/transport/subprocess_cli.py:640](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/transport/subprocess_cli.py#L640)；SDK 镜像实现 [src/claude_agent_sdk/_internal/session_resume.py:268](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_resume.py#L268) |
 | `--resume-session-at <uuid>`（+ `--resume-drops-turn`） | 截断式 resume：只加载到该 uuid 为止，通常配合 fork 使用 | [src/claude_agent_sdk/types.py:2253](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L2253)、[src/claude_agent_sdk/types.py:2265](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L2265)；TS [CHANGELOG 0.3.223](https://github.com/anthropics/claude-agent-sdk-typescript/blob/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47/CHANGELOG.md#L402) |
-| `--fork-session` | 新 `sessionId`、新文件，源会话不变 | [src/claude_agent_sdk/types.py:2249](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L2249)；e2e：[e2e-tests/test_truncating_resume.py:100](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_truncating_resume.py#L100)、[e2e-tests/test_truncating_resume.py:103](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_truncating_resume.py#L103)。新文件是完整复制还是指针，本机无样本，待确认 |
+| `--fork-session` | 新 `sessionId`、新文件，源会话不变；新文件含截至 resume 点的历史副本：e2e 单独读新会话就能得到 TURN_1（:102），而 `get_session_messages` 只读单个 `<id>.jsonl` | [src/claude_agent_sdk/types.py:2249](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L2249)；e2e：[e2e-tests/test_truncating_resume.py:100](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_truncating_resume.py#L100)、[e2e-tests/test_truncating_resume.py:102](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_truncating_resume.py#L102)、[e2e-tests/test_truncating_resume.py:104](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_truncating_resume.py#L104)；[src/claude_agent_sdk/_internal/sessions.py:844](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L844) |
 | SDK `fork_session()`（离线） | 新文件：复制非 sidechain 的 transcript 行，重映射全部 `uuid`/`parentUuid`/`logicalParentUuid`，改写 `sessionId`；每行加 `forkedFrom{sessionId, messageUuid}`；去掉 `teamName/agentName/slug/sourceToolAssistantUUID`；丢弃 `progress`；只把最后一行时间戳改为当前时间；补 `content-replacement` 与 `custom-title "(fork)"`；不复制 file-history | [src/claude_agent_sdk/_internal/session_mutations.py:240](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L240)、[src/claude_agent_sdk/_internal/session_mutations.py:348](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L348)、[src/claude_agent_sdk/_internal/session_mutations.py:420](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L420)、[src/claude_agent_sdk/_internal/session_mutations.py:438](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L438) |
-| `/branch`（原 `/fork`）、`/fork` | `/fork` 改名为 `/branch`（[2.1.77](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5677)）；新的 `/fork` 把对话复制到一个后台会话（[2.1.212](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L2920)）；fork 只写指针，读取时再展开（[2.1.118](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L4773)），本机对应 `fork-context-ref` | CHANGELOG；本机 3 个样本 |
-| `/clear` | 新 `sessionId`；旧会话在 stream-json 上发出 `conversation_reset` | [e2e-tests/test_conversation_reset.py:52](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_conversation_reset.py#L52)、[src/claude_agent_sdk/types.py:1439](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L1439)；本机 `continued-in` 可能对应此操作（推断） |
+| `/branch`（原 `/fork`）、`/fork`、`/subtask` | `/fork` 改名为 `/branch`（[2.1.77](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5677)）；新的 `/fork` 把对话复制进一个新的后台会话文件（[2.1.212](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L2920)）；2.1.118 起会话内 fork 子代理只写指针、读取时再展开（[2.1.118](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L4773)；2.1.212 起由 `/subtask` 启动，`subagent_type:"fork"` 的子代理同理），本机对应子代理首行 `fork-context-ref` | CHANGELOG；本机 3 个样本（均为子代理文件，meta `isFork:true`） |
+| `/clear` | 新 `sessionId`；旧会话在 stream-json 上发出 `conversation_reset` | [e2e-tests/test_conversation_reset.py:52](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/e2e-tests/test_conversation_reset.py#L52)、[src/claude_agent_sdk/types.py:1439](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L1439) |
 | 对话 rewind（Esc Esc、`/rewind`、SDK `rewind_conversation`） | 不删旧行；新输入的 `parentUuid` 指向回退点，在同一文件形成新分支；读取方按“最新分支”展示 | TS [CHANGELOG 0.3.283](https://github.com/anthropics/claude-agent-sdk-typescript/blob/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47/CHANGELOG.md#L40)（rewound-away branch）、[0.3.186](https://github.com/anthropics/claude-agent-sdk-typescript/blob/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47/CHANGELOG.md#L599)；本机这类分叉极少 |
 | 文件 rewind（`/rewind`、`rewindFiles`） | 用 `file-history-snapshot.messageId`（prompt uuid）定位，从 `file-history/<sid>/<hex16>@v<n>` 恢复；transcript 本身不新增特殊行（待确认） | `sdk.d.ts:2479`；[src/claude_agent_sdk/_internal/query.py:814](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/query.py#L814) |
 
@@ -446,8 +446,8 @@ assistant(tool_use, message.id=A, apiBlockIndex=k)             # 并行工具：
   [file-history-delta(messageId = 该 tool_use 行)]            # 编辑类工具
 attachment(…)*
 assistant(thinking, message.id=B) → assistant(text, message.id=B, stop_reason=end_turn)
-system(turn_duration) [system(stop_hook_summary)]
-last-prompt(leafUuid) / custom-title / agent-name / atis-latch / … (重追加)  [cost-state]
+[system(turn_duration)] [system(stop_hook_summary)]            # turn_duration 仅 CLI
+last-prompt(leafUuid) / custom-title / agent-name / atis-latch / … (重追加)  [cost-state]   # 重追加多发生在请求前的 attachment 之后，不限回合末
 ```
 
 ### 5.2 图 3：数据形态（实体关系）
@@ -467,7 +467,7 @@ erDiagram
     ENTRY }o--o| PRE_COMPACT_LEAF : "logicalParentUuid"
     ENTRY ||--o{ FILE_HISTORY_SNAPSHOT : "messageId"
     FILE_HISTORY_SNAPSHOT ||--o{ BACKUP_FILE : "backupFileName"
-    AGENT_META }o--|| CONTENT_BLOCK : "toolUseId equals tool_use id"
+    AGENT_META }o--o| CONTENT_BLOCK : "toolUseId equals tool_use id"
 
     SESSION_FILE {
         string sessionId
@@ -487,6 +487,8 @@ erDiagram
         string version
         string entrypoint
         string cwd
+        string requestId
+        int apiBlockIndex
     }
     MESSAGE {
         string role
@@ -494,8 +496,6 @@ erDiagram
         string model
         string stop_reason
         json usage
-        string requestId
-        int apiBlockIndex
     }
     CONTENT_BLOCK {
         string type
@@ -525,7 +525,7 @@ erDiagram
     }
 ```
 
-`PARENT_ENTRY` 与 `PRE_COMPACT_LEAF` 都是同一文件里的 `ENTRY`。图中单独画出，是为了避免 ER 图出现自环。
+`PARENT_ENTRY` 与 `PRE_COMPACT_LEAF` 都是同一文件里的 `ENTRY`。图中单独画出，是为了避免 ER 图出现自环。`requestId`、`apiBlockIndex` 是 assistant entry 的顶层字段，不在 `message` 内。Workflow 子代理的 meta 没有 `toolUseId`，所以 `AGENT_META` 到 `CONTENT_BLOCK` 是零或一；嵌套子代理的 `toolUseId` 指向父子代理 transcript 里的 tool_use，而不是主会话。
 
 ### 5.3 图 4：parentUuid 树的典型形态（并行工具、压缩、rewind）
 
@@ -537,11 +537,11 @@ flowchart TD
     X1 --> R1["user tool_result 1（侧枝）"]
     X2 --> R2["user tool_result 2"]
     R2 --> B1["assistant text B end_turn"]
-    B1 --> D1["system turn_duration"]
+    B1 --> D1["system turn_duration（仅 CLI）"]
     D1 --> U2["user prompt P2"]
     U2 --> L1["...旧链继续..."]
     CB["system compact_boundary<br/>parentUuid null"] -.->|"logicalParentUuid"| L1
-    CB --> CS["user isCompactSummary"]
+    CB -->|"多数先经一个 attachment"| CS["user isCompactSummary"]
     CS --> N1["压缩后的新链"]
     D1 --> U3["user prompt P2b（rewind 后的新分支）"]
 ```
@@ -549,13 +549,13 @@ flowchart TD
 形态统计（本机）：
 
 - **并行工具调用会让树分叉**。`tool_result` 的 `parentUuid` 恒等于发起它的 tool_use 行（`sourceToolAssistantUUID`，100%），而同一响应的下一个 tool_use 行也挂在这个 tool_use 行下。主会话共 757 个分叉点，其中 751 个是 `assistant(tool_use) → {assistant(tool_use), user(tool_result)}`，其余 6 个为 API 重试、本地命令和极少数 rewind。
-- **单叶回溯会丢数据**（执行时为新快照，计数与 §8 略有出入）。按 SDK 算法（最新主叶沿 `parentUuid` 回到根：[src/claude_agent_sdk/_internal/sessions.py:931](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L931)），主会话有 2,195 / 21,243 个 user/assistant entry（10.3%）不在链上。把 Python SDK 的函数原样抽出在本机执行，`get_session_messages` 只返回 5,749 / 6,939 个 `tool_result`（82.8%）和 6,416 / 6,940 个 `tool_use`；子代理的线性假设（[src/claude_agent_sdk/_internal/sessions.py:1260](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L1260)）只返回 27,881 / 34,565 个 `tool_result`（80.7%）。TS SDK 已在 [0.2.80](https://github.com/anthropics/claude-agent-sdk-typescript/blob/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47/CHANGELOG.md#L1084) 修复并行工具结果丢失；Python SDK 在本 commit 仍是单链回溯。
-- 离链子树分类（主会话 823 个）：646 个单个 tool_result 叶（并行侧枝）、88 个多 entry 分支（其中 73 个是“tool_result 先续链、后一个 tool_use 成侧枝”，其余为 API 重试和极少数 rewind）、89 个纯非消息叶（`stop_hook_summary`、`prompt_snapshot`、`turn_duration` 挂在 assistant text 下）。
+- **单叶回溯会丢数据**（执行时为新快照，计数与 §8 略有出入）。按 SDK 算法（最新主叶沿 `parentUuid` 回到根：[src/claude_agent_sdk/_internal/sessions.py:931](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L931)），主会话有 2,195 / 21,243 个 user/assistant entry（10.3%）不在链上。把 Python SDK 的函数原样抽出在本机执行，`get_session_messages` 只返回 5,929 / 7,149 个 `tool_result`（82.9%）。丢失的 1,220 个混合了两种原因：约 800 个是并行侧枝叶，404 个位于 `compact_boundary` 之前（SDK 有意不跟随 `logicalParentUuid`：[src/claude_agent_sdk/_internal/sessions.py:938](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L938)），另有 16 个其他离链行。子代理的线性假设（[src/claude_agent_sdk/_internal/sessions.py:1260](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L1260)）只返回 27,881 / 34,565 个 `tool_result`（80.7%）。TS SDK 已在 [0.2.80](https://github.com/anthropics/claude-agent-sdk-typescript/blob/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47/CHANGELOG.md#L1084) 修复并行工具结果丢失，压缩前的旧链不在修复范围内；Python SDK 在本 commit 仍是单链回溯。
+- 离链子树分类（主会话 823 个）：646 个单个 tool_result 叶（并行侧枝）、88 个多 entry 分支（其中 73 个是“tool_result 先续链、后一个 tool_use 成侧枝”，其余为 API 重试和极少数 rewind）、89 个纯非消息叶（`stop_hook_summary`、`prompt_snapshot`、`turn_duration` 挂在 assistant text 下）。该分类只统计挂在当前根下的离链子树，不含压缩前旧根下的整段历史。
 - 根：123 个主文件只有 1 个根，3 个有 2 个根。`parentUuid:null` 的行按类型：user 102、attachment 20（会话开头的 hook 输出）、system 7（含 4 个 `compact_boundary`）。没有悬空的父引用。
 
 ### 5.4 压缩
 
-- `compact_boundary` 的 `parentUuid` 恒为 `null`（12/12），`logicalParentUuid` 指向压缩前最后一个 entry（12/12 可解析）。紧随其后的是 `isCompactSummary:true, isVisibleInTranscriptOnly:true` 的 user 行（内含摘要文本），以及 `attachment:instructions/session_context/date/compact_file_reference`。
+- `compact_boundary` 的 `parentUuid` 恒为 `null`（12/12），`logicalParentUuid` 指向压缩前最后一个 entry（12/12 可解析）。其后是 `isCompactSummary:true, isVisibleInTranscriptOnly:true` 的 user 行（内含摘要文本），以及 `attachment:instructions/session_context/date/compact_file_reference`。摘要行不一定是 boundary 的直接子节点：12 个样本中有 9 个先挂一个 attachment。
 - 压缩前的行**仍在同一文件里**。SDK 读取时有意不跟随 `logicalParentUuid`，压缩后的视图从摘要开始：[src/claude_agent_sdk/_internal/sessions.py:938](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/sessions.py#L938)。`preservedSegment` / `preservedMessages` 描述被原样保留、需要重新接到 anchor 的消息段（`sdk.d.ts:2959`、`sdk.d.ts:2967`）。
 - 相关 hooks：PreCompact（`trigger: manual|auto`，[src/claude_agent_sdk/types.py:387](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/types.py#L387)）、PostCompact（[CHANGELOG 2.1.76](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L5687)）。另有“Summarize from here / up to here”的部分压缩（[2.1.32](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L6363)、[2.1.141](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L4249)）。
 
@@ -592,7 +592,7 @@ flowchart TD
 
 | 组件 / 阶段 | 产生的记录类型 | 关键字段 | 触发时机 |
 | --- | --- | --- | --- |
-| 进程启动 / 会话建立 | `mode`、`permission-mode`、(Desktop) `bridge-session`、`atis-latch`、`agent-name` | `sessionId`、`version`、`entrypoint` | 启动、首个 prompt、resume |
+| 进程启动 / 会话建立 | `mode`、`permission-mode`（仅 CLI）、`bridge-session`、`atis-latch`、`agent-name` | `sessionId`、`version`、`entrypoint` | 启动、首个 prompt、resume |
 | 用户提交 | `queue-operation`、`user(prompt)`、`history.jsonl`（仅 CLI） | `promptId`、`permissionMode`、`origin`、`promptSource` | 回车提交、出队 |
 | 上下文注入 | `attachment`（39 种） | `attachment.type` | 每次请求前，以及工具调用之间 |
 | Checkpoint | `file-history-snapshot`；`file-history/<sid>/<hex16>@v<n>` | `messageId`、`trackedFileBackups` | 每个 prompt |
@@ -603,11 +603,12 @@ flowchart TD
 | Hooks | `system/stop_hook_summary`、`attachment:hook_success/hook_additional_context/hook_system_message` | `hookInfos`、`toolUseID`、`exitCode` | hook 执行 |
 | 子代理 | `subagents/agent-<id>.jsonl` + `.meta.json`；父会话 `toolUseResult.agentId`；`queued_command`（task-notification） | `agentId`、`toolUseId`、`parentAgentId` | 派生 / 完成 |
 | Compaction | `system/compact_boundary`、`user(isCompactSummary)`、`attachment:compact_file_reference` | `compactMetadata`、`logicalParentUuid` | auto 或 manual |
-| 回合结束 | `system/turn_duration`、`last-prompt`、元数据重追加 | `durationMs`、`messageCount`、`leafUuid` | `end_turn` |
+| 回合结束 | `system/turn_duration`（仅 CLI） | `durationMs`、`messageCount` | `end_turn` |
+| 元数据重追加 | `last-prompt`、`custom-title`、`agent-name`、`atis-latch` 等 | `leafUuid` | 多在每次请求前（attachment 之后），不限回合末 |
 | 标题 | `ai-title`、`custom-title`（+ `custom-title.json`） | `aiTitle`、`customTitle` | 自动命名、`/rename` |
 | 成本 | `cost-state` | `totalCostUSD`、`modelUsage` | 退出 / 保存点 |
 | 错误 / 中断 | `system/api_error`、`assistant(<synthetic>)`、中断标记 user 行 | `retryAttempt`、`apiErrorStatus`、`isAbortedMidStream` | 失败、Esc、Ctrl+C |
-| 会话迁移 / 接续 | `relocated`、`continued-in` | `relocatedCwd`、`continuedInSessionId` | cwd 迁移、`/clear`（推断） |
+| 会话迁移 / 接续 | `relocated`、`continued-in` | `relocatedCwd`、`continuedInSessionId` | cwd 迁移；`continued-in` 的触发操作待确认（更像压缩后转入后台续接） |
 | SDK 镜像 | `transcript_mirror` 帧到外部 store | `filePath`、`entries` | 本地写成功后 |
 
 ## 7. 一次 chat 的完整落盘示例
@@ -704,12 +705,12 @@ flowchart TD
 | --- | --- | --- |
 | `apiBlockIndex`（assistant） | 2.1.255 | 2.1.247 没有 |
 | `effort`（assistant） | ≤2.1.247 | [CHANGELOG 2.1.212](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L2963) |
-| `session_id`（蛇形） | 只在 2.1.258–2.1.260 | 之后消失 |
+| `session_id`（蛇形） | cli 的 2.1.258–2.1.260 与 2.1.284 | 随入口而非版本出现 |
 | `sessionKind:"bg"` | 只在 2.1.258 | 后台会话 |
 | `advisorModel`、`perTurnEffort`、`wireToolInputs`、`wireIngestContext`、`turnOrigin` | 2.1.280 | – |
 | `serverClassifierRequest` / `serverClassifierContext` | 2.1.281 | auto 模式分类器 |
 | `turnPosition` | 2.1.284 | – |
-| 元数据类型 `cost-state`、`file-history-delta`、`agent-name`、`continued-in` | 2.1.258（cli） | Desktop 文件到 2.1.280 起才出现 `cost-state`/`file-history-*` |
+| 元数据类型 `cost-state`、`file-history-delta`、`agent-name`、`continued-in` | 2.1.258（cli） | Desktop 2.1.266 起有 `file-history-*`（3/3 个文件有快照），2.1.280 起有 `cost-state` |
 | `pr-link`、`relocated` | 2.1.281 | – |
 | `artifact-*`、`frame-link` | 2.1.247 与 2.1.281 及以后（只在 desktop） | – |
 
@@ -723,14 +724,14 @@ flowchart TD
 
 ### 8.6 其他校验
 
-- `cost-state` 与按 `message.id` 去重的 transcript `output_tokens` 之比：中位 1.0，P10 0.56（n=108）。比值小于 1 时，差额推断来自不进 transcript 的调用（标题生成、子代理等）。
+- 按 `message.id` 去重的 transcript `output_tokens` 与 `cost-state` 的 output tokens 之比（transcript / `cost-state`）：中位 1.0，P10 0.56（n=108）；反过来 `cost-state` / transcript 的 P10 为 1.00、P90 为 2.11。比值小于 1（transcript 少于 `cost-state`）时，差额推断来自不进 transcript 的调用（标题生成、子代理等）。
 - `file-history-snapshot` 引用的备份 359/388 存在；`file-history-delta` 引用的备份 84/84 存在。
 
 ## 9. 对 Tandem 解析器的要点
 
 **会话列表**
 
-- 枚举 `$CLAUDE_CONFIG_DIR/projects/*/<uuid>.jsonl`，跳过 0 字节文件（SDK 也把它们视为不存在：[src/claude_agent_sdk/_internal/session_mutations.py:678](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L678)）。
+- 枚举所有候选根（`$CLAUDE_CONFIG_DIR`、同级 `~/.claude*`、Desktop local-agent-mode）下的 `projects/*/<uuid>.jsonl`，跳过 0 字节文件（SDK 也把它们视为不存在：[src/claude_agent_sdk/_internal/session_mutations.py:678](https://github.com/anthropics/claude-agent-sdk-python/blob/db750b20a88ae9645b1674d95193a88c89a265f9/src/claude_agent_sdk/_internal/session_mutations.py#L678)）。
 - 快速列表仿照 SDK，只读首尾 64KB：
   - 标题 = 尾部最后的 `customTitle` > `aiTitle` > `lastPrompt` > `summary` > 首个 prompt（跳过 meta、tool_result、`<command-name>`、中断标记等）；
   - `createdAt` = 首个 `timestamp`；`lastModified` = mtime；
@@ -748,7 +749,7 @@ flowchart TD
 **起止时间、轮次、消息数**
 
 - 起止：首末 `timestamp` 的最小值与最大值，不要用首行和末行，因为文件顺序不单调。
-- 轮次：按 `promptId` 分组；`system/turn_duration` 给出 `durationMs` 与 `messageCount`。`promptId` 的定义可参考 hooks 的 `prompt_id`：“correlating a user prompt with all subsequent events until the next prompt”（[mods/types/claude-code.d.ts:590](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/mods/types/claude-code.d.ts#L590)）。
+- 轮次：按 `promptId` 分组；`system/turn_duration`（仅 CLI）给出 `durationMs` 与 `messageCount`，Desktop 会话只能以同一 `promptId` 下最后一个 `end_turn` 计回合。`promptId` 的定义可参考 hooks 的 `prompt_id`：“correlating a user prompt with all subsequent events until the next prompt”（[mods/types/claude-code.d.ts:590](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/mods/types/claude-code.d.ts#L590)）。
 - 消息数：assistant 先按 `message.id` 合并成“API 响应”，再计数；user 区分 prompt、tool_result、meta。
 
 **工具调用**
@@ -765,9 +766,9 @@ flowchart TD
 
 **token / cost（必须去重）**
 
-- 以 (文件, `message.id`) 为键，取组内最后一行的 usage。主会话组内各行相同；子代理可能是占位值，取组内 `output_tokens` 最大的一行，或改用父会话的 Agent `toolUseResult.usage/totalTokens`、`queued_command.usage`、Workflow 汇总 JSON 中的 `totalTokens`。
+- 以 `message.id` 为键跨文件去重（副本会把同一响应复制进多个文件；本机 175 个 `message.id` 出现在 ≥2 个主文件，约占 token 的 1.7%），组内取最后一行 usage。主会话组内各行相同；子代理约 88% 的组只有占位值，组内取最大也只能救回约 2k 个组，应改用父会话的 `queued_command.usage`、Agent `toolUseResult.usage/totalTokens`、Workflow 汇总 JSON 中的 `totalTokens`，或父会话 `cost-state.modelUsage`（已含子代理：有子代理的 17 个文件中 `cost-state`/transcript 的 output 比值中位 2.62，无子代理的为 1.00）。
 - 输入总量 = `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`（`cache_creation` 修复见 [CHANGELOG 2.1.152](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L4026)）。
-- 费用：transcript 没有逐条费用。可按模型价目计算，或取 `cost-state` 的最后一行（进程累计，包含不进 transcript 的调用）。
+- 费用：transcript 没有逐条费用。可按模型价目计算，或取 `cost-state` 的最后一行（会话累计：resume 后接着累加，`/clear` 开新会话从零开始；包含子代理与不进 transcript 的调用）。
 
 **模型**
 
@@ -788,11 +789,16 @@ flowchart TD
 
 **分支**
 
-- 不要用“最新叶单链回溯”作为唯一重建方式：实测会丢 17% 的 tool_result。
+- 不要用“最新叶单链回溯”作为唯一重建方式：实测会丢约 17% 的 tool_result，其中约 2/3 是并行侧枝，约 1/3 是压缩前的旧链（SDK 有意不跟随 `logicalParentUuid`）。
 - 推荐方法：按文件顺序读取全部消息类 entry，按 `message.id` 合并，按 tool id 配对，用 `parentUuid` 图识别三类分叉：
   - 同一 `message.id` 的 tool_use 行下挂 tool_result，是**并行侧枝**，属于正常数据；
   - 发生在 prompt 层级的分叉，是 **rewind 或编辑重发**；
   - `api_error` 旁边的分叉是**重试**。
+
+**跨文件副本**
+
+- fork 类操作会把历史行复制进新文件（§4.4）。本机 3 对主文件共有 830 个重复 `uuid`：两对 Desktop 会话（652、156 个）与一对 CLI 后台续接（22 个）。副本文件先重追加元数据，再复制链上 entry；`uuid`、`timestamp` 不变，`parentUuid` 基本不变，只改写 `sessionId`；离链行（如 6 行 `api_error`）不复制；副本中 Agent 结果的 `toolUseResult.agentId` 仍指向源会话目录下的子代理文件。
+- 跨文件按 `uuid` 去重（token 按上文以 `message.id` 去重）；SDK `fork_session` 会重映射 uuid，副本行改用 `forkedFrom.messageUuid` 回溯来源。
 
 **增量读取**
 
@@ -817,7 +823,7 @@ flowchart TD
 
 **隐私**
 
-- transcript 含完整提示词、文件原文（Read/Edit 的 `originalFile`）、命令输出、系统提示快照、账号与组织 UUID（`bridge-session`、`credential_org` 附件、`artifact-autoreact-ledger.accountUuid`）、PR 链接。
+- transcript 含完整提示词、文件原文（Read/Edit 的 `originalFile`）、命令输出、系统提示快照、账号与组织 UUID（`bridge-session`、`credential_org` 附件、`artifact-autoreact-ledger.accountUuid`）、PR 链接；`usage-data/session-meta` 的 `first_prompt`、`user_message_timestamps` 与 facets 的 `brief_summary`、`underlying_goal`、`friction_detail` 也是正文派生内容。
 - 应当只在本地处理，默认不上传，展示前脱敏。
 - 不要读取 `~/.claude.json`、`.credentials.json`、`sessions/*.key`、`backups/` 中的配置备份。
 
@@ -830,23 +836,23 @@ flowchart TD
 | 维度 | Claude Code 的取值 |
 | --- | --- |
 | 存储介质 | 本地文件系统，JSONL 文本，外加旁路目录与 JSON sidecar；无数据库；可选通过 SDK SessionStore 镜像到外部存储（S3/Redis/Postgres 参考实现：[examples/session-stores/README.md:128](https://github.com/anthropics/claude-agent-sdk-typescript/blob/0e21ebb22c36caca1220c34ae6c9fe8ddad40e47/examples/session-stores/README.md#L128)） |
-| 默认路径与覆盖方式 | `~/.claude/projects/<编码cwd>/<sessionId>.jsonl`；根目录用 `CLAUDE_CONFIG_DIR` 覆盖；目录名用 `CLAUDE_CODE_PROJECT_DIR_NAME`；`--no-session-persistence` / `persistSession:false` 关闭落盘 |
-| 会话粒度（一文件/一目录/一行） | 一会话一文件（主 transcript），另有同名目录（子代理、大输出、Workflow）；resume 追加到同一文件，fork 和 `/clear` 新建文件 |
-| 项目/cwd 归属方式 | 目录名为 cwd 中非字母数字替换成 `-`（超过 200 字符截断并加 djb2 base36 哈希），有损；以 entry 的 `cwd` 为准（会话内可变） |
+| 默认路径与覆盖方式 | `~/.claude/projects/<编码cwd>/<sessionId>.jsonl`；根目录用 `CLAUDE_CONFIG_DIR` 覆盖；目录名用 `CLAUDE_CODE_PROJECT_DIR_NAME`；`--no-session-persistence` / `persistSession:false` 关闭落盘；同机可能还有其他根（如 `~/.claude-account2`、Desktop local-agent-mode 下的 `.claude/projects`） |
+| 会话粒度（一文件/一目录/一行） | 一会话一文件（主 transcript），另有同名目录（子代理、大输出、Workflow）；resume 沿用原 sessionId（`--bg` 副本例外）；`--fork-session`、`/branch`、新 `/fork`、后台续接、`/clear` 新建文件；CLI 副本保留原 `uuid`，SDK `fork_session` 重映射并加 `forkedFrom` |
+| 项目/cwd 归属方式 | 目录名为 cwd 中非字母数字替换成 `-`（超过 200 字符截断并加 32 位哈希的 base36 后缀，算法为 h×31+c，注释称 djb2），有损；以 entry 的 `cwd` 为准（会话内可变） |
 | 会话 ID 格式 | UUIDv4（本机 126/126），文件名即 sessionId；可用 `--session-id` 指定 |
 | 记录 ID 与链接模型 | 每个 entry 有 `uuid`（v4）和 `parentUuid`，构成**树**：并行工具调用与 rewind 产生分叉，`compact_boundary` 以 `parentUuid:null` 开新根并用 `logicalParentUuid` 回指；子代理在独立文件，经 `toolUseId`/`agentId` 关联；元数据行无 uuid |
 | 消息方言 | Anthropic Messages API 原生（`message` 为 BetaMessage / MessageParam），外包 Claude Code 自定义信封，另有自定义非消息类型 |
 | 角色表示 | entry `type` 为 user/assistant，与 `message.role` 一致；工具结果是 role=user 的 `tool_result` block；system 与 attachment 是独立 `type`，不体现在 role 上 |
 | 推理内容是否落盘（是否加密/签名） | 落盘：`thinking` block 带 `signature`（本机 100%）；约一半的 thinking 文本为空串，只有签名；`redacted_thinking` 本机未见 |
 | 工具调用表示与 call id 关联 | assistant `tool_use{id:"toolu_…", name, input, caller}`，user `tool_result{tool_use_id, content, is_error}`；另有 `sourceToolAssistantUUID` 指回 tool_use 所在行；富结构在 `toolUseResult` |
-| 大工具输出处理 | 超阈值（50K 字符）写入 `<sid>/tool-results/`（txt、PDF 页图、webfetch 二进制），`tool_result` 中只留 `<persisted-output>` 预览和路径；Bash 记 `persistedOutputPath/Size`；单文件上限 1 GB |
-| token 与 cost 记录粒度 | 每个 assistant 行带 API `usage`，同一 `message.id` 多行重复，需要去重；子代理行常为占位值；`cost-state` 记进程累计 USD 与按模型的用量；stream-json `result` 有 `total_cost_usd` 但不落盘 |
+| 大工具输出处理 | 超阈值写入 `<sid>/tool-results/`（txt、PDF 页图、webfetch 二进制），`tool_result` 中只留 `<persisted-output>` 预览和路径；阈值不止 50K 字符一种：Bash 内联上限 30K（[CHANGELOG 2.1.205](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L3164)），`bashOutputMaxChars` 最高可调到 128K（[2.1.261](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L1621)），本机约 72% 的外置 `.txt` 不足 50K 字符；Bash 记 `persistedOutputPath/Size`；单文件上限 1 GB |
+| token 与 cost 记录粒度 | 每个 assistant 行带 API `usage`，同一 `message.id` 多行重复，需要去重；子代理行常为占位值；`cost-state` 记会话累计 USD 与按模型的用量（含子代理）；stream-json `result` 有 `total_cost_usd` 但不落盘 |
 | 模型/provider 记录位置 | 每个 assistant 行的 `message.model`；`usage.service_tier/inference_geo/speed`；`cost-state.modelUsage` 以模型为键；provider 未在 transcript 中出现（stream-json 的 `ModelUsage.provider` 有，待确认） |
 | 时间戳格式 | ISO-8601 UTC 毫秒加 `Z`（消息类 100%）；多数元数据行没有时间戳；`history.jsonl` 与 `cost-state.startTime` 用 epoch 毫秒整数 |
 | 流式增量是否落盘 | token 级 delta 不落盘（只在 `--include-partial-messages` 的 stream-json 中）；按 content block 粒度落盘，每个 block 一行 |
-| 写入方式（追加/覆盖/事务） | 追加（JSONL）；元数据反复重追加；偶有原地截断；无事务、无锁 |
+| 写入方式（追加/覆盖/事务） | 追加（JSONL）；元数据反复重追加；偶有原地截断；无事务、无文件锁：CLI 借运行中会话注册表（`~/.claude/sessions/<pid>.json`）避免双写，resume 正在后台运行的会话以前会被拒绝（2.1.285 起改为接入该会话，[CHANGELOG 2.1.285](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L175)），后台 resume 遇会话被占用时开副本（[2.1.257](https://github.com/anthropics/claude-code/blob/6160717d8994f236ab381cf534fc1cde5347c12f/CHANGELOG.md#L1890)） |
 | 压缩表示 | `system/compact_boundary`（`parentUuid:null`、`logicalParentUuid`、`compactMetadata`），加 `user(isCompactSummary)`；旧行保留在同一文件 |
-| 分支/fork/rewind 表示 | rewind 在同一文件形成 `parentUuid` 新分支；fork 为新文件、新 sessionId（SDK fork 带 `forkedFrom` 并重映射 UUID）；`/fork` 子代理用 `fork-context-ref` 指针；`/clear` 新建会话（可能留 `continued-in`） |
+| 分支/fork/rewind 表示 | rewind 在同一文件形成 `parentUuid` 新分支；fork 为新文件、新 sessionId（SDK fork 带 `forkedFrom` 并重映射 UUID）；`/subtask`（原会话内 `/fork`）子代理用 `fork-context-ref` 指针；`/clear` 新建会话；`continued-in` 指向接续会话（触发操作待确认） |
 | 文件快照/undo | 每个 prompt 一个 `file-history-snapshot`，每次编辑一个 `file-history-delta`；备份在 `~/.claude/file-history/<sid>/<hex16>@v<n>`；`/rewind` 与 SDK `rewindFiles` 使用 |
 | 子代理表示 | `<sid>/subagents/agent-<agentId>.jsonl`（`isSidechain:true`，`sessionId` 为父会话）加 `.meta.json`（agentType、toolUseId、parentAgentId、spawnDepth 等）；Workflow 在 `subagents/workflows/<runId>/` |
 | 标题/摘要 | `ai-title`（自动）、`custom-title`（`/rename`、SDK）、`agent-name`、`last-prompt`；`<sid>/custom-title.json`；`summary` 类型本机未见；`/insights` 的 facets |
