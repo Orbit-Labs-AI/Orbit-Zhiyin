@@ -19,7 +19,7 @@ function peAxisRows(p, prev) {
 function peEvidence(L, st, p, i) {
   if (LV.live) {   // live: the server's per-axis evidence (unit counts the client cannot see until G1)
     const ax = (p.axes || [])[i]; const e = ax && ax.evidence;
-    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax ? ax.n_units + ' 个' + ({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] : '—', vals: [0], lbl: '暂无证据' };
+    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax && ax.n_units != null ? ax.n_units + ' 个' + (({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] || '单位') : '—', vals: [0], lbl: '暂无证据' };
   }
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.min(n - 1, Math.floor(v / max * n))]++; }); return out; };
   const byProj = (key) => PJ.slice().sort((a, b) => a[key] - b[key]).map((pj) => sum(L.filter((s) => s.p === pj.id), (s) => s.dur) / 60);

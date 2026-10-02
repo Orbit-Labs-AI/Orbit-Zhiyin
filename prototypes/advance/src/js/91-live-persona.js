@@ -80,6 +80,26 @@ function lvPersonaCompute(L, minN) {
     v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
 }
 
+// per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
+const LVP_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
+function lvEvidence(L, p, st) {
+  const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.max(0, Math.min(n - 1, Math.floor(v / max * n)))]++; }); return out; };
+  const byDay = {}; L.forEach((s) => { (byDay[s.d] = byDay[s.d] || []).push(s); }); const days = Object.values(byDay);
+  const avgS = days.length ? L.length / days.length : 0, avgA = days.length ? days.reduce((a, xs) => a + new Set(xs.map((s) => s.a)).size, 0) / days.length : 0;
+  const pp = {}; L.forEach((s) => { const e = pp[s.p == null ? '' : s.p] = pp[s.p == null ? '' : s.p] || [0, 0, 0, 0];
+    if (s.op != null) { e[0] += s.op; e[1]++; } e[2] += s.vk || 0; e[3] += s.dn || 0; });
+  const pname = (k) => (k && PJI[k] ? PJI[k].name : '未归属');
+  const rank = (a, b) => Object.keys(pp).filter((k) => pp[k][b]).map((k) => [pp[k][a] / pp[k][b], k]).sort((x, y) => x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+  const plan = rank(0, 1), check = rank(2, 3);
+  const ax = {}; p.axes.forEach((a) => { ax[a.k] = a; }); const openN = ax.I.n_units || 1;
+  return {
+    D: { txt: '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
+    I: { txt: '结构化开场占 ' + Math.round((openN - ax.I.k_units) / openN * 100) + '%', vals: plan.map((x) => Math.round(x[0] * 100)), lbl: '项目结构化开场占比 · 低 → 高', projects: plan.map((x) => pname(x[1])) },
+    M: { txt: '日均 ' + f1(avgS) + ' 个会话 · 同日 ' + f1(avgA) + ' 个 Agent', vals: hist(days.map((xs) => xs.length), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' },
+    V: { txt: Math.round(st.verify) + '% 会话要求或运行了验证', vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
+  };
+}
+
 /* ---- server payload → the demo's persona shape (+ axes / server extras) ---- */
 function lvAvg(L) {
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); }); const d = Object.values(by);
@@ -155,7 +175,11 @@ function lvProjPersona(pid, L) {
 }
 function personaLive(L, minN) {
   L = L || [];
-  if (lvHasUnits(L)) { const p = lvPersonaCompute(L, minN); if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); } return p; }
+  if (lvHasUnits(L)) {
+    const p = lvPersonaCompute(L, minN);
+    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
+    return p;
+  }
   if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
