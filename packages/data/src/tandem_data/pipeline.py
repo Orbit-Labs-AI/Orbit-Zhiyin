@@ -22,6 +22,7 @@ def _merge(old, new):
 
 
 def rebuild(store, *, mapper_version=None):
+    from tandem_data.privacy import REDACTION_VERSION
     from tandem_data.reduce import derive
 
     mapper_version = mapper_version or MAPPER_VERSION
@@ -76,7 +77,16 @@ def rebuild(store, *, mapper_version=None):
                 )
                 continue
             mapper = MAPPERS[info["agent"]](store, info)
-            mapper.prepare(store.iter_file(info["file_id"]))
+            try:
+                mapper.prepare(store.iter_file(info["file_id"]))
+            except (ValueError, KeyError, TypeError, AttributeError) as error:
+                store.issue(
+                    info["source_id"],
+                    "file_preparation_error",
+                    file_id=info["file_id"],
+                    detail={"exception": type(error).__name__},
+                )
+                continue
             mappers[info["file_id"]] = mapper
 
         # Native parent files precede copied child prefixes; metadata snapshots come last.
@@ -85,7 +95,7 @@ def rebuild(store, *, mapper_version=None):
                 info["source_id"],
                 str(
                     mappers[info["file_id"]].header.get(
-                        "session_id", mappers[info["file_id"]].header.get("id", "")
+                        "id", mappers[info["file_id"]].header.get("session_id", "")
                     )
                 ),
             ): info["file_id"]
@@ -121,6 +131,8 @@ def rebuild(store, *, mapper_version=None):
         infos = ordered
 
         def map_record(mapper, record):
+            if record.record_uid in getattr(mapper, "preparation_failures", set()):
+                return
             try:
                 result = mapper.map(record)
             except (ValueError, KeyError, TypeError, AttributeError) as error:
@@ -247,6 +259,14 @@ def rebuild(store, *, mapper_version=None):
             mapper = mappers.get(info["file_id"])
             if mapper is None:
                 continue
+            if info["agent"] == "codex" and mapper.cut is not None and mapper.parent:
+                parent_file = by_native.get((info["source_id"], str(mapper.parent)))
+                mapper.parent_candidates = defaultdict(list)
+                if parent_file:
+                    for parent_record in store.iter_file(parent_file):
+                        mapper.parent_candidates[mapper.record_signature(parent_record)].append(
+                            (parent_record.ordinal, parent_record.record_uid)
+                        )
             for record in store.iter_file(info["file_id"]):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.
@@ -323,6 +343,7 @@ def rebuild(store, *, mapper_version=None):
         if invalid:
             raise ValueError("L1 disposition and provenance links disagree")
         count = store.db.execute("SELECT COUNT(*) FROM event").fetchone()[0]
+        store.db.execute("UPDATE schema_manifest SET redaction_version=?", (REDACTION_VERSION,))
         store.db.execute(
             "INSERT INTO projection_run(contract_version,mapper_version,reducer_version,completed_at,event_count,l1_revision_count) VALUES(1,?,?,?,?,?)",
             (

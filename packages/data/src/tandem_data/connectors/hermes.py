@@ -6,12 +6,14 @@ class HermesMapper(BaseMapper):
     def prepare(self, records):
         self.active_uids = set()
         self.parents = {}
-        for record in records:
-            table, row = record.data.get("table"), record.data.get("row", {})
-            if table == "messages" and row.get("active", 1) and row.get("message_uid"):
-                self.active_uids.add(row["message_uid"])
-            if table == "sessions":
-                self.parents[row["id"]] = row.get("parent_session_id")
+        self.prepare_each(records, self.prepare_record)
+
+    def prepare_record(self, record):
+        table, row = record.data.get("table"), record.data.get("row", {})
+        if table == "messages" and row.get("active", 1) and row.get("message_uid"):
+            self.active_uids.add(row["message_uid"])
+        if table == "sessions":
+            self.parents[row["id"]] = row.get("parent_session_id")
 
     def make(self, record, *args, **kwargs):
         row = record.data.get("row", {})

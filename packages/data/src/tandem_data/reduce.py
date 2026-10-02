@@ -109,6 +109,8 @@ TOOL_KINDS = {
 
 def tool_metadata(name, attrs):
     kind = next((key for key, names in TOOL_KINDS.items() if name.lower() in names), "other")
+    if attrs.get("category") in TOOL_KINDS:
+        kind = attrs["category"]
     server, tool = attrs.get("mcp_server"), attrs.get("mcp_tool")
     if name.startswith("mcp__"):
         parts = name.split("__", 2)

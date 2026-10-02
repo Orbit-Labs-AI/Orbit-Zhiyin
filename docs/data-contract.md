@@ -78,6 +78,8 @@ L2 的 `session_uid` 引用 `session_identity`，L3 `session` 再复用同一 ID
 
 事件 ID 为 `hash([namespace, native_key, kind, event_path])`，使用固定的 JSON 结构编码，不靠字符串拼接或导入时刻。`seq` 不参与 ID：拆分规则升级可以重排展示顺序。Claude 内容按来源内 UUID，usage 按响应身份去重；pi 身份带文件作用域；没有原生 ID 时按文件和原生位置兜底。请求、工具与会话的 ID 使用不同 namespace。
 
+Codex 使用 `session_meta.id` 作为线程身份；`session_id` 是根线程的 trace ID，不能用来合并父子线程。`thread_spawn` 的继承切点只在该类型内适用，guardian 不据此丢弃内容。复制段按已确认父文件中原生 payload 与来源顺序匹配；fork 前缀里发生变化的 world_state/developer 环境，没有相同父记录时作为注入上下文保留，不制造真人行为或假引用。
+
 事件类型包括 `session.meta / session.title / setting.change / turn.start / turn.end / message.user / message.assistant / reasoning / tool.call / tool.result / model.usage / context.inject / context.compaction / permission.* / branch / hook.run / subagent.* / plan.update / file.change / link / queue / error / ui.state / unknown`。未识别类型以 `unknown + ext` 保存并告警。
 
 `attrs.time` 必须包含 `source_field / semantics / quality / reported`。`ts=null` 对应 `quality=missing`；非空时间必须有字段来源，质量为 `reported` 或 `estimated`。`semantics` 区分创建、请求开始、开始、完成、写入和未知。秒和毫秒由连接器声明单位，ISO 无 offset 且无可信来源时区时保持未知。采集时刻不能替代动作时刻。
@@ -129,6 +131,8 @@ L2 文本、attrs、ext 经过版本化脱敏；凭据字段与令牌匹配被�
 
 `read_analysis(home, AnalysisScope(...))` 在一个只读事务内返回分析对象、版本、sample_boundary、coverage、diagnostics 和 statistical_members。传 `None` 表示全部，传空 tuple 表示明确选择零个。时间窗口使用 `[from_ts, until_ts)`；未知时间不进入有界统计。模型筛选后保留关联轮次的用户请求等上下文，但上下文事件不增加统计成员。截止点之后的反馈、返回状态和退出码不能进入之前的快照。
 
+有 `until_ts` 的历史读取也会屏蔽时间未知的完成/失败结果，因为无法确认其发生在截止点之前；无截止点的过程读取仍可把它作为明确标注的关联材料。prepare 阶段的原生坏记录逐条隔离并记录诊断，不中断其他记录和会话；Schema 编程错误或 L0 损坏仍使重算回滚，避免发布不一致投影。
+
 每次成功重算登记 `projection_run`，包含 parser/derivation 版本、完成时刻、事件数和 L1 revision 数。L1 已增加而 L2/L3 尚未重算时，读取入口拒绝把旧投影冒充当前数据。DDL 的 schema version 与 `schema_manifest.contract_id` 一起校验，防止两套 user_version=1 的不兼容库被误用。
 
 SQL 查询示例：
@@ -157,6 +161,8 @@ TypeScript connector 的 `archive_chunk / generation` 库通过 `import-connecto
 
 两边的归档目录与数据库必须分开。桥接只读 staging 数据库与其 raw 目录，不修改 connector 文件、不重新扫描上游、不接受越出 raw 目录的归档路径。生产可继续使用 TypeScript 增量读取和监听，同时让分析团队只消费 canonical 库。
 
+staging schema v1/v2 的 `archive_chunk / raw_record` 都已实际对接。v2 的原始归档重新解析后，canonical 可以保留独立线程、peer 消息、web.search 扩展、collaboration 工具以及 local_image；两边因事件拆分粒度不同，L2 行数不要求相同。L1 记录交叉索引、请求数、样本身份和正本覆盖才是联调核对项。
+
 ## 7. 验证范围和当前缺口
 
 | 来源 | 本次实现 | 已验证 | 仍需明确的边界 |
@@ -168,7 +174,9 @@ TypeScript connector 的 `archive_chunk / generation` 库通过 `import-connecto
 | Hermes | session/message 与累计行的只读 SQL 导出和版本化 | 实际创建的 SQLite 来源 + 行 A→B→A 样本 | 本机未安装；未验证真实运行版本，按 partial 接入。只有累计值，不生成 model_call |
 | OpenCode | V1 message/part、V2 session_message 基本内容与用量 | V1 SQL 构造样本 | 本机未安装；V2 工具结构与运行版本需更多黄金样本，按 partial 接入 |
 
-本轮使用的真实样本仅用于本机验证，没有提交正文或数据库；不是全量历史回填。Antigravity/protobuf、Copilot 元数据、配置 inventory 和 catalog 未在本包实现，入口明确为 unavailable，不以空数组假装已完整观察。
+本轮使用的真实样本仅用于本机验证，没有提交正文或数据库；不是全量历史回填。共同 Codex 样本为 6 个归档/空闲 rollout：1,203 条原生记录 → 1,491 条 canonical 事件，4 个 main、1 个 subagent、1 个 review，149 条逐次请求记录、默认分析视图 136 条，unparsed=0、unknown=0。未采集 guardian 的外部父线程时保留一项血缘诊断，review 本身不进入默认分析。重复桥接新增为 0，1,203 个 record crosswalk 可按原文 SHA 核对。另有 Claude/DSH/pi 本机样本与实际 SQLite 构造来源验证。
+
+Antigravity/protobuf、Copilot 元数据、配置 inventory 和 catalog 未在本包实现，入口明确为 unavailable，不以空数组假装已完整观察。L2 脱敏版本记录于 `schema_manifest`，当前 `1.0.1` 覆盖 token/client_secret/secret_access_key、camelCase、环境变量前缀与 JSON 字符串内嵌凭据；计量字段与 request_key 保留。L0 的明确原文读取不执行脱敏。
 
 结构验证包含 JSON Schema、真实外键、索引唯一性、L0 哈希、记录全记账、重复导入、SQL 行观测版本、fork 去重、Schema 升级失败时旧投影保留、UTC/null 质量、截断前篇幅、只读来源和桥接 record 对照。具体测试以包内测试和 CI 为准。
 

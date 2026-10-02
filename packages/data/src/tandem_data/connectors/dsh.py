@@ -7,41 +7,41 @@ class DshMapper(BaseMapper):
         self.chunk_targets = {}
         self.cut = 0
         self.parent = None
-        for record in records:
-            data = record.data
-            if data.get("type") == "session":
-                self.header = data
-                self.parent = data.get("parentSession")
-                self.cut = data.get("seedLength", data.get("inheritedEventCount", 0))
-                self.session_uid = self.store.identity(record.source_id, str(data["id"]))
-            if data.get("type") == "session/end-seed" and data.get("data", {}).get("inherited"):
-                self.cut = data.get("seq", 0)
-            if data.get("type") == "assistant/message":
-                payload = data.get("data", {})
-                key = [record.source_id, self.session_uid, data.get("seq", record.ordinal)]
-                paths = []
-                for i, block in enumerate(payload.get("message", {}).get("content", [])):
-                    if block.get("type") in ("text", "reasoning"):
-                        kind = "message.assistant" if block["type"] == "text" else "reasoning"
-                        paths.append(
-                            uid(
-                                "event",
-                                key,
-                                kind,
-                                f"message.content[{i}].{'text' if kind == 'message.assistant' else 'reasoning'}",
-                            )
-                        )
-                if payload.get("usage"):
-                    request_key = [
-                        record.source_id,
-                        self.session_uid,
-                        payload.get("message", {}).get("id", data.get("seq")),
-                    ]
+        self.prepare_each(records, self.prepare_record)
+
+    def prepare_record(self, record):
+        data = record.data
+        if data.get("type") == "session":
+            self.header = data
+            self.parent = data.get("parentSession")
+            self.cut = data.get("seedLength", data.get("inheritedEventCount", 0))
+            self.session_uid = self.store.identity(record.source_id, str(data["id"]))
+        if data.get("type") == "session/end-seed" and data.get("data", {}).get("inherited"):
+            self.cut = data.get("seq", 0)
+        if data.get("type") == "assistant/message":
+            payload = data.get("data", {})
+            key = [record.source_id, self.session_uid, data.get("seq", record.ordinal)]
+            paths = []
+            for i, block in enumerate(payload.get("message", {}).get("content", [])):
+                if block.get("type") in ("text", "reasoning"):
+                    kind = "message.assistant" if block["type"] == "text" else "reasoning"
                     paths.append(
-                        uid("event", ["request", request_key], "model.usage", "message.usage")
+                        uid(
+                            "event",
+                            key,
+                            kind,
+                            f"message.content[{i}].{'text' if kind == 'message.assistant' else 'reasoning'}",
+                        )
                     )
-                for seq in data.get("sourceEventSeqs", []):
-                    self.chunk_targets[seq] = paths
+            if payload.get("usage"):
+                request_key = [
+                    record.source_id,
+                    self.session_uid,
+                    payload.get("message", {}).get("id", data.get("seq")),
+                ]
+                paths.append(uid("event", ["request", request_key], "model.usage", "message.usage"))
+            for seq in data.get("sourceEventSeqs", []):
+                self.chunk_targets[seq] = paths
 
     def native_key(self, record):
         return [record.source_id, self.session_uid, record.data.get("seq", record.ordinal)]

@@ -1,5 +1,5 @@
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
-from tandem_data.contract import canonical
+from tandem_data.contract import canonical, uid
 
 
 class CodexMapper(BaseMapper):
@@ -7,23 +7,32 @@ class CodexMapper(BaseMapper):
         self.has_calls = False
         self.messages = {}
         self.usage_records = []
+        self.matched_messages = set()
         self.cut = None
         self.parent = None
-        for record in records:
-            data, payload = record.data, record.data.get("payload", {})
-            if data.get("type") == "session_meta" and not self.header:
-                self.header = payload
-                self.cut = payload.get("subagent_history_start_ordinal")
-                self.parent = payload.get("parent_thread_id", payload.get("forked_from_id"))
-            if data.get("type") == "token_usage_record":
-                self.has_calls = True
-                self.usage_records.append((record.ordinal, payload.get("response_id")))
-            if data.get("type") == "event_msg" and payload.get("type") == "item_completed":
-                item = payload.get("item", {})
-                if item.get("type") in ("UserMessage", "AgentMessage"):
-                    role = "user" if item["type"] == "UserMessage" else "assistant"
-                    signature = (role, payload.get("turn_id"), text_content(item.get("content")))
-                    self.messages.setdefault(signature, []).append(item.get("id"))
+        self.prepare_each(records, self.prepare_record)
+
+    def prepare_record(self, record):
+        data, payload = record.data, record.data.get("payload", {})
+        if data.get("type") == "session_meta" and not self.header:
+            self.header = payload
+            source = payload.get("source", {})
+            subagent = source.get("subagent", {}) if isinstance(source, dict) else {}
+            spawn = subagent.get("thread_spawn", {}) if isinstance(subagent, dict) else {}
+            self.cut = payload.get("subagent_history_start_ordinal") if spawn else None
+            self.parent = payload.get("parent_thread_id", payload.get("forked_from_id"))
+            self.parent = self.parent or spawn.get("parent_thread_id")
+            self.parent_candidates = {}
+            self.parent_cursor = -1
+        if data.get("type") == "token_usage_record":
+            self.has_calls = True
+            self.usage_records.append((record.ordinal, payload.get("response_id")))
+        if data.get("type") == "event_msg" and payload.get("type") == "item_completed":
+            item = payload.get("item", {})
+            if item.get("type") in ("UserMessage", "AgentMessage"):
+                role = "user" if item["type"] == "UserMessage" else "assistant"
+                signature = (role, payload.get("turn_id"), text_content(item.get("content")))
+                self.messages.setdefault(signature, []).append((record.ordinal, item.get("id")))
 
     def native_key(self, record):
         payload = record.data.get("payload", {})
@@ -31,6 +40,10 @@ class CodexMapper(BaseMapper):
         return (
             [record.source_id, self.session_uid, native] if native else super().native_key(record)
         )
+
+    @staticmethod
+    def record_signature(record):
+        return uid("native_payload", record.data.get("type"), record.data.get("payload"))
 
     def map(self, record):
         data, typ = record.data, record.data.get("type")
@@ -88,24 +101,51 @@ class CodexMapper(BaseMapper):
                 ]
             )
         if self.session_uid is None:
-            native = str(self.header.get("session_id", self.header.get("id", record.relative_path)))
+            native = str(self.header.get("id", self.header.get("session_id", record.relative_path)))
             self.session_uid = self.store.identity(record.source_id, native)
             self.model = self.header.get("model")
             self.provider = self.header.get("model_provider")
         # Copied prefix is excluded only with explicit native boundary evidence.
         ordinal = data.get("ordinal", record.ordinal)
         if self.cut is not None and ordinal > 0 and ordinal < self.cut:
-            key = payload.get("id")
+            if data.get("type") == "turn_context":
+                self.model = payload.get("model", self.model)
+                self.effort = payload.get("effort", self.effort)
+            elif data.get("type") == "world_state":
+                self.model = payload.get("state", {}).get("model", self.model)
             refs = []
-            if key and self.parent:
-                parent_uid = self.store.identity(record.source_id, self.parent)
+            candidates = self.parent_candidates.get(self.record_signature(record), [])
+            candidate = next((item for item in candidates if item[0] > self.parent_cursor), None)
+            if candidate:
+                self.parent_cursor = candidate[0]
                 refs = [
                     row[0]
                     for row in self.store.db.execute(
-                        "SELECT event_uid FROM event WHERE native_key=?",
-                        (canonical([record.source_id, parent_uid, key]),),
+                        "SELECT event_uid FROM record_event WHERE record_uid=?",
+                        (candidate[1],),
                     )
                 ]
+            if not refs and (
+                typ == "world_state"
+                or typ == "response_item"
+                and payload.get("role") in ("system", "developer")
+            ):
+                # A fork may update its injected environment before the inherited cut.
+                # Without an identical parent record it is retained as context, never as behavior.
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "context.inject",
+                            "inherited.modified_context",
+                            actor="harness",
+                            text=text_content(payload.get("content")),
+                            attrs={"origin": "injected", "inherited_prefix": True},
+                            ext=payload,
+                        )
+                    ],
+                    reason="modified inherited setup; no identical parent record",
+                )
             return Mapping(
                 disposition="replayed" if refs else "unparsed",
                 references=refs,
@@ -126,7 +166,7 @@ class CodexMapper(BaseMapper):
                 kind = "review"
             event = self.meta(
                 record,
-                str(payload.get("session_id", payload.get("id"))),
+                str(payload.get("id", payload.get("session_id"))),
                 kind=kind,
                 parent_native_id=parent,
                 cwd=payload.get("cwd"),
@@ -184,7 +224,26 @@ class CodexMapper(BaseMapper):
                 role = payload.get("role")
                 signature = (role, turn, text_content(payload.get("content")))
                 candidates = self.messages.get(signature, [])
-                key_id = candidates[0] if len(candidates) == 1 else payload.get("id")
+                matching = [
+                    (ordinal, native)
+                    for ordinal, native in candidates
+                    if native == payload.get("id")
+                ]
+                if not matching:
+                    matching = [
+                        (ordinal, native)
+                        for ordinal, native in candidates
+                        if abs(ordinal - record.ordinal) <= 2
+                        and native not in self.matched_messages
+                    ]
+                pair = (
+                    min(matching, key=lambda item: abs(item[0] - record.ordinal))
+                    if matching
+                    else None
+                )
+                key_id = pair[1] if pair else payload.get("id")
+                if pair:
+                    self.matched_messages.add(key_id)
                 key = (
                     [record.source_id, self.session_uid, key_id]
                     if key_id
@@ -193,7 +252,9 @@ class CodexMapper(BaseMapper):
                 origin = (
                     "human"
                     if role == "user"
-                    and (candidates or data.get("metadata", {}).get("user_input_order") is not None)
+                    and (pair or data.get("metadata", {}).get("user_input_order") is not None)
+                    else "unknown"
+                    if role == "assistant"
                     else "injected"
                 )
                 return Mapping(
@@ -249,6 +310,20 @@ class CodexMapper(BaseMapper):
                             actor="assistant",
                             text=text_content(payload.get("summary")),
                             ext={key: value for key, value in payload.items() if key != "summary"},
+                        )
+                    ]
+                )
+            if item_type == "agent_message":
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "message.user",
+                            "peer.message",
+                            actor="subagent",
+                            text=text_content(payload.get("content")) or None,
+                            attrs={"origin": "peer", "input_format": None},
+                            ext=payload,
                         )
                     ]
                 )
@@ -377,7 +452,18 @@ class CodexMapper(BaseMapper):
                             )
                         ]
                     )
-                if itype in ("CommandExecution", "McpToolCall", "FileChange", "WebSearch"):
+                if (
+                    itype
+                    in (
+                        "CommandExecution",
+                        "McpToolCall",
+                        "FileChange",
+                        "WebSearch",
+                        "CollabAgentToolCall",
+                    )
+                    or itype == "Extension"
+                    and item.get("kind") == "web.search"
+                ):
                     call_id = str(native or record.record_uid)
                     key = [record.source_id, self.session_uid, "tool", call_id]
                     name = {
@@ -385,11 +471,15 @@ class CodexMapper(BaseMapper):
                         "McpToolCall": f"mcp__{item.get('server')}__{item.get('tool')}",
                         "FileChange": "apply_patch",
                         "WebSearch": "web.search",
+                        "CollabAgentToolCall": item.get("tool", "subagent"),
+                        "Extension": "web.search",
                     }[itype]
                     args = item.get(
                         "arguments",
                         {"command": " ".join(item.get("command", []))}
                         if itype == "CommandExecution"
+                        else {"action": item.get("action"), "query": item.get("query")}
+                        if itype in ("WebSearch", "Extension")
                         else item.get("changes"),
                     )
                     call = self.make(
@@ -402,6 +492,7 @@ class CodexMapper(BaseMapper):
                         attrs={
                             "name": name,
                             "input": args,
+                            "category": "subagent" if itype == "CollabAgentToolCall" else None,
                             "duration_ms": item.get("duration_ms"),
                             "native_turn_id": self.native_turn,
                         },
@@ -425,6 +516,9 @@ class CodexMapper(BaseMapper):
                         ),
                         attrs={
                             "status": item.get("status", "unknown").lower(),
+                            "status_scope": "direct_command"
+                            if itype == "CommandExecution"
+                            else "tool_protocol",
                             "exit_code": item.get("exit_code"),
                             "duration_ms": item.get("duration_ms"),
                             "native_turn_id": self.native_turn,
@@ -462,6 +556,18 @@ class CodexMapper(BaseMapper):
                         record,
                         "context.inject" if typ == "world_state" else "context.compaction",
                         typ,
+                        ext=payload,
+                    )
+                ]
+            )
+        if typ == "inter_agent_communication_metadata":
+            return Mapping(
+                [
+                    self.make(
+                        record,
+                        "context.inject",
+                        "peer.metadata",
+                        attrs={"origin": "peer"},
                         ext=payload,
                     )
                 ]

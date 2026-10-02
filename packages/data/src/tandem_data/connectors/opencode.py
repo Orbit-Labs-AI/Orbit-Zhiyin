@@ -6,12 +6,14 @@ class OpenCodeMapper(BaseMapper):
     def prepare(self, records):
         self.messages = {}
         self.v2_sessions = set()
-        for record in records:
-            table, row = record.data.get("table"), record.data.get("row", {})
-            if table == "message":
-                self.messages[row["id"]] = {**decode_json(row.get("data"), {}), **row}
-            elif table == "session_message":
-                self.v2_sessions.add(row["session_id"])
+        self.prepare_each(records, self.prepare_record)
+
+    def prepare_record(self, record):
+        table, row = record.data.get("table"), record.data.get("row", {})
+        if table == "message":
+            self.messages[row["id"]] = {**decode_json(row.get("data"), {}), **row}
+        elif table == "session_message":
+            self.v2_sessions.add(row["session_id"])
 
     def make(self, record, *args, **kwargs):
         row = record.data.get("row", {})
@@ -164,11 +166,19 @@ class OpenCodeMapper(BaseMapper):
             if typ in ("user", "assistant", "synthetic", "system"):
                 payload = {
                     **message,
+                    "model": self.model,
                     "role": typ if typ in ("user", "assistant") else "system",
                     "content": message.get("content", message.get("text", "")),
                 }
                 events = self.message(
-                    record, payload, origin="human" if typ == "user" else "injected", key=key
+                    record,
+                    payload,
+                    origin="human"
+                    if typ == "user"
+                    else "unknown"
+                    if typ == "assistant"
+                    else "injected",
+                    key=key,
                 )
                 for event in events:
                     event.ts, event.attrs["time"] = time_fields(

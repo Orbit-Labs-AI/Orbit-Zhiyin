@@ -24,13 +24,17 @@ SQL_TABLES = {
 }
 
 
-def readonly_connection(path: str | Path) -> sqlite3.Connection:
+@contextmanager
+def readonly_connection(path: str | Path):
     connection = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA query_only = ON")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 5000")
-    return connection
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def insert(connection, table: str, values: dict) -> None:

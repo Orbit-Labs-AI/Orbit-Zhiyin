@@ -143,6 +143,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                     and event["ts"] < scope.until_ts
                     or event["ts"] is None
                     and event["seq"] <= last_seq.get(event["session_uid"], -1)
+                    and event["kind"]
+                    not in ("tool.result", "turn.end", "permission.decision", "subagent.result")
                 )
             )
         ]
@@ -159,8 +161,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             if (
                 result
                 and scope.until_ts is not None
-                and result["ts"] is not None
-                and result["ts"] >= scope.until_ts
+                and (result["ts"] is None or result["ts"] >= scope.until_ts)
             ):
                 tool.update(
                     result_event_uid=None,
@@ -186,7 +187,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                 result = next(
                     (e for e in events if e["event_uid"] == tool["result_event_uid"]), None
                 )
-                if result and result["ts"] is None:
+                if result and result["ts"] is None and scope.until_ts is None:
                     selected.append(result)
                     selected_ids.add(result["event_uid"])
         sessions = {event["session_uid"] for event in selected}

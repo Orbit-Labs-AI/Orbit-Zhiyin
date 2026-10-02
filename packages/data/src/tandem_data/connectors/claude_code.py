@@ -46,7 +46,7 @@ class ClaudeMapper(BaseMapper):
             origin = {"task-notification": "notification"}.get(origin, origin)
             if origin not in ("human", "queued", "notification", "peer", "automation", "injected"):
                 origin = "unknown"
-            if data.get("isMeta"):
+            if data.get("isMeta") or data.get("isCompactSummary"):
                 origin = "injected"
             attrs = {
                 "cwd": data.get("cwd"),
@@ -59,6 +59,10 @@ class ClaudeMapper(BaseMapper):
                 },
             }
             contents = self.message(record, {"role": typ, **message}, origin=origin, **attrs)
+            if data.get("isCompactSummary"):
+                for event in contents:
+                    if event.kind == "context.inject":
+                        event.kind = "context.compaction"
             for event in contents:
                 if data.get("parentUuid"):
                     event.parent_native_key = [record.source_id, data["parentUuid"]]
