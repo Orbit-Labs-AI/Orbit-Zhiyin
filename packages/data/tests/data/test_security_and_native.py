@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from tandem_data.analysis_input import AnalysisScope, read_analysis
 from tandem_data.contract import canonical
 from tandem_data.privacy import REDACTION_VERSION, sanitize
@@ -118,3 +120,61 @@ def test_persisted_credentials_exist_only_in_explicit_raw_read(tmp_path):
         event = store.db.execute("SELECT * FROM event WHERE kind='message.user'").fetchone()
         assert secret not in event["text"] + event["attrs"] + event["ext"]
         assert secret.encode() in store.read_raw(event["record_uid"])
+
+
+@pytest.mark.parametrize("end_time", [5000, None])
+def test_bounded_session_and_turn_lifecycle_hide_unplaced_end(tmp_path, end_time):
+    rows = [
+        {"type": "session", "id": "s", "version": 4},
+        {"type": "turn/start", "seq": 0, "time": 1000, "data": {"turn": 1}},
+        {
+            "type": "user/message",
+            "seq": 1,
+            "time": 1100,
+            "data": {
+                "role": "user",
+                "content": [{"type": "text", "text": "task"}],
+                "source": {"kind": "user"},
+            },
+        },
+        {
+            "type": "turn/end",
+            "seq": 2,
+            "time": end_time,
+            "data": {"turn": 1, "reason": {"kind": "completed"}},
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(
+            source, "session.jsonl", [(canonical(row) + "\n").encode() for row in rows]
+        )
+        store.rebuild()
+        assert store.db.execute("SELECT status FROM session").fetchone()[0] == "completed"
+        data = read_analysis(store.home, AnalysisScope("Asia/Shanghai", until_ts=2000))
+        assert (
+            data["sessions"][0]["status"] == "unknown" and data["sessions"][0]["ended_at"] is None
+        )
+        assert data["turns"][0]["status"] == "unknown" and data["turns"][0]["ended_at"] is None
+        assert not any(e["kind"] == "turn.end" for e in data["events"])
+
+
+def test_new_unfinished_turn_does_not_inherit_previous_completed_status(tmp_path):
+    rows = [
+        {"type": "session", "id": "s", "version": 4},
+        {"type": "turn/start", "seq": 0, "time": 1000, "data": {"turn": 1}},
+        {
+            "type": "turn/end",
+            "seq": 1,
+            "time": 1100,
+            "data": {"turn": 1, "reason": {"kind": "completed"}},
+        },
+        {"type": "turn/start", "seq": 2, "time": 1200, "data": {"turn": 2}},
+    ]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(
+            source, "session.jsonl", [(canonical(row) + "\n").encode() for row in rows]
+        )
+        store.rebuild()
+        assert store.db.execute("SELECT status FROM session").fetchone()[0] == "unknown"

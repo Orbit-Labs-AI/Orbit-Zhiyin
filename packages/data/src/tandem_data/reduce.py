@@ -536,9 +536,13 @@ def _derive_session(store, session_uid, meta, events):
             "turn.end",
         )
     ]
-    final_status = next(
-        (e["attrs"].get("status", "unknown") for e in reversed(events) if e["kind"] == "turn.end"),
-        "unknown",
+    final_boundary = next(
+        (e for e in reversed(events) if e["kind"] in ("turn.start", "turn.end")), None
+    )
+    final_status = (
+        final_boundary["attrs"].get("status", "unknown")
+        if final_boundary and final_boundary["kind"] == "turn.end"
+        else "unknown"
     )
     store.db.execute(
         "UPDATE session SET started_at=?,ended_at=?,status=? WHERE session_uid=?",

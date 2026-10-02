@@ -197,6 +197,26 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             for row in connection.execute("SELECT * FROM session")
             if row["session_uid"] in sessions | roots
         ]
+        if scope.until_ts is not None:
+            for session in session_rows:
+                ends = [
+                    event
+                    for event in events
+                    if event["session_uid"] == session["session_uid"]
+                    and event["kind"] == "turn.end"
+                ]
+                final_end = ends[-1] if ends else None
+                uncertain_end = final_end is not None and (
+                    final_end["ts"] is None or final_end["ts"] >= scope.until_ts
+                )
+                if (
+                    session["ended_at"] is None
+                    or session["ended_at"] >= scope.until_ts
+                    or uncertain_end
+                ):
+                    session["ended_at"], session["status"] = None, "unknown"
+                if session["started_at"] is not None and session["started_at"] >= scope.until_ts:
+                    session["started_at"] = None
         project_ids = {event["project_id"] for event in selected}
         project_rows = [
             decoded(row)
@@ -215,10 +235,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                     available[0]["event_uid"],
                     available[-1]["event_uid"],
                 )
-            if (
-                scope.until_ts is not None
-                and turn["ended_at"] is not None
-                and turn["ended_at"] >= scope.until_ts
+            if scope.until_ts is not None and (
+                turn["ended_at"] is None or turn["ended_at"] >= scope.until_ts
             ):
                 turn["ended_at"], turn["status"] = None, "unknown"
         snapshots = [
