@@ -1,0 +1,13 @@
+{
+  "sample_spec": {"_note": "SYNTHETIC fixture: values are invented for tests and are not real prices"},
+  "claude-3-5-sonnet-20241022": {
+    "litellm_provider": "anthropic", "mode": "chat", "max_tokens": 4000, "max_input_tokens": 100000,
+    "max_output_tokens": 4000, "input_cost_per_token": 1.5e-06, "output_cost_per_token": 7.5e-06,
+    "cache_read_input_token_cost": 1.5e-07, "supports_function_calling": true, "supports_reasoning": false
+  },
+  "bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0": {
+    "litellm_provider": "bedrock", "mode": "chat", "max_tokens": 4000, "input_cost_per_token": 1.5e-06
+  },
+  "azure/gpt-5": {"litellm_provider": "azure", "mode": "chat", "max_input_tokens": 200000},
+  "fireworks_ai/mystery-model": {"litellm_provider": "fireworks_ai", "mode": "chat"}
+}
