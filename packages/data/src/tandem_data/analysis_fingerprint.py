@@ -44,7 +44,10 @@ SELECT s.root_uid AS root_uid,
        min(ev.lo) AS min_ts, max(ev.hi) AS max_ts, total(ev.untimed) AS untimed_events,
        total(tc.n) AS tool_calls, total(tc.r) AS tool_span,
        total(mc.n) AS model_calls, total(mc.r) AS model_span,
-       group_concat({members}, char(30)) AS members
+       group_concat({members}, char(30)) AS members,
+       group_concat(s.session_uid, char(30)) AS session_uids,
+       group_concat(coalesce(s.project_id, char(31)), char(30)) AS project_ids,
+       group_concat(s.source_id, char(30)) AS source_ids
 FROM session s
 LEFT JOIN ev USING(session_uid)
 LEFT JOIN tc USING(session_uid)
@@ -108,10 +111,8 @@ class Fingerprints:
 
 
 def _tree(row, mapper: tuple) -> TreeFingerprint:
-    members = sorted(
-        (json.loads(text) for text in row["members"].split("\x1e")),
-        key=lambda member: member["session_uid"],
-    )
+    # Hash the member JSON texts as SQLite rendered them (deterministic column order);
+    # decoding them per request would dominate the fingerprint cost.
     counts = (
         row["sessions"],
         mapper,
@@ -126,13 +127,19 @@ def _tree(row, mapper: tuple) -> TreeFingerprint:
         int(row["model_calls"]),
         int(row["model_span"]),
     )
-    projects = {member.get("project_id") for member in members}
+    text = (
+        repr((FINGERPRINT_VERSION, counts))
+        + "\x1d"
+        + "\x1e".join(sorted(row["members"].split("\x1e")))
+    )
+    fp = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    projects = {None if p == "\x1f" else p for p in row["project_ids"].split("\x1e")}
     return TreeFingerprint(
         root_uid=row["root_uid"],
-        fp=digest(FINGERPRINT_VERSION, counts, members),
-        session_uids=tuple(member["session_uid"] for member in members),
+        fp=fp,
+        session_uids=tuple(sorted(row["session_uids"].split("\x1e"))),
         project_ids=tuple(sorted(projects, key=lambda v: (v is None, v or ""))),
-        source_ids=tuple(sorted({member.get("source_id") for member in members})),
+        source_ids=tuple(sorted(set(row["source_ids"].split("\x1e")))),
         min_ts=row["min_ts"],
         max_ts=row["max_ts"],
         untimed_events=int(row["untimed_events"]),
