@@ -145,3 +145,35 @@ def test_confirmed_purge_clears_data_and_store_reinitialises(tmp_path):
         assert store.verify()["unparsed"] == 0
         assert store.db.execute("PRAGMA foreign_key_check").fetchall() == []
     assert storage_usage(home)["layers"]["raw"] == 0
+
+
+def test_cli_data_service_commands(tmp_path, capsys):
+    import json
+
+    from tandem_data.cli import main
+
+    home = build(tmp_path)
+
+    def run(*args):
+        main(["--home", str(home), *args])
+        return json.loads(capsys.readouterr().out)
+
+    found = run("search", "git status")
+    assert found["total"] >= 6
+    session = found["hits"][0]["session_uid"]
+    assert run("resume", "--session", session)["session_uid"] == session
+    assert run("capabilities")["sources"]
+    assert run("storage")["layers"]["l2"] > 0
+    assert run("privacy-rules")["count"] == 9
+    preview = run("privacy-preview", "--text", "Bearer abcdefghijklmnop")
+    assert "<redacted:token>" in preview["redacted"]
+    usage = tmp_path / "usage-data" / "session-meta"
+    usage.mkdir(parents=True)
+    (usage / "demo.json").write_text('{"session_id": "demo", "tool_counts": {"Bash": 1}}')
+    report = run("insights", "--path", str(usage.parent), "--match")
+    assert report["matches"][0]["tandem"]["tool_calls"] == 1
+    with pytest.raises(PurgeRefused):
+        main(["--home", str(home), "purge", "--confirm", "no"])
+    assert (home / "tandem.db").exists()
+    assert run("purge", "--confirm", PURGE_CONFIRMATION)["deleted_files"] > 0
+    assert not (home / "tandem.db").exists()
