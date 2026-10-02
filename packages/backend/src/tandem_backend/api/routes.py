@@ -336,6 +336,23 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     def feature_tasks(scope=scope_dependency):
         return analytics_section("tasks", scope)
 
+    @app.get("/v1/analytics/work-graph")
+    def feature_work_graph(scope=scope_dependency):
+        return analytics_section("work_graph", scope)
+
+    @app.get("/v1/analytics/tasks/{task_uid}/trajectory")
+    def feature_task_trajectory(task_uid: str, scope=scope_dependency):
+        result = analytics_section("work_graph", scope)
+        graph = result.pop("work_graph")
+        trajectory = next((t for t in graph["task_trajectories"] if t["task_uid"] == task_uid), None)
+        if trajectory is None:
+            raise HTTPException(404, "任务不在本次分析范围内")
+        node_ids = {trajectory["task_node_uid"], *(uid for values in trajectory["members"].values() for uid in values)}
+        edges = [edge for edge in graph["edges"] if edge["from_node_uid"] in node_ids]
+        node_ids.update(edge["to_node_uid"] for edge in edges)
+        return {**result, "trajectory": trajectory,
+                "nodes": [node for node in graph["nodes"] if node["node_uid"] in node_ids], "edges": edges}
+
     @app.get("/v1/analytics/preferences")
     def feature_preferences(scope=scope_dependency, task_id: str | None = None):
         from ..analytics.preference import resolve_effective_preferences

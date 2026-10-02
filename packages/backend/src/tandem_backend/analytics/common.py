@@ -106,6 +106,22 @@ def task_uid(event):
     return event.get("task_uid") or attrs.get("task_uid") or attrs.get("task_id")
 
 
+def canonical_task_reference(event):
+    """A supplied canonical UID is an explicit reference; projected candidates are not."""
+    attrs = event.get("attrs", {})
+    uid = event.get("task_uid") or attrs.get("task_uid")
+    quality = event.get("task_identity_quality", attrs.get("task_identity_quality"))
+    source = event.get("task_relation_source", attrs.get("task_relation_source"))
+    return uid if (isinstance(uid, str) and uid and source in (None, "canonical_task_uid")
+                   and quality in (None, "explicit", "native", "human_confirmed", "explicit_boundary")) else None
+
+
+def reported_task_identity(row):
+    """Provided canonical identities remain compatible; projected candidates abstain."""
+    return row.get("task_identity_quality", "explicit") in (
+        "native", "human_confirmed", "explicit_boundary", "explicit")
+
+
 def annotation_visible(annotation, until_ts=None):
     """Later annotations cannot rewrite an earlier snapshot; unclocked ones abstain."""
     return until_ts is None or (timestamp(annotation.get("available_at"))

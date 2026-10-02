@@ -34,7 +34,7 @@ def _analysis(events, scope=None):
 def test_actual_feature_ids_are_joined_and_single_pole_axes_abstain():
     analysis = _analysis([_event("直接执行。先给方案。请运行测试。")])
     native_id = analysis["instruction"]["records"][0]["task_id"]
-    assert native_id != analysis["tasks"]["records"][0]["task_id"]
+    assert native_id == analysis["tasks"]["records"][0]["task_id"]  # shared canonical identity
     profile = build_profile(analysis)
     assert profile["coverage"]["unmapped_instruction_n"] == 0
     assert profile["axes"]["delegation"]["score"] == 1

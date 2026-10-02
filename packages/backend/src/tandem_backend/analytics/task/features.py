@@ -4,7 +4,14 @@ import re
 from collections import Counter, defaultdict
 
 from ...models import stable_id
-from ..common import chronological_messages, clauses, evidence, semantic_coverage, semantic_messages
+from ..common import (
+    canonical_task_reference,
+    chronological_messages,
+    clauses,
+    evidence,
+    semantic_coverage,
+    semantic_messages,
+)
 from .taxonomy import DOMAIN_DETAILS, DOMAIN_LABELS, TASK_TYPES, TAXONOMY_VERSION, domain_matches
 
 NEW_TASK = re.compile(r"^(?:好的[，, ]*)?(?:新任务|另一个任务|另外一个任务|换个任务|换一个任务|next task\b|new task\b)", re.I)
@@ -98,10 +105,15 @@ def segment_tasks(events, sessions):
             assignments[event["event_uid"]] = previous
             active.pop(sid)
             continue
-        native = attrs.get("task_id") if attrs.get("task_id_source") in ("native", "human_confirmed") else None
+        native = (attrs.get("native_task_id") if attrs.get("native_task_id_source") in ("native", "human_confirmed")
+                  else attrs.get("task_id") if attrs.get("task_id_source") in ("native", "human_confirmed") else None)
+        if not isinstance(native, str) or not native:
+            native = None
         # Similar paths or heuristic legacy task IDs never establish cross-session identity.
         session = session_map[sid]
-        explicit_id = stable_id("task", session.get("source_id"), session.get("project_id"), native) if native else None
+        project_key = session.get("project_id") or ("legacy_project", session.get("legacy_project_id") or sid)
+        canonical = canonical_task_reference(event)
+        explicit_id = canonical or (stable_id("task", session.get("source_id"), project_key, native) if native else None)
         is_new = previous is None or bool(NEW_TASK.search(text)) or (explicit_id is not None and explicit_id != previous)
         features = extract_task_features([event])
         if previous and not is_new and not REVISION.search(text):
@@ -116,7 +128,7 @@ def segment_tasks(events, sessions):
             if previous:
                 groups[previous]["task_boundaries"][-1].update(
                     end=evidence(event, text), end_inclusive=False, end_reason="next_task_boundary")
-            record = groups.setdefault(key, {"task_id": key, "native_task_id": native,
+            record = groups.setdefault(key, {"task_id": key, "native_task_id": native, "canonical_task_uid": canonical,
                 "related_session_ids": [], "session_relations": [], "task_boundaries": [],
                 "project_id": session.get("project_id"), "legacy_project_id": session.get("legacy_project_id"),
                 "initial_types": features["task_type"] or []})
@@ -126,7 +138,7 @@ def segment_tasks(events, sessions):
                                                      "evidence": evidence(event, text)})
             record["task_boundaries"].append({"session_uid": sid, "start": evidence(event, text),
                 "end": None, "end_inclusive": None, "end_reason": "not_observed",
-                "status": "explicit" if native or NEW_TASK.search(text) else "candidate"})
+                "status": "explicit" if native or canonical or NEW_TASK.search(text) else "candidate"})
             active[sid] = key
         key = active[sid]
         assignments[event["event_uid"]] = key

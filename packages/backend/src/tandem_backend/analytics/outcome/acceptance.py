@@ -2,7 +2,7 @@
 
 from collections import Counter, defaultdict
 
-from ..common import annotation_visible, human, task_uid, timestamp
+from ..common import annotation_visible, human, reported_task_identity, task_uid, timestamp
 from .rules import VALIDATION_KINDS, _scope_equal
 
 
@@ -24,6 +24,7 @@ def collect_acceptance_criteria(events, main_ids, until_ts=None):
             continue
         key = (e["session_uid"], task_uid(e), block["criteria_set_uid"])
         groups[key] = [{**c, "session_uid": e["session_uid"], "task_uid": task_uid(e),
+                        "task_identity_quality": e.get("task_identity_quality", "explicit"),
                         "criteria_set_uid": block["criteria_set_uid"], "scope": c.get("scope", block.get("scope")),
                         "set_complete": block.get("complete") is True, "source": block["source"],
                         "available_at": block.get("available_at"), "evidence_event_uid": e["event_uid"]} for c in criteria]
@@ -36,7 +37,8 @@ def match_acceptance_criteria(criteria, validations):
         candidates = [v for v in validations or [] if c["criterion_uid"] in v["criterion_uids"]
                       and v.get("task_uid") == c["task_uid"] and v["kind"] == c["kind"]
                       and (v.get("root_session_uid") or v["session_uid"]) == c["session_uid"]]
-        matched = [v for v in candidates if _scope_equal(c.get("scope"), v.get("validation_scope"))]
+        matched = [v for v in candidates if reported_task_identity(c) and reported_task_identity(v)
+                   and _scope_equal(c.get("scope"), v.get("validation_scope"))]
         # Result order, not invocation order, determines freshness. Without a
         # comparable clock/sequence, contradictory outcomes remain unknown.
         latest, reason = matched, "no_matching_validation"
@@ -53,7 +55,9 @@ def match_acceptance_criteria(criteria, validations):
             reason = None if state in ("passed", "failed") else "conflicting_incomplete_or_interrupted_evidence"
         else:
             state = "unknown"
-            if candidates:
+            if not reported_task_identity(c) or any(not reported_task_identity(v) for v in candidates):
+                reason = "task_identity_unconfirmed"
+            elif candidates:
                 reason = "scope_or_artifact_revision_mismatch"
         results.append({**c, "acceptance_result": state,
                         "validation_uids": [v["validation_uid"] for v in latest],

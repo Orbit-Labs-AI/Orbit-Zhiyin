@@ -265,9 +265,9 @@ def test_correction_negation_and_quotes(text):
 
 
 def test_subjective_outcome_needs_delivery_same_task_and_feedback():
-    b = bundle([event("a", 0, "message.assistant", text="完成", phase="final", task_id="task")])
+    b = bundle([event("a", 0, "message.assistant", text="完成", phase="final", task_id="task", task_id_source="native")])
     assert analyze_bundle(b, with_text=False)["sessions"][0]["subjective_outcome_candidates"] == []
-    b.events.append(event("u", 1, text="可以了", task_id="task"))
+    b.events.append(event("u", 1, text="可以了", task_id="task", task_id_source="native"))
     assert analyze_bundle(b, with_text=False)["sessions"][0]["subjective_outcome_candidates"][0]["signal"] == "positive"
 
 

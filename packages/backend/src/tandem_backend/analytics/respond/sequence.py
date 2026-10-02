@@ -2,7 +2,7 @@
 
 from collections import Counter, defaultdict
 
-from ..common import human, ratio
+from ..common import human, ratio, reported_task_identity
 from .calls import native_sequence, ordered_call_group, sequence_sort_key
 from .rules import STATES, result_status
 
@@ -113,6 +113,7 @@ def analyze_execution_sequence(calls):
             p = prior.get(explicit) if explicit else previous
             if p and result_status(p) == "failed" and (c.get("name_raw"), c.get("kind")) == (p.get("name_raw"), p.get("kind")):
                 task_same = bool(c.get("task_uid") and c.get("task_uid") == p.get("task_uid"))
+                task_confirmed = task_same and all(reported_task_identity(row) for row in (c, p))
                 task_conflict = c.get("task_uid") and p.get("task_uid") and not task_same
                 scope_same = bool(c.get("status_scope") not in (None, "unknown")
                                   and c.get("status_scope") == p.get("status_scope"))
@@ -121,13 +122,13 @@ def analyze_execution_sequence(calls):
                                     and c.get("argument_digest_kind") == p.get("argument_digest_kind"))
                 same_args = c.get("argument_digest") == p.get("argument_digest") if digest_known else None
                 if not task_conflict and (explicit or same_args is not False):
-                    confirmed = task_same and scope_same and (bool(explicit) or same_args is True)
+                    confirmed = task_confirmed and scope_same and (bool(explicit) or same_args is True)
                     retries.append({"session_uid": c["session_uid"], "from_call_uid": p["call_uid"],
                                     "to_call_uid": c["call_uid"], "state": "confirmed" if confirmed else "candidate",
                                     "basis": "explicit_link" if explicit else "failed_same_tool_repeat",
                                     "same_arguments": same_args, "status_scope": c.get("status_scope"),
                                     "task_uid": c.get("task_uid"),
-                                    "missing": ([] if task_same else ["task_identity"])
+                                    "missing": ([] if task_confirmed else ["task_identity_unconfirmed" if task_same else "task_identity"])
                                         + ([] if scope_same else ["status_scope"])
                                         + ([] if explicit or digest_known else ["argument_digest_identity"])})
             prior[c["call_uid"]], previous = c, c

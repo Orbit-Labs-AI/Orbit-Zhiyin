@@ -52,9 +52,14 @@ def extract_validation_runs(calls, until_ts=None):
             reason = "result_not_visible_at_cutoff"
         elif c.get("is_wrapper") or c.get("status_scope") not in COMMAND_SCOPES:
             reason = "outer_or_unknown_status_scope"
+        # A later annotation can identify the check/scope only when it exists.
+        # The result timestamp alone must not backdate that relationship.
+        if declared:
+            available = max(available, meta["available_at"]) if timestamp(available) and timestamp(meta.get("available_at")) else None
         runs.append({"validation_uid": stable_id(c["session_uid"], c["call_uid"], "validation"),
                      "session_uid": c["session_uid"], "call_uid": c["call_uid"],
                      "task_uid": c.get("task_uid"), "root_session_uid": c.get("root_session_uid"), "kind": kind,
+                     "task_identity_quality": c.get("task_identity_quality", "explicit"),
                      "check_name": meta.get("check_name") if declared else
                          " ".join(str(v) for v in (spec.get("executable"), spec.get("subcommand")) if v)
                          or c.get("command_head"),

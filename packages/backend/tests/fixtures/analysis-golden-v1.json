@@ -3572,6 +3572,10 @@
          "status": null,
          "status_scope": null,
          "subagent_session_uid": null,
+         "task_evidence_uids": [],
+         "task_identity_quality": null,
+         "task_relation_source": null,
+         "task_uid": null,
          "tool_result_status": null,
          "turn_uid": null
         }
@@ -4175,7 +4179,7 @@
      }
     }
    ],
-   "sha256": "3accbfa01c48ca9af4863390232be3db86a25f61d8aa8d3f1e4cf8c62aaa0dcd"
+   "sha256": "d8b449974dd3afea66379efc3a04f4e729780b120d69c19d459fe7e43c12c725"
   },
   "sessions.bottleneck_features": {
    "keys": [
@@ -5917,6 +5921,10 @@
          "status": null,
          "status_scope": null,
          "subagent_session_uid": null,
+         "task_evidence_uids": [],
+         "task_identity_quality": null,
+         "task_relation_source": null,
+         "task_uid": null,
          "tool_result_status": null,
          "turn_uid": null
         }
@@ -6294,7 +6302,7 @@
      "session_uid": null
     }
    ],
-   "sha256": "cdf2594d6c0b1760ffeaf92e36762e2191366abc98e92fb97f436d1a52f4ba4f"
+   "sha256": "b7478c0fa8de1c831da846d13c0e56f852130eadf996329c8e00c2e3eb6b4bad"
   },
   "sessions.features": {
    "keys": [
@@ -6549,6 +6557,146 @@
     "unknown_n": null
    },
    "sha256": "e1c57ff6fa759f0f1b4d38c4bc2d1abe9cb9ab0af0c727fb03f172cc9cd3394e"
+  },
+  "work_graph": {
+   "keys": {
+    "confidence_semantics": null,
+    "edges": [
+     {
+      "available_at": null,
+      "confidence": {
+       "calibrated_probability": null,
+       "tier": null
+      },
+      "coverage": {
+       "missing_reasons": [],
+       "status": null
+      },
+      "edge_uid": null,
+      "evidence_uids": [],
+      "from_node_uid": null,
+      "kind": null,
+      "missing_reasons": [],
+      "source": null,
+      "state": null,
+      "to_node_uid": null
+     }
+    ],
+    "nodes": [
+     {
+      "attributes": {
+       "boundary_quality": null,
+       "child_session_uid": null,
+       "completed_at": null,
+       "condition": null,
+       "dimension": null,
+       "domain": [],
+       "exit_code": null,
+       "feature": null,
+       "kind": null,
+       "link_reason": null,
+       "link_status": null,
+       "model_id": null,
+       "name_raw": null,
+       "native_artifact_id": null,
+       "parent_session_uid": null,
+       "path": null,
+       "polarity": null,
+       "project_id": null,
+       "related_session_ids": [],
+       "request_id": null,
+       "request_identity_quality": null,
+       "result": null,
+       "rework_feedback": [],
+       "scope": {
+        "identity_quality": null,
+        "kind": null,
+        "target_id": null
+       },
+       "started_at": null,
+       "status": null,
+       "status_scope": null,
+       "targets": null,
+       "task_identity_quality": null,
+       "task_type": [],
+       "user_acceptance": null,
+       "user_confirmed_completion": null,
+       "value": null
+      },
+      "available_at": null,
+      "confidence": {
+       "calibrated_probability": null,
+       "tier": null
+      },
+      "coverage": {
+       "missing_reasons": [],
+       "status": null
+      },
+      "entity_uid": null,
+      "evidence_uids": [],
+      "kind": null,
+      "node_uid": null,
+      "session_uid": null,
+      "source": null,
+      "task_uid": null
+     }
+    ],
+    "schema_version": null,
+    "status": null,
+    "summary": {
+     "ambiguous_child_tasks": [],
+     "assignment_semantics": null,
+     "child_task_unknown_n": null,
+     "edges_by_kind": {
+      "BELONGS_TO_TASK": null,
+      "RETRIES": null,
+      "SPAWNS": null
+     },
+     "edges_by_state": {
+      "candidate": null,
+      "confirmed": null
+     },
+     "invalid_instruction_replacements": [],
+     "nodes_by_kind": {
+      "Artifact": null,
+      "Feedback": null,
+      "Instruction": null,
+      "ModelCall": null,
+      "PreferenceObservation": null,
+      "SubagentRun": null,
+      "Task": null,
+      "ToolCall": null,
+      "Turn": null
+     },
+     "unassigned_calls": null,
+     "unassigned_events": null,
+     "unassigned_model_calls": null
+    },
+    "task_trajectories": [
+     {
+      "acceptance_sets": [],
+      "counts": {
+       "candidate_retries": null,
+       "tool_failed": null,
+       "tool_success": null
+      },
+      "members": {
+       "Feedback": [],
+       "Instruction": [],
+       "ModelCall": [],
+       "PreferenceObservation": [],
+       "SubagentRun": [],
+       "ToolCall": [],
+       "Turn": []
+      },
+      "missing_reasons": [],
+      "task_node_uid": null,
+      "task_success": null,
+      "task_uid": null
+     }
+    ]
+   },
+   "sha256": "0b9f72689e6683270a5a7cee004a5049fcb88d06bb0251d3aa4879de43847b6d"
   },
   "workflow": {
    "keys": {
