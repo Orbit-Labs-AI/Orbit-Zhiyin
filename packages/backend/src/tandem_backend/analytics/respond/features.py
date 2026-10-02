@@ -3,7 +3,7 @@
 import math
 from collections import Counter, defaultdict
 
-from ...analysis import union_duration
+from ...profiling.analysis import union_duration
 from ..common import quantile, ratio, timestamp
 from .rules import result_status
 

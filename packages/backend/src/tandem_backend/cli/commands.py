@@ -7,13 +7,16 @@ from pathlib import Path
 
 from tandem_data.paths import default_home
 
-from .analysis import analyze
-from .analysis_reports import bottlenecks_markdown, cli_summary, process_markdown, profile_markdown
-from .catalog import resources
-from .evaluation import benchmark
-from .narrative import explain, markdown
-from .recommend import recommend
-from .store import Store, import_codex
+from ..application.reports import build_report
+from ..evaluation.readability import benchmark
+from ..reporting.analysis_reports import (
+    bottlenecks_markdown,
+    cli_summary,
+    process_markdown,
+    profile_markdown,
+)
+from ..reporting.narrative import markdown
+from ..store import Store, import_codex
 
 
 def demo_home(path: Path) -> Path:
@@ -117,7 +120,7 @@ def main(argv: list[str] | None = None) -> None:
     evidence.add_argument("--json", action="store_true", help="输出完整的已保存事件元数据")
     args = parser.parse_args(argv)
     if args.command in ("ingest", "import-connector", "init", "rebuild", "verify", "stats", "discover"):
-        from .data_access.ingest import ingest, ingest_staging, maintain
+        from ..data_access.ingest import ingest, ingest_staging, maintain
         if args.db:
             parser.error("数据层命令使用 --home；--db 只用于旧版分析兼容")
         try:
@@ -138,7 +141,7 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(2)
         return
     if args.command == "import" and args.db is None:
-        from .data_access.ingest import ingest
+        from ..data_access.ingest import ingest
         if args.before or args.exclude_session or args.reset_sample_policy:
             parser.error("统一归档保留完整历史；analytics 用 --until-ts/--exclude-session 选择样本。旧版持久采样请显式传 --db。")
         try:
@@ -150,7 +153,7 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(2)
         return
     if args.command in ("reader-pack", "reader-results"):
-        from .reader_eval import make_pack, reader_results
+        from ..evaluation.reader import make_pack, reader_results
 
         result = make_pack(args.output, args.cases, args.seed) if args.command == "reader-pack" else reader_results(args.pack, args.ratings)
         if args.command == "reader-results" and args.output:
@@ -161,16 +164,16 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "serve":
         import uvicorn
 
-        from .api import create_app
+        from ..api.routes import create_app
         uvicorn.run(create_app(args.db, args.catalog_cache, home=args.home), host="127.0.0.1", port=args.port)
         return
     if args.command == "catalog-refresh":
-        from .resource_fetch import refresh_catalog
+        from ..recommendation.resource_fetch import refresh_catalog
         result = refresh_catalog(args.output, latest=args.latest, resource_ids=set(args.resource_id))
         print(json.dumps({"verified": result["success"], "failed": result["failed"], "output": str(args.output.resolve())}, ensure_ascii=False))
         return
     if args.command == "evaluate":
-        from .pipeline_eval import pipeline_benchmark
+        from ..evaluation.pipeline import pipeline_benchmark
         result = {"human_acceptance": "pending", "history_updated": False}
         if args.suite in ("all", "readability"):
             result["readability"] = benchmark()
@@ -185,21 +188,21 @@ def main(argv: list[str] | None = None) -> None:
                                      for k, suite in result.items() if isinstance(suite, dict)}}, ensure_ascii=False))
         return
     if args.command == "demo":
-        from .data_access.ingest import ingest
+        from ..data_access.ingest import ingest
         args.db = None
         args.home = args.output / "data"
         ingest(args.home, "codex", demo_home(args.output / "codex"))
     if args.db:
         store = Store(args.db)
     else:
-        from .data_access.store import CanonicalStore
+        from ..data_access.store import CanonicalStore
         try:
             store = CanonicalStore(args.home)
         except ValueError as exc:
             parser.error(str(exc))
     if args.command == "analytics":
-        from .analytics.inputs import Scope
-        from .analytics.service import analyze_store
+        from ..analytics.inputs import Scope
+        from ..analytics.service import analyze_store
         try:
             scope = Scope(display_timezone=args.display_timezone, project_ids=args.project_id,
                           legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
@@ -244,8 +247,8 @@ def main(argv: list[str] | None = None) -> None:
         args.audience, args.project_id, args.model, args.scene = "user", None, None, None
     if hasattr(store, "report_snapshot"):
         store = store.report_snapshot(args.project_id, args.model)
-    data = analyze(store, args.project_id, args.model, scene=args.scene)
-    result = explain(data, recommend(data, catalog=resources(args.catalog_cache)), args.audience)
+    data, result = build_report(store, project_id=args.project_id, model=args.model,
+                                scene=args.scene, audience=args.audience, catalog_cache=args.catalog_cache)
     args.output.mkdir(parents=True, exist_ok=True)
     # Local evidence snapshots let every report work without a running server or
     # a particular port. Only already-normalized, redacted events are copied.

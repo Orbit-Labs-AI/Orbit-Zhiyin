@@ -12,9 +12,9 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from ..content import embedded_artifact_body, measure_length
 from ..models import Event, ParsedSession, Session, stable_id, utc_time
 from ..privacy import direct_user_text, redact
+from ..profiling.content import embedded_artifact_body, measure_length
 
 MAX_TEXT = 12_000
 MAX_LINE = 32 * 1024 * 1024

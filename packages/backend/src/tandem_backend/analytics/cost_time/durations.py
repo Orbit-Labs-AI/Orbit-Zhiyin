@@ -1,6 +1,6 @@
 """Native execution durations, observed spans and separately reported estimates."""
 
-from ...analysis import union_duration
+from ...profiling.analysis import union_duration
 from ..common import nonnegative_number, quantile, timestamp
 from ..respond import execution_intervals
 

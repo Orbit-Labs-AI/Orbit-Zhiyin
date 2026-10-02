@@ -6,13 +6,12 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from . import __version__
-from .analysis import analyze
-from .catalog import resources
-from .evaluation import SCENE_BUDGETS, evaluate_text
-from .narrative import explain
-from .recommend import recommend
-from .store import Store
+from .. import __version__
+from ..application.reports import build_report
+from ..evaluation.readability import SCENE_BUDGETS, evaluate_text
+from ..profiling.analysis import analyze
+from ..recommendation.catalog import resources
+from ..store import Store
 
 
 class EvaluationRequest(BaseModel):
@@ -24,7 +23,7 @@ class EvaluationRequest(BaseModel):
 def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local/catalog.json", *, home: str | Path | None = None) -> FastAPI:
     from tandem_data.paths import default_home
 
-    from .data_access.store import CanonicalStore
+    from ..data_access.store import CanonicalStore
     store = Store(db) if db is not None else CanonicalStore(home if home is not None else default_home())
     app = FastAPI(title="Tandem 本地轨迹分析", version=__version__)
 
@@ -35,7 +34,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         root_session_uids: Annotated[list[str] | None, Query()] = None, excluded_session_uids: Annotated[list[str] | None, Query()] = None,
         include_children: bool = True, scene: str | None = None,
     ):
-        from .analytics.inputs import Scope
+        from ..analytics.inputs import Scope
         try:
             # Repeated parameters are lists; an explicit empty value means [].
             return Scope(display_timezone=display_timezone,
@@ -51,14 +50,14 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     scope_dependency = Depends(analytics_scope)
 
     def analytics_data(scope, with_text=True):
-        from .analytics.service import analyze_store
+        from ..analytics.service import analyze_store
         try:
             return analyze_store(store, scope, with_text)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
     def analytics_section(key, scope):
-        from .analytics.service import response_section
+        from ..analytics.service import response_section
         return response_section(analytics_data(scope, key in ("sessions", "text", "projects")), key)
 
     @app.get("/v1/analytics/overview")
@@ -110,8 +109,8 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
 
     @app.get("/v1/analytics/preferences")
     def feature_preferences(scope=scope_dependency, task_id: str | None = None):
-        from .analytics.preference import resolve_effective_preferences
-        from .analytics.service import response_section
+        from ..analytics.preference import resolve_effective_preferences
+        from ..analytics.service import response_section
         data = analytics_data(scope, with_text=False)
         task = None
         if task_id is not None:
@@ -155,8 +154,10 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     def analysis(project_id: str | None = None, model: str | None = None, before: str | None = None,
                  audience: str = "user", scene: str = "auto"):
         try:
-            data = analyze(store, project_id, model, before, scene if scene != "auto" else None)
-            return explain(data, recommend(data, scene, catalog=resources(catalog_cache)), audience)
+            _, result = build_report(store, project_id=project_id, model=model, before=before,
+                                     scene=scene if scene != "auto" else None,
+                                     recommendation_scene=scene, audience=audience, catalog_cache=catalog_cache)
+            return result
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 

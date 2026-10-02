@@ -6,8 +6,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from ..feedback import SCENE_LABELS, task_contexts
 from ..models import Event, stable_id
+from ..profiling.feedback import SCENE_LABELS, task_contexts
 from ..store import Store, _decode_sample_policy
 from .common import annotation_visible, task_uid, timestamp
 from .respond import normalize_tool_calls

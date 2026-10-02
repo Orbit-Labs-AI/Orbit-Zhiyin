@@ -6,7 +6,7 @@
 
 import re
 
-from .content import visible_text
+from ..profiling.content import visible_text
 
 READABILITY_RULE_VERSION = "readability-v2"
 
