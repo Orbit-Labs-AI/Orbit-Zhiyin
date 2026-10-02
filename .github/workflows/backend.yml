@@ -13,6 +13,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.12.8'
+          python-version: '3.13'
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

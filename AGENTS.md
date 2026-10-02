@@ -44,7 +44,7 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 - 新类型须有 L1 去向；不能通过跳过未知记录或把缺失成本/状态当成 0/成功来让检查通过。
 ## 数据契约包检查
 
-目标是 macOS App。Python 统一为 3.13+，仓库根的 `uv.lock` 管理 backend 与 `packages/data` workspace；不要新增平行 Python 锁文件。
+目标是 macOS App。Python 统一为 3.13（`.python-version`），仓库根的 `uv.lock` 管理 backend 与 `packages/data` workspace；不要新增平行 Python 锁文件。
 
 从仓库根运行 `uv sync --locked --all-packages --dev`、`uv run ruff check src tests packages/data/src packages/data/tests`、`uv run ruff format --check packages/data/src packages/data/tests`、`uv run pytest -q tests`、`uv run pytest -q packages/data/tests`、`uv build --all-packages`、`uv run tandem demo`、`uv run tandem evaluate`、`git diff --check`。涉及 staging 桥接时，先在 `packages/connectors` 执行 `pnpm check`，避免跳过桥接集成回归。
 

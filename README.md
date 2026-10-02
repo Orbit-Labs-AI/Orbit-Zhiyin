@@ -28,7 +28,7 @@ Tandem 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent
 
 分析入口遵循 [analysis-input-v1](docs/plan/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
 
-需要 Python 3.13+ 和 uv。backend 与 data 共用根目录 `uv.lock`：
+需要 Python 3.13 和 uv（`.python-version` 固定运行时）。backend 与 data 共用根目录 `uv.lock`：
 
 ```sh
 uv sync --locked --all-packages --dev

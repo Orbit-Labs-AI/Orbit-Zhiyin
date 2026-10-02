@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "tandem-backend"
 version = "0.13.6"
 description = "Local multi-agent L0-L3 data pipeline and evidence-backed analysis"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = ["tandem-data==0.2.0", "fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "markdown-it-py==4.2.0", "scikit-learn==1.7.2", "scipy>=1.16,<2"]
 
 [project.optional-dependencies]
