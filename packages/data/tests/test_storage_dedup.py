@@ -140,7 +140,9 @@ def corpus(tmp_path):
 def test_packed_reads_are_byte_identical_to_inline_storage(tmp_path, corpus, monkeypatch):
     source, digests = corpus
     with monkeypatch.context() as patch:
-        patch.setattr(payload, "THRESHOLD", 1 << 40)  # Inline: no blob is ever written.
+        # Inline: no blob is ever written.
+        patch.setattr(payload, "THRESHOLD", 1 << 40)
+        patch.setattr(payload, "TEXT_THRESHOLD", 1 << 40)
         import_home(tmp_path / "inline", source).db.close()
     import_home(tmp_path / "packed", source).db.close()
     with Store(tmp_path / "inline") as inline:
@@ -193,15 +195,19 @@ def test_refcounts_dedup_and_garbage_collection(tmp_path, corpus):
             == 0
         )
         shared = hashlib.sha256(_big(0).encode()).hexdigest()
-        # ext.toolUseResult.stdout in both sessions; event.text stays inline.
+        # ext.toolUseResult.stdout and the tool.result event.text, in both sessions.
         assert (
             store.db.execute("SELECT refs FROM content_blob WHERE sha256=?", (shared,)).fetchone()[
                 0
             ]
-            == 2
+            == 4
         )
+        # The four large tool outputs are stored as references, not inline.
+        assert not store.db.execute("SELECT 1 FROM event WHERE length(text) >= 40000").fetchall()
         assert (
-            store.db.execute("SELECT COUNT(*) FROM event WHERE length(text) >= 40000").fetchone()[0]
+            store.db.execute(
+                f"SELECT COUNT(*) FROM event WHERE kind='tool.result' AND {payload.TEXT_REFERENCE_SQL}"
+            ).fetchone()[0]
             == 4
         )
         assert not store.db.execute("SELECT 1 FROM content_blob WHERE refs=0").fetchall()
@@ -284,3 +290,18 @@ def test_event_search_indexes_only_messages_and_titles(tmp_path, corpus):
         assert not db.execute(
             "SELECT name FROM sqlite_master WHERE name LIKE 'event_fts%'"
         ).fetchall()
+
+
+def test_compaction_keeps_logical_contents(tmp_path, corpus):
+    from tandem_data.validation.integrity import logical_digest
+
+    source, _ = corpus
+    home = tmp_path / "home"
+    import_home(home, source).db.close()
+    before, digest = dump(home), logical_digest(home)
+    with Store(home) as store:
+        assert not store.compact()  # Small stores are never rewritten implicitly.
+        assert store.compact(force=True)
+        assert store.verify()["integrity"] == "ok"
+    assert dump(home) == before
+    assert logical_digest(home) == digest

@@ -1209,7 +1209,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE record_event (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  event_uid TEXT NOT NULL REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  relation TEXT NOT NULL CHECK(relation IN ('mapped','folded','replayed','duplicate')),\n  contribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(contribution)),\n  PRIMARY KEY(record_uid, event_uid)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"record_event\" (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  event_uid TEXT NOT NULL REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  relation TEXT NOT NULL CHECK(relation IN ('mapped','folded','replayed','duplicate')),\n  contribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(contribution)),\n  PRIMARY KEY(record_uid, event_uid)\n) STRICT, WITHOUT ROWID"
     },
     "record_location": {
       "type": "object",
@@ -1255,7 +1255,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE record_location (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  revision_uid TEXT NOT NULL REFERENCES source_reference,\n  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,\n  PRIMARY KEY(record_uid, revision_uid)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"record_location\" (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  revision_uid TEXT NOT NULL REFERENCES source_reference,\n  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,\n  PRIMARY KEY(record_uid, revision_uid)\n) STRICT, WITHOUT ROWID"
     },
     "schema_manifest": {
       "type": "object",
@@ -2121,7 +2121,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE tool_call_event (\n  call_uid TEXT NOT NULL REFERENCES tool_call, event_uid TEXT NOT NULL REFERENCES event,\n  role TEXT NOT NULL, PRIMARY KEY(call_uid, event_uid)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"tool_call_event\" (\n  call_uid TEXT NOT NULL REFERENCES tool_call, event_uid TEXT NOT NULL REFERENCES event,\n  role TEXT NOT NULL, PRIMARY KEY(call_uid, event_uid)\n) STRICT, WITHOUT ROWID"
     },
     "turn": {
       "type": "object",

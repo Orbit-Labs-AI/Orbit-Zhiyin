@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 from tandem_data.contract import canonical
-from tandem_data.payload import restore_json
+from tandem_data.payload import restore_json, restore_row
 from tandem_data.privacy import redact, sanitize
 from tandem_data.store import insert
 
@@ -28,7 +28,7 @@ class RetainedProjection:
                 self.files[row["file_id"]] = dict(row)
         for file_id in self.files:
             self.events.extend(
-                dict(r)
+                restore_row(store.db, r)
                 for r in store.db.execute(
                     "SELECT e.* FROM event e JOIN raw_record r USING(record_uid) WHERE r.file_id=? ORDER BY e.session_uid,e.seq",
                     (file_id,),

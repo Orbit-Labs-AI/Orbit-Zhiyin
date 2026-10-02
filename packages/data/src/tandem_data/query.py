@@ -73,7 +73,7 @@ def event_page(
         cache: dict = {}
         return [
             {
-                **dict(row),
+                **payload.restore_row(db, row, cache),
                 "attrs": json.loads(row["attrs"]),
                 "ext": payload.restore(db, json.loads(row["ext"]), cache),
                 "native_key": json.loads(row["native_key"]),

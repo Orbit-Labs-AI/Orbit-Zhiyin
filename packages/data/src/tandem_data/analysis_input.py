@@ -8,6 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from tandem_data.inventory import read_inventory_connection
+from tandem_data.payload import restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
@@ -156,7 +157,11 @@ def read_analysis(
                     "Narrow --project-id / --from-ts / --until-ts, or explicitly raise --max-events before the command. "
                     "No partial analysis was returned."
                 )
-        events = [decoded(row) for row in connection.execute(query, params)]
+        texts: dict = {}
+        events = [
+            decoded(restore_row(connection, row, texts))
+            for row in connection.execute(query, params)
+        ]
 
         def member(event):
             return (

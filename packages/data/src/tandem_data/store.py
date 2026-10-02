@@ -19,6 +19,14 @@ import zstandard as zstd
 from tandem_data import SCHEMA_VERSION, payload
 from tandem_data.contract import RawRecord, canonical, now_ms, shape, uid
 
+PAGE_SIZE = 16384
+# Bulk imports leave B-tree pages partly empty (random-key indexes, rows that grow when the
+# reducer fills turn_uid). ``optimize`` rewrites the file once it has grown by COMPACT_GROWTH
+# since it was opened or last compacted and is at least COMPACT_MIN_BYTES, so total compaction
+# work stays within a few file sizes and small stores are never rewritten implicitly.
+COMPACT_GROWTH = 1.5
+COMPACT_MIN_BYTES = 128 << 20
+
 SQL_TABLES = {
     "codex": ("threads", "thread_spawn_edges"),
     "hermes": ("sessions", "messages", "session_model_usage", "system_prompts"),
@@ -162,6 +170,10 @@ class Store:
         os.close(descriptor)
         self.db = sqlite3.connect(self.db_path, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        # Only takes effect before the first page is written (a new store). Rows average
+        # ~1.5 KB, so 4 KiB pages leave a quarter of each leaf empty; existing stores keep
+        # their page size until a VACUUM.
+        self.db.execute(f"PRAGMA page_size = {PAGE_SIZE}")
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA busy_timeout = 5000")
@@ -169,6 +181,7 @@ class Store:
         # can drop the last transactions, which a rescan recaptures from source files.
         self.db.execute("PRAGMA synchronous = NORMAL")
         _tune(self.db)
+        self._compacted_pages = self.db.execute("PRAGMA page_count").fetchone()[0]
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
@@ -781,6 +794,22 @@ class Store:
         payload.collect_garbage(self.db)
         self.db.execute("PRAGMA optimize")
         self.db.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        self.compact()
+
+    def compact(self, *, force: bool = False) -> bool:
+        """VACUUM after enough growth since the last compaction; logical contents are unchanged."""
+        if self.db.in_transaction:
+            return False
+        pages = self.db.execute("PRAGMA page_count").fetchone()[0]
+        size = self.db.execute("PRAGMA page_size").fetchone()[0]
+        if not force and (
+            pages < COMPACT_GROWTH * self._compacted_pages or pages * size < COMPACT_MIN_BYTES
+        ):
+            return False
+        self.db.execute("VACUUM")
+        self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        self._compacted_pages = self.db.execute("PRAGMA page_count").fetchone()[0]
+        return True
 
     def verify(self) -> dict:
         from tandem_data.contract import validate_event
@@ -845,7 +874,7 @@ class Store:
         blobs = payload.verify(self.db)
         cache = {}
         for row in self.db.execute("SELECT * FROM event"):
-            envelope = dict(row)
+            envelope = payload.restore_row(self.db, row, cache)
             for name in ("attrs", "ext", "native_key"):
                 envelope[name] = json.loads(envelope[name])
             envelope["ext"] = payload.restore(self.db, envelope["ext"], cache)
