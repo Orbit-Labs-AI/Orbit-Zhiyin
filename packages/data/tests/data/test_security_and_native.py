@@ -178,3 +178,82 @@ def test_new_unfinished_turn_does_not_inherit_previous_completed_status(tmp_path
         )
         store.rebuild()
         assert store.db.execute("SELECT status FROM session").fetchone()[0] == "unknown"
+
+
+def test_approval_has_its_own_cutoff_evidence_without_tool_result(tmp_path):
+    rows = [
+        {"type": "session", "id": "s", "version": 4, "createdAt": 900, "cwd": "/old"},
+        {
+            "type": "tool/call",
+            "seq": 0,
+            "time": 1000,
+            "data": {"callId": "c", "name": "bash", "arguments": "{}"},
+        },
+        {"type": "approval/asked", "seq": 1, "time": 1100, "data": {"id": "a", "callId": "c"}},
+        {
+            "type": "approval/decided",
+            "seq": 2,
+            "time": 3000,
+            "data": {"id": "a", "outcome": "allowed-once"},
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(
+            source, "session.jsonl", [(canonical(row) + "\n").encode() for row in rows]
+        )
+        store.rebuild()
+        assert store.db.execute("SELECT approval FROM tool_call").fetchone()[0] == "allowed-once"
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM tool_call_event WHERE role='permission.decision'"
+            ).fetchone()[0]
+            == 1
+        )
+        data = read_analysis(store.home, AnalysisScope("Asia/Shanghai", until_ts=2000))
+        assert data["tool_calls"][0]["approval"] is None
+        assert data["tool_calls"][0]["approval_wait_ms"] is None
+
+
+def test_metadata_at_cutoff_does_not_use_future_title(tmp_path):
+    rows = [
+        {"type": "session", "id": "s", "version": 4, "createdAt": 900, "cwd": "/old"},
+        {"type": "session/title", "seq": 0, "time": 1000, "data": {"title": "past"}},
+        {
+            "type": "user/message",
+            "seq": 1,
+            "time": 1100,
+            "data": {
+                "role": "user",
+                "content": [{"type": "text", "text": "task"}],
+                "source": {"kind": "user"},
+            },
+        },
+        {"type": "session/title", "seq": 2, "time": 3000, "data": {"title": "future"}},
+    ]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(
+            source, "session.jsonl", [(canonical(row) + "\n").encode() for row in rows]
+        )
+        store.rebuild()
+        assert store.db.execute("SELECT title FROM session").fetchone()[0] == "future"
+        data = read_analysis(store.home, AnalysisScope("Asia/Shanghai", until_ts=2000))
+        assert data["sessions"][0]["title"] == "past" and data["sessions"][0]["cwd"] == "/old"
+
+
+def test_secret_bearing_tool_arguments_have_no_offline_digest():
+    from tandem_data.contract import EventDraft, time_fields
+
+    _, time = time_fields(None, "timestamp")
+    event = EventDraft(
+        "s",
+        ["key"],
+        "call",
+        "tool.call",
+        call_id="c",
+        attrs={"time": time, "name": "bash", "input": {"password": "guessable-password"}},
+    )
+    data = event.envelope("r", 0, "test")
+    assert data["attrs"]["argument_digest"] is None
+    assert data["attrs"]["input"]["password"] == "<redacted:secret>"

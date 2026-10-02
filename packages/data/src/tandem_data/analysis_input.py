@@ -39,6 +39,7 @@ JSON_COLUMNS = {
     "watermark",
     "source_stat",
     "note",
+    "detail",
 }
 
 
@@ -184,6 +185,14 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         event_lookup = {event["event_uid"]: event for event in events}
         for tool in tools:
             result = event_lookup.get(tool["result_event_uid"])
+            if scope.until_ts is not None:
+                decisions = connection.execute(
+                    "SELECT e.* FROM tool_call_event c JOIN event e USING(event_uid) WHERE c.call_uid=? AND c.role='permission.decision' ORDER BY e.seq",
+                    (tool["call_uid"],),
+                ).fetchall()
+                decision = decisions[-1] if decisions else None
+                if decision is None or decision["ts"] is None or decision["ts"] >= scope.until_ts:
+                    tool["approval"], tool["approval_wait_ms"] = None, None
             if (
                 result
                 and scope.until_ts is not None
@@ -370,7 +379,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                 and (row["file_id"] is None or row["file_id"] in relevant_files)
             )
         ]
-        capture_errors = sum(row["stage"] == "l1" for row in diagnostics)
+        capture_errors = sum(
+            row["stage"] == "l1" and row["detail"].get("status") != "resolved"
+            for row in diagnostics
+        )
         if capture_errors:
             reasons.append("capture_errors_or_incomplete_frames")
         if unparsed:

@@ -94,7 +94,7 @@ Codex 使用 `session_meta.id` 作为线程身份；`session_id` 是根线程的
 | `attrs.writing_measurements.reply` | 可见回复的字符数、surface、measured 质量和 complete 标记；无法确定正文/摘要边界时 `body / summary` 为空 |
 | `attrs.artifact_body_present` | 当前没有可靠的跨 Agent 正文边界提取，保持未知 |
 | `attrs.input_format` | 普通 user 文本为 prompt；专门问答回执尚未在全部来源可靠提取，不能声称 question_reply 完整覆盖 |
-| `attrs.argument_digest / argument_digest_basis` | 对完整参数的规范 JSON 做摘要，然后才执行脱敏与投影长度限制 |
+| `attrs.argument_digest / argument_digest_basis` | 普通完整参数采用规范 JSON 摘要；含凭据或需要脱敏/截断的输入不发布摘要，避免成为离线猜测秘密的校验器 |
 | `attrs.is_wrapper / status_scope` | 保留编排外层的标志；未确认状态作用范围时为 unknown，不能把外层完成外推到内层全部成功 |
 | `attrs.known_command_results / failed_command_results / unknown_return_values` | 没有原生统计证据时为空；不从输出里的 error 单词猜计数 |
 

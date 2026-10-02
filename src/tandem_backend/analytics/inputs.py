@@ -166,7 +166,7 @@ def legacy_bundle(store: Store) -> AnalysisInputBundle:
         if e.id in contexts:
             active[e.session_id] = contexts[e.id]
         ctx = active.get(e.session_id, {})
-        attrs.update(scene=ctx.get("scene"), task_id=ctx.get("task_id"))
+        attrs.update(scene=ctx.get("scene"), task_id=ctx.get("task_id"), task_id_source="legacy_inferred")
         attrs["time"] = {"source_field": "timestamp", "semantics": "written",
                          "quality": "reported" if e.timestamp else "missing"}
         if e.kind == "usage":
@@ -373,9 +373,10 @@ def select_canonical(bundle, scope):
     visible = {e["session_uid"] for e in members}
     roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}
     sessions = [s for s in bundle.sessions if s["session_uid"] in visible | roots]
+    linked_results = {c.get("result_event_uid") for c in calls or []}
     diagnostics = {"excluded_sessions": {}, "replayed_events_excluded": 0,
                    "model_ambiguous_turns_excluded": 0,
-                   "context_events": [e for e in events if e["event_uid"] not in ids],
+                   "context_events": [e for e in events if e["event_uid"] not in ids and e["event_uid"] in linked_results],
                    "time_unknown_events": sum(e.get("ts") is None for e in members),
                    "time_unknown_excluded_from_bounded_counts": sum(e.get("ts") is None for e in events if e["event_uid"] not in ids),
                    "selected_event_ids": ids}

@@ -9,7 +9,9 @@ from zoneinfo import ZoneInfo
 
 from ..analysis import union_duration
 from ..privacy import direct_user_text
+from .common import human as human
 from .instruction.structure import FILE, structure
+from .outcome_subjective import analyze_subjective_outcomes
 
 
 def ratio(a, b):
@@ -23,12 +25,6 @@ def quantile(values, q):
     pos = (len(v) - 1) * q
     lo, hi = math.floor(pos), math.ceil(pos)
     return v[lo] + (v[hi] - v[lo]) * (pos - lo)
-
-
-def human(e, main_ids):
-    return (e["kind"] == "message.user" and e["session_uid"] in main_ids
-            and e.get("attrs", {}).get("origin") == "human"
-            and e.get("actor") in ("human", "user"))
 
 
 CORRECTION = re.compile(r"(?:^|[，。！？；,;!\n]\s*)(?:不对(?:[，。！？；,;!\s]|$)|不是我说的|还是不行|我说的是|你理解错了|请?重新|请?改成|wrong\b|not what I meant\b|try again\b|instead\b)", re.I)
@@ -297,7 +293,7 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
             "cumulative_note": "快照不按日期分摊、不推算请求、不与逐次值相加；旧报告不提供规范总量"}
 
 
-def session_features(session, events, calls, main_ids, supported_kinds=None):
+def session_features(session, events, calls, main_ids, supported_kinds=None, event_status="available"):
     users = [e for e in events if human(e, main_ids)]
     assistants = [e for e in events if e["kind"] == "message.assistant"]
     unknown_humans = sum(e["kind"] == "message.user" and e.get("attrs", {}).get("origin", "unknown") == "unknown" for e in events)
@@ -310,18 +306,11 @@ def session_features(session, events, calls, main_ids, supported_kinds=None):
     objective = {"explicit_tool_failures": sum(c.get("status") == "failed" for c in calls) if calls is not None else None,
                  "validation_command_candidates": sum(bool(re.search(r"\b(test|pytest|lint|typecheck|build)\b", c.get("command_head") or "")) for c in calls or []),
                  "task_success": None, "validation_scope": None}
-    # Subjective signals require a prior final delivery, and explicitly shared task identity.
-    feedback, delivered = [], {}
-    for e in events:
-        a = e.get("attrs", {})
-        if e["kind"] == "message.assistant" and a.get("phase") == "final" and a.get("task_id"):
-            delivered[a["task_id"]] = e["event_uid"]
-        elif human(e, main_ids) and a.get("task_id") in delivered:
-            text = direct_user_text(e.get("text") or "").strip()
-            m = re.fullmatch(r"(可以了|这样可以|解决了|还是不行|不对|算了)[。！!\s]*", text)
-            if m:
-                feedback.append({"event_uid": e["event_uid"], "delivery_event_uid": delivered[a["task_id"]],
-                                 "signal": "positive" if m[1] in ("可以了", "这样可以", "解决了") else "negative"})
+    subjective = analyze_subjective_outcomes(events, main_ids, event_status)
+    feedback = None if subjective["feedback"] is None else [
+        {key: f[key] for key in ("event_uid", "delivery_event_uid", "signal")}
+        for f in subjective["feedback"] if f["delivery_event_uid"] is not None
+        and f["signal"] in ("positive", "negative")]
     main = session["session_uid"] in main_ids
     features = {"user_message_count": len(users) if main and (users or not unknown_humans) else None,
                 "assistant_message_count": len(assistants), "turn_count": len({e["turn_uid"] for e in events if e.get("turn_uid")}) or None,
@@ -343,5 +332,6 @@ def session_features(session, events, calls, main_ids, supported_kinds=None):
             "prompt_structure": structures, "language_signals": [{"language": LANG[k], "extension": k, "count": n,
                 "basis": "human_text_file_extension"} for k, n in languages.most_common()],
             "objective_outcomes": objective, "subjective_outcome_candidates": feedback,
+            "subjective_outcomes": subjective,
             "task_success": None, "tool_sequence": calls,
             "human_evidence_ids": [e["event_uid"] for e in users]}

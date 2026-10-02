@@ -383,6 +383,7 @@ class Store:
                     "UPDATE source_file SET watermark=json_set(watermark,'$.last_source_stat',json(?)) WHERE file_id=?",
                     (canonical(source_stat or {}), file_id),
                 )
+                self._resolve_capture_issues(source_id, file_id)
                 return {"file_id": file_id, "changed": False, "records": latest["record_count"]}
             revision = latest["revision"] + 1 if latest else 1
             revision_uid = uid("revision", file_id, revision)
@@ -498,7 +499,14 @@ class Store:
                     file_id,
                 ),
             )
+        self._resolve_capture_issues(source_id, file_id)
         return {"file_id": file_id, "changed": True, "records": count}
+
+    def _resolve_capture_issues(self, source_id, file_id):
+        self.db.execute(
+            "UPDATE ingest_issue SET detail=json_set(detail,'$.status','resolved','$.resolved_at',?) WHERE source_id=? AND stage='l1' AND (file_id=? OR (file_id IS NULL AND code='capture_failed'))",
+            (now_ms(), source_id, file_id),
+        )
 
     @contextmanager
     def _index_transaction(self, source_id, file_id, archive_uid):

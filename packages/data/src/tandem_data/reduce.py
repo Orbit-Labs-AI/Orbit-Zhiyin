@@ -274,6 +274,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None):
     open_tools = defaultdict(list)
     tools = {}
     permissions = {}
+    permission_evidence = []
     features = Counter()
     snapshots = {}
     for event in events:
@@ -407,10 +408,19 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None):
                 )
         elif kind == "permission.request":
             if attrs.get("permission_id"):
-                permissions[attrs["permission_id"]] = (event["call_id"], event["ts"])
+                permissions[attrs["permission_id"]] = (
+                    event["call_id"],
+                    event["ts"],
+                    event["event_uid"],
+                )
         elif kind == "permission.decision":
-            call_id, start = permissions.get(attrs.get("permission_id"), (event["call_id"], None))
+            call_id, start, request_event = permissions.get(
+                attrs.get("permission_id"), (event["call_id"], None, None)
+            )
             for tool_uid in open_tools.get(call_id, []):
+                permission_evidence.append((tool_uid, event["event_uid"], "permission.decision"))
+                if request_event:
+                    permission_evidence.append((tool_uid, request_event, "permission.request"))
                 values, _ = tools[tool_uid]
                 values["approval"] = attrs.get("decision")
                 if start is not None and event["ts"] is not None and event["ts"] >= start:
@@ -524,6 +534,8 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None):
             for filename in json.loads(values["files"]):
                 if Path(filename).suffix:
                     features[("file_extension", Path(filename).suffix)] += 1
+    for evidence in permission_evidence:
+        store.db.execute("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", evidence)
     for turn in turns.values():
         insert(store.db, "turn", turn)
     for (feature, value), count in features.items():
