@@ -68,6 +68,8 @@ test('session details and comparison honor active filters', async ({ page }) => 
   await page.evaluate(() => { S.agents.clear(); render(); });
   await expect(page.locator('#main')).toContainText('没有会话');
   await expect(page.locator('#main .band')).toHaveCount(0);
+  await page.locator('#main [data-act="sessMode"][data-v="cmp"]').click();
+  await expect(page.locator('#main')).toContainText('没有会话');
   expect(errors).toEqual([]);
 });
 
@@ -104,5 +106,50 @@ test('saving a generated Skill twice creates one library item', async ({ page })
   await page.evaluate(() => { S.studio.type = 'Skill'; ACT.studioSave(); ACT.studioSave(); S.lib.tab = 'local'; go('library'); });
   expect(await page.evaluate(() => LIB.filter((x) => x.id === 'my-pr-wrapup').length)).toBe(1);
   await expect(page.locator('#main')).toContainText('本地生成');
+  expect(errors).toEqual([]);
+});
+
+test('palette session navigation adapts incompatible filters', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
+  const errors = await openDemo(page);
+  const title = await page.evaluate(() => {
+    S.agents = new Set(['cx']); S.project = 'surge'; S.topic = 'net'; S.outcome = 'fail'; S.fric = '方向错误'; S.hour = 0; S.range = 7;
+    const item = palItems('Tandem').find((x) => x.g === '会话' && x.sub.startsWith('Claude Code ·'));
+    item.run();
+    return item.t;
+  });
+  await expect(page.locator('#main .band')).toContainText(title);
+  await expect(page.locator('#main .band')).toContainText('Claude Code');
+  const oldTitle = await page.evaluate(() => {
+    const old = ALL.find((s) => s.a === 'cc' && !s.live && s.d < 90);
+    ACT.openSession({ dataset: { id: old.id } });
+    return old.title;
+  });
+  await expect(page.locator('#main .band')).toContainText(oldTitle);
+  expect(errors).toEqual([]);
+});
+
+test('expanded HUD hides a disabled secondary source and its alerts', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
+  const errors = await openDemo(page);
+  await page.evaluate(() => { simEvent('stuck'); S.hud.open = true; render(); openSettings('sources'); });
+  await page.locator('#set [data-act="setSrc"][data-a="cx"]').click();
+  await closeAll(page);
+  await page.evaluate(() => { S.hud.open = true; render(); renderPop(); });
+  await expect(page.locator('#hud')).toBeVisible();
+  await expect(page.locator('#hud')).not.toContainText('Codex');
+  await expect(page.locator('#pop')).not.toContainText('Codex');
+  await page.evaluate(() => simEvent('waiting'));
+  await expect(page.locator('#hud')).not.toContainText('Codex');
+  expect(errors).toEqual([]);
+});
+
+test('panel and desktop statistics omit excluded sessions', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
+  const errors = await openDemo(page);
+  await page.evaluate(() => { ALL.filter((s) => s.d === 119).forEach((s) => S.excluded.add(s.id)); S.sim = 'idle'; renderPop(); });
+  await expect(page.locator('#pop .sec').filter({ hasText: '昨天 · 9 月 30 日' })).toContainText('0 会话');
+  await page.evaluate(() => { ALL.filter((s) => s.d === 120).forEach((s) => S.excluded.add(s.id)); S.sim = 'running'; S.widgets = true; render(); });
+  await expect(page.locator('#widgets [data-r="sessions"] .mono').first()).toHaveText('0');
   expect(errors).toEqual([]);
 });

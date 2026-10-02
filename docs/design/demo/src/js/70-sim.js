@@ -1,5 +1,7 @@
 /* ============ simulated events ============ */
 function simEvent(k) {
+  const eventAgent = { done: 'cc', waiting: 'cx', stuck: 'cx', ctx: 'cc' }[k];
+  if (eventAgent && !sourceEnabled({ a: eventAgent })) { toast(agent(eventAgent).name + ' 的数据源已停用，不会产生提醒'); return; }
   if (S.paused && k !== 'newsrc') { toast('采集已暂停，不会产生事件', { act: '恢复采集', onAct: () => { S.paused = false; render(); } }); return; }
   if (k === 'idle') { S.sim = 'idle'; S.attn.clear(); S.hud.open = false; render(); toast('已切换为空闲：没有运行中的会话，悬浮组件自动隐身'); return; }
   if (k === 'running') { S.sim = 'running'; S.attn.clear(); render(); toast('已恢复为有会话运行中'); return; }

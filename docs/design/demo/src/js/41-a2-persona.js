@@ -57,6 +57,18 @@ Object.assign(ACT, {
   method: () => openMethod(),
   share: () => openShare(),
   reveal: () => openReveal(),
-  openSession: (el) => { S.sess.sel = el.dataset.id; S.sess.mode = 'single'; go('sessions'); }
+  openSession: (el) => {
+    const s = BYID[el.dataset.id];
+    if (!s || !sourceEnabled(s) || S.excluded.has(s.id)) { toast('此会话的来源已停用或已从分析中排除'); return; }
+    stopPlay();
+    S.agents.add(s.a);
+    for (const [key, value] of [['project', s.p], ['topic', s.topic], ['outcome', s.out], ['fric', s.fric], ['hour', s.h]]) {
+      if (S[key] != null && S[key] !== value) S[key] = null;
+    }
+    const w = win(S.range);
+    if (s.d !== 120 && (s.d < w[0] || s.d > w[1])) S.range = 0;
+    S.sess.sel = s.id; S.sess.mode = 'single'; S.sess.cmp = null; S.sess.q = ''; S.sess.ph = traj(s).T;
+    go('sessions');
+  }
 });
 

@@ -6,7 +6,7 @@ function renderWidgets() {
   const p = personaNow();
   const L7 = sel({ range: 7, noExtra: true }), P7 = sel({ win: [106, 112], noExtra: true });
   const s7 = stats(L7), sp = stats(P7);
-  const today = ALL.filter((s) => s.d === 120 && S.agents.has(s.a) && sourceEnabled(s));
+  const today = ALL.filter((s) => s.d === 120 && S.agents.has(s.a) && sourceEnabled(s) && !S.excluded.has(s.id));
   const live = today.some((s) => s.live) && S.sim !== 'idle';
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const days = []; for (let d = 113; d <= 119; d++) { const xs = L7.filter((s) => s.d === d); days.push([d, xs.filter((s) => s.a === 'cc').length, xs.filter((s) => s.a === 'cx').length, xs.filter((s) => s.a !== 'cc' && s.a !== 'cx').length]); }

@@ -8,7 +8,8 @@ function popLiveCard() {
 function renderPop() {
   const el = $('#pop'); el.hidden = false;
   const p = personaNow();
-  const available = ALL.filter(sourceEnabled);
+  const available = ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id));
+  const attn = new Set([...S.attn].filter((k) => sourceEnabled({ a: k === 'stuck' ? 'cx' : 'cc' })));
   const today = available.filter((s) => s.d === 120);
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
@@ -21,10 +22,10 @@ function renderPop() {
   let html;
   if (S.paused) {
     html = head('采集已暂停', '不会产生事件，也不会更新统计') + '<div class="sec row"><span style="flex:1;font-size:12.5px;color:var(--ink-2)">恢复后会补齐暂停期间的会话。</span><button type="button" class="btn sm p" data-act="setPause">恢复采集</button></div>' + foot;
-  } else if (S.attn.size) {
-    html = head('需要关注', '10 月 1 日 周四', '<span class="bdg" style="background:var(--crit-bg);color:var(--crit)">' + S.attn.size + ' 件事</span>') +
-      (S.attn.has('stuck') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('alert', 15, 'color:var(--crit)') + '<b style="font-size:12.5px">同一命令连续失败 4 次</b></div><div class="cap" style="font-size:11.5px">Codex · Surge 规则 · 15:02 开始</div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--sunken)">python gen_rules.py --publish</div><div style="font-size:12px;color:var(--ink-2)">可能原因：CDN token 过期（4 次输出里 3 次是 401）</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="popTerm">在终端中处理</button><button type="button" class="btn sm" data-act="popStuckSess">打开会话</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="stuck">忽略 1 小时</button></div></div>' : '') +
-      (S.attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:12.5px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:11.5px">Claude Code · latentskill · 审阅第 3 节</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
+  } else if (attn.size) {
+    html = head('需要关注', '10 月 1 日 周四', '<span class="bdg" style="background:var(--crit-bg);color:var(--crit)">' + attn.size + ' 件事</span>') +
+      (attn.has('stuck') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('alert', 15, 'color:var(--crit)') + '<b style="font-size:12.5px">同一命令连续失败 4 次</b></div><div class="cap" style="font-size:11.5px">Codex · Surge 规则 · 15:02 开始</div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--sunken)">python gen_rules.py --publish</div><div style="font-size:12px;color:var(--ink-2)">可能原因：CDN token 过期（4 次输出里 3 次是 401）</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="popTerm">在终端中处理</button><button type="button" class="btn sm" data-act="popStuckSess">打开会话</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="stuck">忽略 1 小时</button></div></div>' : '') +
+      (attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:12.5px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:11.5px">Claude Code · latentskill · 审阅第 3 节</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
       popLiveCard() + foot;
   } else if (S.sim === 'idle') {
     const y = available.filter((s) => s.d === 119); const ys = stats(y);
@@ -39,7 +40,7 @@ function renderPop() {
 }
 Object.assign(ACT, {
   popOpen: () => { S.pop = false; S.winGone = false; render(); },
-  popTraj: () => { S.pop = false; S.sess.sel = LIVE_ID; S.sess.mode = 'single'; S.sess.q = ''; go('sessions'); },
+  popTraj: () => { S.pop = false; ACT.openSession({ dataset: { id: LIVE_ID } }); },
   popTerm: () => toast('已切换到对应的终端标签页（演示）'),
   popStuckSess: () => { const s = ALL.filter((x) => sourceEnabled(x) && x.p === 'surge' && x.a === 'cx' && !x.live).sort((a, b) => b.d - a.d)[0] || ALL.filter((x) => sourceEnabled(x) && x.p === 'surge').pop(); S.pop = false; if (s) { S.sess.sel = s.id; S.sess.mode = 'single'; } go('sessions'); },
   popIgnore: (el) => { S.attn.delete(el.dataset.k); if (!S.attn.size && (S.sim === 'stuck' || S.sim === 'ctx')) S.sim = 'running'; render(); toast(el.dataset.k === 'stuck' ? '已忽略 1 小时' : '已忽略'); }
