@@ -83,6 +83,15 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
     }
 
 
+def prefix_ok(rule: Rule, problem: dict) -> bool:
+    """Keyed rules need a matching key; on SQL-fact problems their required slots must be known
+    too (e.g. env-quirks on the generic retry fact has no software to name)."""
+    prefix = rule.problem.key_prefix
+    if prefix and not problem["key"].startswith(prefix):
+        return False
+    return not (prefix and problem.get("basis") == "sql_fact" and missing_slots(rule, problem))
+
+
 def missing_slots(rule: Rule, problem: dict | None) -> list[str]:
     values = (problem or {}).get("vars") or {}
     return [name for name, slot in rule.remedy.slots.items()
@@ -104,7 +113,7 @@ def recall(problems: list[dict], rules: list[Rule], memory: dict, inputs: dict |
                     or problem["type"] not in rule.problem.types):
                 continue
             prefix = rule.problem.key_prefix
-            if prefix and not problem["key"].startswith(prefix):
+            if not prefix_ok(rule, problem):
                 continue
             raw = (1. if prefix else .8) * mechanism.weight(rule.remedy.kind, choice)
             if problem["status"] != "active":
