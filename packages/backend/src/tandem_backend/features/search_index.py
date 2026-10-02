@@ -12,7 +12,10 @@ import os
 import posixpath
 import sqlite3
 import threading
+import time
 from pathlib import Path
+
+from ..platform import record
 
 MESSAGE_CHARS = 2000
 BATCH = 5000
@@ -113,10 +116,14 @@ class SearchIndex:
         self.building = True
         try:
             source = _open_ro(tandem_db)
+            started = time.perf_counter()
             try:
-                return self._sync(source, data_rev)
+                result = self._sync(source, data_rev)
             finally:
                 source.close()
+            record("features.search_index", (time.perf_counter() - started) * 1000,
+                   mode=result.get("mode"))
+            return result
         finally:
             self.building = False
             self.lock.release()

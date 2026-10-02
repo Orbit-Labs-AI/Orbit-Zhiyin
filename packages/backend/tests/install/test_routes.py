@@ -151,3 +151,21 @@ def test_fetch_and_catalog_plan(client, fake_home):
     applied = c.post("/v1/install/apply", json={"plan_id": flow["plan_id"], "preview_digest": flow["preview_digest"]})
     assert applied.status_code == 200
     assert (fake_home / ".claude/skills/foo/SKILL.md").read_text() == "# foo\n"
+
+
+def test_artifact_install_updates_ai_status(client):
+    c, svc = client
+    with svc.appdb.write() as db:
+        db.execute("INSERT INTO ai_artifact (artifact_id, kind, template_id, name, title, slots, payload, files, "
+                   "checks, personalized, content_hash, status, created_at, updated_at) "
+                   "VALUES ('a1','rule','t','n','规范','{}',?,'[]','[]',0,'h','draft',1,1)",
+                   (json.dumps({"kind": "rule", "payload": {"text": "Small commits.", "heading": "C"}}),))
+    plan = c.post("/v1/install/plans", json={"source": {"type": "artifact", "id": "a1"},
+                                             "agents": ["claude_code"]}).json()
+    preview = c.get(f"/v1/install/plans/{plan['plan_id']}/preview").json()
+    applied = c.post("/v1/install/apply", json={"plan_id": plan["plan_id"],
+                                                "preview_digest": preview["preview_digest"]}).json()
+    status = c.get("/v1/ai/artifacts/a1").json()
+    assert (status.get("status"), status.get("install_id")) == ("installed", applied["install_id"]), status
+    c.post(f"/v1/install/{applied['install_id']}/revert")
+    assert c.get("/v1/ai/artifacts/a1").json()["status"] == "reverted"

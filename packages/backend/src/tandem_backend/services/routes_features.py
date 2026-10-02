@@ -3,12 +3,14 @@ shared vocabulary, linked inventory and unified search."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Query
 
-from .. import features
+from .. import features, platform
 from ..features.service import FeatureService
+from ..features.vocab import VOCAB_VERSION
 from .auth import ApiError
 
 if TYPE_CHECKING:
@@ -30,8 +32,13 @@ def scope_from(project_id: list[str] | None, agent: list[str] | None,
 
 def router(gw: Gateway) -> APIRouter:
     api = APIRouter()
-    svc = FeatureService(gw.home, gw.appdb, gw.revisions.snapshot)
-    features.bind(svc)
+    svc = features.current()
+    if svc is None or (svc.home, svc.appdb) != (Path(gw.home), gw.appdb):
+        svc = FeatureService(gw.home, gw.appdb, gw.revisions.snapshot)
+        features.bind(svc)
+    for prefix in ("/v1/features/profile", "/v1/features/linked", "/v1/inventory/linked"):
+        platform.register_etag(prefix, svc.etag, exact=True)
+    platform.register_etag("/v1/features/vocab", lambda: VOCAB_VERSION, exact=True)
 
     @api.get("/v1/features/profile")
     def profile(project_id: Many = None, agent: Many = None,
@@ -57,10 +64,7 @@ def router(gw: Gateway) -> APIRouter:
     @api.get("/v1/inventory/linked")
     def linked(project_id: Many = None, agent: Many = None,
                type: str | None = None, status: str | None = None):
-        try:
-            return svc.linked_inventory(scope_from(project_id, agent), type=type, status=status)
-        except NotImplementedError as exc:
-            raise ApiError(501, "not_implemented", str(exc)) from None
+        return svc.linked_inventory(scope_from(project_id, agent), type=type, status=status)
 
     @api.get("/v1/search")
     def search(q: str = "", kinds: str = "", project_id: Many = None,
@@ -73,8 +77,6 @@ def router(gw: Gateway) -> APIRouter:
         try:
             return svc.search(q, kinds=kind_list, scope=scope_from(project_id, agent, None,
                                                                    since, until), limit=limit)
-        except NotImplementedError as exc:
-            raise ApiError(501, "not_implemented", str(exc)) from None
         except ValueError as exc:
             raise ApiError(400, "invalid_request", str(exc)) from None
 

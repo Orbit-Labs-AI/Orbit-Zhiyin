@@ -46,7 +46,9 @@ class CatalogSync:
         early = [i for i in due if i not in late]
 
         def run(index):
-            results[index] = self._sync_one(selected[index], max_pages, cancelled)
+            started = time.perf_counter()
+            result = self._sync_one(selected[index], max_pages, cancelled)
+            results[index] = {**result, "duration_ms": round((time.perf_counter() - started) * 1000, 1)}
 
         self._models = set()
         with self.store.writer(), ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:

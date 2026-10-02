@@ -2,7 +2,8 @@
 
 Every engine call runs in one dedicated cwd (``<home>/agent-cwd``, marked with
 ``.tandem-ai``), with sessions not persisted, a marker on the first prompt line and a
-minimal environment. ``is_tandem_ai_session`` lets connectors drop any run that leaked.
+minimal environment. Ingestion (``tandem_data.pipeline.exclude_tandem_ai_sessions``) drops
+any run that leaked; ``is_tandem_ai_session`` is the same test for in-process callers.
 """
 
 from __future__ import annotations
@@ -11,8 +12,10 @@ import json
 import os
 from pathlib import Path
 
-MARKER = "[tandem-analysis v1"
-MARKER_FILE = ".tandem-ai"
+# Shared with ingestion, which drops these sessions from canonical data (tandem_data.pipeline).
+from tandem_data.pipeline import TANDEM_AI_MARKER as MARKER
+from tandem_data.pipeline import TANDEM_AI_MARKER_FILE as MARKER_FILE
+
 ENV_KEEP = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")
 ENV_OPTIONAL = ("CLAUDE_CONFIG_DIR", "CODEX_HOME")
 

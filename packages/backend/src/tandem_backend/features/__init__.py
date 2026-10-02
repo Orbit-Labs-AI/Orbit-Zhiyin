@@ -1,5 +1,5 @@
 """Feature layer: shared vocabulary (DT-13), cross-database reads, session features and
-the user profile, plus linked inventory and search when those modules are present.
+the user profile, linked inventory and unified search.
 
 Other modules call the module-level helpers after ``routes_features.router(gw)`` bound a
 ``FeatureService``; they raise ``RuntimeError`` when nothing is bound.
@@ -7,24 +7,29 @@ Other modules call the module-level helpers after ``routes_features.router(gw)``
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
 # Submodules share names with the helpers below (profile, search, vocab). Import them
 # first so the later ``def`` wins; importing a submodule afterwards would otherwise
 # replace the package attribute with the module object.
 from . import profile as _profile_module  # noqa: F401
+from . import search as _search_module  # noqa: F401
 from . import vocab as _vocab_module  # noqa: F401
-
-with contextlib.suppress(ImportError):
-    from . import search as _search_module  # noqa: F401
 
 _service: Any = None
 
 
 def bind(svc) -> None:
+    """Bind the active service; a replaced one is closed (gateway.app() may run twice)."""
     global _service
-    _service = svc
+    old, _service = _service, svc
+    if old is not None and old is not svc:
+        old.close()
+
+
+def current():
+    """The bound service, or None."""
+    return _service
 
 
 def get():

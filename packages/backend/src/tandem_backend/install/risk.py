@@ -117,7 +117,7 @@ def _collect(spec: dict, targets: list[dict]) -> list[tuple[str, str, int | None
             is_script = str(t.get("path", "")).endswith(SCRIPT_EXT) or (
                 (t.get("file_mode") or 0) & 0o111)
             out.append((content, "script" if is_script else "text", idx))
-        elif t.get("pointer", "").endswith("/permissions/allow"):
+        elif (t.get("pointer") or "").endswith("/permissions/allow"):
             walk(content, "perm", idx)
         else:
             walk(content, "text", idx)

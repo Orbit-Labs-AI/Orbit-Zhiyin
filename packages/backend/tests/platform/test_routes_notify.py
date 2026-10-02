@@ -120,17 +120,13 @@ def test_missing_platform_returns_503(gw):
 
 
 def test_gateway_mounts_routes(tmp_path):
-    """routes_platform includes the notify router; parts attach lazily via gw.platform."""
+    """routes_platform includes the notify router over the Platform's notifier/collection."""
     from tandem_backend.services.gateway import Gateway
 
     token = "synthetic-test-token-0123456789abcdef"
     gateway = Gateway(tmp_path / "home", discovery=lambda: [])
+    gateway.platform.notifier.start()
     try:
-        if getattr(gateway, "platform", None) is None:
-            gateway.platform = SimpleNamespace(settings=None)
-        if getattr(gateway.platform, "notifier", None) is None:
-            gateway.platform.notifier = Notifier(gateway).start()
-            gateway.platform.collection = Collection(gateway)
         client = TestClient(gateway.app(token=token, port=8765), base_url="http://127.0.0.1:8765",
                             headers={"Authorization": f"Bearer {token}"})
         assert client.post("/v1/notifications/test").status_code == 200
@@ -139,5 +135,4 @@ def test_gateway_mounts_routes(tmp_path):
         frames, _ = gateway.bus.since(0, {"notify", "service"})
         assert {f.topic for f in frames} == {"notify", "service"}
     finally:
-        gateway.platform.notifier.close()
-        gateway.reads.close(), gateway.snapshots.close(), gateway.appdb.close()
+        gateway.close()

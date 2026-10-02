@@ -60,7 +60,7 @@ def run(api: str, params: dict | None, *, reads, appdb=None, home=None) -> dict:
     limit = params.get("limit", 10)
     scope = params.get("scope") or {}
     if api == "candidates":
-        rows = P.candidates(scope, limit)
+        rows = P.candidates(scope, limit, appdb)
     elif api == "catalog":
         rows = P.catalog_search(params["q"], limit)
     elif api == "problems" and (problems := P.features_profile(scope).get("problems")):

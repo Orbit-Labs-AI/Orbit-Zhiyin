@@ -1,8 +1,9 @@
 """InstallService: plan → preview (digest) → apply (ledger, backups) → revert, plus reconcile.
 
 Assembles the landing table / environment / fetch (P1) and the format ops / diff / risk /
-atomic applier (P2). Cross-module hooks (recommend tracking and labels, platform telemetry,
-inventory refresh) are imported lazily and may fail without affecting the install.
+atomic applier (P2). After the files are written it notifies the other areas: recommend
+(tracking, exposure ``install``, revert label), the AI artifact status, platform telemetry and
+an inventory refresh. Those calls are best effort: a failure becomes a warning, never an error.
 """
 
 from __future__ import annotations
@@ -15,16 +16,19 @@ import time
 from collections import OrderedDict
 from pathlib import Path
 
+from .. import recommend
+from ..platform import record
+from ..recommend.store import record_exposure
 from . import applier, ops, store
 from . import cost as cost_mod
 from . import risk as risk_mod
 from .diff import line_diff
-from .env import build_env
+from .env import build_env, invalidate
 from .env import environment as env_environment
 from .errors import InstallError, OpConflict, PlanError, RiskBlocked, StaleError
 from .fetch import fetch_source
 from .fetch import gc as fetch_gc
-from .plan import default_catalog_lookup, digest, make_plan
+from .plan import INVENTORY_KIND, default_catalog_lookup, digest, make_plan
 
 OBSERVE_DAYS = 7
 UNDO_WINDOW_MS = 10_000
@@ -37,46 +41,19 @@ def _text(data: bytes | None) -> str:
 
 
 def _diff(before: str, after: str, ai_lines: set[int], context: int = 3) -> dict:
-    """``line_diff`` after trimming the common head/tail: difflib is quadratic on large
-    repetitive files (a 2 MB ``~/.claude.json`` took seconds); output is unchanged."""
-    if not before:
-        return line_diff(before, after, context=None, ai_lines=ai_lines)
-    a, b = before.splitlines(), after.splitlines()
-    limit = min(len(a), len(b))
-    head = 0
-    while head < limit and a[head] == b[head]:
-        head += 1
-    tail = 0
-    while tail < limit - head and a[-1 - tail] == b[-1 - tail]:
-        tail += 1
-    lo, cut = max(0, head - context), max(0, tail - context)
-    out = line_diff("\n".join(a[lo:len(a) - cut]), "\n".join(b[lo:len(b) - cut]), context=context,
-                    ai_lines={n - lo for n in ai_lines if n > lo})
-    rows = [{**r, "n": r["n"] + lo} if r["n"] else r for r in out["lines"]]
-    gap = {"n": None, "op": " ", "text": "…", "gap": True}
-    if rows and lo and not rows[0].get("gap"):
-        rows.insert(0, dict(gap))
-    if rows and cut and not rows[-1].get("gap"):
-        rows.append(dict(gap))
-    return {**out, "lines": rows}
-
-
-def _telemetry(name: str, value: float = 1.0, **tags) -> None:
-    try:
-        from ..platform import telemetry  # noqa: PLC0415 - optional, platform owns it
-
-        telemetry.record(name, value, **tags)
-    except Exception:  # noqa: BLE001
-        pass
+    return line_diff(before, after, context=context if before else None, ai_lines=ai_lines)
 
 
 class InstallService:
     def __init__(self, appdb, home, *, reads=None, env=None, fetcher=None, jobs=None, clock=time.time,
-                 catalog_lookup=None):
+                 catalog_lookup=None, artifact_status=None):
         self.appdb, self.home = appdb, Path(home)
         self.reads, self.fetcher, self.jobs, self.clock = reads, fetcher, jobs, clock
         self.env = env or build_env()
         self.catalog_lookup = catalog_lookup or default_catalog_lookup
+        # (artifact_id, status, install_id) -> None; the gateway binds AIService.set_artifact_status.
+        self.artifact_status = artifact_status
+        store.ensure_columns(appdb)
         self.backups = self.home / "backups"
         self.lock_dir = self.home / "locks" / "install"
         self.cache_dir = self.home / "cache" / "install"
@@ -88,6 +65,8 @@ class InstallService:
     # ---- environment / plan --------------------------------------------------------------------
 
     def environment(self, refresh: bool = False) -> dict:
+        with contextlib.suppress(Exception):
+            self.link_inventory()
         return env_environment(self.env, reads=self.reads, cache_dir=self.cache_dir, refresh=refresh)
 
     def plan(self, source: dict, agents=None, scope: str = "user", project_path: str | None = None,
@@ -169,8 +148,7 @@ class InstallService:
                               "applied": {**render["applied"], "created_dirs": []},
                               "file_mode": t.get("file_mode"), "block_id": t.get("block_id")})
             chained[path] = new
-        # risk.scan expects a string pointer; block/file targets carry None.
-        risk = risk_mod.scan(spec, [{**t, "pointer": t.get("pointer") or ""} for t in active])
+        risk = risk_mod.scan(spec, active)
         cost = cost_mod.estimate(spec, active)
         digest_value = digest({"plan_id": plan["plan_id"], "spec_hash": plan["spec_hash"],
                                "selected": {str(k): v for k, v in sorted(chosen.items())}, "disabled": disabled,
@@ -213,7 +191,7 @@ class InstallService:
                 "risk": risk, "warnings": warnings, "requires_trust_note": TRUST_NOTE if requires_trust else None}
 
     def apply(self, plan_id: str, preview_digest: str, selected_units=None, disabled_targets=(),
-              override_risk: bool = False) -> dict:
+              override_risk: bool = False, surface: str = "A7") -> dict:
         plan = self._plan(plan_id)
         done = store.find_by_digest(self.appdb, plan_id, preview_digest)
         if done:  # same reviewed preview applied before: never install twice
@@ -234,6 +212,8 @@ class InstallService:
             raise PlanError("nothing_to_apply", "所选内容已存在，无需写入")
         spec = plan["spec"]
         candidate_id = plan["source_id"] if plan["source_type"] == "candidate" else None
+        src = spec.get("source") or {}
+        catalog_item_id = src.get("catalog_item_id") or (src.get("id") if src.get("type") == "catalog" else None)
         install_id = f"in_{time.time_ns():x}{secrets.token_hex(4)}"
         backup_dir = self.backups / install_id
         prepared = applier.preflight(inner["raw"], selected=inner["sel"], expect=inner["guards"],
@@ -242,7 +222,8 @@ class InstallService:
         begin = []
         for p in inner["predicted"]:
             rec = {**p, "backup_path": p["backup_path"] and p["backup_path"].replace("<install_id>", install_id)}
-            begin.append(self._ledger_row("install_begin", install_id, plan_id, candidate_id, rec, spec, note=note))
+            begin.append(self._ledger_row("install_begin", install_id, plan_id, candidate_id, rec, spec, note=note,
+                                          catalog_item_id=catalog_item_id))
         with self.appdb.write() as db:
             store.ledger_append(db, begin)
         started = time.perf_counter()
@@ -254,11 +235,11 @@ class InstallService:
                 store.ledger_append(db, [{"actor": "tandem", "action": "install_failed", "install_id": install_id,
                                           "plan_id": plan_id, "candidate_id": candidate_id,
                                           "note": store.dumps({"code": error.code, "detail": error.detail})}])
-            _telemetry("install.failed", 1, kind=spec["kind"], code=error.code)
+            record("install.failed", 1, kind=spec["kind"], code=error.code)
             raise
         warnings: list[str] = []
         now = self.now_ms()
-        tracking_id = self._track(candidate_id, install_id, now, warnings)
+        tracking_id = self._track(candidate_id, install_id, now, surface, warnings)
         state = {"install_id": install_id, "plan_id": plan_id, "candidate_id": candidate_id,
                  "source_type": plan["source_type"], "source_id": plan["source_id"],
                  "title": spec.get("title") or spec["id"], "kind": spec["kind"], "agents": plan["agents"],
@@ -271,10 +252,17 @@ class InstallService:
             store.ledger_append(db, [self._ledger_row("install", install_id, plan_id, candidate_id,
                                                       {**rec, "requires_trust": bool(by_idx.get(rec["idx"], {})
                                                                                      .get("requires_trust"))},
-                                                      spec, tracking_id=tracking_id) for rec in records])
+                                                      spec, tracking_id=tracking_id, catalog_item_id=catalog_item_id)
+                                      for rec in records])
             store.state_put(db, state)
-        _telemetry("install.apply", 1, kind=spec["kind"], agents=",".join(plan["agents"]))
-        _telemetry("install.apply_ms", (time.perf_counter() - started) * 1000, kind=spec["kind"])
+        invalidate()
+        record("install.apply", 1, kind=spec["kind"], agents=",".join(plan["agents"]))
+        record("install.apply_ms", (time.perf_counter() - started) * 1000, kind=spec["kind"])
+        if plan["source_type"] == "artifact":
+            self._artifact(plan["source_id"], "installed", install_id, warnings)
+        if catalog_item_id:
+            with contextlib.suppress(Exception):
+                self.link_inventory()
         if self.jobs is not None:
             try:
                 self.jobs.submit("inventory", origin="install")
@@ -293,16 +281,74 @@ class InstallService:
                 "blob_ref": (spec.get("source") or {}).get("sha256"),
                 "evidence_refs": spec.get("evidence_refs") or None, **extra}
 
-    def _track(self, candidate_id, install_id: str, now: int, warnings: list[str]) -> str | None:
+    def _track(self, candidate_id, install_id: str, now: int, surface: str, warnings: list[str]) -> str | None:
+        """Register outcome tracking and log the ``install`` exposure for a recommendation."""
         if not candidate_id:
             return None
         try:
-            from ..recommend.tracking import register  # noqa: PLC0415 - wired later, optional
-
-            return register(candidate_id=candidate_id, install_id=install_id, installed_at=now)
-        except Exception:  # noqa: BLE001
+            tracking_id = recommend.register_tracking(self.appdb, install_id, candidate_id, now)
+        except Exception:  # noqa: BLE001 - unknown candidate or recommend tables missing
             warnings.append("tracking_unavailable")
             return None
+        try:
+            with self.appdb.write() as db:
+                record_exposure(db, candidate_id, surface, None, "install", now)
+        except Exception:  # noqa: BLE001
+            warnings.append("exposure_unavailable")
+        return tracking_id
+
+    def _artifact(self, artifact_id, status: str, install_id: str, warnings: list[str] | None = None) -> None:
+        if self.artifact_status is None or not artifact_id:
+            return
+        try:
+            self.artifact_status(artifact_id, status, install_id)
+        except Exception:  # noqa: BLE001
+            if warnings is not None:
+                warnings.append("artifact_status_unavailable")
+
+    def link_inventory(self) -> int:
+        """Append ``link`` ledger rows tying catalog installs to the inventory items they produced.
+
+        The inventory only sees a new file after its next scan, so this runs after apply and
+        again on later environment reads until each install is linked.
+        """
+        if self.reads is None:
+            return 0
+        pending = store.unlinked_installs(self.appdb)
+        if not pending:
+            return 0
+        names: dict[str, set[str]] = {}
+        rows = []
+        for item in pending:
+            inv_type = INVENTORY_KIND.get(item["kind"])
+            if inv_type is None:
+                continue
+            if item["plan_id"] not in names:
+                spec = (store.get_plan(self.appdb, item["plan_id"]) or {}).get("spec") or {}
+                payload = spec.get("payload") or {}
+                found = {str(v) for v in (payload.get("name"), payload.get("plugin"), spec.get("id")) if v}
+                if payload.get("plugin") and payload.get("marketplace"):
+                    found.add(f"{payload['plugin']}@{payload['marketplace']}")
+                names[item["plan_id"]] = found
+            try:
+                with self.reads.read() as db:
+                    hit = db.execute(
+                        "SELECT i.inv_id FROM inventory_item i JOIN inventory_scan s USING(scan_id) WHERE "
+                        "s.scan_id IN (SELECT MAX(scan_id) FROM inventory_scan GROUP BY source_key) "
+                        "AND s.agent = ? AND i.type = ? AND (i.config_path = ? OR i.name IN "
+                        f"({','.join('?' * len(names[item['plan_id']]))})) ORDER BY i.config_path = ? DESC LIMIT 1",
+                        (item["target_agent"], inv_type, item["path"], *names[item["plan_id"]],
+                         item["path"])).fetchone()
+            except Exception:  # noqa: BLE001 - no tandem.db / inventory yet
+                return 0
+            if hit and all(r["install_id"] != item["install_id"] for r in rows):
+                rows.append({"actor": "tandem", "action": "link", "install_id": item["install_id"],
+                             "plan_id": item["plan_id"], "target_agent": item["target_agent"], "path": item["path"],
+                             "inv_id": hit[0], "catalog_item_id": item["catalog_item_id"]})
+        if rows:
+            with self.appdb.write() as db:
+                store.ledger_append(db, rows)
+        return len(rows)
 
     # ---- revert --------------------------------------------------------------------------------
 
@@ -343,22 +389,20 @@ class InstallService:
                 store.state_update(db, install_id, state="reverted", reverted_at=now)
         if all_reverted and state["state"] != "reverted":
             state["state"] = "reverted"
-            self._after_revert(state)
-            _telemetry("install.revert", 1, kind=state["kind"])
+            self._after_revert(state, now)
+            record("install.revert", 1, kind=state["kind"])
+        if entries:
+            invalidate()
         return {"install_id": install_id, "state": state["state"],
                 "ok": all(r["status"] in OK_REVERT for r in results), "results": results}
 
-    def _after_revert(self, state: dict) -> None:
-        if not state.get("candidate_id"):
-            return
-        with contextlib.suppress(Exception):
-            from ..recommend.tracking import stop  # noqa: PLC0415
-
-            stop(state["install_id"])
-        with contextlib.suppress(Exception):
-            from ..recommend.labels import label  # noqa: PLC0415
-
-            label(state["candidate_id"], "not_useful", source="install_revert")
+    def _after_revert(self, state: dict, now: int) -> None:
+        """Recommend freezes tracking and labels the candidate not_useful; AI marks its artifact."""
+        if state.get("candidate_id"):
+            with contextlib.suppress(Exception):
+                recommend.mark_reverted(self.appdb, state["install_id"], now)
+        if state.get("source_type") == "artifact":
+            self._artifact(state.get("source_id"), "reverted", state["install_id"])
 
     def revert_many(self, install_ids: list[str], *, actor: str = "user") -> dict:
         items = []
@@ -453,3 +497,13 @@ class InstallService:
 
     def sweep_plans(self, older_than_days: int = 30) -> int:
         return store.sweep_plans(self.appdb, older_than_days)
+
+    def maintain(self) -> dict:
+        """Idle marking, backup/plan retention and fetch-cache GC; run at gateway start."""
+        from . import lifecycle  # noqa: PLC0415 - lifecycle imports this module
+
+        out = {"idle": lifecycle.sweep(self, self.now_ms()), "backups": self.sweep_backups(keep=50, days=90),
+               "plans": self.sweep_plans(30), "linked": self.link_inventory()}
+        if self.cache_dir.is_dir():
+            fetch_gc(self.cache_dir)
+        return out

@@ -9,26 +9,19 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from contextlib import nullcontext
 from pathlib import Path
 
+from .. import platform
 from . import sessfeat
 from .hub import QueryHub
+from .linked import compute_linked
 from .match import match_items
 from .profile import build_profile, evidence, pack, unpack
 from .scope import normalize
+from .search import search as run_search
 from .vocab import VOCAB_VERSION, vocab_table
 
 LRU_SIZE, KEEP_SCOPES = 16, 8
-
-
-def timed(name: str):
-    try:
-        from ..platform import timed as platform_timed  # type: ignore[attr-defined]
-
-        return platform_timed(name)
-    except Exception:  # platform module optional until wired
-        return nullcontext()
 
 
 class FeatureService:
@@ -59,9 +52,15 @@ class FeatureService:
         return {"data": int(rev.get("data_rev") or 0), "inventory": int(rev.get("inventory_rev") or 0),
                 "catalog": self.catalog_rev(), "vocab": VOCAB_VERSION}
 
+    def etag(self) -> str:
+        """Revision tag for conditional GETs of profile / linked (see routes_features)."""
+        revs = self.revs()
+        return (f"{revs['data']}.{revs['inventory']}.{revs['catalog']}."
+                f"{platform.rev_token('features.profile')}")
+
     # profile -------------------------------------------------------------------
     def profile(self, scope=None, *, signals=None, include=(), refresh=False) -> dict:
-        with timed("features.profile"):
+        with platform.timed("features.profile"):
             return self._profile(scope, signals, include, refresh)
 
     def _key(self, scope, signals) -> tuple[str, tuple]:
@@ -160,6 +159,7 @@ class FeatureService:
             def run():
                 try:
                     self._build(key, scope, signals)
+                    platform.bump_rev("features.profile")  # clients holding the stale body refetch
                 finally:
                     with self.lock:
                         self.building.pop(key, None)
@@ -181,16 +181,12 @@ class FeatureService:
     def vocab(self) -> dict:
         return vocab_table()
 
-    # linked inventory and search (linked-and-search package) --------------------
+    # linked inventory and search ------------------------------------------------
     def _write(self, fn) -> None:
         with self.appdb.write() as db:
             fn(db)
 
     def linked_inventory(self, scope=None, **filters) -> dict:
-        try:
-            from .linked import compute_linked  # type: ignore[import-not-found]
-        except ImportError as exc:
-            raise NotImplementedError("linked inventory 尚未接入") from exc
         s = normalize(scope)
         revs = self.revs()
         agent = (s.get("agent_ids") or [None])[0]
@@ -206,15 +202,14 @@ class FeatureService:
         return result
 
     def search(self, q: str, kinds=None, scope=None, limit: int = 20) -> dict:
-        try:
-            from .search import search  # type: ignore[import-not-found]
-        except ImportError as exc:
-            raise NotImplementedError("search 尚未接入") from exc
-        with timed("features.search"):
-            return search(self.home, q, kinds=kinds, scope=normalize(scope), limit=limit,
-                          data_rev=self.data_rev(), tandem_db=self.home / "tandem.db",
-                          catalog_db=self.home / "catalog.db", app_db=self.appdb.path,
-                          linked=self.linked_inventory, executor=self.hub.pool)
+        result = run_search(self.home, q, kinds=kinds, scope=normalize(scope), limit=limit,
+                            data_rev=self.data_rev(), tandem_db=self.home / "tandem.db",
+                            catalog_db=self.home / "catalog.db", app_db=self.appdb.path,
+                            linked=self.linked_inventory, executor=self.hub.pool)
+        platform.record("features.search", result["took_ms"], partial=bool(result["partial"]))
+        for source in result["partial"]:
+            platform.record("features.search.partial", source=source)
+        return result
 
     def close(self) -> None:
         self.wait_idle(5)

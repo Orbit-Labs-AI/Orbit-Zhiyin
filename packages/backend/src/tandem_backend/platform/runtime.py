@@ -6,25 +6,15 @@ import logging
 import time
 
 from . import logs, telemetry
+from .collection import Collection
 from .maintenance import Maintenance
+from .notify import Notifier
 from .revisions import EtagRules, RevisionRegistry
 from .settings import PlatformSettings
 from .telemetry import Telemetry
 
 TERMINAL = frozenset({"completed", "partial", "cancelled", "failed", "interrupted"})
 DATA_ROUTES = ("/v1/sessions", "/v1/projects", "/v1/sources", "/v1/inventory")
-OPTIONAL = ("tandem_backend.platform.notify", "tandem_backend.platform.collection")
-
-
-def _optional(module: str, name: str, gw):
-    """Instantiate an optional sibling (platform-notify package); absent → None."""
-    try:
-        cls = getattr(__import__(module, fromlist=[name]), name)
-    except ModuleNotFoundError as error:
-        if error.name in OPTIONAL:
-            return None
-        raise
-    return cls(gw)
 
 
 class Platform:
@@ -42,8 +32,8 @@ class Platform:
         self.slow_ms, self.slow_log = 500, True
         self.refresh()
         self.maintenance = Maintenance(self, tick_s=maintenance_tick_s)
-        self.notifier = _optional("tandem_backend.platform.notify", "Notifier", gw)
-        self.collection = _optional("tandem_backend.platform.collection", "Collection", gw)
+        self.notifier = Notifier(gw)
+        self.collection = Collection(gw)
         self.job_started: dict[str, float] = {}
         revisions = getattr(gw, "revisions", None)
         if revisions is not None:
@@ -79,9 +69,7 @@ class Platform:
             pass  # Logging is best-effort; the gateway still serves.
         telemetry.install(self.telemetry)
         self.maintenance.start()
-        start = getattr(self.notifier, "start", None)
-        if callable(start):
-            start()
+        self.notifier.start()
         logs.log_event("gateway_started", home="~")
 
     def close(self) -> None:
@@ -90,9 +78,7 @@ class Platform:
             self.telemetry.flush(force=True)
         except Exception:  # noqa: BLE001 - shutdown proceeds regardless.
             logs.log.exception("final telemetry flush failed", extra={"ev": "flush_failed"})
-        close = getattr(self.notifier, "close", None)
-        if callable(close):
-            close()
+        self.notifier.close()
         if telemetry.active() is self.telemetry:
             telemetry.install(None)
         if self.log_handler is not None:
@@ -121,8 +107,6 @@ class Platform:
                         telemetry.record("error", 1, area="job", code=code)
             elif topic == "service" and data.get("state") == "degraded":
                 logs.log_event("service_degraded", logging.WARNING, name=data.get("name"))
-            forward = getattr(self.notifier, "observe", None)
-            if callable(forward):
-                forward(topic, event, data)
+            self.notifier.observe(topic, event, data)
         except Exception:  # noqa: BLE001
             logs.log.exception("platform observe failed", extra={"ev": "observe_failed"})

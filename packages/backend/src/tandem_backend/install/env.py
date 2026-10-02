@@ -333,8 +333,16 @@ def inventory_names(reads, agent: str | None = None, kind: str | None = None) ->
     return {r[0] for r in _query(reads, sql, (agent, kind)) or []}
 
 
+# Most recent session activity first; projects without sessions follow, newest row first.
+RECENT_PROJECTS = (
+    "SELECT p.key_type, p.key, p.paths FROM project p LEFT JOIN (SELECT project_id, "
+    "MAX(COALESCE(ended_at, started_at)) AS last FROM session WHERE project_id IS NOT NULL "
+    "GROUP BY project_id) s USING(project_id) ORDER BY s.last IS NULL, s.last DESC, p.rowid DESC LIMIT 500")
+
+
 def project_paths(reads, limit: int = PROJECT_LIMIT) -> list[str]:
-    rows = _query(reads, "SELECT key_type, key, paths FROM project ORDER BY rowid DESC LIMIT 500") or []
+    rows = _query(reads, RECENT_PROJECTS) or _query(
+        reads, "SELECT key_type, key, paths FROM project ORDER BY rowid DESC LIMIT 500") or []
     found: list[str] = []
     for key_type, key, paths in rows:
         try:
@@ -364,6 +372,12 @@ def project_info(path: str) -> dict:
 
 _memo: dict = {}
 _memo_lock = threading.Lock()
+
+
+def invalidate() -> None:
+    """Drop the short memo so the next call sees files an apply/revert just changed."""
+    with _memo_lock:
+        _memo.clear()
 
 
 def environment(env: Env | None = None, *, reads=None, cache_dir: Path | None = None,

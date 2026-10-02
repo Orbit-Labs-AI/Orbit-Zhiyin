@@ -79,11 +79,11 @@ def test_prune_keeps_pinned_and_force_replace(db):
 def test_exposure_view_dedupe_and_actions(db):
     with db.write() as conn:
         store.insert_run(conn, run_row("r1", "d1", NOW), [
-            cand("kb:a", problem={"key": "p", "wilson_lo": 0.2}), cand("kb:b")])
+            cand("kb:a", problem={"key": "p", "wilson_lo": 0.2, "sessions": 8}), cand("kb:b")])
         cid = store.candidate_id("r1", "kb:a")
         state = store.record_exposure(conn, cid, "A7", 0, "view", NOW)
         assert state["shown_count"] == 1 and state["status"] == "shown"
-        assert state["last_evidence"] == 0.2
+        assert state["last_evidence"] == 8
         state = store.record_exposure(conn, cid, "A7", 0, "view", NOW + store.HOUR)
         assert state["shown_count"] == 1  # within 6 h
         state = store.record_exposure(conn, cid, "lite", 0, "view", NOW + store.HOUR)
@@ -121,7 +121,7 @@ def test_label_effects_and_undo(db):
         memory = store.memory(conn, NOW + 15 * store.DAY)
     assert memory["muted_kb_rules"] == ["a"]
     assert memory["muted_problem_types"] == ["permission_friction"]
-    assert memory["state"]["kb:b"]["status"] == "shown"  # snooze expired
+    assert memory["state"]["kb:b"]["status"] == "candidate"  # snooze expired
     assert [entry["label"] for entry in memory["labels"]["kb:a"]] == ["mute"]
 
 
@@ -151,3 +151,29 @@ def test_memory_weights_and_posteriors(db):
 def test_weight_is_clipped():
     assert store._weight(100, 0, 0) == 1.4
     assert store._weight(0, 0, 100) == 0.6
+
+
+def test_views_stay_out_of_memory_rev_and_decay_at_read(db):
+    with db.write() as conn:
+        store.insert_run(conn, run_row("r1", "d1", NOW), [
+            cand("kb:a", problem={"key": "p", "sessions": 8}), cand("kb:b", rank=2)])
+        cid = store.candidate_id("r1", "kb:a")
+        rev = store.memory_rev(conn)
+        for hours in (0, 7, 14):
+            store.record_exposure(conn, cid, "A7", 0, "view", NOW + hours * store.HOUR)
+        assert store.memory_rev(conn) == rev
+        assert "shown_count" not in store.memory(conn, NOW)["state"]["kb:a"]
+        states = store.states(conn)
+        cards = store.candidates(conn, "r1")
+    a = next(c for c in cards if c["rec_key"] == "kb:a")
+    assert store.read_decay(states["kb:a"], a) == pytest.approx(.7225)
+    assert store.read_decay(states["kb:a"], {"problem": {"sessions": 12}}) == 1.0  # +50 %
+    assert store.read_decay({**states["kb:a"], "install_id": "i1"}, a) == 1.0
+    ordered = store.apply_decay(cards, states)
+    assert [c["rec_key"] for c in ordered] == ["kb:a", "kb:b"]  # 1/.7225 < 2: stays first
+    states["kb:a"]["shown_count"] = 9
+    states["kb:b"] = {**states["kb:a"], "rec_key": "kb:b", "shown_count": 0}
+    cards.append({**a, "rec_key": "kb:c", "rank": 3, "score": {}})  # rank 3 slot, never shown
+    ordered = store.apply_decay(cards, states)
+    assert ordered[0]["score"]["decay"] == .5  # floor: position 1 → 2, ties keep slate order
+    assert [c["rec_key"] for c in ordered] == ["kb:a", "kb:b", "kb:c"]

@@ -126,3 +126,9 @@ def test_level_aggregation_and_evidence_length():
     assert res["level"] == "dangerous"
     assert all(len(f["evidence"]) <= 120 for f in res["findings"])
     assert scan(rule("plain"), [])["level"] == "safe"
+
+
+def test_block_and_file_targets_with_none_pointer():
+    targets = [{"idx": 0, "action": "md_block", "pointer": None, "content": "hello"},
+               {"idx": 1, "action": "create_file", "pointer": None, "content": "x", "file_mode": None}]
+    assert scan(rule("plain"), targets)["level"] in ("safe", "caution")

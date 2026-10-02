@@ -1,8 +1,10 @@
 import time
+from pathlib import Path
 
 import pytest
 from conftest import DAY, NOW
 
+from tandem_backend import appdb as appdb_schema
 from tandem_backend.features.search import parse, search, snippet, strip_marks
 from tandem_backend.features.search_index import SearchIndex
 
@@ -104,6 +106,21 @@ def test_missing_catalog_and_candidate_tables(seeded):
     world.a.execute("INSERT INTO candidate VALUES ('r1', '登录流程技能')")
     rec = run(world, index, "登录流程", kinds=["recommendation"])
     assert rec["results"][0]["ref"] == {"page": "recs", "id": "r1"}
+
+
+def test_recommendation_reads_rec_candidate(seeded):
+    world, index = seeded
+    schema = Path(appdb_schema.__file__).parent / "schema" / "recommend.sql"
+    world.a.executescript(schema.read_text())
+    rows = [("c1", "r1", "kb:login", "登录流程技能（旧）", 1, 100),
+            ("c2", "r2", "kb:login", "登录流程技能", 1, 200),
+            ("c3", "r2", "kb:gated", "登录流程被拦截", 0, 200)]
+    world.a.executemany("INSERT INTO rec_candidate (candidate_id, run_id, rec_key, kind, dim, "
+                        "title, passed, card, created_at) VALUES (?, ?, ?, 'skill', 'd', ?, ?, "
+                        "'{}', ?)", rows)
+    out = run(world, index, "登录流程", kinds=["recommendation"])
+    assert [h["id"] for h in out["results"]] == ["c2"]
+    assert out["results"][0]["ref"] == {"page": "recs", "id": "c2", "rec_key": "kb:login"}
 
 
 def test_slow_source_lands_in_partial(seeded):

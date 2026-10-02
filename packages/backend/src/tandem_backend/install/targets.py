@@ -98,6 +98,17 @@ def lookup(kind: str, agent: str, scope: str) -> Row | None:
 
 # ---- validation -----------------------------------------------------------------------------
 
+HOOKS_DIR = "{tandem.hooks}"
+HOOK_FILE = re.compile(r"[A-Za-z0-9._@-]{1,128}")
+
+
+def hook_file(value) -> str:
+    """File name inside the Tandem hooks dir; AI templates use ``<id>@<version>.py``."""
+    if not isinstance(value, str) or not HOOK_FILE.fullmatch(value) or value.startswith("."):
+        raise PlanError("unsafe_name", f"unsafe hook file name: {value!r}")
+    return value
+
+
 def safe_name(value) -> str:
     if not isinstance(value, str) or not NAME.fullmatch(value) or ".." in value or value in (".",):
         raise PlanError("unsafe_name", f"unsafe name: {value!r}")
@@ -352,25 +363,41 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                     continue
                 target(path.replace("{name}", name).replace("{rel}", rel), text, group=f"skill:{name}")
         elif kind == "hook":
-            event = payload.get("event")
-            if not isinstance(event, str) or not NAME.fullmatch(event):
-                raise PlanError("invalid_payload", "hook.event is required")
+            bindings = payload.get("event_bindings") or [{"event": payload.get("event"),
+                                                           "matcher": payload.get("matcher")}]
+            for b in bindings:
+                if not isinstance(b, dict) or not isinstance(b.get("event"), str) or not NAME.fullmatch(b["event"]):
+                    raise PlanError("invalid_payload", "hook.event is required")
             command = payload.get("command")
             if not isinstance(command, str) or not command.strip():
                 raise PlanError("invalid_payload", "hook.command is required")
             group = f"hook:{spec['id']}"
+            base = project + "/.claude" if (project and agent == C) else info["root_abs"]
+            # AI hooks address their files as "{tandem.hooks}/<file>" inside a double-quoted command.
+            hooks_dir = f"{base}/hooks/tandem" if HOOKS_DIR in command else None
+            if hooks_dir and any(c in hooks_dir for c in '"$`\\'):
+                raise PlanError("unsafe_path", f"hooks directory cannot be quoted safely: {hooks_dir!r}")
             script = payload.get("script")
             if script:
-                script_name = safe_name(script.get("name") if isinstance(script, dict) else None)
-                base = project + "/.claude" if (project and agent == C) else info["root_abs"]
-                script_path = f"{base}/hooks/tandem-{spec['id']}-{script_name}"
-                if not isinstance(script.get("text"), str):
+                if not isinstance(script, dict) or not isinstance(script.get("text"), str):
                     raise PlanError("invalid_payload", "hook.script.text is required")
+                if hooks_dir:
+                    script_path = f"{hooks_dir}/{hook_file(script.get('name'))}"
+                else:
+                    script_path = f"{base}/hooks/tandem-{spec['id']}-{safe_name(script.get('name'))}"
                 target(script_path, script["text"], action="create_file", file_mode=0o755, group=group,
                        scope=scope, shared_layer=project is not None)
                 command = command.replace("{script_path}", shlex.quote(script_path))
-            target(path, render_hook_entry(payload, command),
-                   pointer=row.pointer.format(event=pointer_token(event)), group=group)
+            for extra in payload.get("extra_files") or []:
+                if not hooks_dir or not isinstance(extra, dict) or not isinstance(extra.get("text"), str):
+                    raise PlanError("invalid_payload", "hook.extra_files need {name, text} and {tandem.hooks}")
+                target(f"{hooks_dir}/{hook_file(extra.get('name'))}", extra["text"], action="create_file",
+                       group=group, scope=scope, shared_layer=project is not None)
+            if hooks_dir:
+                command = command.replace(HOOKS_DIR, hooks_dir)
+            for b in bindings:
+                target(path, render_hook_entry({**payload, "matcher": b.get("matcher")}, command),
+                       pointer=row.pointer.format(event=pointer_token(b["event"])), group=group)
         elif kind == "mcp":
             name, _ = _mcp_fields(payload)
             if agent == C:

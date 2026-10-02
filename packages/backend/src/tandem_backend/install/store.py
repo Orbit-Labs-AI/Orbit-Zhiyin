@@ -16,7 +16,7 @@ ACTIVE_STATES = ("installed", "observing", "kept")
 LEDGER_COLUMNS = ("entry_id", "ts", "actor", "action", "install_id", "candidate_id", "plan_id",
                   "target_idx", "target_agent", "path", "op", "before_hash", "after_hash",
                   "backup_path", "created_file", "applied", "blob_ref", "evidence_refs",
-                  "tracking_id", "note")
+                  "tracking_id", "note", "inv_id", "catalog_item_id")
 STATE_COLUMNS = ("install_id", "plan_id", "candidate_id", "source_type", "source_id", "title",
                  "kind", "agents", "scope", "preview_digest", "state", "installed_at",
                  "observe_until", "last_triggered_at", "pinned", "archived_at", "reverted_at",
@@ -44,6 +44,17 @@ def _row(row: sqlite3.Row | None) -> dict | None:
             except ValueError:
                 pass
     return out
+
+
+def ensure_columns(appdb) -> None:
+    """Add ledger columns newer than an existing ``install_ledger`` (the DDL file only creates)."""
+    with appdb.read() as db:
+        have = {r[1] for r in db.execute("PRAGMA table_info(install_ledger)")}
+    missing = [c for c in ("inv_id", "catalog_item_id") if have and c not in have]
+    if missing:
+        with appdb.write() as db:
+            for column in missing:
+                db.execute(f"ALTER TABLE install_ledger ADD COLUMN {column} TEXT")
 
 
 # ---- plans ------------------------------------------------------------------------------------
@@ -122,6 +133,18 @@ def open_begins(appdb) -> list[str]:
             "(SELECT 1 FROM install_ledger e WHERE e.install_id = b.install_id "
             "AND e.action IN ('install', 'install_failed'))").fetchall()
     return [r[0] for r in rows]
+
+
+def unlinked_installs(appdb) -> list[dict]:
+    """Active installs from a catalog item whose ledger has no inventory link yet."""
+    with appdb.read() as db:
+        rows = db.execute(
+            "SELECT l.install_id, l.catalog_item_id, l.target_agent, l.path, s.kind, s.plan_id "
+            "FROM install_ledger l JOIN install_state s USING(install_id) WHERE l.action = 'install' "
+            f"AND l.catalog_item_id IS NOT NULL AND s.state IN ({','.join('?' * len(ACTIVE_STATES))}) "
+            "AND NOT EXISTS (SELECT 1 FROM install_ledger k WHERE k.install_id = l.install_id "
+            "AND k.inv_id IS NOT NULL) ORDER BY l.ts", ACTIVE_STATES).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ---- state ------------------------------------------------------------------------------------

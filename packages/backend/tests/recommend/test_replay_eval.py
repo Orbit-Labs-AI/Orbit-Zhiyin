@@ -36,8 +36,6 @@ def test_metrics_with_fake_build():
 
 
 def test_replay_meets_quality_bar():
-    if importlib.util.find_spec("tandem_backend.recommend.recall.multi") is None:
-        pytest.skip("requires rec-recall-kb")
     result = replay.run_replay(replay.load_cases())
     assert result["hit_rate@3"] >= .9, result["per_case"]
-    assert result["ndcg@3"] >= .7, result["per_case"]
+    assert result["ndcg@3"] >= .75, result["per_case"]
