@@ -44,9 +44,9 @@ def algo_version() -> str:
     from . import FEATURE_VERSION
     from . import instruction as instruction_module
     from . import preference as preference_module
+    from .lexicon import LEXICON_VERSION
     from .products.contracts import RULE_VERSIONS
     from .task import representation as vectors
-    from .lexicon import LEXICON_VERSION
     from .task import taxonomy
     from .task.topics import TOPIC_VERSION
 
