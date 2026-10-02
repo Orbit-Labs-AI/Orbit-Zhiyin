@@ -23,9 +23,19 @@ const liteCount = (html, v, dec) => html.replace('<span class="v">', '<span clas
 function liteRecBtn(r) {
   return recPrimaryBtn(r).replace(/data-act="(tutorial|recToStudio|openRec)"/, 'data-act="liteRecAdv"').replace('class="btn', 'class="btn l-big');
 }
-const liteOrder = () => visibleRecs().slice().sort((a, b) => recX(b.id).save - recX(a.id).save);
-const liteSaveH = (id) => recX(id).save;
+const liteOrder = () => visibleRecs().slice().sort((a, b) => liteSaveH(b.id) - liteSaveH(a.id));
+const liteSaveH = (id) => recX(id).save || 0;   // live recs without an estimate (save: null) sort last and print「—」
+const liteSaveSpan = (id) => recX(id).save == null ? '<span class="v mono">—</span>' : '<span class="v mono" data-count="' + liteSaveH(id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(id)) + '</span>';
 
+// 「本周最值得做的一件事」(also appended to the live Lite home by 97-live-recs.js)
+function liteOneCard(open) {
+  const r = open[0];
+  return r ? '<div class="card rcard l-one"><div class="rc-top"><span class="eb" style="color:var(--ink-1)">本周最值得做的一件事</span><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span></div>' +
+    '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
+    '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="u">h / 月 · 估计节省</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' +
+    (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
+    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+}
 /* ---------- 1 概览：AI 一句话 + 人格码 → 四个大数字 + 活跃条带 → 本周最值得做的一件事 ---------- */
 PAGES['l-home'] = () => {
   const L = sel(); const st = stats(L);
@@ -50,12 +60,7 @@ PAGES['l-home'] = () => {
   const days = Array.from({ length: span }, (_, i) => a0 + i).filter((x) => x >= 0); const mx = Math.max(1, ...days.map((x) => per[x] || 0));
   const strip = '<div class="l-strip" role="img" aria-label="每日会话数 · ' + md(days[0]) + ' — ' + md(w[1]) + '">' + days.map((x) => '<i class="' + (x >= w[0] ? 'in' : '') + '" style="height:' + Math.max(4, (per[x] || 0) / mx * 100).toFixed(1) + '%" data-tip="' + md(x) + ' 周' + WD[wd(x)] + ' · ' + (per[x] || 0) + ' 个会话"></i>').join('') + '</div>' +
     '<div class="row cap l-strip-l"><span class="mono">' + md(days[0]) + '</span><span style="flex:1;text-align:center">每日会话 · 深色为' + rangeLabel() + '</span><span class="mono">' + md(w[1]) + '</span></div>';
-  const open = liteOrder().filter((r) => !S.installed.has(r.id)); const r = open[0];
-  const one = r ? '<div class="card rcard l-one"><div class="rc-top"><span class="eb" style="color:var(--ink-1)">本周最值得做的一件事</span><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span></div>' +
-    '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-    '<div class="rc-foot"><span class="l-gain"><span class="v mono" data-count="' + liteSaveH(r.id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(r.id)) + '</span><span class="u">h / 月 · 估计节省</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' +
-    (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
-    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+  const one = liteOneCard(recTop('lite'));
   return liteBar('概览', winLabel() + ' · ' + st.n + ' 个会话') +
     '<div class="content" id="content"><div class="lite l-home">' + hero +
     '<section class="l-sec"><div class="tiles l-tiles">' + tiles + '</div>' + strip + '</section>' + one +
@@ -138,7 +143,7 @@ PAGES['l-sessions'] = () => {
 
 /* ---------- 4 优化建议：一句总收益 → 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
-  const all = liteOrder(); const top = all.slice(0, 3);
+  const all = recOrder('lite'); const top = all.slice(0, 3);
   const open = top.filter((r) => !S.installed.has(r.id));
   const save = sum(open, (r) => liteSaveH(r.id));
   const hero = '<div class="card pad l-rhero"><span class="eb">优化建议 · 按每月节省时间排序</span>' +
@@ -149,7 +154,7 @@ PAGES['l-recs'] = () => {
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);
     return '<div class="card rcard l-rc' + (inst ? ' inst' : '') + '" data-id="' + r.id + '"><span class="l-rn mono" aria-hidden="true">0' + (i + 1) + '</span><div class="col l-rb"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + agentDots(r, true) + '</div>' +
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-      '<div class="rc-foot"><span class="l-gain"><span class="v mono" data-count="' + liteSaveH(r.id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(r.id)) + '</span><span class="u">h / 月</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
+      '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="u">h / 月</span><span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
   return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
     '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +

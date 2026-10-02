@@ -96,4 +96,8 @@ function projRows(L) {
   });
 }
 function visibleRecs() { return RECS.filter((r) => r.aud <= S.recs.aud && !S.recs.gone.has(r.id)); }
+// Visible recs (recOrder) and the open, not installed ones (recTop) in the order a surface shows them: A1 / menubar take visibleRecs() order, Lite sorts by saving.
+// Live mode (97-live-recs.js) puts the backend's stable top slate for that surface first.
+function recOrder(surface) { return surface === 'lite' ? liteOrder() : visibleRecs(); }
+function recTop(surface) { return recOrder(surface).filter((r) => !S.installed.has(r.id)); }
 
