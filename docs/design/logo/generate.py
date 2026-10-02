@@ -1,9 +1,14 @@
-"""生成 Tandem logo（SVG，纯色线稿）：洛伦茨吸引子的一段轨道。
+"""生成 Tandem logo（SVG，纯色线稿）及两个备选版本。
 
-由莫比乌斯带线稿演化而来，保留它的线条语言：一笔画、近粗远细、投影交叉处较远的一支断开。
-线条换成洛伦茨吸引子（σ=10, ρ=28, β=8/3）的一段轨道：左右两翼各绕两圈，
-两端渐细收笔。吸引子的拓扑模板本身是一条带扭转的分支带，与莫比乌斯带同源。
-纯 Python 实现，不依赖第三方库；积分步长与初值固定，结果可复现。
+线条语言（由莫比乌斯带单线版沿用）：一笔画成，近处粗、远处细，投影交叉处较远的一支断开，
+两端渐细收笔，只用一种颜色。三个版本共用这套画法，只换曲线：
+
+- main：洛伦茨吸引子（σ=10, ρ=28, β=8/3）一段左右两翼各绕两圈的轨道，输出到 logo/；
+- rich：同一段轨道多取一圈（右翼多绕一圈），复杂度略增，输出到 logo/variants/rich/；
+- spiral：单环，一条半径由外向内收、同时沿轴向抬升 1.6 圈的锥形螺旋线，
+  斜看时内圈从外环下方穿过，输出到 logo/variants/spiral/。
+
+纯 Python 实现，不依赖第三方库；积分初值与步长固定，结果可复现。
 
 用法：python3 docs/design/logo/generate.py
 """
@@ -11,32 +16,52 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
-OUT = Path(__file__).parent
+ROOT = Path(__file__).parent
 
 INK = "#5f6b6f"  # 低饱和板岩灰
 PAPER = "#f5f4f0"
 
-# 轨道
+# 洛伦茨系统
 SIGMA, RHO, BETA = 10.0, 28.0, 8 / 3
 DT = 0.003
 SKIP = 4000  # 丢弃的暂态步数
 STEPS = 12000
-FIRST_LOOP = 26  # 从第几圈开始（以 z 的局部极大值计圈）
-LOOPS = 3  # 取几圈
-HEAD, TAIL = -0.15, 0.2  # 起止点相对圈首的偏移（单位：一圈）
-
-# 视角
-YAW = math.radians(-30)  # 绕 z 轴
-PITCH = math.radians(20)  # 绕 x 轴
 
 # 线条（绘制坐标系边长 SIZE）
 SIZE = 512
 PAD = 48
 W_MIN, W_MAX = 2.6, 11.0  # 远处 / 近处线宽
-GAP = 20  # 交叉处断开的留白（沿线长度；交叉角小，需留宽一些）
 TAPER = 0.10  # 两端渐细段占全长的比例
+
+
+@dataclass(frozen=True)
+class Variant:
+    out: Path
+    curve: str  # "lorenz" 或 "spiral"
+    yaw: float  # 绕 z 轴（度）
+    pitch: float  # 绕 x 轴（度）
+    gap: float  # 交叉处断开的留白（沿线长度；交叉角小时需留宽一些）
+    # lorenz：从第几圈开始（以 z 的局部极大值计圈）、取几圈、起止点相对圈首的偏移（单位：一圈）
+    first_loop: int = 26
+    loops: int = 3
+    head: float = -0.15
+    tail: float = 0.2
+    # spiral：圈数、起止半径、轴向抬升、起始相位
+    turns: float = 1.6
+    r_start: float = 9.0
+    r_end: float = 16.0
+    rise: float = 14.0
+    phase: float = 0.6
+
+
+VARIANTS = [
+    Variant(ROOT, "lorenz", yaw=-30, pitch=20, gap=20),
+    Variant(ROOT / "variants" / "rich", "lorenz", yaw=-30, pitch=20, gap=20, loops=4),
+    Variant(ROOT / "variants" / "spiral", "spiral", yaw=20, pitch=45, gap=20),
+]
 
 
 def lorenz() -> list[tuple[float, float, float]]:
@@ -58,21 +83,31 @@ def lorenz() -> list[tuple[float, float, float]]:
     return out
 
 
-def segment() -> list[tuple[float, float, float]]:
+def curve(v: Variant) -> list[tuple[float, float, float]]:
+    if v.curve == "spiral":
+        m = 3000
+        out = []
+        for k in range(m + 1):
+            t = k / m
+            th = 2 * math.pi * v.turns * t + v.phase
+            r = v.r_start + (v.r_end - v.r_start) * t
+            out.append((r * math.cos(th), r * math.sin(th), v.rise * t))
+        return out
     full = lorenz()
     peaks = [i for i in range(1, len(full) - 1) if full[i - 1][2] < full[i][2] >= full[i + 1][2]]
-    a, b = FIRST_LOOP, FIRST_LOOP + LOOPS
-    i0 = peaks[a] + int(HEAD * (peaks[a + 1] - peaks[a]))
-    i1 = peaks[b] + int(TAIL * (peaks[b + 1] - peaks[b]))
+    a, b = v.first_loop, v.first_loop + v.loops
+    i0 = peaks[a] + int(v.head * (peaks[a + 1] - peaks[a]))
+    i1 = peaks[b] + int(v.tail * (peaks[b + 1] - peaks[b]))
     return full[i0:i1]
 
 
-def project(pts):
+def project(pts, v: Variant):
     """正交投影：返回 (屏幕 x, 屏幕 y, 深度)，深度越大越近；按屏幕弧长重采样。"""
+    yaw, pitch = math.radians(v.yaw), math.radians(v.pitch)
     out = []
     for x, y, z in pts:
-        x1, y1 = x * math.cos(YAW) - y * math.sin(YAW), x * math.sin(YAW) + y * math.cos(YAW)
-        y2, z2 = y1 * math.cos(PITCH) - z * math.sin(PITCH), y1 * math.sin(PITCH) + z * math.cos(PITCH)
+        x1, y1 = x * math.cos(yaw) - y * math.sin(yaw), x * math.sin(yaw) + y * math.cos(yaw)
+        y2, z2 = y1 * math.cos(pitch) - z * math.sin(pitch), y1 * math.sin(pitch) + z * math.cos(pitch)
         out.append((x1, -z2, -y2))
     xs, ys = [p[0] for p in out], [p[1] for p in out]
     sc = (SIZE - 2 * PAD) / max(max(xs) - min(xs), max(ys) - min(ys))
@@ -115,9 +150,9 @@ def far_crossings(p) -> list[int]:
     return out
 
 
-def shapes(w_min: float, w_max: float, gap: float):
+def shapes(v: Variant, w_min: float, w_max: float, gap: float):
     """返回填充图形与边界框。"""
-    p = project(segment())
+    p = project(curve(v), v)
     n = len(p)
     length = [0.0]
     for i in range(1, n):
@@ -165,18 +200,18 @@ def shapes(w_min: float, w_max: float, gap: float):
     return out, (min(xs) - 4, min(ys) - 4, max(xs) - min(xs) + 8, max(ys) - min(ys) + 8)
 
 
-def mark(color: str = INK, w_min: float = W_MIN, w_max: float = W_MAX, gap: float = GAP) -> str:
+def mark(v: Variant, color: str = INK, w_min: float = W_MIN, w_max: float = W_MAX, gap: float | None = None) -> str:
     """紧凑画布、透明底。"""
-    body, (x, y, w, h) = shapes(w_min, w_max, gap)
+    body, (x, y, w, h) = shapes(v, w_min, w_max, v.gap if gap is None else gap)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
         f'width="{w:.0f}" height="{h:.0f}"><g fill="{color}">{"".join(body)}</g></svg>\n'
     )
 
 
-def icon(size: int = 1024) -> str:
+def icon(v: Variant, size: int = 1024) -> str:
     """方形图标：暖纸底圆角方块，标志居中，线条加粗。"""
-    body, (x, y, w, h) = shapes(4, 14, 24)
+    body, (x, y, w, h) = shapes(v, 4, 14, v.gap + 4)
     s = size * 0.68 / max(w, h)
     tx, ty = size / 2 - (x + w / 2) * s, size / 2 - (y + h / 2) * s
     return (
@@ -187,16 +222,18 @@ def icon(size: int = 1024) -> str:
 
 
 def main():
-    files = {
-        "tandem-mark.svg": mark(),
-        "tandem-mark-light.svg": mark(PAPER),
-        # 小尺寸版：线宽拉平加粗，远处细线在 48 px 以下不会消失
-        "tandem-mark-small.svg": mark(w_min=12, w_max=16, gap=30),
-        "tandem-icon.svg": icon(),
-    }
-    for name, text in files.items():
-        (OUT / name).write_text(text)
-        print(f"{name}: {len(text) // 1024} KB")
+    for v in VARIANTS:
+        v.out.mkdir(parents=True, exist_ok=True)
+        files = {
+            "tandem-mark.svg": mark(v),
+            "tandem-mark-light.svg": mark(v, PAPER),
+            # 小尺寸版：线宽拉平加粗，远处细线在 48 px 以下不会消失
+            "tandem-mark-small.svg": mark(v, w_min=12, w_max=16, gap=v.gap * 1.5),
+            "tandem-icon.svg": icon(v),
+        }
+        for name, text in files.items():
+            (v.out / name).write_text(text)
+            print(f"{(v.out / name).relative_to(ROOT)}: {len(text) // 1024} KB")
 
 
 if __name__ == "__main__":

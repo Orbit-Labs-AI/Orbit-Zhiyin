@@ -49,6 +49,13 @@
 
 文件由 [`logo/generate.py`](logo/generate.py) 生成（`python3 docs/design/logo/generate.py`，纯 Python，无第三方依赖，积分初值与步长固定，可复现）。取哪几圈轨道、起止点、视角、线宽和交叉留白都是脚本顶部的常量。断口是真正断开的，可直接放在任意底色上。PNG 由浏览器截图导出，改 SVG 后需同步更新。此前的莫比乌斯带版本见 git 历史（`391203a` 及更早）。
 
+两个备选版本用同一套线条语言与文件组成（mark、light、small、icon），由同一脚本一并生成，主版本保持不变：
+
+| 版本 | 位置 | 曲线 |
+| --- | --- | --- |
+| 复杂度略增 | [`logo/variants/rich/`](logo/variants/rich/tandem-mark.svg) | 同一段吸引子轨道多取一圈，右翼多绕一圈 |
+| 单环螺旋 | [`logo/variants/spiral/`](logo/variants/spiral/tandem-mark.svg) | 一条 1.6 圈的锥形螺旋线，半径由外向内收、同时沿轴向抬升，斜看时内圈从外环下方穿过 |
+
 ## 可交互 Demo
 
 ### Lite：genius-FXC 的个人 Benchmark Demo（2026-10-02）
