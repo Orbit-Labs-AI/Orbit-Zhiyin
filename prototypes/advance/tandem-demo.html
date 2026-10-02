@@ -2751,6 +2751,16 @@ const TandemLive = (function () {
     return out;
   }
 
+  // Why a plan cannot be written automatically (unmappable / link_only / anything not ready): the targets' own reasons first.
+  const LI_LINK_REASON = { kind_not_installable: '这类资源不能自动安装', license: '许可不允许自动安装', no_install_declaration: '目录条目没有声明安装方式', needs_plugin: '需要先安装它所在的插件' };
+  function liPlanReason(plan) {
+    if (!plan || plan.status === 'ready') return null;
+    const rs = (plan.targets || []).filter((t) => !t.mappable).map((t) => t.reason_text || t.reason).filter(Boolean);
+    const out = rs.filter((r, i) => rs.indexOf(r) === i);
+    if (plan.link_reason) out.push(LI_LINK_REASON[plan.link_reason] || plan.link_reason);
+    return out.length ? out.join('；') : plan.status === 'link_only' ? '该资源只能按来源说明手动安装' : plan.status === 'unmappable' ? '已检测的 Agent 都不支持这类资源' : null;
+  }
+
   function libraryInstall(C, ctx) {
     function send(method, path, body, o) {
       o = o || {};
@@ -2770,7 +2780,7 @@ const TandemLive = (function () {
     const body = (r) => r.data;
     const L = {
       send, degraded: liDegraded,
-      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, LI_KINDS, LI_LABEL, LI_TABS },
+      helpers: { liListRequest, liFacetsRequest, liItemPath, liTargets, liSelection, liDegraded, liPlanReason, LI_KINDS, LI_LABEL, LI_TABS },
       kindLabel: (k) => LI_LABEL[k] || k || '—',
       listRequest: liListRequest, facetsRequest: liFacetsRequest,
       /* catalog */
@@ -2802,12 +2812,10 @@ const TandemLive = (function () {
             agents = want.length ? want : ok.length ? ok : undefined;
           }
           const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
-          return L.plan(req).then((plan) => {
-            if (plan.status !== 'needs_fetch') return plan;
-            const fr = source.type === 'catalog' ? { catalog_id: source.id } : o.catalogId ? { catalog_id: o.catalogId } : { source: source.spec || source };   // a candidate backed by a catalog item fetches that item
-            return L.fetch(fr).then(() => L.plan(Object.assign({}, req, { fetch: true })));
-          }).then((plan) => {
-            if (plan.status !== 'ready') return { env: envData, plan, preview: null };
+          // needs_fetch: the same plan request again with fetch: true (the backend downloads the source itself; candidate,
+          // catalog and artifact sources never go through /v1/install/fetch, which is only a manual remote prefetch)
+          return L.plan(req).then((plan) => plan.status === 'needs_fetch' ? L.plan(Object.assign({}, req, { fetch: true })) : plan).then((plan) => {
+            if (plan.status !== 'ready') return { env: envData, plan, preview: null, reason: liPlanReason(plan) };
             const sel = { disabled: o.defaultOff ? o.defaultOff(plan) : [] };
             return L.preview(plan.plan_id, sel).then((preview) => ({ env: envData, plan, preview, sel }));
           });
@@ -2818,8 +2826,10 @@ const TandemLive = (function () {
       apply(st) {
         const s = liSelection(st.sel); const req = Object.assign({ plan_id: st.plan.plan_id, preview_digest: st.preview.preview_digest }, s);
         if (st.overrideRisk) req.override_risk = true;
+        if (st.surface) req.surface = st.surface;   // recommend exposure surface (A7 | lite | A8 | A9 | menubar)
         return send('POST', '/v1/install/apply', req).then((r) => ({ stale: false, result: r.data }), (e) => {
-          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail }));
+          // 409 preview_stale: the files changed after the preview; show the fresh diff (its digest is error.detail.preview_digest)
+          if (e.status === 409 && e.code === 'preview_stale') return L.preview(st.plan.plan_id, st.sel).then((preview) => ({ stale: true, preview, detail: e.detail, digest: (e.detail && e.detail.preview_digest) || preview.preview_digest }));
           throw e;
         });
       }
@@ -6756,8 +6766,11 @@ PAGES.recs = () => {
   const cnt = (d) => inLv.filter((r) => d === 'all' || r.dim === d).length;
   const sel0 = RECI[R.sel] && list.includes(RECI[R.sel]) ? RECI[R.sel] : list[0];
   if (sel0) R.sel = sel0.id;
-  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + (x.save == null && r.live ? '<span class="rc-save" data-tl="rec-nosave" data-tip="' + esc(r.saveBasis || '没有可折算的问题证据') + '"><span class="u">未估算</span></span>' : '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b' + (x.save == null ? '' : ' data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '"') + '>' + recSave(r.id) + '</b><span class="u">/ 月</span></span>') + '</div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + ' ' + (recNoEv(r) ? '<span class="cap" data-tl="rec-match">' + esc(r.ev) + '</span>' : '<button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button>') + '</div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span></div><div class="rc-foot"><span class="mono rc-gain" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
-  const g0 = list.filter(recNoEv), g1 = list.filter((r) => r.lvl <= 2 && !recNoEv(r)), g2 = list.filter((r) => r.lvl >= 3 && !recNoEv(r));   // g0 (live): profile matches without session evidence
+  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + (x.save == null && r.live ? '<span class="rc-save" data-tl="rec-nosave" data-tip="' + esc(r.saveBasis || '没有可折算的问题证据') + '"><span class="u">未估算</span></span>' : '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b' + (x.save == null ? '' : ' data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '"') + '>' + recSave(r.id) + '</b><span class="u">/ 月</span></span>') + '</div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why"' + (r.live ? ' data-tl="rec-why" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"' : '') + '>' + esc(r.why) + ' ' + (recNoEv(r) ? '<span class="cap" data-tl="rec-match">' + esc(r.ev) + '</span>' : '<button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button>') + '</div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span></div><div class="rc-foot"><span class="mono rc-gain" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
+  // g0 (live): profile matches without session evidence; g3 (live): 资料库推荐 (catalog-only), always last
+  const g3 = list.filter((r) => r.lib), ev = list.filter((r) => !r.lib);
+  const g0 = ev.filter(recNoEv), g1 = ev.filter((r) => r.lvl <= 2 && !recNoEv(r)), g2 = ev.filter((r) => r.lvl >= 3 && !recNoEv(r));
+  const libN = g3.length && R.dim === 'all' && LVR.applied && LVR.applied.counts && LVR.applied.counts.library != null && R.lv.size === 4 ? LVR.applied.counts.library : g3.length;
   let detail = empty('没有符合筛选的建议');
   TRK_SPECS = [];
   if (sel0) {
@@ -6782,7 +6795,7 @@ PAGES.recs = () => {
   return tbar('优化建议', (r0live() ? list.length : vis.length) + ' 条' + (lvHid > 0 ? '（' + lvHid + ' 条被筛选隐藏）' : '') + ' · 按每月节省时间排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
     '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
     '<div class="frow"><span class="cap" data-tip="难度：L1 一键应用 · L2 复制粘贴 · L3 需要配置 · L4 架构调整">难度</span>' + [1, 2, 3, 4].map((k) => '<button type="button" class="chip sm' + (R.lv.has(k) ? '' : ' dash') + '" data-act="recLv" data-v="' + k + '" aria-pressed="' + R.lv.has(k) + '">' + lvlIcon(k) + LEVELS[k] + '</button>').join('') + '<span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span><span class="cap">按我的水平</span><button type="button" class="chip sm" data-act="recAud" data-tip="' + AUD_D[R.aud] + '">' + AUD[R.aud] + ic('chev', 12) + '</button><span style="flex:1"></span><span class="cap">已应用 ' + S.installed.size + ' · 不适用 ' + R.gone.size + (R.gone.size ? ' <button type="button" class="lnk" data-act="restoreRecs" style="font-size:12px">恢复</button>' : '') + '</span></div>' +
-    '<div class="recs"><div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (g0.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-g0"><span>按画像匹配 · 待验证</span><span>' + g0.length + '</span></div>' + g0.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div><div style="position:sticky;top:0">' + detail + '</div></div></div>';
+    '<div class="recs"><div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (g0.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-g0"><span>按画像匹配 · 待验证</span><span>' + g0.length + '</span></div>' + g0.map(card).join('') : '') + (g3.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-lib"><span>资料库推荐 · 按画像匹配</span><span>' + libN + '</span></div>' + g3.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div><div style="position:sticky;top:0">' + detail + '</div></div></div>';
 };
 PAGES.recs.after = () => { TRK_SPECS.forEach((sp, i) => { const el = $('#content [data-vz="trk-' + i + '"]'); if (el) VZ.mount(el, sp); }); };
 function codeBlock(lines) { return '<div class="code">' + lines.map((l, i) => '<div class="' + (l[1] === '+' ? 'add' : l[1] === 'ai' ? 'ai' : '') + '"' + (l[1] === '-' ? ' style="background:var(--crit-bg)"' : '') + '><span class="n">' + (l[1] === '+' ? '+' : l[1] === '-' ? '−' : i + 1) + '</span><span class="t" style="' + (l[1] === '-' ? 'text-decoration:line-through;color:var(--crit)' : '') + '">' + (esc(l[0]) || ' ') + '</span></div>').join('') + '</div>'; }
@@ -10534,7 +10547,7 @@ function liDraw() {
     html = modalHead('预览变更 · ' + name, '正在生成安装计划…') + liProg(1) + '<div class="mb" data-tl="inst-loading">' + TLU.skeleton() + '</div><div class="mf">' + close + '</div>';
   } else if (st.step === 9) {
     const pl = st.plan || {};
-    html = modalHead('安装 ' + name, pl.status === 'link_only' ? '该资源只能按来源说明手动安装' : '没有可自动写入的目标') + '<div class="mb col" style="gap:8px" data-tl="inst-manual">' + (pl.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') + (pl.links || []).map((u) => liLink(u, esc(u), 'lnk mono')).join('') + '</div><div class="mf">' + close + '</div>';
+    html = modalHead('安装 ' + name, pl.status === 'link_only' ? '该资源只能按来源说明手动安装' : '没有可自动写入的目标') + '<div class="mb col" style="gap:8px" data-tl="inst-manual" data-status="' + esc(pl.status || '') + '">' + (st.reason ? '<div class="tl-banner" role="status" data-tl="inst-reason">' + esc(st.reason) + '</div>' : '') + (pl.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') + (pl.links || []).map((u) => liLink(u, esc(u), 'lnk mono')).join('') + '</div><div class="mf">' + close + '</div>';
   } else if (st.step === 1) {
     const pv = st.preview, ts = TL.li.helpers.liTargets(pv), tot = pv.totals || {};
     const sc = $('#modal .mb'); const top = sc ? sc.scrollTop : 0;
@@ -10578,11 +10591,12 @@ function liRepreview() {
 }
 function liDemoExtra(x) { return { id: x.name, kind: TL.li.kindLabel(x.kind), desc: x.summary || '', src: x.origin === 'local' ? '本地生成' : (x.license || '社区'), compat: liAgents(x.agents), rec: null }; }
 function liInstall(x) {
-  const st = { live: true, card: x, step: 0, t: Date.now(), sel: { disabled: new Set(), units: {} }, busy: true, overrideRisk: false };
+  // x.source: {type: 'candidate' | 'catalog' | 'artifact', id}; x.surface: where the install started (A7 | lite | A8 | A9)
+  const st = { live: true, card: x, step: 0, t: Date.now(), sel: { disabled: new Set(), units: {} }, busy: true, overrideRisk: false, surface: x.surface || 'A8' };
   INST = st; liDraw();
-  TL.li.prepare(x.source || { type: 'catalog', id: x.item_id }, { itemAgents: x.agents, catalogId: x.catalogId, defaultOff: (plan) => (plan.targets || []).filter((t) => t.agent !== (plan.agents || [])[0]).map((t) => t.idx) }).then((r) => {
+  TL.li.prepare(x.source || { type: 'catalog', id: x.item_id }, { itemAgents: x.agents, defaultOff: (plan) => (plan.targets || []).filter((t) => t.agent !== (plan.agents || [])[0]).map((t) => t.idx) }).then((r) => {
     if (INST !== st) return;
-    st.plan = r.plan; st.preview = r.preview; st.busy = false; st.step = r.preview ? 1 : 9;
+    st.plan = r.plan; st.preview = r.preview; st.reason = r.reason || null; st.busy = false; st.step = r.preview ? 1 : 9;
     if (r.sel) st.sel.disabled = new Set(r.sel.disabled);
     liDraw();
   }, (e) => {
@@ -10624,7 +10638,22 @@ function liInstalledSheet(more) {
   });
 }
 
-const liBase = { openInstall, libInstalled: ACT.libInstalled };
+const liBase = { openInstall, libInstalled: ACT.libInstalled, studioInstall: ACT.studioInstall, studioUndo: ACT.studioUndo };
+// A9 生成工坊「安装」: a reviewed AI artifact goes through the same sheet with source {type: 'artifact'}; without a live
+// artifact (mock run, job still running) the demo sheet stays.
+function liStudioInstall(el, e) {
+  const run = S.studio && S.studio.run; const art = run && run.live && run.art && run.art.artifact_id ? run.art : null;
+  if (!art || typeof liInstall !== 'function') return liBase.studioInstall(el, e);
+  if (!run.done) { toast('生成完成后才能安装'); return; }
+  if (run.installed) { toast('已经安装过了；要重装先撤销'); return; }
+  liInstall({ item_id: 'art:' + art.artifact_id, name: art.title || art.name || (S.studio.type + ' · ' + art.artifact_id), kind: art.kind || null, summary: art.summary || '', source: { type: 'artifact', id: art.artifact_id }, surface: 'A9',
+    onDone: (res) => { run.installed = res.install_id; run.liveInstall = res.install_id; if (typeof refreshStudio === 'function') refreshStudio(); } });
+}
+function liStudioUndo(el, e) {
+  const run = S.studio && S.studio.run;
+  if (!run || !run.liveInstall) return liBase.studioUndo(el, e);
+  liUndo(run.liveInstall, S.studio.type).then((ok) => { if (ok) { run.installed = null; run.liveInstall = null; if (typeof refreshStudio === 'function') refreshStudio(); } });
+}
 // A demo sheet opened while the live routes are degraded carries the 示例数据 badge under its title.
 function liMarkSample() { const mh = $('#modal .mh h2'); if (mh && !$('#modal [data-tl="sample"]')) mh.insertAdjacentHTML('afterend', '<div>' + TLU.sample() + '</div>'); }
 if (TL.mode === 'live') {
@@ -10668,10 +10697,11 @@ if (TL.mode === 'live') {
       const card = isLive() ? liCard(el.dataset.id) || (S.li.detail && S.li.detail.id === el.dataset.id ? S.li.detail.data || S.li.detail.card : null) : null;
       if (!card) return base.getLib(el);
       if (liInstalledId(card)) { toast('「' + card.name + '」已经安装'); return; }
-      liInstall(card);
+      liInstall(Object.assign({}, card, { surface: S.route === 'l-library' || /^l-/.test(S.route) ? 'lite' : 'A8' }));
     },
     liRevert: (el) => { const id = el.dataset.id; liUndo(id, null).then(() => { if (S.li.sheet) liInstalledSheet(); }); },
     libInstalled: () => liInstalledSheet(false),
+    studioInstall: liStudioInstall, studioUndo: liStudioUndo,
     liOpen: (el) => { const url = el.dataset.url; if (/^https?:\/\//.test(url || '')) ORBIT.native.request('openExternal', { url }); },
     liSyncRetry: () => { S.li.sync = null; liSyncStart(0); },
     liLedgerMore: () => liInstalledSheet(true),
@@ -10747,12 +10777,17 @@ function lvRecRow(c) {
     r.ev = m.length ? '技术栈匹配 · ' + m.join(' · ') : '按使用画像匹配';
     if (/^0 个会话/.test(r.gain) || r.gain === '—') r.gain = '尚无会话证据 · 安装后开始追踪';
   }
+  // B07: catalog-only matches (bucket 资料库推荐 / basis catalog_only) get their own section after the evidence cards
+  r.lib = c.bucket === '资料库推荐' || c.basis === 'catalog_only';
   const src = c.source || {}; r.url = src.url || null; r.license = src.license || null; r.origin = src.origin || null; r.item_id = src.item_id || null;
   return r;
 }
 // one-line card text from a backend reason / catalog description: first non-empty line, first sentence when long, ≤ 90 chars
+// B08: catalog descriptions can carry the index's raw `agent: … command: … dimension: …` metadata; those tokens never show
+const LVR_TAGDUMP = /(?:^|\s)(?:agent|command|dimension|domain|file_type|friction|software|tag|kind|lang|language|topic|scene|tool|ftype|cmd):\s*\S+/gi;
+const lvRecStrip = (t) => String(t || '').split(/\n+/).map((x) => x.replace(LVR_TAGDUMP, '').replace(/\s{2,}/g, ' ').trim()).filter(Boolean).join('\n');
 function lvRecBrief(t) {
-  let s = String(t || '').split(/\n+/).map((x) => x.trim()).find(Boolean) || '';
+  let s = lvRecStrip(t).split(/\n+/).map((x) => x.trim()).find(Boolean) || '';
   if (s.length > 60) { const m = s.match(/^.{12,}?(?:[。！？]|[.!?](?=\s|$))/); if (m) s = m[0]; }
   s = s.replace(/\s*[—–-]\s*$/, '');
   if (s.length <= 90) return s;
@@ -10900,7 +10935,8 @@ if (TL.mode === 'live') {
     const r = RECI[el.dataset.id];
     if (!r || !r.live || typeof liInstall !== 'function') return A.install(el);
     if (S.installed.has(r.id)) return ACT.openRec({ dataset: { id: r.id, tab: 'track' } });
-    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id }, catalogId: r.origin === 'catalog' ? r.item_id : null,
+    const surface = /^l-/.test(S.route) ? 'lite' : S.pop ? 'menubar' : S.route === 'overview' ? 'A1' : 'A7';
+    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id }, surface,
       onDone: (res) => { S.installed.set(r.id, { days: 1, live: true, fresh: true, install_id: res.install_id, at: Date.now(), scope: 'global', target: (res.written || []).map((w) => w.display).join('、') }); } });
   };
   ACT.doUninstall = (el) => {

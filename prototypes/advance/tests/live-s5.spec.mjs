@@ -79,12 +79,12 @@ test('A7: 预览并安装 runs the real sheet (candidate source) and apply → r
   expect(errors).toEqual([]);
 });
 
-test('A7: 预览并安装 on a catalog-backed candidate downloads through catalog_id when the plan needs a fetch (B06)', async ({ page }) => {
+test('A7: 预览并安装 on a candidate whose plan needs a fetch resends the plan with fetch:true, never /v1/install/fetch (J02)', async ({ page }) => {
   const errors = collectErrors(page);
   const plan = fx('s5/install-plan.json'); let plans = 0;
-  await stubGateway(page, ['core', 's5'], {
+  const gw = await stubGateway(page, ['core', 's5'], {
     'POST /v1/install/plans': () => (++plans === 1 ? Object.assign({}, plan, { status: 'needs_fetch', targets: [] }) : plan),
-    'POST /v1/install/fetch': { tree_sha256: 'fx-tree', cached: false }
+    'POST /v1/install/fetch': { status: 422, body: { error: { code: 'invalid_request', message: 'must not be called' } } }
   });
   const bodies = [];
   page.on('request', (r) => { if (r.method() === 'POST' && /\/v1\/install\//.test(r.url())) bodies.push({ path: new URL(r.url()).pathname, body: r.postDataJSON() }); });
@@ -92,10 +92,80 @@ test('A7: 预览并安装 on a catalog-backed candidate downloads through catalo
   await page.locator('#content .rcard[data-id="252667ab78141eda"]').click();
   await page.locator('#content .rc-dfoot [data-act="install"]').click();
   await expect(page.locator('#modal [data-tl="inst-preview"]')).toBeVisible();
-  const f = bodies.find((b) => b.path === '/v1/install/fetch');
-  expect(f.body.catalog_id).toMatch(/claude-api/);
-  expect(f.body.source).toBeUndefined();
-  expect(bodies.filter((b) => b.path === '/v1/install/plans').map((b) => b.body.source.type)).toEqual(['candidate', 'candidate']);
+  expect(gw.count('/v1/install/fetch')).toBe(0);
+  const ps = bodies.filter((b) => b.path === '/v1/install/plans').map((b) => b.body);
+  expect(ps.map((b) => [b.source.type, b.source.id, !!b.fetch])).toEqual([['candidate', '252667ab78141eda', false], ['candidate', '252667ab78141eda', true]]);
+  await page.waitForTimeout(450);
+  await page.locator('#modal [data-act="instNext"]').click();
+  await page.waitForTimeout(450);
+  await page.locator('#modal [data-act="instDo"]').click();
+  await expect(page.locator('#modal [data-tl="inst-done"]')).toBeVisible();
+  expect(bodies.find((b) => b.path === '/v1/install/apply').body.surface).toBe('A7');
+  expect(errors).toEqual([]);
+});
+
+test('A7: a link_only / unmappable plan shows the reason and the links open through openExternal (J02)', async ({ page }) => {
+  const errors = collectErrors(page);
+  const plan = fx('s5/install-plan.json');
+  await stubGateway(page, ['core', 's5'], {
+    'POST /v1/install/plans': Object.assign({}, plan, { status: 'link_only', targets: [], link_reason: 'no_install_declaration', links: ['https://example.com/fx-remedy'] })
+  }, { native: NATIVE });
+  await openLive(page, 'recs');
+  await page.locator('#content .rcard[data-id="252667ab78141eda"]').click();
+  await page.locator('#content .rc-dfoot [data-act="install"]').click();
+  await expect(page.locator('#modal [data-tl="inst-manual"]')).toHaveAttribute('data-status', 'link_only');
+  await expect(page.locator('#modal [data-tl="inst-reason"]')).toContainText('没有声明安装方式');
+  await page.locator('#modal [data-tl="inst-manual"] [data-act="liOpen"]').click();
+  await expect.poll(() => page.evaluate(() => window.__nativeMsgs.filter((m) => m.method === 'openExternal' || m.cmd === 'openExternal' || JSON.stringify(m).indexOf('openExternal') >= 0).length)).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test('A7: 资料库推荐 / catalog_only cards sit in their own section after the evidence cards, clamped, without raw metadata (B07/B08)', async ({ page }) => {
+  const errors = collectErrors(page);
+  const recs = fx('s5/recs-full.json');
+  const base = recs.items[0];
+  const lib = (i) => Object.assign(JSON.parse(JSON.stringify(base)), { candidate_id: 'fxlib' + i, rec_key: 'catalog:fx-lib-' + i, bucket: '资料库推荐', basis: 'catalog_only', title: 'fx-lib-' + i,
+    summary: 'fx-lib-' + i + '\nA long synthetic catalog description that keeps going for a while so it needs more than three lines on a narrow card, then more words, and more words again to be sure. agent: claude_code command: python domain: infra dimension: flow',
+    evidence: { counts: { sessions: 0 }, session_uids: [] }, ui: Object.assign({}, base.ui, { why: null, title: 'fx-lib-' + i }) });
+  const body = Object.assign({}, recs, { items: recs.items.concat([lib(1), lib(2)]), counts: Object.assign({}, recs.counts || {}, { library: 2 }) });
+  await stubGateway(page, ['core', 's5'], { 'GET /v1/recommendations': body });
+  await openLive(page, 'recs');
+  const sec = page.locator('#content [data-tl="rec-lib"]');
+  await expect(sec).toContainText('资料库推荐');
+  await expect(sec).toContainText('2');
+  // after every evidence card: the section header follows the last non-library card
+  const order = await page.locator('#content .recs .stack > *').evaluateAll((els) => els.map((e) => e.dataset.tl === 'rec-lib' ? 'H' : e.classList.contains('rcard') ? (/^fxlib/.test(e.dataset.id) ? 'L' : 'E') : '-'));
+  const h = order.indexOf('H');
+  expect(h).toBeGreaterThan(0);
+  expect(order.slice(h + 1).filter((x) => x === 'E')).toEqual([]);
+  expect(order.slice(h + 1).filter((x) => x === 'L').length).toBe(2);
+  const why = page.locator('#content .rcard[data-id="fxlib1"] [data-tl="rec-why"]');
+  await expect(why).not.toContainText(/agent:|command:|dimension:|domain:/);
+  expect(await why.evaluate((e) => getComputedStyle(e).webkitLineClamp)).toBe('3');
+  expect(errors).toEqual([]);
+});
+
+test('A9: 安装 on a reviewed AI artifact runs the same 预览并安装 sheet with source artifact and surface A9; 撤销 reverts by install_id (J02)', async ({ page }) => {
+  const errors = collectErrors(page);
+  const gw = await stubGateway(page, ['core', 's5']);
+  const bodies = [];
+  page.on('request', (r) => { if (r.method() === 'POST' && /\/v1\/install\//.test(r.url())) bodies.push({ path: new URL(r.url()).pathname, body: r.postDataJSON() }); });
+  await openLive(page, 'overview');
+  await page.evaluate(() => { S.studio.run = { done: true, stopped: false, installed: null, live: { id: 'job-fx' }, art: { artifact_id: 'art-fx-1', title: 'fx-artifact' } }; ACT.studioInstall(); });
+  await expect(page.locator('#modal [data-tl="inst-preview"]')).toBeVisible();
+  expect(bodies.find((b) => b.path === '/v1/install/plans').body.source).toEqual({ type: 'artifact', id: 'art-fx-1' });
+  await page.waitForTimeout(450);
+  await page.locator('#modal [data-act="instNext"]').click();
+  await page.waitForTimeout(450);
+  await page.locator('#modal [data-act="instDo"]').click();
+  await expect(page.locator('#modal [data-tl="inst-done"]')).toBeVisible();
+  expect(bodies.find((b) => b.path === '/v1/install/apply').body.surface).toBe('A9');
+  expect(await page.evaluate(() => S.studio.run.liveInstall)).toBe('inst-fx-1');
+  await page.waitForTimeout(450);
+  await page.locator('#modal [data-act="instClose"]').click();
+  await page.evaluate(() => ACT.studioUndo());
+  await expect.poll(() => gw.seen.some((s) => s.method === 'POST' && s.path === '/v1/install/inst-fx-1/revert')).toBe(true);
+  await expect.poll(() => page.evaluate(() => S.studio.run.installed)).toBe(null);
   expect(errors).toEqual([]);
 });
 

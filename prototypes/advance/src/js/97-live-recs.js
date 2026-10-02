@@ -42,12 +42,17 @@ function lvRecRow(c) {
     r.ev = m.length ? '技术栈匹配 · ' + m.join(' · ') : '按使用画像匹配';
     if (/^0 个会话/.test(r.gain) || r.gain === '—') r.gain = '尚无会话证据 · 安装后开始追踪';
   }
+  // B07: catalog-only matches (bucket 资料库推荐 / basis catalog_only) get their own section after the evidence cards
+  r.lib = c.bucket === '资料库推荐' || c.basis === 'catalog_only';
   const src = c.source || {}; r.url = src.url || null; r.license = src.license || null; r.origin = src.origin || null; r.item_id = src.item_id || null;
   return r;
 }
 // one-line card text from a backend reason / catalog description: first non-empty line, first sentence when long, ≤ 90 chars
+// B08: catalog descriptions can carry the index's raw `agent: … command: … dimension: …` metadata; those tokens never show
+const LVR_TAGDUMP = /(?:^|\s)(?:agent|command|dimension|domain|file_type|friction|software|tag|kind|lang|language|topic|scene|tool|ftype|cmd):\s*\S+/gi;
+const lvRecStrip = (t) => String(t || '').split(/\n+/).map((x) => x.replace(LVR_TAGDUMP, '').replace(/\s{2,}/g, ' ').trim()).filter(Boolean).join('\n');
 function lvRecBrief(t) {
-  let s = String(t || '').split(/\n+/).map((x) => x.trim()).find(Boolean) || '';
+  let s = lvRecStrip(t).split(/\n+/).map((x) => x.trim()).find(Boolean) || '';
   if (s.length > 60) { const m = s.match(/^.{12,}?(?:[。！？]|[.!?](?=\s|$))/); if (m) s = m[0]; }
   s = s.replace(/\s*[—–-]\s*$/, '');
   if (s.length <= 90) return s;
@@ -195,7 +200,8 @@ if (TL.mode === 'live') {
     const r = RECI[el.dataset.id];
     if (!r || !r.live || typeof liInstall !== 'function') return A.install(el);
     if (S.installed.has(r.id)) return ACT.openRec({ dataset: { id: r.id, tab: 'track' } });
-    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id }, catalogId: r.origin === 'catalog' ? r.item_id : null,
+    const surface = /^l-/.test(S.route) ? 'lite' : S.pop ? 'menubar' : S.route === 'overview' ? 'A1' : 'A7';
+    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id }, surface,
       onDone: (res) => { S.installed.set(r.id, { days: 1, live: true, fresh: true, install_id: res.install_id, at: Date.now(), scope: 'global', target: (res.written || []).map((w) => w.display).join('、') }); } });
   };
   ACT.doUninstall = (el) => {
