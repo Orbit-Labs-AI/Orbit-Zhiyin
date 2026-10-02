@@ -1,7 +1,10 @@
 """Unified search (DT-23, SB-03 / ⌘K): parallel sources fused with RRF and time decay.
 
-Sources run on a small pool with a per-request deadline; a slow or failing source is listed in
-``partial`` instead of failing the request. All databases are opened read-only; the only write
+Sources run on a shared pool. Each source gets its own deadline that starts when it begins
+running (time spent queued behind other clients does not count against it), and every request
+has a hard wall-clock cap. The pool queue is bounded; work that would overflow it is not queued.
+A slow, failing or shed source is listed in ``partial`` with a reason in ``partial_reasons``
+instead of failing the request, so an empty result list is never silent. All databases are opened read-only; the only write
 is the disposable trigram index (``search_index``). Text comes from redacted L2 rows as-is.
 """
 
@@ -12,7 +15,7 @@ import re
 import sqlite3
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 from .search_index import SearchIndex, get_index
@@ -30,7 +33,10 @@ WEIGHTS = {"session": 1.2, "message": 1.0, "project": 1.1, "command": 0.8, "file
 PAGES = {"session": "session", "message": "session", "command": "session", "file": "session",
          "event": "session", "project": "project", "inventory": "local_library",
          "catalog": "library", "recommendation": "recs"}
-TIMEOUT_S = 0.15
+TIMEOUT_S = 0.15  # per-source run budget, counted from when the source starts running
+MAX_WAIT_S = 2.0  # hard per-request cap, including time queued behind other clients
+POOL_SIZE = 16
+MAX_QUEUED = 64  # source tasks queued or running across all requests
 PER_SOURCE = 100
 BM25_CAP = 1000
 FUSE_TOP = 50
@@ -38,8 +44,47 @@ MAX_MESSAGES_PER_SESSION = 2
 SYNC_INLINE_SESSIONS = 20_000
 DAY_MS = 86_400_000
 
-_executor = ThreadPoolExecutor(4, thread_name_prefix="tandem-search")
+_executor = ThreadPoolExecutor(POOL_SIZE, thread_name_prefix="tandem-search")
 _local = threading.local()
+_inflight = 0
+_inflight_lock = threading.Lock()
+
+
+class _Task:
+    """One source run: records its start so the deadline excludes queue time."""
+
+    def __init__(self, group, fn, args, budget_s):
+        self.group, self.fn, self.args, self.budget_s = group, fn, args, budget_s
+        self.started: float | None = None
+
+    @property
+    def deadline(self) -> float | None:
+        return None if self.started is None else self.started + self.budget_s
+
+    def __call__(self):
+        global _inflight
+        self.started = time.perf_counter()
+        try:
+            return self.fn(*self.args, deadline=self.deadline) if self.fn is _index_source \
+                else self.fn(*self.args)
+        finally:
+            with _inflight_lock:
+                _inflight -= 1
+
+
+def _admit(n: int) -> bool:
+    global _inflight
+    with _inflight_lock:
+        if _inflight + n > MAX_QUEUED:
+            return False
+        _inflight += n
+        return True
+
+
+def _release(n: int) -> None:
+    global _inflight
+    with _inflight_lock:
+        _inflight -= n
 
 
 # -- parsing -------------------------------------------------------------------------------
@@ -149,8 +194,18 @@ def _scope_sql(scope: dict, prefix: str) -> tuple[str, list]:
     return sql, args
 
 
-def _index_source(index: SearchIndex, kinds, parsed, scope) -> dict[str, list[dict]]:
+def _index_source(index: SearchIndex, kinds, parsed, scope, deadline=None) -> dict[str, list[dict]]:
     conn = index.reader()
+    if deadline is not None:  # abort the query once the result can no longer be used
+        conn.set_progress_handler(lambda: time.perf_counter() > deadline + 0.05, 2000)
+    try:
+        return _index_query(conn, kinds, parsed, scope)
+    finally:
+        if deadline is not None:
+            conn.set_progress_handler(None, 0)
+
+
+def _index_query(conn, kinds, parsed, scope) -> dict[str, list[dict]]:
     terms = parsed["terms"]
     scope_sql, scope_args = _scope_sql(scope, "m.")
     cols = "m.id, m.kind, m.ref, m.session_uid, m.project_id, m.agent, m.ts, m.title, d.text"
@@ -353,7 +408,7 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
            tandem_db: Path | None = None, catalog_db: Path | None = None,
            app_db: Path | None = None, linked=None, executor=None,
            index: SearchIndex | None = None, now_ms: int | None = None,
-           timeout_s: float = TIMEOUT_S) -> dict:
+           timeout_s: float = TIMEOUT_S, max_wait_s: float = MAX_WAIT_S) -> dict:
     started = time.perf_counter()
     parsed = parse(q)
     wanted = tuple(dict.fromkeys(kinds or DEFAULT_KINDS))
@@ -372,7 +427,8 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
     tasks = {}
     index_kinds = tuple(k for k in wanted if k in INDEX_KINDS)
     if index_kinds and (index_status["state"] == "ready" or index_status["docs"]):
-        tasks[index_kinds] = (_index_source, index, index_kinds, parsed, scope)
+        for kind in index_kinds:  # one task per kind: a slow kind does not drop the others
+            tasks[(kind,)] = (_index_source, index, (kind,), parsed, scope)
     if "project" in wanted:
         tasks[("project",)] = (_project_source, tandem_db, parsed, scope)
     if "inventory" in wanted:
@@ -384,18 +440,13 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
     if "event" in wanted:
         tasks[("event",)] = (_event_source, tandem_db, parsed, scope)
 
-    pool = executor or _executor
-    futures = {pool.submit(fn, *args): group for group, (fn, *args) in tasks.items()}
-    done, _pending = wait(futures, timeout=timeout_s)
-    lists: dict[str, list[dict]] = {}
+    lists, reasons = _run_sources(tasks, executor or _executor, timeout_s,
+                                  started + max(max_wait_s, timeout_s))
     # First build still running in the background: those kinds are missing, not empty.
-    building = index_status["state"] == "building" and index_kinds not in tasks
-    partial = list(index_kinds) if index_kinds and building else []
-    for future, group in futures.items():
-        if future not in done or future.exception() is not None:
-            partial += list(group)
-            continue
-        lists.update(future.result())
+    if index_kinds and not any((k,) in tasks for k in index_kinds) \
+            and index_status["state"] == "building":
+        reasons.update({k: "index_building" for k in index_kinds})
+    partial = list(reasons)
 
     # Fusion: per-source RRF, weighted by kind, decayed by age.
     now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
@@ -421,8 +472,62 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
         if len(results) >= limit:
             break
     return {"q": parsed["q"], "took_ms": round((time.perf_counter() - started) * 1000, 2),
-            "index": index_status, "counts": counts, "results": results,
-            "partial": sorted(set(partial))}
+            "index": index_status, "counts": counts,
+            # A kind that hit the per-source cap has at least this many matches.
+            "counts_at_least": sorted(k for k, n in counts.items() if n >= PER_SOURCE),
+            "results": results, "partial": sorted(set(partial)),
+            "partial_reasons": dict(sorted(reasons.items())), "complete": not partial}
+
+
+def _run_sources(tasks: dict, pool, budget_s: float, hard_deadline: float):
+    """Run source tasks; returns (hits by kind, {kind: reason} for missing kinds).
+
+    A task's deadline starts when it starts running. A task still queued at the request's
+    hard deadline is cancelled. When the bounded queue is full, sources are shed up front.
+    """
+    lists: dict[str, list[dict]] = {}
+    reasons: dict[str, str] = {}
+    if not tasks:
+        return lists, reasons
+    if not _admit(len(tasks)):
+        return lists, {k: "overloaded" for group in tasks for k in group}
+    futures = {}
+    for group, (fn, *args) in tasks.items():
+        task = _Task(group, fn, args, budget_s)
+        try:
+            futures[pool.submit(task)] = task
+        except RuntimeError:  # pool shut down
+            _release(1)
+            reasons.update({k: "error" for k in group})
+    pending = set(futures)
+    while pending:
+        now = time.perf_counter()
+        next_at = hard_deadline
+        for future in list(pending):
+            if future.done():
+                pending.discard(future)
+                continue
+            task = futures[future]
+            at = hard_deadline if task.deadline is None else min(task.deadline, hard_deadline)
+            if now >= at:
+                pending.discard(future)
+                if future.cancel():  # never started: give its slot back
+                    _release(1)
+                    reasons.update({k: "queued_timeout" for k in task.group})
+                else:
+                    reasons.update({k: "timeout" for k in task.group})
+            else:
+                next_at = min(next_at, at)
+        if pending:
+            wait(pending, timeout=max(0.0, next_at - now), return_when=FIRST_COMPLETED)
+    for future, task in futures.items():
+        if not future.done() or future.cancelled() or any(k in reasons for k in task.group):
+            continue
+        if future.exception() is not None:
+            reasons.update({k: "error" for k in task.group})
+            continue
+        lists.update(future.result())
+    return lists, reasons
 
 
 def scope_from_query(project_ids=None, agent_ids=None, from_ts=None, until_ts=None) -> dict:
