@@ -303,8 +303,14 @@ class AnalysisCache:
                 if memo_key.startswith("section:") and extra in SECTIONS and extra not in computed:
                     computed[extra] = value
             computed_at = int(time.time() * 1000)
+            # content_digest lets a with_text=False read reuse these text-free sections.
+            content = getattr(builder, "content_digest", None)
             stored = {
-                name: ({"meta": value, "computed_at": computed_at} if name == META else value)
+                name: (
+                    {"meta": value, "computed_at": computed_at, "content_digest": content}
+                    if name == META
+                    else value
+                )
                 for name, value in computed.items()
             }
             row_items = None
@@ -312,8 +318,6 @@ class AnalysisCache:
                 row_items = {SESSIONS: [(r["session_uid"], r) for r in stored[SESSIONS]]}
                 stored[SESSIONS] = {"rows": len(stored[SESSIONS])}
             sizes = self.history.put_sections(key, input_fp, stored, row_items) or {}
-            if with_text:
-                self._mirror_text_free(scope, input_fp, builder, computed, computed_at)
             # The run snapshot has the public result shape (shared metadata at the top level),
             # like runs recorded by the uncached engine.
             # A run snapshot repeats its sections; large ones (sessions rows of a real home
@@ -337,29 +341,28 @@ class AnalysisCache:
             except Exception as storage_error:
                 error.add_note(f"Recording the failure also failed: {type(storage_error).__name__}")
             raise
-        self.history.prune(algo_version=algo)
+        self.history.prune(algo_version=algo, protect=[(key, input_fp)])
         for name, value in stored.items():
             if name != SESSIONS:
                 _lru_put((self.home, key, input_fp, name), value)
         stats = {"computed": builder.rows_computed, "reused": builder.rows_reused}
         return computed, {"computed_at": computed_at, "rows": stats, "run_id": run_id}
 
-    def _mirror_text_free(self, scope, input_fp, builder, computed, computed_at) -> None:
-        """Store the text-free sections of a ``with_text=True`` pass under the
-        ``with_text=False`` key too, so both variants of a scope share one computation."""
+    def _text_variant(self, scope, input_fp: str, missing: list[str]) -> dict[str, Any] | None:
+        """Text-free sections of the scope's ``with_text=True`` result, with its metadata
+        restated for ``with_text=False`` (only the digest differs); None unless all present.
+        A full pass (``uiview_facts``) thus serves both variants without storing twice."""
         from .service import META, TEXT_FREE_SECTIONS, text_variant_meta
 
-        digest = getattr(builder, "content_digest", None)
-        shared = {name: computed[name] for name in TEXT_FREE_SECTIONS if name in computed}
-        if META not in computed or digest is None or not shared:
-            return
-        plain = request_key(scope, False)
-        meta = text_variant_meta(computed[META], digest, False)
-        self.history.put_sections(
-            plain, input_fp, {META: {"meta": meta, "computed_at": computed_at}, **shared}
-        )
-        for name, value in shared.items():
-            _lru_put((self.home, plain, input_fp, name), value)
+        names = [name for name in missing if name != META]
+        if not set(names) <= set(TEXT_FREE_SECTIONS):
+            return None
+        found = self._read(request_key(scope, True), input_fp, [META, *names])
+        stored_meta = found.get(META) or {}
+        if any(name not in found for name in names) or not stored_meta.get("content_digest"):
+            return None
+        meta = text_variant_meta(stored_meta["meta"], stored_meta["content_digest"], False)
+        return {**found, META: {**stored_meta, "meta": meta}}
 
     def sections(
         self, scope: Scope, names: list[str], with_text: bool = False, *, engine: str = "features"
@@ -380,6 +383,11 @@ class AnalysisCache:
             "request_key": key,
             "cache_hit": not missing,
         }
+        variant = None if with_text or not missing else self._text_variant(scope, input_fp, missing)
+        if variant is not None:
+            found.update(variant)  # metadata too: sections and metadata from one computation
+            missing = []
+            freshness["cache_hit"] = True
         if missing:
             if META not in missing:
                 missing.insert(0, META)  # keep metadata and sections from the same computation

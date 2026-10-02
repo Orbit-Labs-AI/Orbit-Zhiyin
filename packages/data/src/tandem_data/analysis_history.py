@@ -22,7 +22,9 @@ from typing import Any
 Record = dict[str, Any]
 SCHEMA_VERSION = 2
 KEEP_INPUTS = 3
-MAX_BYTES = 512 * 1024 * 1024
+# A real home's window (sections + session rows) is several hundred MB; 512 MB evicted the
+# result of the computation that had just stored it. Retention keeps it bounded instead.
+MAX_BYTES = 3 * 1024 * 1024 * 1024
 FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
 # Completed runs keep their full result snapshot (often 100+ MB on a real home); only the
 # newest few per request survive retention. The section cache serves reads, not runs.
@@ -526,6 +528,7 @@ class AnalysisHistory:
         failed_retention_ms: int = FAILED_RETENTION_MS,
         keep_runs_per_request: int = KEEP_RUNS_PER_REQUEST,
         keep_runs: int = KEEP_RUNS,
+        protect: list[tuple[str, str]] | None = None,
         now: int | None = None,
     ) -> Record:
         """Apply the retention policy.
@@ -536,7 +539,8 @@ class AnalysisHistory:
         4. completed runs: the newest ``keep_runs_per_request`` per (engine, request) and
            ``keep_runs`` overall keep their snapshots; older runs and the snapshots no run
            references any more are deleted (a full snapshot is often 100+ MB);
-        5. while the database exceeds ``max_bytes``, least recently hit sections are evicted.
+        5. while the database exceeds ``max_bytes``, least recently hit sections are evicted,
+           except the ``protect``ed (request_key, input_fp) pairs (the caller's own result).
         """
         now = _now() if now is None else now
         stats = {
@@ -587,7 +591,9 @@ class AnalysisHistory:
             with self.connect() as connection:
                 oldest = connection.execute(
                     "SELECT request_key, input_fp, section FROM analysis_section"
-                    " ORDER BY last_hit_at, created_at LIMIT 1"
+                    " WHERE request_key || ' ' || input_fp NOT IN (SELECT value FROM json_each(?))"
+                    " ORDER BY last_hit_at, created_at LIMIT 1",
+                    (json.dumps([f"{k} {fp}" for k, fp in protect or ()]),),
                 ).fetchone()
                 if oldest is None:
                     break

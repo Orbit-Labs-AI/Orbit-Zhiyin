@@ -58,3 +58,16 @@ def test_vacuum_only_when_sparse(tmp_path):
     history = AnalysisHistory(tmp_path / "analysis.sqlite")
     assert history.vacuum_if_sparse(min_bytes=0, ratio=0.99) is False
     assert history.file_bytes() > 0
+
+
+def test_size_eviction_spares_the_protected_result(tmp_path):
+    import os
+
+    history = AnalysisHistory(tmp_path / "analysis.sqlite")
+    blob = os.urandom(200_000).hex()
+    for index in range(3):
+        history.put_sections(f"rk{index}", "fp", {"text": {"blob": blob}})
+    stats = history.prune(max_bytes=1, protect=[("rk2", "fp")])
+    with history.connect() as db:
+        left = {r[0] for r in db.execute("SELECT request_key FROM analysis_section")}
+    assert left == {"rk2"} and stats["evicted"] == 2
