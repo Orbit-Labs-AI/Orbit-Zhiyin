@@ -115,8 +115,12 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             raise analysis_error(exc) from exc
 
     def analytics_section(key, scope, with_text=False):
+        from ..analytics.products.payload import compact
         from ..analytics.service import response_section
-        return response_section(analytics_sections(scope, [key], with_text), key)
+        result = response_section(analytics_sections(scope, [key], with_text), key)
+        if key in ("statistics", "lexical"):
+            result[key] = compact(result[key])  # Bounded evidence; aggregates stay exact.
+        return result
 
     def insight_result(scope):
         """Signal layer input: the selected context plus the cached sections it reads.

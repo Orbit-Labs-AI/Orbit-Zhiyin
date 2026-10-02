@@ -32,6 +32,11 @@ class Section:
     cost: Literal["light", "heavy"]
     compute: Compute
     with_text: bool = False
+    timeout_s: float | None = None  # Overrides the supervisor's per-cost budget.
+    prewarm: bool = True
+    # Strikes before the circuit opens (None: SupervisorConfig.max_failures). Expensive
+    # on-demand sections use 1 so a timed-out / killed run is reported, not re-run in a loop.
+    max_failures: int | None = None
 
 
 class ResultMemo:
@@ -102,6 +107,16 @@ def _session_detail(store, scope, params, memo):
     return {**result, "session": row}
 
 
+def _sample_files(store, scope, params, memo):
+    """Full sample-boundary file list; section bodies only carry its count and digest."""
+    from ..analytics.service import response_section
+
+    data = memo.analysis(store, scope, False, params.get("_rev"))
+    result = response_section(data, "overview")
+    result.pop("overview")
+    return {**result, "files": (data.get("sample_boundary") or {}).get("files") or []}
+
+
 def _preferences(store, scope, params, memo):
     from ..analytics.preference import resolve_effective_preferences
     from ..analytics.service import response_section
@@ -136,9 +151,125 @@ for _name, _cost, _text in (("overview", "light", False), ("tools", "light", Fal
 register(Section("sessions", "sessions", "light", _sessions, True))
 register(Section("session", "session", "heavy", _session_detail, True))
 register(Section("preferences", "preferences", "light", _preferences, False))
+register(Section("sample_files", "files", "light", _sample_files, False, prewarm=False))
 
-LIGHT = tuple(name for name, s in SECTIONS.items() if s.cost == "light" and name != "session")
-HEAVY = tuple(name for name, s in SECTIONS.items() if s.cost == "heavy" and name != "session")
+def _compact_section(key: str) -> Compute:
+    def compute(store, scope, params, memo):
+        from ..analytics.products.payload import compact
+        from ..analytics.service import response_section
+
+        result = response_section(memo.analysis(store, scope, False, params.get("_rev")), key)
+        result[key] = compact(result[key])
+        return result
+
+    return compute
+
+
+def _summarised(body: dict, *nested: str) -> dict:
+    """Swap ``sample_boundary.files`` for count + digest (the list is /v1/analytics/sample_files)."""
+    from ..analytics.service import boundary_summary
+
+    body = dict(body)
+    if isinstance(body.get("sample_boundary"), dict):
+        body["sample_boundary"] = boundary_summary(body["sample_boundary"])
+    for key in nested:
+        if isinstance(body.get(key), dict):
+            body[key] = _summarised(body[key])
+    return body
+
+
+def _products(store, scope, params, memo):
+    """Former synchronous gateway fallback; the gateway pages ``sessions`` of this body."""
+    from ..analytics.products import analyze_product_store
+
+    body = analyze_product_store(store, scope, bucket=params.get("bucket", "day"),
+                                 with_text=bool(params.get("with_text")),
+                                 compare_previous=bool(params.get("compare_previous")))
+    return _summarised(body)
+
+
+def _presentation(store, scope, params, memo):
+    from ..analytics.presentation import build_presentation
+    from ..analytics.presentation.metrics import window_scope
+
+    selected = window_scope(scope, params.get("window"))
+    result = dict(memo.analysis(store, selected, False, params.get("_rev")))
+    target, family = params.get("target_agent", "generic"), params.get("family")
+    if target != "generic" or family:
+        from ..recommend.service import recommend
+
+        result["bottleneck_recommendations"] = recommend(result, context={"agent": target},
+                                                         family=family)
+    return _summarised(build_presentation(result))
+
+
+def _recommendations(store, scope, params, memo):
+    from ..analytics.service import response_section
+    from ..recommend.service import recommend
+
+    result = dict(memo.analysis(store, scope, False, params.get("_rev")))
+    options = {k: params[k] for k in ("kind", "family") if params.get(k) is not None}
+    result["bottleneck_recommendations"] = recommend(
+        result, context=params.get("context") or {}, limit=params.get("limit", 6), **options)
+    return response_section(result, "bottleneck_recommendations")
+
+
+def _legacy_report(store, scope, params, memo):
+    """``/v1/analysis``: the CLI report use case; the scope is unused (params carry filters)."""
+    from ..application.reports import build_report
+
+    scene = params.get("scene", "auto")
+    _, result = build_report(store, project_id=params.get("project_id"),
+                             model=params.get("model"), before=params.get("before"),
+                             scene=scene if scene != "auto" else None,
+                             recommendation_scene=scene, audience=params.get("audience", "user"),
+                             catalog_cache=".local/catalog.json")
+    return result  # Legacy body shape: the report itself at top level, plus ``meta``.
+
+
+def _scope_comparison(store, scope, params, memo):
+    """``POST /v1/analytics/compare``: two full product analyses; ``scope`` is unused."""
+    from ..analytics.inputs import Scope
+    from ..analytics.products.service import compare_scopes
+
+    return _summarised(compare_scopes(store, Scope(**params["first"]), Scope(**params["second"])),
+                       "first", "second")
+
+
+def _catalog_requests(store, scope, params, memo):
+    """``/v1/catalog/match-analysis`` input: the gateway matches these against its catalog."""
+    from tandem_catalog.analysis_adapter import requests_from_analysis
+
+    from ..profiling.analysis import analyze
+
+    data = analyze(store, params.get("project_id"), params.get("model"),
+                   scene=params.get("scene"))
+    return {"requests": [r.model_dump(mode="json")
+                         for r in requests_from_analysis(data, limit=params.get("limit", 10))]}
+
+
+# Legacy create_app() analyses that used to run synchronously inside the gateway process
+# (analyze_store / build_report on the gateway threadpool: no timeout, no RSS cap, GIL
+# starvation). On demand only (never prewarmed); products may run for minutes on a large home.
+_ON_DEMAND = {"prewarm": False, "max_failures": 1}
+for _name in ("statistics", "lexical"):
+    register(Section(_name, _name, "light", _compact_section(_name), **_ON_DEMAND))
+register(Section("bottleneck", "bottleneck_features", "heavy",
+                 _compact_section("bottleneck_features"), **_ON_DEMAND))
+register(Section("recommendations", "bottleneck_recommendations", "heavy", _recommendations,
+                 **_ON_DEMAND))
+register(Section("analysis", "analysis", "heavy", _legacy_report, **_ON_DEMAND))
+register(Section("comparison", "comparison", "heavy", _scope_comparison, timeout_s=1800,
+                 **_ON_DEMAND))
+register(Section("catalog_requests", "requests", "heavy", _catalog_requests, **_ON_DEMAND))
+register(Section("products", "products", "heavy", _products, timeout_s=1800, **_ON_DEMAND))
+register(Section("presentation", "presentation", "heavy", _presentation, timeout_s=1800,
+                 **_ON_DEMAND))
+
+LIGHT = tuple(name for name, s in SECTIONS.items()
+              if s.cost == "light" and name != "session" and s.prewarm)
+HEAVY = tuple(name for name, s in SECTIONS.items()
+              if s.cost == "heavy" and name != "session" and s.prewarm)
 
 _RULES: str | None = None
 

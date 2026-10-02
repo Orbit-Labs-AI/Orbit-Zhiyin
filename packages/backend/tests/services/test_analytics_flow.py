@@ -132,6 +132,18 @@ def test_session_pages_are_compact_and_details_resolve(client_factory, codex_roo
         _ready(gateway, "session")
         detail = client.get(f"/v1/analytics/sessions/{uid}")
     assert detail.status_code == 200 and detail.json()["session"]["session_uid"] == uid
+    # Section bodies carry only the boundary count + digest; files are paged separately.
+    boundary = detail.json()["sample_boundary"]
+    assert "files" not in boundary and "files" not in body["sample_boundary"]
+    assert boundary["file_count"] >= 50 and boundary["files_digest"]
+    files = client.get("/v1/analytics/sample_files", params={"limit": 7, "wait_ms": 3000})
+    if files.status_code == 202:
+        _ready(gateway, "sample_files")
+        files = client.get("/v1/analytics/sample_files", params={"limit": 7})
+    listing = files.json()
+    assert files.status_code == 200 and listing["total"] == boundary["file_count"]
+    assert len(listing["files"]) == 7 and listing["next_offset"] == 7
+    assert listing["sample_boundary"]["files_digest"] == boundary["files_digest"]
     missing = client.get("/v1/analytics/sessions/not-a-session", params={"wait_ms": 3000})
     if missing.status_code == 202:
         wait_for(lambda: bus_events(gateway, "analysis.failed"), 60)

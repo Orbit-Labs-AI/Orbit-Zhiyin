@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 Record = dict[str, Any]
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 KEEP_INPUTS = 3
 MAX_BYTES = 512 * 1024 * 1024
 FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
@@ -28,6 +28,18 @@ FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
 
 class AnalysisIntegrityError(ValueError):
     """A stored payload failed decompression or its checksum; never served silently."""
+
+
+def _alive(pid: int | None) -> bool:
+    if pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _now() -> int:
@@ -121,12 +133,13 @@ class AnalysisHistory:
         input_fp: str | None = None,
     ) -> str:
         """Create an execution even when an identical analysis has previously completed."""
+        self.recover_interrupted()
         run_id = uuid.uuid4().hex
         with self.connect() as connection:
             connection.execute(
-                "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json,request_key,input_fp)"
-                " VALUES(?,?,'running',?,?,?,?)",
-                (run_id, engine, _now(), _json(request), request_key, input_fp),
+                "INSERT INTO analysis_run(run_id,engine,status,started_at,request_json,request_key,input_fp,owner_pid)"
+                " VALUES(?,?,'running',?,?,?,?,?)",
+                (run_id, engine, _now(), _json(request), request_key, input_fp, os.getpid()),
             )
         return run_id
 
@@ -152,6 +165,47 @@ class AnalysisHistory:
                 (run_id, engine, now, now, _json(request), snapshot_id, request_key, input_fp),
             )
         return run_id
+
+    def recover_interrupted(self) -> int:
+        """Fail running rows whose owner process is gone (a worker killed on timeout)."""
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT run_id,owner_pid FROM analysis_run WHERE status='running'"
+            ).fetchall()
+            stale = [row["run_id"] for row in rows if not _alive(row["owner_pid"])]
+            now = time.time_ns() // 1_000_000
+            for run_id in stale:
+                connection.execute(
+                    "UPDATE analysis_run SET status='failed',finished_at=?,error_type='Interrupted',"
+                    "error_message='analysis process exited before finishing' "
+                    "WHERE run_id=? AND status='running'",
+                    (now, run_id),
+                )
+        return len(stale)
+
+    def reuse(self, engine: str, request: Record) -> tuple[str, Record] | None:
+        """Record a completed run backed by the newest identical request's verified snapshot."""
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT run_id,snapshot_id FROM analysis_run WHERE engine=? AND status='completed' "
+                "AND request_json=? ORDER BY started_at DESC,rowid DESC LIMIT 1",
+                (engine, _json(request)),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            result = self.result(row["run_id"])
+        except (KeyError, ValueError):
+            return None  # Pruned or corrupt: recompute instead of serving it.
+        now = time.time_ns() // 1_000_000
+        run_id = uuid.uuid4().hex
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO analysis_run(run_id,engine,status,started_at,finished_at,request_json,snapshot_id,owner_pid) "
+                "SELECT ?,?,'completed',?,?,?,snapshot_id,? FROM analysis_snapshot WHERE snapshot_id=?",
+                (run_id, engine, now, now, _json(request), os.getpid(), row["snapshot_id"]),
+            )
+        return run_id, result
 
     def complete(self, run_id: str, result: Record) -> str:
         """Atomically publish the complete result and finish exactly one running execution."""

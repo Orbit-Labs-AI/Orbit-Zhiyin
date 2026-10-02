@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 
 from .. import __version__, privacy_rules
 from .auth import ApiError
+from .text_cap import EVIDENCE_MAX_CHARS, LIST_MAX_CHARS, RANGE_MAX_CHARS, cap_event
 
 if TYPE_CHECKING:
     from .gateway import Gateway
@@ -236,7 +237,10 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/sessions/{session_id}/events")
     def events(request: Request, session_id: str, offset: int = Query(0, ge=0),
-               limit: int = Query(100, ge=1, le=500), after_seq: int | None = Query(None, ge=-1)):
+               limit: int = Query(100, ge=1, le=500), after_seq: int | None = Query(None, ge=-1),
+               max_chars: int = Query(LIST_MAX_CHARS, ge=1, le=RANGE_MAX_CHARS)):
+        """Event texts are capped at ``max_chars`` (``truncated`` / ``text_range`` say so);
+        the full text is read by range from ``/v1/evidence/{event_id}``."""
         from tandem_data.analysis_input import decoded
 
         from ..data_access.store import report_event
@@ -251,8 +255,27 @@ def router(gw: Gateway) -> APIRouter:
                 "SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c USING(event_uid)"
                 " WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ? OFFSET ?",
                 (session_id, after_seq if after_seq is not None else -1, limit, offset))]
-            return {"total": total, "items": [report_event(e).to_dict() for e in rows],
+            return {"total": total,
+                    "items": [cap_event(report_event(e).to_dict(), max_chars) for e in rows],
                     "next_after_seq": rows[-1]["seq"] if rows else None}
+
+        return served(request, produce)
+
+    @api.get("/v1/evidence/{event_id}")
+    def evidence(request: Request, event_id: str, text_offset: int = Query(0, ge=0),
+                 max_chars: int = Query(EVIDENCE_MAX_CHARS, ge=1, le=RANGE_MAX_CHARS)):
+        """One event; ``text`` is the range ``[text_offset, text_offset + max_chars)`` and
+        ``text_range.total`` the full length, so a client pages through huge outputs."""
+        from tandem_data.analysis_input import decoded
+
+        from ..data_access.store import report_event
+
+        def produce(db):
+            row = db.execute("SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c"
+                             " USING(event_uid) WHERE e.event_uid=?", (event_id,)).fetchone()
+            if row is None:
+                raise ApiError(404, "not_found", "证据不存在或不在分析范围内")
+            return cap_event(report_event(decoded(row)).to_dict(), max_chars, text_offset)
 
         return served(request, produce)
 

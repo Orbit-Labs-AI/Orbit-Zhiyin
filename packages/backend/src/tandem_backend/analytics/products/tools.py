@@ -11,11 +11,15 @@ Record = dict[str, Any]
 EVIDENCE_LIMIT = 50
 
 
+def _capped_sessions(sessions: set[str]) -> Record:
+    """Bounded session evidence; ``session_count`` keeps the exact support."""
+    ordered = sorted(sessions)
+    return {"session_uids": ordered[:EVIDENCE_LIMIT], "session_count": len(ordered)}
+
 
 def transition_matrix(runs: list[list[Record]], field: str) -> Record:
     """Estimate P(next tool | current tool) over observed, nonterminal adjacencies."""
     edges, terminals, evidence = Counter(), Counter(), defaultdict(list)
-    next_calls = []
     for run in runs:
         terminals[run[-1].get(field) or "unknown"] += 1
         for current, following in zip(run, run[1:], strict=False):
@@ -28,7 +32,6 @@ def transition_matrix(runs: list[list[Record]], field: str) -> Record:
             }
             if len(evidence[key]) < EVIDENCE_LIMIT:
                 evidence[key].append(ref)
-            next_calls.append({**ref, "from": key[0], "to": key[1]})
     outgoing = Counter()
     for (source, _), count in edges.items():
         outgoing[source] += count
@@ -44,15 +47,13 @@ def transition_matrix(runs: list[list[Record]], field: str) -> Record:
         }
         for (source, target), count in sorted(edges.items())
     ]
-    probabilities = {(r["from"], r["to"]): r["probability"] for r in rows}
-    for call in next_calls:
-        call["probability"] = probabilities[(call["from"], call["to"])]
+    # Per-pair next_calls grew with every adjacency (93 MB on a large home); the capped
+    # per-edge evidence above already locates examples, so the default payload omits them.
     return {
         "by": field,
         "rows": rows,
         "pair_count": sum(edges.values()),
         "terminal_counts": dict(sorted(terminals.items())),
-        "next_calls": next_calls,
         "meaning": "conditional on an observed next call; no edge across sessions or ambiguous order",
     }
 
@@ -79,7 +80,7 @@ def tool_shares(calls: list[Record], field: str, status: str) -> list[Record]:
                     len(rows) - known,
                     status=status,
                 ),
-                "session_uids": sorted({c["session_uid"] for c in rows}),
+                **_capped_sessions({c["session_uid"] for c in rows}),
                 "call_uids": [c["call_uid"] for c in rows[:EVIDENCE_LIMIT]],
                 "evidence_truncated": len(rows) > EVIDENCE_LIMIT,
             }
@@ -151,7 +152,7 @@ def workflow_patterns(runs: list[list[Record]]) -> list[Record]:
             "support_sessions": len(sessions),
             "eligible_sessions": len(eligible),
             "support_rate": len(sessions) / len(eligible),
-            "session_uids": sorted(sessions),
+            **_capped_sessions(sessions),
             "denominator": "sessions with at least three unambiguously ordered calls",
         }
         for chain, sessions in sorted(groups.items(), key=lambda pair: (-len(pair[1]), pair[0]))[

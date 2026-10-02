@@ -42,6 +42,27 @@ def cache_key(store: Any, engine: str, request: dict) -> tuple[str, str] | None:
     return digest(engine, request, algo_version()), fingerprints(store.home).input_fp()
 
 
+def data_revision(store: Any) -> list[int] | None:
+    """Published canonical revision (projection run, inventory scan), or None when unknown."""
+    home = getattr(store, "home", None)
+    if not isinstance(home, (str, Path)) or not hasattr(store, "analysis_bundle"):
+        return None
+    path = Path(home) / "tandem.db"
+    if not path.is_file():
+        return None
+    import sqlite3
+
+    from tandem_data.store import readonly_connection
+
+    try:
+        with readonly_connection(path) as db:
+            run = db.execute("SELECT MAX(run_id) FROM projection_run").fetchone()[0]
+            scan = db.execute("SELECT COALESCE(MAX(scan_id),0) FROM inventory_scan").fetchone()[0]
+    except sqlite3.Error:
+        return None
+    return None if run is None else [run, scan]
+
+
 def recorded(
     store: Any,
     engine: str,
@@ -49,6 +70,7 @@ def recorded(
     compute: Callable[[], dict],
     *,
     key: tuple[str, str] | None = None,
+    reuse: bool = False,
 ) -> dict:
     """Serve a verified cached result for the same request and input, else compute and record.
 
@@ -56,7 +78,12 @@ def recorded(
     written again. Every computation, success or failure, is still recorded.
     """
     history = history_for(store)
+    revision = data_revision(store) if reuse else None
+    if revision is not None:
+        request = {**request, "data_revision": revision}
     request = {**request, "runtime": runtime()}
+    if revision is not None and (reused := history.reuse(engine, request)) is not None:
+        return reused[1]
     key = key or cache_key(store, engine, request)
     request_key, input_fp = key or (None, None)
     if key is not None:
