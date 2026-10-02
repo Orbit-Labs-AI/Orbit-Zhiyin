@@ -331,7 +331,9 @@ class Gateway:
 
             windows = [fastpath.windowed(base, d) for d in fastpath.LADDER]
             work += [(name, scope) for name in HEAVY for scope in [*windows, *scopes]]
-            work.append((SECTION, default_scope(None)))  # /v1/recommendations: all time
+            # /v1/recommendations without parameters: all time, default sources and the
+            # persistent exclusions (the key must match the route's analytics_scope()).
+            work.append((SECTION, asdict(analytics_scope())))
         rules = rules_digest()
         queued, seen = [], set()
         for name, scope in work:
