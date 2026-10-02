@@ -376,3 +376,132 @@ def test_codex_background_exec_startup_has_no_fake_zero_duration(tmp_path):
         assert calls["background"]["duration_quality"] == "missing"
         assert calls["measured"]["duration_ms"] == 3000
         assert calls["measured"]["duration_quality"] == "reported"
+
+
+def fork_meta(native, parent, start):
+    return {
+        "type": "session_meta",
+        "ordinal": 0,
+        "timestamp": ISO.format(0),
+        "payload": {
+            "id": native,
+            "subagent_history_start_ordinal": start,
+            "source": {"subagent": {"thread_spawn": {"parent_thread_id": parent}}},
+        },
+    }
+
+
+def user_item(text, **extra):
+    return {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": text}],
+        **extra,
+    }
+
+
+def test_codex_inherited_prefix_matches_reserialised_and_compacted_parent_items(tmp_path):
+    parent = [
+        {"type": "session_meta", "ordinal": 0, "timestamp": ISO.format(0), "payload": {"id": "p"}},
+        {
+            "type": "event_msg",
+            "ordinal": 1,
+            "timestamp": ISO.format(1),
+            "payload": {"type": "user_message", "message": "first task", "images": None},
+        },
+        {
+            "type": "response_item",
+            "ordinal": 2,
+            "timestamp": ISO.format(1),
+            "payload": user_item("first task", id="msg_1"),
+        },
+        {
+            "type": "compacted",
+            "ordinal": 3,
+            "timestamp": ISO.format(2),
+            "payload": {
+                "message": "",
+                "replacement_history": [user_item("summarised earlier request")],
+            },
+        },
+    ]
+    child = [
+        fork_meta("c", "p", 5),
+        # Re-serialised copies: null fields dropped, ids absent, compaction items inlined.
+        {
+            "type": "event_msg",
+            "ordinal": 1,
+            "timestamp": ISO.format(3),
+            "payload": {"type": "user_message", "message": "first task"},
+        },
+        {
+            "type": "response_item",
+            "ordinal": 2,
+            "timestamp": ISO.format(3),
+            "payload": user_item("summarised earlier request"),
+        },
+        {
+            "type": "response_item",
+            "ordinal": 3,
+            "timestamp": ISO.format(3),
+            "payload": user_item("first task"),
+        },
+        {
+            "type": "response_item",
+            "ordinal": 4,
+            "timestamp": ISO.format(3),
+            "payload": user_item("never in the parent"),
+        },
+        {
+            "type": "response_item",
+            "ordinal": 5,
+            "timestamp": ISO.format(4),
+            "payload": user_item("child's own work"),
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", parent, "p.jsonl")
+        stream(store, "codex", tmp_path / "source", child, "c.jsonl")
+        store.rebuild()
+        dispositions = dict(
+            store.db.execute(
+                "SELECT r.ordinal, r.disposition FROM raw_record r JOIN source_file f"
+                " USING(file_id) WHERE f.relative_path='c.jsonl'"
+            ).fetchall()
+        )
+        assert [dispositions[i] for i in (1, 2, 3)] == ["replayed"] * 3
+        issues = store.db.execute(
+            "SELECT * FROM ingest_issue WHERE code='inherited_parent_evidence_unavailable'"
+        ).fetchall()
+        assert len(issues) == 1 and issues[0]["record_uid"] is None
+        assert json.loads(issues[0]["detail"])["records"] == 1
+        assert store.verify()["unparsed"] == 0
+
+
+def test_codex_grandchild_replays_records_its_parent_replayed(tmp_path):
+    root = [
+        {"type": "session_meta", "ordinal": 0, "timestamp": ISO.format(0), "payload": {"id": "r"}},
+        {
+            "type": "response_item",
+            "ordinal": 1,
+            "timestamp": ISO.format(1),
+            "payload": user_item("root task"),
+        },
+    ]
+    middle = [fork_meta("m", "r", 2), {**root[1], "ordinal": 1}]
+    leaf = [fork_meta("l", "m", 2), {**root[1], "ordinal": 1}]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", root, "r.jsonl")
+        stream(store, "codex", tmp_path / "source", middle, "m.jsonl")
+        stream(store, "codex", tmp_path / "source", leaf, "l.jsonl")
+        store.rebuild()
+        assert not store.db.execute(
+            "SELECT * FROM ingest_issue WHERE code='inherited_parent_evidence_unavailable'"
+        ).fetchall()
+        assert (
+            store.db.execute(
+                "SELECT COUNT(*) FROM raw_record WHERE disposition='replayed'"
+            ).fetchone()[0]
+            == 2
+        )
+        assert store.verify()["unparsed"] == 0

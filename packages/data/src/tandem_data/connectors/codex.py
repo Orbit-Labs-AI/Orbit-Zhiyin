@@ -81,6 +81,16 @@ TOOL_APPROVALS = frozenset(
 )
 
 
+def _compact(value):
+    """Drop null and empty fields recursively (serialisers differ in emitting them)."""
+    if isinstance(value, dict):
+        items = ((key, _compact(item)) for key, item in value.items())
+        return {key: item for key, item in items if item not in (None, "", [], {})}
+    if isinstance(value, list):
+        return [_compact(item) for item in value]
+    return value
+
+
 def _unmeasured_command(item, started_at, completed_at):
     """Unified-exec startup items: started == completed and duration ~µs (B5)."""
     if not isinstance(started_at, int) or not isinstance(completed_at, int):
@@ -237,6 +247,56 @@ class CodexMapper(BaseMapper):
     def record_signature(record):
         return uid("native_payload", record.data.get("type"), record.data.get("payload"))
 
+    @staticmethod
+    def loose_signature(typ, payload):
+        """Match a child's copied context item when it is not a byte-identical line.
+
+        Paginated forks copy the parent's *model context*, re-serialised (empty fields
+        dropped) and partly taken from compaction ``replacement_history``; messages are
+        therefore matched by role and text, other items with empty fields removed."""
+        if not isinstance(payload, dict):
+            return None
+        if typ == "response_item" and payload.get("type") == "message":
+            text = text_content(payload.get("content")).strip()
+            return uid("inherited_message", payload.get("role"), text) if text else None
+        if typ == "event_msg" and payload.get("type") in ("user_message", "agent_message"):
+            text = text_content(payload.get("message", payload.get("content"))).strip()
+            return uid("inherited_event", payload["type"], text) if text else None
+        return uid("inherited_item", typ, _compact(payload))
+
+    @classmethod
+    def parent_signatures(cls, record):
+        """Signatures under which a parent record can stand for a child's inherited copy."""
+        data, payload = record.data, record.data.get("payload")
+        signatures = [cls.record_signature(record), cls.loose_signature(data.get("type"), payload)]
+        if data.get("type") == "compacted" and isinstance(payload, dict):
+            for item in payload.get("replacement_history") or []:
+                signatures.append(cls.loose_signature("response_item", item))
+        return [signature for signature in dict.fromkeys(signatures) if signature]
+
+    def inherited_refs(self, record):
+        """Events of the parent record this inherited copy replays; [] when none is found."""
+        exact = self.record_signature(record)
+        loose = self.loose_signature(record.data.get("type"), record.data.get("payload"))
+        for signature in (exact, loose):
+            candidates = self.parent_candidates.get(signature, []) if signature else []
+            candidate = next((item for item in candidates if item[0] > self.parent_cursor), None)
+            if candidate is None and signature == loose and candidates:
+                # Compaction re-copies older items: any matching parent record is evidence.
+                candidate = candidates[-1]
+            if candidate is None:
+                continue
+            refs = [
+                row[0]
+                for row in self.store.db.execute(
+                    "SELECT event_uid FROM record_event WHERE record_uid=?", (candidate[1],)
+                )
+            ] or list(getattr(self, "replayed_refs", {}).get(candidate[1], ()))
+            if refs:
+                self.parent_cursor = max(self.parent_cursor, candidate[0])
+                return refs
+        return []
+
     def map(self, record):
         data, typ = record.data, record.data.get("type")
         payload = data.get("payload", {})
@@ -337,18 +397,7 @@ class CodexMapper(BaseMapper):
                 self.effort = payload.get("effort", self.effort)
             elif data.get("type") == "world_state":
                 self.model = payload.get("state", {}).get("model", self.model)
-            refs = []
-            candidates = self.parent_candidates.get(self.record_signature(record), [])
-            candidate = next((item for item in candidates if item[0] > self.parent_cursor), None)
-            if candidate:
-                self.parent_cursor = candidate[0]
-                refs = [
-                    row[0]
-                    for row in self.store.db.execute(
-                        "SELECT event_uid FROM record_event WHERE record_uid=?",
-                        (candidate[1],),
-                    )
-                ]
+            refs = self.inherited_refs(record)
             if not refs and (
                 typ == "world_state"
                 or typ == "response_item"
@@ -375,12 +424,13 @@ class CodexMapper(BaseMapper):
             # The native cutoff proves this is supplied history, not new child behavior.
             # Parent history may have been compacted/replaced since the fork. Preserve
             # the child's actual evidence as context, without inventing a parent link.
+            # One diagnostic per child file (upserted with the running count), not per record.
+            self.unresolved_inherited = getattr(self, "unresolved_inherited", 0) + 1
             self.store.issue(
                 record.source_id,
                 "inherited_parent_evidence_unavailable",
                 file_id=record.file_id,
-                record_uid=record.record_uid,
-                detail={"native_type": record.native_type, "parent_native_id": self.parent},
+                detail={"records": self.unresolved_inherited, "parent_native_id": self.parent},
             )
             return Mapping(
                 [
