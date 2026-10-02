@@ -353,6 +353,60 @@ class ClaudeMapper(BaseMapper):
                     ext=data,
                 )
             )
+        elif typ == "result" and data.get("agentId"):
+            # Workflow journal: an agent's final output.
+            result = data.get("result")
+            events.append(
+                self.make(
+                    record,
+                    "subagent.result",
+                    "agent.result",
+                    text=result if isinstance(result, str) else None,
+                    attrs={"child_native_id": data["agentId"], "status": "completed"},
+                    ext=unused(data, ("result",)) if isinstance(result, str) else data,
+                )
+            )
+        elif typ == "result":
+            # Print-mode / SDK final summary; usage stays in ext (already counted per call).
+            failed = data.get("is_error") or str(data.get("subtype", "")).startswith("error")
+            events.append(
+                self.make(
+                    record,
+                    "turn.end",
+                    "result",
+                    text=data.get("result") if isinstance(data.get("result"), str) else None,
+                    attrs={
+                        "status": "failed" if failed else "completed",
+                        "duration_ms": data.get("duration_ms"),
+                    },
+                    ext=unused(data, ("result",)),
+                )
+            )
+        elif typ == "relocated":
+            events.append(
+                self.make(
+                    record,
+                    "setting.change",
+                    "relocated",
+                    attrs={"relocated_cwd": data.get("relocatedCwd")},
+                    ext=data,
+                )
+            )
+        elif typ == "continued-in" and data.get("continuedInSessionId"):
+            target = str(data["continuedInSessionId"])
+            events.append(
+                self.make(
+                    record,
+                    "link",
+                    "continued-in",
+                    attrs={
+                        "link_kind": "continued_in",
+                        "ref": self.store.identity(record.source_id, target),
+                        "continued_in_native_id": target,
+                    },
+                    ext=data,
+                )
+            )
         elif typ == "summary":
             events.append(
                 self.make(

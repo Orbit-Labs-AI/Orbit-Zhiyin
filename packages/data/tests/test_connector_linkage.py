@@ -264,3 +264,69 @@ def test_claude_subagent_prompt_is_peer_not_human(tmp_path):
         ImportService(store).import_source(ImportRequest("claude_code", root))
         assert origins(store, "s1") == [("human", "human")]
         assert origins(store, "s1:agent-aaa") == [("system", "peer")]
+
+
+def test_claude_result_relocated_and_continued_in_have_destinations(tmp_path):
+    root = tmp_path / "claude"
+    base = root / "projects/-synthetic-repo"
+    write_jsonl(
+        base / "s1.jsonl",
+        [
+            {
+                **claude_context(0),
+                "type": "user",
+                "uuid": "u1",
+                "message": {"role": "user", "content": "hi"},
+            },
+            {"type": "relocated", "sessionId": "s1", "relocatedCwd": "/synthetic/moved"},
+            {
+                "type": "continued-in",
+                "sessionId": "s1",
+                "timestamp": ISO.format(2),
+                "continuedInSessionId": "s2",
+            },
+            {
+                "type": "result",
+                "sessionId": "s1",
+                "subtype": "success",
+                "duration_ms": 1200,
+                "result": "done",
+                "usage": {"input_tokens": 1},
+            },
+        ],
+    )
+    write_jsonl(
+        base / "s1/subagents/workflows/wf_1/journal.jsonl",
+        [
+            {"type": "started", "key": "k", "agentId": "w1", "label": "step"},
+            {"type": "result", "key": "k", "agentId": "w1", "result": "agent summary"},
+        ],
+    )
+    with Store(tmp_path / "data") as store:
+        ImportService(store).import_source(ImportRequest("claude_code", root))
+        assert not store.db.execute("SELECT * FROM event WHERE kind='unknown'").fetchall()
+        assert not store.db.execute(
+            "SELECT * FROM ingest_issue WHERE code='unknown_native_type'"
+        ).fetchall()
+        paths = {
+            row["event_path"]: row
+            for row in store.db.execute(
+                "SELECT * FROM event WHERE event_path IN"
+                " ('relocated','continued-in','result','agent.result')"
+            )
+        }
+        assert paths["relocated"]["kind"] == "setting.change"
+        assert json.loads(paths["relocated"]["attrs"])["relocated_cwd"] == "/synthetic/moved"
+        assert paths["result"]["kind"] == "turn.end"
+        assert paths["agent.result"]["kind"] == "subagent.result"
+        assert paths["agent.result"]["text"] == "agent summary"
+        target = one(store, "SELECT session_uid FROM session_identity WHERE native_id='s2'")[0]
+        link = one(store, "SELECT * FROM link WHERE kind='continued_in'")
+        assert link["ref"] == target
+        # The relocation is recorded, but the session keeps the cwd it started in.
+        cwd = one(
+            store,
+            "SELECT s.cwd FROM session s JOIN session_identity i USING(session_uid)"
+            " WHERE i.native_id='s1'",
+        )[0]
+        assert cwd == "/synthetic/repo"
