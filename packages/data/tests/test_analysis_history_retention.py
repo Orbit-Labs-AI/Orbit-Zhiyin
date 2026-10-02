@@ -88,8 +88,10 @@ def test_piecewise_encoding_matches_one_json_dump():
             return rng.choice([1, 2.5, '中文"x', None, True, 10**20, "a b", 1e-7])
         if roll < 0.6:
             return [value(depth + 1) for _ in range(rng.randint(0, 4))]
-        return {rng.choice(["k", "中", '"q"', "1"]) + str(i): value(depth + 1)
-                for i in range(rng.randint(0, 4))}
+        return {
+            rng.choice(["k", "中", '"q"', "1"]) + str(i): value(depth + 1)
+            for i in range(rng.randint(0, 4))
+        }
 
     for _ in range(500):
         item = value()

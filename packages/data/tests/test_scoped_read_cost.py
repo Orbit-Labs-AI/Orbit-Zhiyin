@@ -13,16 +13,38 @@ def transcript(name: str, cwd: str, commands: int) -> list[dict]:
     rows = [
         {"type": "session_meta", "payload": {"id": name, "source": "cli", "cwd": cwd}},
         {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "turn"}},
-        {"type": "event_msg", "payload": {"type": "item_completed", "turn_id": "turn", "item": {
-            "id": "user", "type": "UserMessage",
-            "content": [{"type": "text", "text": "synthetic request " + "x" * 400}]}}},
+        {
+            "type": "event_msg",
+            "payload": {
+                "type": "item_completed",
+                "turn_id": "turn",
+                "item": {
+                    "id": "user",
+                    "type": "UserMessage",
+                    "content": [{"type": "text", "text": "synthetic request " + "x" * 400}],
+                },
+            },
+        },
     ]
     for i in range(commands):
-        rows.append({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": "turn",
-                     "item": {"id": f"command-{i}", "type": "CommandExecution",
-                              "command": ["pytest", f"case-{i}"], "status": "completed",
-                              "exit_code": 0, "duration_ms": 10,
-                              "aggregated_output": "synthetic output " + "y" * 400}}})
+        rows.append(
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "item_completed",
+                    "turn_id": "turn",
+                    "item": {
+                        "id": f"command-{i}",
+                        "type": "CommandExecution",
+                        "command": ["pytest", f"case-{i}"],
+                        "status": "completed",
+                        "exit_code": 0,
+                        "duration_ms": 10,
+                        "aggregated_output": "synthetic output " + "y" * 400,
+                    },
+                },
+            }
+        )
     for i, row in enumerate(rows):
         row["timestamp"] = f"2026-10-02T02:{i // 60:02d}:{i % 60:02d}Z"
     return rows
@@ -35,8 +57,9 @@ def build(path, other_sessions: int) -> Store:
     sessions += [(f"big-{n}", "/fictional/big", 40) for n in range(other_sessions)]
     for name, cwd, commands in sessions:
         rows = transcript(name, cwd, commands)
-        store.capture_stream(source, f"{name}.jsonl",
-                             [(canonical(row) + "\n").encode() for row in rows])
+        store.capture_stream(
+            source, f"{name}.jsonl", [(canonical(row) + "\n").encode() for row in rows]
+        )
     store.rebuild()
     return store
 
@@ -49,6 +72,7 @@ def measured(store, monkeypatch) -> tuple[dict, int]:
     @contextmanager
     def counting(path):
         with original(path) as connection:
+
             def tick():
                 steps[0] += 1
                 return 0
@@ -58,11 +82,13 @@ def measured(store, monkeypatch) -> tuple[dict, int]:
 
     monkeypatch.setattr(analysis_input, "readonly_connection", counting)
     db = sqlite3.connect(store.home / "tandem.db")
-    project = db.execute(
-        "SELECT project_id FROM session WHERE cwd='/fictional/small'").fetchone()[0]
+    project = db.execute("SELECT project_id FROM session WHERE cwd='/fictional/small'").fetchone()[
+        0
+    ]
     db.close()
-    bundle = read_analysis(store.home, AnalysisScope("UTC", project_ids=(project,)),
-                           include_native=False)
+    bundle = read_analysis(
+        store.home, AnalysisScope("UTC", project_ids=(project,)), include_native=False
+    )
     return bundle, steps[0]
 
 
@@ -72,13 +98,13 @@ def test_scoped_read_does_not_scan_unrelated_events_and_tool_calls(tmp_path, mon
         large_bundle, large_cost = measured(many, monkeypatch)
         added = sum(
             store.db.execute("SELECT COUNT(*) FROM event").fetchone()[0] * sign
-            for store, sign in ((many, 1), (few, -1)))
+            for store, sign in ((many, 1), (few, -1))
+        )
         assert many.db.execute("SELECT COUNT(*) FROM tool_call").fetchone()[0] > 1000
     # Same selection either way …
     for bundle in (small_bundle, large_bundle):
         assert len(bundle["sessions"]) == 1 and len(bundle["tool_calls"]) == 3
-        assert {e["project_id"] for e in bundle["events"]} == {
-            bundle["sessions"][0]["project_id"]}
+        assert {e["project_id"] for e in bundle["events"]} == {bundle["sessions"][0]["project_id"]}
     assert len(small_bundle["events"]) == len(large_bundle["events"])
     # … and unrelated rows cost at most a narrow key probe each (~20 VM steps for the
     # event_context project lookup), never correlated subqueries over every event plus a
@@ -102,7 +128,8 @@ def test_time_window_read_selects_the_same_members_through_the_kind_time_index(
         expected = {
             row[0]
             for row in db.execute(
-                "SELECT event_uid FROM v_analysis_event WHERE ts >= ?", (start + 1,))
+                "SELECT event_uid FROM v_analysis_event WHERE ts >= ?", (start + 1,)
+            )
         }
     queries = []
     original = analysis_input.readonly_connection
@@ -114,8 +141,9 @@ def test_time_window_read_selects_the_same_members_through_the_kind_time_index(
             yield connection
 
     monkeypatch.setattr(analysis_input, "readonly_connection", tracing)
-    bundle = read_analysis(store.home, AnalysisScope("UTC", from_ts=start + 1),
-                           include_native=False)
+    bundle = read_analysis(
+        store.home, AnalysisScope("UTC", from_ts=start + 1), include_native=False
+    )
     members = {e["event_uid"] for e in bundle["events"] if (e.get("ts") or 0) >= start + 1}
     assert members == expected and expected
     assert old not in {s["session_uid"] for s in bundle["sessions"]}
@@ -149,19 +177,20 @@ def test_external_text_false_leaves_blob_texts_unread(tmp_path):
             item["aggregated_output"] = "synthetic output " + "z" * 5000
     with Store(tmp_path / "blob") as store:
         source = store.add_source("codex", tmp_path / "blob" / "source")
-        store.capture_stream(source, "long.jsonl",
-                             [(canonical(r) + "\n").encode() for r in rows])
+        store.capture_stream(source, "long.jsonl", [(canonical(r) + "\n").encode() for r in rows])
         store.rebuild()
         stored = store.db.execute(
             "SELECT count(*) FROM event WHERE substr(text, 1, 1) = ?", (payload.TEXT_MARK,)
         ).fetchone()[0]
     assert stored > 0  # the long outputs are blob-stored
     full = read_analysis(store.home, AnalysisScope("UTC"), include_native=False)
-    lean = read_analysis(store.home, AnalysisScope("UTC"), include_native=False,
-                         external_text=False)
+    lean = read_analysis(
+        store.home, AnalysisScope("UTC"), include_native=False, external_text=False
+    )
     by_uid = {e["event_uid"]: e for e in full["events"]}
     dropped = [e for e in lean["events"] if e["text"] is None and by_uid[e["event_uid"]]["text"]]
     assert len(dropped) == stored
     assert all(e["kind"] not in payload.INLINE_TEXT_KINDS for e in dropped)
     assert [e["text"] for e in lean["events"] if e["kind"] in payload.INLINE_TEXT_KINDS] == [
-        e["text"] for e in full["events"] if e["kind"] in payload.INLINE_TEXT_KINDS]
+        e["text"] for e in full["events"] if e["kind"] in payload.INLINE_TEXT_KINDS
+    ]
