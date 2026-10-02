@@ -294,8 +294,6 @@ def test_event_search_indexes_only_messages_and_titles(tmp_path, corpus):
 
 
 def test_compaction_keeps_logical_contents(tmp_path, corpus):
-
-
     source, _ = corpus
     home = tmp_path / "home"
     import_home(home, source).db.close()
