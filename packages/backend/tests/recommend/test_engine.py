@@ -4,7 +4,7 @@ import time
 from tandem_backend.recommend import engine, narrate
 
 UI_KEYS = {"dim", "type", "icon", "lvl", "aud", "title", "gain", "why", "ev", "evq", "compat", "primary", "target",
-           "file", "steps", "track"}
+           "file", "steps", "commands", "track"}
 
 
 def problem(pid="p1", ptype="permission_friction", sessions=8, **kw):
