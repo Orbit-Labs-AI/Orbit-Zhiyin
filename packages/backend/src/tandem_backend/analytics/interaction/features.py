@@ -1,5 +1,6 @@
 """Evidence-backed labels, intervention links and interaction summaries."""
 
+from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
 
 from ..common import annotation_visible, human, ratio, task_uid
@@ -53,7 +54,11 @@ def classify_message_intents(events, main_ids, until_ts=None):
 
 
 def locate_interventions(events, main_ids):
-    """Link human messages to recorded execution steps, within explicit tasks."""
+    """Link human messages to recorded execution steps, within explicit tasks.
+
+    Steps are indexed per (session, task) and located by bisection: a per-message scan
+    over every step is quadratic and dominated analysis time on long real sessions.
+    """
     groups = defaultdict(list)
     for e in events:
         groups[e["session_uid"]].append(e)
@@ -61,19 +66,26 @@ def locate_interventions(events, main_ids):
     for es in groups.values():
         es.sort(key=lambda e: (e["seq"], e["event_uid"]))
         steps = [e for e in es if e["kind"] in EXECUTION_KINDS]
+        by_task = defaultdict(list)
+        for s in steps:
+            by_task[task_uid(s)].append(s)
+        seqs = {key: [s["seq"] for s in rows] for key, rows in by_task.items()}
+        all_seqs = [s["seq"] for s in steps]
         for e in es:
             if not human(e, main_ids):
                 continue
-            eligible = [s for s in steps if task_uid(e) is None or task_uid(s) == task_uid(e)]
-            before = [s for s in eligible if s["seq"] < e["seq"]]
-            after = [s for s in eligible if s["seq"] > e["seq"]]
-            previous, following = (before[-1] if before else None), (after[0] if after else None)
+            task = task_uid(e)
+            eligible, positions = (steps, all_seqs) if task is None else (
+                by_task.get(task, []), seqs.get(task, []))
+            low, high = bisect_left(positions, e["seq"]), bisect_right(positions, e["seq"])
+            previous = eligible[low - 1] if low else None
+            following = eligible[high] if high < len(eligible) else None
             points.append({"event_uid": e["event_uid"], "session_uid": e["session_uid"],
-                           "task_uid": task_uid(e), "turn_uid": e.get("turn_uid"), "seq": e["seq"],
+                           "task_uid": task, "turn_uid": e.get("turn_uid"), "seq": e["seq"],
                            "previous_step_uid": previous["event_uid"] if previous else None,
                            "next_step_uid": following["event_uid"] if following else None,
                            "next_step_available_at": following.get("ts") if following else None,
-                           "relation_scope": "task" if task_uid(e) else "session_only"})
+                           "relation_scope": "task" if task else "session_only"})
     return points
 
 

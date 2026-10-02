@@ -80,6 +80,26 @@ function lvPersonaCompute(L, minN) {
     v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
 }
 
+// per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
+const LVP_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
+function lvEvidence(L, p, st) {
+  const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.max(0, Math.min(n - 1, Math.floor(v / max * n)))]++; }); return out; };
+  const byDay = {}; L.forEach((s) => { (byDay[s.d] = byDay[s.d] || []).push(s); }); const days = Object.values(byDay);
+  const avgS = days.length ? L.length / days.length : 0, avgA = days.length ? days.reduce((a, xs) => a + new Set(xs.map((s) => s.a)).size, 0) / days.length : 0;
+  const pp = {}; L.forEach((s) => { const e = pp[s.p == null ? '' : s.p] = pp[s.p == null ? '' : s.p] || [0, 0, 0, 0];
+    if (s.op != null) { e[0] += s.op; e[1]++; } e[2] += s.vk || 0; e[3] += s.dn || 0; });
+  const pname = (k) => (k && PJI[k] ? PJI[k].name : '未归属');
+  const rank = (a, b) => Object.keys(pp).filter((k) => pp[k][b]).map((k) => [pp[k][a] / pp[k][b], k]).sort((x, y) => x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+  const plan = rank(0, 1), check = rank(2, 3);
+  const ax = {}; p.axes.forEach((a) => { ax[a.k] = a; }); const openN = ax.I.n_units || 1;
+  return {
+    D: { txt: '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
+    I: { txt: '结构化开场占 ' + Math.round((openN - ax.I.k_units) / openN * 100) + '%', vals: plan.map((x) => Math.round(x[0] * 100)), lbl: '项目结构化开场占比 · 低 → 高', projects: plan.map((x) => pname(x[1])) },
+    M: { txt: '日均 ' + f1(avgS) + ' 个会话 · 同日 ' + f1(avgA) + ' 个 Agent', vals: hist(days.map((xs) => xs.length), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' },
+    V: { txt: Math.round(st.verify) + '% 会话要求或运行了验证', vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
+  };
+}
+
 /* ---- server payload → the demo's persona shape (+ axes / server extras) ---- */
 function lvAvg(L) {
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); }); const d = Object.values(by);
@@ -112,23 +132,31 @@ function lvpQuery(period) {
   const sc = LV.scope();
   return { period, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project || null, display_timezone: TL_TZ || 'UTC' };
 }
+// days= only for a window the gateway reports ready (auto otherwise); kept out of the cache key so a window switch
+// refetches in place and the last persona stays on screen until the wider one arrives
+const lvpDays = (period) => LV.daysFor(LV.periodDays(period));
 const lvpKey = (period) => JSON.stringify(lvpQuery(period));
 // full /v1/uiview/persona payload for a period under the current filters → {state, data}; refetches (keeping the last
 // data on screen) when the spine revision moved
 function lvpFetch(period, path, store) {
   const key = lvpKey(period) + path;
   let e = store.get(key);
-  if (e && (e.rev === LV.rev || e.loading)) return e;
+  const days = lvpDays(period);
+  if (e && ((e.rev === LV.rev && e.days === days) || e.loading)) return e;
   if (!e) { e = { rev: null, loading: false, data: null, state: 'pending' }; store.set(key, e); }
-  e.loading = true; const rev = LV.rev;
-  TL.get(path, { query: lvpQuery(period) }).then((res) => {
+  e.loading = true; const rev = LV.rev; e.days = days;
+  TL.get(path, { query: Object.assign(lvpQuery(period), { days }) }).then((res) => {
     e.loading = false;
     if (res.state === 'computing' || res.data == null) { e.loading = true; setTimeout(() => { e.loading = false; e.rev = null; TL.changed(); }, 1200); return; }
     e.rev = rev; e.data = res.data; e.state = 'ready';
     if (path === '/v1/uiview/persona') {
       (res.data.months || []).forEach((x) => { LVP.mini[lvpKey(x.k)] = x; });
     }
-  }, (err) => { e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err; }).then(() => TL.changed());
+  }, (err) => {
+    e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err;
+    // 422 analysis_scope_too_large: the window is too big → refetch with 30 days (then 7)
+    if (err && err.code === 'analysis_scope_too_large' && !LV.tooLarge.has(days != null ? days : LV.window ? LV.window.days : 0)) { LV.scopeTooLarge(days); e.rev = null; e.state = e.data ? 'ready' : 'pending'; }
+  }).then(() => TL.changed());
   return e;
 }
 LV.personaFor = function (period, L) {
@@ -155,7 +183,11 @@ function lvProjPersona(pid, L) {
 }
 function personaLive(L, minN) {
   L = L || [];
-  if (lvHasUnits(L)) { const p = lvPersonaCompute(L, minN); if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); } return p; }
+  if (lvHasUnits(L)) {
+    const p = lvPersonaCompute(L, minN);
+    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
+    return p;
+  }
   if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
@@ -180,7 +212,8 @@ if (LV.live) {
   S.ov.synced = '已同步';
   const h0 = LV.hydrate;
   LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
+  // days = the range's window once the gateway reports it ready (全部 → 0); auto otherwise, with the strip's hint
   LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
-    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC' }) }],
+    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
 }

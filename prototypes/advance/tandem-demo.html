@@ -1998,6 +1998,7 @@ const AFF = {
 };
 let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
 let LASTDAY = 119;
+let FIRSTDAY = 0;   // first day of the 全部 window: mock 0; live = the earliest session's day (R4-04)
 const dayDate = (d) => new Date(DAY0 + d * 86400000);
 const wd = (d) => (new Date(DAY0 + d * 86400000).getUTCDay() + 6) % 7;   // 0 = Monday
 const WD = ['一', '二', '三', '四', '五', '六', '日'];
@@ -2240,6 +2241,12 @@ const TandemLive = (function () {
     const t = Date.parse(v); return Number.isFinite(t) ? Math.max(0, t - Date.now()) : null;
   }
   function sectionOf(path) { const m = /^\/v1\/analytics\/([a-z_]+)/.exec(path); return m ? m[1] : null; }
+  // 503 analysis_unavailable says "<code>: <message>" (timeout, worker_crashed …); the code is the reason the UI names
+  function analysisReason(code, message) { if (code !== 'analysis_unavailable') return null; const m = /^([a-z_]+):\s/.exec(message || ''); return m ? m[1] : null; }
+  const isUnavailable = (e) => !!e && e.status === 503 && e.code === 'analysis_unavailable';
+  // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
+  const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
+  const JOB_DONE = ['completed', 'failed'];
 
   /* ---- mode ---- */
   function detectMode(win) {
@@ -2352,6 +2359,7 @@ const TandemLive = (function () {
         err.status = res.status; err.code = info.code || 'http_' + res.status;
         err.retryable = info.retryable != null ? !!info.retryable : res.status >= 500;
         err.retryAfter = retryAfterMs(res.headers.get('Retry-After'));
+        err.reason = analysisReason(err.code, info.message);
         throw err;
       });
       entry.promise.catch(() => {});
@@ -2382,6 +2390,17 @@ const TandemLive = (function () {
       });
     };
     C.inflightCount = () => inflight.size;
+    // retry(): refetch every resource that failed transiently (network / 5xx; not analysis_unavailable or 4xx) now
+    C.retry = function () {
+      let n = 0;
+      resources.forEach((r) => {
+        if (r.state !== 'error' || !r.error || !r.error.retryable || (r.error.status && r.error.status < 500)) return;
+        if (r.retryTimer) { timers.clearTimeout(r.retryTimer); r.retryTimer = null; }
+        r.dirty = true; n++;
+      });
+      emit('retry'); changed();
+      return n;
+    };
 
     /* ---- resources ---- */
     C.resource = function (path, o) {
@@ -2411,17 +2430,80 @@ const TandemLive = (function () {
       r.loading = C.get(r.path, { scope: r.scope, query: r.query, waitMs: r.waitMs, signal }).then((res) => {
         if (res.state === 'computing') { r.state = 'computing'; r.meta = Object.assign({}, r.meta || {}, res.meta || {}); r.computingSince = now(); }
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
-        C.failure = null;
+        // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
+        const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
+        C.failure = null; r.fails = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
-        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter };
+        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;
+        // analysis_unavailable: this scope's analysis failed for this data_rev; the service is fine and a retry gives the same
+        // answer, so no banner and no Retry-After loop: the page offers 重新计算 (C.recompute) instead
+        if (isUnavailable(e)) { r.error.retryable = false; return; }
         if (!e.status || e.status >= 500) C.failure = r.error;
-        if (e.retryAfter != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, e.retryAfter);
+        // a network failure / 5xx is transient: retry on Retry-After, else with backoff (base · 2ⁿ, capped), so a resource
+        // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
+        r.fails = (r.fails || 0) + 1;
+        const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
+        if (wait != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, wait);
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
+    };
+    /* ---- on-demand analysis: job polling (202 job_id), recompute (POST /v1/analytics/recompute) ---- */
+    C.analysis = {
+      failed: {},   // section -> code of the last analysis.failed frame
+      job: (id, o) => C.send('GET', '/v1/analytics/jobs/' + encodeURIComponent(id), null, { signal: o && o.signal }).then((x) => x.data),
+      // poll(id, onUpdate, {signal, base, max}): GET the job with backoff (base · 1.6ⁿ, capped at max) until completed / failed;
+      // a 404 (expired / unknown job) or repeated network failures resolve {status:'gone'} so the caller refetches once
+      poll(id, onUpdate, o) {
+        o = o || {}; let delay = o.base || 500; const max = o.max || 8000; let misses = 0;
+        return (async () => {
+          for (;;) {
+            if (o.signal && o.signal.aborted) throw abortError();
+            let job = null;
+            try { job = await C.analysis.job(id, o); } catch (e) {
+              if (isAbort(e)) throw e;
+              if (e.status === 404 || e.status === 405 || e.status === 501 || ++misses >= 8) return { id, status: 'gone', error: null };
+            }
+            if (job) { misses = 0; if (onUpdate) onUpdate(job); if (JOB_DONE.indexOf(job.status) >= 0) return job; }
+            await sleep(delay, o.signal); delay = Math.min(max, Math.round(delay * 1.6));
+          }
+        })();
+      },
+      recompute: (sections, scope) => C.send('POST', '/v1/analytics/recompute', { sections, scope: scope || {} }).then((x) => x.data)
+    };
+    function watchJob(r, id) {
+      if (r.jobWatch && r.jobId === id) return;
+      r.jobId = id; const w = r.jobWatch = { id };
+      C.analysis.poll(id, (job) => { if (r.jobWatch === w) { r.job = job; changed(); } }).then((job) => {
+        if (r.jobWatch !== w) return; r.jobWatch = null;
+        if (job.status === 'failed') {
+          const er = job.error || {};
+          r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: er.code || 'analysis_failed', message: er.message || '分析失败', retryable: false, job };
+        } else r.dirty = true;
+        changed();
+      }, () => { if (r.jobWatch === w) { r.jobWatch = null; r.dirty = true; changed(); } });
+    }
+    // recompute(resource, {sections, scope}): clears the failure for that scope and resubmits; the returned job is polled and
+    // the resource refetches when it completes. The scope defaults to the resource's own (UI scope or analytics query keys).
+    C.recompute = function (r, o) {
+      o = o || {};
+      const sections = o.sections || (r && r.section ? [r.section] : []);
+      if (!sections.length) return Promise.reject(Object.assign(new Error('no analysis section'), { code: 'no_section', status: 0 }));
+      let scope = o.scope;
+      if (!scope && r && r.scope) scope = scopeBody(r.scope, C.status, now());
+      if (!scope) { scope = {}; const q = (r && r.query) || {}; SCOPE_KEYS.forEach((k) => { if (q[k] != null) scope[k] = q[k]; }); }
+      if (r) { r.recomputing = true; r.error = null; r.state = 'computing'; changed(); }
+      return C.analysis.recompute(sections, scope).then((d) => {
+        const j = ((d && d.jobs) || []).find((x) => x.job_id);
+        if (r) { r.recomputing = false; if (j) watchJob(r, j.job_id); else r.dirty = true; changed(); }
+        return d;
+      }, (e) => {
+        if (r) { r.recomputing = false; r.state = 'error'; r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: false, reason: null }; changed(); }
+        throw e;
+      });
     };
     C.invalidate = function (match) {
       let n = 0;
@@ -2496,7 +2578,8 @@ const TandemLive = (function () {
       } else if (name === 'analysis.ready') {
         C.invalidate(matchSection(p));
       } else if (name === 'analysis.failed') {
-        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.state = 'error'; r.error = { code: p.code || 'analysis_failed', message: '分析失败，可重试', retryable: true }; } });
+        if (p.section) C.analysis.failed[p.section] = p.code || 'analysis_failed';
+        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.jobWatch = null; r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: p.code || 'analysis_failed', message: '分析失败，可重新计算', retryable: false }; } });
         changed();
       } else if (name === 'service') {
         if (p.name) C.services[p.name] = p.state; changed();
@@ -2535,6 +2618,7 @@ const TandemLive = (function () {
           const h = headers({ Accept: 'text/event-stream' }); if (C.events.lastId != null) h['Last-Event-ID'] = C.events.lastId;
           const res = await fetchFn(C.endpoint + '/v1/events?topics=' + TOPICS, { headers: h, signal: ctrl.signal });
           if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+          if (C.events.attempt > 0) C.retry();   // back after an outage: refetch what failed meanwhile
           C.events.connected = true; C.events.attempt = 0; changed();
           const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
           for (;;) {
@@ -2984,8 +3068,12 @@ const TandemLive = (function () {
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
+  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
   const ui = {
     DASH, esc, num, pct, money, hm,
+    reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
+    // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
+    unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
     ensureStyle(doc) {
       doc = doc || (typeof document !== 'undefined' ? document : null);
       if (!doc || !doc.head || doc.getElementById('tl-style')) return;
@@ -3012,6 +3100,7 @@ const TandemLive = (function () {
       if (!v) return '';
       if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
       if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
+      if (v.state === 'error' && ui.unavailable(v.error)) return '<span class="tl-badge" data-tl="unavailable">' + esc(ui.unavailable(v.error)) + (v.vm ? ' · 显示上次结果' : '') + '</span>';
       if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
       return '';
     },
@@ -3024,7 +3113,10 @@ const TandemLive = (function () {
     },
     skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
     empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
-    errorCard(err) { return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>'; },
+    errorCard(err) {
+      if (ui.unavailable(err)) return '<div class="tl-card tl-empty" data-tl="unavailable" role="alert">' + esc(ui.unavailable(err)) + ' · 可以重新计算</div>';
+      return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>';
+    },
     // state → body: vm present renders even when stale / error (last good data); otherwise skeleton, empty or error
     body(v, render) {
       if (!v) return '';
@@ -3072,7 +3164,7 @@ function nowText() { const d = new Date(Date.now() + CLOCK0 + 8 * 3600000); retu
 function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); return hm(Math.floor(s / 60), s % 60); }
 
 /* ============ derived data ============ */
-function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [0, L]; }
+function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [Math.max(0, Math.min(FIRSTDAY, L)), L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
@@ -5468,7 +5560,7 @@ PAGES['l-sessions'] = () => {
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === liteToday() ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
     '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins"><span class="aib">' + ic('spark', 11) + 'AI 洞察</span><p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
   const tl = '<div class="card pad l-tlc"><div class="hd"><div class="grow"><span class="ct">关键步骤</span><span class="cap">' + tr.moments.length + ' 个关键时刻 · 全程 ' + (s.live ? liveMin() + 'm' : dur(T)) + '</span></div>' + liteAdv('sessions', '在 Advance 中回放') + '</div>' +
-    '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol></div>';
+    (tr.moments.length ? '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol>' : (tr.state === 'pending' ? '<p class="cap" data-lv="pending" aria-busy="true" style="margin:12px 0 4px">正在读取关键时刻…</p>' : tr.state === 'error' ? '<p class="cap" data-lv="error" style="margin:12px 0 4px">关键时刻暂时取不到</p>' : '<p class="cap" data-lv="no-moments" style="margin:12px 0 4px">这个会话没有关键时刻</p>')) + '</div>';
   return liteBar('会话轨迹', rangeLabel() + ' · 最近 ' + list.length + ' 个会话') +
     '<div class="content" id="content"><div class="lite l-sessions"><div class="sess l-sess"><div class="card l-slist-c"><div class="hd l-slh"><div class="grow"><span class="ct">最近的会话</span></div></div><div class="slist">' + rows + '</div></div>' +
     '<div class="stack">' + head + '<div class="tiles l-tiles l-snums">' + nums + '</div>' + tl + '</div></div></div></div>';
@@ -5542,6 +5634,15 @@ function ovMini(kind, a, b) {
   if (kind === 'bars') { const mx = Math.max(1, ...a); return '<svg class="ov-mini" width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">' + a.slice(0, 3).map((v, i) => '<rect x="0" y="' + (i * 8) + '" width="' + Math.max(2, v / mx * 36).toFixed(1) + '" height="6" rx="1.5" fill="' + (i === 0 ? 'var(--crit)' : 'var(--h2)') + '"/>').join('') + '</svg>'; }
   return '<svg class="ov-mini" width="' + (Math.max(1, a + b) * 9) + '" height="24" viewBox="0 0 ' + (Math.max(1, a + b) * 9) + ' 24" aria-hidden="true">' + Array.from({ length: a + b }, (_, i) => '<rect x="' + (i * 9) + '" y="8" width="7" height="7" rx="1.5" fill="' + (i < a ? 'var(--ai)' : 'none') + '" stroke="var(--ai)" stroke-width="1.2"/>').join('') + '</svg>';
 }
+// 人格未揭晓：保留卡片的结构（占位码 + 进度 + 四轴空轨），不留大块空白，也不编造数值（R4-14）
+function ovPersEmpty(pers) {
+  const n = pers.n || 0; const need = Math.max(0, 30 - n);
+  const why = pers.error ? '画像暂时取不到，稍后会自动重试' : need ? '再积累 ' + need + ' 个会话后揭晓' : '当前筛选下暂不计算画像';
+  return '<div class="ov-code" data-lv="pers-empty"><span class="serif ov-code-l" style="color:var(--ink-4)">????</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600;color:var(--ink-3)">尚未揭晓</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-4)">Not yet revealed</span></span></div>' +
+    '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + ' / 30</span>' : '') + '</div>' +
+    (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:' + Math.min(100, n / 30 * 100).toFixed(0) + '%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
+    '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
+}
 PAGES.overview = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
@@ -5577,9 +5678,9 @@ PAGES.overview = () => {
   const peakV = hmap.H[peak[0]][peak[1]];
   const heatLine = S.ov.heat === 'msgs' ? '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + f1(st.fric) + '%';
   // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
-  const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => ({ name: t.name, n: t.n, err: t.err })) : []) : toolRows(L).slice(0, 6);
+  const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => { const why = typeof lvtpRateWhy === 'function' ? lvtpRateWhy(t) : null; return { name: t.name, n: t.n, err: why ? null : t.err, why: why || (t.err == null ? '状态未知，不计算错误率' : null) }; }) : []) : toolRows(L).slice(0, 6);
   const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;
-  const terr = (t) => t.err == null ? '<span class="mono e">—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
+  const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
   return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
@@ -5596,7 +5697,7 @@ PAGES.overview = () => {
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
     '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : '<span class="cap">再积累 ' + (30 - pers.n) + ' 个会话后揭晓</span>') +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three ov-three">' +
@@ -5731,7 +5832,7 @@ function peAxisRows(p, prev) {
 function peEvidence(L, st, p, i) {
   if (LV.live) {   // live: the server's per-axis evidence (unit counts the client cannot see until G1)
     const ax = (p.axes || [])[i]; const e = ax && ax.evidence;
-    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax ? ax.n_units + ' 个' + ({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] : '—', vals: [0], lbl: '暂无证据' };
+    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax && ax.n_units != null ? ax.n_units + ' 个' + (({ turn: '轮次', session_opening: '开场', active_day: '活跃日' })[ax.unit] || '单位') : '—', vals: [0], lbl: '暂无证据' };
   }
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.min(n - 1, Math.floor(v / max * n))]++; }); return out; };
   const byProj = (key) => PJ.slice().sort((a, b) => a[key] - b[key]).map((pj) => sum(L.filter((s) => s.p === pj.id), (s) => s.dur) / 60);
@@ -6715,8 +6816,8 @@ PAGES.sentiment = () => {
   // live: the view model comes from /v1/uiview/sentiment (94-live-sentiment-search.js); mock: derived from the demo rows
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
   const head = tbar('情绪与语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
-  if (S.engine === 'stats') return head + '<div class="content" id="content">' + empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') + '</div>';
-  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + '语义分析由本地 Agent 完成，原文不离开本机</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
+  if (!LV.live && S.engine === 'stats') return head + '<div class="content" id="content">' + empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') + '</div>';
+  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，原文不离开本机') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
   if (V && V.state !== 'ready') { CUR.mood = null; return head + '<div class="content" id="content">' + filterRow(shield) + lvSentShell(V) + '</div>'; }
   const L = sel(); const ms = V ? V.ms : moodSeries(L, S.range); CUR.mood = ms;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;   // 按周聚合（BUG-69）
@@ -6736,15 +6837,15 @@ PAGES.sentiment = () => {
   const divBar = (v, ci, span) => { const W = 100, mid = 50; const px = (x) => clamp(mid + x / (span || 0.5) * 50, 0, W); const a = clamp(px(v - (ci || 0)), 0, W), b = clamp(px(v + (ci || 0)), 0, W); return '<span class="sn-div" aria-hidden="true"><i class="mid"></i><i class="bar" style="left:' + Math.min(mid, px(v)) + '%;width:' + Math.abs(px(v) - mid) + '%;background:' + (v < 0 ? VZ.sem.neg : VZ.sem.pos) + '"></i>' + (ci ? '<i class="ci" style="left:' + a + '%;width:' + (b - a) + '%"></i>' : '') + '</span>'; };
   const noMood = !!(V && V.allNull);
   return head + '<div class="content" id="content">' + filterRow(shield) +
-    '<div class="stack"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪分布与纠偏</span>' + AIB('AI 打分') + '<span class="cap sn-mood-cap">' + (weeklyB ? '每周' : '每日') + '桶 · 会话情绪 −1 沮丧 … +1 满意</span></div><button type="button" class="btn sm gh" data-act="moodView" aria-pressed="' + (S.sent.view === 'table') + '">' + (S.sent.view === 'table' ? '看图表' : '看表格') + '</button></div>' +
+    '<div class="stack"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪分布与纠偏</span>' + (V ? lvSentBadge(V, 'mood', 'AI 打分') : AIB('AI 打分')) + '<span class="cap sn-mood-cap">' + (weeklyB ? '每周' : '每日') + '桶 · 会话情绪 −1 沮丧 … +1 满意</span></div><button type="button" class="btn sm gh" data-act="moodView" aria-pressed="' + (S.sent.view === 'table') + '">' + (S.sent.view === 'table' ? '看图表' : '看表格') + '</button></div>' +
       (S.sent.view === 'table' ? '' : '<div class="row sn-leg">' + (noMood ? '<span class="row cap" data-lv="mood-null">情绪尚未打分 · 分布暂不显示</span>' : '<span class="row"><i class="ln"></i>中位数</span><span class="row"><i class="bd"></i>P25–P75</span>') + '<span class="row"><i class="br" style="background:' + VZ.sem.corr + '"></i>纠偏 ≥ 你的 P75</span><span class="row" data-tip="情绪为负（情绪负色）或纠偏 ≥ 你的 P90（琥珀）的' + (weeklyB ? '周' : '日') + '"><i class="pt" style="background:' + VZ.sem.corr + '"></i>标注 = 异常' + (weeklyB ? '周' : '日') + '</span></div>') + '<div class="vz" data-vz="mood"></div></div>' +
-    '<div class="two sn-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + AIB() + '<span class="cap" data-tip="Δ 为较上期 · 悬停看' + (V ? '典型表述' : '典型会话') + '">出现该摩擦的会话数 · 点击回看</span></div></div><div class="col" style="gap:2px">' + (fr.length ? '<div class="sn-fric sn-fric-h" aria-hidden="true"><span class="cap">类别</span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' + fr.map((f, i) => { const prev = f.prev; const dlt = prev == null ? '' : prev === f.n ? '± 0' : (f.n > prev ? '▲ ' : '▼ ') + Math.abs(f.n - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f.k) + '" data-tf="fricx|' + esc(f.k) + '"><span class="sn-fric-n">' + esc(f.k) + '</span><span class="sn-fric-bar"><i style="width:' + (f.n / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f.n + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f.n > prev ? 'vz-bad' : f.n < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (f.mood != null && f.mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (f.mood == null ? '—' : (f.mood > 0 ? '+' : '') + f1(f.mood)) + '</span></button>'; }).join('') : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap sn-foot">' + (fr.length >= 2 ? '前两类占全部摩擦的 ' + Math.round((fr[0].n + fr[1].n) / frTot * 100) + '%，都可以用规则前置' : fr.length ? '摩擦都来自「' + esc(fr[0].k) + '」，可以用规则前置' : '') + '</div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">语义主题</span>' + AIB('AI 聚类') + '<span class="cap" data-tip="按会话意图聚类 · 标尺为平均情绪 −1 … +1">点击设为全局筛选</span></div></div><div class="sn-topics">' + (tp.length ? tp.map((t, i) => '<button type="button" class="sn-topic' + (S.topic === t.k ? ' on' : '') + (i === 0 ? ' top' : '') + '" data-act="topicSet" data-k="' + esc(t.k) + '" aria-pressed="' + (S.topic === t.k) + '"><b title="' + esc(t.label) + '">' + esc(t.label) + '</b><span class="row" style="gap:8px"><span class="mono cap sn-tn">' + t.n + ' 个会话</span>' + divBar(t.mood == null ? 0 : t.mood, 0, V ? 1 : 0.5) + '<span class="mono" style="font-size:11px;color:' + (t.mood != null && t.mood < 0 ? VZ.sem.neg : 'var(--ink-2)') + '">' + (t.mood == null ? '—' : (t.mood > 0 ? '+' : '') + f1(t.mood)) + '</span></span></button>').join('') : '<span class="cap">所选范围内没有主题</span>') + '</div></div></div>' +
-    '<div class="two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + AIB() + '<span class="cap">已脱敏 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + (phrases.length ? phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + esc(p[2]) + '</span></button>').join('') : '<span class="cap">还没有足够的反馈语</span>') + '</div><div class="row sn-act"><span class="sn-note" data-tip="让 Agent 先遵守，而不是等你提醒">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接写成规则</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div>' +
+    '<div class="two sn-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + (V ? lvSentBadge(V, 'fric') : AIB()) + '<span class="cap" data-tip="Δ 为较上期 · 悬停看' + (V ? '典型表述' : '典型会话') + '">出现该摩擦的会话数 · 点击回看</span></div></div><div class="col" style="gap:2px">' + (fr.length ? '<div class="sn-fric sn-fric-h" aria-hidden="true"><span class="cap">类别</span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' + fr.map((f, i) => { const prev = f.prev; const dlt = prev == null ? '' : prev === f.n ? '± 0' : (f.n > prev ? '▲ ' : '▼ ') + Math.abs(f.n - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f.k) + '" data-tf="fricx|' + esc(f.k) + '"><span class="sn-fric-n">' + esc(f.k) + '</span><span class="sn-fric-bar"><i style="width:' + (f.n / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f.n + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f.n > prev ? 'vz-bad' : f.n < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (f.mood != null && f.mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (f.mood == null ? '—' : (f.mood > 0 ? '+' : '') + f1(f.mood)) + '</span></button>'; }).join('') : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap sn-foot">' + (fr.length >= 2 ? '前两类占全部摩擦的 ' + Math.round((fr[0].n + fr[1].n) / frTot * 100) + '%，都可以用规则前置' : fr.length ? '摩擦都来自「' + esc(fr[0].k) + '」，可以用规则前置' : '') + '</div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">语义主题</span>' + (V ? lvSentBadge(V, 'topic', 'AI 聚类') : AIB('AI 聚类')) + '<span class="cap" data-tip="按会话意图聚类 · 标尺为平均情绪 −1 … +1">点击设为全局筛选</span></div></div><div class="sn-topics">' + (tp.length ? tp.map((t, i) => '<button type="button" class="sn-topic' + (S.topic === t.k ? ' on' : '') + (i === 0 ? ' top' : '') + '" data-act="topicSet" data-k="' + esc(t.k) + '" aria-pressed="' + (S.topic === t.k) + '"><b title="' + esc(t.label) + '">' + esc(t.label) + '</b><span class="row" style="gap:8px"><span class="mono cap sn-tn">' + t.n + ' 个会话</span>' + divBar(t.mood == null ? 0 : t.mood, 0, V ? 1 : 0.5) + '<span class="mono" style="font-size:11px;color:' + (t.mood != null && t.mood < 0 ? VZ.sem.neg : 'var(--ink-2)') + '">' + (t.mood == null ? '—' : (t.mood > 0 ? '+' : '') + f1(t.mood)) + '</span></span></button>').join('') : '<span class="cap">所选范围内没有主题</span>') + '</div></div></div>' +
+    '<div class="two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + (V ? lvSentBadge(V, 'phrase') : AIB()) + '<span class="cap">已脱敏 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + (phrases.length ? phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + esc(p[2]) + '</span></button>').join('') : '<span class="cap">还没有足够的反馈语</span>') + '</div><div class="row sn-act"><span class="sn-note" data-tip="让 Agent 先遵守，而不是等你提醒">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接写成规则</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪的前因</span><span class="cap" data-tip="相关不等于因果">与会话特征的关联 · 须线 = 95% CI</span></div></div><div class="col" style="gap:12px">' + (drivers.length ? drivers.map((d) => '<div class="sn-drv"' + (d.v == null ? ' data-tip="样本不足：该特征 ' + d.n + ' 个会话 · 其余 ' + d.nb + ' 个会话有情绪表述"' : '') + '><span class="sn-drv-n">' + esc(d.name) + '</span>' + divBar(d.v == null ? 0 : d.v, d.ci) + '<span class="mono sn-drv-v" style="color:' + (d.v == null ? 'var(--ink-3)' : d.v < 0 ? VZ.sem.neg : VZ.sem.pos) + '">' + (d.v == null ? '—' : (d.v > 0 ? '+' : '−') + Math.abs(d.v).toFixed(2)) + '</span><span class="mono cap sn-drv-k">n=' + d.n + '</span></div>').join('') : '<span class="cap">样本不足，暂不计算</span>') + '</div><div class="sn-drv sn-drv-ax cap" aria-hidden="true"><span></span><span class="row mono" style="justify-content:space-between;font-size:11px"><span>−0.5</span><span>0</span><span>+0.5</span></span><span></span><span></span></div><div class="cap sn-foot" data-tip="' + esc(V ? V.note || '数值为该特征会话与其它会话的情绪均值差' : '数值为该特征会话与其它会话的情绪均值差（示例）') + '">左 = 情绪更差 · 右 = 更好</div></div></div></div></div>';
 };
 PAGES.sentiment.after = () => {
-  const ms = CUR.mood; if (!ms || S.engine === 'stats') return;
+  const ms = CUR.mood; if (!ms || (!LV.live && S.engine === 'stats')) return;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;
   const spec = { type: 'moodcorr', title: '情绪分布与纠偏次数', height: 236, buckets: ms, view: S.sent.view || 'chart', label: (b) => b.a === b.b ? mdz(b.a) + ' 周' + WD[wd(b.a)] : md(b.a) + ' – ' + md(b.b) + (weeklyB ? '（周）' : ''), empty: '所选范围内没有会话' };
   if (LV.live) { spec.live = true; if (LVS.view && LVS.view.allNull) spec.moodNote = '情绪尚未打分'; }
@@ -6757,7 +6858,7 @@ Object.assign(ACT, {
   moodView: () => { S.sent.view = S.sent.view === 'table' ? 'chart' : 'table'; render(); },
   phrase: (el) => { if (LV.live) { lvPhrase(el); return; } const xs = phraseSources(el.dataset.k, el.dataset.c); openDD(el, [{ h: '「' + el.dataset.k + '」的出处（' + xs.length + ' 次 · 已脱敏）' }].concat(xs.length ? xs.map((s) => ({ t: md(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + s.title, v: s.id })) : [{ t: '当前筛选下没有出处', v: null, dis: true }]), (v) => { if (!v) return; S.sess.sel = v; S.sess.mode = 'single'; go('sessions'); }); },
   phrasesToRule: () => { S.studio.type = '规则'; S.studio.goal = LV.live ? lvRuleGoal() : '把我的高频纠偏写成 AGENTS.md 规则：「直接合并」「别用子代理」「不要改别的文件」「用 Cloudflare 不是 Vercel」。'; S.studio.from = 'A6 高频反馈语'; S.studio.run = null; go('studio'); },
-  moodHow: () => openModal(modalHead('情绪如何计算') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.6;color:var(--ink-2)"><p style="margin:0">只看你发出的消息，不评判 Agent 的回复。每条消息由本地 Agent 打一个 −1 到 +1 的分，置信度低于 0.6 的不计入。</p><p style="margin:0">每个会话取其消息分数的加权平均；图中每天（或每周）画的是当期会话情绪的 P25–P75 分布带与中位数。纠偏是被判定为「方向修正」或「不满」的消息。</p><p style="margin:0">关闭语义分析后，这一页只保留计数统计。</p></div><div class="mf"><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>')
+  moodHow: () => openModal(modalHead('情绪如何计算') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.6;color:var(--ink-2)">' + (LV.live ? '<p style="margin:0">只看你发出的消息，不评判 Agent 的回复。每条消息先脱敏，再按中英文词面规则判断满意、沮丧与纠偏，不调用模型。</p><p style="margin:0">每个会话取其消息倾向的平均，图中每天（或每周）画的是当期会话情绪的中位数；纠偏是命中「方向修正」或「不满」词面的消息。</p><p style="margin:0">' + esc((LVS.sent && LVS.sent.meta && LVS.sent.meta.note) || '词面规则未经人工标注验证，仅供趋势参考') + '。</p>' : '<p style="margin:0">只看你发出的消息，不评判 Agent 的回复。每条消息由本地 Agent 打一个 −1 到 +1 的分，置信度低于 0.6 的不计入。</p><p style="margin:0">每个会话取其消息分数的加权平均；图中每天（或每周）画的是当期会话情绪的 P25–P75 分布带与中位数。纠偏是被判定为「方向修正」或「不满」的消息。</p><p style="margin:0">关闭语义分析后，这一页只保留计数统计。</p>') + '</div><div class="mf"><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>')
 });
 
 /* ============ A7 recommendations ============ */
@@ -6822,7 +6923,7 @@ PAGES.recs = () => {
     else if (R.tab === 'preview' && r.live && !r.target && !r.file.length) body = '<div class="col" data-tl="rec-pv-plan" style="gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;color:var(--ink-2)"><span class="eb">将写入</span><p style="margin:0">具体文件由安装预览生成：Orbit 先读取来源，按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</p><span class="eb">其他 Agent</span><span style="font-size:12px">' + esc(recConvNote(r)) + '</span>' + recPrimaryBtn(r) + '</div>';
     else if (R.tab === 'preview') body = '<div class="rc-pv"><div class="rc-pv-f"><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb">将写入</span><span class="mono rc-path">' + esc(recTarget(r)).replace(/\//g, '/<wbr>') + '</span><span class="row" style="margin-top:4px;padding:4px 8px;border-radius:6px;background:var(--sunken)">' + ic('file', 13) + '<span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><span class="mono" style="margin-left:auto;font-size:11px;color:' + (fileKind(r) === '删除项' ? 'var(--crit)' : 'var(--good)') + '">' + fileKind(r) + '</span></span></div><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb rc-eb">安装到' + (recScoped(r) && !S.project ? '<span class="rc-i" data-tip="项目取自侧栏筛选；未筛选时用「项目习惯」里选中的项目" aria-label="说明">' + ic('info', 12) + '</span>' : '') + '</span>' +
       (recScoped(r) ? '<label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'global' ? 'checked ' : '') + 'data-chg="recScope" value="global" style="accent-color:var(--ink-1)">全局（所有项目）</label><label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'proj' ? 'checked ' : '') + 'data-chg="recScope" value="proj" style="accent-color:var(--ink-1)">仅 ' + esc(scopeProjName()) + '</label>' : /教程|剪贴板/.test(r.target) ? '<span class="cap">不写入文件</span>' : '<span class="cap">已限定项目 · ' + esc(r.target.split('/')[0]) + '</span>') +
-      '<span class="eb" style="margin-top:8px">其他 Agent</span><span style="font-size:12px;line-height:16px;color:var(--ink-2)">' + (r.live ? recConvNote(r) : /Codex|所有/.test(r.compat) ? '同时生成 Codex 等价配置' : 'Codex / Gemini 转为 AGENTS.md 片段') + '</span></div></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button></div>' + codeBlock(r.file) + '</div></div>';
+      '<span class="eb" style="margin-top:8px">其他 Agent</span><span style="font-size:12px;line-height:16px;color:var(--ink-2)">' + (r.live ? recConvNote(r) : /Codex|所有/.test(r.compat) ? '同时生成 Codex 等价配置' : 'Codex / Gemini 转为 AGENTS.md 片段') + '</span></div></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span>' + (r.live && !r.file.length ? '' : '<button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button>') + '</div>' + (r.live && !r.file.length ? '<div class="col" data-tl="rec-pv-nofile" style="gap:10px;align-items:flex-start;padding:12px 14px;border-radius:9px;background:var(--sunken);font-size:12.5px;line-height:1.6;color:var(--ink-2)"><span>这条建议没有附带文件正文。具体内容由安装预览按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</span>' + recPrimaryBtn(r) + '</div>' : codeBlock(r.file)) + '</div></div>';
     else if (R.tab === 'tut' && r.live && !r.steps.length) body = LV.na('这条建议没有分步教程，可在「预览」里看将写入的内容。');
     else if (R.tab === 'tut') body = '<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">' + r.steps.map((s2, i) => '<li class="row" style="align-items:flex-start;gap:10px"><span class="mono" style="width:22px;height:22px;flex:none;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:11px;font-weight:700;line-height:22px;text-align:center">' + (i + 1) + '</span><span style="font-size:13px;line-height:1.55;padding-top:1px">' + esc(s2) + '</span></li>').join('') + '</ol><div class="cap" style="margin-top:12px">外部链接会在默认浏览器中打开；命令都可以复制。</div>';
     else body = inst ? trackView(r, inst) : '<div class="col" style="gap:10px;align-items:flex-start"><span style="font-size:13px;line-height:18px;color:var(--ink-2)" data-tip="安装后 7 天逐项对比，给出 95% 区间与结论">安装后开始追踪，对比安装前后各 7 天</span><span class="eb">基准 · 安装前 7 天 · n = ' + x.n[0] + '</span><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + (t[1] == null ? '—' : t[1]) + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div>' + recPrimaryBtn(r) + '</div>';
@@ -6830,8 +6931,11 @@ PAGES.recs = () => {
       '<div class="rc-kpis"><div class="rc-kpi"><span class="eb">每月节省时间 · 估计</span>' + (x.save == null && r.live ? '<span class="v" data-tl="rec-kpi-nosave">未估算</span><span class="cap">' + esc(r.saveBasis || r.gain) + '</span>' : '<span class="v">' + recSave(r.id) + '<small>/ 月</small></span><span class="cap" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>') + '</div><div class="rc-kpi"><span class="eb">常驻 token</span><span class="v' + (x.tok < 0 ? ' good' : '') + '">' + recTok(r.id) + (x.tok ? '<small>/ 会话</small>' : '') + '</span><span class="cap">' + (x.tok > 0 ? '每个会话启动时载入' : x.tok < 0 ? '从会话上下文中释放' : '不占会话上下文') + '</span></div><div class="rc-kpi"><span class="eb">适用 Agent</span><span class="row" style="gap:6px;min-height:24px">' + agentDots(r, true) + '</span><span class="cap">' + (r.live ? recConvNote(r) : /转换/.test(r.compat) ? 'Codex 用等价配置' : /所有/.test(r.compat) ? 'AGENTS.md 片段通用' : '其余转为 AGENTS.md') + '</span></div></div></div>' +
       '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:8px 10px;font-size:13px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row rc-dfoot"><span class="row cap rc-dfoot-n">' + ic('grad', 13) + (r.live ? esc(r.origin === 'catalog' ? '资源目录' : 'Orbit 知识库') + ' · ' + esc(r.license || '许可未知') + (r.url ? ' · ' + liLink(r.url, '来源') : '') : 'Orbit 模板库 · MIT') + '</span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
   }
-  const lvHid = r0live() ? vis.length - list.length : 0;   // live: the header counts what the list shows
-  return tbar('优化建议', (r0live() ? list.length : vis.length) + ' 条' + (lvHid > 0 ? '（' + lvHid + ' 条被筛选隐藏）' : '') + ' · 按每月节省时间排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
+  // live: the header leads with the same total as the sidebar badge (open recs at the current level) and then says how many the
+  // difficulty / dimension filters show, so the badge and「N 条」never disagree (R4-15)
+  const lvHid = r0live() ? vis.length - list.length : 0, lvInst = r0live() ? vis.filter((r) => S.installed.has(r.id)).length : 0;
+  const lvHead = r0live() ? '共 ' + (vis.length - lvInst) + ' 条' + (lvInst ? ' · ' + lvInst + ' 条已安装' : '') + (lvHid > 0 ? ' · 显示 ' + list.length + ' 条（' + lvHid + ' 条被筛选隐藏）' : '') : vis.length + ' 条';
+  return tbar('优化建议', lvHead + ' · 按每月节省时间排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
     '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
     '<div class="frow"><span class="cap" data-tip="难度：L1 一键应用 · L2 复制粘贴 · L3 需要配置 · L4 架构调整">难度</span>' + [1, 2, 3, 4].map((k) => '<button type="button" class="chip sm' + (R.lv.has(k) ? '' : ' dash') + '" data-act="recLv" data-v="' + k + '" aria-pressed="' + R.lv.has(k) + '">' + lvlIcon(k) + LEVELS[k] + '</button>').join('') + '<span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span><span class="cap">按我的水平</span><button type="button" class="chip sm" data-act="recAud" data-tip="' + AUD_D[R.aud] + '">' + AUD[R.aud] + ic('chev', 12) + '</button><span style="flex:1"></span><span class="cap">已应用 ' + S.installed.size + ' · 不适用 ' + R.gone.size + (R.gone.size ? ' <button type="button" class="lnk" data-act="restoreRecs" style="font-size:12px">恢复</button>' : '') + '</span></div>' +
     '<div class="recs"><div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (g0.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-g0"><span>按画像匹配 · 待验证</span><span>' + g0.length + '</span></div>' + g0.map(card).join('') : '') + (g3.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-lib"><span>资料库推荐 · 按画像匹配</span><span>' + libN + '</span></div>' + g3.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div><div style="position:sticky;top:0">' + detail + '</div></div></div>';
@@ -6994,6 +7098,10 @@ const STUDIO_COPY = { mine: '从 46 个会话提炼出 5 条可执行规则', re
 let RUNT = null;
 const stFile = () => GEN[S.studio.type].file.split('/').pop();
 const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0] || agent(S.studio.agent);
+// token sizes: ≥ 1k as「6.1k」(the demo's packs); a small live pack reads its exact count instead of a misleading「0.0k」
+const tokK = (n) => n > 0 && n < 1000 ? String(Math.round(n)) : f1(n / 1000) + 'k';
+const tokS = (n) => n > 0 && n < 1000 ? Math.round(n) + ' tok' : f1(n / 1000) + 'k';
+const tokPct = (n, L) => { const p = Math.round(n / L * 100); return (n > 0 && p < 1 ? '<1' : p) + '%'; };
 function ctxTokens() { return CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? c[3] : 0), 0); }
 function ctxHits() { return S.studio.ctx.redact ? CTX.reduce((a, c) => a + (S.studio.ctx[c[0]] ? (CTX_HITS[c[0]] || 0) : 0), 0) : 0; }
 const ctxEmpty = () => !CTX.some((c) => c[0] !== 'redact' && S.studio.ctx[c[0]]);
@@ -7006,7 +7114,7 @@ function replayRows() {
 function studioLogs(i) {
   const ag = agent(S.studio.agent); const tok = ctxTokens();
   return [
-    ['$ ' + ag.cli + ' --output-format stream-json' + (S.studio.agent === 'cc' ? ' --model claude-opus-5-5' : ''), '› 读取上下文包 orbit-ctx-1001.json（' + f1(tok / 1000) + 'k tokens）', '› 已脱敏 ' + ctxHits() + ' 处'].concat(tok > CTX_LIMIT ? ['! 超出 ' + f1(CTX_LIMIT / 1000) + 'k 上限 ' + f1((tok - CTX_LIMIT) / 1000) + 'k：原始片段将被截断'] : []),
+    ['$ ' + ag.cli + ' --output-format stream-json' + (S.studio.agent === 'cc' ? ' --model claude-opus-5-5' : ''), '› 读取上下文包 orbit-ctx-1001.json（' + tokK(tok) + ' tokens）', '› 已脱敏 ' + ctxHits() + ' 处'].concat(tok > CTX_LIMIT ? ['! 超出 ' + f1(CTX_LIMIT / 1000) + 'k 上限 ' + f1((tok - CTX_LIMIT) / 1000) + 'k：原始片段将被截断'] : []),
     ['› 识别到 5 条可执行规则，置信度 ≥ 0.8', '› 检查已安装内容：无同名冲突'],
     ['› 草拟 ' + stFile()],
     ['› 规范：frontmatter 与结构合法，名称不与已安装 14 项冲突', '› 安全：未发现 rm -rf、强推、读取凭据'],
@@ -7040,9 +7148,9 @@ function refreshStudio() {
 // Context stack: one segment per enabled item (grey ramp; raw snippets hatched), the budget mark turns critical when exceeded.
 function tokBar() {
   const tok = ctxTokens(); const scale = Math.max(tok, CTX_LIMIT) * 1.08; const over = tok > CTX_LIMIT;
-  const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + c[0] + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + f1(c[3] / 1000) + 'k"></span>').join('');
-  return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + f1(tok / 1000) + 'k tokens，上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (CTX_LIMIT / scale * 100) + '%"></span></div>' +
-    '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + f1(tok / 1000) + 'k tokens</span><span class="mono cap">上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - CTX_LIMIT) / 1000) + 'k，原始片段会被截断' : ' · ' + Math.round(tok / CTX_LIMIT * 100) + '%') + '</span></div></div>';
+  const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + c[0] + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + tokS(c[3]) + '"></span>').join('');
+  return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (CTX_LIMIT / scale * 100) + '%"></span></div>' +
+    '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(CTX_LIMIT / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - CTX_LIMIT) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, CTX_LIMIT)) + '</span></div></div>';
 }
 function ctxLine(l) { return esc(l).replace(/\{\{(u|m|k|ip)\}\}/g, (m, k) => S.studio.ctx.redact ? '<mark class="rd">' + CTX_PH[k] + '</mark>' : '<mark class="st-leak">' + esc(CTX_RAW[k]) + '</mark>'); }
 function checkRows(run, seq) {
@@ -7067,7 +7175,7 @@ function checkRows(run, seq) {
 PAGES.studio = () => {
   const st = S.studio; const run = st.run; const g = GEN[st.type]; const ag = agent(st.agent); const tpl = TPLS[run ? run.tpl : st.tpl]; const seq = tpl.seq;
   const file = stFile(); const active = run && !run.done && !run.stopped;
-  const stepsDef = [['打包上下文', f1(ctxTokens() / 1000) + 'k tokens · 脱敏 ' + ctxHits() + ' 处'], ['分析模式', STUDIO_COPY.mine], ['起草 ' + file, run && run.step === 2 && active ? '已输出 ' + run.lines + ' / ' + g.lines.length + ' 行' : '流式写入预览'], ['自检', '规范 · 安全'], ['回放 dry-run + judge', STUDIO_COPY.replay], ['等你审阅', '审阅前不会写入任何文件'], ['交叉自检', '由 ' + otherAgent().name + ' 复核结论']];
+  const stepsDef = [['打包上下文', tokK(ctxTokens()) + ' tokens · 脱敏 ' + ctxHits() + ' 处'], ['分析模式', STUDIO_COPY.mine], ['起草 ' + file, run && run.step === 2 && active ? '已输出 ' + run.lines + ' / ' + g.lines.length + ' 行' : '流式写入预览'], ['自检', '规范 · 安全'], ['回放 dry-run + judge', STUDIO_COPY.replay], ['等你审阅', '审阅前不会写入任何文件'], ['交叉自检', '由 ' + otherAgent().name + ' 复核结论']];
   const stepState = (i) => { const k = seq.indexOf(i); return !run ? 'todo' : run.stopped && k === run.pos ? 'stop' : run.done || k < run.pos ? 'done' : k === run.pos ? 'run' : 'todo'; };
   const maxDur = Math.max(...seq.map((i) => STEP_DUR[i]));
   const shownLines = run ? (run.step > 2 || run.done ? g.lines.length : run.step === 2 ? run.lines : 0) : 0;
@@ -7077,7 +7185,7 @@ PAGES.studio = () => {
     '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不调用云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录与额度</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
     '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
     '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)" placeholder="一句话写清要生成什么，例如：提交前先跑测试，失败就停下汇报">' + esc(st.goal) + '</textarea>' + (st.from ? '<span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span>' : '') + '</label>' +
-    '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? f1(c[3] / 1000) + 'k' : '') + '</span></label>').join('') + '</div></div>' +
+    '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? tokS(c[3]) : '') + '</span></label>').join('') + '</div></div>' +
     '<div class="col" style="gap:6px"><span class="eb">执行者</span><button type="button" data-act="studioAgent" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:left"><span style="width:28px;height:28px;border-radius:7px;background:' + ag.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + ag.c) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:13px;line-height:18px">' + ag.name + '</b><span class="mono cap" style="font-size:11px;line-height:14px">' + ag.model + '</span></span>' + ic('chev', 12, 'color:var(--ink-3)') + '</button><span class="cap" style="font-size:11px">已检测：' + STUDIO_COPY.detected + '</span></div>' +
     '<div class="row" style="justify-content:space-between;font-size:12px"><span class="row" style="gap:6px;min-width:0"><span class="eb">模板</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(TPLS[st.tpl].name) + ' · ' + TPLS[st.tpl].seq.length + ' 步</span></span><button type="button" class="lnk" data-act="studioTpl">更换</button></div>' +
     '<div class="row" style="margin-top:auto"><button type="button" class="btn p" data-act="studioStart" style="flex:1;height:32px"' + (active ? ' disabled' : '') + '>' + (run && (run.done || run.stopped) ? '重新生成' : '开始生成') + '</button><button type="button" class="btn" data-act="studioDraft" style="height:32px">存为草稿</button></div></div>' +
@@ -7095,7 +7203,7 @@ PAGES.studio.after = () => { const l = $('#studioLog'); if (l) l.scrollTop = l.s
 let studioRunner = () => agent(S.studio.agent);
 function ctxPreviewHTML() {
   const c = S.studio.ctx; const tok = ctxTokens();
-  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? ((CTX_SAMPLE[x[0]] || []).length ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">暂无可发送的内容</span>') : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
+  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + tokS(x[3]) + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? ((CTX_SAMPLE[x[0]] || []).length ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">暂无可发送的内容</span>') : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
   return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(studioRunner().cli || studioRunner().name || '所选 Agent') + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Orbit 服务器。') + '</span></div></div>';
 }
 function ctxBundle() {
@@ -7407,7 +7515,7 @@ function openPalette() {
   // BUG-53: the first-launch / reveal overlay (z 110) sits above sheets (z 100); a palette opened under it would take focus unseen.
   if (!$('#overlay').hidden) return;
   PAL = { q: '', i: 0, items: [] };
-  openModal('<label class="row" style="padding:12px 14px;border-bottom:1px solid var(--line)">' + ic('search', 16, 'color:var(--ink-3)') + '<span class="vh">命令面板搜索</span><input id="palQ" data-in="palQ" autofocus placeholder="搜索页面、会话、项目、建议与操作…" autocomplete="off" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:15px;color:var(--ink-1)"><span class="kbd">Esc</span></label><div id="palList" role="listbox" aria-label="结果" style="max-height:min(420px,58vh);overflow:auto;padding:6px"></div><div class="row cap" style="padding:8px 14px;border-top:1px solid var(--hair);font-size:11px;gap:14px;flex-wrap:wrap"><span>↑↓ 选择</span><span>↩ 打开</span><span>Esc 关闭</span><span style="margin-left:auto">试试输入「部署」</span></div>', 'pal');
+  openModal('<label class="row" style="padding:12px 14px;border-bottom:1px solid var(--line)">' + ic('search', 16, 'color:var(--ink-3)') + '<span class="vh">命令面板搜索</span><input id="palQ" data-in="palQ" autofocus placeholder="搜索页面、会话、项目、建议与操作…" autocomplete="off" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:15px;color:var(--ink-1)"><span class="kbd">Esc</span></label><div id="palList" role="listbox" aria-label="结果" style="max-height:min(420px,58vh);overflow:auto;padding:6px"></div><div class="row cap" style="padding:8px 14px;border-top:1px solid var(--hair);font-size:11px;gap:14px;flex-wrap:wrap"><span>↑↓ 选择</span><span>↩ 打开</span><span>Esc 关闭</span><span style="margin-left:auto" data-pal="hint">' + (LV.live ? '可搜会话、消息、命令与文件' : '试试输入「部署」') + '</span></div>', 'pal');
   MODAL_KEY = 'palette'; drawPal();
 }
 function drawPal() {
@@ -7531,8 +7639,9 @@ let ABOUT = null;
 function aboutRows(a) {
   const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
   const app = (a && a.app) || {}, c = (a && a.components) || {}, rt = (a && a.runtime) || {};
-  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row
-  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
+  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row. The gateway still
+  // reports its legacy name 'Tandem': the visible brand is Orbit, the technical contract id (tandem-app-v1) stays as is (R4-17)
+  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name && /^tandem\b/i.test(app.name) ? 'Orbit' : app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
     ['数据库结构', c.db_schema_version != null ? 'v' + c.db_schema_version : '—'], ['规则 / 分析', [c.rules_version, c.analytics_version].filter(Boolean).join(' · ') || '—'],
     ['脱敏规则', c.redaction_version || '—'], ['支持的 Agent', (c.mappers || []).map((k) => lvAgentOf(k).name).join('、') || '—'],
     ['运行环境', [rt.python && 'Python ' + rt.python, rt.platform, rt.arch].filter(Boolean).join(' · ') || '—']];
@@ -7755,6 +7864,19 @@ function openOnboarding(step) {
   OB = { step: step || 0, src: new Set(AG.map((a) => a.id).filter((id) => !S.srcOff.has(id))), recent: true, prog: -1, timers: [] };
   OVL = 'ob'; $('#overlay').hidden = false; drawOB();
 }
+// The live source list scrolls inside its card; its max-height is a viewport budget, so snap it down to whole rows
+// (R4-10: the last visible row — often the 添加文件夹 row — was cut in half at the card's bottom edge).
+function obSnapRows(sc) {
+  sc.style.removeProperty('height');
+  const cap = sc.clientHeight, rows = Array.from(sc.children);
+  if (!rows.length || sc.scrollHeight <= cap + 1) return;
+  const pad = parseFloat(getComputedStyle(sc).paddingTop) || 0, top = sc.getBoundingClientRect().top + sc.clientTop;
+  let fit = 0;
+  rows.forEach((r) => { const b = r.getBoundingClientRect().bottom - top; if (b <= cap - pad + 0.5) fit = Math.max(fit, b); });
+  const bb = getComputedStyle(sc).boxSizing === 'border-box' ? sc.offsetHeight - sc.clientHeight : 0;
+  // end exactly at the last whole row (fractional px): the bottom padding would otherwise show a sliver of the next row
+  if (fit > 0) sc.style.height = (fit + bb).toFixed(2) + 'px';
+}
 function drawOB() {
   const s = OB.step;
   // 2 / 3 步是 Genesis：直接打开（3 = 最终态）；从第 1 步点「开始分析」时走 obStart，带上来源行位置做粒子起点
@@ -7779,7 +7901,9 @@ function drawOB() {
   // Keep the keyboard where it was across redraws (a ticked checkbox, the 90-day switch, the progress page's 950 ms ticks);
   // only a step change moves focus to the default button (BUG-54).
   const o = $('#overlay'); const a = document.activeElement; const key = a && o.contains(a) ? (a.dataset.a ? '[data-a="' + a.dataset.a + '"]' : a.dataset.act ? '[data-act="' + a.dataset.act + '"]' : null) : null;
+  const sc0 = o.querySelector('[data-ob="sources"]'); const top0 = sc0 ? sc0.scrollTop : 0;
   o.innerHTML = '<div class="obox" role="dialog" aria-modal="true" aria-label="首次启动">' + top + b + '</div>';
+  const sc = o.querySelector('[data-ob="sources"]'); if (sc) { obSnapRows(sc); sc.scrollTop = top0; }
   const keep = key && OB.drawn === s ? o.querySelector(key) : null;
   if (keep) keep.focus({ preventScroll: true }); else if (OB.drawn !== s) { const f = $('#overlay button.p'); if (f && !f.disabled) f.focus(); }
   OB.drawn = s;
@@ -8170,7 +8294,7 @@ function genFinal(how) {
   if (ob) {
     genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
     const nn = q('[data-g="n"]'); if (nn) nn.textContent = '4 / 4'; box.querySelectorAll('.ob-dots i').forEach((i) => i.classList.add('on'));
-    const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
+    const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.partial ? ' · 部分结果，分析仍在更新，以画像页为准' : p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
     const rl = box.querySelector('.g-next .g-nc'); if (rl) rl.textContent = genRecLine();
     if (OB) { OB.prog = 3; OB.step = 3; OB.drawn = 3; }
     const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
@@ -8926,10 +9050,10 @@ let lvFrame = 0, lvFrameT = null, lvLastSig = null, lvTick = 0;
 const lvIds = new WeakMap(); let lvIdN = 0;
 const lvId = (o) => { if (o == null || typeof o !== 'object') return String(o); let v = lvIds.get(o); if (!v) lvIds.set(o, v = ++lvIdN); return v; };
 function lvSig() {
-  const parts = [lvTick, LV.rev, LV.state, LV.stale, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
     TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
   try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
-  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0)); return false; });
+  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0) + (r.dirty ? 'd' : '')); return false; });
   return parts.join('|');
 }
 function lvFlush() {
@@ -9061,16 +9185,27 @@ LV.lru = function (max) {
   };
 };
 // on-demand drill-down: LV.detail(cache, key, path) → {state:'pending'|'ready'|'error', data, error}; first call fetches,
-// the arrival re-renders; later calls are cache hits (no request).
+// the arrival re-renders; later calls are cache hits (no request). A transient failure (network / 5xx) keeps showing the
+// error, then refetches with backoff (1 s · 2ⁿ, ≤ 15 s, 6 tries) and on TL.retry() / SSE reconnect (R4-11); 4xx stays.
+const lvDetailErr = new Set();
+const lvTransient = (err) => !!err && err.code !== 'analysis_unavailable' && err.retryable !== false && (!err.status || err.status >= 500);
+function lvDetailFetch(cache, e, path, o) {
+  e.retry = false;
+  TL.get(path, o || {}).then((res) => { e.state = res.data == null ? 'pending' : 'ready'; e.data = res.data; e.error = null; e.fails = 0; lvDetailErr.delete(e); if (res.state === 'computing') cache.delete(e.key); },
+    (err) => {
+      e.state = 'error'; e.error = err; e.fails = (e.fails || 0) + 1;
+      if (!lvTransient(err)) return;
+      lvDetailErr.add(e);
+      if (e.fails <= 6) setTimeout(() => { if (e.state === 'error' && cache.get(e.key) === e) { e.retry = true; TL.changed(); } }, Math.min(15000, 1000 * Math.pow(2, e.fails - 1)));
+    }).then(() => TL.changed());
+}
 LV.detail = function (cache, key, path, o) {
   let e = cache.get(key);
-  if (!e) {
-    e = cache.set(key, { state: 'pending', data: null, error: null });
-    TL.get(path, o || {}).then((res) => { e.state = res.data == null ? 'pending' : 'ready'; e.data = res.data; if (res.state === 'computing') cache.delete(key); },
-      (err) => { e.state = 'error'; e.error = err; }).then(() => TL.changed());
-  }
+  if (!e) { e = cache.set(key, { key, state: 'pending', data: null, error: null }); lvDetailFetch(cache, e, path, o); }
+  else if (e.retry && e.state === 'error') lvDetailFetch(cache, e, path, o);
   return e;
 };
+TL.on('retry', () => { lvDetailErr.forEach((e) => { if (e.state === 'error') e.retry = true; }); lvDetailErr.clear(); });
 
 /* ---- page feeds ----
    LV.feed(route | [routes], spec, apply): spec is a path string, an array of {name, path, query?, waitMs?} or a function
@@ -9087,21 +9222,32 @@ function lvFeedRes(f) {
   const list = typeof f.spec === 'string' ? [{ name: '_', path: f.spec }] : typeof f.spec === 'function' ? f.spec(sc) : f.spec;
   return list.map((x) => ({ name: x.name || '_', r: TL.resource(x.path, { query: x.query || null, waitMs: x.waitMs || 0 }) }));
 }
+// a resource key without its days= (a window switch of the same scope keeps the last screen until the new one decodes)
+const lvNoDays = (k) => String(k).replace(/([?&])days=[^&]*&?/, '$1').replace(/[?&]$/, '');
+const lvKeyDays = (k) => { const m = /[?&]days=(\d+)/.exec(String(k)); return m ? +m[1] : null; };
 LV.pump = function (route) {
   if (!LV.live) return;
+  LV.widen();
   (LV.feeds[route] || []).forEach((f) => {
     const rs = lvFeedRes(f);
     rs.forEach((x) => { if (x.r.dirty && !x.r.loading) TL.load(x.r); });
+    // 422 analysis_scope_too_large: remember the window and re-render; the spec then asks for 30 days (then 7)
+    const big = rs.find((x) => x.r.state === 'error' && x.r.error && x.r.error.code === 'analysis_scope_too_large');
+    if (big) { const d = lvKeyDays(big.r.key); if (!LV.tooLarge.has(d != null ? d : LV.window ? LV.window.days : 0)) { LV.scopeTooLarge(d); setTimeout(() => TL.changed(), 0); f.state = f.data ? 'ready' : 'pending'; return; } }
     const err = rs.find((x) => x.r.state === 'error' && x.r.data == null);
     if (err) { f.state = 'error'; f.error = err.r.error; return; }
-    if (rs.some((x) => x.r.data == null)) { f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return; }
+    if (rs.some((x) => x.r.data == null)) {
+      const swap = f.data && f.parts && f.keys && f.keys.length === rs.length && rs.every((x, i) => lvNoDays(x.r.key) === lvNoDays(f.keys[i]));
+      if (swap) return;   // same scope, another window still loading: keep the applied screen
+      f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return;
+    }
     const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt).join('|') + '#' + LV.rev;
     if (stamp === f.stamp) return;
     // a 304 / identical body refreshes updatedAt but hands back the same objects: nothing to re-apply
     const same = f.parts && f.rev === LV.rev && f.parts.length === rs.length && rs.every((x, i) => f.parts[i] === x.r.data);
     if (same) { f.stamp = stamp; return; }
     const data = rs.length === 1 && rs[0].name === '_' ? rs[0].r.data : rs.reduce((o, x) => { o[x.name] = x.r.data; return o; }, {});
-    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; f.parts = rs.map((x) => x.r.data); f.rev = LV.rev; }
+    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; f.parts = rs.map((x) => x.r.data); f.keys = rs.map((x) => x.r.key); f.rev = LV.rev; }
     catch (e) { f.state = 'error'; f.error = { code: 'apply_failed', message: String(e && e.message || e) }; console.error('LV.feed apply', e); }
   });
 };
@@ -9123,6 +9269,81 @@ function lvToday() {
   catch (e) { return new Date().toISOString().slice(0, 10); }
 }
 const lvUtc = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+
+/* ---- auto window (first-open fast path): /v1/uiview/{facts,overview,persona} without days serve the widest ready window
+   (all → 30 → 7) and warm wider ones; meta.window = {days, requested, wider: [{days, state, scope_hash}]}. LV.window keeps
+   {days (served), wider} merged across responses; LV.daysFor(want) gives the days to request for a wanted range (only a
+   window known to be ready, else null = auto); LV.tooLarge holds windows that answered 422 analysis_scope_too_large. */
+const LV_DAYS = [7, 30, 90, 0];
+LV.window = null;               // {days, wider: [{days, state, scope_hash}]}
+LV.spineDays = null;            // explicit days the spine requests (null = auto)
+LV.tooLarge = new Set();        // days values the gateway refused as too large (this data revision)
+LV.progress = null;             // meta.progress of the spine's last 202
+const lvWinMap = {};            // days → {state, scope_hash}
+const lvCovers = (w, want) => w === 0 || (want !== 0 && w >= want);
+const lvWider = (d, than) => d !== than && than !== 0 && (d === 0 || d > than);
+LV.rangeDays = (r) => { r = +r || 0; return r === 0 ? 0 : r <= 7 ? 7 : r <= 30 ? 30 : r <= 90 ? 90 : 0; };
+LV.periodDays = (p) => {
+  if (p === 'all') return 0;
+  if (/^\d+$/.test(String(p))) return LV.rangeDays(+p);
+  const m = /^(\d{4})-(\d{2})$/.exec(p || ''); if (!m) return 90;
+  const age = Math.round((lvUtc(lvToday()) - Date.UTC(+m[1], +m[2] - 1, 1)) / 86400000) + 1;
+  return age <= 7 ? 7 : age <= 30 ? 30 : age <= 90 ? 90 : 0;
+};
+LV.dayLabel = (d) => (d === 0 ? '全部' : d + ' 天');
+// the window a page wants: A2 / Lite persona follow their period, every other page the time range
+LV.wantDays = (route) => (/persona$/.test(route || S.route) && S.persona ? LV.periodDays(S.persona.period) : LV.rangeDays(S.range));
+LV.noteWindow = function (w) {
+  if (!w || w.days == null) return;
+  lvWinMap[w.days] = Object.assign({}, lvWinMap[w.days], { state: 'ready' });
+  (w.wider || []).forEach((x) => { if (LV_DAYS.indexOf(x.days) >= 0) lvWinMap[x.days] = { state: x.state, scope_hash: x.scope_hash || (lvWinMap[x.days] || {}).scope_hash || null }; });
+  LV.window = { days: w.days, requested: w.requested, wider: Object.keys(lvWinMap).map(Number).filter((d) => lvWider(d, w.days)).sort((a, b) => (a === 0) - (b === 0) || a - b).map((d) => Object.assign({ days: d }, lvWinMap[d])) };
+};
+LV.resetWindow = function () { Object.keys(lvWinMap).forEach((k) => { delete lvWinMap[k]; }); LV.tooLarge.clear(); LV.spineDays = null; };
+// days to request for a wanted window: the narrowest ready window that covers it (never one refused as too large); a
+// too-large want falls back to 30 then 7; null = no ready window covers it yet → auto (and the strip shows the hint)
+LV.daysFor = function (want) {
+  if (!LV.live || !LV.window) return null;
+  if (LV.tooLarge.has(want)) { const fb = [30, 7].find((d) => !LV.tooLarge.has(d)); return fb != null ? fb : null; }
+  const ok = Object.keys(lvWinMap).map(Number).filter((d) => LV_DAYS.indexOf(d) >= 0 && !LV.tooLarge.has(d) && lvWinMap[d].state === 'ready' && lvCovers(d, want));
+  if (!ok.length) return null;
+  return ok.sort((a, b) => (a === 0) - (b === 0) || a - b)[0];
+};
+// calm inline hint when the wanted window is wider than the served one: 「目前显示近 7 天 · 30 天数据计算中」
+LV.windowHint = function (route) {
+  const w = LV.window; if (!LV.live || !w || LV.state !== 'ready') return '';
+  const want = LV.wantDays(route);
+  const shown = w.days === 0 ? '全部数据' : '近 ' + w.days + ' 天';
+  if (LV.tooLarge.has(want)) { const fb = LV.daysFor(want); return '数据量太大，已切换到' + (fb != null ? '近 ' + fb + ' 天' : shown); }
+  if (lvCovers(w.days, want)) return '';
+  const e = w.wider.find((x) => lvCovers(x.days, want));
+  if (e && e.state === 'failed') return LV.dayLabel(e.days) + '数据量过大，显示' + shown;
+  if (e && e.state === 'ready') return '';
+  return '目前显示' + shown + ' · ' + LV.dayLabel(e ? e.days : want) + '数据计算中';
+};
+// 202 meta.progress → 「已用 N / M 秒 · K 条事件」 (or the queue position)
+LV.progressNote = function (p) {
+  if (!p) return '';
+  const out = [];
+  if (p.queue_position != null) out.push('排队第 ' + p.queue_position + ' 位');
+  else if (p.elapsed_s != null) out.push('已用 ' + Math.round(p.elapsed_s) + (p.budget_s ? ' / ' + Math.round(p.budget_s) : '') + ' 秒');
+  if (p.events) out.push(fmt(p.events) + ' 条事件');
+  return out.length ? ' · ' + out.join(' · ') : '';
+};
+// a page (or the strip) wants a window the spine does not cover and a ready one does: reload the spine with it
+LV.widen = function () {
+  if (!LV.live || !LV.window || LV.state !== 'ready') return;
+  const want = LV.wantDays();
+  if (lvCovers(LV.window.days, want) && !LV.tooLarge.has(LV.window.days)) return;
+  const d = LV.daysFor(want);
+  if (d != null && d !== LV.window.days && d !== LV.spineDays) { LV.spineDays = d; setTimeout(() => LV.loadSpine(), 0); }
+};
+// 422 analysis_scope_too_large for a request of `days` (null = auto): remember it, fall back to 30 then 7
+LV.scopeTooLarge = function (days) {
+  const d = days != null ? days : LV.window ? LV.window.days : 0;
+  LV.tooLarge.add(d);
+  return [30, 7].find((x) => !LV.tooLarge.has(x));
+};
 // columnar-v1 → row objects (inverse of facts.compact)
 LV.expand = function (wire) {
   if (!wire || !wire.fields) return (wire && wire.rows) || [];
@@ -9153,6 +9374,8 @@ LV.hydrate = function (spine) {
   const first = rows.reduce((m, r) => (r.d && (!m || r.d < m) ? r.d : m), null);
   DAY0 = Math.min(first ? lvUtc(first) : t, t - 119 * 86400000);
   LASTDAY = Math.round((t - DAY0) / 86400000);
+  // 全部 starts at the earliest session, not at the 120-day spine floor (R4-04); no rows keeps the full spine
+  FIRSTDAY = first ? Math.max(0, Math.min(LASTDAY, Math.round((lvUtc(first) - DAY0) / 86400000))) : 0;
   // agents: present in facts or detected, ordered by session count; deselections survive by id
   const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
   const ags = {};
@@ -9202,20 +9425,60 @@ LV.hydrate = function (spine) {
   if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
 };
 
-let lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
+let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
+const LV_SECTION = 'uiview_facts';
+LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
+LV.job = null;      // the analysis job being polled for the spine: {id, status, elapsed_s, timeout_s}
+function lvSpineFailed(f) {
+  LV.failed = f; LV.job = null; LV.stale = false;
+  if (LV.state !== 'ready') LV.state = 'error';
+  TL.changed();
+}
+function lvWatchSpine(id) {
+  if (LV.job && LV.job.id === id) return;
+  LV.job = { id, status: 'queued' };
+  TL.analysis.poll(id, (j) => { if (LV.job && LV.job.id === id) { LV.job = Object.assign({ id }, j); TL.changed(); } }).then((j) => {
+    if (!LV.job || LV.job.id !== id) return;
+    if (j.status === 'failed') { lvSpineFailed({ reason: (j.error && j.error.code) || 'analysis_failed', message: j.error && j.error.message }); return; }
+    LV.job = null;
+    if (j.status === 'gone') lvSpineLater(1200); else LV.loadSpine();
+  }, () => { LV.job = null; lvSpineLater(1200); });
+}
+// 重新计算: POST /v1/analytics/recompute for the spine's scope (the same scope /v1/uiview/facts uses), then poll the job
+LV.recompute = function () {
+  LV.failed = null; LV.job = null;
+  if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'computing';
+  LV.stale = LV.state === 'ready';
+  TL.changed();
+  return TL.analysis.recompute([LV_SECTION], { display_timezone: TL_TZ || 'UTC' }).then((d) => {
+    const j = ((d && d.jobs) || []).find((x) => x.job_id);
+    if (j) lvWatchSpine(j.job_id); else LV.loadSpine();
+  }, (e) => lvSpineFailed({ reason: null, message: (e && (e.message || e.code)) || '重新计算失败' }));
+};
 function lvSpineLater(ms) { clearTimeout(lvSpineTimer); lvSpineTimer = setTimeout(() => LV.loadSpine(), ms); }
 const lvSide = (path) => TL.get(path).then((r) => r.data, () => null);
 LV.loadSpine = function () {
   if (!LV.live) return Promise.resolve();
   if (lvSpineBusy) return lvSpineBusy;
-  lvSpineBusy = TL.get('/v1/uiview/facts', { query: { display_timezone: TL_TZ || 'UTC' }, waitMs: 1500 }).then(async (res) => {
+  const days = LV.spineDays != null && LV_DAYS.indexOf(LV.spineDays) >= 0 ? LV.spineDays : null;
+  lvSpineBusy = TL.get('/v1/uiview/facts', { query: { display_timezone: TL_TZ || 'UTC', days }, waitMs: 1500 }).then(async (res) => {
     lvSpineFails = 0;
     if (res.state === 'computing' || res.data == null) {
+      LV.progress = (res.meta && res.meta.progress) || null;
+      if (res.meta && res.meta.window) LV.noteWindow(res.meta.window);
       LV.stale = LV.state === 'ready'; if (LV.state !== 'ready') LV.state = 'computing';
-      lvSpineLater(1200); return;
+      // the 202 names its job: poll GET /v1/analytics/jobs/{id} (backoff) and reload when it completes; without a job the
+      // analysis is not running (its failure circuit is open), so the strip offers 重新计算 instead of retrying blindly
+      const jid = res.meta && res.meta.job_id;
+      if (jid) lvWatchSpine(jid);
+      else if (TL.analysis) lvSpineFailed({ reason: TL.analysis.failed[LV_SECTION] || null });
+      else lvSpineLater(1200);
+      return;
     }
-    LV.stale = false;
-    if (res.data === lvSpineData && LV.state !== 'connecting') return;   // 304: nothing changed
+    LV.stale = false; LV.failed = null; LV.job = null; LV.progress = null;
+    if (res.data && res.data.meta && res.data.meta.window) LV.noteWindow(res.data.meta.window);
+    // 304: nothing changed — but a read that failed meanwhile has now succeeded, so leave the error state (R4-11)
+    if (res.data === lvSpineData && LV.state !== 'connecting') { if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'empty'; return; }
     lvSpineData = res.data;
     const wire = res.data; const rows = LV.expand(wire);
     LV.wire = wire; LV.meta = wire.meta || null;
@@ -9229,13 +9492,25 @@ LV.loadSpine = function () {
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
   }, (e) => {
+    // 422 analysis_scope_too_large: this window is too big for the machine → 30 days, then 7 (the strip says so)
+    if (e && e.code === 'analysis_scope_too_large') {
+      const fb = LV.scopeTooLarge(days);
+      if (fb != null && fb !== days) { LV.spineDays = fb; lvSpineAgain = true; return; }
+    }
+    if (e && e.code === 'analysis_unavailable') { LV.error = e; lvSpineFailed({ reason: e.reason || null, message: e.message }); return; }
     lvSpineFails++;
     // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
     if (LV.state === 'ready' || LV.state === 'empty' || (e && e.status >= 400)) LV.state = 'error';
     else LV.state = 'connecting';
     LV.error = e;
     lvSpineLater(Math.min(15000, 1000 * Math.pow(2, Math.min(lvSpineFails, 4))));
-  }).then(() => { lvSpineBusy = null; TL.changed(); });
+  }).then(() => {
+    lvSpineBusy = null;
+    // the wanted window changed while this read was in flight (SSE analysis.ready, a range switch, a 422 fallback)
+    if (lvSpineAgain || (LV.spineDays != null && LV.spineDays !== days)) { lvSpineAgain = false; setTimeout(() => LV.loadSpine(), 0); }
+    else LV.widen();
+    TL.changed();
+  });
   return lvSpineBusy;
 };
 
@@ -9247,8 +9522,17 @@ if (LV.live) {
   // no mock rows ever reach a live screen: start from the empty spine, then load
   LV.hydrate({ rows: [] });
   LV.state = 'connecting';
-  TL.on('event', (ev) => { if (/^data\b|^analysis\.ready$/.test(ev.name)) LV.loadSpine(); });
+  TL.on('event', (ev) => {
+    if (/^data\b/.test(ev.name)) { LV.resetWindow(); LV.loadSpine(); return; }
+    if (ev.name !== 'analysis.ready') return;
+    // a wider window finished (same scope_hash as its meta.window entry): widen to it without blanking the screen
+    const p = ev.data || ev.payload || ev.p || {};
+    const hit = LV.window && p.scope_hash && (p.section || 'uiview_facts') === LV_SECTION && LV.window.wider.find((x) => x.scope_hash === p.scope_hash);
+    if (hit) { lvWinMap[hit.days] = Object.assign({}, lvWinMap[hit.days], { state: 'ready' }); hit.state = 'ready'; if (!LV.tooLarge.has(hit.days)) LV.spineDays = hit.days; }
+    LV.loadSpine();
+  });
   TL.on('resync', () => LV.loadSpine());
+  TL.on('retry', () => { if (!LV.failed && !LV.job && (LV.state === 'error' || LV.state === 'connecting')) { clearTimeout(lvSpineTimer); LV.loadSpine(); } });
   window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
   setTimeout(() => LV.loadSpine(), 0);
 }
@@ -9335,6 +9619,26 @@ function lvPersonaCompute(L, minN) {
     v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
 }
 
+// per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
+const LVP_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
+function lvEvidence(L, p, st) {
+  const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.max(0, Math.min(n - 1, Math.floor(v / max * n)))]++; }); return out; };
+  const byDay = {}; L.forEach((s) => { (byDay[s.d] = byDay[s.d] || []).push(s); }); const days = Object.values(byDay);
+  const avgS = days.length ? L.length / days.length : 0, avgA = days.length ? days.reduce((a, xs) => a + new Set(xs.map((s) => s.a)).size, 0) / days.length : 0;
+  const pp = {}; L.forEach((s) => { const e = pp[s.p == null ? '' : s.p] = pp[s.p == null ? '' : s.p] || [0, 0, 0, 0];
+    if (s.op != null) { e[0] += s.op; e[1]++; } e[2] += s.vk || 0; e[3] += s.dn || 0; });
+  const pname = (k) => (k && PJI[k] ? PJI[k].name : '未归属');
+  const rank = (a, b) => Object.keys(pp).filter((k) => pp[k][b]).map((k) => [pp[k][a] / pp[k][b], k]).sort((x, y) => x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+  const plan = rank(0, 1), check = rank(2, 3);
+  const ax = {}; p.axes.forEach((a) => { ax[a.k] = a; }); const openN = ax.I.n_units || 1;
+  return {
+    D: { txt: '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
+    I: { txt: '结构化开场占 ' + Math.round((openN - ax.I.k_units) / openN * 100) + '%', vals: plan.map((x) => Math.round(x[0] * 100)), lbl: '项目结构化开场占比 · 低 → 高', projects: plan.map((x) => pname(x[1])) },
+    M: { txt: '日均 ' + f1(avgS) + ' 个会话 · 同日 ' + f1(avgA) + ' 个 Agent', vals: hist(days.map((xs) => xs.length), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' },
+    V: { txt: Math.round(st.verify) + '% 会话要求或运行了验证', vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
+  };
+}
+
 /* ---- server payload → the demo's persona shape (+ axes / server extras) ---- */
 function lvAvg(L) {
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); }); const d = Object.values(by);
@@ -9367,23 +9671,31 @@ function lvpQuery(period) {
   const sc = LV.scope();
   return { period, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project || null, display_timezone: TL_TZ || 'UTC' };
 }
+// days= only for a window the gateway reports ready (auto otherwise); kept out of the cache key so a window switch
+// refetches in place and the last persona stays on screen until the wider one arrives
+const lvpDays = (period) => LV.daysFor(LV.periodDays(period));
 const lvpKey = (period) => JSON.stringify(lvpQuery(period));
 // full /v1/uiview/persona payload for a period under the current filters → {state, data}; refetches (keeping the last
 // data on screen) when the spine revision moved
 function lvpFetch(period, path, store) {
   const key = lvpKey(period) + path;
   let e = store.get(key);
-  if (e && (e.rev === LV.rev || e.loading)) return e;
+  const days = lvpDays(period);
+  if (e && ((e.rev === LV.rev && e.days === days) || e.loading)) return e;
   if (!e) { e = { rev: null, loading: false, data: null, state: 'pending' }; store.set(key, e); }
-  e.loading = true; const rev = LV.rev;
-  TL.get(path, { query: lvpQuery(period) }).then((res) => {
+  e.loading = true; const rev = LV.rev; e.days = days;
+  TL.get(path, { query: Object.assign(lvpQuery(period), { days }) }).then((res) => {
     e.loading = false;
     if (res.state === 'computing' || res.data == null) { e.loading = true; setTimeout(() => { e.loading = false; e.rev = null; TL.changed(); }, 1200); return; }
     e.rev = rev; e.data = res.data; e.state = 'ready';
     if (path === '/v1/uiview/persona') {
       (res.data.months || []).forEach((x) => { LVP.mini[lvpKey(x.k)] = x; });
     }
-  }, (err) => { e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err; }).then(() => TL.changed());
+  }, (err) => {
+    e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err;
+    // 422 analysis_scope_too_large: the window is too big → refetch with 30 days (then 7)
+    if (err && err.code === 'analysis_scope_too_large' && !LV.tooLarge.has(days != null ? days : LV.window ? LV.window.days : 0)) { LV.scopeTooLarge(days); e.rev = null; e.state = e.data ? 'ready' : 'pending'; }
+  }).then(() => TL.changed());
   return e;
 }
 LV.personaFor = function (period, L) {
@@ -9410,7 +9722,11 @@ function lvProjPersona(pid, L) {
 }
 function personaLive(L, minN) {
   L = L || [];
-  if (lvHasUnits(L)) { const p = lvPersonaCompute(L, minN); if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); } return p; }
+  if (lvHasUnits(L)) {
+    const p = lvPersonaCompute(L, minN);
+    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
+    return p;
+  }
   if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
@@ -9435,8 +9751,9 @@ if (LV.live) {
   S.ov.synced = '已同步';
   const h0 = LV.hydrate;
   LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
+  // days = the range's window once the gateway reports it ready (全部 → 0); auto otherwise, with the strip's hint
   LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
-    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC' }) }],
+    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
 }
 
@@ -9615,20 +9932,29 @@ if (LV.live) {
       m.done = !items.length || m.offset >= m.total; m.error = null;
     }, (err) => { m.error = err; }).then(() => { m.loading = false; return m; });
   }
+  // round 3: list pages cap text at 8000 chars (truncated + text_range); the rest is read by range from /v1/evidence
+  const REST_CHARS = 64000;
+  function msgRest(x) { const r = x.text_range; if (!x.truncated || !r || (x.truncated_fields && x.truncated_fields.indexOf('text') < 0)) return 0; return Math.max(0, (r.total || 0) - (r.offset || 0) - (r.length || 0)); }
+  function msgTrunc(s, x) {
+    if (x.restErr) return ' <span class="cap" data-lv="trunc-error">· ' + esc(x.restErr) + '</span>';
+    const left = msgRest(x); if (!left) return '';
+    if (x.restLoading) return ' <span class="cap" data-lv="trunc-loading">· 正在载入其余 ' + fmt(left) + ' 字…</span>';
+    return ' <button type="button" class="lnk cap" data-lv="trunc" data-act="lvsMsgRest" data-uid="' + esc(s.id) + '" data-ev="' + esc(x.id) + '" title="已显示 ' + fmt((x.text_range.offset || 0) + (x.text_range.length || 0)) + ' / ' + fmt(x.text_range.total) + ' 字">已截断 · 展开全文</button>';
+  }
   function msgHtml(s, m, focus) {
     if (m.error && !m.items.length) return '<div class="cap" data-lv="error" style="padding:12px 0">消息原文暂不可用（' + esc((m.error && (m.error.code || m.error.message)) || '请求失败') + '）</div>';
     if (!m.items.length && (m.loading || !m.done)) return LV.pend(160);
     if (!m.items.length) return '<div class="cap" data-lv="na" style="padding:12px 0">这个会话没有可显示的消息原文</div>';
     const rows = m.items.map((x) => {
       const ts = x.timestamp ? new Date(x.timestamp) : null; const at = ts && !isNaN(ts) ? hm(ts.getHours(), ts.getMinutes()) : '—';
-      return '<div class="tl-kv lvs-msg' + (x.id === focus ? ' on' : '') + '" data-ev="' + esc(x.id) + '" style="align-items:flex-start;padding:8px 0;border-top:1px solid var(--hair)' + (x.id === focus ? ';background:var(--sunken)' : '') + '"><span class="k mono" style="min-width:64px">' + at + ' · ' + MSG_KIND[x.kind] + '</span><span class="v" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text) + (x.details && x.details.text_truncated ? ' <span class="cap">…（原文已截断）</span>' : '') + '</span></div>';
+      return '<div class="tl-kv lvs-msg' + (x.id === focus ? ' on' : '') + '" data-ev="' + esc(x.id) + '" style="grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--hair)' + (x.id === focus ? ';background:var(--sunken)' : '') + '"><span class="k mono">' + at + ' · ' + MSG_KIND[x.kind] + '</span><span class="v" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text) + msgTrunc(s, x) + (x.details && x.details.text_truncated ? ' <span class="cap">…（原文已截断）</span>' : '') + '</span></div>';
     }).join('');
     const more = !m.done ? '<button type="button" class="tl-more" data-act="lvsMsgsMore" data-uid="' + esc(s.id) + '">已载入 ' + m.offset + ' / ' + m.total + ' 个事件<b>加载更多</b></button>' : '';
     return '<div class="col" style="gap:0;max-height:56vh;overflow:auto">' + rows + '</div>' + more;
   }
   function msgDraw(s, focus) {
     const box = $('#lvsMsgBox'); if (!box || box.dataset.uid !== s.id) return;
-    const m = MSGS.get(s.id); box.innerHTML = msgHtml(s, m, focus);
+    const m = MSGS.get(s.id); const sc0 = box.firstElementChild; const top = sc0 ? sc0.scrollTop : 0; box.innerHTML = msgHtml(s, m, focus); if (!focus && box.firstElementChild) box.firstElementChild.scrollTop = top;
     const on = focus && box.querySelector('.lvs-msg.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
   }
   ACT.lvsMsgs = (el) => {
@@ -9638,6 +9964,19 @@ if (LV.live) {
     openModal(modalHead('消息原文 · ' + esc(s.title), agent(s.a).name + ' · ' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · 只读，按需分页载入') + '<div class="mb col"><div id="lvsMsgBox" data-uid="' + esc(s.id) + '">' + msgHtml(s, m, focus) + '</div></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button></div>');
     const need = !m.done && (!m.items.length || (focus && !m.items.some((x) => x.id === focus)));
     if (need) msgLoad(s.id, m).then(() => msgDraw(s, focus));
+  };
+  ACT.lvsMsgRest = (el) => {
+    const s = BYID[el.dataset.uid]; const m = s && MSGS.get(s.id); const x = m && m.items.find((it) => it.id === el.dataset.ev);
+    if (!x || x.restLoading || !msgRest(x)) return;
+    const r = x.text_range; const off = (r.offset || 0) + (r.length || 0);
+    x.restLoading = true; msgDraw(s, null);
+    TL.get('/v1/evidence/' + encodeURIComponent(x.id), { query: { text_offset: off, max_chars: REST_CHARS } }).then((res) => {
+      const d = res.data || {}; const piece = typeof d.text === 'string' ? d.text : ''; const dr = d.text_range || {};
+      x.text = (x.text || '') + piece;
+      x.text_range = { offset: r.offset || 0, length: (r.length || 0) + piece.length, total: dr.total != null ? dr.total : r.total };
+      if (!piece) x.text_range.total = x.text_range.offset + x.text_range.length;   // nothing more to read: stop offering it
+    }, (err) => { x.restErr = err && (err.status === 404 || err.code === 'not_found') ? '其余原文已不在本地数据中' : '展开失败（' + ((err && (err.code || err.message)) || '请求失败') + '）'; })
+      .then(() => { x.restLoading = false; msgDraw(s, null); });
   };
   ACT.lvsMsgsMore = (el) => { const s = BYID[el.dataset.uid]; const m = s && MSGS.get(s.id); if (!m) return; msgLoad(s.id, m).then(() => msgDraw(s, null)); msgDraw(s, null); };
 })();
@@ -9672,6 +10011,20 @@ function lvtpScopeNote() {
 }
 const lvtpMs = (ms) => ms == null ? '—' : ms < 10000 ? f1(ms / 1000) + ' s' : ms < 600000 ? Math.round(ms / 1000) + ' s' : f1(ms / 60000) + ' m';
 const lvtpPct = (v) => v == null ? '—' : f1(v * 100) + '%';
+// round 3: a success / failure rate is null when explicit outcomes cover < 50% of calls (rate_reason, status_coverage);
+// it renders "—" with the reason, never 0% or NaN. Server fields win; counts are the fallback for merged rows.
+const LVTP_MIN_COV = 0.5;
+function lvtpRateWhy(c) {
+  if (!c) return null;
+  const known = c.known != null ? c.known : null; const unknown = c.unknown != null ? c.unknown : (known != null && c.n != null ? Math.max(0, c.n - known) : null);
+  let cov = c.status_coverage != null ? c.status_coverage : (known != null && unknown != null && known + unknown ? known / (known + unknown) : null);
+  let why = c.rate_reason || null;
+  if (!why && known === 0) why = 'no_known_status';
+  if (!why && cov != null && cov < LVTP_MIN_COV) why = 'status_coverage_below_min';
+  if (!why) return null;
+  if (why === 'no_known_status') return '没有记录到明确成败的调用，不计算错误率';
+  return (cov != null ? '只有 ' + Math.round(cov * 100) + '% 的调用记录了明确成败' : '记录了明确成败的调用') + '（不足 ' + Math.round((c.min_status_coverage || LVTP_MIN_COV) * 100) + '%），不计算错误率';
+}
 const lvtpTrend = (k, mul) => (k && k.trend ? k.trend.map((t) => t.value == null ? null : t.value * (mul || 1)) : null);
 const lvtpHours = (h) => h == null ? 0 : typeof h === 'object' ? (h.value || 0) : h;
 const lvtpAgent = (bid) => AGI[LV.agentOf(bid).id] || null;
@@ -9740,9 +10093,9 @@ function lvtpMerge(list) {
   const by = {}; const out = [];
   (list || []).forEach((t) => {
     const u = lvtpUnified(t); let g = by[u.name];
-    if (!g) { g = by[u.name] = { name: u.name, q: u.q, kind: t.kind, mcp: t.mcp_server, n: 0, failed: 0, known: 0, ap: 0, p50: [0, 0], p95: [0, 0], daily: [], aliases: [] }; out.push(g); }
+    if (!g) { g = by[u.name] = { name: u.name, q: u.q, kind: t.kind, mcp: t.mcp_server, n: 0, failed: 0, known: 0, unknown: 0, why: null, ap: 0, p50: [0, 0], p95: [0, 0], daily: [], aliases: [] }; out.push(g); }
     const n = t.n || 0;
-    g.n += n; g.failed += t.failed || 0; g.known += t.known != null ? t.known : n; g.ap += (t.approval_rate || 0) * n;
+    g.n += n; g.failed += t.failed || 0; g.known += t.known != null ? t.known : n; g.unknown += t.unknown != null ? t.unknown : (t.known != null ? Math.max(0, n - t.known) : 0); if (t.rate_reason && !g.why) g.why = t.rate_reason; g.ap += (t.approval_rate || 0) * n;
     if (t.p50_ms != null) { g.p50[0] += t.p50_ms * n; g.p50[1] += n; }
     if (t.p95_ms != null) { g.p95[0] += t.p95_ms * n; g.p95[1] += n; }
     (t.daily || []).forEach((v, i) => { g.daily[i] = (g.daily[i] || 0) + (v || 0); });
@@ -9754,7 +10107,8 @@ function lvtpMerge(list) {
   });
   return out.map((g) => {
     const p50 = g.p50[1] ? g.p50[0] / g.p50[1] : null, p95 = g.p95[1] ? g.p95[0] / g.p95[1] : null;
-    return { name: g.name, n: g.n, err: g.known ? g.failed / g.known : 0, fails: g.failed, avg: lvtpMs(p50), ap: g.n ? g.ap / g.n : 0, cmds: [],
+    const errWhy = lvtpRateWhy({ n: g.n, known: g.known, unknown: g.unknown, rate_reason: g.why && g.known && g.known / (g.known + g.unknown) >= LVTP_MIN_COV ? null : g.why });
+    return { name: g.name, n: g.n, err: errWhy ? null : g.failed / g.known, errWhy, fails: g.failed, avg: lvtpMs(p50), ap: g.n ? g.ap / g.n : 0, cmds: [],
       p50: p50 != null ? p50 / 1000 : 0, p95: p95 != null ? p95 / 1000 : 0, daily: g.daily, kind: g.kind, mcp: g.mcp, q: g.q, aliases: g.aliases.sort((a, c) => c.n - a.n || (a.name < c.name ? -1 : 1)) };
   }).sort((a, c) => c.n - a.n);
 }
@@ -9821,12 +10175,12 @@ function lvToolsPage() {
   const head = (meta) => tbar('工具调用', meta, actions) + '<div class="content" id="content">' + filterRow(chip) + lvtpScopeNote();
   if (fs === 'error' && !b) return head('—') + empty('本地服务暂不提供工具统计') + '</div>';
   if (!b) return head('正在读取…') + '<div class="stack" data-lv="pending"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + [0, 1, 2, 3].map(() => '<div class="card tile">' + LV.pend(64) + '</div>').join('') + '</div><div class="card pad">' + LV.pend(260) + '</div></div></div>';
-  const H = b.header || {}; const K = b.kpis || {};
+  const H = b.header || {}; const K = b.kpis || {}; const kWhy = K.error_rate ? lvtpRateWhy(Object.assign({ n: K.calls && K.calls.value }, K.error_rate)) : null;
   if (!H.calls) return head('0 次调用') + empty(b.meta && b.meta.freshness === 'none' ? '还没有导入会话，工具统计会在导入后出现' : '所选范围内没有工具调用') + '</div>';
   const all = toolRows(); let rows = all.slice();
   if (T.failOnly) rows = rows.filter((r) => r.fails > 0);
   const key = T.failOnly && T.sort === 'n' ? 'fails' : T.sort;
-  const num = (r) => key === 'avg' ? r.p50 : r[key];
+  const num = (r) => key === 'avg' ? r.p50 : key === 'err' ? (r.err == null ? -1 : r.err) : r[key];
   rows.sort((a, c) => (key === 'name' ? a.name.localeCompare(c.name) : num(a) - num(c)) * T.dir);
   const mxn = Math.max(1, ...rows.map((r) => T.failOnly ? r.fails : r.n));
   const mxDur = Math.max(0.001, ...all.map((r) => r.p95));
@@ -9837,8 +10191,8 @@ function lvToolsPage() {
     const open = T.open === r.name; const v = T.failOnly ? r.fails : r.n;
     let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + esc(r.name) + '" aria-expanded="' + open + '"><td class="mono tt-name"' + (lvtpHasAliases(r) ? ' data-tip="' + esc('各 Agent 的原始工具名：' + lvtpAliasText(r.aliases)) + '"' : '') + '>' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + esc(r.name) + '</td>' +
       '<td class="tt-n"><span class="row" style="gap:8px"><span class="tt-bar"><i style="width:' + (v / mxn * 100).toFixed(1) + '%"></i></span><span class="mono tt-num">' + fmt(v) + '</span></span></td>' +
-      '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
-      '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(r.p50) + ' s · p95 ' + f1(r.p95) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(r.p95 / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(r.p50 / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
+      (r.err == null ? '<td class="tt-err" data-lv="rate-na" data-tip="' + esc(r.errWhy || '状态未知，不计算错误率') + '"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:0%"></i></span><span class="mono" style="min-width:44px;text-align:right;color:var(--ink-3)">—</span></span></td>' : '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
+      '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(r.p50) + ' s · p95 ' + f1(r.p95) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(r.p95 / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(r.p50 / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>') +
       '<td class="mono tt-ap" style="text-align:right">' + (r.ap ? Math.round(r.ap * 100) + '%' : '—') + '</td><td class="tt-sp">' + VZ.spark(spark(r), { w: 80, h: 22, label: r.name + '：' + rangeLabel() + '每日调用' }) + '</td></tr>';
     if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px" data-lv="tool-calls">' + (lvtpHasAliases(r) ? '<div class="cap" data-lv="tool-aliases" style="padding:0 0 2px">原始工具名 · <span class="mono">' + esc(lvtpAliasText(r.aliases)) + '</span></div>' : '') + lvtpCallRows(r.name) + '</div></td></tr>';
     return h;
@@ -9867,7 +10221,7 @@ function lvToolsPage() {
   const SA = K.subagent || {}; const pg4 = b.parallel && b.parallel.stopped_share_ge4;
   const kpis = [
     VZ.kpi({ label: T.failOnly ? '失败次数' : '工具调用', value: fmt(T.failOnly ? (K.error_rate && K.error_rate.failed) || 0 : (K.calls && K.calls.value) || 0), delta: T.failOnly ? null : { cur: (K.calls && K.calls.value) || 0, prev: K.calls ? K.calls.prev : null, fmt: 'int' }, trend: T.failOnly ? null : lvtpTrend(K.calls), trendLabel: '近 12 周', tip: K.calls && K.calls.per_session != null ? '每会话 ' + Math.round(K.calls.per_session) + ' 次 · ' + fmt(H.sessions || 0) + ' 个会话' : null }),
-    VZ.kpi({ label: '错误率', value: K.error_rate && K.error_rate.value != null ? f1(K.error_rate.value * 100) : '—', unit: '%', delta: { cur: K.error_rate && K.error_rate.value != null ? Math.round(K.error_rate.value * 1000) / 10 : null, prev: K.error_rate && K.error_rate.prev != null ? Math.round(K.error_rate.prev * 1000) / 10 : null, unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }, trend: lvtpTrend(K.error_rate, 100), trendLabel: '近 12 周', tip: K.error_rate ? fmt(K.error_rate.failed || 0) + ' 次失败' + (K.error_rate.shell_share != null ? ' · 命令占 ' + Math.round(K.error_rate.shell_share * 100) + '%' : '') + (K.error_rate.unknown ? ' · ' + fmt(K.error_rate.unknown) + ' 次状态未知' : '') : null }),
+    VZ.kpi({ label: '错误率', value: K.error_rate && K.error_rate.value != null && !kWhy ? f1(K.error_rate.value * 100) : '—', unit: '%', delta: { cur: K.error_rate && K.error_rate.value != null && !kWhy ? Math.round(K.error_rate.value * 1000) / 10 : null, prev: K.error_rate && K.error_rate.prev != null ? Math.round(K.error_rate.prev * 1000) / 10 : null, unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }, trend: lvtpTrend(K.error_rate, 100), trendLabel: '近 12 周', tip: kWhy ? kWhy + (K.error_rate.unknown ? ' · ' + fmt(K.error_rate.unknown) + ' 次状态未知' : '') : K.error_rate ? fmt(K.error_rate.failed || 0) + ' 次失败' + (K.error_rate.shell_share != null ? ' · 命令占 ' + Math.round(K.error_rate.shell_share * 100) + '%' : '') + (K.error_rate.unknown ? ' · ' + fmt(K.error_rate.unknown) + ' 次状态未知' : '') : null }),
     VZ.kpi({ label: '需要你审批', value: fmt((K.approvals && K.approvals.count) || 0), delta: { cur: (K.approvals && K.approvals.count) || 0, prev: K.approvals ? K.approvals.prev : null, goodDown: true, fmt: 'int' }, trend: lvtpTrend(K.approvals), trendLabel: '近 12 周', tip: K.approvals && K.approvals.median_wait_ms != null ? '等待中位数 ' + lvtpMs(K.approvals.median_wait_ms) : '没有记录等待时长' }),
     VZ.kpi({ label: '子代理派发', value: fmt(SA.dispatches || 0), delta: { cur: SA.dispatches || 0, prev: SA.prev != null ? SA.prev : null, fmt: 'int' }, tip: SA.dispatches ? '平均 ' + lvtpMs(SA.avg_duration_ms) + ' · 最多并行 ' + (SA.max_parallel || 0) : '所选范围内没有子代理派发' })
   ].join('');
@@ -9878,7 +10232,7 @@ function lvToolsPage() {
     '<div class="hd tt-sub"><div class="grow"><span class="ct">失败后原样重试 · Top ' + Math.min(5, RETRIES.length || 5) + '</span><span class="cap" title="同一命令失败后未改参数直接重跑 · 次数与最长连跑">未改参数直接重跑</span></div></div><div class="col" style="gap:4px">' + (RETRIES.length ? RETRIES.slice(0, 5).map((r) => '<div class="tt-retry"><span class="mono tt-cmd" title="' + esc(r[0]) + '">' + esc(r[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (r[1] / rmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v" title="重试 ' + r[1] + ' 次 · 最长连跑 ' + r[2] + ' 次">×' + r[1] + ' · 连跑 ' + r[2] + '</span></div>').join('') : '<span class="cap" data-lv="na">没有发现失败后原样重试的命令</span>') + '</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">失败原因</span><span class="cap">' + fmt(FT.total || 0) + ' 次失败 · 按输出聚类' + (FT.unknown_status ? ' · ' + fmt(FT.unknown_status) + ' 次状态未知' : '') + '</span></div></div><div class="col" style="gap:5px">' + (FAILS.length ? FAILS.map((f) => '<button type="button" class="tt-fail' + (T.openFail === f[0] ? ' on' : '') + '" data-act="openFail" data-k="' + esc(f[0]) + '" aria-expanded="' + (T.openFail === f[0]) + '"><span class="tt-fail-n">' + esc(f[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (f[1] / fmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">' + f[1] + '% · ' + fmt(f[3]) + ' 次</span></button>' + (T.openFail === f[0] ? '<div class="tt-fail-x"><span class="mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">典型：' + esc(f[2]) + '</span>' + (f[4] && f[4].some((u) => BYID[u]) ? '<button type="button" class="btn sm" data-act="openSession" data-id="' + esc(f[4].find((u) => BYID[u])) + '">相关会话 →</button>' : '') + '</div>' : '')).join('') : '<span class="cap" data-lv="na">所选范围内没有失败的调用</span>') + '</div></div>' +
     '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div>' + waitsBody + roCta + '</div>' +
-    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个' + (cov.inventory === 'available' ? '已连接' : '在用（配置未扫描）') + '</span></div></div>' + (mcp.length ? mcp.map((x) => '<div class="row" style="font-size:12px"><span class="mono" style="width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(x.server) + '">mcp·' + esc(x.server) + '</span><span style="flex:1;color:var(--ink-2)">' + fmt(x.calls || 0) + ' 次 · 失败 ' + lvtpPct(x.err) + (x.resident_tokens ? ' · 常驻 ≈ ' + VZ.fmt(x.resident_tokens, 'k') + ' tokens' : '') + '</span>' + (x.calls ? '<span class="tag">在用</span>' : '<span class="tag">未调用</span>') + '</div>').join('') : '<span class="cap" data-lv="na">所选范围内没有 MCP 调用</span>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(SA.dispatches || 0) + ' 次' + (b.parallel && b.parallel.max ? ' · 最多并行 ' + b.parallel.max + ' 个' : '') + '</span></div></div>' + (SA.dispatches ? '<div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + (pg4 && pg4.value != null ? '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">' + Math.round(pg4.value * 100) + '%</b> 被你中途停止（' + pg4.n + ' 次）' : '并行 ≥ 4 的派发样本不足') + '</div>' : '<span class="cap" data-lv="na">所选范围内没有子代理派发</span>') + '</div></div></div></div></div>';
+    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个' + (cov.inventory === 'available' ? '已连接' : '在用（配置未扫描）') + '</span></div></div>' + (mcp.length ? mcp.map((x) => '<div class="row" style="font-size:12px"><span class="mono" style="width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(x.server) + '">mcp·' + esc(x.server) + '</span><span style="flex:1;color:var(--ink-2)">' + fmt(x.calls || 0) + ' 次 · 失败 ' + (lvtpRateWhy(Object.assign({ n: x.calls }, x)) ? '<span data-tip="' + esc(lvtpRateWhy(Object.assign({ n: x.calls }, x))) + '">—</span>' : lvtpPct(x.err)) + (x.resident_tokens ? ' · 常驻 ≈ ' + VZ.fmt(x.resident_tokens, 'k') + ' tokens' : '') + '</span>' + (x.calls ? '<span class="tag">在用</span>' : '<span class="tag">未调用</span>') + '</div>').join('') : '<span class="cap" data-lv="na">所选范围内没有 MCP 调用</span>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(SA.dispatches || 0) + ' 次' + (b.parallel && b.parallel.max ? ' · 最多并行 ' + b.parallel.max + ' 个' : '') + '</span></div></div>' + (SA.dispatches ? '<div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + (pg4 && pg4.value != null ? '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">' + Math.round(pg4.value * 100) + '%</b> 被你中途停止（' + pg4.n + ' 次）' : '并行 ≥ 4 的派发样本不足') + '</div>' : '<span class="cap" data-lv="na">所选范围内没有子代理派发</span>') + '</div></div></div></div></div>';
 }
 
 /* ---------- A5 page ---------- */
@@ -10046,7 +10400,11 @@ function lvSentView(L) {
   const phrases = (d.phrases || []).slice().sort((a, b) => b.n - a.n).slice(0, 8).map((p) => [p.text, p.n, p.category || '其他']);
   const drivers = (d.drivers || []).map((x) => ({ name: x.label, v: x.status === 'ok' ? x.diff : null, n: x.n_a, nb: x.n_b, ci: x.status === 'ok' && x.lo != null && x.hi != null ? Math.abs(x.hi - x.lo) / 2 : 0, status: x.status }));
   const x = []; if (S.topic) x.push('主题'); if (S.outcome) x.push('结果'); if (S.fric) x.push('摩擦'); if (S.hour != null) x.push('时段');
-  return { state: 'ready', meta: d.meta || {}, lang, ms, allNull: !ms.some((b) => b.dist), fr, tp, phrases, drivers, note: d.drivers_note || '', scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
+  // R4-13: the endpoint is deterministic (lexical rules over redacted messages); only AI facets (friction) and AI topic labels
+  // come from a model, and only when the analysis mode is not 「仅统计」. Badges and the shield say which one the page shows.
+  const meta = d.meta || {}; const aiOn = !!meta.mode && meta.mode !== 'stats' && meta.mode !== 'off';
+  const prov = { mood: false, fric: aiOn, topic: aiOn && (d.topics || []).some((t) => t.label_source === 'ai'), phrase: false, ai: aiOn, note: meta.note || '' };
+  return { state: 'ready', meta, prov, lang, ms, allNull: !ms.some((b) => b.dist), fr, tp, phrases, drivers, note: d.drivers_note || '', scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
 }
 // cards in their own layout while the endpoint is pending / missing (no table, no mock rows)
 function lvSentShell(V) {
@@ -10085,12 +10443,21 @@ function lvPhrase(el) {
 
 /* ---- palette search ---- */
 const LVS_GROUP = { session: '会话', message: '消息', command: '命令', file: '文件', project: '项目', recommendation: '建议', catalog: '资源库', inventory: '资源库', event: '消息' };
+// badge for a live A6 card: AI only when the server says that card came from a model, otherwise a neutral rule badge
+function lvSentBadge(V, k, aiText) {
+  if (V && V.prov && V.prov[k]) return AIB(aiText);
+  return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">' + (k === 'topic' ? '规则分类' : '词面规则') + '</span>';
+}
+function lvSentShield(V) {
+  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';
+  return '按词面规则在本机统计，不调用模型，原文不离开本机';
+}
 const LVS_ICON = { session: 'sessions', message: 'sessions', command: 'term', file: 'file', project: 'projects', recommendation: 'recs', catalog: 'library', inventory: 'library', event: 'sessions' };
 function lvSearchFetch(q) {
   if (LVS.search.get(q)) return;
   const e = LVS.search.set(q, { state: 'pending', data: null });
   TL.get(LV.withQuery('/v1/search', { q, limit: 20 })).then((r) => { e.state = 'ready'; e.data = r.data || { results: [] }; },
-    (err) => { e.state = 'error'; e.error = err; }).then(() => { if (PAL && PAL.q.trim() === q && !$('#modal').hidden) drawPal(); });
+    (err) => { e.state = 'error'; e.error = err; }).then(() => { if (PAL && PAL.q.trim().toLowerCase() === q && !$('#modal').hidden) drawPal(); });   // palItems lowercases q (R4-12: 'Write a' never redrew)
 }
 function lvSearchGet(q) {
   const hit = LVS.search.get(q); if (hit) return hit;
@@ -10125,8 +10492,23 @@ function lvSearchItems(q, have) {
       : [h.snippet && h.snippet !== h.title ? h.snippet : null, s ? s.title : null, when].filter(Boolean).join(' · ');
     out.push({ g: LVS_GROUP[kind] || '结果', t: h.title || h.snippet || h.id, sub, icon: LVS_ICON[kind] || 'search', run: () => lvOpenRef(h) });
   }));
-  if (e.data && e.data.partial && e.data.partial.length && !out.length) out.push({ g: '搜索', t: '索引仍在建立，结果可能不完整', icon: 'info', run: () => {} });
+  const note = lvSearchNote(e.data || {}); if (note) out.push(note);
+  const many = lvSearchAtLeast(e.data || {}); if (many) out.push(many);
   return out;
+}
+// round 3: /v1/search says which sources are missing (partial_reasons) and which kinds hit the per-source cap
+const LVS_REASON = { index_building: '索引仍在建立', timeout: '查询超时', queued_timeout: '排队超时', overloaded: '本机繁忙', error: '查询出错' };
+function lvSearchNote(d) {
+  const reasons = d.partial_reasons || {}; const kinds = Object.keys(reasons).length ? Object.keys(reasons) : (d.partial || []);
+  if (d.complete !== false && !kinds.length) return null;
+  const by = {}; kinds.forEach((k) => { const why = LVS_REASON[reasons[k]] || reasons[k] || '暂不可用'; (by[why] = by[why] || []).push(LVS_GROUP[k] || k); });
+  const parts = Object.keys(by).map((why) => Array.from(new Set(by[why])).join('、') + ' ' + why);
+  return { g: '搜索', t: '结果不完整：' + (parts.length ? parts.join('；') : '部分来源未返回'), sub: (d.results || []).length ? '' : '没有结果不代表没有匹配', icon: 'info', run: () => {} };
+}
+function lvSearchAtLeast(d) {
+  const xs = (d.counts_at_least || []).filter((k) => d.counts && d.counts[k] != null);
+  if (!xs.length) return null;
+  return { g: '搜索', t: '匹配较多：' + xs.map((k) => (LVS_GROUP[k] || k) + ' 至少 ' + fmt(d.counts[k]) + ' 条').join('、'), sub: '只列出最相关的结果，可输入更具体的词', icon: 'info', run: () => {} };
 }
 function lvRuleGoal() {
   const V = LVS.view; const xs = V && V.phrases ? V.phrases.filter((p) => p[2] === '纠偏').slice(0, 4) : [];
@@ -10259,16 +10641,22 @@ function lvnWatch(ob) {
   }, 1500);
 }
 const lvnSleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function lvnSpine(rev0) {
+// the projection revision the import just published (/v1/app/state storage.data_rev); analysis answers older than it are partial
+LVN.dataRev = async function () { const st = await lvnTry('/v1/app/state'); return st && st.storage && st.storage.data_rev != null ? +st.storage.data_rev : null; };
+const lvnRevOf = (meta) => (meta && meta.data_rev != null ? +meta.data_rev : null);
+// spine reloaded after the import: a 200 can still be the previous snapshot (freshness stale, data_rev older than the import)
+// while the analysis job recomputes, so keep reloading until the spine's data_rev reaches the published one (or time runs out)
+async function lvnSpine(rev0, target) {
   const t0 = Date.now();
   LV.loadSpine();
   let k = 0;
   while (Date.now() - t0 < 30000) {
-    if (LV.rev > rev0 && LV.state !== 'computing' && LV.state !== 'connecting') return true;
+    const fresh = target == null || lvnRevOf(LV.meta) == null || lvnRevOf(LV.meta) >= target;
+    if (LV.rev > rev0 && LV.state !== 'computing' && LV.state !== 'connecting' && fresh) return true;
     await lvnSleep(400);
-    if (LV.rev === rev0 && ++k % 3 === 0) LV.loadSpine();
+    if (++k % 3 === 0) LV.loadSpine();
   }
-  return false;
+  return LV.rev > rev0 && LV.state === 'ready' ? 'partial' : false;
 }
 // server persona → the persona(L) shape Genesis reads ({ok, classified, n, v, code, zh, en, line, conf}) + its candidates
 LVN.personaOf = function (d) {
@@ -10280,15 +10668,24 @@ LVN.personaOf = function (d) {
   const cands = (d.candidates || d.matches || []).map((c) => ({ c: c.code, zh: c.zh || (TYPES[c.code] || [])[0] || '', en: c.en || (TYPES[c.code] || [])[1] || '', sim: clamp(Math.round(c.match != null ? c.match : c.sim || 0), 3, 99) })).filter((c) => c.c);
   return { p, cands };
 };
-LVN.reveal = async function (period) {
+// The reveal waits for the analysis of the published revision (target); a stale answer from an older snapshot is only used
+// when time runs out, and then it is marked partial so Genesis says so instead of presenting it as the final card.
+LVN.reveal = async function (period, target) {
   const q = { period: period || '90', display_timezone: TL_TZ || 'UTC' };
-  for (let i = 0; i < 8; i++) {
+  let stale = null;
+  for (let i = 0; i < 16; i++) {
     let r = null;
     try { r = await TL.get('/v1/uiview/persona/reveal', { query: q, waitMs: 1500 }); } catch (e) { r = { state: 'error', error: e }; }
-    if (r && r.data != null && r.state !== 'computing') return LVN.personaOf(r.data);
+    if (r && r.data != null && r.state !== 'computing') {
+      const rv = lvnRevOf(r.meta) != null ? lvnRevOf(r.meta) : lvnRevOf(r.data && r.data.meta);
+      const old = target != null && (r.state === 'stale' || (rv != null && rv < target));
+      if (!old) return LVN.personaOf(r.data);
+      stale = r.data;
+    }
     if (r && r.state === 'error') break;
     await lvnSleep(600);
   }
+  if (stale) { const x = LVN.personaOf(stale); x.p.partial = true; return x; }
   const sh = await lvnTry('/v1/shell/reveal', { query: { display_timezone: TL_TZ || 'UTC' } });
   return LVN.personaOf(sh && sh.reason !== 'computing' ? sh : null);
 };
@@ -10308,7 +10705,9 @@ async function lvnAfter(ob) {
   const L = ob.live; if (L.after) return; L.after = true; lvnStop(L); L.err = null;
   lvnStage(L, 'stats', { status: 'running', note: null }); lvnStage(L, 'persona', { status: 'pending', note: null }); lvnDraw(ob);
   // the import is in but the analysis did not come back: keep the first run open (no onboarded:true) and offer a retry
-  if (!(await lvnSpine(L.rev0)) || !ALL.length) {
+  const target = await LVN.dataRev();
+  const spun = await lvnSpine(L.rev0, target);
+  if (!spun || !ALL.length) {
     L.after = false;
     lvnStage(L, 'stats', { status: 'failed', note: ALL.length ? '本机服务没有返回分析结果' : '没有读到会话' });
     L.err = ALL.length ? '会话已导入，但分析结果暂时读不到（本机服务没有响应）。可以重试。' : '导入完成，但没有读到任何会话。检查来源目录后重试。';
@@ -10316,10 +10715,17 @@ async function lvnAfter(ob) {
     lvnDraw(ob); return;
   }
   lvnStage(L, 'stats', { status: 'done', note: fmt(ALL.length) + ' 个会话' }); lvnStage(L, 'persona', { status: 'running' }); lvnDraw(ob);
-  const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all'), LVN.loadRecs().catch(() => null)]);
+  const [per] = await Promise.all([LVN.reveal(OB.recent ? '90' : 'all', target), LVN.loadRecs().catch(() => null)]);
+  if (spun === 'partial') per.p.partial = true;   // the spine is still an older snapshot: Genesis labels its numbers as partial
   lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
   TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
-  TL.send('POST', '/v1/catalog/sync', {}).catch(() => { /* library keeps its seed rows */ });
+  if (ORBIT.native && ORBIT.native.isNative) ORBIT.native.post('onboarded', {});   // native host shows the HUD only after this
+  // The gateway schedules the first catalog sync itself (catalog/status.first_sync); only older gateways need the nudge,
+  // so a running sync is not hit with a second POST (409 catalog_job_already_active).
+  const nudge = () => TL.send('POST', '/v1/catalog/sync', {});
+  TL.send('GET', '/v1/catalog/status').then((r) => {
+    if (!((r && r.data) || {}).first_sync) return nudge();
+  }, nudge).catch(() => { /* library keeps its seed rows */ });
   if (OB !== ob || OVL !== 'ob') {   // 在后台继续: tell the user instead of playing Genesis
     const p = per.p;
     notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '会话已导入，样本还不够下结论。', a1: '查看画像', on1: () => go('persona') });
@@ -10434,18 +10840,60 @@ function lvTable(cols, rows, rowAttr) {
 const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
+// 重新计算 next to a failed analysis: the spine (LV.recompute) and every feed resource of the page that failed the same way
+const lvRecBtn = () => '<button type="button" class="btn sm" data-act="lvRecompute" data-tl="recompute" style="margin-left:8px">重新计算</button>';
+function lvFailedFeeds(route) {
+  const out = [];
+  (LV.feeds[route] || []).forEach((f) => lvFeedRes(f).forEach((x) => { if (x.r.state === 'error' && TLU.unavailable(x.r.error) && out.indexOf(x.r) < 0) out.push(x.r); }));
+  return out;
+}
+ACT.lvRecompute = (el) => {
+  if (el) el.disabled = true;
+  const jobs = [];
+  if (LV.failed) jobs.push(LV.recompute());
+  const v = TL_VIEWS[lvKey(S.route)];
+  const rs = lvFailedFeeds(S.route).concat(v && v.res ? Object.keys(v.res).map((n) => v.res[n]).filter((r) => r.state === 'error' && TLU.unavailable(r.error)) : []);
+  rs.forEach((r) => jobs.push(TL.recompute(r, r.section ? null : { sections: [LV_SECTION], scope: { display_timezone: TL_TZ || 'UTC' } }).catch(() => {})));
+  if (!jobs.length) LV.loadSpine();
+  render();
+};
+ACT.lvRetry = (el) => { if (el) el.disabled = true; TL.retry(); LV.loadSpine(); render(); };
+function lvJobNote() {
+  const j = LV.job; if (!j || j.elapsed_s == null) return '';
+  return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
+}
+// 202 meta.progress of the route's computing feed resource → 「已用 N / M 秒 · K 条事件」
+function lvFeedProgress(route) {
+  let p = null;
+  (LV.feeds[route] || []).forEach((f) => lvFeedRes(f).forEach((x) => { if (!p && x.r.state === 'computing' && x.r.meta && x.r.meta.progress) p = x.r.meta.progress; }));
+  return LV.progressNote(p);
+}
+// the spine's 202 progress, with the polled job's elapsed time once the job poll reports it
+function lvSpineProgress() {
+  const j = LV.job && LV.job.elapsed_s != null ? { elapsed_s: LV.job.elapsed_s, budget_s: LV.job.timeout_s || (LV.progress && LV.progress.budget_s) } : null;
+  return LV.progress ? LV.progressNote(Object.assign({}, LV.progress, j)) : lvJobNote();
+}
 function lvSpineBadge() {
+  if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
-  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中</span>';
+  if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvSpineProgress() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
   return '';
 }
 function lvStrip(route) {
   const k = lvKey(route);
-  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中</span>' : '';
-  const b = lvSpineBadge() || page;
-  const html = TLU.progress(TL) + TLU.banner(TL) + (b ? '<div>' + b + '</div>' : '');
+  const failed = lvFailedFeeds(route);
+  const page = TL.isBound(k) ? TLU.badge(TL_VIEWS[k]) + (TL_VIEWS[k] && TLU.unavailable(TL_VIEWS[k].error) ? lvRecBtn() : '')
+    : failed.length ? '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.unavailable(failed[0].error)) + '</span>' + lvRecBtn()
+      : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中' + lvFeedProgress(route) + '</span>' : '';
+  // the wanted range is wider than the window served so far (first-open fast path): say so, calmly
+  const hint = LV.windowHint(route);
+  const b = (lvSpineBadge() || page) + (hint ? '<span class="tl-badge" data-tl="window"' + (lvSpineBadge() || page ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
+  // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
+  let banner = TLU.banner(TL);
+  if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');
+  const html = TLU.progress(TL) + banner + (b ? '<div>' + b + '</div>' : '');
   return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';
 }
 
@@ -10544,14 +10992,17 @@ function liBody(vm) {
   const title = q ? '搜索「' + esc(q) + '」' : S.lib.tab === 'local' ? '你的本地 Agent 生成的' : S.lib.tab === 'hot' ? '按安装量' : S.lib.tab === 'peer' ? '按 Star 数' : '资源目录';
   const sub = q ? '混合检索 · ' + items.length + ' 项' : S.lib.tab === 'local' ? '只在本机，不上传' : '共 ' + TLU.num(vm.total != null ? vm.total : fc.total) + ' 项 · 本机资源目录';
   const moreBtn = q ? '' : S.li.more && S.li.more.loading ? '<span class="cap" data-tl="lib-more">正在加载…</span>' : (S.li.more && S.li.more.key === liReqKey(liReq()) ? S.li.more.next : vm.next) ? '<button type="button" class="btn sm" data-act="liMore" data-tl="lib-more">加载更多 · 已显示 ' + shown + ' / ' + TLU.num(vm.total != null ? vm.total : fc.total) + '</button>' : '';
-  const kinds = (fc.kind || []).slice(0, 5); const tot = Math.max(1, fc.total || 0);
+  // the kind facet stays unfiltered (whole catalog) while fc.total follows the kind chip: shares use the all-kind total so a
+  // filtered view never shows >100% (R4-01); the selected kinds are marked instead
+  const kinds = (fc.kind || []).slice(0, 5); const allKinds = (fc.kind || []).reduce((n, r) => n + (r.count || 0), 0);
+  const tot = Math.max(1, allKinds, fc.total || 0); const selKs = TL.li.helpers.LI_KINDS[S.lib.kind] || null;
   return '<div data-tl="library">' + liSyncBanner() + '<div class="frow"><div class="seg" role="tablist" aria-label="浏览方式">' + LI_TAB_LABEL.map((t) => '<button type="button" role="tab" data-act="libTab" data-v="' + t[0] + '" class="' + (S.lib.tab === t[0] ? 'on' : '') + '" aria-selected="' + (S.lib.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div><span class="lb-div" aria-hidden="true"></span>' +
     ['全部', 'Skill', 'Hook', '插件', '子代理', 'MCP'].map((k) => { const n = kindCount(k); return '<button type="button" class="chip sm' + (S.lib.kind === k ? ' on' : '') + '" data-act="libKind" data-v="' + k + '" aria-pressed="' + (S.lib.kind === k) + '">' + k + (n != null ? ' <span class="mono cap">' + TLU.num(n) + '</span>' : '') + '</button>'; }).join('') + '</div>' +
     '<div class="stack"><div class="row" style="align-items:baseline;flex-wrap:wrap;gap:6px 10px"><span class="serif" style="font-size:18px;font-weight:600">' + title + '</span><span class="cap">' + sub + '</span></div>' +
     (feat.length ? '<div class="lib-feat">' + feat.map(liFeat).join('') + '</div>' : empty(q ? '没有匹配「' + esc(q) + '」的资源。换个关键词，或清空搜索。' : S.lib.tab === 'local' ? '还没有本地生成的资源。在 生成工坊 里生成并通过自检后会出现在这里。' : '没有符合条件的资源')) +
     '<div class="two lb-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">更多资源</span><span class="cap">' + (q ? '按相关度排序' : S.lib.tab === 'hot' ? '按安装量排序' : S.lib.tab === 'peer' ? '按 Star 排序' : '按更新时间排序') + ' · 中列为风险等级<span class="lb-ucap">，右列为安装量</span></span></div></div><div class="col" style="gap:0">' + (more.length ? more.map(liRow).join('') : '<span class="cap">没有更多了</span>') + '</div>' + (moreBtn ? '<div class="row" style="justify-content:center;padding-top:10px">' + moreBtn + '</div>' : '') + '</div>' +
-    '<div class="card pad col lb-peers" data-tl="lib-facets"><span class="ct">目录分布</span><span class="lb-pintro">当前筛选下共 <b style="color:var(--ink-1)">' + TLU.num(fc.total) + '</b> 项，按类型：</span>' +
-    (kinds.length ? kinds.map((r) => { const p = Math.round(r.count / tot * 100); return '<div class="col" style="gap:3px"><div class="row" style="justify-content:space-between;font-size:12px"><b class="mono">' + esc(TL.li.kindLabel(r.value)) + '</b><span class="mono">' + TLU.num(r.count) + '<span class="cap"> · ' + p + '%</span></span></div><span class="lb-peer" role="img" aria-label="' + esc(TL.li.kindLabel(r.value)) + '：' + r.count + ' 项"><i style="width:' + p + '%"></i></span></div>'; }).join('') : '<span class="cap">—</span>') +
+    '<div class="card pad col lb-peers" data-tl="lib-facets"><span class="ct">目录分布</span><span class="lb-pintro">当前筛选下共 <b style="color:var(--ink-1)">' + TLU.num(fc.total) + '</b> 项' + (selKs && allKinds ? '，全部类型共 <b style="color:var(--ink-1)">' + TLU.num(tot) + '</b> 项' : '') + '，按类型：</span>' +
+    (kinds.length ? kinds.map((r) => { const p = Math.max(0, Math.min(100, Math.round(r.count / tot * 100))); const dim = selKs && selKs.indexOf(r.value) < 0; return '<div class="col" data-tl="lib-facet" data-pct="' + p + '" style="gap:3px' + (dim ? ';opacity:.55' : '') + '"><div class="row" style="justify-content:space-between;font-size:12px"><b class="mono">' + esc(TL.li.kindLabel(r.value)) + '</b><span class="mono">' + TLU.num(r.count) + '<span class="cap"> · ' + p + '%</span></span></div><span class="lb-peer" role="img" aria-label="' + esc(TL.li.kindLabel(r.value)) + '：' + r.count + ' 项"><i style="width:' + p + '%"></i></span></div>'; }).join('') : '<span class="cap">—</span>') +
     '<span class="cap">许可：' + ((fc.license || []).slice(0, 3).map((r) => esc(r.value) + ' ' + TLU.num(r.count)).join(' · ') || '—') + '</span>' +
     '<div class="row lb-anon">' + ic('shield', 14, 'color:var(--good);margin-top:1px') + '<span>资源目录保存在本机；安装前先预览每一处变更，写入前自动备份，可随时撤销。</span></div></div></div></div></div>';
 }
@@ -10645,6 +11096,28 @@ function liDetailDraw(id) {
 
 /* ---- install sheet (live) ---- */
 const LI_STEPS = ['预览变更', '确认写入', '已写入', '7 天追踪'];
+// R4-06: backend warnings arrive as codes (inventory_refresh_failed, already_present:<inv>:<name>, …): say them in words
+const LI_WARN = { inventory_refresh_failed: '「已安装」列表暂未刷新，稍后会自动更新；文件已写入。', tracking_unavailable: '暂时无法开始 7 天追踪，安装本身不受影响。',
+  exposure_unavailable: '暂时无法记录这次推荐的曝光，安装本身不受影响。', artifact_status_unavailable: '暂时无法更新生成工坊里的状态，安装本身不受影响。' };
+function liWarn(w) {
+  const s = String(w == null ? '' : w); if (LI_WARN[s]) return LI_WARN[s];
+  const ap = /^already_present:([^:]*):(.*)$/.exec(s); if (ap) return '「' + (ap[2] || '该资源') + '」已经存在于 ' + (liAgentName(ap[1]) || '本机') + '，会跳过重复的部分。';
+  return /^[a-z0-9_.:-]+$/.test(s) ? '后端返回了一条未识别的提示，安装结果以上方列表为准。' : s;
+}
+const liWarnRows = (ws) => { const out = (ws || []).map(liWarn); return out.filter((w, i) => w && out.indexOf(w) === i).map((w) => '<div class="cap" data-tl="inst-warn">' + esc(w) + '</div>').join(''); };
+// the backend reports the backup dir as an absolute path with an unresolved <install_id> token: show it like the targets (~)
+function liHomeOf(pv) {
+  const t = ((pv && pv.targets) || []).find((x) => x.path && x.display && /^~\//.test(x.display) && x.path.endsWith(x.display.slice(1)));
+  return t ? t.path.slice(0, t.path.length - t.display.length + 1) : null;
+}
+function liTilde(p, home) {
+  let s = String(p || ''); if (!s) return s;
+  if (home && (s === home || s.startsWith(home + '/'))) s = '~' + s.slice(home.length);
+  else s = s.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~');
+  return s;
+}
+const liBackupDir = (pv, iid) => { const d = pv && pv.backup_dir; if (!d) return '—'; const s = liTilde(d, liHomeOf(pv)); return iid ? s.replace('<install_id>', iid) : s.replace(/\/?<install_id>$/, '') + '/（本次安装编号）'; };
+const liUniq = (xs, key) => xs.filter((x, i) => xs.findIndex((y) => key(y) === key(x)) === i);
 function liProg(step) { return '<div class="inst-steps">' + LI_STEPS.map((s, i) => '<span class="' + (i + 1 < step ? 'done' : i + 1 === step ? 'cur' : '') + '"><span class="mono k">' + (i + 1 < step ? '✓' : i + 1) + '</span>' + s + '</span>' + (i < LI_STEPS.length - 1 ? '<i></i>' : '')).join('') + '</div>'; }
 function liDiff(t) {
   return '<div class="code" style="max-height:min(260px,36vh)">' + t.lines.map((l) => l.gap ? '<div><span class="n">⋯</span><span class="t cap"> </span></div>' :
@@ -10661,7 +11134,7 @@ function liDraw() {
     html = modalHead('预览变更 · ' + name, '正在生成安装计划…') + liProg(1) + '<div class="mb" data-tl="inst-loading">' + TLU.skeleton() + '</div><div class="mf">' + close + '</div>';
   } else if (st.step === 9) {
     const pl = st.plan || {};
-    html = modalHead('安装 ' + name, pl.status === 'link_only' ? '该资源只能按来源说明手动安装' : '没有可自动写入的目标') + '<div class="mb col" style="gap:8px" data-tl="inst-manual" data-status="' + esc(pl.status || '') + '">' + (st.reason ? '<div class="tl-banner" role="status" data-tl="inst-reason">' + esc(st.reason) + '</div>' : '') + (pl.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') + (pl.links || []).map((u) => liLink(u, esc(u), 'lnk mono')).join('') + '</div><div class="mf">' + close + '</div>';
+    html = modalHead('安装 ' + name, pl.status === 'link_only' ? '该资源只能按来源说明手动安装' : '没有可自动写入的目标') + '<div class="mb col" style="gap:8px" data-tl="inst-manual" data-status="' + esc(pl.status || '') + '">' + (st.reason ? '<div class="tl-banner" role="status" data-tl="inst-reason">' + esc(st.reason) + '</div>' : '') + liWarnRows(pl.warnings) + (pl.links || []).map((u) => liLink(u, esc(u), 'lnk mono')).join('') + '</div><div class="mf">' + close + '</div>';
   } else if (st.step === 1) {
     const pv = st.preview, ts = TL.li.helpers.liTargets(pv), tot = pv.totals || {};
     const sc = $('#modal .mb'); const top = sc ? sc.scrollTop : 0;
@@ -10673,7 +11146,7 @@ function liDraw() {
     }).join('');
     const risk = pv.risk || {};
     html = modalHead('预览变更 · ' + name, '将修改 ' + TLU.num(tot.files) + ' 个文件 · <b class="mono" style="color:var(--good)">+' + TLU.num(tot.adds) + ' 行</b>' + (tot.dels ? ' · <b class="mono" style="color:var(--crit)">−' + TLU.num(tot.dels) + ' 行</b>' : '') + ' · 风险 ' + esc(LI_RISK[risk.level] || risk.level || '—') + ' · 确认前不会改动任何文件') + liProg(1) +
-      '<div class="mb col" style="gap:12px" data-tl="inst-preview">' + (st.notice ? '<div class="tl-banner" role="alert" data-tl="inst-stale">' + esc(st.notice) + '</div>' : '') + blocks + (pv.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') +
+      '<div class="mb col" style="gap:12px" data-tl="inst-preview">' + (st.notice ? '<div class="tl-banner" role="alert" data-tl="inst-stale">' + esc(st.notice) + '</div>' : '') + blocks + liWarnRows(pv.warnings) +
       '<div class="cap" style="font-size:11.5px">取消勾选的文件或片段不会写入；紫色 ✦ 行是按你的会话改写的内容。' + (st.busy ? ' <b data-tl="inst-busy">正在更新预览…</b>' : '') + '</div></div>' +
       '<div class="mf">' + close + '<button type="button" class="btn p" data-act="instNext" autofocus' + (!pv.can_apply || st.busy || !tot.files ? ' disabled' : '') + '>下一步</button></div>';
     openModal(html, 'wide'); MODAL_KEY = 'install';
@@ -10681,10 +11154,10 @@ function liDraw() {
     return;
   } else if (st.step === 2) {
     const pv = st.preview, tot = pv.totals || {}, risk = pv.risk || {};
-    const paths = TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable);
+    const paths = liUniq(TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable), (t) => t.display);
     const blocked = pv.requires_override && !st.overrideRisk;
     html = modalHead('写入 ' + paths.length + ' 个文件？', '修改前会自动备份，随时可以撤销') + liProg(2) +
-      '<div class="mb col" style="gap:12px" data-tl="inst-confirm"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono col" style="font-size:12px;word-break:break-all;gap:2px">' + paths.map((t) => esc(t.display)).join('<br>') + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(pv.backup_dir || '—') + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + TLU.num(tot.adds) + (tot.dels ? ' / −' + TLU.num(tot.dels) : '') + ' 行</span><span class="l">风险</span><span style="font-size:12px">' + esc(LI_RISK[risk.level] || risk.level || '—') + (risk.flags && risk.flags.length ? ' · ' + esc(risk.flags.join('、')) : '') + '</span></div>' +
+      '<div class="mb col" style="gap:12px" data-tl="inst-confirm"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono col" style="font-size:12px;word-break:break-all;gap:2px">' + paths.map((t) => esc(t.display)).join('<br>') + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(liBackupDir(pv)) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + TLU.num(tot.adds) + (tot.dels ? ' / −' + TLU.num(tot.dels) : '') + ' 行</span><span class="l">风险</span><span style="font-size:12px">' + esc(LI_RISK[risk.level] || risk.level || '—') + (risk.flags && risk.flags.length ? ' · ' + esc(risk.flags.join('、')) : '') + '</span></div>' +
       (pv.requires_override ? '<label class="row" style="align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;border:1px solid var(--line)"><input type="checkbox" data-chg="liOverride"' + (st.overrideRisk ? ' checked' : '') + ' style="margin-top:2px;accent-color:var(--ink-1)"><span class="col" style="gap:2px"><b style="font-size:12.5px">我已了解风险，仍然写入</b><span class="cap" style="font-size:11.5px">该资源的风险等级需要你明确确认。</span></span></label>' : '') +
       (pv.requires_trust ? '<div class="row cap" style="font-size:11.5px">' + ic('info', 13, 'margin-top:2px') + '<span>写入后需要在对应 Agent 里信任该项目配置才会生效。</span></div>' : '') +
       '<div class="row cap" style="font-size:11.5px;align-items:flex-start">' + ic('info', 13, 'margin-top:2px') + '<span>这是整个流程里唯一真正写盘的一步，写入的是预览中确认过的内容。</span></div></div>' +
@@ -10692,8 +11165,8 @@ function liDraw() {
   } else {
     const r = st.result || {}; const left = r.undo_until_ms ? Math.max(0, Math.ceil((r.undo_until_ms - Date.now()) / 1000)) : 0;
     html = modalHead('已写入 ' + TLU.num((r.written || []).length) + ' 个文件', left && left <= 600 ? left + ' 秒内可直接撤销' : '可在「已安装」里随时撤销') + liProg(3) +
-      '<div class="mb col" style="gap:10px" data-tl="inst-done">' + (r.written || []).map((w) => '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:4px 12px"><span class="l">写入</span><span class="mono" style="font-size:12px;word-break:break-all">' + esc(w.display || w.path) + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(w.backup_path || '新建文件，撤销时删除') + '</span></div>').join('') +
-      (r.warnings || []).map((w) => '<div class="cap">' + esc(w) + '</div>').join('') + (r.requires_trust_note ? '<div class="cap">' + esc(r.requires_trust_note) + '</div>' : '') +
+      '<div class="mb col" style="gap:10px" data-tl="inst-done">' + liUniq(r.written || [], (w) => w.display || w.path).map((w) => '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:4px 12px"><span class="l">写入</span><span class="mono" style="font-size:12px;word-break:break-all">' + esc(w.display || w.path) + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(w.backup_path ? liTilde(w.backup_path, liHomeOf(st.preview)) : '新建文件，撤销时删除') + '</span></div>').join('') +
+      liWarnRows(r.warnings) + (r.requires_trust_note ? '<div class="cap">' + esc(r.requires_trust_note) + '</div>' : '') +
       '<div class="row" style="gap:8px;padding:10px 12px;border-radius:9px;background:var(--sunken);font-size:12.5px;align-items:flex-start">' + ic('clock', 14, 'margin-top:2px') + '<span><b>' + (r.state === 'observing' ? '观察期已开始' : '已安装') + '</b><span class="cap" style="display:block;margin-top:2px">安装记录 ' + esc(r.install_id) + ' 已写入台账。</span></span></div></div>' +
       '<div class="mf"><button type="button" class="btn" data-act="instUndo">撤销</button><span style="flex:1"></span><button type="button" class="btn p" data-act="instClose" autofocus>完成</button></div>';
   }
@@ -11109,6 +11582,13 @@ const TLS_KIND = { waiting: ['awaiting_approval', 'waiting'], done: ['just_finis
 const TLS_ART_KIND = { skill: 'Skill', hook: 'Hook', rule: '规则', subagent: '子代理', glue: '工作流', command: '命令' };
 const tlsKind = (type) => Object.keys(TLS_KIND).find((k) => TLS_KIND[k].indexOf(type) >= 0) || null;
 const tlsAgOf = (eid) => Object.keys(TandemLive.AGENT_KEYS).find((a) => TandemLive.AGENT_KEYS[a].indexOf(eid) >= 0) || null;
+// display name of an engine id (「Claude Code」, not claude_code): the engines list first, then the app's agent table
+const tlsEngName = (id) => {
+  if (!id) return null;
+  const d = TL.resource('/v1/ai/engines').data; const e = d && d.engines && d.engines.find((x) => x.id === id);
+  if (e && e.name) return e.name;
+  const a = tlsAgOf(id); const g = a && AG.find((x) => x.id === a); return g ? g.name : String(id).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
 function tlsRes(path, query) { const r = TL.resource(path, { query }); if (r.dirty && !r.loading) TL.load(r); return r; }
 const tlsDemo = (r) => !!(r && r.data == null && r.error && TL.unavailable(r.error));
 function tlsBytes(n) { if (n == null || !Number.isFinite(n)) return TLU.DASH; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i]; }
@@ -11142,7 +11622,10 @@ if (TL.mode === 'live') {
     return e ? { name: e.name || id, cli: e.name || id } : agent(S.studio.agent);
   };
   const tlsSel = () => { const items = {}; CTX.forEach((c) => { items[c[0]] = !!S.studio.ctx[c[0]]; }); return { items }; };
-  const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel())].join('|');
+  // a typed goal is a manual goal: the gateway then searches the index for it (evidence) and packs the text itself; an
+  // empty goal stays 'ask' (a manual one is a 422 goal_required) so the item list still renders before the user writes one
+  const tlsGoal = () => { const g = S.studio.goal.trim(); return { goal: g, goal_source: g ? 'manual' : 'ask' }; };
+  const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel()), S.studio.goal.trim()].join('|');
   // the pack previews are compact dumps (`key: value` per field, JSON-quoted strings): drop empty fields, unquote strings,
   // name the fields, and leave out the goal's own bookkeeping (source) — the goal text is what gets sent
   const TLS_FIELD = { text: '', command_heads: '命令', file_exts: '文件类型', verify_commands: '验证命令', failure_runs: '连续失败' };
@@ -11176,19 +11659,33 @@ if (TL.mode === 'live') {
   function tlsPreview(force) {
     const key = tlsPreviewKey();
     if (TLS.previewBusy || (!force && TLS.previewKey === key)) return;
-    TLS.previewKey = key; TLS.previewBusy = true;
-    TL.send('POST', '/v1/ai/preview', { task_id: TLS_TASK[S.studio.type], engine: tlsEngine(), selection: tlsSel(), goal: S.studio.goal, goal_source: 'ask', template: S.studio.tpl })
+    TLS.previewKey = key; TLS.previewBusy = true; const keys = CTX.map((c) => c[0]).join(',');
+    TL.send('POST', '/v1/ai/preview', Object.assign({ task_id: TLS_TASK[S.studio.type], engine: tlsEngine(), selection: tlsSel(), template: S.studio.tpl }, tlsGoal()))
       .then((r) => { TLS.preview = r.data; tlsApplyPreview(r.data || {}); }, (e) => { TLS.preview = null; if (!TL.unavailable(e)) toast('上下文预览失败：' + (e.message || e.code)); })
-      .then(() => { TLS.previewBusy = false; if (tlsPreviewKey() !== TLS.previewKey) tlsPreview(); else { refreshStudio(); refreshCtx(); } });
+      .then(() => { TLS.previewBusy = false; if (tlsPreviewKey() !== TLS.previewKey) tlsPreview(); else tlsPreviewShow(keys); });
   }
+  // while the user is typing the goal a full re-render would drop the IME composition: patch the stack bar, the preview
+  // sheet and the per-item sizes in place when the item set is unchanged
+  function tlsPreviewShow(keys) {
+    const a = document.activeElement; const rows = $$('#main .st-ctx');
+    if (!(a && a.id === 'studioGoal') || keys !== CTX.map((c) => c[0]).join(',') || rows.length !== CTX.length) { refreshStudio(); refreshCtx(); return; }
+    refreshCtx();
+    rows.forEach((row) => {
+      const inp = row.querySelector('input[data-k]'); const c = inp && CTX.find((x) => x[0] === inp.dataset.k); const t = row.querySelector(':scope > .mono.cap');
+      if (c && t) t.textContent = c[3] ? tokS(c[3]) : '';
+    });
+  }
+  // the goal is part of the pack: re-preview shortly after the user stops typing
+  const tlsGoalBase = ACT.studioGoal;
+  ACT.studioGoal = (el) => { tlsGoalBase(el); clearTimeout(TLS.goalT); TLS.goalT = setTimeout(() => { if (S.route === 'studio' && engines()) tlsPreview(); }, 450); };
   // same markup as the demo's token stack, with the gateway's input budget
   const tlsTokBarBase = tokBar;
   tokBar = function () {
     if (!TLS.limit) return tlsTokBarBase();
     const L = TLS.limit; const tok = ctxTokens(); const scale = Math.max(tok, L) * 1.08; const over = tok > L;
-    const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + esc(c[0]) + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + f1(c[3] / 1000) + 'k"></span>').join('');
-    return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + f1(tok / 1000) + 'k tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
-      '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + f1(tok / 1000) + 'k tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + Math.round(tok / L * 100) + '%') + '</span></div></div>';
+    const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + esc(c[0]) + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + tokS(c[3]) + '"></span>').join('');
+    return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
+      '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, L)) + '</span></div></div>';
   };
   const tlsStudioBase = PAGES.studio; const tlsStudioAfter = PAGES.studio.after;
   PAGES.studio = function () {
@@ -11249,7 +11746,7 @@ if (TL.mode === 'live') {
   function tlsConsentDialog(det, el) {
     const miss = det.missing || []; const eid = det.engine || tlsEngine();
     TLS.consent = { miss, eid, el };
-    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(eid || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
+    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(tlsEngName(eid) || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
       miss.map((k) => '<div class="row" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px">' + ic('shield', 13, 'color:var(--good)') + '<span style="flex:1">' + esc(CLS_NAME[k] || k) + '</span><span class="mono cap" style="font-size:11px">' + esc(k) + '</span></div>').join('') +
       '</div><div class="mf"><button type="button" class="btn" data-act="tlsConsentSet">去设置</button><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="tlsConsentOk">授权并重试</button></div>');
   }
@@ -11277,7 +11774,7 @@ if (TL.mode === 'live') {
     const seq = TPLS[S.studio.tpl].seq;
     const run = S.studio.run = { tpl: S.studio.tpl, pos: 0, step: seq[0], lines: 0, log: [], head: ['$ POST /v1/ai/jobs · ' + TLS_TASK[type] + ' · ' + eid], done: false, stopped: false, installed: null, live: { id: null, job: null } };
     run.log = run.head.slice(); refreshStudio(); renderSide();
-    TL.send('POST', '/v1/ai/jobs', { task_id: TLS_TASK[type], engine: eid, template: run.tpl, goal: S.studio.goal, goal_source: 'ask', selection: tlsSel(), preview_digest: TLS.preview ? TLS.preview.preview_digest : undefined }, { signal: ctl.signal })
+    TL.send('POST', '/v1/ai/jobs', { task_id: TLS_TASK[type], engine: eid, template: run.tpl, goal: tlsGoal().goal, goal_source: tlsGoal().goal_source, selection: tlsSel(), preview_digest: TLS.preview ? TLS.preview.preview_digest : undefined }, { signal: ctl.signal })
       .then((res) => {
         const j = res.data || {}; run.live.id = j.job_id;
         run.head.push('› 任务 ' + j.job_id + (j.cached ? ' · 命中缓存' : '') + (j.estimate ? ' · 预计 ' + f1((j.estimate.tokens || 0) / 1000) + 'k tokens · ' + TLU.money(j.estimate.cost_usd) : ''));
@@ -11521,7 +12018,7 @@ if (TL.mode === 'live') {
       if (tlsDemo(TL.resource(R.con))) sample('AI 通道');
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
-        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(conEngine(d) || '未选择') : '') + '</div>');
+        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
@@ -11594,9 +12091,15 @@ if (TL.mode === 'live') {
     }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供工具名映射表' : '读取映射表失败：' + (e.message || e.code)));
   });
   wrap('setPause', (base, el, ev) => {
-    const to = !S.paused;
-    tlsWrite(R.col, { paused: to }, () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {}), to ? '暂停采集' : '恢复采集', (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); });
-    base(el, ev);
+    const to = !S.paused; const label = to ? '暂停采集' : '恢复采集';
+    const req = () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {});
+    const after = (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); if (TL.ops) TL.ops.realtime().catch(() => {}); };
+    // resuming: the last realtime snapshot still says collection_paused until the next frame; drop that so 98 keeps the switch
+    const unpause = () => { const rt = TL.ops && TL.ops.rt; if (!to && rt && (rt.status === 'paused' || rt.reason === 'collection_paused')) TL.ops.rt = Object.assign({}, rt, { status: 'idle', reason: null }); };
+    if (tlsWrite(R.col, { paused: to }, req, label, after)) { unpause(); base(el, ev); return; }
+    // the collection setting is not loaded here (menu-bar panel / HUD / widgets surface): write first, flip after the answer
+    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); base(el, ev); after(x && x.data); },
+      (e) => toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)));
   });
   // 隐私
   wrap('setRule', (base, el, ev) => {
@@ -11818,6 +12321,11 @@ if (LV.live) {
   function tloApply() {
     if (TLO.off || !TL.ops.rt) { TLO.d = null; return; }
     const d = TLO.d = TL.ops.derive();
+    // collection paused: realtime answers status paused / reason collection_paused with no sessions → the panel, HUD and
+    // widgets show 采集已暂停 with 恢复采集 (setPause → POST /v1/platform/collection/resume)
+    const rt = TL.ops.rt; const paused = rt.reason === 'collection_paused' || d.paused;
+    if (paused) { TLO.paused = true; S.paused = true; }
+    else if (TLO.paused) { TLO.paused = false; if (TL.collection !== 'paused') S.paused = false; }
     S.simBase = d.active.length ? 'running' : 'idle';
     if (d.failing.length) S.attn.add('stuck'); else S.attn.delete('stuck');
     if (d.ctx.length) S.attn.add('ctx'); else S.attn.delete('ctx');
@@ -11930,8 +12438,14 @@ if (LV.live) {
     return d && d.primary ? tloPill().replace(/<span data-hudtool([^>]*)>[^<]*<\/span>/, (m, a) => '<span data-hudtool' + a + '>' + esc(HUD_TOOLS[0] || '—') + '</span>') : '';
   };
   const tloHud = renderHud;
+  const pausedPill = () => '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-paused"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>采集已暂停</b><span style="color:var(--hud-ink-2)">不会产生事件，也不会更新统计</span><button type="button" class="hb" data-act="setPause">恢复采集</button></div>';
   renderHud = function () {
     const d = TLO.d;
+    if (S.paused && S.hud.show && LV.state !== 'connecting') {
+      const h = $('#hud'); S.hud.open = false; h.hidden = false; h.innerHTML = pausedPill();
+      if (!ORBIT.native.surface) hudPlace();
+      return;
+    }
     if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) {
       const h = $('#hud');
       // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
@@ -11953,6 +12467,10 @@ if (LV.live) {
     tloWg();
     const d = TLO.d; const pv = TL.resource(POP).data || null;
     const sq = $('#widgets [data-act="wgGo"][data-r="sessions"]'); if (!sq) return;
+    if (S.paused) {
+      const row = sq.closest('.wg-row');
+      if (row && !$('#widgets [data-tl="rt-paused"]')) row.insertAdjacentHTML('beforebegin', '<button type="button" class="wg" data-act="setPause" data-tl="rt-paused" style="display:flex;align-items:center;gap:10px;text-align:left"><span class="col" style="gap:2px;flex:1;min-width:0"><span class="lbl">采集已暂停</span><span style="font-size:12px;color:var(--ink-2)">不会产生事件，也不会更新统计</span></span><span class="btn sm p">恢复采集</span></button>');
+    }
     const n = d && d.today ? d.today.sessions_started : pv && pv.today ? pv.today.sessions : null;
     const big = sq.querySelector('.mono'); if (big && n != null) big.textContent = TLU.num(n);
     const sub = big && big.nextElementSibling; if (sub && d && d.today) sub.textContent = '会话 · 今天已结束 ' + TLU.num(d.today.sessions_finished);

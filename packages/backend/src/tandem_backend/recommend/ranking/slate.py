@@ -4,13 +4,15 @@ Within one problem a second candidate of the same dimension is folded into the
 first card's `alternatives` instead of taking a slot.
 """
 
-from .hygiene import LIBRARY_CAP
+from .hygiene import LIBRARY_CAP, family
 from .rank import basis as _basis
 
 LAMBDA = .8
 PER_PROBLEM = 2
 KIND_CAPS = {"skill": 2, "removal": 2, "builtin": 1, "generate": 1}
 GENERIC_CAP = 3
+# One plugin / repo family never fills the list: ≤ 2 evidence cards, ≤ 1 on the library shelf.
+FAMILY_CAP, LIBRARY_FAMILY_CAP = 2, 1
 
 
 def basis(cand: dict) -> str:
@@ -64,6 +66,7 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
     seen: set[str] = set()
     per_problem: dict[str, list[dict]] = {}
     per_kind: dict[str, int] = {}
+    per_family: dict[str, int] = {}
     remaining = list(pool)
     max_sim = {c["rec_key"]: 0. for c in pool}
     while remaining and len(chosen) < limit and not (generic_only and len(chosen) >= GENERIC_CAP):
@@ -86,8 +89,14 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
         if per_kind.get(kind, 0) >= KIND_CAPS.get(kind, limit):
             best["excluded"] = f"cap:{kind}"
             continue
+        fam = family(best)
+        if fam and per_family.get(fam, 0) >= FAMILY_CAP:
+            best["excluded"] = "cap:family"
+            continue
         seen.add(key)
         per_kind[kind] = per_kind.get(kind, 0) + 1
+        if fam:
+            per_family[fam] = per_family.get(fam, 0) + 1
         if pid:
             per_problem.setdefault(pid, []).append(best)
         chosen.append(best)
@@ -96,11 +105,17 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
     for c in remaining:
         c["excluded"] = "cap:slate"
     shelf = 0
+    shelf_family: dict[str, int] = {}
     for c in library:
-        if len(chosen) < limit and shelf < LIBRARY_CAP and c["rec_key"] not in seen:
+        fam = family(c)
+        if fam and shelf_family.get(fam, 0) >= LIBRARY_FAMILY_CAP:
+            c["excluded"] = "cap:family"
+        elif len(chosen) < limit and shelf < LIBRARY_CAP and c["rec_key"] not in seen:
             seen.add(c["rec_key"])
             chosen.append(c)
             shelf += 1
+            if fam:
+                shelf_family[fam] = shelf_family.get(fam, 0) + 1
         else:
             c["excluded"] = "cap:catalog_only"
     for i, c in enumerate(chosen, 1):

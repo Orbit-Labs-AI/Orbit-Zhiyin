@@ -171,3 +171,32 @@ def test_live_capture_and_append_fast_path_share_one_byte_accounting(
         # The tail resumes at the pending line that the live projection cut at capture.
         assert plans[-1] == (2, len(line("s", "one") + line("s", "two")), captured)
         assert result["projection"]["scope"]["kind"] == "closure"
+
+
+def test_progressive_batch_retries_when_a_file_is_rewritten_after_capture(tmp_path, monkeypatch):
+    """The no-savepoint source rebuild aborts its batch; the retry recaptures and publishes."""
+    from tandem_data import scheduler
+
+    root = tmp_path / "claude"
+    stable, live = root / "projects/p/stable.jsonl", root / "projects/p/live.jsonl"
+    stable.parent.mkdir(parents=True)
+    stable.write_text(line("a", "stable one"))
+    live.write_text(line("b", "live one") + line("b", "live two"))
+    project, modes = scheduler.project, []
+
+    def rewrite_after_capture(store, **kwargs):
+        modes.append(getattr(store, "_retain_in_batch", False))
+        if len(modes) == 1:
+            live.write_text(line("b", "rewritten"))
+        return project(store, **kwargs)
+
+    monkeypatch.setattr(scheduler, "project", rewrite_after_capture)
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store)
+        summary = service.import_progressive([ImportRequest("claude_code", root)])
+        service.close()
+        assert modes == [False, True]  # Fast path, then one retaining retry.
+        assert summary["complete"] and summary["files"] == 2
+        assert texts(store) == ["rewritten", "stable one"]
+        assert store.db.execute("SELECT COUNT(*) FROM projection_run").fetchone()[0] == 1
+        assert not store._retain_in_batch

@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 
 import pytest
-from conftest import add_codex, bus_events, run_job, wait_for, wait_job
+from conftest import ALL_TIME, add_codex, bus_events, run_job, wait_for, wait_job
 from fastapi.testclient import TestClient
 
 from tandem_backend.api.routes import create_app
@@ -31,13 +31,13 @@ def test_snapshot_lifecycle_keys_and_merging(client_factory, codex_root, tmp_pat
     assert wait_job(client, first["id"])["status"] == "completed"
     rev1 = client.get("/v1/status").json()["data_rev"]
 
-    computing = client.get("/v1/analytics/overview")
+    computing = client.get("/v1/analytics/overview", params=ALL_TIME)
     assert computing.status_code == 202
     meta = computing.json()["meta"]
     assert meta["freshness"] == "computing" and meta["job_id"] and meta["data_rev"] == rev1
     _ready(gateway, "overview")
 
-    fresh = client.get("/v1/analytics/overview")
+    fresh = client.get("/v1/analytics/overview", params=ALL_TIME)
     assert fresh.status_code == 200
     body = fresh.json()
     assert body["meta"]["freshness"] == "fresh" and set(body["meta"]) >= META_KEYS
@@ -59,7 +59,7 @@ def test_snapshot_lifecycle_keys_and_merging(client_factory, codex_root, tmp_pat
     assert body["meta"]["coverage"] == legacy["coverage"]  # Passed through, never zero-filled.
     assert body["meta"]["selection"] == legacy["selection"]
 
-    not_modified = client.get("/v1/analytics/overview", headers={"If-None-Match": tag})
+    not_modified = client.get("/v1/analytics/overview", params=ALL_TIME, headers={"If-None-Match": tag})
     assert not_modified.status_code == 304 and not_modified.headers["etag"] == tag
 
     # New data: the previous snapshot is served as stale and a recompute is queued.
@@ -67,12 +67,12 @@ def test_snapshot_lifecycle_keys_and_merging(client_factory, codex_root, tmp_pat
     assert wait_job(client, second["id"])["status"] == "completed"
     rev2 = client.get("/v1/status").json()["data_rev"]
     assert rev2 > rev1
-    stale = client.get("/v1/analytics/overview", headers={"If-None-Match": tag})
+    stale = client.get("/v1/analytics/overview", params=ALL_TIME, headers={"If-None-Match": tag})
     assert stale.status_code == 200
     assert stale.json()["meta"]["freshness"] == "stale"
     assert stale.json()["meta"]["data_rev"] == rev1 and stale.json()["meta"]["job_id"]
     _ready(gateway, "overview", 2)
-    refreshed = client.get("/v1/analytics/overview")
+    refreshed = client.get("/v1/analytics/overview", params=ALL_TIME)
     assert refreshed.json()["meta"]["freshness"] == "fresh"
     assert refreshed.json()["meta"]["data_rev"] == rev2
     assert refreshed.headers["etag"] != tag
@@ -183,3 +183,15 @@ def test_recompute_and_prewarm(client_factory, codex_root):
                          json={"sections": ["instruction"], "scope": {"from_ts": 5}})
     assert queued.status_code == 202 and queued.json()["jobs"][0]["job_id"]
     _ready(gateway, "instruction")
+
+
+def test_warmup_route_queues_on_the_worker(client_factory, codex_root):
+    client, gateway = client_factory()
+    assert client.post("/v1/analytics/warmup").status_code == 409  # nothing imported yet
+    source = add_codex(client, codex_root)
+    assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
+        "status"] == "completed"
+    body = client.post("/v1/analytics/warmup").json()
+    assert body["status"] == "queued" and body["queued"] == len(body["job_ids"]) > 0
+    wait_for(lambda: {f.data["section"] for f in bus_events(gateway, "analysis.ready")}
+             >= {"uiview_facts", "overview"}, 120, 0.1, "warmup")

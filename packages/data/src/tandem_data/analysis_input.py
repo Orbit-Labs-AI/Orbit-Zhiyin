@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.models import PRICE_TABLE_VERSION
-from tandem_data.payload import restore_row
+from tandem_data.payload import INLINE_TEXT_KINDS, TEXT_MARK, restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
@@ -62,6 +62,71 @@ def decoded(row):
     return result
 
 
+# Event columns whose values repeat across a selection (ids of sessions, turns and projects,
+# kinds, model names). SQLite returns a new string per row; sharing one object per value
+# saves ~1 KB per event (a real 7-day window holds 300k events, ~8 KB each).
+SHARED_EVENT_COLUMNS = (
+    "session_uid",
+    "root_uid",
+    "turn_uid",
+    "project_id",
+    "cwd",
+    "kind",
+    "actor",
+    "provider",
+    "model_raw",
+    "effort_raw",
+    "contract_version",
+    "mapper_version",
+)
+
+
+def _compact(event: dict, shared: dict) -> dict:
+    """Share repeated column values and ``attrs`` keys between the events of one read."""
+    for name in SHARED_EVENT_COLUMNS:
+        value = event.get(name)
+        if isinstance(value, str):
+            event[name] = shared.setdefault(value, value)
+    attrs = event.get("attrs")
+    if isinstance(attrs, dict):
+        event["attrs"] = {shared.setdefault(key, key): value for key, value in attrs.items()}
+    return event
+
+
+def _without_external_text(connection, row, cache=None) -> dict:
+    """``restore_row`` that leaves blob-stored non-message text unread (``None``)."""
+    text = row["text"]
+    if text and text[0] == TEXT_MARK and row["kind"] not in INLINE_TEXT_KINDS:
+        if text[1:2] != TEXT_MARK:  # a doubled mark is inline text, not a reference
+            event = dict(row)
+            event["text"] = None
+            return event
+    return restore_row(connection, row, cache)
+
+
+def _keys(values) -> str:
+    return json.dumps(sorted(values))
+
+
+def _ordered_calls(connection, view: str, table: str, where: str, params: dict) -> list[dict]:
+    """Rows of an analysis view for the calls matching ``where``, in base-table rowid order
+    (the order a full view scan returns), fetched by primary key instead of a full scan."""
+    order = [
+        row[0]
+        for row in connection.execute(
+            f"SELECT call_uid FROM {table} WHERE {where} ORDER BY rowid", params
+        )
+    ]
+    rows = {
+        row["call_uid"]: row
+        for row in connection.execute(
+            f"SELECT * FROM {view} WHERE call_uid IN (SELECT value FROM json_each(?))",
+            (json.dumps(order),),
+        )
+    }
+    return [decoded(rows[uid]) for uid in order if uid in rows]
+
+
 def model_call_row(row) -> dict:
     """A model_call row with the request-boundary contract the token/cost analysis needs.
 
@@ -79,9 +144,20 @@ def model_call_row(row) -> dict:
 
 
 def read_analysis(
-    home: str | Path, scope: AnalysisScope, *, max_events=None, include_native=True
+    home: str | Path,
+    scope: AnalysisScope,
+    *,
+    max_events=None,
+    include_native=True,
+    external_text=True,
 ) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
+
+    ``external_text=False`` leaves the large non-message texts that storage keeps in
+    ``content_blob`` (tool output, reasoning, injected context) as ``None`` instead of
+    fetching and decompressing each one: the feature analysis reads message texts only
+    (identical results on a real 7-day window), and those texts were ~2 KB of every
+    event's memory plus one blob lookup per event.
 
     Empty selections mean zero members. Time-unknown facts do not enter bounded statistics.
     A result after until_ts cannot enter historical context. No imported/review/auxiliary trees
@@ -137,16 +213,17 @@ def read_analysis(
                 "session_uid IN (SELECT session_uid FROM session WHERE source_id IN (SELECT value FROM json_each(:sources)))"
             )
             params["sources"] = json.dumps(scope.source_ids)
-        members_sql = list(allowed)
+        context_sql = []  # Filters on event_context columns only (v = event_context or the view).
         for field, values in (("project_id", scope.project_ids), ("effort_raw", scope.effort_raw)):
             if values is not None:
-                members_sql.append(f"{field} IN (SELECT value FROM json_each(:{field}))")
+                context_sql.append(f"v.{field} IN (SELECT value FROM json_each(:{field}))")
                 params[field] = json.dumps(values)
         if scope.model_ids is not None:
-            members_sql.append(
+            context_sql.append(
                 "COALESCE((SELECT model_id FROM model_alias a WHERE a.provider=COALESCE(v.provider,'') AND a.model_raw=v.model_raw),(SELECT model_id FROM model_alias a WHERE a.provider='' AND a.model_raw=v.model_raw),v.model_raw) IN (SELECT value FROM json_each(:models))"
             )
             params["models"] = json.dumps(scope.model_ids)
+        members_sql = allowed + context_sql
         for bound, operator in (("from_ts", ">="), ("until_ts", "<")):
             value = getattr(scope, bound)
             if value is not None:
@@ -161,21 +238,119 @@ def read_analysis(
             names = [
                 row["name"] for row in connection.execute("PRAGMA table_info(v_analysis_event)")
             ]
+            # native_key (the source's own record locator, ~300 bytes decoded) is dropped
+            # with them: analysis identifies events by event_uid / record_uid.
             event_columns = (
-                ",".join(f'v."{name}"' for name in names if name != "ext") + ", '{}' AS ext"
+                ",".join(f'v."{name}"' for name in names if name not in ("ext", "native_key"))
+                + ", '{}' AS ext, NULL AS native_key"
             )
-        query = (
-            "WITH members AS (SELECT event_uid,session_uid,turn_uid FROM v_analysis_event v WHERE "
-            + " AND ".join(members_sql)
-            + ") SELECT "
-            + event_columns
-            + " FROM v_analysis_event v WHERE "
+        # Resolve the selection key-first. A scoped request must never scan the whole event
+        # corpus: candidate sessions come from the narrow event_context / session tables,
+        # then every event, call and context row is fetched through an indexed key list.
+        candidates = None
+        if context_sql:
+            candidates = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT e.session_uid FROM event_context v CROSS JOIN event e"
+                    " ON e.event_uid=v.event_uid WHERE " + " AND ".join(context_sql),
+                    params,
+                )
+            }
+        for clause in (
+            "root_uid IN (SELECT value FROM json_each(:roots))"
+            if scope.root_session_uids is not None
+            else None,
+            "source_id IN (SELECT value FROM json_each(:sources))"
+            if scope.source_ids is not None
+            else None,
+            "source_id IN (SELECT source_id FROM source WHERE agent IN (SELECT value FROM json_each(:agents)))"
+            if scope.agent_ids is not None
+            else None,
+        ):
+            if clause is not None:
+                found = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT session_uid FROM session WHERE " + clause, params
+                    )
+                }
+                candidates = found if candidates is None else candidates & found
+        if scope.from_ts is not None or scope.until_ts is not None:
+            # Time windows: sessions with an event in the window, found on the (kind, ts)
+            # index (one range per kind) instead of scanning every event through the view.
+            # A superset of the members' sessions; the exact ts predicate stays below.
+            bounds = " AND ".join(
+                clause
+                for clause, value in (
+                    ("ts >= :from_ts", scope.from_ts),
+                    ("ts < :until_ts", scope.until_ts),
+                )
+                if value is not None
+            )
+            kinds = [row[0] for row in connection.execute("SELECT DISTINCT kind FROM event")]
+            found = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT session_uid FROM event WHERE kind IN"
+                    " (SELECT value FROM json_each(:kinds)) AND " + bounds,
+                    {
+                        "kinds": json.dumps(kinds),
+                        "from_ts": scope.from_ts,
+                        "until_ts": scope.until_ts,
+                    },
+                )
+            }
+            candidates = found if candidates is None else candidates & found
+        candidate_sql = []
+        if candidates is not None:
+            params["candidates"] = _keys(candidates)
+            candidate_sql.append("v.session_uid IN (SELECT value FROM json_each(:candidates))")
+        member_rows = connection.execute(
+            "SELECT v.event_uid,v.session_uid,v.turn_uid FROM v_analysis_event v WHERE "
+            + " AND ".join(candidate_sql + members_sql),
+            params,
+        ).fetchall()
+        keys = {
+            "members": _keys(row[0] for row in member_rows),
+            "sessions": _keys({row[1] for row in member_rows}),
+            "turns": _keys({row[2] for row in member_rows if row[2] is not None}),
+        }
+        # Tool calls whose call or result is a member. Their evidence is indexed by event
+        # and by session; the exact predicate is then checked on the analysis view.
+        keys["calls"] = _keys(
+            row[0]
+            for row in connection.execute(
+                "SELECT call_uid FROM tool_call_event WHERE event_uid IN (SELECT value FROM json_each(:members))"
+                " UNION SELECT call_uid FROM tool_call WHERE session_uid IN (SELECT value FROM json_each(:sessions))",
+                keys,
+            )
+        )
+        keys["calls"] = _keys(
+            row[0]
+            for row in connection.execute(
+                "SELECT call_uid FROM v_analysis_tool_call WHERE call_uid IN (SELECT value FROM json_each(:calls))"
+                " AND (call_event_uid IN (SELECT value FROM json_each(:members))"
+                " OR result_event_uid IN (SELECT value FROM json_each(:members)))",
+                keys,
+            )
+        )
+        # Members, their turns' context, linked tool evidence and session metadata.
+        selected_keys = {row[0] for row in member_rows}
+        selected_keys.update(
+            row[0]
+            for row in connection.execute(
+                "SELECT event_uid FROM event WHERE turn_uid IN (SELECT value FROM json_each(:turns))"
+                " UNION ALL SELECT event_uid FROM event WHERE session_uid IN (SELECT value FROM json_each(:sessions))"
+                " AND kind IN ('session.meta','setting.change','session.title')"
+                " UNION ALL SELECT event_uid FROM tool_call_event WHERE call_uid IN (SELECT value FROM json_each(:calls))",
+                keys,
+            )
+        )
+        params["selected"] = _keys(selected_keys)
+        selector = (
+            " FROM v_analysis_event v WHERE v.event_uid IN (SELECT value FROM json_each(:selected)) AND "
             + " AND ".join(allowed)
-            + " AND (event_uid IN (SELECT event_uid FROM members) OR turn_uid IN (SELECT turn_uid FROM members)"
-            + " OR event_uid IN (SELECT x.event_uid FROM tool_call_event x JOIN v_analysis_tool_call t USING(call_uid)"
-            + " WHERE t.call_event_uid IN (SELECT event_uid FROM members) OR t.result_event_uid IN (SELECT event_uid FROM members))"
-            + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
-            + " ORDER BY session_uid,seq"
         )
         if max_events is not None:
             # Check cardinality without loading/decoding potentially huge native payloads.
@@ -183,9 +358,9 @@ def read_analysis(
             if not isinstance(max_events, int) or isinstance(max_events, bool) or max_events < 0:
                 raise ValueError("max_events must be a nonnegative integer")
             budget_params = {**params, "event_budget": max_events + 1}
-            budget_query = query.removesuffix(" ORDER BY session_uid,seq")
             count = connection.execute(
-                "SELECT COUNT(*) FROM (" + budget_query + " LIMIT :event_budget)", budget_params
+                "SELECT COUNT(*) FROM (SELECT 1" + selector + " LIMIT :event_budget)",
+                budget_params,
             ).fetchone()[0]
             if count > max_events:
                 raise ValueError(
@@ -194,10 +369,15 @@ def read_analysis(
                     "No partial analysis was returned."
                 )
         texts: dict = {}
+        shared: dict = {}
+        restore = restore_row if external_text else _without_external_text
         events = [
-            decoded(restore_row(connection, row, texts))
-            for row in connection.execute(query, params)
+            _compact(decoded(restore(connection, row, texts)), shared)
+            for row in connection.execute(
+                "SELECT " + event_columns + selector + " ORDER BY v.session_uid,v.seq", params
+            )
         ]
+        shared.clear()
 
         def member(event):
             return (
@@ -256,19 +436,17 @@ def read_analysis(
             )
         ]
         selected_ids = {event["event_uid"] for event in selected}
-        # Push member filters into SQLite: json_each binds any selection size, and only
-        # matching rows are decoded (previously every call/model/session row was).
-        # Unary + keeps these terms off indexes, so SQLite scans in the same order as
-        # the former unfiltered reads and row order stays byte-identical.
-        member_param = {"members": json.dumps(sorted(members))}
+        member_keys = {"members": _keys(members)}
         tools = [
-            decoded(row)
-            for row in connection.execute(
-                "SELECT * FROM v_analysis_tool_call"
-                " WHERE +call_event_uid IN (SELECT value FROM json_each(:members))"
-                " OR +result_event_uid IN (SELECT value FROM json_each(:members))",
-                member_param,
+            row
+            for row in _ordered_calls(
+                connection,
+                "v_analysis_tool_call",
+                "tool_call",
+                "call_uid IN (SELECT value FROM json_each(:calls))",
+                keys,
             )
+            if row["call_event_uid"] in members or row["result_event_uid"] in members
         ]
         # A later result must not leak status/exit code into a historical snapshot.
         event_lookup = {}
@@ -312,10 +490,12 @@ def read_analysis(
                 )
         models = [
             model_call_row(row)
-            for row in connection.execute(
-                "SELECT * FROM v_analysis_model_call"
-                " WHERE +usage_event_uid IN (SELECT value FROM json_each(:members))",
-                member_param,
+            for row in _ordered_calls(
+                connection,
+                "v_analysis_model_call",
+                "model_call",
+                "usage_event_uid IN (SELECT value FROM json_each(:members))",
+                member_keys,
             )
         ]
         # Native unknown-time tool returns can be context for a selected invocation; never statistical members.
@@ -330,10 +510,11 @@ def read_analysis(
         session_rows = [
             {**decoded(row), "agent": source_agents.get(row["source_id"])}
             for row in connection.execute(
-                "SELECT * FROM session WHERE +session_uid IN (SELECT value FROM json_each(:ids))",
-                {"ids": json.dumps(sorted(sessions | roots))},
+                "SELECT * FROM session WHERE session_uid IN (SELECT value FROM json_each(?))"
+                " ORDER BY rowid",
+                (_keys(sessions | roots),),
             )
-            if scope.agent_ids is None or source_agents.get(row["source_id"]) in scope.agent_ids
+            if (scope.agent_ids is None or source_agents.get(row["source_id"]) in scope.agent_ids)
         ]
         if scope.until_ts is not None:
             last_ends = {
@@ -360,8 +541,10 @@ def read_analysis(
         ]
         turn_rows = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM turn")
-            if row["turn_uid"] in selected_turns
+            for row in connection.execute(
+                "SELECT * FROM turn WHERE turn_uid IN (SELECT value FROM json_each(?)) ORDER BY rowid",
+                (_keys(selected_turns),),
+            )
         ]
         # Query order is session/seq. Keep selected endpoints in one pass instead
         # of scanning the full event corpus once per turn (quadratic at real scale).
@@ -380,8 +563,11 @@ def read_analysis(
                 turn["ended_at"], turn["status"] = None, "unknown"
         snapshots = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM usage_snapshot")
-            if row["event_uid"] in members
+            for row in connection.execute(
+                "SELECT * FROM usage_snapshot WHERE event_uid IN (SELECT value FROM json_each(:members))"
+                " ORDER BY rowid",
+                member_keys,
+            )
         ]
         source_wide = (
             scope.root_session_uids is None
@@ -418,13 +604,12 @@ def read_analysis(
         if not unrestricted:
             sources = [source for source in sources if source["source_id"] in relevant_sources]
             files = [file for file in files if file["file_id"] in relevant_files]
-        unparsed = sum(
-            1
-            for row in connection.execute(
-                "SELECT file_id FROM v_raw_record_ledger WHERE is_current=1 AND disposition='unparsed'"
-            )
-            if unrestricted or row["file_id"] in relevant_files
-        )
+        # Only the relevant files' ledger rows: the ledger view costs subqueries per record.
+        unparsed = connection.execute(
+            "SELECT COUNT(*) FROM v_raw_record_ledger WHERE is_current=1 AND disposition='unparsed'"
+            + ("" if unrestricted else " AND file_id IN (SELECT value FROM json_each(?))"),
+            () if unrestricted else (_keys(relevant_files),),
+        ).fetchone()[0]
         if scope.until_ts is not None:
             historical_metadata = {}
             for event in events:

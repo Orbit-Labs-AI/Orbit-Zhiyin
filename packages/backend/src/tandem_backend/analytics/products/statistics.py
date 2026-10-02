@@ -17,10 +17,31 @@ Record = dict[str, Any]
 STATISTICS_VERSION = "descriptive-statistics-v1"
 
 
+def _average_ranks(values: np.ndarray) -> np.ndarray:
+    """1-based ranks with ties averaged: ``scipy.stats.rankdata(method="average")``."""
+    order = np.argsort(values, kind="mergesort")
+    ordered = values[order]
+    first = np.r_[True, ordered[1:] != ordered[:-1]]
+    dense = np.cumsum(first)
+    bounds = np.r_[np.nonzero(first)[0], len(values)]
+    ranks = np.empty(len(values), dtype=np.float64)
+    ranks[order] = 0.5 * (bounds[dense] + bounds[dense - 1] + 1)
+    return ranks
+
+
+def spearman_rho(a: list[float], b: list[float]) -> float:
+    """Spearman's rho exactly as ``scipy.stats.spearmanr(a, b).statistic`` computes it.
+
+    Pearson correlation of average ranks via ``np.corrcoef``; only the statistic is
+    needed, so the ~2 s ``scipy.stats`` import is avoided on cold analysis.
+    """
+    pair = np.column_stack((np.asarray(a), np.asarray(b)))
+    ranked = np.column_stack([_average_ranks(pair[:, i]) for i in range(2)])
+    return float(np.corrcoef(ranked, rowvar=False)[1, 0])
+
+
 def rank_association(first: list[Record], second: list[Record]) -> Record:
     """Describe paired session-level rank association without interpreting a p-value as causality."""
-    from scipy.stats import spearmanr
-
     left = {row["session_uid"]: row["value"] for row in first if nonnegative_number(row["value"])}
     right = {row["session_uid"]: row["value"] for row in second if nonnegative_number(row["value"])}
     points = [
@@ -40,7 +61,7 @@ def rank_association(first: list[Record], second: list[Record]) -> Record:
     a, b = [p["first"] for p in points], [p["second"] for p in points]
     if len(set(a)) < 2 or len(set(b)) < 2:
         return {**result, "status": "constant_input"}
-    return {**result, "rho": float(spearmanr(a, b).statistic), "status": "available"}
+    return {**result, "rho": spearman_rho(a, b), "status": "available"}
 
 
 def summarize(samples: list[Record], unit: str, grain: str) -> Record:

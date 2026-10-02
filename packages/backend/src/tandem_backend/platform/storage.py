@@ -9,6 +9,7 @@ from pathlib import Path
 
 SCAN_LIMIT = 200_000
 KEEP_REPORTS = 30
+MAX_AGE_MS = 60_000  # GET /v1/platform/storage recomputes a report older than this
 # id, label, paths (files or directories, glob allowed), rebuildable, hint
 COMPONENTS = (
     ("tandem_db", "规范数据库", ("tandem.db", "tandem.db-wal", "tandem.db-shm"), True,
@@ -64,6 +65,29 @@ def path_bytes(path: Path) -> tuple[int, bool]:
         return 0, False
 
 
+def sqlite_free_bytes(path: Path) -> int | None:
+    """Bytes held by free pages (reclaimable by VACUUM); ``None`` when unreadable."""
+    import sqlite3
+
+    if not path.is_file():
+        return None
+    try:
+        db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)
+        try:
+            page = db.execute("PRAGMA page_size").fetchone()[0]
+            free = db.execute("PRAGMA freelist_count").fetchone()[0]
+        finally:
+            db.close()
+    except sqlite3.Error:
+        return None
+    return page * free
+
+
+# Components whose main file is SQLite: the report adds the reclaimable free-page bytes.
+SQLITE_FILES = {"tandem_db": "tandem.db", "app_db": "app.db", "catalog_db": "catalog.db",
+                "analysis": "analysis.sqlite", "snapshot_cache": "cache/ui.sqlite"}
+
+
 def storage_report(home: Path) -> dict:
     items, total = [], 0
     for key, label, patterns, rebuildable, hint in COMPONENTS:
@@ -78,6 +102,10 @@ def storage_report(home: Path) -> dict:
                 "hint": hint, "path": _tilde(home / patterns[0].rstrip("*"))}
         if approx:
             item["approx"] = True
+        if key in SQLITE_FILES:
+            free = sqlite_free_bytes(home / SQLITE_FILES[key])
+            if free is not None:
+                item["reclaimable_bytes"] = free
         items.append(item)
         total += size
     return {"generated_at": int(time.time() * 1000), "home": _tilde(home), "total_bytes": total,
@@ -90,6 +118,18 @@ def save_report(appdb, report: dict) -> None:
                    (report["generated_at"], json.dumps(report, ensure_ascii=False)))
         db.execute("DELETE FROM storage_report WHERE ts NOT IN (SELECT ts FROM storage_report"
                    " ORDER BY ts DESC LIMIT ?)", (KEEP_REPORTS,))
+
+
+def fresh_report(appdb, home: Path, *, max_age_ms: int = MAX_AGE_MS,
+                 refresh: bool = False) -> dict:
+    """The saved report unless it is older than ``max_age_ms`` (or ``refresh``): sizes
+    change with every import and analysis, so an hour-old report misleads (it showed
+    0 MB for a 4 GB analysis.sqlite)."""
+    report = None if refresh else latest_report(appdb)
+    if report is None or time.time() * 1000 - report["generated_at"] > max_age_ms:
+        report = storage_report(home)
+        save_report(appdb, report)
+    return report
 
 
 def latest_report(appdb) -> dict | None:

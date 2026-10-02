@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from ..recommend import inputs as rec_inputs
 from ..recommend import outcomes, runs, store
 from .auth import ApiError
 from .routes_analytics import analytics_scope
@@ -165,6 +166,9 @@ def router(gw: Gateway) -> APIRouter:
     @api.post("/v1/recommendations/recompute")
     def recompute(request: RecomputeRequest):
         scope = _scope_from_body(request.scope)
+        supervisor = getattr(gw, "supervisor", None)
+        if request.force and supervisor is not None:  # Resets an open circuit, as analytics.
+            supervisor.analysis.clear_failures(rec_inputs.SECTION, scope_hash(asdict(scope), {}))
         result = runs.run(gw, asdict(scope), force=request.force)
         if result["freshness"] == "none":
             raise ApiError(409, "no_projection", "No published data to analyse", retryable=True)

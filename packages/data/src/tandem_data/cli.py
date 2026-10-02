@@ -141,11 +141,23 @@ def main(argv=None):
     scan.add_argument("--root", type=Path, required=True)
     scan.add_argument("--limit", type=int)
     scan.add_argument("--no-rebuild", action="store_true")
+    scan.add_argument(
+        "--maintenance",
+        choices=("wait", "background", "off"),
+        default="wait",
+        help="Post-import compaction: wait for it (default), run it in the background, or skip it",
+    )
     ingest = commands.add_parser("ingest")
     ingest.add_argument("--agent", required=True)
     ingest.add_argument("--root", type=Path, required=True)
     ingest.add_argument("--file", type=Path, required=True)
     ingest.add_argument("--no-rebuild", action="store_true")
+    ingest.add_argument(
+        "--maintenance",
+        choices=("wait", "background", "off"),
+        default="wait",
+        help="Post-import compaction: wait for it (default), run it in the background, or skip it",
+    )
     inventory = commands.add_parser(
         "scan-inventory", help="Read explicitly enabled configuration roots"
     )
@@ -217,7 +229,9 @@ def main(argv=None):
         elif args.command in ("scan", "ingest"):
             from tandem_data.service import ImportRequest, ImportService
 
-            result = ImportService(store, progress=progress).import_source(
+            result = ImportService(
+                store, progress=progress, maintenance=args.maintenance
+            ).import_source(
                 ImportRequest(
                     agent=args.agent,
                     root=args.root,

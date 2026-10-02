@@ -12,8 +12,9 @@ let ABOUT = null;
 function aboutRows(a) {
   const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
   const app = (a && a.app) || {}, c = (a && a.components) || {}, rt = (a && a.runtime) || {};
-  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row
-  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
+  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row. The gateway still
+  // reports its legacy name 'Tandem': the visible brand is Orbit, the technical contract id (tandem-app-v1) stays as is (R4-17)
+  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name && /^tandem\b/i.test(app.name) ? 'Orbit' : app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
     ['数据库结构', c.db_schema_version != null ? 'v' + c.db_schema_version : '—'], ['规则 / 分析', [c.rules_version, c.analytics_version].filter(Boolean).join(' · ') || '—'],
     ['脱敏规则', c.redaction_version || '—'], ['支持的 Agent', (c.mappers || []).map((k) => lvAgentOf(k).name).join('、') || '—'],
     ['运行环境', [rt.python && 'Python ' + rt.python, rt.platform, rt.arch].filter(Boolean).join(' · ') || '—']];

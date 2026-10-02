@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from conftest import (
+    ALL_TIME,
     AUTH,
     BASE,
     PORT,
@@ -54,10 +55,10 @@ def test_scope_budget_is_reported_as_422(client_factory, codex_root):
     client, gateway = client_factory(config=fast_config(
         worker_env={"TANDEM_ANALYSIS_MAX_EVENTS": "10"}))
     _import_head(client, add_codex(client, codex_root))
-    response = client.get("/v1/analytics/overview", params={"wait_ms": 3000})
+    response = client.get("/v1/analytics/overview", params={**ALL_TIME, "wait_ms": 3000})
     if response.status_code == 202:
         wait_for(lambda: bus_events(gateway, "analysis.failed"), 60)
-        response = client.get("/v1/analytics/overview")
+        response = client.get("/v1/analytics/overview", params=ALL_TIME)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "analysis_scope_too_large"
     assert response.json()["error"]["retryable"] is False

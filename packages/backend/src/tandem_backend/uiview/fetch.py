@@ -23,8 +23,22 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     snapshot = gw.snapshots.get(key)
     if snapshot is not None:
         return _attach(snapshot, h), "fresh", None
-    task = gw.supervisor.analysis.submit(SECTION, scope_dict, {}, h, "interactive",
-                                         (rev["data_rev"], rev["inventory_rev"]), rules)
+    from ..services.routes_analytics import CLIENT_ERRORS, failure_error
+
+    analysis = gw.supervisor.analysis
+    revision = (rev["data_rev"], rev["inventory_rev"])
+    old = gw.snapshots.latest(SECTION, h, rules)
+    lookup = getattr(analysis, "failure", None)  # minimal test doubles lack it
+    failure = lookup(SECTION, h, revision) if lookup is not None else None
+    if old is None and failure and (failure["error"].get("code") in CLIENT_ERRORS
+                                    or analysis.circuit_open(SECTION, h, revision)):
+        raise failure_error(failure["error"])  # A stable error, never an endless 202.
+    remember = getattr(getattr(gw, "state", None), "remember_scope", None)
+    if remember is not None:
+        # The prewarm reuses the client's timezone and filters. The window itself is left
+        # out: a dated 7-day scope in the MRU would be prewarmed again tomorrow for nobody.
+        remember({**scope_dict, "from_ts": None, "until_ts": None})
+    task = analysis.submit(SECTION, scope_dict, {}, h, "interactive", revision, rules)
     if task is not None and wait_ms:
         task.done.wait(wait_ms / 1000)
         if task.status == "completed":
@@ -32,9 +46,13 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
             if snapshot is not None:
                 return _attach(snapshot, h), "fresh", None
     job_id = task.id if task is not None else None
-    old = gw.snapshots.latest(SECTION, h, rules)
     if old is not None:
         return _attach(old, h), "stale", job_id
+    if task is None:  # Circuit open: nothing computes until a manual recompute.
+        raise failure_error(((lookup(SECTION, h, revision) if lookup else None) or {})
+                            .get("error"))
+    if task.status == "failed":
+        raise failure_error(task.error)
     return None, "computing", job_id
 
 
@@ -55,10 +73,16 @@ def default_scope(tz: str | None = None) -> dict:
 
 def latest_rows(gw, tz: str | None = None) -> dict[str, dict] | None:
     """Newest cached fact rows by session id (never enqueues a computation)."""
+    from ..services.fastpath import windowed
     from ..services.sections import rules_digest
     from ..services.snapshots import scope_hash
 
-    snapshot = gw.snapshots.latest(SECTION, scope_hash(default_scope(tz), {}), rules_digest())
+    base, rules = default_scope(tz), rules_digest()
+    snapshot = None
+    for days in (0, 30, 7):  # The widest window computed so far (first-open fast path).
+        snapshot = gw.snapshots.latest(SECTION, scope_hash(windowed(base, days), {}), rules)
+        if snapshot is not None:
+            break
     if snapshot is None:
         return None
     return {r["id"]: r for r in snapshot.body.get("rows") or [] if not r.get("excluded")}

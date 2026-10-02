@@ -57,7 +57,11 @@ function lvSentView(L) {
   const phrases = (d.phrases || []).slice().sort((a, b) => b.n - a.n).slice(0, 8).map((p) => [p.text, p.n, p.category || '其他']);
   const drivers = (d.drivers || []).map((x) => ({ name: x.label, v: x.status === 'ok' ? x.diff : null, n: x.n_a, nb: x.n_b, ci: x.status === 'ok' && x.lo != null && x.hi != null ? Math.abs(x.hi - x.lo) / 2 : 0, status: x.status }));
   const x = []; if (S.topic) x.push('主题'); if (S.outcome) x.push('结果'); if (S.fric) x.push('摩擦'); if (S.hour != null) x.push('时段');
-  return { state: 'ready', meta: d.meta || {}, lang, ms, allNull: !ms.some((b) => b.dist), fr, tp, phrases, drivers, note: d.drivers_note || '', scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
+  // R4-13: the endpoint is deterministic (lexical rules over redacted messages); only AI facets (friction) and AI topic labels
+  // come from a model, and only when the analysis mode is not 「仅统计」. Badges and the shield say which one the page shows.
+  const meta = d.meta || {}; const aiOn = !!meta.mode && meta.mode !== 'stats' && meta.mode !== 'off';
+  const prov = { mood: false, fric: aiOn, topic: aiOn && (d.topics || []).some((t) => t.label_source === 'ai'), phrase: false, ai: aiOn, note: meta.note || '' };
+  return { state: 'ready', meta, prov, lang, ms, allNull: !ms.some((b) => b.dist), fr, tp, phrases, drivers, note: d.drivers_note || '', scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
 }
 // cards in their own layout while the endpoint is pending / missing (no table, no mock rows)
 function lvSentShell(V) {
@@ -96,12 +100,21 @@ function lvPhrase(el) {
 
 /* ---- palette search ---- */
 const LVS_GROUP = { session: '会话', message: '消息', command: '命令', file: '文件', project: '项目', recommendation: '建议', catalog: '资源库', inventory: '资源库', event: '消息' };
+// badge for a live A6 card: AI only when the server says that card came from a model, otherwise a neutral rule badge
+function lvSentBadge(V, k, aiText) {
+  if (V && V.prov && V.prov[k]) return AIB(aiText);
+  return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">' + (k === 'topic' ? '规则分类' : '词面规则') + '</span>';
+}
+function lvSentShield(V) {
+  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';
+  return '按词面规则在本机统计，不调用模型，原文不离开本机';
+}
 const LVS_ICON = { session: 'sessions', message: 'sessions', command: 'term', file: 'file', project: 'projects', recommendation: 'recs', catalog: 'library', inventory: 'library', event: 'sessions' };
 function lvSearchFetch(q) {
   if (LVS.search.get(q)) return;
   const e = LVS.search.set(q, { state: 'pending', data: null });
   TL.get(LV.withQuery('/v1/search', { q, limit: 20 })).then((r) => { e.state = 'ready'; e.data = r.data || { results: [] }; },
-    (err) => { e.state = 'error'; e.error = err; }).then(() => { if (PAL && PAL.q.trim() === q && !$('#modal').hidden) drawPal(); });
+    (err) => { e.state = 'error'; e.error = err; }).then(() => { if (PAL && PAL.q.trim().toLowerCase() === q && !$('#modal').hidden) drawPal(); });   // palItems lowercases q (R4-12: 'Write a' never redrew)
 }
 function lvSearchGet(q) {
   const hit = LVS.search.get(q); if (hit) return hit;
@@ -136,8 +149,23 @@ function lvSearchItems(q, have) {
       : [h.snippet && h.snippet !== h.title ? h.snippet : null, s ? s.title : null, when].filter(Boolean).join(' · ');
     out.push({ g: LVS_GROUP[kind] || '结果', t: h.title || h.snippet || h.id, sub, icon: LVS_ICON[kind] || 'search', run: () => lvOpenRef(h) });
   }));
-  if (e.data && e.data.partial && e.data.partial.length && !out.length) out.push({ g: '搜索', t: '索引仍在建立，结果可能不完整', icon: 'info', run: () => {} });
+  const note = lvSearchNote(e.data || {}); if (note) out.push(note);
+  const many = lvSearchAtLeast(e.data || {}); if (many) out.push(many);
   return out;
+}
+// round 3: /v1/search says which sources are missing (partial_reasons) and which kinds hit the per-source cap
+const LVS_REASON = { index_building: '索引仍在建立', timeout: '查询超时', queued_timeout: '排队超时', overloaded: '本机繁忙', error: '查询出错' };
+function lvSearchNote(d) {
+  const reasons = d.partial_reasons || {}; const kinds = Object.keys(reasons).length ? Object.keys(reasons) : (d.partial || []);
+  if (d.complete !== false && !kinds.length) return null;
+  const by = {}; kinds.forEach((k) => { const why = LVS_REASON[reasons[k]] || reasons[k] || '暂不可用'; (by[why] = by[why] || []).push(LVS_GROUP[k] || k); });
+  const parts = Object.keys(by).map((why) => Array.from(new Set(by[why])).join('、') + ' ' + why);
+  return { g: '搜索', t: '结果不完整：' + (parts.length ? parts.join('；') : '部分来源未返回'), sub: (d.results || []).length ? '' : '没有结果不代表没有匹配', icon: 'info', run: () => {} };
+}
+function lvSearchAtLeast(d) {
+  const xs = (d.counts_at_least || []).filter((k) => d.counts && d.counts[k] != null);
+  if (!xs.length) return null;
+  return { g: '搜索', t: '匹配较多：' + xs.map((k) => (LVS_GROUP[k] || k) + ' 至少 ' + fmt(d.counts[k]) + ' 条').join('、'), sub: '只列出最相关的结果，可输入更具体的词', icon: 'info', run: () => {} };
 }
 function lvRuleGoal() {
   const V = LVS.view; const xs = V && V.phrases ? V.phrases.filter((p) => p[2] === '纠偏').slice(0, 4) : [];

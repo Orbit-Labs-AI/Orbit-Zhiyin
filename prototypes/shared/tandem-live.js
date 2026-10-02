@@ -24,6 +24,12 @@ const TandemLive = (function () {
     const t = Date.parse(v); return Number.isFinite(t) ? Math.max(0, t - Date.now()) : null;
   }
   function sectionOf(path) { const m = /^\/v1\/analytics\/([a-z_]+)/.exec(path); return m ? m[1] : null; }
+  // 503 analysis_unavailable says "<code>: <message>" (timeout, worker_crashed …); the code is the reason the UI names
+  function analysisReason(code, message) { if (code !== 'analysis_unavailable') return null; const m = /^([a-z_]+):\s/.exec(message || ''); return m ? m[1] : null; }
+  const isUnavailable = (e) => !!e && e.status === 503 && e.code === 'analysis_unavailable';
+  // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
+  const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
+  const JOB_DONE = ['completed', 'failed'];
 
   /* ---- mode ---- */
   function detectMode(win) {
@@ -136,6 +142,7 @@ const TandemLive = (function () {
         err.status = res.status; err.code = info.code || 'http_' + res.status;
         err.retryable = info.retryable != null ? !!info.retryable : res.status >= 500;
         err.retryAfter = retryAfterMs(res.headers.get('Retry-After'));
+        err.reason = analysisReason(err.code, info.message);
         throw err;
       });
       entry.promise.catch(() => {});
@@ -166,6 +173,17 @@ const TandemLive = (function () {
       });
     };
     C.inflightCount = () => inflight.size;
+    // retry(): refetch every resource that failed transiently (network / 5xx; not analysis_unavailable or 4xx) now
+    C.retry = function () {
+      let n = 0;
+      resources.forEach((r) => {
+        if (r.state !== 'error' || !r.error || !r.error.retryable || (r.error.status && r.error.status < 500)) return;
+        if (r.retryTimer) { timers.clearTimeout(r.retryTimer); r.retryTimer = null; }
+        r.dirty = true; n++;
+      });
+      emit('retry'); changed();
+      return n;
+    };
 
     /* ---- resources ---- */
     C.resource = function (path, o) {
@@ -195,17 +213,80 @@ const TandemLive = (function () {
       r.loading = C.get(r.path, { scope: r.scope, query: r.query, waitMs: r.waitMs, signal }).then((res) => {
         if (res.state === 'computing') { r.state = 'computing'; r.meta = Object.assign({}, r.meta || {}, res.meta || {}); r.computingSince = now(); }
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
-        C.failure = null;
+        // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
+        const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
+        C.failure = null; r.fails = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
-        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter };
+        r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;
+        // analysis_unavailable: this scope's analysis failed for this data_rev; the service is fine and a retry gives the same
+        // answer, so no banner and no Retry-After loop: the page offers 重新计算 (C.recompute) instead
+        if (isUnavailable(e)) { r.error.retryable = false; return; }
         if (!e.status || e.status >= 500) C.failure = r.error;
-        if (e.retryAfter != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, e.retryAfter);
+        // a network failure / 5xx is transient: retry on Retry-After, else with backoff (base · 2ⁿ, capped), so a resource
+        // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
+        r.fails = (r.fails || 0) + 1;
+        const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
+        if (wait != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, wait);
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
+    };
+    /* ---- on-demand analysis: job polling (202 job_id), recompute (POST /v1/analytics/recompute) ---- */
+    C.analysis = {
+      failed: {},   // section -> code of the last analysis.failed frame
+      job: (id, o) => C.send('GET', '/v1/analytics/jobs/' + encodeURIComponent(id), null, { signal: o && o.signal }).then((x) => x.data),
+      // poll(id, onUpdate, {signal, base, max}): GET the job with backoff (base · 1.6ⁿ, capped at max) until completed / failed;
+      // a 404 (expired / unknown job) or repeated network failures resolve {status:'gone'} so the caller refetches once
+      poll(id, onUpdate, o) {
+        o = o || {}; let delay = o.base || 500; const max = o.max || 8000; let misses = 0;
+        return (async () => {
+          for (;;) {
+            if (o.signal && o.signal.aborted) throw abortError();
+            let job = null;
+            try { job = await C.analysis.job(id, o); } catch (e) {
+              if (isAbort(e)) throw e;
+              if (e.status === 404 || e.status === 405 || e.status === 501 || ++misses >= 8) return { id, status: 'gone', error: null };
+            }
+            if (job) { misses = 0; if (onUpdate) onUpdate(job); if (JOB_DONE.indexOf(job.status) >= 0) return job; }
+            await sleep(delay, o.signal); delay = Math.min(max, Math.round(delay * 1.6));
+          }
+        })();
+      },
+      recompute: (sections, scope) => C.send('POST', '/v1/analytics/recompute', { sections, scope: scope || {} }).then((x) => x.data)
+    };
+    function watchJob(r, id) {
+      if (r.jobWatch && r.jobId === id) return;
+      r.jobId = id; const w = r.jobWatch = { id };
+      C.analysis.poll(id, (job) => { if (r.jobWatch === w) { r.job = job; changed(); } }).then((job) => {
+        if (r.jobWatch !== w) return; r.jobWatch = null;
+        if (job.status === 'failed') {
+          const er = job.error || {};
+          r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: er.code || 'analysis_failed', message: er.message || '分析失败', retryable: false, job };
+        } else r.dirty = true;
+        changed();
+      }, () => { if (r.jobWatch === w) { r.jobWatch = null; r.dirty = true; changed(); } });
+    }
+    // recompute(resource, {sections, scope}): clears the failure for that scope and resubmits; the returned job is polled and
+    // the resource refetches when it completes. The scope defaults to the resource's own (UI scope or analytics query keys).
+    C.recompute = function (r, o) {
+      o = o || {};
+      const sections = o.sections || (r && r.section ? [r.section] : []);
+      if (!sections.length) return Promise.reject(Object.assign(new Error('no analysis section'), { code: 'no_section', status: 0 }));
+      let scope = o.scope;
+      if (!scope && r && r.scope) scope = scopeBody(r.scope, C.status, now());
+      if (!scope) { scope = {}; const q = (r && r.query) || {}; SCOPE_KEYS.forEach((k) => { if (q[k] != null) scope[k] = q[k]; }); }
+      if (r) { r.recomputing = true; r.error = null; r.state = 'computing'; changed(); }
+      return C.analysis.recompute(sections, scope).then((d) => {
+        const j = ((d && d.jobs) || []).find((x) => x.job_id);
+        if (r) { r.recomputing = false; if (j) watchJob(r, j.job_id); else r.dirty = true; changed(); }
+        return d;
+      }, (e) => {
+        if (r) { r.recomputing = false; r.state = 'error'; r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: false, reason: null }; changed(); }
+        throw e;
+      });
     };
     C.invalidate = function (match) {
       let n = 0;
@@ -280,7 +361,8 @@ const TandemLive = (function () {
       } else if (name === 'analysis.ready') {
         C.invalidate(matchSection(p));
       } else if (name === 'analysis.failed') {
-        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.state = 'error'; r.error = { code: p.code || 'analysis_failed', message: '分析失败，可重试', retryable: true }; } });
+        if (p.section) C.analysis.failed[p.section] = p.code || 'analysis_failed';
+        resources.forEach((r) => { if (matchSection(p)(r) && r.state === 'computing') { r.jobWatch = null; r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: p.code || 'analysis_failed', message: '分析失败，可重新计算', retryable: false }; } });
         changed();
       } else if (name === 'service') {
         if (p.name) C.services[p.name] = p.state; changed();
@@ -319,6 +401,7 @@ const TandemLive = (function () {
           const h = headers({ Accept: 'text/event-stream' }); if (C.events.lastId != null) h['Last-Event-ID'] = C.events.lastId;
           const res = await fetchFn(C.endpoint + '/v1/events?topics=' + TOPICS, { headers: h, signal: ctrl.signal });
           if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+          if (C.events.attempt > 0) C.retry();   // back after an outage: refetch what failed meanwhile
           C.events.connected = true; C.events.attempt = 0; changed();
           const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
           for (;;) {
@@ -768,8 +851,12 @@ const TandemLive = (function () {
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
+  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
   const ui = {
     DASH, esc, num, pct, money, hm,
+    reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
+    // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
+    unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
     ensureStyle(doc) {
       doc = doc || (typeof document !== 'undefined' ? document : null);
       if (!doc || !doc.head || doc.getElementById('tl-style')) return;
@@ -796,6 +883,7 @@ const TandemLive = (function () {
       if (!v) return '';
       if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
       if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
+      if (v.state === 'error' && ui.unavailable(v.error)) return '<span class="tl-badge" data-tl="unavailable">' + esc(ui.unavailable(v.error)) + (v.vm ? ' · 显示上次结果' : '') + '</span>';
       if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
       return '';
     },
@@ -808,7 +896,10 @@ const TandemLive = (function () {
     },
     skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
     empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
-    errorCard(err) { return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>'; },
+    errorCard(err) {
+      if (ui.unavailable(err)) return '<div class="tl-card tl-empty" data-tl="unavailable" role="alert">' + esc(ui.unavailable(err)) + ' · 可以重新计算</div>';
+      return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>';
+    },
     // state → body: vm present renders even when stale / error (last good data); otherwise skeleton, empty or error
     body(v, render) {
       if (!v) return '';

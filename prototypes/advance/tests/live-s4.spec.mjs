@@ -220,3 +220,45 @@ test('real gateway smoke: A6 and palette search', async ({ page }) => {
   await noPlain(page);
   expect(errors).toEqual([]);
 });
+
+// R4-13: /v1/uiview/sentiment is lexical rules (meta.mode 'stats'): no AI badge, no "由本地 Agent 完成" claim, and the
+// 仅统计 setting does not blank the page; AI badges come back only for what the server marks as model output.
+test('A6 R4-13: rule-based data is badged as rules; AI only when the server says a model produced it', async ({ page }) => {
+  test.skip(!!PASS, 'fixture');
+  const base = fx('s4/sentiment.json');
+  const { errors, gw } = await openSent(page);
+  await expect(page.locator('#main .sn-fric[data-act="fricGo"]')).toHaveCount(2);
+  await expect(page.locator('#main .aib')).toHaveCount(0);
+  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(4);
+  await expect(page.locator('#main')).toContainText('按词面规则在本机统计，不调用模型');
+  await expect(page.locator('#main')).not.toContainText('语义分析由本地 Agent 完成');
+  // the 仅统计 engine (as Settings › 分析 reads it) keeps the rule-based page instead of the mock "已关闭" state
+  await page.evaluate(() => { S.engine = 'stats'; render(); });
+  await expect(page.locator('#main [data-vz="mood"] svg')).toHaveCount(1);
+  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(4);
+  await page.locator('#main [data-act="moodHow"]').click();
+  await expect(page.locator('#modal')).toContainText('不调用模型');
+  await expect(page.locator('#modal')).not.toContainText('由本地 Agent 打');
+  await page.keyboard.press('Escape');
+  // agent mode with AI topic labels: friction + topics carry the AI badge, mood / phrases stay rules
+  const ai = JSON.parse(JSON.stringify(base)); ai.meta.mode = 'agent'; ai.topics[0].label_source = 'ai';
+  gw.set('GET /v1/uiview/sentiment', ai);
+  await page.evaluate(() => { S.engine = 'agent'; S.range = 7; render(); });
+  await expect(page.locator('#main .aib')).toHaveCount(2);
+  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(2);
+  await expect(page.locator('#main')).toContainText('语义分析由本地 Agent 完成');
+  expect(errors).toEqual([]);
+});
+
+// R4-12: no Confluo demo hint in the live footer; a mixed-case query still replaces the pending row with the server rows
+test('palette R4-12: live footer hint, mixed-case query redraws after /v1/search answers', async ({ page }) => {
+  test.skip(!!PASS, 'fixture');
+  const { errors } = await openSent(page);
+  await page.evaluate(() => openPalette());
+  await expect(page.locator('#modal [data-pal="hint"]')).toHaveText('可搜会话、消息、命令与文件');
+  await expect(page.locator('#modal')).not.toContainText('部署');
+  await page.fill('#palQ', 'PNPM');
+  await expect(page.locator('#palList')).toContainText('pnpm test 示例');
+  await expect(page.locator('#palList')).not.toContainText('正在搜索本机索引');
+  expect(errors).toEqual([]);
+});

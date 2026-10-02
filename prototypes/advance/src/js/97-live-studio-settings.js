@@ -15,6 +15,13 @@ const TLS_KIND = { waiting: ['awaiting_approval', 'waiting'], done: ['just_finis
 const TLS_ART_KIND = { skill: 'Skill', hook: 'Hook', rule: '规则', subagent: '子代理', glue: '工作流', command: '命令' };
 const tlsKind = (type) => Object.keys(TLS_KIND).find((k) => TLS_KIND[k].indexOf(type) >= 0) || null;
 const tlsAgOf = (eid) => Object.keys(TandemLive.AGENT_KEYS).find((a) => TandemLive.AGENT_KEYS[a].indexOf(eid) >= 0) || null;
+// display name of an engine id (「Claude Code」, not claude_code): the engines list first, then the app's agent table
+const tlsEngName = (id) => {
+  if (!id) return null;
+  const d = TL.resource('/v1/ai/engines').data; const e = d && d.engines && d.engines.find((x) => x.id === id);
+  if (e && e.name) return e.name;
+  const a = tlsAgOf(id); const g = a && AG.find((x) => x.id === a); return g ? g.name : String(id).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
 function tlsRes(path, query) { const r = TL.resource(path, { query }); if (r.dirty && !r.loading) TL.load(r); return r; }
 const tlsDemo = (r) => !!(r && r.data == null && r.error && TL.unavailable(r.error));
 function tlsBytes(n) { if (n == null || !Number.isFinite(n)) return TLU.DASH; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i]; }
@@ -48,7 +55,10 @@ if (TL.mode === 'live') {
     return e ? { name: e.name || id, cli: e.name || id } : agent(S.studio.agent);
   };
   const tlsSel = () => { const items = {}; CTX.forEach((c) => { items[c[0]] = !!S.studio.ctx[c[0]]; }); return { items }; };
-  const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel())].join('|');
+  // a typed goal is a manual goal: the gateway then searches the index for it (evidence) and packs the text itself; an
+  // empty goal stays 'ask' (a manual one is a 422 goal_required) so the item list still renders before the user writes one
+  const tlsGoal = () => { const g = S.studio.goal.trim(); return { goal: g, goal_source: g ? 'manual' : 'ask' }; };
+  const tlsPreviewKey = () => [S.studio.type, tlsEngine(), S.studio.tpl, JSON.stringify(tlsSel()), S.studio.goal.trim()].join('|');
   // the pack previews are compact dumps (`key: value` per field, JSON-quoted strings): drop empty fields, unquote strings,
   // name the fields, and leave out the goal's own bookkeeping (source) — the goal text is what gets sent
   const TLS_FIELD = { text: '', command_heads: '命令', file_exts: '文件类型', verify_commands: '验证命令', failure_runs: '连续失败' };
@@ -82,19 +92,33 @@ if (TL.mode === 'live') {
   function tlsPreview(force) {
     const key = tlsPreviewKey();
     if (TLS.previewBusy || (!force && TLS.previewKey === key)) return;
-    TLS.previewKey = key; TLS.previewBusy = true;
-    TL.send('POST', '/v1/ai/preview', { task_id: TLS_TASK[S.studio.type], engine: tlsEngine(), selection: tlsSel(), goal: S.studio.goal, goal_source: 'ask', template: S.studio.tpl })
+    TLS.previewKey = key; TLS.previewBusy = true; const keys = CTX.map((c) => c[0]).join(',');
+    TL.send('POST', '/v1/ai/preview', Object.assign({ task_id: TLS_TASK[S.studio.type], engine: tlsEngine(), selection: tlsSel(), template: S.studio.tpl }, tlsGoal()))
       .then((r) => { TLS.preview = r.data; tlsApplyPreview(r.data || {}); }, (e) => { TLS.preview = null; if (!TL.unavailable(e)) toast('上下文预览失败：' + (e.message || e.code)); })
-      .then(() => { TLS.previewBusy = false; if (tlsPreviewKey() !== TLS.previewKey) tlsPreview(); else { refreshStudio(); refreshCtx(); } });
+      .then(() => { TLS.previewBusy = false; if (tlsPreviewKey() !== TLS.previewKey) tlsPreview(); else tlsPreviewShow(keys); });
   }
+  // while the user is typing the goal a full re-render would drop the IME composition: patch the stack bar, the preview
+  // sheet and the per-item sizes in place when the item set is unchanged
+  function tlsPreviewShow(keys) {
+    const a = document.activeElement; const rows = $$('#main .st-ctx');
+    if (!(a && a.id === 'studioGoal') || keys !== CTX.map((c) => c[0]).join(',') || rows.length !== CTX.length) { refreshStudio(); refreshCtx(); return; }
+    refreshCtx();
+    rows.forEach((row) => {
+      const inp = row.querySelector('input[data-k]'); const c = inp && CTX.find((x) => x[0] === inp.dataset.k); const t = row.querySelector(':scope > .mono.cap');
+      if (c && t) t.textContent = c[3] ? tokS(c[3]) : '';
+    });
+  }
+  // the goal is part of the pack: re-preview shortly after the user stops typing
+  const tlsGoalBase = ACT.studioGoal;
+  ACT.studioGoal = (el) => { tlsGoalBase(el); clearTimeout(TLS.goalT); TLS.goalT = setTimeout(() => { if (S.route === 'studio' && engines()) tlsPreview(); }, 450); };
   // same markup as the demo's token stack, with the gateway's input budget
   const tlsTokBarBase = tokBar;
   tokBar = function () {
     if (!TLS.limit) return tlsTokBarBase();
     const L = TLS.limit; const tok = ctxTokens(); const scale = Math.max(tok, L) * 1.08; const over = tok > L;
-    const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + esc(c[0]) + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + f1(c[3] / 1000) + 'k"></span>').join('');
-    return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + f1(tok / 1000) + 'k tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
-      '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + f1(tok / 1000) + 'k tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + Math.round(tok / L * 100) + '%') + '</span></div></div>';
+    const segs = CTX.filter((c) => c[3] && S.studio.ctx[c[0]]).map((c) => '<span class="st-seg ' + esc(c[0]) + '" style="width:' + (c[3] / scale * 100) + '%" title="' + esc(c[1]) + ' ≈ ' + tokS(c[3]) + '"></span>').join('');
+    return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
+      '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, L)) + '</span></div></div>';
   };
   const tlsStudioBase = PAGES.studio; const tlsStudioAfter = PAGES.studio.after;
   PAGES.studio = function () {
@@ -155,7 +179,7 @@ if (TL.mode === 'live') {
   function tlsConsentDialog(det, el) {
     const miss = det.missing || []; const eid = det.engine || tlsEngine();
     TLS.consent = { miss, eid, el };
-    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(eid || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
+    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(tlsEngName(eid) || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
       miss.map((k) => '<div class="row" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px">' + ic('shield', 13, 'color:var(--good)') + '<span style="flex:1">' + esc(CLS_NAME[k] || k) + '</span><span class="mono cap" style="font-size:11px">' + esc(k) + '</span></div>').join('') +
       '</div><div class="mf"><button type="button" class="btn" data-act="tlsConsentSet">去设置</button><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="tlsConsentOk">授权并重试</button></div>');
   }
@@ -183,7 +207,7 @@ if (TL.mode === 'live') {
     const seq = TPLS[S.studio.tpl].seq;
     const run = S.studio.run = { tpl: S.studio.tpl, pos: 0, step: seq[0], lines: 0, log: [], head: ['$ POST /v1/ai/jobs · ' + TLS_TASK[type] + ' · ' + eid], done: false, stopped: false, installed: null, live: { id: null, job: null } };
     run.log = run.head.slice(); refreshStudio(); renderSide();
-    TL.send('POST', '/v1/ai/jobs', { task_id: TLS_TASK[type], engine: eid, template: run.tpl, goal: S.studio.goal, goal_source: 'ask', selection: tlsSel(), preview_digest: TLS.preview ? TLS.preview.preview_digest : undefined }, { signal: ctl.signal })
+    TL.send('POST', '/v1/ai/jobs', { task_id: TLS_TASK[type], engine: eid, template: run.tpl, goal: tlsGoal().goal, goal_source: tlsGoal().goal_source, selection: tlsSel(), preview_digest: TLS.preview ? TLS.preview.preview_digest : undefined }, { signal: ctl.signal })
       .then((res) => {
         const j = res.data || {}; run.live.id = j.job_id;
         run.head.push('› 任务 ' + j.job_id + (j.cached ? ' · 命中缓存' : '') + (j.estimate ? ' · 预计 ' + f1((j.estimate.tokens || 0) / 1000) + 'k tokens · ' + TLU.money(j.estimate.cost_usd) : ''));
@@ -427,7 +451,7 @@ if (TL.mode === 'live') {
       if (tlsDemo(TL.resource(R.con))) sample('AI 通道');
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
-        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(conEngine(d) || '未选择') : '') + '</div>');
+        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
@@ -500,9 +524,15 @@ if (TL.mode === 'live') {
     }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供工具名映射表' : '读取映射表失败：' + (e.message || e.code)));
   });
   wrap('setPause', (base, el, ev) => {
-    const to = !S.paused;
-    tlsWrite(R.col, { paused: to }, () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {}), to ? '暂停采集' : '恢复采集', (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); });
-    base(el, ev);
+    const to = !S.paused; const label = to ? '暂停采集' : '恢复采集';
+    const req = () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {});
+    const after = (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); if (TL.ops) TL.ops.realtime().catch(() => {}); };
+    // resuming: the last realtime snapshot still says collection_paused until the next frame; drop that so 98 keeps the switch
+    const unpause = () => { const rt = TL.ops && TL.ops.rt; if (!to && rt && (rt.status === 'paused' || rt.reason === 'collection_paused')) TL.ops.rt = Object.assign({}, rt, { status: 'idle', reason: null }); };
+    if (tlsWrite(R.col, { paused: to }, req, label, after)) { unpause(); base(el, ev); return; }
+    // the collection setting is not loaded here (menu-bar panel / HUD / widgets surface): write first, flip after the answer
+    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); base(el, ev); after(x && x.data); },
+      (e) => toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)));
   });
   // 隐私
   wrap('setRule', (base, el, ev) => {

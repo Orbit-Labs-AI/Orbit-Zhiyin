@@ -8,6 +8,11 @@
    no database yet → 200 with ``meta.freshness = "none"``
 6. failures map to 404 / 422 / 503 (+ Retry-After); the old snapshot keeps serving
 
+Every route accepts ``days`` (7 / 30 / 90 / 0 = all time) as shorthand for ``from_ts`` at a
+UTC day boundary. ``/v1/analytics/overview`` without ``days``, ``from_ts`` or ``until_ts``
+uses the first-open fast path (``services.fastpath``): the widest ready window, else the
+last 7 days now and wider windows in the background; ``meta.window`` reports both.
+
 Responses keep the existing section keys and only add a top-level ``meta``.
 """
 
@@ -46,9 +51,11 @@ def analytics_scope(
     excluded_session_uids: Annotated[list[str] | None, Query()] = None,
     include_children: bool = True, scene: str | None = None,
     source_ids: Annotated[list[str] | None, Query()] = None,
+    days: int | None = None,
     agent_ids: Annotated[list[str] | None, Query()] = None,
 ):
-    """Same parameters as api/routes.py; an explicit empty value (``x=``) means []."""
+    """Same parameters as api/routes.py; an explicit empty value (``x=``) means [].
+    ``days`` (7 / 30 / 90 / 0) sets ``from_ts`` to that window's first UTC day."""
     from ..analytics.inputs import Scope
     from ..appdata.sources_scope import default_source_ids
     from ..sessionops.exclusion import merged
@@ -56,6 +63,13 @@ def analytics_scope(
     def explicit(values):
         return [] if values == [""] else values
 
+    if days is not None:
+        from . import fastpath
+
+        fastpath.check_days(days)
+        if from_ts is not None or until_ts is not None:
+            raise ApiError(422, "invalid_request", "days cannot be combined with from_ts/until_ts")
+        from_ts = fastpath.window_start(days)
     try:
         return Scope(display_timezone=display_timezone,
                      source_ids=default_source_ids(explicit(source_ids)),
@@ -167,10 +181,14 @@ def router(gw: Gateway) -> APIRouter:
         return JSONResponse(body, headers={"ETag": tag})
 
     def serve(name: str, scope, params: dict, wait_ms: int, if_none_match: str | None,
-              page: tuple[int, int] | None = None, view=None):
+              page: tuple[int, int] | None = None, view=None,
+              window: dict | None = None):
         """``view`` = (etag token, body → body): a cheap gateway-side projection of the
         worker's snapshot (search page, two-session compare, catalog match)."""
         section = SECTIONS[name]
+
+        def meta_(*args, **extra):  # adds the fast-path window to every meta
+            return meta(*args, **extra, **({"window": window} if window is not None else {}))
         rules = rules_digest()
         scope_dict = asdict(scope)
         h = scope_hash(scope_dict, params)
@@ -179,7 +197,7 @@ def router(gw: Gateway) -> APIRouter:
         if view is not None:
             token = f"{token}{view[0]}"
         if rev["data_rev"] is None:
-            return JSONResponse({section.key: None, "meta": meta(
+            return JSONResponse({section.key: None, "meta": meta_(
                 h, rules, "none", None, rev, "none", reason="no_projection")})
         gw.state.remember_scope(scope_dict)
         current = SnapshotKey(name, h, rev["data_rev"], rev["inventory_rev"], rules)
@@ -188,7 +206,7 @@ def router(gw: Gateway) -> APIRouter:
         if snapshot is not None:
             if if_none_match is not None and tag in [t.strip() for t in if_none_match.split(",")]:
                 return Response(status_code=304, headers={"ETag": tag})
-            return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "cache"), tag, page,
+            return render(snapshot, meta_(h, rules, "fresh", snapshot, rev, "cache"), tag, page,
                           view)
         analysis = gw.supervisor.analysis
         revision = (rev["data_rev"], rev["inventory_rev"])
@@ -197,7 +215,7 @@ def router(gw: Gateway) -> APIRouter:
             task = analysis.submit(name, scope_dict, params, h, "interactive", revision, rules)
             extra = {"job_id": task.id} if task else {"circuit": "open"}
             old_tag = etag(rules, old.key.data_rev, old.key.inventory_rev, h, token)
-            return render(old, meta(h, rules, "stale", old, rev, "cache", **extra), old_tag, page,
+            return render(old, meta_(h, rules, "stale", old, rev, "cache", **extra), old_tag, page,
                           view)
         failure = analysis.failure(name, h, revision)
         if failure and (failure["error"].get("code") in CLIENT_ERRORS
@@ -211,12 +229,13 @@ def router(gw: Gateway) -> APIRouter:
             if task.status == "completed":
                 snapshot = gw.snapshots.get(current)
                 if snapshot is not None:
-                    return render(snapshot, meta(h, rules, "fresh", snapshot, rev, "computed"),
+                    return render(snapshot, meta_(h, rules, "fresh", snapshot, rev, "computed"),
                                   tag, page, view)
             elif task.status == "failed":
                 raise failure_error(task.error)
-        return JSONResponse({"meta": meta(h, rules, "computing", None, rev, "none",
-                                          job_id=task.id, progress=None)}, status_code=202)
+        return JSONResponse({"meta": meta_(h, rules, "computing", None, rev, "none",
+                                          job_id=task.id, progress=analysis.progress(task))},
+                            status_code=202)
 
     wait = Query(0, ge=0, le=3000)
 
@@ -225,7 +244,20 @@ def router(gw: Gateway) -> APIRouter:
                   if_none_match: str | None = Header(None)):
             return serve(name, scope, {}, wait_ms, if_none_match)
 
-        return plain
+        def windowed(scope=scope_dependency, wait_ms: int = wait,
+                     if_none_match: str | None = Header(None), days: int | None = None):
+            from ..analytics.inputs import Scope
+            from . import fastpath
+
+            if days is not None or scope.from_ts is not None or scope.until_ts is not None:
+                return serve(name, scope, {}, wait_ms, if_none_match)
+            base = asdict(scope)
+            chosen, window = fastpath.choose(gw, name, base, None)
+            response = serve(name, Scope(**chosen), {}, wait_ms, if_none_match, window=window)
+            fastpath.follow_up(gw, name, base, window)
+            return response
+
+        return windowed if name == "overview" else plain
 
     for name in PLAIN_SECTIONS:
         api.add_api_route(f"/v1/analytics/{name}", plain_route(name), methods=["GET"], name=name)
@@ -252,6 +284,17 @@ def router(gw: Gateway) -> APIRouter:
                     if_none_match: str | None = Header(None)):
         params = {"task_id": task_id} if task_id is not None else {}
         return serve("preferences", scope, params, wait_ms, if_none_match)
+
+    @api.post("/v1/analytics/warmup")
+    def warmup():
+        """Queue the first-screen prewarm (7 days → 30 days → all time) on the analysis
+        worker. Overrides the create_app() route, which warmed inside the gateway process."""
+        rev = gw.revisions.snapshot()
+        if rev["data_rev"] is None:
+            raise ApiError(409, "no_projection", "No published data to analyse", retryable=True)
+        queued = gw.prewarm()
+        return {"status": "queued" if queued else "ready", "queued": len(queued),
+                "job_ids": queued, "data_rev": rev["data_rev"]}
 
     @api.get("/v1/analytics/products")
     def products(scope=scope_dependency, bucket: Literal["day", "week", "month"] = "day",

@@ -64,6 +64,9 @@ class FakeMemo:
     def analysis(self, store, scope, with_text, revision):
         return self.result
 
+    def sections(self, store, scope, keys, with_text, revision):
+        return self.analysis(store, scope, with_text, revision)
+
 
 def build(tmp_path, sessions=6):
     path = tmp_path / "tandem.db"
@@ -132,9 +135,9 @@ def test_compute_shape(tmp_path):
     assert facts["usage"]["mcp"]["fs"]["sessions"] == 1
     assert facts["model_mix"] == [
         {"model_id": "claude-x", "effort": "high", "agent": "claude_code", "sessions": 4,
-         "readonly_sessions": 2, "tokens": 500},
+         "readonly_sessions": 2, "tokens": 500, "readonly_session_uids": ["s2", "s4"]},
         {"model_id": "claude-x", "effort": "high", "agent": "codex", "sessions": 2,
-         "readonly_sessions": 1, "tokens": 250}]
+         "readonly_sessions": 1, "tokens": 250, "readonly_session_uids": ["s0"]}]
     day1 = facts["session_days"][1]
     assert day1["session_uid"] == "s1"
     assert day1["problems"] == ["permission_friction", "tool_env_failure"]

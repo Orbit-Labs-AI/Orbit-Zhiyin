@@ -73,6 +73,73 @@
 
 三轮测量开始时 1 分钟 load average 为 15–79；本包第二轮全量因负载 44–69 达 209 s，被中位数排除。三次运行的事件数一致（77404）。full 规模的最终达标在与 (c) 合并及体积优化后统一测量。
 
+### 实测结果
+
+合入渐进导入修复、全量写者瓶颈与体积压实三项后的最终复测（2026-10-03，`wip/yhyfhgs-int` 的 `38f9734`）。
+
+- **对照**：审计基线 `747b0da`。两边用各自的 `.venv`（CPython 3.13.15），读取同一份共用合成数据：small 801 事件 / 0.68 MB 源；med 1,290 会话、7.99 万事件、60 MB 源；full 52.67 万事件、395 MB 源。
+- **方式**：所有计时都在机器级基准锁里串行执行，基线与新代码紧挨着成对运行；首次导入各跑 1 次。新代码使用默认 `workers`，即并行投影路径。
+- **库体积**：取导入完成并执行 `wal_checkpoint(TRUNCATE)` 后的 `tandem.db` 大小，不额外调用 `compact`。
+- **追加重扫**：在 pi 首个文件末尾追加 1 行，再对 pi 重扫一次。
+- **无变化重扫**：四个来源各重扫一次。
+- **一致性**：`logical_digest` 用 `tandem_data.validation.integrity.logical_digest` 计算。
+- **负载**：机器为 14 核 Apple M4 Pro，测量期间有其他 agent 占用 CPU，1 分钟 load average 为 9.7–20.4。
+
+| 场景 | 基线 | 新值 | 加速比 / 比例 | 目标 | 达标 |
+| --- | --- | --- | --- | --- | --- |
+| full 首次全量导入 wall（CPU） | 430.8 s（379.5 s） | 100.8 s（89.6 s） | 4.27×（CPU 4.23×） | ≥5.1× | 否 |
+| med 首次全量导入 wall（CPU，参考） | 52.7 s（49.0 s） | 16.8 s（12.6 s） | 3.14× | — | — |
+| full 渐进导入首批可读 | 430.8 s（须等全量完成） | 2.52 s | — | ≤15 s | 是 |
+| med 渐进导入首批可读 | 52.7 s（须等全量完成） | 2.13 s | — | ≤10 s | 是 |
+| full 渐进导入全程（4 批） | 普通导入 100.8 s | 131.5 s | 1.305 倍 | ≤1.3 倍 | 否（超 0.005） |
+| med 渐进导入全程（4 批） | 普通导入 16.8 s | 14.2 s | 0.85 倍 | ≤1.3 倍 | 是 |
+| 渐进与普通导入 `logical_digest` | — | full `b79fb599…`、med `424f28b4…`，两两相同 | 一致 | 一致 | 是 |
+| full 库体积 | 2,920.0 MB | 2,384.6 MB | 0.817 倍 | ≤0.8 倍 | 否 |
+| med 库体积 | 443.0 MB | 363.7 MB | 0.821 倍 | ≤0.8 倍 | 否 |
+| small 库体积 | 5.05 MB | 5.62 MB | 1.113 倍 | ≤0.8 倍 | 否 |
+| med 单文件追加 1 行后重扫 | 186.0 s | 0.212 s | 877× | ≥60× | 是 |
+| med 无变化重扫 | 0.371 s | 0.350 s | 1.06× | ≤1 s | 是 |
+
+**未达标原因**
+
+- **库体积**：`fcf7f74` 的“首次导入后统一 VACUUM”挂在 `Store.optimize()` 上，而该方法只在 `Store.rebuild()` 中调用。默认 `workers≠1` 时，`ImportService.import_source` 与 `import_progressive` 走的是 `scheduler.project`，这条路径不调用 `optimize`，所以默认导入完成后库没有压实，small 仍是 16 KiB 页。
+  - 同次导入后补跑 `store.compact(force=True)`：med 降到 332.8 MB（0.751 倍，压实耗时 1.2 s）；small 降到 4.09 MB，换为 4 KiB 页后为 0.810 倍，仍略超目标。
+  - 修复方向：让并行投影路径在发布后也执行 `optimize`。修复会使 full 首次导入多出一次 VACUUM 的耗时，需要与首次导入目标一起权衡。
+- **full 首次导入**：wall 与 CPU 的加速比一致，都约 4.2–4.3×，说明差距不是负载造成的。上一轮同口径测量为 472.8 s → 107.7 s（4.39×），同样未达标。
+- **full 渐进全程**：比值 1.305 与上限 1.3 只差 0.5%。渐进导入与普通导入不是同一时段运行：渐进运行开始时负载 16.4，普通导入开始时负载 10.8，判为临界未达标。
+
+### 首导写者剖析与重叠（`wip/yhyfhgs-fullimport`）
+
+med 首导（默认 workers，基准锁内，load≈12）按阶段计时，写者共 12.6 s：
+
+| 阶段 | 耗时 | 说明 |
+| --- | --- | --- |
+| map（含 L2 批量插入 2.6 s、父链接、invalid 扫描、FTS 收尾） | 5.1 s | `executemany` 插入 event 本身约 2.2 s，主要是随机主键 B 树与触发器 |
+| derive_sessions + derive_metadata | 2.6 s | `_derive_session` 1.7 s，其余为逐会话两次读事件与 JSON 解码 |
+| capture（写者 `index_file` 1.5 s） | 2.0 s | |
+| 发布校验（范围内外键、记账、水位、COMMIT） | 1.3 s | `MapPlan.validate` 0.7 s |
+| prepare（等待 worker 阶段 A） | 1.2 s | 写者空等 |
+| reset_projection / 索引重建 / FTS | 0.4 / 0.13 / 0.07 s | |
+
+据此做的改动（结果不变：small、med 的 `logical_digest` 与 `8dca571` 逐字节相同，med 为 `424f28b4…`；`verify` ok、`foreign_key_check` 空、记账不一致 0）：
+
+- **捕获与映射重叠**：首导时 `parallel.capture` 每写完一个行格式文件就提交其 `map_file` 任务；`MapPlan` 只在重新构造的任务与之完全相等时复用该 future，否则取消并清理溢出文件。渐进批次传 `premap=False`。
+- **derive**：元数据阶段只取元数据事件与含 `git_root` 的事件；会话阶段只读用到的列；tool_call / tool_call_event / turn / session_feature 按表 `executemany`。
+- **映射收尾**：父事件链接一次 `executemany`；invalid 记录扫描限定本次重建文件（其他来源的 L2 问题不会被删除）；水位更新一次 `executemany`。
+
+### 导入后维护复测（`wip/yhyfhgs-compact`）
+
+并行导入（默认 workers、`maintenance="background"`）结束后关闭导入连接，再等待后台维护完成后量 `tandem.db`。全部在一次基准锁内串行执行；基线 `747b0da` 与新代码交替运行，med 各 2 次。full 只跑新代码 1 次，基线体积沿用上表 2,920.0 MB（同代码、同数据，体积确定）。load average（1 分钟）为 6.4–8.7。
+
+| 规模 | 基线库 | 新库（维护后） | 比例 | 目标 | 首导 wall（CPU），基线 → 新 | 维护耗时（不计入首导） |
+| --- | --- | --- | --- | --- | --- | --- |
+| small | 5.046 MB | 3.865 MB（1 KiB 页） | 0.766× | ≤0.8× | 0.484 s → 0.223 s | 0.016 s |
+| med | 442.97 MB | 332.91 MB | 0.7515× | ≤0.8× | 49.7 s（47.5）→ 11.9 s（10.6），4.17× | 0.54 s |
+| med 渐进 | — | 332.97 MB | 0.7517× | ≤0.8× | 首批 1.70 s，全程 12.8 s | 0.48 s |
+| full | 2,920.0 MB | 2,184.3 MB | 0.748× | ≤0.8× | 新 95.1 s（86.4），上轮 100.8 s | 3.95 s |
+
+维护在写锁释放后才开始（另有 1 s 宽限期），首批可读时间与导入返回时间都不包含它；med 首导 11.9 s 与 full 95.1 s 均不高于上一轮。首导后空闲页只有 1–3 页，slack 为 10–11%（small 41%），膨胀来自页内碎片，因此三种规模都走整库 VACUUM。小规模完整性（并行 + 维护 vs 串行无维护）：`logical_digest` 相同、`verify` 通过、`foreign_key_check` 为空、`event_page` 全部会话输出相同。
+
 ## 合并注意
 
 本包与进行中的 `feat/data-app-integration` 在 `pipeline.py`、`service.py` 有文本冲突，解决时注意语义：

@@ -332,8 +332,8 @@ def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
     compact = store.read_bundle(include_native=False)
     assert any(e["ext"] for e in full["events"])
     assert all(e["ext"] == {} for e in compact["events"])
-    assert [{k: v for k, v in e.items() if k != "ext"} for e in full["events"]] == [
-        {k: v for k, v in e.items() if k != "ext"} for e in compact["events"]]
+    assert [{k: v for k, v in e.items() if k not in ("ext", "native_key")} for e in full["events"]] == [
+        {k: v for k, v in e.items() if k not in ("ext", "native_key")} for e in compact["events"]]
     assert compact["coverage"]["native_event_payload"]["status"] == "excluded"
     assert all(e["ext"] == {} for e in store.analysis_bundle().events)
     assert store.evidence(full["events"][0]["event_uid"]) is not None
@@ -349,7 +349,8 @@ def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_ve
         store.db.execute(f"PRAGMA user_version={schema_version}")
         store.db.execute("UPDATE schema_manifest SET schema_version=?", (schema_version,))
         names = [r[0] for r in store.db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'fk_%'")]
-        assert len(names) == (29 if schema_version == 4 else 30)  # v4 had no inventory_scan
+        # v4 had no inventory_scan; 010 drops two fk_ prefixes of v8 list indexes.
+        assert len(names) == (27 if schema_version == 4 else 28)
         for name in names:
             store.db.execute(f'DROP INDEX "{name}"')
     with Store(home) as store:

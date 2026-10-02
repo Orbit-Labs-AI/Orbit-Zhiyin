@@ -228,6 +228,7 @@ def test_failing_route_is_isolated(monkeypatch):
     assert any(c["rec_key"] == "kb:retry-breaker" for c in result["candidates"])
 
 
+@pytest.mark.serial  # wall-clock budget; flaky under the parallel pass
 def test_recall_all_latency_budget():
     signals = [s for rule in ("identical_retries", "acceptance_evidence_gap", "correction_density", "context_pressure",
                               "repeated_requirements", "validation_failures") for s in many(rule)]

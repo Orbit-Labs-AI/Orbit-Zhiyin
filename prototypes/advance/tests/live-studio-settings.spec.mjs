@@ -9,6 +9,7 @@
 //  5. notify      notification frame → banner + menu-bar badge, attention → HUD list, collection frame → paused, no banner
 //  6. ask         presets from the gateway, preset answer, free question through an ask.question job
 //  7. regressions  no demo goal in live, readable pack preview, one row per agent with ~ paths, sheets closed on tab change
+//  8. R4-05/R4-16  the typed goal re-packs the context (manual goal, exact small token counts); 授权对象 shows the engine name
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,7 +53,7 @@ async function gateway(page, opts = {}) {
     const core = { '/v1/status': 'status', '/v1/analytics/overview': 'overview', '/v1/app/sources': 'app-sources', '/v1/app/settings': 'app-settings' };
     if (m === 'GET' && core[p]) return json(FX(core[p]));
     const K = m + ' ' + p;
-    if (state.extra && state.extra[K] !== undefined) return json(state.extra[K]);
+    if (state.extra && state.extra[K] !== undefined) return json(typeof state.extra[K] === 'function' ? state.extra[K](body) : state.extra[K]);
     if (K === 'POST /v1/ai/jobs') return state.job === 'consent' ? json({ error: { code: 'consent_required', message: '需要授权', detail: { missing: ['snippets'] } } }, 403) : json(SS('ai-job-created'), 202);
     if (K === 'GET /v1/ai/jobs/fx-job-1') { state.jobPolls++; return json(state.job === 'stuck' || state.jobPolls < 2 ? SS('ai-job-running') : SS('ai-job-done')); }
     if (K === 'GET /v1/ai/jobs/fx-ask-1') return json(SS('ask-job-done'));
@@ -280,5 +281,38 @@ test('regressions: no demo goal, readable pack preview, deduped sources with ~ p
   await set.locator('[data-act="setNotifPreset"]').first().click({ timeout: 3000 });
   await page.evaluate(() => openSettings('about'));
   await set.locator('[data-act="setUpdate"]').click({ timeout: 3000 });
+  expect(errors).toEqual([]);
+});
+
+test('R4-05 / R4-16: the typed goal is packed and sized honestly; 授权对象 uses the display name', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, allow404);
+  // the synthetic gateway's answer for a manual goal: the goal text, FTS evidence for it, small exact token counts
+  const pack = (b) => {
+    const goal = (b && b.goal) || '';
+    const items = [{ key: 'goal', label: '目标', desc: '本次要解决的问题', data_class: 'summary', enabled: true, tokens: goal ? 16 : 1, redaction_hits: 0, preview: goal ? ['text: ' + JSON.stringify(goal), 'source: "' + b.goal_source + '"'] : [], consent: 'granted' },
+      { key: 'evidence', label: '证据片段', desc: '≤5 条已脱敏的原话或错误片段', data_class: 'snippets', enabled: true, tokens: goal && b.goal_source === 'manual' ? 306 : 1, redaction_hits: 0, preview: goal && b.goal_source === 'manual' ? ['[you] fx: the flaky test failed again'] : [], consent: 'granted' }];
+    return { task_id: 'generate.skill', engine: 'claude_code', items, total_tokens: items.reduce((a, x) => a + x.tokens, 0), input_budget: 12000, over_budget: false, redaction_hits: 0, preview_digest: 'sha256:fx-' + goal.length, payload: {}, stages: ['pack'] };
+  };
+  const gw = await gateway(page, { extra: { 'POST /v1/ai/preview': pack } });
+  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.evaluate(() => openSettings('analysis'));
+  await expect(page.locator('#set [data-tl="ai-cap"]')).toContainText('授权对象：Claude Code');
+  await expect(page.locator('#set [data-tl="ai-cap"]')).not.toContainText('claude_code');
+  await page.evaluate(() => { closeSettings(); go('studio'); });
+  await expect(page.locator('#content .st-ctx')).toContainText(['证据片段']);
+  await page.locator('#studioGoal').fill('fix the flaky test');
+  await expect.poll(() => sent(gw, 'POST', '/v1/ai/preview').some((s) => s.body.goal === 'fix the flaky test' && s.body.goal_source === 'manual')).toBe(true);
+  await expect(page.locator('#content [data-tok]')).toHaveText('≈ 322 tokens');
+  await expect(page.locator('#content .st-ctx').filter({ hasText: '证据片段' })).toContainText('306 tok');
+  await expect(page.locator('#content')).not.toContainText('0.0k');
+  await expect(page.locator('#studioGoal')).toBeFocused();   // patched in place: typing is never interrupted
+  await page.locator('#content [data-act="ctxPreview"]').first().click();
+  const modal = page.locator('#modal');
+  await expect(modal).toContainText('fix the flaky test');
+  await expect(modal).toContainText('the flaky test failed again');
+  await expect(modal).not.toContainText('0.0k');
+  // an empty goal stays an 'ask' preview (a manual one would be 422 goal_required)
+  expect(sent(gw, 'POST', '/v1/ai/preview')[0].body.goal_source).toBe('ask');
   expect(errors).toEqual([]);
 });
