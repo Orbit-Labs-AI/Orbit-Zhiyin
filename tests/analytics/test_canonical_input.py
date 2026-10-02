@@ -81,8 +81,10 @@ def test_saved_window_cannot_be_widened_or_reference_unknown_members():
 def test_cli_standard_input_uses_its_scope_without_creating_legacy_database(tmp_path):
     source, output, legacy = [tmp_path / name for name in ("input.json", "result.json", "old.sqlite")]
     source.write_text(json.dumps(reader_data()))
-    main(["--db", str(legacy), "analytics", "--analysis-input", str(source), "--no-text", "--output", str(output)])
+    main(["--db", str(legacy), "analytics", "--analysis-input", str(source), "--no-text", "--output", str(output),
+          "--feature-output", str(tmp_path / "features")])
     result = json.loads(output.read_text())
     assert result["scope"]["display_timezone"] == "Asia/Shanghai"
     assert result["scope"]["from_ts"] == 10
     assert not legacy.exists()
+    assert json.loads((tmp_path / "features/index.json").read_text())["feature_count"] == len(result["feature_dictionary"])

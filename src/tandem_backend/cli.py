@@ -71,6 +71,7 @@ def main(argv: list[str] | None = None) -> None:
     source.add_argument("--analysis-input", type=Path, help="main read_analysis 导出的 analysis-input-v1 JSON")
     source.add_argument("--data-home", type=Path, help="main packages/data 的规范数据库目录，只读")
     analytics.add_argument("--output", type=Path, help="完整 JSON，仅建议保存在 .local 下")
+    analytics.add_argument("--feature-output", type=Path, help="按 feature 族输出全部值、证据和 Markdown 索引")
     analytics.add_argument("--display-timezone", help="默认沿用标准输入时区；旧数据库默认为 UTC")
     analytics.add_argument("--from-ts", type=int)
     analytics.add_argument("--until-ts", type=int)
@@ -168,11 +169,16 @@ def main(argv: list[str] | None = None) -> None:
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+        feature_export = None
+        if args.feature_output:
+            from .analytics.export import export_families
+            feature_export = export_families(result, args.feature_output)
         counts = result["overview"]["counts"]
         print(f"主会话 {counts['main_sessions']}；确认真人消息 {counts['human_messages']}；来源未知 {counts['human_origin_unknown']}。")
         print(f"工具调用 {result['effective_samples']['tools']}；文本样本 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")
         print(json.dumps({"clustering": result['text'].get('clustering'),
                           "coverage": {k: v['status'] for k, v in result['coverage'].items()},
+                          "feature_export": feature_export,
                           "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
         return
     store = Store(args.db)
