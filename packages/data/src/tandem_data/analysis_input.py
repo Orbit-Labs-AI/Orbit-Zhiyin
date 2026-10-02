@@ -22,6 +22,7 @@ class AnalysisScope:
     root_session_uids: tuple[str, ...] | None = None
     excluded_session_uids: tuple[str, ...] = ()
     include_children: bool = True
+    agent_ids: tuple[str, ...] | None = None
 
     def __post_init__(self):
         ZoneInfo(self.display_timezone)
@@ -64,6 +65,11 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         sources = [
             decoded(row) for row in connection.execute("SELECT * FROM source ORDER BY source_id")
         ]
+        source_agents = {source["source_id"]: source["agent"] for source in sources}
+        session_agents = {
+            row["session_uid"]: source_agents.get(row["source_id"])
+            for row in connection.execute("SELECT session_uid,source_id FROM session")
+        }
         files = [
             decoded(row)
             for row in connection.execute(
@@ -86,6 +92,13 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             "root_uid NOT IN (SELECT value FROM json_each(:excluded))",
         ]
         params = {"excluded": json.dumps(scope.excluded_session_uids)}
+        if scope.agent_ids is not None:
+            # Apply to members AND linked context before the event memory budget.
+            allowed.append(
+                "session_uid IN (SELECT s.session_uid FROM session s JOIN source src USING(source_id) "
+                "WHERE src.agent IN (SELECT value FROM json_each(:agents)))"
+            )
+            params["agents"] = json.dumps(scope.agent_ids)
         if scope.root_session_uids is not None:
             allowed.append("root_uid IN (SELECT value FROM json_each(:roots))")
             params["roots"] = json.dumps(scope.root_session_uids)
@@ -128,6 +141,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         def member(event):
             return (
                 (scope.project_ids is None or event["project_id"] in scope.project_ids)
+                and (
+                    scope.agent_ids is None
+                    or session_agents.get(event["session_uid"]) in scope.agent_ids
+                )
                 and (scope.model_ids is None or canonical_model(event) in scope.model_ids)
                 and (scope.effort_raw is None or event["effort_raw"] in scope.effort_raw)
                 and (
@@ -230,9 +247,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         sessions = {event["session_uid"] for event in selected}
         roots = {event["root_uid"] for event in selected}
         session_rows = [
-            decoded(row)
+            {**decoded(row), "agent": source_agents.get(row["source_id"])}
             for row in connection.execute("SELECT * FROM session")
             if row["session_uid"] in sessions | roots
+            and (scope.agent_ids is None or source_agents.get(row["source_id"]) in scope.agent_ids)
         ]
         if scope.until_ts is not None:
             last_ends = {
@@ -282,6 +300,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             scope.root_session_uids is None
             and scope.project_ids is None
             and scope.model_ids is None
+            and scope.agent_ids is None
             and scope.effort_raw is None
             and scope.from_ts is None
             and scope.until_ts is None
