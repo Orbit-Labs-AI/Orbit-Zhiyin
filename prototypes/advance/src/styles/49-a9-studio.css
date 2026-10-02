@@ -72,3 +72,12 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 /* idle log: no run yet → a short hint box instead of a 160px empty well; it grows to the normal log once a run starts */
 .log.st-idle{flex:none;min-height:0;padding:12px;display:flex;flex-direction:column;gap:4px}
 .log.st-idle .cap{font:12px/18px var(--sans);text-wrap:balance}
+/* pass 2: banner is one line (detail in the title tooltip); log lines wrap at spaces, not inside words; artifact actions
+   sit right-aligned with the primary last, as in a macOS sheet, instead of a full-width disabled bar */
+.st-priv{align-items:center;flex-wrap:nowrap}
+.st-priv>svg{margin-top:0}
+.st-priv-t{text-wrap:wrap;min-width:0}
+.st-priv .lnk{white-space:nowrap;flex:none}
+#studioLog>div{word-break:normal;overflow-wrap:anywhere}
+.st-acts{margin-top:12px;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.st-acts .btn.p{order:2;min-width:96px;justify-content:center}

@@ -69,3 +69,10 @@
 .ov-recm{font-size:11px;line-height:15px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ov-recm .mono{color:var(--ink-2)}
 @container main (max-width:639px){.ov-tool{grid-template-columns:56px minmax(0,1fr) 40px 44px;gap:6px}}
+/* pass 2: one-line card footnotes (detail in title=), outcome strip focal value, two-line rec titles with aligned actions, tiles fill both rows on mid widths */
+.ov-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-out-t .ct{font-size:15px;font-weight:600}
+.ov-out-t .ct .mono{font-weight:600}
+.ov-recn{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:36px}
+@container main (min-width:640px) and (max-width:799px){#ovTiles{grid-template-columns:repeat(6,minmax(0,1fr))}#ovTiles>:nth-child(-n+3){grid-column:span 2}#ovTiles>:nth-child(n+4){grid-column:span 3}}
+@container main (max-width:639px){#ovTiles>:last-child:nth-child(odd){grid-column:1/-1}}

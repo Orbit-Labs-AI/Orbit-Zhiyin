@@ -31,10 +31,10 @@ function genFacts(L) {
   const byA = AG.map((a) => [a, sum(L.filter((s) => s.a === a.id), (s) => s.dur)]).sort((x, y) => y[1] - x[1]);
   const fr = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]);
   return [
-    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', '你最常在 ' + bh + ':00–' + (bh + 1) + ':00 和 Agent 协作'],
-    ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占你协作时长的 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
+    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', '最常在 ' + bh + ':00–' + (bh + 1) + ':00 协作'],
+    ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占协作时长 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
     ['语义', '本地 Agent 正在归类你的消息', '摩擦最多的是「' + (fr[0] ? fr[0][0] : '—') + '」'],
-    ['人格', '四个维度', '你在 ' + Math.round(st.verify) + '% 的会话里要求验证结果']
+    ['人格', '四个维度', Math.round(st.verify) + '% 的会话要求验证结果']
   ];
 }
 function obFacts() { return genFacts(obSel()); }
@@ -51,15 +51,15 @@ function drawOB() {
   const top = '<div class="row">' + dots + '<span class="mono cap" style="font-size:11px">' + (s + 1) + ' / 4</span><span style="flex:1"></span>' + (s < 3 ? '<button type="button" class="btn sm gh" data-act="obClose">跳过</button>' : '') + '</div>';
   let b = '';
   if (s === 0) {
-    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:28px;line-height:1.2">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
+    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1) {
     const tot = AG.filter((a) => OB.src.has(a.id)).reduce((x, a) => x + a.all, 0);
-    b = '<div><h2 class="serif" style="margin:0;font-size:24px">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
-      AG.map((a) => '<label class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:' + a.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + a.c) + '</span><span style="min-width:0"><b style="font-size:13px">' + a.name + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.path + '</span></span><span class="mono cap" style="font-size:11.5px">' + fmt(a.all) + '</span><input type="checkbox" data-chg="obSrc" data-a="' + a.id + '"' + (OB.src.has(a.id) ? ' checked' : '') + ' aria-label="分析 ' + a.name + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>').join('') +
+    b = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
+      AG.map((a) => '<label class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:' + a.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + a.c) + '</span><span style="min-width:0"><b style="font-size:13px">' + a.name + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.path + '</span></span><span class="mono cap" style="font-size:11px">' + fmt(a.all) + '</span><input type="checkbox" data-chg="obSrc" data-a="' + a.id + '"' + (OB.src.has(a.id) ? ' checked' : '') + ' aria-label="分析 ' + a.name + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>').join('') +
       '<div class="srcrow" style="opacity:.6"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">Cursor</b><span class="cap" style="display:block;font-size:11px">未检测到 · 可稍后在设置中手动指定</span></span><span></span><span></span></div></div>' +
-      '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:12.5px">只分析最近 90 天</b><span class="cap" style="font-size:11.5px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11.5px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
+      '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (OB.src.size ? '' : ' disabled') + '>开始分析</button></div>';
   }
   // Keep the keyboard where it was across redraws (a ticked checkbox, the 90-day switch, the progress page's 950 ms ticks);
@@ -105,14 +105,14 @@ function genHTML(g) {
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
   const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '暂不匹配' : '样本不足') + '</span><span class="cap">' + (p.ok ? '有维度落在 45–55 之间，先不下结论' : '已选来源的会话少于 30 个') + '</span>';
   const nm = '<div class="serif g-zh">' + (p.ok ? p.zh + ' <i>' + p.en + '</i>' : '样本不足') + '</div><p class="g-line">' + esc(p.ok ? p.line : '已选来源的会话少于 30 个，先用一段时间再来看。') + '</p>';
-  const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx">' + ic('check', 13, 'color:var(--good);flex:none') + '<span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
+  const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx"><span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
   const top = '<div class="row g-top">' + (ob ? '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= 2 ? 'on' : '') + '"></i>').join('') + '</div><span class="mono cap" data-g="n" style="font-size:11px">3 / 4</span>' : '') +
     '<span class="mono cap g-stage"' + (ob ? '' : ' id="revStage"') + ' data-g="stage"></span><span style="flex:1"></span><button type="button" class="btn sm gh" data-act="' + (ob ? 'genSkip' : 'revSkip') + '">跳过</button></div>';
   const head = ob ? '<div class="g-head" data-g="head"><h2 class="serif">正在建立你的协作画像</h2><p class="cap">每完成一步就先给你看结果，不用等到最后。</p></div><div class="g-bar"><i data-g="bar"></i></div>' : '';
   const vr = visibleRecs();
-  const done = ob ? '<div class="g-next">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '让本地 Agent 依据你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b style="font-size:12.5px">' + x[0] + '</b><span class="cap" style="font-size:11.5px">' + x[1] + '</span></span></div>').join('') + '</div>' +
+  const done = ob ? '<div class="g-next">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '按你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b class="g-nt">' + x[0] + '</b><span class="cap g-nc">' + x[1] + '</span></span></div>').join('') + '</div>' +
       '<div class="g-foot"><button type="button" class="lnk" data-act="obReveal">播放揭晓动画</button><span class="row" style="gap:8px"><button type="button" class="btn" data-act="obShare">导出分享卡</button><button type="button" class="btn p" data-act="obDone" style="height:32px;padding:0 18px">查看完整画像</button></span></div>'
-    : '<div class="g-foot" style="justify-content:center"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></div>';
+    : '<div class="g-foot"><span></span><span class="row" style="gap:8px"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></span></div>';
   return top + head +
     '<div class="g-body"><div class="fp-wrap g-dial" data-g="dial"><div class="g-fp">' + fp + '</div>' + over + '<div class="g-cards" data-g="cards"></div></div>' +
     '<div class="g-side"><div class="mono cap g-count" data-g="count"></div><div class="g-res"><span class="eb">你的协作人格</span><div class="letters code g-code" data-g="code" role="img" aria-label="' + (p.ok ? p.code : '样本不足') + '">' + slots + '</div><div class="row g-match" data-g="match">' + match + '</div><div class="nm" data-g="nm">' + nm + '</div></div>' +
@@ -414,7 +414,7 @@ function genFinal(how) {
     const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
     render();
   } else {
-    genStage(g, '05 / 停留');
+    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
     if (REV) { REV.done = true; REV.timers.forEach(clearTimeout); }
     if (how !== 'init') { const f = q('[data-act="revGo"]'); if (f) f.focus(); }
   }
