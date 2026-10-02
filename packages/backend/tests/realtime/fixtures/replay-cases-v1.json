@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "note": "Synthetic cases for EV-15. t is seconds from session start; the clock steps every 5 s.",
+  "cases": [
+    {
+      "id": "run_then_finish",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "tool.call", "actor": "assistant", "call": {"command_head": "ls"}},
+        {"t": 10, "kind": "tool.result", "actor": "tool"},
+        {"t": 20, "kind": "message", "actor": "assistant"}
+      ],
+      "until": 800,
+      "expect": [{"at": 15, "state": "running"}, {"at": 115, "state": "just_finished"},
+                 {"at": 715, "state": "idle"}],
+      "onset": {"just_finished": 110},
+      "never": ["failing", "awaiting_approval", "context_pressure"]
+    },
+    {
+      "id": "identical_failures_are_failing",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "npm install", "status": "failed", "error_class": "timeout"}},
+        {"t": 15, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "npm install", "status": "failed", "error_class": "timeout"}},
+        {"t": 25, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "npm install", "status": "failed", "error_class": "timeout"}}
+      ],
+      "until": 120,
+      "expect": [{"at": 20, "absent": "failing"}, {"at": 30, "state": "failing"}],
+      "onset": {"failing": 25},
+      "never": ["awaiting_approval"]
+    },
+    {
+      "id": "red_tests_are_not_failing",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "pytest", "status": "failed", "error_class": "test_failure"}},
+        {"t": 15, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "pytest", "status": "failed", "error_class": "test_failure"}},
+        {"t": 25, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "pytest", "status": "failed", "error_class": "test_failure"}}
+      ],
+      "until": 120,
+      "expect": [{"at": 30, "state": "running"}],
+      "never": ["failing"]
+    },
+    {
+      "id": "permission_request_waits",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "permission.request", "actor": "hook", "command": "git push origin main"}
+      ],
+      "until": 300,
+      "expect": [{"at": 10, "state": "awaiting_approval"}, {"at": 250, "state": "awaiting_approval"}],
+      "onset": {"awaiting_approval": 5},
+      "never": ["failing"]
+    },
+    {
+      "id": "silence_is_not_approval",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "tool.call", "actor": "assistant", "call": {"command_head": "make", "open": true}}
+      ],
+      "until": 400,
+      "expect": [{"at": 10, "state": "running"}, {"at": 300, "state": "idle"}],
+      "never": ["awaiting_approval"]
+    },
+    {
+      "id": "context_pressure_at_92_percent",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "model.usage", "actor": "assistant",
+         "usage": {"used_tokens": 184000, "model": "claude-sonnet-4-5"}}
+      ],
+      "until": 60,
+      "expect": [{"at": 10, "state": "context_pressure"}],
+      "never": ["failing"]
+    },
+    {
+      "id": "unknown_model_raises_no_flag",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "model.usage", "actor": "assistant",
+         "usage": {"used_tokens": 999999999, "model": "mystery-model"}}
+      ],
+      "until": 60,
+      "expect": [{"at": 10, "state": "running"}],
+      "never": ["context_pressure"]
+    },
+    {
+      "id": "paused_collection",
+      "service": "paused",
+      "rows": [
+        {"t": 0, "kind": "message", "actor": "human"},
+        {"t": 5, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "npm install", "status": "failed"}},
+        {"t": 10, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "npm install", "status": "failed"}},
+        {"t": 15, "kind": "tool.result", "actor": "tool",
+         "call": {"command_head": "npm install", "status": "failed"}}
+      ],
+      "until": 20
+    }
+  ]
+}
