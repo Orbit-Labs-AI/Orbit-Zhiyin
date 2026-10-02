@@ -116,9 +116,9 @@ scene('40-recs', () => {
       if (!f.z) { const n = fxEl.querySelector('.r-tot .r-n'), st = stage.getBoundingClientRect(), z = st.width / 1920; if (n) { const r = n.getBoundingClientRect(); f.z = [(r.left + r.width / 2 - st.left) / z, (r.top + r.height * .55 - st.top) / z]; } else f.z = [900, 330]; }
       const e = E.inOut(q), x0 = f.a[0], y0 = f.a[1] - 20, x1 = f.z[0], y1 = f.z[1], cx = lerp(x0, x1, .5) + 140, cy = Math.min(y0, y1) - 170;
       const x = (1 - e) * (1 - e) * x0 + 2 * (1 - e) * e * cx + e * e * x1, y = (1 - e) * (1 - e) * y0 + 2 * (1 - e) * e * cy + e * e * y1;
-      const s = lerp(.7, 1.1, Math.sin(Math.PI * Math.min(1, e * 1.2))) * (1 - .45 * E.in(lp(q, .7, .3)));
+      const s = lerp(.7, 1.1, Math.sin(Math.PI * Math.min(1, e * 1.2))) * (1 - .5 * E.in(lp(q, .5, .4)));
       f.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-50%) scale(' + s.toFixed(3) + ')';
-      f.el.style.opacity = (Math.min(1, q * 6) * (1 - E.in(lp(q, .78, .22)))).toFixed(3);
+      f.el.style.opacity = (Math.min(1, q * 6) * (1 - E.in(lp(q, .58, .3)))).toFixed(3);
     });
   });
   txt(57.5, 64.5, [['eb', '02 · 推荐 · 为指挥家定制']], { x: 960, y: 150, align: 'c' }, { outB: .5 });
@@ -134,12 +134,12 @@ scene('40-recs', () => {
       else { const pre = Math.round((TOTAL - SAVE[N - 1]) * 10) / 10; n.dataset.from = pre; n.dataset.to = TOTAL; n.dataset.dec = 1; K.count(LAST - TOT0, SETTLE - LAST, .4)(el, tl); }
       const q = E.inOut(lp(b, 64.0, .6));
       el.style.transform = 'translate(-50%,-50%) translate(' + (-520 * q).toFixed(1) + 'px,' + (-212 * q).toFixed(1) + 'px) scale(' + lerp(1, .26, q).toFixed(4) + ')';
-      el.style.opacity = (1 - E.in(lp(b, 64.25, .4))).toFixed(3);
+      el.style.opacity = (1 - E.in(lp(b, 64.15, .35))).toFixed(3);   // gone before the eyebrow rises
     }
   });
 
   /* ---------- 5b lift → press → flip into the install sheet (b64–69.6) ---------- */
-  txt(64.3, 69.7, [['r-eb', '<span class="r-ebl">每月可省</span><span class="r-ebn">' + '22.7 h' + '</span>']], { x: L, y: 112 }, { st: 0, outB: .6, tick: (el) => { const n = el.querySelector('.r-ebn'); if (n && TOTAL) n.textContent = TOTAL.toFixed(1) + ' h'; } });
+  txt(64.5, 69.7, [['r-eb', '<span class="r-ebl">每月可省</span><span class="r-ebn">' + '22.7 h' + '</span>']], { x: L, y: 112 }, { st: 0, outB: .6, tick: (el) => { const n = el.querySelector('.r-ebn'); if (n && TOTAL) n.textContent = TOTAL.toFixed(1) + ' h'; } });
   tween(0, 64.2, .9, () => ({ ay: 470, rx: 0, rz: 0, s: CONV.s * 1.08 }), E.inOut);
   tag(0, 64.8, 66.15, (D) => card(D, RB), 'top', [['eb r-or', '对应你的盲点 · 工具 / 环境失败']], { gap: 34, at: .5, outB: .3, tick: pin() });
   clickAt(0, 66.0, (D) => { const c = card(D, RB); return c && c.querySelector('[data-act="install"]'); }, () => {}, { bloom: 'var(--a1)', glide: .9 });
@@ -238,7 +238,7 @@ scene('40-recs', () => {
   /* ---------- 5e 每月多出 22.7 小时 (b78.4–84.4) ---------- */
   tween(0, 78.3, .8, () => { const C = decks[0].C; return { rx: 58, s: C.s * .62, ay: C.ay + 300, o: 0, bl: 6 }; }, E.in);
   const PRE = [78.8, 79.1], HIT = 79.4, UNIT = 79.6, F3 = 3 / 60 / BEAT;    // three frames, in beats
-  txt(78.7, 84.15, [['r5', '<span class="r5-pre"><span>每月</span><span>多出</span></span><span class="r5-num">22.7</span><span class="r5-u">小时</span>']], { x: 960, y: 452, align: 'c' }, {
+  txt(78.7, 83.85, [['r5', '<span class="r5-pre"><span>每月</span><span>多出</span></span><span class="r5-num">22.7</span><span class="r5-u">小时</span>']], { x: 960, y: 452, align: 'c' }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT;
       el.querySelectorAll('.r5-pre span').forEach((s, i) => { const q = clamp((b - PRE[i]) / (2 / 60 / BEAT)); s.style.opacity = q.toFixed(3); s.style.transform = 'translateY(' + ((1 - E.out(lp(b, PRE[i], .25))) * 14).toFixed(1) + 'px)'; });
@@ -250,10 +250,10 @@ scene('40-recs', () => {
       n.style.fontWeight = Math.round(lerp(200, 900, clamp((b - HIT) / F3)));
       const u = el.querySelector('.r5-u'), qu = E.out(lp(b, UNIT, .35));
       u.style.opacity = qu.toFixed(3); u.style.transform = 'translateY(' + ((1 - qu) * 40).toFixed(1) + 'px)';
-      leave(el, exitQ(tl, life, .75), true);
+      leave(el, exitQ(tl, life, .55), true);
     }
   });
-  txt(80.6, 84.15, [['lt', '12 条建议 · 按你的协作方式定制 · 装上就能验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .75, spread2: true }) });
+  txt(80.6, 83.85, [['lt', '12 条建议 · 按你的协作方式定制 · 装上就能验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .55, spread2: true }) });
   glowAt(HIT, .9, .5);
   glowAt(80.4, 0, 2.2);
 });
