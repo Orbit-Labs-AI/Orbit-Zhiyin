@@ -244,9 +244,24 @@ def _max_workers() -> int:
     return max(1, min(os.cpu_count() or 1, DEFAULT_MAX_WORKERS))
 
 
-def _wants_parallel(misses: int, parallel: bool | None) -> bool:
+# Above this many selected events the pool is skipped: every worker unpickles its chunk's
+# trees next to the parent's whole selection, and on a real home (30 days ≈ 450k events)
+# the process tree peaked at 16 GB for a ~2x speed-up of the row step only.
+PARALLEL_MAX_EVENTS = 150_000
+
+
+def _parallel_max_events() -> int:
+    value = os.environ.get("TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS")
+    return int(value) if value and value.isdigit() else PARALLEL_MAX_EVENTS
+
+
+def _wants_parallel(misses: int, parallel: bool | None, events: int = 0) -> bool:
     if parallel is None:
-        return misses >= PARALLEL_MIN_MISSES and _max_workers() > 1
+        return (
+            misses >= PARALLEL_MIN_MISSES
+            and _max_workers() > 1
+            and events <= _parallel_max_events()
+        )
     return parallel
 
 
@@ -321,7 +336,9 @@ def compute_row_cores(
 
     ``executor`` lets a caller share one pool with other whole-selection jobs.
     """
-    parallel = executor is not None or _wants_parallel(len(sids), parallel)
+    parallel = executor is not None or _wants_parallel(
+        len(sids), parallel, len(context.events or ())
+    )
     ROW_STATS["computed"] += len(sids)
     if parallel and len(sids) > 1:
         chunks = [sids[i : i + PARALLEL_CHUNK] for i in range(0, len(sids), PARALLEL_CHUNK)]
@@ -529,7 +546,8 @@ class AnalysisSections:
         if self._executor is not None or "cores" in self._memo:
             return
         _, _, missing = self._row_plan()
-        if not _wants_parallel(len(missing), self.parallel) or len(missing) < 2:
+        events = len(self.context.events or ())
+        if not _wants_parallel(len(missing), self.parallel, events) or len(missing) < 2:
             return
         whole = []
         if "bottleneck_features" in names:

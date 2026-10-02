@@ -305,3 +305,14 @@ def test_large_sections_only_point_at_the_section_cache_in_the_run_snapshot(
     assert snapshot["sessions"]["stored_in"] == "analysis_section"
     assert snapshot["sessions"]["json_bytes"] > 0
     assert snapshot["analysis_digest"] == result["analysis_digest"]
+
+
+def test_large_selections_skip_the_process_pool(monkeypatch):
+    from tandem_backend.analytics import service
+
+    monkeypatch.setattr(service, "_max_workers", lambda: 4)
+    assert service._wants_parallel(500, None, 10_000) is True
+    assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is False
+    monkeypatch.setenv("TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS", "1000000")
+    assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is True
+    assert service._wants_parallel(500, True, 10**9) is True  # explicit request wins
