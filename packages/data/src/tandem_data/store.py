@@ -39,7 +39,7 @@ SMALL_STORE_MAX_BYTES = 16 << 20
 LARGE_STORE_MIN_BYTES = 32 << 20
 # Maintenance VACUUMs when this share of the used pages is slack (dbstat ``unused``); free
 # pages alone are returned with ``incremental_vacuum`` instead of a full rewrite.
-VACUUM_SLACK = 0.12
+VACUUM_SLACK = 0.05
 # After a check, later maintenance skips the dbstat scan until the store grows by this
 # factor or this share of its pages is free (state in ``maintenance.json`` in the home).
 MAINTAIN_GROWTH = 1.25
