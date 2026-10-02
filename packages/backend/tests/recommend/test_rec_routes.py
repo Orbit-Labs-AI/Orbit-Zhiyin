@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from tandem_backend.appdb import AppDB
 from tandem_backend.recommend import inputs as rec_inputs
-from tandem_backend.recommend import runs
+from tandem_backend.recommend import runs, store
 from tandem_backend.services import routes_recommend
 from tandem_backend.services.gateway import install_error_handlers
 from tandem_backend.services.snapshots import Snapshot, SnapshotKey
@@ -307,3 +307,112 @@ def test_real_gateway_wiring(tmp_path):
         assert body["meta"]["freshness"] == "none" and body["items"] == []
         assert client.post("/v1/recommendations/recompute", json={}).status_code == 409
         assert client.get("/v1/recommendations/metrics").json() == {"rows": []}
+
+
+def _engine_slate(inputs, memory, *, catalog=None, **kw):
+    slate = runs.legacy_slate(inputs)
+    slate["engine_version"], slate["diagnostics"] = "rec-engine-v2", []
+    slate["candidates"].append({**slate["candidates"][0], "rec_key": "generate:rule:x", "rank": None,
+                                "generate": {"task_id": "generate.rule", "template_id": "blank@1"}})
+    slate["seen"] = {"settings": memory["settings"], "catalog": catalog, **kw}
+    return slate
+
+
+def test_settings_from_platform_and_ai_rerank(env, monkeypatch):
+    from tandem_backend import ai
+    from tandem_backend.platform.settings import PlatformSettings
+
+    client, gw, _ = env
+    gw.platform = SimpleNamespace(settings=PlatformSettings(gw.appdb))
+    seen = {}
+
+    def build(inputs, memory, **kw):
+        slate = _engine_slate(inputs, memory, **kw)
+        seen.update(slate.pop("seen"))
+        return slate
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build, "rec-engine-v2"))
+    calls = []
+
+    class FakeAI:
+        def __init__(self, mode):
+            self.mode = mode
+
+        def run(self, task_id, slots=None, scope=None, timeout=60):
+            calls.append((task_id, [c["candidate_id"] for c in slots["candidates"]]))
+            ids = [c["candidate_id"] for c in slots["candidates"]]
+            return {"status": "ok", "job_id": "j1", "result": {
+                "order": ids[::-1], "items": [{"candidate_id": ids[-1], "fit": "fits",
+                                               "explain": "e", "reasons": []}]}}
+
+    fake = FakeAI("stats")
+    monkeypatch.setattr(ai, "service", lambda gw_: fake)
+    monkeypatch.setattr(runs, "ai_enabled", lambda gw_: fake.mode != "stats")
+    assert client.get("/v1/recommendations/settings").json() == {
+        "ai_generate": False, "level": None, "ai_available": False}
+    assert client.put("/v1/recommendations/settings",
+                      json={"ai_generate": True}).json()["ai_generate"] is True
+    client.get("/v1/recommendations")
+    assert seen["settings"] == {"ai_generate": False} and not calls  # consent mode=stats
+    fake.mode = "agent"
+    body = client.get("/v1/recommendations").json()  # AI flip keys a new run
+    assert seen["settings"] == {"ai_generate": True}
+    assert calls == [("rerank.fit", [f"legacy:res{i}" for i in range(4)])]
+    assert [i["rec_key"] for i in body["items"]] == [*(f"legacy:res{i}" for i in (3, 2, 1, 0)),
+                                                     "generate:rule:x"]  # unranked last
+    assert body["items"][0]["ai_fit"]["fit"] == "fits" and body["items"][0]["rank"] == 4
+    gen = next(i for i in client.get("/v1/recommendations?limit=50").json()["items"]
+               if i["rec_key"] == "generate:rule:x")
+    assert gen["generate"]["available"] is True
+
+    def unavailable(*a, **kw):
+        raise ai.AIUnavailable("consent_required")
+
+    fake.run = unavailable
+    body = client.post("/v1/recommendations/recompute", json={"scope": {}, "force": True}).json()
+    with gw.appdb.read() as conn:
+        diags = store.get_run(conn, body["run_id"])["diagnostics"]
+    assert {"source": "rerank.fit", "status": "unavailable", "reason": "consent_required"} in diags
+
+
+def test_views_do_not_rerun_engine(env):
+    client, _, _ = env
+    items = client.get("/v1/recommendations").json()["items"]
+    run_id = items[0]["run_id"]
+    for item in items:
+        client.post(f"/v1/recommendations/{item['candidate_id']}/exposure",
+                    json={"surface": "A7", "action": "view"})
+    assert client.get("/v1/recommendations").json()["run"]["run_id"] == run_id
+
+
+def test_catalog_service_and_features_passed(env, monkeypatch, tmp_path):
+    from tandem_backend import features
+
+    client, gw, _ = env
+    gw.home = tmp_path / "home"
+    gw.home.mkdir()
+    assert runs.catalog_service(gw) is None  # no catalog.db yet
+    seen = {}
+
+    def build(inputs, memory, **kw):
+        slate = _engine_slate(inputs, memory, **kw)
+        seen.update(slate.pop("seen"))
+        return slate
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build, "rec-engine-v2"))
+    monkeypatch.setattr(features, "_service", object())
+    client.get("/v1/recommendations")
+    assert seen["features"] is features and seen["catalog"] is None
+
+
+def test_catalog_service_from_home_and_generation(env, tmp_path):
+    from tandem_catalog.service import CatalogService
+
+    _, gw, _ = env
+    gw.home = tmp_path / "home2"
+    gw.home.mkdir()
+    CatalogService(gw.home / "catalog.db")  # empty catalog on disk
+    svc = runs.catalog_service(gw)
+    assert svc is not None and runs.catalog_service(gw) is svc  # cached on gw
+    generation, items = runs._catalog_state(svc)
+    assert isinstance(generation, int) and items == 0  # empty → run uses the seed fallback

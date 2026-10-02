@@ -59,6 +59,11 @@ class TrackingRequest(BaseModel):
     installed_at: int | None = None
 
 
+class SettingsRequest(BaseModel):
+    ai_generate: bool | None = None
+    level: int | None = Field(None, ge=1, le=4)
+
+
 class LabelRequest(BaseModel):
     target_kind: Literal["candidate", "problem", "profile", "signal", "key_moment", "facet",
                          "narrative", "reader_case"]
@@ -113,6 +118,7 @@ def router(gw: Gateway) -> APIRouter:
             items = store.candidates(conn, run["run_id"], level=level, audience=aud, limit=50)
             states = store.states(conn, [c["rec_key"] for c in items])
             items = [c for c in items if store.visible(states.get(c["rec_key"]), now)]
+            items = store.apply_decay(items, states)
             gated = (store.candidates(conn, run["run_id"], passed=False, limit=50)
                      if include_gated else None)
         counts: dict[str, int] = {}
@@ -184,6 +190,20 @@ def router(gw: Gateway) -> APIRouter:
     def metrics(days: int = Query(90, ge=1, le=365)):
         with gw.appdb.read() as conn:
             return {"rows": outcomes.metrics_ev05(conn, days)}
+
+    @api.get("/v1/recommendations/settings")
+    def get_settings():
+        return {**runs.settings_for(gw), "ai_available": runs.ai_enabled(gw)}
+
+    @api.put("/v1/recommendations/settings")
+    def put_settings(request: SettingsRequest):
+        platform = getattr(gw, "platform", None)
+        if platform is None:
+            raise ApiError(503, "unavailable", "Settings store not ready", retryable=True)
+        current = {**runs.DEFAULT_SETTINGS, **(platform.settings.get("recommend", {}) or {})}
+        patch = request.model_dump(exclude_unset=True)
+        platform.settings.put("recommend", {**current, **patch})
+        return get_settings()
 
     @api.get("/v1/recommendations/{candidate_id}")
     def detail(candidate_id: str):

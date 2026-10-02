@@ -196,6 +196,13 @@ def _model_mix(conn, uids, root_of, edit_roots, per_root, diagnostics) -> list[d
                    for e in mix.values()), key=lambda e: -e["tokens"])
 
 
+def _linked_item(item: dict) -> dict:
+    """features.linked_inventory row → the RecInputs inventory row (extra fields kept)."""
+    return {**item, "content_hash": item.get("content_hash"), "lines": item.get("lines"),
+            "resident_tokens": (item.get("resident") or {}).get("tokens_est"),
+            "catalog_item_id": (item.get("catalog") or {}).get("item_id")}
+
+
 def _inventory(conn, diagnostics: list) -> list[dict] | None:
     try:
         from ..features import linked_inventory
@@ -203,7 +210,7 @@ def _inventory(conn, diagnostics: list) -> list[dict] | None:
         linked_inventory = None
     if linked_inventory is not None:
         try:
-            return list(linked_inventory())
+            return [_linked_item(item) for item in linked_inventory().get("items") or ()]
         except Exception as error:  # noqa: BLE001 - fall back to the raw scan
             diagnostics.append({"source": "features.linked_inventory", "status": "failed",
                                 "reason": str(error)})

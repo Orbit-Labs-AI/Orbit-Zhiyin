@@ -147,3 +147,18 @@ def test_revert_and_ev05_funnel(db):
                      "na_rate": 0.0, "revert_rate": 1.0}]
     assert memory["posteriors"]["kb:retry"]["beta"] == 2
     assert memory["state"]["kb:retry"]["status"] == "not_applicable"
+
+
+def test_public_api_for_install(db):
+    import tandem_backend.recommend as rec
+
+    cid = seed(db)
+    tid = rec.register_tracking(db, "inst9", cid, INSTALLED)
+    assert tid and rec.register_tracking(db, "inst9", cid, INSTALLED) == tid
+    label_id = rec.label(db, cid, "useful", now=INSTALLED + 1)
+    with db.read() as conn:
+        row = conn.execute("SELECT label, labeler, rec_key FROM label WHERE label_id=?", (label_id,)).fetchone()
+    assert tuple(row) == ("useful", "system", "kb:retry")
+    assert rec.mark_reverted(db, "inst9", INSTALLED + DAY)
+    with db.read() as conn:
+        assert store.states(conn)["kb:retry"]["status"] == "not_applicable"

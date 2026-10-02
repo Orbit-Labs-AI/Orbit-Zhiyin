@@ -7,13 +7,25 @@ fuses ranks and merges payloads into RawCand dicts for gating and scoring.
 
 from .. import kb as kb_mod
 from .. import problems as problems_mod
-from . import catalog_route, generative, graph, hashed, kb_route, models, subtract, templates
+from ..ranking.gates import top_agent
+from . import (
+    catalog_route,
+    feature_route,
+    generative,
+    graph,
+    hashed,
+    kb_route,
+    models,
+    subtract,
+    templates,
+)
 from .fusion import fuse
 
 WEIGHTS = {"kb": 1., "subtract": 1., "template": .8, "catalog": .7, "model": .6, "dense": .5, "profile": .4,
-           "graph": .4, "generative": .3, "generic": .2}
+           "feature": .4, "graph": .4, "generative": .3, "generic": .2}
 # Whose payload wins when several routes return the same rec_key.
-PAYLOAD_ORDER = ["kb", "template", "subtract", "catalog", "dense", "model", "profile", "graph", "generative", "generic"]
+PAYLOAD_ORDER = ["kb", "template", "subtract", "catalog", "feature", "dense", "model", "profile", "graph", "generative",
+                 "generic"]
 COLD_START_SESSIONS, MAX_CANDIDATES = 10, 200
 _STATUS = {"active": 0, "below_threshold": 1, "insufficient": 2}
 
@@ -50,6 +62,8 @@ def _merge(key: str, payloads: dict[str, dict[str, dict]]) -> dict:
         sessions += [uid for uid in other["evidence"]["session_uids"] if uid not in sessions]
         signals += [sid for sid in other["evidence"]["signal_ids"] if sid not in signals]
         problem = _stronger(problem, other["problem"])
+        if other.get("feature_overlap") and not cand.get("feature_overlap"):
+            cand["feature_overlap"] = other["feature_overlap"]
     counts = dict(cand["evidence"]["counts"])
     counts["sessions"] = max(counts.get("sessions", 0), len(sessions))
     cand["evidence"] = {"session_uids": sessions[:50], "signal_ids": signals[:50], "counts": counts}
@@ -57,10 +71,14 @@ def _merge(key: str, payloads: dict[str, dict[str, dict]]) -> dict:
     return cand
 
 
-def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_path=None) -> dict:
+def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_path=None, features=None) -> dict:
+    """``features`` is the module-level features API (profile / match_items) when bound."""
     memory = memory or {}
     diagnostics: list[dict] = []
     problems = problems_mod.build(inputs, memory)
+    profile = inputs.get("profile")
+    if isinstance(profile, dict) and isinstance(profile.get("tags"), list):  # features.profile body
+        inputs = {**inputs, "profile": feature_route.legacy_profile(profile)}
     rules, kb_version = kb_mod.load(kb_path)
     inventory = inputs.get("inventory")
     routes: dict[str, list] = {}
@@ -76,6 +94,11 @@ def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_pat
         if rows:
             routes[name], payloads[name] = rows, payload
 
+    if features is not None:
+        run("feature", lambda: feature_route.recall(problems, inputs, features, catalog, agent=top_agent(inputs),
+                                                    meta=meta))
+        if meta.get("feature_profile"):
+            inputs = {**inputs, "profile": feature_route.legacy_profile(meta["feature_profile"])}
     run("kb", lambda: kb_route.recall(problems, rules, memory, inputs, inventory))
     run("catalog", lambda: catalog_route.recall(problems, inputs, catalog, diagnostics=diagnostics, meta=meta))
     if meta.get("profile_rows"):
@@ -107,4 +130,5 @@ def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_pat
         candidates.append(cand)
     return {"problems": problems, "candidates": candidates,
             "routes": {route: len(rows) for route, rows in sorted(routes.items())},
-            "diagnostics": diagnostics, "kb_version": kb_version, "catalog_generation": meta.get("generation")}
+            "diagnostics": diagnostics, "kb_version": kb_version, "catalog_generation": meta.get("generation"),
+            "profile": inputs.get("profile")}

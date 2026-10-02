@@ -6,8 +6,26 @@ import json
 import sqlite3
 from contextlib import contextmanager
 
+import pytest
+
+from tandem_backend import features
 from tandem_backend.recommend import section
 from tandem_backend.services.sections import SECTIONS
+
+
+@pytest.fixture(autouse=True)
+def _unbound_features(monkeypatch):
+    """Other suites bind a FeatureService globally; these cases test the raw-scan fallback."""
+    monkeypatch.setattr(features, "_service", None)
+
+
+def test_linked_inventory_rows_are_mapped(monkeypatch):
+    linked = {"items": [{"inv_id": "skill:x", "type": "skill", "name": "x", "status": "unused",
+                         "resident": {"tokens_est": 120}, "catalog": {"item_id": "cat-x"}}]}
+    monkeypatch.setattr(features, "linked_inventory", lambda *a, **kw: linked)
+    rows = section._inventory(None, [])
+    assert rows[0]["resident_tokens"] == 120 and rows[0]["catalog_item_id"] == "cat-x"
+    assert rows[0]["status"] == "unused"
 
 DAY = 86_400_000
 T0 = 1_780_000_000_000

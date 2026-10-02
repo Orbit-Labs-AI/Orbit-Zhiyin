@@ -9,12 +9,13 @@ mapped into the same candidate shape.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
+import inspect
 import json
 import threading
 import time
 import uuid
+from pathlib import Path
 
 from . import inputs as rec_inputs
 from . import outcomes, store
@@ -23,6 +24,9 @@ LEGACY_ENGINE = "legacy-v1"
 KEEP_RUNS = 20
 KEEP_PASSED = 30
 KEEP_GATED = 50
+RERANK_TOP = 10
+RERANK_TIMEOUT_S = 30
+DEFAULT_SETTINGS = {"ai_generate": False, "level": None}
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
 
@@ -61,21 +65,130 @@ def _engine():
     return build, getattr(engine, "ENGINE_VERSION", "rec-engine-v2")
 
 
-def _timed(name: str):
+def _record(ms: float, **tags) -> None:
     try:
-        from ..platform import timed  # type: ignore[attr-defined]
+        from ..platform import record
     except ImportError:
-        return contextlib.nullcontext()
-    return timed(name)
+        return
+    record("recommend.run", ms, **tags)
 
 
-def _catalog_generation(catalog):
-    value = getattr(catalog, "generation", None)
+def _catalog_state(catalog) -> tuple[int | None, int]:
+    """(generation, active items) of a CatalogService; (None, 0) when unreadable."""
     try:
-        value = value() if callable(value) else value
+        with catalog.store.connect(True) as conn:
+            generation = conn.execute(
+                "SELECT value FROM catalog_meta WHERE key='generation'").fetchone()
+            items = conn.execute("SELECT count(*) FROM catalog_item WHERE status='active'"
+                                 ).fetchone()[0]
     except Exception:  # noqa: BLE001 - catalog is optional
+        return None, 0
+    return (int(generation[0]) if generation else None), int(items)
+
+
+def catalog_service(gw):
+    """The gateway's CatalogService over ``home/catalog.db`` (created lazily, cached on gw).
+    None while the file is missing, so recall falls back to the bundled seeds."""
+    explicit = getattr(gw, "catalog", None)
+    if explicit is not None:
+        return explicit
+    home = getattr(gw, "home", None)
+    path = Path(home) / "catalog.db" if home is not None else None
+    if path is None or not path.exists():
         return None
-    return value if isinstance(value, int) else None
+    with _locks_guard:
+        svc = getattr(gw, "_rec_catalog", None)
+        if svc is None:
+            try:
+                from tandem_catalog.service import CatalogService
+
+                svc = CatalogService(path)
+            except Exception:  # noqa: BLE001 - a broken catalog must not break recommendations
+                return None
+            gw._rec_catalog = svc
+    return svc
+
+
+def settings_for(gw) -> dict:
+    """Recommendation settings: ``platform_kv['recommend']`` (``gw.rec_settings`` overrides)."""
+    platform = getattr(gw, "platform", None)
+    stored = platform.settings.get("recommend", {}) if platform is not None else {}
+    return {**DEFAULT_SETTINGS, **(stored or {}), **(getattr(gw, "rec_settings", None) or {})}
+
+
+def ai_enabled(gw) -> bool:
+    """AI consent leaves model calls on (mode != stats)."""
+    try:
+        from ..ai.consent import Consent
+
+        return Consent(gw.appdb).settings()["mode"] != "stats"
+    except Exception:  # noqa: BLE001 - no AI module / app.db tables: generation stays off
+        return False
+
+
+def _features():
+    """Module-level features API once routes_features bound a FeatureService, else None."""
+    try:
+        from .. import features
+    except ImportError:
+        return None
+    return features if getattr(features, "_service", None) is not None else None
+
+
+def _accepts_features(build) -> bool:
+    try:
+        params = inspect.signature(build).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.name == "features" or p.kind is p.VAR_KEYWORD for p in params)
+
+
+def ai_rerank(gw, slate: dict, scope: dict) -> None:
+    """rerank.fit (AI-12): sets ``display_rank`` / ``ai_fit`` on ranked cards; never touches
+    priority or rank. Silently skipped when AI is unavailable."""
+    from ..ai import AIUnavailable, service
+
+    ranked = sorted((c for c in slate.get("candidates") or [] if c.get("rank")),
+                    key=lambda c: c["rank"])[:RERANK_TOP]
+    if len(ranked) < 2:
+        return
+    problems = [{k: p.get(k) for k in ("problem_id", "type", "key", "sessions", "weekly_count")}
+                for p in slate.get("problems") or [] if p.get("status") == "active"]
+    slots = {"candidates": [{"candidate_id": c["rec_key"], "title": c.get("title"),
+                             "kind": c.get("kind"),
+                             "problem": (c.get("problem") or {}).get("key"),
+                             "reason": ((c.get("explain") or {}).get("reason") or "")[:120]}
+                            for c in ranked],
+             "friction": {"problems": problems}}
+    try:
+        result = service(gw).run("rerank.fit", slots=slots, scope=scope, timeout=RERANK_TIMEOUT_S)
+    except AIUnavailable as error:
+        slate["diagnostics"].append({"source": "rerank.fit", "status": "unavailable",
+                                     "reason": str(error)})
+        return
+    body = result.get("result") or {}
+    order = [key for key in body.get("order") or [] if isinstance(key, str)]
+    fits = {i.get("candidate_id"): i for i in body.get("items") or []}
+    position = {key: i for i, key in enumerate(order, 1)}
+    for cand in ranked:
+        cand["display_rank"] = position.get(cand["rec_key"], len(order) + cand["rank"])
+        item = fits.get(cand["rec_key"])
+        if item:
+            cand["ai_fit"] = {"fit": item.get("fit"), "explain": item.get("explain"),
+                              "reasons": item.get("reasons") or [], "job_id": result.get("job_id")}
+
+
+def _mark_generate(slate: dict, enabled: bool) -> None:
+    """Generation cards carry the AI task id the workshop runs (generate.rule/hook/skill)."""
+    try:
+        from ..ai import registry
+    except ImportError:
+        registry = None
+    for cand in slate.get("candidates") or []:
+        gen = cand.get("generate")
+        if gen and gen.get("task_id"):
+            known = registry is not None and registry.get(gen["task_id"]) is not None
+            gen["available"] = bool(enabled and known)
 
 
 def inputs_digest(inputs: dict, engine_version: str, kb_version, catalog_generation,
@@ -95,36 +208,47 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         return {"run_id": None, "status": freshness, "reused": False, "freshness": freshness,
                 "job_id": job_id}
     h = data["scope_hash"]
+    started = time.perf_counter()
     with _lock(h):
         now = now_ms()
+        settings = dict(settings or settings_for(gw))
+        settings["ai_generate"] = bool(settings.get("ai_generate")) and ai_enabled(gw)
         with gw.appdb.read() as conn:
-            memory = store.memory(conn, now, settings or getattr(gw, "rec_settings", None))
+            memory = store.memory(conn, now, settings)
             memory_rev = store.memory_rev(conn)
             previous = store.latest_run(conn, h)
         build, engine_version = _engine()
-        catalog = getattr(gw, "catalog", None)
+        catalog = catalog_service(gw)
+        generation, items = _catalog_state(catalog) if catalog is not None else (None, 0)
+        if not items:
+            catalog = None  # empty catalog: the bundled seeds recall better than nothing
         same = previous is not None and previous["engine_version"] == engine_version
         kb_version = previous["kb_version"] if same else None
-        generation = _catalog_generation(catalog)
         if generation is None and same:
             generation = previous["catalog_generation"]
+        # AI on/off changes the slate (generation cards, display order), so it keys the run.
+        memory_rev = f"{memory_rev}:ai{int(memory['settings']['ai_generate'])}"
         digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev)
         if not force:
             with gw.appdb.read() as conn:
                 found = store.find_run(conn, h, digest)
             if found is not None:
+                _record((time.perf_counter() - started) * 1000, outcome="reused")
                 return {"run_id": found["run_id"], "status": found["status"], "reused": True,
                         "freshness": freshness, "job_id": job_id}
-        started = time.perf_counter()
-        with _timed("recommend.run"):
-            try:
-                slate = build(data, memory, catalog=catalog)
-            except Exception as error:  # noqa: BLE001 - keep serving legacy cards
-                if build is legacy_slate:
-                    raise
-                slate = legacy_slate(data, memory)
-                slate["diagnostics"].append({"source": "engine", "status": "failed",
-                                             "reason": f"{type(error).__name__}: {error}"})
+        features = _features() if _accepts_features(build) else None
+        extra = {"features": features} if features is not None else {}
+        try:
+            slate = build(data, memory, catalog=catalog, **extra)
+        except Exception as error:  # noqa: BLE001 - keep serving legacy cards
+            if build is legacy_slate:
+                raise
+            slate = legacy_slate(data, memory)
+            slate["diagnostics"].append({"source": "engine", "status": "failed",
+                                         "reason": f"{type(error).__name__}: {error}"})
+        if memory["settings"]["ai_generate"]:
+            ai_rerank(gw, slate, scope_dict)
+        _mark_generate(slate, memory["settings"]["ai_generate"])
         duration = int((time.perf_counter() - started) * 1000)
         kb_version = slate.get("kb_version", kb_version)
         generation = slate.get("catalog_generation", generation)
@@ -146,6 +270,7 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
             store.insert_run(conn, row, passed + gated)
             store.prune(conn, h, KEEP_RUNS)
             outcomes.refresh(conn, data, now)
+    _record(duration, outcome="built", status=row["status"])
     return {"run_id": run_id, "status": row["status"], "reused": False, "freshness": freshness,
             "job_id": job_id}
 
