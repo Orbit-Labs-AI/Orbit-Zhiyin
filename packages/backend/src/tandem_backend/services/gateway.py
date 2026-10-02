@@ -28,6 +28,8 @@ from starlette.types import Receive, Scope, Send
 
 from .. import __version__
 from ..appdb import AppDB
+from ..platform.middleware import PlatformMiddleware
+from ..platform.runtime import Platform
 from .auth import TOKEN_ENV, ApiError, GuardMiddleware, error_body, validate_token
 from .events import EventBus
 from .jobs import AppState, JobConflict, JobService
@@ -176,9 +178,10 @@ class Gateway:
         self.snapshots = SnapshotStore(self.home / "cache" / "ui.sqlite")
         self.reads = ReadPool(self.home / "tandem.db")
         self.appdb = AppDB(self.home / "app.db")
-        self.supervisor = Supervisor(self.home, self.config, self.snapshots, self.bus.publish,
+        self.platform = Platform(self)
+        self.supervisor = Supervisor(self.home, self.config, self.snapshots, self._emit,
                                      self._published)
-        self.jobs = JobService(self.state, self.supervisor.ingest, self.bus.publish)
+        self.jobs = JobService(self.state, self.supervisor.ingest, self._emit)
         self.supervisor.ingest.jobs = self.jobs
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
@@ -187,6 +190,7 @@ class Gateway:
         self.lock = threading.Lock()
         self.stopping = threading.Event()
         self.legacy = LegacyApp(self._legacy_factory)
+        self.sync_thread: threading.Thread | None = None
 
     def _legacy_factory(self) -> FastAPI:
         from ..api.routes import create_app
@@ -197,10 +201,14 @@ class Gateway:
     def start(self) -> None:
         self.revisions.load(self.home)
         self.supervisor.start()
-        threading.Thread(target=self._sync_loop, daemon=True, name="tandem-sync").start()
+        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True,
+                                            name="tandem-sync")
+        self.sync_thread.start()
+        self.platform.start()
 
     def close(self) -> None:
         self.stopping.set()
+        self.platform.close()
         with self.lock:
             if self.prewarm_timer is not None:
                 self.prewarm_timer.cancel()
@@ -212,6 +220,12 @@ class Gateway:
         self.appdb.close()
 
     # -- worker events -------------------------------------------------------------------
+    def _emit(self, topic: str, event: str, data: dict) -> int:
+        """Publish to SSE and let the platform observe (metrics, notifications)."""
+        frame_id = self.bus.publish(topic, event, data)
+        self.platform.observe(topic, event, data)
+        return frame_id
+
     def _published(self, entry: dict) -> None:
         before, after = self.revisions.update(
             data_rev=entry.get("data_rev"), inventory_rev=entry.get("inventory_rev") or 0,
@@ -220,7 +234,7 @@ class Gateway:
         if (before["data_rev"], before["inventory_rev"]) == (after["data_rev"],
                                                              after["inventory_rev"]):
             return  # Nothing new was published (for example a cancelled batch).
-        self.bus.publish("data", "data.published", {
+        self._emit("data", "data.published", {
             "data_rev": after["data_rev"], "inventory_rev": after["inventory_rev"],
             "phase": entry.get("phase"), "counts": after["counts"],
             "sources": [entry.get("source_id")] if entry.get("source_id") else []})
@@ -265,9 +279,14 @@ class Gateway:
         low, high = self.sync_interval_s
         interval = low
         while not self.stopping.wait(interval):
+            collection = getattr(self.platform, "collection", None)
+            if collection is not None and getattr(collection, "paused", False):
+                interval = high
+                continue  # Collection paused (DT-02.1); explicit re-index still works.
             state = self.state.snapshot()
             enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-            if state["settings"].get("sync_mode") != "live" or not enabled:
+            catch_up = collection is not None and getattr(collection, "catch_up_pending", False)
+            if (state["settings"].get("sync_mode") != "live" and not catch_up) or not enabled:
                 interval = high
                 continue
             last = next((j for j in self.state.jobs() if j.get("origin") == "sync"), None)
@@ -275,6 +294,8 @@ class Gateway:
             interval = low if changed else min(high, interval * 2)
             try:
                 self.jobs.submit("import", enabled, phase="full", origin="sync")
+                if catch_up:
+                    collection.catch_up_pending = False
             except (JobConflict, ValueError):
                 interval = low  # A user job is running; check again soon.
 
@@ -313,6 +334,7 @@ class Gateway:
         app.mount("/", self.legacy)  # Registered last: every other path reaches create_app().
         app.state.gateway = self
         guard_kwargs = {"hosts": hosts} if hosts else {}
+        app.add_middleware(PlatformMiddleware, platform=self.platform)  # Inside the guard.
         app.add_middleware(GuardMiddleware, token=token, port=port, **guard_kwargs)
         return app
 
