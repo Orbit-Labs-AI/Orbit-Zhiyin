@@ -160,6 +160,8 @@ Demo 各页需要的数据与来源：
 - 每个会话一个 JSONL：会话头 `type=session`（`version`、`cwd`），之后 `message`、`model_change`、`thinking_level_change`、`compaction`、`custom_message`、`context_edit`（重试时省略失败回合）、`usage`（缓存保温）、`label`、`session_info` 等条目，以 `id / parentId` 构成树（可分支，当前分支是从最后一个叶子回溯到根的路径；连接器保留全部分支，不只当前分支）。
 - `message.role` 有 `user / assistant / toolResult / system`；内容块 `text / thinking / toolCall`；`usage` 自带 `input / output / cacheRead / cacheWrite / reasoning / cost`，`thinkingLevel` 与 `provider / model` 都在消息上。格式简单，适合作为连接器模板。
 - 根目录可由 `PI_CODING_AGENT_DIR` 覆盖；文件懒创建，出现第一条 user 或 assistant 消息时才一次性写出缓冲，之后每条消息完成时追加（流式增量不落盘）；`/fork` 复制 entry 并保留原 id，按 id 识别副本；pi 没有内置子代理。
+- **身份与配对**：会话头的 `id` 跨文件不唯一（`/export` 再 `/import` 会原样复制），会话要按（`id`，文件路径）识别；工具调用 ID 不一定是供应商原值，部分供应商没给 ID 时存空字符串，只能按顺序配对；运行中可能插入 `model_change`、扩展写入的条目等，配对一律按 `toolCallId`，不按相邻。
+- **fork 与时间**：fork 出的文件立即写出，复制的 entry 保留源会话的时间戳（早于新会话头），会话起点要取第一条非复制的 user 消息；0.30.0 的旧会话在 `<agentDir>/*.jsonl`，启动时迁移，可能有残留，也要扫描；`/resume` 列表里 Ctrl+D 会删除会话文件，同样需要及时归档。
 
 #### OpenCode（P1，本机未安装，依据源码）
 
