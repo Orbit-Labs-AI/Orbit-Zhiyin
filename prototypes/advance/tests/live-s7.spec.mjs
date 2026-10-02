@@ -23,6 +23,26 @@ function firstRun(extra) {
   return { map, posted };
 }
 
+// real-gateway smoke (LIVE_GATEWAY on a fresh synthetic home): first run opens, step 1 renders the real discovery, about reads
+// the service version, zero page errors; the stub-only tests below write sources / jobs and are skipped there
+test('smoke: first run and about against the gateway', async ({ page }) => {
+  test.skip(!PASS, 'needs LIVE_GATEWAY');
+  const errors = collectErrors(page);
+  await stubGateway(page, []);
+  await openLive(page, 'overview');
+  await expect(page.locator('#overlay .obox')).toBeVisible({ timeout: 10_000 });
+  await page.locator('#overlay [data-act="obNext"]').click();
+  await expect(page.locator('#overlay [data-ob="sources"]')).toBeVisible();
+  await expect(page.locator('#overlay [data-act="obAddFolder"]')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => OB.live.state), { timeout: 10_000 }).toBe('ready');
+  await page.evaluate(() => { closeOverlay(); openAbout(); });
+  await expect(page.locator('#modal [data-about="rows"]')).toBeVisible({ timeout: 10_000 });
+  await noPlain(page);
+  expect(errors).toEqual([]);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+});
+
+test.describe(() => {
 test.skip(!!PASS, 'first-run flow writes sources and jobs; run it against the stub only');
 
 test('first run: readiness absent opens onboarding; sources and estimates come from the gateway', async ({ page }) => {
@@ -222,4 +242,5 @@ test('about in live without the route: honest empty state, no demo copy', async 
   await expect(page.locator('#modal [data-lv="na"]')).toBeVisible();
   await expect(page.locator('#modal')).not.toContainText('这个 Demo');
   expect(errors).toEqual([]);
+});
 });
