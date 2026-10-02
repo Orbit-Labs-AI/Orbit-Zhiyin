@@ -759,6 +759,7 @@ const TandemLive = (function () {
     '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+  const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const ui = {
     DASH, esc, num, pct, money, hm,
     ensureStyle(doc) {
@@ -778,7 +779,8 @@ const TandemLive = (function () {
       if (!C || C.mode !== 'live') return '';
       if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Tandem 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
-      const bad = Object.keys(C.services).filter((k) => C.services[k] && C.services[k] !== 'ok');
+      // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
+      const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
       if (bad.length) return '<div class="tl-banner" role="alert" data-tl="degraded">服务异常：' + bad.map((k) => esc(k) + ' ' + ({ restarting: '重启中', degraded: '降级' }[C.services[k]] || esc(C.services[k]))).join('、') + ' · 显示上次结果</div>';
       return '';
     },
