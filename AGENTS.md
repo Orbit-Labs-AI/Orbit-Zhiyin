@@ -2,6 +2,13 @@
 
 ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技术栈与检查命令确定后补充至本文件，此前不预设框架。
 
+## App 版本与设计归属
+
+- **Lite**：采用 `genius-FXC` 的设计，参考 `docs/design/demo/tandem-benchmark-demo.html`（PR #12）。
+- **Advance**：采用 `yhyfhgs` 的设计，参考 `docs/design/demo/tandem-demo.html`、`docs/design/demo/src/` 与 `docs/design/visual-cases-v1/`。
+- 版本名统一使用 **Lite / Advance**；历史文档中的 `Advanced` 指 **Advance**。设计入口与详细说明以 [设计资料](docs/design/README.md) 为准。
+- 以上仅规定版本与现有设计的对应关系。文档同步不改动画板、Demo、源码或目录结构；实际设计修改由对应设计任务另行推进，MVP 功能范围仍须三位成员共同确认。
+
 ## 成员与分工
 
 成员一律以 GitHub 账号指代。AI 与成员讨论需求、方案或开始实现前，主动给出对应提醒。
