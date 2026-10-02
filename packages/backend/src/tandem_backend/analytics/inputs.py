@@ -11,6 +11,7 @@ from ..profiling.feedback import SCENE_LABELS, task_contexts
 from ..store import Store, _decode_sample_policy
 from .common import annotation_visible, task_uid, timestamp
 from .respond import normalize_tool_calls
+from .respond.calls import sequence_sort_key
 
 
 def millis(value):
@@ -80,6 +81,7 @@ class AnalysisInputBundle:
     statistical_members: dict | None = None
     inventory: list[dict] | None = None
     inventory_scans: list[dict] = field(default_factory=list)
+    selection_scope: dict | None = None
 
     @classmethod
     def from_dict(cls, data):
@@ -111,7 +113,7 @@ class AnalysisInputBundle:
         return cls(sessions=sessions, coverage=cov, **fields,
                    versions=versions, sample_boundary=data.get("sample_boundary", {}),
                    statistical_members=data.get("statistical_members"),
-                   inventory_scans=data.get("inventory_scans", []))
+                   inventory_scans=data.get("inventory_scans", []), selection_scope=data.get("scope"))
 
 
 KINDS = {"user_message": "message.user", "assistant_message": "message.assistant",
@@ -260,12 +262,12 @@ def legacy_bundle(store: Store) -> AnalysisInputBundle:
 
 def select(bundle: AnalysisInputBundle, scope: Scope):
     """Select members, then keep bounded linked context without counting it."""
-    if bundle.statistical_members is not None:
-        return select_canonical(bundle, scope)
     if scope.project_ids and bundle.coverage.get("projects", {}).get("status") == "unavailable":
         raise ValueError("规范 project_id 不可用；路径分组请使用 legacy_project_ids")
     if (scope.model_ids or scope.effort_raw) and bundle.model_calls is None:
         raise ValueError("model_ids/effort_raw 需要逐次 model_call；旧 session.model 不可替代")
+    if bundle.statistical_members is not None:
+        return select_canonical(bundle, scope)
     excluded, sessions = defaultdict(int), []
     for s in bundle.sessions:
         sid, root = s["session_uid"], s.get("root_uid")
@@ -317,7 +319,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
     if model_filter:
         selected_calls = {c["call_uid"] for c in model_calls or []}
         ambiguous_turns = {c.get("turn_uid") for c in bundle.model_calls or [] if c["session_uid"] in ids
-                           and c.get("turn_uid") in matching_turns and c["call_uid"] not in selected_calls}
+                           and scope.contains(c.get("ts")) and c.get("turn_uid") in matching_turns and c["call_uid"] not in selected_calls}
         matching_turns -= ambiguous_turns
     def event_member(e):
         return (scope.contains(e.get("ts")) and (not model_filter or e.get("turn_uid") in matching_turns)
@@ -398,14 +400,57 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
 
 def select_canonical(bundle, scope):
     """Honor the data layer's scoped membership; linked context is never counted twice."""
+    # L3 session metadata, permissions and result fields were reconstructed for
+    # the producer's cutoff. Narrowing only the event list cannot reconstruct
+    # that earlier snapshot. Make mismatched temporal/model scopes explicit.
+    for axis in ("from_ts", "until_ts", "project_ids", "model_ids", "effort_raw"):
+        requested = getattr(scope, axis)
+        selected = bundle.selection_scope.get(axis) if bundle.selection_scope is not None else None
+        if bundle.selection_scope is None:
+            mismatch = axis in ("model_ids", "effort_raw") and requested is not None
+        else:
+            requested = tuple(sorted(requested)) if isinstance(requested, (list, tuple)) else requested
+            selected = tuple(sorted(selected)) if isinstance(selected, (list, tuple)) else selected
+            mismatch = requested != selected
+        if mismatch:
+            raise ValueError(f"Canonical {axis} selection changed; read a new scoped bundle")
+    duplicates = {}
+
+    def unique(rows, fields, dataset):
+        seen = {}
+        duplicates[dataset] = None if rows is None else 0
+        for row in rows or []:
+            key = tuple(row[field] for field in fields)
+            if key in seen:
+                if seen[key] != row:
+                    raise ValueError(f"Conflicting canonical {dataset} identity")
+                duplicates[dataset] += 1
+            else:
+                seen[key] = row
+        return list(seen.values())
+
+    session_rows = unique(bundle.sessions, ("session_uid",), "sessions")
+    events = sorted(unique(bundle.events, ("session_uid", "event_uid"), "events"),
+                    key=lambda e: sequence_sort_key(e, "event_uid"))
+    tool_rows = unique(bundle.tool_calls, ("session_uid", "call_uid"), "tool_calls")
+    model_rows = unique(bundle.model_calls, ("session_uid", "call_uid"), "model_calls")
     ids = set(bundle.statistical_members["event_uids"])
-    events = bundle.events or []
-    allowed_sessions = {s["session_uid"] for s in bundle.sessions
-                        if scope.agent_ids is None or s.get("agent") in scope.agent_ids}
+    allowed_sessions = {s["session_uid"] for s in session_rows
+                        if (scope.agent_ids is None or s.get("agent") in scope.agent_ids)
+                        and (scope.project_ids is None or s.get("project_id") in scope.project_ids)
+                        and (scope.root_session_uids is None or s.get("root_uid") in scope.root_session_uids)
+                        and (scope.include_children or s.get("kind") not in ("subagent", "workflow_agent"))
+                        and s["session_uid"] not in scope.excluded_session_uids
+                        and s.get("root_uid") not in scope.excluded_session_uids}
     ids &= {e["event_uid"] for e in events if e["session_uid"] in allowed_sessions}
     if scope.source_ids is not None:
         source_sessions = {s["session_uid"] for s in bundle.sessions if s.get("source_id") in scope.source_ids}
         ids &= {e["event_uid"] for e in events if e["session_uid"] in source_sessions}
+    ids &= {e["event_uid"] for e in events if scope.contains(e.get("ts"))}
+    # L2 event model/effort selection does not require a token row in each turn.
+    selected_models = [c for c in model_rows if c.get("usage_event_uid") in ids
+                       and (scope.model_ids is None or c.get("model_id") in scope.model_ids)
+                       and (scope.effort_raw is None or c.get("effort_raw") in scope.effort_raw)]
     if scope.scene:
         humans = [Event(e["event_uid"], e["session_uid"], e["seq"], "user_message", None,
                         text=e.get("text") or "", details=e["attrs"])
@@ -419,21 +464,38 @@ def select_canonical(bundle, scope):
                 selected.add(eid)
         ids = selected
     members = [e for e in events if e["event_uid"] in ids]
-    calls = None if bundle.tool_calls is None else [c for c in bundle.tool_calls
+    calls = None if bundle.tool_calls is None else [c for c in tool_rows
             if c.get("call_event_uid") in ids or c.get("result_event_uid") in ids]
     # L3 calls reference L2 events; native seq belongs to those events, not timestamps.
     positions = {(e["session_uid"], e["event_uid"]): e.get("seq") for e in events}
     if calls is not None:
         calls = [{**c, "seq": positions.get((c["session_uid"], c.get("call_event_uid"))),
                   "result_seq": positions.get((c["session_uid"], c.get("result_event_uid")))} for c in calls]
-    models = None if bundle.model_calls is None else [c for c in bundle.model_calls if c["usage_event_uid"] in ids]
+        lookup = {(e["session_uid"], e["event_uid"]): e for e in events}
+        for c in calls:
+            result = lookup.get((c["session_uid"], c.get("result_event_uid")))
+            future = scope.until_ts is not None and any(timestamp(t) and t >= scope.until_ts
+                        for t in (c.get("ended_at"), c.get("result_available_at"), result.get("ts") if result else None))
+            if future:
+                for key in ("result_event_uid", "status", "duration_ms", "native_execution_ms", "wall_elapsed_ms", "ended_at", "status_scope",
+                            "known_command_results", "failed_command_results", "unknown_return_values", "exit_code", "error_class",
+                            "approval_wait_ms", "failure_reason", "result_available_at", "result_seq", "validation_result", "validation_report"):
+                    c[key] = None
+                c.update(duration_quality="missing", duration_source=None, interval_reliable=False)
+            for key in ("validation", "validation_result", "validation_report"):
+                if c.get(key) and not annotation_visible(c[key], scope.until_ts):
+                    c[key] = None
+        calls.sort(key=lambda c: sequence_sort_key(c, "call_uid"))
+    models = None if bundle.model_calls is None else sorted(
+        (c for c in selected_models if c["usage_event_uid"] in ids), key=lambda c: (c["session_uid"], c["call_uid"]))
     visible = {e["session_uid"] for e in members}
-    roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}
-    sessions = [s for s in bundle.sessions
-                if s["session_uid"] in (visible | roots) & allowed_sessions]
+    roots = {s["root_uid"] for s in session_rows if s["session_uid"] in visible}
+    sessions = sorted((s for s in session_rows if s["session_uid"] in (visible | roots) & allowed_sessions),
+                      key=lambda s: (s.get("started_at") is None, s.get("started_at") or 0, s["session_uid"]))
     linked_results = {c.get("result_event_uid") for c in calls or []}
     diagnostics = {"excluded_sessions": {}, "replayed_events_excluded": 0,
                    "model_ambiguous_turns_excluded": 0,
+                   "canonical_duplicate_rows": duplicates,
                    "context_events": [e for e in events if e["event_uid"] not in ids and e["event_uid"] in linked_results],
                    "time_unknown_events": sum(e.get("ts") is None for e in members),
                    "time_unknown_excluded_from_bounded_counts": sum(e.get("ts") is None for e in events if e["event_uid"] not in ids),

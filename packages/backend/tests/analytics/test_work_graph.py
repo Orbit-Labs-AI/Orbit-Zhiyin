@@ -197,6 +197,34 @@ def test_task_trajectory_endpoint_preserves_scoped_evidence(tmp_path, monkeypatc
         assert client.get('/v1/analytics/tasks/missing/trajectory').status_code == 404
 
 
+def test_task_trajectory_includes_validation_only_artifact_version_owner(tmp_path, monkeypatch):
+    bundle = trajectory_bundle()
+    next(c for c in bundle.tool_calls if c["call_uid"] == "check2")["validation"]["scope"]["artifact_revision"] = "v2"
+    result = analyze(bundle)
+    task = next(t for t in result["work_graph"]["task_trajectories"] if t["counts"].get("validation_passed"))
+    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store", lambda *a, **k: copy.deepcopy(result))
+    with TestClient(create_app(db=tmp_path / "legacy.db")) as client:
+        body = client.get(f'/v1/analytics/tasks/{task["task_uid"]}/trajectory').json()
+    version = next(n for n in body["nodes"] if n["kind"] == "ArtifactVersion" and n["attributes"].get("revision") == "v2")
+    edge = next(e for e in body["edges"] if e["kind"] == "VERSION_OF" and e["from_node_uid"] == version["node_uid"])
+    assert any(n["node_uid"] == edge["to_node_uid"] and n["kind"] == "Artifact" for n in body["nodes"])
+
+
+def test_task_projection_does_not_expand_through_artifact_to_other_tasks():
+    from tandem_backend.analytics.work_graph import task_subgraph
+
+    graph = {"nodes": [{"node_uid": uid, "kind": kind} for uid, kind in
+                       (("task", "Task"), ("call", "ToolCall"), ("version", "ArtifactVersion"),
+                        ("artifact", "Artifact"), ("other", "Task"))],
+             "edges": [{"edge_uid": str(i), "from_node_uid": start, "to_node_uid": end, "kind": kind}
+                       for i, (start, end, kind) in enumerate((("call", "version", "VALIDATES"),
+                                                             ("version", "artifact", "VERSION_OF"),
+                                                             ("artifact", "other", "BELONGS_TO_TASK")))]}
+    projection = task_subgraph(graph, {"task_node_uid": "task", "members": {"ToolCall": ["call"]}})
+    assert {n["node_uid"] for n in projection["nodes"]} == {"task", "call", "version", "artifact"}
+    assert {e["kind"] for e in projection["edges"]} == {"VALIDATES", "VERSION_OF"}
+
+
 def test_annotation_availability_and_artifact_version_owner_are_explicit():
     bundle = trajectory_bundle()
     call = next(c for c in bundle.tool_calls if c["call_uid"] == "check2")

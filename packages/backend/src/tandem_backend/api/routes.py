@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..analytics.inputs import Scope
+from ..analytics.work_graph import task_subgraph
 from ..application.reports import build_report
 from ..evaluation import SCENE_BUDGETS, evaluate_text
 from ..profiling.analysis import analyze
@@ -347,11 +348,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         trajectory = next((t for t in graph["task_trajectories"] if t["task_uid"] == task_uid), None)
         if trajectory is None:
             raise HTTPException(404, "任务不在本次分析范围内")
-        node_ids = {trajectory["task_node_uid"], *(uid for values in trajectory["members"].values() for uid in values)}
-        edges = [edge for edge in graph["edges"] if edge["from_node_uid"] in node_ids]
-        node_ids.update(edge["to_node_uid"] for edge in edges)
-        return {**result, "trajectory": trajectory,
-                "nodes": [node for node in graph["nodes"] if node["node_uid"] in node_ids], "edges": edges}
+        return {**result, "trajectory": trajectory, **task_subgraph(graph, trajectory)}
 
     @app.get("/v1/analytics/preferences")
     def feature_preferences(scope=scope_dependency, task_id: str | None = None):

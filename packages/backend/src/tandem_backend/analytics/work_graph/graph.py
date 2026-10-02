@@ -77,6 +77,37 @@ def _state(row):
     return "confirmed" if row.get("task_identity_quality") in REPORTED_TASK_QUALITIES else "candidate"
 
 
+def task_subgraph(graph, trajectory):
+    """Keep task relations plus reachable artifact ownership/version ancestry.
+
+    A version reached through VALIDATES or PRODUCES needs its VERSION_OF edge.
+    Other tasks using the same artifact are not pulled into this trajectory.
+    """
+    seeds = {trajectory["task_node_uid"], *(uid for values in trajectory["members"].values() for uid in values)}
+    node_ids, edges, frontier = set(seeds), {}, set(seeds)
+    outgoing = defaultdict(list)
+    nodes = {n["node_uid"]: n for n in graph["nodes"]}
+    for edge in graph["edges"]:
+        outgoing[edge["from_node_uid"]].append(edge)
+    visited = set()
+    while frontier:
+        start = frontier.pop()
+        if start in visited:
+            continue
+        visited.add(start)
+        for edge in outgoing[start]:
+            if start not in seeds and not (nodes[start]["kind"] == "ArtifactVersion"
+                                           and edge["kind"] in ("VERSION_OF", "SUPERSEDES")):
+                continue
+            edges[edge["edge_uid"]] = edge
+            end = edge["to_node_uid"]
+            node_ids.add(end)
+            if end not in visited:
+                frontier.add(end)
+    return {"nodes": [n for n in graph["nodes"] if n["node_uid"] in node_ids],
+            "edges": [e for e in graph["edges"] if e["edge_uid"] in edges]}
+
+
 def _files(call, event):
     """Read explicit file arguments/patch headers, never infer artifacts from shell text."""
     reported = call.get("files")

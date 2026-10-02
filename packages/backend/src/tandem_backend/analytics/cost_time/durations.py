@@ -67,7 +67,7 @@ def summarize_durations(calls, events, intervals=None):
                       "observed_session_span_ms": max(times) - min(times) if times else None,
                       "effective_n": len(times), "unknown_n": len(es) - len(times),
                       "time_source": "event.ts", "time_quality": "observed_log_time",
-                      "evidence_event_uids": [e["event_uid"] for e in timed]})
+                      "evidence_event_uids": sorted(e["event_uid"] for e in timed)})
     wall, native, waits = (_distribution(rows, name) for name in
                            ("wall_elapsed_ms", "native_execution_ms", "approval_wait_ms"))
     estimates = [r["estimated_log_gap_ms"] for r in rows if r["estimated_log_gap_ms"] is not None]
