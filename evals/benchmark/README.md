@@ -37,6 +37,8 @@ bash scripts/check-benchmark.sh
 
 本地执行的表示对照是 full_system、structured_features（不提供图／词汇／画像／统计投影）、task_context_only（只提供任务／环境，不提供瓶颈或偏好）。当前匹配器是否使用某层由实际输入与结果反映，不能预设“完整系统一定更好”。Raw history 和 UI profile 的有界输入（每种最多 12,000 字符）只在本地准备；未获得具体外部传输授权时不调用 LLM，不给这两个 baseline 填伪分数。
 
+准备模型表示时，画像保留工作构成、协作及验证总数，最多取前八个待复核任务，以各类证据数量替代成千上万个节点 ID；完整证据仍在本地诊断和 Work Graph。结构化表示保留全部八族的测量、未知原因和证据总数，省去引用样本与重复字段路径。这样先保留特征，再检查统一字符上限，避免原画像 374,889 字符的证据 ID 把工作构成挤出前 12,000 字符。每份模型表示也纳入冻结文件清单。
+
 ## 执行测量契约
 
 `contracts.py` 中 `TemporalSample` 和 `ExecutionRecord` 是权威约束。执行记录显式区分 paired_execution、historical_observation、constructed_execution。以下信息缺失时不能计入实测 headline：

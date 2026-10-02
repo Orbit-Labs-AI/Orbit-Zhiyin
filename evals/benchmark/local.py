@@ -74,6 +74,50 @@ def bounded_view(value, limit=12000):
     }
 
 
+def profile_input(profile):
+    """Keep the displayed facts before spending a model budget on graph identifiers."""
+    iteration = profile.get("iteration") or {}
+    candidates = iteration.get("review_candidates") or []
+    return {
+        **profile,
+        "iteration": {
+            **iteration,
+            "review_candidate_count": len(candidates),
+            "review_sample_limit": 8,
+            "review_candidates": [
+                {
+                    **{k: v for k, v in row.items() if k != "evidence_node_uids"},
+                    "evidence_node_counts": {
+                        kind: len(uids) for kind, uids in row.get("evidence_node_uids", {}).items()
+                    },
+                }
+                for row in candidates[:8]
+            ],
+        },
+    }
+
+
+def family_input(families):
+    """Preserve every family and unknown value; traceability samples stay local."""
+    return {
+        family: {
+            "status": row["status"],
+            "quality": row["quality"],
+            "input": {
+                key: {k: v for k, v in m.items() if k != "path"} for key, m in row["input"].items()
+            },
+            "analyzed": {
+                key: {k: v for k, v in m.items() if k != "path"}
+                for key, m in row["analyzed"].items()
+            },
+            "unknown_reasons": row["unknown_reasons"],
+            "evidence_count": row["evidence"]["count"],
+            "interpretation": row["interpretation"],
+        }
+        for family, row in families.items()
+    }
+
+
 def _snapshot_stamp(home):
     database = (Path(home) / "tandem.db").resolve()
     hashes = {}
@@ -162,8 +206,8 @@ def _forecast_case(home, sample, folder, loaded, context, *, scope=None, view=No
             "status": "prepared_locally_not_sent_to_model",
             "model_calls": 0,
             "raw_history": bounded_view(raw),
-            "ui_profile": bounded_view(grouped["profile"]),
-            "structured_features": bounded_view(grouped["families"]),
+            "ui_profile": bounded_view(profile_input(grouped["profile"])),
+            "structured_features": bounded_view(family_input(grouped["families"])),
             "task_context": bounded_view(
                 [
                     {k: task.get(k) for k in ("task_uid", "task_goal", "domain", "task_type")}

@@ -32,6 +32,7 @@ def freeze_study(output):
                 [
                     str(path.relative_to(output)),
                     str(path.with_name("recommendations.json").relative_to(output)),
+                    str(path.with_name("representation-inputs.json").relative_to(output)),
                 ]
             )
     manifest = {
@@ -79,7 +80,11 @@ def read_study(study, *, expected_manifest_digest=None):
             if sample.variant == "correct_history"
             else f"anchor-{sample.anchor_ts}-{sample.variant}"
         )
-        references = [f"{name}/input-manifest.json", f"{name}/recommendations.json"]
+        references = [
+            f"{name}/input-manifest.json",
+            f"{name}/recommendations.json",
+            f"{name}/representation-inputs.json",
+        ]
         if not set(references) <= set(artifacts):
             raise ValueError("Frozen study is missing a past forecast artifact")
         forecast = json.loads((study / references[1]).read_text())

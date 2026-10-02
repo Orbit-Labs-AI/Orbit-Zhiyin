@@ -337,6 +337,12 @@ def test_native_history_replay_keeps_future_out_of_recommendation_and_writes_all
         assert len(grouped["families"]) == 8 and len(grouped["skills"]["items"]) == 4
         manifest = json.loads(Path(row["diagnostics"]).with_name("input-manifest.json").read_text())
         assert manifest["future_event_uids_seen"] == []
+        views = json.loads(
+            Path(row["diagnostics"]).with_name("representation-inputs.json").read_text()
+        )
+        structured = views["structured_features"]
+        assert not structured["truncated"]
+        assert set(json.loads(structured["content"])) == set(grouped["families"])
     future = json.loads((output / f"anchor-{anchor}-future/observations.json").read_text())
     assert future and all(
         t["task_pass"] is None and t["recommendation_uplift"] is None for t in future
@@ -354,6 +360,12 @@ def test_native_history_replay_keeps_future_out_of_recommendation_and_writes_all
     assert json.loads((packet / "executions.json").read_text()) == []
     rows = json.loads((packet / "execution-grid.json").read_text())["rows"]
     assert rows and all(row["measurement"] is None for row in rows)
+    representation = output / f"anchor-{anchor}-history-7/representation-inputs.json"
+    original_bytes = representation.read_bytes()
+    representation.write_bytes(original_bytes + b"\n")
+    with pytest.raises(ValueError, match="artifact changed"):
+        score.run(output, tmp_path / ".local/changed-model-input")
+    representation.write_bytes(original_bytes)
     with (output / "method-plan.json").open("a") as handle:
         handle.write("\n")
     with pytest.raises(ValueError, match="artifact changed"):
@@ -433,6 +445,35 @@ def test_wrong_user_ablation_rejects_copied_native_history(api, tmp_path, monkey
     assert not output.exists()
 
 
+def test_profile_input_budget_keeps_work_mix_and_complete_review_counts(api):
+    import json
+
+    local = importlib.import_module("evals.benchmark.local")
+    rows = [
+        {
+            "task_uid": str(i),
+            "observed_counts": {"validation_failed": i},
+            "evidence_node_uids": {"ModelCall": [f"node-{n}" for n in range(2000)]},
+        }
+        for i in range(20)
+    ]
+    profile = {
+        "work_mix": {"domain": {"software": 13}},
+        "collaboration": {},
+        "iteration": {"review_candidates": rows, "validation_results": {"failed": 29}},
+    }
+    before = local.bounded_view(profile)
+    assert before["truncated"] and "work_mix" not in before["content"]
+    after = local.bounded_view(local.profile_input(profile))
+    assert not after["truncated"]
+    value = json.loads(after["content"])
+    assert value["work_mix"] == profile["work_mix"]
+    assert value["iteration"]["review_candidate_count"] == 20
+    assert len(value["iteration"]["review_candidates"]) == 8
+    assert value["iteration"]["review_candidates"][0]["evidence_node_counts"] == {"ModelCall": 2000}
+    assert profile["iteration"]["review_candidates"] == rows
+
+
 def test_frozen_manifest_coverage_pin_and_unactionable_forecast_are_enforced(
     api, tmp_path, monkeypatch
 ):
@@ -463,6 +504,7 @@ def test_frozen_manifest_coverage_pin_and_unactionable_forecast_are_enforced(
         (study / "method-plan.json", plan),
         (study / "episode-index.json", {}),
         (folder / "input-manifest.json", {}),
+        (folder / "representation-inputs.json", {}),
         (
             folder / "recommendations.json",
             {
