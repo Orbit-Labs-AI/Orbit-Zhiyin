@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from conftest import ATTRS, NOW, Reads
+from realtime_fixtures import ATTRS, NOW, Reads
 
 from tandem_backend.realtime.tail import ACTIVE_SQL, load_tails
 

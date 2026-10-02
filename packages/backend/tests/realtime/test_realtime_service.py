@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from conftest import NOW, Reads
+from realtime_fixtures import NOW, Reads
 
 from tandem_backend.realtime.service import Realtime, content_hash
 from tandem_backend.services.auth import ApiError
