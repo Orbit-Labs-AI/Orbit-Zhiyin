@@ -92,6 +92,7 @@ class ClaudeMapper(BaseMapper):
                 native = native + ":" + PurePosixPath(record.relative_path).stem
                 if "workflows" in PurePosixPath(record.relative_path).parts:
                     kind = "workflow_agent"
+            self.session_kind = kind
             events.append(
                 self.meta(
                     record,
@@ -121,6 +122,11 @@ class ClaudeMapper(BaseMapper):
             origin = {"task-notification": "notification"}.get(origin, origin)
             if origin not in ("human", "queued", "notification", "peer", "automation", "injected"):
                 origin = "unknown"
+            if origin == "human" and typ == "user":
+                # A subagent's prompts come from the parent agent or the workflow script.
+                origin = {"subagent": "peer", "workflow_agent": "automation"}.get(
+                    getattr(self, "session_kind", "main"), origin
+                )
             body_text = text_content(message.get("content"))
             if (
                 data.get("isMeta")

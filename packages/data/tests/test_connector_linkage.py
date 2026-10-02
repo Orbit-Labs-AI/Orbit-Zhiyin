@@ -180,3 +180,87 @@ def test_codex_spawn_agent_call_links_to_child_thread(tmp_path):
         assert session["kind"] == "subagent"
         assert call["subagent_session_uid"] == session["session_uid"]
         assert session["spawn_call_uid"] == call["call_uid"]
+
+
+def origins(store, native):
+    return [
+        (row["actor"], json.loads(row["attrs"]).get("origin"))
+        for row in store.db.execute(
+            "SELECT e.* FROM event e JOIN session_identity i USING(session_uid)"
+            " WHERE i.native_id=? AND e.kind='message.user'",
+            (native,),
+        )
+    ]
+
+
+def test_codex_review_and_subagent_prompts_are_not_human(tmp_path):
+    def thread(native, source, text):
+        return [
+            {
+                "type": "session_meta",
+                "timestamp": ISO.format(0),
+                "payload": {"id": native, "source": source},
+            },
+            {
+                "type": "event_msg",
+                "timestamp": ISO.format(1),
+                "payload": {"type": "user_message", "message": text},
+            },
+        ]
+
+    with Store(tmp_path / "data") as store:
+        root = tmp_path / "source"
+        stream(store, "codex", root, thread("main", "cli", "my own request"), "main.jsonl")
+        stream(
+            store,
+            "codex",
+            root,
+            thread("review", {"subagent": {"other": "guardian"}}, "Review this action"),
+            "review.jsonl",
+        )
+        stream(
+            store,
+            "codex",
+            root,
+            thread("worker", {"subagent": {"thread_spawn": {"parent_thread_id": "main"}}}, "do X"),
+            "worker.jsonl",
+        )
+        store.rebuild()
+        assert origins(store, "main") == [("human", "human")]
+        assert origins(store, "review") == [("system", "automation")]
+        assert origins(store, "worker") == [("system", "peer")]
+        assert [row["text"] for row in store.db.execute("SELECT text FROM v_human_message")] == [
+            "my own request"
+        ]
+
+
+def test_claude_subagent_prompt_is_peer_not_human(tmp_path):
+    root = tmp_path / "claude"
+    base = root / "projects/-synthetic-repo"
+    write_jsonl(
+        base / "s1.jsonl",
+        [
+            {
+                **claude_context(0),
+                "type": "user",
+                "uuid": "u1",
+                "message": {"role": "user", "content": "person"},
+            }
+        ],
+    )
+    write_jsonl(
+        base / "s1/subagents/agent-aaa.jsonl",
+        [
+            {
+                **claude_context(1),
+                "type": "user",
+                "uuid": "c1",
+                "isSidechain": True,
+                "message": {"role": "user", "content": "parent prompt"},
+            }
+        ],
+    )
+    with Store(tmp_path / "data") as store:
+        ImportService(store).import_source(ImportRequest("claude_code", root))
+        assert origins(store, "s1") == [("human", "human")]
+        assert origins(store, "s1:agent-aaa") == [("system", "peer")]

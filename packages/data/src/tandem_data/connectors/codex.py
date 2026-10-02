@@ -148,6 +148,13 @@ class CodexMapper(BaseMapper):
             self.cut = payload.get("subagent_history_start_ordinal") if spawn else None
             self.parent = payload.get("parent_thread_id", payload.get("forked_from_id"))
             self.parent = self.parent or spawn.get("parent_thread_id")
+            self.session_kind = (
+                "review"
+                if isinstance(source, dict) and "guardian" in canonical(source)
+                else "subagent"
+                if payload.get("parent_thread_id", spawn.get("parent_thread_id"))
+                else "main"
+            )
             self.parent_candidates = {}
             self.parent_cursor = -1
         if data.get("type") == "token_usage_record":
@@ -197,6 +204,14 @@ class CodexMapper(BaseMapper):
         return (
             [record.source_id, self.session_uid, native] if native else super().native_key(record)
         )
+
+    def message(self, record, message, *, origin="human", **kwargs):
+        # Review (guardian) and subagent threads start from a prompt written by the
+        # harness or the parent agent, not by the person.
+        if origin == "human" and message.get("role") == "user":
+            kind = getattr(self, "session_kind", "main")
+            origin = {"review": "automation", "subagent": "peer"}.get(kind, origin)
+        return super().message(record, message, origin=origin, **kwargs)
 
     def child_link(self, record, call_id):
         child = getattr(self, "spawned", {}).get(str(call_id))
