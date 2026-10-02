@@ -97,7 +97,7 @@ tandem-helper gateway  (127.0.0.1:随机端口，Bearer token)
 | `import`（含 `phase: head/window/rest`） | ingest | 文件级水位线与原子发布使其天然可续：重启后把 `running` 标为 `interrupted`，用户或自动策略以原范围 `retry`；**不自动扩大采集范围** |
 | `rebuild / verify / backup / inventory` | ingest | 同上；`rebuild` 只重建过期来源（既有行为） |
 | `analysis.compute`（`section, scope, priority`） | analysis | 幂等：worker 崩溃后自动重排一次；同键任务合并（去重）；连续失败 3 次熔断，直到数据版本变化或手动 `recompute` |
-| `analysis.prewarm` | analysis | 低优先级、可被交互请求抢占；被抢占时丢弃（不记失败） |
+| `analysis.prewarm` | analysis | 低优先级、可被交互请求抢占；被抢占时回到队尾（不记失败），同一任务至多被抢占 2 次，之后跑完 |
 
 同一时刻：ingest 一个写任务；analysis 一个运行任务，优先级队列 `interactive > prewarm`。
 
@@ -123,8 +123,10 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | --- | --- |
 | worker 心跳 5 s 一次；15 s 无心跳 | 判定卡死，SIGTERM → 3 s 后 SIGKILL；重启 |
 | worker 退出（崩溃 / OOM） | 指数退避重启 0.5 → 1 → 2 → 4 s；60 s 内超过 5 次进入 `degraded`，停止自动拉起并经 SSE 通知，UI 提示“后台服务异常，可重试” |
-| 分析任务超时（轻量 60 s / 重型 120 s，可配） | 杀 analysis-worker 并重启；任务记 `failed(timeout)`；旧快照保留 |
-| analysis-worker RSS > 1.5 GB | 当前任务完成后回收重启 |
+| 分析任务超时（基础：轻量 20 s / 重型 120 s，可配；worker 上报范围事件数后加每千事件 0.6 / 1.2 s；同键同修订每超时一次预算翻倍；统一封顶 `max_budget_s`=900 s） | 杀 analysis-worker 并重启；任务记 `failed(timeout)`；旧快照保留；已到封顶仍超时记 `analysis_scope_too_large`（422） |
+| analysis-worker 进程树（含进程池子进程）RSS > 1.5 GB | 当前任务完成后回收重启 |
+| 运行中心跳进程树 RSS > `rss_kill_bytes`（物理内存一半，限定 4–16 GB） | 立即杀 worker，任务记 `analysis_scope_too_large` |
+| worker 被杀或崩溃时未结束的 `analysis_run` | worker 实时上报运行 id，supervisor 将其标为 `failed(WorkerTerminated)`；gateway 启动时把早于最大预算的 `running` 行同样标记 |
 | gateway 崩溃 | 宿主 `/health` 连续 3 次失败（2 s 间隔）→ 重启 gateway（新端口、新令牌），通过 `evaluateJavaScript` 设置 `window.__TANDEM_ENDPOINT__ = {base, token}` 并触发 `tandem:endpoint` 事件，适配层重连，不整页刷新；子 worker 因 stdin 关闭自行退出，不会残留 |
 | 宿主退出 | gateway 父进程看门退出；ingest 在文件边界取消，已发布数据不受损（既有语义） |
 | `/health` | 进程存活 + 各服务 readiness：`{ok, version, services:{ingest:{state,pid,restarts,last_hb}, analysis:{…}}, data_rev, projection:"ready|pending|absent"}` |
@@ -219,23 +221,35 @@ snapshot_key = (section, scope_hash, data_rev, inventory_rev, rules_digest)
 ### 4.2 请求流程
 
 ```text
-GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层首屏用 800）
+GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层首屏用 800；days=7|30|90|0 为 from_ts 简写）
  1. 解析 Scope → scope_hash；rev = 内存中的 data_rev（无 DB 往返）
  2. If-None-Match == 当前 ETag                      → 304
  3. 精确命中 (section, scope_hash, rev, rules)       → 200  meta.freshness=fresh
  4. 命中同 (section, scope_hash) 的旧 rev            → 200  meta.freshness=stale  + 入队 interactive 计算（同键合并）
  5. 完全未命中
-      有库：入队 interactive 计算；wait_ms>0 则最多等 wait_ms，完成即 200 fresh；否则 202 computing(+job_id)
+      有库：入队 interactive 计算；wait_ms>0 则最多等 wait_ms，完成即 200 fresh；否则 202 computing(+job_id, progress)
+      已有客户端错误或熔断：直接 422 / 503（不再无限 202）
       无库 / 范围为空：200 + meta.freshness=none
  6. 读库遇 projection_pending：有缓存按 3 / 4 返回；无缓存 503 + Retry-After
  7. 计算完成：写快照 → SSE analysis.ready；失败：SSE analysis.failed，旧快照继续服务
 ```
 
+### 4.2.1 首开快速路径（`services/fastpath.py`）
+
+真实规模（约 1.9k 会话 / 77 万事件）下全时段冷算需数分钟，首屏不能等它。
+
+- `/v1/uiview/{facts,overview,persona,persona/reveal}` 与 `/v1/analytics/overview` 接受 `days`（7 / 30 / 90 / 0=全部）。
+- 省略 `days`（且 analytics 未给 `from_ts/until_ts`）时自动选择：已就绪（当前修订）的最宽窗口（全部 → 30 → 7）；否则最宽的旧快照（stale）；否则立即（interactive）算近 7 天，并把 30 天、全部排进 prewarm。
+- 窗口从 UTC 日起点开始（`days-1` 天前），一天内同一窗口同一 scope_hash，预热与请求命中同一快照。
+- 响应 `meta.window = {days, requested: "auto"|n, wider: [{days, state}]}`，`state ∈ ready / stale / computing / queued / failed / absent`；客户端看到更宽窗口 `ready`（或收到对应 `analysis.ready`）后带上 `days` 切换。
+- 202 的 `meta.progress = {status, attempt, events, last_error, queue_position | elapsed_s, budget_s, rss_bytes}`。
+
 ### 4.3 预计算与按需计算
 
 - **触发**：每次 `data.published`（去抖 30 s；`head / window` 批次只预热轻量 section）；来源启停、设置变更；用户请求未命中（interactive，最高优先）；`POST /v1/analytics/recompute {sections, scope}` 手动。
-- **预热范围**：默认范围（最近 30 天、全部 Agent）＋ 最近 5 个使用过的 Scope（MRU 存 `app-state.json`）。每个范围先算轻量 section（`overview`、`sessions` 摘要、`tools`、`projects`），再算重型（`text / lexical / statistics / tasks`）。重型 section 标注 `cost: heavy`，UI 进入对应页面时才升为 interactive。
-- **成本控制**：prewarm 以较低 OS 优先级运行（`setpriority`）、单并发；interactive 到来时丢弃当前 prewarm（可被抢占）；用户正在拖动筛选时合并为最后一个 Scope。
+- **预热范围**：导入发布后（去抖 30 s）与有数据时 gateway 启动后，按 7 天 → 30 天 → 全部的窗口梯度，每个窗口先算 `uiview_facts`（一次完整分析），再算轻量 section（此时多为 analysis.sqlite 缓存读取）；然后是设置中的默认范围（若不在梯度内）与最近 5 个 MRU 范围；`rest` 全量批次后再算重型 section 与推荐输入。范围按路由同样方式构建（MRU 里的客户端时区、默认来源、持久排除），快照键与请求一致。重型 section 标注 `cost: heavy`，UI 进入对应页面时才升为 interactive。
+- **缓存共享**：`with_text=True` 的完整计算会把与文本无关的 section（overview/tools/workflow/bottleneck_features/tasks/instruction/lexical）连同元数据一并写入 `with_text=False` 键，作为依赖算出的 section 也全部落盘；同一窗口只冷算一次。
+- **成本控制**：prewarm 以较低 OS 优先级运行（`setpriority`）、单并发；interactive 到来时抢占当前 prewarm，被抢占的 prewarm 回到队尾（至多 2 次）；冷算进程池默认最多 4 个子进程（`TANDEM_ANALYSIS_WORKERS` 覆盖）；用户正在拖动筛选时合并为最后一个 Scope。
 - **更新**：按 `data_rev` 整体失效是 MVP 的保守默认；分析审计包若提供按会话 / 按日增量，则把“失效”收窄为受影响的快照，网关接口不变（只是 `rev` 更细）。
 
 ### 4.4 超时与降级
@@ -243,7 +257,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 | 情况 | 行为 |
 | --- | --- |
 | 命中旧快照 | 先返回旧快照（`stale`），后台重算，完成后推送；UI 不闪、不空白 |
-| 计算超时（轻量 60 s / 重型 120 s） | 杀 worker 重启，任务 `failed(timeout)`；有旧快照继续服务，无则返回 `503 analysis_unavailable`（可重试），页面显示“范围较大，请缩小”；3 次熔断后需数据变化或手动重算 |
+| 计算超时（见 2.7 的自适应预算） | 杀 worker 重启，任务 `failed(timeout)`；有旧快照继续服务，无则返回 `503 analysis_unavailable`（可重试）；下一次尝试预算翻倍，封顶后 `422 analysis_scope_too_large`；3 次失败熔断，需数据变化或手动重算 |
 | 范围过大 | 沿用 `422 analysis_scope_too_large`（`data-app-integration` 的预算语义），提示缩小时间 / Agent / 项目；概览允许降级为 SQL 聚合（`aggregate_only`，未算项为 `null`） |
 | analysis-worker 不可用 | 读接口、会话 / 事件 / 搜索 / 清单照常；分析接口只服务缓存，UI 显示异常横幅 |
 | 导入进行中 | 缓存继续服务（`stale`）；新数据发布后再重算，避免对一个正在变化的数据集反复计算 |
@@ -327,7 +341,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 
 - 直读：`/v1/status`、`/health` 只读内存；`/v1/sessions`（保持既有列表形状，总数放 `X-Total-Count`）、`/v1/sessions/{id}/events`、`/v1/projects`、`/v1/sources`、`/v1/inventory` 用每线程一个 `mode=ro` 连接。`/v1/projects` 改为直读 `[{project_id, name, sessions, last_started_at}]`，不再在请求路径上跑 `profiling.analyze`。投影待重建时同一请求的上一份结果带 `X-Tandem-Freshness: stale` 返回，否则 `503 projection_pending` + `Retry-After`。首次导入前尚无 tandem.db 属于“空”而非“暂不可用”：列表与汇总直读（含 `/v1/analytics/tool_calls`、`/v1/uiview/{sessions,projects,sentiment}`）在内存中的空 canonical schema 上照常查询，返回与有数据时同形的 `200`，带 `X-Tandem-Freshness: none`，对象体另加 `meta.freshness:"none"`、`meta.reason:"no_projection"`；按 id 查询返回 `404`；空结果不进响应缓存，首次导入发布期间仍是 `503 projection_pending`。
 - 分析：`/v1/analytics/{overview,sessions,sessions/{id},tools,projects,text,tasks,preferences,instruction}` 走 §4.2；其余 `/v1/analytics/*`（statistics、lexical、products、runs 等）仍由 `create_app()` 同步提供。会话列表快照只存紧凑摘要行，分页在 gateway 做，ETag 的 section 段带 `[offset:limit]`。`preferences?task_id=` 与会话详情把参数并入 `scope_hash`。
-- 快照失效按 `(data_rev, inventory_rev)` 整体判断；导入进行中命中旧快照时仍会排队重算（同键合并），去抖只作用于预热。预热范围为默认范围（最近 `default_range_days`，默认 30 天，UTC 日起点）加最近 5 个 MRU 范围；head / window 批次只预热轻量 section。
+- 快照失效按 `(data_rev, inventory_rev)` 整体判断；导入进行中命中旧快照时仍会排队重算（同键合并），去抖只作用于预热。预热范围见 §4.3（7 / 30 / 全部窗口梯度、默认范围、最近 5 个 MRU 范围）；head / window 批次不预热重型 section。
 - 分批导入的每一批以 `files` 子集调用 `ImportService`，因此 `source_scan.selection` 记为 `sample`；“上游已删除”标记仍只在 `phase=full` 的全量导入中执行。持续同步（`sync_mode=live`）使用 `phase=full`。
 - `/v1/app/export` 不在本包实现（`capabilities.export=false`）。`DesktopService` 合入后由其接管 `AppState` 部分。
 
