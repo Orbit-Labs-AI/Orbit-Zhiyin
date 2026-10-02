@@ -137,10 +137,8 @@ def router(gw: Gateway) -> APIRouter:
         return ai().facets(session_uid or [])
 
     def ask_module():
-        try:
-            from ..ai import ask
-        except ImportError:
-            raise ApiError(501, "not_available", "问答模块尚未安装") from None
+        from ..ai import ask  # Lazy: keeps jieba & co. out of gateway start-up.
+
         return ask
 
     def reads():
@@ -148,15 +146,16 @@ def router(gw: Gateway) -> APIRouter:
         return pool.read if pool is not None else None
 
     @api.get("/v1/ai/ask/presets")
-    def ask_presets(context: str = "overview"):
-        return ask_module().presets(context, reads=reads(), appdb=gw.appdb, scope=None)
+    def ask_presets(context: str = "overview", session_uid: str | None = None):
+        return ask_module().presets(context, reads=reads(), appdb=gw.appdb, scope=None,
+                                    session_uid=session_uid, home=gw.home)
 
     @api.post("/v1/ai/ask")
     def ask(body: AskRequest):
         if body.preset_index is not None:
             return ask_module().preset_answer(body.context, body.preset_index, reads=reads(),
                                               appdb=gw.appdb, scope=body.scope,
-                                              session_uid=body.session_uid)
+                                              session_uid=body.session_uid, home=gw.home)
         if not body.question:
             raise ApiError(422, "invalid_request", "需要 preset_index 或 question")
         req = {"engine": body.engine, "scope": body.scope, "goal": body.question,

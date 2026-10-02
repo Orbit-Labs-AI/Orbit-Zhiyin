@@ -1,22 +1,16 @@
-"""End to end through the ai runtime (P1): preview payload == what the engine receives (EV-14).
-
-Skipped until `tandem_backend.ai.runner` is merged; after that it must run.
-"""
+"""End to end through the ai runtime (P1): preview payload == what the engine receives (EV-14)."""
 
 from __future__ import annotations
 
+import json
+import sys
+import time
+from pathlib import Path
+
 import pytest
+from fastapi.testclient import TestClient
 
-pytest.importorskip("tandem_backend.ai.runner")
-
-import json  # noqa: E402
-import sys  # noqa: E402
-import time  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from tandem_backend.ai.redact import compact  # noqa: E402
+from tandem_backend.ai.redact import compact
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 BASE = "http://127.0.0.1:8765"

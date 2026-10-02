@@ -1,20 +1,16 @@
-"""generate.hook through the real ai runtime (P1). Skipped until `tandem_backend.ai.runner` exists;
-after P1 is merged this must run (not skip): FakeEngine returns hook slots and a draft row lands
-in ai_artifact."""
+"""generate.hook through the real ai runtime (P1): FakeEngine returns hook slots and a draft row
+lands in ai_artifact."""
 
 from __future__ import annotations
 
 import json
 
 import pytest
+from fakectx import hook_pack
 
-pytest.importorskip("tandem_backend.ai.runner")
-
-from fakectx import hook_pack  # noqa: E402
-
-from tandem_backend.ai.engines import FakeEngine  # noqa: E402
-from tandem_backend.ai.service import service  # noqa: E402
-from tandem_backend.services.gateway import Gateway  # noqa: E402
+from tandem_backend.ai.engines import FakeEngine
+from tandem_backend.ai.service import service
+from tandem_backend.services.gateway import Gateway
 
 HOOK = {"matcher": "Bash", "threshold": 3, "message": "测试已连续失败，先看错误输出再重试。", "command_heads": ["pnpm test"]}
 
