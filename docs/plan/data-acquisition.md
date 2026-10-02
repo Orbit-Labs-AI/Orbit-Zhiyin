@@ -230,17 +230,18 @@ Demo 各页需要的数据与来源：
 | 只追加的 JSONL | 已处理的字节偏移 + 最后一行的哈希 | `dev / inode / size / mtime_ns` 变化 | 从偏移继续读；末行不完整时下次重读 |
 | zstd 帧拼接 | 已处理的帧数与解压后的行号 | 同上 | 从下一帧继续；不完整帧下次重读 |
 | SQLite | 表的 `updated_at` / rowid 游标；行会被原地改写时按「主键 + 行哈希」比对 | 目录内 `db / -wal` 的变化（WAL 会被删除重建，所以监听目录而不是文件） | 以只读方式打开（`mode=ro`，不要用 `immutable=1`），设 `busy_timeout` 与 `query_only`，在一个读事务内读完；目录不可写或缺少 `-shm` 时，在 Agent 空闲时把 `db / -wal / -shm` 一起复制到临时目录再读 |
-| 文件被改写或截断 | 前 4 KB 的哈希 | 哈希不符、文件变小或 inode 变化 | 整个文件重新解析；事件 ID 是确定性的，重复写入会被覆盖 |
+| 文件被改写或截断 | 当前 `generation` + 已处理字节区间的哈希 | 已处理区间变化、文件变小或 inode 变化；前 4 KB 哈希只作快速检查 | 确认替换后新建代次归档；重新解析，并在事务中替换旧代次的 L1 与受影响的 L2 / L3，不能只 upsert |
 | 文件消失 | — | 上游清理 | `source_file.status = gone_upstream`，归档和已入库的数据保留 |
 
-- **确定性 ID**：先按原生 ID 的作用域确定逻辑身份，再按事件类型与内容路径派生 `event_uid`（4.3「L2 事件结构、身份与顺序」）。同一原始记录拆出的多个事件有不同 ID；跨文件的重放副本复用原事件身份。pi 的 entry id 只在单文件内唯一，会话头 id 也可能被导入复制，身份必须包含会话与文件；没有原生 ID 时用来源、文件相对路径与原生记录序号兜底。重放副本只在 L1 标 `replayed`，追溯方式见 4.2。
+- **确定性 ID**：先按原生 ID 的作用域确定逻辑身份，再按事件类型与内容路径派生 `event_uid`（4.3「L2 事件结构、身份与顺序」）。同一原始记录拆出的多个事件有不同 ID；跨文件的重放副本复用原事件身份。pi 的 entry id 只在单文件内唯一，会话头 id 也可能被导入复制，身份必须包含会话与文件代次；没有原生 ID 时用来源、文件相对路径、代次与原生记录序号兜底。重放副本只在 L1 标 `replayed`，追溯方式见 4.2。
 - **监听**：macOS 用 FSEvents 监听各根目录，事件合并 1–2 秒后触发增量解析；另每 10 分钟做一次全量 `stat` 兜底。
 - **判断会话是否在运行**（菜单栏与悬浮组件用，只观察、不加锁）：Claude Code 看 `~/.claude/sessions/<pid>.json`（不要读同目录的 `.key` 文件）；Codex 看 `thread-writer-locks/<id>.lock` 是否存在（写入方释放时删除，崩溃可能残留，所以结合 `threads.updated_at_ms`；不要尝试加锁，那会让 Codex 自己拿锁失败）；DeepSeek Harness 新版有 `session.lock`；其余 Agent 看会话文件最近是否在写入。
 - **首次回填**：本机约 5 GB 文本日志（Codex 3.7 GB、Claude 1.4 GB），按文件并行、流式解析，不把整个文件读进内存；先处理最近 30 天，再补更早的。
 
 **原始归档（L0）**
 
-- 每个被跟踪的文本文件在 `raw/` 下有一个对应归档：首次整份 zstd 压缩，之后只把新增的字节压成新帧追加（与 DeepSeek Harness 的做法相同）。SQLite 来源按行导出为 JSONL 再归档。
+- 每个被跟踪的文本文件按代次在 `raw/` 下归档：首次 `generation = 0`，同一代次只把新增字节压成新帧追加；改写、截断或轮换后新建 `generation + 1` 的完整归档，旧代次保留，替换内容不能追加到旧归档。代次清单记录来源、相对路径、代次号、归档路径与哈希，重算时显式选择代次。SQLite 来源按行导出为 JSONL 再归档，行版本规则见 4.3。
+- 新代次归档与清单落盘后，在一个事务中替换该文件旧代次的 L1，按受影响会话的全部当前记录重建 L2 / L3，并更新 `source_file.generation`、归档指针、水位和跨文件引用。这样既移除旧代次多出的记录，也保留其他文件仍提供的事实；L1 / L2 / L3 默认反映当前代次，旧代次可从 L0 单独重建。事务失败时保留旧投影，同一替换的重试复用已归档的代次号。
 - 图片、PDF 等独立的二进制文件默认只记路径、大小和哈希，不复制（Claude 目录里约 0.2 GB）；需要时在设置里打开。
 - 实测 zstd 默认级别的压缩率：Codex 约 5 倍，Claude 约 2.4 倍（主会话约 29% 的字节是内联的 base64 图片，几乎压不动）；本机 5.1 GB 文本日志归档后约 1.3 GB。把内联图片抽出按哈希去重存放（4.6 第 5 条）还能再省一部分。
 
@@ -308,7 +309,7 @@ Demo 各页需要的数据与来源：
 | 层 | 内容 | 是否可重建 |
 | --- | --- | --- |
 | L0 原始归档 | 原始字节（zstd） | 不可重建，是唯一真相 |
-| L1 原始记录 | 每行 / 每帧行 / 每条 SQL 行一条索引：位置、哈希、原生类型、去向 | 可从 L0 重建 |
+| L1 原始记录 | 当前代次中每行 / 每帧行 / 每条 SQL 行一条索引：位置、哈希、原生类型、去向 | 可从所选代次的 L0 重建 |
 | L2 标准事件 | 统一的事件类型与字段，保留原生树结构和未映射字段 | 可从 L0 重建（解析器升级时重跑） |
 | L3 派生表 | 会话、轮次、工具调用、模型调用、项目归属、基础统计与会话特征 | 可从 L2 重建 |
 
@@ -359,13 +360,13 @@ flowchart TB
 | 原生身份作用域 | `native_key` 的组成 | 注意 |
 | --- | --- | --- |
 | 来源内可跨文件识别，如 Claude `uuid`、Hermes `message_uid` | `[source_id, native_id]` | 重放或压缩携带的副本先指回正本，再派生其事件 ID |
-| 只在单个会话文件内唯一，如 pi entry id | `[source_id, session_uid, 文件相对路径, native_id]` | `session_uid` 包含来源；pi 另包含会话头 id 与文件路径。fork 复制段通过血缘与父文件比对，复用父事件 ID |
-| 没有稳定原生 ID | `[source_id, 文件相对路径, 原生记录序号]` | 序号是来源位置，不用导入时刻或 L2 `seq` |
+| 只在单个会话文件内唯一，如 pi entry id | `[source_id, session_uid, 文件相对路径, generation, native_id]` | `session_uid` 包含来源；pi 另包含会话头 id 与文件路径。fork 复制段通过血缘与父文件比对，复用父事件 ID |
+| 没有稳定原生 ID | `[source_id, 文件相对路径, generation, 原生记录序号]` | 序号是代次内的来源位置，不用导入时刻或 L2 `seq` |
 
 - `event_uid = hash([native_key, kind, event_path])`，输入采用固定的结构化编码，不能直接拼接字符串。`event_path` 是连接器约定的内容路径，例如 `message.content[0].thinking`、`message.content[1].tool_use`、`message.usage`；它不依赖扫描顺序或标准化后剩余事件的数量。
 - 同一请求在多条记录中重复的 usage，先改用请求身份作为 `native_key`（Claude 的 `message.id`、Codex 的 `response_id`，均带 `source_id`），再派生唯一的 `model.usage`。内容事件仍按各自记录与内容路径保留。合成事件在 `event_path` 中使用固定名称，例如 `derived.turn.start`。
 - SQLite 的累计行被原地改写时，每次变化先归档为新的行版本，L1 使用归档中的版本序号区分 `record_uid`；快照事件以该 `record_uid` 作为版本身份参与 `native_key`。重复读取未变化的行复用已归档版本，重算时沿用归档顺序，既保留连续快照，也不凭每次扫描的时刻生成新 ID。
-- `record_uid` 指向承接事件的正本记录，其他参与合并的记录通过 L1 的引用追溯；`native_id` 保留正本的原生 ID。`parent_uid` 保留原生树的关联，拆分不能仅因为 `seq` 相邻就制造父子关系；原生父 ID、逻辑父 ID 与多重来源关系仍保留在 `attrs` 或 `ext` 中。
+- 文本来源的 `record_uid = hash([source_id, 文件相对路径, generation, 原生记录序号])`；SQLite 行版本使用归档版本身份。事件的 `record_uid` 指向承接事件的正本记录，其他参与合并的记录通过 L1 的引用追溯；`native_id` 保留正本的原生 ID。`parent_uid` 保留原生树的关联，拆分不能仅因为 `seq` 相邻就制造父子关系；原生父 ID、逻辑父 ID 与多重来源关系仍保留在 `attrs` 或 `ext` 中。
 - 解析器调整了拆分、合并或 ID 规则时，从归档重建受影响会话的 L2 与 L3，在一个事务中替换旧事件集合；不能只 upsert 新 ID 而遗留旧映射。
 
 **`seq` 是会话内的稳定投影顺序。** 连接器先确定来源顺序（Codex `ordinal`、DSH `seq`、Hermes `messages.id`、JSONL 行序；多文件按原生血缘衔接），再按内容块顺序和固定的合成事件位置展开，给每个保留事件分配唯一的整数 `seq`。同一来源、同一映射版本重复导入的 ID 与顺序必须一致。新增历史或映射升级可能重排 `seq`，因此 ID 不依赖它。
@@ -784,7 +785,8 @@ Skill 的 `name` 并不唯一，大量仓库互相复制，所以一定要用内
 ~/Library/Application Support/Tandem/     # 权限 0700，文件 0600
   tandem.db          # 会话侧：source、source_file、raw_record、session、event、L3 派生表、已安装清单
   catalog.db         # 生态侧：条目、来源、版本、特征、模型、成绩；可整体替换为新快照
-  raw/<source_id>/<文件路径哈希>.zst   # L0 原始归档（zstd 帧追加）
+  raw/<source_id>/<文件路径哈希>/<generation>.zst   # L0，代次内帧追加，旧代次保留
+  raw/<source_id>/<文件路径哈希>/generations.json  # 代次清单与归档哈希
   cache/             # 临时复制的 SQLite、下载的快照
 ```
 
@@ -810,15 +812,17 @@ CREATE TABLE source (
 CREATE TABLE source_file (
   file_id       INTEGER PRIMARY KEY,
   source_id     TEXT NOT NULL REFERENCES source,
-  path          TEXT NOT NULL UNIQUE,
+  path          TEXT NOT NULL,                 -- 相对于 source.root_path 的规范路径
+  generation    INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0), -- 当前文件代次
   role          TEXT NOT NULL,                 -- transcript | subagent_transcript | subagent_meta | index_db | config
   format        TEXT NOT NULL,                 -- jsonl | jsonl_zstd | json | sqlite | sqlite_protobuf | yaml
   dev INTEGER, inode INTEGER, size INTEGER, mtime_ns INTEGER,
-  head_sha256   TEXT,                          -- 前 4 KB 哈希，识别改写
-  watermark     TEXT,                          -- JSON：{"offset":…} | {"frames":…} | {"cursor":…}
+  head_sha256   TEXT,                          -- 前 4 KB 哈希，快速检查
+  watermark     TEXT,                          -- JSON：offset / frames / cursor；文本另记已处理区间哈希
   archive_path  TEXT,
   status        TEXT NOT NULL DEFAULT 'active',-- active | gone_upstream | error
-  last_scan_at  INTEGER
+  last_scan_at  INTEGER,
+  UNIQUE (source_id, path)
 ) STRICT;
 
 CREATE TABLE raw_record (                      -- L1
@@ -955,7 +959,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 | 步骤 | 产出 | 验收 |
 | --- | --- | --- |
 | M0 契约 | 7.2 的表结构、共有时间契约、每种 `kind` 的 `attrs` JSON Schema、各 Agent 的脱敏样本文件 | 样本覆盖本机出现过的全部记录类型；校验可空时间、时区来源、拆分身份和用量粒度组合 |
-| M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `tandem ingest` | 全记账测试通过；一条记录拆出多个事件无 ID 或 seq 冲突；同一数据重复导入零差异 |
+| M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `tandem ingest` | 全记账测试通过；一条记录拆出多个事件无 ID 或 seq 冲突；同一数据重复导入零差异；同路径改写 / 截断后无旧代次残留，旧归档可独立重建；两个数据根的同名相对路径可同时入库 |
 | M2 派生与基础统计 | L3 各表、项目归属、按会话 / 项目 / 模型的基础统计、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；覆盖范围一致的主模型 token 与 `cost-state` 的累计值误差 < 1%（主会话加子代理以父会话 Agent 工具结果计，`cost-state` 已含子代理，不再额外相加；不进转录的辅助调用单独核对）；累计快照不生成虚构 `model_call`；相同 L2 与统计口径下重复计算零差异 |
 | M3 生态 | Catalog 构建脚本、P0 来源、已安装清单、规则抽取的特征 | 抽检 50 条去重结果；本机已安装项全部能链接或给出未链接原因 |
 | M4 增量 | FSEvents 监听、原始归档、漂移告警；Demo 的 A1、A3、A4 接真实数据 | 新会话写入后 5 秒内可见 |
