@@ -46,13 +46,15 @@ def analytics_scope(
 ):
     """Same parameters as api/routes.py; an explicit empty value (``x=``) means []."""
     from ..analytics.inputs import Scope
+    from ..appdata.sources_scope import default_source_ids
     from ..sessionops.exclusion import merged
 
     def explicit(values):
         return [] if values == [""] else values
 
     try:
-        return Scope(display_timezone=display_timezone, source_ids=explicit(source_ids),
+        return Scope(display_timezone=display_timezone,
+                     source_ids=default_source_ids(explicit(source_ids)),
                      project_ids=explicit(project_ids),
                      legacy_project_ids=explicit(legacy_project_ids),
                      model_ids=explicit(model_ids), effort_raw=effort_raw,

@@ -85,9 +85,12 @@ class IngestWorker:
         if source["id"] in job.get("files_by_source", {}):
             return [Batch("selection", tuple(Path(p) for p in job["files_by_source"][source["id"]]))]
         phase = job.get("phase") or "auto"
-        if phase == "full" or job.get("limit"):
+        if job.get("limit") or (phase == "full" and not job.get("plan", {}).get("max_age_days")):
             return [None]  # One request over every allowlisted file (or the first N).
         plan = plan_batches(source["agent"], Path(source["root"]), **job.get("plan", {}))
+        if phase == "full":  # Age-bounded full import: one request over the kept files.
+            files = tuple(path for batch in plan for path in batch.files)
+            return [Batch("full", files)] if files else []
         return [b for b in plan if phase == "auto" or b.phase == phase]
 
     def run(self, job: dict) -> None:
