@@ -11,6 +11,9 @@ const PROJ = fx('s3/projects.json');
 const ALPHA = fx('s3/project-alpha.json');
 const MOCK = /Confluo|latentskill|wrangler deploy --env production|mcp·figma|mcp·browser|Gemini CLI|Copilot CLI|design-review/;
 const NODE = { read: 'Read', search: 'Search', edit: 'Edit', shell: 'Shell', subagent: 'Task', web: 'Web', other: 'Other' };
+// B11: one row per unified tool (kind), like the prototype; MCP per server
+const KIND = { shell: 'Bash', 'file.read': 'Read', 'file.edit': 'Edit', 'file.write': 'Write', search: 'Grep', 'web.search': 'WebSearch', 'web.fetch': 'WebFetch', subagent: 'Task' };
+const MERGED = (() => { const by = {}; TOOLS.tools.forEach((t) => { const k = t.kind === 'mcp' ? 'mcp·' + t.mcp_server : KIND[t.kind] || t.name; by[k] = (by[k] || 0) + t.n; }); return Object.entries(by).sort((a, b) => b[1] - a[1]); })();
 
 test.beforeEach(async ({ page }) => { ONLY('mac-14'); await page.clock.setFixedTime(NOW); await page.emulateMedia({ reducedMotion: 'reduce' }); });
 
@@ -27,9 +30,12 @@ test('A4: table, matrix, failures, retries and header equal /v1/uiview/tools', a
   if (PASS) { await noPlain(page); expect(errors).toEqual([]); return; }
   // table rows: server order by calls, names and counts
   const rows = await page.locator('#main table.tt tbody tr[data-t]').evaluateAll((trs) => trs.map((tr) => [tr.dataset.t, tr.querySelector('.tt-num').textContent]));
-  const want = TOOLS.tools.slice().sort((a, b) => b.n - a.n).map((t) => [t.name, t.n.toLocaleString('en-US')]);
-  expect(rows.map((r) => r[0])).toEqual(want.map((w) => w[0]));
-  expect(rows.map((r) => r[1].replace(/,/g, ''))).toEqual(want.map((w) => w[1].replace(/,/g, '')));
+  expect(rows.map((r) => r[0])).toEqual(MERGED.map((w) => w[0]));
+  expect(rows.map((r) => r[1].replace(/,/g, ''))).toEqual(MERGED.map((w) => String(w[1])));
+  // raw per-agent spellings never show up as their own rows; the unified row names them in its tooltip
+  for (const raw of ['bash', 'exec_command', 'terminal', 'Shell', 'read', 'edit', 'apply_patch', 'grep', 'mcp__github__search_issues']) expect(rows.map((r) => r[0])).not.toContain(raw);
+  expect(rows.find((r) => r[0] === 'Bash')[1].replace(/,/g, '')).toBe(String(364 + 297 + 193 + 83 + 62));
+  expect(await page.locator('#main tr[data-t="Bash"] .tt-name').getAttribute('data-tip')).toMatch(/exec_command.*terminal|terminal.*exec_command/);
   // matrix: labels and P(next | prev) %
   const tm = await page.evaluate(() => ({ names: Array.from(document.querySelectorAll('#tm .tm-h.mono[data-c]')).map((x) => x.textContent), cells: Array.from(document.querySelectorAll('#tm .tm-c')).map((x) => +x.textContent), n: Array.from(document.querySelectorAll('#tm .tm-n')).length }));
   expect(tm.names).toEqual(TOOLS.matrix.nodes.map((n) => NODE[n]));
@@ -40,7 +46,7 @@ test('A4: table, matrix, failures, retries and header equal /v1/uiview/tools', a
   const retries = await page.locator('#main .tt-retry .tt-cmd').allTextContents();
   expect(retries).toEqual(TOOLS.retries.slice(0, 5).map((r) => r.command));
   const meta = await page.locator('#main').innerText();
-  expect(meta).toContain(TOOLS.header.tool_kinds + ' 种工具');
+  expect(meta).toContain(MERGED.length + ' 种工具');
   expect(meta).toContain('mcp·github');
   // waits + parallel charts mounted from the server buckets
   await expect(page.locator('[data-vz="waits"] svg')).toBeVisible();
@@ -62,7 +68,7 @@ test('A4: a row opens its recent calls from /v1/analytics/tool_calls; topic filt
   await expect(page.locator('[data-lv="tool-calls"]')).toContainText('pytest -q tests/');
   await expect(page.locator('[data-lv="tool-calls"]')).toContainText('exit 1');
   const q = gw.seen.filter((x) => x.path === '/v1/analytics/tool_calls');
-  expect(q.length).toBe(1); expect(q[0].query).toMatch(/name=Bash/);
+  expect(q.length).toBe(1); expect(q[0].query).toMatch(/kind=shell/); expect(q[0].query).not.toMatch(/name=/);
   // collapse + reopen = LRU hit (no second request)
   await page.locator('#main tr[data-t="Bash"]').click();
   await page.locator('#main tr[data-t="Bash"]').click();
@@ -105,7 +111,10 @@ test('A5: rows, persona, compare, workflow, coverage, rule files and top rec com
   // detail for the selected project (alpha = most hours)
   await expect(page.locator('#main .pj-step')).toHaveCount(ALPHA.workflows[0].steps.length);
   const steps = await page.locator('#main .pj-step b').allTextContents();
-  expect(steps).toEqual(ALPHA.workflows[0].steps.map((s) => s.head || s.name));
+  // B12: human label over the command / unified tool, never the raw tool name twice
+  expect(steps).toEqual(['查看文件', '搜索代码', '查看文件']);
+  expect(await page.locator('#main .pj-step .mono').allTextContents()).toEqual(ALPHA.workflows[0].steps.map((s) => s.head));
+  expect(await page.locator('#main .pj-step').allTextContents()).not.toContain(expect.stringMatching(/exec_command/));
   await expect(page.locator('#main .pj-cov-r')).toHaveCount(ALPHA.coverage.length);
   await expect(page.locator('#main .pj-vs')).toHaveCount(ALPHA.vs.metrics.length);
   await expect(page.locator('[data-lv="rule-files"]')).toContainText('AGENTS.md');
@@ -132,6 +141,9 @@ test('A5: rows, persona, compare, workflow, coverage, rule files and top rec com
   await page.locator('#main tr[data-p="proj_beta"]').click();
   await expect(page.locator('#main')).toContainText('还没有识别到重复出现的工作流');
   await expect(page.locator('#main')).toContainText('暂时没有针对这个项目的建议');
+  // B12: persona_pending after the import finished → no stale「还在计算」promise
+  await expect(page.locator('#main .pj-pline')).not.toContainText('还在计算');
+  await expect(page.locator('#main .pj-pline')).toContainText('还没有给出这个项目的人格');
   await page.evaluate(() => { S.outcome = 'ok'; render(); });
   await expect(page.locator('[data-lv="scope-note"]')).toContainText('结果');
   await noPlain(page);

@@ -31,6 +31,58 @@ const lvtpPct = (v) => v == null ? '—' : f1(v * 100) + '%';
 const lvtpTrend = (k, mul) => (k && k.trend ? k.trend.map((t) => t.value == null ? null : t.value * (mul || 1)) : null);
 const lvtpHours = (h) => h == null ? 0 : typeof h === 'object' ? (h.value || 0) : h;
 const lvtpAgent = (bid) => AGI[LV.agentOf(bid).id] || null;
+// B11: each agent names the same tool differently (Bash / bash / exec_command / terminal / Shell); the server rows carry the
+// unified kind from the tool-name map (/v1/app/tool_map), so the table shows one row per kind like the prototype.
+// MCP tools merge per server (mcp·<server>); a kind outside the map keeps its raw name.
+const LVTP_KIND = { shell: 'Bash', 'file.read': 'Read', 'file.edit': 'Edit', 'file.write': 'Write', search: 'Grep', 'web.search': 'WebSearch', 'web.fetch': 'WebFetch', subagent: 'Task', skill: 'Skill', plan: 'TodoWrite', ask_user: 'AskUser' };
+function lvtpUnified(t) {
+  if (t.kind === 'mcp' && t.mcp_server) return { name: 'mcp·' + t.mcp_server, q: { mcp_server: t.mcp_server } };
+  if (LVTP_KIND[t.kind]) return { name: LVTP_KIND[t.kind], q: { kind: t.kind } };
+  return { name: t.name, q: { name: t.name } };
+}
+// B12: workflow steps arrive as raw tool names + command heads; chips show a human label (bold) over the unified tool or
+// command (mono), like the prototype's 「只读审查 / Read ×24」. Kind comes from the tools feed when loaded, else the static
+// alias list below (mirrors /v1/app/tool_map 1.2.x).
+const LVTP_ALIAS = {};
+[['shell', 'bash exec_command terminal shell commandexecution exec pwsh'], ['file.read', 'read read_file view_image'], ['file.edit', 'edit apply_patch multiedit str_replace_editor filechange'],
+  ['file.write', 'write write_file'], ['search', 'grep glob find search'], ['web.search', 'websearch web_search web.search'], ['web.fetch', 'webfetch web_fetch web.fetch'],
+  ['subagent', 'task agent subagent spawn_agent delegate_task'], ['skill', 'skill'], ['plan', 'todowrite todo_write update_plan'], ['ask_user', 'askuserquestion ask_user_question request_user_input']
+].forEach(([k, names]) => names.split(' ').forEach((n) => { LVTP_ALIAS[n] = k; }));
+const LVTP_STEP = { 'file.read': '读取文件', 'file.edit': '修改文件', 'file.write': '写入文件', search: '搜索代码', 'web.search': '网页搜索', 'web.fetch': '抓取网页', subagent: '派发子代理', skill: '调用技能', plan: '更新计划', ask_user: '向你提问', mcp: 'MCP 工具', shell: '运行命令' };
+const LVTP_HEAD = [[/^(cat|head|tail|less|more|sed|bat|wc)\b/, '查看文件'], [/^(ls|tree|find|fd|pwd)\b/, '浏览目录'], [/^(rg|grep|ag|ack)\b/, '搜索代码'],
+  [/^(pytest|jest|vitest|mocha|tox)\b|^(npm|pnpm|yarn|bun) (run )?test\b|^(go|cargo) test\b/, '运行测试'], [/^git (diff|status|log|show)\b/, '查看改动'], [/^git\b|^gh\b/, 'Git 操作'],
+  [/^(npm|pnpm|yarn|bun|make|cargo|go|tsc|latexmk)\b/, '构建'], [/^(python3?|node|deno|ruby|bash|sh|uv)\b/, '运行脚本'], [/^(curl|wget|http)\b/, '请求接口'], [/^(mkdir|cp|mv|rm|touch|chmod|ln)\b/, '整理文件']];
+function lvtpKindOf(name) {
+  const k = String(name || '').toLowerCase();
+  const t = LVTP.tools && (LVTP.tools.tools || []).find((x) => String(x.name || '').toLowerCase() === k);
+  if (t && t.kind) return t.kind;
+  if (/^mcp__/.test(k)) return 'mcp';
+  return LVTP_ALIAS[k] || null;
+}
+function lvtpStep(s) {
+  const kind = lvtpKindOf(s.name); const head = s.head ? String(s.head) : '';
+  const tool = kind === 'mcp' ? String(s.name).replace(/^mcp__([^_]+)__/, '$1.') : (LVTP_KIND[kind] || s.name);
+  if (head) { const m = LVTP_HEAD.find((x) => x[0].test(head)); return [m ? m[1] : (LVTP_STEP[kind] || '运行命令'), head]; }
+  return [LVTP_STEP[kind] || String(s.name), tool];
+}
+function lvtpMerge(list) {
+  const by = {}; const out = [];
+  (list || []).forEach((t) => {
+    const u = lvtpUnified(t); let g = by[u.name];
+    if (!g) { g = by[u.name] = { name: u.name, q: u.q, kind: t.kind, mcp: t.mcp_server, n: 0, failed: 0, known: 0, ap: 0, p50: [0, 0], p95: [0, 0], daily: [], aliases: [] }; out.push(g); }
+    const n = t.n || 0;
+    g.n += n; g.failed += t.failed || 0; g.known += t.known != null ? t.known : n; g.ap += (t.approval_rate || 0) * n;
+    if (t.p50_ms != null) { g.p50[0] += t.p50_ms * n; g.p50[1] += n; }
+    if (t.p95_ms != null) { g.p95[0] += t.p95_ms * n; g.p95[1] += n; }
+    (t.daily || []).forEach((v, i) => { g.daily[i] = (g.daily[i] || 0) + (v || 0); });
+    if (g.aliases.indexOf(t.name) < 0) g.aliases.push(t.name);
+  });
+  return out.map((g) => {
+    const p50 = g.p50[1] ? g.p50[0] / g.p50[1] : null, p95 = g.p95[1] ? g.p95[0] / g.p95[1] : null;
+    return { name: g.name, n: g.n, err: g.known ? g.failed / g.known : 0, fails: g.failed, avg: lvtpMs(p50), ap: g.n ? g.ap / g.n : 0, cmds: [],
+      p50: p50 != null ? p50 / 1000 : 0, p95: p95 != null ? p95 / 1000 : 0, daily: g.daily, kind: g.kind, mcp: g.mcp, q: g.q, aliases: g.aliases };
+  }).sort((a, c) => c.n - a.n);
+}
 
 if (LV.live) (function () {
   LVTP.det = LV.lru(30); LVTP.calls = LV.lru(30); LVTP.linked = LV.lru(30);
@@ -47,13 +99,12 @@ if (LV.live) (function () {
     RETRIES.length = 0; (b.retries || []).forEach((r) => RETRIES.push([r.command, r.count || 0, r.max_run || 0, r.session_uids || []]));
     PAR.length = 0; ((b.parallel && b.parallel.buckets) || []).forEach((p) => PAR.push([p.degree, p.n || 0, p.n ? (p.stopped || 0) / p.n : 0]));
   });
-  // server rows in the toolRows() shape (+ p50 / p95 seconds, the daily series and kind)
+  // server rows in the toolRows() shape (+ p50 / p95 seconds, the daily series and kind), merged by unified tool (B11)
   // until /v1/uiview/tools answered, keep the previous derivation (A1's tools card indexes trows[0]; slice 1 owns it)
   const toolRows0 = toolRows;
   toolRows = function (L) {
     const b = LVTP.tools; if (!b || !b.tools) return toolRows0(L);
-    return b.tools.map((t) => ({ name: t.name, n: t.n || 0, err: t.err || 0, fails: t.failed || 0, avg: lvtpMs(t.p50_ms), ap: t.approval_rate || 0, cmds: [],
-      p50: t.p50_ms != null ? t.p50_ms / 1000 : 0, p95: t.p95_ms != null ? t.p95_ms / 1000 : 0, daily: t.daily || [], kind: t.kind, mcp: t.mcp_server }));
+    return lvtpMerge(b.tools);
   };
   TIPS.trans = (i, j) => { const m = (LVTP.tools && LVTP.tools.matrix) || {}; const c = m.counts && m.counts[+i] ? m.counts[+i][+j] : null; return '<b>' + esc(TRANS_NAMES[+i] + ' → ' + TRANS_NAMES[+j]) + '</b>\n条件概率 ' + Math.round((TRANS[+i] ? TRANS[+i][+j] : 0) * 100) + '%' + (+i === +j ? '（同一工具连用）' : '') + (c != null ? '\n' + fmt(c) + ' 次转移' : ''); };
 
@@ -71,7 +122,8 @@ if (LV.live) (function () {
 /* ---------- A4 page ---------- */
 function lvtpCalls(name) {
   const n = S.tools.callsN || 6; const st = S.tools.failOnly ? 'failed' : 'all';
-  const path = LV.withQuery('/v1/analytics/tool_calls', { name, status: st, limit: n, display_timezone: TL_TZ, from_ts: lvtpFrom(S.range) });
+  const row = (LVTP.tools && LVTP.tools.tools ? toolRows() : []).find((r) => r.name === name); const q = (row && row.q) || { name };
+  const path = LV.withQuery('/v1/analytics/tool_calls', Object.assign({}, q, { status: st, limit: n, display_timezone: TL_TZ, from_ts: lvtpFrom(S.range) }));
   return LV.detail(LVTP.calls, path, path);
 }
 function lvtpCallRows(name) {
@@ -108,7 +160,7 @@ function lvToolsPage() {
   const th = (k, lbl, align) => '<th' + (align ? ' style="text-align:' + align + '"' : '') + '><button type="button" data-act="sortTools" data-k="' + k + '" aria-sort="' + (T.sort === k ? (T.dir < 0 ? 'descending' : 'ascending') : 'none') + '">' + lbl + (T.sort === k ? (T.dir < 0 ? ' ↓' : ' ↑') : '') + '</button></th>';
   const tbody = rows.map((r) => {
     const open = T.open === r.name; const v = T.failOnly ? r.fails : r.n;
-    let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + esc(r.name) + '" aria-expanded="' + open + '"><td class="mono tt-name">' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + esc(r.name) + '</td>' +
+    let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + esc(r.name) + '" aria-expanded="' + open + '"><td class="mono tt-name"' + (r.aliases && (r.aliases.length > 1 || r.aliases[0] !== r.name) ? ' data-tip="' + esc('各 Agent 的原始工具名：' + r.aliases.join(' · ')) + '"' : '') + '>' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + esc(r.name) + '</td>' +
       '<td class="tt-n"><span class="row" style="gap:8px"><span class="tt-bar"><i style="width:' + (v / mxn * 100).toFixed(1) + '%"></i></span><span class="mono tt-num">' + fmt(v) + '</span></span></td>' +
       '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
       '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(r.p50) + ' s · p95 ' + f1(r.p95) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(r.p95 / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(r.p50 / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
@@ -144,7 +196,7 @@ function lvToolsPage() {
     VZ.kpi({ label: '需要你审批', value: fmt((K.approvals && K.approvals.count) || 0), delta: { cur: (K.approvals && K.approvals.count) || 0, prev: K.approvals ? K.approvals.prev : null, goodDown: true, fmt: 'int' }, trend: lvtpTrend(K.approvals), trendLabel: '近 12 周', tip: K.approvals && K.approvals.median_wait_ms != null ? '等待中位数 ' + lvtpMs(K.approvals.median_wait_ms) : '没有记录等待时长' }),
     VZ.kpi({ label: '子代理派发', value: fmt(SA.dispatches || 0), delta: { cur: SA.dispatches || 0, prev: SA.prev != null ? SA.prev : null, fmt: 'int' }, tip: SA.dispatches ? '平均 ' + lvtpMs(SA.avg_duration_ms) + ' · 最多并行 ' + (SA.max_parallel || 0) : '所选范围内没有子代理派发' })
   ].join('');
-  return head(fmt(H.calls) + ' 次调用 · ' + fmt(H.tool_kinds || all.length) + ' 种工具 · ' + mcpN + ' 个 MCP 服务' + (fs === 'pending' || fs === 'computing' ? ' · 更新中' : '')) +
+  return head(fmt(H.calls) + ' 次调用 · ' + fmt(all.length || H.tool_kinds) + ' 种工具 · ' + mcpN + ' 个 MCP 服务' + (fs === 'pending' || fs === 'computing' ? ' · 更新中' : '')) +
     '<div class="stack"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + kpis + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 || !rangeN ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th>' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' +
     '<div class="tt-grid"><div class="card pad tt-matrix"><div class="hd"><div class="grow"><span class="ct">调用链 · 下一步是什么</span><span class="cap" title="P(下一步 | 上一步)：行 = 上一步，列 = 下一步；悬停看整行整列">格内 = 下一步的概率 %</span></div></div>' + matrix + (ins ? '<div class="col tt-ins">' + ins + '</div>' : '') +
@@ -207,7 +259,7 @@ function lvProjectsPage() {
   const hd = (d && d.header) || {};
   if (d) {
     const w0 = (d.workflows || [])[0];
-    p.flow = w0 ? w0.steps.map((s) => [s.head || s.name, s.name]) : [];
+    p.flow = w0 ? w0.steps.map(lvtpStep) : [];
     p.cover = (d.coverage || []).map((c) => [LVTP_COV[c.type] || c.type, c.configured == null ? '—' : String(c.project != null ? c.project : (c.configured ? 1 : 0)), c.detail || '', c.configured ? 1 : 0, c]);
     p.git = hd.git || '—'; p.tags = hd.tags || p.tags; p.ruleFiles = hd.rule_files || [];
     p.rec = d.top_recommendation ? d.top_recommendation.candidate_id : null; p.tip = d.top_recommendation ? d.top_recommendation.title : '';
@@ -215,7 +267,7 @@ function lvProjectsPage() {
   const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['尚未定型'])[0] } : selRow.pers;
   const now = personaNow();
   const plineTxt = pp.ok ? '在这个项目里你是 <b class="mono" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（' + esc(now.code + ' ' + now.zh) + '）不同' : '，和整体一致') : '') + '。'
-    : (pp.status === 'persona_pending' ? '这个项目的人格还在计算，导入完成后会出现。' : '这个项目的样本还不够，暂不判断人格。');
+    : (pp.status === 'persona_pending' ? (fs === 'computing' || LV.state === 'computing' || LV.state === 'connecting' ? '这个项目的人格还在计算，导入完成后会出现。' : '本地服务还没有给出这个项目的人格，表格里先记为「—」。') : '这个项目的样本还不够，暂不判断人格。');
   const vsRows = d ? ((d.vs && d.vs.metrics) || []).map((m) => {
     const f = LVTP_VS[m.key] || [m.label || m.key, (v) => f1(v), 'pct', null];
     const a = m.a == null ? 0 : m.a, bb = m.b == null ? 0 : m.b; const mx = Math.max(a, bb) || 1;
