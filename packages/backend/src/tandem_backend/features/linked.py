@@ -220,31 +220,69 @@ def _norm_path(path: str) -> str:
     return os.path.normpath(os.path.expanduser(path))
 
 
-def _usage(conn, column, d30, d90, project_ids) -> dict[tuple[str, str], dict]:
-    """One grouped query per usage column; keys are (normalized name, agent)."""
-    sql = (f"SELECT lower(t.{column}) k, src.agent agent, COUNT(*) total, "
-           "SUM(t.started_at>=:d30) c30, SUM(t.started_at>=:d90) c90, "
-           "COUNT(DISTINCT t.session_uid) sessions, MAX(t.started_at) last_used, "
-           "SUM(t.status IN ('error','failed')) errors FROM t.tool_call t "
-           "JOIN t.session s ON s.session_uid=t.session_uid "
-           "JOIN t.source src ON src.source_id=s.source_id "
-           f"WHERE t.{column} IS NOT NULL AND (:p IS NULL OR t.project_id IN "
-           "(SELECT value FROM json_each(:p))) GROUP BY 1,2")
+USAGE_COLUMNS = {"skill": "skill", "mcp": "mcp_server"}
+
+
+def _usage(conn, d30, d90, project_ids) -> dict[str, dict[tuple[str, str], dict]]:
+    """Skill and MCP usage from one pass over tool_call; keys are (normalized name, agent).
+
+    tool_call has no index on skill / mcp_server (adding one belongs to the storage
+    migrations), so a cold call is bound by reading the table once -- never twice."""
+    sql = ("WITH u AS MATERIALIZED (SELECT t.session_uid, t.skill, t.mcp_server, t.started_at, "
+           "t.status FROM t.tool_call t WHERE (t.skill IS NOT NULL OR t.mcp_server IS NOT NULL) "
+           "AND (:p IS NULL OR t.project_id IN (SELECT value FROM json_each(:p)))), "
+           "c AS (SELECT 'skill' col, lower(skill) k, session_uid, started_at, status FROM u "
+           "WHERE skill IS NOT NULL UNION ALL SELECT 'mcp', lower(mcp_server), session_uid, "
+           "started_at, status FROM u WHERE mcp_server IS NOT NULL) "
+           "SELECT c.col col, c.k k, src.agent agent, COUNT(*) total, "
+           "SUM(c.started_at>=:d30) c30, SUM(c.started_at>=:d90) c90, "
+           "COUNT(DISTINCT c.session_uid) sessions, MAX(c.started_at) last_used, "
+           "SUM(c.status IN ('error','failed')) errors FROM c "
+           "JOIN t.session s ON s.session_uid=c.session_uid "
+           "JOIN t.source src ON src.source_id=s.source_id GROUP BY 1,2,3")
     params = {"d30": d30, "d90": d90,
               "p": json.dumps(sorted(project_ids)) if project_ids is not None else None}
-    out: dict[tuple[str, str], dict] = {}
+    out: dict[str, dict[tuple[str, str], dict]] = {kind: {} for kind in USAGE_COLUMNS}
     for row in conn.execute(sql, params):
         keys = {norm(row["k"])}
         if ":" in row["k"]:
             keys.add(norm(row["k"].split(":", 1)[1]))
         for key in keys:
-            slot = out.setdefault((key, row["agent"]), {
+            slot = out[row["col"]].setdefault((key, row["agent"]), {
                 "total": 0, "c30": 0, "c90": 0, "sessions": 0, "last_used": None, "errors": 0})
             for field in ("total", "c30", "c90", "sessions", "errors"):
                 slot[field] += row[field] or 0
             if row["last_used"] is not None:
                 slot["last_used"] = max(slot["last_used"] or 0, row["last_used"])
     return out
+
+
+def _usage_key(revs: dict, project_ids, now_ms: int) -> tuple[str, str, int] | None:
+    """app.db cache key: data revision, project scope and the UTC day of ``now``."""
+    if revs.get("data") is None:
+        return None
+    scope = json.dumps(sorted(project_ids)) if project_ids is not None else "*"
+    return str(revs["data"]), scope, now_ms // DAY_MS
+
+
+def _usage_load(conn, key) -> dict | None:
+    if key is None or not _has(conn, "main", "inv_usage"):
+        return None
+    row = conn.execute("SELECT body FROM main.inv_usage WHERE data_rev=? AND scope=? AND day=?",
+                       key).fetchone()
+    if row is None:
+        return None
+    try:
+        body = json.loads(row[0])
+        return {kind: {(name, agent): slot for name, agent, slot in body.get(kind, ())}
+                for kind in USAGE_COLUMNS}
+    except (ValueError, TypeError):
+        return None
+
+
+def _usage_dump(usage: dict) -> str:
+    return json.dumps({kind: [[name, agent, slot] for (name, agent), slot in table.items()]
+                       for kind, table in usage.items()}, separators=(",", ":"))
 
 
 def _usage_for(item, table) -> dict:
@@ -319,10 +357,16 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
 
     # Usage: one grouped query per attributable column, plus agent-level hook runs.
     d30, d90 = now_ms - 30 * DAY_MS, now_ms - 90 * DAY_MS
-    usage = {}
+    usage, usage_row = {}, None
     if _has(conn, "t", "tool_call"):
-        usage = {"skill": _usage(conn, "skill", d30, d90, projects),
-                 "mcp": _usage(conn, "mcp_server", d30, d90, projects)}
+        # A cold aggregate reads all of tool_call (~1 s on 130k rows); app.db keeps it per
+        # data revision and day, so a restart or a new scope day does not pay it again.
+        key = _usage_key(revs, projects, now_ms)
+        usage = _usage_load(conn, key)
+        if usage is None:
+            usage = _usage(conn, d30, d90, projects)
+            if key is not None and _has(conn, "main", "inv_usage"):
+                usage_row = (*key, _usage_dump(usage), now_ms)
     hook_runs = {}
     if _has(conn, "t", "event"):
         hook_runs = {r[0]: r[1] for r in conn.execute(
@@ -402,8 +446,12 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
             summary["resident_tokens_est"] += tokens
     summary["hook_runs_by_agent"] = hook_runs
 
-    if write is not None and ((has_links and upserts) or (has_size and measured)):
+    if write is not None and ((has_links and upserts) or (has_size and measured) or usage_row):
         def persist(db: sqlite3.Connection) -> None:
+            if usage_row:
+                db.execute("DELETE FROM inv_usage WHERE data_rev!=? OR day<?",
+                           (usage_row[0], usage_row[2] - 1))
+                db.execute("INSERT OR REPLACE INTO inv_usage VALUES(?,?,?,?,?)", usage_row)
             if has_links and upserts:
                 db.executemany(
                     "INSERT INTO inv_link(inv_id,catalog_item_id,method,confidence,catalog_rev) "
