@@ -2,7 +2,10 @@
    Stage = a Mac desktop: fixed 24px menu bar, desktop widgets under the windows, a resizable main window, a settings panel,
    floating HUD, menu-bar panel and notifications. Visual system: neutral grey desktop, three window layers (window / sidebar
    material / card), system accent --accent for every selection-ish control, AI purple only marks AI output.
-   Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular. */
+   Dark layers desk #121214 → window #1a1a1e → sidebar ≈ #29292e → card #34343a (adjacent pairs ≥ 1.15 contrast).
+   Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
+   Fonts: UI = system-ui (SF Pro / PingFang in Chrome); the brand serif / mono come from Google Fonts when online and fall
+   back to Georgia + Songti SC / Menlo offline (ui-serif / ui-monospace are ignored by Chrome). */
 :root{
 --desk:#d4d5da;--desk-2:#c5c6cc;--menubar:rgba(238,238,242,.82);
 --bg:#f2f2f4;--sb:rgba(236,236,240,.72);--field:rgba(0,0,0,.055);--surface:#ffffff;--raised:rgba(250,250,251,.94);--sunken:#ebebee;--line:rgba(0,0,0,.09);--hair:rgba(0,0,0,.055);--sep:rgba(0,0,0,.1);
@@ -18,36 +21,36 @@
 --sh-card:0 1px 2px rgba(0,0,0,.04);--sh-raise:0 1px 2px rgba(0,0,0,.1),0 0 0 .5px rgba(0,0,0,.08);--sh-pop:0 10px 36px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.14);--sh-win:0 0 0 .5px rgba(0,0,0,.2),0 24px 70px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.1);
 --ease:cubic-bezier(.2,.8,.2,1);
 --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
---serif:"Source Serif 4",ui-serif,"New York","Songti SC","Noto Serif SC",Georgia,serif;
+--serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC","Noto Serif SC",serif;
 --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace;
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
---desk:#141416;--desk-2:#1e1e21;--menubar:rgba(40,40,44,.8);
---bg:#1e1e22;--sb:rgba(42,42,47,.9);--field:rgba(255,255,255,.08);--surface:#2c2c31;--raised:rgba(46,46,51,.96);--sunken:#242428;--line:rgba(255,255,255,.09);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
---ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#98989d;--ink-4:#636368;
+--desk:#121214;--desk-2:#1b1b1f;--menubar:rgba(36,36,40,.82);
+--bg:#1a1a1e;--sb:rgba(44,44,49,.9);--field:rgba(255,255,255,.08);--surface:#34343a;--raised:rgba(54,54,60,.96);--sunken:#232327;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
+--ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#0a84ff;--accent-ink:#ffffff;--accent-tint:rgba(10,132,255,.24);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
---ai:#b4a8ff;--ai-bg:#2e2850;
---good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
---tip:#333338;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
---a1:#e0632f;--a1t:#3f2116;--a2:#3f8ce8;--a2t:#182b42;--a3:#1fa878;--a3t:#123124;--a4:#d08e0a;--a4t:#39260a;--a5:#d85a88;--a5t:#3e1f29;
---h0:#242428;--h1:#303035;--h2:#46464c;--h3:#6e6e74;--h4:#a5a5ab;--h5:#f2f2f4;
---hud:rgba(44,44,49,.96);
---wg:#2c2c31;--wg-edge:rgba(255,255,255,.12);
+--ai:#b4a8ff;--ai-bg:#2f2954;
+--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
+--tip:#3a3a40;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
+--a1:#e0632f;--a1t:#452418;--a2:#3f8ce8;--a2t:#1a2f48;--a3:#1fa878;--a3t:#143627;--a4:#d08e0a;--a4t:#3d2a0c;--a5:#d85a88;--a5t:#44222d;
+--h0:#28282d;--h1:#36363c;--h2:#4c4c52;--h3:#737379;--h4:#a8a8ae;--h5:#f2f2f4;
+--hud:rgba(46,46,51,.96);
+--wg:#2e2e33;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
 color-scheme:dark}}
 :root[data-theme="dark"]{
---desk:#141416;--desk-2:#1e1e21;--menubar:rgba(40,40,44,.8);
---bg:#1e1e22;--sb:rgba(42,42,47,.9);--field:rgba(255,255,255,.08);--surface:#2c2c31;--raised:rgba(46,46,51,.96);--sunken:#242428;--line:rgba(255,255,255,.09);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
---ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#98989d;--ink-4:#636368;
+--desk:#121214;--desk-2:#1b1b1f;--menubar:rgba(36,36,40,.82);
+--bg:#1a1a1e;--sb:rgba(44,44,49,.9);--field:rgba(255,255,255,.08);--surface:#34343a;--raised:rgba(54,54,60,.96);--sunken:#232327;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
+--ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#0a84ff;--accent-ink:#ffffff;--accent-tint:rgba(10,132,255,.24);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
---ai:#b4a8ff;--ai-bg:#2e2850;
---good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#16301f;--warn-bg:#372a10;--crit-bg:#3b1c1b;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
---tip:#333338;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
---a1:#e0632f;--a1t:#3f2116;--a2:#3f8ce8;--a2t:#182b42;--a3:#1fa878;--a3t:#123124;--a4:#d08e0a;--a4t:#39260a;--a5:#d85a88;--a5t:#3e1f29;
---h0:#242428;--h1:#303035;--h2:#46464c;--h3:#6e6e74;--h4:#a5a5ab;--h5:#f2f2f4;
---hud:rgba(44,44,49,.96);
---wg:#2c2c31;--wg-edge:rgba(255,255,255,.12);
+--ai:#b4a8ff;--ai-bg:#2f2954;
+--good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
+--tip:#3a3a40;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
+--a1:#e0632f;--a1t:#452418;--a2:#3f8ce8;--a2t:#1a2f48;--a3:#1fa878;--a3t:#143627;--a4:#d08e0a;--a4t:#3d2a0c;--a5:#d85a88;--a5t:#44222d;
+--h0:#28282d;--h1:#36363c;--h2:#4c4c52;--h3:#737379;--h4:#a8a8ae;--h5:#f2f2f4;
+--hud:rgba(46,46,51,.96);
+--wg:#2e2e33;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
 color-scheme:dark}
 
