@@ -78,3 +78,42 @@ def test_negated_quoted_questioned_and_requested_comparisons_are_not_approval(te
 def test_a_relative_judgment_can_prefer_the_original_response(tmp_path):
     _, result = audit(tmp_path, '上一版比这一版更清楚。')
     assert result['pairs'][0]['observed_comparison'] == 'original_preferred'
+
+
+@pytest.mark.parametrize('answer', ['生活例子。', '继续用生活例子。', 'callback'])
+def test_clarification_exchange_is_not_a_completed_rewrite(tmp_path, answer):
+    if answer == 'callback':
+        from test_question_replies import callback
+        answer = callback('生活例子。', '想看生活例子还是图示？')
+    home = tmp_path / 'codex'
+    _write_case(home, 'clarification_chain', [
+        {'kind': 'user', 'text': '请给初学者解释程序，把思路讲清楚。'},
+        {'kind': 'assistant', 'text': '程序按变换规则处理输入。'},
+        {'kind': 'user', 'text': '没看懂，换个例子。'},
+        {'kind': 'assistant', 'text': '想看生活例子还是图示？'},
+        {'kind': 'user', 'text': answer},
+        {'kind': 'assistant', 'text': '程序收到3个苹果，逐个装盒；每装一个，剩余数量减一，到零停止。'},
+        {'kind': 'user', 'text': '这一版比上一版更清楚。'},
+    ])
+    store = Store(tmp_path / 'data.sqlite')
+    import_codex(store, home)
+    events = {e.id: e for e in store.events()}
+    pair = analyze(store)['profile']['preference_audit']['pairs'][0]
+    assert pair['observed_comparison'] == 'revised_preferred'
+    assert len(pair['clarification_event_ids']) == 2
+    assert all(eid in events for eid in pair['clarification_event_ids'])
+    assert '3个苹果' in events[pair['revised']['evidence_ids'][0]].text
+    assert len(pair['revised']['evidence_ids']) == 1
+
+
+def test_unanswered_clarification_is_not_a_complete_response_pair(tmp_path):
+    _, result = audit(tmp_path, None, revised='你想看生活例子还是图示？')
+    assert result['complete_response_pairs'] == 0
+    assert result['pairs'][0]['revised']['content_status'] == 'clarification_pending'
+
+
+def test_new_subject_after_clarification_is_not_absorbed_into_the_old_task(tmp_path):
+    _, result = audit(tmp_path, '新任务：请解释另一个定理。', revised='你想看生活例子还是图示？')
+    pair = result['pairs'][0]
+    assert pair['next_input_relation'] == 'new_task'
+    assert pair['observed_comparison'] is None and not pair['clarification_event_ids']

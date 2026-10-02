@@ -61,6 +61,23 @@ def is_followup(text: str) -> bool:
     return bool(direct_reference) or (len(text) < 160 and bool(continuation or reexplain or (revision and WRITING.search(text))))
 
 
+def clarification_question(text: str) -> bool:
+    """Recognize short requests for a choice, not every question in an answer."""
+    return len(text) <= 400 and bool(re.search(r'[?？]\s*$', text)) and bool(re.search(
+        r'想看|希望用|你(?:想|希望|选择)|请(?:选择|确认|提供)|还是|which|would you prefer', text, re.I))
+
+
+def answers_clarification(event: Event, previous_reply: str) -> bool:
+    """Native callbacks or a literal offered choice can continue the same task."""
+    if starts_new_subject(event.text):
+        return False
+    if event.details.get('input_format') == 'question_reply':
+        return True
+    answer = _clean(event.text).strip().rstrip('。.!！')
+    answer = re.sub(r'^(?:继续用|就用|请用|用|选择|我选|选)\s*', '', answer)
+    return clarification_question(previous_reply) and 2 <= len(answer) <= 60 and answer in previous_reply
+
+
 def same_artifact_reference(request: str, delivery: str) -> bool:
     """An explicit file reference can confirm continuity across imperfect scene labels.
 
@@ -328,7 +345,7 @@ def task_contexts(events: list[Event]) -> dict[str, dict]:
         previous = current.get(event.session_id)
         supplement = bool(previous and event.turn_id is not None and event.turn_id == previous["turn_id"] and
                           delivery_ordinals.get(event.session_id, -1) < previous["request_ordinal"] and not starts_new_subject(text))
-        continuation = supplement or is_followup(text) or (event.details.get("input_format") == "question_reply" and not starts_new_subject(text))
+        continuation = supplement or is_followup(text) or answers_clarification(event, deliveries.get(event.session_id, ''))
         if continuation and event.session_id in current:
             previous = current[event.session_id]
             compatible = supplement or scene in ("conversation", previous["scene"]) or (

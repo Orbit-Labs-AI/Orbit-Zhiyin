@@ -62,7 +62,7 @@ def bottlenecks_markdown(data: dict, evidence_base: str = '/v1/evidence') -> str
         if pair:
             content_label = {'message': '对话回复已留存', 'missing': '没有找到改写回复',
                              'artifact_delivery': '只有文件交付说明', 'embedded_body': '附有正文，完整性需核对',
-                             'embedded_body_truncated': '正文被截断'}.get(pair['revised']['content_status'], '需核对')
+                             'embedded_body_truncated': '正文被截断', 'clarification_pending': '只有追问，尚无改写正文'}.get(pair['revised']['content_status'], '需核对')
             direction_label = {'revised_preferred': '用户明确说新版更易懂', 'original_preferred': '用户明确说旧版更易懂'}.get(pair['observed_comparison'], '暂无')
             lines += ['后续链路：修改要求发生在回复之后。', '',
                       f"改写回复：{content_label}；明确的前后相对评价：{direction_label}。", '',

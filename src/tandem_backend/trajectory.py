@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from .bottlenecks import DELIVERY_SEPARATOR, combine_response, delivery_content
 from .content import visible_text
-from .feedback import starts_new_subject
+from .feedback import answers_clarification, clarification_question, starts_new_subject
 from .models import Event
 
 
@@ -65,24 +65,38 @@ def audit_revisions(findings: list[dict], events: list[Event], contexts: dict) -
             continue
         feedback = max((lookup[eid] for eid in finding['profile_evidence_ids']), key=lambda e: e.ordinal)
         original_parts = sorted((lookup[eid] for eid in finding['evidence_ids'] if lookup[eid].kind == 'assistant_message'), key=lambda e: e.ordinal)
-        revised_parts, next_user = [], None
+        revised_parts, next_user, clarification_ids = [], None, []
         for event in sessions[feedback.session_id]:
             if event.ordinal <= feedback.ordinal:
                 continue
             if event.kind == 'user_message':
+                same_task = contexts[event.id]['task_id'] == finding['task_id']
+                previous_reply = revised_parts[-1].text if revised_parts else ''
+                # A callback can answer a tool-based question without a final
+                # assistant message. A delivered rewrite followed by feedback
+                # stays a follow-up; it must not be discarded as clarification.
+                awaiting_choice = not revised_parts or clarification_question(previous_reply)
+                if same_task and awaiting_choice and answers_clarification(event, previous_reply) and not comparison_signal(event):
+                    clarification_ids.extend([part.id for part in revised_parts] + [event.id])
+                    revised_parts = []
+                    continue
                 next_user = event
                 break
             if event.kind == 'assistant_message' and event.details.get('phase') not in ('analysis', 'commentary'):
                 revised_parts.append(event)
         original, revised = response_observation(original_parts), response_observation(revised_parts)
+        if len(revised_parts) == 1 and clarification_question(revised_parts[0].text):
+            revised = {**revised, 'content_status': 'clarification_pending', 'features': None,
+                       'unavailable_reason': '只找到追问，尚未找到改写正文。'}
         same_task = bool(next_user and contexts[next_user.id]['task_id'] == finding['task_id'])
         direction = comparison_signal(next_user) if same_task else None
         complete = original['features'] is not None and revised['features'] is not None
         ids = list(dict.fromkeys([finding['task_id']] + original['evidence_ids'] + [feedback.id] +
-                                revised['evidence_ids'] + ([next_user.id] if same_task else [])))
+                                clarification_ids + revised['evidence_ids'] + ([next_user.id] if same_task else [])))
         pairs.append({'bottleneck_id': finding['id'], 'scene': finding['scene'], 'task_id': finding['task_id'],
                       'location': 'answer_to_user_revision', 'original': original, 'revised': revised,
                       'revision_event_id': feedback.id, 'followup_event_id': next_user.id if same_task else None,
+                      'clarification_event_ids': clarification_ids,
                       'next_input_relation': 'same_task' if same_task else 'new_task' if next_user else 'missing',
                       'observed_comparison': direction, 'human_label': None,
                       'ready_for_annotation': bool(complete and direction), 'eligible_for_training': False,

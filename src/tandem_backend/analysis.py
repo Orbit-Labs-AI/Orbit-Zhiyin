@@ -102,7 +102,7 @@ def analyze(store: Store, project_id: str | None = None, model: str | None = Non
     portrait = profile(preferences, contexts, observed, events, context_by_id)
     portrait['preference_audit'] = audit_revisions(bottlenecks, all_events, context_by_id)
     return {
-        "schema_version": "1.8", "analysis_version": "context-v20",
+        "schema_version": "1.8", "analysis_version": "context-v21",
         "scope": {"project_id": project_id, "model": model, "before": cutoff, "scene": scene},
         "ledger_sample_policies": policies,
         "counts": {"sessions": len(sessions_by_id), "projects": len({s["project_id"] for s in sessions_by_id.values()}),
