@@ -33,6 +33,7 @@ CORRECTION_RULES: tuple[tuple[str, str], ...] = (
         "not_what_asked",
         r"不是我(?:要|想要|想)的|不是这个意思|我(?:刚才|之前|已经)?说(?:过|了)(?:要|不要|别)?"
         r"|(?:理解|搞|弄|改)错了|改坏了|弄坏了"
+        r"|我的意思是|我是说|\bwhat I meant\b|\bI meant\b"
         r"|\bnot what I (?:asked|wanted|said|meant)\b|\bthat'?s not (?:right|it|what I)\b"
         r"|\bI (?:said|told you|asked you)\b|\byou (?:broke|misunderstood|ignored|missed)\b",
     ),
@@ -48,14 +49,19 @@ CORRECTION_RULES: tuple[tuple[str, str], ...] = (
         r"(?:撤销|回滚|撤回|还原)(?:你|刚才|刚刚|之前|这次|上一步|上次)"
         r"|\b(?:revert|undo|roll ?back) (?:that|this|it|your|the (?:last )?change)\w*",
     ),
+    (
+        "overdone",
+        r"(?:不要|不用|别|没必要)(?:那么|这么|过度)|过度(?:修复|设计|优化)|太(?:复杂|啰嗦|冗长)了"
+        r"|\btoo (?:verbose|complicated|complex|long|much)\b|\bover-?engineer\w*",
+    ),
 )
 CORRECTION_EXTRA = re.compile(
     "|".join(f"(?P<{rule}>{pattern})" for rule, pattern in CORRECTION_RULES), re.I
 )
 # Loose prefilter equivalent for callers that screen messages before full parsing.
 CORRECTION_EXTRA_HINT = re.compile(
-    r"还是|又|怎么|换|试|不是|说|错|坏|别|不要|不许|不准|撤|回滚|还原"
-    r"|still|again|different|another|not what|not right|said|told|broke|misunderstood"
+    r"还是|又|怎么|换|试|不是|说|错|坏|别|不要|不用|没必要|过度|太|不许|不准|撤|回滚|还原|意思"
+    r"|still|again|different|another|not what|not right|said|told|broke|misunderstood|meant|too |over"
     r"|ignored|missed|touch|chang|modif|edit|delet|revert|undo|roll",
     re.I,
 )

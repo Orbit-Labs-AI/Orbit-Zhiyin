@@ -42,6 +42,10 @@ CORRECTIONS = [
     "换一种方案试试",
     "搞错了，是另一个仓库",
     "wrong, try again",
+    "我的意思是统一用 github 账号",
+    "不要那么复杂，一段话就够",
+    "请不要过度修复",
+    "this is too verbose, shorten it",
 ]
 NOT_CORRECTIONS = [
     "请修复登录测试",
@@ -64,6 +68,8 @@ NOT_CORRECTIONS = [
     "把按钮改成蓝色",
     "整理一下文档结构",
     "thanks, now add the export button",
+    "意思是什么？",
+    "请把复杂度分析写进文档",
 ]
 
 POSITIVE = ["太好了", "完美！", "Perfect, thanks!", "great job", "干得漂亮", "awesome, ship it",
@@ -94,7 +100,7 @@ def test_uiview_prefilter_never_hides_a_lexicon_hit(text):
 def test_hits_carry_rule_ids():
     rules = {hit["rule"] for t in CORRECTIONS for hit in correction_hits(t)}
     assert {"repeat_failure", "change_approach", "not_what_asked", "scope_constraint",
-            "rework"} <= rules
+            "rework", "overdone"} <= rules
 
 
 def test_emotion_recall_without_labelling_neutral_text():
