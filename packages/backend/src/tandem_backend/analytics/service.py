@@ -759,7 +759,8 @@ class AnalysisSections:
         return build_work_graph(context.work_index, context.sessions, families["respond"],
                                 families["outcome"], self.instruction_records,
                                 self.semantic.preferences["evidence"], event_status=context.event_status,
-                                context_events=context.diagnostics["context_events"])
+                                context_events=context.diagnostics["context_events"],
+                                interaction=families["interaction"])
 
     def section(self, name: str):
         """Compute one section (and only its dependencies)."""

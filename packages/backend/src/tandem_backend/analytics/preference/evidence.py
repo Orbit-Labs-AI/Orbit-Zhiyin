@@ -9,10 +9,10 @@ from dataclasses import asdict, dataclass, field
 from typing import Literal
 
 from ...models import stable_id
-from ..instruction.formats import FORMAT_VALUES
+from ..instruction.formats import FORMAT_NAMES
 
 PREFERENCE_EVIDENCE_VERSION = "preference-evidence-v1"
-SOURCE_CONFIDENCE = {"explicit_preference": 1.0, "task_instruction": 0.6}
+SOURCE_CONFIDENCE = {"explicit_preference": 1.0, "task_instruction": 0.6, "semantic_task_instruction": 0.4}
 INSTRUCTION_DIMENSIONS = {
     "requested_autonomy": ("autonomy", {"ask_first": "ask_first", "explicit": "autonomous"}),
     "execution_order": ("execution_style", {v: v for v in ("plan_first", "discuss_first", "execute_first")}),
@@ -26,7 +26,7 @@ class PreferenceEvidence:
     evidence_id: str
     dimension: str
     value: str | None
-    source_type: Literal["explicit_preference", "task_instruction"]
+    source_type: Literal["explicit_preference", "task_instruction", "semantic_task_instruction"]
     source_id: str
     session_uid: str
     task_id: str | None
@@ -80,7 +80,7 @@ def instruction_to_preference_evidence(instructions, sessions, task_by_event=Non
         context = _context(row, session_map, task_by_event, cluster_by_session)
         for constraint in row["constraints"]:
             feature = constraint["feature"]
-            if feature not in INSTRUCTION_DIMENSIONS or constraint.get("source") != "confirmed_human_text":
+            if feature not in INSTRUCTION_DIMENSIONS or constraint.get("source") not in ("confirmed_human_text", "semantic_model"):
                 continue
             if (constraint["event_uid"], constraint["session_uid"]) != (row["event_uid"], row["session_uid"]):
                 raise ValueError("Instruction constraint provenance does not match its observation")
@@ -88,14 +88,19 @@ def instruction_to_preference_evidence(instructions, sessions, task_by_event=Non
             if feature == "format_requirements":
                 values = constraint.get("format_values")
                 if values is not None and (not isinstance(values, list)
-                        or any(not isinstance(v, str) or v not in FORMAT_VALUES for v in values)):
+                        or any(not isinstance(v, str) or v not in FORMAT_NAMES for v in values)):
                     raise ValueError("Instruction format_values must contain normalized format names")
                 values = sorted(set(values)) if values else [None]
             elif constraint["value"] in mapping:
                 values = [mapping[constraint["value"]]]
             else:
                 continue  # scoped autonomy is a task boundary, not an autonomy preference.
-            for value in values:
+            pairs = [(dimension, value) for value in values]
+            if feature == "format_requirements" and constraint.get("detail_value") in ("concise", "detailed"):
+                pairs = [(d, v) for d, v in pairs if v is not None]
+                pairs.append(("detail", constraint["detail_value"]))
+            source_type = "semantic_task_instruction" if constraint.get("source") == "semantic_model" else "task_instruction"
+            for dimension, value in pairs:
                 reasons = []
                 if context["task_id"] is None:
                     reasons.append("task_unknown")
@@ -107,11 +112,11 @@ def instruction_to_preference_evidence(instructions, sessions, task_by_event=Non
                     reasons.append("format_value_unavailable")
                 if constraint.get("format_relation") == "alternative":
                     reasons.append("alternative_values_not_resolved")
-                uid = _uid("task_instruction", constraint["constraint_uid"], dimension, value)
+                uid = _uid(source_type, constraint["constraint_uid"], dimension, value)
                 result[uid] = asdict(PreferenceEvidence(
                     evidence_id=uid, dimension=dimension, value=value,
-                    source_type="task_instruction", source_id=constraint["constraint_uid"],
-                    **context, confidence=SOURCE_CONFIDENCE["task_instruction"],
+                    source_type=source_type, source_id=constraint["constraint_uid"],
+                    **context, confidence=SOURCE_CONFIDENCE[source_type],
                     observed_at=row.get("ts"), evidence_event_uids=[row["event_uid"]],
                     scope={"kind": "task", "target_id": context["task_id"],
                            "identity_quality": context["task_identity_quality"]},
@@ -225,11 +230,21 @@ def summarize_preference_evidence(evidence, instructions=None, sessions=(), task
                            "support_sessions": len({e["session_uid"] for e in refs}),
                            "evidence_ids": sorted({e["evidence_id"] for e in refs}),
                            "task_rate": len(tasks) / len(task_keys) if task_keys else None})
+        inferred = [e for e in own if e["source_type"] == "semantic_task_instruction"]
+        inferred_values = []
+        for value in sorted({e["value"] for e in inferred if e["status"] == "observed" and e["value"] is not None}):
+            refs = [e for e in inferred if e["status"] == "observed" and e["value"] == value]
+            inferred_values.append({"value": value, "support_tasks": len({_task_key(e) for e in refs}),
+                                    "evidence_ids": sorted(e["evidence_id"] for e in refs),
+                                    "quality": "model_inferred", "calibrated_probability": None})
         dimensions.append({"dimension": dimension,
                            "explicit_evidence_ids": sorted(e["evidence_id"] for e in own
                                                            if e["source_type"] == "explicit_preference"),
                            "historical_values": values, "conflicting_tasks": conflicts,
-                           "pending_evidence_ids": sorted(e["evidence_id"] for e in historical if e["status"] == "pending")})
+                           "pending_evidence_ids": sorted(e["evidence_id"] for e in historical if e["status"] == "pending"),
+                           **({"inferred_values": inferred_values,
+                               "inferred_pending_evidence_ids": sorted(e["evidence_id"] for e in inferred if e["status"] == "pending")}
+                              if inferred else {})})
     return {"status": "observed" if rows else "no_evidence", "evidence_count": len(rows),
             "by_source_type": dict(sorted(Counter(e["source_type"] for e in rows).items())),
             "observed_tasks": len(task_keys) if instructions is not None else None,

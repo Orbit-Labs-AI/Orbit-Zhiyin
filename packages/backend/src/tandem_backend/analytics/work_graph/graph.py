@@ -101,7 +101,7 @@ def _files(call, event):
 
 
 def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions, preferences,
-                     *, event_status="available", context_events=()):
+                     *, event_status="available", context_events=(), interaction=None):
     """Project typed facts once; every edge references selected or explicitly linked evidence."""
     events = [*index.events, *context_events]
     graph = Graph(events)
@@ -268,7 +268,9 @@ def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions,
         sid, uid = feedback["session_uid"], feedback["event_uid"]
         event = by_event[sid, uid]
         node = graph.node("Feedback", uid, session_uid=sid, evidence=[uid], task_uid=event.get("task_uid"),
-                          source="direct_human_feedback", attributes={k: feedback.get(k) for k in
+                          source=feedback.get("label_source", "direct_human_feedback"),
+                          state="candidate" if feedback.get("label_source") == "semantic_model" else "confirmed",
+                          attributes={k: feedback.get(k) for k in
                           ("user_acceptance", "user_confirmed_completion", "rework_feedback", "link_status", "link_reason")})
         belongs(node, event, [uid], "Feedback")
         target = deliveries.get((sid, feedback.get("delivery_event_uid")))
@@ -276,10 +278,35 @@ def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions,
             evidence = [uid, feedback["delivery_event_uid"]]
             state = "confirmed" if feedback["link_status"] == "linked" else "candidate"
             graph.edge("EVALUATES", node, target, evidence=evidence, source=feedback["link_basis"], state=state)
-            if feedback["rework_feedback"] or feedback["user_acceptance"] in ("rejected", "mixed"):
+            if feedback["rework_feedback"] or feedback["user_acceptance"] in ("rejected", "mixed", "partial"):
                 graph.edge("CORRECTS", node, target, evidence=evidence, source="explicit_feedback", state=state)
                 if event.get("task_uid"):
                     trajectory_counts[event["task_uid"]]["rework_feedback"] += 1
+
+    feedback_ids = {(f["session_uid"], f["event_uid"]) for f in subjective.get("feedback") or []}
+    for observation in (interaction or {}).get("message_intents") or []:
+        if observation.get("state") != "inferred" or "correction" not in (observation.get("intents") or []):
+            continue
+        sid, uid = observation["session_uid"], observation["event_uid"]
+        event = by_event[sid, uid]
+        identity = stable_id(WORK_GRAPH_VERSION, "Feedback", sid, uid)
+        if (sid, uid) in feedback_ids:
+            node = identity
+            graph.nodes[node]["attributes"]["interaction_observation"] = observation
+        else:
+            node = graph.node("Feedback", uid, session_uid=sid, task_uid=event.get("task_uid"),
+                              evidence=observation["evidence_event_uids"], source="bounded_semantic_parser",
+                              state="candidate", available_at=observation["available_at"],
+                              attributes={"interaction_observation": observation})
+            belongs(node, event, [uid], "Feedback")
+        target_uid = observation.get("target_event_uid")
+        target_event = by_event.get((sid, target_uid), {})
+        target = deliveries.get((sid, target_uid)) or turns.get((sid, target_event.get("turn_uid")))
+        if target:
+            graph.edge("CORRECTS", node, target, evidence=[uid, target_uid],
+                       source="bounded_semantic_correction", state="candidate")
+            if event.get("task_uid"):
+                trajectory_counts[event["task_uid"]]["semantic_corrections"] += 1
 
     instruction_rows = {}
     invalid_replacements = []
@@ -288,6 +315,8 @@ def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions,
         for constraint in observation["constraints"]:
             node = graph.node("Instruction", constraint["constraint_uid"], session_uid=observation["session_uid"],
                               evidence=[observation["event_uid"]], source=constraint["method"],
+                              state="candidate" if constraint.get("source") == "semantic_model" else "confirmed",
+                              available_at=constraint.get("available_at"),
                               task_uid=row.get("task_uid"), attributes={k: constraint.get(k) for k in
                                                                        ("feature", "value", "condition", "targets")})
             instruction_nodes[constraint["constraint_uid"]] = node

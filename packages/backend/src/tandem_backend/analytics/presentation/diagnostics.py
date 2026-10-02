@@ -308,6 +308,7 @@ def build_diagnostics(analysis: dict) -> dict:
                         "expected_effect": None, "installable": False,
                         "agent_customization": "Requires an explicit agent capability/configuration manifest."}
                        for f in findings]
+    semantic = interaction.get("semantic_observations")
     return {"rule_version": RULE_VERSION, "correction_rate": correction, "tools": tools,
             "friction_types": interaction.get("friction_types"),
             "repeated_requirement_count": interaction.get("repeated_requirement_count"),
@@ -316,6 +317,8 @@ def build_diagnostics(analysis: dict) -> dict:
             "priority_rule": {"formula": "100 * observed_rate * min(known_n / 5, 1) * known_n / (known_n + unknown_n)",
                               "support_reference_n": PRIORITY_SUPPORT_N,
                               "meaning": "Review ordering heuristic, not measured severity, causation, savings or statistical significance."},
+            **({"semantic_observations": {"interaction": semantic,
+                                          "meaning": "Model inferred evidence; excluded from confirmed rates and measured utility."}} if semantic else {}),
             "limitations": ["All metrics describe the already selected observed subset.",
                             "Unreviewed correction candidates do not enter the confirmed correction rate.",
                             "Rejected, interrupted and running calls are excluded from the success/error denominator.",

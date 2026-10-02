@@ -19,7 +19,7 @@ def analyze_subjective_outcomes(events, main_ids, event_status="available"):
     # Unknown session kinds cannot contribute semantics, but their user rows are not observed zeros.
     unknown += sum(e["session_uid"] not in main_ids and e["kind"] == "message.user" for e in events)
     deliveries = collect_deliveries(events, main_ids)
-    feedback = extract_subjective_feedback(humans, deliveries, main_ids)
+    feedback = extract_subjective_feedback(humans, deliveries, main_ids, context_events=events)
     recognized = {f["event_uid"] for f in feedback}
     missing = sum(e.get("text") is None or (bool(e.get("text_truncated")) and e["event_uid"] not in recognized) for e in humans)
     return {**summarize_subjective_outcomes(feedback, deliveries, status=event_status,

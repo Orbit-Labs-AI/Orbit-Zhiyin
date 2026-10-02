@@ -4,6 +4,7 @@ import re
 from collections import Counter
 
 from ...models import stable_id
+from ..semantic_cascade import observation_for
 from .formats import format_arguments
 from .structure import FILE
 from .text import instruction_text
@@ -106,6 +107,7 @@ def extract_instruction_constraints(messages, *, main_ids):
     Canonical replay duplicates are excluded here as well as by the engine selector.
     """
     records, seen = [], set()
+    lookup = {(e["session_uid"], e["event_uid"]): e for e in messages}
     for event in sorted(messages, key=lambda e: (e["session_uid"], e["seq"], e["event_uid"])):
         attrs = event.get("attrs", {})
         identity = (event["session_uid"], event["event_uid"])
@@ -151,6 +153,31 @@ def extract_instruction_constraints(messages, *, main_ids):
                         "source": "confirmed_human_text", "method": "explicit_lexical_rule",
                         **(format_arguments(match.group()) if feature == "format_requirements" else {}),
                     })
+        semantic = observation_for(event, lookup)
+        for item in (semantic or {}).get("controls", []):
+            arguments = dict(item["arguments"])
+            existing = next((c for c in constraints if c["feature"] == item["feature"]
+                             and c["value"] == item["value"] and item["quote"] in c["text"]
+                             and c["condition"] == item["condition"]), None)
+            if existing:
+                if arguments["response_form"] in (existing.get("format_values") or []):
+                    arguments["response_form"] = None
+                if not any(arguments.values()):
+                    continue
+            constraints.append({
+                "constraint_uid": stable_id("semantic-control-v1", *identity, item),
+                "feature": item["feature"], "value": item["value"], "text": item["quote"],
+                "event_uid": event["event_uid"], "session_uid": event["session_uid"],
+                "task_id": attrs.get("task_id"), "seq": event["seq"], "ts": event.get("ts"),
+                "targets": item["targets"] or None, "condition": item["condition"], "action": None,
+                "source": "semantic_model", "method": "bounded_semantic_parser",
+                "available_at": semantic["available_at"], "arguments": arguments,
+                "confidence": {"tier": "inferred", "calibrated_probability": None},
+                "evidence_event_uids": semantic["evidence_event_uids"],
+                **({"format_values": [arguments["response_form"]] if arguments["response_form"] else None,
+                    "format_relation": "single" if arguments["response_form"] else "unknown",
+                    "detail_value": arguments["detail"]} if item["feature"] == "format_requirements" else {}),
+            })
         reasons = []
         if event.get("text") is None:
             reasons.append("text_unavailable")
@@ -163,10 +190,14 @@ def extract_instruction_constraints(messages, *, main_ids):
         records.append({
             "event_uid": event["event_uid"], "session_uid": event["session_uid"],
             "task_id": attrs.get("task_id"), "seq": event["seq"], "ts": event.get("ts"),
-            "status": "partial" if event.get("text_truncated") else "observed" if constraints else "unknown",
+            "status": "partial" if event.get("text_truncated") else
+            "inferred" if constraints and all(c["source"] == "semantic_model" for c in constraints)
+            else "observed" if constraints else "unknown",
             "unknown_reasons": reasons, "constraints": constraints,
             "features": {name: [c for c in constraints if c["feature"] == name] or None for name in FIELDS},
             "supersedes_instruction_ids": list(attrs.get("supersedes_instruction_ids") or []),
+            **({"semantic_source": {"model": semantic["model"], "input_digest": semantic["input_digest"],
+                                    "available_at": semantic["available_at"]}} if semantic else {}),
         })
     return records
 
@@ -187,9 +218,14 @@ def summarize_control_patterns(instructions, scope=None, *, source_available=Tru
             "values": dict(sorted(values.items())),
         }
     effective = sum(bool(r["constraints"]) for r in rows)
+    inferred = [r for r in rows if any(c.get("source") == "semantic_model" for c in r["constraints"])]
+    quality = {"explicit_messages": sum(any(c.get("source") == "confirmed_human_text" for c in r["constraints"]) for r in rows),
+               "inferred_messages": len(inferred), "calibrated_probability": None}
     return {"status": "partial", "message_n": len(rows), "effective_n": effective,
             "unknown_n": len(rows) - effective,
             "truncated_n": sum("text_truncated" in r["unknown_reasons"] for r in rows),
             "time_unknown_n": sum(r.get("ts") is None for r in rows), "features": features,
             "denominator": "confirmed human messages in selected main sessions",
-            "semantics": "observed requests, not resolved active instructions"}
+            "semantics": "explicit and model inferred observations, not resolved active instructions" if inferred
+            else "observed requests, not resolved active instructions",
+            **({"evidence_quality": quality} if inferred else {})}

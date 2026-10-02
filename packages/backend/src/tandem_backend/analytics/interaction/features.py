@@ -3,11 +3,12 @@
 from collections import Counter, defaultdict
 
 from ..common import annotation_visible, human, ratio, task_uid
+from ..semantic_cascade import observation_for
 from .rules import EXECUTION_KINDS, FRICTIONS, INTENTS, correction_terms
 
 
 def classify_message_intents(events, main_ids, until_ts=None):
-    """Consume explicit reviewed labels; lexical matches remain candidates.
+    """Consume bounded inferred observations and compatible reviewed evaluation labels.
 
     The optional attrs.interaction annotation is an upstream labeling contract,
     not a semantic classifier hidden inside the non-semantic feature family.
@@ -37,18 +38,28 @@ def classify_message_intents(events, main_ids, until_ts=None):
         requirement_valid = (reviewed and bool(task_uid(e)) and isinstance(requirements, list)
                              and all(isinstance(v, dict) and v.get("object_uid")
                                      and v.get("requirement_uid") for v in requirements))
+        semantic = observation_for(e, lookup, until_ts)
+        inferred = bool(not reviewed and semantic and semantic["intents"])
+        if inferred:
+            target = lookup.get((e["session_uid"], semantic["target_event_uid"]))
+            target_valid = bool(target and target["seq"] < e["seq"] and task_uid(e)
+                                and task_uid(target) == task_uid(e))
         rows.append({"event_uid": e["event_uid"], "session_uid": e["session_uid"],
                      "turn_uid": e.get("turn_uid"), "task_uid": task_uid(e), "seq": e["seq"],
-                     "intents": sorted(set(labels)) if reviewed else None,
-                     "state": "confirmed" if reviewed else "candidate" if terms else "unknown",
+                     "intents": sorted(set(labels)) if reviewed else sorted(set(semantic["intents"])) if inferred else None,
+                     "state": "confirmed" if reviewed else "inferred" if inferred else "candidate" if terms else "unknown",
                      "candidate_intents": ["correction"] if terms else [], "candidate_terms": terms,
-                     "friction_types": sorted(set(friction)) if friction_valid else None,
+                     "friction_types": sorted(set(friction)) if friction_valid else
+                     semantic["friction_types"] if inferred and target_valid else None,
                      "requirements": requirements if requirement_valid else None,
                      "target_event_uid": target["event_uid"] if target_valid else None,
                      "evidence_event_uids": [e["event_uid"]] + ([target["event_uid"]] if target_valid else []),
-                     "source": a.get("source") if reviewed else "lexical_proxy" if terms else None,
-                     "available_at": a.get("available_at") if reviewed else e.get("ts"),
-                     "missing_reason": None if reviewed else "missing_or_invalid_visible_annotation"})
+                     "source": a.get("source") if reviewed else "semantic_model" if inferred else "lexical_proxy" if terms else None,
+                     "available_at": a.get("available_at") if reviewed else semantic["available_at"] if inferred else e.get("ts"),
+                     "missing_reason": "inferred_correction_target_unresolved" if inferred and "correction" in semantic["intents"] and not target_valid
+                     else None if reviewed or inferred else "missing_or_invalid_visible_annotation",
+                     **({"confidence": {"tier": "inferred", "calibrated_probability": None},
+                         "intent_quote": semantic["intent_quote"], "model": semantic["model"]} if inferred else {})})
     return rows
 
 
@@ -90,7 +101,7 @@ def summarize_interactions(labeled_messages):
             repeated.append(r["event_uid"])
         seen.update(keys)
     friction_rows = [r for r in known if r["friction_types"] is not None]
-    return {"confirmed_correction_count": len(corrections) if known or not rows else None,
+    result = {"confirmed_correction_count": len(corrections) if known or not rows else None,
             "confirmed_correction_rate": ratio(len(corrections), len(known)),
             "correction_denominator": "confirmed human messages with determinable reviewed intents",
             "repeated_requirement_count": len(repeated) if requirement_rows or not rows else None,
@@ -102,3 +113,17 @@ def summarize_interactions(labeled_messages):
                                "requirement_messages": len(rows) - len(requirement_rows),
                                "friction_messages": len(rows) - len(friction_rows)},
             "correction_evidence": [r["event_uid"] for r in corrections]}
+    inferred = [r for r in rows if r["state"] == "inferred"]
+    if inferred:
+        measured = [r for r in inferred if r["missing_reason"] is None]
+        corrected = [r for r in measured if "correction" in r["intents"]]
+        result["semantic_observations"] = {
+            "intent_messages": len(inferred), "correction_count": len(corrected),
+            "correction_rate": ratio(len(corrected), len(measured)),
+            "correction_denominator": "model inferred intents with resolved correction targets",
+            "unresolved_corrections": len(inferred) - len(measured),
+            "friction_types": dict(Counter(v for r in measured for v in r["friction_types"] or [])),
+            "evidence_event_uids": [r["event_uid"] for r in inferred],
+            "quality": "model_inferred", "calibrated_probability": None,
+        }
+    return result

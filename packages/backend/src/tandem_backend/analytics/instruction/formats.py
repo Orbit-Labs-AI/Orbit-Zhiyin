@@ -8,6 +8,7 @@ FORMAT_VALUES = {
     "json": r"\bjson\b",
     "markdown": r"\bmarkdown\b",
 }
+FORMAT_NAMES = set(FORMAT_VALUES) | {"command_only"}
 _CONTENT = re.compile(r"比较|解释|介绍|解析|描述|关于|\b(?:compare|explain|describe|about)\b", re.I)
 _ALTERNATIVE = re.compile(r"或者|或|\bor\b", re.I)
 

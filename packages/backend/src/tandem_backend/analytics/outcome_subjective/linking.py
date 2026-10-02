@@ -72,11 +72,12 @@ def link_feedback_targets(feedback, deliveries):
             f["link_reason"] = reason
         else:
             reported_sources = {"explicit", "native", "human_confirmed"}
-            inferred = basis == "same_task_id" and (
+            inferred = f.get("label_source") == "semantic_model" or basis == "same_task_id" and (
                 f.get("task_id_source", "explicit") not in reported_sources
                 or d.get("task_id_source", "explicit") not in reported_sources)
             f.update(delivery_event_uid=d["delivery_event_uid"], link_status="candidate" if inferred else "linked",
-                     link_reason="heuristic_task_identity" if inferred else None,
+                     link_reason="semantic_target_or_label_inferred" if f.get("label_source") == "semantic_model"
+                     else "heuristic_task_identity" if inferred else None,
                      feedback_target={k: d.get(k) for k in ("session_uid", "task_id", "delivery_event_uid", "artifact_id", "artifact_version")},
                      link_basis=basis,
                      completion_scope="artifact" if target.get("artifact_id") else "delivery" if basis == "explicit_delivery" else "task" if task else "delivery")
