@@ -1,0 +1,19 @@
+{
+  "name": "@tandem/connectors",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.7.0" },
+  "bin": { "tandem-ingest": "dist/cli.js" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "schema"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "tandem": "node src/cli.ts"
+  },
+  "dependencies": { "ajv": "8.17.1" },
+  "devDependencies": { "@types/node": "24.7.2", "typescript": "5.9.3" }
+}

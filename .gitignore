@@ -1,10 +1,7 @@
+node_modules/
+dist/
+.local/
 .DS_Store
 .env
 .env.*
 !.env.example
-node_modules/
-.venv/
-__pycache__/
-dist/
-build/
-.next/
