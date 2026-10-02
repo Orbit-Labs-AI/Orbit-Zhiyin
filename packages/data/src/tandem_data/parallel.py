@@ -34,7 +34,7 @@ from tandem_data.connectors import MAPPERS
 from tandem_data.contract import canonical, now_ms, shape, uid
 from tandem_data.indexing import index_file, indexed_rows, iter_lines_with_rows
 from tandem_data.source_reader import SourceUnavailable, _zstd_lines, source_path, source_stat
-from tandem_data.store import SQL_TABLES, insert_rows
+from tandem_data.store import SQL_TABLES, insert_tuples
 
 # Mappers that only read their own file. Others (Codex history/forks, Kimi indexes,
 # OpenCode/Hermes databases) always stay on the writer.
@@ -59,9 +59,9 @@ def writer_pragmas(db):
 
 
 def _insert_rows(db, table, columns, rows):
-    """Batch INSERT used by the writer; delegates to store.insert_rows so event.ext is packed."""
+    """Batch INSERT used by the writer; ``store.insert_tuples`` packs event.ext/text."""
     if rows:
-        insert_rows(db, table, [dict(zip(columns, row, strict=True)) for row in rows])
+        insert_tuples(db, table, columns, rows)
 
 
 def default_workers() -> int:
@@ -722,16 +722,18 @@ class DeferredSearchIndex:
     FTS5 flushes a new segment for every trigger-driven insert, which then has to be
     merged: about a third of the writer's time on a large rebuild. Inside the rebuild's
     write transaction the three persistent search triggers (migration 008) are replaced by
-    TEMP triggers that record new rowids and keep rows that were already indexed in sync;
+    TEMP triggers that keep rows that were already indexed in sync (new rows are found by
+    rowid above the starting maximum, so inserts carry no search trigger at all);
     other ``event`` triggers (content_blob reference counts) stay untouched. ``finish``
-    indexes the recorded rows that qualify and restores the original triggers. Everything
+    indexes the new rows that qualify and restores the original triggers. Everything
     is part of the same transaction, so readers never observe the swap and a rollback
     restores the schema. Only used when the trigger definitions are exactly these.
     """
 
-    def __init__(self, db, definitions):
+    def __init__(self, db, definitions, floor):
         self.db = db
         self.definitions = definitions
+        self.floor = floor
 
     @classmethod
     def start(cls, db, files):
@@ -753,36 +755,37 @@ class DeferredSearchIndex:
             return None  # Unknown search-index wiring: keep the row triggers.
         for name in definitions:
             db.execute(f"DROP TRIGGER main.{name}")
+        # Rows inserted from here on get rowids above ``floor`` (max+1), so they need no
+        # per-row trigger. ``fts_pending`` records deleted pre-existing rowids: a later insert
+        # may reuse one, so those rowids are treated as pending too.
+        floor = db.execute("SELECT COALESCE(MAX(rowid),0) FROM main.event").fetchone()[0]
         db.execute("CREATE TEMP TABLE fts_pending(id INTEGER PRIMARY KEY)")
-        db.execute(
-            "CREATE TEMP TRIGGER fts_defer_ai AFTER INSERT ON main.event BEGIN "
-            "INSERT OR IGNORE INTO fts_pending VALUES(new.rowid); END"
-        )
+        pending = f"(old.rowid>{floor} OR EXISTS(SELECT 1 FROM fts_pending WHERE id=old.rowid))"
         db.execute(
             "CREATE TEMP TRIGGER fts_defer_ad AFTER DELETE ON main.event BEGIN "
             "DELETE FROM main.event_search WHERE rowid=old.rowid "
-            f"AND old.kind IN {SEARCHED} AND old.text IS NOT NULL "
-            "AND NOT EXISTS(SELECT 1 FROM fts_pending WHERE id=old.rowid); "
-            "DELETE FROM fts_pending WHERE id=old.rowid; END"
+            f"AND old.kind IN {SEARCHED} AND old.text IS NOT NULL AND NOT {pending}; "
+            f"INSERT OR IGNORE INTO fts_pending SELECT old.rowid WHERE old.rowid<={floor}; END"
         )
         db.execute(
             "CREATE TEMP TRIGGER fts_defer_au AFTER UPDATE OF text, kind ON main.event "
-            "WHEN NOT EXISTS(SELECT 1 FROM fts_pending WHERE id=old.rowid) BEGIN "
+            f"WHEN NOT {pending} BEGIN "
             "DELETE FROM main.event_search WHERE rowid=old.rowid "
             f"AND old.kind IN {SEARCHED} AND old.text IS NOT NULL; "
             "INSERT INTO main.event_search(rowid,text) SELECT new.rowid,new.text "
             f"WHERE new.kind IN {SEARCHED} AND new.text IS NOT NULL; END"
         )
-        return cls(db, definitions)
+        return cls(db, definitions, floor)
 
     def finish(self):
         db = self.db
         db.execute(
-            "INSERT INTO main.event_search(rowid,text) SELECT e.rowid,e.text "
-            "FROM temp.fts_pending p JOIN main.event e ON e.rowid=p.id "
-            f"WHERE e.kind IN {SEARCHED} AND e.text IS NOT NULL ORDER BY p.id"
+            "INSERT INTO main.event_search(rowid,text) SELECT rowid,text FROM main.event "
+            f"WHERE (rowid>? OR rowid IN (SELECT id FROM temp.fts_pending)) "
+            f"AND kind IN {SEARCHED} AND text IS NOT NULL ORDER BY rowid",
+            (self.floor,),
         )
-        for name in ("fts_defer_ai", "fts_defer_ad", "fts_defer_au"):
+        for name in ("fts_defer_ad", "fts_defer_au"):
             db.execute(f"DROP TRIGGER temp.{name}")
         db.execute("DROP TABLE temp.fts_pending")
         for name in EVENT_SEARCH_TRIGGERS:
