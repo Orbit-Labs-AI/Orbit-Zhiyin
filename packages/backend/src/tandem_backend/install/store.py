@@ -6,6 +6,7 @@ Functions taking ``db`` run inside a caller's transaction so several rows commit
 
 from __future__ import annotations
 
+import itertools
 import json
 import secrets
 import sqlite3
@@ -20,6 +21,7 @@ STATE_COLUMNS = ("install_id", "plan_id", "candidate_id", "source_type", "source
                  "kind", "agents", "scope", "preview_digest", "state", "installed_at",
                  "observe_until", "last_triggered_at", "pinned", "archived_at", "reverted_at",
                  "tracking_id", "risk_level")
+_SEQ = itertools.count()  # orders rows written within the same millisecond
 _JSON = {"applied", "evidence_refs", "agents", "spec", "targets", "warnings"}
 
 
@@ -75,7 +77,7 @@ def sweep_plans(appdb, older_than_days: int = 30) -> int:
 # ---- ledger -----------------------------------------------------------------------------------
 
 def entry_id(ts: int) -> str:
-    return f"le_{ts:013d}_{secrets.token_hex(4)}"
+    return f"le_{ts:013d}_{next(_SEQ) % 10**8:08d}{secrets.token_hex(2)}"
 
 
 def ledger_append(db: sqlite3.Connection, entries: list[dict]) -> list[str]:
