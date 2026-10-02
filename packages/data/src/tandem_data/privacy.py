@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 
-REDACTION_VERSION = "1.1.1"
+REDACTION_VERSION = "1.2.0"
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",
@@ -171,10 +171,5 @@ def sanitize(value, key=""):
         ):
             return f"<opaque:sha256:{digest}>"
         clean = redact(value)
-        limit = (
-            8192 if key in ("output", "stdout", "stderr", "aggregated_output", "result") else 32768
-        )
-        if len(clean.encode()) > limit:
-            return clean.encode()[:limit].decode(errors="ignore") + f"<truncated:sha256:{digest}>"
         return clean
     return value

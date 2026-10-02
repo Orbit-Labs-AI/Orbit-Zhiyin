@@ -47,14 +47,14 @@ def pi_rows():
     ]
 
 
-def test_pretruncation_lengths_redaction_scope_and_empty_selection(tmp_path):
+def test_full_lengths_redaction_scope_and_empty_selection(tmp_path):
     with Store(tmp_path / "data") as store:
         stream(store, "pi", tmp_path / "source", pi_rows())
         store.rebuild()
         event = store.db.execute("SELECT * FROM event WHERE kind='message.assistant'").fetchone()
         attrs = json.loads(event["attrs"])
-        assert attrs["original_chars"] == 4000 and event["text_truncated"] == 1
-        assert len(event["text"].encode()) <= 8192
+        assert attrs["original_chars"] == 4000 and event["text_truncated"] == 0
+        assert event["text"] == "中" * 4000
         assert attrs["writing_measurements"]["reply"]["complete"]
         bundle = read_analysis(store.home, AnalysisScope("Asia/Shanghai", model_ids=("test",)))
         assert any(e["kind"] == "message.user" for e in bundle["events"])

@@ -7,6 +7,7 @@ from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import canonical, now_ms, validate_event
 from tandem_data.privacy import REDACTION_VERSION
+from tandem_data.source_reader import SourceUnavailable
 from tandem_data.store import insert
 
 
@@ -102,6 +103,8 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             mapper = MAPPERS[info["agent"]](store, info)
             try:
                 mapper.prepare(store.iter_file(info["file_id"]))
+            except SourceUnavailable:
+                raise  # Never publish a partial replacement from changed evidence.
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 store.issue(
                     info["source_id"],
@@ -111,6 +114,10 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 )
                 continue
             mappers[info["file_id"]] = mapper
+
+        from tandem_data.connectors.codex import select_history
+
+        select_history(store, mappers)
 
         store.db.execute(
             "UPDATE raw_record SET disposition='ignored',note=? WHERE native_type='pending_tail'",
@@ -175,10 +182,33 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                     (canonical({"reason": "native_mapping_error"}), record.record_uid),
                 )
                 return
-            # Keep all source fields on one event, with bounded/redacted projection copies.
-            # Exact bytes (including media and unknown fields) are always addressed in L0.
-            if result.events:
+            # Legacy stream imports retain their compatibility payload. Native imports
+            # address unrecognized records through L0/L1 instead of copying raw JSON.
+            if (
+                result.events
+                and json.loads(mapper.info["watermark"]).get("capture") != "source_reference"
+            ):
                 result.events[0].ext = {"native": record.data, **result.events[0].ext}
+            else:
+                for draft in result.events:
+                    if draft.kind == "unknown":
+                        draft.ext = {
+                            "native_type": record.native_type,
+                            "source_record_uid": record.record_uid,
+                        }
+            # L1 keeps the source locator instead of another copy of every native payload.
+            table = record.data.get("table") if mapper.info["format"] == "sqlite_rows" else None
+            row = record.data.get("row", {})
+            if mapper.session_uid and (
+                not table
+                or result.events
+                or row.get("session_id")
+                or table in ("session", "sessions", "threads")
+            ):
+                store.db.execute(
+                    "UPDATE raw_record SET session_uid=? WHERE record_uid=?",
+                    (mapper.session_uid, record.record_uid),
+                )
             # Contract errors are implementation bugs: abort and retain the previous published projection.
             prepared = [
                 (draft, draft.envelope(record.record_uid, 0, mapper_version))
@@ -228,11 +258,32 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                                         file_id=record.file_id,
                                         detail={"field": token},
                                     )
-                        if merged != attrs or merged_ext != ext or stamp != existing["ts"]:
+                        text = existing["text"]
+                        if incoming["text"] and (not text or incoming["text"].startswith(text)):
+                            text = incoming["text"]
+                            for field in (
+                                "original_chars",
+                                "message_digest",
+                                "writing_measurements",
+                            ):
+                                if field in incoming["attrs"]:
+                                    merged[field] = incoming["attrs"][field]
+                        if (
+                            merged != attrs
+                            or merged_ext != ext
+                            or stamp != existing["ts"]
+                            or text != existing["text"]
+                        ):
                             relation = "folded"
                             store.db.execute(
-                                "UPDATE event SET attrs=?,ext=?,ts=? WHERE event_uid=?",
-                                (canonical(merged), canonical(merged_ext), stamp, draft.event_uid),
+                                "UPDATE event SET attrs=?,ext=?,ts=?,text=? WHERE event_uid=?",
+                                (
+                                    canonical(merged),
+                                    canonical(merged_ext),
+                                    stamp,
+                                    text,
+                                    draft.event_uid,
+                                ),
                             )
                     store.db.execute(
                         "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
@@ -304,6 +355,25 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
                 map_record(mapper, record)
             for record in store.iter_versions(info["file_id"], "table:session_model_usage"):
                 map_record(mapper, record)
+        # Lower DSH generations remain browsable in the same trajectory, although
+        # only the highest generation contributes canonical facts.
+        from pathlib import PurePosixPath
+
+        dsh_sessions = {
+            (m.info["source_id"], str(PurePosixPath(m.info["relative_path"]).parent)): m.session_uid
+            for m in mappers.values()
+            if m.info["agent"] == "dsh" and m.session_uid
+        }
+        for info in infos:
+            if info["role"] == "legacy_transcript":
+                session_uid = dsh_sessions.get(
+                    (info["source_id"], str(PurePosixPath(info["relative_path"]).parent))
+                )
+                if session_uid:
+                    store.db.execute(
+                        "UPDATE raw_record SET session_uid=? WHERE file_id=?",
+                        (session_uid, info["file_id"]),
+                    )
         for record, result in pending:
             resolved = [
                 event_uid

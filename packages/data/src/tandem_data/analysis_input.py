@@ -51,7 +51,7 @@ def decoded(row):
     return result
 
 
-def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) -> dict:
+def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) -> dict:
     """Members are filtered facts; events additionally include their earlier turn context.
 
     Empty selections mean zero members. Time-unknown facts do not enter bounded statistics.
@@ -122,7 +122,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         events = []
         for row in connection.execute(query, params):
             events.append(decoded(row))
-            if len(events) > max_events:
+            if max_events is not None and len(events) > max_events:
                 raise ValueError("Narrow scope or read SQL views in batches; event limit exceeded")
 
         def member(event):
@@ -370,6 +370,15 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         time_unknown = sum(e["ts"] is None for e in selected)
         truncated = sum(e["text_truncated"] for e in selected)
         reasons = []
+        scans = [
+            dict(row)
+            for row in connection.execute("SELECT * FROM source_scan")
+            if unrestricted or row["source_id"] in relevant_sources
+        ]
+        if any(row["selection"] == "sample" for row in scans):
+            reasons.append("sampled_source_files")
+        if any(row["cancelled"] or row["indexed_files"] < row["discovered_files"] for row in scans):
+            reasons.append("source_scan_incomplete")
         diagnostics = [
             decoded(row)
             for row in connection.execute(
@@ -395,6 +404,16 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             reasons.append("truncated_text")
         source_agents = {source["agent"] for source in sources}
         coverage = {
+            "source_scans": {
+                "status": "partial"
+                if any(
+                    s["selection"] == "sample" or s["capture_errors"] or s["cancelled"]
+                    for s in scans
+                )
+                else "available",
+                "rows": len(scans),
+                "scans": scans,
+            },
             "sessions": {"status": "available", "rows": len(session_rows)},
             "projects": {"status": "available", "rows": len(project_rows)},
             "turns": {"status": "available", "rows": len(turn_rows)},
