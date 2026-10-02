@@ -1,0 +1,225 @@
+{
+ "header": {
+  "id": "session_fx005",
+  "a": "claude_code",
+  "agent_name": "Claude Code",
+  "model": "claude-sonnet-4-5",
+  "effort": "high",
+  "cwd": "/synthetic/none",
+  "project_id": null,
+  "title": "整理示例仓库的测试 #5",
+  "title_source": "first_message",
+  "started_at": 1790000000000,
+  "dur": 12.5,
+  "dur_basis": "active_estimate",
+  "out": "ok",
+  "out_basis": "estimate",
+  "corr": 2,
+  "corr_basis": "lexical_candidate",
+  "live": false,
+  "excluded": false,
+  "resume": {
+   "shell": "cd /synthetic/none && claude_code --resume fx",
+   "verified": false,
+   "available": true,
+   "disabled_reason": null
+  }
+ },
+ "stats7": {
+  "msgs": 8,
+  "steps": 12,
+  "tools": 25,
+  "errors": 1,
+  "corr": 2,
+  "ctx_peak": 20.0,
+  "tok": 25000,
+  "steps_basis": "tool_calls_plus_reply_spans",
+  "ctx_basis": "estimate",
+  "tok_basis": "l1_model_call"
+ },
+ "trajectory": {
+  "T": 12.5,
+  "unit": "min",
+  "start_min": 1415,
+  "t0": 1790000000000,
+  "lanes": [
+   "user",
+   "agent",
+   "sub",
+   "read",
+   "edit",
+   "bash",
+   "web"
+  ],
+  "events": [
+   {
+    "id": "u0",
+    "lane": "user",
+    "t": 0.0,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": "整理示例仓库的测试 #5",
+    "seq": 1,
+    "event_uid": "event_s2_00"
+   },
+   {
+    "id": "tool_call_s2_01",
+    "lane": "read",
+    "t": 1.0,
+    "w": 0.02,
+    "err": false,
+    "corr": false,
+    "cmd": "Read a.py",
+    "res": "completed",
+    "txt": null,
+    "seq": 2,
+    "event_uid": "event_s2_01"
+   },
+   {
+    "id": "tool_call_s2_02",
+    "lane": "edit",
+    "t": 3.0,
+    "w": 0.05,
+    "err": false,
+    "corr": false,
+    "cmd": "Edit a.py",
+    "res": "completed",
+    "txt": null,
+    "seq": 3,
+    "event_uid": "event_s2_02"
+   },
+   {
+    "id": "tool_call_s2_03",
+    "lane": "bash",
+    "t": 6.0,
+    "w": 0.3,
+    "err": true,
+    "corr": false,
+    "cmd": "pytest",
+    "res": "exit 1",
+    "txt": null,
+    "seq": 4,
+    "event_uid": "event_s2_03"
+   },
+   {
+    "id": "u4",
+    "lane": "user",
+    "t": 7.0,
+    "w": 0,
+    "err": false,
+    "corr": true,
+    "cmd": null,
+    "res": null,
+    "txt": "不对",
+    "seq": 5,
+    "event_uid": "event_s2_04"
+   },
+   {
+    "id": "tool_call_s2_05",
+    "lane": "bash",
+    "t": 9.0,
+    "w": 0.3,
+    "err": false,
+    "corr": false,
+    "cmd": "pytest",
+    "res": "exit 0",
+    "txt": null,
+    "seq": 6,
+    "event_uid": "event_s2_05"
+   },
+   {
+    "id": "r6",
+    "lane": "agent",
+    "t": 11.0,
+    "w": 0.8,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": null,
+    "seq": 7,
+    "event_uid": "event_s2_06"
+   },
+   {
+    "id": "u7",
+    "lane": "user",
+    "t": 12.2,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": "谢谢",
+    "seq": 8,
+    "event_uid": "event_s2_07"
+   }
+  ],
+  "phases": [
+   {
+    "t": 0,
+    "t2": 3.0,
+    "phase": "explore",
+    "label": "探索",
+    "inferred": true
+   },
+   {
+    "t": 3.0,
+    "t2": 12.5,
+    "phase": "execute",
+    "label": "实施",
+    "inferred": true
+   }
+  ],
+  "moments": [
+   {
+    "t": 0.0,
+    "n": 1,
+    "label": "你给出目标",
+    "detail": "「整理示例仓库的测试 #5」",
+    "alert": false,
+    "event_uid": null,
+    "rule": "goal"
+   }
+  ],
+  "marks": [],
+  "ctx": [
+   [
+    1.0,
+    4.0
+   ],
+   [
+    11.0,
+    20.0
+   ]
+  ],
+  "comps": [],
+  "steps_axis": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ]
+ },
+ "lite_nodes": [
+  {
+   "t": 0.0,
+   "label": "你给出目标",
+   "detail": "「整理示例仓库的测试 #5」",
+   "alert": false,
+   "event_uid": null,
+   "rule": "goal"
+  }
+ ],
+ "insight": {
+  "text": "示例：这次协作很顺。",
+  "actions": [],
+  "basis": "l0_template"
+ }
+}

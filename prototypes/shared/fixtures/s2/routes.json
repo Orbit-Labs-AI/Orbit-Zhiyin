@@ -1,0 +1,9 @@
+{
+ "_doc": "slice 2 (A3 sessions): synthetic details for core sessions fx016 (newest finished, A), fx010 (suggest_b B), fx005. GET /v1/uiview/sessions (list vs ?q= search) is wired in the spec because both share one path.",
+ "GET /v1/uiview/sessions/session_fx016": "detail-a.json",
+ "GET /v1/uiview/sessions/session_fx010": "detail-b.json",
+ "GET /v1/uiview/sessions/session_fx005": "detail-c.json",
+ "GET /v1/uiview/sessions/session_fx016/suggest_b": "suggest-b.json",
+ "GET /v1/uiview/sessions/compare": "compare.json",
+ "GET /v1/sessions/session_fx016/events": "events-a.json"
+}

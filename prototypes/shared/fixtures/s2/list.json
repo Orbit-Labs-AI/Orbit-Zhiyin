@@ -1,0 +1,86 @@
+{
+ "meta": {
+  "count_label": {
+   "in_window": 3,
+   "today": 0,
+   "live": 0,
+   "excluded": 0
+  },
+  "basis": {
+   "dur": "active_estimate"
+  },
+  "search_partial": false
+ },
+ "days": [],
+ "rows": [
+  {
+   "id": "session_fx016",
+   "a": "dsh",
+   "title": "修复示例构建脚本 #16",
+   "title_source": "first_message",
+   "p": "proj_beta",
+   "d": "2026-09-29",
+   "h": 8,
+   "mi": 52,
+   "dur": 29.0,
+   "out": "ok",
+   "out_basis": "estimate",
+   "live": false,
+   "tools": 58,
+   "errors": 0,
+   "corr": 1,
+   "excluded": false,
+   "ticks": {
+    "t": [
+     0.02,
+     0.04,
+     0.08,
+     0.2,
+     0.31,
+     0.35,
+     0.39,
+     0.57,
+     0.69,
+     0.76,
+     0.86
+    ],
+    "e": [
+     0.31,
+     0.35,
+     0.39
+    ]
+   }
+  },
+  {
+   "id": "session_fx005",
+   "a": "claude_code",
+   "title": "整理示例仓库的测试 #5",
+   "title_source": "first_message",
+   "p": null,
+   "d": "2026-09-28",
+   "h": 23,
+   "mi": 35,
+   "dur": 12.5,
+   "out": "ok",
+   "out_basis": "estimate",
+   "live": false,
+   "tools": 25,
+   "errors": 1,
+   "corr": 2,
+   "excluded": false,
+   "ticks": {
+    "t": [
+     0.08,
+     0.24,
+     0.48,
+     0.72
+    ],
+    "e": [
+     0.48
+    ]
+   }
+  }
+ ],
+ "total": 2,
+ "next_offset": null
+}

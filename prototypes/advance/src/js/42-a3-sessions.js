@@ -14,6 +14,22 @@ S.sess.last = S.sess.sel;   // 初始播放头（30.8）是刻意停在失败串
 const TOOL = ['read', 'edit', 'bash', 'web'];
 const TOOL_LBL = { read: '读取 / 搜索', edit: '编辑', bash: '命令', web: '网络' };
 const LANE_LBL = { user: '你的消息', reply: 'Agent 回复', read: '读取 / 搜索', edit: '编辑', bash: '命令', web: '网络', sub: '子代理' };
+/* 数据钩子：默认值即演示口径；live 模式（92-live-sessions.js）用会话详情 / 搜索 / 对比端点的真实数据覆盖，组件与布局不变 */
+const A3H = {
+  todayD: () => 120,
+  dayLabel: (d) => d === 120 ? '今天 · 10 月 1 日 周四' : d === 119 ? '昨天 · 9 月 30 日 周三' : mdz(d) + ' 周' + WD[wd(d)],
+  qMatch: (s, q) => s.title.toLowerCase().includes(q) || PJI[s.p].name.toLowerCase().includes(q) || agent(s.a).name.toLowerCase().includes(q),
+  model: (s, ag) => s.a === 'cc' ? 'claude-opus-5-5 · thinking high' : ag.model,
+  path: (s) => PJI[s.p].path,
+  steps: (s) => Math.round(s.tools * 1.54),
+  ctxPeak: (s, tr) => Math.round(Math.max(...tr.ctx.map((c) => c[1]))) + '%',
+  tok: (s) => f1(s.tok / 1e6) + 'M',
+  mood: (m) => '<span class="mono">' + sgn1(m) + '</span>' + (m < -0.2 ? ' · 偏负面' : m > 0.2 ? ' · 偏正面' : ' · 中性'),
+  summary: (s, tr, def) => def,
+  inspExtra: () => '',
+  insight: null,   // (s, corrN, errN) → { text, actions: [{ label, id, act? }] }；null = 演示文案
+  phasePct: null   // (x, side) → [[label, pct]]；null = 按 traj 阶段计算
+};
 function spreadTimes(r, a, b, n) { const o = []; for (let i = 0; i < n; i++) o.push(a + (b - a) * ((i + r() * 0.8) / n)); return o; }
 function traj(s) {
   if (s._traj) return s._traj;
@@ -73,7 +89,7 @@ function sessOk(s) { return sourceEnabled(s) && S.agents.has(s.a) && (!S.project
 function sessList() {
   const q = S.sess.q.trim().toLowerCase();
   const w = win(S.range);
-  return ALL.filter((s) => (s.d === 120 || (s.d >= w[0] && s.d <= w[1])) && sessOk(s) && (!q || s.title.toLowerCase().includes(q) || PJI[s.p].name.toLowerCase().includes(q) || agent(s.a).name.toLowerCase().includes(q))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
+  return ALL.filter((s) => (s.d === A3H.todayD() || (s.d >= w[0] && s.d <= w[1])) && sessOk(s) && (!q || A3H.qMatch(s, q))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi));
 }
 function barcode(s, w) {
   const r = rng(hash(s.id + 'b')); const n = Math.min(s.tools, 90); const f = s.live ? 0.62 : 1;
@@ -106,7 +122,7 @@ function tlEvents(s, expanded, compact) {
   const dim = (e) => !hi ? false : hi === 'err' ? !e.err : hi === 'corr' ? !(e.lane === 'user' && e.corr) : hi === 'user' ? e.lane !== 'user' : hi === 'tools' ? !TOOL.includes(e.lane) : false;
   return traj(s).ev.map((e) => {
     let o = null;
-    if (e.lane === 'user') o = { lane: 'user', t: e.t, kind: e.corr ? 'ring' : 'dot', r: compact ? 4 : 5, color: e.corr ? VZ.sem.corr : moodColor(e.mood), label: e.txt, sub: '情绪 ' + sgn1(e.mood), detail: e.corr ? '纠偏' : '' };
+    if (e.lane === 'user') o = { lane: 'user', t: e.t, kind: e.corr ? 'ring' : 'dot', r: compact ? 4 : 5, color: e.corr ? VZ.sem.corr : moodColor(e.mood), label: e.txt, sub: e.mood == null ? '' : '情绪 ' + sgn1(e.mood), detail: e.corr ? '纠偏' : '' };
     else if (e.lane === 'reply') o = { lane: 'agent', t: e.t, t2: e.t + e.w, kind: 'span', label: compact ? '' : e.txt };
     else if (e.lane === 'sub') { if (compact) return null; o = { lane: 'sub', t: e.t, t2: e.t + e.w, kind: 'span', label: e.txt }; }
     else if (TOOL.includes(e.lane)) o = { lane: expanded ? e.lane : 'tool', t: e.t, kind: 'tick', err: !!e.err, label: e.cmd, detail: e.res };
@@ -118,7 +134,7 @@ function tlSpec(s, pw) {
   return {
     type: 'timeline', title: s.title + ' · 轨迹', tlExpanded: expanded,
     lanes: tlLanes(s, expanded, false), events: tlEvents(s, expanded, false),
-    spans: tr.phases.map((p) => ({ t: p[0], t2: p[1], label: p[2], inferred: !s.featured })),
+    spans: tr.phases.map((p) => ({ t: p[0], t2: p[1], label: p[2], inferred: p.inferred != null ? p.inferred : !s.featured })),
     markers: tr.moments.map((m, i) => ({ t: m[0], n: i + 1, label: m[1], alert: m[3] })),
     range: tlView(s), extent: ext, unit: 'min', start: s.h * 60 + s.mi, top: 18, now: s.live ? tr.T : undefined,
     axisMode: S.sess.axis === 'steps' ? 'steps' : 'time', playhead: clamp(S.sess.ph, 0, ext[1]), selected: S.sess.ev, brush: true,
@@ -136,7 +152,7 @@ function ovSpec(s) {
 // 对比模式：A / B 两条紧凑时间线共用同一横轴尺度（B 带刻度），各自独立的 VZ 实例（评审 BUG-13：tooltip 不再串）
 function cmpSpec(s, T, axis) {
   const tr = traj(s);
-  return { type: 'timeline', title: s.title, lanes: tlLanes(s, false, true), events: tlEvents(s, false, true), spans: tr.phases.map((p) => ({ t: p[0], t2: p[1], label: p[2], inferred: !s.featured })), markers: tr.moments.map((m, i) => ({ t: m[0], n: i + 1, label: m[1], alert: m[3] })), range: [0, T], unit: 'min', start: s.h * 60 + s.mi, axis, zoom: false, top: 4 };
+  return { type: 'timeline', title: s.title, lanes: tlLanes(s, false, true), events: tlEvents(s, false, true), spans: tr.phases.map((p) => ({ t: p[0], t2: p[1], label: p[2], inferred: p.inferred != null ? p.inferred : !s.featured })), markers: tr.moments.map((m, i) => ({ t: m[0], n: i + 1, label: m[1], alert: m[3] })), range: [0, T], unit: 'min', start: s.h * 60 + s.mi, axis, zoom: false, top: 4 };
 }
 /* ---------- 装饰：VZ 不画的两层 —— 上下文面积（10% 强调色 + 1.5px 线 + 80% 阈值虚线 + 压缩标记）与顶部相对时间轴。
    VZ.draw 每次重绘都重置 innerHTML，所以用 MutationObserver 在每次重绘后补画（tlObserve） ---------- */
@@ -229,8 +245,8 @@ function tlInspect(s) {
   else {
     const res = e.err ? '<b style="color:var(--crit)">失败</b>' + (e.res ? ' · ' + esc(e.res) : '') : e.lane === 'user' ? (e.corr ? '<b style="color:var(--vz-corr)">纠偏</b>' : '正常') : (e.w ? '完成' : '成功');
     body = '<div class="tl-ihd"><span class="mono tl-it">' + absT(s, e.t) + '</span><span class="cap">' + (picked ? '选中' : '播放头处') + ' · ' + LANE_LBL[e.lane] + '</span></div>' +
-      row(e.lane === 'user' ? '原文' : e.cmd ? '调用' : '内容', esc(e.cmd || e.txt || ''), e.cmd ? 'mono' : '') + row('结果', res) + (e.w ? row('耗时', Math.round(e.w * 60) + ' 秒') : '') + (e.lane === 'user' ? row('情绪', '<span class="mono">' + sgn1(e.mood) + '</span>' + (e.mood < -0.2 ? ' · 偏负面' : e.mood > 0.2 ? ' · 偏正面' : ' · 中性')) : '') +
-      '<div class="row tl-ibtn"><div class="seg" role="group" aria-label="逐事件"><button type="button" data-act="tlStep" data-v="-1" aria-label="上一个事件">' + ic('chev', 12, 'transform:rotate(90deg)') + '</button><button type="button" data-act="tlStep" data-v="1" aria-label="下一个事件">' + ic('chevr', 12) + '</button></div><button type="button" class="btn sm gh" data-act="tlOpenLog">在原始日志中打开</button>' + (picked ? '<button type="button" class="btn sm gh" data-act="tlClear">清除</button>' : '') + '</div>';
+      row(e.lane === 'user' ? '原文' : e.cmd ? '调用' : '内容', esc(e.cmd || e.txt || ''), e.cmd ? 'mono' : '') + row('结果', res) + (e.w ? row('耗时', Math.round(e.w * 60) + ' 秒') : '') + (e.lane === 'user' ? row('情绪', e.mood == null ? '<span class="mono">—</span>' : A3H.mood(e.mood)) : '') +
+      '<div class="row tl-ibtn"><div class="seg" role="group" aria-label="逐事件"><button type="button" data-act="tlStep" data-v="-1" aria-label="上一个事件">' + ic('chev', 12, 'transform:rotate(90deg)') + '</button><button type="button" data-act="tlStep" data-v="1" aria-label="下一个事件">' + ic('chevr', 12) + '</button></div>' + A3H.inspExtra(s, e) + '<button type="button" class="btn sm gh" data-act="tlOpenLog">在原始日志中打开</button>' + (picked ? '<button type="button" class="btn sm gh" data-act="tlClear">清除</button>' : '') + '</div>';
   }
   el.innerHTML = '<div class="eb">事件检视</div>' + body;
 }
@@ -266,7 +282,7 @@ function sessRows(list) {
   let lastDay = null;
   const rows = list.slice(0, S.sess.limit).map((x) => {
     let h = '';
-    if (x.d !== lastDay) { lastDay = x.d; h += '<div class="dayh">' + (x.d === 120 ? '今天 · 10 月 1 日 周四' : x.d === 119 ? '昨天 · 9 月 30 日 周三' : mdz(x.d) + ' 周' + WD[wd(x.d)]) + '</div>'; }
+    if (x.d !== lastDay) { lastDay = x.d; h += '<div class="dayh">' + A3H.dayLabel(x.d) + '</div>'; }
     const o = OUT[x.out] || OUT.ok;
     const isSel = x.id === S.sess.sel, isCmp = x.id === S.sess.cmp;
     return h + '<button type="button" class="srow' + (isSel || isCmp ? ' sel' : '') + '" data-act="pickSession" data-id="' + x.id + '" aria-pressed="' + (isSel || isCmp) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + (S.sess.mode === 'cmp' && (isSel || isCmp) ? '<span class="bdg">' + (isSel ? 'A' : 'B') + '</span>' : '') + (S.excluded.has(x.id) ? '<span class="tag" style="height:16px;font-size:10px">不计入</span>' : '') + ic(o[0], 14, 'color:' + o[1]) + '</span><span class="m">' + PJI[x.p].name + ' · ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + ' · ' + x.tools + ' 工具' + (x.corr ? ' · ' + x.corr + ' 纠偏' : '') + '</span><span style="padding-left:16px;width:100%">' + barcode(x, 280) + '</span></button>';
@@ -289,6 +305,11 @@ function updSessList() {
   sl.innerHTML = sessRows(list); if (sc) { sc.textContent = sessCountShort(list); sc.title = sessCount(list); }
 }
 /* ---------- 页面 ---------- */
+// 启示卡（live）：服务端文案 + 动作按钮，沿用演示的 tl-ai 段落与按钮行
+function sessInsightLive(x) {
+  const acts = (x && x.actions) || [];
+  return '<p class="tl-ai">' + esc((x && x.text) || '暂无启示') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto">' + acts.map((a, i) => '<button type="button" class="btn sm' + (i ? '' : ' p') + '" data-act="' + (a.act || 'install') + '" data-id="' + esc(a.id || '') + '">' + esc(a.label) + '</button>').join('') + '<button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div>';
+}
 PAGES.sessions = () => {
   const list = sessList();
   const s = list.find((x) => x.id === S.sess.sel) || list[0];
@@ -303,7 +324,6 @@ PAGES.sessions = () => {
   if (!s) return tbar('会话与轨迹', '', right) + '<div class="content" id="content">' + filterRow() + empty('没有会话') + '</div>';
   const tr = traj(s); const o = OUT[s.out] || OUT.ok; const ag = agent(s.a);
   const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
-  const peakCtx = Math.round(Math.max(...tr.ctx.map((c) => c[1])));
   const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span class="st-k">' + label + '</span><span class="st-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + v + '</span></button>';
   let detail;
   if (S.sess.mode === 'cmp') {
@@ -314,22 +334,22 @@ PAGES.sessions = () => {
       // 差异列：Δ(B − A) + 百分比 + 方向色（goodDown：越小越好）
       const delta = (va, vb, goodDown, fmt) => { const d = vb - va; if (!d) return '<span class="cap">持平</span>'; const pct = va ? Math.round(d / va * 100) : null; const good = goodDown == null ? null : (d < 0) === goodDown; return '<span class="mono' + (good == null ? '' : good ? ' vz-good' : ' vz-bad') + '">' + (d > 0 ? '+' : '−') + fmt(Math.abs(d)) + (pct != null ? ' · ' + (d > 0 ? '+' : '−') + Math.abs(pct) + '%' : '') + '</span>' + (good == null ? '' : '<span class="cap"> · ' + (good ? 'B 更好' : 'A 更好') + '</span>'); };
       const rowc = (lbl, va, vb, dl) => '<tr><td>' + lbl + '</td><td class="mono" style="text-align:right">' + va + '</td><td class="mono" style="text-align:right">' + vb + '</td><td style="text-align:right;font-size:11px">' + dl + '</td></tr>';
-      const phasePct = (x) => { const t = traj(x); return t.phases.map((p) => '<span class="tl-ph-i">' + p[2] + ' <span class="mono">' + Math.round((p[1] - p[0]) / t.T * 100) + '%</span></span>').join(''); };
+      const phasePct = (x, side) => { const t = traj(x); return (A3H.phasePct ? A3H.phasePct(x, side) : t.phases.map((p) => [p[2], Math.round((p[1] - p[0]) / t.T * 100)])).map((p) => '<span class="tl-ph-i">' + p[0] + ' <span class="mono">' + p[1] + '%</span></span>').join(''); };
       detail = '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">对比</span><span class="cap" title="A、B 横轴对齐到同一时间尺度；B 结束于 ' + absT(b, traj(b).T) + '">同一时间尺度 · ' + Math.round(T) + ' 分钟</span></div><button type="button" class="btn sm" data-act="swapCmp">交换 A / B</button></div>' +
         [['a', s], ['b', b]].map((p) => '<div class="tl-cmp-row"><div class="row tl-cmp-hd"><span class="bdg">' + p[0].toUpperCase() + '</span><span class="dot" style="background:' + agent(p[1].a).c + '"></span><b class="tl-cmp-t" title="' + esc(p[1].title) + '">' + esc(p[1].title) + '</b><span class="cap tl-cmp-m">' + dur(p[1].dur) + ' · ' + p[1].tools + ' 工具 · ' + p[1].errors + ' 失败</span></div><div class="tl-cmp" data-cmp="' + p[0] + '" data-id="' + p[1].id + '"></div></div>').join('') +
-        '<div class="scroll-x" style="margin-top:10px"><table class="tbl tl-cmp-tbl"><thead><tr><th>指标</th><th style="text-align:right">A</th><th style="text-align:right">B</th><th style="text-align:right">Δ（B − A）</th></tr></thead><tbody>' + rowc('时长', dur(s.dur), dur(b.dur), delta(s.dur, b.dur, true, (v) => dur(v))) + rowc('你的消息', s.msgs, b.msgs, delta(s.msgs, b.msgs, null, String)) + rowc('工具调用', s.tools, b.tools, delta(s.tools, b.tools, null, String)) + rowc('错误', s.errors, b.errors, delta(s.errors, b.errors, true, String)) + rowc('纠偏', s.corr, b.corr, delta(s.corr, b.corr, true, String)) + rowc('自主比', f1(sa.auto) + '×', f1(sb.auto) + '×', delta(sa.auto, sb.auto, false, (v) => f1(v) + '×')) + '<tr class="tl-ph-row"><td>阶段耗时占比</td><td colspan="3"><div class="tl-ph"><span class="bdg">A</span>' + phasePct(s) + '</div><div class="tl-ph"><span class="bdg">B</span>' + phasePct(b) + '</div></td></tr>' + '</tbody></table></div></div>';
+        '<div class="scroll-x" style="margin-top:10px"><table class="tbl tl-cmp-tbl"><thead><tr><th>指标</th><th style="text-align:right">A</th><th style="text-align:right">B</th><th style="text-align:right">Δ（B − A）</th></tr></thead><tbody>' + rowc('时长', dur(s.dur), dur(b.dur), delta(s.dur, b.dur, true, (v) => dur(v))) + rowc('你的消息', s.msgs, b.msgs, delta(s.msgs, b.msgs, null, String)) + rowc('工具调用', s.tools, b.tools, delta(s.tools, b.tools, null, String)) + rowc('错误', s.errors, b.errors, delta(s.errors, b.errors, true, String)) + rowc('纠偏', s.corr, b.corr, delta(s.corr, b.corr, true, String)) + rowc('自主比', f1(sa.auto) + '×', f1(sb.auto) + '×', delta(sa.auto, sb.auto, false, (v) => f1(v) + '×')) + '<tr class="tl-ph-row"><td>阶段耗时占比</td><td colspan="3"><div class="tl-ph"><span class="bdg">A</span>' + phasePct(s, 'a') + '</div><div class="tl-ph"><span class="bdg">B</span>' + phasePct(b, 'b') + '</div></td></tr>' + '</tbody></table></div></div>';
     }
   } else {
-    const summary = [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · ');
+    const summary = A3H.summary(s, tr, [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · '));
     const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
-    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + (s.a === 'cc' ? 'claude-opus-5-5 · thinking high' : ag.model) + '</span><span>·</span><span class="sb-path" title="' + esc(PJI[s.p].path) + '">' + esc(PJI[s.p].path) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
-      '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', Math.round(s.tools * 1.54)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', peakCtx + '%') + statBtn('', 'Tokens', f1(s.tok / 1e6) + 'M') + '</div></div>' +
+    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + A3H.model(s, ag) + '</span><span>·</span><span class="sb-path" title="' + esc(A3H.path(s)) + '">' + esc(A3H.path(s)) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
+      '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', A3H.steps(s)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', A3H.ctxPeak(s, tr)) + statBtn('', 'Tokens', A3H.tok(s)) + '</div></div>' +
       '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
       '<div class="cap tl-sum">' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" aria-label="总览条"></div><div class="tl-box" id="tlBox"></div><div class="row tl-read" id="tlRead">' + readout(s) + '</div>' +
       '<div class="tl-legend">' + li('<span class="tl-sw2">' + sw('background:var(--vz-mood-pos)') + sw('background:var(--vz-mood-neg)') + '</span>你的消息 · 情绪正 / 负') + li(sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '纠偏') + li(sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + 'Agent 回复 / 工具密度') + li(sw('background:var(--vz-err);width:3px;height:11px;border-radius:1px') + '失败') + li(sw('background:var(--ink-1);border-radius:50%') + '关键时刻') + li(sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '上下文（虚线 80%）') + '<span class="tl-hint" data-tip="拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放">' + ic('info', 12) + '<span class="tl-hint-t">⌘ 滚轮缩放 · 拖选统计 · Space 回放</span></span></div></div>' +
       '<aside class="tl-insp" id="tlInsp"></aside></div></div>' +
       '<div class="two tl-two"><div class="card pad"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">关键时刻</span><span class="cap" title="悬停联动图上徽章 · 点击把播放头跳到这一刻">' + (s.featured ? '语义检测' : '规则检测') + ' · 点击跳转</span></div></div><div class="col" style="gap:2px">' + tr.moments.map((m, i) => '<button type="button" class="tl-mom" data-act="moment" data-t="' + m[0] + '" data-mk="' + i + '"><span class="n' + (m[3] ? ' alert' : '') + '">' + (i + 1) + '</span><span class="mono tl-mt">' + absT(s, m[0]) + '</span><span class="tl-mx"><b>' + esc(m[1]) + '</b> ' + esc(m[2]) + '</span></button>').join('') + '</div></div>' +
-      '<div class="card pad col"><div class="row"><span class="ct">这次会话的启示</span><span class="aib">' + ic('spark', 11) + 'AI</span></div><p class="tl-ai">' + (s.featured ? '若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。' : corrN || errN >= 3 ? (corrN ? '本次有 ' + corrN + ' 次纠偏，' : '') + (errN >= 3 ? '出现 ' + errN + ' 次失败，' : '') + '把相关约定写进规则，下次可以少说一次。' : '这次协作很顺：目标清楚、失败少。可以把开场方式记成模板。') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto"><button type="button" class="btn sm p" data-act="install" data-id="' + (s.featured || s.fric === '方向错误' ? 'deploy-target' : 'acceptance') + '">生成规则</button><button type="button" class="btn sm" data-act="install" data-id="retry-breaker">加 Hook：重复失败提醒</button><button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div></div></div>';
+      '<div class="card pad col"><div class="row"><span class="ct">这次会话的启示</span><span class="aib">' + ic('spark', 11) + 'AI</span></div>' + (A3H.insight ? sessInsightLive(A3H.insight(s, corrN, errN)) : '<p class="tl-ai">' + (s.featured ? '若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。' : corrN || errN >= 3 ? (corrN ? '本次有 ' + corrN + ' 次纠偏，' : '') + (errN >= 3 ? '出现 ' + errN + ' 次失败，' : '') + '把相关约定写进规则，下次可以少说一次。' : '这次协作很顺：目标清楚、失败少。可以把开场方式记成模板。') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto"><button type="button" class="btn sm p" data-act="install" data-id="' + (s.featured || s.fric === '方向错误' ? 'deploy-target' : 'acceptance') + '">生成规则</button><button type="button" class="btn sm" data-act="install" data-id="retry-breaker">加 Hook：重复失败提醒</button><button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div>') + '</div></div>';
   }
   return tbar('会话与轨迹', meta, right) + '<div class="content" id="content">' + filterRow() + '<div class="sess">' + listCard + '<div class="stack" style="min-width:0">' + detail + '</div></div></div>';
 };
