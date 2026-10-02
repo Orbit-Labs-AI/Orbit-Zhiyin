@@ -13,8 +13,12 @@ test('the sidebar switch swaps editions, maps the route and persists', async ({ 
   await expect.poll(() => ed(page)).toEqual(['lite', 'l-persona']);
   await expect(page.locator('#win')).toHaveAttribute('data-ed', 'lite');
   await expect(page.locator('.edsw [data-v="lite"]')).toHaveAttribute('aria-checked', 'true');
-  // Lite sidebar: four pages only, keyboard shortcuts follow the Lite order
-  await expect(page.locator('#side .lnav button')).toHaveCount(4);
+  // Lite sidebar: four pages only (keyboard shortcuts follow the Lite order)
+  await expect(page.locator('#side .nav button[data-act="go"]')).toHaveCount(4);
+  // same sidebar components as Advance: groups, Agents list, footer
+  await expect(page.locator('#side .sect')).toHaveCount(3);
+  await expect(page.locator('#side .nav .ag')).toHaveCount(5);
+  await expect(page.locator('#side .sb-foot .pv')).toBeVisible();
   await page.keyboard.press('Alt+Digit4');
   await expect.poll(() => ed(page)).toEqual(['lite', 'l-recs']);
   // a link into an Advance-only route lands on the closest Lite page

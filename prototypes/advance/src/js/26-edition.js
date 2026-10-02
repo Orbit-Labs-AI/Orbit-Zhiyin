@@ -1,8 +1,9 @@
 /* ============ editions: Lite / Advance in one app ============ */
 // One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
-// benchmark, cut down to four pages with one big idea each. S.ed is persisted ('edition'); the switch sits on top of the
-// sidebar (also 「显示」menu, command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls
-// go('persona') lands on the matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
+// benchmark, cut down to four pages with one big idea each, built from the same components as Advance (sidebar, cards,
+// section heads, KPIs, controls). S.ed is persisted ('edition'); the switch sits on top of the sidebar (also 「显示」menu,
+// command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls go('persona') lands on the
+// matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
 // Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
 S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
 const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
@@ -20,13 +21,16 @@ function edSwitch() {
   return '<div class="edsw" role="radiogroup" aria-label="界面版本" aria-keyshortcuts="Control+Meta+L"><span class="edsw-thumb" aria-hidden="true"></span>' +
     b('lite', 'Lite：四页，只看最重要的结论 ' + kb('⌃⌘L')) + b('advance', 'Advance：全部页面、筛选与工具 ' + kb('⌃⌘L')) + '</div>';
 }
+// Lite uses the Advance sidebar components as they are (same groups, rows, Agents list, footer) and only carries fewer pages:
+// the two editions differ in how much they show, not in how it looks.
 function renderSideLite() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const n = sel({ noExtra: true }).length;
-  const sub = { 'l-home': rangeLabel() + ' · ' + n + ' 个会话', 'l-persona': (personaNow().ok ? personaNow().code + ' · ' + personaNow().zh : '样本不足'), 'l-sessions': '关键任务与时间线', 'l-recs': recN + ' 条待处理' };
-  const items = LITE_ROUTES.map((r, i) => '<button type="button" data-act="go" data-r="' + r[0] + '"' + (S.route === r[0] ? ' aria-current="page"' : '') + '><span class="ln-i">' + ic(r[2], 17) + '</span><span class="ln-t"><span class="lb">' + r[1] + '</span><span class="ln-s">' + esc(sub[r[0]]) + '</span></span><span class="ln-k">' + kb('⌥' + (i + 1)) + '</span></button>').join('');
-  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll"><div class="nav lnav">' + items + '</div>' +
-    '<button type="button" class="ln-more" data-act="edition" data-v="advance">' + ic('grid', 14) + '<span>需要明细、筛选与工具？<b>切到 Advance</b></span></button></div>' + sideFoot();
+  const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
+  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
+    sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
+    sideGroup('action', '行动', nav(3, '', recN || '')) +
+    sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
 }
 function edSet(ed) {
   if (ed !== 'lite' && ed !== 'advance') return;

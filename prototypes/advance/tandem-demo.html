@@ -213,24 +213,13 @@ svg{display:block}
 .win[data-ed="advance"] .edsw-thumb{transform:translateX(100%)}
 .win[data-ed="lite"] .edsw button[data-v="lite"],.win[data-ed="advance"] .edsw button[data-v="advance"]{color:var(--ink-1)}
 .win[data-ed="lite"] .edsw button[data-v="advance"],.win[data-ed="advance"] .edsw button[data-v="lite"]{color:var(--ink-3)}
-/* Lite sidebar: four big rows (title + one-line live summary), a way back to Advance */
-.lnav{gap:4px;padding-top:2px}
-.lnav button{height:auto;min-height:48px;padding:7px 10px;gap:10px;border-radius:9px;align-items:center}
-.lnav .ln-i{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-2);transition:background .2s var(--ease),color .2s var(--ease)}
-.lnav button[aria-current="page"] .ln-i{background:var(--ink-1);color:var(--bg)}
-.lnav button[aria-current="page"] .ln-i .ico{color:inherit}
-.lnav .ln-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.lnav .lb{font-size:13.5px;line-height:18px}
-.lnav .ln-s{font:11px/14px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
-.lnav .ln-k{font:10.5px var(--mono);color:var(--ink-4);opacity:0;transition:opacity .15s}
-.lnav button:hover .ln-k{opacity:1}
-.ln-more{display:flex;align-items:flex-start;gap:8px;width:100%;margin-top:14px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:transparent;color:var(--ink-3);font-size:11.5px;line-height:16px;text-align:left}
-.ln-more b{color:var(--ink-1);font-weight:600;margin-left:2px}
-.ln-more:hover{border-color:var(--ink-4)}
-.ln-more .ico{margin-top:1px;flex:none}
 /* edition swap: content gently scales + un-blurs in; the old page drifts back and blurs out */
 .win.ed-vt .main{view-transition-name:ed-main}
 .win.ed-vt .side{view-transition-name:ed-side}
+/* the title row (lights + sidebar toggle) floats over the sidebar; it gets its own still layer so the sidebar snapshot never covers it */
+.win.ed-vt .wtop{view-transition-name:ed-top}
+::view-transition-group(ed-top),::view-transition-new(ed-top){animation:none}
+::view-transition-old(ed-top){display:none}
 ::view-transition-old(root),::view-transition-new(root){animation:none}
 ::view-transition-old(ed-main){animation:edOut .26s var(--ease) both}
 ::view-transition-new(ed-main){animation:edIn .46s .06s var(--ease) both}
@@ -2102,20 +2091,24 @@ function renderWtop() {
 }
 /* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
    redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
+/* sidebar building blocks, shared by both editions (Advance shows every group, Lite the same groups with fewer pages) */
+const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
+const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
+function sideAgents() {
+  const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
+  return AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
+}
+function sidePins() { return ['confluo', 'latentskill', 'teamhub'].map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
-  const navBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
-  const group = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
-  const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
-  const agents = AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
-  const pins = ['confluo', 'latentskill', 'teamhub'].map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join('');
+  const navBtn = sideNavBtn, group = sideGroup;
   $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
     group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', 9) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
-    group('agents', 'Agents', agents, '会话') +
-    group('pins', '置顶项目', pins) + '</div>' + sideFoot();
+    group('agents', 'Agents', sideAgents(), '会话') +
+    group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
 }
 // the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
 function sideFoot() {
@@ -2154,9 +2147,10 @@ function empty(msg) { return '<div class="card pad" style="text-align:center;col
 
 /* ============ editions: Lite / Advance in one app ============ */
 // One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
-// benchmark, cut down to four pages with one big idea each. S.ed is persisted ('edition'); the switch sits on top of the
-// sidebar (also 「显示」menu, command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls
-// go('persona') lands on the matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
+// benchmark, cut down to four pages with one big idea each, built from the same components as Advance (sidebar, cards,
+// section heads, KPIs, controls). S.ed is persisted ('edition'); the switch sits on top of the sidebar (also 「显示」menu,
+// command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls go('persona') lands on the
+// matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
 // Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
 S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
 const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
@@ -2174,13 +2168,16 @@ function edSwitch() {
   return '<div class="edsw" role="radiogroup" aria-label="界面版本" aria-keyshortcuts="Control+Meta+L"><span class="edsw-thumb" aria-hidden="true"></span>' +
     b('lite', 'Lite：四页，只看最重要的结论 ' + kb('⌃⌘L')) + b('advance', 'Advance：全部页面、筛选与工具 ' + kb('⌃⌘L')) + '</div>';
 }
+// Lite uses the Advance sidebar components as they are (same groups, rows, Agents list, footer) and only carries fewer pages:
+// the two editions differ in how much they show, not in how it looks.
 function renderSideLite() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const n = sel({ noExtra: true }).length;
-  const sub = { 'l-home': rangeLabel() + ' · ' + n + ' 个会话', 'l-persona': (personaNow().ok ? personaNow().code + ' · ' + personaNow().zh : '样本不足'), 'l-sessions': '关键任务与时间线', 'l-recs': recN + ' 条待处理' };
-  const items = LITE_ROUTES.map((r, i) => '<button type="button" data-act="go" data-r="' + r[0] + '"' + (S.route === r[0] ? ' aria-current="page"' : '') + '><span class="ln-i">' + ic(r[2], 17) + '</span><span class="ln-t"><span class="lb">' + r[1] + '</span><span class="ln-s">' + esc(sub[r[0]]) + '</span></span><span class="ln-k">' + kb('⌥' + (i + 1)) + '</span></button>').join('');
-  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll"><div class="nav lnav">' + items + '</div>' +
-    '<button type="button" class="ln-more" data-act="edition" data-v="advance">' + ic('grid', 14) + '<span>需要明细、筛选与工具？<b>切到 Advance</b></span></button></div>' + sideFoot();
+  const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
+  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
+    sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
+    sideGroup('action', '行动', nav(3, '', recN || '')) +
+    sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
 }
 function edSet(ed) {
   if (ed !== 'lite' && ed !== 'advance') return;

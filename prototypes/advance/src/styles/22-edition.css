@@ -9,24 +9,13 @@
 .win[data-ed="advance"] .edsw-thumb{transform:translateX(100%)}
 .win[data-ed="lite"] .edsw button[data-v="lite"],.win[data-ed="advance"] .edsw button[data-v="advance"]{color:var(--ink-1)}
 .win[data-ed="lite"] .edsw button[data-v="advance"],.win[data-ed="advance"] .edsw button[data-v="lite"]{color:var(--ink-3)}
-/* Lite sidebar: four big rows (title + one-line live summary), a way back to Advance */
-.lnav{gap:4px;padding-top:2px}
-.lnav button{height:auto;min-height:48px;padding:7px 10px;gap:10px;border-radius:9px;align-items:center}
-.lnav .ln-i{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-2);transition:background .2s var(--ease),color .2s var(--ease)}
-.lnav button[aria-current="page"] .ln-i{background:var(--ink-1);color:var(--bg)}
-.lnav button[aria-current="page"] .ln-i .ico{color:inherit}
-.lnav .ln-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.lnav .lb{font-size:13.5px;line-height:18px}
-.lnav .ln-s{font:11px/14px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
-.lnav .ln-k{font:10.5px var(--mono);color:var(--ink-4);opacity:0;transition:opacity .15s}
-.lnav button:hover .ln-k{opacity:1}
-.ln-more{display:flex;align-items:flex-start;gap:8px;width:100%;margin-top:14px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:transparent;color:var(--ink-3);font-size:11.5px;line-height:16px;text-align:left}
-.ln-more b{color:var(--ink-1);font-weight:600;margin-left:2px}
-.ln-more:hover{border-color:var(--ink-4)}
-.ln-more .ico{margin-top:1px;flex:none}
 /* edition swap: content gently scales + un-blurs in; the old page drifts back and blurs out */
 .win.ed-vt .main{view-transition-name:ed-main}
 .win.ed-vt .side{view-transition-name:ed-side}
+/* the title row (lights + sidebar toggle) floats over the sidebar; it gets its own still layer so the sidebar snapshot never covers it */
+.win.ed-vt .wtop{view-transition-name:ed-top}
+::view-transition-group(ed-top),::view-transition-new(ed-top){animation:none}
+::view-transition-old(ed-top){display:none}
 ::view-transition-old(root),::view-transition-new(root){animation:none}
 ::view-transition-old(ed-main){animation:edOut .26s var(--ease) both}
 ::view-transition-new(ed-main){animation:edIn .46s .06s var(--ease) both}
