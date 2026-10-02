@@ -1,16 +1,17 @@
 /* ============ live binding: A9 生成工坊 · 问本地 Agent · 设置 · 通知（TandemLive studio-settings section） ============
    Loaded after 96-live-bind.js; only active in live mode. The demo pages keep their markup and visual language: live data is
    written into the same structures the demo renders from (CTX / GEN / STEP_DUR / S.notif / S.paused / S.aiCh …) or patched
-   into the rendered cards, never into a new layout. A route the gateway does not serve yet (404 / 501), a 503 or an offline
-   gateway keeps the demo values, and the page (or card) carries the 示例数据 badge. Real answers (403 consent_required,
-   409 preview_stale, 422 …) are shown as they are. Endpoints: .work/be-notes/endpoints.md (ai-runtime, platform-notify,
-   platform-core). */
+   into the rendered cards, never into a new layout. Personal data never falls back to demo values: a route the gateway does
+   not serve (404 / 501 / 503 / offline) leaves the studio context empty, the generation and ask flows answer honestly that
+   the service is unavailable, storage sizes read "—" and the source list falls back to the spine's real agents. Only plain
+   configuration defaults (notify matrix, AI 通道) keep their demo values with the 示例数据 badge. Real answers (403
+   consent_required → the consent dialog, 409 preview_stale, 422 …) are shown as they are. */
 const TLS = { colFrame: null, engine: null, engInit: false, preview: null, previewKey: null, previewBusy: false, limit: null, ctl: null, genDemo: {}, durDemo: null, ask: null, hold: false, attnAt: null, doneT: null };
 const TLS_TASK = { Skill: 'generate.skill', Hook: 'generate.hook', '规则': 'generate.rule', '子代理': 'generate.subagent', '工作流': 'generate.glue' };
 const TLS_STAGE = { pack: 0, analyse: 1, analyze: 1, draft: 2, check: 3, replay: 4, review: 5, cross: 6 };
 const TLS_DONE = ['done', 'ok', 'succeeded', 'completed', 'skipped'];
 // notification types (backend names first, then the aliases it accepts) for the matrix rows of settings › 通知
-const TLS_KIND = { waiting: ['awaiting_approval', 'waiting'], done: ['done', 'session_done'], stuck: ['failing', 'stuck'], ctx: ['context_pressure', 'ctx'], weekly: ['weekly', 'weekly_report'] };
+const TLS_KIND = { waiting: ['awaiting_approval', 'waiting'], done: ['just_finished', 'done', 'session_done'], stuck: ['failing', 'stuck'], ctx: ['context_pressure', 'ctx'], weekly: ['weekly', 'weekly_report'] };
 const TLS_ART_KIND = { skill: 'Skill', hook: 'Hook', rule: '规则', subagent: '子代理', glue: '工作流', command: '命令' };
 const tlsKind = (type) => Object.keys(TLS_KIND).find((k) => TLS_KIND[k].indexOf(type) >= 0) || null;
 const tlsAgOf = (eid) => Object.keys(TandemLive.AGENT_KEYS).find((a) => TandemLive.AGENT_KEYS[a].indexOf(eid) >= 0) || null;
@@ -30,6 +31,12 @@ function tlsWrite(path, patch, req, label, ok) {
 
 if (TL.mode === 'live') {
   /* ---------- A9 生成工坊 ---------- */
+  // no demo context in live mode: the items keep their keys and switches, everything else waits for POST /v1/ai/preview
+  [['sum', '相关会话摘要', '只含结构化统计与 AI 摘要，不含原文'], ['fric', '摩擦与纠偏统计', '等待上下文预览'], ['rules', '现有规则文件', '等待上下文预览'], ['raw', '原始对话片段', '默认关闭；开启后逐条确认']].forEach((x) => {
+    const c = CTX.find((y) => y[0] === x[0]); if (c) { c[1] = x[1]; c[2] = x[2]; c[3] = 0; } CTX_HITS[x[0]] = 0; CTX_SAMPLE[x[0]] = [];
+  });
+  Object.assign(STUDIO_COPY, { mine: '从你的会话提炼可执行规则', replay: '历史会话回放 · 第二视角评分', hist: 0, detected: '正在检测本地 Agent…' });
+  ctxBundle = function () { return TLS.preview || { goal: S.studio.goal, type: S.studio.type, items: [] }; };
   TL.bind('studio', [{ name: 'engines', path: '/v1/ai/engines', scope: false }], (d) => d.engines);
   const engines = () => { const v = TL_VIEWS.studio; const d = v && v.res.engines.data; return d && d.engines ? d : null; };
   const tlsEngine = () => { const d = engines(); if (!d) return null; if (TLS.engine) return TLS.engine; const e = d.engines.find((x) => tlsAgOf(x.id) === S.studio.agent); return e ? e.id : d.default_engine; };
@@ -71,9 +78,11 @@ if (TL.mode === 'live') {
     TLS.studioDemo = tlsDemo(v.res.engines);
     if (d && !TLS.engInit) { TLS.engInit = true; TLS.engine = d.default_engine || null; const a = tlsAgOf(TLS.engine); if (a) S.studio.agent = a; }
     if (d) tlsPreview();
-    let html = tlsStudioBase();
-    if (d) html = html.replace('已检测：Claude Code · Codex · Gemini CLI · DeepSeek · Copilot', '已检测：' + esc(d.engines.map((e) => e.name + (!e.available ? '（不可用）' : e.logged_in === false ? '（未登录）' : '')).join(' · ')));
-    return html;
+    STUDIO_COPY.detected = d ? esc(d.engines.map((e) => e.name + (!e.available ? '（不可用）' : e.logged_in === false ? '（未登录）' : '')).join(' · ') || '没有可用的本地 Agent')
+      : TLS.studioDemo ? '本地服务暂不提供生成接口' : '正在检测本地 Agent…';
+    const arts = tlsRes('/v1/ai/artifacts', { limit: 20 });
+    STUDIO_COPY.hist = Array.isArray(arts.data) ? arts.data.length : (arts.data && arts.data.items ? arts.data.items.length : 0);
+    return tlsStudioBase();
   };
   PAGES.studio.after = tlsStudioAfter;
 
@@ -105,21 +114,39 @@ if (TL.mode === 'live') {
   }
   const tlsBlocked = (run) => !!(run && run.art && (run.art.status === 'blocked' || (run.art.checks && run.art.checks.scan && run.art.checks.scan.status === 'blocked')));
   function tlsRunFail(run, e, el) {
-    if (TL.unavailable(e) && !run.live.id) {   // the gateway has no AI routes yet: run the demo workflow instead
-      S.studio.run = null; tlsRunReset(); TLS.studioDemo = true; toast('本地服务暂不提供生成接口，改用示例流程');
-      tlsStartBase(el); return;
+    if (TL.unavailable(e) && !run.live.id) {   // the gateway has no AI job route: say so, never run the demo workflow
+      S.studio.run = null; tlsRunReset(); refreshStudio(); renderSide(); toast('本地服务暂不提供生成接口，无法开始生成'); return;
     }
+    if (e.code === 'consent_required') tlsConsentDialog(e.detail || {}, el);
     const det = e.detail || {}; let opt;
     const msg = e.code === 'consent_required' ? '需要授权：' + (det.missing || []).join('、') : e.code === 'preview_stale' ? '上下文已变化，已重新打包，请再点一次「开始生成」'
       : e.code === 'budget_exhausted' ? '今日 AI 预算已用完' + (det.daily_cap != null ? '（上限 $' + det.daily_cap + '）' : '') : e.code === 'over_budget' ? '上下文超出预算（' + TLU.num(det.total_tokens) + ' / ' + TLU.num(det.input_budget) + ' tokens）'
         : e.code === 'engine_unavailable' ? '执行者不可用（' + ({ not_installed: '未安装', not_logged_in: '未登录' }[det.reason] || det.reason || e.code) + '）' : e.code === 'ai_disabled' ? 'AI 已在设置中关闭' : (e.message || e.code);
-    if (e.code === 'consent_required' || e.code === 'ai_disabled') opt = { act: '去设置', onAct: () => openSettings('analysis') };
+    if (e.code === 'ai_disabled') opt = { act: '去设置', onAct: () => openSettings('analysis') };
     if (e.code === 'preview_stale') tlsPreview(true);
-    run.stopped = true; run.log.push('! ' + msg); refreshStudio(); renderSide(); toast(msg, opt);
+    run.stopped = true; run.log.push('! ' + msg); refreshStudio(); renderSide(); if (e.code !== 'consent_required') toast(msg, opt);
   }
+  // 403 consent_required: the real consent dialog (grant the missing data classes for this engine, then retry)
+  const CLS_NAME = { summary: '结构化统计', snippets: '脱敏片段', rules: '规则文件段落', raw: '原文' };
+  function tlsConsentDialog(det, el) {
+    const miss = det.missing || []; const eid = det.engine || tlsEngine();
+    TLS.consent = { miss, eid, el };
+    openModal(modalHead('需要授权', '这次生成要把下列内容交给 ' + esc(eid || '本地 Agent') + '；传出前都先过脱敏规则') + '<div class="mb col" style="gap:6px" data-tl="consent">' +
+      miss.map((k) => '<div class="row" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px">' + ic('shield', 13, 'color:var(--good)') + '<span style="flex:1">' + esc(CLS_NAME[k] || k) + '</span><span class="mono cap" style="font-size:11px">' + esc(k) + '</span></div>').join('') +
+      '</div><div class="mf"><button type="button" class="btn" data-act="tlsConsentSet">去设置</button><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="tlsConsentOk">授权并重试</button></div>');
+  }
+  Object.assign(ACT, {
+    tlsConsentSet: () => { closeModal(); openSettings('analysis'); },
+    tlsConsentOk: () => {
+      const c = TLS.consent; if (!c) return closeModal();
+      const g = {}; c.miss.forEach((k) => { g[k] = true; });
+      TL.send('PUT', '/v1/ai/consent', { grants: { [c.eid]: g } }).then(() => { closeModal(); TL.invalidate((r) => r.path === '/v1/ai/consent'); S.studio.run = null; ACT.studioStart(c.el); }, (e) => tlsErr(e, '授权'));
+    }
+  });
   const tlsStartBase = ACT.studioStart;
   ACT.studioStart = (el, ev) => {
-    const d = engines(); if (!d) { tlsRunReset(); return tlsStartBase(el, ev); }
+    const d = engines();
+    if (!d) { toast(TLS.studioDemo ? '本地服务暂不提供生成接口，无法开始生成' : '正在检测本地 Agent，稍后再试'); return; }
     const r0 = S.studio.run; if (r0 && !r0.done && !r0.stopped) { toast('正在生成中，先停止再重新开始'); return; }
     if (!S.studio.goal.trim()) { toast('先写一句目标'); const t = $('#studioGoal'); if (t) t.focus(); return; }
     if (ctxEmpty()) { toast('上下文包是空的：至少勾选一项再生成'); return; }
@@ -161,6 +188,24 @@ if (TL.mode === 'live') {
     if (r.live.id) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(r.live.id) + '/cancel', {}).then((x) => { r.log.push('› 任务 ' + r.live.id + ' · ' + ((x.data && x.data.status) || 'cancelled')); refreshStudio(); }, (e) => tlsErr(e, '取消任务'));
     toast('已停止，已产出的部分保留为草稿');
   };
+  const artOf = () => { const r = S.studio.run; return r && r.live && r.art && r.art.artifact_id ? r.art : null; };
+  const tlsEditorBase = ACT.studioEditor;
+  ACT.studioEditor = (el, ev) => {
+    const a = artOf(); if (!a) return S.studio.run && S.studio.run.live ? toast('产物还没生成，暂时没有可打开的文件') : tlsEditorBase(el, ev);
+    TL.send('POST', '/v1/ai/artifacts/' + encodeURIComponent(a.artifact_id) + '/materialize', {}).then((x) => {
+      const d = x.data || {}; toast('草稿已写入 ' + (d.dir || ''), { act: '在 Finder 中显示', onAct: () => ORBIT.native.request('reveal', { path: d.dir }) });
+      if (d.dir) ORBIT.native.post('reveal', { path: d.dir });
+    }, (e) => tlsErr(e, '写出草稿'));
+  };
+  const tlsSaveBase = ACT.studioSave;
+  ACT.studioSave = (el, ev) => {
+    const a = artOf(); if (!a) return S.studio.run && S.studio.run.live ? toast('产物还没生成') : tlsSaveBase(el, ev);
+    TL.send('POST', '/v1/ai/artifacts/' + encodeURIComponent(a.artifact_id) + '/to_library', {}).then(() => {
+      TL.invalidate((r) => r.path.indexOf('/v1/catalog') === 0 || r.path === '/v1/ai/artifacts');
+      S.history.unshift({ t: S.studio.type + ' · ' + stFile() + '（资源库）', when: '刚刚', kind: 'studio' });
+      toast('已存入资源库 ›「本地生成」', { act: '去看看', onAct: () => { S.lib.tab = 'local'; go('library'); } });
+    }, (e) => tlsErr(e, '存入资源库'));
+  };
   const tlsInstallBase = ACT.studioInstall;
   ACT.studioInstall = (el, ev) => { if (tlsBlocked(S.studio.run)) { toast('安全扫描拦截了这份产物，不能安装'); return; } return tlsInstallBase(el, ev); };
   const tlsAgentBase = ACT.studioAgent;
@@ -193,12 +238,11 @@ if (TL.mode === 'live') {
       return '<div class="st-chk ' + st + '" data-chk="' + c.id + '">' + ic(bad ? 'alert' : st === 'ok' ? 'okc' : st === 'cur' ? 'clock' : 'minus', 14, 'color:' + (bad ? 'var(--crit)' : st === 'ok' ? 'var(--good)' : st === 'cur' ? 'var(--ai)' : 'var(--ink-4)')) + '<span class="nm">' + c.name + '</span>' + body + '</div>';
     }).join('');
   };
-  const tlsHistBase = ACT.studioHistory;
   ACT.studioHistory = (el) => {
     TL.send('GET', '/v1/ai/artifacts', null, { query: { limit: 20 } }).then((r) => {
       const xs = Array.isArray(r.data) ? r.data : (r.data && r.data.items) || [];
       openModal(modalHead('历史产物', '由生成工坊产出的内容；草稿与已归档的都在这里') + '<div class="mb col" style="gap:6px" data-tl="artifacts">' + (xs.length ? xs.map((a) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);font-size:13px"><span>' + esc((TLS_ART_KIND[a.kind] || a.kind) + ' · ' + (a.name || a.title || a.artifact_id)) + '</span><span class="cap mono">' + esc({ draft: '草稿', blocked: '已拦截', archived: '已归档' }[a.status] || a.status || '') + ' · ' + tlsDate(a.created_at) + '</span></div>').join('') : '<div class="cap" style="padding:12px 0">还没有产物</div>') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
-    }, (e) => { if (TL.unavailable(e)) tlsHistBase(el); else tlsErr(e, '读取历史产物'); });
+    }, (e) => { if (TL.unavailable(e)) toast('本地服务暂不提供历史产物'); else tlsErr(e, '读取历史产物'); });
   };
 
   /* ---------- 问本地 Agent ---------- */
@@ -213,12 +257,11 @@ if (TL.mode === 'live') {
       TLS.ask = { ctx: c, presets: xs };
       const box = first.parentElement; box.setAttribute('data-tl', 'ask-presets');
       box.innerHTML = xs.map((p, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(p.question) + '</button>').join('');
-      $$('#modal .mh .cap').forEach((x) => { x.textContent = x.textContent.replace(' · Demo 中为预置回答', ''); });
-    }, () => { /* demo presets stay */ });
+    }, () => { /* the generic questions stay; answers still go through POST /v1/ai/ask */ });
   };
   const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
   function tlsThinking(q) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">本地 Agent 正在回答…</span>'; }
-  function tlsAsk(body, q, fallback) {
+  function tlsAsk(body, q) {
     clearInterval(ASKT); tlsThinking(q);
     TL.send('POST', '/v1/ai/ask', body).then((r) => {
       const d = r.data || {};
@@ -226,36 +269,51 @@ if (TL.mode === 'live') {
       if (!d.job_id) return { answer: '' };
       return TL.pollJob(d.job_id, null).then((job) => { if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error((job.error && (job.error.message || job.error.code)) || '回答失败'), { status: 500, code: 'job_' + job.status }); return job.result || {}; });
     }).then((d) => { if (ASK) askStream(q, tlsAnswer(d)); }, (e) => {
-      if (TL.unavailable(e)) { fallback(); return; }
+      if (TL.unavailable(e)) { if (ASK) askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
       if (ASK) askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));
     });
   }
-  const tlsPickBase = ACT.askPick;
   ACT.askPick = (el) => {
-    const a = TLS.ask; if (!a || !ASK || a.ctx !== ASK.ctx) return tlsPickBase(el);
-    const p = a.presets[+el.dataset.i]; if (!p) return;
-    tlsAsk({ context: a.ctx, preset_index: p.index }, p.question, () => { const i = +el.dataset.i; if (ASKQ[ASK.ctx][i]) askStream(ASKQ[ASK.ctx][i], askAnswer(ASK.ctx, i)); });
+    if (!ASK) return;
+    const a = TLS.ask; const i = +el.dataset.i;
+    if (!a || a.ctx !== ASK.ctx) { const q = ASKQ[ASK.ctx][i]; if (q) tlsAsk({ context: ASK.ctx, question: q }, q); return; }   // generic question, real answer
+    const p = a.presets[i]; if (!p) return;
+    tlsAsk({ context: a.ctx, preset_index: p.index }, p.question);
   };
   const tlsSendBase = ACT.askSend;
   ACT.askSend = (el) => {
     const inp = $('#askIn'); const q = inp ? inp.value.trim() : ''; if (!q || !ASK) return tlsSendBase(el);
-    tlsAsk({ context: ASK.ctx, question: q }, q, () => { if (inp) inp.value = q; tlsSendBase(el); });
+    tlsAsk({ context: ASK.ctx, question: q }, q);
     if (inp) inp.value = '';
   };
 
-  /* ---------- 设置：分析 / 隐私 / 数据源 / 通知 / 关于 ---------- */
-  const R = { col: '/v1/platform/collection', pol: '/v1/notifications/policy', snz: '/v1/notifications/snooze', attn: '/v1/notifications/attention', con: '/v1/ai/consent', sto: '/v1/platform/storage', tel: '/v1/platform/telemetry', hea: '/v1/platform/health' };
+  /* ---------- 设置：通用 / 数据源 / 隐私 / 分析 / 通知 / 关于 ---------- */
+  const R = { col: '/v1/platform/collection', pol: '/v1/notifications/policy', snz: '/v1/notifications/snooze', attn: '/v1/notifications/attention', con: '/v1/ai/consent', tel: '/v1/platform/telemetry', hea: '/v1/platform/health',
+    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map' };
   const polKey = (m, k) => TLS_KIND[k].find((t) => m && Object.prototype.hasOwnProperty.call(m, t)) || null;
   const CLS = { sum: 'summary', snip: 'snippets', raw: 'raw' };
-  const MODE_IN = { off: 'stats', stats: 'stats', agent: 'agent', ollama: 'ollama' }; const MODE_OUT = { stats: 'off', agent: 'agent', ollama: 'ollama' };
-  const conEngine = (d) => TLS.engine || d.default_engine;
+  // the gateway's modes are stats | agent | api; 仅统计 is 'stats' (never 'off'), there is no Ollama mode yet
+  const MODE_IN = { off: 'stats', stats: 'stats', agent: 'agent', api: 'agent' }; const MODE_OUT = { stats: 'stats', agent: 'agent' };
+  const SYNC_IN = { off: 'manual', hour: 'hour', live: 'live' }; const SYNC_OUT = { manual: 'off', hour: 'hour', live: 'live' };
+  const conEngine = (d) => TLS.engine || d.default_engine || (Object.keys(d.grants || {})[0] || null);
+  const setOpen = () => !$('#set').hidden;
+  // settings tab → the resources it reads (loaded only while that tab is open)
+  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
   // server state → the demo's S fields (skipped while a demo handler is mid-way, see TLS.hold)
   function tlsSync() {
     if (TLS.hold) return;
-    const col = tlsRes(R.col), pol = tlsRes(R.pol), snz = tlsRes(R.snz), attn = tlsRes(R.attn);
+    if (setOpen()) (TAB_RES[S.setTab] || []).forEach((k) => tlsRes(R[k]));
+    const col = tlsRes(R.col), pol = tlsRes(R.pol), snz = tlsRes(R.snz), attn = tlsRes(R.attn), st = tlsRes(R.state);
     // a collection frame is newer than a GET that was already in flight: it patches the cached answer once it lands
     if (col.data && TLS.colFrame != null) { col.data = Object.assign({}, col.data, { paused: TLS.colFrame }); TLS.colFrame = null; }
     if (col.data) S.paused = !!col.data.paused;
+    if (st.data && st.data.settings && st.updatedAt !== TLS.stateAt) {
+      TLS.stateAt = st.updatedAt; const g = st.data.settings;
+      if (SYNC_IN[g.sync_mode]) S.index = SYNC_IN[g.sync_mode];
+      if (typeof g.weekly_report === 'boolean') S.weekly = g.weekly_report;
+      // the server's default range applies once per load, unless this browser already chose one (store 'range')
+      if (!TLS.rangeInit) { TLS.rangeInit = true; if (typeof g.default_range_days === 'number' && store.get('range', null) == null && [0, 7, 30, 90].indexOf(g.default_range_days) >= 0) S.range = g.default_range_days; }
+    }
     if (pol.data && pol.data.matrix) NEV.forEach((e) => { const k = polKey(pol.data.matrix, e[0]); if (k) { const ch = pol.data.matrix[k] || []; S.notif[e[0]] = ['banner', 'hud', 'badge'].map((x) => (ch.indexOf(x) >= 0 ? 1 : 0)); } });
     if (snz.data) S.hud.mute = (snz.data.items || []).some((x) => x.scope === 'global' && Date.parse(x.until) > Date.now());
     if (attn.data && attn.updatedAt !== TLS.attnAt) {
@@ -264,62 +322,191 @@ if (TL.mode === 'live') {
       ['stuck', 'ctx'].forEach((k) => { if (has(k)) S.attn.add(k); else S.attn.delete(k); });
       S.waitOpen = has('waiting'); simSettle();
     }
-    const con = S.setTab === 'analysis' && !$('#set').hidden ? tlsRes(R.con) : TL.resource(R.con);
+    const con = TL.resource(R.con);
     if (con.data) { const g = (con.data.grants || {})[conEngine(con.data)] || {}; S.aiCh = { sum: !!g.summary, snip: !!g.snippets, raw: !!g.raw }; if (MODE_IN[con.data.mode]) S.engine = MODE_IN[con.data.mode]; }
   }
   const hold = (fn) => { TLS.hold = true; try { fn(); } finally { TLS.hold = false; } };
   const matrixFromS = (prev) => { const m = Object.assign({}, prev || {}); NEV.forEach((e) => { m[polKey(prev, e[0]) || TLS_KIND[e[0]][0]] = ['banner', 'hud', 'badge'].filter((x, i) => S.notif[e[0]][i]); }); return m; };
-  const setCard = (title) => $$('#set .card').find((x) => { const t = x.querySelector('.ct'); return t && t.textContent === title; });
-  const cardHTML = (title, sub, inner, tl) => '<div class="card" data-tl="' + tl + '"><div class="row" style="padding:12px 14px 0;flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:200px"><div class="ct">' + title + '</div>' + (sub ? '<div class="cap" style="font-size:11px">' + sub + '</div>' : '') + '</div></div><div style="padding:10px 14px 14px">' + inner + '</div></div>';
+  const setCard = (title) => $$('#set .card').find((x) => { const t = x.querySelector('.ct'); return t && t.textContent.indexOf(title) === 0; });
+  const cardHTML = (title, sub, inner, tl) => '<div class="card" data-tl="' + tl + '"><div class="row set-ch"><div style="flex:1;min-width:200px"><div class="ct">' + title + '</div>' + (sub ? '<div class="cap set-cs">' + sub + '</div>' : '') + '</div></div><div class="set-cb">' + inner + '</div></div>';
   function sample(title) { const c = setCard(title); const t = c && c.querySelector('.ct'); if (t && !c.querySelector('[data-tl="sample"]')) t.insertAdjacentHTML('beforeend', ' ' + TLU.sample()); }
   const kv = (l, v) => '<div class="row" style="padding:5px 0;border-bottom:1px solid var(--hair);font-size:12px"><span style="flex:1;min-width:0">' + l + '</span>' + v + '</div>';
+  const ago = (ts) => { if (!ts) return '—'; const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? '刚刚' : m < 60 ? m + ' 分钟前' : m < 1440 ? Math.round(m / 60) + ' 小时前' : Math.round(m / 1440) + ' 天前'; };
+  // PATCH /v1/app/settings, optimistic on the cached /v1/app/state
+  function tlsSetting(patch, label) {
+    const r = TL.resource(R.state); const prev = r.data;
+    if (prev) r.data = Object.assign({}, prev, { settings: Object.assign({}, prev.settings, patch) });
+    TL.send('PATCH', '/v1/app/settings', patch).then((x) => { const p2 = r.data || prev; if (p2 && x.data && typeof x.data === 'object') { r.data = Object.assign({}, p2, { settings: x.data }); TLS.stateAt = null; } },
+      (e) => { if (prev) r.data = prev; TLS.stateAt = null; render(); toast(TL.unavailable(e) ? label + '未同步：本地服务暂不可用，只在本机生效' : label + '失败：' + (e.message || e.code)); });
+  }
+
+  // 数据源: one row per discovered source (GET /v1/app/discovery), else the spine's agents without a status
+  const discList = () => { const d = TL.resource(R.disc).data; return Array.isArray(d) ? d : d && (d.sources || d.items) || null; };
+  const ST_SRC = { available: ['正常', 'okc', 'var(--good)'], empty: ['没有会话文件', 'minus', 'var(--ink-3)'], permission_denied: ['无权限读取', 'alert', 'var(--warn)'] };
+  srcRows = function () {
+    const disc = discList(); const st = TL.resource(R.state).data; const conf = {}; ((st && st.sources) || []).forEach((x) => { conf[x.id] = x; });
+    const look = (agentId) => { const m = lvAgentOf(agentId); const a = AGI[m.id]; const slot = m.slot; return { m, a, c: a ? a.c : slot ? 'var(--a' + slot + ')' : 'var(--a0)', t: a ? a.t : slot ? 'var(--a' + slot + 't)' : 'var(--a0t)' }; };
+    if (!disc) return AG.map((a) => ({ name: esc(a.name), ver: esc(a.ver || ''), path: esc(a.path || '—'), n: fmt(a.all || 0), st: ['—', 'minus', 'var(--ink-3)', '—'], on: true, t: a.t, c: a.c, attrs: ' data-ag="' + esc(a.key || a.id) + '" disabled' }));
+    return disc.map((x) => {
+      const L = look(x.agent); const s0 = ST_SRC[x.status] || [esc(x.status || '—'), 'minus', 'var(--ink-3)']; const c = conf[x.id] || {};
+      const env = (LV.env || []).find((e) => e.agent === x.agent);
+      return { name: esc(L.m.name), ver: esc((env && env.version) || (L.a && L.a.ver !== '—' ? L.a.ver : '') || ''), path: esc(x.root || '—'), n: fmt(L.a ? L.a.all : 0), st: s0.concat([c.last_import_at ? ago(c.last_import_at) : x.files != null ? x.files + ' 个文件' : '—']), on: !!x.enabled, t: L.t, c: L.c,
+        attrs: ' data-src="' + esc(x.id) + '" data-ag="' + esc(x.agent) + '" data-root="' + esc(x.root || '') + '"' };
+    });
+  };
+  srcMissing = function () {
+    const ab = TL.resource(R.about).data; const disc = discList() || [];
+    const have = new Set(disc.map((x) => x.agent)); const maps = (ab && ab.components && ab.components.mappers) || [];
+    return maps.filter((k) => !have.has(k)).map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
+  };
+  srcIndexed = function () { const st = TL.resource(R.state).data; const n = st && st.storage && st.storage.counts ? st.storage.counts.sessions : ALL.length; return fmt(n || 0); };
+
+  // 隐私: rules from GET /v1/privacy/rules; the test box asks POST /v1/privacy/preview (nothing stored)
+  ruleRows = function () {
+    const d = TL.resource(R.rules).data; if (!d || !d.rules) return [];
+    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: r.placeholder || '', on: !!r.enabled, locked: !!r.locked }));
+  };
+  redact = function (text) {
+    const d = TL.resource(R.rules).data; if (!d) return { n: 0, html: esc(text) };
+    const p = TLS.rd; if (!p || p.text !== text) { tlsPreviewRules(text); return { n: p ? p.n : 0, html: p ? p.html : esc(text) }; }
+    return p;
+  };
+  function tlsPreviewRules(text) {
+    clearTimeout(TLS.rdT);
+    TLS.rdT = setTimeout(() => TL.send('POST', '/v1/privacy/preview', { text }).then((x) => {
+      const d = x.data || {}; const rules = (TL.resource(R.rules).data || {}).rules || [];
+      let html = esc(d.text != null ? d.text : text);
+      rules.map((r) => r.placeholder).filter(Boolean).sort((a, b) => b.length - a.length).forEach((ph) => { html = html.split(esc(ph)).join('\u0001' + esc(ph) + '\u0002'); });
+      TLS.rd = { text, n: d.n != null ? d.n : (d.hits || []).length, html: html.replace(/\u0001/g, '<mark class="rd">').replace(/\u0002/g, '</mark>') };
+      if (S.ruleSample === text) { const o = $('#rdOut'); if (o) o.innerHTML = TLS.rd.html; const c = $('#rdN'); if (c) c.textContent = '命中 ' + TLS.rd.n + ' 处'; }
+    }, (e) => { if (!TL.unavailable(e)) tlsErr(e, '预览脱敏'); }), 200);
+  }
+
   function tlsSetPost() {
     const t = S.setTab;
-    if (t === 'sources' && tlsDemo(TL.resource(R.col))) sample('索引方式');
     if (t === 'notify') { if (tlsDemo(TL.resource(R.pol))) sample('投递矩阵'); if (tlsDemo(TL.resource(R.snz))) sample('暂停提醒'); }
-    if (t === 'analysis' && tlsDemo(TL.resource(R.con))) sample('AI 通道');
     if (t === 'analysis') {
-      const d = TL.resource(R.con).data; const c = setCard('AI 通道');
-      if (d && c && d.settings && d.settings.daily_usd_cap != null) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">每日 AI 预算上限 ' + TLU.money(d.settings.daily_usd_cap) + ' · 授权对象：' + esc(conEngine(d)) + '</div>');
+      if (tlsDemo(TL.resource(R.con))) sample('AI 通道');
+      const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
+      if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
+        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(conEngine(d) || '未选择') : '') + '</div>');
+      const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
+      const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
     if (t === 'privacy') {
-      const r = tlsRes(R.sto); const c = setCard('数据存储');
-      if (tlsDemo(r)) sample('数据存储');
-      else if (r.data && c) {
+      const r = TL.resource(R.data); const c = setCard('数据存储'); const rules = TL.resource(R.rules);
+      if (!rules.data) { const rc = setCard('脱敏规则'); const box = rc && rc.querySelector('.set-cb'); if (box && !box.querySelector('[data-lv]')) box.insertAdjacentHTML('afterbegin', rules.error ? LV.na(TL.unavailable(rules.error) ? '本地服务暂不提供脱敏规则' : '读取失败') : LV.pend(80)); }
+      if (c) {
         const d = r.data; const top = c.querySelector('.row .mono'); const b = c.querySelector('b.mono');
-        if (top) top.textContent = d.home || top.textContent; if (b) b.textContent = tlsBytes(d.total_bytes);
-        c.lastElementChild.firstElementChild.insertAdjacentHTML('beforeend', '<div class="col" style="gap:0" data-tl="storage">' + (d.components || []).map((x) => kv(esc(x.label || x.id) + (x.rebuildable ? ' <span class="cap" style="font-size:11px">可重建</span>' : ''), '<b class="mono" style="font-size:12px">' + (x.approx ? '≈ ' : '') + tlsBytes(x.bytes) + '</b>')).join('') + '</div>');
+        if (top) top.textContent = d ? d.home : '—'; if (b) b.textContent = d ? tlsBytes(d.total_bytes) : '—';
+        if (d) c.lastElementChild.firstElementChild.insertAdjacentHTML('beforeend', '<div class="col" style="gap:0" data-tl="storage">' + (d.components || []).map((x) => kv(esc(x.label || x.id) + (x.rebuildable ? ' <span class="cap" style="font-size:11px">可重建</span>' : ''), '<b class="mono" style="font-size:12px">' + (x.approx ? '≈ ' : '') + tlsBytes(x.bytes) + '</b>')).join('') + '</div>');
       }
     }
     if (t === 'about') {
-      const h = tlsRes(R.hea), tel = tlsRes(R.tel); const body = $('#set .body'); if (!body) return;
-      const ver = body.querySelector('.mono.cap'); if (h.data && ver) ver.textContent = (h.data.version || '—') + ' · 已运行 ' + Math.round((h.data.uptime_s || 0) / 60) + ' 分钟';
+      const h = TL.resource(R.hea), tel = TL.resource(R.tel), ab = TL.resource(R.about); const body = $('#set .body'); if (!body) return;
+      const ver = body.querySelector('.mono.cap'); const nat = ORBIT.native.info;
+      if (ver) ver.textContent = ((nat && nat.app) || (ab.data && ab.data.app && ab.data.app.version) || (h.data && h.data.version) || '—') + (ab.data && ab.data.app ? ' · 服务 ' + ab.data.app.version : '') + (h.data ? ' · 已运行 ' + Math.round((h.data.uptime_s || 0) / 60) + ' 分钟' : '');
       let html = '';
-      if (h.data) html += cardHTML('运行状况', ({ ok: '正常', degraded: '部分降级', fail: '异常' }[h.data.status] || h.data.status) + ' · ' + TLU.hm(h.data.generated_at), '<div class="col" style="gap:0">' + (h.data.checks || []).map((x) => kv(esc(x.id) + (x.detail ? ' <span class="cap" style="font-size:11px">' + esc(x.detail) + '</span>' : ''), '<span class="mono" style="font-size:12px;color:var(' + (x.status === 'ok' ? '--good' : x.status === 'warn' ? '--warn' : '--crit') + ')">' + esc(x.status) + '</span>')).join('') + '</div>', 'health');
+      if (h.data) html += cardHTML('运行状况', ({ ok: '正常', degraded: '部分降级', fail: '异常' }[h.data.status] || h.data.status) + ' · ' + TLU.hm(h.data.generated_at), '<div class="col" style="gap:0">' + (h.data.checks || []).map((x) => kv(esc(x.id) + (x.detail && typeof x.detail !== 'object' ? ' <span class="cap" style="font-size:11px">' + esc(x.detail) + '</span>' : ''), '<span class="mono" style="font-size:12px;color:var(' + (x.status === 'ok' ? '--good' : x.status === 'warn' ? '--warn' : '--crit') + ')">' + esc(x.status) + '</span>')).join('') + '</div>', 'health');
+      if (ab.data && ab.data.components) { const cp = ab.data.components; html += cardHTML('组件版本', esc((ab.data.runtime && ('Python ' + ab.data.runtime.python + ' · ' + ab.data.runtime.platform + ' ' + ab.data.runtime.arch)) || ''), '<div class="col" style="gap:0">' + ['db_schema_version', 'analytics_version', 'redaction_version', 'mapper_version', 'catalog_contract'].filter((k) => cp[k] != null).map((k) => kv(esc(k), '<span class="mono" style="font-size:12px">' + esc(cp[k]) + '</span>')).join('') + kv('mappers', '<span class="mono" style="font-size:12px">' + esc((cp.mappers || []).join(' · ')) + '</span>') + '</div>', 'about'); }
       if (tel.data || h.data) {
         const d = tel.data;
         html += cardHTML('诊断', '指标只存本机；导出诊断包供排查问题时附上', '<div class="col" style="gap:8px">' + (d ? '<div class="row" style="gap:10px">' + swBtn(d.enabled, 'tlsTel', '', '记录本机性能指标') + '<span style="font-size:13px">记录本机性能指标</span><span class="cap" style="font-size:11px">保留 ' + TLU.num(d.retention_days) + ' 天 · ' + TLU.num(d.stats && d.stats.rows) + ' 行 · ' + tlsBytes(d.stats && d.stats.bytes_est) + '</span></div>' : '') +
-          '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="tlsDiag">导出诊断包</button>' + (d ? '<button type="button" class="btn sm dg" data-act="tlsTelClear">清除指标数据</button>' : '') + '</div></div>', 'diagnostics');
+          '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="tlsDiag">导出诊断包</button><button type="button" class="btn sm" data-act="setFinder">打开数据目录</button>' + (d ? '<button type="button" class="btn sm dg" data-act="tlsTelClear">清除指标数据</button>' : '') + '</div></div>', 'diagnostics');
       }
       if (html) body.insertAdjacentHTML('beforeend', '<div class="col" style="gap:12px;margin-top:4px">' + html + '</div>');
     }
   }
   const tlsSetBase = renderSet;
-  renderSet = function () { if (!$('#set').hidden) tlsSync(); tlsSetBase(); if (!$('#set').hidden) tlsSetPost(); };
+  renderSet = function () { if (setOpen()) tlsSync(); tlsSetBase(); if (setOpen()) tlsSetPost(); };
 
   const wrap = (name, fn) => { const base = ACT[name]; ACT[name] = (el, ev) => fn(base, el, ev); };
+  // 通用 / 统计 / 每周报告 / 索引方式 → PATCH /v1/app/settings (外观 stays local: the gateway has no theme key)
+  wrap('setRange', (base, el, ev) => { base(el, ev); tlsSetting({ default_range_days: S.range }, '默认时间范围'); });
+  wrap('setWeekly', (base, el, ev) => { base(el, ev); tlsSetting({ weekly_report: !!S.weekly }, '每周报告'); });
+  wrap('setIdx', (base, el, ev) => { base(el, ev); if (SYNC_OUT[S.index]) tlsSetting({ sync_mode: SYNC_OUT[S.index] }, '索引方式'); });
+  wrap('setReindex', (base, el, ev) => {
+    TL.send('POST', '/v1/app/jobs', { kind: 'import' }).then(() => toast('已开始重新索引'), (e) => toast(e.code === 'job_conflict' ? '已有导入任务在进行' : TL.unavailable(e) ? '本地服务暂不可用，未能重新索引' : '重新索引失败：' + (e.message || e.code)));
+  });
+  // 数据源: enable / disable one source (POST /v1/app/sources), add a folder (slice 7's LVN.addSource, else chooseFolder)
+  wrap('setSrc', (base, el, ev) => {
+    const id = el.dataset.src, agentId = el.dataset.ag, root = el.dataset.root; if (!id) return;
+    const r = TL.resource(R.disc); const prev = r.data; const list = discList() || []; const x = list.find((y) => y.id === id); if (!x) return;
+    const to = !x.enabled; r.data = list.map((y) => (y.id === id ? Object.assign({}, y, { enabled: to }) : y)); renderSet();
+    TL.send('POST', '/v1/app/sources', { agent: agentId, root, enabled: to }).then(() => { toast(lvAgentOf(agentId).name + (to ? ' 已启用，下次索引时导入' : ' 已停用：不再导入新会话，已有数据保留')); TL.invalidate((q) => q.path === R.state || q.path === R.disc); },
+      (e) => { r.data = prev; renderSet(); tlsErr(e, to ? '启用来源' : '停用来源'); });
+  });
+  const GUESS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/opencode/i, 'opencode'], [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/\bdsh\b|deepseek/i, 'dsh'], [/\.pi\b|\/pi\b/i, 'pi'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot']];
+  wrap('setAddSrc', (base, el, ev) => {
+    const agentId = el && el.dataset && el.dataset.v && el.dataset.v !== '自定义' ? el.dataset.v : null;
+    if (window.LVN && typeof window.LVN.addSource === 'function') return window.LVN.addSource({ agent: agentId, from: 'settings' });
+    ORBIT.native.request('chooseFolder', { purpose: 'source', agent: agentId || undefined }).then((f) => {
+      if (!f || f.cancelled || !f.path) return;
+      const ag = agentId || (GUESS.find((g) => g[0].test(f.path)) || [])[1];
+      if (!ag) { toast('认不出这个文件夹属于哪个 Agent：在「未检测到」那一行点「指定…」'); return; }
+      return TL.send('POST', '/v1/app/sources', { agent: ag, root: f.path, enabled: true }).then((x) => {
+        const src = x.data || {}; TL.invalidate((q) => q.path === R.state || q.path === R.disc);
+        toast('已添加 ' + lvAgentOf(ag).name + ' 来源，正在索引');
+        return TL.send('POST', '/v1/app/jobs', { kind: 'import', source_ids: src.id ? [src.id] : undefined }).catch(() => {});
+      }, (e) => tlsErr(e, '添加来源'));
+    });
+  });
+  wrap('setMap', (base, el, ev) => {
+    TL.send('GET', R.tmap).then((x) => {
+      const d = x.data || {}; const ags = AG.filter((a) => (d.kinds || []).some((k) => (k.names || []).some((n) => lvAgentOf(n.agent).id === a.id)));
+      openModal(modalHead('工具名映射表', '各 Agent 的工具名归一后才能跨 Agent 统计 · 规则 ' + esc(d.version || '')) + '<div class="mb scroll-x" data-tl="tool-map"><table class="tbl"><thead><tr><th>统一名</th>' + ags.map((a) => '<th>' + esc(a.short) + '</th>').join('') + '</tr></thead><tbody>' +
+        (d.kinds || []).map((k) => '<tr><td style="font-weight:600">' + esc(k.label || k.kind) + '</td>' + ags.map((a) => '<td class="mono" style="font-size:12px">' + esc((k.names || []).filter((n) => n.agent && lvAgentOf(n.agent).id === a.id).map((n) => n.name).join(' · ') || '—') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
+    }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供工具名映射表' : '读取映射表失败：' + (e.message || e.code)));
+  });
   wrap('setPause', (base, el, ev) => {
     const to = !S.paused;
     tlsWrite(R.col, { paused: to }, () => TL.send('POST', R.col + '/' + (to ? 'pause' : 'resume'), to ? { reason: 'user' } : {}), to ? '暂停采集' : '恢复采集', (d) => { if (d && d.catch_up_job_id) toast('已恢复采集，正在补采暂停期间的会话'); });
     base(el, ev);
   });
+  // 隐私
+  wrap('setRule', (base, el, ev) => {
+    const r = TL.resource(R.rules); if (!r.data) return;
+    const k = el.dataset.k; const x = (r.data.rules || []).find((y) => y.id === k); if (!x || x.locked) return;
+    TLS.rd = null;
+    tlsWrite(R.rules, { rules: r.data.rules.map((y) => (y.id === k ? Object.assign({}, y, { enabled: !x.enabled }) : y)) }, () => TL.send('PUT', R.rules, { enabled: { [k]: !x.enabled } }), '保存脱敏规则');
+    renderSet();
+  });
+  wrap('setTestIn', (base, el, ev) => { S.ruleSample = el.value; if (TL.resource(R.rules).data) tlsPreviewRules(el.value); else base(el, ev); });
+  wrap('setFinder', (base, el, ev) => {
+    const d = TL.resource(R.data).data; const home = d && d.home;
+    if (!home) { tlsRes(R.data); toast('还没拿到数据目录位置，稍后再试'); return; }
+    ORBIT.native.request('reveal', { path: home });
+  });
+  wrap('setClear', (base, el, ev) => {
+    TL.send('GET', R.data).then((x) => {
+      const d = x.data || {}; TLS.clear = d; const word = d.confirm_word || '清除';
+      const comp = {}; (d.components || []).forEach((c) => { comp[c.id] = c.label || c.id; });
+      openModal(modalHead('清除全部数据？', esc(d.note || '会删除索引、分析结果与备份，不会动各 Agent 自己的会话日志')) + '<div class="mb col" style="gap:8px" data-tl="clear"><div class="cap" style="font-size:12px">将删除：' + esc((d.will_delete || []).map((k) => comp[k] || k).join('、')) + ' · 共 ' + tlsBytes(d.total_bytes) + '</div>' +
+        (d.installs_active ? '<div class="cap" style="font-size:12px;color:var(--warn)">还有 ' + d.installs_active + ' 个已安装的组件，清除不会撤销它们</div>' : '') +
+        '<label for="clrIn" style="font-size:13px">输入 <b class="mono">' + esc(word) + '</b> 以确认：</label><input id="clrIn" data-in="setClearIn" autocomplete="off" style="' + FIELD + ';height:28px;font-size:13px"></div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" id="clrBtn" data-act="setClearDo" disabled style="background:var(--crit);border-color:var(--crit);color:#fff">清除全部数据</button></div>');
+    }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供清除数据' : '读取数据目录失败：' + (e.message || e.code)));
+  });
+  wrap('setClearIn', (base, el, ev) => { const b = $('#clrBtn'); if (b) b.disabled = el.value.trim() !== ((TLS.clear && TLS.clear.confirm_word) || '清除'); });
+  function tlsClear(cancel) {
+    const inp = $('#clrIn'); const word = inp ? inp.value.trim() : (TLS.clear && TLS.clear.confirm_word) || '清除';
+    TL.send('POST', '/v1/app/data/clear', cancel ? { confirm: word, cancel_jobs: true } : { confirm: word }).then(() => { closeModal(); toast('已清除。重启 Orbit 后从头导入'); TL.invalidate(); },
+      (e) => { if (e.code === 'job_active') toast('有任务正在进行', { act: '取消任务并清除', onAct: () => tlsClear(true) }); else tlsErr(e, '清除数据'); });
+  }
+  wrap('setClearDo', () => tlsClear(false));
+  // 分析
   wrap('setAiCh', (base, el, ev) => {
     const r = TL.resource(R.con); if (!r.data) return base(el, ev);
-    const eng = conEngine(r.data); const cls = CLS[el.dataset.k]; const g = Object.assign({}, (r.data.grants || {})[eng]); g[cls] = !g[cls];
+    const eng = conEngine(r.data); if (!eng) { toast('先选一个执行者'); return; }
+    const cls = CLS[el.dataset.k]; const g = Object.assign({}, (r.data.grants || {})[eng]); g[cls] = !g[cls];
     tlsWrite(R.con, { grants: Object.assign({}, r.data.grants, { [eng]: g }) }, () => TL.send('PUT', R.con, { grants: { [eng]: { [cls]: g[cls] } } }), 'AI 通道授权', (d) => { if (d && (d.cancelled_jobs || []).length) toast('已撤回授权，取消了 ' + d.cancelled_jobs.length + ' 个进行中的任务'); });
     renderSet();
   });
-  wrap('setEngine', (base, el, ev) => { const mode = MODE_OUT[el.dataset.v]; tlsWrite(R.con, { mode }, () => TL.send('PUT', R.con, { mode }), '切换分析引擎'); base(el, ev); });
+  wrap('setEngine', (base, el, ev) => {
+    const mode = MODE_OUT[el.dataset.v];
+    if (!mode) { toast('本机模型（Ollama）还没有接入，暂时只能选「仅统计」或「本地 Agent」'); return; }
+    tlsWrite(R.con, { mode }, () => TL.send('PUT', R.con, { mode }), '切换分析引擎'); base(el, ev);
+  });
+  // 通知
   wrap('setNotif', (base, el, ev) => {
     const r = TL.resource(R.pol); if (!r.data) return base(el, ev);
     hold(() => base(el, ev));
@@ -339,13 +526,31 @@ if (TL.mode === 'live') {
   wrap('setTestNotif', (base, el, ev) => {
     TL.send('POST', '/v1/notifications/test', {}).then(() => { if (!TL.events.connected) base(el, ev); else toast('已发送测试通知'); }, (e) => { if (TL.unavailable(e)) base(el, ev); else tlsErr(e, '发送测试通知'); });
   });
+  wrap('setUpdate', () => { const ab = TL.resource(R.about).data; const u = ab && ab.update; toast(u && u.available ? '有新版本 ' + u.available : u && u.checked_at ? '已是最新版本' : '还没有检查过更新'); });
   Object.assign(ACT, {
     tlsTel: () => { const r = TL.resource(R.tel); if (!r.data) return; const to = !r.data.enabled; tlsWrite(R.tel, { enabled: to }, () => TL.send('PUT', R.tel, { enabled: to }), to ? '开启指标记录' : '关闭指标记录'); renderSet(); },
     tlsTelClear: () => TL.send('DELETE', R.tel + '/data').then((x) => { toast('已清除 ' + TLU.num(x.data && x.data.deleted_rows) + ' 行指标数据'); TL.invalidate((r) => r.path === R.tel); }, (e) => tlsErr(e, '清除指标数据')),
-    tlsDiag: () => { toast('正在导出诊断包…'); TL.send('POST', '/v1/platform/diagnostics/export', {}).then((x) => toast('诊断包已导出：' + ((x.data && x.data.path) || '')), (e) => tlsErr(e, '导出诊断包')); }
+    // diagnostics: the gateway's report (GET /v1/platform/diagnostics) saved through the host's save panel (browser: download)
+    tlsDiag: () => {
+      toast('正在导出诊断包…');
+      TL.send('GET', '/v1/platform/diagnostics').then((x) => {
+        const d = new Date(); const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '-' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+        return ORBIT.native.request('save', { filename: 'orbit-diagnostics-' + stamp + '.json', mime: 'application/json', text: JSON.stringify(x.data, null, 2) });
+      }).then((r) => {
+        if (!r || r.cancelled) return;
+        if (r.ok === false) { toast('导出诊断包失败：' + (r.error || '未知原因')); return; }
+        toast(r.path ? '诊断包已保存：' + r.path : '诊断包已下载', r.path ? { act: '在 Finder 中显示', onAct: () => ORBIT.native.request('reveal', { path: r.path }) } : undefined);
+      }, (e) => toast(TL.unavailable(e) ? '本地服务暂不提供诊断导出' : '导出诊断包失败：' + (e.message || e.code)));
+    }
   });
 
   /* ---------- notify frames → banner / HUD / 菜单栏角标 ---------- */
+  // in the native shell a banner raised while the window is hidden also goes to the system (notify → UNUserNotification)
+  const tlsNotifyBase = notify;
+  notify = function (n) {
+    tlsNotifyBase(n);
+    if (ORBIT.native.isNative && document.hidden && !(S.paused && !n.force)) ORBIT.native.post('notify', { id: n.id || undefined, title: n.t || '', body: n.b || '' });
+  };
   function tlsNotify(d) {
     const k = tlsKind(d.type); const ch = d.channels || [];
     const toHud = ch.indexOf('hud') >= 0 && !S.hud.mute, toBadge = ch.indexOf('badge') >= 0;
@@ -355,7 +560,7 @@ if (TL.mode === 'live') {
       else if (k === 'waiting') { S.waitOpen = true; set('waiting'); }
       else if (k === 'stuck' || k === 'ctx') { S.attn.add(k); set(k); }
     }
-    if (ch.indexOf('banner') >= 0) notify({ t: d.title || '通知', b: d.body || '', force: true, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
+    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
     render();
   }
   TL.on('event', (ev) => {
@@ -371,7 +576,6 @@ if (TL.mode === 'live') {
     const c = $('#content'); if (!c) return;
     let s = c.querySelector(':scope > [data-tl="strip"]');
     if (!s) { const h = TLU.strip(TL, 'studio', TL_VIEWS.studio); if (h) c.insertAdjacentHTML('afterbegin', h); s = c.querySelector(':scope > [data-tl="strip"]'); }
-    if (s && TLS.studioDemo && !s.querySelector('[data-tl="sample"]')) s.insertAdjacentHTML('beforeend', '<div>' + TLU.sample() + '</div>');
   }
   RENDER_HOOKS.push(() => tlsStrip());
   const tlsRenderBase = render;
