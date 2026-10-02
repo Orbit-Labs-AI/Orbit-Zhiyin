@@ -7,7 +7,7 @@ RULES = {
     "preference_evidence": "Direct message, actor, event ID, session, native sequence and observation time",
     "effective_at": "Observed UTC-ms message time; no inferred backdating or future scheduling",
     "preference_history": "Evidence-linked supersedes/revokes/reaffirms relationships; unresolved values conflict",
-    "preference_polarity": "Explicit prefer/avoid, separate from revoking a previous preference",
+    "polarity": "Explicit prefer/avoid, separate from revoking a previous preference",
 }
 
 FEATURES = {name: {"name": name, "family": "preference", "unit": "preference observation", "type": "explicit_observation",

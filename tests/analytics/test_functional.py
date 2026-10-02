@@ -4,7 +4,9 @@ from unittest.mock import Mock
 from fastapi.testclient import TestClient
 
 from tandem_backend.analytics.inputs import Scope
+from tandem_backend.analytics.preference.dictionary import FEATURES as PREFERENCE_FEATURES
 from tandem_backend.analytics.service import analyze_bundle, analyze_store
+from tandem_backend.analytics.task.dictionary import FEATURES as TASK_FEATURES
 from tandem_backend.api import create_app
 from tandem_backend.cli import main
 from tandem_backend.models import Event, ParsedSession, Session
@@ -37,6 +39,8 @@ def test_bundle_missing_data_and_bounded_future_isolation(fixtures):
     result = analyze_bundle(data, Scope(until_ts=30), with_text=False)
     assert [p["value"] for p in result["preferences"]["records"]] == ["zh"]
     assert "preference_statement" in result["feature_dictionary"] and "task_goal_history" in result["feature_dictionary"]
+    assert PREFERENCE_FEATURES.keys() <= result["preferences"]["records"][0].keys()
+    assert TASK_FEATURES.keys() <= result["tasks"]["records"][0].keys()
     data.events = None
     result = analyze_bundle(data, with_text=False)
     assert result["tasks"]["records"] is result["preferences"]["records"] is None
