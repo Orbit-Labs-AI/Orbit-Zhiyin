@@ -69,6 +69,10 @@ def router(gw: Gateway) -> APIRouter:
                                  headers={"Cache-Control": "no-cache",
                                           "X-Accel-Buffering": "no"})
 
+    @api.get("/v1/analytics/realtime/approvals")
+    def approvals(since: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
+        return rt.approvals(since, limit)
+
     @api.post("/v1/analytics/realtime/{session_uid}/dismiss")
     def dismiss(session_uid: str, body: Annotated[dict | None, Body()] = None):
         seconds = (body or {}).get("seconds", 3600)
