@@ -1,9 +1,12 @@
 """Disposable trigram index for global search (DT-23): ``home/cache/search.sqlite``.
 
-The canonical ``event_fts`` uses unicode61, which cannot match Chinese substrings. Indexing
-every event with trigrams would be too large, so this derived index holds only what people
-search for: session titles, human messages (<=2000 chars), command heads and file names.
-It is rebuilt from tandem.db (read-only) and can be deleted at any time.
+tandem.db's own event index cannot serve these kinds: before storage v8 it is unicode61
+``event_fts`` (no Chinese substrings); from v8 it is ``event_search``, a contentless trigram
+index over message/title events only (no ``snippet()``, no LIKE on its column), which the
+``event`` search source reads. Indexing every event with trigrams would be too large, so this
+derived index holds only what people search for: session titles, human messages
+(<=2000 chars), command heads and file names. It is rebuilt from tandem.db (read-only) and
+can be deleted at any time.
 """
 
 from __future__ import annotations
