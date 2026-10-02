@@ -743,6 +743,15 @@ ITEMS = {
 _ORDER = ["goal", "evidence"]  # loaders others depend on run first
 
 
+def _item(key: str):
+    """Pack item spec; v1 task items live in ``pack_v1`` (imported lazily: it imports this module)."""
+    if key not in ITEMS:
+        from .pack_v1 import ITEMS_V1
+
+        ITEMS.update(ITEMS_V1)
+    return ITEMS[key]
+
+
 def _clip(key: str, value):
     if key == "evidence":
         return [{**e, "text": (e.get("text") or "")[:LIMITS.get(e.get("kind"), 300)]} for e in (value or [])][:5]
@@ -822,7 +831,7 @@ def build(task: dict, *, reads, appdb, home, scope=None, selection=None, goal=No
     with (_maybe_conn(reads) if reads is not None else nullcontext()) as conn:
         c = _Ctx(conn, task, home, appdb, scope, goal, goal_source, params, slots)
         for key in order:
-            label, desc, data_class, loader = ITEMS[key]
+            label, desc, data_class, loader = _item(key)
             enabled = bool(selection.get(key, defaults[key])) and data_class != "raw"
             unavailable = False
             if key in slots:
