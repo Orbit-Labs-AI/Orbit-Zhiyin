@@ -1,0 +1,178 @@
+{
+  "input_contract": "analysis-input-v1",
+  "scope": {
+    "project_ids": [
+      "project-example"
+    ],
+    "from_ts": 1790899200000,
+    "until_ts": 1790985600000,
+    "display_timezone": "Asia/Shanghai",
+    "include_children": true,
+    "excluded_session_uids": []
+  },
+  "coverage": {
+    "events": {
+      "status": "partial",
+      "time_unknown_rows": 1
+    },
+    "tool_call": {
+      "status": "available",
+      "rows": 1
+    },
+    "model_call": {
+      "status": "unavailable",
+      "reason": "示例没有逐次用量"
+    },
+    "catalog": {
+      "status": "unavailable",
+      "reason": "本次只做轨迹分析"
+    }
+  },
+  "projects": [
+    {
+      "project_id": "project-example",
+      "key_type": "path",
+      "key": "/example/project",
+      "name": "示例项目",
+      "paths": [
+        "/example/project"
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "session_uid": "session-example",
+      "source_id": "source-example",
+      "native_id": "native-example",
+      "kind": "main",
+      "project_id": "project-example",
+      "parent_uid": null,
+      "root_uid": "session-example",
+      "timezone": "Asia/Shanghai",
+      "timezone_source": "reported"
+    }
+  ],
+  "turns": [
+    {
+      "turn_uid": "turn-example",
+      "session_uid": "session-example",
+      "idx": 0,
+      "trigger": "human",
+      "status": "unknown",
+      "first_event_uid": "event-request",
+      "last_event_uid": "event-result"
+    }
+  ],
+  "events": [
+    {
+      "event_uid": "event-request",
+      "session_uid": "session-example",
+      "event_path": "message.content[0].text",
+      "seq": 0,
+      "ts": 1790902800000,
+      "kind": "message.user",
+      "actor": "human",
+      "turn_uid": "turn-example",
+      "parent_uid": null,
+      "call_id": null,
+      "text": "请修复测试，并解释修改原因。",
+      "text_truncated": 0,
+      "attrs": {
+        "origin": "human",
+        "time": {
+          "source_field": "timestamp",
+          "semantics": "created",
+          "quality": "reported",
+          "reported": {
+            "timestamp": "2026-10-02T01:00:00Z"
+          }
+        }
+      },
+      "ext": {},
+      "record_uid": "record-request",
+      "native_id": "message-example"
+    },
+    {
+      "event_uid": "event-call",
+      "session_uid": "session-example",
+      "event_path": "tool.call",
+      "seq": 1,
+      "ts": 1790902801000,
+      "kind": "tool.call",
+      "actor": "assistant",
+      "turn_uid": "turn-example",
+      "parent_uid": null,
+      "call_id": "native-call-example",
+      "text": null,
+      "text_truncated": 0,
+      "attrs": {
+        "name": "shell",
+        "category": "shell",
+        "command_head": "pnpm test",
+        "time": {
+          "source_field": "started_at_ms",
+          "semantics": "started",
+          "quality": "reported",
+          "reported": {
+            "started_at_ms": 1790902801000
+          }
+        }
+      },
+      "ext": {},
+      "record_uid": "record-call",
+      "native_id": "native-call-example"
+    },
+    {
+      "event_uid": "event-result",
+      "session_uid": "session-example",
+      "event_path": "tool.result",
+      "seq": 2,
+      "ts": null,
+      "kind": "tool.result",
+      "actor": "tool",
+      "turn_uid": "turn-example",
+      "parent_uid": null,
+      "call_id": "native-call-example",
+      "text": null,
+      "text_truncated": 0,
+      "attrs": {
+        "name": "shell",
+        "status": "failed",
+        "exit_code": 1,
+        "duration_ms": 900,
+        "duration_source": "reported",
+        "duration_quality": "reported",
+        "time": {
+          "source_field": null,
+          "semantics": "unknown",
+          "quality": "missing",
+          "reported": {}
+        }
+      },
+      "ext": {},
+      "record_uid": "record-result",
+      "native_id": "native-result-example"
+    }
+  ],
+  "tool_calls": [
+    {
+      "call_uid": "tool-call-example",
+      "session_uid": "session-example",
+      "turn_uid": "turn-example",
+      "call_event_uid": "event-call",
+      "result_event_uid": "event-result",
+      "name_raw": "shell",
+      "kind": "shell",
+      "command_head": "pnpm test",
+      "status": "failed",
+      "exit_code": 1,
+      "started_at": 1790902801000,
+      "ended_at": null,
+      "duration_ms": 900,
+      "duration_source": "reported",
+      "duration_quality": "reported",
+      "approval_wait_ms": null
+    }
+  ],
+  "model_calls": []
+}

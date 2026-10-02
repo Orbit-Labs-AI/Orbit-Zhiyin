@@ -64,6 +64,7 @@ function openReveal() {
   closeModal(); closeDD(); closeOverlay();
   const per = PERIODS[S.persona.period]; const L = S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = persona(L);
   if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
+  if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
   const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   REV = { done: reduce, timers: [] }; OVL = 'reveal';
   const o = $('#overlay'); o.hidden = false;

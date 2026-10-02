@@ -52,6 +52,7 @@ function shareBody() {
 function openShare() {
   const sp = sharePersona();
   if (!sp.p.ok) { toast('样本不足（少于 30 个会话），暂时不能生成分享卡'); return; }
+  if (!sp.p.classified) { toast('部分维度尚未定型，暂时不能生成分享卡'); return; }
   openModal(modalHead('导出分享卡', '1080 × 1350 · 适合朋友圈、小红书与 X') + '<div class="mb" id="shareBody" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start">' + shareBody() + '</div><div class="mf"><button type="button" class="btn" data-act="shareCopy">' + ic('copy', 13) + '复制分享文案</button><button type="button" class="btn p" data-act="shareSave">' + ic('down', 13) + '保存图片</button></div>', 'wide');
   MODAL_KEY = 'share';
 }
