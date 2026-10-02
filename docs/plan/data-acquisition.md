@@ -143,6 +143,7 @@ Demo 各页需要的数据与来源：
 - 事件类型（实测）：`user/message`、`assistant/message`（含 `usage`）、`tool/call`、`tool/result`、`step/start / step/end`、`turn/start / turn/end`、`approval/asked / approval/decided / approval/policy`、`permission/preset`、`sandbox/mode`、`subagent/descriptor`、`agent/inbox/spliced`、`todo/write`、`session/title`、`request/header`、`request/context`、`web/deepseek-search-llm-request` 等。
 - **流式分片**：`assistant/chunk` 增量事件会被打包成 `text-chunks / reasoning-chunks / tool-call-chunks` 行（`seq0 / time0 + dt[]` 可无损还原每个分片的序号和时间）。统计与正文以 `assistant/message`、`tool/call` 等完整事件为准，分片只用于还原首字延迟和流式时长，标记为已折叠。
 - **坑**：根目录可由 `DSH_HOME` 覆盖；关闭压缩时文件是明文 `session.jsonl`，按 zstd 魔数判断而不是按扩展名；目录名同时存在 `<uuid>` 与 `session-<uuid>` 两种（54 / 25）；目录名是有损规范化的 cwd，以会话头的 `cwd` 为准；文件末尾可能有未写完的帧，读到不完整的帧时保留已解码记录并在下次重读；`compaction/summary` 是单独计费的压缩调用；实际响应模型以 `replayState.response.responseModel` 为准；多供应商（`openrouter`、`kimi-coding`、`openai-codex`、`xai`），模型名不统一；不记录成本。
+- **新旧两代格式**（据源码调研，HEAD 为 0.2.0-rc.2）：新版日志文件是 `session.v4.jsonl.zstd`，旧代文件保留；会话头改为必填的 `isSeeded`，继承切点由最后一个 `session/end-seed{inherited:true}` 推出（旧版用 `seedLength`）；流式增量不再是独立的 `assistant/chunk` 事件，而是内嵌在 `assistant/message.stream / assistant/attempt.stream` 里；新增 `session.lock` 文件锁；图片与文件以内容寻址存到 `$DSH_HOME/attachments/v1`，日志里只留引用；超大工具输出按 `spill-policy` 外置。连接器按会话头的 `version` 选择解析逻辑，两代都要支持，同一会话目录里两代文件并存时以新版为准、旧版按重复处理。
 - 另有 `dsh-session-telemetry-otel` 可把事件流导出为 OpenTelemetry 日志，可作补充通道；轨迹可视化组件 `dsh-client-ui-trajectory` 留给模块 3 参考。
 
 #### pi（P1，顺手接入）
@@ -362,7 +363,7 @@ OpenCode 与 Hermes 的映射要点（细节见各自的调研报告）：
 | 同一响应拆成多行（Claude） | 相同 `message.id + requestId` | 内容块按顺序合并；usage 只记一次 |
 | 恢复或分叉复制历史（Claude） | 同一 `uuid` 出现在多个文件 | 最早出现的为正本，其余标 `replay_of` |
 | 子代理重放父历史（Codex） | `subagent_history_start_ordinal` 之前的记录（旧文件以首个不在父会话中的 turn、或 `trigger_turn=true` 的跨 Agent 通信为界） | 标 `replayed`，不计入子代理统计 |
-| 种子事件（DeepSeek Harness） | 会话头的 `parentSession + seedLength` | 前 `seedLength` 条是从父会话复制的种子，标 `replayed`（tokscale 也按此判断分叉边界） |
+| 种子事件（DeepSeek Harness） | 旧版：会话头的 `parentSession + seedLength`；新版：`isSeeded` + 最后一个 `session/end-seed{inherited:true}` | 切点之前是从父会话复制的种子，标 `replayed` |
 | 跨 Agent 导入（Codex 导入 Claude 会话） | `external_agent_session_imports.json` | 会话标 `kind=import`，链接到原会话，默认不计 |
 | token 重复事件（Codex 旧格式） | 累计值未变化的 `token_count` | 丢弃，标 `duplicate` |
 
