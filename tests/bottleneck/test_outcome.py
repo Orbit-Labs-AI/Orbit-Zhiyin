@@ -110,3 +110,11 @@ def test_rejected_validation_request_is_not_executed_check(make_call):
     r = extract_validation_runs([make_call(status="rejected", validation=validation())])
     assert r["validation_runs"] == []
     assert len(r["validation_candidates"]) == 1
+
+
+def test_acceptance_becomes_visible_only_after_both_criteria_and_result(make_call, make_event):
+    c = make_call(validation=validation(), ended_at=200)
+    es = [make_event(acceptance=acceptance(available_at=500))]
+    r = analyze_outcome([c], es, {"s"})
+    assert r["acceptance_results"][0]["available_at"] == 500
+    assert analyze_outcome([c], es, {"s"}, until_ts=400)["acceptance_results"] == []

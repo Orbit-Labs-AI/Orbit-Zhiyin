@@ -1,0 +1,338 @@
+{
+  "input_contract": "analysis-input-v1",
+  "fixture_notice": "Entirely fictional; contains no local agent history.",
+  "scope": {
+    "display_timezone": "Asia/Shanghai"
+  },
+  "sessions": [
+    {
+      "session_uid": "root",
+      "root_uid": "root",
+      "kind": "main",
+      "project_id": "synthetic-project",
+      "started_at": 1790899200000
+    },
+    {
+      "session_uid": "child",
+      "root_uid": "root",
+      "parent_uid": "root",
+      "kind": "subagent",
+      "project_id": "synthetic-project",
+      "started_at": 1790899200500
+    }
+  ],
+  "events": [
+    {
+      "event_uid": "request",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 0,
+      "ts": 1790899200000,
+      "kind": "message.user",
+      "actor": "human",
+      "text": "synthetic request",
+      "attrs": {
+        "origin": "human",
+        "task_uid": "synthetic-task",
+        "interaction": {
+          "state": "confirmed",
+          "source": "synthetic-reviewer",
+          "available_at": 1790899200050,
+          "intents": [
+            "request"
+          ]
+        },
+        "acceptance": {
+          "state": "confirmed",
+          "source": "synthetic-instruction-labels",
+          "available_at": 1790899200050,
+          "criteria_set_uid": "fixture-criteria",
+          "complete": true,
+          "scope": {
+            "project_id": "synthetic-project",
+            "artifact_uid": "sample-app",
+            "artifact_revision": "fixture-v1",
+            "coverage": "full"
+          },
+          "criteria": [
+            {
+              "criterion_uid": "test",
+              "kind": "test"
+            },
+            {
+              "criterion_uid": "build",
+              "kind": "build"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "event_uid": "answer",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 1,
+      "ts": 1790899200100,
+      "kind": "message.assistant",
+      "actor": "assistant",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task"
+      }
+    },
+    {
+      "event_uid": "correction",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 2,
+      "ts": 1790899200150,
+      "kind": "message.user",
+      "actor": "human",
+      "text": "synthetic request",
+      "attrs": {
+        "origin": "human",
+        "task_uid": "synthetic-task",
+        "interaction": {
+          "state": "confirmed",
+          "source": "synthetic-reviewer",
+          "available_at": 1790899200180,
+          "intents": [
+            "correction"
+          ],
+          "target_event_uid": "answer",
+          "friction_types": [
+            "scope"
+          ]
+        }
+      }
+    },
+    {
+      "event_uid": "spawn",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 3,
+      "ts": 1790899200500,
+      "kind": "subagent.spawn",
+      "actor": "assistant",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task",
+        "child_session_uid": "child"
+      }
+    },
+    {
+      "event_uid": "test-call",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 4,
+      "ts": 1790899201000,
+      "kind": "tool.call",
+      "actor": "assistant",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task",
+        "validation": {
+          "kind": "test",
+          "executed": true,
+          "source": "synthetic-check-adapter",
+          "available_at": 1790899201000,
+          "scope": {
+            "project_id": "synthetic-project",
+            "artifact_uid": "sample-app",
+            "artifact_revision": "fixture-v1",
+            "coverage": "full"
+          },
+          "criterion_uids": [
+            "test"
+          ]
+        }
+      }
+    },
+    {
+      "event_uid": "test-result",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 5,
+      "ts": 1790899211000,
+      "kind": "tool.result",
+      "actor": "tool",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task",
+        "status": "success",
+        "status_scope": "command"
+      }
+    },
+    {
+      "event_uid": "join",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "seq": 6,
+      "ts": 1790899217000,
+      "kind": "subagent.result",
+      "actor": "assistant",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task",
+        "child_session_uid": "child"
+      }
+    },
+    {
+      "event_uid": "build-call",
+      "session_uid": "child",
+      "turn_uid": "turn-child",
+      "seq": 0,
+      "ts": 1790899206000,
+      "kind": "tool.call",
+      "actor": "assistant",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task",
+        "validation": {
+          "kind": "build",
+          "executed": true,
+          "source": "synthetic-check-adapter",
+          "available_at": 1790899206000,
+          "scope": {
+            "project_id": "synthetic-project",
+            "artifact_uid": "sample-app",
+            "artifact_revision": "fixture-v1",
+            "coverage": "full"
+          },
+          "criterion_uids": [
+            "build"
+          ]
+        }
+      }
+    },
+    {
+      "event_uid": "build-result",
+      "session_uid": "child",
+      "turn_uid": "turn-child",
+      "seq": 1,
+      "ts": 1790899216000,
+      "kind": "tool.result",
+      "actor": "tool",
+      "text": null,
+      "attrs": {
+        "origin": "agent",
+        "task_uid": "synthetic-task",
+        "status": "success",
+        "status_scope": "command"
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "call_uid": "test",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "call_event_uid": "test-call",
+      "result_event_uid": "test-result",
+      "name_raw": "exec_command",
+      "kind": "shell",
+      "seq": 4,
+      "status": "success",
+      "status_scope": "command",
+      "started_at": 1790899201000,
+      "ended_at": 1790899211000,
+      "duration_ms": 10000,
+      "duration_source": "native_bounds",
+      "interval_reliable": true,
+      "argument_digest": "fictional-test",
+      "argument_digest_kind": "literal"
+    },
+    {
+      "call_uid": "build",
+      "session_uid": "child",
+      "turn_uid": "turn-child",
+      "call_event_uid": "build-call",
+      "result_event_uid": "build-result",
+      "name_raw": "exec_command",
+      "kind": "shell",
+      "seq": 0,
+      "status": "success",
+      "status_scope": "command",
+      "started_at": 1790899206000,
+      "ended_at": 1790899216000,
+      "duration_ms": 10000,
+      "duration_source": "native_bounds",
+      "interval_reliable": true,
+      "argument_digest": "fictional-build",
+      "argument_digest_kind": "literal"
+    }
+  ],
+  "model_calls": [
+    {
+      "call_uid": "model-root",
+      "session_uid": "root",
+      "turn_uid": "turn-root",
+      "ts": 1790899200200,
+      "usage_scope": "call",
+      "measurement": "delta",
+      "boundary_reliable": true,
+      "coverage": "self",
+      "input_tokens": 100,
+      "cache_read_tokens": 20,
+      "cache_write_tokens": 0,
+      "output_tokens": 80,
+      "reasoning_tokens": 10,
+      "model_id": "fixture-model"
+    },
+    {
+      "call_uid": "model-child",
+      "session_uid": "child",
+      "turn_uid": "turn-child",
+      "ts": 1790899200700,
+      "usage_scope": "call",
+      "measurement": "delta",
+      "boundary_reliable": true,
+      "coverage": "self",
+      "input_tokens": 100,
+      "cache_read_tokens": 20,
+      "cache_write_tokens": 0,
+      "output_tokens": 30,
+      "reasoning_tokens": 10,
+      "model_id": "fixture-model"
+    }
+  ],
+  "projects": [
+    {
+      "project_id": "synthetic-project",
+      "name": "Synthetic benchmark"
+    }
+  ],
+  "turns": [],
+  "coverage": {
+    "sessions": {
+      "status": "available"
+    },
+    "events": {
+      "status": "available"
+    },
+    "tool_calls": {
+      "status": "available"
+    },
+    "model_calls": {
+      "status": "available"
+    },
+    "projects": {
+      "status": "available"
+    },
+    "turns": {
+      "status": "available"
+    },
+    "lineage": {
+      "status": "available"
+    }
+  },
+  "versions": {
+    "content_digest": "fictional-bottleneck-v1"
+  }
+}

@@ -5,6 +5,7 @@ from dataclasses import asdict
 
 from ..models import stable_id
 from . import FEATURE_VERSION
+from .bottleneck import analyze_bottleneck
 from .dictionary import FEATURES
 from .features import activity, human, session_features, tool_summary, usage, workflow
 from .inputs import KINDS, Scope, legacy_bundle, metadata, select
@@ -50,6 +51,10 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         if root_calls == [] and data["tools"]["status"] != "available":
             data["features"]["tool_call_count"] = None
         data["coverage"] = meta["coverage"]
+        data["bottleneck_features"] = analyze_bottleneck(
+            [p for p in sessions if p["session_uid"] in included], root_events if bundle.events is not None else None,
+            root_calls, None if model_calls is None else [c for c in model_calls if c["session_uid"] in included],
+            main_ids, scope, bundle.coverage, context_events, supported)
         row = {**s, **data, "included_session_uids": sorted(included), "cluster_id": None,
                "novelty": None, "embedding_x": None, "embedding_y": None}
         rows.append(row)
@@ -106,6 +111,11 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "tools": tool_summary(pcs, all_tools["status"]),
             "usage": usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
                            pe, [s for s in sessions if s["session_uid"] in ids], scope, complete_models),
+            "bottleneck_features": analyze_bottleneck(
+                [s for s in sessions if s["session_uid"] in ids], pe if bundle.events is not None else None, pcs,
+                None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
+                main_ids, scope, bundle.coverage,
+                [e for e in diagnostics["context_events"] if e["session_uid"] in ids], supported),
             "cluster_distribution": dict(Counter(str(r["cluster_id"]) for r in rs if r["cluster_id"] is not None))})
     correction_terms = Counter(term for r in rows for signal in r["correction_signals"] for term in signal["terms"])
     text["correction_terms"] = dict(correction_terms)
@@ -133,6 +143,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                                            for k, n in languages.most_common()] if bundle.events is not None and (human_count or not unknown_origin) else None},
             "sessions": rows, "tools": {**all_tools, "transitions": all_workflow["transitions"]},
             "workflow": all_workflow, "projects": projects, "text": text,
+            "bottleneck_features": analyze_bottleneck(sessions, events if bundle.events is not None else None,
+                calls, model_calls, main_ids, scope, bundle.coverage, diagnostics["context_events"], supported),
             "limitations": ["日志跨度不是实际工作时长", "词面纠偏和结构约束只是代理信号",
                             "缺少事件不等于没有发生；未知保持 null", "聚类和坐标不带人格或任务成功含义"]}
 

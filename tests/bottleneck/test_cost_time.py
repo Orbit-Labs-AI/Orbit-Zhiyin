@@ -103,3 +103,11 @@ def test_invalid_latency_not_counted_or_serialized_as_nan(make_session):
     r = usage([request(latency_ms=float("nan"), ttft_ms=True)], [], [make_session()], Scope())
     assert r["median_latency_ms"] is None and r["median_ttft_ms"] is None
     json.dumps(r, allow_nan=False)
+
+
+def test_known_empty_request_dataset_is_zero_but_unavailable_or_partial_is_not(make_session):
+    known = usage([], [], [make_session()], Scope())
+    assert known["status"] == "available" and known["total_tokens"] == 0
+    assert set(known["token_buckets"].values()) == {0}
+    assert usage(None, [], [make_session()], Scope())["total_tokens"] is None
+    assert usage([], [], [make_session()], Scope(), records_complete=False)["total_tokens"] is None

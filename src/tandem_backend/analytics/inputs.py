@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from ..feedback import SCENE_LABELS, task_contexts
 from ..models import Event, stable_id
 from ..store import Store, _decode_sample_policy
+from .common import annotation_visible, task_uid, timestamp
+from .respond import normalize_tool_calls
 
 
 def millis(value):
@@ -268,6 +270,15 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
     replayed = {e["event_uid"] for e in all_events if e.get("attrs", {}).get("replayed_from")
                 or e.get("attrs", {}).get("duplicate_of")}
     all_events = [e for e in all_events if e["event_uid"] not in replayed]
+    if scope.until_ts is not None:
+        visible_events = []
+        for e in all_events:
+            attrs = dict(e.get("attrs", {}))
+            for key in ("interaction", "acceptance", "validation", "validation_result"):
+                if attrs.get(key) and not annotation_visible(attrs[key], scope.until_ts):
+                    attrs[key] = None
+            visible_events.append({**e, "attrs": attrs})
+        all_events = visible_events
     model_calls = None if bundle.model_calls is None else [c for c in bundle.model_calls
         if c["session_uid"] in ids and scope.contains(c.get("ts"))
         and (scope.model_ids is None or c.get("model_id") in scope.model_ids)
@@ -287,6 +298,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
     member_ids = {e["event_uid"] for e in members}
     lookup = {e["event_uid"]: e for e in all_events}
     calls = None if bundle.tool_calls is None else []
+    session_lookup = {s["session_uid"]: s for s in sessions}
     for c in bundle.tool_calls or []:
         if c["session_uid"] not in ids or c.get("call_event_uid") in replayed:
             continue
@@ -296,30 +308,45 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         if not selected:
             continue
         c = dict(c)
+        s = session_lookup[c["session_uid"]]
+        c["root_session_uid"] = ((s.get("root_uid") or s["session_uid"])
+                                 if s.get("kind") == "main" else s.get("root_uid"))
         if event:
             c["seq"] = event["seq"]
-            for key in ("argument_digest", "command_head", "files"):
+            if c.get("task_uid") is None:
+                c["task_uid"] = task_uid(event)
+            for key in ("argument_digest", "argument_digest_kind", "command_head", "command_complete", "files",
+                        "validation", "validation_scope", "retry_of_call_uid"):
                 if c.get(key) is None and event.get("attrs", {}).get(key) is not None:
                     c[key] = event["attrs"][key]
         result = lookup.get(c.get("result_event_uid"))
         if result:
-            for key in ("status_scope", "known_command_results", "failed_command_results", "unknown_return_values"):
+            c["result_seq"] = result["seq"]
+            if c.get("result_available_at") is None:
+                c["result_available_at"] = result.get("ts")
+            for key in ("status_scope", "known_command_results", "failed_command_results", "unknown_return_values",
+                        "validation_result", "validation_report", "failure_reason", "error_class"):
                 if c.get(key) is None and result.get("attrs", {}).get(key) is not None:
                     c[key] = result["attrs"][key]
         # Future dated results cannot leak into an earlier snapshot. Unknown-time
         # linked results can support status/duration, never calendar membership.
         end = c.get("ended_at")
-        future = scope.until_ts is not None and ((end is not None and end >= scope.until_ts)
-                    or (result and result.get("ts") is not None and result["ts"] >= scope.until_ts))
+        future = scope.until_ts is not None and any(timestamp(t) and t >= scope.until_ts
+                    for t in (end, c.get("result_available_at"), result.get("ts") if result else None))
         if future:
             for key in ("result_event_uid", "status", "duration_ms", "ended_at", "status_scope",
                         "known_command_results", "failed_command_results", "unknown_return_values",
-                        "exit_code", "error_class", "approval_wait_ms"):
+                        "exit_code", "error_class", "approval_wait_ms", "failure_reason", "result_available_at",
+                        "result_seq", "validation_result", "validation_report"):
                 c[key] = None
             c.update(duration_quality="missing", duration_source=None, interval_reliable=False)
+        for key in ("validation", "validation_result"):
+            if c.get(key) and not annotation_visible(c[key], scope.until_ts):
+                c[key] = None
         calls.append(c)
+    normalization = normalize_tool_calls(calls)
     if calls is not None:
-        calls.sort(key=lambda c: (c["session_uid"], c.get("seq", 0), c["call_uid"]))
+        calls = normalization["calls"]
     visible_ids = {e["session_uid"] for e in members} | {c["session_uid"] for c in (model_calls or [])}
     bounded = scope.from_ts is not None or scope.until_ts is not None or model_filter or scope.scene
     if bounded:
@@ -331,6 +358,7 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
         if result and result["event_uid"] not in member_ids:
             context_events.append(result)
     diagnostics = {"excluded_sessions": dict(excluded), "replayed_events_excluded": len(replayed),
+                   "tool_call_normalization": {k: v for k, v in normalization.items() if k != "calls"},
                    "model_ambiguous_turns_excluded": len(ambiguous_turns),
                    "context_events": context_events,
                    "time_unknown_events": sum(e.get("ts") is None for e in all_events),

@@ -129,7 +129,8 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
     known_calls = [c for c in valid if c.get("coverage") == "self" and token_total(c) is not None]
     full_requests = (records_complete and not prepared["invalid_request_rows"]
                      and not prepared["conflicting_request_ids"])
-    full_calls = bool(valid) and full_requests and len(known_calls) == len(valid)
+    known_empty = model_calls == [] and full_requests and not snapshots and not legacy
+    full_calls = (bool(valid) or known_empty) and full_requests and len(known_calls) == len(valid)
     total, basis = (sum(token_total(c) for c in valid), "call_delta") if full_calls else (None, None)
     # One tree snapshot is sufficient only if it exactly covers the selected tree.
     if unbounded and not bounded_or_excluded and len(snapshot_totals) == 1:
@@ -150,9 +151,9 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
             "request_count": len(valid) if valid or (model_calls == [] and records_complete) else None,
             **{k: v for k, v in prepared.items() if k != "requests"},
             "total_tokens": total, "total_basis": basis,
-            "known_call_tokens": sum(token_total(c) for c in known_calls) if known_calls else None,
+            "known_call_tokens": sum(token_total(c) for c in known_calls) if known_calls or known_empty else None,
             "token_complete_call_n": len(known_calls), "token_unknown_call_n": len(valid) - len(known_calls),
-            "token_buckets": {k: sum(c[k] for c in buckets) if buckets and all(c[k] is not None for c in buckets) else None for k in TOKEN_BUCKETS},
+            "token_buckets": {k: sum(c[k] for c in buckets) if (buckets or known_empty) and all(c[k] is not None for c in buckets) else None for k in TOKEN_BUCKETS},
             "token_semantics": {"input_tokens": "uncached", "cache": "disjoint_read_and_write",
                                 "reasoning_tokens": "already_in_output_not_added"},
             "token_bucket_basis": "call_delta_known_rows",

@@ -110,7 +110,8 @@ def extract_validation_runs(calls, until_ts=None):
                          "report_uid": report_id, "artifact_revision": (scope or {}).get("artifact_revision")},
                      "available_at": available if visible or report_id else None,
                      "seq": c.get("seq"), "result_seq": c.get("result_seq"),
-                     "status_scope": c.get("status_scope"), "raw_status": c.get("status"),
+                     "status_scope": c.get("status_scope") if visible else None,
+                     "raw_status": c.get("status") if visible else None,
                      "identification_source": meta.get("source") if declared else "complete_direct_command",
                      "missing_reason": reason})
     return {"validation_runs": runs if calls is not None else None,
@@ -168,7 +169,8 @@ def match_acceptance_criteria(criteria, validations):
                 reason = "scope_or_artifact_revision_mismatch"
         results.append({**c, "acceptance_result": state,
                         "validation_uids": [v["validation_uid"] for v in latest],
-                        "available_at": max([v["available_at"] for v in latest if timestamp(v.get("available_at"))], default=None),
+                        "available_at": max([c["available_at"], *[v["available_at"] for v in latest]])
+                            if latest and timestamp(c.get("available_at")) and all(timestamp(v.get("available_at")) for v in latest) else None,
                         "missing_reason": reason})
     return results
 

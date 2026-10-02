@@ -175,19 +175,22 @@ def pair_tool_calls(events):
             orphans.extend(e["event_uid"] for e in ends)
         for e in starts:
             a = e.get("attrs", {})
+            name = a.get("name_raw") or a.get("name")
             row = {"call_uid": e["event_uid"], "session_uid": e["session_uid"], "source_id": key[0],
                    "turn_uid": e.get("turn_uid"), "task_uid": task_uid(e), "seq": e["seq"],
                    "call_event_uid": e["event_uid"], "result_event_uid": None,
-                   "name_raw": a.get("name_raw") or a.get("name"), "kind": a.get("category", "unknown"),
+                   "name_raw": name, "kind": a.get("category", "unknown"),
+                   "is_wrapper": a.get("is_wrapper", (name or "").rsplit(".", 1)[-1] in ("exec", "wait")),
                    "status": None, "status_scope": None, "started_at": e.get("ts"), "ended_at": None,
                    "interval_reliable": False, "pairing_status": "conflict" if conflict else "unpaired",
                    **{k: deepcopy(a[k]) for k in ("argument_digest", "argument_digest_kind", "command_head",
-                       "validation", "retry_of_call_uid", "project_id") if k in a}}
+                       "command_complete", "validation", "validation_scope", "retry_of_call_uid", "project_id") if k in a}}
             if paired:
                 r = ends[0]
                 ra = r.get("attrs", {})
                 row.update({k: deepcopy(ra.get(k)) for k in RESULT_FIELDS})
-                row.update(result_event_uid=r["event_uid"], result_available_at=r.get("ts"), pairing_status="paired")
+                row.update(result_event_uid=r["event_uid"], result_available_at=r.get("ts"),
+                           result_seq=r["seq"], pairing_status="paired")
                 if row["status"] is None and isinstance(ra.get("exit_code"), int) and not isinstance(ra["exit_code"], bool):
                     row["status"] = "success" if ra["exit_code"] == 0 else "failed"
                 # Native bounds must be explicit; log timestamps are not execution endpoints.
@@ -205,6 +208,7 @@ def normalize_tool_calls(calls):
     for original in calls or []:
         key = (original["session_uid"], original["call_uid"])
         c = deepcopy(original)
+        c.setdefault("is_wrapper", (c.get("name_raw") or "").rsplit(".", 1)[-1] in ("exec", "wait"))
         if key in rows:
             duplicates += 1
             if c != rows[key]:
@@ -321,22 +325,37 @@ def build_execution_relations(events, sessions):
                     and e.get("attrs", {}).get("action") in ("rollback", "rewind"))]}
 
 
-def analyze_respond(events, calls, sessions, main_ids, dataset_status="available", supported_kinds=None):
+def analyze_respond(events, calls, sessions, main_ids, dataset_status="available", supported_kinds=None,
+                    event_status="available"):
     paired = pair_tool_calls(events or [])
     normalized = normalize_tool_calls(calls)
     effective = normalized["calls"] if calls is not None else paired["calls"] if paired["calls"] else None
+    session_lookup = {s["session_uid"]: s for s in sessions}
+    for c in effective or []:
+        s = session_lookup.get(c["session_uid"], {})
+        c.setdefault("root_session_uid", s.get("root_uid"))
+    linked_results = {c.get("result_event_uid") for c in effective or [] if c.get("result_event_uid")}
+    paired["orphan_result_event_uids"] = [uid for uid in paired["orphan_result_event_uids"] if uid not in linked_results]
     status = dataset_status if calls is not None else "partial" if effective else "unavailable"
     sequence = [] if effective is not None else None
     for c in effective or []:
         sequence.append({**c, "tool_result_status": result_status(c), "raw_status": c.get("status")})
     turn_ids = {(e["session_uid"], e["turn_uid"]) for e in events or [] if e.get("turn_uid")}
+    relations = build_execution_relations(events, sessions)
+    if events is None or (supported_kinds is not None and "subagent.spawn" not in supported_kinds):
+        if not relations["subagent_relations"]:
+            relations["subagent_relations"] = None
+        relations["unresolved_subagent_events"] = None
+    if events is None or (supported_kinds is not None and not {"branch", "context.restart"} & set(supported_kinds)):
+        relations["rollback_restart_events"] = None
     return {"status": status, "grain": "tool_call", "tool_sequence": sequence,
             "call_source": "L3" if calls is not None else "paired_L2",
-            "turn_count": len(turn_ids) if turn_ids else 0 if events == [] and dataset_status == "available" else None,
+            "turn_count": len(turn_ids) if turn_ids else 0 if events == [] and event_status == "available" else None,
+            "event_coverage": event_status,
             "turn_boundary_unknown_n": sum(not e.get("turn_uid") for e in events) if events is not None else None,
             "tools": tool_summary(effective, status),
             "workflow": workflow(events, effective, main_ids, supported_kinds) if events is not None else None,
             **analyze_execution_sequence(effective), **execution_intervals(effective),
-            **build_execution_relations(events, sessions),
+            **relations,
             "pairing": {**{k: v for k, v in paired.items() if k != "calls"},
                         **{k: v for k, v in normalized.items() if k != "calls"}}}
