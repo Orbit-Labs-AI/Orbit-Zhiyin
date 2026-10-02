@@ -196,7 +196,12 @@ async function lvnAfter(ob) {
   lvnStage(L, 'persona', { status: 'done', note: per.p.ok ? per.p.code : '样本不足' }); lvnDraw(ob);
   TL.send('PATCH', '/v1/app/settings', { onboarded: true, onboarding_step: 4 }).catch(() => { /* re-asked next launch */ });
   if (ORBIT.native && ORBIT.native.isNative) ORBIT.native.post('onboarded', {});   // native host shows the HUD only after this
-  TL.send('POST', '/v1/catalog/sync', {}).catch(() => { /* library keeps its seed rows */ });
+  // The gateway schedules the first catalog sync itself (catalog/status.first_sync); only older gateways need the nudge,
+  // so a running sync is not hit with a second POST (409 catalog_job_already_active).
+  const nudge = () => TL.send('POST', '/v1/catalog/sync', {});
+  TL.send('GET', '/v1/catalog/status').then((r) => {
+    if (!((r && r.data) || {}).first_sync) return nudge();
+  }, nudge).catch(() => { /* library keeps its seed rows */ });
   if (OB !== ob || OVL !== 'ob') {   // 在后台继续: tell the user instead of playing Genesis
     const p = per.p;
     notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '会话已导入，样本还不够下结论。', a1: '查看画像', on1: () => go('persona') });
