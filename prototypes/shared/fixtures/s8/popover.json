@@ -1,0 +1,363 @@
+{
+ "generated_at": 1790958787176,
+ "status": "idle",
+ "paused": null,
+ "today": {
+  "date": "2026-10-03",
+  "sessions": 0,
+  "duration_s": 0,
+  "running": 0,
+  "finished": 0
+ },
+ "attention": [],
+ "live": [
+  {
+   "session_uid": "session_dc6ca8093589d4e9ad44a6267502cb2bc5eed4f44025334078cef4feebd0bbf9",
+   "agent": "claude_code",
+   "project_id": "project_759a93c8a0eb734851c6a1df411c1593ecf097e14c7fe3b338de198e69bacd75",
+   "project": "ml-lab",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790938937893,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "used_tokens": 47399,
+    "window_tokens": 200000,
+    "ratio": 0.237,
+    "auto_compact_ratio": 0.92,
+    "basis": "last_call_input"
+   },
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  },
+  {
+   "session_uid": "session_2b91882233efc2cb49131dcc8eeae38d2fa169ba020f4a2504b2b82c562a26b8",
+   "agent": "claude_code",
+   "project_id": "project_759a93c8a0eb734851c6a1df411c1593ecf097e14c7fe3b338de198e69bacd75",
+   "project": "ml-lab",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790932603204,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "used_tokens": 17799,
+    "window_tokens": 200000,
+    "ratio": 0.089,
+    "auto_compact_ratio": 0.92,
+    "basis": "last_call_input"
+   },
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  },
+  {
+   "session_uid": "session_a9ce5087dc3275b5b26d1152fd60153f9edc719d63ca2a8139d151afbc473767",
+   "agent": "codex",
+   "project_id": "project_759a93c8a0eb734851c6a1df411c1593ecf097e14c7fe3b338de198e69bacd75",
+   "project": "ml-lab",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790930306000,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": null,
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  },
+  {
+   "session_uid": "session_fc106da9b2fe9d18f8b450f673b9b72f2c2081365199705e616c0ca554909280",
+   "agent": "claude_code",
+   "project_id": "project_759a93c8a0eb734851c6a1df411c1593ecf097e14c7fe3b338de198e69bacd75",
+   "project": "ml-lab",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790927458079,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "used_tokens": 10377,
+    "window_tokens": 200000,
+    "ratio": 0.0519,
+    "auto_compact_ratio": 0.92,
+    "basis": "last_call_input"
+   },
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  },
+  {
+   "session_uid": "session_f6d722260d13e80053aa80b5bf7319551493fd710ddc74f25f2d411fa040725d",
+   "agent": "claude_code",
+   "project_id": "project_0f4a14a22179053a676896feadd779e119fdf18f5b823ec55504d8f5c85a8b04",
+   "project": "mobile-app",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790926690446,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "used_tokens": 38826,
+    "window_tokens": 200000,
+    "ratio": 0.1941,
+    "auto_compact_ratio": 0.92,
+    "basis": "last_call_input"
+   },
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  },
+  {
+   "session_uid": "session_6643bfa66d8cd9f08cf2dc16bfd1563e692ab2f667e265994c3d12977950246f",
+   "agent": "pi",
+   "project_id": "project_d61abdfa9fe93d01acd3255bbcbdc90ea9f96ad7c655a601bdeefba8086b9f27",
+   "project": "paper",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790924723206,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": {
+    "used_tokens": 32244,
+    "window_tokens": null,
+    "ratio": null,
+    "auto_compact_ratio": null,
+    "basis": "unknown"
+   },
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  },
+  {
+   "session_uid": "session_d75cf82eaad7b5c8bfad3ebe9c9015b3f9e9b5a4c4aeff679ebd2fed5a342f73",
+   "agent": "codex",
+   "project_id": "project_0f4a14a22179053a676896feadd779e119fdf18f5b823ec55504d8f5c85a8b04",
+   "project": "mobile-app",
+   "title": null,
+   "state": "idle",
+   "flags": [],
+   "since": 1790907976000,
+   "running_s": 0,
+   "current_tool": null,
+   "density": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "context": null,
+   "failure": null,
+   "approval": null,
+   "outcome": null,
+   "dismissed_until": null
+  }
+ ],
+ "recent_done": [],
+ "week": {
+  "days": [
+   {
+    "date": "2026-09-27",
+    "weekday": 7,
+    "sessions": 2,
+    "by_agent": {
+     "claude_code": 1,
+     "codex": 1,
+     "other": 0
+    }
+   },
+   {
+    "date": "2026-09-28",
+    "weekday": 1,
+    "sessions": 1,
+    "by_agent": {
+     "claude_code": 0,
+     "codex": 1,
+     "other": 0
+    }
+   },
+   {
+    "date": "2026-09-29",
+    "weekday": 2,
+    "sessions": 1,
+    "by_agent": {
+     "claude_code": 1,
+     "codex": 0,
+     "other": 0
+    }
+   },
+   {
+    "date": "2026-09-30",
+    "weekday": 3,
+    "sessions": 4,
+    "by_agent": {
+     "claude_code": 1,
+     "codex": 0,
+     "other": 3
+    }
+   },
+   {
+    "date": "2026-10-01",
+    "weekday": 4,
+    "sessions": 2,
+    "by_agent": {
+     "claude_code": 0,
+     "codex": 1,
+     "other": 1
+    }
+   },
+   {
+    "date": "2026-10-02",
+    "weekday": 5,
+    "sessions": 7,
+    "by_agent": {
+     "claude_code": 4,
+     "codex": 2,
+     "other": 1
+    }
+   },
+   {
+    "date": "2026-10-03",
+    "weekday": 6,
+    "sessions": 0,
+    "by_agent": {
+     "claude_code": 0,
+     "codex": 0,
+     "other": 0
+    }
+   }
+  ],
+  "avg_per_day": 2.4,
+  "today": 0
+ },
+ "weekly": {
+  "sessions": 17,
+  "prev_sessions": 22,
+  "delta_pct": -22.7,
+  "hours": 1.1,
+  "prev_hours": 1.6,
+  "correction_rate": 0.051,
+  "prev_correction_rate": 0.045
+ },
+ "yesterday": {
+  "date": "2026-10-02",
+  "sessions": 7,
+  "hours": 0.4,
+  "correction_rate": 0.037,
+  "completion_rate": 0.857,
+  "baseline": {
+   "days": 30,
+   "sessions_per_day": 2.63,
+   "hours_per_day": 0.17,
+   "correction_rate": 0.063,
+   "completion_rate": 0.797
+  }
+ },
+ "persona": {
+  "ok": false,
+  "code": null,
+  "name_zh": null,
+  "reason": "computing"
+ },
+ "top_rec": {
+  "candidate_id": "94f001b0d81b595c",
+  "run_id": "2594b01c5d2c4a7f",
+  "title": "silent-failure-hunter",
+  "type": "subagent",
+  "gain": null,
+  "level": 2
+ },
+ "opening": null
+}

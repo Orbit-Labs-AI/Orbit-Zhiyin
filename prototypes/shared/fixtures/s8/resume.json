@@ -1,0 +1,23 @@
+{
+  "session_uid": "fx-s1",
+  "agent": "claude_code",
+  "native_id": "fx-native-1",
+  "cwd": "/tmp/fx project",
+  "running": false,
+  "available": true,
+  "disabled_reason": null,
+  "commands": [
+    {
+      "label": "在 Claude Code 中继续",
+      "shell": "cd '/tmp/fx project' && claude --resume fx-native-1",
+      "argv": [
+        "claude",
+        "--resume",
+        "fx-native-1"
+      ],
+      "cwd": "/tmp/fx project",
+      "verified": false,
+      "note": "参数待验证"
+    }
+  ]
+}

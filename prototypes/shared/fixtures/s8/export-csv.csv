@@ -1,0 +1,3 @@
+call_uid,session_uid,name,status,duration_ms
+fx-call-1,fx-s1,Bash,success,911
+fx-call-2,fx-s2,Bash,failed,1022

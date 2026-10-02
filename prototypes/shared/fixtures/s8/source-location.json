@@ -1,0 +1,22 @@
+{
+  "session_uid": "fx-s1",
+  "files": [
+    {
+      "path": "/tmp/fx-home/.claude/projects/fx/fx-native-1.jsonl",
+      "exists": true,
+      "size": 48213,
+      "source_id": "fx-src-cc",
+      "agent": "claude_code",
+      "revealable": true
+    },
+    {
+      "path": "/tmp/fx-home/.claude/projects/fx/gone.jsonl",
+      "exists": false,
+      "size": null,
+      "source_id": "fx-src-cc",
+      "agent": "claude_code",
+      "revealable": false
+    }
+  ],
+  "first_record_uid": "fx-rec-1"
+}
