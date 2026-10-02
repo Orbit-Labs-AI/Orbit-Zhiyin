@@ -91,8 +91,12 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             raise HTTPException(422, str(exc)) from exc
 
     def analytics_section(key, scope):
+        from ..analytics.products.payload import compact
         from ..analytics.service import response_section
-        return response_section(analytics_data(scope, key in ("sessions", "text", "projects")), key)
+        result = response_section(analytics_data(scope, key in ("sessions", "text", "projects")), key)
+        if key in ("statistics", "lexical"):
+            result[key] = compact(result[key])  # Bounded evidence; aggregates stay exact.
+        return result
 
     @app.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,

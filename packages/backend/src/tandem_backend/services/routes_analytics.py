@@ -14,12 +14,13 @@ Responses keep the existing section keys and only add a top-level ``meta``.
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
+from ..recommend.contracts import Family
 from .auth import ApiError
 from .sections import SECTIONS, rules_digest
 from .snapshots import Snapshot, SnapshotKey, scope_hash
@@ -28,7 +29,8 @@ if TYPE_CHECKING:
     from .gateway import Gateway
 
 CONTRACT = "tandem-app-analytics-v1"
-PLAIN_SECTIONS = ("overview", "tools", "projects", "text", "tasks", "instruction")
+PLAIN_SECTIONS = ("overview", "tools", "projects", "text", "tasks", "instruction", "statistics",
+                  "lexical")
 CLIENT_ERRORS = {"not_found": 404, "invalid_request": 422, "analysis_scope_too_large": 422}
 
 
@@ -187,6 +189,31 @@ def router(gw: Gateway) -> APIRouter:
                     if_none_match: str | None = Header(None)):
         params = {"task_id": task_id} if task_id is not None else {}
         return serve("preferences", scope, params, wait_ms, if_none_match)
+
+    @api.get("/v1/analytics/products")
+    def products(scope=scope_dependency, bucket: Literal["day", "week", "month"] = "day",
+                 with_text: bool = False, compare_previous: bool = False,
+                 offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
+                 wait_ms: int = wait, if_none_match: str | None = Header(None)):
+        """Worker-computed products; ``sessions`` is paged like /v1/analytics/sessions."""
+        if compare_previous and (scope.from_ts is None or scope.until_ts is None):
+            raise ApiError(422, "invalid_request", "上期比较需要明确的 from_ts 和 until_ts")
+        params = {"bucket": bucket, "with_text": with_text, "compare_previous": compare_previous}
+        return serve("products", scope, params, wait_ms, if_none_match, page=(offset, limit))
+
+    @api.get("/v1/analytics/presentation")
+    def presentation(scope=scope_dependency, window: str | None = None,
+                     target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+                     family: Family | None = None, wait_ms: int = wait,
+                     if_none_match: str | None = Header(None)):
+        from ..analytics.presentation.metrics import window_scope
+
+        try:
+            window_scope(scope, window)  # Reject invalid windows before queueing work.
+        except ValueError as error:
+            raise ApiError(422, "invalid_request", str(error)) from error
+        params = {"window": window, "target_agent": target_agent, "family": family}
+        return serve("presentation", scope, params, wait_ms, if_none_match)
 
     @api.post("/v1/analytics/recompute", status_code=202)
     def recompute(request: RecomputeRequest):

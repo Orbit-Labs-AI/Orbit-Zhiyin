@@ -405,7 +405,8 @@ def analyze_store(store, scope: Scope | None = None, with_text: bool = True) -> 
     def compute():
         bundle = store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
         return analyze_bundle(bundle, scope, with_text)
-    return recorded(store, "features", {"scope": asdict(scope), "with_text": with_text}, compute)
+    return recorded(store, "features", {"scope": asdict(scope), "with_text": with_text}, compute,
+                    reuse=True)
 
 
 def response_section(result: Record, key: str) -> Record:

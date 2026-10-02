@@ -32,6 +32,8 @@ class Section:
     cost: Literal["light", "heavy"]
     compute: Compute
     with_text: bool = False
+    timeout_s: float | None = None  # Overrides the supervisor's per-cost budget.
+    prewarm: bool = True
 
 
 class ResultMemo:
@@ -123,8 +125,54 @@ register(Section("sessions", "sessions", "light", _sessions, True))
 register(Section("session", "session", "heavy", _session_detail, True))
 register(Section("preferences", "preferences", "light", _preferences, False))
 
-LIGHT = tuple(name for name, s in SECTIONS.items() if s.cost == "light" and name != "session")
-HEAVY = tuple(name for name, s in SECTIONS.items() if s.cost == "heavy" and name != "session")
+def _compact_section(key: str) -> Compute:
+    def compute(store, scope, params, memo):
+        from ..analytics.products.payload import compact
+        from ..analytics.service import response_section
+
+        result = response_section(memo.analysis(store, scope, False, params.get("_rev")), key)
+        result[key] = compact(result[key])
+        return result
+
+    return compute
+
+
+def _products(store, scope, params, memo):
+    """Former synchronous gateway fallback; the gateway pages ``sessions`` of this body."""
+    from ..analytics.products import analyze_product_store
+
+    return analyze_product_store(store, scope, bucket=params.get("bucket", "day"),
+                                 with_text=bool(params.get("with_text")),
+                                 compare_previous=bool(params.get("compare_previous")))
+
+
+def _presentation(store, scope, params, memo):
+    from ..analytics.presentation import build_presentation
+    from ..analytics.presentation.metrics import window_scope
+
+    selected = window_scope(scope, params.get("window"))
+    result = dict(memo.analysis(store, selected, False, params.get("_rev")))
+    target, family = params.get("target_agent", "generic"), params.get("family")
+    if target != "generic" or family:
+        from ..recommend.service import recommend
+
+        result["bottleneck_recommendations"] = recommend(result, context={"agent": target},
+                                                         family=family)
+    return build_presentation(result)
+
+
+# Legacy create_app() analyses that used to run synchronously inside the gateway process.
+# On demand only (never prewarmed); products may legitimately run for minutes on a large home.
+for _name in ("statistics", "lexical"):
+    register(Section(_name, _name, "light", _compact_section(_name), prewarm=False))
+register(Section("products", "products", "heavy", _products, timeout_s=1800, prewarm=False))
+register(Section("presentation", "presentation", "heavy", _presentation, timeout_s=1800,
+                 prewarm=False))
+
+LIGHT = tuple(name for name, s in SECTIONS.items()
+              if s.cost == "light" and name != "session" and s.prewarm)
+HEAVY = tuple(name for name, s in SECTIONS.items()
+              if s.cost == "heavy" and name != "session" and s.prewarm)
 
 _RULES: str | None = None
 

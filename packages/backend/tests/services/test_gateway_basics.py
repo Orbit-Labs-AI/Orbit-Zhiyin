@@ -85,7 +85,7 @@ def test_reads_and_fallback_without_database(client_factory):
     response = client.get("/v1/sessions")
     assert response.status_code == 503 and response.headers["retry-after"]
     assert response.json()["error"]["code"] == "no_projection"
-    legacy = client.get("/v1/analytics/statistics")  # Not a gateway route: create_app().
+    legacy = client.get("/v1/analytics/products/sessions")  # Not a gateway route: create_app().
     assert legacy.status_code == 503 and legacy.json()["error"]["code"] == "no_projection"
     overview = client.get("/v1/analytics/overview")
     assert overview.status_code == 200

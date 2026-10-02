@@ -400,8 +400,10 @@ class AnalysisQueue:
         task.done.set()
 
     def _timeout_for(self, task: AnalysisTask) -> float:
-        cost = SECTIONS[task.section].cost
-        return self.config.heavy_timeout_s if cost == "heavy" else self.config.light_timeout_s
+        section = SECTIONS[task.section]
+        if section.timeout_s is not None:
+            return section.timeout_s
+        return self.config.heavy_timeout_s if section.cost == "heavy" else self.config.light_timeout_s
 
     def _dispatch(self) -> None:
         with self.lock:
