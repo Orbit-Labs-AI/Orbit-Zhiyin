@@ -29,7 +29,7 @@ analytics/
 | 类别 | 方法与范围 | 结果／限制 |
 | --- | --- | --- |
 | 单元 | `tests/analytics/test_preference.py`、`test_task.py`，覆盖六个族入口和共享函数；文本表示沿用原回归 | 29 项通过；覆盖正反例、时间、缺失、重放、范围、去重和无输入修改。 |
-| 功能／mock | `test_functional.py` 用 Mock 替换数据服务，经真实 FastAPI 路由检查响应；另用临时 SQLite 对照 CLI／API | 3 项通过；验证筛选、404、422、旧接口和新字段。 |
+| 功能／mock | `test_semantic_functional.py` 用 Mock 替换数据服务，经真实 FastAPI 路由检查响应；另用临时 SQLite 对照 CLI／API | 3 项通过；验证筛选、404、422、旧接口和新字段。 |
 | 端到端／真实 | 原始 Codex 日志 → 新 SQLite → CLI 完整分析与 JSON → FastAPI ASGI；没有 mock | 通过；与原固定快照一致，API／CLI 两族记录一致，所有证据属于合格真人事件；未做外网部署／TCP 链路测试。 |
 | 性能 | 完整 analyze_bundle，禁用文本投影；100／1,000／10,000 条合成真人消息，各重复 3 次；单独采样 Python 分配内存 | 结果如下；不是并发压测或服务器 SLA，也不包括导入和 JSON 序列化。 |
 | 正确性／质量 | `semantic-quality-v1.json` 的 30 个固定期望样例（16 偏好、14 任务），加 1 个相容否定关系测试 | 31 项通过；案例由 AI 编写并在开发中使用，非盲测、非团队人工验收、非真实总体准确率。 |
