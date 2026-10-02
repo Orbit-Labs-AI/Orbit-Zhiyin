@@ -38,8 +38,19 @@ const LVTP_KIND = { shell: 'Bash', 'file.read': 'Read', 'file.edit': 'Edit', 'fi
 function lvtpUnified(t) {
   if (t.kind === 'mcp' && t.mcp_server) return { name: 'mcp·' + t.mcp_server, q: { mcp_server: t.mcp_server } };
   if (LVTP_KIND[t.kind]) return { name: LVTP_KIND[t.kind], q: { kind: t.kind } };
-  return { name: t.name, q: { name: t.name } };
+  // J11: rows are keyed by the normalised tool name (t.key); the drill-down takes that key and covers every spelling
+  return { name: t.name, q: { name: t.key || t.name } };
 }
+// J11: original spellings behind a row: [{name, agents, n}] (older gateways: none → the row's own name)
+function lvtpAliasesOf(t) {
+  if (Array.isArray(t.aliases) && t.aliases.length) return t.aliases.map((a) => typeof a === 'string' ? { name: a, agents: [], n: 0 } : { name: a.name, agents: a.agents || [], n: a.n || 0 });
+  return [{ name: t.name, agents: [], n: t.n || 0 }];
+}
+// "bash（Claude Code · Codex）×120 · exec_command（Codex）×30"
+function lvtpAliasText(list) {
+  return list.map((a) => { const ags = (a.agents || []).map((x) => LV.agentOf(x).name); return a.name + (ags.length ? '（' + ags.join(' · ') + '）' : '') + (a.n ? ' ×' + fmt(a.n) : ''); }).join(' · ');
+}
+const lvtpHasAliases = (r) => !!(r.aliases && r.aliases.length && (r.aliases.length > 1 || r.aliases[0].name !== r.name));
 // B12: workflow steps arrive as raw tool names + command heads; chips show a human label (bold) over the unified tool or
 // command (mono), like the prototype's 「只读审查 / Read ×24」. Kind comes from the tools feed when loaded, else the static
 // alias list below (mirrors /v1/app/tool_map 1.2.x).
@@ -52,10 +63,18 @@ const LVTP_STEP = { 'file.read': '读取文件', 'file.edit': '修改文件', 'f
 const LVTP_HEAD = [[/^(cat|head|tail|less|more|sed|bat|wc)\b/, '查看文件'], [/^(ls|tree|find|fd|pwd)\b/, '浏览目录'], [/^(rg|grep|ag|ack)\b/, '搜索代码'],
   [/^(pytest|jest|vitest|mocha|tox)\b|^(npm|pnpm|yarn|bun) (run )?test\b|^(go|cargo) test\b/, '运行测试'], [/^git (diff|status|log|show)\b/, '查看改动'], [/^git\b|^gh\b/, 'Git 操作'],
   [/^(npm|pnpm|yarn|bun|make|cargo|go|tsc|latexmk)\b/, '构建'], [/^(python3?|node|deno|ruby|bash|sh|uv)\b/, '运行脚本'], [/^(curl|wget|http)\b/, '请求接口'], [/^(mkdir|cp|mv|rm|touch|chmod|ln)\b/, '整理文件']];
+// tools-feed kinds by lower-cased key, name and every alias spelling (built once per feed response)
+let LVTP_KINDS = { src: null, map: null };
 function lvtpKindOf(name) {
   const k = String(name || '').toLowerCase();
-  const t = LVTP.tools && (LVTP.tools.tools || []).find((x) => String(x.name || '').toLowerCase() === k);
-  if (t && t.kind) return t.kind;
+  const src = LVTP.tools && LVTP.tools.tools;
+  if (src && LVTP_KINDS.src !== src) {
+    const m = new Map();
+    src.forEach((x) => { if (!x.kind) return; [x.key, x.name].concat((x.aliases || []).map((a) => typeof a === 'string' ? a : a && a.name)).forEach((n) => { if (n) { const l = String(n).toLowerCase(); if (!m.has(l)) m.set(l, x.kind); } }); });
+    LVTP_KINDS = { src, map: m };
+  }
+  const kd = src && LVTP_KINDS.map.get(k);
+  if (kd) return kd;
   if (/^mcp__/.test(k)) return 'mcp';
   return LVTP_ALIAS[k] || null;
 }
@@ -63,7 +82,15 @@ function lvtpStep(s) {
   const kind = lvtpKindOf(s.name); const head = s.head ? String(s.head) : '';
   const tool = kind === 'mcp' ? String(s.name).replace(/^mcp__([^_]+)__/, '$1.') : (LVTP_KIND[kind] || s.name);
   if (head) { const m = LVTP_HEAD.find((x) => x[0].test(head)); return [m ? m[1] : (LVTP_STEP[kind] || '运行命令'), head]; }
-  return [LVTP_STEP[kind] || String(s.name), tool];
+  // B12: an unmapped tool shows its name once (no 「Edit / Edit」)
+  const label = LVTP_STEP[kind] || String(s.name);
+  return [label, String(tool).toLowerCase() === label.toLowerCase() ? '' : tool];
+}
+// B12: workflow chips: identical neighbouring chips (Edit → MultiEdit both read 修改文件 / Edit) collapse into one
+function lvtpFlow(steps) {
+  const out = [];
+  (steps || []).map(lvtpStep).forEach((f) => { const l = out[out.length - 1]; if (!l || l[0] !== f[0] || l[1] !== f[1]) out.push(f); });
+  return out;
 }
 function lvtpMerge(list) {
   const by = {}; const out = [];
@@ -75,12 +102,16 @@ function lvtpMerge(list) {
     if (t.p50_ms != null) { g.p50[0] += t.p50_ms * n; g.p50[1] += n; }
     if (t.p95_ms != null) { g.p95[0] += t.p95_ms * n; g.p95[1] += n; }
     (t.daily || []).forEach((v, i) => { g.daily[i] = (g.daily[i] || 0) + (v || 0); });
-    if (g.aliases.indexOf(t.name) < 0) g.aliases.push(t.name);
+    lvtpAliasesOf(t).forEach((a) => {
+      const x = g.aliases.find((y) => y.name === a.name);
+      if (x) { x.n += a.n; a.agents.forEach((ag) => { if (x.agents.indexOf(ag) < 0) x.agents.push(ag); }); }
+      else g.aliases.push({ name: a.name, agents: a.agents.slice(), n: a.n });
+    });
   });
   return out.map((g) => {
     const p50 = g.p50[1] ? g.p50[0] / g.p50[1] : null, p95 = g.p95[1] ? g.p95[0] / g.p95[1] : null;
     return { name: g.name, n: g.n, err: g.known ? g.failed / g.known : 0, fails: g.failed, avg: lvtpMs(p50), ap: g.n ? g.ap / g.n : 0, cmds: [],
-      p50: p50 != null ? p50 / 1000 : 0, p95: p95 != null ? p95 / 1000 : 0, daily: g.daily, kind: g.kind, mcp: g.mcp, q: g.q, aliases: g.aliases };
+      p50: p50 != null ? p50 / 1000 : 0, p95: p95 != null ? p95 / 1000 : 0, daily: g.daily, kind: g.kind, mcp: g.mcp, q: g.q, aliases: g.aliases.sort((a, c) => c.n - a.n || (a.name < c.name ? -1 : 1)) };
   }).sort((a, c) => c.n - a.n);
 }
 
@@ -160,12 +191,12 @@ function lvToolsPage() {
   const th = (k, lbl, align) => '<th' + (align ? ' style="text-align:' + align + '"' : '') + '><button type="button" data-act="sortTools" data-k="' + k + '" aria-sort="' + (T.sort === k ? (T.dir < 0 ? 'descending' : 'ascending') : 'none') + '">' + lbl + (T.sort === k ? (T.dir < 0 ? ' ↓' : ' ↑') : '') + '</button></th>';
   const tbody = rows.map((r) => {
     const open = T.open === r.name; const v = T.failOnly ? r.fails : r.n;
-    let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + esc(r.name) + '" aria-expanded="' + open + '"><td class="mono tt-name"' + (r.aliases && (r.aliases.length > 1 || r.aliases[0] !== r.name) ? ' data-tip="' + esc('各 Agent 的原始工具名：' + r.aliases.join(' · ')) + '"' : '') + '>' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + esc(r.name) + '</td>' +
+    let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + esc(r.name) + '" aria-expanded="' + open + '"><td class="mono tt-name"' + (lvtpHasAliases(r) ? ' data-tip="' + esc('各 Agent 的原始工具名：' + lvtpAliasText(r.aliases)) + '"' : '') + '>' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + esc(r.name) + '</td>' +
       '<td class="tt-n"><span class="row" style="gap:8px"><span class="tt-bar"><i style="width:' + (v / mxn * 100).toFixed(1) + '%"></i></span><span class="mono tt-num">' + fmt(v) + '</span></span></td>' +
       '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
       '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(r.p50) + ' s · p95 ' + f1(r.p95) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(r.p95 / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(r.p50 / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
       '<td class="mono tt-ap" style="text-align:right">' + (r.ap ? Math.round(r.ap * 100) + '%' : '—') + '</td><td class="tt-sp">' + VZ.spark(spark(r), { w: 80, h: 22, label: r.name + '：' + rangeLabel() + '每日调用' }) + '</td></tr>';
-    if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px" data-lv="tool-calls">' + lvtpCallRows(r.name) + '</div></td></tr>';
+    if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px" data-lv="tool-calls">' + (lvtpHasAliases(r) ? '<div class="cap" data-lv="tool-aliases" style="padding:0 0 2px">原始工具名 · <span class="mono">' + esc(lvtpAliasText(r.aliases)) + '</span></div>' : '') + lvtpCallRows(r.name) + '</div></td></tr>';
     return h;
   }).join('');
   // matrix (rows = previous step, cols = next step); row n from the server
@@ -208,15 +239,25 @@ function lvToolsPage() {
 
 /* ---------- A5 page ---------- */
 // server project rows merged with the spine's session lists (xs, for the session ids of this scope)
+// ALL grouped by project once per spine revision (the rows below need each project's session list)
+let LVTP_BYP = { rev: -1, map: null };
+function lvtpByProject() {
+  if (LVTP_BYP.rev !== LV.rev || !LVTP_BYP.map || LVTP_BYP.n !== ALL.length) {
+    const m = new Map(); ALL.forEach((s) => { let a = m.get(s.p); if (!a) m.set(s.p, a = []); a.push(s); });
+    LVTP_BYP = { rev: LV.rev, map: m, n: ALL.length };
+  }
+  return LVTP_BYP.map;
+}
 function lvtpRows() {
   const P = LVTP.projects; if (!P || !P.projects) return [];
+  const byP = lvtpByProject();
   return P.projects.filter((r) => (r.sessions || 0) > 0).map((r) => {
     const p = PJI[r.project_id] || { id: r.project_id, name: r.name, path: r.path || '—', tags: [], flow: [], cover: [], fric: {}, live: true };
     p.name = r.name || p.name; if (r.path) p.path = r.path; p.tags = r.tags || p.tags || []; if (r.git) p.git = r.git;
     const split = AG.map((a) => sum((r.agents || []).filter((x) => LV.agentOf(x.agent).id === a.id), (x) => x.sessions || 0));
     const per = r.persona || {}; const t = per.code && TYPES[per.code];
     const fr = r.friction || {};
-    return { p, xs: ALL.filter((s) => s.p === r.project_id), raw: r, split,
+    return { p, xs: byP.get(r.project_id) || [], raw: r, split,
       st: { n: r.sessions || 0, hours: lvtpHours(r.hours), fric: fr.value != null ? fr.value * 100 : 0, fricLo: fr.lo, fricHi: fr.hi, auto: r.tools_per_human_message || 0 },
       pers: per.code ? { ok: true, code: per.code, zh: t ? t[0] : '尚未定型', status: per.status } : { ok: false, code: null, status: per.status || 'insufficient', reason: per.reason } };
   }).sort((a, c) => c.st.hours - a.st.hours || c.st.n - a.st.n);
@@ -259,7 +300,7 @@ function lvProjectsPage() {
   const hd = (d && d.header) || {};
   if (d) {
     const w0 = (d.workflows || [])[0];
-    p.flow = w0 ? w0.steps.map(lvtpStep) : [];
+    p.flow = w0 ? lvtpFlow(w0.steps) : [];
     p.cover = (d.coverage || []).map((c) => [LVTP_COV[c.type] || c.type, c.configured == null ? '—' : String(c.project != null ? c.project : (c.configured ? 1 : 0)), c.detail || '', c.configured ? 1 : 0, c]);
     p.git = hd.git || '—'; p.tags = hd.tags || p.tags; p.ruleFiles = hd.rule_files || [];
     p.rec = d.top_recommendation ? d.top_recommendation.candidate_id : null; p.tip = d.top_recommendation ? d.top_recommendation.title : '';
@@ -295,7 +336,7 @@ function lvProjectsPage() {
     '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + plineTxt + '</span></div></div>' +
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + (d ? vsRows || LV.na() : D.state === 'error' ? LV.na('本地服务暂不提供项目对比') : pend(150)) + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 95% 区间跨 0 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + st.n + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + esc(AG[j].name) + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.a.short) + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r" data-tip="有结果的 ' + r.tn + ' 个任务里被你直接采纳的占比"><span class="cap">采纳</span><span class="pj-bar"><i style="width:' + (r.ok == null ? 0 : r.ok).toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + (r.ok == null ? '—' : Math.round(r.ok) + '%') + '</span></span></span></div>').join('') + '</div></div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">识别到的工作流</span><span class="cap">' + (w0 ? '出现在 ' + w0.support_sessions + ' / ' + w0.eligible_sessions + ' 个会话 · 支持度 ' + Math.round((w0.support_rate || 0) * 100) + '%' : '同一三步链在多个会话出现才算') + '</span></div></div>' + (d ? (p.flow.length ? '<div class="row" style="flex-wrap:wrap;gap:8px">' + p.flow.map((f, i) => '<span class="col pj-step"><b>' + esc(f[0]) + '</b><span class="mono cap">' + esc(f[1]) + '</span></span>' + (i < p.flow.length - 1 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div><div class="row" style="margin-top:10px;flex-wrap:wrap"><span class="pj-note">固定成一个 Skill 后，这段流程不必每次重新交代。</span><button type="button" class="btn sm ai" data-act="flowToStudio">' + ic('spark', 12) + '封装为 Skill</button></div>' : LV.na('还没有识别到重复出现的工作流')) : D.state === 'error' ? LV.na() : pend(60)) + '</div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">识别到的工作流</span><span class="cap">' + (w0 ? '出现在 ' + w0.support_sessions + ' / ' + w0.eligible_sessions + ' 个会话 · 支持度 ' + Math.round((w0.support_rate || 0) * 100) + '%' : '同一三步链在多个会话出现才算') + '</span></div></div>' + (d ? (p.flow.length ? '<div class="row" style="flex-wrap:wrap;gap:8px">' + p.flow.map((f, i) => '<span class="col pj-step"><b>' + esc(f[0]) + '</b>' + (f[1] ? '<span class="mono cap">' + esc(f[1]) + '</span>' : '') + '</span>' + (i < p.flow.length - 1 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div><div class="row" style="margin-top:10px;flex-wrap:wrap"><span class="pj-note">固定成一个 Skill 后，这段流程不必每次重新交代。</span><button type="button" class="btn sm ai" data-act="flowToStudio">' + ic('spark', 12) + '封装为 Skill</button></div>' : LV.na('还没有识别到重复出现的工作流')) : D.state === 'error' ? LV.na() : pend(60)) + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">规则与配置覆盖</span><span class="cap" data-tip="来自本机配置扫描（规则文件、Hooks、Skills、MCP）">列 = 此项目用到的 Agent</span></div></div>' + (d ? '<div class="pj-cov" style="grid-template-columns:auto repeat(' + agents.length + ',24px) minmax(0,1fr)" role="table" aria-label="规则与配置覆盖矩阵"><span></span>' + agents.map((a) => '<span class="pj-cov-h" title="' + esc(a.name) + '"><span class="pj-dot" style="background:' + a.c + '"></span></span>').join('') + '<span></span>' + p.cover.map((c) => '<span class="pj-cov-r">' + esc(c[0]) + '</span>' + agents.map((a) => covCell(c, a)).join('') + '<span class="pj-cov-v"><b class="mono">' + esc(c[1]) + '</b><span class="cap">' + esc(c[2]) + '</span></span>').join('') + '</div><div class="row cap pj-foot" style="gap:12px;flex-wrap:wrap"><span class="row" style="gap:4px"><span class="pj-cov-c on"></span>已配置</span><span class="row" style="gap:4px"><span class="pj-cov-c off"></span>未配置 / 未扫描</span><span class="row" style="gap:4px"><span class="pj-cov-c na"></span>该 Agent 不读取</span></div>' +
       (ruleFiles.length ? '<div class="col" style="gap:3px;margin-top:8px" data-lv="rule-files">' + ruleFiles.map((f) => '<div class="row cap mono" style="font-size:11.5px;gap:8px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(f.path) + '">' + esc(f.path) + '</span><span>' + f1((f.bytes || 0) / 1024) + ' KB · ' + (f.lines || 0) + ' 行</span></div>').join('') + '</div>' : '') +
       '<div class="row" style="margin-top:10px;padding:7px 10px;border-radius:8px;background:var(--sunken);flex-wrap:wrap">' + ic('bolt', 15, 'color:var(--ai)') + (p.rec ? '<span class="pj-note">建议：' + esc(p.tip) + '</span><button type="button" class="btn sm" data-act="openRec" data-id="' + esc(p.rec) + '">查看建议</button>' : '<span class="pj-note">暂时没有针对这个项目的建议</span>') + '</div>'
