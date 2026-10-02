@@ -191,7 +191,11 @@ def candidate_row(conn: sqlite3.Connection, cid: str) -> sqlite3.Row | None:
                         "rec_candidate WHERE candidate_id=?", (cid,)).fetchone()
 
 
-def by_keys(conn: sqlite3.Connection, run_id: str, rec_keys: list[str]) -> list[dict]:
+def by_keys(conn: sqlite3.Connection, run_id: str, rec_keys: list[str | dict]) -> list[dict]:
+    """Cards of `run_id` for `rec_keys` in order. Entries may be bare keys (KB remedy
+    alternatives) or the `{rec_key, title, ...}` stubs the slate folds same-dim cards into."""
+    rec_keys = [k.get("rec_key") if isinstance(k, dict) else k for k in rec_keys or []]
+    rec_keys = list(dict.fromkeys(k for k in rec_keys if isinstance(k, str) and k))
     if not rec_keys:
         return []
     rows = conn.execute("SELECT candidate_id, run_id, card, rec_key FROM rec_candidate WHERE "
