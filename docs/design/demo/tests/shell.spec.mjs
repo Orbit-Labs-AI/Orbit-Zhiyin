@@ -20,9 +20,12 @@
 //  8. shortcuts        ⌥2 → persona, ⌘K → palette, ⌥0 restores a closed window; menu labels match the bindings.
 //  9. page hook/event  PAGES[route].keys(e) returning true consumes the key, false lets globals run; toggling the sidebar
 //                      dispatches window 'tandem:layout' with {win, side, main}.
-// 10. dark contrast    selected sidebar row vs sidebar background (composited over the desk) ≥ 1.3 in dark mode.
+// 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 // 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
 //                      zoomed and in full screen, on three representative pages.
+// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26) and the system UI font; resize
+//                      handles are invisible (no background, no pseudo content); notifications are 344px wide, 16px from the
+//                      stage edge, and reveal their actions on hover.
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
@@ -282,20 +285,66 @@ test('page key hook runs before global shortcuts; layout changes dispatch tandem
   expect(errors).toEqual([]);
 });
 
-test('dark mode: selected sidebar row contrasts ≥ 1.3 against the sidebar', async ({ page }) => {
+test('dark mode: selected row ≥ 1.3 against the sidebar; window / sidebar / card layers pairwise ≥ 1.15', async ({ page }) => {
   const errors = await openDemo(page);
   await page.evaluate(() => { setTheme('dark'); render(); });
-  const ratio = await page.evaluate(() => {
+  const r = await page.evaluate(() => {
     const parse = (s) => { const m = s.match(/rgba?\(([^)]+)\)/); const p = m[1].split(',').map(parseFloat); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
     const over = (t, b) => ({ r: t.r * t.a + b.r * (1 - t.a), g: t.g * t.a + b.g * (1 - t.a), b: t.b * t.a + b.b * (1 - t.a), a: 1 });
     const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
-    const desk = parse(getComputedStyle(document.querySelector('#desk')).backgroundColor);
-    const side = over(parse(getComputedStyle(document.querySelector('#side')).backgroundColor), desk);
-    const sel = over(parse(getComputedStyle(document.querySelector('.nav button[aria-current="page"]')).backgroundColor), side);
-    const a = lum(side), b = lum(sel); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const bg = (sel) => parse(getComputedStyle(document.querySelector(sel)).backgroundColor);
+    const desk = bg('#desk'), win = bg('#main'), side = over(bg('#side'), desk), card = over(bg('#main .card'), win);
+    const sel = over(bg('.nav button[aria-current="page"]'), side);
+    return { sideSel: ratio(side, sel), winSide: ratio(win, side), sideCard: ratio(side, card), winCard: ratio(win, card) };
   });
-  expect(ratio).toBeGreaterThanOrEqual(1.3);
+  expect(r.sideSel).toBeGreaterThanOrEqual(1.3);
+  expect(r.winSide).toBeGreaterThanOrEqual(1.15); expect(r.sideCard).toBeGreaterThanOrEqual(1.15); expect(r.winCard).toBeGreaterThanOrEqual(1.15);
   await page.evaluate(() => { setTheme('system'); render(); });
+  expect(errors).toEqual([]);
+});
+
+test('shell text uses the macOS type scale and system font; resize handles are invisible', async ({ page }) => {
+  const errors = await openDemo(page);
+  // open the shell surfaces that render text: menu-bar panel, HUD card, a menu, the settings window, the shortcuts sheet
+  await page.evaluate(() => { S.hud.open = true; S.pop = true; render(); openSettings('general'); openKeys(); document.querySelector('.mbar [data-m="view"]').click(); notify({ t: '字号', b: '正文', a1: 'A', force: true }); });
+  const r = await page.evaluate(() => {
+    const scale = new Set([10, 11, 12, 13, 15, 17, 22, 26]);
+    const roots = ['#mbar', '#wtop', '#side', '#main .tbar', '#pop', '#hud', '#dd', '#set', '#modal', '#notes'];
+    const offScale = new Set();
+    roots.forEach((root) => document.querySelectorAll(root + ', ' + root + ' *').forEach((el) => {
+      if (el.closest('svg') || !el.childNodes.length || !Array.from(el.childNodes).some((n) => n.nodeType === 3 && n.textContent.trim())) return;
+      const fs = parseFloat(getComputedStyle(el).fontSize); if (!scale.has(fs)) offScale.add(fs + 'px @ ' + root + ' ' + el.className);
+    }));
+    const fam = (sel) => getComputedStyle(document.querySelector(sel)).fontFamily;
+    const handles = Array.from(document.querySelectorAll('#win .rz')).map((h) => { const cs = getComputedStyle(h), ps = getComputedStyle(h, '::after'); return { bg: cs.backgroundColor, after: ps.content, w: h.offsetWidth, h: h.offsetHeight, radius: cs.borderRadius }; });
+    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), handles };
+  });
+  expect(r.offScale).toEqual([]);
+  for (const f of [r.title, r.nav, r.clock]) expect(f.split(',')[0].trim()).toBe('system-ui');
+  expect(r.handles).toHaveLength(8);
+  for (const h of r.handles) { expect(h.bg).toBe('rgba(0, 0, 0, 0)'); expect(h.after).toBe('none'); expect(Math.max(h.w, h.h) <= 10 || Math.min(h.w, h.h) <= 6).toBe(true); expect(h.radius).toBe('0px'); }
+  expect(errors).toEqual([]);
+});
+
+test('notifications: 344px wide, 16px from the stage edge, actions revealed on hover', async ({ page }) => {
+  const errors = await openDemo(page);
+  const vw = page.viewportSize();
+  // the welcome banner is posted 800ms after load (99-init.js): let it arrive, clear it, then post the banner under test
+  await expect(page.locator('#notes .nt')).toHaveCount(1);
+  await page.evaluate(() => { document.querySelectorAll('#notes .nt').forEach((n) => n.remove()); notify({ t: '测试通知', b: '正文', a1: '查看', a2: '稍后', force: true }); });
+  const nt = page.locator('#notes .nt', { hasText: '测试通知' });
+  await expect(nt).toBeVisible();
+  await settle(page);
+  const b = await nt.boundingBox();
+  expect(Math.round(b.width)).toBe(Math.min(344, vw.width - 32)); expect(Math.round(vw.width - (b.x + b.width))).toBe(16); expect(b.y).toBeGreaterThanOrEqual(MB + 4);
+  const acts = nt.locator('.nt-a');
+  expect((await acts.boundingBox()).height).toBe(0);
+  await nt.hover();
+  await expect.poll(async () => (await acts.boundingBox()).height).toBeGreaterThanOrEqual(18);
+  await expect(nt.locator('.nt-x')).toHaveCSS('opacity', '1');
+  await nt.locator('.nt-a .btn.p').click();
+  await expect(nt).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
