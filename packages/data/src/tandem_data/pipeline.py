@@ -2,9 +2,11 @@
 
 import json
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 from tandem_data import MAPPER_VERSION, REDUCER_VERSION
 from tandem_data.connectors import MAPPERS
+from tandem_data.connectors.base import Mapping
 from tandem_data.contract import canonical, now_ms, validate_event
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.source_reader import SourceUnavailable
@@ -23,7 +25,75 @@ def _merge(old, new):
     return result
 
 
-def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
+@dataclass
+class NativeMapped:
+    """Writer-independent result of mapping one record (may come from a worker)."""
+
+    result: Mapping | None = None
+    error: str | None = None
+    session_hint: str | None = None
+    prepared: list = field(default_factory=list)
+    encoded: list | None = None
+
+
+def map_native(mapper, record, mapper_version):
+    """Pure part of mapping one record: native mapping, envelope and contract checks."""
+    if record.record_uid in getattr(mapper, "preparation_failures", set()):
+        return None
+    try:
+        result = mapper.map(record)
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
+        return NativeMapped(error=type(error).__name__)
+    # Legacy stream imports retain their compatibility payload. Native imports
+    # address unrecognized records through L0/L1 instead of copying raw JSON.
+    if result.events and json.loads(mapper.info["watermark"]).get("capture") != "source_reference":
+        result.events[0].ext = {"native": record.data, **result.events[0].ext}
+    else:
+        for draft in result.events:
+            if draft.kind == "unknown":
+                draft.ext = {
+                    "native_type": record.native_type,
+                    "source_record_uid": record.record_uid,
+                }
+    # L1 keeps the source locator instead of another copy of every native payload.
+    table = record.data.get("table") if mapper.info["format"] == "sqlite_rows" else None
+    row = record.data.get("row", {})
+    hint = None
+    if mapper.session_uid and (
+        not table
+        or result.events
+        or row.get("session_id")
+        or table in ("session", "sessions", "threads")
+    ):
+        hint = mapper.session_uid
+    # Contract errors are implementation bugs: abort and retain the previous published projection.
+    prepared = [
+        (draft, draft.envelope(record.record_uid, 0, mapper_version)) for draft in result.events
+    ]
+    for _, envelope in prepared:
+        validate_event(envelope)
+    return NativeMapped(
+        Mapping(disposition=result.disposition, reason=result.reason, references=result.references),
+        session_hint=hint,
+        prepared=prepared,
+    )
+
+
+def rebuild(
+    store,
+    *,
+    mapper_version=None,
+    source_ids=None,
+    progress=None,
+    workers=1,
+    scope=None,
+    pool=None,
+):
+    """Replace L2/L3 for whole sources, or for a session closure when ``scope`` is set.
+
+    ``workers=1`` without a scope is the original serial path. Otherwise independent
+    files are mapped by worker processes and applied in the same topological order.
+    """
     from tandem_data.reduce import derive
 
     progress = progress or (lambda _: None)
@@ -34,6 +104,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
     first_by_native = {}
     pending = []
     store._kimi_indexes = {}
+    plan = None
+    if scope is not None:
+        source_ids = scope.source_ids
     with store.transaction():
         store.db.execute(
             "CREATE TEMP TABLE IF NOT EXISTS rebuild_scope(source_id TEXT PRIMARY KEY)"
@@ -48,9 +121,13 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         sessions = "SELECT session_uid FROM session_identity WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
         evidence = "SELECT event_uid FROM event WHERE session_uid IN (" + sessions + ")"
         source_files = "SELECT file_id FROM source_file WHERE source_id IN (SELECT source_id FROM rebuild_scope)"
+        if scope is not None:
+            # A session closure replaces only its sessions and the files that feed them.
+            sessions, source_files = scope.install(store.db)
+            evidence = "SELECT event_uid FROM event WHERE session_uid IN (" + sessions + ")"
         from tandem_data.retained import RetainedProjection
 
-        retained = RetainedProjection(store)
+        retained = RetainedProjection(store) if scope is None else scope.retained()
         store._unavailable_files = set(retained.files)
         store.db.execute(
             "DELETE FROM tool_call_event WHERE call_uid IN (SELECT call_uid FROM tool_call WHERE session_uid IN ("
@@ -70,9 +147,12 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
             "event",
         ):
             store.db.execute(f"DELETE FROM {table} WHERE session_uid IN ({sessions})")
-        store.db.execute(
-            "DELETE FROM ingest_issue WHERE stage IN ('l2','l3') AND source_id IN (SELECT source_id FROM rebuild_scope)"
-        )
+        if scope is None:
+            store.db.execute(
+                "DELETE FROM ingest_issue WHERE stage IN ('l2','l3') AND source_id IN (SELECT source_id FROM rebuild_scope)"
+            )
+        else:
+            scope.delete_issues(store.db)
         # Walk file-local rows once. Two passes (including a global UID IN-list)
         # rewrote every current record twice and caused random primary-key IO.
         current = "EXISTS(SELECT 1 FROM file_record f WHERE f.record_uid=raw_record.record_uid)"
@@ -84,16 +164,24 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         infos = list(
             store.db.execute(
                 "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id) "
-                "WHERE s.source_id IN (SELECT source_id FROM rebuild_scope) ORDER BY s.agent,f.source_id,f.relative_path"
+                "WHERE s.source_id IN (SELECT source_id FROM rebuild_scope)"
+                + (f" AND f.file_id IN ({source_files})" if scope is not None else "")
+                + " ORDER BY s.agent,f.source_id,f.relative_path"
             )
         )
         mappers = {}
         retained.restore(store, sequences, first_by_native)
+        if workers != 1 or scope is not None:
+            from tandem_data.parallel import MapPlan
+
+            plan = MapPlan(store, infos, retained.files, mapper_version, pool, workers, scope)
         progress({"stage": "prepare", "completed": 0, "total": len(infos)})
         for index, info in enumerate(infos):
             progress({"stage": "prepare", "completed": index, "total": len(infos)})
             if info["file_id"] in retained.files:
                 continue
+            if plan is not None and plan.prepared(info, mappers):
+                continue  # Prepared by a worker; its side effects were applied in order.
             if info["role"] == "legacy_transcript":
                 store.db.execute(
                     "UPDATE raw_record SET disposition='ignored',note=? WHERE file_id=?",
@@ -173,62 +261,43 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         infos = ordered
 
         def map_record(mapper, record):
-            if record.record_uid in getattr(mapper, "preparation_failures", set()):
+            if plan is not None and plan.owns(mapper):
+                plan.apply(
+                    mapper, record, apply_mapped, sequences, first_by_native, parent_keys, pending
+                )
+            else:
+                apply_mapped(mapper, record, map_native(mapper, record, mapper_version))
+
+        def apply_mapped(mapper, record, mapped):
+            if mapped is None:
                 return
-            try:
-                result = mapper.map(record)
-            except (ValueError, KeyError, TypeError, AttributeError) as error:
+            if mapped.error:
                 store.issue(
                     record.source_id,
                     "native_mapping_error",
                     record_uid=record.record_uid,
                     file_id=record.file_id,
-                    detail={"exception": type(error).__name__},
+                    detail={"exception": mapped.error},
                 )
                 store.db.execute(
                     "UPDATE raw_record SET disposition='unparsed',note=? WHERE record_uid=?",
                     (canonical({"reason": "native_mapping_error"}), record.record_uid),
                 )
                 return
-            # Legacy stream imports retain their compatibility payload. Native imports
-            # address unrecognized records through L0/L1 instead of copying raw JSON.
-            if (
-                result.events
-                and json.loads(mapper.info["watermark"]).get("capture") != "source_reference"
-            ):
-                result.events[0].ext = {"native": record.data, **result.events[0].ext}
-            else:
-                for draft in result.events:
-                    if draft.kind == "unknown":
-                        draft.ext = {
-                            "native_type": record.native_type,
-                            "source_record_uid": record.record_uid,
-                        }
-            # L1 keeps the source locator instead of another copy of every native payload.
-            table = record.data.get("table") if mapper.info["format"] == "sqlite_rows" else None
-            row = record.data.get("row", {})
-            if mapper.session_uid and (
-                not table
-                or result.events
-                or row.get("session_id")
-                or table in ("session", "sessions", "threads")
-            ):
+            result = mapped.result
+            if mapped.session_hint:
                 store.db.execute(
                     "UPDATE raw_record SET session_uid=? WHERE record_uid=?",
-                    (mapper.session_uid, record.record_uid),
+                    (mapped.session_hint, record.record_uid),
                 )
-            # Contract errors are implementation bugs: abort and retain the previous published projection.
-            prepared = [
-                (draft, draft.envelope(record.record_uid, 0, mapper_version))
-                for draft in result.events
-            ]
-            for _, envelope in prepared:
-                validate_event(envelope)
+            prepared = mapped.prepared
             relations = []
             for draft, prepared_envelope in prepared:
                 existing = store.db.execute(
                     "SELECT * FROM event WHERE event_uid=?", (draft.event_uid,)
                 ).fetchone()
+                if existing and plan is not None:
+                    plan.check_existing(existing)  # A closure must own every event it touches.
                 if existing:
                     relation = (
                         "replayed" if existing["session_uid"] != draft.session_uid else "duplicate"
@@ -376,7 +445,8 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                         mapper.parent_candidates[mapper.record_signature(parent_record)].append(
                             (parent_record.ordinal, parent_record.record_uid)
                         )
-            for record in store.iter_file(info["file_id"]):
+            owned = plan is not None and plan.owns(mapper)
+            for record in plan.records(mapper) if owned else store.iter_file(info["file_id"]):
                 if record.native_type == "table:session_model_usage":
                     continue  # All versions, in observation order, are mapped below.
                 map_record(mapper, record)
@@ -390,6 +460,8 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                             "records": mapped_records,
                         }
                     )
+            if plan is not None:
+                plan.flush()  # Later files and link resolution read these events.
             progress(
                 {
                     "stage": "map",
@@ -451,6 +523,8 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                     "UPDATE event SET parent_uid=? WHERE event_uid=?",
                     (first_by_native[native_key], event_uid),
                 )
+            elif plan is not None and native_key not in first_by_native:
+                plan.unresolved_parent(native_key)
         for row in store.db.execute(
             "SELECT r.*,f.source_id FROM raw_record r JOIN file_record c USING(record_uid) "
             "JOIN source_file f ON f.file_id=r.file_id WHERE r.native_type='invalid'"
@@ -462,7 +536,14 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
                 file_id=row["file_id"],
             )
         progress({"stage": "derive"})
-        derive(store, scoped=True, progress=progress)
+        if scope is not None:
+            scope.before_derive(store.db)  # Escalates if the closure was incomplete.
+        derive(
+            store,
+            scoped=True,
+            progress=progress,
+            sessions=None if scope is None else scope.sessions_sql,
+        )
         for info in infos:
             store.db.execute(
                 "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
@@ -475,16 +556,19 @@ def rebuild(store, *, mapper_version=None, source_ids=None, progress=None):
         ).fetchone():
             store.db.execute("UPDATE schema_manifest SET redaction_version=?", (REDACTION_VERSION,))
         progress({"stage": "validate_projection"})
-        dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
-        if dangling:
-            raise ValueError("Projection contains broken foreign keys")
-        invalid = store.db.execute(
-            "SELECT COUNT(*) FROM v_raw_record_ledger WHERE "
-            "(disposition IN ('mapped','folded','replayed','duplicate') AND event_count=0) OR "
-            "(disposition IN ('ignored','unparsed') AND event_count>0)"
-        ).fetchone()[0]
-        if invalid:
-            raise ValueError("L1 disposition and provenance links disagree")
+        if plan is not None:
+            plan.validate(source_files, sessions)  # Same checks, limited to rebuilt rows.
+        else:
+            dangling = store.db.execute("PRAGMA foreign_key_check").fetchall()
+            if dangling:
+                raise ValueError("Projection contains broken foreign keys")
+            invalid = store.db.execute(
+                "SELECT COUNT(*) FROM v_raw_record_ledger WHERE "
+                "(disposition IN ('mapped','folded','replayed','duplicate') AND event_count=0) OR "
+                "(disposition IN ('ignored','unparsed') AND event_count>0)"
+            ).fetchone()[0]
+            if invalid:
+                raise ValueError("L1 disposition and provenance links disagree")
         count = store.db.execute("SELECT COUNT(*) FROM event").fetchone()[0]
         store.db.execute(
             "INSERT INTO projection_run(contract_version,mapper_version,reducer_version,completed_at,event_count,l1_revision_count) VALUES(1,?,?,?,?,?)",
