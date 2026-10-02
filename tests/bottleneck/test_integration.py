@@ -197,3 +197,27 @@ def test_excluded_tool_dataset_cannot_be_rebuilt_from_retained_events():
         assert family["outcome"]["status"] == "excluded"
         assert family["outcome"]["validation_runs"] is None
         assert family["outcome"]["task_success"] is None
+
+
+def test_bottleneck_coexists_with_semantic_and_subjective_families():
+    data = fixture()
+    data["events"][0]["text"] = "请修复代码。以后这个项目用中文。验收标准：全部测试通过。"
+    base = data["sessions"][0]["started_at"]
+    data["events"].extend([
+        {"event_uid": "final-delivery", "session_uid": "root", "seq": 7,
+         "ts": base + 18000, "kind": "message.assistant", "actor": "assistant",
+         "text": "已交付一个版本。", "attrs": {"origin": "agent", "phase": "final", "task_id": "synthetic-task"}},
+        {"event_uid": "accepted-feedback", "session_uid": "root", "seq": 8,
+         "ts": base + 19000, "kind": "message.user", "actor": "human", "text": "这个可以了",
+         "attrs": {"origin": "human", "task_id": "synthetic-task"}},
+    ])
+    data["tool_calls"][0]["status"] = "failed"
+    result = analyze(data)
+    assert result["tasks"]["records"]
+    assert any(p["value"] == "zh" for p in result["preferences"]["records"])
+    assert result["instruction"]["summary"]["features"]["acceptance_criteria"]["effective_n"] == 1
+    assert {"preference_statement", "task_goal_history", "user_acceptance", "interaction.confirmed_correction_rate"} <= result["feature_dictionary"].keys()
+    for row in (result["overview"], result["sessions"][0], result["projects"][0]):
+        assert row["subjective_outcomes"]["counts"]["accepted_feedback_count"] == 1
+    for row in (result, result["sessions"][0], result["projects"][0]):
+        assert row["bottleneck_features"]["outcome"]["task_success"] is False
