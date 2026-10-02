@@ -266,3 +266,20 @@ def test_legacy_stores_are_not_cached(tmp_path):
     assert not cache_module.supports_cache(store)
     result = analyze_store(store, with_text=False)
     assert "freshness" not in result
+
+
+def test_sections_computed_as_dependencies_are_stored_for_later_reads(tmp_path):
+    """A full pass (bottleneck_recommendations) also fills the other sections' cache, so a
+    first-screen section of the same scope is a cache hit, equal to computing it alone."""
+    home, _ = build_home(tmp_path, 12)
+    store = CanonicalStore(home)
+    cache = AnalysisCache(store)
+    cache.sections(Scope(), ["bottleneck_recommendations"], with_text=True)
+    clear_memory_cache()
+    hit = cache.sections(Scope(), ["overview", "sessions", "tools"], with_text=True)
+    assert hit["freshness"]["cache_hit"] is True
+    drop_sections(store)
+    alone = cache.sections(Scope(), ["overview", "sessions", "tools"], with_text=True)
+    assert alone["freshness"]["cache_hit"] is False
+    assert json.loads(normalized(hit)) | {"freshness": None} == (
+        json.loads(normalized(alone)) | {"freshness": None})

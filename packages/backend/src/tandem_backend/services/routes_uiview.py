@@ -66,7 +66,8 @@ def router(gw: Gateway) -> APIRouter:
         if body is None:
             if freshness == "none":
                 return None, {"freshness": "none", "job_id": None}
-            progress = gw.supervisor.analysis.progress_of(job_id)
+            progress_of = getattr(gw.supervisor.analysis, "progress_of", None)
+            progress = progress_of(job_id) if progress_of is not None else None
             return None, JSONResponse({"meta": {"freshness": "computing", "job_id": job_id,
                                                 "progress": progress}}, status_code=202)
         realtime = getattr(gw, "realtime", None)

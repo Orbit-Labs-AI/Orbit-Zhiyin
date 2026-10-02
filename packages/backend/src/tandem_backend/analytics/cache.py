@@ -280,7 +280,7 @@ class AnalysisCache:
         with_text: bool,
         engine: str,
     ) -> tuple[dict[str, Any], dict]:
-        from .service import META, AnalysisSections, compose
+        from .service import META, SECTIONS, AnalysisSections, compose
 
         algo = algo_version()
         request = {"scope": asdict(scope), "with_text": with_text, "sections": names}
@@ -291,6 +291,13 @@ class AnalysisCache:
             rows = SessionRowStore(self.history, fps, algo)
             builder = AnalysisSections(context, with_text, row_cache=rows)
             computed = {name: builder.section(name) for name in names}
+            requested = list(computed)
+            # Sections computed as dependencies (a full pass for bottleneck_recommendations
+            # computes every section) come from the same input: store them too.
+            for memo_key, value in list(builder._memo.items()):
+                extra = memo_key.removeprefix("section:")
+                if memo_key.startswith("section:") and extra in SECTIONS and extra not in computed:
+                    computed[extra] = value
             computed_at = int(time.time() * 1000)
             stored = {
                 name: ({"meta": value, "computed_at": computed_at} if name == META else value)
@@ -303,7 +310,7 @@ class AnalysisCache:
             self.history.put_sections(key, input_fp, stored, row_items)
             # The run snapshot has the public result shape (shared metadata at the top level),
             # like runs recorded by the uncached engine.
-            sections = {name: value for name, value in computed.items() if name != META}
+            sections = {name: computed[name] for name in requested if name != META}
             self.history.complete(run_id, compose(computed[META], sections))
         except BaseException as error:
             try:

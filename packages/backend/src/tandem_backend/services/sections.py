@@ -106,7 +106,7 @@ def _preferences(store, scope, params, memo):
     from ..analytics.preference import resolve_effective_preferences
     from ..analytics.service import response_section
 
-    data = memo.sections(store, scope, ["tasks", "preferences"], False, params.get("_rev"))
+    data = memo.sections(store, scope, ["tasks", "preferences"], WITH_TEXT, params.get("_rev"))
     task = None
     if params.get("task_id") is not None:
         task = next((t for t in data["tasks"]["records"] or []
@@ -128,14 +128,16 @@ def register(section: Section) -> Section:
     return section
 
 
-# with_text mirrors api/routes.py (sessions, text and projects include text features).
-for _name, _cost, _text in (("overview", "light", False), ("tools", "light", False),
-                            ("projects", "light", True), ("instruction", "light", False),
-                            ("text", "heavy", True), ("tasks", "heavy", False)):
-    register(Section(_name, _name, _cost, _section(_name, _text), _text))
+# Every gateway section reads the ``with_text=True`` variant: text-free sections are equal
+# in both, and one cache key per scope lets a full computation (``uiview_facts``,
+# recommendations) serve all sections of that scope instead of computing them twice.
+WITH_TEXT = True
+for _name, _cost in (("overview", "light"), ("tools", "light"), ("projects", "light"),
+                     ("instruction", "light"), ("text", "heavy"), ("tasks", "heavy")):
+    register(Section(_name, _name, _cost, _section(_name, WITH_TEXT), WITH_TEXT))
 register(Section("sessions", "sessions", "light", _sessions, True))
 register(Section("session", "session", "heavy", _session_detail, True))
-register(Section("preferences", "preferences", "light", _preferences, False))
+register(Section("preferences", "preferences", "light", _preferences, WITH_TEXT))
 
 LIGHT = tuple(name for name, s in SECTIONS.items() if s.cost == "light" and name != "session")
 HEAVY = tuple(name for name, s in SECTIONS.items() if s.cost == "heavy" and name != "session")
@@ -151,8 +153,8 @@ def rules_digest() -> str:
         from ..analytics import FEATURE_VERSION
         from ..analytics.products.contracts import RULE_VERSIONS
 
-        payload = json.dumps([RULE_VERSIONS, FEATURE_VERSION, __version__, sorted(SECTIONS)],
-                             sort_keys=True)
+        payload = json.dumps([RULE_VERSIONS, FEATURE_VERSION, __version__, sorted(SECTIONS),
+                              {"with_text": WITH_TEXT}], sort_keys=True)
         _RULES = hashlib.sha256(payload.encode()).hexdigest()[:12]
     return _RULES
 

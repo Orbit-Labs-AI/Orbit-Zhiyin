@@ -28,7 +28,8 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     analysis = gw.supervisor.analysis
     revision = (rev["data_rev"], rev["inventory_rev"])
     old = gw.snapshots.latest(SECTION, h, rules)
-    failure = analysis.failure(SECTION, h, revision)
+    lookup = getattr(analysis, "failure", None)  # minimal test doubles lack it
+    failure = lookup(SECTION, h, revision) if lookup is not None else None
     if old is None and failure and (failure["error"].get("code") in CLIENT_ERRORS
                                     or analysis.circuit_open(SECTION, h, revision)):
         raise failure_error(failure["error"])  # A stable error, never an endless 202.
@@ -43,7 +44,8 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
     if old is not None:
         return _attach(old, h), "stale", job_id
     if task is None:  # Circuit open: nothing computes until a manual recompute.
-        raise failure_error((analysis.failure(SECTION, h, revision) or {}).get("error"))
+        raise failure_error(((lookup(SECTION, h, revision) if lookup else None) or {})
+                            .get("error"))
     if task.status == "failed":
         raise failure_error(task.error)
     return None, "computing", job_id

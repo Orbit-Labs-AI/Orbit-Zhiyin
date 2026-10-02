@@ -138,11 +138,12 @@ def test_section_reuses_the_memoised_analysis():
     seen = []
 
     class Memo:
-        def analysis(self, store_, scope_, with_text, revision):
-            seen.append((with_text, revision))
+        def sections(self, store_, scope_, keys, with_text, revision):
+            seen.append((tuple(keys), with_text, revision))
             return result
 
     out = section.compute(store, scope, {"_rev": 7}, Memo())
-    assert seen == [(False, 7)]
+    # Only the sections build_facts reads, in the cache variant shared with analytics.
+    assert seen == [(tuple(section.INPUTS), True, 7)]
     assert out["rows"] == body["rows"]
     assert SECTIONS["uiview_facts"].cost == "heavy"
