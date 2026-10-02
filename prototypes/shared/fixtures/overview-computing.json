@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "contract": "tandem-app-v1",
+    "scope_hash": "sha256:fx-overview",
+    "freshness": "computing",
+    "job_id": "job-a1",
+    "progress": 0.3
+  }
+}

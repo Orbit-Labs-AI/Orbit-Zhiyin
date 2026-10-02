@@ -1,0 +1,23 @@
+{
+  "total": 3,
+  "items": [
+    {
+      "seq": 1,
+      "kind": "message.user",
+      "ts": 1790812800000,
+      "summary": "合成用户请求：让进度条显示阶段"
+    },
+    {
+      "seq": 2,
+      "kind": "tool.call",
+      "ts": 1790812805000,
+      "summary": "Bash · pnpm check"
+    },
+    {
+      "seq": 3,
+      "kind": "message.assistant",
+      "ts": null,
+      "summary": "合成回复：已完成"
+    }
+  ]
+}
