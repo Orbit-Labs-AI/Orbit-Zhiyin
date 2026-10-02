@@ -76,6 +76,8 @@ class AnalysisInputBundle:
     sample_boundary: dict = field(default_factory=dict)
     input_contract: str = "analysis-input-v1"
     statistical_members: dict | None = None
+    inventory: list[dict] | None = None
+    inventory_scans: list[dict] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data):
@@ -87,7 +89,7 @@ class AnalysisInputBundle:
             if one in cov and many not in cov:
                 cov[many] = cov[one]
         fields = {}
-        for name in ("events", "tool_calls", "model_calls", "projects", "turns"):
+        for name in ("events", "tool_calls", "model_calls", "projects", "turns", "inventory"):
             state = cov.get(name, {}).get("status")
             fields[name] = None if state in ("unavailable", "excluded") else data.get(name)
             if name not in cov:
@@ -102,7 +104,8 @@ class AnalysisInputBundle:
                 versions, data.get("sample_boundary"), data.get("statistical_members")))
         return cls(sessions=data.get("sessions", []), coverage=cov, **fields,
                    versions=versions, sample_boundary=data.get("sample_boundary", {}),
-                   statistical_members=data.get("statistical_members"))
+                   statistical_members=data.get("statistical_members"),
+                   inventory_scans=data.get("inventory_scans", []))
 
 
 KINDS = {"user_message": "message.user", "assistant_message": "message.assistant",
