@@ -46,7 +46,9 @@ def algo_version() -> str:
     from . import preference as preference_module
     from .products.contracts import RULE_VERSIONS
     from .task import representation as vectors
+    from .lexicon import LEXICON_VERSION
     from .task import taxonomy
+    from .task.topics import TOPIC_VERSION
 
     return digest(
         CACHE_FORMAT,
@@ -57,6 +59,8 @@ def algo_version() -> str:
         preference_module.PREFERENCE_VERSION,
         preference_module.PREFERENCE_EVIDENCE_VERSION,
         vectors.VECTOR_VERSION,
+        TOPIC_VERSION,
+        LEXICON_VERSION,
     )[:32]
 
 

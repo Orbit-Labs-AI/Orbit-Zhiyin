@@ -21,6 +21,16 @@ __all__ = ["activity", "correction_terms", "human", "quantile", "ratio", "sessio
            "structure", "text_lengths", "token_total", "tool_summary", "usage", "workflow"]
 
 
+# A per-session rate over fewer confirmed human messages is reported as null (count and n stay).
+MIN_RATE_MESSAGES = 3
+
+
+def _wilson(successes, trials):
+    from .products.statistics import wilson
+
+    return wilson(successes, trials)
+
+
 LANG = {"py": "Python", "ipynb": "Python", "ts": "TypeScript", "tsx": "TypeScript",
         "js": "JavaScript", "jsx": "JavaScript", "tex": "LaTeX", "rs": "Rust", "go": "Go",
         "java": "Java", "cpp": "C++", "c": "C", "h": "C/C++", "sh": "Shell",
@@ -83,7 +93,11 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
                 "avg_assistant_message_chars": lengths_a["avg"], "median_assistant_message_chars": lengths_a["median"],
                 "tool_call_count": len(calls) if calls is not None else None,
                 "correction_signal_count": len(corrections) if users else None,
-                "correction_signal_rate": ratio(len(corrections), len(users))}
+                "correction_signal_rate": ratio(len(corrections), len(users))
+                if len(users) >= MIN_RATE_MESSAGES else None,
+                "correction_signal_rate_n": len(users),
+                "correction_signal_rate_ci": _wilson(len(corrections), len(users))
+                if len(users) >= MIN_RATE_MESSAGES else None}
     return {"features": features, "effective_samples": {"human_messages": len(users), "assistant_messages": len(assistants),
                 "tools": len(calls) if calls is not None else None},
             "unknown_counts": {"human_origin": unknown_humans, "event_time": len(events) - len(times),
@@ -91,6 +105,7 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
             "text_measurements": {"user": lengths_u, "assistant": lengths_a},
             "workflow": workflow(events, calls, main_ids, supported_kinds) if with_workflow else None, "correction_signals": corrections,
             "correction_denominator": "confirmed human messages in main sessions",
+            "correction_rate_min_n": MIN_RATE_MESSAGES,
             "prompt_structure": structures, "language_signals": [{"language": LANG[k], "extension": k, "count": n,
                 "basis": "human_text_file_extension"} for k, n in languages.most_common()],
             "objective_outcomes": objective, "subjective_outcome_candidates": feedback,
