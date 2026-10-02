@@ -62,7 +62,7 @@ flowchart LR
     CP --> S
     LT --> LS["LocalThreadStore live_writer"]
     LS --> RR["RolloutRecorder writer task"]
-    RR -.->|"session_meta / turn_context / response_item / event_msg / compacted / token_usage_record / world_state"| RJ[("sessions/YYYY/MM/DD/rollout-*.jsonl")]
+    RR -.->|"session_meta / turn_context / response_item / event_msg / compacted / token_usage_record / world_state / inter_agent_communication_metadata"| RJ[("sessions/YYYY/MM/DD/rollout-*.jsonl")]
     LS -.->|"thread_turns / thread_items 增量投影"| TH[("thread_history_1.sqlite")]
     LT -.->|"threads 元数据 patch"| ST[("state_5.sqlite")]
     SUB -.->|"子 rollout + thread_spawn_edges"| ST
@@ -83,8 +83,10 @@ sequenceDiagram
     participant Store as RolloutRecorder 与 SQLite
     User->>Entry: turn/start 携带 prompt
     Entry->>Session: Op 用户输入
-    Session->>Store: thread_settings_applied
-    Note over Store: event_msg thread_settings_applied
+    opt 非首回合
+        Session->>Store: thread_settings_applied
+        Note over Store: event_msg thread_settings_applied<br/>非首回合才落盘 首回合物化前被丢弃
+    end
     Session->>Store: TurnStarted
     Note over Store: 首个落盘条目触发物化 先写 session_meta<br/>event_msg task_started 并投影 thread_turns inProgress
     Session->>Store: 上下文与回合配置
@@ -112,6 +114,7 @@ sequenceDiagram
 
 - 上图的顺序与本机记录的相邻关系一致：
   - `thread_settings_applied → task_started` 共 5910 次；
+  - 首回合：`session_meta` 之后紧跟 `task_started` 的文件有 759 个，紧跟 `thread_settings_applied` 的只有 17 个（物化前发出的设置事件被丢弃，见 §4.1）；
   - `task_started → turn_context` 共 5978 次；
   - `turn_context → message(user)` 共 6824 次；
   - `message(user) → item_completed(UserMessage)` 共 6562 次；
@@ -139,13 +142,15 @@ $CODEX_HOME（默认 ~/.codex）
 ├── goals_1.sqlite / queue_1.sqlite / memories_1.sqlite（/ memories_v2_1.sqlite）
 ├── rollout-migrations/<threadId>.pending        # legacy→paginated 迁移进行中的 journal
 ├── thread-writer-locks/<threadId>.lock          # 跨进程独占写锁（advisory lock）
-├── .tmp/rollout-compression.lock                # 压缩 worker 的运行标记
+├── .tmp/rollout-maintenance.lock                # 迁移与压缩共用的维护锁（替换 rollout 文件前获取）
+├── .tmp/rollout-compression.lock                # 压缩 worker 的运行标记（本机不存在）
 ├── external_agent_session_imports.json          # 外部 agent 会话导入台账
 └── memories/（MEMORY.md、raw_memories.md、rollout_summaries/ …）
 ```
 
 - `CODEX_HOME`：环境变量覆盖，值必须是已存在的目录（会被 canonicalize）；未设置时为 `~/.codex`（[codex-rs/utils/home-dir/src/lib.rs:13](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/utils/home-dir/src/lib.rs#L13)）。
-- SQLite 目录：config 键 `sqlite_home`，默认取 `$CODEX_SQLITE_HOME`，否则用 `$CODEX_HOME`（[codex-rs/config/src/config_toml.rs:371](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/config/src/config_toml.rs#L371)、[codex-rs/state/src/lib.rs:128](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/src/lib.rs#L128)）。本机另有一个旧的 `~/.codex/sqlite/` 目录（state_5 只有 35 个 migration，最后修改于 2026-06），应是历史版本的 sqlite_home，当前未在使用（待确认）。
+- SQLite 目录：config 键 `sqlite_home`，默认取 `$CODEX_SQLITE_HOME`，否则用 `$CODEX_HOME`（[codex-rs/config/src/config_toml.rs:371](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/config/src/config_toml.rs#L371)、[codex-rs/state/src/lib.rs:128](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/src/lib.rs#L128)）。本机另有一个旧的 `~/.codex/sqlite/` 目录（state_5 只有 35 个 migration，最后修改于 2026-06），应是历史版本的 sqlite_home。其中 state_5 已过期；同目录 `codex-dev.db`（仍在写，表如 `local_thread_catalog*`、`automations`/`automation_runs`、`thread_timeline_ledger`、`inbox_items`）与 `codex-thread-summaries-dev.db` 是 Codex Desktop 自有库（闭源），内容待确认。
+- `.tmp/rollout-maintenance.lock`：legacy→paginated 迁移和 `.zst` 压缩都靠 rename 替换 rollout 文件，二者共用这把非阻塞文件锁；释放后锁文件保留，本机存在（[codex-rs/rollout/src/maintenance.rs:1-34](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/maintenance.rs#L1)）。`.tmp/rollout-compression.lock` 只是压缩 worker 的运行标记（[compression.rs:367](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/compression.rs#L367)），本机不存在。
 - 子目录名常量：`sessions` / `archived_sessions`（[codex-rs/rollout/src/lib.rs:86](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/lib.rs#L86)）。
 
 ### 2.2 rollout 文件命名与 ID
@@ -175,8 +180,8 @@ $CODEX_HOME（默认 ~/.codex）
 
 | 库 | 表 | 用途 | 本机规模 |
 | --- | --- | --- | --- |
-| `state_5.sqlite` | `threads`（id、rollout_path、created_at(_ms)、updated_at(_ms)、recency_at(_ms)、source、thread_source、originator、model_provider、model、reasoning_effort、cwd、title、name、preview、first_user_message、sandbox_policy、approval_mode、tokens_used、archived、archived_at、git_sha/branch/origin_url、cli_version、agent_nickname/role/path、memory_mode、history_mode、project_id、section…）；`thread_spawn_edges`(parent_thread_id, child_thread_id, status)；`thread_dynamic_tools`；`projects`/`project_roots`；`thread_sections`；`thread_attachments`；`rollout_migration_state`/`rollout_migration_skipped_rollouts`；`backfill_state`；`external_agent_config_imports`；`remote_control_enrollments` | 线程列表/搜索/归档的**元数据索引**，不存消息内容（`first_user_message`/`preview`/`title` 除外）。建表见 [0001_threads.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0001_threads.sql#L1)、[0021_thread_spawn_edges.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0021_thread_spawn_edges.sql#L1)、[0040_threads_history_mode.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0040_threads_history_mode.sql#L1)、[0047_rollout_migration_state.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0047_rollout_migration_state.sql#L1) | 约 50 MB；threads 890 行（archived 458）；spawn_edges 213（全部 open）；58 个 migration |
-| `thread_history_1.sqlite` | `thread_turns`(thread_id, turn_id, rollout_ordinal, status, error_json, started_at, completed_at, duration_ms, first_user_item_id, final_agent_item_id, rollout_byte_offset, rollout_end_ordinal, rollout_end_byte_offset)；`thread_items`(thread_id, turn_id, item_id, rollout_ordinal, created_at_ms, item_json, item_type, updated_at_ordinal, started_at_ms, completed_at_ms)；`thread_realtime_items`；`thread_history_projection_state`(thread_id, next_rollout_byte_offset, next_rollout_ordinal) | paginated rollout 的**投影**，供 `thread/turns/list`、`thread/items/list` 分页读取。`item_json` 是 app-server v2 `ThreadItem`（camelCase）。建表见 [0001_thread_history.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/thread_history_migrations/0001_thread_history.sql#L1)。该库的 recovery 策略是 `Unavailable`，与其他库的「备份后重建」不同（[sqlite.rs:124-132](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/src/sqlite.rs#L124)） | 约 894 MB；turns 1368 行（463 个线程），items 79925 行（458 个线程），projection_state 906 行 |
+| `state_5.sqlite` | `threads`（id、rollout_path、created_at(_ms)、updated_at(_ms)、recency_at(_ms)、source、thread_source、originator、model_provider、model、reasoning_effort、cwd、title、name、preview、first_user_message、sandbox_policy、approval_mode、tokens_used、archived、archived_at、git_sha/branch/origin_url、cli_version、agent_nickname/role/path、memory_mode、history_mode、project_id、has_user_event、is_pinned、daybreak_enabled、creator_user_id/creator_account_id、section…）；`thread_spawn_edges`(parent_thread_id, child_thread_id, status)；`thread_dynamic_tools`；`projects`/`project_roots`/`project_idempotency_keys`；`thread_sections`；`thread_attachments`；`rollout_migration_state`/`rollout_migration_skipped_rollouts`；`backfill_state`；`external_agent_config_imports`；`remote_control_enrollments` | 线程列表/搜索/归档的**元数据索引**，不存消息内容（`first_user_message`/`preview`/`title` 除外）。建表见 [0001_threads.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0001_threads.sql#L1)、[0021_thread_spawn_edges.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0021_thread_spawn_edges.sql#L1)、[0040_threads_history_mode.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0040_threads_history_mode.sql#L1)、[0047_rollout_migration_state.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/migrations/0047_rollout_migration_state.sql#L1) | 约 50 MB；threads 890 行（archived 458）；spawn_edges 213（全部 open）；58 个 migration |
+| `thread_history_1.sqlite` | `thread_turns`(thread_id, turn_id, rollout_ordinal, status, error_json, started_at, completed_at, duration_ms, first_user_item_id, final_agent_item_id, rollout_byte_offset, rollout_end_ordinal, rollout_end_byte_offset)；`thread_items`(thread_id, turn_id, item_id, rollout_ordinal, created_at_ms, item_json, item_type, updated_at_ordinal, started_at_ms, completed_at_ms)；`thread_realtime_items`；`thread_history_projection_state`(thread_id, next_rollout_byte_offset, next_rollout_ordinal) | paginated rollout 的**投影**，供 `thread/turns/list`、`thread/items/list` 分页读取。`item_json` 是 app-server v2 `ThreadItem`（camelCase）。建表见 [0001_thread_history.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/thread_history_migrations/0001_thread_history.sql#L1)。该库的 recovery 策略是 `Unavailable`，与其他库的「备份后重建」不同（[sqlite.rs:124-132](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/src/sqlite.rs#L124)） | 约 894 MB；turns 1368 行（463 个 rollout id，含 16 个 revert 文件），items 79925 行（458 个 rollout id），projection_state 906 行 |
 | `logs_2.sqlite` | `logs`(id, ts, ts_nanos, level, target, feedback_log_body, module_path, file, line, thread_id, process_uuid, estimated_bytes)（[logs_migrations/0001_logs.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/logs_migrations/0001_logs.sql#L1)） | tracing 日志，可按 thread_id 关联，可能含敏感文本 | 约 346 MB；101216 行，972 个 thread_id |
 | `goals_1.sqlite` | `thread_goals`、`thread_goal_continuation_deferrals`（[goals_migrations/0001_thread_goals.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/goals_migrations/0001_thread_goals.sql#L1)） | 线程长期目标（goal）状态 | 1 行（paused） |
 | `queue_1.sqlite` | `queued_items`、`queued_thread_revisions`（[queue_migrations/0001_queued_items.sql](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/queue_migrations/0001_queued_items.sql#L1)） | 持久化的待发送用户消息队列 | 0 / 10 行 |
@@ -186,7 +191,7 @@ $CODEX_HOME（默认 ~/.codex）
 
 | 文件 | 格式 | 写入方 | 说明 |
 | --- | --- | --- | --- |
-| `session_index.jsonl` | 每行 `{id, thread_name, updated_at(RFC3339)}` | [append_thread_name](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/session_index.rs#L33) | 改名时追加，后写覆盖先写；删除线程时整文件重写（[session_index.rs:20-29](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/session_index.rs#L20)）。本机 274 行，261 个 id，均可在 `threads` 表中找到 |
+| `session_index.jsonl` | 每行 `{id, thread_name, updated_at(RFC3339)}` | [append_thread_name](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/session_index.rs#L33) | 改名时追加，后写覆盖先写；删除线程时整文件重写（临时文件 + rename，[session_index.rs:74-104](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/session_index.rs#L74)）。本机 274 行，261 个 id，均可在 `threads` 表中找到 |
 | `history.jsonl` | 每行 `{session_id, ts(unix 秒), text}`（[message-history/src/lib.rs:8](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/message-history/src/lib.rs#L8)） | 只有 TUI 写入（[tui/src/app/thread_routing.rs:565](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/tui/src/app/thread_routing.rs#L565)） | 由 config `[history] persistence = save-all/none`、`max_bytes` 控制（[config/src/types.rs:202-219](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/config/src/types.rs#L202)）；文件权限 0600，写前取 advisory lock。本机 16 行，均为早期 TUI 使用，session_id 都已不在 `threads` 表中 |
 | `external_agent_session_imports.json` | `{records:[{source_path, content_sha256, imported_thread_id, imported_at, source_modified_at, connector_names, title}], detected_connector_records:[…]}`（[ledger.rs:19-44](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/external-agent-migration/src/sessions/ledger.rs#L19)） | app-server 的导入流程 | 本机 50 条记录，来源均为 Claude Code 项目 JSONL；对应的导入线程已不在 `threads` 表或 rollout 目录中（可能已被删除，待确认） |
 | `rollout-migrations/<threadId>.pending` | 迁移 journal（[publish.rs:35-41](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/rollout_migration/publish.rs#L35)） | legacy→paginated 迁移 | 迁移完成后删除；本机为空目录 |
@@ -217,6 +222,8 @@ $CODEX_HOME（默认 ~/.codex）
 - 新线程使用哪种模式由客户端在 `thread/start` 时指定：
   - HEAD 的 TUI 和 `codex exec` 在非 ephemeral 时都请求 `paginated`（[tui/src/app_server_session.rs:2111](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/tui/src/app_server_session.rs#L2111)、[exec/src/lib.rs:1453](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/exec/src/lib.rs#L1453)）；
   - 服务端不支持时回退为 legacy；
+  - 客户端未指定时由 ThreadStore 决定：本地存储默认 paginated（[thread-store/src/local/mod.rs:479-481](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/mod.rs#L479)），trait 的默认实现是 legacy（[thread-store/src/store.rs:103-105](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/store.rs#L103)）；
+  - resume/fork 沿用源线程 session_meta 中的 `history_mode`，请求的模式只在源线程缺少该字段时生效（[history/src/lib.rs:495-503](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/history/src/lib.rs#L495)）；
   - 外部会话导入固定写 legacy（§5.9）。
 - 已有的 legacy 文件可以被迁移器**原地改写**为 paginated（§4.6）。
 - 本机现状：906 个文件全部是 paginated，`state_5.rollout_migration_state` 中有一条 `legacy_to_paginated_v1` 记录，说明迁移已执行过。
@@ -265,7 +272,7 @@ pub struct RolloutLine {
 | `world_state` | `WorldStateItem{full, state}` | 环境/指令等「世界状态」的全量快照或补丁 | 1785 |
 | `inter_agent_communication_metadata` | `{trigger_turn}` | 多 agent v2 消息投递，后面紧跟一条 `response_item:agent_message` | 1604 |
 | `inter_agent_communication` | `InterAgentCommunication` | 旧版的跨 agent 消息记录，仅保留读取兼容 | 0 |
-| `retained_context` / `security_risk_score` / `realtime_item` | — | guardian 保留上下文、安全评分、实时语音（`realtime_item` 只在 paginated 下写） | 0 |
+| `retained_context` / `security_risk_score` / `realtime_item` | — | guardian 保留上下文、安全评分、实时语音（`realtime_item` 只在 paginated 下写）。`RetainedContext::DeliveredAssistantMessage` 不以 `retained_context` 落盘，而是写成 `response_item` 的 assistant 消息（`metadata.delivered_assistant_message` 以 `codex:code-mode-delivery:v1:` 开头，读取时还原），统计助手消息时要排除（[rollout_payload.rs:106-142](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/history/src/rollout_payload.rs#L106)、[:163-200](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/history/src/rollout_payload.rs#L163)） | 0 |
 
 ### 3.3 SessionMeta（`type=session_meta`）
 
@@ -285,11 +292,11 @@ pub struct RolloutLine {
 | `base_instructions` | `{text, provenance?}`，即系统指令全文，**很大** | 100% |
 | `history_mode` | `legacy`/`paginated` | 100% |
 | `context_window` | `{window_id}`，初始上下文窗口的 UUIDv7 | 99.7% |
-| `forked_from_id` / `forked_from_ordinal_exclusive` | fork 来源线程，以及继承的前缀边界 | 202 |
+| `forked_from_id` / `forked_from_ordinal_exclusive` | fork 来源线程，以及继承的前缀边界 | `forked_from_id` 202；`forked_from_ordinal_exclusive` 0 |
 | `parent_thread_id` | 子代理的父线程 | 627 |
 | `subagent_history_start_ordinal` | 子线程**自己的**记录从这个 ordinal 开始，之前的记录是继承来的上下文 | 612 |
 | `history_base` | `{thread_id(=rollout id), end_ordinal_exclusive, end_byte_offset}`，指向前一个 rollout 的不可变前缀（revert/fork）（[protocol.rs:3103-3115](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/protocol.rs#L3103)） | 18 |
-| `agent_nickname`/`agent_role`/`agent_path` | 子代理身份 | 214 |
+| `agent_nickname`/`agent_role`/`agent_path` | 子代理身份 | `agent_nickname`/`agent_path` 214；`agent_role` 0 |
 | `multi_agent_version` | `disabled`/`v1`/`v2` | 636 |
 | `runtime_workspace_roots`、`dynamic_tools`、`selected_capability_roots`、`memory_mode`、`creator_user_id`/`creator_account_id` | 辅助信息。`creator_*` 是 ChatGPT 账户标识，属于隐私字段 | — |
 | `git` | `{commit_hash, branch, repository_url}`，cwd 是 git 仓库时才有 | 611 |
@@ -313,7 +320,7 @@ pub enum SubAgentSource {
 
 | 字段 | 说明 |
 | --- | --- |
-| `turn_id` / `root_turn_id` | 回合 id；`root_turn_id` 只在子代理回合中出现，指向根线程的回合 |
+| `turn_id` / `root_turn_id` | 回合 id；`root_turn_id` 是该回合归属的根回合：`start_task` 为每个回合设置它，根线程中等于自身 `turn_id`，子代理回合中指向根线程的回合（[tasks/mod.rs:294-298](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/tasks/mod.rs#L294)、[turn_context.rs:925](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/turn_context.rs#L925)；protocol.rs:3305 的「Only set for subagent turns」注释已过时）。本机 0.153–0.159 的 767 条根线程 turn_context 都带它且等于自身 `turn_id`，因此**不能**用它的有无识别子代理 |
 | `cwd`、`workspace_roots`、`current_date`、`timezone` | 环境 |
 | `approval_policy` | `AskForApproval`，本机取值 `never`/`on-request`（[protocol.rs:986](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/protocol.rs#L986)） |
 | `approvals_reviewer` | 审批由谁执行：`user` 或 `auto_review`（guardian 自动审批；旧别名 `guardian_subagent`）（[config_types.rs:183-190](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/config_types.rs#L183)） |
@@ -324,7 +331,7 @@ pub enum SubAgentSource {
 
 ### 3.5 ResponseItem（`type=response_item`，OpenAI Responses API 方言）
 
-定义见 [models.rs:1010-1256](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/models.rs#L1010)。所有变体都可以带 `id` 和 `internal_chat_message_metadata_passthrough`，后者包含 `turn_id`、`create_time`（小数 unix 秒）、`content_item_kinds`（[models.rs:960-994](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/models.rs#L960)）。是否落盘见 [policy.rs:44-65](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/policy.rs#L44)。
+定义见 [models.rs:1010-1256](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/models.rs#L1010)。除 `configuration_update`/`compaction_trigger`/`other` 外，各变体都可以带 `id`；除这三者和 `additional_tools` 外，还可带 `internal_chat_message_metadata_passthrough`：常见 `turn_id`、`create_time`（小数 unix 秒）、`content_item_kinds`，另有 `cell_id`、`executed_tool_calls`/`tool_calls_complete`（本机 88 条，反序列化时跳过）（[models.rs:960-994](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/models.rs#L960)）。是否落盘见 [policy.rs:44-65](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/policy.rs#L44)。
 
 | `payload.type` | 关键字段 | 落盘 | 本机行数 |
 | --- | --- | --- | --- |
@@ -354,7 +361,7 @@ pub enum SubAgentSource {
 | 类别 | 事件 | legacy | paginated |
 | --- | --- | --- | --- |
 | 总是落盘 | `token_count`、`thread_goal_updated`、`thread_rolled_back`、`turn_aborted`、`task_started`、`task_complete`、`thread_settings_applied` | ✔ | ✔ |
-| `item_completed` | `{thread_id, turn_id, item: TurnItem, started_at_ms?, completed_at_ms}` | 只保存 FunctionCallOutput / Plan / Sleep / SubAgentActivity(Completed) | ✔ 全部 |
+| `item_completed` | `{thread_id, turn_id, item: TurnItem, started_at_ms?, completed_at_ms}` | 只保存 FunctionCallOutput / Plan / Extension(kind=`clock.sleep`) / SubAgentActivity(Completed) | ✔ 全部 |
 | 只在 legacy 下落盘 | `user_message`、`agent_message`、`agent_reasoning`、`agent_reasoning_raw_content`、`entered_review_mode`、`exited_review_mode`、`patch_apply_end`、`context_compacted`、`mcp_tool_call_end`、`web_search_end`、`image_generation_end`、`sub_agent_activity`(非 Completed) | ✔ | ✘ |
 | 从不落盘（瞬态） | `error`、`warning`、`exec_command_begin/end`、`exec_command_output_delta`、`exec_approval_request`、`apply_patch_approval_request`、`request_permissions`、`request_user_input`、`elicitation_request`、`guardian_assessment`、`stream_error`、各类 `*_delta`、`item_started`、`hook_*`、`turn_diff`、`plan_update`、`mcp_startup_*`、`session_configured`、`raw_response_*`、`collab_*_begin/end` 等 | ✘ | ✘ |
 
@@ -379,13 +386,13 @@ pub enum SubAgentSource {
 | `UserMessage` | `id`、`client_id?`、`content[]`（UserInput：`text{text, text_elements}`/`image{image_url}`/`local_image{path}`/`mention`/…） | 6584 |
 | `AgentMessage` | `id`、`content[{type:Text, text}]`、`phase`、`memory_citation?`、`delivery?`、`questions?` | 11071 |
 | `Reasoning` | `id`、`summary_text[]`、`raw_content[]` | 38649 |
-| `CommandExecution` | `id`、`command[]`、`cwd`、`parsed_cmd[]`、`source`(agent/user_shell/unified_exec_startup/unified_exec_interaction)、`status`(in_progress/completed/failed/declined)、`stdout`、`stderr`、`aggregated_output`、`exit_code`、`duration{secs,nanos}`、`formatted_output`、`process_id`、`plugin_id?` | 24859 |
+| `CommandExecution` | `id`、`command[]`、`cwd`（file:// URI，即 `PathUri`；session_meta/turn_context 的 cwd 为普通路径，[items.rs:265](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/protocol/src/items.rs#L265)）、`parsed_cmd[]`、`source`(agent/user_shell/unified_exec_startup/unified_exec_interaction)、`status`(in_progress/completed/failed/declined)、`stdout`、`stderr`、`aggregated_output`、`exit_code`、`duration{secs,nanos}`、`formatted_output`、`process_id`、`plugin_id?`、`script_path?`（本机 246 条）、`interaction_input?` | 24859 |
 | `FileChange` | `id`、`changes{<path>: FileChange}`（**以路径为 key 的对象**）、`status`、`auto_approved?`、`stdout`、`stderr` | 3101 |
 | `McpToolCall` | `id`、`server`、`tool`、`arguments`、`status`(inProgress/completed/failed)、`result?`、`error?`、`duration`、`connectorId`/`appName`/`readOnlyHint`… | 2999 |
 | `CollabAgentToolCall` | `tool`(spawn_agent/send_input/wait/close_agent/…)、`sender_thread_id`、`receiver_thread_ids[]`、`receiver_agents`、`agents_states`、`prompt?`、`model?` | 205 |
 | `SubAgentActivity` | `kind`(started/interacted/interrupted/completed)、`agent_thread_id`、`agent_path` | 1617 |
 | `WebSearch` | `query`、`action`、`results?` | 176 |
-| `ImageView` | `path` | 1403 |
+| `ImageView` | `path`（file:// URI） | 1403 |
 | `Extension` | `kind`：本机见到 `web.search` / `clock.sleep` / `image_gen.generation`，载荷字段随 kind 变化 | 3897 |
 | `ContextCompaction` | `id` | 136 |
 | `FunctionCallOutput`、`Plan`、`HookPrompt`、`DynamicToolCall`、`ImageGeneration`、`EnteredReviewMode`/`ExitedReviewMode` | — | 22 / 0 / … |
@@ -404,7 +411,7 @@ pub enum SubAgentSource {
 | `latest_token_usage_record` | 压缩时最近一条 `TokenUsageRecord` 的快照，resume 时用它恢复用量 |
 | `guardian_history`、`retained_context`、`mcp_resource_origins`、`resume_metadata{multi_agent_version, last_started_turn_id, previous_turn_settings}` | 恢复状态用的检查点 |
 
-本机 143 条 compacted 全部带 `replacement_history`（长度 3～51，中位数 11），`message` 全部为空，即都走远程压缩。
+本机 143 条 compacted 全部带 `replacement_history`（长度 3～51，中位数 11），`message` 全部为空，即都走远程压缩。其中 89 条在线程自身的记录区间内（与投影中 contextCompaction 的 89 条一致），54 条位于子代理/guardian 文件的 `subagent_history_start_ordinal` 之前（投影跳过）；只有 59 条带 `compaction_response_id`。
 
 ### 3.9 TokenUsageRecord（`type=token_usage_record`）
 
@@ -424,7 +431,7 @@ core Session ──send_event()/record_conversation_items()/persist_rollout_item
    └─ ThreadMetadataSync → update/record_thread_metadata ──▶ state_5.sqlite threads
 ```
 
-- **所有 EventMsg 都会先尝试落盘**：`send_event_raw_with_persistence` 无条件把事件包成 `RolloutItem::EventMsg` 交给 store，由 store 按策略过滤（[core/src/session/mod.rs:2512-2516](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L2512)、[live_writer.rs:338-344](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/live_writer.rs#L338)）。
+- **EventMsg 默认都会先尝试落盘**：`send_event_raw_with_persistence` 在 `persist=true` 时把事件包成 `RolloutItem::EventMsg` 交给 store，由 store 按策略过滤；rollout 未物化时经 `send_event_raw_without_materializing_rollout` 发出的事件 `persist=false`，不落盘（[core/src/session/mod.rs:2512-2516](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L2512)、[:2470-2480](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L2470)、[live_writer.rs:338-344](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/live_writer.rs#L338)）。
 - **按 item 立即追加，每批都有 flush 屏障**：
   - `durable_write` 先 `record_canonical_items`（入队），再 `recorder.flush()`（等待 writer 写完）（[live_writer.rs:372-384](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/live_writer.rs#L372)）；
   - writer 收到 `AddItems` 后，只要文件已物化就立即写盘（[recorder.rs:1943-1946](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/recorder.rs#L1943)）；
@@ -440,10 +447,11 @@ core Session ──send_event()/record_conversation_items()/persist_rollout_item
     - 显式调用 `persist()`，例如记录用户输入后调用的 `ensure_rollout_materialized`（[core/src/session/mod.rs:4920](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L4920)）；
   - 因此，第一个可落盘的条目（通常是回合开始时的 `task_started`）会让文件出现；从未开始过回合的线程不留下文件；
   - 文件物化之前发出的 `thread_settings_applied` 走 `send_event_raw_without_materializing_rollout`，会被直接丢弃而不是缓存（[thread_settings.rs:121-130](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/thread_settings.rs#L121)、[session/mod.rs:2470-2480](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L2470)），所以首回合前通常没有这条记录；
-  - 第一行的 `timestamp`（物化时刻）晚于 `payload.timestamp`（创建时刻）：本机 619 个文件相差不到 1 秒，145 个在 1～60 秒之间，142 个超过 60 秒。
+  - 第一行的 `timestamp`（物化时刻）晚于 `payload.timestamp`（创建时刻）：本机 616 个文件相差不到 1 秒，148 个在 1～60 秒之间，142 个超过 60 秒。
 - **只追加，不改写**：
   - live 路径只用 `append(true)` 打开文件；resume 时先确保文件以换行符结尾，再续写（[recorder.rs:2017-2056](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/recorder.rs#L2017)）；
-  - 改写只发生在三种维护操作中：legacy→paginated 迁移（替换整个文件）、压缩为 `.zst`（替换为压缩文件）、`remove_thread_name_entries`（只重写 session_index）。
+  - 改写只发生在三种维护操作中：legacy→paginated 迁移（替换整个文件）、压缩为 `.zst`（替换为压缩文件）、`remove_thread_name_entries`（只重写 session_index）；
+  - 另外 `thread/delete` 会硬删除：先删该线程关联的全部 rollout 文件（含 `.zst`），再删 state 中的行（[delete_thread.rs:275-301](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/delete_thread.rs#L275)）。
 
 ### 4.2 ordinal 与 resume
 
@@ -490,7 +498,7 @@ core Session ──send_event()/record_conversation_items()/persist_rollout_item
   - 读取方要沿 `history_base` 链拼接各个 segment（[rollout_lineage.rs:14-30](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/rollout_lineage.rs#L14)）。
 - **子代理**：
   - 新建时先写自己的 session_meta（其中 `subagent_history_start_ordinal` 等于继承条目数加 1）；
-  - 再复制父线程的上下文条目，包括父线程的 session_meta、compacted、事件，以及 full fork 时的 turn_context/world_state，但不复制 token_usage_record（[live_thread.rs:155-178](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/live_thread.rs#L155)、[agent/control/spawn.rs:115-126](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/agent/control/spawn.rs#L115)）；
+  - 再复制父线程的上下文条目，并经 `keep_forked_rollout_item` 过滤（[live_thread.rs:155-178](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/live_thread.rs#L155)、[agent/control/spawn.rs:86-126](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/agent/control/spawn.rs#L86)）：保留 system/developer/user 消息、`phase=final_answer` 的 assistant 消息、`compacted`、全部 `event_msg`、`session_meta`（含父线程的 meta）、`configuration_update` 和不带 call_id 的输出，full fork 时还保留 turn_context/world_state；丢弃 reasoning、工具调用及带 call_id 的输出、`agent_message`、commentary 消息和 token_usage_record。所以继承前缀不是父 rollout 的逐行副本，与父 rollout 去重时不能整段比对；
   - 投影时会跳过 start ordinal 之前的继承记录（[thread_history_materialization.rs:238-244](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/thread_history_materialization.rs#L238)）。
 
 ### 4.5 JSONL 与 thread_history SQLite 的关系
@@ -500,11 +508,12 @@ core Session ──send_event()/record_conversation_items()/persist_rollout_item
 - 每一行再交给无状态的 `project_rollout_line` 处理：只有 `task_started`/`task_complete`/`turn_aborted` 更新 `thread_turns`，只有 `item_completed` 更新 `thread_items`（[thread_history_projection.rs:21-100](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/app-server-protocol/src/protocol/thread_history_projection.rs#L21)）。
 - 投影出错只记 warn，不影响 JSONL。遇到坏行、未知行、ordinal 重复/回退/缺口、时间戳非法时，记录 anomaly 后跳过（[thread_history_materialization.rs:329-350](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/thread_history_materialization.rs#L329)）。
 - legacy 线程不做投影。
+- 投影表 `thread_history_projection_state`/`thread_turns`/`thread_items` 的 `thread_id` 列实际存的是 **rollout id**（[live_writer.rs:356](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/live_writer.rs#L356)）：普通文件即 thread id，revert 文件是文件名中 `_` 之后的 id。
 - 本机核对：
-  - projection_state 906 行，与 rollout 文件一一对应（其中 16 行的 key 是 revert 文件的 rollout id）；
-  - 有文件对应的 890 行中，878 行的 `next_rollout_byte_offset` 等于文件大小，即已投影到文件末尾；6 行偏移小于文件大小（尚未追平），6 行偏移大于文件大小（原因待确认，推测文件曾被迁移或改写，导致投影状态过期）；
-  - 有 turns 的 447 个线程中，437 个的 turn 数与 rollout 中（子代理起点之后）的 `task_started` 数一致；
-  - 约 410 个 guardian 线程没有任何 turn（见 §8）。
+  - projection_state 906 行按 rollout id 与 906 个文件一一对应（16 行为 revert 文件的 rollout id），`next_rollout_byte_offset` 全部等于文件大小；
+  - 463 个有 turns 的 rollout 的 turn 数全部等于该文件自身（子代理起点之后）的 `task_started` 数；
+  - revert 线程须按 rollout id 对照，不能用 `threads.rollout_path`；
+  - 约 410 个 guardian 线程没有任何 turn（原因见 §8.4）。
 - 结论：thread_history_1.sqlite 不是 rollout 的新权威存储。它是 app-server 分页 API 的缓存，大小约 894 MB，主要因为 `item_json` 冗余保存了完整的工具输出。
 
 ### 4.6 legacy→paginated 迁移（rollout-migrations / migrate-rollouts）
@@ -528,7 +537,7 @@ core Session ──send_event()/record_conversation_items()/persist_rollout_item
 - `ThreadMetadataSync` 在每次 append 之后观察已落盘的条目，用 `state::extract::apply_rollout_item` 生成 patch（[extract.rs:28-49](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/src/extract.rs#L28)）。各字段来源：
   - session_meta → id、source、originator、thread_source、agent_*、model_provider、cli_version、cwd、git；
   - turn_context → model、reasoning_effort、sandbox_policy、approval_mode；
-  - `token_count.info.total_token_usage.total_tokens` → `tokens_used`；
+  - `token_count.info.total_token_usage.total_tokens` → `tokens_used`（上下文超限时 token_count 会被填成合成值：total=窗口，其余 0，`tokens_used` 也随之变成窗口大小，见 §9.1）；
   - 第一条 `user_message` 或 `item_completed(UserMessage)` → `first_user_message`/`preview`/`title`；
   - `thread_settings_applied` 覆盖 model/cwd/权限等字段（[extract.rs:130-165](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/state/src/extract.rs#L130)）。
 - guardian 线程不从用户消息生成 title。
@@ -566,7 +575,7 @@ Legacy 模式（旧版本 Codex，或未迁移的文件）的序列只能**按�
 
 - 行内没有 `ordinal`；
 - 用 `event_msg:user_message`、`agent_message`、`agent_reasoning`、`patch_apply_end`、`mcp_tool_call_end`、`web_search_end` 等代替 `item_completed`；
-- `exec_command_end` 属于瞬态事件，legacy 下也不落盘，所以 legacy rollout 里看不到 shell 命令的退出码和输出摘要，只能从 `function_call_output.output` 文本中解析。
+- HEAD 不再持久化 `exec_command_end`（[policy.rs:145](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/policy.rs#L145)），但旧版本写出的 legacy 文件可能含 `exec_command_begin/end`（迁移器把后者转成 `CommandExecution`，见 [legacy_event.rs:3](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/rollout_migration/legacy_event.rs#L3)、[:268](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/rollout_migration/legacy_event.rs#L268)）；有则取其退出码与输出，缺失时再解析 `function_call_output.output`。
 
 ### 5.2 同一信息的两种表示
 
@@ -577,9 +586,9 @@ Legacy 模式（旧版本 Codex，或未迁移的文件）的序列只能**按�
 | 用户输入 | `message{role:user, content:[input_text, input_image(data URL)…]}`，可能夹带注入的上下文片段 | `UserMessage{id(UUIDv7), content:[UserInput{text, text_elements}…]}` | 相邻（ri 在前），同一个 `turn_id` | 展示和计数用 UserMessage；ri:user 中还有大量 harness 注入的 user/developer 消息（AGENTS.md、环境上下文等），**不能**都算作用户提问 |
 | 助手回复 | `message{role:assistant, phase, id=msg_…}` | `AgentMessage{id=msg_…, content:[{type:Text,text}], phase}` | 新数据中 `item.id` 等于 `ri.id`（本机 5085 条） | 用 AgentMessage；`phase=final_answer` 是最终回答，`commentary` 是过程说明 |
 | 推理 | `reasoning{summary[], encrypted_content}` | `Reasoning{id=rs_…, summary_text[], raw_content[]}` | `item.id` 等于 `ri.id`（本机 35522 条）；summary 为空时可能没有 TurnItem | 明文摘要取 TurnItem；加密内容无法解密 |
-| 工具调用 | `function_call{name, namespace, arguments(JSON 字符串), call_id}` / `custom_tool_call{name, input, call_id}` | `CommandExecution` / `McpToolCall` / `FileChange` / `CollabAgentToolCall` / `SubAgentActivity` / `WebSearch`… | 直接工具：`item.id` 等于 `call_id`（MCP 710、collab 205、子代理 1314、apply_patch 38 条）。**Code Mode 嵌套工具**：`item.id = exec-<uuid>`，与外层 `exec` 的 call_id 无关，只能靠 `turn_id` 和行序归属（本机 89% 落在 exec 调用与其 output 之间，11% 在之后的 `wait` 窗口里） | 调用参数和结果状态以 TurnItem 为准（含 `status`、`exit_code`、`duration`）；`response_item` 用来还原模型实际看到的内容 |
+| 工具调用 | `function_call{name, namespace, arguments(JSON 字符串), call_id}` / `custom_tool_call{name, input, call_id}` | `CommandExecution` / `McpToolCall` / `FileChange` / `CollabAgentToolCall` / `SubAgentActivity` / `WebSearch`… | 直接工具：`item.id` 等于 `call_id`（MCP 710、collab 205、子代理 1314、apply_patch 38 条）。**Code Mode 嵌套工具**：`item.id = exec-<uuid>`，与外层 `exec` 的 call_id 无关，只能靠 `turn_id` 和行序归属（本机 89.4% 落在 exec 调用与其 output 之间，约 10% 写在 exec output 之后、当时没有未结束的工具调用，只有 0.6% 落在 `wait` 窗口内）；response_item 的 passthrough 带 `cell_id` 时（Code Mode `exec` 与其后续 `wait` 输出共享），可用它把同一个 cell 的调用与输出关联起来 | 调用参数和结果状态以 TurnItem 为准（含 `status`、`exit_code`、`duration`）；`response_item` 用来还原模型实际看到的内容 |
 | 工具输出 | `function_call_output` / `custom_tool_call_output{call_id, output}`，output 是字符串或 `[input_text\|input_image\|encrypted_content]` 数组 | TurnItem 中的 `aggregated_output`/`stdout`/`stderr`/`result` | 用 `call_id` 与调用配对（本机 23246/23249、3838/3838 能配上；3 个 exec 调用缺 output，推测因中断） | 文本两边都有，需要去重 |
-| token | `token_usage_record`（每个响应一条，带 response_id） | `event_msg:token_count`（线程累计值 + last + 限额） | 按顺序对应 | 计费按 `token_usage_record.usage` 求和；`token_count` 只取最后一条作为快照 |
+| token | `token_usage_record`（每个响应一条，带 response_id） | `event_msg:token_count`（线程累计值 + last + 限额） | 不是一一对应：`token_count` 在限额更新等时机也会发出（[session/mod.rs:4789-4796](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L4789)），本机 35871 条对 21668 条 | 计费按 `token_usage_record.usage` 求和；`token_count` 只取最后一条作为快照 |
 
 Legacy 模式下同样存在双重表示，只是 UI 侧换成 `event_msg:user_message`/`agent_message`/`agent_reasoning` 等旧事件。
 
@@ -614,7 +623,7 @@ erDiagram
     TURN ||--|{ ROLLOUT_LINE : "turn_id_groups"
     RESPONSE_ITEM_CALL ||--o| RESPONSE_ITEM_OUTPUT : "call_id"
     RESPONSE_ITEM_CALL ||--o{ TURN_ITEM : "id_eq_call_id_or_exec_window"
-    COMPACTED ||--|{ RESPONSE_ITEM_CALL : "replacement_history"
+    COMPACTED ||--|{ RESPONSE_ITEM : "replacement_history"
     THREAD ||--o{ TURN : "has"
     THREAD {
         string id
@@ -662,6 +671,10 @@ erDiagram
         string call_id
         string output
     }
+    RESPONSE_ITEM {
+        string type
+        string role
+    }
     TURN_ITEM {
         string id
         string type
@@ -684,7 +697,7 @@ erDiagram
   - 远程压缩还会在 replacement_history 里留下加密的 `compaction` item；
   - 手动/独立压缩作为单独 task 运行，会发出自己的 `task_started`（[compact_remote_v2.rs:107-115](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/compact_remote_v2.rs#L107)、[compact.rs:146-151](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/compact.rs#L146)）；回合内的自动压缩不另起回合，相关记录直接夹在当前回合中；
   - 压缩**不删除**之前的行，rollout 始终保留全量历史，`replacement_history` 只决定 resume 时模型能看到什么；
-  - 本机 143 次压缩，replacement_history 共 1901 个条目。
+  - 本机 143 条 compacted（线程自身区间 89 条，另 54 条位于子代理/guardian 文件的 start ordinal 之前），replacement_history 共 1901 个条目。
 - **fork**：
   - paginated fork 优先用 `history_base` 指针引用父 rollout 的前缀；
   - 子代理 fork 则把父线程的上下文复制进子文件（§4.4）；
@@ -700,7 +713,7 @@ erDiagram
   - state 中有 `thread_spawn_edges(parent, child, open|closed)`（[agent-graph-store/src/types.rs:7-12](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/agent-graph-store/src/types.rs#L7)）。
 - **guardian 审批子线程**：
   - `source.subagent.other="guardian"`，`thread_source=guardian_review`（本机另有 172 个此类线程的 thread_source 为 `subagent`），模型为 `codex-auto-review`；
-  - 本机这类文件只含继承的前缀，详见 §8.4。
+  - 本机这类文件里的记录是 guardian 自己的审查回合（不是继承前缀），但 `subagent_history_start_ordinal` 恰好等于最大 ordinal + 1，投影因此全部跳过，详见 §8.4。
 
 ### 5.6 `codex exec --json` 事件流（stdout，不落盘）
 
@@ -819,7 +832,7 @@ erDiagram
 | 线程设置（thread_settings） | `event_msg:thread_settings_applied` | `thread_settings{model, model_provider_id, reasoning_effort, cwd, approval_policy, permission_profile, collaboration_mode…}` | 回合前提交设置变更时；压缩检查点之后 |
 | 回合开始（RegularTask） | `event_msg:task_started` | `turn_id`、`started_at`、`model_context_window`、`collaboration_mode_kind`、`root_turn_id` | 回合开始 |
 | 上下文更新（record_context_updates…） | `response_item:message(developer/user 片段)`、`world_state`、`turn_context` | `turn_context{turn_id, model, effort, cwd, approval_policy, sandbox_policy, permission_profile}`；`world_state{full, state}` | 每个真实用户回合：首回合注入全量上下文，之后只注入差量 |
-| 用户输入（record_user_prompt_and_emit_turn_item） | `response_item:message(user)` + `event_msg:item_completed(UserMessage)` | `content`、`text_elements`、`client_id`、`metadata.user_input_order` | 输入被接受时，包括回合中途追加的 steer 输入 |
+| 用户输入（record_user_prompt_and_emit_turn_item） | `response_item:message(user)` + `event_msg:item_completed(UserMessage)` | `content`、`text_elements`、`client_id`、`metadata.user_input_order`（仅新版本写；判定真人输入以 UserMessage 为准） | 输入被接受时，包括回合中途追加的 steer 输入 |
 | 模型输出（handle_output_item_done） | `item_completed(Reasoning/AgentMessage)` + `response_item:reasoning/message(assistant)` | `summary`、`encrypted_content`、`phase`、`id(rs_/msg_)` | SSE 的 output_item.done |
 | 工具调用（ToolRouter） | `response_item:function_call/custom_tool_call/local_shell_call/tool_search_call` | `name`、`namespace`、`arguments`/`input`、`call_id` | output_item.done，在执行之前 |
 | 工具执行（handlers / tools/events.rs） | `item_completed(CommandExecution/FileChange/McpToolCall/CollabAgentToolCall/SubAgentActivity/WebSearch/ImageView/Extension)` | `status`（completed/failed/declined）、`exit_code`、`duration`、`aggregated_output`、`result`/`error` | 工具结束；被拒绝时 status 为 declined |
@@ -848,7 +861,7 @@ erDiagram
 >
 > 其他说明：
 > - 文件名示例：`sessions/2026/10/01/rollout-2026-10-01T17-00-00-<thread-uuidv7>.jsonl`。文件名用本地时间（UTC+8），JSON 中一律是 UTC。
-> - 首回合的上下文注入在真实文件中通常有 3～10 条 developer/user 消息，这里只保留 2 条。
+> - 首回合的上下文注入在真实文件中通常是 4～5 条 developer/user 消息（本机 4 条的 181 个、5 条的 54 个），这里只保留 2 条。
 
 ```jsonl
 {"timestamp":"2026-10-01T09:00:01.204Z","ordinal":0,"type":"session_meta","payload":{"session_id":"<thread-uuidv7>","id":"<thread-uuidv7>","timestamp":"2026-10-01T09:00:00.000Z","cwd":"~/<project>","originator":"Codex Desktop","cli_version":"0.159.2","source":"vscode","thread_source":"user","model_provider":"openai","base_instructions":{"text":"<base instructions>","provenance":{"type":"model","model":"<model>"}},"history_mode":"paginated","context_window":{"window_id":"<window-uuidv7>"},"git":{"commit_hash":"<sha>","branch":"<branch>","repository_url":"<repo url>"}}}
@@ -863,7 +876,7 @@ erDiagram
 {"timestamp":"2026-10-01T09:00:04.311Z","ordinal":9,"type":"response_item","payload":{"type":"reasoning","id":"rs_<id>","summary":[{"type":"summary_text","text":"<reasoning summary>"}],"encrypted_content":"<encrypted>","internal_chat_message_metadata_passthrough":{"turn_id":"<turn-uuidv7>"}}}
 {"timestamp":"2026-10-01T09:00:04.900Z","ordinal":10,"type":"response_item","payload":{"type":"custom_tool_call","id":"ctc_<id>","status":"completed","call_id":"call_<id>","name":"exec","input":"<tool input: code-mode script>","internal_chat_message_metadata_passthrough":{"turn_id":"<turn-uuidv7>","create_time":1790845204.9}}}
 {"timestamp":"2026-10-01T09:00:05.020Z","ordinal":11,"type":"token_usage_record","payload":{"thread_id":"<thread-uuidv7>","turn_id":"<turn-uuidv7>","session_id":"<thread-uuidv7>","root_turn_id":"<turn-uuidv7>","response_id":"resp_<id>","usage":{"input_tokens":21000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":420,"reasoning_output_tokens":180,"total_tokens":21420},"turn_token_usage":{"input_tokens":21000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":420,"reasoning_output_tokens":180,"total_tokens":21420},"thread_token_usage":{"input_tokens":21000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":420,"reasoning_output_tokens":180,"total_tokens":21420}}}
-{"timestamp":"2026-10-01T09:00:05.700Z","ordinal":12,"type":"event_msg","payload":{"type":"item_completed","thread_id":"<thread-uuidv7>","turn_id":"<turn-uuidv7>","item":{"type":"CommandExecution","id":"exec-<uuid>","process_id":"<process id>","command":["<command>"],"cwd":"~/<project>","parsed_cmd":[{"type":"unknown","cmd":"<command>"}],"source":"unified_exec_startup","status":"completed","stdout":"<tool output>","stderr":"","aggregated_output":"<tool output>","exit_code":0,"duration":{"secs":0,"nanos":412000000},"formatted_output":"<tool output>"},"started_at_ms":1790845205288,"completed_at_ms":1790845205700}}
+{"timestamp":"2026-10-01T09:00:05.700Z","ordinal":12,"type":"event_msg","payload":{"type":"item_completed","thread_id":"<thread-uuidv7>","turn_id":"<turn-uuidv7>","item":{"type":"CommandExecution","id":"exec-<uuid>","process_id":"<process id>","command":["<command>"],"cwd":"file:///<abs-project-path>","parsed_cmd":[{"type":"unknown","cmd":"<command>"}],"source":"unified_exec_startup","status":"completed","stdout":"<tool output>","stderr":"","aggregated_output":"<tool output>","exit_code":0,"duration":{"secs":0,"nanos":412000000},"formatted_output":"<tool output>"},"started_at_ms":1790845205288,"completed_at_ms":1790845205700}}
 {"timestamp":"2026-10-01T09:00:05.760Z","ordinal":13,"type":"response_item","payload":{"type":"custom_tool_call_output","id":"ctco_<uuidv7>","call_id":"call_<id>","output":[{"type":"input_text","text":"<tool output>"}],"internal_chat_message_metadata_passthrough":{"turn_id":"<turn-uuidv7>","create_time":1790845205.76}},"metadata":{"client_authored":false,"fallback_token_limit_override":10000}}
 {"timestamp":"2026-10-01T09:00:05.761Z","ordinal":14,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":21000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":420,"reasoning_output_tokens":180,"total_tokens":21420},"last_token_usage":{"input_tokens":21000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":420,"reasoning_output_tokens":180,"total_tokens":21420},"model_context_window":272000},"rate_limits":{"limit_id":"<limit id>","limit_name":null,"primary":{"used_percent":3.0,"window_minutes":300,"resets_at":1790860000},"secondary":null,"credits":null,"individual_limit":null,"spend_control_reached":null,"plan_type":"<plan type>","rate_limit_reached_type":null}}}
 {"timestamp":"2026-10-01T09:00:15.180Z","ordinal":15,"type":"event_msg","payload":{"type":"item_completed","thread_id":"<thread-uuidv7>","turn_id":"<turn-uuidv7>","item":{"type":"AgentMessage","id":"msg_<id>","content":[{"type":"Text","text":"<assistant text>"}],"phase":"final_answer"},"started_at_ms":1790845209100,"completed_at_ms":1790845215180}}
@@ -879,12 +892,13 @@ erDiagram
    - `session_meta` 与 `task_started` 的行时间戳相同。原因是延迟物化：`task_started` 是第一个可落盘条目，它的 flush 屏障打开文件，并先写出 session_meta（§4.1）。
    - `payload.timestamp` 是线程创建时间。
 2. **找出真正的用户提问**：要区分两类 user 消息。
-   - 用户提问是第 6 行 `response_item:message(user)`，带 `metadata.user_input_order`，并且紧跟第 7 行 `item_completed(UserMessage)`；
+   - 用户提问是第 6 行 `response_item:message(user)`，紧跟第 7 行 `item_completed(UserMessage)`，应以后者判定真人输入；
+   - 第 6 行的 `metadata.user_input_order` 只有新版本才写（[turn_input.rs:777](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/turn_input.rs#L777)、[:821](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/turn_input.rs#L821)）：本机紧跟 UserMessage 的 6562 条 user 消息中只有 17 条带它（0.159 为 14/14，0.158 有 3 条，更早为 0），全部 8154 条 user 消息中只有 31 条；
    - 第 3 行是 harness 注入的上下文，同样是 `role=user`。
 3. **工具调用的两种形态**：
    - Code Mode：`custom_tool_call(exec)` 与 `custom_tool_call_output` 通过 `call_id` 配对；中间嵌套的 `CommandExecution` 的 id 是 `exec-<uuid>`。
    - 直接调用（如 `function_call{name:"exec_command", arguments:"{…}"}`）：`output` 一般是字符串；对应 TurnItem 的 `id` 等于 `call_id`。
-   - 本机 legacy 迁移来的旧回合可能**完全没有** CommandExecution 条目，因为 legacy 下 `exec_command_end` 不落盘。
+   - 本机 175 个直接 `exec_command` 调用（cli 0.144–0.146）都没有对应的 CommandExecution：0.144 及以后写出的 legacy 旧回合没有 CommandExecution；更早的 legacy 文件可能有（迁移器会把其中的 `exec_command_end` 转成 CommandExecution，见 §5.1）。
 4. **token**：每个 `token_usage_record` 对应一次 Responses 调用；`token_count.info.total_token_usage` 是线程累计值。示例中第二次请求的 `total` 等于两次请求之和。
 5. **中断时的结尾**：最后一行换成 `{"type":"turn_aborted","turn_id":…,"reason":"interrupted",…}`，前面通常有一条中断标记消息（developer 或 user 角色）。
 
@@ -945,8 +959,8 @@ erDiagram
 | `approval_policy` / `sandbox_policy.type` | never 5572 / on-request 1743；read-only 5572 / workspace-write 1728 / danger-full-access 15 |
 | `phase`（assistant message） | final_answer 6975、commentary 3985；user/developer 消息没有 phase |
 | reasoning | 100% 带 `encrypted_content`；55.7% 有非空 summary；`content`（明文 CoT）字段在 7836 条中出现，但不含任何元素（content item 计数为 0） |
-| function_call `name` | MCP/命名空间工具 2484；`wait` 319、`wait_agent` 265、`spawn_agent` 226、`exec_command` 175、`list_agents` 151、`view_image` 28 … |
-| custom_tool_call `name` | `exec` 23211（Code Mode，见 §5.3），`apply_patch` 38 |
+| function_call `name`（按 `namespace`） | 带 namespace 的共 3153：collaboration 1744（`send_message` 942、`wait_agent` 265、`spawn_agent` 226、`list_agents` 151、`followup_task` 145、`interrupt_agent` 15）、`clock.sleep` 382、`mcp__*` 710、history 8、其他 309；不带 namespace 的：`wait` 319、`exec_command` 175、`view_image` 28、`update_plan` 12、`write_stdin` 10、其他 141 |
+| custom_tool_call `name` | `exec` 23211（Code Mode，见 §5.2），`apply_patch` 38 |
 | tool output 形态 | function_call_output：字符串 2556、数组 1306；custom_tool_call_output：数组 23015、字符串 281 |
 | CommandExecution | `source` 全部是 `unified_exec_startup`；status completed 23070 / failed 1789 |
 | McpToolCall / FileChange | completed 2827 / failed 172；completed 3096 / failed 5 |
@@ -963,7 +977,7 @@ erDiagram
 | `memory_mode` | enabled 640 / polluted 250 |
 | `thread_spawn_edges` | 213 条，全部 `open`，与 `subagent.thread_spawn` 文件数（213）一致 |
 | `thread_history_1` 覆盖 | 有 turns 的线程：user 238、spawn 子代理约 183、automation 19、exec 3；guardian 线程约 410 个没有 turns |
-| guardian rollout | 410 个文件的所有记录都在 `subagent_history_start_ordinal` 之前（最大 ordinal + 1 等于 start），即文件里只有继承来的前缀，guardian 自己的审查回合没有出现在 rollout 中。原因待确认：可能是 private guardian reviewer 的回合不落盘（参见 `is_private_guardian_reviewer` 相关逻辑） |
+| guardian rollout | 413 个 guardian 文件各只有 1 条自身的 session_meta（没有父线程 meta 副本），合计含 task_started 5548、task_complete 5570、turn_context 5569（model 全部是 `codex-auto-review`）、AgentMessage 5538、UserMessage 5533；5528 个 turn_id 中只有 1 个出现在非 guardian 文件里。可见这些是 guardian **自己的审查回合**，不是继承前缀。其中 410 个文件的 `subagent_history_start_ordinal` 恰好等于最大 ordinal + 1，投影因此全部跳过（thread_history_1 中没有 turns）。HEAD 在审查结束时会把记录与终止事件一起落盘并 flush（[session/mod.rs:2483](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L2483)、[:2525-2527](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L2525)；[tasks/mod.rs:378](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/tasks/mod.rs#L378)、[:844-871](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/tasks/mod.rs#L844)） |
 | `logs_2` | 101216 行，DEBUG 48%、INFO 29%、TRACE 22%；972 个不同 thread_id，40 个 process_uuid |
 | `session_index.jsonl` | 274 行，对应 261 个 thread id，均存在于 threads 表 |
 
@@ -982,20 +996,20 @@ erDiagram
 | 会话列表 | `state_5.threads`（只读）：`id`、`rollout_path`、`title`/`name`、`preview`、`created_at_ms`、`updated_at_ms`、`archived`、`source`、`thread_source`、`model`、`tokens_used`、`cwd` | 扫描 `sessions/**/rollout-*.jsonl(.zst)` 与 `archived_sessions/*`，读首行 session_meta。**同一 thread id 可能对应多个文件**（revert），当前文件以 `threads.rollout_path` 为准，否则按 `history_base` 链与文件时间判断 |
 | cwd / 项目 | `session_meta.cwd`、`git{repository_url, branch, commit_hash}` | 回合内以 `turn_context.cwd` 和 `thread_settings_applied.thread_settings.cwd` 为准（cwd 可能中途变化）；Desktop 的 `projects`/`project_roots` 表可以把 `project_id` 映射到根目录 |
 | 起止时间 | `session_meta.payload.timestamp`（创建）、最后一行的 `timestamp` | `task_started.started_at`/`task_complete.completed_at` 是秒；`item_completed.*_ms` 是毫秒；state 中的 `created_at_ms`/`updated_at_ms`/`recency_at_ms` |
-| 轮次 | 计数 `event_msg:task_started`，并以 `task_complete`/`turn_aborted` 闭合 | 必须**跳过**子代理文件中 `ordinal < subagent_history_start_ordinal` 的继承前缀；手动压缩也会产生回合；只有开始没有结束的回合视为未完成或崩溃；外部导入的回合 id 前缀为 `external-import-turn-` |
+| 轮次 | 计数 `event_msg:task_started`，并以 `task_complete`/`turn_aborted` 闭合 | 必须**跳过** thread_spawn 子代理文件中 `ordinal < subagent_history_start_ordinal` 的继承前缀；guardian 文件不适用（start ordinal 之前的记录是它自己的审查回合，不能当父线程副本去重，见 §8.4）；手动压缩也会产生回合；只有开始没有结束的回合视为未完成或崩溃；外部导入的回合 id 前缀为 `external-import-turn-` |
 | 消息数 | 用户消息数 = `item_completed(UserMessage)`；助手消息数 = `item_completed(AgentMessage)`（按 `phase` 区分 commentary 和 final_answer） | legacy 用 `event_msg:user_message`/`agent_message`；**不要**直接数 `response_item:message`，其中混有 harness 注入的 user/developer 消息 |
 | 工具调用名与参数 | `response_item:function_call{name, namespace, arguments}`（arguments 是 JSON 字符串，需要二次解析）；`custom_tool_call{name, input}` | Code Mode 下真实动作在嵌套的 TurnItem 里（`CommandExecution.command`、`McpToolCall.server/tool/arguments`、`FileChange.changes`） |
-| 成功/失败 | TurnItem 的 `status`（completed/failed/declined）、`exit_code`、`McpToolCall.error`、`result.isError` | `function_call_output` 不带 success 字段；legacy 只能解析输出文本，或参考 `patch_apply_end`/`mcp_tool_call_end` |
+| 成功/失败 | TurnItem 的 `status`（completed/failed/declined）、`exit_code`、`McpToolCall.error`、`result.isError` | `function_call_output` 不带 success 字段；legacy 优先参考 `exec_command_end`（旧版本写出的文件才有）/`patch_apply_end`/`mcp_tool_call_end`，缺失时再解析输出文本 |
 | 耗时 | TurnItem 的 `duration{secs, nanos}`，或 `completed_at_ms − started_at_ms` | 回合耗时用 `task_complete.duration_ms`；首 token 时间用 `time_to_first_token_ms` |
 | 审批 | 不直接落盘。可从 `turn_context.approval_policy/approvals_reviewer/sandbox_policy` 得到策略；被拒绝的命令记为 `status=declined`（exit_code −1） | guardian 自动审批是独立的子线程：`source.subagent.other=guardian`，`thread_source=guardian_review` |
-| token | 把 `token_usage_record.usage` 按 `response_id` 去重后求和（也可直接用 `thread_token_usage` 的最后值） | legacy 或旧版本没有 token_usage_record，取最后一条 `token_count.info.total_token_usage`；导入会话的 token_count 只是 bytes/4 的估算值 |
+| token | 把 `token_usage_record.usage` 按 `response_id` 去重后求和（也可直接用 `thread_token_usage` 的最后值） | legacy 或旧版本没有 token_usage_record，取最后一条 `token_count.info.total_token_usage`；上下文超限时 `token_count` 会被填成合成值（total=窗口，其余 0），不可当累计用量，`tokens_used` 同样受影响（[session/mod.rs:4832-4838](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/mod.rs#L4832)、[turn.rs:1707](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/session/turn.rs#L1707)、[compact.rs:327](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/core/src/compact.rs#L327)）；导入会话的 token_count 只是 bytes/4 的估算值 |
 | cost | 不落盘 | 用模型价目 × (`input − cached`、`cached`、`cache_write`、`output`) 自行计算；`rate_limits` 只能用作额度参考 |
 | 模型 | `turn_context.model`/`effort`（按回合） | `thread_settings_applied.thread_settings.model`；provider 取 `session_meta.model_provider` |
 | 错误 | `task_complete.error{message, codex_error_info}`、`turn_aborted{reason, error}` | `error` 和 `stream_error` 事件不落盘 |
 | 压缩 | `compacted`（次数、`window_number`）、`item_completed(ContextCompaction)` | 统计消息时要忽略 `replacement_history` 中的副本 |
 | 子代理 | 子线程的 `session_meta.source.subagent.thread_spawn{parent_thread_id, depth, agent_path, agent_nickname, agent_role}`；`state_5.thread_spawn_edges` | 父线程侧有 `CollabAgentToolCall.receiver_thread_ids`、`SubAgentActivity.agent_thread_id` |
 | 分支 | `forked_from_id`、`forked_from_ordinal_exclusive`、`history_base`、文件名中的 `_rolloutId` | legacy 有 `thread_rolled_back.num_turns` |
-| 标题 | `threads.name`（用户改名）优先，其次 `session_index.jsonl` 中最后一条，再次 `threads.title`/`preview`（首条用户消息） | 没有模型生成的摘要；memories 的 `rollout_summary` 是另一条管线 |
+| 标题 | `threads.name`（用户改名或 TUI 自动生成的标题）优先，其次 `session_index.jsonl` 中最后一条，再次 `threads.title`/`preview`（首条用户消息） | 用户未命名时，TUI 会用模型自动生成标题（≤36 字符），经 `thread_set_name` 写入 `threads.name` 与 `session_index.jsonl`（[tui/src/app/thread_title.rs:1-5](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/tui/src/app/thread_title.rs#L1)、[:29-30](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/tui/src/app/thread_title.rs#L29)、[tui/src/app/event_dispatch.rs:2855-2863](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/tui/src/app/event_dispatch.rs#L2855)），数据上无法与用户改名区分；memories 的 `rollout_summary` 是另一条管线 |
 
 ### 9.2 陷阱
 
@@ -1010,6 +1024,7 @@ erDiagram
 2. **两种格式并存，且文件会被改写**：
    - 解析器必须同时支持 legacy（无 ordinal、旧事件）和 paginated；
    - 迁移器会原地改写文件，压缩会把文件换成 `.jsonl.zst`，归档会把文件移到 `archived_sessions/`；
+   - `.tmp/rollout-maintenance.lock` 被持有时，文件可能正被整体替换（该锁文件释放后仍保留，存在不代表正被持有）；
    - 增量游标要记录 `(path, inode, size, mtime, last_ordinal, byte_offset)`；发现文件变小、inode 变化或路径消失时，整文件重扫。
 3. **兼容别名与旧字段**：
    - `compaction_summary` 等同于 `compaction`；`turn_started`/`turn_complete` 等同于 `task_started`/`task_complete`；`agent_type` 等同于 `agent_role`；
@@ -1030,7 +1045,7 @@ erDiagram
    - 文件是 append-only，每行 `flush` 但不 fsync；
    - 文件末尾可能有未写完的半行，以 `\n` 结尾为准，只处理完整前缀；
    - 新线程在第一个回合开始（第一个可落盘条目）之前**没有文件**；
-   - 活跃线程可以用 `thread-writer-locks/<id>.lock` 是否被锁住、`threads.updated_at_ms` 来判断（只观察，不加锁）。
+   - 活跃线程可以看 `thread-writer-locks/<id>.lock` 是否存在来判断（释放时删除；崩溃可能残留，需结合 `threads.updated_at_ms`）。不要 try_lock：检查锁状态本身就要 try_lock，可能让 Codex 获取写锁失败（「thread … already has an active writer」，[writer_lock.rs:43-86](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/writer_lock.rs#L43)、[:173-192](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/writer_lock.rs#L173)）。
 7. **时间与 ID**：
    - 文件名是本地时间，JSON 中是 UTC；
    - `started_at`/`completed_at` 是秒，`*_ms` 是毫秒，`create_time` 是浮点秒，`duration` 是 `{secs, nanos}`；
@@ -1040,7 +1055,7 @@ erDiagram
    - `world_state.agents_md.text`（AGENTS.md 全文）；
    - 绝对路径；
    - git remote URL；
-   - `creator_user_id`/`creator_account_id`；
+   - session_meta 与 `state_5.threads` 中的 `creator_user_id`/`creator_account_id`；
    - 用户 prompt、工具输出（可能含密钥）、截图 base64；
    - `logs_2.sqlite` 中的日志正文。
    `encrypted_content` 是不可解密的不透明数据。Tandem 应默认只抽取元数据与统计，正文按需加载，并支持脱敏。
@@ -1069,7 +1084,7 @@ erDiagram
 | 分支/fork/rewind 表示 | fork 用 `forked_from_id` + `forked_from_ordinal_exclusive`，可能有 `history_base` 指针；rewind 用 `thread/revert` 生成新的不可变 rollout 文件（文件名带 `_rolloutId`，带 `history_base`），再切换 `threads.rollout_path`；legacy 用 `thread_rolled_back{num_turns}` 标记 |
 | 文件快照/undo | 不做文件快照；旧的 `ghost_snapshot` item 读取时丢弃；文件改动只记录在 `FileChange.changes`（add 带 content，update 带 unified_diff） |
 | 子代理表示 | 独立的 rollout，`source.subagent.thread_spawn{parent_thread_id, depth, agent_path, agent_nickname, agent_role}`，复制父上下文前缀（以 `subagent_history_start_ordinal` 为界）；父线程侧有 `CollabAgentToolCall`、`SubAgentActivity`、`agent_message`；state 中有 `thread_spawn_edges`；guardian 审批也是一种子线程 |
-| 标题/摘要 | `threads.title`（首条用户消息）和 `name`（用户改名，同时追加到 `session_index.jsonl`）；`preview`；没有模型生成的标题；memories 管线会另外生成 `rollout_summary` |
+| 标题/摘要 | `threads.title`（首条用户消息）和 `name`（用户改名或 TUI 用模型自动生成的标题，≤36 字符，同时追加到 `session_index.jsonl`；两者在数据上无法区分）；`preview`；memories 管线会另外生成 `rollout_summary` |
 | 搜索/索引 | `state_5.threads` 上有多种排序和过滤索引；`thread/search` 直接在 rollout 文件内容上做匹配（[search_threads.rs:36](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/search_threads.rs#L36)、[rollout/src/search.rs](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/rollout/src/search.rs#L1)）；`thread/searchOccurrences` 在 `thread_history_1` 投影上检索（[thread_history/search.rs](https://github.com/openai/codex/blob/9552906b2b8358121f71695e1e6602791cdcecc0/codex-rs/thread-store/src/local/thread_history/search.rs#L1)）；没有独立的全文索引 |
 | 导出/分享/训练格式 | 没有专门的导出格式；rollout JSONL 本身就是可回放的格式；`codex exec --json` 输出精简事件流；rollout-trace bundle 用于调试（需要 `CODEX_ROLLOUT_TRACE_ROOT`）；app-server v2 的 `Thread`/`Turn`/`ThreadItem` 是对外 API 形态 |
 | 审批/权限事件是否落盘 | 请求和决定都不落盘（`exec_approval_request`、`apply_patch_approval_request`、`request_permissions`、`guardian_assessment` 均为瞬态）；只留下策略快照（`turn_context`）、`declined` 状态和 guardian 子线程 |
