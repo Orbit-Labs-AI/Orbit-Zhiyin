@@ -192,6 +192,22 @@ def _json(value):
     return value
 
 
+def _rec_candidate_row(appdb, sid) -> dict | None:
+    """Recommend's persisted candidate: install hints live inside the JSON ``card``."""
+    try:
+        row = _row(appdb, "SELECT * FROM rec_candidate WHERE candidate_id = ?", (sid,), "recommend_unavailable")
+    except PlanError:
+        raise PlanError("recommend_unavailable", "推荐候选不可用", http=404) from None
+    if row is None:
+        return None
+    card = _json(row.get("card")) or {}
+    for key in ("install_spec", "remedy_rule", "template", "template_params", "catalog_item_id",
+                "target_agents", "scope"):
+        if key in card and key not in row:
+            row[key] = json.dumps(card[key]) if isinstance(card[key], (dict, list)) else card[key]
+    return row
+
+
 def build_spec(source: dict, *, appdb, catalog_lookup=None, cache_dir, fetcher=None,
                allow_network: bool = False) -> tuple[dict, dict]:
     """Return ``(spec, extra)``; ``extra['status']`` is ready | needs_fetch | link_only."""
@@ -200,7 +216,12 @@ def build_spec(source: dict, *, appdb, catalog_lookup=None, cache_dir, fetcher=N
     if stype == "spec":
         return validate_spec(source.get("spec")), {"status": "ready"}
     if stype == "candidate":
-        row = _row(appdb, "SELECT * FROM candidate WHERE candidate_id = ?", (sid,), "recommend_unavailable")
+        try:
+            row = _row(appdb, "SELECT * FROM candidate WHERE candidate_id = ?", (sid,), "recommend_unavailable")
+        except PlanError:
+            row = None
+        if row is None:
+            row = _rec_candidate_row(appdb, sid)
         if row is None:
             raise PlanError("not_found", f"候选不存在：{sid}", http=404)
         agents = _json(row.get("target_agents"))

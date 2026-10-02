@@ -177,11 +177,12 @@ def test_artifact_and_candidate_sources(svc):
     assert (missing.value.code, missing.value.http) == ("artifact_unavailable", 404)
     with pytest.raises(PlanError) as no_rec:
         svc.plan({"type": "candidate", "id": "c1"})
-    assert (no_rec.value.code, no_rec.value.http) == ("recommend_unavailable", 404)
+    assert (no_rec.value.code, no_rec.value.http) == ("not_found", 404)
     with svc.appdb.write() as db:
-        db.execute("CREATE TABLE ai_artifact (artifact_id TEXT PRIMARY KEY, kind TEXT, payload TEXT, title TEXT)")
-        db.execute("INSERT INTO ai_artifact VALUES (?,?,?,?)", ("a1", "rule", json.dumps(
-            {"kind": "rule", "payload": {"text": "Prefer small commits.", "heading": "Commits"}}), "提交规范"))
+        db.execute("INSERT INTO ai_artifact (artifact_id, kind, template_id, name, title, slots, payload, files, "
+                   "checks, personalized, content_hash, status, created_at, updated_at) "
+                   "VALUES ('a1','rule','t','n','提交规范','{}',?,'[]','[]',0,'h','draft',1,1)",
+                   (json.dumps({"kind": "rule", "payload": {"text": "Prefer small commits.", "heading": "Commits"}}),))
         db.execute("CREATE TABLE candidate (candidate_id TEXT PRIMARY KEY, install_spec TEXT, kind TEXT, "
                    "title TEXT, catalog_item_id TEXT, target_agents TEXT, scope TEXT, remedy_rule TEXT)")
         db.execute("INSERT INTO candidate VALUES ('c1', NULL, 'permission_rule', '减少确认', NULL, "
