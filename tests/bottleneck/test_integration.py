@@ -132,3 +132,17 @@ def test_declared_wrapper_cannot_become_direct_validation_when_flag_omitted():
     f = analyze(data)["bottleneck_features"]["outcome"]
     assert next(v for v in f["validation_runs"] if v["kind"] == "test")["validation_result"] == "unknown"
     assert f["task_success"] is None
+
+
+def test_instruction_observation_does_not_invent_objective_acceptance():
+    data = fixture()
+    for event in data["events"]:
+        event.get("attrs", {}).pop("acceptance", None)
+    data["events"][0]["text"] = "验收标准：全部测试和构建通过"
+    result = analyze(data)
+    instruction = result["instruction"]["summary"]["features"]["acceptance_criteria"]
+    assert instruction["effective_n"] == 1
+    outcome = result["bottleneck_features"]["outcome"]
+    assert outcome["validation_result_counts"] == {"passed": 2}
+    assert outcome["acceptance_results"] == []
+    assert outcome["task_success"] is None

@@ -106,7 +106,7 @@ python -m pytest -q tests/bottleneck/test_respond.py tests/bottleneck/test_integ
 ruff check src tests
 ```
 
-2026-10-02 技术复核：整个后端 467 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器后，在隔离提交副本中 556 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
 
 ## 补充特征与函数
 

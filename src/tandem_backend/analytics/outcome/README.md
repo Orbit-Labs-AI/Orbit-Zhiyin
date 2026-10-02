@@ -113,7 +113,7 @@ python -m pytest -q tests/bottleneck/test_outcome.py tests/bottleneck/test_integ
 ruff check src tests
 ```
 
-2026-10-02 技术复核：整个后端 467 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的 Instruction 与连接器后，在隔离提交副本中 556 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
 
 ## 补充特征与函数
 
@@ -125,7 +125,7 @@ ruff check src tests
 
 ## 讨论
 
-PR #13 的 task_goal/expected_artifacts 是任务描述与预期产物，不等同已确认验收条件或实际产物版本。本模块仍需上游 Instruction、检查适配器和产物修订证据。
+PR #13 的 task_goal/expected_artifacts 是任务描述与预期产物，不等同已确认验收条件或实际产物版本。main 已有的 Instruction 目前提供词面要求和原话，不生成这里需要的确认验收集合、检查 ID 和产物版本。本模块仍需规范化的验收映射、检查适配器和产物修订证据。新增跨模块回归验证：识别到验收标准文本且两个检查通过，没有明确集合时任务成功仍为 null。
 
 ## 结论与下一步
 

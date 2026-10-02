@@ -93,6 +93,10 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
     def feature_projects(scope=scope_dependency):
         return analytics_section("projects", scope)
 
+    @app.get("/v1/analytics/instruction")
+    def feature_instruction(scope=scope_dependency):
+        return analytics_section("instruction", scope)
+
     @app.get("/v1/analytics/text")
     def feature_text(scope=scope_dependency):
         return analytics_section("text", scope)

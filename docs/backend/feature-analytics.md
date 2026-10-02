@@ -1,6 +1,7 @@
 # Feature Analytics MVP：先测量，再解释
 
 > v2 增补：非语义 × bottleneck 特征已拆分为四个独立目录，提供 `bottleneck_features` 输出；输入扩展、迁移说明及验收见 [瓶颈特征重构](bottleneck-features.md)。以下保留 v1 背景与旧测量字段说明，客观验收只在 v2 的明确条件范围内新增。
+Instruction 已按特征族独立组织，见 [实现与字段口径](../../src/tandem_backend/analytics/instruction/README.md) 和 [五类测试验收](instruction-validation.md)。本页历史实测数字保留原记录。
 
 本版在 `feat/plain-language-backend` 的后端上增加独立分析入口，消费 [analysis-input-v1](../plan/analysis-inputs.md)。已有画像、报告、推荐和评价接口保持原行为。新接口只做测量、代理信号和无监督文本表示，不输出人格、任务成功率、项目完成百分比或推荐。
 
