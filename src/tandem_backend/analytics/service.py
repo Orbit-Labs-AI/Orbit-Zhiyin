@@ -5,6 +5,7 @@ from dataclasses import asdict
 
 from ..models import stable_id
 from . import FEATURE_VERSION
+from .bottleneck import analyze_bottleneck
 from .common import human
 from .dictionary import FEATURES
 from .features import activity, session_features, tool_summary, usage, workflow
@@ -87,6 +88,10 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                 instruction_groups[sid], source_available=instruction_available),
         }
         data["coverage"] = meta["coverage"]
+        data["bottleneck_features"] = analyze_bottleneck(
+            [p for p in sessions if p["session_uid"] in included], root_events if bundle.events is not None else None,
+            root_calls, None if model_calls is None else [c for c in model_calls if c["session_uid"] in included],
+            main_ids, scope, bundle.coverage, context_events, supported)
         row = {**s, **data, "included_session_uids": sorted(included), "cluster_id": None,
                "novelty": None, "embedding_x": None, "embedding_y": None,
                "task_ids": task_ids[sid] if semantic_events is not None else None,
@@ -146,6 +151,11 @@ def analyze_bundle(bundle, scope=None, with_text=True):
             "tools": tool_summary(pcs, all_tools["status"]),
             "usage": usage(None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
                            pe, [s for s in sessions if s["session_uid"] in ids], scope, complete_models),
+            "bottleneck_features": analyze_bottleneck(
+                [s for s in sessions if s["session_uid"] in ids], pe if bundle.events is not None else None, pcs,
+                None if model_calls is None else [c for c in model_calls if c["session_uid"] in ids],
+                main_ids, scope, bundle.coverage,
+                [e for e in diagnostics["context_events"] if e["session_uid"] in ids], supported),
             "instruction": summarize_control_patterns(
                 [record for r in rs for record in instruction_groups[r["session_uid"]]],
                 source_available=instruction_available),
@@ -177,6 +187,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                                            for k, n in languages.most_common()] if bundle.events is not None and (human_count or not unknown_origin) else None},
             "sessions": rows, "tools": {**all_tools, "transitions": all_workflow["transitions"]},
             "workflow": all_workflow, "projects": projects, "text": text,
+            "bottleneck_features": analyze_bottleneck(sessions, events if bundle.events is not None else None,
+                calls, model_calls, main_ids, scope, bundle.coverage, diagnostics["context_events"], supported),
             "tasks": tasks, "preferences": preferences,
             "instruction": {"schema_version": INSTRUCTION_VERSION,
                             "records": instruction_records if instruction_available else None,

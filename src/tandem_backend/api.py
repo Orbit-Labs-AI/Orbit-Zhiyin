@@ -62,6 +62,10 @@ def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Pat
     def feature_overview(scope=scope_dependency):
         return analytics_section("overview", scope)
 
+    @app.get("/v1/analytics/bottleneck")
+    def feature_bottleneck(scope=scope_dependency):
+        return analytics_section("bottleneck_features", scope)
+
     @app.get("/v1/analytics/sessions")
     def feature_sessions(scope=scope_dependency, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
         result = analytics_section("sessions", scope)

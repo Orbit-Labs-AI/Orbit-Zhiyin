@@ -1,7 +1,11 @@
 """Machine-readable feature meanings shared by all analytics endpoints."""
 
+from .cost_time.dictionary import FEATURES as COST_TIME_FEATURES
 from .instruction.dictionary import FEATURES as INSTRUCTION_FEATURES
+from .interaction.dictionary import FEATURES as INTERACTION_FEATURES
+from .outcome.dictionary import FEATURES as OUTCOME_FEATURES
 from .preference.dictionary import FEATURES as PREFERENCE_FEATURES
+from .respond.dictionary import FEATURES as RESPOND_FEATURES
 from .task.dictionary import FEATURES as TASK_FEATURES
 
 FEATURES = {}
@@ -48,6 +52,10 @@ define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by
 define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
 
+FEATURES.update(INTERACTION_FEATURES)
+FEATURES.update(RESPOND_FEATURES)
+FEATURES.update(COST_TIME_FEATURES)
+FEATURES.update(OUTCOME_FEATURES)
 
 define("user_acceptance", "feedback message", "Explicit accepted/rejected/mixed clauses after a linked prior final delivery; no silence inference", "confirmed human text + delivery/task identity", kind="proxy")
 define("user_confirmed_completion", "feedback target", "Explicit human completion/incompletion, independent of acceptance; scope retained", "confirmed human text + linked delivery", kind="proxy")
