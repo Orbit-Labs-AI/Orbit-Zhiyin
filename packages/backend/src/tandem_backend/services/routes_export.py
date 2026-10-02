@@ -79,7 +79,7 @@ def router(gw: Gateway) -> APIRouter:
         return StreamingResponse(
             csv_export.stream(connection, spec, sql, params, header(spec)),
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="tandem-{table}-{day}.csv"'})
+            headers={"Content-Disposition": f'attachment; filename="orbit-{table}-{day}.csv"'})
 
     @api.post("/v1/export/report")
     def export_report(body: ReportRequest):

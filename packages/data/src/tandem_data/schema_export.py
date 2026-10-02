@@ -5,12 +5,21 @@ import sqlite3
 from importlib.resources import files
 
 
-def table_schemas(database="canonical"):
-    connection = sqlite3.connect(":memory:")
+def create_schema(connection, database="canonical"):
+    """Apply every migration in order to an empty connection (no rows, no projection run).
+
+    Used for the field dictionary and by the gateway as an empty stand-in for tandem.db
+    before the first import, so read routes keep their shape instead of failing.
+    """
     folder = "migrations/analysis" if database == "analysis" else "migrations"
     for migration in sorted(files("tandem_data").joinpath(folder).iterdir(), key=lambda p: p.name):
         if migration.name.endswith(".sql"):
             connection.executescript(migration.read_text())
+    return connection
+
+
+def table_schemas(database="canonical"):
+    connection = create_schema(sqlite3.connect(":memory:"), database)
     tables = {}
     for name, sql in connection.execute(
         "SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'event_fts%' AND name NOT LIKE 'event_search%' ORDER BY name"

@@ -182,6 +182,17 @@ def _duration(call, result, attrs):
     return None, "unknown", "missing"
 
 
+def _approve(values, call_uid, approval, evidence):
+    """Copy a permission decision onto one tool call and keep both events as its evidence."""
+    decision, wait, decision_event, request_event = approval
+    evidence.append((call_uid, decision_event, "permission.decision"))
+    if request_event:
+        evidence.append((call_uid, request_event, "permission.request"))
+    values["approval"] = decision
+    if wait is not None:
+        values["approval_wait_ms"] = wait
+
+
 def derive(store, *, scoped=False, progress=None, sessions=None):
     """Derive L3 rows. ``sessions`` (SQL) narrows a scoped run to a session closure."""
     project_cache = {}
@@ -308,6 +319,9 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
     tools = {}
     permissions = {}
     permission_evidence = []
+    # Decisions recorded before their tool call (Codex writes exec_approval_* before the
+    # completed CommandExecution item): applied when the call with that call_id appears.
+    pending_approvals = {}
     features = Counter()
     snapshots = {}
     for event in events:
@@ -398,6 +412,10 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             }
             tools[call_uid] = (values, event)
             open_tools[event["call_id"]].append(call_uid)
+            if event["call_id"] in pending_approvals:
+                _approve(
+                    values, call_uid, pending_approvals.pop(event["call_id"]), permission_evidence
+                )
         elif kind == "tool.result":
             matches = open_tools[event["call_id"]]
             if len(matches) == 1:
@@ -452,14 +470,17 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             call_id, start, request_event = permissions.get(
                 attrs.get("permission_id"), (event["call_id"], None, None)
             )
-            for tool_uid in open_tools.get(call_id, []):
-                permission_evidence.append((tool_uid, event["event_uid"], "permission.decision"))
-                if request_event:
-                    permission_evidence.append((tool_uid, request_event, "permission.request"))
-                values, _ = tools[tool_uid]
-                values["approval"] = attrs.get("decision")
-                if start is not None and event["ts"] is not None and event["ts"] >= start:
-                    values["approval_wait_ms"] = event["ts"] - start
+            wait = (
+                event["ts"] - start
+                if start is not None and event["ts"] is not None and event["ts"] >= start
+                else None
+            )
+            approval = (attrs.get("decision"), wait, event["event_uid"], request_event)
+            if open_tools.get(call_id):
+                for tool_uid in open_tools[call_id]:
+                    _approve(tools[tool_uid][0], tool_uid, approval, permission_evidence)
+            elif call_id is not None:
+                pending_approvals[call_id] = approval
         elif kind == "model.usage":
             provider, raw = (
                 attrs.get("provider", context["provider"]),

@@ -53,7 +53,7 @@ def test_csv_header_rows_guard_quoting_and_redaction(env):
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/csv; charset=utf-8"
     assert response.headers["content-disposition"].startswith(
-        'attachment; filename="tandem-sessions-')
+        'attachment; filename="orbit-sessions-')
     assert "\r\n" in response.text
     rows = rows_of(response)
     assert rows[0] == header(TABLES["sessions"])

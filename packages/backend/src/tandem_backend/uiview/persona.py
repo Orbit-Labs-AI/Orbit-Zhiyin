@@ -183,6 +183,10 @@ def _hist(values: list[float], bins: int, top: float) -> list[int]:
     return out
 
 
+def _by_ratio(item: tuple[float, str | None]) -> tuple[float, bool, str]:
+    return item[0], item[1] is None, item[1] or ""
+
+
 def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> dict:
     by_day = Counter(r["d"] for r in rows)
     agents_per_day = defaultdict(set)
@@ -190,7 +194,7 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
         agents_per_day[r["d"]].add(r.get("a"))
     avg_s = len(rows) / len(by_day) if by_day else 0
     avg_a = sum(len(v) for v in agents_per_day.values()) / len(by_day) if by_day else 0
-    per_project: dict[str, list] = defaultdict(lambda: [0, 0, 0, 0])
+    per_project: dict[str | None, list] = defaultdict(lambda: [0, 0, 0, 0])
     for r in rows:
         a = aux.get(r["id"]) or {}
         entry = per_project[r.get("p")]
@@ -200,8 +204,10 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
         turns = a.get("turns") or []
         entry[2] += sum(t[1] for t in turns)
         entry[3] += len(turns)
-    plan = sorted((e[0] / e[1], pid) for pid, e in per_project.items() if e[1])
-    check = sorted((e[2] / e[3], pid) for pid, e in per_project.items() if e[3])
+    # Sessions without a project (no cwd, Kimi without session_index.jsonl) share the
+    # ``None`` bucket; the key keeps ties total so they never compare str < None.
+    plan = sorted(((e[0] / e[1], pid) for pid, e in per_project.items() if e[1]), key=_by_ratio)
+    check = sorted(((e[2] / e[3], pid) for pid, e in per_project.items() if e[3]), key=_by_ratio)
     axes = {a["k"]: a for a in p["axes"]}
     open_n = axes["I"]["n_units"] or 1
     return {
@@ -211,12 +217,12 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
         "I": {"txt": f"结构化开场占 {round((open_n - axes['I']['k_units']) / open_n * 100)}%",
               "vals": [round(v * 100) for v, _ in plan],
               "lbl": "项目结构化开场占比 · 低 → 高",
-              "projects": [projects.get(pid, {}).get("name", pid) for _, pid in plan]},
+              "projects": [derive.project_name(projects, pid) for _, pid in plan]},
         "M": {"txt": f"日均 {avg_s:.1f} 个会话 · 同日 {avg_a:.1f} 个 Agent",
               "vals": _hist(list(by_day.values()), 8, 8), "lbl": "每日会话数 1 → 8+ 的天数"},
         "V": {"txt": f"{round(st['verify'])}% 会话要求或运行了验证",
               "vals": [round(v * 100) for v, _ in check], "lbl": "项目验证轮次占比 · 低 → 高",
-              "projects": [projects.get(pid, {}).get("name", pid) for _, pid in check]},
+              "projects": [derive.project_name(projects, pid) for _, pid in check]},
     }
 
 

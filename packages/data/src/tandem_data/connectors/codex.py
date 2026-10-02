@@ -68,6 +68,39 @@ def select_history(store, mappers):
             active = parents.get(active)
 
 
+# Approvals for one tool call: ``call_id`` is the tool call's id, ``approval_id`` (optional)
+# tells several approvals of one call apart (e.g. sub-commands). The reducer links them to
+# tool_call.approval / approval_wait_ms through call_id and permission_id.
+TOOL_APPROVALS = frozenset(
+    (
+        "exec_approval_request",
+        "exec_approval_response",
+        "apply_patch_approval_request",
+        "apply_patch_approval_response",
+    )
+)
+
+
+def _decision(value):
+    """ReviewDecision: a plain string (approved / approved_for_session / denied / abort) or an
+    externally tagged object such as ``{"approved_execpolicy_amendment": {...}}``."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict) and len(value) == 1:
+        return str(next(iter(value)))
+    return None
+
+
+def _approval(payload, decision):
+    native = payload.get("call_id")
+    call_id = str(native) if native is not None else None
+    permission = payload.get("approval_id") or call_id
+    attrs = {"permission_id": str(permission) if permission is not None else None}
+    if decision:
+        attrs["decision"] = _decision(payload.get("decision"))
+    return call_id, attrs
+
+
 class CodexMapper(BaseMapper):
     def prepare(self, records):
         self.has_calls = False
@@ -868,6 +901,9 @@ class CodexMapper(BaseMapper):
                 "collab_close_begin": "subagent.result",
                 "collab_close_end": "subagent.result",
             }.get(etype, "unknown")
+            call_id, attrs = None, None
+            if etype in TOOL_APPROVALS:
+                call_id, attrs = _approval(payload, kind == "permission.decision")
             return Mapping(
                 [
                     self.make(
@@ -875,6 +911,8 @@ class CodexMapper(BaseMapper):
                         kind,
                         "event_msg." + str(etype),
                         text=text_content(payload.get("message", payload.get("text"))) or None,
+                        call_id=call_id,
+                        attrs=attrs,
                         ext=payload,
                     )
                 ]

@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shlex
+import string
 
 from tandem_data.privacy import redact, sanitize
 
@@ -20,6 +21,13 @@ STATUS = {"ok": ("success", "completed"), "failed": ("failed",)}
 EXACT = ("kind", "command_head", "mcp_server", "skill", "error_class", "session_uid")
 SUMMARY_KEYS = ("command", "cmd", "file_path", "path", "pattern", "url", "query", "prompt")
 MAX_SUMMARY = 200
+# Agents spell one tool differently (Bash / bash, WebSearch / web.search). The tools page groups
+# calls by ``tool_name_key`` and the drilldown resolves any spelling back to that group. Beyond
+# case, only spellings agents really use for the same tool are aliased (lower-case → key).
+TOOL_NAME_ALIASES = {"web.search": "websearch", "web_search": "websearch",
+                     "web.fetch": "webfetch", "web_fetch": "webfetch",
+                     "todo_write": "todowrite", "ask_user_question": "askuserquestion"}
+_ASCII_LOWER = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)  # = SQLite lower()
 
 SQL = """
 SELECT tc.call_uid, tc.session_uid, tc.call_event_uid, tc.result_event_uid, tc.name, tc.kind,
@@ -50,11 +58,25 @@ def decode_cursor(cursor: str) -> tuple[int, str]:
         raise ValueError("invalid cursor") from error
 
 
+def tool_name_key(name: str | None) -> str:
+    """Grouping key of a raw tool name: ASCII case-folded, then ``TOOL_NAME_ALIASES``."""
+    low = (name or "").translate(_ASCII_LOWER)
+    return TOOL_NAME_ALIASES.get(low, low)
+
+
+def tool_name_spellings(name: str | None) -> list[str]:
+    """Every lower-cased raw name that shares ``name``'s key (the key itself included)."""
+    key = tool_name_key(name)
+    return sorted({key, *(alias for alias, target in TOOL_NAME_ALIASES.items() if target == key)})
+
+
 def _where(filters: dict, cursor: str | None, excluded: list[str]) -> tuple[str, list]:
     clauses, params = ["1"], []
     if filters.get("name"):
-        clauses.append("(tc.name = ? OR tc.name_raw = ?)")
-        params += [filters["name"]] * 2
+        # A tools-page key or any agent's spelling selects the whole group (Bash = bash).
+        clauses.append("(tc.name = ? OR tc.name_raw = ? OR lower(tc.name_raw) IN "
+                       "(SELECT value FROM json_each(?)))")
+        params += [filters["name"]] * 2 + [json.dumps(tool_name_spellings(filters["name"]))]
     for key in EXACT:
         if filters.get(key):
             clauses.append(f"tc.{key} = ?")

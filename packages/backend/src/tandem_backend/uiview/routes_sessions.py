@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query
 from ..realtime.context_windows import load_overrides
 from ..realtime.service import ACTIVE
 from ..services.auth import ApiError
+from ..services.routes_data import mark_empty
 from ..sessionops import exclusion
 from . import compare as cmp
 from . import insight_session, sessions, trajectory
@@ -62,7 +63,7 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
             if rev is not None and cache["key"] == key:
                 base = cache["rows"]
             else:
-                with gw.reads.read() as db:
+                with gw.reads.read(empty=True) as db:
                     base = sessions.l1_facts(db, tz)
                 cache.update(key=key, rows=base)
         live, excluded = live_uids(), excluded_uids()
@@ -89,7 +90,7 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
         tz = zone(tz_name)
         overrides = load_overrides(gw.appdb)
         try:
-            with gw.reads.read() as db:
+            with gw.reads.read(empty=True) as db:  # nothing imported yet: 404, not 503
                 detail = trajectory.build_detail(
                     db, session_uid, overrides=overrides,
                     live=session_uid in live_uids(),
@@ -115,7 +116,8 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
             raise ApiError(422, "invalid_request", "q 不超过 200 字")
         rows = fact_rows(tz)
         q_uids, partial = search_uids(q) if q else (None, False)
-        with gw.reads.read() as db:
+        with gw.reads.read(empty=True) as db:
+            empty = gw.reads.is_empty(db)
             projects = dict(db.execute("SELECT project_id, name FROM project").fetchall())
             body = sessions.list_sessions(
                 rows, now_ms=_now_ms(), tz=zone(tz), q=q or None, q_uids=q_uids,
@@ -127,7 +129,7 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
         for row in body["rows"]:
             row["ticks"] = marks.get(row["id"], {"t": [], "e": []})
         body["meta"]["search_partial"] = partial
-        return body
+        return mark_empty(body) if empty else body
 
     @api.get("/v1/uiview/sessions/compare")
     def compare(a: str, b: str, tz: str | None = None):
