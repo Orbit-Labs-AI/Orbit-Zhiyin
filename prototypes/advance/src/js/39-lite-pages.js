@@ -122,9 +122,9 @@ PAGES['l-sessions'] = () => {
   // 时间线：阶段带（宽度够才写名字）+ 关键时刻节点（编号，纠偏 / 失败用 crit）+ 节点列表
   const pc = (t) => clamp(t / T * 100, 0, 100).toFixed(2);
   const phases = tr.phases.map((ph) => { const wpc = (ph[1] - ph[0]) / T * 100; return '<span class="l-ph" style="left:' + pc(ph[0]) + '%;width:' + wpc.toFixed(2) + '%">' + (wpc >= 11 ? '<span>' + esc(ph[2]) + '</span>' : '') + '</span>'; }).join('');
-  // 节点至少相隔 6%，太近的顺次后推（只为可读，顺序不变）
-  const xs = []; tr.moments.forEach((m, i) => { xs.push(Math.max(+pc(m[0]), i ? xs[i - 1] + 6 : 0)); });
-  for (let i = xs.length - 1; i >= 0; i--) xs[i] = Math.min(xs[i], i === xs.length - 1 ? 100 : xs[i + 1] - 6);
+  // 节点至少相隔 8%（约 40px，留出 3px 描边），太近的顺次后推（只为可读，顺序不变）
+  const xs = []; tr.moments.forEach((m, i) => { xs.push(Math.max(+pc(m[0]), i ? xs[i - 1] + 8 : 0)); });
+  for (let i = xs.length - 1; i >= 0; i--) xs[i] = Math.min(xs[i], i === xs.length - 1 ? 100 : xs[i + 1] - 8);
   const nodes = tr.moments.map((m, i) => '<span class="l-node' + (m[3] ? ' bad' : '') + '" style="left:' + xs[i].toFixed(2) + '%" data-tip="' + esc(relT(Math.round(m[0] * 10) / 10) + ' · ' + m[1]) + '">' + (i + 1) + '</span>').join('');
   const steps = tr.moments.map((m, i) => '<li class="' + (m[3] ? 'bad' : '') + '"><span class="l-sn mono">' + (i + 1) + '</span><span class="mono l-st">' + relT(Math.round(m[0] * 10) / 10) + '</span><b>' + esc(m[1]) + '</b><span class="l-sd">' + esc(m[2]) + '</span></li>').join('');
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === 120 ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
