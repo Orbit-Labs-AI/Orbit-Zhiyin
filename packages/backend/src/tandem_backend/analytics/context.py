@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Any
 
 from .bottleneck import analyze_bottleneck
@@ -53,9 +54,10 @@ class AnalysisContext:
         """Select statistical members once; keep linked context separately."""
         return cls(bundle, scope, *select(bundle, scope))
 
-    @property
-    def main_ids(self) -> set[str]:
-        return {s["session_uid"] for s in self.sessions if s.get("kind") == "main"}
+    @cached_property
+    def main_ids(self) -> frozenset[str]:
+        """Main-session ids, computed once; per-event membership checks stay O(1)."""
+        return frozenset(s["session_uid"] for s in self.sessions if s.get("kind") == "main")
 
     @property
     def event_status(self) -> str:
