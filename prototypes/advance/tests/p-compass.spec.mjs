@@ -197,7 +197,7 @@ test('brand: no visible "Tandem" in the title, pages, settings, onboarding or me
   expect(errors).toEqual([]);
 });
 
-// The App icon and the menu-bar item are the official Orbit logo (docs/design/logo/variants/spiral, via tools/brand-icon.mjs):
+// The App icon and the menu-bar item are the official Orbit logo (docs/design/logo/orbit-*.svg, via tools/brand-icon.mjs):
 // the full rendition from 48px up, the heavier small rendition below; the tile uses the logo's 22.5% corner; the page has the
 // icon as its favicon.
 test('App icon and menu-bar item use the official Orbit logo vectors', async ({ page }) => {
