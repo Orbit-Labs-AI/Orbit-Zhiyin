@@ -6,15 +6,13 @@
      main ≥ 1900  → content capped at 1800px and centred (5K / 6K displays only)
      main < 1000  → .studio stacks (three columns need ≥ 1000)
      main <  900  → toolbar search becomes an icon
-     main <  800  → metric tiles 3 + 2; .two .proj .recs .persona-hero stack; .three / .lib-feat auto-fit; .ov-ai 2×2
-     main <  760  → .sess stacks (the session detail needs ≥ 370px beside the 330px list)
+     main <  800  → metric tiles 3 + 2; .two .proj .recs .sess .persona-hero stack; .three / .lib-feat auto-fit; .ov-ai 2×2
      main <  640  → metric tiles 2 per row, .stats7 4 + 3, persona axes tighten
    Media queries stay only for accessibility settings (reduced motion / transparency, more contrast) and tiny stages. */
 @container main (min-width:1900px){.content>*{max-width:1800px;margin-inline:auto}}
 @container main (max-width:999px){.studio{grid-template-columns:minmax(0,1fr)}}
 @container main (max-width:899px){.tsearch{width:28px;padding:0;justify-content:center}.tsearch span,.tsearch kbd{display:none}}
-@container main (max-width:799px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.persona-hero{grid-template-columns:minmax(0,1fr)}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@container main (max-width:759px){.sess{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}}
+@container main (max-width:799px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.sess,.persona-hero{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @container main (max-width:639px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.stats7{grid-template-columns:repeat(4,minmax(0,1fr))}.ov-ai{grid-template-columns:minmax(0,1fr)}.letters .L{font-size:72px}.ax{grid-template-columns:58px minmax(0,1fr) 58px 26px;gap:6px;font-size:12px}.persona-hero{padding:16px}.content{padding:0 16px 24px}}
 @media (max-width:600px){.mbar .sysicon,.mbar .status .glyph[data-m="demo"]{display:none}.widgets{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

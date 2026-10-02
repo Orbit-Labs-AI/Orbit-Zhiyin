@@ -13,7 +13,7 @@
 //                      sidebar is hidden by default and the toggle shows it as an overlay that the content scrim closes.
 //  3. container query  at the same viewport, narrow the window (S.win.w = 1000) → the overview .two grid drops to one column
 //                      and the metric tiles to 3 per row; widen again → restored. Narrow stages assert the single column.
-//                      Thresholds follow 90-responsive.css: .two and .tiles 800 (/ 640), .sess 760 (content-column px).
+//                      Thresholds follow 90-responsive.css: .two, .sess and .tiles 800 (tiles again at 640), in content-column px.
 //                      A toolbar that cannot fit its page title moves items into the » popover instead of clipping it.
 //  4. settings         openSettings() → #set fully inside the viewport, six tabs visible, each tab renders, main window
 //                      inactive (grey lights); Esc closes it.
@@ -179,9 +179,9 @@ test('container queries: narrowing the window at a fixed viewport collapses page
     await page.evaluate((w) => { S.win.w = w; applyWin(); }, r.w);
     await expect.poll(() => cols('.two')).toBe(2);
   }
-  // sessions page: list + detail side by side only when the content column is ≥ 760px wide
+  // sessions page: list + detail side by side only when the content column is ≥ 800px wide
   await go(page, 'sessions');
-  expect(await cols('.sess')).toBe((await mainW()) >= 760 ? 2 : 1);
+  expect(await cols('.sess')).toBe((await mainW()) >= 800 ? 2 : 1);
   expect(errors).toEqual([]);
 });
 
