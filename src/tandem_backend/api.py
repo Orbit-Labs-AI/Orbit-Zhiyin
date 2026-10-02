@@ -21,9 +21,24 @@ class EvaluationRequest(BaseModel):
     required_facts: list[str] = Field(default_factory=list, max_length=50)
 
 
-def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Path = ".local/catalog.json") -> FastAPI:
+def create_app(db: str | Path = ".local/tandem.sqlite", catalog_cache: str | Path = ".local/catalog.json",
+               catalog_db: str | Path | None = None, catalog_model_dir: str | Path | None = None) -> FastAPI:
+    from tandem_catalog.api import catalog_router
+    from tandem_catalog.service import CatalogService
+
     store = Store(db)
     app = FastAPI(title="Tandem 本地轨迹分析", version=__version__)
+    catalog_service = CatalogService(catalog_db or Path(db).parent / "catalog.db", model_dir=catalog_model_dir)
+    app.include_router(catalog_router(catalog_service))
+    app.add_event_handler("shutdown", catalog_service.close)
+
+    @app.get("/v1/catalog/match-analysis")
+    def match_analysis(project_id: str | None = None, model: str | None = None,
+                       scene: str | None = None, limit: int = Query(10, ge=1, le=100)):
+        from tandem_catalog.analysis_adapter import requests_from_analysis
+        data = analyze(store, project_id, model, scene=scene)
+        return {"contract": "catalog-analysis-match-v1", "batches": [catalog_service.match(request)
+                for request in requests_from_analysis(data, limit=limit)]}
 
     def analytics_scope(
         display_timezone: str = "UTC", project_ids: Annotated[list[str] | None, Query()] = None,

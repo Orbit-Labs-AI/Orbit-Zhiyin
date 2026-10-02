@@ -54,6 +54,8 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
     parser.add_argument("--db", default=".local/tandem.sqlite")
     parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
+    parser.add_argument("--catalog-db", type=Path, help="推荐资源 SQLite；默认与 --db 同目录")
+    parser.add_argument("--catalog-model-dir", type=Path, help="本地 E5 ONNX 模型目录")
     sub = parser.add_subparsers(dest="command", required=True)
     imp = sub.add_parser("import", help="只读导入已授权的 Codex 数据目录")
     imp.add_argument("--codex-home", type=Path, required=True)
@@ -115,7 +117,7 @@ def main(argv: list[str] | None = None) -> None:
         import uvicorn
 
         from .api import create_app
-        uvicorn.run(create_app(args.db, args.catalog_cache), host="127.0.0.1", port=args.port)
+        uvicorn.run(create_app(args.db, args.catalog_cache, args.catalog_db, args.catalog_model_dir), host="127.0.0.1", port=args.port)
         return
     if args.command == "catalog-refresh":
         from .resource_fetch import refresh_catalog

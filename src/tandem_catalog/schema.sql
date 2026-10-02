@@ -59,7 +59,7 @@ CREATE TABLE resource_chunk (
 CREATE INDEX chunks_item ON resource_chunk(item_id, version_id);
 CREATE VIRTUAL TABLE chunk_fts USING fts5(chunk_id UNINDEXED, item_id UNINDEXED, title, content);
 CREATE TRIGGER chunk_deleted AFTER DELETE ON resource_chunk BEGIN
- DELETE FROM chunk_fts WHERE chunk_id = old.chunk_id;
+ DELETE FROM chunk_fts WHERE rowid = old.rowid;
 END;
 CREATE TABLE embedding_model (
  model_id TEXT PRIMARY KEY, dimensions INTEGER NOT NULL, descriptor TEXT NOT NULL,
@@ -77,6 +77,7 @@ CREATE TABLE embedding_cache (
  dimensions INTEGER NOT NULL, vector BLOB NOT NULL,
  PRIMARY KEY(model_id, text_hash), CHECK(length(vector) = dimensions * 4)
 ) STRICT;
+CREATE INDEX embedding_text_reuse ON embedding_cache(text_hash, model_id);
 CREATE TABLE model_info (
  item_id TEXT PRIMARY KEY REFERENCES catalog_item ON DELETE CASCADE,
  provider TEXT NOT NULL, model_id TEXT NOT NULL, specification TEXT NOT NULL

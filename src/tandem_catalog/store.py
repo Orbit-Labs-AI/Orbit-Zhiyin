@@ -13,7 +13,7 @@ from .contracts import Page, Resource, SourceSpec, canonical_json, digest
 from .features import CHUNK_VERSION, FEATURE_VERSION, chunks, extract, lexical_tokens
 
 APPLICATION_ID = 0x54434C47  # TCLG; prevents accidentally opening tandem.db/analysis.db.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class CatalogBusy(RuntimeError):
@@ -37,13 +37,16 @@ class CatalogStore:
             tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
             if app_id not in (0, APPLICATION_ID) or (app_id == 0 and tables):
                 raise ValueError("not_a_catalog_database")
-            if version not in (0, SCHEMA_VERSION):
+            if version not in (0, 1, SCHEMA_VERSION):
                 raise ValueError("unsupported_catalog_schema")
             if version == 0:
                 schema = files("tandem_catalog").joinpath("schema.sql").read_text()
                 conn.executescript("BEGIN IMMEDIATE;\n" + schema +
                                    f"\nPRAGMA application_id={APPLICATION_ID};"
                                    f"\nPRAGMA user_version={SCHEMA_VERSION}; COMMIT;")
+            elif version == 1:
+                migration = files("tandem_catalog").joinpath("migrations/002.sql").read_text()
+                conn.executescript("BEGIN IMMEDIATE;\n" + migration + "\nPRAGMA user_version=2; COMMIT;")
             conn.execute("PRAGMA journal_mode=WAL")
 
     @contextmanager
@@ -132,10 +135,15 @@ class CatalogStore:
             run = conn.execute("SELECT * FROM sync_run WHERE run_id=?", (run_id,)).fetchone()
             if not run or run["status"] != "ready":
                 raise ValueError("source_revision_incomplete")
-            affected = {r[0] for r in conn.execute("SELECT item_id FROM item_source WHERE source_id=?", (run["source_id"],))}
+            affected = ({r[0] for r in conn.execute("SELECT item_id FROM item_source WHERE source_id=?", (run["source_id"],))}
+                        if run["mode"] == "full" else set())
             staged = conn.execute("SELECT * FROM sync_stage WHERE run_id=?", (run_id,)).fetchall()
             for row in staged:
                 resource = Resource.model_validate_json(row["resource"])
+                previous = conn.execute("SELECT item_id FROM item_source WHERE source_id=? AND native_id=?",
+                                        (run["source_id"], row["native_id"])).fetchone()
+                if previous:
+                    affected.add(previous[0])
                 affected.add(resource.item_id)
                 conn.execute("INSERT INTO item_source VALUES(?,?,?,?,?,'active',?,?) "
                              "ON CONFLICT(source_id,native_id) DO UPDATE SET item_id=excluded.item_id,"
@@ -179,7 +187,7 @@ class CatalogStore:
         content_hash = digest({"body": resource.body, "name": resource.name, "summary": resource.summary,
                                "type": resource.type, "manifest": resource.manifest,
                                "install": resource.install, "agents": resource.agents})
-        version_id = digest([FEATURE_VERSION, CHUNK_VERSION, document])
+        version_id = digest([FEATURE_VERSION, CHUNK_VERSION, content_hash, document])
         same = old and old["latest_version"] == version_id and old["status"] == resource.status
         metadata = resource.model_dump(exclude={"body", "features"})
         conn.execute("INSERT INTO catalog_item VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
@@ -203,10 +211,10 @@ class CatalogStore:
         conn.executemany("INSERT INTO item_component VALUES(?,?)", [(item_id, child) for child in set(resource.components)])
         for chunk in chunks(resource):
             chunk_id = digest([version_id, chunk["ordinal"], chunk["text_hash"]])
-            conn.execute("INSERT INTO resource_chunk VALUES(?,?,?,?,?,?,?,?,?)",
+            inserted = conn.execute("INSERT INTO resource_chunk VALUES(?,?,?,?,?,?,?,?,?)",
                          (chunk_id, item_id, version_id, chunk["field"], chunk["heading"], chunk["ordinal"],
                           chunk["start"], chunk["text"], chunk["text_hash"]))
-            conn.execute("INSERT INTO chunk_fts VALUES(?,?,?,?)", (chunk_id, item_id,
+            conn.execute("INSERT INTO chunk_fts(rowid,chunk_id,item_id,title,content) VALUES(?,?,?,?,?)", (inserted.lastrowid, chunk_id, item_id,
                          " ".join(lexical_tokens(resource.name)), " ".join(lexical_tokens(chunk["text"]))))
             conn.execute("INSERT INTO chunk_embedding SELECT ?,model_id,text_hash,dimensions,vector,? "
                          "FROM embedding_cache WHERE text_hash=?", (chunk_id, now, chunk["text_hash"]))
@@ -226,14 +234,14 @@ class CatalogStore:
             key = "parent_id" if table == "item_component" else "item_id"
             conn.execute(f"DELETE FROM {table} WHERE {key}=?", (item_id,))
 
-    def finish_interrupted(self, run_id: str, error: str | None = None) -> dict:
+    def finish_interrupted(self, run_id: str, error: str | None = None, retry_after: int = 0) -> dict:
         with self.connect() as conn:
             status = "failed" if error else "paused"
             conn.execute("UPDATE sync_run SET status=?,error=? WHERE run_id=?", (status, error, run_id))
             run = conn.execute("SELECT * FROM sync_run WHERE run_id=?", (run_id,)).fetchone()
             if error:
                 failures = conn.execute("SELECT failures FROM catalog_source WHERE source_id=?", (run["source_id"],)).fetchone()[0] + 1
-                delay = min(86400, 60 * 2 ** min(failures - 1, 10))
+                delay = max(retry_after, min(86400, 60 * 2 ** min(failures - 1, 10)))
                 conn.execute("UPDATE catalog_source SET failures=?,error=?,next_due_at=? WHERE source_id=?",
                              (failures, error, int(time.time() * 1000) + delay * 1000, run["source_id"]))
             return dict(run)
@@ -262,3 +270,28 @@ class CatalogStore:
                     "first_seen": row["first_seen"], "last_seen": row["last_seen"],
                     "sources": [dict(r) for r in conn.execute("SELECT source_id,native_id,status,fetched_at FROM item_source WHERE item_id=?", (item_id,))],
                     "chunks": [dict(r) for r in conn.execute("SELECT chunk_id,field,heading,ordinal,start,text FROM resource_chunk WHERE item_id=? ORDER BY ordinal", (item_id,))]}
+
+    def rebuild(self):
+        """Recompute feature/chunk projections from normalized source records, without network."""
+        with self.writer(), self.connect() as conn:
+            ids = [r[0] for r in conn.execute("SELECT DISTINCT item_id FROM item_source")]
+            changed = sum(self._materialize(conn, item_id, int(time.time() * 1000))[0] for item_id in ids)
+            conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
+        return {"items_checked": len(ids), "changed": changed}
+
+    def verify(self):
+        with self.connect(True) as conn:
+            integrity = [r[0] for r in conn.execute("PRAGMA quick_check")]
+            foreign_keys = [tuple(r) for r in conn.execute("PRAGMA foreign_key_check")]
+            missing_fts = conn.execute("SELECT count(*) FROM resource_chunk c LEFT JOIN chunk_fts f ON f.rowid=c.rowid "
+                                       "WHERE f.chunk_id IS NULL OR f.chunk_id!=c.chunk_id").fetchone()[0]
+            orphan_fts = conn.execute("SELECT count(*) FROM chunk_fts f LEFT JOIN resource_chunk c ON c.rowid=f.rowid "
+                                      "WHERE c.chunk_id IS NULL OR c.chunk_id!=f.chunk_id").fetchone()[0]
+            invalid_vectors = conn.execute("SELECT count(*) FROM chunk_embedding e JOIN resource_chunk c USING(chunk_id) "
+                                           "JOIN embedding_model m USING(model_id) WHERE e.text_hash!=c.text_hash OR e.dimensions!=m.dimensions "
+                                           "OR length(e.vector)!=e.dimensions*4").fetchone()[0]
+            invalid_versions = conn.execute("SELECT count(*) FROM catalog_item i LEFT JOIN item_version v "
+                                            "ON v.version_id=i.latest_version WHERE v.version_id IS NULL OR i.content_hash!=v.content_hash").fetchone()[0]
+            return {"ok": integrity == ["ok"] and not (foreign_keys or missing_fts or orphan_fts or invalid_vectors or invalid_versions),
+                    "sqlite": integrity, "foreign_key_errors": foreign_keys, "missing_fts": missing_fts,
+                    "orphan_fts": orphan_fts, "invalid_vectors": invalid_vectors, "invalid_versions": invalid_versions}

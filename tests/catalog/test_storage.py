@@ -133,3 +133,15 @@ def test_chunk_provenance_and_no_silent_body_cutoff():
     assert len(result) > 3
     assert any(c["heading"] == "B" and c["text"] == "last section" for c in result)
     assert all(len(c["text"]) <= 1200 and c["text_hash"] for c in result)
+
+
+def test_v1_migration_realigns_fts_rowids_without_losing_history(store):
+    publish(store, [record("old"), record("kept")])
+    with store.connect() as conn:
+        conn.execute("UPDATE chunk_fts SET rowid=rowid+100")
+        conn.execute("PRAGMA user_version=1")
+    migrated = CatalogStore(store.path)
+    assert migrated.stats()["schema_version"] == 2
+    assert migrated.verify()["ok"]
+    publish(migrated, [record("kept")])
+    assert migrated.verify()["ok"] and migrated.stats()["versions"] == 2

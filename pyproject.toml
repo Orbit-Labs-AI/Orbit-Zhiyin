@@ -15,13 +15,14 @@ embeddings = ["onnxruntime==1.30.0", "tokenizers==0.23.2"]
 
 [project.scripts]
 tandem = "tandem_backend.cli:main"
+tandem-catalog = "tandem_catalog.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 tandem_backend = ["data/*.json"]
-tandem_catalog = ["schema.sql"]
+tandem_catalog = ["schema.sql", "migrations/*.sql"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
