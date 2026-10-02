@@ -62,7 +62,7 @@ def rank(query: str, docs: dict[str, str], *, threshold: float = .15) -> list[tu
 def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tuple = ()) -> tuple[list, dict]:
     """Route 'dense': KB rules and legacy seeds by hashed cosine to each problem's description."""
     from .catalog_route import from_item
-    from .kb_route import from_rule, rule_key
+    from .kb_route import from_rule, prefix_ok, rule_key
 
     muted = set(memory.get("muted_kb_rules") or ())
     rule_docs = {rule.id: " ".join([rule.title, rule.summary, *rule.tags, rule.explain.reason_template])
@@ -78,10 +78,10 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tupl
         query = " ".join([problem["reason"], problem["type"].replace("_", " "),
                           *(str(v) for v in problem["vars"].values() if isinstance(v, str))])
         for uid, score in rank(query, rule_docs):
-            rule, prefix = by_id[uid], by_id[uid].problem.key_prefix
+            rule = by_id[uid]
             # Cross-type matches only for problem types no rule claims; otherwise the KB is authoritative.
             if (problem["type"] in claimed and problem["type"] not in rule.problem.types) or (
-                    prefix and not problem["key"].startswith(prefix)):
+                    not prefix_ok(rule, problem)):
                 continue
             key = rule_key(by_id[uid], problem)
             if score > best.get(key, (0, None))[0]:
