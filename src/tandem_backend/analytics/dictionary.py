@@ -1,5 +1,10 @@
 """Machine-readable feature meanings shared by all analytics endpoints."""
 
+from .cost_time.dictionary import FEATURES as COST_TIME_FEATURES
+from .interaction.dictionary import FEATURES as INTERACTION_FEATURES
+from .outcome.dictionary import FEATURES as OUTCOME_FEATURES
+from .respond.dictionary import FEATURES as RESPOND_FEATURES
+
 FEATURES = {}
 
 
@@ -47,23 +52,7 @@ define("sessions_by_day sessions_by_hour human_messages_by_day human_messages_by
 define("cluster_id embedding_x embedding_y top_terms distance_to_cluster_centroid", "representation space", "Character 2-4 gram TF-IDF, seeded SVD, normalization, cosine DBSCAN; PCA visual coordinates", "confirmed main-session human text", kind="unsupervised_representation")
 define("novelty", "1 - cosine similarity", "Fit on strictly earlier sessions only, compare maximum similarity; unclocked/tied/no-prior cases unknown", "confirmed human text and last prompt timestamp", "earlier valid sessions", "unsupervised_representation")
 
-# Paths below are relative to bottleneck_features; the same contract is used
-# for the overall selection, session trees and project groups.
-define("interaction.message_intents interaction.friction_types", "label", "Consume visible reviewed annotations, never promote lexical candidates", "attrs.interaction", kind="annotated_observation")
-define("interaction.confirmed_correction_count", "human message", "Distinct reviewed correction messages with prior same-task target", "attrs.interaction + target event")
-define("interaction.confirmed_correction_rate", "ratio", "Confirmed correction messages / human messages with reviewed determinable intents", "attrs.interaction", "confirmed human messages with reviewed intents")
-define("interaction.repeated_requirement_count", "human message", "Subsequent emphasis of the same task/object/requirement IDs", "attrs.interaction.requirements")
-define("interaction.intervention_points", "event relation", "Previous/next execution step in record order and explicit task", "event.seq + task_uid")
-define("respond.retry_links", "call pair", "Prior failure, same task/tool/status scope plus explicit link or matching digest identity; otherwise candidate", "tool_call")
-define("respond.failure_reasons", "protocol reason", "Retain explicit reason and result scope; no stdout inference", "tool_call.error_class/failure_reason")
-define("respond.subagent_relations", "session relation", "Explicit parent and spawn/join IDs; fork is separate", "session.parent_uid + event.attrs")
-define("respond.execution_intervals respond.parallel_intervals", "UTC ms interval", "Reliable native endpoints; half-open overlaps only", "native execution bounds")
-define("cost_time.durations.execution_duration_sum_ms", "ms", "Sum native/reported durations of known calls; estimates separate", "Respond execution intervals + explicit duration reports")
-define("cost_time.durations.estimated_log_gap_sum_ms", "ms", "Sum observed event-difference estimates; not execution or human work duration", "tool_call.duration_source", kind="proxy")
-define("outcome.validation_runs", "validation execution", "Explicit executed check metadata or complete direct checking command with command-level return", "tool_call.validation + protocol result")
-define("outcome.acceptance_results", "criterion", "Match explicit criterion, task, session tree, kind, object revision and exact coverage", "attrs.acceptance + validation evidence")
-define("outcome.task_success", "nullable boolean", "Only a single explicit complete acceptance set can establish scoped success; absent criteria remain null", "outcome.acceptance_results")
-for feature in FEATURES.values():
-    if feature["name"].startswith(("interaction.", "respond.", "cost_time.", "outcome.")):
-        feature["path_prefix"] = "bottleneck_features"
-        feature["provenance"] = "event_uid, call_uid, validation_uid, criterion_uid, artifact_revision, available_at"
+FEATURES.update(INTERACTION_FEATURES)
+FEATURES.update(RESPOND_FEATURES)
+FEATURES.update(COST_TIME_FEATURES)
+FEATURES.update(OUTCOME_FEATURES)
