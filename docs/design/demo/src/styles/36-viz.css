@@ -83,12 +83,28 @@
 .vz-future{opacity:.3}
 .vz-dim{opacity:.15}
 .vz-marker line{stroke:var(--ink-4);stroke-width:1;stroke-dasharray:2 2}
-.vz-marker circle{fill:var(--ink-1);stroke:none}
+.vz-marker rect,.vz-marker circle{fill:var(--ink-1);stroke:none}
 .vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--mono)}
-.vz-marker.alert circle{fill:var(--vz-corr)}
+.vz-marker.vz-hot line{stroke:var(--vz-accent);stroke-dasharray:none}
+.vz-marker.alert rect,.vz-marker.alert circle{fill:var(--vz-corr)}
 .vz-marker.alert text{fill:#fff}
+.vz-phase.inferred{stroke-dasharray:3 2}
+.vz-dens{fill:var(--c)}
+.vz-dens-err{fill:var(--vz-err)}
 .vz-playhead line{stroke:var(--ink-1);stroke-width:1}
 .vz-playhead path{fill:var(--ink-1)}
+.vz-now line{stroke:var(--vz-accent);stroke-width:1}
+.vz-now .core{fill:var(--vz-accent)}
+.vz-now .ring{fill:none;stroke:var(--vz-accent);stroke-width:1.5;transform-box:fill-box;transform-origin:center;animation:vz-pulse 1.8s ease-out infinite}
+@keyframes vz-pulse{0%{transform:scale(1);opacity:.9}100%{transform:scale(3.2);opacity:0}}
+.vz-mm-bg{fill:var(--sunken)}
+.vz-mm-area{fill:var(--ink-4);fill-opacity:.35}
+.vz-mm-line{fill:none;stroke:var(--ink-3);stroke-width:1}
+.vz-mm-err{fill:var(--vz-err)}
+.vz-mm-user{fill:var(--ink-1)}
+.vz-mm-view{fill:var(--vz-accent);fill-opacity:.14;stroke:var(--vz-accent);stroke-width:1;cursor:grab}
+.vz-mm-hdl{fill:var(--vz-accent);cursor:ew-resize}
+.vz-t-minimap{cursor:crosshair}
 .vz-legend{display:flex;gap:2px 10px;flex-wrap:wrap;margin:0 0 6px;min-width:0}
 .vz-lg{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 6px;border:0;border-radius:6px;background:none;font-size:12px;color:var(--ink-2);white-space:nowrap}
 .vz-lg:hover{background:var(--field)}
