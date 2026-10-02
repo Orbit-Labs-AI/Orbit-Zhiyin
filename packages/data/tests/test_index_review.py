@@ -1,6 +1,8 @@
 import json
 import sqlite3
+from importlib.resources import files
 
+import pytest
 import zstandard
 
 from tandem_data.analysis_input import AnalysisScope, read_analysis
@@ -194,3 +196,41 @@ def test_archive_to_native_keeps_cumulative_observation_history(tmp_path):
         assert service.import_source(request)["changed"] == 0
         assert store.db.execute("SELECT COUNT(*) FROM usage_snapshot").fetchone()[0] == 2
         assert store.verify()["integrity"] == "ok"
+
+
+@pytest.mark.parametrize("v5_variant", ["inventory", "source_reference"])
+def test_both_v5_variants_migrate_without_losing_data(tmp_path, v5_variant):
+    home = tmp_path / "data"
+    home.mkdir()
+    with sqlite3.connect(home / "tandem.db") as db:
+        for name in ("001.sql", "002.sql", "003.sql", "004.sql"):
+            db.executescript(files("tandem_data").joinpath("migrations/" + name).read_text())
+        db.execute(
+            "INSERT INTO source(source_id,agent,root_path,discovered_at) VALUES('s','pi','/synthetic',0)"
+        )
+        db.commit()
+        if v5_variant == "inventory":
+            db.executescript(files("tandem_data").joinpath("migrations/005.sql").read_text())
+            db.execute(
+                "INSERT INTO inventory_scan VALUES(1,'root','pi','/synthetic','global',NULL,1,'test','{}','[]')"
+            )
+            db.execute(
+                "INSERT INTO inventory_item VALUES(1,'item','skill','test','/synthetic/SKILL.md','root',1,'file','{}','hash')"
+            )
+        else:
+            db.executescript(files("tandem_data").joinpath("migrations/006.sql").read_text())
+            db.execute("PRAGMA user_version=5")
+            db.execute("UPDATE schema_manifest SET schema_version=5")
+            db.execute("INSERT INTO source_scan VALUES('s',1,'full',0,0,0,0)")
+    with Store(home) as store:
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
+        if v5_variant == "inventory":
+            assert store.db.execute("SELECT name FROM inventory_item").fetchone()[0] == "test"
+        else:
+            assert store.db.execute("SELECT selection FROM source_scan").fetchone()[0] == "full"
+        store.rebuild()
+        bundle = read_analysis(home, AnalysisScope("UTC"))
+        assert bundle["db_schema_version"] == 6
+        assert "inventory" in bundle["coverage"]
+        assert "source_scans" in bundle["coverage"]

@@ -48,7 +48,7 @@ uv build --project packages/data
 git diff --check
 ```
 
-实际日志保留在 Agent 来源目录，索引和派生数据库放本机 `.tandem/`，不提交。旧归档保留兼容。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不扫描安装清单和 Catalog。
+实际日志保留在 Agent 来源目录，索引和派生数据库放本机 `.tandem/`，不提交。旧归档保留兼容。测试只使用虚构数据。本包不实现画像、推荐或 LLM 分析，也不采集 Catalog。七类 Agent 的安装清单通过显式 `scan-inventory` 接入，见 [本机安装清单](../../docs/modules/data/local-inventory.md)。
 
 ## 六类 Agent connector 与 App 模块
 
@@ -59,4 +59,4 @@ git diff --check
 bash scripts/check-data.sh --real --open
 ```
 
-不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `trajectory_page` / `record_source` / `read_analysis` 只读查询。存储 user_version=5，事件契约仍为 v1；旧库自动迁移。变化文件更新来源索引，未变化文件快速跳过，重算按来源隔离；源文件改写或删除时，原文接口明确返回不可用状态。
+不读真实数据时省略 `--real`。App 使用 `tandem_data.service.ImportService` 写入，使用 `event_page` / `trajectory_page` / `record_source` / `read_analysis` 只读查询。存储 user_version=6，事件契约仍为 v1；旧库自动迁移。变化文件更新来源索引，未变化文件快速跳过，重算按来源隔离；源文件改写或删除时，原文接口明确返回不可用状态。

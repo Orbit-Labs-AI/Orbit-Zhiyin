@@ -144,9 +144,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version not in (1, 2, 3, 4, 5):
+        elif version not in (1, 2, 3, 4, 5, 6):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1 through 5")
+            raise ValueError(f"Unsupported database version {version}; expected 1 through 6")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -186,20 +186,33 @@ class Store:
             except BaseException:
                 self.db.close()
                 raise
-        if version < 5:
+        tables = {
+            row[0] for row in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        # Main's v5 contains inventory; early PR #35 v5 databases instead contain
+        # source references. Upgrade both without dropping observations or indexes.
+        if version < 5 or (version == 5 and "inventory_scan" not in tables):
             sql = files("tandem_data").joinpath("migrations/005.sql").read_text()
-            self.db.execute("PRAGMA foreign_keys=OFF")
-            try:
-                self.db.executescript("BEGIN IMMEDIATE;\n" + sql)
-                if self.db.execute("PRAGMA foreign_key_check").fetchall():
-                    raise ValueError("Source reference migration would break foreign keys")
-                self.db.execute("COMMIT")
-            except BaseException:
-                if self.db.in_transaction:
-                    self.db.execute("ROLLBACK")
-                raise
-            finally:
-                self.db.execute("PRAGMA foreign_keys=ON")
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        if version < 6:
+            if "source_reference" in tables:
+                self.db.executescript(
+                    "BEGIN IMMEDIATE; UPDATE schema_manifest SET schema_version=6; PRAGMA user_version=6; COMMIT;"
+                )
+            else:
+                sql = files("tandem_data").joinpath("migrations/006.sql").read_text()
+                self.db.execute("PRAGMA foreign_keys=OFF")
+                try:
+                    self.db.executescript("BEGIN IMMEDIATE;\n" + sql)
+                    if self.db.execute("PRAGMA foreign_key_check").fetchall():
+                        raise ValueError("Source reference migration would break foreign keys")
+                    self.db.execute("COMMIT")
+                except BaseException:
+                    if self.db.in_transaction:
+                        self.db.execute("ROLLBACK")
+                    raise
+                finally:
+                    self.db.execute("PRAGMA foreign_keys=ON")
         os.chmod(self.home, 0o700)
         os.chmod(self.raw_dir, 0o700)
         for path in (

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from tandem_data import MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION
 from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
@@ -14,6 +14,8 @@ def current_projection(connection):
     manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
     if not manifest or manifest["contract_id"] != "tandem-session-v1":
         raise ValueError("Expected canonical tandem-session-v1")
+    if manifest["schema_version"] != SCHEMA_VERSION:
+        raise ValueError("Storage schema is obsolete; migrate and rebuild before analysis")
     run = connection.execute("SELECT * FROM projection_run ORDER BY run_id DESC LIMIT 1").fetchone()
     revisions = connection.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
     if not run or revisions != run["l1_revision_count"]:

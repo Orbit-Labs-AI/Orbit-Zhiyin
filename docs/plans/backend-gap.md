@@ -1,6 +1,6 @@
 # 数据与分析模块对照 UI 的后端缺口
 
-2026-10-02。核对基线：main `d4069bf`，并计入本文所在分支的 [PR #35](https://github.com/ActionMesh-AI/Hackathon/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），数据侧安装清单另按 `feat/local-inventory` `069310b`；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/tandem-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
+2026-10-02。核对基线：main `4ffa506`，并计入本文所在分支的 [PR #35](https://github.com/ActionMesh-AI/Hackathon/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/tandem-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
 
 本文回答一个问题：**要让两版 UI 的每个页面和按钮接上真实数据与真实动作，数据模块和分析模块还差什么，另外还需要哪些后端程序。** 八个分析族各自的功能缺口已写在 [analysis-review.md](analysis-review.md)，本文不重复逐族展开，只在页面与横切能力里引用；数据获取的目标方案见 [data-acquisition.md](data-acquisition.md)，统计口径见 [analysis-inputs.md](../contracts/analysis-inputs.md)。
 
@@ -22,9 +22,9 @@
 | 能力 | 现状 |
 | --- | --- |
 | 会话导入 | 7 个 connector（`tandem_data/connectors/`）。来源目录只读，`--home` 不能放在来源目录内 |
-| 存储 | L0 来源位置 / 版本 / 哈希索引（原生扫描不复制整份 session，旧归档兼容）→ L1 逐行记账（mapped / folded / replayed / duplicate / ignored / unparsed）→ L2 `event`（过 JSON Schema 校验）→ L3 `session / turn / tool_call / model_call / usage_snapshot / link / session_feature`。迁移在 `migrations/`，`user_version = 5` |
+| 存储 | L0 来源位置 / 版本 / 哈希索引（原生扫描不复制整份 session，旧归档兼容）→ L1 逐行记账（mapped / folded / replayed / duplicate / ignored / unparsed）→ L2 `event`（过 JSON Schema 校验）→ L3 `session / turn / tool_call / model_call / usage_snapshot / link / session_feature`。迁移在 `migrations/`，`user_version = 6` |
 | 增量 | Python 端按文件 stat 跳过；文件变了流式更新索引，L1 复用未变的行，L2/L3 按来源重建；归档移动 / 压缩替换按哈希保留记录身份，来源删除时保留已发布事实并标明缺口；`ImportService.watch` 是 2 秒轮询。TS 端只有 Codex，支持真正的 offset/inode 增量和 `fs.watch` 递归监听，经 `import-connector` 桥接进统一库 |
-| 安装清单 | `inventory/`（`feat/local-inventory`，尚未进 main）：skill / mcp / hook / plugin / rule / scheduled_task 六类，10 种目录布局；只存名称、路径、哈希与可空的 enabled，不存命令、env、正文 |
+| 安装清单 | `inventory/`（PR #31，已进 main）：skill / mcp / hook / plugin / rule / scheduled_task 六类，10 种目录布局；只存名称、路径、哈希与可空的 enabled，不存命令、env、正文 |
 | 脱敏 | `privacy.py`：密钥字段、认证头、私钥、常见 token 前缀、URL 凭据；L2 正文和字段不再按长度截断。原文留在来源，通过位置 / 主键与哈希校验按需读取 |
 | 对外接口 | `read_analysis(home, AnalysisScope)` 返回 `analysis-input-v1`；`event_page` 按 seq 游标分页；`trajectory_page` 返回含未知 / 忽略 / 重放记录的完整轨迹，`record_source` 打开原文；`tandem-data export` 导出 11 张表或视图 |
 

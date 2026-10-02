@@ -1,6 +1,8 @@
 # 来源索引、完整正文与 App 轨迹读取
 
-当前实现以七类 Agent 为范围：Claude Code、Codex、DSH、pi、Hermes、OpenCode、Kimi。原生 `scan` / `ImportService` 使用来源索引，不把用户的整个 session 文件或 SQLite 行导出再保存一份。存储 schema 为 5，事件契约仍为 v1。
+当前实现以七类 Agent 为范围：Claude Code、Codex、DSH、pi、Hermes、OpenCode、Kimi。原生 `scan` / `ImportService` 使用来源索引，不把用户的整个 session 文件或 SQLite 行导出再保存一份。存储 schema 为 6，事件契约仍为 v1。
+
+迁移编号 `005` 保留主线安装清单表，来源索引使用 `006`。初始化兼容主线的 inventory v5 和早期 PR #35 的 source-reference v5：补齐缺少的表后升级到 v6，已有安装观察、来源索引和原始归档均保留。
 
 ## L0–L3
 

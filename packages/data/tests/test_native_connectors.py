@@ -1226,7 +1226,7 @@ def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
         assert len(rows(store, "project")) == 2
         assert rows(store, "project_override")[0]["project_id"] == "old"
         assert rows(store, "session")[0]["project_id"] == "old"
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
         assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 

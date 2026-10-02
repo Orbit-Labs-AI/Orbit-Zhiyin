@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from tandem_data.inventory import read_inventory_connection
 from tandem_data.query import current_projection
 from tandem_data.store import readonly_connection
 
@@ -405,6 +406,9 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
         if truncated:
             reasons.append("truncated_text")
         source_agents = {source["agent"] for source in sources}
+        inventory = read_inventory_connection(
+            connection, until_ts=scope.until_ts, project_ids=scope.project_ids
+        )
         coverage = {
             "source_scans": {
                 "status": "partial"
@@ -446,10 +450,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
                 else None,
             },
             "usage_snapshot": {"status": "available", "rows": len(snapshots)},
-            "inventory": {
-                "status": "unavailable",
-                "reason": "Configuration scanning is a separate module",
-            },
+            "inventory": inventory["coverage"],
             "catalog": {"status": "unavailable", "reason": "Catalog is a separate dataset"},
         }
         return {
@@ -464,7 +465,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=None) ->
                 "sources": sources,
                 "files": files,
                 "l1_revision_count": run["l1_revision_count"],
+                "inventory_scan_ids": inventory["coverage"].get("scan_ids", []),
             },
+            "inventory": inventory["items"],
+            "inventory_scans": inventory["scans"],
             "catalog_snapshot": None,
             "coverage": coverage,
             "projects": project_rows,

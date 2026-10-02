@@ -69,7 +69,7 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 | `reduce.py` | L3 项目、轮次、工具配对、逐请求用量、独立累计快照、基础特征 |
 | `analysis_input.py` | 分析范围、覆盖说明、只读分析输入 |
 | `query.py` | 统一投影新鲜度检查、App 游标读取；分析/导出/分页都拒绝过期版本 |
-| `migrations/` | 权威 DDL；契约仍为 v1，存储 user_version=5（兼容升级 v1） |
+| `migrations/` | 权威 DDL；契约仍为 v1，存储 user_version=6（兼容升级 v1） |
 | `validation/` | 原生格式构造样本、真实样本验证、离线查看页、性能测量 |
 | `tests/data/` | 单元、语义回归、SQLite/WAL 功能测试、CLI 和完整模块 E2E |
 
