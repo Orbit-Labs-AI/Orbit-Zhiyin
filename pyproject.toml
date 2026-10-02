@@ -7,10 +7,11 @@ name = "tandem-backend"
 version = "0.13.6"
 description = "Local Codex trajectory analysis with evidence-backed Chinese explanations"
 requires-python = ">=3.11"
-dependencies = ["fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "markdown-it-py==4.2.0", "scikit-learn==1.7.2"]
+dependencies = ["fastapi==0.115.12", "pydantic==2.11.7", "uvicorn==0.34.3", "markdown-it-py==4.2.0", "scikit-learn==1.7.2", "PyYAML==6.0.3"]
 
 [project.optional-dependencies]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.2"]
+embeddings = ["onnxruntime==1.30.0", "tokenizers==0.23.2"]
 
 [project.scripts]
 tandem = "tandem_backend.cli:main"
@@ -20,6 +21,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 tandem_backend = ["data/*.json"]
+tandem_catalog = ["schema.sql"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
