@@ -6,8 +6,10 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
 
 - heartbeat every ``heartbeat_s`` (5 s); no message for ``stale_s`` (15 s) → kill + restart
 - crash restarts back off 0.5 / 1 / 2 / 4 s; more than 5 within 60 s → ``degraded``
-- analysis tasks time out (light 20 s, heavy 120 s): kill, task ``failed(timeout)``,
-  the previous snapshot keeps serving; three failures open a circuit for that key
+- analysis tasks time out (light 20 s, heavy 120 s; ``TANDEM_ANALYSIS_HEAVY_TIMEOUT_S``
+  overrides): kill, task ``failed(timeout)``, the previous snapshot keeps serving; each
+  timed-out retry of the same key doubles its budget (capped at ``heavy_timeout_max_s``) so a
+  large home can still finish; three failures open a circuit for that key
 - analysis RSS above 1.5 GB recycles the worker after the task; idle 5 min recycles too
 """
 
@@ -28,6 +30,15 @@ from .sections import SECTIONS
 from .snapshots import SnapshotKey, SnapshotStore
 from .worker_protocol import HEARTBEAT_ENV, decode, encode
 
+HEAVY_TIMEOUT_ENV = "TANDEM_ANALYSIS_HEAVY_TIMEOUT_S"
+
+
+def _heavy_timeout_default() -> float:
+    try:
+        return float(os.environ.get(HEAVY_TIMEOUT_ENV) or 120.0)
+    except ValueError:
+        return 120.0
+
 
 @dataclass
 class SupervisorConfig:
@@ -38,7 +49,8 @@ class SupervisorConfig:
     restart_window_s: float = 60.0
     max_restarts: int = 5
     light_timeout_s: float = 20.0
-    heavy_timeout_s: float = 120.0
+    heavy_timeout_s: float = field(default_factory=_heavy_timeout_default)
+    heavy_timeout_max_s: float = 600.0  # ceiling for the per-timeout budget doubling
     rss_limit_bytes: int = 1_500_000_000
     analysis_idle_s: float = 300.0
     max_failures: int = 3
@@ -401,7 +413,14 @@ class AnalysisQueue:
 
     def _timeout_for(self, task: AnalysisTask) -> float:
         cost = SECTIONS[task.section].cost
-        return self.config.heavy_timeout_s if cost == "heavy" else self.config.light_timeout_s
+        base = self.config.heavy_timeout_s if cost == "heavy" else self.config.light_timeout_s
+        record = self.failure(task.section, task.scope_hash, (task.data_rev, task.inventory_rev))
+        timeouts = (record or {}).get("timeouts", 0)
+        if not timeouts:
+            return base
+        # A scope that outgrew the budget gets more time on each retry instead of being
+        # killed at the same point three times in a row.
+        return max(base, min(base * 2 ** timeouts, self.config.heavy_timeout_max_s))
 
     def _dispatch(self) -> None:
         with self.lock:
@@ -441,6 +460,8 @@ class AnalysisQueue:
         if record is None or record["rev"] != rev:
             record = {"rev": rev, "count": 0}
         record.update(count=record["count"] + 1, error=error)
+        if error.get("code") == "timeout":
+            record["timeouts"] = record.get("timeouts", 0) + 1
         self.failures[key] = record
 
     def _message(self, message: dict) -> None:
