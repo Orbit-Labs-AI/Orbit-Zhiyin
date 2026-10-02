@@ -1,7 +1,6 @@
 """Versioned local embeddings, resumable materialization, exact cosine search primitives."""
 
 import hashlib
-import json
 import time
 from pathlib import Path
 from typing import Protocol
@@ -138,8 +137,6 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
 
     Vectors are keyed by text hash, so republished or copied text never needs re-encoding.
     """
-    from .store import get_blob
-
     if batch_size < 1 or (max_chunks is not None and max_chunks < 0):
         raise ValueError("invalid_embedding_batch_limit")
     register_model(store, encoder)
@@ -147,8 +144,8 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
     while not cancelled() and (max_chunks is None or indexed < max_chunks):
         limit = min(batch_size, max_chunks - indexed) if max_chunks is not None else batch_size
         with store.connect(True) as conn:
-            rows = conn.execute("SELECT c.ordinal,c.text_hash,v.chunks_sha FROM resource_chunk c JOIN catalog_item i USING(item_id) "
-                                "JOIN item_version v ON v.version_id=c.version_id WHERE c.embed=1 AND NOT EXISTS (SELECT 1 "
+            rows = conn.execute("SELECT c.item_id,c.ordinal,c.text_hash FROM resource_chunk c JOIN catalog_item i USING(item_id) "
+                                "WHERE c.embed=1 AND NOT EXISTS (SELECT 1 "
                                 "FROM embedding_cache e WHERE e.model_id=? AND e.text_hash=c.text_hash) "
                                 "ORDER BY CASE i.type WHEN 'skill' THEN 0 WHEN 'workflow' THEN 1 WHEN 'rule' THEN 2 "
                                 "WHEN 'hook' THEN 3 WHEN 'command' THEN 4 WHEN 'subagent' THEN 5 WHEN 'plugin' THEN 6 "
@@ -156,11 +153,10 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
                                 (encoder.model_id, limit)).fetchall()
             if not rows:
                 break
-            blobs, missing = {}, {}
+            missing = {}
             for row in rows:
-                if row["chunks_sha"] not in blobs:
-                    blobs[row["chunks_sha"]] = json.loads(get_blob(conn, row["chunks_sha"]))
-                missing.setdefault(row["text_hash"], blobs[row["chunks_sha"]][row["ordinal"]])
+                if row["text_hash"] not in missing:
+                    missing[row["text_hash"]] = store.chunk_texts(conn, row["item_id"])[row["ordinal"]]
         encoded = normalize_vectors(encoder.encode(list(missing.values())), len(missing), encoder.dimensions)
         computed += len(missing)
         reused += len(rows) - len(missing)

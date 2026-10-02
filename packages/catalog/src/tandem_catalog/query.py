@@ -14,7 +14,6 @@ import numpy as np
 
 from .contracts import canonical_json
 from .risk import allowed_tools, declared_env
-from .store import get_blob
 
 SORTS = {"updated": "updated_at", "installs": "installs", "stars": "stars", "name": "name_key"}
 PERMISSIVE = {"MIT", "Apache-2.0", "CC0-1.0", "CC-BY-4.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD",
@@ -127,31 +126,78 @@ def list_items(store, *, kinds=(), agents=(), license=None, max_risk=None, origi
     return {"items": items, "next_cursor": next_cursor, "total": total, "generation": generation}
 
 
+def _facet_masks(index, conn, *, kinds=(), agents=(), license=None, max_risk=None, origin=None, official=None,
+                 source_id=None, exclude=(), include_duplicates=False) -> tuple[np.ndarray, dict]:
+    """Base eligibility plus one boolean mask per filtered dimension (same semantics as _filters)."""
+    from .index import KIND_CODE
+    if include_duplicates:
+        base = ~np.isin(index.kind, [KIND_CODE["model"], KIND_CODE["benchmark"]])
+    else:
+        base = index.listable.copy()
+    if source_id:
+        allowed = np.zeros(len(index), dtype=bool)
+        for (item_id,) in conn.execute("SELECT item_id FROM item_source WHERE source_id=? AND status='active'", (source_id,)):
+            if item_id in index.pos:
+                allowed[index.pos[item_id]] = True
+        base &= allowed
+    for item_id in exclude:
+        if item_id in index.pos:
+            base[index.pos[item_id]] = False
+    dims = {}
+    if kinds:
+        dims["kind"] = np.isin(index.kind, [KIND_CODE.get(k, -2) for k in kinds])
+    if agents:
+        bits = sum(1 << index.agent_bits[a] for a in set(agents) if a in index.agent_bits)
+        dims["agent"] = (index.agent_mask & np.uint64(bits)) != 0
+    if license is not None:
+        dims["license"] = index.license == (index.licenses.index(license) if license in index.licenses else -1)
+    if max_risk is not None:
+        dims["risk_level"] = index.risk_level <= max_risk
+    if origin is not None:
+        dims["origin"] = index.local == (origin == "local") if origin in ("local", "remote") else np.zeros(len(index), bool)
+    if official is not None:
+        dims["official"] = index.official == bool(official)
+    return base, dims
+
+
 def facets(store, **filters) -> dict:
-    """Counts per dimension; each dimension ignores its own filter so the UI can switch values."""
-    filters.pop("sort", None), filters.pop("order", None), filters.pop("limit", None), filters.pop("cursor", None)
+    """Counts per dimension from the in-memory index; each dimension ignores its own filter."""
+    from .index import KINDS
+    for key in ("sort", "order", "limit", "cursor"):
+        filters.pop(key, None)
     with store.reader() as conn:
-        generation = store.generation(conn)
+        index = store.index(conn)
 
         def build():
-            where, args = _filters(**filters)
-            result = {"generation": generation, "total": conn.execute(
-                f"SELECT count(*) FROM catalog_item i WHERE {' AND '.join(where)}", args).fetchone()[0]}
-            for dim, expression in (("kind", "i.type"), ("license", "i.license"), ("risk_level", "i.risk_level"),
-                                    ("origin", "i.origin"), ("official", "i.official"), ("difficulty", "i.difficulty")):
-                where, args = _filters(**filters, skip=dim)
-                rows = conn.execute(f"SELECT {expression} AS value,count(*) AS n FROM catalog_item i WHERE "
-                                    f"{' AND '.join(where)} GROUP BY 1 ORDER BY 2 DESC,1", args).fetchall()
-                result[dim] = [{"value": r[0], "count": r[1]} for r in rows]
-            result["license"] = result["license"][:20]
-            result["official"] = {"true": next((r["count"] for r in result["official"] if r["value"] == 1), 0),
-                                  "false": next((r["count"] for r in result["official"] if r["value"] == 0), 0)}
-            where, args = _filters(**filters, skip="agent")
-            rows = conn.execute(f"SELECT a.agent,count(*) FROM item_agent a JOIN catalog_item i USING(item_id) WHERE "
-                                f"{' AND '.join(where)} GROUP BY 1 ORDER BY 2 DESC,1", args).fetchall()
-            result["agent"] = [{"value": r[0], "count": r[1]} for r in rows]
+            base, dims = _facet_masks(index, conn, **filters)
+
+            def without(skip):
+                mask = base.copy()
+                for dim, values in dims.items():
+                    if dim != skip:
+                        mask &= values
+                return mask
+
+            def counts(values, mask, labels=None, top=None):
+                pairs = [(labels[v] if labels else int(v), int(n)) for v, n in
+                         zip(*np.unique(values[mask], return_counts=True), strict=True)]
+                pairs.sort(key=lambda p: (-p[1], str(p[0])))
+                return [{"value": v, "count": n} for v, n in pairs[:top]]
+            result = {"generation": index.generation, "total": int(without(None).sum())}
+            result["kind"] = counts(index.kind, without("kind"), KINDS)
+            result["license"] = [r for r in counts(index.license, without("license"), index.licenses) if r["value"]][:20]
+            result["risk_level"] = counts(index.risk_level, without("risk_level"))
+            result["origin"] = [{"value": "local" if r["value"] else "remote", "count": r["count"]}
+                                for r in counts(index.local.astype(np.int8), without("origin"))]
+            mask = without("official")
+            result["official"] = {"true": int((mask & index.official).sum()), "false": int((mask & ~index.official).sum())}
+            result["difficulty"] = counts(index.difficulty, without("difficulty"))
+            mask = without("agent")
+            agents = [{"value": agent, "count": int((mask & ((index.agent_mask >> np.uint64(bit)) & np.uint64(1)).astype(bool)).sum())}
+                      for agent, bit in index.agent_bits.items()]
+            result["agent"] = sorted((a for a in agents if a["count"]), key=lambda a: (-a["count"], a["value"]))
             return result
-        return _cached(("facets", str(store.path), generation, canonical_json(filters)), build)
+        return _cached(("facets", str(store.path), index.generation, canonical_json(filters)), build)
 
 
 def _cards(conn, item_ids) -> dict:
@@ -201,20 +247,20 @@ def get_item(store, item_id: str) -> dict | None:
                            "ON v.version_id=i.latest_version WHERE i.item_id=?", (item_id,)).fetchone()
         if row is None:
             return None
-        doc = json.loads(get_blob(conn, row["doc_sha"]))
+        resource = store.load_resource(conn, row["doc_sha"], row["body_sha"])
         result = card(row)
         licensed = row["body_policy"] == "licensed"
-        body = get_blob(conn, row["body_sha"]) if licensed else None
-        manifest, hints = doc.get("manifest") or {}, doc.get("install") or {}
+        body = resource.body if licensed else None
+        manifest, hints = resource.manifest, resource.install
         license_ok = (row["license"] in PERMISSIVE and licensed) or (row["type"] in ("plugin", "mcp_server") and bool(hints))
         children = [r[0] for r in conn.execute("SELECT child_id FROM item_component WHERE parent_id=? ORDER BY child_id", (item_id,))]
         child_cards = _cards(conn, children)
         result.update({
             "status": row["status"], "language": row["language"], "version_id": row["latest_version"],
             "content_hash": row["content_hash"],
-            "readme": body.decode()[:README_LIMIT] if body else None,
+            "readme": body[:README_LIMIT] if body else None,
             "readme_policy": "inline" if licensed else "link_only",
-            "manifest": manifest, "features": doc.get("features") or [],
+            "manifest": manifest, "features": [f.model_dump() for f in resource.features],
             "versions": [dict(r) for r in conn.execute(
                 "SELECT version_id,version,commit_sha,content_hash,size,created_at FROM item_version "
                 "WHERE item_id=? ORDER BY created_at DESC,rowid DESC LIMIT 5", (item_id,))],

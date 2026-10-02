@@ -1,11 +1,13 @@
 -- Catalog bootstrap (schema v3). Separate database; never applied to tandem.db.
 -- Text payloads live once in `blob` (sha256 of the uncompressed bytes, zlib when >=200 B);
--- projections keep only hashes. chunk_fts is contentless: chunk text comes from the blob.
+-- projections keep only hashes. chunk_fts is contentless: chunk text is recomputed from the
+-- version's document + body (deterministic, pinned by CHUNK_VERSION inside version_id).
 CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID, STRICT;
 INSERT INTO catalog_meta VALUES ('contract', 'catalog-v1'), ('generation', '0'), ('chunk_seq', '0');
+-- Rowid table on purpose: multi-KB rows fill WITHOUT ROWID b-tree pages poorly (measured ~3x).
 CREATE TABLE blob (
  sha TEXT PRIMARY KEY, codec INTEGER NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL
-) WITHOUT ROWID, STRICT;
+) STRICT;
 CREATE TABLE catalog_source (
  source_id TEXT PRIMARY KEY, spec TEXT NOT NULL, enabled INTEGER NOT NULL,
  priority INTEGER NOT NULL, revision TEXT, watermark TEXT, completed_at INTEGER,
@@ -50,9 +52,10 @@ CREATE TABLE item_source (
  PRIMARY KEY(source_id, native_id)
 ) WITHOUT ROWID, STRICT;
 CREATE INDEX item_source_identity ON item_source(item_id, status, source_id);
+-- doc_sha: winning source Resource without body (features are re-extracted on read).
 CREATE TABLE item_version (
  version_id TEXT PRIMARY KEY, item_id TEXT NOT NULL, content_hash TEXT NOT NULL,
- version TEXT, commit_sha TEXT, doc_sha TEXT NOT NULL, body_sha TEXT, chunks_sha TEXT NOT NULL,
+ version TEXT, commit_sha TEXT, doc_sha TEXT NOT NULL, body_sha TEXT,
  size INTEGER NOT NULL, created_at INTEGER NOT NULL
 ) STRICT;
 CREATE INDEX item_versions ON item_version(item_id, created_at DESC);
@@ -70,16 +73,16 @@ CREATE TABLE item_relation (
  a TEXT NOT NULL, b TEXT NOT NULL, relation TEXT NOT NULL, PRIMARY KEY(a, b, relation)
 ) WITHOUT ROWID, STRICT;
 CREATE INDEX item_relation_reverse ON item_relation(b, relation);
--- Text is item_version.chunks_sha[ordinal]; embed=1 marks chunks that get vectors.
+-- Rows describe the item's latest version; embed=1 chunks carry text_hash (vector cache key).
+-- chunk_rowid is the FTS rowid (allocated from catalog_meta.chunk_seq, never reused); rowid ->
+-- (item, ordinal) is resolved by the in-memory index, so it needs no separate SQL index.
 CREATE TABLE resource_chunk (
- chunk_rowid INTEGER PRIMARY KEY, item_id TEXT NOT NULL, version_id TEXT NOT NULL,
- ordinal INTEGER NOT NULL, field TEXT NOT NULL, heading TEXT NOT NULL, text_hash TEXT NOT NULL,
- embed INTEGER NOT NULL
-) STRICT;
-CREATE INDEX chunks_item ON resource_chunk(item_id, ordinal);
+ item_id TEXT NOT NULL, ordinal INTEGER NOT NULL, chunk_rowid INTEGER NOT NULL, field TEXT NOT NULL,
+ heading TEXT NOT NULL, text_hash TEXT, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)
+) WITHOUT ROWID, STRICT;
 CREATE VIRTUAL TABLE chunk_fts USING fts5(
  title, content, content='', contentless_delete=1, detail=column,
- tokenize='unicode61 remove_diacritics 2', prefix='3'
+ tokenize='unicode61 remove_diacritics 2'
 );
 CREATE TRIGGER chunk_deleted AFTER DELETE ON resource_chunk BEGIN
  DELETE FROM chunk_fts WHERE rowid = old.chunk_rowid;

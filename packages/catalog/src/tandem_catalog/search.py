@@ -13,7 +13,6 @@ import numpy as np
 
 from .contracts import Feature, MatchRequest, canonical_json
 from .features import lexical_tokens
-from .store import get_blob
 from .vectors import blocked_scores, normalize_vectors
 
 RANKING_VERSION = "hybrid-rrf60-mmr80-v3"
@@ -183,18 +182,19 @@ def _matched_features(conn, item_ids, wanted, query_weights):
     return {item_id: list(values.values()) for item_id, values in result.items()}
 
 
-def _passages(conn, rowids: dict) -> dict:
-    """item_id -> passage dict; chunk text comes from the version's chunk blob."""
-    if not rowids:
-        return {}
-    rows = conn.execute("SELECT c.*,v.chunks_sha FROM resource_chunk c JOIN item_version v ON v.version_id=c.version_id "
-                        "WHERE c.chunk_rowid IN (SELECT value FROM json_each(?))", (json.dumps(list(rowids.values())),)).fetchall()
-    texts, result = {}, {}
-    for row in rows:
-        if row["chunks_sha"] not in texts:
-            texts[row["chunks_sha"]] = json.loads(get_blob(conn, row["chunks_sha"]))
-        result[row["item_id"]] = {"chunk_id": str(row["chunk_rowid"]), "field": row["field"], "heading": row["heading"],
-                                  "text": texts[row["chunks_sha"]][row["ordinal"]], "start": None}
+def _passages(store, conn, index, rowids: dict) -> dict:
+    """item_id -> passage dict; text is recomputed from the stored version (contentless FTS)."""
+    result = {}
+    for item_id, rowid in rowids.items():
+        if not 0 <= rowid < len(index.chunk_ordinal):
+            continue
+        ordinal = int(index.chunk_ordinal[rowid])
+        row = conn.execute("SELECT field,heading FROM resource_chunk WHERE item_id=? AND ordinal=? AND chunk_rowid=?",
+                           (item_id, ordinal, rowid)).fetchone()
+        texts = store.chunk_texts(conn, item_id) if row else []
+        if ordinal < len(texts):
+            result[item_id] = {"chunk_id": str(rowid), "field": row["field"], "heading": row["heading"],
+                               "text": texts[ordinal], "start": None}
     return result
 
 
@@ -249,11 +249,11 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
         elif request.model_id:
             response["vector"] = {"status": "model_not_loaded", "model_id": request.model_id}
         response["routes"] = {route: len(hits) for route, hits in routes.items()}
-        response["items"] = _rank(conn, index, request, routes, passages, wanted, query_features)
+        response["items"] = _rank(store, conn, index, request, routes, passages, wanted, query_features)
     return response
 
 
-def _rank(conn, index, request, routes, passage_rows, wanted, query_features):
+def _rank(store, conn, index, request, routes, passage_rows, wanted, query_features):
     parts, fusion = defaultdict(dict), defaultdict(float)
     max_rrf = sum(ROUTE_WEIGHTS[r] / 61 for r, hits in routes.items() if hits)
     for route, hits in routes.items():
@@ -293,7 +293,7 @@ def _rank(conn, index, request, routes, passage_rows, wanted, query_features):
                            "effect_status": "unmeasured",
                            "_keys": index.item_keys[position] if position is not None else frozenset()})
     selected = _mmr(candidates, request.limit)
-    texts = _passages(conn, {item["item_id"]: item["passage"] for item in selected if item["passage"] is not None})
+    texts = _passages(store, conn, index, {item["item_id"]: item["passage"] for item in selected if item["passage"] is not None})
     for rank, item in enumerate(selected, 1):
         item.pop("_keys")
         item["passage"] = texts.get(item["item_id"])

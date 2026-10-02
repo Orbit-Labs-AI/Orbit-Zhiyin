@@ -25,6 +25,10 @@ VOCABULARY = {
 }
 
 
+COMMANDS = re.compile(r"\b(git|gh|pytest|uv|python|pnpm|npm|wrangler|docker|latexmk)\b")
+EXTENSIONS = re.compile(r"\.(py|ts|tsx|js|jsx|swift|rs|tex|md|pdf|docx|xlsx)\b")
+
+
 def lexical_tokens(text: str) -> list[str]:
     """Latin words + Han bigrams; avoids unicode61 treating a Chinese sentence as one word."""
     tokens = re.findall(r"[a-z0-9_]+", text.lower())
@@ -46,11 +50,10 @@ def extract(resource: Resource) -> list[Feature]:
     for agent in resource.agents:
         f = Feature(feature="agent", value=agent, origin="declared", evidence="source compatibility")
         features[(f.feature, f.value, f.origin)] = f
-    for command in ("git", "gh", "pytest", "uv", "python", "pnpm", "npm", "wrangler", "docker", "latexmk"):
-        if re.search(r"\b" + command + r"\b", text):
-            f = Feature(feature="command", value=command, evidence=f"text token: {command}")
-            features[(f.feature, f.value, f.origin)] = f
-    for extension in sorted(set(re.findall(r"\.(py|ts|tsx|js|jsx|swift|rs|tex|md|pdf|docx|xlsx)\b", text))):
+    for command in sorted(set(COMMANDS.findall(text))):
+        f = Feature(feature="command", value=command, evidence=f"text token: {command}")
+        features[(f.feature, f.value, f.origin)] = f
+    for extension in sorted(set(EXTENSIONS.findall(text))):
         f = Feature(feature="file_type", value="." + extension, evidence="file extension in text")
         features[(f.feature, f.value, f.origin)] = f
     return sorted(features.values(), key=lambda f: (f.feature, f.value, f.origin))
@@ -80,6 +83,6 @@ def chunks(resource: Resource) -> list[dict]:
             seen.add((field, text))
             # Overview + first three body chunks get vectors; FTS indexes every chunk.
             result.append({"field": field, "heading": heading[:300], "text": text,
-                           "text_hash": digest(text), "ordinal": len(result), "start": start,
+                           "text_hash": digest(text)[:32], "ordinal": len(result), "start": start,
                            "embed": int(len(result) < EMBED_CHUNKS)})
     return result

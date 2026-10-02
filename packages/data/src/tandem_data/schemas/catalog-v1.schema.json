@@ -128,7 +128,7 @@
         "size",
         "data"
       ],
-      "x-ddl": "CREATE TABLE blob (\n sha TEXT PRIMARY KEY, codec INTEGER NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL\n) WITHOUT ROWID, STRICT",
+      "x-ddl": "CREATE TABLE blob (\n sha TEXT PRIMARY KEY, codec INTEGER NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL\n) STRICT",
       "x-foreign-keys": []
     },
     "catalog_item": {
@@ -689,10 +689,6 @@
           ],
           "x-sql-type": "TEXT"
         },
-        "chunks_sha": {
-          "type": "string",
-          "x-sql-type": "TEXT"
-        },
         "size": {
           "type": "integer",
           "x-sql-type": "INTEGER"
@@ -710,11 +706,10 @@
         "commit_sha",
         "doc_sha",
         "body_sha",
-        "chunks_sha",
         "size",
         "created_at"
       ],
-      "x-ddl": "CREATE TABLE item_version (\n version_id TEXT PRIMARY KEY, item_id TEXT NOT NULL, content_hash TEXT NOT NULL,\n version TEXT, commit_sha TEXT, doc_sha TEXT NOT NULL, body_sha TEXT, chunks_sha TEXT NOT NULL,\n size INTEGER NOT NULL, created_at INTEGER NOT NULL\n) STRICT",
+      "x-ddl": "CREATE TABLE item_version (\n version_id TEXT PRIMARY KEY, item_id TEXT NOT NULL, content_hash TEXT NOT NULL,\n version TEXT, commit_sha TEXT, doc_sha TEXT NOT NULL, body_sha TEXT,\n size INTEGER NOT NULL, created_at INTEGER NOT NULL\n) STRICT",
       "x-foreign-keys": []
     },
     "model_info": {
@@ -852,19 +847,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "chunk_rowid": {
-          "type": "integer",
-          "x-sql-type": "INTEGER"
-        },
         "item_id": {
           "type": "string",
           "x-sql-type": "TEXT"
         },
-        "version_id": {
-          "type": "string",
-          "x-sql-type": "TEXT"
-        },
         "ordinal": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "chunk_rowid": {
           "type": "integer",
           "x-sql-type": "INTEGER"
         },
@@ -877,7 +868,10 @@
           "x-sql-type": "TEXT"
         },
         "text_hash": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "x-sql-type": "TEXT"
         },
         "embed": {
@@ -886,16 +880,15 @@
         }
       },
       "required": [
-        "chunk_rowid",
         "item_id",
-        "version_id",
         "ordinal",
+        "chunk_rowid",
         "field",
         "heading",
         "text_hash",
         "embed"
       ],
-      "x-ddl": "CREATE TABLE resource_chunk (\n chunk_rowid INTEGER PRIMARY KEY, item_id TEXT NOT NULL, version_id TEXT NOT NULL,\n ordinal INTEGER NOT NULL, field TEXT NOT NULL, heading TEXT NOT NULL, text_hash TEXT NOT NULL,\n embed INTEGER NOT NULL\n) STRICT",
+      "x-ddl": "CREATE TABLE resource_chunk (\n item_id TEXT NOT NULL, ordinal INTEGER NOT NULL, chunk_rowid INTEGER NOT NULL, field TEXT NOT NULL,\n heading TEXT NOT NULL, text_hash TEXT, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)\n) WITHOUT ROWID, STRICT",
       "x-foreign-keys": []
     },
     "sync_run": {

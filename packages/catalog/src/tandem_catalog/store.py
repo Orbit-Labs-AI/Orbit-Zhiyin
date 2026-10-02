@@ -118,6 +118,8 @@ class CatalogStore:
         self._local = threading.local()
         self._index = None
         self._index_lock = threading.Lock()
+        self._chunk_cache = {}
+        self._chunk_lock = threading.Lock()
         # Opening an existing catalog for search must work during another process's sync.
         if self.path.is_file() and self.path.stat().st_size:
             with self.connect(True) as conn:
@@ -150,7 +152,9 @@ class CatalogStore:
             elif version not in (0, SCHEMA_VERSION):
                 raise ValueError("unsupported_catalog_schema")
             if version == 0:
+                # Staging pages are deleted after every publish; incremental vacuum returns them.
                 conn.execute("PRAGMA page_size=8192")
+                conn.execute("PRAGMA auto_vacuum=INCREMENTAL")
                 schema = files("tandem_data").joinpath("migrations/catalog/schema.sql").read_text()
                 conn.executescript("BEGIN IMMEDIATE;\n" + schema +
                                    f"\nPRAGMA application_id={APPLICATION_ID};"
@@ -363,7 +367,9 @@ class CatalogStore:
             if changed or retired:
                 self._vacuum_blobs(conn)
             conn.execute("PRAGMA optimize")
-            return dict(conn.execute("SELECT * FROM sync_run WHERE run_id=?", (run_id,)).fetchone())
+            result = dict(conn.execute("SELECT * FROM sync_run WHERE run_id=?", (run_id,)).fetchone())
+        self._release_free_pages()
+        return result
 
     # -- materialization -----------------------------------------------------------------
     def _materialize_many(self, conn, item_ids, now: int, force: bool = False) -> tuple[int, int]:
@@ -425,8 +431,6 @@ class CatalogStore:
                          "metadata=?,last_seen=? WHERE item_id=?", (*display, now, item_id))
             return 0, 0
         pieces = chunks(resource)
-        chunks_sha = put_blob(conn, canonical_json([c["text"] for c in pieces]).encode())
-        doc_sha = put_blob(conn, canonical_json({k: v for k, v in document.items() if k != "body"}).encode())
         listable = int(resource.status == "active" and resource.type not in UNLISTED_TYPES)
         conn.execute("INSERT INTO catalog_item(item_id,type,name,name_key,summary,url,status,license,agents,language,"
                      "difficulty,official,origin,author,version,installs,stars,updated_at,risk,risk_level,canonical_of,"
@@ -445,9 +449,9 @@ class CatalogStore:
                       resource.difficulty, resource.official, "local" if md.get("origin") == "local" else "remote",
                       *display[:7], listable, resource.body_policy, _text(md.get("verification")), len(body),
                       version_id, content_hash, display[7], now, now))
-        conn.execute("INSERT INTO item_version VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(version_id) DO UPDATE SET "
+        conn.execute("INSERT INTO item_version VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(version_id) DO UPDATE SET "
                      "created_at=excluded.created_at", (version_id, item_id, content_hash, resource.version, resource.commit_sha,
-                                                        doc_sha, winner["body_sha"], chunks_sha, len(body), now))
+                                                        winner["res_sha"], winner["body_sha"], len(body), now))
         conn.execute("DELETE FROM item_version WHERE item_id=?1 AND version_id!=?2 AND version_id NOT IN (SELECT version_id "
                      "FROM item_version WHERE item_id=?1 AND version_id!=?2 ORDER BY created_at DESC,rowid DESC LIMIT ?3)",
                      (item_id, version_id, KEEP_VERSIONS - 1))
@@ -466,8 +470,8 @@ class CatalogStore:
         end = int(conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+? WHERE key='chunk_seq' "
                                "RETURNING value", (len(pieces),)).fetchone()[0])
         rowids = range(end - len(pieces) + 1, end + 1)
-        conn.executemany("INSERT INTO resource_chunk VALUES(?,?,?,?,?,?,?,?)",
-                         [(rowid, item_id, version_id, c["ordinal"], c["field"], c["heading"], c["text_hash"], c["embed"])
+        conn.executemany("INSERT INTO resource_chunk VALUES(?,?,?,?,?,?,?)",
+                         [(item_id, c["ordinal"], rowid, c["field"], c["heading"], c["text_hash"] if c["embed"] else None, c["embed"])
                           for rowid, c in zip(rowids, pieces, strict=True)])
         title = " ".join(lexical_tokens(resource.name))
         conn.executemany("INSERT INTO chunk_fts(rowid,title,content) VALUES(?,?,?)",
@@ -618,19 +622,40 @@ class CatalogStore:
                         "SELECT m.*,(SELECT count(*) FROM resource_chunk c JOIN embedding_cache e ON e.model_id=m.model_id "
                         "AND e.text_hash=c.text_hash WHERE c.embed=1) AS indexed_chunks FROM embedding_model m")]}
 
+    def load_resource(self, conn, doc_sha: str, body_sha: str | None) -> Resource:
+        """A stored version as a Resource, with features re-extracted exactly as at publish."""
+        body = get_blob(conn, body_sha)
+        resource = Resource.model_validate({**json.loads(get_blob(conn, doc_sha)), "body": body.decode() if body else ""})
+        return resource.model_copy(update={"features": extract(resource)})
+
+    def chunk_texts(self, conn, item_id: str) -> list[str]:
+        """Chunk text by ordinal for the latest version, recomputed (FTS is contentless) and LRU-cached."""
+        row = conn.execute("SELECT v.version_id,v.doc_sha,v.body_sha FROM catalog_item i JOIN item_version v "
+                           "ON v.version_id=i.latest_version WHERE i.item_id=?", (item_id,)).fetchone()
+        if row is None:
+            return []
+        with self._chunk_lock:
+            cached = self._chunk_cache.get(row["version_id"])
+        if cached is None:
+            cached = [c["text"] for c in chunks(self.load_resource(conn, row["doc_sha"], row["body_sha"]))]
+            with self._chunk_lock:
+                self._chunk_cache[row["version_id"]] = cached
+                while len(self._chunk_cache) > 512:
+                    self._chunk_cache.pop(next(iter(self._chunk_cache)))
+        return cached
+
     def detail(self, item_id: str) -> dict | None:
         """Legacy detail shape (resource/version/sources/chunks) plus readme, versions and risk."""
         from .query import get_item
         with self.reader() as conn:
-            row = conn.execute("SELECT i.*,v.doc_sha,v.chunks_sha,v.body_sha FROM catalog_item i JOIN item_version v "
+            row = conn.execute("SELECT i.*,v.doc_sha,v.body_sha FROM catalog_item i JOIN item_version v "
                                "ON v.version_id=i.latest_version WHERE i.item_id=?", (item_id,)).fetchone()
             if row is None:
                 return None
-            body = get_blob(conn, row["body_sha"])
-            texts = json.loads(get_blob(conn, row["chunks_sha"]))
+            resource = self.load_resource(conn, row["doc_sha"], row["body_sha"])
+            texts = self.chunk_texts(conn, item_id)
             item = get_item(self, item_id)
-            return {"resource": {**json.loads(get_blob(conn, row["doc_sha"])), "body": body.decode() if body else "",
-                                 "status": row["status"]},
+            return {"resource": {**resource.model_dump(exclude={"popularity"}), "status": row["status"]},
                     "version_id": row["latest_version"], "content_hash": row["content_hash"],
                     "first_seen": row["first_seen"], "last_seen": row["last_seen"],
                     "sources": item["sources"], "readme": item["readme"], "versions": item["versions"],
@@ -644,7 +669,7 @@ class CatalogStore:
         return conn.execute(
             "DELETE FROM blob WHERE sha NOT IN (SELECT res_sha FROM item_source UNION SELECT body_sha FROM item_source "
             "WHERE body_sha IS NOT NULL UNION SELECT raw_sha FROM item_source UNION SELECT doc_sha FROM item_version "
-            "UNION SELECT body_sha FROM item_version WHERE body_sha IS NOT NULL UNION SELECT chunks_sha FROM item_version)").rowcount
+            "UNION SELECT body_sha FROM item_version WHERE body_sha IS NOT NULL)").rowcount
 
     def vacuum_blobs(self) -> int:
         with self.writer(), self.connect() as conn:
@@ -658,7 +683,15 @@ class CatalogStore:
             self._vacuum_blobs(conn)
             self._bump(conn)
             conn.execute("PRAGMA optimize")
+        self._release_free_pages()
         return {"items_checked": len(ids), "changed": changed}
+
+    def _release_free_pages(self) -> None:
+        conn = sqlite3.connect(self.path, timeout=30, isolation_level=None)
+        try:
+            conn.execute("PRAGMA incremental_vacuum").fetchall()
+        finally:
+            conn.close()
 
     def verify(self):
         with self.connect(True) as conn:
@@ -666,10 +699,9 @@ class CatalogStore:
                 return conn.execute(sql).fetchone()[0]
             integrity = [r[0] for r in conn.execute("PRAGMA quick_check")]
             foreign_keys = [tuple(r) for r in conn.execute("PRAGMA foreign_key_check")]
-            missing_fts = count("SELECT count(*) FROM resource_chunk c WHERE NOT EXISTS "
-                                "(SELECT 1 FROM chunk_fts f WHERE f.rowid=c.chunk_rowid)")
-            orphan_fts = count("SELECT count(*) FROM chunk_fts f WHERE NOT EXISTS "
-                               "(SELECT 1 FROM resource_chunk c WHERE c.chunk_rowid=f.rowid)")
+            chunk_ids = {r[0] for r in conn.execute("SELECT chunk_rowid FROM resource_chunk")}
+            fts_ids = {r[0] for r in conn.execute("SELECT rowid FROM chunk_fts")}
+            missing_fts, orphan_fts = len(chunk_ids - fts_ids), len(fts_ids - chunk_ids)
             invalid_vectors = count("SELECT count(*) FROM embedding_cache e JOIN embedding_model m USING(model_id) "
                                     "WHERE e.dimensions!=m.dimensions OR length(e.vector)!=e.dimensions*2")
             invalid_versions = count("SELECT count(*) FROM catalog_item i LEFT JOIN item_version v ON v.version_id=i.latest_version "
@@ -677,7 +709,7 @@ class CatalogStore:
             invalid_canonical = count("SELECT count(*) FROM catalog_item i LEFT JOIN catalog_item c ON c.item_id=i.canonical_of "
                                       "WHERE i.canonical_of IS NOT NULL AND (c.item_id IS NULL OR c.canonical_of IS NOT NULL)")
             missing_blobs = count("SELECT count(*) FROM item_version v WHERE NOT EXISTS(SELECT 1 FROM blob WHERE sha=v.doc_sha) "
-                                  "OR NOT EXISTS(SELECT 1 FROM blob WHERE sha=v.chunks_sha)")
+                                  "OR (v.body_sha IS NOT NULL AND NOT EXISTS(SELECT 1 FROM blob WHERE sha=v.body_sha))")
             invalid_blobs = 0
             for row in conn.execute("SELECT sha,codec,data FROM blob ORDER BY random() LIMIT 200"):
                 data = zlib.decompress(row["data"]) if row["codec"] == 1 else bytes(row["data"])

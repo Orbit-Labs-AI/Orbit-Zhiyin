@@ -28,7 +28,8 @@ class CatalogIndex:
     def build(cls, conn, generation: int) -> "CatalogIndex":
         self = cls(generation)
         rows = conn.execute("SELECT item_id,type,canonical_of,listable,difficulty,agents,language,official,risk_level,"
-                            "origin,verification,content_hash FROM catalog_item WHERE status='active' ORDER BY item_id").fetchall()
+                            "origin,verification,content_hash,license FROM catalog_item WHERE status='active' "
+                            "ORDER BY item_id").fetchall()
         self.ids = [r["item_id"] for r in rows]
         self.pos = {item_id: i for i, item_id in enumerate(self.ids)}
         self.content_hash = [r["content_hash"] for r in rows]
@@ -40,6 +41,9 @@ class CatalogIndex:
         self.risk_level = np.array([r["risk_level"] for r in rows], dtype=np.int8)
         self.local = np.array([r["origin"] == "local" for r in rows], dtype=bool)
         self.verified = np.array([r["verification"] in VERIFIED for r in rows], dtype=bool)
+        self.licenses = sorted({r["license"] or "" for r in rows})
+        codes = {value: code for code, value in enumerate(self.licenses)}
+        self.license = np.array([codes[r["license"] or ""] for r in rows], dtype=np.int32)
         self.agent_bits, self.lang_codes = {}, {}
         agent_mask = np.zeros(len(rows), dtype=np.uint64)
         language = np.zeros(len(rows), dtype=np.int16)
@@ -71,13 +75,15 @@ class CatalogIndex:
         self.postings = {key: (np.fromiter(p.keys(), dtype=np.int32, count=len(p)),
                                np.array([w for w, _ in p.values()], dtype=np.float32),
                                np.array([c for _, c in p.values()], dtype=bool)) for key, p in best.items()}
-        chunk_rows = conn.execute("SELECT chunk_rowid,item_id,embed FROM resource_chunk").fetchall()
+        chunk_rows = conn.execute("SELECT chunk_rowid,item_id,ordinal,embed FROM resource_chunk").fetchall()
         size = max((r[0] for r in chunk_rows), default=-1) + 1
         self.chunk_item = np.full(size, -1, dtype=np.int32)
+        self.chunk_ordinal = np.zeros(size, dtype=np.int32)
         embed = []
-        for rowid, item_id, flag in chunk_rows:
+        for rowid, item_id, ordinal, flag in chunk_rows:
             i = self.pos.get(item_id, -1)
             self.chunk_item[rowid] = i
+            self.chunk_ordinal[rowid] = ordinal
             if flag and i >= 0:
                 embed.append(i)
         self.embed_items = np.array(embed, dtype=np.int32)
