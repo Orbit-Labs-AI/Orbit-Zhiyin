@@ -25,8 +25,6 @@ def _inspect(store, agent, mode):
         # Report stays small; full envelopes are available through event_page and raw evidence.
         for event in events:
             event["ext"] = {"available_in_database": True}
-            if event["text"] is not None:
-                event["text"] = event["text"][:1000]
         derived = {
             table: [
                 dict(r)

@@ -1175,6 +1175,52 @@
       ],
       "x-ddl": "CREATE TABLE record_event (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  event_uid TEXT NOT NULL REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  relation TEXT NOT NULL CHECK(relation IN ('mapped','folded','replayed','duplicate')),\n  contribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(contribution)),\n  PRIMARY KEY(record_uid, event_uid)\n) STRICT"
     },
+    "record_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_uid",
+        "revision_uid",
+        "ordinal",
+        "byte_offset",
+        "byte_len"
+      ],
+      "properties": {
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "revision_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "ordinal": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "byte_offset": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "byte_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source_reference",
+          "from": "revision_uid",
+          "to": null
+        },
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE record_location (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  revision_uid TEXT NOT NULL REFERENCES source_reference,\n  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,\n  PRIMARY KEY(record_uid, revision_uid)\n) STRICT"
+    },
     "schema_manifest": {
       "type": "object",
       "additionalProperties": false,
@@ -1605,6 +1651,42 @@
       ],
       "x-ddl": "CREATE TABLE source_file (\n  file_id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES source,\n  relative_path TEXT NOT NULL, role TEXT NOT NULL, format TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','gone_upstream','error')),\n  watermark TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(watermark)),\n  last_scan_at INTEGER, UNIQUE(source_id, relative_path)\n) STRICT"
     },
+    "source_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision_uid",
+        "sha256",
+        "byte_len",
+        "encoding"
+      ],
+      "properties": {
+        "revision_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "byte_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "encoding": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source_revision",
+          "from": "revision_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE source_reference (\n  revision_uid TEXT PRIMARY KEY REFERENCES source_revision,\n  sha256 TEXT NOT NULL, byte_len INTEGER NOT NULL CHECK(byte_len >= 0),\n  encoding TEXT NOT NULL CHECK(encoding IN ('jsonl','jsonl_zstd','json','sqlite_rows'))\n) STRICT"
+    },
     "source_revision": {
       "type": "object",
       "additionalProperties": false,
@@ -1631,7 +1713,10 @@
           "x-sql-type": "INTEGER"
         },
         "archive_uid": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "x-sql-type": "TEXT"
         },
         "captured_at": {
@@ -1659,7 +1744,58 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE source_revision (\n  revision_uid TEXT PRIMARY KEY, file_id TEXT NOT NULL REFERENCES source_file,\n  revision INTEGER NOT NULL CHECK(revision > 0), archive_uid TEXT NOT NULL REFERENCES archive_blob,\n  captured_at INTEGER NOT NULL, source_stat TEXT NOT NULL CHECK(json_valid(source_stat)),\n  record_count INTEGER NOT NULL CHECK(record_count >= 0), UNIQUE(file_id, revision)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"source_revision\" (\n  revision_uid TEXT PRIMARY KEY, file_id TEXT NOT NULL REFERENCES source_file,\n  revision INTEGER NOT NULL CHECK(revision > 0), archive_uid TEXT REFERENCES archive_blob,\n  captured_at INTEGER NOT NULL, source_stat TEXT NOT NULL CHECK(json_valid(source_stat)),\n  record_count INTEGER NOT NULL CHECK(record_count >= 0), UNIQUE(file_id, revision)\n) STRICT"
+    },
+    "source_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "scanned_at",
+        "selection",
+        "discovered_files",
+        "indexed_files",
+        "capture_errors",
+        "cancelled"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "scanned_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "selection": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "discovered_files": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "indexed_files": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "capture_errors": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "cancelled": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source",
+          "from": "source_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE source_scan (\n  source_id TEXT PRIMARY KEY REFERENCES source,\n  scanned_at INTEGER NOT NULL, selection TEXT NOT NULL,\n  discovered_files INTEGER NOT NULL, indexed_files INTEGER NOT NULL,\n  capture_errors INTEGER NOT NULL, cancelled INTEGER NOT NULL\n) STRICT"
     },
     "tool_call": {
       "type": "object",
@@ -2066,6 +2202,32 @@
         }
       ],
       "x-ddl": "CREATE TABLE turn (\n  turn_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  idx INTEGER NOT NULL CHECK(idx >= 0), native_id TEXT, trigger TEXT NOT NULL,\n  boundary_source TEXT NOT NULL CHECK(boundary_source IN ('reported','derived')),\n  project_id TEXT REFERENCES project, status TEXT NOT NULL,\n  started_at INTEGER, ended_at INTEGER,\n  trigger_event_uid TEXT REFERENCES event, first_event_uid TEXT NOT NULL REFERENCES event,\n  last_event_uid TEXT NOT NULL REFERENCES event, UNIQUE(session_uid, idx)\n) STRICT"
+    },
+    "usage_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_uid",
+        "observation"
+      ],
+      "properties": {
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "observation": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE usage_observation (\n  record_uid TEXT PRIMARY KEY REFERENCES raw_record,\n  observation TEXT NOT NULL CHECK(json_valid(observation))\n) STRICT"
     },
     "usage_snapshot": {
       "type": "object",

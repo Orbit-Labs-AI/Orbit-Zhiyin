@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> None:
 def _main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Tandem 本地轨迹后端")
     parser.add_argument("--home", type=Path, default=default_home(), help="L0–L3 数据目录，默认 macOS Application Support/Tandem")
-    parser.add_argument("--max-events", type=int, default=100000, help="分析/报告读取事件上限，含上下文；默认 100000，可显式调大")
+    parser.add_argument("--max-events", type=int, default=None, help="可选的分析/报告事件预算，含上下文；默认不限制，超限明确报错")
     parser.add_argument("--no-progress", action="store_true", help="关闭 stderr 进度输出")
     parser.add_argument("--db", help="显式使用旧版 MVP 数据库（兼容模式）")
     parser.add_argument("--catalog-cache", type=Path, default=Path(".local/catalog.json"))
@@ -103,7 +103,7 @@ def _main(argv: list[str] | None = None) -> None:
     analytics.add_argument("--display-timezone", default="UTC")
     analytics.add_argument("--from-ts", type=int)
     analytics.add_argument("--until-ts", type=int)
-    for flag in ("project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
+    for flag in ("source-id", "project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
         analytics.add_argument("--" + flag, action="append")
     analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
     analytics.add_argument("--scene")
@@ -111,6 +111,25 @@ def _main(argv: list[str] | None = None) -> None:
     analytics.add_argument("--recommendation-catalog", type=Path, help="读取该目录的七类推荐 JSON，缺失时不回退种子")
     analytics.add_argument("--recommendation-agent", default="generic", help="推荐适配的 Agent 标识")
     analytics.add_argument("--recommendation-family", choices=("rules_prompts", "skills", "plugins", "mcp", "hooks", "model_configs", "workflows"))
+    products = sub.add_parser("analysis-report", help="生成同一分析快照的终端、JSON、CSV 和离线图表")
+    products.add_argument("--output", type=Path, default=Path(".local/analysis-report"))
+    products.add_argument("--display-timezone", default="UTC")
+    products.add_argument("--from-ts", type=int)
+    products.add_argument("--until-ts", type=int)
+    products.add_argument("--bucket", choices=("day", "week", "month"), default="day")
+    products.add_argument("--with-text", action="store_true")
+    products.add_argument("--compare-previous", action="store_true")
+    for flag in ("source-id", "project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
+        products.add_argument("--" + flag, action="append")
+    products.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
+    history = sub.add_parser("analysis-history", help="查询持久保存的分析运行与完整结果")
+    history.add_argument("--engine", choices=("features", "products", "comparison", "profile"))
+    history.add_argument("--status", choices=("running", "completed", "failed"))
+    history.add_argument("--run-id")
+    history.add_argument("--pointer", help="分页读取结果数组，例如 /lexical/terms")
+    history.add_argument("--limit", type=int, default=50)
+    history.add_argument("--offset", type=int, default=0)
+    history.add_argument("--output", type=Path)
     demo = sub.add_parser("demo")
     demo.add_argument("--output", type=Path, default=Path(".local/demo"))
     for command in (report, demo):
@@ -140,7 +159,7 @@ def _main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     from tandem_data.progress import TerminalProgress
     progress = TerminalProgress(enabled=not args.no_progress)
-    if args.max_events < 1:
+    if args.max_events is not None and args.max_events < 1:
         parser.error("--max-events 必须是正整数")
     if args.command in ("ingest", "import-connector", "init", "rebuild", "verify", "stats", "discover"):
         from ..data_access.ingest import ingest, ingest_staging, maintain
@@ -225,11 +244,47 @@ def _main(argv: list[str] | None = None) -> None:
             store = CanonicalStore(args.home, max_events=args.max_events)
         except ValueError as exc:
             parser.error(str(exc))
+    if args.command == "analysis-history":
+        from ..analytics.history import history_for
+        from ..analytics.products.render import atomic_write
+        try:
+            history = history_for(store)
+            if args.pointer and not args.run_id:
+                raise ValueError("pointer 需要 run-id")
+            result = (history.records(args.run_id, args.pointer, limit=args.limit, offset=args.offset)
+                      if args.pointer else history.result(args.run_id)) if args.run_id else history.list_runs(
+                          engine=args.engine, status=args.status, limit=args.limit, offset=args.offset)
+            text = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)
+            if args.output:
+                atomic_write(args.output, text)
+                print(str(args.output.resolve()))
+            else:
+                print(text)
+        except (ValueError, KeyError) as exc:
+            parser.error(str(exc))
+        return
+    if args.command == "analysis-report":
+        from ..analytics.inputs import Scope
+        from ..analytics.products import analyze_product_store
+        from ..analytics.products.render import export_report, terminal_report
+        try:
+            scope = Scope(display_timezone=args.display_timezone, source_ids=args.source_id,
+                          project_ids=args.project_id, model_ids=args.model_id, effort_raw=args.effort_raw,
+                          from_ts=args.from_ts, until_ts=args.until_ts, root_session_uids=args.root_session_uid,
+                          excluded_session_uids=args.exclude_session or [], include_children=args.include_children)
+            product = analyze_product_store(store, scope, bucket=args.bucket, with_text=args.with_text,
+                                            compare_previous=args.compare_previous)
+            paths = export_report(product, args.output)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(terminal_report(product))
+        print("离线图表：" + paths["report.html"])
+        return
     if args.command == "analytics":
         from ..analytics.inputs import Scope
         from ..analytics.service import analyze_store
         try:
-            scope = Scope(display_timezone=args.display_timezone, project_ids=args.project_id,
+            scope = Scope(display_timezone=args.display_timezone, source_ids=args.source_id, project_ids=args.project_id,
                           legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
                           effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
                           root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],

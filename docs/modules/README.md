@@ -1,7 +1,10 @@
 # 模块说明
 
+- [统计分析与完整分析记录](analytics/statistics-history.md)：实际词频、分布、对比与持久化历史。
+
 - [分析与画像](../architecture/backend.md)：当前默认入口与历史算法语义。
 - [画像推导](analytics/profiling.md)、[特征分析](analytics/feature-analytics.md)、[瓶颈特征](analytics/bottleneck-features.md)。
+- [UI 分析与端到端验收](analytics/analysis-products.md)：可展示组合结果与原生会话验收。
 - [Preference](analytics/preference.md)、[Task](analytics/task.md)及[验证范围](analytics/validation.md)。
 - [数据连接器](data/agent-connectors.md)。
 - [读者评价](evaluation/reader-review.md)。

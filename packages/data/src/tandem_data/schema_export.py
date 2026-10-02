@@ -5,11 +5,10 @@ import sqlite3
 from importlib.resources import files
 
 
-def table_schemas():
+def table_schemas(database="canonical"):
     connection = sqlite3.connect(":memory:")
-    for migration in sorted(
-        files("tandem_data").joinpath("migrations").iterdir(), key=lambda p: p.name
-    ):
+    folder = "migrations/analysis" if database == "analysis" else "migrations"
+    for migration in sorted(files("tandem_data").joinpath(folder).iterdir(), key=lambda p: p.name):
         if migration.name.endswith(".sql"):
             connection.executescript(migration.read_text())
     tables = {}
@@ -28,6 +27,7 @@ def table_schemas():
                 "note",
                 "watermark",
                 "source_stat",
+                "request_json",
             ):
                 typ = "object"
             if column in ("native_key", "locator", "paths", "files"):
@@ -62,7 +62,9 @@ def table_schemas():
     connection.close()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Tandem database rows v1",
+        "title": "Tandem analysis history rows v1"
+        if database == "analysis"
+        else "Tandem database rows v1",
         "$defs": tables,
         "description": "JSON text columns must be decoded before validating a row. Event semantic validation also uses event-v1.schema.json.",
     }
@@ -74,8 +76,11 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--database", choices=("canonical", "analysis"), default="canonical")
     args = parser.parse_args()
-    args.output.write_text(json.dumps(table_schemas(), ensure_ascii=False, indent=2) + "\n")
+    args.output.write_text(
+        json.dumps(table_schemas(args.database), ensure_ascii=False, indent=2) + "\n"
+    )
 
 
 if __name__ == "__main__":

@@ -275,7 +275,7 @@ def test_upgrade_from_v4_keeps_session_tables_and_inventory_survives_rebuild(tmp
     root = tmp_path / "codex"
     write(root, "AGENTS.md", "rule")
     with Store(home) as store:
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
         scan_inventory(store, InventoryRequest("codex", root))
         store.rebuild()
         assert len(read_inventory(home)["items"]) == 1

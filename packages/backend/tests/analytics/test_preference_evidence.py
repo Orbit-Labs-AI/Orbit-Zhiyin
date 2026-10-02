@@ -193,7 +193,7 @@ def test_service_extracts_instruction_once_and_does_not_apply_historical_evidenc
     events = [e("请修复代码", "a", 1, ts=10), e("直接执行", "b", 2, ts=20),
               e("无需确认", "c", 3, ts=30), e("以后所有项目用中文", "d", 4, ts=40)]
     spy = Mock(wraps=extract_instruction_constraints)
-    monkeypatch.setattr("tandem_backend.analytics.service.extract_instruction_constraints", spy)
+    monkeypatch.setattr("tandem_backend.analytics.semantic.extract_instruction_constraints", spy)
     result = analyze_bundle(b(events), with_text=False)
     spy.assert_called_once()
     prefs = result["preferences"]

@@ -9,6 +9,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 - 数据方案：[docs/plans/data-acquisition.md](../plans/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
 - 会话格式调研：[docs/research/agent-sessions](../research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
 - 分析开发输入：[docs/contracts/analysis-inputs.md](../contracts/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
+- UI 分析与验收：[组合分析说明](../modules/analytics/analysis-products.md)（`analysis-report`、工具占比、调用转移、情绪图表及本地 session 验收）
 - Codex 数据连接器：[packages/connectors](../../packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
 - 会话数据实现：[packages/data](../../packages/data/README.md)（实际 SQLite 数据库、L0/L1 归档、L2/L3 预处理和 connector 桥接）
 - App 数据入口：[模块边界与接入方式](../architecture/data-pipeline.md)（macOS、统一 workspace、分页查询、重算与旧库兼容）
@@ -86,7 +87,7 @@ Codex 的子代理继承前缀按原生边界识别：能找到父记录时关�
 
 `--limit` 选择来源文件，不保证最近 N 个会话。来源根目录与数据目录不能包含彼此；例如仓库位于 `~/.codex/worktrees/` 时，输出目录应显式放在该来源目录之外。
 
-分析与报告默认最多读取 100000 条事件（包含所选轮次的上下文），在解码正文前检查；超限会明确失败，不返回截断的分析结果。优先用 `--project-id` 或 `--from-ts / --until-ts` 缩小范围，两种报告入口都支持 UTC 毫秒时间范围，左闭右开。确实需要更大范围时可以显式调大上限：
+分析与报告默认不限制事件数量，也不截断正文。可显式设置 `--max-events` 预算（包含所选轮次的上下文），在解码正文前检查；超限会明确失败，不返回部分分析结果。可以用 `--project-id` 或 `--from-ts / --until-ts` 缩小范围，两种报告入口都支持 UTC 毫秒时间范围，左闭右开。需要控制资源占用时可以显式指定预算：
 
 ```sh
 uv run tandem --home .tandem --max-events 500000 analytics --no-text --display-timezone Asia/Shanghai --output .local/report/analytics.json
@@ -95,7 +96,7 @@ uv run tandem --home .tandem --max-events 500000 report --output .local/report
 
 读取轮次首尾事件改为单次遍历，不再为每一轮扫描整个事件集合。分析和报告只读取所需的标准字段，不批量解码 event.ext 中的重复原生副本；覆盖说明会标记 native_event_payload 为 excluded，完整已存证据仍可按事件/记录 ID 回看，原始归档不变。
 
-`--max-events` 是命令前的全局参数，调大上限会增加内存和计算需求。`--no-text` 只跳过 TF-IDF/SVD 文本表示、聚类和时间新颖度，其他分析仍运行；全量文本新颖度需要对历史前缀反复拟合，大库会更慢。缺失或未知值仍保留覆盖说明，不能当成零成本或成功。
+`--max-events` 是命令前的全局参数，预算可用于控制内存和计算需求。`--no-text` 只跳过 TF-IDF/SVD 文本表示、聚类和时间新颖度，其他分析仍运行；全量文本新颖度需要对历史前缀反复拟合，大库会更慢。缺失或未知值仍保留覆盖说明，不能当成零成本或成功。
 
 ## 核对推荐来源
 
