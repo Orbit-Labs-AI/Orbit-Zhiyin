@@ -9,7 +9,6 @@ from __future__ import annotations
 import fnmatch
 import json
 import re
-import shlex
 import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
