@@ -921,7 +921,7 @@ def _inventory(conn, diagnostics: list) -> list[dict] | None:
         parsed = parsed if isinstance(parsed, dict) else {}
         lines, tokens = parsed.get("lines"), parsed.get("resident_tokens")
         if type_ in ("skill", "rule") and (lines is None or tokens is None):
-            measured = file_size(path)
+            measured = file_size(path, type_)
             if measured:
                 lines = measured[0] if lines is None else lines
                 tokens = measured[1] if tokens is None else tokens
@@ -932,8 +932,9 @@ def _inventory(conn, diagnostics: list) -> list[dict] | None:
     return out
 
 
-def file_size(path: str | None) -> tuple[int, int] | None:
-    """(lines, ceil(bytes / 3.5)) of a readable text file; contents are never kept."""
+def file_size(path: str | None, kind: str = "rule") -> tuple[int, int] | None:
+    """(lines, resident tokens) of a readable text file; contents are never kept. A skill only
+    keeps ``name`` + ``description`` resident (features.linked.resident_text)."""
     if not path:
         return None
     try:
@@ -944,6 +945,9 @@ def file_size(path: str | None) -> tuple[int, int] | None:
     except OSError:
         return None
     lines = data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+    if kind == "skill":
+        from ..features.linked import estimate_tokens, resident_text
+        return lines, estimate_tokens(resident_text("skill", data.decode("utf-8", "ignore")))
     return lines, math.ceil(len(data) / 3.5)
 
 

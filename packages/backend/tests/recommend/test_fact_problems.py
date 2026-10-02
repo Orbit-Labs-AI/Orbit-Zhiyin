@@ -49,7 +49,8 @@ def test_facts_from_events_and_sequences(inputs):
     assert all(days[uid]["readonly_prompts"] == 3 for uid in groups["approval"])
     inventory = {item["inv_id"]: item for item in inputs["inventory"]}
     assert inventory["skill:pdf-tools"]["lines"] == 400
-    assert inventory["skill:pdf-tools"]["resident_tokens"] > 2000
+    # a skill keeps only its header / first paragraph resident, never the whole 400-line file
+    assert 0 < inventory["skill:pdf-tools"]["resident_tokens"] < 400
     assert inventory["rule:agents-md"]["lines"] == 261
     assert inventory["rule:agents-md"]["resident_tokens"] > 0
     assert inventory["mcp:figma"]["resident_tokens"] is None

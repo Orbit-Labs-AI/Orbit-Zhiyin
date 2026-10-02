@@ -88,13 +88,36 @@ def test_resident_tokens_cached_by_content_hash(world):
         {"inv_id": "m", "type": "mcp", "name": "srv"},
     ])
     items = run(world, read_text=read_text)
-    assert items["s"]["resident"]["basis"] == "file_bytes_estimate"
+    assert items["s"]["resident"]["basis"] == "skill_frontmatter"
+    assert items["r"]["resident"]["basis"] == "file_bytes_estimate"
     assert 0 < items["s"]["resident"]["tokens_est"] < items["r"]["resident"]["tokens_est"]
     assert items["m"]["resident"] == {"tokens_est": None, "basis": "unknown"}
     assert len(reads) == 2
     assert world.a.execute("SELECT COUNT(*) FROM inv_size").fetchone()[0] == 2
     items = run(world, read_text=read_text)
     assert len(reads) == 2 and items["s"]["resident"]["tokens_est"] > 0
+
+
+def test_skill_resident_is_name_and_description_only():
+    from tandem_backend.features.linked import resident_text
+
+    header = "\n".join(f"  - pattern{i}/**" for i in range(40))
+    text = (f"---\nname: pdf-tools\ndescription: >\n  Read and fill PDF forms.\n  Use for PDFs.\n"
+            f"metadata:\n  pathPatterns:\n{header}\n---\n" + "Long body paragraph. " * 500)
+    resident = resident_text("skill", text)
+    assert resident == "pdf-tools: Read and fill PDF forms. Use for PDFs."
+    assert estimate_tokens(resident) < 30
+    assert resident_text("skill", "no header\n\nbody") == "no header"
+    assert resident_text("rule", text) == text
+
+
+def test_older_size_basis_is_remeasured(world):
+    seed(world)
+    world.inventory("claude_code", [{"inv_id": "s", "type": "skill", "name": "x", "content_hash": "old"}])
+    world.a.execute("INSERT INTO inv_size VALUES ('old', 2681, 'file_bytes_estimate', 0)")
+    world.a.commit()
+    items = run(world, read_text=lambda path: "---\nname: x\ndescription: short\n---\nbody")
+    assert items["s"]["resident"]["basis"] == "skill_frontmatter" and items["s"]["resident"]["tokens_est"] < 10
 
 
 def test_unreadable_and_token_estimate():

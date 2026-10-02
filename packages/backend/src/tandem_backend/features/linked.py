@@ -57,17 +57,49 @@ def estimate_tokens(text: str) -> int:
     return math.ceil((len(text) - cjk) / 3.6 + cjk * 1.5)
 
 
+SKILL_BASIS, FILE_BASIS = "skill_frontmatter", "file_bytes_estimate"
+_KEY = re.compile(r"^([A-Za-z_][\w-]*)\s*:\s*(.*)$")
+
+
+def _frontmatter(text: str) -> tuple[dict[str, str], str] | None:
+    """Top-level ``key: value`` pairs of a YAML header (block scalars and indented
+    continuations folded in) plus the body; None without a header."""
+    if not text.startswith("---"):
+        return None
+    parts = text[3:].split("\n---", 1)
+    if len(parts) != 2:
+        return None
+    header, body = parts
+    keys: dict[str, str] = {}
+    current = None
+    for line in header.splitlines():
+        match = _KEY.match(line)
+        if match and not line[:1].isspace():
+            current = match.group(1)
+            value = match.group(2).strip()
+            keys[current] = "" if value in ("|", ">", "|-", ">-", "|+", ">+") else value.strip("'\"")
+        elif current and line[:1].isspace():
+            keys[current] = (keys[current] + " " + line.strip()).strip()
+    return keys, body
+
+
 def resident_text(kind: str, text: str) -> str:
-    """Skills load frontmatter + first paragraph up front; rules load in full."""
+    """What loads up front: a skill only puts its ``name`` + ``description`` in context (the
+    body and other metadata load on use); rules load in full."""
     if kind != "skill":
         return text
-    if text.startswith("---"):
-        parts = text[3:].split("\n---", 1)
-        header, rest = (parts[0], parts[1]) if len(parts) == 2 else ("", text)
-    else:
-        header, rest = "", text
-    first = next((p for p in re.split(r"\n\s*\n", rest.lstrip("-\n")) if p.strip()), "")
-    return header + "\n" + first
+    parsed = _frontmatter(text)
+    if parsed is not None:
+        keys, body = parsed
+        if keys.get("name") or keys.get("description"):
+            return f"{keys.get('name', '')}: {keys.get('description', '')}"
+        text = body
+    first = next((p for p in re.split(r"\n\s*\n", text.lstrip("-\n")) if p.strip()), "")
+    return first[:1024]
+
+
+def size_basis(kind: str) -> str:
+    return SKILL_BASIS if kind == "skill" else FILE_BASIS
 
 
 def clear_cache() -> None:
@@ -354,13 +386,14 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
                      "confidence": found[2], "url": row.get("url")}
         used = _usage_for(item, usage.get(item["type"]))
         if item["type"] in ("skill", "rule"):
-            if item["content_hash"] in sizes:
-                tokens, basis = sizes[item["content_hash"]]
+            cached = sizes.get(item["content_hash"])
+            if cached is not None and cached[1] == size_basis(item["type"]):  # older bases re-measure
+                tokens, basis = cached
             else:
                 text = read_text(item["config_path"])
                 tokens = estimate_tokens(resident_text(item["type"], text)) if text is not None \
                     else None
-                basis = "file_bytes_estimate" if text is not None else "unreadable"
+                basis = size_basis(item["type"]) if text is not None else "unreadable"
                 if text is not None:  # unreadable may be transient; retry next time
                     sizes[item["content_hash"]] = (tokens, basis)
                     measured.append((item["content_hash"], tokens, basis, now_ms))
