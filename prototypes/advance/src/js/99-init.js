@@ -25,5 +25,6 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
   // the default window leaves the column free. 「显示 › 桌面小组件」toggles them at any size.
   S.widgets = window.innerWidth >= WIDE_MIN;
   render();
-  setTimeout(() => notify({ t: '欢迎体验 Orbit 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
+  // the demo welcome is mock-only: live data is real and the native surfaces have no demo menu
+  if (!LV.live && !ORBIT.native.surface) setTimeout(() => notify({ t: '欢迎体验 Orbit 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
 })();

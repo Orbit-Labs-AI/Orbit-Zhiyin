@@ -213,7 +213,16 @@ if (LV.live) {
   const tloHud = renderHud;
   renderHud = function () {
     const d = TLO.d;
-    if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) { const h = $('#hud'); h.hidden = true; h.innerHTML = ''; return; }
+    if (!d || !d.primary && !(S.hudSim === 'done' && d.finished[0])) {
+      const h = $('#hud');
+      // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
+      if (ORBIT.native.surface === 'hud' && S.hud.show && LV.state !== 'connecting') {
+        S.hud.open = false; h.hidden = false;
+        h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-calm"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>Orbit</b><span style="color:var(--hud-ink-2)">' + (TLO.off ? '实时状态暂不可用' : '没有进行中的会话') + '</span><button type="button" class="hg" data-act="popOpen">打开 Orbit</button></div>';
+        return;
+      }
+      h.hidden = true; h.innerHTML = ''; return;
+    }
     if (!d.primary && S.hud.open) S.hud.open = false;
     tloHud();
     const c = $('#hud .hcard'); if (c) c.setAttribute('data-tl', 'rt-hud');
