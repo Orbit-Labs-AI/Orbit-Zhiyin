@@ -91,7 +91,7 @@ def test_sync_passes_concurrency_offline_and_reports_durations(client, monkeypat
         return original(self, *args, **kwargs)
     monkeypatch.setattr(CatalogSync, "sync", spy)
     monkeypatch.setattr(platform, "record", lambda name, value=1.0, **tags: recorded.append((name, value, tags)))
-    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"], "concurrency": 2,
+    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"], "concurrency": 2, "force": True,
                                                     "offline": True, "ttl": 600})
     job = wait_job(client, started.json()["job_id"])
     assert seen == {"concurrency": 2, "offline": True, "ttl": 600}
