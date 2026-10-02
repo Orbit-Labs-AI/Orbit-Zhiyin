@@ -1103,7 +1103,7 @@ def test_touching_unchanged_file_refreshes_stat_cache_not_capture_provenance(tmp
     file.parent.mkdir(parents=True)
     file.write_text(canonical({"type": "session", "id": "s", "timestamp": ISO}) + "\n")
     with Store(tmp_path / "data") as store:
-        service = ImportService(store)
+        service = ImportService(store, workers=1)  # Observes the serial line indexer.
         request = ImportRequest("pi", root)
         service.import_source(request)
         captured_stat = store.db.execute("SELECT source_stat FROM source_revision").fetchone()[0]

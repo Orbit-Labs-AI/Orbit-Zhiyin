@@ -11,6 +11,7 @@ import os
 import sqlite3
 import threading
 import time
+import weakref
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from pathlib import Path
 
 import zstandard
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from tandem_data import MAPPER_VERSION, REDUCER_VERSION, parallel, scheduler
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import now_ms
 from tandem_data.discovery import inputs
@@ -39,9 +40,24 @@ class ImportRequest:
 class ImportService:
     """Use one instance per worker thread; never share a SQLite connection across threads."""
 
-    def __init__(self, store: Store, progress: Callable[[dict], None] | None = None):
+    def __init__(
+        self,
+        store: Store,
+        progress: Callable[[dict], None] | None = None,
+        workers: int | None = None,
+    ):
+        """``workers=1`` keeps the serial whole-source path; the default is parallel."""
         self.store = store
         self.progress = progress or (lambda _: None)
+        self.workers = parallel.default_workers() if workers is None else max(1, workers)
+        self.pool = parallel.WorkerPool(self.workers) if self.workers != 1 else None
+        if self.pool is not None:
+            weakref.finalize(self, self.pool.close)
+            parallel.writer_pragmas(store.db)
+
+    def close(self):
+        if self.pool is not None:
+            self.pool.close()
 
     @contextmanager
     def writer(self):
@@ -67,8 +83,8 @@ class ImportService:
         with self.writer():
             source_id = self.store.add_source(request.agent, root)
             available = list(inputs(request.agent, root))
-            allowed = {item.path.resolve(): item for item in available}
             if request.files is not None:
+                allowed = {item.path.resolve(): item for item in available}
                 selected = []
                 for file in request.files:
                     path = (root / file).resolve() if not file.is_absolute() else file.resolve()
@@ -92,7 +108,9 @@ class ImportService:
             if result["selection"] == "full":
                 # Mark absences before indexing so an archived/renamed file can be
                 # matched by its decoded hash without creating duplicate identities.
-                seen = {str(item.path.relative_to(root)) for item in available}
+                seen = parallel.relative_paths(root, available)
+                if self.workers != 1:
+                    scheduler.mark_missing(self.store, source_id, seen)
                 for file in self.store.db.execute(
                     "SELECT file_id,relative_path FROM source_file WHERE source_id=?", (source_id,)
                 ).fetchall():
@@ -102,7 +120,19 @@ class ImportService:
                             (file["file_id"],),
                         )
             self.progress({"stage": "capture", "completed": 0, "total": len(selected)})
-            for item in selected:
+            if self.workers != 1:
+                parallel.capture(
+                    self.store,
+                    source_id,
+                    root,
+                    selected,
+                    self.pool,
+                    cancel,
+                    self.progress,
+                    result,
+                    request.agent,
+                )
+            for item in selected if self.workers == 1 else ():
                 if cancel and cancel.is_set():
                     result["cancelled"] = True
                     break
@@ -136,7 +166,7 @@ class ImportService:
                     }
                 )
             if result["selection"] == "full" and not result["cancelled"]:
-                seen = {str(item.path.relative_to(root)) for item in available}
+                seen = parallel.relative_paths(root, available)
                 for row in self.store.db.execute(
                     "SELECT * FROM source_file WHERE source_id=?", (source_id,)
                 ).fetchall():
@@ -158,9 +188,14 @@ class ImportService:
             ).fetchone()
             if request.rebuild and not result["cancelled"] and (stale_sources or unpublished):
                 self.progress({"stage": "normalize", "agent": request.agent})
-                result["projection"] = self.store.rebuild(
-                    source_ids=stale_sources, progress=self.progress
-                )
+                if self.workers != 1:
+                    result["projection"] = scheduler.project(
+                        self.store, workers=self.workers, pool=self.pool, progress=self.progress
+                    )
+                else:
+                    result["projection"] = self.store.rebuild(
+                        source_ids=stale_sources, progress=self.progress
+                    )
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)
             result["current_unparsed"] = self.store.db.execute(
                 "SELECT COUNT(*) FROM raw_record r JOIN file_record c USING(record_uid) JOIN source_file f ON f.file_id=r.file_id WHERE f.source_id=? AND r.disposition='unparsed'",
@@ -190,5 +225,22 @@ class ImportService:
         if interval <= 0:
             raise ValueError("interval must be positive")
         while not stop.is_set():
-            yield self.import_source(request, stop)
+            if scheduler.paused(self.store.home):
+                # Collection is paused: no capture, no new revision. Resume rescans by stat.
+                yield {"agent": request.agent, "paused": True}
+            else:
+                yield self.import_source(request, stop)
             stop.wait(interval)
+
+    def import_progressive(self, requests, cancel: threading.Event | None = None, **options):
+        """First import, newest sessions first; see ``scheduler.import_progressive``."""
+        return scheduler.import_progressive(self, list(requests), cancel=cancel, **options)
+
+    def pause_collection(self) -> dict:
+        return scheduler.pause(self.store.home)
+
+    def resume_collection(self) -> dict:
+        return scheduler.resume(self.store.home)
+
+    def collection_state(self) -> dict:
+        return scheduler.collection_state(self.store.home)
