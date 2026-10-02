@@ -317,9 +317,12 @@ class Gateway:
         except Exception:  # noqa: BLE001  an invalid stored timezone falls back to UTC
             base = asdict(analytics_scope())
         work: list[tuple[str, dict]] = []
+        # Light sections the window's full pass already caches (preferences differs with
+        # text, so it is left to the MRU pass and on-demand requests).
+        cached = [name for name in LIGHT if name != "preferences"]
         for days in fastpath.LADDER:
             scope = fastpath.windowed(base, days)
-            work += [(FACTS, scope), *((name, scope) for name in LIGHT)]
+            work += [(FACTS, scope), *((name, scope) for name in cached)]
         # default_range_days 0 means "all time" (the scope-less default).
         configured = state["settings"].get("default_range_days", 30) or 0
         if configured not in fastpath.LADDER:
