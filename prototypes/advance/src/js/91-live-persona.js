@@ -132,23 +132,31 @@ function lvpQuery(period) {
   const sc = LV.scope();
   return { period, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project || null, display_timezone: TL_TZ || 'UTC' };
 }
+// days= only for a window the gateway reports ready (auto otherwise); kept out of the cache key so a window switch
+// refetches in place and the last persona stays on screen until the wider one arrives
+const lvpDays = (period) => LV.daysFor(LV.periodDays(period));
 const lvpKey = (period) => JSON.stringify(lvpQuery(period));
 // full /v1/uiview/persona payload for a period under the current filters → {state, data}; refetches (keeping the last
 // data on screen) when the spine revision moved
 function lvpFetch(period, path, store) {
   const key = lvpKey(period) + path;
   let e = store.get(key);
-  if (e && (e.rev === LV.rev || e.loading)) return e;
+  const days = lvpDays(period);
+  if (e && ((e.rev === LV.rev && e.days === days) || e.loading)) return e;
   if (!e) { e = { rev: null, loading: false, data: null, state: 'pending' }; store.set(key, e); }
-  e.loading = true; const rev = LV.rev;
-  TL.get(path, { query: lvpQuery(period) }).then((res) => {
+  e.loading = true; const rev = LV.rev; e.days = days;
+  TL.get(path, { query: Object.assign(lvpQuery(period), { days }) }).then((res) => {
     e.loading = false;
     if (res.state === 'computing' || res.data == null) { e.loading = true; setTimeout(() => { e.loading = false; e.rev = null; TL.changed(); }, 1200); return; }
     e.rev = rev; e.data = res.data; e.state = 'ready';
     if (path === '/v1/uiview/persona') {
       (res.data.months || []).forEach((x) => { LVP.mini[lvpKey(x.k)] = x; });
     }
-  }, (err) => { e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err; }).then(() => TL.changed());
+  }, (err) => {
+    e.loading = false; e.rev = rev; e.state = e.data ? 'ready' : 'error'; e.error = err;
+    // 422 analysis_scope_too_large: the window is too big → refetch with 30 days (then 7)
+    if (err && err.code === 'analysis_scope_too_large' && !LV.tooLarge.has(days != null ? days : LV.window ? LV.window.days : 0)) { LV.scopeTooLarge(days); e.rev = null; e.state = e.data ? 'ready' : 'pending'; }
+  }).then(() => TL.changed());
   return e;
 }
 LV.personaFor = function (period, L) {
@@ -204,7 +212,8 @@ if (LV.live) {
   S.ov.synced = '已同步';
   const h0 = LV.hydrate;
   LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
+  // days = the range's window once the gateway reports it ready (全部 → 0); auto otherwise, with the strip's hint
   LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
-    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC' }) }],
+    topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
 }
