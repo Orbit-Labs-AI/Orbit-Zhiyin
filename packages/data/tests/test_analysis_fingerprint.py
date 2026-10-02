@@ -88,7 +88,7 @@ def test_tree_fingerprints_track_appends_and_leave_other_trees_unchanged(tmp_pat
     assert second.input_fp() != first.input_fp()
     assert second.input_fp(first.trees) != first.input_fp(first.trees)  # new projection run
 
-    # Appending to an existing session changes that tree (re-projection may also move others).
+    # Appending to an existing session changes that tree and only that tree.
     with Store(home) as store:
         source = store.add_source("codex", tmp_path / "source")
         rows = codex_rows("fp-1", minute=1)
@@ -108,6 +108,9 @@ def test_tree_fingerprints_track_appends_and_leave_other_trees_unchanged(tmp_pat
     third = fingerprints(home)
     grown = [r for r in second.trees if third.trees[r].events > second.trees[r].events]
     assert len(grown) == 1 and third.trees[grown[0]].fp != second.trees[grown[0]].fp
+    # Re-projection shifts later trees' rowids as a block; that alone is not a change.
+    changed = [r for r in second.trees if third.trees[r].fp != second.trees[r].fp]
+    assert changed == grown
     assert known_sessions(home, [*roots, "missing"]) == set(roots)
 
 

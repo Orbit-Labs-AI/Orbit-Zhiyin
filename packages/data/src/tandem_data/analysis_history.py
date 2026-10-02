@@ -26,6 +26,10 @@ MAX_BYTES = 512 * 1024 * 1024
 FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
 
 
+class AnalysisIntegrityError(ValueError):
+    """A stored payload failed decompression or its checksum; never served silently."""
+
+
 def _now() -> int:
     return time.time_ns() // 1_000_000
 
@@ -248,9 +252,9 @@ class AnalysisHistory:
         try:
             data = zlib.decompress(row["payload"])
         except zlib.error as error:
-            raise ValueError("Analysis snapshot is corrupt") from error
+            raise AnalysisIntegrityError("Analysis snapshot is corrupt") from error
         if len(data) != row["json_bytes"] or hashlib.sha256(data).hexdigest() != row["snapshot_id"]:
-            raise ValueError("Analysis snapshot checksum mismatch")
+            raise AnalysisIntegrityError("Analysis snapshot checksum mismatch")
         return json.loads(data)
 
     def records(self, run_id: str, pointer: str, *, offset: int = 0, limit: int = 100) -> Record:
@@ -288,9 +292,9 @@ class AnalysisHistory:
         try:
             data = zlib.decompress(payload)
         except zlib.error as error:
-            raise ValueError(f"Analysis {what} is corrupt") from error
+            raise AnalysisIntegrityError(f"Analysis {what} is corrupt") from error
         if len(data) != json_bytes or hashlib.sha256(data).hexdigest() != sha256:
-            raise ValueError(f"Analysis {what} checksum mismatch")
+            raise AnalysisIntegrityError(f"Analysis {what} checksum mismatch")
         return json.loads(data)
 
     def session_results(

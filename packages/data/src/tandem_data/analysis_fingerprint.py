@@ -1,8 +1,13 @@
 """Cheap change fingerprints for derived analysis caches.
 
 One aggregate query returns a fingerprint per root session tree. A tree fingerprint changes
-whenever rows are added to, or replaced in, any member session (event, tool call, model call)
-or when member session metadata changes. Fingerprints never read text or payload columns.
+when rows are added to or removed from a member session (event, tool call, model call), when
+a session's rowid span or max(seq) changes, when member session metadata changes, or when the
+projection's mapper/reducer versions change. Rowids enter as per-session spans
+(max - min): re-projecting a source deletes and re-inserts every tree in it, which shifts
+unchanged trees as a block; a shift alone is not a change. Log sources are append-only; an
+in-place rewrite that keeps counts, spans and seq identical is not detected (that would need
+reading payload pages on every request). Fingerprints never read text or payload columns.
 """
 
 from __future__ import annotations
@@ -25,20 +30,20 @@ FINGERPRINT_VERSION = "analysis-fingerprint-v1"
 # indexes, so no payload pages are read.
 TREE_SQL = """
 WITH ev AS (
-  SELECT session_uid, count(*) AS n, max(rowid) AS r, max(seq) AS q,
+  SELECT session_uid, count(*) AS n, max(rowid) - min(rowid) AS r, max(seq) AS q,
          min(ts) AS lo, max(ts) AS hi, sum(ts IS NULL) AS untimed
   FROM event GROUP BY session_uid
 ), tc AS (
-  SELECT session_uid, count(*) AS n, max(rowid) AS r FROM tool_call GROUP BY session_uid
+  SELECT session_uid, count(*) AS n, max(rowid) - min(rowid) AS r FROM tool_call GROUP BY session_uid
 ), mc AS (
-  SELECT session_uid, count(*) AS n, max(rowid) AS r FROM model_call GROUP BY session_uid
+  SELECT session_uid, count(*) AS n, max(rowid) - min(rowid) AS r FROM model_call GROUP BY session_uid
 )
 SELECT s.root_uid AS root_uid,
-       count(*) AS sessions, max(s.rowid) AS session_rowid,
-       total(ev.n) AS events, max(ev.r) AS event_rowid, max(ev.q) AS max_seq,
+       count(*) AS sessions,
+       total(ev.n) AS events, total(ev.r) AS event_span, max(ev.q) AS max_seq,
        min(ev.lo) AS min_ts, max(ev.hi) AS max_ts, total(ev.untimed) AS untimed_events,
-       total(tc.n) AS tool_calls, max(tc.r) AS tool_rowid,
-       total(mc.n) AS model_calls, max(mc.r) AS model_rowid,
+       total(tc.n) AS tool_calls, total(tc.r) AS tool_span,
+       total(mc.n) AS model_calls, total(mc.r) AS model_span,
        group_concat({members}, char(30)) AS members
 FROM session s
 LEFT JOIN ev USING(session_uid)
@@ -102,24 +107,24 @@ class Fingerprints:
         )
 
 
-def _tree(row) -> TreeFingerprint:
+def _tree(row, mapper: tuple) -> TreeFingerprint:
     members = sorted(
         (json.loads(text) for text in row["members"].split("\x1e")),
         key=lambda member: member["session_uid"],
     )
     counts = (
         row["sessions"],
-        row["session_rowid"],
+        mapper,
         int(row["events"]),
-        row["event_rowid"],
+        int(row["event_span"]),
         row["max_seq"],
         row["min_ts"],
         row["max_ts"],
         int(row["untimed_events"]),
         int(row["tool_calls"]),
-        row["tool_rowid"],
+        int(row["tool_span"]),
         int(row["model_calls"]),
-        row["model_rowid"],
+        int(row["model_span"]),
     )
     projects = {member.get("project_id") for member in members}
     return TreeFingerprint(
@@ -137,7 +142,12 @@ def _tree(row) -> TreeFingerprint:
 
 def read_fingerprints(connection) -> Fingerprints:
     """Read all tree fingerprints and the global identity from an open connection."""
-    run = connection.execute("SELECT max(run_id) FROM projection_run").fetchone()[0]
+    latest = connection.execute(
+        "SELECT run_id, mapper_version, reducer_version FROM projection_run"
+        " ORDER BY run_id DESC LIMIT 1"
+    ).fetchone()
+    run = latest[0] if latest else None
+    mapper = tuple(latest[1:]) if latest else ()
     existing = {
         row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
     }
@@ -150,7 +160,7 @@ def read_fingerprints(connection) -> Fingerprints:
     members = "json_object(" + ",".join(f"'{c}',s.\"{c}\"" for c in columns) + ")"
     trees = {}
     for row in connection.execute(TREE_SQL.format(members=members)):
-        tree = _tree(row)
+        tree = _tree(row, mapper)
         trees[tree.root_uid] = tree
     return Fingerprints(run, digest(global_parts), trees)
 
