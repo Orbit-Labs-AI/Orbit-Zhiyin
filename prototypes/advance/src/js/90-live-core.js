@@ -12,10 +12,10 @@ let lvFrame = 0, lvFrameT = null, lvLastSig = null, lvTick = 0;
 const lvIds = new WeakMap(); let lvIdN = 0;
 const lvId = (o) => { if (o == null || typeof o !== 'object') return String(o); let v = lvIds.get(o); if (!v) lvIds.set(o, v = ++lvIdN); return v; };
 function lvSig() {
-  const parts = [lvTick, LV.rev, LV.state, LV.stale, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
     TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
   try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
-  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0)); return false; });
+  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0) + (r.dirty ? 'd' : '')); return false; });
   return parts.join('|');
 }
 function lvFlush() {
@@ -289,6 +289,35 @@ LV.hydrate = function (spine) {
 };
 
 let lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
+const LV_SECTION = 'uiview_facts';
+LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
+LV.job = null;      // the analysis job being polled for the spine: {id, status, elapsed_s, timeout_s}
+function lvSpineFailed(f) {
+  LV.failed = f; LV.job = null; LV.stale = false;
+  if (LV.state !== 'ready') LV.state = 'error';
+  TL.changed();
+}
+function lvWatchSpine(id) {
+  if (LV.job && LV.job.id === id) return;
+  LV.job = { id, status: 'queued' };
+  TL.analysis.poll(id, (j) => { if (LV.job && LV.job.id === id) { LV.job = Object.assign({ id }, j); TL.changed(); } }).then((j) => {
+    if (!LV.job || LV.job.id !== id) return;
+    if (j.status === 'failed') { lvSpineFailed({ reason: (j.error && j.error.code) || 'analysis_failed', message: j.error && j.error.message }); return; }
+    LV.job = null;
+    if (j.status === 'gone') lvSpineLater(1200); else LV.loadSpine();
+  }, () => { LV.job = null; lvSpineLater(1200); });
+}
+// 重新计算: POST /v1/analytics/recompute for the spine's scope (the same scope /v1/uiview/facts uses), then poll the job
+LV.recompute = function () {
+  LV.failed = null; LV.job = null;
+  if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'computing';
+  LV.stale = LV.state === 'ready';
+  TL.changed();
+  return TL.analysis.recompute([LV_SECTION], { display_timezone: TL_TZ || 'UTC' }).then((d) => {
+    const j = ((d && d.jobs) || []).find((x) => x.job_id);
+    if (j) lvWatchSpine(j.job_id); else LV.loadSpine();
+  }, (e) => lvSpineFailed({ reason: null, message: (e && (e.message || e.code)) || '重新计算失败' }));
+};
 function lvSpineLater(ms) { clearTimeout(lvSpineTimer); lvSpineTimer = setTimeout(() => LV.loadSpine(), ms); }
 const lvSide = (path) => TL.get(path).then((r) => r.data, () => null);
 LV.loadSpine = function () {
@@ -298,9 +327,15 @@ LV.loadSpine = function () {
     lvSpineFails = 0;
     if (res.state === 'computing' || res.data == null) {
       LV.stale = LV.state === 'ready'; if (LV.state !== 'ready') LV.state = 'computing';
-      lvSpineLater(1200); return;
+      // the 202 names its job: poll GET /v1/analytics/jobs/{id} (backoff) and reload when it completes; without a job the
+      // analysis is not running (its failure circuit is open), so the strip offers 重新计算 instead of retrying blindly
+      const jid = res.meta && res.meta.job_id;
+      if (jid) lvWatchSpine(jid);
+      else if (TL.analysis) lvSpineFailed({ reason: TL.analysis.failed[LV_SECTION] || null });
+      else lvSpineLater(1200);
+      return;
     }
-    LV.stale = false;
+    LV.stale = false; LV.failed = null; LV.job = null;
     if (res.data === lvSpineData && LV.state !== 'connecting') return;   // 304: nothing changed
     lvSpineData = res.data;
     const wire = res.data; const rows = LV.expand(wire);
@@ -315,6 +350,7 @@ LV.loadSpine = function () {
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
   }, (e) => {
+    if (e && e.code === 'analysis_unavailable') { LV.error = e; lvSpineFailed({ reason: e.reason || null, message: e.message }); return; }
     lvSpineFails++;
     // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
     if (LV.state === 'ready' || LV.state === 'empty' || (e && e.status >= 400)) LV.state = 'error';
