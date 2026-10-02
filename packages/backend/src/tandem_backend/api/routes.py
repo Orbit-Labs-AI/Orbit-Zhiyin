@@ -458,4 +458,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             raise HTTPException(422, "未知的评价场景")
         return evaluate_text(request.text, request.scene, request.required_facts)
 
+    if db is None:
+        from .data_routes import register as register_data_routes
+        register_data_routes(app, canonical_home)
     return app

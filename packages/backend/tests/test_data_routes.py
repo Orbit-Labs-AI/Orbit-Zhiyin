@@ -126,7 +126,6 @@ def test_register_alongside_application_routes(tmp_path, home):
     from tandem_backend.api.routes import create_app
 
     app = create_app(home=home, catalog_cache=tmp_path / "catalog.json")
-    data_routes.register(app, home)
     client = TestClient(app)
     assert client.get("/health").status_code == 200
     assert client.get("/v1/privacy/rules").status_code == 200
