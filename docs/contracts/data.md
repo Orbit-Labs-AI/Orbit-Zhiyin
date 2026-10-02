@@ -184,4 +184,4 @@ Antigravity/protobuf、Copilot 元数据和 catalog 未在本包实现。配置 
 
 SQLite 使用 STRICT 表、WAL、显式启用 foreign_keys 和外键检查；需要 FTS5 的构建。外键需要逐连接启用，见 [SQLite 官方说明](https://www.sqlite.org/foreignkeys.html)。zstd 原生多帧与尾帧检查采用官方库的逐帧 EOF 接口，见 [python-zstandard 解压接口](https://python-zstandard.readthedocs.io/en/latest/decompressor.html)。
 
-当前存储 user_version=6，逻辑契约仍为 v1。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](../modules/data/agent-connectors.md)。
+当前存储 user_version=8，逻辑契约仍为 v1（008：ext 大字符串内容寻址、消息检索索引，见 [存储去重与索引](../modules/data/storage-dedup.md)）。多来源导入服务、迁移、完整性验证与一键真实样本检查见 [Agent 模块说明](../modules/data/agent-connectors.md)。
