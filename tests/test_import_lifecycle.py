@@ -79,7 +79,8 @@ def test_demo_does_not_open_unused_database(tmp_path):
     unused = tmp_path / "never-create.sqlite"
     main(["--db", str(unused), "demo", "--output", str(tmp_path / "demo")])
     assert not unused.exists()
-    assert (tmp_path / "demo" / "demo.sqlite").exists()
+    assert (tmp_path / "demo" / "data" / "tandem.db").exists()
+    assert not (tmp_path / "demo" / "demo.sqlite").exists()
 
 
 def test_bottleneck_is_rendered_when_no_resource_matches(tmp_path):

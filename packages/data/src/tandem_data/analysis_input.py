@@ -78,22 +78,49 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             raw, provider = event["model_raw"], event["provider"] or ""
             return aliases.get((provider, raw), aliases.get(("", raw), raw))
 
-        def permitted_session(row):
-            return (
-                row["session_uid"] not in scope.excluded_session_uids
-                and row["root_uid"] not in scope.excluded_session_uids
-                and (scope.root_session_uids is None or row["root_uid"] in scope.root_session_uids)
-                and (scope.include_children or row["session_uid"] == row["root_uid"])
+        # Filter in SQLite before decoding payloads or applying the memory budget.
+        # json_each binds arbitrarily long selections without SQLite parameter-limit failures.
+        allowed = [
+            "session_uid NOT IN (SELECT value FROM json_each(:excluded))",
+            "root_uid NOT IN (SELECT value FROM json_each(:excluded))",
+        ]
+        params = {"excluded": json.dumps(scope.excluded_session_uids)}
+        if scope.root_session_uids is not None:
+            allowed.append("root_uid IN (SELECT value FROM json_each(:roots))")
+            params["roots"] = json.dumps(scope.root_session_uids)
+        if not scope.include_children:
+            allowed.append("session_uid=root_uid")
+        members_sql = list(allowed)
+        for field, values in (("project_id", scope.project_ids), ("effort_raw", scope.effort_raw)):
+            if values is not None:
+                members_sql.append(f"{field} IN (SELECT value FROM json_each(:{field}))")
+                params[field] = json.dumps(values)
+        if scope.model_ids is not None:
+            members_sql.append(
+                "COALESCE((SELECT model_id FROM model_alias a WHERE a.provider=COALESCE(v.provider,'') AND a.model_raw=v.model_raw),(SELECT model_id FROM model_alias a WHERE a.provider='' AND a.model_raw=v.model_raw),v.model_raw) IN (SELECT value FROM json_each(:models))"
             )
-
+            params["models"] = json.dumps(scope.model_ids)
+        for bound, operator in (("from_ts", ">="), ("until_ts", "<")):
+            value = getattr(scope, bound)
+            if value is not None:
+                members_sql.append(f"ts {operator} :{bound}")
+                params[bound] = value
+        # The canonical selector below classifies members vs earlier turn context.
+        # Metadata outside the selected turn is retained solely to reconstruct a cutoff.
+        query = (
+            "WITH members AS (SELECT event_uid,session_uid,turn_uid FROM v_analysis_event v WHERE "
+            + " AND ".join(members_sql)
+            + ") SELECT v.* FROM v_analysis_event v WHERE "
+            + " AND ".join(allowed)
+            + " AND (event_uid IN (SELECT event_uid FROM members) OR turn_uid IN (SELECT turn_uid FROM members)"
+            + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
+            + " ORDER BY session_uid,seq"
+        )
         events = []
-        for row in connection.execute("SELECT * FROM v_analysis_event ORDER BY session_uid,seq"):
-            if permitted_session(row):
-                events.append(decoded(row))
-                if len(events) > max_events:
-                    raise ValueError(
-                        "Narrow root_session_uids or read SQL views in batches; event limit exceeded"
-                    )
+        for row in connection.execute(query, params):
+            events.append(decoded(row))
+            if len(events) > max_events:
+                raise ValueError("Narrow scope or read SQL views in batches; event limit exceeded")
 
         def member(event):
             return (

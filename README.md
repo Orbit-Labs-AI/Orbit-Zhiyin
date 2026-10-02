@@ -11,6 +11,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 - 分析开发输入：[docs/plan/analysis-inputs.md](docs/plan/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
 - Codex 数据连接器：[packages/connectors](packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
 - 会话数据实现：[packages/data](packages/data/README.md)（实际 SQLite 数据库、L0/L1 归档、L2/L3 预处理和 connector 桥接）
+- App 数据入口：[模块边界与接入方式](docs/backend/data-pipeline.md)（macOS、统一 workspace、分页查询、重算与旧库兼容）
 
 ## App 版本
 
@@ -23,19 +24,18 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 ## 先试后端
 
-Tandem 后端读取本地 Codex 记录，按项目和模型整理，分析用户的协作要求与实际卡点，再找有对应处理办法的资源。中文解释是否容易理解，是当前后端 demo 的评价目标。当前 MVP 范围由三位成员确认；前端 [Lite Demo](docs/design/demo/tandem-benchmark-demo.html) 与 [Advance Demo](docs/design/demo/tandem-demo.html) 仅作设计参考。
+Tandem 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](docs/design/demo/tandem-benchmark-demo.html) 与 [Advance Demo](docs/design/demo/tandem-demo.html) 仍是设计参考。
 
 分析入口遵循 [analysis-input-v1](docs/plan/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
 
-需要 Python 3.11 或更新版本。在仓库根目录运行：
+需要 Python 3.13+ 和 uv。backend 与 data 共用根目录 `uv.lock`：
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.lock
-.venv/bin/python -m pip install --no-deps -e .
-.venv/bin/tandem demo
-.venv/bin/tandem evaluate
-.venv/bin/pytest -q
+uv sync --locked --all-packages --dev
+uv run tandem demo
+uv run tandem evaluate
+uv run pytest -q tests
+uv run pytest -q packages/data/tests
 ```
 
 demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”直接展示。结果目录同时保存 `profile.md / bottlenecks.md / process.md / report.md` 及对应 JSON。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
@@ -50,19 +50,23 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 
 `evaluate` 跑文字对照、整条链路的构造场景，以及新增措辞和组合要求；`--suite pipeline / probe` 可以分别选择。结果保留误报、漏报和证据检查。这些样例用于改进规则；在独立临时数据库中运行，正常数据不会被改写。
 
-## 用自己的 Codex 数据
+## 导入本地数据
 
 ```sh
-.venv/bin/tandem import --codex-home "$HOME/.codex"
-.venv/bin/tandem report
-.venv/bin/tandem serve
+uv run tandem discover
+uv run tandem ingest --agent codex --root "$HOME/.codex"
+uv run tandem ingest --agent claude_code --root "$HOME/.claude"
+uv run tandem verify
+uv run tandem report
+uv run tandem analytics --display-timezone Asia/Shanghai
+uv run tandem serve
 ```
 
-报告在 `.local/report/`，API 文档在 <http://127.0.0.1:8765/docs>。真实聊天与派生结果只保存在忽略提交的 `.local/`。导入器只读 Codex 文件；默认服务监听本机。
+`discover` 只列来源，`ingest` 才启用指定根目录。CLI、App 和 API 默认共用 `~/Library/Application Support/Tandem/`（`tandem.db` 与 `raw/`），可用 `TANDEM_HOME` 或 `--home` 指定；仓库开发可用 `--home .tandem`。报告在 `.local/report/`，API 文档在 <http://127.0.0.1:8765/docs>。真实数据只留在本地，API 默认只监听本机。
 
-分析和评价使用同一批数据时，用 `--before 2026-10-01T15:43:13Z` 固定导入快照，并通过 `--exclude-session` 排除测试与评价会话。不要把评价中用户给出的标准重新当作历史偏好导入。
+统一数据层完整保留 L0，分析用 `analytics --from-ts / --until-ts`（UTC 毫秒、右端不包含）与 `--exclude-session`（canonical session UID）选择样本，范围与数据版本随结果返回。不要把评价中用户给出的标准重新当作历史偏好导入。旧命令 `import --codex-home` 默认也进入新数据层。
 
-已有快照和排除名单会保存在数据库中；重跑时省略参数仍沿用。`--reset-sample-policy` 才会重新设置范围，使用时需要重新指定仍应排除的评价会话。
+已有 MVP 库需显式通过 `--db .local/tandem.sqlite` 使用兼容模式，原有持久采样策略保持原样。新入口不会改写旧库或静默忽略旧采样参数。迁移需显式从原始来源或 staging 重新导入；旧 JSON ledger 无法补出缺失的 L0/L1。
 
 ## 核对推荐来源
 
@@ -103,4 +107,6 @@ pnpm tandem --help
 ```
 
 初始化、增量导入、重算、监听、数据契约和真实来源验证范围见 [Connector README](packages/connectors/README.md)。
+
+已有 staging 用 `uv run tandem import-connector --connector-home .local/codex-staging` 接入，源文件已删除也可从归档处理。普通 `tandem ingest --agent codex` 可直接使用 Python canonical connector。两种采集方式最终使用同一份 Python L2/L3 规则，两个包不得共写同一份 SQLite。
 - [多 Agent 数据导入模块与一键验收](docs/backend/agent-connectors.md)（统一 Python canonical 链路）

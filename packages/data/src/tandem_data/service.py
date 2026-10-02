@@ -44,7 +44,7 @@ class ImportService:
         self.progress = progress or (lambda _: None)
 
     @contextmanager
-    def _writer(self):
+    def writer(self):
         fd = os.open(self.store.home / "import.lock", os.O_CREAT | os.O_RDWR, 0o600)
         try:
             try:
@@ -55,6 +55,8 @@ class ImportService:
         finally:
             os.close(fd)
 
+    _writer = writer  # Compatibility for earlier callers.
+
     def import_source(self, request: ImportRequest, cancel: threading.Event | None = None) -> dict:
         if request.agent not in MAPPERS:
             raise ValueError(f"Unknown connector: {request.agent}")
@@ -62,7 +64,7 @@ class ImportService:
             raise ValueError("limit must be positive")
         root = request.root.expanduser().resolve(strict=True)
         started = time.perf_counter()
-        with self._writer():
+        with self.writer():
             source_id = self.store.add_source(request.agent, root)
             available = list(inputs(request.agent, root))
             allowed = {item.path.resolve(): item for item in available}
@@ -138,7 +140,10 @@ class ImportService:
                     (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
                 )
             }
-            if request.rebuild and not result["cancelled"] and stale_sources:
+            unpublished = not self.store.db.execute(
+                "SELECT 1 FROM projection_run LIMIT 1"
+            ).fetchone()
+            if request.rebuild and not result["cancelled"] and (stale_sources or unpublished):
                 self.progress({"stage": "normalize", "agent": request.agent})
                 result["projection"] = self.store.rebuild(source_ids=stale_sources)
             result["elapsed_seconds"] = round(time.perf_counter() - started, 4)

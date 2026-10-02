@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tandem_data.contract import canonical
 from tandem_data.discovery import candidates
+from tandem_data.paths import default_home
 from tandem_data.query import current_projection
 from tandem_data.store import Store, readonly_connection
 
@@ -70,7 +71,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Tandem local session data contract v1")
     parser.add_argument(
         "--home",
-        default=os.getenv("TANDEM_HOME", str(Path.home() / "Library/Application Support/Tandem")),
+        default=default_home(),
     )
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
@@ -121,12 +122,17 @@ def main(argv=None):
                 )
             )
         elif args.command == "rebuild":
-            result = store.rebuild()
+            from tandem_data.service import ImportService
+
+            with ImportService(store).writer():
+                result = store.rebuild()
         elif args.command == "import-connector":
             from tandem_data.bridge import import_connector
+            from tandem_data.service import ImportService
 
-            result = import_connector(store, args.connector_home)
-            result["projection"] = store.rebuild()
+            with ImportService(store).writer():
+                result = import_connector(store, args.connector_home)
+                result["projection"] = store.rebuild()
         elif args.command == "stats":
             result = statistics(store)
         elif args.command == "verify":

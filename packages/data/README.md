@@ -23,7 +23,7 @@ node packages/connectors/dist/cli.js ingest --codex-home ~/.codex --data-dir .lo
 uv run --project packages/data tandem-data --home .tandem import-connector --connector-home .local/codex-staging
 ```
 
-桥接校验分块哈希并重新解析原始归档，保留 `connector_record_link` 对照。默认源文件已删除也能从 staging 归档导入。连接器包尚未合入时，第一条命令需要在其分支使用。
+桥接校验分块哈希并重新解析原始归档，保留 `connector_record_link` 对照。默认源文件已删除也能从 staging 归档导入。macOS App、CLI 和分析后端的接入方式见 [模块化数据入口](../../docs/backend/data-pipeline.md)。两个 Python 包共用仓库根 `uv.lock`。
 
 分析读取示例：
 

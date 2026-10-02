@@ -90,7 +90,7 @@ def time_fields(
                 parsed = parsed.replace(tzinfo=ZoneInfo(source_timezone))
             stamp = round(parsed.timestamp() * 1000)
         elif unit in ("seconds", "milliseconds"):
-            if not isinstance(value, (int, float)) or not math.isfinite(value):
+            if not isinstance(value, int | float) or not math.isfinite(value):
                 return None, result
             stamp = round(value * (1000 if unit == "seconds" else 1))
         else:
