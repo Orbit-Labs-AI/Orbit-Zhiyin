@@ -196,7 +196,7 @@ $CODEX_HOME（默认 ~/.codex）
 | `history.jsonl` | 每行 `{session_id, ts(unix 秒), text}`（[message-history/src/lib.rs:8](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/message-history/src/lib.rs#L8)） | 只有 TUI 写入（[tui/src/app/thread_routing.rs:565](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/tui/src/app/thread_routing.rs#L565)） | 由 config `[history] persistence = save-all/none`、`max_bytes` 控制（[config/src/types.rs:202-219](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/config/src/types.rs#L202)）；文件权限 0600，写前取 advisory lock。本机 16 行，均为早期 TUI 使用，session_id 都已不在 `threads` 表中 |
 | `external_agent_session_imports.json` | `{records:[{source_path, content_sha256, imported_thread_id, imported_at, source_modified_at, connector_names, title}], detected_connector_records:[…]}`（[ledger.rs:19-44](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/external-agent-migration/src/sessions/ledger.rs#L19)） | app-server 的导入流程 | 本机 50 条记录，来源均为 Claude Code 项目 JSONL；对应的导入线程已不在 `threads` 表或 rollout 目录中（可能已被删除，待确认） |
 | `rollout-migrations/<threadId>.pending` | 迁移 journal（[publish.rs:35-41](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/thread-store/src/local/rollout_migration/publish.rs#L35)） | legacy→paginated 迁移 | 迁移完成后删除；本机为空目录 |
-| `thread-writer-locks/<threadId>.lock` | 空文件 + advisory lock（[writer_lock.rs:17](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/rollout/src/writer_lock.rs#L17)、[:43-86](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/rollout/src/writer_lock.rs#L43)） | LocalThreadStore | 保证一个线程只有一个写入进程；Tandem **不应**去抢这把锁 |
+| `thread-writer-locks/<threadId>.lock` | 空文件 + advisory lock（[writer_lock.rs:17](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/rollout/src/writer_lock.rs#L17)、[:43-86](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/rollout/src/writer_lock.rs#L43)） | LocalThreadStore | 保证一个线程只有一个写入进程；Orbit **不应**去抢这把锁 |
 
 ### 2.5 环境变量与配置开关
 
@@ -528,7 +528,7 @@ core Session ──send_event()/record_conversation_items()/persist_rollout_item
 - 规范化会把旧事件（`exec_command_end`、`patch_apply_end`、`mcp_tool_call_end`、`user_message`、`agent_message` 等）转换成 `item_completed(TurnItem)`，并生成稳定的 item id（[legacy_event.rs:1-9](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/thread-store/src/local/rollout_migration/legacy_event.rs#L1)）。
 - 回滚（ThreadRolledBack）在转换前就已应用，被回滚的回合**不会**保留。迁移器自己声明：「The goal is to preserve the model-visible conversation, not to preserve every legacy record byte-for-byte」（[canonicalizer.rs:1-10](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/thread-store/src/local/rollout_migration/canonicalizer.rs#L1)）。
 - 迁移 id 为 `legacy_to_paginated_v1`（[startup.rs:39](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/thread-store/src/local/rollout_migration/startup.rs#L39)）。
-- 对 Tandem 的含义：
+- 对 Orbit 的含义：
   - 同一个 thread id 的文件可能在某次 Codex 启动后被整体改写（内容和 mtime 都会变化）；
   - 基于「字节偏移」的增量游标必须能检测到这种改写，例如比较 inode、文件大小是否缩小、首行 ordinal 是否存在；
   - 迁移后旧事件的原始形态就丢失了。
@@ -754,7 +754,7 @@ erDiagram
 
 - 只有设置了 `CODEX_ROLLOUT_TRACE_ROOT` 才会写本地 bundle：`manifest.json`、`trace.jsonl`（原始事件序列）和 `payloads/*.json`。
 - 离线 reducer 把 bundle 还原成 `state.json`，其中包含 threads/turns、conversation_items、inference_calls、tool_calls、code_cells、terminals、compactions、interaction_edges（[rollout-trace/README.md:3-7](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/rollout-trace/README.md#L3)、[:41-69](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/rollout-trace/README.md#L41)）。
-- 这个 reducer 的语义图设计值得 Tandem 参考，例如 Code Mode cell 与嵌套工具的归属、跨线程的 spawn/task/result 边。
+- 这个 reducer 的语义图设计值得 Orbit 参考，例如 Code Mode cell 与嵌套工具的归属、跨线程的 spawn/task/result 边。
 - 本机没有发现 trace bundle。
 
 ### 5.9 外部 agent 会话导入（external-agent-migration）：现成的跨 agent 映射范例
@@ -814,10 +814,10 @@ erDiagram
 - 同一路径内容变化时会尝试**追加**新增部分；
 - 如果用户已经在 Codex 中继续了这个会话，或线程已归档或正在加载，就不再同步。
 
-**对 Tandem 的启示**：
+**对 Orbit 的启示**：
 
 - Codex 官方的跨 agent 映射是一种**有损、只保留文本**的映射：保留回合边界和时间戳，把工具调用压成可读注记，丢掉思维链、usage 和树结构。
-- Tandem 的统一模型应在这个基础上**保留结构**：保留 call_id 配对、parentUuid 树、sidechain/子代理、usage，并以「回合、消息、工具调用」作为公共骨架。
+- Orbit 的统一模型应在这个基础上**保留结构**：保留 call_id 配对、parentUuid 树、sidechain/子代理、usage，并以「回合、消息、工具调用」作为公共骨架。
 
 ### 5.10 memories（对 rollout 的二次消费）
 
@@ -988,7 +988,7 @@ erDiagram
 2. 源码保留了 `inter_agent_communication` 变体，但本机实际使用的是「metadata + agent_message ResponseItem」组合（[core/src/session/mod.rs:3908-3907](https://github.com/openai/codex/blob/4dd51f4a5f2037f8aa322fe7807315e6530a4ec8/codex-rs/core/src/session/mod.rs#L3908)）。
 3. 文档和旧资料中的 limited/extended 持久化档位，在 HEAD 中已被 history_mode 取代。
 
-## 9. 对 Tandem 解析器的要点
+## 9. 对 Orbit 解析器的要点
 
 ### 9.1 各指标怎么取
 
@@ -1059,7 +1059,7 @@ erDiagram
    - session_meta 与 `state_5.threads` 中的 `creator_user_id`/`creator_account_id`；
    - 用户 prompt、工具输出（可能含密钥）、截图 base64；
    - `logs_2.sqlite` 中的日志正文。
-   `encrypted_content` 是不可解密的不透明数据。Tandem 应默认只抽取元数据与统计，正文按需加载，并支持脱敏。
+   `encrypted_content` 是不可解密的不透明数据。Orbit 应默认只抽取元数据与统计，正文按需加载，并支持脱敏。
 
 ## 10. 可比较维度速查表
 

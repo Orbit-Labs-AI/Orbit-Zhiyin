@@ -1,6 +1,6 @@
-# Tandem Codex Connector
+# Orbit Codex Connector
 
-把 Codex Desktop / CLI 的本地轨迹导入 Tandem：原始归档 → 每条记录的处理账本 → 标准事件 → 会话、轮次、工具调用与模型调用。实现依据 `yhyfhgs` 的数据获取方案与 Codex 源码调研，使用 TypeScript、Node ≥24.7、内置 SQLite 与 zstd。没有模型调用、远程上传或凭据读取。
+把 Codex Desktop / CLI 的本地轨迹导入 Orbit：原始归档 → 每条记录的处理账本 → 标准事件 → 会话、轮次、工具调用与模型调用。实现依据 `yhyfhgs` 的数据获取方案与 Codex 源码调研，使用 TypeScript、Node ≥24.7、内置 SQLite 与 zstd。没有模型调用、远程上传或凭据读取。
 
 ## 运行
 
@@ -35,7 +35,7 @@ pnpm tandem stats --data-dir .local/tandem
 
 ## 接入分析或 Mac App
 
-前端与分析模块以只读方式打开 `tandem.db`，设置 `query_only`、`busy_timeout`，一次查询在一个读事务内完成。不要对 Tandem 以外的 Codex 数据库执行迁移或写入。
+前端与分析模块以只读方式打开 `tandem.db`，设置 `query_only`、`busy_timeout`，一次查询在一个读事务内完成。不要对 Orbit 以外的 Codex 数据库执行迁移或写入。
 
 库入口导出 `CodexConnector`、`ConnectorStore`、`discoverCodex`、`watchCodex`、`readRawRecord`、`readRedactedRecord`、`archivedBytes`、`validateEvent` 和事件类型：
 
@@ -138,7 +138,7 @@ uv run --project packages/data tandem-data --home .local/canonical verify
 
 SQLite 元数据以所读取的行导出为 JSONL，再归档；不复制 Codex 数据库本身。JSON 导入账本同时保留原文件，`archive_chunk.generation=-g` 是该代的原始 JSON，正代是可按行寻址的导出。原始账本中未使用的顶层字段也保留。
 
-Tandem 目录权限 `0700`，数据库、归档和导出文件 `0600`。L1 的解析缓存与 L2 的 `text/attrs/ext` 都递归脱敏，移除 creator 账号字段；内联媒体和加密推理只保留哈希引用。工具输出截断到约 8 KB，全文通过 L0 取回；普通消息不按工具输出预算截断。未消费的字段在 `ext.native` 中保留脱敏快照。
+Orbit 目录权限 `0700`，数据库、归档和导出文件 `0600`。L1 的解析缓存与 L2 的 `text/attrs/ext` 都递归脱敏，移除 creator 账号字段；内联媒体和加密推理只保留哈希引用。工具输出截断到约 8 KB，全文通过 L0 取回；普通消息不按工具输出预算截断。未消费的字段在 `ext.native` 中保留脱敏快照。
 
 不读取 `auth.json`、`.key`、`logs_*.sqlite`、Desktop 闭源数据库或配置凭据；不对 thread writer lock 加锁，不修改上游目录。连接器不执行日志里的代码或命令。
 

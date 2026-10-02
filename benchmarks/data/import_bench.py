@@ -26,7 +26,7 @@ from tandem_data.store import Store, readonly_connection
 from .synthetic import GENERATOR_VERSION, PRESETS, generate
 
 SCHEMA = "tandem-data-import-bench/1"
-# Audit baseline (docs/plans/data-audit.md §3, full preset, Apple M-series, serial import).
+# Audit baseline (docs/audits/data-audit.md §3, full preset, Apple M-series, serial import).
 AUDIT_BASELINE = {
     "full": {
         "first_import_seconds": 383.4,

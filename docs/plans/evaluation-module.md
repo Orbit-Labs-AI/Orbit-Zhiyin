@@ -1,4 +1,4 @@
-# Tandem Benchmark 与评测设计（EV）
+# Orbit Benchmark 与评测设计（EV）
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
@@ -10,7 +10,7 @@
 >
 > 目录说明：main 于 2026-10-02 17:08 合入 PR #28 `refactor/app-structure`（`6f31203`，含 PR #29 `feat/recommendation-catalog` 与 PR #30 `docs/analysis-review`）：`src/tandem_backend/` → `packages/backend/src/tandem_backend/`（`evaluation.py / pipeline_eval.py / reader_eval.py` → `evaluation/{readability,pipeline,reader}.py`，旧入口保留；`cli.py` → `cli/commands.py`；`bottlenecks / feedback / portrait …` → `profiling/`；`narrative / analysis_reports` → `reporting/`）；`docs/design/demo` → `prototypes/{lite,advance}`；`docs/contracts/analysis-inputs.md` → `docs/contracts/`；`docs/backend/*` → `docs/architecture/ + docs/modules/ + docs/releases/backend/`；真实数据评测脚本 → `evals/`（`evals/README.md`）、性能 → `benchmarks/`；pytest 合计 658 项（根 `tests/` 17 + 各包）；CI 入口改为 `pnpm check`（`scripts/check.sh`）。与四份模块文档一致，本文 §0–§2.3 的路径按 `f4a2cde` 写法，§2.4 起的「现状」列写 PR #28 之后的路径；对照表见 main `docs/development/structure-migration.md`。
 >
-> 术语：按契约 §2.1，「benchmark」只指公开模型成绩 `benchmark_result`（DT-14）；Tandem 自己的检验叫「评测 EV」；Lite 的「个人协作 Benchmark」是产品名。版本名统一为 Lite（`prototypes/advance/benchmark-review.md` 8 页）与 Advance（`prototypes/advance/src`）。「待验证」= 需要真实数据或实测才能定的技术假设，只引契约 §7 编号（§12）。
+> 术语：按契约 §2.1，「benchmark」只指公开模型成绩 `benchmark_result`（DT-14）；Orbit 自己的检验叫「评测 EV」；Lite 的「个人协作 Benchmark」是产品名。版本名统一为 Lite（`prototypes/advance/benchmark-review.md` 8 页）与 Advance（`prototypes/advance/src`）。「待验证」= 需要真实数据或实测才能定的技术假设，只引契约 §7 编号（§12）。
 >
 > MVP 判定规则（契约 §2.1 状态列，第 3 版条目）：MVP = Lite 8 页需要的数据 + Advance 的三张安装闭环卡（只读放行、重复失败熔断、高频纠偏 → 规则）；只服务 Advance 独有界面（A9 工坊外壳、ASK、菜单栏 / HUD / 小组件、首次启动、SET-21 周报、A1-06 上期对比、A3 阶段带与情绪泳道）的 feature 一律 v1，Advance 设计保留为路线图。本文每个 EV feature 的阶段按此重标（§6、§10）。
 
@@ -23,7 +23,7 @@
 5. **judge 整体 v1**（与契约 AI-07 ④ 一致）：MVP 生成物门槛 = ① 规范校验 ② 静态安全扫描 ③ 历史回放 dry-run（`false_block = 0`）+ `evaluate_text` 文案层；白名单前缀由 DT-13 词表决定、hook 有回放 dry-run，judge 对这两类没有增量。judge 金标、Rogan–Gladen 校正、漂移监测的做法保留在 §2.3，阶段 v1。
 6. **推荐质量的 MVP 指标只用曝光反馈**：采纳率 / 不适用率 / 撤销率（按 `remedy_rule_id` 与 `surface` 分组）+ 问题覆盖率；时间切分回放 HitRate@k 与 NDCG@k 都 v1（回放依赖已装清单的历史，契约 V7 只能用当前配置近似）。解释可信度的机械部分（引用存在、场景保留、来源版本化、语言保留、闸门消融）已在 `pipeline_eval.evidence_checks`，保持 100% 硬门槛。
 7. **装后效果分三层**：触发 / 机械 / 行为。前窗 = `tracking.baseline_from / baseline_to`（默认安装前 28 天）；可用天数不足 14 天记 `insufficient`；后窗 7 天（滚动到 28 天）。MVP 做触发 + 机械 + 护栏 + 四态结论（有改善 / 暂未看到明显变化 / 变差建议撤销 / 数据不足），由 EV-07 在线计算、`GET /v1/outcomes/{install_id}` 返回；行为层 DiD + 按天分块 bootstrap 与 N-of-1 试验 v1。
-8. **安装模块有自己的评测（EV-13，MVP）**：用临时 `HOME` 构造每个 Agent 的配置夹具（空文件、已有同键、用户手改、已有 Tandem 标记块、非法 JSON）× 每种 `action`，断言预览 diff = 实际写入差异、撤销后 sha256 与安装前一致、重复安装无变化、未知键保留、不写托管层、`preview_digest` 不符拒绝写入、用户改过标记块拒绝自动撤销；CI `--suite install` 门槛 100%；本机 `--real` 冒烟确认 `claude` / `codex` 真的读到规则与 allow 前缀。
+8. **安装模块有自己的评测（EV-13，MVP）**：用临时 `HOME` 构造每个 Agent 的配置夹具（空文件、已有同键、用户手改、已有 Orbit 标记块、非法 JSON）× 每种 `action`，断言预览 diff = 实际写入差异、撤销后 sha256 与安装前一致、重复安装无变化、未知键保留、不写托管层、`preview_digest` 不符拒绝写入、用户改过标记块拒绝自动撤销；CI `--suite install` 门槛 100%；本机 `--real` 冒烟确认 `claude` / `codex` 真的读到规则与 allow 前缀。
 9. **Benchmark 在 MVP 只是一张读 AN-12 的表**：A7「模型与思考」/ Lite「优化建议 › 模型」读 `GET /v1/analytics/metrics?group_by=model_effort`，按 n / 区间渲染，不下任何结论；公开榜单（SWE-bench Verified、Terminal-Bench、LMArena、models.dev）导入、任务类型 → 基准映射、Beta-Binomial 收缩、面板的公开成绩列与 RC-08 候选一起 v1；因果只能靠 N-of-1 档位交替试验（v1）。
 10. **运行方式沿用现有命令，MVP 只补退出码**：`tandem evaluate --fail-under`（现有 readability / pipeline / probe + 新增 injection、install、metrics、privacy）把 JSON 写到 `.local/evaluation/`；`eval_run` 表、`data/eval_baseline.json` 棘轮、`GET /v1/evaluation/runs`、设置页评测状态卡、detector / facet / judge / rec-replay / artifact / outcome 六个 suite 全部 v1。现状缺口：`tandem evaluate` 不设退出码（`cli/commands.py` 直接 `return`），probe 12 例没有测试守着；PR #28 之后 CI 的 `scripts/check.sh` 只跑 pytest、`check-installed.sh` 与 `tests/integration`，不再调用 `tandem evaluate`（旧 `backend.yml` 曾调用），EV-12 第一步就是把它接回 `pnpm check` 并带 `--fail-under`。
 11. **Demo 从评测角度缺三样核心件**：A7-15 效果追踪的四态结论与区间（= UG-RC-04，前端只做一次）；统一反馈入口（不适用原因 / 不像我 / 不准确 / 有用没用）写 `label`；卡片主数字的 `已计数 / 估计 / 未测` 标签。A9-15 自检清单可失败（= UG-AI-04）随 A9 工坊 v1。四份文档的前端升级表合并到 `docs/plans/feature-map.md`，本文 §9 只保留 EV 侧条目与去重说明。
@@ -37,7 +37,7 @@
 | AI 读得准不准、贵不贵 | E2（facet）/ E4（judge） | EV-04（v1）、EV-04.1、EV-04.2（v1）、EV-11、EV-14 | 同一批标注、judge 金标（v1）、`ai_usage`、隐私夹具 | 「AI 候选（未校准）」（MVP）；「AI 判定（已校准）」（v1） | 未校准 judge 的任何结论 |
 | 推荐对不对 | E6 曝光 + 回放 | EV-05、EV-05.1（v1）、EV-05.2（v1） | `rec_exposure` + `label`；时间切分回放（v1） | 「针对会重复发生的问题」 | 「会提升 X%」 |
 | 生成物好不好 | E3 装前 | EV-06、EV-06.1（v1） | lint、静态扫描、dry-run、`evaluate_text`、人工采纳；judge / 触发评测（v1） | 「已通过回放 N / N、误拦 0」 | 「安全」「一定有效」 |
-| 装得对不对、能不能撤销 | E1 安装往返 | EV-13 | 临时 `HOME` 夹具 × action 的往返断言；本机 `--real` 冒烟 | 「预览即写入；撤销后逐字节恢复」 | 「不会影响其他配置」（只对 Tandem 写入的键成立） |
+| 装得对不对、能不能撤销 | E1 安装往返 | EV-13 | 临时 `HOME` 夹具 × action 的往返断言；本机 `--real` 冒烟 | 「预览即写入；撤销后逐字节恢复」 | 「不会影响其他配置」（只对 Orbit 写入的键成立） |
 | 装了真的有效没有 | E5 装后 | EV-07、EV-07.1（v1） | `tracking` 基线 + 后窗 + 护栏 | 四态结论之一 | 因果（除 N-of-1） |
 | 换模型 / 调档位值不值 | E5 + 先验 | EV-08 | AN-12 分层（MVP）；`benchmark_result`（v1） | 「你的数据（估计）」；v1 加「公开成绩」 | 跨厂商比档位、跨 harness 混排 |
 | 读者看得懂、信得过吗 | E7 可读性 | EV-09、EV-09.1、EV-10、EV-10.1 | `evaluate_text` + 读者评分 + `label` | 「读者已验收（限所列案例）」 | 「中文自然」「用户满意」 |
@@ -49,7 +49,7 @@
 | 标签后读 | 预测路径不接收标签与评价标准；`expected` 只在预测完成后比对 | main `pipeline_eval._write_case` 不读 `expected`，`test_case_writer_does_not_receive_or_copy_expected_labels` |
 | 评测不改历史 | 评测在独立临时库 / 独立目录运行；`history_updated = False`；评价表不进画像 | main `test_benchmark_cannot_modify_selected_normal_database`、`reader_eval` 不打开历史库 |
 | 评测不改用户配置 | EV-13 只在临时 `HOME` 跑；`--real` 冒烟只读现有配置与 Agent 输出，不写入 | 计划（EV-13） |
-| 自身会话隔离 | Tandem 发起的 Agent 会话用固定 `marker` + 临时 cwd，导入时经 `excluded_session_uids` 过滤；评测会话也排除 | main `sample_policies(before, exclude)`、`--exclude-session`；AI-01 计划 |
+| 自身会话隔离 | Orbit 发起的 Agent 会话用固定 `marker` + 临时 cwd，导入时经 `excluded_session_uids` 过滤；评测会话也排除 | main `sample_policies(before, exclude)`、`--exclude-session`；AI-01 计划 |
 | 固定快照 | 真实数据评测用固定 `until_ts`（legacy `before + 1`），结果写 `dataset_sha256` / `analysis_digest` | main `Scope`、`pipeline_benchmark.dataset_sha256`；`verify_semantic_history.py` 要求固定快照 |
 | 只写 `.local` | 真实数据产物只写 `.local/`（被 Git 忽略）；仓库只放构造案例与汇总 | `verify_semantic_history.py` 显式校验输出路径；`docs/backend/analytics/validation.md` |
 | 分母为 0 保持未知 | precision / recall 分母为 0 时为 `null`，不写 100% | main `pipeline_eval._metrics` |
@@ -72,7 +72,7 @@
 | 时间质量 | UTC 毫秒；半开窗口；`attrs.time.quality`；时间未知单列 | 夹具 100% | main `test_half_open_time_filter_and_calendar_unknowns`；PR #9 `attrs.time` CHECK | — |
 | 脱敏 | 已知密钥模式 0 泄漏；`redaction_version` 变更即重洗 | 注入密钥的夹具在 L2 中 0 命中 | main `test_common_secret_patterns_are_redacted`；main connector `privacy.ts`（凭据键变体、重洗旧投影）；PR #9 `privacy.py` | 两份规则表合并后共用一套夹具（契约 §3.8 待定归属）；AI 上下文包的隐私夹具另见 EV-14 |
 | Schema | `event-v1.schema.json` / `tables-v1.schema.json` 校验；connector `validateEvent` | 100% | PR #9 `schema_export.py`（`KINDS` 26 种）；main connector `schema/events.schema.json`（25 种，缺 `permission.request`，契约 V12） | — |
-| `/insights` 对照（EV-01.1，MVP 一次性） | Claude Code `~/.claude/usage-data/session-meta` 的工具次数、打断次数、`bash_would_prompt_count` 与 Tandem 同会话数值 | 差异可解释（词表范围、分母口径），逐项写明；只做一次，结果进 `.local/evaluation/insights-<ran_at>.json` 与 PR 正文 | 计划（DT-18 只读） | — |
+| `/insights` 对照（EV-01.1，MVP 一次性） | Claude Code `~/.claude/usage-data/session-meta` 的工具次数、打断次数、`bash_would_prompt_count` 与 Orbit 同会话数值 | 差异可解释（词表范围、分母口径），逐项写明；只做一次，结果进 `.local/evaluation/insights-<ran_at>.json` 与 PR 正文 | 计划（DT-18 只读） | — |
 | 性能基线 | 导入吞吐、分析耗时（不是门槛，只记录） | 记录 `records_per_second / analyze_seconds` | PR #14 `validation.benchmark()` 1000 条；PR #13 `scripts/benchmark_semantic_families.py`（3,000 条 / 秒；10,000 条 3.3 s）；真实快照导入 7.27 s、分析 3.11 s | 100–300 MB canonical 库计时（契约 V4，阻塞 MVP） |
 | canonical 接入回归 | 同一固定快照，legacy bundle 与 canonical bundle 的 `counts` 差异可解释；`human_origin` 未知从 918 / 927 显著下降 | 差异逐项有原因；`human_origin` 覆盖 ≥ 50%（契约 V11，阻塞 MVP） | 计划（AN-16） | — |
 
@@ -202,12 +202,12 @@ MVP 三道机械自检 + 文案层；结果写 `install_plan.risk_scan`（结构
 
 | 维度 | 取值 |
 | --- | --- |
-| 夹具（每个 Agent × 每个落点文件） | ① 空文件 / 不存在；② 已有同键（`permissions.allow` 已含一项、`hooks.PreToolUse` 已有别的 matcher、`AGENTS.md` 已有正文）；③ 用户手改（安装后再改同一数组 / 块）；④ 已有 Tandem 标记块（重复安装）；⑤ 非法 JSON / TOML |
+| 夹具（每个 Agent × 每个落点文件） | ① 空文件 / 不存在；② 已有同键（`permissions.allow` 已含一项、`hooks.PreToolUse` 已有别的 matcher、`AGENTS.md` 已有正文）；③ 用户手改（安装后再改同一数组 / 块）；④ 已有 Orbit 标记块（重复安装）；⑤ 非法 JSON / TOML |
 | action（RC §8.2 落点表） | `merge_json`（`/permissions/allow`、`/hooks/<Event>`、`~/.claude.json` 的 `mcpServers` 子树）、`append_block`（`AGENTS.md` 标记块 + `CLAUDE.md` 的 `@AGENTS.md` 引用）、`create_file`（`~/.codex/rules/*.rules`、hook 脚本、skill 目录）、`remove_pointer`（减法）、`set_key`（`model`、`model_reasoning_effort`）、`trim_block` |
 | 断言 | 预览 diff（IN-02 键级 / 块级）= 实际写入前后差异；撤销后文件 sha256 与安装前一致（③ 除外）；重复安装无变化（`install_ledger` 不新增写入条目）；JSON / TOML 仍合法且未知键原样保留；不写托管层与团队共享层；`preview_digest` 不符时 `POST /v1/install/apply` 返回 409 且文件未变；③ 时自动撤销被拒绝并提示人工处理；⑤ 时拒绝写入并给出原因；Codex hook 写入后 `install_state` 为「已安装、未信任」（`requires_trust`，V19）；写前备份存在且 `install_ledger.before_hash / after_hash / backup_path` 可回放 |
 | 规模 | 2 个 Agent × 5 种夹具 × 6 种 action ≈ 60 用例（无对应落点的组合跳过并记 `n/a`），本机 < 10 s |
 | 运行 | `tandem evaluate --suite install`，CI 门槛 100%；`--real` 冒烟见 §5.3，只在本机，路演前与落点表变更后各跑一次 |
-| 不能说什么 | 「不会影响其他配置」只对 Tandem 写入的键成立；Agent 是否真的读到规则由 `--real` 冒烟回答，不由往返用例回答 |
+| 不能说什么 | 「不会影响其他配置」只对 Orbit 写入的键成立；Agent 是否真的读到规则由 `--real` 冒烟回答，不由往返用例回答 |
 
 ## 3. EV-03 合成注入与回归集
 
@@ -273,7 +273,7 @@ A7「模型与思考」/ Lite「优化建议 › 模型」读 `GET /v1/analytics
 
 ### 5.3 本机 `--real` 冒烟（EV-13 的一部分）
 
-`tandem evaluate --suite install --real`：在临时 `HOME` 内安装三张卡的产物，然后以非 `--safe-mode` 的 `claude -p` / `codex exec`（临时 `HOME`、临时 cwd、`--max-budget-usd 0.02`）问「读到的规则第一行是什么 / `git status` 是否需要审批」，断言回答含 Tandem 标记块首行、allow 前缀生效（V21）；只读现有配置与 Agent 输出，不写用户配置。每次约 3K token。
+`tandem evaluate --suite install --real`：在临时 `HOME` 内安装三张卡的产物，然后以非 `--safe-mode` 的 `claude -p` / `codex exec`（临时 `HOME`、临时 cwd、`--max-budget-usd 0.02`）问「读到的规则第一行是什么 / `git status` 是否需要审批」，断言回答含 Orbit 标记块首行、allow 前缀生效（V21）；只读现有配置与 Agent 输出，不写用户配置。每次约 3K token。
 
 ### 5.4 路演前清单（MVP）
 
@@ -307,7 +307,7 @@ A7「模型与思考」/ Lite「优化建议 › 模型」读 `GET /v1/analytics
 | --- | --- | --- | --- | --- |
 | 只读命令自动放行（`readonly-allowlist`，`permission_rule`） | ① 前缀 ∈ `command.readonly` 词表；② 与破坏性清单 / `deny` 交集 = 0；③ 历史 shell 调用回放：召回只读命令数，交集 = 0 | `injection`：12 次 `git status` → problem；`rm -rf` 会话 → 不进白名单；`install`：`merge_json` 到 `/permissions/allow` 的往返（空文件 / 已有同前缀 / 用户手改数组）；E1：`would_prompt_count` 与 `/insights bash_would_prompt_count` 对照 | `triggered = allow_rule_matches`；`mechanical = would_prompt_count:readonly_shell ↓`；护栏 `denied_count` 不升、`destructive_allowed_count = 0` | 装前 100%；装后四态之一；护栏触发即 `negative` |
 | 重复失败熔断（`retry-breaker`，`hook`；`systematic-debugging` skill 在 `alternatives`） | ① 过 `hooks.schema.json`；② 脚本无网络 / 破坏命令；③ 历史 `tool_call` 还原为 stdin 回放：`false_block = 0`、命中 ≥ 1 | `injection`：同轮同参数 3 次失败 → `tool_env_failure:retry_loop:<command_head>`；候选来源 RC-02 ① `skills.json` 种子（`problem_types = repeated_tool_failure`）；RC-06 #2 首选 `hook`，skill 作 `alternatives`（RC §3.1 `tool_env_failure` 优先序）；`install`：`merge_json` 到 `/hooks/PreToolUse` + 脚本文件；Codex `hooks.json` 写入后状态「已安装、未信任」（V19） | `triggered = hook.run`；`mechanical = retry_runs ↓`；护栏 `false_block_count = 0`、`interruption_count` 不升 | 同上 |
-| 高频纠偏 → 规则（`repeated_instruction:<key>`，`rule`） | ① 标记块成对、长度 ≤ 预算；② 无注入模式；重复 / 冲突检测对 `existing_rules`；`evaluate_text` 无 `error` | `injection`：同 key 纠偏 ≥ 2 次 × ≥ 3 会话 → `repeated_instruction` → 规则候选；`install`：`append_block` 到 `AGENTS.md` + `CLAUDE.md` 的 `@AGENTS.md` 引用（RC §8.2）往返（已有 Tandem 块 / 用户改过块 → 拒绝自动撤销） | `triggered = context.inject`（可观测时，否则「未测」）；`mechanical` = 同 key 纠偏次数 ↓；护栏 `tokens_per_session` 不升 > 20% | 同上；`triggered` 不可观测时结论只能是 `no_change / insufficient`，不写 `positive` |
+| 高频纠偏 → 规则（`repeated_instruction:<key>`，`rule`） | ① 标记块成对、长度 ≤ 预算；② 无注入模式；重复 / 冲突检测对 `existing_rules`；`evaluate_text` 无 `error` | `injection`：同 key 纠偏 ≥ 2 次 × ≥ 3 会话 → `repeated_instruction` → 规则候选；`install`：`append_block` 到 `AGENTS.md` + `CLAUDE.md` 的 `@AGENTS.md` 引用（RC §8.2）往返（已有 Orbit 块 / 用户改过块 → 拒绝自动撤销） | `triggered = context.inject`（可观测时，否则「未测」）；`mechanical` = 同 key 纠偏次数 ↓；护栏 `tokens_per_session` 不升 > 20% | 同上；`triggered` 不可观测时结论只能是 `no_change / insufficient`，不写 `positive` |
 
 ## 8. 与 Demo 的对应
 
@@ -362,7 +362,7 @@ A7「模型与思考」/ Lite「优化建议 › 模型」读 `GET /v1/analytics
 | ID | 名称 | 说明 | 输入 | 输出 | 依赖 | 阶段 | 现状 | 负责人 | reviewer |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | EV-01 | 数据层回归汇总 | 汇总 main / PR #9 / #14 / #11 的回归与全记账恒等式，不另起框架；跨包汇总断言 | 各包测试与 `verify()` 输出 | `--fail-under` 汇总项 | DT-04、DT-19 | MVP | main `packages/backend/tests`、`packages/data/tests`、`packages/connectors` 35 项 + CI | yhyfhgs | MistyHuang03 |
-| EV-01.1 | `/insights` 只读对照 | Claude Code `session-meta` 的工具数 / 打断数 / `bash_would_prompt_count` 与 Tandem 同会话数值对照，一次性 | `~/.claude/usage-data/session-meta`（DT-18） | `.local/evaluation/insights-<ran_at>.json` + PR 正文 | DT-18、AN-05 `would_prompt` | MVP（一次性）；v1（ccusage / `cost-state` 对账） | 计划 | yhyfhgs | MistyHuang03 |
+| EV-01.1 | `/insights` 只读对照 | Claude Code `session-meta` 的工具数 / 打断数 / `bash_would_prompt_count` 与 Orbit 同会话数值对照，一次性 | `~/.claude/usage-data/session-meta`（DT-18） | `.local/evaluation/insights-<ran_at>.json` + PR 正文 | DT-18、AN-05 `would_prompt` | MVP（一次性）；v1（ccusage / `cost-state` 对账） | 计划 | yhyfhgs | MistyHuang03 |
 | EV-01.2 | 指标引擎金标 | 约 30 个构造会话的 `metrics` 手算期望；统计函数对照 scipy / statsmodels；字典覆盖；Demo 数字 → 端点映射检查 | canonical 夹具、`metrics` 端点、`analytics/stats.py` | `tests/fixtures/metrics-gold-v1.json`、`--suite metrics` | AN-01、AN-10、AN-12、AN-14、AN-16 | MVP（Lite 约 20 项 + Wilson）；v1（全部） | 计划（`analytics` 测试只验夹具形状） | MistyHuang03 | yhyfhgs |
 | EV-02 | 分析准确性标注 | §2.2：每人对 MVP 检测器各 30 条命中 `confirm / inaccurate`，`problem` 前 20 条，规则时刻各 20 条；精度与 n；执行点 = 检测器摘要文件 | `signal / problem / key_moment`、`label` | `.local/evaluation/detector-summary.json`、PR 正文汇总 | AN-05、AN-06、AN-09、AN-11、AN-18、AN-19、EV-10、EV-02.1 | MVP（精度）；v1（κ、交叉标注、主题簇、`installed_unused`、阶段、情绪） | 计划；构造集 main `pipeline_cases.json`、`tests/fixtures/*-quality*.json`、`tests/bottleneck/` | MistyHuang03 | yhyfhgs |
 | EV-02.1 | `tandem label` CLI | 终端逐条显示 L2 脱敏文本与命中位置，`c / i / s` 写本机 `label` | `analysis.db`、`tandem.db`（只读） | `label` 行 | EV-10 | MVP | 计划 | MistyHuang03 | genius-FXC |

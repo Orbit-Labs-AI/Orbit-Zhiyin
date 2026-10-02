@@ -1,4 +1,4 @@
-# Tandem 数据获取与标准化方案（模块 1 + 模块 5）
+# Orbit 数据获取与标准化方案（模块 1 + 模块 5）
 
 > 状态：方案文档；与当前实现的差异以模块接入表为准。
 > 状态：2026-10-02 起持续迭代。按团队已确定的模块划分，本轮完成模块 1 与模块 5 的**数据获取、标准化、基础统计与存储**，包含 L3 派生与规则特征提取，供后续深入分析与二次分析复用；诊断、画像、匹配、推荐、AI 辅助由后续模块负责。
@@ -9,10 +9,10 @@
 
 1. **两边各自独立采集，在同一套「能力词表」上汇合。** 会话侧把各 Agent 的日志标准化成统一事件；生态侧把 Skills、Plugins、MCP、Hooks、规则、工作流、模型成绩标准化成统一条目。两边都抽取同一套特征（工具类别、命令族、MCP 服务、技能名、文件类型、领域标签），后续匹配只需在特征层做连接。
 2. **本机实测推翻了 Demo 里的三处假设**：Gemini 侧实际是 Google Antigravity（明文转录在 `brain/<id>/…/transcript_full.jsonl`，模型与 token 藏在 protobuf 里），不是 `~/.gemini/tmp`；Copilot 没有 `~/.copilot/history`，本机只剩会话元数据；DeepSeek Harness 的会话是 zstd 压缩的事件流，需要解压并合并流式分片。另外 Claude Code 不止 `~/.claude` 一个根目录（第二账号、桌面版本地 Agent 模式），桌面版还有一份会话索引。
-3. **必须自建原始归档。** Claude Code 默认只保留 30 天会话（本机最早的转录停在 2026-09-02），Copilot 本机的会话表是空的。Tandem 首次运行全量回填，之后增量归档原始字节，否则 Demo 的 90 天视图和长期趋势都无法成立。
+3. **必须自建原始归档。** Claude Code 默认只保留 30 天会话（本机最早的转录停在 2026-09-02），Copilot 本机的会话表是空的。Orbit 首次运行全量回填，之后增量归档原始字节，否则 Demo 的 90 天视图和长期趋势都无法成立。
 4. **「不丢信息」用四层结构保证**：L0 原始字节归档 → L1 原始记录索引（每行都有去向）→ L2 标准事件（未映射字段进 `ext`）→ L3 派生表（会话、轮次、工具调用、模型调用、基础统计与特征，可随时重算）。每个连接器都要通过「记录全记账」测试。
 5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应会拆成多行（多数 2–3 行，主会话最多 16 行），每行重复同一份 usage（不去重会多算约 2.5–3.1 倍，因字段而异）；分叉与后台会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
-6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；OpenCode、Hermes Agent 已有源码级调研，用安装后生成的样本接入；Copilot 与其他 Agent 留接口。生态侧的已实现来源、增量同步、特征与向量索引见[推荐数据模块](../modules/catalog-architecture.md)；Codex 当前来源使用 `openai/plugins`，已弃用的 `openai/skills` 仅保留历史参考。
+6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；OpenCode、Hermes Agent 已有源码级调研，用安装后生成的样本接入；Copilot 与其他 Agent 留接口。生态侧的已实现来源、增量同步、特征与向量索引见[推荐数据模块](../modules/catalog/architecture.md)；Codex 当前来源使用 `openai/plugins`，已弃用的 `openai/skills` 仅保留历史参考。
 7. **存储用 SQLite + zstd 归档**：`tandem.db`（会话侧）、`catalog.db`（生态侧，可由团队定期构建成快照分发）、`raw/`（原始归档）。数据库表结构就是模块之间的契约，三人可以并行开发。
 
 ### 需求对照
@@ -104,7 +104,7 @@ Demo 各页需要的数据与来源：
 
 #### Claude Code（P0）
 
-- **数据根目录不止一个**：`${CLAUDE_CONFIG_DIR:-~/.claude}`、同级的 `~/.claude*`（本机有 `~/.claude-account2`）、Claude 桌面版的本地 Agent 模式 `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`（本机 1 个会话）。Tandem 要支持登记多个根目录（ccusage 等工具允许在 `CLAUDE_CONFIG_DIR` 里用逗号列出多个目录，这是工具的约定，不是 Claude Code 本身的行为）。
+- **数据根目录不止一个**：`${CLAUDE_CONFIG_DIR:-~/.claude}`、同级的 `~/.claude*`（本机有 `~/.claude-account2`）、Claude 桌面版的本地 Agent 模式 `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`（本机 1 个会话）。Orbit 要支持登记多个根目录（ccusage 等工具允许在 `CLAUDE_CONFIG_DIR` 里用逗号列出多个目录，这是工具的约定，不是 Claude Code 本身的行为）。
 - **桌面版会话索引**：`~/Library/Application Support/Claude/claude-code-sessions/<id>/<id>/local_<id>.json`（本机 118 个），字段有 `cliSessionId`（对应转录文件的 `sessionId`）、`cwd / originCwd`、`createdAt / lastActivityAt`、`model`、`effort`、`title / titleSource`、`isArchived`、`permissionMode`、`enabledMcpTools`、`completedTurns`；另有 `deleted_<id>` 删除标记（237 个）与 `scheduled-tasks.json`。用于补标题、归档状态和会话级设置，不含正文。
 - **文件布局**：主会话 `<proj>/<sessionId>.jsonl`；子代理 `<proj>/<sessionId>/subagents/agent-<id>.jsonl` 与同名 `.meta.json`（`agentType`、`description`、`toolUseId`、`spawnDepth`）；Workflow 子代理 `<proj>/<sessionId>/subagents/workflows/wf_<id>/agent-<id>.jsonl` 与 `journal.jsonl`、`<sessionId>/workflows/wf_<id>.json`；超长工具输出落在 `<sessionId>/tool-results/`；`custom-title.json`；项目记忆 `<proj>/memory/*.md`。
 - **目录名是有损编码**（`/`、空格、`.` 都变成 `-`），项目归属必须用记录里的 `cwd`，不能反解目录名。
@@ -261,7 +261,7 @@ Demo 各页需要的数据与来源：
 - 用户已经在跑的代理（cc-switch 的 `proxy_request_logs`、better-ccflare 的 SQLite），以后可以作为可选的导入连接器，按 `session_id` + 时间 + token 数关联到会话。
 - 「深度捕获」（claude-tap 式的本地反代，把完整请求写成 JSONL）只作为高级选项，永不默认开启。
 
-**额度。** CodexBar 的额度来自带凭据的官方接口：Claude 用 OAuth 令牌请求 `api.anthropic.com/api/oauth/usage`，Codex 用 `~/.codex/auth.json` 请求 `chatgpt.com/backend-api/wham/usage`，Copilot、Gemini 也类似。这些都要读凭据和联网，与 Tandem「不碰凭据、不调用云端」的原则冲突。默认只用日志里已有的快照（Codex `rate_limits`、Claude `quotaLimits`）；需要实时额度时，作为用户显式开启的独立功能再做。
+**额度。** CodexBar 的额度来自带凭据的官方接口：Claude 用 OAuth 令牌请求 `api.anthropic.com/api/oauth/usage`，Codex 用 `~/.codex/auth.json` 请求 `chatgpt.com/backend-api/wham/usage`，Copilot、Gemini 也类似。这些都要读凭据和联网，与 Orbit「不碰凭据、不调用云端」的原则冲突。默认只用日志里已有的快照（Codex `rate_limits`、Claude `quotaLimits`）；需要实时额度时，作为用户显式开启的独立功能再做。
 
 ### 3.5 本机配置快照（已安装清单）
 
@@ -551,7 +551,7 @@ OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](../resea
 
 ### 4.6 与外部标准的关系
 
-没有一个现成标准能无损表达编码 Agent 的轨迹：ATIF 只有线性步骤和一段思考文本；OpenTelemetry GenAI 语义约定仍未发布、以 span 为形状；ACP 稳定版没有逐次调用的用量，而且是实时协议；Codex app-server 是厂商私有格式。所以 **Tandem 自己持有标准事件日志，外部标准只作为词表来源和导出目标**：
+没有一个现成标准能无损表达编码 Agent 的轨迹：ATIF 只有线性步骤和一段思考文本；OpenTelemetry GenAI 语义约定仍未发布、以 span 为形状；ACP 稳定版没有逐次调用的用量，而且是实时协议；Codex app-server 是厂商私有格式。所以 **Orbit 自己持有标准事件日志，外部标准只作为词表来源和导出目标**：
 
 | 标准 | 现状（2026-10） | 我们借用什么 |
 | --- | --- | --- |
@@ -951,7 +951,7 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 ### 8.1 MVP 范围
 
 - **会话侧**：Claude Code（含子代理、第二账号与桌面版索引）、Codex（含归档目录与子代理）、DeepSeek Harness；pi 作为最简单的连接器模板一并接入；Antigravity 读明文转录与摘要库；OpenCode 与 Hermes Agent 本机未安装，按源码调研写连接器，安装后跑一次生成样本再测试。
-- **生态侧**：`packages/catalog/src/tandem_catalog` 已实现官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/plugins`、awesome-copilot、models.dev、LiteLLM 与 SWE-bench，以及内置种子。Hooks、子代理、命令从插件与仓库内容拆出。接口、已知边界和 Swift 封装见[推荐数据模块](../modules/catalog-architecture.md)。
+- **生态侧**：`packages/catalog/src/tandem_catalog` 已实现官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/plugins`、awesome-copilot、models.dev、LiteLLM 与 SWE-bench，以及内置种子。Hooks、子代理、命令从插件与仓库内容拆出。接口、已知边界和 Swift 封装见[推荐数据模块](../modules/catalog/architecture.md)。
 - **向量检索范围更新**：按 2026-10-02 的明确实现要求，现已加入本地 E5 向量、FTS5、结构化特征、多路召回与可解释排序；不再沿用早期“向量检索暂不做”的判断。
 - **暂不做**：Hooks 与 OpenTelemetry 补充通道、反代、Antigravity 的 protobuf 用量解码、用模型给条目打标签。
 - **实现形态**（2026-10-02 按仓库现状更新）：采集与标准化独立于界面，只负责写数据库，Mac App 与分析模块只读（`query_only`、`busy_timeout`，一次查询在一个读事务内完成）。目前分三层：
