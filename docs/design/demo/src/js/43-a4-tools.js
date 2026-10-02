@@ -58,7 +58,7 @@ PAGES.tools = () => {
   const retries = RETRIES.map((r) => [r[0], Math.max(1, Math.round(r[1] * st.errors / 614)), r[2]]);
   const kpis = [
     VZ.kpi({ label: T.failOnly ? '失败次数' : '工具调用', value: fmt(T.failOnly ? st.errors : st.tools), delta: { cur: T.failOnly ? st.errors : st.tools, prev: P ? (T.failOnly ? P.errors : P.tools) : null, goodDown: T.failOnly ? true : null, fmt: 'int' }, trend: weekly((x) => sum(x, (s) => T.failOnly ? s.errors : s.tools), endDay, 12), trendLabel: trendLbl, tip: '每会话 ' + Math.round(st.tools / Math.max(1, st.n)) + ' 次' }),
-    VZ.kpi({ label: '错误率', value: f1(st.err), unit: '%', delta: { cur: st.err, prev: P ? P.err : null, unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }, trend: weekly((x) => stats(x).err, endDay, 12), trendLabel: trendLbl, tip: fmt(st.errors) + ' 次失败 · 命令占 77%（示例）' }),
+    VZ.kpi({ label: '错误率', value: f1(st.err), unit: '%', delta: { cur: Math.round(st.err * 10) / 10, prev: P ? Math.round(P.err * 10) / 10 : null, unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }, trend: weekly((x) => stats(x).err, endDay, 12), trendLabel: trendLbl, tip: fmt(st.errors) + ' 次失败 · 命令占 77%（示例）' }),
     VZ.kpi({ label: '需要你审批', value: fmt(approvals), delta: { cur: approvals, prev: approvalsPrev, goodDown: true, fmt: 'int' }, trend: weekly((x) => approvalsOf(toolRows(x)), endDay, 12), trendLabel: trendLbl, tip: '平均等待 38 s · 约 ' + Math.round(approvals * 38 / 3600) + ' 小时被打断（示例）' }),
     VZ.kpi({ label: '子代理派发', value: fmt(task ? task.n : 0), delta: { cur: task ? task.n : 0, prev: taskPrev ? taskPrev.n : null, fmt: 'int' }, trend: weekly((x) => { const t = toolRows(x).find((r) => r.name === 'Task'); return t ? t.n : 0; }, endDay, 12), trendLabel: trendLbl, tip: '平均 96 s · 最多并行 9（示例）' })
   ].join('');
