@@ -118,7 +118,14 @@ class KimiMapper(BaseMapper):
     def _message(self, record, message, path="message"):
         message = dict(message)
         blocks = []
-        for part in message.get("content", []):
+        content = message.get("content", [])
+        if isinstance(content, str):
+            content = [{"type": "text", "text": content}]
+        elif isinstance(content, dict):
+            content = [content]
+        for part in content or []:
+            if isinstance(part, str):
+                part = {"type": "text", "text": part}
             if part.get("type") == "think":
                 blocks.append({**part, "type": "thinking", "thinking": part.get("think")})
             elif part.get("type") in ("image_url", "audio_url", "video_url"):

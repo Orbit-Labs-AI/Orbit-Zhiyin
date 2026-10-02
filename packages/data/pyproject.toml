@@ -3,7 +3,7 @@ name = "tandem-data"
 version = "0.2.0"
 description = "Local session ingestion and versioned L1-L3 data contracts for Tandem"
 requires-python = ">=3.13"
-dependencies = ["jsonschema>=4.23,<5", "zstandard>=0.23,<1"]
+dependencies = ["jsonschema>=4.23,<5", "zstandard>=0.23,<1", "PyYAML>=6,<7", "json5>=0.12,<1"]
 
 [project.scripts]
 tandem-data = "tandem_data.cli:main"
@@ -27,4 +27,4 @@ select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]  # Formatter governs layout; SQL strings preserve query readability.
 
 [tool.pytest.ini_options]
-testpaths = ["tests/data"]
+testpaths = ["tests"]
