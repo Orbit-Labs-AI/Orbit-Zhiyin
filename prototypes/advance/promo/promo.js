@@ -581,6 +581,8 @@ function step(tt) {
   for (const c of cues) if (!c.done && t >= c.b * BEAT) { c.done = true; try { c.fn(); } catch (e) { console.error('cue @' + c.b, e); } }
   // the app re-renders on clicks and route changes: re-mark the solo component when its element was replaced
   for (const k of decks) if (k.solo && k.D) for (const s of Array.isArray(k.solo) ? k.solo : [k.solo]) { const el = find(k.i, s); if (el && !el.classList.contains('promo-solo')) el.classList.add('promo-solo'); }
+  // scrollIntoView inside an app copy (solo) also scrolls the promo page and the stage itself: pin them every frame
+  stage.scrollLeft = stage.scrollTop = 0; document.documentElement.scrollLeft = document.documentElement.scrollTop = 0; document.body.scrollLeft = document.body.scrollTop = 0;
   applyDrives(t); applyCams(t); applyCursors(t); applyTags(t); orbitAt(t / BEAT); applyFx(t); applyGlow(t);
 }
 // Pin every CSS animation/transition (here and in both app copies) to the virtual clock: each one is paused and its
