@@ -2,7 +2,7 @@
    (desktop layer, z below the window), notifications (344px, slide in from the right). */
 .pop{position:absolute;z-index:60;top:30px;right:120px;width:336px;max-height:calc(100% - 46px);overflow:auto;border-radius:12px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);color:var(--ink-1);animation:popin .12s var(--ease);transform-origin:top right}
 .pop .sec{padding:12px 14px;border-top:1px solid var(--hair)}
-.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:8px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:calc(100% - 40px);overflow:auto}
+.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:calc(100% - 40px);overflow:auto}
 .dd button{width:100%;display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border:0;border-radius:5px;background:transparent;text-align:left;font-size:13px;color:var(--ink-1);white-space:nowrap}
 .dd button:hover,.dd button.act{background:var(--accent);color:var(--accent-ink)}
 .dd button:hover .k,.dd button.act .k{color:rgba(255,255,255,.85)}

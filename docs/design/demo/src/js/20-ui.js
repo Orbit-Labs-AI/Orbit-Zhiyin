@@ -5,7 +5,7 @@ function setTheme(t) {
   S.theme = t; store.set('theme', t);
   if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
 }
-/* tooltip: light, 11px, shows after a short hover delay (tipOn() itself is immediate) */
+/* tooltip: light, 11px, shows after a 0.8s hover delay (tipOn() itself is immediate) */
 let TIPS = {}, TIP_T = null;
 function tipOn(el, ev) {
   let html = null;
@@ -25,7 +25,7 @@ function tipMove(ev) {
 function tipOff() { clearTimeout(TIP_T); $('#tip').hidden = true; }
 document.addEventListener('mouseover', (e) => {
   const el = e.target.closest('[data-tip],[data-tf]'); clearTimeout(TIP_T);
-  if (el) { const ev = { clientX: e.clientX, clientY: e.clientY }; TIP_T = setTimeout(() => tipOn(el, ev), 500); } else tipOff();
+  if (el) { const ev = { clientX: e.clientX, clientY: e.clientY }; TIP_T = setTimeout(() => tipOn(el, ev), 800); } else tipOff();
 });
 document.addEventListener('mousemove', tipMove);
 document.addEventListener('mousedown', () => tipOff(), true);
