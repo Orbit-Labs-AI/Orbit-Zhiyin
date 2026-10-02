@@ -8,3 +8,7 @@ __pycache__/
 dist/
 build/
 .next/
+.tandem/
+.pytest_cache/
+.ruff_cache/
+.pnpm-store/

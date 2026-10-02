@@ -28,3 +28,9 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。赛题、技�
 - 提交前确保可运行或通过现有检查；有意提交的未完成状态须在提交信息中注明。
 - 已推送的提交不 amend、不强推，修正以新提交完成。
 - 禁止提交密钥、`.env` 与个人隐私数据。
+
+## 数据契约包检查
+
+修改 `packages/data/` 后，从该目录运行 `uv sync --locked --dev`、`uv run ruff check src tests`、`uv run ruff format --check src tests`、`uv run pytest`、`uv build`，并在仓库根运行 `git diff --check`。
+
+数据库的权威结构是 `packages/data/src/tandem_data/migrations/`。改变 DDL 后，用 `uv run python -m tandem_data.schema_export --output src/tandem_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.tandem/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。
