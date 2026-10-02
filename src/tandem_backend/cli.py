@@ -67,13 +67,16 @@ def main(argv: list[str] | None = None) -> None:
     report.add_argument("--model")
     report.add_argument("--scene", help="只分析指定任务场景")
     analytics = sub.add_parser("analytics", help="计算有覆盖说明的特征、聚类和二维坐标")
+    source = analytics.add_mutually_exclusive_group()
+    source.add_argument("--analysis-input", type=Path, help="main read_analysis 导出的 analysis-input-v1 JSON")
+    source.add_argument("--data-home", type=Path, help="main packages/data 的规范数据库目录，只读")
     analytics.add_argument("--output", type=Path, help="完整 JSON，仅建议保存在 .local 下")
-    analytics.add_argument("--display-timezone", default="UTC")
+    analytics.add_argument("--display-timezone", help="默认沿用标准输入时区；旧数据库默认为 UTC")
     analytics.add_argument("--from-ts", type=int)
     analytics.add_argument("--until-ts", type=int)
     for flag in ("project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
         analytics.add_argument("--" + flag, action="append")
-    analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
+    analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=None)
     analytics.add_argument("--scene")
     analytics.add_argument("--no-text", action="store_true", help="只计算确定性测量，跳过文本表示")
     demo = sub.add_parser("demo")
@@ -139,18 +142,28 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "demo":
         args.db = str(args.output / "demo.sqlite")
-    store = Store(args.db)
     if args.command == "analytics":
+        from .analytics.canonical import canonical_bundle, input_scope, read_canonical
         from .analytics.inputs import Scope
-        from .analytics.service import analyze_store
+        from .analytics.service import analyze_bundle, analyze_store
         try:
-            scope = Scope(display_timezone=args.display_timezone, project_ids=args.project_id,
-                          legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
-                          effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
-                          root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],
-                          include_children=args.include_children, scene=args.scene)
-            result = analyze_store(store, scope, not args.no_text)
-        except ValueError as exc:
+            options = dict(display_timezone=args.display_timezone, project_ids=args.project_id,
+                           legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
+                           effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
+                           root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session,
+                           include_children=args.include_children, scene=args.scene)
+            if args.analysis_input:
+                data = json.loads(args.analysis_input.read_text(encoding="utf-8"))
+                scope = input_scope(data, options)
+                result = analyze_bundle(canonical_bundle(data), scope, not args.no_text)
+            else:
+                options["display_timezone"] = args.display_timezone or "UTC"
+                options["excluded_session_uids"] = args.exclude_session or []
+                options["include_children"] = True if args.include_children is None else args.include_children
+                scope = Scope(**options)
+                result = (analyze_bundle(canonical_bundle(read_canonical(args.data_home, scope)), scope, not args.no_text)
+                          if args.data_home else analyze_store(Store(args.db), scope, not args.no_text))
+        except (ValueError, OSError) as exc:
             parser.error(str(exc))
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +175,7 @@ def main(argv: list[str] | None = None) -> None:
                           "coverage": {k: v['status'] for k, v in result['coverage'].items()},
                           "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
         return
+    store = Store(args.db)
     if args.command == "evidence":
         with store.connect() as conn:
             row = conn.execute("SELECT data FROM events WHERE id=?", (args.event_id,)).fetchone()

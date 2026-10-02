@@ -75,6 +75,7 @@ class AnalysisInputBundle:
     versions: dict = field(default_factory=dict)
     sample_boundary: dict = field(default_factory=dict)
     input_contract: str = "analysis-input-v1"
+    statistical_event_uids: set[str] | None = None
 
     @classmethod
     def from_dict(cls, data):
@@ -292,7 +293,8 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
                            and c.get("turn_uid") in matching_turns and c["call_uid"] not in selected_calls}
         matching_turns -= ambiguous_turns
     def event_member(e):
-        return (scope.contains(e.get("ts")) and (not model_filter or e.get("turn_uid") in matching_turns)
+        return ((bundle.statistical_event_uids is None or e["event_uid"] in bundle.statistical_event_uids)
+                and scope.contains(e.get("ts")) and (not model_filter or e.get("turn_uid") in matching_turns)
                 and (scope.scene is None or e.get("attrs", {}).get("scene") == scope.scene))
     members = [e for e in all_events if event_member(e)]
     member_ids = {e["event_uid"] for e in members}
