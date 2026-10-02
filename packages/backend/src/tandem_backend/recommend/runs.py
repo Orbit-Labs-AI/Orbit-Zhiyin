@@ -10,6 +10,7 @@ mapped into the same candidate shape.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import threading
 import time
@@ -134,6 +135,14 @@ def _features():
     return features if getattr(features, "_service", None) is not None else None
 
 
+def _accepts_features(build) -> bool:
+    try:
+        params = inspect.signature(build).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.name == "features" or p.kind is p.VAR_KEYWORD for p in params)
+
+
 def ai_rerank(gw, slate: dict, scope: dict) -> None:
     """rerank.fit (AI-12): sets ``display_rank`` / ``ai_fit`` on ranked cards; never touches
     priority or rank. Silently skipped when AI is unavailable."""
@@ -227,7 +236,8 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
                 _record((time.perf_counter() - started) * 1000, outcome="reused")
                 return {"run_id": found["run_id"], "status": found["status"], "reused": True,
                         "freshness": freshness, "job_id": job_id}
-        extra = {"features": features} if (features := _features()) is not None else {}
+        features = _features() if _accepts_features(build) else None
+        extra = {"features": features} if features is not None else {}
         try:
             slate = build(data, memory, catalog=catalog, **extra)
         except Exception as error:  # noqa: BLE001 - keep serving legacy cards
@@ -267,7 +277,7 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
 
 # -- legacy fallback ----------------------------------------------------------------------
 
-def legacy_slate(inputs: dict, memory: dict | None = None, *, catalog=None, features=None) -> dict:
+def legacy_slate(inputs: dict, memory: dict | None = None, *, catalog=None) -> dict:
     """Map the analysis' legacy cards into Cand shape (used when the engine is missing)."""
     cands = []
     for rank, card in enumerate(inputs.get("legacy_cards") or [], start=1):
