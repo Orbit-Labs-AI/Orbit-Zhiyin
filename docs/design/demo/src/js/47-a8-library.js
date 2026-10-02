@@ -6,7 +6,7 @@ S.libInst = S.libInst || new Set();
 S.libHide = S.libHide || new Set();
 S.lib.sort = S.lib.sort || 'pain';
 const LIB_W = [['行为相似', 0.5], ['痛点覆盖', 0.3], ['社区效果', 0.2]];
-const LIB_SEG = ['var(--ink-1)', 'var(--h3)', 'var(--line)'];
+const LIB_SEG = ['var(--ink-1)', 'var(--h3)', 'var(--ink-4)'];
 const libParts = (x) => LIB_W.map((w, i) => Math.round(x.sc[i] * w[1]));
 const libInst = (x) => S.libInst.has(x.id);
 // Share of all anonymous users (not just your persona) that run the item: the peer share is a lift over this (A8-V03).
