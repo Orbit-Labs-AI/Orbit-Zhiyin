@@ -137,8 +137,13 @@ def pin_run(conn: sqlite3.Connection, run_id: str) -> None:
 
 def candidates(conn: sqlite3.Connection, run_id: str, *, passed: bool = True,
                dim: str | None = None, level: int | None = None, audience: int | None = None,
-               limit: int = 30) -> list[dict]:
+               limit: int = 30, problem_ids: list[str] | None = None) -> list[dict]:
     where, params = ["run_id=?", "passed=?"], [run_id, int(passed)]
+    if problem_ids:
+        # Gated cards are compacted to a top-level problem_id; passing ones keep the problem.
+        where.append("COALESCE(json_extract(card, '$.problem.problem_id'), "
+                     "json_extract(card, '$.problem_id')) IN (SELECT value FROM json_each(?))")
+        params.append(dumps(list(problem_ids)))
     if dim:
         where.append("dim=?")
         params.append(dim)
@@ -153,6 +158,21 @@ def candidates(conn: sqlite3.Connection, run_id: str, *, passed: bool = True,
                         f"{' AND '.join(where)} ORDER BY {order} LIMIT ?",
                         (*params, limit)).fetchall()
     return [_card(r) for r in rows]
+
+
+def counts(conn: sqlite3.Connection, run_id: str, now: int) -> dict[str, int]:
+    """Passing cards of a run by state: pending (visible), installed, not_applicable, snoozed."""
+    out = {"pending": 0, "installed": 0, "not_applicable": 0, "snoozed": 0}
+    rows = conn.execute("SELECT s.status, s.snooze_until FROM rec_candidate c LEFT JOIN rec_state s "
+                        "ON s.rec_key = c.rec_key WHERE c.run_id=? AND c.passed=1", (run_id,)).fetchall()
+    for status, snooze_until in rows:
+        if status in ("installed", "not_applicable"):
+            out[status] += 1
+        elif status == "snoozed" and (snooze_until or 0) > now:
+            out["snoozed"] += 1
+        elif status != "muted":
+            out["pending"] += 1
+    return out
 
 
 def dim_counts(conn: sqlite3.Connection, run_id: str) -> dict[str, int]:
