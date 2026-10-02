@@ -167,11 +167,20 @@ def default_catalog_lookup(item_id: str) -> dict | None:
                 return found
     except Exception:  # noqa: BLE001 - optional dependency
         pass
+    seeds = []
     try:
         from ..recommend.legacy_catalog import resources  # noqa: PLC0415
+
+        seeds += resources()
     except Exception:  # noqa: BLE001
-        return None
-    for entry in resources():
+        pass
+    try:  # bottleneck seeds: recommend recalls them while catalog.db is still empty
+        from ..analytics.recommendations.catalog import load_catalog  # noqa: PLC0415
+
+        seeds += [e for e in load_catalog() if e.get("url")]
+    except Exception:  # noqa: BLE001
+        pass
+    for entry in seeds:
         if entry.get("id") == item_id:
             return _legacy_item(entry)
     return None
@@ -262,6 +271,10 @@ def _rec_candidate_row(appdb, sid) -> dict | None:
                 "target_agents", "scope"):
         if key in card and key not in row:
             row[key] = json.dumps(card[key]) if isinstance(card[key], (dict, list)) else card[key]
+    # rec-engine-v2 cards name their catalog entry in ``source`` rather than ``catalog_item_id``.
+    source = card.get("source") or {}
+    if not row.get("catalog_item_id") and source.get("origin") == "catalog" and source.get("item_id"):
+        row["catalog_item_id"] = source["item_id"]
     return row
 
 
