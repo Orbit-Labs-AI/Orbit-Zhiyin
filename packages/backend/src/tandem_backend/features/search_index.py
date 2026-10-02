@@ -17,14 +17,14 @@ from pathlib import Path
 MESSAGE_CHARS = 2000
 BATCH = 5000
 MAX_LINES = 400
-VERSION = "1"
+VERSION = "2"
+KINDS = ("session", "message", "command", "file")
 
 DDL = """
 CREATE TABLE IF NOT EXISTS doc_meta (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, ref TEXT,
   session_uid TEXT, project_id TEXT, agent TEXT, ts INTEGER, title TEXT);
 CREATE INDEX IF NOT EXISTS doc_meta_session ON doc_meta(session_uid, kind);
 CREATE INDEX IF NOT EXISTS doc_meta_kind_ts ON doc_meta(kind, ts);
-CREATE VIRTUAL TABLE IF NOT EXISTS doc USING fts5(text, tokenize='trigram');
 CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS session_sig (session_uid TEXT PRIMARY KEY, sig TEXT NOT NULL)
   WITHOUT ROWID;
@@ -76,6 +76,10 @@ class SearchIndex:
         self.db.execute("PRAGMA synchronous = NORMAL")
         self.db.execute("PRAGMA cache_size = -65536")
         self.db.executescript(DDL)
+        # One FTS table per kind: a common word in messages never slows the session lookup.
+        for kind in KINDS:
+            self.db.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS doc_{kind} USING "
+                            "fts5(text, tokenize='trigram')")
         self.lock = threading.Lock()  # single flight for sync()
         self.building = False
         self.local = threading.local()
@@ -129,7 +133,7 @@ class SearchIndex:
             next_id = 1 if full else (db.execute("SELECT MAX(id) FROM doc_meta").fetchone()[0]
                                       or 0) + 1
             if full:
-                for table in ("doc_meta", "doc", "session_sig"):
+                for table in ("doc_meta", "session_sig", *(f"doc_{k}" for k in KINDS)):
                     db.execute(f"DELETE FROM {table}")
                 msg_mark, known = 0, {}
             else:
@@ -140,8 +144,9 @@ class SearchIndex:
             gone = [uid for uid in known if uid not in sessions]
             for uid in changed + gone:
                 if uid in known:
-                    db.execute("DELETE FROM doc WHERE rowid IN (SELECT id FROM doc_meta WHERE "
-                               "session_uid=? AND kind<>'message')", (uid,))
+                    for kind in ("session", "command", "file"):
+                        db.execute(f"DELETE FROM doc_{kind} WHERE rowid IN (SELECT id FROM "
+                                   "doc_meta WHERE session_uid=? AND kind=?)", (uid, kind))
                     db.execute("DELETE FROM doc_meta WHERE session_uid=? AND kind<>'message'",
                                (uid,))
             db.executemany("DELETE FROM session_sig WHERE session_uid=?", [(u,) for u in gone])
@@ -160,8 +165,9 @@ class SearchIndex:
             def flush():
                 db.executemany("INSERT INTO doc_meta VALUES (?,?,?,?,?,?,?,?)",
                                [r[:8] for r in rows])
-                db.executemany("INSERT INTO doc(rowid, text) VALUES (?,?)",
-                               [(r[0], r[8]) for r in rows])
+                for kind in KINDS:
+                    db.executemany(f"INSERT INTO doc_{kind}(rowid, text) VALUES (?,?)",
+                                   [(r[0], r[8]) for r in rows if r[1] == kind])
                 rows.clear()
 
             for uid in changed:

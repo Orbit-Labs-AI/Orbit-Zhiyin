@@ -27,8 +27,7 @@ def test_full_build_counts_and_file_mode(world):
     assert kinds(index) == {"session": 1, "message": 1, "command": 1, "file": 1}
     assert index.status() == {"state": "ready", "docs": 4, "data_rev": "7"}
     assert stat.S_IMODE(index.path.stat().st_mode) == 0o600
-    text = index.db.execute("SELECT text FROM doc JOIN doc_meta m ON m.id=doc.rowid "
-                            "WHERE m.kind='file'").fetchone()[0]
+    text = index.db.execute("SELECT text FROM doc_file").fetchone()[0]
     assert text == "app/login.tsx"
 
 
@@ -47,8 +46,7 @@ def test_incremental_messages_and_session_rebuild(world):
     world.call("s1", command="npm test")
     index.sync(world.tandem)
     assert kinds(index) == {"session": 2, "message": 2, "command": 1, "file": 1}
-    text = index.db.execute("SELECT text FROM doc JOIN doc_meta m ON m.id=doc.rowid "
-                            "WHERE m.kind='command'").fetchone()[0]
+    text = index.db.execute("SELECT text FROM doc_command").fetchone()[0]
     assert sorted(text.split("\n")) == ["git status", "npm test"]
 
 
