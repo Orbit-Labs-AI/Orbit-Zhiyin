@@ -155,6 +155,7 @@ class BenefitScenario(Contract):
     """
     resource_id: str = Field(min_length=1, max_length=1000)
     signal_id: Label
+    analysis_digest: Label
     repeated_windows: int = Field(default=1, ge=1, le=10000)
     reduction: ReductionRange
     minutes_per_occurrence: CostRange | None = None

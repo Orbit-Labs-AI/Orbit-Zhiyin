@@ -21,6 +21,7 @@ def test_api_preferences_benefits_and_validation_reach_the_real_pipeline(tmp_pat
         card = response.json()["bottleneck_recommendations"]["recommendations"][0]
         assert card["resource_id"] == "detailed"
         scenario = {"resource_id": card["resource_id"], "signal_id": card["signal_id"],
+                    "analysis_digest": response.json()["bottleneck_recommendations"]["analysis_digest"],
                     "reduction": {"low": .2, "high": .4}, "minutes_per_occurrence": {"low": 10., "high": 10.},
                     "setup_minutes": {"low": 0., "high": 0.}, "extra_minutes_per_window": {"low": 0., "high": 0.},
                     "basis": "Synthetic API acceptance"}

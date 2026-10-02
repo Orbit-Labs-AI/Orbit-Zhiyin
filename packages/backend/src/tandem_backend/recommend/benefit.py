@@ -23,16 +23,18 @@ def _savings(count, scenario, unit_cost, setup, extra):
                 "baseline": None, "gross_savings": None, "overhead": None, "net_savings": None,
                 "break_even_windows": None}
     windows, rate = scenario.repeated_windows, scenario.reduction
-    baseline = _range(count * windows * unit_cost.low, count * windows * unit_cost.high)
-    gross = _range(baseline["low"] * rate.low, baseline["high"] * rate.high)
+    baseline_low, baseline_high = count * windows * unit_cost.low, count * windows * unit_cost.high
+    gross_low, gross_high = baseline_low * rate.low, baseline_high * rate.high
+    baseline, gross = _range(baseline_low, baseline_high), _range(gross_low, gross_high)
     missing = [name for name, value in (("setup_cost", setup), ("extra_cost_per_window", extra)) if value is None]
     if missing:
         return {"status": "partial", "missing": missing, "baseline": baseline,
                 "gross_savings": gross, "overhead": None, "net_savings": None, "break_even_windows": None}
-    overhead = _range(setup.low + windows * extra.low, setup.high + windows * extra.high)
-    net = _range(gross["low"] - overhead["high"], gross["high"] - overhead["low"])
-    per_window = _range(count * unit_cost.low * rate.low - extra.high,
-                        count * unit_cost.high * rate.high - extra.low)
+    overhead_low, overhead_high = setup.low + windows * extra.low, setup.high + windows * extra.high
+    overhead = _range(overhead_low, overhead_high)
+    net = _range(gross_low - overhead_high, gross_high - overhead_low)
+    per_window_low = count * unit_cost.low * rate.low - extra.high
+    per_window_high = count * unit_cost.high * rate.high - extra.low
 
     def break_even(setup_cost, saving):
         # Zero/negative running benefit never establishes positive payback.
@@ -40,16 +42,19 @@ def _savings(count, scenario, unit_cost, setup, extra):
 
     return {"status": "estimated", "missing": [], "baseline": baseline, "gross_savings": gross,
             "overhead": overhead, "net_savings": net,
-            "break_even_windows": {"optimistic": break_even(setup.low, per_window["high"]),
-                                   "conservative": break_even(setup.high, per_window["low"])}}
+            "break_even_windows": {"optimistic": break_even(setup.low, per_window_high),
+                                   "conservative": break_even(setup.high, per_window_low)}}
 
 
-def estimate_benefit(item, signals, scenarios, *, conditions=()):
+def estimate_benefit(item, signals, scenarios, *, analysis_digest, conditions=()):
     own = [s for s in scenarios if s.resource_id == item.identity.id]
     supported = {s["signal_id"]: s for s in signals
                  if item.expected_effect.targets.get(s["rule_id"], 0) > 0}
     estimates, excluded = [], []
     for scenario in own:
+        if analysis_digest is None or scenario.analysis_digest != analysis_digest:
+            excluded.append({"signal_id": scenario.signal_id, "reason": "analysis_snapshot_mismatch"})
+            continue
         signal = supported.get(scenario.signal_id)
         if signal is None:
             excluded.append({"signal_id": scenario.signal_id, "reason": "signal_not_supported_in_this_scope"})

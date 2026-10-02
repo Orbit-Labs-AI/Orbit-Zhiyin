@@ -25,6 +25,7 @@ def estimate(**updates):
     baseline = recommend(analysis, catalog=[ready_item()])
     card = baseline["recommendations"][0]
     scenario = {"resource_id": card["resource_id"], "signal_id": card["signal_id"],
+                "analysis_digest": analysis["analysis_digest"],
                 "repeated_windows": 4, "reduction": value(.25, .5),
                 "minutes_per_occurrence": value(10), "setup_minutes": value(5, 10),
                 "extra_minutes_per_window": value(1, 2), "basis": "Synthetic cost and improvement assumptions."}
@@ -97,6 +98,20 @@ def test_no_assumptions_means_no_invented_benefit():
     assert card["benefit_estimate"]["status"] == "insufficient_inputs"
 
 
+def test_same_signal_id_in_another_snapshot_cannot_reuse_old_assumptions():
+    card, _ = estimate(analysis_digest="stale-analysis")
+    result = card["benefit_estimate"]
+    assert result["status"] == "insufficient_inputs" and not result["estimates"]
+    assert result["excluded"][0]["reason"] == "analysis_snapshot_mismatch"
+
+
+def test_rounding_does_not_erase_small_positive_payback():
+    card, _ = estimate(minutes_per_occurrence=value(.000001), reduction=value(.1),
+                       setup_minutes=value(.000001), extra_minutes_per_window=value(0))
+    time = card["benefit_estimate"]["estimates"][0]["time_minutes"]
+    assert time["break_even_windows"] == {"optimistic": 4, "conservative": 4}
+
+
 @pytest.mark.parametrize("field,bad", [
     ("reduction", value(-.1)), ("reduction", value(.9, .1)), ("reduction", value(1.1)),
     ("minutes_per_occurrence", value(float("nan"))), ("minutes_per_occurrence", value(float("inf"))),
@@ -104,7 +119,7 @@ def test_no_assumptions_means_no_invented_benefit():
     ("repeated_windows", True), ("repeated_windows", 0), ("repeated_windows", "10"), ("basis", " "),
 ])
 def test_invalid_scenarios_rejected(field, bad):
-    scenario = {"resource_id": "x", "signal_id": "s", "reduction": value(.2), "basis": "hypothesis"}
+    scenario = {"resource_id": "x", "signal_id": "s", "analysis_digest": "current", "reduction": value(.2), "basis": "hypothesis"}
     scenario[field] = bad
     with pytest.raises(ValidationError):
         BenefitScenario.model_validate(scenario)
@@ -119,10 +134,11 @@ def test_estimates_do_not_mutate_input_and_keep_alternatives_separate():
     other["metrics"] = [{"path": "respond.tools.by_tool.known_failure_count", "value": 2}]
     item.expected_effect.targets["tool_failures"] = 1.
     scenarios = [BenefitScenario(resource_id=item.identity.id, signal_id=s["signal_id"],
+                 analysis_digest=analysis["analysis_digest"],
                  reduction=value(.5), minutes_per_occurrence=value(10), setup_minutes=value(0),
                  extra_minutes_per_window=value(0), basis="Synthetic scenario") for s in (signal, other)]
     before = deepcopy((item, signal, other, scenarios))
-    result = estimate_benefit(item, [signal, other], scenarios, conditions=["tools:pytest"])
+    result = estimate_benefit(item, [signal, other], scenarios, analysis_digest=analysis["analysis_digest"], conditions=["tools:pytest"])
     assert result["aggregation"] == "alternatives_not_additive"
     assert [r["time_minutes"]["net_savings"] for r in result["estimates"]] == [value(15), value(10)]
     assert "total" not in result and result["conditions"] == ["tools:pytest"]
@@ -130,6 +146,6 @@ def test_estimates_do_not_mutate_input_and_keep_alternatives_separate():
 
 
 def test_duplicate_scenarios_cannot_double_count_savings():
-    scenario = {"resource_id": "x", "signal_id": "s", "reduction": value(.2), "basis": "hypothesis"}
+    scenario = {"resource_id": "x", "signal_id": "s", "analysis_digest": "current", "reduction": value(.2), "basis": "hypothesis"}
     with pytest.raises(ValidationError, match="Duplicate"):
         RecommendationContext(benefit_scenarios=[scenario, scenario])

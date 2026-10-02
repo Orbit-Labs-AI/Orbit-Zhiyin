@@ -45,6 +45,7 @@ def explain_candidate(row):
                                    "conflicts": state.preference_state.get("conflicts", []),
                                    "precedence": state.preference_state.get("precedence")},
         "benefit_estimate": estimate_benefit(item, matched, state.context_state.benefit_scenarios,
+                                            analysis_digest=state.analysis_digest,
                                             conditions=pending + (["agent_adaptation"] if decision.compatibility == "adaptation_required" else [])),
         "summary": item.capability.text, "setup_steps": (["先确认以下条件：" + "、".join(pending)] if pending else []) + item.action.setup_steps,
         "preview": item.action.preview, "limitations": item.action.limitations, "trial": item.action.trial,
