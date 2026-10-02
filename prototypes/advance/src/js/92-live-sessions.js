@@ -173,20 +173,29 @@
       m.done = !items.length || m.offset >= m.total; m.error = null;
     }, (err) => { m.error = err; }).then(() => { m.loading = false; return m; });
   }
+  // round 3: list pages cap text at 8000 chars (truncated + text_range); the rest is read by range from /v1/evidence
+  const REST_CHARS = 64000;
+  function msgRest(x) { const r = x.text_range; if (!x.truncated || !r || (x.truncated_fields && x.truncated_fields.indexOf('text') < 0)) return 0; return Math.max(0, (r.total || 0) - (r.offset || 0) - (r.length || 0)); }
+  function msgTrunc(s, x) {
+    if (x.restErr) return ' <span class="cap" data-lv="trunc-error">· ' + esc(x.restErr) + '</span>';
+    const left = msgRest(x); if (!left) return '';
+    if (x.restLoading) return ' <span class="cap" data-lv="trunc-loading">· 正在载入其余 ' + fmt(left) + ' 字…</span>';
+    return ' <button type="button" class="lnk cap" data-lv="trunc" data-act="lvsMsgRest" data-uid="' + esc(s.id) + '" data-ev="' + esc(x.id) + '" title="已显示 ' + fmt((x.text_range.offset || 0) + (x.text_range.length || 0)) + ' / ' + fmt(x.text_range.total) + ' 字">已截断 · 展开全文</button>';
+  }
   function msgHtml(s, m, focus) {
     if (m.error && !m.items.length) return '<div class="cap" data-lv="error" style="padding:12px 0">消息原文暂不可用（' + esc((m.error && (m.error.code || m.error.message)) || '请求失败') + '）</div>';
     if (!m.items.length && (m.loading || !m.done)) return LV.pend(160);
     if (!m.items.length) return '<div class="cap" data-lv="na" style="padding:12px 0">这个会话没有可显示的消息原文</div>';
     const rows = m.items.map((x) => {
       const ts = x.timestamp ? new Date(x.timestamp) : null; const at = ts && !isNaN(ts) ? hm(ts.getHours(), ts.getMinutes()) : '—';
-      return '<div class="tl-kv lvs-msg' + (x.id === focus ? ' on' : '') + '" data-ev="' + esc(x.id) + '" style="align-items:flex-start;padding:8px 0;border-top:1px solid var(--hair)' + (x.id === focus ? ';background:var(--sunken)' : '') + '"><span class="k mono" style="min-width:64px">' + at + ' · ' + MSG_KIND[x.kind] + '</span><span class="v" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text) + (x.details && x.details.text_truncated ? ' <span class="cap">…（原文已截断）</span>' : '') + '</span></div>';
+      return '<div class="tl-kv lvs-msg' + (x.id === focus ? ' on' : '') + '" data-ev="' + esc(x.id) + '" style="align-items:flex-start;padding:8px 0;border-top:1px solid var(--hair)' + (x.id === focus ? ';background:var(--sunken)' : '') + '"><span class="k mono" style="min-width:64px">' + at + ' · ' + MSG_KIND[x.kind] + '</span><span class="v" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text) + msgTrunc(s, x) + (x.details && x.details.text_truncated ? ' <span class="cap">…（原文已截断）</span>' : '') + '</span></div>';
     }).join('');
     const more = !m.done ? '<button type="button" class="tl-more" data-act="lvsMsgsMore" data-uid="' + esc(s.id) + '">已载入 ' + m.offset + ' / ' + m.total + ' 个事件<b>加载更多</b></button>' : '';
     return '<div class="col" style="gap:0;max-height:56vh;overflow:auto">' + rows + '</div>' + more;
   }
   function msgDraw(s, focus) {
     const box = $('#lvsMsgBox'); if (!box || box.dataset.uid !== s.id) return;
-    const m = MSGS.get(s.id); box.innerHTML = msgHtml(s, m, focus);
+    const m = MSGS.get(s.id); const sc0 = box.firstElementChild; const top = sc0 ? sc0.scrollTop : 0; box.innerHTML = msgHtml(s, m, focus); if (!focus && box.firstElementChild) box.firstElementChild.scrollTop = top;
     const on = focus && box.querySelector('.lvs-msg.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
   }
   ACT.lvsMsgs = (el) => {
@@ -196,6 +205,19 @@
     openModal(modalHead('消息原文 · ' + esc(s.title), agent(s.a).name + ' · ' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · 只读，按需分页载入') + '<div class="mb col"><div id="lvsMsgBox" data-uid="' + esc(s.id) + '">' + msgHtml(s, m, focus) + '</div></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button></div>');
     const need = !m.done && (!m.items.length || (focus && !m.items.some((x) => x.id === focus)));
     if (need) msgLoad(s.id, m).then(() => msgDraw(s, focus));
+  };
+  ACT.lvsMsgRest = (el) => {
+    const s = BYID[el.dataset.uid]; const m = s && MSGS.get(s.id); const x = m && m.items.find((it) => it.id === el.dataset.ev);
+    if (!x || x.restLoading || !msgRest(x)) return;
+    const r = x.text_range; const off = (r.offset || 0) + (r.length || 0);
+    x.restLoading = true; msgDraw(s, null);
+    TL.get('/v1/evidence/' + encodeURIComponent(x.id), { query: { text_offset: off, max_chars: REST_CHARS } }).then((res) => {
+      const d = res.data || {}; const piece = typeof d.text === 'string' ? d.text : ''; const dr = d.text_range || {};
+      x.text = (x.text || '') + piece;
+      x.text_range = { offset: r.offset || 0, length: (r.length || 0) + piece.length, total: dr.total != null ? dr.total : r.total };
+      if (!piece) x.text_range.total = x.text_range.offset + x.text_range.length;   // nothing more to read: stop offering it
+    }, (err) => { x.restErr = err && (err.status === 404 || err.code === 'not_found') ? '其余原文已不在本地数据中' : '展开失败（' + ((err && (err.code || err.message)) || '请求失败') + '）'; })
+      .then(() => { x.restLoading = false; msgDraw(s, null); });
   };
   ACT.lvsMsgsMore = (el) => { const s = BYID[el.dataset.uid]; const m = s && MSGS.get(s.id); if (!m) return; msgLoad(s.id, m).then(() => msgDraw(s, null)); msgDraw(s, null); };
 })();
