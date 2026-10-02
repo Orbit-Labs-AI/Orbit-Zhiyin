@@ -1,4 +1,4 @@
-# Tandem 会话数据契约 v1
+# Orbit 会话数据契约 v1
 
 数据库契约为 `tandem-session-v1`；分析对象契约为 `analysis-input-v1`。本文件描述已经实现的结构。字段字典由实际 DDL 生成，不能把旧设计草图或 TypeScript staging 库当成这一版。
 

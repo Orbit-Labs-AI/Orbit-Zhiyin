@@ -797,7 +797,7 @@ erDiagram
 
 各版本事件清单的差异由仓库内的 schema 快照直接比对得出：v0→v2 删除 `assistant/chunk`、新增 `assistant/attempt`、`feedback/message-*`；v2→v3 新增 `system/message`、`subagent/catalog`、`image/offload`、`deliverables/presented`，`tool/code-dispatch*` 改名为 `tool/ptc-dispatch*`；v3→v4 新增 `developer/message`、`workspace/changes`（[historical-formats/*.schema.json](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/persistence-changes/historical-formats/README.md) 与 [persistence-schema.json](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/docs/persistence-schema.json)）。
 
-## 9. 对 Tandem 解析器的要点
+## 9. 对 Orbit 解析器的要点
 
 ### 9.1 发现与会话列表
 
@@ -822,7 +822,7 @@ erDiagram
 | 失败尝试 | 仅 `finish{kind:'error'}` chunk | `assistant/attempt` | 同 v2 | 同 v2 |
 | `sourceEventSeqs` 物理编码 | 整数或 `[start,end]` 对 | 连续 ≥3 个压成 `[start,end]` | 同 v2 | 同 v2 |
 
-不识别的 header `version`：DSH 自己会拒读（未来格式）；Tandem 作为只读分析器可以尽力解析，但要标注「未知版本」。不识别的事件类型：带 `ignorable:true` 可安全跳过；不带的事件 DSH 会拒绝重建，Tandem 应计数并告警而不是崩溃。
+不识别的 header `version`：DSH 自己会拒读（未来格式）；Orbit 作为只读分析器可以尽力解析，但要标注「未知版本」。不识别的事件类型：带 `ignorable:true` 可安全跳过；不带的事件 DSH 会拒绝重建，Orbit 应计数并告警而不是崩溃。
 
 ### 9.3 各指标的提取口径
 
@@ -848,11 +848,11 @@ erDiagram
 - **多代文件**：HEAD 以写模式恢复一个旧会话后，目录里会同时有 `session.jsonl.zstd` 和 `session.v4.jsonl.zstd`；只读最高代，否则重复计数。迁移会**重新编号 seq**（v1→v2 删除 chunk 事件，并可能补遗留重启的 interrupted `turn/end`、拆出 `goal/change`；v2→v3 插入 system 消息；v3→v4 可能插入 interrupted 收尾，补写的 catalog 只追加在尾部），所以不能跨代复用 seq 或字节偏移。
 - **大文件**：单会话可达数 MB 压缩 / 数十 MB 解压；单行可达 160 KB 以上（本机最大两行都是 `assistant/message`，`tool/result` 最大约 140 KB）；v0 的逻辑事件约 98% 是流式 chunk。用流式解码 + 逐行 JSON 解析；不需要逐 token 时可只读打包行的 `seq0` 与长度来推进 seq。
 - **增量读取**：文件只会在尾部追加完整的 zstd 帧（每批一帧），帧之间相互独立。可记录「最后一个完整帧的结束偏移 + 已读 seq + inode/size/mtime」，变化后从偏移继续解码新帧；最后一个帧可能正在写入（不完整），应等待而不是报错；raw 模式忽略没有换行结尾的最后一行。会话活跃时文件最多落后约 200 ms + I/O。
-- **崩溃 tail**：日志可能以未闭合的 `turn/start` 结束（崩溃后尚未 resume）；DSH 的只读路径会在内存补 `interrupted` 收尾，Tandem 也应把它显示为「中断」，不要写回。
+- **崩溃 tail**：日志可能以未闭合的 `turn/start` 结束（崩溃后尚未 resume）；DSH 的只读路径会在内存补 `interrupted` 收尾，Orbit 也应把它显示为「中断」，不要写回。
 - **可选字段**：`usage`、`replayState`、`cwd`、`parentSession`、`meta`、`error`、`interrupted`、`startsSeries`、`adapterDefaults`、`tools` 都可能缺失；`isError` 在 v0 块上恒有，在 v4 消息上也由构造器写入。
 - **重复与替身**：`tool/result` 被裁剪时会有第二条同 callId 的替换事件；压缩检查点是 `user/message`，不是用户输入；`agent/inbox/spliced` 里的消息可能被取消（`outcome:'canceled'`），只有进入 `user/message` 的才算被模型接收。
 - **时间**：事件 `time` 是写入日志的时刻，不是工具真实完成时刻；同毫秒内可有多条事件；workspace.json 的时间是 ISO 字符串。
-- **隐私**：日志包含完整提示、system prompt、工具 schema、命令与输出、读到的文件内容、推理明文与 provider 签名、`cwd` 绝对路径、`rpcId`/`clientTimeZone`。Tandem 应只在本机处理，展示前脱敏，不上传原文。另外 DSH 在使用官方 DeepSeek provider 时会通过 `session-log-deepseek` 把日志增量随请求发送给 DeepSeek（base 默认挂载），这是 DSH 自身行为，Tandem 可在隐私面板提示。
+- **隐私**：日志包含完整提示、system prompt、工具 schema、命令与输出、读到的文件内容、推理明文与 provider 签名、`cwd` 绝对路径、`rpcId`/`clientTimeZone`。Orbit 应只在本机处理，展示前脱敏，不上传原文。另外 DSH 在使用官方 DeepSeek provider 时会通过 `session-log-deepseek` 把日志增量随请求发送给 DeepSeek（base 默认挂载），这是 DSH 自身行为，Orbit 可在隐私面板提示。
 - **不要写**：不要创建或删除 `session.lock`，不要以任何方式修改日志；DSH 用 `flock` 排他写，读不受影响。
 
 ### 9.5 最小解析流程（伪代码）

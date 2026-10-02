@@ -4,24 +4,35 @@
 .sn-band{fill-opacity:.14}
 .vz-svg .sn-ev{stroke-width:2}
 /* 摩擦分类：名称 | 条 | 会话数 | Δ 上期 | 均值情绪；hover 出典型会话（data-tf） */
-.sn-fric{display:grid;grid-template-columns:minmax(96px,118px) minmax(0,1fr) 28px 48px 44px;gap:8px;align-items:center;border:0;background:none;padding:3px 4px;text-align:left;width:100%;border-radius:6px;font-size:12px}
+.sn-fric{display:grid;grid-template-columns:minmax(96px,124px) minmax(0,1fr) 32px 48px 48px;gap:8px;align-items:center;border:0;background:none;padding:6px 8px;text-align:left;width:100%;border-radius:6px;font-size:12px}
 .sn-fric:hover{background:var(--bg)}
-.sn-fric-h{padding-top:0;font-size:10.5px}
-.sn-fric-h .cap{font-size:10.5px;text-align:right}
+.sn-fric-h{padding-top:0;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--hair);border-radius:0;font-size:11px}
+.sn-fric-h .cap{font-size:11px;text-align:right;white-space:nowrap}
+.sn-fric-h .cap:first-child{text-align:left}
 .sn-fric-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sn-fric-bar{display:block;height:8px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .sn-fric-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0}
-.sn-fric-v{font-size:11.5px;font-weight:600;text-align:right}
+.sn-fric-v{font-size:12px;font-weight:600;text-align:right}
 .sn-fric-d{font-size:11px;text-align:right;color:var(--ink-2)}
 .sn-fric-d.vz-bad{color:var(--crit)}.sn-fric-d.vz-good{color:var(--good)}.sn-fric-d.flat,.sn-fric-d.na{color:var(--ink-4)}
 .sn-fric-m{font-size:11px;text-align:right}
 /* 语义主题卡 + 发散标尺 */
 .sn-topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:6px}
-.sn-topic{border-radius:9px;border:1px solid transparent;background:var(--bg);padding:9px 11px;display:flex;flex-direction:column;gap:3px;text-align:left;min-width:0}
+.sn-topic{border-radius:9px;border:1px solid transparent;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0}
 .sn-topic.top{background:var(--sunken)}
 .sn-topic.on{border-color:var(--ink-1);box-shadow:inset 0 0 0 .5px var(--ink-1)}
-.sn-topic b{font-size:12.5px}
-.sn-topic .cap{font-size:10.5px}
+.sn-topic{gap:8px}
+/* 两行：主题名 / 会话数 + 发散标尺 + 均值（原先会话数独占一行） */
+.sn-topic b{font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sn-topic .cap{font-size:11px;white-space:nowrap;flex:none}
+.sn-tn{min-width:52px}
+/* 发散标尺吃满卡宽，数值右对齐成一列；首卡底色是 sunken，标尺轨道改用墨色 6% 以免消失；奇数个时末卡横跨整行 */
+.sn-topic>.row{width:100%}
+.sn-topic .sn-div{flex:1;width:auto}
+.sn-topic>.row>.mono{min-width:30px;text-align:right}
+.sn-topic.top .sn-div{background:color-mix(in srgb,var(--ink-1) 7%,transparent)}
+.sn-topic:last-child:nth-child(odd){grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:30px;row-gap:4px;align-items:center}
+.sn-topic:last-child:nth-child(odd)>.row{grid-column:2;grid-row:1}
 .sn-div{position:relative;display:block;width:100px;max-width:100%;height:8px;flex:none;border-radius:2px;background:var(--sunken)}
 .sn-div .mid{position:absolute;left:50%;top:-3px;width:1px;height:14px;background:var(--line)}
 .sn-div .bar{position:absolute;top:1px;height:6px;border-radius:2px}
@@ -35,12 +46,25 @@
 .sn-ph-bar{display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .sn-ph-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
 .sn-ph-n{font-size:11px;text-align:right;color:var(--ink-2)}
-.sn-ph-c{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-2);min-width:38px}
+.sn-ph-c{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);min-width:38px}
 .sn-ph-c i{width:7px;height:7px;border-radius:50%;display:inline-block}
 /* 情绪的前因：名称 | 发散条（±0.5）| 值 | n */
 .sn-drv{display:grid;grid-template-columns:minmax(0,1fr) 100px 44px 40px;gap:10px;align-items:center;font-size:12px}
 .sn-drv-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sn-drv-v{text-align:right;font-weight:600}
-.sn-drv-k{font-size:10.5px;text-align:right}
+.sn-drv-k{font-size:11px;text-align:right}
 .sn-drv-ax{margin-top:2px}
 @container main (max-width:639px){.sn-fric{grid-template-columns:minmax(80px,100px) minmax(0,1fr) 28px 44px}.sn-fric-m,.sn-fric-h .cap:last-child{display:none}.sn-drv{grid-template-columns:minmax(0,1fr) 80px 44px}.sn-drv-k{display:none}.sn-div{width:80px}}
+.sn-two .hd .cap,.sn-mood-cap{text-wrap:pretty}
+/* 卡片脚注 / 行动行 / 情绪图图例（紧贴图表上方，替代原先两行的说明文字） */
+.sn-foot{font-size:11px;line-height:15px;margin-top:8px}
+.sn-foot[data-tip],.sn-leg [data-tip]{cursor:help}
+.sn-act{margin-top:12px;flex-wrap:wrap;gap:8px}
+.sn-note{flex:1;min-width:180px;font-size:12px;line-height:16px;color:var(--ink-2)}
+.sn-leg{gap:16px;flex-wrap:wrap;margin:-2px 0 4px;font-size:11px;line-height:14px;color:var(--ink-3)}
+.sn-leg>span{gap:5px}
+.sn-leg i{display:inline-block;flex:none}
+.sn-leg i.ln{width:14px;height:2px;border-radius:1px;background:var(--ink-1)}
+.sn-leg i.bd{width:14px;height:8px;border-radius:2px;background:var(--ink-3);opacity:.22}
+.sn-leg i.br{width:6px;height:10px;border-radius:1px}
+.sn-leg i.pt{width:8px;height:8px;border-radius:50%}

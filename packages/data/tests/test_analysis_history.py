@@ -68,4 +68,11 @@ def test_threaded_runs_and_schema_export_are_consistent(tmp_path):
         files("tandem_data").joinpath("schemas/analysis-history-v1.schema.json").read_text()
     )
     assert table_schemas("analysis") == schema
-    assert set(schema["$defs"]) == {"analysis_run", "analysis_snapshot"}
+    assert set(schema["$defs"]) == {
+        "analysis_run",
+        "analysis_snapshot",
+        "analysis_section",
+        "analysis_row",
+        "session_result",
+        "session_exclusion",
+    }

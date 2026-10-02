@@ -1,18 +1,94 @@
-# 文档导航
+# Orbit 文档导航
 
-状态：当前目录约定。路径核对基线：2026-10-02，main `c008688`；结构重构分支维护人：`yhyfhgs`。
+状态：现行目录约定 · 维护者 `yhyfhgs` · 2026-10-02 整理（产品改名 Orbit、设计资料拆分、审计与模块文档归位）
 
-| 目录 | 内容与读法 |
+本页列出 `docs/` 下的全部文档。先看「现行」再看「方案」：**现行**描述当前代码与约定；**方案**是设计与待完成工作，不能直接等同当前能力；**审计**是某一基线上的核对结果；**调研**与**历史**只作参考。
+
+产品名统一写 **Orbit**；Python 包、CLI、数据目录等代码标识沿用 `tandem`，对照见[品牌](design/brand.md#名称)。
+
+## 1. 产品与设计（现行）
+
+| 文档 | 内容 |
 | --- | --- |
-| [product](product/scope.md) | 当前交付边界、设计版本与尚待确认的产品范围 |
-| [architecture](architecture/module-map.md) | 模块接入、依赖、数据流与运行时 |
-| [contracts](contracts/README.md) | 人可读契约说明；机器 Schema 随所属代码包维护 |
-| [development](development/testing.md) | 使用、测试、调试和目录迁移 |
-| [modules](modules/README.md) | 各能力的算法、验证与限制 |
-| [design](design/README.md) | 设计规范、静态画板；可运行原型在根目录 prototypes |
-| [plans](plans/analysis-review.md) | 方案与待完成工作，不能直接等同当前能力 |
-| [research](research/agent-sessions/README.md) | 会话格式与技术研究 |
-| [releases](releases/backend/README.md) | 当时版本的历史交付记录 |
-| [archive](archive/backend-mvp-plan.md) | 已被当前结构替代的阶段性计划 |
+| [产品与交付边界](product/scope.md) | 已实现的数据链路、原型与正式 App 的差距 |
+| [设计资料](design/README.md) | Lite / Advance 设计归属、存档记录与设计文档入口 |
+| [品牌](design/brand.md) | Orbit 名称、代码标识沿用规则、标志与 App 图标 |
+| [Demo 说明](design/demo.md) | 统一 App 怎么看、交互清单、修改与发布 |
+| [画板与设计决定](design/boards.md) | Advance v1 画板索引、设计决定、v1 之后的现行决定 |
+| [Lite 审查](design/lite-review.md) | Lite 原稿的需求对应、交互说明与自查 |
 
-新增关键文档应注明状态、适用模块、维护者与核对版本。包内 README 说明如何使用模块，根 README 说明如何启动整个项目；同一规范只维护一个正文，其他位置链接引用。
+## 2. 架构与契约（现行）
+
+| 文档 | 内容 |
+| --- | --- |
+| [模块接入表](architecture/module-map.md) | 依赖方向、功能入口、实现、契约、测试与缺口 |
+| [后端怎么工作](architecture/backend.md) | 报告编排、画像与推荐的默认入口 |
+| [数据流程](architecture/data-pipeline.md) | macOS App 的模块化数据入口、存储位置与兼容 |
+| [App 服务层](architecture/app-services.md) | 本地服务封装、UI 衔接、分析快照与网关 |
+| [契约入口](contracts/README.md) | 机器 Schema 位置与修改规则 |
+| [会话数据契约](contracts/data.md) | L1–L3 字段语义 |
+| [analysis-input-v1](contracts/analysis-inputs.md) | 分析输入包 |
+
+## 3. 开发（现行）
+
+| 文档 | 内容 |
+| --- | --- |
+| [使用指南](development/usage.md) | CLI、真实来源授权、旧库兼容 |
+| [测试与验收](development/testing.md) | 检查分类、执行条件与 CI |
+| [链路验收](development/acceptance.md) | 本地 Codex 记录 → 证据 → 画像 → 推荐的验收步骤 |
+| [目录迁移](development/structure-migration.md) | 活跃分支如何接入新结构（含本次文档搬迁） |
+
+## 4. 模块说明（现行）
+
+算法、验证与限制，按模块分目录，入口见[模块说明](modules/README.md)。
+
+| 模块 | 文档 |
+| --- | --- |
+| 数据 | [Agent 连接器](modules/data/agent-connectors.md)、[本地数据服务](modules/data/data-services.md)、[来源索引与轨迹读取](modules/data/indexed-trajectories.md)、[本机安装清单](modules/data/local-inventory.md)、[安装清单测试](modules/data/inventory-testing.md)、[安装清单复核](modules/data/inventory-audit.md) |
+| 分析 | [统计与分析记录](modules/analytics/statistics-history.md)、[画像推导](modules/analytics/profiling.md)、[特征分析](modules/analytics/feature-analytics.md)、[瓶颈特征](modules/analytics/bottleneck-features.md)、[Signal 层](modules/analytics/signals.md)、[前端指标](modules/analytics/presentation-metrics.md)、[UI 分析与验收](modules/analytics/analysis-products.md)、[原始 UI 对应](modules/analytics/original-ui-mapping.md)、[数字的含义](modules/analytics/modeling.md)、[Preference](modules/analytics/preference.md)、[Task](modules/analytics/task.md)、[任务领域分类](modules/analytics/task-taxonomy.md)、[Instruction 验收](modules/analytics/instruction-validation.md)、[验证范围](modules/analytics/validation.md) |
+| 资源目录 | [Catalog 架构](modules/catalog/architecture.md)、[实测记录](modules/catalog/validation.md) |
+| 推荐 | [推荐引擎](modules/recommendation/engine.md)、[偏好与收益测试](modules/recommendation/validation.md) |
+| 评测 | [读者评价](modules/evaluation/reader-review.md) |
+
+## 5. 方案（不等同当前能力）
+
+| 文档 | 内容 |
+| --- | --- |
+| [模块契约](plans/module-contract.md) | 分层、feature ID、字段级契约与写法模板（四份模块方案的共同依据） |
+| [功能映射与分工](plans/feature-map.md)（[CSV](plans/feature-map.csv)） | Demo 前端功能 → 后端 feature、三人分工与里程碑 |
+| [数据获取与标准化](plans/data-acquisition.md) | 连接器、四层无损模型、资源目录与存储默认值 |
+| [分析模块](plans/analysis-module.md) | 跨 Agent / 项目 / 模型的会话分析体系 |
+| [推荐模块](plans/recommendation-module.md) | 用分析结果做匹配推荐 |
+| [AI 接入](plans/ai-module.md) | 分析侧与推荐侧如何用模型 |
+| [评测](plans/evaluation-module.md) | Benchmark 与评测（EV） |
+| [分析补全建议](plans/analysis-review.md) | 八族边界与 Lite / Advance 的分析功能缺口 |
+
+## 6. 审计（某一基线上的核对）
+
+| 文档 | 内容 |
+| --- | --- |
+| [后端缺口](audits/backend-gap.md) | 数据、分析、推荐与横切程序对照两版 UI 的差距与补齐顺序 |
+| [数据模块审计](audits/data-audit.md) | DT 完成度、导入性能与优化任务包 |
+| [分析模块审计](audits/analysis-audit.md) | AN 功能覆盖、持久化与性能 |
+
+## 7. 调研
+
+| 文档 | 内容 |
+| --- | --- |
+| [调研总结](research/landscape.md) | 主流 Agent、设计哲学、开源项目与算法选型 |
+| [竞品分析](research/competitors.md) | 7 类约 60 个产品与开源项目 |
+| [先借鉴哪些项目](research/backend-research.md) | 已核对的开源实现与取舍 |
+| [Agent 会话格式对比](research/agent-sessions/README.md) | [Claude Code](research/agent-sessions/claude-code.md)、[Codex](research/agent-sessions/codex.md)、[DSH](research/agent-sessions/dsh.md)、[Hermes](research/agent-sessions/hermes-agent.md)、[OpenCode](research/agent-sessions/opencode.md)、[pi](research/agent-sessions/pi.md) 的落盘格式 |
+
+## 8. 历史
+
+| 文档 | 内容 |
+| --- | --- |
+| [后端版本记录](releases/backend/README.md) | v0.1–v0.13.6 当时的交付记录 |
+| [MVP 首版计划](archive/backend-mvp-plan.md) | 已被模块接入表与开发指南替代 |
+
+## 写作约定
+
+- 新增关键文档注明状态、适用模块、维护者与核对版本，并在本页登记。
+- 包内 README 说明如何使用该模块，根 README 说明如何启动整个项目；同一规范只维护一个正文，其他位置链接引用。
+- 历史与审计文档保留当时的基线和数字，不随代码回改；结论过时时在现行文档里说明。

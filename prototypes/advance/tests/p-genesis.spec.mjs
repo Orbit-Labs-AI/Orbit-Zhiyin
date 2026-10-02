@@ -9,7 +9,7 @@
 //  2 skip           「跳过」at any moment lands on the final card at once; later timers do nothing; Tab never reaches the
 //                   hidden half of the footer
 //  3 reduced motion obStart and openReveal show the final state directly (no .run, no canvas); landing does not fly
-//  4 Lite           with S.ed = 'lite' landing goes to l-persona (placeholder page: no hero targets → fade out in place)
+//  4 Lite           with S.ed = 'lite' landing goes to l-persona with the analysed 90-day scope
 //  5 interruptions  Esc / 在后台继续 / closeOverlay in the middle cancel every timer, frame and animation; the reveal's
 //                  「查看完整画像」lands on persona the same way
 import { test, expect } from '@playwright/test';
@@ -105,6 +105,9 @@ test('Lite edition: landing goes to l-persona', async ({ page }) => {
   expect(await page.evaluate(() => S.route)).toBe('l-persona');
   await expect(page.locator('#overlay')).toBeHidden({ timeout: 2000 });
   expect(await page.evaluate(() => [GNS, document.querySelectorAll('.g-fly').length])).toEqual([null, 0]);
+  // the landing page keeps the analysed scope (last 90 days), so the code and the numbers match what was just generated
+  expect(await page.evaluate(() => [S.range, S.persona.period, obPersona().code === personaNow().code])).toEqual([90, '90', true]);
+  await expect(page.locator('#content [data-hero="code"]')).toBeVisible();
   await page.evaluate(() => { S.ed = 'advance'; $('#win').dataset.ed = 'advance'; go('overview'); });
   expect(errors).toEqual([]);
 });

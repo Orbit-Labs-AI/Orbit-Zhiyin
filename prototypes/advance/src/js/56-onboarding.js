@@ -1,12 +1,16 @@
 /* ============ onboarding & reveal (overlay) ============
  * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
  * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
- *   01 导入  选中来源行的 Agent 色点化作会话粒子，沿曲线流向中央；来源列表收拢淡出，24 小时表盘轮廓画出，计数器累加
- *   02 归位  扫针转一圈，粒子按开始时间落到表盘对应角度（半径 = 时长），再汇入外环的小时密度段（fp2SVG 的几何）
- *   03 生长  D I M V 雷达从中心长出并变形到最终值，四个字母位在两极之间翻牌，逐个锁定
- *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序，其余淡出，胜出的一张飞入四字母，给出匹配度
- *   05 落地  「查看完整画像」：大人格码与指纹 FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
- * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），其余是 CSS keyframes + WAAPI，节点只建一次。
+ *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成罗盘外框；
+ *            标志的内弧收拢成指针，随后指针自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
+ *            来源列表收拢淡出，计数器累加；粒子汇入时指针逐渐减速，转满整圈停在 00 接上 02
+ *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），再汇入轨道环带；
+ *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着指针公转，扫完走最短弧滑到各自的协作重心（fp2SVG 的几何，FPG）
+ *   03 生长  罗盘玫瑰四个主角（.pet）从中心长出并伸到各轴强度；字母位在两极之间翻牌时指针左右寻向，
+ *            最后一个字母锁定时摆向协作重心，阻尼振荡后停住
+ *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（指针轻颤），其余淡出，胜出的一张飞入四字母（指针定住），给出匹配度
+ *   05 落地  「查看完整画像」：大人格码与指纹（含指针）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
+ * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、环带扫描与行星在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
  * 跳过 / Esc / 在后台继续随时可用；closeOverlay() 取消全部计时器、动画帧与动画；prefers-reduced-motion 直接给最终态。 */
 let OB = null, REV = null, GNS = null;
 function closeOverlay() {
@@ -27,10 +31,10 @@ function genFacts(L) {
   const byA = AG.map((a) => [a, sum(L.filter((s) => s.a === a.id), (s) => s.dur)]).sort((x, y) => y[1] - x[1]);
   const fr = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]);
   return [
-    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', '你最常在 ' + bh + ':00–' + (bh + 1) + ':00 和 Agent 协作'],
-    ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占你协作时长的 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
+    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', '最常在 ' + bh + ':00–' + (bh + 1) + ':00 协作'],
+    ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占协作时长 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
     ['语义', '本地 Agent 正在归类你的消息', '摩擦最多的是「' + (fr[0] ? fr[0][0] : '—') + '」'],
-    ['人格', '四个维度', '你在 ' + Math.round(st.verify) + '% 的会话里要求验证结果']
+    ['人格', '四个维度', Math.round(st.verify) + '% 的会话要求验证结果']
   ];
 }
 function obFacts() { return genFacts(obSel()); }
@@ -47,15 +51,15 @@ function drawOB() {
   const top = '<div class="row">' + dots + '<span class="mono cap" style="font-size:11px">' + (s + 1) + ' / 4</span><span style="flex:1"></span>' + (s < 3 ? '<button type="button" class="btn sm gh" data-act="obClose">跳过</button>' : '') + '</div>';
   let b = '';
   if (s === 0) {
-    b = '<span class="appicon" style="width:56px;height:56px;border-radius:14px"><svg width="32" height="24" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="#f5f4f0" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg></span><div><div class="eb">Tandem</div><h2 class="serif" style="margin:4px 0 0;font-size:28px;line-height:1.2">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Tandem 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
+    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1) {
     const tot = AG.filter((a) => OB.src.has(a.id)).reduce((x, a) => x + a.all, 0);
-    b = '<div><h2 class="serif" style="margin:0;font-size:24px">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
-      AG.map((a) => '<label class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:' + a.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + a.c) + '</span><span style="min-width:0"><b style="font-size:13px">' + a.name + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.path + '</span></span><span class="mono cap" style="font-size:11.5px">' + fmt(a.all) + '</span><input type="checkbox" data-chg="obSrc" data-a="' + a.id + '"' + (OB.src.has(a.id) ? ' checked' : '') + ' aria-label="分析 ' + a.name + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>').join('') +
+    b = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
+      AG.map((a) => '<label class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:' + a.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + a.c) + '</span><span style="min-width:0"><b style="font-size:13px">' + a.name + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.path + '</span></span><span class="mono cap" style="font-size:11px">' + fmt(a.all) + '</span><input type="checkbox" data-chg="obSrc" data-a="' + a.id + '"' + (OB.src.has(a.id) ? ' checked' : '') + ' aria-label="分析 ' + a.name + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>').join('') +
       '<div class="srcrow" style="opacity:.6"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">Cursor</b><span class="cap" style="display:block;font-size:11px">未检测到 · 可稍后在设置中手动指定</span></span><span></span><span></span></div></div>' +
-      '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:12.5px">只分析最近 90 天</b><span class="cap" style="font-size:11.5px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11.5px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
+      '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (OB.src.size ? '' : ' disabled') + '>开始分析</button></div>';
   }
   // Keep the keyboard where it was across redraws (a ticked checkbox, the 90-day switch, the progress page's 950 ms ticks);
@@ -70,7 +74,7 @@ function drawOB() {
 /* ---- Genesis ---- */
 const G_EASE = 'cubic-bezier(.2,.8,.2,1)', G_SPRING = 'cubic-bezier(.34,1.45,.64,1)';
 const G_PAIRS = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
-const reduceMotion = () => !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+// reduceMotion() comes from 37-motion.js (shared by every motion layer)
 const genIO = (u) => { u = clamp(u, 0, 1); return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
 const genBack = (u) => { u = clamp(u, 0, 1); const c = 1.25; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
 // 各段起点（ms）。首次启动从「开始分析」算起约 6.7 s；揭晓没有来源列表，01 段只把会话点汇集到中央，约 4.9 s。
@@ -93,21 +97,22 @@ function genHTML(g) {
   const hr = S.persona.fpHour, cur = CUR.fp; S.persona.fpHour = null;
   const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
   S.persona.fpHour = hr; CUR.fp = cur;
-  let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 179 : 173, a), q2 = pt(200, 186, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
-  const w0 = pt(200, 186, -0.45);
-  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="186" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A186 186 0 0 1 200 14Z"/><line x1="200" y1="200" x2="200" y2="14"/></g></svg>';
+  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）、首次启动的 Orbit 内弧
+  let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
+  const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
+  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
   const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? (ch === '?' ? '未定型' : a.name) + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
   const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '暂不匹配' : '样本不足') + '</span><span class="cap">' + (p.ok ? '有维度落在 45–55 之间，先不下结论' : '已选来源的会话少于 30 个') + '</span>';
   const nm = '<div class="serif g-zh">' + (p.ok ? p.zh + ' <i>' + p.en + '</i>' : '样本不足') + '</div><p class="g-line">' + esc(p.ok ? p.line : '已选来源的会话少于 30 个，先用一段时间再来看。') + '</p>';
-  const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx">' + ic('check', 13, 'color:var(--good);flex:none') + '<span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
+  const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx"><span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
   const top = '<div class="row g-top">' + (ob ? '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= 2 ? 'on' : '') + '"></i>').join('') + '</div><span class="mono cap" data-g="n" style="font-size:11px">3 / 4</span>' : '') +
     '<span class="mono cap g-stage"' + (ob ? '' : ' id="revStage"') + ' data-g="stage"></span><span style="flex:1"></span><button type="button" class="btn sm gh" data-act="' + (ob ? 'genSkip' : 'revSkip') + '">跳过</button></div>';
   const head = ob ? '<div class="g-head" data-g="head"><h2 class="serif">正在建立你的协作画像</h2><p class="cap">每完成一步就先给你看结果，不用等到最后。</p></div><div class="g-bar"><i data-g="bar"></i></div>' : '';
   const vr = visibleRecs();
-  const done = ob ? '<div class="g-next">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '让本地 Agent 依据你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b style="font-size:12.5px">' + x[0] + '</b><span class="cap" style="font-size:11.5px">' + x[1] + '</span></span></div>').join('') + '</div>' +
+  const done = ob ? '<div class="g-next">' + [['看看优化建议', vr.length + ' 条，其中 ' + vr.filter((r) => r.lvl === 1).length + ' 条可以一键应用'], ['打开悬浮组件', kb('⌥⌘P') + ' · 会话运行时陪着你'], ['去生成工坊', '按你的会话写 Skill 与规则']].map((x, i) => '<div class="row" style="align-items:flex-start;gap:8px;min-width:0"><span class="mono g-n">' + (i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><b class="g-nt">' + x[0] + '</b><span class="cap g-nc">' + x[1] + '</span></span></div>').join('') + '</div>' +
       '<div class="g-foot"><button type="button" class="lnk" data-act="obReveal">播放揭晓动画</button><span class="row" style="gap:8px"><button type="button" class="btn" data-act="obShare">导出分享卡</button><button type="button" class="btn p" data-act="obDone" style="height:32px;padding:0 18px">查看完整画像</button></span></div>'
-    : '<div class="g-foot" style="justify-content:center"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></div>';
+    : '<div class="g-foot"><span></span><span class="row" style="gap:8px"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></span></div>';
   return top + head +
     '<div class="g-body"><div class="fp-wrap g-dial" data-g="dial"><div class="g-fp">' + fp + '</div>' + over + '<div class="g-cards" data-g="cards"></div></div>' +
     '<div class="g-side"><div class="mono cap g-count" data-g="count"></div><div class="g-res"><span class="eb">你的协作人格</span><div class="letters code g-code" data-g="code" role="img" aria-label="' + (p.ok ? p.code : '样本不足') + '">' + slots + '</div><div class="row g-match" data-g="match">' + match + '</div><div class="nm" data-g="nm">' + nm + '</div></div>' +
@@ -115,28 +120,66 @@ function genHTML(g) {
     '<div class="g-tail">' + (ob ? '<div class="g-foot" data-g="run"><span class="cap">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>' : '') +
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
 }
-// 给 fp2SVG 的各层打上分段用的 class（底座 / 节律带 / 内核 / 雷达 = .pet / 外环每小时一段 / 标签）
+// 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 指南针 .fp-compass /
+// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 轨道环带的扫描遮罩 .fp-sweep / 行星 .fp-pl）与翻正用的两层（.g-fp、.g-over）
 function genMark(g) {
-  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; if (!svg) return;
-  const k = Array.from(svg.children); const tag = (ix, c) => ix.forEach((i) => { if (k[i] && k[i].tagName !== 'g') k[i].classList.add(c); });
-  tag([0, 1, 2], 'g-base'); tag([3, 4], 'g-band'); tag([5, 6, 7, 8, 9], 'g-core');
-  const rd = svg.querySelector('g.radar'); if (rd) rd.classList.add('pet');
-  g.radar = rd ? [rd.querySelector('path'), Array.from(rd.querySelectorAll('circle'))] : null;
-  const tx = Array.from(svg.querySelectorAll(':scope > text')); const nl = g.p.ok ? 4 : 0;
-  tx.forEach((t, i) => t.classList.add(i < nl ? 'g-axl' : i < nl + 4 ? 'g-hl' : 'g-rl'));
-  g.axl = tx.slice(0, nl);
-  g.segs = Array.from(svg.querySelectorAll('g.ring > g.fps'));
+  const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; g.pls = []; g.tiltEls = []; if (!svg) return;
+  g.rose = Array.from(svg.querySelectorAll('.fp-rose .fp-pt')).map((el) => Array.from(el.querySelectorAll('path')));
+  g.axl = g.p.ok ? Array.from(svg.querySelectorAll('.fp-ax')) : [];
+  g.nd = svg.querySelector('.fp-needle'); g.hd = g.nd ? +g.nd.dataset.hd : 0;
+  g.sweepEl = svg.querySelector('.fp-sweep');
+  g.pls = Array.from(svg.querySelectorAll('.fp-pl')).map((el) => ({ el, deg: +el.dataset.pa }));
+  g.tiltEls = [g.box.querySelector('.g-fp'), g.box.querySelector('.g-over')].filter(Boolean); g.arc = g.box.querySelector('.g-arc');
   g.slotL = Array.from(g.box.querySelectorAll('.g-slot .L'));
 }
-function genRadar(g, u) {
-  if (!g.radar || !g.radar[0] || !g.p.ok) return;
-  const q = ['D', 'I', 'M', 'V'].map((k) => pt(200, Math.max(0, 50 + (g.p.v[k] - 50) * u) / 100 * 64, AXR[k] * Math.PI / 180));
-  g.radar[0].setAttribute('d', 'M' + q.map((x) => x[0].toFixed(1) + ' ' + x[1].toFixed(1)).join('L') + 'Z');
-  g.radar[1].forEach((c, i) => { if (q[i]) { c.setAttribute('cx', q[i][0].toFixed(1)); c.setAttribute('cy', q[i][1].toFixed(1)); } });
+// 玫瑰主角从强度 50 的长度伸到各轴强度（u 可以超过 1，配合 genBack 的回弹）
+function genRose(g, u) {
+  if (!g.rose || !g.p.ok) return;
+  ['D', 'I', 'M', 'V'].forEach((k, i) => { const el = g.rose[i]; if (!el) return; const q = fpRosePt(AXR[k], fpRoseLen(axisView(g.p, i).strong, u), FPG.RR * 0.18); el[0].setAttribute('d', q[1]); el[1].setAttribute('d', q[0]); });
+}
+// 指针角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫针的速度；02 匀速扫一圈；
+// 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向协作重心，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
+// 首次启动：Orbit 内弧先在 00 收拢成指针（G_HOLD 之前指针停在 00），再从静止起转，快转两圈后减速落到 00
+const G_HOLD = 960;
+function genNeedle(g, t) {
+  const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, ob = g.mode === 'ob', t0 = ob ? G_HOLD : 0, w0 = ob ? 0 : 1.25;
+  if (t < t0) return 0;
+  if (t < P) {
+    const D = P - t0, N = ob ? 2 : Math.max(1, Math.round((w0 + ws) / 2 * D / 360)), u = (t - t0) / D;
+    return (u * u * u - 2 * u * u + u) * w0 * D + (3 * u * u - 2 * u * u * u) * N * 360 + (u * u * u - u * u) * ws * D;
+  }
+  if (t < P + sw) return (t - P) / sw * 360;
+  const cd = 300, ts = P + sw + cd, A0 = 360 + ws * cd / 2;
+  if (t < ts) { const tc = t - P - sw; return 360 + ws * tc - ws * tc * tc / (2 * cd); }
+  const H = A0 + ((g.hd - A0) % 360 + 540) % 360 - 180;
+  const search = (x) => { const v = clamp((x - ts) / 900, 0, 1); return A0 + (H - A0) * 0.35 * v * v * (3 - 2 * v) + 30 * Math.sin((x - ts) / 520 * Math.PI * 2) * Math.min(1, (x - ts) / 250); };
+  if (t < g.lockAt) return search(t);
+  const tt = t - g.lockAt; let a = H + (search(g.lockAt) - H) * Math.exp(-tt / 240) * Math.cos(tt / 430 * Math.PI * 2);
+  const tm = T.match, te = T.match + (T.end - T.match) * 0.62 + 520;
+  if (t > tm && t < te) a += 1.8 * Math.sin((t - tm) / 46) * Math.sin(Math.PI * (t - tm) / (te - tm));
+  return a;
 }
 function genAnim(g, el, kf, o) {
   if (!el || !el.animate) return null;
   const a = el.animate(kf, Object.assign({ fill: 'both', easing: G_EASE }, o)); g.anims.push(a); return a;
+}
+// 01 的 Orbit 母题：表盘从倾斜轨道视角翻正（rotateX 64° → 0°、转角 8° → 0°、0.62 → 1 倍），0.2–1.5 s；粒子与内弧用同一投影
+const G_TILT = 1500;
+function genTiltAt(t) { const u = genIO((t - 200) / (G_TILT - 200)); return { a: 64 * (1 - u), z: 8 * (1 - u), s: 0.62 + 0.38 * u }; }
+function genProj(q, k) {
+  const ca = Math.cos(k.a * Math.PI / 180), cz = Math.cos(k.z * Math.PI / 180), sz = Math.sin(k.z * Math.PI / 180);
+  const dx = (q[0] - 200) * k.s, dy = (q[1] - 200) * ca * k.s;
+  return [200 + dx * cz - dy * sz, 200 + dx * sz + dy * cz];
+}
+function genTilt(g, t) {
+  const k = genTiltAt(t), done = t >= G_TILT;
+  g.tiltEls.forEach((el) => { el.style.transform = done ? '' : 'rotate(' + k.z.toFixed(2) + 'deg) scale(' + k.s.toFixed(4) + ') rotateX(' + k.a.toFixed(2) + 'deg)'; });
+  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 00 方向的指针北半：每个采样点从弧上滑到指针上对应的位置
+  if (g.arc) {
+    const u = genIO((t - 420) / 540), n = 28, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
+    for (let i = 0; i <= n; i++) { const A = pt(200, 112, (235 + i / n * 225) * Math.PI / 180), B = [200, 200 - FPG.NL * i / n]; d += (i ? 'L' : 'M') + f([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u]); }
+    g.arc.setAttribute('d', d); g.arc.style.opacity = String(clamp(1 - (t - 960) / 160, 0, 1));
+  }
 }
 function genStage(g, t) { const s = g.box.querySelector('[data-g="stage"]'); if (!s) return; s.textContent = t; if (!g.done) s.animate([{ opacity: 0, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: G_EASE }); }
 function genCount(g) {
@@ -149,6 +192,7 @@ function genOpen(mode, opt) {
   genStop();
   const L = opt.L, p = persona(L), ob = mode === 'ob';
   const g = { mode, L, p, st: stats(L), F: genFacts(L), cands: p.ok ? genCands(p) : [], T: genTimes(mode), timers: [], anims: [], raf: 0, done: false, arrived: 0, N: 0, flips: [-1, -1, -1, -1], locked: [false, false, false, false], t0: performance.now() };
+  g.lockAt = g.T.grow + (g.T.match - g.T.grow) * 0.77;   // 第四个字母锁定的时刻（genPlay 里 0.32 + 3 × 0.15）
   GNS = g;
   const o = $('#overlay'); const old = ob ? o.querySelector('.obox') : null;
   const r0 = old && opt.from ? old.getBoundingClientRect() : null; const kids = r0 ? Array.from(old.childNodes) : null;
@@ -160,7 +204,10 @@ function genOpen(mode, opt) {
   box.style.setProperty('--g-grow', g.T.grow + 'ms');
   box.innerHTML = genHTML(g); g.box = box; genMark(g);
   if (opt.final || reduceMotion()) { genFinal('init'); return; }
-  genRadar(g, 0);
+  genRose(g, 0);
+  if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '1';
+  g.pls.forEach((x) => { x.el.style.opacity = '0'; });
+  if (ob) genTilt(g, 0);
   if (kids) {
     // 来源列表：留在原位收拢、模糊、淡出；盒子用 clip-path 从旧尺寸展开到新尺寸，新内容随后上浮淡入
     const gh = document.createElement('div'); gh.className = 'g-ghost'; gh.setAttribute('aria-hidden', 'true'); gh.inert = true;
@@ -189,8 +236,8 @@ function genParticles(g, from) {
     const s = L[Math.floor(i * L.length / N)];
     const a = (s.h + s.mi / 60) / 24 * Math.PI * 2;
     const src = from && from[s.a];
-    const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, 142 + Math.min(s.dur, 126) / 126 * 40, a), pour: pt(200, 140 + byH[s.h] / mxH * 22, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
-    if (ob) { q.e = R() * 1050; q.fl = 700 + R() * 260; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
+    const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, FPG.R0 + 4 + Math.min(s.dur, 126) / 126 * (FPG.RH - 6), a), pour: pt(200, FPG.R0 + byH[s.h] / mxH * FPG.RH * 0.55, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
+    if (ob) { q.e = R() * 1050; q.fl = 760 + R() * 300; q.turns = 0.55 + R() * 0.6; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
     else { q.e = R() * 260; q.fl = 380 + R() * 220; q.gs = pt(200, 250 + R() * 90, R() * Math.PI * 2); }
     q.dep = Math.max(T.place + a / (Math.PI * 2) * g.sweep, q.e + q.fl + 60); q.land = q.dep + 380; q.pourAt = q.land + 240;
     parts.push(q);
@@ -202,8 +249,8 @@ function genDraw(g, t, orc, sr) {
   const cv = g.cv, dpr = window.devicePixelRatio || 1, W = orc.width, H = orc.height;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const x = g.ctx; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
-  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top;
-  const U = (q) => [ox + q[0] * k, oy + q[1] * k];
+  const k = sr.width / 400, ox = sr.left - orc.left, oy = sr.top - orc.top, tl = g.mode === 'ob' && t < G_TILT ? genTiltAt(t) : null;
+  const U = (q) => { if (tl) q = genProj(q, tl); return [ox + q[0] * k, oy + q[1] * k]; };
   const cloud = (p, tt) => U(pt(200, p.cr, p.ca + tt * 0.0011));
   const lerp = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
   let arrived = 0, live = 0;
@@ -211,8 +258,14 @@ function genDraw(g, t, orc, sr) {
   for (const p of g.parts) {
     if (t < p.e) { live++; continue; }
     let pos, r = p.r * k, al = 1;
-    if (t < p.e + p.fl) {
-      // 导入 / 汇集：二次贝塞尔，从来源图标（或表盘外一圈）弯向中央的会话云
+    if (t < p.e + p.fl && p.turns) {
+      // 导入（首次启动）：从来源图标被拉进倾斜的椭圆轨道，沿轨道顺时针螺旋收进中央的会话云；轨道随表盘一起翻正
+      const u = (t - p.e) / p.fl, v = genIO(u), th = p.ca + (p.e + p.fl) * 0.0011 - (1 - v) * p.turns * Math.PI * 2;
+      const sp = U(pt(200, p.cr + (196 - p.cr) * (1 - v) * (1 - v), th)), j = genIO(u / 0.38);
+      pos = [p.sx + (sp[0] - p.sx) * j, p.sy + (sp[1] - p.sy) * j];
+      al = Math.min(1, (t - p.e) / 160); r *= 0.65 + 0.35 * v;
+    } else if (t < p.e + p.fl) {
+      // 汇集（揭晓）：二次贝塞尔，从表盘外一圈弯向中央的会话云
       const u = genIO((t - p.e) / p.fl), st = p.gs ? U(p.gs) : [p.sx, p.sy], en = cloud(p, t);
       const cx = (st[0] + en[0]) / 2 - (en[1] - st[1]) * p.bend, cy = (st[1] + en[1]) / 2 + (en[0] - st[0]) * p.bend, v = 1 - u;
       pos = [v * v * st[0] + 2 * v * u * cx + u * u * en[0], v * v * st[1] + 2 * v * u * cy + u * u * en[1]];
@@ -232,10 +285,27 @@ function genTick(g) {
   if (GNS !== g || g.done) return;
   const t = performance.now() - g.t0, T = g.T;
   // 先读布局（overlay 与指纹的位置），再写 canvas / 文本 / 属性
-  const orc = $('#overlay').getBoundingClientRect(), sr = g.svg ? g.svg.getBoundingClientRect() : null;
+  // 指纹的未变换位置：.g-dial 的内框（.fp-wrap 留 8px 纸边）；翻正期间 .g-fp 带 3D 变换，不能直接量 svg
+  const orc = $('#overlay').getBoundingClientRect(), dl = g.svg ? g.box.querySelector('[data-g="dial"]') : null, dr = dl ? dl.getBoundingClientRect() : null;
+  const sr = dr ? { left: dr.left + 8, top: dr.top + 8, width: dr.width - 16 } : null;
   if (g.cv && sr) genDraw(g, t, orc, sr);
   if (!g.counted) { genCount(g); if (g.arrived >= g.N) g.counted = true; }
-  if (t >= T.grow && !g.radarDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genRadar(g, genBack(u)); if (u >= 1) g.radarDone = true; }
+  if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genRose(g, genBack(u)); if (u >= 1) g.roseDone = true; }
+  if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
+  if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
+  // 02：环带在指针扫过处长出（比指针晚 450 ms，等粒子落位）；行星依次出现、跟在指针后公转，扫完走最短弧滑到各自的协作重心
+  const P = T.place, sw = g.sweep;
+  if (g.sweepEl && !g.swept) { const v = clamp((t - P - 450) / sw, 0, 1); g.sweepEl.style.strokeDashoffset = (1 - v).toFixed(4); if (v >= 1) { g.sweepEl.style.strokeDashoffset = ''; g.swept = true; } }
+  if (g.pls.length && !g.settled) {
+    let all = true;
+    g.pls.forEach((x, i) => {
+      const ride = (tt) => clamp((tt - P) / sw, 0, 1) * 360 - 16 - 9 * i, t1 = P + sw, ra = ride(t1), d = ((x.deg - ra) % 360 + 540) % 360 - 180;
+      const u = clamp((t - t1 - i * 60) / 800, 0, 1), a = t < t1 ? ride(t) : ra + d * genIO(u);
+      x.el.style.opacity = String(clamp((t - P - 120 - i * 110) / 220, 0, 1)); x.el.style.transform = 'rotate(' + a.toFixed(2) + 'deg)';
+      if (u < 1) all = false;
+    });
+    if (all) { g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; }); g.settled = true; }
+  }
   if (t >= T.grow + 60) g.slotL.forEach((el, i) => {
     if (g.locked[i]) return;
     const f = Math.floor((t - T.grow) / 85); if (f === g.flips[i]) return; g.flips[i] = f;
@@ -291,20 +361,21 @@ function genPlay(g) {
   const at = (ms, fn) => g.timers.push(setTimeout(() => { if (GNS === g && !g.done) fn(); }, ms));
   const A = (el, kf, o) => genAnim(g, el, kf, o), fade = { opacity: [0, 1] };
   const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
-  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 按开始时间排到 24 小时表盘上'], [T.grow, '03 / 生长 · D I M V 四个维度'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
+  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 指针扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 生长 · 罗盘玫瑰长出 D I M V'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
   genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
-  // 01：表盘轮廓画出 → 指纹底座淡入
-  A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: ob ? 900 : 600, delay: ob ? 150 : 0 });
+  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）。
+  // 首次启动时外框先是 Orbit 标志的倾斜椭圆（石板灰、留一道缺口），随翻正补全并换成外框的墨色
+  if (ob) A(q('.g-ring0'), [{ strokeDashoffset: 0.17, stroke: 'var(--orbit)', strokeWidth: 4.5 }, { strokeDashoffset: 0.12, stroke: 'var(--orbit)', strokeWidth: 4.5, offset: 0.4 }, { strokeDashoffset: 0, stroke: 'var(--ink-2)', strokeWidth: 1.2 }], { duration: G_TILT, easing: 'ease-in-out' });
+  else A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 600 });
   A(q('.g-ticks'), fade, { duration: 500, delay: ob ? 500 : 200 });
-  qa('.g-fp .g-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
-  // 02：扫针转一圈，会话点按角度落位；节律带淡入，外环每小时一段在扫针过后长出
+  qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
+  A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
+  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
+  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
-  qa('.g-fp .g-band, .g-fp .g-hl').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
-  g.segs.forEach((el) => { const h = +el.dataset.h; A(el, [{ opacity: 0, transform: 'scale(.76)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: T.place + (h + 0.5) / 24 * sw + 520, easing: G_SPRING }); });
+  qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
-  qa('.g-fp .g-rl').forEach((el) => A(el, fade, { duration: 400, delay: T.grow - 200 }));
-  // 03：内核刻度出现，雷达（.pet，CSS grow）从中心长出并在 rAF 里变形；字母位翻牌，按顺序锁定
-  qa('.g-fp .g-core').forEach((el) => A(el, fade, { duration: 450, delay: T.grow - 150 }));
+  // 03：玫瑰主角（.pet，CSS grow）从中心长出并在 rAF 里伸到各轴强度；字母位翻牌（指针寻向），按顺序锁定
   [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
   // 已经知道的：每完成一段给一条
   genFactRun(g, 0);
@@ -323,7 +394,10 @@ function genFinal(how) {
   if (g.cv) { g.cv.remove(); g.cv = null; }
   const box = g.box, ob = g.mode === 'ob', p = g.p, q = (s) => box.querySelector(s);
   box.querySelectorAll('.g-ghost').forEach((el) => el.remove()); box.classList.remove('run', 'g-morph'); box.classList.add('skip');
-  genRadar(g, 1);
+  genRose(g, 1); if (g.nd) g.nd.style.transform = '';
+  if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '';
+  g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; });
+  g.tiltEls.forEach((el) => { el.style.transform = ''; });
   g.slotL.forEach((el, i) => { el.textContent = p.ok ? p.code[i] : '—'; el.parentNode.classList.add('lock'); });
   const cw = q('[data-g="cards"]'); if (cw) cw.innerHTML = ''; g.cards = null;
   g.arrived = g.N; genCount(g);
@@ -340,7 +414,7 @@ function genFinal(how) {
     const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
     render();
   } else {
-    genStage(g, '05 / 停留');
+    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
     if (REV) { REV.done = true; REV.timers.forEach(clearTimeout); }
     if (how !== 'init') { const f = q('[data-act="revGo"]'); if (f) f.focus(); }
   }
@@ -352,6 +426,9 @@ function genStop() {
   if (g.cv) g.cv.remove();
   if (g.land) g.land();
 }
+// The landing page shows the scope first launch just analysed (90 days when「只分析最近 90 天」is on, else all history):
+// Lite reads S.range, Advance's persona page its own period, so both are aligned and the numbers do not jump on arrival.
+function obScope() { if (!OB) return; S.range = OB.recent ? 90 : 0; S.persona.period = OB.recent ? '90' : 'all'; }
 // 05 落地：大人格码逐字母、指纹整体从 overlay FLIP 到画像页 [data-hero]；overlay 同时淡出，目标页内容随后淡入。
 // Lite 的 l-persona 或目标不在可视区时退化为原地缩小淡出。
 function genLand() {
@@ -423,8 +500,8 @@ Object.assign(ACT, {
   obRecent: () => { OB.recent = !OB.recent; drawOB(); },
   obStart: () => { AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); }); OB.step = 2; OB.prog = -1; const from = obSources(); genOpen('ob', { L: obSel(), from }); },
   genSkip: () => genFinal('skip'),
-  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => go('persona'), force: true }); }, 2600); },
-  obDone: () => genLand(),
+  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => { obScope(); go('persona'); }, force: true }); }, 2600); },
+  obDone: () => { obScope(); genLand(); },
   obShare: () => { closeOverlay(); render(); openShare(); },
   obReveal: () => { const L = obSel(); closeOverlay(); render(); openReveal({ L }); },
   revSkip: () => revealSkip(),
