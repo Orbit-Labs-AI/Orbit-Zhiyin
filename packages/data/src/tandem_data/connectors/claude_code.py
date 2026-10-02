@@ -8,6 +8,8 @@ class ClaudeMapper(BaseMapper):
     def prepare(self, records):
         self.header = {}
         self.usage_records = {}
+        # Agent/Task tool_use id -> spawned agentId (from the paired toolUseResult).
+        self.spawned = {}
 
         def inspect(record):
             data = record.data
@@ -17,6 +19,21 @@ class ClaudeMapper(BaseMapper):
                 if data.get(name) and name not in self.header:
                     self.header[name] = data[name]
             message = data.get("message")
+            result = data.get("toolUseResult")
+            if (
+                data.get("type") == "user"
+                and isinstance(result, dict)
+                and result.get("agentId")
+                and isinstance(message, dict)
+                and isinstance(message.get("content"), list)
+            ):
+                for block in message["content"]:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "tool_result"
+                        and block.get("tool_use_id")
+                    ):
+                        self.spawned[str(block["tool_use_id"])] = str(result["agentId"])
             if (
                 data.get("type") == "assistant"
                 and isinstance(message, dict)
@@ -145,6 +162,12 @@ class ClaudeMapper(BaseMapper):
             for event in contents:
                 if data.get("parentUuid"):
                     event.parent_native_key = [record.source_id, data["parentUuid"]]
+                agent = self.spawned.get(str(event.call_id)) if event.kind == "tool.call" else None
+                if agent and self.header.get("sessionId"):
+                    # Subagent transcripts live at <sessionId>/subagents/agent-<agentId>.jsonl.
+                    event.attrs["subagent_session_uid"] = self.store.identity(
+                        record.source_id, f"{self.header['sessionId']}:agent-{agent}"
+                    )
             if contents:
                 contents[0].ext["envelope"] = unused(
                     data,

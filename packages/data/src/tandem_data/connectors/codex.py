@@ -115,6 +115,8 @@ class CodexMapper(BaseMapper):
         self.rollback_ranges = []
         self.human_starts = []
         self.last_human_turn = None
+        # spawn_agent call_id -> child thread id (SubAgentActivity / collab_agent_spawn_end).
+        self.spawned = {}
         self.prepare_each(records, self.prepare_record)
 
     def prepare_record(self, record):
@@ -151,8 +153,18 @@ class CodexMapper(BaseMapper):
         if data.get("type") == "token_usage_record":
             self.has_calls = True
             self.usage_records.append((record.ordinal, payload.get("response_id")))
+        if data.get("type") == "event_msg" and payload.get("type") == "collab_agent_spawn_end":
+            if payload.get("call_id") and payload.get("new_thread_id"):
+                self.spawned.setdefault(str(payload["call_id"]), str(payload["new_thread_id"]))
         if data.get("type") == "event_msg" and payload.get("type") == "item_completed":
             item = payload.get("item", {})
+            if (
+                item.get("type") == "SubAgentActivity"
+                and item.get("kind") == "started"
+                and item.get("id")
+                and item.get("agent_thread_id")
+            ):
+                self.spawned.setdefault(str(item["id"]), str(item["agent_thread_id"]))
             if item.get("type") in ("UserMessage", "AgentMessage"):
                 role = "user" if item["type"] == "UserMessage" else "assistant"
                 signature = (role, self.prepared_turn, text_content(item.get("content")))
@@ -185,6 +197,12 @@ class CodexMapper(BaseMapper):
         return (
             [record.source_id, self.session_uid, native] if native else super().native_key(record)
         )
+
+    def child_link(self, record, call_id):
+        child = getattr(self, "spawned", {}).get(str(call_id))
+        if not child:
+            return {}
+        return {"subagent_session_uid": self.store.identity(record.source_id, child)}
 
     @staticmethod
     def record_signature(record):
@@ -512,6 +530,7 @@ class CodexMapper(BaseMapper):
                                     )
                                 ),
                                 "native_turn_id": turn,
+                                **self.child_link(record, call_id),
                             },
                             ext=payload,
                         )
@@ -813,6 +832,7 @@ class CodexMapper(BaseMapper):
                             "category": "subagent" if itype == "CollabAgentToolCall" else None,
                             "duration_ms": item.get("duration_ms"),
                             "native_turn_id": self.native_turn,
+                            **self.child_link(record, call_id),
                         },
                         ts_value=payload.get("started_at_ms"),
                         ts_field="payload.started_at_ms",

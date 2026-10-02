@@ -1,0 +1,182 @@
+"""Synthetic connector regressions: subagent linkage, origins, record destinations."""
+
+import json
+
+from tandem_data.contract import canonical
+from tandem_data.service import ImportRequest, ImportService
+from tandem_data.store import Store
+
+ISO = "2026-10-02T00:00:0{}Z"
+
+
+def write_jsonl(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(canonical(row) + "\n" for row in rows))
+
+
+def stream(store, agent, root, rows, filename):
+    source = store.add_source(agent, root)
+    store.capture_stream(
+        source, filename, [(canonical(row) + "\n").encode() for row in rows], format_name="jsonl"
+    )
+    return source
+
+
+def one(store, sql, *args):
+    return store.db.execute(sql, args).fetchone()
+
+
+def claude_context(i=0):
+    return {"sessionId": "s1", "timestamp": ISO.format(i), "cwd": "/synthetic/repo"}
+
+
+def test_claude_agent_call_links_to_child_session_both_ways(tmp_path):
+    root = tmp_path / "claude"
+    base = root / "projects/-synthetic-repo"
+    write_jsonl(
+        base / "s1.jsonl",
+        [
+            {
+                **claude_context(0),
+                "type": "user",
+                "uuid": "u1",
+                "message": {"role": "user", "content": "delegate"},
+            },
+            {
+                **claude_context(1),
+                "type": "assistant",
+                "uuid": "a1",
+                "message": {
+                    "id": "m1",
+                    "content": [
+                        {"type": "tool_use", "id": "toolu_1", "name": "Agent", "input": {}},
+                        {"type": "tool_use", "id": "toolu_2", "name": "Agent", "input": {}},
+                    ],
+                },
+            },
+            {
+                **claude_context(2),
+                "type": "user",
+                "uuid": "r1",
+                "message": {
+                    "role": "user",
+                    "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "ok"}],
+                },
+                "toolUseResult": {"agentId": "aaa", "status": "async_launched"},
+            },
+            {
+                **claude_context(3),
+                "type": "user",
+                "uuid": "r2",
+                "message": {
+                    "role": "user",
+                    "content": [{"type": "tool_result", "tool_use_id": "toolu_2", "content": "ok"}],
+                },
+                "toolUseResult": {"status": "completed"},
+            },
+        ],
+    )
+    for agent in ("aaa", "bbb"):
+        write_jsonl(
+            base / f"s1/subagents/agent-{agent}.jsonl",
+            [
+                {
+                    **claude_context(4),
+                    "type": "user",
+                    "uuid": f"c-{agent}",
+                    "isSidechain": True,
+                    "agentId": agent,
+                    "message": {"role": "user", "content": "child task"},
+                }
+            ],
+        )
+    # The second child is linked from its own sidecar (toolUseId), not the parent result.
+    (base / "s1/subagents/agent-bbb.meta.json").write_text(
+        json.dumps({"agentType": "general", "toolUseId": "toolu_2"})
+    )
+    with Store(tmp_path / "data") as store:
+        ImportService(store).import_source(ImportRequest("claude_code", root))
+        calls = {
+            row["native_call_id"]: row
+            for row in store.db.execute(
+                "SELECT * FROM tool_call WHERE native_call_id LIKE 'toolu%'"
+            )
+        }
+        children = {
+            row["native_id"]: row
+            for row in store.db.execute(
+                "SELECT s.*, i.native_id FROM session s JOIN session_identity i USING(session_uid)"
+                " WHERE s.kind='subagent'"
+            )
+        }
+        assert set(children) == {"s1:agent-aaa", "s1:agent-bbb"}
+        for call, child in (("toolu_1", "s1:agent-aaa"), ("toolu_2", "s1:agent-bbb")):
+            assert calls[call]["subagent_session_uid"] == children[child]["session_uid"]
+            assert children[child]["spawn_call_uid"] == calls[call]["call_uid"]
+
+
+def codex_parent():
+    return [
+        {"type": "session_meta", "timestamp": ISO.format(0), "payload": {"id": "parent"}},
+        {
+            "type": "event_msg",
+            "timestamp": ISO.format(1),
+            "payload": {"type": "task_started", "turn_id": "t"},
+        },
+        {
+            "type": "response_item",
+            "timestamp": ISO.format(2),
+            "payload": {
+                "type": "function_call",
+                "name": "spawn_agent",
+                "call_id": "call_spawn",
+                "arguments": "{}",
+            },
+        },
+        {
+            "type": "event_msg",
+            "timestamp": ISO.format(3),
+            "payload": {
+                "type": "item_completed",
+                "turn_id": "t",
+                "item": {
+                    "type": "SubAgentActivity",
+                    "id": "call_spawn",
+                    "agent_thread_id": "child",
+                    "agent_path": "/root/worker",
+                    "kind": "started",
+                },
+            },
+        },
+    ]
+
+
+def test_codex_spawn_agent_call_links_to_child_thread(tmp_path):
+    child = [
+        {
+            "type": "session_meta",
+            "timestamp": ISO.format(4),
+            "payload": {
+                "id": "child",
+                "source": {"subagent": {"thread_spawn": {"parent_thread_id": "parent"}}},
+            },
+        },
+        {
+            "type": "event_msg",
+            "timestamp": ISO.format(5),
+            "payload": {"type": "user_message", "message": "work on the worker task"},
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", codex_parent(), "parent.jsonl")
+        stream(store, "codex", tmp_path / "source", child, "child.jsonl")
+        store.rebuild()
+        call = one(store, "SELECT * FROM tool_call WHERE native_call_id='call_spawn'")
+        session = one(
+            store,
+            "SELECT s.* FROM session s JOIN session_identity i USING(session_uid)"
+            " WHERE i.native_id='child'",
+        )
+        assert session["kind"] == "subagent"
+        assert call["subagent_session_uid"] == session["session_uid"]
+        assert session["spawn_call_uid"] == call["call_uid"]
