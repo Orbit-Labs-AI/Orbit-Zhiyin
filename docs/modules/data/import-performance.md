@@ -108,6 +108,38 @@
 - **full 首次导入**：wall 与 CPU 的加速比一致，都约 4.2–4.3×，说明差距不是负载造成的。上一轮同口径测量为 472.8 s → 107.7 s（4.39×），同样未达标。
 - **full 渐进全程**：比值 1.305 与上限 1.3 只差 0.5%。渐进导入与普通导入不是同一时段运行：渐进运行开始时负载 16.4，普通导入开始时负载 10.8，判为临界未达标。
 
+### 首导写者剖析与重叠（`wip/yhyfhgs-fullimport`）
+
+med 首导（默认 workers，基准锁内，load≈12）按阶段计时，写者共 12.6 s：
+
+| 阶段 | 耗时 | 说明 |
+| --- | --- | --- |
+| map（含 L2 批量插入 2.6 s、父链接、invalid 扫描、FTS 收尾） | 5.1 s | `executemany` 插入 event 本身约 2.2 s，主要是随机主键 B 树与触发器 |
+| derive_sessions + derive_metadata | 2.6 s | `_derive_session` 1.7 s，其余为逐会话两次读事件与 JSON 解码 |
+| capture（写者 `index_file` 1.5 s） | 2.0 s | |
+| 发布校验（范围内外键、记账、水位、COMMIT） | 1.3 s | `MapPlan.validate` 0.7 s |
+| prepare（等待 worker 阶段 A） | 1.2 s | 写者空等 |
+| reset_projection / 索引重建 / FTS | 0.4 / 0.13 / 0.07 s | |
+
+据此做的改动（结果不变：small、med 的 `logical_digest` 与 `8dca571` 逐字节相同，med 为 `424f28b4…`；`verify` ok、`foreign_key_check` 空、记账不一致 0）：
+
+- **捕获与映射重叠**：首导时 `parallel.capture` 每写完一个行格式文件就提交其 `map_file` 任务；`MapPlan` 只在重新构造的任务与之完全相等时复用该 future，否则取消并清理溢出文件。渐进批次传 `premap=False`。
+- **derive**：元数据阶段只取元数据事件与含 `git_root` 的事件；会话阶段只读用到的列；tool_call / tool_call_event / turn / session_feature 按表 `executemany`。
+- **映射收尾**：父事件链接一次 `executemany`；invalid 记录扫描限定本次重建文件（其他来源的 L2 问题不会被删除）；水位更新一次 `executemany`。
+
+### 导入后维护复测（`wip/yhyfhgs-compact`）
+
+并行导入（默认 workers、`maintenance="background"`）结束后关闭导入连接，再等待后台维护完成后量 `tandem.db`。全部在一次基准锁内串行执行；基线 `747b0da` 与新代码交替运行，med 各 2 次。full 只跑新代码 1 次，基线体积沿用上表 2,920.0 MB（同代码、同数据，体积确定）。load average（1 分钟）为 6.4–8.7。
+
+| 规模 | 基线库 | 新库（维护后） | 比例 | 目标 | 首导 wall（CPU），基线 → 新 | 维护耗时（不计入首导） |
+| --- | --- | --- | --- | --- | --- | --- |
+| small | 5.046 MB | 3.865 MB（1 KiB 页） | 0.766× | ≤0.8× | 0.484 s → 0.223 s | 0.016 s |
+| med | 442.97 MB | 332.91 MB | 0.7515× | ≤0.8× | 49.7 s（47.5）→ 11.9 s（10.6），4.17× | 0.54 s |
+| med 渐进 | — | 332.97 MB | 0.7517× | ≤0.8× | 首批 1.70 s，全程 12.8 s | 0.48 s |
+| full | 2,920.0 MB | 2,184.3 MB | 0.748× | ≤0.8× | 新 95.1 s（86.4），上轮 100.8 s | 3.95 s |
+
+维护在写锁释放后才开始（另有 1 s 宽限期），首批可读时间与导入返回时间都不包含它；med 首导 11.9 s 与 full 95.1 s 均不高于上一轮。首导后空闲页只有 1–3 页，slack 为 10–11%（small 41%），膨胀来自页内碎片，因此三种规模都走整库 VACUUM。小规模完整性（并行 + 维护 vs 串行无维护）：`logical_digest` 相同、`verify` 通过、`foreign_key_check` 为空、`event_page` 全部会话输出相同。
+
 ## 合并注意
 
 本包与进行中的 `feat/data-app-integration` 在 `pipeline.py`、`service.py` 有文本冲突，解决时注意语义：

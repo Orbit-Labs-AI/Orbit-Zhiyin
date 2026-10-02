@@ -560,6 +560,7 @@ def import_progressive(
                                 service.progress,
                                 counts,
                                 agent,
+                                premap=False,  # Batches keep their own projection plan.
                             )
                             for key in ("files", "changed", "capture_errors"):
                                 batch_counts[key] += counts[key]

@@ -11,6 +11,7 @@ same. Small jobs run the same code in-process, without a pool.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import multiprocessing
@@ -28,6 +29,7 @@ from pathlib import Path
 
 import zstandard
 
+from tandem_data import MAPPER_VERSION
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import canonical, now_ms, shape, uid
 from tandem_data.indexing import index_file, indexed_rows, iter_lines_with_rows
@@ -93,6 +95,10 @@ class WorkerPool:
         self._pool = None
         self._spill = None
         self.broken = False
+        # file_id -> (task, future): files mapped while their source was still being
+        # captured. MapPlan reuses a future only for an identical task (map_file is a
+        # pure function of it), so the projection is unchanged; it only starts earlier.
+        self.premapped = {}
 
     def executor(self, jobs: int):
         if self.broken or self.workers <= 1 or jobs < max(1, self.threshold):
@@ -127,6 +133,10 @@ class WorkerPool:
         return self._spill
 
     def close(self):
+        for _, future in self.premapped.values():
+            if not future.cancel():
+                future.add_done_callback(_drop_spill)
+        self.premapped = {}
         if self._pool is not None:
             self._pool.shutdown(cancel_futures=True)
             self._pool = None
@@ -139,6 +149,57 @@ class WorkerPool:
 
     def __exit__(self, *_):
         self.close()
+
+
+def _drop_spill(future):
+    try:
+        outcome = future.result()
+    except BaseException:  # noqa: BLE001 - an unused result; nothing to clean up
+        return
+    if isinstance(outcome, dict) and isinstance(outcome.get("results"), str):
+        with contextlib.suppress(OSError):
+            os.unlink(outcome["results"])
+
+
+def map_candidate(db, info) -> bool:
+    """Whether a file is mapped by a worker (independent line-format file)."""
+    if (
+        info["agent"] not in PARALLEL_AGENTS
+        or info["agent"] not in MAPPERS
+        or info["role"] == "legacy_transcript"
+        or info["format"] not in LINE_FORMATS
+    ):
+        return False
+    latest = db.execute(
+        "SELECT archive_uid FROM source_revision WHERE file_id=? ORDER BY revision DESC LIMIT 1",
+        (info["file_id"],),
+    ).fetchone()
+    return latest is not None and latest[0] is None
+
+
+def map_task(db, info, mapper_version):
+    meta, rows = indexed_rows(db, info["file_id"])
+    return {
+        "info": {k: info[k] for k in info.keys()},
+        "meta": {k: meta[k] for k in meta.keys()},
+        "root_path": meta["root_path"],
+        "rows": rows,
+        "mapper_version": mapper_version,
+    }
+
+
+PROJECTION_INFO = "SELECT f.*,s.agent FROM source_file f JOIN source s USING(source_id)"
+
+
+def _premap(store, pool, executor, file_id):
+    """First import: start mapping a captured file while later files are captured."""
+    info = store.db.execute(PROJECTION_INFO + " WHERE f.file_id=?", (file_id,)).fetchone()
+    if info is None or not map_candidate(store.db, info):
+        return
+    task = map_task(store.db, info, MAPPER_VERSION)
+    future = pool.submit(executor, map_file, task, pool.spill_dir(store.home))
+    if future is not None:
+        pool.premapped[file_id] = (task, future)
 
 
 # --- capture -----------------------------------------------------------------
@@ -349,8 +410,12 @@ class _CommitGroup:
             batch.__exit__(RuntimeError, RuntimeError("capture aborted"), None)
 
 
-def capture(store, source_id, root, selected, pool, cancel, progress, result, agent):
-    """Capture selected inputs: stat-unchanged files in one transaction, the rest in workers."""
+def capture(store, source_id, root, selected, pool, cancel, progress, result, agent, premap=True):
+    """Capture selected inputs: stat-unchanged files in one transaction, the rest in workers.
+
+    On the first import of a source (``premap``), each captured line file is also handed
+    to a worker for mapping right away, so stage A of the projection overlaps capture.
+    """
     files = {
         row["relative_path"]: row
         for row in store.db.execute(
@@ -401,6 +466,7 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
                     store._resolve_capture_issues(source_id, file_id)
     executor = pool.executor(sum(1 for _, job in jobs if job))
     futures = [pool.submit(executor, scan_lines, *job) if job else None for _, job in jobs]
+    premap = premap and not files and executor is not INLINE
     progress({"stage": "capture", "completed": 0, "total": len(selected)})
     group = _CommitGroup(store)
     try:
@@ -421,6 +487,8 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
                     captured = index_file(store, source_id, item.path, item.role, scan)
                     result["files"] += 1
                     result["changed"] += int(captured["changed"])
+                    if premap and scan is not None and not pool.broken:
+                        _premap(store, pool, executor, captured["file_id"])
                 except CAPTURE_ERRORS as error:
                     result["capture_errors"] += 1
                     store.issue(
@@ -738,35 +806,23 @@ class MapPlan:
             weakref.finalize(self, pool.close)
         self.pool = pool
         self.search_index = DeferredSearchIndex.start(store.db, len(infos))
-        candidates = []
-        for info in infos:
-            if (
-                info["agent"] not in PARALLEL_AGENTS
-                or info["agent"] not in MAPPERS
-                or info["role"] == "legacy_transcript"
-                or info["file_id"] in unavailable
-                or info["format"] not in LINE_FORMATS
-            ):
-                continue
-            latest = store.db.execute(
-                "SELECT archive_uid FROM source_revision WHERE file_id=? ORDER BY revision DESC LIMIT 1",
-                (info["file_id"],),
-            ).fetchone()
-            if latest is None or latest[0] is not None:
-                continue
-            candidates.append(info)
+        candidates = [
+            info
+            for info in infos
+            if info["file_id"] not in unavailable and map_candidate(store.db, info)
+        ]
         executor = self.pool.executor(len(candidates))
         spill = self.pool.spill_dir(store.home) if executor is not INLINE else None
+        premapped = getattr(self.pool, "premapped", {})
         # Submit while reading L1 rows so workers start before the last file is loaded.
         for info in candidates:
-            meta, rows = indexed_rows(store.db, info["file_id"])
-            task = {
-                "info": {k: info[k] for k in info.keys()},
-                "meta": {k: meta[k] for k in meta.keys()},
-                "root_path": meta["root_path"],
-                "rows": rows,
-                "mapper_version": mapper_version,
-            }
+            task = map_task(store.db, info, mapper_version)
+            early = premapped.pop(info["file_id"], None)
+            if early is not None and early[0] == task:
+                self.futures[info["file_id"]] = early[1]  # Same input, started at capture.
+                continue
+            if early is not None and not early[1].cancel():
+                early[1].add_done_callback(_drop_spill)  # Stale input: never used.
             future = self.pool.submit(executor, map_file, task, spill)
             if future is not None:  # None: the pool broke; this file is mapped serially.
                 self.futures[info["file_id"]] = future
