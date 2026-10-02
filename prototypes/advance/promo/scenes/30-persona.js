@@ -24,6 +24,7 @@ scene('30-persona', () => {
 .tag .pchip .tr{position:absolute;pointer-events:none;border-radius:3px}
 .k.pe-blk{transform-origin:100% 50%}
 .pe-name i{color:var(--orbit)}
+.lt.pe-sc{font-size:48px}
 `);
   const SW0 = 30, SW1 = 44;
   // needle bearing (deg) — the SAME curve must be used by scenes/30-persona.js and music.py (needle ticks)
@@ -180,13 +181,14 @@ scene('30-persona', () => {
     });
   });
 
-  /* 4b text: 01 · 人格分析 / 16 种协作人格 / 4 个维度 · 8 个极 (left, compass on the right) */
-  txt(28.0, 37.6, [['eb', '01 · 人格分析']], { x: 150, y: 300 }, { outB: .6 });
-  txt(28.2, 31.7, [['hv sv', '16 种'], ['hv sv', '协作人格']], { x: 150, y: 490 }, { st: .2, outB: .5 });
-  txt(28.8, 31.7, [['lt acc', '4 个维度 · 8 个极']], { x: 150, y: 680 }, { anim: K.blurIn({ spread: .5, out: .5 }) });
+  /* 4b text: 01 · 人格分析 / 16 种协作人格 / 4 个维度 · 8 个极 (left, compass on the right). It comes in from b27.0,
+     while the bezel flips up and the left half is empty, so all of it is readable from b28.1 to b33.2 (2.5 s) */
+  txt(27.0, 37.6, [['eb', '01 · 人格分析']], { x: 150, y: 300 }, { outB: .6 });
+  txt(27.1, 33.7, [['hv sv', '16 种'], ['hv sv', '协作人格']], { x: 150, y: 490 }, { st: .2, inB: .8, outB: .5 });
+  txt(27.4, 33.7, [['lt acc', '4 个维度 · 8 个极']], { x: 150, y: 680 }, { anim: K.blurIn({ spread: .4, out: .5 }) });
 
   /* 4c: 你是 ___ — one name at a time, rolling with the needle; the code below in sync; leaves without the answer */
-  txt(31.6, 37.6, [['lt', '你是'], ['hv sv', '<span class="pe-slot"><span class="pn"></span></span>'], ['pe-code', '<span class="pc"></span>']], { x: 150, y: 530 }, {
+  txt(33.65, 37.6, [['lt', '你是'], ['hv sv', '<span class="pe-slot"><span class="pn"></span></span>'], ['pe-code', '<span class="pc"></span>']], { x: 150, y: 530 }, {
     st: .15, inB: .8, outB: .6, spread: 1, tick: (el, tl, life, t) => {
       // from b37.0 the slot freezes on the name it shows then (搭档): while the line spreads out the needle passes north,
       // which must not give the answer away, and a short name keeps the spreading line clear of the moving dial
@@ -257,13 +259,15 @@ scene('30-persona', () => {
     if (q > 0) { el.style.opacity = (1 - E.in(q)).toFixed(3); el.style.filter = q > .02 ? 'blur(' + (q * 6).toFixed(1) + 'px)' : 'none'; }
   };
   const BLK = { x: 1800, align: 'r' };
+  const SWBOX = [1320, 560, 850, 960], EBY = 90;   // 4f: the card's screen box and the top-right eyebrow's y
   txt(45.2, 52.8, [['eb', '你的协作人格 · YOUR TYPE']], Object.assign({ y: 300 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(300)) });
   txt(45.4, 52.8, [['xl sv serif', ME.code]], Object.assign({ y: 432 }, BLK), { anim: K.all(K.centerOut({ step: .12, dur: .4, out: 0 }), shrink(432)) });
   txt(46.4, 52.8, [['md pe-name', ME.zh + ' <span class="serif"><i>' + ME.en + '</i></span>']], Object.assign({ y: 590 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(590)) });
   // decode with a narrow start spacing: the line is right-aligned, so its extra width grows left towards the dial
   txt(47.0, 52.8, [['lt', '整段交出，多线并进，亲自验收。']], Object.assign({ y: 680 }, BLK), { anim: K.all(K.decode({ step: .05, dur: .4, out: 0, from: .15 }), shrink(680)) });
-  txt(47.6, 52.8, [['lt', STR.map((a, i) => CPD.AXES[i][a.letter === CPD.AXES[i].L ? 'Ln' : 'Rn'] + ' <b>' + Math.round(a.strong) + '</b>').join(' · ')]], Object.assign({ y: 770 }, BLK), { anim: K.all(K.blurIn({ spread: .4, out: 0 }), shrink(770)) });
-  txt(52.4, 57.1, [['eb', ME.code + ' · ' + ME.zh]], { x: 1800, y: 90, align: 'r' }, { inB: .7, outB: .5 });
+  txt(47.6, 52.8, [['lt pe-sc', STR.map((a, i) => CPD.AXES[i][a.letter === CPD.AXES[i].L ? 'Ln' : 'Rn'] + ' <b>' + Math.round(a.strong) + '</b>').join(' · ')]], Object.assign({ y: 780 }, BLK), { anim: K.all(K.blurIn({ spread: .4, out: 0 }), shrink(780)) });
+  // leaves by b56.2, before the opening portal (centred on 「建议 →」) reaches the top right
+  txt(52.4, 56.2, [['eb', ME.code + ' · ' + ME.zh]], { x: 1800, y: EBY, align: 'r' }, { inB: .7, outB: .5 });
 
   /* ---------- 4f: 优势与盲点 → 「建议 →」 → portal (b52–57.4) ---------- */
   const swCard = (D) => { const s = D.querySelector('.pe-sw'); return s && s.closest('.card'); };
@@ -276,11 +280,39 @@ scene('30-persona', () => {
     solo(1, swCard); unscroll();
   });
   every(50.0, 57.6, unscroll);
-  tween(2, 52.0, 1.2, () => framing(2, 'all', [450, 560, 580, 580]), E.inOut);
-  tween(1, 52.4, .9, () => framing(1, swCard, [1290, 600, 720, 760]), E.quart, (T) => ({ ay: T.ay + 260, z: -420, rx: 24, s: T.s * .94, o: 0, bl: 8 }));
-  tween(1, 53.3, 2.3, () => ({ s: decks[1].C.s * 1.025 }), E.sine);
-  // rows one by one from b53.0, every 0.3 beat; ✓ / ⚠ icons pop
+  // the card in its own px: top, left, width, and where each row ends (the card is stretched by its grid row, so its
+  // lower part is empty: the film frames and shows only the card down to the last row plus the card's own padding)
+  const PADB = 16;
+  const swGeo = (D) => {
+    const c = swCard(D), rows = c ? [...c.querySelectorAll('.pe-sw .pe-swr')] : [];
+    if (!c || !rows.length) return null;
+    const r = c.getBoundingClientRect(), top = (e) => e.getBoundingClientRect().top - r.top, bot = (e) => e.getBoundingClientRect().bottom - r.top;
+    return { c, r, rows, head: top(rows[0]) - 6, bots: rows.map(bot), tops: rows.map(top), full: bot(rows[rows.length - 1]) + PADB };
+  };
+  // frame the card as it is when complete (header to last row + padding) into box [cx, cy, w, h]
+  const frameSW = (box) => {
+    const g = swGeo(decks[1].D); if (!g) return framing(1, swCard, box);
+    const [cx, cy, w, h] = box, s = Math.min(w / g.r.width, h / g.full);
+    return { x: g.r.left + g.r.width / 2, y: g.r.top + g.full / 2, s, ax: cx, ay: cy, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0 };
+  };
+  // the tags sit beside their own group of rows (the card's left edge, the rows' height), not beside the whole card
+  const swGroup = (i0, i1) => (D) => {
+    const g = swGeo(D); if (!g) return null;
+    return { getBoundingClientRect: () => ({ left: g.r.left, right: g.r.right, width: g.r.width, top: g.r.top + g.tops[i0], bottom: g.r.top + g.bots[i1], height: g.bots[i1] - g.tops[i0] }) };
+  };
+  tween(2, 52.0, 1.2, () => framing(2, 'all', [360, 560, 480, 480]), E.inOut);
+  tween(1, 52.4, .9, () => frameSW(SWBOX), E.quart, (T) => ({ ay: T.ay + 260, z: -420, rx: 24, s: T.s * .94, o: 0, bl: 8 }));
+  tween(1, 53.3, 2.3, () => ({ s: decks[1].C.s * 1.012 }), E.sine);
+  // rows one by one from b53.0, every 0.3 beat; ✓ / ⚠ icons pop. The card grows with them: it is clipped just below the
+  // last row that has started to come in (plus the card's padding), like a reply card that gets longer line by line
   drive(1, 49.9, 57.6, (p, b, D) => {
+    const g = swGeo(D);
+    if (g) {
+      let bot = g.head;
+      g.bots.forEach((y, i) => { bot = lerp(bot, y, E.out(lp(b, 53.0 + i * .3, .3))); });
+      const cut = b >= 57.55 ? 0 : Math.max(0, g.r.height - bot - PADB);
+      g.c.style.clipPath = cut > .5 ? 'inset(0 0 ' + cut.toFixed(1) + 'px 0 round 0 0 12px 12px)' : '';
+    }
     const rows = D.querySelectorAll('.pe-sw .pe-swr');
     rows.forEach((r, i) => {
       const q = E.out(lp(b, 53.0 + i * .3, .4)), ic = r.querySelector('svg');
@@ -292,10 +324,10 @@ scene('30-persona', () => {
   });
   // tags scale about their anchor (the engine's left-side transform-origin drifts when the camera zoom is far from 1)
   const anchor0 = (el) => { el.style.transformOrigin = '0 0'; };
-  tag(1, 53.1, 56.4, swCard, 'left', [['lt', '3 个优势']], { at: .3, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
-  tag(1, 54.0, 56.4, swCard, 'left', [['lt pe-or', '3 个盲点'], ['lt pe-or', '都有解法']], { at: .75, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
+  tag(1, 53.1, 56.4, swGroup(0, 2), 'left', [['lt', '3 个优势']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
+  tag(1, 54.0, 56.4, swGroup(3, 5), 'left', [['lt pe-or', '3 个盲点'], ['lt pe-or', '都有解法']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
   clickAt(1, 55.6, recLnk, () => {}, { bloom: 'var(--a1)' });
-  portal(0, 55.7, 1.6, () => elXY(1, recLnk));
+  portal(0, 55.7, 1.6, () => elXY(1, recLnk), 2300, E.in, .6, 'rgba(226,96,43,.95)');
   // the door cuts through decks 1 and 2 as well (they sit above deck 0), and they drift forward and blur away
   let PC = null;
   every(55.1, 57.5, (p, b) => {
@@ -309,5 +341,5 @@ scene('30-persona', () => {
   tween(1, 55.8, 1.55, () => ({ s: decks[1].C.s * 1.12, bl: 10, o: 0 }), E.in);
   tween(2, 55.8, 1.55, () => ({ s: decks[2].C.s * 1.1, bl: 10, o: 0 }), E.in);
   // leave deck 1 tidy for whoever uses it next
-  at(57.6, () => { const D = decks[1].D; D.querySelectorAll('.pe-sw .pe-swr, .pe-sw .pe-swsep').forEach((r) => { r.style.opacity = ''; r.style.transform = ''; }); });
+  at(57.6, () => { const D = decks[1].D, c = swCard(D); if (c) c.style.clipPath = ''; D.querySelectorAll('.pe-sw .pe-swr, .pe-sw .pe-swsep').forEach((r) => { r.style.opacity = ''; r.style.transform = ''; }); });
 });
