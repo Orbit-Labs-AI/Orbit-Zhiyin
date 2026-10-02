@@ -11,7 +11,7 @@
 | 版本 | `opencode` 与 `@opencode-ai/core` 包版本均为 `1.18.34`（[packages/opencode/package.json:3](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/package.json#L3)） |
 | 语言 / 运行时 | TypeScript；Bun（亦有 Node 入口）；Effect；Drizzle ORM + SQLite；LLM 默认经 Vercel AI SDK `streamText` |
 | 分析方法 | 仅读源码、仓库内 spec 与测试；未运行 OpenCode、未安装依赖、未联网；本机没有 OpenCode 数据目录。源码是浅克隆（仅 1 个 commit），无法用 git 历史核对「何时改动」，时间线只能由迁移文件名里的时间戳与代码注释推断 |
-| 一句话结论 | 当前后端是单个 SQLite 库 `~/.local/share/opencode/opencode.db`（WAL）。默认运行时（V1）把会话写进 `session` / `message` / `part` 三张表（`data` 列存 JSON），每一次写入还会在 `event` 表追加一条 durable 事件（事件溯源日志）。旧的按文件 JSON 存储已不再读写会话，只剩 `storage/session_diff/*.json`。同库中还有 V2（OpenCode 2.0 preview）的 `session_message` / `session_input` / `session_context_epoch` 表，默认 TUI/CLI 不写它们 |
+| 一句话结论 | 当前后端是单个 SQLite 库 `~/.local/share/opencode/opencode.db`（WAL）。默认运行时（V1）把会话写进 `session` / `message` / `part` 三张表（`data` 列存 JSON），每一次写入还会在 `event` 表追加一条 durable 事件（事件溯源日志）。旧的按文件 JSON 存储已不再读写会话，只剩 `storage/session_diff/*.json`。同库中还有 V2（OpenCode 2.0 preview）的 `session_message` / `session_input` / `session_context_epoch` 表，默认 TUI/CLI 不写它们（但默认 server 也挂载了 V2 `/api/*`，经它提交的客户端会写，见 §2.1） |
 
 ## 1. 结构图与一次 chat 的数据流
 
@@ -131,12 +131,18 @@ sequenceDiagram
   U->>EN: 输入问题
   EN->>SP: 新会话时先 POST /session
   SP->>ST: Session.create
-  Note over ST: session 行，event session.created.1
+  Note over ST: session 行，event session.created.1<br/>TUI 建会话时已带 agent model variant，Web app 只带 directory
   EN->>SP: POST /session/:id/message
+  opt 会话的 agent 或 model 与本次 user 不同
+    SP->>ST: setAgentModel
+    Note over ST: session.updated.1，写在 user message 之前
+  end
   SP->>ST: createUserMessage
   Note over ST: message 行 role=user，part 行 text 等，每次写各追加一条 event
-  SP->>ST: touch 与 setAgentModel
+  SP->>ST: touch
   Note over ST: session.updated.1，改写 session 行
+  SP->>ST: 第 1 步开始时后台 fork 标题生成
+  Note over ST: 生成完成后 session.updated.1 写入 title，时间不定，标题生成的 LLM 用量不记录
   SP->>ST: 新建第 1 条 assistant
   Note over ST: message 行 role=assistant，tokens 全 0
   SP->>LM: llm.stream，历史由 toModelMessages 从库重建
@@ -162,8 +168,6 @@ sequenceDiagram
   LM-->>SP: text 与 finish-step
   SP->>ST: text 全文，step-finish，assistant finish=stop
   Note over ST: 每次更新都 upsert 表行并追加 event 行
-  SP->>ST: 后台生成标题
-  Note over ST: session.updated.1 写入 title，标题生成的 LLM 用量不记录
   SP-->>EN: 返回最后一条 assistant
   EN-->>U: 通过 SSE 渲染回答
 ```
@@ -173,6 +177,7 @@ sequenceDiagram
 - 所有写入都通过 `Session.updateMessage` / `updatePart` → `EventV2.publish` → 同一个 IMMEDIATE 事务里「projector upsert 表行 + 追加 event 行」（§4.1）。
 - 工具执行发生在 AI SDK 的单步内部（`tools[x].execute`），由 `processor` 根据流里的 `tool-call` / `tool-result` 更新 tool part（[packages/opencode/src/session/tools.ts:92-133](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/tools.ts#L92-L133)）。
 - 第二次 LLM 调用是**新的一条 assistant message**，`parentID` 仍指向同一条 user message（§5.1）。
+- `setAgentModel` 只在会话当前的 agent/model 与本次 user 不同时发生，且写在 user message 之前（[packages/opencode/src/session/prompt.ts:672-689](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L672-L689)、[packages/opencode/src/session/prompt.ts:1046](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1046)）。TUI 建会话时已带 agent/model/variant（[packages/tui/src/component/prompt/index.tsx:1000-1009](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/tui/src/component/prompt/index.tsx#L1000-L1009)），通常不触发；Web app 建会话只带 directory（[packages/app/src/utils/server-compat.ts:163-166](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/app/src/utils/server-compat.ts#L163-L166)），首条消息会触发。标题生成在第 1 步开始时 fork 到后台（[packages/opencode/src/session/prompt.ts:1132-1139](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1132-L1139)）。
 
 ## 2. 存储布局
 
@@ -181,7 +186,7 @@ sequenceDiagram
 - 打开数据库时设置 `journal_mode=WAL`、`synchronous=NORMAL`、`busy_timeout=5000`、`foreign_keys=ON`，然后执行迁移（[packages/core/src/database/database.ts:22-37](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/database.ts#L22-L37)）。
 - 表定义归 `packages/core`（`*.sql.ts` / `sql.ts`，见 [packages/core/drizzle.config.ts:5](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/drizzle.config.ts#L5)）；`packages/opencode` 只是重新导出（[packages/opencode/src/storage/schema.ts:1-5](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/storage/schema.ts#L1-L5)）。
 - **默认运行时 = V1**：TUI 提交 prompt 调的是 SDK `session.prompt`，即 V1 路由 `POST /session/:sessionID/message`（[packages/tui/src/component/prompt/index.tsx:1093-1111](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/tui/src/component/prompt/index.tsx#L1093-L1111)，[packages/opencode/src/server/routes/instance/httpapi/groups/session.ts:78-104](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/server/routes/instance/httpapi/groups/session.ts#L78-L104)）。`opencode run` 同样走 `client.session.prompt`（[packages/opencode/src/cli/cmd/run.ts:864-870](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/run.ts#L864-L870)），Web/Desktop app 走 `legacy().session.promptAsync`（[packages/app/src/utils/server-compat.ts:200-201](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/app/src/utils/server-compat.ts#L200-L201)）。spec 也写明 V2 runner 尚未取代 V1（[specs/v2/session.md:123-125](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/specs/v2/session.md#L123-L125)），`session.next.*` 事件「experimental and unshipped」（[specs/v2/session.md:173](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/specs/v2/session.md#L173)）。
-- **V2 表**只有在调用 V2 `/api/session/*`（`@opencode-ai/server` + `@opencode-ai/protocol`，例如「OpenCode 2.0 preview」CLI，[packages/cli/src/commands/commands.ts:7](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/cli/src/commands/commands.ts#L7)）时才会写入；该 CLI 的「Migrate v1 data to v2」目前只打印 `No migrations to run.`（[packages/cli/src/commands/handlers/migrate.ts:5](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/cli/src/commands/handlers/migrate.ts#L5)）。
+- **V2 表**只有在调用 V2 `/api/session/*`（`@opencode-ai/server` + `@opencode-ai/protocol`，例如「OpenCode 2.0 preview」CLI，[packages/cli/src/commands/commands.ts:7](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/cli/src/commands/commands.ts#L7)）时才会写入；该 CLI 的「Migrate v1 data to v2」目前只打印 `No migrations to run.`（[packages/cli/src/commands/handlers/migrate.ts:5](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/cli/src/commands/handlers/migrate.ts#L5)）。默认的 `opencode` / `opencode serve` server 同样挂载了 V2 `/api/*`（[packages/opencode/src/server/routes/instance/httpapi/server.ts:177-181](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/server/routes/instance/httpapi/server.ts#L177-L181)、[packages/opencode/src/server/routes/instance/httpapi/server.ts:276-282](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/server/routes/instance/httpapi/server.ts#L276-L282)、[packages/opencode/src/server/routes/instance/httpapi/server.ts:299-301](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/server/routes/instance/httpapi/server.ts#L299-L301)），所以任何经 `/api/session/*` 提交的客户端都会写 V2 表；内置 TUI 对 V2 只读（[packages/tui/src/context/data.tsx:422-459](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/tui/src/context/data.tsx#L422-L459)）。
 - **旧 JSON 文件存储**：`Storage` 服务仍在（`<data>/storage/<key...>.json`，[packages/opencode/src/storage/storage.ts:63-65](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/storage/storage.ts#L63-L65)、[packages/opencode/src/storage/storage.ts:224](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/storage/storage.ts#L224)），但 HEAD 里唯一的调用方是 revert 写 `session_diff/<sessionID>.json`（[packages/opencode/src/session/revert.ts:77](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L77)）。JSON→SQLite 的启动迁移已被删除（[specs/storage/remove-opencode-db.md:61](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/specs/storage/remove-opencode-db.md#L61)）；全仓 grep 不到任何读取旧 `storage/session|message|part` 会话文件的代码，只剩 `Storage` 自带的两个「旧目录 → 新目录」JSON 搬迁步骤（[packages/opencode/src/storage/storage.ts:81-211](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/storage/storage.ts#L81-L211)）。
 
 ### 2.2 数据根目录与覆盖方式
@@ -190,7 +195,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 数据根 `Global.Path.data` | `path.join(xdgData, "opencode")`；`xdgData` 来自 `xdg-basedir@5.1.0`，即 `$XDG_DATA_HOME`，未设置时为 `~/.local/share`。**macOS 也是 `~/.local/share/opencode`，不是 `~/Library/...`**；Windows 为 `%USERPROFILE%\.local\share\opencode` | [packages/core/src/global.ts:10-29](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/global.ts#L10-L29)，[packages/core/package.json:127](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/package.json#L127)，[packages/web/src/content/docs/troubleshooting.mdx:25-28](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/web/src/content/docs/troubleshooting.mdx#L25-L28) |
 | 库文件名 | `OPENCODE_DB` 设置时：`:memory:` 或绝对路径原样使用，相对路径拼到数据根；否则渠道为 `latest`/`beta`/`prod` 或 `OPENCODE_DISABLE_CHANNEL_DB=1/true` 时为 `opencode.db`；其他渠道为 `opencode-<channel>.db`（源码直接运行时渠道默认 `local` → `opencode-local.db`） | [packages/core/src/database/database.ts:43-55](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/database.ts#L43-L55)，[packages/core/src/installation/version.ts:6-8](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/installation/version.ts#L6-L8)，[packages/core/src/flag/flag.ts:47](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/flag/flag.ts#L47) |
-| 自查命令 | `opencode db path` 打印库路径；`opencode db "<SQL>" --format json` 直接查询 | [packages/opencode/src/cli/cmd/db.ts:8-52](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/db.ts#L8-L52) |
+| 自查命令 | `opencode db path` 打印库路径；`opencode db "<SQL>" --format json` 直接查询（以读写方式打开库并先执行迁移，只读核对请用 `sqlite3 -readonly`，见 §9.4） | [packages/opencode/src/cli/cmd/db.ts:8-52](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/db.ts#L8-L52) |
 | 文档滞后 | 官方 troubleshooting 仍写「`project/<slug>/storage/`」，那是更早的 JSON 布局，已不符合 HEAD | [packages/web/src/content/docs/troubleshooting.mdx:30-36](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/web/src/content/docs/troubleshooting.mdx#L30-L36) |
 
 ### 2.3 目录结构（HEAD）
@@ -242,7 +247,7 @@ $XDG_DATA_HOME/opencode/        默认 ~/.local/share/opencode/
 | 事件 | `evt_` + 26 字符 | 升序 | [packages/schema/src/event.ts:9-12](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/event.ts#L9-L12) |
 | 其他前缀 | `per`（权限请求）、`que`（问题）、`tool`（`tool-output` 文件名）、`wrk`、`pty`、`job` | — | [packages/opencode/src/id/id.ts:3-14](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/id/id.ts#L3-L14) |
 | 工具调用 `callID` | 模型 provider 给的 tool call id（如 Anthropic/OpenAI 的原生 id）；用户 `!shell` 与 subtask/命令触发的 task 用 `ulid()` | — | [packages/opencode/src/session/prompt.ts:288](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L288)、[packages/opencode/src/session/prompt.ts:511](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L511) |
-| 项目 ID | ① 有 `origin` remote：`sha1("git-remote:" + 小写host/路径去.git)`；② 否则读 `<git common dir>/opencode` 缓存；③ 否则最小的根 commit SHA（`git rev-list --max-parents=0 HEAD` 排序取首个）；④ 非 git 目录为 `"global"`（worktree 记为 `/`） | — | [packages/core/src/project.ts:65-122](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/project.ts#L65-L122)，[packages/core/src/git.ts:205-219](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/git.ts#L205-L219)，[packages/opencode/src/project/project.ts:213-218](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/project/project.ts#L213-L218) |
+| 项目 ID | ① 有 `origin` remote：`sha1("git-remote:" + 小写host/路径去.git)`；② 否则读 `<git common dir>/opencode` 缓存；③ 否则最小的根 commit SHA（`git rev-list --max-parents=0 HEAD` 排序取首个）；④ 非 git 目录为 `"global"`（worktree 记为 `/`）。ID 优先取 remote，所以同一 remote 的多个 clone/worktree 共用一个项目 ID 和一行 project：`worktree` 只记第一次打开的 checkout，其余目录进 `sandboxes`（§9.4） | — | [packages/core/src/project.ts:65-122](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/project.ts#L65-L122)，[packages/core/src/git.ts:205-219](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/git.ts#L205-L219)，[packages/opencode/src/project/project.ts:213-218](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/project/project.ts#L213-L218) |
 
 ID 生成算法（[packages/schema/src/identifier.ts:14-30](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/identifier.ts#L14-L30)）：`value = timestamp_ms * 0x1000 + counter`（counter 在同一毫秒、同一进程内自增），降序时取按位非；然后**只取 `value` 的低 48 位**编码为 12 位 hex，再接 14 位 base62 随机字符。
 
@@ -261,7 +266,7 @@ ID 生成算法（[packages/schema/src/identifier.ts:14-30](https://github.com/a
 | D. 迁移表切换 | 旧库用 Drizzle 的 `__drizzle_migrations`，首次运行时导入到自有 `migration` 表 | [packages/core/src/database/migration.ts:51-94](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration.ts#L51-L94) |
 | E. 列演进 | `session.workspace_id`（2026-02-27）、`session.path`（04-28）、`session.agent/model`（05-01）、`session.cost/tokens_*` 并按 assistant 消息回填（05-10）、`session.metadata`（05-11） | [packages/core/src/database/migration.gen.ts:3-44](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration.gen.ts#L3-L44)，回填 SQL [packages/core/src/database/migration/20260510033149_session_usage.ts:7-53](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260510033149_session_usage.ts#L7-L53) |
 | F. 事件溯源 | `event` / `event_sequence`（2026-03-23），`owner_id`（05-04） | [packages/core/src/database/migration/20260323234822_events.ts:8-24](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260323234822_events.ts#L8-L24) |
-| G. V2 表与清空 | `session_entry`（04-13）→ `session_message`（04-27）；`session_input`（06-03）；`session_context_epoch`（06-05）。06-03、06-04、06-22 的迁移多次 `DELETE FROM` V2 表以及 **`event` / `event_sequence`**，但保留 V1 的 session/message/part | [packages/core/src/database/migration/20260604172448_event_sourced_session_input.ts:8-12](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260604172448_event_sourced_session_input.ts#L8-L12)，[packages/core/src/database/migration/20260622202450_simplify_session_input.ts:8-14](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260622202450_simplify_session_input.ts#L8-L14)；测试断言「preserves canonical V1 state and restarts its event stream」（[packages/core/test/database-migration.test.ts:298-383](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/test/database-migration.test.ts#L298-L383)） |
+| G. V2 表与清空 | `session_entry`（04-13）→ `session_message`（04-27）；`session_input`（06-03）；`session_context_epoch`（06-05）。06-03 的迁移只清空 `session_message`；06-04（`20260604172448`）与 06-22 的两个迁移（`20260622170816_reset_v2_session_state`、`20260622202450`）清空 V2 表以及 **`event` / `event_sequence`**，三者还都执行 `DELETE FROM workspace`；V1 的 session/message/part 均保留 | [packages/core/src/database/migration/20260603040000_session_message_projection_order.ts:10](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260603040000_session_message_projection_order.ts#L10)，[packages/core/src/database/migration/20260604172448_event_sourced_session_input.ts:8-13](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260604172448_event_sourced_session_input.ts#L8-L13)，[packages/core/src/database/migration/20260622170816_reset_v2_session_state.ts:8-14](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260622170816_reset_v2_session_state.ts#L8-L14)，[packages/core/src/database/migration/20260622202450_simplify_session_input.ts:8-14](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260622202450_simplify_session_input.ts#L8-L14)；测试断言「preserves canonical V1 state and restarts its event stream」（[packages/core/test/database-migration.test.ts:298-383](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/test/database-migration.test.ts#L298-L383)） |
 | H. 权限表重建 | 旧 `permission`（project_id 主键 + data JSON）被删除，重建为 V2 saved 授权表 | [packages/core/src/database/migration/20260601202201_amazing_prowler.ts:8](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260601202201_amazing_prowler.ts#L8)，[packages/core/src/database/migration/20260602002951_lowly_union_jack.ts:8-21](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260602002951_lowly_union_jack.ts#L8-L21) |
 
 推论：**`event` 表不是完整历史**。2026-06-22 之前产生的事件已被清空，`import` 命令直接写表、不发事件（见 §5.7），会话删除时还会删掉该会话的事件。会话内容的权威来源始终是 `message` / `part`。
@@ -279,7 +284,7 @@ ID 生成算法（[packages/schema/src/identifier.ts:14-30](https://github.com/a
 | `XDG_DATA_HOME` | 改数据根 | [packages/core/src/global.ts:10-11](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/global.ts#L10-L11) |
 | `OPENCODE_DB` | 指定库文件（绝对 / 相对数据根 / `:memory:`） | [packages/core/src/database/database.ts:44-46](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/database.ts#L44-L46) |
 | `OPENCODE_DISABLE_CHANNEL_DB` | 非正式渠道也用 `opencode.db` | [packages/core/src/database/database.ts:48-53](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/database.ts#L48-L53) |
-| `OPENCODE_EXPERIMENTAL_NATIVE_LLM` / `OPENCODE_EXPERIMENTAL` | 改走原生 LLM 运行时（落盘形态相同） | [packages/opencode/src/session/llm/AGENTS.md:85-88](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/llm/AGENTS.md#L85-L88) |
+| `OPENCODE_EXPERIMENTAL_NATIVE_LLM` | 改走原生 LLM 运行时（落盘形态相同）。HEAD 只认这一个变量，`OPENCODE_EXPERIMENTAL` 不能开启它（llm/AGENTS.md 中「`OPENCODE_EXPERIMENTAL=true` 也可开启」的说法已过时） | [packages/opencode/src/effect/runtime-flags.ts:54](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/effect/runtime-flags.ts#L54)，[packages/opencode/src/session/llm/AGENTS.md:85-88](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/llm/AGENTS.md#L85-L88) |
 | `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS` | 允许后台子代理 | [packages/opencode/src/tool/task.ts:97-102](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/task.ts#L97-L102) |
 | 配置 `snapshot: false` | 不建快照，step 上无 snapshot、无 patch part | [packages/opencode/src/snapshot/index.ts:167-170](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/snapshot/index.ts#L167-L170) |
 | 配置 `tool_output.max_lines/max_bytes` | 工具输出截断阈值（默认 2000 行 / 50 KB） | [packages/opencode/src/tool/truncate.ts:75-83](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/truncate.ts#L75-L83) |
@@ -287,7 +292,7 @@ ID 生成算法（[packages/schema/src/identifier.ts:14-30](https://github.com/a
 
 ## 3. 记录 schema
 
-所有时间戳都是 **Unix 毫秒整数**（`Date.now()`）。`message.data` / `part.data` 是去掉了外键字段的 JSON：`message.data` 不含 `id`、`sessionID`；`part.data` 不含 `id`、`sessionID`、`messageID`（这些在列里）（[packages/core/src/session/projector.ts:77-87](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L77-L87)）。读取时 OpenCode 把列合并回对象（[packages/opencode/src/session/message-v2.ts:80-93](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/message-v2.ts#L80-L93)）。`time_created` / `time_updated` 两列由 Drizzle 维护：插入时默认 `Date.now()`，更新时由 `$onUpdate` 刷新（[packages/core/src/database/schema.sql.ts:3-10](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/schema.sql.ts#L3-L10)）。
+所有时间戳都是 **Unix 毫秒整数**（`Date.now()`）。`message.data` / `part.data` 是去掉了外键字段的 JSON：`message.data` 不含 `id`、`sessionID`；`part.data` 不含 `id`、`sessionID`、`messageID`（这些在列里）（[packages/core/src/session/projector.ts:77-87](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L77-L87)）。读取时 OpenCode 把列合并回对象（[packages/opencode/src/session/message-v2.ts:80-93](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/message-v2.ts#L80-L93)）。`time_created` / `time_updated` 两列的来源因表而异：`session.time_*` 直接取自 `Session.Info.time`（[packages/core/src/session/projector.ts:43-75](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L43-L75)），usage 累加刻意保持 `time_updated` 不变（[packages/core/src/session/projector.ts:104](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L104)）；`message.time_created` = `data.time.created`，冲突时只更新 `data`（[packages/core/src/session/projector.ts:260-272](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L260-L272)）；`part.time_created` 是该 part 第一次 `message.part.updated` 的发布时刻（[packages/core/src/session/projector.ts:310-322](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L310-L322)，时间取自 [packages/opencode/src/session/session.ts:635-641](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L635-L641)）；只有 message/part 的 `time_updated` 由 Drizzle `$onUpdate` 在每次 insert/upsert 时刷新（[packages/core/src/database/schema.sql.ts:7-9](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/schema.sql.ts#L7-L9)；按 drizzle-orm 0.45 的实现核对，insert 与 upsert 都会刷新，OpenCode 用的是 1.0.0-rc.2）。
 
 ### 3.1 DDL 摘录（新库建表语句，原文节选）
 
@@ -334,18 +339,18 @@ CREATE UNIQUE INDEX `event_aggregate_seq_idx` ON `event` (`aggregate_id`,`seq`);
 | `workspace_id` | text | 实验性 workspace | 创建 / `setWorkspace` |
 | `parent_id` | text | **父会话 ID**（task 子代理） | task 工具创建子会话（[packages/opencode/src/tool/task.ts:156-172](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/task.ts#L156-L172)） |
 | `slug` | text | 随机 slug（plan 文件名） | 创建 |
-| `directory` | text | 创建会话时的 cwd（绝对路径；Windows 反斜杠规范为 `/`） | 创建；V2 `moved` 事件 |
-| `path` | text | `directory` 相对 worktree 的子路径（`/` 分隔） | 创建（[packages/opencode/src/session/session.ts:171-173](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L171-L173)） |
+| `directory` | text | 会话的**当前**目录：创建时为 cwd（绝对路径；Windows 反斜杠规范为 `/`），默认 TUI 的 `/move` 会改写它；每步实际所在目录看 assistant 的 `path.cwd/root` | 创建；`session.next.moved` 事件（V1 会话同样会产生，见 §3.6） |
+| `path` | text | `directory` 相对 worktree 的子路径（`/` 分隔） | 创建（[packages/opencode/src/session/session.ts:171-173](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L171-L173)）；`session.next.moved` 事件 |
 | `title` | text | 默认 `New session - <ISO时间>` / `Child session - <ISO时间>`；第 1 步后由 `title` agent 生成（≤100 字符）；子代理为 `<description> (@<agent> subagent)`；fork 为 `<原标题> (fork #N)` | [packages/opencode/src/session/session.ts:48-55](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L48-L55)，[packages/opencode/src/session/prompt.ts:193-253](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L193-L253)，[packages/opencode/src/session/session.ts:161-169](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L161-L169) |
 | `version` | text | 创建时的 OpenCode 版本 | 创建 |
 | `share_url` | text | 分享链接 | `setShare` |
 | `summary_additions/deletions/files` | int | 会话级改动统计。**HEAD 每步把它们置 0**（`summarize` 先 `setSummary(0,0,0)`），只有 revert 暂存时写真实值；按消息的改动在 user message 的 `summary.diffs` 里（源码推导） | [packages/opencode/src/session/summary.ts:102-127](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/summary.ts#L102-L127)，[packages/opencode/src/session/revert.ts:79-87](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L79-L87) |
 | `summary_diffs` | text JSON | 旧版会话级 diff 列表；HEAD 不写 | — |
 | `metadata` | text JSON | 任意元数据（HTTP API 可设） | `setMetadata` |
-| `cost` | real | **累计成本（USD）**：projector 每次写入 `step-finish` part 时加上其 `cost`，替换/删除时先减旧值 | [packages/core/src/session/projector.ts:89-109](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L89-L109)，[packages/core/src/session/projector.ts:310-328](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L310-L328) |
+| `cost` | real | **累计成本（USD）**：projector 每次写入 `step-finish` part 时加上其 `cost`，替换/删除时先减旧值。但不严格等于本会话 step-finish 之和：05-10 之前已存在的会话由 assistant 值回填（tokens 取的是各 assistant 的最后一步，[packages/core/src/database/migration/20260510033149_session_usage.ts:14-53](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/migration/20260510033149_session_usage.ts#L14-L53)）；`patch` 在增量累加的事务之外用整份 Info 覆盖 cost/tokens，并发时可能丢掉一次累加（[packages/opencode/src/session/session.ts:734-747](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L734-L747)、[packages/core/src/session/projector.ts:234-241](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L234-L241)）；fork 会重复计入复制的前缀（§5.4） | [packages/core/src/session/projector.ts:89-109](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L89-L109)，[packages/core/src/session/projector.ts:310-328](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L310-L328) |
 | `tokens_input/output/reasoning/cache_read/cache_write` | int | 同上，按 `step-finish.tokens` 累加 | 同上 |
 | `revert` | text JSON | `{messageID, partID?, snapshot?, diff?, files?}`：已暂存、尚未提交的撤销点 | `setRevert` / `clearRevert` |
-| `permission` | text JSON | 会话级权限规则 `[{permission, pattern, action}]`（prompt 带 `tools` 开关或子代理继承） | [packages/opencode/src/session/prompt.ts:1060-1067](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1060-L1067) |
+| `permission` | text JSON | 会话级权限规则 `[{permission, pattern, action}]`。来源：创建会话时传入（`POST /session` 可带 `permission`，[packages/opencode/src/session/session.ts:260-270](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L260-L270)；非交互的 `opencode run` 默认写入对 `question`/`plan_enter`/`plan_exit` 的 deny，[packages/opencode/src/cli/cmd/run.ts:430-448](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/run.ts#L430-L448)、[packages/opencode/src/cli/cmd/run.ts:519-522](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/run.ts#L519-L522)）、prompt 带 `tools` 开关、子代理继承 | [packages/opencode/src/session/prompt.ts:1060-1067](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1060-L1067) |
 | `agent` / `model` | text / text JSON | 当前 agent 与 `{id, providerID, variant}`；user message 的 agent/model 与之不同时更新 | [packages/opencode/src/session/prompt.ts:672-690](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L672-L690) |
 | `time_created` / `time_updated` | int | 创建 / 最近更新；`touch`、每步 `setSummary` 会刷新；usage 累加刻意不刷新（[packages/core/src/session/projector.ts:104](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L104)） | — |
 | `time_compacting` | int | HEAD 没有写入方（只透传），旧字段 | — |
@@ -404,7 +409,7 @@ Assistant（[packages/schema/src/v1/session.ts:453-485](https://github.com/anoma
 | --- | --- | --- | --- |
 | `text` | `text`, `synthetic?`, `ignored?`, `time?{start,end?}`, `metadata?` | user：用户输入；`synthetic:true` 为系统注入（文件读取结果、plan 提醒、压缩后的「Continue…」等）；assistant：模型正文，`metadata` 存 providerMetadata | [packages/schema/src/v1/session.ts:102-115](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L102-L115) |
 | `reasoning` | `text`, `time{start,end?}`, `metadata?` | 思考内容明文；`metadata` 存 provider 的签名或加密内容（如 Anthropic `signature`、OpenAI 加密 reasoning，键名由 AI SDK 决定，待确认） | [packages/schema/src/v1/session.ts:118-127](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L118-L127) |
-| `file` | `mime`, `filename?`, `url`, `source?` | 附件。**图片/二进制会被读成 `data:<mime>;base64,…` 直接存进 `url`**；文本文件与目录先以 synthetic text 形式内联 Read 结果 | [packages/schema/src/v1/session.ts:171-178](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L171-L178)，[packages/opencode/src/session/prompt.ts:949-969](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L949-L969) |
+| `file` | `mime`, `filename?`, `url`, `source?` | 附件。**图片/二进制会被读成 `data:<mime>;base64,…` 直接存进 `url`**；文本文件与目录先写两条 synthetic text（Read 调用说明与 Read 结果），随后保留原 file part（`url` 仍是 `file://`，目录的 mime 为 `application/x-directory`） | [packages/schema/src/v1/session.ts:171-178](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L171-L178)，[packages/opencode/src/session/prompt.ts:855-889](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L855-L889)，[packages/opencode/src/session/prompt.ts:930-945](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L930-L945)，[packages/opencode/src/session/prompt.ts:949-969](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L949-L969) |
 | `agent` | `name`, `source?{value,start,end}` | 用户 `@agent` 提及；同时附一条 synthetic text 让模型调用 task | [packages/schema/src/v1/session.ts:181-192](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L181-L192)，[packages/opencode/src/session/prompt.ts:974-990](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L974-L990) |
 | `subtask` | `prompt`, `description`, `agent`, `model?`, `command?` | 以子代理方式执行的斜杠命令 | [packages/schema/src/v1/session.ts:204-217](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L204-L217)，[packages/opencode/src/session/prompt.ts:1439-1451](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1439-L1451) |
 | `tool` | `callID`, `tool`, `state`, `metadata?` | 一次工具调用（见 3.5）；`metadata.providerExecuted` 表示 provider 端执行的工具 | [packages/schema/src/v1/session.ts:315-322](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L315-L322) |
@@ -434,7 +439,7 @@ error:     { status: "error",     input, error: string, metadata?, time: { start
 - 耗时 = `state.time.end - state.time.start`。`start` 是收到完整 tool-call（开始执行）的时间，不是模型开始生成参数的时间（[packages/opencode/src/session/processor.ts:331-351](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L331-L351)）。
 - `metadata` 常见键：`truncated`、`outputPath`（输出被截断时全文所在文件，[packages/opencode/src/tool/tool.ts:131-144](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/tool.ts#L131-L144)）；task 工具的 `sessionId`、`parentSessionId`、`model`、`background`、`jobId`（[packages/opencode/src/tool/task.ts:185-195](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/task.ts#L185-L195)）；中断时 `interrupted: true`（[packages/opencode/src/session/processor.ts:591-607](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L591-L607)）；shell 工具运行中的 `output` 预览（最多 30 000 字符，[packages/opencode/src/tool/shell.ts:27](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/shell.ts#L27)、[packages/opencode/src/tool/shell.ts:220-223](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/shell.ts#L220-L223)）。
 - `time.compacted` 表示该输出已被 prune（重放给模型时换成占位文本），**原文仍保留在库中**（[packages/opencode/src/session/compaction.ts:308-316](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L308-L316)）。
-- 参数校验失败时 AI SDK 会把调用改名为 `invalid`（[packages/opencode/src/session/llm.ts:296-312](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/llm.ts#L296-L312)）。
+- 工具调用解析或校验失败时，由 OpenCode 传给 AI SDK 的 `experimental_repairToolCall` 修复：只是工具名大小写不对时改成小写名，否则改名为 `invalid`，input 为 `{tool, error}`（[packages/opencode/src/session/llm.ts:296-312](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/llm.ts#L296-L312)）。
 
 ### 3.6 `event` / `event_sequence`
 
@@ -458,6 +463,8 @@ durable（会落 `event` 表）的会话事件 = V1 七种 + V2 `session.next.*`
 | `message.part.removed` | `{sessionID, messageID, partID}` |
 
 出处 [packages/schema/src/v1/session.ts:571-630](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L571-L630)。**不落盘**的 live 事件：`message.part.delta`（流式增量）、`session.diff`、`session.error`（[packages/schema/src/v1/session.ts:632-657](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/session.ts#L632-L657)）、`session.status`/`session.idle`、`session.compacted`、`permission.asked/replied`（[packages/schema/src/v1/permission.ts:61-66](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/permission.ts#L61-L66)）、`question.*`（[packages/schema/src/v1/question.ts:58-60](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/v1/question.ts#L58-L60)）、`todo.updated`（[packages/schema/src/session-todo.ts:18-25](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/session-todo.ts#L18-L25)）。
+
+V1 会话的事件日志里也可能出现 V2 事件：默认 TUI 的 `/move`（[packages/tui/src/component/prompt/index.tsx:547-551](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/tui/src/component/prompt/index.tsx#L547-L551)、[packages/tui/src/component/prompt/move.tsx:131-150](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/tui/src/component/prompt/move.tsx#L131-L150)）在 V1 会话上也发出 durable 的 `session.next.moved.1`（[packages/core/src/control-plane/move-session.ts:106-111](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/control-plane/move-session.ts#L106-L111)、[packages/schema/src/session-event.ts:77](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/session-event.ts#L77)、[packages/schema/src/session-event.ts:451](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/schema/src/session-event.ts#L451)），由 projector 改写 session 的 `directory`/`path`/`workspace_id`/`time_updated`（[packages/core/src/session/projector.ts:242-256](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L242-L256)），随后再追加一条 synthetic user 提示。
 
 ### 3.7 其他 V1 相关表
 
@@ -538,13 +545,13 @@ V2 的事件为 `session.next.*`（`prompted`、`step.started`、`step.ended`(v2
 | 情形 | 落盘表现 | 依据 |
 | --- | --- | --- |
 | 用户中断（ESC / `POST /session/:id/abort`）或 fiber 被中断 | assistant `error = {name:"MessageAbortedError"}`、写 `time.completed`；已产生的 text/reasoning 补写 `time.end`；`pending/running` 工具改为 `error`，`error:"Tool execution aborted"`，`metadata.interrupted=true` | [packages/opencode/src/session/processor.ts:553-611](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L553-L611)，[packages/opencode/src/session/processor.ts:661-669](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L661-L669)，[packages/opencode/src/session/prompt.ts:1203-1211](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1203-L1211)；测试 [packages/opencode/test/session/processor-effect.test.ts:873-1013](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/test/session/processor-effect.test.ts#L873-L1013) |
-| provider 可重试错误 | 最多重试 5 次，期间只发 `session.status{type:"retry"}`（不落盘）；成功则无痕迹 | [packages/opencode/src/session/retry.ts:183-207](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/retry.ts#L183-L207)，[packages/opencode/src/session/processor.ts:674-688](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L674-L688) |
+| provider 可重试错误 | 最多重试 5 次，期间只发 `session.status{type:"retry"}`（不落盘）；重试成功也会留下失败尝试已写入的 part（空 text/reasoning、多余的 `step-start`，见下一行） | [packages/opencode/src/session/retry.ts:183-207](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/retry.ts#L183-L207)，[packages/opencode/src/session/processor.ts:649-660](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L649-L660)，[packages/opencode/src/session/processor.ts:674-688](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L674-L688) |
 | 重试 / 中断残留 | 重试在**同一条 assistant message** 内重跑流，之前写入的 part 不会删除，可能留下空 text/reasoning 或多余的 `step-start`；遗留的 tool_use 会被标为 `interrupted`（源码注释 [packages/opencode/src/session/prompt.ts:96-100](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L96-L100)）。具体组合**待确认** | 同左 |
 | 重试耗尽 / 不可重试 | assistant `error` = `APIError` / `ProviderAuthError` / `UnknownError` 等；同时发 `session.error`（不落盘） | [packages/opencode/src/session/processor.ts:613-639](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L613-L639)，[packages/opencode/src/session/message-v2.ts:610-738](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/message-v2.ts#L610-L738) |
 | 上下文超限 | 不记错误，而是触发压缩（§5.3）；只有关闭自动压缩或压缩本身也超限时，assistant 才带 `ContextOverflowError`（`finish:"error"`） | [packages/opencode/src/session/processor.ts:621-631](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L621-L631)，[packages/opencode/src/session/compaction.ts:450-458](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L450-L458) |
 | `finish == "content-filter"` | assistant `error = ContentFilterError` | [packages/opencode/src/session/prompt.ts:1301-1308](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1301-L1308) |
 | 工具抛错 | tool part `status:"error"`，`error` 为异常消息文本 | [packages/opencode/src/session/processor.ts:186-205](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L186-L205) |
-| 权限被拒 | tool part `error` 为固定文案：`The user rejected permission to use this specific tool call.`、带反馈的 `…with the following feedback: <text>`、按规则拒绝的 `The user has specified a rule which prevents you…`；默认随后停止本轮（`experimental.continue_loop_on_deny` 可改） | [packages/core/src/v1/permission.ts:7-27](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/v1/permission.ts#L7-L27)，[packages/opencode/src/session/processor.ts:200-202](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L200-L202)，[packages/opencode/src/session/processor.ts:647](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L647) |
+| 权限被拒 | tool part `error` 为固定文案：`The user rejected permission to use this specific tool call.`、带反馈的 `…with the following feedback: <text>`、按规则拒绝的 `The user has specified a rule which prevents you…`。默认只有不带反馈的拒绝（以及被拒绝的 question）会随后停止本轮（`experimental.continue_loop_on_deny` 可改）；带反馈的拒绝（CorrectedError）和按规则拒绝（DeniedError）只把错误交回模型，循环继续 | [packages/core/src/v1/permission.ts:7-27](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/v1/permission.ts#L7-L27)，[packages/opencode/src/session/processor.ts:200-202](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L200-L202)，[packages/opencode/src/session/processor.ts:647](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L647) |
 | 同一工具同参数连续 3 次 | 触发 `doom_loop` 权限询问（询问本身不落盘） | [packages/opencode/src/session/processor.ts:353-379](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L353-L379) |
 | assistant 产生之前的错误（如 agent 不存在、读附件失败） | 只有 `session.error` 实时事件；读文件失败会额外写一条 synthetic text | [packages/opencode/src/session/prompt.ts:1170-1177](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1170-L1177)，[packages/opencode/src/session/prompt.ts:890-905](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L890-L905) |
 | 进程崩溃 / kill -9 | 不执行 cleanup：assistant 缺 `time.completed`，工具停在 `pending/running`；V1 无持久运行态，不会自动续跑；下次重建上下文时这些工具按「`[Tool execution was interrupted]`」错误回放 | [packages/opencode/src/session/message-v2.ts:353-364](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/message-v2.ts#L353-L364) |
@@ -576,7 +583,7 @@ session(parent_id = NULL, project_id, directory, title, agent, model, cost, toke
 - **一个 step = 一条 assistant message = 一次 provider 调用**。循环每一轮新建一条 assistant message，再调用一次 `llm.stream`（[packages/opencode/src/session/prompt.ts:1186-1201](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1186-L1201)、[packages/opencode/src/session/prompt.ts:1272-1286](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1272-L1286)）。AI SDK `streamText` 调用没有设置 `stopWhen`（[packages/opencode/src/session/llm.ts:280-353](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/llm.ts#L280-L353)），按 AI SDK 默认只跑一步，工具也在这一步里由 AI SDK 执行（[packages/opencode/src/session/llm.ts:276-277](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/llm.ts#L276-L277)）。因此通常一条 assistant 只有一对 `step-start` / `step-finish`；重试时可能多于一对（AI SDK 默认步数属外部库行为，**待确认**）。
 - **链接模型 = 以 user 为根的扇形**：同一轮的所有 assistant 的 `parentID` 都指向该轮的 user message，不是逐条链表。轮次之间只靠时间顺序（`time_created`, `id`）。
 - 循环退出条件：最后一条 assistant 的 `finish` 不是 `tool-calls`/`unknown`、其中没有待回传的本地工具调用，且 `parentID` 等于最新 user（[packages/opencode/src/session/prompt.ts:1111-1130](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1111-L1130)）。
-- **轮次边界**：每条 user message 都会开启新一轮循环，但其中有不少是系统合成的（只含 synthetic text 或 compaction part）：压缩后的「Continue…」、子任务汇总提示、后台任务结果注入、溢出重放。统计「用户提问数」时应排除「全部 part 都是 synthetic」的 user message 与 compaction user message（OpenCode 生成标题时用的就是这个判据，[packages/opencode/src/session/prompt.ts:202-206](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L202-L206)）。
+- **轮次边界**：每条 user message 都会开启新一轮循环，但其中有不少是系统合成的：压缩后的「Continue…」、子任务汇总提示、后台任务结果注入（只含 synthetic text），compaction user（只含 compaction part），以及溢出时重放的 user 副本（复制上一条真人消息的非 synthetic part，[packages/opencode/src/session/compaction.ts:469-494](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L469-L494)）。统计「用户提问数」时这三类都要排除。OpenCode 的标题判据只排除全 synthetic 的 user（[packages/opencode/src/session/prompt.ts:202-203](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L202-L203)），compaction user 与溢出时重放的 user 副本需另外排除。
 - 斜杠命令：非子代理命令会被展开成模板文本存进 user message，**原始 `/command` 字样不保存**；子代理命令保存为 `subtask` part（含 `command` 字段）（[packages/opencode/src/session/prompt.ts:1436-1451](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1436-L1451)）。
 
 ### 5.2 图 3：数据形态（ER 图）
@@ -662,7 +669,7 @@ erDiagram
 
 ### 5.3 压缩（compaction）的表示
 
-触发方式有三种：上一条已完成 assistant 的 token 超出可用上下文时自动压缩（[packages/opencode/src/session/prompt.ts:1161-1168](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1161-L1168)）；流中途上下文溢出时压缩（[packages/opencode/src/session/prompt.ts:1320-1328](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1320-L1328)）；手动 `POST /session/:id/summarize`（`auto` 默认 false，[packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts:273-293](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts#L273-L293)）。落盘序列如下：
+触发方式有三种：上一条已完成 assistant 的 token 超出可用上下文时自动压缩（[packages/opencode/src/session/prompt.ts:1161-1168](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1161-L1168)）；本步内触发：流中途上下文溢出，或本步 step-finish 的 usage 已超出可用上下文（[packages/opencode/src/session/processor.ts:491-496](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/processor.ts#L491-L496)；只有流中途溢出、assistant 没有 `finish` 时才记 `overflow=true`，[packages/opencode/src/session/prompt.ts:1320-1328](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1320-L1328)）；手动 `POST /session/:id/summarize`（`auto` 默认 false，[packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts:273-293](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts#L273-L293)）。落盘序列如下：
 
 1. **compaction user message**：没有文本，只有一个 `compaction` part `{auto, overflow?}`（[packages/opencode/src/session/compaction.ts:559-582](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L559-L582)）。
 2. 循环把它当作任务执行 `processCompaction`，新建 **summary assistant**：`summary: true`、`agent`/`mode` = `compaction`、`parentID` = compaction user。用 `compaction` agent 生成摘要，摘要正文在它的 text part，带 step-start / step-finish，**成本照常计入**（[packages/opencode/src/session/compaction.ts:393-448](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L393-L448)）。
@@ -670,14 +677,14 @@ erDiagram
 4. 自动压缩时：如果是溢出，把上一条用户消息复制成一条新 user message 重放（媒体换成占位文本）；否则写一条 synthetic user message，文本为 `Continue if you have next steps…`，带 `metadata.compaction_continue = true`（[packages/opencode/src/session/compaction.ts:468-549](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L468-L549)）。
 5. 发出 `session.compacted`（live 事件，不落盘）。
 
-**被压缩的历史不会删除**，只是重建上下文时被 `filterCompacted` 跳过（§4.6）。另有独立的 **prune**：给较早的工具输出写 `state.time.compacted`，回放给模型时用占位文本代替，原文仍在库中（[packages/opencode/src/session/compaction.ts:273-317](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L273-L317)）。V2 中压缩对应 `session_message.type = "compaction"`（`reason`、`summary`、`recent`）。
+**被压缩的历史不会删除**，只是重建上下文时被 `filterCompacted` 跳过（§4.6）。另有独立的 **prune**（默认关闭，需配置 `compaction.prune: true`，[packages/core/src/v1/config/config.ts:154-156](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/v1/config/config.ts#L154-L156)）：给较早的工具输出写 `state.time.compacted`，回放给模型时用占位文本代替，原文仍在库中（[packages/opencode/src/session/compaction.ts:273-317](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/compaction.ts#L273-L317)）。V2 中压缩对应 `session_message.type = "compaction"`（`reason`、`summary`、`recent`）。
 
 ### 5.4 revert / unrevert / fork
 
-- **revert(messageID, partID?)**（[packages/opencode/src/session/revert.ts:38-89](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L38-L89)）：找到撤销点；`session.revert = {messageID, partID?, snapshot: 当前 tree, diff}`；用撤销点之后的 `patch` part 在工作区回滚文件；写 `storage/session_diff/<sid>.json`；`summary_*` 写入被撤销范围的改动量。**此时消息尚未删除**，UI 会隐藏它们。
+- **revert(messageID, partID?)**（[packages/opencode/src/session/revert.ts:38-89](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L38-L89)）：找到撤销点：没给 partID，或目标 part 之前该消息里没有 text/tool part 时，撤销点退回到该轮的 user message（[packages/opencode/src/session/revert.ts:55-62](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L55-L62)）；`session.revert = {messageID, partID?, snapshot: 当前 tree, diff}`；用撤销点之后的 `patch` part 在工作区回滚文件；写 `storage/session_diff/<sid>.json`；`summary_*` 写入被撤销范围的改动量。**此时消息尚未删除**，UI 会隐藏它们。
 - **unrevert**：`snapshot.restore` 恢复文件，并清空 `revert`（[packages/opencode/src/session/revert.ts:91-99](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L91-L99)）。
-- **提交**：下一次 prompt（或 summarize）前执行 `revert.cleanup`，对撤销点之后的消息发 `message.removed`，对目标消息中 `partID` 之后的 part 发 `message.part.removed`，然后清空 `revert`（[packages/opencode/src/session/revert.ts:101-124](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L101-L124)、[packages/opencode/src/session/prompt.ts:1056](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1056)）。**rewind 在 `message`/`part` 表里是物理删除**，`event` 表仍保留这些内容的历史事件，日志没被清空时可以找回。
-- **fork(sessionID, messageID?)**（[packages/opencode/src/session/session.ts:691-732](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L691-L732)）：新建一个会话，**不设 `parent_id`**，标题为 `<原标题> (fork #N)`；复制 `messageID` 之前的所有消息与 part，ID 全部重新生成，`time.created` 等字段原样复制；`assistant.parentID` 与 `compaction.tail_start_id` 映射到新 ID。**库中没有 fork 指向源会话的字段**，只能靠标题后缀与内容/时间戳重复来推断。
+- **提交**：下一次 prompt（或 summarize）前执行 `revert.cleanup`：删除撤销点消息（无 partID 时含该消息本身，整条撤销时为该轮 user）及其后所有消息（发 `message.removed`）；有 partID 时删除目标消息中从 partID（含）起的 part（发 `message.part.removed`）；然后清空 `revert`（[packages/opencode/src/session/revert.ts:101-124](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/revert.ts#L101-L124)、[packages/opencode/src/session/prompt.ts:1056](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L1056)）。**rewind 在 `message`/`part` 表里是物理删除**，`event` 表仍保留这些内容的历史事件，日志没被清空时可以找回。
+- **fork(sessionID, messageID?)**（[packages/opencode/src/session/session.ts:691-732](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L691-L732)）：新建一个会话，**不设 `parent_id`**，标题为 `<原标题> (fork #N)`；复制 `messageID` 之前的所有消息与 part，ID 全部重新生成，`time.created` 等字段原样复制；`assistant.parentID` 与 `compaction.tail_start_id` 映射到新 ID。**库中没有 fork 指向源会话的字段**，只能靠标题后缀与内容/时间戳重复来推断。fork 会话从 `cost = 0` 开始（[packages/opencode/src/session/session.ts:526-527](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L526-L527)），复制的 part 逐条经 `updatePart` 重新发布（[packages/opencode/src/session/session.ts:695-701](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L695-L701)、[packages/opencode/src/session/session.ts:718-729](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/session.ts#L718-L729)），每个 step-finish 都会被 projector 再次累加到新会话（[packages/core/src/session/projector.ts:310-328](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/session/projector.ts#L310-L328)），所以 fork 会话的累计 cost/tokens 包含源会话前缀，聚合前要按 `time.created` + 内容哈希去掉复制段。默认 TUI 自带 fork 入口（[packages/tui/src/routes/session/dialog-fork-from-timeline.tsx:28](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/tui/src/routes/session/dialog-fork-from-timeline.tsx#L28)）。
 
 ### 5.5 子代理（task 工具 → 子 session）
 
@@ -728,7 +735,7 @@ stdout 为 NDJSON，每行形如 `{"type", "timestamp", "sessionID", ...}`（[pa
 （[packages/opencode/src/cli/cmd/stats.ts:83-280](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/stats.ts#L83-L280)）
 
 - 会话集合是 `SELECT * FROM session` 的全部行，**包含子会话和已归档会话**；`--days` 按 `time_updated` 过滤，`--project` 按 `project_id` 过滤。
-- 总成本、总 token 直接累加 `session.cost` 与 `tokens_*`（即所有 step-finish 之和）；总消息数统计所有 user 与 assistant 消息。
+- 总成本、总 token 直接累加 `session.cost` 与 `tokens_*`（近似所有 step-finish 之和，偏差见 §3.2 `cost` 行）；总消息数统计所有 user 与 assistant 消息。
 - 按模型：以 assistant 的 `providerID/modelID` 分组，累加 `cost`、消息数与 `tokens`（output 合并 reasoning）。由于用的是 assistant 的 `tokens`（每条消息最后一步），与会话总量可能不一致。
 - 按工具：统计 tool part 个数，不区分成功或失败。
 - `title` agent 生成标题的那次 LLM 调用**不写任何消息，也不计入 cost**（[packages/opencode/src/session/prompt.ts:225-252](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/session/prompt.ts#L225-L252)）。
@@ -759,7 +766,7 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
 | 压缩 | compaction user + `compaction` part；summary assistant；synthetic continue user；tool `time.compacted` | `auto`、`overflow`、`tail_start_id`；`summary: true` | 上下文溢出 / 手动 summarize / prune |
 | 标题 | `session.updated` | `title` | 第 1 步时后台生成 |
 | todo | `todo` 表（整体替换） | `content`、`status`、`priority`、`position` | `todowrite` 工具 |
-| revert / unrevert | `session.revert`；`storage/session_diff/*.json`；提交时删除 message/part 行 | `messageID`、`partID`、`snapshot`、`diff` | `POST /session/:id/revert`；下一次 prompt 前 cleanup |
+| revert / unrevert | `session.revert`；`storage/session_diff/*.json`；提交时删除撤销点消息（无 partID 时含该消息本身）及其后所有消息，有 partID 时删除目标消息中从 partID（含）起的 part | `messageID`、`partID`、`snapshot`、`diff` | `POST /session/:id/revert`；下一次 prompt 前 cleanup |
 | fork | 新 `session`（无 `parent_id`）+ 复制的消息 | `title` 带 `(fork #N)` | `POST /session/:id/fork` |
 | 分享 | `session_share`；`session.share_url` | `url`、`secret` | `POST /session/:id/share` |
 | 删除会话 | 行级联删除；`events.remove` 删除事件日志 | — | `DELETE /session/:id` |
@@ -767,7 +774,7 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
 
 ## 7. 一次 chat 的完整落盘示例
 
-**源码推导**，不是真实数据。场景：git 项目根目录下的新会话，用户问一个问题；模型先调用一次 `read` 工具，然后给出最终回答。下面是对话结束后各表的最终状态（`data` 列在库中是 JSON 文本，这里展开成对象以便阅读）。ID 符合格式但是虚构的；正文一律用 `<…>` 占位；时间戳与 token 数是示意值。
+**源码推导**，不是真实数据。场景：git 项目根目录下的新会话，用户问一个问题；模型先调用一次 `read` 工具，然后给出最终回答。下面是对话结束后各表的最终状态（`data` 列在库中是 JSON 文本，这里展开成对象以便阅读）。ID 的 12 位 hex 前缀按各对象的示例创建时间与 §2.5 的生成算法推算（同毫秒计数取 1），14 位随机后缀是虚构的；正文一律用 `<…>` 占位；时间戳与 token 数是示意值。
 
 ```json
 {
@@ -789,7 +796,7 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
   ],
   "session": [
     {
-      "id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "project_id": "<projectID>",
       "workspace_id": null,
       "parent_id": null,
@@ -822,8 +829,8 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
   ],
   "message": [
     {
-      "id": "msg_00a3c1f20001Qw3rTy7uIoP9aS",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "msg_0c4506c64001Qw3rTy7uIoP9aS",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000000100,
       "time_updated": 1790000009050,
       "data": {
@@ -835,14 +842,14 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
       }
     },
     {
-      "id": "msg_00a3c1f20101Hj8kL9mN0bV1cX",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "msg_0c4506cc8001Hj8kL9mN0bV1cX",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000000200,
       "time_updated": 1790000005210,
       "data": {
         "role": "assistant",
         "time": { "created": 1790000000200, "completed": 1790000005200 },
-        "parentID": "msg_00a3c1f20001Qw3rTy7uIoP9aS",
+        "parentID": "msg_0c4506c64001Qw3rTy7uIoP9aS",
         "modelID": "<modelID>",
         "providerID": "<providerID>",
         "mode": "build",
@@ -854,14 +861,14 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
       }
     },
     {
-      "id": "msg_00a3c1f20201Uu7Vv8Ww9Xx0Yy",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "msg_0c45080b4001Uu7Vv8Ww9Xx0Yy",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000005300,
       "time_updated": 1790000009010,
       "data": {
         "role": "assistant",
         "time": { "created": 1790000005300, "completed": 1790000009000 },
-        "parentID": "msg_00a3c1f20001Qw3rTy7uIoP9aS",
+        "parentID": "msg_0c4506c64001Qw3rTy7uIoP9aS",
         "modelID": "<modelID>",
         "providerID": "<providerID>",
         "mode": "build",
@@ -875,33 +882,33 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
   ],
   "part": [
     {
-      "id": "prt_00a3c1f20002Lm4nB5vC6xZ7aQ",
-      "message_id": "msg_00a3c1f20001Qw3rTy7uIoP9aS",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c4506c6e001Lm4nB5vC6xZ7aQ",
+      "message_id": "msg_0c4506c64001Qw3rTy7uIoP9aS",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000000110,
       "time_updated": 1790000000110,
       "data": { "type": "text", "text": "<user prompt>" }
     },
     {
-      "id": "prt_00a3c1f20102Aa1Bb2Cc3Dd4Ee",
-      "message_id": "msg_00a3c1f20101Hj8kL9mN0bV1cX",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c4506f84001Aa1Bb2Cc3Dd4Ee",
+      "message_id": "msg_0c4506cc8001Hj8kL9mN0bV1cX",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000000900,
       "time_updated": 1790000000900,
       "data": { "type": "step-start", "snapshot": "<tree hash A>" }
     },
     {
-      "id": "prt_00a3c1f20103Ff5Gg6Hh7Ii8Jj",
-      "message_id": "msg_00a3c1f20101Hj8kL9mN0bV1cX",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c4506fe8001Ff5Gg6Hh7Ii8Jj",
+      "message_id": "msg_0c4506cc8001Hj8kL9mN0bV1cX",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000001000,
       "time_updated": 1790000001400,
       "data": { "type": "text", "text": "<assistant text>", "time": { "start": 1790000001000, "end": 1790000001400 } }
     },
     {
-      "id": "prt_00a3c1f20104Kk9Ll0Mm1Nn2Oo",
-      "message_id": "msg_00a3c1f20101Hj8kL9mN0bV1cX",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c45071aa001Kk9Ll0Mm1Nn2Oo",
+      "message_id": "msg_0c4506cc8001Hj8kL9mN0bV1cX",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000001450,
       "time_updated": 1790000005100,
       "data": {
@@ -924,9 +931,9 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
       }
     },
     {
-      "id": "prt_00a3c1f20105Pp3Qq4Rr5Ss6Tt",
-      "message_id": "msg_00a3c1f20101Hj8kL9mN0bV1cX",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c450801e001Pp3Qq4Rr5Ss6Tt",
+      "message_id": "msg_0c4506cc8001Hj8kL9mN0bV1cX",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000005150,
       "time_updated": 1790000005150,
       "data": {
@@ -938,25 +945,25 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
       }
     },
     {
-      "id": "prt_00a3c1f20202Zz1Aa2Bb3Cc4Dd",
-      "message_id": "msg_00a3c1f20201Uu7Vv8Ww9Xx0Yy",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c450830c001Zz1Aa2Bb3Cc4Dd",
+      "message_id": "msg_0c45080b4001Uu7Vv8Ww9Xx0Yy",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000005900,
       "time_updated": 1790000005900,
       "data": { "type": "step-start", "snapshot": "<tree hash A>" }
     },
     {
-      "id": "prt_00a3c1f20203Ee5Ff6Gg7Hh8Ii",
-      "message_id": "msg_00a3c1f20201Uu7Vv8Ww9Xx0Yy",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c4508370001Ee5Ff6Gg7Hh8Ii",
+      "message_id": "msg_0c45080b4001Uu7Vv8Ww9Xx0Yy",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000006000,
       "time_updated": 1790000008800,
       "data": { "type": "text", "text": "<assistant final answer>", "time": { "start": 1790000006000, "end": 1790000008800 } }
     },
     {
-      "id": "prt_00a3c1f20204Jj9Kk0Ll1Mm2Nn",
-      "message_id": "msg_00a3c1f20201Uu7Vv8Ww9Xx0Yy",
-      "session_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "id": "prt_0c4508ec4001Jj9Kk0Ll1Mm2Nn",
+      "message_id": "msg_0c45080b4001Uu7Vv8Ww9Xx0Yy",
+      "session_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "time_created": 1790000008900,
       "time_updated": 1790000008900,
       "data": {
@@ -969,19 +976,19 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
     }
   ],
   "event_sequence": [
-    { "aggregate_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn", "seq": 28, "owner_id": null }
+    { "aggregate_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn", "seq": 28, "owner_id": null }
   ],
   "event_example": {
-    "id": "evt_00a3c1f20106Gh2Ij3Kl4Mn5Op",
-    "aggregate_id": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+    "id": "evt_0c4507f88001Gh2Ij3Kl4Mn5Op",
+    "aggregate_id": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
     "seq": 12,
     "type": "message.part.updated.1",
     "data": {
-      "sessionID": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
+      "sessionID": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
       "part": {
-        "id": "prt_00a3c1f20104Kk9Ll0Mm1Nn2Oo",
-        "sessionID": "ses_ff5c3e0d0ffeAbCdEfGhIjKlMn",
-        "messageID": "msg_00a3c1f20101Hj8kL9mN0bV1cX",
+        "id": "prt_0c45071aa001Kk9Ll0Mm1Nn2Oo",
+        "sessionID": "ses_f3baf93f5ffeAbCdEfGhIjKlMn",
+        "messageID": "msg_0c4506cc8001Hj8kL9mN0bV1cX",
         "type": "tool",
         "callID": "<provider tool call id>",
         "tool": "read",
@@ -998,7 +1005,7 @@ V2 会话同样在 `session` 表有一行（创建时也发 `session.created`，
 | seq | type | 对应写入 |
 | --- | --- | --- |
 | 0 | `session.created.1` | 新建会话 |
-| 1 | `session.updated.1` | `setAgentModel`（新会话无 agent/model） |
+| 1 | `session.updated.1` | `setAgentModel`（本例假设会话由 Web app 只带 directory 创建，无 agent/model；TUI 建的会话已带 agent/model/variant，不会有这一行，后续 seq 依次减 1） |
 | 2 | `message.updated.1` | user message |
 | 3 | `message.part.updated.1` | user text part |
 | 4 | `session.updated.1` | `touch` |
@@ -1025,7 +1032,7 @@ SELECT m.id, json_extract(m.data, '$.role') AS role, json_extract(m.data, '$.par
        p.id AS part_id, json_extract(p.data, '$.type') AS part_type,
        json_extract(p.data, '$.tool') AS tool, json_extract(p.data, '$.state.status') AS status
 FROM message m LEFT JOIN part p ON p.message_id = m.id
-WHERE m.session_id = 'ses_ff5c3e0d0ffeAbCdEfGhIjKlMn'
+WHERE m.session_id = 'ses_f3baf93f5ffeAbCdEfGhIjKlMn'
 ORDER BY m.time_created, m.id, p.id;
 ```
 
@@ -1062,25 +1069,25 @@ ORDER BY m.time_created, m.id, p.id;
 | 需求 | 做法 |
 | --- | --- |
 | 会话列表 | `SELECT s.*, p.worktree, p.vcs FROM session s LEFT JOIN project p ON p.id = s.project_id ORDER BY s.time_updated DESC`；用 `parent_id IS NULL` 过滤根会话，`time_archived` 表示已归档 |
-| cwd / 项目 | `session.directory`（创建时 cwd）+ `session.path`（相对 worktree）；每步的 `assistant.path.cwd/root`；`project.worktree`。`project_id = 'global'` 表示非 git 目录 |
+| cwd / 项目 | `session.directory` 是会话的当前目录（创建时的 cwd，TUI `/move` 后会被改写）+ `session.path`（相对 worktree）；每步实际所在目录看 `assistant.path.cwd/root`。同一 remote 的多个 checkout 共用一行 project，目录归属以 `session.directory` 与 `assistant.path.root` 为准，不要用 `project.worktree`。`project_id = 'global'` 表示非 git 目录 |
 | 起止时间 | 开始 = `session.time_created`（或第一条 user 的 `time.created`）；结束 = 最后一条 assistant 的 `time.completed`。`session.time_updated` 会被 touch / summarize 刷新，改标题时不刷新，只适合排序 |
-| 轮次 | 不含 compaction part 且不是「全部 part 都是 synthetic」的 user message 数 |
+| 轮次 | 不含 compaction part、不是「全部 part 都是 synthetic」、也不是溢出重放副本的 user message 数。OpenCode 标题判据只排除全 synthetic 的 user；compaction user 与溢出时重放的 user 副本（紧跟在 `overflow: true` 压缩的 summary assistant 之后）需另外排除 |
 | 消息数 / step 数 | `message` 行数（分角色统计）；step 数 = `step-finish` part 数 |
 | 工具调用 | `json_extract(p.data,'$.type') = 'tool'` 的 part：`tool`、`callID`、`state.status`、`state.input`、`state.error`、`state.time.start/end`（耗时）、`state.metadata.truncated/outputPath`；`metadata.providerExecuted` 为 provider 端执行；`tool = 'invalid'` 表示参数无效；`callID` 为 ULID 的是用户 `!cmd` 或 subtask |
 | 审批 | 不落盘。只能从 tool `error` 的固定文案推断（拒绝、带反馈拒绝、规则拒绝），以及 `question` 工具的 input/output。需要真实审批事件时，只能在 OpenCode 运行期间订阅 `GET /event` 的 `permission.asked/replied` |
-| token / cost | 最细粒度是 `step-finish` part；会话级用 `session.cost/tokens_*`（等于 step-finish 之和，**不含子会话**，不含标题生成）。建议 Tandem 自己按 step-finish 汇总，并按 `parent_id` 递归合并子会话。cost 是 OpenCode 按 models.dev 价格表在本地估算的，不是账单 |
+| token / cost | 最细粒度是 `step-finish` part；会话级的 `session.cost/tokens_*` 只是近似的 step-finish 之和（**不含子会话**，不含标题生成；旧会话是回填值，`patch` 并发覆盖可能丢掉累加，fork 会话还含复制来的源会话前缀，见 §3.2、§5.4）。Tandem 应以自己按 step-finish 的汇总为准：fork 会话先按 `time.created` + 内容哈希去掉复制段，再按 `parent_id` 递归合并子会话。cost 是 OpenCode 按 models.dev 价格表在本地估算的，不是账单 |
 | 模型 | 每次调用取 assistant 的 `providerID/modelID/variant`；用户请求的模型取 user 的 `model`；当前模型取 `session.model`。相邻 assistant 的模型不同即视为一次模型切换 |
 | agent 模式 | user / assistant 的 `agent`（`build`、`plan`、自定义；子代理如 `general`、`explore`；内部 `compaction`）。内置 agent 定义见 [packages/opencode/src/agent/agent.ts:142-256](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/agent/agent.ts#L142-L256) |
 | 错误 | assistant `error.name` / `error.data.message`；tool `state.status = 'error'`；`state.metadata.interrupted` |
 | 压缩 | 带 `compaction` part 的 user；`summary = true` 的 assistant；含 `metadata.compaction_continue` 的 synthetic user；tool 的 `state.time.compacted` |
 | 子代理 | 用 `session.parent_id` 建树；父会话中 `tool = 'task'` 的 part，其 `state.metadata.sessionId` 指向子会话 |
-| 分支 / 回退 | fork 只能启发式识别（标题 `(fork #N)`、消息内容与 `time.created` 重复）；`session.revert` 非空表示有已暂存的撤销；已提交的回退在表里已被删除，只能从 `event` 历史中找回 |
+| 分支 / 回退 | fork 只能启发式识别（标题 `(fork #N)`、消息内容与 `time.created` 重复）；`session.revert` 非空表示有已暂存的撤销；已提交的回退在表里已被删除（无 partID 时连撤销点消息本身一起删，有 partID 时从该 part 起删），只能从 `event` 历史中找回 |
 | V2 会话 | `message` 无行而 `session_message` 有行；按 `seq` 读取并按 `type` 解析 |
 
 ### 9.3 增量读取
 
-- **推荐**：轮询 `SELECT aggregate_id, seq FROM event_sequence`，成本很低。某会话的 `seq` 增大，就重读该会话的 `message`/`part`（实现简单），或者读取 `event WHERE aggregate_id = ? AND seq > cursor ORDER BY seq` 并按事件重放 upsert/remove（更精确，还能拿到中间状态）。
-- **兜底**：`import` 导入的会话、2026-06-22 之前的历史、从未在新迁移后写入过的会话都没有事件，需要同时比较 `session.time_updated`，以及 `MAX(message.time_updated)` / `MAX(part.time_updated)`（后者依赖 Drizzle 在 upsert 时刷新 `$onUpdate` 列，**待确认**）。
+- **推荐**：轮询 `SELECT aggregate_id, seq FROM event_sequence`，成本很低。某会话的 `seq` 增大，就重读该会话的 `message`/`part`（实现简单），或者读取 `event WHERE aggregate_id = ? AND seq > cursor ORDER BY seq` 并按事件重放 upsert/remove（更精确，还能拿到中间状态）。按事件重放时要同时处理 V1 会话里出现的 `session.next.moved.1`（§3.6）。
+- **兜底**：`import` 导入的会话、2026-06-22 之前的历史、从未在新迁移后写入过的会话都没有事件，需要同时比较 `session.time_updated`，以及 `MAX(message.time_updated)` / `MAX(part.time_updated)`（Drizzle 在每次 insert/upsert 时都会刷新这两列的 `$onUpdate`，见 §3 开头）。
 - **触发**：可以用 FSEvents 监听 `opencode.db-wal` 的 mtime 变化来决定何时查询。
 - **删除**：会话被删除后 session 行与事件日志都会消失，需要比较 ID 集合来发现。
 
@@ -1094,12 +1101,12 @@ ORDER BY m.time_created, m.id, p.id;
 6. **`session.summary_*` 在 HEAD 中会被归零**，文件改动统计应改用 user 的 `summary.diffs` 或 `patch` part。
 7. **fork 与源会话之间没有链接**；import 的会话没有事件、`projectID`/`directory` 被改写成导入时的目录、part 的 `time_created` 是导入时刻。
 8. **回退会物理删除行**，但 `event` 表里仍有被删内容（也是隐私残留点），直到整个会话被删除。
-9. **大字段**：file part 的 `url` 可能是 MB 级的 `data:` base64；`read` 工具的 `metadata.display.text` 会重复存一份文件全文；shell 预览可达 3 万字符，用户 `!cmd` 会存完整输出。列表视图只用 `json_extract` 取需要的路径，不要反序列化整个 `data`。
-10. **项目 ID 会迁移**：仓库加了 remote 后 ID 会从根 commit 变成 remote 的 hash，旧会话的 `project_id` 会被批量改写。项目聚合建议以 `project.worktree` 路径为主键。旧会话的 `directory` 可能是空字符串（[packages/core/src/database/path.ts:43-59](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/path.ts#L43-L59)）。
+9. **大字段**：file part 的 `url` 可能是 MB 级的 `data:` base64；`read` 工具的 `metadata.display.text` 会重复存一份本次读取的窗口内容（默认最多 2000 行 / 50 KB，不一定是文件全文，[packages/opencode/src/tool/read.ts:13-16](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/read.ts#L13-L16)、[packages/opencode/src/tool/read.ts:359-375](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/tool/read.ts#L359-L375)），`metadata.preview` 另存其前 20 行；shell 预览可达 3 万字符，用户 `!cmd` 会存完整输出。列表视图只用 `json_extract` 取需要的路径，不要反序列化整个 `data`。
+10. **项目 ID 会迁移，`project.worktree` 也不能当主键**：项目 ID 优先取 remote（[packages/core/src/project.ts:110-121](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/project.ts#L110-L121)），同一 remote 的多个 clone/worktree 共用一行 project；`worktree` 只是第一次打开的 checkout，其余目录进 `sandboxes`（[packages/opencode/src/project/project.ts:222-246](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/project/project.ts#L222-L246)、[packages/opencode/src/project/instance-store.ts:54-57](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/project/instance-store.ts#L54-L57)）。仓库加了 remote 后 ID 会从根 commit 变成 remote 的 hash，旧会话的 `session.project_id` 被直接 UPDATE，不产生事件（[packages/opencode/src/project/project.ts:177-181](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/project/project.ts#L177-L181)、[packages/opencode/src/project/project.ts:291-298](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/project/project.ts#L291-L298)）。目录归属应以 `session.directory` 与 assistant 的 `path.root` 为准。旧会话的 `directory` 可能是空字符串（[packages/core/src/database/path.ts:43-59](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/path.ts#L43-L59)）。
 11. **事件日志被迁移清空过**（2026-06-04、06-22），之后 `seq` 从 0 重新开始，不能当作完整历史。
 12. **synthetic 内容**：附件被内联成的 Read 结果、plan 提醒、压缩后的继续提示、后台任务结果都是 synthetic text。统计用户输入时要排除。斜杠命令展开后，原始命令不保存。
 13. **隐私**：不要读 `account`、`control_account`、`credential` 表，不要读 `auth.json`、`mcp-auth.json`，也不要读 `session_share.secret`。工具输入输出、文件内容可能含密钥，默认在本地处理并脱敏（可参考 `export --sanitize` 的 redact 规则）。
-14. **交叉验证工具**：`opencode db path`、`opencode db "<SQL>" --format json`、`opencode export <id>`、`opencode session list --format json`（[packages/opencode/src/cli/cmd/session.ts:70-93](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/session.ts#L70-L93)）可以用来核对解析结果。
+14. **交叉验证工具**：`opencode db path`、`opencode db "<SQL>" --format json`、`opencode export <id>`、`opencode session list --format json`（[packages/opencode/src/cli/cmd/session.ts:70-93](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/session.ts#L70-L93)）可以用来核对解析结果。注意 `opencode db` 会以读写方式打开库并先执行迁移（[packages/opencode/src/cli/cmd/db.ts:25-36](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/opencode/src/cli/cmd/db.ts#L25-L36)、[packages/core/src/database/database.ts:22-37](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/database.ts#L22-L37)），只读核对请用 `sqlite3 -readonly`。
 
 ## 10. 可比较维度速查表
 
@@ -1108,7 +1115,7 @@ ORDER BY m.time_created, m.id, p.id;
 | 存储介质 | SQLite 单库（Drizzle、WAL）；另有影子 git 快照目录、`tool-output` 文本文件，以及少量 JSON（`storage/session_diff`） |
 | 默认路径与覆盖方式 | `~/.local/share/opencode/opencode.db`（macOS 相同）；`$XDG_DATA_HOME` 改数据根；`OPENCODE_DB` 改库文件；非正式渠道为 `opencode-<channel>.db`，`OPENCODE_DISABLE_CHANNEL_DB` 可强制使用 `opencode.db` |
 | 会话粒度（一文件/一目录/一行） | 一行：`session` 一行，加上 `message` / `part` 多行（V2 为 `session_message` 多行）；所有会话共用一个库 |
-| 项目/cwd 归属方式 | `session.project_id` → `project`（ID 依次取 remote URL 的 sha1、`.git/opencode` 缓存、根 commit；非 git 为 `global`）；`session.directory` 是创建时的 cwd，`session.path` 是相对 worktree 的路径；每步在 `assistant.path.{cwd, root}` 记录 |
+| 项目/cwd 归属方式 | `session.project_id` → `project`（ID 依次取 remote URL 的 sha1、`.git/opencode` 缓存、根 commit；非 git 为 `global`；同一 remote 的多个 checkout 共用一行 project，`project.worktree` 不能当目录主键）；`session.directory` 是会话的当前目录（创建时的 cwd，`/move` 后被改写），`session.path` 是相对 worktree 的路径；每步在 `assistant.path.{cwd, root}` 记录 |
 | 会话 ID 格式 | `ses_` + 12 位 hex（`ms×4096 + 计数` 的低 48 位，按位取反，所以降序）+ 14 位 base62；共 30 字符 |
 | 记录 ID 与链接模型（线性/parentId 树/DAG） | `msg_`/`prt_`/`evt_` 为升序 ID；assistant 的 `parentID` 指向本轮 user（以 user 为根的扇形）；part 通过 `message_id` 归属；子会话通过 `session.parent_id` 构成树；fork 没有链接 |
 | 消息方言 | 自定义：OpenCode 自己的 Message/Part schema，与 provider 无关；发送前经 AI SDK 的 UIMessage → ModelMessage 转换 |
@@ -1116,17 +1123,17 @@ ORDER BY m.time_created, m.id, p.id;
 | 推理内容是否落盘（是否加密/签名） | 是：`reasoning` part 存明文；provider 的签名或加密内容存在 `part.metadata`（providerMetadata）；增量不落盘 |
 | 工具调用表示与 call id 关联 | 一个 `tool` part 同时承载调用与结果，状态机为 `pending → running → completed/error`；`callID` 是 provider 的 tool call id（用户 shell 与 subtask 用 ULID） |
 | 大工具输出处理（截断/外置） | 超过 2000 行或 50 KB 时，全文外置到 `tool-output/tool_<id>`（7 天后清理），part 内保留预览与提示，并写 `metadata.truncated/outputPath`；prune 只标记 `time.compacted`，不删原文 |
-| token 与 cost 记录粒度 | 每次 LLM 调用一个 `step-finish` part（input/output/reasoning/cache read/write + cost）；assistant 上 cost 累加、tokens 取最后一步；`session` 列为累计值（不含子会话与标题生成） |
+| token 与 cost 记录粒度 | 每次 LLM 调用一个 `step-finish` part（input/output/reasoning/cache read/write + cost）；assistant 上 cost 累加、tokens 取最后一步；`session` 列为近似累计值（不含子会话与标题生成；旧会话为回填值，fork 含复制前缀，并发 `patch` 可能丢累加），应以 step-finish 自行汇总为准 |
 | 模型/provider 记录位置 | assistant 的 `providerID/modelID/variant`；user 的 `model`；`session.model`（当前）；`step-finish` 不含模型字段 |
 | 时间戳格式 | Unix 毫秒整数（列与 JSON 内一致） |
 | 流式增量是否落盘 | 否：`message.part.delta` 只走 SSE；表中只落 start 时的空值与 end 时的全文 |
 | 写入方式（追加/覆盖/事务） | 每个 durable 事件一个 IMMEDIATE 事务：表行整块 upsert（覆盖），同时向 `event` 表追加一行 |
 | 压缩表示 | compaction user（`compaction` part，含 `tail_start_id`）+ summary assistant（`summary: true`、agent 为 `compaction`）+ synthetic 的继续提示 user；原文保留；prune 标记 `time.compacted` |
-| 分支/fork/rewind 表示 | fork：新会话，复制消息并重新编号，标题加 `(fork #N)`，无链接；revert：先写 `session.revert` 暂存，下次 prompt 时物理删除后续 message/part（`event` 表留痕）；unrevert 恢复文件 |
+| 分支/fork/rewind 表示 | fork：新会话，复制消息并重新编号，标题加 `(fork #N)`，无链接；revert：先写 `session.revert` 暂存，下次 prompt 时物理删除撤销点（含）起的 message/part（`event` 表留痕）；unrevert 恢复文件 |
 | 文件快照/undo | 影子 git（`snapshot/<projectID>/<sha1(worktree)>`）；`step-start`/`step-finish` 存 tree hash，`patch` part 列出改动文件；revert 依据 patch 回滚；gc 保留 7 天 |
 | 子代理表示 | 独立子会话（`parent_id`）；父会话 `task` tool part 的 `metadata.sessionId` 关联子会话，`output` 为 `<task id=…>…</task>` |
 | 标题/摘要 | `session.title`（第 1 步由 title agent 生成，≤100 字符）；压缩摘要是 `summary: true` 的 assistant 文本；每轮改动在 user 的 `summary.diffs` |
-| 搜索/索引 | 无全文索引；只有 B-tree 索引（session 的 project/parent/workspace、`message(session_id, time_created, id)`、`part(message_id, id)`、`event(aggregate_id, seq)`）；会话搜索只是标题 `LIKE` |
+| 搜索/索引 | 无全文索引；只有 B-tree 索引（session 的 project/parent/workspace、`message(session_id, time_created, id)`、`part(message_id, id)`、`part(session_id)`、`event(aggregate_id, seq)`、`event(aggregate_id, type, seq)`、`todo(session_id)`，以及 V2 的 `session_message`/`session_input`/`permission` 索引，[packages/core/src/database/schema.gen.ts:239-271](https://github.com/anomalyco/opencode/blob/63cf236140b11c15cd645e90a7ded77bdc2193b4/packages/core/src/database/schema.gen.ts#L239-L271)）；会话搜索只是标题 `LIKE` |
 | 导出/分享/训练格式 | `opencode export [--sanitize]` 输出 `{info, messages:[{info, parts}]}`；`opencode import` 支持文件或分享 URL；分享到 opncd.ai（`[{type, data}]` 增量同步）；无训练格式 |
 | 审批/权限事件是否落盘 | 否：`permission.asked/replied`、`question.*` 只是 live 事件；拒绝结果体现在 tool part 的 `error` 文案；V2 的 saved 授权表只在 2.0 preview 中使用 |
 | 错误/中断表示 | assistant `error {name, data}`（`MessageAbortedError`、`APIError`、`ContextOverflowError` 等）；tool `status: error` + `metadata.interrupted`；重试不落盘 |
