@@ -1,5 +1,7 @@
 # Feature Analytics MVP：先测量，再解释
 
+Instruction 已按特征族独立组织，见 [实现与字段口径](../../src/tandem_backend/analytics/instruction/README.md) 和 [五类测试验收](instruction-validation.md)。本页历史实测数字保留原记录。
+
 本版在 `feat/plain-language-backend` 的后端上增加独立分析入口，消费 [analysis-input-v1](../plan/analysis-inputs.md)。已有画像、报告、推荐和评价接口保持原行为。新接口只做测量、代理信号和无监督文本表示，不输出人格、任务成功率、项目完成百分比或推荐。
 
 已经跑通：SQLite 历史 → 输入适配与覆盖说明 → 会话/工具/时间/流程特征 → 项目聚合 → 本地 TF-IDF/SVD/DBSCAN → 二维坐标 → API/CLI。代码可运行不代表所有目标输入已经具备；尤其真人来源、逐次模型用量、子代理树仍不完整。
