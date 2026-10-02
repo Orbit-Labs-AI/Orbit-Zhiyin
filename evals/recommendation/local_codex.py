@@ -14,6 +14,7 @@ from tandem_data.service import ImportRequest, ImportService
 from tandem_data.source_reader import SourceUnavailable
 from tandem_data.store import Store
 
+from evals.analytics.robustness_invariants import validate_result
 from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
 from tandem_backend.analytics.inputs import Scope
 from tandem_backend.analytics.service import analyze_store
@@ -92,7 +93,9 @@ def run(source, output, *, latest=20, catalog=DEFAULT_CATALOG, context=None, sco
                     progress({"stage": "rescan", "attempt": attempt + 1, "reason": "source_changed"})
     if progress:
         progress({"stage": "analytics"})
-    analysis = analyze_store(CanonicalStore(home), scope or Scope(), with_text=False)
+    selected_scope = scope or Scope()
+    reader = CanonicalStore(home)
+    analysis = analyze_store(reader, selected_scope, with_text=False)
     save(output / "analytics.json", analysis)
     if not analysis.get("sessions"):
         raise RuntimeError("No analyzable main sessions in this selection; inspect analytics.json or use --latest 0")
@@ -100,13 +103,19 @@ def run(source, output, *, latest=20, catalog=DEFAULT_CATALOG, context=None, sco
         progress({"stage": "recommend"})
     result = recommend(analysis, context=context, catalog=loaded.items, family="skills", limit=6)
     save(output / "recommendations.json", result)
+    invariant = validate_result(
+        reader.analysis_bundle(selected_scope), selected_scope, analysis, result, home=home
+    )
+    save(output / "invariants.json", invariant)
+    if invariant["status"] != "passed":
+        raise RuntimeError("Analysis/recommendation provenance failed; inspect local invariants.json")
     grouped = diagnostics(analysis, result, loaded.items)
     save(output / "diagnostics.json", grouped)
     (output / "diagnostics.txt").write_text(terminal_text(grouped) + "\n", encoding="utf-8")
     save(output / "context.json", context.model_dump(mode="json"))
     save(output / "catalog.json", payload)
     cards = result["recommendations"]
-    summary = {"pipeline_status": "completed", "synthetic_activity": False,
+    summary = {"pipeline_status": "completed", "relational_invariants": "passed", "synthetic_activity": False,
                "selected_files": len(selected), "analyzed_main_sessions": len(analysis["sessions"]),
                "counts": analysis["overview"]["counts"], "unparsed_records": imported["current_unparsed"],
                "catalog_items": len(loaded.items), "catalog_diagnostics": loaded.diagnostics,
