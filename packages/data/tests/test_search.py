@@ -140,7 +140,9 @@ def test_every_field_kind_is_searchable(built):
     assert chinese["substring"] and chinese["total"] == 1
     assert chinese["hits"][0]["hit_type"] == "message"
     english = search(home, "refactor", now_ms=now)
-    assert not english["substring"] and english["counts"]["message"] == 3
+    # Migration 008 creates the trigram ``event_search`` table, so substring semantics apply.
+    assert english["engine"] == "event_search" and english["substring"]
+    assert english["counts"]["message"] == 3
     # command_head keeps the program head only (arguments are not projected).
     assert hit_types(search(home, "ruff", now_ms=now)) == {"command"}
     files = search(home, "widget_parser.py", now_ms=now)
@@ -205,17 +207,24 @@ def test_event_search_table_is_preferred_when_present(built, tmp_path):
 
         target = sqlite3.connect(copy / "tandem.db")
         source.backup(target)
+        # Simulate a pre-008 library: no trigram table, only event_fts (unicode61, 001.sql).
         target.executescript(
-            "CREATE VIRTUAL TABLE event_search USING fts5(text, content='event', content_rowid='rowid', tokenize='trigram');"
-            "INSERT INTO event_search(rowid, text) SELECT rowid, text FROM event "
-            "WHERE kind IN ('message.user','message.assistant','session.title') AND text IS NOT NULL;"
+            "DROP TRIGGER IF EXISTS event_search_ai;"
+            "DROP TRIGGER IF EXISTS event_search_ad;"
+            "DROP TRIGGER IF EXISTS event_search_au;"
+            "DROP TABLE IF EXISTS event_search;"
+            "CREATE VIRTUAL TABLE event_fts USING fts5(text, content='event', content_rowid='rowid');"
+            "INSERT INTO event_fts(event_fts) VALUES('rebuild');"
         )
         target.close()
     shutil.rmtree(copy / "raw", ignore_errors=True)
-    result = search(copy, "修复第 7")
+    result = search(home, "修复第 7")
     assert result["engine"] == "event_search" and result["total"] == 1
-    assert search(copy, "efacto")["counts"]["message"] == 3  # trigram substring
-    assert search(home, "efacto")["counts"]["message"] == 0  # unicode61 tokens only
+    assert search(home, "efacto")["counts"]["message"] == 3  # trigram substring
+    fallback = search(copy, "efacto")
+    assert fallback["engine"] == "event_fts"
+    assert fallback["counts"]["message"] == 0  # unicode61 tokens only
+    assert search(copy, "修复第 7")["total"] == 1  # bounded LIKE fallback
     # Same answer set as the fallback path for a whole-word query.
     assert search(copy, "refactor")["total"] == search(home, "refactor")["total"]
 

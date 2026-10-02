@@ -1004,7 +1004,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | ID | 名称 | 阶段 | 现状 | 现状说明 | 负责人 | reviewer | 依赖 | 被使用 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | EV-01 | 数据层回归汇总 | MVP | 部分 | main `packages/backend/tests`、`packages/data/tests`、`packages/connectors` 35 项 + CI；跨包汇总断言计划 | yhyfhgs | MistyHuang03 | DT-04、DT-19 | 38 |  |
-| EV-01.1 | `/insights` 只读对照 | MVP（一次性）；v1（ccusage 对账） | PR 中（wip/yhyfhgs-backend）：`evalrun/suites/insights.py` | `~/.claude/usage-data/session-meta` 与 Tandem 同会话数值对照 | yhyfhgs | MistyHuang03 | DT-18、AN-05 | 1 |  |
+| EV-01.1 | `/insights` 只读对照 | MVP（一次性）；v1（ccusage 对账） | PR 中（wip/yhyfhgs-backend）：`evalrun/suites/insights.py` | `~/.claude/usage-data/session-meta` 与 Orbit 同会话数值对照 | yhyfhgs | MistyHuang03 | DT-18、AN-05 | 1 |  |
 | EV-01.2 | 指标引擎金标 | MVP（Lite 约 20 项 + Wilson）；v1（全部） | 计划 | `tests/fixtures/metrics-gold-v1.json`、`--suite metrics` | MistyHuang03 | yhyfhgs | AN-01、AN-10、AN-12、AN-14、AN-16 | 44 |  |
 | EV-02 | 分析准确性标注 | MVP（精度）；v1（κ、交叉标注） | PR 中（wip/yhyfhgs-backend）：`GET /v1/eval/labels/summary` | 每人每检测器 30 条 `confirm / inaccurate`；构造集 main `pipeline_cases.json` | MistyHuang03 | yhyfhgs | AN-05、AN-06、AN-09、AN-11、AN-18、AN-19、EV-10、EV-02.1 | 26 |  |
 | EV-02.1 | `tandem label` CLI | MVP | PR 中（wip/yhyfhgs-backend）：`evalrun/labels.py` | 终端逐条显示 L2 脱敏文本与命中位置，`c / i / s` 写 `label` | MistyHuang03 | genius-FXC | EV-10 | 0 |  |
@@ -1042,7 +1042,7 @@ UI 条目：A7-03、A7-04（模型维）、A7-14、A5-11、ASK-05、Lite 优化�
 | IN-04 | ledger 与撤销 | MVP | PR 中（wip/yhyfhgs-backend）：`install/service.py` | append-only `install_ledger`；单条与整批撤销；用户改过的文件不自动撤销 | yhyfhgs | MistyHuang03 | IN-03 | 16 |  |
 | IN-05 | 风险闸门与静态扫描 | MVP | PR 中（wip/yhyfhgs-backend）：`install/risk.py` | safe / caution / dangerous；第三方 skill 入库先扫描；lethal trifecta 警告；main `resource_fetch` 只读 Markdown 为最低安全线 | MistyHuang03 | yhyfhgs | DT-13 | 6 |  |
 | IN-06 | 生命周期状态机 | MVP（状态）；v1（自动流转） | PR 中（wip/yhyfhgs-backend）：`install/lifecycle.py` | 候选 → 待批 → 已安装 → 观察中 → 保留 / 改写 / 撤销 → 闲置 → 归档 | genius-FXC | yhyfhgs | IN-04 | 7 |  |
-| IN-07 | Tandem 自身采集类安装 | P1 | 部分（wip/yhyfhgs-backend）：`install/collect`，Codex 仅 notify | `cleanupPeriodDays`、statusline 包装、只读 Hooks；同样走预览 → 确认 → 撤销 | yhyfhgs | MistyHuang03 | IN-01、DT-16 | 3 |  |
+| IN-07 | Orbit 自身采集类安装 | P1 | 部分（wip/yhyfhgs-backend）：`install/collect`，Codex 仅 notify | `cleanupPeriodDays`、statusline 包装、只读 Hooks；同样走预览 → 确认 → 撤销 | yhyfhgs | MistyHuang03 | IN-01、DT-16 | 3 |  |
 | IN-08 | 资源库条目获取 | MVP | PR 中（wip/yhyfhgs-backend）：`install/fetch.py` | main `resource_fetch.GitHubSourceClient.fetch()` 已做下载 + 校验（sha、SPDX、≤ 250 KB）；写入目标路径计划 | genius-FXC | yhyfhgs | DT-11、IN-05 | 2 |  |
 
 ### 6.7 前端 FE（24 个）

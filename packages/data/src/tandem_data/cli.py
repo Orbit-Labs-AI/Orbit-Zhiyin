@@ -9,6 +9,7 @@ from pathlib import Path
 from tandem_data.contract import canonical
 from tandem_data.discovery import candidates
 from tandem_data.paths import default_home
+from tandem_data.payload import restore, restore_json, restore_row
 from tandem_data.query import current_projection
 from tandem_data.store import Store, readonly_connection
 
@@ -280,13 +281,29 @@ def main(argv=None):
                 if args.format == "csv":
                     writer = csv.writer(handle)
                     writer.writerow([col[0] for col in rows.description])
-                    writer.writerows([_csv_cell(value) for value in row] for row in rows)
+                    ext = (
+                        [col[0] for col in rows.description].index("ext")
+                        if args.table == "event"
+                        else -1
+                    )
+                    texts: dict = {}
+
+                    def logical(row):
+                        if ext < 0:
+                            return list(row)
+                        event = restore_row(connection, row, texts)
+                        event["ext"] = canonical(restore_json(connection, event["ext"]))
+                        return list(event.values())
+
+                    writer.writerows([_csv_cell(value) for value in logical(row)] for row in rows)
                 else:
                     for row in rows:
-                        data = dict(row)
+                        data = restore_row(connection, row) if args.table == "event" else dict(row)
                         for key in ("attrs", "ext", "native_key", "files", "attribution"):
                             if isinstance(data.get(key), str):
                                 data[key] = json.loads(data[key])
+                        if args.table == "event":
+                            data["ext"] = restore(connection, data["ext"])
                         handle.write(canonical(data) + "\n")
                 result = {"export": str(args.output), "table": args.table}
         print(canonical(result))

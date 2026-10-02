@@ -203,8 +203,8 @@ def test_digest_detects_logical_changes(synthetic, tmp_path, mutation):
         assert (
             _write(
                 copy,
-                "DELETE FROM record_event WHERE rowid=(SELECT rowid FROM record_event "
-                "ORDER BY record_uid,event_uid LIMIT 1)",
+                "DELETE FROM record_event WHERE (record_uid,event_uid)=(SELECT record_uid,event_uid "
+                "FROM record_event ORDER BY record_uid,event_uid LIMIT 1)",
             )
             == 1
         )

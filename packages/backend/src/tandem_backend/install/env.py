@@ -1,6 +1,8 @@
 """Install environment (DT-22): where each local agent keeps its config, and what it can take.
 
-Only ``os.stat`` / ``os.scandir`` touch the agent directories; no file body is read. The
+Agent directories are only ``os.stat`` / ``os.scandir``-ed, except for a few small config files:
+Claude's ``plugins/installed_plugins.json`` index (so the plugin count means installed plugins) and,
+without an inventory scan, the JSON/TOML files holding MCP servers and hooks, parsed for counts. The
 ``--version`` probes run in a minimal environment (macOS GUI processes get a short PATH, so
 binaries are found in fixed candidate dirs), in parallel, and are cached on
 ``(path, mtime_ns, size)`` for 24 h. A full answer is memoised in process for 2 s.
@@ -14,6 +16,7 @@ import re
 import subprocess
 import threading
 import time
+import tomllib
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -87,6 +90,23 @@ def display(path: Path | str, home: Path) -> str:
 
 # ---- binaries -----------------------------------------------------------------------------
 
+# App bundles that ship a CLI outside PATH (ChatGPT.app bundles ``codex``). ``~`` = env.home.
+APP_ROOTS: tuple[str, ...] = ("/Applications", "~/Applications")
+APP_BIN_GLOB = "*.app/Contents/Resources/codex-cli/bin"
+VERSION_RE = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?")
+
+
+def app_bundle_dirs(home: Path, roots: tuple[str, ...] | None = None) -> list[Path]:
+    dirs: list[Path] = []
+    for root in APP_ROOTS if roots is None else roots:
+        base = home / root[2:] if root.startswith("~/") else Path(root)
+        try:
+            dirs += sorted(p for p in base.glob(APP_BIN_GLOB) if p.is_dir())
+        except OSError:
+            pass
+    return dirs
+
+
 def search_dirs(env: Env) -> list[Path]:
     if env.search_dirs is not None:
         return list(env.search_dirs)
@@ -101,6 +121,7 @@ def search_dirs(env: Env) -> list[Path]:
     except OSError:
         pass
     dirs += [Path(p) for p in env.environ.get("PATH", "").split(os.pathsep) if p]
+    dirs += app_bundle_dirs(h)
     seen, unique = set(), []
     for d in dirs:
         if str(d) not in seen:
@@ -138,7 +159,7 @@ def probe_version(binary: str, env: Env, timeout: float = 3.0) -> dict:
     raw = ((done.stdout or "") + (done.stderr or "")).strip()[:200]
     if done.returncode != 0:
         return {"version": None, "raw": raw, "ok": False, "error": f"exit_{done.returncode}"}
-    match = re.search(r"\d+\.\d+\.\d+", raw)
+    match = VERSION_RE.search(raw)
     if not match:
         return {"version": None, "raw": raw, "ok": False, "error": "no_version"}
     return {"version": match[0], "raw": raw, "ok": True, "error": None}
@@ -224,14 +245,33 @@ def layer(layer_id: str, path: Path, home: Path, managed: bool = False) -> dict:
             "size": size, "mtime": mtime, "writable": (not managed) and _writable(path), "managed": managed}
 
 
-def dir_info(path: Path | None, home: Path) -> dict | None:
+def _entries(path: Path) -> int:
+    return sum(1 for e in os.scandir(path) if not e.name.startswith("."))
+
+
+def _skills(path: Path) -> int:
+    """Skill folders only: entries (symlinks followed) holding a ``SKILL.md``."""
+    return sum(1 for e in os.scandir(path) if not e.name.startswith(".") and (Path(e.path) / "SKILL.md").is_file())
+
+
+def _plugins(path: Path) -> int:
+    """Installed plugins per ``installed_plugins.json``; cache/marketplace folders are not plugins."""
+    try:
+        doc = json.loads((path / "installed_plugins.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return 0
+    plugins = doc.get("plugins") if isinstance(doc, dict) else None
+    return len(plugins) if isinstance(plugins, dict) else 0
+
+
+def dir_info(path: Path | None, home: Path, counter: Callable[[Path], int] = _entries) -> dict | None:
     if path is None:
         return None
+    exists = path.is_dir()
     try:
-        count = sum(1 for e in os.scandir(path) if not e.name.startswith("."))
-        exists = True
+        count = counter(path) if exists else 0
     except OSError:
-        count, exists = 0, False
+        count = 0
     return {"path": str(path), "display": display(path, home), "exists": exists, "count": count}
 
 
@@ -254,7 +294,9 @@ def _claude(env: Env, root: Path) -> tuple[list, dict, list]:
     layers = [layer("user_settings", root / "settings.json", h), layer("local_settings", root / "settings.local.json", h),
               layer("claude_md", root / "CLAUDE.md", h), layer("mcp_user", claude_json_path(env), h),
               layer("managed", MANAGED_SETTINGS, h, managed=True)]
-    dirs = {name: dir_info(root / name, h) for name in ("skills", "agents", "commands", "plugins", "hooks", "rules")}
+    counters = {"skills": _skills, "plugins": _plugins}
+    dirs = {name: dir_info(root / name, h, counters.get(name, _entries))
+            for name in ("skills", "agents", "commands", "plugins", "hooks", "rules")}
     dirs["prompts"] = None
     profiles = []
     try:
@@ -271,7 +313,7 @@ def _codex(env: Env, root: Path) -> tuple[list, dict, list]:
     # 待验证 V6：Codex 的用户 skills 目录在 ~/.codex/skills 与 ~/.agents/skills 之间并不确定。
     options = [root / "skills", h / ".agents/skills"]
     chosen = next((p for p in options if p.is_dir()), options[1])
-    skills = dir_info(chosen, h)
+    skills = dir_info(chosen, h, _skills)
     skills["alternatives"] = [str(p) for p in options if p != chosen]
     dirs = {"skills": skills, "agents": None, "commands": None, "plugins": None,
             "hooks": dir_info(root / "hooks", h), "rules": dir_info(root / "rules", h),
@@ -311,7 +353,7 @@ def _query(reads, sql: str, params=()) -> list | None:
 
 def all_installed_counts(reads) -> dict[str, dict] | None:
     rows = _query(reads, LATEST_COUNTS)
-    if rows is None:
+    if not rows:  # no db, or a db whose inventory was never scanned: counts are unknown, not zero
         return None
     counts: dict[str, dict] = {}
     for agent, kind, n in rows:
@@ -331,6 +373,32 @@ def inventory_names(reads, agent: str | None = None, kind: str | None = None) ->
            "(SELECT MAX(scan_id) FROM inventory_scan GROUP BY source_key) AND (?1 IS NULL OR s.agent = ?1) "
            "AND (?2 IS NULL OR i.type = ?2)")
     return {r[0] for r in _query(reads, sql, (agent, kind)) or []}
+
+
+def _load(path: Path, parse=json.loads):
+    try:
+        doc = parse(path.read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def _size(value) -> int:
+    return len(value) if isinstance(value, dict | list) else 0
+
+
+def file_counts(agent: str, env: Env, root: Path, dirs: dict) -> dict:
+    """Cheap counts from the agent's own config files when no inventory scan exists."""
+    counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0)}
+    if agent == "claude_code":
+        hooks = _load(root / "settings.json").get("hooks")
+        counts["hook"] = sum(_size(g.get("hooks")) for groups in (hooks.values() if isinstance(hooks, dict) else ())
+                             if isinstance(groups, list) for g in groups if isinstance(g, dict))
+        counts["mcp"] = _size(_load(claude_json_path(env)).get("mcpServers"))
+        counts["plugin"] = _size(_load(root / "plugins/installed_plugins.json").get("plugins"))
+    elif agent == "codex":
+        counts["mcp"] = _size(_load(root / "config.toml", tomllib.loads).get("mcp_servers"))
+    return counts
 
 
 # Most recent session activity first; projects without sessions follow, newest row first.
@@ -418,8 +486,8 @@ def _environment(env: Env, reads, cache_dir: Path | None, projects: bool, refres
         full = agent in FULL_SUPPORT
         if counts is not None:
             agent_counts = counts.get(agent, dict.fromkeys(COUNT_KINDS, 0))
-        elif full and has_dir:  # no tandem.db yet: fall back to cheap directory counts
-            agent_counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0)}
+        elif full and has_dir:  # no inventory scan yet: fall back to cheap config-file counts
+            agent_counts = file_counts(agent, env, root, dirs)
         else:
             agent_counts = None
         caps = capabilities(agent, version) if full else {**dict.fromkeys(CAPABILITIES, False), "basis": "assumed"}
@@ -430,7 +498,7 @@ def _environment(env: Env, reads, cache_dir: Path | None, projects: bool, refres
             "root": display(root, h), "root_abs": str(root), "profiles": profiles,
             "install_support": "full" if full else "read_only", "capabilities": caps,
             "layers": layers, "dirs": dirs, "installed_counts": agent_counts,
-            "counts_basis": "inventory" if counts is not None else ("files" if agent_counts else None),
+            "counts_basis": "inventory" if counts is not None else ("files" if agent_counts else "unknown"),
             "unsupported_reason": None if full else "agent_not_supported_v1",
         })
     project_list = [project_info(p) for p in project_paths(reads)] if projects else []
