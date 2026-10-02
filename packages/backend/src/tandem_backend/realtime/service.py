@@ -115,14 +115,14 @@ class Realtime:
     def _wanted(self) -> bool:
         return self.clients > 0 or self.clock() - self.requested_at < KEEPALIVE_S
 
-    def _stopping(self) -> bool:
+    def stopping(self) -> bool:
         stopping = getattr(self.gw, "stopping", None)
         return self.stop.is_set() or bool(stopping and stopping.is_set())
 
     def _run(self) -> None:
         while not self.stop.wait(TICK_S):
             with self.lock:
-                if self._stopping() or not self._wanted():
+                if self.stopping() or not self._wanted():
                     self.thread = None
                     return
             try:
