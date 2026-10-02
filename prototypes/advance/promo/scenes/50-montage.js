@@ -12,6 +12,8 @@ scene('50-montage', () => {
 .mt-stem{display:block;width:2px;height:34px;margin:0 auto;background:linear-gradient(rgba(255,255,255,.7),rgba(255,255,255,0))}
 .mt-a1>span{color:var(--a1)}
 .mt-sw .sw>span{color:var(--a1)}
+.tag .ln.mt-eb{font-size:32px}
+.tag .ln.mt-eb2{font-size:26px}
 `);
   // tag() writes 'scale(k) translate(…)', which scales about the anchor after moving the box away from it, so a
   // counter-scaled tag drifts off its edge; swapping the order keeps the anchor on the edge (see report)
@@ -42,7 +44,7 @@ scene('50-montage', () => {
     const ph = PH(D); if (!ph) return; const r = ph.getBoundingClientRect(), C = decks[0].C;
     C.x = lerp(C.x, r.left + r.width / 2 + 120, .14); C.s = lerp(C.s, trajCam().s * 1.12, .03);
   });
-  tag(0, 84.0, 86.4, '.tl-card', 'top', [['eb', '03 · 轨迹回放'], ['md sv', '卡在哪一刻，一眼看清']], { at: 0, gap: 40, anim: tg(.25) });
+  tag(0, 84.0, 86.4, '.tl-card', 'top', [['eb mt-eb', '03 · 轨迹回放'], ['md sv', '卡在哪一刻，一眼看清']], { at: 0, gap: 40, anim: tg(.25) });
   tag(0, 84.2, 88.5, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], {
     at: .5, gap: 10, anim: (el, tl, life, t) => {
       const b = t / BEAT, f = phaseOf(phAt(b)), pill = el.querySelector('.mt-ph');
@@ -58,11 +60,12 @@ scene('50-montage', () => {
   /* ---------- 6.2 studio (deck 1, b88.4–92.25) ---------- */
   const runCard = (D) => D.querySelectorAll('#main .card.pad.col')[1];
   const skillCard = (D) => smallest(D, '#main .card.col', 'SKILL.md');
-  at(86.6, () => { const a = app(1); a.W.closeModal(); a.go('studio'); a.click('[data-act="studioStart"]'); solo(1, [runCard, skillCard]); });
+  // the run starts while deck 1 is still dark so SKILL.md is being written line by line (b88.4–92) when the plane arrives
+  at(83.4, () => { const a = app(1); a.W.closeModal(); a.go('studio'); a.click('[data-act="studioStart"]'); solo(1, [runCard, skillCard]); });
   const studioCam = () => Object.assign(framing(1, [runCard, skillCard], [900, 600, 1300, 760], { max: 1.6 }), PLANE);
   tween(1, 88.45, .55, studioCam, E.quart, (T) => ({ ax: T.ax + DIAG[0], ay: T.ay + DIAG[1], o: 0, bl: 8, mx: 30 }));
   tween(1, 89.0, 3.0, () => { const C = decks[1].C; return { s: C.s * 1.06, ax: C.ax - 40, ay: C.ay - 20 }; }, E.sine);
-  tag(1, 88.9, 92.1, skillCard, 'right', [['eb', '生成工坊'], ['gap'], ['md sv', '交给本地 Agent'], ['md sv', '写成 Skill'], ['md mt-a1', '边写边验']], { gap: 46, anim: tg(.12) });
+  tag(1, 88.9, 92.1, skillCard, 'right', [['eb mt-eb', '生成工坊'], ['gap'], ['md sv', '交给本地 Agent'], ['md sv', '写成 Skill'], ['md mt-a1', '边写边验']], { gap: 46, anim: tg(.12) });
 
   /* ---------- 6.3–6.4 3D whip → Ask (deck 1 out, deck 0 in, b92.0–95.4) ---------- */
   tween(1, 92.0, .25, () => { const C = decks[1].C; return { ry: C.ry - 70, ax: C.ax - 900, mx: 80, o: 0 }; }, E.in);
@@ -98,7 +101,7 @@ scene('50-montage', () => {
   }, { bloom: 'var(--ai)', glide: .5 });
   // after the press: push in on the answer's first lines
   tween(0, 94.55, .6, () => Object.assign(framing(0, '#askA', [240, 620, 1500, 520], { s: 3, px: 0, py: 0 })), E.inOut);
-  tag(0, 93.2, 94.9, '#modal', 'bottom', [['eb ai', '04 · 问你自己的本地 Agent'], ['lt', '数据不出本机 · 0 B 上传']], { at: .5, gap: 34, anim: tg(.2) });
+  tag(0, 93.2, 94.9, '#modal', 'bottom', [['eb ai mt-eb2', '04 · 问你自己的本地 Agent'], ['lt', '数据不出本机 · 0 B 上传']], { at: .5, gap: 34, anim: tg(.2) });
   tween(0, 94.95, .35, () => OUT.down(decks[0].C), E.in);
 
   /* ---------- 6.5–6.9 「还有 ___」 (b95.2–101.4) ---------- */
@@ -109,6 +112,9 @@ scene('50-montage', () => {
     anim: (el, tl, life, t) => {
       let cur = 0; SW_AT.forEach((b, i) => { if (tl >= BB(b)) cur = i + 1; });
       (cur % 2 ? swapS : swapV)(el, tl, life, t);
+      // K.swap's vertical cross travels 45%, so old and new word overlap mid-swap; travel a full line instead (the slot
+      // clips), so the outgoing word clears the line as the incoming one fills it
+      if (!(cur % 2)) el.querySelectorAll('.sw>span').forEach((w) => { const m = /translateY\((-?[\d.]+)%\)/.exec(w.style.transform); if (m) w.style.transform = 'translateY(' + (parseFloat(m[1]) * 100 / 45).toFixed(1) + '%)'; });
       const inn = E.out(clamp(tl / BB(.4)));
       const b = t / BEAT, q = E.inOut(lp(b, 101.0, .4));     // the whole group turns and shrinks into the centre
       el.style.transform = 'translate(-50%,-50%) translate(0,' + ((1 - inn) * 40 + q * 320).toFixed(1) + 'px) rotate(' + (q * 80).toFixed(2) + 'deg) scale(' + lerp(1, .3, q).toFixed(3) + ')';
@@ -137,12 +143,12 @@ scene('50-montage', () => {
   // 6.8 the edition switch, flanked by its two names; the pointer picks Lite (deck 0)
   at(98.3, () => { const a = app(0); a.D.querySelectorAll('#notes .nt').forEach((n) => n.remove()); a.W.closeModal(); a.go('overview'); solo(0, '.edsw'); });
   tween(0, 98.8, .5, () => framing(0, '.edsw', [960, 700, 700, 200], { max: 3.4 }), E.quart, fromBelow);
-  tag(0, 98.9, 100.15, '.edsw', 'left', [['md sv', 'Lite']], { gap: 44, anim: tg(0) });
-  tag(0, 98.9, 100.15, '.edsw', 'right', [['md sv', 'Advance']], { gap: 44, anim: tg(0) });
+  tag(0, 98.9, 100.0, '.edsw', 'left', [['md sv', 'Lite']], { gap: 44, anim: tg(0) });
+  tag(0, 98.9, 100.0, '.edsw', 'right', [['md sv', 'Advance']], { gap: 44, anim: tg(0) });
   // the press does what edSet() does first (the thumb slides to Lite); the page swap that follows would re-render the
   // sidebar with an entrance fade and lose the switch for the rest of the shot
   clickAt(0, 99.4, '[data-act="edition"][data-v="lite"]', (a) => { a.D.querySelector('#win').dataset.ed = 'lite'; a.D.querySelectorAll('.edsw [data-act="edition"]').forEach((x) => x.setAttribute('aria-checked', String(x.dataset.v === 'lite'))); }, { glide: .45 });
-  tween(0, 99.9, .35, upOut(0), E.in);
+  tween(0, 99.72, .3, upOut(0), E.in);                   // clear before the widgets rise into the same spot at b100.0
   // 6.9 dark mode: a light copy (deck 1) is wiped diagonally left → right to reveal a dark copy beneath it (deck 0)
   at(99.3, () => { const a = app(1); a.W.closeModal(); a.go('overview'); solo(1, '#widgets'); });
   tween(1, 100.0, .45, () => framing(1, '#widgets', BOXC, { max: 2.2 }), E.quart, fromBelow);
