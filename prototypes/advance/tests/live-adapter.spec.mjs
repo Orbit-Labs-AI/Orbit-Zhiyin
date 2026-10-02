@@ -7,7 +7,9 @@
 //  3. outage        503 + Retry-After keeps the previous screen and shows the banner; service degraded shows too
 //  4. restart       a tandem:endpoint event moves to the new gateway (new token) and re-renders from it
 //  5. live Lite     same bindings in the single-file Lite page
-//  6. Lite edition  Advance's Lite pages: l-home / l-sessions reuse the bound pages, l-persona / l-recs show 示例数据
+//  6. Lite edition  Advance's Lite pages: l-home / l-sessions reuse the bound pages, l-recs is bound, l-persona shows 示例数据
+//  7. recs          A7 / A1 / Lite / menubar read /v1/recommendations (fixtures/recs); exposure, labels with undo, recompute;
+//                   404 / 503 before any live data keep the demo rows with 示例数据
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -60,6 +62,7 @@ async function gateway(page) {
       '/v1/app/sources': () => FX('app-sources'),
       '/v1/app/settings': () => FX('app-settings')
     };
+    const rec = recsRoute(u, route.request(), state); if (rec) return json(rec.body, rec.status || 200);
     if (routes[u.pathname]) return json(routes[u.pathname]());
     return json({ error: { code: 'not_found', message: u.pathname, retryable: false } }, 404);
   });
@@ -144,10 +147,11 @@ test('live Advance in the Lite edition: l-home and l-sessions use the bound page
   await expect(rows).toHaveCount(2);
   await rows.first().click();
   await expect(page.locator('[data-tl="events"] .tl-ev')).toHaveCount(3);
-  for (const r of ['l-persona', 'l-recs']) {
-    await page.evaluate((id) => go(id), r);
-    await expect(page.locator('#content [data-tl="sample"]'), r).toHaveText('示例数据');
-  }
+  await page.evaluate(() => go('l-persona'));
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
+  await page.evaluate(() => go('l-recs'));   // bound by 97-live-recs.js
+  await expect(page.locator('#content .l-rc').first()).toContainText('长会话交接摘要');
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   // back to Advance: the mapped route keeps its live page
   await page.evaluate(() => edSet('advance'));
   await expect.poll(() => page.evaluate(() => [S.ed, S.route])).toEqual(['advance', 'recs']);
@@ -206,3 +210,121 @@ test('live Lite: the same bindings render overview, sessions, tools, projects, s
   expect(gw.seen.filter((s) => s.path.startsWith('/v1/')).every((s) => s.auth === 'Bearer fx-token')).toBe(true);
   expect(errors).toEqual([]);
 });
+
+/* ---------- recommendations (97-live-recs.js, TandemLive recs section) ---------- */
+// state.rec: {mode: 'ok' | 'missing' | 'down' | 'computing', hidden: candidate ids labelled away, posts: [{method, path, body}]}.
+// The top surfaces answer a different order from A7 (handoff first) so the stable slate is visible on A1 / Lite / menubar.
+const RFX = (name) => FX('recs/' + name);
+function recsRoute(u, req, state) {
+  const R = state.rec || (state.rec = { mode: 'ok', hidden: new Set(), posts: [] });
+  const p = u.pathname;
+  if (!p.startsWith('/v1/recommendations') && !p.startsWith('/v1/labels')) return null;
+  if (R.mode === 'missing') return null;
+  if (R.mode === 'down') return { status: 503, body: FX('error-503') };
+  const method = req.method();
+  if (method !== 'GET') { let body = null; try { body = JSON.parse(req.postData() || 'null'); } catch (e) { body = null; } R.posts.push({ method, path: p, body }); }
+  if (p === '/v1/recommendations') {
+    if (R.mode === 'computing') return { status: 202, body: RFX('recommendations-computing') };
+    const all = RFX('recommendations'); const items = all.items.filter((c) => !R.hidden.has(c.candidate_id));
+    const sf = u.searchParams.get('surface');
+    const top = ['fxc-handoff', 'fxc-allow', 'fxc-rule'].map((id) => items.find((c) => c.candidate_id === id)).filter(Boolean);
+    all.items = sf === 'A7' ? items : top.slice(0, Number(u.searchParams.get('limit')) || 3);
+    return { body: all };
+  }
+  if (p === '/v1/recommendations/relations') return { body: RFX('relations') };
+  if (p === '/v1/recommendations/exposures') return { body: RFX('exposures') };
+  if (p === '/v1/recommendations/recompute') return { body: RFX('recompute') };
+  if (/\/exposure$/.test(p)) return { body: RFX('exposure') };
+  if (p === '/v1/labels' && method === 'POST') { R.hidden.add(R.posts[R.posts.length - 1].body.target_id); return { body: RFX('label') }; }
+  if (p.startsWith('/v1/labels/') && method === 'DELETE') { R.hidden.clear(); return { body: RFX('label-undo') }; }
+  if (/^\/v1\/recommendations\/[^/]+$/.test(p)) return { body: RFX('recommendation-detail') };
+  return null;
+}
+
+test('live recs: A7 from fixtures, exposure, 不适用 with reason and 8-second undo, recompute; A1 / menubar take the top slate', async ({ page }) => {
+  ONLY('mac-14');
+  test.setTimeout(60_000);
+  const errors = collectErrors(page);
+  const gw = await gateway(page);
+  gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
+  await page.goto('http://tandem.test/app#token=fx-token');
+  // A1: the overview gets 本周建议 with the backend's A1 slate first
+  const a1 = page.locator('#content [data-tl="recs-a1"]');
+  await expect(a1.locator('.ov-recn').first()).toHaveText('长会话交接摘要');
+  await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A1')).toBe(true);
+  // A7: the demo renderer with fixture rows; save estimate from score.benefit, a missing one prints —
+  await page.evaluate(() => go('recs'));
+  const cards = page.locator('#content .rcard');
+  await expect(cards).toHaveCount(3);
+  await expect(page.locator('#content')).not.toContainText('PR 收尾');
+  await expect(cards.filter({ hasText: '只读命令自动放行' }).locator('.rc-save b')).toHaveText('≈ 1.2 h');
+  await expect(cards.filter({ hasText: '验收命令' }).locator('.rc-save b')).toHaveText('—');
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+  await expect.poll(() => gw.rec.posts.filter((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A7').flatMap((x) => x.body.items.map((i) => i.candidate_id)).sort()).toEqual(['fxc-allow', 'fxc-handoff', 'fxc-rule']);
+  // open + detail + relations
+  await cards.filter({ hasText: '长会话交接摘要' }).locator('.rc-title').click();
+  await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/fxc-handoff/exposure' && x.body.action === 'open' && x.body.surface === 'A7')).toBe(true);
+  await page.evaluate(() => ACT.recTab({ dataset: { v: 'why' } }));
+  await expect(page.locator('#content [data-tl="rec-rel"]')).toContainText('只读命令自动放行');
+  // 不适用: reason menu → label; undo within 8 s deletes the label and the card comes back
+  await cards.filter({ hasText: '只读命令自动放行' }).locator('[data-act="dismissRec"]').click();
+  await page.locator('#dd button', { hasText: '已有等价配置' }).click();
+  await expect(cards).toHaveCount(2);
+  await expect.poll(() => gw.rec.posts.find((x) => x.path === '/v1/labels')?.body).toEqual({ target_kind: 'candidate', target_id: 'fxc-allow', label: 'not_applicable', reason: 'has_equivalent' });
+  await expect(page.locator('#toast')).toContainText('撤销');
+  await page.locator('#toast [data-act="toastAct"]').click();
+  await expect.poll(() => gw.rec.posts.some((x) => x.method === 'DELETE' && x.path === '/v1/labels/fx-label-1')).toBe(true);
+  await expect(cards).toHaveCount(3);
+  // snooze and mute are labels too
+  await cards.filter({ hasText: '验收命令' }).locator('[data-act="dismissRec"]').click();
+  await page.locator('#dd button', { hasText: '稍后再说' }).click();
+  await expect.poll(() => gw.rec.posts.filter((x) => x.path === '/v1/labels').map((x) => x.body.label)).toEqual(['not_applicable', 'snooze']);
+  // recompute
+  await page.locator('#main [data-act="recalc"]').click();
+  await expect.poll(() => gw.rec.posts.find((x) => x.path === '/v1/recommendations/recompute')?.body.force).toBe(true);
+  await expect(page.locator('#toast')).toContainText('建议已按最新数据重算');
+  // menubar: the menubar slate's one rec
+  await page.evaluate(() => { S.attn.clear(); S.pop = true; render(); });
+  await expect(page.locator('#pop [data-act="popRec"]')).toHaveAttribute('data-id', 'fxc-handoff');
+  await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'menubar')).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('live recs in the Lite edition: l-home 本周最值得做的一件事 and l-recs use the lite slate', async ({ page }) => {
+  ONLY('mac-14');
+  test.setTimeout(60_000);
+  const errors = collectErrors(page);
+  const gw = await gateway(page);
+  gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
+  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.evaluate(() => edSet('lite'));
+  await expect(page.locator('#content [data-tl="recs-lite"] .rc-title')).toHaveText('长会话交接摘要');
+  await page.evaluate(() => go('l-recs'));
+  await expect(page.locator('#content .l-rc')).toHaveCount(3);
+  await expect(page.locator('#content .l-rc').first()).toContainText('长会话交接摘要');
+  await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'lite')).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+for (const mode of ['missing', 'down']) {
+  test('live recs degrade: ' + mode + ' before any live data keeps the demo rows with 示例数据', async ({ page }) => {
+    ONLY('mac-14');
+    test.setTimeout(60_000);
+  test.setTimeout(60_000);
+    const errors = collectErrors(page, (text, url) => /status of (404|503)/.test(text) && /^http:\/\/tandem\.test\/v1\/recommendations/.test(url));
+    const gw = await gateway(page);
+    gw.rec = { mode, hidden: new Set(), posts: [] };
+    await page.goto('http://tandem.test/app#token=fx-token');
+    await expect(page.locator('[data-tl="overview"]')).toContainText('1,874');
+    await expect(page.locator('#content [data-tl="recs-a1"]')).toHaveCount(0);
+    await page.evaluate(() => go('recs'));
+    await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
+    await expect(page.locator('#content .rcard').first()).toBeVisible();
+    await expect(page.locator('#content')).toContainText('PR 收尾');
+    // the demo 不适用 keeps its own behaviour (no label request)
+    await page.locator('#content .rcard [data-act="dismissRec"]').first().click();
+    await expect(page.locator('#toast')).toContainText('不适用');
+    expect(gw.rec.posts).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}
