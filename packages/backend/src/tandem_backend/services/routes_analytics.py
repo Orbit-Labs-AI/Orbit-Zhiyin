@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 CONTRACT = "tandem-app-analytics-v1"
 PLAIN_SECTIONS = ("overview", "tools", "projects", "text", "tasks", "instruction", "statistics",
                   "lexical", "bottleneck")
+PAGED_ROWS = {"products": "sessions"}  # Sections whose paged list is not their section key.
 CLIENT_ERRORS = {"not_found": 404, "invalid_request": 422, "analysis_scope_too_large": 422}
 
 
@@ -126,8 +127,9 @@ def router(gw: Gateway) -> APIRouter:
                 return body
         if page is not None:
             offset, limit = page
-            rows = body.get("sessions") or []
-            body["sessions"] = rows[offset:offset + limit]
+            key = PAGED_ROWS.get(snapshot.key.section) or SECTIONS[snapshot.key.section].key
+            rows = body.get(key) or []
+            body[key] = rows[offset:offset + limit]
             body["total"] = len(rows)
             body["next_offset"] = offset + limit if offset + limit < len(rows) else None
         body["meta"] = meta_
@@ -202,6 +204,12 @@ def router(gw: Gateway) -> APIRouter:
                  limit: int = Query(50, ge=1, le=200), wait_ms: int = wait,
                  if_none_match: str | None = Header(None)):
         return serve("sessions", scope, {}, wait_ms, if_none_match, page=(offset, limit))
+
+    @api.get("/v1/analytics/sample_files")
+    def sample_files(scope=scope_dependency, offset: int = Query(0, ge=0),
+                     limit: int = Query(200, ge=1, le=1000), wait_ms: int = wait,
+                     if_none_match: str | None = Header(None)):
+        return serve("sample_files", scope, {}, wait_ms, if_none_match, page=(offset, limit))
 
     @api.get("/v1/analytics/sessions/{session_id}")
     def session(session_id: str, scope=scope_dependency, wait_ms: int = wait,
