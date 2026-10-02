@@ -7,6 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..common import semantic_messages, timestamp
+from ..lexicon import emotion_cues
 from ..outcome_subjective.extraction import classify_feedback
 from .contracts import metric
 
@@ -50,8 +51,9 @@ def classify_emotion(text: str) -> str | None:
         part.strip(" ，,。！!.；;\n")
         for part in re.split(r"[，,。！!；;\n]|但是|\bbut\b", text, flags=re.I)
     ]
-    positive = any(POSITIVE.fullmatch(part) for part in clauses)
-    negative = any(NEGATIVE.fullmatch(part) for part in clauses)
+    cues = [emotion_cues(part) for part in clauses if part]
+    positive = any(POSITIVE.fullmatch(part) for part in clauses) or any(p for p, _ in cues)
+    negative = any(NEGATIVE.fullmatch(part) for part in clauses) or any(n for _, n in cues)
     if positive and negative:
         return "mixed"
     return (
