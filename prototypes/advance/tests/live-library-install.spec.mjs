@@ -89,6 +89,8 @@ test('live library: catalog cards, facets, paging, search, local items and item 
   expect(gw.seen.some((s) => s.path === '/v1/catalog/items' && /cursor=fx-cursor-2/.test(s.search))).toBe(true);
   await page.locator('[data-act="libKind"][data-v="插件"]').click();
   await expect.poll(() => gw.seen.some((s) => s.path === '/v1/catalog/items' && /kind=plugin&kind=marketplace/.test(s.search))).toBe(true);
+  // B10: the distribution card follows the kind chip
+  await expect.poll(() => gw.seen.some((s) => s.path === '/v1/catalog/facets' && /kind=plugin&kind=marketplace/.test(s.search))).toBe(true);
   await page.locator('[data-act="libKind"][data-v="全部"]').click();
   // search (debounced) goes to /v1/catalog/search
   await page.locator('#libQ').fill('retry');

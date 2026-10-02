@@ -33,8 +33,26 @@ function lvRecRow(c) {
   if (sv) r.x.save = sv.min_month > 0 ? Math.round(sv.min_month / 60 * 10) / 10 : null;
   r.x.tok = typeof u.tok === 'number' ? Math.round(u.tok / 100) / 10 : null;
   if (Array.isArray(u.n) && u.n[0] != null) r.x.n = [u.n[0], u.n[1] != null ? u.n[1] : u.n[0]];
+  // evidence: catalog rows matched only by profile have no session behind them, so they say what matched instead of 0 个会话
+  const evN = ((c.evidence || {}).counts || {}).sessions || ((c.evidence || {}).session_uids || []).length || 0; r.evN = evN;
+  r.why = lvRecBrief(r.why && r.why !== r.title ? r.why : c.summary) || lvRecBrief(c.summary) || '';
+  if (sv) r.saveBasis = sv.basis || null;
+  if (!evN) {
+    const m = ((c.feature_overlap || {}).matched || []).map((t) => String(t).replace(/^[a-z_]+:/, '')).filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 3);
+    r.ev = m.length ? '技术栈匹配 · ' + m.join(' · ') : '按使用画像匹配';
+    if (/^0 个会话/.test(r.gain) || r.gain === '—') r.gain = '尚无会话证据 · 安装后开始追踪';
+  }
   const src = c.source || {}; r.url = src.url || null; r.license = src.license || null; r.origin = src.origin || null; r.item_id = src.item_id || null;
   return r;
+}
+// one-line card text from a backend reason / catalog description: first non-empty line, first sentence when long, ≤ 90 chars
+function lvRecBrief(t) {
+  let s = String(t || '').split(/\n+/).map((x) => x.trim()).find(Boolean) || '';
+  if (s.length > 60) { const m = s.match(/^.{12,}?(?:[。！？]|[.!?](?=\s|$))/); if (m) s = m[0]; }
+  s = s.replace(/\s*[—–-]\s*$/, '');
+  if (s.length <= 90) return s;
+  let cut = s.slice(0, 88); const sp = Math.max(cut.lastIndexOf(' '), cut.lastIndexOf('，'), cut.lastIndexOf('、')); if (sp > 50) cut = cut.slice(0, sp);
+  return cut.replace(/[\s,，、;；:：—–-]+$/, '') + '…';
 }
 // installs made through the real sheet (install state: candidate_id / catalog source) mark the A7 card 已安装 · 追踪中
 function lvRecInstalls() {
@@ -177,7 +195,7 @@ if (TL.mode === 'live') {
     const r = RECI[el.dataset.id];
     if (!r || !r.live || typeof liInstall !== 'function') return A.install(el);
     if (S.installed.has(r.id)) return ACT.openRec({ dataset: { id: r.id, tab: 'track' } });
-    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id },
+    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id }, catalogId: r.origin === 'catalog' ? r.item_id : null,
       onDone: (res) => { S.installed.set(r.id, { days: 1, live: true, fresh: true, install_id: res.install_id, at: Date.now(), scope: 'global', target: (res.written || []).map((w) => w.display).join('、') }); } });
   };
   ACT.doUninstall = (el) => {

@@ -1284,7 +1284,7 @@ const TandemLive = (function () {
           const req = { source, scope: o.scope || 'user' }; if (agents) req.agents = agents; if (o.projectPath) req.project_path = o.projectPath;
           return L.plan(req).then((plan) => {
             if (plan.status !== 'needs_fetch') return plan;
-            const fr = source.type === 'catalog' ? { catalog_id: source.id } : { source: source.spec || source };
+            const fr = source.type === 'catalog' ? { catalog_id: source.id } : o.catalogId ? { catalog_id: o.catalogId } : { source: source.spec || source };   // a candidate backed by a catalog item fetches that item
             return L.fetch(fr).then(() => L.plan(Object.assign({}, req, { fetch: true })));
           }).then((plan) => {
             if (plan.status !== 'ready') return { env: envData, plan, preview: null };
