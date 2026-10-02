@@ -13,6 +13,7 @@ import importlib
 import json
 import logging
 import re
+import sqlite3
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
@@ -25,8 +26,16 @@ log = logging.getLogger(__name__)
 
 DAY_MS = 86_400_000
 MARKER = "[tandem-analysis"
-CORRECTION_RE = re.compile(r"不是|不对|我说的是|别再|wrong|no,|again", re.I)
-_CORRECTION_LIKE = ("不是", "不对", "我说的是", "别再", "wrong", "no,", "again")
+# Corrections are short pushback near the start of a message (B8): a bare "不是" inside a long
+# prompt is a copula, "again" is mostly a client retry ("Try again").
+CORRECTION_MAX_CHARS = 200
+_CORRECTION_HEAD = 60
+_CORRECTION_ZH = re.compile(r"^(?:不是|错了|搞错)|(?<!对)不对(?![应称劲齐])|我说的是|别再|不是这样|不是这个|不是我要"
+                            r"|不是让你|理解错|搞错了|还是不行")
+_CORRECTION_EN = re.compile(r"^(?:no|nope)\b[\s,.!]|\b(?:wrong|that'?s not|not what i (?:asked|meant|wanted|said)"
+                            r"|i said|i meant|you misunderstood)\b", re.I)
+_CLIENT_RETRY = re.compile(r"^(?:try again|retry|continue|please continue|go on|keep going)[.!。！]?$", re.I)
+UNKNOWN_STATUS = ("unknown", "orphan_result")
 VERIFY_RE = re.compile(r"pytest|npm (run )?test|pnpm (check|test)|cargo test|go test|make( test)?|tsc|ruff|eslint"
                        r"|swift (build|test)|xcodebuild")
 OK_STATUS = ("success", "completed", "ok")
@@ -107,28 +116,157 @@ def window_sql(start: int, end: int, project_id, home, alias: str = "s", *,
     return sql + extra, params + extra_params
 
 
-def _correction_sql(col: str = "h.text") -> str:
-    return "(" + " OR ".join(f"{col} LIKE '%{w}%'" for w in _CORRECTION_LIKE) + ")"
+def is_correction(text) -> bool:
+    """A short human message that pushes back on the agent (see ``CORRECTION_MAX_CHARS``)."""
+    t = (text or "").strip()
+    if not t or len(t) > CORRECTION_MAX_CHARS or _CLIENT_RETRY.match(t):
+        return False
+    head = t[:_CORRECTION_HEAD]
+    return bool(_CORRECTION_ZH.search(head) or _CORRECTION_EN.search(head))
+
+
+def union_ms(intervals, lo: int | None = None, hi: int | None = None) -> int:
+    """Wall-clock length of the union of ``(start, end)`` intervals clipped to ``[lo, hi)`` (B7):
+    overlapping sessions count once, so hours never exceed the window."""
+    spans = []
+    for a, b in intervals:
+        if a is None:
+            continue
+        b = a if b is None or b < a else b
+        if lo is not None:
+            a, b = max(a, lo), max(b, lo)
+        if hi is not None:
+            a, b = min(a, hi), min(b, hi)
+        if b > a:
+            spans.append((a, b))
+    total, cur_a, cur_b = 0, None, None
+    for a, b in sorted(spans):
+        if cur_b is None or a > cur_b:
+            if cur_b is not None:
+                total += cur_b - cur_a
+            cur_a, cur_b = a, b
+        else:
+            cur_b = max(cur_b, b)
+    if cur_b is not None:
+        total += cur_b - cur_a
+    return total
+
+
+def _chunks(values, size: int = 500):
+    values = list(values)
+    for i in range(0, len(values), size):
+        yield values[i:i + size]
+
+
+def human_texts(conn, uids, since: int | None = None) -> dict[str, list[str]]:
+    """Human message texts per session, in order; driven by the session list (B9)."""
+    out: dict[str, list[str]] = {}
+    for chunk in _chunks(dict.fromkeys(uids)):
+        extra, args = ("", []) if since is None else (" AND h.ts>=?", [since])
+        for uid, text in conn.execute(
+                f"SELECT h.session_uid, h.text FROM v_human_message h WHERE h.session_uid IN"
+                f" ({placeholders(chunk)}){extra} ORDER BY h.session_uid, h.seq", [*chunk, *args]):
+            out.setdefault(uid, []).append(text or "")
+    return out
+
+
+def correction_counts(conn, uids) -> dict[str, int]:
+    return {uid: sum(map(is_correction, texts)) for uid, texts in human_texts(conn, uids).items()}
+
+
+def with_children(conn, uids) -> dict[str, str]:
+    """{session_uid: main uid} for the main sessions and their subagent/workflow children, so
+    tool counts include delegated work (the analytics views do the same)."""
+    out = {u: u for u in uids}
+    try:
+        for chunk in _chunks(uids):
+            for uid, root in conn.execute(
+                    f"SELECT session_uid, root_uid FROM session WHERE root_uid IN ({placeholders(chunk)})"
+                    f" AND kind IN ('subagent','workflow_agent') AND lineage_unresolved=0", chunk):
+                out.setdefault(uid, root)
+    except sqlite3.OperationalError:  # pre-lineage schema: main sessions only
+        pass
+    return out
+
+
+def tool_stats(conn, uids) -> dict[str, list[int]]:
+    """{main uid: [calls, known, failures]} (known = a status other than unknown/orphan)."""
+    owner = with_children(conn, uids)
+    out: dict[str, list[int]] = {}
+    for chunk in _chunks(owner):
+        for uid, calls, known, fails in conn.execute(
+                f"SELECT session_uid, COUNT(*), SUM(status NOT IN ({placeholders(UNKNOWN_STATUS)})),"
+                f" SUM(status IN ({placeholders(FAIL_STATUS)})) FROM tool_call WHERE session_uid IN"
+                f" ({placeholders(chunk)}) GROUP BY session_uid", [*UNKNOWN_STATUS, *FAIL_STATUS, *chunk]):
+            acc = out.setdefault(owner[uid], [0, 0, 0])
+            acc[0] += calls
+            acc[1] += int(known or 0)
+            acc[2] += int(fails or 0)
+    return out
+
+
+def _metric_values(rows, start: int, end: int, humans: dict, tools: dict) -> dict:
+    uids = [r[0] for r in rows]
+    msgs = sum(len(humans.get(u, ())) for u in uids)
+    corr = sum(is_correction(t) for u in uids for t in humans.get(u, ()))
+    calls = sum(tools.get(u, (0, 0, 0))[0] for u in uids)
+    known = sum(tools.get(u, (0, 0, 0))[1] for u in uids)
+    fails = sum(tools.get(u, (0, 0, 0))[2] for u in uids)
+    span = union_ms(((r[1], r[2]) for r in rows), start, end)
+    return {"sessions": len(rows), "hours": round(span / 3_600_000, 1), "human_messages": msgs,
+            "corrections": corr, "correction_rate": round(corr / msgs, 3) if msgs else 0.0,
+            "tool_calls": calls, "tool_failures": fails,
+            "tool_failure_rate": round(fails / known, 3) if known else 0.0}
+
+
+_METRICS_CACHE: dict = {}
+_METRICS_TTL_S = 60
+
+
+def _data_rev(conn):
+    try:
+        path = conn.execute("PRAGMA database_list").fetchone()[2]
+        rev = conn.execute("SELECT (SELECT MAX(rowid) FROM event), (SELECT MAX(rowid) FROM tool_call),"
+                           " (SELECT COUNT(*) FROM session)").fetchone()
+        return path, tuple(rev)
+    except Exception:  # noqa: BLE001 - unknown connection type: no caching
+        return None
+
+
+def metrics_pair(conn, start: int, end: int, project_id=None, home=None, *, source_ids=None,
+                 exclude=None) -> tuple[dict, dict]:
+    """Metrics of ``[start, end)`` and of the preceding window of equal length, in one pass (B9).
+
+    Hours are the union of session spans clipped to the window (B7); the tool failure rate uses
+    calls with a known status as denominator. Cached for a minute per (db, data revision, scope).
+    """
+    span = end - start
+    rev = _data_rev(conn)
+    key = None
+    if rev is not None:
+        key = (rev, start // 60_000, end // 60_000, project_id, str(home) if home else None,
+               tuple(source_ids or ()), tuple(sorted(exclude or ())))
+        hit = _METRICS_CACHE.get(key)
+        if hit and time.monotonic() - hit[0] < _METRICS_TTL_S:
+            return hit[1]
+    where, params = window_sql(start - span, end, project_id, home, source_ids=source_ids, exclude=exclude)
+    rows = conn.execute(f"SELECT s.session_uid, s.started_at, s.ended_at FROM session s WHERE {where}",
+                        params).fetchall()
+    uids = [r[0] for r in rows]
+    humans = human_texts(conn, uids, since=start - span - DAY_MS)
+    tools = tool_stats(conn, uids)
+    cur = _metric_values([r for r in rows if r[1] >= start], start, end, humans, tools)
+    prev = _metric_values([r for r in rows if r[1] < start], start - span, start, humans, tools)
+    if key is not None:
+        if len(_METRICS_CACHE) > 64:
+            _METRICS_CACHE.clear()
+        _METRICS_CACHE[key] = (time.monotonic(), (cur, prev))
+    return cur, prev
 
 
 def metrics(conn, start: int, end: int, project_id=None, home=None, *, source_ids=None,
             exclude=None) -> dict:
-    where, params = window_sql(start, end, project_id, home, source_ids=source_ids,
-                               exclude=exclude)
-    row = conn.execute(
-        f"SELECT COUNT(*), COALESCE(SUM(MAX(COALESCE(s.ended_at,s.started_at)-s.started_at,0)),0)"
-        f" FROM session s WHERE {where} LIMIT 1", params).fetchone()
-    sessions, span = row[0], row[1]
-    sub = f"SELECT s.session_uid FROM session s WHERE {where}"
-    h = conn.execute(f"SELECT COUNT(*), COALESCE(SUM({_correction_sql()}),0) FROM v_human_message h"
-                     f" WHERE h.session_uid IN ({sub}) LIMIT 1", params).fetchone()
-    t = conn.execute(f"SELECT COUNT(*), COALESCE(SUM(t.status IN ('failed','error')),0) FROM tool_call t"
-                     f" WHERE t.session_uid IN ({sub}) LIMIT 1", params).fetchone()
-    msgs, corr, calls, fails = h[0], int(h[1]), t[0], int(t[1])
-    return {"sessions": sessions, "hours": round(span / 3_600_000, 1), "human_messages": msgs,
-            "corrections": corr, "correction_rate": round(corr / msgs, 3) if msgs else 0.0,
-            "tool_calls": calls, "tool_failures": fails,
-            "tool_failure_rate": round(fails / calls, 3) if calls else 0.0}
+    return metrics_pair(conn, start, end, project_id, home, source_ids=source_ids, exclude=exclude)[0]
 
 
 def fts_query(text: str) -> str:
@@ -246,7 +384,7 @@ def _evidence(c: _Ctx) -> list[dict]:
         for uid in (cand.get("evidence_session_uids") or [])[:5]:
             rows = _human_rows(c.conn, uid)
             pick = next((r for r in rows if r[0] in top), None) or \
-                next((r for r in rows if CORRECTION_RE.search(r[1] or "")), None)
+                next((r for r in rows if is_correction(r[1])), None)
             if pick:
                 out.append({"event_uid": pick[0], "session_uid": uid, "kind": "human",
                             "text": privacy.direct_user_text(pick[1] or "")})
@@ -310,10 +448,10 @@ def _project_evidence(c: _Ctx) -> list[dict]:
             out.extend(_events_by_uid(c.conn, [uid]))
     if not out:  # no feature problems: corrections and top failing commands of the project
         rows = c.conn.execute(f"SELECT h.event_uid, h.session_uid, h.text FROM v_human_message h"
-                              f" WHERE h.session_uid IN ({sub}) AND {_correction_sql()} ORDER BY h.ts DESC LIMIT 3",
+                              f" WHERE h.session_uid IN ({sub}) ORDER BY h.ts DESC LIMIT 400",
                               params).fetchall()
         out = [{"event_uid": r[0], "session_uid": r[1], "kind": "human",
-                "text": privacy.direct_user_text(r[2] or "")} for r in rows]
+                "text": privacy.direct_user_text(r[2] or "")} for r in rows if is_correction(r[2])][:3]
         rows = c.conn.execute(f"SELECT COALESCE(t.result_event_uid,t.call_event_uid), t.session_uid, t.name,"
                               f" t.command_head, t.error_class FROM tool_call t WHERE t.session_uid IN ({sub})"
                               f" AND t.status IN ('failed','error') ORDER BY t.started_at DESC LIMIT 2",
@@ -346,9 +484,7 @@ def _sessions(c: _Ctx):
     tools = {r[0]: (r[1], int(r[2] or 0)) for r in c.conn.execute(
         f"SELECT session_uid, COUNT(*), SUM(status IN ('failed','error')) FROM tool_call"
         f" WHERE session_uid IN ({ph}) GROUP BY session_uid LIMIT 30", ids)}
-    corr = {r[0]: int(r[1] or 0) for r in c.conn.execute(
-        f"SELECT h.session_uid, SUM({_correction_sql()}) FROM v_human_message h"
-        f" WHERE h.session_uid IN ({ph}) GROUP BY h.session_uid LIMIT 30", ids)}
+    corr = correction_counts(c.conn, ids)
     facets = _facet_rows(c.appdb, ids)
     out = []
     for r in rows:
@@ -392,8 +528,8 @@ def _friction(c: _Ctx):
         classes = [{"error_class": r[0], "count": r[1]} for r in c.conn.execute(
             f"SELECT error_class, COUNT(*) n FROM tool_call WHERE session_uid IN ({sub})"
             f" AND error_class IS NOT NULL GROUP BY error_class ORDER BY n DESC, error_class LIMIT 8", params)]
-        corr = c.conn.execute(f"SELECT COALESCE(SUM({_correction_sql()}),0) FROM v_human_message h"
-                              f" WHERE h.session_uid IN ({sub}) LIMIT 1", params).fetchone()[0]
+        uids = [r[0] for r in c.conn.execute(sub, params)]
+        corr = sum(correction_counts(c.conn, uids).values())
         return {"problems": problems, "error_classes": classes, "corrections": int(corr)}
     value = c.once("friction", calc)
     return value
@@ -494,9 +630,7 @@ def _replay_calls(c: _Ctx):
 def _metrics(c: _Ctx):
     if c.conn is None:
         return {}
-    cur = metrics(c.conn, c.start, c.end, c.project_id, c.home)
-    span = c.end - c.start
-    prev = metrics(c.conn, c.start - span, c.start, c.project_id, c.home)
+    cur, prev = metrics_pair(c.conn, c.start, c.end, c.project_id, c.home)
     return {**cur, "prev": prev if prev["sessions"] else None}
 
 
@@ -631,13 +765,14 @@ def facet_sessions(c: _Ctx) -> list[str]:
         return uids
     end = c.end
     extra, params = session_filter(c.home)
-    rows = c.conn.execute(
-        f"SELECT s.session_uid, EXISTS(SELECT 1 FROM v_human_message h WHERE h.session_uid=s.session_uid"
-        f" AND {_correction_sql()}) cand FROM session s WHERE s.kind='main' AND s.status<>'active'"
+    uids = [r[0] for r in c.conn.execute(
+        f"SELECT s.session_uid FROM session s WHERE s.kind='main' AND s.status<>'active'"
         f" AND s.started_at>=? AND s.started_at<? AND COALESCE(s.ended_at,s.started_at)-s.started_at>=60000"
-        f" AND (SELECT COUNT(*) FROM v_human_message h WHERE h.session_uid=s.session_uid)>=2{extra}"
-        f" ORDER BY cand DESC, s.started_at DESC LIMIT 600", [end - 90 * DAY_MS, end, *params]).fetchall()
-    return [r[0] for r in rows]
+        f"{extra} ORDER BY s.started_at DESC", [end - 90 * DAY_MS, end, *params])]
+    humans = human_texts(c.conn, uids)
+    keep = [u for u in uids if len(humans.get(u, ())) >= 2]
+    cand = {u for u in keep if any(map(is_correction, humans[u]))}
+    return sorted(keep, key=lambda u: u not in cand)[:600]
 
 
 def _seq(kinds: list[str]) -> list[str]:
@@ -668,7 +803,7 @@ def facet_payload(conn, uid: str) -> dict:
     texts = [(r[0], privacy.direct_user_text(r[1] or "")) for r in humans]
     texts = [t for t in texts if t[1]]
     cands = [{"signal_id": "sig:" + e, "event_uid": e, "kind": "correction", "snippet": t[:120]}
-             for e, t in texts if CORRECTION_RE.search(t)][:10]
+             for e, t in texts if is_correction(t)][:10]
     if len(texts) > 12:
         texts = texts[:4] + texts[-8:]
     return {"row": row, "tool_sequence": _seq([t[0] for t in tools]),

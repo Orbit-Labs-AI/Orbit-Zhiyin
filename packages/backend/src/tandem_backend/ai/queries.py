@@ -37,6 +37,7 @@ _ALLOWED = {
     "candidates": ["scope", "limit"],
     "evidence": ["session_uid", "q", "limit"],
     "search": ["q", "limit"],
+    "corrections": ["scope", "limit"],
     "projects": ["scope", "limit"],
     "tools": ["scope", "limit"],
     "inventory": ["limit"],
@@ -106,8 +107,7 @@ def _filters(scope: dict) -> dict:
 
 def _metrics(conn, params, scope, limit, home, appdb):
     start, end, pid = P.window(scope)
-    cur = P.metrics(conn, start, end, pid, home, **_filters(scope))
-    prev = P.metrics(conn, start - (end - start), start, pid, home, **_filters(scope))
+    cur, prev = P.metrics_pair(conn, start, end, pid, home, **_filters(scope))
     names = [params["metric"]] if params.get("metric") else METRICS
     return [{"metric": m, "value": cur[m], "prev": prev[m] if prev["sessions"] else None} for m in names]
 
@@ -124,13 +124,13 @@ def _sessions(conn, params, scope, limit, home, appdb):
         f"SELECT s.session_uid, s.title, p.name, s.started_at,"
         f" MAX(COALESCE(s.ended_at,s.started_at)-s.started_at,0),"
         f" (SELECT COUNT(*) FROM tool_call t WHERE t.session_uid=s.session_uid),"
-        f" (SELECT COUNT(*) FROM tool_call t WHERE t.session_uid=s.session_uid AND t.status IN ('failed','error')),"
-        f" (SELECT COUNT(*) FROM v_human_message h WHERE h.session_uid=s.session_uid AND {P._correction_sql()})"
+        f" (SELECT COUNT(*) FROM tool_call t WHERE t.session_uid=s.session_uid AND t.status IN ('failed','error'))"
         f" FROM session s LEFT JOIN project p ON p.project_id=s.project_id WHERE {where}"
         f" ORDER BY s.started_at DESC LIMIT ?", [*args, limit]).fetchall()
+    corr = P.correction_counts(conn, [r[0] for r in rows])
     return [{"session_uid": r[0], "title": r[1] or "", "project": r[2], "started_at": r[3],
-             "minutes": round((r[4] or 0) / 60000, 1), "tools": r[5], "errors": r[6], "corrections": r[7]}
-            for r in rows]
+             "minutes": round((r[4] or 0) / 60000, 1), "tools": r[5], "errors": r[6],
+             "corrections": corr.get(r[0], 0)} for r in rows]
 
 
 def _problems(conn, params, scope, limit, home, appdb):
@@ -162,32 +162,75 @@ def _search(conn, params, scope, limit, home, appdb):
     return [{**h, "text": h["text"][:300]} for h in P.fts_human(conn, params.get("q") or "", limit)]
 
 
-def _projects(conn, params, scope, limit, home, appdb):
-    start, end, _ = P.window(scope)
-    where, args = P.window_sql(start, end, None, home, **_filters(scope))
-    rows = conn.execute(
-        f"SELECT p.project_id, p.name, COUNT(*) n,"
-        f" ROUND(SUM(MAX(COALESCE(s.ended_at,s.started_at)-s.started_at,0))/3600000.0,1),"
-        f" (SELECT COUNT(*) FROM tool_call t WHERE t.project_id=p.project_id),"
-        f" (SELECT COUNT(*) FROM tool_call t WHERE t.project_id=p.project_id AND t.status IN ('failed','error'))"
-        f" FROM session s JOIN project p ON p.project_id=s.project_id WHERE {where}"
-        f" GROUP BY p.project_id ORDER BY n DESC LIMIT ?", [*args, limit]).fetchall()
-    return [{"project_id": r[0], "name": r[1], "sessions": r[2], "hours": r[3], "tool_calls": r[4],
-             "tool_failures": r[5]} for r in rows]
+UNATTRIBUTED = "未归类"
 
 
-def _tools(conn, params, scope, limit, home, appdb):
+def _corrections(conn, params, scope, limit, home, appdb):
+    """Most recent correction messages (``pack.is_correction``) of the window's sessions."""
     start, end, pid = P.window(scope)
     where, args = P.window_sql(start, end, pid, home, **_filters(scope))
     rows = conn.execute(
-        f"SELECT name, COUNT(*) n, SUM(status IN ('failed','error')), SUM(approval IS NOT NULL),"
-        f" (SELECT error_class FROM tool_call x WHERE x.name=t.name AND x.error_class IS NOT NULL"
-        f"  GROUP BY error_class ORDER BY COUNT(*) DESC LIMIT 1), MAX(mcp_server)"
-        f" FROM tool_call t WHERE session_uid IN (SELECT s.session_uid FROM session s WHERE {where})"
-        f" GROUP BY name ORDER BY SUM(status IN ('failed','error')) DESC, n DESC LIMIT ?", [*args, limit]).fetchall()
-    return [{"tool": r[0], "calls": r[1], "failures": int(r[2] or 0),
-             "failure_rate": round((r[2] or 0) / r[1], 3) if r[1] else 0.0, "approvals": int(r[3] or 0),
-             "top_error_class": r[4], "mcp_server": r[5]} for r in rows]
+        f"SELECT h.event_uid, h.session_uid, h.text FROM v_human_message h WHERE h.session_uid IN"
+        f" (SELECT s.session_uid FROM session s WHERE {where}) AND h.ts>=? ORDER BY h.ts DESC LIMIT 5000",
+        [*args, start - P.DAY_MS]).fetchall()
+    return [{"event_uid": r[0], "session_uid": r[1], "kind": "human",
+             "text": privacy.direct_user_text(r[2] or "")[:300]} for r in rows if P.is_correction(r[2])][:limit]
+
+
+def _projects(conn, params, scope, limit, home, appdb):
+    """Per project: sessions, hours (union of session spans in the window), tool calls of the
+    window's sessions and their subagents. Sessions without a project form one 未归类 row."""
+    start, end, _ = P.window(scope)
+    where, args = P.window_sql(start, end, None, home, **_filters(scope))
+    rows = conn.execute(f"SELECT s.session_uid, s.started_at, s.ended_at, s.project_id, p.name FROM session s"
+                        f" LEFT JOIN project p ON p.project_id=s.project_id WHERE {where}", args).fetchall()
+    tools = P.tool_stats(conn, [r[0] for r in rows])
+    groups: dict = {}
+    for r in rows:
+        groups.setdefault(r[3], []).append(r)
+    out = []
+    for pid, members in groups.items():
+        calls, known, fails = (sum(tools.get(r[0], (0, 0, 0))[i] for r in members) for i in range(3))
+        out.append({"project_id": pid, "name": members[0][4] or (UNATTRIBUTED if pid is None else pid[:12]),
+                    "unattributed": pid is None, "sessions": len(members),
+                    "hours": round(P.union_ms(((r[1], r[2]) for r in members), start, end) / 3_600_000, 1),
+                    "tool_calls": calls, "known_calls": known, "tool_failures": fails,
+                    "failure_rate": round(fails / known, 3) if known else None})
+    out.sort(key=lambda x: (-x["sessions"], x["name"]))
+    return out[:limit]
+
+
+def _tools(conn, params, scope, limit, home, appdb):
+    """Per tool in the window (main sessions and their subagents): calls, failures over calls with a
+    known status, approvals (allowed) vs denied, and the most common error class in the same scope."""
+    start, end, pid = P.window(scope)
+    where, args = P.window_sql(start, end, pid, home, **_filters(scope))
+    owner = P.with_children(conn, [r[0] for r in conn.execute(
+        f"SELECT s.session_uid FROM session s WHERE {where}", args)])
+    agg: dict[str, list] = {}
+    classes: dict[str, dict] = {}
+    unknown, fail = P.UNKNOWN_STATUS, P.FAIL_STATUS
+    for chunk in P._chunks(owner):
+        ph = P.placeholders(chunk)
+        for name, n, known, fails, allowed, denied, mcp in conn.execute(
+                f"SELECT name, COUNT(*), SUM(status NOT IN ({P.placeholders(unknown)})),"
+                f" SUM(status IN ({P.placeholders(fail)})), SUM(approval IS NOT NULL AND approval<>'denied'),"
+                f" SUM(approval='denied'), MAX(mcp_server) FROM tool_call WHERE session_uid IN ({ph})"
+                f" GROUP BY name", [*unknown, *fail, *chunk]):
+            acc = agg.setdefault(name, [0, 0, 0, 0, 0, None])
+            for i, v in enumerate((n, known, fails, allowed, denied)):
+                acc[i] += int(v or 0)
+            acc[5] = acc[5] or mcp
+        for name, cls, n in conn.execute(
+                f"SELECT name, error_class, COUNT(*) FROM tool_call WHERE session_uid IN ({ph})"
+                f" AND error_class IS NOT NULL GROUP BY name, error_class", chunk):
+            by = classes.setdefault(name, {})
+            by[cls] = by.get(cls, 0) + n
+    ranked = sorted(agg.items(), key=lambda kv: (-kv[1][2], -kv[1][0], kv[0]))[:limit]
+    return [{"tool": name, "calls": a[0], "known_calls": a[1], "failures": a[2],
+             "failure_rate": round(a[2] / a[1], 3) if a[1] else 0.0, "approvals": a[3], "denied": a[4],
+             "top_error_class": min(classes[name].items(), key=lambda kv: (-kv[1], kv[0]))[0]
+             if classes.get(name) else None, "mcp_server": a[5]} for name, a in ranked]
 
 
 def _inventory(conn, params, scope, limit, home, appdb):
@@ -207,4 +250,4 @@ def _inventory(conn, params, scope, limit, home, appdb):
 
 
 _SQL = {"metrics": _metrics, "sessions": _sessions, "problems": _problems, "evidence": _evidence,
-        "search": _search, "projects": _projects, "tools": _tools, "inventory": _inventory}
+        "search": _search, "corrections": _corrections, "projects": _projects, "tools": _tools, "inventory": _inventory}
