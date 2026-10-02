@@ -26,6 +26,7 @@ QUERY_ALIASES = {
     "测试": "testing", "优化": "optimization", "验证": "verification",
 }
 MAX_TOKENS = 24
+MIN_K = 400
 MAX_K = 8000
 _QUERY_CACHE: OrderedDict = OrderedDict()
 _QUERY_LOCK = threading.Lock()
@@ -41,7 +42,7 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
             args.append(canonical_json(values))
     if request.source_ids:
         terms.append("EXISTS(SELECT 1 FROM item_source s JOIN catalog_source cs USING(source_id) WHERE s.item_id=i.item_id "
-                     "AND s.status='active' AND cs.enabled=1 AND s.source_id IN (SELECT value FROM json_each(?)))")
+                     "AND s.status='active' AND (cs.enabled=1 OR cs.source_id='local') AND s.source_id IN (SELECT value FROM json_each(?)))")
         args.append(canonical_json(request.source_ids))
     if request.agents:
         compatibility = "EXISTS(SELECT 1 FROM item_agent a WHERE a.item_id=i.item_id AND a.agent IN (SELECT value FROM json_each(?)))"
@@ -99,7 +100,7 @@ def _lexical(conn, index, mask, text, limit, prefix):
     match = match_expression(text, prefix)
     if not match:
         return [], {}
-    k = max(limit * 4, 400)
+    k = max(limit * 4, MIN_K)
     while True:
         rows = conn.execute("SELECT rowid,bm25(chunk_fts,4.0,1.0) AS s FROM chunk_fts WHERE chunk_fts MATCH ? "
                             "ORDER BY s,rowid LIMIT ?", (match, k)).fetchall()
@@ -197,6 +198,17 @@ def _passages(conn, rowids: dict) -> dict:
     return result
 
 
+def _query_features(request: MatchRequest) -> list[Feature]:
+    features = list(request.features)
+    if request.problem_type:
+        features.append(Feature(feature="friction", value=request.problem_type))
+    return features
+
+
+def query_text(request: MatchRequest) -> str:
+    return request.text or " ".join(f.value for f in _query_features(request))
+
+
 def search(store, request: MatchRequest, encoder=None) -> dict:
     response = {"contract": "catalog-match-v1", "ranking_version": RANKING_VERSION,
                 "purpose": request.purpose, "problem_id": request.problem_id,
@@ -210,10 +222,8 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
                 response["gates"].append("missing_" + name)
         if response["gates"]:
             return response
-    query_features = list(request.features)
-    if request.problem_type:
-        query_features.append(Feature(feature="friction", value=request.problem_type))
-    text = request.text or " ".join(f.value for f in query_features)
+    query_features = _query_features(request)
+    text = query_text(request)
     with store.reader() as conn:
         index = store.index(conn)
         response["generation"] = index.generation

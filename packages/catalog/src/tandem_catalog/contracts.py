@@ -106,6 +106,23 @@ class MatchRequest(Contract):
     prefix: bool = False  # Treat the last >=3-char query token as a prefix (type-ahead).
 
 
+class LocalItem(BaseModel):
+    """A user/AI-generated item; must carry a passing AI self-check before entering the catalog."""
+    model_config = ConfigDict(extra="ignore", allow_inf_nan=False)
+    kind: Literal["skill", "hook", "subagent", "command", "rule", "workflow"]
+    name: str = Field(min_length=1, max_length=300)
+    summary: str = Field(default="", max_length=12000)
+    body: str = Field(min_length=1, max_length=250000)
+    agents: list[str] = Field(default_factory=list, max_length=30)
+    features: list[Feature] = Field(default_factory=list, max_length=100)
+    template_id: str | None = Field(default=None, max_length=200)
+    template_version: str | None = Field(default=None, max_length=100)
+    job_id: str | None = Field(default=None, max_length=200)
+    self_check: dict | None = None
+    manifest: dict = Field(default_factory=dict)
+    install: dict = Field(default_factory=dict)
+
+
 class SyncRequest(Contract):
     source_ids: list[str] = Field(default_factory=list, max_length=30)
     max_pages: int = Field(default=10000, ge=1, le=10000)

@@ -253,10 +253,12 @@ class CatalogStore:
                     self._bump(conn)
 
     def _ensure_local(self, conn) -> None:
-        spec = SourceSpec(source_id=LOCAL_SOURCE, kind="local", url="local:", priority=100,
+        # Stored as enabled=0 so network sync never visits it; materialization treats 'local' as
+        # always enabled (see the `c.source_id='local'` terms).
+        spec = SourceSpec(source_id=LOCAL_SOURCE, kind="local", url="local:", priority=100, enabled=False,
                           refresh_seconds=10 * 365 * 86400)
         conn.execute("INSERT OR IGNORE INTO catalog_source(source_id,spec,enabled,priority,next_due_at) "
-                     "VALUES(?,?,1,?,?)", (LOCAL_SOURCE, spec.model_dump_json(), spec.priority,
+                     "VALUES(?,?,0,?,?)", (LOCAL_SOURCE, spec.model_dump_json(), spec.priority,
                                            _now() + spec.refresh_seconds * 1000))
 
     def ensure_local_source(self) -> None:
@@ -372,7 +374,7 @@ class CatalogStore:
         winners = {}
         for row in conn.execute("SELECT s.item_id,s.source_id,s.native_id,s.res_sha,s.body_sha,s.has_path,c.priority "
                                 "FROM item_source s JOIN catalog_source c USING(source_id) WHERE s.status='active' "
-                                "AND c.enabled=1 AND s.item_id IN (SELECT value FROM json_each(?))", (key,)):
+                                "AND (c.enabled=1 OR c.source_id='local') AND s.item_id IN (SELECT value FROM json_each(?))", (key,)):
             rank = (-row["priority"], -row["has_path"], row["source_id"], row["native_id"])
             if row["item_id"] not in winners or rank < winners[row["item_id"]][0]:
                 winners[row["item_id"]] = (rank, row)
@@ -515,7 +517,7 @@ class CatalogStore:
         rows = conn.execute(
             "SELECT i.item_id,i.content_hash,i.status,i.official,i.first_seen,i.type,i.canonical_of,i.listable,"
             "(SELECT max(c.priority) FROM item_source s JOIN catalog_source c USING(source_id) WHERE s.item_id=i.item_id "
-            "AND s.status='active' AND c.enabled=1) AS priority FROM catalog_item i "
+            "AND s.status='active' AND (c.enabled=1 OR c.source_id='local')) AS priority FROM catalog_item i "
             "WHERE i.content_hash IN (SELECT value FROM json_each(?))", (json.dumps(sorted(hashes)),)).fetchall()
         groups = defaultdict(list)
         for row in rows:

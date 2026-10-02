@@ -123,7 +123,7 @@ class CatalogIndex:
             allowed = np.zeros(len(self.ids), dtype=bool)
             for (item_id,) in conn.execute(
                     "SELECT DISTINCT s.item_id FROM item_source s JOIN catalog_source c USING(source_id) WHERE "
-                    "s.status='active' AND c.enabled=1 AND s.source_id IN (SELECT value FROM json_each(?))",
+                    "s.status='active' AND (c.enabled=1 OR c.source_id='local') AND s.source_id IN (SELECT value FROM json_each(?))",
                     (json.dumps(request.source_ids),)):
                 if item_id in self.pos:
                     allowed[self.pos[item_id]] = True
