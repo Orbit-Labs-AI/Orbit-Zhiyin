@@ -1,4 +1,5 @@
 from tandem_backend.appdb import AppDB
+from tandem_backend.services.routes_analytics import analytics_scope
 from tandem_backend.sessionops import exclusion
 
 
@@ -15,6 +16,22 @@ def test_add_is_idempotent_and_list_orders_newest_first(home):
         assert exclusion.excluded_uids(db) == ["s1", "s2"]
         assert exclusion.remove(db, "s1") and not exclusion.remove(db, "s1")
     finally:
+        db.close()
+
+
+def test_provider_merges_into_analytics_scope(home):
+    db = AppDB(home / "app.db")
+    try:
+        exclusion.add(db, "s9", now_ms=1)
+        exclusion.add(db, "s1", now_ms=2)
+        exclusion.set_provider(lambda: exclusion.excluded_uids(db))
+        scope = analytics_scope(excluded_session_uids=["s1", "x"])
+        assert scope.excluded_session_uids == ["s1", "x", "s9"]
+        assert analytics_scope().excluded_session_uids == ["s1", "s9"]
+        exclusion.set_provider(lambda: 1 / 0)  # A broken provider never fails analytics.
+        assert analytics_scope(excluded_session_uids=["x"]).excluded_session_uids == ["x"]
+    finally:
+        exclusion.set_provider(None)
         db.close()
 
 
