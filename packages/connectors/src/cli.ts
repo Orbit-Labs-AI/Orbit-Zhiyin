@@ -25,7 +25,7 @@ const help=`Tandem Codex Connector — 本地只读采集与标准化
   tandem-ingest raw      --record UID [--data-dir PATH]
 
 discover 只列来源与文件数量，不导入。ingest/watch 明确启用指定来源。
-默认来源为 CODEX_HOME 或 ~/.codex；默认输出在 ~/Library/Application Support/Tandem。
+默认来源为 CODEX_HOME 或 ~/.codex；默认 staging 输出在 ~/Library/Application Support/Tandem/connectors/codex。
 export 输出脱敏标准事件 JSONL；raw 明确请求所选记录的原始字节（可能含敏感内容）。
 已有导出文件不会覆盖。退出码 2 表示存在待读取文件或无法解析的记录。`;
 async function canonicalDestination(path:string):Promise<string> {
@@ -40,7 +40,7 @@ async function main():Promise<void> {
   const command=positionals[0];
   if (values.help || !command) { console.log(help); return; }
   if (positionals.length!==1 || !['init','discover','ingest','watch','stats','export','raw','rebuild'].includes(command)) throw new Error('Unknown command; use --help');
-  const directory=resolve(values['data-dir']??join(homedir(),'Library','Application Support','Tandem'));
+  const directory=resolve(values['data-dir']??join(homedir(),'Library','Application Support','Tandem','connectors','codex'));
   const root=values['codex-home']??defaultCodexHome();
   if (command==='init') {
     const home=await canonicalDestination(resolve(root));
