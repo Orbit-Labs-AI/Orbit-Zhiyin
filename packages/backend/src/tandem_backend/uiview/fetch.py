@@ -35,7 +35,9 @@ def fetch(gw, scope_dict: dict, *, wait_ms: int = 0) -> tuple[dict | None, str, 
         raise failure_error(failure["error"])  # A stable error, never an endless 202.
     remember = getattr(getattr(gw, "state", None), "remember_scope", None)
     if remember is not None:
-        remember(scope_dict)  # The prewarm reuses the client's timezone and filters.
+        # The prewarm reuses the client's timezone and filters. The window itself is left
+        # out: a dated 7-day scope in the MRU would be prewarmed again tomorrow for nobody.
+        remember({**scope_dict, "from_ts": None, "until_ts": None})
     task = analysis.submit(SECTION, scope_dict, {}, h, "interactive", revision, rules)
     if task is not None and wait_ms:
         task.done.wait(wait_ms / 1000)
