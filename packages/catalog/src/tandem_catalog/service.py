@@ -107,7 +107,8 @@ class CatalogService:
             if (profile or {}).get("ok") else []
         if tab == "for" and (q.strip() or features):
             kinds_ = [k for k in kinds if k] or list(query.LIBRARY_KINDS)
-            labels = " ".join(dict.fromkeys(str(f.value) for f in features[:12]))
+            ranked = sorted(profile.get("features") or [], key=lambda f: -f["weight"]) if features else []
+            labels = " ".join(dict.fromkeys(str(f.get("label") or f["value"]) for f in ranked[:12]))
             result = self.match(MatchRequest(text=(q.strip() or labels)[:8000], features=[] if q.strip() else features,
                                              types=kinds_, agents=list(agents), excluded_ids=list(exclude)[:1000],
                                              purpose="library", limit=100, per_route=200, prefix=bool(q.strip())))

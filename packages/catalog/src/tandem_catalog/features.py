@@ -108,7 +108,8 @@ _MATCHERS = [(key, [(word, _pattern(word)) for word in words]) for key, words in
 
 def lexical_tokens(text: str) -> list[str]:
     """Latin words + Han bigrams; avoids unicode61 treating a Chinese sentence as one word."""
-    tokens = re.findall(r"[a-z0-9_]+", text.lower())
+    # "_" splits like FTS5 unicode61 does; a "a_b" token would become an unsupported phrase query.
+    tokens = re.findall(r"[a-z0-9]+", text.lower())
     for run in re.findall(r"[\u3400-\u9fff]+", text):
         tokens.extend(run[i:i + 2] for i in range(len(run) - 1))
         if len(run) == 1:
