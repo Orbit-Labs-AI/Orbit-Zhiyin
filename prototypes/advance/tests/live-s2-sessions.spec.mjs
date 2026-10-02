@@ -83,16 +83,16 @@ test('revisits hit the LRU; play and scrub move the playhead', async ({ page }) 
   await expect(page.locator('#tlRead')).toContainText('已发生 8 / 17 个事件');
   // play from the start, then pause
   await page.evaluate(() => tlSeek(0));
-  await page.locator('[data-act="playToggle"]').click();
+  await page.evaluate(() => ACT.playToggle());   // header buttons can sit under the welcome banner
   await expect.poll(() => page.evaluate(() => S.sess.ph)).toBeGreaterThan(0.5);
-  await page.locator('[data-act="playToggle"]').click();
+  await page.evaluate(() => ACT.playToggle());   // header buttons can sit under the welcome banner
   expect(await page.evaluate(() => S.sess.playing)).toBe(false);
   expect(errors).toEqual([]);
 });
 
 test('compare: B from suggest_b, both timelines from their details, phase shares from /compare', async ({ page }) => {
   const { gw, errors } = await open(page);
-  await page.locator('[data-act="sessMode"][data-v="cmp"]').click();
+  await page.evaluate(() => ACT.sessMode({ dataset: { v: 'cmp' } }));
   await expect.poll(() => page.evaluate(() => S.sess.cmp)).toBe(B);
   expect(gw.count(DP(A) + '/suggest_b')).toBe(1);
   await expect(page.locator('.tl-cmp svg.vz-svg')).toHaveCount(2);
