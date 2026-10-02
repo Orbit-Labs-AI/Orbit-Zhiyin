@@ -13,7 +13,7 @@ import time
 import traceback
 from pathlib import Path
 
-from .sections import ResultMemo, SectionNotFound, compute_section
+from .sections import ResultMemo, SectionNotFound, compute_section, estimate_events
 from .worker_protocol import WorkerIO, debug_delay, peak_rss_bytes
 
 PREWARM_NICENESS = 10
@@ -69,6 +69,8 @@ class AnalysisWorker:
         try:
             scope = Scope(**job["scope"])
             store = CanonicalStore(self.home, max_events=self.max_events)
+            # Size report first: the supervisor scales this task's time budget from it.
+            self.io.send("sized", job=job["id"], events=estimate_events(store, scope))
             params = {**job.get("params", {}), "_rev": job.get("rev")}
             body = compute_section(job["section"], store, scope, params, self.memo)
             self.io.send("done", job=job["id"], status="completed", body=body,

@@ -157,6 +157,36 @@ def rules_digest() -> str:
     return _RULES
 
 
+def estimate_events(store, scope) -> int | None:
+    """Upper bound on the events a scope selects (sources, projects, roots, time window).
+
+    One indexed count, far cheaper than the analysis itself; the supervisor sizes the
+    task's time budget from it. ``None`` when the store cannot answer (legacy stores).
+    """
+    connect = getattr(store, "connect", None)
+    if connect is None:
+        return None
+    where, args = [], []
+    for column, values in (("s.source_id", scope.source_ids), ("s.project_id", scope.project_ids),
+                           ("s.root_uid", scope.root_session_uids)):
+        if values is not None:
+            where.append(f"{column} IN ({','.join('?' * len(values))})" if values else "0")
+            args.extend(values)
+    if scope.from_ts is not None:
+        where.append("(e.ts IS NULL OR e.ts >= ?)")
+        args.append(scope.from_ts)
+    if scope.until_ts is not None:
+        where.append("(e.ts IS NULL OR e.ts < ?)")
+        args.append(scope.until_ts)
+    sql = ("SELECT count(*) FROM event e JOIN session s ON s.session_uid = e.session_uid"
+           + (" WHERE " + " AND ".join(where) if where else ""))
+    try:
+        with connect() as db:
+            return int(db.execute(sql, args).fetchone()[0])
+    except Exception:  # noqa: BLE001  sizing is advisory; the analysis reports real errors.
+        return None
+
+
 def compute_section(name: str, store, scope, params: dict, memo: ResultMemo) -> dict:
     section = SECTIONS.get(name)
     if section is None:
