@@ -303,3 +303,24 @@ test('tandem:endpoint switches endpoint and token, drops cached ETags and reconn
   assert.ok(seen.some(([o, a]) => o === 'http://gw2.test' && a === 'Bearer new'));
   assert.equal(C.endpoint, 'http://gw2.test');
 });
+
+test('R4-11: a transient network failure retries with backoff and recovers; C.retry() refetches now; 4xx does not loop', async () => {
+  let down = true;
+  const gw = gateway({ '/v1/analytics/overview': () => { if (down) throw new TypeError('net::ERR_ADDRESS_INVALID'); return json(FX('overview')); },
+    '/v1/analytics/tools': () => json({ error: { code: 'bad_scope', message: 'bad', retryable: false } }, 400) });
+  const t = timers();
+  const C = live(gw, { timers: t });
+  const r = C.resource('/v1/analytics/overview');
+  await C.load(r);
+  assert.equal(r.state, 'error'); assert.equal(C.failure.code, 'network');
+  assert.ok(r.retryTimer, 'network failure schedules a retry'); assert.equal(r.retryTimer.ms, 1000);
+  r.retryTimer.f(); assert.equal(r.dirty, true);
+  await C.load(r); assert.equal(r.retryTimer.ms, 2000, 'backoff doubles');
+  down = false;
+  assert.equal(C.retry(), 1); assert.equal(r.dirty, true); assert.equal(r.retryTimer, null);
+  await C.load(r);
+  assert.equal(r.state, 'ready'); assert.equal(C.failure, null); assert.equal(r.fails, 0); assert.equal(r.retryTimer, null);
+  const bad = C.resource('/v1/analytics/tools');
+  await C.load(bad);
+  assert.equal(bad.state, 'error'); assert.equal(bad.retryTimer, null); assert.equal(C.retry(), 0);
+});

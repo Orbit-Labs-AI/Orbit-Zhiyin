@@ -51,6 +51,7 @@ const AFF = {
 };
 let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
 let LASTDAY = 119;
+let FIRSTDAY = 0;   // first day of the 全部 window: mock 0; live = the earliest session's day (R4-04)
 const dayDate = (d) => new Date(DAY0 + d * 86400000);
 const wd = (d) => (new Date(DAY0 + d * 86400000).getUTCDay() + 6) % 7;   // 0 = Monday
 const WD = ['一', '二', '三', '四', '五', '六', '日'];

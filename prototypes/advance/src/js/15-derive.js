@@ -1,5 +1,5 @@
 /* ============ derived data ============ */
-function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [0, L]; }
+function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [Math.max(0, Math.min(FIRSTDAY, L)), L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }

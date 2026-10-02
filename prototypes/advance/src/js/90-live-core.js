@@ -147,16 +147,27 @@ LV.lru = function (max) {
   };
 };
 // on-demand drill-down: LV.detail(cache, key, path) → {state:'pending'|'ready'|'error', data, error}; first call fetches,
-// the arrival re-renders; later calls are cache hits (no request).
+// the arrival re-renders; later calls are cache hits (no request). A transient failure (network / 5xx) keeps showing the
+// error, then refetches with backoff (1 s · 2ⁿ, ≤ 15 s, 6 tries) and on TL.retry() / SSE reconnect (R4-11); 4xx stays.
+const lvDetailErr = new Set();
+const lvTransient = (err) => !!err && err.code !== 'analysis_unavailable' && err.retryable !== false && (!err.status || err.status >= 500);
+function lvDetailFetch(cache, e, path, o) {
+  e.retry = false;
+  TL.get(path, o || {}).then((res) => { e.state = res.data == null ? 'pending' : 'ready'; e.data = res.data; e.error = null; e.fails = 0; lvDetailErr.delete(e); if (res.state === 'computing') cache.delete(e.key); },
+    (err) => {
+      e.state = 'error'; e.error = err; e.fails = (e.fails || 0) + 1;
+      if (!lvTransient(err)) return;
+      lvDetailErr.add(e);
+      if (e.fails <= 6) setTimeout(() => { if (e.state === 'error' && cache.get(e.key) === e) { e.retry = true; TL.changed(); } }, Math.min(15000, 1000 * Math.pow(2, e.fails - 1)));
+    }).then(() => TL.changed());
+}
 LV.detail = function (cache, key, path, o) {
   let e = cache.get(key);
-  if (!e) {
-    e = cache.set(key, { state: 'pending', data: null, error: null });
-    TL.get(path, o || {}).then((res) => { e.state = res.data == null ? 'pending' : 'ready'; e.data = res.data; if (res.state === 'computing') cache.delete(key); },
-      (err) => { e.state = 'error'; e.error = err; }).then(() => TL.changed());
-  }
+  if (!e) { e = cache.set(key, { key, state: 'pending', data: null, error: null }); lvDetailFetch(cache, e, path, o); }
+  else if (e.retry && e.state === 'error') lvDetailFetch(cache, e, path, o);
   return e;
 };
+TL.on('retry', () => { lvDetailErr.forEach((e) => { if (e.state === 'error') e.retry = true; }); lvDetailErr.clear(); });
 
 /* ---- page feeds ----
    LV.feed(route | [routes], spec, apply): spec is a path string, an array of {name, path, query?, waitMs?} or a function
@@ -239,6 +250,8 @@ LV.hydrate = function (spine) {
   const first = rows.reduce((m, r) => (r.d && (!m || r.d < m) ? r.d : m), null);
   DAY0 = Math.min(first ? lvUtc(first) : t, t - 119 * 86400000);
   LASTDAY = Math.round((t - DAY0) / 86400000);
+  // 全部 starts at the earliest session, not at the 120-day spine floor (R4-04); no rows keeps the full spine
+  FIRSTDAY = first ? Math.max(0, Math.min(LASTDAY, Math.round((lvUtc(first) - DAY0) / 86400000))) : 0;
   // agents: present in facts or detected, ordered by session count; deselections survive by id
   const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
   const ags = {};
@@ -336,7 +349,8 @@ LV.loadSpine = function () {
       return;
     }
     LV.stale = false; LV.failed = null; LV.job = null;
-    if (res.data === lvSpineData && LV.state !== 'connecting') return;   // 304: nothing changed
+    // 304: nothing changed — but a read that failed meanwhile has now succeeded, so leave the error state (R4-11)
+    if (res.data === lvSpineData && LV.state !== 'connecting') { if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'empty'; return; }
     lvSpineData = res.data;
     const wire = res.data; const rows = LV.expand(wire);
     LV.wire = wire; LV.meta = wire.meta || null;
@@ -371,6 +385,7 @@ if (LV.live) {
   LV.state = 'connecting';
   TL.on('event', (ev) => { if (/^data\b|^analysis\.ready$/.test(ev.name)) LV.loadSpine(); });
   TL.on('resync', () => LV.loadSpine());
+  TL.on('retry', () => { if (!LV.failed && !LV.job && (LV.state === 'error' || LV.state === 'connecting')) { clearTimeout(lvSpineTimer); LV.loadSpine(); } });
   window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
   setTimeout(() => LV.loadSpine(), 0);
 }
