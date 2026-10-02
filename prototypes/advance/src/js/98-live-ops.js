@@ -336,8 +336,15 @@ if (LV.live) {
   /* ---------- export: report .md · tool-call .csv · share card .png ---------- */
   const unavailable = (what) => (e) => toast(TL.unavailable(e) ? '本地服务暂不支持导出' + what + '，请更新 Orbit 后再试' : '导出' + what + '失败：' + ((e && (e.message || e.code)) || ''));
   const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="' + (act === 'repSave' ? 'repCopy' : 'copyCSV') + '">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
+  // B18: every export carries the scope the screen shows — range, the enabled agents and the project filter
+  // (S.project; '_none' = sessions without a project has no backend filter and is dropped)
+  function tloExportScope() {
+    const sc = lvScope(); const ls = LV.scope(); const pj = S.project && S.project !== '_none' ? S.project : null;
+    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }), csv: { from_ts: lvtpFrom(S.range) == null ? undefined : lvtpFrom(S.range), agent: ls.agents || undefined, project_id: pj ? [pj] : undefined } };
+  }
+  TLO.exportScope = tloExportScope;
   function tloReport(first) {
-    return TL.ops.report(S.rep, lvScope()).then((d) => {
+    return TL.ops.report(S.rep, tloExportScope().report).then((d) => {
       CUR.report = d.markdown || '';
       if (first) {
         openModal(modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" data-tl="report" aria-label="报告内容" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.report) + '</textarea></div>' + exportFoot('repSave', '保存 .md'), 'wide');
@@ -349,8 +356,7 @@ if (LV.live) {
   wrap('repSec', (base, el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); tloReport(false).catch(unavailable('报告')); });
   ACT.repSave = () => expSave('orbit-report-' + expStamp() + '.md', 'text/markdown', { text: CUR.report || '' });
   openCSV = function () {
-    const w = win(S.range); const sc = LV.scope();
-    TL.ops.csv('tool_calls', { from_ts: DAY0 + w[0] * 86400000, limit: 5000, agent: sc.agents || undefined }).then((text) => {
+    TL.ops.csv('tool_calls', Object.assign({ limit: 5000 }, tloExportScope().csv)).then((text) => {
       CUR.csv = text; const n = Math.max(0, text.split('\n').filter(Boolean).length - 1);
       openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
     }, unavailable('CSV'));
