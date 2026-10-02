@@ -1,6 +1,18 @@
 {
   "items": [
     {
+      "id": "fx-n2",
+      "type": "awaiting_approval",
+      "severity": "urgent",
+      "session_uid": "fx-s1",
+      "title": "FX 等你确认",
+      "body": "合成：请求执行 git push",
+      "count": 1,
+      "since": "2026-10-01T07:12:00Z",
+      "last_ts": "2026-10-01T07:12:00Z",
+      "payload": {}
+    },
+    {
       "id": "fx-n1",
       "type": "failing",
       "severity": "urgent",

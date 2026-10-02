@@ -58,7 +58,12 @@ async function gateway(page) {
       '/v1/analytics/tools': () => FX('tools'),
       '/v1/analytics/projects': () => FX('projects'),
       '/v1/app/sources': () => FX('app-sources'),
-      '/v1/app/settings': () => FX('app-settings')
+      '/v1/app/settings': () => FX('app-settings'),
+      // studio-settings (97-live-studio-settings.js) reads these on every live page: notify policy, snooze, attention, collection
+      '/v1/platform/collection': () => FX('studio-settings/collection'),
+      '/v1/notifications/policy': () => FX('studio-settings/notify-policy'),
+      '/v1/notifications/snooze': () => FX('studio-settings/notify-snooze'),
+      '/v1/notifications/attention': () => FX('studio-settings/notify-attention')
     };
     if (routes[u.pathname]) return json(routes[u.pathname]());
     return json({ error: { code: 'not_found', message: u.pathname, retryable: false } }, 404);
