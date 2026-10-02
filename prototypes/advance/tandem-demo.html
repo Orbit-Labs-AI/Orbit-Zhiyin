@@ -2991,7 +2991,7 @@ const TandemLive = (function () {
     },
     banner(C) {
       if (!C || C.mode !== 'live') return '';
-      if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Tandem 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
+      if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Orbit 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
       // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
       const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
@@ -7564,7 +7564,7 @@ function shareCard(sp) {
   const g = petals(p, 40, 0.68); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
   const nAg = new Set(L.map((s) => s.a)).size;
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
-    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--mono);letter-spacing:.32em">TANDEM</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--mono);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
     '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/></svg>' +
     '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--serif)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--mono);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--serif)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--serif);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
@@ -7625,7 +7625,7 @@ async function sharePNG(m, dark, noNum) {
   const text = (t, px, py, font, col, align) => { x.font = font; x.fillStyle = col; x.textAlign = align || 'left'; x.fillText(t, px, py); };
   x.fillStyle = C.bg; x.fillRect(0, 0, W, H); x.textBaseline = 'alphabetic';
   if ('letterSpacing' in x) x.letterSpacing = (0.32 * 2.6 * u).toFixed(1) + 'px';
-  text('TANDEM', L, 7 * u + 2.6 * u, '700 ' + 2.6 * u + 'px ' + F.mono, C.ink);
+  text('ORBIT', L, 7 * u + 2.6 * u, '700 ' + 2.6 * u + 'px ' + F.mono, C.ink);
   if ('letterSpacing' in x) x.letterSpacing = '0px';
   text('我的 AI 协作人格 · ' + m.label, R, 7 * u + 2.6 * u, 2.5 * u + 'px ' + F.sans, C.ink3, 'right');
   if (m.glyph && typeof Path2D === 'function') {
@@ -10599,7 +10599,7 @@ function liUndo(iid, title) {
     return r.ok !== false;
   }, (e) => {
     const d = e.detail || {}; const bad = (d.results || []).filter((x) => x.status !== 'reverted' && x.status !== 'already_reverted');
-    openModal(modalHead('无法自动撤销', e.code === 'revert_refused' ? '这些文件在安装后被改动过，Tandem 不会覆盖你的修改' : esc(e.message || e.code)) + '<div class="mb col" style="gap:8px" data-tl="revert-refused">' + bad.map((x) => '<div class="col" style="gap:4px"><span class="mono" style="font-size:12px">' + esc(x.path) + '</span>' + (x.diff && x.diff.lines ? liDiff({ lines: x.diff.lines.map((l) => ({ n: l.n, op: l.op, text: String(l.text == null ? '' : l.text), gap: !!l.gap })) }) : '') + (x.manual_steps || []).map((s) => '<span class="cap">· ' + esc(s) + '</span>').join('') + '</div>').join('') + (bad.length ? '' : TLU.errorCard(e)) + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">知道了</button></div>');
+    openModal(modalHead('无法自动撤销', e.code === 'revert_refused' ? '这些文件在安装后被改动过，Orbit 不会覆盖你的修改' : esc(e.message || e.code)) + '<div class="mb col" style="gap:8px" data-tl="revert-refused">' + bad.map((x) => '<div class="col" style="gap:4px"><span class="mono" style="font-size:12px">' + esc(x.path) + '</span>' + (x.diff && x.diff.lines ? liDiff({ lines: x.diff.lines.map((l) => ({ n: l.n, op: l.op, text: String(l.text == null ? '' : l.text), gap: !!l.gap })) }) : '') + (x.manual_steps || []).map((s) => '<span class="cap">· ' + esc(s) + '</span>').join('') + '</div>').join('') + (bad.length ? '' : TLU.errorCard(e)) + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">知道了</button></div>');
     return false;
   });
 }
