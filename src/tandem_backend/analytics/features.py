@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from ..analysis import union_duration
 from ..privacy import direct_user_text
+from .instruction.structure import FILE, structure
 
 
 def ratio(a, b):
@@ -31,8 +32,6 @@ def human(e, main_ids):
 
 
 CORRECTION = re.compile(r"(?:^|[，。！？；,;!\n]\s*)(?:不对(?:[，。！？；,;!\s]|$)|不是我说的|还是不行|我说的是|你理解错了|请?重新|请?改成|wrong\b|not what I meant\b|try again\b|instead\b)", re.I)
-CONSTRAINT = re.compile(r"必须|不要|只能|要求|\b(?:must|do not|don't|only|require)\b", re.I)
-FILE = re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(py|ts|tsx|js|jsx|tex|md|json|yaml|yml|rs|go|java|cpp|c|h|sh|html|css|ipynb)\b", re.I)
 LANG = {"py": "Python", "ipynb": "Python", "ts": "TypeScript", "tsx": "TypeScript",
         "js": "JavaScript", "jsx": "JavaScript", "tex": "LaTeX", "rs": "Rust", "go": "Go",
         "java": "Java", "cpp": "C++", "c": "C", "h": "C/C++", "sh": "Shell",
@@ -44,31 +43,6 @@ def correction_terms(text):
     text = direct_user_text(text)
     text = re.sub(r'“[^”]*”|"[^"\n]*"|`[^`]*`', '', text)
     return [m.group(0).strip("，。！？；,;! \n") for m in CORRECTION.finditer(text)]
-
-
-def structure(e):
-    text = e.get("text")
-    if text is None:
-        return None
-    attrs = e.get("attrs", {})
-    out = {"prompt_char_count": attrs.get("original_chars", len(text)),
-           "prompt_line_count": len(text.splitlines()) if text else 0,
-           "paragraph_count": len([p for p in re.split(r"\n\s*\n", text) if p.strip()]),
-           "question_mark_count": len(re.findall(r"[?？]", text)),
-           "bullet_count": len(re.findall(r"(?m)^\s*[-*+]\s+", text)),
-           "numbered_list_count": len(re.findall(r"(?m)^\s*\d+[.)、]\s*", text)),
-           "code_block_count": None,  # Legacy normalization removed fenced material.
-           "url_count": len(re.findall(r"https?://[^\s<>]+", text)),
-           "file_reference_count": len(FILE.findall(text)),
-           "explicit_format_request_count": len(re.findall(r"(?:请|用|输出为|写成).{0,8}(?:表格|列表|JSON|Markdown|分点)", text, re.I)),
-           "explicit_tool_mention_count": len(re.findall(r"(?:使用|调用|用)\s*`?[\w.]*?(?:MCP|工具|skill|pytest|git|bash)\b", text, re.I)),
-           "constraint_marker_count": len(CONSTRAINT.findall(text))}
-    if "prompt_structure" in attrs:
-        out.update(attrs["prompt_structure"])
-    out["constraint_density"] = ratio(out["constraint_marker_count"], len(text))
-    out["quality"] = "lower_bound" if e.get("text_truncated") else "normalized_text"
-    out["event_uid"] = e["event_uid"]
-    return out
 
 
 def text_lengths(events):
