@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 
 Surface = Literal["A7", "A1", "lite", "menubar", "widget", "palette", "ask", "hud"]
 Action = Literal["view", "open", "preview", "copy", "install", "dismiss", "snooze"]
-SURFACE_LIMIT = {"A7": 30, "A1": 3, "lite": 3, "menubar": 1}
-TOP_SURFACES = ("A1", "lite", "menubar")
+SURFACE_LIMIT = {"A7": 30, "A1": 3, "lite": 3, "menubar": 1, "widget": 1}
+TOP_SURFACES = ("A1", "lite", "menubar", "widget")
 TOP_TTL_MS = store.DAY
 DIMS = (("all", "全部"), ("rule", "规则与 Prompt"), ("skill", "Skills"), ("hook", "Hooks"),
         ("mcp", "插件 / MCP"), ("agent", "子代理"), ("model", "模型与思考"),
@@ -96,7 +96,8 @@ def router(gw: Gateway) -> APIRouter:
                         level: int | None = Query(None, ge=1, le=4),
                         audience: Literal["0", "1", "2", "all"] = "all",
                         surface: Surface = "A7", limit: int | None = Query(None, ge=1, le=50),
-                        include_gated: bool = False, wait_ms: int = Query(0, ge=0, le=3000)):
+                        include_gated: bool = False, wait_ms: int = Query(0, ge=0, le=3000),
+                        problem_id: Annotated[list[str] | None, Query(max_length=20)] = None):
         scope_dict = asdict(scope)
         h = scope_hash(scope_dict, {})
         result = runs.run(gw, scope_dict, wait_ms=wait_ms)
@@ -105,7 +106,8 @@ def router(gw: Gateway) -> APIRouter:
             run = (store.get_run(conn, result["run_id"]) if result["run_id"]
                    else store.latest_run(conn, h))
         if run is None:
-            body = {"run": None, "items": [], "dims": _dims({}), "problems": [], "meta": meta}
+            body = {"run": None, "items": [], "dims": _dims({}), "problems": [], "counts": None,
+                    "meta": meta}
             if result["freshness"] == "none":
                 return JSONResponse(body)
             return JSONResponse({"meta": {**meta, "freshness": "computing"}}, status_code=202)
@@ -115,21 +117,31 @@ def router(gw: Gateway) -> APIRouter:
         limit = limit or SURFACE_LIMIT.get(surface, 30)
         aud = None if audience == "all" else int(audience)
         with gw.appdb.read() as conn:
-            items = store.candidates(conn, run["run_id"], level=level, audience=aud, limit=50)
+            items = store.candidates(conn, run["run_id"], level=level, audience=aud, limit=50,
+                                     problem_ids=problem_id)
             states = store.states(conn, [c["rec_key"] for c in items])
             items = [c for c in items if store.visible(states.get(c["rec_key"]), now)]
             items = store.apply_decay(items, states)
+            # 资料库推荐 (catalog-only) cards always sit below every evidence-backed card.
+            items.sort(key=lambda c: c.get("basis") == "catalog_only")
+            state_counts = store.counts(conn, run["run_id"], now)
             gated = (store.candidates(conn, run["run_id"], passed=False, limit=50)
                      if include_gated else None)
         counts: dict[str, int] = {}
+        kinds: dict[str, int] = {}
         for item in items:
             counts[item.get("dim")] = counts.get(item.get("dim"), 0) + 1
-        if surface in TOP_SURFACES:
+            kinds[item.get("kind")] = kinds.get(item.get("kind"), 0) + 1
+        library = sum(1 for item in items if item.get("basis") == "catalog_only")
+        if surface in TOP_SURFACES and not problem_id:
             items = _top(surface, h, run, items, limit, now)
         else:
             items = [c for c in items if not dim or dim == "all" or c.get("dim") == dim][:limit]
         body = {"run": _run_meta(run, freshness), "items": items, "dims": _dims(counts),
-                "problems": run.get("problems") or [], "meta": meta}
+                "problems": run.get("problems") or [],
+                "counts": {"dim": counts, "kind": kinds, "state": state_counts,
+                           "library": library},
+                "meta": meta}
         if gated is not None:
             body["gated"] = gated
         return body

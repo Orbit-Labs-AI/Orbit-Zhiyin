@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from . import narrate
 from .ranking import gates as gate_mod
+from .ranking import hygiene
 from .ranking import rank as rank_mod
 from .ranking import slate as slate_mod
 
@@ -48,7 +49,9 @@ def _cand(raw: dict, gates: dict, score: dict) -> dict:
     cand["score"] = score
     cand["rank"] = None
     cand["links"] = _links(raw)
-    cand["basis"] = rank_mod.basis(raw)
+    cand["basis"] = "catalog_only" if hygiene.catalog_only(raw) else rank_mod.basis(raw)
+    if cand["basis"] == "catalog_only":
+        cand["bucket"] = hygiene.LIBRARY_LABEL
     return cand
 
 
@@ -60,7 +63,16 @@ def _compact(cand: dict) -> dict:
             "level": cand.get("level"), "title": cand.get("title"),
             "problem_id": problem.get("problem_id"), "problem_type": problem.get("type"),
             "source": {"origin": source.get("origin"), "item_id": source.get("item_id")},
-            "gates": cand["gates"], "score": cand["score"], "rank": None, "excluded": "gated"}
+            "gates": cand["gates"], "score": cand["score"], "rank": None,
+            "excluded": cand.get("excluded") or "gated"}
+
+
+def _demote(cand: dict, reason: str) -> dict:
+    """A passing card hygiene keeps off the slate is stored like a gated one (passed=0)."""
+    gates = cand["gates"]
+    cand["gates"] = {**gates, "passed": False, "reasons": [*gates.get("reasons", []), reason]}
+    cand["excluded"] = cand.get("excluded") or reason
+    return _compact(cand)
 
 
 def _status(inputs: dict, problems: list, ranked: list[dict]) -> str:
@@ -68,7 +80,7 @@ def _status(inputs: dict, problems: list, ranked: list[dict]) -> str:
         if ((inputs.get("sessions") or {}).get("main") or 0) < 5:
             return "insufficient_evidence"
         return "no_matching"
-    if all(c["basis"] == "generic" for c in ranked):
+    if all(c["basis"] in ("generic", "catalog_only") for c in ranked):
         return "cold_start"
     return "ready"
 
@@ -87,10 +99,20 @@ def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int 
             passing.append(cand)
         else:
             gated.append(_compact(cand))
+    for cand in [c for c in passing if c["basis"] == "catalog_only" and not hygiene.profile_overlap(by_key[c["rec_key"]])]:
+        passing.remove(cand)
+        gated.append(_demote(cand, "catalog_no_overlap"))
+    passing, dupes = hygiene.dedupe(passing)
+    gated += [_demote(c, "duplicate") for c in dupes]
     ranked = slate_mod.select(passing, limit=limit)
+    values = hygiene.slot_values(raws, inputs)
     for cand in passing:
+        hygiene.scrub(cand, values)
         cand["ui"] = narrate.ui(cand, inputs, by_key[cand["rec_key"]])
-    rest = sorted((c for c in passing if c.get("rank") is None), key=slate_mod.order_key)
+        hygiene.scrub(cand, values)
+    rest = sorted((c for c in passing if c.get("rank") is None and c["basis"] != "catalog_only"),
+                  key=slate_mod.order_key)
+    gated += [_demote(c, "cap:catalog_only") for c in passing if c.get("rank") is None and c["basis"] == "catalog_only"]
     gated.sort(key=slate_mod.order_key)
     return ranked, rest, gated
 

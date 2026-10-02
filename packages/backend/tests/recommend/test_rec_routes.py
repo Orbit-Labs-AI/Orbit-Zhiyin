@@ -249,6 +249,37 @@ def test_engine_slate_stores_gated_and_failure_falls_back(env, monkeypatch):
     assert body["run"]["engine_version"] == "legacy-v1" and len(body["items"]) == 4
 
 
+def test_widget_counts_and_problem_filter(env, monkeypatch):
+    client, _, _ = env
+
+    def build_slate(inputs, memory, *, catalog=None):
+        cards = runs.legacy_slate(inputs)["candidates"]
+        for i, card in enumerate(cards):
+            card["problem"] = {"problem_id": "p1" if i < 2 else "p2"}
+            card["basis"] = "problem"
+        cards[0]["basis"], cards[0]["problem"] = "catalog_only", None  # 资料库推荐 sinks
+        return {"engine_version": "rec-engine-v2", "kb_version": "kb1", "catalog_generation": 1,
+                "status": "ready", "problems": [], "candidates": cards, "routes": {},
+                "diagnostics": []}
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build_slate, "rec-engine-v2"))
+    body = client.get("/v1/recommendations").json()
+    assert body["items"][-1]["basis"] == "catalog_only"
+    assert body["counts"]["dim"] == {"hook": 1, "skill": 1, "mcp": 1, "rule": 1}
+    assert body["counts"]["library"] == 1 and sum(body["counts"]["kind"].values()) == 4
+    assert body["counts"]["state"] == {"pending": 4, "installed": 0, "not_applicable": 0,
+                                       "snoozed": 0}
+    widget = client.get("/v1/recommendations?surface=widget").json()["items"]
+    assert len(widget) == 1 and widget[0]["basis"] != "catalog_only"
+    only = client.get("/v1/recommendations?problem_id=p2").json()["items"]
+    assert len(only) == 2 and {i["problem"]["problem_id"] for i in only} == {"p2"}
+    assert len(client.get("/v1/recommendations?problem_id=p1&problem_id=p2").json()["items"]) == 3
+    label = client.post("/v1/labels", json={"target_kind": "candidate", "target_id": only[0][
+        "candidate_id"], "label": "not_applicable", "reason": "other"})
+    assert label.status_code == 200
+    assert client.get("/v1/recommendations").json()["counts"]["state"]["not_applicable"] == 1
+
+
 def test_concurrent_runs_coalesce(env):
     client, gw, _ = env
     results = []
