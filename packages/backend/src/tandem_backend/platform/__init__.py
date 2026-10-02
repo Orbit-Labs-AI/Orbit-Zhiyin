@@ -70,7 +70,7 @@ except ModuleNotFoundError as _error:
 def notify(event: dict):
     """Route an event to the notification engine if installed (platform-notify)."""
     notifier = getattr(_platform, "notifier", None)
-    handler = getattr(notifier, "notify", None)
+    handler = getattr(notifier, "emit", None)  # Notifier's producer entry is ``emit``.
     if not callable(handler):
         return None
     try:
