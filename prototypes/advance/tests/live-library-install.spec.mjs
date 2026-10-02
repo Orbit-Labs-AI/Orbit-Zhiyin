@@ -4,7 +4,8 @@
 //  1. library   cards, rows, facet counts, 加载更多 (cursor), search, 本地生成, item detail (README, versions, risk)
 //  2. install   plan → preview (default selection narrows Codex off) → toggle target → confirm → 409 preview_stale
 //               re-previews → confirm → written → 撤销 (revert); installed sheet lists state + ledger
-//  3. degraded  catalog / install routes missing → demo library and demo install sheet with 示例数据
+//  3. Lite      the single-file Lite page: catalog cards, detail, install with preview_stale re-confirm, undo
+//  4. degraded  catalog / install routes missing → demo library and demo install sheet with 示例数据
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 const ADV_FILE = path.join(ROOT, 'advance', 'tandem-demo.html');
+const LITE_FILE = path.join(ROOT, 'lite', 'tandem-benchmark-demo.html');
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'shared', 'fixtures', name + '.json'), 'utf8'));
 const LI = (name) => FX('library-install/' + name);
 const ONLY = (name) => test.skip(test.info().project.name !== name, 'runs once, at the default size');
@@ -39,6 +41,7 @@ async function gateway(page, opt = {}) {
     state.seen.push({ method: m, path: p, search: u.search, body });
     const json = (b, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) });
     if (p === '/app') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(ADV_FILE, 'utf8') });
+    if (p === '/lite') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(LITE_FILE, 'utf8') });
     if (p === '/v1/events') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' });
     if (p === '/v1/status') return json(FX('status'));
     if (p === '/v1/analytics/overview') return json(FX('overview'));
@@ -168,5 +171,41 @@ test('live library degraded: missing catalog / install routes fall back to the d
   await page.locator('#modal [data-act="closeModal"]').first().click();
   await page.locator('[data-act="libInstalled"]').click();
   await expect(page.locator('#modal [data-tl="sample"]')).toHaveText('示例数据');
+  expect(errors).toEqual([]);
+});
+
+test('live Lite library: catalog cards, detail and install (preview_stale re-confirm, undo)', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, allow404);
+  const gw = await gateway(page);
+  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.evaluate(() => go('library'));
+  const lib = page.locator('[data-tl="library"]');
+  await expect(lib.locator('.lib-feature')).toHaveCount(3);
+  await expect(lib.locator('.lib-row')).toHaveCount(1);
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
+  await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="li-detail"]').evaluate((el) => el.click());
+  await expect(page.locator('#modal [data-tl="lib-readme"]')).toContainText('同一命令连续失败两次后暂停');
+  await expect(page.locator('#modal [data-tl="lib-versions"]')).toContainText('0.9.0');
+  await page.locator('#modal [data-act="li-install"]').evaluate((el) => el.click());
+  await expect(page.locator('#modal [data-tl="inst-preview"]')).toContainText('~/.claude/settings.json');
+  await page.locator('#modal [data-act="li-apply"]').evaluate((el) => el.click());
+  await expect(page.locator('#modal [data-tl="inst-stale"]')).toContainText('重新生成预览');
+  await page.locator('#modal [data-act="li-apply"]:not([disabled])').evaluate((el) => el.click());
+  await expect(page.locator('#modal [data-tl="inst-done"]')).toContainText('settings.json');
+  expect(gw.seen.filter((s) => s.path === '/v1/install/apply').map((s) => s.body.preview_digest)).toEqual(['sha256:fx-digest-b', 'sha256:fx-digest-c']);
+  await page.locator('#modal [data-act="li-undo"]').evaluate((el) => el.click());
+  await expect.poll(() => gw.seen.some((s) => s.path === '/v1/install/inst-fx-1/revert')).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('live Lite library degraded: the demo library with 示例数据', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, allow404);
+  await gateway(page, { degraded: true });
+  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.evaluate(() => go('library'));
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
+  await expect(page.locator('#content .lib-feature')).toHaveCount(3);
   expect(errors).toEqual([]);
 });

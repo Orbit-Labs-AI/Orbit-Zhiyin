@@ -58,7 +58,11 @@ async function gateway(page) {
       '/v1/analytics/tools': () => FX('tools'),
       '/v1/analytics/projects': () => FX('projects'),
       '/v1/app/sources': () => FX('app-sources'),
-      '/v1/app/settings': () => FX('app-settings')
+      '/v1/app/settings': () => FX('app-settings'),
+      // library-install: the full flow is covered in live-library-install.spec.mjs
+      '/v1/catalog/items': () => FX('library-install/catalog-items'),
+      '/v1/catalog/facets': () => FX('library-install/catalog-facets'),
+      '/v1/install/state': () => FX('library-install/install-state')
     };
     if (routes[u.pathname]) return json(routes[u.pathname]());
     return json({ error: { code: 'not_found', message: u.pathname, retryable: false } }, 404);
@@ -200,7 +204,8 @@ test('live Lite: the same bindings render overview, sessions, tools, projects, s
   await page.evaluate(() => go('projects'));
   await expect(page.locator('[data-tl="projects"]')).toContainText('notes-fixture');
   await page.evaluate(() => go('library'));
-  await expect(page.locator('#content [data-tl="sample"]')).toBeVisible();
+  await expect(page.locator('[data-tl="library"] .lib-feature')).toHaveCount(3);
+  await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   await page.evaluate(() => ACT.settings());
   await expect(page.locator('#modal [data-tl="sources"]')).toContainText('Gemini CLI');
   expect(gw.seen.filter((s) => s.path.startsWith('/v1/')).every((s) => s.auth === 'Bearer fx-token')).toBe(true);
