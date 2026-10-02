@@ -28,8 +28,9 @@ class SourceFetchError(ValueError):
 
 
 class GitHubSourceClient:
-    def __init__(self, token: str | None = None):
+    def __init__(self, token: str | None = None, opener=None):
         self.token = token
+        self.opener = opener or urlopen  # injectable for tests; same call shape as urlopen
 
     def get(self, endpoint: str) -> dict:
         headers = {"Accept": "application/vnd.github+json", "User-Agent": "Tandem-local-backend",
@@ -38,7 +39,7 @@ class GitHubSourceClient:
             headers["Authorization"] = "Bearer " + self.token
         request = Request("https://api.github.com" + endpoint, headers=headers)
         try:
-            with urlopen(request, timeout=15) as response:
+            with self.opener(request, timeout=15) as response:
                 raw = response.read(MAX_RESPONSE + 1)
             if len(raw) > MAX_RESPONSE:
                 raise SourceFetchError("source_response_too_large")
