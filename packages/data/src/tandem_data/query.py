@@ -10,6 +10,10 @@ from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.store import readonly_connection
 
 
+class ProjectionUnavailable(ValueError):
+    """Published facts need rebuilding; this is not an invalid user selection."""
+
+
 def current_projection(connection):
     manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
     if not manifest or manifest["contract_id"] != "tandem-session-v1":
@@ -17,7 +21,7 @@ def current_projection(connection):
     run = connection.execute("SELECT * FROM projection_run ORDER BY run_id DESC LIMIT 1").fetchone()
     revisions = connection.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
     if not run or revisions != run["l1_revision_count"]:
-        raise ValueError("Projection is pending; rebuild before analysis")
+        raise ProjectionUnavailable("Projection is pending; rebuild before analysis")
     obsolete = run["mapper_version"] != MAPPER_VERSION or run["reducer_version"] != REDUCER_VERSION
     incomplete = connection.execute(
         "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) "
@@ -25,7 +29,9 @@ def current_projection(connection):
         (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
     ).fetchone()
     if obsolete or incomplete:
-        raise ValueError("Projection version is obsolete or incomplete; rebuild before analysis")
+        raise ProjectionUnavailable(
+            "Projection version is obsolete or incomplete; rebuild before analysis"
+        )
     return manifest, run
 
 

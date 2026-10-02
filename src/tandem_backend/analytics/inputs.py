@@ -4,7 +4,6 @@ import json
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..feedback import SCENE_LABELS, task_contexts
 from ..models import Event, stable_id
@@ -44,15 +43,8 @@ class Scope:
     legacy_project_ids: list[str] | None = None
 
     def __post_init__(self):
-        try:
-            ZoneInfo(self.display_timezone)
-        except (ZoneInfoNotFoundError, ValueError, TypeError) as exc:
-            raise ValueError("display_timezone 必须是 IANA 时区名") from exc
-        for value in (self.from_ts, self.until_ts):
-            if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
-                raise ValueError("from_ts/until_ts 必须是 UTC 毫秒整数")
-        if self.from_ts is not None and self.until_ts is not None and self.from_ts >= self.until_ts:
-            raise ValueError("时间范围必须满足 from_ts < until_ts")
+        from tandem_data.scope import validate_scope
+        validate_scope(self.display_timezone, self.from_ts, self.until_ts)
         if self.scene and self.scene not in SCENE_LABELS:
             raise ValueError("未知的分析场景")
 

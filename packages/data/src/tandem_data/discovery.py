@@ -55,6 +55,9 @@ def inputs(agent: str, root: Path):
             "projects/**/custom-title.json",
         ),
         "codex": (
+            "state_*.sqlite",
+            "session_index.jsonl",
+            "external_agent_session_imports.json",
             "sessions/**/*.jsonl",
             "sessions/**/*.jsonl.zst",
             "archived_sessions/**/*.jsonl",
@@ -80,7 +83,23 @@ def inputs(agent: str, root: Path):
             and path.resolve().is_relative_to(root.resolve())
         }
     )
-    if agent == "dsh":
+    if agent == "codex":
+        indexes = [p for p in found if re.fullmatch(r"state_\d+\.sqlite", p.name)]
+        latest = max(indexes, key=lambda p: int(p.stem.split("_")[1]), default=None)
+        for path in found:
+            if path in indexes and path != latest:
+                continue
+            role = (
+                "index_db"
+                if path == latest
+                else "title_index"
+                if path.name == "session_index.jsonl"
+                else "import_ledger"
+                if path.name == "external_agent_session_imports.json"
+                else "transcript"
+            )
+            yield InputFile(path, role)
+    elif agent == "dsh":
         generations = {}
         for path in found:
             match = re.fullmatch(r"session(?:\.v(\d+))?\.jsonl(?:\.zstd)?", path.name)

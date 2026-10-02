@@ -241,12 +241,17 @@ class Store:
         root = Path(source["root_path"])
         if not path.is_relative_to(root):
             raise ValueError("Source path escapes the registered root")
-        if path.suffix in (".sqlite", ".db") and source["agent"] in SQL_TABLES:
+        if source["agent"] == "codex" and role == "index_db":
+            from tandem_data.connectors.codex_index import index_rows
+
+            chunks, format_name, stat = index_rows(path), "jsonl", {}
+        elif path.suffix in (".sqlite", ".db") and source["agent"] in SQL_TABLES:
             chunks = sqlite_rows(path, source["agent"])
             format_name = "sqlite_rows"
             stat = {}
         elif path.name.endswith((".jsonl", ".jsonl.zst", ".jsonl.zstd")) or (
-            path.suffix == ".json" and role in ("subagent_metadata", "session_title")
+            path.suffix == ".json"
+            and role in ("subagent_metadata", "session_title", "import_ledger")
         ):
             before = path.stat()
             stat = {

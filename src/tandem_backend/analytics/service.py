@@ -22,7 +22,7 @@ from .task import segment_tasks, summarize_task_distribution
 from .task.representation import representation
 
 
-def analyze_bundle(bundle, scope=None, with_text=True):
+def analyze_bundle(bundle, scope=None, with_text=True, *, with_recommendations=True):
     scope = scope or Scope()
     sessions, events, calls, model_calls, diagnostics = select(bundle, scope)
     meta = metadata(bundle, scope, diagnostics)
@@ -198,13 +198,14 @@ def analyze_bundle(bundle, scope=None, with_text=True):
                             "summary": instruction_summary},
             "limitations": ["日志跨度不是实际工作时长", "词面纠偏和结构约束只是代理信号",
                             "缺少事件不等于没有发生；未知保持 null", "聚类和坐标不带人格或任务成功含义"]}
-    result["bottleneck_recommendations"] = recommend_resources(result)
+    if with_recommendations:
+        result["bottleneck_recommendations"] = recommend_resources(result)
     return result
 
 
-def analyze_store(store, scope=None, with_text=True):
+def analyze_store(store, scope=None, with_text=True, *, with_recommendations=True):
     bundle = store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
-    return analyze_bundle(bundle, scope, with_text)
+    return analyze_bundle(bundle, scope, with_text, with_recommendations=with_recommendations)
 
 
 def response_section(result, key):

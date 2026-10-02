@@ -4,10 +4,13 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from tandem_data.query import ProjectionUnavailable
 
 from . import __version__
 from .analysis import analyze
+from .analytics.cache import AnalyticsCache
 from .catalog import resources
 from .evaluation import SCENE_BUDGETS, evaluate_text
 from .narrative import explain
@@ -36,6 +39,12 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     store = Store(db) if db is not None else CanonicalStore(home if home is not None else default_home())
     app = FastAPI(title="Tandem 本地轨迹分析", version=__version__)
 
+    cache = AnalyticsCache()
+
+    @app.exception_handler(ProjectionUnavailable)
+    async def projection_unavailable(request, error):
+        return JSONResponse({"error": {"code": "rebuild_required", "message": str(error), "retryable": True}}, status_code=409)
+
     def analytics_scope(
         display_timezone: str = "UTC", project_ids: Annotated[list[str] | None, Query()] = None,
         legacy_project_ids: Annotated[list[str] | None, Query()] = None, model_ids: Annotated[list[str] | None, Query()] = None,
@@ -59,9 +68,10 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     scope_dependency = Depends(analytics_scope)
 
     def analytics_data(scope, with_text=True):
-        from .analytics.service import analyze_store
         try:
-            return analyze_store(store, scope, with_text)
+            return cache.read(store, scope, with_text)
+        except ProjectionUnavailable:
+            raise
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -158,7 +168,10 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "version": __version__, "counts": store.counts()}
+        try:
+            return {"status": "ok", "readiness": "ready", "version": __version__, "counts": store.counts()}
+        except ProjectionUnavailable:
+            return {"status": "ok", "readiness": "rebuild_required", "version": __version__, "counts": None}
 
     @app.get("/v1/projects")
     def projects():
@@ -190,6 +203,8 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         try:
             data = analyze(store, project_id, model, before, scene if scene != "auto" else None)
             return explain(data, recommend(data, scene, catalog=resources(catalog_cache)), audience)
+        except ProjectionUnavailable:
+            raise
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 

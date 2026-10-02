@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.query import current_projection
+from tandem_data.scope import validate_scope
 from tandem_data.store import readonly_connection
 
 
@@ -25,9 +25,7 @@ class AnalysisScope:
     include_children: bool = True
 
     def __post_init__(self):
-        ZoneInfo(self.display_timezone)
-        if self.from_ts is not None and self.until_ts is not None and self.from_ts > self.until_ts:
-            raise ValueError("from_ts must not exceed until_ts")
+        validate_scope(self.display_timezone, self.from_ts, self.until_ts)
 
 
 JSON_COLUMNS = {
@@ -181,7 +179,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
         selected_ids = {event["event_uid"] for event in selected}
         tools = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM v_analysis_tool_call")
+            for row in connection.execute(
+                "SELECT * FROM v_analysis_tool_call WHERE call_event_uid IN (SELECT value FROM json_each(?)) OR result_event_uid IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(members)), json.dumps(sorted(members))),
+            )
             if row["call_event_uid"] in members or row["result_event_uid"] in members
         ]
         # A later result must not leak status/exit code into a historical snapshot.
@@ -216,7 +217,10 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
                 )
         models = [
             decoded(row)
-            for row in connection.execute("SELECT * FROM v_analysis_model_call")
+            for row in connection.execute(
+                "SELECT * FROM v_analysis_model_call WHERE usage_event_uid IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(members)),),
+            )
             if row["usage_event_uid"] in members
         ]
         # Native unknown-time tool returns can be context for a selected invocation; never statistical members.

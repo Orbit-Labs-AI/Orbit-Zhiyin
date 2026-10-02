@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
 from tandem_data.contract import canonical, uid
 
@@ -46,7 +48,23 @@ class CodexMapper(BaseMapper):
         return uid("native_payload", record.data.get("type"), record.data.get("payload"))
 
     def map(self, record):
+        reason = getattr(self, "excluded_records", {}).get(record.record_uid)
+        if reason:
+            return Mapping(disposition="ignored", reason=reason)
         data, typ = record.data, record.data.get("type")
+        if self.info["role"] == "import_ledger" and "records" in data:
+            events = []
+            for index, item in enumerate(data["records"]):
+                mapped = self.map(replace(record, data={"type": "import_ledger", "payload": item}))
+                for event in mapped.events:
+                    event.event_path += f".{index}"
+                events.extend(mapped.events)
+            return Mapping(events, reason="import ledger snapshot")
+        if typ in ("project_index", "project_root"):
+            return Mapping(
+                disposition="ignored",
+                reason="project metadata retained; session cwd/remote defines canonical identity",
+            )
         payload = data.get("payload", {})
         if self.info["role"] == "title_index":
             payload, typ = data, "title_index"
@@ -84,8 +102,12 @@ class CodexMapper(BaseMapper):
                 )
             if typ == "state_index":
                 attrs.update(
-                    title=payload.get("name", payload.get("title")),
-                    title_source="native",
+                    title=payload.get("name") or payload.get("title") or payload.get("preview"),
+                    title_source="custom" if payload.get("name") else "native",
+                    cwd=payload.get("cwd"),
+                    git_remote=payload.get("git_origin_url"),
+                    client=payload.get("originator"),
+                    harness_version=payload.get("cli_version"),
                     current_index=payload,
                 )
             return Mapping(
@@ -181,6 +203,14 @@ class CodexMapper(BaseMapper):
             )
             event.ext = payload
             return Mapping([event])
+        if typ == "event_msg" and payload.get("type") == "thread_rolled_back":
+            return Mapping(
+                [
+                    self.make(
+                        record, "branch", "rollback", attrs={"num_turns": payload.get("num_turns")}
+                    )
+                ]
+            )
         if typ == "turn_context":
             self.native_turn = payload.get("turn_id", self.native_turn)
             self.model = payload.get("model", self.model)

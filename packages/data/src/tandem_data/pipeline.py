@@ -117,6 +117,9 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             (canonical({"reason": "incomplete_tail_retained_in_L0"}),),
         )
         # Native parent files precede copied child prefixes; metadata snapshots come last.
+        from tandem_data.connectors.codex_history import prepare_history
+
+        history_ranks = prepare_history(store, infos, mappers)
         by_native = {
             (
                 info["source_id"],
@@ -152,7 +155,11 @@ def rebuild(store, *, mapper_version=None, source_ids=None):
             ordered.append(info)
 
         for info in sorted(
-            infos, key=lambda item: item["role"] in ("index_db", "title_index", "import_ledger")
+            infos,
+            key=lambda item: (
+                item["role"] in ("index_db", "title_index", "import_ledger"),
+                history_ranks.get(item["file_id"], 0),
+            ),
         ):
             visit(info)
         infos = ordered
