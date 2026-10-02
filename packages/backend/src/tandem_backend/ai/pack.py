@@ -168,19 +168,16 @@ def features_profile(scope) -> dict:
 
 
 def catalog_search(query: str, k: int = 3) -> list[dict]:
-    fn = lazy("tandem_catalog", "search")
+    """Catalog hits through features.search (the gateway binds it); [] when not bound."""
+    fn = lazy("tandem_backend.features", "search")
     if fn is None or not query:
         return []
     try:
-        hits = fn(query, kinds=None, k=k) or []
-    except Exception:  # noqa: BLE001 - catalog is optional
+        hits = (fn(query, kinds=["catalog"], limit=k) or {}).get("results") or []
+    except Exception:  # noqa: BLE001 - search is optional (unbound, index building)
         return []
-    out = []
-    for h in list(hits)[:k]:
-        h = h if isinstance(h, dict) else getattr(h, "__dict__", {})
-        out.append({"item_id": h.get("item_id") or h.get("id"), "kind": h.get("kind"),
-                    "name": h.get("name"), "summary": (h.get("summary") or "")[:200]})
-    return out
+    return [{"item_id": h.get("id"), "kind": h.get("kind"), "name": h.get("title"),
+             "summary": (h.get("snippet") or "")[:200]} for h in hits[:k] if isinstance(h, dict)]
 
 
 # ---------------------------------------------------------------- build context
@@ -586,25 +583,30 @@ def _catalog_items(c: _Ctx):
     return catalog_search(c.goal, 3)
 
 
-def candidates(scope, limit=10) -> list[dict]:
-    fn = lazy("tandem_backend.recommend", "candidates")
-    if fn is None:
+def candidates(scope, limit=10, appdb=None) -> list[dict]:
+    """Passed candidates of the newest recommendation run, read from app.db (AI never imports
+    recommend; ``rec_candidate`` is its published table)."""
+    if appdb is None:
         return []
     try:
-        rows = fn(scope or {}, limit=limit) or []
-    except Exception:  # noqa: BLE001 - recommend is optional
+        with appdb.read() as db:
+            rows = db.execute(
+                "SELECT candidate_id, title, kind, priority, card FROM rec_candidate WHERE passed = 1"
+                " AND run_id = (SELECT run_id FROM rec_run ORDER BY created_at DESC LIMIT 1)"
+                " ORDER BY rank, priority DESC LIMIT ?", (limit,)).fetchall()
+    except Exception:  # noqa: BLE001 - recommend schema absent: no candidates yet
         return []
     out = []
-    for r in list(rows)[:limit]:
-        if isinstance(r, dict):
-            out.append({"candidate_id": r.get("candidate_id") or r.get("id"), "title": r.get("title"),
-                        "kind": r.get("kind"), "priority": r.get("priority"), "reason": r.get("reason"),
-                        "evidence_counts": r.get("evidence_counts")})
+    for r in rows:
+        card = json.loads(r["card"] or "{}")
+        out.append({"candidate_id": r["candidate_id"], "title": r["title"], "kind": r["kind"],
+                    "priority": r["priority"], "reason": card.get("reason") or card.get("why"),
+                    "evidence_counts": card.get("evidence_counts")})
     return out
 
 
 def _candidates(c: _Ctx):
-    return candidates(c.scope, 10)
+    return candidates(c.scope, 10, c.appdb)
 
 
 def _profile(c: _Ctx):
