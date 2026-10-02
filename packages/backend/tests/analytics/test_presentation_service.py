@@ -108,6 +108,8 @@ def test_api_cli_and_python_share_exact_scope_and_computation(monkeypatch, tmp_p
     bundle = fixture_bundle()
 
     class FixtureStore:
+        path = tmp_path / "fixture.db"
+
         def analysis_bundle(self, scope):
             return bundle
 
@@ -169,6 +171,8 @@ def test_presentation_preserves_explicit_recommendation_catalog_and_agent(monkey
     bundle = fixture_bundle()
 
     class FixtureStore:
+        path = tmp_path / "fixture.db"
+
         def analysis_bundle(self, scope):
             return bundle
 

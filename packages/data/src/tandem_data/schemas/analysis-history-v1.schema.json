@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tandem analysis history rows v1",
+  "$defs": {
+    "analysis_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "engine",
+        "status",
+        "started_at",
+        "finished_at",
+        "request_json",
+        "snapshot_id",
+        "error_type",
+        "error_message"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "engine": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "started_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "finished_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "request_json": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "error_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "error_message": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "analysis_snapshot",
+          "from": "snapshot_id",
+          "to": "snapshot_id"
+        }
+      ],
+      "x-ddl": "CREATE TABLE analysis_run (\n    run_id TEXT PRIMARY KEY,\n    engine TEXT NOT NULL,\n    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),\n    started_at INTEGER NOT NULL,\n    finished_at INTEGER,\n    request_json TEXT NOT NULL CHECK(json_valid(request_json)),\n    snapshot_id TEXT REFERENCES analysis_snapshot(snapshot_id),\n    error_type TEXT,\n    error_message TEXT,\n    CHECK((status = 'completed' AND snapshot_id IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'failed' AND error_type IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'running' AND snapshot_id IS NULL AND finished_at IS NULL))\n)"
+    },
+    "analysis_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_id",
+        "analysis_digest",
+        "schema_version",
+        "json_bytes",
+        "payload",
+        "created_at"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "analysis_digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "schema_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "json_bytes": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "payload": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE analysis_snapshot (\n    snapshot_id TEXT PRIMARY KEY,\n    analysis_digest TEXT,\n    schema_version TEXT,\n    json_bytes INTEGER NOT NULL CHECK(json_bytes >= 0),\n    payload BLOB NOT NULL,\n    created_at INTEGER NOT NULL\n)"
+    }
+  },
+  "description": "JSON text columns must be decoded before validating a row. Event semantic validation also uses event-v1.schema.json."
+}

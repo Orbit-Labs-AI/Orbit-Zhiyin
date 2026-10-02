@@ -8,7 +8,7 @@
 | --- | --- |
 | `packages/connectors` | TypeScript Codex 采集，输出独立 staging |
 | `packages/data/src/tandem_data/connectors` | 各 Agent 原生记录映射与注册 |
-| `discovery.py / store.py` | 白名单发现、L0 不可变归档、L1 全记录索引、迁移 |
+| `discovery.py / store.py` | 白名单发现、L0 来源索引、L1 全记录索引、迁移 |
 | `pipeline.py / reduce.py` | L2 标准化、L3 派生与来源级原子发布 |
 | `bridge.py / service.py` | staging 校验、App 导入任务、进度、取消、写入互斥 |
 | `query.py / analysis_input.py` | 发布版本校验、分页与带范围的分析契约 |
@@ -25,7 +25,7 @@
 ```mermaid
 flowchart LR
   Native[显式启用的 Agent 目录] --> Capture[ImportService]
-  Capture --> L0[L0 不可变归档]
+  Capture --> L0[L0 来源索引]
   TS[Codex staging] --> Bridge[哈希校验与记录对照]
   Bridge --> L0
   L0 --> L1[L1 位置、哈希、去向]
@@ -38,7 +38,7 @@ flowchart LR
 
 TypeScript staging 的 L2/L3 不作为第二个分析事实源。桥接验证归档并使用 Python canonical mapper，保留 `connector_record_link`，不扫描已经变化的原始路径。Native 导入与 staging 最终使用同一套身份和标准化规则。
 
-L0/L1 与派生发布分离：中断后可能留下尚未投影的归档；读者检查 `projection_run`、L1 revision 与 mapper/reducer/redaction 版本，未发布或过期时要求重算。重复导入跳过未变文件；原始归档不因上游删除而消失。导入和重算用同一个 macOS 文件锁串行化，SQLite WAL 允许并发只读访问。
+L0/L1 与派生发布分离：中断后可能留下尚未投影的索引；读者检查 `projection_run`、L1 revision 与 mapper/reducer/redaction 版本，未发布或过期时要求重算。重复导入跳过未变文件；已有分析表在上游删除后保留，原文引用明确返回不可用状态。导入和重算用同一个 macOS 文件锁串行化，SQLite WAL 允许并发只读访问。
 
 ## App 接入
 
@@ -59,13 +59,13 @@ page = CanonicalStore(default_home()).session_page(limit=50)
 
 `ImportRequest.files / limit` 是显式样本选择，`selection=sample` 不能显示成全量回填。App 应展示 `capture_errors / current_unparsed`；进度回调仅含阶段和计数，取消检查在文件之间。普通进程退出不证明来源完整。
 
-事件列表用 `GET /v1/sessions/{session_uid}/events?after_seq=…&limit=100`，从 `next_after_seq` 继续。列表直接 SQL 分页；证据接口按 canonical UID 返回脱敏事件的兼容表示，包含 `record_uid / event_path`，不暴露 L0 原文。现有报告在一个一致快照中适配 L2/L3，不创建第二份持久事实库。
+事件列表用 `GET /v1/sessions/{session_uid}/events?after_seq=…&limit=100`，从 `next_after_seq` 继续。列表直接 SQL 分页；证据接口按 canonical UID 返回脱敏事件的兼容表示，包含 `record_uid / event_path`，原文通过显式的 `/v1/records/{record_uid}/source?include_content=true` 读取。现有报告在一个一致快照中适配 L2/L3，不创建第二份持久事实库。
 
 ## 规模边界
 
 - 采集以流处理，变化文件保留不可变版本，派生按受影响来源重算。本地单写者是有意约束，不承诺分布式 ETL。
 - 列表与证据接口不加载完整分析 bundle。分析范围先在 SQLite 内过滤，再解码事实与必要上下文。
-- 单次分析保留 100,000 个候选事件的内存保护；超限需缩小项目、时间或会话范围。单轮上下文特别大时可分批读取 SQL 视图，不将其描述为任意规模分析。
+- 分析默认不截断正文、不限制候选事件数量；调用方可显式设置报错式预算。App 列表使用分页，页大小不会裁剪单条正文。
 - 统计成员由 canonical reader 返回，窗口外上下文只用于解释。缺失值、累计快照与模型请求保持契约语义，不按旧 session.model 猜测。
 - 本次交付是数据层、CLI 与本机 API 的 App 接入边界，没有新增 Swift UI 或安装包。
 
@@ -87,3 +87,5 @@ uv run tandem evaluate
 同名数据管线测试已明确命名，根 pytest 可以一次收集全部模块与集成测试。macOS CI 构建 TypeScript producer，保证 staging 桥接测试不被跳过。构造样本覆盖各 Agent、来源身份、上下文与统计分离、只读 API、分页、过期版本拒绝，以及原始来源消失后的归档桥接。
 
 `TANDEM_HOME`、`--home` 与 App 共用默认目录 `~/Library/Application Support/Tandem`。旧 `.local/tandem.sqlite` 必须显式 `--db` 读取，不能改名当 canonical 库。旧导入的持久采样参数保留在兼容模式；新导入遇到这些参数会提示使用分析范围，不静默扩大样本。评价在独立临时兼容库运行。
+
+完整原生 trajectory、原文索引、schema 5 迁移与无复制采集边界见 [来源索引与 App 接口](../modules/data/indexed-trajectories.md)。

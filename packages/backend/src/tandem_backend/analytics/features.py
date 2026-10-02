@@ -46,7 +46,7 @@ def text_lengths(events):
 
 
 def session_features(session, events, calls, main_ids, supported_kinds=None, event_status="available",
-                     display_timezone="UTC"):
+                     display_timezone="UTC", *, with_workflow=True):
     users = [e for e in events if human(e, main_ids)]
     assistants = [e for e in events if e["kind"] == "message.assistant"]
     unknown_humans = sum(e["kind"] == "message.user" and e.get("attrs", {}).get("origin", "unknown") == "unknown" for e in events)
@@ -89,7 +89,7 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
             "unknown_counts": {"human_origin": unknown_humans, "event_time": len(events) - len(times),
                                "turn_identity": sum(not e.get("turn_uid") for e in events)},
             "text_measurements": {"user": lengths_u, "assistant": lengths_a},
-            "workflow": workflow(events, calls, main_ids, supported_kinds), "correction_signals": corrections,
+            "workflow": workflow(events, calls, main_ids, supported_kinds) if with_workflow else None, "correction_signals": corrections,
             "correction_denominator": "confirmed human messages in main sessions",
             "prompt_structure": structures, "language_signals": [{"language": LANG[k], "extension": k, "count": n,
                 "basis": "human_text_file_extension"} for k, n in languages.most_common()],

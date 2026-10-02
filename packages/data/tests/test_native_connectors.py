@@ -1110,13 +1110,13 @@ def test_touching_unchanged_file_refreshes_stat_cache_not_capture_provenance(tmp
         old = file.stat()
         os.utime(file, ns=(old.st_atime_ns, old.st_mtime_ns + 1000000))
         calls = []
-        original = store.capture_stream
+        original = store._index_lines
 
         def counted(*args, **kwargs):
             calls.append(True)
             return original(*args, **kwargs)
 
-        monkeypatch.setattr(store, "capture_stream", counted)
+        monkeypatch.setattr(store, "_index_lines", counted)
         assert service.import_source(request)["changed"] == 0
         assert len(calls) == 1
         assert service.import_source(request)["changed"] == 0
@@ -1226,7 +1226,7 @@ def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
         assert len(rows(store, "project")) == 2
         assert rows(store, "project_override")[0]["project_id"] == "old"
         assert rows(store, "session")[0]["project_id"] == "old"
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 6
         assert store.db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 

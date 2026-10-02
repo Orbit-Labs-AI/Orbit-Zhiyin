@@ -47,8 +47,9 @@ def report_session(row, project=None):
 class ReportSnapshot:
     """One bounded L2/L3 read transaction for all stages of a narrative report."""
 
-    def __init__(self, bundle):
+    def __init__(self, bundle, *, home=None):
         self.bundle = bundle
+        self.home = home
         projects = {p["project_id"]: p for p in bundle["projects"]}
         self._sessions = [report_session(s, projects.get(s["project_id"])) for s in bundle["sessions"]]
         members = set(bundle["statistical_members"]["event_uids"])
@@ -89,7 +90,8 @@ class ReportSnapshot:
 class CanonicalStore:
     """Open one short query-only connection per read, safe across API worker threads."""
 
-    def __init__(self, home: str | Path):
+    def __init__(self, home: str | Path, *, max_events=None):
+        self.max_events = max_events
         self.home = Path(home).expanduser().resolve()
         self.path = self.home / "tandem.db"
         if not self.path.is_file():
@@ -102,7 +104,7 @@ class CanonicalStore:
             current_projection(connection)
             yield connection
 
-    def read_bundle(self, scope=None):
+    def read_bundle(self, scope=None, *, include_native=True):
         from ..analytics.inputs import Scope
         scope = scope or Scope()
         if scope.legacy_project_ids is not None:
@@ -110,20 +112,22 @@ class CanonicalStore:
         fields = asdict(scope)
         fields.pop("scene")
         fields.pop("legacy_project_ids")
-        return read_analysis(self.home, AnalysisScope(**fields))
+        return read_analysis(self.home, AnalysisScope(**fields), max_events=self.max_events,
+                             include_native=include_native)
 
     def analysis_bundle(self, scope=None):
         from ..analytics.inputs import AnalysisInputBundle
-        return AnalysisInputBundle.from_dict(self.read_bundle(scope))
+        return AnalysisInputBundle.from_dict(self.read_bundle(scope, include_native=False))
 
-    def report_snapshot(self, project_id=None, model=None, before=None):
+    def report_snapshot(self, project_id=None, model=None, before=None, *, from_ts=None, until_ts=None):
         from ..analytics.inputs import Scope, millis
         cutoff = millis(before) if before else None
         if before and cutoff is None:
             raise ValueError("before 必须是带时区的 ISO 时间")
         return ReportSnapshot(self.read_bundle(Scope(
             project_ids=[project_id] if project_id is not None else None,
-            model_ids=[model] if model is not None else None, until_ts=cutoff)))
+            model_ids=[model] if model is not None else None, from_ts=from_ts,
+            until_ts=cutoff if cutoff is not None else until_ts), include_native=False), home=self.home)
 
     def counts(self):
         with self.connect() as db:
@@ -134,17 +138,14 @@ class CanonicalStore:
     def sources(self):
         with self.connect() as db:
             return [dict(row) for row in db.execute(
-                "SELECT source_id,agent,label,enabled FROM source ORDER BY source_id")]
+                "SELECT s.source_id,s.agent,s.label,s.enabled,x.selection,x.discovered_files,x.indexed_files,x.capture_errors,x.cancelled "
+                "FROM source s LEFT JOIN source_scan x USING(source_id) ORDER BY s.source_id")]
 
     def session_page(self, project_id=None, *, offset=0, limit=50):
         if offset < 0 or not 1 <= limit <= 200:
             raise ValueError("offset 必须非负，limit 必须在 1–200")
         clause, params = (" AND s.project_id=?", [project_id]) if project_id is not None else ("", [])
-        base = (" FROM session s JOIN session root ON root.session_uid=s.root_uid "
-                "JOIN source src ON src.source_id=s.source_id "
-                "LEFT JOIN project p ON p.project_id=s.project_id "
-                "WHERE s.kind IN ('main','subagent','workflow_agent') "
-                "AND root.kind='main' AND s.lineage_unresolved=0" + clause)
+        base = (" FROM session s JOIN source src ON src.source_id=s.source_id LEFT JOIN project p ON p.project_id=s.project_id WHERE 1=1" + clause)
         with self.connect() as db:
             total = db.execute("SELECT count(*)" + base, params).fetchone()[0]
             rows = db.execute("SELECT s.*,src.agent,p.name AS project_name" + base +
@@ -157,21 +158,19 @@ class CanonicalStore:
         if offset < 0 or not 1 <= limit <= 500 or (after_seq is not None and after_seq < -1):
             raise ValueError("无效的分页参数")
         with self.connect() as db:
-            exists = db.execute("SELECT 1 FROM session s JOIN session root ON root.session_uid=s.root_uid "
-                                "WHERE s.session_uid=? AND s.kind IN ('main','subagent','workflow_agent') "
-                                "AND root.kind='main' AND s.lineage_unresolved=0", (session_id,)).fetchone()
+            exists = db.execute("SELECT 1 FROM session WHERE session_uid=?", (session_id,)).fetchone()
             if not exists:
                 return None
-            total = db.execute("SELECT count(*) FROM v_analysis_event WHERE session_uid=?", (session_id,)).fetchone()[0]
+            total = db.execute("SELECT count(*) FROM event WHERE session_uid=?", (session_id,)).fetchone()[0]
             rows = [decoded(row) for row in db.execute(
-                "SELECT * FROM v_analysis_event WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ? OFFSET ?",
+                "SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c USING(event_uid) WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ? OFFSET ?",
                 (session_id, after_seq if after_seq is not None else -1, limit, offset))]
         return {"total": total, "items": [report_event(e).to_dict() for e in rows],
                 "next_after_seq": rows[-1]["seq"] if rows else None}
 
     def evidence(self, event_id):
         with self.connect() as db:
-            row = db.execute("SELECT * FROM v_analysis_event WHERE event_uid=?", (event_id,)).fetchone()
+            row = db.execute("SELECT e.*,c.model_raw FROM event e LEFT JOIN event_context c USING(event_uid) WHERE e.event_uid=?", (event_id,)).fetchone()
             return report_event(decoded(row)).to_dict() if row else None
 
     def sessions(self, project_id=None):

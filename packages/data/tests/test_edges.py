@@ -47,14 +47,14 @@ def pi_rows():
     ]
 
 
-def test_pretruncation_lengths_redaction_scope_and_empty_selection(tmp_path):
+def test_full_lengths_redaction_scope_and_empty_selection(tmp_path):
     with Store(tmp_path / "data") as store:
         stream(store, "pi", tmp_path / "source", pi_rows())
         store.rebuild()
         event = store.db.execute("SELECT * FROM event WHERE kind='message.assistant'").fetchone()
         attrs = json.loads(event["attrs"])
-        assert attrs["original_chars"] == 4000 and event["text_truncated"] == 1
-        assert len(event["text"].encode()) <= 8192
+        assert attrs["original_chars"] == 4000 and event["text_truncated"] == 0
+        assert event["text"] == "中" * 4000
         assert attrs["writing_measurements"]["reply"]["complete"]
         bundle = read_analysis(store.home, AnalysisScope("Asia/Shanghai", model_ids=("test",)))
         assert any(e["kind"] == "message.user" for e in bundle["events"])
@@ -617,4 +617,121 @@ def test_legacy_codex_and_opencode_v2_assistant_remain_visible(tmp_path):
                 "SELECT COUNT(*) FROM event WHERE kind='message.assistant'"
             ).fetchone()[0]
             == 2
+        )
+
+
+def test_codex_unavailable_inherited_history_is_evidenced_context_not_behavior(tmp_path):
+    parent = [{"type": "session_meta", "ordinal": 0, "payload": {"id": "parent"}}]
+    child = [
+        {
+            "type": "session_meta",
+            "ordinal": 0,
+            "payload": {
+                "id": "child",
+                "parent_thread_id": "parent",
+                "subagent_history_start_ordinal": 3,
+                "source": {"subagent": {"thread_spawn": {"parent_thread_id": "parent"}}},
+            },
+        },
+        {
+            "type": "event_msg",
+            "ordinal": 1,
+            "payload": {"type": "user_message", "message": "old parent prompt"},
+        },
+        {
+            "type": "response_item",
+            "ordinal": 2,
+            "payload": {
+                "type": "function_call",
+                "name": "shell",
+                "call_id": "old",
+                "arguments": "{}",
+            },
+        },
+        {
+            "type": "response_item",
+            "ordinal": 3,
+            "payload": {
+                "type": "function_call",
+                "name": "shell",
+                "call_id": "new",
+                "arguments": "{}",
+            },
+        },
+    ]
+    home = tmp_path / "data"
+    with Store(home) as store:
+        stream(store, "codex", tmp_path / "source", parent, "parent.jsonl")
+        stream(store, "codex", tmp_path / "source", child, "child.jsonl")
+        store.rebuild()
+        assert store.verify()["unparsed"] == 0
+        assert store.db.execute("SELECT count(*) FROM tool_call").fetchone()[0] == 1
+        assert store.db.execute("SELECT count(*) FROM v_human_message").fetchone()[0] == 0
+        contexts = store.db.execute(
+            "SELECT * FROM event WHERE event_path='inherited.unresolved_context'"
+        ).fetchall()
+        assert len(contexts) == 2
+        for row in contexts:
+            assert row["kind"] == "context.inject" and row["text"] is None
+            assert json.loads(row["attrs"])["parent_evidence"] == "unavailable"
+            assert store.read_raw(row["record_uid"])  # The child's actual original is retrievable.
+    bundle = read_analysis(home, AnalysisScope("UTC"))
+    assert "inherited_parent_evidence_unavailable" in bundle["coverage"]["events"]["reasons"]
+
+
+def test_codex_completed_tools_and_compaction_have_canonical_destinations(tmp_path):
+    items = [
+        {"type": "ImageView", "id": "image", "path": "/fictional/image.png"},
+        {"type": "Extension", "id": "sleep", "kind": "clock.sleep", "durationMs": 1000},
+        {
+            "type": "Extension",
+            "id": "generation",
+            "kind": "image_gen.generation",
+            "status": "failed",
+        },
+        {"type": "FunctionCallOutput", "id": "output", "output": "done", "name": "tool"},
+    ]
+    rows = [
+        {"type": "session_meta", "payload": {"id": "s"}},
+        {"type": "turn_context", "payload": {"turn_id": "t"}},
+    ]
+    rows += [
+        {"type": "event_msg", "payload": {"type": "item_completed", "turn_id": "t", "item": item}}
+        for item in items
+    ]
+    rows += [
+        {
+            "type": "response_item",
+            "payload": {"type": "tool_search_call", "call_id": "search", "arguments": "{}"},
+        },
+        {
+            "type": "response_item",
+            "payload": {"type": "tool_search_output", "call_id": "search", "tools": []},
+        },
+        {"type": "response_item", "payload": {"type": "compaction", "encrypted_content": "opaque"}},
+        {
+            "type": "event_msg",
+            "payload": {"type": "thread_goal_updated", "goal": {"objective": "fixture"}},
+        },
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", rows)
+        store.rebuild()
+        assert store.verify()["unparsed"] == 0
+        assert (
+            store.db.execute("SELECT count(*) FROM event WHERE kind='unknown'").fetchone()[0] == 0
+        )
+        tools = {r["name_raw"]: r for r in store.db.execute("SELECT * FROM tool_call")}
+        assert tools["view_image"]["status"] == tools["clock.sleep"]["status"] == "unknown"
+        assert tools["image_gen.generation"]["status"] == "failed"
+        assert tools["tool_search"]["result_event_uid"] is not None
+        assert (
+            store.db.execute(
+                "SELECT count(*) FROM event WHERE kind='context.compaction'"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            store.db.execute("SELECT count(*) FROM event WHERE kind='plan.update'").fetchone()[0]
+            == 1
         )

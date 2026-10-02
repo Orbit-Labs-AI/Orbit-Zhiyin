@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .. import __version__
+from ..analytics.inputs import Scope
 from ..application.reports import build_report
 from ..evaluation import SCENE_BUDGETS, evaluate_text
 from ..profiling.analysis import analyze
@@ -25,6 +26,11 @@ class RecommendationRequest(BaseModel):
     context: RecommendationContext = Field(default_factory=RecommendationContext)
     family: Family | None = None
     limit: int = Field(default=6, ge=1, le=20, strict=True)
+
+
+class AnalysisComparisonRequest(BaseModel):
+    first: Scope
+    second: Scope
 
 
 def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local/catalog.json",
@@ -59,11 +65,12 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         root_session_uids: Annotated[list[str] | None, Query()] = None, excluded_session_uids: Annotated[list[str] | None, Query()] = None,
         include_children: bool = True, scene: str | None = None,
         agent_ids: Annotated[list[str] | None, Query()] = None,
+        source_ids: Annotated[list[str] | None, Query()] = None,
     ):
         from ..analytics.inputs import Scope
         try:
             # Repeated parameters are lists; an explicit empty value means [].
-            return Scope(display_timezone=display_timezone,
+            return Scope(display_timezone=display_timezone, source_ids=[] if source_ids == [""] else source_ids,
                          project_ids=[] if project_ids == [""] else project_ids,
                          legacy_project_ids=[] if legacy_project_ids == [""] else legacy_project_ids,
                          model_ids=[] if model_ids == [""] else model_ids, effort_raw=effort_raw,
@@ -104,6 +111,86 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
                 result, context={"agent": target_agent}, family=family,
                 catalog_directory=recommendation_catalog)
         return build_presentation(result)
+
+    @app.get("/v1/analytics/products")
+    def analysis_products(scope=scope_dependency, bucket: Literal["day", "week", "month"] = "day",
+                          with_text: bool = False, compare_previous: bool = False):
+        from ..analytics.products import analyze_product_store
+        try:
+            return analyze_product_store(store, scope, bucket=bucket, with_text=with_text,
+                                         compare_previous=compare_previous)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/v1/analytics/products/sessions")
+    def product_sessions(scope=scope_dependency, query: str = "", offset: int = Query(0, ge=0),
+                         limit: int = Query(50, ge=1, le=200)):
+        from ..analytics.products import analyze_product_store, session_page
+        try:
+            result = analyze_product_store(store, scope)
+            return {"scope": result["scope"], "analysis_digest": result["analysis_digest"],
+                    **session_page(result, query=query, offset=offset, limit=limit)}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/v1/analytics/products/compare")
+    def product_compare(first: str, second: str, scope=scope_dependency):
+        from ..analytics.products import analyze_product_store
+        from ..analytics.products.summaries import compare_sessions
+        try:
+            return compare_sessions(analyze_product_store(store, scope), first, second)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/v1/analytics/statistics")
+    def feature_statistics(scope=scope_dependency):
+        return analytics_section("statistics", scope)
+
+    @app.get("/v1/analytics/lexical")
+    def feature_lexical(scope=scope_dependency):
+        return analytics_section("lexical", scope)
+
+    @app.post("/v1/analytics/compare")
+    def statistical_comparison(request: AnalysisComparisonRequest):
+        from ..analytics.products.service import compare_scopes
+        try:
+            return compare_scopes(store, request.first, request.second)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/v1/analytics/runs")
+    def analysis_runs(engine: str | None = None, status: Literal["running", "completed", "failed"] | None = None,
+                      limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+        from ..analytics.history import history_for
+        return history_for(store).list_runs(engine=engine, status=status, limit=limit, offset=offset)
+
+    @app.get("/v1/analytics/runs/{run_id}")
+    def analysis_run(run_id: str):
+        from ..analytics.history import history_for
+        record = history_for(store).get_run(run_id)
+        if record is None:
+            raise HTTPException(404, "分析记录不存在")
+        return record
+
+    @app.get("/v1/analytics/runs/{run_id}/result")
+    def analysis_run_result(run_id: str):
+        from ..analytics.history import history_for
+        try:
+            return history_for(store).result(run_id)
+        except KeyError as exc:
+            raise HTTPException(404, "已完成的分析不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @app.get("/v1/analytics/runs/{run_id}/records")
+    def analysis_run_records(run_id: str, pointer: str, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000)):
+        from ..analytics.history import history_for
+        try:
+            return history_for(store).records(run_id, pointer, offset=offset, limit=limit)
+        except KeyError as exc:
+            raise HTTPException(404, "分析记录或路径不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @app.get("/v1/analytics/overview")
     def feature_overview(scope=scope_dependency):
@@ -219,6 +306,30 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         if not any(s["id"] == session_id for s in store.sessions()):
             raise HTTPException(404, "会话不存在")
         return {"total": len(items), "items": [e.to_dict() for e in items[offset:offset + limit]]}
+
+    @app.get("/v1/sessions/{session_id}/trajectory")
+    def trajectory(session_id: str, after: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=1000),
+                   run_id: int | None = None, include_children: bool = True):
+        from tandem_data.query import trajectory_page
+        if db is not None:
+            raise HTTPException(409, "原文索引需要 canonical 数据库")
+        try:
+            return trajectory_page(canonical_home, session_id, after=after, limit=limit,
+                                   run_id=run_id, include_children=include_children)
+        except KeyError:
+            raise HTTPException(404, "会话不存在") from None
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
+
+    @app.get("/v1/records/{record_uid}/source")
+    def source_record(record_uid: str, include_content: bool = False):
+        from tandem_data.source_reader import record_source
+        if db is not None:
+            raise HTTPException(409, "原文索引需要 canonical 数据库")
+        try:
+            return record_source(canonical_home, record_uid, include_content=include_content)
+        except KeyError:
+            raise HTTPException(404, "原始记录不存在") from None
 
     @app.get("/v1/analysis")
     def analysis(project_id: str | None = None, model: str | None = None, before: str | None = None,

@@ -43,6 +43,7 @@ class Scope:
     scene: str | None = None
     legacy_project_ids: list[str] | None = None
     agent_ids: list[str] | None = None
+    source_ids: list[str] | None = None
 
     def __post_init__(self):
         try:
@@ -77,6 +78,8 @@ class AnalysisInputBundle:
     sample_boundary: dict = field(default_factory=dict)
     input_contract: str = "analysis-input-v1"
     statistical_members: dict | None = None
+    inventory: list[dict] | None = None
+    inventory_scans: list[dict] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data):
@@ -88,7 +91,7 @@ class AnalysisInputBundle:
             if one in cov and many not in cov:
                 cov[many] = cov[one]
         fields = {}
-        for name in ("events", "tool_calls", "model_calls", "projects", "turns"):
+        for name in ("events", "tool_calls", "model_calls", "projects", "turns", "inventory"):
             state = cov.get(name, {}).get("status")
             fields[name] = None if state in ("unavailable", "excluded") else data.get(name)
             if name not in cov:
@@ -107,7 +110,8 @@ class AnalysisInputBundle:
                     for s in data.get("sessions", [])]
         return cls(sessions=sessions, coverage=cov, **fields,
                    versions=versions, sample_boundary=data.get("sample_boundary", {}),
-                   statistical_members=data.get("statistical_members"))
+                   statistical_members=data.get("statistical_members"),
+                   inventory_scans=data.get("inventory_scans", []))
 
 
 KINDS = {"user_message": "message.user", "assistant_message": "message.assistant",
@@ -276,6 +280,8 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
             reason = "children_disabled"
         elif scope.root_session_uids is not None and root not in scope.root_session_uids:
             reason = "root_filter"
+        elif scope.source_ids is not None and s.get("source_id") not in scope.source_ids:
+            reason = "source_filter"
         elif scope.project_ids is not None and s.get("project_id") not in scope.project_ids:
             reason = "project_filter"
         elif scope.agent_ids is not None and s.get("agent") not in scope.agent_ids:
@@ -397,6 +403,9 @@ def select_canonical(bundle, scope):
     allowed_sessions = {s["session_uid"] for s in bundle.sessions
                         if scope.agent_ids is None or s.get("agent") in scope.agent_ids}
     ids &= {e["event_uid"] for e in events if e["session_uid"] in allowed_sessions}
+    if scope.source_ids is not None:
+        source_sessions = {s["session_uid"] for s in bundle.sessions if s.get("source_id") in scope.source_ids}
+        ids &= {e["event_uid"] for e in events if e["session_uid"] in source_sessions}
     if scope.scene:
         humans = [Event(e["event_uid"], e["session_uid"], e["seq"], "user_message", None,
                         text=e.get("text") or "", details=e["attrs"])
@@ -412,6 +421,11 @@ def select_canonical(bundle, scope):
     members = [e for e in events if e["event_uid"] in ids]
     calls = None if bundle.tool_calls is None else [c for c in bundle.tool_calls
             if c.get("call_event_uid") in ids or c.get("result_event_uid") in ids]
+    # L3 calls reference L2 events; native seq belongs to those events, not timestamps.
+    positions = {(e["session_uid"], e["event_uid"]): e.get("seq") for e in events}
+    if calls is not None:
+        calls = [{**c, "seq": positions.get((c["session_uid"], c.get("call_event_uid"))),
+                  "result_seq": positions.get((c["session_uid"], c.get("result_event_uid")))} for c in calls]
     models = None if bundle.model_calls is None else [c for c in bundle.model_calls if c["usage_event_uid"] in ids]
     visible = {e["session_uid"] for e in members}
     roots = {s["root_uid"] for s in bundle.sessions if s["session_uid"] in visible}

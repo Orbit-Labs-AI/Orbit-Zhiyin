@@ -16,3 +16,5 @@ subjective_outcomes 默认只使用构造质量样本；真实历史必须同时
 这里的构造预期用于发现规则错误；读者评价另见[方法与限制](../docs/modules/evaluation/reader-review.md)。自动通过不代表真实推荐效果或人类认可。
 
 推荐构造验收：`uv run python -m evals.recommendation.demo`；显式资源目录验证：`uv run python -m evals.recommendation.catalog /path/to/catalog --agent codex`。后者只校验提供的 JSON，不读取历史、不抓取资源。
+
+UI 分析组合验收：`uv run python -m evals.analytics.products --synthetic`；真实来源通过 `--source AGENT=ROOT` 显式启用，命令、样本范围和报告见[分析验收](../docs/modules/analytics/analysis-products.md)。
