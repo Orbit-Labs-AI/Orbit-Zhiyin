@@ -141,6 +141,8 @@ def router(gw: Gateway) -> APIRouter:
     gw.install = svc
     with contextlib.suppress(Exception):  # settle installs a crash left half-recorded
         svc.reconcile()
+    with contextlib.suppress(Exception):  # retention / idle sweep (cheap; no platform hook yet)
+        svc.maintain()
 
     def call(fn, *args, **kwargs):
         try:

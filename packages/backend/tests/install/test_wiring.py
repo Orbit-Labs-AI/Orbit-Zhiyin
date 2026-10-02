@@ -227,3 +227,11 @@ def test_ai_skill_rule_and_command_artifacts_install(setup):
     memory = (home / "CLAUDE.md").read_text()
     assert "## 测试先行" in memory and "tandem:rule id=" not in memory
     assert "检查 diff" in (home / "commands/ship.md").read_text()
+
+
+def test_maintain_sweeps_old_plans(setup):
+    svc, _, _ = setup
+    plan = svc.plan({"type": "catalog", "id": "docs-mcp"}, agents=["claude_code"])
+    with svc.appdb.write() as db:
+        db.execute("UPDATE install_plan SET created_at = 1 WHERE plan_id = ?", (plan["plan_id"],))
+    assert svc.maintain() == {"idle": 0, "backups": 0, "plans": 1, "linked": 0}

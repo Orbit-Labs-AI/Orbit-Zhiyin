@@ -497,3 +497,13 @@ class InstallService:
 
     def sweep_plans(self, older_than_days: int = 30) -> int:
         return store.sweep_plans(self.appdb, older_than_days)
+
+    def maintain(self) -> dict:
+        """Idle marking, backup/plan retention and fetch-cache GC; run at gateway start."""
+        from . import lifecycle  # noqa: PLC0415 - lifecycle imports this module
+
+        out = {"idle": lifecycle.sweep(self, self.now_ms()), "backups": self.sweep_backups(keep=50, days=90),
+               "plans": self.sweep_plans(30), "linked": self.link_inventory()}
+        if self.cache_dir.is_dir():
+            fetch_gc(self.cache_dir)
+        return out
