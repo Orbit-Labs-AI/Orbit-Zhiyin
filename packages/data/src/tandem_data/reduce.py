@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import fnmatch
 import json
-import shlex
 import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from tandem_data.contract import TOKENS, canonical, uid
+from tandem_data.shell import command_head
 from tandem_data.store import insert
 
 
@@ -140,16 +140,8 @@ def tool_metadata(name, attrs):
                 files.append(args[key])
         command = args.get("command", args.get("cmd"))
         skill = args.get("skill") if kind == "skill" else attrs.get("skill")
-    head = None
-    if isinstance(command, str):
-        try:
-            words = shlex.split(command)
-            if words:
-                head = " ".join(
-                    words[:2] if words[0] in ("git", "uv", "pnpm", "npm", "docker") else words[:1]
-                )
-        except ValueError:
-            pass
+    # Effective program (cd/env/shell wrappers unwrapped); never a path or an assignment.
+    head = command_head(command)
     return {
         "name_raw": name,
         "name": tool if kind == "mcp" else name.lower(),
