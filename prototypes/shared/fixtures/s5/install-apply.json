@@ -1,0 +1,28 @@
+{
+  "install_id": "inst-fx-1",
+  "state": "observing",
+  "written": [
+    {
+      "idx": 0,
+      "agent": "claude_code",
+      "display": "~/.claude/settings.json",
+      "path": "~/.claude/settings.json",
+      "action": "merge_json",
+      "status": "modify",
+      "backup_path": "~/Library/Application Support/Tandem/backups/fx/settings.json.1",
+      "before_hash": "sha256:b",
+      "after_hash": "sha256:a"
+    }
+  ],
+  "undo_until_ms": 4102444800000,
+  "tracking_id": null,
+  "risk": {
+    "level": "caution",
+    "flags": [
+      "shell"
+    ],
+    "findings": []
+  },
+  "warnings": [],
+  "requires_trust_note": null
+}

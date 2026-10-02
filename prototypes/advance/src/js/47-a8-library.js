@@ -12,12 +12,13 @@ const libInst = (x) => S.libInst.has(x.id);
 // Share of all anonymous users (not just your persona) that run the item: the peer share is a lift over this (A8-V03).
 const libAll = (x) => Math.max(2, Math.round(x.peer * 0.46 + 3));
 const LIB_BASE = ['design-review（Skill）', 'browser（MCP）', 'block-claude-md（Hook）', 'commit-format（Hook）', 'zh-default（规则）', 'surge-cli（插件）', 'gh-helper（插件）', 'arxiv-reader（MCP）', 'pdf-tools（插件）', 'latex-lint（Hook）', 'daily-sync（Skill）'];
+const libLiveMode = () => { try { return !!LV.live; } catch (e) { return false; } };
 // One list behind both the toolbar count and the 已安装 sheet (BUG-29).
 function installedItems() {
   const recs = RECS.filter((r) => S.installed.has(r.id)).map((r) => ({ t: r.title.split('：')[0] + '（' + r.type + '，Orbit 安装）', undo: 'uninstall', id: r.id }));
   const libs = LIB.filter(libInst).map((x) => ({ t: x.id + '（' + x.kind + '，资源库）', undo: 'libUninstall', id: x.id }));
   const studio = [...S.libInst].filter((k) => /^studio:/.test(k)).map((k) => ({ t: k.slice(7) + '（生成工坊）', undo: 'studioUninstall', id: k }));
-  return recs.concat(libs, studio, LIB_BASE.map((t) => ({ t })));
+  return recs.concat(libs, studio, libLiveMode() ? [] : LIB_BASE.map((t) => ({ t })));   // live: never the demo installs
 }
 function matchBar(x, cls) { const p = libParts(x); return '<span class="lb-bar' + (cls ? ' ' + cls : '') + '" role="img" aria-label="匹配度 ' + x.m + '：' + LIB_W.map((w, i) => w[0] + ' ' + p[i]).join('，') + '">' + p.map((v, i) => '<i style="width:' + v + '%;background:' + LIB_SEG[i] + '"></i>').join('') + '</span>'; }
 function libBody() {

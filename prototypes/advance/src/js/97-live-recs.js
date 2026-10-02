@@ -2,8 +2,12 @@
    Mock mode changes nothing. In live mode the demo renderers stay as they are (A7 cards and detail, A1「本周建议」, Lite
    l-home「本周最值得做的一件事」and l-recs, menubar「本周最值得做」): this file swaps the rows they read (RECS / RECI / REC_X)
    for GET /v1/recommendations, and recOrder / recTop(surface) put the backend's stable top slate (surface A1 / lite / menubar) first.
-   - Never live yet and the endpoint is missing or down (404 / 501 / 503 / offline): the demo rows stay, with 示例数据.
-   - Live once: later failures keep the last live rows (the strip says 刷新失败), never the demo rows.
+   - Recommendations are personal data: live mode drops the demo rows at load (RECS / RECI / REC_X; ?demo=1 keeps them).
+     No run yet (cold start), 0 cards, a missing / down endpoint (404 / 501 / 503 / offline) or computing all render the
+     A7 page's own honest empty state, never demo rows. Live once: later failures keep the last live rows (strip: 刷新失败).
+   - Rows carry the real agents (target.agents → LV.agentOf → AG ids; native vs 转换), the monthly saving from ui.save, the
+     resident tokens from ui.tok and the source link. 获取 / 预览并安装 runs the real install sheet (97-live-library-install
+     liInstall, source {type:'candidate'}): plan → preview → confirm → apply with the preview_digest; 撤销 reverts by install_id.
    - Writes: view / open / preview / copy exposure; 不适用 / 稍后 / 不再推荐同类 are labels with an 8-second undo
      (DELETE /v1/labels/{id}); 重新计算 is POST /v1/recommendations/recompute. Each write invalidates the rec resources. */
 const LVR = { applied: null, top: {}, rel: {}, labels: new Map(), poll: 0, detail: {} };
@@ -12,6 +16,38 @@ const LVR_ROUTES = { recs: 'A7', 'l-recs': 'lite', overview: 'A1', 'l-home': 'li
 const LVR_DEGRADE = (e) => !e || !e.status || e.status === 404 || e.status === 501 || e.status === 503;
 const lvRecLive = (id) => !!(RECI[id] && RECI[id].live);
 
+// Live: recommendations are personal, so the demo rows never show (development keeps them with ?demo=1).
+if (TL.mode === 'live' && !LV.demo) {
+  RECS.length = 0; Object.keys(RECI).forEach((k) => { delete RECI[k]; }); Object.keys(REC_X).forEach((k) => { delete REC_X[k]; });
+  S.installed.clear(); S.recs.sel = null;
+}
+// Cand → RECS row: the shared mapper (TandemLive.recs.row) plus real agents, ui.save / ui.tok and the source link.
+function lvRecRow(c) {
+  const r = TandemLive.recs.row(c); const u = c.ui || {};
+  const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
+  const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
+  bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
+  r.agents = ids; r.bagents = bids;
+  if (ids.length) r.compat = parts.join(' · ');
+  const sv = u.save && typeof u.save === 'object' ? u.save : null;
+  if (sv) r.x.save = sv.min_month > 0 ? Math.round(sv.min_month / 60 * 10) / 10 : null;
+  r.x.tok = typeof u.tok === 'number' ? Math.round(u.tok / 100) / 10 : null;
+  if (Array.isArray(u.n) && u.n[0] != null) r.x.n = [u.n[0], u.n[1] != null ? u.n[1] : u.n[0]];
+  const src = c.source || {}; r.url = src.url || null; r.license = src.license || null; r.origin = src.origin || null; r.item_id = src.item_id || null;
+  return r;
+}
+// installs made through the real sheet (install state: candidate_id / catalog source) mark the A7 card 已安装 · 追踪中
+function lvRecInstalls() {
+  if (typeof liState !== 'function') return;
+  const st = liState().data; if (!st) return;
+  RECS.forEach((r) => {
+    const row = (st.items || []).find((i) => !/^(reverted|archived)$/.test(i.state) && (i.candidate_id === r.id || (i.source_type === 'candidate' && i.source_id === r.id) || (r.item_id && i.source_type === 'catalog' && i.source_id === r.item_id)));
+    const cur = S.installed.get(r.id);
+    const has = r.track.some((t) => t[2] != null);   // the 7-day verdict needs the outcome's after values (detail)
+    if (row) { const days = Math.max(1, Math.min(has ? 7 : 6, Math.floor((Date.now() - (row.installed_at || Date.now())) / 86400000) + 1)); if (!cur || cur.install_id !== row.install_id || cur.days !== days) S.installed.set(r.id, { days, live: true, install_id: row.install_id, at: row.installed_at, scope: row.scope === 'project' ? 'proj' : 'global', target: '' }); }
+    else if (cur && cur.live && !cur.fresh) S.installed.delete(r.id);
+  });
+}
 TL.bind('recs', () => [TL.recs.desc('A7')], (d) => ({ items: (d.A7 && d.A7.items) || [], dims: (d.A7 && d.A7.dims) || [], run: d.A7 && d.A7.run }));
 
 // Load the A7 list (and the top slate of the surfaces in view) without the page AbortSignal, then apply the rows.
@@ -31,8 +67,9 @@ function lvRecSync(surfaces) {
   if (computing && !LVR.poll) LVR.poll = setTimeout(() => { LVR.poll = 0; TL.recs.invalidate(); }, 3000);
 }
 function lvRecApply(data) {
-  const rows = (data.items || []).map(TandemLive.recs.row);
+  const rows = (data.items || []).map(lvRecRow);
   RECS.splice(0, RECS.length, ...rows);
+  Object.keys(RECI).forEach((k) => { if (RECI[k].live) delete RECI[k]; });
   rows.forEach((r) => { RECI[r.id] = r; REC_X[r.id] = r.x; });
   LVR.applied = data;
   LVR.rel = {};
@@ -44,6 +81,14 @@ function lvRecDegraded() {
   if (LVR.applied) return false;
   const r = TL.recs.resource('A7', lvScope());
   return r.state === 'error' && LVR_DEGRADE(r.error);
+}
+// A7 state while no live row is on screen: pending | computing | empty (no run / 0 cards) | error (missing, down, offline)
+function lvRecState() {
+  const r = TL.recs.resource('A7', lvScope());
+  if (LVR.applied) return (LVR.applied.items || []).length ? 'ready' : r.state === 'computing' ? 'computing' : 'empty';
+  if (r.state === 'error') return 'error';
+  if (r.state === 'computing') return 'computing';
+  return 'pending';
 }
 // Detail (GET /v1/recommendations/{id}): a finished outcome fills the track rows with the 7-day before / after values.
 function lvRecDetail(id) {
@@ -61,6 +106,20 @@ function lvRecDetail(id) {
   }, () => { LVR.detail[id] = null; });
 }
 
+// A7 without live rows: the page's own toolbar, dimension row and two-column layout with an honest state, never demo rows.
+function lvRecEmptyPage() {
+  const st = lvRecState(); const run = LVR.applied && LVR.applied.run;
+  const msg = { pending: null, computing: '正在根据你的会话计算建议…', error: '建议服务暂时不可用，稍后自动重试。', empty: run ? '这次分析没有找到值得改的地方。导入更多会话或过几天再看。' : '还没有建议：Orbit 需要先分析你导入的会话。导入完成后会自动计算，也可以点「重新计算」。' }[st];
+  const dims = (LVR.applied && LVR.applied.dims) || DIMS.map((d) => ({ id: d[0], label: d[1], count: 0 }));
+  const body = msg ? '<div class="card pad col" data-tl="recs-empty" data-state="' + st + '" style="gap:10px;align-items:flex-start"><span class="eb">优化建议</span><p class="serif" style="margin:0;font-size:17px;line-height:1.5">' + esc(msg) + '</p>' + (st === 'error' ? '' : '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button>') + '</div>' : LV.pend(160);
+  return tbar('优化建议', st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
+    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + TLU.num(d.count || 0) + '</span></button>').join('') + '</div></div>' +
+    '<div class="recs"><div class="stack">' + body + '</div><div style="position:sticky;top:0">' + empty(st === 'pending' ? '正在读取建议…' : '有建议后，这里显示说明、预览和效果追踪') + '</div></div></div>';
+}
+const lvRecWhen = (ms) => { const d = new Date(ms); return isNaN(d) ? '—' : (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+// toolbar subtitle of the A7 page (46-a7-recs.js): the live run's time instead of the demo's fixed one
+function lvRecUpdated() { const run = LVR.applied && LVR.applied.run; return run && run.created_at ? lvRecWhen(run.created_at) + ' 更新' : '尚未计算'; }
+
 if (TL.mode === 'live') {
   // ---- top slate per surface ----
   const baseRecOrder = recOrder;
@@ -74,15 +133,15 @@ if (TL.mode === 'live') {
 
   // ---- pages: A7 and Lite l-recs keep the demo renderers; overview / Lite home get the rec card appended ----
   const baseRecs = PAGES.recs, baseLiteRecs = PAGES['l-recs'];
-  TL_PAGES.recs = function () { lvView('recs'); lvRecSync(); return baseRecs(); };
+  TL_PAGES.recs = function () { lvView('recs'); lvRecSync(); lvRecInstalls(); return RECS.length || LV.demo ? baseRecs() : lvRecEmptyPage(); };
   TL_PAGES.recs.after = baseRecs.after;
   PAGES.recs = TL_PAGES.recs;
-  PAGES['l-recs'] = function () { lvView('recs'); lvRecSync(['lite']); return baseLiteRecs(); };
+  PAGES['l-recs'] = function () { lvView('recs'); lvRecSync(['lite']); lvRecInstalls(); return baseLiteRecs(); };
   if (baseLiteRecs.after) PAGES['l-recs'].after = baseLiteRecs.after;
-  const append = (html, card) => { const i = html.lastIndexOf('</div>'); return i < 0 ? html + card : html.slice(0, i) + card + html.slice(i); };
+  // overview / Lite home render their own 本周建议 / 本周最值得做的一件事 from RECS + recTop: only load the slates here
   const baseOv = PAGES.overview, baseLiteHome = PAGES['l-home'];
-  PAGES.overview = function () { lvRecSync(['A1']); const html = baseOv(); return LVR.applied ? append(html, '<div style="margin-top:12px" data-tl="recs-a1">' + ovRecsCard(recTop('A1').slice(0, 3)) + '</div>') : html; };
-  PAGES['l-home'] = function () { lvRecSync(['lite']); const html = baseLiteHome(); return LVR.applied ? append(html, '<div class="lite" style="margin-top:12px" data-tl="recs-lite">' + liteOneCard(recTop('lite')) + '</div>') : html; };
+  PAGES.overview = function () { lvRecSync(['A1']); return baseOv.apply(this, arguments); };
+  PAGES['l-home'] = function () { lvRecSync(['lite']); return baseLiteHome.apply(this, arguments); };
   ['overview', 'l-home'].forEach((k) => { const b = k === 'overview' ? baseOv : baseLiteHome; if (b.after) PAGES[k].after = b.after; });
 
   // ---- render: 示例数据 when degraded, relations tags, view exposure ----
@@ -92,14 +151,12 @@ if (TL.mode === 'live') {
     const c = $('#content'); if (!c) return;
     const surface = LVR_ROUTES[S.route];
     if (!surface) return;
-    const strip = c.querySelector(':scope > [data-tl="strip"]');
-    if (strip && lvRecDegraded() && !strip.querySelector('[data-tl="sample"]')) strip.insertAdjacentHTML('beforeend', '<div>' + TLU.sample() + '</div>');
     if (S.route === 'recs' && S.recs.tab === 'why' && LVR.rel[S.recs.sel]) {
       const ev = c.querySelector('.rc-ev');
       if (ev && !c.querySelector('[data-tl="rec-rel"]')) ev.insertAdjacentHTML('beforebegin', '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[S.recs.sel].map((p) => { const o = RECI[p.a === S.recs.sel ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>');
     }
     if (S.route === 'recs' && lvRecLive(S.recs.sel)) lvRecDetail(S.recs.sel);
-    const ids = [...c.querySelectorAll(S.route === 'recs' ? '.rcard[data-id]' : S.route === 'overview' ? '[data-tl="recs-a1"] [data-act="openRec"][data-id]' : S.route === 'l-home' ? '[data-tl="recs-lite"] [data-id]' : '.l-rc[data-id]')].map((el) => el.dataset.id).filter(lvRecLive);
+    const ids = [...c.querySelectorAll(S.route === 'recs' ? '.rcard[data-id]' : S.route === 'overview' ? '.ov-recs [data-act="openRec"][data-id]' : S.route === 'l-home' ? '.l-one [data-id]' : '.l-rc[data-id]')].map((el) => el.dataset.id).filter(lvRecLive);
     if (ids.length) TL.recs.viewed(surface, Array.from(new Set(ids))).catch(() => {});
   };
   const lvBasePop = renderPop;
@@ -114,7 +171,20 @@ if (TL.mode === 'live') {
   const ex = (id, surface, action) => { if (lvRecLive(id)) TL.recs.exposure(id, surface, action).catch(() => {}); };
   const A = Object.assign({}, ACT);
   ACT.selRec = (el, e) => { const was = S.recs.sel; A.selRec(el, e); if (S.recs.sel !== was) ex(S.recs.sel, 'A7', 'open'); };
-  ACT.openRec = (el) => { const sf = el.closest && el.closest('[data-tl="recs-a1"]') ? 'A1' : S.pop ? 'menubar' : 'A7'; A.openRec(el); ex(el.dataset.id, sf, 'open'); };
+  ACT.openRec = (el) => { const sf = el.closest && el.closest('.ov-recs') ? 'A1' : S.pop ? 'menubar' : 'A7'; A.openRec(el); ex(el.dataset.id, sf, 'open'); };
+  // 预览并安装: the real install sheet (plan → preview → apply with the preview digest); 撤销 reverts by install_id
+  ACT.install = (el) => {
+    const r = RECI[el.dataset.id];
+    if (!r || !r.live || typeof liInstall !== 'function') return A.install(el);
+    if (S.installed.has(r.id)) return ACT.openRec({ dataset: { id: r.id, tab: 'track' } });
+    liInstall({ item_id: 'cand:' + r.id, name: r.title.split('：')[0], kind: r.type, agents: r.bagents, summary: r.why, source: { type: 'candidate', id: r.id },
+      onDone: (res) => { S.installed.set(r.id, { days: 1, live: true, fresh: true, install_id: res.install_id, at: Date.now(), scope: 'global', target: (res.written || []).map((w) => w.display).join('、') }); } });
+  };
+  ACT.doUninstall = (el) => {
+    const id = el.dataset.id; const inst = S.installed.get(id);
+    if (!inst || !inst.live || typeof liUndo !== 'function') return A.doUninstall(el);
+    closeModal(); liUndo(inst.install_id, RECI[id] ? RECI[id].title.split('：')[0] : id).then((ok) => { if (ok) { S.installed.delete(id); render(); } });
+  };
   ACT.popRec = (el) => { ex(el.dataset.id, 'menubar', 'open'); A.popRec(el); };
   ACT.recTab = (el) => { A.recTab(el); if (el.dataset.v === 'preview') ex(S.recs.sel, 'A7', 'preview'); };
   ACT.copyRec = (el) => { A.copyRec(el); ex(el.dataset.id, S.route === 'recs' ? 'A7' : 'lite', 'copy'); };
@@ -139,7 +209,7 @@ if (TL.mode === 'live') {
     if (pend.length) Promise.all(pend.map((lid) => TL.recs.unlabel(lid).catch(() => null))).then(() => TL.recs.invalidate());
   };
   ACT.recalc = () => {
-    if (!LVR.applied && lvRecDegraded()) return A.recalc();
+    if (!LVR.applied && lvRecDegraded()) { toast('建议服务暂不可用，稍后再试'); return; }
     const c = $('#content'); if (c) c.classList.add('stale');
     TL.recs.recompute(lvScope(), true).then((res) => {
       TL.recs.invalidate();
