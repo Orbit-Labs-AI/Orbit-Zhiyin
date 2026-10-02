@@ -31,6 +31,8 @@ test('full spine: 7 real agents hydrate with fixed colors, counts and calendar; 
   await stubGateway(page, 'core');
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  // TL changes render on the next animation frame (90-live-core.js): let that frame paint before reading the sidebar
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))));
   const st = await page.evaluate(() => ({
     ag: AG.map((a) => [a.id, a.c, a.all]), n: ALL.length, byid: Object.keys(BYID).length, pj: PJ.map((p) => p.id),
     day0: new Date(DAY0).toISOString().slice(0, 10), last: LASTDAY, sel: S.sess.sel, newest: ALL[ALL.length - 1].id, proj: S.proj.sel,

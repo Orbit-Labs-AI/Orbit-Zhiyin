@@ -3,7 +3,33 @@
    Live mode hydrates the demo's own globals in place (ALL / BYID / AG / AGI / PJ / PJI, DAY0 / LASTDAY) from
    GET /v1/uiview/facts, so every polished renderer, filter and animation runs unchanged on real rows. Page files hook
    their constants through LV.feed(); see .work/release/slice0-notes.md for the contract. */
-const TL = TandemLive.create({ onChange: () => render() });
+// TL changes are coalesced into one render() per animation frame (a 120 ms timer stands in when rAF is paused, e.g. a
+// hidden WKWebView), and a frame whose observable live state is unchanged (every load came back 304 / identical) skips
+// the render. lvSig() covers resources (enumerated via TL.invalidate with a matcher that never matches), the job /
+// service / connection fields the badges read, LV's own spine state and a tick that every TL event and every explicit
+// TL.changed() call (LV.detail arrivals, ops frames, studio jobs) bumps, so only redundant renders are dropped.
+let lvFrame = 0, lvFrameT = null, lvLastSig = null, lvTick = 0;
+const lvIds = new WeakMap(); let lvIdN = 0;
+const lvId = (o) => { if (o == null || typeof o !== 'object') return String(o); let v = lvIds.get(o); if (!v) lvIds.set(o, v = ++lvIdN); return v; };
+function lvSig() {
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+    TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
+  try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
+  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0)); return false; });
+  return parts.join('|');
+}
+function lvFlush() {
+  if (lvFrame) { cancelAnimationFrame(lvFrame); lvFrame = 0; }
+  if (lvFrameT) { clearTimeout(lvFrameT); lvFrameT = null; }
+  const sig = lvSig(); if (sig === lvLastSig) return;
+  render();
+}
+function lvSchedule() {
+  if (lvFrame || lvFrameT) return;
+  if (typeof requestAnimationFrame === 'function') lvFrame = requestAnimationFrame(lvFlush);
+  lvFrameT = setTimeout(lvFlush, 120);
+}
+const TL = TandemLive.create({ onChange: () => lvSchedule() });
 const TLU = TandemLive.ui;
 const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
 
@@ -94,6 +120,11 @@ const LV = {
   meta: null, wire: null, rev: 0, excluded: [], undated: 0,
   feeds: {}, applied: {}
 };
+{ const ch0 = TL.changed; TL.changed = function () { lvTick++; return ch0.apply(this, arguments); }; }
+TL.on('event', () => { lvTick++; });
+// every render (whatever triggered it) records the live state it showed, so the next TL frame can tell whether it is new
+LV.rendered = () => { if (LV.live) { try { lvLastSig = lvSig(); } catch (e) { lvLastSig = null; } } };
+if (LV.live && typeof window !== 'undefined') window.__lvRendered = LV.rendered;
 LV.backendId = (uiId) => { const a = AGI[uiId]; return a && a.key ? a.key : uiId; };
 // scope for page endpoints: {range, agents (backend ids | null = all), project, tz} + the UI-only filters
 LV.scope = () => {
@@ -152,8 +183,11 @@ LV.pump = function (route) {
     if (rs.some((x) => x.r.data == null)) { f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return; }
     const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt).join('|') + '#' + LV.rev;
     if (stamp === f.stamp) return;
+    // a 304 / identical body refreshes updatedAt but hands back the same objects: nothing to re-apply
+    const same = f.parts && f.rev === LV.rev && f.parts.length === rs.length && rs.every((x, i) => f.parts[i] === x.r.data);
+    if (same) { f.stamp = stamp; return; }
     const data = rs.length === 1 && rs[0].name === '_' ? rs[0].r.data : rs.reduce((o, x) => { o[x.name] = x.r.data; return o; }, {});
-    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; }
+    try { f.apply(data, { route, rev: LV.rev }); f.state = 'ready'; f.data = data; f.stamp = stamp; f.parts = rs.map((x) => x.r.data); f.rev = LV.rev; }
     catch (e) { f.state = 'error'; f.error = { code: 'apply_failed', message: String(e && e.message || e) }; console.error('LV.feed apply', e); }
   });
 };
