@@ -6,7 +6,7 @@ import sys
 import time
 
 import pytest
-from conftest import answer_task
+from ai_support import answer_task
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

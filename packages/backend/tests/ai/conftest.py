@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from ai_support import ANSWER, answer_task  # noqa: F401
 
 from tandem_backend.ai import engines, registry
 from tandem_backend.ai.engines import FakeEngine
@@ -20,10 +21,6 @@ from tandem_backend.appdb import AppDB
 from tandem_backend.services.events import EventBus
 
 BIN = Path(__file__).parent / "bin"
-ANSWER = {"type": "object", "required": ["answer"], "additionalProperties": False,
-          "properties": {"answer": {"type": "string"}}}
-
-
 @pytest.fixture
 def ai_env(tmp_path, monkeypatch):
     """Isolated HOME and PATH (no real CLI reachable), clean engine caches."""
@@ -79,14 +76,6 @@ def ai_gw(ai_env):
     if getattr(gw, "_ai", None) is not None:
         gw._ai.close()
     gw.appdb.close()
-
-
-def answer_task(task_id: str = "test.echo", **overrides) -> dict:
-    spec = {"task_id": task_id, "tier": "L2", "slot": "cheap", "system": "Return JSON.",
-            "schema": ANSWER, "pack_items": [("goal", True)],
-            "fallback": lambda pack, reason: {"answer": f"fallback:{reason}"}}
-    spec.update(overrides)
-    return spec
 
 
 @pytest.fixture

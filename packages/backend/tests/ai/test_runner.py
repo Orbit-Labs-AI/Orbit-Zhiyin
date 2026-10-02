@@ -6,7 +6,7 @@ import json
 import time
 
 import pytest
-from conftest import answer_task
+from ai_support import answer_task
 
 from tandem_backend.ai import AIUnavailable
 from tandem_backend.ai.engines import EngineResult

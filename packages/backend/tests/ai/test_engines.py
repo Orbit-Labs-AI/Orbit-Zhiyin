@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from conftest import ANSWER
+from ai_support import ANSWER
 
 from tandem_backend.ai import capabilities, engines, isolation, prices
 from tandem_backend.ai.capabilities import Capabilities
