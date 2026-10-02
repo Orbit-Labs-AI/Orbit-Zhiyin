@@ -1,6 +1,6 @@
 # 非语义 × Bottleneck 特征重构
 
-最初基于 main `c97c818`，已同步 main `2029e2d`，其中包含数据契约、Codex Connector、Preference、Task、Instruction 与主观 Outcome；个人分支 `refactor/genius-FXC-bottleneck`。本 PR 相对 main 只新增四个非语义瓶颈特征族及其接入、测试和说明，不扩展人格或情绪分析。
+最初基于 main `c97c818`，四目录重构在个人分支 `refactor/genius-FXC-bottleneck` 实现，已由 yhyfhgs 通过 [PR #19](https://github.com/ActionMesh-AI/Hackathon/pull/19) 合并为 `d15f054`。合并后两项尚未进入 main 的 P1 修复在 `fix/genius-FXC-bottleneck-coverage` 补充提交，基于 main `4bccf1f`，保留统一数据层及 Preference、Task、Instruction、主观 Outcome。范围仍为四个非语义瓶颈特征族，不扩展人格或情绪分析。
 
 ## main 的结构与本次调整
 
@@ -76,7 +76,7 @@ tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
 
 最后两条只生成仓库自带的虚构数据；本次实际运行使用独立临时目录。逐模块用例验证文档正反例，集成用例验证共同筛选、子代理排除、未来证据隔离、输入不变、重复去重及 CLI/API 一致性。
 
-自查已修正：外层成功误充内部检查结果；验收可见时间早于条件确认；未来标注通过 L2 回退输出泄露；未知会话身份误记零；重复调用在旧字段与新分组统计不一致；同名快照跨会话覆盖。未合并 main，后续按仓库既有 Codex review 与负责人审批流程处理。
+自查已修正：外层成功误充内部检查结果；验收可见时间早于条件确认；未来标注通过 L2 回退输出泄露；未知会话身份误记零；重复调用在旧字段与新分组统计不一致；同名快照跨会话覆盖。四目录重构已经合并；最后两项 P1 的补充 PR 仍交由负责人决定是否合并。
 
 本轮验收记录（2026-10-02）：
 
@@ -95,4 +95,6 @@ tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
 该并行提交记录的验证（非本机复跑结论）：Python 3.11 下 770 项测试、Ruff、`git diff --check`、synthetic demo 和 evaluate（8/8、34/34、12/12）通过。本机锁定的 SciPy 1.15.3 wheel 存在 macOS 动态库加载错误，临时测试环境使用 SciPy 1.16.3；仓库锁文件不变，锁定依赖另由 Linux CI 验证。
 
 
-本机最终复核（2026-10-02）：保留并行提交 `5b17961` 的共存回归，并修复复审中的两项 P1——明确 excluded 的工具数据不再通过 L2 回退重建，Go 列表参数的等号形式不算实际验证。Linux 隔离副本中 775 项后端测试通过，其中 84 项为本 PR 的瓶颈与共存回归；Ruff 与相对 main 的空白检查通过。累计四项 P1 均有对应回归，仍未将个人 Agent 历史用于端到端测试。
+本机 `929934c` 复核（2026-10-02）：保留并行提交 `5b17961` 的共存回归，并修复复审中的两项 P1——明确 excluded 的工具数据不再通过 L2 回退重建，Go 列表参数的等号形式不算实际验证。Linux 隔离副本中 775 项后端测试通过，其中 84 项为本 PR 的瓶颈与共存回归；Ruff 与相对 main 的空白检查通过。累计四项 P1 均有对应回归，仍未将个人 Agent 历史用于端到端测试。
+
+补充 PR 验证（2026-10-02）：PR #19 实际合并的是 `5b17961`，未包含随后推送的两项 P1 修复。从最新 main `4bccf1f` 建立修复分支并合入 `929934c`，保留双方历史。Python 3.13.12 隔离副本、锁定依赖下 789 项后端测试和 91 项数据层测试通过，84 项瓶颈与共存回归全部保留。连接器 35 项构造测试、typecheck 和 build 通过，staging 桥接回归未跳过；Ruff、数据包格式检查、全包构建和 synthetic demo 通过。evaluate 为 8/8、34/34、12/12，history_updated=false；没有读取个人 Agent 历史。
