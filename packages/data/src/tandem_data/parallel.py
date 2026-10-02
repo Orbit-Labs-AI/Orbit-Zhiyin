@@ -998,6 +998,8 @@ class MapPlan:
             references = {}
             for row in db.execute(f"PRAGMA foreign_key_list({table})"):
                 references.setdefault(row[0], (row[2], []))[1].append((row[3], row[4]))
+            # Every reference of a table is checked in one scan of its in-scope rows.
+            dangling = []
             for parent, pairs in references.values():
                 if not all(child in columns for child, _ in pairs):
                     continue
@@ -1010,12 +1012,16 @@ class MapPlan:
                     f"p.{target}=c.{child}"
                     for (child, _), target in zip(pairs, targets, strict=True)
                 )
-                broken = db.execute(
-                    f"SELECT 1 FROM {table} c WHERE {where} AND {present} "
-                    f"AND NOT EXISTS (SELECT 1 FROM {parent} p WHERE {match}) LIMIT 1"
+                dangling.append(
+                    f"({present} AND NOT EXISTS (SELECT 1 FROM {parent} p WHERE {match}))"
+                )
+            if (
+                dangling
+                and db.execute(
+                    f"SELECT 1 FROM {table} c WHERE {where} AND ({' OR '.join(dangling)}) LIMIT 1"
                 ).fetchone()
-                if broken:
-                    raise ValueError("Projection contains broken foreign keys")
+            ):
+                raise ValueError("Projection contains broken foreign keys")
         invalid = db.execute(
             f"SELECT COUNT(*) FROM v_raw_record_ledger WHERE file_id IN ({files_sql}) AND ("
             "(disposition IN ('mapped','folded','replayed','duplicate') AND event_count=0) OR "
