@@ -16,3 +16,7 @@ dist/
 .DS_Store
 node_modules/
 .next/
+.tandem/
+.pytest_cache/
+.ruff_cache/
+.pnpm-store/
