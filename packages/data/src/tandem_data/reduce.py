@@ -175,6 +175,7 @@ def derive(store, *, scoped=False):
         )
     }
     metas = {}
+    recorded_roots = {}
     for session_uid, identity in identities.items():
         values = {
             "session_uid": session_uid,
@@ -189,6 +190,8 @@ def derive(store, *, scoped=False):
             "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
         ):
             attrs = json.loads(row["attrs"])
+            if isinstance(attrs.get("git_root"), str):
+                recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
                 for name in (
                     "kind",
@@ -242,7 +245,9 @@ def derive(store, *, scoped=False):
             current = parent
             seen.add(current)
         values["root_uid"] = current
-        values["project_id"] = project_for(store, values.get("cwd"), values.get("git_remote"))
+        values["project_id"] = project_for(
+            store, values.get("cwd"), values.get("git_remote"), recorded_roots.get(session_uid)
+        )
         insert(store.db, "session", values)
 
     for session_uid, meta in metas.items():
@@ -253,10 +258,10 @@ def derive(store, *, scoped=False):
             event = dict(row)
             event["attrs"] = json.loads(event["attrs"])
             events.append(event)
-        _derive_session(store, session_uid, meta, events)
+        _derive_session(store, session_uid, meta, events, recorded_roots.get(session_uid))
 
 
-def _derive_session(store, session_uid, meta, events):
+def _derive_session(store, session_uid, meta, events, recorded_root=None):
     current_turn = None
     turns = {}
     context = {"cwd": None, "provider": None, "model_raw": None, "effort_raw": None}
@@ -276,7 +281,7 @@ def _derive_session(store, session_uid, meta, events):
                 context[field] = attrs[field]
         cwd = context["cwd"]
         if cwd not in project_cache:
-            project_cache[cwd] = project_for(store, cwd, meta.get("git_remote"))
+            project_cache[cwd] = project_for(store, cwd, meta.get("git_remote"), recorded_root)
         project_id = project_cache[cwd]
         insert(
             store.db,

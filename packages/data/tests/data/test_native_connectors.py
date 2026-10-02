@@ -1122,3 +1122,22 @@ def test_historical_session_title_is_replayed_before_cutoff(tmp_path):
         assert historical["sessions"][0]["title"] == "before"
         assert historical["sessions"][0]["status"] == "unknown"
         assert all(e["text"] != "future" for e in historical["events"])
+
+
+@pytest.mark.parametrize("cwd", [None, "/deleted/worktree"])
+def test_hermes_recorded_git_root_survives_missing_worktree(tmp_path, cwd):
+    with Store(tmp_path / "data") as store:
+        capture(
+            store,
+            tmp_path,
+            "hermes",
+            [sqlrow("sessions", {"id": "s", "cwd": cwd, "git_repo_root": "/recorded/main-repo"})],
+            "state.db",
+            "sqlite_rows",
+        )
+        store.rebuild()
+        project = rows(store, "project")[0]
+        assert project["key_type"] == "git_root" and project["key"] == "/recorded/main-repo"
+        assert rows(store, "session")[0]["project_id"] == project["project_id"]
+        assert rows(store, "event_context")[0]["project_id"] == project["project_id"]
+        assert_sound(store)
