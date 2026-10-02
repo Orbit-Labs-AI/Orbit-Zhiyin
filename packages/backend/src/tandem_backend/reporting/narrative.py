@@ -6,6 +6,7 @@ severity score or a claim that one candidate caused the user's dissatisfaction.
 
 import re
 
+from ..analytics.coverage import build_coverage_report, coverage_lines
 from ..profiling.feedback import SCENE_LABELS
 
 
@@ -105,7 +106,8 @@ def explain(analysis: dict, recommendations: list[dict] | None = None, audience:
         sample += f"其中 {clarity['sessions']} 个会话明确要求说明容易理解。"
     return {"summary": main, "sample_summary": sample, "findings": findings, "bottlenecks": bottlenecks,
             "next_step": next_step, "recommendations": recommendations, "audience": audience,
-            "main_evidence_ids": primary["evidence_ids"] if primary else [], "details": analysis}
+            "main_evidence_ids": primary["evidence_ids"] if primary else [], "details": analysis,
+            "coverage_report": build_coverage_report(analysis.get("input_coverage"))}
 
 
 def markdown(result: dict, evidence_base: str = '/v1/evidence') -> str:
@@ -156,4 +158,9 @@ def markdown(result: dict, evidence_base: str = '/v1/evidence') -> str:
         lines.extend(["建议是否有帮助，还需要同一任务的对照与读者评价。", ""])
     elif result["details"]["counts"]["user_messages"]:
         lines.extend(["没有后续反馈也不能当作满意，更多结论需要回到具体任务核对。", ""])
+    coverage = result.get("coverage_report")
+    if coverage and coverage["metadata_available"]:
+        lines.extend(["<details>", "<summary>数据覆盖说明</summary>", "", coverage["meaning"], ""])
+        lines.extend(coverage_lines(coverage))
+        lines.extend(["", "</details>", ""])
     return "\n".join(lines)

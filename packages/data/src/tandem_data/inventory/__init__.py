@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tandem_data.contract import canonical, now_ms, uid
+from tandem_data.coverage import dataset_coverage
 from tandem_data.store import Store, insert, readonly_connection
 
 from .adapters import SUPPORTED, mcp, scan_layout
@@ -136,7 +137,10 @@ def read_inventory_connection(connection, *, until_ts=None, project_ids=None) ->
     empty = {
         "items": None,
         "scans": [],
-        "coverage": {"status": "unavailable", "rows": None, "reason": "no_inventory_scan"},
+        "coverage": {
+            **dataset_coverage(None, reasons=["no_inventory_scan"]),
+            "reason": "no_inventory_scan",
+        },
     }
     if not connection.execute("SELECT 1 FROM sqlite_master WHERE name='inventory_scan'").fetchone():
         return empty
@@ -184,17 +188,16 @@ def read_inventory_connection(connection, *, until_ts=None, project_ids=None) ->
             ):
                 continue
             items.append(item)
-    status = (
-        "partial"
-        if any(s["status"] != "available" for scan in scans for s in scan["coverage"].values())
-        else "available"
+    incomplete_layouts = sum(
+        s["status"] != "available" for scan in scans for s in scan["coverage"].values()
     )
     return {
         "items": items,
         "scans": scans,
         "coverage": {
-            "status": status,
-            "rows": len(items),
+            **dataset_coverage(
+                len(items), reason_counts={"inventory_layout_incomplete": incomplete_layouts}
+            ),
             "boundary": "explicit_roots_only",
             "semantics": "observed_configuration_not_usage",
             "scan_ids": [scan["scan_id"] for scan in scans],

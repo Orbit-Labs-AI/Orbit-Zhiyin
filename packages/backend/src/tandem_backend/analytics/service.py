@@ -3,11 +3,14 @@
 from collections import Counter, defaultdict
 from dataclasses import asdict
 
+from tandem_data.coverage import dataset_coverage
+
 from ..models import stable_id
 from ..recommend.service import recommend as recommend_resources
 from . import FEATURE_VERSION
 from .common import human
 from .context import AnalysisContext, Record
+from .coverage import build_coverage_report
 from .dictionary import FEATURES
 from .features import activity, session_features, tool_summary, usage, workflow
 from .inputs import AnalysisInputBundle, Scope, legacy_bundle, metadata
@@ -16,8 +19,10 @@ from .instruction import (
     summarize_control_patterns,
 )
 from .outcome_subjective import aggregate_subjective_outcomes
+from .preference import PREFERENCE_EVIDENCE_VERSION, PREFERENCE_VERSION
 from .semantic import analyze_semantics
 from .task.representation import representation
+from .task.taxonomy import TAXONOMY_VERSION
 
 
 def _session_rows(
@@ -26,6 +31,7 @@ def _session_rows(
     instruction_groups: dict,
     task_ids: dict,
     preference_ids: dict,
+    preference_evidence_ids: dict,
     with_text: bool,
 ) -> tuple[list[Record], Record, int]:
     """Assemble session details and optional text coordinates from one selection."""
@@ -57,7 +63,7 @@ def _session_rows(
             else [c for member in sorted(included) for c in call_groups[member]]
         )
         data = session_features(
-            s, own, root_calls, main_ids, supported, event_status, with_workflow=False
+            s, own, root_calls, main_ids, supported, event_status, scope.display_timezone, with_workflow=False
         )
         data["workflow"] = workflow(root_events + context_events, root_calls, main_ids, supported)
         data["usage"] = usage(
@@ -91,6 +97,9 @@ def _session_rows(
             "embedding_y": None,
             "task_ids": task_ids[sid] if semantic_events is not None else None,
             "preference_ids": preference_ids[sid] if semantic_events is not None else None,
+            "preference_evidence_ids": preference_evidence_ids[sid]
+            if semantic_events is not None
+            else None,
         }
         rows.append(row)
         prompts = [e for e in own if human(e, main_ids) and e.get("text")]
@@ -170,6 +179,9 @@ def _project_rows(
                 "subjective_outcomes": aggregate_subjective_outcomes(
                     [r["subjective_outcomes"] for r in rs], event_status
                 ),
+                "activity_rhythm": activity([s for s in sessions if s["session_uid"] in ids], pe,
+                    pcs, None if model_calls is None else context.members(ids, "models"),
+                    main_ids & ids, scope) if bundle.events is not None else None,
                 "tools": tool_summary(pcs, tool_status),
                 "usage": usage(
                     None
@@ -243,8 +255,17 @@ def analyze_context(
     complete_models = bundle.coverage.get("model_calls", {}).get("status") == "available"
     supported, event_status = context.supported_kinds, context.event_status
     rows, text, text_count = _session_rows(
-        context, meta, instruction_groups, semantic.task_ids, semantic.preference_ids, with_text
+        context,
+        meta,
+        instruction_groups,
+        semantic.task_ids,
+        semantic.preference_ids,
+        semantic.preference_evidence_ids,
+        with_text,
     )
+    projections = {p["entity_id"]: p for p in text.get("coordinates") or []}
+    for item in preferences["evidence"] or []:
+        item["cluster_id"] = projections.get(item["session_uid"], {}).get("cluster_id")
     all_tools = tool_summary(calls, bundle.coverage.get("tool_calls", {}).get("status", "partial"))
     all_workflow = workflow(events + diagnostics["context_events"], calls, main_ids, supported)
     all_usage = usage(model_calls, events, sessions, scope, complete_models)
@@ -265,15 +286,14 @@ def analyze_context(
     }
     meta["coverage"]["human_origin"] = {
         **meta["coverage"].get("human_origin", {}),
-        "status": "partial" if unknown_origin else "available",
-        "rows": human_count,
+        **dataset_coverage(human_count if bundle.events is not None else None,
+                           reason_counts={"human_origin_unknown": unknown_origin}),
         "unknown_rows": unknown_origin,
     }
-    meta["coverage"]["sample_exclusions"] = {
-        "status": "excluded",
-        "rows": sum(diagnostics["excluded_sessions"].values()),
-        "reasons": diagnostics["excluded_sessions"],
-    }
+    excluded_count = sum(diagnostics["excluded_sessions"].values())
+    meta["coverage"]["sample_exclusions"] = dataset_coverage(
+        excluded_count, excluded=bool(excluded_count), reason_counts=diagnostics["excluded_sessions"])
+
     languages = Counter()
     for r in rows:
         languages.update({v["language"]: v["count"] for v in r["language_signals"]})
@@ -285,8 +305,7 @@ def analyze_context(
     text["correction_terms"] = dict(correction_terms)
     if bundle.events is None:
         meta["coverage"]["human_origin"] = {
-            "status": "unavailable",
-            "rows": None,
+            **dataset_coverage(None, reasons=["events_unavailable"]),
             "unknown_rows": None,
         }
         counts.update(events=None, human_messages=None, turns=None, correction_signals=None)
@@ -308,6 +327,9 @@ def analyze_context(
             asdict(scope),
             FEATURE_VERSION,
             INSTRUCTION_VERSION,
+            TAXONOMY_VERSION,
+            PREFERENCE_VERSION,
+            PREFERENCE_EVIDENCE_VERSION,
         ),
         "effective_samples": {
             "main_sessions": len(main_ids),
@@ -369,6 +391,7 @@ def analyze_context(
     result["statistics"] = statistical_analysis(context, result)
     result["analysis_methods"] = dict(RULE_VERSIONS)
     result["analysis_digest"] = stable_id(result["analysis_digest"], RULE_VERSIONS, with_text)
+    result["coverage_report"] = build_coverage_report(result["coverage"])
     if with_recommendations:
         result["bottleneck_recommendations"] = recommend_resources(result)
     return result
@@ -402,6 +425,7 @@ def response_section(result: Record, key: str) -> Record:
             "analysis_digest",
             "feature_dictionary",
             "source_coverage",
+            "coverage_report",
         )
     }
     return {**shared, key: result[key]}
