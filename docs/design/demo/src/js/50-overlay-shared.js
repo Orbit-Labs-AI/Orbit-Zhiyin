@@ -3,7 +3,8 @@ S.attn = new Set(); S.numOnly = false; S.login = true; S.weekly = true; S.shareD
 S.rep = new Set(['ov', 'persona', 'proj', 'fric', 'recs']); S.addSrc = false; S.addSrcFmt = 'jsonl'; S.ruleTest = false;
 S.rules['自定义正则 2 条'] = true;
 S.ruleSample = 'cd /Users/alex/Projects/demo && git push\n联系 alex@example.com，token = sk-demo-0000aaaa1111\n服务器 192.168.1.20，构建机 build-01.local\n电话 13800001234，内部代号-X7，工号 004213';
-Object.assign(S.hud, { snap: 'br', tipOff: false }, (() => { const v = store.get('hud', null); return v && typeof v === 'object' ? v : {}; })());
+// HUD defaults: snapped top-right under the menu bar; hudPlace() moves it off the main window until the user drags it (user:true)
+Object.assign(S.hud, { snap: 'tr', tipOff: false, user: false }, (() => { const v = store.get('hud', null); return v && typeof v === 'object' ? v : {}; })());
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 const kb = (s) => IS_MAC ? s : s.replace(/⌘/g, 'Ctrl+').replace(/⌥/g, 'Alt+').replace(/⌃/g, 'Ctrl+').replace(/⇧/g, 'Shift+');
 const isDark = () => S.theme === 'dark' || (S.theme === 'system' && !!window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);

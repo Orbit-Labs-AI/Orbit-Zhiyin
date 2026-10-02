@@ -1,14 +1,19 @@
-/* desktop stage */
+/* desktop stage: the menu bar is a fixed 24px element of the stage (never folds with the window), the wallpaper sits under
+   everything; full screen (.desk.fs) slides the menu bar away and .mbpeek brings it back when the pointer hits the top edge. */
 .desk{position:relative;height:100%;overflow:hidden;background:var(--desk)}
 .wall{position:absolute;inset:0;pointer-events:none}
-.mbar{position:absolute;left:0;right:0;top:0;height:28px;z-index:55;display:flex;align-items:center;gap:2px;padding:0 8px;background:var(--menubar);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:0 .5px 0 rgba(0,0,0,.14);font-size:13px;color:var(--ink-1)}
-.mbar button{height:22px;padding:0 9px;border:0;border-radius:5px;background:transparent;white-space:nowrap}
-.mbar button:hover,.mbar button.on{background:var(--field)}
+.mbar{position:absolute;left:0;right:0;top:0;height:24px;z-index:55;display:flex;align-items:center;padding:0 8px 0 4px;background:var(--menubar);-webkit-backdrop-filter:blur(30px) saturate(1.5);backdrop-filter:blur(30px) saturate(1.5);box-shadow:0 .5px 0 rgba(0,0,0,.12);font-size:13px;color:var(--ink-1);white-space:nowrap;transition:transform .25s var(--ease)}
+.mbar button{height:22px;padding:0 9px;border:0;border-radius:4px;background:transparent;white-space:nowrap;font-size:13px;color:inherit;display:inline-flex;align-items:center;gap:6px;flex:none}
+.mbar button:hover,.mbar button.on{background:rgba(0,0,0,.09)}
+:root[data-theme="dark"] .mbar button:hover,:root[data-theme="dark"] .mbar button.on{background:rgba(255,255,255,.14)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .mbar button:hover,:root:not([data-theme="light"]) .mbar button.on{background:rgba(255,255,255,.14)}}
+.mbar .apple{padding:0 8px 0 10px}
 .mbar .app{font-weight:700}
-.mbar .sp{flex:1}
-.mbar .demo{font-weight:600;color:var(--ai)}
-.mbar .glyph{position:relative;width:34px;display:grid;place-items:center;padding:0}
-.mbar .glyph .badge{position:absolute;right:4px;top:2px;width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1.5px var(--menubar)}
-.mbar .sys{display:flex;align-items:center;gap:12px;padding:0 6px 0 8px;color:var(--ink-1)}
-.mbar .compact{display:none}
-
+.mbar .sp{flex:1;min-width:8px}
+.mbar .status{display:flex;align-items:center;flex:none}
+.mbar .glyph{position:relative;width:30px;padding:0;display:inline-grid;place-items:center;color:var(--ink-1)}
+.mbar .glyph .badge{position:absolute;right:5px;top:3px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--menubar)}
+.mbar .sysicon{width:28px;display:inline-grid;place-items:center}
+.mbar .clock{padding:0 4px 0 8px;font-variant-numeric:tabular-nums}
+.desk.fs .mbar{transform:translateY(-100%)}
+.desk.fs.mbpeek .mbar{transform:none}

@@ -3,7 +3,11 @@ const S = {
   route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), srcOff: new Set(),
   project: null, topic: null, outcome: null, fric: null, hour: null,
   compare: true, metric: 'n', view: 'chart', theme: store.get('theme', 'system'),
-  rail: false, drawer: false, max: false, winGone: false, widgets: false,
+  // shell: sidebar shown (user intent) / sidebar as an overlay in a narrow window / collapsible groups / key window /
+  // main window rect {x,y,w,h} (null x,y = centred) + zoom / full-screen flags (loaded from localStorage in 22-window.js)
+  side: true, sideOver: false, sideOpen: { insight: true, action: true, agents: true, pins: true }, keyWin: 'main',
+  win: { x: null, y: null, w: 1180, h: 760, zoom: false, full: false }, setPos: null,
+  winGone: false, widgets: false,
   persona: { period: 'sep', vs: 'past' },
   sess: { sel: FEAT_ID, q: '', mode: 'single', cmp: null, zoom: 1, axis: 'time', ph: 30.8, playing: false, hi: null },
   tools: { sort: 'n', dir: -1, failOnly: false, open: null, figma: true, openFail: null },
@@ -22,4 +26,3 @@ const S = {
 const CLOCK0 = Date.UTC(2026, 9, 1, 7, 30, 0) - Date.now();
 function nowText() { const d = new Date(Date.now() + CLOCK0 + 8 * 3600000); return (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日 周四 ' + hm(d.getUTCHours(), d.getUTCMinutes()); }
 function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); return hm(Math.floor(s / 60), s % 60); }
-

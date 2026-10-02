@@ -69,7 +69,9 @@ const I = {
   minus: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12h8',
   undo: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
   ext: 'M14 4h6v6M20 4l-8.5 8.5M18 13.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5.5',
-  burger: 'M4 7h16M4 12h16M4 17h16'
+  burger: 'M4 7h16M4 12h16M4 17h16',
+  flask: 'M9 3h6M10 3v6.2L4.7 18.4A1.5 1.5 0 0 0 6 20.7h12a1.5 1.5 0 0 0 1.3-2.3L14 9.2V3M7.5 15h9',
+  slash: 'M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M5 19L19 5'
 };
 function ic(n, s, st) { return '<svg class="ico" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" aria-hidden="true"' + (st ? ' style="' + st + '"' : '') + '><path d="' + I[n] + '"/></svg>'; }
 const GLYPH = '<svg width="18" height="14" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg>';

@@ -27,11 +27,15 @@ function renderHud() {
   h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open ? hudCard() : '');
   hudPlace();
 }
+/* six snap points (top row under the menu bar, bottom row above the stage edge), in order of preference */
 function snapPts(w) {
   const W = desk.clientWidth, H = desk.clientHeight;
-  const xs = { l: 16, c: (W - w) / 2, r: W - w - 16 }, ys = { t: 40, b: H - 44 - 16 };
-  const out = []; ['t', 'b'].forEach((a) => ['l', 'c', 'r'].forEach((b) => out.push({ k: a + b, x: Math.max(4, xs[b]), y: ys[a] })));
-  return out;
+  const xs = { l: 16, c: (W - w) / 2, r: W - w - 16 }, ys = { t: MB_H + 8, b: H - 44 - 16 };
+  return [['t', 'r'], ['t', 'l'], ['t', 'c'], ['b', 'r'], ['b', 'l'], ['b', 'c']].map((p) => ({ k: p[0] + p[1], x: Math.max(4, xs[p[1]]), y: ys[p[0]] }));
+}
+function hudHitsWin(x, y, w, h) {
+  if (S.winGone) return false; const r = WIN_LAST || winRect();
+  return x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y;
 }
 function nearestSnap(x, y, w) { let best = null, bd = Infinity; snapPts(w).forEach((p) => { const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } }); return best; }
 function showSnaps(w) { hideSnaps(); snapPts(w).forEach((p) => { const s = document.createElement('div'); s.className = 'snap'; s.dataset.k = p.k; s.style.left = (p.x + w / 2) + 'px'; s.style.top = (p.y + 22) + 'px'; desk.appendChild(s); }); }
@@ -40,8 +44,14 @@ function hudPlace() {
   const h = $('#hud'), pill = $('#hudPill'); if (h.hidden || !pill) return;
   const W = desk.clientWidth, H = desk.clientHeight, pw = pill.offsetWidth, ph = 44;
   let x, y;
-  if (S.hud.snap) { const p = snapPts(pw).find((q) => q.k === S.hud.snap) || snapPts(pw)[5]; x = p.x; y = p.y; }
-  else { x = clamp(S.hud.x == null ? W - pw - 16 : S.hud.x, 4, Math.max(4, W - pw - 4)); y = clamp(S.hud.y == null ? H - 60 : S.hud.y, 32, Math.max(32, H - ph - 4)); }
+  if (S.hud.snap) {
+    const pts = snapPts(pw); let p = pts.find((q) => q.k === S.hud.snap) || pts[0];
+    // until the user places it, keep the pill off the main window: first free snap point, else bottom-centre (never the title
+    // row, and the window's resize corners stay reachable)
+    if (!S.hud.user && hudHitsWin(p.x, p.y, pw, ph)) p = pts.find((q) => !hudHitsWin(q.x, q.y, pw, ph)) || pts.find((q) => q.k === 'bc') || p;
+    x = p.x; y = p.y;
+  }
+  else { x = clamp(S.hud.x == null ? W - pw - 16 : S.hud.x, 4, Math.max(4, W - pw - 4)); y = clamp(S.hud.y == null ? H - 60 : S.hud.y, MB_H + 8, Math.max(MB_H + 8, H - ph - 4)); }
   const right = x + pw / 2 > W / 2 + 1, bottom = y + ph / 2 > H / 2;
   h.style.left = right ? 'auto' : x + 'px'; h.style.right = right ? Math.max(4, W - x - pw) + 'px' : 'auto';
   h.style.top = bottom ? 'auto' : y + 'px'; h.style.bottom = bottom ? Math.max(4, H - y - ph) + 'px' : 'auto';
@@ -70,7 +80,8 @@ function hudDragEnd(e) {
   if (!HDRAG) return; const d = HDRAG; HDRAG = null; hideSnaps();
   if (!d.moved) { S.hud.open = !S.hud.open; renderHud(); return; }
   if (e.altKey) { S.hud.snap = null; S.hud.x = d.x; S.hud.y = d.y; } else S.hud.snap = nearestSnap(d.x, d.y, d.w).k;
-  store.set('hud', { snap: S.hud.snap, x: S.hud.x, y: S.hud.y });
+  S.hud.user = true;
+  store.set('hud', { snap: S.hud.snap, x: S.hud.x, y: S.hud.y, user: true });
   renderHud();
 }
 $('#hud').addEventListener('pointerup', hudDragEnd);

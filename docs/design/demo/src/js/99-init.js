@@ -10,14 +10,16 @@ setInterval(() => {
     $$('[data-livetools]').forEach((x) => { x.textContent = S.live.tools; });
   }
 }, 1000);
+// viewport resize: re-clamp the window at once (cheap), redraw the desktop layer after the burst settles
 let RZ = null;
-window.addEventListener('resize', () => { clearTimeout(RZ); RZ = setTimeout(() => { desk.classList.toggle('wide', S.widgets && window.innerWidth >= 1500); renderWidgets(); renderHud(); }, 120); });
+window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });
 (function init() {
   document.documentElement.lang = 'zh-CN';
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   if (PAGES[h]) S.route = h;
   setTheme(S.theme);
-  S.widgets = window.innerWidth >= 1500;
+  // desktop widgets sit on the desktop layer; show them by default only when the default window leaves room for them
+  S.widgets = window.innerWidth >= WIN_DEF.w + 24 + 364 + 24 + STAGE_PAD;
   render();
-  setTimeout(() => notify({ t: '欢迎体验 Tandem 交互 Demo', b: '数据都是示例。菜单栏右侧的「演示」菜单可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 15000, force: true }), 800);
+  setTimeout(() => notify({ t: '欢迎体验 Tandem 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
 })();

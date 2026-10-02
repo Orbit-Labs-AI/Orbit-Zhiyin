@@ -1,5 +1,6 @@
 /* ============ keys, about, method ============ */
-const KEYS = [['⌘K', '命令面板'], ['⌥1 – ⌥9', '切换页面（App 内是 ⌘1–9）'], ['⌘F', '页内搜索'], ['⌥R', '重新索引（App 内是 ⌘R）'], ['Space', '回放 / 暂停轨迹'], ['⌘↩', '当前页主操作'], ['⌘Z', '撤销最近一次安装'], ['⌥T', '图表 ↔ 表格（App 内是 ⌘T）'], ['⌘[', '返回上一页'], ['⌘,', '设置'], ['⌘⇧S', '导出分享卡'], ['⌘⇧E', '导出报告'], ['⌥⌘P', '显示 / 隐藏悬浮组件'], ['⌃⌥T', '菜单栏面板'], ['⌘O', '打开主窗口'], ['?', '本页快捷键'], ['Esc', '关闭弹窗与面板']];
+// One source of truth for shortcut copy: the bindings live in 85-keyboard.js, the menus (30-actions.js) show the same keys.
+const KEYS = [['⌘K', '命令面板'], ['⌥1 – ⌥9', '切换页面（App 内是 ⌘1–9）'], ['⌥0', '主窗口（App 内是 ⌘0）'], ['⌃⌘S', '显示 / 隐藏侧边栏'], ['⌃⌘F', '进入 / 退出全屏'], ['⌘M', '最小化窗口'], ['⌘F', '页内搜索'], ['⌥R', '重新索引（App 内是 ⌘R）'], ['Space', '回放 / 暂停轨迹'], ['⌘↩', '当前页主操作'], ['⌘Z', '撤销最近一次安装'], ['⌥T', '图表 ↔ 表格（App 内是 ⌘T）'], ['⌘[', '返回上一页'], ['⌘,', '设置'], ['⇧⌘S', '导出分享卡'], ['⇧⌘E', '导出报告'], ['⌥⌘P', '显示 / 隐藏悬浮组件'], ['⌃⌥T', '菜单栏面板'], ['?', '本页快捷键'], ['Esc', '关闭弹窗与面板']];
 function openKeys() {
   openModal(modalHead('键盘快捷键', '浏览器占用的组合在 Demo 里改用 ⌥，括号里是 App 内的按键') + '<div class="mb" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:0 20px">' + KEYS.map((k) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);gap:12px"><span style="font-size:12.5px">' + esc(k[1]) + '</span><span class="kbd">' + esc(kb(k[0])) + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
 }

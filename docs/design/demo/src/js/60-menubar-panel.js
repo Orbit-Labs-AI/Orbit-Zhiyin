@@ -4,13 +4,20 @@ function popLiveCard() {
     '<div class="col" style="gap:3px;margin-top:2px"><div class="row" style="justify-content:space-between;font-size:11px;color:var(--ink-3)"><span>上下文 <b class="mono" style="color:var(--ink-1)">' + S.live.ctx + '%</b></span><span class="mono">80% 压缩</span></div><div style="position:relative;height:6px;border-radius:3px;background:var(--line)"><span style="position:absolute;left:0;top:0;bottom:0;width:' + S.live.ctx + '%;border-radius:3px;background:' + (S.live.ctx >= 75 ? 'var(--warn-m)' : 'var(--ink-1)') + '"></span><span style="position:absolute;left:80%;top:-3px;width:1.5px;height:12px;background:var(--ink-3)"></span></div></div>' +
     '<div class="row" style="margin-top:4px"><button type="button" class="btn sm" data-act="popTraj">查看轨迹</button><button type="button" class="btn sm gh" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒') + '</button></div></div>';
 }
+/* the panel hangs 6px under the menu bar with its right edge aligned to the Tandem status item */
+function popPlace() {
+  const el = $('#pop'); if (el.hidden) return;
+  const g = $('.mbar [data-act="pop"]'); const d = desk.getBoundingClientRect();
+  if (g) { const r = g.getBoundingClientRect(); el.style.right = Math.max(8, Math.round(d.right - r.right)) + 'px'; }
+  el.style.top = (MB_H + 6) + 'px';
+}
 function renderPop() {
-  const el = $('#pop'); el.hidden = false;
+  const el = $('#pop'); el.hidden = false; popPlace();
   const p = personaNow();
   const today = ALL.filter((s) => s.d === 120);
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
-  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:12.5px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Tandem <span class="mono" style="opacity:.7;font-size:10.5px">' + kb('⌘O') + '</span></button></div>';
+  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:12.5px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Tandem <span style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
   const days = []; for (let d = 114; d <= 120; d++) days.push([d, ALL.filter((s) => s.d === d).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
   const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="cap" style="font-size:11px">今天 ' + today.length + ' 个会话</span></div><div class="row" style="align-items:flex-end;gap:6px;height:48px;margin-top:6px">' + days.map((x) => '<span class="col" style="flex:1;align-items:center;gap:3px"><span style="width:100%;height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px;border-radius:3px 3px 1px 1px;background:' + (x[0] === 120 ? 'var(--a1)' : 'var(--h2)') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话"></span><span class="mono cap" style="font-size:9.5px">' + WD[wd(x[0])] + '</span></span>').join('') + '</div></div>';
