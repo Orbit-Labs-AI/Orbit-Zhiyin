@@ -168,7 +168,7 @@ svg{display:block}
 .sb-foot .me{display:flex;align-items:center;gap:8px;padding:0 2px 0 4px}
 .sb-foot .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ink-1);color:var(--bg);font:600 11px/1 var(--mono)}
 .sb-foot .nm{font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-foot .pc{font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-foot .pc{word-spacing:-.2em;font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-foot .ib{width:24px;height:24px;color:var(--ink-3)}
 /* content column with the page's toolbar on the same 52px line as the lights (serif page title, mono meta — the demo's type voice) */
 .main{grid-column:2;grid-row:1/-1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg);container:main/inline-size}
@@ -176,7 +176,7 @@ svg{display:block}
 .win.nosb .tbar{padding-left:146px}
 .tbar .grow{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:10px;overflow:hidden}
 .tbar h1{margin:0;font:600 22px/26px var(--serif);letter-spacing:-.01em;white-space:nowrap;flex:none}
-.tbar .meta{font:12px/16px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tbar .meta{font:12px/16px var(--mono);word-spacing:-.25em;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .tbar .tright{display:flex;align-items:center;gap:8px;flex:none;min-width:0}
 .tbar .btn{height:28px;border-radius:7px}
 .tbar .ib{width:28px;height:28px;border-radius:7px}
@@ -243,7 +243,7 @@ svg{display:block}
 .pad{padding:14px 16px}
 .ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .cap{font-size:12px;line-height:16px;color:var(--ink-3)}
-.eb{font:600 11px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.eb{font:600 11px/14px var(--mono);letter-spacing:.08em;word-spacing:-.25em;text-transform:uppercase;color:var(--ink-3)}
 .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .hd .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
@@ -330,9 +330,9 @@ svg{display:block}
 .vz-svg .vz-lbl,.vz-svg .vz-nlbl,.vz-svg .vz-span-lbl,.vz-svg .vz-callout{font-size:11px;fill:var(--ink-2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .vz-svg .vz-callout{fill:var(--ink-1)}
 .vz-svg .vz-nlbl{fill:var(--ink-1)}
-.vz-svg .vz-span-lbl{font-size:10.5px;fill:var(--ink-1)}
-.vz-svg .vz-inbar{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:#fff}
-.vz-svg .vz-cv{font-size:10.5px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
+.vz-svg .vz-span-lbl{font-size:11px;fill:var(--ink-1)}
+.vz-svg .vz-inbar{font-size:10px;font-family:var(--mono);font-weight:600;fill:#fff}
+.vz-svg .vz-cv{font-size:10px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
 .vz-svg .vz-cv.on{fill:var(--bg)}
 .vz-svg .vz-ct-svg{font-size:12px;font-weight:600;fill:var(--ink-1)}
 .vz-grid{stroke:var(--hair);stroke-width:1;fill:none}
@@ -446,11 +446,11 @@ svg{display:block}
 .vz-tk{width:12px;height:2px;border-radius:1px;background:var(--c);flex:none}
 .vz-tk.rect{width:10px;height:10px;border-radius:2px}
 .vz-tv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
-.vz-tn{color:var(--ink-3);font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12.5px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
+.vz-tn{color:var(--ink-3);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
 .vz-empty-ic{stroke:var(--ink-4);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .vz-low b{display:block;color:var(--ink-1);font-size:13px}
-.vz-low .cap{display:block;font-size:11.5px}
+.vz-low .cap{display:block;font-size:12px}
 .vz-ring-bg{fill:none;stroke:var(--line);stroke-width:4}
 .vz-ring{fill:none;stroke:var(--ink-1);stroke-width:4;stroke-linecap:round}
 .vz-scale{display:flex;align-items:center;gap:3px;margin-top:8px;font-size:11px;flex-wrap:wrap}
@@ -527,7 +527,7 @@ svg{display:block}
 .l-zh{font-size:30px;line-height:1.1;font-weight:600}
 .l-en{font-size:20px;font-style:italic;color:var(--ink-3)}
 .l-foot{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:6px 0 4px}
-.l-foot .lnk,.l-adv{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.l-foot .lnk,.l-adv{font-size:13px;color:var(--ink-2);white-space:nowrap}
 .l-sep{color:var(--ink-4)}
 .l-fchip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 /* big mono numbers: the VZ.kpi tile, larger */
@@ -535,7 +535,7 @@ svg{display:block}
 .lite .vz-kpi-l{font:600 11px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .lite .vz-kpi .v{font-family:var(--mono);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:16px}
-.lite .vz-kpi-d{font-size:11.5px}
+.lite .vz-kpi-d{font-size:12px;line-height:16px}
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
 .lite .l-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 
@@ -543,7 +543,7 @@ svg{display:block}
 .l-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:center}
 .lite .card.l-hero{padding:28px 30px}
 .l-lede{gap:14px}
-.l-ev{font-size:12px}
+.l-ev{font-size:12px;line-height:18px;text-wrap:pretty}
 .l-code{gap:6px;padding:4px 0 4px 28px;border-left:1px solid var(--hair);border-radius:0;align-self:stretch;justify-content:center}
 .lite .ov-code-l{font-size:112px;line-height:.95;letter-spacing:.02em}
 .l-code .l-zh{font-size:22px}
@@ -557,7 +557,7 @@ svg{display:block}
 /* the one thing to do: an .rcard, larger */
 .lite .rcard{padding:22px 26px;gap:10px}
 .lite .rc-title{font-size:26px;line-height:1.25;font-weight:600;letter-spacing:-.005em;text-wrap:pretty}
-.lite .rc-why{font-size:14px;line-height:1.55}
+.lite .rc-why{font-size:15px;line-height:22px}
 .lite .rc-foot{padding-top:10px;gap:8px;flex-wrap:wrap}
 .l-gain{display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap;min-width:0}
 .l-gain .v{font-size:34px;line-height:38px;font-weight:600;letter-spacing:-.02em;color:var(--good)}
@@ -569,19 +569,19 @@ svg{display:block}
 .lite .persona-hero{grid-template-columns:minmax(0,1fr) 320px;padding:28px 30px;align-items:center}
 .lite .letters{gap:clamp(6px,1.2cqi,16px);margin:18px 0 16px;align-items:flex-end}
 .lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--serif);letter-spacing:-.01em}
-.l-line{margin:14px 0 14px;max-width:560px;font-size:19px;line-height:1.5;color:var(--ink-2);text-wrap:pretty}
+.l-line{margin:14px 0 14px;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
 .l-acts{margin-top:20px;flex-wrap:wrap}
 .l-fp{padding:12px}
 .l-fp .fp2{width:100%;max-width:296px}
 .l-axes .hd{margin-bottom:18px}
-.lite .ax.l-ax{grid-template-columns:108px minmax(0,1fr) 108px 44px;gap:16px;font-size:14px;padding:12px 0;border-top:1px solid var(--hair)}
+.lite .ax.l-ax{grid-template-columns:108px minmax(0,1fr) 108px 44px;gap:16px;font-size:15px;padding:12px 0;border-top:1px solid var(--hair)}
 .l-ax .track{height:10px;border-radius:5px}
 .l-ax .track .fill{height:10px;border-radius:5px;background:var(--h3)}
 .l-ax .track .mid{top:-5px;height:20px}
 .l-ax .track .knob{top:-6px;width:22px;height:22px;margin-left:-11px;box-shadow:0 0 0 3px var(--surface)}
 .l-pole{display:flex;align-items:baseline;gap:8px;color:var(--ink-3);white-space:nowrap}
 .l-pole.r{justify-content:flex-end}
-.l-pole b{font-size:18px;font-weight:700}
+.l-pole b{font-size:17px;font-weight:700}
 .l-pole.on{color:var(--ink-1);font-weight:600}
 .l-axv{font-size:22px;font-weight:600;text-align:right}
 .l-evo .evo{gap:10px}
@@ -600,7 +600,7 @@ svg{display:block}
 .l-stitle{margin:12px 0 0;font-size:30px;line-height:1.2;font-weight:600;letter-spacing:-.01em;text-wrap:pretty}
 .l-ins{align-items:flex-start;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--hair)}
 .l-ins .aib{margin-top:4px}
-.l-ins p{margin:0;font-size:18px;line-height:1.5;color:var(--ink-1);text-wrap:pretty}
+.l-ins p{margin:0;font-size:17px;line-height:26px;color:var(--ink-1);text-wrap:pretty}
 .lite .l-snums .vz-kpi .v{font-size:40px;line-height:44px}
 .l-tl{position:relative;height:64px;margin:8px 12px 4px}
 .l-rail{position:absolute;left:0;right:0;top:15px;height:2px;border-radius:1px;background:var(--line)}
@@ -611,7 +611,7 @@ svg{display:block}
 .l-ph:first-child{border-left:0;padding-left:0}
 .l-steps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
 .l-steps li{display:grid;grid-template-columns:24px 56px auto minmax(0,1fr);gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--hair);font-size:13px}
-.l-sn{width:20px;height:20px;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:10.5px;font-weight:700;line-height:20px;text-align:center;align-self:center}
+.l-sn{width:20px;height:20px;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:11px;font-weight:700;line-height:20px;text-align:center;align-self:center}
 .l-steps li.bad .l-sn{background:var(--crit)}
 .l-steps li.bad b{color:var(--crit)}
 .l-st{font-size:12px;color:var(--ink-3)}
@@ -621,7 +621,7 @@ svg{display:block}
 .l-rhero{display:flex;flex-direction:column;gap:10px}
 .l-big-n{align-items:baseline;gap:10px}
 .l-big-n .v{font-size:72px;line-height:.95;font-weight:600;letter-spacing:-.04em;color:var(--good)}
-.l-big-n .u{font-size:18px;color:var(--ink-2)}
+.l-big-n .u{font-size:17px;color:var(--ink-2)}
 .lite .rcard.l-rc{flex-direction:row;gap:22px;align-items:flex-start}
 .l-rn{font-size:34px;line-height:1;font-weight:600;color:var(--ink-4);padding-top:2px;flex:none}
 .l-rb{flex:1;min-width:0;gap:10px}
@@ -633,7 +633,9 @@ svg{display:block}
   .lite .persona-hero{grid-template-columns:minmax(0,1fr) 220px;gap:20px}
   .lite .sess.l-sess{grid-template-columns:minmax(0,1fr)}
   .lite .slist{max-height:260px}
-  .l-say{font-size:23px}
+  .l-say{font-size:22px}
+  .lite .vz-kpi .v{font-size:44px;line-height:50px}
+  .lite .vz-kpi-d{font-size:11px}
 }
 @container main (max-width:639px){
   .lite .persona-hero{grid-template-columns:minmax(0,1fr)}
@@ -722,36 +724,77 @@ svg{display:block}
 .log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--mono);overflow:auto;max-height:340px}
 .log div{white-space:pre-wrap;word-break:break-all}
 
-/* A1 overview: AI-card micro evidence, outcome share strip, persona card, heat line, tool rows (page styles live here, not in 40-pages.css) */
-.ov-aic{gap:6px;min-width:0}
+/* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
+/* AI card: every column = header row (label + mini viz / regen) → prose → bottom line (evidence link / provenance), so the four bottoms share a baseline */
+.ov-aic{gap:8px;min-width:0}
+.ov-aih{justify-content:space-between;align-items:center;gap:8px;min-height:24px}
+.ov-aik{font-size:13px;font-weight:600;gap:6px}
+.ov-aip{margin:0;font-size:13px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.ov-aiev{align-self:flex-start;margin-top:auto;padding-top:4px}
+.ov-aigen{margin-top:auto;padding-top:4px;font-size:11px;line-height:16px;color:var(--ink-3)}
+.ov-ail .btn.sm{gap:4px;color:var(--ink-2)}
+.ov-ail .btn.sm:hover{color:var(--ink-1)}
 .ov-mini{flex:none;display:block}
-.ov-out{display:flex;align-items:center;gap:16px;padding:10px 16px;flex-wrap:wrap}
-.ov-out .vz-legend{margin:4px 0 0}
+/* KPI tiles: compact spark stays visible at 150px tiles (the period label refers to it); period label sits right, under the spark */
+#ovTiles .vz-kpi{padding:12px 12px 10px}
+#ovTiles .vz-kpi .vz-spark{display:block;flex:none}
+#ovTiles .vz-kpi-h{gap:6px}
+#ovTiles .vz-kpi-p{margin-left:auto;font-size:10px;color:var(--ink-4)}
+#ovTiles .vz-kpi-d{letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis}
+@container (max-width:132px){#ovTiles .vz-kpi-d{font-size:10px}}
+@container (max-width:112px){#ovTiles .vz-kpi .vz-spark,#ovTiles .vz-kpi-p{display:none}}
+/* outcome strip: text block left (label + summary / hint), share bar right */
+.ov-out{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,1fr);align-items:center;gap:24px;padding:12px 16px}
+.ov-out-t{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;row-gap:2px;min-width:0}
+.ov-out-t .ct{font-size:13px}
+.ov-out-t .cap{flex-basis:100%;font-size:11px}
+.ov-out .vz-legend{margin:6px 0 0}
 .ov-out .vz-head{display:none}
-.ov-ctl{gap:8px;flex-wrap:wrap;margin:-2px 0 10px}
-.ov-brush{margin-top:6px;gap:10px;padding:5px 8px;border-radius:7px;background:var(--sunken)}
+[data-vz="ov-out"] .vz-inbar{pointer-events:none}
+@container main (max-width:799px){.ov-out{grid-template-columns:minmax(0,1fr);gap:8px}}
+/* trend card: controls on one line, avg label legible over the bars */
+.ov-ctl{gap:6px;flex-wrap:wrap;margin:-2px 0 10px}
+.ov-ctl .seg button{padding:0 8px}
+[data-vz="ov-trend"] .vz-note{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.ov-brush{margin-top:6px;gap:10px;padding:4px 8px;border-radius:7px;background:var(--sunken)}
 .ov-brush .cap{flex:1;min-width:0}
-.ov-pers{display:flex;flex-direction:column;gap:10px;text-align:left}
-.ov-code{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:2px;color:inherit;border-radius:8px}
+/* persona side card: code on top, axes centred in the remaining height, link at the bottom */
+.ov-pers{display:flex;flex-direction:column;gap:12px;text-align:left}
+.ov-pers-h{justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px}
+.ov-pers [data-vz="ov-axes"]{margin:auto 0}
+.ov-code{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:4px;color:inherit;border-radius:8px}
 .ov-code:hover .ov-code-l{color:var(--ink-2)}
 .ov-code-l{font-size:40px;line-height:44px;font-weight:600;letter-spacing:.04em;transition:color .15s}
+/* bottom row: rhythm | tools, suggestions full width underneath (heat map needs ≥ 340px, tool bars need room) */
+.ov-three{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
+.ov-three>.ov-recs{grid-column:1/-1}
 .ov-heat-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin-bottom:8px}
 .ov-heat-line b{color:var(--ink-1);font-weight:600}
 .ov-heat{min-width:340px}
-.ov-tools{display:flex;flex-direction:column;gap:6px}
-.ov-tool{display:grid;grid-template-columns:66px minmax(0,1fr) 44px 40px 44px;align-items:center;gap:8px;height:22px;border:0;background:none;padding:0;text-align:left;border-radius:6px;color:inherit}
+.ov-tools{display:flex;flex-direction:column;gap:8px}
+.ov-tool{display:grid;grid-template-columns:72px minmax(0,1fr) 48px 52px;align-items:center;gap:10px;height:24px;border:0;background:none;padding:0 4px;margin:0 -4px;text-align:left;border-radius:6px;color:inherit}
 .ov-tool:hover{background:var(--bg)}
-.ov-tool .nm{font-size:12px}
+.ov-tool .nm{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ov-tool .bar{height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .ov-tool .bar span{display:block;height:6px;min-width:2px;border-radius:0 3px 3px 0;background:var(--h2)}
 .ov-tool:first-child .bar span{background:var(--ink-3)}
-.ov-tool .n{font-size:11.5px;text-align:right;font-variant-numeric:tabular-nums}
-.ov-tool .eb-bar{height:4px;border-radius:2px;background:var(--sunken);overflow:hidden}
-.ov-tool .eb-bar span{display:block;height:4px;min-width:1px;border-radius:0 2px 2px 0;background:var(--h3)}
+.ov-tool .n{font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.ov-err{display:flex;flex-direction:column;align-items:stretch;gap:2px}
+.ov-tool .eb-bar{height:3px;border-radius:2px;background:var(--sunken);overflow:hidden}
+.ov-tool .eb-bar span{display:block;height:3px;min-width:1px;border-radius:0 2px 2px 0;background:var(--h3)}
 .ov-tool .eb-bar.hi span{background:var(--crit)}
-.ov-tool .e{font-size:11px;text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ov-tool .e{font-size:11px;line-height:13px;text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .ov-tool .e.hi{color:var(--crit);font-weight:600}
-@container main (max-width:639px){.ov-tool{grid-template-columns:56px minmax(0,1fr) 40px 28px 40px;gap:6px}}
+.ov-recl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 20px}
+.ov-rec{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.ov-reci{width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;background:var(--sunken)}
+.ov-rect{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex:1;min-width:0}
+.ov-recb{display:flex;flex-direction:column;gap:2px;width:100%;border:0;background:none;padding:0;text-align:left;color:inherit;border-radius:4px}
+.ov-recn{font-size:13px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-recb:hover .ov-recn{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.ov-recm{font-size:11px;line-height:15px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-recm .mono{color:var(--ink-2)}
+@container main (max-width:639px){.ov-tool{grid-template-columns:56px minmax(0,1fr) 40px 44px;gap:6px}}
 
 /* A2 persona: low-sample relax chips, fingerprint v2 compass (bezel ticks / stacked density ring / rhythm band / compass rose + needle), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
@@ -784,6 +827,20 @@ svg{display:block}
 @keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
 @media (prefers-reduced-motion:reduce){.fp2:hover .fp-nd{animation:none}}
 .pe-fp-legend .lnk{white-space:nowrap}
+/* hero polish: evolution months as one row of four, fingerprint + legend centred in the paper panel */
+.pe-evw{margin-top:24px}
+.pe-evrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:4px;align-items:center;max-width:520px}
+.pe-evrow button{width:auto;min-width:0;padding:6px 8px;display:flex;flex-direction:column;gap:1px}
+.pe-evrow button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.persona-hero .fp-wrap{justify-content:center;padding:40px 12px 24px}
+.pe-fpc{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.pe-fp-legend{flex-direction:column;align-items:flex-start;gap:6px;justify-content:flex-start;margin-top:0;max-width:360px;line-height:16px}
+.pe-fp-legend>.row{align-items:center}
+/* fit card: title on one line, scale note beneath; meta as two fixed lines (sample · CI / friction · completion) */
+.pe-fit-h{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.pe-fit-h .cap{font-size:11px}
+.pe-fit-m{font-size:11px;line-height:15px;color:var(--ink-3)}
+.pe-fit-m .nw{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* A3 会话与轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
    事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
@@ -810,9 +867,11 @@ svg{display:block}
 .tl-ctx-area{fill:var(--vz-accent);fill-opacity:.1}
 .tl-ctx-line{fill:none;stroke:var(--vz-accent);stroke-width:1.5;stroke-linejoin:round}
 .tl-ctx-th{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3}
-.tl-ctx-tick{font:10px var(--mono);fill:var(--ink-3)}
+.tl-ctx-tick{font:10px var(--mono);fill:var(--ink-3);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .tl-ctx-comp line{stroke:var(--ink-1);stroke-width:1}
-.tl-ctx-lbl{font-size:10px;font-family:var(--mono);fill:var(--ink-1)}
+.tl-ctx-lbl{font-size:10px;font-family:var(--mono);fill:var(--ink-1);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+/* 播放头菱形手柄上移到绘图区底边，不再压住底轴时刻（如 14:32）；拖动热区不变 */
+.tl-box .vz-playhead path{transform:translateY(-15px)}
 /* 顶部相对时间轴 */
 .tl-rel{font:10px var(--mono);fill:var(--ink-4)}
 .tl-rel-tick,.tl-rel-base{stroke:var(--hair);stroke-width:1}
@@ -821,19 +880,19 @@ svg{display:block}
 .tl-brush{height:auto;min-height:20px;padding:1px 4px 1px 8px;gap:6px;font-family:var(--mono);color:var(--ink-1);border-color:var(--accent)}
 .tl-legend{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-top:4px}
 .tl-legend>span{display:inline-flex;align-items:center;gap:5px}
+.tl-legend .tl-li{white-space:nowrap}   /* 色块与文字成组换行，不再出现孤立的「失败」 */
 .tl-sw{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
-.tl-legend .tl-sw+span{margin-left:-7px}
 .tl-hint{margin-left:auto;color:var(--ink-4)}
 /* 事件检视：右侧固定列；容器变窄时移到时间线下方成一行抽屉 */
-.tl-insp{border-left:1px solid var(--hair);padding:2px 0 2px 16px;font-size:12.5px;line-height:1.5;color:var(--ink-2);min-width:0;display:flex;flex-direction:column;gap:6px;align-self:stretch}
+.tl-insp{border-left:1px solid var(--hair);padding:2px 0 2px 16px;font-size:12px;line-height:1.5;color:var(--ink-2);min-width:0;display:flex;flex-direction:column;gap:6px;align-self:stretch}
 .tl-insp .eb{margin-bottom:2px}
 .tl-ihd{display:flex;flex-direction:column;gap:1px}
-.tl-it{font-size:15px;font-weight:700;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.tl-it{font-size:15px;line-height:20px;font-weight:700;color:var(--ink-1);font-variant-numeric:tabular-nums}
 .tl-kv{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:baseline}
 .tl-kv .k{font:11px/18px var(--mono);color:var(--ink-3);white-space:nowrap}
 .tl-kv .v{min-width:0;overflow-wrap:anywhere;color:var(--ink-1)}
 .tl-kv .v.mono{font-size:12px}
-.tl-blist{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:11.5px}
+.tl-blist{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:11px}
 .tl-blist li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2)}
 .tl-blist li.err{color:var(--crit)}
 .tl-ibtn{margin-top:auto;padding-top:6px;flex-wrap:wrap;gap:6px}
@@ -845,12 +904,12 @@ svg{display:block}
   .tl-hint{display:none}
 }
 /* 关键时刻列表：与图上徽章双向联动（hover = hot，播放头已过 = on） */
-.tl-mom{display:grid;grid-template-columns:18px 44px minmax(0,1fr);gap:8px;align-items:start;font-size:12.5px;line-height:18px;border:0;background:none;padding:3px 6px;margin:0 -6px;border-radius:7px;text-align:left;width:calc(100% + 12px);color:var(--ink-2)}
+.tl-mom{display:grid;grid-template-columns:18px 44px minmax(0,1fr);gap:8px;align-items:start;font-size:12px;line-height:18px;border:0;background:none;padding:3px 6px;margin:0 -6px;border-radius:7px;text-align:left;width:calc(100% + 12px);color:var(--ink-2)}
 .tl-mom:hover,.tl-mom.hot{background:var(--field)}
 .tl-mom .n{width:18px;height:18px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 10px/18px var(--mono);text-align:center}
 .tl-mom .n.alert{background:var(--vz-corr);color:#fff}
 .tl-mom.on .n{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent)}
-.tl-mt{font-size:11.5px;color:var(--ink-3);padding-top:1px}
+.tl-mt{font-size:11px;color:var(--ink-3)}
 .tl-mx b{color:var(--ink-1)}
 /* 对比：两条紧凑时间线共用一个尺度 */
 .tl-cmp-row{margin-bottom:10px}
@@ -866,6 +925,26 @@ svg{display:block}
 .tl-more b{color:var(--ink-1);font-weight:600}
 .tl-more:hover{background:var(--field)}
 .tl-more-end{text-align:center;padding:10px 0 4px}
+/* ---------- 详情列：按自身宽度排版（主区 800–1100px 时详情只有 ~460px） ---------- */
+.sess>.stack{container:sdet/inline-size}
+/* 会话头带：元信息一行，路径过长时截断；标题按语义均衡折行 */
+.sb-meta{font-size:11px;line-height:16px;color:var(--ink-3);gap:6px;min-width:0;flex-wrap:nowrap}
+.sb-meta>*{flex:none}
+.sb-meta .sb-path{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-title{margin:0;flex:1;min-width:200px;font-size:22px;line-height:28px;font-weight:600;text-wrap:balance}
+.sb-sub{font-size:12px;color:var(--ink-2);margin-top:4px;flex-wrap:wrap;gap:4px 10px}
+/* 7 项统计：标签单行，数值 17px；详情列窄时 4 + 3 */
+.sess .stats7 button{padding:8px 12px 9px;gap:2px;min-width:0}
+.st-k{font-size:11px;line-height:14px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-v{font-size:17px;line-height:22px;font-weight:600;color:var(--ink-1);font-variant-numeric:tabular-nums}
+@container sdet (max-width:599px){
+  .sess .stats7{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .sess .stats7 button:nth-child(4n+1){border-left:0}
+  .sess .stats7 button:nth-child(n+5){border-top:1px solid var(--hair)}
+}
+/* 关键时刻 + 启示：详情列不足 760px 时上下排，避免关键时刻列被挤成逐字折行 */
+.tl-two{grid-template-columns:minmax(0,1fr) 300px}
+@container sdet (max-width:759px){.tl-two{grid-template-columns:minmax(0,1fr)}}
 
 /* A4 工具调用（js/43-a4-tools.js）。单色度量条：中性灰，颜色只落在状态（错误率超阈值 → --vz-err，中途停止 → --vz-corr）。
    明细表：调用条 6px、错误率 40px 微型条、耗时 p50 / p95 两段条、迷你线为真实日序列；转移矩阵是 HTML grid（格子固定 36–44px，文字恒定 11px）。 */
@@ -873,9 +952,11 @@ svg{display:block}
 .tt-matrix{grid-row:span 2}
 .tt-mcp{grid-column:1 / -1;display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,1.4fr);gap:20px}
 @container main (max-width:799px){.tt-grid{grid-template-columns:minmax(0,1fr)}.tt-matrix{grid-row:auto}.tt-mcp{grid-column:auto;grid-template-columns:minmax(0,1fr)}}
-.tt-retry{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(60px,1fr) auto;gap:8px;align-items:center;font-size:12px}
-.tt-retry .tt-cmd{font-size:11.5px;color:var(--ink-1)}
-.tbl.tt td{padding:5px 8px}
+.tt-retry{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(48px,1fr) auto;gap:8px;align-items:center;font-size:12px;min-height:22px}
+.tt-retry .tt-cmd{font-size:11px;color:var(--ink-1)}
+.tbl.tt td{padding:6px 8px}
+.tbl.tt .mono{font-size:12px}
+.tt-num{min-width:40px;text-align:right}   /* 调用次数定宽右对齐，各行条形等长起止 */
 .tbl.tt .tt-name{white-space:nowrap;font-size:12px}
 .tbl.tt .tt-n{min-width:120px}
 .tt-bar{flex:1;min-width:40px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
@@ -889,13 +970,13 @@ svg{display:block}
 .tt-sp{width:88px}
 .tt-sp .vz-spark{display:block}
 .tbl.tt tr.tt-open td{background:var(--bg);padding:2px 8px 4px 28px}
-.tt-call{font-size:11.5px;gap:10px;min-height:20px}
+.tt-call{font-size:11px;gap:10px;min-height:20px}
 .tt-cmd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @container main (max-width:699px){.tbl.tt .tt-n{min-width:0}.tt-bar,.tt-ebar,.tt-dbar{display:none}.tt-sp{width:72px}}
 /* 调用链矩阵：行 = 上一步、列 = 下一步；格子按 grid 列固定，悬停高亮整行整列（.hl 由 JS 切换） */
 .tm{display:grid;gap:2px;align-items:center;margin-top:2px;width:max-content;max-width:100%;overflow-x:auto}
 .tm-h{font-size:11px;color:var(--ink-3);text-align:center;padding:0 0 2px;white-space:nowrap}
-.tm-corner{text-align:left;font-size:10.5px;padding-right:6px}
+.tm-corner{text-align:left;font-size:10px;padding-right:6px}
 .tm-rh{font-size:11px;color:var(--ink-2);padding-right:6px;white-space:nowrap;text-align:right}
 .tm-c{height:32px;min-width:36px;border:0;border-radius:4px;font:600 11px var(--mono);font-variant-numeric:tabular-nums;padding:0;display:grid;place-items:center;cursor:default;transition:box-shadow .12s,opacity .12s}
 .tm-c.diag{box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--ink-1) 35%,transparent)}
@@ -911,9 +992,11 @@ svg{display:block}
 .tt-fail-bar{height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .tt-fail-bar i{display:block;height:100%;border-radius:0 3px 3px 0;background:var(--ink-4);min-width:2px}
 .tt-fail.on .tt-fail-bar i{background:var(--ink-2)}
-.tt-fail-v{font-size:11px;color:var(--ink-2);white-space:nowrap;text-align:right}
+.tt-fail-v{font-size:11px;color:var(--ink-2);white-space:nowrap;text-align:right;min-width:84px}   /* 定宽让各行条形终点对齐 */
 .tt-fail-x{display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 8px;border-radius:6px;background:var(--sunken);color:var(--ink-2)}
 @container main (max-width:639px){.tt-fail{grid-template-columns:96px minmax(0,1fr) auto}}
+/* MCP 服务：说明紧跟在列表下，不再被推到卡片底部留出空洞 */
+.tt-mcp-note{font-size:11px;line-height:1.45;margin-top:4px}
 
 /* A5 项目习惯（js/44-a5-projects.js）。布局 .pj：内容列 ≥ 1100px 时左（表 + 散点）右（详情）两栏，否则单栏堆叠（修评审 A5-V01 的裁切）。
    颜色：墨色 = 选中项目 / A，浅灰 = 基准；Agent 五色只在构成条与分工条里表示身份；残差竖线用语义色（琥珀高于预期、绿低于）。 */
@@ -922,15 +1005,15 @@ svg{display:block}
 .pj-two{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px}
 @container main (max-width:699px){.pj-two{grid-template-columns:minmax(0,1fr)}}
 /* 项目表：固定布局，路径列吃掉剩余宽度；窄容器隐藏路径与构成列 */
-.pj-tbl{table-layout:fixed;width:100%}
+.pj-tbl{table-layout:fixed;width:100%;font-size:13px}
 .pj-tbl col.pj-c-n{width:48px}.pj-tbl col.pj-c-h{width:60px}.pj-tbl col.pj-c-f{width:112px}.pj-tbl col.pj-c-s{width:96px}.pj-tbl col.pj-c-p{width:60px}
 .pj-tbl td{overflow:hidden}
 .pj-name{min-width:0}
-.pj-title{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pj-path{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pj-pers{text-align:right;letter-spacing:.04em;white-space:nowrap}
+.pj-title{font-weight:600;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-path{font-size:11px;line-height:15px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-pers{text-align:right;letter-spacing:.06em;white-space:nowrap}
 .pj-fric{gap:6px}
-.pj-fric .mono{font-size:11.5px;min-width:38px;text-align:right}
+.pj-fric .mono{font-size:13px;min-width:46px;text-align:right}
 .pj-bar{display:block;flex:1;min-width:24px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .pj-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
 .pj-split{display:flex;height:8px;gap:1px;border-radius:2px;overflow:hidden;width:100%;max-width:92px;outline:none}
@@ -959,7 +1042,7 @@ svg{display:block}
 .pj-dot{width:9px;height:9px;border-radius:2px;flex:none;display:inline-block}
 .pj-ag{display:grid;grid-template-columns:88px minmax(0,1fr);gap:8px;align-items:start}
 .pj-ag-r{display:grid;grid-template-columns:24px minmax(0,1fr) 40px;gap:6px;align-items:center}
-.pj-ag-r .cap{font-size:10.5px}
+.pj-ag-r .cap{font-size:11px}
 .pj-ag-r .mono{font-size:11px;text-align:right}
 /* 工作流步骤芯片 */
 .pj-step{gap:0;padding:6px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg)}
@@ -973,6 +1056,10 @@ svg{display:block}
 .pj-cov-v{display:flex;align-items:baseline;gap:8px;min-width:0;padding-left:8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .pj-cov-v b{font-size:12px;color:var(--ink-1)}
 .pj-cov-v .cap{font-size:11px;overflow:hidden;text-overflow:ellipsis}
+/* 散点：标签由 pscatter 自行避让（避开回归线与残差竖线）；尺寸图例圆点与文字留出间距 */
+.pj .vz-scale-note{display:inline-flex;align-items:center;gap:0}
+.pj .vz-scale i.vz-rleg{margin:0 4px 0 10px}
+.vz-svg .vz-lbl.pj-lbl{font-size:11px}
 
 /* A6 情绪与语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
    度量条中性灰；前两类摩擦用墨色强调。 */
@@ -980,24 +1067,32 @@ svg{display:block}
 .sn-band{fill-opacity:.14}
 .vz-svg .sn-ev{stroke-width:2}
 /* 摩擦分类：名称 | 条 | 会话数 | Δ 上期 | 均值情绪；hover 出典型会话（data-tf） */
-.sn-fric{display:grid;grid-template-columns:minmax(96px,118px) minmax(0,1fr) 28px 48px 44px;gap:8px;align-items:center;border:0;background:none;padding:3px 4px;text-align:left;width:100%;border-radius:6px;font-size:12px}
+.sn-fric{display:grid;grid-template-columns:minmax(96px,124px) minmax(0,1fr) 32px 48px 48px;gap:8px;align-items:center;border:0;background:none;padding:6px 8px;text-align:left;width:100%;border-radius:6px;font-size:12px}
 .sn-fric:hover{background:var(--bg)}
-.sn-fric-h{padding-top:0;font-size:10.5px}
-.sn-fric-h .cap{font-size:10.5px;text-align:right}
+.sn-fric-h{padding-top:0;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--hair);border-radius:0;font-size:11px}
+.sn-fric-h .cap{font-size:11px;text-align:right;white-space:nowrap}
+.sn-fric-h .cap:first-child{text-align:left}
 .sn-fric-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sn-fric-bar{display:block;height:8px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .sn-fric-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0}
-.sn-fric-v{font-size:11.5px;font-weight:600;text-align:right}
+.sn-fric-v{font-size:12px;font-weight:600;text-align:right}
 .sn-fric-d{font-size:11px;text-align:right;color:var(--ink-2)}
 .sn-fric-d.vz-bad{color:var(--crit)}.sn-fric-d.vz-good{color:var(--good)}.sn-fric-d.flat,.sn-fric-d.na{color:var(--ink-4)}
 .sn-fric-m{font-size:11px;text-align:right}
 /* 语义主题卡 + 发散标尺 */
 .sn-topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:6px}
-.sn-topic{border-radius:9px;border:1px solid transparent;background:var(--bg);padding:9px 11px;display:flex;flex-direction:column;gap:3px;text-align:left;min-width:0}
+.sn-topic{border-radius:9px;border:1px solid transparent;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0}
 .sn-topic.top{background:var(--sunken)}
 .sn-topic.on{border-color:var(--ink-1);box-shadow:inset 0 0 0 .5px var(--ink-1)}
-.sn-topic b{font-size:12.5px}
-.sn-topic .cap{font-size:10.5px}
+.sn-topic b{font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sn-topic .cap{font-size:11px}
+/* 发散标尺吃满卡宽，数值右对齐成一列；首卡底色是 sunken，标尺轨道改用墨色 6% 以免消失；奇数个时末卡横跨整行 */
+.sn-topic>.row{width:100%}
+.sn-topic .sn-div{flex:1;width:auto}
+.sn-topic>.row>.mono{min-width:30px;text-align:right}
+.sn-topic.top .sn-div{background:color-mix(in srgb,var(--ink-1) 7%,transparent)}
+.sn-topic:last-child:nth-child(odd){grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:30px;row-gap:4px;align-items:center}
+.sn-topic:last-child:nth-child(odd)>.row{grid-column:2;grid-row:1/span 2;margin-top:0!important}
 .sn-div{position:relative;display:block;width:100px;max-width:100%;height:8px;flex:none;border-radius:2px;background:var(--sunken)}
 .sn-div .mid{position:absolute;left:50%;top:-3px;width:1px;height:14px;background:var(--line)}
 .sn-div .bar{position:absolute;top:1px;height:6px;border-radius:2px}
@@ -1011,15 +1106,16 @@ svg{display:block}
 .sn-ph-bar{display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .sn-ph-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
 .sn-ph-n{font-size:11px;text-align:right;color:var(--ink-2)}
-.sn-ph-c{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-2);min-width:38px}
+.sn-ph-c{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);min-width:38px}
 .sn-ph-c i{width:7px;height:7px;border-radius:50%;display:inline-block}
 /* 情绪的前因：名称 | 发散条（±0.5）| 值 | n */
 .sn-drv{display:grid;grid-template-columns:minmax(0,1fr) 100px 44px 40px;gap:10px;align-items:center;font-size:12px}
 .sn-drv-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sn-drv-v{text-align:right;font-weight:600}
-.sn-drv-k{font-size:10.5px;text-align:right}
+.sn-drv-k{font-size:11px;text-align:right}
 .sn-drv-ax{margin-top:2px}
 @container main (max-width:639px){.sn-fric{grid-template-columns:minmax(80px,100px) minmax(0,1fr) 28px 44px}.sn-fric-m,.sn-fric-h .cap:last-child{display:none}.sn-drv{grid-template-columns:minmax(0,1fr) 80px 44px}.sn-drv-k{display:none}.sn-div{width:80px}}
+.sn-two .hd .cap,.sn-mood-cap{text-wrap:pretty}
 
 /* ============ A7 优化建议 + 安装 sheet ============
    建议卡：眉行（类型 · 难度 · 每月节省时间）→ 标题 → 依据句 → 元信息（适用 Agent · 常驻 token · 原指标）→ 操作。
@@ -1030,23 +1126,25 @@ svg{display:block}
 .rcard{gap:6px;cursor:default}
 .rcard:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .rcard.inst{opacity:1;background:color-mix(in srgb,var(--surface) 70%,var(--sunken))}
-.rc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);min-height:20px}
+.rc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);min-height:20px}
 .rc-top .lvl{margin-right:1px}
 .rc-save{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
 .rc-save b{font:600 15px/18px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums}
 .rc-save .u{font-size:11px;color:var(--ink-3)}
-.rc-title{font-size:13.5px;font-weight:600;line-height:19px;color:var(--ink-1)}
+.rc-title{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .rc-why{font-size:12px;line-height:17px;color:var(--ink-2)}
 .rc-why .lnk{font-size:12px;color:var(--ink-2);white-space:nowrap}
-.rc-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3);padding-top:2px}
+.rc-meta{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);padding-top:2px}
 .rc-meta .mono{font-variant-numeric:tabular-nums}
 .rc-ag{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
 .rc-ag .dot{width:7px;height:7px;box-shadow:0 0 0 1px var(--surface)}
 .rc-ag .dot+.dot{margin-left:-2px}
 .rc-ag>span:not(.dot){margin-left:4px;color:var(--ink-2)}
-.rc-tok{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);white-space:nowrap}
+.rc-tok{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);white-space:nowrap}
 .rc-tok.good{color:var(--good)}
-.rc-foot{display:flex;align-items:center;gap:6px;padding-top:4px}
+.rc-foot{display:flex;align-items:center;gap:8px;padding-top:4px}
+/* 原指标：靠右；换行后仍贴右边，不在下一行左侧悬空 */
+.rc-gain{margin-left:auto;color:var(--ink-2);white-space:nowrap}
 .rc-foot .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 /* detail head: three KPI cells, separated by hairlines */
 .rc-kpis{display:flex;flex-wrap:wrap;gap:0 14px;margin:12px 0 0;border-top:1px solid var(--hair)}
@@ -1054,7 +1152,7 @@ svg{display:block}
 .rc-kpi .v{font:600 18px/24px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums;white-space:nowrap}
 .rc-kpi .v small{font:500 11px/1 var(--mono);color:var(--ink-3);margin-left:4px}
 .rc-kpi .v.good{color:var(--good)}
-.rc-kpi .cap{font-size:11px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-kpi .cap{font-size:11px;line-height:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty}
 .rc-kpi .rc-ag{flex-wrap:wrap}
 .rc-kpi .rc-ag .dot{width:9px;height:9px}
 /* evidence block + baseline strip */
@@ -1064,15 +1162,22 @@ svg{display:block}
 .rc-base>span b{font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink-1)}
 .rc-base .cap{font-size:11px}
 /* preview tab: facts column + diff */
-.rc-pv{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start}
+/* 预览：事实（写入路径 | 安装范围）两列并排在上，代码满宽在下——代码不再被挤成 190px 窄列 */
+.rc-pv{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.rc-pv-f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 20px;align-items:start}
+.rc-path{font-size:11px;line-height:15px;color:var(--ink-3);overflow-wrap:anywhere}
+.rc-pv label{gap:6px;min-height:20px}
+/* 详情页脚：来源说明独占一行，操作按钮右对齐 */
+.rc-dfoot{padding:12px 18px 14px;border-top:1px solid var(--hair);flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.rc-dfoot-n{flex:1 1 100%;font-size:11px;gap:6px}
 .rc-pv input[type=radio]{margin:0 6px 0 0}
 /* tracking: 7 + ▲ + 7 segments, then one dumbbell per metric */
 .rc-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 16px repeat(7,minmax(0,1fr));gap:3px;align-items:center}
 .rc-days i{display:block;height:6px;border-radius:2px;background:var(--line)}
 .rc-days i.base{background:var(--h3)}
 .rc-days i.on{background:var(--accent)}
-.rc-days i.mark{height:auto;background:none;border-radius:0;font:9px/1 var(--mono);color:var(--ink-1);text-align:center}
-.rc-dlbl{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.rc-days i.mark{height:auto;background:none;border-radius:0;font:10px/1 var(--mono);color:var(--ink-1);text-align:center}
+.rc-dlbl{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .rc-verdict{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);color:var(--ink-2)}
 .rc-verdict.good{color:var(--good);background:var(--good-bg);border-color:transparent}
 .rc-verdict.bad{color:var(--crit);background:var(--crit-bg);border-color:transparent}
@@ -1097,7 +1202,7 @@ svg{display:block}
 .inst-undo .bar i{display:block;height:100%;background:var(--ink-1)}
 .inst-undo.off{color:var(--ink-3)}
 .inst-undo.off .bar i{background:var(--good)}
-@container main (max-width:799px){.rc-pv{grid-template-columns:minmax(0,1fr)}}
+@container main (max-width:799px){.rc-pv-f{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){.inst-undo .bar i{transition:none!important}}
 
 /* ============ A8 资源库 ============
@@ -1105,36 +1210,59 @@ svg{display:block}
    匹配度在所有位置都用同一根三段条（行为 ×0.5 深、痛点 ×0.3 中、社区 ×0.2 浅），图例写在标题行；
    「和你相似的人」的占比条加全体用户占比细线。颜色只用灰阶与状态色。 */
 .lb-card{overflow:hidden;display:flex;flex-direction:column;min-width:0}
-.lb-head{background:var(--sunken);border-top:4px solid var(--ink-1);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.lb-head{background:var(--sunken);border-top:3px solid var(--ink-1);padding:12px 16px 14px;display:flex;flex-direction:column;gap:6px}
+.lb-meta{font-size:11px;line-height:16px;gap:6px;white-space:nowrap;min-width:0}
 .lb-head .mono b{color:var(--ink-1)}
 .lb-id{font-size:15px;font-weight:700;line-height:20px;word-break:break-all}
-.lb-desc{font-size:12.5px;line-height:1.5;color:var(--ink-2)}
-.lb-match{display:flex;align-items:center;gap:10px;margin-top:4px;border-radius:6px}
+.lb-desc{font-size:12px;line-height:18px;color:var(--ink-2)}
+.lb-match{display:flex;align-items:center;gap:10px;margin-top:6px;border-radius:6px}
 .lb-match:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
-.lb-match>b{font-size:22px;line-height:24px;font-variant-numeric:tabular-nums;color:var(--ink-1)}
-.lb-parts{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-match>b{font-size:26px;line-height:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink-1)}
+.lb-parts{font-size:11px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb-bar{display:flex;height:7px;border-radius:4px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--hair);overflow:hidden;width:100%;min-width:0}
 .lb-bar i{display:block;height:100%}
 .lb-bar i+i{margin-left:1px}
 .lb-bar.sm{height:6px;flex:1;background:var(--sunken)}
-.lb-body{padding:10px 14px 12px;display:flex;flex-direction:column;gap:7px;flex:1}
-.lb-foot{margin-top:auto;flex-wrap:wrap;padding-top:4px}
-.lb-legend{display:inline-flex;align-items:center;gap:8px;font-size:11px;white-space:nowrap}
+.lb-body{padding:12px 16px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
+.lb-why{align-items:flex-start;gap:8px;font-size:12px;line-height:18px;color:var(--ink-2)}
+.lb-why svg{margin-top:2px!important}
+.lb-foot{margin-top:auto;flex-wrap:wrap;gap:8px;padding-top:12px;border-top:1px solid var(--hair)}
+.lb-fc{font-size:11px;line-height:16px}
+.lb-acts{gap:4px;margin-left:auto}
+.lb-acts .btn.p{min-width:48px;justify-content:center}
+.lb-legend{display:flex;align-items:center;gap:8px;font-size:11px;line-height:14px;white-space:nowrap;margin-top:-4px}
 .lb-legend i{display:inline-block;width:10px;height:6px;border-radius:2px}
-.lb-row{display:grid;grid-template-columns:30px minmax(0,1fr) 128px 52px auto;gap:10px;align-items:center;min-height:46px;border-bottom:1px solid var(--hair)}
+.lb-row{display:grid;grid-template-columns:32px minmax(0,1fr) 112px 44px minmax(52px,auto);gap:10px;align-items:center;min-height:52px;padding:6px 0;border-bottom:1px solid var(--hair)}
+.lb-row>:last-child{justify-self:end}
+.lb-row .btn.p{min-width:44px;justify-content:center}
 .lb-row:last-child{border-bottom:0}
-.lb-row>div>.row{flex-wrap:wrap;gap:4px 6px}
+.lb-row>div>.row{flex-wrap:nowrap;gap:6px;min-width:0;margin-bottom:2px}
+.lb-nm{font-size:12px;line-height:16px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .lb-row b.mono{white-space:nowrap}
-.lb-ico{width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center}
-.lb-ell{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-mv{font-size:12px;min-width:20px;text-align:right}
+.lb-ico{width:32px;height:32px;border-radius:8px;color:var(--ink-2);background:var(--sunken);display:grid;place-items:center}
+.lb-ell{font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb-m{border-radius:4px}
 .lb-m:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 .lb-users{font-size:11px;text-align:right}
 .lb-peer{position:relative;display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:visible}
 .lb-peer i{display:block;height:100%;border-radius:0 3px 3px 0;background:var(--ink-2)}
 .lb-peer em{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--ink-1);border-radius:1px}
-@container main (max-width:1099px){.lb-row{grid-template-columns:30px minmax(0,1fr) 96px auto}.lb-users{display:none}}
+/* list wider than the peers panel: the list carries four columns, the peers panel only names + share bars */
+.lb-two{grid-template-columns:minmax(0,1fr) 312px}
+.lb-pintro{font-size:12px;line-height:18px;color:var(--ink-2)}
+.lb-peers{gap:14px}
+.lb-anon{align-items:flex-start;gap:8px;margin-top:auto;padding:8px 12px;border-radius:8px;background:var(--sunken);font-size:11px;line-height:16px;color:var(--ink-2)}
+.lb-anon .lnk{font-size:11px}
+.lb-div{width:1px;height:16px;background:var(--line);margin:0 4px}
+.lb-sort{align-self:center}
+.lb-q{width:clamp(220px,36cqi,360px)}
+@container main (max-width:1099px){.lb-row{grid-template-columns:32px minmax(0,1fr) 88px minmax(52px,auto)}.lb-users,.lb-ucap{display:none}}
 @container main (max-width:799px){.lb-legend{display:none}.lb-two{grid-template-columns:minmax(0,1fr)!important}}
+.lb-row>div>.row>:not(.lb-nm){flex:none}
+/* the peers card ends with its content instead of stretching to the list's height with an empty middle */
+.lb-two>.lb-peers{align-self:start}
+.lb-peers .lb-anon{margin-top:2px}
 
 /* A9 生成工坊：上下文包 token 堆叠条、逐项预览、步骤进度轨、四道自检行、产物 diff 摘要。
    颜色只表状态：灰阶表示上下文组成，超出上限 = --crit，进行中 = AI 紫，通过 = --good，提示 = --warn；其余全部墨色。 */
@@ -1151,9 +1279,10 @@ svg{display:block}
 .st-tok.over .st-tok-lim{background:var(--crit)}
 .st-tok-cap{justify-content:space-between;font-size:11px;color:var(--ink-2)}
 .st-tok-cap .crit{color:var(--crit);font-weight:600}
-.st-ctx{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:start;padding:6px 0;border-bottom:1px solid var(--hair);font-size:12.5px;line-height:1.4}
+.st-ctx{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--hair);font-size:12px;line-height:18px}
+.st-ctx>.mono{line-height:18px}
 .st-ctx:last-child{border-bottom:0}
-.st-ctx input{margin:2px 0 0;width:14px;height:14px;flex:none}
+.st-ctx input{margin:2px 0 0;accent-color:var(--ink-1);width:14px;height:14px;flex:none}
 .st-sw{display:inline-block;width:8px;height:8px;border-radius:2px;flex:none;background:var(--h3)}
 .st-sw.sum{background:var(--h4)}.st-sw.rules{background:var(--h2)}.st-sw.raw{background:repeating-linear-gradient(135deg,var(--h2) 0 2px,var(--h1) 2px 4px)}
 /* steps: a vertical rail runs through the markers; done = ink, running = AI purple fading into the rail, pulsing marker */
@@ -1166,9 +1295,9 @@ svg{display:block}
 .st-steps .step.done .mk{background:var(--ink-1);color:var(--surface);box-shadow:none}
 .st-steps .step.run .mk{background:var(--ai-bg);color:var(--ai);box-shadow:inset 0 0 0 1.5px var(--ai);animation:st-pulse 1.4s ease-out infinite}
 .st-steps .step.stop .mk{background:var(--crit-bg);color:var(--crit);box-shadow:none}
-.st-steps .step .t{font-size:12.5px;font-weight:600;color:var(--ink-1)}
+.st-steps .step .t{font-size:13px;line-height:18px;font-weight:600;color:var(--ink-1)}
 .st-steps .step.todo .t{color:var(--ink-3)}
-.st-steps .step .s{font-size:11.5px;color:var(--ink-3)}
+.st-steps .step .s{font-size:11px;line-height:16px;color:var(--ink-3)}
 .st-lines{display:block;height:3px;width:min(160px,100%);margin-top:5px;border-radius:2px;background:var(--sunken);overflow:hidden}
 .st-lines b{display:block;height:100%;background:var(--ai);transition:width .2s var(--ease)}
 .st-dur{display:flex;align-items:center;justify-content:flex-end;gap:5px;font:11px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
@@ -1182,24 +1311,33 @@ svg{display:block}
 .st-chk .rs{color:var(--ink-2)}
 .st-chk.pend .nm,.st-chk.skip .nm,.st-chk.pend .rs,.st-chk.skip .rs{color:var(--ink-3)}
 .st-chk.cur .rs{color:var(--ai)}
-.st-rp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 8px;font-size:11.5px}
+.st-rp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;font-size:12px;line-height:16px}
 .st-rp .t{border:0;background:none;padding:0;text-align:left;color:var(--ink-1);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .st-rp .t:hover{text-decoration-color:var(--ink-3)}
 .st-rp .w{grid-column:1/-1;font-size:11px;margin-bottom:3px}
 .st-score{display:inline-block;width:46px;height:5px;border-radius:3px;background:var(--sunken);vertical-align:middle;overflow:hidden}
 .st-score b{display:block;height:100%;background:var(--ink-2)}
 .st-sum{font-size:11px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.st-inst{margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--good-bg);font-size:12px}
+.st-inst{margin-top:12px;padding:8px 12px;border-radius:8px;background:var(--good-bg);font-size:12px}
 /* per-item preview sheet */
 .st-prev{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
 .st-prev.off{opacity:.6}
 .st-prev input,.modal #ctxPrev input{width:14px;height:14px;flex:none;accent-color:var(--ink-1)}
-.st-pre{padding:8px 10px;white-space:pre-wrap;word-break:break-word;font-size:11.5px;line-height:1.6;max-height:160px}
+.st-pre{padding:8px 10px;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:18px;max-height:160px}
 mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;padding:0 2px;font-weight:600}
 /* Between 800 and 999px of content width the shell stacks .studio into one column; two columns (task + run) with the artifact
    below keep the page half as tall. .content .studio outranks the shell's single-class rule in 90-responsive.css. */
 @container main (max-width:999px){.content .studio{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.content .studio>.card:last-child{grid-column:1/-1}}
 @container main (max-width:799px){.content .studio{grid-template-columns:minmax(0,1fr)}.content .studio>.card:last-child{grid-column:auto}}
+/* privacy banner: one calm line — the link sits on the text baseline, the shield on the first line */
+.st-priv{align-items:flex-start;gap:8px 10px;flex-wrap:wrap;padding:10px 14px;border-radius:9px;background:var(--good-bg);margin-bottom:16px;font-size:12px;line-height:18px;color:var(--ink-2)}
+.st-priv>svg{margin-top:2px;flex:none}
+.st-priv b{color:var(--ink-1)}
+.st-priv-t{flex:1;min-width:220px;text-wrap:balance}
+.st-priv .lnk{line-height:18px}
+/* idle log: no run yet → a short hint box instead of a 160px empty well; it grows to the normal log once a run starts */
+.log.st-idle{flex:none;min-height:0;padding:12px;display:flex;flex-direction:column;gap:4px}
+.log.st-idle .cap{font:12px/18px var(--sans);text-wrap:balance}
 
 /* menu bar panel (right edge aligned to the status item by js), menus / dropdowns, floating HUD, desktop widgets
    (desktop layer, z below the window), notifications (344px, slide in from the right). */
@@ -1217,7 +1355,9 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .dd .h{font-size:11px;font-weight:600;color:var(--ink-3);padding:6px 10px 3px}
 .hud{position:absolute;z-index:40;color:var(--hud-ink);user-select:none;touch-action:none;display:flex;flex-direction:column;align-items:flex-start}
 .pill{height:44px;border-radius:22px;background:var(--hud);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(255,255,255,.12);font-size:13px;white-space:nowrap;max-width:min(320px,calc(100vw - 32px));cursor:grab}
-.pill>*{min-width:0}
+.pill>*{min-width:0;flex:none}
+/* only the free-text part (tool name / detail) may shrink, so the project name and the timer never collide (gap stays 10px) */
+.pill>span:not(.dot):not([data-live]):not(.mono){flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill:active{cursor:grabbing}
 .hb{height:26px;padding:0 11px;border-radius:13px;border:0;background:#f2f2f4;color:#1c1c1e;font-size:12px;font-weight:600;flex:none}
 .hg{height:26px;padding:0 10px;border-radius:7px;border:0;background:var(--hud-2);color:var(--hud-ink);font-size:12px;display:inline-flex;align-items:center;gap:6px;flex:none}
@@ -1228,6 +1368,7 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .widgets{position:absolute;z-index:5;left:24px;top:42px;width:364px;display:flex;flex-direction:column;gap:20px}
 .wg{border-radius:20px;background:var(--wg);color:var(--ink-1);box-shadow:0 10px 30px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge);padding:14px 16px;overflow:hidden;text-align:left;border:0;width:100%}
 .wg .lbl{font:600 10px/13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.wg .mono,.wg .cap.mono{word-spacing:-.2em}
 .wg-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 .desk.fs .widgets{display:none}
 .notes{position:absolute;z-index:80;top:32px;right:16px;width:min(344px,calc(100% - 32px));display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -1240,6 +1381,8 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .nt .nt-x{position:absolute;left:-6px;top:-6px;width:20px;height:20px;border-radius:50%;border:0;background:var(--raised);color:var(--ink-2);box-shadow:var(--sh-raise);display:grid;place-items:center;opacity:0;transition:opacity .12s}
 .nt:hover .nt-x,.nt .nt-x:focus-visible{opacity:1}
 .nt.out{animation:slideout .25s var(--ease) forwards;pointer-events:none}
+/* mono meta mixed with CJK: a mono space is .6em, which makes「10 月 1 日」read letter-spaced — tighten spaces only */
+.pop .mono{word-spacing:-.25em}
 @keyframes slideout{to{opacity:0;transform:translateX(24px)}}
 .appicon{width:32px;height:32px;border-radius:8px;background:#1c1c1e;display:grid;place-items:center;flex:none}
 
@@ -1289,7 +1432,12 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .wg-stack{display:flex;flex-direction:column;justify-content:flex-end;gap:1px;width:100%}
 .wg-stack i{display:block;width:100%}
 .wg-stack i:first-child{border-radius:2px 2px 0 0}
-.wg-col>span.cap{font-size:9px;line-height:1}
+.wg-col>span.cap{font-size:10px;line-height:1}
+/* 今日 · 24 one-hour cells on a 2px hairline baseline; empty hours are a 2px tick */
+.wg-day{display:flex;flex-direction:column;gap:3px;width:100%}
+.wg-day-b{display:flex;align-items:flex-end;gap:2px;height:18px;border-bottom:1px solid var(--hair)}
+.wg-day-b i{flex:1;min-width:0;height:2px;border-radius:1px 1px 0 0;background:var(--h1)}
+.wg-day-x{display:flex;justify-content:space-between;font-size:10px;line-height:1;color:var(--ink-4)}
 .wg-trend{display:flex;flex-direction:column;gap:4px;min-width:0}
 .wg-trend .vz-spark{display:block;max-width:100%}
 /* settings · notification matrix (every column is its own channel) and the AI channel list */
@@ -1321,6 +1469,9 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .set .body{flex:1;min-height:0;overflow:auto;padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px;background:var(--sunken)}
 .form{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px 16px;align-items:center}
 .form>.l{font-size:13px;color:var(--ink-2);text-align:right}
+/* a label + (control, hint) row: the label sits on the control's line, not the middle of control + hint */
+.form>span.l{align-self:start;line-height:24px}
+.form>span.l+.col>:first-child:is(.sw,.btn.sm){margin-block:2px}
 @container set (max-width:560px){.form{grid-template-columns:minmax(0,1fr)}.form>.l{text-align:left}.set .tabs button{width:56px}}
 .scrim{position:absolute;z-index:90;background:var(--scrim);border-radius:12px;animation:fadeonly .2s var(--ease)}
 .modal{position:absolute;z-index:100;width:min(560px,var(--sheet-max-w,calc(100% - 80px)));max-height:calc(100% - 100px);overflow:auto;border-radius:0 0 10px 10px;background:var(--bg);box-shadow:0 12px 40px rgba(0,0,0,.26),0 0 0 .5px rgba(0,0,0,.14);color:var(--ink-1);animation:sheetin .22s var(--ease)}
@@ -1403,19 +1554,19 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
 .gen.skip,.gen.skip *{animation:none!important}
 .g-side{display:flex;flex-direction:column;gap:12px;min-width:0}
-.g-count{font-size:11.5px;min-height:16px}
+.g-count{font-size:12px;min-height:16px;word-spacing:-.2em}
 .g-res{display:flex;flex-direction:column;gap:6px}
 .gen .code{background:none;border:0;padding:0;margin:0;max-height:none;overflow:visible;font:inherit}
 .gen .letters{gap:14px;margin-top:2px;flex-wrap:nowrap}
 .gen .letters .L{font-size:64px;display:block;min-width:.72em;text-align:center}
 .g-slot{display:flex;flex-direction:column;align-items:center;gap:4px}
-.g-ax{font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.g-ax{font-size:12px;color:var(--ink-2);white-space:nowrap}
 .g-ax .mono{color:var(--ink-1);font-weight:600}
 .gen.run .g-slot:not(.lock) .g-ax{opacity:0}
 .g-match{gap:8px;flex-wrap:wrap;min-height:18px}
 .gen.run .g-match,.gen.run .nm{opacity:0}
 .g-zh{font-size:22px;font-weight:600;line-height:1.25}
-.g-zh i{font-weight:400;font-size:16px;color:var(--ink-3)}
+.g-zh i{font-weight:400;font-size:15px;color:var(--ink-3)}
 .g-line{margin:4px 0 0;font-size:13px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
 .g-facts{display:flex;flex-direction:column}
 .g-facts .eb{margin-bottom:2px}
@@ -1425,12 +1576,12 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-fact.run .mk{background:var(--ai-bg);box-shadow:none}
 .g-fact.done .mk{background:var(--ink-1);color:var(--surface);box-shadow:none}
 /* 每步一行：进行中显示做什么（cap），完成后同一位置换成「已经知道的」事实 */
-.g-ft{display:flex;gap:10px;align-items:baseline;min-width:0;font-size:12.5px}
+.g-ft{display:flex;gap:10px;align-items:baseline;min-width:0;font-size:13px}
 .g-ft b{flex:none}
 .g-fact:not(.done):not(.run) .g-ft b{color:var(--ink-3)}
 .g-sw{display:grid;min-width:0;flex:1}
 .g-sw>*{grid-area:1/1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.g-sub{font-size:11.5px}
+.g-sub{font-size:12px}
 .g-fx{display:flex;gap:6px;align-items:baseline;line-height:1.45}
 .g-fx>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .gen.run .g-fact:not(.done) .g-fx,.gen:not(.run) .g-sub{opacity:0}
@@ -1439,7 +1590,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
 .g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
 .g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
-.g-card .z{grid-column:1/-1;font:600 12.5px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card .z{grid-column:1/-1;font:600 12px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
 .g-card.win .pc{color:var(--ink-1)}
 .g-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -1449,7 +1600,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-tail>*{grid-area:1/1;align-self:end}
 .gen.run .g-done,.gen:not(.run) [data-g="run"]{visibility:hidden}
 .g-next{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding-top:10px;border-top:1px solid var(--hair)}
-.g-n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:10.5px;font-weight:700;display:grid;place-items:center}
+.g-n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--sunken);font-size:11px;font-weight:700;display:grid;place-items:center}
 .reveal.gen{width:min(720px,100%)}
 /* 落地：飞向画像页的克隆（body 下，fixed） */
 .g-fly{position:fixed;z-index:200;margin:0;pointer-events:none;transform-origin:50% 50%;text-align:center;white-space:nowrap;display:block}
@@ -4666,9 +4817,9 @@ PAGES['l-sessions'] = () => {
   // 时间线：阶段带（宽度够才写名字）+ 关键时刻节点（编号，纠偏 / 失败用 crit）+ 节点列表
   const pc = (t) => clamp(t / T * 100, 0, 100).toFixed(2);
   const phases = tr.phases.map((ph) => { const wpc = (ph[1] - ph[0]) / T * 100; return '<span class="l-ph" style="left:' + pc(ph[0]) + '%;width:' + wpc.toFixed(2) + '%">' + (wpc >= 11 ? '<span>' + esc(ph[2]) + '</span>' : '') + '</span>'; }).join('');
-  // 节点至少相隔 6%，太近的顺次后推（只为可读，顺序不变）
-  const xs = []; tr.moments.forEach((m, i) => { xs.push(Math.max(+pc(m[0]), i ? xs[i - 1] + 6 : 0)); });
-  for (let i = xs.length - 1; i >= 0; i--) xs[i] = Math.min(xs[i], i === xs.length - 1 ? 100 : xs[i + 1] - 6);
+  // 节点至少相隔 8%（约 40px，留出 3px 描边），太近的顺次后推（只为可读，顺序不变）
+  const xs = []; tr.moments.forEach((m, i) => { xs.push(Math.max(+pc(m[0]), i ? xs[i - 1] + 8 : 0)); });
+  for (let i = xs.length - 1; i >= 0; i--) xs[i] = Math.min(xs[i], i === xs.length - 1 ? 100 : xs[i + 1] - 8);
   const nodes = tr.moments.map((m, i) => '<span class="l-node' + (m[3] ? ' bad' : '') + '" style="left:' + xs[i].toFixed(2) + '%" data-tip="' + esc(relT(Math.round(m[0] * 10) / 10) + ' · ' + m[1]) + '">' + (i + 1) + '</span>').join('');
   const steps = tr.moments.map((m, i) => '<li class="' + (m[3] ? 'bad' : '') + '"><span class="l-sn mono">' + (i + 1) + '</span><span class="mono l-st">' + relT(Math.round(m[0] * 10) / 10) + '</span><b>' + esc(m[1]) + '</b><span class="l-sd">' + esc(m[2]) + '</span></li>').join('');
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === 120 ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
@@ -4736,7 +4887,7 @@ function ovTiles(L, P, brushed) {
     { k: 'a', label: '自主比', value: f1(st.auto), unit: '×', delta: autoD, trend: ovTrend((x) => stats(x).auto, endDay), r: 'persona' },
     { k: 'f', label: '摩擦率', value: f1(st.fric), unit: '%', delta: dl(st.fric, P && P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }), trend: ovTrend((x) => stats(x).fric, endDay), r: 'sentiment' }
   ];
-  return tiles.map((t) => VZ.kpi({ label: t.label, value: t.value, unit: t.unit, delta: t.delta, sub: t.sub && !t.delta ? t.sub : sub, trend: t.trend, trendLabel: tl, act: 'go', attrs: ' data-r="' + t.r + '" data-k="' + t.k + '"', tf: 'def|' + t.k })).join('');
+  return tiles.map((t) => VZ.kpi({ label: t.label, value: t.value, unit: t.unit, delta: t.delta, sub: t.sub && !t.delta ? t.sub : sub, trend: t.trend, trendLabel: tl, sparkOpt: { w: 40, h: 20 }, act: 'go', attrs: ' data-r="' + t.r + '" data-k="' + t.k + '"', tf: 'def|' + t.k })).join('');
 }
 // AI 解读三栏的 24px 微型证据：完成率环 / 摩擦类型条 / 建议数
 function ovMini(kind, a, b) {
@@ -4779,29 +4930,29 @@ PAGES.overview = () => {
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
   return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
-    '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12.5px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
+    '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
     // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
-    '<div class="card pad ov-ai" id="aiCard"><div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap" style="font-size:11.5px" data-aigen>' + ledeWhen + '</span><button type="button" class="btn sm gh" data-act="regen" style="margin-left:auto">重新生成</button></div><p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>' + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '</div>' +
-    ai.map((g) => '<div class="col ov-aic"><div class="row" style="justify-content:space-between"><span class="row" style="font-size:12px;font-weight:600;gap:6px">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div><p style="margin:0;font-size:12.5px;line-height:1.55;color:var(--ink-2)">' + esc(g[3]) + '</p>' + (g[4] ? '<button type="button" class="lnk" data-act="' + g[5] + '" style="align-self:flex-start;margin-top:auto">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
+    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button></div><p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>' + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span></div>' +
+    ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div><p class="ov-aip">' + esc(g[3]) + '</p>' + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
     '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
     // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
-    '<div class="card ov-out"><div class="row" style="gap:10px;flex-wrap:wrap"><span class="eb">会话结果</span><span class="ct">' + outLine + '</span><span class="cap">' + st.n + ' 个会话 · 点击一段只看该结果</span></div><div class="vz" data-vz="ov-out" style="flex:1;min-width:200px"></div></div>' +
+    '<div class="card ov-out"><div class="ov-out-t"><span class="eb">会话结果</span><span class="ct">' + outLine + '</span><span class="cap">' + st.n + ' 个会话 · 点击一段只看该结果</span></div><div class="vz" data-vz="ov-out"></div></div>' +
     '<div class="two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 使用趋势</span><span class="cap">' + (ser.length > 31 ? '每周' : '每日') + unitName + (S.metric === 'tok' ? ' <span class="bdg">示例</span>' : '') + ' · ' + ({ stacked: '按 Agent 堆叠', grouped: '按 Agent 分组', pct: '各 Agent 占比' })[S.ov.stack] + '</span></div></div><div class="row ov-ctl"><div class="seg" role="group" aria-label="度量">' + [['n', '会话'], ['h', '时长'], ['tok', 'Tokens']].map((m) => '<button type="button" data-act="metric" data-v="' + m[0] + '" class="' + (S.metric === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="堆叠方式">' + [['stacked', '堆叠'], ['grouped', '分组'], ['pct', '100%']].map((m) => '<button type="button" data-act="stackMode" data-v="' + m[0] + '" class="' + (S.ov.stack === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="视图"><button type="button" data-act="view" data-v="chart" class="' + (S.view === 'chart' ? 'on' : '') + '" aria-label="图表视图" style="padding:0 6px">' + ic('chart', 14) + '</button><button type="button" data-act="view" data-v="table" class="' + (S.view === 'table' ? 'on' : '') + '" aria-label="表格视图" style="padding:0 6px">' + ic('grid', 14) + '</button></div></div>' +
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap" style="font-size:11px;margin-top:6px">图例只影响本图（点击隐藏 · ⌥ 点击只看）· 在图上拖选一段时间，指标卡按该范围重算</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
-    '<div class="card pad ov-pers"><div class="row" style="justify-content:space-between;width:100%;flex-wrap:wrap;gap:6px"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
+    '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
     (pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : '<span class="cap">再积累 ' + (30 - pers.n) + ' 个会话后揭晓</span>') +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
-    '<div class="three">' +
+    '<div class="three ov-three">' +
     // 活跃节律：固定格宽、消息数 / 纠偏率切换、数值图例（评审 A1-V11）
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">活跃节律</span><span class="cap">周 × 小时</span></div><div class="seg" role="group" aria-label="热力图度量"><button type="button" data-act="heatMode" data-v="msgs" class="' + (S.ov.heat === 'msgs' ? 'on' : '') + '">消息数</button><button type="button" data-act="heatMode" data-v="corr" class="' + (S.ov.heat === 'corr' ? 'on' : '') + '">纠偏率</button></div></div>' +
     '<div class="ov-heat-line"><b>' + heatLine + '</b>' + (S.ov.heat === 'msgs' ? '<button type="button" class="lnk" data-act="heatCell" data-h="' + peak[1] + '" data-d="' + peak[0] + '">证据 →</button>' : '') + '</div>' +
     '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap" style="font-size:11px;margin-top:6px">点击格子：查看该小时开始的会话（筛选只按小时，不分星期）</div></div>' +
     // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="ov-tools">' + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span><span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span></button>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">右侧为错误率（刻度 0–20%）· 超过 10% 标红</div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="col" style="gap:8px">' + (topR.length ? topR.map((r) => '<div class="row" style="min-height:48px;gap:10px"><span style="width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;background:var(--sunken)">' + ic(r.icon) + '</span><button type="button" data-act="openRec" data-id="' + r.id + '" style="flex:1;min-width:0;border:0;background:none;padding:0;text-align:left"><span style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.title) + '</span><span style="display:block;font-size:11.5px;color:var(--ink-3)"><span class="mono" style="color:var(--ink-2)">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 11 种</button></div><div class="ov-tools">' + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err"><span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span></span></button>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:8px">右侧为错误率（刻度 0–20%）· 超过 10% 标红</div></div>' +
+    '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>' +
     '</div></div></div>';
 };
 // 图表挂载：趋势（堆叠 / 分组 / 100%）、结果构成、人格双向条、节律热力图
@@ -4832,7 +4983,7 @@ PAGES.overview.after = () => {
   });
   const st = stats(L);
   VZ.mount('ov-out', { type: 'share', title: '会话结果构成', legend: 'bottom', barH: 12, height: 24, animate: false, unit: ' 个会话', items: [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] })), n: st.n, onSelect: (i, d) => { S.outcome = d.id; go('sessions'); } });
-  if (pers.ok) VZ.mount('ov-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: [0, 1, 2, 3].map((i) => { const a = axisView(pers, i); const sgn = a.ax.k === 'I' ? 1 : -1; return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: +((50 - a.val) * sgn * -1 / 50).toFixed(2), hint: a.ax.dim + ' · 强度 ' + a.strong }; }), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: (v) => String(Math.round(Math.abs(v) * 50 + 50)), axis: false, rowH: 26, barH: 8, legend: false, animate: false });
+  if (pers.ok) VZ.mount('ov-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: [0, 1, 2, 3].map((i) => { const a = axisView(pers, i); const sgn = a.ax.k === 'I' ? 1 : -1; return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: +((50 - a.val) * sgn * -1 / 50).toFixed(2), hint: a.ax.dim + ' · 强度 ' + a.strong }; }), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: (v) => String(Math.round(Math.abs(v) * 50 + 50)), axis: false, rowH: 34, barH: 10, legend: false, animate: false });
   const H = CUR.heat; if (!H) return;
   const corr = S.ov.heat === 'corr';
   const values = corr ? H.H.map((r, i) => r.map((v, h) => (v ? H.C[i][h] / v * 100 : null))) : H.H;
@@ -5045,26 +5196,26 @@ PAGES.persona = () => {
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">Your agent collaboration type · 你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;font-style:italic;color:var(--ink-3)">' + p.en + '</span></div>' +
-    '<p style="margin:12px 0 0;max-width:580px;font-size:14.5px;line-height:1.65;color:var(--ink-2);text-wrap:pretty">' + esc(p.line) + ' 这段时间你平均每个会话只发 ' + f1(st.per) + ' 条消息，Agent 每轮自主走 ' + f1(st.auto) + ' 步；' + Math.round(st.verify) + '% 的会话会要求验证结果。</p>' +
+    '<p style="margin:12px 0 0;max-width:580px;font-size:15px;line-height:1.6;color:var(--ink-2);text-wrap:pretty">' + esc(p.line) + ' 这段时间你平均每个会话只发 ' + f1(st.per) + ' 条消息，Agent 每轮自主走 ' + f1(st.auto) + ' 步；' + Math.round(st.verify) + '% 的会话会要求验证结果。</p>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></div>' +
-    (note ? '<div class="cap" style="margin-top:8px;font-size:11.5px">' + esc(note) + '：人格只按时间、Agent 与项目计算，和侧栏、报告一致</div>' : '') +
+    (note ? '<div class="cap" style="margin-top:8px;font-size:11px">' + esc(note) + '：人格只按时间、Agent 与项目计算，和侧栏、报告一致</div>' : '') +
     // 演变：月份码 + 四轴折线（评审 A2-V06）
-    '<div style="margin-top:22px"><div class="eb" style="margin-bottom:8px">演变 · 按月重算 · 点击切换</div><div class="evo">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 13, 'color:var(--ink-4)') : '')).join('') + '</div>' +
+    '<div class="pe-evw"><div class="eb" style="margin-bottom:8px">演变 · 按月重算 · 点击切换</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap" style="font-size:11px;margin-top:4px">四个维度逐月的值 · 中线 50，灰带 45–55 为未定型 · 跨过中线的月份字母会变</div></div></div>' +
-    '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
-    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>内核 · 罗盘玫瑰，主角越长该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--ink-1)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>外环 · 每段是该小时的会话数（峰值 ' + CUR.fp.mxH + '），按 Agent 堆叠；点击展开' + (S.persona.fpHour != null ? ' · <button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '') + '</span></div></div></div>' +
+    '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
+    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>内核 · 罗盘玫瑰，主角越长该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--ink-1)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>外环 · 每段是该小时的会话数（峰值 ' + CUR.fp.mxH + '），按 Agent 堆叠；点击展开' + (S.persona.fpHour != null ? ' · <button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '') + '</span></div></div></div></div>' +
     '<div class="three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
     '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button><button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button></div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +
-    '<div class="pe-ev">' + evos.map((e, i) => { const a = axisView(p, i); return '<div class="pe-evi"><span class="row" style="justify-content:space-between;gap:6px"><span class="mono pe-evl">' + a.ax.dim + ' · ' + a.letter + '</span>' + VZ.spark(e.vals, { bars: true, w: 72, h: 20, color: 'var(--h3)', last: 'var(--h3)', label: e.lbl }) + '</span><span class="cap" style="font-size:11px">' + esc(e.txt) + '</span><span class="cap" style="font-size:10.5px;color:var(--ink-4)">' + esc(e.lbl) + '</span></div>'; }).join('') + '</div>' +
-    '<div class="cap" style="margin-top:10px;font-size:11.5px">细刻度：' + (S.persona.vs === 'pop' ? '全体用户均值（示例）' : prev && prev.ok ? '上个月的位置' : '无可比时段') + ' · 中线为 50；落在 45–55（灰带）记为未定型</div></div>' +
+    '<div class="pe-ev">' + evos.map((e, i) => { const a = axisView(p, i); return '<div class="pe-evi"><span class="row" style="justify-content:space-between;gap:6px"><span class="mono pe-evl">' + a.ax.dim + ' · ' + a.letter + '</span>' + VZ.spark(e.vals, { bars: true, w: 72, h: 20, color: 'var(--h3)', last: 'var(--h3)', label: e.lbl }) + '</span><span class="cap" style="font-size:11px">' + esc(e.txt) + '</span><span class="cap" style="font-size:10px;color:var(--ink-4)">' + esc(e.lbl) + '</span></div>'; }).join('') + '</div>' +
+    '<div class="cap" style="margin-top:10px;font-size:11px">细刻度：' + (S.persona.vs === 'pop' ? '全体用户均值（示例）' : prev && prev.ok ? '上个月的位置' : '无可比时段') + ' · 中线为 50；落在 45–55（灰带）记为未定型</div></div>' +
     '<div class="card pad"><div class="ct" style="margin-bottom:10px">优势与盲点</div><div class="col" style="gap:8px">' +
     [['整段委托', '单轮平均 ' + f1(st.auto) + ' 步自主执行。', p.v.D >= 55], ['验收严格', Math.round(st.verify) + '% 的会话要求验证。', p.v.V >= 55], ['节奏稳定', '日均 ' + f1(p.avgS) + ' 个会话。', true]].filter((x) => x[2]).map((x) => '<div class="row" style="align-items:flex-start;font-size:12.5px;line-height:1.45">' + ic('okc', 15, 'color:var(--good);margin-top:1px') + '<span style="color:var(--ink-2)"><b style="color:var(--ink-1)">' + x[0] + '</b> ' + x[1] + '</span></div>').join('') +
     '<div style="height:1px;background:var(--hair);margin:4px 0"></div>' +
     (conts.length ? conts.map((c) => '<div class="row" style="align-items:flex-start;font-size:12.5px;line-height:1.45">' + ic('alert', 15, 'color:var(--crit);margin-top:1px') + '<span style="color:var(--ink-2);flex:1"><b style="color:var(--ink-1)">' + c[0] + '</b> 出现在 ' + c[1] + ' 个会话。 <button type="button" class="lnk" data-act="openRec" data-id="' + recFor[c[0]] + '">→ 建议</button></span></div>').join('') : '<span class="cap">这段时间没有明显盲点。</span>') + '</div></div>' +
     // 契合度：中性条 + 透明度随 n + 95% 区间（评审 A2-V07）；来源停用的 Agent 不可点（BUG-49）
-    '<div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="ct">与 Agent 的契合度</span><span class="cap" style="font-size:11px">0–100 · 带 95% 区间</span></div><div class="col" style="gap:9px">' +
-    fitRows.map((r) => '<' + (r.off || !r.n ? 'div' : 'button type="button" data-act="soloAgent" data-a="' + r.a.id + '"') + ' class="pe-fit' + (r.off ? ' off' : '') + '"><span class="row" style="font-size:12.5px;width:100%"><span class="dot" style="background:' + r.a.c + '"></span><span style="flex:1">' + r.a.name + '</span>' + (r.off ? '<span class="cap" style="font-size:11px">来源已停用</span>' : '<b class="mono">' + (r.f == null ? '—' : r.f) + '</b>') + '</span><span class="pe-fit-bar" style="opacity:' + (r.n < 20 ? 0.5 : 1) + '"><span class="fill" style="width:' + (r.f || 0) + '%"></span>' + (r.ci != null ? '<span class="ci" style="left:' + Math.max(0, r.f - r.ci) + '%;width:' + Math.min(100 - Math.max(0, r.f - r.ci), r.ci * 2) + '%"></span>' : '') + '</span><span style="font-size:11px;color:var(--ink-3)">' + (r.off ? '到设置里重新启用后参与计算' : r.n < 5 ? '样本少（' + r.n + ' 个会话），不计分' : 'n=' + r.n + (r.n < 20 ? '（样本少）' : '') + ' · ±' + r.ci + ' · 摩擦率 ' + f1(r.st.fric) + '% · 完成率 ' + Math.round(r.st.ok) + '%') + '</span></' + (r.off || !r.n ? 'div' : 'button') + '>').join('') +
+    '<div class="card pad"><div class="pe-fit-h"><span class="ct">与 Agent 的契合度</span><span class="cap">0–100 · 带 95% 区间</span></div><div class="col" style="gap:9px">' +
+    fitRows.map((r) => '<' + (r.off || !r.n ? 'div' : 'button type="button" data-act="soloAgent" data-a="' + r.a.id + '"') + ' class="pe-fit' + (r.off ? ' off' : '') + '"><span class="row" style="font-size:12.5px;width:100%"><span class="dot" style="background:' + r.a.c + '"></span><span style="flex:1">' + r.a.name + '</span>' + (r.off ? '<span class="cap" style="font-size:11px">来源已停用</span>' : '<b class="mono">' + (r.f == null ? '—' : r.f) + '</b>') + '</span><span class="pe-fit-bar" style="opacity:' + (r.n < 20 ? 0.5 : 1) + '"><span class="fill" style="width:' + (r.f || 0) + '%"></span>' + (r.ci != null ? '<span class="ci" style="left:' + Math.max(0, r.f - r.ci) + '%;width:' + Math.min(100 - Math.max(0, r.f - r.ci), r.ci * 2) + '%"></span>' : '') + '</span><span class="pe-fit-m">' + (r.off ? '到设置里重新启用后参与计算' : r.n < 5 ? '样本少（' + r.n + ' 个会话），不计分' : '<span class="nw">n=' + r.n + (r.n < 20 ? '（样本少）' : '') + ' · ±' + r.ci + '</span><span class="nw">摩擦率 ' + f1(r.st.fric) + '% · 完成率 ' + Math.round(r.st.ok) + '%</span>') + '</span></' + (r.off || !r.n ? 'div' : 'button') + '>').join('') +
     '</div><div class="cap" style="margin-top:10px;font-size:11px">综合完成率与摩擦率 · 条越淡样本越少 · 点击只看该 Agent 的人格</div></div>' +
     '</div></div></div>';
 };
@@ -5074,7 +5225,7 @@ PAGES.persona.after = () => {
   const prev = prevKey ? persona(personaScope([PERIODS[prevKey][0], PERIODS[prevKey][1]])) : null;
   VZ.mount('pe-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: peAxisRows(p, prev), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: peNum, refLabel: S.persona.vs === 'pop' ? '全体用户（示例）' : '上月', axis: false, rowH: 34, barH: 10, legend: false, animate: false, onSelect: () => ACT.axisJump() });
   const months = CUR.peMonths || [];
-  VZ.mount('pe-evo', { type: 'line', title: '四个维度 · 逐月', height: 150, legend: 'top', animate: false, points: true, endLabels: false, x: { values: months.map((m) => m.lbl.slice(5) + ' 月') }, y: { min: 0, max: 100, format: 'int', ticks: 4 }, refs: [{ y: 55, color: 'var(--line)' }, { y: 50, label: '中线 50' }, { y: 45, color: 'var(--line)' }],
+  VZ.mount('pe-evo', { type: 'line', title: '四个维度 · 逐月', height: 150, legend: 'top', animate: false, points: true, endLabels: false, x: { values: months.map((m) => m.lbl.slice(5) + ' 月') }, y: { min: 0, max: 100, format: 'int', ticks: 4 }, refs: [{ y: 55, color: 'var(--line)' }, { y: 50 }, { y: 45, color: 'var(--line)' }],
     series: [['D', '自主 D', 'var(--ink-1)', false], ['I', '结构 I', 'var(--ink-2)', true], ['M', '并发 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
 };
 TIPS.axis = (i) => { const p = CUR.persona; if (!p) return ''; const a = axisView(p, +i); return '<b>' + a.ax.dim + '：' + a.ax.L + ' ' + a.ax.Ln + ' ↔ ' + a.ax.R + ' ' + a.ax.Rn + '</b>\n' + a.ax.q + '\n<span style="opacity:.8">信号：' + a.ax.sig + '</span>'; };
@@ -5390,7 +5541,7 @@ function sessRows(list) {
     if (x.d !== lastDay) { lastDay = x.d; h += '<div class="dayh">' + (x.d === 120 ? '今天 · 10 月 1 日 周四' : x.d === 119 ? '昨天 · 9 月 30 日 周三' : mdz(x.d) + ' 周' + WD[wd(x.d)]) + '</div>'; }
     const o = OUT[x.out] || OUT.ok;
     const isSel = x.id === S.sess.sel, isCmp = x.id === S.sess.cmp;
-    return h + '<button type="button" class="srow' + (isSel || isCmp ? ' sel' : '') + '" data-act="pickSession" data-id="' + x.id + '" aria-pressed="' + (isSel || isCmp) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + (S.sess.mode === 'cmp' && (isSel || isCmp) ? '<span class="bdg">' + (isSel ? 'A' : 'B') + '</span>' : '') + (S.excluded.has(x.id) ? '<span class="tag" style="height:16px;font-size:10px">不计入</span>' : '') + ic(o[0], 14, 'color:' + o[1]) + '</span><span class="m">' + PJI[x.p].name + ' · ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + ' · ' + x.tools + ' 次工具' + (x.corr ? ' · ' + x.corr + ' 次纠偏' : '') + '</span><span style="padding-left:16px;width:100%">' + barcode(x, 280) + '</span></button>';
+    return h + '<button type="button" class="srow' + (isSel || isCmp ? ' sel' : '') + '" data-act="pickSession" data-id="' + x.id + '" aria-pressed="' + (isSel || isCmp) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + (S.sess.mode === 'cmp' && (isSel || isCmp) ? '<span class="bdg">' + (isSel ? 'A' : 'B') + '</span>' : '') + (S.excluded.has(x.id) ? '<span class="tag" style="height:16px;font-size:10px">不计入</span>' : '') + ic(o[0], 14, 'color:' + o[1]) + '</span><span class="m">' + PJI[x.p].name + ' · ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + ' · ' + x.tools + ' 工具' + (x.corr ? ' · ' + x.corr + ' 纠偏' : '') + '</span><span style="padding-left:16px;width:100%">' + barcode(x, 280) + '</span></button>';
   }).join('');
   // 截断提示（评审 BUG-05）：声明了多少、渲染了多少，一键加载更多
   const more = list.length > S.sess.limit ? '<button type="button" class="tl-more" data-act="sessLoadMore">已显示前 ' + S.sess.limit + ' 个 · 还有 ' + (list.length - S.sess.limit) + ' 个<b>加载更多</b></button>' : list.length > 120 ? '<div class="cap tl-more-end">已显示全部 ' + list.length + ' 个会话</div>' : '';
@@ -5423,7 +5574,7 @@ PAGES.sessions = () => {
   const tr = traj(s); const o = OUT[s.out] || OUT.ok; const ag = agent(s.a);
   const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
   const peakCtx = Math.round(Math.max(...tr.ctx.map((c) => c[1])));
-  const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span style="font-size:11px;color:var(--ink-3)">' + label + '</span><span style="font-size:16px;font-weight:600;color:' + (col || 'var(--ink-1)') + '">' + v + '</span></button>';
+  const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span class="st-k">' + label + '</span><span class="st-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + v + '</span></button>';
   let detail;
   if (S.sess.mode === 'cmp') {
     const b = list.find((x) => x.id === S.sess.cmp);
@@ -5440,14 +5591,14 @@ PAGES.sessions = () => {
     }
   } else {
     const summary = [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · ');
-    const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>';
-    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row" style="font-size:11.5px;color:var(--ink-3);flex-wrap:wrap;gap:6px"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + (s.a === 'cc' ? 'claude-opus-5-5 · thinking high' : ag.model) + '</span><span>·</span><span>' + esc(PJI[s.p].path) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif" style="margin:0;flex:1;min-width:200px;font-size:22px;line-height:28px;font-weight:600">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row" style="font-size:12.5px;color:var(--ink-2);margin-top:4px;flex-wrap:wrap;gap:10px"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
+    const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
+    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + (s.a === 'cc' ? 'claude-opus-5-5 · thinking high' : ag.model) + '</span><span>·</span><span class="sb-path" title="' + esc(PJI[s.p].path) + '">' + esc(PJI[s.p].path) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
       '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', Math.round(s.tools * 1.54)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', peakCtx + '%') + statBtn('', 'Tokens', f1(s.tok / 1e6) + 'M') + '</div></div>' +
       '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
       '<div class="cap tl-sum">' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" aria-label="总览条"></div><div class="tl-box" id="tlBox"></div><div class="row tl-read" id="tlRead">' + readout(s) + '</div>' +
-      '<div class="tl-legend">' + sw('background:var(--vz-mood-pos);border-radius:50%') + '<span>你的消息（填色 = 情绪，' + sw('background:var(--vz-mood-neg);border-radius:50%;width:8px;height:8px') + ' 负面）</span>' + sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '<span>纠偏</span>' + sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + '<span>Agent 回复 / 工具密度</span>' + sw('background:var(--vz-err);width:3px;height:11px') + '<span>失败</span>' + sw('background:var(--ink-1);border-radius:50%') + '<span>关键时刻</span>' + sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '<span>上下文（虚线 80%）</span><span class="tl-hint">拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放</span></div></div>' +
+      '<div class="tl-legend">' + li(sw('background:var(--vz-mood-pos);border-radius:50%') + '你的消息（填色 = 情绪，' + sw('background:var(--vz-mood-neg);border-radius:50%;width:8px;height:8px') + '负面）') + li(sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '纠偏') + li(sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + 'Agent 回复 / 工具密度') + li(sw('background:var(--vz-err);width:3px;height:11px;border-radius:1px') + '失败') + li(sw('background:var(--ink-1);border-radius:50%') + '关键时刻') + li(sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '上下文（虚线 80%）') + '<span class="tl-hint">拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放</span></div></div>' +
       '<aside class="tl-insp" id="tlInsp"></aside></div></div>' +
-      '<div class="two" style="grid-template-columns:minmax(0,1fr) 300px"><div class="card pad"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">关键时刻</span><span class="cap">' + (s.featured ? '语义检测' : '规则检测') + ' · 悬停联动图上徽章 · 点击跳到这一刻</span></div></div><div class="col" style="gap:2px">' + tr.moments.map((m, i) => '<button type="button" class="tl-mom" data-act="moment" data-t="' + m[0] + '" data-mk="' + i + '"><span class="n' + (m[3] ? ' alert' : '') + '">' + (i + 1) + '</span><span class="mono tl-mt">' + absT(s, m[0]) + '</span><span class="tl-mx"><b>' + esc(m[1]) + '</b> ' + esc(m[2]) + '</span></button>').join('') + '</div></div>' +
+      '<div class="two tl-two"><div class="card pad"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">关键时刻</span><span class="cap">' + (s.featured ? '语义检测' : '规则检测') + ' · 悬停联动图上徽章 · 点击跳到这一刻</span></div></div><div class="col" style="gap:2px">' + tr.moments.map((m, i) => '<button type="button" class="tl-mom" data-act="moment" data-t="' + m[0] + '" data-mk="' + i + '"><span class="n' + (m[3] ? ' alert' : '') + '">' + (i + 1) + '</span><span class="mono tl-mt">' + absT(s, m[0]) + '</span><span class="tl-mx"><b>' + esc(m[1]) + '</b> ' + esc(m[2]) + '</span></button>').join('') + '</div></div>' +
       '<div class="card pad col"><div class="row"><span class="ct">这次会话的启示</span><span class="aib">' + ic('spark', 11) + 'AI</span></div><p style="margin:0;font-size:12.5px;line-height:1.6;color:var(--ink-2)">' + (s.featured ? '若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。' : corrN || errN >= 3 ? (corrN ? '本次有 ' + corrN + ' 次纠偏，' : '') + (errN >= 3 ? '出现 ' + errN + ' 次失败，' : '') + '把相关约定写进规则，下次可以少说一次。' : '这次协作很顺：目标清楚、失败少。可以把开场方式记成模板。') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto"><button type="button" class="btn sm p" data-act="install" data-id="' + (s.featured || s.fric === '方向错误' ? 'deploy-target' : 'acceptance') + '">生成规则</button><button type="button" class="btn sm" data-act="install" data-id="retry-breaker">加 Hook：重复失败提醒</button><button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div></div></div>';
   }
   return tbar('会话与轨迹', meta, right) + '<div class="content" id="content">' + filterRow() + '<div class="sess">' + listCard + '<div class="stack" style="min-width:0">' + detail + '</div></div></div>';
@@ -5554,10 +5705,10 @@ PAGES.tools = () => {
     const open = T.open === r.name; const rr = rng(hash(r.name + st.n));
     const sp = toolDaily(L, TOOL_SHARE[r.name], S.range);
     const v = T.failOnly ? r.fails : r.n;
-    let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + r.name + '" aria-expanded="' + open + '"><td class="mono tt-name">' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-1px;color:var(--ink-3)') + ' ' + r.name + '</td>' +
-      '<td class="tt-n"><span class="row" style="gap:8px"><span class="tt-bar"><i style="width:' + (v / mxn * 100).toFixed(1) + '%"></i></span><span class="mono" style="font-size:11.5px">' + fmt(v) + '</span></span></td>' +
-      '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="font-size:11.5px;min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
-      '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(p50(r)) + ' s · p95 ' + f1(p95(r)) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(p95(r) / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(p50(r) / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="font-size:11.5px;min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
+    let h = '<tr class="click' + (open ? ' sel' : '') + '" data-act="toggleTool" data-t="' + r.name + '" aria-expanded="' + open + '"><td class="mono tt-name">' + ic(open ? 'chev' : 'chevr', 12, 'display:inline;vertical-align:-2px;color:var(--ink-3)') + ' ' + r.name + '</td>' +
+      '<td class="tt-n"><span class="row" style="gap:8px"><span class="tt-bar"><i style="width:' + (v / mxn * 100).toFixed(1) + '%"></i></span><span class="mono tt-num">' + fmt(v) + '</span></span></td>' +
+      '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
+      '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(p50(r)) + ' s · p95 ' + f1(p95(r)) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(p95(r) / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(p50(r) / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
       '<td class="mono tt-ap" style="text-align:right">' + (r.ap ? Math.round(r.ap * 100) + '%' : '—') + '</td><td class="tt-sp">' + VZ.spark(sp, { w: 80, h: 22, label: r.name + '：' + rangeLabel() + '每日调用' }) + '</td></tr>';
     if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px">' + Array.from({ length: 5 }, (_, i) => { const s = recent[Math.floor(rr() * Math.min(recent.length, 12))] || recent[0]; const fail = rr() < r.err * 2.2; const dur = fail ? p95(r) * (0.6 + rr() * 0.8) : p50(r) * (0.5 + rr() * 1.4); return '<div class="row mono tt-call"><span style="color:var(--ink-3)">' + (s ? md(s.d) + ' ' + hm(s.h, Math.min(59, s.mi + i * 7)) : md(119 - i)) + '</span><span class="tt-cmd">' + esc(r.cmds[Math.floor(rr() * r.cmds.length)]) + '</span><span style="color:' + (fail ? 'var(--crit)' : 'var(--good)') + ';min-width:38px">' + (fail ? 'exit ' + (1 + Math.floor(rr() * 2)) : 'ok') + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (dur < 10 ? f1(dur) : Math.round(dur)) + ' s</span>' + (s ? '<button type="button" class="lnk" data-act="openSession" data-id="' + s.id + '" style="font-family:var(--sans)">在轨迹中查看 →</button>' : '') + '</div>'; }).join('') + '</div></td></tr>';
     return h;
@@ -5589,8 +5740,8 @@ PAGES.tools = () => {
     '<div class="tt-grid"><div class="card pad tt-matrix"><div class="hd"><div class="grow"><span class="ct">调用链 · 下一步是什么</span><span class="cap">P(下一步 | 上一步) · 行 = 上一步 · 列 = 下一步 · 悬停看整行整列</span></div></div>' + matrix + '<div class="col" style="gap:4px;margin-top:10px;font-size:12px;line-height:1.5;color:var(--ink-2)"><span><b style="color:var(--ink-1)">最常见三步链</b> Grep → Read → Edit（58% → 41%）</span><span><b style="color:var(--ink-1)">命令之后仍是命令 ' + Math.round(TRANS[3][3] * 100) + '%</b>，其中一半是失败后的原样重试 → <button type="button" class="lnk" data-act="openRec" data-id="retry-breaker">重复失败熔断</button></span></div>' +
     '<div class="hd" style="margin:12px 0 6px"><div class="grow"><span class="ct">失败后原样重试 · Top 5</span><span class="cap">同一命令失败后未改参数直接重跑 · 次数与最长连跑</span></div></div><div class="col" style="gap:4px">' + retries.map((r) => '<div class="tt-retry"><span class="mono tt-cmd" title="' + esc(r[0]) + '">' + esc(r[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (r[1] / retries[0][1] * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">×' + r[1] + ' · 最长连跑 ' + r[2] + '</span></div>').join('') + '</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">失败原因</span><span class="cap">' + fmt(st.errors) + ' 次失败 · 按输出聚类</span></div></div><div class="col" style="gap:5px">' + fails.map((f) => '<button type="button" class="tt-fail' + (T.openFail === f[0] ? ' on' : '') + '" data-act="openFail" data-k="' + esc(f[0]) + '" aria-expanded="' + (T.openFail === f[0]) + '"><span class="tt-fail-n">' + f[0] + '</span><span class="tt-fail-bar"><i style="width:' + (f[1] / fmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">' + f[1] + '% · ' + fmt(f[2]) + ' 次</span></button>' + (T.openFail === f[0] ? '<div class="tt-fail-x"><span class="mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">典型：' + esc(f[3]) + '</span><button type="button" class="btn sm" data-act="failSessions">相关会话 →</button></div>' : '')).join('') + '</div></div>' +
-    '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div><div class="vz" data-vz="waits"></div><div class="cap" style="font-size:11.5px;margin-top:4px">一半的审批在 <b style="color:var(--ink-1)">' + halfTxt + '</b> 内等到了你 · 共 ' + fmt(wTot) + ' 次（示例）</div><div class="row" style="padding:8px 10px;border-radius:8px;background:var(--sunken);margin-top:auto;flex-wrap:wrap"><span style="flex:1;min-width:160px;font-size:12px;line-height:1.45;color:var(--ink-2)"><b style="color:var(--ink-1)">212 次</b>只读命令可自动放行</span>' + (S.installed.has('ro-allow') ? '<span class="tag">已安装</span>' : '<button type="button" class="btn sm p" data-act="install" data-id="ro-allow">生成白名单 Hook</button>') + '</div></div>' +
-    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><span class="ct">MCP 服务</span><div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·browser</span><span style="flex:1;color:var(--ink-2)">64 次 · 失败 7.8%</span><span class="tag">在用</span></div>' + (S.installed.has('remove-figma') ? '<div class="row" style="font-size:12px;color:var(--ink-3)"><span class="mono" style="width:92px;text-decoration:line-through">mcp·figma</span><span style="flex:1">已移除 · 可在资源库重装</span></div>' : '<div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·figma</span><span style="flex:1;color:var(--ink-2)">0 次 · 常驻 ≈ 2.1k tokens</span><button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button></div>') + '<div class="cap" style="font-size:11.5px;margin-top:auto">MCP 的工具描述每会话常驻在上下文里；没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><span class="ct">子代理派发 · 按并行度</span><div style="font-size:12px;color:var(--ink-2)">共 <b style="color:var(--ink-1)">' + fmt(task ? task.n : 0) + '</b> 次 · 单次最多并行 <b style="color:var(--ink-1)">9</b> 个 · 柱内分「完成 / 中途停止」</div><div class="vz" data-vz="par"></div><div class="row" style="align-items:flex-start;gap:5px;font-size:11.5px;line-height:1.45;color:var(--ink-2)">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">40%</b> 被你中途停止（琥珀段）</div></div></div></div></div></div>';
+    '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div><div class="vz" data-vz="waits"></div><div class="cap" style="font-size:11px;margin-top:4px">一半的审批在 <b style="color:var(--ink-1)">' + halfTxt + '</b> 内等到了你 · 共 ' + fmt(wTot) + ' 次（示例）</div><div class="row" style="padding:8px 10px;border-radius:8px;background:var(--sunken);margin-top:auto;flex-wrap:wrap"><span style="flex:1;min-width:160px;font-size:12px;line-height:1.45;color:var(--ink-2)"><b style="color:var(--ink-1)">212 次</b>只读命令可自动放行</span>' + (S.installed.has('ro-allow') ? '<span class="tag">已安装</span>' : '<button type="button" class="btn sm p" data-act="install" data-id="ro-allow">生成白名单 Hook</button>') + '</div></div>' +
+    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><span class="ct">MCP 服务</span><div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·browser</span><span style="flex:1;color:var(--ink-2)">64 次 · 失败 7.8%</span><span class="tag">在用</span></div>' + (S.installed.has('remove-figma') ? '<div class="row" style="font-size:12px;color:var(--ink-3)"><span class="mono" style="width:92px;text-decoration:line-through">mcp·figma</span><span style="flex:1">已移除 · 可在资源库重装</span></div>' : '<div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·figma</span><span style="flex:1;color:var(--ink-2)">0 次 · 常驻 ≈ 2.1k tokens</span><button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button></div>') + '<div class="cap tt-mcp-note">MCP 的工具描述每会话常驻在上下文里；没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><span class="ct">子代理派发 · 按并行度</span><div style="font-size:12px;color:var(--ink-2)">共 <b style="color:var(--ink-1)">' + fmt(task ? task.n : 0) + '</b> 次 · 单次最多并行 <b style="color:var(--ink-1)">9</b> 个 · 柱内分「完成 / 中途停止」</div><div class="vz" data-vz="par"></div><div class="row" style="align-items:flex-start;gap:5px;font-size:11px;line-height:1.45;color:var(--ink-2)">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">40%</b> 被你中途停止（琥珀段）</div></div></div></div></div></div>';
 };
 // 失败后原样重试的命令（示例数据）：[命令, 次数（按 614 次失败的基准缩放）, 最长连跑]
 const RETRIES = [['wrangler deploy --env production', 37, 4], ['npm run build', 21, 3], ['pytest -q tests/', 14, 3], ['gh pr merge --merge', 9, 2], ['latexmk -pdf main.tex', 7, 2]];
@@ -5628,10 +5779,37 @@ const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'gm', 'ds', 'cp'], Hooks: ['cc'], Sk
 VZ.types.pscatter = Object.assign({}, VZ.types.scatter, {
   name: '项目散点',
   render(spec, w, h, ctx) {
-    const out = VZ.types.scatter.render(spec, w, h, ctx); const m = out.model; const fit = m && m.fit; let g = '';
-    const P = spec.points || [];
-    if (fit) P.forEach((p, i) => { if (!m.has(i)) return; const [x, y] = m.at(i); const yf = clamp(m.F.y(fit.pred(p.x)), m.F.yT, m.F.yB); const res = p.y - fit.pred(p.x); if (Math.abs(y - yf) < 2) return; g += '<line class="pj-res" x1="' + VZ.r1(x) + '" x2="' + VZ.r1(x) + '" y1="' + VZ.r1(y) + '" y2="' + VZ.r1(yf) + '" style="--c:' + (res > 0 ? VZ.sem.corr : VZ.sem.good) + '"/>'; });
+    // 标签自行放置（基础 scatter 的避让不认识回归线与残差竖线，标签会压在虚线上）：先画点，再按 8 个候选位打分选位
+    const out = VZ.types.scatter.render(Object.assign({}, spec, { labels: false }), w, h, ctx); const m = out.model; const fit = m && m.fit; let g = '';
+    const P = spec.points || []; const F = m.F; const segs = [];
+    if (fit) P.forEach((p, i) => { if (!m.has(i)) return; const [x, y] = m.at(i); const yf = clamp(F.y(fit.pred(p.x)), F.yT, F.yB); const res = p.y - fit.pred(p.x); if (Math.abs(y - yf) < 2) return; segs.push([x, y, x, yf]); g += '<line class="pj-res" x1="' + VZ.r1(x) + '" x2="' + VZ.r1(x) + '" y1="' + VZ.r1(y) + '" y2="' + VZ.r1(yf) + '" style="--c:' + (res > 0 ? VZ.sem.corr : VZ.sem.good) + '"/>'; });
     let body = out.body; const k = body.indexOf('<circle class="vz-dot'); body = k >= 0 ? body.slice(0, k) + g + body.slice(k) : body + g;
+    const ids = P.map((_, i) => i).filter((i) => m.has(i));
+    if (fit && ids.length > 1) { const lo = ids.reduce((a, i) => P[i].x < P[a].x ? i : a), hi = ids.reduce((a, i) => P[i].x > P[a].x ? i : a); segs.push([m.at(lo)[0], F.y(fit.pred(P[lo].x)), m.at(hi)[0], F.y(fit.pred(P[hi].x))]); }
+    if (spec.labels !== false && ids.length) {
+      const rmx = Math.max(1e-9, ...ids.map((i) => VZ.num(P[i].r) || 0)); const rMax = spec.rMax || 20; const rad = (p) => 4 + Math.sqrt((VZ.num(p.r) || 0) / rmx) * (rMax - 4);
+      const isSel = (i) => spec.selected != null && (spec.selected === i || spec.selected === P[i].id);
+      const boxes = ids.map((i) => { const [x, y] = m.at(i); const r = rad(P[i]); return [x - r, y - r, x + r, y + r, i]; });
+      // 轴标题占位：左上「↑ 摩擦率」、右下 x 轴标题
+      if (spec.y && spec.y.label) boxes.push([F.x0, F.yT, F.x0 + 8 + VZ.tw(spec.y.label, 11), F.yT + 15, -1]);
+      if (spec.x && spec.x.label) boxes.push([F.x1 - VZ.tw(spec.x.label, 11) - 6, F.yB - 18, F.x1, F.yB, -1]);
+      const hitSeg = (b, sg) => { for (let t = 0; t <= 1.0001; t += 1 / 24) { const x = sg[0] + (sg[2] - sg[0]) * t, y = sg[1] + (sg[3] - sg[1]) * t; if (x > b[0] - 2 && x < b[2] + 2 && y > b[1] - 2 && y < b[3] + 2) return 1; } return 0; };
+      let lb = '';
+      ids.slice().sort((a, c) => (isSel(c) - isSel(a)) || (rad(P[c]) - rad(P[a]))).forEach((i) => {
+        const p = P[i]; if (p.label == null || p.label === '') return; const [cx, cy] = m.at(i); const r = rad(p); const tw = VZ.tw(p.label, 11); const d = r * 0.71;
+        const cands = [[cx + r + 5, cy + 4, 'start'], [cx - r - 5, cy + 4, 'end'], [cx + d + 4, cy - d - 2, 'start'], [cx - d - 4, cy - d - 2, 'end'], [cx, cy - r - 6, 'middle'], [cx + d + 4, cy + d + 10, 'start'], [cx - d - 4, cy + d + 10, 'end'], [cx, cy + r + 13, 'middle']];
+        let best = null;
+        cands.forEach(([lx, ly, an], ci) => {
+          const bx0 = an === 'start' ? lx : an === 'end' ? lx - tw : lx - tw / 2; const b = [bx0, ly - 11, bx0 + tw, ly + 3];
+          if (b[0] < F.x0 + 2 || b[2] > w - 2 || b[1] < F.yT - 2 || b[3] > F.yB + 2) return;
+          let sc = ci * 0.5; boxes.forEach((o) => { if (o[4] !== i && b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]) sc += 1000; }); segs.forEach((sg) => { sc += hitSeg(b, sg) * 8; });
+          if (!best || sc < best.sc) best = { sc, lx, ly, an, b };
+        });
+        if (!best || best.sc >= 1000) return;
+        boxes.push(best.b.concat([-1])); lb += VZ.txt(best.lx, best.ly, p.label, { class: 'vz-lbl pj-lbl' + (isSel(i) ? ' vz-strong' : ''), 'text-anchor': best.an });
+      });
+      const kh = body.indexOf('<circle class="vz-hit'); body = kh >= 0 ? body.slice(0, kh) + lb + body.slice(kh) : body + lb;
+    }
     // A / B：A 为选中项目（实心墨色），B 为对比项目（描边环 + 字母）；只在对比模式下标字母
     (spec.marks2 || []).forEach((mk) => { const i = P.findIndex((p) => p.id === mk.id); if (i < 0 || !m.has(i)) return; const [x, y] = m.at(i); body += (mk.ring ? '<circle class="pj-ring" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(y) + '" r="' + VZ.r1(mk.r + 3) + '"/>' : '') + VZ.txt(x, y + 4, mk.letter, { class: 'pj-ab' + (mk.ring ? ' ring' : ''), 'text-anchor': 'middle' }); });
     return { body, model: m };
@@ -5725,12 +5903,22 @@ VZ.types.moodcorr = {
     // 纠偏柱：共用 x；≥ 个人 P75 着琥珀（评审 A6-V03）
     const corr = B.map((b) => b.corr); const cmax = Math.max(1, ...corr); const cst = VZ.stats(corr.filter((c) => c > 0)); const p75 = cst ? cst.p75 : Infinity, p90 = cst ? cst.p90 : Infinity;
     const yB2 = h - 22, yT2 = hT + gap; const sy2 = VZ.scale.linear(0, cmax, yB2, yT2); const bw = Math.min(14, step * 0.6);
-    g += '<line class="vz-base" x1="' + F.x0 + '" x2="' + F.x1 + '" y1="' + yB2 + '" y2="' + yB2 + '"/>' + VZ.txt(F.x0 - 6, yB2 + 3.5, '0', { class: 'vz-ax', 'text-anchor': 'end' }) + VZ.txt(F.x0 - 6, yT2 + 4, String(cmax), { class: 'vz-ax', 'text-anchor': 'end' }) + VZ.txt(F.x0 - 6, yT2 - 6, '纠偏', { class: 'vz-axl', 'text-anchor': 'end' });
+    g += '<line class="vz-base" x1="' + F.x0 + '" x2="' + F.x1 + '" y1="' + yB2 + '" y2="' + yB2 + '"/>' + VZ.txt(F.x0 - 6, yB2 + 3.5, '0', { class: 'vz-ax', 'text-anchor': 'end' }) + VZ.txt(F.x0 - 6, yT2 + 4, String(cmax), { class: 'vz-ax', 'text-anchor': 'end' }) + VZ.txt(F.x0 - 6, (yT2 + yB2) / 2 + 4, '纠偏', { class: 'vz-axl', 'text-anchor': 'end' });
     B.forEach((b, i) => { if (!b.corr) return; const hh = Math.max(1, yB2 - sy2(b.corr)); g += '<rect class="vz-bar" data-i="' + i + '" x="' + VZ.r1(xs[i] - bw / 2) + '" y="' + VZ.r1(yB2 - hh) + '" width="' + VZ.r1(bw) + '" height="' + VZ.r1(hh) + '" rx="1.5" style="--c:' + (b.corr >= p75 && b.corr >= 2 ? VZ.sem.corr : 'var(--ink-4)') + '"/>'; });
     // 事件标注：情绪 < 0 的桶（情绪负色）或纠偏 ≥ P90 的桶（琥珀），最多 3 个；靠右的标注改为左对齐（评审 A6-V02 / V05）
     const ev = B.map((b, i) => { const d = D[i]; if (!d) return null; const neg = d.p50 < 0, hot = cst && b.corr >= p90 && b.corr >= 2; if (!neg && !hot) return null; const fr = Object.entries(countBy(b.xs, 'fric')).sort((p, q) => q[1] - p[1])[0]; return { i, neg, hot, score: (neg ? 2 - d.p50 : 0) + (hot ? b.corr / cmax : 0), text: (neg ? '情绪 ' + fm(d.p50) : b.corr + ' 次纠偏') + (fr ? ' · ' + fr[0] + ' ×' + fr[1] : '') }; }).filter(Boolean).sort((p, q) => q.score - p.score).slice(0, 3);
-    const used = [];
-    ev.forEach((e) => { const x = xs[e.i], y = F.y(D[e.i].p50); const c = e.neg ? VZ.sem.neg : VZ.sem.corr; g += '<circle class="vz-pt sn-ev" data-i="' + e.i + '" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(y) + '" r="4.5" style="--c:' + c + '"/>'; const tw = VZ.tw(e.text, 11); const end = x + 8 + tw > F.x1; let ly = y - 10; while (used.some((u) => Math.abs(u[1] - ly) < 13 && Math.abs(u[0] - x) < tw + 20)) ly -= 13; if (ly < F.yT + 8) ly = y + 18; used.push([x, ly]); g += VZ.txt(end ? x - 8 : x + 8, ly, e.text, { class: 'vz-lbl', 'text-anchor': end ? 'end' : 'start' }); });
+    // 标注选位：上 / 下 × 右 / 左 / 居中候选，按「压到中位线的长度 + 与已放标注重叠」打分，避免文字横穿折线
+    const used = []; const lineY = (x) => { let a = null; for (let k = 0; k < pts.length; k++) { const q = pts[k]; if (!q) continue; if (q[0] >= x) { if (!a) return q[1]; return a[1] + (q[1] - a[1]) * (x - a[0]) / Math.max(1e-6, q[0] - a[0]); } a = q; } return a ? a[1] : null; };
+    ev.forEach((e) => { const x = xs[e.i], y = F.y(D[e.i].p50); const c = e.neg ? VZ.sem.neg : VZ.sem.corr; g += '<circle class="vz-pt sn-ev" data-i="' + e.i + '" cx="' + VZ.r1(x) + '" cy="' + VZ.r1(y) + '" r="4.5" style="--c:' + c + '"/>'; const tw = VZ.tw(e.text, 11);
+      let best = null;
+      [-12, 20, -26, 34].forEach((dy, di) => [['start', x + 8], ['end', x - 8], ['middle', x]].forEach(([an, lx], ai) => {
+        const ly = y + dy; const bx0 = an === 'start' ? lx : an === 'end' ? lx - tw : lx - tw / 2; const b = [bx0, ly - 11, bx0 + tw, ly + 3];
+        if (b[0] < F.x0 || b[2] > F.x1 || b[1] < F.yT - 4 || b[3] > F.yB) return;
+        let sc = di * 3 + ai; for (let xx = b[0]; xx <= b[2]; xx += 3) { const yy = lineY(xx); if (yy != null && yy > b[1] - 3 && yy < b[3] + 3) sc += 4; }
+        used.forEach((u) => { if (b[0] < u[2] + 6 && b[2] > u[0] - 6 && b[1] < u[3] + 2 && b[3] > u[1] - 2) sc += 1000; });
+        if (!best || sc < best.sc) best = { sc, lx, ly, an, b };
+      }));
+      if (!best) return; used.push(best.b); g += VZ.txt(best.lx, best.ly, e.text, { class: 'vz-lbl', 'text-anchor': best.an }); });
     // 共用 x 轴刻度与游标
     const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(F.pw / 64))));
     g += VZ.axisX({ yB: yB2, x0: F.x0, x1: F.x1 }, xs.map((x, i) => ({ x, label: B[i].lbl, major: i % every === 0 })), { keepMajor: true });
@@ -5766,10 +5954,10 @@ PAGES.sentiment = () => {
   const divBar = (v, ci) => { const W = 100, mid = 50; const px = (x) => mid + x / 0.5 * 50; const a = clamp(px(v - (ci || 0)), 0, W), b = clamp(px(v + (ci || 0)), 0, W); return '<span class="sn-div" aria-hidden="true"><i class="mid"></i><i class="bar" style="left:' + Math.min(mid, px(v)) + '%;width:' + Math.abs(px(v) - mid) + '%;background:' + (v < 0 ? VZ.sem.neg : VZ.sem.pos) + '"></i>' + (ci ? '<i class="ci" style="left:' + a + '%;width:' + (b - a) + '%"></i>' : '') + '</span>'; };
   return head + '<div class="content" id="content">' + filterRow('<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + '语义分析由本地 Agent 完成，原文不离开本机</span>') +
     '<div class="stack"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪分布与纠偏</span>' + AIB('AI 打分') + '<span class="cap">' + (weeklyB ? '每周' : '每日') + '桶 · 带 = 会话情绪 P25–P75，线 = 中位数（−1 沮丧 … +1 满意）· 下图为同一横轴的纠偏次数，琥珀 = 高于你的 P75 · 标注：情绪为负或纠偏 ≥ P90 的' + (weeklyB ? '周' : '日') + '</span></div><button type="button" class="btn sm gh" data-act="moodView" aria-pressed="' + (S.sent.view === 'table') + '">' + (S.sent.view === 'table' ? '看图表' : '看表格') + '</button></div><div class="vz" data-vz="mood"></div></div>' +
-    '<div class="two sn-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + AIB() + '<span class="cap">出现该摩擦的会话数 · Δ 为较上期 · 悬停看典型会话，点击回看</span></div></div><div class="col" style="gap:4px">' + (fr.length ? fr.map((f, i) => { const xs = L.filter((s) => s.fric === f[0]); const mood = sum(xs, (s) => s.mood) / Math.max(1, xs.length); const prev = frPrev ? (frPrev[f[0]] || 0) : null; const dlt = prev == null ? '' : prev === f[1] ? '± 0' : (f[1] > prev ? '▲ ' : '▼ ') + Math.abs(f[1] - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f[0]) + '" data-tf="fricx|' + esc(f[0]) + '"><span class="sn-fric-n">' + f[0] + '</span><span class="sn-fric-bar"><i style="width:' + (f[1] / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f[1] + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f[1] > prev ? 'vz-bad' : f[1] < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (mood > 0 ? '+' : '') + f1(mood) + '</span></button>'; }).join('') + '<div class="sn-fric sn-fric-h" aria-hidden="true"><span></span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap" style="font-size:11px;margin-top:8px">前两类占全部摩擦的 ' + (fr.length ? Math.round((fr[0][1] + (fr[1] ? fr[1][1] : 0)) / frTot * 100) : 0) + '%，都可以用规则前置</div></div>' +
+    '<div class="two sn-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + AIB() + '<span class="cap">出现该摩擦的会话数 · Δ 为较上期 · 悬停看典型会话，点击回看</span></div></div><div class="col" style="gap:2px">' + (fr.length ? '<div class="sn-fric sn-fric-h" aria-hidden="true"><span class="cap">类别</span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' + fr.map((f, i) => { const xs = L.filter((s) => s.fric === f[0]); const mood = sum(xs, (s) => s.mood) / Math.max(1, xs.length); const prev = frPrev ? (frPrev[f[0]] || 0) : null; const dlt = prev == null ? '' : prev === f[1] ? '± 0' : (f[1] > prev ? '▲ ' : '▼ ') + Math.abs(f[1] - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f[0]) + '" data-tf="fricx|' + esc(f[0]) + '"><span class="sn-fric-n">' + f[0] + '</span><span class="sn-fric-bar"><i style="width:' + (f[1] / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f[1] + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f[1] > prev ? 'vz-bad' : f[1] < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (mood > 0 ? '+' : '') + f1(mood) + '</span></button>'; }).join('') : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap" style="font-size:11px;margin-top:8px">前两类占全部摩擦的 ' + (fr.length ? Math.round((fr[0][1] + (fr[1] ? fr[1][1] : 0)) / frTot * 100) : 0) + '%，都可以用规则前置</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">语义主题</span>' + AIB('AI 聚类') + '<span class="cap">按会话意图聚类 · 点击把它设为全局筛选 · 标尺 −1 … +1 为平均情绪</span></div></div><div class="sn-topics">' + tp.map((t, i) => '<button type="button" class="sn-topic' + (S.topic === t.k ? ' on' : '') + (i === 0 ? ' top' : '') + '" data-act="topicSet" data-k="' + t.k + '" aria-pressed="' + (S.topic === t.k) + '"><b>' + TOPICS[t.k] + '</b><span class="mono cap">' + t.n + ' 个会话</span><span class="row" style="gap:6px;margin-top:4px">' + divBar(t.mood) + '<span class="mono" style="font-size:11px;color:' + (t.mood < 0 ? VZ.sem.neg : 'var(--ink-2)') + '">' + (t.mood > 0 ? '+' : '') + f1(t.mood) + '</span></span></button>').join('') + '</div></div></div>' +
     '<div class="two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + AIB() + '<span class="cap">已脱敏 · 按次数降序 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + p[2] + '</span></button>').join('') + '</div><div class="row" style="margin-top:10px;flex-wrap:wrap"><span style="flex:1;min-width:200px;font-size:12px;color:var(--ink-2)">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接变成规则，让 Agent 先遵守，而不是等你提醒。</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪的前因</span><span class="cap">与会话特征的关联 · 相关不等于因果 · 须线为 95% CI</span></div></div><div class="col" style="gap:8px">' + drivers.map((d) => '<div class="sn-drv"><span class="sn-drv-n">' + d.name + '</span>' + divBar(d.v, d.ci) + '<span class="mono sn-drv-v" style="color:' + (d.v < 0 ? VZ.sem.neg : VZ.sem.pos) + '">' + (d.v > 0 ? '+' : '−') + Math.abs(d.v).toFixed(2) + '</span><span class="mono cap sn-drv-k">n=' + d.n + '</span></div>').join('') + '</div><div class="sn-drv sn-drv-ax cap" aria-hidden="true"><span></span><span class="row mono" style="justify-content:space-between;font-size:10.5px"><span>−0.5</span><span>0</span><span>+0.5</span></span><span></span><span></span></div><div class="cap" style="font-size:11px;margin-top:6px">左 = 情绪更差 · 右 = 更好 · 数值为该特征会话与其它会话的情绪均值差（示例）</div></div></div></div></div>';
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪的前因</span><span class="cap">与会话特征的关联 · 相关不等于因果 · 须线为 95% CI</span></div></div><div class="col" style="gap:8px">' + drivers.map((d) => '<div class="sn-drv"><span class="sn-drv-n">' + d.name + '</span>' + divBar(d.v, d.ci) + '<span class="mono sn-drv-v" style="color:' + (d.v < 0 ? VZ.sem.neg : VZ.sem.pos) + '">' + (d.v > 0 ? '+' : '−') + Math.abs(d.v).toFixed(2) + '</span><span class="mono cap sn-drv-k">n=' + d.n + '</span></div>').join('') + '</div><div class="sn-drv sn-drv-ax cap" aria-hidden="true"><span></span><span class="row mono" style="justify-content:space-between;font-size:11px"><span>−0.5</span><span>0</span><span>+0.5</span></span><span></span><span></span></div><div class="cap" style="font-size:11px;margin-top:6px">左 = 情绪更差 · 右 = 更好 · 数值为该特征会话与其它会话的情绪均值差（示例）</div></div></div></div></div>';
 };
 PAGES.sentiment.after = () => {
   const ms = CUR.mood; if (!ms || S.engine === 'stats') return;
@@ -5824,7 +6012,7 @@ PAGES.recs = () => {
   const cnt = (d) => inLv.filter((r) => d === 'all' || r.dim === d).length;
   const sel0 = RECI[R.sel] && list.includes(RECI[R.sel]) ? RECI[R.sel] : list[0];
   if (sel0) R.sel = sel0.id;
-  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '">' + recSave(r.id) + '</b><span class="u">/ 月</span></span></div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + ' <button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button></div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span><span style="flex:1"></span><span class="mono">' + esc(r.gain) + '</span></div><div class="rc-foot"><span style="flex:1"></span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
+  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '">' + recSave(r.id) + '</b><span class="u">/ 月</span></span></div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + ' <button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button></div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span><span class="mono rc-gain">' + esc(r.gain) + '</span></div><div class="rc-foot"><span style="flex:1"></span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
   const g1 = list.filter((r) => r.lvl <= 2), g2 = list.filter((r) => r.lvl >= 3);
   let detail = empty('没有符合筛选的建议');
   TRK_SPECS = [];
@@ -5835,17 +6023,17 @@ PAGES.recs = () => {
     if (R.tab === 'why') body = '<div class="col" style="gap:12px;font-size:13px;line-height:1.6;color:var(--ink-2)"><p style="margin:0">' + esc(r.why) + '</p><div class="row" style="flex-wrap:wrap"><span class="tag">适合：' + AUD[r.aud] + '及以上</span><span class="tag">' + LEVELS[r.lvl] + '</span><span class="tag">' + esc(r.compat) + '</span></div>' +
       '<div class="rc-ev"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><span class="eb">依据 · 可回看</span><button type="button" class="btn sm" data-act="recEvidence" data-id="' + r.id + '">' + ic('sessions', 13) + '在会话里回看 ' + r.ev + '</button></div><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + t[1] + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div><span class="cap">安装前 7 天的基准值，也是效果追踪的对照组（n = ' + x.n[0] + ' 个会话）。</span></div>' +
       '<p style="margin:0" class="cap">「每月节省时间」按近 30 天的同类事件数 × 单次耗时折算，是估计值；不同 Agent 不原生支持时，会自动转换成等价形式（例如 Skill → AGENTS.md 片段）。</p></div>';
-    else if (R.tab === 'preview') body = '<div class="rc-pv"><div class="col" style="gap:4px;font-size:12px"><span class="eb">将写入</span><span class="mono" style="font-size:11px;color:var(--ink-3);word-break:break-all">' + esc(recTarget(r)) + '</span><span class="row" style="margin-top:4px;padding:4px 6px;border-radius:6px;background:var(--sunken)">' + ic('file', 13) + '<span class="mono" style="font-size:11.5px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><span class="mono" style="margin-left:auto;font-size:10px;color:' + (fileKind(r) === '删除项' ? 'var(--crit)' : 'var(--good)') + '">' + fileKind(r) + '</span></span><span class="eb" style="margin-top:12px">安装到</span>' +
+    else if (R.tab === 'preview') body = '<div class="rc-pv"><div class="rc-pv-f"><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb">将写入</span><span class="mono rc-path">' + esc(recTarget(r)).replace(/\//g, '/<wbr>') + '</span><span class="row" style="margin-top:4px;padding:4px 8px;border-radius:6px;background:var(--sunken)">' + ic('file', 13) + '<span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><span class="mono" style="margin-left:auto;font-size:11px;color:' + (fileKind(r) === '删除项' ? 'var(--crit)' : 'var(--good)') + '">' + fileKind(r) + '</span></span></div><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb">安装到</span>' +
       (recScoped(r) ? '<label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'global' ? 'checked ' : '') + 'data-chg="recScope" value="global" style="accent-color:var(--ink-1)">全局（所有项目）</label><label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'proj' ? 'checked ' : '') + 'data-chg="recScope" value="proj" style="accent-color:var(--ink-1)">仅 ' + esc(PJI[scopeProj()].name) + '</label>' + (S.project ? '' : '<span class="cap" style="font-size:11px">项目取自侧栏筛选；未筛选时用「项目习惯」里选中的项目。</span>') : /教程|剪贴板/.test(r.target) ? '<span class="cap">不写入文件</span>' : '<span class="cap">已限定项目 · ' + esc(r.target.split('/')[0]) + '</span>') +
-      '<span class="eb" style="margin-top:12px">其他 Agent</span><span style="font-size:11.5px;line-height:1.5;color:var(--ink-2)">' + (/Codex|所有/.test(r.compat) ? '会同时生成 Codex 可用的等价配置' : 'Codex / Gemini CLI 不支持，将转换为 AGENTS.md 片段') + '</span></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:11.5px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button></div>' + codeBlock(r.file) + '</div></div>';
+      '<span class="eb" style="margin-top:8px">其他 Agent</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (/Codex|所有/.test(r.compat) ? '会同时生成 Codex 可用的等价配置' : 'Codex / Gemini CLI 不支持，将转换为 AGENTS.md 片段') + '</span></div></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button></div>' + codeBlock(r.file) + '</div></div>';
     else if (R.tab === 'tut') body = '<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">' + r.steps.map((s2, i) => '<li class="row" style="align-items:flex-start;gap:10px"><span class="mono" style="width:22px;height:22px;flex:none;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:11px;font-weight:700;line-height:22px;text-align:center">' + (i + 1) + '</span><span style="font-size:13px;line-height:1.55;padding-top:1px">' + esc(s2) + '</span></li>').join('') + '</ol><div class="cap" style="margin-top:12px">外部链接会在默认浏览器中打开；命令都可以复制。</div>';
     else body = inst ? trackView(r, inst) : '<div class="col" style="gap:10px;align-items:flex-start"><span style="font-size:13px;color:var(--ink-2)">安装后开始追踪：安装前 7 天作为基准（n = ' + x.n[0] + '），安装后 7 天逐项对比，给出 95% 区间与结论。</span><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + t[1] + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div>' + recPrimaryBtn(r) + '</div>';
-    detail = '<div class="card" style="overflow:hidden"><div style="padding:14px 18px 0" class="col"><div class="row" style="flex-wrap:wrap;font-size:11.5px;color:var(--ink-2)">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b>' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '<span style="flex:1"></span><span class="tag">适合：' + AUD[r.aud] + '</span></div><h2 class="serif" style="margin:2px 0 0;font-size:21px;line-height:1.3">' + esc(r.title) + '</h2>' +
+    detail = '<div class="card" style="overflow:hidden"><div style="padding:14px 18px 0" class="col"><div class="row" style="flex-wrap:wrap;font-size:12px;color:var(--ink-2)">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b>' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '<span style="flex:1"></span><span class="tag">适合：' + AUD[r.aud] + '</span></div><h2 class="serif" style="margin:4px 0 0;font-size:22px;line-height:1.3">' + esc(r.title) + '</h2>' +
       '<div class="rc-kpis"><div class="rc-kpi"><span class="eb">每月节省时间 · 估计</span><span class="v">' + recSave(r.id) + '<small>/ 月</small></span><span class="cap">原指标：' + esc(r.gain) + '</span></div><div class="rc-kpi"><span class="eb">常驻 token</span><span class="v' + (x.tok < 0 ? ' good' : '') + '">' + recTok(r.id) + (x.tok ? '<small>/ 会话</small>' : '') + '</span><span class="cap">' + (x.tok > 0 ? '每个会话启动时载入' : x.tok < 0 ? '从每个会话的上下文里释放' : '不占用会话上下文') + '</span></div><div class="rc-kpi"><span class="eb">适用 Agent</span><span class="row" style="gap:6px;min-height:24px">' + agentDots(r, true) + '</span><span class="cap">' + (/转换/.test(r.compat) ? 'Codex 用转换后的等价配置' : /所有/.test(r.compat) ? '以 AGENTS.md 片段形式通用' : '其余 Agent 转换为 AGENTS.md 片段') + '</span></div></div></div>' +
-      '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:7px 10px 8px;font-size:12.5px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row" style="padding:12px 18px 14px;border-top:1px solid var(--hair);flex-wrap:wrap"><span class="row cap" style="flex:1;min-width:180px;font-size:11.5px">' + ic('grad', 13) + 'Tandem 模板库 · MIT · <button type="button" class="lnk" data-act="recTab" data-v="tut" style="font-size:11.5px">教程 ' + r.steps.length + ' 步</button></span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
+      '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:8px 10px;font-size:13px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row rc-dfoot"><span class="row cap rc-dfoot-n">' + ic('grad', 13) + 'Tandem 模板库 · MIT · <button type="button" class="lnk" data-act="recTab" data-v="tut" style="font-size:11px">教程 ' + r.steps.length + ' 步</button></span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
   }
   return tbar('优化建议', vis.length + ' 条 · 按每月节省时间排序 · 9 月 30 日 23:10 更新', '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
-    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:10.5px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
+    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
     '<div class="frow"><span class="cap" data-tip="难度：L1 一键应用 · L2 复制粘贴 · L3 需要配置 · L4 架构调整">难度</span>' + [1, 2, 3, 4].map((k) => '<button type="button" class="chip sm' + (R.lv.has(k) ? '' : ' dash') + '" data-act="recLv" data-v="' + k + '" aria-pressed="' + R.lv.has(k) + '">' + lvlIcon(k) + LEVELS[k] + '</button>').join('') + '<span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span><span class="cap">按我的水平</span><button type="button" class="chip sm" data-act="recAud">' + AUD[R.aud] + (R.aud === 0 ? ' · 刚开始用 Agent' : R.aud === 1 ? ' · 会改配置、会用 Git' : ' · 会写脚本与定时任务') + ic('chev', 12) + '</button><span style="flex:1"></span><span class="cap">已应用 ' + S.installed.size + ' · 不适用 ' + R.gone.size + (R.gone.size ? ' <button type="button" class="lnk" data-act="restoreRecs" style="font-size:12px">恢复</button>' : '') + '</span></div>' +
     '<div class="recs"><div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div><div style="position:sticky;top:0">' + detail + '</div></div></div>';
 };
@@ -5872,7 +6060,7 @@ function trackView(r, inst) {
     return '<div class="rc-metric"><div class="row" style="flex-wrap:wrap;font-size:12px"><b>' + m.name + '</b><span class="mono" style="color:var(--ink-2)">' + m.a + ' → ' + m.b + ' ' + m.unit + '</span><span class="mono rc-d ' + (m.sig ? (m.better ? 'good' : 'bad') : '') + '">' + pctTxt(m.rel) + '</span><span style="flex:1"></span><span class="cap mono" style="font-size:11px">95% CI ' + pctTxt(m.lo) + ' … ' + pctTxt(m.hi) + ' · n ' + st.n0 + ' / ' + st.n1 + '</span></div><div class="vz" data-vz="trk-' + i + '"></div></div>';
   }).join('');
   const why = st.verdict === 'good' ? '三项中至少两项的 95% 区间不含 0 且方向正确。' : st.verdict === 'low' ? '前后会话数 ' + st.n0 + ' / ' + st.n1 + '：样本太少或相差超过 30%，结论不可靠；可以继续观察 7 天。' : st.verdict === 'bad' ? '有指标显著变差，建议撤销后在生成工坊里定制。' : '区间都跨过 0，看不出稳定的变化；多观察 7 天或与同类建议组合。';
-  return '<div class="col" style="gap:12px">' + head + days + '<div class="row cap" style="gap:14px;font-size:11px"><span class="row" style="gap:5px"><span class="dot" style="background:var(--h3)"></span>安装前 7 天（基准）</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--accent)"></span>安装后 7 天</span></div><div>' + metrics + '</div><div class="cap" style="font-size:11.5px">' + why + ' 口径：安装前后各 7 天、同一批项目；区间为自助法 95% 置信区间。</div><div class="row" style="justify-content:flex-end;gap:6px"><button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销…</button><button type="button" class="btn p" data-act="keepRec" data-id="' + r.id + '">保留</button></div></div>';
+  return '<div class="col" style="gap:12px">' + head + days + '<div class="row cap" style="gap:14px;font-size:11px"><span class="row" style="gap:5px"><span class="dot" style="background:var(--h3)"></span>安装前 7 天（基准）</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--accent)"></span>安装后 7 天</span></div><div>' + metrics + '</div><div class="cap" style="font-size:11px;line-height:1.5">' + why + ' 口径：安装前后各 7 天、同一批项目；区间为自助法 95% 置信区间。</div><div class="row" style="justify-content:flex-end;gap:6px"><button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销…</button><button type="button" class="btn p" data-act="keepRec" data-id="' + r.id + '">保留</button></div></div>';
 }
 let DISMISS_T = 0;
 document.addEventListener('keydown', (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; const el = e.target.closest && e.target.closest('.rcard[data-act="selRec"]'); if (!el || e.target !== el) return; e.preventDefault(); ACT.selRec(el, e); const n = $('#content .rcard[data-id="' + el.dataset.id + '"]'); if (n) n.focus({ preventScroll: true }); });
@@ -5937,20 +6125,20 @@ function libBody() {
   const getBtn = (x) => libInst(x) ? '<span class="row" style="gap:4px"><span class="tag">已安装</span><button type="button" class="btn sm gh" data-act="libUninstall" data-id="' + x.id + '">撤销</button></span>' : '<button type="button" class="btn sm p" data-act="getLib" data-id="' + x.id + '">' + (x.local ? '安装' : '获取') + '</button>';
   const title = Lb.tab === 'for' ? '为「' + (p.ok ? p.zh : '你') + '」精选' : Lb.tab === 'peer' ? '和你同类型的人在用' : Lb.tab === 'hot' ? '社区热门' : '你的本地 Agent 生成的';
   const sub = Lb.tab === 'for' ? (p.ok ? '依据人格 ' + p.code + '、近 30 天的摩擦和已安装内容' : '人格尚未分类，只按近 30 天的摩擦和已安装内容推荐') : Lb.tab === 'peer' ? '来自开启匿名贡献的同类型用户（示例）' : Lb.tab === 'hot' ? '按安装量排序（示例）' : '只在本机，不上传';
-  const sortSeg = Lb.tab === 'for' ? '<div class="seg" role="tablist" aria-label="排序" style="margin-left:auto">' + [['pain', '解决你的问题'], ['match', '综合匹配'], ['users', '社区安装量']].map((s) => '<button type="button" role="tab" data-act="libSort" data-v="' + s[0] + '" class="' + (Lb.sort === s[0] ? 'on' : '') + '" aria-selected="' + (Lb.sort === s[0]) + '">' + s[1] + '</button>').join('') + '</div>' : '';
+  const sortSeg = Lb.tab === 'for' ? '<div class="seg lb-sort" role="tablist" aria-label="排序">' + [['pain', '解决你的问题'], ['match', '综合匹配'], ['users', '社区安装量']].map((s) => '<button type="button" role="tab" data-act="libSort" data-v="' + s[0] + '" class="' + (Lb.sort === s[0] ? 'on' : '') + '" aria-selected="' + (Lb.sort === s[0]) + '">' + s[1] + '</button>').join('') + '</div>' : '';
   const legend = '<div class="lb-legend cap">匹配度 = ' + LIB_W.map((w, i) => '<span class="row" style="gap:4px"><i style="background:' + LIB_SEG[i] + '"></i>' + w[0] + ' ×' + w[1] + '</span>').join('<span>+</span>') + '</div>';
-  const featCard = (x) => { const parts = libParts(x); return '<div class="card lb-card"><div class="lb-head"><div class="mono row cap" style="font-size:11px;gap:6px">' + ic(x.icon, 13, 'color:var(--ink-1)') + '<b style="font-family:var(--sans);color:var(--ink-2)">' + x.kind + '</b><span>·</span><span>' + x.src + '</span>' + (Lb.tab === 'for' ? '<span style="margin-left:auto" class="mono" data-tf="match|' + x.id + '" tabindex="0">' + (Lb.sort === 'pain' ? '痛点覆盖 <b>' + x.sc[1] + '</b>' : Lb.sort === 'users' ? (x.users ? fmt(x.users) + ' 安装' : '本机') : '匹配 <b>' + x.m + '</b>') + '</span>' : '') + '</div><div class="mono lb-id">' + x.id + '</div><div class="lb-desc">' + esc(x.desc) + '</div>' +
+  const featCard = (x) => { const parts = libParts(x); return '<div class="card lb-card"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(x.icon, 13, 'color:var(--ink-1)') + '<b style="font-family:var(--sans);color:var(--ink-2)">' + x.kind + '</b><span>·</span><span>' + x.src + '</span>' + (Lb.tab === 'for' ? '<span style="margin-left:auto" class="mono" data-tf="match|' + x.id + '" tabindex="0">' + (Lb.sort === 'pain' ? '痛点覆盖 <b>' + x.sc[1] + '</b>' : Lb.sort === 'users' ? (x.users ? fmt(x.users) + ' 安装' : '本机') : '匹配 <b>' + x.m + '</b>') + '</span>' : '') + '</div><div class="mono lb-id">' + x.id + '</div><div class="lb-desc">' + esc(x.desc) + '</div>' +
     '<div class="lb-match" data-tf="match|' + x.id + '" tabindex="0"><b class="mono">' + x.m + '</b><span class="col" style="flex:1;gap:3px;min-width:0">' + matchBar(x) + '<span class="mono cap lb-parts">' + LIB_W.map((w, i) => w[0].slice(0, 2) + ' ' + parts[i]).join(' · ') + '</span></span></div></div>' +
-    '<div class="lb-body"><span class="eb">解决你的问题</span>' + x.why.map((w) => '<span class="row" style="align-items:flex-start;gap:7px;font-size:12px;line-height:1.45;color:var(--ink-2)">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + esc(w) + '</span>').join('') + '<div class="row lb-foot"><span class="cap" style="font-size:11px">' + x.compat + '</span><span style="flex:1"></span><span class="mono cap" style="font-size:11px">' + (x.users ? fmt(x.users) + ' 安装' : '本机') + '</span><button type="button" class="btn sm gh" data-act="libHide" data-id="' + x.id + '">不感兴趣</button>' + getBtn(x) + '</div></div></div>'; };
-  const moreRow = (x) => '<div class="lb-row"><span class="lb-ico">' + ic(x.icon, 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b class="mono" style="font-size:12.5px">' + x.id + '</b><span class="bdg">' + x.kind + '</span>' + (x.local ? '<span class="aib">本地生成</span>' : '') + '</div><div class="cap lb-ell">' + esc(x.desc) + '</div></div><div class="row lb-m" style="gap:6px" data-tf="match|' + x.id + '" tabindex="0">' + matchBar(x, 'sm') + '<b class="mono" style="font-size:11.5px">' + x.m + '</b></div><span class="mono cap lb-users">' + (x.users ? (x.users >= 1000 ? f1(x.users / 1000) + 'k' : x.users) : '本机') + '</span>' + getBtn(x) + '</div>';
+    '<div class="lb-body"><span class="eb">解决你的问题</span>' + x.why.map((w) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + esc(w) + '</span>').join('') + '<div class="row lb-foot"><span class="cap lb-fc">' + x.compat + '</span><span style="flex:1"></span><span class="mono cap lb-fc">' + (x.users ? fmt(x.users) + ' 安装' : '本机') + '</span><span class="row lb-acts"><button type="button" class="btn sm gh" data-act="libHide" data-id="' + x.id + '">不感兴趣</button>' + getBtn(x) + '</span></div></div></div>'; };
+  const moreRow = (x) => '<div class="lb-row"><span class="lb-ico">' + ic(x.icon, 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b class="mono lb-nm">' + x.id + '</b><span class="bdg">' + x.kind + '</span>' + (x.local ? '<span class="aib">本地生成</span>' : '') + '</div><div class="cap lb-ell">' + esc(x.desc) + '</div></div><div class="row lb-m" style="gap:6px" data-tf="match|' + x.id + '" tabindex="0">' + matchBar(x, 'sm') + '<b class="mono lb-mv">' + x.m + '</b></div><span class="mono cap lb-users">' + (x.users ? (x.users >= 1000 ? f1(x.users / 1000) + 'k' : x.users) : '本机') + '</span>' + getBtn(x) + '</div>';
   const peers = LIB.filter((x) => x.peer).sort((a, b) => b.peer - a.peer).slice(0, 3);
-  return '<div class="frow"><div class="seg" role="tablist" aria-label="浏览方式">' + [['for', '为你推荐'], ['peer', '同类型用户在用'], ['hot', '热门'], ['local', '本地生成']].map((t) => '<button type="button" role="tab" data-act="libTab" data-v="' + t[0] + '" class="' + (Lb.tab === t[0] ? 'on' : '') + '" aria-selected="' + (Lb.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div><span style="width:1px;height:18px;background:var(--line);margin:0 4px"></span>' + ['全部', 'Skill', 'Hook', '插件', '子代理', 'MCP'].map((k) => '<button type="button" class="chip sm' + (Lb.kind === k ? ' on' : '') + '" data-act="libKind" data-v="' + k + '" aria-pressed="' + (Lb.kind === k) + '">' + k + '</button>').join('') + sortSeg + '</div>' +
-    '<div class="stack"><div class="row" style="align-items:baseline;flex-wrap:wrap;gap:6px 10px"><span class="serif" style="font-size:18px;font-weight:600">' + title + '</span><span class="cap">' + sub + (q ? ' · 搜索「' + esc(Lb.q.trim()) + '」' + items.length + ' 项' : '') + '</span><span style="flex:1"></span>' + legend + '</div>' +
+  return '<div class="frow"><div class="seg" role="tablist" aria-label="浏览方式">' + [['for', '为你推荐'], ['peer', '同类型用户在用'], ['hot', '热门'], ['local', '本地生成']].map((t) => '<button type="button" role="tab" data-act="libTab" data-v="' + t[0] + '" class="' + (Lb.tab === t[0] ? 'on' : '') + '" aria-selected="' + (Lb.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div><span class="lb-div" aria-hidden="true"></span>' + ['全部', 'Skill', 'Hook', '插件', '子代理', 'MCP'].map((k) => '<button type="button" class="chip sm' + (Lb.kind === k ? ' on' : '') + '" data-act="libKind" data-v="' + k + '" aria-pressed="' + (Lb.kind === k) + '">' + k + '</button>').join('') + '</div>' +
+    '<div class="stack"><div class="row" style="align-items:baseline;flex-wrap:wrap;gap:6px 10px"><span class="serif" style="font-size:18px;font-weight:600">' + title + '</span><span class="cap">' + sub + (q ? ' · 搜索「' + esc(Lb.q.trim()) + '」' + items.length + ' 项' : '') + '</span><span style="flex:1"></span>' + sortSeg + '</div>' + legend +
     (feat.length ? '<div class="lib-feat">' + feat.map(featCard).join('') + '</div>' : empty(q ? '没有匹配「' + esc(Lb.q.trim()) + '」的资源。换个关键词，或清空搜索。' : S.libHide.size ? '这一类的资源都被标为「不感兴趣」了。<button type="button" class="lnk" data-act="libUnhide" style="margin-left:6px">恢复</button>' : '没有符合条件的资源')) +
-    '<div class="two lb-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">更多匹配</span><span class="cap">' + (Lb.tab === 'for' ? (Lb.sort === 'pain' ? '按痛点覆盖排序' : Lb.sort === 'users' ? '按社区安装量排序' : '按综合匹配排序') : Lb.tab === 'peer' ? '按同类用户占比排序' : Lb.tab === 'hot' ? '按安装量排序' : '本机生成') + ' · 条为匹配度拆解，右列为社区安装量</span></div></div><div class="col" style="gap:0">' + (more.length ? more.map(moreRow).join('') : '<span class="cap">没有更多了</span>') + '</div></div>' +
-    '<div class="card pad col lb-peers"><span class="ct">和你相似的人</span><span style="font-size:12.5px;line-height:1.55;color:var(--ink-2)">在 <b style="color:var(--ink-1)">1,240</b> 位同为 ' + (p.ok ? p.code : '未分类') + ' 的匿名用户中，最常见的三项配置（细线 = 全体用户占比）：</span>' + peers.map((x) => '<div class="col" style="gap:3px"><div class="row" style="justify-content:space-between;font-size:12px"><b class="mono">' + x.id + '</b><span class="mono" data-tip="同类用户 ' + x.peer + '% · 全体用户 ' + libAll(x) + '% · 提升 ' + f1(x.peer / libAll(x)) + '×">' + x.peer + '%<span class="cap"> vs 全体 ' + libAll(x) + '%</span></span></div><span class="lb-peer" role="img" aria-label="' + x.id + '：同类用户 ' + x.peer + '%，全体用户 ' + libAll(x) + '%"><i style="width:' + x.peer + '%"></i><em style="left:' + libAll(x) + '%"></em></span></div>').join('') + '<div class="row" style="align-items:flex-start;margin-top:auto;padding:8px 10px;border-radius:8px;background:var(--sunken);font-size:11.5px;line-height:1.5;color:var(--ink-2)">' + ic('shield', 14, 'color:var(--good);margin-top:1px') + '<span>你的匿名贡献：<b>' + (S.anon ? '已开启' : '未开启') + '</b>。开启后只上传人格代码与已装资源名。<button type="button" class="lnk" data-act="openSettings" data-tab="privacy" style="font-size:11.5px">设置</button></span></div></div></div></div>';
+    '<div class="two lb-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">更多匹配</span><span class="cap">' + (Lb.tab === 'for' ? (Lb.sort === 'pain' ? '按痛点覆盖排序' : Lb.sort === 'users' ? '按社区安装量排序' : '按综合匹配排序') : Lb.tab === 'peer' ? '按同类用户占比排序' : Lb.tab === 'hot' ? '按安装量排序' : '本机生成') + ' · 条为匹配度拆解<span class="lb-ucap">，右列为社区安装量</span></span></div></div><div class="col" style="gap:0">' + (more.length ? more.map(moreRow).join('') : '<span class="cap">没有更多了</span>') + '</div></div>' +
+    '<div class="card pad col lb-peers"><span class="ct">和你相似的人</span><span class="lb-pintro">在 <b style="color:var(--ink-1)">1,240</b> 位同为 ' + (p.ok ? p.code : '未分类') + ' 的匿名用户中，最常见的三项配置（细线 = 全体用户占比）：</span>' + peers.map((x) => '<div class="col" style="gap:3px"><div class="row" style="justify-content:space-between;font-size:12px"><b class="mono">' + x.id + '</b><span class="mono" data-tip="同类用户 ' + x.peer + '% · 全体用户 ' + libAll(x) + '% · 提升 ' + f1(x.peer / libAll(x)) + '×">' + x.peer + '%<span class="cap"> vs 全体 ' + libAll(x) + '%</span></span></div><span class="lb-peer" role="img" aria-label="' + x.id + '：同类用户 ' + x.peer + '%，全体用户 ' + libAll(x) + '%"><i style="width:' + x.peer + '%"></i><em style="left:' + libAll(x) + '%"></em></span></div>').join('') + '<div class="row lb-anon">' + ic('shield', 14, 'color:var(--good);margin-top:1px') + '<span>你的匿名贡献：<b>' + (S.anon ? '已开启' : '未开启') + '</b>。开启后只上传人格代码与已装资源名。<button type="button" class="lnk" data-act="openSettings" data-tab="privacy">设置</button></span></div></div></div></div>';
 }
-PAGES.library = () => tbar('资源库', '', '<label class="row" style="flex:1;min-width:200px;max-width:520px;height:32px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skills、Hooks、插件、子代理、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + installedItems().length + '</span></button>') +
+PAGES.library = () => tbar('资源库', '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + installedItems().length + '</span></button>') +
   '<div class="content" id="content">' + libBody() + '</div>';
 TIPS.match = (id) => { const x = LIB.find((y) => y.id === id); if (!x) return ''; const p = libParts(x); return '<b>匹配度 ' + x.m + ' = 加权得分</b>' + LIB_W.map((w, i) => '\n' + w[0] + ' <b class="mono">' + x.sc[i] + '</b> × ' + w[1] + ' = ' + p[i]).join(''); };
 // Typing re-renders only the results, never the toolbar that holds the input, and waits for the IME to finish composing
@@ -6084,17 +6272,17 @@ PAGES.studio = () => {
   const adds = g.lines.filter((l) => l[1] === '+' || l[1] === 'ai').length, ais = g.lines.filter((l) => l[1] === 'ai').length;
   const hist = S.history.filter((h) => h.kind === 'studio').length + 8;
   return tbar('生成工坊', '用你的本地 Agent 生成 Skills、Hooks 与规则', '<button type="button" class="btn" data-act="studioHistory">历史产物 · ' + hist + '</button><button type="button" class="btn" data-act="studioTpl">工作流模板</button>') +
-    '<div class="content" id="content"><div class="row" style="padding:8px 12px;border-radius:9px;background:var(--good-bg);margin-bottom:14px;flex-wrap:wrap;font-size:12.5px">' + ic('shield', 15, 'color:var(--good)') + '<span style="flex:1;min-width:220px"><b>Tandem 自己不调用任何云端模型。</b>生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包。</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
+    '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t"><b>Tandem 自己不调用任何云端模型。</b>生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包。</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
     '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
-    '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:12.5px;line-height:1.55;color:var(--ink-1)">' + esc(st.goal) + '</textarea><span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span></label>' +
+    '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)">' + esc(st.goal) + '</textarea><span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span></label>' +
     '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? f1(c[3] / 1000) + 'k' : '') + '</span></label>').join('') + '</div></div>' +
-    '<div class="col" style="gap:6px"><span class="eb">执行者</span><button type="button" data-act="studioAgent" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:left"><span style="width:28px;height:28px;border-radius:7px;background:' + ag.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + ag.c) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:12.5px">' + ag.name + '</b><span class="mono cap" style="font-size:10.5px">' + ag.model + '</span></span>' + ic('chev', 12, 'color:var(--ink-3)') + '</button><span class="cap" style="font-size:11px">已检测：Claude Code · Codex · Gemini CLI · DeepSeek · Copilot</span></div>' +
+    '<div class="col" style="gap:6px"><span class="eb">执行者</span><button type="button" data-act="studioAgent" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:left"><span style="width:28px;height:28px;border-radius:7px;background:' + ag.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + ag.c) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:13px;line-height:18px">' + ag.name + '</b><span class="mono cap" style="font-size:11px;line-height:14px">' + ag.model + '</span></span>' + ic('chev', 12, 'color:var(--ink-3)') + '</button><span class="cap" style="font-size:11px">已检测：Claude Code · Codex · Gemini CLI · DeepSeek · Copilot</span></div>' +
     '<div class="row" style="justify-content:space-between;font-size:12px"><span class="row" style="gap:6px;min-width:0"><span class="eb">模板</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(TPLS[st.tpl].name) + ' · ' + TPLS[st.tpl].seq.length + ' 步</span></span><button type="button" class="lnk" data-act="studioTpl">更换</button></div>' +
     '<div class="row" style="margin-top:auto"><button type="button" class="btn p" data-act="studioStart" style="flex:1;height:32px"' + (active ? ' disabled' : '') + '>' + (run && (run.done || run.stopped) ? '重新生成' : '开始生成') + '</button><button type="button" class="btn" data-act="studioDraft" style="height:32px">存为草稿</button></div></div>' +
     '<div class="card pad col" style="gap:10px;min-width:0"><div class="row">' + (active ? '<span class="spin"></span>' : run && run.done ? ic('okc', 16, 'color:var(--good)') : ic('clock', 16, 'color:var(--ink-3)')) + '<div style="flex:1;min-width:0"><div class="ct">' + (run ? esc(st.type + ' · ' + file) : '还没有运行') + '</div><div class="mono cap" style="font-size:11px">' + esc(tpl.name) + (run ? ' · ' + (run.done ? '已完成 · ' + f1(seq.reduce((a, i) => a + STEP_DUR[i], 0)) + 's' : run.stopped ? '已停止，已产出部分保留为草稿' : '运行中 · 第 ' + (run.pos + 1) + ' / ' + seq.length + ' 步') : ' · 点「开始生成」') + '</div></div>' + (active ? '<button type="button" class="btn sm" data-act="studioStop">停止</button>' : '') + '</div>' +
     '<div class="col st-steps" style="gap:0">' + seq.map((i, k) => { const ss = stepState(i); const s2 = stepsDef[i]; const d = STEP_DUR[i]; return '<div class="step ' + ss + '"><span class="mk">' + (ss === 'done' ? '✓' : ss === 'stop' ? '!' : k + 1) + '</span><div style="min-width:0"><div class="t">' + esc(s2[0]) + '</div><div class="s">' + esc(s2[1]) + '</div>' + (i === 2 && ss === 'run' ? '<span class="st-lines" aria-hidden="true"><b style="width:' + (run.lines / g.lines.length * 100) + '%"></b></span>' : '') + '</div>' + (ss === 'done' && d ? '<span class="st-dur"><i><b style="width:' + (d / maxDur * 100) + '%"></b></i>' + d.toFixed(1) + 's</span>' : ss === 'run' ? '<span class="st-dur">…</span>' : '<span></span>') + '</div>'; }).join('') + '</div>' +
-    '<div class="log" id="studioLog"><div class="eb" style="margin-bottom:4px">实时日志</div>' + (run ? run.log.map((l) => '<div style="color:' + (l[0] === '$' ? 'var(--ink-2)' : l[0] === '!' ? 'var(--crit)' : 'var(--ink-3)') + '">' + esc(l) + '</div>').join('') + (run.done || run.stopped ? '' : '<div style="color:var(--ink-1)">› <span class="caret"></span></div>') : '<div class="cap">运行后在这里流式显示 Agent 的输出摘要。⌘L 可展开完整日志。</div>') + '</div></div>' +
-    '<div class="card col" style="overflow:hidden;gap:0;min-width:0"><div class="row" style="padding:8px 12px 0;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:11.5px;font-weight:600;padding:7px 4px 8px;border-bottom:2px solid var(--ink-1);margin-bottom:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(file) + '</span><span style="flex:1"></span>' + (active ? '<span class="aib" style="margin-bottom:6px">' + ic('spark', 11) + '生成中</span>' : run && run.installed ? '<span class="bdg" style="margin-bottom:6px;color:var(--good)">已安装</span>' : run && run.done ? '<span class="bdg" style="margin-bottom:6px">待审阅</span>' : '') + '</div>' +
+    '<div class="log' + (run ? '' : ' st-idle') + '" id="studioLog"><div class="eb" style="margin-bottom:4px">实时日志</div>' + (run ? run.log.map((l) => '<div style="color:' + (l[0] === '$' ? 'var(--ink-2)' : l[0] === '!' ? 'var(--crit)' : 'var(--ink-3)') + '">' + esc(l) + '</div>').join('') + (run.done || run.stopped ? '' : '<div style="color:var(--ink-1)">› <span class="caret"></span></div>') : '<div class="cap">运行后在这里流式显示 Agent 的输出摘要。⌘L 可展开完整日志。</div>') + '</div></div>' +
+    '<div class="card col" style="overflow:hidden;gap:0;min-width:0"><div class="row" style="padding:8px 12px 0;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:12px;font-weight:600;padding:7px 4px 8px;border-bottom:2px solid var(--ink-1);margin-bottom:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(file) + '</span><span style="flex:1"></span>' + (active ? '<span class="aib" style="margin-bottom:6px">' + ic('spark', 11) + '生成中</span>' : run && run.installed ? '<span class="bdg" style="margin-bottom:6px;color:var(--good)">已安装</span>' : run && run.done ? '<span class="bdg" style="margin-bottom:6px">待审阅</span>' : '') + '</div>' +
     '<div style="padding:10px 12px">' + (shownLines ? '<div class="st-sum mono cap"><span style="color:var(--good)">+' + adds + ' 行</span>' + (ais ? ' · <span style="color:var(--ai)">✦ ' + ais + ' 行按你的会话改写</span>' : '') + ' · 写入 ' + esc(g.file) + '</div>' + codeBlock(g.lines.slice(0, shownLines)) : '') + (active && run.step <= 2 ? '<div class="col" style="gap:9px;padding:10px 4px"><div class="shim" style="width:70%"></div><div class="shim" style="width:45%"></div></div>' : '') + (!run ? '<div class="cap" style="padding:30px 8px;text-align:center">产物会边生成边显示在这里</div>' : '') + '</div>' +
     '<div class="col" style="margin-top:auto;padding:12px 16px;border-top:1px solid var(--hair);gap:0"><span class="eb" style="margin-bottom:4px">自检 · 4 道</span>' + checkRows(run, seq) +
     (run && run.installed ? '<div class="row st-inst">' + ic('okc', 14, 'color:var(--good)') + '<span style="flex:1;min-width:0">已写入 <span class="mono">' + esc(g.file) + '</span> · 已备份</span><button type="button" class="btn sm" data-act="studioUndo">撤销</button></div>' : '') +
@@ -6103,8 +6291,8 @@ PAGES.studio = () => {
 PAGES.studio.after = () => { const l = $('#studioLog'); if (l) l.scrollTop = l.scrollHeight; };
 function ctxPreviewHTML() {
   const c = S.studio.ctx; const tok = ctxTokens();
-  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:12.5px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
-  return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:12.5px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11.5px;align-items:flex-start;gap:5px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(agent(S.studio.agent).cli) + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Tandem 服务器。') + '</span></div></div>';
+  const items = CTX.filter((x) => x[3]).map((x) => '<div class="st-prev' + (c[x[0]] ? '' : ' off') + '"><label class="row" style="gap:8px"><input type="checkbox" data-chg="studioCtx" data-k="' + x[0] + '"' + (c[x[0]] ? ' checked' : '') + '><b style="flex:1;min-width:0;font-size:13px">' + x[1] + '</b><span class="mono cap" style="font-size:11px">' + f1(x[3] / 1000) + 'k' + (c.redact && CTX_HITS[x[0]] ? ' · 脱敏 ' + CTX_HITS[x[0]] + ' 处' : '') + '</span></label>' + (c[x[0]] ? '<pre class="code st-pre">' + CTX_SAMPLE[x[0]].map(ctxLine).join('\n') + '</pre>' : '<span class="cap" style="font-size:11px">未勾选，不会发送</span>') + '</div>').join('');
+  return '<div class="col" style="gap:10px">' + tokBar() + '<label class="row" style="gap:8px;font-size:13px"><input type="checkbox" data-chg="studioCtx" data-k="redact"' + (c.redact ? ' checked' : '') + '>脱敏：用户名、邮箱、密钥、内网主机 → 占位符<span class="mono cap" style="margin-left:auto;font-size:11px">命中 <b data-red>' + ctxHits() + '</b> 处</span></label>' + items + '<div class="row cap" style="font-size:11px;align-items:flex-start;gap:6px">' + ic('shield', 12, 'color:var(--good);margin-top:2px') + '<span>上下文包以 JSON 写入本机临时文件，由 ' + esc(agent(S.studio.agent).cli) + ' 读取；' + (tok > CTX_LIMIT ? '<span style="color:var(--crit)">超出上限的原始片段会被截断。</span>' : '不经过 Tandem 服务器。') + '</span></div></div>';
 }
 function ctxBundle() {
   const c = S.studio.ctx;
@@ -7507,8 +7695,11 @@ function renderWidgets() {
     const tot = x[1] + x[2] + x[3];
     return '<span class="wg-col" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：Claude ' + x[1] + ' · Codex ' + x[2] + ' · 其他 ' + x[3] + '"><b class="mono">' + (tot || '') + '</b><span class="wg-stack">' + segs.map((s) => '<i style="height:' + Math.max(3, s[0] / mx * 56).toFixed(1) + 'px;background:' + s[1] + '"></i>').join('') + '</span><span class="mono cap">' + WD[wd(x[0])] + '</span></span>';
   };
+  // today by hour: one cell per hour, height = sessions started in that hour, colour = the first agent seen (fills the square)
+  const byH = []; for (let h = 0; h < 24; h++) byH.push(today.filter((s) => s.h === h));
+  const dayStrip = '<span class="wg-day" role="img" aria-label="今天每小时开始的会话数"><span class="wg-day-b">' + byH.map((xs, h) => '<i' + (xs.length ? ' class="on" style="height:' + (4 + Math.min(3, xs.length) * 4) + 'px;background:' + agent(xs[0].a).c + '"' : '') + ' data-tip="' + String(h).padStart(2, '0') + ':00 · ' + xs.length + ' 个会话"></i>').join('') + '</span><span class="wg-day-x mono"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></span></span>';
   const squares = '<div class="wg-row"><button type="button" class="wg sq" data-act="wgGo" data-r="persona"><span class="lbl">协作人格</span>' + (p.ok ? glyphSVG(p, 56) : '') + '<span><span class="serif" style="display:block;font-size:26px;font-weight:600;line-height:1;letter-spacing:.02em">' + (p.ok ? p.code : '—') + '</span><span style="font-size:12px;color:var(--ink-2)">' + (p.ok ? p.zh + ' · 置信度' + p.conf : '样本不足') + '</span></span></button>' +
-    '<button type="button" class="wg sq" data-act="wgGo" data-r="sessions"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span><span class="row" style="font-size:11px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:var(--a1)"></span>' + (S.numOnly ? '1 个运行中' : esc(PJI[live.p].name) + ' · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>';
+    '<button type="button" class="wg sq" data-act="wgGo" data-r="sessions"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span>' + dayStrip + '<span class="row" style="font-size:11px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:var(--a1)"></span>' + (S.numOnly ? '1 个运行中' : esc(PJI[live.p].name) + ' · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>';
   const week = '<button type="button" class="wg wk" data-act="wgGo" data-r="overview"><span class="col" style="gap:4px;min-width:0"><span class="lbl">本周</span><span class="mono" style="font-size:34px;font-weight:600;line-height:1">' + s7.n + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · <span class="mono" style="color:var(--ink-3)">' + (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '%</span></span><span style="font-size:12px;color:var(--ink-2)">摩擦率 <b class="mono">' + f1(s7.fric) + '%</b> <span class="mono" style="white-space:nowrap;color:' + (Math.abs(fricD) < 0.05 ? 'var(--ink-3)' : fricD < 0 ? 'var(--good)' : 'var(--crit)') + '">' + (Math.abs(fricD) < 0.05 ? '＝' : fricD < 0 ? '▼' : '▲') + f1(Math.abs(fricD)) + 'pt</span><span class="cap"> vs 上周</span></span></span><span class="col" style="gap:5px;min-width:0"><span class="wg-week" role="img" aria-label="近 7 天每天的会话数，按 Agent 堆叠">' + days.map(col).join('') + '</span><span class="row cap" style="font-size:10px;gap:6px"><span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--a1)"></i>Claude</span><span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--a2)"></i>Codex</span><span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--h2)"></i>其他</span></span></span></button>';
   const rec = top ? '<button type="button" class="wg" data-act="wgRec" data-id="' + top.id + '" style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="lbl">本周最值得做</span><span style="font-size:15px;font-weight:600;line-height:1.35">' + esc(top.title) + '</span><span class="cap">' + top.type + ' · ' + LEVELS[top.lvl] + ' · ' + top.gain + '</span><span class="row" style="width:100%;justify-content:space-between;margin-top:4px"><span class="cap">还有 ' + Math.max(0, recs.length - 1) + ' 条建议</span><span class="btn sm">预览</span></span></button>' : '';
   // large: the running session with its context bar, then two 7-day sparklines against the previous week
