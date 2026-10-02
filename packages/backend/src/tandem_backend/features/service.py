@@ -182,6 +182,10 @@ class FeatureService:
         return vocab_table()
 
     # linked inventory and search (linked-and-search package) --------------------
+    def _write(self, fn) -> None:
+        with self.appdb.write() as db:
+            fn(db)
+
     def linked_inventory(self, scope=None, **filters) -> dict:
         try:
             from .linked import compute_linked  # type: ignore[import-not-found]
@@ -192,7 +196,7 @@ class FeatureService:
         agent = (s.get("agent_ids") or [None])[0]
         with self.hub.read() as db:
             result = compute_linked(db, revs=revs, project_ids=s.get("project_ids"),
-                                    agent=agent, write=self.appdb.write)
+                                    agent=agent, write=self._write)
         wanted_type, wanted_status = filters.get("type"), filters.get("status")
         if wanted_type or wanted_status:
             result = dict(result, items=[

@@ -75,5 +75,7 @@ def router(gw: Gateway) -> APIRouter:
                                                                    since, until), limit=limit)
         except NotImplementedError as exc:
             raise ApiError(501, "not_implemented", str(exc)) from None
+        except ValueError as exc:
+            raise ApiError(400, "invalid_request", str(exc)) from None
 
     return api
