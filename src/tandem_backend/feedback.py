@@ -233,10 +233,10 @@ def language_constraints(text: str) -> tuple[str | None, set[str]]:
         connectors = list(re.finditer(r"而(?:且|是|要)?|但(?:是|要)?|同时|并(?:且)?", prefix))
         if connectors:
             prefix = prefix[connectors[-1].end():]
-        if re.search(NEGATION + r"[^，。；;\n]{0,8}$", prefix):
+        if re.search(r'(?:不(?!但|仅)|' + NEGATION + r")[^，。；;\n]{0,8}$", prefix):
             forbidden.update(language.split('_or_'))
-            if requested == language:
-                requested = None
+            remaining = set(requested.split('_or_')) - forbidden if requested else set()
+            requested = '_or_'.join(sorted(remaining, reverse=True)) or None
         else:
             requested = language
             forbidden.difference_update(language.split('_or_'))
