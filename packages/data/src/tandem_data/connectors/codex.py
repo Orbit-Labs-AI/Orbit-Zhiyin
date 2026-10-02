@@ -81,6 +81,20 @@ TOOL_APPROVALS = frozenset(
 )
 
 
+def _unmeasured_command(item, started_at, completed_at):
+    """Unified-exec startup items: started == completed and duration ~µs (B5)."""
+    if not isinstance(started_at, int) or not isinstance(completed_at, int):
+        return False
+    if completed_at - started_at > 1:
+        return False
+    native = item.get("duration")
+    if isinstance(native, dict):
+        millis = (native.get("secs") or 0) * 1000 + (native.get("nanos") or 0) / 1e6
+    else:
+        millis = item.get("duration_ms")
+    return not isinstance(millis, int | float) or millis < 1
+
+
 def _decision(value):
     """ReviewDecision: a plain string (approved / approved_for_session / denied / abort) or an
     externally tagged object such as ``{"approved_execpolicy_amendment": {...}}``."""
@@ -834,6 +848,10 @@ class CodexMapper(BaseMapper):
                     elif itype == "Extension" and item.get("kind") == "image_gen.generation":
                         # revisedPrompt is the completed tool's rewrite, not the original user input.
                         args = item.get("arguments")
+                    completed_at = payload.get("completed_at_ms")
+                    unmeasured = itype == "CommandExecution" and _unmeasured_command(
+                        item, payload.get("started_at_ms"), completed_at
+                    )
                     call = self.make(
                         record,
                         "tool.call",
@@ -875,8 +893,11 @@ class CodexMapper(BaseMapper):
                             "exit_code": item.get("exit_code"),
                             "duration_ms": item.get("duration_ms"),
                             "native_turn_id": self.native_turn,
+                            **({"duration_unmeasured": True} if unmeasured else {}),
                         },
-                        ts_value=payload.get("completed_at_ms"),
+                        # Equal bounds with a sub-ms native duration describe a command
+                        # still running in the background, not its runtime: no end time.
+                        ts_value=None if unmeasured else completed_at,
                         ts_field="payload.completed_at_ms",
                         ts_unit="milliseconds",
                         semantics="completed",

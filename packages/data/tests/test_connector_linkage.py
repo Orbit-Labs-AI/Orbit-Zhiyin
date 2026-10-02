@@ -330,3 +330,49 @@ def test_claude_result_relocated_and_continued_in_have_destinations(tmp_path):
             " WHERE i.native_id='s1'",
         )[0]
         assert cwd == "/synthetic/repo"
+
+
+def test_codex_background_exec_startup_has_no_fake_zero_duration(tmp_path):
+    T = 1790900000000
+
+    def command(native, started, completed, duration):
+        return {
+            "type": "event_msg",
+            "timestamp": ISO.format(1),
+            "payload": {
+                "type": "item_completed",
+                "turn_id": "t",
+                "started_at_ms": started,
+                "completed_at_ms": completed,
+                "item": {
+                    "type": "CommandExecution",
+                    "id": native,
+                    "command": ["rg", "x"],
+                    "status": "completed",
+                    "exit_code": 0,
+                    "process_id": "1",
+                    "source": "unified_exec_startup",
+                    "duration": duration,
+                },
+            },
+        }
+
+    rows = [
+        {"type": "session_meta", "timestamp": ISO.format(0), "payload": {"id": "s"}},
+        command("background", T, T, {"secs": 0, "nanos": 1459}),
+        command("measured", T, T + 3000, {"secs": 3, "nanos": 0}),
+    ]
+    with Store(tmp_path / "data") as store:
+        stream(store, "codex", tmp_path / "source", rows, "s.jsonl")
+        store.rebuild()
+        calls = {
+            row["native_call_id"]: row
+            for row in store.db.execute(
+                "SELECT native_call_id, duration_ms, duration_source, duration_quality"
+                " FROM tool_call"
+            )
+        }
+        assert calls["background"]["duration_ms"] is None
+        assert calls["background"]["duration_quality"] == "missing"
+        assert calls["measured"]["duration_ms"] == 3000
+        assert calls["measured"]["duration_quality"] == "reported"
