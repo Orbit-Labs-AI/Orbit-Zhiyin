@@ -37,3 +37,24 @@ for family in FAMILIES:
 load_catalog()
 print("Seven recommendation catalogs and schemas verified in installed wheel")
 PY
+
+"$CHECK_DIR/venv/bin/python" -I - <<'PY'
+import json
+import tempfile
+from importlib.resources import files
+from pathlib import Path
+
+from tandem_backend.services.gateway import Gateway
+
+root = files("tandem_backend")
+schemas = sorted(p.name for p in root.joinpath("appdb/schema").iterdir() if p.name.endswith(".sql"))
+assert len(schemas) >= 8, schemas
+templates = root.joinpath("ai/assets/templates")
+json.loads(templates.joinpath("manifest.json").read_text())
+assert any(d.name == "hooks" and any(d.iterdir()) for d in templates.iterdir() if d.is_dir())
+with tempfile.TemporaryDirectory() as home:
+    gateway = Gateway(Path(home), discovery=lambda: [])
+    gateway.app(token="installed-check-token-0123456789-abcdef", port=1)
+    gateway.close()
+print(f"Gateway builds from installed wheel with {len(schemas)} app.db schemas and AI templates")
+PY
