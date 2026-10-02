@@ -470,7 +470,10 @@ def rebuild(
                     "records": mapped_records,
                 }
             )
-            for record in store.iter_versions(info["file_id"], "table:session_model_usage"):
+            # Usage rows exist only for SQLite sources; worker-owned files are line formats.
+            for record in (
+                () if owned else store.iter_versions(info["file_id"], "table:session_model_usage")
+            ):
                 map_record(mapper, record)
         # Lower DSH generations remain browsable in the same trajectory, although
         # only the highest generation contributes canonical facts.
@@ -535,6 +538,8 @@ def rebuild(
                 record_uid=row["record_uid"],
                 file_id=row["file_id"],
             )
+        if plan is not None:
+            plan.finish_mapping()  # Bulk-indexes deferred search rows before derivation.
         progress({"stage": "derive"})
         if scope is not None:
             scope.before_derive(store.db)  # Escalates if the closure was incomplete.

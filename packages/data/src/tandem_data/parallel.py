@@ -22,6 +22,7 @@ import tempfile
 import time
 import weakref
 from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -92,15 +93,34 @@ class WorkerPool:
         self.threshold = threshold
         self._pool = None
         self._spill = None
+        self.broken = False
 
     def executor(self, jobs: int):
-        if self.workers <= 1 or jobs < max(1, self.threshold):
+        if self.broken or self.workers <= 1 or jobs < max(1, self.threshold):
             return INLINE
         if self._pool is None:
             self._pool = ProcessPoolExecutor(
                 self.workers, mp_context=multiprocessing.get_context("spawn")
             )
         return self._pool
+
+    def submit(self, executor, fn, *args):
+        """Submit work, or return None once the pool is broken: the caller then uses the
+        writer's serial path (the ``workers=1`` code) for that file."""
+        if self.broken:
+            return None
+        try:
+            return executor.submit(fn, *args)
+        except BrokenProcessPool:
+            self.mark_broken()
+            return None
+
+    def mark_broken(self):
+        """A worker process died: stop using processes for the rest of this job."""
+        self.broken = True
+        if self._pool is not None:
+            self._pool.shutdown(wait=False, cancel_futures=True)
+            self._pool = None
 
     def spill_dir(self, home: Path) -> str:
         if self._spill is None:
@@ -381,7 +401,7 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
                 for file_id in skipped:
                     store._resolve_capture_issues(source_id, file_id)
     executor = pool.executor(sum(1 for _, job in jobs if job))
-    futures = [executor.submit(scan_lines, *job) if job else None for _, job in jobs]
+    futures = [pool.submit(executor, scan_lines, *job) if job else None for _, job in jobs]
     progress({"stage": "capture", "completed": 0, "total": len(selected)})
     group = _CommitGroup(store)
     try:
@@ -394,7 +414,11 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
                 result["files"] += 1
             else:
                 try:
-                    scan = future.result() if future is not None else None
+                    try:
+                        scan = future.result() if future is not None else None
+                    except BrokenProcessPool:
+                        pool.mark_broken()
+                        scan = None  # Serial capture, exactly as with workers=1.
                     captured = index_file(store, source_id, item.path, item.role, scan)
                     result["files"] += 1
                     result["changed"] += int(captured["changed"])
@@ -608,6 +632,85 @@ class ReplayMapper:
 EVENT_INSERT_LIMIT = 2000
 
 
+DEFER_SEARCH_INDEX_FILES = 64
+EVENT_FTS_TRIGGERS = {
+    "event_ai": "CREATE TRIGGER event_ai AFTER INSERT ON event BEGIN "
+    "INSERT INTO event_fts(rowid,text) VALUES(new.rowid,new.text); END",
+    "event_ad": "CREATE TRIGGER event_ad AFTER DELETE ON event BEGIN "
+    "INSERT INTO event_fts(event_fts,rowid,text) VALUES('delete',old.rowid,old.text); END",
+    "event_au": "CREATE TRIGGER event_au AFTER UPDATE OF text ON event BEGIN "
+    "INSERT INTO event_fts(event_fts,rowid,text) VALUES('delete',old.rowid,old.text); "
+    "INSERT INTO event_fts(rowid,text) VALUES(new.rowid,new.text); END",
+}
+
+
+class DeferredSearchIndex:
+    """Index new events in ``event_fts`` with one bulk insert instead of row triggers.
+
+    FTS5 flushes a new segment for every trigger-driven insert, which then has to be
+    merged: about a third of the writer's time on a large rebuild. Inside the rebuild's
+    write transaction the three persistent triggers are replaced by TEMP triggers that
+    record new rowids and keep rows that were already indexed in sync. ``finish`` indexes
+    the recorded rows and restores the original triggers. Everything is part of the same
+    transaction, so readers never observe the swap and a rollback restores the schema.
+    Only used when the trigger definitions are exactly the ones this code knows.
+    """
+
+    def __init__(self, db, definitions):
+        self.db = db
+        self.definitions = definitions
+
+    @classmethod
+    def start(cls, db, files):
+        if files < DEFER_SEARCH_INDEX_FILES or not db.in_transaction:
+            return None
+        definitions = dict(
+            db.execute(
+                "SELECT name,sql FROM main.sqlite_master WHERE type='trigger' AND tbl_name='event'"
+            )
+        )
+        normal = {name: " ".join(sql.split()) for name, sql in definitions.items()}
+        if (
+            normal != EVENT_FTS_TRIGGERS
+            or db.execute(
+                "SELECT 1 FROM temp.sqlite_master WHERE name IN ('event_fts','fts_pending')"
+            ).fetchone()
+        ):
+            return None  # Unknown search-index wiring: keep the row triggers.
+        for name in definitions:
+            db.execute(f"DROP TRIGGER main.{name}")
+        db.execute("CREATE TEMP TABLE fts_pending(id INTEGER PRIMARY KEY)")
+        db.execute(
+            "CREATE TEMP TRIGGER fts_defer_ai AFTER INSERT ON main.event BEGIN "
+            "INSERT OR IGNORE INTO fts_pending VALUES(new.rowid); END"
+        )
+        db.execute(
+            "CREATE TEMP TRIGGER fts_defer_ad AFTER DELETE ON main.event BEGIN "
+            "INSERT INTO event_fts(event_fts,rowid,text) SELECT 'delete',old.rowid,old.text "
+            "WHERE NOT EXISTS(SELECT 1 FROM fts_pending WHERE id=old.rowid); "
+            "DELETE FROM fts_pending WHERE id=old.rowid; END"
+        )
+        db.execute(
+            "CREATE TEMP TRIGGER fts_defer_au AFTER UPDATE OF text ON main.event "
+            "WHEN NOT EXISTS(SELECT 1 FROM fts_pending WHERE id=old.rowid) BEGIN "
+            "INSERT INTO event_fts(event_fts,rowid,text) VALUES('delete',old.rowid,old.text); "
+            "INSERT INTO event_fts(rowid,text) VALUES(new.rowid,new.text); END"
+        )
+        return cls(db, definitions)
+
+    def finish(self):
+        db = self.db
+        db.execute(
+            "INSERT INTO main.event_fts(rowid,text) SELECT e.rowid,e.text FROM temp.fts_pending p "
+            "JOIN main.event e ON e.rowid=p.id ORDER BY p.id"
+        )
+        for name in ("fts_defer_ai", "fts_defer_ad", "fts_defer_au"):
+            db.execute(f"DROP TRIGGER temp.{name}")
+        db.execute("DROP TABLE temp.fts_pending")
+        for name in ("event_ai", "event_ad", "event_au"):
+            db.execute(self.definitions[name])
+
+
 class MapPlan:
     """Stage A in workers, stage B (ordered, batched writes) in the writer."""
 
@@ -624,7 +727,8 @@ class MapPlan:
             pool = WorkerPool(workers if workers else default_workers())
             weakref.finalize(self, pool.close)
         self.pool = pool
-        tasks = []
+        self.search_index = DeferredSearchIndex.start(store.db, len(infos))
+        candidates = []
         for info in infos:
             if (
                 info["agent"] not in PARALLEL_AGENTS
@@ -640,27 +744,42 @@ class MapPlan:
             ).fetchone()
             if latest is None or latest[0] is not None:
                 continue
-            meta, rows = indexed_rows(store.db, info["file_id"])
-            tasks.append(
-                {
-                    "info": {k: info[k] for k in info.keys()},
-                    "meta": {k: meta[k] for k in meta.keys()},
-                    "root_path": meta["root_path"],
-                    "rows": rows,
-                    "mapper_version": mapper_version,
-                }
-            )
-        executor = self.pool.executor(len(tasks))
+            candidates.append(info)
+        executor = self.pool.executor(len(candidates))
         spill = self.pool.spill_dir(store.home) if executor is not INLINE else None
-        for task in tasks:
-            self.futures[task["info"]["file_id"]] = executor.submit(map_file, task, spill)
+        # Submit while reading L1 rows so workers start before the last file is loaded.
+        for info in candidates:
+            meta, rows = indexed_rows(store.db, info["file_id"])
+            task = {
+                "info": {k: info[k] for k in info.keys()},
+                "meta": {k: meta[k] for k in meta.keys()},
+                "root_path": meta["root_path"],
+                "rows": rows,
+                "mapper_version": mapper_version,
+            }
+            future = self.pool.submit(executor, map_file, task, spill)
+            if future is not None:  # None: the pool broke; this file is mapped serially.
+                self.futures[info["file_id"]] = future
+
+    def finish_mapping(self):
+        """Called once L2 rows are written, before derivation reads or updates them."""
+        self.flush()
+        if self.search_index is not None:
+            self.search_index.finish()
+            self.search_index = None
 
     def prepared(self, info, mappers):
         """Apply a worker's prepare phase in serial order; False means map serially."""
         future = self.futures.get(info["file_id"])
         if future is None:
             return False
-        outcome = future.result()
+        try:
+            outcome = future.result()
+        except BrokenProcessPool:
+            # A worker died; this and every later file use the writer's serial mapping.
+            self.pool.mark_broken()
+            del self.futures[info["file_id"]]
+            return False
         if outcome.get("unavailable"):
             raise SourceUnavailable(outcome["unavailable"], outcome["message"])
         if outcome.get("serial"):

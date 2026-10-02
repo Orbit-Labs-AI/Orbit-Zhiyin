@@ -3,6 +3,7 @@
 import random
 from collections import Counter
 
+import pytest
 from _integrity import (
     assert_integrity,
     build_relation_tree,
@@ -12,6 +13,7 @@ from _integrity import (
     mutate,
 )
 
+from tandem_data import parallel
 from tandem_data.pipeline import rebuild
 from tandem_data.scheduler import closure, stale_files
 from tandem_data.service import ImportRequest, ImportService
@@ -28,7 +30,18 @@ def _scan(service, roots):
     return kinds
 
 
-def test_random_edits_match_full_rebuild(tmp_path):
+@pytest.mark.parametrize("defer_search_index", [False, True])
+def test_random_edits_match_full_rebuild(tmp_path, monkeypatch, defer_search_index):
+    if defer_search_index:
+        # Exercise the bulk search-index path even for these small rebuilds.
+        monkeypatch.setattr(parallel, "DEFER_SEARCH_INDEX_FILES", 0)
+        finish = parallel.DeferredSearchIndex.finish
+        finished = []
+        monkeypatch.setattr(
+            parallel.DeferredSearchIndex,
+            "finish",
+            lambda self: finished.append(1) or finish(self),
+        )
     roots = build_relation_tree(tmp_path / "tree", sessions=12)
     rng = random.Random(20261002)
     kinds, actions = Counter(), Counter()
@@ -51,6 +64,8 @@ def test_random_edits_match_full_rebuild(tmp_path):
             service.close()
     assert kinds["closure"] >= 5, kinds
     assert {"append", "rewrite", "delete", "new"} <= set(actions), actions
+    if defer_search_index:
+        assert len(finished) >= 24  # Each changed rescan used the bulk search index.
 
 
 def test_unchanged_rescan_publishes_nothing(tmp_path):

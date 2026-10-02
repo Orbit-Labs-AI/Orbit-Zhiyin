@@ -118,6 +118,20 @@ def assert_integrity(store) -> None:
         ).fetchone()[0]
         == 0
     )
+    # The search index must match event text exactly and keep its row triggers.
+    store.db.execute("INSERT INTO event_fts(event_fts, rank) VALUES('integrity-check', 1)")
+    from tandem_data.parallel import EVENT_FTS_TRIGGERS
+
+    triggers = {
+        name: " ".join(sql.split())
+        for name, sql in store.db.execute(
+            "SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name='event'"
+        )
+    }
+    assert triggers == EVENT_FTS_TRIGGERS
+    assert not store.db.execute(
+        "SELECT 1 FROM temp.sqlite_master WHERE name LIKE 'fts_%'"
+    ).fetchone()
 
 
 def copy_home(store, target: Path) -> Path:

@@ -1,10 +1,13 @@
 """Parallel capture/mapping must equal the serial path, logically and byte-for-byte."""
 
 import json
+import multiprocessing
+import os
 
 import pytest
 from _integrity import assert_integrity, build_relation_tree, differing_tables, logical_digest
 
+from tandem_data import parallel
 from tandem_data.pipeline import rebuild
 from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store
@@ -15,6 +18,22 @@ def _sources(folder):
     roots = create_sources(folder / "fixtures")
     tree = build_relation_tree(folder / "tree")
     return [*sorted(roots.items()), *sorted(tree.items())]
+
+
+_scan_lines, _map_file = parallel.scan_lines, parallel.map_file
+
+
+def _crash_scan_lines(path, *args):
+    """Kill the worker process the way an OOM or native crash would."""
+    if "subagents" in str(path) and multiprocessing.parent_process() is not None:
+        os._exit(3)
+    return _scan_lines(path, *args)
+
+
+def _crash_map_file(task, spill_dir=None):
+    if "subagents" in task["info"]["relative_path"] and multiprocessing.parent_process():
+        os._exit(3)
+    return _map_file(task, spill_dir)
 
 
 def _import(home, sources, workers, threshold=None):
@@ -32,7 +51,21 @@ def _import(home, sources, workers, threshold=None):
     return logical_digest(home)
 
 
-def test_parallel_import_matches_serial_for_fixtures_and_relations(tmp_path):
+@pytest.mark.parametrize("defer_search_index", [False, True])
+def test_parallel_import_matches_serial_for_fixtures_and_relations(
+    tmp_path, monkeypatch, defer_search_index
+):
+    if defer_search_index:
+        import tandem_data.parallel as parallel
+
+        monkeypatch.setattr(parallel, "DEFER_SEARCH_INDEX_FILES", 0)
+        finish = parallel.DeferredSearchIndex.finish
+        finished = []
+        monkeypatch.setattr(
+            parallel.DeferredSearchIndex,
+            "finish",
+            lambda self: finished.append(1) or finish(self),
+        )
     sources = _sources(tmp_path)
     serial = _import(tmp_path / "serial", sources, workers=1)
     inline = _import(tmp_path / "inline", sources, workers=8)
@@ -40,6 +73,8 @@ def test_parallel_import_matches_serial_for_fixtures_and_relations(tmp_path):
     assert differing_tables(tmp_path / "serial", tmp_path / "inline") == []
     assert differing_tables(tmp_path / "serial", tmp_path / "pooled") == []
     assert serial == inline == pooled
+    if defer_search_index:
+        assert finished  # The bulk search-index path ran and passed the FTS integrity check.
     with Store(tmp_path / "serial") as store:
         relations = dict(
             store.db.execute("SELECT disposition,COUNT(*) FROM raw_record GROUP BY disposition")
@@ -225,3 +260,24 @@ def test_grouped_capture_isolates_a_failing_file(tmp_path, monkeypatch):
         )
         assert store.db.execute("SELECT COUNT(*) FROM source_file").fetchone()[0] == result["files"]
         assert not store.db.in_transaction
+
+
+@pytest.mark.parametrize("crash", ["_crash_scan_lines", "_crash_map_file"])
+def test_dead_worker_falls_back_to_serial(tmp_path, monkeypatch, crash):
+    sources = _sources(tmp_path)
+    serial = _import(tmp_path / "serial", sources, workers=1)
+    target = "scan_lines" if crash == "_crash_scan_lines" else "map_file"
+    monkeypatch.setattr(parallel, target, globals()[crash])
+    with Store(tmp_path / "crash") as store:
+        service = ImportService(store, workers=4)
+        service.pool.threshold = 0
+        try:
+            for agent, root in sources:
+                result = service.import_source(ImportRequest(agent, root))
+                assert result["capture_errors"] == 0
+            assert service.pool.broken  # A worker really died during the import.
+        finally:
+            service.close()
+        assert_integrity(store)
+    assert differing_tables(tmp_path / "serial", tmp_path / "crash") == []
+    assert logical_digest(tmp_path / "crash") == serial
