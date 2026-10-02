@@ -148,3 +148,19 @@ def test_rowid_or_count_changes_alone_invalidate_the_tree(tmp_path):
     renamed = fingerprints(home)
     assert renamed.trees[other].fp != after.trees[other].fp
     assert renamed.trees[root].fp == after.trees[root].fp
+
+
+def test_fingerprints_are_reused_until_the_database_changes(tmp_path):
+    home = tmp_path / "data"
+    with Store(home) as store:
+        source = store.add_source("codex", tmp_path / "source")
+        write(store, source, "memo-0", codex_rows("memo-0"))
+        store.rebuild()
+    first = fingerprints(home)
+    assert fingerprints(home) is first  # no commit since: the memo serves it
+    db = sqlite3.connect(home / "tandem.db")
+    db.execute("UPDATE event SET ts = ts + 1 WHERE rowid = (SELECT min(rowid) FROM event)")
+    db.commit()
+    db.close()
+    second = fingerprints(home)
+    assert second is not first and second.input_fp() != first.input_fp()
