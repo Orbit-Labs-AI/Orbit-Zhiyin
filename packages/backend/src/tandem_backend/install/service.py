@@ -36,6 +36,31 @@ def _text(data: bytes | None) -> str:
     return "" if data is None else data.decode("utf-8", "replace")
 
 
+def _diff(before: str, after: str, ai_lines: set[int], context: int = 3) -> dict:
+    """``line_diff`` after trimming the common head/tail: difflib is quadratic on large
+    repetitive files (a 2 MB ``~/.claude.json`` took seconds); output is unchanged."""
+    if not before:
+        return line_diff(before, after, context=None, ai_lines=ai_lines)
+    a, b = before.splitlines(), after.splitlines()
+    limit = min(len(a), len(b))
+    head = 0
+    while head < limit and a[head] == b[head]:
+        head += 1
+    tail = 0
+    while tail < limit - head and a[-1 - tail] == b[-1 - tail]:
+        tail += 1
+    lo, cut = max(0, head - context), max(0, tail - context)
+    out = line_diff("\n".join(a[lo:len(a) - cut]), "\n".join(b[lo:len(b) - cut]), context=context,
+                    ai_lines={n - lo for n in ai_lines if n > lo})
+    rows = [{**r, "n": r["n"] + lo} if r["n"] else r for r in out["lines"]]
+    gap = {"n": None, "op": " ", "text": "…", "gap": True}
+    if rows and lo and not rows[0].get("gap"):
+        rows.insert(0, dict(gap))
+    if rows and cut and not rows[-1].get("gap"):
+        rows.append(dict(gap))
+    return {**out, "lines": rows}
+
+
 def _telemetry(name: str, value: float = 1.0, **tags) -> None:
     try:
         from ..platform import telemetry  # noqa: PLC0415 - optional, platform owns it
@@ -133,8 +158,7 @@ class InstallService:
             status = render["status"]
             new = render["new"] if status != "noop" else current
             row.update(status=status, exists=originals[path] is not None, guard_hash=guard,
-                       diff=line_diff(_text(current), _text(new), context=3 if current is not None else None,
-                                      ai_lines=set(render.get("ai_lines") or ())))
+                       diff=_diff(_text(current), _text(new), set(render.get("ai_lines") or ())))
             guards[idx] = guard
             backup = str(backup_dir / f"{idx}-{Path(path).name}") if current is not None and status != "noop" else None
             row["backup_path"] = backup

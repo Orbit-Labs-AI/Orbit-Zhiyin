@@ -339,3 +339,19 @@ def test_cli_ledger(svc, capsys):
     main(["--home", str(svc.home), "install", "ledger", "--limit", "2"])
     lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert len(lines) == 2 and {line["install_id"] for line in lines} == {result["install_id"]}
+
+
+@pytest.mark.parametrize("change", [(5, "X"), (0, "X"), (59, "X"), (30, None)])
+def test_trimmed_diff_matches_line_diff(change):
+    from tandem_backend.install.diff import line_diff
+    from tandem_backend.install.service import _diff
+
+    before = [f"line {i % 7}" for i in range(60)]
+    after = list(before)
+    idx, text = change
+    if text is None:
+        after.insert(idx, "inserted")
+    else:
+        after[idx] = text
+    a, b = "\n".join(before) + "\n", "\n".join(after) + "\n"
+    assert _diff(a, b, set()) == line_diff(a, b, context=3)
