@@ -15,7 +15,7 @@ from pathlib import Path
 
 from ..contract import Check, EvalContext, SuiteResult
 
-ID = "install"
+ID = "install_roundtrip"
 TITLE = "Install round trip (apply / revert byte-identical)"
 EV = ("EV-13",)
 
