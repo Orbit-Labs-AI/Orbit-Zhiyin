@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from ..analysis import union_duration
 from ..privacy import direct_user_text
+from .common import human as human
 
 
 def ratio(a, b):
@@ -22,12 +23,6 @@ def quantile(values, q):
     pos = (len(v) - 1) * q
     lo, hi = math.floor(pos), math.ceil(pos)
     return v[lo] + (v[hi] - v[lo]) * (pos - lo)
-
-
-def human(e, main_ids):
-    return (e["kind"] == "message.user" and e["session_uid"] in main_ids
-            and e.get("attrs", {}).get("origin") == "human"
-            and e.get("actor") in ("human", "user"))
 
 
 CORRECTION = re.compile(r"(?:^|[，。！？；,;!\n]\s*)(?:不对(?:[，。！？；,;!\s]|$)|不是我说的|还是不行|我说的是|你理解错了|请?重新|请?改成|wrong\b|not what I meant\b|try again\b|instead\b)", re.I)

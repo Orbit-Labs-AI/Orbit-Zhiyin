@@ -5,10 +5,11 @@ from dataclasses import asdict
 
 from ..models import stable_id
 from . import FEATURE_VERSION
+from .common import human
 from .dictionary import FEATURES
-from .features import activity, human, session_features, tool_summary, usage, workflow
+from .features import activity, session_features, tool_summary, usage, workflow
 from .inputs import KINDS, Scope, legacy_bundle, metadata, select
-from .text import representation
+from .task.representation import representation
 
 
 def analyze_bundle(bundle, scope=None, with_text=True):
