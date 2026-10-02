@@ -25,6 +25,8 @@ def capture(store, agent, root, rows, filename="fixture.jsonl"):
         ("cd /repo && git status", "git status"),
         ('/bin/zsh -lc "git -C /x status --short"', "git status"),
         ("S=/tmp/x/y; ls $S", "ls"),
+        ("/bin/zsh -lc git status --short --branch", "git status"),
+        ("/bin/zsh -lc PYTHONDONTWRITEBYTECODE=1 python3 -m pytest", "python3"),
         ("for f in *; do wc -l $f; done", "wc"),
         (["bash", "-lc", "cd /a && pytest -q"], "pytest"),
         ("FOO=1 BAR=2 /usr/local/bin/python3 x.py", "python3"),

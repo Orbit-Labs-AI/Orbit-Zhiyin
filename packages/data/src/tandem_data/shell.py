@@ -141,7 +141,7 @@ def _program(word: str) -> str | None:
     return base if _WORD.fullmatch(base) else None
 
 
-def _segment_head(words, depth):
+def _segment_head(words, depth, joined=True):
     index = 0
     while index < len(words) and (words[index] in LEADERS or _ASSIGNMENT.match(words[index])):
         index += 1
@@ -168,7 +168,7 @@ def _segment_head(words, depth):
                 index += 1
             continue
         if name in SHELLS:
-            payload = _shell_payload(words[index + 1 :])
+            payload = _shell_payload(words[index + 1 :], joined)
             if payload is not None:
                 return command_head(payload, depth + 1) if depth < 3 else None
             # A shell running a script file: report the script.
@@ -178,12 +178,18 @@ def _segment_head(words, depth):
     return None
 
 
-def _shell_payload(arguments):
+def _shell_payload(arguments, joined=False):
+    """The -c script. ``joined``: a display string whose argv was joined without quoting
+    (Codex writes ``/bin/zsh -lc git status --short``), so the script is all remaining words."""
     for position, word in enumerate(arguments):
-        if word.startswith("-") and not word.startswith("--") and "c" in word[1:]:
-            return arguments[position + 1] if position + 1 < len(arguments) else None
-        if word in ("-Command", "-command", "-c"):
-            return arguments[position + 1] if position + 1 < len(arguments) else None
+        if (word.startswith("-") and not word.startswith("--") and "c" in word[1:]) or word in (
+            "-Command",
+            "-command",
+        ):
+            rest = arguments[position + 1 :]
+            if not rest:
+                return None
+            return shlex.join(rest) if joined and len(rest) > 1 else rest[0]
         if not word.startswith("-"):
             return None
     return None
@@ -211,7 +217,7 @@ def command_head(command, depth: int = 0) -> str | None:
             payload = _shell_payload(words[1:])
             if payload is not None:
                 return command_head(payload, depth + 1) if depth < 3 else None
-        return _segment_head(words, depth)
+        return _segment_head(words, depth, joined=False)
     if not isinstance(command, str) or not command.strip():
         return None
     try:
