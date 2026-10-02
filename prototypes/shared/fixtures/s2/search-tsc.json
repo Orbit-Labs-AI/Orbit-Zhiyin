@@ -1,0 +1,43 @@
+{
+ "meta": {
+  "count_label": {
+   "in_window": 1,
+   "today": 0,
+   "live": 0,
+   "excluded": 0
+  },
+  "basis": {
+   "dur": "active_estimate"
+  },
+  "search_partial": false
+ },
+ "days": [],
+ "rows": [
+  {
+   "id": "session_fx021",
+   "a": "pi",
+   "title": "修复示例构建脚本 #21",
+   "title_source": "first_message",
+   "p": "proj_alpha",
+   "d": "2026-09-27",
+   "h": 23,
+   "mi": 27,
+   "dur": 36.5,
+   "out": "ok",
+   "out_basis": "estimate",
+   "live": false,
+   "tools": 73,
+   "errors": 1,
+   "corr": 0,
+   "excluded": false,
+   "ticks": {
+    "t": [
+     0.5
+    ],
+    "e": []
+   }
+  }
+ ],
+ "total": 1,
+ "next_offset": null
+}

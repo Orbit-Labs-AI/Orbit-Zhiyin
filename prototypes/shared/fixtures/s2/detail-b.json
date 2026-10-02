@@ -1,0 +1,281 @@
+{
+ "header": {
+  "id": "session_fx010",
+  "a": "codex",
+  "agent_name": "Codex",
+  "model": "gpt-5-codex",
+  "effort": "high",
+  "cwd": "/synthetic/beta-lib",
+  "project_id": null,
+  "title": "整理示例仓库的测试 #10",
+  "title_source": "first_message",
+  "started_at": 1790000000000,
+  "dur": 20.0,
+  "dur_basis": "active_estimate",
+  "out": "ok",
+  "out_basis": "estimate",
+  "corr": 1,
+  "corr_basis": "lexical_candidate",
+  "live": false,
+  "excluded": false,
+  "resume": {
+   "shell": "cd /synthetic/beta-lib && codex --resume fx",
+   "verified": false,
+   "available": true,
+   "disabled_reason": null
+  }
+ },
+ "stats7": {
+  "msgs": 7,
+  "steps": 20,
+  "tools": 40,
+  "errors": 2,
+  "corr": 1,
+  "ctx_peak": 41.0,
+  "tok": 30000,
+  "steps_basis": "tool_calls_plus_reply_spans",
+  "ctx_basis": "estimate",
+  "tok_basis": "l1_model_call"
+ },
+ "trajectory": {
+  "T": 20.0,
+  "unit": "min",
+  "start_min": 850,
+  "t0": 1790000000000,
+  "lanes": [
+   "user",
+   "agent",
+   "sub",
+   "read",
+   "edit",
+   "bash",
+   "web"
+  ],
+  "events": [
+   {
+    "id": "u0",
+    "lane": "user",
+    "t": 0.0,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": "整理示例仓库的测试 #10",
+    "seq": 1,
+    "event_uid": "event_s2_00"
+   },
+   {
+    "id": "tool_call_s2_01",
+    "lane": "read",
+    "t": 1.0,
+    "w": 0.02,
+    "err": false,
+    "corr": false,
+    "cmd": "Read tests/",
+    "res": "completed",
+    "txt": null,
+    "seq": 2,
+    "event_uid": "event_s2_01"
+   },
+   {
+    "id": "tool_call_s2_02",
+    "lane": "bash",
+    "t": 4.0,
+    "w": 0.3,
+    "err": true,
+    "corr": false,
+    "cmd": "pytest",
+    "res": "exit 1",
+    "txt": null,
+    "seq": 3,
+    "event_uid": "event_s2_02"
+   },
+   {
+    "id": "tool_call_s2_03",
+    "lane": "edit",
+    "t": 6.0,
+    "w": 0.05,
+    "err": false,
+    "corr": false,
+    "cmd": "Edit tests/test_a.py",
+    "res": "completed",
+    "txt": null,
+    "seq": 4,
+    "event_uid": "event_s2_03"
+   },
+   {
+    "id": "tool_call_s2_04",
+    "lane": "bash",
+    "t": 9.0,
+    "w": 0.3,
+    "err": true,
+    "corr": false,
+    "cmd": "pytest",
+    "res": "exit 1",
+    "txt": null,
+    "seq": 5,
+    "event_uid": "event_s2_04"
+   },
+   {
+    "id": "u5",
+    "lane": "user",
+    "t": 11.0,
+    "w": 0,
+    "err": false,
+    "corr": true,
+    "cmd": null,
+    "res": null,
+    "txt": "先别改断言",
+    "seq": 6,
+    "event_uid": "event_s2_05"
+   },
+   {
+    "id": "r6",
+    "lane": "agent",
+    "t": 12.0,
+    "w": 0.6,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": null,
+    "seq": 7,
+    "event_uid": "event_s2_06"
+   },
+   {
+    "id": "tool_call_s2_07",
+    "lane": "bash",
+    "t": 16.0,
+    "w": 0.3,
+    "err": false,
+    "corr": false,
+    "cmd": "pytest",
+    "res": "exit 0",
+    "txt": null,
+    "seq": 8,
+    "event_uid": "event_s2_07"
+   },
+   {
+    "id": "r8",
+    "lane": "agent",
+    "t": 19.0,
+    "w": 0.5,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": null,
+    "seq": 9,
+    "event_uid": "event_s2_08"
+   },
+   {
+    "id": "u9",
+    "lane": "user",
+    "t": 19.8,
+    "w": 0,
+    "err": false,
+    "corr": false,
+    "cmd": null,
+    "res": null,
+    "txt": "好",
+    "seq": 10,
+    "event_uid": "event_s2_09"
+   }
+  ],
+  "phases": [
+   {
+    "t": 0,
+    "t2": 4.0,
+    "phase": "explore",
+    "label": "探索",
+    "inferred": true
+   },
+   {
+    "t": 4.0,
+    "t2": 16.0,
+    "phase": "execute",
+    "label": "实施",
+    "inferred": true
+   },
+   {
+    "t": 16.0,
+    "t2": 20.0,
+    "phase": "verify",
+    "label": "验证",
+    "inferred": true
+   }
+  ],
+  "moments": [
+   {
+    "t": 0.0,
+    "n": 1,
+    "label": "你给出目标",
+    "detail": "「整理示例仓库的测试 #10」",
+    "alert": false,
+    "event_uid": null,
+    "rule": "goal"
+   },
+   {
+    "t": 11.0,
+    "n": 2,
+    "label": "你纠偏",
+    "detail": "「先别改断言」",
+    "alert": true,
+    "event_uid": null,
+    "rule": "correction"
+   }
+  ],
+  "marks": [],
+  "ctx": [
+   [
+    1.0,
+    5.0
+   ],
+   [
+    9.0,
+    30.0
+   ],
+   [
+    19.0,
+    41.0
+   ]
+  ],
+  "comps": [],
+  "steps_axis": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ]
+ },
+ "lite_nodes": [
+  {
+   "t": 0.0,
+   "label": "你给出目标",
+   "detail": "「整理示例仓库的测试 #10」",
+   "alert": false,
+   "event_uid": null,
+   "rule": "goal"
+  },
+  {
+   "t": 11.0,
+   "label": "你纠偏",
+   "detail": "「先别改断言」",
+   "alert": true,
+   "event_uid": null,
+   "rule": "correction"
+  }
+ ],
+ "insight": {
+  "text": "示例：协作较顺。",
+  "actions": [],
+  "basis": "l0_template"
+ }
+}
