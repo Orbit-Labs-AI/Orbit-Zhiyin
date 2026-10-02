@@ -10,6 +10,7 @@ rebuild of the source; the closure only bounds the work.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import json
 import os
@@ -278,9 +279,10 @@ def project(store, *, workers, pool=None, progress=None, max_fraction=MAX_CLOSUR
             else:
                 scope = None
             if scope is None:
-                result = rebuild(
-                    store, source_ids={source_id}, progress=progress, workers=workers, pool=pool
-                )
+                with _join_batch(store):
+                    result = rebuild(
+                        store, source_ids={source_id}, progress=progress, workers=workers, pool=pool
+                    )
                 result["scope"] = {"kind": "source"}
         return result
     finally:
@@ -359,6 +361,26 @@ def session_group(agent, relative):
 
 
 @contextmanager
+def _join_batch(store):
+    """Inside a batch, run a whole-source rebuild in the batch transaction itself.
+
+    A savepoint around a rebuild makes it several times slower (profiled: event and
+    record inserts dominate while a savepoint is open). Only closure rebuilds need one,
+    to retry after a ScopeEscalation; a failed source rebuild already aborts the whole
+    batch, whose ROLLBACK discards its writes.
+    """
+    savepoint = store.__dict__.get("transaction")
+    if savepoint is None:  # Not inside batch_transaction: the store's own transaction.
+        yield
+        return
+    store.transaction = contextlib.nullcontext
+    try:
+        yield
+    finally:
+        store.transaction = savepoint
+
+
+@contextmanager
 def batch_transaction(store):
     """One write transaction for a whole batch; inner transactions become savepoints."""
     names = itertools.count()
@@ -388,8 +410,17 @@ def batch_transaction(store):
         del store.transaction
 
 
-def plan_batches(entries, *, first_sessions, first_days, batch_files, now):
-    """Newest groups first: a small first batch, then batches of about ``batch_files``."""
+FIRST_BATCH_BYTES = 6_000_000
+
+
+def plan_batches(entries, *, first_sessions, first_days, first_bytes=FIRST_BATCH_BYTES, now):
+    """Newest groups first: a small first batch, then one batch per source.
+
+    The first batch is bounded by source bytes (a proxy for event volume and so for
+    time to first read), by ``first_sessions`` and by recency, and always holds at
+    least the newest group. Every later batch is the remainder of one source, so each
+    source is projected once more as a whole instead of once per small batch.
+    """
     groups = {}
     for entry in entries:
         groups.setdefault(entry["group"], []).append(entry)
@@ -398,20 +429,22 @@ def plan_batches(entries, *, first_sessions, first_days, batch_files, now):
         key=lambda members: (-max(m["mtime"] for m in members), members[0]["group"]),
     )
     recent = now - first_days * 86_400
-    first = []
+    first, size = [], 0
     for members in ordered:
-        if len(first) >= first_sessions or (first and max(m["mtime"] for m in members) < recent):
+        grown = size + sum(m.get("size", 0) for m in members)
+        if first and (
+            len(first) >= first_sessions
+            or max(m["mtime"] for m in members) < recent
+            or grown > first_bytes
+        ):
             break
         first.append(members)
+        size = grown
     batches = [[m for members in first for m in members]] if first else []
-    current = []
+    rest = {}
     for members in ordered[len(first) :]:
-        current.extend(members)
-        if len(current) >= batch_files:
-            batches.append(current)
-            current = []
-    if current:
-        batches.append(current)
+        rest.setdefault(members[0]["group"][0], []).extend(members)  # group = (source, key)
+    batches.extend(rest.values())  # Sources in order of their newest remaining group.
     return batches
 
 
@@ -422,13 +455,16 @@ def import_progressive(
     cancel: threading.Event | None = None,
     first_sessions=200,
     first_days=7,
-    batch_files=500,
+    first_bytes=FIRST_BATCH_BYTES,
     on_batch=None,
 ):
-    """First import: publish the newest sessions first, then the rest in batches.
+    """First import: publish the newest sessions first, then the rest one source per batch.
 
     Each batch captures and publishes inside one write transaction, so readers keep
-    seeing the previous consistent snapshot and never a pending projection.
+    seeing the previous consistent snapshot and never a pending projection. On a store
+    without a projection every batch rebuilds its stale sources as a whole: closure
+    increments on a growing store cost far more than one bulk source rebuild, and the
+    whole-source rebuild is the same path an ordinary first import publishes with.
     """
     from tandem_data.discovery import inputs
     from tandem_data.parallel import WorkerPool, capture
@@ -441,6 +477,12 @@ def import_progressive(
     own_pool = None if service.pool is not None else WorkerPool(service.workers)
     pool = service.pool or own_pool
     with service.writer():
+        # Fresh store: bulk source rebuilds. Existing store: the usual closure rules.
+        fraction = (
+            MAX_CLOSURE_FRACTION
+            if store.db.execute("SELECT 1 FROM projection_run LIMIT 1").fetchone()
+            else 0.0
+        )
         entries, sources = [], {}
         for request in requests:
             root = request.root.expanduser().resolve(strict=True)
@@ -450,13 +492,15 @@ def import_progressive(
             mark_missing(store, source_id, {str(i.path.relative_to(root)) for i in available})
             for item in available:
                 relative = str(item.path.relative_to(root))
+                stat = item.path.stat()
                 entries.append(
                     {
                         "source_id": source_id,
                         "agent": request.agent,
                         "root": root,
                         "item": item,
-                        "mtime": item.path.stat().st_mtime,
+                        "mtime": stat.st_mtime,
+                        "size": stat.st_size,
                         "group": (source_id, session_group(request.agent, relative)),
                     }
                 )
@@ -464,7 +508,7 @@ def import_progressive(
             entries,
             first_sessions=first_sessions,
             first_days=first_days,
-            batch_files=batch_files,
+            first_bytes=first_bytes,
             now=time.time(),
         )
         summary["planned_batches"] = len(batches)
@@ -497,7 +541,7 @@ def import_progressive(
                     workers=service.workers,
                     pool=pool,
                     progress=service.progress,
-                    max_fraction=1.0,
+                    max_fraction=fraction,
                 )
                 last = index == len(batches) - 1
                 for source_id, (_, _, discovered) in sources.items():
