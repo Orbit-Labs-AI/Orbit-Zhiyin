@@ -150,3 +150,24 @@ def test_each_section_endpoint_returns_only_its_section(tmp_path):
             assert key in body and "sessions" not in body and "freshness" in body, path
         assert client.get("/v1/analytics/recommendations").status_code == 200
         assert client.get("/v1/analytics/preferences").json()["preferences"]["effective"] is not None
+
+
+def test_insights_routes_are_mounted_and_read_cached_sections(tmp_path, monkeypatch):
+    home, _ = build_home(tmp_path, 6)
+    with TestClient(create_app(home=home)) as client:
+        signals = client.get("/v1/analytics/signals")
+        assert signals.status_code == 200 and "signals" in signals.json()
+        # Signals filled the sessions/bottleneck sections; later insight reads must not run
+        # the engine again, only input selection.
+        import tandem_backend.analytics.service as service
+
+        def fail(*args, **kwargs):
+            raise AssertionError("insight route recomputed analysis sections")
+
+        monkeypatch.setattr(service, "AnalysisSections", fail)
+        monkeypatch.setattr(service, "analyze_context", fail)
+        metrics = client.get("/v1/analytics/metrics")
+        assert metrics.status_code == 200, metrics.text
+        problems = client.get("/v1/analytics/problems")
+        assert problems.status_code == 200, problems.text
+        assert client.get("/v1/analytics/metrics?metric=nope").status_code == 422

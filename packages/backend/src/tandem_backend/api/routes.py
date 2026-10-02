@@ -116,6 +116,24 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         from ..analytics.service import response_section
         return response_section(analytics_sections(scope, [key], with_text), key)
 
+    def insight_result(scope):
+        """Signal layer input: the selected context plus the cached sections it reads.
+
+        Signals read ``sessions`` rows and metrics/drill-down read ``bottleneck_features``;
+        both come from the read-through cache, so only input selection runs per request.
+        """
+        from ..analytics.context import AnalysisContext
+        from ..analytics.inputs import legacy_bundle
+        from ..analytics.service import analyze_context
+        bundle = store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
+        context = AnalysisContext.select(bundle, scope)
+        if not cached():
+            return context, analyze_context(context, False, with_recommendations=False)
+        return context, analytics_sections(scope, ["sessions", "bottleneck_features"])
+
+    from .insights import build_router
+    app.include_router(build_router(insight_result, scope_dependency=analytics_scope))
+
     def without_recommendations():
         from ..analytics.service import SECTIONS
         return [name for name in SECTIONS if name != "bottleneck_recommendations"]
