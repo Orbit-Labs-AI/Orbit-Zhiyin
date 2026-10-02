@@ -31,7 +31,7 @@ uv run --project packages/data tandem-data --home .local/tandem verify
 uv run --project packages/data tandem-data --home .local/tandem rebuild
 ```
 
-名字为 `claude_code / opencode / dsh / pi / hermes / kimi`，原有 `codex` 保留。`scan --limit N` 为有界样本；`ingest --file` 必须命中来源白名单。导出拒绝覆盖已有文件或写入 Agent 目录。
+名字为 `claude_code / opencode / dsh / pi / hermes / kimi`，原有 `codex` 保留。`scan --limit N` 为有界样本；`ingest --file` 必须命中来源白名单。导出拒绝覆盖已有文件或写入 Agent 目录。CSV 对公式起始的文本加单引号作为字面量，JSONL 保持标准投影内容；完整原件仍在 L0。
 
 ## App 接入方式
 

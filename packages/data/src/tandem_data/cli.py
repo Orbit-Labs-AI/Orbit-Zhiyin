@@ -26,6 +26,15 @@ EXPORT_TABLES = (
 )
 
 
+def _csv_cell(value):
+    """Prevent spreadsheet evaluation; typed numeric cells remain numeric."""
+    if isinstance(value, str):
+        candidate = value.lstrip()
+        if candidate.startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")):
+            return "'" + value
+    return value
+
+
 def statistics(store):
     return {
         "db": str(store.db_path),
@@ -143,7 +152,7 @@ def main(argv=None):
                 if args.format == "csv":
                     writer = csv.writer(handle)
                     writer.writerow([col[0] for col in rows.description])
-                    writer.writerows(rows)
+                    writer.writerows([_csv_cell(value) for value in row] for row in rows)
                 else:
                     for row in rows:
                         data = dict(row)

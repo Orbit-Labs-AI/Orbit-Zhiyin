@@ -133,3 +133,48 @@ def test_app_cursor_and_export_refuse_obsolete_projection(tmp_path):
     result = invoke("--home", home, "export", "--table", "v_analysis_event", "--output", export)
     assert result.returncode != 0 and "obsolete" in result.stderr
     assert not export.exists()
+
+
+def test_csv_export_keeps_untrusted_formula_text_literal(tmp_path):
+    import csv
+
+    from tandem_data.contract import canonical
+
+    payloads = ["=1+1", "+1+1", "-1+1", "@SUM(1,2)", "\t=1+1", "  =1+1", "ordinary text"]
+    root = tmp_path / "pi"
+    file = root / "sessions/demo.jsonl"
+    file.parent.mkdir(parents=True)
+    file.write_text(
+        canonical({"type": "session", "id": "s"})
+        + "\n"
+        + "".join(
+            canonical(
+                {"type": "message", "id": str(i), "message": {"role": "user", "content": text}}
+            )
+            + "\n"
+            for i, text in enumerate(payloads)
+        )
+    )
+    home = tmp_path / "data"
+    with Store(home) as store:
+        ImportService(store).import_source(ImportRequest("pi", root))
+    target = tmp_path / "events.csv"
+    result = invoke(
+        "--home",
+        home,
+        "export",
+        "--table",
+        "v_human_message",
+        "--format",
+        "csv",
+        "--output",
+        target,
+    )
+    assert result.returncode == 0, result.stderr
+    with target.open() as handle:
+        text = [row["text"] for row in csv.DictReader(handle)]
+    assert text == ["'" + value for value in payloads[:-1]] + [payloads[-1]]
+    jsonl = tmp_path / "events.jsonl"
+    result = invoke("--home", home, "export", "--table", "v_human_message", "--output", jsonl)
+    assert result.returncode == 0, result.stderr
+    assert [json.loads(line)["text"] for line in jsonl.read_text().splitlines()] == payloads
