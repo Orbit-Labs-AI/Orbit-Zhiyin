@@ -52,6 +52,7 @@ def isolated_memory_cache():
         (Scope(), True),
         (Scope(from_ts=1769990400000, until_ts=1771200000000, display_timezone="Asia/Shanghai"), False),
         (Scope(model_ids=["fixture-model-1"]), False),
+        (Scope(agent_ids=["codex"]), True),
     ],
 )
 def test_cold_row_hit_and_full_hit_paths_are_identical(tmp_path, scope, with_text):
@@ -159,6 +160,18 @@ def test_version_and_fingerprint_changes_invalidate(tmp_path, monkeypatch):
     assert bumped["freshness"]["algo_version"] != base["freshness"]["algo_version"]
     monkeypatch.undo()
 
+    # Taxonomy and preference rule versions enter analysis_digest, so they key the cache too.
+    for target in (
+        "tandem_backend.analytics.task.taxonomy.TAXONOMY_VERSION",
+        "tandem_backend.analytics.preference.PREFERENCE_VERSION",
+        "tandem_backend.analytics.preference.PREFERENCE_EVIDENCE_VERSION",
+    ):
+        monkeypatch.setattr(target, "rule-test-bump")
+        retuned = cache.sections(Scope(), ["overview"])
+        assert retuned["freshness"]["cache_hit"] is False, target
+        assert retuned["freshness"]["algo_version"] != base["freshness"]["algo_version"], target
+        monkeypatch.undo()
+
     from tandem_backend.analytics.products.contracts import RULE_VERSIONS
 
     monkeypatch.setitem(RULE_VERSIONS, "task", "task-test-bump")
@@ -212,6 +225,18 @@ def test_recorded_serves_verified_hits_as_light_runs(tmp_path):
     with pytest.raises(ValueError, match="corrupt"):
         recorded(store, "fixture", {"x": 1}, compute)
     assert calls == [1]
+
+
+def test_cached_features_run_snapshot_has_the_public_shape(tmp_path):
+    home, _ = build_home(tmp_path, 3)
+    store = CanonicalStore(home)
+    result = analyze_store(store, with_text=False)
+    history = history_for(store)
+    run = history.list_runs(engine="features")["items"][0]
+    snapshot = history.result(run["run_id"])
+    assert "meta" not in snapshot
+    for key in ("analysis_digest", "coverage", "coverage_report", "overview", "sessions"):
+        assert json.dumps(snapshot[key], sort_keys=True) == json.dumps(result[key], sort_keys=True)
 
 
 def test_tampered_section_is_reported_not_recomputed(tmp_path):
