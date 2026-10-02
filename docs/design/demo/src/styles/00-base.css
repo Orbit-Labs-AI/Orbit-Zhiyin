@@ -1,24 +1,25 @@
 /* Tokens, fonts, resets.
    Stage = a Mac desktop: fixed 24px menu bar, desktop widgets under the windows, a resizable main window, a settings panel,
-   floating HUD, menu-bar panel and notifications. Visual system: neutral grey desktop, three window layers (window / sidebar
-   material / card), system accent --accent for every selection-ish control, AI purple only marks AI output.
-   Dark layers desk #121214 → window #1a1a1e → sidebar ≈ #29292e → card #34343a (adjacent pairs ≥ 1.15 contrast).
+   floating HUD, menu-bar panel and notifications. Visual language (unchanged from the published demo): warm paper — warm
+   grey desk, warm white window and sidebar material, white cards; serif for titles / persona code / AI prose; mono for
+   numbers, eyebrows, meta and code; the system accent --accent only drives controls (selection, switches, focus, menus).
+   Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
    Fonts: UI = system-ui (SF Pro / PingFang in Chrome); the brand serif / mono come from Google Fonts when online and fall
    back to Georgia + Songti SC / Menlo offline (ui-serif / ui-monospace are ignored by Chrome). */
 :root{
---desk:#d4d5da;--desk-2:#c5c6cc;--menubar:rgba(238,238,242,.82);
---bg:#f2f2f4;--sb:rgba(236,236,240,.72);--field:rgba(0,0,0,.055);--surface:#ffffff;--raised:rgba(250,250,251,.94);--sunken:#ebebee;--line:rgba(0,0,0,.09);--hair:rgba(0,0,0,.055);--sep:rgba(0,0,0,.1);
---ink-1:#1c1c1e;--ink-2:#48484c;--ink-3:#6e6e73;--ink-4:#aeaeb2;
---accent:#007aff;--accent-ink:#ffffff;--accent-tint:rgba(0,122,255,.14);--sel:rgba(0,0,0,.075);--sel-off:rgba(0,0,0,.05);--focus:rgba(0,103,244,.5);
+--desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
+--bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
+--ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--accent:#007aff;--accent-ink:#ffffff;--accent-tint:rgba(0,122,255,.14);--sel:rgba(23,24,27,.07);--sel-off:rgba(23,24,27,.045);--focus:rgba(0,103,244,.5);
 --ai:#5a3fd0;--ai-bg:#efecff;
---good:#1f8a3b;--warn:#8a5a00;--crit:#d02b2b;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#34c759;--warn-m:#ffcc00;--crit-m:#ff383c;
---pri:var(--accent);--pri-ink:#ffffff;--tip:#f7f7f9;--tip-ink:#1c1c1e;--toast-act:var(--accent);--scrim:rgba(0,0,0,.2);
+--good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#34c759;--warn-m:#ffcc00;--crit-m:#ff383c;
+--pri:var(--accent);--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:var(--accent);--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;
---h0:#f1f1f3;--h1:#dedfe3;--h2:#c0c1c6;--h3:#8f9095;--h4:#5a5b60;--h5:#1f2023;
---hud:rgba(28,28,30,.94);--hud-2:rgba(255,255,255,.08);--hud-line:rgba(255,255,255,.12);--hud-ink:#f2f2f4;--hud-ink-2:#c7c7cc;--hud-ink-3:#98989d;
---wg:#ffffff;--wg-edge:rgba(0,0,0,.08);
---sh-card:0 1px 2px rgba(0,0,0,.04);--sh-raise:0 1px 2px rgba(0,0,0,.1),0 0 0 .5px rgba(0,0,0,.08);--sh-pop:0 10px 36px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.14);--sh-win:0 0 0 .5px rgba(0,0,0,.2),0 24px 70px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.1);
+--h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--hud:rgba(22,23,26,.95);--hud-2:rgba(255,255,255,.08);--hud-line:rgba(255,255,255,.12);--hud-ink:#f1f1f3;--hud-ink-2:#c3c6cc;--hud-ink-3:#969aa3;
+--wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
+--sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 .5px rgba(20,24,30,.12);--sh-win:0 0 0 .5px rgba(20,24,30,.18),0 22px 60px rgba(20,24,30,.24),0 1px 2px rgba(0,0,0,.05);
 --ease:cubic-bezier(.2,.8,.2,1);
 --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
 --serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC","Noto Serif SC",serif;
@@ -26,31 +27,31 @@
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
---desk:#121214;--desk-2:#1b1b1f;--menubar:rgba(36,36,40,.82);
---bg:#1a1a1e;--sb:rgba(44,44,49,.9);--field:rgba(255,255,255,.08);--surface:#34343a;--raised:rgba(54,54,60,.96);--sunken:#232327;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
+--desk:#0f0f11;--desk-2:#18181b;--menubar:rgba(32,32,36,.84);
+--bg:#161619;--sb:rgba(38,38,43,.9);--field:rgba(255,255,255,.08);--surface:#2f2f34;--raised:rgba(50,50,56,.96);--sunken:#1e1e22;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
 --ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#0a84ff;--accent-ink:#ffffff;--accent-tint:rgba(10,132,255,.24);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
 --ai:#b4a8ff;--ai-bg:#2f2954;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
 --tip:#3a3a40;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#e0632f;--a1t:#452418;--a2:#3f8ce8;--a2t:#1a2f48;--a3:#1fa878;--a3t:#143627;--a4:#d08e0a;--a4t:#3d2a0c;--a5:#d85a88;--a5t:#44222d;
---h0:#28282d;--h1:#36363c;--h2:#4c4c52;--h3:#737379;--h4:#a8a8ae;--h5:#f2f2f4;
---hud:rgba(46,46,51,.96);
---wg:#2e2e33;--wg-edge:rgba(255,255,255,.12);
+--h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--hud:rgba(40,40,45,.96);
+--wg:#28282d;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
 color-scheme:dark}}
 :root[data-theme="dark"]{
---desk:#121214;--desk-2:#1b1b1f;--menubar:rgba(36,36,40,.82);
---bg:#1a1a1e;--sb:rgba(44,44,49,.9);--field:rgba(255,255,255,.08);--surface:#34343a;--raised:rgba(54,54,60,.96);--sunken:#232327;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
+--desk:#0f0f11;--desk-2:#18181b;--menubar:rgba(32,32,36,.84);
+--bg:#161619;--sb:rgba(38,38,43,.9);--field:rgba(255,255,255,.08);--surface:#2f2f34;--raised:rgba(50,50,56,.96);--sunken:#1e1e22;--line:rgba(255,255,255,.1);--hair:rgba(255,255,255,.06);--sep:rgba(255,255,255,.1);
 --ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#0a84ff;--accent-ink:#ffffff;--accent-tint:rgba(10,132,255,.24);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
 --ai:#b4a8ff;--ai-bg:#2f2954;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#30d158;--warn-m:#ffd600;--crit-m:#ff4245;
 --tip:#3a3a40;--tip-ink:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#e0632f;--a1t:#452418;--a2:#3f8ce8;--a2t:#1a2f48;--a3:#1fa878;--a3t:#143627;--a4:#d08e0a;--a4t:#3d2a0c;--a5:#d85a88;--a5t:#44222d;
---h0:#28282d;--h1:#36363c;--h2:#4c4c52;--h3:#737379;--h4:#a8a8ae;--h5:#f2f2f4;
---hud:rgba(46,46,51,.96);
---wg:#2e2e33;--wg-edge:rgba(255,255,255,.12);
+--h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--hud:rgba(40,40,45,.96);
+--wg:#28282d;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
 color-scheme:dark}
 
