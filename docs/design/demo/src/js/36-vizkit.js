@@ -38,7 +38,7 @@
  *   bar           series 同上；stacked，horizontal，err: 每系列 { err: [n] } 误差；x.values 为类别；labels: true | 'max'；hatch: [i] 斜纹标未完成的桶
  *   histogram     values: [n]，bins（数量）或 edges: [n]，format；marks 可标均值
  *   diverging     rows: [{ name, value, left, right, ref }]，domain: [-1, 1]，colors: [负, 正]（默认情绪发散色），deadband: [a, b] 中间「未定型」带，format
- *   ranked        rows: [{ name, value, share, meta, id }]，top（前 k 强调），format
+ *   ranked        rows: [{ name, value, share, meta, flag, id }]，top（前 k 深色、其余浅灰），format，barH（默认 8）
  *   share         items: [{ name, value, color }]，单条 100% 比例条 + 图例
  *   bullet        rows: [{ name, value, target, ranges: [q1, q2, q3], format }]，max
  *   dumbbell      rows: [{ name, a, b, id }]，labels: ['安装前', '安装后']，format，goodDown
@@ -66,7 +66,8 @@
 const VZ = { types: {}, _inst: new WeakMap(), ACC: 'var(--accent, #0a84ff)', _uid: 0 };
 // 语义色（评审 §4：一个颜色只对应一个含义）。值是 36-viz.css 的 --vz-* 变量，缺省回落到主题的 crit / good 与琥珀 / 冷紫 / 青绿。
 VZ.sem = { err: 'var(--vz-err)', corr: 'var(--vz-corr)', good: 'var(--vz-good)', neg: 'var(--vz-mood-neg)', pos: 'var(--vz-mood-pos)', accent: 'var(--accent, #0a84ff)', bar: 'var(--ink-4)', barStrong: 'var(--ink-3)' };
-VZ.color = (i, s) => (s && s.color) || (i < 5 ? 'var(--a' + (i + 1) + ')' : 'var(--h3)');
+// 第 i 个系列的颜色；传入系列总数 n === 1 时（单一度量的柱 / 条）用中性 --ink-3，Agent 五色只表示身份（评审 G-03）
+VZ.color = (i, s, n) => (s && s.color) || (n === 1 ? 'var(--ink-3)' : i < 5 ? 'var(--a' + (i + 1) + ')' : 'var(--h3)');
 // 斜纹（未完成的末桶、推断值）：每张 svg 自带一份 <pattern>，id 唯一
 VZ.hatchId = () => 'vzh' + (VZ._uid++);
 VZ.hatchDefs = (id) => '<defs><pattern id="' + id + '" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><line class="vz-hatch-ln" x1="0" y1="0" x2="0" y2="5"/></pattern></defs>';
@@ -269,7 +270,7 @@ VZ.callouts = function (notes, F, pos) {
 /* ---------- 图例 / tooltip / 空状态 ---------- */
 VZ.legendItems = function (spec) {
   const ser = spec.series || []; const t = VZ.types[spec.type];
-  return t && t.legend ? t.legend(spec) : ser.map((s, i) => ({ name: s.name == null ? '系列 ' + (i + 1) : s.name, color: VZ.color(i, s), kind: spec.type === 'bar' || s.area || spec.type === 'area' ? 'rect' : 'line', total: s.total }));
+  return t && t.legend ? t.legend(spec) : ser.map((s, i) => ({ name: s.name == null ? '系列 ' + (i + 1) : s.name, color: VZ.color(i, s, spec.type === 'bar' ? ser.length : 0), kind: spec.type === 'bar' || s.area || spec.type === 'area' ? 'rect' : 'line', total: s.total }));
 };
 // 图例只影响本图：点击 = 显示 / 隐藏该系列；⌥ 点击 = 只看该系列（再 ⌥ 点击恢复全部）；悬停 = 其他系列淡出。
 VZ.legendHTML = function (spec, inst) {
@@ -520,7 +521,7 @@ VZ.xyModel = function (spec, P, o) {
     kind: 'x', n, F, xs: XA.xs,
     has: (i) => ser.some((s, j) => vis[j] && VZ.val((s.values || [])[i]) != null),
     tip: (i) => {
-      const rows = ser.map((s, j) => { if (!vis[j]) return ''; const v = VZ.val((s.values || [])[i]); if (v == null) return ''; return VZ.tipRow(VZ.color(j, s), s.name == null ? '' : s.name, fy(v) + (s.unit || ''), { kind: o.rect ? 'rect' : 'line' }); }).join('');
+      const rows = ser.map((s, j) => { if (!vis[j]) return ''; const v = VZ.val((s.values || [])[i]); if (v == null) return ''; return VZ.tipRow(VZ.color(j, s, o.rect ? ser.length : 0), s.name == null ? '' : s.name, fy(v) + (s.unit || ''), { kind: o.rect ? 'rect' : 'line' }); }).join('');
       const tot = o.total ? ser.reduce((a, s, j) => a + (vis[j] ? (VZ.val((s.values || [])[i]) || 0) : 0), 0) : null;
       return VZ.tipHead(VZ.xLabel(spec, i), tot != null && ser.filter((s, j) => vis[j]).length > 1 ? '合计 ' + fy(tot) : '') + rows;
     },
@@ -579,7 +580,7 @@ VZ.types.bar = {
     if (spec.labels === 'max') for (let i = 0; i < n; i++) { const t = ser.reduce((a, s, j) => a + (vis[j] ? (VZ.val((s.values || [])[i]) || 0) : 0), 0); if (t > maxV) { maxV = t; maxI = i; } }
     for (let i = 0; i < n; i++) {
       const cx = XA.xs[i]; let up = 0, dn = 0, kk = 0;
-      const segs = []; ser.forEach((s, j) => { if (!vis[j]) return; segs.push({ v: VZ.val((s.values || [])[i]), c: VZ.color(j, s), j, e: s.err ? VZ.num(s.err[i]) : null }); });
+      const segs = []; ser.forEach((s, j) => { if (!vis[j]) return; segs.push({ v: VZ.val((s.values || [])[i]), c: VZ.color(j, s, ser.length), j, e: s.err ? VZ.num(s.err[i]) : null }); });
       const pos = segs.filter((s) => s.v > 0), neg = segs.filter((s) => s.v < 0);
       segs.forEach((sg) => {
         if (sg.v == null) { kk++; return; }
@@ -624,7 +625,7 @@ VZ.types.bar = {
       const cy = by(i); let up = 0, dn = 0, kk = 0; let endX = x0px;
       const lbl = String(cats[i] == null ? i + 1 : cats[i]); let txt = lbl; if (VZ.tw(txt, 12) > labW - 10) { while (txt.length > 1 && VZ.tw(txt + '…', 12) > labW - 10) txt = txt.slice(0, -1); txt += '…'; }
       g += VZ.txt(F.x0 - 8, cy + 4, txt, { class: 'vz-cat', 'text-anchor': 'end' });
-      const segs = []; ser.forEach((s, j) => { if (!vis[j]) return; segs.push({ v: VZ.val((s.values || [])[i]), c: VZ.color(j, s), j }); });
+      const segs = []; ser.forEach((s, j) => { if (!vis[j]) return; segs.push({ v: VZ.val((s.values || [])[i]), c: VZ.color(j, s, ser.length), j }); });
       const pos = segs.filter((s) => s.v > 0), neg = segs.filter((s) => s.v < 0);
       segs.forEach((sg) => {
         if (sg.v == null) { kk++; return; }
@@ -644,7 +645,7 @@ VZ.types.bar = {
     g += '<line class="vz-base" x1="' + VZ.r1(x0px) + '" x2="' + VZ.r1(x0px) + '" y1="' + F.yT + '" y2="' + F.yB + '"/>';
     const stackTop = (i, j) => ser.slice(0, j + 1).reduce((a2, q, kq) => a2 + (vis[kq] ? Math.max(0, VZ.val((q.values || [])[i]) || 0) : 0), 0);
     const model = { kind: 'mark', n, F, xs: [], has: () => true,
-      tip: (i) => VZ.tipHead(String(cats[i] == null ? i + 1 : cats[i])) + ser.map((s, j) => { if (!vis[j]) return ''; const v = VZ.val((s.values || [])[i]); return v == null ? '' : VZ.tipRow(VZ.color(j, s), s.name || '', fy(v), { kind: 'rect' }); }).join(''),
+      tip: (i) => VZ.tipHead(String(cats[i] == null ? i + 1 : cats[i])) + ser.map((s, j) => { if (!vis[j]) return ''; const v = VZ.val((s.values || [])[i]); return v == null ? '' : VZ.tipRow(VZ.color(j, s, ser.length), s.name || '', fy(v), { kind: 'rect' }); }).join(''),
       at: (i) => { let e = x0px; ser.forEach((s, j) => { if (!vis[j]) return; const v = VZ.val((s.values || [])[i]); if (v != null) e = Math.max(e, sx(stacked ? stackTop(i, j) : v)); }); return [e, by(i)]; },
       datum: (i) => ({ i, x: cats[i], label: String(cats[i]), values: ser.map((s) => VZ.val((s.values || [])[i])) }) };
     return { body: g, model };
@@ -738,11 +739,12 @@ VZ.types.ranked = {
     const mx = Math.max(1e-9, ...rows.map((r) => VZ.num(r.value) || 0));
     const valW = Math.ceil(VZ.tw(fmt(mx), 11)) + 10; const shW = spec.share === false ? 0 : 40;
     const F = VZ.rowsFrame(spec, w, h, rows, { rightW: valW + shW, labFrac: 0.4 });
-    const sx = VZ.scale.linear(0, mx, F.x0, F.x1); const bh = Math.min(spec.barH || 10, F.step * 0.6);
+    const sx = VZ.scale.linear(0, mx, F.x0, F.x1); const bh = Math.min(spec.barH || 8, F.step * 0.6);
     let g = '';
     rows.forEach((r, i) => {
       const cy = F.by(i); const v = VZ.num(r.value) || 0; const top = spec.top != null ? i < spec.top : true;
-      const c = r.color || (spec.top != null ? (top ? (spec.color || 'var(--ink-1)') : 'var(--h3)') : (spec.color || 'var(--ink-2)'));
+      // 列表条浅灰、只有被强调的（top）用深色（评审 G-03）
+      const c = r.color || (spec.top != null ? (top ? (spec.color || 'var(--ink-2)') : 'var(--h2)') : (spec.color || 'var(--h3)'));
       g += F.name(i) + '<path class="vz-bar' + (spec.selected != null && (spec.selected === i || spec.selected === r.id) ? ' vz-sel' : '') + '" data-i="' + i + '" d="' + VZ.barPath(F.x0, cy - bh / 2, Math.max(2, sx(v) - F.x0), bh, 'right', 3) + '" style="--c:' + c + '"/>';
       g += VZ.txt(F.x1 + valW - 2, cy + 4, fmt(v), { class: 'vz-val', 'text-anchor': 'end' });
       if (shW) g += VZ.txt(w - 2, cy + 4, Math.round(shareOf(r)) + '%', { class: 'vz-ax', 'text-anchor': 'end' });
