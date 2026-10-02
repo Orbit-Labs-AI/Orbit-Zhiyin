@@ -67,32 +67,78 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         agent_ids: Annotated[list[str] | None, Query()] = None,
         source_ids: Annotated[list[str] | None, Query()] = None,
     ):
+        from ..analytics.cache import with_exclusions
+        from ..analytics.history import history_for
         from ..analytics.inputs import Scope
         try:
             # Repeated parameters are lists; an explicit empty value means [].
-            return Scope(display_timezone=display_timezone, source_ids=[] if source_ids == [""] else source_ids,
-                         project_ids=[] if project_ids == [""] else project_ids,
-                         legacy_project_ids=[] if legacy_project_ids == [""] else legacy_project_ids,
-                         model_ids=[] if model_ids == [""] else model_ids, effort_raw=effort_raw,
-                         from_ts=from_ts, until_ts=until_ts,
-                         root_session_uids=[] if root_session_uids == [""] else root_session_uids,
-                         agent_ids=[] if agent_ids == [""] else agent_ids,
-                         excluded_session_uids=excluded_session_uids or [], include_children=include_children, scene=scene)
+            scope = Scope(display_timezone=display_timezone, source_ids=[] if source_ids == [""] else source_ids,
+                          project_ids=[] if project_ids == [""] else project_ids,
+                          legacy_project_ids=[] if legacy_project_ids == [""] else legacy_project_ids,
+                          model_ids=[] if model_ids == [""] else model_ids, effort_raw=effort_raw,
+                          from_ts=from_ts, until_ts=until_ts,
+                          root_session_uids=[] if root_session_uids == [""] else root_session_uids,
+                          agent_ids=[] if agent_ids == [""] else agent_ids,
+                          excluded_session_uids=excluded_session_uids or [], include_children=include_children, scene=scene)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
+        # Persisted exclusions (POST /v1/sessions/{id}/exclude) join every analysis scope.
+        return with_exclusions(scope, history_for(store))
 
     scope_dependency = Depends(analytics_scope)
 
-    def analytics_data(scope, with_text=True):
-        from ..analytics.service import analyze_store
-        try:
-            return analyze_store(store, scope, with_text)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+    def cached():
+        """Canonical stores are served through the read-through cache; --db stores are not."""
+        from ..analytics.cache import supports_cache
+        return supports_cache(store)
 
-    def analytics_section(key, scope):
+    def analysis_error(exc: ValueError) -> HTTPException:
+        """Damaged cached results are a conflict (409), not an invalid request (422)."""
+        from tandem_data.analysis_history import AnalysisIntegrityError
+        return HTTPException(409 if isinstance(exc, AnalysisIntegrityError) else 422, str(exc))
+
+    def analytics_data(scope, with_text=True):
+        from ..analytics import service
+        try:
+            return service.analyze_store(store, scope, with_text)
+        except ValueError as exc:
+            raise analysis_error(exc) from exc
+
+    def analytics_sections(scope, keys, with_text=False):
+        """Only the requested sections (plus shared metadata) are computed or read."""
+        from ..analytics import service
+        if not cached():
+            return analytics_data(scope, with_text)
+        try:
+            return service.analyze_sections(store, scope, keys, with_text)
+        except ValueError as exc:
+            raise analysis_error(exc) from exc
+
+    def analytics_section(key, scope, with_text=False):
         from ..analytics.service import response_section
-        return response_section(analytics_data(scope, key in ("sessions", "text", "projects")), key)
+        return response_section(analytics_sections(scope, [key], with_text), key)
+
+    def insight_result(scope):
+        """Signal layer input: the selected context plus the cached sections it reads.
+
+        Signals read ``sessions`` rows and metrics/drill-down read ``bottleneck_features``;
+        both come from the read-through cache, so only input selection runs per request.
+        """
+        from ..analytics.context import AnalysisContext
+        from ..analytics.inputs import legacy_bundle
+        from ..analytics.service import analyze_context
+        bundle = store.analysis_bundle(scope) if hasattr(store, "analysis_bundle") else legacy_bundle(store)
+        context = AnalysisContext.select(bundle, scope)
+        if not cached():
+            return context, analyze_context(context, False, with_recommendations=False)
+        return context, analytics_sections(scope, ["sessions", "bottleneck_features"])
+
+    from .insights import build_router
+    app.include_router(build_router(insight_result, scope_dependency=analytics_scope))
+
+    def without_recommendations():
+        from ..analytics.service import SECTIONS
+        return [name for name in SECTIONS if name != "bottleneck_recommendations"]
 
     @app.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,
@@ -209,7 +255,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         from ..analytics.service import response_section
         from ..recommend.service import recommend as recommend_resources
 
-        result = analytics_data(scope, False)
+        result = analytics_sections(scope, without_recommendations(), False)
         result["bottleneck_recommendations"] = recommend_resources(result, context={"agent": target_agent}, kind=kind,
                                                                    limit=limit, family=family, catalog_directory=recommendation_catalog)
         return response_section(result, "bottleneck_recommendations")
@@ -219,26 +265,48 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         from ..analytics.service import response_section
         from ..recommend.service import recommend as recommend_resources
 
-        result = analytics_data(scope, False)
+        result = analytics_sections(scope, without_recommendations(), False)
         result["bottleneck_recommendations"] = recommend_resources(
             result, context=request.context, family=request.family, limit=request.limit,
             catalog_directory=recommendation_catalog)
         return response_section(result, "bottleneck_recommendations")
 
+    session_fields = ("session_uid", "kind", "project_id", "legacy_project_id", "title", "features",
+                      "cluster_id", "novelty", "embedding_x", "embedding_y", "effective_samples", "unknown_counts")
+
+    def session_summary(row):
+        return {**{k: row.get(k) for k in session_fields}, "usage": {
+            k: row["usage"][k] for k in ("status", "request_count", "total_tokens", "cost_usd")}}
+
     @app.get("/v1/analytics/sessions")
-    def feature_sessions(scope=scope_dependency, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
-        result = analytics_section("sessions", scope)
+    def feature_sessions(scope=scope_dependency, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
+                         with_text: bool = False):
+        if cached():
+            # Rows are materialized once per (scope, input); a page decodes only its rows.
+            from ..analytics.cache import AnalysisCache
+            try:
+                result = AnalysisCache(store).session_page(scope, offset=offset, limit=limit, with_text=with_text)
+            except ValueError as exc:
+                raise analysis_error(exc) from exc
+            result["sessions"] = [session_summary(s) for s in result["sessions"]]
+            return result
+        result = analytics_section("sessions", scope, with_text)
         result["total"] = len(result["sessions"])
-        fields = ("session_uid", "kind", "project_id", "legacy_project_id", "title", "features",
-                  "cluster_id", "novelty", "embedding_x", "embedding_y", "effective_samples", "unknown_counts")
-        result["sessions"] = [{**{k: s.get(k) for k in fields}, "usage": {
-            k: s["usage"][k] for k in ("status", "request_count", "total_tokens", "cost_usd")}}
-            for s in result["sessions"][offset:offset + limit]]
+        result["sessions"] = [session_summary(s) for s in result["sessions"][offset:offset + limit]]
         return result
 
     @app.get("/v1/analytics/sessions/{session_id}")
-    def feature_session(session_id: str, scope=scope_dependency):
-        result = analytics_section("sessions", scope)
+    def feature_session(session_id: str, scope=scope_dependency, with_text: bool = False):
+        if cached():
+            from ..analytics.cache import AnalysisCache
+            try:
+                result = AnalysisCache(store).session_row(scope, session_id, with_text=with_text)
+            except ValueError as exc:
+                raise analysis_error(exc) from exc
+            if result["session"] is None:
+                raise HTTPException(404, "会话不在本次分析范围内")
+            return result
+        result = analytics_section("sessions", scope, with_text)
         row = next((s for s in result.pop("sessions") if s["session_uid"] == session_id), None)
         if row is None:
             raise HTTPException(404, "会话不在本次分析范围内")
@@ -249,8 +317,9 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         return analytics_section("tools", scope)
 
     @app.get("/v1/analytics/projects")
-    def feature_projects(scope=scope_dependency):
-        return analytics_section("projects", scope)
+    def feature_projects(scope=scope_dependency, with_text: bool = False):
+        # Text clusters only fill cluster_distribution; opt in with with_text=true.
+        return analytics_section("projects", scope, with_text)
 
     @app.get("/v1/analytics/instruction")
     def feature_instruction(scope=scope_dependency):
@@ -258,7 +327,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
 
     @app.get("/v1/analytics/text")
     def feature_text(scope=scope_dependency):
-        return analytics_section("text", scope)
+        return analytics_section("text", scope, True)
 
     @app.get("/v1/analytics/tasks")
     def feature_tasks(scope=scope_dependency):
@@ -268,7 +337,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     def feature_preferences(scope=scope_dependency, task_id: str | None = None):
         from ..analytics.preference import resolve_effective_preferences
         from ..analytics.service import response_section
-        data = analytics_data(scope, with_text=False)
+        data = analytics_sections(scope, ["tasks", "preferences"], with_text=False)
         task = None
         if task_id is not None:
             task = next((t for t in data["tasks"]["records"] or [] if t["task_id"] == task_id), None)
@@ -278,6 +347,49 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
         result["preferences"]["effective"] = resolve_effective_preferences(
             data["preferences"]["records"], task, at=scope.until_ts - 1 if scope.until_ts is not None else None)
         return result
+
+    @app.get("/v1/analytics/status")
+    def analytics_status():
+        """Latest runs, freshness of the default scope and warm-up progress."""
+        from ..analytics import warmup
+        from ..analytics.history import history_for
+        from ..analytics.service import ROW_STATS
+        history = history_for(store)
+        status = {"cached_store": cached(), "runs": history.list_runs(limit=5)["items"],
+                  "exclusions": len(history.exclusions()), "warmup": warmup.status(store),
+                  "rows": dict(ROW_STATS), "freshness": None}
+        if cached():
+            from ..analytics.cache import AnalysisCache
+            status["freshness"] = AnalysisCache(store, history=history).status()
+        return status
+
+    @app.post("/v1/analytics/warmup")
+    def analytics_warmup():
+        """Start warming the default scope's first-screen sections in the background."""
+        from ..analytics import warmup
+        if not cached():
+            raise HTTPException(409, "预热需要 canonical 数据库")
+        return warmup.start(store)
+
+    class ExclusionRequest(BaseModel):
+        reason: str | None = Field(default=None, max_length=500)
+
+    @app.post("/v1/sessions/{session_id}/exclude")
+    def exclude_session(session_id: str, request: ExclusionRequest | None = None):
+        """Persist an exclusion; every later analysis scope excludes this session."""
+        from ..analytics.history import history_for
+        if cached():
+            from tandem_data.analysis_fingerprint import known_sessions
+            if not known_sessions(store.home, [session_id]):
+                raise HTTPException(404, "会话不存在")
+        return history_for(store).exclude(session_id, request.reason if request else None)
+
+    @app.delete("/v1/sessions/{session_id}/exclude")
+    def include_session(session_id: str):
+        from ..analytics.history import history_for
+        if not history_for(store).include(session_id):
+            raise HTTPException(404, "会话未被排除")
+        return {"session_uid": session_id, "excluded": False}
 
     @app.get("/health")
     def health():
@@ -366,4 +478,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             raise HTTPException(422, "未知的评价场景")
         return evaluate_text(request.text, request.scene, request.required_facts)
 
+    if db is None:
+        from .data_routes import register as register_data_routes
+        register_data_routes(app, canonical_home)
     return app

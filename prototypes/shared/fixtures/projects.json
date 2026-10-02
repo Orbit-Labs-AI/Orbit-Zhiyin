@@ -1,0 +1,39 @@
+{
+  "projects": {
+    "status": "legacy_path",
+    "records": [
+      {
+        "project_id": "fx-p1",
+        "name": "tandem-fixture",
+        "session_count": 80,
+        "tool_call_count": 4100,
+        "human_message_count": 1200,
+        "last_observed_ts": 1790812800000
+      },
+      {
+        "project_id": "fx-p2",
+        "name": "notes-fixture",
+        "session_count": 48,
+        "tool_call_count": null,
+        "human_message_count": 674,
+        "last_observed_ts": null
+      }
+    ]
+  },
+  "meta": {
+    "contract": "tandem-app-v1",
+    "scope_hash": "sha256:fx-projects",
+    "data_rev": 42,
+    "rules_version": "rules-fx",
+    "freshness": "fresh",
+    "computed_at": "2026-10-01T07:20:00Z",
+    "source": "cache",
+    "duration_ms": 12,
+    "coverage": {
+      "rows": 128
+    },
+    "selection": {
+      "main_sessions": 128
+    }
+  }
+}

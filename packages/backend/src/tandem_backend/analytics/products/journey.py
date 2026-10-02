@@ -1,6 +1,7 @@
 """Join tasks, instructions, execution and acceptance without inventing task identity."""
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from typing import Any
 
 from ..common import human
@@ -22,15 +23,42 @@ EXPLORE = {
 }
 
 
-def task_links(events: list[Record], tasks: list[Record]) -> dict[str, Record]:
-    """Associate explicit native identities or local candidate boundaries, keeping their basis."""
-    spans, native = defaultdict(list), {}
+@dataclass
+class TaskIndex:
+    """Selection-wide lookups built once, so each session journey avoids rescanning every
+    task and instruction record (formerly O(sessions x tasks x instructions))."""
+
+    spans: dict[str, list]
+    native: dict[tuple, Any]
+    by_session: dict[str, list[Record]]
+    native_records: dict[tuple, list[Record]]
+    instruction_positions: dict[str, list[int]]
+    instruction_records: list[Record]
+
+
+def task_index(tasks: list[Record], instruction_records: list[Record]) -> TaskIndex:
+    spans, native, by_session = defaultdict(list), {}, defaultdict(list)
     for task in tasks:
         for sid in task["related_session_ids"]:
             if task.get("native_task_id"):
                 native[(sid, task["native_task_id"])] = task["task_id"]
         for span in task["task_boundaries"]:
             spans[span["session_uid"]].append((task["task_id"], span))
+        for sid in dict.fromkeys(task["related_session_ids"]):
+            by_session[sid].append(task)
+    native_records, positions = defaultdict(list), defaultdict(list)
+    for position, record in enumerate(instruction_records):
+        native_records[(record["session_uid"], record.get("task_id"))].append(record)
+        positions[record["event_uid"]].append(position)
+    return TaskIndex(spans, native, by_session, native_records, positions, instruction_records)
+
+
+def task_links(
+    events: list[Record], tasks: list[Record], index: TaskIndex | None = None
+) -> dict[str, Record]:
+    """Associate explicit native identities or local candidate boundaries, keeping their basis."""
+    index = index or task_index(tasks, [])
+    spans, native = index.spans, index.native
     links = {}
     for event in events:
         sid, attrs = event["session_uid"], event.get("attrs", {})
@@ -48,7 +76,7 @@ def task_links(events: list[Record], tasks: list[Record]) -> dict[str, Record]:
             }
             continue
         matches = []
-        for task_id, span in spans[sid]:
+        for task_id, span in spans.get(sid, ()):
             start = span["start"]["seq"]
             end = span.get("end")
             before_end = (
@@ -120,8 +148,12 @@ def session_journey(
     tasks: list[Record],
     instruction_records: list[Record],
     preferences: list[Record] | None,
+    index: TaskIndex | None = None,
 ) -> Record:
-    """Build ordered lanes with shared evidence for Lite nodes and Advance playback."""
+    """Build ordered lanes with shared evidence for Lite nodes and Advance playback.
+
+    Pass ``task_index(tasks, instruction_records)`` when building many journeys.
+    """
     events = context.members(set(row["included_session_uids"]), "events")
     families = row["bottleneck_features"]
     if events is None:
@@ -134,7 +166,8 @@ def session_journey(
             "outcome": families["outcome"],
             "feedback": row["subjective_outcomes"],
         }
-    links = task_links(events, tasks)
+    index = index or task_index(tasks, instruction_records)
+    links = task_links(events, tasks, index)
     calls = {c.get("call_event_uid"): c for c in families["respond"]["tool_sequence"] or []}
     validation_calls = {r["call_uid"] for r in families["outcome"]["validation_runs"] or []}
     labels = {item["event_uid"]: item for item in families["interaction"]["message_intents"] or []}
@@ -189,17 +222,15 @@ def session_journey(
                 )
         lanes.append({"session_uid": sid, "events": lane})
     task_rows = []
-    for task in tasks:
-        if row["session_uid"] not in task["related_session_ids"]:
-            continue
+    # Only instruction records whose event is linked here can be candidates; keep their order.
+    linked_records = [
+        index.instruction_records[p]
+        for p in sorted(p for uid in links for p in index.instruction_positions.get(uid, ()))
+    ]
+    for task in index.by_session.get(row["session_uid"], ()):
         # Inferred boundary links are display-only; do not feed them back as confirmed acceptance IDs.
         records = (
-            [
-                r
-                for r in instruction_records
-                if r.get("task_id") == task.get("native_task_id")
-                and r["session_uid"] == row["session_uid"]
-            ]
+            list(index.native_records.get((row["session_uid"], task["native_task_id"]), ()))
             if task.get("native_task_id")
             else []
         )
@@ -219,7 +250,7 @@ def session_journey(
                 "effective_instructions": effective,
                 "instruction_candidates": [
                     r
-                    for r in instruction_records
+                    for r in (instruction_records if task["task_id"] is None else linked_records)
                     if links.get(r["event_uid"], {}).get("task_id") == task["task_id"]
                 ],
                 "effective_preferences": resolve_effective_preferences(

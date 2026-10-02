@@ -1,12 +1,16 @@
 # Hackathon
 
-ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与独立 UI 原型。
+ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Orbit**（原暂定名 Tandem / 同频），目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与 UI 原型。
+
+- 文档、界面文案与提交说明里的产品名一律写 Orbit。代码标识（`tandem_*` 包、`tandem` CLI、`TANDEM_HOME`、`Application Support/Tandem`、`TandemLive`、`@tandem/*`、`tandem-demo.html` 等）暂不改名，对照见 [品牌](docs/design/brand.md)。
+- 标志与 App 图标以 `docs/design/logo/orbit-*` 为准，由 `generate.py` 生成；App 原型的 `orbitMark` 用同一组参数。
 
 ## App 版本与设计归属
 
 - **Lite**：采用 `genius-FXC` 的设计，参考 `prototypes/lite/tandem-benchmark-demo.html`（PR #12）。
 - **Advance**：采用 `yhyfhgs` 的设计，参考 `prototypes/advance/tandem-demo.html`、`prototypes/advance/src/` 与 `docs/design/visual-cases-v1/`。
 - 版本名统一使用 **Lite / Advance**；历史文档中的 `Advanced` 指 **Advance**。设计入口与详细说明以 [设计资料](docs/design/README.md) 为准。
+- 两版是同一个 App（`prototypes/advance`，侧栏顶部一键切换），共用侧栏、卡片、栏目、控件、小组件与动效；Lite 只做页面数量与尺度上的减法，不另建一套组件。
 - 以上仅规定版本与现有设计的对应关系。本次结构整理将可运行原型归入 prototypes；画板与界面行为仍由对应设计任务推进，MVP 功能范围仍须三位成员共同确认。
 
 ## 成员与分工
@@ -56,3 +60,4 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。目标为本�
 - 模块测试随包；根 `tests/` 只放跨包和服务流程。评测放 `evals/`，性能放 `benchmarks/`，根 `scripts/` 保持薄入口。
 - 可运行原型放 `prototypes/lite` 与 `prototypes/advance`；静态设计资料留在 `docs/design`。正式 App 不建立空实现；Catalog 与 Swift 客户端分别位于 packages/catalog 和 packages/catalog-macos。
 - 活跃分支遵循 [目录迁移说明](docs/development/structure-migration.md)，不要在 merge 时恢复旧目录或平行锁文件。
+- 文档按 [文档导航](docs/README.md) 分区：现行（product、design、architecture、contracts、development、modules）、方案（plans）、审计（audits）、调研（research）、历史（releases、archive）。新增文档放进对应分区并在导航登记。

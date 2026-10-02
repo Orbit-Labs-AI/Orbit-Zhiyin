@@ -9,6 +9,10 @@ from typing import Protocol
 
 from tandem_data.contract import EventDraft, RawRecord, normalize_usage, time_fields, uid, unused
 
+# Exact native-key match through the compact tail index (migration 009). The tail term is
+# implied by the full comparison, so results equal ``native_key=?1``.
+NATIVE_KEY_MATCH = "substr(native_key,-24)=substr(?1,-24) AND native_key=?1"
+
 
 @dataclass
 class Mapping:

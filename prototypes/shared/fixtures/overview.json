@@ -1,0 +1,42 @@
+{
+  "input_contract": "analysis-input-v1",
+  "scope": {
+    "display_timezone": "Asia/Shanghai",
+    "from_ts": null,
+    "until_ts": null
+  },
+  "unknown_counts": {
+    "human_origin": 3,
+    "model_calls": null
+  },
+  "overview": {
+    "counts": {
+      "sessions": 128,
+      "human_messages": 1874,
+      "tool_calls": 6431,
+      "projects": 2,
+      "active_days": 24
+    },
+    "usage": {
+      "request_count": null,
+      "total_tokens": null,
+      "cost_usd": null
+    }
+  },
+  "meta": {
+    "contract": "tandem-app-v1",
+    "scope_hash": "sha256:fx-overview",
+    "data_rev": 42,
+    "rules_version": "rules-fx",
+    "freshness": "fresh",
+    "computed_at": "2026-10-01T07:20:00Z",
+    "source": "cache",
+    "duration_ms": 12,
+    "coverage": {
+      "rows": 128
+    },
+    "selection": {
+      "main_sessions": 128
+    }
+  }
+}

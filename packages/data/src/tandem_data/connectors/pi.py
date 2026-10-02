@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tandem_data.connectors.base import BaseMapper, Mapping
+from tandem_data.connectors.base import NATIVE_KEY_MATCH, BaseMapper, Mapping
 from tandem_data.contract import canonical, time_fields
 
 
@@ -54,7 +54,7 @@ class PiMapper(BaseMapper):
             refs = [
                 row[0]
                 for row in self.store.db.execute(
-                    "SELECT event_uid FROM event WHERE native_key=?",
+                    "SELECT event_uid FROM event WHERE " + NATIVE_KEY_MATCH,
                     (canonical([record.source_id, self.parent_path, data["id"]]),),
                 )
             ]

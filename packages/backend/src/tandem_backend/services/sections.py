@@ -1,7 +1,7 @@
 """SECTIONS registry: which analysis slices the gateway serves and how a worker computes them.
 
-The default computation calls the existing ``analyze_store`` + ``response_section`` so
-response keys match ``api/routes.py``. The analysis package adds sections by calling
+Each section reads ``analyze_sections`` (the read-through cache on canonical stores) and
+``response_section``, so response keys match ``api/routes.py`` and both share cached results. The analysis package adds sections by calling
 ``register`` (for example metrics / profile / signals); the gateway routes stay generic.
 Runs inside the analysis worker; the gateway only imports names and costs.
 """
@@ -55,12 +55,24 @@ class ResultMemo:
         self.entries = [(key, value), *self.entries][: self.size]
         return value
 
+    def sections(self, store, scope, keys: list[str], with_text: bool, revision: Any) -> dict:
+        """Canonical stores read only ``keys`` through the analysis read-through cache, which
+        is keyed by the session-tree fingerprint and shared with ``api/routes.py``; other
+        stores fall back to the memoised full analysis."""
+        from ..analytics.cache import supports_cache
+        from ..analytics.service import analyze_sections
+
+        if supports_cache(store):
+            return analyze_sections(store, scope, keys, with_text)
+        return self.analysis(store, scope, with_text, revision)
+
 
 def _section(key: str, with_text: bool) -> Compute:
     def compute(store, scope, params, memo):
         from ..analytics.service import response_section
 
-        return response_section(memo.analysis(store, scope, with_text, params.get("_rev")), key)
+        return response_section(
+            memo.sections(store, scope, [key], with_text, params.get("_rev")), key)
 
     return compute
 
@@ -69,7 +81,8 @@ def _sessions(store, scope, params, memo):
     """Compact summary rows for every session; the gateway pages them (≤ 200 per page)."""
     from ..analytics.service import response_section
 
-    result = response_section(memo.analysis(store, scope, True, params.get("_rev")), "sessions")
+    result = response_section(
+        memo.sections(store, scope, ["sessions"], True, params.get("_rev")), "sessions")
     result["sessions"] = [
         {**{k: s.get(k) for k in SESSION_SUMMARY_FIELDS},
          "usage": {k: (s.get("usage") or {}).get(k) for k in SESSION_USAGE_FIELDS}}
@@ -80,7 +93,8 @@ def _sessions(store, scope, params, memo):
 def _session_detail(store, scope, params, memo):
     from ..analytics.service import response_section
 
-    result = response_section(memo.analysis(store, scope, True, params.get("_rev")), "sessions")
+    result = response_section(
+        memo.sections(store, scope, ["sessions"], True, params.get("_rev")), "sessions")
     row = next((s for s in result.pop("sessions") if s["session_uid"] == params["session_id"]),
                None)
     if row is None:
@@ -92,7 +106,7 @@ def _preferences(store, scope, params, memo):
     from ..analytics.preference import resolve_effective_preferences
     from ..analytics.service import response_section
 
-    data = memo.analysis(store, scope, False, params.get("_rev"))
+    data = memo.sections(store, scope, ["tasks", "preferences"], False, params.get("_rev"))
     task = None
     if params.get("task_id") is not None:
         task = next((t for t in data["tasks"]["records"] or []

@@ -1,0 +1,41 @@
+{
+  "state": "ready",
+  "data_rev": 42,
+  "jobs_active": 0,
+  "sources": [
+    {
+      "id": "src-claude",
+      "agent": "claude_code",
+      "enabled": true,
+      "sessions": 96,
+      "last_scan": "2026-10-01T07:10:00Z"
+    },
+    {
+      "id": "src-codex",
+      "agent": "codex",
+      "enabled": true,
+      "sessions": 32,
+      "last_scan": "2026-10-01T07:10:00Z"
+    },
+    {
+      "id": "src-gemini",
+      "agent": "gemini_cli",
+      "enabled": false,
+      "sessions": 11,
+      "last_scan": null
+    }
+  ],
+  "counts": {
+    "sessions": 128,
+    "projects": 2,
+    "events": 5120
+  },
+  "services": {
+    "gateway": "ok",
+    "data": "ok",
+    "analysis": "ok"
+  },
+  "capabilities": {
+    "mode": "lite"
+  }
+}

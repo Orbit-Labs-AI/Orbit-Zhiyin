@@ -74,5 +74,5 @@ const I = {
   slash: 'M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10M5 19L19 5'
 };
 function ic(n, s, st) { return '<svg class="ico" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" aria-hidden="true"' + (st ? ' style="' + st + '"' : '') + '><path d="' + I[n] + '"/></svg>'; }
-const GLYPH = '<svg width="18" height="14" viewBox="0 0 24 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="9" r="6"/><circle cx="15.5" cy="9" r="6"/></svg>';
+// 菜单栏状态项 GLYPH 与 App 图标 appIcon(px) 用官方 logo 矢量，见 01-brand.js（tools/brand-icon.mjs 生成）
 

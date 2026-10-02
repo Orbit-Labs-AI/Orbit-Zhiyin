@@ -174,28 +174,33 @@ class IngestWorker:
             with Store(self.home) as store:
                 service = ImportService(store, progress=lambda p: self.io.send(
                     "progress", job=job["id"], progress=p, phase=self.phase))
-                kind = job["kind"]
-                if kind in ("verify", "rebuild", "backup"):
-                    with service.writer():
-                        if kind == "verify":
-                            results.append({"kind": "verify", **store.verify()})
-                        elif kind == "rebuild":
-                            ids = {s["id"] for s in job.get("sources", [])} or None
-                            results.append(store.rebuild(source_ids=ids, progress=service.progress))
-                        else:
-                            results.append(self._backup(store))
-                    if kind == "rebuild":
-                        self._publish(job, "rebuild")
-                elif kind == "inventory":
-                    from tandem_data.inventory import InventoryRequest, scan_inventory
+                try:
+                    kind = job["kind"]
+                    if kind in ("verify", "rebuild", "backup"):
+                        with service.writer():
+                            if kind == "verify":
+                                results.append({"kind": "verify", **store.verify()})
+                            elif kind == "rebuild":
+                                ids = {s["id"] for s in job.get("sources", [])} or None
+                                results.append(store.rebuild(source_ids=ids, progress=service.progress))
+                            else:
+                                results.append(self._backup(store))
+                        if kind == "rebuild":
+                            self._publish(job, "rebuild")
+                    elif kind == "inventory":
+                        from tandem_data.inventory import InventoryRequest, scan_inventory
 
-                    for source in job["sources"]:
-                        result = scan_inventory(
-                            store, InventoryRequest(**inventory_request(source, self.home)))
-                        results.append({"source_id": source["id"], **result})
-                    self._publish(job, "inventory")
-                else:
-                    self._import(job, service, results)
+                        for source in job["sources"]:
+                            result = scan_inventory(
+                                store, InventoryRequest(**inventory_request(source, self.home)))
+                            results.append({"source_id": source["id"], **result})
+                        self._publish(job, "inventory")
+                    else:
+                        self._import(job, service, results)
+                finally:
+                    # Stop the import process pool before reporting done, so the next
+                    # job never sees this thread still alive ("worker busy").
+                    service.close()
             status = ("cancelled" if self.cancel.is_set() else
                       "partial" if _partial(results) else "completed")
             self.io.send("done", job=job["id"], status=status, results=results, error=None)

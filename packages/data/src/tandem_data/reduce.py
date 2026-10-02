@@ -193,14 +193,19 @@ def _approve(values, call_uid, approval, evidence):
         values["approval_wait_ms"] = wait
 
 
-def derive(store, *, scoped=False, progress=None):
+def derive(store, *, scoped=False, progress=None, sessions=None):
+    """Derive L3 rows. ``sessions`` (SQL) narrows a scoped run to a session closure."""
     project_cache = {}
     progress = progress or (lambda _: None)
+    where = ""
+    if scoped:
+        where = " WHERE i.source_id IN (SELECT source_id FROM rebuild_scope)"
+        if sessions is not None:
+            where += f" AND i.session_uid IN ({sessions})"
     identities = {
         row["session_uid"]: dict(row)
         for row in store.db.execute(
-            "SELECT DISTINCT i.* FROM session_identity i JOIN event e USING(session_uid)"
-            + (" WHERE i.source_id IN (SELECT source_id FROM rebuild_scope)" if scoped else "")
+            "SELECT DISTINCT i.* FROM session_identity i JOIN event e USING(session_uid)" + where
         )
     }
     metas = {}

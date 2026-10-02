@@ -69,7 +69,7 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 | `reduce.py` | L3 项目、轮次、工具配对、逐请求用量、独立累计快照、基础特征 |
 | `analysis_input.py` | 分析范围、覆盖说明、只读分析输入 |
 | `query.py` | 统一投影新鲜度检查、App 游标读取；分析/导出/分页都拒绝过期版本 |
-| `migrations/` | 权威 DDL；契约仍为 v1，存储 user_version=6（兼容升级 v1） |
+| `migrations/` | 权威 DDL；契约仍为 v1，存储 user_version=8（兼容升级 v1；007 预留） |
 | `validation/` | 原生格式构造样本、真实样本验证、离线查看页、性能测量 |
 | `tests/data/` | 单元、语义回归、SQLite/WAL 功能测试、CLI 和完整模块 E2E |
 
@@ -116,4 +116,4 @@ App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖�
 - [Hermes 状态存储](https://github.com/NousResearch/hermes-agent/blob/be5e9f7/hermes_state.py)、[计量存储](https://github.com/NousResearch/hermes-agent/blob/be5e9f7/hermes_state_usage.py)。累计行按完整计费主键版本化。
 - [Kimi wire manifest 1.5](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/packages/agent-core-v2/docs/wire-manifest.d.ts)、[loop 归并](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/packages/agent-core-v2/src/agent/contextMemory/loopEventFold.ts)、[usage reducer](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/packages/agent-core-v2/src/session/usage/usageAgentModel.ts)。以原生 reducer 为准：usage.record 做加法，session/turn 表示用途，不能凭名称判断累计。
 - [ccusage 去重实现](https://github.com/ccusage/ccusage/blob/48785b7f3e2793ca174598c42d99547e89dec5ba/rust/adapters/claude/src/daily.rs)。借鉴稳定身份与确定性 survivor；同时用原生源码独立核对其计量假设。
-- [Agent Sessions Hermes parser](https://github.com/jazzyalex/agent-sessions/blob/45535d74d738320ecaf81dfc10590b2e11c9145d/AgentSessions/Services/HermesSessionParser.swift)。借鉴只读 SQLite 与来源独立解析；Tandem 另保留完整证据和缺失值。
+- [Agent Sessions Hermes parser](https://github.com/jazzyalex/agent-sessions/blob/45535d74d738320ecaf81dfc10590b2e11c9145d/AgentSessions/Services/HermesSessionParser.swift)。借鉴只读 SQLite 与来源独立解析；Orbit 另保留完整证据和缺失值。

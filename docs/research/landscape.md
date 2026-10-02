@@ -1,4 +1,4 @@
-# Tandem 调研总结：主流 Agent、设计哲学、开源项目与算法选型
+# Orbit 调研总结：主流 Agent、设计哲学、开源项目与算法选型
 
 > 状态：调研 · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
@@ -18,7 +18,7 @@
 | 2 | **后端主链路是预定义代码路径的 workflow，不是把日志交给一个 Agent。** 导入 → 指标 → 逐会话 facet → 聚合 → 匹配 → 生成 → 校验，每个 LLM 步骤后接代码 gate（schema、枚举、引用的会话与原话真实存在），不通过就重试一次再降级为确定性结果。Agent 只用于用户主动发起的只读深度诊断，有预算上限。 | Anthropic 区分 workflow 与 agent，要求从最简单的方案起步（[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)）；OpenAI 指南认为规则能解决就不必用 agent（[A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf)）；LLM 在长轨迹里定位错误的准确率很低（[TRAIL](https://arxiv.org/abs/2505.08638) 最好模型 11%，[Who&When](https://arxiv.org/abs/2505.00212) 步级归因 14.2%） | [ai.md](../plans/ai-module.md) |
 | 3 | **分析层不开 AI 也要让 Demo 每页接上真实数据。** 约 40 个确定性指标分七类；摩擦检测移植 agentsview（MIT），长度阈值从字节改为字符、补中文词表；直接借用 Hermes 验证证据账本、pi 缓存重复计费、dsh 与 Kimi 的 3 / 5 / 8 次重复调用阈值、Kimi Issues 闭集。 | `/insights` 的 session-meta 是纯代码统计（[costs](https://code.claude.com/docs/en/costs)）；[agentsview friction](https://github.com/kenn-io/agentsview/tree/d37642206051dababc436635024676c17dddac45/internal/friction)；[verification_evidence.py](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/agent/verification_evidence.py)；[cache-stats.ts](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/src/core/cache-stats.ts#L56)；[toolDedupeService.ts](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/packages/agent-core-v2/src/agent/toolDedupe/toolDedupeService.ts#L34)；[issues.ts](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/apps/vis/web/src/lib/issues.ts) | [analysis.md](../plans/analysis-module.md)；A1、A3、A4、A6 |
 | 4 | **LLM 产出的标签一律是闭集枚举 + `other` + JSON Schema，缓存键带版本。** 缓存键 = 会话内容哈希 + `prompt_version` + `schema_version` + `model_id`。 | 本机实测：49 个 `/insights` facet 文件里，开放字段 `goal_categories` 漂移出 181 种键，`friction_counts` 出现 21 种（含 `api_error` 与 `api_errors` 这类同义重复），写成枚举的字段则稳定；`/insights` 的 facet 缓存不带提示词版本 | [ai.md](../plans/ai-module.md)、[analysis.md](../plans/analysis-module.md) |
-| 5 | **调用本机 Agent 用最小配置、隔离、打包。** Claude 用 `--safe-mode --tools "" --system-prompt-file … --no-session-persistence --json-schema`，Codex 用 `exec --ephemeral --ignore-user-config --ignore-rules --output-schema`；一次调用放 5–10 个会话的摘要；Tandem 自己的调用不落成用户会话，导入时再按标记与 cwd 过滤；分析调用不给联网与写入能力。 | 本机实测固定开销：Claude 默认约 2.7 万输入 token，最小配置约 0.55–0.73K，加结构化输出后 2 轮合计约 1.3–1.5K；Codex 默认约 2.09 万，最小约 0.92–1.46 万（§2.4）。会话日志同时含私有数据与不可信内容，再给对外通信能力就凑齐了 [lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) | [ai.md](../plans/ai-module.md) |
+| 5 | **调用本机 Agent 用最小配置、隔离、打包。** Claude 用 `--safe-mode --tools "" --system-prompt-file … --no-session-persistence --json-schema`，Codex 用 `exec --ephemeral --ignore-user-config --ignore-rules --output-schema`；一次调用放 5–10 个会话的摘要；Orbit 自己的调用不落成用户会话，导入时再按标记与 cwd 过滤；分析调用不给联网与写入能力。 | 本机实测固定开销：Claude 默认约 2.7 万输入 token，最小配置约 0.55–0.73K，加结构化输出后 2 轮合计约 1.3–1.5K；Codex 默认约 2.09 万，最小约 0.92–1.46 万（§2.4）。会话日志同时含私有数据与不可信内容，再给对外通信能力就凑齐了 [lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) | [ai.md](../plans/ai-module.md) |
 | 6 | **推荐是问题驱动的，机制由代码决策表选，不让模型自由选。** 同一约定被纠正 ≥ 2 次 → 规则；同一流程第 3 次出现 → skill；必须每次发生或规则写入后仍被违反 → hook；习惯问题 → 只给建议、不装东西；规则过长或扩展闲置 → 做减法。知识库种子取官方触发条件表、五种失败模式与官方内置功能清单。 | Claude Code 官方的「何时加什么」与常见失败模式（[features-overview](https://code.claude.com/docs/en/features-overview)、[best-practices](https://code.claude.com/docs/en/best-practices)）；[Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more) 的反模式；OpenAI 把反复违反的规则升级为 lint（[Harness engineering](https://openai.com/index/harness-engineering/)） | [recommendation.md](../plans/recommendation-module.md)；A7 |
 | 7 | **排序逐项可解释，推荐要克制。** priority = 每周节省 × 适用度 × P(有效) ÷ 成本 − 风险，再用 MMR 去重；卡片显示常驻与触发 token 成本；一次最多推荐 2–3 个 skill；带频控与「不再提示」；不按热门排序。 | 与 [RICE](https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/) 同构；[MMR](https://doi.org/10.1145/290941.291025)；[SkillsBench](https://arxiv.org/abs/2602.12670)：1 个 skill +18.0pp、2–3 个 +19.0pp、≥ 4 个只有 +10.1pp；Claude 插件提示每 3 个会话最多一次（[relevance](https://code.claude.com/docs/en/plugins/relevance)）；插件成本拆成常驻与调用时两部分（[measure](https://code.claude.com/docs/en/plugins/measure)）；后端 MVP 已定「推荐由画像与瓶颈共同支持、不按热门」（[Issue #4](https://github.com/ActionMesh-AI/Hackathon/issues/4)） | [recommendation.md](../plans/recommendation-module.md)；A7、A8 |
 | 8 | **生成的定位是「策展 + 验证」。** 能匹配到审查过的现成条目就推荐现成的；生成物用模板 + 填槽 + 四道自检（规范校验、静态安全扫描、历史回放 dry-run、judge），内容只取用户已验证成功的轨迹与纠偏证据，写教训不写事故经过。 | LLM 生成的 AGENTS.md 让成功率 −0.5% / −2%（不显著）而成本 +20% / +23%（[ETH](https://arxiv.org/abs/2602.11988)）；模型自写 skill 比不用低 8.1–11.5pp，策展 skill 平均 +16.6pp 但 87 个任务中 13 个变差（[SkillsBench](https://arxiv.org/abs/2602.12670)）；Hermes 的[复盘提示词](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/agent/background_review.py#L385)与 [skill_linter](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/tools/skill_linter.py) | [ai.md](../plans/ai-module.md)、[recommendation.md](../plans/recommendation-module.md)；A9 |
@@ -34,7 +34,7 @@
 
 ### 2.0 结论
 
-1. **官方已经做了 Tandem 叙事的一半，但只在各自的 Agent 里。** 共同缺口：都是单 Agent；都是一次性快照，没有固定口径的纵向趋势；建议停在复制粘贴，没有预览 → 安装 → 撤销 → 效果追踪的闭环；除 Claude 面向插件作者的 `claude plugin eval` 外，没有对推荐项做装前装后评测。
+1. **官方已经做了 Orbit 叙事的一半，但只在各自的 Agent 里。** 共同缺口：都是单 Agent；都是一次性快照，没有固定口径的纵向趋势；建议停在复制粘贴，没有预览 → 安装 → 撤销 → 效果追踪的闭环；除 Claude 面向插件作者的 `claude plugin eval` 外，没有对推荐项做装前装后评测。
 2. **扩展格式在收敛，语义仍然分裂。** AGENTS.md、[Agent Skills 规范](https://agentskills.io/specification)、Claude Code 式 command hook（stdin JSON、退出码 2 阻断）被多数 Agent 采用；但规则加载顺序、权限冲突裁决、hook 的信任与失败语义各不相同，安装层必须按 Agent 适配。
 3. **记忆与自我改进**：Hermes 是唯一内置学习闭环（复盘写记忆与 skill + curator 生命周期）的；Codex 有 Memories 且能自动写 skill；Claude Code 有 auto memory；Kimi、pi、dsh、OpenCode 没有记忆，也不自动生成 skill。
 4. **「能看会话」不是差异点**：dsh、Kimi、pi 自带轨迹视图，[HF Agent Trace Viewer](https://huggingface.co/docs/hub/agent-traces) 原生读取 Claude Code、Codex、pi 的会话文件。
@@ -83,32 +83,32 @@
 
 | Agent | 最小配置调用 | 不落盘与隔离 | 固定开销 | 陷阱 |
 | --- | --- | --- | --- | --- |
-| Claude Code | 在 Tandem 自己的空目录、净环境（`env -i`）里运行：`claude -p --safe-mode --tools "" --system-prompt-file <固定提示> --no-session-persistence --output-format json --json-schema <schema> --max-turns 3 --effort low --max-budget-usd <上限> < /dev/null`（[headless](https://code.claude.com/docs/en/headless)、[cli-reference](https://code.claude.com/docs/en/cli-reference)） | `--no-session-persistence`（仍会建一个空的 `projects/<cwd>/memory/` 目录，导入时忽略）；`--safe-mode` 关闭 CLAUDE.md、skills、插件、hooks、MCP，订阅登录照常可用；`--bare` 只接受 API key | 本机实测（Haiku 4.5）：默认约 2.7 万（净环境）/ 3.7 万（继承 Claude Desktop 环境）；最小配置约 0.55–0.73K；加 `--json-schema` 至少 2 轮，合计约 1.3–1.5K | 不加 `--safe-mode` 时会在未信任目录执行项目 hooks 与 MCP；子进程继承 `CLAUDE_CODE_ENTRYPOINT`；stdin 不关闭会等 3 秒；`--max-turns 1` 与 `--json-schema` 冲突；用户开了 `alwaysThinkingEnabled` 时要显式关 |
+| Claude Code | 在 Orbit 自己的空目录、净环境（`env -i`）里运行：`claude -p --safe-mode --tools "" --system-prompt-file <固定提示> --no-session-persistence --output-format json --json-schema <schema> --max-turns 3 --effort low --max-budget-usd <上限> < /dev/null`（[headless](https://code.claude.com/docs/en/headless)、[cli-reference](https://code.claude.com/docs/en/cli-reference)） | `--no-session-persistence`（仍会建一个空的 `projects/<cwd>/memory/` 目录，导入时忽略）；`--safe-mode` 关闭 CLAUDE.md、skills、插件、hooks、MCP，订阅登录照常可用；`--bare` 只接受 API key | 本机实测（Haiku 4.5）：默认约 2.7 万（净环境）/ 3.7 万（继承 Claude Desktop 环境）；最小配置约 0.55–0.73K；加 `--json-schema` 至少 2 轮，合计约 1.3–1.5K | 不加 `--safe-mode` 时会在未信任目录执行项目 hooks 与 MCP；子进程继承 `CLAUDE_CODE_ENTRYPOINT`；stdin 不关闭会等 3 秒；`--max-turns 1` 与 `--json-schema` 冲突；用户开了 `alwaysThinkingEnabled` 时要显式关 |
 | Codex | `codex exec --ephemeral --json --skip-git-repo-check -s read-only --ignore-user-config --ignore-rules --disable apps --disable plugins --disable memories -c agents.enabled=false --output-schema schema.json -o out.json < /dev/null`（[Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode.md)） | `--ephemeral`（实测不写 rollout、不写 threads 行，也不触发 memories） | 本机实测（CLI 0.159.2）：默认约 2.09 万；去掉用户配置约 1.46 万；再替换基础指令并关闭工具约 0.92 万；`--output-schema` 原生单轮，只多约 20 token | `--ignore-user-config` 时已信任的 hooks 是否仍运行待验证 |
 | pi | `pi -p --no-session --no-tools --no-extensions --no-skills --no-context-files --mode json --system-prompt <固定提示>`（[cli.md](https://github.com/earendil-works/pi/blob/7fbbd5f4a1d982bb02d63472dde0774fa639f99b/packages/coding-agent/docs/cli.md)） | `--no-session` | 未实测（系统提示本身很短） | — |
 | Hermes | `hermes chat -q … --oneshot --format stream-json --source tool --ignore-user-config --ignore-rules --safe-mode`，或 `hermes -z`（[cli-commands](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/website/docs/reference/cli-commands.md)） | `--source tool`：第三方会话不出现在用户会话列表 | 未实测 | — |
 | OpenCode | CLI 没有 schema 参数；用 `opencode serve` + SDK 的 `session.prompt({format: {type: "json_schema"}})`（[sdk.mdx](https://github.com/anomalyco/opencode/blob/a79ecfe109294909a239c98fb89f02979d5aa10b/packages/web/src/content/docs/sdk.mdx)） | 总是写库：用独立的 `OPENCODE_DB` + inline 配置关闭分享（能否压过用户的 `share: auto` 待验证） | 按源码估算约 6–10K（未实测） | 用户设了 `share: auto` 时 headless 会话也会被公开 |
-| Kimi Code | `kimi -p … --output-format stream-json` | 文档未见不落盘开关 → 导入时排除 Tandem 自己的会话 | 未实测 | 固定 auto 权限 |
+| Kimi Code | `kimi -p … --output-format stream-json` | 文档未见不落盘开关 → 导入时排除 Orbit 自己的会话 | 未实测 | 固定 auto 权限 |
 | DeepSeek Harness | `dsh --profile headless --json`（[headless README](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/bundle/headless/README.md)） | 无不落盘开关 → 导入时排除 | 未实测 | 轮内失败仍以 `final` 结束，要看退出码 |
 | Copilot / Gemini | 参照 agentsview 的调用：Copilot `-p … --silent --no-custom-instructions --no-ask-user --disable-builtin-mcps`，Gemini 必须显式配置沙箱（[generate.go](https://github.com/kenn-io/agentsview/blob/d37642206051dababc436635024676c17dddac45/internal/insight/generate.go)） | 未核实 | 未实测 | 本机未装 |
 
 调用前可以不花模型调用估算成本：`claude -p "/context"` 给出分类 token 数（本机默认约 2.84 万）；`codex debug prompt-input` 渲染模型可见输入（不含基础指令与工具 schema，只能当下限）。
 
-### 2.5 Tandem 借鉴什么、避免重复什么
+### 2.5 Orbit 借鉴什么、避免重复什么
 
 | Agent | 借鉴 | 避免重复 / 注意 |
 | --- | --- | --- |
 | Claude Code | `/insights` 的分层流水线（逐会话 facet 按 `sessionId` 与 `transcript_mtime` 缓存；超过 3 万字符先按 2.5 万字符切块摘要；再把统计量 + 50 条摘要 + 20 条摩擦细节 + 15 条「用户反复说的话」交给并列分节，最后单独写总结；见[社区逆向](https://web.archive.org/web/20260324085553/https://www.zolkos.com/2026/02/04/deep-dive-how-claude-codes-insights-command-works.html)）；session-meta 的 31 个字段作派生指标的对照答案与冷启动数据；`plugin details` 的常驻 / 调用成本拆分；插件 relevance 的信号词表（cwd、cli 命令名、hosts、filesRead glob、manifestDeps）作匹配字段；`plugin eval` 的有 / 无对照；`/import` 的哈希绑定确认；statusline 的 `rate_limits` | 不做单 Agent 叙述报告；不重做 `/doctor` 瘦身与 `/fewer-permission-prompts`，把它们和 auto mode 等官方功能列为一等推荐项（零安装，推荐前用 `claude --version` 探测）；transcript 是内部格式，只读不写；按版本做能力探测（本机 9 月一个月的会话跨 38 个版本） |
 | Codex | Memories 的节流与安全（空闲阈值、每次少量、额度阈值、租约、失败退避、密钥脱敏、生成物目录做 git 基线 diff）；rollout 每次响应都带 `rate_limits`，可离线重建额度燃尽曲线 | 不做又一个「会话 → 记忆 → 自动 skill」；生成 skill 的差异放在跨 Agent 证据、装前装后评测、多格式输出与版本 diff；hook 安装要处理「需信任」 |
-| Kimi Code | Issues 闭集（孤立调用、工具错误、输出截断、provider 过滤、max_tokens、未完成 step 或压缩、审批被拒）；Timeline 会话指标（上下文占用折线与峰值、≥ 3 秒的空闲间隙、活跃 / 墙钟时长、工具统计表）；重复调用 3 / 5 / 8 / 12 分级提示（第 12 次强制结束本轮并只允许文字交接）可改写成防死循环 hook；完成契约五要素（终态、证明、边界、循环、停止规则）；导入标记块 | 本机没有样本，连接器要先实测；遥测默认开启是反例，Tandem 不加默认开启的遥测 |
+| Kimi Code | Issues 闭集（孤立调用、工具错误、输出截断、provider 过滤、max_tokens、未完成 step 或压缩、审批被拒）；Timeline 会话指标（上下文占用折线与峰值、≥ 3 秒的空闲间隙、活跃 / 墙钟时长、工具统计表）；重复调用 3 / 5 / 8 / 12 分级提示（第 12 次强制结束本轮并只允许文字交接）可改写成防死循环 hook；完成契约五要素（终态、证明、边界、循环、停止规则）；导入标记块 | 本机没有样本，连接器要先实测；遥测默认开启是反例，Orbit 不加默认开启的遥测 |
 | pi | 缓存重复计费：`min(上轮 prompt, 本轮 prompt) − cacheRead`，≤ 1,024 视为噪声，原因只报可观察事实（空闲超 TTL、换模型；压缩后重置基线）；按实际解析出的模型拆成本；会话树可视化；evals 配对协议 | 尊重其「最小内核」哲学：不推荐 MCP、子代理、计划模式，改给 CLI + README、PLAN.md、tmux 等价做法 |
 | Hermes | 复盘提示的四段结构（触发信号 → 动作优先级 → 教训写法 → 禁止项）；skill_linter 规则；curator 状态机（pin 与被定时任务引用的豁免，`use=0` 不作裁剪依据，只归档不删除）；ledger + 单条回滚；所有权只声明不推断；验证证据账本；安装扫描三档；区分人类输入与注入上下文的包装标签正则（[foreign_sessions.py](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/hermes_cli/foreign_sessions.py#L20)）；异模型复盘只送 digest（文档称成本降 3–5 倍、捕获一致） | 不再造学习闭环；对 Hermes 用户读它的 `.usage.json` 与 `.curator_ledger.jsonl` 来评估它自建的 skill |
 | OpenCode | `export --sanitize` 的占位脱敏；OpenCode Data 作模型推荐的群体参照 | headless 总是写库、`share: auto` 会公开 → 必须隔离 |
 | DeepSeek Harness | ui-trajectory 三件套作 A3 底座；7 类反馈（task-result、instruction-following、product-interaction、service-stability、resource-cost、security-privacy-permission、other）作摩擦闭集种子，日志里的反馈事件就是用户亲手打的标签；缺数据写「未记录」；把系统提示与工具目录变化做成一类事件并给 diff（[TrajectoryTable.tsx](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/packages/client/ui-trajectory/src/client/TrajectoryTable.tsx#L1440)），作为安装前后的证据；patch 文件式安装（先 `--patch` 试用再合并） | 「能看会话」不是差异点 |
 
-### 2.6 官方能力与 Tandem 模块的重叠度
+### 2.6 官方能力与 Orbit 模块的重叠度
 
-| Tandem 模块 | 官方最接近的能力 | 重叠 | Tandem 的做法 |
+| Orbit 模块 | 官方最接近的能力 | 重叠 | Orbit 的做法 |
 | --- | --- | --- | --- |
 | 协作人格 | `/insights` 的 interaction style | 高（仅 Claude） | 跨 Agent；由可复算指标驱动，叙述只作解释；看趋势 |
 | 会话轨迹 | 各 App 自带会话查看 | 低 | 统一时间线、跨 Agent 对照、子代理与压缩可视化 |
@@ -129,7 +129,7 @@
 
 ### 3.1 分析
 
-| # | 原则 | Tandem 的做法 | 来源 |
+| # | 原则 | Orbit 的做法 | 来源 |
 | --- | --- | --- | --- |
 | A1 | 能用代码确定计算的不交给模型 | 指标、去重、聚合、检测器全部确定性；LLM 只做语义判断，可整体关闭 | [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)；[Skill best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) |
 | A2 | 失败分类要从读真实轨迹的错误分析中长出来 | 摩擦闭集以官方五种失败模式、dsh 7 类反馈、`/insights` 摩擦键为种子；开放编码约 30 条 → 轴向编码 → 约 100 条不再出现新类别为止；每个任务段只记第一个上游失败 | [Hamel Evals FAQ](https://hamel.dev/blog/posts/evals-faq/)；[best-practices](https://code.claude.com/docs/en/best-practices) |
@@ -142,7 +142,7 @@
 
 ### 3.2 推荐（含安装）
 
-| # | 原则 | Tandem 的做法 | 来源 |
+| # | 原则 | Orbit 的做法 | 来源 |
 | --- | --- | --- | --- |
 | R1 | 规则只写从代码推不出、与默认不同的内容；仓库概览没有帮助 | 规则生成有白名单（猜不到的命令、风格差异、测试方法、仓库礼仪、环境怪癖、常见坑）与黑名单（可从代码推出的内容、通用惯例、空话）；每条至少 2 次纠正证据 | [best-practices](https://code.claude.com/docs/en/best-practices)；[ETH](https://arxiv.org/abs/2602.11988) |
 | R2 | 必须每次成立的约束交给 hook，不靠文字 | 规则里出现「必须 / 每次 / 禁止」→ 提示改用 hook；写入后仍被违反 ≥ 2 次 → 升级为 hook 或 lint，错误信息写修复方法 | [features-overview](https://code.claude.com/docs/en/features-overview)；[Harness engineering](https://openai.com/index/harness-engineering/)；[Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more) |
@@ -153,12 +153,12 @@
 | R7 | 尊重目标 Agent 的设计哲学 | 每个条目标注适用 Agent 与在其他 Agent 上的等价做法；对 pi 不推 MCP、子代理、计划模式 | [pi 作者博客](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/) |
 | R8 | 按「缺什么」组织推荐，推荐要克制 | 每个摩擦先回答缺的是知识（规则 / skill）、能力（工具 / MCP / CLI）、反馈（测试 / 检查）还是约束（hook / lint）；有成熟 CLI 时优先 CLI；频控与「不再提示」 | [Harness engineering](https://openai.com/index/harness-engineering/)；[best-practices](https://code.claude.com/docs/en/best-practices)；[plugins/relevance](https://code.claude.com/docs/en/plugins/relevance) |
 | R9 | 工作流建议用带验证回路的成熟模板 | 验证阶梯（提示模板 → `/goal` → Stop hook → 审查子代理）；长任务用进度文件 + 特性清单 + 一次一个特性；计划模式只推荐给多文件且返工多的任务；目标写成完成契约 | [best-practices](https://code.claude.com/docs/en/best-practices)；[long-running harness](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)；[write-goal.md](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/packages/agent-core-v2/src/features/skill/catalog/builtin/write-goal.md) |
-| R10 | 预览与执行之间内容一变就要重新确认；所有权只能声明 | 预览绑定内容哈希；Tandem 安装的条目记录 owner 与内容哈希，用户改过即只读，只给建议 | [commands（/import）](https://code.claude.com/docs/en/commands)；[Hermes curator](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/website/docs/user-guide/features/curator.md) |
+| R10 | 预览与执行之间内容一变就要重新确认；所有权只能声明 | 预览绑定内容哈希；Orbit 安装的条目记录 owner 与内容哈希，用户改过即只读，只给建议 | [commands（/import）](https://code.claude.com/docs/en/commands)；[Hermes curator](https://github.com/NousResearch/hermes-agent/blob/be5e9f72c6681af9dfb75bf480f08844f1499949/website/docs/user-guide/features/curator.md) |
 | R11 | 第三方 skill 不能直接转推 | 入库前静态扫描（脚本、联网、凭据路径、隐藏指令），带脚本的默认提高风险等级；预览展示所有会被模型读到的文本；MCP 与插件标注 lethal trifecta 三项能力 | [Agent Skills in the Wild](https://arxiv.org/abs/2601.10338)；[Malicious agent skills](https://arxiv.org/abs/2602.06547)；[lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) |
 
 ### 3.3 AI
 
-| # | 原则 | Tandem 的做法 | 来源 |
+| # | 原则 | Orbit 的做法 | 来源 |
 | --- | --- | --- | --- |
 | I1 | 代码骨架 + 少量 LLM 节点；agent 只用于开放问题，且只读 | 主链路是 workflow；L4 本机 Agent 只服务用户主动发起的「深度诊断」，只给只读查询工具与预算上限；凡是写用户配置的动作都走预览 → 确认 → 可撤销 | [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)；[A practical guide](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) |
 | I2 | 每个 LLM 步骤后插程序化检查 | gate 校验 schema、枚举、引用的会话 ID 与原话真实存在；失败重试一次，再失败降级为「无 AI 结论」并在 UI 说明 | 同上（prompt chaining） |
@@ -173,7 +173,7 @@
 
 ### 3.4 评测
 
-| # | 原则 | Tandem 的做法 | 来源 |
+| # | 原则 | Orbit 的做法 | 来源 |
 | --- | --- | --- | --- |
 | E1 | 多层叠加，任何单层结论都不对外宣称有效 | 数据回归 → 检测器 → 生成物质量 → 装前对照 → 装后追踪 → 推荐整体 → 人工抽查 | [Demystifying evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) |
 | E2 | 20–50 个真实失败就能起步；先验证 grader 再信分数 | 第一版评测集取三人真实会话里的失败片段；某条推荐全员零效果时先查指标与检测器定义（CORE-Bench 修好评分错误后从 42% 升到 95%） | 同上 |
@@ -187,7 +187,7 @@
 
 ### 3.5 UI
 
-| # | 原则 | Tandem 的做法 | 来源 |
+| # | 原则 | Orbit 的做法 | 来源 |
 | --- | --- | --- | --- |
 | U1 | 标题写结论，图只做证据；小图静态、大图交互 | 每张图一句可独立阅读的结论；KPI 迷你线不画坐标与网格，点开进详情图；详情图约 4 条水平网格线 | [WWDC22-110340](https://developer.apple.com/videos/play/wwdc2022/110340/)、[WWDC22-110342](https://developer.apple.com/videos/play/wwdc2022/110342/) |
 | U2 | 先概览，再缩放过滤，最后看细节 | A3 的 overview 选区就是下方明细的过滤器，与 Instruments 的 inspection range 一致 | [Shneiderman 1996](https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf)；[WWDC19-411](https://developer.apple.com/videos/play/wwdc2019/411/) |
@@ -198,15 +198,15 @@
 | U7 | 数据不够不下结论 | 人格与趋势设最少样本、固定比较窗口；不足时显示「再积累 N 个会话」 | [Apple Fitness](https://support.apple.com/108359) |
 | U8 | 玻璃只给功能层 | 工具栏、侧栏、菜单、popover 用 Liquid Glass；卡片、图表、表格用实色 | [HIG Materials](https://developer.apple.com/design/human-interface-guidelines/materials) |
 | U9 | 按系统实测度量还原原生感 | 本机 macOS 27.2 实测：统一工具栏高 52、交通灯直径 14、控件高 20 / 24 / 28 / 36、窗口圆角 16、页面标题 15 Semibold、侧栏默认 220（最小 144）、检查器 270；网页字体栈以 `system-ui` 开头（写 `-apple-system` 会让中文落到宋体），发丝线用 box-shadow | [HIG Typography](https://developer.apple.com/design/human-interface-guidelines/typography)；[WWDC25-356](https://developer.apple.com/videos/play/wwdc2025/356/) |
-| U10 | 成本与证据可见 | 推荐卡显示常驻 / 触发成本（≥ 2,000 token 标黄）、证据回链、with / without / Δ；同时显示 Tandem 自己花了多少 token | [LLM patterns](https://eugeneyan.com/writing/llm-patterns/)；[plugins/measure](https://code.claude.com/docs/en/plugins/measure) |
+| U10 | 成本与证据可见 | 推荐卡显示常驻 / 触发成本（≥ 2,000 token 标黄）、证据回链、with / without / Δ；同时显示 Orbit 自己花了多少 token | [LLM patterns](https://eugeneyan.com/writing/llm-patterns/)；[plugins/measure](https://code.claude.com/docs/en/plugins/measure) |
 
 ## 4. 开源项目对比
 
 ### 4.0 结论
 
-1. **用量、额度、账号类项目分五类，全部停在「量」上**：用量报表、额度监控、配置与路由、账号切换、账号池。没有一个把 token、成本、额度与会话行为、摩擦、优化措施及其效果连起来，这就是 Tandem 的空白。
-2. **会话可视化已经成熟**：agentsview 覆盖 40+ Agent，dsh、Kimi、pi 自带轨迹视图。Tandem 的差异放在跨 Agent 的时间线、结论能跳回证据、建议能安装并追踪效果。
-3. **多 Agent 编排容易被官方吸收**：vibe-kanban 已停止商业运营，Crystal 已废弃。Tandem 不做编排，只借状态检测。
+1. **用量、额度、账号类项目分五类，全部停在「量」上**：用量报表、额度监控、配置与路由、账号切换、账号池。没有一个把 token、成本、额度与会话行为、摩擦、优化措施及其效果连起来，这就是 Orbit 的空白。
+2. **会话可视化已经成熟**：agentsview 覆盖 40+ Agent，dsh、Kimi、pi 自带轨迹视图。Orbit 的差异放在跨 Agent 的时间线、结论能跳回证据、建议能安装并追踪效果。
+3. **多 Agent 编排容易被官方吸收**：vibe-kanban 已停止商业运营，Crystal 已废弃。Orbit 不做编排，只借状态检测。
 4. **许可证**：MIT / Apache-2.0 可参考实现（保留声明）；AGPL、ELv2、CC BY-NC-SA、无许可证的只借设计。stars 与许可为 2026-10-02 读取，许可证已对照仓库 LICENSE 文件。
 
 ### 4.1 用量与额度
@@ -217,7 +217,7 @@
 | [tokscale](https://github.com/junhoyeo/tokscale) | 5.6k · MIT | 58 个客户端；价格查找链（自定义 → 精确 → 别名 → 去档位后缀 → 模糊）；任务归因与排行榜 | 路径表作连接器发现清单；成本记录带匹配级别；排除 LiteLLM 里 `github_copilot/` 这类 $0 订阅条目 | 额度功能会调各家未公开端点 |
 | [splitrail](https://github.com/Piebald-AI/splitrail) | 222 · MIT | 文件监听的实时统计，另有 MCP 服务 | 证明「把洞察做成本地 MCP」可行（它只暴露用量计数） | — |
 | [Claude-Code-Usage-Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor) | 8.7k · MIT | 实时 TUI、额度预测；官方读数 600 秒后降级为估算 | 新鲜度降级规则 | 手写价目表把 Fable 5.1 的缓存读取高估 4 倍（本机核对）→ 价目表不手写 |
-| [CodexBar](https://github.com/steipete/CodexBar) | 22.1k · MIT | 菜单栏额度中心，86 个 provider；节奏显示「期望 vs 实际」与 ETA；明确不做历史分析 | 检测到已安装且用户开启时读 `codexbar usage --format json`（[cli.md](https://github.com/steipete/CodexBar/blob/b5435c75a285f5571664f39c741c9c203e745160/docs/cli.md)）；节奏算法（[UsagePace.swift](https://github.com/steipete/CodexBar/blob/b5435c75a285f5571664f39c741c9c203e745160/Sources/CodexBarCore/UsagePace.swift)） | 额度来自读凭据的接口，Tandem 不照做 |
+| [CodexBar](https://github.com/steipete/CodexBar) | 22.1k · MIT | 菜单栏额度中心，86 个 provider；节奏显示「期望 vs 实际」与 ETA；明确不做历史分析 | 检测到已安装且用户开启时读 `codexbar usage --format json`（[cli.md](https://github.com/steipete/CodexBar/blob/b5435c75a285f5571664f39c741c9c203e745160/docs/cli.md)）；节奏算法（[UsagePace.swift](https://github.com/steipete/CodexBar/blob/b5435c75a285f5571664f39c741c9c203e745160/Sources/CodexBarCore/UsagePace.swift)） | 额度来自读凭据的接口，Orbit 不照做 |
 | [OpenUsage](https://github.com/robinebers/openusage) | 4.3k · MIT | 菜单栏 + 本地 HTTP；无数据显示「No data」而非 $0；账号归属规则 | 「未归属」桶与无数据语义（[providers/claude.md](https://github.com/robinebers/openusage/blob/ab3e87bbb7c3e91205d64ef5be4baadc20d09c67/docs/providers/claude.md)） | 每日匿名 ping 不可关闭（[privacy.md](https://github.com/robinebers/openusage/blob/ab3e87bbb7c3e91205d64ef5be4baadc20d09c67/docs/privacy.md)），是反例 |
 | [tokentelemetry](https://github.com/VasiHemanth/tokentelemetry) | 374 · MIT | 每个 Agent 的能力状态（未登录 / 会话过期 / 无套餐额度 / 不支持 / 读取失败），缺数据直接省略、不记 0 | UI 的能力状态 | — |
 | [LiteLLM 价目表](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json) / [models.dev](https://models.dev/api.json) | MIT / MIT | 4,453 条按 token 计价（含 1 小时缓存写入、priority / flex、长上下文档位）/ 225 个 provider 与模型元数据 | 主价目表 / 兜底价与模型能力字段，快照进 `catalog.db` | LiteLLM 的 `enterprise/` 目录不是 MIT |
@@ -233,7 +233,7 @@
 | [codex-auth](https://github.com/Loongphy/codex-auth) | 2.8k · MIT | 替换 `auth.json` 切号；`--skip-api` 只读最新 rollout 的 `rate_limits` | 证明 rollout 可作额度来源；部分版本会写 `rate_limits: null`（[openai/codex#14880](https://github.com/openai/codex/issues/14880)） | API 方式自述可能违反条款 |
 | 账号池 / 代理：[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)（53.7k · MIT）、[better-ccflare](https://github.com/tombii/better-ccflare)（271 · MIT）、[codex-lb](https://github.com/Soju06/codex-lb)（3.3k · MIT）、[sub2api](https://github.com/Wei-Shaw/sub2api)（43.2k · LGPL-3.0）、[Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager)（31.9k · CC BY-NC-SA 4.0） | 见左 | 把订阅 OAuth 包成兼容 API、多账号负载均衡、按剩余额度调度 | 无 | 红线：不做账号池、代理转发、订阅共享；Antigravity-Manager 为非商用许可 |
 
-多账号的直接影响是数据发现：切换型把多个账号的会话写进同一个目录，且普通终端会话不记录账号；隔离型每个账号一个数据根。Tandem 以「根目录 → 账号」归属，归属不了的进「未归属」桶，不承诺精确的按账号统计（[OpenUsage 的做法](https://github.com/robinebers/openusage/blob/ab3e87bbb7c3e91205d64ef5be4baadc20d09c67/docs/providers/claude.md)）。
+多账号的直接影响是数据发现：切换型把多个账号的会话写进同一个目录，且普通终端会话不记录账号；隔离型每个账号一个数据根。Orbit 以「根目录 → 账号」归属，归属不了的进「未归属」桶，不承诺精确的按账号统计（[OpenUsage 的做法](https://github.com/robinebers/openusage/blob/ab3e87bbb7c3e91205d64ef5be4baadc20d09c67/docs/providers/claude.md)）。
 
 ### 4.3 多 Agent 管理
 
@@ -243,7 +243,7 @@
 | [ccmanager](https://github.com/kbwo/ccmanager) | 1.3k · MIT | 不依赖 tmux 的多会话管理；按 CLI 配置的状态检测（busy / waiting / idle） | 菜单栏与 HUD 的「运行中 / 等你确认」检测策略 | — |
 | [vibe-kanban](https://github.com/BloopAI/vibe-kanban) | 28.2k · Apache-2.0 | 看板 → 每个 workspace 一个分支 + 终端；10+ Agent 的输出归一为 `NormalizedEntry` | shell 命令按语义重分类（cat → 读取、rg → 搜索、sed -i → 编辑、curl → 网络），避免 Codex 这类靠 shell 的 Agent 全挤进「命令」泳道；连续同类事件聚合；工具状态加 denied / pending_approval / timed_out（[shell_command_parsing.rs](https://github.com/BloopAI/vibe-kanban/blob/d5cbb5380fa0b32e98ef9b8d987f63decce4be3a/crates/executors/src/logs/utils/shell_command_parsing.rs)） | 2026-04-10 宣布停止商业运营 |
 | [Crystal](https://github.com/stravu/crystal) → [Nimbalyst](https://github.com/nimbalyst/nimbalyst) | 3.1k · MIT | 并行 worktree 会话比较 | 低 | 2026-02 废弃 |
-| [omnigent](https://github.com/omnigent-ai/omnigent) | 10.4k · Apache-2.0 | 元 harness：统一编排 Claude Code、Codex、OpenCode、Hermes、pi，带花费上限与危险操作暂停策略 | 低（执行层控制，Tandem 不做） | — |
+| [omnigent](https://github.com/omnigent-ai/omnigent) | 10.4k · Apache-2.0 | 元 harness：统一编排 Claude Code、Codex、OpenCode、Hermes、pi，带花费上限与危险操作暂停策略 | 低（执行层控制，Orbit 不做） | — |
 | [disler 多 Agent 观测](https://github.com/disler/claude-code-hooks-multi-agent-observability) | 无许可证 | Hook 实时事件流 + 每 Agent 泳道 + 实时脉冲柱 | 只借设计：菜单栏「最近 5 分钟活动」 | 不能复制代码 |
 | [agent-sessions](https://github.com/jazzyalex/agent-sessions) | 889 · MIT | 原生 macOS 会话浏览 + Cockpit HUD + 额度表 | 同平台参照；会话头的模型 / effort 变更史与 token 构成三段条（cached / fresh / output） | — |
 
@@ -269,7 +269,7 @@
 
 ### 4.5 相邻项目：历史 → skill、记忆与归因
 
-| 项目 | 许可 | 做法 | 可复用部分 | 与 Tandem 的边界 |
+| 项目 | 许可 | 做法 | 可复用部分 | 与 Orbit 的边界 |
 | --- | --- | --- | --- | --- |
 | [SpecStory Lore](https://github.com/specstoryai/getspecstory/tree/main/lore) | Apache-2.0 | 分析单位是 beat（一次提示 + 到下一次提示前 Agent 实际执行的命令、文件与退出码 + 用户回复），用户回复当结果标签；SQLite 做确定性计数，Agent 只负责命名与判断；每个候选配一个反驳子代理；安装计划内嵌完整证据，写到 `~/.agents/skills` 再软链到各 Agent | 四个工程决定照搬：beat 单位、下一句回复当标签、确定性计数 + 反驳、没有证据不能批准 | 只产 skill；没有可视化与装后对照；要先装 SpecStory 采集 |
 | [Entire CLI](https://github.com/entireio/cli) | MIT | 提交时生成 checkpoint，由本机 Agent 摘要「意图、结果、经验、摩擦点、未决事项」 | 会话摘要 schema；`Entire-Checkpoint` trailer 作会话与提交的锚点 | 从启用起才采集；偏审计 |
@@ -312,7 +312,7 @@
 
 ### 5.2 公开实证
 
-| 研究 | 结果 | 对 Tandem |
+| 研究 | 结果 | 对 Orbit |
 | --- | --- | --- |
 | [ETH：Evaluating AGENTS.md](https://arxiv.org/abs/2602.11988) | LLM 生成的上下文文件让成功率 −0.5%（SWE-bench）/ −2%（CTXbench），不显著；步数增加，成本 +20% / +23%；开发者写的 +2.4%（不显著）；仓库概览没有帮助 | 不生成项目概览式规则；只写推不出来、有纠正证据的条目；显示每条规则的常驻成本 |
 | [Lulla 等：AGENTS.md 与效率](https://arxiv.org/abs/2601.20404) | 10 个仓库、124 个 PR：有 AGENTS.md 时运行时间中位数 −28.64%、输出 token −16.58% | 与上一条看似矛盾，说明效果依赖具体文件与场景，必须就地测量（路演论据） |
@@ -351,7 +351,7 @@ ID 用 `RS-` 前缀，表示来自本调研；各模块文档在自己的功能�
 | RS-01 | 成本证据列与价格表 | 原始 usage → `model_call` 拆 `cache_write_5m` / `cache_write_1h`，加 `service_tier`、`pricing_model`、`price_match`（exact / alias / fuzzy / unpriced）、`price_ref`；`catalog.db` 加带生效日期的 `model_price` | MVP：LiteLLM 快照为主、models.dev 兜底，未定价单列；后续：价格变更后回填重算，支持组织下发的 `modelPricing`（[settings-reference](https://code.claude.com/docs/en/settings-reference)） | S · 0 | yhyfhgs |
 | RS-02 | 额度事件 | Codex rollout 的 `token_count.rate_limits`、日志里的撞限错误 → L2 `quota.observed`、`limit.hit`，L3 `quota_window`；窗口按 `window_minutes` 与 `limit_id` 判定（Pro 套餐只有周窗口，见 [Codex 定价](https://learn.chatgpt.com/docs/pricing)） | MVP：Codex 燃尽曲线 + 两家的撞限识别；后续：Claude statusline 采集（RS-32）、可选读 CodexBar JSON | M · 0 | yhyfhgs |
 | RS-03 | 账号与多根目录 | 多账号工具的数据根（claude-swap、ccs、自定义 `CODEX_HOME`、第二账号目录、Claude Desktop 本地 Agent 模式目录）→ `source.account_key` / `account_label`，realpath 去重，「未归属」桶 | MVP：根目录 → 账号；后续：目录绑定作辅助信号 | S · 0 | yhyfhgs |
-| RS-04 | 人类输入识别与自身会话过滤 | user 消息 + Tandem 调用的标记与 cwd → `message.user.origin`（真人 / 注入上下文 / 命令输出）；排除 Tandem 自己发起的会话 | MVP：借 Hermes 包装标签正则（`<system-reminder>`、`<environment_context>`、`<command-name>` 等）+ 固定 cwd 与提示标记 | S · 0 | yhyfhgs |
+| RS-04 | 人类输入识别与自身会话过滤 | user 消息 + Orbit 调用的标记与 cwd → `message.user.origin`（真人 / 注入上下文 / 命令输出）；排除 Orbit 自己发起的会话 | MVP：借 Hermes 包装标签正则（`<system-reminder>`、`<environment_context>`、`<command-name>` 等）+ 固定 cwd 与提示标记 | S · 0 | yhyfhgs |
 | RS-05 | Kimi Code 连接器 | `~/.kimi-code/session_index.jsonl` + `sessions/wd_<slug>_<sha12>/<id>/agents/*/wire.jsonl`（协议 1.5，64 种记录）→ L1 / L2；与旧版 `~/.kimi/` 迁移副本（带 `[imported]` 标记）去重（[wire-manifest](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/packages/agent-core-v2/docs/wire-manifest.d.ts)、[data-locations](https://github.com/MoonshotAI/kimi-code/blob/21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3/docs/zh/configuration/data-locations.md)） | 后续：本机无样本，格式待验证 | M · 0 | yhyfhgs |
 
 ### 6.2 分析（[analysis.md](../plans/analysis-module.md)）
@@ -423,7 +423,7 @@ ID 用 `RS-` 前缀，表示来自本调研；各模块文档在自己的功能�
 | --- | --- | --- |
 | 读 OAuth 凭据、钥匙串或浏览器 cookie 调未公开额度端点 | Anthropic 不允许第三方收集或中转 Claude.ai 凭据；端点配额被用户的其他工具共享 | [legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) |
 | 账号池、自动切号、提前开窗、代理转发、订阅共享 | 条款风险；与「本地分析」定位无关 | §4.2 |
-| 又一个记忆系统或学习闭环 | Claude auto memory、Codex Memories、Hermes 已覆盖；Tandem 做记忆的审查与跨 Agent 同步 | §2.1 |
+| 又一个记忆系统或学习闭环 | Claude auto memory、Codex Memories、Hermes 已覆盖；Orbit 做记忆的审查与跨 Agent 同步 | §2.1 |
 | 多 Agent 编排 | 易被官方吸收，明星项目已停更或废弃 | §4.3 |
 | 自己的实时额度菜单栏 | 已高度同质；检测到 CodexBar / OpenUsage 时可选读取它们的 JSON | §4.1 |
 | 上下文 bandit、训练模型、MVP 中的向量检索 | 单用户反馈少、奖励延迟；先做确定性排序与曝光日志 | §5.1 |

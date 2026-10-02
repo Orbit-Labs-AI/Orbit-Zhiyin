@@ -22,7 +22,7 @@ def table_schemas(database="canonical"):
     connection = create_schema(sqlite3.connect(":memory:"), database)
     tables = {}
     for name, sql in connection.execute(
-        "SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'event_fts%' ORDER BY name"
+        "SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'event_fts%' AND name NOT LIKE 'event_search%' ORDER BY name"
     ):
         properties, required = {}, []
         for _, column, sql_type, notnull, default, primary in connection.execute(

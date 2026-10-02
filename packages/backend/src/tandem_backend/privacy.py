@@ -2,6 +2,7 @@
 
 import json
 import re
+from functools import lru_cache
 
 from markdown_it import MarkdownIt
 
@@ -40,6 +41,7 @@ def redact(text: str) -> str:
     return text
 
 
+@lru_cache(maxsize=65536)  # pure: same text -> same result; several analyzers parse the same message
 def direct_user_text(text: str) -> str:
     """Separate native prompt wrappers from the actual request, conservatively.
 

@@ -14,3 +14,6 @@ const LIVE_ID = 'sess-1001-1512';
 const HUD_TOOLS = ['Edit Main.dc.html', 'Read Sessions.dc.html', 'Bash node lint.js', 'Edit tandem-demo.html', 'Read canvas.json', 'Bash git status'];
 let HUD_T = 0, OVL = null, SIMT = null, ASKT = null;
 
+// page guide (「这页回答」, inserted by 37-motion.js's render hook, which runs before this one): the full sentence is also its
+// tooltip, so the line can stay one short row — on narrow content columns the 「先看 …」 half is hidden (90-responsive.css)
+RENDER_HOOKS.push((m) => { const t = m.querySelector('.pg-guide-t'); if (t && !t.dataset.tip) t.dataset.tip = t.textContent.replace(/^这页回答/, '这页回答：'); });

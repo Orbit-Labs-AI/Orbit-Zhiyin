@@ -1,6 +1,6 @@
 # 推荐目录实测记录
 
-验证日期：2026-10-02；Apple Silicon macOS、Python 3.13、根目录 uv workspace。测试只使用公开资源和构造查询，没有读取本机个人会话。源码入口和复跑命令见[架构与接入文档](catalog-architecture.md)。
+验证日期：2026-10-02；Apple Silicon macOS、Python 3.13、根目录 uv workspace。测试只使用公开资源和构造查询，没有读取本机个人会话。源码入口和复跑命令见[架构与接入文档](architecture.md)。
 
 ## 实际构建结果
 
