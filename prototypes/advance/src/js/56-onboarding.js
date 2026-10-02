@@ -322,7 +322,7 @@ function genPlay(g) {
   A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 420 : 120, easing: G_SPRING });
   // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入，外环每小时一段在指针过后长出
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
-  qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
+  qa('.g-fp .fp-band, .g-fp .fp-hours, .g-fp .fp-orb, .g-fp .fp-pls').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   g.segs.forEach((el) => { const h = +el.dataset.h; A(el, [{ opacity: 0, transform: 'scale(.76)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: T.place + (h + 0.5) / 24 * sw + 520, easing: G_SPRING }); });
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
   // 03：玫瑰主角（.pet，CSS grow）从中心长出并在 rAF 里伸到各轴强度；字母位翻牌（指针寻向），按顺序锁定
