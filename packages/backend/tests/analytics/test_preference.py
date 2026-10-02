@@ -53,10 +53,10 @@ def test_attachment_wrapper_and_truncation(fixtures):
     assert not out["records"] and len(out["candidates"]) == 1
 
 
-def test_one_off_instruction_and_explicit_task_preference(fixtures):
+def test_one_off_instruction_is_left_to_instruction_and_explicit_task_preference_is_kept(fixtures):
     s, e, _ = fixtures
     out = extract_explicit_preferences([e("这次请简短一点")], [s()], {"e": "task"})
-    assert not out["records"] and out["task_instructions"][0]["preference_scope"]["target_id"] == "task"
+    assert not out["records"] and not out["task_instructions"]
     out = extract_explicit_preferences([e("这个任务我喜欢简短回答")], [s()], {"e": "task"})
     assert out["records"][0]["preference_scope"]["kind"] == "task"
 

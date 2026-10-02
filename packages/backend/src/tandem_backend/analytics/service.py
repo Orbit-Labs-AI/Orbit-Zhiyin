@@ -17,7 +17,14 @@ from .instruction import (
     summarize_control_patterns,
 )
 from .outcome_subjective import aggregate_subjective_outcomes
-from .preference import extract_explicit_preferences, summarize_preferences
+from .preference import (
+    PREFERENCE_EVIDENCE_VERSION,
+    PREFERENCE_VERSION,
+    build_preference_evidence,
+    extract_explicit_preferences,
+    summarize_preference_evidence,
+    summarize_preferences,
+)
 from .task import segment_tasks, summarize_task_distribution
 from .task.representation import representation
 
@@ -37,21 +44,29 @@ def analyze_bundle(bundle, scope=None, with_text=True):
     tasks = segment_tasks(semantic_events, sessions)
     if semantic_events is None:
         tasks["records"] = None
-    preferences = extract_explicit_preferences(semantic_events, sessions, tasks.pop("task_by_event"))
+    task_by_event = tasks.pop("task_by_event")
+    instruction_records = extract_instruction_constraints(events, main_ids=main_ids)
+    instruction_available = bundle.events is not None
+    preferences = extract_explicit_preferences(semantic_events, sessions, task_by_event)
+    preferences["evidence_schema_version"] = PREFERENCE_EVIDENCE_VERSION
+    preferences["evidence"] = build_preference_evidence(
+        preferences, instruction_records if instruction_available else None, sessions, task_by_event)
+    preferences["evidence_summary"] = summarize_preference_evidence(
+        preferences["evidence"], instruction_records if instruction_available else None, sessions, task_by_event)
     tasks["summary"] = summarize_task_distribution(tasks["records"], asdict(scope))
     preferences["summary"] = summarize_preferences(preferences["records"], asdict(scope))
-    task_ids, preference_ids = defaultdict(list), defaultdict(list)
+    task_ids, preference_ids, preference_evidence_ids = defaultdict(list), defaultdict(list), defaultdict(list)
     for task in tasks["records"] or []:
         for sid in task["related_session_ids"]:
             task_ids[sid].append(task["task_id"])
     for preference in preferences["records"] or []:
         sid = preference["preference_evidence"][0]["session_uid"]
         preference_ids[sid].append(preference["preference_id"])
-    instruction_records = extract_instruction_constraints(events, main_ids=main_ids)
+    for item in preferences["evidence"] or []:
+        preference_evidence_ids[item["session_uid"]].append(item["evidence_id"])
     instruction_groups = defaultdict(list)
     for record in instruction_records:
         instruction_groups[record["session_uid"]].append(record)
-    instruction_available = bundle.events is not None
     instruction_summary = summarize_control_patterns(
         instruction_records, source_available=instruction_available)
     complete_models = bundle.coverage.get("model_calls", {}).get("status") == "available"
@@ -96,7 +111,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         row = {**s, **data, "included_session_uids": sorted(included), "cluster_id": None,
                "novelty": None, "embedding_x": None, "embedding_y": None,
                "task_ids": task_ids[sid] if semantic_events is not None else None,
-               "preference_ids": preference_ids[sid] if semantic_events is not None else None}
+               "preference_ids": preference_ids[sid] if semantic_events is not None else None,
+               "preference_evidence_ids": preference_evidence_ids[sid] if semantic_events is not None else None}
         rows.append(row)
         prompts = [e for e in own if human(e, main_ids) and e.get("text")]
         if prompts:
@@ -109,6 +125,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
     projections = {p["entity_id"]: p for p in text.get("coordinates") or []}
     for row in rows:
         row.update({k: v for k, v in projections.get(row["session_uid"], {}).items() if k != "entity_id"})
+    for item in preferences["evidence"] or []:
+        item["cluster_id"] = projections.get(item["session_uid"], {}).get("cluster_id")
     all_tools = tool_summary(calls, bundle.coverage.get("tool_calls", {}).get("status", "partial"))
     all_workflow = workflow(events + diagnostics["context_events"], calls, main_ids, supported)
     all_usage = usage(model_calls, events, sessions, scope, complete_models)
@@ -176,7 +194,8 @@ def analyze_bundle(bundle, scope=None, with_text=True):
         all_workflow = {"status": "unavailable", "transitions": None, "sequences": None}
         rhythm = None
     result = {**meta, "feature_schema_version": FEATURE_VERSION, "feature_dictionary": FEATURES,
-            "analysis_digest": stable_id(bundle.versions.get("content_digest"), asdict(scope), FEATURE_VERSION, INSTRUCTION_VERSION),
+            "analysis_digest": stable_id(bundle.versions.get("content_digest"), asdict(scope), FEATURE_VERSION,
+                                         INSTRUCTION_VERSION, PREFERENCE_VERSION, PREFERENCE_EVIDENCE_VERSION),
             "effective_samples": {"main_sessions": len(main_ids), "human_messages": human_count,
                                   "tools": len(calls) if calls is not None else None, "text_sessions": len(entities)},
             "unknown_counts": {"human_origin": unknown_origin, "session_kind": counts["session_kind_unknown"],
