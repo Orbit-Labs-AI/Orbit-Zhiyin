@@ -138,7 +138,7 @@ class KimiMapper(BaseMapper):
         origin = (
             "human" if message.get("role") == "assistant" else self._origin(message.get("origin"))
         )
-        if self.agent_id != "main" and origin == "human":
+        if self.agent_id != "main" and message.get("role") == "user" and origin == "human":
             origin = "injected"
         events = self.message(record, message, origin=origin, base_path=path)
         for event in events:

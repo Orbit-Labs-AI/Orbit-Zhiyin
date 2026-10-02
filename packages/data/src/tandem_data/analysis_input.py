@@ -114,6 +114,8 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
             + ") SELECT v.* FROM v_analysis_event v WHERE "
             + " AND ".join(allowed)
             + " AND (event_uid IN (SELECT event_uid FROM members) OR turn_uid IN (SELECT turn_uid FROM members)"
+            + " OR event_uid IN (SELECT x.event_uid FROM tool_call_event x JOIN v_analysis_tool_call t USING(call_uid)"
+            + " WHERE t.call_event_uid IN (SELECT event_uid FROM members) OR t.result_event_uid IN (SELECT event_uid FROM members))"
             + " OR (kind IN ('session.meta','setting.change','session.title') AND session_uid IN (SELECT session_uid FROM members)))"
             + " ORDER BY session_uid,seq"
         )
