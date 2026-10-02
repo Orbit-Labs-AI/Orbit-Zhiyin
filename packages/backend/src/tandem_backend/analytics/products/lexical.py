@@ -212,7 +212,9 @@ def rank_phrases(rows: list[Record]) -> tuple[list[Record], int]:
                 if part is not None and part["message_count"] == row["message_count"]:
                     subsumed.add(part["term"])
     kept = [row for row in rows if row["term"] not in subsumed]
-    kept.sort(key=lambda row: (-row["session_count"], -row["message_count"], -row["count"], row["term"]))
+    kept.sort(
+        key=lambda row: (-row["session_count"], -row["message_count"], -row["count"], row["term"])
+    )
     return kept, len(subsumed)
 
 
