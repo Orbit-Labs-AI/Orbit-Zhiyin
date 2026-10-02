@@ -1,8 +1,9 @@
-"""生成 Tandem 莫比乌斯环 logo（SVG）。
+"""生成 Tandem 莫比乌斯环 logo（SVG，纯色线稿）。
 
-构造：一条带子沿伯努利双纽线走一圈。起点在中心交叉处，带宽在这里收窄成尖（扭转时
-侧边朝向观察者），走到对侧交叉处最宽、从下方穿过。颜色沿路径由深到浅渐变一整圈，
-最深与最浅在收窄点相接——走一圈回到"另一面"，即莫比乌斯带的单侧性。
+莫比乌斯带的边缘只有一条闭合曲线。取参数式
+    r = R + W·cos(u/2),  z = W·sin(u/2),  u ∈ [0, 4π)
+即沿带子一侧边走两圈回到起点。把这条空间曲线倾斜投影后一笔画出：近处线粗、远处线细，
+投影交叉处让较远的一支断开。只用一种颜色。
 
 用法：python3 docs/design/logo/generate.py
 """
@@ -14,118 +15,130 @@ from pathlib import Path
 
 OUT = Path(__file__).parent
 
-# 低饱和色：板岩灰 -> 鼠尾草灰 -> 雾灰，配合原型的暖纸底
-STOPS = ("#5b676c", "#8d9a94", "#c9d0cb")
-MONO = "#6f7b7d"
+INK = "#5f6b6f"  # 低饱和板岩灰
 PAPER = "#f5f4f0"
 
-A = 205  # 双纽线半长
-W_MAX = 62  # 最大带宽
-W_MIN = 1.5  # 收窄处带宽
-EXPO = 0.55  # 带宽曲线，越小越早变宽
-OVER = 0.06  # 中心上层段占整圈的比例（单侧）
-GAP = 6  # 上层段与下层段之间的留白
-N = 480  # 分段数
+R = 1.0  # 中心圆半径
+W = 0.48  # 半带宽
+TILT = math.radians(-55)  # 俯仰
+SPIN = math.radians(-110)  # 绕竖轴旋转，决定交叉点的位置
+N = 1600  # 采样数
+
+SIZE = 512  # 绘制坐标系边长
+PAD = 4
+GAP = 14  # 交叉处断开的留白
 
 
-def mix(c0: str, c1: str, t: float) -> str:
-    a = [int(c0[i : i + 2], 16) for i in (1, 3, 5)]
-    b = [int(c1[i : i + 2], 16) for i in (1, 3, 5)]
-    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
-
-
-def ramp(t: float) -> str:
-    t *= len(STOPS) - 1
-    i = min(int(t), len(STOPS) - 2)
-    return mix(STOPS[i], STOPS[i + 1], t - i)
-
-
-def curve(t: float) -> tuple[float, float]:
-    d = 1 + math.sin(t) ** 2
-    return A * math.cos(t) / d, A * math.sin(t) * math.cos(t) / d
-
-
-def samples():
-    """沿路径采样 (x, y, 法向 x, 法向 y, 带宽, 进度)。t0 = π/2 是中心交叉点。"""
-    out = []
-    for k in range(N + 1):
-        s = k / N
-        t = math.pi / 2 + 2 * math.pi * s
-        x, y = curve(t)
-        (x1, y1), (x2, y2) = curve(t - 1e-4), curve(t + 1e-4)
-        L = math.hypot(x2 - x1, y2 - y1)
-        w = W_MIN + (W_MAX - W_MIN) * abs(math.sin(math.pi * s)) ** EXPO
-        out.append((x, y, -(y2 - y1) / L, (x2 - x1) / L, w, s))
-    return out
-
-
-def edges(a, b):
-    ha, hb = a[4] / 2, b[4] / 2
-    return [
-        (a[0] + a[2] * ha, a[1] + a[3] * ha),
-        (b[0] + b[2] * hb, b[1] + b[3] * hb),
-        (b[0] - b[2] * hb, b[1] - b[3] * hb),
-        (a[0] - a[2] * ha, a[1] - a[3] * ha),
-    ]
-
-
-def pts(q) -> str:
-    return " ".join(f"{x:.1f},{y:.1f}" for x, y in q)
-
-
-def body(mono: bool, bg: str) -> list[str]:
-    p = samples()
-    # 每片跨两步，相邻片重叠，避免抗锯齿接缝
-    segs = []
+def space_curve():
+    pts = []
     for k in range(N):
-        a, b = p[k], p[min(k + 2, N)]
-        d = min(a[5], 1 - a[5])
-        segs.append((d < OVER, d < OVER * 0.6, edges(a, b), MONO if mono else ramp(a[5])))
-    out = [f'<polygon points="{pts(q)}" fill="{c}"/>' for top, _, q, c in segs if not top]
-    out += [
-        f'<polygon points="{pts(q)}" fill="{bg}" stroke="{bg}" stroke-width="{GAP * 2}" stroke-linejoin="round"/>'
-        for _, gap, q, _ in segs
-        if gap
-    ]
-    out += [f'<polygon points="{pts(q)}" fill="{c}"/>' for top, _, q, c in segs if top]
+        u = 4 * math.pi * k / N
+        r = R + W * math.cos(u / 2)
+        x, y, z = r * math.cos(u), r * math.sin(u), W * math.sin(u / 2)
+        x, y = x * math.cos(SPIN) - y * math.sin(SPIN), x * math.sin(SPIN) + y * math.cos(SPIN)
+        y, z = y * math.cos(TILT) - z * math.sin(TILT), y * math.sin(TILT) + z * math.cos(TILT)
+        pts.append((x, -y, z))  # SVG 的 y 轴向下；z 越大越近
+    return pts
+
+
+def far_crossings(p) -> list[int]:
+    """投影后自交点处较远那一支的采样下标。"""
+    n, out = len(p), []
+    for i in range(n):
+        a, b = p[i], p[(i + 1) % n]
+        for j in range(i + 2, n):
+            if (j + 1) % n == i:
+                continue
+            c, d = p[j], p[(j + 1) % n]
+            den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0])
+            if abs(den) < 1e-12:
+                continue
+            t = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den
+            s = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den
+            if 0 <= t < 1 and 0 <= s < 1:
+                za, zc = a[2] + t * (b[2] - a[2]), c[2] + s * (d[2] - c[2])
+                out.append(i if za < zc else j)
     return out
 
 
-def bbox(pad: float):
-    xs, ys = [], []
-    for a, b in zip(samples(), samples()[1:]):
-        for x, y in edges(a, b):
-            xs.append(x)
-            ys.append(y)
-    return min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad
+def shapes(wmin: float, wmax: float) -> tuple[list[str], tuple[float, float, float, float]]:
+    """返回填充图形与边界框。线宽按深度在 [wmin, wmax] 间变化；两者相等即等粗线。"""
+    p = space_curve()
+    n = len(p)
+    xs, ys, zs = [q[0] for q in p], [q[1] for q in p], [q[2] for q in p]
+    sc = (SIZE - 2 * 40) / max(max(xs) - min(xs), max(ys) - min(ys))
+    P = [((x - min(xs)) * sc, (y - min(ys)) * sc) for x, y, _ in p]
+    z0, z1 = min(zs), max(zs)
+    w = [wmin + (wmax - wmin) * (z - z0) / (z1 - z0) for z in zs]
+
+    length = [0.0]
+    for i in range(n):
+        length.append(length[-1] + math.dist(P[i], P[(i + 1) % n]))
+    cut = set()
+    for i in far_crossings(p):
+        for j in range(n):
+            dd = abs(length[j] - length[i])
+            if min(dd, length[-1] - dd) < GAP / 2 + max(w[i], w[j]):
+                cut.add(j)
+
+    start = next(k for k in range(n) if k not in cut and (k - 1) % n in cut)
+    runs, cur = [], []
+    for m in range(n + 1):
+        k = (start + m) % n
+        if k in cut:
+            if len(cur) > 1:
+                runs.append(cur)
+            cur = []
+        else:
+            cur.append(k)
+    if len(cur) > 1:
+        runs.append(cur)
+
+    out, edge = [], []
+    for run in runs:
+        left, right = [], []
+        for k in run:
+            (x0, y0), (x1, y1) = P[(k - 1) % n], P[(k + 1) % n]
+            ln = math.hypot(x1 - x0, y1 - y0)
+            nx, ny, h = -(y1 - y0) / ln, (x1 - x0) / ln, w[k] / 2
+            left.append((P[k][0] + nx * h, P[k][1] + ny * h))
+            right.append((P[k][0] - nx * h, P[k][1] - ny * h))
+        edge += left + right
+        poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in left + right[::-1])
+        out.append(f'<polygon points="{poly}"/>')
+        for k in (run[0], run[-1]):  # 圆头
+            out.append(f'<circle cx="{P[k][0]:.1f}" cy="{P[k][1]:.1f}" r="{w[k] / 2:.2f}"/>')
+    ex, ey = [x for x, _ in edge], [y for _, y in edge]
+    box = (min(ex) - PAD, min(ey) - PAD, max(ex) - min(ex) + 2 * PAD, max(ey) - min(ey) + 2 * PAD)
+    return out, box
 
 
-def mark(mono: bool = False, gap_color: str = PAPER) -> str:
-    """紧凑画布、透明底。中心留白用 gap_color 绘制，放在其他底色上时改成对应底色。"""
-    x, y, w, h = bbox(4)
+def mark(color: str = INK, wmin: float = 4.5, wmax: float = 15) -> str:
+    """紧凑画布、透明底。"""
+    body, (x, y, w, h) = shapes(wmin, wmax)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
-        f'width="{w:.0f}" height="{h:.0f}">{"".join(body(mono, gap_color))}</svg>\n'
+        f'width="{w:.0f}" height="{h:.0f}"><g fill="{color}">{"".join(body)}</g></svg>\n'
     )
 
 
 def icon(size: int = 1024) -> str:
-    """方形图标：暖纸底圆角方块，标志居中。"""
-    x, y, w, h = bbox(0)
-    s = size * 0.78 / w
+    """方形图标：暖纸底圆角方块，标志居中。图标里线条偏粗，缩小后仍清楚。"""
+    body, (x, y, w, h) = shapes(10, 24)
+    s = size * 0.66 / max(w, h)
     tx, ty = size / 2 - (x + w / 2) * s, size / 2 - (y + h / 2) * s
-    r = size * 0.225
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" width="{size}" height="{size}">'
-        f'<rect width="{size}" height="{size}" rx="{r:.0f}" fill="{PAPER}"/>'
-        f'<g transform="translate({tx:.1f} {ty:.1f}) scale({s:.4f})">{"".join(body(False, PAPER))}</g></svg>\n'
+        f'<rect width="{size}" height="{size}" rx="{size * 0.225:.0f}" fill="{PAPER}"/>'
+        f'<g fill="{INK}" transform="translate({tx:.1f} {ty:.1f}) scale({s:.4f})">{"".join(body)}</g></svg>\n'
     )
 
 
 def main():
     files = {
         "tandem-mark.svg": mark(),
-        "tandem-mark-mono.svg": mark(mono=True),
+        "tandem-mark-light.svg": mark(PAPER),
+        "tandem-mark-small.svg": mark(wmin=34, wmax=34),
         "tandem-icon.svg": icon(),
     }
     for name, text in files.items():
