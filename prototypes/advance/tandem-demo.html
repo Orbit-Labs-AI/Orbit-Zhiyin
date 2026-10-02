@@ -6188,7 +6188,7 @@ function drawOB() {
 /* ---- Genesis ---- */
 const G_EASE = 'cubic-bezier(.2,.8,.2,1)', G_SPRING = 'cubic-bezier(.34,1.45,.64,1)';
 const G_PAIRS = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
-const reduceMotion = () => !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+// reduceMotion() comes from 37-motion.js (shared by every motion layer)
 const genIO = (u) => { u = clamp(u, 0, 1); return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
 const genBack = (u) => { u = clamp(u, 0, 1); const c = 1.25; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
 // 各段起点（ms）。首次启动从「开始分析」算起约 6.7 s；揭晓没有来源列表，01 段只把会话点汇集到中央，约 4.9 s。

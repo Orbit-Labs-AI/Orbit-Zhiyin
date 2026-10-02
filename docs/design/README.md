@@ -38,16 +38,23 @@
 
 ## Logo
 
-`logo/` 存放项目 logo：纯色线稿的莫比乌斯带，颜色为低饱和陶土色 `#94705f`。带面用三条沿走向的线表现，两条边缘线粗、中线细。线条按三种规则断开，不做成一笔到底：被带子其他部分挡住处断开并留白；扭转处带面侧对观察者时只留边缘；中线按固定周期留出间隙。
+`logo/` 存放项目 logo：一段洛伦茨吸引子（σ=10, ρ=28, β=8/3）轨道的纯色线稿，颜色为低饱和板岩灰 `#5f6b6f`。它由莫比乌斯带线稿演化而来，沿用同一套线条语言：一笔画成，近处粗、远处细，投影交叉处较远的一支断开，两端渐细收笔。轨道左右两翼各绕两圈；吸引子的拓扑模板本身是一条带扭转的分支带，与莫比乌斯带同源。
 
 | 文件 | 用途 |
 | --- | --- |
 | [`logo/tandem-mark.svg`](logo/tandem-mark.svg) | 主标志，透明底、紧凑画布 |
 | [`logo/tandem-mark-light.svg`](logo/tandem-mark-light.svg) | 浅色线（暖纸色），用于深色底 |
-| [`logo/tandem-mark-small.svg`](logo/tandem-mark-small.svg) | 只留加粗边缘线，用于 48 px 以下或 favicon |
+| [`logo/tandem-mark-small.svg`](logo/tandem-mark-small.svg) | 线宽拉平加粗，用于 48 px 以下或 favicon |
 | [`logo/tandem-icon.svg`](logo/tandem-icon.svg)、[`logo/tandem-icon.png`](logo/tandem-icon.png) | 方形 App 图标，暖纸底圆角方块，1024 px |
 
-文件由 [`logo/generate.py`](logo/generate.py) 生成（`python3 docs/design/logo/generate.py`，纯 Python，无第三方依赖）。颜色、视角、线条数、线宽、遮挡留白和中断节奏都是脚本顶部的常量或 `rhythm()`。断口是真正断开的，可直接放在任意底色上。PNG 由浏览器截图导出，改 SVG 后需同步更新。
+文件由 [`logo/generate.py`](logo/generate.py) 生成（`python3 docs/design/logo/generate.py`，纯 Python，无第三方依赖，积分初值与步长固定，可复现）。取哪几圈轨道、起止点、视角、线宽和交叉留白都是脚本顶部的常量。断口是真正断开的，可直接放在任意底色上。PNG 由浏览器截图导出，改 SVG 后需同步更新。此前的莫比乌斯带版本见 git 历史（`391203a` 及更早）。
+
+两个备选版本用同一套线条语言与文件组成（mark、light、small、icon），由同一脚本一并生成，主版本保持不变：
+
+| 版本 | 位置 | 曲线 |
+| --- | --- | --- |
+| 复杂度略增 | [`logo/variants/rich/`](logo/variants/rich/tandem-mark.svg) | 同一段吸引子轨道多取一圈，右翼多绕一圈 |
+| 单环螺旋 | [`logo/variants/spiral/`](logo/variants/spiral/tandem-mark.svg) | 一条 1.6 圈的锥形螺旋线，半径由外向内收、同时沿轴向抬升，斜看时内圈从外环下方穿过 |
 
 ## 可交互 Demo
 
