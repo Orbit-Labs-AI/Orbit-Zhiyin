@@ -218,6 +218,8 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
             elif tokens >= 2000:
                 hits.append(("resident_cost", f"resident_cost:{inv_id}", f"{name} 每个会话常驻约 {tokens} tokens"))
             bucket = usage.get("skill" if kind == "skill" else "mcp", {}) if kind in ("skill", "mcp") else None
+            if (item.get("usage") or {}).get("attributable") is False:
+                bucket = None  # the agent records no skill/MCP attribution: unknown, not unused
             if (bucket is not None and item.get("enabled") is not False and main >= 10 and window_days >= 14
                     and int((bucket.get(name) or {}).get("calls") or 0) == 0):
                 hits.append(("installed_unused", f"installed_unused:{inv_id}",

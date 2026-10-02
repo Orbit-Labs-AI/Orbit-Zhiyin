@@ -249,13 +249,17 @@ def _usage(conn, column, d30, d90, project_ids) -> dict[tuple[str, str], dict]:
 
 def _usage_for(item, table) -> dict:
     basis = ATTRIBUTABLE.get(item["type"])
-    if basis is None or table is None:
+    every_agent = item["agent"] == "common" or item["scope"] == "project"
+    # An agent whose tool calls never carry this column (Codex has no skill attribution) has
+    # no usage signal at all: zero rows there means "unknown", not "unused".
+    attributed = table is not None and (
+        bool(table) if every_agent else any(agent == item["agent"] for _, agent in table))
+    if basis is None or not attributed:
         return {"calls_total": None, "calls_30d": None, "calls_90d": None, "sessions": None,
                 "last_used_at": None, "error_rate": None, "attributable": False,
                 "basis": "not_attributable" if basis is None else "usage_unavailable"}
     key = norm(item["name"])
     keys = {key} | ({norm(item["name"].split(":", 1)[1])} if ":" in item["name"] else set())
-    every_agent = item["agent"] == "common" or item["scope"] == "project"
     total = {"total": 0, "c30": 0, "c90": 0, "sessions": 0, "last_used": None, "errors": 0}
     for (name, agent), slot in table.items():
         if name in keys and (every_agent or agent == item["agent"]):

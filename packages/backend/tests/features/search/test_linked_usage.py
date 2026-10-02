@@ -70,6 +70,7 @@ def test_unused_boundaries(world):
 
 def test_short_data_span_is_not_unused(world):
     seed(world, first_session_days=20)
+    world.call("a", skill="other", started=NOW - 5 * DAY)
     world.inventory("claude_code", [{"inv_id": "never", "type": "skill", "name": "never"}])
     assert run(world)["never"]["status"] == "active"
 
@@ -105,3 +106,16 @@ def test_unreadable_and_token_estimate():
 def test_unreadable_basis(world):
     world.inventory("claude_code", [{"inv_id": "s", "type": "skill", "name": "x"}])
     assert run(world)["s"]["resident"] == {"tokens_est": None, "basis": "unreadable"}
+
+
+def test_agent_without_skill_attribution_is_unknown_not_unused(world):
+    seed(world)
+    world.call("a", skill="claude-only", started=NOW - 5 * DAY)  # Claude attributes skills
+    world.call("b", started=NOW - 2 * DAY)  # Codex calls never carry tool_call.skill
+    world.inventory("codex", [{"inv_id": "cx", "type": "skill", "name": "codex-skill"}])
+    world.inventory("claude_code", [{"inv_id": "cc", "type": "skill", "name": "never"}])
+    items = run(world)
+    assert items["cx"]["status"] == "unknown_usage" and items["cx"]["unused_days"] is None
+    assert items["cx"]["usage"]["attributable"] is False
+    assert items["cx"]["usage"]["basis"] == "usage_unavailable"
+    assert items["cc"]["status"] == "unused"
