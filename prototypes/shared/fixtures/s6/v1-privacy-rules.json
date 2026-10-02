@@ -1,0 +1,71 @@
+{
+ "version": "1.2.0",
+ "active_count": 6,
+ "rules": [
+  {
+   "id": "credentials",
+   "label": "密钥、令牌与带认证的地址",
+   "placeholder": "[密钥已隐藏]",
+   "stage": "ingest",
+   "enabled": true,
+   "locked": true,
+   "example": "api_key=sk-ant-… → api_key=[密钥已隐藏]"
+  },
+  {
+   "id": "home_user",
+   "label": "主目录中的用户名",
+   "placeholder": "~",
+   "stage": "outbound",
+   "enabled": true,
+   "locked": false,
+   "example": "/Users/alice/x → ~/x"
+  },
+  {
+   "id": "email",
+   "label": "邮箱地址",
+   "placeholder": "[email]",
+   "stage": "outbound",
+   "enabled": true,
+   "locked": false,
+   "example": "alice@example.com → [email]"
+  },
+  {
+   "id": "private_host",
+   "label": "内网地址与本地主机名",
+   "placeholder": "[host]",
+   "stage": "outbound",
+   "enabled": true,
+   "locked": false,
+   "example": "10.0.0.8 / build.internal → [host]"
+  },
+  {
+   "id": "local_user",
+   "label": "本机用户名",
+   "placeholder": "[user]",
+   "stage": "outbound",
+   "enabled": true,
+   "locked": false,
+   "example": "alice → [user]"
+  },
+  {
+   "id": "phone",
+   "label": "手机号",
+   "placeholder": "[phone]",
+   "stage": "outbound",
+   "enabled": true,
+   "locked": false,
+   "example": "13800138000 → [phone]"
+  },
+  {
+   "id": "custom",
+   "label": "自定义规则",
+   "placeholder": null,
+   "stage": "outbound",
+   "enabled": true,
+   "locked": false,
+   "example": "按你写的正则替换"
+  }
+ ],
+ "custom": [],
+ "scope_note": "outbound 规则作用于 AI 上下文包与 Tandem 渲染的导出；ingest 规则固定，修改规则不回洗已入库数据（回洗即重建，留到 v1）。"
+}

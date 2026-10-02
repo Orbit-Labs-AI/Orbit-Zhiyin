@@ -1,0 +1,64 @@
+{
+ "mode": "stats",
+ "default_engine": null,
+ "grants": {
+  "claude_code": {
+   "summary": false,
+   "snippets": false,
+   "rules": false,
+   "raw": false
+  },
+  "codex": {
+   "summary": false,
+   "snippets": false,
+   "rules": false,
+   "raw": false
+  }
+ },
+ "data_classes": [
+  {
+   "id": "summary",
+   "label": "结构化统计",
+   "desc": "指标、计数、会话行与工具序列，不含原文",
+   "allowed_engines": [
+    "claude_code",
+    "codex",
+    "api_key",
+    "fake"
+   ]
+  },
+  {
+   "id": "snippets",
+   "label": "脱敏片段",
+   "desc": "二次脱敏后的少量消息与证据片段",
+   "allowed_engines": [
+    "claude_code",
+    "codex",
+    "api_key",
+    "fake"
+   ]
+  },
+  {
+   "id": "rules",
+   "label": "规则文件段落",
+   "desc": "CLAUDE.md / AGENTS.md 等规则文件的相关段落",
+   "allowed_engines": [
+    "claude_code",
+    "codex",
+    "api_key",
+    "fake"
+   ]
+  },
+  {
+   "id": "raw",
+   "label": "原文",
+   "desc": "未脱敏的会话原文；永远不发送给任何引擎",
+   "allowed_engines": []
+  }
+ ],
+ "settings": {
+  "daily_usd_cap": 2.0,
+  "auto_facet_new": false,
+  "slots": {}
+ }
+}

@@ -1,0 +1,361 @@
+{
+ "generated_at": 1790958787143,
+ "app": {
+  "version": "0.13.6",
+  "python": "3.13.15",
+  "macos": "27.2",
+  "system": "Darwin",
+  "arch": "arm64",
+  "cpus": 14,
+  "memory_bytes": 51539607552,
+  "frozen": false
+ },
+ "home": "~",
+ "settings": {
+  "telemetry": {
+   "enabled": false,
+   "retention_days": 14,
+   "slow_ms": 500,
+   "export_dir": null
+  },
+  "flags": {
+   "notifications": true,
+   "slow_log": true,
+   "maintenance": true,
+   "json_logs": true
+  }
+ },
+ "health": {
+  "status": "ok",
+  "version": "0.13.6",
+  "uptime_s": 22.4,
+  "generated_at": 1790958787128,
+  "checks": [
+   {
+    "id": "app_db",
+    "status": "ok",
+    "ms": 2.4,
+    "detail": {
+     "quick_check": "ok",
+     "checked_at": 1790958787110,
+     "bytes": 409600,
+     "wal_bytes": 618032
+    }
+   },
+   {
+    "id": "tandem_db",
+    "status": "ok",
+    "ms": 0.0,
+    "detail": {
+     "bytes": 34058240,
+     "wal_bytes": 0
+    }
+   },
+   {
+    "id": "cache_db",
+    "status": "ok",
+    "ms": 0.1,
+    "detail": {
+     "memory_bytes": 573973,
+     "memory_rows": 4,
+     "disk_bytes": 99362,
+     "rows": 4
+    }
+   },
+   {
+    "id": "disk",
+    "status": "ok",
+    "ms": 0.3,
+    "detail": {
+     "free_bytes": 1269843546112,
+     "total_bytes": 1995218165760
+    }
+   },
+   {
+    "id": "workers",
+    "status": "ok",
+    "ms": 0.0,
+    "detail": {
+     "notes": []
+    }
+   },
+   {
+    "id": "event_bus",
+    "status": "ok",
+    "ms": 0.0,
+    "detail": {
+     "last_id": 135,
+     "clients": 0
+    }
+   },
+   {
+    "id": "sync_loop",
+    "status": "ok",
+    "ms": 0.0,
+    "detail": {
+     "running": true
+    }
+   },
+   {
+    "id": "maintenance",
+    "status": "ok",
+    "ms": 0.0,
+    "detail": {
+     "late": [],
+     "failed": []
+    }
+   },
+   {
+    "id": "logs",
+    "status": "ok",
+    "ms": 0.1,
+    "detail": {
+     "writable": true
+    }
+   }
+  ],
+  "services": {
+   "ingest": {
+    "state": "ok",
+    "pid": 79424,
+    "restarts": 0,
+    "last_hb_age_s": 4.643,
+    "rss_bytes": 40910848
+   },
+   "analysis": {
+    "state": "ok",
+    "pid": 79474,
+    "restarts": 0,
+    "last_hb_age_s": 3.659,
+    "rss_bytes": 596541440
+   }
+  },
+  "disk": {
+   "free_bytes": 1269843546112,
+   "total_bytes": 1995218165760
+  },
+  "db": {
+   "tandem_db": 34058240,
+   "tandem_wal": 0,
+   "app_db": 409600,
+   "catalog_db": 10469376,
+   "analysis": 18817024,
+   "snapshot_cache": 201648
+  },
+  "collection": {
+   "paused": false
+  },
+  "maintenance": {
+   "metrics_flush": {
+    "last_run": 1790958772107,
+    "ms": 0,
+    "ok": true
+   },
+   "wal_checkpoint": {
+    "last_run": 1790958772107,
+    "ms": 0,
+    "ok": true
+   },
+   "optimize": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "snapshot_compact": {
+    "last_run": 1790958772108,
+    "ms": 0,
+    "ok": true
+   },
+   "storage_report": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "retention": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "install_sweep": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "telemetry_export": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "integrity": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "source_watch": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   },
+   "weekly_report": {
+    "last_run": null,
+    "ms": null,
+    "ok": null
+   }
+  }
+ },
+ "jobs": [
+  {
+   "kind": "import",
+   "status": "completed",
+   "phase": "auto",
+   "origin": "user",
+   "created_at": 1790958767287,
+   "duration_ms": 4030,
+   "error_code": null,
+   "sources": [
+    "3c6833cd",
+    "686625e0",
+    "bf5d130c",
+    "ad547c7c",
+    "e00ab7e6",
+    "c5ca107d",
+    "2103a60e"
+   ]
+  }
+ ],
+ "revisions": {
+  "data_rev": 7,
+  "inventory_rev": 0,
+  "projection": "ready",
+  "published_at": 1790958771471,
+  "platform": {
+   "boot": "ec9a31"
+  }
+ },
+ "module_schema": {
+  "ai": {
+   "sha256": "63feebb5d953",
+   "applied_at": 1790958764705
+  },
+  "eval": {
+   "sha256": "a736a1befd7a",
+   "applied_at": 1790958764705
+  },
+  "export": {
+   "sha256": "10da321eb096",
+   "applied_at": 1790958764705
+  },
+  "features": {
+   "sha256": "6b8c6816ae6f",
+   "applied_at": 1790958764706
+  },
+  "install": {
+   "sha256": "17f433d18a22",
+   "applied_at": 1790958764706
+  },
+  "platform": {
+   "sha256": "d839c2f2826d",
+   "applied_at": 1790958764706
+  },
+  "platform_notify": {
+   "sha256": "e9244ff667b8",
+   "applied_at": 1790958764707
+  },
+  "recommend": {
+   "sha256": "8ebb2e1ad395",
+   "applied_at": 1790958764707
+  },
+  "sessionops": {
+   "sha256": "b9771b0014ea",
+   "applied_at": 1790958764708
+  }
+ },
+ "metrics": [],
+ "storage": {
+  "generated_at": 1790958787105,
+  "home": "~",
+  "total_bytes": 65380534,
+  "components": [
+   {
+    "id": "tandem_db",
+    "label": "规范数据库",
+    "bytes": 34091008,
+    "rebuildable": true,
+    "hint": "从 Agent 日志重新导入可重建",
+    "path": "~/tandem.db"
+   },
+   {
+    "id": "raw",
+    "label": "原始归档",
+    "bytes": 0,
+    "rebuildable": false,
+    "hint": "无损原始记录，删除后无法从已轮转日志恢复",
+    "path": "~/archive"
+   },
+   {
+    "id": "app_db",
+    "label": "应用数据库",
+    "bytes": 1056280,
+    "rebuildable": false,
+    "hint": "推荐记录、安装台账、AI 产物与遥测",
+    "path": "~/app.db"
+   },
+   {
+    "id": "catalog_db",
+    "label": "组件目录",
+    "bytes": 10502144,
+    "rebuildable": true,
+    "hint": "可重新同步目录",
+    "path": "~/catalog.db"
+   },
+   {
+    "id": "analysis",
+    "label": "分析库",
+    "bytes": 18817024,
+    "rebuildable": true,
+    "hint": "可重新计算",
+    "path": "~/analysis.sqlite"
+   },
+   {
+    "id": "snapshot_cache",
+    "label": "界面快照缓存",
+    "bytes": 906448,
+    "rebuildable": true,
+    "hint": "可随时清除，只影响首屏速度",
+    "path": "~/cache"
+   },
+   {
+    "id": "backups",
+    "label": "备份",
+    "bytes": 0,
+    "rebuildable": false,
+    "hint": "数据库备份",
+    "path": "~/backups"
+   },
+   {
+    "id": "logs",
+    "label": "日志",
+    "bytes": 7630,
+    "rebuildable": true,
+    "hint": "本机日志，2 MB × 5 轮转",
+    "path": "~/logs"
+   },
+   {
+    "id": "exports",
+    "label": "导出",
+    "bytes": 0,
+    "rebuildable": true,
+    "hint": "诊断包与导出文件，保留最近 5 个",
+    "path": "~/exports"
+   }
+  ]
+ },
+ "log_tail": [
+  "{\"ts\": \"2026-10-02T16:32:47.106+00:00\", \"lvl\": \"INFO\", \"logger\": \"tandem\", \"ev\": \"gateway_started\", \"home\": \"~\"}",
+  "{\"ts\": \"2026-10-02T16:32:53.900+00:00\", \"lvl\": \"INFO\", \"logger\": \"tandem\", \"ev\": \"slow_request\", \"route\": \"/v1/uiview/facts\", \"method\": \"GET\", \"status\": 202, \"ms\": 1518.2, \"req\": \"ec9a31-10\"}",
+  "{\"ts\": \"2026-10-02T16:32:56.296+00:00\", \"lvl\": \"INFO\", \"logger\": \"tandem\", \"ev\": \"slow_request\", \"route\": \"/v1/uiview/facts\", \"method\": \"GET\", \"status\": 200, \"ms\": 1384.9, \"req\": \"ec9a31-12\"}",
+  "{\"ts\": \"2026-10-02T16:32:56.428+00:00\", \"lvl\": \"ERROR\", \"logger\": \"uvicorn.error\", \"ev\": \"Exception in ASGI application\\n\", \"exc\": \"Traceback (most recent call last):\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py\\\", line 403, in run_asgi\\n    result = await app(  # type: ignore[func-returns-value]\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n        self.scope, self.receive, self.send\\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n    )\\n    ^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py\\\", line 60, in __call__\\n    return await self.app(scope, receive, send)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/fastapi/applications.py\\\", line 1054, in __call__\\n    await super().__call__(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/applications.py\\\", line 112, in __call__\\n    await self.middleware_stack(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py\\\", line 187, in __call__\\n    raise exc\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/middleware/errors.py\\\", line 165, in __call__\\n    await self.app(scope, receive, _send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/release/be-src-patched/packages/backend/src/tandem_backend/services/auth.py\\\", line 88, in __call__\\n    await self.app(scope, receive, secured)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/release/be-src-patched/packages/backend/src/tandem_backend/platform/middleware.py\\\", line 96, in __call__\\n    await self.app(scope, receive, wrapped)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py\\\", line 62, in __call__\\n    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py\\\", line 53, in wrapped_app\\n    raise exc\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py\\\", line 42, in wrapped_app\\n    await app(scope, receive, sender)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/routing.py\\\", line 714, in __call__\\n    await self.middleware_stack(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/routing.py\\\", line 734, in app\\n    await route.handle(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/routing.py\\\", line 288, in handle\\n    await self.app(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/routing.py\\\", line 76, in app\\n    await wrap_app_handling_exceptions(app, request)(scope, receive, send)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py\\\", line 53, in wrapped_app\\n    raise exc\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py\\\", line 42, in wrapped_app\\n    await app(scope, receive, sender)\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/starlette/routing.py\\\", line 73, in app\\n    response = await f(request)\\n               ^^^^^^^^^^^^^^^^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/fastapi/applications.py\\\", line 1009, in openapi\\n    return JSONResponse(self.openapi())\\n                        ~~~~~~~~~~~~^^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/fastapi/applications.py\\\", line 981, in openapi\\n    self.openapi_schema = get_openapi(\\n                          ~~~~~~~~~~~^\\n        title=self.title,\\n        ^^^^^^^^^^^^^^^^^\\n    ...<11 lines>...\\n        separate_input_output_schemas=self.separate_input_output_schemas,\\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n    )\\n    ^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/fastapi/openapi/utils.py\\\", line 514, in get_openapi\\n    field_mapping, definitions = get_definitions(\\n                                 ~~~~~~~~~~~~~~~^\\n        fields=all_fields,\\n        ^^^^^^^^^^^^^^^^^^\\n    ...<2 lines>...\\n        separate_input_output_schemas=separate_input_output_schemas,\\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n    )\\n    ^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/fastapi/_compat.py\\\", line 231, in get_definitions\\n    field_mapping, definitions = schema_generator.generate_definitions(\\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\\n        inputs=inputs\\n        ^^^^^^^^^^^^^\\n    )\\n    ^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/pydantic/json_schema.py\\\", line 363, in generate_definitions\\n    self.generate_inner(schema)\\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/pydantic/json_schema.py\\\", line 443, in generate_inner\\n    if 'ref' in schema:\\n       ^^^^^^^^^^^^^^^\\n  File \\\"<frozen _collections_abc>\\\", line 817, in __contains__\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/pydantic/_internal/_mock_val_ser.py\\\", line 41, in __getitem__\\n    return self._get_built().__getitem__(key)\\n           ~~~~~~~~~~~~~~~^^\\n  File \\\"<path#d5ee30bb> AI/Hackathon/.work/wt-backend/.venv/lib/python3.13/site-packages/pydantic/_internal/_mock_val_ser.py\\\", line 58, in _get_built\\n    raise PydanticUserError(self._error_message, code=self._code)\\npydantic.errors.PydanticUserError: `TypeAdapter[typing.Annotated[ForwardRef('many'), Query(None)]]` is not fully defined; you should define `typing.Annotated[ForwardRef('many'), Query(None)]` and all referenced types, then call `.rebuild()` on the instance.\\n\\nFor further information visit https:/<path#fbac06ee>\"}",
+  "{\"ts\": \"2026-10-02T16:33:06.168+00:00\", \"lvl\": \"INFO\", \"logger\": \"tandem\", \"ev\": \"slow_request\", \"route\": \"/v1/catalog/library\", \"method\": \"GET\", \"status\": 200, \"ms\": 1509.1, \"req\": \"ec9a31-5d\"}",
+  "{\"ts\": \"2026-10-02T16:33:07.048+00:00\", \"lvl\": \"INFO\", \"logger\": \"tandem\", \"ev\": \"slow_request\", \"route\": \"/v1/ai/engines\", \"method\": \"GET\", \"status\": 200, \"ms\": 520.4, \"req\": \"ec9a31-6d\"}"
+ ]
+}
