@@ -176,3 +176,5 @@
 .vz-ph-hit{fill:transparent}
 @media (prefers-reduced-motion:reduce){.vz *{transition:none!important;animation:none!important}}
 @media (forced-colors:active){.vz-line{stroke:CanvasText}.vz-bar,.vz-cell{fill:CanvasText}}
+/* notes and reference labels sit over bars and lines: same paper halo as the data labels so they never collide with marks */
+.vz-svg text.vz-note{paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}

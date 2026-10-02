@@ -52,3 +52,10 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .ob-dots i{width:18px;height:4px;border-radius:2px;background:var(--line)}
 .ob-dots i.on{background:var(--ink-1)}
 .ask-a{min-height:120px;padding:12px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:13px;line-height:1.7;white-space:pre-wrap}
+/* settings cards: one header pattern (title 13 semibold + one-line 11px caption + right-aligned controls), 16px padding */
+.set .set-ch{padding:14px 16px 0;flex-wrap:wrap;align-items:flex-start;gap:8px}
+.set .set-cs{font-size:11px;line-height:15px;margin-top:2px}
+.set .set-cb{padding:12px 16px 16px}
+.set .set-cb>.form{gap:10px 16px}
+/* ask: before the first question the answer box holds one centred hint instead of a line stuck in the top-left corner */
+.ask-a:has(>.ask-empty){display:grid;place-items:center;text-align:center}

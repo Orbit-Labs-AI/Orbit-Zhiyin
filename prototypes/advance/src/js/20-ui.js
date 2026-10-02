@@ -1,6 +1,6 @@
 /* ============ ui plumbing: theme, tooltip, toast, sheets (#modal), dropdown menus, notifications ============ */
 const desk = $('#desk');
-const APP_MARK = appMark(32);
+const APP_MARK = appIcon(32);
 function setTheme(t) {
   S.theme = t; store.set('theme', t);
   if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);

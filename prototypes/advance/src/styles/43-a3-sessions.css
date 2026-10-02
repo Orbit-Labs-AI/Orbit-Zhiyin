@@ -33,12 +33,16 @@
 .tl-rel-tick,.tl-rel-base{stroke:var(--hair);stroke-width:1}
 .tl-read{gap:10px;flex-wrap:wrap;min-height:22px;margin-top:4px}
 .tl-now{font-weight:700;font-size:13px;color:var(--ink-1)}
-.tl-brush{height:auto;min-height:20px;padding:1px 4px 1px 8px;gap:6px;font-family:var(--mono);color:var(--ink-1);border-color:var(--accent)}
+.tl-brush{height:auto;min-height:20px;padding:1px 4px 1px 8px;gap:6px;font-size:11px;color:var(--ink-1);border-color:var(--accent);font-variant-numeric:tabular-nums}
+.tl-read .mono{font-variant-numeric:tabular-nums}
+.tl-zl{margin-left:-4px;min-width:30px;font-size:11px}   /* 缩放读数贴着缩放控件，而不是悬在中间 */
 .tl-legend{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:11px;color:var(--ink-3);margin-top:4px}
 .tl-legend>span{display:inline-flex;align-items:center;gap:5px}
 .tl-legend .tl-li{white-space:nowrap}   /* 色块与文字成组换行，不再出现孤立的「失败」 */
 .tl-sw{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
-.tl-hint{margin-left:auto;color:var(--ink-4)}
+.tl-legend>.tl-hint{margin-left:auto;color:var(--ink-4);gap:4px;cursor:help}
+.tl-sw2{display:inline-flex}
+.tl-sw2 .tl-sw+.tl-sw{margin-left:-3px;box-shadow:0 0 0 1.5px var(--surface)}
 /* 事件检视：右侧固定列；容器变窄时移到时间线下方成一行抽屉 */
 .tl-insp{border-left:1px solid var(--hair);padding:2px 0 2px 16px;font-size:12px;line-height:1.5;color:var(--ink-2);min-width:0;display:flex;flex-direction:column;gap:6px;align-self:stretch}
 .tl-insp .eb{margin-bottom:2px}
@@ -57,7 +61,8 @@
   .tl-grid{grid-template-columns:minmax(0,1fr)}
   .tl-insp{border-left:0;border-top:1px solid var(--hair);padding:10px 0 0;margin-top:6px}
   .tl-ibtn{margin-top:0}
-  .tl-hint{display:none}
+  .tl-legend>.tl-hint{margin-left:0}
+  .tl-hint-t{display:none}   /* 窄时只留 ⓘ，完整操作说明在悬停提示里（原规则被 .tl-legend>span 覆盖，一直没生效） */
 }
 /* 关键时刻列表：与图上徽章双向联动（hover = hot，播放头已过 = on） */
 .tl-mom{display:grid;grid-template-columns:18px 44px minmax(0,1fr);gap:8px;align-items:start;font-size:12px;line-height:18px;border:0;background:none;padding:3px 6px;margin:0 -6px;border-radius:7px;text-align:left;width:calc(100% + 12px);color:var(--ink-2)}
@@ -65,23 +70,38 @@
 .tl-mom .n{width:18px;height:18px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 10px/18px var(--mono);text-align:center}
 .tl-mom .n.alert{background:var(--vz-corr);color:#fff}
 .tl-mom.on .n{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent)}
-.tl-mt{font-size:11px;color:var(--ink-3)}
+.tl-mt{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.tl-ai{margin:0;font-size:12px;line-height:1.6;color:var(--ink-2)}
 .tl-mx b{color:var(--ink-1)}
 /* 对比：两条紧凑时间线共用一个尺度 */
-.tl-cmp-row{margin-bottom:10px}
+.tl-cmp-row{margin-bottom:12px}
+.tl-cmp-hd{margin-bottom:4px;gap:6px;min-width:0;flex-wrap:nowrap}
+.tl-cmp-t{font-size:13px;font-weight:600;color:var(--ink-1);min-width:0;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-cmp-m{flex:none;margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tl-cmp .vz-lane.alt{fill:none}
 .tl-cmp .vz-lane{fill:none;stroke:var(--hair)}
 .tl-cmp .vz-phase{fill:var(--sunken);fill-opacity:.55;stroke:var(--line)}
 /* 差异表：指标列不折行，阶段占比允许换行 */
 .tl-cmp-tbl th:first-child,.tl-cmp-tbl td:first-child{white-space:nowrap}
 .tl-cmp-tbl td:last-child{white-space:nowrap}
-.tl-ph{display:inline-block;font:11px/15px var(--mono);color:var(--ink-2);max-width:160px;text-align:right}
+/* 阶段占比：A、B 各一行横跨数值列，不再逐项折成 5 行 */
+.tl-cmp-tbl tr.tl-ph-row td:last-child{white-space:normal;text-align:left}
+.tl-ph{display:flex;align-items:center;gap:2px 10px;flex-wrap:wrap;font-size:11px;line-height:20px;color:var(--ink-2)}
+.tl-ph-i{white-space:nowrap}
+.tl-ph-i .mono{color:var(--ink-1)}
+.tl-ph .bdg{transform:scale(.85)}
 /* 列表截断提示 */
 .tl-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:6px;height:32px;border:1px dashed var(--line);border-radius:8px;background:none;color:var(--ink-3);font-size:12px}
 .tl-more b{color:var(--ink-1);font-weight:600}
 .tl-more:hover{background:var(--field)}
 .tl-more-end{text-align:center;padding:10px 0 4px}
 /* ---------- 详情列：按自身宽度排版（主区 800–1100px 时详情只有 ~460px） ---------- */
+/* 会话列表头：搜索框 + 一行计数 */
+.sl-top{padding:10px 10px 8px;border-bottom:1px solid var(--hair);display:flex;flex-direction:column;gap:8px}
+.sl-q{height:30px;padding:0 9px;border-radius:8px;background:var(--field);color:var(--ink-3)}
+.sl-q input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)}
+.sl-hd{font-size:11px;justify-content:space-between;gap:8px;padding:0 2px;flex-wrap:nowrap;font-variant-numeric:tabular-nums}
+.sl-hd>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .sess>.stack{container:sdet/inline-size}
 /* 会话头带：元信息一行，路径过长时截断；标题按语义均衡折行 */
 .sb-meta{font-size:11px;line-height:16px;color:var(--ink-3);gap:6px;min-width:0;flex-wrap:nowrap}
@@ -94,9 +114,10 @@
 .st-k{font-size:11px;line-height:14px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-v{font-size:17px;line-height:22px;font-weight:600;color:var(--ink-1);font-variant-numeric:tabular-nums}
 @container sdet (max-width:599px){
-  .sess .stats7{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .sess .stats7 button:nth-child(4n+1){border-left:0}
-  .sess .stats7 button:nth-child(n+5){border-top:1px solid var(--hair)}
+  .sess .stats7{grid-template-columns:repeat(12,minmax(0,1fr))}
+  .sess .stats7 button{grid-column:span 3}
+  .sess .stats7 button:nth-child(n+5){grid-column:span 4;border-top:1px solid var(--hair)}
+  .sess .stats7 button:nth-child(5){border-left:0}
 }
 /* 关键时刻 + 启示：详情列不足 760px 时上下排，避免关键时刻列被挤成逐字折行 */
 .tl-two{grid-template-columns:minmax(0,1fr) 300px}
