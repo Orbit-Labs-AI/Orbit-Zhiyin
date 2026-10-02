@@ -461,8 +461,10 @@ if (TL.mode === 'live') {
   const wrap = (name, fn) => { const base = ACT[name]; ACT[name] = (el, ev) => fn(base, el, ev); };
   // 通用 / 统计 / 每周报告 / 索引方式 → PATCH /v1/app/settings (外观 stays local: the gateway has no theme key)
   wrap('setRange', (base, el, ev) => { base(el, ev); tlsSetting({ default_range_days: S.range }, '默认时间范围'); });
-  wrap('setWeekly', (base, el, ev) => { base(el, ev); tlsSetting({ weekly_report: !!S.weekly }, '每周报告'); });
-  wrap('setIdx', (base, el, ev) => { base(el, ev); if (SYNC_OUT[S.index]) tlsSetting({ sync_mode: SYNC_OUT[S.index] }, '索引方式'); });
+  // patch the cached state before the demo handler re-renders: a resync still pending from the previous PATCH would
+  // otherwise put the old server value back into S (a second click on 每周报告 sent true again instead of false)
+  wrap('setWeekly', (base, el, ev) => { tlsSetting({ weekly_report: !S.weekly }, '每周报告'); base(el, ev); });
+  wrap('setIdx', (base, el, ev) => { if (SYNC_OUT[el.dataset.v]) tlsSetting({ sync_mode: SYNC_OUT[el.dataset.v] }, '索引方式'); base(el, ev); });
   wrap('setReindex', (base, el, ev) => {
     TL.send('POST', '/v1/app/jobs', { kind: 'import' }).then(() => toast('已开始重新索引'), (e) => toast(e.code === 'job_conflict' ? '已有导入任务在进行' : TL.unavailable(e) ? '本地服务暂不可用，未能重新索引' : '重新索引失败：' + (e.message || e.code)));
   });
