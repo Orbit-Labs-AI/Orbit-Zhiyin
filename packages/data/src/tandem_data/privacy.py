@@ -4,8 +4,20 @@ import hashlib
 import json
 import re
 
-REDACTION_VERSION = "1.0.1"
-HIDDEN_KEYS = {"creator_user_id", "creator_account_id"}
+REDACTION_VERSION = "1.1.1"
+HIDDEN_KEYS = {
+    "creator_user_id",
+    "creator_account_id",
+    "user_id",
+    "session_key",
+    "chat_id",
+    "display_name",
+    "origin_json",
+}
+
+
+def is_secret_key(key: str) -> bool:
+    return secret_key(key)
 
 
 def secret_key(key: str) -> bool:
@@ -13,11 +25,43 @@ def secret_key(key: str) -> bool:
     normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
     return bool(
         re.search(
-            r"(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?)$",
+            r"(?:^|_)(?:api_?key|private_?key|signing_?key|token|authorization|credentials?|cookies?|set_cookie)$",
             normalized,
         )
         or re.search(r"(?:^|_)(?:secret|password|passwd)(?:_|$)", normalized)
     )
+
+
+_AUTH_HEADERS = r"(?:Proxy-Authorization|Authorization|Set-Cookie|Cookie)"
+_QUOTED_HEADER = re.compile(
+    r"(?P<q>[\"'])(?P<prefix>"
+    + _AUTH_HEADERS
+    + r"[ \t]*:[ \t]*)(?:\\.|(?!(?P=q))[^\r\n\\])*(?P=q)",
+    re.I,
+)
+_RAW_HEADER = re.compile(
+    r"(\b" + _AUTH_HEADERS + r"[ \t]*:[ \t]*)[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*", re.I
+)
+
+
+def _redact_headers(text: str) -> str:
+    protected = {}
+
+    def quoted(match):
+        index = len(protected)
+        marker = f"\x00tandem_header_{index}\x00"
+        while marker in text or marker in protected:
+            index += 1
+            marker = f"\x00tandem_header_{index}\x00"
+        protected[marker] = match["q"] + match["prefix"] + "<redacted:header>" + match["q"]
+        return marker
+
+    # Protect complete quoted header arguments so curl's surrounding command stays parseable.
+    text = _QUOTED_HEADER.sub(quoted, text)
+    text = _RAW_HEADER.sub(lambda match: match[1] + "<redacted:header>", text)
+    for marker, header in protected.items():
+        text = text.replace(marker, header)
+    return text
 
 
 def redact(text: str) -> str:
@@ -29,6 +73,7 @@ def redact(text: str) -> str:
                 return json.dumps(clean, ensure_ascii=False, separators=(",", ":"))
         except (ValueError, TypeError):
             pass
+    text = _redact_headers(text)
     text = re.sub(
         r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
         "<redacted:private_key>",
@@ -42,19 +87,30 @@ def redact(text: str) -> str:
     text = re.sub(
         r"\bBearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}", "Bearer <redacted:token>", text, flags=re.I
     )
-    text = re.sub(
-        r"((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*[\"']?)[^\s\"'`,;}{]{8,}",
-        r"\1<redacted:secret>",
+
+    def assignment(match):
+        if not is_secret_key(match["key"]) or match["value"].startswith("<redacted:"):
+            return match[0]
+        value = match["value"]
+        quote = value[0] if value[0] in (chr(34), chr(39)) else ""
+        return match["prefix"] + quote + "<redacted:secret>" + quote
+
+    # JSON/YAML keys and shell assignments, including quoted values with spaces.
+    assignment_pattern = r"(?P<prefix>\b(?P<key>[A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*[=:]\s*)(?P<value>\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s\"'`,;}{]+)"
+    text = re.sub(assignment_pattern, assignment, text)
+    return re.sub(
+        r"\b([a-z][a-z0-9+.-]*://)[^\s/@:]+(?::[^\s/@]*)?@",
+        r"\1<redacted:credentials>@",
         text,
         flags=re.I,
     )
-    return re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1<redacted:credentials>@", text)
 
 
 def _json_secrets(value, key=""):
     if secret_key(key):
         return "<redacted:secret>"
     if isinstance(value, dict):
+        value = _opaque_fields(value)
         return {
             name: _json_secrets(item, name)
             for name, item in value.items()
@@ -67,10 +123,32 @@ def _json_secrets(value, key=""):
     return value
 
 
+def _opaque_fields(value):
+    if isinstance(value.get("$binary"), str):
+        value = {
+            **value,
+            "$binary": "<opaque:sha256:"
+            + hashlib.sha256(value["$binary"].encode()).hexdigest()
+            + ">",
+        }
+    if value.get("type") == "base64" and isinstance(value.get("data"), str):
+        value = {
+            **value,
+            "data": "<opaque:sha256:" + hashlib.sha256(value["data"].encode()).hexdigest() + ">",
+        }
+    elif value.get("type") == "image" and isinstance(value.get("data"), str):
+        value = {
+            **value,
+            "data": "<opaque:sha256:" + hashlib.sha256(value["data"].encode()).hexdigest() + ">",
+        }
+    return value
+
+
 def sanitize(value, key=""):
-    if secret_key(key):
+    if is_secret_key(key):
         return "<redacted:secret>"
     if isinstance(value, dict):
+        value = _opaque_fields(value)
         return {
             name: sanitize(item, name) for name, item in value.items() if name not in HIDDEN_KEYS
         }
@@ -79,7 +157,15 @@ def sanitize(value, key=""):
     if isinstance(value, str):
         digest = hashlib.sha256(value.encode()).hexdigest()
         if (
-            key in ("encrypted_content", "signature", "thinkingSignature")
+            key
+            in (
+                "encrypted_content",
+                "encrypted",
+                "signature",
+                "thinkingSignature",
+                "thoughtSignature",
+                "textSignature",
+            )
             or value.startswith("data:")
             and ";base64," in value[:128]
         ):
