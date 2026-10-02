@@ -36,9 +36,9 @@ def _forbid_in_process(monkeypatch):
         raise AssertionError("heavy analysis ran inside the gateway process")
 
     import tandem_backend.analytics.products as products
+    import tandem_backend.analytics.products.service as product_service
     import tandem_backend.analytics.service as service
     import tandem_backend.api.routes as legacy_routes
-    import tandem_backend.analytics.products.service as product_service
     import tandem_backend.application.reports as reports
 
     monkeypatch.setattr(service, "analyze_store", boom)
