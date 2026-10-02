@@ -144,6 +144,19 @@ test('live main window: no demo welcome notification', async ({ page }) => {
   expect(await page.locator('#notes').innerText()).not.toMatch(/欢迎体验|数据都是示例/);
 });
 
+test('share card asks the gateway for the persona page scope (period + filters), not its 30-day default', async ({ page }) => {
+  ONLY();
+  const bodies = [];
+  await setup(page, { 'POST /v1/export/share_card': (req) => { bodies.push(req.postDataJSON()); return fx('s8/export-share-card.json'); } });
+  await openLive(page, 'overview');
+  const per = await page.evaluate(() => String(S.persona.period));
+  await page.evaluate(() => openShare());
+  await expect(page.locator('#modal [data-tl="share-card"]')).toBeVisible();
+  expect(bodies.length).toBe(1);
+  expect(bodies[0]).toMatchObject({ period: per, save: false });
+  expect(bodies[0].scope.display_timezone).toBeTruthy();
+});
+
 test('export: report / CSV / share PNG go through save; tandem:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
   ONLY();
   const errors = collectErrors(page);

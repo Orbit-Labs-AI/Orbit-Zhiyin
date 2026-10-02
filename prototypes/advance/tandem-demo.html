@@ -11765,7 +11765,12 @@ if (LV.live) {
   const tloShareOpen = openShare;
   openShare = function () {
     TLO.share = null;
-    TL.ops.shareCard({ hideNumbers: S.shareNoNum, theme: S.shareDark ? 'dark' : 'light' }).then((d) => {
+    // same scope as the persona the app shows (A2 / Genesis: S.persona.period + filters); without a period the gateway
+    // falls back to its own 30-day window and can refuse a card the persona page offers
+    const sc = LV.scope();
+    TL.send('POST', '/v1/export/share_card', { hide_numbers: !!S.shareNoNum, theme: S.shareDark ? 'dark' : 'light', save: false,
+      period: String(S.persona.period || '90'), agents: sc.agents || null, project: sc.project || null,
+      scope: { display_timezone: TL_TZ || 'UTC' } }).then((r) => r.data).then((d) => {
       if (d.freshness === 'computing') { toast('协作画像正在计算，稍后再试'); return; }
       if (!d.eligible) { toast(H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡'); return; }
       TLO.share = d;
