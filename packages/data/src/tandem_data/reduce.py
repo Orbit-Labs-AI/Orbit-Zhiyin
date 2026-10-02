@@ -210,8 +210,14 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             "status": "unknown",
             "timezone_source": "unknown",
         }
+        # Only metadata events and events naming a git root contribute here; the
+        # substring test is a superset of both (checked again below), so the other
+        # events are neither fetched nor decoded twice (derive_sessions reads them).
         for row in store.db.execute(
-            "SELECT * FROM event WHERE session_uid=? ORDER BY seq", (session_uid,)
+            "SELECT kind,attrs,text FROM event WHERE session_uid=? AND (kind IN "
+            "('session.meta','setting.change','session.title') OR instr(attrs,'\"git_root\"')>0) "
+            "ORDER BY seq",
+            (session_uid,),
         ):
             attrs = json.loads(row["attrs"])
             if isinstance(attrs.get("git_root"), str):
