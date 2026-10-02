@@ -189,6 +189,17 @@ def outcome_mix(rows: list[dict]) -> list[dict]:
              "value": sum(1 for r in rows if r.get("out") == oid)} for oid, name, color in OUT_IDS]
 
 
+NO_PROJECT = "未归类"  # label for sessions without a project (same word as ai.ask)
+
+
+def project_name(projects: dict, pid: str | None) -> str:
+    """Display name for a project id; sessions without a project (no cwd, Kimi without
+    session_index.jsonl) carry ``None`` and get ``NO_PROJECT`` instead of a null label."""
+    if pid is None:
+        return NO_PROJECT
+    return (projects.get(pid) or {}).get("name") or pid
+
+
 def count_by(rows: list[dict], key: str) -> dict:
     out: dict = {}
     for r in rows:
