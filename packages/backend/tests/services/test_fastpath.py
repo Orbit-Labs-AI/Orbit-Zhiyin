@@ -61,6 +61,7 @@ def test_cold_auto_serves_seven_days_and_queues_wider_windows_after_it():
     assert window["days"] == 7 and window["requested"] == "auto"
     assert scope["from_ts"] == fastpath.window_start(7)
     assert [w["days"] for w in window["wider"]] == [30, 0]
+    assert window["wider"][1]["scope_hash"] == scope_hash(fastpath.windowed(base, 0), {})
     assert submitted == []  # nothing queued before the caller submits the 7-day window
     fastpath.follow_up(gw, "uiview_facts", base, window)
     assert submitted == [("uiview_facts", fastpath.window_start(30), "prewarm"),

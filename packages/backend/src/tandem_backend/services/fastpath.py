@@ -11,8 +11,9 @@ last 7 days take seconds. Screens that accept ``days``:
 
 Windows start at a UTC day boundary (``days - 1`` days before today), so one day maps to one
 scope hash and the gateway's prewarm produces the same keys. ``meta.window`` reports the
-served window and the state of each wider one (``ready`` / ``stale`` / ``computing`` /
-``queued`` / ``failed`` / ``absent``) so a client can switch once ``ready``.
+served window and, for each wider one, its state (``ready`` / ``stale`` / ``computing`` /
+``queued`` / ``failed`` / ``absent``) and ``scope_hash`` (as in its ``analysis.ready`` SSE
+event), so a client can switch once it is ready.
 """
 
 from __future__ import annotations
@@ -105,7 +106,10 @@ def choose(gw, section: str, base: dict, days: int | None,
     if chosen is None:
         # The smallest window that holds any event: after a quiet week, 7 days is empty.
         chosen = next((d for d in LADDER if d and has_events(gw, d) is not False), 0)
-    wider = [{"days": d, "state": states[d]} for d in LADDER if _wider(d, chosen)]
+    # scope_hash matches the ``analysis.ready`` SSE event of that window's computation.
+    wider = [{"days": d, "state": states[d],
+              "scope_hash": scope_hash(windowed(base, d), params or {})}
+             for d in LADDER if _wider(d, chosen)]
     return windowed(base, chosen), {"days": chosen, "requested": "auto", "wider": wider}
 
 

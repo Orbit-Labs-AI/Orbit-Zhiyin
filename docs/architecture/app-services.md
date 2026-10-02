@@ -241,7 +241,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 - `/v1/uiview/{facts,overview,persona,persona/reveal}` 与 `/v1/analytics/overview` 接受 `days`（7 / 30 / 90 / 0=全部）。
 - 省略 `days`（且 analytics 未给 `from_ts/until_ts`）时自动选择：已就绪（当前修订）的最宽窗口（全部 → 30 → 7）；否则最宽的旧快照（stale）；否则立即（interactive）算近 7 天（近 7 天没有事件时取 30 天，再没有取全部），并把更宽的窗口排进 prewarm（先排该窗口的 `uiview_facts` 完整计算，再排请求的分区）。
 - 窗口从 UTC 日起点开始（`days-1` 天前），一天内同一窗口同一 scope_hash，预热与请求命中同一快照。
-- 响应 `meta.window = {days, requested: "auto"|n, wider: [{days, state}]}`，`state ∈ ready / stale / computing / queued / failed / absent`；客户端看到更宽窗口 `ready`（或收到对应 `analysis.ready`）后带上 `days` 切换。
+- 响应 `meta.window = {days, requested: "auto"|n, wider: [{days, state, scope_hash}]}`，`state ∈ ready / stale / computing / queued / failed / absent`；客户端看到更宽窗口 `ready`（或收到 `scope_hash` 相同的 `analysis.ready`）后带上 `days` 切换。
 - 202 的 `meta.progress = {status, attempt, events, last_error, queue_position | elapsed_s, budget_s, rss_bytes}`。
 
 ### 4.3 预计算与按需计算
