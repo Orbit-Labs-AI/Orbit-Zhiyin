@@ -1,4 +1,4 @@
-from tandem_data.connectors.base import BaseMapper, Mapping, decode_json
+from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
 from tandem_data.contract import time_fields, unused
 
 
@@ -6,12 +6,16 @@ class OpenCodeMapper(BaseMapper):
     def prepare(self, records):
         self.messages = {}
         self.v2_sessions = set()
-        for record in records:
+        self.session_settings = {}
+
+        def inspect(record):
             table, row = record.data.get("table"), record.data.get("row", {})
             if table == "message":
                 self.messages[row["id"]] = {**decode_json(row.get("data"), {}), **row}
             elif table == "session_message":
                 self.v2_sessions.add(row["session_id"])
+
+        self.prepare_each(records, inspect)
 
     def make(self, record, *args, **kwargs):
         row = record.data.get("row", {})
@@ -47,7 +51,18 @@ class OpenCodeMapper(BaseMapper):
                 harness_version=row.get("version"),
             )
             meta.ext = unused(row, ("id", "directory", "title", "version", "parent_id"))
-            return Mapping([meta])
+            events = [meta]
+            if row.get("revert"):
+                events.append(
+                    self.make(
+                        record,
+                        "branch",
+                        "session.revert",
+                        attrs={"operation": "rewind"},
+                        ext={"revert": decode_json(row["revert"])},
+                    )
+                )
+            return Mapping(events)
         if table in ("message", "part") and session_id in self.v2_sessions:
             return Mapping(
                 disposition="ignored", reason="V2 session_message is canonical for this session"
@@ -158,17 +173,29 @@ class OpenCodeMapper(BaseMapper):
         if table == "session_message":
             message = {**data, "id": row["id"], "type": row["type"]}
             typ = message["type"]
-            self.model = message.get("model", {}).get("id")
-            self.provider = message.get("model", {}).get("providerID")
-            self.effort = message.get("model", {}).get("variant")
+            if isinstance(message.get("model"), dict):
+                self.session_settings[session_id] = message["model"]
+            model = self.session_settings.get(session_id, {})
+            self.model, self.provider, self.effort = (
+                model.get("id"),
+                model.get("providerID"),
+                model.get("variant"),
+            )
+            if typ == "user":
+                self.native_turn = str(row["id"])
             if typ in ("user", "assistant", "synthetic", "system"):
                 payload = {
                     **message,
                     "role": typ if typ in ("user", "assistant") else "system",
+                    "model": self.model,
                     "content": message.get("content", message.get("text", "")),
                 }
                 events = self.message(
-                    record, payload, origin="human" if typ == "user" else "injected", key=key
+                    record,
+                    payload,
+                    origin="human" if typ in ("user", "assistant") else "injected",
+                    key=key,
+                    include_tool_calls=False,
                 )
                 for event in events:
                     event.ts, event.attrs["time"] = time_fields(
@@ -177,6 +204,20 @@ class OpenCodeMapper(BaseMapper):
                         "milliseconds",
                         "created",
                     )
+                if typ == "assistant":
+                    for index, block in enumerate(message.get("content", [])):
+                        if block.get("type") == "tool":
+                            events.extend(self._v2_tool(record, block, key, index))
+                    if message.get("error"):
+                        events.append(
+                            self.make(
+                                record,
+                                "error",
+                                "assistant.error",
+                                native_key=key,
+                                ext=message["error"],
+                            )
+                        )
                 if typ == "assistant" and message.get("tokens"):
                     events.append(
                         self.usage(
@@ -189,6 +230,39 @@ class OpenCodeMapper(BaseMapper):
                         )
                     )
                 return Mapping(events)
+            if typ == "shell":
+                call = self.make(
+                    record,
+                    "tool.call",
+                    "shell.call",
+                    actor="human",
+                    call_id=message["callID"],
+                    native_key=key,
+                    attrs={"name": "shell", "input": {"command": message.get("command")}},
+                )
+                call.ts, call.attrs["time"] = time_fields(
+                    message.get("time", {}).get("created"),
+                    "message.time.created",
+                    "milliseconds",
+                    "started",
+                )
+                result = self.make(
+                    record,
+                    "tool.result",
+                    "shell.result",
+                    actor="tool",
+                    call_id=message["callID"],
+                    native_key=key,
+                    text=message.get("output"),
+                    attrs={"status": "unknown", "status_scope": "command"},
+                )
+                result.ts, result.attrs["time"] = time_fields(
+                    message.get("time", {}).get("completed"),
+                    "message.time.completed",
+                    "milliseconds",
+                    "completed",
+                )
+                return Mapping([call, result])
             kinds = {
                 "compaction": "context.compaction",
                 "model-switched": "setting.change",
@@ -202,3 +276,43 @@ class OpenCodeMapper(BaseMapper):
                 ]
             )
         return self.unknown(record)
+
+    def _v2_tool(self, record, block, key, index):
+        state, times = block.get("state", {}), block.get("time", {})
+        call = self.make(
+            record,
+            "tool.call",
+            f"content[{index}].call",
+            actor="assistant",
+            native_key=key,
+            call_id=block["id"],
+            attrs={
+                "name": block["name"],
+                "input": decode_json(state.get("input")),
+                "status": state.get("status", "unknown"),
+            },
+        )
+        call.ts, call.attrs["time"] = time_fields(
+            times.get("ran"), f"content[{index}].time.ran", "milliseconds", "started"
+        )
+        events = [call]
+        if state.get("status") in ("completed", "error"):
+            result = self.make(
+                record,
+                "tool.result",
+                f"content[{index}].result",
+                actor="tool",
+                native_key=key,
+                call_id=block["id"],
+                text=text_content(state.get("content")) or state.get("error", {}).get("message"),
+                attrs={"status": state["status"], "status_scope": "tool", "name": block["name"]},
+                ext=state,
+            )
+            result.ts, result.attrs["time"] = time_fields(
+                times.get("completed"),
+                f"content[{index}].time.completed",
+                "milliseconds",
+                "completed",
+            )
+            events.append(result)
+        return events

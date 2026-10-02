@@ -261,6 +261,7 @@ def normalize_usage(reported: dict, dialect: str) -> dict:
         ),
         "opencode": ("input", "cache.read", "cache.write", "output", "reasoning"),
         "hermes": TOKENS,
+        "kimi": ("inputOther", "inputCacheRead", "inputCacheCreation", "output", "reasoning"),
     }[dialect]
 
     def read(path):

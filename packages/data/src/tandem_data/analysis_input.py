@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -56,7 +57,7 @@ def read_analysis(home: str | Path, scope: AnalysisScope, *, max_events=100000) 
     A result after until_ts cannot enter historical context. No imported/review/auxiliary trees
     enter this default reader. Consumers of those sources can explicitly query the base tables.
     """
-    with readonly_connection(Path(home) / "tandem.db") as connection:
+    with closing(readonly_connection(Path(home) / "tandem.db")) as connection:
         connection.execute("BEGIN")
         manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
         if not manifest or manifest["contract_id"] != "tandem-session-v1":

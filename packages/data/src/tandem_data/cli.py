@@ -6,8 +6,8 @@ import json
 import os
 from pathlib import Path
 
-from tandem_data.contract import canonical, now_ms
-from tandem_data.discovery import candidates, inputs
+from tandem_data.contract import canonical
+from tandem_data.discovery import candidates
 from tandem_data.store import Store, readonly_connection
 
 EXPORT_TABLES = (
@@ -94,52 +94,22 @@ def main(argv=None):
         parser.error("--home must be outside the Agent source root")
     with Store(args.home) as store:
         if args.command == "init":
-            result = {"db": str(store.db_path), "schema_version": 1}
-        elif args.command in ("scan", "ingest"):
-            root = args.root.expanduser().resolve()
-            source_id = store.add_source(args.agent, root)
-            discovered = list(inputs(args.agent, root)) if args.command == "scan" else []
-            selected = (
-                discovered[: args.limit]
-                if args.command == "scan" and args.limit is not None
-                else discovered
-            )
-            captured = []
-            errors = 0
-            targets = (
-                [(item.path, item.role) for item in selected]
-                if args.command == "scan"
-                else [(args.file, "transcript")]
-            )
-            for path, role in targets:
-                try:
-                    captured.append(store.capture_file(source_id, path, role))
-                except (OSError, RuntimeError, ValueError) as error:
-                    errors += 1
-                    store.issue(
-                        source_id,
-                        "capture_failed",
-                        stage="l1",
-                        detail={"exception": type(error).__name__},
-                    )
-            if args.command == "scan" and args.limit is None:
-                discovered_paths = {str(item.path.relative_to(root)) for item in discovered}
-                for row in store.db.execute(
-                    "SELECT * FROM source_file WHERE source_id=?", (source_id,)
-                ).fetchall():
-                    if row["relative_path"] not in discovered_paths:
-                        store.db.execute(
-                            "UPDATE source_file SET status='gone_upstream',last_scan_at=? WHERE file_id=?",
-                            (now_ms(), row["file_id"]),
-                        )
             result = {
-                "source_id": source_id,
-                "files": len(captured),
-                "changed": sum(row["changed"] for row in captured),
-                "capture_errors": errors,
+                "db": str(store.db_path),
+                "schema_version": store.db.execute("PRAGMA user_version").fetchone()[0],
             }
-            if not args.no_rebuild:
-                result["projection"] = store.rebuild()
+        elif args.command in ("scan", "ingest"):
+            from tandem_data.service import ImportRequest, ImportService
+
+            result = ImportService(store).import_source(
+                ImportRequest(
+                    agent=args.agent,
+                    root=args.root,
+                    files=(args.file,) if args.command == "ingest" else None,
+                    limit=args.limit if args.command == "scan" else None,
+                    rebuild=not args.no_rebuild,
+                )
+            )
         elif args.command == "rebuild":
             result = store.rebuild()
         elif args.command == "import-connector":
@@ -152,9 +122,18 @@ def main(argv=None):
         elif args.command == "verify":
             result = store.verify()
         else:
+            target = args.output.expanduser().resolve()
+            for source in store.db.execute("SELECT root_path FROM source"):
+                if target.is_relative_to(Path(source[0])):
+                    raise ValueError("Export must not write into an Agent source directory")
+            if target == store.db_path or target.is_relative_to(store.raw_dir):
+                raise ValueError("Export must not overwrite the database or raw archive")
+            from contextlib import closing
+
+            descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with (
-                readonly_connection(store.db_path) as connection,
-                args.output.open("w", encoding="utf-8", newline="") as handle,
+                closing(readonly_connection(store.db_path)) as connection,
+                os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle,
             ):
                 rows = connection.execute(f"SELECT * FROM {args.table}")
                 if args.format == "csv":
@@ -170,6 +149,8 @@ def main(argv=None):
                         handle.write(canonical(data) + "\n")
                 result = {"export": str(args.output), "table": args.table}
         print(canonical(result))
+        if result.get("capture_errors") or result.get("current_unparsed"):
+            raise SystemExit(2)
 
 
 if __name__ == "__main__":

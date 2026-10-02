@@ -57,6 +57,22 @@ class BaseMapper:
         if first:
             self.header = first.data
 
+    def prepare_each(self, records, callback):
+        """One malformed record must not prevent healthy neighbours from mapping."""
+        self.preparation_failures = set()
+        for record in records:
+            try:
+                callback(record)
+            except (ValueError, KeyError, TypeError, AttributeError) as error:
+                self.preparation_failures.add(record.record_uid)
+                self.store.issue(
+                    record.source_id,
+                    "native_preparation_error",
+                    file_id=record.file_id,
+                    record_uid=record.record_uid,
+                    detail={"exception": type(error).__name__},
+                )
+
     def native_key(self, record: RawRecord) -> list:
         native = record.data.get("uuid", record.data.get("id"))
         return [
@@ -114,7 +130,7 @@ class BaseMapper:
             actor,
             stamp,
             attributes,
-            ext or {},
+            ext if ext is not None else {},
             text,
             call_id,
             str(record.data.get("uuid", record.data.get("id")))
@@ -134,7 +150,7 @@ class BaseMapper:
             record,
             "session.meta",
             "envelope.session",
-            native_key=[record.source_id, record.relative_path, "session"],
+            native_key=[record.source_id, record.relative_path, native_id, "session"],
             attrs=attrs,
         )
 
@@ -326,9 +342,11 @@ class BaseMapper:
                         text=text_content(block.get("content")),
                         native_key=key,
                         attrs={
-                            "status": "error"
-                            if block.get("is_error", block.get("isError"))
-                            else "completed",
+                            "status": "failed"
+                            if block.get("is_error", block.get("isError")) is True
+                            else "completed"
+                            if block.get("is_error", block.get("isError")) is False
+                            else "unknown",
                             **block_attrs,
                         },
                     )

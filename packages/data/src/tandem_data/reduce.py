@@ -206,6 +206,8 @@ def derive(store):
                 ):
                     if attrs.get(name) is not None:
                         values[name] = attrs[name]
+                if attrs.get("forked_from_uid"):
+                    values["forked_from"] = attrs["forked_from_uid"]
                 if attrs.get("forked_from_native"):
                     values["forked_from"] = store.identity(
                         identity["source_id"], attrs["forked_from_native"]
@@ -534,6 +536,13 @@ def _derive_session(store, session_uid, meta, events):
             "turn.end",
         )
     ]
+    action_times.extend(
+        e["ts"]
+        for e in events
+        if e["ts"] is not None
+        and e["kind"] == "session.meta"
+        and e["attrs"].get("time", {}).get("semantics") == "created"
+    )
     final_status = next(
         (e["attrs"].get("status", "unknown") for e in reversed(events) if e["kind"] == "turn.end"),
         "unknown",

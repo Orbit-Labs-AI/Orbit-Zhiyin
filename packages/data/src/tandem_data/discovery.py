@@ -20,13 +20,18 @@ def candidates(home: Path | None = None) -> list[dict]:
         "dsh": [home / ".dsh"],
         "pi": [home / ".pi/agent"],
         "hermes": [home / ".hermes"],
-        "opencode": [home / ".local/share/opencode"],
+        "opencode": [
+            Path(os.environ.get("XDG_DATA_HOME", str(home / ".local/share"))) / "opencode"
+        ],
+        "kimi": [home / ".kimi-code"],
     }
     for agent, variable in (
         ("claude_code", "CLAUDE_CONFIG_DIR"),
         ("codex", "CODEX_HOME"),
         ("dsh", "DSH_HOME"),
         ("hermes", "HERMES_HOME"),
+        ("pi", "PI_CODING_AGENT_DIR"),
+        ("kimi", "KIMI_CODE_HOME"),
     ):
         if os.getenv(variable):
             roots[agent].append(Path(os.environ[variable]).expanduser())
@@ -51,6 +56,7 @@ def inputs(agent: str, root: Path):
         "pi": ("sessions/**/*.jsonl",),
         "hermes": ("state.db",),
         "opencode": ("opencode.db", "opencode.dev.db"),
+        "kimi": ("session_index.jsonl", "sessions/*/*/agents/*/wire.jsonl"),
     }
     if agent not in patterns:
         raise ValueError(
@@ -77,5 +83,10 @@ def inputs(agent: str, root: Path):
     else:
         for path in found:
             yield InputFile(
-                path, "subagent_transcript" if "subagents" in path.parts else "transcript"
+                path,
+                "session_index"
+                if path.name == "session_index.jsonl" and agent == "kimi"
+                else "subagent_transcript"
+                if "subagents" in path.parts
+                else "transcript",
             )

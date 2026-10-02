@@ -79,6 +79,10 @@ def rebuild(store, *, mapper_version=None):
             mapper.prepare(store.iter_file(info["file_id"]))
             mappers[info["file_id"]] = mapper
 
+        store.db.execute(
+            "UPDATE raw_record SET disposition='ignored',note=? WHERE native_type='pending_tail'",
+            (canonical({"reason": "incomplete_tail_retained_in_L0"}),),
+        )
         # Native parent files precede copied child prefixes; metadata snapshots come last.
         by_native = {
             (
@@ -122,6 +126,8 @@ def rebuild(store, *, mapper_version=None):
 
         def map_record(mapper, record):
             try:
+                if record.record_uid in getattr(mapper, "preparation_failures", ()):
+                    raise ValueError("native_preparation_error")
                 result = mapper.map(record)
             except (ValueError, KeyError, TypeError, AttributeError) as error:
                 store.issue(
@@ -136,6 +142,10 @@ def rebuild(store, *, mapper_version=None):
                     (canonical({"reason": "native_mapping_error"}), record.record_uid),
                 )
                 return
+            # Keep all source fields on one event, with bounded/redacted projection copies.
+            # Exact bytes (including media and unknown fields) are always addressed in L0.
+            if result.events:
+                result.events[0].ext = {"native": record.data, **result.events[0].ext}
             # Contract errors are implementation bugs: abort and retain the previous published projection.
             for draft in result.events:
                 validate_event(draft.envelope(record.record_uid, 0, mapper_version))

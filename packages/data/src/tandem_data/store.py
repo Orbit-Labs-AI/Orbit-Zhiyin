@@ -10,7 +10,7 @@ import os
 import sqlite3
 import tempfile
 from collections.abc import Iterable
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from importlib.resources import files
 from pathlib import Path
 
@@ -47,7 +47,7 @@ def _json_cell(value):
 
 def sqlite_rows(path: Path, agent: str) -> Iterable[bytes]:
     """One consistent read transaction. Only explicit session tables are exported."""
-    with readonly_connection(path) as connection:
+    with closing(readonly_connection(path)) as connection:
         connection.execute("BEGIN")
         available = {
             r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -59,7 +59,16 @@ def sqlite_rows(path: Path, agent: str) -> Iterable[bytes]:
             primary = [r["name"] for r in sorted(columns, key=lambda r: r["pk"]) if r["pk"]]
             if not primary:
                 raise ValueError(f"Cannot version {table}: no primary key")
-            order = ",".join('"' + col.replace('"', '""') + '"' for col in primary)
+            # Use native chronology, never assume lexicographic PK order is chronology.
+            names = {r["name"] for r in columns}
+            preferred = {
+                "session_message": ["session_id", "seq"],
+                "message": ["session_id", "time_created", "id"],
+                "part": ["session_id", "message_id", "id"],
+                "messages": ["id"],
+            }.get(table, [])
+            ordering = list(dict.fromkeys([c for c in preferred if c in names] + primary))
+            order = ",".join('"' + col.replace('"', '""') + '"' for col in ordering)
             for row in connection.execute(f'SELECT * FROM "{table}" ORDER BY {order}'):
                 data = {key: _json_cell(row[key]) for key in row.keys()}
                 yield (
@@ -88,9 +97,9 @@ class Store:
         if version == 0:
             sql = files("tandem_data").joinpath("migrations/001.sql").read_text()
             self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
-        elif version != 1:
+        elif version not in (1, 2):
             self.db.close()
-            raise ValueError(f"Unsupported database version {version}; expected 1")
+            raise ValueError(f"Unsupported database version {version}; expected 1 or 2")
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
@@ -103,6 +112,19 @@ class Store:
             raise ValueError(
                 "This is a connector staging database, not tandem-session-v1. Use import-connector into a separate home."
             )
+
+        if version < 2:
+            sql = files("tandem_data").joinpath("migrations/002.sql").read_text()
+            self.db.executescript("BEGIN IMMEDIATE;\n" + sql + "\nCOMMIT;")
+        os.chmod(self.home, 0o700)
+        os.chmod(self.raw_dir, 0o700)
+        for path in (
+            self.db_path,
+            Path(str(self.db_path) + "-wal"),
+            Path(str(self.db_path) + "-shm"),
+        ):
+            if path.exists():
+                os.chmod(path, 0o600)
 
     def __enter__(self):
         return self
@@ -186,7 +208,29 @@ class Store:
                 "inode": before.st_ino,
                 "size": before.st_size,
                 "mtime_ns": before.st_mtime_ns,
+                "ctime_ns": before.st_ctime_ns,
             }
+            previous = self.db.execute(
+                "SELECT f.file_id,f.role,f.status,r.source_stat,r.record_count FROM source_file f "
+                "JOIN source_revision r USING(file_id) WHERE f.source_id=? AND f.relative_path=? "
+                "ORDER BY r.revision DESC LIMIT 1",
+                (source_id, str(path.relative_to(root))),
+            ).fetchone()
+            if (
+                previous
+                and previous["status"] != "error"
+                and json.loads(previous["source_stat"]) == stat
+            ):
+                changed_role = previous["role"] != role
+                self.db.execute(
+                    "UPDATE source_file SET role=?,status='active',last_scan_at=? WHERE file_id=?",
+                    (role, now_ms(), previous["file_id"]),
+                )
+                return {
+                    "file_id": previous["file_id"],
+                    "changed": changed_role,
+                    "records": previous["record_count"],
+                }
             format_name = "jsonl_zstd" if path.suffix in (".zst", ".zstd") else "jsonl"
 
             def contents():
@@ -275,7 +319,7 @@ class Store:
         )
         self.db.execute(
             "INSERT INTO source_file(file_id,source_id,relative_path,role,format,last_scan_at) "
-            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',last_scan_at=excluded.last_scan_at",
+            "VALUES(?,?,?,?,?,?) ON CONFLICT(file_id) DO UPDATE SET status='active',role=excluded.role,last_scan_at=excluded.last_scan_at",
             (file_id, source_id, relative_path, role, format_name, captured_at),
         )
         with self._index_transaction(source_id, file_id, uid("archive", sha)):
@@ -312,6 +356,8 @@ class Store:
                 for ordinal, line in enumerate(handle):
                     row_sha = hashlib.sha256(line).hexdigest()
                     try:
+                        if format_name != "sqlite_rows" and not line.endswith(b"\n"):
+                            raise ValueError("pending_tail")
                         data = json.loads(line)
                         if not isinstance(data, dict):
                             raise ValueError("Record must be an object")
@@ -327,7 +373,7 @@ class Store:
                         data, locator, native_type, native_id, shape_hash = (
                             {},
                             canonical(["line", ordinal]),
-                            "invalid",
+                            "pending_tail" if not line.endswith(b"\n") else "invalid",
                             None,
                             None,
                         )
@@ -362,6 +408,11 @@ class Store:
                                 or None,
                                 "shape_hash": shape_hash,
                             },
+                        )
+                    if native_type == "pending_tail":
+                        self.db.execute(
+                            "UPDATE raw_record SET disposition='ignored',note=? WHERE record_uid=?",
+                            (canonical({"reason": "incomplete_tail_retained_in_L0"}), record_uid),
                         )
                     self.db.execute(
                         "INSERT INTO file_record VALUES(?,?,?)", (file_id, locator, record_uid)
@@ -441,6 +492,8 @@ class Store:
         with self._decoded(self.home / info["path"], info["format"]) as handle:
             for ordinal, line in enumerate(handle):
                 try:
+                    if info["format"] != "sqlite_rows" and not line.endswith(b"\n"):
+                        continue
                     data = json.loads(line)
                     if not isinstance(data, dict):
                         continue

@@ -1,10 +1,17 @@
 from pathlib import PurePosixPath
 
-from tandem_data.connectors.base import BaseMapper, Mapping
+from tandem_data.connectors.base import BaseMapper, Mapping, text_content
 from tandem_data.contract import unused
 
 
 class ClaudeMapper(BaseMapper):
+    def prepare(self, records):
+        self.header = {}
+        for record in records:
+            if record.data.get("sessionId"):
+                self.header = record.data
+                break
+
     def native_key(self, record):
         if record.data.get("uuid"):
             return [record.source_id, record.data["uuid"]]
@@ -15,7 +22,7 @@ class ClaudeMapper(BaseMapper):
         events = []
         if self.first:
             parent = None
-            native = str(data.get("sessionId", PurePosixPath(record.relative_path).stem))
+            native = str(self.header.get("sessionId", PurePosixPath(record.relative_path).stem))
             kind = "main"
             if "subagents" in PurePosixPath(record.relative_path).parts:
                 parent, kind = native, "subagent"
@@ -28,7 +35,7 @@ class ClaudeMapper(BaseMapper):
                     native,
                     kind=kind,
                     parent_native_id=parent,
-                    cwd=data.get("cwd"),
+                    cwd=self.header.get("cwd"),
                     git_branch=data.get("gitBranch"),
                     harness_version=data.get("version"),
                     client=data.get("entrypoint"),
@@ -42,18 +49,42 @@ class ClaudeMapper(BaseMapper):
             if not isinstance(message, dict):
                 return self.unknown(record)
             self.model = message.get("model", self.model)
-            origin = data.get("origin", {}).get("kind", "human")
+            origin_value = data.get("origin")
+            origin = (
+                origin_value.get("kind", "human") if isinstance(origin_value, dict) else "human"
+            )
             origin = {"task-notification": "notification"}.get(origin, origin)
             if origin not in ("human", "queued", "notification", "peer", "automation", "injected"):
                 origin = "unknown"
-            if data.get("isMeta"):
+            body_text = text_content(message.get("content"))
+            if (
+                data.get("isMeta")
+                or data.get("isCompactSummary")
+                or body_text.lstrip().startswith(
+                    (
+                        "<command-name>",
+                        "<local-command-stdout>",
+                        "<system-reminder>",
+                        "<task-notification>",
+                    )
+                )
+            ):
                 origin = "injected"
+            if body_text.strip() in (
+                "[Request interrupted by user]",
+                "[Request interrupted by user for tool use]",
+            ):
+                events.append(
+                    self.make(record, "turn.end", "interruption", attrs={"status": "interrupted"})
+                )
+                return Mapping(events)
+            self.native_turn = data.get("promptId", self.native_turn)
             attrs = {
                 "cwd": data.get("cwd"),
                 "effort_raw": self.effort,
                 "native_parent_id": data.get("parentUuid"),
                 "logical_parent_id": data.get("logicalParentUuid"),
-                "native_turn_id": data.get("promptId"),
+                "native_turn_id": self.native_turn,
                 "attribution": {
                     key: value for key, value in data.items() if key.startswith("attribution")
                 },
@@ -82,6 +113,32 @@ class ClaudeMapper(BaseMapper):
                         "perTurnEffort",
                     ),
                 )
+            result = data.get("toolUseResult")
+            result = result if isinstance(result, dict) else {}
+            for event in contents:
+                if event.kind == "tool.result":
+                    event.attrs.update(
+                        duration_ms=result.get("durationMs"),
+                        exit_code=result.get("exitCode"),
+                        status_scope="tool",
+                    )
+                    denial = data.get("toolDenialKind")
+                    if denial:
+                        event.attrs["status"] = (
+                            "interrupted" if denial == "interrupted" else "declined"
+                        )
+                        events.append(
+                            self.make(
+                                record,
+                                "permission.decision",
+                                "denial." + str(event.call_id),
+                                call_id=event.call_id,
+                                attrs={"decision": "denied", "reason": denial},
+                            )
+                        )
+                    elif result.get("interrupted"):
+                        event.attrs["status"] = "interrupted"
+                    event.ext["toolUseResult"] = result
             events.extend(contents)
             if typ == "assistant" and message.get("usage") and message.get("id"):
                 events.append(
@@ -93,6 +150,10 @@ class ClaudeMapper(BaseMapper):
                         request_key=[record.source_id, message["id"]],
                         stop_reason=message.get("stop_reason"),
                         cwd=data.get("cwd"),
+                        coverage="unknown"
+                        if data.get("isSidechain") and not message.get("stop_reason")
+                        else "self",
+                        estimated=bool(data.get("isSidechain") and not message.get("stop_reason")),
                     )
                 )
         elif typ in ("custom-title", "ai-title", "agent-name"):
@@ -117,6 +178,7 @@ class ClaudeMapper(BaseMapper):
             )
         elif typ == "cost-state":
             models = data.get("modelUsage", {})
+            previous_model = self.model
             for model, value in models.items():
                 self.model = model
                 reported = {
@@ -137,6 +199,7 @@ class ClaudeMapper(BaseMapper):
                         cost_source="reported",
                     )
                 )
+            self.model = previous_model
             if not models:
                 events.append(self.make(record, "ui.state", "cost-state", ext=data))
         elif typ == "system":
@@ -168,6 +231,8 @@ class ClaudeMapper(BaseMapper):
                     ext=data,
                 )
             )
+        elif typ == "progress":
+            events.append(self.make(record, "ui.state", "progress", ext=data))
         else:
             return (
                 Mapping(events, "ignored", "non-trajectory UI record")
@@ -175,6 +240,6 @@ class ClaudeMapper(BaseMapper):
                 else Mapping(disposition="ignored", reason="non-trajectory UI record")
                 if typ in ("last-prompt", "atis-latch", "bridge-session", "frame-link")
                 or str(typ).startswith("artifact-")
-                else self.unknown(record)
+                else Mapping(events + self.unknown(record).events)
             )
         return Mapping(events)
