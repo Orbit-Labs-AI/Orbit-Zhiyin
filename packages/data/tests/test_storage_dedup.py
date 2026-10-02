@@ -290,3 +290,18 @@ def test_event_search_indexes_only_messages_and_titles(tmp_path, corpus):
         assert not db.execute(
             "SELECT name FROM sqlite_master WHERE name LIKE 'event_fts%'"
         ).fetchall()
+
+
+def test_compaction_keeps_logical_contents(tmp_path, corpus):
+    from tandem_data.validation.integrity import logical_digest
+
+    source, _ = corpus
+    home = tmp_path / "home"
+    import_home(home, source).db.close()
+    before, digest = dump(home), logical_digest(home)
+    with Store(home) as store:
+        assert not store.compact()  # Small stores are never rewritten implicitly.
+        assert store.compact(force=True)
+        assert store.verify()["integrity"] == "ok"
+    assert dump(home) == before
+    assert logical_digest(home) == digest
