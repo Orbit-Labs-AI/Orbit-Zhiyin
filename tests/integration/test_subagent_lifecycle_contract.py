@@ -31,6 +31,11 @@ def test_activity_is_not_spawn_and_child_identity_is_never_ui_item_identity(tmp_
         assert result["subagent_activity_event_count"] == 9
         assert len(result["unresolved_subagent_events"]) == 1
         assert len(result["subagent_runs"]) == 2
+        assert len(result["subagent_relations"]) == 1
+        assert result["subagent_parent_unknown_n"] == 1
         first = next(r for r in result["subagent_runs"] if r["status"] == "completed")
         assert first["started_at"] < first["completed_at"]
+        activity = next(e for e in bundle["events"] if e["kind"] == "subagent.activity")
+        assert "parent_session_uid" not in activity["attrs"]
+        assert activity["attrs"]["observing_session_uid"] == activity["session_uid"]
         assert all(e["actor"] == "subagent" for e in bundle["events"] if e["kind"].startswith("subagent."))

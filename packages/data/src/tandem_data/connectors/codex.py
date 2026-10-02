@@ -87,12 +87,20 @@ class CodexMapper(BaseMapper):
         result = []
         for child in sorted(set(children)) or [None]:
             attrs = {
-                "parent_session_uid": self.session_uid,
+                "observing_session_uid": self.session_uid,
                 "lifecycle_phase": payload.get("kind", payload.get("type")),
                 "status": payload.get("status") or "completed"
                 if kind == "subagent.result"
                 else "unknown",
             }
+            # Viewing, waiting for, or messaging an existing agent does not create it.
+            parent = payload.get("parent_thread_id")
+            if isinstance(parent, str) and parent:
+                attrs["parent_session_uid"] = self.store.identity(record.source_id, parent)
+                attrs["parent_relation_source"] = "native_parent"
+            elif kind == "subagent.spawn":
+                attrs["parent_session_uid"] = self.session_uid
+                attrs["parent_relation_source"] = "spawn_creator"
             if child:
                 attrs["child_session_uid"] = self.store.identity(record.source_id, child)
                 attrs["child_native_id"] = child
