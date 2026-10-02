@@ -224,3 +224,20 @@ def test_store_counts_and_problem_filter(env):  # noqa: F811
         assert [c["candidate_id"] for c in store.candidates(conn, run_id, problem_ids=["p9"])] == \
             [cards[2]["candidate_id"]]
     assert counts == {"pending": len(cards) - 2, "installed": 0, "not_applicable": 1, "snoozed": 1}
+
+
+def test_section_projects_name_directories():
+    import sqlite3
+
+    from tandem_backend.recommend.section import _projects
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE project (project_id TEXT, name TEXT, paths TEXT)")
+    conn.executemany("INSERT INTO project VALUES (?,?,?)", [
+        ("project_a", "github.com/x/paper-site", '["/synthetic/paper-site/"]'), ("project_b", "bucket", "[]")])
+    diagnostics: list = []
+    assert _projects(conn, {"project_a", "project_b", None}, diagnostics) == {
+        "project_a": {"name": "paper-site", "root": "/synthetic/paper-site/"},
+        "project_b": {"name": "bucket", "root": None}}
+    assert _projects(sqlite3.connect(":memory:"), {"project_a"}, diagnostics) == {}
+    assert diagnostics and diagnostics[0]["source"] == "projects"
