@@ -13,6 +13,7 @@ Developer ID identity; ``TANDEM_NOTARY_PROFILE`` additionally notarizes and stap
 from __future__ import annotations
 
 import argparse
+import base64
 import os
 import plistlib
 import re
@@ -51,9 +52,47 @@ def run(*args, **kwargs):
     subprocess.run(list(map(str, args)), cwd=ROOT, check=True, **kwargs)
 
 
+FONTSOURCE = ROOT / "node_modules/@fontsource-variable"
+# (fontsource stylesheet, family name the page asks for). Only latin + latin-ext subsets are
+# inlined; CJK keeps falling back to the system PingFang / Songti stacks in 00-base.css.
+FONT_SHEETS = [("source-serif-4/opsz.css", "Source Serif 4"),
+               ("source-serif-4/opsz-italic.css", "Source Serif 4"),
+               ("jetbrains-mono/wght.css", "JetBrains Mono")]
+FONT_SUBSETS = re.compile(r"-latin(?:-ext)?-[a-z]+-(?:normal|italic)$")
+GOOGLE_FONTS = re.compile(r'<link[^>]+(?:fonts\.googleapis\.com|fonts\.gstatic\.com)[^>]*>\n?')
+
+
+def offline_fonts() -> str:
+    """@font-face rules with base64 woff2 so the bundled UI renders identically offline."""
+    rules = []
+    for sheet, family in FONT_SHEETS:
+        path = FONTSOURCE / sheet
+        if not path.is_file():
+            raise SystemExit(f"missing {path}: run `pnpm install` (root devDependencies)")
+        for name, body in re.findall(r"/\* ([\w-]+) \*/\s*@font-face \{([^}]*)\}", path.read_text()):
+            if not FONT_SUBSETS.search(name):
+                continue
+            src = re.search(r"url\(\./files/([\w.-]+\.woff2)\)", body).group(1)
+            data = base64.b64encode((path.parent / "files" / src).read_bytes()).decode()
+            body = re.sub(r"font-family:[^;]*;", f"font-family: '{family}';", body)
+            body = re.sub(r"src:[^;]*;", f"src: url(data:font/woff2;base64,{data}) format('woff2');",
+                          body)
+            rules.append(f"/* {name} */\n@font-face {{{body}}}")
+    if not rules:
+        raise SystemExit("no latin font subsets found in @fontsource-variable packages")
+    return "\n".join(rules)
+
+
 def build_ui(resources: Path) -> None:
-    """Single-file Advance UI (Lite is a sidebar switch inside it)."""
-    run("node", "prototypes/advance/build.mjs", "--out", resources / "orbit.html")
+    """Single-file Advance UI (Lite is a sidebar switch inside it), with the web fonts
+    inlined in place of the Google Fonts <link> (offline, and allowed by the page CSP)."""
+    target = resources / "orbit.html"
+    run("node", "prototypes/advance/build.mjs", "--out", target)
+    html, links = GOOGLE_FONTS.subn("", target.read_text(encoding="utf-8"))
+    if links == 0 or "</head>" not in html:
+        raise SystemExit("orbit.html: expected the Google Fonts <link> and </head>")
+    fonts = f'<style id="orbit-fonts">\n{offline_fonts()}\n</style>\n'
+    target.write_text(html.replace("</head>", fonts + "</head>", 1), encoding="utf-8")
 
 
 def build_helper() -> Path:
