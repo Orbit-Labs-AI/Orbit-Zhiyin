@@ -325,36 +325,14 @@ class CatalogStore:
             source_id = run["source_id"]
             if source_id == LOCAL_SOURCE:
                 raise ValueError("local_source_not_syncable")
-            prior = {r["native_id"]: r for r in conn.execute(
-                "SELECT native_id,item_id,res_sha,body_sha,raw_sha,status FROM item_source WHERE source_id=?", (source_id,))}
-            affected, touched, seen, last = set(), [], 0, ""
-            while batch := conn.execute("SELECT native_id,resource,raw FROM sync_stage WHERE run_id=? AND native_id>? "
-                                        "ORDER BY native_id LIMIT ?", (run_id, last, BATCH)).fetchall():
-                last = batch[-1][0]
-                for native_id, resource_z, raw_z in batch:
-                    seen += 1
-                    doc = json.loads(zlib.decompress(resource_z))
-                    body = doc.pop("body", "") or ""
-                    raw_bytes = zlib.decompress(raw_z)
-                    prev = prior.get(native_id)
-                    if prev is not None and prev["status"] == "active" and prev["item_id"] == doc["item_id"] \
-                            and prev["body_sha"] == (_sha(body.encode()) if body else None) \
-                            and prev["res_sha"] == _sha(canonical_json(doc).encode()):
-                        raw_sha = _sha(raw_bytes)
-                        if raw_sha != prev["raw_sha"]:
-                            put_blob(conn, raw_bytes, raw_sha)
-                        touched.append((run_id, now, raw_sha, source_id, native_id))
-                        continue
-                    self._write_source(conn, source_id, native_id, doc, body, raw_bytes, run_id, now)
-                    affected.add(doc["item_id"])
-                    if prev is not None:
-                        affected.add(prev["item_id"])
-            conn.executemany("UPDATE item_source SET seen_run=?,fetched_at=?,raw_sha=? WHERE source_id=? AND native_id=?", touched)
+            affected, seen = self._apply_stage(conn, run_id, source_id, now)
+            seen += run["seen"] or 0  # Rows already made visible by publish_partial().
             if run["mode"] == "full":
                 affected.update(r[0] for r in conn.execute(
                     "UPDATE item_source SET status='removed' WHERE source_id=? AND seen_run!=? AND status='active' "
                     "RETURNING item_id", (source_id, run_id)).fetchall())
             changed, retired = self._materialize_many(conn, affected, now)
+            changed += run["changed"] or 0
             spec = SourceSpec.model_validate_json(conn.execute("SELECT spec FROM catalog_source WHERE source_id=?",
                                                               (source_id,)).fetchone()[0])
             conn.execute("UPDATE catalog_source SET revision=?,watermark=?,completed_at=?,next_due_at=?,failures=0,error=NULL "
@@ -370,6 +348,58 @@ class CatalogStore:
             result = dict(conn.execute("SELECT * FROM sync_run WHERE run_id=?", (run_id,)).fetchone())
         self._release_free_pages()
         return result
+
+    def publish_partial(self, run_id: str) -> dict:
+        """Make the pages staged so far visible while a long scan continues.
+
+        No retirement, cursor/watermark or schedule change: the final `publish()` still decides which
+        items disappeared (rows published here keep `seen_run=run_id`). A scan that fails later keeps
+        these items instead of losing the whole first sync.
+        """
+        now = _now()
+        with self.connect() as conn:
+            run = conn.execute("SELECT * FROM sync_run WHERE run_id=?", (run_id,)).fetchone()
+            if not run or run["status"] != "running":
+                raise ValueError("source_run_not_running")
+            if run["source_id"] == LOCAL_SOURCE:
+                raise ValueError("local_source_not_syncable")
+            affected, seen = self._apply_stage(conn, run_id, run["source_id"], now)
+            changed, _ = self._materialize_many(conn, affected, now)
+            conn.execute("UPDATE sync_run SET seen=COALESCE(seen,0)+?,changed=COALESCE(changed,0)+? WHERE run_id=?",
+                         (seen, changed, run_id))
+            conn.execute("DELETE FROM sync_stage WHERE run_id=?", (run_id,))
+            if affected:
+                self._bump(conn)
+            return {"run_id": run_id, "seen": seen, "changed": changed}
+
+    def _apply_stage(self, conn, run_id: str, source_id: str, now: int) -> tuple[set, int]:
+        """Staged rows → item_source; returns (item ids to re-materialize, rows seen)."""
+        prior = {r["native_id"]: r for r in conn.execute(
+            "SELECT native_id,item_id,res_sha,body_sha,raw_sha,status FROM item_source WHERE source_id=?", (source_id,))}
+        affected, touched, seen, last = set(), [], 0, ""
+        while batch := conn.execute("SELECT native_id,resource,raw FROM sync_stage WHERE run_id=? AND native_id>? "
+                                    "ORDER BY native_id LIMIT ?", (run_id, last, BATCH)).fetchall():
+            last = batch[-1][0]
+            for native_id, resource_z, raw_z in batch:
+                seen += 1
+                doc = json.loads(zlib.decompress(resource_z))
+                body = doc.pop("body", "") or ""
+                raw_bytes = zlib.decompress(raw_z)
+                prev = prior.get(native_id)
+                if prev is not None and prev["status"] == "active" and prev["item_id"] == doc["item_id"] \
+                        and prev["body_sha"] == (_sha(body.encode()) if body else None) \
+                        and prev["res_sha"] == _sha(canonical_json(doc).encode()):
+                    raw_sha = _sha(raw_bytes)
+                    if raw_sha != prev["raw_sha"]:
+                        put_blob(conn, raw_bytes, raw_sha)
+                    touched.append((run_id, now, raw_sha, source_id, native_id))
+                    continue
+                self._write_source(conn, source_id, native_id, doc, body, raw_bytes, run_id, now)
+                affected.add(doc["item_id"])
+                if prev is not None:
+                    affected.add(prev["item_id"])
+        conn.executemany("UPDATE item_source SET seen_run=?,fetched_at=?,raw_sha=? WHERE source_id=? AND native_id=?", touched)
+        return affected, seen
 
     # -- materialization -----------------------------------------------------------------
     def _materialize_many(self, conn, item_ids, now: int, force: bool = False) -> tuple[int, int]:
