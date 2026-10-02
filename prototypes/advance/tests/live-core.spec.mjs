@@ -124,6 +124,7 @@ test('feeds: LV.feed applies once per new response before render; 404 leaves the
   await openLive(page, 'tools');
   const r = await page.evaluate(async () => {
     window.__applied = [];
+    LV.feeds.tools = []; LV.feeds.sentiment = []; // drop the real slice feeds: this test probes the feed mechanism itself
     LV.feed('tools', '/v1/fx/one', (d) => { window.__applied.push(d.value); });
     LV.feed('sentiment', [{ name: 'm', path: '/v1/fx/missing' }], () => { window.__applied.push('bad'); });
     render(); await new Promise((ok) => setTimeout(ok, 300)); render(); render();
