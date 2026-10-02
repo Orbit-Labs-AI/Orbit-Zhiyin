@@ -28,6 +28,7 @@ def timed(client, url):
     return response, time.perf_counter() - start
 
 
+@pytest.mark.serial  # latency budget: measured outside the parallel pass
 def test_thousand_sessions_warm_requests_meet_latency_budgets(tmp_path, monkeypatch):
     home, _ = build_home(tmp_path, 1000)
     store = CanonicalStore(home)

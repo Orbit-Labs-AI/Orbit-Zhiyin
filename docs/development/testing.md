@@ -18,6 +18,8 @@
 | 性能与内存 | benchmarks | 见 benchmarks/README |
 | 安装后验证 | scripts/check-installed.sh | pnpm check:installed |
 
+`pnpm check` 分两步运行 Python 测试：先用 pytest-xdist 按 CPU 核数并行跑 `-m "not serial"`，再串行跑 `-m serial`。全量约 1–1.5 分钟，串行全跑约 5 分钟。`serial` 标记只用于依赖真实时钟（心跳、超时、延迟预算）或固定端口的测试，目前是 `packages/backend/tests/services` 下的服务流程测试和缓存延迟预算测试。其余测试之间不能共享端口、全局目录或固定文件名；新增测试须在 `-n auto` 下连续通过。单独调试某个测试时直接串行运行，不加 `-n`。`pnpm check:integration` 同样并行运行。
+
 `pnpm check` 先构建 TypeScript producer，再运行全部 Python 测试，随后检查原型产物、文档、独立构建与安装。staging 集成缺少产物时失败，不会静默跳过。
 
 安装检查把三个 wheel 安装到临时环境，在仓库外运行 Demo、评价和 CLI；用于发现 editable 安装掩盖的路径或包资源问题。根 Python workspace 不发布为一个额外运行包。

@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import threading
 
+import pytest
 from conftest import add_codex, bus_events, run_job, wait_for, wait_job
 from fastapi.testclient import TestClient
 
 from tandem_backend.api.routes import create_app
 from tandem_backend.services.sections import SESSION_SUMMARY_FIELDS
+
+# Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
+pytestmark = pytest.mark.serial
 
 META_KEYS = {"contract", "scope_hash", "data_rev", "inventory_rev", "rules_version", "freshness",
              "computed_at", "source", "duration_ms", "coverage", "selection"}
