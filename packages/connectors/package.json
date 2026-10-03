@@ -2,6 +2,7 @@
   "name": "@tandem/connectors",
   "version": "0.2.1",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "engines": { "node": ">=24.7.0" },
   "bin": { "tandem-ingest": "dist/cli.js" },

@@ -34,6 +34,9 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [贡献指南](../CONTRIBUTING.md) | 开发环境、提交规范、检查与 PR 流程 |
+| [行为准则](../CODE_OF_CONDUCT.md) | 协作约定与争议处理 |
+| [安全政策](../SECURITY.md) | 漏洞报告渠道、支持范围与隐私保护 |
 | [使用指南](development/usage.md) | CLI、真实来源授权、旧库兼容 |
 | [测试与验收](development/testing.md) | 检查分类、执行条件与 CI |
 | [后端九小时改进计划](development/backend-improvement-plan.md) | 契约、任务关系、语义、鲁棒性与推荐效用验收 |
