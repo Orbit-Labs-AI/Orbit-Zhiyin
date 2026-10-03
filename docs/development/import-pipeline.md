@@ -12,7 +12,7 @@
 
 | 现场 | 数值 |
 | --- | --- |
-| `tandem.db` / `tandem.db-wal` | 7.1 GB / 5.8 GB（WAL 始终不收缩） |
+| `tandem.db` / `tandem.db-wal` | 7.1 GB / 5.8 GB（10:46）；两小时后 7.2 GB / 9.3 GB（12:47），WAL 只增不减 |
 | `analysis.sqlite` | 3.8 GB |
 | 遗留目录 | `import-1caqqqr8`（585 项、1.2 GB）；`import-w7d74_63` 是正在运行任务的溢出目录 |
 | 首次导入（origin=user，phase=auto） | 08:57:48 → 09:37:43，共 2395 s |
@@ -27,7 +27,7 @@
 
 **RC-2 一个来源级问题让整个 `~/.claude` 失去增量投影。** `scheduler.closure()` 只要看到某来源有「来源级」L2/L3 问题（`file_id` 与 `record_uid` 都为空）就放弃会话闭包，改为整源重建。`reduce.derive` 恰好把 `unresolved_session_lineage`（父会话不存在）写成来源级问题，而且同一来源的所有此类会话共用一个 `issue_uid`。Claude Code 工作流的 `subagents/workflows/*/journal.jsonl` 没有 `sessionId`，被映射成父会话不存在的 `journal:journal`；父会话被 Claude Code 定期清理掉的子代理也是同样形态。结果是 `~/.claude` 每轮只变 3–11 个文件，却每次 `scope: source` 重建 1946 个文件、约 60 万条记录（136–155 s），并写出 GB 级 WAL。只读查询确认 `~/.claude`、`~/.claude-account2`、`~/.codex` 各有 1 条这样的问题。
 
-**RC-3 源文件在导入途中变化 → 保留旧事实 → 一直「待投影」→ 每个来源步骤都重建 Codex（活锁）。** 捕获只记录行摘要（source reference），投影时重读活文件逐行校验。Codex 的 `state_5.sqlite` 持续被 Codex 写入（SQLite 行快照没有可比的 stat，每次扫描都重读），投影读到的行与捕获时不同 → `SourceUnavailable(changed)` → 整个重建回滚，再带着「保留该文件旧事实」完整重来一遍；发布时这个文件不写 `projected_revision`。此后同一任务里每个来源的 `import_source` 都查询全库「是否有未投影文件」，又一次对 Codex 整源重建（Codex 不支持会话闭包），而这期间 `state_5.sqlite` 又变了，永远追不上；保留中的文件在下一次捕获时还会因为 `source_unavailable` 问题被视为「已变化」再生成新修订。现场：只读查询显示唯一未投影的文件是 Codex `state_5.sqlite`（revision 2、无 `projected_revision`、有 `source_unavailable(changed)`）；进度轨迹 10:54:38 prepare 0→975、10:55:12 reset_projection（回滚重来）、10:57:55 prepare 0→975、10:58:52 map，一轮 8–10 分钟。被保留文件的新行版本始终是 unparsed，任务因此全部记为 `partial`。继续只读观察：重启后的 sync 任务 a25c10af 从 10:23:27 跑到 11:18:59（55.5 分钟，结果 partial），期间至少 4 次 Codex 整源重建；下一个 sync 任务 1 秒后开始，又立刻重建 Codex；11:30 开始的任务在第一个来源上「prepare → reset_projection（回滚）→ prepare」用了 20 分钟，到第二个来源又从 prepare 976 个 Codex 文件开始。
+**RC-3 源文件在导入途中变化 → 保留旧事实 → 一直「待投影」→ 每个来源步骤都重建 Codex（活锁）。** 捕获只记录行摘要（source reference），投影时重读活文件逐行校验。Codex 的 `state_5.sqlite` 持续被 Codex 写入（SQLite 行快照没有可比的 stat，每次扫描都重读），投影读到的行与捕获时不同 → `SourceUnavailable(changed)` → 整个重建回滚，再带着「保留该文件旧事实」完整重来一遍；发布时这个文件不写 `projected_revision`。此后同一任务里每个来源的 `import_source` 都查询全库「是否有未投影文件」，又一次对 Codex 整源重建（Codex 不支持会话闭包），而这期间 `state_5.sqlite` 又变了，永远追不上；保留中的文件在下一次捕获时还会因为 `source_unavailable` 问题被视为「已变化」再生成新修订。现场：只读查询显示唯一未投影的文件是 Codex `state_5.sqlite`（revision 2、无 `projected_revision`、有 `source_unavailable(changed)`）；进度轨迹 10:54:38 prepare 0→975、10:55:12 reset_projection（回滚重来）、10:57:55 prepare 0→975、10:58:52 map，一轮 8–10 分钟。被保留文件的新行版本始终是 unparsed，任务因此全部记为 `partial`。继续只读观察：重启后的 sync 任务 a25c10af 从 10:23:27 跑到 11:18:59（55.5 分钟，结果 partial），期间至少 4 次 Codex 整源重建；下一个 sync 任务 1 秒后开始，又立刻重建 Codex；11:30 开始的任务在第一个来源上「prepare → reset_projection（回滚）→ prepare」用了 20 分钟，到第二个来源又从 prepare 976 个 Codex 文件开始，到 12:45 仍在运行（75 分钟，至少 4 次回滚重来）。
 
 **RC-4 读侧把「L1 比已发布的 L2 新」当成错误。** 捕获按组提交，新 L1 修订立即可见；投影在之后另一个长事务里提交。`tandem_data.query.current_projection` 在 `source_revision` 行数 ≠ 最新 `projection_run.l1_revision_count` 时抛出 "Projection is pending"，网关所有读路由返回 503 `projection_pending`，analysis worker 也以 `projection_pending` 失败。实际上上一次发布的 L2/L3 是完整一致的快照，完全可以读。RC-1/RC-3 让「已捕获未发布」的窗口几乎覆盖全部时间，RC-3 的保留文件又让 `l1_revision_count` 永远追不上（现场 run 20：3137 vs 3139）。网关的 LastGood 只缓存同一个 URL 的上次响应，换筛选或 App 重启后就没有，UI 于是显示「0 个会话」、Agent 筛选只剩一项；onboarding 的 `_main_sessions` 遇到错误直接返回 0。与此同时 `/v1/status` 只看内存里的上次发布，一直报 `projection: ready`，状态与读取结果自相矛盾，用户也没有可执行的重试入口。
 
@@ -183,6 +183,16 @@
 | `/v1/status.projection` | 读取失败时仍报 `ready` | 与读取一致；首次发布前 `absent` |
 | WAL（最大 / 结束） | 174.6 / 174.4 MB | 156.2 / 0 MB |
 | 遗留 `import-*` | 无（未杀进程） | 无；被杀进程的目录在下次启动时删除（回归测试覆盖） |
+
+真实来源副本（`cp -c` 克隆，不含凭据：`~/.claude` 4 个项目目录的 451 个允许导入文件 512 MB，`~/.codex` 近 5 天的 rollout、`session_index.jsonl`、`state_5.sqlite` 共 108 个文件 255 MB；同样的持续写入，14 分钟；两次运行与测试并行，耗时只作量级参考）：
+
+| 指标 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 首次导入 | 108 s，`partial`：Codex `state_5.sqlite` 被保留、1174 条行记录未解析；`~/.claude` 的 head、window 两批都整源重建 | `completed`：window 批只重建受影响的会话，Codex 无保留文件（与测试并行，245 s）。不经网关、无写入时直接计时：修复前 83.6 s，修复后 78.3 s |
+| sync 任务 | 113 / 164 / 354 s，第 4 个到结束仍在跑；全部 `partial`；每个 5 次重建尝试；前后间隔 0.8 s | 6 个，37–55 s，全部 `completed`；每个 2 次（Claude 闭包 + Codex 整源）；间隔等于上一任务耗时 |
+| WAL（结束） | 899 MB | 0 MB（导入中最大 1.2 GB，任务结束截断） |
+| 停网关后的 `import-*` | 留下 1 个 | 无 |
+| 修复中途发现 | — | 修好 RC-2 后 `~/.claude` 走闭包，首次运行即复现 RC-9（window 批与之后每个 sync 都 IntegrityError），修复后即上表 |
 
 ## 9. 已知限制
 
