@@ -1,0 +1,59 @@
+{
+  "name": "Orbit mark",
+  "version": 2,
+  "note": "Orbit 标志与全部图标素材的唯一参数来源。改动任何数值都会改变标志，须经 yhyfhgs 确认；改后运行 python3 docs/design/logo/generate.py 与 node docs/design/logo/export.mjs。说明见 docs/design/brand.md#绘制参数。",
+  "curve": {
+    "type": "conical-spiral",
+    "turns": 1.6,
+    "r_start": 9.0,
+    "r_end": 16.0,
+    "rise": 14.0,
+    "phase": 0.6,
+    "samples": 3000
+  },
+  "view": {
+    "projection": "orthographic",
+    "yaw": 20,
+    "pitch": 45
+  },
+  "design": {
+    "size": 512,
+    "pad": 48,
+    "resample": 1.5,
+    "box_pad": 4
+  },
+  "stroke": {
+    "w_far": 4.0,
+    "w_near": 14.0,
+    "taper": 0.1,
+    "w_floor": 0.6,
+    "gap": 24.0,
+    "cap": "round"
+  },
+  "vector": {
+    "tolerance": 0.002,
+    "digits": 3
+  },
+  "tile": {
+    "size": 1024,
+    "radius": 230,
+    "mark": 0.68
+  },
+  "dock": {
+    "canvas": 1024,
+    "tile": 824,
+    "shadow": {
+      "dy": 10,
+      "blur": 10,
+      "opacity": 0.3
+    }
+  },
+  "colors": {
+    "ink": "#5f6b6f",
+    "paper": "#f5f4f0",
+    "night_tile": "#000000",
+    "night_ink": "#ffffff",
+    "black": "#000000",
+    "white": "#ffffff"
+  }
+}
