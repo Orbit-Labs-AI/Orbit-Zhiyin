@@ -21,7 +21,7 @@ Advance 的画板是 2026-10-01 定下的视觉与交互参考，画板本身没
 | 主应用 | A9 生成工坊 | `Studio.dc.html` | 上下文包、本地 Agent 执行、分步流程、流式预览、自检 |
 | 主应用 | A10 设置 | `Settings.dc.html` | 数据源、索引方式、分析引擎、脱敏规则、数据存储 |
 | 人格系统 | P1 16 型图谱 | `TypeMap.dc.html` | 四个维度的定义、信号与计算方法，16 种类型 |
-| 人格系统 | P2 分享卡 | `ShareCard.dc.html` | 1080×1350 分享图（深色，可切浅色） |
+| 人格系统 | P2 分享卡 | `ShareCard.dc.html` | 1080×1350 分享图（深色，可切浅色）；2026-10-03 起由 `prototypes/advance/tools/share-board.mjs` 从 App 的 `shareSVG()` 生成：Orbit·知音 字标、时间长度标签与日历环、SF Pro Rounded 类型码、16 型新版名称与描述 |
 | 人格系统 | P3 揭晓动效 | `Reveal.dc.html` | 3 秒动效分镜与减弱动态效果方案 |
 | 菜单栏 · 悬浮 · 小组件 | B1 桌面全景 | `Desktop.dc.html` | 菜单栏、面板、悬浮胶囊、小组件同屏 |
 | 菜单栏 · 悬浮 · 小组件 | B2 菜单栏面板 | `MenuBar.dc.html` | 运行中、空闲、需要关注三态，状态图标 |
