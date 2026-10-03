@@ -3,7 +3,8 @@
     uv run --with numpy --with scipy python promo/music.py   ->  promo/out/soundtrack.wav
 
 Sections (beats), v7, same grid as promo.js and the 声音 table in STORYBOARD.md: 0-3.4 open (a blip per word,
-odometer, five chips) · 3.4-7.9 half time, highlighter, sentence swap · 7.9-14.6 the mark is traced and we dive ·
+odometer, five chips) · 3.4-7.9 half time, highlighter, sentence swap · 7.9-22.6 (film beats) the mark is traced,
+the wordmark reveal, the dive. Everything after is written in scene beats and played INTRO = 8 beats later ·
 14.6-21.6 groove A under the sentiment ride, push-through riser · 21.2-28 numbers (ratchets) and particles ·
 28-44 half time, a tick + scale note per type the lead petal passes (sweep_at = sweepAt in scenes/30-persona.js),
 four locks at 37.6/39.1/40.6/42.1, riser + snare roll · 44 DROP, full groove to 52 · 53-57.4 checks, warnings,
@@ -20,7 +21,9 @@ from scipy import signal
 SR = 48000
 BPM = 124
 BEAT = 60 / BPM
-END = 113
+INTRO = 8           # = INTRO in promo.js: scenes after the opening play 8 beats later (room for the wordmark reveal)
+SH = 0              # shift put() applies; set to INTRO once the opening is laid
+END = 113 + INTRO   # film beats
 N = int((END * BEAT + 1.5) * SR)
 rng = np.random.default_rng(7)
 L = np.zeros(N)
@@ -40,7 +43,7 @@ def at(b):
 
 def put(sig, b, gain=1.0, pan=0.0, to='dry'):
     l_, r_ = bus(to)
-    i = at(b)
+    i = at(b + SH)
     if i >= N:
         return
     s = sig[: N - i] * gain
@@ -337,25 +340,33 @@ for i, m in enumerate((81, 84, 88, 91, 93)):                        # five agent
     put(blip(m, 0.4), 1.2 + i * 0.2, 0.2, -0.5 + i * 0.25, to='verbsend')
 put(whoosh(0.8 * BEAT), 2.6, 0.26, -0.2)                            # b3.0 the sentence shrinks to an eyebrow
 groove(3.4, 7.9, style='half', clap_on=False, lvl=0.92)
-bed(3.4, 14.6, 0.32)
+bed(3.4, 14.6 + INTRO, 0.32)
 pads(3.4, 7.9, 0.17, 1200)
 put(marker(0.4), 4.2, 0.5, 0.3)                                     # highlighter under 怎样
 put(whoosh(0.6 * BEAT), 5.3, 0.26, 0.2)                             # sentence swap
 for i in range(5):                                                  # planets pulled to the mark
     put(blip(76 + [0, 3, 7, 10, 12][i], 0.5), 7.5 + i * 0.12, 0.14, -0.4 + i * 0.2, to='verbsend')
 
-# 2 · the mark is traced, tips over and we dive into it (b7.9-14.6, as v6)
+# 2 · the mark is traced (b7.9-10.4), the kit's reveal turns it into Orbit·知音 (turn b11-14.1, letters b13.3-15.5),
+# the letters leave (b17.4), the O tips to the top view (b18.6) and we dive into it (b20.8-22.6)
 put(glide(440, 440 * 2 ** 1.2, 2.4 * BEAT), 7.9, 0.08, to='verbsend')
 groove(7.9, 10.3, style='half', clap_on=False, lvl=0.92)
-pads(7.9, 14.6, 0.17, 1300)
-put(boom(3.0, 55, 28), 10.3, 0.42, to='verbsend')
-groove(10.3, 14.6, style='half', clap_on=False, lvl=0.9)
+pads(7.9, 22.6, 0.17, 1300)
+put(boom(3.0, 55, 28), 10.3, 0.42, to='verbsend')                   # the mark is complete
+put(whoosh(3.0 * BEAT), 11.0, 0.2, -0.3)                            # the turn
+put(glide(520, 520 * 2 ** 0.5, 3.0 * BEAT), 11.0, 0.06, to='verbsend')
+for i, m_ in enumerate((76, 79, 81, 83, 84, 86, 88)):                # rbit·知音, one note per glyph
+    put(blip(m_, 0.6), 13.3 + i * 0.227, 0.16, -0.45 + i * 0.15, to='verbsend')
+groove(14.0, 22.6, style='half', clap_on=False, lvl=0.9)
+put(whoosh(0.8 * BEAT), 17.3, 0.2, 0.3)                             # letters leave
+put(glide(440 * 2 ** 0.5, 440, 2.0 * BEAT), 18.6, 0.06, to='verbsend')
 k = 0.0                                                             # the dive: a swirl of ticks that speeds up
 while k < 1.8:
-    put(tick(), 12.8 + k, 0.14 + 0.2 * k / 1.8, np.sin(k * 9) * 0.6)
+    put(tick(), 20.8 + k, 0.14 + 0.2 * k / 1.8, np.sin(k * 9) * 0.6)
     k += 0.25 * (1 - k / 2.1) + 0.04
-put(riser(1.8 * BEAT, 300, 6000), 12.8, 0.35, to='verbsend')
-put(reverse_swell(0.8 * BEAT), 13.8, 0.6)
+put(riser(1.8 * BEAT, 300, 6000), 20.8, 0.35, to='verbsend')
+put(reverse_swell(0.8 * BEAT), 21.8, 0.6)
+SH = INTRO                                                          # from here on: scene beats
 
 # 3 · sentiment ride (b14.6-21.6): groove A, a blip per road sign, then the push-through
 put(crash(2.5), 14.6, 0.35, 0.2)
@@ -521,7 +532,7 @@ put(reverse_swell(0.8 * BEAT), 106.8, 0.5)
 put(boom(4.0, 55, 24), 107.6, 0.55, to='verbsend')
 put(kick(0.6, 1.2), 107.6, 0.8, to='kick')
 put(crash(4), 107.6, 0.32)
-put(pad((45, 52, 57, 60, 64), (END - 107.6) * BEAT + 1.5, 1400, 0.3), 107.6, 0.32, to='verbsend')
+put(pad((45, 52, 57, 60, 64), (END - INTRO - 107.6) * BEAT + 1.5, 1400, 0.3), 107.6, 0.32, to='verbsend')
 for i, m in enumerate((81, 84, 88)):
     put(blip(m, 1.2), 108.6 + i * 1.0, 0.2, -0.4 + i * 0.4, to='verbsend')
 
