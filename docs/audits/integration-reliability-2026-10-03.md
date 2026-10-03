@@ -39,14 +39,17 @@
 ## 验证
 
 - 已运行 `bash scripts/bootstrap.sh`。
+- 真实 gateway + 独立本地 E5 库的 HTTP 检索返回 `vector.status=ready`、`indexed_chunks=eligible_chunks=3876`；“工作流 验证 测试”查询得到验证阶梯、自检清单和 Systematic Debugging，完整响应保留于忽略目录。
 - 新增 `prototypes/advance/tests/audit-reliability.spec.mjs` 覆盖设置并发回滚、问答范围/旧响应、专业分析结构化结果、AI 建议转工坊、弹窗及 HUD 焦点。
 - 修复期间 UI 定向回归：新增 5 项与既有 studio/settings 共 13 项均已通过。
-- 最终 `pnpm check`、`pnpm check:ui` 的结果见本轮提交/PR 说明；本地完整输出位于 `.local/audit-20261003/check.log` 与 `check-ui.log`。
+- 干净隔离检出的 `pnpm check` 通过：Python 4,370 项并行 + 62 项串行通过，1 项默认可选 E5 测试跳过（随后另有真实 E5 实测）；TypeScript 36 项、Swift 6 项、lint、原型产物、文档链接和 wheel 安装后验收通过。
+- `pnpm check:ui --workers=4` 通过：717 passed、1,191 个按视口范围有意跳过的用例；最后集成主线页面名称后另做受影响 UI 回归。
+- 原工作目录预先存在迁移前旧目录，使结构检查报错；本轮保留原目录，在干净检出验证提交内容，不删除用户资料。本地完整输出位于 `.local/audit-20261003/final-check.log` 与 `clean-check-ui.log`。
 
 ## 不能由本轮自动检查替代的验收
 
-- 七类已落盘协议覆盖与“这台机器所有 Agent 所有版本零遗漏”不同。尚未对真实来源逐文件与 Agent 自身历史清单对账；未落盘、已删和来源不可用内容无法恢复。
-- 资源目录文本扩容、质量元数据评分与实际向量数量分开记账；默认离线构造验收没有下载 E5 权重或生成全量向量。详情见[推荐审计](recommendation-reliability-2026-10-03.md)。
+- 七类已落盘协议覆盖与“这台机器所有 Agent 所有版本零遗漏”不同。已执行仅文件元数据的本机发现盘点（结果保留在忽略目录）；Gemini/Copilot 默认目录存在但尚无 canonical mapper。尚未逐文件与 Agent 自身历史清单对账；未落盘、已删和来源不可用内容无法恢复。
+- 资源目录文本扩容、质量元数据评分与实际向量数量分开记账；默认回归与真实模型验证分开运行；随后使用固定版本本地 E5，完成 3,685 条唯一向量、3,876 块全部覆盖的独立物化，未修改用户已有数据库。详情见[推荐审计](recommendation-reliability-2026-10-03.md)。
 - AI 专业模板、推荐专家与失败回退使用 fake runner/构造模型响应验证，没有把真实会话发给模型；需要单独标注集评价情绪、反馈、建议收益与长会话准确率。
 - 未签名发布新版 App，未完成 macOS 原生安装包全部系统权限和窗口矩阵验收。内置浏览器看到的可运行页面与原生安装包是不同验收对象。
 - 更新源、尚未落地的 Ollama 执行通道等现有边界仍明确保留；不把不可用操作描述成已实现。

@@ -1,6 +1,6 @@
 # Orbit 会话导入可靠性审计（2026-10-03）
 
-本轮检查 canonical 数据链、七类 Agent mapper、Codex staging connector 和 App 导入日志。仅阅读仓库实现与构造样本，不读取真实聊天正文；下表说明当前实现的协议覆盖，不代表已对本机所有已安装版本完成真实数据验收。
+本轮检查 canonical 数据链、七类 Agent mapper、Codex staging connector 和 App 导入日志。阅读仓库实现与构造样本，并执行仅文件元数据的本机发现盘点，不读取真实聊天正文；下表说明当前实现的协议覆盖，不代表已对本机所有已安装版本完成真实数据验收。
 
 ## 模块与证据链
 
