@@ -131,14 +131,18 @@ scene('30-persona', () => {
   };
   const faAt = (b) => degAt(b) + turnAt(b);
   // 公转：每个 Agent 的曲线和徽章各以匀速绕表盘转，内圈（曲线平均半径小）快：9 / 6.5 / 4.5 / 3 / 1.8°/拍（b26.4 起 1 拍内起步）；
-  // 每次换花再同步多转一段（sine）。多转的量让每个 Agent 到 CO 恰好转满 360°——徽章回到数据方位，40-recs 按方位排好的
-  // 竖列（ORD）照常接手，不交叉；交入时（b25.7–26.4）公转为 0，20-orbit 交来的编队形状不变
+  // 每次换花再同步多转一段。多转的量让每个 Agent 到 CO 恰好转满 360°——徽章回到数据方位，40-recs 按方位排好的
+  // 竖列（ORD）照常接手，不交叉；交入时（b25.7–26.4）公转为 0，20-orbit 交来的编队形状不变。
+  // 三次换花首尾相接，多转按整段换花匀速加上（首尾各 .8 拍缓起缓收，每次换花各得约 EXT）：不再每次 sine 一冲一停
+  // （外圈原先 1.8 ↔ 87°/拍 一冲一停，现在换花期间匀速约 60°/拍）
   const RB = 26.4, RV = [9, 6.5, 4.5, 3, 1.8];
   const lyM = D0.sets.base.ly.map((y) => (y ? y.reduce((a, v) => a + v, 0) / y.length : -1));
   const SPD = []; [0, 1, 2, 3, 4].sort((p, q) => lyM[p] - lyM[q]).forEach((i, r) => { SPD[i] = RV[r]; });
   const baseRev = (i, b) => { const t = b - RB; return t <= 0 ? 0 : t < 1 ? SPD[i] * t * t / 2 : SPD[i] * (t - .5); };
   const EXT = SPD.map((v, i) => { let e = (360 - baseRev(i, CO)) / CH.length; while (e < 20) e += 360 / CH.length; return e; });
-  const revAt = (b) => SPD.map((v, i) => baseRev(i, b) + EXT[i] * CH.reduce((a, c) => a + E.sine(clamp((b - c.s) / c.L)), 0));
+  const XS = CH[0].s, XT = CH[CH.length - 1].s + CH[CH.length - 1].L - XS, XR = .8, XV = 1 / (XT - XR);
+  const xw = (b) => { const t = b - XS; return t <= 0 ? 0 : t >= XT ? 1 : t < XR ? XV * t * t / (2 * XR) : t > XT - XR ? 1 - XV * (XT - t) * (XT - t) / (2 * XR) : XV * (t - XR / 2); };
+  const revAt = (b) => { const w = xw(b) * CH.length; return SPD.map((v, i) => baseRev(i, b) + EXT[i] * w); };
 
   /* ---------- v17.1 T9：引导线把视线从罗盘带到右列 ---------- */
   // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
