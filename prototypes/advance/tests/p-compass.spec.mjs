@@ -359,11 +359,11 @@ test('persona switch: the same type settles; another type folds the old flower i
   await settle(page);
   const b = await dialState(page);
   expect(b.curves['fpc:cc'], 'and ends on the new one').not.toBe(a.curves['fpc:cc']);
-  // Gemini alone (uiview-persona-v1 demo units) is SPFV — D → S and a type with a soft ring: the old flower folds into its heart,
+  // Kimi alone (uiview-persona-v1 demo units) is SPFV — D → S and a type with a soft ring: the old flower folds into its heart,
   // the new one blooms from the heart toward its type
   const d = sdiff(typeDeg('SPFV'), typeDeg('DIMV'));
   const sw = await page.evaluate(() => {
-    S.agents = new Set(['gm']); agentSync(); render();
+    S.agents = new Set(['km']); agentSync(); render();
     const A = window.__anims, svg = $('#main svg.fp2'), gh = svg.querySelector('.bm-ghost'), fl = svg.querySelector('.fp-flower');
     return {
       code: fl.dataset.code, hd: +fl.querySelector('.fp-bloom').dataset.hd,

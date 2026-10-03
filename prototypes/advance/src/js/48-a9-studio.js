@@ -31,7 +31,7 @@ const STEP_DUR = [0.8, 1.4, 3.9, 1.1, 1.3, 0, 0.9];            // shown once a s
 const STEP_MS = [700, 1400, 0, 1100, 1300, 0, 900];             // pause after a step before the next one
 S.studio.tpl = S.studio.tpl || 'v1';
 // page copy that quotes the demo data set; live mode (97-live-studio-settings.js) rewrites it from the gateway
-const STUDIO_COPY = { mine: '从 46 个会话提炼出 5 条可执行规则', replay: '3 个历史会话 · 第二视角评分', hist: 8, detected: 'Claude Code · Codex · Gemini CLI · DeepSeek · Copilot' };
+const STUDIO_COPY = { mine: '从 46 个会话提炼出 5 条可执行规则', replay: '3 个历史会话 · 第二视角评分', hist: 8, detected: 'Claude Code · Codex · Kimi CLI · DeepSeek · OpenCode' };
 let RUNT = null;
 const stFile = () => GEN[S.studio.type].file.split('/').pop();
 const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0] || agent(S.studio.agent);

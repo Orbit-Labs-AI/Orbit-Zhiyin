@@ -489,6 +489,7 @@ if (TL.mode === 'live') {
     // discovery and the about mappers spell agents differently (claude / claude_code, dsh / deepseek …): compare UI ids
     const norm = (k) => lvAgentOf(k).id || k;
     const have = new Set(disc.map((x) => norm(x.agent)).concat(AG.map((a) => a.id))); const maps = (ab && ab.components && ab.components.mappers) || [];
+    if (maps.length) LV.mappers = maps;   // the gateway's connector registry: what can be imported at all (D9)
     const seen = new Set();
     return maps.filter((k) => { const id = norm(k); if (have.has(id) || seen.has(id)) return false; seen.add(id); return true; })
       .map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
@@ -586,6 +587,7 @@ if (TL.mode === 'live') {
       if (!f || f.cancelled || !f.path) return;
       const ag = agentId || (GUESS.find((g) => g[0].test(f.path)) || [])[1];
       if (!ag) { toast('认不出这个文件夹属于哪个 Agent：在「未检测到」那一行点「指定…」'); return; }
+      if (!LV.importable(ag)) { toast(lvAgentOf(ag).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'); return; }
       return TL.send('POST', '/v1/app/sources', { agent: ag, root: f.path, enabled: true }).then((x) => {
         const src = x.data || {}; TL.invalidate((q) => q.path === R.state || q.path === R.disc);
         toast('已添加 ' + lvAgentOf(ag).name + ' 来源，正在索引');
