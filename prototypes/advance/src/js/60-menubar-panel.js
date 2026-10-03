@@ -82,7 +82,9 @@ function renderPop() {
   } else {
     html = head('今天', popDate() + ' · ' + today.length + ' 会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)), doneBadge) + popLiveCard() + cxRow() + week + rec + foot;
   }
-  el.innerHTML = html;
+  // morphed in place (24-regions.js rgPut): a live frame or a sim tick changes only the rows that differ — the open panel
+  // keeps its scroll, hover and focus, and nothing re-plays its entrance
+  rgPut(el, html);
 }
 Object.assign(ACT, {
   popOpen: () => { S.pop = false; S.winGone = false; render(); },
