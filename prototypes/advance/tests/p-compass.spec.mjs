@@ -12,7 +12,7 @@
 //  3 genesis      the dial starts tilted (Orbit orbit, rotateX) and flattens; the needle is driven frame by frame, sits on --hd
 //                 when the sequence ends, and the persona page it lands on points the same way without a wobble on arrival
 //  4 reduced      reduce motion: nothing moves on entry, Genesis opens on its final state with the needle on --hd
-//  5 brand        no visible "Tandem" left: window title and the text of every page, settings tab, onboarding step and menu
+//  5 brand        no visible "Orbit" left: window title and the text of every page, settings tab, onboarding step and menu
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
@@ -171,12 +171,12 @@ test('reduced motion: needle still on entry and genesis opens with the needle on
   expect(errors).toEqual([]);
 });
 
-test('brand: no visible "Tandem" in the title, pages, settings, onboarding or menus', async ({ page }) => {
+test('brand: no visible "Orbit" in the title, pages, settings, onboarding or menus', async ({ page }) => {
   test.skip(!['mac-14', 'compact'].includes(test.info().project.name), 'text sweep runs at mac-14 and compact');
   test.setTimeout(60_000);
   const errors = await openDemo(page);
   expect(await page.title()).toMatch(/^Orbit/);
-  const seen = (where) => page.evaluate((w) => { const t = document.title + '\n' + document.body.innerText; return t.includes('Tandem') ? w + ': ' + t.split('\n').filter((l) => l.includes('Tandem')).join(' | ') : null; }, where);
+  const seen = (where) => page.evaluate((w) => { const t = document.title + '\n' + document.body.innerText; return t.includes('Orbit') ? w + ': ' + t.split('\n').filter((l) => l.includes('Orbit')).join(' | ') : null; }, where);
   const hits = [];
   hits.push(await seen('start'));
   for (const ed of ['advance', 'lite']) {
@@ -192,7 +192,7 @@ test('brand: no visible "Tandem" in the title, pages, settings, onboarding or me
   await page.locator('.mbar .app').click(); hits.push(await seen('app menu'));
   await page.keyboard.press('Escape');
   await page.evaluate(() => { closeDD(); S.pop = true; render(); }); hits.push(await seen('menu bar panel'));
-  expect(await page.evaluate(() => reportMD().includes('Tandem'))).toBe(false);
+  expect(await page.evaluate(() => reportMD().includes('Orbit'))).toBe(false);
   expect(hits.filter(Boolean)).toEqual([]);
   expect(errors).toEqual([]);
 });

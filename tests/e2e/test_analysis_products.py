@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.products import analyze_product_store, session_page
-from tandem_backend.api import create_app
-from tandem_backend.cli import demo_home
-from tandem_backend.data_access.ingest import ingest
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.products import analyze_product_store, session_page
+from orbit_backend.api import create_app
+from orbit_backend.cli import demo_home
+from orbit_backend.data_access.ingest import ingest
+from orbit_backend.data_access.store import CanonicalStore
 
 
 def test_native_import_api_scope_and_previous_window_are_consistent(tmp_path):
@@ -50,7 +50,7 @@ def test_native_import_api_scope_and_previous_window_are_consistent(tmp_path):
 def test_cli_report_is_identical_to_product_api_and_does_not_run_recommendations(
     tmp_path, monkeypatch
 ):
-    from tandem_backend.cli import main
+    from orbit_backend.cli import main
 
     home = tmp_path / "data"
     ingest(home, "codex", demo_home(tmp_path / "source"))
@@ -58,7 +58,7 @@ def test_cli_report_is_identical_to_product_api_and_does_not_run_recommendations
     def forbidden(*args, **kwargs):
         raise AssertionError("analysis report must not run recommendations")
 
-    monkeypatch.setattr("tandem_backend.analytics.service.recommend_resources", forbidden)
+    monkeypatch.setattr("orbit_backend.analytics.service.recommend_resources", forbidden)
     output = tmp_path / "reports"
     main(["--home", str(home), "analysis-report", "--output", str(output)])
     actual = json.loads((output / "analysis.json").read_text())

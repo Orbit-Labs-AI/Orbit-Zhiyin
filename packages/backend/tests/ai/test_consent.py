@@ -6,10 +6,10 @@ import time
 
 import pytest
 
-from tandem_backend.ai.consent import Consent
-from tandem_backend.ai.engines import FakeEngine
-from tandem_backend.ai.errors import AIError
-from tandem_backend.ai.service import service
+from orbit_backend.ai.consent import Consent
+from orbit_backend.ai.engines import FakeEngine
+from orbit_backend.ai.errors import AIError
+from orbit_backend.ai.service import service
 
 
 def pack(*classes: str) -> dict:

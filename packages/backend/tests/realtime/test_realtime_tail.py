@@ -5,13 +5,13 @@ import time
 import pytest
 from realtime_fixtures import ATTRS, NOW, Reads
 
-from tandem_backend.realtime import classify
-from tandem_backend.realtime.tail import ACTIVE_SQL, load_tails
+from orbit_backend.realtime import classify
+from orbit_backend.realtime.tail import ACTIVE_SQL, load_tails
 
 
-def _bulk(tandem, sessions=20_000, active=30):
+def _bulk(orbit, sessions=20_000, active=30):
     """Old sessions in bulk (executemany, FTS trigger dropped), then 30 live ones."""
-    db = tandem.db
+    db = orbit.db
     # FTS upkeep is irrelevant to the plan under test (event_search_ai since schema v8).
     db.execute("DROP TRIGGER IF EXISTS event_ai")
     db.execute("DROP TRIGGER IF EXISTS event_search_ai")
@@ -29,24 +29,24 @@ def _bulk(tandem, sessions=20_000, active=30):
           j, old + i * 10 + j, ATTRS) for i in range(sessions) for j in range(3)))
     for i in range(active):
         uid = f"s{i}"
-        tandem.session(uid, started=NOW - 600_000)
+        orbit.session(uid, started=NOW - 600_000)
         base = NOW - 300_000 - i * 1000
         for j in range(3):
-            tandem.event(uid, base + j * 100, actor="human" if j == 0 else "assistant")
-        tandem.call(uid, base + 50)
-        tandem.usage(uid, base + 90, 1000)
+            orbit.event(uid, base + j * 100, actor="human" if j == 0 else "assistant")
+        orbit.call(uid, base + 50)
+        orbit.usage(uid, base + 90, 1000)
     db.execute("COMMIT")
     db.execute("ANALYZE")
 
 
 @pytest.mark.serial
-def test_active_query_uses_index_and_is_fast(tandem):
-    _bulk(tandem)
-    plan = [row[3] for row in tandem.db.execute(
+def test_active_query_uses_index_and_is_fast(orbit):
+    _bulk(orbit)
+    plan = [row[3] for row in orbit.db.execute(
         "EXPLAIN QUERY PLAN " + ACTIVE_SQL, (NOW - 86_400_000, 200))]
     assert not any(step.startswith("SCAN event") for step in plan), plan
     assert any("event_by_kind_time" in step for step in plan), plan
-    reads = Reads(tandem.path)
+    reads = Reads(orbit.path)
     started = time.perf_counter()
     tails = load_tails(reads, NOW)
     elapsed = time.perf_counter() - started
@@ -59,14 +59,14 @@ def test_active_query_uses_index_and_is_fast(tandem):
     assert tail.calls[0].command_head == "ls"
 
 
-def test_pending_permission_only_when_newest(tandem):
-    tandem.session("a")
-    tandem.event("a", NOW - 5000, "permission.request", "hook",
+def test_pending_permission_only_when_newest(orbit):
+    orbit.session("a")
+    orbit.event("a", NOW - 5000, "permission.request", "hook",
                  attrs={"command": "rm -rf build"})
-    tandem.session("b")
-    tandem.event("b", NOW - 9000, "permission.request", "hook", text="git push")
-    tandem.event("b", NOW - 4000, "permission.decision", "hook")
-    tails = {t.session_uid: t for t in load_tails(Reads(tandem.path), NOW)}
+    orbit.session("b")
+    orbit.event("b", NOW - 9000, "permission.request", "hook", text="git push")
+    orbit.event("b", NOW - 4000, "permission.decision", "hook")
+    tails = {t.session_uid: t for t in load_tails(Reads(orbit.path), NOW)}
     assert tails["a"].pending_permission == {"ts": NOW - 5000, "command": "rm -rf build"}
     assert tails["b"].pending_permission is None
 
@@ -84,12 +84,12 @@ def test_pending_permission_only_when_newest(tandem):
     # Unknown fresh input stays unknown even when caches are known.
     (None, 5_000, 5_000, None, None, False),
 ])
-def test_context_counts_cache_write(tandem, fresh, read, write, used, ratio, pressure):
-    tandem.session("s1", started=NOW - 60_000)
-    tandem.event("s1", NOW - 3_000, actor="human")
-    tandem.event("s1", NOW - 1_000, actor="assistant")
-    tandem.usage("s1", NOW - 1_000, fresh, cache_read=read, cache_write=write)
-    (tail,) = load_tails(Reads(tandem.path), NOW)
+def test_context_counts_cache_write(orbit, fresh, read, write, used, ratio, pressure):
+    orbit.session("s1", started=NOW - 60_000)
+    orbit.event("s1", NOW - 3_000, actor="human")
+    orbit.event("s1", NOW - 1_000, actor="assistant")
+    orbit.usage("s1", NOW - 1_000, fresh, cache_read=read, cache_write=write)
+    (tail,) = load_tails(Reads(orbit.path), NOW)
     assert tail.usage["used_tokens"] == used
     state = classify.classify(tail, NOW)
     assert state.state != "idle"

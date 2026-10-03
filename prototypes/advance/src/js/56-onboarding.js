@@ -99,9 +99,9 @@ const OB_TEXT = {
   // job frame progress → the note under 导入历史会话: the gateway's stage name and detail (which source / batch, whether it
   // rebuilds the affected sessions or the whole source, a retry after a source changed mid-import); older gateways only
   // send progress.stage, named by the shared adapter. count: 「N / M 个文件」; ratio: the whole job (never moves back).
-  stageNote: (pr) => TandemLive.ui.stageNote(pr),
-  count: (x) => (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) + (TandemLive.ui.unitName(x.unit) ? ' ' + TandemLive.ui.unitName(x.unit) : '') : x.status === 'skipped' ? OB_TEXT.skipped : ''),
-  ratio: (pr) => TandemLive.ui.stageRatio(pr),
+  stageNote: (pr) => OrbitLive.ui.stageNote(pr),
+  count: (x) => (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) + (OrbitLive.ui.unitName(x.unit) ? ' ' + OrbitLive.ui.unitName(x.unit) : '') : x.status === 'skipped' ? OB_TEXT.skipped : ''),
+  ratio: (pr) => OrbitLive.ui.stageRatio(pr),
   headRun: '正在导入你的会话', headDone: '导入已完成',
   bgHint: '可以关闭窗口，完成后通知你',
   side: { run: '导入中', analyze: '分析中', fail: '导入未完成', done: '重新打开引导', start: '开始导入', view: '查看', retry: '重试' }

@@ -1,7 +1,7 @@
 from datetime import UTC
 
-from tandem_backend.analytics.interaction import correction_terms
-from tandem_backend.uiview import moments, trajectory
+from orbit_backend.analytics.interaction import correction_terms
+from orbit_backend.uiview import moments, trajectory
 
 from .l1_builder import *  # noqa: F403 - pytest fixtures
 from .l1_builder import MIN, T0, handwritten_cc

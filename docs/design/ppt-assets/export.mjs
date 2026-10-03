@@ -171,7 +171,7 @@ async function capture(locator, info, extractSVG = true) {
 }
 
 try {
-  await page.goto(base + '/prototypes/advance/tandem-demo.html', { waitUntil: 'networkidle' });
+  await page.goto(base + '/prototypes/advance/orbit-demo.html', { waitUntil: 'networkidle' });
   if (await page.evaluate(() => LV.live)) throw new Error('Expected the standalone sample-data UI.');
   await page.addStyleTag({ content: cleanCSS });
   await settle();
@@ -261,7 +261,7 @@ try {
     assets.push({ id: path.basename(name).replace(/\./g, '-'), title: path.basename(name), kind: 'brand', source, file, format: path.extname(name).slice(1).toUpperCase(), theme: /light|night|white/.test(name) ? 'dark' : 'light', transparent: !name.includes('icon') });
   }
   await write('design-tokens.json', JSON.stringify(designTokens, null, 2) + '\n');
-  await write('sources/orbit-demo.html', await fs.readFile(path.join(root, 'prototypes/advance/tandem-demo.html')));
+  await write('sources/orbit-demo.html', await fs.readFile(path.join(root, 'prototypes/advance/orbit-demo.html')));
   await fs.cp(path.join(root, 'docs/design/visual-cases-v1'), path.join(out, 'sources/visual-cases-v1'), { recursive: true });
   const manifest = { product: 'Orbit', sourceCommit, sourceRef, data: 'Repository demo sample data; no real logs or performance claims', scale, generatedAt: new Date().toISOString(), coverage, browserErrors: errors, assets };
   await write('manifest.json', JSON.stringify(manifest, null, 2) + '\n');

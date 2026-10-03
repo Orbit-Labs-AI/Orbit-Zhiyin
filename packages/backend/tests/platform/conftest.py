@@ -9,14 +9,14 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.platform import logs, telemetry
-from tandem_backend.platform.runtime import Platform
-from tandem_backend.services.events import EventBus
-from tandem_backend.services.gateway import Gateway, Revisions
-from tandem_backend.services.routes_data import ReadPool
-from tandem_backend.services.snapshots import SnapshotStore
-from tandem_backend.services.supervisor import SupervisorConfig
+from orbit_backend.appdb import AppDB
+from orbit_backend.platform import logs, telemetry
+from orbit_backend.platform.runtime import Platform
+from orbit_backend.services.events import EventBus
+from orbit_backend.services.gateway import Gateway, Revisions
+from orbit_backend.services.routes_data import ReadPool
+from orbit_backend.services.snapshots import SnapshotStore
+from orbit_backend.services.supervisor import SupervisorConfig
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -53,7 +53,7 @@ def fake_gateway(home: Path) -> SimpleNamespace:
         home=home, appdb=AppDB(home / "app.db"), revisions=Revisions(), state=FakeState(),
         supervisor=FakeSupervisor(), bus=EventBus(), config=SupervisorConfig(),
         snapshots=SnapshotStore(home / "cache" / "ui.sqlite"),
-        reads=ReadPool(home / "tandem.db"), stopping=None, sync_thread=None)
+        reads=ReadPool(home / "orbit.db"), stopping=None, sync_thread=None)
 
 
 @pytest.fixture
@@ -85,14 +85,14 @@ def gateway_client(tmp_path):
     client = TestClient(gateway.app(token=TOKEN, port=PORT), base_url=BASE, headers=AUTH)
     with client:
         yield client, gateway
-    logging.getLogger("tandem").handlers.clear()
+    logging.getLogger("orbit").handlers.clear()
 
 
 @pytest.fixture(autouse=True)
 def _reset_exclusion_provider():
     """Every gateway registers the process-wide exclusion provider; exclusion.merged is
     fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
-    from tandem_backend.sessionops import exclusion
+    from orbit_backend.sessionops import exclusion
 
     exclusion.set_provider(None)
     yield

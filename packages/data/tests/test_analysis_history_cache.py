@@ -5,14 +5,14 @@ from importlib.resources import files
 
 import pytest
 
-from tandem_data.analysis_history import SCHEMA_VERSION, AnalysisHistory
+from orbit_data.analysis_history import SCHEMA_VERSION, AnalysisHistory
 
 
 def v1_database(path):
     """Create a v1 history exactly as the previous release wrote it."""
     connection = sqlite3.connect(path)
     connection.executescript(
-        files("tandem_data").joinpath("migrations/analysis/001.sql").read_text()
+        files("orbit_data").joinpath("migrations/analysis/001.sql").read_text()
         + "\nPRAGMA user_version=1;"
     )
     connection.close()

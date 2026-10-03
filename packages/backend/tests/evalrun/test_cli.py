@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from tandem_backend.cli import main as tandem_main
-from tandem_backend.evalrun.cli import main
+from orbit_backend.cli import main as orbit_main
+from orbit_backend.evalrun.cli import main
 
 
 def _run(argv):
@@ -47,7 +47,7 @@ def test_usage_errors_exit_2(fake_suites, tmp_path, argv):
     assert not (tmp_path / "app.db").exists()
 
 
-def test_tandem_entry_delegates(fake_suites, tmp_path, capsys):
+def test_orbit_entry_delegates(fake_suites, tmp_path, capsys):
     with pytest.raises(SystemExit) as exc:
-        tandem_main(["eval", "run", "--suite", "half", "--no-store", "--home", str(tmp_path)])
+        orbit_main(["eval", "run", "--suite", "half", "--no-store", "--home", str(tmp_path)])
     assert exc.value.code == 1 and "FAIL" in capsys.readouterr().out

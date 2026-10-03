@@ -3,8 +3,8 @@
 import copy
 import json
 
-from tandem_backend.analytics.diagnostics import diagnostics, family_diagnostics, terminal_text
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.diagnostics import diagnostics, family_diagnostics, terminal_text
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def test_missing_sources_cannot_look_like_eight_successful_empty_extractors():
@@ -165,7 +165,7 @@ def test_unselected_skill_preserves_grounded_signal_and_pending_context():
 def test_unknown_model_calls_count_invalid_rows_and_conflicting_request_ids():
     from pathlib import Path
 
-    from tandem_backend.analytics.inputs import AnalysisInputBundle
+    from orbit_backend.analytics.inputs import AnalysisInputBundle
 
     raw = json.loads((Path(__file__).parents[1] / "fixtures/bottleneck-features-v1.json")
                      .read_text(encoding="utf-8"))

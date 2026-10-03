@@ -8,7 +8,7 @@
 
 | 入口 | 作用 |
 | --- | --- |
-| `ImportService(store, workers=None)` | `None` 取 `TANDEM_IMPORT_WORKERS`，否则 `min(8, CPU-1)`（至少 2）；`workers=1` 完全是旧的串行整来源路径 |
+| `ImportService(store, workers=None)` | `None` 取 `ORBIT_IMPORT_WORKERS`，否则 `min(8, CPU-1)`（至少 2）；`workers=1` 完全是旧的串行整来源路径 |
 | `import_source(request)` | 捕获 + 投影一个来源；有变化时按会话闭包增量重算 |
 | `import_progressive(requests, cancel=None, on_batch=None)` | 首次导入：最近会话先发布，其余分批后台完成，可取消 |
 | `watch(request, stop)` | 轮询；采集暂停时只返回 `{"paused": true}`，不捕获 |
@@ -58,7 +58,7 @@
 | `tests/test_incremental_projection.py` | 随机 24 步追加、改写、删除、重命名、新增后，闭包增量结果与副本上的串行全量重建逐表一致；`verify`、`foreign_key_check`、记账检查通过 |
 | `tests/test_progressive_import.py` | 读线程每 100 ms 调 `event_page`，首批之后 0 次 pending；最终摘要等于普通全量导入；暂停期间无 revision，恢复后摘要等于未中断导入 |
 
-逻辑摘要目前在 `tests/_integrity.py` 内实现，覆盖 `raw_record` 去向、`record_event`、`event_page` 全量、L3 全表与 `ingest_issue`。与 (d) 合并后改用 `tandem_data.validation.integrity.logical_digest`。
+逻辑摘要目前在 `tests/_integrity.py` 内实现，覆盖 `raw_record` 去向、`record_event`、`event_page` 全量、L3 全表与 `ingest_issue`。与 (d) 合并后改用 `orbit_data.validation.integrity.logical_digest`。
 
 ## 实测
 
@@ -79,7 +79,7 @@
 
 - **对照**：审计基线 `747b0da`。两边用各自的 `.venv`（CPython 3.13.15），读取同一份共用合成数据：med 7.99 万事件、60 MB 源；full 52.67 万事件、395 MB 源。
 - **方式**：所有计时都在机器级基准锁里串行执行，每次新进程，基线与新代码紧挨着成对运行。full 首次导入成对 2 次（第 1 对基线在前，第 2 对新代码在前）；med 首导（含追加重扫、无变化重扫）与渐进导入各 1 次。新代码使用默认 `ImportService`（默认 `workers`、`maintenance="background"`）。
-- **库体积**：新代码在导入返回后关闭服务与连接，用 `wait_for_maintenance` 等后台维护完成，再 `wal_checkpoint(TRUNCATE)` 后量 `tandem.db`；基线没有维护，导入后直接 checkpoint 再量。压实耗时不计入导入耗时。
+- **库体积**：新代码在导入返回后关闭服务与连接，用 `wait_for_maintenance` 等后台维护完成，再 `wal_checkpoint(TRUNCATE)` 后量 `orbit.db`；基线没有维护，导入后直接 checkpoint 再量。压实耗时不计入导入耗时。
 - **追加重扫**：在 pi 首个文件末尾追加 1 行，再对 pi 重扫一次。**无变化重扫**：维护完成后重新打开库，各来源重扫一次。
 - **负载**：机器为 14 核 Apple M4 Pro，测量期间有其他 agent 占用 CPU；表中“负载”为每次运行开始时的 1 分钟 load average。
 
@@ -124,7 +124,7 @@ med 首导（默认 workers，基准锁内，load≈12）按阶段计时，写�
 
 ### 导入后维护复测（`wip/yhyfhgs-compact`）
 
-并行导入（默认 workers、`maintenance="background"`）结束后关闭导入连接，再等待后台维护完成后量 `tandem.db`。全部在一次基准锁内串行执行；基线 `747b0da` 与新代码交替运行，med 各 2 次。full 只跑新代码 1 次，基线体积沿用上表 2,920.0 MB（同代码、同数据，体积确定）。load average（1 分钟）为 6.4–8.7。
+并行导入（默认 workers、`maintenance="background"`）结束后关闭导入连接，再等待后台维护完成后量 `orbit.db`。全部在一次基准锁内串行执行；基线 `747b0da` 与新代码交替运行，med 各 2 次。full 只跑新代码 1 次，基线体积沿用上表 2,920.0 MB（同代码、同数据，体积确定）。load average（1 分钟）为 6.4–8.7。
 
 | 规模 | 基线库 | 新库（维护后） | 比例 | 目标 | 首导 wall（CPU），基线 → 新 | 维护耗时（不计入首导） |
 | --- | --- | --- | --- | --- | --- | --- |

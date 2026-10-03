@@ -2,7 +2,7 @@
 
 import os
 
-from tandem_backend.install.targets import reason_text
+from orbit_backend.install.targets import reason_text
 
 from .test_service import run, snapshot, spec_source, svc  # noqa: F401
 

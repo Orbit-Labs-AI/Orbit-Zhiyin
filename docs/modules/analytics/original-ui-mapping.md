@@ -1,6 +1,6 @@
 # 原始 UI 到分析指标的对应
 
-本页依据可运行的 [Lite 原型](../../../prototypes/lite/tandem-benchmark-demo.html) 与 [Advance 原型](../../../prototypes/advance/tandem-demo.html) 的渲染函数和交互核对，而非仅依据架构表。下列行号对应 2026-10-02 本次核对版本；后续修改优先按函数名定位。
+本页依据可运行的 [Lite 原型](../../../prototypes/lite/orbit-benchmark-demo.html) 与 [Advance 原型](../../../prototypes/advance/orbit-demo.html) 的渲染函数和交互核对，而非仅依据架构表。下列行号对应 2026-10-02 本次核对版本；后续修改优先按函数名定位。
 
 ## 基础统计与单位
 

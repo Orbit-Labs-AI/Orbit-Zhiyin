@@ -6,7 +6,7 @@ from importlib.resources import files
 import pytest
 from jsonschema import Draft202012Validator
 
-from tandem_data.coverage import dataset_coverage
+from orbit_data.coverage import dataset_coverage
 
 
 @pytest.mark.parametrize(
@@ -28,7 +28,7 @@ def test_coverage_states_do_not_conflate_missing_empty_and_excluded(
 ):
     result = dataset_coverage(rows, excluded=excluded, reasons=reasons, reason_counts=counts)
     schema = json.loads(
-        files("tandem_data").joinpath("schemas/coverage-v1.schema.json").read_text()
+        files("orbit_data").joinpath("schemas/coverage-v1.schema.json").read_text()
     )
     Draft202012Validator(schema).validate(result)
     assert result["status"] == status and result["rows"] == rows

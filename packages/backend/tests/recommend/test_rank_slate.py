@@ -1,7 +1,7 @@
 import pytest
 
-from tandem_backend.recommend.ranking.rank import prior, score
-from tandem_backend.recommend.ranking.slate import select
+from orbit_backend.recommend.ranking.rank import prior, score
+from orbit_backend.recommend.ranking.slate import select
 
 INPUTS = {"agents": {"claude_code": 40}, "profile": None}
 MEMORY = {"now": 0, "state": {}, "labels": {}, "weights": {}, "posteriors": {}}

@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.privacy import REDACTION_VERSION, sanitize
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.privacy import REDACTION_VERSION, sanitize
+from orbit_data.store import Store
 
 
 def test_secret_variants_and_embedded_json_keep_usage_fields():
@@ -243,7 +243,7 @@ def test_metadata_at_cutoff_does_not_use_future_title(tmp_path):
 
 
 def test_secret_bearing_tool_arguments_have_no_offline_digest():
-    from tandem_data.contract import EventDraft, time_fields
+    from orbit_data.contract import EventDraft, time_fields
 
     _, time = time_fields(None, "timestamp")
     event = EventDraft(
@@ -263,7 +263,7 @@ def test_secret_bearing_tool_arguments_have_no_offline_digest():
 def test_authentication_header_values_are_atomic_secrets(header):
     import shlex
 
-    from tandem_data.privacy import redact
+    from orbit_data.privacy import redact
 
     value = (
         "Basic dW5pdDpzZWNyZXQ="
@@ -307,7 +307,7 @@ def test_raw_auth_headers_are_absent_from_published_events_but_preserved_in_l0(t
 
 @pytest.mark.parametrize("scheme", ["postgresql", "rediss", "HTTPS"])
 def test_credentialed_uri_schemes_are_redacted(scheme):
-    from tandem_data.privacy import redact
+    from orbit_data.privacy import redact
 
     value = f"{scheme}://fixture-user:fixture-password@example.invalid/db"
     cleaned = redact(value)

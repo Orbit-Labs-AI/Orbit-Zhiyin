@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.services import routes_catalog
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.services import routes_catalog
+from orbit_backend.services.gateway import Gateway
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 
@@ -22,7 +22,7 @@ TOKEN = "synthetic-test-token-0123456789abcdef"
 def gateway(tmp_path, monkeypatch):
     def no_network(*args, **kwargs):
         raise AssertionError("catalog tests must not reach the network")
-    monkeypatch.setattr("tandem_catalog.network.HttpClient.get", no_network)
+    monkeypatch.setattr("orbit_catalog.network.HttpClient.get", no_network)
     gw = Gateway(tmp_path / "home", discovery=lambda: [], prewarm_debounce_s=3600.0)
     client = TestClient(gw.app(token=TOKEN, port=8765), base_url="http://127.0.0.1:8765",
                         headers={"Authorization": f"Bearer {TOKEN}"})
@@ -31,7 +31,7 @@ def gateway(tmp_path, monkeypatch):
 
 
 def service_of(gw):
-    from tandem_catalog import get_service
+    from orbit_catalog import get_service
     return get_service(gw.home / "catalog.db")
 
 
@@ -56,7 +56,7 @@ def test_empty_home_serves_official_hooks_immediately(gateway):
     status = client.get("/v1/catalog/status").json()
     coverage = status["coverage"]
     assert status["items"] >= 27 and coverage["seeded"] is True
-    assert coverage["by_source"]["tandem-kb"]["items"] == 25 and coverage["by_kind"]["hook"] >= 3
+    assert coverage["by_source"]["orbit-kb"]["items"] == 25 and coverage["by_kind"]["hook"] >= 3
     assert "mcp-official" in coverage["partial_sources"] and coverage["last_sync_at"] is None
 
 
@@ -92,7 +92,7 @@ def test_failing_network_does_not_break_startup_or_reads(gateway):
     assert client.get("/v1/catalog/items", params={"kind": "hook"}).json()["total"] >= 3
     coverage = client.get("/v1/catalog/status").json()["coverage"]
     assert coverage["by_source"]["anthropic-skills"]["error"]
-    assert coverage["by_source"]["tandem-kb"]["error"] is None
+    assert coverage["by_source"]["orbit-kb"]["error"] is None
 
 
 def test_refresh_tick_skips_while_a_catalog_job_is_active(gateway):
@@ -178,7 +178,7 @@ def test_fresh_install_schedules_one_first_sync_without_blocking(gateway, monkey
 
 def test_first_sync_respects_disabled_autosync(gateway, monkeypatch):
     gw, client = gateway
-    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "0")
+    monkeypatch.setenv("ORBIT_CATALOG_AUTOSYNC", "0")
     service = service_of(gw)
     service.http = OnlyGemini()
     gw.platform.started = True

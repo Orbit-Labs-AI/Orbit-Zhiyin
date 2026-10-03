@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 import zstandard
 
-from tandem_data import SCHEMA_VERSION
-from tandem_data.contract import canonical
-from tandem_data.service import ImportRequest, ImportService, event_page
-from tandem_data.store import Store, readonly_connection
+from orbit_data import SCHEMA_VERSION
+from orbit_data.contract import canonical
+from orbit_data.service import ImportRequest, ImportService, event_page
+from orbit_data.store import Store, readonly_connection
 
 T = 1790900000000
 ISO = "2026-10-02T00:00:00Z"
@@ -788,7 +788,7 @@ def test_claude_final_usage_replaces_placeholder_and_nullable_details(tmp_path):
 def test_scoped_rebuild_preserves_other_sources_and_recovers_unpublished_capture(
     tmp_path, monkeypatch
 ):
-    from tandem_data.connectors.pi import PiMapper
+    from orbit_data.connectors.pi import PiMapper
 
     pi_root = tmp_path / "pi"
     dsh_root = tmp_path / "dsh"
@@ -989,7 +989,7 @@ def test_invalid_json_sidecar_is_not_mistaken_for_an_incomplete_jsonl_tail(tmp_p
     ],
 )
 def test_namespaced_credentials_are_redacted_in_objects_and_text(key):
-    from tandem_data.privacy import redact, sanitize
+    from orbit_data.privacy import redact, sanitize
 
     secret = "arbitrary credential with spaces"
     assert sanitize({"config": {key: secret}})["config"][key] == "<redacted:secret>"
@@ -1001,7 +1001,7 @@ def test_namespaced_credentials_are_redacted_in_objects_and_text(key):
 
 @pytest.mark.parametrize("version_field", ["mapper_version", "reducer_version"])
 def test_analysis_reader_rejects_obsolete_projection_without_new_input(tmp_path, version_field):
-    from tandem_data.analysis_input import AnalysisScope, read_analysis
+    from orbit_data.analysis_input import AnalysisScope, read_analysis
 
     with Store(tmp_path / "data") as store:
         capture(
@@ -1027,18 +1027,18 @@ def test_analysis_reader_rejects_obsolete_projection_without_new_input(tmp_path,
         bundle = read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
         latest = store.db.execute("SELECT MAX(run_id) FROM projection_run").fetchone()[0]
         assert bundle["projection_run_id"] == latest
-        from tandem_data.query import current_projection
+        from orbit_data.query import current_projection
 
         with (
-            readonly_connection(store.home / "tandem.db") as db,
+            readonly_connection(store.home / "orbit.db") as db,
             pytest.raises(ValueError, match="pending"),
         ):
             current_projection(db)
 
 
 def test_untimed_tool_result_does_not_enter_historical_analysis(tmp_path):
-    from tandem_data.analysis_input import AnalysisScope, read_analysis
-    from tandem_data.contract import time_fields
+    from orbit_data.analysis_input import AnalysisScope, read_analysis
+    from orbit_data.contract import time_fields
 
     with Store(tmp_path / "data") as store:
         capture(
@@ -1100,7 +1100,7 @@ def test_untimed_tool_result_does_not_enter_historical_analysis(tmp_path):
 
 
 def test_selected_session_coverage_excludes_unrelated_broken_hermes_source(tmp_path):
-    from tandem_data.analysis_input import AnalysisScope, read_analysis
+    from orbit_data.analysis_input import AnalysisScope, read_analysis
 
     with Store(tmp_path / "data") as store:
         source = capture(
@@ -1188,8 +1188,8 @@ def test_sqlite_blob_is_only_recoverable_from_l0(tmp_path):
 
 
 def test_historical_session_title_is_replayed_before_cutoff(tmp_path):
-    from tandem_data.analysis_input import AnalysisScope, read_analysis
-    from tandem_data.contract import time_fields
+    from orbit_data.analysis_input import AnalysisScope, read_analysis
+    from orbit_data.contract import time_fields
 
     with Store(tmp_path / "data") as store:
         capture(
@@ -1244,13 +1244,13 @@ def test_hermes_recorded_git_root_survives_missing_worktree(tmp_path, cwd):
 def test_project_type_transition_migrates_existing_ids_and_overrides(tmp_path):
     from importlib.resources import files
 
-    from tandem_data.reduce import project_for
+    from orbit_data.reduce import project_for
 
     home = tmp_path / "data"
     home.mkdir()
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         for migration in ["001.sql", "002.sql", "003.sql"]:
-            db.executescript(files("tandem_data").joinpath("migrations/" + migration).read_text())
+            db.executescript(files("orbit_data").joinpath("migrations/" + migration).read_text())
         db.execute("INSERT INTO project VALUES('old','path','/synthetic/repo','repo',NULL,'[]')")
         db.execute("INSERT INTO project_override VALUES('/synthetic/repo/*','old')")
         db.execute(

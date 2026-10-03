@@ -28,7 +28,7 @@ function redact(text) {
 // Native capabilities of the shell (contract: native-shell batch). A control shows only when the host lists the feature in
 // __ORBIT_NATIVE__.features and a message handler exists; in a browser or an older shell the row is hidden, never broken.
 // NATV.ask(type, payload, ms, ev) posts {type, id, ...} (Orbit.swift answers with the same id) and resolves the reply event
-// 'tandem:<type>' (or ev, e.g. notify → 'tandem:notified'); no reply within ms rejects with code 'timeout'.
+// 'orbit:<type>' (or ev, e.g. notify → 'orbit:notified'); no reply within ms rejects with code 'timeout'.
 const NATV = {
   on() { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.hasHost()); },
   has(f) { const n = window.ORBIT && window.ORBIT.native; return NATV.on() && n.has(f); },
@@ -38,7 +38,7 @@ const NATV = {
     if (!NATV.on()) return Promise.reject(Object.assign(new Error('no host'), { code: 'no_host' }));
     const id = (payload && payload.id != null) ? payload.id : type + '-n' + (++NATV.seq) + '-' + Date.now().toString(36);
     return new Promise((resolve, reject) => {
-      const evs = ['tandem:' + type, ev || 'tandem:reply'];
+      const evs = ['orbit:' + type, ev || 'orbit:reply'];
       const done = (fn, v) => { evs.forEach((x) => window.removeEventListener(x, h)); clearTimeout(t); fn(v); };
       const h = (e) => { const d = (e && e.detail) || {}; if (d.id === id) done(resolve, d); };
       const t = setTimeout(() => done(reject, Object.assign(new Error('timeout'), { code: 'timeout' })), ms || 4000);

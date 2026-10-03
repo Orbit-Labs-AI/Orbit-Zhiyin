@@ -7,7 +7,7 @@ import { stubGateway, openLive, collectErrors, fx } from './live-helpers.mjs';
 const NATIVE = { v: 1, app: '0.0.1', platform: 'macos', features: ['chooseFolder', 'save', 'openExternal', 'reveal', 'window'] };
 const sent = (gw, m, p) => gw.seen.filter((s) => s.method === m && s.path === p);
 const bodies = [];
-async function track(page) { page.on('request', (r) => { if (/^http:\/\/tandem\.test\/v1\//.test(r.url()) && r.method() !== 'GET') bodies.push({ m: r.method(), path: new URL(r.url()).pathname, query: new URL(r.url()).search, body: r.postData() ? JSON.parse(r.postData()) : null }); }); }
+async function track(page) { page.on('request', (r) => { if (/^http:\/\/orbit\.test\/v1\//.test(r.url()) && r.method() !== 'GET') bodies.push({ m: r.method(), path: new URL(r.url()).pathname, query: new URL(r.url()).search, body: r.postData() ? JSON.parse(r.postData()) : null }); }); }
 const posted = (m, p) => bodies.filter((b) => b.m === m && b.path === p);
 const tab = (page, t) => page.evaluate((x) => { S.setTab = x; renderSet(); }, t);
 const MOCK_WORDS = /Confluo|latentskill|Gemini CLI|Copilot|812 MB|1\.0（演示版）/;
@@ -64,7 +64,7 @@ test('settings: 通用 / 数据源 / 隐私 / 分析 / 通知 read the gateway a
   await expect.poll(() => posted('PATCH', '/v1/app/settings').map((b) => b.body).slice(-1)).toEqual([{ sync_mode: 'hour' }]);
   await page.locator('#set [data-act="setAddSrc"]').last().click();
   await expect.poll(() => page.evaluate(() => window.__nativeMsgs.filter((m) => m.type === 'chooseFolder').length)).toBe(1);
-  await page.evaluate(() => { const m = window.__nativeMsgs.find((x) => x.type === 'chooseFolder'); window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id: m.id, path: '/fx/extra/.codex/sessions', cancelled: false } })); });
+  await page.evaluate(() => { const m = window.__nativeMsgs.find((x) => x.type === 'chooseFolder'); window.dispatchEvent(new CustomEvent('orbit:folder', { detail: { id: m.id, path: '/fx/extra/.codex/sessions', cancelled: false } })); });
   await expect.poll(() => posted('POST', '/v1/app/sources').map((b) => b.body).slice(-1)).toEqual([{ agent: 'codex', root: '/fx/extra/.codex/sessions', enabled: true }]);
   await expect.poll(() => posted('POST', '/v1/app/jobs').map((b) => b.body)).toEqual([{ kind: 'import', source_ids: ['source_fx_new'] }]);
   await page.locator('#set [data-act="setMap"]').click();
@@ -125,7 +125,7 @@ test('about: version from the host and the gateway, health, diagnostics saved th
   expect(msg.filename).toMatch(/^orbit-diagnostics-\d{8}-\d{4}\.json$/);
   expect(msg.mime).toBe('application/json');
   expect(JSON.parse(msg.text)).toBeTruthy();
-  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('tandem:saved', { detail: { id, ok: true, path: '/fx/Downloads/x.json' } })), msg.id);
+  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('orbit:saved', { detail: { id, ok: true, path: '/fx/Downloads/x.json' } })), msg.id);
   await expect(page.locator('#toast')).toContainText('/fx/Downloads/x.json');
   await expect(page.locator('#set')).not.toContainText('1.0（演示版）');
   expect(errors).toEqual([]);

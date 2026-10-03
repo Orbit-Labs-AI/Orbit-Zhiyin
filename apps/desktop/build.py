@@ -1,4 +1,4 @@
-"""Build Orbit.app: native Swift host + frozen tandem-helper gateway + single-file Advance UI.
+"""Build Orbit.app: native Swift host + frozen orbit-helper gateway + single-file Advance UI.
 
 Usage (from the repository root, after ``bash scripts/bootstrap.sh``):
 
@@ -6,8 +6,8 @@ Usage (from the repository root, after ``bash scripts/bootstrap.sh``):
     uv run python apps/desktop/build.py --skip-helper   # reuse the last PyInstaller output
 
 Outputs in ``.local/macos-build/``: ``Orbit.app``, ``Orbit-0.0.3-arm64.zip`` and
-``Orbit-0.0.3-arm64.dmg``. Signing is ad-hoc unless ``TANDEM_SIGN_IDENTITY`` names a
-Developer ID identity; ``TANDEM_NOTARY_PROFILE`` additionally notarizes and staples.
+``Orbit-0.0.3-arm64.dmg``. Signing is ad-hoc unless ``ORBIT_SIGN_IDENTITY`` names a
+Developer ID identity; ``ORBIT_NOTARY_PROFILE`` additionally notarizes and staples.
 """
 
 from __future__ import annotations
@@ -35,16 +35,16 @@ ARTIFACT = f"{NAME}-{VERSION}-arm64"
 LOGO = ROOT / "docs/design/logo"
 PYINSTALLER = "pyinstaller==6.22.3"
 
-COLLECT_ALL = ["tandem_backend", "tandem_data", "tandem_catalog", "jieba"]
+COLLECT_ALL = ["orbit_backend", "orbit_data", "orbit_catalog", "jieba"]
 COLLECT_DATA = ["jsonschema_specifications"]
-COPY_METADATA = ["tandem-backend", "tandem-data", "tandem-catalog", "scikit-learn", "numpy",
+COPY_METADATA = ["orbit-backend", "orbit-data", "orbit-catalog", "scikit-learn", "numpy",
                  "scipy", "jieba", "fastapi", "pydantic", "uvicorn", "jsonschema"]
 HIDDEN_IMPORTS = ["uvicorn.logging", "uvicorn.loops", "uvicorn.loops.auto", "uvicorn.protocols",
                   "uvicorn.protocols.http", "uvicorn.protocols.http.auto",
                   "uvicorn.protocols.http.h11_impl", "uvicorn.protocols.websockets",
                   "uvicorn.protocols.websockets.auto", "uvicorn.lifespan", "uvicorn.lifespan.on",
-                  "tandem_backend.services.worker_ingest", "tandem_backend.services.worker_analysis",
-                  "tandem_backend.services.gateway", "tandem_backend.api.routes"]
+                  "orbit_backend.services.worker_ingest", "orbit_backend.services.worker_analysis",
+                  "orbit_backend.services.gateway", "orbit_backend.api.routes"]
 EXCLUDES = ["tkinter", "matplotlib", "IPython", "pytest", "onnxruntime", "tokenizers", "torch"]
 
 
@@ -64,7 +64,7 @@ def build_ui(resources: Path) -> None:
 
 def build_helper() -> Path:
     args = ["uv", "run", "--with", PYINSTALLER, "pyinstaller", "--noconfirm", "--clean",
-            "--name", "tandem-helper", "--onedir", "--console",
+            "--name", "orbit-helper", "--onedir", "--console",
             "--distpath", OUTPUT / "dist", "--workpath", OUTPUT / "work", "--specpath", OUTPUT,
             "--target-arch", "arm64", "--osx-bundle-identifier", f"{BUNDLE_ID}.helper"]
     for name in COLLECT_ALL:
@@ -78,7 +78,7 @@ def build_helper() -> Path:
     for name in EXCLUDES:
         args += ["--exclude-module", name]
     run(*args, HERE / "server_entry.py")
-    return OUTPUT / "dist/tandem-helper"
+    return OUTPUT / "dist/orbit-helper"
 
 
 def build_host(contents: Path) -> None:
@@ -216,7 +216,7 @@ def sign(identity: str, runtime: bool | None = None) -> None:
     if identity != "-":
         flags.append("--timestamp")
     backend = APP / "Contents/Resources/backend"
-    helper = backend / "tandem-helper"
+    helper = backend / "orbit-helper"
     nested = [p for p in backend.rglob("*") if p != helper and _is_macho(p)]
     for path in sorted(nested, key=lambda p: len(p.parts), reverse=True):
         run("codesign", "--force", "--sign", identity, *flags, path, stdout=subprocess.DEVNULL)
@@ -244,8 +244,8 @@ def main() -> None:
                         help="Hardened Runtime even for ad-hoc signing (checks the helper's entitlements locally)")
     args = parser.parse_args()
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    helper = OUTPUT / "dist/tandem-helper" if args.skip_helper else build_helper()
-    if not (helper / "tandem-helper").exists():
+    helper = OUTPUT / "dist/orbit-helper" if args.skip_helper else build_helper()
+    if not (helper / "orbit-helper").exists():
         raise SystemExit(f"missing helper build at {helper}")
     shutil.rmtree(APP, ignore_errors=True)
     contents = APP / "Contents"
@@ -258,9 +258,9 @@ def main() -> None:
     build_host(contents)
     write_plist(contents)
     check_minos(APP)
-    identity = os.environ.get("TANDEM_SIGN_IDENTITY", "-")
+    identity = os.environ.get("ORBIT_SIGN_IDENTITY", "-")
     sign(identity, runtime=True if args.runtime else None)
-    profile = os.environ.get("TANDEM_NOTARY_PROFILE")
+    profile = os.environ.get("ORBIT_NOTARY_PROFILE")
     if profile and identity != "-":
         notarize = OUTPUT / f"{ARTIFACT}-notarize.zip"
         run("ditto", "-c", "-k", "--keepParent", APP, notarize)

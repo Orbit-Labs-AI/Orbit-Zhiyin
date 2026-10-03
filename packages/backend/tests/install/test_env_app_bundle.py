@@ -3,7 +3,7 @@
 import os
 import subprocess
 
-from tandem_backend.install import env as envmod
+from orbit_backend.install import env as envmod
 
 
 def _bundle(root, version_line):
@@ -41,7 +41,7 @@ def test_user_applications_and_rc_suffix(tmp_path, monkeypatch):
 
 
 def test_engines_find_binary_globs_app_bundles(tmp_path, monkeypatch):
-    from tandem_backend.ai import engines
+    from orbit_backend.ai import engines
 
     exe = _bundle(tmp_path / "Applications", "codex-cli 0.159.0-alpha.12.1")
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))

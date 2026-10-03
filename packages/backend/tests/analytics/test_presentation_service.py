@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.presentation import build_presentation
-from tandem_backend.analytics.presentation.service import _tokens
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.presentation import build_presentation
+from orbit_backend.analytics.presentation.service import _tokens
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
 
 
 def fixture_bundle():
@@ -114,8 +114,8 @@ def test_api_cli_and_python_share_exact_scope_and_computation(monkeypatch, tmp_p
         def analysis_bundle(self, scope):
             return bundle
 
-    monkeypatch.setattr("tandem_backend.api.routes.Store", lambda _: FixtureStore())
-    monkeypatch.setattr("tandem_backend.cli.commands.Store", lambda _: FixtureStore())
+    monkeypatch.setattr("orbit_backend.api.routes.Store", lambda _: FixtureStore())
+    monkeypatch.setattr("orbit_backend.cli.commands.Store", lambda _: FixtureStore())
     client = TestClient(create_app(db=tmp_path / "unused.db"))
     end = max(e["ts"] or 0 for e in bundle.events) + 1
     response = client.get("/v1/analytics/presentation", params={"window": "7d", "until_ts": end,
@@ -154,7 +154,7 @@ def test_cross_project_native_task_labels_and_preference_candidates_do_not_leak(
 
 
 def test_snapshot_total_retains_authoritative_evidence_and_separate_bucket_basis():
-    from tandem_backend.analytics.cost_time import usage
+    from orbit_backend.analytics.cost_time import usage
 
     snapshot = {"session_uid": "s", "event_uid": "snapshot-event", "seq": 1, "kind": "model.usage",
                 "attrs": {"measurement": "cumulative", "snapshot_key": "cycle", "usage_scope": "session_snapshot",
@@ -177,8 +177,8 @@ def test_presentation_preserves_explicit_recommendation_catalog_and_agent(monkey
         def analysis_bundle(self, scope):
             return bundle
 
-    monkeypatch.setattr("tandem_backend.api.routes.Store", lambda _: FixtureStore())
-    monkeypatch.setattr("tandem_backend.cli.commands.Store", lambda _: FixtureStore())
+    monkeypatch.setattr("orbit_backend.api.routes.Store", lambda _: FixtureStore())
+    monkeypatch.setattr("orbit_backend.cli.commands.Store", lambda _: FixtureStore())
     empty_catalog = tmp_path / "empty-catalog"
     empty_catalog.mkdir()
     client = TestClient(create_app(db=tmp_path / "unused.db", recommendation_catalog=empty_catalog))
@@ -236,7 +236,7 @@ def two_agent_bundle(agent):
 
 @pytest.mark.parametrize("agent", AGENTS)
 def test_each_agent_flows_through_products_presentation_and_work_graph(agent):
-    from tandem_backend.analytics.products import build_products
+    from orbit_backend.analytics.products import build_products
 
     bundle, other = two_agent_bundle(agent)
     both = analyze_bundle(bundle, Scope(), with_text=False)

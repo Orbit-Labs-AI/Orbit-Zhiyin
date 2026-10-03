@@ -9,9 +9,9 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 from realtime_fixtures import NOW, Reads
 
-from tandem_backend.realtime.hooks import HookFeed
-from tandem_backend.realtime.service import Realtime
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.realtime.hooks import HookFeed
+from orbit_backend.realtime.service import Realtime
+from orbit_backend.services.gateway import Gateway
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 
@@ -62,12 +62,12 @@ def test_passive_events_keep_the_wait_open(home):
     assert feed.waits()[0]["wait_s"] == 4.0
 
 
-def test_realtime_uses_hook_approval_and_statusline_context(tandem, home):
-    tandem.session("s1", started=NOW - 60_000, title="部署")
-    tandem.event("s1", NOW - 20_000, actor="assistant")
+def test_realtime_uses_hook_approval_and_statusline_context(orbit, home):
+    orbit.session("s1", started=NOW - 60_000, title="部署")
+    orbit.event("s1", NOW - 20_000, actor="assistant")
     append(home, line("PermissionRequest", NOW - 10_000, tool="Bash", command="git push"),
            line("StatusLine", NOW - 9_000, context={"used_tokens": 190_000, "context_window_size": 200_000}))
-    gw = SimpleNamespace(reads=Reads(tandem.path), platform=None, appdb=None, home=home)
+    gw = SimpleNamespace(reads=Reads(orbit.path), platform=None, appdb=None, home=home)
     rt = Realtime(gw, clock=lambda: NOW / 1000, notify=lambda e: None, resolve=lambda k: None)
 
     item = rt.snapshot(now=NOW / 1000)["sessions"][0]

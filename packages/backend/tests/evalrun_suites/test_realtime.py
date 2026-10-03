@@ -5,8 +5,8 @@ import types
 
 import pytest
 
-from tandem_backend.evalrun.contract import EvalContext
-from tandem_backend.evalrun.suites import realtime as suite
+from orbit_backend.evalrun.contract import EvalContext
+from orbit_backend.evalrun.suites import realtime as suite
 
 GOOD = {"cases": [{"id": "fail_streak", "passed": True, "detail": ""},
                   {"id": "approval_wait", "passed": True, "detail": ""}],
@@ -15,12 +15,12 @@ GOOD = {"cases": [{"id": "fail_streak", "passed": True, "detail": ""},
 
 
 def _inject(monkeypatch, result):
-    pkg = types.ModuleType("tandem_backend.realtime")
-    replay = types.ModuleType("tandem_backend.realtime.replay")
+    pkg = types.ModuleType("orbit_backend.realtime")
+    replay = types.ModuleType("orbit_backend.realtime.replay")
     replay.run_cases = lambda: result
     pkg.replay = replay
-    monkeypatch.setitem(sys.modules, "tandem_backend.realtime", pkg)
-    monkeypatch.setitem(sys.modules, "tandem_backend.realtime.replay", replay)
+    monkeypatch.setitem(sys.modules, "orbit_backend.realtime", pkg)
+    monkeypatch.setitem(sys.modules, "orbit_backend.realtime.replay", replay)
 
 
 def test_clean_replay(tmp_path, monkeypatch):

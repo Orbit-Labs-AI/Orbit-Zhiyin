@@ -8,15 +8,15 @@ import sys
 
 import numpy as np
 
-from tandem_backend import privacy
-from tandem_backend.analytics.common import quantile, timestamp
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.cost_time.durations import summarize_durations
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.respond.calls import normalize_tool_calls, pair_tool_calls
-from tandem_backend.analytics.respond.features import tool_summary
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.analytics.task import representation as rep
+from orbit_backend import privacy
+from orbit_backend.analytics.common import quantile, timestamp
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.cost_time.durations import summarize_durations
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.respond.calls import normalize_tool_calls, pair_tool_calls
+from orbit_backend.analytics.respond.features import tool_summary
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.task import representation as rep
 
 PROMPTS = ["请修复测试失败的问题", "不对，我说的是只改 parser 模块", "好的，可以了，谢谢",
            "还是不行，重新跑一下测试", "Please add type hints and run the build"]
@@ -212,6 +212,6 @@ def test_novelty_uses_only_strictly_earlier_text():
 
 
 def test_importing_the_analysis_service_does_not_load_sklearn():
-    code = ("import sys, tandem_backend.analytics.service\n"
+    code = ("import sys, orbit_backend.analytics.service\n"
             "assert not [m for m in sys.modules if m.split('.')[0] in ('sklearn', 'scipy')]")
     subprocess.run([sys.executable, "-c", code], check=True)

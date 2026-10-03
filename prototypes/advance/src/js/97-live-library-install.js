@@ -1,4 +1,4 @@
-/* ============ live binding: A8 资源库 + 安装流程 (library-install; TandemLive C.li, js/06-live-client.js) ============
+/* ============ live binding: A8 资源库 + 安装流程 (library-install; OrbitLive C.li, js/06-live-client.js) ============
    Live mode only; mock mode changes nothing. The library page keeps the demo's classes and layout (tabs + kind chips, three
    feature cards, 更多匹配 rows, a right-hand card) with catalog data: tabs map to sort / origin (local = 本地生成), kind chips to
    kind filters with facet counts, the search box to /v1/catalog/search (debounced), 加载更多 to next_cursor. A card opens the
@@ -295,7 +295,7 @@ function liInstalledSheet(more) {
     const live = (S2.state ? S2.state.items || [] : []).filter((i) => i.state !== 'archived');
     const rows = live.map((i) => '<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--hair);font-size:13px;gap:8px"><span style="min-width:0">' + esc(i.title || i.source_id) + '<span class="cap">（' + esc(TL.li.kindLabel(i.kind)) + '，' + esc(liAgents(i.agents)) + '）</span></span><span class="row" style="gap:6px"><span class="tag">' + esc({ installed: '已安装', observing: '观察中', kept: '已保留', idle: '闲置', reverted: '已撤销' }[i.state] || i.state) + '</span>' + (i.state === 'reverted' ? '' : '<button type="button" class="btn sm" data-act="liRevert" data-id="' + esc(i.install_id) + '">撤销</button>') + '</span></div>').join('');
     const led = S2.ledger.map((e) => '<div class="tl-ev">' + liDay(e.ts) + ' ' + TLU.hm(e.ts) + ' · ' + esc(e.action) + ' · ' + esc(e.op || '') + ' · ' + esc(e.path || '') + '</div>').join('');
-    openModal(modalHead('已安装 · ' + (S2.state ? live.filter((i) => i.state !== 'reverted').length : '…'), '来自本机安装台账') + '<div class="mb col" style="gap:6px" data-tl="installed">' + (S2.error ? (TL.li.degraded(S2.error) ? '<div class="cap" data-lv="na">本机安装台账暂不可用，稍后再试。</div>' : TLU.errorCard(S2.error)) : !S2.state ? TLU.skeleton() : rows || '<span class="cap">还没有通过 Tandem 安装的资源</span>') +
+    openModal(modalHead('已安装 · ' + (S2.state ? live.filter((i) => i.state !== 'reverted').length : '…'), '来自本机安装台账') + '<div class="mb col" style="gap:6px" data-tl="installed">' + (S2.error ? (TL.li.degraded(S2.error) ? '<div class="cap" data-lv="na">本机安装台账暂不可用，稍后再试。</div>' : TLU.errorCard(S2.error)) : !S2.state ? TLU.skeleton() : rows || '<span class="cap">还没有通过 Orbit 安装的资源</span>') +
       '<span class="eb" style="margin-top:8px">操作记录</span><div data-tl="ledger">' + (led || '<span class="cap">—</span>') + '</div>' + (S2.next ? '<button type="button" class="btn sm" data-act="liLedgerMore">加载更早</button>' : '') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
     MODAL_KEY = 'libInstalled';
   };

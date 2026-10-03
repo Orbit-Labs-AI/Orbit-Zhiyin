@@ -5,10 +5,10 @@ import sqlite3
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.install import env as envmod
-from tandem_backend.install import store
-from tandem_backend.install.service import InstallService
+from orbit_backend.appdb import AppDB
+from orbit_backend.install import env as envmod
+from orbit_backend.install import store
+from orbit_backend.install.service import InstallService
 
 from .test_env import Reads
 from .test_fetch import FakeFetcher
@@ -27,11 +27,11 @@ def make_inventory(path, items=()):
 
 @pytest.fixture
 def setup(tmp_path, env):
-    db = AppDB(tmp_path / "tandem" / "app.db")
+    db = AppDB(tmp_path / "orbit" / "app.db")
     calls = []
-    tdb = tmp_path / "tandem.db"
+    tdb = tmp_path / "orbit.db"
     make_inventory(tdb)
-    svc = InstallService(db, tmp_path / "tandem", env=env, fetcher=FakeFetcher(), catalog_lookup=CATALOG.get,
+    svc = InstallService(db, tmp_path / "orbit", env=env, fetcher=FakeFetcher(), catalog_lookup=CATALOG.get,
                          reads=Reads(tdb), artifact_status=lambda *a: calls.append(a))
     yield svc, tdb, calls
     db.close()
@@ -76,7 +76,7 @@ def test_candidate_install_tracks_exposes_links_and_reverts(setup):
 
 def test_kb_candidate_installs_through_its_kb_catalog_entry(setup):
     """A KB-origin card (the one slate hygiene keeps over its ``catalog:kb:<id>`` twin) plans
-    from the ``kb:<id>`` entry the official tandem-kb source publishes."""
+    from the ``kb:<id>`` entry the official orbit-kb source publishes."""
     svc, _, _ = setup
     hook = {"event": "PreToolUse", "matcher": "Bash", "command": "echo synthetic-guard",
             "id": "retry-breaker"}
@@ -143,7 +143,7 @@ SHA = "a" * 40
 
 
 def test_catalog_item_maps_catalog_resources():
-    from tandem_backend.install.plan import catalog_item
+    from orbit_backend.install.plan import catalog_item
 
     skill = catalog_item({"resource": {
         "item_id": "skill:github.com:1:skills/foo/SKILL.md", "type": "skill", "name": "foo", "license": "MIT",
@@ -173,7 +173,7 @@ def test_catalog_item_maps_catalog_resources():
 def test_route_lookup_prefers_gateway_catalog_then_seed(tmp_path):
     from types import SimpleNamespace
 
-    from tandem_backend.services.routes_install import _catalog_lookup
+    from orbit_backend.services.routes_install import _catalog_lookup
 
     resource = {"item_id": "mcp:acme/docs", "type": "mcp_server", "name": "docs", "url": "",
                 "manifest": {"name": "acme/docs", "remotes": [{"type": "streamable-http", "url": "https://d.example"}]}}
@@ -197,8 +197,8 @@ def insert_ai_artifact(appdb, artifact_id, kind, out):
 
 
 def test_ai_hook_artifact_resolves_placeholders_and_symbolic_targets(setup):
-    from tandem_backend.ai.generate.render import render
-    from tandem_backend.ai.generate.templates import get
+    from orbit_backend.ai.generate.render import render
+    from orbit_backend.ai.generate.templates import get
 
     svc, _, _ = setup
     slots = {"matcher": "Bash", "threshold": 3, "message": "先看错误再重试。", "command_heads": ["pnpm test"]}
@@ -211,14 +211,14 @@ def test_ai_hook_artifact_resolves_placeholders_and_symbolic_targets(setup):
     assert preview["risk"]["level"] != "dangerous", preview["risk"]
     result = svc.apply(plan["plan_id"], preview["preview_digest"], disabled_targets=codex)
     home = svc.env.home
-    hooks_dir = home / ".claude/hooks/tandem"
+    hooks_dir = home / ".claude/hooks/orbit"
     assert (hooks_dir / "retry-breaker@1.py").stat().st_mode & 0o111
     assert json.loads((hooks_dir / "retry-breaker@1.config.json").read_text()) == slots
     settings = json.loads((home / ".claude/settings.json").read_text())
     entries = {event: settings["hooks"][event][0] for event in ("PreToolUse", "PostToolUse")}
     for entry in entries.values():
         command = entry["hooks"][0]["command"]
-        assert entry["matcher"] == "Bash" and "{tandem.hooks}" not in command
+        assert entry["matcher"] == "Bash" and "{orbit.hooks}" not in command
         assert f'"{hooks_dir}/retry-breaker@1.py" --config "{hooks_dir}/retry-breaker@1.config.json"' in command
     claude_settings = next(t for t in preview["targets"] if t["path"].endswith("settings.json"))
     assert any(r["op"] == "ai" for r in claude_settings["diff"]["lines"])  # matcher came from an AI slot
@@ -226,8 +226,8 @@ def test_ai_hook_artifact_resolves_placeholders_and_symbolic_targets(setup):
 
 
 def test_ai_skill_rule_and_command_artifacts_install(setup):
-    from tandem_backend.ai.generate.render import render
-    from tandem_backend.ai.generate.templates import get
+    from orbit_backend.ai.generate.render import render
+    from orbit_backend.ai.generate.templates import get
 
     svc, _, _ = setup
     pack = {"refs": {"event": ["e1"]}}
@@ -246,7 +246,7 @@ def test_ai_skill_rule_and_command_artifacts_install(setup):
     home = svc.env.home / ".claude"
     assert "1. 跑测试" in (home / "skills/ts-verify/SKILL.md").read_text()
     memory = (home / "CLAUDE.md").read_text()
-    assert "## 测试先行" in memory and "tandem:rule id=" not in memory
+    assert "## 测试先行" in memory and "orbit:rule id=" not in memory
     assert "检查 diff" in (home / "commands/ship.md").read_text()
 
 

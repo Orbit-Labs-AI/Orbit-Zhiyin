@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from tandem_data.store import Store
+from orbit_data.store import Store
 
 
 def test_about(client):
     body = client.get("/v1/app/about").json()
-    assert body["app"]["name"] == "Tandem" and body["app"]["contract"] == "tandem-app-v1"
+    assert body["app"]["name"] == "Orbit" and body["app"]["contract"] == "orbit-app-v1"
     components = body["components"]
     for key in ("rules_version", "redaction_version", "prompt_version", "db_schema_version",
                 "catalog_schema_version", "feature_vocab", "mappers"):
@@ -30,7 +30,7 @@ def test_tool_map_static_without_database(client):
 
 def test_tool_map_observed_names(client, home):
     Store(home).db.close()
-    db = sqlite3.connect(home / "tandem.db", isolation_level=None)
+    db = sqlite3.connect(home / "orbit.db", isolation_level=None)
     db.execute("PRAGMA foreign_keys = OFF")
     db.execute("INSERT INTO source VALUES ('src-codex', 'codex', '/x', NULL, 1, 0)")
     db.execute("INSERT INTO session(session_uid, source_id, native_id, kind, root_uid, started_at,"

@@ -9,12 +9,12 @@ from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 from .local_diagnostics import snapshot_scope
 from .robustness_invariants import validate_result

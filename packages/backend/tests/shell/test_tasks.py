@@ -9,10 +9,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from synthetic import write_codex_tree
 
-from tandem_backend.services.sections import rules_digest
-from tandem_backend.services.snapshots import SnapshotKey, scope_hash
-from tandem_backend.shell import default_scope, tasks
-from tandem_backend.shell.producers import AnalysisWatcher
+from orbit_backend.services.sections import rules_digest
+from orbit_backend.services.snapshots import SnapshotKey, scope_hash
+from orbit_backend.shell import default_scope, tasks
+from orbit_backend.shell.producers import AnalysisWatcher
 
 TZ = timezone(timedelta(hours=8))
 

@@ -6,10 +6,10 @@ import time
 import pytest
 from fakectx import hook_pack
 
-from tandem_backend.ai.generate.checks import jaccard, lint, parse_frontmatter, scan
-from tandem_backend.ai.generate.render import render
-from tandem_backend.ai.generate.tasks import default_slots, validate_slots
-from tandem_backend.ai.generate.templates import get
+from orbit_backend.ai.generate.checks import jaccard, lint, parse_frontmatter, scan
+from orbit_backend.ai.generate.render import render
+from orbit_backend.ai.generate.tasks import default_slots, validate_slots
+from orbit_backend.ai.generate.templates import get
 
 RULE = {"title": "测试先行", "rules": [{"text": "改完 TypeScript 文件后先跑 pnpm test 再汇报。", "dimension": "verification"}]}
 SKILL = {"name": "ts-verify", "description": "改完 TypeScript 后按步骤验证。", "steps": ["跑 pnpm test", "看 diff"],
@@ -40,7 +40,7 @@ def test_hook_settings_json_and_script_hash():
     assert len(settings) == 2 and all(f["action"] == "merge_json" for f in settings)
     for f in settings:
         snippet = json.loads(f["content"])
-        assert snippet[0]["hooks"][0]["command"].startswith('python3 "{tandem.hooks}/retry-breaker@1.py"')
+        assert snippet[0]["hooks"][0]["command"].startswith('python3 "{orbit.hooks}/retry-breaker@1.py"')
     assert json.loads(next(f for f in out["files"] if f["target"] == "codex.hooks")["content"])["hooks"]
     assert scan("hook", HOOK, out)["status"] == "ok"
 
@@ -49,13 +49,13 @@ def test_rule_block_markers_and_line_marks():
     pack = hook_pack()
     personal = render(get("paragraph"), RULE, pack, personalized=True, kind="rule")
     md = personal["payload"]["markdown"]
-    assert md.startswith("<!-- tandem:rule id=") and "evidence=e1,e2,e3 -->" in md.split("\n")[0]
-    assert md.rstrip().endswith("<!-- /tandem:rule -->")
-    assert personal["payload"]["block_id"].startswith("tandem:rule:")
+    assert md.startswith("<!-- orbit:rule id=") and "evidence=e1,e2,e3 -->" in md.split("\n")[0]
+    assert md.rstrip().endswith("<!-- /orbit:rule -->")
+    assert personal["payload"]["block_id"].startswith("orbit:rule:")
     lines = personal["files"][0]["lines"]
     marks = {line["text"]: line for line in lines}
     assert marks["## 测试先行"]["mark"] == "ai" and marks["## 测试先行"]["evidence"] == ["e1", "e2", "e3"]
-    assert lines[0]["mark"] == "+" and marks["<!-- /tandem:rule -->"]["mark"] == "+"
+    assert lines[0]["mark"] == "+" and marks["<!-- /orbit:rule -->"]["mark"] == "+"
     plain = render(get("paragraph"), RULE, pack, personalized=False, kind="rule")
     assert {line["mark"] for line in plain["files"][0]["lines"]} == {"+"}
     assert all(not line["evidence"] for line in plain["files"][0]["lines"])

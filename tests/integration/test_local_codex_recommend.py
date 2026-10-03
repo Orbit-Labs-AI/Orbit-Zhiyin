@@ -40,7 +40,7 @@ def test_native_files_reach_real_recommendation_with_unchanged_sources(tmp_path,
     path = transcript(source)
     before = hashlib.sha256(path.read_bytes()).hexdigest()
     summary = runner.run(source, output)
-    assert (output / "data/tandem.db").is_file()
+    assert (output / "data/orbit.db").is_file()
     assert summary["selected_files"] == summary["analyzed_main_sessions"] == 1
     assert summary["recommendation_count"] > 0
     result = json.loads((output / "recommendations.json").read_text())

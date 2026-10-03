@@ -4,13 +4,13 @@
 // This reports, in viewport px (= window points): noDrag — interactive elements (buttons, fields, links, selects, [data-act],
 // …) and scroll-bar knobs that touch a drag zone; drag — extra blank header areas (#wtop, .tbar, the sidebar above the edition
 // switch). Interactive elements inside those rects stay noDrag, so the host's hit test is: noDrag wins, then drag / ring.
-// Re-reported (throttled) on resize, 'tandem:layout', route changes, scrolling and DOM changes of #win / #overlay / #modal.
+// Re-reported (throttled) on resize, 'orbit:layout', route changes, scrolling and DOM changes of #win / #overlay / #modal.
 (function nativeDrag() {
   const flag = window.__ORBIT_NATIVE__;
   if (!flag || /[?&]surface=/.test(location.search || '')) return;
   const RING = 8, TITLE = 38, SB = 16;
   const INTERACTIVE = 'button,a[href],input,textarea,select,label,summary,[role="button"],[role="slider"],[role="tab"],[role="switch"],[role="checkbox"],[role="radio"],[role="option"],[role="menuitem"],[contenteditable=""],[contenteditable="true"],[tabindex]:not([tabindex="-1"]),[data-act]';
-  const handler = () => { try { return window.webkit.messageHandlers.tandem; } catch (e) { return null; } };
+  const handler = () => { try { return window.webkit.messageHandlers.orbit; } catch (e) { return null; } };
   let last = '', timer = 0, pending = false;
   const box = (r) => [Math.floor(r.left), Math.floor(r.top), Math.ceil(r.width), Math.ceil(r.height)];
   const meets = (r, z) => r.left < z.left + z.width && r.left + r.width > z.left && r.top < z.top + z.height && r.top + r.height > z.top;
@@ -69,7 +69,7 @@
     timer = setTimeout(() => requestAnimationFrame(report), 200);
   }
   window.addEventListener('resize', soon);
-  window.addEventListener('tandem:layout', soon);
+  window.addEventListener('orbit:layout', soon);
   window.addEventListener('hashchange', soon);
   window.addEventListener('scroll', soon, true);
   window.addEventListener('transitionend', soon, true);

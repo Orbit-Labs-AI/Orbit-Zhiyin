@@ -4,7 +4,7 @@
  *   PAGES.foo = () => '… <div class="vz" data-vz="trend"></div> …';
  *   PAGES.foo.after = () => VZ.mount($('[data-vz="trend"]'), spec);
  * 组件按容器实际像素宽度与 spec.height 渲染 SVG：文字、线宽、点大小恒定像素，不随宽度缩放。
- * 容器尺寸变化（ResizeObserver）或 window 'tandem:layout' 事件触发时自动重绘。
+ * 容器尺寸变化（ResizeObserver）或 window 'orbit:layout' 事件触发时自动重绘。
  *
  * 入口：
  *   VZ.mount(el | selector, spec) -> inst       挂载/更新；el 需有可测量宽度；返回实例 { el, spec, hidden, focus, redraw() }
@@ -373,7 +373,7 @@ VZ.xyTable = function (spec) {
 VZ._ro = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver((entries) => { entries.forEach((e) => { const el = e.target; const inst = VZ._inst.get(el); if (!inst) return; if (!el.isConnected) { VZ._ro.unobserve(el); return; } const w = el.clientWidth; if (Math.abs(w - inst.w) >= 1) VZ.draw(el); }); }) : null;
 VZ._observe = (el) => { if (VZ._ro) VZ._ro.observe(el); };
 VZ.relayout = () => { $$('.vz').forEach((el) => { const inst = VZ._inst.get(el); if (inst && el.isConnected && Math.abs(el.clientWidth - inst.w) >= 1) VZ.draw(el); }); };
-window.addEventListener('tandem:layout', VZ.relayout);
+window.addEventListener('orbit:layout', VZ.relayout);
 /* ---------- 交互：hover / 十字准线 / 键盘 / 点击 / 图例 / brush ---------- */
 VZ._tipShow = function (inst, html, x, y) {
   const tip = inst.el.querySelector('.vz-tip'); const plot = inst.el.querySelector('.vz-plot'); if (!tip || !plot) return;

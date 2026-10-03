@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from tandem_backend.cli import demo_home
-from tandem_backend.store import Store, import_codex
+from orbit_backend.cli import demo_home
+from orbit_backend.store import Store, import_codex
 
 
 def test_omitted_flags_preserve_snapshot_and_held_out_sessions(tmp_path):
@@ -55,7 +55,7 @@ def test_tightened_policy_survives_a_later_import_failure(tmp_path, monkeypatch)
     def cannot_read(*args, **kwargs):
         raise OSError("source temporarily unavailable")
 
-    monkeypatch.setattr("tandem_backend.legacy.store.parse_rollout", cannot_read)
+    monkeypatch.setattr("orbit_backend.legacy.store.parse_rollout", cannot_read)
     with pytest.raises(OSError):
         import_codex(store, home, exclude_sessions={"demo-0"})
     assert store.counts()["sessions"] == 0

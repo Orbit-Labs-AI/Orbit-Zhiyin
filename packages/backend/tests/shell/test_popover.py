@@ -1,11 +1,11 @@
-"""GET /v1/shell/popover over an empty home and a synthetic tandem.db with a fixed clock."""
+"""GET /v1/shell/popover over an empty home and a synthetic orbit.db with a fixed clock."""
 
 from __future__ import annotations
 
-from realtime_fixtures import NOW, Tandem
+from realtime_fixtures import NOW, Orbit
 
-from tandem_backend.realtime.service import Realtime
-from tandem_backend.shell import popover
+from orbit_backend.realtime.service import Realtime
+from orbit_backend.shell import popover
 
 H = 3_600_000
 MIN = 60_000
@@ -35,7 +35,7 @@ def test_paused_collection(gateway_factory):
 
 
 def seed(home):
-    t = Tandem(home)
+    t = Orbit(home)
     # Running: started 30 min ago, events up to 20 s ago.
     t.session("run", started=NOW - 30 * MIN, title="running one")
     t.event("run", NOW - 30 * MIN, actor="human", kind="message.user", text="go")
@@ -57,7 +57,7 @@ def seed(home):
 
 
 def make_gateway(gateway_factory, tmp_path):
-    home = tmp_path / "tandem"
+    home = tmp_path / "orbit"
     home.mkdir()
     seed(home)
     _, gw = gateway_factory(home=home, started=False)
@@ -104,9 +104,9 @@ def test_timezone_moves_day_boundary(gateway_factory, tmp_path):
 
 
 def test_idle_shows_opening_and_yesterday(gateway_factory, tmp_path):
-    home = tmp_path / "tandem"
+    home = tmp_path / "orbit"
     home.mkdir()
-    t = Tandem(home)
+    t = Orbit(home)
     t.session("y", status="completed", started=NOW - 20 * H, ended=NOW - 19 * H)
     t.event("y", NOW - 20 * H, actor="human", kind="message.user", text="不对，重新来")
     t.db.close()

@@ -10,10 +10,10 @@
 
 | 类别 | 保持原样的标识 |
 | --- | --- |
-| Python 包与 CLI | `tandem_backend`、`tandem_data`、`tandem_catalog`，命令 `tandem`、`tandem-data` |
-| 数据目录与环境变量 | `~/Library/Application Support/Tandem/`、`.tandem/`、`TANDEM_HOME`、`tandem.db` |
-| 前端与客户端 | `TandemLive`、`TandemCatalogClient`、`@tandem/*` workspace 包名、`X-Tandem-Freshness` 响应头、localStorage 前缀 |
-| 文件名 | `prototypes/advance/tandem-demo.html`、`prototypes/lite/tandem-benchmark-demo.html` |
+| Python 包与 CLI | `orbit_backend`、`orbit_data`、`orbit_catalog`，命令 `orbit`、`orbit-data` |
+| 数据目录与环境变量 | `~/Library/Application Support/Orbit/`、`.orbit/`、`ORBIT_HOME`、`orbit.db` |
+| 前端与客户端 | `OrbitLive`、`OrbitCatalogClient`、`@orbit/*` workspace 包名、`X-Orbit-Freshness` 响应头、localStorage 前缀 |
+| 文件名 | `prototypes/advance/orbit-demo.html`、`prototypes/lite/orbit-benchmark-demo.html` |
 
 规划中的 App bundle 写作 `Orbit.app`。若日后统一改代码标识，需要同时迁移已有数据目录，届时另行记录。
 

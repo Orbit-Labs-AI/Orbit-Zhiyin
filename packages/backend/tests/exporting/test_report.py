@@ -6,8 +6,8 @@ import copy
 
 import pytest
 
-from tandem_backend.exporting import report, sharecard
-from tandem_backend.services.snapshots import scope_hash
+from orbit_backend.exporting import report, sharecard
+from orbit_backend.services.snapshots import scope_hash
 
 OVERVIEW = {"coverage": {"events": {"status": "available"}, "tool_calls": {"status": "partial"}},
             "overview": {"counts": {"sessions": 12, "main_sessions": 10, "human_messages": 40,
@@ -76,7 +76,7 @@ def test_numbers_equal_section_data(env, sections):
     assert s["projects"]["freshness"] == "stale"
     assert s["overview"]["coverage"] == {"events": "available", "tool_calls": "partial"}
     md = body["markdown"]
-    assert md.startswith("# Orbit 协作报告\n") and "Tandem" not in md
+    assert md.startswith("# Orbit 协作报告\n") and "Orbit" not in md
     assert md.count("\n## ") == len(report.DEFAULT_SECTIONS) + 1
     assert "## 口径与限制" in md and "123,456" in md and "7.5%" in md
     assert s["recommendations"]["status"] == "unavailable"

@@ -42,7 +42,7 @@
 **结论：** 骨架完整：检索、列表、facets、详情、本地条目、安装声明和模型库都已经有了。本轮补上了两个结构性空洞：全新安装时库里是 0 条，以及 MCP 几乎为空。剩下的问题在内容质量：hook 太薄；离线种子是用修复前的数据打的包；所有来源都拿不到安装量。
 
 **本轮新增和修复：**
-- 新增来源：`wshobson/agents`、`obra/superpowers`、`anthropics/claude-code`、`openai/skills`、`VoltAgent/awesome-claude-code-subagents`、`ComposioHQ/awesome-claude-skills`、Gemini CLI 扩展（审计实测 2082 条）、ClawHub（带下载量）、`tandem-kb`（Tandem 官方条目 25 条）。
+- 新增来源：`wshobson/agents`、`obra/superpowers`、`anthropics/claude-code`、`openai/skills`、`VoltAgent/awesome-claude-code-subagents`、`ComposioHQ/awesome-claude-skills`、Gemini CLI 扩展（审计实测 2082 条）、ClawHub（带下载量）、`orbit-kb`（Orbit 官方条目 25 条）。
 - 新增离线种子快照 `library-seed.v1`：1277 条，1.3 MB（2026-10-03 用修复后的来源重打：hook 按插件目录命名、无 skill 内部规则、镜像去重；MCP 注册表实测 ≥ 24000 个），首启时导入，联网同步后退役。
 - 新增后台定时刷新。
 - HttpClient 对 5xx、429 和超时做退避重试。
@@ -60,7 +60,7 @@
 | subagent | 同上；新增 VoltAgent、wshobson | 279（含被误判的 skill 内部文件） | 150 | 许可 94%，README 94% | 来源已修；种子里仍有 5 条误判 |
 | command | 各插件仓库 | 75 | 60 | 简介 85%，许可 79% | — |
 | rule / workflow | 同上 | 333（其中 148 条是 skill 内部文件）/ 22 | 60 / 20 | 规则简介 54% | 来源已修；**种子里的 60 条规则仍是 `_sections`、`_template` 这类 skill 内部文件，简介 0%** |
-| hook | claude-plugins、awesome-copilot；新增 tandem-kb 官方条目 5 条 | 17（其中 16 条都叫 "hooks"，且全部不可安装） | 16 | 简介 47% | 已解析 `install.hook`，并按插件目录命名；**种子里的 16 条仍然都叫 "hooks"**；UI 上的 retry-breaker、readonly-allowlist 等现在以官方条目入库 |
+| hook | claude-plugins、awesome-copilot；新增 orbit-kb 官方条目 5 条 | 17（其中 16 条都叫 "hooks"，且全部不可安装） | 16 | 简介 47% | 已解析 `install.hook`，并按插件目录命名；**种子里的 16 条仍然都叫 "hooks"**；UI 上的 retry-breaker、readonly-allowlist 等现在以官方条目入库 |
 | mcp_server | MCP 官方注册表（实测 ≥ 5100 个） | 1（首次同步 294 秒后 http_500 失败） | 300 | 种子：简介 100%，`packages` 72%，安装量 0 | 入库时即生成 `install.mcp`；重试加分段发布后**没有联网复测**全量条数 |
 | model / benchmark | models.dev、litellm、SWE-bench | 12823 / 324 | — | 完整 | full |
 

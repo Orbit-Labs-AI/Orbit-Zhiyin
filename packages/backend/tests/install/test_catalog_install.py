@@ -3,7 +3,7 @@
 import json
 from types import SimpleNamespace
 
-from tandem_backend.install.plan import catalog_item
+from orbit_backend.install.plan import catalog_item
 
 from .test_service import CATALOG, run, svc  # noqa: F401
 
@@ -49,7 +49,7 @@ def test_catalog_hook_installs_and_unsupported_items_are_link_only(svc, fake_hom
 
 
 def test_route_lookup_uses_lean_install_view(tmp_path):
-    from tandem_backend.services.routes_install import _catalog_lookup
+    from orbit_backend.services.routes_install import _catalog_lookup
 
     def boom(_):
         raise AssertionError("detail() builds the related-items index")

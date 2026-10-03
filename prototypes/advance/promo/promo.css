@@ -1,4 +1,4 @@
-/* Tandem promo stage: a fixed 1920×1080 pure-black frame. Two live copies of the app (#app0/#app1) each show one
+/* Orbit promo stage: a fixed 1920×1080 pure-black frame. Two live copies of the app (#app0/#app1) each show one
    component at a time (everything else is hidden); the .cam/.rig pairs are their cameras; #fx holds the type. */
 :root{
   --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;

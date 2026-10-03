@@ -13,7 +13,7 @@
 
 ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Code、Codex 等 Agent 的会话记录，生成协作人格画像与会话轨迹，并推荐 Skills、Hooks、规则等可一键安装、可撤销的改进。数据只在本机处理。
 
-当前可运行部分是统一数据层、Python 后端、CLI、本机 API 和一个 UI 原型（Lite / Advance 同一个 App，示例数据）；尚无原生 App target 或安装包。产品名为 Orbit，代码标识（`tandem_*` 包、`tandem` CLI、数据目录）暂沿用旧代号，见[品牌](docs/design/brand.md#名称)。
+当前可运行部分是统一数据层、Python 后端、CLI、本机 API 和一个 UI 原型（Lite / Advance 同一个 App，示例数据）；尚无原生 App target 或安装包。产品名为 Orbit，代码标识（`orbit_*` 包、`orbit` CLI、数据目录）暂沿用旧代号，见[品牌](docs/design/brand.md#名称)。
 
 ## 开始开发
 
@@ -21,12 +21,12 @@ ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Co
 
 ```sh
 bash scripts/bootstrap.sh
-uv run tandem demo
+uv run orbit demo
 pnpm dev --home .local/demo/data
 ```
 
 Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明位于 <http://127.0.0.1:8765/docs>。
-上面的启动命令读取刚生成的 Demo 数据库。使用自己的已初始化开发库时可运行 `pnpm dev --home .tandem`；实际来源须显式执行 `tandem ingest` 才会导入。
+上面的启动命令读取刚生成的 Demo 数据库。使用自己的已初始化开发库时可运行 `pnpm dev --home .orbit`；实际来源须显式执行 `orbit ingest` 才会导入。
 完整 CLI、真实来源授权和旧库兼容说明见[使用指南](docs/development/usage.md)。
 
 ## 仓库入口
@@ -52,7 +52,7 @@ Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明�
 ```sh
 pnpm check                 # 模块、跨包、服务流程、文档、构建与安装后验收
 pnpm check:integration     # 只跑跨包与服务流程，自动构建 staging producer
-pnpm --filter @tandem/prototype-advance exec playwright install chromium
+pnpm --filter @orbit/prototype-advance exec playwright install chromium
 pnpm check:ui              # Lite 数据检查 + Advance 浏览器行为测试
 ```
 

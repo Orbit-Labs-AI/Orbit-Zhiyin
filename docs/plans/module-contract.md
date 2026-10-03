@@ -4,16 +4,16 @@
 
 > 用途：给分析（AN）、推荐（RC）、AI、评测（EV）四份模块文档的作者一套共用的分层、feature ID、字段级数据契约、写法模板与边界，保证并行写作不打架。要点之后进入各模块文档与功能映射文档。
 >
-> 依据（2026-10-02 第 2 版刷新）：main `c97c818`（`src/tandem_backend/` v0.13.6、`docs/backend/*.md`、`docs/contracts/analysis-inputs.md`、`docs/plans/data-acquisition.md`（下称 DA）、`docs/research/agent-sessions/`、`prototypes/advance/src/`）；PR #9 `origin/feat/session-data-contract`（`packages/data`、`docs/data-contract.md`）；PR #11 `origin/feat/codex-connector`（`packages/connectors`）；Lite Demo `origin/feat/genius-FXC-dev`（`prototypes/advance/tandem-benchmark-demo.html`、`benchmark-review.md`）；`MistyHuang03` 进行中的 `origin/feat/analytics-{instruction,preference-task,subjective-outcome}`；`yhyfhgs` 的 `origin/ui/shell`；`.work/` 下的调研、盘点与评审。成员一律用 GitHub 账号指代。
+> 依据（2026-10-02 第 2 版刷新）：main `c97c818`（`src/orbit_backend/` v0.13.6、`docs/backend/*.md`、`docs/contracts/analysis-inputs.md`、`docs/plans/data-acquisition.md`（下称 DA）、`docs/research/agent-sessions/`、`prototypes/advance/src/`）；PR #9 `origin/feat/session-data-contract`（`packages/data`、`docs/data-contract.md`）；PR #11 `origin/feat/codex-connector`（`packages/connectors`）；Lite Demo `origin/feat/genius-FXC-dev`（`prototypes/advance/orbit-benchmark-demo.html`、`benchmark-review.md`）；`MistyHuang03` 进行中的 `origin/feat/analytics-{instruction,preference-task,subjective-outcome}`；`yhyfhgs` 的 `origin/ui/shell`；`.work/` 下的调研、盘点与评审。成员一律用 GitHub 账号指代。
 >
 > 状态：第 2 版（后端合入 main 之后）。「现状」列取值：`main:<路径>`（已合入，括号内写实现到什么程度）、`PR#9`、`PR#11`、`分支:<名>`（未合入）、`Adv Demo`（main `prototypes/advance/src`，示例数据）、`Lite Demo`、`计划`。标「待验证」的是需要真实数据或实测才能定的技术假设。
 
 ## 0. 结论先行
 
-1. **数据契约已经存在，本文只引用、不再另画。** 库契约 `tandem-session-v1`（PR #9 `packages/data/src/tandem_data/migrations/001.sql`，`schema_manifest.contract_id = 'tandem-session-v1'`，`PRAGMA user_version = 1`）；分析入口契约 `analysis-input-v1`（`docs/contracts/analysis-inputs.md`；PR #9 `analysis_input.read_analysis()` 产出，main `analytics/inputs.py::AnalysisInputBundle` 消费）；TypeScript Codex connector（PR #11）写独立的 staging 库（`schema/001.sql` + `002.sql`，`user_version = 2`），经 PR #9 `tandem-data import-connector` 桥接进 canonical `tandem.db`。原契约 §3 与这三者冲突的草图字段已删除；仍需要但尚未落库的字段一律标「补充约定」。
-2. **main 后端是 Python 包 `tandem_backend` 0.13.6，两条链路并存。** 旧链路 `import → analyze → recommend → explain`（Codex 专用 parser 26，自有 `sessions / events / imports / sample_policies` 表，输出 `schema_version 1.8`）；新链路 `analytics`（`feature-analytics-v1`，消费 analysis-input-v1，`/v1/analytics/*` 六个路由，每次查询重算、不缓存）。两条链路目前都读 legacy 库 `.local/*.sqlite`，**还没有读过 canonical `tandem.db`**；接 canonical 是 AN 侧第一件事（AN-16）。
+1. **数据契约已经存在，本文只引用、不再另画。** 库契约 `orbit-session-v1`（PR #9 `packages/data/src/orbit_data/migrations/001.sql`，`schema_manifest.contract_id = 'orbit-session-v1'`，`PRAGMA user_version = 1`）；分析入口契约 `analysis-input-v1`（`docs/contracts/analysis-inputs.md`；PR #9 `analysis_input.read_analysis()` 产出，main `analytics/inputs.py::AnalysisInputBundle` 消费）；TypeScript Codex connector（PR #11）写独立的 staging 库（`schema/001.sql` + `002.sql`，`user_version = 2`），经 PR #9 `orbit-data import-connector` 桥接进 canonical `orbit.db`。原契约 §3 与这三者冲突的草图字段已删除；仍需要但尚未落库的字段一律标「补充约定」。
+2. **main 后端是 Python 包 `orbit_backend` 0.13.6，两条链路并存。** 旧链路 `import → analyze → recommend → explain`（Codex 专用 parser 26，自有 `sessions / events / imports / sample_policies` 表，输出 `schema_version 1.8`）；新链路 `analytics`（`feature-analytics-v1`，消费 analysis-input-v1，`/v1/analytics/*` 六个路由，每次查询重算、不缓存）。两条链路目前都读 legacy 库 `.local/*.sqlite`，**还没有读过 canonical `orbit.db`**；接 canonical 是 AN 侧第一件事（AN-16）。
 3. 七个模块前缀 DT / AN / RC / AI / EV / IN / FE 不变。本版新增 DT-19（staging → canonical 桥接）、DT-20（legacy 库适配，过渡）、AN-16（分析输入适配）、AN-17（任务上下文与明确要求）、AN-18（无监督文本表示）、RC-15（试用方法与推荐解释）——都是 main / PR 已有实现而原契约没有编号的能力；旧 ID 含义不改。
-4. **分析产物分两类。** (a) 每次查询现算的测量：现状是 `analytics/service.py::analyze_bundle` 的五段 JSON（`overview / sessions / tools / projects / text`），带 `analysis_digest`、`coverage`、`effective_samples`、`unknown_counts`、`feature_dictionary`；契约只约定响应形状，不建表。(b) 需要跨时间稳定身份的产物（`signal`、`problem`、`profile`、`segment`、`key_moment`、`candidate`、`install_*`、`label`、`eval_run`、`report_snapshot`）落**独立的 `analysis.db`**（补充约定）——不写进 `tandem.db`，因为 PR #9 的 `rebuild` 会整表删除 L2 / L3，PR #11 要求采集库单写者、其他模块只读。
+4. **分析产物分两类。** (a) 每次查询现算的测量：现状是 `analytics/service.py::analyze_bundle` 的五段 JSON（`overview / sessions / tools / projects / text`），带 `analysis_digest`、`coverage`、`effective_samples`、`unknown_counts`、`feature_dictionary`；契约只约定响应形状，不建表。(b) 需要跨时间稳定身份的产物（`signal`、`problem`、`profile`、`segment`、`key_moment`、`candidate`、`install_*`、`label`、`eval_run`、`report_snapshot`）落**独立的 `analysis.db`**（补充约定）——不写进 `orbit.db`，因为 PR #9 的 `rebuild` 会整表删除 L2 / L3，PR #11 要求采集库单写者、其他模块只读。
 5. **推荐以 `problem` 为输入、`candidate` 为输出**（不变）。main `recommend.py` 的「画像证据 ∧ 瓶颈证据 ∧ 场景 ∧ 交付语言 ∧ 来源已核对 → `status = trial`、`effect_status = unmeasured`」是闸门 RC-03 的雏形，`data/skills.json` 的 10 条资源是 `remedy_rule` 的种子（RC-01）；打分、MMR、`install_plan`、`tracking` 均为计划。卡片主数字只用能机械计数的量，估计值标「估计」，效果未测标「未测」（与 main 的 `effect_status = unmeasured` 一致）。
 6. **AI 是可关闭的横切层**（不变）。main 明确「新增分析不请求远程 LLM」，AI-01…AI-11 全部计划；AI-05 的无 AI 降级文案已存在（`narrative.explain() / markdown()`），AI 叙述输出沿用它的 JSON 形状，不另起一套。
 7. **评测**：EV-09 可读性检查（`evaluation.py` readability-v2）、EV-03 合成注入框架（`pipeline_eval.py`：构造 Codex 形态日志 → 独立临时库 → 正式链路 → 事后对标签；dev 34 + probe 12 案例）、EV-10 读者评审入口（`reader_eval.py`）已实现；E1 回归分散在 main 398 项测试、PR #9 `verify` 与 pytest、PR #11 26 项回归；E2 / E4 / E5 / E6 / E7 为计划。
@@ -25,9 +25,9 @@
 
 ```mermaid
 flowchart LR
-  subgraph DTG[数据层 DT · tandem-session-v1]
-    RAW[Agent 数据目录] --> TS[PR#11 TypeScript Codex connector<br/>staging tandem.db · archive_chunk]
-    RAW --> PY[PR#9 tandem-data scan<br/>六个 Python mapper]
+  subgraph DTG[数据层 DT · orbit-session-v1]
+    RAW[Agent 数据目录] --> TS[PR#11 TypeScript Codex connector<br/>staging orbit.db · archive_chunk]
+    RAW --> PY[PR#9 orbit-data scan<br/>六个 Python mapper]
     TS --> BR[PR#9 import-connector<br/>connector_checkpoint · connector_record_link]
     BR --> L0[L0 archive_blob · source_revision]
     PY --> L0
@@ -92,12 +92,12 @@ flowchart LR
 | 规则 | 内容 | 现状 |
 | --- | --- | --- |
 | 单向依赖 | DT → AN → RC → IN；AI 与 EV 只横向介入，不被下游反向依赖（无 AI 时所有产物仍能产出）。 | main 已遵守：`analytics` 不调模型；`recommend` 只吃 `analyze()` 输出。 |
-| 可重算 | L1–L3 由 `tandem-data rebuild` 从 L0 / L1 整体重算并登记 `projection_run`；L1 已增而 L2/L3 未重算时 `read_analysis()` 拒绝读旧投影。分析测量每次查询现算（`analysis_digest = hash(content_digest, scope, FEATURE_VERSION)`）；`analysis.db` 的派生表带版本列，版本变化即整表重算。 | PR#9 `pipeline.rebuild()`、`projection_run`；main `service.analyze_bundle` 的 `analysis_digest`。 |
+| 可重算 | L1–L3 由 `orbit-data rebuild` 从 L0 / L1 整体重算并登记 `projection_run`；L1 已增而 L2/L3 未重算时 `read_analysis()` 拒绝读旧投影。分析测量每次查询现算（`analysis_digest = hash(content_digest, scope, FEATURE_VERSION)`）；`analysis.db` 的派生表带版本列，版本变化即整表重算。 | PR#9 `pipeline.rebuild()`、`projection_run`；main `service.analyze_bundle` 的 `analysis_digest`。 |
 | 回链 | 任何对外展示的数字、句子、建议都能回到 `session_uid / event_uid / call_uid`，再经 `event.record_uid → raw_record → source_revision/archive_blob` 到原文（`Store.read_raw(record_uid)`，PR #9）；AI 产出的引用必须是真实存在的 `event_uid`，否则校验失败。 | main `GET /v1/evidence/{event_id}`、`cli evidence`、`feature_dictionary.provenance`；PR#9 `record_event` 多对多。 |
 | 统计口径 | 「确认真人消息」= `kind = message.user ∧ 会话 kind = main ∧ attrs.origin = human ∧ actor ∈ {human, user}`（main `analytics/features.py::human()`，= PR #9 视图 `v_human_message`）。比例类分母 = 窗口内有 ≥ 1 条确认真人消息的主会话数；`main_sessions` 只作规模。子代理 / workflow_agent 的工具与用量归根会话（`include_children`），不进真人分母；`review / automation / import / auxiliary` 默认排除。分母 < 5 显示「数据不足」，5–30 必须带区间。按**项目**与**模型 × 思考档位**分组展示，Agent 只作来源筛选（DA §4.5）。 | main `select()` 的排除原因枚举；Wilson 仅在旧链路 `analysis.wilson_interval()`；区间与「数据不足」为补充约定。 |
 | 时间 | UTC 毫秒存储；窗口 `[from_ts, until_ts)`；顺序用 `event.seq`，时间戳只用于时长与展示；时间未知的记录不进有界统计（`time_unknown_rows` 单列）。legacy `before` 是含截止点，换算 `until_ts = before + 1`。 | PR#9 `attrs.time.quality`；main `Scope` 校验与 `legacy_before_inclusive`。 |
 | 隐私 | L0 原文只在本机；L2 `text / attrs / ext` 为版本化脱敏副本（PR #9 `redaction_version = 1.0.0`，PR #11 `codex-redact/0.2.0`），文本 8 KiB 截断前先完成测量；任何出本机进程的内容只取脱敏文本并逐项预览；Orbit 自身不上传。 | PR#9 `privacy.py`、PR#11 `privacy.ts`、main `privacy.redact() / direct_user_text()`。 |
-| 单写者 | `tandem.db` 只由 `tandem-data` 写；AN / RC / AI / EV 只读 `tandem.db`（`mode=ro`、`query_only`、`busy_timeout`，一次查询一个读事务）并写自己的 `analysis.db`；staging 与 canonical 目录分开。 | PR#9 `readonly_connection()`；PR#11 README「App 与其他模块只读」。 |
+| 单写者 | `orbit.db` 只由 `orbit-data` 写；AN / RC / AI / EV 只读 `orbit.db`（`mode=ro`、`query_only`、`busy_timeout`，一次查询一个读事务）并写自己的 `analysis.db`；staging 与 canonical 目录分开。 | PR#9 `readonly_connection()`；PR#11 README「App 与其他模块只读」。 |
 
 ## 2. Feature ID 方案与顶层 feature
 
@@ -113,7 +113,7 @@ flowchart LR
 | 产物 | 每个 feature 文档必须写：输入 → 处理 → 输出（引用 §3 的表与字段）、MVP 做法与后续迭代、复杂度与 token 成本、待验证项。模板见 §4。 |
 | 术语 | 「benchmark」只指 `benchmark_result`（公开模型成绩，DT-14）；Orbit 自己的检验叫「评测 EV」；用户与自己过去的比较叫「上期对比」（AN-12）。Lite Demo 标题里的「个人协作 Benchmark」是产品名，不是 EV。 |
 
-### 2.2 DT 数据（对齐 DA 章节与 tandem-session-v1）
+### 2.2 DT 数据（对齐 DA 章节与 orbit-session-v1）
 
 | ID | 名称 | 一句话 | DA | 现状 | 状态 |
 | --- | --- | --- | --- | --- | --- |
@@ -127,11 +127,11 @@ flowchart LR
 | DT-08 | token 与成本 | 五个互斥分桶；成本来源原生 > 价目表（带版本）> 未知；`cache_write_5m / 1h`、`service_tier`、`price_*` | §4.5、§4.6；`oss-usage.md` §6.3 | PR#9 `contract.normalize_usage()`（六方言分桶：input 不含缓存，output 含 reasoning）、`model_call` 只收 `call/delta`、`usage_snapshot(snapshot_key, counter_cycle, coverage)`、`cost_usd` 无价目表为 NULL；PR#11 同口径 + `rate_limits` 窗口写入 attrs；main `features.usage()` 消费（`call_delta` 与 `cumulative_snapshot` 二选一、不相加）。价目表折算（依赖 DT-14）、5m/1h 拆分、`quota_window`：计划。 | MVP（分桶）；v1（价目、5m/1h、额度） |
 | DT-09 | 已安装清单 | 扫描各 Agent 配置、技能、hooks、MCP、定时任务，生成 `inventory_item` 并链接到 `catalog_item` | §3.5、§6.4 | 计划。PR#9 `coverage.inventory = unavailable`；main `feature-analytics.md` 列为 P2 缺口。 | MVP |
 | DT-10 | 脱敏 | L2 写入前密钥检测替换；规则表（路径用户名、邮箱、IP、手机号、自定义正则） | §4.7 | PR#9 `privacy.redact() / sanitize()`（`schema_manifest.redaction_version = 1.0.0`）；PR#11 `privacy.ts`（递归脱敏、去 creator 账号、媒体 / 加密推理只留哈希）；main `privacy.redact()`（5 条密钥模式）+ `direct_user_text()`（剥平台块、引用、围栏、问答回执）。用户可编辑规则表：计划。 | MVP |
-| DT-11 | 生态来源抓取 | MCP Registry、插件市场、Skills 仓库、Hooks 资源表、规则 / 子代理 / 工作流、模型与价目、榜单；ETag / SHA 增量 | §5.1–§5.4 | main `resource_fetch.py`（GitHub REST，固定 commit + blob sha + sha256 校验，`tandem catalog-refresh [--latest] [--resource-id]`，原子写 `.local/catalog.json`；只抓 Markdown，不执行任何脚本）。Registry / 市场 / 榜单：计划。 | MVP：P0 来源；v1：其余 |
+| DT-11 | 生态来源抓取 | MCP Registry、插件市场、Skills 仓库、Hooks 资源表、规则 / 子代理 / 工作流、模型与价目、榜单；ETag / SHA 增量 | §5.1–§5.4 | main `resource_fetch.py`（GitHub REST，固定 commit + blob sha + sha256 校验，`orbit catalog-refresh [--latest] [--resource-id]`，原子写 `.local/catalog.json`；只抓 Markdown，不执行任何脚本）。Registry / 市场 / 榜单：计划。 | MVP：P0 来源；v1：其余 |
 | DT-12 | Catalog 实体与去重 | `catalog_item` 12 类、`item_version`、`item_component`、`item_relation`；内容哈希去重；风险标记 | §6.1、§6.2 | main `data/skills.json` 10 条种子（字段 `id / kind / language / url / source_path / verified_sha / blob_sha / content_sha256 / license / dimensions / scenes / problem_types / summary / limitations / trial / verification / effect_status`）= `catalog_item + item_version` 的最小实例；`catalog.db` 与 12 类：计划。 | MVP |
 | DT-13 | 共享能力词表与特征 | `feature_vocab`、`session_feature`、`item_feature`；命令族（test / build / lint / git / deploy / pkg / run）与只读命令族随词表维护 | §6.3 | PR#9 / PR#11 `session_feature(session_uid, feature ∈ {tool_category, mcp, skill, command_head, file_extension}, value, n)`；main `language_signals`（真人文本中的文件扩展名）、`validation_command_candidates`（`test|pytest|lint|typecheck|build` 命令头正则）。`feature_vocab / item_feature / 命令族表`：计划。 | MVP |
 | DT-14 | 模型清单与公开成绩 | `model_info`（models.dev + LiteLLM 价目）、`benchmark_result` | §5.1、§6.2 | 计划（PR#9：「目录模型映射和定价属于后续 Catalog 接入」）。 | MVP：models.dev、LiteLLM、SWE-bench；v1：其余 |
-| DT-15 | 存储、迁移与导出 | `tandem.db` / `catalog.db` / `raw/`；WAL、FTS5；`user_version` 迁移；导出 | §7 | PR#9 `~/Library/Application Support/Tandem/{tandem.db, raw/}`（`TANDEM_HOME`；STRICT、WAL、`event_fts`、`schema_manifest`、`projection_run`），`tandem-data export --table <11 张表/视图> --format jsonl|csv`、`verify`、`stats`；PR#11 staging `connectors/codex/`（`user_version = 2`、`application_id`、`export --session`、`raw --record`）；main `.local/*.sqlite`（legacy）。`catalog.db`、ATIF 导出：计划。 | MVP |
+| DT-15 | 存储、迁移与导出 | `orbit.db` / `catalog.db` / `raw/`；WAL、FTS5；`user_version` 迁移；导出 | §7 | PR#9 `~/Library/Application Support/Orbit/{orbit.db, raw/}`（`ORBIT_HOME`；STRICT、WAL、`event_fts`、`schema_manifest`、`projection_run`），`orbit-data export --table <11 张表/视图> --format jsonl|csv`、`verify`、`stats`；PR#11 staging `connectors/codex/`（`user_version = 2`、`application_id`、`export --session`、`raw --record`）；main `.local/*.sqlite`（legacy）。`catalog.db`、ATIF 导出：计划。 | MVP |
 | DT-16 | 补充通道：Hooks 与 OTel | 审批等待时长、决策来源、实时「等待审批」；作为可撤销的采集类安装项 | §3.4 | 计划。 | P1（不进 MVP） |
 | DT-17 | 额度快照 | 从日志里已有的 `rate_limits / quotaLimits` 重建额度窗口 | §3.4；`oss-usage.md` §4.12 | PR#11 把 Codex `rate_limits` 按 `window_minutes` 判定 5 小时 / 周窗口并保留在 attrs；L3 化与跨 Agent：计划。 | v1 |
 | DT-18 | 本机 `/insights` 产物对照读取 | 只读 `~/.claude/usage-data/{session-meta,facets}` 作 EV-01 对照 | `agents-a.md` §3.1 | 计划。 | MVP（只读对照） |
@@ -159,7 +159,7 @@ flowchart LR
 | AN-13 | 实时状态 | 运行中 / 空闲、当前工具、上下文占用、刚完成 | SSE `realtime` | MB-13、POP-03、HUD-02…HUD-05 | 计划。PR#11 `watch` 只采集；`session.status` 来自轮次闭合，不能证明进程存活。 | MVP（运行中 / 空闲）；P1（审批） |
 | AN-14 | 固定口径快照与报告 | 周报与分享卡用固定窗口快照；Markdown / CSV / JSON 导出 | `report_snapshot` | EXP-01…EXP-05、SET-21、POP-06 | main `cli report`（`analysis.json / report.md / profile.{md,json} / bottlenecks.{md,json} / process.{md,json}` + `evidence/` 快照，`analysis_reports.py`）、`cli analytics --output`；`report_snapshot` 表与固定窗口：计划。Lite Demo 的 Markdown / CSV / SVG 下载是前端示例。 | MVP |
 | AN-15 | 质量下降诊断 | 纠偏率或返工率上升时依次查模型 / 档位 / 升级 / 上下文 / 压缩 / skill 移除 | `problem(type=quality_drop)` | A1-10 | 计划。 | v1 |
-| AN-16 | 分析输入适配与范围 | 把 canonical `tandem.db`（`read_analysis()`）或 legacy 库适配成 `AnalysisInputBundle`；`Scope` 校验；统计成员与上下文分离；覆盖与未知计数 | `AnalysisInputBundle`、`meta` | — | main `analytics/inputs.py`（`Scope`、`AnalysisInputBundle.from_dict`、`legacy_bundle`、`select`：七种排除原因、重放剔除、模型歧义轮次、未来返回隔离）。**缺 canonical 适配器**：读 PR#9 `read_analysis()` 的输出（已含 `usage_snapshots / statistical_members / diagnostics`）→ `AnalysisInputBundle`；`scene` 由 AN-17 在适配后补到 `attrs`。 | MVP（第一件事） |
+| AN-16 | 分析输入适配与范围 | 把 canonical `orbit.db`（`read_analysis()`）或 legacy 库适配成 `AnalysisInputBundle`；`Scope` 校验；统计成员与上下文分离；覆盖与未知计数 | `AnalysisInputBundle`、`meta` | — | main `analytics/inputs.py`（`Scope`、`AnalysisInputBundle.from_dict`、`legacy_bundle`、`select`：七种排除原因、重放剔除、模型歧义轮次、未来返回隔离）。**缺 canonical 适配器**：读 PR#9 `read_analysis()` 的输出（已含 `usage_snapshots / statistical_members / diagnostics`）→ `AnalysisInputBundle`；`scene` 由 AN-17 在适配后补到 `attrs`。 | MVP（第一件事） |
 | AN-17 | 任务上下文与明确要求 | 从确认真人消息提取任务 `task_id`、场景、读者、交付语言、8 维度要求与篇幅契约；同任务的要求—交付—反馈关联 | `attrs.scene / task_id`、`signals[]`、`contexts[]` | A2-05、A6-07 | main `feedback.py`（`task_contexts()`、`signals()`、`reader_constraints()`、`answers_clarification()`）、`content.py`（篇幅契约）、`trajectory.audit_revisions()`（原回复 / 改写 / 相对评价对）。`legacy_bundle` 只对确认真人消息复用 `task_contexts`。 | MVP（已实现） |
 | AN-18 | 无监督文本表示 | 主会话真人文本的字符 n-gram TF-IDF → SVD → DBSCAN 簇、PCA 二维坐标、仅用更早样本的新颖度 | `text`（§3.2） | A6-04、A2-11 | main `analytics/text.py`（`char-tfidf-svd-v1`：2–4 gram、≤ 20k 特征、≤ 32 维、cosine DBSCAN eps 0.35 / min 2、≥ 4 样本才聚类；`temporal_novelty` 前缀拟合）；分支 `analytics/task/representation.py`。簇不命名、不带人格含义。 | MVP（已实现） |
 
@@ -203,7 +203,7 @@ flowchart LR
 
 | ID | 名称 | 一句话 | 层 | Demo | 现状 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| EV-01 | 数据层回归 | 全记账测试、重复导入零差异、与 `/insights` `session-meta` 对照、与 `cost-state` / ccusage 对账 | E1 | — | main 398 项 pytest（含 `test_import_lifecycle`、`test_feature_analytics` 的契约夹具 `tests/fixtures/analysis-input-v1.json`）+ CI `.github/workflows/backend.yml`（ruff、pytest、`tandem demo`、`tandem evaluate`）；PR#9 `tandem-data verify` + `tests/data/{test_contract,test_edges,test_pipeline}.py` + CI `data-contract.yml`；PR#11 26 项回归 + 真实样本原文 SHA 对账 + CI `connectors.yml`。`/insights`、ccusage 对账：计划。 | MVP |
+| EV-01 | 数据层回归 | 全记账测试、重复导入零差异、与 `/insights` `session-meta` 对照、与 `cost-state` / ccusage 对账 | E1 | — | main 398 项 pytest（含 `test_import_lifecycle`、`test_feature_analytics` 的契约夹具 `tests/fixtures/analysis-input-v1.json`）+ CI `.github/workflows/backend.yml`（ruff、pytest、`orbit demo`、`orbit evaluate`）；PR#9 `orbit-data verify` + `tests/data/{test_contract,test_edges,test_pipeline}.py` + CI `data-contract.yml`；PR#11 26 项回归 + 真实样本原文 SHA 对账 + CI `connectors.yml`。`/insights`、ccusage 对账：计划。 | MVP |
 | EV-02 | 检测器标注集 | 分层抽样约 200 个会话、两人独立标注、Cohen's κ；每类信号报 P / R / F1；κ ≥ 0.6 才上线 | E2 | — | 计划。 | MVP |
 | EV-03 | 合成注入回归集 | 在脱敏 fixtures 里注入已知模式；「先跑后对标签、分母为 0 保持未知」；每条 `remedy_rule` 至少一个触发用例 | E1 / E2 | — | main `pipeline_eval.pipeline_benchmark()`（`_write_case` 构造 Codex JSONL → 独立临时库 → `import_codex / analyze / recommend / explain` → 事后对 `expected`；`data/pipeline_cases.json` 34 例 + `pipeline_probe_cases.json` 12 例；`precision / recall / exact_cases`；`evidence_checks` 8 项 + `source_unchanged`）。注入模式扩展到 L2 事件形态（压缩、并行冲突、中英文纠偏）与 remedy_rule 用例：计划。 | MVP |
 | EV-04 | judge 校准 | 固定 judge 版本；50–100 条金标；成对交换顺序；Rogan–Gladen 校正；漂移监测 | E2 | — | 计划。 | MVP |
@@ -230,7 +230,7 @@ flowchart LR
 
 ### 2.8 FE 前端
 
-Adv Demo = main `prototypes/advance/src/js/`（`40-a1-overview … 48-a9-studio`、`51-install`、`52-palette`、`53-ask`、`55-exports`、`56-onboarding`、`57-settings`、`60-menubar-panel`、`61-hud`、`62-widgets`、`70-sim`；指标在 `15-derive.js` 自算：`stats / persona / axisView / fitOf / buckets / series / heat / toolRows / moodSeries / regress / projRows / visibleRecs`）。Lite Demo = `genius-FXC` 的单文件 `tandem-benchmark-demo.html`（8 页：概览、协作画像、会话与轨迹、工具调用、项目分析、情绪与语义、优化建议、资源库；470 个示例会话；`check-benchmark.cjs` 自检）。两者都不调后端。
+Adv Demo = main `prototypes/advance/src/js/`（`40-a1-overview … 48-a9-studio`、`51-install`、`52-palette`、`53-ask`、`55-exports`、`56-onboarding`、`57-settings`、`60-menubar-panel`、`61-hud`、`62-widgets`、`70-sim`；指标在 `15-derive.js` 自算：`stats / persona / axisView / fitOf / buckets / series / heat / toolRows / moodSeries / regress / projRows / visibleRecs`）。Lite Demo = `genius-FXC` 的单文件 `orbit-benchmark-demo.html`（8 页：概览、协作画像、会话与轨迹、工具调用、项目分析、情绪与语义、优化建议、资源库；470 个示例会话；`check-benchmark.cjs` 自检）。两者都不调后端。
 
 | ID | 名称 | 覆盖的 Demo 条目 | 消费的后端产物 | 现状 | 状态 |
 | --- | --- | --- | --- | --- | --- |
@@ -263,7 +263,7 @@ Adv Demo = main `prototypes/advance/src/js/`（`40-a1-overview … 48-a9-studio`
 
 ### 3.0 已存在的数据契约（引用，不改）
 
-**`tandem-session-v1`（PR #9 `migrations/001.sql`，canonical `tandem.db`）**
+**`orbit-session-v1`（PR #9 `migrations/001.sql`，canonical `orbit.db`）**
 
 | 层 | 表 / 视图 | 关键字段（以 DDL 为准） |
 | --- | --- | --- |
@@ -489,7 +489,7 @@ CREATE TABLE install_plan (                    -- RC-12 生成，IN 消费
   plan_id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL, rendered_by TEXT NOT NULL,   -- template_id@version
   targets TEXT NOT NULL, -- [{"agent":"claude_code","scope":"user","path":"~/.claude/settings.json","action":"merge_json",
                          --   "pointer":"/permissions/allow","content":[…],"content_hash":"sha256:…","block_marker":null,"requires_trust":false,"mappable":true},
-                         --  {"agent":"codex","scope":"user","path":"~/.codex/rules/tandem-readonly.rules","action":"create_file","content":"…","mappable":true,"note":"语法待验证"},
+                         --  {"agent":"codex","scope":"user","path":"~/.codex/rules/orbit-readonly.rules","action":"create_file","content":"…","mappable":true,"note":"语法待验证"},
                          --  {"agent":"dsh","mappable":false,"reason":"无对应的权限前缀规则"}]
   ai_filled_slots TEXT, risk_scan TEXT, preview_digest TEXT NOT NULL, created_at INTEGER) STRICT;
 
@@ -513,7 +513,7 @@ CREATE TABLE catalog_match (item_id TEXT, scope TEXT, scope_id TEXT, score REAL,
 
 ```sql
 CREATE TABLE install_ledger (                  -- IN-04，append-only；analysis.db
-  entry_id TEXT PRIMARY KEY, ts INTEGER, actor TEXT, action TEXT,  -- actor: tandem|user|agent；action: install|revert|disable|enable|archive|snapshot
+  entry_id TEXT PRIMARY KEY, ts INTEGER, actor TEXT, action TEXT,  -- actor: orbit|user|agent；action: install|revert|disable|enable|archive|snapshot
   install_id TEXT, candidate_id TEXT, plan_id TEXT, target_agent TEXT, path TEXT,
   before_hash TEXT, after_hash TEXT, backup_path TEXT, blob_ref TEXT,
   evidence_refs TEXT, preregistered_tracking_id TEXT, note TEXT) STRICT;
@@ -544,7 +544,7 @@ CREATE TABLE install_state (install_id TEXT PRIMARY KEY, candidate_id TEXT, stat
 // ai_request
 {"job_id": "…", "task_id": "facet.session", "prompt_version": "v1", "schema_version": "v1", "model_slot": "cheap",
  "engine": "claude_code|codex|pi|dsh|api_key|ollama", "items": [{"ref_id": "<session_uid>", "payload": {…脱敏…}}],
- "estimated_tokens": 31000, "max_budget_usd": 0.1, "preview_shown": true, "marker": "[tandem-analysis v1]"}
+ "estimated_tokens": 31000, "max_budget_usd": 0.1, "preview_shown": true, "marker": "[orbit-analysis v1]"}
 // ai_response
 {"job_id": "…", "status": "ok|partial|failed|cancelled", "model_id": "…",
  "usage": {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0}, "cost_usd": 0.0, "latency_ms": 0,
@@ -557,7 +557,7 @@ CREATE TABLE install_state (install_id TEXT PRIMARY KEY, candidate_id TEXT, stat
 
 | 数据集 | 内容 | 位置 / 许可 | 用于 | 现状 |
 | --- | --- | --- | --- | --- |
-| 构造 Codex 日志案例 | `pipeline_cases.json`（34，development_contrasts）、`pipeline_probe_cases.json`（12，probe）；步骤 → `_write_case` 生成 JSONL，`expected{dimensions, bottlenecks, resources, readers, user_messages}` 事后比对 | main `src/tandem_backend/data/` | EV-03 | 已有 |
+| 构造 Codex 日志案例 | `pipeline_cases.json`（34，development_contrasts）、`pipeline_probe_cases.json`（12，probe）；步骤 → `_write_case` 生成 JSONL，`expected{dimensions, bottlenecks, resources, readers, user_messages}` 事后比对 | main `src/orbit_backend/data/` | EV-03 | 已有 |
 | 文字对照 | `evaluation.benchmark()` 8 条（`contrasts-v1`） | main `evaluation.py` | EV-09 | 已有 |
 | 读者评审案例 | `reader_cases.json` 6 个虚构案例 + `ratings-{X,Y}.json` | main `data/`；本机 `.local/reader-review/<review_id>/` | EV-09 / EV-10 | 已有 |
 | 契约夹具 | `tests/fixtures/analysis-input-v1.json`（docs §8 原样） | main `tests/` | EV-01 | 已有 |
@@ -606,7 +606,7 @@ CREATE TABLE eval_run (run_id TEXT PRIMARY KEY, suite TEXT, layer TEXT, dataset_
 | 段 | 内容 | 落到哪些 ID / 表 |
 | --- | --- | --- |
 | 1 用户看到什么 | 卡片 / 面板的主数字（单位、measured 还是 estimated）、一句话原因、证据入口、主操作 | FE-xx；`candidate.title / score / evidence / explain` |
-| 2 触发与证据（AN） | 信号 → 问题的规则、分母口径、阈值、来源表与字段（写 tandem-session-v1 的真实列名）、数据不可得时的降级 | AN-xx；`signal.kind`、`problem.type/key`、`metrics` |
+| 2 触发与证据（AN） | 信号 → 问题的规则、分母口径、阈值、来源表与字段（写 orbit-session-v1 的真实列名）、数据不可得时的降级 | AN-xx；`signal.kind`、`problem.type/key`、`metrics` |
 | 3 解法与排序（RC） | `remedy_rule` 条目全文、机制选择依据、闸门、score 逐项、`install_plan` 按 Agent 的落点、`tracking` 预登记 | RC-xx；`remedy_rule`、`candidate`、`install_plan`、`tracking` |
 | 4 AI 介入点（AI） | 用到哪些 `task_id`、tier、输入预算、输出 schema、缓存键、无 AI 时的降级；token 成本估算 | AI-xx；`ai_task` |
 | 5 评测（EV） | 装前（回放 / dry-run / judge / 触发评测）、装后三层指标、回归用例（优先放进 `pipeline_cases.json` 风格的构造集）、通过标准 | EV-xx；`eval_run`、`rec_outcome` |
@@ -648,7 +648,7 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | Agent | path | action | 内容 | 备注 |
 | --- | --- | --- | --- | --- |
 | claude_code | `~/.claude/settings.json`（scope = user） | `merge_json` 到 `/permissions/allow` | `["Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(ls:*)", "Bash(gh pr view:*)", "Bash(gh pr checks:*)"]` | 只写用户层；若 `permissions.deny` 已含同前缀则冲突报错 |
-| codex | `~/.codex/rules/tandem-readonly.rules` | `create_file` | 同前缀的 allow 规则 | execpolicy 取最严格结果，复合命令拆开判定；文件语法待验证 |
+| codex | `~/.codex/rules/orbit-readonly.rules` | `create_file` | 同前缀的 allow 规则 | execpolicy 取最严格结果，复合命令拆开判定；文件语法待验证 |
 | dsh / pi / opencode | — | — | — | 不可映射，预览中列出原因 |
 
 `tracking`：`metrics = [{allow_rule_matches, triggered}, {would_prompt_count:readonly_shell, mechanical, down}, {denied_count, guardrail}, {destructive_allowed_count, guardrail, must_be_zero}]`，`baseline = 安装前 28 天`，`follow_days = 7`，`scope_filter = {source_ids: [claude_code 与 codex 的 source]}`，`min_sessions = 5`。
@@ -662,7 +662,7 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | 层 | 做法 | 通过标准 |
 | --- | --- | --- |
 | E1 | `would_prompt_count` 与 `/insights` `bash_would_prompt_count` 在同一批会话上对比 | 差异可解释（词表范围不同） |
-| E3 回归 | 在 `pipeline_cases.json` 风格的构造集里加两个案例：一个含 12 次 `git status` 的会话、一个含 `rm -rf` 的会话；期望前者升级为 problem、后者不进入白名单 | 每次提交跑（CI `backend.yml` 已跑 `tandem evaluate`） |
+| E3 回归 | 在 `pipeline_cases.json` 风格的构造集里加两个案例：一个含 12 次 `git status` 的会话、一个含 `rm -rf` 的会话；期望前者升级为 problem、后者不进入白名单 | 每次提交跑（CI `backend.yml` 已跑 `orbit evaluate`） |
 | E3 回放 dry-run | 把历史 `tool_call(kind = shell)` 逐条过生成的 allow 规则：命中的只读命令数（召回）；与「历史被拒命令」「破坏性命令清单」的交集 | 交集 = 0，否则不展示 |
 | E5 装后 | 7 天后 `would_prompt_count:readonly_shell` 覆盖前缀部分应接近 0；`denied_count` 不升；`destructive_allowed_count = 0`；不足 5 个会话显示「数据不足，继续追踪」 | 护栏任一触发即建议撤销 |
 
@@ -698,18 +698,18 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | 可发给本机 Agent（经该 Agent 发往其服务商，发送前逐项预览） | 脱敏后的人类消息截断、答复截断、工具类别与命令头、错误类别、汇总统计、≤ 5 条证据片段、已有规则文件的相关段落 | 计划（AI-08） |
 | Orbit 自身 | 不上传任何用户数据；没有服务端；「匿名贡献」「与全体用户比」不在计划内；只有 Ollama 选项可称「完全离线」 | main / PR#9 / PR#11 均无网络写出；只有 `catalog-refresh` 显式联网读 GitHub |
 | 调用隔离 | `--safe-mode --tools ""`（或等价）：不联网、不写入、不加载用户的 CLAUDE.md / Skills / Hooks / MCP；不落会话；固定标记 + 临时 cwd，导入时过滤 | 计划（AI-01） |
-| 本机写入 | 只写 `~/Library/Application Support/Tandem/`（0700 / 0600；`tandem.db`、`raw/`、`connectors/`、`analysis.db`）与用户确认后的 Agent 配置（用户层 / local 层）；原始归档可关闭、可一键清除 | PR#9 / PR#11 已按此目录与权限；`analysis.db`、清除：计划 |
+| 本机写入 | 只写 `~/Library/Application Support/Orbit/`（0700 / 0600；`orbit.db`、`raw/`、`connectors/`、`analysis.db`）与用户确认后的 Agent 配置（用户层 / local 层）；原始归档可关闭、可一键清除 | PR#9 / PR#11 已按此目录与权限；`analysis.db`、清除：计划 |
 | 指令即数据 | 会话原文、生态条目正文里的指令只作数据；远程文本不能改写本地能力标签或触发安装 | main `privacy.direct_user_text()` 剥平台块与引用；`catalog.resources()` 只接收来源校验字段，能力标签以本地为准 |
 
-### 5.3 前端只消费的 API（与 `src/tandem_backend/api.py` 对齐）
+### 5.3 前端只消费的 API（与 `src/orbit_backend/api.py` 对齐）
 
-传输：本机 HTTP（现状 `uvicorn 127.0.0.1:8765`，`tandem serve`）；JSON；实时用 SSE（新增）。所有分析类端点接受 §3.1 的 `Scope` query 参数并返回 `meta`。是否允许 App 直连 SQLite 只读作为降级，由原型验证（待验证）。
+传输：本机 HTTP（现状 `uvicorn 127.0.0.1:8765`，`orbit serve`）；JSON；实时用 SSE（新增）。所有分析类端点接受 §3.1 的 `Scope` query 参数并返回 `meta`。是否允许 App 直连 SQLite 只读作为降级，由原型验证（待验证）。
 
 | 端点 | 返回 | 供 | 现状 |
 | --- | --- | --- | --- |
 | `GET /health` | 版本与导入规模 | FE-15 | 现有 |
 | `GET /v1/status` | sources、`projection_run`、新鲜度、漂移告警、AI 引擎能力、存储占用 | FE-01、FE-15、FE-16 | 新增（扩展 `/health`） |
-| `GET /v1/sources` · `PATCH /v1/sources/{id}` · `POST /v1/ingest {mode}` | 数据源列表与启停、重扫进度（封装 `tandem-data scan / import-connector / rebuild`） | FE-15、FE-16 | 新增 |
+| `GET /v1/sources` · `PATCH /v1/sources/{id}` · `POST /v1/ingest {mode}` | 数据源列表与启停、重扫进度（封装 `orbit-data scan / import-connector / rebuild`） | FE-15、FE-16 | 新增 |
 | `GET /v1/analytics/overview` | `overview` 段 | FE-03 | 现有；新增键见 §3.2 |
 | `GET /v1/analytics/sessions?offset&limit` · `GET /v1/analytics/sessions/{id}` | 列表（紧凑摘要，≤ 200）；详情（完整特征、workflow、`tool_sequence`、证据 ID） | FE-05、FE-14 | 现有；新增参数 `signal_kind`、新增键 `segments / key_moments / signals` |
 | `GET /v1/analytics/tools` | `by_tool`、`transitions` | FE-06 | 现有；新增键 `by_kind / by_error_class / three_step_chains / would_prompt_count` |
@@ -727,7 +727,7 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | `GET /v1/catalog` · `GET /v1/catalog/search?q&type` · `GET /v1/catalog/items/{id}` · `GET /v1/inventory` | 种子 + 缓存状态（现有）；检索与 `catalog_match`；已安装清单 | FE-10、FE-06、FE-07 | 现有 / 新增 / 新增 / 新增 |
 | `GET /v1/ai/capabilities` · `POST /v1/ai/preview` · `POST /v1/ai/jobs` · `GET /v1/ai/jobs/{id}`（SSE） · `POST /v1/ai/jobs/{id}/cancel` | 引擎能力；上下文包预览与 token 估算；作业提交、进度、取消 | FE-11、FE-13、FE-03、FE-08 | 新增 |
 | `POST /v1/labels` | 写 `label` | FE-04、FE-05、FE-09、FE-10 | 新增 |
-| `GET /v1/export/report?sections` · `GET /v1/export/csv?table` · `GET /v1/snapshots/{kind}` | 报告、CSV、固定口径快照（封装 `cli report / analytics --output / tandem-data export`） | FE-19、FE-17 | 新增 |
+| `GET /v1/export/report?sections` · `GET /v1/export/csv?table` · `GET /v1/snapshots/{kind}` | 报告、CSV、固定口径快照（封装 `cli report / analytics --output / orbit-data export`） | FE-19、FE-17 | 新增 |
 | `POST /v1/evaluation {text, scene, required_facts}` · `GET /v1/evaluation/runs?suite` | 文字检查（现有）；`eval_run` 摘要 | FE-15、FE-11 | 现有 / 新增 |
 | `GET /v1/search?q` | FTS5 跨会话（`event_fts`） | FE-14 | 新增 |
 | `GET /v1/analysis` · `GET /v1/projects` · `GET /v1/sessions` | 旧链路报告与 legacy 列表 | CLI / 开发者 | 现有，兼容保留；FE 不消费，canonical 接入后退役 |
@@ -741,9 +741,9 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | 按已有工作与角色分 owner | **`yhyfhgs`**：总体架构与本契约、产品输入输出与 workflow、DT 全部（PR #9 / #11 作者；DT-01…DT-20）、IN-01 落点表与跨 Agent 映射、IN-03/04 写入与 ledger、`remedy_rule` 种子与 RC-06 机制决策表（产品判断）、API 形状与 MVP 取舍、FE-01 外壳（`ui/shell`）。**`MistyHuang03`**：AN 全部（main 分析引擎与特征族拆分的作者）、EV 全部（`evaluation / pipeline_eval / reader_eval` 作者）、RC 的算法侧（RC-02…RC-05、RC-07、RC-08、RC-11、RC-13：闸门、打分、MMR、追踪与先验回写）、AI 的通道与判定侧（AI-01…AI-04、AI-07、AI-11）。**`genius-FXC`**：FE 全部（Lite Demo 作者；FE-02…FE-22）、RC 的呈现与策展侧（RC-01 资源条目与来源审核、RC-09 资源库匹配、RC-10 曝光与反馈、RC-12 预览呈现、RC-15 文案）、生态来源策展（DT-11 来源清单、DT-12 条目审核与 12 类定义）、AI 的内容侧（AI-05 叙述、AI-06 模板与槽位文案、AI-08 预览交互、AI-09/AI-10 交互）、EV-09 / EV-10 的真实读者组织、路演。 |
 | AI 与推荐为什么这样分 | AI 的 L1 / L2 任务（facet、候选判定、judge）是 AN 检测器的延伸，schema、缓存、校验与 EV-04 judge 校准由同一人维护最省沟通，归 `MistyHuang03`；AI 的 L3 输出（叙述、生成物）是用户可见内容，提示词与模板跟文案一起由 `genius-FXC` 拥有；通道参数（`--safe-mode` 等）涉及各 Agent CLI 的差异，`yhyfhgs` 做 reviewer。推荐同理：匹配与打分是算法（`MistyHuang03`），知识库种子、落点与机制决策是产品判断（`yhyfhgs`），资源策展与卡片呈现是展示（`genius-FXC`）。 |
 | 一个 feature 一个 owner 一个 reviewer | 见下表；跨模块的功能卡（§4）由 RC 侧 owner 牵头，AN / EV / FE 各出一段；reviewer 来自另一位成员；merge 仍只由 `yhyfhgs` 决定（仓库 AGENTS.md）。 |
-| 契约变更走 PR | 表、JSON Schema、`ai_task`、`remedy_rule` 格式、API 的改动先改本文（或其正式版），再改代码；ID 只增不改；tandem-session-v1 与 analysis-input-v1 的改动在 PR #9 / `docs/contracts/analysis-inputs.md` 里做，本文只引用。 |
-| 语言与边界 | 采集：TypeScript connector（PR #11，实时增量）+ Python `tandem-data`（PR #9，canonical 库与六个 mapper）；AN / RC / AI / EV：Python `tandem_backend`（main）；两者只通过 `tandem.db`（只读）与 `analysis.db`（后端自有）衔接；检测器只实现一份（Python）；`tandem_backend` 对 Python 3.11 的依赖与 `tandem-data` 的 3.13 并存，接入时统一到 3.13（待验证）。 |
-| 先最简单、可运行 | AN 的第一步是 AN-16（canonical 适配器）+ 用真实 `tandem.db` 重跑 `analytics`，核对 `human_origin` 覆盖；RC 的第一步是把 `skills.json` 升为 `remedy_rule` 并接 `problem`；FE 的第一步是让 Lite Demo 的 8 页读 `/v1/analytics/*` 现有端点；每个模块先交「指标 + 3 个检测器 + Wilson + 1 条端到端功能卡（§4.2）」再扩；不做通用 ETL、不做企业级抽象。 |
+| 契约变更走 PR | 表、JSON Schema、`ai_task`、`remedy_rule` 格式、API 的改动先改本文（或其正式版），再改代码；ID 只增不改；orbit-session-v1 与 analysis-input-v1 的改动在 PR #9 / `docs/contracts/analysis-inputs.md` 里做，本文只引用。 |
+| 语言与边界 | 采集：TypeScript connector（PR #11，实时增量）+ Python `orbit-data`（PR #9，canonical 库与六个 mapper）；AN / RC / AI / EV：Python `orbit_backend`（main）；两者只通过 `orbit.db`（只读）与 `analysis.db`（后端自有）衔接；检测器只实现一份（Python）；`orbit_backend` 对 Python 3.11 的依赖与 `orbit-data` 的 3.13 并存，接入时统一到 3.13（待验证）。 |
+| 先最简单、可运行 | AN 的第一步是 AN-16（canonical 适配器）+ 用真实 `orbit.db` 重跑 `analytics`，核对 `human_origin` 覆盖；RC 的第一步是把 `skills.json` 升为 `remedy_rule` 并接 `problem`；FE 的第一步是让 Lite Demo 的 8 页读 `/v1/analytics/*` 现有端点；每个模块先交「指标 + 3 个检测器 + Wilson + 1 条端到端功能卡（§4.2）」再扩；不做通用 ETL、不做企业级抽象。 |
 | 对齐的提醒（来自仓库 AGENTS.md） | `yhyfhgs`：避免过度抽象；`MistyHuang03`：优先实现、用原型验证；`genius-FXC`：持续质疑需求，不单方面加 feature。 |
 
 **owner / reviewer 表（每个 feature 唯一 owner、一位 reviewer）**
@@ -774,7 +774,7 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | V1 | 问题升级阈值 `min_sessions = 3`、`min_wilson_lo = 0.05` 在本机数据上既不漏也不吵 | 用 3 位成员的本机数据跑 AN-06，人工看前 20 条 | AN-06 |
 | V2 | 人格 M 轴用 50% 还是 30% 作判定线 | 按天 bootstrap 看区间分布 | AN-08 |
 | V3 | 中文纠偏 / 挫败词表的精度 ≥ 0.5（现有 `CORRECTION` 词表只是 proxy） | 200 条命中消息本机标注 | AN-05、EV-02 |
-| V4 | Python 读 canonical `tandem.db`（100–300 MB）秒级完成全部指标；`read_analysis` 的 `max_events = 100000` 是否够一个 90 天窗口 | 原型计时（main 已在 legacy 库上处理 40,664 事件 / 11,657 调用，无计时数据） | AN-01、AN-16 |
+| V4 | Python 读 canonical `orbit.db`（100–300 MB）秒级完成全部指标；`read_analysis` 的 `max_events = 100000` 是否够一个 90 天窗口 | 原型计时（main 已在 legacy 库上处理 40,664 事件 / 11,657 调用，无计时数据） | AN-01、AN-16 |
 | V5 | headless 打包 5–10 个会话一次调用的 JSON 有效率与缓存命中 | 实测 50 个会话 | AI-03、AI-01 |
 | V6 | Codex `.rules` 语法、dsh / OpenCode 的权限放行落点 | 查源码与文档 | IN-01、RC-12 |
 | V7 | 配置历史用当前 `settings.json` 近似是否可接受 | 对比 mtime 与会话时间 | AN-05 |
@@ -783,6 +783,6 @@ score：`weekly_saving = 53 次（measured）`；`applicability = wilson_lo(0.31
 | V10 | App 直连 SQLite 只读作为 API 降级是否值得做 | 原型 | §5.3 |
 | V11 | canonical 库接入后 `human_origin` 覆盖是否从 legacy 的 9 / 927 条显著提升（feature-analytics.md 列为 P0 缺口） | AN-16 完成后重跑同一快照 | AN-16、DT-05 |
 | V12 | PR#11 事件 Schema 缺 `permission.request` 对 Codex 侧 `would_prompt / permission_friction` 的影响；PR#9 Claude Code mapper 是否保留 `permission_mode` | 读两个 Schema 与 mapper；补 kind 或改走 `tool_call.approval` | DT-05、AN-05 |
-| V13 | `analysis.db` 与 `tandem.db` 分库后跨库查询（`ATTACH` 只读）的性能与锁行为 | 原型 | §0.4、AN-16 |
+| V13 | `analysis.db` 与 `orbit.db` 分库后跨库查询（`ATTACH` 只读）的性能与锁行为 | 原型 | §0.4、AN-16 |
 | V14 | 三条 `analytics-*` 分支的特征族目录名能否作为 AN ID 的稳定落点 | `MistyHuang03` 合入后在模块文档写映射 | AN-* |
-| V15 | `tandem_backend`（Python 3.11）与 `tandem-data`（3.13、uv）统一运行时是否影响 `scikit-learn` 等依赖 | 在 3.13 上跑全部测试 | §6 |
+| V15 | `orbit_backend`（Python 3.11）与 `orbit-data`（3.13、uv）统一运行时是否影响 `scikit-learn` 等依赖 | 在 3.13 上跑全部测试 | §6 |

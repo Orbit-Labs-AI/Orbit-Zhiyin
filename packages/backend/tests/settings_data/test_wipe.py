@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from tandem_data.store import Store
+from orbit_data.store import Store
 
-from tandem_backend.appdata import wipe
+from orbit_backend.appdata import wipe
 
 from .conftest import client_for, close_gateway, make_gateway
 
@@ -14,7 +14,7 @@ def seed(home):
     (home / "raw").mkdir(exist_ok=True)
     (home / "raw" / "blob").write_bytes(b"x" * 10)
     (home / "backups" / "1").mkdir(parents=True)
-    (home / "backups" / "1" / "tandem.db").write_bytes(b"db")
+    (home / "backups" / "1" / "orbit.db").write_bytes(b"db")
     (home / "exports").mkdir(exist_ok=True)
     (home / "exports" / "diag.zip").write_bytes(b"zip")
     (home / "analysis-1.db").write_bytes(b"a")
@@ -29,7 +29,7 @@ def agent_files(user_home):
 def test_describe_and_validation(client, gateway, home):
     body = client.get("/v1/app/data").json()
     assert body["confirm_word"] == "清除" and body["keeps"] == ["agent_logs", "agent_configs"]
-    assert "tandem_db" in body["will_delete"] and "logs" not in body["will_delete"]
+    assert "orbit_db" in body["will_delete"] and "logs" not in body["will_delete"]
     assert {"installs_active", "ledger_entries", "jobs_active", "components"} <= body.keys()
     assert client.post("/v1/app/data/clear", json={"confirm": "delete"}).status_code == 422
     assert not (home / wipe.MARKER).exists()
@@ -61,7 +61,7 @@ def test_clear_marks_then_restart_deletes(home, user_home):
         body = response.json()
         assert body["restart_required"] is True and body["marker"].endswith(wipe.MARKER)
         # Nothing is deleted while running.
-        assert (home / "tandem.db").exists() and (home / "app.db").exists()
+        assert (home / "orbit.db").exists() and (home / "app.db").exists()
         assert client.get("/v1/app/data").json()["pending"] is True
     finally:
         close_gateway(gw)
@@ -72,7 +72,7 @@ def test_clear_marks_then_restart_deletes(home, user_home):
         assert {"cache", "app.db", "app-state.json"} <= set(gw.cleared["deleted"])
         for name in ("raw", "backups", "exports", "analysis-1.db"):
             assert not (home / name).exists(), name
-        assert not (home / "tandem.db").exists() and not (home / wipe.MARKER).exists()
+        assert not (home / "orbit.db").exists() and not (home / wipe.MARKER).exists()
         assert (home / "logs" / "gateway.log").read_text() == "keep me"
         status = client_for(gw).get("/v1/status").json()
         assert status["state"] == "onboarding" and status["settings"]["onboarded"] is False
@@ -89,17 +89,17 @@ def test_symlink_out_of_home_is_refused(tmp_path):
     (outside / "keep.txt").write_text("keep")
     (home / "backups").symlink_to(outside, target_is_directory=True)
     (home / "app.db").symlink_to(outside / "keep.txt")
-    (home / "tandem.db").write_bytes(b"x")
+    (home / "orbit.db").write_bytes(b"x")
     wipe.mark(home)
     summary = wipe.apply_pending(home)
     assert sorted(summary["refused"]) == ["app.db", "backups"]
-    assert summary["deleted"] == ["tandem.db"]
+    assert summary["deleted"] == ["orbit.db"]
     assert (outside / "keep.txt").read_text() == "keep"
 
 
 def test_no_marker_is_noop(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
-    (home / "tandem.db").write_bytes(b"x")
-    assert wipe.apply_pending(home) is None and (home / "tandem.db").exists()
+    (home / "orbit.db").write_bytes(b"x")
+    assert wipe.apply_pending(home) is None and (home / "orbit.db").exists()
 

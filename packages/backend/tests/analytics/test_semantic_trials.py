@@ -4,10 +4,10 @@ import hashlib
 
 import pytest
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.semantic_cascade import Budget, attach_cache, run_cascade
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.semantic_cascade import Budget, attach_cache, run_cascade
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.service import recommend
 
 
 def observed_bundle(fixtures, *, known=8, corrected=3, unknown=0, unresolved=False):

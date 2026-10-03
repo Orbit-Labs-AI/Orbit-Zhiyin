@@ -25,7 +25,7 @@
 //                      hangs 52px under the window top; Return triggers the default button, Esc closes.
 //  8. shortcuts        ⌥2 → persona, ⌘K → palette, ⌥0 restores a closed window; menu labels match the bindings.
 //  9. page hook/event  PAGES[route].keys(e) returning true consumes the key, false lets globals run; toggling the sidebar
-//                      dispatches window 'tandem:layout' with {win, side, main}.
+//                      dispatches window 'orbit:layout' with {win, side, main}.
 // 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 // 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
 //                      zoomed and in full screen, on three representative pages.
@@ -321,11 +321,11 @@ test('insight order: sidebar, ⌥1–6, window menu and palette follow one page 
   expect(errors).toEqual([]);
 });
 
-test('page key hook runs before global shortcuts; layout changes dispatch tandem:layout', async ({ page }) => {
+test('page key hook runs before global shortcuts; layout changes dispatch orbit:layout', async ({ page }) => {
   const errors = await openDemo(page);
   await page.evaluate(() => {
     window.__k = 0; PAGES[S.route].keys = (e) => { if (e.key === 'j') { window.__k++; return true; } return false; };
-    window.__lay = []; window.addEventListener('tandem:layout', (e) => window.__lay.push(e.detail));
+    window.__lay = []; window.addEventListener('orbit:layout', (e) => window.__lay.push(e.detail));
   });
   await page.keyboard.press('j');
   expect(await page.evaluate(() => window.__k)).toBe(1);

@@ -18,11 +18,11 @@
 
 | App 版本 | 设计来源 | 设计入口 |
 | --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | 原稿 [`prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)；范围与审查见 [lite-review.md](lite-review.md) |
+| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | 原稿 [`prototypes/lite/orbit-benchmark-demo.html`](../../prototypes/lite/orbit-benchmark-demo.html)；范围与审查见 [lite-review.md](lite-review.md) |
 | **Advance** | `yhyfhgs` 的桌面 App 设计 | 源码 [`prototypes/advance/src/`](../../prototypes/advance/src/)、画板 [`visual-cases-v1/`](visual-cases-v1/) |
 
 - 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。
-- 自 2026-10-02 起两版是**同一个 App**（[`prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html)），侧栏顶部一键切换，共用侧栏、卡片、栏目标题、KPI、控件、桌面小组件与动效；Lite 只在页面数量与尺度上做减法。`prototypes/lite/` 保留原稿作为 Lite 的设计来源。
+- 自 2026-10-02 起两版是**同一个 App**（[`prototypes/advance/orbit-demo.html`](../../prototypes/advance/orbit-demo.html)），侧栏顶部一键切换，共用侧栏、卡片、栏目标题、KPI、控件、桌面小组件与动效；Lite 只在页面数量与尺度上做减法。`prototypes/lite/` 保留原稿作为 Lite 的设计来源。
 - 引用设计或功能说明时注明适用版本。
 
 ## 存档记录

@@ -5,8 +5,8 @@ import subprocess
 
 from test_analysis_input_pushdown import session_rows
 
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 
 def build(tmp_path, cwds):

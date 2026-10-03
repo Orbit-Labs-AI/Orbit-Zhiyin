@@ -1,8 +1,8 @@
 {
  "app": {
-  "name": "Tandem",
+  "name": "Orbit",
   "version": "0.13.6",
-  "contract": "tandem-app-v1"
+  "contract": "orbit-app-v1"
  },
  "components": {
   "rules_version": "04afa558427a",

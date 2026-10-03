@@ -13,12 +13,12 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.common import human
-from tandem_backend.analytics.inputs import Scope, legacy_bundle, select
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
-from tandem_backend.store import Store
+from orbit_backend.analytics.common import human
+from orbit_backend.analytics.inputs import Scope, legacy_bundle, select
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
+from orbit_backend.store import Store
 
 
 def verify(reference_db, output):

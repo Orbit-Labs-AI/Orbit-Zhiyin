@@ -2,9 +2,9 @@
 
 import pytest
 
-from tandem_backend.ai import runner
-from tandem_backend.evalrun.contract import EvalContext
-from tandem_backend.evalrun.suites import ai_ledger as suite
+from orbit_backend.ai import runner
+from orbit_backend.evalrun.contract import EvalContext
+from orbit_backend.evalrun.suites import ai_ledger as suite
 
 
 @pytest.fixture(autouse=True)

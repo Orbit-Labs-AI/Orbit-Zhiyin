@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from tandem_backend.recommend.contracts import FAMILIES, RankingPolicy, RecommendationItem
-from tandem_backend.recommend.families import prepare_item
-from tandem_backend.recommend.schema import catalog_schema
+from orbit_backend.recommend.contracts import FAMILIES, RankingPolicy, RecommendationItem
+from orbit_backend.recommend.families import prepare_item
+from orbit_backend.recommend.schema import catalog_schema
 
 
 def item(family, **values):
@@ -62,7 +62,7 @@ def test_model_benchmark_must_retain_exact_configuration_and_scale():
 
 @pytest.mark.parametrize("family", FAMILIES)
 def test_committed_schemas_are_generated_from_current_contracts(family):
-    path = Path(__file__).parents[2] / "src" / "tandem_backend" / "data" / "recommend" / (family + ".schema.json")
+    path = Path(__file__).parents[2] / "src" / "orbit_backend" / "data" / "recommend" / (family + ".schema.json")
     # tests/recommend → project root
     assert json.loads(path.read_text(encoding="utf-8")) == catalog_schema(family)
 

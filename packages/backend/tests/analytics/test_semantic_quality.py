@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.analytics.common import semantic_messages
-from tandem_backend.analytics.preference import (
+from orbit_backend.analytics.common import semantic_messages
+from orbit_backend.analytics.preference import (
     extract_explicit_preferences,
     resolve_effective_preferences,
 )
-from tandem_backend.analytics.task import extract_task_features
+from orbit_backend.analytics.task import extract_task_features
 
 CORPUS = json.loads((Path(__file__).parents[1] / "fixtures/semantic-quality-v1.json").read_text())
 

@@ -1,7 +1,7 @@
 """a1a3-B19: a single correction message must not make a session's correction rate 1.0."""
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def build(texts):

@@ -1,9 +1,9 @@
 from fastapi.testclient import TestClient
-from tandem_data.contract import canonical
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
+from orbit_data.contract import canonical
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 
-from tandem_backend.api import create_app
+from orbit_backend.api import create_app
 
 
 def test_app_full_messages_original_and_trajectory_for_review_sessions(tmp_path):

@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from tandem_backend.privacy_rules import rules
-from tandem_backend.uiview import a6_terms as T
-from tandem_backend.uiview.a4a6_sentiment import semantic_text
+from orbit_backend.privacy_rules import rules
+from orbit_backend.uiview import a6_terms as T
+from orbit_backend.uiview.a4a6_sentiment import semantic_text
 
 UTC = ZoneInfo("UTC")
 DAY = 86_400_000

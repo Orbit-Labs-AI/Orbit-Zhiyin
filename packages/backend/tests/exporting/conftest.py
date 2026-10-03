@@ -26,7 +26,7 @@ def env(world):
 def _reset_exclusion_provider():
     """Every gateway registers the process-wide exclusion provider; exclusion.merged is
     fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
-    from tandem_backend.sessionops import exclusion
+    from orbit_backend.sessionops import exclusion
 
     exclusion.set_provider(None)
     yield

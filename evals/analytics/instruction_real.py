@@ -16,8 +16,8 @@ from pathlib import Path
 
 import httpx
 
-from tandem_backend.analytics.instruction import instruction_text
-from tandem_backend.models import stable_id
+from orbit_backend.analytics.instruction import instruction_text
+from orbit_backend.models import stable_id
 
 
 def validate(source_ledger, codex_home, output):
@@ -41,7 +41,7 @@ def validate(source_ledger, codex_home, output):
 
     def command(name, *args):
         start = time.perf_counter()
-        result = subprocess.run([sys.executable, "-m", "tandem_backend", "--db", str(target), *args],
+        result = subprocess.run([sys.executable, "-m", "orbit_backend", "--db", str(target), *args],
                                 env=environment, capture_output=True, text=True, check=True, timeout=180)
         timings[name] = round(time.perf_counter() - start, 4)
         (output / (name + ".log")).write_text(result.stdout + result.stderr)
@@ -74,7 +74,7 @@ def validate(source_ledger, codex_home, output):
     listener.bind(("127.0.0.1", 0))
     listener.listen()
     port = listener.getsockname()[1]
-    child_code = ("import sys,uvicorn; from tandem_backend.api import create_app; "
+    child_code = ("import sys,uvicorn; from orbit_backend.api import create_app; "
                   "uvicorn.run(create_app(sys.argv[1]), fd=int(sys.argv[2]), log_level='error')")
     with (output / "api.log").open("w") as log:
         server = subprocess.Popen([sys.executable, "-c", child_code, str(target), str(listener.fileno())],

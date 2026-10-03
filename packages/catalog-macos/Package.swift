@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "TandemCatalogClient",
+    name: "OrbitCatalogClient",
     platforms: [.macOS(.v13)],
-    products: [.library(name: "TandemCatalogClient", targets: ["TandemCatalogClient"])],
+    products: [.library(name: "OrbitCatalogClient", targets: ["OrbitCatalogClient"])],
     targets: [
-        .target(name: "TandemCatalogClient"),
-        .testTarget(name: "TandemCatalogClientTests", dependencies: ["TandemCatalogClient"])
+        .target(name: "OrbitCatalogClient"),
+        .testTarget(name: "OrbitCatalogClientTests", dependencies: ["OrbitCatalogClient"])
     ]
 )

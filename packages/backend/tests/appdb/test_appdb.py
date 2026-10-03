@@ -3,8 +3,8 @@ import threading
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.appdb.store import _statements
+from orbit_backend.appdb import AppDB
+from orbit_backend.appdb.store import _statements
 
 
 def test_open_twice_and_refuse_foreign_db(tmp_path):
@@ -49,7 +49,7 @@ def test_statement_split_keeps_trigger_bodies():
 def _old_install_ledger_db(path):
     """An app.db as an earlier release left it: install_ledger without inv_id / catalog_item_id
     and no schema_version table, with one ledger row."""
-    from tandem_backend.appdb.store import APPLICATION_ID
+    from orbit_backend.appdb.store import APPLICATION_ID
 
     db = sqlite3.connect(path)
     db.execute(f"PRAGMA application_id = {APPLICATION_ID}")
@@ -61,7 +61,7 @@ def _old_install_ledger_db(path):
 
 
 def test_old_database_is_upgraded_and_keeps_rows(tmp_path):
-    from tandem_backend.appdb import migrations
+    from orbit_backend.appdb import migrations
 
     _old_install_ledger_db(tmp_path / "app.db")
     db = AppDB(tmp_path / "app.db")
@@ -75,7 +75,7 @@ def test_old_database_is_upgraded_and_keeps_rows(tmp_path):
     assert version == len(migrations.MIGRATIONS["install"]) == 2
     with db.write() as conn:  # the new column is writable
         conn.execute("INSERT INTO install_ledger (entry_id, ts, actor, action, inv_id) "
-                     "VALUES ('e2', 6, 'tandem', 'link', 'inv-9')")
+                     "VALUES ('e2', 6, 'orbit', 'link', 'inv-9')")
     db.close()
     AppDB(tmp_path / "app.db").close()  # reopening runs nothing twice (no duplicate-column error)
 
@@ -88,7 +88,7 @@ def test_fresh_database_marks_steps_applied_without_altering(tmp_path):
 
 
 def test_steps_run_in_order_once_and_refuse_newer_db(tmp_path):
-    from tandem_backend.appdb import migrations
+    from orbit_backend.appdb import migrations
 
     db = AppDB(tmp_path / "app.db")
     with db.write() as conn:
@@ -108,7 +108,7 @@ def test_steps_run_in_order_once_and_refuse_newer_db(tmp_path):
 
 
 def test_failed_step_rolls_back_with_its_version(tmp_path):
-    from tandem_backend.appdb import migrations
+    from orbit_backend.appdb import migrations
 
     db = AppDB(tmp_path / "app.db")
 

@@ -1,4 +1,4 @@
-"""Synthetic tandem.db helpers for realtime tests (tmp dirs only; never a real HOME).
+"""Synthetic orbit.db helpers for realtime tests (tmp dirs only; never a real HOME).
 
 A uniquely named module rather than conftest imports, so whole-suite runs do not pick up
 another directory's conftest."""
@@ -10,18 +10,18 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-from tandem_data.store import Store
+from orbit_data.store import Store
 
 NOW = 1_800_000_000_000
 ATTRS = json.dumps({"time": {"quality": "reported", "source_field": "timestamp"}})
 
 
-class Tandem:
-    """Raw INSERT helper over the real tandem.db schema (foreign keys off)."""
+class Orbit:
+    """Raw INSERT helper over the real orbit.db schema (foreign keys off)."""
 
     def __init__(self, home: Path):
         Store(home).db.close()
-        self.path = home / "tandem.db"
+        self.path = home / "orbit.db"
         self.db = sqlite3.connect(self.path, isolation_level=None)
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.n = 0

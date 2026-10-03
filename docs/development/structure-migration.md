@@ -4,7 +4,7 @@
 
 | 原位置 | 新位置 |
 | --- | --- |
-| src/tandem_backend | packages/backend/src/tandem_backend |
+| src/orbit_backend | packages/backend/src/orbit_backend |
 | 根 tests 的特征族测试 | packages/backend/tests/analytics、bottleneck |
 | 根 tests 的旧行为回归 | packages/backend/tests/regression |
 | tests/test_modular_pipeline.py | tests/integration/test_modular_pipeline.py |
@@ -23,7 +23,7 @@
 | docs/modules/recommendation.md、recommendation-validation.md | docs/modules/recommendation/engine.md、validation.md |
 | docs/plans/analysis-audit.md、data-audit.md、backend-gap.md | docs/audits/ |
 | docs/design/README.md 的 Logo、Demo、画板章节 | docs/design/brand.md、demo.md、boards.md |
-| docs/design/logo/tandem-*（spiral 变体升为主版本） | docs/design/logo/orbit-*，原洛伦茨主标志移到 logo/variants/lorenz/ |
+| docs/design/logo/orbit-*（spiral 变体升为主版本） | docs/design/logo/orbit-*，原洛伦茨主标志移到 logo/variants/lorenz/ |
 
 最后五行是 2026-10-02 的文档整理（产品改名 Orbit）。活跃分支 merge 时若遇到这些文件的 rename/modify 冲突，把改动应用到新位置；不要恢复旧路径。
 
@@ -47,6 +47,6 @@ analysis / feedback / content / portrait / trajectory / bottlenecks → profilin
 
 正式 target 放 apps/desktop，接入同一后端服务和 canonical 数据目录，并补充服务生命周期与原生 UI 测试。本次不建立不可运行的空 App，也不将 HTML 原型伪装成完成的桌面产品。
 
-本次整理期间 main 更新到 `f834616`；新增 recommend 引擎已纳入 packages/backend，保持 `tandem_backend.recommend.*` 公开命名空间。新增推荐工具分别进入 evals/recommendation/demo.py 与 catalog.py。原有 catalog/resource_fetch 薄入口仍可使用。
+本次整理期间 main 更新到 `f834616`；新增 recommend 引擎已纳入 packages/backend，保持 `orbit_backend.recommend.*` 公开命名空间。新增推荐工具分别进入 evals/recommendation/demo.py 与 catalog.py。原有 catalog/resource_fetch 薄入口仍可使用。
 
-PR #29 在合并前进入 main，已一并接入：src/tandem_catalog → packages/catalog/src/tandem_catalog；tests/catalog → packages/catalog/tests；跨包 API 用例 → tests/integration/test_catalog_api.py。共享种子 skills.json 归 Catalog 包管理，backend 保留原资源访问 API。
+PR #29 在合并前进入 main，已一并接入：src/orbit_catalog → packages/catalog/src/orbit_catalog；tests/catalog → packages/catalog/tests；跨包 API 用例 → tests/integration/test_catalog_api.py。共享种子 skills.json 归 Catalog 包管理，backend 保留原资源访问 API。

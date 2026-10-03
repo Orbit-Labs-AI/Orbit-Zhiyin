@@ -6,8 +6,8 @@ from dataclasses import replace
 
 import pytest
 
-from tandem_backend.install import env as envmod
-from tandem_backend.install.env import (
+from orbit_backend.install import env as envmod
+from orbit_backend.install.env import (
     build_env,
     capabilities,
     environment,
@@ -72,7 +72,7 @@ def test_detects_agents_by_config_dir_and_binary(env, fake_run, tmp_path):
     assert cx["dirs"]["skills"]["alternatives"] == [str(env.home / ".agents/skills")]
     assert {lay["id"] for lay in cx["layers"]} == {"config_toml", "agents_md", "hooks_json"}
     assert len(fake_run.calls) == 2
-    # no tandem.db: counts fall back to directory counts
+    # no orbit.db: counts fall back to directory counts
     assert cc["installed_counts"]["skill"] == 1 and cc["counts_basis"] == "files"
 
 
@@ -118,7 +118,7 @@ def test_capabilities_table():
 
 
 def test_installed_counts_and_names(tmp_path):
-    path = tmp_path / "tandem.db"
+    path = tmp_path / "orbit.db"
     assert installed_counts(Reads(path), "claude_code") is None
     assert installed_counts(None, "claude_code") is None
     make_db(path)
@@ -135,7 +135,7 @@ def test_projects_markers_and_counts(env, tmp_path):
     (proj / ".claude").mkdir(parents=True)
     (proj / "AGENTS.md").write_text("x")
     (proj / ".mcp.json").write_text("{}")
-    path = tmp_path / "tandem.db"
+    path = tmp_path / "orbit.db"
     make_db(path, [proj, tmp_path / "gone"])
     result = environment(env, reads=Reads(path))
     assert result["projects"] == [{"path": str(proj), "name": "proj", "has_claude_dir": True, "has_claude_md": False,
@@ -160,7 +160,7 @@ def test_missing_and_read_only_agents(tmp_path):
 
 
 def test_build_env_uses_install_home(tmp_path, monkeypatch):
-    built = build_env(environ={"TANDEM_INSTALL_HOME": str(tmp_path)})
+    built = build_env(environ={"ORBIT_INSTALL_HOME": str(tmp_path)})
     assert built.home == tmp_path
 
 
@@ -180,7 +180,7 @@ def test_time_budget_and_memo(env, tmp_path):
 
 
 def test_projects_ordered_by_recent_session_activity(tmp_path):
-    from tandem_backend.install.env import project_paths
+    from orbit_backend.install.env import project_paths
 
     dirs = [tmp_path / n for n in ("old", "busy", "idle")]
     for d in dirs:
@@ -198,7 +198,7 @@ def test_projects_ordered_by_recent_session_activity(tmp_path):
 
 
 def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
-    """A tandem.db whose inventory was never scanned must not report zeros as inventory facts."""
+    """A orbit.db whose inventory was never scanned must not report zeros as inventory facts."""
     import json
 
     claude = env.home / ".claude"
@@ -209,7 +209,7 @@ def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
     (env.home / ".claude.json").write_text(json.dumps({"mcpServers": {"one": {}, "two": {}}}))
     (claude / "plugins/installed_plugins.json").write_text(json.dumps({"plugins": {"p@m": [{"scope": "user"}]}}))
     (env.home / ".codex/config.toml").write_text('model = "x"\n[mcp_servers.alpha]\ncommand = "a"\n')
-    path = tmp_path / "tandem.db"
+    path = tmp_path / "orbit.db"
     make_db(path)
     with sqlite3.connect(path) as db:
         db.execute("DELETE FROM inventory_item")

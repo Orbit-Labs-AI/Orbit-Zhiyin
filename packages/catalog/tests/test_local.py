@@ -1,8 +1,8 @@
 import pytest
 
-from tandem_catalog import query
-from tandem_catalog.contracts import MatchRequest
-from tandem_catalog.service import CatalogService
+from orbit_catalog import query
+from orbit_catalog.contracts import MatchRequest
+from orbit_catalog.service import CatalogService
 
 PAYLOAD = {"kind": "skill", "name": "Flaky test triage", "summary": "Generated retry triage skill",
            "body": "# Triage\r\nRe-run the failing pytest case with -x and bisect flaky fixtures.\r\n",
@@ -48,6 +48,6 @@ def test_remove_local_retires_item_and_rejects_remote_ids(service):
     assert not service.match(MatchRequest(text="flaky fixtures bisect"))["items"]
     assert not service.remove_local(item_id)
     with pytest.raises(ValueError, match="not_a_local_item"):
-        service.remove_local("tandem-seeds:x")
+        service.remove_local("orbit-seeds:x")
     assert service.add_local(PAYLOAD)["created"]  # Re-adding restores it.
     assert service.store.verify()["ok"]

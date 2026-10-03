@@ -1,6 +1,6 @@
-"""IN-07 / DT-16: Tandem's own collection installs, records events and reverts byte for byte.
+"""IN-07 / DT-16: Orbit's own collection installs, records events and reverts byte for byte.
 
-Fabricated agent homes and a tmp Tandem home only; hooks are replayed by running the
+Fabricated agent homes and a tmp Orbit home only; hooks are replayed by running the
 installed command with synthetic stdin, never a real agent.
 """
 
@@ -11,9 +11,9 @@ import tomllib
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.install import collect
-from tandem_backend.install.service import InstallService
+from orbit_backend.appdb import AppDB
+from orbit_backend.install import collect
+from orbit_backend.install.service import InstallService
 
 SETTINGS = json.dumps({
     "permissions": {"allow": []},
@@ -26,8 +26,8 @@ CONFIG = 'model = "gpt-5"\n\n[mcp_servers.docs]\ncommand = "npx"\n'
 
 @pytest.fixture
 def svc(tmp_path, env):
-    db = AppDB(tmp_path / "tandem" / "app.db")
-    yield InstallService(db, tmp_path / "tandem", env=env)
+    db = AppDB(tmp_path / "orbit" / "app.db")
+    yield InstallService(db, tmp_path / "orbit", env=env)
     db.close()
 
 
@@ -53,7 +53,7 @@ def test_install_replay_and_revert_bytes(svc, fake_home, tmp_path):
 
     plan, applied = install(svc)
     assert applied["state"] == "installed"
-    events = tmp_path / "tandem" / "hooks" / "events.jsonl"
+    events = tmp_path / "orbit" / "hooks" / "events.jsonl"
 
     settings = json.loads(settings_path.read_text())
     stop = settings["hooks"]["Stop"]
@@ -63,10 +63,10 @@ def test_install_replay_and_revert_bytes(svc, fake_home, tmp_path):
     assert settings["cleanupPeriodDays"] == collect.GUARD_DAYS
     status = settings["statusLine"]
     assert status["padding"] == 0 and status["command"].endswith("--wrap 'echo mine'")
-    script = fake_home / ".claude/hooks/tandem/tandem_collect.py"
+    script = fake_home / ".claude/hooks/orbit/orbit_collect.py"
     assert os.access(script, os.X_OK)
     config = config_path.read_text()
-    assert config.startswith("# >>> tandem:collect >>>") and config.endswith(CONFIG)
+    assert config.startswith("# >>> orbit:collect >>>") and config.endswith(CONFIG)
     notify = tomllib.loads(config)["notify"]
     assert notify[2] == "notify" and tomllib.loads(config)["mcp_servers"]["docs"]["command"] == "npx"
 
@@ -112,13 +112,13 @@ def test_fresh_home_without_statusline_or_config(svc, fake_home):
 
 
 def test_respects_user_choices(svc, fake_home):
-    settings = {"cleanupPeriodDays": 0, "statusLine": {"type": "command", "command": "x tandem_collect.py y"}}
+    settings = {"cleanupPeriodDays": 0, "statusLine": {"type": "command", "command": "x orbit_collect.py y"}}
     (fake_home / ".claude/settings.json").write_text(json.dumps(settings))
     (fake_home / ".codex/config.toml").write_text('notify = ["say"]\n')
     plan = svc.plan({"type": "collect"}, agents=["claude_code", "codex"])
     codex = [t for t in plan["targets"] if t["agent"] == "codex"]
     assert codex == [{**codex[0], "mappable": False, "reason": "codex_notify_in_use"}]
     claude = [t for t in plan["targets"] if t["agent"] == "claude_code"]
-    assert all(t["display"].endswith(("settings.json", "tandem_collect.py")) for t in claude)
+    assert all(t["display"].endswith(("settings.json", "orbit_collect.py")) for t in claude)
     # no statusLine / cleanup target: already wrapped, and 0 (transcripts off) is the user's call
     assert len(claude) == 1 + len(collect.CLAUDE_EVENTS)

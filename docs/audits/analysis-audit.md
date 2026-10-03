@@ -15,7 +15,7 @@
 
 ## 1. AN feature 逐项核对
 
-状态口径：**已完成**指 main 上有实现，也有对外入口；**部分**指核心计算已有，但缺字段、端点或口径；**缺失**指 main 上没有对应实现，雏形另行注明。路径相对 `packages/backend/src/tandem_backend/`。
+状态口径：**已完成**指 main 上有实现，也有对外入口；**部分**指核心计算已有，但缺字段、端点或口径；**缺失**指 main 上没有对应实现，雏形另行注明。路径相对 `packages/backend/src/orbit_backend/`。
 
 | ID | 名称 | 判定 | 证据（文件:行） | 缺什么 |
 | --- | --- | --- | --- | --- |
@@ -102,7 +102,7 @@
 
 | 项 | 现状 | 证据 |
 | --- | --- | --- |
-| 结果表 | `analysis.sqlite`：`analysis_run`（每次执行）+ `analysis_snapshot`（按 sha256 去重的 zlib 压缩 JSON） | `packages/data/src/tandem_data/migrations/analysis/001.sql`、`analysis_history.py:73 complete` |
+| 结果表 | `analysis.sqlite`：`analysis_run`（每次执行）+ `analysis_snapshot`（按 sha256 去重的 zlib 压缩 JSON） | `packages/data/src/orbit_data/migrations/analysis/001.sql`、`analysis_history.py:73 complete` |
 | 版本号 | 结果中带 `FEATURE_VERSION`、`RULE_VERSIONS`、`INSTRUCTION_VERSION`；`analysis_digest = stable_id(content_digest, scope, versions, with_text)` | `analytics/service.py:302-311, 371` |
 | 输入指纹 | 只有 `bundle.versions.content_digest`（canonical 为 projection run），没有会话粒度的指纹 | — |
 | 读路径 | **没有**。`recorded()` 先 `start` 再计算，然后 `complete`，从不查找已有的相同 digest | `analytics/history.py:25-54` |
@@ -141,7 +141,7 @@
 | `analysis_row` | `(request_key, input_fp, section, idx)` | `payload` | 大数组（sessions、records）逐行存储，分页时直接 `LIMIT/OFFSET` |
 | `session_exclusion` | `session_uid` | `reason, created_at` | AN-16.1 |
 
-- **`tree_fp`**：对根会话树的 `count(event)`、`max(event.rowid)`、`count(tool_call)`、`count(model_call)`、`max(seq)` 做哈希。用一条 `GROUP BY root_uid` 的 SQL 一次取全部，走已有索引 `event_by_call(session_uid, …)`、`projection_fk_tool_session`、`projection_fk_model_session`。指纹放在 `tandem_data/analysis_fingerprint.py`。
+- **`tree_fp`**：对根会话树的 `count(event)`、`max(event.rowid)`、`count(tool_call)`、`count(model_call)`、`max(seq)` 做哈希。用一条 `GROUP BY root_uid` 的 SQL 一次取全部，走已有索引 `event_by_call(session_uid, …)`、`projection_fk_tool_session`、`projection_fk_model_session`。指纹放在 `orbit_data/analysis_fingerprint.py`。
 - **`scope_class`**：表示会话树在当前 Scope 下是否被完整选中。会话树落在时间窗内、且没有模型 / 档位过滤时记为 `full`，可以跨窗口复用；跨越窗口边界的会话树记为对过滤条件的哈希，只在相同过滤下复用。
 - **`algo_version`**：`H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION_VERSION, VECTOR_VERSION)`。规则一变，旧行自动失配。
 - **增量**：导入完成后只重算 `tree_fp` 变化的根会话行；聚合（全体、项目）用缓存的会话行加原始列表做一次 O(E) 分组。跨会话的 Task、Preference、文本表示、词频、统计只在请求对应 section 时惰性计算，并按 `input_fp` 缓存。
@@ -184,7 +184,7 @@
 | 7 | `_project_rows`（`service.py:146-147`） | 2.3–5.0 s | 每个项目扫描全部事件和调用 | 复用 `context.event_groups / call_groups` |
 | 8 | `correction_terms` 每次调用都执行 `re.escape` 和临时 `re.sub` | 1.4 s | 正则没有预编译 | 预编译为模块常量 |
 | 9 | sklearn 导入（`representation.py` 顶层导入） | 冷启动约 1.7–6 s | `analytics.service` 导入链的顶层就会加载 sklearn、scipy | 在 `representation()` 内延迟导入；API 首请求和 CLI 都受益 |
-| 10 | 输入读取（`tandem_data/analysis_input.py`，静态分析） | 未测（需要 canonical 库） | `SELECT * FROM v_analysis_tool_call / v_analysis_model_call / session` 全表扫描后在 Python 里过滤（:216、:251、:267）；`until_ts` 时每个调用单独查一次审批（:225，N+1）；`next(e for e in events …)` 在循环内线性查找（约 :259，O(T·E)）；`json.loads` 解码全部 `attrs` | 用 `IN (SELECT event_uid FROM members)` 下推；用一条带窗口函数的 SQL 批量取最后审批；用 `event_lookup` 字典查找 |
+| 10 | 输入读取（`orbit_data/analysis_input.py`，静态分析） | 未测（需要 canonical 库） | `SELECT * FROM v_analysis_tool_call / v_analysis_model_call / session` 全表扫描后在 Python 里过滤（:216、:251、:267）；`until_ts` 时每个调用单独查一次审批（:225，N+1）；`next(e for e in events …)` 在循环内线性查找（约 :259，O(T·E)）；`json.loads` 解码全部 `attrs` | 用 `IN (SELECT event_uid FROM members)` 下推；用一条带窗口函数的 SQL 批量取最后审批；用 `event_lookup` 字典查找 |
 
 **并行**：会话级家族计算是纯函数，可以按根会话分块，用 `ProcessPoolExecutor` 并行（macOS 下 spawn，块大小约 200 个根会话，只把会话树的原始行传给子进程）。缓存命中后需要计算的会话通常很少，所以并行只在冷算时启用（未命中的根会话 ≥ 300 个时）。
 
@@ -210,7 +210,7 @@
 合入全部导入与分析优化（含分析单进程路径提速 `wip/yhyfhgs-analysis-serial` 与首导写者 `wip/yhyfhgs-writer2`）后的最终验收复测（2026-10-03 04:36–04:50，`wip/yhyfhgs-int` 的 `a29da8b`；同一提交 `pnpm check` 全部通过）。
 
 - **对照**：审计基线 `747b0da`。两边用各自的 `.venv`（CPython 3.13.15），读取同一份共用构造输入包（`bundle-2500` / `bundle-1000`），`Scope(display_timezone="Asia/Shanghai")`，`with_text=False`。
-- **方式**：每次运行都是新进程，在机器级基准锁里串行执行；基线与新代码紧挨着成对运行。`workers=1` 用环境变量 `TANDEM_ANALYSIS_WORKERS=1`（基线为单进程，不受影响），默认 workers 不设该变量。每种组合成对 2 次；`workers=1` 在 load 降到 4 左右时又补测 1 对。
+- **方式**：每次运行都是新进程，在机器级基准锁里串行执行；基线与新代码紧挨着成对运行。`workers=1` 用环境变量 `ORBIT_ANALYSIS_WORKERS=1`（基线为单进程，不受影响），默认 workers 不设该变量。每种组合成对 2 次；`workers=1` 在 load 降到 4 左右时又补测 1 对。
 - **负载**：机器为 14 核 Apple M4 Pro，测量期间有其他 agent 占用 CPU；表中为每次运行开始时的 1 分钟 load average。
 
 | 场景 | workers | 对 | 负载（基线 / 新，开始） | 基线 | 新值 | 加速比 | 目标 | 达标 |

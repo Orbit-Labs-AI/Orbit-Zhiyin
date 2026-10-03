@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.api import create_app
-from tandem_backend.catalog import resources
-from tandem_backend.resource_fetch import GitHubSourceClient, SourceFetchError, refresh_catalog
+from orbit_backend.api import create_app
+from orbit_backend.catalog import resources
+from orbit_backend.resource_fetch import GitHubSourceClient, SourceFetchError, refresh_catalog
 
 COMMIT = "a" * 40
 NEXT_COMMIT = "b" * 40

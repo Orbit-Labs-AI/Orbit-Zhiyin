@@ -26,9 +26,9 @@ if str(ROOT) not in sys.path:  # benchmarks/ is a repository package, not an ins
 
 from benchmarks.analytics.synthetic import canonical_json, generate_bundle  # noqa: E402
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope  # noqa: E402
-from tandem_backend.analytics.products.service import build_products  # noqa: E402
-from tandem_backend.analytics.service import analyze_bundle  # noqa: E402
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope  # noqa: E402
+from orbit_backend.analytics.products.service import build_products  # noqa: E402
+from orbit_backend.analytics.service import analyze_bundle  # noqa: E402
 
 GOLDEN = ROOT / "packages/backend/tests/fixtures/analysis-golden-v1.json"
 SESSIONS, SEED, TIMEZONE = 200, 7, "Asia/Shanghai"

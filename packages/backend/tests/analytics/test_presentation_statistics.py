@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from tandem_backend.analytics.presentation.statistics import (
+from orbit_backend.analytics.presentation.statistics import (
     build_statistics,
     project_identity_resolver,
     project_statistics,

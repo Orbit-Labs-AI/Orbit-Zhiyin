@@ -26,11 +26,11 @@ bash scripts/check-data.sh --real --full --agent dsh --open
 日常导入：
 
 ```sh
-uv run --project packages/data tandem-data discover
-uv run --project packages/data tandem-data --home .local/tandem scan --agent claude_code --root ~/.claude
-uv run --project packages/data tandem-data --home .local/tandem scan --agent kimi --root ~/.kimi-code
-uv run --project packages/data tandem-data --home .local/tandem verify
-uv run --project packages/data tandem-data --home .local/tandem rebuild
+uv run --project packages/data orbit-data discover
+uv run --project packages/data orbit-data --home .local/orbit scan --agent claude_code --root ~/.claude
+uv run --project packages/data orbit-data --home .local/orbit scan --agent kimi --root ~/.kimi-code
+uv run --project packages/data orbit-data --home .local/orbit verify
+uv run --project packages/data orbit-data --home .local/orbit rebuild
 ```
 
 名字为 `claude_code / opencode / dsh / pi / hermes / kimi`，原有 `codex` 保留。`scan --limit N` 为有界样本；`ingest --file` 必须命中来源白名单。导出拒绝覆盖已有文件或写入 Agent 目录。CSV 对公式起始的文本加单引号作为字面量，JSONL 保持标准投影内容；完整原件仍在 L0。
@@ -40,17 +40,17 @@ uv run --project packages/data tandem-data --home .local/tandem rebuild
 ```python
 from pathlib import Path
 from threading import Event
-from tandem_data.store import Store
-from tandem_data.service import ImportRequest, ImportService, event_page
+from orbit_data.store import Store
+from orbit_data.service import ImportRequest, ImportService, event_page
 
-with Store(Path.home() / 'Library/Application Support/Tandem') as store:
+with Store(Path.home() / 'Library/Application Support/Orbit') as store:
     service = ImportService(store, progress=lambda status: print(status))
     result = service.import_source(ImportRequest('pi', Path.home() / '.pi/agent'))
     # 进度回调不包含会话正文；可转成 App 的 IPC progress 消息。
     # service.watch(request, stop=Event(), interval=2) 提供可取消的轮询迭代器。
 
 # App 查询走只读连接和 seq 游标，页大小最多 1000。
-page = event_page(Path.home() / 'Library/Application Support/Tandem', session_uid, limit=100)
+page = event_page(Path.home() / 'Library/Application Support/Orbit', session_uid, limit=100)
 ```
 
 App 负责选择/启用来源、启动一个后台 worker、显示进度/覆盖和分页数据。采集 worker 独占输出目录的 `import.lock`（POSIX advisory lock），不锁定源 Agent。一次导入可在文件之间取消；L2/L3 事务提交后读者看到新投影。每个 worker 线程使用自己的 Store；不要把 sqlite3 连接跨线程共享。App 的分析入口仍是 `analysis_input.read_analysis` 和 `v_analysis_*` 视图，不依赖各家 native 字段。

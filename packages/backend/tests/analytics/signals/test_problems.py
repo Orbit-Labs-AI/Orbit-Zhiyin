@@ -4,9 +4,9 @@ import copy
 
 from signal_fixtures import Session, analyze, bundle, retry_session
 
-from tandem_backend.analytics.signals.problems import problem_id, upgrade_problems
-from tandem_backend.analytics.stats import wilson_lo
-from tandem_backend.models import stable_id
+from orbit_backend.analytics.signals.problems import problem_id, upgrade_problems
+from orbit_backend.analytics.stats import wilson_lo
+from orbit_backend.models import stable_id
 
 
 def tool_session(sid, **kw):
@@ -77,7 +77,7 @@ def test_unsafe_operation_upgrades_at_one_in_twenty():
 
 
 def test_wilson_gate_still_applies_when_a_type_sets_a_baseline(monkeypatch):
-    from tandem_backend.analytics.signals import dictionary
+    from orbit_backend.analytics.signals import dictionary
 
     monkeypatch.setitem(dictionary.PROBLEM_TYPES, "tool_env_failure",
                         {**dictionary.PROBLEM_TYPES["tool_env_failure"], "wilson_lo_min": 0.05})

@@ -13,19 +13,19 @@ import { watchCodex } from './watch.ts';
 import { readRawRecord } from './archive.ts';
 import { redact } from './privacy.ts';
 
-const help=`Tandem Codex Connector — 本地只读采集与标准化
+const help=`Orbit Codex Connector — 本地只读采集与标准化
 
-  tandem-ingest init     [--data-dir PATH]
-  tandem-ingest discover [--codex-home PATH]
-  tandem-ingest ingest   [--codex-home PATH] [--data-dir PATH] [--file PATH ...] [--no-index]
-  tandem-ingest watch    [--codex-home PATH] [--data-dir PATH]
-  tandem-ingest stats    [--data-dir PATH]
-  tandem-ingest rebuild  [--data-dir PATH]
-  tandem-ingest export   --session UID [--data-dir PATH] [--output FILE]
-  tandem-ingest raw      --record UID [--data-dir PATH]
+  orbit-ingest init     [--data-dir PATH]
+  orbit-ingest discover [--codex-home PATH]
+  orbit-ingest ingest   [--codex-home PATH] [--data-dir PATH] [--file PATH ...] [--no-index]
+  orbit-ingest watch    [--codex-home PATH] [--data-dir PATH]
+  orbit-ingest stats    [--data-dir PATH]
+  orbit-ingest rebuild  [--data-dir PATH]
+  orbit-ingest export   --session UID [--data-dir PATH] [--output FILE]
+  orbit-ingest raw      --record UID [--data-dir PATH]
 
 discover 只列来源与文件数量，不导入。ingest/watch 明确启用指定来源。
-默认来源为 CODEX_HOME 或 ~/.codex；默认 staging 输出在 ~/Library/Application Support/Tandem/connectors/codex。
+默认来源为 CODEX_HOME 或 ~/.codex；默认 staging 输出在 ~/Library/Application Support/Orbit/connectors/codex。
 export 输出脱敏标准事件 JSONL；raw 明确请求所选记录的原始字节（可能含敏感内容）。
 已有导出文件不会覆盖。退出码 2 表示存在待读取文件或无法解析的记录。`;
 async function canonicalDestination(path:string):Promise<string> {
@@ -40,7 +40,7 @@ async function main():Promise<void> {
   const command=positionals[0];
   if (values.help || !command) { console.log(help); return; }
   if (positionals.length!==1 || !['init','discover','ingest','watch','stats','export','raw','rebuild'].includes(command)) throw new Error('Unknown command; use --help');
-  const directory=resolve(values['data-dir']??join(homedir(),'Library','Application Support','Tandem','connectors','codex'));
+  const directory=resolve(values['data-dir']??join(homedir(),'Library','Application Support','Orbit','connectors','codex'));
   const root=values['codex-home']??defaultCodexHome();
   if (command==='init') {
     const home=await canonicalDestination(resolve(root));
@@ -74,7 +74,7 @@ async function main():Promise<void> {
     } finally { store.close(); }
     return;
   }
-  await access(join(directory,'tandem.db'));
+  await access(join(directory,'orbit.db'));
   if (command==='rebuild') {
     const store=new ConnectorStore(directory);
     try {console.log(JSON.stringify({sessions_rebuilt:store.rebuild(),db_schema_version:2,input_contract:'analysis-input-v1'}));}
@@ -85,7 +85,7 @@ async function main():Promise<void> {
     const store=new ConnectorStore(directory);
     try { process.stdout.write(await readRawRecord(store,values.record)); } finally {store.close();} return;
   }
-  const db=new DatabaseSync(join(directory,'tandem.db'),{readOnly:true});
+  const db=new DatabaseSync(join(directory,'orbit.db'),{readOnly:true});
   try {
     db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN');
     if (command==='stats') {

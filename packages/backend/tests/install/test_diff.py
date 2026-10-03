@@ -1,7 +1,7 @@
 import json
 
-from tandem_backend.install import cost, ops
-from tandem_backend.install.diff import line_diff, three_way
+from orbit_backend.install import cost, ops
+from orbit_backend.install.diff import line_diff, three_way
 
 
 def test_new_file_all_added_with_ai_lines():
@@ -65,7 +65,7 @@ def test_cost_estimate():
 
 
 def test_trimmed_large_file_matches_untrimmed_rows():
-    from tandem_backend.install.diff import _rows
+    from orbit_backend.install.diff import _rows
 
     before = "\n".join(f'  "k{i}": {i % 7},' for i in range(4000))
     lines = before.splitlines()

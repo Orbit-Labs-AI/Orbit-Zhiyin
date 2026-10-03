@@ -48,21 +48,21 @@
    "value": "actionability",
    "weight": 1.0,
    "origin": "curated",
-   "evidence": "Tandem reviewed seed"
+   "evidence": "Orbit reviewed seed"
   },
   {
    "feature": "dimension",
    "value": "grounding",
    "weight": 1.0,
    "origin": "curated",
-   "evidence": "Tandem reviewed seed"
+   "evidence": "Orbit reviewed seed"
   },
   {
    "feature": "dimension",
    "value": "verification",
    "weight": 1.0,
    "origin": "curated",
-   "evidence": "Tandem reviewed seed"
+   "evidence": "Orbit reviewed seed"
   },
   {
    "feature": "domain",
@@ -76,7 +76,7 @@
    "value": "repeated_tool_failure",
    "weight": 1.0,
    "origin": "curated",
-   "evidence": "Tandem reviewed seed"
+   "evidence": "Orbit reviewed seed"
   },
   {
    "feature": "friction",
@@ -90,7 +90,7 @@
    "value": "coding",
    "weight": 1.0,
    "origin": "curated",
-   "evidence": "Tandem reviewed seed"
+   "evidence": "Orbit reviewed seed"
   }
  ],
  "versions": [
@@ -255,7 +255,7 @@
  ],
  "sources": [
   {
-   "source_id": "tandem-seeds",
+   "source_id": "orbit-seeds",
    "native_id": "systematic-debugging",
    "status": "active",
    "fetched_at": 1790958829254

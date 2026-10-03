@@ -2,9 +2,9 @@
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
-> 定位：回答「分析（AN）与推荐（RC）两个模块分别如何接入 AI」。AI 是可关闭的横切层：不接一个 agent 自由问答，而是把模型嵌进确定性的 workflow 节点里，每个节点有固定输入、闭集输出、缓存键、预算与降级。不开 AI 时，所有页面照常出数（main `tandem_backend` 已是这样）。
+> 定位：回答「分析（AN）与推荐（RC）两个模块分别如何接入 AI」。AI 是可关闭的横切层：不接一个 agent 自由问答，而是把模型嵌进确定性的 workflow 节点里，每个节点有固定输入、闭集输出、缓存键、预算与降级。不开 AI 时，所有页面照常出数（main `orbit_backend` 已是这样）。
 >
-> 依据（2026-10-02，按评审统一结论修订）：模块契约 [`contract.md`](module-contract.md) 第 2 版 + 本轮评审结论（并入契约第 3 版的条目见 §14）；main `f4a2cde`（`src/tandem_backend/` 0.13.6 + PR #16 `analytics/instruction/`：`narrative.py`、`reader_eval.py`、`evaluation.py`、`analytics/{features,text,service}.py`、`feedback.py`、`bottlenecks.py`、`recommend.py`、`pipeline_eval.py`、`privacy.py`、`store.py`）；已合入 main 的 PR #11（`packages/connectors`，35 项回归）、PR #12 Lite Demo（`prototypes/advance/benchmark-review.md`）、PR #15（版本名统一为 Lite / Advance）；未合入：PR #9 / #14 `origin/feat/agent-connectors`（`packages/data`：`analysis_input.read_analysis()`、`ImportService`、`user_version = 4`）、PR #13 / #17（`MistyHuang03` 语义特征族）、PR #19 `origin/refactor/genius-FXC-bottleneck`（`analytics/{respond,interaction,cost_time,outcome}`）；调研 `docs/research/landscape.md`（§2.4 headless 实测、§3.3 AI 原则）与 [research.md](../research/landscape.md) 所汇总的调研笔记；Demo 盘点 [`feature-map.md`](feature-map.md) §5；用户覆盖要求 本机工作文件。
+> 依据（2026-10-02，按评审统一结论修订）：模块契约 [`contract.md`](module-contract.md) 第 2 版 + 本轮评审结论（并入契约第 3 版的条目见 §14）；main `f4a2cde`（`src/orbit_backend/` 0.13.6 + PR #16 `analytics/instruction/`：`narrative.py`、`reader_eval.py`、`evaluation.py`、`analytics/{features,text,service}.py`、`feedback.py`、`bottlenecks.py`、`recommend.py`、`pipeline_eval.py`、`privacy.py`、`store.py`）；已合入 main 的 PR #11（`packages/connectors`，35 项回归）、PR #12 Lite Demo（`prototypes/advance/benchmark-review.md`）、PR #15（版本名统一为 Lite / Advance）；未合入：PR #9 / #14 `origin/feat/agent-connectors`（`packages/data`：`analysis_input.read_analysis()`、`ImportService`、`user_version = 4`）、PR #13 / #17（`MistyHuang03` 语义特征族）、PR #19 `origin/refactor/genius-FXC-bottleneck`（`analytics/{respond,interaction,cost_time,outcome}`）；调研 `docs/research/landscape.md`（§2.4 headless 实测、§3.3 AI 原则）与 [research.md](../research/landscape.md) 所汇总的调研笔记；Demo 盘点 [`feature-map.md`](feature-map.md) §5；用户覆盖要求 本机工作文件。
 >
 > 写法：每个 AI 任务写「触发 → 输入（只发哪些字段、预算）→ 档位 → 输出 schema → 缓存键与失效 → 失败降级 → 评测」。标「待验证」的是需要真实数据或实测才能定的假设。成员一律用 GitHub 账号指代。配套文档：`docs/plans/analysis-module.md`（AN）、`docs/plans/recommendation-module.md`（RC）、`docs/plans/evaluation-module.md`（EV）、`docs/plans/feature-map.md`（三张端到端功能卡与合并后的前端升级表；本文只写各卡的第 4 段「AI 介入点」，见 §9）。
 
@@ -75,7 +75,7 @@
 
 **能力探测**（`GET /v1/ai/capabilities`，SET-18、A9-08）：按引擎执行 `claude --version`、`codex --version`，解析版本并对照支持矩阵（`--safe-mode`、`--json-schema`、`--max-budget-usd` 的最低版本待验证 AV6）；登录状态用一次最便宜的探测调用（`--max-budget-usd 0.01`，提示「reply ok」）确认，结果缓存 24 h；额度 MVP 只显示不判定：Codex 从最近 rollout 的 `rate_limits`（PR #11 已写入 attrs），Claude 从 `~/.claude.json` 的 `cachedUsageUtilization` 只读（DT-17 v1，字段稳定性待验证 AV7），都没有则显示「未知」；「额度不足跳过」是 v1 后台任务的规则。
 
-**自身会话过滤**（R10）：每次调用的提示第一行是固定 marker `[tandem-analysis v1 task=<task_id>]`；cwd 固定为 `~/Library/Application Support/Tandem/agent-cwd/`；连接器把 cwd 命中该目录或首条真人消息以 marker 开头的会话标为 `session.kind = auxiliary`、`attrs.origin = tandem`，默认不进 `v_analysis_*` 视图（DT 侧补充约定，见 §14）。过渡期 main 旧链路用 `import_codex --exclude-session` 与 `sample_policies` 排除。
+**自身会话过滤**（R10）：每次调用的提示第一行是固定 marker `[orbit-analysis v1 task=<task_id>]`；cwd 固定为 `~/Library/Application Support/Orbit/agent-cwd/`；连接器把 cwd 命中该目录或首条真人消息以 marker 开头的会话标为 `session.kind = auxiliary`、`attrs.origin = orbit`，默认不进 `v_analysis_*` 视图（DT 侧补充约定，见 §14）。过渡期 main 旧链路用 `import_codex --exclude-session` 与 `sample_policies` 排除。
 
 ### 2.2 模型槽位（AI-02 的一部分）
 
@@ -112,7 +112,7 @@
 | `ask.plan` + `ask.answer` | L2 + L3 | 用户在 ASK 浮层提问 | 1 + 1 | ≤ 2K + ≤ 12K | `{queries[] ≤ 3}` + `{answer, refs[], next}`（§4.6） | 不缓存 | 预置问题的模板回答（Demo `askAnswer` 逻辑即 L0 版） | v1 |
 | `eval.plugin_eval` | L4 | 用户同意装前对照 | 每臂 3 次 | 按 case | 评测 JSON | `(artifact_hash, cases_hash)` | 卡片标「未测」 | v2 |
 
-注册表 MVP 用 Python 常量字典（`TASKS = {task_id: {tier, slot, input_budget, schema, prompt_version, fallback}}`），与引擎、`run_task()`、gate 同放 `src/tandem_backend/ai.py`；schema、提示与模板放 `src/tandem_backend/data/ai/{schemas,prompts,templates}/`。YAML 注册表与 `max_items_per_call / idle_only / requires_user_trigger / eval_suite / baseline_score` 列随 v1 的后台调度一起加。
+注册表 MVP 用 Python 常量字典（`TASKS = {task_id: {tier, slot, input_budget, schema, prompt_version, fallback}}`），与引擎、`run_task()`、gate 同放 `src/orbit_backend/ai.py`；schema、提示与模板放 `src/orbit_backend/data/ai/{schemas,prompts,templates}/`。YAML 注册表与 `max_items_per_call / idle_only / requires_user_trigger / eval_suite / baseline_score` 列随 v1 的后台调度一起加。
 
 ### 2.4 预算、封顶与不污染数据（AI-11）
 
@@ -128,7 +128,7 @@
 
 ### 2.5 上下文包构建与预览（AI-08）
 
-上下文包是所有任务的唯一输入形态；由代码从 `analysis.db` 与 `tandem.db`（只读）组装，再过第二遍脱敏（main `privacy.direct_user_text()`，规则表以 DT-10 写入时脱敏为准），逐项计 token（中文按 1 字 ≈ 1 token 估，待验证 AV4）。
+上下文包是所有任务的唯一输入形态；由代码从 `analysis.db` 与 `orbit.db`（只读）组装，再过第二遍脱敏（main `privacy.direct_user_text()`，规则表以 DT-10 写入时脱敏为准），逐项计 token（中文按 1 字 ≈ 1 token 估，待验证 AV4）。
 
 | 包项 | 来源（真实列名） | 默认 | 用于 |
 | --- | --- | --- | --- |
@@ -209,7 +209,7 @@
 - `prompt_version` 升版：只对分析窗口（默认 90 天）内的会话懒重算，更早的保留旧版并标「旧版 facet」。
 - 会话内容变化（追加事件）：标 `stale`，下一次「仅新会话」处理时重算。
 - 首次回填：只覆盖分析窗口内最近的 ≤ 200 个合格会话，更早区间在用户查看时按需补；回填顺序 = 先抽有 L0 候选或是活跃 `problem` 证据的会话，其余按分层抽样补足 `task_type` 分布所需样本（R9；质量与 AV1 / AV8 一并验证）。
-- `session_facet` 表可整表重建，不进 `tandem.db`。
+- `session_facet` 表可整表重建，不进 `orbit.db`。
 
 **打包与解析**：请求 `items[]` 每项带 `ref_id = session_uid`；响应按 `ref_id` 对齐，缺项记 `skipped`，schema 不合法的单项重试一次（把校验错误附在重试提示里），仍失败记 `failed`，整批其余项照常入库；同批不换模型；一批失败超过一半则停止并提示（§2.4）。
 
@@ -316,9 +316,9 @@ RC-04 的 `priority` 是确定性的，AI 不改分数；它只回答两个人�
 
 | 产物 | template_id | 模型填的槽位（类型、上限） | 代码填的部分 | 落点（IN-01，与 `recommendation.md` §8.2 一致） | lint 要点 | 阶段 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 规则片段 AI-06.1 | `rules/paragraph@1` | `rules[] ≤ 5`，每条 ≤ 60 字的祈使句，必须「可验证」（含动作 + 条件或对象）；`title ≤ 12 字` | 标记块 `<!-- tandem:rule id=… evidence=… -->`、证据回链、`dimension` | Claude Code `~/.claude/CLAUDE.md`（用户层）或项目 `AGENTS.md` 块（并确保 `CLAUDE.md` 含 `@AGENTS.md`）；子目录 `.claude/rules/<id>.md`（`paths`）；Codex `~/.codex/AGENTS.md` | 与已有规则相似度 ≥ 0.8 判重复；与 `permissions.deny` / 已有「不要…」冲突判冲突；Claude 单文件 < 200 行、Codex 拼接 ≤ 32 KiB（`docs/research/landscape.md` RS-21）；不含路径用户名、密钥占位符 | MVP |
+| 规则片段 AI-06.1 | `rules/paragraph@1` | `rules[] ≤ 5`，每条 ≤ 60 字的祈使句，必须「可验证」（含动作 + 条件或对象）；`title ≤ 12 字` | 标记块 `<!-- orbit:rule id=… evidence=… -->`、证据回链、`dimension` | Claude Code `~/.claude/CLAUDE.md`（用户层）或项目 `AGENTS.md` 块（并确保 `CLAUDE.md` 含 `@AGENTS.md`）；子目录 `.claude/rules/<id>.md`（`paths`）；Codex `~/.codex/AGENTS.md` | 与已有规则相似度 ≥ 0.8 判重复；与 `permissions.deny` / 已有「不要…」冲突判冲突；Claude 单文件 < 200 行、Codex 拼接 ≤ 32 KiB（`docs/research/landscape.md` RS-21）；不含路径用户名、密钥占位符 | MVP |
 | 粘合规则 AI-06.7（`generate.rule` 的 `glue` 变体） | `rules/paragraph@1`（`variant = glue`） | 同上，但每条规则必须出现 `uses_catalog_items[]` 里的一个条目名（「遇到 X 时使用 `<skill>`」） | `uses_catalog_items[] = 输入给的条目 ID`（gate 校验相等） | 同上 | 同上 + `uses_catalog_items` 越界即丢弃 | MVP |
-| Hook AI-06.3 | `hooks/retry-breaker@1`（← `tool_env_failure`）、`hooks/verify-before-commit@1`（← `missing_verification`，PreToolUse `git commit`）、`hooks/post-edit-check@1`（← `missing_verification` 格式 / 编译类、RC-06 #3；PostToolUse，matcher `Edit\|Write`）、`hooks/stop-verify@1`（← `missing_verification`，验证阶梯第二级；Stop 时自上次成功验证后有编辑就运行或提示验证命令）、`hooks/compaction-reminder@1`（← `context_loss`）、`hooks/scope-guard@1`（← `unsafe_operation`，见 `recommendation.md` 高风险操作一项） | `matcher`（闭集：`Bash\|Edit\|Write\|Task\|*`）、`threshold`（整数区间，如重复失败 2–5）、`message ≤ 120 字`、`command_heads[] ≤ 10`（只能从证据里出现过的 `command_head` 中选）；`post-edit-check` 的 `file_glob` 只能从证据扩展名中选，`command` 只能从该项目历史成功过的验证族 / formatter `command_head` 中选 | hook 事件名、`settings.json` 结构、脚本体（仓库自带，内容哈希固定）、退出码语义 | Claude Code `settings.json /hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Tandem/hooks/<template_id>@<version>.sh`；Codex `~/.codex/hooks.json` + 同一脚本（按哈希信任，标「已安装、未信任」）；pi 需 TS extension（v2） | JSON 合法；脚本哈希与模板一致（文件名带版本便于校验）；`message` 不含 shell 元字符；[hooks 文档](https://code.claude.com/docs/en/hooks) | MVP |
+| Hook AI-06.3 | `hooks/retry-breaker@1`（← `tool_env_failure`）、`hooks/verify-before-commit@1`（← `missing_verification`，PreToolUse `git commit`）、`hooks/post-edit-check@1`（← `missing_verification` 格式 / 编译类、RC-06 #3；PostToolUse，matcher `Edit\|Write`）、`hooks/stop-verify@1`（← `missing_verification`，验证阶梯第二级；Stop 时自上次成功验证后有编辑就运行或提示验证命令）、`hooks/compaction-reminder@1`（← `context_loss`）、`hooks/scope-guard@1`（← `unsafe_operation`，见 `recommendation.md` 高风险操作一项） | `matcher`（闭集：`Bash\|Edit\|Write\|Task\|*`）、`threshold`（整数区间，如重复失败 2–5）、`message ≤ 120 字`、`command_heads[] ≤ 10`（只能从证据里出现过的 `command_head` 中选）；`post-edit-check` 的 `file_glob` 只能从证据扩展名中选，`command` 只能从该项目历史成功过的验证族 / formatter `command_head` 中选 | hook 事件名、`settings.json` 结构、脚本体（仓库自带，内容哈希固定）、退出码语义 | Claude Code `settings.json /hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Orbit/hooks/<template_id>@<version>.sh`；Codex `~/.codex/hooks.json` + 同一脚本（按哈希信任，标「已安装、未信任」）；pi 需 TS extension（v2） | JSON 合法；脚本哈希与模板一致（文件名带版本便于校验）；`message` 不含 shell 元字符；[hooks 文档](https://code.claude.com/docs/en/hooks) | MVP |
 | SKILL.md AI-06.4 | `skills/procedure@1` | `name`（kebab，≤ 64）、`description ≤ 1024 字符`（含触发短语，取自用户原话）、`steps[] ≤ 8` 每条 ≤ 80 字、`dont[] ≤ 5`、`verify ≤ 80 字`、`allowed_tools[]`（闭集） | frontmatter、目录结构、`license`、来源与证据注释 | `~/.claude/skills/<name>/SKILL.md`；Codex `~/.agents/skills/<name>/`（Agent Skills 规范，[specification](https://agentskills.io/specification)） | 规范字段长度；`name` 不与已装清单冲突（A9-15）；只过自检 ①②，description 触发评测 v1（EV-06）；RC 侧仍「检索优先」（`recommendation.md` §5），只在无匹配种子条目时露出 | MVP（用户在 Lite「Agent 定制草稿」或 A9 选定目标与证据会话后触发） |
 | 子代理 AI-06.5 | `agents/reviewer@1` | `name`、`description ≤ 200 字`、`tools[]`（闭集，只读为默认）、`body` 四段（职责 / 输入 / 输出格式 / 禁止项，各 ≤ 120 字） | frontmatter、`model` 槽位、落点 | `~/.claude/agents/<name>.md`；其他 Agent 不可映射则列出 | 只读工具集；`body` 不含路径与密钥 | v1 |
 | slash command AI-06.6 | `commands/checklist@1` | `name`、`description ≤ 100 字`、`body ≤ 300 字`（可含 `$ARGUMENTS`）、`argument_hint ≤ 40 字` | frontmatter、落点 | `~/.claude/commands/<name>.md`；Codex / pi 作为 prompt 文件（落点待验证 AV12） | 与内置命令同名则拒绝 | v1 |
@@ -369,7 +369,7 @@ gate：`step` 必须在活动词表；`metric` 必须在追踪指标注册表；
 | 步 | 做法 | 预算 |
 | --- | --- | --- |
 | 1 `ask.plan`（L2） | 问题 + 当前页面上下文 → `{intents: [≤ 2 个，枚举: compare_previous \| top_action \| explain_metric \| persona_why \| persona_tradeoff \| blind_spot \| rank_recs \| pair_recs \| session_stuck \| session_opening \| write_rule \| tool_worst \| approvals \| mcp_unused \| project_habits \| phrases \| catalog_fit \| other], queries: [≤ 3 个，每个 {api: "metrics\|sessions\|problems\|candidates\|evidence\|search\|projects\|text\|catalog", params: {…按 schema…}}]}`；`params` 有 JSON Schema（`Scope`、`metric[]`、`session_uid`、`q ≤ 80 字`），越界即丢弃该查询 | ≤ 2K |
-| 2 代码执行（L0） | 逐个执行只读查询（只读 `analysis.db` / `tandem.db`），按 §2.5 组包 ≤ 12K；`views` 覆盖 `metrics / problems / profile / candidates / session_detail / tools / inventory / projects / text（phrases_top / clusters / friction_type_mix）/ catalog`，补齐 ASK-01 指出的 A5、A6、A8 无专属上下文；`tool_worst / approvals / mcp_unused` 意图直接以 §4.7 的可自动化操作清单作 view，`refs = candidate_id` | 0 |
+| 2 代码执行（L0） | 逐个执行只读查询（只读 `analysis.db` / `orbit.db`），按 §2.5 组包 ≤ 12K；`views` 覆盖 `metrics / problems / profile / candidates / session_detail / tools / inventory / projects / text（phrases_top / clusters / friction_type_mix）/ catalog`，补齐 ASK-01 指出的 A5、A6、A8 无专属上下文；`tool_worst / approvals / mcp_unused` 意图直接以 §4.7 的可自动化操作清单作 view，`refs = candidate_id` | 0 |
 | 3 `ask.answer`（L3） | 输出 `{answer ≤ 300 字, refs: [{kind: "session\|event\|problem\|candidate\|metric", id}], next: "studio\|recs\|sessions\|tools\|none"}`；`refs` 逐个校验存在；`next = studio` 时 ASK-07「交给生成工坊」把 `answer` 作为 AI-06 的 goal（`goal_source = ask`，证据 = `refs` 解析到的片段） | ≤ 12K |
 | 超出范围 | `intents = [other]` 或查询全部越界：回答固定句「这个问题现在还不能处理」并给可跳转的页面（按关键词映射到 A1–A9） | 0 |
 
@@ -518,7 +518,7 @@ flowchart LR
 | `catalog.py / resource_fetch.py` | 粘合规则的 Catalog 条目输入；条目正文只作数据 | 不改 |
 | PR #9 / `feat/agent-connectors` `analysis_input.read_analysis()`、`Store.read_raw()` | 上下文包的数据来源（只读）；原文片段的唯一入口 | DT 侧补 `auxiliary` 过滤规则 |
 
-代码落点（MVP，不建子包）：`src/tandem_backend/ai.py`（引擎 `ClaudeCodeEngine / CodexEngine / FakeEngine`、`TASKS` 常量字典、`run_task()`、gate 函数、`build_pack()`、估算与 `ai_usage` 写入）与 `src/tandem_backend/data/ai/{schemas,prompts,templates}/`（`schemas/<task>.json`、`prompts/<task>@<version>.md`、`templates/<kind>/<id>@<version>/`）。v1 任务多于 8 个时再拆 `ai/{engine,tasks}` 子包。
+代码落点（MVP，不建子包）：`src/orbit_backend/ai.py`（引擎 `ClaudeCodeEngine / CodexEngine / FakeEngine`、`TASKS` 常量字典、`run_task()`、gate 函数、`build_pack()`、估算与 `ai_usage` 写入）与 `src/orbit_backend/data/ai/{schemas,prompts,templates}/`（`schemas/<task>.json`、`prompts/<task>@<version>.md`、`templates/<kind>/<id>@<version>/`）。v1 任务多于 8 个时再拆 `ai/{engine,tasks}` 子包。
 
 ## 7. 评测对应（EV）
 
@@ -547,34 +547,34 @@ ID 沿用契约 §2.5（AI-01…AI-11），细化为 `AI-xx.y`；AI-12 为本文
 
 | ID | 名称 | 说明 | 输入 | 输出 | 依赖 | 阶段 | 现状 | 负责人 | reviewer |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| AI-01 | 调用通道与安全参数 | Claude Code / Codex headless 最小开销配方、`FakeEngine`、能力与登录探测、marker + 专用 cwd + 不落会话；pi / Hermes / API Key v1，Ollama v2 | `ai_request` 信封 | `ai_response` 信封 + `ai_usage` | DT-02、DT-10 | MVP | 计划（过渡过滤：main:src/tandem_backend/store.py `--exclude-session` / `sample_policies`） | MistyHuang03 | yhyfhgs |
+| AI-01 | 调用通道与安全参数 | Claude Code / Codex headless 最小开销配方、`FakeEngine`、能力与登录探测、marker + 专用 cwd + 不落会话；pi / Hermes / API Key v1，Ollama v2 | `ai_request` 信封 | `ai_response` 信封 + `ai_usage` | DT-02、DT-10 | MVP | 计划（过渡过滤：main:src/orbit_backend/store.py `--exclude-session` / `sample_policies`） | MistyHuang03 | yhyfhgs |
 | AI-02 | 任务注册表与分级路由 | `TASKS` 常量字典（tier、槽位、预算、schema、`prompt_version`、降级）、模型槽位、代码 gate、重试与降级；YAML 与评测基线列 v1 | `task_id` + 上下文包 | 校验后的 JSON 或降级标记 | AI-01 | MVP | 计划 | MistyHuang03 | yhyfhgs |
-| AI-03 | 逐会话 facet（`facet.session`） | 用户触发回填（窗口内 ≤ 200）+「仅新会话」；七项 schema；5–10 会话打包；精确缓存（不含 `model_id`）；回填先抽有候选的会话 | §2.5 `session_rows / tool_sequence / human_messages / assistant_replies / candidates` | `session_facet` v1.1；`signal(type_source=facet)` | AN-02、AN-05、AN-16、AI-01、AI-02、AI-08、AI-11 | MVP（可关闭） | 计划（输入行：main:src/tandem_backend/analytics/features.py `session_features()`） | MistyHuang03 | yhyfhgs |
+| AI-03 | 逐会话 facet（`facet.session`） | 用户触发回填（窗口内 ≤ 200）+「仅新会话」；七项 schema；5–10 会话打包；精确缓存（不含 `model_id`）；回填先抽有候选的会话 | §2.5 `session_rows / tool_sequence / human_messages / assistant_replies / candidates` | `session_facet` v1.1；`signal(type_source=facet)` | AN-02、AN-05、AN-16、AI-01、AI-02、AI-08、AI-11 | MVP（可关闭） | 计划（输入行：main:src/orbit_backend/analytics/features.py `session_features()`） | MistyHuang03 | yhyfhgs |
 | AI-03.1 | 长会话分块摘要（`facet.chunk_summary`） | > 30,000 字符的会话按 25,000 字符分块，首尾块原文 + 中段 6 项摘要；facet v1 扩展字段（`satisfaction_signal / sentiment / key_moments(deviation) / violated_rules`）随本项一起 | 脱敏文本块；`existing_rules` 预筛段落 | 6 项结构化摘要；facet v1 字段 | AI-03、AN-07、AN-09 | v1 | 计划 | MistyHuang03 | yhyfhgs |
-| AI-04.1 | 反馈语 / 情绪分类（`classify.feedback`） | 关闭 facet 的用户的歧义候选、A6-10「不准确」复判；`feedback_kind / is_correction / friction_type / sentiment / confidence`；三票两胜随本项 | 候选 + 前一条助手摘要 + 任务上下文 | `signal` 字段更新；AN-07 投票输入 | AN-05、AN-17 | v1 | 计划（候选来源：main:src/tandem_backend/analytics/features.py `correction_terms`、bottlenecks.py `diagnose`、feedback.py `signals`） | MistyHuang03 | yhyfhgs |
+| AI-04.1 | 反馈语 / 情绪分类（`classify.feedback`） | 关闭 facet 的用户的歧义候选、A6-10「不准确」复判；`feedback_kind / is_correction / friction_type / sentiment / confidence`；三票两胜随本项 | 候选 + 前一条助手摘要 + 任务上下文 | `signal` 字段更新；AN-07 投票输入 | AN-05、AN-17 | v1 | 计划（候选来源：main:src/orbit_backend/analytics/features.py `correction_terms`、bottlenecks.py `diagnose`、feedback.py `signals`） | MistyHuang03 | yhyfhgs |
 | AI-04.2 | 失败簇命名（`cluster.failure_names`） | 按 `error_class` 分组的失败输出取可读簇名 | 失败输出首 200 字 × ≤ 30 | `{error_class, name, member_ids}` | AN-04、DT-06 | v1 | 计划 | MistyHuang03 | yhyfhgs |
-| AI-04.3 | 主题簇命名（`cluster.topic_names`） | 在 AN-18 的 DBSCAN 簇上命名与归类，纯展示层 | top terms + 代表会话摘要 | `{cluster_id, name, kind, confidence}` | AN-18、AI-03 | v1 | 计划（簇来源：main:src/tandem_backend/analytics/text.py） | MistyHuang03 | yhyfhgs |
-| AI-05.1 | 概览叙述（`narrate.overview`） | 「做得好 / 卡在哪 / 立刻可做」三段，结论先行，引用 `problem_id / candidate_id`，数字白名单；scene `status_update` | 汇总统计 + `problems_top` ≤ 5 + Top 3 候选 | 契约 §3.3 叙述形状 | AN-01、AN-06、AN-12、RC-05、AI-03 | MVP | 计划（降级：main:src/tandem_backend/narrative.py `explain()`） | genius-FXC | MistyHuang03 |
+| AI-04.3 | 主题簇命名（`cluster.topic_names`） | 在 AN-18 的 DBSCAN 簇上命名与归类，纯展示层 | top terms + 代表会话摘要 | `{cluster_id, name, kind, confidence}` | AN-18、AI-03 | v1 | 计划（簇来源：main:src/orbit_backend/analytics/text.py） | MistyHuang03 | yhyfhgs |
+| AI-05.1 | 概览叙述（`narrate.overview`） | 「做得好 / 卡在哪 / 立刻可做」三段，结论先行，引用 `problem_id / candidate_id`，数字白名单；scene `status_update` | 汇总统计 + `problems_top` ≤ 5 + Top 3 候选 | 契约 §3.3 叙述形状 | AN-01、AN-06、AN-12、RC-05、AI-03 | MVP | 计划（降级：main:src/orbit_backend/narrative.py `explain()`） | genius-FXC | MistyHuang03 |
 | AI-05.2 | 单会话复盘（`narrate.session_review`） | 卡点、开场建议、`lessons[]` 绑定机制，直通 AI-06；scene `bottleneck` | facet + AN-02 行 + 信号 + 关键时刻 | 叙述形状 + `lessons[]` | AI-03、AN-09 | v1 | 计划 | genius-FXC | MistyHuang03 |
-| AI-05.3 | 周报叙述（`narrate.weekly`） | 固定窗口快照的三节 + At a Glance；scene `weekly_report`（新增） | `report_snapshot(weekly)` | 叙述形状 + `sections[]` | AN-14、EV-07、EV-09 | v1 | 计划（降级：main:src/tandem_backend/analysis_reports.py） | genius-FXC | MistyHuang03 |
+| AI-05.3 | 周报叙述（`narrate.weekly`） | 固定窗口快照的三节 + At a Glance；scene `weekly_report`（新增） | `report_snapshot(weekly)` | 叙述形状 + `sections[]` | AN-14、EV-07、EV-09 | v1 | 计划（降级：main:src/orbit_backend/analysis_reports.py） | genius-FXC | MistyHuang03 |
 | AI-05.4 | 人格解读文案（`narrate.persona`） | headline、traits（绑定指标）、tradeoffs、blind_spots（绑定 problem）、caveats；scene `profile` | `profile.axes / observations / interaction` + 前 3 类摩擦 | §3.6 schema | AN-08、AN-06 | v1 | 计划（MVP 用 Advance Demo `TYPES` 式类型文案库） | genius-FXC | MistyHuang03 |
 | AI-06.1 | 规则片段生成（`generate.rule`） | ≤ 5 条可验证祈使句 + 标记块；重复 / 冲突 lint；入口 → 证据包（§2.5） | 证据片段 + 已有规则段落 + 模板 | 槽位 JSON → `install_plan.targets` | RC-01、RC-06、RC-12、AI-08 | MVP | 计划 | genius-FXC | MistyHuang03 |
 | AI-06.2（废弃） | 权限白名单说明 | 白名单前缀来自 DT-13 词表，说明句用模板句；不再是 AI 任务 | — | — | — | — | 并入 RC-12 模板 | — | — |
-| AI-06.3 | Hook 生成（`generate.hook`） | 六个 hook 模板（`retry-breaker / verify-before-commit / post-edit-check / stop-verify / compaction-reminder / scope-guard`）的 matcher / 阈值 / 提示语 / 命令头 / 文件 glob；脚本体来自仓库模板，落 `~/Library/Application Support/Tandem/hooks/<template_id>@<version>.sh` | 证据 + 模板 | 槽位 JSON → `settings.json` 片段 + 脚本引用 | RC-01、RC-12、AI-07.3 | MVP | 计划（Demo 示意：Advance Demo `05-data.js` `retry-breaker.file`、`latex-hook`） | genius-FXC | MistyHuang03 |
+| AI-06.3 | Hook 生成（`generate.hook`） | 六个 hook 模板（`retry-breaker / verify-before-commit / post-edit-check / stop-verify / compaction-reminder / scope-guard`）的 matcher / 阈值 / 提示语 / 命令头 / 文件 glob；脚本体来自仓库模板，落 `~/Library/Application Support/Orbit/hooks/<template_id>@<version>.sh` | 证据 + 模板 | 槽位 JSON → `settings.json` 片段 + 脚本引用 | RC-01、RC-12、AI-07.3 | MVP | 计划（Demo 示意：Advance Demo `05-data.js` `retry-breaker.file`、`latex-hook`） | genius-FXC | MistyHuang03 |
 | AI-06.4 | SKILL.md 生成（`generate.skill`） | `skills/procedure@1`：name / description / steps / dont / verify / allowed_tools；用户在 Lite「Agent 定制草稿」或 A9 选定目标与证据会话后触发；只过自检 ①②；RC 侧检索优先，无匹配种子条目时才露出 | 反复出现的流程证据（A5-11 `workflow_pattern` 或手输目标的 BM25 片段）+ 模板 | SKILL.md | RC-06（流程第 3 次 → skill）、RC-02 ④、AI-08 | MVP | 计划 | genius-FXC | MistyHuang03 |
 | AI-06.5 | 子代理定义生成（`generate.subagent`） | 只读默认的评审 / 核查类子代理 | 旁支任务证据 + 模板 | agents/*.md | RC-06 | v1 | 计划 | genius-FXC | MistyHuang03 |
 | AI-06.6 | slash command 与工作流教程生成（`generate.command` / `generate.workflow_tutorial`） | 命令正文、参数提示；教程步骤只能用白名单命令 | 证据 + 模板 | commands/*.md；教程 Tab | RC-06、RC-16 | v1 | 计划 | genius-FXC | MistyHuang03 |
-| AI-06.7 | 与专家 skills / plugins 组合 | `generate.rule` 的 `glue` 变体：输入多给已匹配种子 skill，只产「遇到 X 时使用 `<skill>`」规则段，校验 `uses_catalog_items`；条目本身走 IN-08；lethal trifecta 警告；粘合 hook v1 | Catalog 条目 + 模式证据 | 粘合规则 + `uses_catalog_items[]` | RC-02 ②、RC-09、IN-08、IN-05 | MVP（最小形态） | 计划（条目获取：main:src/tandem_backend/resource_fetch.py） | genius-FXC | MistyHuang03 |
+| AI-06.7 | 与专家 skills / plugins 组合 | `generate.rule` 的 `glue` 变体：输入多给已匹配种子 skill，只产「遇到 X 时使用 `<skill>`」规则段，校验 `uses_catalog_items`；条目本身走 IN-08；lethal trifecta 警告；粘合 hook v1 | Catalog 条目 + 模式证据 | 粘合规则 + `uses_catalog_items[]` | RC-02 ②、RC-09、IN-08、IN-05 | MVP（最小形态） | 计划（条目获取：main:src/orbit_backend/resource_fetch.py） | genius-FXC | MistyHuang03 |
 | AI-06.8 | 修改已有文件（`generate.revise`） | 以 `existing_rules` 段落为输入，输出 `keep / replace / move / delete` 编辑操作（带 `anchor_hash`），L0 应用并生成 diff；删除项必须有证据；MVP 由 RC-12 做确定性拆分 | 目标段落 + 证据 + 约束 | 编辑操作列表 → `replace_block / move_block` | RC-06 #4 / #12、RC-07、RC-12、AI-08 | v1 | 计划 | genius-FXC | MistyHuang03 |
-| AI-07.1 | 规范校验 lint | 槽位 schema、文件 lint、名称冲突、与已有规则重复 / 冲突 | 生成物 + 已装清单 + 已有规则 | 通过 / 问题清单 | DT-09、AI-06 | MVP | 计划（文案部分：main:src/tandem_backend/evaluation.py） | MistyHuang03 | yhyfhgs |
+| AI-07.1 | 规范校验 lint | 槽位 schema、文件 lint、名称冲突、与已有规则重复 / 冲突 | 生成物 + 已装清单 + 已有规则 | 通过 / 问题清单 | DT-09、AI-06 | MVP | 计划（文案部分：main:src/orbit_backend/evaluation.py） | MistyHuang03 | yhyfhgs |
 | AI-07.2 | 静态安全扫描 | 元字符、URL、凭据路径、破坏性命令、脚本哈希、权限扩大 | 生成物 | 通过 / 阻断 | IN-05 | MVP | 计划 | MistyHuang03 | yhyfhgs |
 | AI-07.3 | 历史回放 dry-run | 六个 hook 模板的 stdin 回放、白名单回放、`false_block = 0` | 生成物 + 历史 `tool_call` | 召回 / 误拦计数 | DT-06、AI-06.3 | MVP | 计划 | MistyHuang03 | yhyfhgs |
 | AI-07.4 | LLM-as-judge（`judge.artifact_review` / `judge.rule_counterfactual`） | 与生成模型不同的 judge、交换顺序、issues 闭集、近似反例 | 生成物 + lint 报告 / 规则 + 片段 | issues / avoidable | EV-04 | v1 | 计划 | MistyHuang03 | yhyfhgs |
-| AI-08 | 上下文包构建与预览 | 只读组包、第二遍脱敏（`direct_user_text`）、逐项 token、「入口 → 证据包」表、原文片段逐条确认、`preview_digest`（生成类） | `analysis.db` + `tandem.db`（只读） | 包 + 估算 | DT-10、AN-16 | MVP | 计划（脱敏：main:src/tandem_backend/privacy.py；原文：PR#9 `Store.read_raw`） | genius-FXC | MistyHuang03 |
+| AI-08 | 上下文包构建与预览 | 只读组包、第二遍脱敏（`direct_user_text`）、逐项 token、「入口 → 证据包」表、原文片段逐条确认、`preview_digest`（生成类） | `analysis.db` + `orbit.db`（只读） | 包 + 估算 | DT-10、AN-16 | MVP | 计划（脱敏：main:src/orbit_backend/privacy.py；原文：PR#9 `Store.read_raw`） | genius-FXC | MistyHuang03 |
 | AI-09 | 问本地 Agent | `ask.plan`（≤ 3 个结构化只读查询）→ 代码执行 → `ask.answer`；超范围回答不能处理并给跳转；预置问题与 POP-11 开场建议由 L0 生成（MVP） | 问题 + 页面上下文 | `{answer, refs[], next}` | AI-08、AI-02、AN-12 | v1（L0 预置问题 MVP） | 计划（预置问题模板回答：Advance Demo `53-ask.js` 逻辑即 L0 版） | genius-FXC | MistyHuang03 |
-| AI-10 | 高层次 workflow 诊断（`diagnose.workflow`） | MVP 单次调用（≤ 12K：problems + `transitions` 前 15 + 变体前 5 + 任务数 / 验证率 + 已装清单）→ findings 只展示；v1 经 RC-06 映射为 `candidate(match_basis = ai_diagnosis)` | AN-04 产物 + `problems` + `inventory` | findings（MVP）→ 候选（v1） | AN-04、AN-06、DT-09、RC-06 | MVP（单次、只展示）；v1（映射候选） | 计划（`transitions`：main:src/tandem_backend/analytics/respond/sequence.py `workflow()`） | genius-FXC | MistyHuang03 |
+| AI-10 | 高层次 workflow 诊断（`diagnose.workflow`） | MVP 单次调用（≤ 12K：problems + `transitions` 前 15 + 变体前 5 + 任务数 / 验证率 + 已装清单）→ findings 只展示；v1 经 RC-06 映射为 `candidate(match_basis = ai_diagnosis)` | AN-04 产物 + `problems` + `inventory` | findings（MVP）→ 候选（v1） | AN-04、AN-06、DT-09、RC-06 | MVP（单次、只展示）；v1（映射候选） | 计划（`transitions`：main:src/orbit_backend/analytics/respond/sequence.py `workflow()`） | genius-FXC | MistyHuang03 |
 | AI-11 | 预算、封顶与不污染数据 | 调用前估算、每次 `--max-budget-usd`、只处理新会话、首次回填 ≤ 200、串行与取消、marker + cwd；空闲 / 电量 / 额度阈值、租约、退避、并发 v1 | 注册表 + 会话工作集 | `ai_job` 行、估算 | AI-01、DT-17（v1） | MVP | 计划 | MistyHuang03 | yhyfhgs |
-| AI-12 | 候选适配判断与个性化解释（`rerank.fit`） | `fit / reasons / explain / pair_with`；不改 priority，`unfit` 降到末尾 | 画像 + 问题 + 已装清单 + ≤ 10 候选 | `candidate.explain(source=ai)`、排序微调 | RC-02…RC-05、RC-15、AI-03 | v1 | 计划（MVP 文案：main:src/tandem_backend/recommend.py `trial_method`、narrative.py） | MistyHuang03 | genius-FXC |
+| AI-12 | 候选适配判断与个性化解释（`rerank.fit`） | `fit / reasons / explain / pair_with`；不改 priority，`unfit` 降到末尾 | 画像 + 问题 + 已装清单 + ≤ 10 候选 | `candidate.explain(source=ai)`、排序微调 | RC-02…RC-05、RC-15、AI-03 | v1 | 计划（MVP 文案：main:src/orbit_backend/recommend.py `trial_method`、narrative.py） | MistyHuang03 | genius-FXC |
 | EV-11 | 自身 token 账本 | 每次调用的用量、费用、引擎、任务；设置页汇总；估算误差 ≤ 30% | `ai_response.usage` | `ai_usage` 表 | AI-01 | MVP | 计划 | MistyHuang03 | yhyfhgs |
 
 ## 9. 功能卡：本模块负责的第 4 段「AI 介入点」
@@ -584,7 +584,7 @@ ID 沿用契约 §2.5（AI-01…AI-11），细化为 `AI-xx.y`；AI-12 为本文
 | 卡 | AI 介入点（第 4 段） | 无 AI 时 | token |
 | --- | --- | --- | --- |
 | 只读命令自动放行（契约 §4.2） | 无必需的模型调用：前缀清单来自 DT-13 词表，说明句为模板句；可选 `narrate.overview` 在概览提到它时只能引用 `problem_id` 与计数 | 完全相同 | 0 |
-| 重复失败 → 熔断 hook（`hooks/retry-breaker@1`） | `generate.hook`（L3，≤ 10K）只填 `threshold ∈ [2,5]`、`message ≤ 120 字`、`command_heads ⊆ 证据命令头`；脚本体 = 仓库模板（哈希固定），写 `~/Library/Application Support/Tandem/hooks/retry-breaker@1.sh`；AI-07.1 lint → AI-07.2 扫描 → AI-07.3 回放（历史 `tool_call` 还原 stdin JSON，`false_block = 0`）；缓存键 `(candidate_id, evidence_hash, hooks/retry-breaker@1, prompt_version)` | `threshold = 2`、默认提示语，标「未个性化」 | 1 次 L3 ≈ 10K + 1K |
+| 重复失败 → 熔断 hook（`hooks/retry-breaker@1`） | `generate.hook`（L3，≤ 10K）只填 `threshold ∈ [2,5]`、`message ≤ 120 字`、`command_heads ⊆ 证据命令头`；脚本体 = 仓库模板（哈希固定），写 `~/Library/Application Support/Orbit/hooks/retry-breaker@1.sh`；AI-07.1 lint → AI-07.2 扫描 → AI-07.3 回放（历史 `tool_call` 还原 stdin JSON，`false_block = 0`）；缓存键 `(candidate_id, evidence_hash, hooks/retry-breaker@1, prompt_version)` | `threshold = 2`、默认提示语，标「未个性化」 | 1 次 L3 ≈ 10K + 1K |
 | 高频纠偏 → 规则片段（A6-03、A6-10、A3-18；Lite「优化建议 › 规则」） | 证据包按 §2.5「入口 → 证据包」：`phrases_top[]`（AN-17）前 4 条的 `evidence` + `problem_id`；`generate.rule`（L3，≤ 12K：≤ 5 条原话 + `existing_rules` + 模板）→ AI-07.1 lint（重复 / 冲突 / 长度）→ AI-07.2 扫描；`judge.rule_counterfactual` v1；证据入口跳 A3 时携带 `problem.evidence_session_uids`（作为 `root_session_uids`），不改用户已有筛选 | 模板默认句「我说『<原话>』时，请<维度动作>」 | 1 次 L3 ≈ 12K + 1K |
 
 ## 10. MVP 与迭代
@@ -595,7 +595,7 @@ ID 沿用契约 §2.5（AI-01…AI-11），细化为 `AI-xx.y`；AI-12 为本文
 | v1 | AI-03.1 与 facet 扩展字段、AI-04.1 / 04.2 / 04.3、AI-05.2 / 05.3 / 05.4、AI-06.5 / 06.6 / 06.8、粘合 hook、AI-07.4、AI-09（计划 → 执行 → 回答）、AI-10 → RC-06 映射、AI-12、后台调度（空闲 / 额度 / 租约 / 退避 / 并发）、pi / Hermes 通道、API Key 通道 + Batch、YAML 注册表 | EV-02 标注集 κ ≥ 0.6；EV-04 judge 校准；读者盲评 AI 版不劣于模板版；EV-05 回放 |
 | v2 | L1 端侧小模型、Ollama、OpenCode / Kimi / DSH 通道、`eval.plugin_eval`（唯一的 L4 任务）、description 触发评测自动迭代 | 各通道隔离实测；装前对照的额度消耗可接受 |
 
-先最简单可运行的顺序（对齐契约 §6「先最简单、可运行」）：① `FakeEngine` + `TASKS` + facet gate 在 `tests/fixtures/analysis-input-v1.json` 上跑通；② Claude Code 通道实测固定开销与 `--json-schema` 两轮；③ 用三人真实 `tandem.db` 各抽 50 个会话 facet，测打包一致率与 token；④ `narrate.overview` 接 gate 与 `evaluate_text`；⑤ `generate.rule / hook` + 三道自检 + IN-02 预览；⑥ `generate.skill`、`diagnose.workflow` 单次版；⑦ 估算、封顶与设置页。每步交付后再扩。
+先最简单可运行的顺序（对齐契约 §6「先最简单、可运行」）：① `FakeEngine` + `TASKS` + facet gate 在 `tests/fixtures/analysis-input-v1.json` 上跑通；② Claude Code 通道实测固定开销与 `--json-schema` 两轮；③ 用三人真实 `orbit.db` 各抽 50 个会话 facet，测打包一致率与 token；④ `narrate.overview` 接 gate 与 `evaluate_text`；⑤ `generate.rule / hook` + 三道自检 + IN-02 预览；⑥ `generate.skill`、`diagnose.workflow` 单次版；⑦ 估算、封顶与设置页。每步交付后再扩。
 
 ## 11. 与 Demo 的对应
 
@@ -710,9 +710,9 @@ AV2（`--safe-mode` 与 MCP 共存）随 L4 `ask.query` 删除而撤销。
 | 4 | `candidate.match_basis` 枚举增加 `inventory_fact`、`ai_diagnosis` | §3.4 |
 | 5 | `problem` 表加 `evidence_basis TEXT`（`rule \| facet \| mixed`）；AN-06 写明 facet 信号参与会话计数（κ ≥ 0.6 后）但卡片标「含 AI 判定」 | §3.2 (b) |
 | 6 | 新增 `ai_job` 表（MVP 列：`job_id, task_id, status, scope_hash, goal_source, preview_digest, estimated_tokens, actual_tokens, created_at, finished_at, error`；`lease_until` v1）；`ai_usage` 加 `status, items_ok, items_failed, engine_version` | §3.3 |
-| 7 | hook 脚本落点统一为 `~/Library/Application Support/Tandem/hooks/<template_id>@<version>.sh`；hook 模板闭集六个（`retry-breaker / verify-before-commit / post-edit-check / stop-verify / compaction-reminder / scope-guard`）各标触发 `problem.type`；`scope-guard` 的触发 `unsafe_operation` 随 `recommendation.md` 新增的高风险操作 `problem.type` 进 §3.2b | §3.4、§3.5 |
+| 7 | hook 脚本落点统一为 `~/Library/Application Support/Orbit/hooks/<template_id>@<version>.sh`；hook 模板闭集六个（`retry-breaker / verify-before-commit / post-edit-check / stop-verify / compaction-reminder / scope-guard`）各标触发 `problem.type`；`scope-guard` 的触发 `unsafe_operation` 随 `recommendation.md` 新增的高风险操作 `problem.type` 进 §3.2b | §3.4、§3.5 |
 | 8 | IN 动作枚举增加 `replace_block / move_block`（写前备份、可撤销），供 AI-06.8 与 RC-07 拆分使用 | §3.5 |
-| 9 | DT 侧补充约定：连接器把 cwd 位于 Orbit `agent-cwd/` 或首条真人消息以 `[tandem-analysis` 开头的会话标 `session.kind = auxiliary, attrs.origin = tandem`，默认不进 `v_analysis_*`；落在 `packages/data` 的 mapper 公共层 | §1 隐私、DT-01 / DT-06 |
+| 9 | DT 侧补充约定：连接器把 cwd 位于 Orbit `agent-cwd/` 或首条真人消息以 `[orbit-analysis` 开头的会话标 `session.kind = auxiliary, attrs.origin = orbit`，默认不进 `v_analysis_*`；落在 `packages/data` 的 mapper 公共层 | §1 隐私、DT-01 / DT-06 |
 | 10 | API：`GET /v1/analytics/overview` 增 `narration{…, source, prompt_version, model_id, generated_at}`；`GET /v1/analytics/sessions/{id}` 增 `facet`；`GET /v1/ai/jobs/{id}` SSE 事件形状 `{stage, progress, tokens, message}`；`GET /v1/ai/usage?from&until`；`GET /v1/recommendations` 增 `surface / kind` 参数 | §5.3 |
 | 11 | AI-09 改为「计划 → 代码执行只读查询 → 回答」（`ask.plan` L2 + `ask.answer` L3），无 L4；AI-11 的空闲 / 额度 / 并发 / 退避规则改为 v1，MVP 为用户触发、串行；AI-06 行的 MVP 改为「规则、hook、SKILL.md、粘合规则」 | §2.5、§5.1 |
 | 12 | `judge.rule_counterfactual` 的反例由「随机片段」改为「共享关键词的近似反例」（研究 E6） | §3.6 |

@@ -3,8 +3,8 @@ linked inventory is read directly from ``home`` (read-only) instead of the raw s
 
 from __future__ import annotations
 
-from tandem_backend import features
-from tandem_backend.recommend import section
+from orbit_backend import features
+from orbit_backend.recommend import section
 
 
 def test_unbound_worker_reads_linked_inventory(world, monkeypatch):

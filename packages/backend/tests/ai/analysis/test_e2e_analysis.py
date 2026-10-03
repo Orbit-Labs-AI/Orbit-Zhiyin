@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.ai.redact import compact
+from orbit_backend.ai.redact import compact
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 BASE = "http://127.0.0.1:8765"
@@ -20,14 +20,14 @@ BASE = "http://127.0.0.1:8765"
 def client(tmp_path, user_home):
     sys.path.insert(0, str(Path(__file__).parents[2] / "services"))
     from synthetic import write_codex_tree
-    from tandem_data.service import ImportRequest, ImportService
-    from tandem_data.store import Store
+    from orbit_data.service import ImportRequest, ImportService
+    from orbit_data.store import Store
 
-    from tandem_backend.ai import service as ai_service
-    from tandem_backend.ai.engines import FakeEngine
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend.ai import service as ai_service
+    from orbit_backend.ai.engines import FakeEngine
+    from orbit_backend.services.gateway import Gateway
 
-    home = tmp_path / "tandem"
+    home = tmp_path / "orbit"
     write_codex_tree(tmp_path / "codex", 12)
     ImportService(Store(home)).import_source(ImportRequest("codex", tmp_path / "codex"))
     gw = Gateway(home, discovery=lambda: [], prewarm_debounce_s=3600.0)
@@ -91,7 +91,7 @@ def test_facet_job_writes_ai_facet(client):
 
 
 def test_auto_facet_new_respects_setting_and_skips_faceted(client, monkeypatch):
-    from tandem_backend.ai import auto, auto_facet_new
+    from orbit_backend.ai import auto, auto_facet_new
 
     c, gw, _ = client
     monkeypatch.setattr(auto, "WINDOW_DAYS", 100000)

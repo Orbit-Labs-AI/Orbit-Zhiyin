@@ -4,12 +4,12 @@ persisted exclusions."""
 from __future__ import annotations
 
 import pytest
-from realtime_fixtures import NOW, Reads, Tandem
+from realtime_fixtures import NOW, Reads, Orbit
 
-from tandem_backend.ai import queries
-from tandem_backend.ai.ask import _Q
-from tandem_backend.appdb import AppDB
-from tandem_backend.sessionops import exclusion
+from orbit_backend.ai import queries
+from orbit_backend.ai.ask import _Q
+from orbit_backend.appdb import AppDB
+from orbit_backend.sessionops import exclusion
 
 H = 3_600_000
 WINDOW = {"start_ms": NOW - 48 * H, "end_ms": NOW}
@@ -19,7 +19,7 @@ WINDOW = {"start_ms": NOW - 48 * H, "end_ms": NOW}
 def env(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
-    t = Tandem(home)
+    t = Orbit(home)
     t.db.execute("INSERT INTO project(project_id, key_type, key, name) "
                  "VALUES ('p2', 'path', '/w/p2', 'other')")
     for i, (agent, project) in enumerate([("claude_code", "p1"), ("claude_code", "p2"),
@@ -32,7 +32,7 @@ def env(tmp_path):
     t.session("old", status="completed", started=NOW - 100 * H, ended=NOW - 99 * H)
     t.db.close()
     appdb = AppDB(tmp_path / "app.db")
-    yield Reads(home / "tandem.db"), appdb, home
+    yield Reads(home / "orbit.db"), appdb, home
     appdb.close()
 
 

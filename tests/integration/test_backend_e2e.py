@@ -2,8 +2,8 @@
 → labels → install / outcome / revert, AI generate (FakeEngine) → install, plus catalog, search,
 health, realtime, session exclusion and an eval smoke run.
 
-Everything lives under ``tmp_path``: the Tandem home, the agent home (HOME and
-TANDEM_INSTALL_HOME) and the synthetic transcripts. No real agent home, CLI, model or network.
+Everything lives under ``tmp_path``: the Orbit home, the agent home (HOME and
+ORBIT_INSTALL_HOME) and the synthetic transcripts. No real agent home, CLI, model or network.
 """
 
 from __future__ import annotations
@@ -23,13 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages/backend/t
 
 from synthetic import write_codex_tree  # noqa: E402
 
-from tandem_backend import install  # noqa: E402
-from tandem_backend.ai import engines  # noqa: E402
-from tandem_backend.ai.engines import FakeEngine  # noqa: E402
-from tandem_backend.ai.service import service as ai_service  # noqa: E402
-from tandem_backend.install import env as envmod  # noqa: E402
-from tandem_backend.services.gateway import Gateway  # noqa: E402
-from tandem_backend.services.supervisor import SupervisorConfig  # noqa: E402
+from orbit_backend import install  # noqa: E402
+from orbit_backend.ai import engines  # noqa: E402
+from orbit_backend.ai.engines import FakeEngine  # noqa: E402
+from orbit_backend.ai.service import service as ai_service  # noqa: E402
+from orbit_backend.install import env as envmod  # noqa: E402
+from orbit_backend.services.gateway import Gateway  # noqa: E402
+from orbit_backend.services.supervisor import SupervisorConfig  # noqa: E402
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 BASE = "http://127.0.0.1:8765"
@@ -86,15 +86,15 @@ def e2e(tmp_path, monkeypatch):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     monkeypatch.setenv("HOME", str(user_home))
-    monkeypatch.setenv("TANDEM_INSTALL_HOME", str(user_home))
+    monkeypatch.setenv("ORBIT_INSTALL_HOME", str(user_home))
     monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
     # No network: the background catalog refresher still imports the bundled library seed,
     # but never schedules the first network sync.
-    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "0")
+    monkeypatch.setenv("ORBIT_CATALOG_AUTOSYNC", "0")
     for name in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "ANTHROPIC_API_KEY", "XDG_DATA_HOME"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(engines, "FALLBACK_DIRS", ())
-    monkeypatch.setattr("tandem_catalog.network.HttpClient.get", _no_network)
+    monkeypatch.setattr("orbit_catalog.network.HttpClient.get", _no_network)
     envmod._memo.clear()
 
     codex_root = tmp_path / "agents" / "codex"
@@ -103,7 +103,7 @@ def e2e(tmp_path, monkeypatch):
     config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0,
                               backoff_s=(0.1, 0.2, 0.4, 0.8), tick_s=0.05,
                               light_timeout_s=60.0, heavy_timeout_s=120.0)
-    gateway = Gateway(tmp_path / "tandem", config=config, discovery=lambda: [],
+    gateway = Gateway(tmp_path / "orbit", config=config, discovery=lambda: [],
                       prewarm_debounce_s=3600.0)
     app = gateway.app(token=TOKEN, port=8765)
     svc = install.get_default_service()
@@ -225,7 +225,7 @@ def test_backend_end_to_end(e2e):
     # link-only) under the temporary HOME, then follow it through to revert.
     backed = [i for i in items if i.get("basis") != "catalog_only" and i["evidence"]["session_uids"]]
     assert backed, items
-    # Remedies Tandem writes itself (KB allowlist / hook) plan from the card, never link_only.
+    # Remedies Orbit writes itself (KB allowlist / hook) plan from the card, never link_only.
     own = [i for i in backed if (i.get("source") or {}).get("origin") == "kb"
            and i["kind"] in ("permission_rule", "hook") and "…" not in json.dumps(i.get("file"))]
     assert own and all(plan_status(client, i["candidate_id"]) == "ready" for i in own), own
