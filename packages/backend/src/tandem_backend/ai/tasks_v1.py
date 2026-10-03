@@ -13,6 +13,7 @@ import re
 
 from tandem_backend.evaluation.readability import SCENE_BUDGETS, evaluate_text
 
+from .pack import MISUNDERSTOOD, is_correction
 from .redact import compact
 from .runner import default_run
 from .tasks_analysis import FEEDBACK, FRICTIONS, NARRATE_SCHEMA, S, numbers_ok
@@ -131,18 +132,19 @@ FEEDBACK_SYSTEM = (
     "每个输入项输出一项，signal_id 原样抄写，不要编造新的 signal_id。")
 _STRONG = re.compile(r"别再|又|还是不|说了多少次|!!|！！|again", re.I)
 _POSITIVE = re.compile(r"谢谢|好的|不错|完美|great|thanks|lgtm", re.I)
-_CORRECTION = re.compile(r"不是|不对|我说的是|别再|wrong|no,|again", re.I)
 
 
 def feedback_rule(item: dict) -> dict:
     """L0 rule classification (``type_source = rule``)."""
     text = item.get("text") or ""
-    corr = bool(_CORRECTION.search(text))
+    corr = is_correction(text)  # the single correction definition (pack.is_correction)
     sentiment = ("frustrated" if _STRONG.search(text) else "negative") if corr else (
         "positive" if _POSITIVE.search(text) else "neutral")
+    # A rule cannot tell a wrong approach from buggy output; only explicit "you misread me"
+    # wording maps to misunderstood_request, every other correction is "other".
+    friction = ("misunderstood_request" if MISUNDERSTOOD.search(text) else "other") if corr else "none"
     return {"signal_id": item["signal_id"], "is_correction": corr, "feedback_kind": "correct" if corr else "other",
-            "friction_type": "misunderstood_request" if corr else "none", "sentiment": sentiment,
-            "confidence": "low"}
+            "friction_type": friction, "sentiment": sentiment, "confidence": "low"}
 
 
 def feedback_validate(output: dict, pack: dict) -> list[str]:

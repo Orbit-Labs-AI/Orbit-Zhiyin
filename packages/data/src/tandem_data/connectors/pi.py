@@ -4,6 +4,14 @@ from tandem_data.connectors.base import NATIVE_KEY_MATCH, BaseMapper, Mapping
 from tandem_data.contract import canonical, time_fields
 
 
+def reported_cost(usage) -> float | None:
+    """pi writes usage.cost as an object; tolerate null or a bare number."""
+    cost = usage.get("cost") if isinstance(usage, dict) else None
+    if isinstance(cost, dict):
+        cost = cost.get("total")
+    return cost if isinstance(cost, int | float) and not isinstance(cost, bool) else None
+
+
 class PiMapper(BaseMapper):
     def prepare(self, records):
         super().prepare(records)
@@ -165,9 +173,36 @@ class PiMapper(BaseMapper):
                             self.session_uid,
                             data.get("id", record.ordinal),
                         ],
-                        cost_usd=message["usage"].get("cost", {}).get("total"),
+                        cost_usd=reported_cost(message["usage"]),
                         cost_source="native_estimate",
                         stop_reason=message.get("stopReason"),
+                    )
+                )
+            # pi ends the agent loop on stopReason error/aborted and records the
+            # reason in errorMessage (pi-ai StopReason: stop|length|toolUse|error|aborted).
+            stop = message.get("stopReason")
+            if message.get("role") == "assistant" and stop in ("error", "aborted"):
+                reason = message.get("errorMessage")
+                reason = reason if isinstance(reason, str) else None
+                if stop == "error":
+                    events.append(
+                        self.make(
+                            record,
+                            "error",
+                            "message.error",
+                            text=reason,
+                            attrs={"error_class": "provider_error"},
+                        )
+                    )
+                events.append(
+                    self.make(
+                        record,
+                        "turn.end",
+                        "message.stop",
+                        attrs={
+                            "status": "failed" if stop == "error" else "interrupted",
+                            "reason": reason,
+                        },
                     )
                 )
             return Mapping(events)
@@ -204,7 +239,7 @@ class PiMapper(BaseMapper):
                         "pi",
                         request_key=self.native_key(record),
                         purpose=data.get("kind", "auxiliary"),
-                        cost_usd=data.get("usage", {}).get("cost", {}).get("total"),
+                        cost_usd=reported_cost(data.get("usage")),
                         cost_source="native_estimate",
                     )
                 ]

@@ -1,6 +1,22 @@
 from tandem_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
 from tandem_data.contract import time_fields, unused
 
+# opencode ToolState.status -> canonical tool status ("error" is a failed call).
+TOOL_STATUS = {"completed": "completed", "error": "failed"}
+
+
+def error_event_fields(error) -> tuple[str | None, dict]:
+    """opencode NamedError {name, data: {message, statusCode?, isRetryable?}}."""
+    if not isinstance(error, dict):
+        return (error if isinstance(error, str) else None), {"error_class": None}
+    data = error.get("data") if isinstance(error.get("data"), dict) else {}
+    message = data.get("message")
+    return (message if isinstance(message, str) else None), {
+        "error_class": error.get("name") if isinstance(error.get("name"), str) else None,
+        "status_code": data.get("statusCode"),
+        "retryable": data.get("isRetryable"),
+    }
+
 
 class OpenCodeMapper(BaseMapper):
     def prepare(self, records):
@@ -69,23 +85,29 @@ class OpenCodeMapper(BaseMapper):
             )
         if table == "message":
             # V1 message holds metadata; content and per-step usage are in part rows.
-            return Mapping(
-                [
+            events = [
+                self.make(
+                    record,
+                    "session.meta",
+                    "message.metadata",
+                    native_key=key,
+                    attrs={
+                        "model_raw": data.get("modelID"),
+                        "provider": data.get("providerID"),
+                        "effort_raw": data.get("variant"),
+                        "cwd": data.get("path", {}).get("cwd"),
+                    },
+                    ext=data,
+                )
+            ]
+            if data.get("role") == "assistant" and data.get("error"):
+                text, attrs = error_event_fields(data["error"])
+                events.append(
                     self.make(
-                        record,
-                        "session.meta",
-                        "message.metadata",
-                        native_key=key,
-                        attrs={
-                            "model_raw": data.get("modelID"),
-                            "provider": data.get("providerID"),
-                            "effort_raw": data.get("variant"),
-                            "cwd": data.get("path", {}).get("cwd"),
-                        },
-                        ext=data,
+                        record, "error", "message.error", native_key=key, text=text, attrs=attrs
                     )
-                ]
-            )
+                )
+            return Mapping(events)
         if table == "part":
             message = self.messages.get(row.get("message_id"), {})
             self.model, self.provider = message.get("modelID"), message.get("providerID")
@@ -134,7 +156,10 @@ class OpenCodeMapper(BaseMapper):
                         call_id=call_id,
                         native_key=key,
                         text=state.get("output", state.get("error")),
-                        attrs={"status": state["status"]},
+                        attrs={
+                            "status": TOOL_STATUS[state["status"]],
+                            "status_scope": "tool_protocol",
+                        },
                         ext=state.get("metadata", {}),
                     )
                     result.ts, result.attrs["time"] = time_fields(
@@ -159,12 +184,33 @@ class OpenCodeMapper(BaseMapper):
                         )
                     ]
                 )
+            if typ == "subtask":
+                # A subtask part is the request that runs another agent as a child.
+                return Mapping(
+                    [
+                        self.make(
+                            record,
+                            "subagent.spawn",
+                            "part.subtask",
+                            native_key=key,
+                            text=data.get("prompt")
+                            if isinstance(data.get("prompt"), str)
+                            else None,
+                            attrs={
+                                "agent_name": data.get("agent")
+                                if isinstance(data.get("agent"), str)
+                                else None
+                            },
+                            ext=unused(data, ("prompt",)),
+                        )
+                    ]
+                )
             kinds = {
                 "step-start": "context.inject",
                 "patch": "file.change",
                 "compaction": "context.compaction",
-                "agent": "subagent.spawn",
-                "subtask": "subagent.spawn",
+                # An agent part is an @agent mention inside a prompt, not a spawn.
+                "agent": "context.inject",
                 "snapshot": "file.change",
             }
             return Mapping(
@@ -209,13 +255,18 @@ class OpenCodeMapper(BaseMapper):
                         if block.get("type") == "tool":
                             events.extend(self._v2_tool(record, block, key, index))
                     if message.get("error"):
+                        text, attrs = error_event_fields(message["error"])
                         events.append(
                             self.make(
                                 record,
                                 "error",
                                 "assistant.error",
                                 native_key=key,
-                                ext=message["error"],
+                                text=text,
+                                attrs=attrs,
+                                ext=message["error"]
+                                if isinstance(message["error"], dict)
+                                else {"error": message["error"]},
                             )
                         )
                 if typ == "assistant" and message.get("tokens"):
@@ -304,9 +355,10 @@ class OpenCodeMapper(BaseMapper):
                 actor="tool",
                 native_key=key,
                 call_id=block["id"],
-                text=text_content(state.get("content")) or state.get("error", {}).get("message"),
+                text=text_content(state.get("content"))
+                or error_event_fields(state.get("error"))[0],
                 attrs={
-                    "status": state["status"],
+                    "status": TOOL_STATUS[state["status"]],
                     "status_scope": "tool_protocol",
                     "name": block["name"],
                 },

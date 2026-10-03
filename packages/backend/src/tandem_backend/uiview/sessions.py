@@ -21,8 +21,9 @@ from tandem_data.privacy import redact
 
 from ..analytics.interaction import correction_terms
 from ..analytics.lexicon import CORRECTION_EXTRA_HINT
+from . import metrics, outcome
 
-ACTIVE_GAP_MS = 5 * 60_000
+ACTIVE_GAP_MS = metrics.IDLE_CAP_MS  # ACTIVE_SQL is metrics.active_ms in SQL
 TICKS_MAX = 90
 KNOWN_STATUS = {"success", "completed", "failed", "rejected", "interrupted"}
 FAILED = {"failed"}
@@ -127,18 +128,11 @@ def errors_of(statuses: list[str]) -> int | None:
 
 
 def estimate_outcome(live: bool, session_status: str | None, last_turn: str | None,
-                     statuses: list[str]) -> str | None:
-    """Estimate only: no user confirmation exists. Never claims 'abandoned'."""
-    if live:
-        return "live"
-    tail = statuses[-3:]
-    if len(tail) == 3 and all(is_failed(s) for s in tail):
-        return "part"
-    if "failed" in (session_status, last_turn) or "interrupted" in (session_status, last_turn):
-        return "part"
-    if "completed" in (session_status, last_turn):
-        return "ok"
-    return None
+                     statuses: list[str], corr: int | None = None,
+                     msgs: int | None = None) -> str | None:
+    """Estimate only, via the shared ``uiview.outcome`` rule. Never claims 'abandoned'."""
+    return outcome.estimate(live=live, last_turn=last_turn, session_status=session_status,
+                            corr=corr, msgs=msgs, tail=statuses)
 
 
 def local_parts(ts: int | None, tz: tzinfo) -> tuple[str | None, int | None, int | None]:
@@ -201,9 +195,10 @@ def l1_facts(conn: sqlite3.Connection, tz: tzinfo, *, excluded: Iterable[str] = 
             "dur_basis": "active_estimate", "span": round((last - first) / 60_000, 1)
             if first is not None else None,
             "msgs": len(texts), "tools": len(statuses), "errors": errors_of(statuses),
-            "corr": sum(is_correction(t) for t in texts) if texts else None,
+            "corr": (corr := sum(is_correction(t) for t in texts) if texts else None),
             "corr_basis": "lexical_candidate",
-            "out": estimate_outcome(uid in live, s[7], last_turn.get(uid), statuses),
+            "out": estimate_outcome(uid in live, s[7], last_turn.get(uid), statuses, corr,
+                                    len(texts)),
             "out_basis": "estimate", "live": uid in live, "excluded": uid in excluded,
             "tok": tok, "tok_basis": "l1_model_call", "topic": None, "fric": None,
             "native_id": s[8], "status": s[7],
@@ -216,9 +211,22 @@ def overlay(rows: list[dict], facts: dict[str, dict] | None) -> list[dict]:
     """Prefer P1 ``uiview_facts`` values (same field names) where they are present."""
     if not facts:
         return rows
-    return [{**r, **{k: v for k, v in (facts.get(r["id"]) or {}).items()
-                     if v is not None or k in ("errors", "corr", "tok", "out")}}
-            for r in rows]
+    return [_overlay_row(r, facts.get(r["id"]) or {}) for r in rows]
+
+
+def _overlay_row(row: dict, fact: dict) -> dict:
+    """Facts win, except liveness: the snapshot's ``out`` is stale for a running session.
+
+    A live row keeps ``out='live'``; a snapshot taken while the session was live (``out='live'``)
+    never marks a finished row live, so it keeps its own L1 estimate.
+    """
+    merged = {**row, **{k: v for k, v in fact.items()
+                        if v is not None or k in ("errors", "corr", "tok", "out")}}
+    if row.get("live"):
+        merged["out"], merged["out_basis"] = "live", "realtime"
+    elif merged.get("out") == "live":
+        merged["out"], merged["out_basis"] = row.get("out"), row.get("out_basis")
+    return merged
 
 
 def ticks(conn: sqlite3.Connection, rows: list[dict]) -> dict[str, dict]:

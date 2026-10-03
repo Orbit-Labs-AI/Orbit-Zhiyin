@@ -7,6 +7,7 @@ frame so open lists and analytics views can refresh.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import APIRouter, Query
@@ -29,7 +30,7 @@ class ExcludeBody(BaseModel):
 
 
 SESSION_SQL = """
-SELECT s.session_uid, s.native_id, s.cwd, s.status, s.ended_at, s.title, s.project_id,
+SELECT s.session_uid, s.native_id, s.kind, s.cwd, s.status, s.ended_at, s.title, s.project_id,
        s.started_at, src.agent, p.name AS project
 FROM session s LEFT JOIN source src ON src.source_id = s.source_id
 LEFT JOIN project p ON p.project_id = s.project_id
@@ -93,6 +94,13 @@ def router(gw: Gateway) -> APIRouter:
             row = session_row(db, session_uid)
             row["last_event_ts"] = db.execute("SELECT max(ts) FROM event WHERE session_uid = ?",
                                               (session_uid,)).fetchone()[0]
+            if row["agent"] == "pi":  # pi resumes by transcript path (`pi --session <file>`)
+                located = db.execute(
+                    "SELECT src.root_path, f.relative_path FROM raw_record r JOIN source_file f USING(file_id) "
+                    "JOIN source src USING(source_id) WHERE r.session_uid = ? AND f.role = 'transcript' LIMIT 1",
+                    (session_uid,)).fetchone()
+                if located:
+                    row["session_file"] = str(Path(located[0]) / located[1])
         return resume.build(row, int(time.time() * 1000))
 
     @api.get("/v1/sessions/{session_uid}/source_location")

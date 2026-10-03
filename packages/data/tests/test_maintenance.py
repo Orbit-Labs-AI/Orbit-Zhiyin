@@ -164,7 +164,7 @@ def test_cli_data_service_commands(tmp_path, capsys):
     assert run("resume", "--session", session)["session_uid"] == session
     assert run("capabilities")["sources"]
     assert run("storage")["layers"]["l2"] > 0
-    assert run("privacy-rules")["count"] == 9
+    assert run("privacy-rules")["count"] == 11
     preview = run("privacy-preview", "--text", "Bearer abcdefghijklmnop")
     assert "<redacted:token>" in preview["redacted"]
     usage = tmp_path / "usage-data" / "session-meta"

@@ -316,3 +316,39 @@ def test_large_selections_skip_the_process_pool(monkeypatch):
     monkeypatch.setenv("TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS", "1000000")
     assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is True
     assert service._wants_parallel(500, True, 10**9) is True  # explicit request wins
+
+
+@pytest.mark.parametrize(
+    ("target", "method"),
+    [
+        ("tandem_backend.analytics.work_graph.index.WORK_GRAPH_VERSION", "work_graph"),
+        ("tandem_backend.analytics.presentation.PRESENTATION_VERSION", "presentation"),
+        ("tandem_backend.analytics.presentation.diagnostics.RULE_VERSION", "presentation_diagnostics"),
+        ("tandem_backend.analytics.recommendations.policy.ALGORITHM_VERSION", "bottleneck_recommendations"),
+        ("tandem_backend.recommend.contracts.RESULT_VERSION", "recommendation_pipeline"),
+    ],
+)
+def test_downstream_rule_versions_invalidate_every_key(monkeypatch, target, method):
+    """Bumping a work-graph / presentation / recommendation version must change both keys."""
+    from tandem_backend.analytics.products.contracts import rule_versions
+    from tandem_backend.services import sections
+
+    monkeypatch.setattr(sections, "_RULES", None)
+    algo, rules = cache_module.algo_version(), sections.rules_digest()
+    assert method in rule_versions()
+    monkeypatch.setattr(target, "rule-test-bump")
+    monkeypatch.setattr(sections, "_RULES", None)
+    assert rule_versions()[method] == "rule-test-bump"
+    assert cache_module.algo_version() != algo
+    assert sections.rules_digest() != rules
+
+
+def test_analysis_methods_report_downstream_versions(tmp_path):
+    from tandem_backend.analytics.presentation import PRESENTATION_VERSION
+    from tandem_backend.analytics.work_graph import WORK_GRAPH_VERSION
+
+    home, _ = build_home(tmp_path, 2)
+    methods = analyze_store(CanonicalStore(home), with_text=False)["analysis_methods"]
+    assert methods["work_graph"] == WORK_GRAPH_VERSION
+    assert methods["presentation"] == PRESENTATION_VERSION
+    assert {"presentation_diagnostics", "bottleneck_recommendations", "recommendation_pipeline"} <= set(methods)

@@ -1,6 +1,6 @@
 {
   "version": "rec-timeline-v1",
-  "note": "Fictional users for the EV-05.1 time-split replay. Each cutoff reuses a replay-cases.json input (all data ends 2026-09-26, before every cutoff); adoptions after the cutoff are the labels, earlier ones count as installed, earlier labels as not-applicable memory.",
+  "note": "Fictional users for the EV-05.1 time-split replay. Each cutoff reuses a replay-cases.json input (all data ends 2026-09-26, before every cutoff); adoptions after the cutoff are the labels, earlier ones count as installed, earlier labels as not-applicable memory. Adoption targets were written by hand as plausible fictional user choices, not taken from mechanism.REMEDY_PRIORITY or engine output; synthetic, regression only.",
   "horizon_days": 14,
   "users": [
     {"id": "u-permission",

@@ -46,6 +46,13 @@ CORRECTIONS = [
     "不要那么复杂，一段话就够",
     "请不要过度修复",
     "this is too verbose, shorten it",
+    # short rejections (audit B1: previously below CORRECTION_CHARS and unmatched)
+    "错了",
+    "重来",
+    "不行，重来",
+    "不是这样的",
+    "你错了，是另一个文件",
+    "not like that",
 ]
 NOT_CORRECTIONS = [
     "请修复登录测试",
@@ -70,16 +77,23 @@ NOT_CORRECTIONS = [
     "thanks, now add the export button",
     "意思是什么？",
     "请把复杂度分析写进文档",
+    "哪里错了？",
+    "这次不行的话下周再说",
+    "重来一遍的成本有多高？",
+    "算了一下复杂度是O(n)",
+    "这个功能第几次迭代了",
 ]
 
 POSITIVE = ["太好了", "完美！", "Perfect, thanks!", "great job", "干得漂亮", "awesome, ship it",
             "我很满意。", "nice"]
 NEGATIVE = ["烦死了，又错了", "ugh this is so frustrating", "I'm really annoyed", "无语",
-            "太慢了，浪费时间", "this is ridiculous", "我很失望。", "受不了了"]
+            "太慢了，浪费时间", "this is ridiculous", "我很失望。", "受不了了",
+            "算了，怎么又错了", "算了吧", "第三次了", "怎么又失败"]
 NEUTRAL_OR_NONE = ["完美地实现这个功能并补充文档说明和测试用例", "not great", "我不太满意",
                    "如果很烦就跳过", "请翻译：太好了", "great, what about the tests?",
                    "make the output look perfect in dark mode and light mode and print",
-                   "帮我写一个接口"]
+                   "帮我写一个接口", "算了一下复杂度是O(n)", "这个功能第几次迭代了",
+                   "seriously good result", "第几次调用会触发缓存？"]
 
 
 def test_correction_recall_and_precision_on_labelled_set():
@@ -109,3 +123,21 @@ def test_emotion_recall_without_labelling_neutral_text():
     assert len(pos) / len(POSITIVE) >= 0.8, set(POSITIVE) - set(pos)
     assert len(neg) / len(NEGATIVE) >= 0.8, set(NEGATIVE) - set(neg)
     assert [t for t in NEUTRAL_OR_NONE if classify_emotion(t) not in (None, "neutral")] == []
+
+
+def test_frustration_detector_reuses_emotion_lexicon_without_false_hits():
+    from signal_fixtures import Session, detected
+
+    def chat(sid, text):
+        s = Session(sid)
+        s.user("请帮我写一个解析日志的函数")
+        s.reply()
+        s.user(text)
+        s.reply()
+        return s
+
+    for i, text in enumerate(["算了，怎么又错了", "烦死了", "第三次了，还是不行"]):
+        assert detected([chat(f"p{i}", text)])["frustration"], text
+    for i, text in enumerate(["算了一下复杂度是O(n)", "这个功能第几次迭代了", "seriously good result",
+                              "如果很烦就跳过", "请翻译“烦死了”"]):
+        assert detected([chat(f"n{i}", text)])["frustration"] == [], text

@@ -148,3 +148,38 @@ def test_protocol_round_trip_and_garbage():
     assert decode(encode(message)) == message
     assert encode(message).endswith(b"\n") and encode(message).count(b"\n") == 1
     assert decode(b"") is None and decode(b"{not json") is None and decode(b"[1]") is None
+
+
+@pytest.mark.parametrize("content", [b'{"sources": {"a": ', b"\xff\xfe not utf8", b"[1, 2]",
+                                     b'{"sources": [], "jobs": {}}', b""])
+def test_app_state_survives_a_corrupt_file(tmp_path, content):
+    path = tmp_path / "app-state.json"
+    path.write_bytes(content)
+    state = AppState(path)
+    assert state.state["sources"] == {} and state.state["settings"]["onboarded"] is False
+    assert state.recovered["reason"] == "corrupt"
+    (backup,) = tmp_path.glob("app-state.json.corrupt-*")
+    assert backup.read_bytes() == content and backup.name == state.recovered["backup"]
+    # A fresh, valid file replaced it; the next start loads it without recovery.
+    assert json.loads(path.read_text())["sources"] == {}
+    assert AppState(path).recovered is None
+
+
+def test_app_state_half_written_tmp(tmp_path):
+    path, temporary = tmp_path / "app-state.json", tmp_path / "app-state.tmp"
+    path.write_text(json.dumps({"settings": {"sync_mode": "live"}}))
+    temporary.write_text('{"settings": {"sync_mode": "ho')  # crash mid-write before replace
+    state = AppState(path)
+    assert state.state["settings"]["sync_mode"] == "live" and state.recovered is None
+    assert not temporary.exists()
+    # Main file missing, complete tmp left behind (fsynced, crash before replace): use it.
+    path.unlink()
+    temporary.write_text(json.dumps({"settings": {"sync_mode": "hour"}}))
+    restored = AppState(path)
+    assert restored.state["settings"]["sync_mode"] == "hour"
+    assert restored.recovered == {"reason": "restored_tmp"} and not temporary.exists()
+    # Main file missing and tmp truncated: defaults, tmp discarded.
+    path.unlink()
+    temporary.write_text("{")
+    blank = AppState(path)
+    assert blank.state["settings"]["sync_mode"] == "off" and not temporary.exists()

@@ -19,16 +19,14 @@ from __future__ import annotations
 # SQLite scans when a parent row is inserted while deferred foreign keys are pending
 # (event.turn_uid during derivation).
 DEFERRABLE = (
-    "event_by_call",
     "fk_event_record_uid",
     "event_by_kind_time",
-    "event_by_parent",
     "event_by_parent_set",
     "evidence_by_event",
     "fk_event_context_project_id",
 )
 # Read by retained-row handling and derivation (session order, record joins).
-AFTER_MAP = ("event_by_call", "fk_event_record_uid")
+AFTER_MAP = ("fk_event_record_uid",)
 
 
 class DeferredIndexes:
