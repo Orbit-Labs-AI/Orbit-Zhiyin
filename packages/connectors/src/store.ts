@@ -7,6 +7,7 @@ import { rebuildSource } from './normalize.ts';
 import { sanitize } from './privacy.ts';
 
 /** Bump when redact()/sanitize() change (re-cleans cached L1) or when L2/L3 derivation changes (rebuilds). */
+export const SCHEMA_VERSION=3;
 export const REDACTION_VERSION='codex-redact/0.2.4', DERIVATION_VERSION='codex-derive/0.2.5';
 export class ConnectorStore {
   readonly db: DatabaseSync;
@@ -30,12 +31,18 @@ export class ConnectorStore {
         this.db.exec(readFileSync(new URL('../schema/001.sql',import.meta.url),'utf8'));
         this.db.exec('PRAGMA user_version=1');
       });
-    } else if (version !== 1 && version !== 2) { this.db.close(); throw new Error(`Unsupported tandem.db version: ${version}`); }
-    const migrated=version===0||version===1;
-    if (migrated) {
+    } else if (version !== 1 && version !== 2 && version !== SCHEMA_VERSION) { this.db.close(); throw new Error(`Unsupported tandem.db version: ${version}`); }
+    const migrated=version!==SCHEMA_VERSION;
+    if (version===0||version===1) {
       this.transaction(()=>{
         this.db.exec(readFileSync(new URL('../schema/002.sql',import.meta.url),'utf8'));
         this.db.exec('PRAGMA user_version=2');
+      });
+    }
+    if (migrated) {
+      this.transaction(()=>{
+        this.db.exec(readFileSync(new URL('../schema/003.sql',import.meta.url),'utf8'));
+        this.db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
       });
     }
     const redaction=this.db.prepare("SELECT version FROM pipeline_version WHERE component='redaction'").get()?.version;

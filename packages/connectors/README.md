@@ -54,7 +54,9 @@ try {
 
 单个进程内的监听串行执行导入，同一 Connector 禁止重入。`watchCodex` 接受 `AbortSignal`，中止后等待当前导入收尾再释放数据库。文件通知合并 1 秒，正常监听每 10 分钟扫描兜底；监听不可用时报告错误并降级到 2 秒轮询。默认一个数据库只启动一个采集进程，App 与其他模块只读。
 
-标准数据契约采用 [001.sql](schema/001.sql) 初始化，再应用 [002.sql](schema/002.sql)；当前 `PRAGMA user_version=2`、`application_id=1413697358`。002 是对齐 `analysis-input-v1` 的最终结构：`event.ts` 可空，新增 `event_path/native_key`、时间质量、证据多对多、上下文与累计快照。旧 v1 库保留 L0/L1，由迁移重新生成 L2/L3。所有事件经过 JSON Schema 校验。
+标准数据契约采用 [001.sql](schema/001.sql) 初始化，再依次应用 [002.sql](schema/002.sql) 与 [003.sql](schema/003.sql)；当前 `PRAGMA user_version=3`、`application_id=1413697358`。002 是对齐 `analysis-input-v1` 的结构：`event.ts` 可空，新增 `event_path/native_key`、时间质量、证据多对多、上下文与累计快照。003 给 `turn` 增加 `duration_ms/ttft_ms`、给 `usage_snapshot` 增加 `counter_cycle`，并删除 Codex 记录无法填充的 `tool_call.approval_wait_ms/error_class/skill/subagent_session_uid` 与 `session.spawn_call_uid`；事件种类同时去掉从未发出的 `queue`、`subagent.message/wait/close`（子代理的等待、发消息等动作是 `tool_call`，类别 `subagent`）。旧库保留 L0/L1，由迁移重新生成 L2/L3。所有事件经过 JSON Schema 校验。
+
+时延口径：Codex 只在 `task_complete` 报告整轮的 `duration_ms` 与 `time_to_first_token_ms`，写入 `turn`。同一轮的请求顺序发出，所以该轮首个 `model_call` 记该轮 TTFT；仅当一轮恰好一次请求且没有工具调用时，`model_call.latency_ms` 才等于该轮耗时，其余请求的 `latency_ms/ttft_ms` 保持 NULL，因为 rollout 没有逐请求计时。`cost_usd` 同样保持 NULL（`cost_source='unknown'`），本包不内置价目表。
 
 | 层 | 表或目录 | 内容 |
 | --- | --- | --- |

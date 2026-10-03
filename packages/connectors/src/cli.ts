@@ -7,7 +7,7 @@ import { createWriteStream } from 'node:fs';
 import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import { CodexConnector } from './ingest.ts';
-import { ConnectorStore } from './store.ts';
+import { ConnectorStore, SCHEMA_VERSION } from './store.ts';
 import { discoverCodex, defaultCodexHome, within } from './discovery.ts';
 import { watchCodex } from './watch.ts';
 import { readRawRecord } from './archive.ts';
@@ -46,7 +46,7 @@ async function main():Promise<void> {
     const home=await canonicalDestination(resolve(root));
     if (within(home,await canonicalDestination(directory))) throw new Error('--data-dir must be outside CODEX_HOME');
     const store=new ConnectorStore(directory);
-    try {console.log(JSON.stringify({db_schema_version:2,input_contract:'analysis-input-v1',directory}));}finally{store.close();}return;
+    try {console.log(JSON.stringify({db_schema_version:SCHEMA_VERSION,input_contract:'analysis-input-v1',directory}));}finally{store.close();}return;
   }
   if (command==='discover') {
     const result=await discoverCodex(root);
@@ -77,7 +77,7 @@ async function main():Promise<void> {
   await access(join(directory,'tandem.db'));
   if (command==='rebuild') {
     const store=new ConnectorStore(directory);
-    try {console.log(JSON.stringify({sessions_rebuilt:store.rebuild(),db_schema_version:2,input_contract:'analysis-input-v1'}));}
+    try {console.log(JSON.stringify({sessions_rebuilt:store.rebuild(),db_schema_version:SCHEMA_VERSION,input_contract:'analysis-input-v1'}));}
     finally {store.close();}return;
   }
   if (command==='raw') {
@@ -91,7 +91,7 @@ async function main():Promise<void> {
     if (command==='stats') {
       const count=(table:string)=>db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n;
       console.log(JSON.stringify({sessions:count('session'),events:count('event'),turns:count('turn'),tools:count('tool_call'),model_calls:count('model_call'),
-        usage_snapshots:count('usage_snapshot'),db_schema_version:2,input_contract:'analysis-input-v1',
+        usage_snapshots:count('usage_snapshot'),db_schema_version:SCHEMA_VERSION,input_contract:'analysis-input-v1',
         versions:db.prepare('SELECT * FROM pipeline_version').all(),sample_boundary:db.prepare('SELECT * FROM source_boundary').all(),
         main_model_usage:db.prepare(`SELECT model_id,count(*) AS calls,sum(input_tokens) AS known_input_tokens,sum(input_tokens IS NULL) AS input_unknown_calls,
           sum(cache_read_tokens) AS known_cache_read_tokens,sum(cache_read_tokens IS NULL) AS cache_read_unknown_calls,

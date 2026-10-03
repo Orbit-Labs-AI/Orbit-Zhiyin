@@ -419,7 +419,7 @@ test('v1 staging migration rebuilds nullable L2/L3 without losing archived origi
   }
   db.close();const migrated=new ConnectorStore(directory);
   try {
-    assert.equal(migrated.db.prepare('PRAGMA user_version').get()?.user_version,2);
+    assert.equal(migrated.db.prepare('PRAGMA user_version').get()?.user_version,3);
     assert.equal(migrated.db.prepare('SELECT count(*) n FROM model_call').get()?.n,1);
     assert.deepEqual(await readRawRecord(migrated,uid(file,0)),Buffer.from(native.split('\n')[0]+'\n'));
   } finally {migrated.close();}
@@ -513,4 +513,15 @@ test('format_drift compares against the field union: a missing optional field is
   await appendFile(s.file,item(5,{brand_new:true})); await s.connector.ingest(); assert.equal(drift(),1);
   await appendFile(s.file,item(6,{phase:{nested:true}})); await s.connector.ingest(); assert.equal(drift(),2);
   assert.match(String(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='format_drift' AND message LIKE '%->%'").get()?.message),/item\.phase string -> object/);
+}));
+test('turn timing from task_complete reaches L3; per-call timing is only attributed where the turn determines it',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture('usage-reset'));await s.connector.ingest();
+  assert.deepEqual(s.store.db.prepare('SELECT duration_ms,ttft_ms FROM turn ORDER BY idx').all().map(row=>[row.duration_ms,row.ttft_ms]),[[4000,700],[1500,300]]);
+  // t1 has two requests: the first gets the turn TTFT, neither gets a latency. t2 is one request without tools.
+  assert.deepEqual(s.store.db.prepare('SELECT request_id,ttft_ms,latency_ms FROM model_call ORDER BY ts').all().map(row=>[row.request_id,row.ttft_ms,row.latency_ms]),
+    [['r1',700,null],['r2',null,null],['r3',300,1500]]);
+  assert.deepEqual(s.store.db.prepare('SELECT DISTINCT counter_cycle FROM usage_snapshot').all().map(row=>row.counter_cycle),['thread_token_usage']);
+  const columns=(table:string)=>s.store.db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map(row=>String(row.name));
+  for (const dead of ['approval_wait_ms','error_class','skill','subagent_session_uid']) assert.ok(!columns('tool_call').includes(dead));
+  assert.ok(!columns('session').includes('spawn_call_uid'));
 }));

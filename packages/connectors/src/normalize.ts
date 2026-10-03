@@ -535,9 +535,10 @@ function derive(store: ConnectorStore, ctx: Context, events: StandardEvent[]): v
     if (event.kind==='link') store.db.prepare('INSERT INTO link VALUES(?,?,?,?,?,?,?)').run(uid(event.event_uid,'link'),ctx.session,event.turn_uid,event.event_uid,string(event.attrs.kind),string(event.attrs.ref),event.ts);
     if (event.kind==='model.usage' && event.attrs.usage_scope!=='call') {
       const a=event.attrs;
-      store.db.prepare('INSERT INTO usage_snapshot VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(event.event_uid,event.event_uid,ctx.session,event.turn_uid,
+      store.db.prepare(`INSERT INTO usage_snapshot(snapshot_uid,event_uid,session_uid,turn_uid,snapshot_key,usage_scope,measurement,coverage,provider,model_raw,effort_raw,purpose,
+        observation_seq,ts,input_tokens,cache_read_tokens,cache_write_tokens,output_tokens,reasoning_tokens,reported,counter_cycle) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(event.event_uid,event.event_uid,ctx.session,event.turn_uid,
         string(a.snapshot_key),string(a.usage_scope),'cumulative',string(a.coverage),string(a.provider),string(a.model_raw),string(a.effort_raw),string(a.purpose),event.seq,event.ts,
-        number(a.input_tokens),number(a.cache_read_tokens),number(a.cache_write_tokens),number(a.output_tokens),number(a.reasoning_tokens),JSON.stringify(a.reported));
+        number(a.input_tokens),number(a.cache_read_tokens),number(a.cache_write_tokens),number(a.output_tokens),number(a.reasoning_tokens),JSON.stringify(a.reported),string(a.counter_cycle));
     }
     if (event.kind==='model.usage' && event.attrs.usage_scope==='call' && event.attrs.measurement==='delta') {
       const a=event.attrs;
@@ -557,8 +558,18 @@ function derive(store: ConnectorStore, ctx: Context, events: StandardEvent[]): v
   for (const [turn,values] of turns) {
     const start=values.find(event=>event.kind==='turn.start'), end=values.findLast(event=>event.kind==='turn.end');
     const startTime=object(start?.attrs.time);
-    store.db.prepare('INSERT INTO turn VALUES(?,?,?,?,?,?,?,?,?)').run(turn,ctx.session,index++,string(start?.attrs.trigger)??'unknown',string(end?.attrs.status)??'unknown',
-      startTime.semantics==='started'?start?.ts??null:null,object(end?.attrs.time).semantics==='completed'?end?.ts??null:null,values[0]!.event_uid,values.at(-1)!.event_uid);
+    const duration=number(end?.attrs.duration_ms),ttft=number(end?.attrs.ttft_ms);
+    store.db.prepare('INSERT INTO turn(turn_uid,session_uid,idx,trigger,status,started_at,ended_at,first_event_uid,last_event_uid,duration_ms,ttft_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(turn,ctx.session,index++,string(start?.attrs.trigger)??'unknown',string(end?.attrs.status)??'unknown',
+      startTime.semantics==='started'?start?.ts??null:null,object(end?.attrs.time).semantics==='completed'?end?.ts??null:null,values[0]!.event_uid,values.at(-1)!.event_uid,
+      duration===null?null:Math.round(duration),ttft===null?null:Math.round(ttft));
+    // Codex reports timing per turn, not per request. Requests inside a turn are sequential, so the turn's
+    // first token comes from its first request: that call gets the turn TTFT. Wall latency is only
+    // attributable when the turn is exactly one request and no tool ran; otherwise latency_ms stays NULL.
+    const calls=values.filter(event=>event.kind==='model.usage'&&event.attrs.usage_scope==='call'&&event.attrs.measurement==='delta');
+    if (calls.length && ttft!==null) store.db.prepare('UPDATE model_call SET ttft_ms=? WHERE call_uid=?').run(Math.round(ttft),calls[0]!.event_uid);
+    if (calls.length===1 && duration!==null && !values.some(event=>event.kind==='tool.call'))
+      store.db.prepare('UPDATE model_call SET latency_ms=? WHERE call_uid=?').run(Math.round(duration),calls[0]!.event_uid);
   }
   for (const [key,values] of tools) {
     const call=values.call,result=values.result,a=call?.attrs??{},r=result?.attrs??{};

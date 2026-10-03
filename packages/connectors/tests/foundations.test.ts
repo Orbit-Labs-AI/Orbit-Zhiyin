@@ -55,7 +55,7 @@ test('SQLite migration is repeatable, private and rejects invalid event attribut
   const dir = await mkdtemp(join(tmpdir(),'tandem-db-'));
   try {
     let store = new ConnectorStore(dir);
-    assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version,2);
+    assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version,3);
     store.close(); store = new ConnectorStore(dir); store.close();
     assert.equal((await stat(join(dir,'tandem.db'))).mode & 0o777,0o600);
     assert.throws(() => validateEvent({event_uid:'e',session_uid:'s',seq:1,ts:1,kind:'message.user',actor:'human',
