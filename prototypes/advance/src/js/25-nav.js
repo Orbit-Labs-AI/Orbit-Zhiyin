@@ -131,8 +131,8 @@ function renderWtop() {
   $('#wtop').innerHTML = '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
     '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>';
 }
-/* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
-   redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
+/* sidebar: collapsible groups in a scrolling middle; fixed footer = the index indicator light (state dot · session count · index mode,
+   no card, on the sidebar's own background) and the user row (avatar · account · persona code), compacted onto the type scale */
 /* sidebar building blocks, shared by both editions (Advance shows every group, Lite the same groups with fewer pages) */
 const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
 // SIDE_EXTRA(): optional row under the edition switch, shared by both editions (live: import progress / reopen onboarding)
