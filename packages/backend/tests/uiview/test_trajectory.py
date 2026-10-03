@@ -169,3 +169,25 @@ def test_active_time_is_one_implementation():
     assert trajectory._active_ms([0, 60_000, 60_000 + 10 * 60_000]) == 60_000 + 5 * 60_000
     assert metrics.active_ms([]) is None and metrics.active_ms([5]) == 0
     assert sessions.ACTIVE_GAP_MS == metrics.IDLE_CAP_MS
+
+
+def test_repeated_tool_labels_are_redacted_once_per_request(l1, monkeypatch):
+    from collections import Counter
+
+    l1.session("repeated", started=T0)
+    l1.user("repeated", T0, "检查结果")
+    for i in range(20):
+        l1.call("repeated", T0 + i * 1000, head="pytest -q", status="success")
+    expected = detail(l1, "repeated", now_ms=T0 + MIN)
+    original = trajectory.scrub
+    calls = Counter()
+
+    def counted(text, limit=120):
+        calls[text, limit] += 1
+        return original(text, limit)
+
+    monkeypatch.setattr(trajectory, "scrub", counted)
+    assert detail(l1, "repeated", now_ms=T0 + MIN) == expected
+    assert calls["pytest -q", 80] == 1
+    assert detail(l1, "repeated", now_ms=T0 + MIN) == expected
+    assert calls["pytest -q", 80] == 2  # no process-wide caching of redacted labels

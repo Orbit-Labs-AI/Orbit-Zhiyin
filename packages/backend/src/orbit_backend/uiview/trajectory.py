@@ -222,14 +222,20 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
             close_span()
     close_span()
     tool_events = []
+    # Tool heads repeat frequently; redact each distinct label once per response.
+    # Keep this local so changes in redaction policy apply on the very next request.
+    tool_labels: dict[str | None, str | None] = {}
     for call, start in zip(calls, call_start, strict=True):
         (call_uid, call_event_uid, name_raw, name, tkind, head, cstatus, exit_code, error_class,
          _s, duration_ms, _sub) = call
         t = _mins(start, t0)
         t = 0.0 if t is None else t
+        label = head or name_raw
+        if label not in tool_labels:
+            tool_labels[label] = scrub(label, 80)
         item = {"id": call_uid, "lane": TOOL_LANE.get(tkind, "bash"), "t": t,
                 "w": round(duration_ms / 60_000, 3) if duration_ms else 0,
-                "err": is_failed(cstatus), "corr": False, "cmd": scrub(head or name_raw, 80),
+                "err": is_failed(cstatus), "corr": False, "cmd": tool_labels[label],
                 "res": _res(exit_code, error_class, cstatus),
                 "txt": None, "seq": None, "event_uid": call_event_uid or call_uid,
                 "call_uid": call_uid, "name": name, "tool_kind": tkind, "status": cstatus}

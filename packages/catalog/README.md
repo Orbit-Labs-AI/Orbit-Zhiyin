@@ -70,3 +70,8 @@ orbit-catalog --home /absolute/orbit-home --model-dir /absolute/multilingual-e5-
 ```
 
 本轮已在忽略的 `.local/audit-20261003/vector-catalog/catalog.db` 实际物化 3,685 个唯一向量，覆盖 3,876/3,876 个候选块；模型固定版本、SHA256、独立运行时和查询实测见上述审计记录。该校验库不替换正常 App 的 `home/catalog.db`，模型权重也不随 Git 提交。
+
+
+## 十万级公共语料
+
+固定快照流式导入、MCP 离线分页、index_only 边界、逐资源到全部正文向量化、并行/断点续跑与排序候选窗口见[十万级公共资源索引](../../docs/modules/catalog/large-corpus.md)。完整资源、词法分块、可编码块、唯一向量与覆盖资源分别计数。

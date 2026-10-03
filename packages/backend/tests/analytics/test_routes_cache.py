@@ -253,9 +253,14 @@ def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_pa
 
 
 @pytest.mark.serial  # gateway with worker processes and wall-clock waits
-def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path):
+def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path, monkeypatch):
+    from orbit_backend.services import routes_catalog
     from orbit_catalog import get_service
 
+    # Router bootstrap publishes its small offline sources synchronously. This test
+    # needs a stable catalog between reads: the background seed/network publisher is
+    # tested separately and a publication between these reads correctly returns 200.
+    monkeypatch.setattr(routes_catalog, "_refresher", lambda *_: None)
     url = "/v1/catalog/match-analysis?wait_ms=3000"
     with imported_gateway(tmp_path) as (client, gateway):
         first = poll(client, url, fresh)
@@ -361,3 +366,68 @@ def test_every_session_feature_is_in_the_shared_dictionary():
     features = session_features({"session_uid": "s"}, events, [], {"s"})["features"]
     assert {"observed_event_dates", "observed_timestamp_n", "time_unknown_event_count"} <= set(features)
     assert sorted(set(features) - set(FEATURES)) == []
+
+
+@pytest.mark.parametrize("race", ["worker", "match", "continuous"])
+def test_catalog_etag_samples_revision_after_analysis_wait(tmp_path, monkeypatch, race):
+    """Publication before/during matching cannot label an old body with a new revision."""
+    from types import SimpleNamespace
+
+    from orbit_backend.services.snapshots import SnapshotKey, SnapshotStore
+
+    revision = {"catalog": 1, "embedding": 0}
+
+    class Store:
+        @contextmanager
+        def connect(self, *_):
+            yield None
+
+        def generation(self, _):
+            return revision["catalog"]
+
+        def embedding_generation(self, _):
+            return revision["embedding"]
+
+    matches = []
+
+    def match(_):
+        observed = revision["catalog"]
+        matches.append(observed)
+        if race == "continuous" or race == "match" and len(matches) == 1:
+            revision["catalog"] += 1
+        return {"generation": observed, "items": [{"item_id": f"revision-{observed}"}]}
+
+    monkeypatch.setattr("orbit_catalog.get_service", lambda *_: SimpleNamespace(store=Store(), match=match))
+    gateway = _Gateway(1)
+    gateway.home = tmp_path
+    gateway.snapshots = SnapshotStore(None)
+    gateway.state = SimpleNamespace(remember_scope=lambda _: None)
+
+    class Analysis:
+        def failure(self, *_):
+            return None
+
+        def submit(self, name, scope, params, h, priority, rev, rules):
+            def complete(_):
+                if race == "worker":
+                    revision["catalog"] = 2
+                gateway.snapshots.put(SnapshotKey(name, h, *rev, rules), {"requests": [{"text": "test"}]})
+            return SimpleNamespace(id="match-job", status="completed", done=SimpleNamespace(wait=complete))
+
+    gateway.supervisor.analysis = Analysis()
+    client = _client(gateway)
+    url = "/v1/catalog/match-analysis?wait_ms=3000"
+    first = client.get(url)
+    assert first.status_code == 200, first.text
+    if race == "continuous":
+        assert len(matches) == 2  # bounded retry, no busy loop while publication continues
+        assert "ETag" not in first.headers and first.headers["Cache-Control"] == "no-store"
+        assert first.json()["batches"][0]["generation"] < revision["catalog"]
+        return
+    assert first.json()["batches"][0]["generation"] == revision["catalog"] == 2
+    assert first.headers["ETag"].endswith('/match@2.0"')
+    second = client.get(url, headers={"If-None-Match": first.headers["ETag"]})
+    assert second.status_code == 304, (first.headers["ETag"], second.headers.get("ETag"))
+    revision["embedding"] += 1
+    third = client.get(url, headers={"If-None-Match": first.headers["ETag"]})
+    assert third.status_code == 200 and third.headers["ETag"] != first.headers["ETag"]

@@ -30,3 +30,23 @@ def test_local_multilingual_recall(tmp_path):
         result = search(store, MatchRequest(text=query, limit=1), encoder)
         assert result["items"][0]["item_id"] == expected
         assert result["vector"]["status"] == "ready"
+
+
+@pytest.mark.skipif(not os.environ.get("ORBIT_TEST_E5_DIR"), reason="local E5 snapshot not supplied")
+def test_parallel_e5_ranges_and_resume(tmp_path):
+    from orbit_catalog.vectors import index_embeddings_parallel
+    store = CatalogStore(tmp_path / "parallel.db")
+    store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test")])
+    rows = [Record(native_id=str(i), resource=Resource(item_id=f"parallel:{i}", type="skill", name=f"Debug {i}",
+            summary="Investigate root causes and verify the fix.", url="https://example.org")) for i in range(8)]
+    publish(store, rows)
+    cancelled = index_embeddings_parallel(store, os.environ["ORBIT_TEST_E5_DIR"], workers=2, cancelled=lambda: True)
+    assert cancelled["cancelled"] and cancelled["computed"] == 0
+    assert cancelled["coverage"]["overview_items"] == 0
+    updates = []
+    result = index_embeddings_parallel(store, os.environ["ORBIT_TEST_E5_DIR"], workers=2, batch_size=2,
+                                       scope="overview", progress=updates.append)
+    assert result["coverage"]["overview_items"] == 8
+    assert result["computed"] == 8 and result["workers"] == 2
+    assert updates and updates[-1]["computed"] == 8
+    assert index_embeddings_parallel(store, os.environ["ORBIT_TEST_E5_DIR"], workers=2)["computed"] == 0
