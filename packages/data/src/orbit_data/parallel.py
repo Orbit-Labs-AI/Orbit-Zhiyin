@@ -12,6 +12,7 @@ same. Small jobs run the same code in-process, without a pool.
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import json
 import multiprocessing
@@ -43,6 +44,58 @@ PARALLEL_AGENTS = frozenset({"claude_code", "pi", "dsh"})
 LINE_FORMATS = ("jsonl", "jsonl_zstd", "json")
 PARALLEL_THRESHOLD = 24  # Smaller jobs are cheaper in-process than spawning a pool.
 CAPTURE_ERRORS = (OSError, RuntimeError, ValueError, sqlite3.Error, zstandard.ZstdError)
+
+
+def retryable_capture(error):
+    """Retry only known transient failures, never invalid data or permissions."""
+    if isinstance(error, SourceUnavailable):
+        return error.status == "changed"
+    if isinstance(error, sqlite3.Error):
+        return getattr(error, "sqlite_errorcode", 0) & 0xFF in (
+            sqlite3.SQLITE_BUSY,
+            sqlite3.SQLITE_LOCKED,
+        )
+    return isinstance(error, OSError) and error.errno in (errno.EAGAIN, errno.EINTR, errno.ESTALE)
+
+
+def capture_error_detail(error, relative):
+    # Exception messages can contain source text; log only structured classifications.
+    detail = {
+        "exception": type(error).__name__,
+        "path": relative,
+        "retryable": retryable_capture(error),
+    }
+    if isinstance(error, SourceUnavailable):
+        detail["source_status"] = error.status
+    if isinstance(error, OSError):
+        detail["errno"] = error.errno
+    if isinstance(error, sqlite3.Error):
+        detail["sqlite_errorname"] = getattr(error, "sqlite_errorname", None)
+    detail["attempts"] = getattr(error, "capture_attempts", 1)
+    return detail
+
+
+def capture_with_retry(first, fallback, progress, agent, relative):
+    """One bounded fresh read after a raced snapshot; retain old facts on failure."""
+    try:
+        return first(), 1
+    except CAPTURE_ERRORS as error:
+        if not retryable_capture(error):
+            raise
+        progress(
+            {
+                "stage": "capture_retry",
+                "agent": agent,
+                "path": relative,
+                "attempt": 2,
+                **capture_error_detail(error, relative),
+            }
+        )
+        try:
+            return fallback(), 2
+        except CAPTURE_ERRORS as failure:
+            failure.capture_attempts = 2
+            raise
 
 
 WRITER_CACHE_KIB = 262_144
@@ -512,35 +565,56 @@ def capture(store, source_id, root, selected, pool, cancel, progress, result, ag
                 result["cancelled"] = True
                 break
             group.next()
+            outcome = {
+                "path": str(item.path.relative_to(root)),
+                "status": "unchanged",
+                "attempts": 0,
+            }
             if job is None:
                 result["files"] += 1
             else:
                 try:
-                    try:
-                        scan = future.result() if future is not None else None
-                    except BrokenProcessPool:
-                        pool.mark_broken()
-                        scan = None  # Serial capture, exactly as with workers=1.
-                    captured = index_file(store, source_id, item.path, item.role, scan)
+
+                    def first_capture(item=item, future=future):
+                        try:
+                            scan = future.result() if future is not None else None
+                        except BrokenProcessPool:
+                            pool.mark_broken()
+                            scan = None  # Serial capture, exactly as with workers=1.
+                        return index_file(store, source_id, item.path, item.role, scan)
+
+                    relative = str(item.path.relative_to(root))
+                    captured, attempts = capture_with_retry(
+                        first_capture,
+                        lambda item=item: index_file(store, source_id, item.path, item.role),
+                        progress,
+                        agent,
+                        relative,
+                    )
                     result["files"] += 1
                     result["changed"] += int(captured["changed"])
-                    if premap and scan is not None and not pool.broken:
+                    outcome.update(
+                        status="captured" if captured["changed"] else "unchanged", attempts=attempts
+                    )
+                    if premap and future is not None and not pool.broken:
                         _premap(store, pool, executor, captured["file_id"])
                 except CAPTURE_ERRORS as error:
+                    outcome.update(
+                        status="failed",
+                        **capture_error_detail(error, str(item.path.relative_to(root))),
+                    )
                     result["capture_errors"] += 1
                     store.issue(
                         source_id,
                         "capture_failed",
                         stage="l1",
-                        detail={
-                            "exception": type(error).__name__,
-                            "path": str(item.path.relative_to(root)),
-                        },
+                        detail=capture_error_detail(error, str(item.path.relative_to(root))),
                     )
             progress(
                 {
                     "stage": "capture",
                     "agent": agent,
+                    **outcome,
                     "completed": result["files"] + result["capture_errors"],
                     "total": len(selected),
                 }

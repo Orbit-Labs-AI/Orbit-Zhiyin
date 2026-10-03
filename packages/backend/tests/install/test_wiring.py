@@ -256,3 +256,22 @@ def test_maintain_sweeps_old_plans(setup):
     with svc.appdb.write() as db:
         db.execute("UPDATE install_plan SET created_at = 1 WHERE plan_id = ?", (plan["plan_id"],))
     assert svc.maintain() == {"triggered": 0, "idle": 0, "kept": 0, "backups": 0, "plans": 1, "linked": 0}
+
+
+def test_install_warns_when_inventory_dispatch_returns_failed_job(setup):
+    from types import SimpleNamespace
+
+    svc, _, _ = setup
+    calls = []
+
+    def unavailable(kind, **kwargs):
+        calls.append((kind, kwargs))
+        return {"id": "failed-refresh", "status": "failed",
+                "error": {"code": "service_unavailable"}}
+
+    svc.jobs = SimpleNamespace(submit=unavailable)
+    result = run(svc, {"type": "catalog", "id": "docs-mcp"})
+    assert result["state"] == "installed"
+    assert "inventory_refresh_failed" in result["warnings"]
+    assert calls == [("inventory", {"origin": "install"})]
+    assert (svc.env.home / ".claude.json").is_file()

@@ -54,7 +54,8 @@ def file_kind(path: str, skill_dirs=frozenset(), rules=(), plugin_dirs=None) -> 
     if name == ".mcp.json":
         root = str(pure.parent)
         return "mcp_server" if plugin_dirs is None or root in plugin_dirs else None
-    if name.endswith(".json") and (name == "hooks.json" or "hooks" in parts):
+    if (name == "hooks.json" and len(parts) == 1) or (
+            "hooks" in parts and (name == "hooks.json" or name.endswith("-hooks.json"))):
         return "hook"
     if name.endswith((".md", ".mdc")):
         kind = None

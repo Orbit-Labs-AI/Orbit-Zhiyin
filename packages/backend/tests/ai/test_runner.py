@@ -232,3 +232,15 @@ def test_job_reports_telemetry_and_notifies(ai_svc, monkeypatch):
     ai_svc.submit("test.echo", {"slots": {"goal": "bg"}, "params": {"auto": True}})
     time.sleep(0.2)
     assert notes == []
+
+
+def test_cached_output_is_revalidated(ai_svc):
+    first = ai_svc.submit("test.echo", {"slots": {"goal": "cached evidence"}})
+    wait_done(ai_svc, first["job_id"])
+    with ai_svc.appdb.write() as db:
+        db.execute("UPDATE ai_cache SET output=?", (json.dumps({"wrong": "stale schema"}),))
+    second = ai_svc.submit("test.echo", {"slots": {"goal": "cached evidence"}})
+    result = wait_done(ai_svc, second["job_id"])
+    assert result["result"] == {"answer": "ok"}
+    assert len(ai_svc.fake.requests) == 2
+    assert not result["cached"]

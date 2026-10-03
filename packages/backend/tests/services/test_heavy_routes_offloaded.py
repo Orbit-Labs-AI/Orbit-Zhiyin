@@ -13,6 +13,11 @@ from conftest import add_codex, bus_events, fast_config, run_job, wait_for, wait
 
 from orbit_backend.services.worker_protocol import DEBUG_DELAY_ENV
 
+# Real worker processes use fast_config's 3 s heartbeat watchdog; this module also
+# asserts a 0.3 s wall-clock timeout. As with test_analytics_flow, keep it outside
+# the xdist pass so competing workers cannot turn CPU starvation into interruption.
+pytestmark = pytest.mark.serial
+
 ROUTES = [
     ("statistics", "get", "/v1/analytics/statistics", {}, "statistics"),
     ("lexical", "get", "/v1/analytics/lexical", {}, "lexical"),
@@ -55,8 +60,8 @@ def _forbid_in_process(monkeypatch):
 def imported(client_factory, codex_root, monkeypatch):
     client, gateway = client_factory()
     source = add_codex(client, codex_root)
-    assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
-        "status"] == "completed"
+    imported_job = wait_job(client, run_job(client, "import", [source], phase="head")["id"])
+    assert imported_job["status"] == "completed", imported_job
     _forbid_in_process(monkeypatch)  # The worker is a separate process and is unaffected.
     return client, gateway
 
@@ -96,8 +101,8 @@ def test_timed_out_on_demand_route_reports_failure_instead_of_rerunning(client_f
     config = fast_config(worker_env={DEBUG_DELAY_ENV: "600"})
     client, gateway = client_factory(config=config)
     source = add_codex(client, codex_root)
-    assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
-        "status"] == "completed"
+    imported_job = wait_job(client, run_job(client, "import", [source], phase="head")["id"])
+    assert imported_job["status"] == "completed", imported_job
     config.light_timeout_s = 0.3  # Shorter than the worker's fixed 0.6 s start-up delay.
     analysis = gateway.supervisor.analysis
 

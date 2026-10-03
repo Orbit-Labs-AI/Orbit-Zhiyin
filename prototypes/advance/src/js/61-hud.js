@@ -51,7 +51,7 @@ function hudCard() {
   const s = hudSess(); const tip = !S.hud.tipOff && S.live.ctx >= 60;
   const d = liveBuckets(20, 30); const errs = sum(d.b, (x) => x.err), msgs = sum(d.b, (x) => x.user);
   const cell = (l, v, attr) => '<div class="hcell"><div style="font-size:11px;color:var(--hud-ink-3)">' + l + '</div><b class="mono" style="font-size:15px"' + (attr || '') + '>' + v + '</b></div>';
-  return '<div class="hcard" role="dialog" aria-label="会话详情"><div class="row"><span class="dot live" style="background:' + agent(s.a).c + '"></span><b style="font-size:13px">' + esc(agent(s.a).name) + '</b><span style="color:var(--hud-ink-3);font-size:12px">· ' + esc(sessProjName(s)) + '</span><span style="flex:1"></span><span class="mono" data-live style="font-size:12px">' + liveElapsed() + '</span></div>' +
+  return '<div class="hcard" role="dialog" aria-label="会话详情"><div class="row"><span class="dot live" style="background:' + agent(s.a).c + '"></span><b style="font-size:13px">' + esc(agent(s.a).name) + '</b><span style="color:var(--hud-ink-3);font-size:12px">· ' + esc(sessProjName(s)) + '</span><span style="flex:1"></span><span class="mono" data-live style="font-size:12px">' + liveElapsed() + '</span><button type="button" class="hg hud-close" data-act="hudCollapse" aria-label="收起会话详情" data-tip="收起详情，保留悬浮组件">' + ic('x', 14) + '</button></div>' +
     '<div class="col" style="gap:3px"><div class="serif" style="font-size:17px;font-weight:600;line-height:22px">' + esc(s.title) + '</div><div class="row" style="font-size:12px;color:var(--hud-ink-2)"><span style="padding:1px 6px;border-radius:4px;background:rgba(180,168,255,.18);color:#c9c0ff;font-weight:600">进行中</span><span class="mono" data-hudtool>' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span></div></div>' +
     hudBand() +
     '<div class="hgrid">' + ctxBar(S.live.ctx, { cls: 'dk' }) + cell('工具', S.live.tools, ' data-livetools') + cell('失败', errs) + cell('消息', msgs) + '</div>' +
@@ -159,6 +159,7 @@ window.addEventListener('pointerup', hudDragEnd);
 window.addEventListener('pointercancel', (e) => { if (HDRAG) { HDRAG.moved = true; hudDragEnd(e); } });
 window.addEventListener('blur', () => { if (HDRAG) { HDRAG.moved = true; hudDragEnd({ altKey: false }); } });
 Object.assign(ACT, {
+  hudCollapse: () => { S.hud.open = false; renderHud(); const pill = $('#hudPill'); if (pill) pill.focus({ preventScroll: true }); },
   hudGo: (el) => {
     const v = el.dataset.v;
     if (v === 'waiting') { simClear('waiting'); render(); toast('已切换到 Codex 所在的终端标签页（演示）；批准仍由你在终端里完成'); }

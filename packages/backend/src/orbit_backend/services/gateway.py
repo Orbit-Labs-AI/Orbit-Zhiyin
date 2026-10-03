@@ -594,16 +594,21 @@ def _sync_round(self, collection, interval: float) -> float:
         self._sync_seen = last["id"]
         changed = any(r.get("changed") for r in last.get("results") or [])
         idle = self._sync_idle = low if changed else min(high, idle * 2)
-    if not collection.catch_up_pending:
-        wait = sync_wait(mode, last, int(time.time() * 1000), idle, self.sync_interval_s,
-                         getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
+    failed_catch_up = collection.catch_up_pending and last is not None and last.get("status") in SYNC_FAILED
+    if not collection.catch_up_pending or failed_catch_up:
+        # A failed resume dispatch retains its intent, but observes the normal
+        # failure backoff even when periodic sync is off (or hourly).
+        wait = sync_wait("live" if failed_catch_up else mode, last, int(time.time() * 1000),
+                         idle, self.sync_interval_s, getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
         if wait > 0:
             return min(wait, high) if mode == "live" else wait
     if self.stopping.is_set():
         return high  # Shutting down: never start an import on the way out.
     catch_up = collection.consume_catch_up()
     try:
-        self.jobs.submit("import", enabled, phase="full", origin="sync")
+        job = self.jobs.submit("import", enabled, phase="full", origin="sync")
+        if catch_up and isinstance(job, dict) and job.get("status") in SYNC_FAILED:
+            collection.catch_up_pending = True
     except (JobConflict, ValueError):
         collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
     return low

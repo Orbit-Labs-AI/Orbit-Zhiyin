@@ -78,6 +78,10 @@
 | [后端缺口](audits/backend-gap.md) | 数据、分析、推荐与横切程序对照两版 UI 的差距与补齐顺序 |
 | [数据模块审计](audits/data-audit.md) | DT 完成度、导入性能与优化任务包 |
 | [分析模块审计](audits/analysis-audit.md) | AN 功能覆盖、持久化与性能 |
+| [导入可靠性审计](audits/ingestion-reliability-2026-10-03.md) | 七类 Agent 内容覆盖、发现补扫、捕获重试、标准化与开发日志 |
+| [分析与 AI 可靠性审计](audits/analysis-ai-reliability-2026-10-03.md) | 范围隔离、证据校验、专业分析模板和 UI 输入输出映射 |
+| [推荐与资源库可靠性审计](audits/recommendation-reliability-2026-10-03.md) | 多路召回、质量维度、目录扩充、AI 专家建议和评测边界 |
+| [端到端集成审计](audits/integration-reliability-2026-10-03.md) | 设置并发、问答范围、页面接线、交互证据与本轮验收 |
 
 ## 7. 调研
 

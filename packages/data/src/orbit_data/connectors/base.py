@@ -36,6 +36,8 @@ def text_content(content) -> str:
         if "content" in content:
             return text_content(content["content"])
         return json.dumps(content, ensure_ascii=False)
+    if isinstance(content, int | float | bool):
+        return json.dumps(content, ensure_ascii=False)
     if not isinstance(content, list):
         return ""
     return "\n".join(block if isinstance(block, str) else text_content(block) for block in content)

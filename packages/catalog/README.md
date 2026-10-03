@@ -51,3 +51,22 @@
     uv run python benchmarks/catalog_bench.py --items 20000 --seed 7 [--embeddings] [--json out.json] [--check]
 
 确定性合成数据（Zipf 词表含中文二元词、12 类、正文约 6KB、每条 3–8 个特征、5% 内容重复），向量用无模型的 ToyHashEncoder（384 维）。`--check` 仅在 20k 规模断言目标。
+
+## 推荐可靠性审计更新
+
+2026-10-03 增加 Microsoft 官方 skills 来源并扩大随包离线种子至 1,543 项；新版快照按来源 revision 更新旧安装，已完成网络同步的来源仍优先。`features-4` 增加任务阶段、产物和实践维度，bootstrap 会按投影版本一次重建旧特征索引。
+
+卡片与检索响应新增 `quality` 元数据完整度报告（五维证据、缺失项、版本与明确的未评测/未审计状态），检索保留 verification、language、声明支持矩阵。向量加载或编码失败时保留 BM25/特征结果并返回降级诊断。精确条数、来源 revision、测试与边界见 [推荐可靠性审计](../../docs/audits/recommendation-reliability-2026-10-03.md)。
+
+## 在 App 中启用本地语义检索
+
+App/gateway 创建目录服务时默认读取可选环境变量 `ORBIT_CATALOG_MODEL_DIR`。将其设置为包含 `onnx/model.onnx` 与 `onnx/tokenizer.json` 的本地模型目录**绝对路径**，并在启动 gateway 的 Python 环境提供 `embeddings` 可选依赖；无需修改用户数据库来选择模型。构造参数 `model_dir` 和 CLI `--model-dir` 优先于环境变量，修改环境变量后需重新启动服务。
+
+服务只读取本地模型，不自动联网下载。未设置时保持词法/特征检索；权重缺失、运行时不可用或编码失败时回退并报告 `vector.unavailable`。权重可用但所选目录尚未编码时报告 `not_indexed`；向量库按所选 home 独立保存，使用现有 CLI 显式物化：
+
+```sh
+orbit-catalog --home /absolute/orbit-home --model-dir /absolute/multilingual-e5-small embed
+orbit-catalog --home /absolute/orbit-home --model-dir /absolute/multilingual-e5-small search '排查自动化测试反复失败的原因'
+```
+
+本轮已在忽略的 `.local/audit-20261003/vector-catalog/catalog.db` 实际物化 3,685 个唯一向量，覆盖 3,876/3,876 个候选块；模型固定版本、SHA256、独立运行时和查询实测见上述审计记录。该校验库不替换正常 App 的 `home/catalog.db`，模型权重也不随 Git 提交。

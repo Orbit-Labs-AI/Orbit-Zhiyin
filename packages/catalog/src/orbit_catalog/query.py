@@ -13,6 +13,7 @@ from collections import OrderedDict
 import numpy as np
 
 from .contracts import canonical_json
+from .quality import assess as assess_quality
 from .risk import allowed_tools, declared_env, scan
 
 SORTS = {"updated": "updated_at", "installs": "installs", "stars": "stars", "name": "name_key"}
@@ -20,7 +21,7 @@ PERMISSIVE = {"MIT", "Apache-2.0", "CC0-1.0", "CC-BY-4.0", "BSD-2-Clause", "BSD-
               "Unlicense", "MPL-2.0", "user-generated"}
 RESIDENT_TYPES = {"skill", "rule", "subagent", "command"}
 CARD = ("i.item_id,i.type,i.name,i.summary,i.author,i.license,i.official,i.agents,i.difficulty,i.risk_level,i.risk,"
-        "i.version,i.updated_at,i.installs,i.stars,i.origin,i.url,i.body_policy,i.canonical_of")
+        "i.version,i.updated_at,i.installs,i.stars,i.origin,i.url,i.body_policy,i.canonical_of,i.verification,i.body_len,i.latest_version")
 README_LIMIT = 250_000
 MODEL_FIELDS = ("provider", "model_id", "family", "context_window", "max_output", "input_per_mtok", "output_per_mtok",
                 "cache_read_per_mtok", "reasoning", "tool_call", "knowledge_cutoff")
@@ -62,7 +63,7 @@ def card(row) -> dict:
             "agents": json.loads(row["agents"]), "difficulty": row["difficulty"], "risk_level": row["risk_level"],
             "risk": json.loads(row["risk"]), "version": row["version"], "updated_at": row["updated_at"],
             "installs": row["installs"], "stars": row["stars"], "origin": row["origin"], "url": row["url"],
-            "body_policy": row["body_policy"], "canonical_of": row["canonical_of"]}
+            "body_policy": row["body_policy"], "canonical_of": row["canonical_of"], "quality": assess_quality(row)}
 
 
 def license_spdx(value: str | None) -> str | None:
@@ -581,7 +582,7 @@ def library(store, *, profile: dict | None = None, lexical: dict | None = None, 
             "matched_features": [{k: v for k, v in h.items() if k not in ("_w", "label")} for h in matched[:6]],
             "stars": base["stars"], "stars_scope": info["stars_scope"], "updated_at": base["updated_at"],
             "updated_scope": info["updated_scope"], "users": None, "local": base["origin"] == "local",
-            "risk_level": base["risk_level"], "installed": None, "rec": None, "url": base["url"]})
+            "risk_level": base["risk_level"], "quality": base["quality"], "installed": None, "rec": None, "url": base["url"]})
     keys = {"fit": lambda c: (-c["m"], -c["parts"]["friction"], c["id"]),
             "pain": lambda c: (-c["parts"]["friction"], -c["m"], c["id"]),
             "updated": lambda c: (-c["updated_at"], c["id"]), "stars": lambda c: (-c["stars"], c["id"]),

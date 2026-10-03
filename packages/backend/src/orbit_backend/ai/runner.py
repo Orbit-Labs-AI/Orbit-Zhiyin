@@ -94,8 +94,15 @@ class RunContext:
         if ttl != 0:
             cached = self.runner.cache_get(key)
             if cached is not None:
-                self.cache_hits += 1
-                return cached
+                errors = schema_errors(cached, schema)
+                if not errors and validate is not None:
+                    errors = list(validate(cached, self.pack) or [])
+                if not errors:
+                    if self.cancelled():
+                        raise Cancelled()
+                    self.cache_hits += 1
+                    return cached
+                self.log("缓存未通过当前证据校验，重新生成")
         engine = self.runner.svc.engine(self.engine)
         attempt_prompt, last = prompt, "schema_invalid"
         for attempt in range(2):

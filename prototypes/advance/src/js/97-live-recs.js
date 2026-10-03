@@ -25,6 +25,7 @@ if (TL.mode === 'live' && !LV.demo) {
 // Cand → RECS row: the shared mapper (OrbitLive.recs.row) plus real agents, ui.save / ui.tok_pct and the source link.
 function lvRecRow(c) {
   const r = OrbitLive.recs.row(c); const u = c.ui || {};
+  r.expertAdvice = Array.isArray(c.expert_advice) ? c.expert_advice.slice(0, 3) : [];
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
   const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
   bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
@@ -175,6 +176,11 @@ if (TL.mode === 'live') {
     const c = $('#content'); if (!c) return;
     const surface = LVR_ROUTES[S.route];
     if (!surface) return;
+    const selected = RECI[S.recs.sel];
+    if (S.route === 'recs' && S.recs.tab === 'why' && selected && (selected.expertAdvice || []).length) {
+      const ev = c.querySelector('.rc-ev');
+      if (ev && !c.querySelector('[data-tl="expert-advice"]')) ev.insertAdjacentHTML('beforebegin', '<div class="col" style="gap:10px;margin-bottom:14px" data-tl="expert-advice"><b style="font-size:13px">AI 补充建议 · 待验证</b>' + selected.expertAdvice.map((a, i) => '<div class="col" style="gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px"><b style="font-size:13px">' + esc(a.title) + '</b><div style="font-size:12px;line-height:1.6">' + esc(a.summary) + '</div><ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">' + (a.steps || []).map((s) => '<li>' + esc(s) + '</li>').join('') + '</ol><div class="cap" style="font-size:11px">依据：' + esc((a.evidence_ids || []).join('、') || '尚无具体证据') + '</div>' + (a.limitations || []).map((s) => '<div class="cap" style="font-size:11px">' + esc(s) + '</div>').join('') + '<div class="row"><span class="cap" style="font-size:11px;flex:1">效果尚未实测，先审阅再应用</span><button type="button" class="btn sm" data-act="recExpertStudio" data-id="' + esc(selected.id) + '" data-i="' + i + '">交给生成工坊</button></div></div>').join('') + '</div>');
+    }
     if (S.route === 'recs' && S.recs.tab === 'why' && LVR.rel[S.recs.sel]) {
       const ev = c.querySelector('.rc-ev');
       if (ev && !c.querySelector('[data-tl="rec-rel"]')) ev.insertAdjacentHTML('beforebegin', '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[S.recs.sel].map((p) => { const o = RECI[p.a === S.recs.sel ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>');
@@ -196,6 +202,13 @@ if (TL.mode === 'live') {
   const A = Object.assign({}, ACT);
   ACT.selRec = (el, e) => { const was = S.recs.sel; A.selRec(el, e); if (S.recs.sel !== was) ex(S.recs.sel, 'A7', 'open'); };
   ACT.openRec = (el) => { const sf = el.closest && el.closest('.ov-recs') ? 'A1' : S.pop ? 'menubar' : 'A7'; A.openRec(el); ex(el.dataset.id, sf, 'open'); };
+  ACT.recExpertStudio = (el) => {
+    const r = RECI[el.dataset.id], advice = r && r.expertAdvice[+el.dataset.i]; if (!advice) return;
+    if (S.studio.run && !S.studio.run.done && !S.studio.run.stopped) { toast('生成工坊正在运行，先停止或等它完成'); return; }
+    S.studio.type = { skill: 'Skill', hook: 'Hook', prompt: '规则', workflow: '工作流' }[advice.kind] || '规则';
+    S.studio.goal = [advice.title, advice.summary, ...(advice.steps || []), ...(advice.limitations || []).map((s) => '约束：' + s)].filter(Boolean).join('\n');
+    S.studio.from = 'AI 建议「' + advice.title + '」'; S.studio.run = null; go('studio');
+  };
   // 预览并安装: the real install sheet (plan → preview → apply with the preview digest); 撤销 reverts by install_id
   ACT.install = (el) => {
     const r = RECI[el.dataset.id];

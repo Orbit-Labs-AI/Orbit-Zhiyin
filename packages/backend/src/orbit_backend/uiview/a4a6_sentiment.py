@@ -417,8 +417,8 @@ def build_meta(appdb) -> dict:
 
 
 def _window(params, now_ms):
-    until = params.get("until") or now_ms
-    since = params.get("since") or until - int(params.get("days") or 30) * DAY_MS
+    until = params["until"] if params.get("until") is not None else now_ms
+    since = params["since"] if params.get("since") is not None else until - int(params.get("days") or 30) * DAY_MS
     return int(since), int(until)
 
 
