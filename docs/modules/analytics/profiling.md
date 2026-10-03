@@ -99,7 +99,7 @@ legacy 规则同时覆盖中文与英文：clarity／brevity／planning／verifi
 事实层的判据（`uiview/facts.py`）：
 
 - 验证命令按命令本身判断（`is_validation_command`）：去掉环境变量与 `uv run`、`npx`、`python -m` 等前缀后，命令头是测试/lint/类型检查工具（pytest、vitest、ruff、mypy、tsc 等），或构建工具的 test/check/lint/build 子命令（`cargo test`、`go vet`、`make check`、`pnpm run typecheck` 等）。`cd build`、`ls test/`、`git diff --check`、`docker build .` 不再算验证。Codex 的 `bash -lc "<脚本>"` 按脚本内容判断。
-- 每个轮次记 `[步数, 验证, 用户要求, Agent 运行, 以中止状态结束, 状态已知]`。V 轴只按「用户要求」计（`persona_signals.requested_turns`，线上行的 `vk`）；只有 `[步数, 验证]` 的旧快照退回「验证」。画像证据分开列出「用户要求验证」与「仅 Agent 自行运行」的轮次数。facts 行的 `verify`（会话是否要求或运行了验证）不变。
+- 每个轮次记 `[步数, 验证, 用户要求, Agent 运行, 以中止状态结束, 状态已知]`。V 轴只按「用户要求」计（`persona_signals.requested_turns`，线上行的 `vk`）；只有 `[步数, 验证]` 的旧快照退回「验证」。V 轴证据、画像要点与「验收严格」都写这一口径（「你要求验证的轮次占 X%」，即 V 轴的 k_units / n_units；后端 `persona.v_ask_txt`、前端 `peVTxt`）；本地服务算出的画像另在证据后接「你要求验证 N 轮 · 仅 Agent 自行运行 M 轮」，客户端口径看不到逐轮拆分，不显示这一项。facts 行的 `verify`（会话是否要求或运行了验证）不变，只用于概览等会话级统计。`vk` 改义后 `persona_signals.UNITS_VERSION` 进入 `rules_digest`，旧的 uiview_facts 快照随之失效。揭晓页的「验证占比」也改用 `is_validation_command`（原 `reveal.VERIFY_HEADS` 前缀表已删）；`recommend/handoff.VERIFY_HEADS` 与 `analytics/outcome/validation.py` 的候选正则仍是独立判据，后者牵涉分析金标，待重录 golden 时一并统一。
 - 结构化开场只看列表（≥ 2 项）、验收词、规格/计划文档，以及指令层标出的 `execution_order` / `acceptance_criteria`；只提到文件名或消息很长（如粘贴报错）都不再算结构化。
 
 局限：
