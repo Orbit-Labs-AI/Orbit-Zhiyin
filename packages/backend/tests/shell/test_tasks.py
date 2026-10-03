@@ -6,6 +6,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from synthetic import write_codex_tree
 
 from tandem_backend.services.sections import rules_digest
@@ -39,18 +40,16 @@ def notes(client, kind=None):
 
 
 def test_weekly_report_skips_without_export_or_when_disabled(gateway_factory, monkeypatch):
-    # Every call passes an explicit local time, and the export package is forced absent:
-    # with the real one merged, an enabled run would freeze W41 and later calls in this
-    # test would see an already-run week (the real export path is covered by the stand-in
-    # test below).
-    monkeypatch.setattr(tasks, "_export", lambda: None)
+    # Every call passes an explicit local time; the export package must not be reached.
+    def no_export():
+        raise AssertionError("export reached while not due / disabled")
+
+    monkeypatch.setattr(tasks, "_export", no_export)
     _, gw = gateway_factory(started=False)
     monday = at(5, 10)
     with gw.state.lock:
         gw.state.state["settings"]["weekly_report"] = True  # Default is off.
     assert tasks.weekly_report(gw, at(5, 8)) == {"skipped": "not_due"}
-    assert tasks.weekly_report(gw, monday) == {"skipped": "export_unavailable",
-                                               "week": "2026-W41"}
     with gw.state.lock:
         gw.state.state["settings"]["weekly_report"] = False
     assert tasks.weekly_report(gw, monday) == {"skipped": "disabled", "week": "2026-W41"}
@@ -157,16 +156,16 @@ def test_weekly_report_with_export_stand_in(gateway_factory, monkeypatch):
     report = SimpleNamespace(
         DEFAULT_SECTIONS=("overview", "metrics", "persona"), SECTION_IDS=("overview", "metrics"),
         build_scope=lambda raw: dict(raw),
-        assemble=lambda gw_, sections, scope: {"scope_hash": "h", "sections": sections,
-                                               "scope": scope})
-    snapshots = SimpleNamespace(KINDS=("report", "weekly"),
+        assemble=lambda gw_, sections, scope: {"scope_hash": "h", "scope": scope,
+                                               "sections": [{"id": s, "status": "ok"} for s in sections]})
+    snapshots = SimpleNamespace(KINDS=("report",),
                                 save=lambda appdb, kind, scope, h, payload, rules:
                                 saved.append((kind, scope, payload)) or "snap-1")
     monkeypatch.setattr(tasks, "_export", lambda: (report, snapshots))
     result = tasks.weekly_report(gw, at(7, 10))  # Wednesday of 2026-W41
-    assert result == {"week": "2026-W41", "snapshot_id": "snap-1", "kind": "weekly"}
+    assert result == {"week": "2026-W41", "snapshot_id": "snap-1", "kind": "report"}
     kind, scope, payload = saved[0]
-    assert payload["sections"] == ["overview", "metrics"]
+    assert [s["id"] for s in payload["sections"]] == ["overview", "metrics"]
     # Last full week: Monday 2026-09-28 00:00 → Monday 2026-10-05 00:00 local.
     assert scope["until_ts"] - scope["from_ts"] == 7 * 86_400_000
     assert scope["until_ts"] == int(at(5, 0).timestamp() * 1000)
@@ -177,3 +176,49 @@ def test_weekly_report_with_export_stand_in(gateway_factory, monkeypatch):
     with gw.state.lock:
         gw.state.state["settings"]["weekly_report"] = False
     assert tasks.weekly_report(gw, at(8, 10)) == {"skipped": "disabled"}  # W41 already ran
+
+
+def _stand_in(statuses):
+    """Export stand-in whose sections take the next status list on every assemble()."""
+    from types import SimpleNamespace
+
+    saved, rounds = [], iter(statuses)
+    report = SimpleNamespace(
+        DEFAULT_SECTIONS=("overview", "metrics"), SECTION_IDS=("overview", "metrics"),
+        build_scope=lambda raw: dict(raw),
+        assemble=lambda gw_, sections, scope: {
+            "scope_hash": "h", "scope": scope,
+            "sections": [{"id": sid, "status": st} for sid, st in zip(sections, next(rounds), strict=True)]})
+    snapshots = SimpleNamespace(KINDS=("report",), save=lambda appdb, kind, scope, h, payload, rules:
+                                saved.append(payload) or f"snap-{len(saved)}")
+    return (report, snapshots), saved
+
+
+@pytest.mark.parametrize("pending", ["computing", "unavailable"])
+def test_weekly_report_retries_while_sections_pending(gateway_factory, monkeypatch, pending):
+    client, gw = gateway_factory()
+    with gw.state.lock:
+        gw.state.state["settings"]["weekly_report"] = True
+    exp, saved = _stand_in([("ok", pending), ("ok", "ok")])
+    monkeypatch.setattr(tasks, "_export", lambda: exp)
+    # Monday 10:00: metrics still pending → nothing frozen, nothing notified, still due.
+    assert tasks.weekly_report(gw, at(5, 10)) == {"skipped": "computing", "week": "2026-W41",
+                                                  "sections": ["metrics"]}
+    assert saved == [] and notes(client, "weekly") == [] and tasks.last_weekly_key(gw) is None
+    # Monday 11:00: ready → saved once and deduplicated from then on.
+    assert tasks.weekly_report(gw, at(5, 11))["snapshot_id"] == "snap-1"
+    assert tasks.last_weekly_key(gw) == "2026-W41"
+    assert tasks.weekly_report(gw, at(5, 12)) == {"skipped": "not_due"}
+
+
+def test_weekly_report_freezes_partial_after_retry_window(gateway_factory, monkeypatch):
+    client, gw = gateway_factory()
+    with gw.state.lock:
+        gw.state.state["settings"]["weekly_report"] = True
+    exp, saved = _stand_in([("ok", "unavailable")] * 2)
+    monkeypatch.setattr(tasks, "_export", lambda: exp)
+    # Due Monday 09:00; 24 h later (Tuesday 08:59 is still inside the window).
+    assert tasks.weekly_report(gw, at(6, 8, 59))["skipped"] == "computing"
+    result = tasks.weekly_report(gw, at(6, 9))  # Tuesday 09:00 = due + 24 h
+    assert result["snapshot_id"] == "snap-1" and saved[0]["sections"][1]["status"] == "unavailable"
+    assert len(notes(client, "weekly")) == 1

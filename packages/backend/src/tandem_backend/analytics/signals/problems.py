@@ -1,6 +1,7 @@
 """AN-06 problem upgrade: aggregate signals by ``(type, key, scope, scope_id)``.
 
-Upgrade iff ``sessions ≥ min_sessions`` and ``wilson_lo(sessions, denom) ≥ 0.05`` where
+Upgrade iff ``sessions ≥ min_sessions`` and ``wilson_lo(sessions, denom) > wilson_lo_min``
+(per type, default ``WILSON_LO_MIN``; rationale in ``dictionary``) where
 ``denom`` counts sessions that had the opportunity for the signal kind and whose
 detector evidence was available. ``label`` rows (resolved / dismissed) are read only.
 """
@@ -61,8 +62,9 @@ def upgrade_problems(signals: list[Record], facts: list[Record], *,
         n, d = len(session_ids), len(denom_ids)
         lo = wilson_lo(n, d) if d else None
         minimum = PROBLEM_TYPES[ptype]["min_sessions"]
+        lo_min = PROBLEM_TYPES[ptype].get("wilson_lo_min", WILSON_LO_MIN)
         reason = ("no_denominator" if not d else "below_min_sessions" if n < minimum
-                  else "below_wilson_lo" if lo < WILSON_LO_MIN else None)
+                  else "below_wilson_lo" if lo <= lo_min else None)
         occ_ts = [o["ts"] for s in rows for o in s["occurrences"] if o.get("ts") is not None]
         weekly = (None if ref is None or not occ_ts
                   else sum(ref - 4 * WEEK_MS <= t < ref for t in occ_ts) / 4)
@@ -71,7 +73,7 @@ def upgrade_problems(signals: list[Record], facts: list[Record], *,
         row = {"problem_id": pid, "type": ptype, "key": key, "scope": scope, "scope_id": scope_id,
                "signal_kinds": kinds, "sessions": n, "session_uids": session_ids,
                "denominator": d, "rate": proportion(n, d), "wilson_lo": lo,
-               "min_sessions": minimum, "upgraded": reason is None, "reason": reason,
+               "min_sessions": minimum, "wilson_lo_min": lo_min, "upgraded": reason is None, "reason": reason,
                "signal_count": sum(s["value"] for s in rows),
                "signal_ids": sorted(s["signal_id"] for s in rows),
                "first_seen": min(occ_ts) if occ_ts else None,

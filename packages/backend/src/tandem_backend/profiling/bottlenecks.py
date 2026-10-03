@@ -12,11 +12,29 @@ from ..models import Event, stable_id
 from .content import canceled_length_surfaces, embedded_artifact_body, measure_length
 from .feedback import Signal, answers_clarification, task_contexts
 
+# Generic jargon shapes instead of one corpus's vocabulary: an upper-case acronym
+# (POMDP, KL) or a subscripted symbol (z_u, x_t). Widely known acronyms are not jargon
+# for a reader of an agent reply; callers may pass a glossary of extra terms to flag.
+ACRONYM = r"(?<![A-Za-z0-9_])[A-Z][A-Z0-9]{1,7}(?![A-Za-z0-9_])"
+SUBSCRIPT = r"(?<![A-Za-z0-9_])[A-Za-z]_[A-Za-z0-9]{1,3}(?![A-Za-z0-9_])"
+# Review heuristic (not calibrated): this many undefined jargon shapes in the first 500
+# characters of a reply to a "make it understandable" request opens a review candidate.
+# Generic shapes exclude common acronyms, so the bar is 3 rather than the former 4 hits
+# on a corpus-specific word list.
+JARGON_MIN_TERMS = 3
+COMMON_ACRONYMS = frozenset({
+    "AI", "API", "APP", "CD", "CI", "CLI", "CPU", "CSS", "CSV", "DB", "GPU", "HTML", "HTTP",
+    "HTTPS", "ID", "IDE", "IO", "JS", "JSON", "MD", "MVP", "OK", "OS", "PDF", "PR", "README",
+    "SDK", "SQL", "TODO", "TS", "UI", "URL", "UX", "YAML",
+})
 
-def unexplained_terms(text: str) -> list[str]:
+
+def unexplained_terms(text: str, glossary: tuple[str, ...] = ()) -> list[str]:
     """A local definition marker reduces false alarms; this is not semantic grading."""
     terms, defined = [], set()
-    matches = list(re.finditer(r"\b(?:KL|JS|POMDP|latent|embedding|factorize|z_u)\b", text, re.I))
+    extra = "|".join(re.escape(t) for t in glossary if t)
+    pattern = f"{ACRONYM}|{SUBSCRIPT}" + (f"|(?<![A-Za-z0-9_])(?:{extra})(?![A-Za-z0-9_])" if extra else "")
+    matches = [m for m in re.finditer(pattern, text) if m[0].upper() not in COMMON_ACRONYMS]
     for match in matches:
         following = text[match.end():match.end() + 120]
         definition = re.match(r"\s*(?:[:：（(]|是指?|表示|指的是|即)\s*([^。;；\n）)]+)", following)
@@ -142,7 +160,7 @@ def diagnose(events: list[Event], observed: list[Signal], context_by_id: dict | 
                                              "message": "未识别正文分界，无法单独核对正文篇幅。" if measure["quality"] == "body_boundary_missing" else "回复已截断且缺完整篇幅统计，当前下界不足以判断是否满足限制。"})
                     jargon = unexplained_terms(delivery.text[:500])
                     clarity = next((s for s in writing if s.dimension == "clarity"), None)
-                    if clarity and len(jargon) >= 4:
+                    if clarity and len(jargon) >= JARGON_MIN_TERMS:
                         supporting = [clarity] + [s for s in writing if s is not clarity and s.scene == clarity.scene]
                         findings.append(_finding("unexplained_terms", events_by_id[clarity.event_id], delivery, supporting,
                                                  f"你要求说明易懂；回复开头有 {len(jargon)} 处模型术语未找到紧邻的解释，需要回看是否解释到位。", "rule_candidate"))

@@ -31,7 +31,14 @@ MIN_SESSIONS, MIN_WILSON_LO, MIN_DENOMINATOR = 3, .05, 5
 # The Wilson bar relaxes with the population size: ``MIN_WILSON_LO`` holds up to ``REF_N``
 # sessions and shrinks by sqrt(REF_N / n) above it (never under ``FLOOR_WILSON_LO``), so a
 # heterogeneous heavy user (390 sessions over many projects) is not held to a 5 % share.
+# Basis: a design heuristic, not a fitted or FDR-controlled threshold. The √ scaling keeps the
+# bar ∝ the Wilson half-width (which shrinks ∝ 1/√n), i.e. "a problem must stand out by the same
+# number of standard errors" rather than by a fixed share. Its effect is pinned by the minimum-k
+# table in tests/recommend/test_problem_calibration.py (n=60 → k≥7, n=200 → k≥11, n=400 → k≥14).
 REF_N, FLOOR_WILSON_LO = 60, .01
+# Shortest observation window used to turn counts into weekly rates (one day): shorter windows
+# would extrapolate a few minutes of history into a weekly figure.
+MIN_WEEKS = 1 / 7
 MAX_IDS = 50
 MIN_READONLY_PROMPTS = 2
 UNIT_ZH = {"count": "次", "ratio": "次", "events": "次", "calls": "次", "sessions": "会话", "minutes": "分钟"}
@@ -78,6 +85,20 @@ def wilson_lo(k: int, n: int, z: float = 1.96) -> float:
     centre = p + z * z / (2 * n)
     margin = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return max(0., (centre - margin) / (1 + z * z / n))
+
+
+def observed_weeks(sessions: dict) -> float:
+    """Length of the observed window in weeks: ``sessions.weeks`` when given, else the span between
+    ``first_ts`` and ``last_ts``; never below one day (MIN_WEEKS). Without either, 1 week."""
+    weeks = sessions.get("weeks")
+    if isinstance(weeks, (int, float)) and not isinstance(weeks, bool) and weeks > 0:
+        return max(MIN_WEEKS, float(weeks))
+    try:
+        first = datetime.fromisoformat(str(sessions["first_ts"]).replace("Z", "+00:00"))
+        last = datetime.fromisoformat(str(sessions["last_ts"]).replace("Z", "+00:00"))
+        return max(MIN_WEEKS, (last - first).total_seconds() / (7 * 86400))
+    except (KeyError, TypeError, ValueError):
+        return 1.
 
 
 def min_wilson_lo(n: int) -> float:
@@ -220,7 +241,7 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
     muted = set(memory.get("muted_problem_types") or ())
     sessions = inputs.get("sessions") or {}
     main = int(sessions.get("main") or 0)
-    weeks = max(1., float(sessions.get("weeks") or 1))
+    weeks = observed_weeks(sessions)
     accs: dict[tuple[str, str], _Acc] = {}
 
     def acc(type_, key):
@@ -241,7 +262,11 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
             a.projects.add(scope["project_id"])
         metrics = signal.get("metrics") or []
         value = metrics[0].get("value") if metrics else None
-        a.weekly += float(value) if isinstance(value, (int, float)) and value > 0 else 1.
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            a.weekly += float(value)
+        else:  # no metric value: count the evidence events the signal cites, and say so
+            a.weekly += len([e for e in signal.get("evidence") or () if e.get("id")])
+            a.vars = {**a.vars, "count_basis": "evidence"}
         if metrics and metrics[0].get("unit"):
             a.unit = UNIT_ZH.get(metrics[0]["unit"], metrics[0]["unit"])
         evidence = signal.get("evidence") or []

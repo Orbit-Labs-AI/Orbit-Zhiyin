@@ -9,6 +9,10 @@ numbers (`save` / `tok` / `n`), so every surface reads cards straight from the b
 import re
 import string
 
+from .benefit import beta_interval, card_savings
+from .problems import observed_weeks
+from .units import WEEKS_PER_MONTH
+
 TYPE_ZH = {
     "permission_friction": "只读命令反复弹审批", "tool_env_failure": "工具 / 环境失败",
     "communication_gap": "说明不清需返工", "repeated_instruction": "同一要求反复说明",
@@ -27,10 +31,9 @@ TYPE_LABEL = {"rule": "规则", "prompt": "Prompt", "skill": "Skill", "hook": "H
 ICON = {"rule": "rule", "skill": "book", "hook": "bolt", "mcp": "plug", "agent": "bot", "model": "gauge",
         "flow": "flow"}
 AGENT_NAME = {"claude_code": "Claude Code", "codex": "Codex", "gemini": "Gemini CLI", "pi": "Pi",
+              "dsh": "DeepSeek Harness", "kimi": "Kimi CLI",
               "opencode": "OpenCode", "hermes": "Hermes"}
-WEEKS_PER_MONTH = 4.345
-# Subtraction cards: minutes a resident token costs per session (reading/latency), tunable.
-TOKEN_MINUTES = .00005
+UNESTIMATED = "未估算"
 TRIAL_FALLBACK = "下次遇到同类情况时观察是否改善，7 天后看效果追踪"
 _RC = re.compile(r"（?RC-\d+[^）)]*[）)]?")
 METRIC_ZH = {"approvals_per_week": "每周审批次数", "would_prompt_count": "每周审批次数",
@@ -191,30 +194,39 @@ def _unit_text(raw: dict, problem: dict) -> str:
     return unit
 
 
+def _unestimated(basis: str) -> dict:
+    return {"min_month": None, "label": UNESTIMATED, "low": None, "high": None, "basis": basis}
+
+
 def _save(cand: dict, raw: dict, inputs: dict) -> dict:
-    """Minutes saved per month (estimate): events × minutes per event × prior effectiveness."""
+    """Minutes saved per month — only when the per-event minutes have a stated source.
+
+    Same口径 as ``benefit.estimate_benefit``: observed weekly events × WEEKS_PER_MONTH × sourced
+    minutes per event × improvement fraction, where low/high are scenario bounds from the ~90 %
+    interval of the Beta(prior) effectiveness, not a confidence interval. No setup/extra cost is
+    known per card, so this is the gross range. Removal cards free tokens; their time value is
+    unmeasured, so they never show minutes.
+    """
     problem = cand.get("problem") or {}
     sessions = inputs.get("sessions") or {}
-    weeks = max(1., float(sessions.get("weeks") or 1))
+    weeks = observed_weeks(sessions) if (sessions.get("weeks") or sessions.get("first_ts")) else None
     if cand.get("kind") == "removal":
-        tokens = _tokens(cand, raw)
-        per_month = float(sessions.get("main") or problem.get("denominator") or 0) / weeks * WEEKS_PER_MONTH
-        minutes = tokens * per_month * TOKEN_MINUTES
-        return {"min_month": _num(minutes), "label": _label(minutes), "low": _num(minutes * .5),
-                "high": _num(minutes * 1.5),
-                "basis": f"每个会话常驻约 {tokens} tokens × 每月约 {round(per_month)} 个会话 × "
-                         f"每 token {TOKEN_MINUTES:g} 分钟（估计）"}
+        return _unestimated(f"每个会话常驻约 {_tokens(cand, raw)} tokens；常驻 token 的时间代价未实测，只按 token 计")
     weekly = float(problem.get("weekly_count") or 0)
     if weekly <= 0:
         return {"min_month": 0, "label": "—", "low": 0, "high": 0, "basis": "没有可折算的问题证据"}
-    p, unit_minutes = _p(raw), float(raw.get("unit_minutes") or 1)
-    k, n, lo = problem.get("sessions") or 0, problem.get("denominator") or 0, problem.get("wilson_lo") or 0
-    scale = min(1., lo / (k / n)) if k and n else 0.
-    minutes = weekly * WEEKS_PER_MONTH * unit_minutes * p
-    return {"min_month": _num(minutes), "label": _label(minutes),
-            "low": _num(minutes * scale), "high": _num(weekly * WEEKS_PER_MONTH * unit_minutes),
-            "basis": f"近 {weeks:.1f} 周共 {round(weekly * weeks)} {_unit_text(raw, problem)} × "
-                     f"每次 {unit_minutes:g} 分钟 × 生效率 {round(p, 2):g}（估计）"}
+    unit_minutes, source = raw.get("unit_minutes"), raw.get("unit_minutes_source")
+    if unit_minutes is None or not source:
+        return _unestimated("单次耗时没有实测值或有出处的估计，不折算分钟")
+    prior = raw.get("prior") or {}
+    alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
+    p = alpha / (alpha + beta)
+    rng = card_savings(weekly, WEEKS_PER_MONTH, float(unit_minutes), beta_interval(alpha, beta))["gross_savings"]
+    minutes = weekly * WEEKS_PER_MONTH * float(unit_minutes) * p
+    span = f"近 {weeks:.1f} 周共 {round(weekly * weeks)}" if weeks else f"每周约 {weekly:g}"
+    return {"min_month": _num(minutes), "label": _label(minutes), "low": _num(rng["low"]), "high": _num(rng["high"]),
+            "basis": f"{span} {_unit_text(raw, problem)} × 每次 {float(unit_minutes):g} 分钟（{source}）× "
+                     f"生效率 {round(p, 2):g}（先验，区间 {rng['low']:.0f}–{rng['high']:.0f} 分钟/月为情景边界）"}
 
 
 def _estimated(cand: dict, raw: dict) -> bool:
@@ -251,7 +263,8 @@ def _primary(cand: dict, raw: dict) -> tuple[str, int]:
     kind, level = cand.get("kind"), cand.get("level") or 1
     file, path = raw.get("file") or [], (cand.get("target") or {}).get("path_hint")
     if kind == "permission_rule":
-        return "一键应用", level
+        # one-click apply needs a known settings file for the user's agent; otherwise it is manual
+        return ("一键应用", level) if path else ("查看方案", max(level, 3))
     if kind == "generate":
         return "交给 Agent 生成", level
     if kind in ("rule", "prompt") and file:

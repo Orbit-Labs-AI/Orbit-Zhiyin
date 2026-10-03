@@ -52,7 +52,8 @@ def test_personalized_hook_draft():
     assert out["status"] == "ok" and art["status"] == "draft" and art["personalized"] is True
     assert art["template_id"] == "retry-breaker" and art["slots"] == HOOK
     assert art["checks"]["lint"]["status"] == "ok" and art["checks"]["scan"]["status"] == "ok"
-    assert art["checks"]["replay"]["status"] == "ok" and art["checks"]["judge"] == {"status": "skipped"}
+    assert art["checks"]["replay"]["status"] == "ok" and art["checks"]["judge"] == {"status": "not_implemented"}
+    assert ctx.stage_status("review") == "skipped"  # never reported "ok" without a reviewer
     assert art["preview_digest"] == "sha256:test" and art["goal"] == "减少测试命令反复失败"
     assert [s[0] for s in ctx.stages if s[1] != "running"] == ["pack", "analyse", "draft", "check", "replay", "review"]
     assert ctx.stages[0][2] == "6 项 · 3.2k tokens · 脱敏 1 处"
@@ -89,6 +90,7 @@ def test_quick_template_skips_replay_and_strict_adds_cross():
     assert ctx.stage_status("cross") is None
     ctx, _ = _run("generate.hook", hook_pack(), [HOOK], template="strict")
     assert ctx.stage_status("replay") == "ok" and ctx.stage_status("cross") == "skipped"
+    assert ("cross", "skipped", "not_implemented") in ctx.stages
 
 
 def test_zero_evidence_never_calls_model():
@@ -124,7 +126,7 @@ def test_other_kinds_default_render(kind):
     art = out["artifact"]
     assert art["kind"] == kind and art["checks"]["lint"]["status"] in ("ok", "warn")
     assert art["checks"]["scan"]["status"] == "ok" and art["status"] == "draft"
-    assert ctx.stage_status("replay") == "skipped" and ctx.stages[-1] == ("review", "ok", None)
+    assert ctx.stage_status("replay") == "skipped" and ctx.stages[-1] == ("review", "skipped", "not_implemented")
 
 
 def test_cancelled_propagates():

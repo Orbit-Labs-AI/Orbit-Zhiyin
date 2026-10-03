@@ -14,6 +14,7 @@ from .util import canonical_json, content, goal_text, is_call_failed, refs
 
 KINDS = ("rule", "glue", "hook", "skill", "subagent", "command")
 STAGES = ["pack", "analyse", "draft", "check", "replay", "review", "cross"]
+REVIEW_NOT_IMPLEMENTED = "not_implemented"
 PROMPT_VERSION = "gen-1"
 SCHEMA_VERSION = "slots-1"
 
@@ -259,11 +260,15 @@ def make_run(kind: str):
             reason = {"rule": "规则只做 lint", "glue": "规则只做 lint", "hook": "quick 模板跳过回放"}.get(kind, "v1")
             replay_result["reason"] = reason
             ctx.stage("replay", "skipped", reason)
+        # No independent second-model review or cross-check exists yet: report that explicitly
+        # instead of a green "ok", so the UI never presents an unchecked draft as reviewed.
+        # Until it lands, "strict" differs from "v1" only by this (skipped) cross stage.
         if mode == "strict":
-            ctx.stage("cross", "skipped", "v1")
-        ctx.stage("review", "ok")
+            ctx.stage("cross", "skipped", REVIEW_NOT_IMPLEMENTED)
+        ctx.stage("review", "skipped", REVIEW_NOT_IMPLEMENTED)
 
-        checks = {"lint": lint_result, "scan": scan_result, "replay": replay_result, "judge": {"status": "skipped"}}
+        checks = {"lint": lint_result, "scan": scan_result, "replay": replay_result,
+                  "judge": {"status": "not_implemented"}}
         artifact = {"kind": kind, "template_id": template_id, "name": rendered["name"], "title": rendered["title"],
                     "goal": goal_text(pack), "goal_source": pack.get("goal_source")
                     or (data.get("goal") or {}).get("source"),

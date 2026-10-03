@@ -1,6 +1,6 @@
 {
-  "version": "task-domain-corpus-v2.1",
-  "taxonomy_version": "task-taxonomy-v2.1",
+  "version": "task-domain-corpus-v2.2",
+  "taxonomy_version": "task-taxonomy-v2.2",
   "source": "Original bilingual synthetic sentences authored for this repository; no user history, web text, or private prompts.",
   "split_policy": "Development cases exercise aliases and explicit exclusions. Heldout-style cases use alternative combinations and adversarial phrasing; authored by the same implementer, not a blind external benchmark.",
   "limitations": [

@@ -81,6 +81,15 @@ class _Q:
         self.refs += [x for x in r["refs"] if x not in self.refs]
         return r["rows"]
 
+    def inventory(self) -> dict:
+        """Full-inventory aggregates: {"totals": {type: {count, unused}}, "unused": [...]}."""
+        try:
+            r = queries.run("inventory", {"limit": 20}, reads=self.reads, appdb=self.appdb, home=self.home)
+        except Exception:  # noqa: BLE001 - no tandem.db yet
+            log.debug("ask inventory failed", exc_info=True)
+            return {"totals": {}, "unused": [], "hooks": []}
+        return {"totals": r.get("totals") or {}, "unused": r.get("unused") or [], "hooks": r.get("hooks") or []}
+
     def metrics(self) -> dict:
         return {r["metric"]: r for r in self("metrics")}
 
@@ -265,9 +274,15 @@ def _pe_why(q, _):
 
 
 def _pe_tradeoff(q, _):
+    p = _profile(q)
+    lines = _evidence_lines(p) if p else []
+    if not lines:
+        return "画像还没生成，暂时说不出你的取舍。特征模块完成计算后再问。", "none"
     cands = q("candidates", limit=1)
-    tail = f"可以从「{cands[0]['title']}」开始。" if cands else "可以先从最常见的卡点写一条规则开始。"
-    return "类型没有好坏，只有取舍。不必换类型，把代价最高的环节前置成规则就行。" + tail, "recs" if cands else "studio"
+    tail = f"\n\n可以从「{cands[0]['title']}」开始补位。" if cands else ""
+    head = "你的画像里最突出的倾向（权重从高到低）：\n" + "\n".join(lines[:3])
+    return (head + "\n\n越突出的倾向，对应的环节越容易成为代价来源；不必换类型，"
+            "把这些环节里最常出问题的一步写成规则。" + tail), "recs" if cands else "studio"
 
 
 def _pe_blind(q, _):
@@ -296,7 +311,10 @@ def _re_pair(q, _):
     pairs = list(by_kind.values())
     if len(pairs) < 2:
         return "当前候选类型太少，暂时给不出组合。", "recs"
-    return f"可以一起装：「{pairs[0]['title']}」+「{pairs[1]['title']}」，类型不同，互不影响。", "recs"
+    # Kinds differing says nothing about compatibility (catalog has no conflict data yet), so
+    # only list one candidate per kind and leave the compatibility judgement to the item pages.
+    picks = "、".join(f"「{c['title']}」（{c.get('kind') or '未分类'}）" for c in pairs[:3])
+    return f"不同类型各取一个：{picks}。是否能同时启用请看各自的说明，目前没有冲突数据。", "recs"
 
 
 def _re_more(q, _):
@@ -319,30 +337,41 @@ def _se_stuck(q, uid):
     if not s:
         return "先在左侧选一个会话。", "sessions"
     text = f"「{s['title']}」：{s['minutes']} 分钟，{s['tools']} 次工具调用，{s['errors']} 次错误，{s['corrections']} 次纠偏。"
-    if s["errors"] > s["corrections"]:
-        text += "\n\n主要卡在工具失败。下次可以约定：" + FRIC_RULE["tool_env_failure"]
-    elif s["corrections"]:
-        text += "\n\n主要卡在方向反复。下次可以约定：" + FRIC_RULE["wrong_approach"]
+    rules = _session_rules(s)
+    if rules:
+        # Errors (tool calls) and corrections (user messages) are different units, so they are
+        # stated side by side instead of compared to name "the" cause.
+        text += "\n\n下次可以约定：\n" + "\n".join(f"· {r}" for r in rules)
     else:
-        text += "\n\n整体顺利，没有明显卡点。"
-    return text, "studio" if s["errors"] or s["corrections"] else "none"
+        text += "\n\n这次没有记录到错误或纠偏。"
+    return text, "studio" if rules else "none"
+
+
+def _session_rules(s: dict) -> list[str]:
+    rules = []
+    if s.get("errors"):
+        rules.append(FRIC_RULE["tool_env_failure"])
+    if s.get("corrections"):
+        rules.append(FRIC_RULE["wrong_approach"])
+    return rules
 
 
 def _se_opening(q, uid):
     s = _session(q, uid)
     if not s:
         return "先在左侧选一个会话。", "sessions"
-    rule = FRIC_RULE["tool_env_failure"] if s["errors"] > s["corrections"] else "不要改与任务无关的文件。"
+    rule = "；".join(_session_rules(s)) or "不要改与任务无关的文件。"
     return (f"下次同类任务，第一条消息可以这样写：\n\n目标：{s['title']}\n完成条件：（写清可以验证的结果）\n"
-            f"不要做：{rule}\n验证方式：完成后贴出命令输出"), "none"
+            f"约定：{rule}\n验证方式：完成后贴出命令输出"), "none"
 
 
 def _se_rule(q, uid):
     s = _session(q, uid)
     if not s:
         return "先在左侧选一个会话。", "sessions"
-    rule = FRIC_RULE["tool_env_failure"] if s["errors"] > s["corrections"] else "只改与任务直接相关的文件。"
-    return (f"## {s.get('project') or '项目'} 协作约定\n\n- {rule}\n- 完成后先自查，再向我汇报验证结果。\n\n"
+    rules = _session_rules(s) or ["只改与任务直接相关的文件。"]
+    body = "".join(f"- {r}\n" for r in rules)
+    return (f"## {s.get('project') or '项目'} 协作约定\n\n{body}- 完成后先自查，再向我汇报验证结果。\n\n"
             "可以复制到项目的 AGENTS.md，或交给生成工坊做成 Hook。"), "studio"
 
 
@@ -356,7 +385,9 @@ def _to_worst(q, _):
     text = f"{t['tool']} 失败最多：{t['failures']} 次（错误率 {_pct(t['failure_rate'])}）。"
     if t.get("top_error_class"):
         text += f"最多的错误是「{t['top_error_class']}」。"
-    return text + "\n\n装「重复失败熔断」后，同一命令失败 2 次会先停下诊断，不再原样重试。", "tools"
+    if any("retry-breaker" in str(h) for h in q.inventory()["hooks"]):
+        return text + "\n\n「重复失败熔断」Hook 已安装；可以看看它的阈值是否需要调低。", "tools"
+    return text + "\n\n装「重复失败熔断」后，同一命令连续失败达到阈值会先停下诊断，不再原样重试。", "tools"
 
 
 def _to_approvals(q, _):
@@ -371,11 +402,15 @@ def _to_approvals(q, _):
 
 
 def _to_mcp(q, _):
-    unused = [r for r in q("inventory", limit=20) if r["type"] == "mcp" and not r["calls_30d"]]
+    inv = q.inventory()
+    if not inv["totals"].get("mcp"):
+        return "还没有扫描到已装的 MCP。到设置里运行一次扫描。", "none"
+    unused = [r for r in inv["unused"] if r["type"] == "mcp"]
     if not unused:
-        return "已装的 MCP 近 30 天都有调用，暂时没有可以删的。", "none"
+        return "已装的 MCP 近 30 天都有调用（含子代理），暂时没有可以删的。", "none"
     names = "、".join(r["name"] for r in unused[:3])
-    return f"{names} 近 30 天没有被调用过，但每个会话都会加载它的工具描述。可以先移除，需要时再装回来。", "tools"
+    more = f" 等 {inv['totals']['mcp']['unused']} 个" if inv["totals"]["mcp"]["unused"] > 3 else ""
+    return f"{names}{more} 近 30 天没有被调用过（含子代理），但每个会话都会加载它的工具描述。可以先移除，需要时再装回来。", "tools"
 
 
 def _to_rise(q, _):
@@ -451,20 +486,22 @@ def _se_reduce(q, _):
 
 
 def _li_unused(q, _):
-    unused = [r for r in q("inventory", limit=20) if not r["calls_30d"] and r["type"] in ("mcp", "skill")]
+    inv = q.inventory()
+    if not inv["totals"]:
+        return "还没有扫描本机组件。到设置里运行一次扫描。", "none"
+    unused = [r for r in inv["unused"] if r["type"] in ("mcp", "skill")]
     if not unused:
         return "已装的 MCP 和 Skill 近 30 天都有调用。", "none"
-    return "近 30 天没有调用：" + "、".join(f"{r['name']}（{r['type']}）" for r in unused[:5]) + "。", "tools"
+    total = sum(inv["totals"].get(t, {}).get("unused", 0) for t in ("mcp", "skill"))
+    head = "、".join(f"{r['name']}（{r['type']}）" for r in unused[:5])
+    return f"近 30 天没有调用的有 {total} 个：{head}" + ("等。" if total > 5 else "。"), "tools"
 
 
 def _li_all(q, _):
-    rows = q("inventory", limit=20)
-    if not rows:
+    totals = q.inventory()["totals"]
+    if not totals:
         return "还没有扫描本机组件。到设置里运行一次扫描。", "none"
-    counts: dict = {}
-    for r in rows:
-        counts[r["type"]] = counts.get(r["type"], 0) + 1
-    return "已装组件：" + "，".join(f"{k} {v} 个" for k, v in counts.items()) + "。", "none"
+    return "已装组件：" + "，".join(f"{k} {v['count']} 个" for k, v in totals.items()) + "。", "none"
 
 
 _ANSWERS = {
