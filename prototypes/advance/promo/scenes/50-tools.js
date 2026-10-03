@@ -85,7 +85,9 @@ scene('50-tools', () => {
   // v17.7 hand-off: the column closes in 1.0 beat (stag .03) and dots 1–4 fade as they slip under cc (b55.3–55.75), so
   // their logos never stack half-offset under it; the orb forms b55.72–56.12 and is whole before the b56.2 pill. Their a
   // comes back at b56.4–56.5, where the merge already hides them, so 60-close's split blends from visible dots
-  const mergeA = (b, i) => i ? 1 - io(b, 55.3, .45) + io(b, 56.4, .1) : 1;
+  // hand-off QA v18.1: fade b55.15–55.5 (was 55.3–55.75) — with the orb forming from b55.3 the stack under it still read
+  // as four extra discs below the orb at b55.4–55.6 (film 86.4–86.6); now they are gone before the orb is whole
+  const mergeA = (b, i) => i ? 1 - io(b, 55.15, .35) + io(b, 56.4, .1) : 1;
   AGD.key(55.0, 'merge', { x: (b) => mergeXY(b)[0], y: (b) => mergeXY(b)[1], r: (b) => mergeR(b), a: mergeA, dur: 1.0, stag: .03 });
 
   /* ---------- top copy: three lines, swapped in place at 5.4, out at b74.4 ---------- */
