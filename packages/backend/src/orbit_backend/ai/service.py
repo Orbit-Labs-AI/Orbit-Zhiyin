@@ -269,8 +269,9 @@ class AIService:
         job = {"job_id": job_id, "task": task, "pack": pack, "engine": engine_id,
                "template": template, "params": req.get("params") or {}, "slot": slot,
                "goal": pack.get("goal"), "goal_source": pack.get("goal_source"),
-               "preview_digest": pack.get("preview_digest")}
-        inline = task["run"] is None and task["cache_ttl_s"] != 0 and self._cached(task, pack)
+               "preview_digest": pack.get("preview_digest"), "fresh": bool(req.get("fresh"))}
+        inline = (task["run"] is None and task["cache_ttl_s"] != 0 and not job["fresh"]
+                  and self._cached(task, pack))
         self.runner.enqueue(job, inline=inline)
         row = self._job_row(job_id)
         return {"job_id": job_id, "status": row["status"], "cached": bool(row["cached"]),

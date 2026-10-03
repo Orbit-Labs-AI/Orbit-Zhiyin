@@ -76,11 +76,19 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
             "stuck": stuck, "next": next_}
 
 
-def with_ai(card: dict, scope: dict | None, data_rev) -> dict:
+def with_ai(card: dict, scope: dict | None, data_rev, *, with_scope: bool = False) -> dict:
     """``card`` with the model narrative's texts when one matches; otherwise ``card``.
 
     ``scope`` is ``None`` when the view has filters a narrative cannot describe (agents,
-    topic, outcome, friction, hour, brushed window): the L0 card is kept."""
+    topic, outcome, friction, hour, brushed window, 「全部」): the L0 card is kept.
+    ``with_scope`` adds ``ai_scope`` (that scope, or ``None``): the page's 「重新生成」 posts a
+    ``narrate.overview`` job with exactly this scope, so the result is the one read back here."""
+    if with_scope:
+        return {**_with_ai(card, scope, data_rev), "ai_scope": scope}
+    return _with_ai(card, scope, data_rev)
+
+
+def _with_ai(card: dict, scope: dict | None, data_rev) -> dict:
     if _ai_provider is None or scope is None or data_rev is None:
         return card
     try:
