@@ -31,13 +31,36 @@ func dataHome() -> URL {
         .appendingPathComponent("Tandem")
 }
 
-/// One Orbit per data directory: the lock is released by the kernel when the process exits.
+var lockFD: Int32 = -1
+
+/// One Orbit per data directory: the lock is released by the kernel when the process exits. The file holds the
+/// owner's pid, and "quitting" once it has begun stopping its helper (see markQuitting).
 func acquireLock(home: URL) -> Bool {
     try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true,
                                              attributes: [.posixPermissions: 0o700])
     let fd = open(home.appendingPathComponent("orbit.lock").path, O_CREAT | O_RDWR, 0o600)
     guard fd >= 0 else { return true }  // Cannot lock: do not block the launch.
-    return flock(fd, LOCK_EX | LOCK_NB) == 0  // fd stays open for the process lifetime.
+    if flock(fd, LOCK_EX | LOCK_NB) == 0 {  // fd stays open for the process lifetime.
+        lockFD = fd
+        writeLockState("\(getpid())")
+        return true
+    }
+    close(fd)  // Retried while a quitting holder stops its helper: do not leak one fd per try.
+    return false
+}
+
+func writeLockState(_ state: String) {
+    guard lockFD >= 0 else { return }
+    let bytes = Array("\(state)\n".utf8)
+    ftruncate(lockFD, 0)
+    _ = bytes.withUnsafeBytes { pwrite(lockFD, $0.baseAddress, bytes.count, 0) }
+}
+
+/// A launch during the holder's quit (its lock lasts until the helper has stopped) waits instead of
+/// activating the instance that is going away and exiting.
+func lockHolderIsQuitting(home: URL) -> Bool {
+    let text = (try? String(contentsOf: home.appendingPathComponent("orbit.lock"), encoding: .utf8)) ?? ""
+    return text.contains("quitting")
 }
 
 func jsString(_ value: String) -> String {
@@ -222,6 +245,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var token = ""
     var stopping = false
     var restarts = 0
+    /// Helper crashes inside `restartWindow`; past `restartDelays.count` Orbit stops retrying and asks.
+    var restartTimes: [Date] = []
+    static let restartDelays: [TimeInterval] = [0.5, 2, 5]
+    static let restartWindow: TimeInterval = 600
+    var signalSources: [DispatchSourceSignal] = []
     var output = Data()
     var bookmarks: [URL] = []
     lazy var bridge = BridgeProxy(self)
@@ -272,7 +300,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             }
         }
         restoreBookmarks()
+        installQuitSignals()
         startBackend()
+    }
+
+    /// `kill <pid>` / launchctl stop / a terminal ^C used to end Orbit at once: the helper only noticed its parent
+    /// was gone a second later and nothing waited for its workers. Signals now take the normal quit path
+    /// (stopBackend), without the import confirmation; logout and shutdown skip that dialog too, so a modal
+    /// alert can never hold the session's power-off.
+    func installQuitSignals() {
+        for sig in [SIGTERM, SIGINT, SIGHUP] {
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler { [weak self] in
+                guard let self = self else { exit(0) }
+                self.quitConfirmed = true
+                // A modal session can swallow terminate(_:): stop the helper and leave regardless.
+                let backend = self.backend
+                DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
+                    if let process = backend, process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                    _exit(0)
+                }
+                // Not terminate(_:) from inside this main-queue block: .terminateLater spins a nested run loop
+                // that cannot drain the main queue it is called from, so stopBackend's reply never arrived.
+                NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification,
+                                                          object: nil, queue: .main) { [weak self] _ in
+            self?.quitConfirmed = true
+        }
     }
 
     // MARK: web views
@@ -738,6 +797,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             DispatchQueue.main.async {
                 guard let self = self, self.origin == origin else { return }
                 if (response as? HTTPURLResponse)?.statusCode == 200 {
+                    if self.restarts > 0 { self.setStatusBadge("none") }  // Back after a helper restart.
                     for host in self.hosts.values { self.load(host, origin) }
                 } else if attempt < 120 {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.waitUntilReady(attempt: attempt + 1) }
@@ -748,16 +808,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }.resume()
     }
 
+    /// A crashed helper restarts with backoff (0.5 / 2 / 5 s), at most `restartDelays.count` times per
+    /// `restartWindow`; the page keeps its state and gets the new endpoint (load → tandem:endpoint). Before,
+    /// only the first crash of the whole session restarted and every later one needed a relaunch of Orbit.
     func backendExited(_ process: Process) {
         guard process === backend, !stopping else { return }
-        if restarts == 0 {
+        origin = nil
+        let now = Date()
+        restartTimes = restartTimes.filter { now.timeIntervalSince($0) < AppDelegate.restartWindow }
+        let how = process.terminationReason == .uncaughtSignal ? "信号 \(process.terminationStatus)" : "退出码 \(process.terminationStatus)"
+        appendLog("orbit: helper ended (\(how)); restarts in window \(restartTimes.count)")
+        if restartTimes.count < AppDelegate.restartDelays.count {
+            let delay = AppDelegate.restartDelays[restartTimes.count]
+            restartTimes.append(now)
             restarts += 1
-            origin = nil
+            setStatusBadge("warn")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, !self.stopping, self.backend === process else { return }
+                self.token = self.randomToken()
+                self.startBackend()
+            }
+            return
+        }
+        setStatusBadge("warn")
+        let alert = NSAlert()
+        alert.messageText = "Orbit 后台反复停止"
+        alert.informativeText = "\(Int(AppDelegate.restartWindow / 60)) 分钟内已自动重启 \(restartTimes.count) 次（最近一次：\(how)）。数据没有丢失，中断的任务会显示为 interrupted。日志：\(home.appendingPathComponent("desktop.log").path)"
+        alert.addButton(withTitle: "重新启动后台")
+        alert.addButton(withTitle: "退出 Orbit")
+        NSApp.activate()
+        if alert.runModal() == .alertFirstButtonReturn {
+            restartTimes.removeAll()
             token = randomToken()
             startBackend()
         } else {
-            showFailure("本地后台已停止。重新打开 Orbit 可恢复数据；中断的任务会保留并显示为 interrupted。日志：\(home.appendingPathComponent("desktop.log").path)")
+            quitConfirmed = true
+            NSApp.terminate(nil)
         }
+    }
+
+    /// One line in desktop.log (the helper's stderr file) for host-side lifecycle events.
+    func appendLog(_ line: String) {
+        guard let log = try? FileHandle(forWritingTo: home.appendingPathComponent("desktop.log")) else { return }
+        log.seekToEndOfFile()
+        log.write(Data("\(ISO8601DateFormatter().string(from: Date())) \(line)\n".utf8))
+        try? log.close()
     }
 
     func showFailure(_ message: String) {
@@ -1116,6 +1211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     /// Stops the helper; .terminateLater replies itself once the helper is gone.
     func stopBackend() -> NSApplication.TerminateReply {
         stopping = true
+        writeLockState("\(getpid()) quitting")
         guard let process = backend, process.isRunning else { return .terminateNow }
         process.terminate()  // SIGTERM: the gateway stops workers and exits gracefully.
         DispatchQueue.global().async {
@@ -1128,14 +1224,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 }
 
-// A second launch for the same data directory activates the running Orbit and exits.
+// A second launch for the same data directory activates the running Orbit and exits. Without a running Orbit
+// app the holder is one still quitting (the lock is held until its helper has stopped) or a build without
+// this bundle id: wait for it up to 10 s, then say why instead of exiting silently.
 if !acquireLock(home: dataHome()) {
     let me = ProcessInfo.processInfo.processIdentifier
-    if let other = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-        .first(where: { $0.processIdentifier != me }) {
+    if !lockHolderIsQuitting(home: dataHome()),
+       let other = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? bundleID)
+        .first(where: { $0.processIdentifier != me && !$0.isTerminated }) {
         other.activate()
+        exit(0)
     }
-    exit(0)
+    let deadline = Date().addingTimeInterval(15)
+    var locked = false
+    while !locked && Date() < deadline { usleep(250_000); locked = acquireLock(home: dataHome()) }
+    if !locked {
+        _ = NSApplication.shared
+        let alert = NSAlert()
+        alert.messageText = "Orbit 已在使用这个数据目录"
+        alert.informativeText = "另一个 Orbit 进程正在使用 \(dataHome().path)。请先退出它，再打开 Orbit。"
+        alert.addButton(withTitle: "好")
+        alert.runModal()
+        exit(0)
+    }
 }
 
 let application = NSApplication.shared
