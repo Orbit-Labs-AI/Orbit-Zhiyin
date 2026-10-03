@@ -345,6 +345,9 @@ def select(bundle: AnalysisInputBundle, scope: Scope):
             c["seq"] = event["seq"]
             if c.get("task_uid") is None:
                 c["task_uid"] = task_uid(event)
+                if c["task_uid"] is not None and not (event.get("task_uid") or event.get("attrs", {}).get("task_uid")):
+                    # attrs.task_id is a native or heuristic legacy ID, never a canonical task UID reference.
+                    c["task_relation_source"] = "event_attrs_task_id"
             for key in ("argument_digest", "argument_digest_kind", "command_head", "command_complete", "files",
                         "validation", "validation_scope", "retry_of_call_uid"):
                 if c.get(key) is None and event.get("attrs", {}).get(key) is not None:

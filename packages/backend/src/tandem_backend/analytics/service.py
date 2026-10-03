@@ -37,6 +37,7 @@ from .preference import PREFERENCE_EVIDENCE_VERSION, PREFERENCE_VERSION
 from .semantic import SemanticAnalysis, analyze_semantics
 from .task.representation import representation
 from .task.taxonomy import TAXONOMY_VERSION
+from .work_graph import WorkIndex
 
 # Endpoint sections, in the order of the complete result.
 SECTIONS = (
@@ -229,8 +230,10 @@ def _chunk_bundle(context: AnalysisContext, sids: list[str]) -> tuple:
 def _compute_chunk(payload: tuple) -> dict[str, Record]:
     """Worker entry point: rebuild a tree-local context and compute its rows."""
     bundle, scope, sessions, events, diagnostics, sids = payload
+    # Rows were projected by the parent; session rows never read the task index itself.
+    projected = WorkIndex(None, events, bundle.tool_calls, bundle.model_calls, {}, {}, {})
     context = AnalysisContext(
-        bundle, scope, sessions, events, bundle.tool_calls, bundle.model_calls, diagnostics
+        bundle, scope, sessions, events, bundle.tool_calls, bundle.model_calls, diagnostics, projected
     )
     return {sid: session_row_core(context, context.session_map[sid]) for sid in sids}
 
@@ -293,6 +296,7 @@ def _context_blob(context: AnalysisContext) -> bytes:
             context.calls,
             context.model_calls,
             context.diagnostics,
+            context.work_index,
         ),
         protocol=pickle.HIGHEST_PROTOCOL,
     )
