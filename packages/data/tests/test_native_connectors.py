@@ -1629,3 +1629,66 @@ def test_pi_error_and_aborted_stop_reasons_end_turns(tmp_path):
         ]
         assert costs == [None, 0]
         assert_sound(store)
+
+
+def test_hermes_tool_status_comes_from_explicit_result_fields(tmp_path):
+    # Result bodies follow hermes-agent tool handlers: terminal {output, exit_code, error},
+    # tools/registry.tool_error {"error": msg}, handlers' {"success": bool}, plain text.
+    results = [
+        ("t0", canonical({"output": "/repo", "exit_code": 0, "error": None})),
+        ("t1", canonical({"output": "", "exit_code": 2, "error": "No such file"})),
+        ("t2", canonical({"error": "File not found: a.py"})),
+        ("t3", canonical({"success": False, "message": "patch did not apply"})),
+        ("t4", canonical({"success": True, "path": "a.py"})),
+        ("t5", "plain text listing"),
+        ("t6", canonical({"results": []})),
+    ]
+    calls = [{"id": cid, "function": {"name": "terminal", "arguments": "{}"}} for cid, _ in results]
+    records = [
+        sqlrow("sessions", {"id": "a", "model": "A", "started_at": 1790900000}),
+        sqlrow(
+            "messages",
+            {
+                "id": 1,
+                "session_id": "a",
+                "message_uid": "m",
+                "role": "assistant",
+                "content": "run",
+                "active": 1,
+                "tool_calls": canonical(calls),
+                "timestamp": 1790900001,
+            },
+        ),
+    ]
+    for i, (cid, content) in enumerate(results):
+        records.append(
+            sqlrow(
+                "messages",
+                {
+                    "id": 10 + i,
+                    "session_id": "a",
+                    "message_uid": f"r{i}",
+                    "role": "tool",
+                    "content": content,
+                    "tool_call_id": cid,
+                    "active": 1,
+                    "timestamp": 1790900002 + i,
+                },
+            )
+        )
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "hermes", records, "state.db", "sqlite_rows")
+        store.rebuild()
+        by_call = {
+            r["native_call_id"]: (r["status"], r["exit_code"]) for r in rows(store, "tool_call")
+        }
+        assert by_call == {
+            "t0": ("completed", 0),
+            "t1": ("failed", 2),
+            "t2": ("failed", None),
+            "t3": ("failed", None),
+            "t4": ("completed", None),
+            "t5": ("unknown", None),
+            "t6": ("unknown", None),
+        }
+        assert_sound(store)
