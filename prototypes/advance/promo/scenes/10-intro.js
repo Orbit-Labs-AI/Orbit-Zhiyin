@@ -292,7 +292,8 @@ scene('10-intro', () => {
   // v18.4: the tip is on 「从」's LEFT edge (the fixed line's start) at b7.0, before the wipe leaves it at b7.05
   // v18.5: full on b6.95 with a thin stem from its tip that ends exactly on 「从」's left edge (the line on y 540), and
   // follows the line until it lets go as the rise starts (b7.35)
-  const congL = (b) => [960 - (t1W()[0] + t1W()[1]) / 2, TY(b)];
+  // QA r5: the tip sits on 「从」's lower-left corner (line + 52, the glyph foot) so the stem runs under the glyph, not through it
+  const congL = (b) => [960 - (t1W()[0] + t1W()[1]) / 2, TY(b) + 52];
   AGD.morph(6.7, 1, 'pill', {
     w: 4.0, aim: (b) => congL(b), dur: .25,
     stem: (b) => { const p = AGD.pos(1, b), q = congL(b); return Math.max(0, Math.hypot(q[0] - p.x, q[1] - p.y) - 2.0 * p.r - 6); }
