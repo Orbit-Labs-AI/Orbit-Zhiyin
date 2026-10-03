@@ -16,12 +16,16 @@
    v17.7 点形态（AGD.morph，场景拍，片长不变）：b69.2 回 dot（合并 orb 拆开）· b69.5–70.9 各点 head 拖出圆弧 · b71.95 petal 合拢
    （hold .3）· b72.64 glow 顺时针扫过 · b74.3 bead 沿圆环切线 · b75.3 bead 飞向笔头（按像素间距排串，gm 领头 b75.55 变 head，
    gm / cp 在这里淡入）· 圆环 b75.8–77.6 从笔头方位向两侧退开 · b78.6 head 回 bead · b79.1 落行 dot r 22、b80.45 慢呼吸 ·
-   LET0 起点行从左到右轻提 4 px · 标语行 r 16 / gap 56，逐词 glow .2 · b87.2 起 bullet + ✓ 依次扫过 · b93.0 合成 orb（r 30）与字标一起淡到全黑。 */
+   LET0 起点行从左到右轻提 4 px · 标语行 r 16 / gap 56，逐词 glow .2 · b87.2 起 bullet + ✓ 依次扫过 · b93.0 合成 orb（r 30）与字标一起淡到全黑。
+   v18.1（片长 −.8 拍：TURN0 81.8 → 81.0、END 94.8 → 94.0，成片 END 130.9 = 59.50 s）：b69.2 orb 先就地散开（compass 键 .35、
+   cc 不带 logo 缩到 .3R，b69.4 起才挪到小徽章处，去掉 b106.4 的重影）；拆开后 .3 拍内各点长到 r ≥ 15，head 保持圆徽章大小只加尾巴；
+   停留 b80.2–81.0 标志整体匀速放大 1 → 1.015（只缩放）、点行一道 ±3 px 的波从左到右走过；标语改为
+   「Redesigning Agent workflow for everyone & every agent」（8 个 token，K.words 时序不变）。 */
 scene('60-close', () => {
   const PC = [960, 540];
   // v17.6 片尾：画曲线（D0–D1）→ 转身倒成 45° 图标（D1–M1）→ 正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
   const D0 = 75.6, D1 = 78.6, M1 = 80.2;
-  const TURN0 = 81.8, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = TURN0 + 4.0, TAG_AG = TAG0 + 1.4, FADE0 = TURN0 + 11.2;
+  const TURN0 = 81.0, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = TURN0 + 4.0, TAG_AG = TAG0 + 1.4, FADE0 = TURN0 + 11.2;
   END = TURN0 + 13.0;
   // 片尾慢推：字标转身起（TURN0）到 END 由 1 匀速推到 1.06，前 20 % 二次缓起
   const push = (b) => { const p = lp(b, TURN0, END - TURN0), a = .2; return 1 + .06 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
@@ -49,8 +53,10 @@ scene('60-close', () => {
   // 先闪成一颗 cc 大点
   const spMini = (i, b) => {
     const s = s0(0), R = s.r * 1.15, a = (6 * (HB + (SHIFT['60-close'] || 0)) + 72 * i - 90) * Math.PI / 180;
-    const u = i ? 1 : E.inOut(clamp((b - HB) / .5));
-    return { x: s.x + .5 * R * Math.cos(a) * u, y: s.y + .5 * R * Math.sin(a) * u, r: lerp(s.r, .3 * R, u) };
+    // v18.1 (h)：orb 先在原地 .35 拍内散开（compass 键 dur .35：小徽章就地成为点 1–4，cc 在中心由 r 40 缩到 .3R），
+    // 散完才挪到 cc 小徽章处——不再一边挪一边淡出、orb 里的小徽章与点 1–4 错位成重影
+    const u = i ? 1 : E.inOut(clamp((b - HB - .2) / .45)), w = i ? 1 : E.inOut(clamp((b - HB) / .3));
+    return { x: s.x + .5 * R * Math.cos(a) * u, y: s.y + .5 * R * Math.sin(a) * u, r: lerp(s.r, .3 * R, w) };
   };
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
@@ -85,13 +91,14 @@ scene('60-close', () => {
   // T13：b69.2 起底下是罗盘编队（.4 拍内把合并点的五色细环淡掉；x / y / r 由下面的螺旋 follow 全权接管），
   // follow 从 b69.0 挂上（b69.2 前返回 null，不影响 50-tools），b69.2 时权重已是 1，起点就是交来的合并点；
   // e_i = 1 之后 follow 的结果与罗盘编队完全重合，b71.2–71.4 的退出混合看不出来，点继续骑在展开的罗盘外圈上
-  AGD.key(HB, 'compass', { dur: .7, stag: 0 });            // v17.7：.4 → .7，orb 拆开与 head 冒出同段（不先闪成一颗 cc 大点）
+  AGD.key(HB, 'compass', { dur: .35, stag: 0 });        // v18.1：.7 → .35，orb 就地散开（见 spMini）            // v17.7：.4 → .7，orb 拆开与 head 冒出同段（不先闪成一颗 cc 大点）
   AGD.follow(69.0, 71.4, (i, b) => {
     if (b < HB) return null;
     // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
     const e = spE(i, b), G = spG()[i][1], c = cpBadge(i), C = cpStage(400, 400), s = spMini(i, b);
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
-    return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
+    // v18.1：拆开后 .3 拍内长到 r ≥ 15（logo 约 30 px 宽），之后再随 e 长到罗盘徽章的 19
+    return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: Math.max(lerp(s.r, c.r / decks[2].C.s, e), lerp(s.r, 15, E.inOut(lp(b, HB, .3)))) };
   }, { blend: .2 });
   /* v17.7 F3「6」形态（场景拍）：
      · b69.2 先显式回 dot（50-tools 交来的合并 orb 随 compass 键 .4 拍拆开）；b69.5 + .06i 起每个点变 head（rot 'vel'，尾尖朝着
@@ -99,12 +106,13 @@ scene('60-close', () => {
      · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
      · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
   const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
-  AGD.morph(HB, 0, 'dot', { dur: .4 });
+  AGD.morph(HB, 0, 'dot', { dur: .2, la: 0 });          // v18.1：orb 散开时 cc 不带 logo（不在中心闪成一颗 cc 大点），logo 随下面的 head 在缩小后出现
   // 点 1–4 拆开时就是普通圆徽章（'bead' 参数写成与 dot 完全相同）：'dot' 在 merged > 0 时会混入 orb，各点自带 5 枚小徽章与色弧、
   // 叠在 orb 上成一团重影；用不触发 orb 混合的同形写法，它们从 orb 里的小徽章原样长出
   AGD.morph(HB, [1, 2, 3, 4], 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01, stag: 0 });
   for (let i = 0; i < 5; i++) {
-    AGD.morph(HB + .3 + .06 * i, i, 'head', { dur: .4, glow: .35 });
+    // v18.1：彗星头保持圆徽章的大小（h 2、圆头 rad 1、logo ls 1 在圆头中心），只在身后多出尾巴
+    AGD.morph(HB + .3 + .06 * i, i, 'head', { dur: .4, glow: .35, w: 3.9, h: 2, rad: 1, ls: 1, lx: .95 });
     AGD.morph(HB + 1.15 + .06 * i, i, 'dot', { dur: .45 });
   }
   AGD.morph(71.95, 'all', 'petal', { dur: .45, stag: 0, aim: PC, ls: .95, hold: .3, back: .55 });
@@ -119,8 +127,11 @@ scene('60-close', () => {
      一行从左到右按罗盘上的方位排（gm 288° · cp 221° · ds 118° · cx 62° · cc 43°）；串里也按这个顺序（gm 领头）。 */
   const ROW = [4, 3, 0, 2, 1], LTR = [2, 4, 3, 1, 0];          // ROW[i] = 点 i 的位次；LTR[k] = 第 k 位（从左数）的点
   const strokeT = (b) => E.sine(lp(b, D0, D1 - D0));
+  // v18.1 停留（M1–TURN0，.8 拍）：整枚标志只做匀速放大 1 → 1.015（前 20 % 二次缓起，接上倾倒的减速；只缩放，不重画、不改线宽），
+  // 不再定格；TURN0 起 WORDMARK.place 取这一刻的姿态，之后交给 push
+  const holdPush = (b) => { const p = lp(b, M1, TURN0 - M1), a = .2; return 1 + .015 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
   const pose = (b) => {
-    const d = lp(b, D0, D1 - D0), e = E.inOut(lp(b, D1, M1 - D1)), s = 1 + .03 * E.sine(lp(b, M1, TURN0 - M1));
+    const d = lp(b, D0, D1 - D0), e = E.inOut(lp(b, D1, M1 - D1)), s = holdPush(b);
     return { cx: 960, cy: lerp(540, 520, e), R: lerp(300, 230, e) * s, yaw: lerp(lerp(-100, -70, E.sine(d)), 20, e), pitch: lerp(lerp(90, 80, d), 45, e) };
   };
   let PTS = null;                                              // orbitPts 按姿态缓存（同一帧 5 个点共用）
@@ -173,10 +184,13 @@ scene('60-close', () => {
   // v17.7 7.1：字母「rbit·知音」从左到右升起（LET0 起，kit 110 ms 错开）时，点行跟着从左到右轻提 4 px，像一道波
   const lift = (i, b) => 4 * Math.sin(Math.PI * clamp((b - LET0 - .2 * ROW[i]) / .7));
   // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
-  AGD.follow(TURN0 - .6, END + 1, (i, b, q) => {
+  // v18.1 停留时点行不定格：落定（b80.4）后一道 ±3 px 的波从左到右走过这一行（周期 1.6 拍，相邻点相差 .9 rad），
+  // 字母升起前（LET0 − .3 起 .5 拍）让给 lift
+  const wave = (i, b) => 3 * Math.sin(2 * Math.PI * (b - M1) / 1.6 - .9 * ROW[i]) * E.inOut(lp(b, M1 + .15, .45)) * (1 - E.inOut(lp(b, LET0 - .3, .5)));
+  AGD.follow(M1 - .1, END + 1, (i, b, q) => {
     const s = push(b);
-    return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s - lift(i, b) + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
-  }, { blend: .6 });
+    return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s - lift(i, b) - wave(i, b) + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
+  }, { blend: .5 });
   // v17.7 7.3：标语逐词出现时，词下方的点 glow .2（Redesign 下两点 · for 下中间一点 · everyone 下两点），像被点逐个点亮
   [.4, .4, .6, .8, .8].forEach((w, k) => AGD.glow(LTR[k], TAG0 + w, TAG0 + w + .7, .2));
   // 「agent」落定（TAG_AG）时 5 个点从左到右依次变 bullet 并画出 ✓（间隔 .16 拍，各 .5 拍），读作「every agent ✓」，再回 dot
@@ -217,7 +231,7 @@ scene('60-close', () => {
   // 字随片尾慢推一起放大：锚点 y 相对 540 外移 × push，字号 × push（tick 在 anim 之后覆盖 transform）
   const pushT = (y) => (el, tl, life, ts) => { const s = push(ts / BEAT); el.style.transform = 'translate(-50%,-50%) translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')'; };
   // 标语在最后两个字升起时（TAG0 b85.8）居中出现在字标下方，逐词间隔 .2 拍，「agent」b87.2；之后完整可读到 FADE0 b93.0（5.8 拍 ≈ 2.6 s）
-  const W = ['An ', 'Assistant ', 'Redesign ', 'for ', 'everyone ', '&amp; ', '<b>every </b>', '<b>agent</b>'];
+  const W = ['Redesigning ', 'Agent ', 'workflow ', 'for ', 'everyone ', '&amp; ', '<b>every </b>', '<b>agent</b>'];
   txt(TAG0, END, [['cl-tag', W.map((w) => '<span class="w">' + w + '</span>').join('')]], { x: 960, y: 648, align: 'c' },
     { anim: K.words({ at: [0, .2, .4, .6, .8, 1.0, 1.2, 1.4], out: 1.8 }), tick: pushT(648) });
 });
