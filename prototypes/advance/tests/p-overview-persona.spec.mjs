@@ -9,9 +9,9 @@
 //  4 evidence   「做得好」的证据数等于完成会话数，点击后 A3 的筛选是 结果=完成（BUG-11）；会话结果条点一段同样下钻
 //  5 regen      连点「重新生成」只保留一个定时器（最终文本是完整的一句话）；重绘后导语与「刚刚已同步」保留（BUG-66）
 //  6 scope      设置主题筛选后，侧栏、A1 人格卡、A2、导出报告的人格代码一致，并注明「主题筛选不计入人格」（BUG-06）
-//  7 persona    周期切换、与过去 / 与全体对照、四维度双向条有 45–55 带与参照刻度、演变折线挂载、指纹外环点一段展开会话点再点收起
+//  7 persona    周期切换、与过去 / 与全体对照、四维度双向条以 50 为界（无未定型带）与参照刻度、演变折线挂载、指纹外环点一段展开会话点再点收起
 //  8 fit        契合度条有 95% 区间；停用来源的 Agent 不可点、点击 soloAgent 不改筛选（BUG-49）
-//  9 low-sample 样本不足时列出「移除后 n≈」的放宽芯片并可一键放宽（A2-V08）；全部来源停用时给「打开设置 · 数据源」（BUG-50）
+//  9 low-sample 少量会话也出完整 4 字母；0 个会话时列出「移除后 n≈」的放宽芯片并可一键放宽（A2-V08）；全部来源停用时给「打开设置 · 数据源」（BUG-50）
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
@@ -156,7 +156,7 @@ test('persona page: periods, comparison group, diverging axes, evolution chart a
   await expect(page.locator('#main')).toContainText('实验性');
   const axes = page.locator('[data-vz="pe-axes"]');
   await expect(axes.locator('.vz-bar')).toHaveCount(4);
-  await expect(axes.locator('.vz-band')).toHaveCount(1);          // 45–55 未定型带
+  await expect(axes.locator('.vz-band')).toHaveCount(0);          // 不再有 45–55 未定型带（bug 4）
   await expect(axes.locator('.vz-ghost')).toHaveCount(4);         // 上月参照刻度
   await expect(page.locator('[data-vz="pe-evo"] .vz-line')).toHaveCount(4);
   await expect(page.locator('#axesCard .pe-evi')).toHaveCount(4);
@@ -199,9 +199,21 @@ test('fit rows carry confidence intervals; a disabled source cannot be soloed', 
 test('low-sample state lists relax estimates; all sources off points to settings', async ({ page }) => {
   ONLY();
   const errors = await openDemo(page);
-  await page.evaluate(() => { S.agents = new Set(['cp']); S.project = 'hackathon'; go('persona'); });
+  // bug 4: a thin scope (a handful of sessions) still gets a full four-letter code, with a gentle hint instead of 「?」
+  const thin = await page.evaluate(() => { S.agents = new Set(['cp']); S.project = 'hackathon'; const per = PERIODS[S.persona.period]; return personaScope([per[0], per[1]]).length; });
+  if (thin > 0) {
+    await page.evaluate(() => go('persona'));
+    const code = await page.locator('.persona-hero .letters .L').allTextContents();
+    expect(code).toHaveLength(4); expect(code.join('')).not.toContain('?');
+    if (thin < 30) await expect(page.locator('.persona-hero')).toContainText('数据越多越准');
+  }
+  // only an empty scope (0 sessions) shows the relax state
+  const empty = await page.evaluate(() => { const per = PERIODS[S.persona.period]; for (const a of AG) for (const pj of Object.keys(PJI)) { S.agents = new Set([a.id]); S.project = pj; if (!personaScope([per[0], per[1]]).length) return [a.id, pj]; } return null; });
+  expect(empty).not.toBeNull();
+  await page.evaluate(() => go('persona'));
+  await expect(page.locator('#main .pe-low')).toContainText('当前筛选下还没有会话');
   const chips = page.locator('#main .pe-relax .chip');
-  expect(await chips.count()).toBeGreaterThanOrEqual(2);
+  expect(await chips.count()).toBeGreaterThanOrEqual(1);
   await expect(chips.first()).toContainText('移除后 n≈');
   const est = await page.evaluate(() => +document.querySelector('#main .pe-relax .chip[data-k="agents"] b').textContent.replace(/\D/g, ''));
   await page.locator('#main .pe-relax .chip[data-k="agents"]').click();

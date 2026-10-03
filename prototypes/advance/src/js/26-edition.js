@@ -5,7 +5,21 @@
 // command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls go('persona') lands on the
 // matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
 // Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
-S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
+// App (native prefs): a fresh install starts in Lite, later launches come back to the edition and the page last used —
+// each edition keeps its own last page ('route' = {lite, advance}, main window only). The browser demo keeps Advance and
+// the URL hash.
+S.ed = store.get('edition', store.native ? 'lite' : 'advance') === 'lite' ? 'lite' : 'advance';
+const ED_SURFACE = /[?&]surface=(panel|hud|widgets)(&|$)/.test(location.search || '');
+function edLastRoute(ed) {
+  const r = store.get('route', null);
+  return r && typeof r === 'object' && typeof r[ed] === 'string' ? r[ed] : null;
+}
+function edRemember(route) {
+  if (!store.native || ED_SURFACE) return;
+  const ed = /^l-/.test(route) ? 'lite' : 'advance';
+  if (edLastRoute(ed) === route) return;
+  const r = Object.assign({}, store.get('route', null) || {}); r[ed] = route; store.set('route', r);
+}
 const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
 const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs' };
 const TO_ADV = { 'l-home': 'overview', 'l-persona': 'persona', 'l-sessions': 'sessions', 'l-recs': 'recs' };
@@ -35,7 +49,7 @@ function renderSideLite() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const n = sel({ noExtra: true }).length;
   const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
-  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
+  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
     sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
     sideGroup('action', '行动', nav(3, '', recN || '')) +
     sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();

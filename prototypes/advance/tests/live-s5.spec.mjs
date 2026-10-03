@@ -141,7 +141,8 @@ test('A7: 资料库推荐 / catalog_only cards sit in their own section after th
   expect(order.slice(h + 1).filter((x) => x === 'L').length).toBe(2);
   const why = page.locator('#content .rcard[data-id="fxlib1"] [data-tl="rec-why"]');
   await expect(why).not.toContainText(/agent:|command:|dimension:|domain:/);
-  expect(await why.evaluate((e) => getComputedStyle(e).webkitLineClamp)).toBe('3');
+  // polled: under full-suite load the card can be re-rendered between resolving and reading the style (detached → '')
+  await expect.poll(() => why.evaluate((e) => getComputedStyle(e).webkitLineClamp)).toBe('3');
   expect(errors).toEqual([]);
 });
 

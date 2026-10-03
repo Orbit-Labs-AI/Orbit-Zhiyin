@@ -117,10 +117,10 @@ def gw(tmp_path):
     gateway.close()
 
 
-def put_facts(gw) -> None:
+def put_facts(gw, n: int = 6) -> None:
     rev = gw.revisions.snapshot()
     assert rev["data_rev"] is not None
-    rows = [fact_row(i) for i in range(6)]
+    rows = [fact_row(i) for i in range(n)]
     body = {"contract": facts.CONTRACT, "rows": rows,
             "aux": {r["id"]: {"t0": T0, "t1": T0 + 1, "turns": [[6, 1]], "open": 1, "tools": {}}
                     for r in rows},
@@ -301,5 +301,18 @@ def test_share_card_matches_uiview_persona():
 def test_share_card_route_reads_the_persona_payload(gw):
     put_facts(gw)
     card = gw.client.post("/v1/export/share_card", json={"save": False}).json()
-    assert card["blocked_reason"] == "insufficient_data"  # 6 sessions < 30
+    assert card["blocked_reason"] == "insufficient_data"  # default 90-day window: 0 sessions
     assert card["gate"]["sessions"] is not None and card["method"] == persona.METHOD
+
+
+def test_one_session_persona_over_the_gateway(gw):
+    """A single session is enough: the route returns a full four-letter code (bug 4)."""
+    put_facts(gw, n=1)
+    q = {"today": "2025-10-10", "period": "all"}
+    body = gw.client.get("/v1/uiview/persona", params=q).json()
+    assert body["ok"] and body["n"] == 1 and body["classified"]
+    assert len(body["code"]) == 4 and "?" not in body["code"]
+    assert body["hint"] == "基于 1 个会话，数据越多越准"
+    reveal = gw.client.get("/v1/uiview/persona/reveal", params=q).json()
+    assert reveal["ok"] and reveal["code"] == body["code"]
+    assert reveal["candidates"][0]["code"] == body["code"]
