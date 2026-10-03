@@ -48,13 +48,18 @@ const HUD_PAD = { t: 8, x: 12, b: 16 };   // HUD surface padding = room for the 
     'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:' + HUD_PAD.t + 'px ' + HUD_PAD.x + 'px ' + HUD_PAD.b + 'px}' +
     'body.surface-hud #hud>:is(.pill,.hcard){box-shadow:0 4px 12px rgba(0,0,0,.26),inset 0 0 0 .5px rgba(255,255,255,.12)}' +
     // intrinsic widths (not viewport-relative): the reported width must not shrink with the panel it resizes
-    'body.surface-hud #hud>.pill{width:max-content;max-width:500px}body.surface-hud .hcard{width:380px}' +
-    'body.surface-widgets #widgets{width:364px;padding:8px}';
+    // 496 + 2*12 = 520 = the widest HUD panel Orbit.swift allows (resizeSurface clamps the width to 120…520)
+    'body.surface-hud #hud>.pill{width:max-content;max-width:' + (520 - 2 * HUD_PAD.x) + 'px}body.surface-hud .hcard{width:380px}' +
+    // widgets: the 8px padding (+ 8 below, see report) holds a 0 2px 8px card shadow; the in-window 0 10px 30px would be
+    // clipped by the panel edge into the same faint rectangle as the HUD's (F22)
+    'body.surface-widgets #widgets{width:364px;padding:8px}body.surface-widgets #widgets .wg{box-shadow:0 2px 8px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge)}';
   document.head.appendChild(st);
   S.winGone = true; S.pop = sf === 'panel'; S.widgets = sf === 'widgets'; S.hud.show = sf === 'hud';
   const el = () => $(keep);
   let lastH = 0, lastW = 0;
-  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no transparent margin takes other windows' clicks
+  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no wide transparent margin takes other windows'
+  // clicks. Trade-off: the padding that holds the shadow (8 top, 12 sides, 16 bottom) is still part of the panel and takes
+  // clicks meant for windows underneath; that thin band is the price of drawing the shadow without clipping it (F22)
   function report() {
     const e = el(); if (!e) return;
     const r = e.getBoundingClientRect();
