@@ -37,6 +37,40 @@ ADAPTERS = ("a4a6_tools", "a4a6_projects", "a4a6_sentiment")
 ManyQuery = Annotated[list[str] | None, Query()]
 
 
+# -- event seq ---------------------------------------------------------------------------
+
+# ``event`` rows are wide (text + attrs JSON), so ``LEFT JOIN event e ON e.event_uid = …``
+# just to read ``e.seq`` fetches one table page per tool call: 145k calls on a 7 GB store
+# took 10 s warm / 40 s cold. Both lookups below are covering-index reads instead: the
+# primary-key index maps event_uid → rowid, UNIQUE(session_uid, seq) maps rowid → seq.
+CALL_EVENT_ROWID_SQL = "(SELECT rowid FROM event WHERE event_uid = {col})"
+
+
+def attach_event_seq(conn, rows: list[dict], *, rowid_key: str = "call_event_rowid",
+                     session_key: str = "session_uid") -> list[dict]:
+    """Replace ``row[rowid_key]`` (from ``CALL_EVENT_ROWID_SQL``) with ``row["seq"]``.
+
+    Call inside the read transaction that produced ``rows`` so rowids are stable. A call
+    whose event sits in another session falls back to a direct rowid read, never to None.
+    """
+    wanted = {r[rowid_key] for r in rows if r.get(rowid_key) is not None}
+    sessions = sorted({r[session_key] for r in rows if r.get(rowid_key) is not None})
+    seq_of: dict[int, int] = {}
+    if sessions:
+        seq_of = {rid: seq for rid, seq in conn.execute(
+            "SELECT rowid, seq FROM event WHERE session_uid IN (SELECT value FROM json_each(?))",
+            (json.dumps(sessions),)) if rid in wanted}
+    missing = sorted(wanted - seq_of.keys())
+    if missing:
+        seq_of.update((rid, seq) for rid, seq in conn.execute(
+            "SELECT rowid, seq FROM event WHERE rowid IN (SELECT value FROM json_each(?))",
+            (json.dumps(missing),)))
+    for r in rows:
+        rid = r.pop(rowid_key, None)
+        r["seq"] = None if rid is None else seq_of.get(rid)
+    return rows
+
+
 # -- scope -------------------------------------------------------------------------------
 
 def scope_dict(scope) -> dict:
