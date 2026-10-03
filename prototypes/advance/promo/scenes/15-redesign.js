@@ -294,8 +294,9 @@ scene('15-redesign', () => {
     w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 14).toFixed(1) + 'px)' : 'none';
     w.style.opacity = Math.min(1, p * 2).toFixed(3);
   };
+  // v18.2 QA: 「Assistant」 lands from 1.04× (was 1.1×: at 48 px its centre-origin scale ate the space after 「一个」 for ≈ .1 beat)
   txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w rd-w">Assistant</span>']],
-    { x: 960, y: 352, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.1]], { dy: 18 })), tick: zoom(352, true) });
+    { x: 960, y: 352, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.04]], { dy: 18 })), tick: zoom(352, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
   // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
   // that bead set it down inside the ring
