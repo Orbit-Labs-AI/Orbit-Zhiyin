@@ -1,5 +1,11 @@
 # Orbit 宣传片分镜（v17）
 
+> **0.0.4 罗盘同步（必读：infra、20-orbit、30-persona、60-close 与集成）**：main 的 Orbit 0.0.4 协作人格定稿已合入本分支（1f61a7da，main 05049926），罗盘一律按 App 当前设计画，不再用 0.0.3 的领瓣 / 方位字画法：
+> - **花**：`35-visuals.js` 的 `bloom()` / `bloomParts()` / `glyphSVG()`，旋转对称、3–6 瓣，**没有领瓣**；本片里凡写「领瓣指向扇区」的地方，改为「外框 --orbit 三角指向类型码」。
+> - **表盘**：`41-a2-persona.js` 的 `fp2SVG()`：外圈标 16 个类型码（用 `.tcode` / `tcodes()`，SF Pro Rounded），**没有四个方位字**；每个 Agent 一条独立曲线（`fpOrbit(L, cls, sm)` 的 layers，彼此可重叠，不再是堆叠带）；Agent 徽章停在各 Agent 会话的平均方向（`fpOrbit(...).planets`）；背景透明。宣传片的 `drawCompass` / `buildCompass` 要据此改（优先直接复用 `fp2SVG` 的几何与配色，放大到 800 视框）；AGD 交接用的「罗盘徽章屏幕坐标」随之改成新徽章位置。
+> - **人格切换**：照 `38-bloom-motion.js` / `43-bloom-motion.css` 的动效——旧花朝新类型转动着收起（花瓣扭 28°、花心环↔点在收起点交换），再一边继续转一边绽开成新花（反扭 32°，≈4% 过冲后落定）；Agent 曲线逐点平滑过渡到新形状；徽章沿轨道走最短弧滑到新的平均方向（相隔 40 ms，标志保持直立）；外框三角转到新类型码，类型码的强调色从旧码移到新码。宣传片按自己的拍子把这些时间换算成拍（加快，不拖），不要再用 v13–v16 的逐瓣 wave。
+> - 罗盘里的 Agent 点就是这些徽章（AGD 与罗盘交接时位置一致，不跳）。
+
 > **历史**：v16 及更早的分镜（约 54 秒，片头两个问题 + 字标展开、情绪段、人格三站浏览、三张推荐卡 + 安装 + 前后对比、罗盘收尾）都在 git 历史里：`git log -- prototypes/advance/promo/STORYBOARD.md`，v16 的场景代码是 `git show 89edd840:prototypes/advance/promo/scenes/<文件>`，轨迹回放和生成工坊的旧镜头是 `git show 78841089^:prototypes/advance/promo/scenes/50-montage.js`。
 > v17（2026-10-03）按 `yhyfhgs` 的新 7 点脚本整片重写：约 40 秒，所有场景的 SHIFT 都是 0（全部用成片拍号）。Agent 圆形标志贯穿全片，背景光斑改为三团常驻光体，各走各的连续轨迹。
 
