@@ -345,37 +345,6 @@
    ]
   }
  ],
- "topics": [
-  {
-   "id": "git",
-   "label": "Git 与版本管理",
-   "label_source": "taxonomy",
-   "sessions": 6,
-   "avg_balance": null,
-   "session_uids": [
-    "session_fx012",
-    "session_fx024",
-    "session_fx008",
-    "session_fx020",
-    "session_fx004",
-    "session_fx016"
-   ]
-  },
-  {
-   "id": "software.testing_debugging",
-   "label": "测试与调试",
-   "label_source": "taxonomy",
-   "sessions": 5,
-   "avg_balance": null,
-   "session_uids": [
-    "session_fx011",
-    "session_fx022",
-    "session_fx006",
-    "session_fx017",
-    "session_fx001"
-   ]
-  }
- ],
  "phrases": [
   {
    "text": "示例：继续下一步",
@@ -405,27 +374,111 @@
    ]
   }
  ],
- "drivers": [
-  {
-   "key": "long_session",
-   "label": "会话超过 90 分钟",
-   "n_a": 6,
-   "n_b": 20,
-   "status": "ok",
-   "diff": -0.21,
-   "lo": -0.4,
-   "hi": -0.02
-  },
-  {
-   "key": "consecutive_failures",
-   "label": "连续失败 ≥ 2 次",
-   "n_a": 2,
-   "n_b": 6,
-   "status": "insufficient",
-   "diff": null,
-   "lo": null,
-   "hi": null
-  }
- ],
- "drivers_note": "组间差异仅为相关，不代表原因；样本来自显式情绪表述"
+ "terms": {
+  "items": [
+   {
+    "term": "提交",
+    "count": 24,
+    "days": 9,
+    "sessions": 18,
+    "share": 0.1283
+   },
+   {
+    "term": "测试",
+    "count": 21,
+    "days": 8,
+    "sessions": 16,
+    "share": 0.1123
+   },
+   {
+    "term": "合并",
+    "count": 17,
+    "days": 7,
+    "sessions": 14,
+    "share": 0.0909
+   },
+   {
+    "term": "示例",
+    "count": 15,
+    "days": 6,
+    "sessions": 12,
+    "share": 0.0802
+   },
+   {
+    "term": "部署",
+    "count": 12,
+    "days": 5,
+    "sessions": 10,
+    "share": 0.0642
+   },
+   {
+    "term": "review",
+    "count": 11,
+    "days": 5,
+    "sessions": 10,
+    "share": 0.0588
+   },
+   {
+    "term": "继续",
+    "count": 10,
+    "days": 6,
+    "sessions": 10,
+    "share": 0.0535
+   },
+   {
+    "term": "页面",
+    "count": 9,
+    "days": 4,
+    "sessions": 8,
+    "share": 0.0481
+   },
+   {
+    "term": "接口",
+    "count": 8,
+    "days": 3,
+    "sessions": 6,
+    "share": 0.0428
+   },
+   {
+    "term": "回滚",
+    "count": 6,
+    "days": 3,
+    "sessions": 6,
+    "share": 0.0321
+   },
+   {
+    "term": "文档",
+    "count": 5,
+    "days": 3,
+    "sessions": 5,
+    "share": 0.0267
+   },
+   {
+    "term": "pytest",
+    "count": 4,
+    "days": 2,
+    "sessions": 4,
+    "share": 0.0214
+   },
+   {
+    "term": "分支",
+    "count": 3,
+    "days": 2,
+    "sessions": 3,
+    "share": 0.016
+   },
+   {
+    "term": "样式",
+    "count": 2,
+    "days": 1,
+    "sessions": 2,
+    "share": 0.0107
+   }
+  ],
+  "n_messages": 96,
+  "n_tokens": 187,
+  "limit": 60,
+  "version": "a6-terms-v1",
+  "method": "jieba(fixed dict)+english words; redacted; stop words removed"
+ }
 }

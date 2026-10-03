@@ -302,6 +302,25 @@ test('shortcuts: ⌥digits switch pages, ⌥0 restores the window, labels match 
   expect(errors).toEqual([]);
 });
 
+// 洞察 order: 概览 · 协作人格 · 情绪与语义 · 会话与轨迹 · 项目习惯 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
+test('insight order: sidebar, ⌥1–6, window menu and palette follow one page order', async ({ page }) => {
+  const errors = await openDemo(page);
+  const ORDER = ['overview', 'persona', 'sentiment', 'sessions', 'projects', 'tools'];
+  const NAMES = ['概览', '协作人格', '情绪与语义', '会话与轨迹', '项目习惯', '工具调用'];
+  await page.evaluate(() => { S.sideOpen.insight = true; render(); });
+  const side = await page.locator('#side .nav').first().locator('[data-act="go"]').evaluateAll((els) => els.map((e) => e.dataset.r));
+  expect(side).toEqual(ORDER);
+  const menu = await page.evaluate(() => MENUS.window().filter((i) => i.k && /^⌥[1-9]$/.test(i.k)).map((i) => [i.t, i.k]));
+  expect(menu.slice(0, 6)).toEqual(NAMES.map((n, i) => [n, '⌥' + (i + 1)]));
+  for (let i = 0; i < ORDER.length; i++) {
+    await page.keyboard.press('Alt+Digit' + (i + 1));
+    await expect.poll(() => page.evaluate(() => S.route)).toBe(ORDER[i]);
+  }
+  const pal = await page.evaluate(() => { const out = []; navRoutes().forEach((r, i) => out.push([r[1], kb('⌥' + (i + 1))])); return out.slice(0, 6); });
+  expect(pal.map((x) => x[0])).toEqual(NAMES);
+  expect(errors).toEqual([]);
+});
+
 test('page key hook runs before global shortcuts; layout changes dispatch tandem:layout', async ({ page }) => {
   const errors = await openDemo(page);
   await page.evaluate(() => {
