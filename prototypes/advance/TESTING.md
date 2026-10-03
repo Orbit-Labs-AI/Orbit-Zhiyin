@@ -120,7 +120,7 @@ Test flow (fresh page per test; interaction tests run once at mac-14, layout che
                   the match bar has three segments and the peer bars carry the all-users tick
  9 layout         recs and library have no horizontal overflow at any project size, light and dark
 
-### p-sessions.spec.mjs（5 个用例）
+### p-sessions.spec.mjs（6 个用例）
 
 A3 会话与轨迹（src/js/42-a3-sessions.js + styles/43-a3-sessions.css）。只在 mac-14 跑一次。
 流程：
@@ -133,6 +133,9 @@ A3 会话与轨迹（src/js/42-a3-sessions.js + styles/43-a3-sessions.css）。�
      点关键时刻列表跳转播放头并高亮徽章，检视面板跟随；‹ › 逐事件；点击空白处移动播放头；拖播放头手柄；刷选显示选段统计。
   4. 从其他入口切到另一个会话：播放头回到末尾、视窗复位（BUG-15）；回放中离开页面即停止（BUG-16）。
   5. 对比：两条时间线是独立的 VZ 实例、标题各自对应（BUG-13）；依次点选先换 A 再换 B（BUG-14）；差异列有 Δ 与阶段占比。
+  6. F25 对人友好：「这次会话发生了什么」摘要卡（目标 / 过程 / 阶段表 / 卡点 / 结果）的分阶段计数加起来等于会话自身的工具、失败、消息数，
+     不标 AI；卡点可跳转播放头；泳道与图例用通俗说法、阶段带有时间范围与悬停说明、等你批准画在「你的消息」泳道；
+     关键时刻写「为什么重要」；列表与详情各自滚动，页头卡不被压扁。
 
 ### p-studio-flows.spec.mjs（7 个用例）
 

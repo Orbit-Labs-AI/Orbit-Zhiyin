@@ -103,7 +103,8 @@ test('trajectory: overview + timeline mount, zoom controls, step axis, moments, 
   expect(await page.evaluate(() => S.sess.ph)).toBeCloseTo(t, 5);
   await expect(mom).toHaveClass(/on/);
   const insp = page.locator('#tlInsp');
-  await expect(insp).toContainText('播放头处');
+  await expect(insp).toContainText('播放头停在这里');
+  await expect(insp).toContainText('阶段 · 开始后');
   // ‹ › step through events and pin them in the inspector
   const ph0 = await page.evaluate(() => S.sess.ph);
   await insp.locator('[data-act="tlStep"][data-v="1"]').click();
@@ -114,6 +115,7 @@ test('trajectory: overview + timeline mount, zoom controls, step axis, moments, 
   await insp.locator('[data-act="tlClear"]').click();
   expect(await page.evaluate(() => S.sess.ev)).toBeNull();
   // clicking empty plot space moves the playhead to that time
+  await box.scrollIntoViewIfNeeded();   // the digest card sits above the trajectory: bring the plot into the viewport first
   const F = await page.evaluate(() => { const inst = VZ._inst.get($('#tlBox')); const r = $('#tlBox .vz-plot').getBoundingClientRect(); const F = inst.model.F; return { left: r.left, top: r.top, x0: F.x0, x1: F.x1, yT: F.yT, yB: F.yB, T: inst.spec.extent[1] }; });
   await page.mouse.click(F.left + (F.x0 + F.x1) / 2, F.top + F.yT + 2);
   await expect.poll(() => page.evaluate(() => S.sess.ph)).toBeGreaterThan(F.T * 0.4);
@@ -179,5 +181,43 @@ test('compare mode mounts two independent timelines, picks A then B and fills th
   await expect(tbl).toContainText('阶段耗时占比');
   const empties = await page.evaluate(() => $$('.tbl tbody tr td:last-child').filter((td) => !td.textContent.trim()).length);
   expect(empties).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+// F25：会话轨迹对人友好 —— 摘要卡（目标 / 过程 / 阶段表 / 卡点 / 结果）全部来自轨迹事件，规则统计不标 AI；
+// 泳道与图例用通俗说法、阶段带写出时间范围并有悬停说明；关键时刻写「为什么重要」；列表与详情各自滚动，页头卡不被压扁。
+test('F25: digest card, plain lanes and legend, moment reasons, independent panes', async ({ page }) => {
+  const errors = await openDemo(page);
+  await go(page, 'sessions');
+  const card = page.locator('.sd-card');
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('这次会话发生了什么');
+  await expect(card.locator('.aib')).toHaveCount(0);
+  const s = await page.evaluate(() => { const s = BYID[S.sess.sel]; const tr = traj(s); const dg = sessDigest(s, tr); return { title: s.title, tools: s.tools, errors: s.errors, msgs: s.msgs, sum: dg.phases.reduce((a, r) => a + r.tools, 0), err: dg.phases.reduce((a, r) => a + r.err, 0), m: dg.phases.reduce((a, r) => a + r.msgs, 0), rows: dg.phases.length, kinds: [...new Set(dg.blk.map((b) => b.kind))].sort(), goal: dg.goal }; });
+  // per-phase counts add up to the session's own numbers (no invented totals)
+  expect(s.sum).toBe(s.tools); expect(s.err).toBe(s.errors); expect(s.m).toBe(s.msgs);
+  await expect(card.locator('.sd-tbl tbody tr')).toHaveCount(s.rows);
+  await expect(card.locator('.sd-goal')).toContainText(s.goal);
+  expect(s.kinds).toEqual(['comp', 'corr', 'err', 'wait']);
+  // a blocker chip jumps the playhead
+  const chip = card.locator('.sd-chip').filter({ hasText: '连续失败' }).first();
+  const t = +(await chip.getAttribute('data-t'));
+  await chip.click();
+  expect(await page.evaluate(() => S.sess.ph)).toBeCloseTo(t, 5);
+  // lanes / legend in plain words; phase bands carry a time range and a hover note
+  const box = page.locator('#tlBox');
+  await expect(box.locator('.vz-lane-lbl').first()).toHaveText('你的消息');
+  await expect(box.locator('.vz-lane-lbl')).toContainText(['Agent 回复']);
+  expect(await box.locator('.vz-phase title').count()).toBeGreaterThan(0);
+  expect(await box.locator('.vz-phase title').first().textContent()).toMatch(/\d\d:\d\d–\d\d:\d\d[\s\S]*工具 \d+ 次 · 失败 \d+ 次/);
+  await expect(page.locator('.tl-legend')).toContainText('等你批准');
+  await expect(box.locator('.vz-span[style*="--warn-m"]')).not.toHaveCount(0);
+  // moments explain why they matter
+  await expect(page.locator('.tl-mom .tl-mw').first()).toBeVisible();
+  // list and detail scroll on their own; the header card keeps its height
+  const panes = await page.evaluate(() => { const st = document.querySelector('.sess>.stack'); const sl = document.querySelector('#slist'); const before = sl.scrollTop; st.scrollTop = 300; return { st: st.scrollTop, sl: sl.scrollTop, before, band: document.querySelector('.sess>.stack>.card').getBoundingClientRect().height, scrollable: st.scrollHeight > st.clientHeight && sl.scrollHeight > sl.clientHeight }; });
+  expect(panes.scrollable).toBe(true);
+  expect(panes.st).toBeGreaterThan(0); expect(panes.sl).toBe(panes.before);
+  expect(panes.band).toBeGreaterThan(150);
   expect(errors).toEqual([]);
 });
