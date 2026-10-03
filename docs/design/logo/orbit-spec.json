@@ -49,20 +49,37 @@
     }
   },
   "wordmark": {
-    "note": "O 为同一螺旋在 o_pitch 视角下的投影；rbit 取自开源字体（OFL），只做等比缩放与排列。长度以字高 H（O 墨迹高度减去上下溢出）为单位",
+    "note": "全名 Orbit·知音。O 为同一螺旋在 o_pitch 视角下的投影；rbit 与知音取自开源字体（OFL），只做等比缩放与排列；间隔点为圆点。长度以字高 H（O 墨迹高度减去上下溢出）为单位",
     "o_pitch": 75,
     "overshoot": 0.015,
-    "font": {
-      "family": "Cormorant Garamond",
-      "weight": 600,
-      "glyphs": "wordmark-glyphs.json",
-      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/CormorantGaramond%5Bwght%5D.ttf"
+    "glyphs": "wordmark-glyphs.json",
+    "fonts": {
+      "latin": {
+        "family": "Josefin Sans",
+        "weight": 400,
+        "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/josefinsans/JosefinSans%5Bwght%5D.ttf"
+      },
+      "cjk": {
+        "family": "Noto Sans SC",
+        "weight": 350,
+        "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf"
+      }
     },
     "ascender": 1.0,
+    "tracking": 0.0,
     "spacing": {
-      "O_r": 0.16
+      "O_r": 0.16,
+      "t_dot": 0.2,
+      "dot_cjk": 0.2
     },
-    "tracking": 0.0
+    "dot": {
+      "diameter": 1.3,
+      "note": "直径 = Josefin Sans l 竖干宽 × diameter；圆心在字高中线"
+    },
+    "cjk": {
+      "height": 0.86,
+      "note": "知音墨迹高度 = H × height，垂直中心在字高中线"
+    }
   },
   "motion": {
     "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时移到字标 O 的位置，随后 rbit 依次出现；再点击按相反顺序收回",
@@ -79,6 +96,7 @@
     "night_tile": "#000000",
     "night_ink": "#ffffff",
     "black": "#000000",
-    "white": "#ffffff"
+    "white": "#ffffff",
+    "night_word": "#d6c7a1"
   }
 }

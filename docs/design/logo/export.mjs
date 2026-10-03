@@ -91,7 +91,7 @@ try {
     for (const H of MARK_HEIGHTS) await render(src, `mark/png/orbit-mark-${color}-${H}.png`, Math.round(H * w / h), H);
   }
   // 字标：标志作 O + rbit，透明底，按高度
-  for (const color of ['ink', 'black', 'white', 'paper']) {
+  for (const color of ['ink', 'black', 'paper', 'night']) {
     const src = `kit/wordmark/orbit-wordmark-${color}.svg`;
     const [, , w, h] = box(await fs.readFile(path.join(here, src), 'utf8'));
     for (const H of WORDMARK_HEIGHTS) await render(src, `wordmark/png/orbit-wordmark-${color}-${H}.png`, Math.round(H * w / h), H);

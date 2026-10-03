@@ -1,6 +1,6 @@
-"""从开源字体提取字标 rbit 的字形轮廓，写入 wordmark-glyphs.json（generate.py 只读这个文件，不依赖字体或 fontTools）。
+"""从开源字体提取字标「Orbit·知音」中 rbit 与知音的字形轮廓，写入 wordmark-glyphs.json（generate.py 只读这个文件，不依赖字体或 fontTools）。
 
-字体与字重来自 orbit-spec.json 的 wordmark.font；字体文件从 google/fonts 下载并记录 SHA-256。TrueType 的二次曲线
+字体与字重来自 orbit-spec.json 的 wordmark.fonts（latin：rbit 与量竖干宽用的 l；cjk：知音）；字体文件从 google/fonts 下载并记录 SHA-256。TrueType 的二次曲线
 按精确公式升为三次贝塞尔，坐标为字体单位（y 向上）。换字体或字重时运行：
 
   uv run --no-project --with fonttools python docs/design/logo/extract_glyphs.py
@@ -56,27 +56,32 @@ class CubicPen(BasePen):
     _endPath = _closePath
 
 
-def main() -> None:
-    spec = json.loads((ROOT / "orbit-spec.json").read_text(encoding="utf-8"))["wordmark"]["font"]
+def extract(spec: dict, chars: str) -> dict:
     raw = urllib.request.urlopen(spec["source"]).read()
     font = TTFont(io.BytesIO(raw))
     if "fvar" in font:
         font = instantiateVariableFont(font, {"wght": spec["weight"]}, inplace=False)
     gs, cmap = font.getGlyphSet(), font.getBestCmap()
     glyphs = {}
-    for ch in "rbit":
+    for ch in chars:
         g = gs[cmap[ord(ch)]]
         pen, box = CubicPen(gs), BoundsPen(gs)
         g.draw(pen)
         g.draw(box)
-        glyphs[ch] = {"advance": g.width, "bounds": list(box.bounds), "contours": pen.contours}
-    out = {
+        glyphs[ch] = {"advance": g.width, "bounds": [round(v, 2) for v in box.bounds], "contours": pen.contours}
+    return {
         "family": spec["family"], "weight": spec["weight"], "source": spec["source"],
         "sha256": hashlib.sha256(raw).hexdigest(), "license": "SIL Open Font License 1.1",
-        "units_per_em": font["head"].unitsPerEm, "x_height": font["OS/2"].sxHeight, "glyphs": glyphs,
+        "units_per_em": font["head"].unitsPerEm, "glyphs": glyphs,
     }
+
+
+def main() -> None:
+    fonts = json.loads((ROOT / "orbit-spec.json").read_text(encoding="utf-8"))["wordmark"]["fonts"]
+    out = {"latin": extract(fonts["latin"], "rbitl"), "cjk": extract(fonts["cjk"], "知音")}
     (ROOT / "wordmark-glyphs.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
-    print(f"wordmark-glyphs.json: {spec['family']} {spec['weight']}, {sum(len(g['contours']) for g in glyphs.values())} contours")
+    for k, v in out.items():
+        print(f"{k}: {v['family']} {v['weight']}, {sum(len(g['contours']) for g in v['glyphs'].values())} contours")
 
 
 if __name__ == "__main__":

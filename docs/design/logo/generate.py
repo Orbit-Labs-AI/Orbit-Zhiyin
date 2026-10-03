@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from orbit import KAPPA, Orbit, load_spec, num
-from wordmark import Wordmark
+from wordmark import TEXT, Wordmark
 
 ROOT = Path(__file__).parent
 KIT = ROOT / "kit"
@@ -110,7 +110,7 @@ class Brand:
         return Orbit(spec)
 
     def wordmark(self, fill: str) -> str:
-        """字标：俯视的螺旋作 O + 小写 rbit；透明底、紧凑画布。"""
+        """字标 Orbit·知音：俯视的螺旋作 O + rbit、间隔点、知音；透明底、紧凑画布。"""
         x, y, w, h = self.wm_box
         body = f'<g fill="{fill}"><path d="{self.o_d}"/><path d="{self.wm_d}"/></g>'
         return self._svg(f"{num(x, 1)} {num(y, 1)} {num(w, 1)} {num(h, 1)}", f"{w:.0f}", f"{h:.0f}", body)
@@ -149,7 +149,7 @@ class Brand:
         return self._svg(f"0 0 {w} {h}", w, h, f'<rect width="{w}" height="{h}" fill="{bg}"/>' + self._mark(ink, tr))
 
     def motion(self) -> str:
-        """交互页：点击标志 → 转为俯视并移到 O 的位置 → rbit 依次出现；再点击收回。帧由同一套参数预先算好。"""
+        """交互页：点击标志 → 转为俯视并移到 O 的位置 → rbit·知音依次出现；再点击收回。帧由同一套参数预先算好。"""
         m, c = self.spec["motion"], self.c
         p0, p1 = self.spec["view"]["pitch"], self.spec["wordmark"]["o_pitch"]
         x, y, w, h = self.wm_box
@@ -162,9 +162,9 @@ class Brand:
             o.digits = m["digits"]
             frames.append(o.path() if 0 < k < m["frames"] - 1 else (self.d if k == 0 else self.o_d))
         letters = "".join(
-            f'<path class="l" style="--i:{i};--j:{3 - i}" d="{self.wm.path(self.digits, ch)}"/>' for i, ch in enumerate("rbit"))
+            f'<path class="l" style="--i:{i};--j:{len(TEXT) - 1 - i}" d="{self.wm.path(self.digits, ch)}"/>' for i, ch in enumerate(TEXT))
         css = (f":root{{--bg:{c['paper']};--ink:{c['ink']};--sub:#8a9497}}"
-               f"@media (prefers-color-scheme:dark){{:root{{--bg:{c['night_tile']};--ink:{c['night_ink']};--sub:#8a8f91}}}}"
+               f"@media (prefers-color-scheme:dark){{:root{{--bg:{c['night_tile']};--ink:{c['night_word']};--sub:#8a8f91}}}}"
                "html,body{height:100%;margin:0}body{background:var(--bg);display:grid;place-items:center;"
                "font:13px -apple-system,'PingFang SC',sans-serif;color:var(--sub)}"
                "main{width:min(880px,90vw);text-align:center}svg{width:100%;height:auto;display:block;overflow:visible}"
@@ -176,7 +176,7 @@ class Brand:
                f"transition-delay:calc({int(m['turn_ms'] * 0.75)}ms + var(--i) * {m['letter_delay_ms']}ms)}}"
                "p{margin-top:28px}@media (prefers-reduced-motion:reduce){.l{transition:none}}")
         js = (f"const F={json.dumps(frames)},N=F.length,T={m['turn_ms']},D={num(dx0, 2)},"
-              f"LB={(len('rbit') - 1) * m['letter_delay_ms'] + m['letter_ms']};"
+              f"LB={(len(TEXT) - 1) * m['letter_delay_ms'] + m['letter_ms']};"
               "const b=document.querySelector('button'),o=document.getElementById('o');let u=0,on=false,raf=0,wait=0;"
               "const ease=s=>s<.5?4*s*s*s:1-Math.pow(-2*s+2,3)/2;"
               "function draw(v){o.setAttribute('d',F[Math.round(v*(N-1))]);"
@@ -191,9 +191,9 @@ class Brand:
               "draw(0);")
         return (
             '<!doctype html>\n<html lang="zh-CN"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Orbit 标志动效</title>'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Orbit·知音 标志动效</title>'
             f"<style>{css}</style></head><body><main>"
-            '<button type="button" aria-label="Orbit：点击展开字标" aria-pressed="false">'
+            '<button type="button" aria-label="Orbit·知音：点击展开字标" aria-pressed="false">'
             f'<svg viewBox="{num(x, 1)} {num(y, 1)} {num(w, 1)} {num(h, 1)}" aria-hidden="true">'
             f'<g><path id="o" d="{self.d}"/>{letters}</g></svg></button>'
             "<p>点击标志</p></main>"
@@ -270,11 +270,13 @@ class Brand:
         for name, fill in marks.items():
             out[KIT / f"mark/orbit-mark-{name}.svg"] = self.tight(fill)
             out[KIT / f"mark/orbit-mark-{name}.pdf"] = self.tight_pdf(fill)
-            out[KIT / f"wordmark/orbit-wordmark-{name}.svg"] = self.wordmark(fill)
-            out[KIT / f"wordmark/orbit-wordmark-{name}.pdf"] = self.wordmark_pdf(fill)
             if name != "paper":
                 out[KIT / f"mark/orbit-mark-square-{name}.svg"] = self.square(fill)
                 out[KIT / f"mark/orbit-mark-square-{name}.pdf"] = self.square_pdf(fill)
+        # 字标：深色底用暖色 night_word（不用纯白）
+        for name, fill in {"ink": c["ink"], "black": c["black"], "paper": c["paper"], "night": c["night_word"]}.items():
+            out[KIT / f"wordmark/orbit-wordmark-{name}.svg"] = self.wordmark(fill)
+            out[KIT / f"wordmark/orbit-wordmark-{name}.pdf"] = self.wordmark_pdf(fill)
         out[KIT / "motion/orbit-reveal.html"] = self.motion()
         out[ROOT / "orbit-geometry.json"] = self.geometry()
         return out
@@ -321,7 +323,7 @@ class Brand:
                          "transform": f"translate({num(self.dock_at)} {num(self.dock_at)}) scale({num(self.dock_k, 7)}) {self.icon_tr}"},
                 "wordmark": {"viewBox": " ".join(num(v, 1) for v in self.wm_box)},
             },
-            "wordmark": {"baseline": r(self.wm.base), "cap_height": r(self.wm.cap_height), "x_height": r(self.wm.x_height),
+            "wordmark": {"baseline": r(self.wm.base), "cap_height": r(self.wm.cap_height), "text": "Orbit·知音",
                          "contours": len(self.wm.contours), "d": self.wm_d,
                          "o": {"pitch": self.spec["wordmark"]["o_pitch"], "box": [r(v) for v in self.o.box], "d": self.o_d}},
             "outline": {"contours": len(self.contours), "segments": segs, "fit_tolerance": self.spec["vector"]["tolerance"],
