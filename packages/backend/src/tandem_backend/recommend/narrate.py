@@ -10,6 +10,7 @@ import re
 import string
 
 from .benefit import beta_interval, card_savings
+from .problems import observed_weeks
 from .units import WEEKS_PER_MONTH
 
 TYPE_ZH = {
@@ -208,7 +209,7 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     """
     problem = cand.get("problem") or {}
     sessions = inputs.get("sessions") or {}
-    weeks = float(sessions.get("weeks") or 0) or None
+    weeks = observed_weeks(sessions) if (sessions.get("weeks") or sessions.get("first_ts")) else None
     if cand.get("kind") == "removal":
         return _unestimated(f"每个会话常驻约 {_tokens(cand, raw)} tokens；常驻 token 的时间代价未实测，只按 token 计")
     weekly = float(problem.get("weekly_count") or 0)
