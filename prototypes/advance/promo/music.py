@@ -26,8 +26,8 @@ SR = 48000
 BPM = 132
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each scene plays this many beats later (the integrator fills these in; all cues follow)
-SHIFT = {'10-intro': 0, '15-redesign': 0, '20-orbit': 0, '30-persona': 0, '40-recs': 0, '50-tools': 0, '60-close': 0}
-END = 88 + SHIFT['60-close']   # film beats (scenes/60-close.js sets END in its own beats)
+SHIFT = {'10-intro': 0, '15-redesign': 3, '20-orbit': 5.1, '30-persona': 5.1, '40-recs': 6.9, '50-tools': 9.9, '60-close': 12.9}
+END = 89 + SHIFT['60-close']   # film beats (scenes/60-close.js sets END = 89 in its own beats)
 TAIL = 1.0                     # seconds of silence after END, so the mux never cuts a sample short
 N = int((END * BEAT + TAIL) * SR)
 rng = np.random.default_rng(7)
@@ -642,8 +642,10 @@ with wave.open(path, 'wb') as w:
     w.setframerate(SR)
     w.writeframes((mix.T * 32767).astype('<i2').tobytes())
 print('wrote', path, f'{N / SR:.2f}s ({END} beats = {END * BEAT:.2f}s + {TAIL}s tail), peak {np.max(np.abs(mix)):.3f}')
-SECS = [('10-intro', 0, 12.4), ('15-redesign', 12.4, 22), ('20-orbit', 22, 26.4), ('30-persona', 26.4, 41.2),
-        ('40-recs', 41.2, 58.1), ('50-tools', 58.1, 72.2), ('60-close', 72.2, END)]
-for name, b0, b1 in SECS:
+# each scene's start in its own beats (+ SHIFT = film beats); a section runs to the next one's start
+START = [('10-intro', 0), ('15-redesign', 11.8), ('20-orbit', 21.6), ('30-persona', 26.4), ('40-recs', 39.4),
+         ('50-tools', 55.0), ('60-close', 69.2)]
+FILM = [(n, b + SHIFT[n]) for n, b in START] + [('', END)]
+for (name, b0), (_, b1) in zip(FILM[:-1], FILM[1:], strict=True):
     seg = mix[:, at(b0):at(b1)]
     print(f'  {name:12s} b{b0:5.1f}-{b1:5.1f}  peak {np.max(np.abs(seg)):.3f}  rms {np.sqrt(np.mean(seg ** 2)):.3f}')
