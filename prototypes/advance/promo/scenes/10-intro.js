@@ -176,7 +176,8 @@ scene('10-intro', () => {
   });
   const HEAD = ['hv sv in-big', '<span class="w">正在</span><span class="w">成为</span><span class="w">每个人的</span><span class="w in-hot">日常</span>'];
   const HB0 = .5, HB1 = T(5.4), HAT = [.6, 1.0, 1.45, 1.8];       // v17.5: b1.1 / 1.5 / 1.95, 「日常」 stamps b2.3, hits b2.6
-  txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: K.all(wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, out: .6, sq: 1 }), K.exit({ out: .6, dir: { dx: 0, dy: 30 } })) });
+  // v18.5: it leaves .05 later (b6.65–7.25), ≈ 25 % and half blurred at b6.95 as 「从想法」 wipes in over it — a dissolve
+  txt(HB0, HB1 + .05, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: K.all(wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, out: .6, sq: 1 }), K.exit({ out: .6, dir: { dx: 0, dy: 30 } })) });
   // T0′ the pen (b0.8–4.8): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
   // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
   // wipe (× the push); the pen glides there (E.io .42) and arrives .08 beat before the word starts, stays under 「日常」
@@ -218,10 +219,13 @@ scene('10-intro', () => {
   // T1 (b4.8 → 5.96): the ∪ pen turns over into the ∩ arc in place (the centre moves 16 px) and opens to gap 112:
   // cc (736, 632) / cx (848, 614) / gm (960, 608) / ds (1072, 614) / cp (1184, 632); from b5.8 the dots drift ≤ 6 px
   const drift = (b) => 6 * E.inOut(clamp((b - T(5.8)) / 1.0));
+  // v18.5 1a → 1b match cut: 「从想法到交付」 is set where the old headline stood (y 540) and rises with the dots
+  // b7.35–8.1 (E.inOut) to its place (y 250); until then the arc waits at the pen's height (cy 652, 44 px lower, under the new line's glyphs)
+  const RISE0 = 7.35, RISE1 = 8.1, rise01 = (b) => E.inOut(clamp((b - RISE0) / (RISE1 - RISE0)));
   AGD.key(T(4.8), 'arc', {
     ...AGD.P.arcB, dur: 1.0, stag: .04,
     cx: (b, i) => AGD.P.arcB.cx + drift(b) * Math.sin(2 * Math.PI * (b / 8 + .23 * i)),
-    cy: (b, i) => AGD.P.arcB.cy + .6 * drift(b) * Math.sin(2 * Math.PI * (b / 10 + .37 * i))
+    cy: (b, i) => AGD.P.arcB.cy + 44 * (1 - rise01(b)) + .6 * drift(b) * Math.sin(2 * Math.PI * (b / 10 + .37 * i))
   });
   // v17.7: the beads round back into full badges as the pen turns over
   AGD.morph(T(4.8), 'all', 'dot', { dur: .7, stag: .04 });
@@ -235,8 +239,14 @@ scene('10-intro', () => {
   // v17.5: 「从想法」 / 「到交付」 step in (b7.0 / 7.35 film), whole by b7.59 (readable 3.6 as before)
   // v18.4: set once at its final centred width (fixed) so 「从」's left edge is where dot 1's pill points at b7.0; the
   // wipe starts there .05 beat later (b7.05), 「到交付」 still b7.35
-  txt(T(5.2), T(9.4), [['hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>']], { x: 960, y: 250, align: 'c' },
-    { anim: wipe({ at: [.05, .35], push: .04, up: 40, out: .6, fixed: true }) });
+  // v18.5: a match cut in place — the line wipes in on the old headline's centre line (y 540) from b6.95, over the old
+  // line's blurred exit (b6.6–7.2), so no frame is without a title; 「到交付」 b7.25; b7.35–8.1 it rises with the dots
+  // (E.inOut, 290 px) to y 250 while the box grows out of the pills below
+  const TY = (b) => 250 + 290 * (1 - rise01(b));
+  txt(6.9, T(9.4), [['hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>']], { x: 960, y: 250, align: 'c' }, {
+    anim: wipe({ at: [.05, .35], push: .04, up: 40, out: .6, fixed: true }),
+    tick: (el, tl) => { el.style.transform += ' translateY(' + (TY(6.9 + tl / BEAT) - 250).toFixed(1) + 'px)'; }
+  });
   // T2: every dot has one bubble slot, in two layers so nothing overlaps: lower (dy −r − 18, y ≈ 508–572) cc tail x 560 /
   // gm 960 / cp 1360; upper (dy −r − 104, y ≈ 404–468) cx 740 / ds 1180, with a stem down to the dot. A second bubble on
   // the same dot replaces the first (AGD's default: the old one shrinks into the dot as the new one pops); each stays
@@ -258,7 +268,7 @@ scene('10-intro', () => {
   c.send(S2, 1, slot(1, S2 + .15, { until: 13.1 }));      // v18.4: 13.25 → 13.1, shrunk before the slide left carries dot 1 off
   // the dots' own prompts (kind 'ask'); everything still up retracts in turn b12.0–13.4 after the icons burst (the
   // last, on ds, as the caret fold starts)
-  AGD.bubble(1, T(5.75), T(7.6), '写个爬虫', slot(1, T(5.75)));
+  AGD.bubble(1, 7.9, T(7.6), '写个爬虫', slot(1, 7.9));            // v18.5: 7.55 → 7.9, once the rising title has cleared its slot
   AGD.bubble(2, T(6.05), T(8.0), '画一套图标', slot(2, T(6.05)));
   // v18.4: gone (shrunk into ds over .2) by b9.95, .15 before 「生成产品官网」 pops — no two layers of text on ds
   AGD.bubble(3, T(6.3), 9.95, '做个数据看板', slot(3, T(6.3)));
@@ -266,7 +276,7 @@ scene('10-intro', () => {
   AGD.bubble(3, 10.1, 13.1, '生成产品官网', slot(3, 10.1));                     // new grid; v18.4: gone by b13.1, as the dots set off left (13.05)
   AGD.bubble(2, 10.45, T(10.0), '做个小游戏', slot(2, 10.45));                  // new grid
   // each dot glows and breathes as a bubble leaves it (new grid)
-  for (const [i, b] of [[1, T(5.75)], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [0, S1 + .15], [3, 10.1], [2, 10.45], [1, S2 + .15]]) {
+  for (const [i, b] of [[1, 7.9], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [0, S1 + .15], [3, 10.1], [2, 10.45], [1, S2 + .15]]) {
     AGD.glow(i, b, b + .6, .8); AGD.pulse(i, b, 1.08, .5);
   }
 
@@ -280,8 +290,14 @@ scene('10-intro', () => {
   // 「从想法」 as it lands, centred alone), full on b7.0 as the word wipes in, and lets go (.3) as 「到交付」 starts (b7.35)
   const t1W = wordsOf('hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>');
   // v18.4: the tip is on 「从」's LEFT edge (the fixed line's start) at b7.0, before the wipe leaves it at b7.05
-  AGD.morph(T(5.2) - .25, 1, 'pill', { w: 4.0, aim: () => [960 - (t1W()[0] + t1W()[1]) / 2, 250], dur: .25 });
-  AGD.morph(T(5.2) + .35, 1, 'dot', { dur: .3 });
+  // v18.5: full on b6.95 with a thin stem from its tip that ends exactly on 「从」's left edge (the line on y 540), and
+  // follows the line until it lets go as the rise starts (b7.35)
+  const congL = (b) => [960 - (t1W()[0] + t1W()[1]) / 2, TY(b)];
+  AGD.morph(6.7, 1, 'pill', {
+    w: 4.0, aim: (b) => congL(b), dur: .25,
+    stem: (b) => { const p = AGD.pos(1, b), q = congL(b); return Math.max(0, Math.hypot(q[0] - p.x, q[1] - p.y) - 2.0 * p.r - 6); }
+  });
+  AGD.morph(RISE0, 1, 'dot', { dur: .3 });
   // typing: the dot that will take the prompt stands on the arc as a caret (38 px, the box caret's height) that bobs on
   // every key — the pulse reads typeOn's character beats, the same grid as the key sounds — while the box caret takes its
   // colour; .2 beat before the send the caret swells into a bubble tail aimed at its slot, the bubble pops from the tail
@@ -295,7 +311,7 @@ scene('10-intro', () => {
   caretAt(0, BX + .12, K1, S1, true);          // dot 0 goes straight from the pull-out pill to the caret
   caretAt(1, S1 + .1, K2, S2, false);              // dot 1's tail flows on into the spark (b11.15)
   // the dots' own prompts: dot → tail (.15) → the bubble pops from its tip → back to the badge (hold .3)
-  for (const [i, b] of [[1, T(5.75)], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [3, 10.1], [2, 10.45]])
+  for (const [i, b] of [[1, 7.9], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [3, 10.1], [2, 10.45]])
     AGD.morph(b - .15, i, 'tail', { tail: .8, tailDir: anchor, dur: .15, hold: .3, back: .3 });
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
