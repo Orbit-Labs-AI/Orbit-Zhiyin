@@ -1,7 +1,7 @@
 """Persona reveal payload (OB-05/OB-06, REV-01/REV-02, SET-19, HLP-03) and the short
 persona summary shared by the popover, widgets and onboarding (POP-08, WG-02).
 
-The persona is the A2 one (``uiview.persona.page``, ``uiview-persona-v0``) over the cached
+The persona is the A2 one (``uiview.persona.page``, ``uiview-persona-v1``) over the cached
 ``uiview_facts`` snapshot, requested through ``exporting.sharecard.persona_request`` — the
 same payload the persona page, the share card and the report read, so every surface shows
 the same code. Rule (main ebdc750e): one session is enough for a full four-letter code;

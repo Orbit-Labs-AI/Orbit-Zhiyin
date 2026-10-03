@@ -102,7 +102,7 @@ def test_metrics_tools_insight_and_lite():
     insight = payload["insight"]
     assert insight["basis"] == "l0_template" and insight["lede"]
     assert insight["good"]["basis"] == "estimate"
-    assert payload["persona_mini"]["method"] == "uiview-persona-v0"
+    assert payload["persona_mini"]["method"] == "uiview-persona-v1"
 
 
 def test_unknown_steps_tile_shows_unknown_not_zero():

@@ -64,3 +64,35 @@ def test_shell_text_unwraps_codex_argv():
     assert not facts.is_validation_command(facts.shell_text("bash", '["bash", "-lc", "ls test"]'))
     assert facts.shell_text("pytest", None) == "pytest"
     assert facts.shell_text("cd", "cd build") == "cd build"
+
+
+# -- persona signal inputs (uiview-persona-v1) ------------------------------------------------
+def test_rollback_commands_are_matched_on_the_git_subcommand():
+    from orbit_backend.uiview.facts import is_rollback_command
+    assert is_rollback_command("git revert HEAD")
+    assert is_rollback_command("cd repo && git reset --hard origin/main")
+    assert is_rollback_command("git restore src/app.py")
+    assert is_rollback_command("git checkout -- src/app.py")
+    assert not is_rollback_command("git checkout main")
+    assert not is_rollback_command("git reset HEAD~1")  # soft reset keeps the work
+    assert not is_rollback_command("echo git revert")
+
+
+def test_opening_halves_and_redo_words():
+    from orbit_backend.uiview.facts import ACCEPT_RE, REDO_RE, SPEC_RE
+    assert SPEC_RE.search("按 docs/plans/sync-plan.md 实现") and SPEC_RE.search("先读 PRD")
+    assert not SPEC_RE.search("fix README.md typo")
+    assert ACCEPT_RE.search("验收：测试全绿") and not ACCEPT_RE.search("修一下按钮")
+    assert REDO_RE.search("把刚才的改动回滚") and REDO_RE.search("please revert that")
+    assert not REDO_RE.search("继续")
+
+
+def test_subagent_peak_concurrency():
+    from orbit_backend.uiview.facts import _subagents
+    result = {"sessions": [
+        {"session_uid": "m", "kind": "main"},
+        {"session_uid": "c1", "root_uid": "m", "started_at": 0, "ended_at": 10},
+        {"session_uid": "c2", "root_uid": "m", "started_at": 5, "ended_at": 12},
+        {"session_uid": "c3", "root_uid": "m", "started_at": 20, "ended_at": 30}]}
+    root_of = {"m": "m", "c1": "m", "c2": "m", "c3": "m"}
+    assert _subagents(result, root_of) == {"m": 2}

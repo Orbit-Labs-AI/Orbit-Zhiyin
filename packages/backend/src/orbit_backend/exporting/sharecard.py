@@ -1,7 +1,7 @@
 """Share-card payload (EXP-03/04) and the persona request shared by the report and the reveal.
 
 The card, the report's persona section and ``/v1/shell/reveal`` all read the A2 persona
-(``uiview.persona.page``, ``uiview-persona-v0``), so every surface shows the same code, axis values
+(``uiview.persona.page``, ``uiview-persona-v1``), so every surface shows the same code, axis values
 and copy under the same rule: one session is enough for a full four-letter code (value ≥ 50 → high
 letter, an axis without units counts as 50); only no persona at all (no session in the window)
 blocks it. ``unsettled_code`` only guards legacy payloads. One card per time span: ``span`` names

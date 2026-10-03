@@ -327,7 +327,7 @@ def test_profile_defers_the_type_to_the_uiview_persona():
                 "先询问我。编写报告。请运行测试")
         events.append(_event(text, uid=f"r{i}", task_id=f"t{i}", sid=f"s{i % 4}", seq=i))
     profile = build_profile(_analysis(events))
-    assert profile["typing"] == {"produces_type_code": False, "type_authority": "uiview-persona-v0",
+    assert profile["typing"] == {"produces_type_code": False, "type_authority": "uiview-persona-v1",
                                  "reason": "orchestration_not_extracted_and_verification_single_pole"}
     # 40 tasks: every one states delegation; planning only on the 20 odd ones.
     assert profile["axes"]["delegation"]["effective_task_n"] == 40

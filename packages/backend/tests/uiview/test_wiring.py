@@ -17,6 +17,7 @@ from orbit_backend.services.snapshots import SnapshotKey, scope_hash
 from orbit_backend.services.supervisor import SupervisorConfig
 from orbit_backend.sessionops import exclusion
 from orbit_backend.uiview import a4a6_common, facts, fetch, persona
+from orbit_backend.uiview import persona_signals as sig
 
 from .a4a6_ps_fixture import HOUR, T0, Orbit, ro
 from .synth import TODAY, analysed
@@ -37,20 +38,23 @@ def test_wire_rows_carry_persona_units():
         r = by_id[uid]
         assert r["dn"] == len(a["turns"]) and r["op"] == a["open"]
         assert r["t0"] == a["t0"] and r["t1"] == a["t1"]
-    # The client can rebuild D / I / V on any subset from the row units alone.
+    # The client rebuilds the whole persona on any subset from the row units alone: the
+    # statistics of the wire rows equal those of facts rows + aux.
     subset = [r for r in body["rows"] if r["a"] == "codex"]
-    units = persona.units(subset, body["aux"])
     wired = [by_id[r["id"]] for r in subset]
-    assert units["D"] == (sum(r["dk"] for r in wired), sum(r["dn"] for r in wired))
-    assert units["V"] == (sum(r["vk"] for r in wired), sum(r["dn"] for r in wired))
-    opens = [r["op"] for r in wired if r["op"] is not None]
-    assert units["I"] == (opens.count(0), len(opens))
+    assert sig.suff(wired) == sig.suff(subset, body["aux"])
+    assert persona.persona_from(sig.suff(wired)) == persona.persona(subset, body["aux"])
 
 
 def test_aux_units_without_aux_are_null():
     assert facts.aux_units(None) == dict.fromkeys(facts.AUX_KEYS)
     assert facts.aux_units({"turns": [[5, 1], [4, 0], [9, 1]], "open": 1, "t0": 1, "t1": 2}) == \
-        {"dk": 2, "dn": 3, "vk": 2, "op": 1, "t0": 1, "t1": 2}
+        {"dk": 2, "dn": 3, "vk": 2, "op": 1, "t0": 1, "t1": 2, "ik": 0, "kn": 0, "ol": None,
+         "oa": None, "os": None, "sc": None, "rb": None}
+    six = facts.aux_units({"turns": [[5, 1, 0, 1, 1, 1], [1, 0, 0, 0, 0, 0]], "olen": 40,
+                           "oacc": 1, "ospec": 0, "sub": 2, "rb": 1})
+    assert (six["ik"], six["kn"], six["ol"], six["oa"], six["os"], six["sc"], six["rb"]) == \
+        (1, 1, 40, 1, 0, 2, 1)
 
 
 def test_kimi_agent_name():

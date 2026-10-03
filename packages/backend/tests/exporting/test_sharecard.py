@@ -15,7 +15,7 @@ def page(code="DPMV", n=30, days=10, units=30, ok=True):
              "n_units": units, "state": "settled" if units else "no_data"}
             for k, ch in zip("DIMV", code, strict=True)]
     return {"meta": {"period": "30", "period_label": "近 30 天", "window": ["2026-09-04", "2026-10-03"],
-                     "method": "uiview-persona-v0", "scope_hash": "h" * 32},
+                     "method": "uiview-persona-v1", "scope_hash": "h" * 32},
             "ok": ok and n >= 1, "n": n, "days": days, "agents_n": 3, "code": code,
             "zh": "页面类型", "v": {"D": 70.0, "I": 30.0, "M": 70.0, "V": 70.0}, "axes": axes}
 
@@ -48,7 +48,7 @@ def test_eligible_card_with_copy_and_snapshot(env, canned):
     assert body["copy"]["headline"] == "先把规格写清楚，再让每个 Agent 各司其职。"
     assert body["disclaimer"] == "实验性画像，仅供参考" and body["theme"] == "dark"
     assert body["gate"]["min_sessions"] == 1 and body["gate"]["active_days"] == 10
-    assert body["method"] == "uiview-persona-v0" and [a["k"] for a in body["axes"]] == list("DIMV")
+    assert body["method"] == "uiview-persona-v1" and [a["k"] for a in body["axes"]] == list("DIMV")
     assert {s["label"]: s["value"] for s in body["stats"]} == {"会话": 30, "活跃天数": 10,
                                                               "Agent": 3, "对话轮次": 30}
     assert body["copy"]["quote"] == ["先把规格写清楚，", "再让每个 Agent 各司其职。"]
