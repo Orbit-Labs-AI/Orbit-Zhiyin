@@ -242,3 +242,21 @@ def test_progress_frames_carry_origin_and_every_new_source(tmp_path):
     assert [f["progress"].get("step") for f in frames] == [1, 2, 2, 2]
     assert [f["progress"].get("attempt") for f in frames][-2:] == [1, 2]
     assert {f["origin"] for f in frames} == {"sync"}  # the UI shows it as 后台同步
+
+
+def test_freshness_reload_never_moves_the_published_revision_back(tmp_path, monkeypatch):
+    from tandem_backend.services import worker_ingest
+    from tandem_backend.services.gateway import Revisions
+
+    (tmp_path / "tandem.db").write_bytes(b"")
+    revisions = Revisions()
+    revisions.update(data_rev=7, counts={"sessions": 3}, freshness={"projection": "ready"})
+    stale = {"data_rev": 6, "inventory_rev": 0, "counts": {"sessions": 2},
+             "freshness": {"projection": "pending", "pending_files": 1, "retained_files": 0}}
+    monkeypatch.setattr(worker_ingest, "revision", lambda home: dict(stale))
+    revisions.load(tmp_path)  # read before run 7 landed, applied after it
+    assert revisions.snapshot()["data_rev"] == 7 and revisions.snapshot()["projection"] == "ready"
+    monkeypatch.setattr(worker_ingest, "revision", lambda home: {**stale, "data_rev": 7})
+    revisions.load(tmp_path)
+    snap = revisions.snapshot()
+    assert snap["projection"] == "pending" and snap["pending_files"] == 1 and snap["pending_since"]

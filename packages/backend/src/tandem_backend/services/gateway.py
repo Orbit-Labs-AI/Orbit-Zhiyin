@@ -97,7 +97,14 @@ class Revisions:
             info = revision(home)
         except (sqlite3.Error, OSError):
             return
-        self.update(**info)
+        with self.lock:
+            current = self.value["data_rev"]
+            if current is not None and (info["data_rev"] is None or info["data_rev"] < current):
+                return  # Read before a newer publication landed: never move backwards.
+            freshness = info.pop("freshness", None)
+            self.value.update(info)
+            if freshness:
+                self._fresh(freshness)
 
 
 class LegacyApp:
