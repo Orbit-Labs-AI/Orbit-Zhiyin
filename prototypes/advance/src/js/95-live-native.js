@@ -211,7 +211,7 @@ LVN.personaOf = function (d) {
   const v = { D: 50, I: 50, M: 50, V: 50 };
   (d.axes || []).forEach((a) => { const k = a.k || a.axis; if (k in v && a.value != null) v[k] = +a.value; });
   if (d.v) Object.keys(v).forEach((k) => { if (d.v[k] != null) v[k] = +d.v[k]; });
-  const p = { ok: true, classified: d.classified != null ? !!d.classified : !!TYPES[d.code], n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || (TYPES[d.code] || [])[0] || '—', en: d.en || (d.type && d.type.en) || (TYPES[d.code] || [])[1] || '—', line: d.line || '', conf: d.conf || '—', server: true };
+  const p = { ok: true, classified: d.classified != null ? !!d.classified : !!TYPES[d.code], n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || (TYPES[d.code] || [])[0] || d.code, en: d.en || (d.type && d.type.en) || (TYPES[d.code] || [])[1] || '', line: d.line || '', conf: d.conf || '—', server: true };
   const cands = (d.candidates || d.matches || []).map((c) => ({ c: c.code, zh: c.zh || (TYPES[c.code] || [])[0] || '', en: c.en || (TYPES[c.code] || [])[1] || '', sim: clamp(Math.round(c.match != null ? c.match : c.sim || 0), 3, 99) })).filter((c) => c.c);
   return { p, cands };
 };
@@ -391,7 +391,10 @@ if (LV.live) {
   const baseReveal = openReveal;
   openReveal = function (opt) {
     opt = Object.assign({}, opt || {});
-    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period) : '90');
+    // 与 peLiveReveal / liteMatch 同一范围：Advance 人格页用页内周期，Lite 用顶栏范围（画像页与揭晓看的是同一批会话），其余入口回落 90 天
+    const scope = S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period)
+      : S.ed === 'lite' ? (({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range] || '90') : '90';
+    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(scope);
     return per.then((x) => baseReveal(Object.assign(opt, { p: x.p, cands: x.cands })));
   };
   Object.assign(ACT, {

@@ -38,8 +38,10 @@ def mcp_document(reader, doc, path, prefix=""):
 
 
 def plugin_components(
-    reader, folder, manifest, manifest_path, name, *, enabled=None, evidence="file"
+    reader, folder, manifest, manifest_path, name, *, enabled=None, evidence="file", markdown=False
 ):
+    """Skills, MCP servers and hooks of one plugin; ``markdown`` (Claude Code plugins) also
+    lists its commands/ and agents/ as ``<plugin>:<name>`` command and agent items."""
     if not isinstance(name, str):
         reader.issue(manifest_path, COMPONENT_KINDS, "invalid_plugin_name")
         name = folder.name
@@ -93,6 +95,25 @@ def plugin_components(
                     disabled=enabled is False,
                     prefix=prefix,
                 )
+    if markdown:
+        from .adapters import claude_markdown_components
+
+        extra = {}
+        for component, key in (("command", "commands"), ("agent", "agents")):
+            declared = manifest.get(key, [])
+            declared = [declared] if isinstance(declared, str) else declared
+            if not isinstance(declared, list):
+                reader.issue(manifest_path, (component,), "invalid_plugin_component")
+                continue
+            for value in declared:
+                if not isinstance(value, str):
+                    reader.issue(manifest_path, (component,), "invalid_plugin_component")
+                    continue
+                path = component_path(reader, folder, value, component)
+                # The default folder is always scanned; listing it again adds nothing.
+                if path is not None and path.resolve() != (folder / key).resolve():
+                    extra.setdefault(component, []).append(path)
+        claude_markdown_components(reader, folder, namespace=name.split("@", 1)[0], extra=extra)
     for inv_id in set(reader.items) - before:
         item = reader.items[inv_id]
         item["evidence"] = evidence

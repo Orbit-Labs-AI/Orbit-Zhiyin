@@ -110,6 +110,7 @@ test('J11: A4 rows list the original spellings per agent and drill down by key',
   const errors = collectErrors(page);
   const gw = await stubGateway(page, ['core', 's3'], { 'GET /v1/uiview/tools': J11_TOOLS() });
   await openLive(page, 'tools');
+  await page.evaluate(() => { S.tools.failOnly = false; render(); });   // 「仅看失败」 is on by default; NotebookEdit has no failures
   const bash = page.locator('#main tr[data-t="Bash"]');
   await expect(bash).toBeVisible();
   const tip = await bash.locator('td.tt-name').getAttribute('data-tip');

@@ -247,6 +247,25 @@ class IngestWorker:
                                 store, InventoryRequest(**inventory_request(source, self.home)))
                             results.append({"source_id": source["id"], **result})
                         self._publish(job, "inventory")
+                        if any(r.get("remap_files") for r in results) and not self.cancel.is_set():
+                            # New MCP server names resolve tool names of sessions imported
+                            # before the scan: republish those files now, not at next import.
+                            from orbit_data.scheduler import stale_files
+
+                            # Only the sources whose files this scan marked stale: files
+                            # already stale for other reasons (e.g. a reducer bump) wait for
+                            # their own import or rebuild instead of turning a short
+                            # inventory job into a full-library re-reduce.
+                            agents = {s["agent"] for s, r in zip(job["sources"], results, strict=True)
+                                      if r.get("remap_files")}
+                            remapped = {row[0] for row in store.db.execute(
+                                "SELECT source_id FROM source WHERE agent IN (%s)"
+                                % ",".join("?" * len(agents)), tuple(agents))}
+                            with service.writer():
+                                ids = set(stale_files(store.db)) & remapped
+                                results.append({"kind": "remap", **store.rebuild(
+                                    source_ids=ids, progress=service.progress)})
+                            self._publish(job, "rebuild")
                     else:
                         self._import(job, service, results)
                 finally:

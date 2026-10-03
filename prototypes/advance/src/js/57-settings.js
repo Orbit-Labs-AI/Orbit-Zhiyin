@@ -173,7 +173,7 @@ function renderSet() {
   if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {
-  store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null);
+  store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null); store.set('toolsFailOnly', null);
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* sandboxed */ }
   try { location.reload(); } catch (e) { toast('请手动刷新页面'); }
 }

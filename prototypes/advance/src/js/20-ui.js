@@ -96,18 +96,25 @@ function openDD(anchor, items, onPick, opt) {
   const dd = $('#dd');
   const draw = (its) => { dd.innerHTML = its.map((it, i) => it.sep ? '<hr>' : it.h ? '<div class="h">' + esc(it.h) + '</div>' : '<button type="button" role="menuitem" data-i="' + i + '"' + (it.dis ? ' disabled' : '') + '><span class="ck">' + (it.on ? '✓' : '') + '</span><span>' + esc(it.t) + '</span>' + (it.k ? '<span class="k">' + esc(it.k) + '</span>' : it.sub ? '<span class="sub">▶</span>' : '') + '</button>').join(''); };
   draw(items);
-  DD = { items, onPick, keep: opt.keep, refresh: opt.refresh, draw, anchor };
+  DD = { items, onPick, keep: opt.keep, refresh: opt.refresh, draw, anchor, align: opt.align };
   dd.hidden = false;
+  ddPlace(anchor, opt.align);
+}
+// places #dd under (or above) its anchor; render() calls it again when the anchor was rebuilt (uiDDRestore, 25-nav.js)
+function ddPlace(anchor, align) {
+  const dd = $('#dd');
   const r = anchor.getBoundingClientRect(), d = desk.getBoundingClientRect();
   const inBar = !!anchor.closest('.mbar');
   let left = Math.round(r.left - d.left), top = Math.round(r.bottom - d.top) + (inBar ? 1 : 4);
   const w = dd.offsetWidth, h = dd.offsetHeight;
-  if (opt.align === 'right' || left + w > d.width - 8) left = Math.max(8, Math.round(r.right - d.left) - w);
+  if (align === 'right' || left + w > d.width - 8) left = Math.max(8, Math.round(r.right - d.left) - w);
   if (top + h > d.height - 8) top = Math.max(8, Math.round(r.top - d.top) - h - 4);
   dd.style.left = left + 'px'; dd.style.top = top + 'px';
   $$('.mbar button.on').forEach((b) => b.classList.remove('on'));
   if (inBar) anchor.classList.add('on');
 }
+// the page under an open dropdown moved (the live strip above it changed height): follow the anchor
+function ddFollow() { if (DD && DD.anchor && DD.anchor.isConnected && !DD.anchor.closest('.mbar')) ddPlace(DD.anchor, DD.align); }
 function closeDD() { $('#dd').hidden = true; DD = null; $$('.mbar button.on').forEach((b) => b.classList.remove('on')); }
 $('#dd').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-i]'); if (!b || !DD) return;

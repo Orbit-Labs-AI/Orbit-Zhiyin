@@ -47,8 +47,8 @@
  *   slope         同 dumbbell 字段，纵向两列对比
  *   heatmap       rows: [str]，cols: [str]，values: [[n]]，ramp: 'gray' | 'accent' | 'err' | 'corr' | 'good' | 'mood'（发散，值域自动对称）| 任意 var()，showValues，peak，cellMax，format，min / max
  *                 layout: 'calendar' 时 days: [{ t, v }]（t 毫秒）
- *   scatter       points: [{ x, y, r, label, id, color, series }]，fit（回归 + 95% CI），labels，rMax，x/y 同上
- *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format
+ *   scatter       points: [{ x, y, r, label, id, color, series }]，fit（回归 + 95% CI），nUnit（拟合说明里样本数的单位，默认「个点」），labels，rMax，x/y 同上
+ *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format，nUnit（右侧样本数的单位，默认「个」）
  *   flow          nodes: [{ id, name, col }]，links: [{ from, to, value }]，format
  *   timeline      lanes: [{ id, label, h, color, mode: 'density' }]，events: [{ lane, t, t2, kind: 'tick' | 'dot' | 'ring' | 'span', color, label, sub, detail, err, id, dim, cat（密度桶悬停按类别计数）}]
  *                 range: [t0, t1]，unit: 'ms' | 'min'（min 时 start 为起始时刻的分钟数，刻度显示 HH:MM），playhead（之后的事件变淡），now（运行中：竖线 + 脉冲点）
@@ -303,13 +303,14 @@ VZ.emptyHTML = function (spec, h) {
 };
 /* ---------- 渲染入口 ---------- */
 VZ.height = (spec, w) => { const t = VZ.types[spec.type]; return spec.height || (t && t.height ? t.height(spec, w) : VZ.defaultH[spec.type]) || 200; };
-VZ.render = function (spec, w, h, inst) {
+// bare：交互图（VZ.html）不写 <title>，免得原生提示盖住自定义浮层（F23）；名字仍在 aria-label 里
+VZ.render = function (spec, w, h, inst, bare) {
   const t = VZ.types[spec.type]; if (!t) return { svg: '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><text x="8" y="20" class="vz-ax">未知图表类型 ' + esc(spec.type) + '</text></svg>', model: null };
   h = h || VZ.height(spec, w); w = Math.max(80, Math.round(w)); h = Math.max(24, Math.round(h));
   const ctx = { w, h, inst: inst || { hidden: new Set(), focus: -1 }, vis: VZ.vis(spec, inst) };
   const r = t.render(spec, w, h, ctx);
   const title = spec.title || t.name || spec.type;
-  const svg = '<svg class="vz-svg vz-t-' + spec.type + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(title + (spec.desc ? '。' + spec.desc : '')) + '"' + (r.model && r.model.kind ? ' data-kind="' + r.model.kind + '"' : '') + '><title>' + esc(title) + '</title>' + r.body + (spec.brush ? '<rect class="vz-brush" x="0" y="0" width="0" height="0" hidden/>' : '') + '</svg>';
+  const svg = '<svg class="vz-svg vz-t-' + spec.type + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(title + (spec.desc ? '。' + spec.desc : '')) + '"' + (r.model && r.model.kind ? ' data-kind="' + r.model.kind + '"' : '') + '>' + (bare ? '' : '<title>' + esc(title) + '</title>') + r.body + (spec.brush ? '<rect class="vz-brush" x="0" y="0" width="0" height="0" hidden/>' : '') + '</svg>';
   return { svg, model: r.model || null, h };
 };
 VZ.svg = function (spec, w, h) {
@@ -328,7 +329,7 @@ VZ.html = function (spec, w, h, inst) {
   if (spec.view === 'table') return head + VZ.table(spec);
   if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return head + VZ.emptyHTML(spec, h);
   const t = VZ.types[spec.type]; if (t && t.html) { if (inst) inst.model = null; return head + t.html(spec, w, h, inst); }
-  const r = VZ.render(spec, w, h, inst); if (inst) inst.model = r.model;
+  const r = VZ.render(spec, w, h, inst, true); if (inst) inst.model = r.model;
   const lg = VZ.legendHTML(spec, inst);
   const extra = t && t.extra ? t.extra(spec, w, r.model) : '';
   return head + (spec.legend === 'bottom' ? '' : lg) + '<div class="vz-plot" tabindex="0" role="group" aria-roledescription="图表" aria-label="' + esc(spec.title || spec.type) + '（← → 移动焦点，Enter 选择）">' + r.svg + '<div class="vz-tip" role="tooltip" hidden></div><div class="vh" aria-live="polite" data-vz-live></div></div>' + extra + (spec.legend === 'bottom' ? lg : '');
@@ -375,15 +376,24 @@ VZ._observe = (el) => { if (VZ._ro) VZ._ro.observe(el); };
 VZ.relayout = () => { $$('.vz').forEach((el) => { const inst = VZ._inst.get(el); if (inst && el.isConnected && Math.abs(el.clientWidth - inst.w) >= 1) VZ.draw(el); }); };
 window.addEventListener('orbit:layout', VZ.relayout);
 /* ---------- 交互：hover / 十字准线 / 键盘 / 点击 / 图例 / brush ---------- */
+// F23：浮层 position:fixed，不被卡片 / .scroll-x 的 overflow 裁切；按所在窗口（.main / .win）与视口的可见区避让边缘，
+// 右侧放不下翻到左侧、上方放不下翻到下方。fixed 的包含块可能是带 container 的祖先（.main），所以摆好后量一次实际位置再校正。
 VZ._tipShow = function (inst, html, x, y) {
   const tip = inst.el.querySelector('.vz-tip'); const plot = inst.el.querySelector('.vz-plot'); if (!tip || !plot) return;
   tip.innerHTML = html; tip.hidden = false;
-  const pw = plot.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
-  let left = x + 12, top = y - th - 10;
-  if (left + tw > pw - 4) left = x - tw - 12; if (left < 4) left = Math.max(4, Math.min(pw - tw - 4, x - tw / 2));
-  if (top < 2) top = y + 16;
+  const pr = plot.getBoundingClientRect(); const host = plot.closest('.main, .panel, .modal, .win');
+  const hr = host ? host.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+  const L = Math.max(0, hr.left) + 4, T = Math.max(0, hr.top) + 4, R = Math.min(window.innerWidth, hr.right) - 4, B = Math.min(window.innerHeight, hr.bottom) - 4;
+  const tw = tip.offsetWidth, th = tip.offsetHeight; const px = pr.left + x, py = pr.top + y;
+  let left = px + 12, top = py - th - 10;
+  if (left + tw > R) left = px - tw - 12; if (left < L) left = Math.max(L, Math.min(R - tw, px - tw / 2));
+  if (top < T) top = py + 16; if (top + th > B) top = Math.max(T, B - th);
   tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  const a = tip.getBoundingClientRect();
+  if (Math.abs(a.left - left) > 0.5 || Math.abs(a.top - top) > 0.5) { tip.style.left = (2 * left - a.left) + 'px'; tip.style.top = (2 * top - a.top) + 'px'; }
 };
+// 浮层是 fixed：内容区滚动时收起，免得停在原处
+document.addEventListener('scroll', () => { document.querySelectorAll('.vz-tip:not([hidden])').forEach((t) => { t.hidden = true; }); }, true);
 VZ._tipHide = (inst) => { const tip = inst.el.querySelector('.vz-tip'); if (tip) tip.hidden = true; VZ._hl(inst, -1); };
 VZ._hl = function (inst, i) {
   const svg = inst.el.querySelector('svg.vz-svg'); if (!svg) return; const m = inst.model;
@@ -1052,7 +1062,7 @@ VZ.types.scatter = {
   extra(spec, w, model) {
     const fit = model && model.fit; const hasR = (spec.points || []).some((p) => VZ.num(p.r) != null); if (!fit && !hasR) return '';
     const rmx = hasR ? Math.max(1e-9, ...(spec.points || []).map((p) => VZ.num(p.r) || 0)) : 0;
-    return '<div class="vz-scale">' + (fit ? '<span class="cap">拟合 r = ' + fit.r.toFixed(2) + ' · n = ' + fit.n + ' · 带为 95% 置信区间' + (fit.n < 10 ? '（样本少，仅供参考）' : '') + '</span>' : '') + (hasR ? '<span class="cap vz-scale-note"><i class="vz-rleg" style="width:12px;height:12px"></i>' + esc(VZ.fmt(rmx / 4, spec.rFormat)) + ' <i class="vz-rleg" style="width:20px;height:20px"></i>' + esc(VZ.fmt(rmx, spec.rFormat)) + (spec.rLabel ? ' · ' + esc(spec.rLabel) : '') + '</span>' : '') + '</div>';
+    return '<div class="vz-scale">' + (fit ? '<span class="cap">拟合 r = ' + fit.r.toFixed(2) + ' · ' + VZ.fmt(fit.n, 'int') + ' ' + (spec.nUnit || '个点') + ' · 带为 95% 置信区间' + (fit.n < 10 ? '（样本少，仅供参考）' : '') + '</span>' : '') + (hasR ? '<span class="cap vz-scale-note"><i class="vz-rleg" style="width:12px;height:12px"></i>' + esc(VZ.fmt(rmx / 4, spec.rFormat)) + ' <i class="vz-rleg" style="width:20px;height:20px"></i>' + esc(VZ.fmt(rmx, spec.rFormat)) + (spec.rLabel ? ' · ' + esc(spec.rLabel) : '') + '</span>' : '') + '</div>';
   },
   table: (spec) => { const X = spec.x || {}, Y = spec.y || {}; const hasR = (spec.points || []).some((p) => p.r != null); return { cols: ['名称', X.label || 'x', Y.label || 'y'].concat(hasR ? [spec.rLabel || '大小'] : []), rows: (spec.points || []).map((p) => [p.label || p.name || '', VZ.fmt(VZ.num(p.x), X.format), VZ.fmt(VZ.num(p.y), Y.format)].concat(hasR ? [VZ.fmt(VZ.num(p.r), spec.rFormat)] : [])) }; }
 };
@@ -1086,11 +1096,11 @@ VZ.types.dist = {
         g += '<line class="vz-median" x1="' + VZ.r1(sx(s.p50)) + '" x2="' + VZ.r1(sx(s.p50)) + '" y1="' + VZ.r1(cy - bh / 2 - 2) + '" y2="' + VZ.r1(cy + bh / 2 + 2) + '"/>';
         if (spec.mean) g += '<circle class="vz-pt" cx="' + VZ.r1(sx(s.mean)) + '" cy="' + VZ.r1(cy) + '" r="3" style="--c:var(--ink-1)"/>';
       }
-      g += VZ.txt(w - 2, cy + 4, 'n=' + s.n, { class: 'vz-ax', 'text-anchor': 'end' }) + F.hit(i);
+      g += VZ.txt(w - 2, cy + 4, VZ.fmt(s.n, 'int') + ' ' + (spec.nUnit || '个'), { class: 'vz-ax', 'text-anchor': 'end' }) + F.hit(i);
     });
-    return { body: g, model: { kind: 'mark', n: rows.length, F, xs: [], has: (i) => !!S[i], tip: (i) => { const s = S[i]; const r = rows[i]; if (!s) return ''; return VZ.tipHead(r.name || '', 'n = ' + s.n) + VZ.tipRow('var(--ink-1)', '中位数', fmt(s.p50), { kind: 'rect' }) + VZ.tipRow(r.color || spec.color || 'var(--ink-2)', 'P25 – P75', fmt(s.p25) + ' – ' + fmt(s.p75), { kind: 'rect' }) + VZ.tipRow('transparent', '均值', fmt(s.mean)) + VZ.tipRow('transparent', spec.whisker === 'minmax' ? '最小 – 最大' : 'P10 – P90', fmt(spec.whisker === 'minmax' ? s.min : s.p10) + ' – ' + fmt(spec.whisker === 'minmax' ? s.max : s.p90)); }, at: (i) => [S[i] ? sx(S[i].p50) : F.x0, F.by(i)], datum: (i) => Object.assign({ row: rows[i] }, S[i] || {}) } };
+    return { body: g, model: { kind: 'mark', n: rows.length, F, xs: [], has: (i) => !!S[i], tip: (i) => { const s = S[i]; const r = rows[i]; if (!s) return ''; return VZ.tipHead(r.name || '', VZ.fmt(s.n, 'int') + ' ' + (spec.nUnit || '个')) + VZ.tipRow('var(--ink-1)', '中位数', fmt(s.p50), { kind: 'rect' }) + VZ.tipRow(r.color || spec.color || 'var(--ink-2)', 'P25 – P75', fmt(s.p25) + ' – ' + fmt(s.p75), { kind: 'rect' }) + VZ.tipRow('transparent', '均值', fmt(s.mean)) + VZ.tipRow('transparent', spec.whisker === 'minmax' ? '最小 – 最大' : 'P10 – P90', fmt(spec.whisker === 'minmax' ? s.min : s.p10) + ' – ' + fmt(spec.whisker === 'minmax' ? s.max : s.p90)); }, at: (i) => [S[i] ? sx(S[i].p50) : F.x0, F.by(i)], datum: (i) => Object.assign({ row: rows[i] }, S[i] || {}) } };
   },
-  table: (spec) => ({ cols: ['名称', 'n', '中位数', 'P25', 'P75', '均值'], rows: (spec.rows || []).map((r) => { const s = VZ.stats(r.values); return s ? [r.name || '', String(s.n), VZ.fmt(s.p50, spec.format), VZ.fmt(s.p25, spec.format), VZ.fmt(s.p75, spec.format), VZ.fmt(s.mean, spec.format)] : [r.name || '', '0', '—', '—', '—', '—']; }) })
+  table: (spec) => ({ cols: ['名称', '样本数', '中位数', 'P25', 'P75', '均值'], rows: (spec.rows || []).map((r) => { const s = VZ.stats(r.values); return s ? [r.name || '', String(s.n), VZ.fmt(s.p50, spec.format), VZ.fmt(s.p25, spec.format), VZ.fmt(s.p75, spec.format), VZ.fmt(s.mean, spec.format)] : [r.name || '', '0', '—', '—', '—', '—']; }) })
 };
 /* ---------- spark / kpi ---------- */
 VZ.sparkBody = function (values, w, h, opt) {

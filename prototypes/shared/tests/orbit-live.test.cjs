@@ -199,7 +199,7 @@ test('503 + Retry-After keeps the last screen, shows the banner and retries afte
   const v = C.view('overview', null);
   assert.equal(v.state, 'error');
   assert.equal(v.vm.sessions, 128);                  // previous screen kept
-  assert.equal(v.error.code, 'projection_pending');
+  assert.equal(v.error.code, 'service_unavailable');
   assert.match(OrbitLive.ui.banner(C), /服务暂时不可用.*2 秒后重试/);
   assert.match(OrbitLive.ui.body(v, (vm) => 'sessions=' + vm.sessions), /sessions=128/);
   const retry = t.long.find((x) => x.ms === 2000);
@@ -208,6 +208,85 @@ test('503 + Retry-After keeps the last screen, shows the banner and retries afte
   C.view('overview', null); await tick();
   assert.equal(C.view('overview', null).state, 'ready');
   assert.equal(OrbitLive.ui.banner(C), '');
+});
+
+test('F08: projection_pending is not an outage — no banner error, reads as computing / stale, retries quietly', async () => {
+  let pending = true;
+  const gw = gateway({ '/v1/analytics/overview': () => pending ? json(FX('projection-pending-503'), 503, { 'Retry-After': '1' }) : json(FX('overview')) });
+  const t = timers();
+  const C = live(gw, { timers: t });
+  C.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview' }], (d) => d.ov.overview.counts);
+  C.markRender();                                    // the host renders: what it reads is on screen
+  C.view('overview', null); await tick();
+  let v = C.view('overview', null);
+  assert.equal(v.state, 'computing');                // nothing published yet: computing, not error
+  assert.equal(C.failure, null);
+  assert.equal(C.isPending(), true);
+  const b = OrbitLive.ui.banner(C);
+  assert.match(b, /正在整理数据/); assert.doesNotMatch(b, /服务暂时不可用|role="alert"/);
+  assert.match(OrbitLive.ui.badge(v), /正在整理数据/);
+  assert.match(OrbitLive.ui.errorCard(v.error), /正在整理数据/);
+  assert.equal(OrbitLive.ui.unavailable({ code: 'analysis_unavailable', reason: 'projection_pending' }), null);
+  // an import in progress already says so: the banner steps aside for the progress note
+  C.job = { id: 'j', kind: 'import', status: 'running', progress: { completed: 1, total: 4 } };
+  assert.equal(OrbitLive.ui.banner(C), '');
+  C.job = null;
+  // Retry-After: 1 → a retry is scheduled; the resource is on screen, so it reloads by itself
+  const retry = t.long.find((x) => x.ms === 1000);
+  assert.ok(retry, 'retry scheduled from Retry-After');
+  pending = false; retry.f(); await tick(); await tick();
+  v = C.view('overview', null);
+  assert.equal(v.state, 'ready'); assert.equal(v.vm.sessions, 128);
+  assert.equal(C.isPending(), false);
+  assert.equal(OrbitLive.ui.banner(C), '');
+});
+
+test('F08: a Database busy 503 while an import writes is retried quietly; outside an import (or past the cap) it is an outage', async () => {
+  let busy = true;
+  const BUSY = { error: { code: 'service_unavailable', message: 'Database busy: database is locked', retryable: true } };
+  const gw = gateway({ '/v1/analytics/overview': () => busy ? json(BUSY, 503, { 'Retry-After': '1' }) : json(FX('overview')) });
+  const t = timers();
+  const C = live(gw, { timers: t });
+  C.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview' }], (d) => d.ov.overview.counts);
+  C.markRender();
+  let importing = true; C.importing = () => importing;   // the host's own import (first-run overlay), no job frame
+  C.view('overview', null); await tick();
+  let v = C.view('overview', null);
+  assert.equal(v.state, 'computing');
+  assert.equal(C.failure, null);
+  assert.doesNotMatch(OrbitLive.ui.banner(C), /服务暂时不可用/);
+  const retry = t.long.find((x) => x.ms === 1000);
+  assert.ok(retry, 'quiet retry on Retry-After');
+  busy = false; retry.f(); await tick(); await tick();
+  assert.equal(C.view('overview', null).state, 'ready');
+  // no import running: the same 503 is an outage again
+  importing = false; busy = true; C.invalidate();
+  C.view('overview', null); await tick(); await tick();
+  v = C.view('overview', null);
+  assert.equal(v.state, 'error');
+  assert.match(OrbitLive.ui.banner(C), /服务暂时不可用（service_unavailable）/);
+});
+
+test('F08: past the busy cap the retries stay quiet while the import job keeps advancing; a stalled import raises the banner', async () => {
+  const BUSY = { error: { code: 'service_unavailable', message: 'Database busy: database is locked', retryable: true } };
+  const gw = gateway({ '/v1/analytics/overview': () => json(BUSY, 503, { 'Retry-After': '1' }) });
+  const t = timers(); let clock = 0;
+  const C = live(gw, { timers: t, now: () => clock });
+  C.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview' }], (d) => d.ov.overview.counts);
+  C.markRender();
+  const frame = (n) => C.dispatch('job', { id: 'j', kind: 'import', status: 'running', progress: { completed: n, total: 100 } });
+  frame(0);
+  C.view('overview', null); await tick();
+  for (let i = 1; i <= 12; i++) {
+    clock += 1000; frame(i); C.view('overview', null);   // the writer is alive: a fresh frame every retry (page still on screen)
+    const r = t.long.pop(); assert.ok(r, 'retry ' + i + ' scheduled'); r.f(); await tick(); await tick();
+    assert.equal(C.failure, null, 'quiet at retry ' + i);
+  }
+  assert.doesNotMatch(OrbitLive.ui.banner(C), /服务暂时不可用/);
+  clock += 11000; C.view('overview', null);         // no frame for 11 s: the import is stuck behind the lock
+  const r = t.long.pop(); r.f(); await tick(); await tick();
+  assert.equal(C.view('overview', null).state, 'error');
+  assert.ok(C.failure && C.failure.code === 'service_unavailable');
 });
 
 test('SSE: exponential backoff, Last-Event-ID resume and resync on a gap', async () => {
