@@ -49,7 +49,8 @@ scene('30-persona', () => {
   tween(2, 29.5, MV - 29.5, { s: .875 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
   tween(2, MV + MVD, 39.4 - MV - MVD, { s: .81 }, E.sine);
-  tween(2, 39.4, .85, { s: .6, o: 0 }, E.inOut);              // E.inOut：表盘底盘与轨道层不在点飞走后残留（b40.25 已透明）
+  // v17.1 T10：缩小淡出时中心同拍左移 600 → 480，表盘朝 40-recs 的点列（x 330）收去，像被点带走
+  tween(2, 39.4, .85, { s: .6, o: 0, ax: 480 }, E.inOut);     // E.inOut：表盘底盘与轨道层不在点飞走后残留（b40.25 已透明）
 
   /* ---------- 花苞：随扫描转（梯形速度），b28.4 起减速，b29.6 落在你的类型（+1 圈） ---------- */
   const DEG1 = typeDeg(ME.code) + 360, B0 = 27.2, BT = 2.4, ACC = .3, DEC = 1.2;
@@ -70,6 +71,14 @@ scene('30-persona', () => {
   // 4 个维度依次排除不符的一半扇区（16 → 8 → 4 → 2 → 1）
   const axQ = (k, b) => E.inOut(lp(b, TR[k + 1] - .1, .6));
   const keepAt = (b) => CODES.map((c) => { let v = 1; for (let k = 0; k < 4; k++) if (c[k] !== ME.code[k]) v *= 1 - axQ(k, b); return v; });
+
+  /* ---------- v17.1 T9：引导线把视线从罗盘带到右列 ---------- */
+  // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
+  // (1100, 540)：白 30%（连线自带 stroke-opacity .7，.43 × .7），1.5px，长出 .5 拍，pulse 1，收回 .4 拍。
+  // 拍号跟 R1：V2 写的 b32.2–33.6 对应排速前 R1 在 b33.0 过线；排速后 R1 在 TR[0]（b32.3）过线，
+  // 所以照同样的相对关系写成线在 R1 过线前 .2 拍长满、过线后 .2 拍开始收回（b31.6 → 32.1 长满 → 32.5–32.9 收回）。
+  const T9I = D0.sets.base.pl.reduce((m, d, i) => (d != null && (m < 0 || Math.sin(d * Math.PI / 180) > Math.sin(D0.sets.base.pl[m] * Math.PI / 180)) ? i : m), -1);
+  if (T9I >= 0) AGD.link(TR[0] - .7, TR[0] + .6, T9I, [1100, 540], { color: 'rgba(255,255,255,.43)', width: 1.5, draw: .5, out: .4, pulse: 1 });
   // 表圈上 16 个扇区的亮弧（罗盘坐标，跟着相机走）：R1 依次闪亮一遍；之后仍可能的扇区微亮，最后你的扇区留橙色
   let HL = null;
   const hlInit = () => {
