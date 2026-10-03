@@ -63,14 +63,21 @@ function recTotal(rows) {
 const recTok = (id) => { const t = recX(id).tokp; return t == null ? '—' : t > 0 ? '+' + fmtPct(t) : t < 0 ? '−' + fmtPct(-t) : '0'; };
 // Which agents a rec applies to, parsed from its compat string (identity colours only).
 function recAgents(r) {
-  if (r.live && r.agents) { const on = r.agents.filter((i) => AGI[i]); return on.length ? on : r.agents.length ? r.agents : AG.slice(0, 1).map((a) => a.id); }   // live: the rec's real target agents
+  if (r.live && r.agents) { const on = r.agents.filter((i) => AGI[i]); return on.length ? on : r.agents; }   // live: the rec's verified target agents only (未核实 never reads as 适用)
   if (/所有/.test(r.compat)) return AG.map((a) => a.id);
   const ids = []; if (/Claude/.test(r.compat)) ids.push('cc'); if (/Codex/.test(r.compat)) ids.push('cx'); if (/Gemini/.test(r.compat)) ids.push('gm'); if (/DeepSeek/.test(r.compat)) ids.push('ds'); if (/Copilot/.test(r.compat)) ids.push('cp');
   return ids.length ? ids : ['cc'];
 }
 // live: which target agents get a converted equivalent instead of the native format
-function recConvNote(r) { const conv = recAgents(r).filter((i) => (r.native || []).indexOf(i) < 0); return conv.length ? conv.map((i) => agent(i).short).join(' / ') + ' 转为等价配置' : '全部原生支持'; }
-function agentDots(r, names) { const ids = recAgents(r); return '<span class="rc-ag" data-tip="适用：' + esc(ids.map((i) => agent(i).name).join('、')) + (/转换/.test(r.compat) ? '（Codex 为转换后的等价配置）' : '') + '">' + ids.map((i) => '<span class="dot" style="background:' + agent(i).c + '"></span>').join('') + (names ? '<span>' + (ids.length === AG.length ? '所有 Agent' : ids.map((i) => agent(i).short).join(' · ')) + '</span>' : '') + '</span>'; }
+// (only adaptation_required converts; manual is said as such; unknown support is 未核实, never compatible)
+const recShorts = (ids) => ids.map((i) => agent(i).short).join(' / ');
+function recConvNote(r) {
+  const shown = recAgents(r); const pick = (a) => (a || []).filter((i) => shown.indexOf(i) >= 0);
+  const conv = r.conv ? pick(r.conv) : shown.filter((i) => (r.native || []).indexOf(i) < 0), man = pick(r.manual), unv = r.unverified || [];
+  const out = []; if (conv.length) out.push(recShorts(conv) + ' 转为等价配置'); if (man.length) out.push(recShorts(man) + ' 需手动配置'); if (unv.length) out.push(recShorts(unv) + ' 未核实');
+  return out.length ? out.join('；') : shown.length ? '全部原生支持' : '没有已核实的 Agent';
+}
+function agentDots(r, names) { const ids = recAgents(r); const unv = r.live ? r.unverified || [] : []; return '<span class="rc-ag" data-tip="适用：' + esc(ids.length ? ids.map((i) => agent(i).name).join('、') : '暂无已核实的 Agent') + (r.live ? (r.conv && r.conv.length ? '（' + recShorts(r.conv) + ' 为转换后的等价配置）' : '') + (unv.length ? '；未核实：' + unv.map((i) => agent(i).name).join('、') : '') : /转换/.test(r.compat) ? '（Codex 为转换后的等价配置）' : '') + '">' + ids.map((i) => '<span class="dot" style="background:' + agent(i).c + '"></span>').join('') + (names ? '<span>' + (ids.length === AG.length ? '所有 Agent' : ids.length ? ids.map((i) => agent(i).short).join(' · ') : 'Agent 未核实') + '</span>' : '') + '</span>'; }
 // Install scope (BUG-22): recs that write under ~/.claude can also be installed into one project; the path follows.
 const recScoped = (r) => /^~\/\.claude\/(skills|agents|settings)/.test(r.target);
 const scopeProj = () => S.project || S.proj.sel || 'confluo';
