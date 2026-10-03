@@ -9,6 +9,7 @@ from .tokens import (
     TOKEN_BUCKETS,
     normalize_token_buckets,
     prepare_requests,
+    token_number,
     token_total,
 )
 
@@ -60,6 +61,19 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
         if covered:
             if a["coverage"] == "root_tree" or not full_calls:
                 total, basis = a["total_tokens"], "cumulative_snapshot"
+    # One unknown row no longer erases the scope total (audit B13): the known rows are summed
+    # as a lower bound, and what is missing is counted and named instead.
+    unknown_rows = {"invalid_request_rows": prepared["invalid_request_rows"],
+                    "conflicting_request_ids": len(prepared["conflicting_request_ids"]),
+                    "token_unknown_calls": len(valid) - len(known_calls),
+                    "records_incomplete": not records_complete}
+    if total is None and known_calls:
+        total, basis = sum(token_total(c) for c in known_calls), "call_delta_known_rows"
+    complete = basis in ("call_delta", "cumulative_snapshot")
+    # model_call.cache_write_1h_tokens (migration 014) is the 1-hour-TTL part of cache_write;
+    # NULL means "not reported", so the subtotal covers reporting rows only.
+    write_1h = [c["cache_write_1h_tokens"] for c in valid
+                if c.get("coverage") == "self" and token_number(c.get("cache_write_1h_tokens"))]
     costs = [c["cost_usd"] for c in valid if isinstance(c.get("cost_usd"), (int, float))
              and not isinstance(c["cost_usd"], bool) and math.isfinite(c["cost_usd"]) and c["cost_usd"] >= 0
              and c.get("cost_source") and (c["cost_source"] not in ("price_table", "estimate") or c.get("price_table_version"))]
@@ -69,14 +83,22 @@ def usage(model_calls, events, sessions, scope, records_complete=True):
     return {"status": "available" if full_calls else "partial" if valid or snapshots or legacy else "unavailable",
             "request_count": len(valid) if valid or (model_calls == [] and records_complete) else None,
             **{k: v for k, v in prepared.items() if k != "requests"},
-            "total_tokens": total, "total_basis": basis,
+            "total_tokens": total, "total_basis": basis, "total_complete": complete if total is not None else None,
+            "total_unknown": unknown_rows,
+            "total_note": None if total is None or complete else
+            "已知逐次请求之和（下限）；无效、冲突或缺 token 的行未计入，见 total_unknown",
             "known_call_tokens": sum(token_total(c) for c in known_calls) if known_calls or known_empty else None,
             "token_complete_call_n": len(known_calls), "token_unknown_call_n": len(valid) - len(known_calls),
             "token_buckets": {k: sum(c[k] for c in buckets) if (buckets or known_empty) and all(c[k] is not None for c in buckets) else None for k in TOKEN_BUCKETS},
             "token_semantics": {"input_tokens": "uncached", "cache": "disjoint_read_and_write",
                                 "reasoning_tokens": "already_in_output_not_added"},
             "token_bucket_basis": "call_delta_known_rows",
+            "cache_write_1h_tokens": sum(write_1h) if write_1h else None,
+            "cache_write_1h_reported_n": len(write_1h),
+            "service_tiers": dict(Counter(c.get("service_tier") or "unreported" for c in valid))
+            if valid else None,
             "cost_usd": sum(costs) if valid and full_requests and len(costs) == len(valid) else None,
+            "known_cost_usd": sum(costs) if costs else None,  # subtotal of priced rows
             "cost_effective_n": len(costs), "cost_unknown_n": len(valid) - len(costs),
             "cost_sources": sorted({c["cost_source"] for c in valid if c.get("cost_source")}),
             "price_table_versions": sorted({c["price_table_version"] for c in valid if c.get("price_table_version")}),

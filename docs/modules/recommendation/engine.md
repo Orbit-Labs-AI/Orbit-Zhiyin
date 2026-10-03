@@ -15,6 +15,14 @@
 | engine v2 | `GET /v1/recommendations`、`/v1/recommendations/{id}`、`/recompute`、`/runs`、`/v1/labels` 等（`services/routes_recommend.py`） | `runs.py` → `engine.build_slate` | App 各 surface 的卡片 |
 | service | `GET/POST /v1/analytics/recommendations`（`api/routes.py`） | `service.recommend` | analytics 展示与 P0 验收 |
 
+两栈的关系与各自入口：
+
+- **互不调用**。engine v2 不经过 `service.recommend`、`features.candidate_features`、`explain.explain_candidate` 或 `benefit.estimate_benefit`；service 栈也不读 `problems.build`、KB 规则或 `narrate`。同一份分析数据在两条路由上会给出不同结果，这是预期的，不要拿一边的输出校验另一边。
+- **共享极少**：只有 `benefit.py`（service 栈用 `estimate_benefit`，engine 的 `narrate._save` 借用 `card_savings` 的情景区间口径）。agent 名两边同源于 `orbit_data.capabilities.MATRIX`：service 栈的 `RecommendationContext.agent` 按 `analytics.recommendations.catalog.TARGETS`（generic + MATRIX）校验。BM25 各有一份实现（`catalog_route.bm25` 与 `recall/sparse.py`）；`kb.py`、`units.py`、`problems.py` 只属于 engine v2。
+- **engine v2 入口**：HTTP 走 `services/routes_recommend.py`；代码入口是 `runs.py`（缓存与重算）和 `engine.build_slate(inputs, memory, catalog=)`；问题层 `problems.build`，召回 `recall/multi.recall_all`，卡片文案与节省时间 `narrate`。评测：`evals/recommendation/replay.py`（含负例）与 `evalrun` 的 `recommend` / `recommend_replay` 套件。
+- **service 栈入口**：HTTP 走 `api/routes.py` 的 `/v1/analytics/recommendations`；代码入口 `service.recommend(analysis_result, context=, catalog=)`，解释由 `explain.explain_candidate` 生成（单测见 `tests/recommend/test_explain.py`），收益只有调用方给出 `benefit_scenarios` 时才由 `benefit.estimate_benefit` 估算，否则为 `insufficient_inputs`。
+- **改哪一栈**：App 卡片的问题、排序和文案改 engine v2；分析报告里的资源推荐与资源接收契约改 service 栈。两栈是否合并尚未决定，新功能默认只进 engine v2。
+
 engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL 事实提升为问题，Wilson 下界判定 active）→ 11 路召回 → 加权 RRF → `ranking/gates` 13 道门 → `ranking/rank.score` → `ranking/slate.select`（MMR + 配额）→ `narrate` 生成卡片。
 
 召回路线（`recall/multi.py`）与 RRF 权重：
@@ -53,7 +61,11 @@ engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL
 
 对应操作占比 = 观测窗口内的次数 × 每次成本 ÷ 总 token / 总协作时长（不超过该类操作的实测总量）；预计节省 = 占比 × 生效率（Beta 先验均值），区间取先验约 90% 范围，是情景边界而不是置信区间，也不扣除未知的配置成本。`ui.save` 给出 `time_pct`、`token_pct`、两者的区间、`share`（占比）、`effect`、`op`、`key` 与中文 `basis`；`ui.gain` 是同一组百分比的标题（如「省时 1.5% · 省 token 0%」），`ui.tok_pct` 是卡片自身常驻上下文占全部 token 的比例。同一问题的替代方案共用 `key`，界面合计时每个问题只取最大值。没有问题证据的 catalog / model 卡和还没有轨迹账本的旧快照显示「未估算」。
 
-来源与兼容：catalog 条目只有 `verification` 为 `repository_and_skill_read` / `repository_and_source_read` 时视为已核验；资源库的 `agents` 列表只作提示，未给出支持矩阵时各 agent 为 unknown（门禁给 needs_context）。只有 Claude Code 与 Codex 有已知落地路径，其他 agent 的 `path_hint` 为空，卡片改为手动方案。
+问题层的分母：信号或 SQL 事实给出的会话数 k 大于 `sessions.main`（或没有主会话总数）时，k 截断为 main，`vars.count_mismatch` 记录原值，问题保持 `insufficient`，不会因 k/n = 100% 被判为 active。`installed_unused` 与 `features.linked` 同口径：观测窗口不足 90 天（`UNUSED_WINDOW_DAYS`）或 linked 已标 `insufficient_history` 时不判「未使用」；置信度从 90 天的 0.5 线性升到 180 天的 0.9（产品默认，未校准）。
+
+节省时间（`narrate._save`）：只有 KB 规则的 `benefit.unit_minutes_source` 写明出处时才显示分钟，口径与 `benefit.py` 相同：观测周次数 × 4.345 × 单次分钟 × 改善比例，low/high 为 Beta 先验约 90% 区间的情景边界，不是置信区间，也不扣除未知的配置成本。catalog / generative / model 卡与精简卡一律显示「未估算」。目前 25 条 KB 规则没有一条有文献或本机实测依据，`unit_minutes` 只用于内部排序；每条在 `benefit.unit_minutes_note` 写明未估算原因和应取的实测口径（审批 → `approval_wait_ms`，失败与返工 → `cost_time` 的段时长，常驻 token → 未实测），卡片的「未估算」说明会带上这条原因。
+
+来源与兼容：catalog 条目只有 `verification` 为 `repository_and_skill_read` / `repository_and_source_read` 时视为已核验。catalog 的搜索行不带 `verification` 与声明的 `agent_support`，`catalog_route.enrich` 会一次性回查 `catalog_item(verification, metadata)` 补齐，因此已核验的抓取条目可以通过 `source_verified` 门；读不到库时保持未核验并给出 `catalog.verification` 诊断。资源库的 `agents` 列表只作提示，未声明支持矩阵时各 agent 为 unknown（门禁给 needs_context）。KB 规则的 `remedy.agents`：Claude Code 与 Codex 为人工值，OpenCode / Pi / Hermes / dsh / Kimi 按 `orbit_data.capabilities.MATRIX` 推导，推导口径写在 `remedies.v1.json` 的 `agent_support_basis`（Kimi 无源码，全部 unknown）。只有 Claude Code 与 Codex 有已知落地路径，其他 agent 的 `path_hint` 为空，卡片改为手动方案。
 
 ## 三层偏好与收益输入
 

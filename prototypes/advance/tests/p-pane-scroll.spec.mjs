@@ -1,6 +1,6 @@
 // 窗格独立滚动（styles/88-panes.css + js/88-panes.js）：主从分栏并排时各窗格自己滚，页面不滚；堆叠时退回整页滚动。
 // 流程：
-//   1. mac-14：会话与轨迹、优化建议、生成工坊、导出分享卡里，对每个窗格滚动滚轮 → 只有它动，其他窗格与 #content 不动；
+//   1. mac-14：会话轨迹、优化建议、生成工坊、导出分享卡里，对每个窗格滚动滚轮 → 只有它动，其他窗格与 #content 不动；
 //      从别页进入会话页时，列表里靠后的选中行在列表窗格内可见，#content 不滚。
 //   2. 全部尺寸：内容列够宽（≥ 800px）时会话页进入窗格模式且 #content 不溢出，否则整页滚动。
 import { test, expect } from '@playwright/test';
@@ -29,6 +29,18 @@ test('each pane scrolls on its own', async ({ page }, info) => {
   await onlyThisScrolls(page, ['#content .recs>.stack', '#content .recs>:last-child']);
   await go(page, 'studio');
   await onlyThisScrolls(page, ['#content .studio>.card:nth-child(1)', '#content .studio>.card:nth-child(3)']);
+  // Lite 会话轨迹（F12）：列表与详情各自滚动；窗口变矮后仍然是两个窗格各滚各的
+  await page.evaluate(() => edSet('lite', 'l-sessions'));
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-sessions');
+  await settle(page);
+  // 默认高度下两栏都放得下：整页不溢出（不会出现整页一起滚）；窗口变矮后两栏各自滚
+  expect(await page.evaluate(() => $('#content').scrollHeight - $('#content').clientHeight)).toBeLessThanOrEqual(1);
+  await page.evaluate(() => { S.win.h = 640; applyWin(); });
+  await settle(page);
+  await onlyThisScrolls(page, ['#content .l-sess>.card>.slist', '#content .l-sess>.stack']);
+  await page.evaluate(() => { S.win.h = null; applyWin(); edSet('advance', 'sessions'); });
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('advance|sessions');
+  await settle(page);
   // the selected session stays visible inside the list pane
   await page.evaluate(() => { S.sess.sel = sessList()[40].id; go('sessions'); });
   await settle(page);

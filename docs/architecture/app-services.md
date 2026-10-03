@@ -164,7 +164,7 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | A3 会话详情与轨迹 | ✔ | ✔ | `GET /v1/analytics/sessions/{id}`；`GET /v1/sessions/{id}/events?after_seq&limit≤500`；`GET /v1/evidence/{event_id}` | 事件游标分页，保留 `record_uid` 证据定位 | 30 ms（直读 SQL） | ✔ |
 | A4 工具调用（FE-06） | ✔ | ✔ | `GET /v1/analytics/tools`；`GET /v1/analytics/tools/calls?name&limit`（AN-01.2） | `by_tool`、成功 / 失败 / 未知状态分列 | 100 ms | ✔ tools；依赖 calls |
 | A5 项目习惯（FE-07） | ✔ | ✔ | `GET /v1/analytics/projects`；`GET /v1/inventory` | 项目聚合 + 配置覆盖（清单只读） | 100 ms | ✔ |
-| A6 情绪与语义（FE-08） | ✔ | ✔ | `GET /v1/uiview/sentiment`（`days`、`agent`、`project_id`、`tz`、`bucket`） | `language_mix`、`series`（情绪分布与纠偏）、`friction`、`phrases`（高频反馈语）、`terms.items[{term,count,days,sessions,share}]`（高频词词云：只取用户本人消息，按脱敏规则清洗后用固定 jieba 词典 + 英文单词切分，过滤停用词、数字、URL、路径、代码标识与密钥样式串，前 60 个）；原语义主题 `topics` 与情绪前因 `drivers` 已随页面模块删除 | 150 ms | ✔ |
+| A6 情绪语义（FE-08） | ✔ | ✔ | `GET /v1/uiview/sentiment`（`days`、`agent`、`project_id`、`tz`、`bucket`） | `language_mix`、`series`（情绪分布与纠偏）、`friction`、`phrases`（高频反馈语）、`terms.items[{term,count,days,sessions,share}]`（高频词词云：只取用户本人消息，按脱敏规则清洗后用固定 jieba 词典 + 英文单词切分，过滤停用词、数字、URL、路径、代码标识与密钥样式串，前 60 个）；原语义主题 `topics` 与情绪前因 `drivers` 已随页面模块删除 | 150 ms | ✔ |
 | A7 优化建议（FE-09） | ✔ | ✔ | `GET /v1/recommendations`、`POST …/feedback`（推荐模块） | gateway 透传，同样返回 `meta` | 150 ms | 推荐包 |
 | A8 资源库（FE-10） | ✔ | ✔ | `GET /v1/catalog`、`/catalog/search`、`GET /v1/inventory` | 来源状态、本地清单 | 100 ms | ✔ / 依赖 |
 | A9 生成工坊、问本地 Agent（FE-11/13） | — | ✔ | `POST /v1/ai/jobs`、`GET /v1/ai/jobs/{id}`、SSE | 复用任务与 SSE 基础设施，AI 模块注册作业种类 | — | AI 包 |

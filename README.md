@@ -12,9 +12,9 @@
 [![Node.js: ≥24.7](https://img.shields.io/badge/node.js-%E2%89%A524.7-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![Conventional Commits: 1.0.0](https://img.shields.io/badge/commits-Conventional_Commits_1.0.0-FE5196)](https://www.conventionalcommits.org/en/v1.0.0/)
 
-ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Code、Codex 等 Agent 的会话记录，生成协作人格画像与会话轨迹，并推荐 Skills、Hooks、规则等可一键安装、可撤销的改进。数据只在本机处理。
+ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Code、Codex 等 Agent 的会话记录，生成协作人格画像（四个维度组成 16 型，每型一朵旋转对称的人格之花；画像页的表盘按类型排布会话，每个 Agent 一条曲线）与会话轨迹，并推荐 Skills、Hooks、规则等可一键安装、可撤销的改进。数据只在本机处理。
 
-仓库包含统一数据层、Python 后端、CLI、本机 API、Lite / Advance 统一 App 界面和原生 macOS 宿主（[`apps/desktop`](apps/desktop/README.md)，安装包见 GitHub Releases）。产品名 Orbit，全名 Orbit·知音；代码标识统一为 `orbit`（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`），改名前的数据目录与设置会自动迁移，见[品牌](docs/design/brand.md#名称)。
+仓库包含统一数据层、Python 后端、CLI、本机 API、Lite / Advance 统一 App 界面和原生 macOS 宿主（[`apps/desktop`](apps/desktop/README.md)，当前版本 0.0.4，安装包见 GitHub Releases）。产品名 Orbit，全名 Orbit·知音；代码标识统一为 `orbit`（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`），改名前的数据目录与设置会自动迁移，见[品牌](docs/design/brand.md#名称)。
 
 ## 开始开发
 

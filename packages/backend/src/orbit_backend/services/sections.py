@@ -64,6 +64,18 @@ class ResultMemo:
         self.entries = [(key, value), *self.entries][: self.size]
         return value
 
+    def without_recommendations(self, store, scope, revision: Any) -> dict:
+        """Every section but the default recommendations, for callers that rerun
+        ``recommend()`` with their own context (canonical stores skip computing the
+        default set only to discard it; legacy stores reuse the memoised full pass)."""
+        from ..analytics.cache import supports_cache
+        from ..analytics.service import SECTIONS
+
+        if supports_cache(store):
+            keys = [n for n in SECTIONS if n != "bottleneck_recommendations"]
+            return self.sections(store, scope, keys, False, revision)
+        return self.analysis(store, scope, False, revision)
+
     def sections(self, store, scope, keys: list[str], with_text: bool, revision: Any) -> dict:
         """Canonical stores read only ``keys`` through the analysis read-through cache, which
         is keyed by the session-tree fingerprint and shared with ``api/routes.py``; other
@@ -291,21 +303,36 @@ def _presentation(store, scope, params, memo):
     from ..analytics.presentation.metrics import window_scope
 
     selected = window_scope(scope, params.get("window"), now_ts=params.get("window_until"))
-    result = dict(memo.analysis(store, selected, False, params.get("_rev")))
     target, family = params.get("target_agent", "generic"), params.get("family")
-    if target != "generic" or family:
-        from ..recommend.service import recommend
+    if target == "generic" and not family:  # the analysis' own default set is the answer
+        return _summarised(bounded_presentation(memo.analysis(store, selected, False,
+                                                              params.get("_rev"))))
+    from ..recommend.service import recommend
 
-        result["bottleneck_recommendations"] = recommend(result, context={"agent": target},
-                                                         family=family)
+    result = dict(memo.without_recommendations(store, selected, params.get("_rev")))
+    result["bottleneck_recommendations"] = recommend(result, context={"agent": target},
+                                                     family=family)
     return _summarised(bounded_presentation(result))
+
+
+def _default_recommendation_request(params: dict) -> bool:
+    """Same inputs as the analysis' own ``recommend(full_without_recommendations)`` call."""
+    from ..recommend.contracts import RecommendationContext
+
+    return (params.get("kind") is None and params.get("family") is None
+            and params.get("limit", 6) == 6
+            and RecommendationContext.model_validate(params.get("context") or {})
+            == RecommendationContext())
 
 
 def _recommendations(store, scope, params, memo):
     from ..analytics.service import response_section
     from ..recommend.service import recommend
 
-    result = dict(memo.analysis(store, scope, False, params.get("_rev")))
+    if _default_recommendation_request(params):
+        return response_section(memo.analysis(store, scope, False, params.get("_rev")),
+                                "bottleneck_recommendations")
+    result = dict(memo.without_recommendations(store, scope, params.get("_rev")))
     options = {k: params[k] for k in ("kind", "family") if params.get(k) is not None}
     result["bottleneck_recommendations"] = recommend(
         result, context=params.get("context") or {}, limit=params.get("limit", 6), **options)
@@ -383,9 +410,12 @@ def rules_digest() -> str:
         from .. import __version__
         from ..analytics import FEATURE_VERSION
         from ..analytics.products.contracts import rule_versions
+        from ..recommend.engine import ENGINE_VERSION
+        from ..recommend.section import FACTS_VERSION
 
         payload = json.dumps([rule_versions(), FEATURE_VERSION, __version__, sorted(SECTIONS),
-                              {"full_pass_with_text": WITH_TEXT}], sort_keys=True)
+                              {"full_pass_with_text": WITH_TEXT, "recommend_facts": FACTS_VERSION,
+                               "recommend_engine": ENGINE_VERSION}], sort_keys=True)
         _RULES = hashlib.sha256(payload.encode()).hexdigest()[:12]
     return _RULES
 

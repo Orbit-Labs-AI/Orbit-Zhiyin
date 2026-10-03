@@ -156,9 +156,11 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
         "alternatives": [f"kb:{ref}" for ref in rule.remedy.alternatives], "generate": None,
         "kb": rule.model_dump(mode="json"), "item": None, "agents": dict(rule.remedy.agents),
         "prior": rule.benefit.prior.model_dump(), "cost": rule.cost.model_dump(), "risk": rule.risk.model_dump(),
-        "requirements": {"tools": [], "software": [values["software"]] if "software" in values else []},
+        # The software being diagnosed is not a dependency of its remedy.
+        "requirements": {"tools": [], "software": []},
         "gates_hint": rule.gates.model_dump(), "unit_minutes": rule.benefit.unit_minutes,
-        "unit_minutes_source": rule.benefit.unit_minutes_source, "tags": list(rule.tags),
+        "unit_minutes_source": rule.benefit.unit_minutes_source,
+        "unit_minutes_note": rule.benefit.unit_minutes_note, "tags": list(rule.tags),
         "file": file or None,
         "explain_hints": {**rule.explain.model_dump(), "vars": values},
         "unfilled_slots": [name for name in rule.remedy.slots if name not in values],

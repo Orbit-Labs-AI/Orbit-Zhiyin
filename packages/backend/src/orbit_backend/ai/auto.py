@@ -1,13 +1,15 @@
-"""Background AI work a scheduler can trigger; nothing here runs on its own.
+"""Background AI work triggered by the gateway after imports.
 
-``auto_facet_new(gw)`` is meant for the platform scheduler (e.g. after each ingest or on a
-timer): when the user turned on ``settings.auto_facet_new`` it queues one ``facet.session``
-job for recent finished sessions that have no facet yet. Jobs carry ``params.auto`` so they
+``auto_facet_new(gw)`` is called by the gateway after every import job that finished with
+new data (``JobService.on_import_done`` → ``Gateway._after_import``): when the user turned
+on ``settings.auto_facet_new`` it queues one ``facet.session`` job for recent finished
+sessions that have no facet yet. Jobs carry ``params.auto`` so they
 do not raise an "AI job done" notification.
 """
 
 from __future__ import annotations
 
+from .consent import Consent
 from .errors import AIError
 from .runner import now_ms
 from .service import service
@@ -38,10 +40,13 @@ def new_session_uids(gw, limit: int = BATCH) -> list[str]:
 
 def auto_facet_new(gw, limit: int = BATCH) -> dict:
     """Queue one facet job for new sessions; ``{status: submitted|idle|skipped, ...}``."""
-    svc = service(gw)
-    settings = svc.consent_store.settings()
+    # Read the setting before building the AI service: with the switch off (the default) an
+    # import must not spin up engines/runner just to find out there is nothing to do.
+    existing = getattr(gw, "_ai", None)
+    settings = (existing.consent_store if existing is not None else Consent(gw.appdb)).settings()
     if not settings.get("auto_facet_new") or settings["mode"] == "stats":
         return {"status": "skipped", "reason": "disabled"}
+    svc = service(gw)
     with gw.appdb.read() as db:
         busy = db.execute("SELECT job_id FROM ai_job WHERE task_id = 'facet.session' AND "
                           "status IN ('queued', 'running') LIMIT 1").fetchone()

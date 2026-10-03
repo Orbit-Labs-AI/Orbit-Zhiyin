@@ -1,8 +1,12 @@
 """``GET /v1/app/tool_map`` (SET-11): how raw tool names map to Orbit's tool kinds.
 
-The static table is ``orbit_data.reduce.TOOL_KINDS`` (MCP names follow
-``mcp__<server>__<tool>``). Observed names come from ``tool_call`` grouped by agent; with
-no database only the static table is returned. Editing the map is planned for v2.
+The static table is ``orbit_data.tool_kinds.AGENT_TOOL_KINDS``, listed per agent because
+classification is per agent (``tool_kind(name, agent)``): the same name can mean different
+things to different harnesses, and the union table ``reduce.TOOL_KINDS`` hides which agent
+registers which name. Names an agent registers without an analytic category are listed under
+``other``. MCP names follow ``mcp__<server>__<tool>``. Observed names come from ``tool_call``
+grouped by agent; with no database only the static table is returned. Editing the map is
+planned for v2.
 """
 
 from __future__ import annotations
@@ -38,23 +42,27 @@ def _observed(reads) -> list[tuple]:
 
 def tool_map(reads=None) -> dict:
     from orbit_data import REDUCER_VERSION
-    from orbit_data.reduce import TOOL_KINDS
+    from orbit_data.tool_kinds import AGENT_TOOL_KINDS, KINDS
 
-    kinds = {kind: {"kind": kind, "label": LABELS.get(kind, kind),
-                    "names": [{"agent": None, "name": name, "calls": None}
-                              for name in sorted(names)]}
-             for kind, names in TOOL_KINDS.items()}
-    for kind in ("mcp", "other"):
-        kinds[kind] = {"kind": kind, "label": LABELS[kind], "names": []}
+    kinds = {kind: {"kind": kind, "label": LABELS.get(kind, kind), "names": []}
+             for kind in KINDS}
+    kinds.setdefault("mcp", {"kind": "mcp", "label": LABELS["mcp"], "names": []})
+    static: dict[tuple[str, str], dict] = {}
+    for agent in sorted(AGENT_TOOL_KINDS):
+        for name, kind in sorted(AGENT_TOOL_KINDS[agent].items()):
+            entry = {"agent": agent, "name": name, "calls": None}
+            kinds.setdefault(kind, {"kind": kind, "label": LABELS.get(kind, kind), "names": []})
+            kinds[kind]["names"].append(entry)
+            static[(agent, name)] = entry
     observed = 0
     for agent, name, kind, calls in _observed(reads):
         entry = kinds.setdefault(kind, {"kind": kind, "label": LABELS.get(kind, kind),
                                         "names": []})
-        static = next((n for n in entry["names"] if n["agent"] is None
-                       and n["name"] == str(name).lower()), None)
-        if static is not None and static["calls"] is None:
-            entry["names"].remove(static)  # Observed under its raw spelling instead.
+        known = static.pop((agent or "", str(name).lower()), None)
+        if known is not None and known in entry["names"]:
+            entry["names"].remove(known)  # Observed under its raw spelling instead.
         entry["names"].append({"agent": agent or None, "name": name, "calls": calls})
         observed += 1
     return {"version": REDUCER_VERSION, "kinds": list(kinds.values()), "observed": observed,
-            "mcp": {"pattern": "mcp__<server>__<tool>"}, "editable": False}
+            "agents": sorted(AGENT_TOOL_KINDS), "mcp": {"pattern": "mcp__<server>__<tool>"},
+            "editable": False}

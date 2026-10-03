@@ -11,7 +11,14 @@ from typing import Any
 
 from ...models import stable_id
 from ..stats import proportion, wilson_lo
-from .dictionary import PROBLEM_TYPES, RULES_VERSION, SCOPES, SIGNAL_KINDS, WILSON_LO_MIN
+from .dictionary import (
+    PROBLEM_TYPES,
+    RULES_VERSION,
+    SCOPES,
+    SIGNAL_KINDS,
+    WEEKLY_WINDOW_WEEKS,
+    WILSON_LO_MIN,
+)
 
 Record = dict[str, Any]
 WEEK_MS = 7 * 24 * 3600 * 1000
@@ -67,7 +74,7 @@ def upgrade_problems(signals: list[Record], facts: list[Record], *,
                   else "below_wilson_lo" if lo <= lo_min else None)
         occ_ts = [o["ts"] for s in rows for o in s["occurrences"] if o.get("ts") is not None]
         weekly = (None if ref is None or not occ_ts
-                  else sum(ref - 4 * WEEK_MS <= t < ref for t in occ_ts) / 4)
+                  else sum(ref - WEEKLY_WINDOW_WEEKS * WEEK_MS <= t < ref for t in occ_ts) / WEEKLY_WINDOW_WEEKS)
         pid = problem_id(ptype, key, scope, scope_id)
         label = status.get(pid)
         row = {"problem_id": pid, "type": ptype, "key": key, "scope": scope, "scope_id": scope_id,

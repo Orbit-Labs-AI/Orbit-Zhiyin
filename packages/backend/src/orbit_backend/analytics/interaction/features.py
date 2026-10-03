@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 
 from ..common import annotation_visible, human, ratio, task_uid
 from ..semantic_cascade import observation_for
-from .rules import EXECUTION_KINDS, FRICTIONS, INTENTS, correction_terms
+from .rules import EXECUTION_KINDS, FRICTIONS, INTENTS, correction_verdict, verdict_terms
 
 
 def classify_message_intents(events, main_ids, until_ts=None):
@@ -31,7 +31,10 @@ def classify_message_intents(events, main_ids, until_ts=None):
         # A confirmed correction must identify what was corrected in this task.
         if reviewed and "correction" in labels and not target_valid:
             reviewed = False
-        terms = correction_terms(e.get("text") or "")
+        verdict = correction_verdict(e.get("text") or "")
+        terms = verdict_terms(verdict)
+        # Result feedback ("还是不行，测试依然失败") is a feedback candidate, not a correction.
+        lexical_intent = {"correction": "correction", "result_feedback": "feedback"}.get(verdict["kind"])
         friction = a.get("friction_types")
         friction_valid = (reviewed and target_valid and isinstance(friction, list)
                           and all(isinstance(v, str) and v in FRICTIONS for v in friction))
@@ -49,7 +52,7 @@ def classify_message_intents(events, main_ids, until_ts=None):
                      "turn_uid": e.get("turn_uid"), "task_uid": task_uid(e), "seq": e["seq"],
                      "intents": sorted(set(labels)) if reviewed else sorted(set(semantic["intents"])) if inferred else None,
                      "state": "confirmed" if reviewed else "inferred" if inferred else "candidate" if terms else "unknown",
-                     "candidate_intents": ["correction"] if terms else [], "candidate_terms": terms,
+                     "candidate_intents": [lexical_intent] if lexical_intent else [], "candidate_terms": terms,
                      "friction_types": sorted(set(friction)) if friction_valid else
                      semantic["friction_types"] if inferred and target_valid else None,
                      "requirements": requirements if requirement_valid else None,

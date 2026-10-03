@@ -146,7 +146,7 @@ test('persona code is the same in the sidebar, A1 card, A2 and the report while 
   // 人格卡在 A1 用的是人格口径的 n，而不是筛选后的会话数
   await go(page, 'overview');
   const n = await page.evaluate(() => personaNow().n);
-  await expect(page.locator('#main .ov-pers .bdg')).toContainText('n=' + n);
+  await expect(page.locator('#main .ov-pers .bdg')).toContainText(n + ' 个会话');
   expect(errors).toEqual([]);
 });
 
@@ -214,7 +214,7 @@ test('low-sample state lists relax estimates; all sources off points to settings
   await expect(page.locator('#main .pe-low')).toContainText('当前筛选下还没有会话');
   const chips = page.locator('#main .pe-relax .chip');
   expect(await chips.count()).toBeGreaterThanOrEqual(1);
-  await expect(chips.first()).toContainText('移除后 n≈');
+  await expect(chips.first()).toContainText(/移除后约 \d+ 个会话/);
   const est = await page.evaluate(() => +document.querySelector('#main .pe-relax .chip[data-k="agents"] b').textContent.replace(/\D/g, ''));
   await page.locator('#main .pe-relax .chip[data-k="agents"]').click();
   expect(await page.evaluate(() => S.agents.size)).toBe(5);

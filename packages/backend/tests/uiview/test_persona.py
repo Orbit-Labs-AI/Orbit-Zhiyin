@@ -284,25 +284,38 @@ def test_fit_uses_wilson_over_known_outcomes():
 def test_evidence_hand_computed_with_projectless_bucket_and_missing_msgs():
     rows = [{"id": "r1", "d": "2026-09-01", "p": "p1", "msgs": 4, "steps": 8},
             {"id": "r2", "d": "2026-09-01", "p": None, "msgs": None, "steps": 3},
-            {"id": "r3", "d": "2026-09-02", "p": None, "msgs": 6, "steps": 2}]
+            {"id": "r3", "d": "2026-09-02", "p": None, "msgs": 6, "steps": 2},
+            {"id": "r4", "d": "2026-09-02", "p": None, "msgs": 10, "steps": None}]
     aux = {"r1": {"open": 1, "turns": [[1, 1], [1, 0]]},
            "r2": {"open": 0, "turns": [[1, 0]]},
            "r3": {"open": 1, "turns": []}}
     p = {"axes": [{"k": "I", "n_units": 3, "k_units": 1}]}
-    ev = persona.evidence(rows, aux, p, {"verify": 50.0}, {"p1": {"id": "p1", "name": "Alpha"}})
-    # Messages known for r1, r3 only: (4+6)/2 = 5.0 per session, (8+2)/10 = 1.0 step.
-    assert ev["D"]["txt"] == "每会话 5.0 条消息 · 单轮平均 1.0 步"
-    assert ev["D"]["missing_n"] == 1
-    assert ev["D"]["vals"] == [0, 0, 1, 1, 0, 0, 0, 0, 0, 0]  # 4 → bin 2, 6 → bin 3
+    ev = persona.evidence(rows, aux, p, {"verify": 50.0, "verify_n": 2},
+                          {"p1": {"id": "p1", "name": "Alpha"}})
+    # Messages known for r1, r3, r4: (4+6+10)/3 = 6.7 per session. Steps per message only
+    # over rows with both known (r1, r3): (8+2)/(4+6) = 1.0 — r4's 10 messages without
+    # steps must not dilute it to 10/20 = 0.5.
+    assert ev["D"]["txt"] == "每会话 6.7 条消息 · 单轮平均 1.0 步"
+    assert ev["D"]["missing_n"] == 1 and ev["D"]["auto_n"] == 2
+    assert ev["V"]["verify_n"] == 2
+    assert ev["D"]["vals"] == [0, 0, 1, 1, 0, 1, 0, 0, 0, 0]  # 4 → bin 2, 6 → 3, 10 → 5
     assert ev["I"]["txt"] == "结构化开场占 67%"  # (3 − 1) / 3
     # Structured openings: no-project bucket 1/2 = 50%, p1 1/1 = 100%.
     assert ev["I"]["vals"] == [50, 100] and ev["I"]["projects"][1] == "Alpha"
     # Verification turns: no-project 0/1, p1 1/2.
     assert ev["V"]["vals"] == [0, 50] and ev["V"]["txt"] == "50% 会话要求或运行了验证"
-    assert ev["M"]["txt"] == "日均 1.5 个会话 · 同日 1.0 个 Agent"  # 3 rows over 2 days
+    assert ev["M"]["txt"] == "日均 2.0 个会话 · 同日 1.0 个 Agent"  # 4 rows over 2 days
     none = persona.evidence([{"id": "x", "d": "2026-09-01", "p": None, "msgs": None}], {},
-                            {"axes": [{"k": "I", "n_units": 0, "k_units": 0}]}, {"verify": 0}, {})
+                            {"axes": [{"k": "I", "n_units": 0, "k_units": 0}]},
+                            derive.stats([{"id": "x"}], unknown=None), {})
     assert none["D"]["txt"] == "消息数未知" and none["D"]["vals"] is None
+    # No row with a known verify flag: unknown, not "0%".
+    assert none["V"]["txt"] == "验证情况未知" and none["V"]["verify_n"] == 0
+
+
+def test_fit_without_known_outcomes_is_unknown():
+    fit = persona.fit([{"id": "u1", "a": "a", "out": None}], ["a"])[0]
+    assert fit["ok_est"] is None and fit["ok_n"] == 0 and fit["ok_ci"] is None
 
 
 def test_blind_spots_hand_computed():

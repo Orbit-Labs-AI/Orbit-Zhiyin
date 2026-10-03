@@ -4,6 +4,16 @@ import { homedir } from 'node:os';
 import { uid } from './util.ts';
 import type { ConnectorStore } from './store.ts';
 
+/**
+ * Throwaway workspaces grouped into one "临时工作区" bucket instead of one project per directory.
+ * Markers match anywhere in the path (home-relative app scratch dirs) and always win; absolute temp roots
+ * only apply when the directory is not inside a Git checkout (a clone under /tmp is still that project).
+ */
+export const TEMPORARY_WORKSPACE_MARKERS = ['/Documents/Codex/', '/.claude/remote/'] as const;
+export const TEMPORARY_WORKSPACE_PREFIXES = ['/tmp/', '/private/tmp/', '/var/folders/', '/private/var/folders/'] as const;
+export function temporaryWorkspace(cwd: string, inGit = false): boolean {
+  return TEMPORARY_WORKSPACE_MARKERS.some(marker=>cwd.includes(marker)) || (!inGit && TEMPORARY_WORKSPACE_PREFIXES.some(prefix=>cwd.startsWith(prefix)));
+}
 export function normalizeRemote(remote: string): string | null {
   let value = remote.trim().replace(/\.git\/?$/,'').replace(/\/$/,'');
   const ssh = value.match(/^[^@/]+@([^:]+):(.+)$/);
@@ -38,7 +48,7 @@ export function projectFor(store: ConnectorStore, cwd: string | null, recordedRe
     }
   }
   remote ??= recordedRemote ? normalizeRemote(recordedRemote) : null;
-  const temporary = cwd?.includes('/Documents/Codex/') || cwd?.includes('/.claude/remote/');
+  const temporary = cwd ? temporaryWorkspace(cwd,gitRoot!==null) : false;
   const bucket = temporary ? 'temporary' : cwd === homedir() ? 'other' : null;
   const type = bucket ? 'bucket' : remote ? 'git_remote' : gitRoot ? 'git_root' : 'path';
   const key = bucket ?? remote ?? gitRoot ?? cwd!;

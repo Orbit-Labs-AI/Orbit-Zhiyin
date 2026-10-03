@@ -226,9 +226,16 @@ class HttpClient:
             if exc.code == 304 and cached:
                 self._touch(key)
                 return cached["body"]
-            delay = (exc.headers or {}).get("Retry-After", "0") or "0"
-            error = FetchError(f"http_{exc.code}", int(delay) if delay.isdigit() else 0)
-            error.retryable = exc.code in RETRYABLE
+            headers = exc.headers or {}
+            delay = headers.get("Retry-After", "0") or "0"
+            wait = int(delay) if delay.isdigit() else 0
+            # GitHub answers an exhausted primary or secondary rate limit with 403 (docs.github.com
+            # "Rate limits for the REST API": Retry-After, or x-ratelimit-remaining 0 + reset epoch).
+            limited = exc.code == 403 and (wait > 0 or headers.get("x-ratelimit-remaining") == "0")
+            if limited and not wait and str(headers.get("x-ratelimit-reset", "")).isdigit():
+                wait = max(1, int(headers["x-ratelimit-reset"]) - int(time.time()))
+            error = FetchError(f"http_{exc.code}", wait)
+            error.retryable = exc.code in RETRYABLE or limited
             raise error from None
         except (URLError, TimeoutError, OSError) as exc:
             error = FetchError("source_network_error")

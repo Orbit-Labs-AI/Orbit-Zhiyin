@@ -57,9 +57,16 @@ def run_suite(suite_id: str, *, params: dict | None = None, home: Path | None = 
     return result
 
 
+def _kind(suite_id: str) -> str:
+    try:
+        return registry.kind(suite_id, registry.get(suite_id))
+    except Exception:  # noqa: BLE001 - a suite that fails to import keeps its table kind
+        return registry.kind(suite_id)
+
+
 def _suite_dict(result: SuiteResult) -> dict:
     score = result.score
-    return {"suite": result.suite, "skipped": result.skipped,
+    return {"suite": result.suite, "kind": _kind(result.suite), "skipped": result.skipped,
             "score": None if score is None else round(score, 4),
             "checks": [asdict(c) for c in result.checks], "metrics": result.metrics}
 

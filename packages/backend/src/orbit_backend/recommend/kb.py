@@ -60,6 +60,8 @@ class Benefit(_M):
     # Where unit_minutes comes from (measurement or cited estimate). Without it the minutes only order
     # candidates internally and the card shows「未估算」instead of a minutes figure.
     unit_minutes_source: str | None = None
+    # Why there is no source yet (what measurement would supply it); shown instead of minutes.
+    unit_minutes_note: str | None = None
     prior: Prior = Prior()
 
 
@@ -119,6 +121,8 @@ class Rule(_M):
 class KnowledgeBase(_M):
     schema_version: Literal["remedies-v1"]
     origin: str
+    # How remedy.agents beyond the hand-reviewed claude_code/codex were derived (capability matrix).
+    agent_support_basis: str | None = None
     rules: list[Rule] = Field(min_length=1)
 
 

@@ -1,18 +1,49 @@
 """Observable prompt structure for the Instruction feature family."""
 
 import re
+from functools import cache
 
+from ...privacy import _MARKDOWN
 from .text import instruction_text
 
 CONSTRAINT = re.compile(r"必须|不要|只能|要求|\b(?:must|do not|don't|only|require)\b", re.I)
-FILE = re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(py|ts|tsx|js|jsx|tex|md|json|yaml|yml|rs|go|java|cpp|c|h|sh|html|css|ipynb|swift|kt|rb|php|toml|sql|txt|csv)\b", re.I)
+
+
+# File mentions that are not a programming/markup language in ``features.LANG`` but are
+# still files a prompt points at.
+NON_LANGUAGE_FILE_EXTENSIONS = ("txt", "log")
+
+
+@cache
+def file_pattern() -> re.Pattern:
+    """A path-like token ending in a ``features.LANG`` extension (the session family's
+    ``FILE_REFERENCE`` table, Linguist-named) or a ``NON_LANGUAGE_FILE_EXTENSIONS`` one.
+
+    Built lazily: ``analytics.features`` imports this module."""
+    from ..features import LANG
+
+    extensions = sorted({*LANG, *NON_LANGUAGE_FILE_EXTENSIONS}, key=lambda e: (-len(e), e))
+    return re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(" + "|".join(extensions) + r")\b", re.I)
+
+
+def code_block_count(raw: str, direct: str, attrs: dict) -> int | None:
+    """Fenced + indented CommonMark code blocks the user wrote (the material ``direct_user_text``
+    removes before every other count). ``None`` when the importer already dropped fences
+    (legacy store, ``attrs.fences_removed``); 0 when nothing of the message is the user's."""
+    if attrs.get("fences_removed"):
+        return None
+    if not direct:
+        return 0
+    if "## My request:" in raw:
+        raw = raw.split("## My request:", 1)[1]
+    return sum(token.type in ("fence", "code_block") for token in _MARKDOWN.parse(raw))
 
 
 def structure(e):
-    text = e.get("text")
-    if text is None:
+    raw = e.get("text")
+    if raw is None:
         return None
-    text = instruction_text(text)
+    text = instruction_text(raw)
     attrs = e.get("attrs", {})
     original = attrs.get("original_chars")
     valid_original = isinstance(original, int) and not isinstance(original, bool) and original >= len(text)
@@ -22,9 +53,9 @@ def structure(e):
            "question_mark_count": len(re.findall(r"[?？]", text)),
            "bullet_count": len(re.findall(r"(?m)^\s*[-*+]\s+", text)),
            "numbered_list_count": len(re.findall(r"(?m)^\s*\d+[.)、]\s*", text)),
-           "code_block_count": None,  # Legacy normalization removed fenced material.
+           "code_block_count": code_block_count(raw, text, attrs),
            "url_count": len(re.findall(r"https?://[^\s<>]+", text)),
-           "file_reference_count": len(FILE.findall(text)),
+           "file_reference_count": len(file_pattern().findall(text)),
            "explicit_format_request_count": len(re.findall(r"(?:请|用|输出为|写成).{0,8}(?:表格|列表|JSON|Markdown|分点)", text, re.I)),
            "explicit_tool_mention_count": len(re.findall(r"(?:使用|调用|用)\s*`?[\w.]*?(?:MCP|工具|skill|pytest|git|bash)\b", text, re.I)),
            "constraint_marker_count": len(CONSTRAINT.findall(text))}

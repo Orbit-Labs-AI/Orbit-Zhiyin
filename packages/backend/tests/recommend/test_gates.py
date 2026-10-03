@@ -126,12 +126,25 @@ def test_audience_and_requirements():
     assert run(r)["checks"]["requirements_ok"] == NA
 
 
+def test_software_requirements_use_their_own_namespace():
+    from orbit_backend.recommend.recall.feature_route import legacy_profile
+
+    profile = legacy_profile({"tags": [{"id": "tool:shell", "ns": "tool", "weight": 1}],
+                              "groups": {"cmd": [{"id": "cmd:python3", "ns": "cmd"}],
+                                         "sw": [{"id": "sw:latexmk", "ns": "sw"}]}})
+    assert profile["software"] == ["latexmk", "python3"] and profile["tools"] == ["shell"]
+    requirement = raw(requirements={"tools": ["shell"], "software": ["python3"]})
+    assert run(requirement, inputs={"profile": profile})["checks"]["requirements_ok"] is True
+    profile.pop("software")
+    assert run(requirement, inputs={"profile": profile})["checks"]["requirements_ok"] == NA
+
+
 def test_unverified_catalog_row_is_rejected():
     from orbit_backend.recommend.recall.catalog_route import _normalise_catalog, from_item
 
     row = {"item_id": "x", "type": "skill", "name": "X", "license": "MIT", "content_hash": "ab" * 32,
            "agents": ["claude_code"]}
-    assert _normalise_catalog(row)["verified"] is False
+    assert _normalise_catalog(row)["verified"] is None  # not in the search row: looked up in catalog_item
     assert _normalise_catalog(row | {"verification": "metadata_only"})["verified"] is False
     assert _normalise_catalog(row | {"verification": "repository_and_skill_read"})["verified"] is True
     cand = from_item(_normalise_catalog(row), None, INPUTS, match_basis="profile")

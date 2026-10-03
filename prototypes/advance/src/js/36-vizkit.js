@@ -47,12 +47,12 @@
  *   slope         同 dumbbell 字段，纵向两列对比
  *   heatmap       rows: [str]，cols: [str]，values: [[n]]，ramp: 'gray' | 'accent' | 'err' | 'corr' | 'good' | 'mood'（发散，值域自动对称）| 任意 var()，showValues，peak，cellMax，format，min / max
  *                 layout: 'calendar' 时 days: [{ t, v }]（t 毫秒）
- *   scatter       points: [{ x, y, r, label, id, color, series }]，fit（回归 + 95% CI），labels，rMax，x/y 同上
- *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format
+ *   scatter       points: [{ x, y, r, label, id, color, series }]，fit（回归 + 95% CI），nUnit（拟合说明里样本数的单位，默认「个点」），labels，rMax，x/y 同上
+ *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format，nUnit（右侧样本数的单位，默认「个」）
  *   flow          nodes: [{ id, name, col }]，links: [{ from, to, value }]，format
- *   timeline      lanes: [{ id, label, h, color, mode: 'density' }]，events: [{ lane, t, t2, kind: 'tick' | 'dot' | 'ring' | 'span', color, label, sub, detail, err, id, dim }]
+ *   timeline      lanes: [{ id, label, h, color, mode: 'density' }]，events: [{ lane, t, t2, kind: 'tick' | 'dot' | 'ring' | 'span', color, label, sub, detail, err, id, dim, cat（密度桶悬停按类别计数）}]
  *                 range: [t0, t1]，unit: 'ms' | 'min'（min 时 start 为起始时刻的分钟数，刻度显示 HH:MM），playhead（之后的事件变淡），now（运行中：竖线 + 脉冲点）
- *                 spans: [{ t, t2, label, color, inferred }] 阶段带；markers: [{ t, label, n, alert }] 关键时刻徽章（相距 < 20px 自动合并成簇）
+ *                 spans: [{ t, t2, label, short, tip, color, inferred }] 阶段带（label 放不下退到 short；tip 为原生悬停说明）；markers: [{ t, label, n, alert }] 关键时刻徽章（相距 < 20px 自动合并成簇）
  *                 mode: 'density' 的泳道把事件按 bucket px（默认 4）聚合成密度块（高度对数、失败叠红），hover 列出桶内事件
  *                 onSelect(i, d)：d 为事件本身，或 { bucket: true, lane, t0, t1, n, err, events }，或 { marker: true, t, markers }
  *                 axisMode: 'time' | 'steps'（事件等距、跨度固定 1 步、刻度每 k 步）；zoom: false 关闭 ⌘/Ctrl + 滚轮以光标为锚的缩放（1 – maxZoom，默认 12 倍）；
@@ -1052,7 +1052,7 @@ VZ.types.scatter = {
   extra(spec, w, model) {
     const fit = model && model.fit; const hasR = (spec.points || []).some((p) => VZ.num(p.r) != null); if (!fit && !hasR) return '';
     const rmx = hasR ? Math.max(1e-9, ...(spec.points || []).map((p) => VZ.num(p.r) || 0)) : 0;
-    return '<div class="vz-scale">' + (fit ? '<span class="cap">拟合 r = ' + fit.r.toFixed(2) + ' · n = ' + fit.n + ' · 带为 95% 置信区间' + (fit.n < 10 ? '（样本少，仅供参考）' : '') + '</span>' : '') + (hasR ? '<span class="cap vz-scale-note"><i class="vz-rleg" style="width:12px;height:12px"></i>' + esc(VZ.fmt(rmx / 4, spec.rFormat)) + ' <i class="vz-rleg" style="width:20px;height:20px"></i>' + esc(VZ.fmt(rmx, spec.rFormat)) + (spec.rLabel ? ' · ' + esc(spec.rLabel) : '') + '</span>' : '') + '</div>';
+    return '<div class="vz-scale">' + (fit ? '<span class="cap">拟合 r = ' + fit.r.toFixed(2) + ' · ' + VZ.fmt(fit.n, 'int') + ' ' + (spec.nUnit || '个点') + ' · 带为 95% 置信区间' + (fit.n < 10 ? '（样本少，仅供参考）' : '') + '</span>' : '') + (hasR ? '<span class="cap vz-scale-note"><i class="vz-rleg" style="width:12px;height:12px"></i>' + esc(VZ.fmt(rmx / 4, spec.rFormat)) + ' <i class="vz-rleg" style="width:20px;height:20px"></i>' + esc(VZ.fmt(rmx, spec.rFormat)) + (spec.rLabel ? ' · ' + esc(spec.rLabel) : '') + '</span>' : '') + '</div>';
   },
   table: (spec) => { const X = spec.x || {}, Y = spec.y || {}; const hasR = (spec.points || []).some((p) => p.r != null); return { cols: ['名称', X.label || 'x', Y.label || 'y'].concat(hasR ? [spec.rLabel || '大小'] : []), rows: (spec.points || []).map((p) => [p.label || p.name || '', VZ.fmt(VZ.num(p.x), X.format), VZ.fmt(VZ.num(p.y), Y.format)].concat(hasR ? [VZ.fmt(VZ.num(p.r), spec.rFormat)] : [])) }; }
 };
@@ -1086,11 +1086,11 @@ VZ.types.dist = {
         g += '<line class="vz-median" x1="' + VZ.r1(sx(s.p50)) + '" x2="' + VZ.r1(sx(s.p50)) + '" y1="' + VZ.r1(cy - bh / 2 - 2) + '" y2="' + VZ.r1(cy + bh / 2 + 2) + '"/>';
         if (spec.mean) g += '<circle class="vz-pt" cx="' + VZ.r1(sx(s.mean)) + '" cy="' + VZ.r1(cy) + '" r="3" style="--c:var(--ink-1)"/>';
       }
-      g += VZ.txt(w - 2, cy + 4, 'n=' + s.n, { class: 'vz-ax', 'text-anchor': 'end' }) + F.hit(i);
+      g += VZ.txt(w - 2, cy + 4, VZ.fmt(s.n, 'int') + ' ' + (spec.nUnit || '个'), { class: 'vz-ax', 'text-anchor': 'end' }) + F.hit(i);
     });
-    return { body: g, model: { kind: 'mark', n: rows.length, F, xs: [], has: (i) => !!S[i], tip: (i) => { const s = S[i]; const r = rows[i]; if (!s) return ''; return VZ.tipHead(r.name || '', 'n = ' + s.n) + VZ.tipRow('var(--ink-1)', '中位数', fmt(s.p50), { kind: 'rect' }) + VZ.tipRow(r.color || spec.color || 'var(--ink-2)', 'P25 – P75', fmt(s.p25) + ' – ' + fmt(s.p75), { kind: 'rect' }) + VZ.tipRow('transparent', '均值', fmt(s.mean)) + VZ.tipRow('transparent', spec.whisker === 'minmax' ? '最小 – 最大' : 'P10 – P90', fmt(spec.whisker === 'minmax' ? s.min : s.p10) + ' – ' + fmt(spec.whisker === 'minmax' ? s.max : s.p90)); }, at: (i) => [S[i] ? sx(S[i].p50) : F.x0, F.by(i)], datum: (i) => Object.assign({ row: rows[i] }, S[i] || {}) } };
+    return { body: g, model: { kind: 'mark', n: rows.length, F, xs: [], has: (i) => !!S[i], tip: (i) => { const s = S[i]; const r = rows[i]; if (!s) return ''; return VZ.tipHead(r.name || '', VZ.fmt(s.n, 'int') + ' ' + (spec.nUnit || '个')) + VZ.tipRow('var(--ink-1)', '中位数', fmt(s.p50), { kind: 'rect' }) + VZ.tipRow(r.color || spec.color || 'var(--ink-2)', 'P25 – P75', fmt(s.p25) + ' – ' + fmt(s.p75), { kind: 'rect' }) + VZ.tipRow('transparent', '均值', fmt(s.mean)) + VZ.tipRow('transparent', spec.whisker === 'minmax' ? '最小 – 最大' : 'P10 – P90', fmt(spec.whisker === 'minmax' ? s.min : s.p10) + ' – ' + fmt(spec.whisker === 'minmax' ? s.max : s.p90)); }, at: (i) => [S[i] ? sx(S[i].p50) : F.x0, F.by(i)], datum: (i) => Object.assign({ row: rows[i] }, S[i] || {}) } };
   },
-  table: (spec) => ({ cols: ['名称', 'n', '中位数', 'P25', 'P75', '均值'], rows: (spec.rows || []).map((r) => { const s = VZ.stats(r.values); return s ? [r.name || '', String(s.n), VZ.fmt(s.p50, spec.format), VZ.fmt(s.p25, spec.format), VZ.fmt(s.p75, spec.format), VZ.fmt(s.mean, spec.format)] : [r.name || '', '0', '—', '—', '—', '—']; }) })
+  table: (spec) => ({ cols: ['名称', '样本数', '中位数', 'P25', 'P75', '均值'], rows: (spec.rows || []).map((r) => { const s = VZ.stats(r.values); return s ? [r.name || '', String(s.n), VZ.fmt(s.p50, spec.format), VZ.fmt(s.p25, spec.format), VZ.fmt(s.p75, spec.format), VZ.fmt(s.mean, spec.format)] : [r.name || '', '0', '—', '—', '—', '—']; }) })
 };
 /* ---------- spark / kpi ---------- */
 VZ.sparkBody = function (values, w, h, opt) {
@@ -1209,7 +1209,8 @@ VZ.types.timeline = {
     // 统一索引空间：items[i] = 逐个画出的事件 → 密度桶 → 关键时刻簇；data-i 指向它，tooltip / 键盘 / onSelect 都按它分发
     const items = []; let g = '';
     L.forEach((l, i) => { g += '<rect class="vz-lane' + (i % 2 ? ' alt' : '') + '" x="' + F.x0 + '" y="' + l.y0 + '" width="' + VZ.r1(F.pw) + '" height="' + l.h + '"/>'; if (l.label && F.labW) g += VZ.txt(4, l.cy + 4, l.label, { class: 'vz-cat vz-lane-lbl' }); });
-    (spec.spans || []).forEach((s) => { const a = F.px(s.t), b = F.px(s.t2); g += '<rect class="vz-phase' + (s.inferred ? ' inferred' : '') + '" x="' + VZ.r1(a + 1) + '" y="' + F.yT + '" width="' + VZ.r1(Math.max(1, b - a - 2)) + '" height="' + VZ.r1(F.ph) + '"' + (s.color ? ' style="fill:' + s.color + '"' : '') + '/>' + (s.label && b - a > VZ.tw(s.label, 11) + 8 ? VZ.txt((a + b) / 2, F.phY, s.label, { class: 'vz-note', 'text-anchor': 'middle' }) : ''); });
+    // 阶段带：label 放得下就画 label，否则退到 short（如只写阶段名）；tip 作为原生悬停说明（<title>）
+    (spec.spans || []).forEach((s) => { const a = F.px(s.t), b = F.px(s.t2); const lb = [s.label, s.short].find((x) => x && b - a > VZ.tw(x, 11) + 8); g += '<rect class="vz-phase' + (s.inferred ? ' inferred' : '') + '" x="' + VZ.r1(a + 1) + '" y="' + F.yT + '" width="' + VZ.r1(Math.max(1, b - a - 2)) + '" height="' + VZ.r1(F.ph) + '"' + (s.color ? ' style="fill:' + s.color + '"' : '') + '>' + (s.tip ? '<title>' + esc(s.tip) + '</title>' : '') + '</rect>' + (lb ? VZ.txt((a + b) / 2, F.phY, lb, { class: 'vz-note', 'text-anchor': 'middle' }) : ''); });
     const ph = spec.playhead; const dense = (l) => !!l && l.mode === 'density';
     // range 收窄（如 minimap 视窗）时，窗外的事件 / 标记不画（区间事件只要与窗口相交就画，端点由 F.px 裁到边界）
     const inR = (a, b) => (b == null ? a : b) >= F.range[0] - 1e-9 && a <= F.range[1] + 1e-9;
@@ -1236,7 +1237,9 @@ VZ.types.timeline = {
       bs.forEach((b) => {
         const x = F.x0 + b.k * bpx; const hh = VZ.r1(Math.max(2, 2 + Math.log2(b.n + 1) / Math.log2(maxN + 1) * (l.h - 4))); const y = VZ.r1(l.y1 - 1 - hh); const eh = b.err ? VZ.r1(Math.max(2, Math.min(hh, hh * b.err / b.n))) : 0;
         const fut = ph != null && b.t0 > ph; const i = items.length; const names = b.evs.map((e) => e.label || '').filter(Boolean);
-        items.push({ tip: () => VZ.tipHead(ft(b.t0) + (b.t1 > b.t0 ? ' – ' + ft(b.t1) : ''), l.label || '') + VZ.tipRow(c, l.unit || '次', String(b.n), { kind: 'rect' }) + (b.err ? VZ.tipRow(VZ.sem.err, '失败', String(b.err), { kind: 'rect' }) : '') + (names.length ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(names.slice(0, 4).join(' · ') + (names.length > 4 ? ' · +' + (names.length - 4) : '')) + '</span></div>' : ''), at: () => [x + bpx / 2, y], datum: () => ({ bucket: true, lane: l.id, t0: b.t0, t1: b.t1, n: b.n, err: b.err, events: b.evs }), t: b.t0 });
+        // 事件带 cat（类别）时按类别给出次数，如「命令 12 · 读取 / 搜索 5」
+        const cats = {}; b.evs.forEach((e) => { if (e.cat) cats[e.cat] = (cats[e.cat] || 0) + 1; }); const catTxt = Object.keys(cats).sort((p, q) => cats[q] - cats[p]).map((k) => k + ' ' + cats[k]).join(' · ');
+        items.push({ tip: () => VZ.tipHead(ft(b.t0) + (b.t1 > b.t0 ? ' – ' + ft(b.t1) : ''), l.label || '') + VZ.tipRow(c, l.unit || '次', String(b.n), { kind: 'rect' }) + (b.err ? VZ.tipRow(VZ.sem.err, '失败', String(b.err), { kind: 'rect' }) : '') + (catTxt ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(catTxt) + '</span></div>' : '') + (names.length ? '<div class="vz-tr"><span class="vz-tk" style="--c:transparent"></span><span class="vz-tn">' + esc(names.slice(0, 4).join(' · ') + (names.length > 4 ? ' · +' + (names.length - 4) : '')) + '</span></div>' : ''), at: () => [x + bpx / 2, y], datum: () => ({ bucket: true, lane: l.id, t0: b.t0, t1: b.t1, n: b.n, err: b.err, events: b.evs }), t: b.t0 });
         g += '<rect class="vz-dens vz-ev' + (fut ? ' vz-future' : '') + '" data-i="' + i + '" data-t="' + b.t0 + '" x="' + VZ.r1(x) + '" y="' + y + '" width="' + Math.max(1, bpx - 1) + '" height="' + hh + '" style="--c:' + c + '"/>' + (eh ? '<rect class="vz-dens-err vz-ev' + (fut ? ' vz-future' : '') + '" data-t="' + b.t0 + '" x="' + VZ.r1(x) + '" y="' + y + '" width="' + Math.max(1, bpx - 1) + '" height="' + eh + '"/>' : '') + '<rect class="vz-hit" data-i="' + i + '" x="' + VZ.r1(x) + '" y="' + l.y0 + '" width="' + bpx + '" height="' + l.h + '"/>';
       });
     });
