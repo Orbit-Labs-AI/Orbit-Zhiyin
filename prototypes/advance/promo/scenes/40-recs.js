@@ -37,7 +37,15 @@ scene('40-recs', () => {
   const PREF = ['t', 'k', 't', 'k', 't', 'k'];                   // which counter each entry would add to (time / token alternating)
   const PIT = 3.0, ARR = IDS.map((_, n) => 46.0 + PIT * n);      // beat entry n reaches the centre line (46.0 … 61.0)
   const S4 = 44.5, MV = 1.1, OUT4 = 63.1;                        // intro → eyebrow slot move (b44.5–45.6); scene clear
-  const GAP = 490, CX = 540, CY = 540, CW = 820;                 // entry pitch (screen px), card left / centre line, card width
+  // v18.1 payoff (b61.7–62.35, held to b63.05, out by b63.5 under 50-tools' card growing from the orb): the last card blurs
+  // out, the two counters glide to the centre at 1.5×, the small orange eyebrow line「提高效率」grows into their left side
+  // and the caption settles under them — one large centred % statement (shares only, never hours)
+  const PO = 61.7, POD = .65, POUT = 63.5, PE = (b) => E.inOut(lp(b, PO, POD));
+  // v18.1: the column is framed ≈1.35× closer than v17.7 (card body 12 app px → ≈30 px on screen, footer 11 → ≈27 px): the
+  // cards are 1000 px wide at x 520 (right edge 1520, the counters sit right of it at 1720), the entry pitch follows the
+  // tallest entry (set at b40.0, ≥ 490), so the 3-beat cadence is unchanged and only the scroll speed in px grows
+  let GAP = 490; const CX = 520, CY = 540, CW = 1000;            // entry pitch (screen px), card left / centre line, card width
+  const KG = () => GAP / 490;                                    // v17.7 pixel windows scale with the pitch
   // dot i → row = its y rank on the compass rim at b39.4 (order 'y', H11). The 0.0.4 dial puts the badges at the data's
   // bearings (demo: cc 43 / cx 62 / gm 288 / ds 118 / cp 221° → rows cc cx gm ds cp), not at the v17 spots V2 assumed
   // ([1, 3, 4, 2, 0] sent cp from the bottom of the rim to the top row and gm down through ds / cp: the dots crossed and
@@ -115,7 +123,8 @@ scene('40-recs', () => {
   // link window: from 1.9 beats before entry n reaches the centre line (the card ≈310 px below it, coming into focus; the
   // first one 1.4 beats before, b44.6, as the intro lines start moving up out of its way) until the next entry's links
   // start (the last until its exit)
-  const LIVE = IDS.map((_, n) => [ARR[n] - (n ? 1.9 : 1.4), n < 5 ? ARR[n] + 1.05 : 62.5]);
+  // v18.1: the last entry's links retract with its card (b61.9, card fading from b61.5) instead of pointing at the empty payoff frame
+  const LIVE = IDS.map((_, n) => [ARR[n] - (n ? 1.9 : 1.4), n < 5 ? ARR[n] + 1.05 : 61.9]);
   // emission beat (b45.0, 47.5, 50.5, 53.5, 56.5, 59.5): the first link reaches the card, the type word wipes in, the dots
   // pulse and the entry's share starts rolling into its counter
   const EV = IDS.map((_, n) => LIVE[n][0] + .4);
@@ -124,7 +133,6 @@ scene('40-recs', () => {
     const [b0, b1] = LIVE[n], all = [...LINKS[n].solid.map((i) => [i, false]), ...LINKS[n].dash.map((i) => [i, true])];
     all.forEach(([i, dashed], k) => {
       AGD.link(b0 + k * .1, b1, i, toCard(id), { bend: .45, draw: .55, out: .45, pulse: 2, dash: dashed ? '3 6' : undefined });
-      AGD.glow(i, EV[n] - .2, b1 - .3, .9);
       AGD.pulse(i, EV[n] - .05, 1.08, .6);
       // v17.7: as it steps forward and its link starts, the dot stretches into a pill aimed at the card (the link leaves
       // from its tip); once the type word has wiped in it settles back into a bullet with a ✓ (solid link = full tick,
@@ -133,8 +141,22 @@ scene('40-recs', () => {
       AGD.morph(EV[n] + .4, i, 'bullet', { tick: 1, tickW: dashed ? 1.2 : 2, dur: .45, hold: 1.4, back: .35, to: 'bullet' });
     });
   });
-  // T11: the column leaves its bullets for round badges just before the merge (b63.0, 50-tools), which then closes them into the orb
-  AGD.morph(62.3, ROWDOT, 'dot', { dur: .5, stag: .04 });
+  // (f) glow: one window per run of consecutive entries a dot links to (EV − .2 … b1 − .3, joined when the next starts
+  // < .9 beat after the last ends), so a shared dot stays lit across the hand-over instead of dipping for .5 beat
+  [0, 1, 2, 3, 4].forEach((i) => {
+    const w = [];
+    IDS.forEach((_, n) => {
+      if (!LINKS[n].solid.includes(i) && !LINKS[n].dash.includes(i)) return;
+      const g0 = EV[n] - .2, g1 = LIVE[n][1] - .3, l = w[w.length - 1];
+      if (l && g0 - l[1] < .9) l[1] = g1; else w.push([g0, g1]);
+    });
+    w.forEach(([g0, g1]) => AGD.glow(i, g0, g1, .9));
+  });
+  // T11 (v18.1): the column leaves its bullets for round badges from b62.0 and, from b62.4 (as the last card blurs out and
+  // the counters settle in the centre), closes on its centre row at MERGE (330, 540) — a tight stack 22 px apart by b63.0,
+  // where 50-tools' merge key takes the live positions into the orb. No static five-dot column on an empty frame
+  AGD.morph(62.0, ROWDOT, 'dot', { dur: .5, stag: .04 });
+  AGD.key(62.4, 'column', { x: 330, y0: 540 - 2 * 22, gap: 22, r: 30, a: 1, order: ORD, dur: .6, stag: 0 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
@@ -170,7 +192,7 @@ scene('40-recs', () => {
   const still = (D) => D.getAnimations().forEach((a) => { const t = a.effect && a.effect.target; if (t && t.closest && t.closest('.recs')) a.cancel(); });
   const unscroll = (D) => { for (let e = D.querySelector('#content'); e; e = e.parentElement) { if (e.scrollTop) e.scrollTop = 0; if (e.scrollLeft) e.scrollLeft = 0; } };
   // the app lays the list out 820 px wide; a narrower card (WA app px) wraps into a taller, readable block at CW on screen
-  const WA = 440, S0 = CW / WA;
+  const WA = 400, S0 = CW / WA;
   let CAM = null, X0 = 400, Y0 = 500;
   // a card's untransformed top-left (app px): its live rect minus the translate this scene put on it (survives re-renders
   // and the list's own scrolling, which solo() changes)
@@ -187,9 +209,10 @@ scene('40-recs', () => {
     const cs = IDS.map((id) => card(D, id)).filter(Boolean), cont = D.querySelector('#content'), cr = cont ? cont.getBoundingClientRect() : { top: 0, height: 1000 };
     cs.forEach(narrow);
     if (cs.length) X0 = Math.min(...cs.map((c) => base(c).x));
+    if (cs.length) GAP = Math.max(490, Math.ceil(Math.max(...cs.map((c) => base(c).h)) * S0 + 152 + 80));   // tallest entry + 80 px air
     Y0 = cr.top + cr.height / 2;                                  // the column runs through the middle of #content (it clips)
     CAM = { x: X0, y: Y0, s: S0, ax: CX, ay: CY, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 };
-    if (DEBUG) console.warn('promo 40-recs layout', JSON.stringify({ S0, X0, Y0, H: cs.map((c) => base(c).h) }));
+    if (DEBUG) console.warn('promo 40-recs layout', JSON.stringify({ S0, X0, Y0, GAP, H: cs.map((c) => base(c).h) }));
   });
   tween(0, 40.3, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
 
@@ -201,7 +224,7 @@ scene('40-recs', () => {
   const MK = { t: 'rc', k: 'rk' };
   drive(0, 40.25, OUT4, (p, b, D) => {
     still(D); unscroll(D);
-    const u = U(b), gIn = E.out(lp(b, S4 - .7, 1.2)), gOut = 1 - E.inOut(lp(b, 62.45, .65));
+    const u = U(b), gIn = E.out(lp(b, S4 - .7, 1.2)), gOut = 1 - E.inOut(lp(b, PO - .2, .5));
     IDS.forEach((id, n) => {
       const el = card(D, id); if (!el) return;
       narrow(el);
@@ -211,7 +234,7 @@ scene('40-recs', () => {
       el.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px)';
       // sharp from 260 px below to 320 px above the centre line (≈3.6 beats at 163 px/beat; above −320 the word starts to
       // leave the frame), then dims and blurs 6 px per 360 px (≤1 px within 60 px more: ≈4.3 beats readable)
-      const af = dy < 0 ? Math.max(0, ad - 320) : Math.max(0, ad - 260), a = clamp(1 - .65 * af / 360) * gIn * gOut, bl = 6 * af / 360 + 6 * (1 - gOut);
+      const kg = KG(), af = (dy < 0 ? Math.max(0, ad - 320 * kg) : Math.max(0, ad - 260 * kg)) / kg, a = clamp(1 - .65 * af / 360) * gIn * gOut, bl = 6 * af / 360 + 6 * (1 - gOut);
       FOC[n] = { a, bl };
       el.style.opacity = a.toFixed(3);
       el.style.filter = bl > .05 ? 'blur(' + (bl / S0).toFixed(2) + 'px)' : 'none';
@@ -264,11 +287,18 @@ scene('40-recs', () => {
     // v17.7: as its link starts the gliding dot stretches into a pill aimed at the line's start (the link leaves its tip,
     // the line wipes out of the link), then lands as a bullet .5 beat after the line starts writing
     AGD.morph(ROWIN[r] - .05, i, 'pill', { w: 2.6, aim: (b) => [530, ly(b)], dur: .3, hold: .55, back: .4, to: 'bullet' });
-    txt(wb - .02, OUT4, [[cls, html]], { x: 540, y: y0 }, {
+    // v18.1 payoff: the orange line (row 2) leaves the eyebrow slot and grows into the left side of the centred counters
+    // (right edge ≈ 790, level with the numerals); the eyebrow and headline above it fade out as it goes
+    const fin = r === 2, m1 = fin ? mask(.18, .001, .45) : m0;
+    txt(wb - .02, fin ? POUT : OUT4, [[cls, html]], { x: 540, y: y0 }, {
       anim: (el, tl, life, t) => {
-        m0(el, tl, life);
-        const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), k = lerp(1, k1, my(b)), w = E.inOut(lp(b, wb, wd));
-        el.style.left = (lerp(540, 160, mx) - 28 * (1 - E.out(lp(b, wb, wd + .4)))).toFixed(1) + 'px'; el.style.top = ly(b).toFixed(1) + 'px';
+        m1(el, tl, life);
+        const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), w = E.inOut(lp(b, wb, wd)), pe = PE(b);
+        let k = lerp(1, k1, my(b)), x = lerp(540, 160, mx) - 28 * (1 - E.out(lp(b, wb, wd + .4))), y = ly(b);
+        // x leads (.4 beat) and y follows .15 beat later, so the line is right of the dot column (x ≥ 400) before it drops
+        // to the rows' height, never over a dot
+        if (fin) { x = lerp(x, 500, E.inOut(lp(b, PO, .4))); y = lerp(y, 530, E.inOut(lp(b, PO + .15, POD - .15))); k = lerp(k, 1.1, pe); } else if (pe > 0) el.style.opacity = (1 - pe).toFixed(3);
+        el.style.left = x.toFixed(1) + 'px'; el.style.top = y.toFixed(1) + 'px';
         el.style.transformOrigin = '0 50%'; el.style.transform = 'translate(0,-50%) scale(' + k.toFixed(4) + ')';
         const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
         el.style.maskImage = m; el.style.webkitMaskImage = m;
@@ -286,13 +316,24 @@ scene('40-recs', () => {
     nd.style.transform = g > .002 ? 'translateX(' + (-4 * g).toFixed(2) + 'px)' : '';
     nd.style.filter = g > .02 ? 'blur(' + (2 * g).toFixed(2) + 'px)' : '';
   };
-  // the counter block drifts up 40 px over the scene (mask in / out unchanged), so it never stands frozen between rolls. It
-  // comes in behind the moving headline's right end (b44.85 on: the headline has shrunk inside x 1500) as the first entry
-  // is emitted; it leaves over the last .5 beat, so the final token total stays readable ≈2 beats
-  const drift = (outB) => { const m = mask(.18, 1, outB); return (el, tl, life, t) => { m(el, tl, life); el.style.transform = 'translate(-50%,-50%) translateY(' + (-40 * lp(t / BEAT, 44.85, 18.25)).toFixed(2) + 'px)'; }; };
-  txt(44.85, OUT4, [['eb', '协作时间']], { x: 1640, y: 390, align: 'c' }, { anim: drift(.5) });
-  txt(45.0, OUT4, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 470, align: 'c' }, { anim: drift(.5), tick: num('t') });
-  txt(45.1, OUT4, [['eb', 'Token']], { x: 1640, y: 650, align: 'c' }, { anim: drift(.5) });
-  txt(45.2, OUT4, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 730, align: 'c' }, { anim: drift(.5), tick: num('k') });
-  txt(45.35, OUT4, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1640, y: 880, align: 'c' }, { anim: drift(.5) });
+  // the counter block drifts up 40 px over the scene, so it never stands frozen between rolls. It comes in behind the moving
+  // headline's right end (b44.85 on) as the first entry is emitted. v18.1: it sits at x 1720 (right of the 1000 px cards);
+  // the Token half stays dark until its first share starts rolling (b47.4 in the demo data: no「0.0 %」beside Hook's own
+  // token 1.6 %), then masks in; at the payoff (PO) every piece glides to its place in the centred statement
+  // [x0, y0, k0, x1, y1, k1]: right column → centre (numerals 1.5×, the caption grows from .8 to 1)
+  const POS = { tl: [1720, 390, 1, 980, 412, 1.2], tv: [1720, 470, 1, 980, 530, 1.5], kl: [1720, 650, 1, 1400, 412, 1.2],
+    kv: [1720, 730, 1, 1400, 530, 1.5], cap: [1720, 880, .8, 1190, 668, 1] };
+  // the Token half lags .12 beat behind the time half, so the two numerals never pass over each other on the way in
+  const place = (key, lag = 0) => { const m = mask(.18, 1, .45), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
+    m(el, tl, life);
+    const b = t / BEAT, pe = E.inOut(lp(b, PO + lag, POD)), dy = -40 * lp(b, 44.85, 18.25) * (1 - pe);
+    el.style.left = lerp(x0, x1, pe).toFixed(1) + 'px'; el.style.top = (lerp(y0, y1, pe) + dy).toFixed(1) + 'px';
+    el.style.transform = 'translate(-50%,-50%) scale(' + lerp(k0, k1, pe).toFixed(4) + ')';
+  }; };
+  const KN = STEP.findIndex((st) => st.f === 'k'), KB = KN >= 0 ? EV[KN] - .1 : 45.1;   // first token roll
+  txt(44.85, POUT, [['eb', '协作时间']], { x: 1720, y: 390, align: 'c' }, { anim: place('tl') });
+  txt(45.0, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 470, align: 'c' }, { anim: place('tv'), tick: num('t') });
+  txt(KB - .05, POUT, [['eb', 'Token']], { x: 1720, y: 650, align: 'c' }, { anim: place('kl', .12) });
+  txt(KB, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 730, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
+  txt(45.35, POUT, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1720, y: 880, align: 'c' }, { anim: place('cap') });
 });
