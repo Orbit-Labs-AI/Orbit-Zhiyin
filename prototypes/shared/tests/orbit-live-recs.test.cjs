@@ -20,8 +20,8 @@ function gateway(handler) {
 }
 const live = (gw) => OrbitLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, win: {} });
 
-test('recs.row: Cand.ui becomes a RECS row; saving from score.benefit, missing numbers stay null', () => {
-  const [allow, , rule] = FX('recs/recommendations').items;
+test('recs.row: Cand.ui becomes a RECS row; savings are ui.save shares, missing numbers stay null', () => {
+  const [allow, handoff, rule] = FX('recs/recommendations').items;
   const r = OrbitLive.recs.row(allow);
   assert.equal(r.id, 'fxc-allow');
   assert.equal(r.rec_key, 'kb:fx-readonly-allow');
@@ -29,13 +29,16 @@ test('recs.row: Cand.ui becomes a RECS row; saving from score.benefit, missing n
   assert.deepEqual([r.dim, r.type, r.lvl, r.aud, r.primary], ['hook', 'Hook', 1, 0, '预览并安装']);
   assert.deepEqual(r.file[1], ['  "permissions": { "allow": ["Bash(git status:*)"] }', '+']);
   assert.deepEqual(r.track[0], ['每周审批次数', null, null, '次']);
-  // benefit 0.42 → −30·ln(0.58) ≈ 16.3 min / week → ≈ 1.2 h / month
-  assert.equal(r.x.save, 1.2);
-  assert.equal(r.x.tok, null);
+  // approvals only wait: 1.1 % of the active time × .9, no token share
+  assert.deepEqual([r.x.pct.t, r.x.pct.k, r.x.pct.st, r.x.pct.sk, r.x.pct.p, r.x.pct.key], [0.99, 0, 1.1, 0, 0.9, 'permission_friction']);
+  assert.equal(r.gain, '省时 1.0% · 省 token 0%');
+  assert.deepEqual([r.x.tokp, r.x.tok], [0, null]);
   assert.deepEqual(r.x.n, [12, 12]);
-  assert.equal(OrbitLive.recs.row(rule).x.save, null);
-  assert.equal(OrbitLive.recs.saveHours({ score: { benefit: 0 } }), null);
-  assert.equal(OrbitLive.recs.saveHours({ score: { benefit: 1 } }), null);
+  assert.deepEqual([OrbitLive.recs.row(handoff).x.pct.t, OrbitLive.recs.row(handoff).x.pct.k], [0.6, 3.1]);
+  assert.equal(OrbitLive.recs.row(rule).x.pct, null);   // 未估算
+  // an older run still carrying hours (min_month) gives no share rather than a made-up one
+  assert.equal(OrbitLive.recs.pct({ ui: { save: { min_month: 132, label: '≈ 2.2 h' } } }), null);
+  assert.equal(OrbitLive.recs.pct({ score: { benefit: .42 } }), null);
 });
 
 test('recs.desc / resource: A7 asks for 50, the top surfaces for their slate size, all with the scope', async () => {

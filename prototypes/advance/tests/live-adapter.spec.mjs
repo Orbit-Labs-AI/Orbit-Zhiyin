@@ -287,12 +287,12 @@ test('live recs: A7 from fixtures, exposure, 不适用 with reason and 8-second 
   const a1 = page.locator('#content .ov-recs');
   await expect(a1.locator('.ov-recn').first()).toHaveText('长会话交接摘要');
   await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A1')).toBe(true);
-  // A7: the demo renderer with fixture rows; save estimate from score.benefit, a missing one prints —
+  // A7: the demo renderer with fixture rows; saving shares from ui.save (省时 · token), a missing one prints 未估算
   await page.evaluate(() => go('recs'));
   const cards = page.locator('#content .rcard');
   await expect(cards).toHaveCount(3);
   await expect(page.locator('#content')).not.toContainText('PR 收尾');
-  await expect(cards.filter({ hasText: '只读命令自动放行' }).locator('.rc-save b')).toHaveText('≈ 1.2 h');
+  await expect(cards.filter({ hasText: '只读命令自动放行' }).locator('.rc-save b')).toHaveText(['1.0%', '0%']);
   await expect(cards.filter({ hasText: '验收命令' }).locator('.rc-save')).toHaveText('未估算');   // live: no benefit → 未估算 (fix-recs J16)
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   await expect.poll(() => gw.rec.posts.filter((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A7').flatMap((x) => x.body.items.map((i) => i.candidate_id)).sort()).toEqual(['fxc-allow', 'fxc-handoff', 'fxc-rule']);

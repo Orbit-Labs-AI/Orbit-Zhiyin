@@ -1267,8 +1267,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .sn-leg i.pt{width:8px;height:8px;border-radius:50%}
 
 /* ============ A7 优化建议 + 安装 sheet ============
-   建议卡：眉行（类型 · 难度 · 每月节省时间）→ 标题 → 依据句 → 元信息（适用 Agent · 常驻 token · 原指标）→ 操作。
-   详情：三格 KPI（节省时间 / 常驻 token / 适用 Agent）+ 标签页；效果追踪用「安装日 ▲」双段时间轴 + dumbbell。
+   建议卡：眉行（类型 · 难度 · 预计省时 / 省 token 占比）→ 标题 → 依据句 → 元信息（适用 Agent · 常驻 token 占比 · 对应操作占比）→ 操作。
+   详情：三格 KPI（预计节省占比 / 常驻 token 占比 / 适用 Agent）+ 标签页；效果追踪用「安装日 ▲」双段时间轴 + dumbbell。
    颜色只表身份与状态：Agent 点用身份色，节省 / 变差用 good / crit，基准灰、当前 accent（与 A5 一致）。 */
 /* the list no longer needs 560px: the card is one metric + one sentence, so the detail column gets a fixed share */
 .recs{grid-template-columns:minmax(0,1fr) minmax(0,440px)}
@@ -1304,6 +1304,9 @@ body.native .win.nosb .tbar{padding-left:20px}
 .rc-kpi .v small{font:500 11px/1 var(--font-num);color:var(--ink-3);margin-left:4px}
 .rc-kpi .v.good{color:var(--good)}
 .rc-kpi .cap{font-size:11px;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 预计节省：时间与 token 两个百分比并排，占两份宽；依据句最多两行 */
+.rc-kpi.rc-kpi-save{flex:2 1 200px}
+.rc-kpi-save .cap{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .rc-kpi .rc-ag{flex-wrap:wrap}
 .rc-kpi .rc-ag .dot{width:9px;height:9px}
 /* evidence block + baseline strip */
@@ -2921,11 +2924,16 @@ const OrbitLive = (function () {
   /* ==== recs: Cand -> the prototype's RECS row ====
      The backend's Cand carries `ui` already shaped like the A7 rows (dim, type, icon, lvl, aud, title, gain, why, ev,
      evq, compat, primary, target, file, steps, track). Missing numbers stay null so the page prints「—」, never 0. */
-  function recSaveHours(c) {
-    // ranking: benefit = 1 − exp(−weekly_minutes / 30) → minutes per week → hours per month (4.33 weeks)
-    const b = c && c.score && c.score.benefit;
-    if (b == null || !Number.isFinite(b) || b <= 0 || b >= 1) return null;
-    return Math.round(-30 * Math.log(1 - b) * 4.33 / 60 * 10) / 10;
+  // ui.save → the saving as shares of the real trajectory: t / k = expected % of all active time / all tokens,
+  // st / sk = the problem's operations' share before the effect p, key = the problem (alternatives are not additive).
+  // null when the run gave no share (未估算, or an older run that still carried hours).
+  const finite = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  function recPct(c) {
+    const s = c && c.ui && c.ui.save;
+    if (!s || typeof s !== 'object' || (finite(s.time_pct) == null && finite(s.token_pct) == null)) return null;
+    const share = s.share || {};
+    return { t: finite(s.time_pct), k: finite(s.token_pct), st: finite(share.time), sk: finite(share.token), p: finite(s.effect),
+      tr: s.time_range || null, kr: s.token_range || null, key: s.key || c.rec_key || null, basis: s.basis || '' };
   }
   function recRow(c) {
     const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
@@ -2936,11 +2944,11 @@ const OrbitLive = (function () {
       title: u.title || c.title || '', gain: u.gain || '—', why: u.why || ((c.explain || {}).reason) || '', ev: u.ev || (n + ' 个会话'), evq: u.evq || {},
       compat: u.compat || '', c2: 'var(--a2)', primary: u.primary || '查看方案', target: u.target || '', file: (u.file || []).map((l) => [String(l[0] == null ? '' : l[0]), l[1] || ' ']),
       steps: u.steps || [], track,
-      x: { save: recSaveHours(c), tok: null, n: [n, n] },
+      x: { pct: recPct(c), tokp: finite(u.tok_pct), tok: finite(u.tok), n: [n, n] },
       priority: c.score ? c.score.priority : null, source: c.source || null
     };
   }
-  const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
+  const recs = { row: recRow, pct: recPct, scopeBody };
 
   /* ======== library-install: A8 资源库 (/v1/catalog/*) and the install sheet (/v1/install/*) ========
      Owned by the library-install binding (Advance src/js/97-live-library-install.js, Lite @orbit-live block). Attached to
@@ -5857,18 +5865,22 @@ const liteCount = (html, v, dec) => html.replace('<span class="v">', '<span clas
 function liteRecBtn(r) {
   return recPrimaryBtn(r).replace(/data-act="(tutorial|recToStudio|openRec)"/, 'data-act="liteRecAdv"').replace('class="btn', 'class="btn l-big');
 }
-const liteOrder = () => visibleRecs().slice().sort((a, b) => liteSaveH(b.id) - liteSaveH(a.id));
-const liteSaveH = (id) => recX(id).save || 0;   // live recs without an estimate (save: null) sort last and say「待估算」
-const liteHasSave = (id) => recX(id).save != null;
-// value + unit of the gain line; a live rec without an estimate says so in muted ink instead of a big green dash
-const liteSaveSpan = (id, unit) => !liteHasSave(id) ? '<span class="u" style="color:var(--ink-3)">节省时间待估算</span>' : '<span class="v mono" data-count="' + liteSaveH(id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(id)) + '</span><span class="u">' + unit + '</span>';
+const liteOrder = () => visibleRecs().slice().sort((a, b) => recRank(b.id) - recRank(a.id));   // recs without a share sort last
+// the saving line of a card: the expected share of all collaboration time (else of all tokens) as the big number, the other
+// share beside it; a rec without a share says so in muted ink instead of a big green dash
+function liteSaveSpan(id, note) {
+  const p = recPct(id);
+  if (!p) return '<span class="u" style="color:var(--ink-3)">节省比例待估算</span>';
+  const time = p.t != null; const v = time ? p.t : p.k;
+  return '<span class="v mono"' + pctCount(v) + '>' + fmtPct(v) + '</span><span class="u">' + (time ? '协作时间' + (p.k != null ? ' · token ' + fmtPct(p.k) : '') : 'token') + (note || '') + '</span>';
+}
 
 // 「本周最值得做的一件事」(also appended to the live Lite home by 97-live-recs.js)
 function liteOneCard(open) {
   const r = open[0];
   return r ? '<div class="card rcard l-one"><div class="rc-top"><span class="eb" style="color:var(--ink-1)">本周最值得做的一件事</span><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span></div>' +
     '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-    '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, 'h / 月 · 估计节省') + '<span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' +
+    '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, ' · 预计节省') + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' +
     (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
     : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
 }
@@ -5981,16 +5993,18 @@ PAGES['l-sessions'] = () => {
     '<div class="stack">' + head + '<div class="tiles l-tiles l-snums">' + nums + '</div>' + tl + '</div></div></div></div>';
 };
 
-/* ---------- 4 优化建议：一句总收益 → 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
+/* ---------- 4 优化建议：一句总收益（占协作时间 / token 的比例）→ 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
   const all = recOrder('lite'); const top = all.slice(0, 3);
   const open = top.filter((r) => !S.installed.has(r.id));
-  const save = sum(open, (r) => liteSaveH(r.id));
-  // live: recs may carry no estimate (save: null) — never print a made-up「0.0 小时」total for them
-  const est = open.some((r) => liteHasSave(r.id));
-  const hero = '<div class="card pad l-rhero"><span class="eb">优化建议 · 按每月节省时间排序</span>' +
-    (open.length && est ? '<p class="serif l-say">做完这 ' + open.length + ' 件事，每月大约省下</p><div class="row l-big-n"><span class="v mono" data-count="' + save.toFixed(1) + '" data-dec="1">' + f1(save) + '</span><span class="u">小时</span></div>'
-      : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省时间的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
+  // the total: shares of the real trajectory; alternatives on one problem count once (recTotal), and recs without a
+  // share never add a made-up 0 %
+  const tot = recTotal(open);
+  const big = tot && (tot.t != null ? tot.t : tot.k);
+  const hero = '<div class="card pad l-rhero"><span class="eb">优化建议 · 按节省比例排序</span>' +
+    (open.length && tot ? '<p class="serif l-say">做完这 ' + open.length + ' 件事，预计省下</p><div class="row l-big-n"><span class="v mono"' + pctCount(big) + '>' + fmtPct(big) + '</span><span class="u">' + (tot.t != null ? '的协作时间' : '的 token') + '</span></div>' +
+        (tot.t != null && tot.k != null ? '<span class="cap mono l-tot2">token 预计省下 ' + fmtPct(tot.k) + ' · 按近期真实轨迹的占比计算</span>' : '<span class="cap mono l-tot2">按近期真实轨迹的占比计算</span>')
+      : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省比例的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
       : top.length ? '<p class="serif l-say">前三条都已应用。7 天后看效果追踪，或在 Advance 里挑下一条。</p>'
       : '<p class="serif l-say">还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。</p>') + '</div>';
   const card = (r, i) => {
@@ -5998,7 +6012,7 @@ PAGES['l-recs'] = () => {
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);
     return '<div class="card rcard l-rc' + (inst ? ' inst' : '') + '" data-id="' + r.id + '"><span class="l-rn mono" aria-hidden="true">0' + (i + 1) + '</span><div class="col l-rb"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + agentDots(r, true) + '</div>' +
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-      '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, 'h / 月') + '<span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
+      '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
   return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
     '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +
@@ -6172,7 +6186,7 @@ PAGES.overview.after = () => {
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
 // 「本周建议」card (also appended to the live overview by 97-live-recs.js)
 function ovRecsCard(topR) {
-  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + r.gain + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>';
+  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + esc(recGain(r)) + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>';
 }
 function recPrimaryBtn(r, small) {
   const inst = S.installed.has(r.id);
@@ -7358,19 +7372,48 @@ Object.assign(ACT, {
 });
 
 /* ============ A7 recommendations ============ */
-// A7-only derived numbers (the rec data in 05-data.js is shared with A1 / widgets / exports): the unified primary metric
-// 「每月节省时间（估计）」 in hours, the resident token cost per session (k; negative = frees context), and the before /
-// after session counts the 7-day tracking is based on. The original gain string stays on the card as the secondary line.
+// A7-only derived numbers (the rec data in 05-data.js is shared with A1 / widgets / exports). The saving is a share of the
+// real trajectory, never hours: pct.st / pct.sk = the share the rec's operations (failed calls, approval waits, rework
+// turns, resident context …) take of all active time / all tokens, pct.p = the remedy's effectiveness (prior), so the
+// expected saving is t = st × p of the time and k = sk × p of the tokens (null = not measured, e.g. the time cost of
+// resident context). tokp = the rec's own resident context as a share of all tokens (negative = frees it); n = the before /
+// after session counts the 7-day tracking is based on. Live rows carry the same fields from ui.save (97-live-recs.js).
+const demoPct = (key, st, sk, p) => ({ st, sk, p, t: st == null ? null : st * p, k: sk == null ? null : sk * p, key });
 const REC_X = {
-  'ro-allow': { save: 2.2, tok: 0, n: [41, 38] }, 'pr-wrapup': { save: 6.1, tok: 0.4, n: [12, 11] }, 'deploy-target': { save: 0.9, tok: 0.1, n: [6, 5] },
-  'think-medium': { save: 1.8, tok: 0, n: [22, 19] }, 'retry-breaker': { save: 2.7, tok: 0, n: [17, 15] }, worktree: { save: 1.5, tok: 0, n: [9, 10] },
-  'citation-checker': { save: 1.2, tok: 0.3, n: [9, 7] }, 'remove-figma': { save: 0.4, tok: -2.1, n: [186, 171] }, acceptance: { save: 1.6, tok: 0.1, n: [43, 40] },
-  'latex-hook': { save: 0.8, tok: 0, n: [5, 3] }, 'summary-compact': { save: 1.1, tok: 0.1, n: [9, 8] }, 'paper-audit': { save: 2.4, tok: 0.5, n: [19, 16] }, headless: { save: 4, tok: 0, n: [8, 7] }
+  'ro-allow': { pct: demoPct('approval', 1.7, 0, .9), tok: 0, n: [41, 38] }, 'pr-wrapup': { pct: demoPct('review', 7.2, 6.4, .6), tok: 0.4, n: [12, 11] },
+  'deploy-target': { pct: demoPct('deploy', 1.1, .9, .6), tok: 0.1, n: [6, 5] }, 'think-medium': { pct: demoPct('effort', 1.8, 9.5, .6), tok: 0, n: [22, 19] },
+  'retry-breaker': { pct: demoPct('retry', 2.4, 2, .8), tok: 0, n: [17, 15] }, worktree: { pct: demoPct('parallel', 1.6, 1.2, .67), tok: 0, n: [9, 10] },
+  'citation-checker': { pct: demoPct('citation', 1.4, 1.1, .6), tok: 0.3, n: [9, 7] }, 'remove-figma': { pct: demoPct('figma', null, 1.6, .86), tok: -2.1, n: [186, 171] },
+  acceptance: { pct: demoPct('correction', 1.9, 1.7, .6), tok: 0.1, n: [43, 40] }, 'latex-hook': { pct: demoPct('latex', .84, .6, .67), tok: 0, n: [5, 3] },
+  'summary-compact': { pct: demoPct('compaction', 1.3, 1.9, .6), tok: 0.1, n: [9, 8] }, 'paper-audit': { pct: demoPct('paper', 2.8, 2.5, .6), tok: 0.5, n: [19, 16] },
+  headless: { pct: demoPct('polling', 5.6, .8, .5), tok: 0, n: [8, 7] }
 };
+Object.values(REC_X).forEach((x) => { x.tokp = Math.round(x.tok * 76) / 100; });   // demo: 1k resident tokens ≈ 0.76 % of all tokens
 const REC_UP = /一致率|比例|完成率|并行会话数/;   // metrics where higher is better; everything else is good when it goes down
-const recX = (id) => REC_X[id] || { save: 1, tok: 0, n: [10, 10] };
-const recSave = (id) => { const s = recX(id).save; return s == null ? '—' : s >= 1 ? '≈ ' + f1(s) + ' h' : '≈ ' + Math.round(s * 60) + ' min'; };
-const recTok = (id) => { const t = recX(id).tok; return t == null ? '—' : t > 0 ? '+' + f1(t) + 'k' : t < 0 ? '−' + f1(-t) + 'k' : '0'; };
+const recX = (id) => REC_X[id] || { pct: null, tok: 0, tokp: 0, n: [10, 10] };
+const recPct = (id) => recX(id).pct || null;
+// 0.04 →「<0.1%」, 3.21 →「3.2%」, 12.6 →「13%」(the same rounding as recommend/narrate.py pct_text)
+const fmtPct = (v) => v == null ? '—' : v <= 0 ? '0%' : v < 0.1 ? '<0.1%' : v < 10 ? f1(v) + '%' : Math.round(v) + '%';
+// count-up attributes for a percentage (none below 0.1 %, where the text is「<0.1%」)
+const pctCount = (v, ck) => v == null || v < 0.1 ? '' : ' data-count="' + (v >= 10 ? Math.round(v) : (+v).toFixed(1)) + '"' + (v >= 10 ? '' : ' data-dec="1"') + (ck ? ' data-ck="' + ck + '"' : '');
+// sort key = the main number the cards show: the time share, the token share where time is not measured (resident
+// context); recs without a share sort last
+const recRank = (id) => { const p = recPct(id); return !p ? -1 : p.t != null ? p.t : p.k != null ? p.k : -1; };
+const pctLabel = (p) => [p.t != null ? '省时 ' + fmtPct(p.t) : '', p.k != null ? '省 token ' + fmtPct(p.k) : ''].filter(Boolean).join(' · ');
+// the one-line saving every surface prints (A1 本周建议, menubar, widgets, palette, exports, Lite); without a share the
+// row's own gain (live: the backend's evidence line) or 未估算
+const recGain = (r) => { const p = recPct(r.id); return p ? pctLabel(p) : r.live && r.gain && r.gain !== '—' ? r.gain : '未估算'; };
+// 对应操作占比: what the rec's operations take of the real trajectory before the effectiveness
+const recShare = (r) => { const p = recPct(r.id); if (!p || (p.st == null && p.sk == null)) return r.gain; return '对应操作占' + [p.st != null ? '时间 ' + fmtPct(p.st) : '', p.sk != null ? 'token ' + fmtPct(p.sk) : ''].filter(Boolean).join(' · '); };
+const recBasis = (r) => { const p = recPct(r.id); return p && p.basis ? p.basis : p ? recShare(r) + ' × 生效率 ' + p.p : r.saveBasis || '没有可折算的问题证据'; };
+// several recs on one problem are alternatives: a total takes the best of each problem (key) and adds across problems
+function recTotal(rows) {
+  const best = {};
+  rows.forEach((r) => { const p = recPct(r.id); if (!p) return; const k = p.key || r.id; const b = best[k] || (best[k] = { t: null, k: null }); if (p.t != null) b.t = Math.max(b.t || 0, p.t); if (p.k != null) b.k = Math.max(b.k || 0, p.k); });
+  const vs = Object.values(best); const add = (f) => vs.some((b) => b[f] != null) ? Math.min(100, vs.reduce((a, b) => a + (b[f] || 0), 0)) : null;
+  return vs.length ? { t: add('t'), k: add('k') } : null;
+}
+const recTok = (id) => { const t = recX(id).tokp; return t == null ? '—' : t > 0 ? '+' + fmtPct(t) : t < 0 ? '−' + fmtPct(-t) : '0'; };
 // Which agents a rec applies to, parsed from its compat string (identity colours only).
 function recAgents(r) {
   if (r.live && r.agents) { const on = r.agents.filter((i) => AGI[i]); return on.length ? on : r.agents.length ? r.agents : AG.slice(0, 1).map((a) => a.id); }   // live: the rec's real target agents
@@ -7398,11 +7441,11 @@ PAGES.recs = () => {
   const peek = R.peek && RECI[R.peek] && !R.gone.has(R.peek) ? RECI[R.peek] : null;   // opened from elsewhere: shown without changing the filters (BUG-80)
   if (peek && !vis.includes(peek)) vis = vis.concat([peek]);
   const inLv = vis.filter((r) => R.lv.has(r.lvl) || r === peek);
-  const list = inLv.filter((r) => R.dim === 'all' || r.dim === R.dim || r === peek).sort((a, b) => (recX(b.id).save || 0) - (recX(a.id).save || 0));
+  const list = inLv.filter((r) => R.dim === 'all' || r.dim === R.dim || r === peek).sort((a, b) => recRank(b.id) - recRank(a.id));
   const cnt = (d) => inLv.filter((r) => d === 'all' || r.dim === d).length;
   const sel0 = RECI[R.sel] && list.includes(RECI[R.sel]) ? RECI[R.sel] : list[0];
   if (sel0) R.sel = sel0.id;
-  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + (x.save == null && r.live ? '<span class="rc-save" data-tl="rec-nosave" data-tip="' + esc(r.saveBasis || '没有可折算的问题证据') + '"><span class="u">未估算</span></span>' : '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b' + (x.save == null ? '' : ' data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '"') + '>' + recSave(r.id) + '</b><span class="u">/ 月</span></span>') + '</div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why"' + (r.live ? ' data-tl="rec-why" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"' : '') + '>' + esc(r.why) + ' ' + (recNoEv(r) ? '<span class="cap" data-tl="rec-match">' + esc(r.ev) + '</span>' : '<button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button>') + '</div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span></div><div class="rc-foot"><span class="mono rc-gain" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
+  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + (!x.pct ? '<span class="rc-save" data-tl="rec-nosave" data-tip="' + esc(recBasis(r)) + '"><span class="u">未估算</span></span>' : '<span class="rc-save" data-tip="预计节省：占全部协作时长 / 全部 token 的比例（对应操作占比 × 生效率）">' + (x.pct.t != null ? '<span class="u">省时</span><b' + pctCount(x.pct.t, 'rc:' + r.id) + '>' + fmtPct(x.pct.t) + '</b>' : '') + (x.pct.k != null ? '<span class="u">' + (x.pct.t != null ? '· ' : '省 ') + 'token</span><b' + pctCount(x.pct.k, 'rk:' + r.id) + '>' + fmtPct(x.pct.k) + '</b>' : '') + '</span>') + '</div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why"' + (r.live ? ' data-tl="rec-why" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"' : '') + '>' + esc(r.why) + ' ' + (recNoEv(r) ? '<span class="cap" data-tl="rec-match">' + esc(r.ev) + '</span>' : '<button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button>') + '</div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tokp < 0 ? ' good' : '') + '" data-tip="常驻 token 占比：每次请求都带上的上下文占全部 token 的比例（负数为释放）">' + ic('db', 11) + (x.tokp ? '常驻 ' + recTok(r.id) : x.tokp === 0 ? '不占常驻' : '常驻 —') + '</span></div><div class="rc-foot"><span class="mono rc-gain" data-tip="对应操作在全部轨迹里的占比（实测），乘以生效率即预计节省">' + esc(recShare(r)) + '</span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
   // g0 (live): profile matches without session evidence; g3 (live): 资料库推荐 (catalog-only), always last
   const g3 = list.filter((r) => r.lib), ev = list.filter((r) => !r.lib);
   const g0 = ev.filter(recNoEv), g1 = ev.filter((r) => r.lvl <= 2 && !recNoEv(r)), g2 = ev.filter((r) => r.lvl >= 3 && !recNoEv(r));
@@ -7415,7 +7458,7 @@ PAGES.recs = () => {
     let body = '';
     if (R.tab === 'why') body = '<div class="col" style="gap:12px;font-size:13px;line-height:1.6;color:var(--ink-2)"><p style="margin:0">' + esc(r.why) + '</p><div class="row" style="flex-wrap:wrap"><span class="tag">' + esc(r.compat) + '</span></div>' +
       '<div class="rc-ev"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><span class="eb">依据 · 可回看</span>' + (recNoEv(r) ? '<span class="cap">' + esc(r.ev) + ' · 还没有直接相关的会话</span>' : '<button type="button" class="btn sm" data-act="recEvidence" data-id="' + r.id + '">' + ic('sessions', 13) + '在会话里回看 ' + r.ev + '</button>') + '</div><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + (t[1] == null ? '—' : t[1]) + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div><span class="cap">安装前 7 天基准 · 效果追踪的对照组 · n = ' + x.n[0] + '</span></div>' +
-      '<p style="margin:0" class="cap" data-tip="不原生支持的 Agent 会自动转换成等价形式（例如 Skill → AGENTS.md 片段）">每月节省时间 = 近 30 天同类事件数 × 单次耗时（估计）</p></div>';
+      '<p style="margin:0" class="cap" data-tip="不原生支持的 Agent 会自动转换成等价形式（例如 Skill → AGENTS.md 片段）">节省比例 = 对应操作在全部轨迹里的时间 / token 占比 × 生效率（先验）</p></div>';
     else if (R.tab === 'preview' && r.live && !r.target && !r.file.length) body = '<div class="col" data-tl="rec-pv-plan" style="gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;color:var(--ink-2)"><span class="eb">将写入</span><p style="margin:0">具体文件由安装预览生成：Orbit 先读取来源，按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</p><span class="eb">其他 Agent</span><span style="font-size:12px">' + esc(recConvNote(r)) + '</span>' + recPrimaryBtn(r) + '</div>';
     else if (R.tab === 'preview') body = '<div class="rc-pv"><div class="rc-pv-f"><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb">将写入</span><span class="mono rc-path">' + esc(recTarget(r)).replace(/\//g, '/<wbr>') + '</span><span class="row" style="margin-top:4px;padding:4px 8px;border-radius:6px;background:var(--sunken)">' + ic('file', 13) + '<span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><span class="mono" style="margin-left:auto;font-size:11px;color:' + (fileKind(r) === '删除项' ? 'var(--crit)' : 'var(--good)') + '">' + fileKind(r) + '</span></span></div><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb rc-eb">安装到' + (recScoped(r) && !S.project ? '<span class="rc-i" data-tip="项目取自侧栏筛选；未筛选时用「项目习惯」里选中的项目" aria-label="说明">' + ic('info', 12) + '</span>' : '') + '</span>' +
       (recScoped(r) ? '<label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'global' ? 'checked ' : '') + 'data-chg="recScope" value="global" style="accent-color:var(--ink-1)">全局（所有项目）</label><label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'proj' ? 'checked ' : '') + 'data-chg="recScope" value="proj" style="accent-color:var(--ink-1)">仅 ' + esc(scopeProjName()) + '</label>' : /教程|剪贴板/.test(r.target) ? '<span class="cap">不写入文件</span>' : '<span class="cap">已限定项目 · ' + esc(r.target.split('/')[0]) + '</span>') +
@@ -7424,14 +7467,14 @@ PAGES.recs = () => {
     else if (R.tab === 'tut') body = '<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">' + r.steps.map((s2, i) => '<li class="row" style="align-items:flex-start;gap:10px"><span class="mono" style="width:22px;height:22px;flex:none;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:11px;font-weight:700;line-height:22px;text-align:center">' + (i + 1) + '</span><span style="font-size:13px;line-height:1.55;padding-top:1px">' + esc(s2) + '</span></li>').join('') + '</ol><div class="cap" style="margin-top:12px">外部链接会在默认浏览器中打开；命令都可以复制。</div>';
     else body = inst ? trackView(r, inst) : '<div class="col" style="gap:10px;align-items:flex-start"><span style="font-size:13px;line-height:18px;color:var(--ink-2)" data-tip="安装后 7 天逐项对比，给出 95% 区间与结论">安装后开始追踪，对比安装前后各 7 天</span><span class="eb">基准 · 安装前 7 天 · n = ' + x.n[0] + '</span><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + (t[1] == null ? '—' : t[1]) + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div>' + recPrimaryBtn(r) + '</div>';
     detail = '<div class="card" style="overflow:hidden"><div style="padding:14px 18px 0" class="col"><div class="row" style="flex-wrap:wrap;font-size:12px;color:var(--ink-2)">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b>' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '<span style="flex:1"></span><span class="tag">适合：' + AUD[r.aud] + '</span></div><h2 class="serif rc-h">' + esc(r.title) + '</h2>' +
-      '<div class="rc-kpis"><div class="rc-kpi"><span class="eb">每月节省时间 · 估计</span>' + (x.save == null && r.live ? '<span class="v" data-tl="rec-kpi-nosave">未估算</span><span class="cap">' + esc(r.saveBasis || r.gain) + '</span>' : '<span class="v">' + recSave(r.id) + '<small>/ 月</small></span><span class="cap" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>') + '</div><div class="rc-kpi"><span class="eb">常驻 token</span><span class="v' + (x.tok < 0 ? ' good' : '') + '">' + recTok(r.id) + (x.tok ? '<small>/ 会话</small>' : '') + '</span><span class="cap">' + (x.tok > 0 ? '每个会话启动时载入' : x.tok < 0 ? '从会话上下文中释放' : '不占会话上下文') + '</span></div><div class="rc-kpi"><span class="eb">适用 Agent</span><span class="row" style="gap:6px;min-height:24px">' + agentDots(r, true) + '</span><span class="cap">' + (r.live ? recConvNote(r) : /转换/.test(r.compat) ? 'Codex 用等价配置' : /所有/.test(r.compat) ? 'AGENTS.md 片段通用' : '其余转为 AGENTS.md') + '</span></div></div></div>' +
+      '<div class="rc-kpis"><div class="rc-kpi rc-kpi-save"><span class="eb">预计节省 · 占全部轨迹</span>' + (!x.pct ? '<span class="v" data-tl="rec-kpi-nosave">未估算</span><span class="cap" title="' + esc(recBasis(r)) + '">' + esc(recBasis(r)) + '</span>' : '<span class="v">' + (x.pct.t != null ? fmtPct(x.pct.t) + '<small>时间</small>' : '') + (x.pct.k != null ? (x.pct.t != null ? ' ' : '') + fmtPct(x.pct.k) + '<small>token</small>' : '') + '</span><span class="cap" title="' + esc(recBasis(r)) + '">' + esc(recShare(r) + ' × 生效率 ' + (x.pct.p != null ? +(+x.pct.p).toFixed(2) : '—')) + '</span>') + '</div><div class="rc-kpi"><span class="eb">常驻 token · 占比</span><span class="v' + (x.tokp < 0 ? ' good' : '') + '">' + recTok(r.id) + (x.tokp ? '<small>token</small>' : '') + '</span><span class="cap">' + (x.tokp > 0 ? '每次请求额外带上' : x.tokp < 0 ? '从每次请求中释放' : x.tokp === 0 ? '不占常驻上下文' : '没有可折算的轨迹') + '</span></div><div class="rc-kpi"><span class="eb">适用 Agent</span><span class="row" style="gap:6px;min-height:24px">' + agentDots(r, true) + '</span><span class="cap">' + (r.live ? recConvNote(r) : /转换/.test(r.compat) ? 'Codex 用等价配置' : /所有/.test(r.compat) ? 'AGENTS.md 片段通用' : '其余转为 AGENTS.md') + '</span></div></div></div>' +
       '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:8px 10px;font-size:13px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row rc-dfoot"><span class="row cap rc-dfoot-n">' + ic('grad', 13) + (r.live ? esc(r.origin === 'catalog' ? '资源目录' : 'Orbit 知识库') + ' · ' + esc(r.license || '许可未知') + (r.url ? ' · ' + liLink(r.url, '来源') : '') : 'Orbit 模板库 · MIT') + '</span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
   }
   // live: the header leads with the same total as the sidebar badge (open recs at the current level) and then says how many the
   // difficulty / dimension filters show, so the badge and「N 条」never disagree (R4-15)
   const lvHid = r0live() ? vis.length - list.length : 0, lvInst = r0live() ? vis.filter((r) => S.installed.has(r.id)).length : 0;
   const lvHead = r0live() ? '共 ' + (vis.length - lvInst) + ' 条' + (lvInst ? ' · ' + lvInst + ' 条已安装' : '') + (lvHid > 0 ? ' · 显示 ' + list.length + ' 条（' + lvHid + ' 条被筛选隐藏）' : '') : vis.length + ' 条';
-  return tbar('优化建议', lvHead + ' · 按每月节省时间排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
+  return tbar('优化建议', lvHead + ' · 按节省比例排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
     '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
     '<div class="frow"><span class="cap" data-tip="难度：L1 一键应用 · L2 复制粘贴 · L3 需要配置 · L4 架构调整">难度</span>' + [1, 2, 3, 4].map((k) => '<button type="button" class="chip sm' + (R.lv.has(k) ? '' : ' dash') + '" data-act="recLv" data-v="' + k + '" aria-pressed="' + R.lv.has(k) + '">' + lvlIcon(k) + LEVELS[k] + '</button>').join('') + '<span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span><span class="cap">按我的水平</span><button type="button" class="chip sm" data-act="recAud" data-tip="' + AUD_D[R.aud] + '">' + AUD[R.aud] + ic('chev', 12) + '</button><span style="flex:1"></span><span class="cap">已应用 ' + S.installed.size + ' · 不适用 ' + R.gone.size + (R.gone.size ? ' <button type="button" class="lnk" data-act="restoreRecs" style="font-size:12px">恢复</button>' : '') + '</span></div>' +
     '<div class="recs"><div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (g0.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-g0"><span>按画像匹配 · 待验证</span><span>' + g0.length + '</span></div>' + g0.map(card).join('') : '') + (g3.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-lib"><span>资料库推荐 · 按画像匹配</span><span>' + libN + '</span></div>' + g3.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div><div style="position:sticky;top:0">' + detail + '</div></div></div>';
@@ -8025,7 +8068,7 @@ function palItems(q) {
   ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id) && (q ? m(s.title) || m(PJI[s.p].name) : (LV.live || s.d >= LASTDAY))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
     .forEach((s) => have.add('s:' + s.id) && out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => ACT.openSession({ dataset: { id: s.id } }) }));
   if (LV.live) lvSearchMerge(out, q, have);
-  RECS.filter((r) => (!LV.live || (r.live && !q)) && (m(r.title) || m(r.type) || m(r.why))).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + r.gain, icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
+  RECS.filter((r) => (!LV.live || (r.live && !q)) && (m(r.title) || m(r.type) || m(r.why))).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + recGain(r), icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
   palActions().filter((a) => m(a.t)).forEach((a) => out.push(Object.assign({ g: '操作' }, a)));
   return out;
 }
@@ -8084,7 +8127,7 @@ function askAnswer(ctx, i) {
       const dl = ra.map((r, k) => [r.p.name, r.st.hours - rb[k].st.hours]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
       return '和上一个同样长度的周期相比：\n\n· 会话 ' + P.n + ' → ' + st.n + '（' + pct(st.n, P.n) + '）\n· 协作时长 ' + f1(P.hours) + 'h → ' + f1(st.hours) + 'h\n· 摩擦率 ' + f1(P.fric) + '% → ' + f1(st.fric) + '%\n\n变化最大的是「' + dl[0] + '」：协作时长' + (dl[1] >= 0 ? '多了 ' : '少了 ') + f1(Math.abs(dl[1])) + ' 小时。' + (st.fric > P.fric ? '摩擦率在上升，主要来自「' + (fr[0] ? fr[0][0] : '—') + '」。' : '摩擦率在下降，最近加的规则可能起了作用。');
     }
-    if (i === 1) { const r = recs[0]; return r ? '先做「' + r.title + '」。\n\n理由：' + r.why + '它属于' + LEVELS[r.lvl] + '，预计 ' + r.gain + '。\n\n做完之后再看「' + (recs[1] ? recs[1].title : '—') + '」。两条加起来不到 10 分钟。' : '当前可见的建议都已经处理了。7 天后到「效果追踪」看结果。'; }
+    if (i === 1) { const r = recs[0]; return r ? '先做「' + r.title + '」。\n\n理由：' + r.why + '它属于' + LEVELS[r.lvl] + '，预计' + recGain(r) + '。\n\n做完之后再看「' + (recs[1] ? recs[1].title : '—') + '」。两条加起来不到 10 分钟。' : '当前可见的建议都已经处理了。7 天后到「效果追踪」看结果。'; }
     return '摩擦率 = 纠偏与不满消息 ÷ 你的消息 = ' + fmt(st.corr) + ' ÷ ' + fmt(st.msgs) + ' = ' + f1(st.fric) + '%。\n\n' + (fr.length ? '最常见的是「' + fr[0][0] + '」（' + fr[0][1] + ' 个会话）' + (fr[1] ? '和「' + fr[1][0] + '」（' + fr[1][1] + ' 个）' : '') + '。这两类都能用规则前置：写进 AGENTS.md 后，Agent 会先遵守，而不是等你提醒。' : '这段时间没有记录到摩擦。');
   }
   if (ctx === 'persona') {
@@ -8095,7 +8138,7 @@ function askAnswer(ctx, i) {
     return '你的盲点主要在「' + (fr[0] ? fr[0][0] : '—') + '」' + (fr[1] ? '和「' + fr[1][0] + '」' : '') + '。\n\n建议：\n· ' + (fr[0] && FRIC_RULE[fr[0][0]] ? FRIC_RULE[fr[0][0]] : '在首条消息里写清完成条件') + '\n· ' + recs.slice(0, 2).map((r) => r.title).join('\n· ');
   }
   if (ctx === 'recs') {
-    if (i === 0) return '按「预计收益 ÷ 投入」排序：\n\n' + recs.slice().sort((a, b) => a.lvl - b.lvl).slice(0, 5).map((r, k) => (k + 1) + '. ' + r.title + '（' + LEVELS[r.lvl] + ' · ' + r.gain + '）').join('\n') + '\n\nL1、L2 的几条加起来不到 15 分钟，先做这些。';
+    if (i === 0) return '按「预计收益 ÷ 投入」排序：\n\n' + recs.slice().sort((a, b) => a.lvl - b.lvl).slice(0, 5).map((r, k) => (k + 1) + '. ' + r.title + '（' + LEVELS[r.lvl] + ' · ' + recGain(r) + '）').join('\n') + '\n\nL1、L2 的几条加起来不到 15 分钟，先做这些。';
     if (i === 1) return '可以一起装：\n· 只读命令自动放行 + 重复失败熔断：都写在 settings.json，但字段不同，互不影响\n· PR 收尾 + 验收清单：都是 Skill，触发条件不同\n\n不建议同时启用：\n· 降低思考等级 + 无人值守任务：无人值守时更需要高思考等级';
     return '还可以考虑（这些不在你的数据里，属于推测）：\n· 为 latentskill 建一个「投稿前检查」工作流：页数、匿名化、引用格式一次查完\n· 把每天的 team-hub 审核做成定时的无人值守任务\n· 给 Surge 规则的发布加一步 dry-run，先看差异再上传';
   }
@@ -8226,7 +8269,7 @@ function reportMD() {
   }
   if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + f1(r.st.auto) + '× | ' + f1(r.st.fric) + '% |')); out.push(''); }
   if (S.rep.has('fric')) { out.push('## 主要摩擦', ''); Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 4).forEach((f, i) => out.push((i + 1) + '. ' + f[0] + '：' + f[1] + ' 个会话')); out.push(''); }
-  if (S.rep.has('recs')) { out.push('## 建议', ''); visibleRecs().slice(0, 6).forEach((r) => out.push('- [' + (S.installed.has(r.id) ? 'x' : ' ') + '] ' + r.title + '（' + r.type + ' · ' + LEVELS[r.lvl] + ' · ' + r.gain + '）')); out.push(''); }
+  if (S.rep.has('recs')) { out.push('## 建议', ''); visibleRecs().slice(0, 6).forEach((r) => out.push('- [' + (S.installed.has(r.id) ? 'x' : ' ') + '] ' + r.title + '（' + r.type + ' · ' + LEVELS[r.lvl] + ' · ' + recGain(r) + '）')); out.push(''); }
   return out.join('\n');
 }
 function openReport() {
@@ -9351,7 +9394,7 @@ function renderPop() {
   const avg7 = sum(days, (x) => x[1]) / 7;
   const week = '<div class="sec"><div class="row" style="justify-content:space-between"><span class="eb">近 7 天</span><span class="mono cap" style="font-size:11px">日均 ' + f1(avg7) + ' · 今天 ' + today.length + '</span></div><div class="pwk" role="img" aria-label="近 7 天每天的会话数">' + days.map((x) => '<span class="pwk-c' + (x[0] === T ? ' today' : '') + '" data-tip="' + md(x[0]) + ' 周' + WD[wd(x[0])] + '：' + x[1] + ' 个会话' + (x[0] === T ? '（今天）' : '') + '"><b class="mono">' + x[1] + '</b><i style="height:' + Math.max(3, x[1] / mx * 30).toFixed(1) + 'px"></i><span class="mono cap">' + (x[0] === T ? '今' : WD[wd(x[0])]) + '</span></span>').join('') + '</div></div>';
   const top = recTop('menubar')[0];
-  const rec = top ? '<div class="sec row" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic(top.icon, 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(top.title) + '</div><div class="cap" style="font-size:11px">本周最值得做 · ' + top.gain + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + top.id + '">预览</button></div>' : '';
+  const rec = top ? '<div class="sec row" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic(top.icon, 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(top.title) + '</div><div class="cap" style="font-size:11px">本周最值得做 · ' + esc(recGain(top)) + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + top.id + '">预览</button></div>' : '';
   const doneS = BYID[DONE_ID];
   const doneBadge = S.sim === 'done' && doneS ? '<button type="button" class="bdg" data-act="popSess" data-id="' + DONE_ID + '" style="background:var(--good-bg);color:var(--good);border:0" data-tip="' + esc(doneS.title) + '">刚刚完成 1 个</button>' : '';
   const cxRow = (lbl) => sourceEnabled({ a: 'cx' }) ? (S.sim === 'waiting' ? '<div class="sec col" style="gap:6px;background:var(--warn-bg)"><div class="row"><span style="width:9px;height:9px;border-radius:2px;background:var(--warn-m)"></span><b style="font-size:13px">Codex · team-hub</b><span style="flex:1"></span><span class="cap" style="font-size:11px">等你确认 · 2 分钟</span></div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--surface)">git push origin collab</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudGo" data-v="waiting">在终端中处理</button><span class="cap" style="font-size:11px">Orbit 不会代你批准</span></div></div>' : '<button type="button" class="sec row" data-act="popSess" data-id="sess-1001-0903" style="width:100%;border:0;border-top:1px solid var(--hair);background:none;text-align:left;font-size:12px"><span class="dot" style="background:var(--a2)"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Codex · team-hub · 同步 collab 并审核日报</span><span class="mono cap" style="font-size:11px">09:03 · 12m ✓</span></button>') : '';
@@ -9605,7 +9648,7 @@ function renderWidgets() {
   const squares = '<div class="wg-row"><button type="button" class="wg sq" data-act="wgGo" data-r="persona"><span class="lbl">协作人格</span>' + (p.ok ? glyphSVG(p, 56) : '') + '<span><span class="tcode" style="display:block;font-size:26px;line-height:1;letter-spacing:.02em">' + (p.ok ? p.code : '—') + '</span><span style="font-size:12px;color:var(--ink-2)">' + (p.ok ? p.zh + ' · 置信度' + p.conf : '样本不足') + '</span></span></button>' +
     '<button type="button" class="wg sq" data-act="wgGo" data-r="sessions"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span>' + dayStrip + '<span class="row" style="font-size:11px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:' + agent(live.a).c + '"></span>' + (S.numOnly ? '1 个运行中' : esc(sessProjName(live)) + ' · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>';
   const week = '<button type="button" class="wg wk" data-act="wgGo" data-r="overview"><span class="col" style="gap:4px;min-width:0"><span class="lbl">本周</span><span class="mono" style="font-size:34px;font-weight:600;line-height:1">' + s7.n + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · <span class="mono" style="color:var(--ink-3)">' + (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '%</span></span><span style="font-size:12px;color:var(--ink-2)">摩擦率 <b class="mono">' + f1(s7.fric) + '%</b> <span class="mono" style="white-space:nowrap;color:' + (Math.abs(fricD) < 0.05 ? 'var(--ink-3)' : fricD < 0 ? 'var(--good)' : 'var(--crit)') + '">' + (Math.abs(fricD) < 0.05 ? '＝' : fricD < 0 ? '▼' : '▲') + f1(Math.abs(fricD)) + 'pt</span><span class="cap"> vs 上周</span></span></span><span class="col" style="gap:5px;min-width:0"><span class="wg-week" role="img" aria-label="近 7 天每天的会话数，按 Agent 堆叠">' + days.map(col).join('') + '</span><span class="row cap" style="font-size:10px;gap:6px">' + K.filter((k) => k).map((k) => '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:' + wgC(k) + '"></i>' + esc(wgN(k)) + '</span>').join('') + '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--h2)"></i>其他</span></span></span></button>';
-  const rec = top ? '<button type="button" class="wg" data-act="wgRec" data-id="' + top.id + '" style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="lbl">本周最值得做</span><span style="font-size:15px;font-weight:600;line-height:1.35">' + esc(top.title) + '</span><span class="cap">' + top.type + ' · ' + LEVELS[top.lvl] + ' · ' + top.gain + '</span><span class="row" style="width:100%;justify-content:space-between;margin-top:4px"><span class="cap">还有 ' + Math.max(0, recs.length - 1) + ' 条建议</span><span class="btn sm">预览</span></span></button>' : '';
+  const rec = top ? '<button type="button" class="wg" data-act="wgRec" data-id="' + top.id + '" style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="lbl">本周最值得做</span><span style="font-size:15px;font-weight:600;line-height:1.35">' + esc(top.title) + '</span><span class="cap">' + top.type + ' · ' + LEVELS[top.lvl] + ' · ' + esc(recGain(top)) + '</span><span class="row" style="width:100%;justify-content:space-between;margin-top:4px"><span class="cap">还有 ' + Math.max(0, recs.length - 1) + ' 条建议</span><span class="btn sm">预览</span></span></button>' : '';
   // large: the running session with its context bar, then two 7-day sparklines against the previous week
   let big = '';
   if (size === 'l') {
@@ -12334,8 +12377,9 @@ if (TL.mode === 'live') {
    - Recommendations are personal data: live mode drops the demo rows at load (RECS / RECI / REC_X; ?demo=1 keeps them).
      No run yet (cold start), 0 cards, a missing / down endpoint (404 / 501 / 503 / offline) or computing all render the
      A7 page's own honest empty state, never demo rows. Live once: later failures keep the last live rows (strip: 刷新失败).
-   - Rows carry the real agents (target.agents → LV.agentOf → AG ids; native vs 转换), the monthly saving from ui.save, the
-     resident tokens from ui.tok and the source link. 获取 / 预览并安装 runs the real install sheet (97-live-library-install
+   - Rows carry the real agents (target.agents → LV.agentOf → AG ids; native vs 转换), the saving shares from ui.save (time /
+     token % of the real trajectory), the resident token share from ui.tok_pct and the source link.
+     获取 / 预览并安装 runs the real install sheet (97-live-library-install
      liInstall, source {type:'candidate'}): plan → preview → confirm → apply with the preview_digest; 撤销 reverts by install_id.
    - Writes: view / open / preview / copy exposure; 不适用 / 稍后 / 不再推荐同类 are labels with an 8-second undo
      (DELETE /v1/labels/{id}); 重新计算 is POST /v1/recommendations/recompute. Each write invalidates the rec resources. */
@@ -12350,7 +12394,7 @@ if (TL.mode === 'live' && !LV.demo) {
   RECS.length = 0; Object.keys(RECI).forEach((k) => { delete RECI[k]; }); Object.keys(REC_X).forEach((k) => { delete REC_X[k]; });
   S.installed.clear(); S.recs.sel = null;
 }
-// Cand → RECS row: the shared mapper (OrbitLive.recs.row) plus real agents, ui.save / ui.tok and the source link.
+// Cand → RECS row: the shared mapper (OrbitLive.recs.row) plus real agents, ui.save / ui.tok_pct and the source link.
 function lvRecRow(c) {
   const r = OrbitLive.recs.row(c); const u = c.ui || {};
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
@@ -12358,14 +12402,14 @@ function lvRecRow(c) {
   bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
   r.agents = ids; r.bagents = bids;
   if (ids.length) r.compat = parts.join(' · ');
+  // r.x.pct (shares of the real trajectory) and r.x.tokp come from ui.save / ui.tok_pct via OrbitLive.recs.row; tok in k
   const sv = u.save && typeof u.save === 'object' ? u.save : null;
-  if (sv) r.x.save = sv.min_month > 0 ? Math.round(sv.min_month / 60 * 10) / 10 : null;
   r.x.tok = typeof u.tok === 'number' ? Math.round(u.tok / 100) / 10 : null;
   if (Array.isArray(u.n) && u.n[0] != null) r.x.n = [u.n[0], u.n[1] != null ? u.n[1] : u.n[0]];
   // evidence: catalog rows matched only by profile have no session behind them, so they say what matched instead of 0 个会话
   const evN = ((c.evidence || {}).counts || {}).sessions || ((c.evidence || {}).session_uids || []).length || 0; r.evN = evN;
   r.why = lvRecBrief(r.why && r.why !== r.title ? r.why : c.summary) || lvRecBrief(c.summary) || '';
-  if (sv) r.saveBasis = sv.basis || null;
+  if (sv) r.saveBasis = sv.basis || null;   // 未估算: why (no problem evidence, no ledger yet …)
   if (!evN) {
     const m = ((c.feature_overlap || {}).matched || []).map((t) => String(t).replace(/^[a-z_]+:/, '')).filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 3);
     r.ev = m.length ? '技术栈匹配 · ' + m.join(' · ') : '按使用画像匹配';
