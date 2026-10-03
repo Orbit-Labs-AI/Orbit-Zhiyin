@@ -211,11 +211,14 @@ test('F25: digest card reads the detail events; template insight is labelled 规
   const card = page.locator('.sd-card');
   await expect(card).toContainText('「修复示例构建脚本 #16」');
   const labels = DA.trajectory.phases.map((p) => p.label);
-  await expect(card.locator('.sd-tbl tbody tr td:first-child')).toHaveText(labels);
+  await expect(card.locator('.sd-tbl tbody tr td:first-child b')).toHaveText(labels);
   const evs = DA.trajectory.events; const tools = evs.filter((e) => ['read', 'edit', 'bash', 'web'].includes(e.lane));
   await expect(card).toContainText('工具 ' + tools.length + ' 次');
   await expect(card).toContainText('失败 ' + tools.filter((e) => e.err).length + ' 次');
   await expect(card.locator('.sd-chip')).toContainText(['你纠偏', '等你批准', '连续失败']);
+  // the header's stats7 counts the whole session; the digest says which of its numbers use a different basis
+  await expect(card.locator('.sd-basis')).toHaveText('按轨迹事件统计 · 工具、消息、失败数与页头口径不同');
+  await expect(card.locator('.sd-ph')).toHaveCount(labels.length);
   await expect(card.locator('.sd-chip').filter({ hasText: '连续失败' })).toContainText('pnpm build 连续失败 3 次');
   await expect(card.locator('.sd-chip').filter({ hasText: '等你批准' })).toContainText('等了 1 分钟');
   // the approval wait is drawn in the 你的消息 lane and explained in the inspector

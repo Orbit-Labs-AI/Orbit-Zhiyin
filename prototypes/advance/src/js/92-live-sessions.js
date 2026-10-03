@@ -30,7 +30,7 @@
       if (lane === 'user') { e.mood = x.mood != null ? x.mood : null; e.corr = !!x.corr; e.txt = x.txt || ''; }
       else if (lane === 'reply') e.txt = 'Agent 回复' + (e.w ? ' · ' + Math.max(1, Math.round(e.w * 60)) + ' 秒' : '');
       else if (lane === 'sub') { e.txt = x.txt || '子代理'; if (!e.w) e.w = Math.max(0.05, T * 0.02); }
-      else { e.cmd = x.cmd || x.name || '—'; e.res = x.res || x.status || null; e.err = !!x.err; if (x.wait > 0) { e.wait = +x.wait; e.approval = x.approval || null; } }
+      else { e.cmd = x.cmd || x.name || '—'; e.res = x.res || x.status || null; e.err = !!x.err; if (x.wait > 0) e.wait = +x.wait; if (x.approval) e.approval = x.approval; }
       if (x.err) e.err = true;
       ev.push(e);
     });

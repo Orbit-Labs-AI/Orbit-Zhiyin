@@ -214,6 +214,23 @@ test('F25: digest card, plain lanes and legend, moment reasons, independent pane
   await expect(box.locator('.vz-span[style*="--warn-m"]')).not.toHaveCount(0);
   // moments explain why they matter
   await expect(page.locator('.tl-mom .tl-mw').first()).toBeVisible();
+  // the phase strip stays visible, the detail table is folded so the trajectory's top edge is in the first screen
+  await expect(card.locator('.sd-ph')).toHaveCount(s.rows);
+  await expect(card.locator('.sd-more-ph')).not.toHaveAttribute('open', '');
+  const fold = await page.evaluate(() => ({ top: document.querySelector('.tl-card').getBoundingClientRect().top, vh: innerHeight }));
+  expect(fold.top).toBeLessThan(fold.vh);
+  await card.locator('.sd-more-ph summary').click();
+  await expect(card.locator('.sd-tbl')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => S.sess.dgOpen)).toBe(true);
+  await page.evaluate(() => { S.sess.dgOpen = false; });
+  // the legend only says 按事件推断 when a phase really is inferred
+  const inferred = await page.evaluate(() => { const s = BYID[S.sess.sel]; return traj(s).phases.some((p) => (p.inferred != null ? p.inferred : !s.featured)); });
+  if (inferred) await expect(page.locator('.tl-legend')).toContainText('阶段（按事件推断'); else await expect(page.locator('.tl-legend')).not.toContainText('按事件推断');
+  // a refused permission prompt with no recorded wait still shows as a blocker and in the inspector, in plain words
+  await page.evaluate(() => { const s = BYID[S.sess.sel]; const tr = traj(s); const e = tr.ev.find((x) => TOOL.includes(x.lane) && !x.wait && !x.err); e.approval = 'declined'; delete tr._dg; render(); tlPick(s, { id: e.id }); });
+  expect(await page.evaluate(() => sessDigest(BYID[S.sess.sel], traj(BYID[S.sess.sel])).blk.filter((b) => b.kind === 'deny').map((b) => b.label))).toEqual(['你拒绝了']);
+  await expect(page.locator('#tlInsp')).toContainText('你拒绝了');
+  await expect(page.locator('#tlInsp')).not.toContainText('declined');
   // list and detail scroll on their own; the header card keeps its height
   const panes = await page.evaluate(() => { const st = document.querySelector('.sess>.stack'); const sl = document.querySelector('#slist'); const before = sl.scrollTop; st.scrollTop = 300; return { st: st.scrollTop, sl: sl.scrollTop, before, band: document.querySelector('.sess>.stack>.card').getBoundingClientRect().height, scrollable: st.scrollHeight > st.clientHeight && sl.scrollHeight > sl.clientHeight }; });
   expect(panes.scrollable).toBe(true);
