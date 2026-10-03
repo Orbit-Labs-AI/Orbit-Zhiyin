@@ -20,6 +20,8 @@ Preference 一键验证：`bash scripts/check-preference.sh`。指定 `--db /pat
 
 推荐的过去到未来评测见 [Benchmark](benchmark/README.md)：`bash scripts/check-benchmark.sh` 从已有本机 canonical 快照冻结滚动锚点的推荐，单独观察最多 72 小时内接下来的任务，重放窗口／缺失／跨项目／表示对照。它使用 `.venv`，不调用模型或执行 Skill；有真实配对执行记录后才能计算效用与 Regret，缺失时明确为未证实。
 
+历史技能学习的隔离执行评测见 [skill_learning](skill_learning/README.md)：预登记 history / validation / held-out test，先验证参考解与 personalization headroom，再冻结实现与干预。包含推荐漏斗诊断、无网络容器和 Pi memory-off 运行记录；实际模型调用须有用户授权，不能代替普通回归测试。
+
 已有本机 canonical 快照时，运行 `bash scripts/check-feature-diagnostics.sh`，直接在终端查看八个特征族和每个 Skill 的输入使用、有效观察、未知原因与推荐依据。使用仓库 `.venv`，无需 `uv`，不导入来源、不调用模型。默认七天窗口以快照最新事件为截止点，默认本机快照为 `.local/backend-nine-hour/current-data`；其他目录用 `--home` 指定。完整结果留在新建的忽略目录，详见[特征与 Skill 诊断](../docs/modules/analytics/fact-diagnostics.md)。
 
 分析／推荐鲁棒性：`.venv/bin/python -m evals.analytics.robustness --home /path/to/canonical --output .local/robustness/run-01`。受控重试、失败消融、顺序／重复、范围、上下文与重复运行都有固定预期和关系检查。原生全量／增量、损坏日志、规模测试分别由 `robustness_native / robustness_faults / robustness_scale` 提供，命令与事实边界见[鲁棒性验收](../docs/development/analytics-robustness.md)。
