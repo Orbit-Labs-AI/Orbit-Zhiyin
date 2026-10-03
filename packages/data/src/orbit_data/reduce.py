@@ -372,9 +372,10 @@ def _failure_kind(values):
     status = values.get("status")
     exit_code = values.get("exit_code")
     nonzero = isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code != 0
-    if status not in ("failed", "interrupted") and not nonzero:
+    if status not in ("failed", "interrupted", "declined") and not nonzero:
         return None
-    if str(values.get("approval") or "").lower() in _REFUSED:
+    if status == "declined" or str(values.get("approval") or "").lower() in _REFUSED:
+        # Claude Code marks a refused call status="declined" (with a denied decision).
         return "permission_denied"
     if status == "interrupted":
         return "interrupted"
