@@ -7,8 +7,8 @@ The v8 store is the synthetic fixture store with the event-index section of the 
 import sys
 from pathlib import Path
 
-import pytest
 import orbit_data
+import pytest
 from conftest import DAY, NOW
 
 from orbit_backend.features.search import PER_SOURCE, search

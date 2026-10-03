@@ -130,7 +130,7 @@ def purge_all(home: str | Path, confirm: str) -> dict:
     if root == Path(root.anchor) or root == Path.home().resolve():
         raise PurgeRefused("refusing to purge a filesystem root or the user home directory")
     if not (root / "orbit.db").exists() and not (root / "raw").exists():
-        raise PurgeRefused("not a Orbit data home (no orbit.db or raw/)")
+        raise PurgeRefused("not an Orbit data home (no orbit.db or raw/)")
 
     files: list[Path] = []
     directories: list[Path] = []

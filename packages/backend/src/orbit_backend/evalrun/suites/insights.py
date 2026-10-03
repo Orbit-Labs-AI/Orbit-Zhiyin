@@ -2,7 +2,7 @@
 
 Sessions are matched by ``session.native_id``. Per metric the score is the share of matched
 sessions whose values agree within 10%. Runs only when the caller passes ``ctx.home`` (the home
-holding ``.claude/usage-data``) and a orbit.db via ``params['orbit_db']`` or
+holding ``.claude/usage-data``) and an orbit.db via ``params['orbit_db']`` or
 ``params['orbit_home']``; it never defaults to the real home.
 """
 

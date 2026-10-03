@@ -30,7 +30,7 @@ class AppDB:
             self.db.execute(f"PRAGMA application_id = {APPLICATION_ID}")
         elif self.db.execute("PRAGMA application_id").fetchone()[0] != APPLICATION_ID:
             self.db.close()
-            raise ValueError(f"{self.path} is not a Orbit app.db")
+            raise ValueError(f"{self.path} is not an Orbit app.db")
         for pragma in ("journal_mode = WAL", "synchronous = NORMAL", "foreign_keys = ON",
                        "busy_timeout = 5000", "temp_store = MEMORY"):
             self.db.execute(f"PRAGMA {pragma}")

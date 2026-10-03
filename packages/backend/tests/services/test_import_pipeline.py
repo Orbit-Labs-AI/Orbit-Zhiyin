@@ -14,9 +14,9 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import add_codex, wait_for, wait_job
-from synthetic import write_codex_tree
 from orbit_data.service import ImportRequest, ImportService
 from orbit_data.store import Store
+from synthetic import write_codex_tree
 
 from orbit_backend.services.gateway import Gateway, sync_wait
 from orbit_backend.services.jobs import AppState

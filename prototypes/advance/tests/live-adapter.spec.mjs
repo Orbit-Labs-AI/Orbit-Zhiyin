@@ -5,7 +5,7 @@
 //  2. live Advance  import progress, overview counts, sessions + events, tools, projects, sidebar and settings › 数据源 all come
 //                   from fixtures; missing values show「—」not 0; unbound pages carry 示例数据
 //  3. outage        503 + Retry-After keeps the previous screen and shows the banner; service degraded shows too
-//  4. restart       a orbit:endpoint event moves to the new gateway (new token) and re-renders from it
+//  4. restart       an orbit:endpoint event moves to the new gateway (new token) and re-renders from it
 //  5. live Lite     same bindings in the single-file Lite page
 //  6. Lite edition  Advance's Lite pages: l-home / l-sessions reuse the bound pages, l-recs is bound, l-persona shows 示例数据
 //  7. recs          A7 / A1 / Lite / menubar read /v1/recommendations (fixtures/recs); exposure, labels with undo, recompute;

@@ -19,9 +19,9 @@ BASE = "http://127.0.0.1:8765"
 @pytest.fixture
 def client(tmp_path, user_home):
     sys.path.insert(0, str(Path(__file__).parents[2] / "services"))
-    from synthetic import write_codex_tree
     from orbit_data.service import ImportRequest, ImportService
     from orbit_data.store import Store
+    from synthetic import write_codex_tree
 
     from orbit_backend.ai import service as ai_service
     from orbit_backend.ai.engines import FakeEngine

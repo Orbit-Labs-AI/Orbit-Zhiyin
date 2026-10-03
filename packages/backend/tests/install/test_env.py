@@ -198,7 +198,7 @@ def test_projects_ordered_by_recent_session_activity(tmp_path):
 
 
 def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
-    """A orbit.db whose inventory was never scanned must not report zeros as inventory facts."""
+    """An orbit.db whose inventory was never scanned must not report zeros as inventory facts."""
     import json
 
     claude = env.home / ".claude"

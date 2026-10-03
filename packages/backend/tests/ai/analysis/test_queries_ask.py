@@ -132,9 +132,9 @@ def real_db(tmp_path_factory):
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).parents[2] / "services"))
-    from synthetic import write_codex_tree
     from orbit_data.service import ImportRequest, ImportService
     from orbit_data.store import Store
+    from synthetic import write_codex_tree
 
     root = tmp_path_factory.mktemp("real")
     write_codex_tree(root / "codex", 24)

@@ -28,10 +28,10 @@ test('J15 mock: report title, share card wordmark and its PNG say Orbit, never O
     return { head: md.split('\n')[0], md, card, model: JSON.stringify(shareModel(sp)) };
   });
   expect(r.head).toMatch(/^# Orbit 协作报告/);
-  expect(r.md).not.toMatch(/Orbit|同频/i);
+  expect(r.md).not.toMatch(/Tandem|同频/i);  // orbit-rename: keep
   expect(r.card).toContain('>ORBIT<');
-  expect(r.card).not.toMatch(/orbit|同频/i);
-  expect(r.model).not.toMatch(/orbit|同频/i);
+  expect(r.card).not.toMatch(/tandem|同频/i);  // orbit-rename: keep
+  expect(r.model).not.toMatch(/tandem|同频/i);  // orbit-rename: keep
   // the PNG draws its wordmark with fillText: record the strings
   const drawn = await page.evaluate(async () => {
     const out = []; const f = CanvasRenderingContext2D.prototype.fillText;
@@ -40,7 +40,7 @@ test('J15 mock: report title, share card wordmark and its PNG say Orbit, never O
     return out;
   });
   expect(drawn).toContain('ORBIT');
-  expect(drawn.join('\n')).not.toMatch(/orbit|同频/i);
+  expect(drawn.join('\n')).not.toMatch(/tandem|同频/i);  // orbit-rename: keep
 });
 
 test('J15 live: report fixture title and saved file names are Orbit', async ({ page }) => {
@@ -50,7 +50,7 @@ test('J15 live: report fixture title and saved file names are Orbit', async ({ p
   await openLive(page, 'overview');
   await page.evaluate(() => openReport());
   await expect(page.locator('#repText')).toHaveValue(/^# Orbit 协作报告/);
-  expect(await page.locator('#repText').inputValue()).not.toMatch(/Orbit/);
+  expect(await page.locator('#repText').inputValue()).not.toMatch(/Tandem/);  // orbit-rename: keep
   await page.locator('#modal [data-act="repSave"]').click();
   await expect.poll(async () => (await msgs(page, 'save')).length).toBe(1);
   expect((await msgs(page, 'save'))[0].filename).toMatch(/^orbit-report-\d{4}-\d{2}-\d{2}\.md$/);
@@ -59,10 +59,10 @@ test('J15 live: report fixture title and saved file names are Orbit', async ({ p
   expect(errors).toEqual([]);
 });
 
-test('J15 Lite: sessions CSV, report and persona SVG downloads are orbit-*-<day>, no visible Orbit / 同频', async ({ page }) => {
+test('J15 Lite: sessions CSV, report and persona SVG downloads are orbit-*-<day>, no visible Tandem / 同频', async ({ page }) => {  // orbit-rename: keep
   ONLY();
   const html = fs.readFileSync(path.join(FIXTURES, '..', '..', 'lite', 'orbit-benchmark-demo.html'), 'utf8');
-  expect(html).not.toContain("download('orbit-");
+  expect(html).not.toContain("download('tandem-");  // orbit-rename: keep
   expect(html).toContain("download('orbit-sessions-'+new Date().toLocaleDateString('sv-SE')+'.csv'");
   expect(html).toContain("download('orbit-persona-'+new Date().toLocaleDateString('sv-SE')+'.svg'");
   expect(html).toContain("download('orbit-report-'+new Date().toLocaleDateString('sv-SE')+'.md'");
@@ -71,7 +71,7 @@ test('J15 Lite: sessions CSV, report and persona SVG downloads are orbit-*-<day>
   await page.goto('file://' + path.join(FIXTURES, '..', '..', 'lite', 'orbit-benchmark-demo.html'));
   await page.waitForTimeout(500);
   const txt = await page.evaluate(() => document.title + '\n' + document.body.innerText);
-  expect(txt).not.toMatch(/Orbit|同频|ORBIT/);
+  expect(txt).not.toMatch(/Tandem|同频|TANDEM/);  // orbit-rename: keep
 });
 
 test('H4: ⇧⌘E / ⇧⌘S open their sheet at once while the gateway is still assembling (slow /v1/export/*)', async ({ page }) => {

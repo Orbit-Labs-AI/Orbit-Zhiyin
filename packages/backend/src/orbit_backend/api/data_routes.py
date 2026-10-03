@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
 from orbit_data.privacy_rules import MAX_PREVIEW_CHARS
+from pydantic import BaseModel, Field
 
 
 class PurgeRequest(BaseModel):

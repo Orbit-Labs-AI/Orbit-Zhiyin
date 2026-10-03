@@ -112,7 +112,7 @@ def test_non_orbit_directory_is_refused(tmp_path):
     folder = tmp_path / "docs"
     folder.mkdir()
     (folder / "notes.txt").write_text("x")
-    with pytest.raises(PurgeRefused, match="not a Orbit"):
+    with pytest.raises(PurgeRefused, match="not an Orbit"):
         purge_all(folder, PURGE_CONFIRMATION)
     assert (folder / "notes.txt").exists()
 

@@ -27,9 +27,7 @@ def test_coverage_states_do_not_conflate_missing_empty_and_excluded(
     rows, excluded, reasons, counts, status
 ):
     result = dataset_coverage(rows, excluded=excluded, reasons=reasons, reason_counts=counts)
-    schema = json.loads(
-        files("orbit_data").joinpath("schemas/coverage-v1.schema.json").read_text()
-    )
+    schema = json.loads(files("orbit_data").joinpath("schemas/coverage-v1.schema.json").read_text())
     Draft202012Validator(schema).validate(result)
     assert result["status"] == status and result["rows"] == rows
     assert bool(result["reasons"]) == (status != "available")

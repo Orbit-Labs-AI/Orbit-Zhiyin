@@ -270,9 +270,7 @@ def test_upgrade_from_v4_keeps_session_tables_and_inventory_survives_rebuild(tmp
     home.mkdir()
     with sqlite3.connect(home / "orbit.db") as connection:
         for name in ("001.sql", "002.sql", "003.sql", "004.sql"):
-            connection.executescript(
-                files("orbit_data").joinpath("migrations/" + name).read_text()
-            )
+            connection.executescript(files("orbit_data").joinpath("migrations/" + name).read_text())
     root = tmp_path / "codex"
     write(root, "AGENTS.md", "rule")
     with Store(home) as store:

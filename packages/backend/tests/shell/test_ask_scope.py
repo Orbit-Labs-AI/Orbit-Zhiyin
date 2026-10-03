@@ -4,7 +4,7 @@ persisted exclusions."""
 from __future__ import annotations
 
 import pytest
-from realtime_fixtures import NOW, Reads, Orbit
+from realtime_fixtures import NOW, Orbit, Reads
 
 from orbit_backend.ai import queries
 from orbit_backend.ai.ask import _Q
