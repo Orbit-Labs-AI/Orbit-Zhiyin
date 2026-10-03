@@ -85,7 +85,7 @@ scene('10-intro', () => {
   const SET = .16;
   const wipe = (o) => (el, tl, life) => {
     const ws = [...el.querySelectorAll('.w')], dur = o.dur ?? .24;
-    if (!el._ww || !el._ww.some((v) => v > 0)) { ws.forEach((w) => { w.style.display = ''; w.style.width = ''; }); el._ww = ws.map((w) => w.offsetWidth); }
+    if (!o.fixed && (!el._ww || !el._ww.some((v) => v > 0))) { ws.forEach((w) => { w.style.display = ''; w.style.width = ''; }); el._ww = ws.map((w) => w.offsetWidth); }
     ws.forEach((w, i) => {
       if (i === o.stamp) {
         const u = (tl - BB(o.at[i])) / BEAT, p = E.out(clamp(u / .35)), a = clamp(u / .2);
@@ -99,6 +99,17 @@ scene('10-intro', () => {
         return;
       }
       const u = (tl - BB(o.at[i])) / BEAT, p = E.out(clamp(u / dur)), z = E.out(clamp(u / (dur + SET)));
+      if (o.fixed) {
+        // v18.2: the line is set once at its final, centred width — a word not yet in keeps its room but is hidden
+        // (visibility), and it is revealed by a clip edge running left → right, so words already down never slide
+        w.style.visibility = p > 0 ? '' : 'hidden';
+        w.style.clipPath = p < 1 ? 'inset(-40% ' + (100 * (1 - p)).toFixed(2) + '% -40% -20%)' : '';
+        w.style.opacity = Math.min(1, p * 1.5).toFixed(3);
+        w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 6).toFixed(1) + 'px)' : 'none';
+        w.style.transform = z < .999 ? 'scale(' + lerp(1.07, 1, z).toFixed(4) + ')' : '';
+        w.style.transformOrigin = '0% 58%';
+        return;
+      }
       w.style.display = p > 0 ? '' : 'none';
       w.style.width = p < 1 ? (el._ww[i] * p).toFixed(1) + 'px' : '';
       w.style.clipPath = p < 1 ? 'inset(-40% 0 -40% -20%)' : '';
@@ -381,7 +392,7 @@ scene('10-intro', () => {
   // out of the dots' way with their own front-loaded ease (PEN_E = 15-redesign's H3E, b14.8–15.4; 「Everything」 stays,
   // the gloss is under it)
   txt(CB0, CB1, [W1], { x: 960, y: 470, align: 'c' }, {
-    anim: wipe({ at: CAT, fit: 1150, push: .04, out: .8, spread: true }),
+    anim: wipe({ at: CAT, fit: 1150, push: .04, out: .8, spread: true, fixed: true }),
     tick: (el, tl, life) => { el.style.transform += ' translateY(' + (-48 * PEN_E(clamp((tl - (life - BB(.8))) / BB(.6)))).toFixed(1) + 'px)'; }
   });
   // T3 / T3′ the caret (b10.2–14.8): the arc folds into a short column (gap 34, r 16, ≈ 168 px tall like the 120 px type;
@@ -392,11 +403,15 @@ scene('10-intro', () => {
   // b12.5–14.8 it rests at (1400, 615), breathing every ≈ .5 beat (the icons keep turning, the type keeps its push);
   // 15-redesign's arc key (its b11.8 + SHIFT 3 = b14.8) takes it from there (T4).
   const w1W = wordsOf(W1[0], W1[1]);
-  const w1R = (k) => (b) => {
-    const s = sum(w1W(), k + 1);
-    return 960 + s / 2 * Math.min(1, 1150 / s) * (1 + .04 * clamp((b - CB0) / (CB1 - CB0))) + 52;
+  // v18.2: the line is set once at its final centred width (wipe fixed), so the caret starts at the left of 「We」 and
+  // rides the wipe's front: from CB0 + CAT[k] it slides with the same .24 beat E.out as the reveal, 52 px ahead of it
+  const WD = .24;
+  const w1F = (b) => {
+    const W = w1W(), tot = sum(W, W.length);
+    const shown = W.reduce((s, v, k) => s + v * E.out(clamp((b - CB0 - CAT[k]) / WD)), 0);
+    return 960 + (shown - tot / 2) * Math.min(1, 1150 / tot) * (1 + .04 * clamp((b - CB0) / (CB1 - CB0))) + 52;
   };
-  const caretX = (b) => glide(b, w1R(0)(b), [[CB0 + CAT[1] - .26, CB0 + CAT[1] - .02, w1R(1)], [CB0 + CAT[2] - .26, CB0 + CAT[2] - .02, w1R(2)], [T(12.1), T(12.5), 1400]]);   // v17.5: steps after each word lands
+  const caretX = (b) => glide(b, w1F(b), [[T(12.1), T(12.5), 1400]]);
   const caretY = (b) => glide(b, 470, [[T(11.95), T(12.3), 615]]);
   // v17.7 F3 1c: the five dots fold (stag .03, as the key) into ONE five-colour segmented caret — segments 24 px tall,
   // 26 apart (128 px ≈ the 132 px type), cc on top: the logos fade, the colours top to bottom are the five Agents
@@ -405,7 +420,7 @@ scene('10-intro', () => {
   // (−4° on the step back left to 1400) and stands up again; at rest (from b15.4) it breathes — its fill dims to .7
   // and back on a 1-beat sine, never a hard blink — until 15-redesign lays it down (b18.7)
   const RIP = [11.0, 11.5, 12.0, 12.5].map(T);
-  const STEPS = [[CB0 + CAT[1] - .26, CB0 + CAT[1] - .02, 1], [CB0 + CAT[2] - .26, CB0 + CAT[2] - .02, 1], [T(12.1), T(12.5), -1]];
+  const STEPS = [...CAT.map((a) => [CB0 + a, CB0 + a + WD + .1, 1]), [T(12.1), T(12.5), -1]];
   const REST = T(12.5);
   AGD.morph(T(10.2), 'all', 'caret', {
     hpx: (b, i) => 24 * (1 + .08 * AGD.beatPulse(b, RIP.map((w) => w + .05 * i), .45)),
