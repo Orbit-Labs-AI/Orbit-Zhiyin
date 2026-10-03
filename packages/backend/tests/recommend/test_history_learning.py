@@ -59,6 +59,44 @@ def test_step_evidence_is_merged_instead_of_demanding_redundant_citations():
     assert len(result["result"]["candidates"][0]["evidence"]) == 2
 
 
+def test_refinement_rejects_test_feedback_and_keeps_training_support_separate():
+    from orbit_backend.ai.learning_feedback import validate_request
+
+    item = {"split": "test", "case_id": "case", "session_uid": "validation:case",
+            "event_uid": "evaluation:case", "report_digest": "a" * 64, "body": "A check failed"}
+    request = {"params": {"artifact_id": "library", "validation_feedback": [item]}}
+    assert validate_request(request)
+    item["split"] = "validation"
+    assert not validate_request(request)
+    context = evidence_pack()
+    context["content"]["validation_feedback"] = [item]
+    candidate = example()
+    candidate["procedure"][1]["evidence"] = [{"session_uid": item["session_uid"], "event_uid": item["event_uid"]}]
+    assert not validate({"candidates": [candidate]}, context)
+    result = finalize({"candidates": [candidate], "gaps": []}, context, "model")
+    assert result["result"]["training_session_uids"] == ["s1", "s2"]
+    assert result["result"]["candidates"][0]["support_sessions"] == 2
+    candidate["evidence"] = candidate["evidence"][:1]
+    assert validate({"candidates": [candidate]}, context)  # One history + validation is not two histories.
+
+
+def test_refinement_preserves_unedited_content_and_its_validation_receipts():
+    first, second = example(), example()
+    second["name"] = "other-operation"
+    old = library([first, second])["payload"]["candidates"]
+    receipt = {"candidate_id": old[1]["candidate_id"], "content_hash": old[1]["content_hash"]}
+    context = evidence_pack()
+    context["content"]["procedure_draft"] = {"artifact_id": "old-library", "candidates": old,
+        "editable_candidate_ids": [old[0]["candidate_id"]], "validation_receipts": [receipt]}
+    assert validate({"candidates": [second]}, context)
+    first["verification"].append("Independently check required decisions against the request")
+    result = finalize({"candidates": [first], "gaps": []}, context, "model")
+    assert result["result"]["parent_library"] == "old-library"
+    assert result["result"]["candidates"][1] == old[1]
+    assert result["artifact"]["checks"]["validation_receipts"] == [receipt]
+    assert result["result"]["candidates"][0]["content_hash"] != old[0]["content_hash"]
+
+
 def test_pack_preserves_arguments_redacts_and_cannot_be_replaced_by_slots(tmp_path):
     db = sqlite3.connect(":memory:")
     db.row_factory = sqlite3.Row

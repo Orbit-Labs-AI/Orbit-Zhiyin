@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .learning_feedback import validate_pack, validate_request
 from .pack import content_hash
 from .redact import compact
 
@@ -54,14 +55,22 @@ no candidate is validated simply because you wrote it. Keep the procedure in the
 def validate(output, pack):
     sessions = (pack.get("content", {}).get("trajectories") or {}).get("sessions", [])
     allowed = {(s["session_uid"], e["event_uid"]) for s in sessions for e in s["events"]}
+    training = {s["session_uid"] for s in sessions}
+    feedback = pack.get("content", {}).get("validation_feedback") or []
+    allowed.update((f["session_uid"], f["event_uid"]) for f in feedback)
     errors, names = [], set()
+    draft = pack.get("content", {}).get("procedure_draft")
+    editable = ({c["name"] for c in draft["candidates"]
+                 if c["candidate_id"] in draft["editable_candidate_ids"]} if draft else None)
     for candidate in output["candidates"]:
+        if editable is not None and candidate["name"] not in editable:
+            errors.append("Refine only the selected candidate names; untouched candidates are preserved automatically")
         if candidate["name"] in names:
             errors.append("Candidate names must be unique")
         names.add(candidate["name"])
         refs = [*candidate["evidence"], *(r for step in candidate["procedure"] for r in step["evidence"])]
         cited = {(r["session_uid"], r["event_uid"]) for r in refs}
-        if not cited <= allowed or len({r[0] for r in cited}) < 2:
+        if not cited <= allowed or len({r[0] for r in cited} & training) < 2:
             errors.append("Candidate needs grounded evidence from two distinct selected sessions")
         for step in candidate["procedure"]:
             step_refs = {(r["session_uid"], r["event_uid"]) for r in step["evidence"]}
@@ -72,6 +81,8 @@ def validate(output, pack):
 
 def finalize(output, pack, source):
     candidates = []
+    training = {s["session_uid"] for s in pack["content"]["trajectories"]["sessions"]}
+    draft = pack["content"].get("procedure_draft") or {}
     for candidate in output["candidates"]:
         # Step evidence is also candidate evidence. Avoid demanding a redundant,
         # separately bounded list that can never enumerate all grounded step refs.
@@ -81,15 +92,23 @@ def finalize(output, pack, source):
                                               for uid, event in sorted(refs)]}
         sha = content_hash(candidate)
         candidates.append({**candidate, "candidate_id": "learned_" + sha[:20], "content_hash": sha,
-                           "support_sessions": len({e["session_uid"] for e in candidate["evidence"]})})
+                           "support_sessions": len({e["session_uid"] for e in candidate["evidence"]} & training)})
+    unchanged = [c for c in draft.get("candidates", []) if c["candidate_id"] not in draft.get("editable_candidate_ids", [])]
+    candidates.extend(unchanged)
+    retained = {(c["candidate_id"], c["content_hash"]) for c in candidates}
+    receipts = [r for r in draft.get("validation_receipts", [])
+                if (r["candidate_id"], r["content_hash"]) in retained]
     value = {"version": VERSION, "candidates": candidates, "gaps": output["gaps"],
              "input_digest": content_hash(pack["content"]),
-             "training_session_uids": pack.get("refs", {}).get("session", []),
+             "training_session_uids": [s["session_uid"] for s in pack["content"]["trajectories"]["sessions"]],
              "coverage": {k: v for k, v in pack["content"]["trajectories"].items() if k != "sessions"},
-             "validation": "pending", "source": source}
+             "validation": "pending", "source": source,
+             "parent_library": (pack["content"].get("procedure_draft") or {}).get("artifact_id"),
+             "development_feedback": [{k: v for k, v in f.items() if k != "body"}
+                                      for f in pack["content"].get("validation_feedback") or []]}
     artifact = {"kind": "workflow", "template_id": VERSION, "name": "history-procedure-library",
                 "title": "历史操作技能库", "payload": value, "files": [], "slots": {},
-                "checks": {"grounding": "passed", "validation_receipts": []},
+                "checks": {"grounding": "passed", "validation_receipts": receipts},
                 "evidence": [{"session_uid": uid} for uid in value["training_session_uids"]],
                 "personalized": True, "status": "draft", "preview_digest": pack["preview_digest"]}
     return {"status": "ok", "result": value, "artifact": artifact, "facets": None}
@@ -104,3 +123,26 @@ TASKS = {"recommend.learn": {
     "build_prompt": lambda pack: "<trajectory_evidence>\n" + compact(pack["content"]) + "\n</trajectory_evidence>",
     "validate": validate, "finalize": finalize,
 }}
+
+REFINEMENT = """
+This is a counterexample-guided revision, not a new task solution. You also receive the previous
+procedure library and explicit validation feedback shared with the direct-LLM baseline. Retain
+useful methods and change the smallest general rule that explains a failure. Do not add a branch
+for an unselected candidate: return only the names selected by editable_candidate_ids. Other
+candidates and their content-bound validation receipts are preserved by the backend. Do not branch
+for a named validation case or copy its answer. Each revised step must cite original evidence or
+an explicitly labelled evaluation event; retain support from two distinct history sessions.
+Check for overgeneralization: a blanket omission rule can be as wrong as inventing missing values.
+Derive the required output contract from the current request and input specification, independently
+of the code's chosen write list. Verification must check both missing required decisions and extra
+unsupported content, rather than only confirming that intended writes succeeded. Distinguish
+required negative/empty answers, optional unknown values and justified derived values according to
+the current specification. Prefer parameterized operations and input-derived calibration to fixed
+values or fixed filenames copied from history. Cite external evaluation events as counterexamples,
+not as successful native executions. A revised content hash is provisional until a new validation.
+"""
+TASKS["recommend.refine"] = {**TASKS["recommend.learn"], "title": "用验证反例修订操作技能",
+    "prompt_version": "history-counterexamples@1", "validate_request": validate_request,
+    "validate_pack": validate_pack,
+    "pack_items": [("trajectories", True), ("procedure_draft", True), ("validation_feedback", True)],
+    "system": SYSTEM + REFINEMENT}

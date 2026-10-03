@@ -199,10 +199,15 @@ class AIService:
         if build is None:
             return fallback_pack(task, req)
         reads = getattr(self.gw, "reads", None)
-        return build(task, reads=reads.read if reads is not None else None, appdb=self.appdb,
+        result = build(task, reads=reads.read if reads is not None else None, appdb=self.appdb,
                      home=self.home, scope=req.get("scope"), selection=req.get("selection"),
                      goal=req.get("goal"), goal_source=req.get("goal_source"),
                      params=req.get("params") or {}, slots=req.get("slots"))
+        if task.get("validate_pack"):
+            errors = task["validate_pack"](result)
+            if errors:
+                raise AIError(422, "invalid_context", errors[0])
+        return result
 
     def _estimate(self, task: dict, pack: dict, engine_id: str | None) -> dict:
         calls = len(pack.get("batches") or []) or 1
@@ -215,6 +220,11 @@ class AIService:
         """Request checks shared by preview and submit (B15): a bad scope or a missing goal is a
         422, not an empty pack that looks like "no data"."""
         from . import queries  # lazy: keeps the pack modules out of gateway start-up
+
+        if task.get("validate_request"):
+            errors = task["validate_request"](req)
+            if errors:
+                raise AIError(422, "invalid_request", errors[0])
 
         try:
             queries.check_scope(req.get("scope"))

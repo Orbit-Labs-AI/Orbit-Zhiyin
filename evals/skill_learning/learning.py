@@ -117,8 +117,12 @@ LLM_SCHEMA = {"type": "object", "additionalProperties": False,
                   "content": {"type": "string", "minLength": 1, "maxLength": 60000}}}
 
 
-def learn(root, data, output, credentials, *, arm="ours", session_uids=None):
+def learn(root, data, output, credentials, *, arm="ours", session_uids=None,
+          feedback_path=None, parent_library=None, previous_llm=None, candidate_ids=None):
+    from orbit_backend.ai import pack as packs
     from orbit_backend.ai import registry
+    from orbit_backend.ai.learning_feedback import validate_request
+    from orbit_backend.ai.tasks_learning import REFINEMENT
 
     selected = read(data.parent / "selection.json")
     if not selected or any(source.get("split") != "history" for source in selected):
@@ -136,17 +140,39 @@ def learn(root, data, output, credentials, *, arm="ours", session_uids=None):
     svc.set_consent({"mode": "api", "default_engine": "api_key",
                      "grants": {"api_key": {"summary": True, "snippets": True}},
                      "settings": {"daily_usd_cap": 100, "slots": {"api_key": {"main": "k3"}}}})
-    task_id = "recommend.learn"
+    task_id = "recommend.refine" if feedback_path else "recommend.learn"
     if arm == "llm":
         task_id = "benchmark.self_personalize"
-        registry.register({**registry.get("recommend.learn"), "task_id": task_id,
-                           "system": LLM_SYSTEM, "schema": LLM_SCHEMA, "validate": None,
-                           "finalize": None, "prompt_version": "direct-llm@1"})
+        spec = {**registry.get("recommend.learn"), "task_id": task_id,
+                "system": LLM_SYSTEM, "schema": LLM_SCHEMA, "validate": None,
+                "finalize": None, "prompt_version": "direct-llm@1"}
+        if feedback_path:
+            if previous_llm is None:
+                raise ValueError("Direct-LLM refinement needs its previous output")
+            packs.ITEMS["baseline_draft"] = ("Previous draft", "Previous direct-LLM personalization", "snippets", lambda c: None)
+            # Same counterexample principles and feedback; baseline retains free-form organization.
+            common = REFINEMENT[:REFINEMENT.index("Each revised step")]
+            common = common[:common.index("Do not add a branch")] + "Preserve successful sections and revise only what the counterexamples justify. "
+            common += REFINEMENT[REFINEMENT.index("Check for overgeneralization:"):]
+            spec.update(system=LLM_SYSTEM + common, prompt_version="direct-llm-counterexamples@1",
+                        pack_items=[("trajectories", True), ("baseline_draft", True), ("validation_feedback", True)],
+                        validate_request=lambda req: validate_request(req, needs_library=False))
+        registry.register(spec)
     token = "orbit-study-" + uuid.uuid4().hex
     scope = {"days": 365}
     if session_uids is not None:
         scope["session_uids"] = session_uids
     request = {"task_id": task_id, "engine": "api_key", "scope": scope}
+    if feedback_path:
+        request["params"] = {"validation_feedback": read(feedback_path)}
+        if arm == "ours":
+            if parent_library is None:
+                raise ValueError("Orbit refinement needs its previous artifact ID")
+            request["params"]["artifact_id"] = parent_library
+            if candidate_ids:
+                request["params"]["candidate_ids"] = candidate_ids
+        else:
+            request["slots"] = {"baseline_draft": read(previous_llm)["result"]}
     source_files = {str(p.relative_to(REPOSITORY)): digest(p) for directory in (
         REPOSITORY / "packages/backend/src/orbit_backend/ai",
         REPOSITORY / "packages/backend/src/orbit_backend/recommend") for p in directory.rglob("*.py")}
@@ -161,6 +187,12 @@ def learn(root, data, output, credentials, *, arm="ours", session_uids=None):
             save(output / "preview.json", preview)
             if not preview["payload"]["trajectories"]["sessions"]:
                 raise ValueError("No selected training evidence reached the AI pack")
+            if feedback_path and arm == "ours" and not (preview["payload"].get("procedure_draft") or {}).get("candidates"):
+                raise ValueError("No in-scope parent library reached the refinement pack")
+            if feedback_path and arm == "llm":
+                previous = read(previous_llm.parent / "preview.json")["payload"]["trajectories"]
+                if previous != preview["payload"]["trajectories"]:
+                    raise ValueError("The direct-LLM draft must come from exactly the same selected history")
             job = response_json(client.post("/v1/ai/jobs", json={**request,
                                  "preview_digest": preview["preview_digest"]}), 202)
             save(output / "submitted.json", job)
@@ -182,6 +214,7 @@ def learn(root, data, output, credentials, *, arm="ours", session_uids=None):
     finally:
         if arm == "llm":
             registry.unregister(task_id)
+            packs.ITEMS.pop("baseline_draft", None)
 
 
 def main():
@@ -192,8 +225,14 @@ def main():
     parser.add_argument("--credentials", type=Path, default=Path.home() / ".pi/agent")
     parser.add_argument("--arm", choices=["ours", "llm"], default="ours")
     parser.add_argument("--sessions", nargs="+")
+    parser.add_argument("--feedback", type=Path)
+    parser.add_argument("--parent-library")
+    parser.add_argument("--previous-llm", type=Path)
+    parser.add_argument("--candidate-ids", nargs="+")
     args = parser.parse_args()
-    learn(args.root, args.data, args.output, args.credentials, arm=args.arm, session_uids=args.sessions)
+    learn(args.root, args.data, args.output, args.credentials, arm=args.arm, session_uids=args.sessions,
+          feedback_path=args.feedback, parent_library=args.parent_library, previous_llm=args.previous_llm,
+          candidate_ids=args.candidate_ids)
 
 
 if __name__ == "__main__":

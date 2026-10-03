@@ -27,6 +27,8 @@ def freeze(root, library_path, llm_path, validation_path, *, mode="bundle", top_
         raise ValueError("Commit and verify the complete implementation before freezing")
     protocol, study = read(root / "protocol.json"), read(root / "study.json")
     validate_protocol(protocol)
+    if not study.get("model_config") or study["memory"] != "off" or study["thinking"] != "max":
+        raise ValueError("Pin the exact provider model configuration, max thinking and memory-off before freeze")
     headroom, validation = read(root / "headroom-summary.json"), read(validation_path)
     families = headroom["formal_candidate_families"]
     library = read(library_path)

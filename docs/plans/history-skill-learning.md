@@ -48,3 +48,11 @@
 库作为现有 `ai_artifact` 的 workflow 草稿保存，无新数据库表。`POST /v1/recommendations/learned/retrieve` 接受 `artifact_id`、当前任务 `query`、实际 `capabilities` 和 `top_k`，使用确定性词项余弦分数检索，不再次调用模型。每一级记录数量、类型、score、证据与原因；兼容性按实际能力判断，去重仅合并完全相同的步骤与验证。描述性 hook/MCP/subagent 尚未编译为可运行组件，会被明确过滤。
 
 默认只选经 validation 验证的候选。`POST /v1/recommendations/learned/{artifact_id}/validation` 接受调用方提供的外部评估凭据，绑定 candidate ID、正文 hash、运行报告 hash、实际使用审计 hash、模型与任务，拒绝 test split 和未知结果。候选必须在所有已登记 validation 中通过，并在至少一次确认实际使用的运行中提高成功率，或在保守 token 下限比较下节省 10%。接口仅记录调用方声明，不宣称 Orbit 独立运行了评估器。`provisional=true` 只供显式开发诊断，返回值带 provisional 标记。未验证的学习库不会自动安装、注入或替换旧推荐卡片。
+
+## 验证反例修订
+
+第一版 validation 暴露了两种相反的错误：LLM 对照推断了未给出的信息，ours 则遗漏了应依据事实回答的必答问题。第二次迭代采用反例驱动的局部修订：`recommend.refine` 接收既有 library、显式 `candidate_ids` 与 `validation_feedback`，仍使用相同历史。验证方案须独立于写入清单，同时检查遗漏和多填；不能把“写入值成功回读”当作需求完整性证明。
+
+反馈必须标为 validation，使用 `validation:` / `evaluation:` 名空间和原始报告摘要，避免混同原生历史证据；不能替代至少两条 history 的支持。未选中的候选由后端原样保留，相同 content hash 的验证凭据继续有效，修改后的候选须重新验证。所有历史与草稿仍受 scope / 排除会话和 snippets consent 限制，调用方 slots 不能替换这些材料。
+
+评测把两组的 validation 结果、失败断言和已审阅的使用证据合成同一份反馈，提供给 ours 和 LLM；对照也有一次等预算修订机会，不把额外监督只给 ours。输入不包含 oracle 正文、verifier 代码或 test 内容。已成功且未修改的技能不因另一技能失败而重复训练；最终报告区分初稿、修订稿和额外学习成本。
