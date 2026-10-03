@@ -3224,7 +3224,8 @@ const OrbitLive = (function () {
       idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
       disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
       units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
-      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
+      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null,
+      versionUnknown: t.version_check === 'unknown'
     }));
   }
   // Selection sent with preview / apply: selected_units only lists targets whose units were narrowed.
@@ -12145,7 +12146,7 @@ if (LV.live) {
    Missing routes or errors render an honest empty state; personal data never falls back to demo rows. */
 const LVTP = { tools: null, projects: null, det: null, calls: null, linked: null };
 const LVTP_NODE = { read: 'Read', search: 'Search', edit: 'Edit', shell: 'Shell', subagent: 'Task', web: 'Web', other: 'Other' };
-const LVTP_COV = { rule: '规则文件', hook: 'Hooks', skill: 'Skills', mcp: 'MCP', subagent: '子代理' };
+const LVTP_COV = { rule: '规则文件', hook: 'Hooks', skill: 'Skills', mcp: 'MCP', subagent: '子代理', command: '命令' };
 const LVTP_HALF = { '<5s': '5 s', '5–15s': '15 s', '15–30s': '30 s', '30–60s': '1 分钟', '1–2m': '2 分钟', '2–5m': '5 分钟', '>5m': '5 分钟以上' };
 // start of the first day of the range window, as local-midnight epoch ms (null = all time)
 function lvtpFrom(range) {
@@ -12482,7 +12483,7 @@ function lvProjectsPage() {
   const agents = AG.filter((a, j) => split[j] > 0);
   const w0 = d && (d.workflows || [])[0];
   const itemNames = (type) => linked.filter((i) => i.type === type && (!i.project_id || i.project_id === p.id)).map((i) => i.name || i.title || i.key || i.item_id).filter(Boolean).slice(0, 3);
-  const covCell = (c, a) => { const x = c[4] || {}; const sup = (x.agents_read || []).some((k) => LV.agentOf(k).id === a.id); const on = sup && x.configured; const unk = x.configured == null; const names = itemNames(x.type); return '<span class="pj-cov-c' + (on ? ' on' : sup ? ' off' : ' na') + '" data-tip="' + esc(a.name + ' · ' + c[0] + '：' + (on ? '已配置（' + (names.length ? names.join('、') : c[2]) + '）' : sup ? (unk ? '未扫描' : '未配置 · ' + c[2]) : '该 Agent 不读取此类配置')) + '" role="img" aria-label="' + esc(a.short + ' ' + c[0] + (on ? ' 已配置' : sup ? (unk ? ' 未扫描' : ' 未配置') : ' 不适用')) + '"></span>'; };
+  const covCell = (c, a) => { const x = c[4] || {}; const sup = (x.agents_read || []).some((k) => LV.agentOf(k).id === a.id); const unk = x.configured == null || (x.agents_unscanned || []).some((k) => LV.agentOf(k).id === a.id); const on = sup && !unk && x.configured; const names = itemNames(x.inventory_type || x.type); return '<span class="pj-cov-c' + (on ? ' on' : sup ? ' off' : ' na') + '" data-tip="' + esc(a.name + ' · ' + c[0] + '：' + (on ? '已配置（' + (names.length ? names.join('、') : c[2]) + '）' : sup ? (unk ? '未扫描' : '未配置 · ' + c[2]) : '该 Agent 不读取此类配置')) + '" role="img" aria-label="' + esc(a.short + ' ' + c[0] + (on ? ' 已配置' : sup ? (unk ? ' 未扫描' : ' 未配置') : ' 不适用')) + '"></span>'; };
   const ruleFiles = p.ruleFiles || [];
   const pend = (h) => LV.pend(h);
   return tbar('项目习惯', rows.length + ' 个项目 · ' + f1(hoursAll) + ' 小时 · 按协作时长排序' + (fs === 'pending' || fs === 'computing' ? ' · 更新中' : ''), actions) +
@@ -12496,7 +12497,7 @@ function lvProjectsPage() {
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + (d ? vsRows || LV.na() : D.state === 'error' ? LV.na('本地服务暂不提供项目对比') : pend(150)) + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 95% 区间跨 0 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + st.n + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + esc(AG[j].name) + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.a.short) + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r" data-tip="有结果的 ' + r.tn + ' 个任务里被你直接采纳的占比"><span class="cap">采纳</span><span class="pj-bar"><i style="width:' + (r.ok == null ? 0 : r.ok).toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + (r.ok == null ? '—' : Math.round(r.ok) + '%') + '</span></span></span></div>').join('') + '</div></div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">识别到的工作流</span><span class="cap">' + (w0 ? '出现在 ' + w0.support_sessions + ' / ' + w0.eligible_sessions + ' 个会话 · 支持度 ' + Math.round((w0.support_rate || 0) * 100) + '%' : '同一三步链在多个会话出现才算') + '</span></div></div>' + (d ? (p.flow.length ? '<div class="row" style="flex-wrap:wrap;gap:8px">' + p.flow.map((f, i) => '<span class="col pj-step"><b>' + esc(f[0]) + '</b>' + (f[1] ? '<span class="mono cap">' + esc(f[1]) + '</span>' : '') + '</span>' + (i < p.flow.length - 1 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div><div class="row" style="margin-top:10px;flex-wrap:wrap"><span class="pj-note">固定成一个 Skill 后，这段流程不必每次重新交代。</span><button type="button" class="btn sm ai" data-act="flowToStudio">' + ic('spark', 12) + '封装为 Skill</button></div>' : LV.na('还没有识别到重复出现的工作流')) : D.state === 'error' ? LV.na() : pend(60)) + '</div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">规则与配置覆盖</span><span class="cap" data-tip="来自本机配置扫描（规则文件、Hooks、Skills、MCP）">列 = 此项目用到的 Agent</span></div></div>' + (d ? '<div class="pj-cov" style="grid-template-columns:auto repeat(' + agents.length + ',24px) minmax(0,1fr)" role="table" aria-label="规则与配置覆盖矩阵"><span></span>' + agents.map((a) => '<span class="pj-cov-h" title="' + esc(a.name) + '"><span class="pj-dot" style="background:' + a.c + '"></span></span>').join('') + '<span></span>' + p.cover.map((c) => '<span class="pj-cov-r">' + esc(c[0]) + '</span>' + agents.map((a) => covCell(c, a)).join('') + '<span class="pj-cov-v"><b class="mono">' + esc(c[1]) + '</b><span class="cap">' + esc(c[2]) + '</span></span>').join('') + '</div><div class="row cap pj-foot" style="gap:12px;flex-wrap:wrap"><span class="row" style="gap:4px"><span class="pj-cov-c on"></span>已配置</span><span class="row" style="gap:4px"><span class="pj-cov-c off"></span>未配置 / 未扫描</span><span class="row" style="gap:4px"><span class="pj-cov-c na"></span>该 Agent 不读取</span></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">规则与配置覆盖</span><span class="cap" data-tip="来自本机配置扫描（规则文件、Hooks、Skills、MCP、子代理、命令）">列 = 此项目用到的 Agent</span></div></div>' + (d ? '<div class="pj-cov" style="grid-template-columns:auto repeat(' + agents.length + ',24px) minmax(0,1fr)" role="table" aria-label="规则与配置覆盖矩阵"><span></span>' + agents.map((a) => '<span class="pj-cov-h" title="' + esc(a.name) + '"><span class="pj-dot" style="background:' + a.c + '"></span></span>').join('') + '<span></span>' + p.cover.map((c) => '<span class="pj-cov-r">' + esc(c[0]) + '</span>' + agents.map((a) => covCell(c, a)).join('') + '<span class="pj-cov-v"><b class="mono">' + esc(c[1]) + '</b><span class="cap">' + esc(c[2]) + '</span></span>').join('') + '</div><div class="row cap pj-foot" style="gap:12px;flex-wrap:wrap"><span class="row" style="gap:4px"><span class="pj-cov-c on"></span>已配置</span><span class="row" style="gap:4px"><span class="pj-cov-c off"></span>未配置 / 未扫描</span><span class="row" style="gap:4px"><span class="pj-cov-c na"></span>该 Agent 不读取</span></div>' +
       (ruleFiles.length ? '<div class="col" style="gap:3px;margin-top:8px" data-lv="rule-files">' + ruleFiles.map((f) => '<div class="row cap mono" style="font-size:11.5px;gap:8px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(f.path) + '">' + esc(f.path) + '</span><span>' + f1((f.bytes || 0) / 1024) + ' KB · ' + (f.lines || 0) + ' 行</span></div>').join('') + '</div>' : '') +
       '<div class="row" style="margin-top:10px;padding:7px 10px;border-radius:8px;background:var(--sunken);flex-wrap:wrap">' + ic('bolt', 15, 'color:var(--ai)') + (p.rec ? '<span class="pj-note">建议：' + esc(p.tip) + '</span><button type="button" class="btn sm" data-act="openRec" data-id="' + esc(p.rec) + '">查看建议</button>' : '<span class="pj-note">暂时没有针对这个项目的建议</span>') + '</div>'
       : D.state === 'error' ? LV.na() : pend(140)) + '</div></div></div></div>';
@@ -13672,11 +13673,13 @@ function liDraw() {
   } else if (st.step === 2) {
     const pv = st.preview, tot = pv.totals || {}, risk = pv.risk || {};
     const paths = liUniq(TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable), (t) => t.display);
+    const vUnknown = liUniq(TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable && t.versionUnknown), (t) => t.agent).map((t) => liAgentName(t.agent));
     const blocked = pv.requires_override && !st.overrideRisk;
     html = modalHead('写入 ' + paths.length + ' 个文件？', '修改前会自动备份，随时可以撤销') + liProg(2) +
       '<div class="mb col" style="gap:12px" data-tl="inst-confirm"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono col code-t" style="font-size:12px;word-break:break-all;gap:2px">' + paths.map((t) => esc(t.display)).join('<br>') + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(liBackupDir(pv)) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + TLU.num(tot.adds) + (tot.dels ? ' / −' + TLU.num(tot.dels) : '') + ' 行</span><span class="l">风险</span><span style="font-size:12px">' + esc(LI_RISK[risk.level] || risk.level || '—') + (risk.flags && risk.flags.length ? ' · ' + esc(risk.flags.join('、')) : '') + '</span></div>' +
       (pv.requires_override ? '<label class="row" style="align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;border:1px solid var(--line)"><input type="checkbox" data-chg="liOverride"' + (st.overrideRisk ? ' checked' : '') + ' style="margin-top:2px;accent-color:var(--ink-1)"><span class="col" style="gap:2px"><b style="font-size:12.5px">我已了解风险，仍然写入</b><span class="cap" style="font-size:11.5px">该资源的风险等级需要你明确确认。</span></span></label>' : '') +
       (pv.requires_trust ? '<div class="row cap" style="font-size:11.5px">' + ic('info', 13, 'margin-top:2px') + '<span>写入后需要在对应 Agent 里信任该项目配置才会生效。</span></div>' : '') +
+      (vUnknown.length ? '<div class="row cap" style="font-size:11.5px" data-tl="inst-version-unknown">' + ic('info', 13, 'margin-top:2px') + '<span>' + esc(vUnknown.join('、')) + ' 的最低支持版本尚未核实，版本兼容性未知。</span></div>' : '') +
       '<div class="row cap" style="font-size:11.5px;align-items:flex-start">' + ic('info', 13, 'margin-top:2px') + '<span>这是整个流程里唯一真正写盘的一步，写入的是预览中确认过的内容。</span></div></div>' +
       '<div class="mf"><button type="button" class="btn gh" data-act="instBack">返回</button>' + close + '<button type="button" class="btn p" data-act="instDo" autofocus' + (blocked || st.busy ? ' disabled' : '') + '>' + (st.busy ? '正在写入…' : '确认写入') + '</button></div>';
   } else {
@@ -14507,7 +14510,7 @@ if (TL.mode === 'live') {
 
   /* ---------- 设置：通用 / 数据源 / 隐私 / 分析 / 通知 / 关于 ---------- */
   const R = { col: '/v1/platform/collection', pol: '/v1/notifications/policy', snz: '/v1/notifications/snooze', attn: '/v1/notifications/attention', con: '/v1/ai/consent', tel: '/v1/platform/telemetry', hea: '/v1/platform/health',
-    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map' };
+    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map', cov: '/v1/app/coverage' };
   const polKey = (m, k) => TLS_KIND[k].find((t) => m && Object.prototype.hasOwnProperty.call(m, t)) || null;
   const CLS = { sum: 'summary', snip: 'snippets', raw: 'raw' };
   // the gateway's modes are stats | agent | api; 仅统计 is 'stats' (never 'off'), there is no Ollama mode yet
@@ -14516,7 +14519,7 @@ if (TL.mode === 'live') {
   const conEngine = (d) => TLS.engine || d.default_engine || (Object.keys(d.grants || {})[0] || null);
   const setOpen = () => !$('#set').hidden;
   // settings tab → the resources it reads (loaded only while that tab is open)
-  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
+  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about', 'cov'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
   // server state → the demo's S fields (skipped while a demo handler is mid-way, see TLS.hold)
   function tlsSync() {
     if (TLS.hold) return;
@@ -14644,6 +14647,21 @@ if (TL.mode === 'live') {
         const d = r.data; const top = c.querySelector('.row .mono'); const b = c.querySelector('b.mono');
         if (top) top.textContent = d ? d.home : '—'; if (b) b.textContent = d ? tlsBytes(d.total_bytes) : '—';
         if (d) c.lastElementChild.firstElementChild.insertAdjacentHTML('beforeend', '<div class="col" style="gap:0" data-tl="storage">' + (d.components || []).map((x) => kv(esc(x.label || x.id) + (x.rebuildable ? ' <span class="cap" style="font-size:11px">可重建</span>' : ''), '<b class="mono" style="font-size:12px">' + (x.approx ? '≈ ' : '') + tlsBytes(x.bytes) + '</b>')).join('') + '</div>');
+      }
+    }
+    if (t === 'sources') {
+      // 数据覆盖: GET /v1/app/coverage (all time, all sources). Unknown stays「—」, never 0 %.
+      const d = TL.resource(R.cov).data; const body = $('#set .body');
+      if (body && d && d.available) {
+        const pct = (x) => (x == null ? '—' : (x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%');
+        const se = d.sessions || {}, mc = d.model_call || {}, ex = d.excluded_sessions || {};
+        const reasons = (ex.reasons_labelled || []).map((r) => kv('<span class="cap" style="padding-left:12px">' + esc(r.label) + '</span>', '<b class="mono" style="font-size:12px">' + TLU.num(r.count) + ' 个</b>')).join('');
+        const exCost = ex.cost_usd != null ? TLU.money(ex.cost_usd) + (ex.cost_share != null ? '，占已计价花费 ' + pct(ex.cost_share) : '') : '花费未知';
+        body.insertAdjacentHTML('beforeend', '<div class="col" style="gap:12px;margin-top:4px">' + cardHTML('数据覆盖', '分析口径之外的部分，单独列出', '<div class="col" style="gap:0">' +
+          kv('会话结果已知', '<b class="mono" style="font-size:12px">' + pct(se.status_known_share) + '</b><span class="cap" style="font-size:11px;margin-left:6px">' + TLU.num(se.status_known_rows) + ' / ' + TLU.num(se.rows) + ' 个会话</span>') +
+          kv('模型名未识别', '<b class="mono" style="font-size:12px">' + pct(mc.unmapped_model_share) + '</b><span class="cap" style="font-size:11px;margin-left:6px">' + TLU.num(mc.unmapped_model_rows) + ' / ' + TLU.num(mc.rows) + ' 次调用</span>') +
+          kv('未纳入分析的会话', '<b class="mono" style="font-size:12px">' + TLU.num(ex.rows || 0) + ' 个</b><span class="cap" style="font-size:11px;margin-left:6px">' + (ex.rows ? exCost : '') + '</span>') + reasons +
+          '</div>', 'coverage') + '</div>');
       }
     }
     if (t === 'about') {
