@@ -4,13 +4,13 @@
    Everything is a pure function of the master time t (seconds), so the page plays in real time with the soundtrack
    (preview) or frame by frame on Playwright's fake clock (render.mjs). Times are written in beats. */
 'use strict';
-const BPM = 124, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
+const BPM = 132, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
 let END = 118;                                            // length in beats; the closing scene sets it (scene beats)
 /* Scene beats vs film beats: the opening (10-open) runs on film beats; every later scene keeps its own (v7-grid) beats
    and is played SHIFT[name] beats later: 8 for the wordmark reveal, more after the persona and the recommendations,
    which were given longer holds so every line can be read. Each cue, tween, text, tag, drive and click remembers the
    shift of the scene that registered it and sees the clock in its own scene beats. music.py uses the same table. */
-const SHIFT = { '10-open': 0, '20-sentiment': 8, '30-persona': 8, '40-recs': 22, '60-close': 16 };
+const SHIFT = { '10-open': 0, '20-sentiment': 8, '30-persona': 8, '40-recs': 19, '60-close': 9.5 };
 let SH = 0;
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
@@ -473,7 +473,7 @@ function orbitSVG(o) {
   const Ls = [0]; for (let k = 1; k <= N; k++) Ls.push(Ls[k - 1] + Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]));
   const T = Ls[N] || 1, z0 = Math.min(...p.map((q) => q[2])), z1 = Math.max(...p.map((q) => q[2]));
   const w = p.map((q, k) => { const e = Math.min(1, Ls[k] / (T * ORB.taper), (T - Ls[k]) / (T * ORB.taper)); return Math.max(ORB.wFloor, (ORB.wFar + (ORB.wNear - ORB.wFar) * (q[2] - z0) / (z1 - z0 || 1)) * Math.sin(e * Math.PI / 2)) * u; });
-  const cut = new Uint8Array(N + 1);
+  const cut = new Uint8Array(N + 1), xs = [];
   for (let i = 0; i < N; i++) {
     const a = p[i], b = p[i + 1];
     for (let j = i + 3; j < N; j++) {
@@ -482,11 +482,18 @@ function orbitSVG(o) {
       const den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]); if (Math.abs(den) < 1e-12) continue;
       const s = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den, v = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den;
       if (s < 0 || s >= 1 || v < 0 || v >= 1) continue;
-      const f = a[2] + s * (b[2] - a[2]) < c[2] + v * (d[2] - c[2]) ? i : j, r = ORB.gap / 2 * u + w[f];
-      for (let k = 0; k <= N; k++) if (Math.abs(Ls[k] - Ls[f]) < r) cut[k] = 1;
+      const f = a[2] + s * (b[2] - a[2]) < c[2] + v * (d[2] - c[2]) ? i : j;
+      xs.push({ i, j, f, r: ORB.gap / 2 * u + w[f] });
     }
   }
   const n0 = Math.min(N - 1, Math.round((o.t0 || 0) * N)), n = Math.min(N, Math.max(n0 + 1, Math.round(o.t * N)));
+  // a crossing is cut only once both of its branches are drawn, and the gap opens as the line moves on past it (so a
+  // stroke being traced, or grown from its tail, is never broken ahead of the branch that will cross it)
+  for (const x of xs) {
+    if (x.i < n0 || x.j > n) continue;
+    const fw = n >= N ? 1 : clamp((Ls[n] - Ls[x.j]) / (x.r * 2)), bw = n0 <= 0 ? 1 : clamp((Ls[x.i] - Ls[n0]) / (x.r * 2)), r = x.r * Math.min(fw, bw);
+    for (let k = 0; k <= N; k++) if (Math.abs(Ls[k] - Ls[x.f]) < r) cut[k] = 1;
+  }
   const X = (q) => q[0].toFixed(2) + ' ' + q[1].toFixed(2);
   const run = (k0, k1) => {
     const L = [], Rr = [];
@@ -660,7 +667,7 @@ const every = (b0, b1, fn) => drive(2, b0, b1, (p, b) => fn(p, b));
    The film itself lives in scenes/*.js: each file registers one scene with scene(name, fn), promo.html loads them in
    file-name order and script() runs them in that order once both app copies have loaded. A scene only adds cues,
    tweens, drives, clicks and type for its own beats. STORYBOARD.md gives every scene its beats, decks and the state it
-   must hand over to the next one; times are beats (124 BPM, 1 beat = 0.484 s). */
+   must hand over to the next one; times are beats (132 BPM, 1 beat = 0.455 s). */
 const SCENES = [];
 function scene(name, fn) { SCENES.push({ name, fn }); }
 function script() { for (const s of SCENES) { SH = SHIFT[s.name] || 0; try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } SH = 0; }
