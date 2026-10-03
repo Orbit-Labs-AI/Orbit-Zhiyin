@@ -9,7 +9,9 @@ import json
 import math
 import re
 import sqlite3
+import sys
 import threading
+import weakref
 from collections import Counter, OrderedDict, defaultdict
 
 import numpy as np
@@ -74,6 +76,13 @@ RERANK = 200
 RERANK_OVERSAMPLE = 4
 _QUERY_CACHE: OrderedDict = OrderedDict()
 _QUERY_LOCK = threading.Lock()
+# Cache terms, not query scores: corpus IDF, prefixes and query weights remain live.
+# Weak store keys avoid retaining a closed store's large indexes/model matrices.
+LEXICAL_CACHE_ITEMS = 512
+LEXICAL_CACHE_MAX_BYTES = 32 * 1024 * 1024
+_LEXICAL_CACHE: OrderedDict = OrderedDict()
+_LEXICAL_CACHE_BYTES = 0
+_LEXICAL_CACHE_LOCK = threading.Lock()
 
 
 def eligibility(request: MatchRequest) -> tuple[str, list]:
@@ -279,7 +288,7 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
     ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:max(limit * RERANK_OVERSAMPLE, RERANK)]
     rescored = []
     for item_id, (raw, rowid) in ranked:
-        exact = _exact_bm25(store, conn, item_id, live, weights)
+        exact = _exact_bm25(store, conn, item_id, live, weights, index.generation)
         if exact is not None:
             raw, rowid = exact
         rescored.append((item_id, raw, rowid))
@@ -288,20 +297,66 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
     return hits, {item_id: rowid for item_id, _, rowid in rescored[:limit]}
 
 
-def _exact_bm25(store, conn, item_id, concepts, weights) -> tuple[float, int] | None:
-    texts = store.chunk_texts(conn, item_id)
-    row = conn.execute("SELECT name FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
+def _retained_size(value, seen=None):
+    """Conservative retained Python bytes; shared objects across entries count each time."""
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return 0
+    seen.add(id(value))
+    size = sys.getsizeof(value)
+    if isinstance(value, dict):
+        size += sum(_retained_size(k, seen) + _retained_size(v, seen) for k, v in value.items())
+    elif isinstance(value, (tuple, list)):
+        size += sum(_retained_size(v, seen) for v in value)
+    return size
+
+
+def _passage_terms(store, conn, item_id, generation):
+    global _LEXICAL_CACHE_BYTES
+    row = conn.execute("SELECT name,latest_version FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
     if row is None:
         return None
-    title = lexical_tokens(row["name"])
-    title_counts = {term: TITLE_WEIGHT * _tf(title, *term) for term in weights}
+    # Projection rebuilds allocate new rowids even when source versions are unchanged.
+    key = (weakref.ref(store), generation, item_id, row["latest_version"])
+    with _LEXICAL_CACHE_LOCK:
+        cached = _LEXICAL_CACHE.get(key)
+        if cached is not None:
+            _LEXICAL_CACHE.move_to_end(key)
+            return cached[0]
+    texts = store.chunk_texts(conn, item_id)
+    passages = tuple((rowid, Counter(lexical_tokens(texts[ordinal]))) for rowid, ordinal in conn.execute(
+        "SELECT chunk_rowid,ordinal FROM resource_chunk WHERE item_id=? ORDER BY ordinal", (item_id,))
+        if 0 <= ordinal < len(texts))
+    terms = Counter(lexical_tokens(row["name"])), passages
+    # Include conservative allowance for OrderedDict links and the (value, size) wrapper.
+    size = _retained_size((key, terms)) + 256
+    with _LEXICAL_CACHE_LOCK:
+        old = _LEXICAL_CACHE.pop(key, None)
+        if old is not None:
+            _LEXICAL_CACHE_BYTES -= old[1]
+        if size <= LEXICAL_CACHE_MAX_BYTES and LEXICAL_CACHE_ITEMS > 0:
+            _LEXICAL_CACHE[key] = terms, size
+            _LEXICAL_CACHE_BYTES += size
+        while _LEXICAL_CACHE and (len(_LEXICAL_CACHE) > LEXICAL_CACHE_ITEMS
+                                  or _LEXICAL_CACHE_BYTES > LEXICAL_CACHE_MAX_BYTES):
+            _, (_, evicted_size) = _LEXICAL_CACHE.popitem(last=False)
+            _LEXICAL_CACHE_BYTES -= evicted_size
+    return terms
+
+
+def _count_term(counts, term):
+    return sum(count for token, count in counts.items() if token.startswith(term[0])) if term[1] else counts[term[0]]
+
+
+def _exact_bm25(store, conn, item_id, concepts, weights, generation) -> tuple[float, int] | None:
+    terms = _passage_terms(store, conn, item_id, generation)
+    if terms is None:
+        return None
+    title, passages = terms
+    title_counts = {term: TITLE_WEIGHT * _count_term(title, term) for term in weights}
     best = None
-    for rowid, ordinal in conn.execute("SELECT chunk_rowid,ordinal FROM resource_chunk WHERE item_id=? ORDER BY ordinal", (item_id,)):
-        if not 0 <= ordinal < len(texts):
-            continue
-        body = Counter(lexical_tokens(texts[ordinal]))
-        counts = {term: title_counts[term] + (sum(count for token, count in body.items() if token.startswith(term[0]))
-                                            if term[1] else body[term[0]]) for term in weights}
+    for rowid, body in passages:
+        counts = {term: title_counts[term] + _count_term(body, term) for term in weights}
         score = _concept_score(concepts, weights, counts.get)
         if best is None or score > best[0]:
             best = score, rowid

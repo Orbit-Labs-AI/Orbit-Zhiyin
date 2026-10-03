@@ -702,14 +702,35 @@ class CatalogStore:
                            "ON v.version_id=i.latest_version WHERE i.item_id=?", (item_id,)).fetchone()
         if row is None:
             return []
+        from sys import getsizeof
+
+        # A hit moves to the newest end: plain dict insertion order otherwise makes
+        # this FIFO and repeatedly evicts shared hot candidates during broad reranking.
+        key = (FEATURE_VERSION, CHUNK_VERSION, row["version_id"])
         with self._chunk_lock:
-            cached = self._chunk_cache.get(row["version_id"])
-        if cached is None:
-            cached = [c["text"] for c in chunks(self.load_resource(conn, row["doc_sha"], row["body_sha"]))]
-            with self._chunk_lock:
-                self._chunk_cache[row["version_id"]] = cached
-                while len(self._chunk_cache) > 512:
-                    self._chunk_cache.pop(next(iter(self._chunk_cache)))
+            cached = self._chunk_cache.pop(key, None)
+            if cached is not None:
+                self._chunk_cache[key] = cached
+                return cached
+        cached = [c["text"] for c in chunks(self.load_resource(conn, row["doc_sha"], row["body_sha"]))]
+        size = (getsizeof(cached) + sum(getsizeof(text) for text in cached) + getsizeof(key)
+                + sum(getsizeof(part) for part in key) + 512)
+        with self._chunk_lock:
+            sizes = getattr(self, "_chunk_cache_sizes", None)
+            if sizes is None:
+                self._chunk_cache_sizes = sizes = {}
+                self._chunk_cache_bytes = 0
+            self._chunk_cache.pop(key, None)
+            self._chunk_cache_bytes -= sizes.pop(key, 0)
+            if size <= 16 * 1024 * 1024:
+                self._chunk_cache[key] = cached
+                sizes[key] = size
+                self._chunk_cache_bytes += size
+            while self._chunk_cache and (len(self._chunk_cache) > 512 or self._chunk_cache_bytes > 16 * 1024 * 1024):
+                evicted = next(iter(self._chunk_cache))
+                self._chunk_cache.pop(evicted)
+                self._chunk_cache_bytes -= sizes.pop(evicted)
+
         return cached
 
     def detail(self, item_id: str) -> dict | None:

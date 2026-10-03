@@ -112,3 +112,80 @@ def test_semantic_item_topk_with_100000_candidates():
     hits, _, scanned = _semantic(None, index, np.ones(len(index), dtype=bool), ToyEncoder(), "fault isolation", 10)
     assert scanned == 100000
     assert [i for i, _ in hits] == ["item-099999", *index.ids[:9]]
+
+
+@pytest.fixture
+def term_cache(monkeypatch):
+    import importlib
+    from collections import OrderedDict
+    retrieval = importlib.import_module("orbit_catalog.search")
+    monkeypatch.setattr(retrieval, "_LEXICAL_CACHE", OrderedDict())
+    monkeypatch.setattr(retrieval, "_LEXICAL_CACHE_BYTES", 0)
+    return retrieval
+
+
+def test_cached_passage_terms_preserve_prefix_scores_without_retokenizing(store, term_cache, monkeypatch):
+    publish(store, [record("guide", summary="zephyr", body_policy="licensed", license="MIT",
+                           body="# First\nzephyr once\n# Last\n" + "zephyr " * 20)])
+    original = term_cache.lexical_tokens
+    calls = []
+    def track(text):
+        calls.append(text)
+        return original(text)
+    monkeypatch.setattr(term_cache, "lexical_tokens", track)
+    request = MatchRequest(text="zeph", prefix=True)
+    cold = search(store, request)
+    assert any(text != "zeph" for text in calls)
+    calls.clear()
+    warm = search(store, request)
+    assert warm == cold
+    assert calls and all(text == "zeph" for text in calls)  # Only query parsing remains.
+    assert 0 < term_cache._LEXICAL_CACHE_BYTES <= term_cache.LEXICAL_CACHE_MAX_BYTES
+
+
+def test_passage_term_cache_invalidates_on_projection_rebuild_and_update(store, term_cache, monkeypatch):
+    row = record("guide", summary="zephyr", body_policy="licensed", body="zephyr " * 10)
+    publish(store, [row])
+    first = search(store, MatchRequest(text="zephyr"))
+    store.rebuild()
+    rebuilt = search(store, MatchRequest(text="zephyr"))
+    assert rebuilt["items"][0]["passage"]["chunk_id"] != first["items"][0]["passage"]["chunk_id"]
+    assert rebuilt["items"][0]["score"] == first["items"][0]["score"]
+    updated = row.model_copy(update={"resource": row.resource.model_copy(update={"summary": "lynx", "body": "lynx " * 10})})
+    publish(store, [updated], revision="r2")
+    assert search(store, MatchRequest(text="lynx"))["items"]
+    assert not search(store, MatchRequest(text="zephyr"))["items"]
+
+
+def test_passage_term_cache_enforces_lru_entry_and_byte_budgets(store, term_cache, monkeypatch):
+    publish(store, [record(name, summary="zephyr") for name in "abc"])
+    monkeypatch.setattr(term_cache, "LEXICAL_CACHE_ITEMS", 2)
+    with store.reader() as conn:
+        generation = store.generation(conn)
+        for name in "abac":
+            term_cache._passage_terms(store, conn, name, generation)
+        assert [key[2] for key in term_cache._LEXICAL_CACHE] == ["a", "c"]
+        assert term_cache._LEXICAL_CACHE_BYTES == sum(entry[1] for entry in term_cache._LEXICAL_CACHE.values())
+        monkeypatch.setattr(term_cache, "LEXICAL_CACHE_MAX_BYTES", 1)
+        terms = term_cache._passage_terms(store, conn, "b", generation)
+        assert terms is not None  # Oversize entries still score; they just are not retained.
+        assert not term_cache._LEXICAL_CACHE and term_cache._LEXICAL_CACHE_BYTES == 0
+
+
+def test_chunk_text_cache_refreshes_hot_entry_before_eviction(store):
+    publish(store, [record(name, summary="zephyr") for name in "abc"])
+    with store.reader() as conn:
+        for name in "ab":
+            store.chunk_texts(conn, name)
+        a, b = list(store._chunk_cache)
+        # Fill the remaining capacity without importing 510 unrelated source documents.
+        for n in range(510):
+            key = ("padding", "padding", str(n))
+            store._chunk_cache[key] = ["padding"]
+            store._chunk_cache_sizes[key] = 1000
+            store._chunk_cache_bytes += 1000
+        store.chunk_texts(conn, "a")
+        store.chunk_texts(conn, "c")
+        assert a in store._chunk_cache and b not in store._chunk_cache
+        assert len(store._chunk_cache) == 512
+        assert store._chunk_cache_bytes == sum(store._chunk_cache_sizes.values())
