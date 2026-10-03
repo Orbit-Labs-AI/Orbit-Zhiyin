@@ -213,4 +213,47 @@ if (LV.live) {
   LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
     topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
+
+  /* 「AI 生成 / 重新生成」：POST /v1/ai/jobs 提交 narrate.overview（scope 即 insight.ai_scope，fresh 跳过缓存，
+     真实调用一次本地 Agent），轮询到结束后让 overview 重新读取；卡片只在后端读回模型写成的结果
+     （basis=ai_narrative）时才换成 AI 文字。未开启 AI、引擎不可用、未授权、超出今日花费上限、模型输出未通过校验
+     都如实提示，卡片保持规则模板，不在前端重放旧文字冒充新结果。 */
+  const OV_REGEN_ERR = {
+    ai_disabled: 'AI 未开启：在 设置 › 分析 选择执行者后再生成',
+    engine_unavailable: '本地 Agent 不可用（未安装或未登录），卡片保持规则模板',
+    budget_exhausted: '今日 AI 花费已达上限，明天再试或在 设置 › 分析 调整上限',
+    over_budget: '上下文超出预算，暂时无法生成',
+    invalid_scope: '当前范围无法生成 AI 解读'
+  };
+  LV.ovRegen = null;
+  ACT.regen = () => {
+    const ins = LV.ov && LV.ov.insight;
+    if (!ins || !ins.ai_scope) { toast('「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选'); return; }
+    if (LV.ovRegen) { toast('AI 解读正在生成'); return; }
+    const scope = {}; Object.keys(ins.ai_scope).forEach((k) => { if (ins.ai_scope[k] != null) scope[k] = ins.ai_scope[k]; });
+    const say = (h) => { const g = $('[data-aigen]'); if (g) g.innerHTML = h; };
+    const spin = (t) => say('<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + esc(t));
+    const run = LV.ovRegen = { key: JSON.stringify(scope) };
+    const back = () => { if (LV.ovRegen === run) LV.ovRegen = null; if (S.route === 'overview' || S.route === 'l-home') render(); };
+    spin('已提交给本地 Agent…');
+    TL.send('POST', '/v1/ai/jobs', { task_id: 'narrate.overview', scope, fresh: true }).then((r) => {
+      const d = r.data || {}; if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { code: 'no_job' });
+      return TL.pollJob(d.job_id, (job) => { if (job.status === 'running') spin('本地 Agent 生成中…'); });
+    }).then((job) => {
+      if (job.status === 'ok') {
+        TL.invalidate((x) => String(x.path).indexOf('/v1/uiview/overview') === 0);
+        toast('AI 解读已更新');
+      } else if (job.status === 'fallback') {
+        const st = (job.stages || []).find((x) => x.status === 'failed');
+        toast('模型这次没有写出可用的解读' + (st && st.message ? '（' + st.message + '）' : '') + '，卡片保持规则模板');
+      } else if (job.status === 'cancelled') toast('AI 解读已取消');
+      else toast('AI 解读生成失败：' + (job.error || job.status));
+      back();
+    }, (e) => {
+      if (e.code === 'consent_required') toast('需要先授权这些数据类：' + ((e.detail && e.detail.missing) || []).join('、'), { act: '去授权', onAct: () => openSettings('analysis') });
+      else if (TL.unavailable(e) && !OV_REGEN_ERR[e.code]) toast('本地服务暂不提供 AI 解读，卡片保持规则模板');
+      else toast(OV_REGEN_ERR[e.code] || ('AI 解读生成失败：' + (e.message || e.code)), e.code === 'ai_disabled' || e.code === 'budget_exhausted' ? { act: '去设置', onAct: () => openSettings('analysis') } : undefined);
+      back();
+    });
+  };
 }
