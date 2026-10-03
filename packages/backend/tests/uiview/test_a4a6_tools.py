@@ -274,6 +274,15 @@ def test_mcp_tools_per_server(orbit, conn):
     assert [t["name"] for t in servers["pw"]["tools"]] == ["click"]
 
 
+def test_mcp_tools_without_name_fold_into_one(orbit, conn):
+    orbit.session("a")
+    for i, name in enumerate(["", "mcp__pw__", "mcp__pw__click"]):
+        orbit.call("a", name=name, kind="mcp", mcp_server="pw", status="success", at=T0 + i)
+    tools = {m["server"]: m for m in build(conn)["mcp"]}["pw"]["tools"]
+    assert [(t["name"], t["n"], t["raw"]) for t in tools] == [
+        (None, 2, ["mcp__pw__"]), ("click", 1, ["mcp__pw__click"])]
+
+
 def test_prev_delta_and_trend(orbit, conn):
     orbit.session("a", started=T0)
     lo, hi = T0 + 10 * DAY, T0 + 20 * DAY

@@ -387,7 +387,8 @@ def _norm_name(name: str | None) -> str:
 
 def _mcp_tools(server: str, rows) -> list[dict]:
     """Tools called under one MCP server: ``[{name, raw, n, failed, known, unknown, err}]``.
-    ``name`` drops the ``mcp__<server>__`` prefix agents put in front of the tool name."""
+    ``name`` drops the ``mcp__<server>__`` prefix agents put in front of the tool name; calls with
+    no tool name (empty, or only the server prefix) fold into one item with ``name`` None."""
     by: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
         by[row["name_raw"] or ""].append(row)
@@ -395,16 +396,17 @@ def _mcp_tools(server: str, rows) -> list[dict]:
                         re.IGNORECASE)
     merged: dict[str, dict] = {}
     for raw, items in by.items():
-        name = prefix.sub("", raw) or raw
+        name = prefix.sub("", raw).strip() or None
         entry = merged.setdefault(name, {"name": name, "raw": [], "rows": []})
-        entry["raw"].append(raw)
+        if raw:
+            entry["raw"].append(raw)
         entry["rows"].extend(items)
     out = []
     for entry in merged.values():
         c = _counts(entry["rows"])
         out.append({"name": entry["name"], "raw": sorted(entry["raw"]), **c,
                     "err": common.rate(c["failed"], c["known"])})
-    return sorted(out, key=lambda t: (-t["n"], t["name"]))
+    return sorted(out, key=lambda t: (-t["n"], t["name"] is None, t["name"] or ""))
 
 
 def mcp(rows, inventory_items) -> list[dict]:

@@ -25,7 +25,7 @@ function ttMcpList(servers) {
     let h = '<div class="tt-mcp-s" data-mcp="' + esc(x.server) + '">' + head + (x.tagHtml || (x.tag ? '<span class="tag">' + x.tag + '</span>' : '')) + '</div>';
     if (open) {
       const mx = Math.max(1, ...x.tools.map((t) => t.n || 0));
-      h += '<div class="tt-mcp-tools" data-lv="mcp-tools">' + x.tools.map((t) => '<div class="tt-mcp-t"><span class="mono tt-mcp-tn">' + esc(t.name) + '</span><span class="tt-fail-bar"><i style="width:' + ((t.n || 0) / mx * 100).toFixed(1) + '%"></i></span><span class="mono tt-mcp-tv">' + fmt(t.n || 0) + ' 次 · 失败 ' + (t.err == null ? '<span data-tip="' + esc(t.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(t.err)) + '</span></div>').join('') + (x.toolsNote ? '<div class="cap tt-mcp-tnote">' + esc(x.toolsNote) + '</div>' : '') + '</div>';
+      h += '<div class="tt-mcp-tools" data-lv="mcp-tools">' + x.tools.map((t) => '<div class="tt-mcp-t">' + (t.name ? '<span class="mono tt-mcp-tn">' + esc(t.name) + '</span>' : '<span class="tt-mcp-tn cap" data-tip="记录里没有工具名">(未命名)</span>') + '<span class="tt-fail-bar"><i style="width:' + ((t.n || 0) / mx * 100).toFixed(1) + '%"></i></span><span class="mono tt-mcp-tv">' + fmt(t.n || 0) + ' 次 · 失败 ' + (t.err == null ? '<span data-tip="' + esc(t.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(t.err)) + '</span></div>').join('') + (x.toolsNote ? '<div class="cap tt-mcp-tnote">' + esc(x.toolsNote) + '</div>' : '') + '</div>';
     }
     return h;
   }).join('');
