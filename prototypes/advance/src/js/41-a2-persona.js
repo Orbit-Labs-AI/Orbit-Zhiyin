@@ -7,12 +7,13 @@
 const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
 const POP = { D: 52, I: 54, M: 47, V: 58 };
 if (S.persona.fpType === undefined) S.persona.fpType = null;
-const peNum = (v) => String(Math.round(Math.abs(v) * 50 + 50));
+// strength = max(val, 100 − val): rounded once from the unrounded bar value, so it matches axisView().strong (hero, method)
+const peNum = (v) => String(Math.round(+(Math.abs(v) * 50 + 50).toFixed(6)));
 function peAxisRows(p, prev) {
   return [0, 1, 2, 3].map((i) => {
     const a = axisView(p, i); const k = a.ax.k; const sgn = k === 'I' ? 1 : -1;
     const gv = S.persona.vs === 'pop' ? POP[k] : (prev && prev.ok ? prev.v[k] : null);
-    return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: +((50 - a.val) * sgn * -1 / 50).toFixed(2), ref: gv == null ? null : +((50 - gv) * sgn * -1 / 50).toFixed(2), hint: a.ax.q + ' · 强度 ' + a.strong, id: k };
+    return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: (50 - a.val) * sgn * -1 / 50, ref: gv == null ? null : (50 - gv) * sgn * -1 / 50, hint: a.ax.q + ' · 强度 ' + a.strong, id: k };
   });
 }
 // 每轴证据微型图：D 每会话消息数分布、P/I 项目按结构度排序的时长、M 每日会话数分布、V 项目按求证度排序的时长

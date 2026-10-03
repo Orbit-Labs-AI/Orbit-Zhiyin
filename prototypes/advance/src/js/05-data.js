@@ -201,7 +201,8 @@ function demoLean(all) {
 // 按会话 id 的哈希单独取随机数，不动 genSessions 的随机序列；由会话已有的字段推出：人类轮次 = 消息数，≥ 5 步的轮次占比随
 // 每条消息的工具调用数上升，验证轮次只出现在 verify 会话里，开场结构 / 规格引用随项目的即兴倾向（I），回滚多见于需返工的会话。
 function demoUnits(all) {
-  const AGSUB = { cc: 0.3, cx: 0.12, gm: 0.05, ds: 0.08, cp: 0.04 };
+  // only Claude Code and Codex record child sessions (facts.SUBAGENT_AGENTS); for the others the signal is unknown (null)
+  const AGSUB = { cc: 0.3, cx: 0.12 };
   all.forEach((s) => {
     const r = rng(hash(s.id + ':units')), P = PJI[s.p] || { I: 60, V: 50 };
     const dn = Math.max(1, s.msgs), per = s.tools / Math.max(1, s.msgs);
@@ -217,7 +218,8 @@ function demoUnits(all) {
     s.dk = dk; s.dn = dn; s.vk = vk; s.ik = ik; s.kn = dn;
     s.oa = planned ? 1 : 0; s.os = planned && r() < 0.35 ? 1 : 0;
     s.ol = Math.round(planned ? 160 + r() * 420 : 18 + r() * 110);
-    s.sc = r() < (AGSUB[s.a] || 0.05) ? 2 + Math.floor(r() * 3) : r() < 0.2 ? 1 : 0;
+    const sc = r() < (AGSUB[s.a] || 0.05) ? 2 + Math.floor(r() * 3) : r() < 0.2 ? 1 : 0;
+    s.sc = AGSUB[s.a] ? sc : null;
     s.rb = r() < 0.12 + (s.out === 'part' || s.out === 'fail' ? 0.35 : 0) ? 1 : 0;
     s.t0 = ((s.d * 24 + s.h) * 60 + s.mi) * 60000; s.t1 = s.t0 + Math.round(s.dur * 60000);
   });

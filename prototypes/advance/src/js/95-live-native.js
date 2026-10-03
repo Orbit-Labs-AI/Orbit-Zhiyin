@@ -211,7 +211,7 @@ LVN.personaOf = function (d) {
   const v = { D: 50, I: 50, M: 50, V: 50 };
   (d.axes || []).forEach((a) => { const k = a.k || a.axis; if (k in v && a.value != null) v[k] = +a.value; });
   if (d.v) Object.keys(v).forEach((k) => { if (d.v[k] != null) v[k] = +d.v[k]; });
-  const p = { ok: true, classified: d.classified != null ? !!d.classified : d.code.indexOf('?') < 0, n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || '尚未定型', en: d.en || (d.type && d.type.en) || 'Undetermined', line: d.line || '', conf: d.conf || '—', server: true };
+  const p = { ok: true, classified: d.classified != null ? !!d.classified : !!TYPES[d.code], n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || (TYPES[d.code] || [])[0] || '—', en: d.en || (d.type && d.type.en) || (TYPES[d.code] || [])[1] || '—', line: d.line || '', conf: d.conf || '—', server: true };
   const cands = (d.candidates || d.matches || []).map((c) => ({ c: c.code, zh: c.zh || (TYPES[c.code] || [])[0] || '', en: c.en || (TYPES[c.code] || [])[1] || '', sim: clamp(Math.round(c.match != null ? c.match : c.sim || 0), 3, 99) })).filter((c) => c.c);
   return { p, cands };
 };
