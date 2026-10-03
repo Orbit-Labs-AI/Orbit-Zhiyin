@@ -48,7 +48,9 @@ scene('15-redesign', () => {
   // cx (852, 566) / gm (960, 560) / ds (1068, 566) / cp (1176, 584), r 34, while 1c's icons fly out the other way
   // v17.3: from b13.4 the arc rises with the 1d lines (6 px/beat, the same drift), so the dots and their bubbles never sit
   // frozen while the stream is read; by H4 (b20.3) it is 41 px higher, which only helps gm clear the lines above
-  AGD.key(11.8, 'arc', { ...AGD.P.arcD, cy: (b) => AGD.P.arcD.cy + 24 - 6 * Math.max(0, b - 13.4), dur: 1.4, stag: .05, arc: 40, ease: H3E }); // H3
+  // v18.3: the arc no longer rises with the lines — at 6 px/beat it lifted the cx / ds bubbles to y ≈ 430, onto
+  // 「重新定义」; level, their tops stay ≥ 460 (the dots are never still: tails, carets, the pen keep them moving)
+  AGD.key(11.8, 'arc', { ...AGD.P.arcD, cy: AGD.P.arcD.cy + 24, dur: 1.4, stag: .05, arc: 40, ease: H3E }); // H3
   // H4 (T6): polar about (960, 700), below the arc, so the bearings 298 / 321 / 0 / 39 / 62° open clockwise without
   // crossing: gm rises straight up the middle, cc / cp swing out and down like a flower opening. ph 207 = 209 − 5·0.4
   // keeps the v17 landing points and the angle (228) that 20-orbit hands on from. v17.4: this key moved b19.0 → b20.3 and
@@ -118,7 +120,7 @@ scene('15-redesign', () => {
     w.style.opacity = Math.min(1, p1 * 1.6).toFixed(3);
     leave(el, q, true);
   };
-  txt(15.1, 20.7, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 395, align: 'c' },
+  txt(15.1, 20.7, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w">重新定义</span>']], { x: 960, y: 395, align: 'c' },
     { anim: fall({ inB: .26, at: .5, dur: .3, out: .6 }), tick: drift() });
 
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
@@ -128,7 +130,7 @@ scene('15-redesign', () => {
   // never sent (17.15–17.93, readable 2.17 beats, the box sinks with it at b20.1)
   // the box grows out of the dots' centroid ((960, ≈570) at b12.6, the arc still landing) down to (960, 880) by b13.2,
   // and shrinks back into it over b20.1–20.5
-  const c = AGD.chat(12.6, 20.5, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
+  const c = AGD.chat(12.5, 20.5, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
   // v17.7: [dot that becomes the caret, first key, text, seed, send beat | null (the 4th is never sent: cp keeps the caret
   // until the box retracts)]; the box caret takes that Agent's colour while its line shows
   const TY = [[1, 12.95, '请你修改', 41, 13.95], [2, 14.55, 'fix', 42, 15.26], [1, 15.8, '请你继续', 43, 16.78], [4, 17.15, '看清需求', 44, null]]
@@ -169,7 +171,8 @@ scene('15-redesign', () => {
   const slow = [];                                                                           // [AGD_BUB record, b0, b1]
   for (const u of BUB) {
     let o;
-    if (UP[u.i]) o = { kind: 'fix', dx: DX[u.i], dy: -R - 18, until: u.b1 };
+    // v18.3: a box above its dot is ≈ 77 px from tail tip to top, so its top is clamped to y ≥ 460 (clear of line 3)
+    if (UP[u.i]) o = { kind: 'fix', dx: DX[u.i], dy: (b) => Math.max(-R - 18, 460 + 77 - AGD.pos(u.i, b).y), until: u.b1 };
     else {
       // newer ones push it down, starting .15 beats before they pop so the old box has cleared the dot by the time the
       // new one is full size
@@ -230,8 +233,10 @@ scene('15-redesign', () => {
   }
   // b18.7 hand-off (F3 1c): 1c's five-colour caret falls over — every segment turns 90° (.4 beat) as the arc opens —
   // then rounds back out (.5 beat, the logos return) as a pill aimed at the input box about to grow out of them
-  AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .4, stag: .03 });
-  AGD.morph(12.2, 'all', 'pill', { aim: BOX, w: 2.6, dur: .5, stag: .03 });
+  // v18.3: the fall-over is a .24-beat ride, then straight into the pill (b12.04, .45 beat) so outside the ride the dots
+  // are never thin dim dashes (the arc key grows r 16 → 34 meanwhile); the box (b12.5) is pulled out while they round
+  AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .24, stag: .03 });
+  AGD.morph(12.04, 'all', 'pill', { aim: BOX, w: 2.6, dur: .45, stag: .03 });
   // the highlighter (「交互本身」, from b13.85): ds becomes a pen head, rises from the arc onto the band under 「交互本身」
   // (b13.72–14.0, as 「交互本身」 steps in), rides the tip of the stroke as it starts to draw (x 1010 + 402·progress, the line's 6 px/beat drift) and
   // drops back onto the arc by b14.5, before its own bubble (b14.55). v18.1: was a 24 / 18 px nudge ≈ 300 px below the band
@@ -277,8 +282,11 @@ scene('15-redesign', () => {
   // constant speed) so it never sits still under the turning ring; the fit widths keep every line's corners inside the
   // ring's inner edge (radius 380) at 1.04
   // v18.1: the push is PUSH (v18.2: b22.5–25.7, E.sine, the ring scales with it), so before the first cut the type sits still
+  // v18.3: the exit (b25.8–26.4, as the ring starts to close) is a push-through — the type goes on from 1.04 to 1.10
+  // about the ring centre with the same E.inOut as its fade, so it passes the camera instead of blurring in place
+  const XP = (b) => lerp(1, 1.10 / 1.04, E.inOut(clamp((b - 25.8) / .6)));
   const zoom = (y, own) => (el, tl, life, ts) => {
-    const s = PUSH(ts / BEAT), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
+    const s = PUSH(ts / BEAT) * XP(ts / BEAT), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
     el.style.transform = (own ? 'translate(-50%,-50%)' : el.style.transform) + add;     // K.words rewrites it every frame, K.big never
   };
   // v18.1: 「So，」 comes in at b20.6 at the ring centre (soft and large, as the 1d lines leave and the box shrinks into
