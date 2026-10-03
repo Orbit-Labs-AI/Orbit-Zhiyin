@@ -334,6 +334,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .btn.dg{color:var(--crit)}
 .btn.sm{height:20px;padding:0 8px;font-size:12px;border-radius:5px}
 .btn[disabled]{opacity:.45;pointer-events:none}
+.btn[aria-disabled="true"]{opacity:.45;cursor:default}
 .ib{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:var(--ink-2);display:inline-grid;place-items:center;padding:0;flex:none}
 .ib:hover{background:var(--field)}
 .ib:active{background:var(--sel)}
@@ -3045,6 +3046,13 @@ const OrbitLive = (function () {
     /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
     // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
     // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    // /v1/ai errors carry their details next to code / message ({error: {code, message, missing, reason, daily_cap …}},
+    // routes_ai.AIApiError); other routes nest them under detail. Either way the caller reads e.detail.missing etc.
+    const errDetail = (info) => {
+      if (info.detail != null) return info.detail;
+      const x = {}; Object.keys(info).forEach((k) => { if (['code', 'message', 'retryable', 'detail'].indexOf(k) < 0) x[k] = info[k]; });
+      return Object.keys(x).length ? x : null;
+    };
     C.send = function (method, path, body, o) {
       o = o || {};
       if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
@@ -3056,7 +3064,7 @@ const OrbitLive = (function () {
         if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
         if (res.status >= 200 && res.status < 300) return { status: res.status, data };
         const info = (data && data.error) || {};
-        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: errDetail(info), retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
       }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
     };
     // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down
@@ -6733,9 +6741,9 @@ PAGES['l-home'] = () => {
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
   const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。';
   const ev = st.n ? Math.round(st.verify) + '% 的会话要求验证 · ' + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + Math.round(st.ok) + '%' : '这段时间没有会话';
-  // 没有会话时那句话是固定说明，不是 AI 写的：不挂「AI 解读」标记（F21）
+  // 没有会话时那句话是固定说明，不是 AI 写的：不挂解读标记（F21）；有话时按来源标 AI 或规则
   const said = (ins && ins.lede) || pers.ok;
-  const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap">' + (LV.live ? esc(ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
+  const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap">' + ovInsBadge(ins) + '<span class="cap">' + (LV.live ? esc(ovInsWhen(ins)) : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
     '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
       : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false) + '</div>') + '</div>';
@@ -6845,7 +6853,7 @@ PAGES['l-sessions'] = () => {
   const nodes = tr.moments.map((m, i) => '<span class="l-node' + (m[3] ? ' bad' : '') + '" style="left:' + xs[i].toFixed(2) + '%" data-tip="' + esc(relT(Math.round(m[0] * 10) / 10) + ' · ' + m[1]) + '">' + (i + 1) + '</span>').join('');
   const steps = tr.moments.map((m, i) => '<li class="' + (m[3] ? 'bad' : '') + '"><span class="l-sn mono">' + (i + 1) + '</span><span class="mono l-st">' + relT(Math.round(m[0] * 10) / 10) + '</span><b>' + esc(m[1]) + '</b><span class="l-sd">' + esc(m[2]) + '</span></li>').join('');
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === liteToday() ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
-    '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins"><span class="aib">' + ic('spark', 11) + 'AI 洞察</span><p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
+    '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins">' + (LV.live ? '<span class="tag" data-lv="ins-basis" data-tip="按会话结果与纠偏次数套用规则写成，没有调用模型">规则洞察</span>' : '<span class="aib">' + ic('spark', 11) + 'AI 洞察</span>') + '<p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
   const tl = '<div class="card pad l-tlc"><div class="hd"><div class="grow"><span class="ct">关键步骤</span><span class="cap">' + tr.moments.length + ' 个关键时刻 · 全程 ' + (s.live ? liveMin() + 'm' : dur(T)) + '</span></div>' + liteAdv('sessions', '在 Advance 中回放') + '</div>' +
     (tr.moments.length ? '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol>' : (tr.state === 'pending' ? '<p class="cap" data-lv="pending" aria-busy="true" style="margin:12px 0 4px">正在读取关键时刻…</p>' : tr.state === 'error' ? '<p class="cap" data-lv="error" style="margin:12px 0 4px">关键时刻暂时取不到</p>' : '<p class="cap" data-lv="no-moments" style="margin:12px 0 4px">这个会话没有关键时刻</p>')) + '</div>';
   return liteBar('会话轨迹', rangeLabel() + ' · 最近 ' + list.length + ' 个会话') +
@@ -6937,6 +6945,18 @@ function ovPersEmpty(pers) {
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
 }
+// 「AI 解读」徽标只给模型写成的解读：live 下以 insight.basis 为准（ai_narrative），规则模板写成的标中性的「规则解读」，
+// 不用 AI 紫；demo 是预置的 Claude Code 示例，保持原样
+function ovInsAI(ins) { return !LV.live || !!(ins && ins.basis === 'ai_narrative'); }
+function ovInsBadge(ins) { return ovInsAI(ins) ? '<span class="aib">' + ic('spark', 11) + 'AI 解读</span>' : '<span class="tag" data-lv="ins-basis">规则解读</span>'; }
+// live 的来源行：模型写成的写明执行者与完成时间，否则是规则模板
+function ovInsWhen(ins) {
+  if (!ins) return '规则模板 · 本地生成';
+  if (ins.basis !== 'ai_narrative') return ins.when || '规则模板 · 本地生成';
+  const src = ins.source || {}; const nm = src.engine ? (typeof tlsEngName === 'function' ? tlsEngName(src.engine) : src.engine) : null;
+  const t = src.finished_at ? new Date(src.finished_at) : null;
+  return (ins.when || 'AI 撰写') + (nm ? ' · ' + nm : '') + (t ? ' · ' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '');
+}
 PAGES.overview = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
@@ -6962,9 +6982,16 @@ PAGES.overview = () => {
   if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
-  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
-  // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂「AI 解读」与生成来源（与 Lite 首页 said 同一规则）
-  const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt;
+  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? ovInsWhen(ins) : '本地 Claude Code 生成 · 9/30 23:10';
+  const caveat = LV.live && ins && ins.basis === 'ai_narrative' && (ins.caveats || []).length ? ins.caveats.join('；') : '';
+  // live「重新生成」提交 narrate.overview：「全部」与带筛选的视图没有可用的 ai_scope，按钮如实不可用
+  // 不可用时用 aria-disabled 而非 disabled：按钮仍可悬停 / 聚焦看到原因，点击由 ACT.regen 提示
+  const regenOff = LV.live && !(ins && ins.ai_scope);
+  // 生成中（LV.ovRegen，91-live-persona）：重绘后仍显示进度，按钮变为「停止」可取消作业
+  const regenRun = LV.live && LV.ovRegen;
+  const regenTip = regenOff ? (ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
+  // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂解读标记与生成来源（与 Lite 首页 said 同一规则）
+  const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt || regenRun;
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
   const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
@@ -6987,7 +7014,7 @@ PAGES.overview = () => {
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
     // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
-    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih">' + (said ? '<span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button>' : '<span class="eb">协作画像</span>') + '</div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + (said ? '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span>' : '') + '</div>' +
+    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih">' + (said ? ovInsBadge(ins) + (regenRun ? '<button type="button" class="btn sm gh" data-act="regenStop" data-tip="取消这次生成，卡片保持现有内容">' + ic('x', 12) + '停止</button>' : '<button type="button" class="btn sm gh" data-act="regen"' + (regenOff ? ' aria-disabled="true"' : '') + (regenTip ? ' data-tip="' + esc(regenTip) + '"' : '') + '>' + ic('sync', 12) + (LV.live && !ovInsAI(ins) ? 'AI 生成' : '重新生成') + '</button>') : '<span class="eb">协作画像</span>') + '</div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + (said ? '<span class="cap ov-aigen" data-aigen' + (caveat && !regenRun ? ' data-tip="' + esc(caveat) + '"' : '') + '>' + (regenRun ? '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + esc(LV.ovRegen.msg || '已提交给本地 Agent…') : esc(ledeWhen)) + '</span>' : '') + '</div>' +
     ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
     '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
     // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
@@ -8335,7 +8362,7 @@ function phraseSources(k, cat) {
   for (const i of idx) { if (out.length >= 3) break; out.push(pool[i]); }
   return out.sort((a, b) => (b.d - a.d) || (b.h - a.h));
 }
-const AIB = (t) => '<span class="aib" data-tip="由本地 Agent 从你的消息中抽取 · 原文不离开本机">' + ic('spark', 11) + (t || 'AI 抽取') + '</span>';
+const AIB = (t) => '<span class="aib" data-tip="由本地 Agent 从你的消息中抽取 · 只把脱敏片段发给它的模型服务">' + ic('spark', 11) + (t || 'AI 抽取') + '</span>';
 /* ---- 高频词：数据、卡片、词云布局 ---- */
 // demo: WORDS is a 30-day month of the 186 demo sessions; counts follow the selected sessions, days the window length,
 // with a stable per-word jitter so another Agent / project filter reorders the tail instead of shrinking every word alike
@@ -8426,7 +8453,7 @@ PAGES.sentiment = () => {
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
   const head = tbar('情绪语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
   if (!LV.live && S.engine === 'stats') return head + '<div class="content" id="content">' + empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') + '</div>';
-  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，原文不离开本机') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
+  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，只发送脱敏片段') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
   if (V && V.state !== 'ready') { CUR.mood = null; return head + '<div class="content" id="content">' + filterRow(shield) + lvSentShell(V) + '</div>'; }
   const L = sel(); const ms = V ? V.ms : moodSeries(L, S.range); CUR.mood = ms;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;   // 按周聚合（BUG-69）
@@ -8834,7 +8861,7 @@ PAGES.studio = () => {
   const adds = g.lines.filter((l) => l[1] === '+' || l[1] === 'ai').length, ais = g.lines.filter((l) => l[1] === 'ai').length;
   const hist = S.history.filter((h) => h.kind === 'studio').length + STUDIO_COPY.hist;
   return tbar('生成工坊', '用你的本地 Agent 生成 Skills、Hooks 与规则', '<button type="button" class="btn" data-act="studioHistory">历史产物 · ' + hist + '</button><button type="button" class="btn" data-act="studioTpl">工作流模板</button>') +
-    '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不调用云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录与额度</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
+    '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不自带云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录、额度与模型服务</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
     '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
     '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)" placeholder="一句话写清要生成什么，例如：提交前先跑测试，失败就停下汇报">' + esc(st.goal) + '</textarea>' + (st.from ? '<span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span>' : '') + '</label>' +
     '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? tokS(c[3]) : '') + '</span></label>').join('') + '</div></div>' +
@@ -8893,7 +8920,7 @@ Object.assign(ACT, {
   studioHistory: () => openModal(modalHead('历史产物', '由生成工坊产出的内容；安装与撤销记录在建议卡里') + '<div class="mb col" style="gap:6px">' + S.history.filter((h) => h.kind === 'studio').concat([{ t: 'Skill · design-review', when: '9/26' }, { t: 'Hook · block-claude-md', when: '9/22' }, { t: '规则 · 中文默认', when: '9/18' }, { t: 'Skill · daily-sync', when: '9/12' }, { t: 'Hook · latex-lint', when: '9/03' }, { t: '子代理 · ref-finder', when: '8/29' }, { t: 'Skill · paper-blueprint', when: '8/20' }, { t: '规则 · 小步提交', when: '8/11' }]).map((h) => '<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--hair);font-size:13px"><span>' + esc(h.t) + '</span><span class="cap mono">' + h.when + '</span></div>').join('') + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'),
   studioTpl: () => openModal(modalHead('工作流模板', 'Orbit 把一次生成拆成可观察的步骤；模板决定走哪些步') + '<div class="mb col" style="gap:10px">' + Object.keys(TPLS).map((k) => '<label class="row" style="align-items:flex-start;gap:8px;font-size:13px"><input type="radio" name="tpl" value="' + k + '"' + (S.studio.tpl === k ? ' checked' : '') + ' style="margin-top:3px;accent-color:var(--ink-1)"><span class="col" style="gap:1px"><b>' + esc(TPLS[k].name) + '</b><span class="cap">' + esc(TPLS[k].desc) + '</span></span></label>').join('') + '</div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="studioTplUse">使用所选模板</button></div>'),
   studioTplUse: () => { const r = $('#modal input[name="tpl"]:checked'); const k = r ? r.value : S.studio.tpl; const run = S.studio.run; if (run && !run.done && !run.stopped) { toast('运行中不能更换模板，先停止'); return; } S.studio.tpl = TPLS[k] ? k : 'v1'; if (run) S.studio.run = null; closeModal(); render(); toast('模板已切换为「' + TPLS[S.studio.tpl].name + '」'); },
-  ctxPreview: () => { openModal(modalHead('将发送给 ' + esc(studioRunner().name) + ' 的上下文包', '逐项预览 · 本机进程间传递，不经过 Orbit 服务器') + '<div class="mb" id="ctxPrev">' + ctxPreviewHTML() + '</div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制 JSON</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); },
+  ctxPreview: () => { openModal(modalHead('将发送给 ' + esc(studioRunner().name) + ' 的上下文包', '逐项预览 · 交给本机 Agent，由它发给自己的模型服务；不经过 Orbit 服务器') + '<div class="mb" id="ctxPrev">' + ctxPreviewHTML() + '</div><div class="mf"><button type="button" class="btn" data-act="copyBundle">复制 JSON</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); },
   copyBundle: () => copyText(JSON.stringify(ctxBundle(), null, 2), '上下文包')
 });
 
@@ -9273,7 +9300,7 @@ function openAsk(ctx) {
     '<div class="mb col" style="gap:10px"><div class="row" style="flex-wrap:wrap;gap:6px">' + ASKQ[c].map((q, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(q) + '</button>').join('') + '</div>' +
     '<div class="ask-a" id="askA" aria-live="polite"><span class="cap ask-empty">选一个问题，或在下方输入你自己的问题</span></div>' +
     '<div class="row"><label class="vh" for="askIn">你的问题</label><input id="askIn" placeholder="输入问题，回车发送" autocomplete="off" style="' + FIELD + ';height:32px"><button type="button" class="btn p" data-act="askSend" style="height:32px">发送</button></div></div>' +
-    '<div class="mf"><span class="row cap" style="margin-right:auto;font-size:11px">' + ic('shield', 13, 'color:var(--good)') + '上下文只在本机进程间传递</span><button type="button" class="btn" data-act="askCopy">复制回答</button><button type="button" class="btn ai" data-act="askStudio">' + ic('spark', 13) + '交给生成工坊</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
+    '<div class="mf"><span class="row cap" style="margin-right:auto;font-size:11px">' + ic('shield', 13, 'color:var(--good)') + '预置问题在本机查询；自由提问经本机 Agent 发给其模型服务，只含脱敏摘要</span><button type="button" class="btn" data-act="askCopy">复制回答</button><button type="button" class="btn ai" data-act="askStudio">' + ic('spark', 13) + '交给生成工坊</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
   MODAL_KEY = 'ask';
 }
 function askStream(q, txt) {
@@ -9692,7 +9719,7 @@ function drawOB() {
   let b = '';
   if (s === 0) {
     b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div>' + wordmark(18) + '<h2 class="serif" style="margin:8px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
-      [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
+      [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', 'Orbit 不自带云端模型', 'AI 功能默认关闭；开启后交给你自己的本地 Agent，只发送脱敏摘要']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1 && OB.live) {
     b = obLiveStep();
@@ -11773,9 +11800,71 @@ if (LV.live) {
   const h0 = LV.hydrate;
   LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
   // days = the range's window once the gateway reports it ready (全部 → 0); auto otherwise, with the strip's hint
-  LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
+  const OV_FEED = LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
     topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
+
+  /* 「AI 生成 / 重新生成」：POST /v1/ai/jobs 提交 narrate.overview（scope 即 insight.ai_scope，fresh 跳过缓存，
+     真实调用一次本地 Agent），轮询到结束后让 overview 重新读取；卡片只在后端读回模型写成的结果
+     （basis=ai_narrative）时才换成 AI 文字。未开启 AI、引擎不可用、未授权、超出今日花费上限、模型输出未通过校验
+     都如实提示，卡片保持规则模板，不在前端重放旧文字冒充新结果。 */
+  const OV_REGEN_ERR = {
+    ai_disabled: 'AI 未开启：在 设置 › 分析 选择执行者后再生成',
+    engine_unavailable: '本地 Agent 不可用（未安装或未登录），卡片保持规则模板',
+    budget_exhausted: '今日 AI 花费已达上限，明天再试或在 设置 › 分析 调整上限',
+    over_budget: '上下文超出预算，暂时无法生成',
+    invalid_scope: '当前范围无法生成 AI 解读'
+  };
+  // LV.ovRegen = { key, msg, job, stop }：生成中状态放在 LV 上，概览重绘时（SSE 刷新、筛选切换）仍显示进度与「停止」
+  LV.ovRegen = null;
+  const ovRedraw = () => { if (S.route === 'overview' || S.route === 'l-home') render(); };
+  ACT.regen = () => {
+    const ins = LV.ov && LV.ov.insight;
+    if (!ins || !ins.ai_scope) { toast(ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成'); return; }
+    if (LV.ovRegen) { toast('AI 解读正在生成'); return; }
+    const scope = {}; Object.keys(ins.ai_scope).forEach((k) => { if (ins.ai_scope[k] != null) scope[k] = ins.ai_scope[k]; });
+    const run = LV.ovRegen = { key: JSON.stringify(scope), msg: '已提交给本地 Agent…', job: null, stop: false };
+    const spin = (t) => { if (LV.ovRegen !== run) return; run.msg = t; const g = $('[data-aigen]'); if (g) g.innerHTML = '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + esc(t); };
+    const back = () => { if (LV.ovRegen === run) LV.ovRegen = null; ovRedraw(); };
+    ovRedraw();
+    TL.send('POST', '/v1/ai/jobs', { task_id: 'narrate.overview', scope, fresh: true }).then((r) => {
+      const d = r.data || {}; if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { code: 'no_job' });
+      run.job = d.job_id;
+      if (run.stop) ovCancel(run);
+      return TL.pollJob(d.job_id, (job) => { if (job.status === 'running') spin(run.stop ? '正在停止…' : '本地 Agent 生成中…'); });
+    }).then((job) => {
+      if (job.status === 'ok') {
+        // 作业成功不等于卡片已换成模型文字：重新读取 overview，只有读回 basis=ai_narrative 才说「已更新」
+        spin('读取生成结果…');
+        TL.invalidate((x) => String(x.path).indexOf('/v1/uiview/overview') === 0);
+        const rs = lvFeedRes(OV_FEED);
+        return Promise.all(rs.map((x) => TL.load(x.r))).then(() => {
+          const o = rs[0] && rs[0].r.data; const got = o && o.insight;
+          if (got && got.basis === 'ai_narrative') toast('AI 解读已更新');
+          else if (rs[0] && rs[0].r.state === 'computing') toast('数据已变化，正在重新计算；卡片暂时保持规则模板');
+          else toast('数据已变化或模型结果不完整，卡片保持规则模板');
+        }, () => toast('读取生成结果失败，卡片保持规则模板')).then(() => { if (LV.ovRegen === run) LV.ovRegen = null; TL.changed(); ovRedraw(); });
+      }
+      if (job.status === 'fallback') {
+        const st = (job.stages || []).find((x) => x.status === 'failed');
+        toast('模型这次没有写出可用的解读' + (st && st.message ? '（' + st.message + '）' : '') + '，卡片保持规则模板');
+      } else if (job.status === 'cancelled') toast('AI 解读已停止，卡片保持现有内容');
+      else toast('AI 解读生成失败：' + (job.error || job.status));
+      back();
+    }, (e) => {
+      if (e.code === 'consent_required') toast('需要先授权这些数据类：' + ((e.detail && e.detail.missing) || []).join('、'), { act: '去授权', onAct: () => openSettings('analysis') });
+      else if (TL.unavailable(e) && !OV_REGEN_ERR[e.code]) toast('本地服务暂不提供 AI 解读，卡片保持规则模板');
+      else toast(OV_REGEN_ERR[e.code] || ('AI 解读生成失败：' + (e.message || e.code)), e.code === 'ai_disabled' || e.code === 'budget_exhausted' ? { act: '去设置', onAct: () => openSettings('analysis') } : undefined);
+      back();
+    });
+  };
+  // 「停止」：POST /v1/ai/jobs/{id}/cancel；作业 id 还没返回时记下，拿到后立即取消。轮询读到 cancelled 后如实提示
+  const ovCancel = (run) => TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(run.job) + '/cancel', {}).catch((e) => toast('停止失败：' + (e.message || e.code)));
+  ACT.regenStop = () => {
+    const run = LV.ovRegen; if (!run || run.stop) return;
+    run.stop = true; run.msg = '正在停止…'; ovRedraw();
+    if (run.job) ovCancel(run);
+  };
 }
 
 /* ============ live A3 sessions (slice 2) ============
@@ -12481,7 +12570,7 @@ function lvSentBadge(V, k, aiText) {
   return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">词面规则</span>';
 }
 function lvSentShield(V) {
-  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';
+  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，只发送脱敏片段';
   return '按词面规则在本机统计，不调用模型，原文不离开本机';
 }
 const LVS_ICON = { session: 'sessions', message: 'sessions', command: 'term', file: 'file', project: 'projects', recommendation: 'recs', catalog: 'library', inventory: 'library', event: 'sessions' };
@@ -14088,15 +14177,23 @@ if (TL.mode === 'live') {
       box.innerHTML = xs.map((p, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(p.question) + '</button>').join('');
     }, () => { /* the generic questions stay; answers still go through POST /v1/ai/ask */ });
   };
-  const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
-  function tlsThinking(q) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">本地 Agent 正在回答…</span>'; }
+  // 来源如实写在回答末尾：预置问题是规则模板在本机查询出的（没有调用模型）；自由提问由本地 Agent 作答；
+  // 模型失败时后端回 status=fallback 与说明文字，照样显示说明，不当成回答
+  const tlsAskSrc = (d) => d.source === 'ai' || d.source === 'cache' ? '本地 Agent 回答' + (d.source === 'cache' ? '（缓存）' : '') + ' · 只发送了脱敏后的查询结果'
+    : d.error_code ? '本地 Agent 没有答成（' + d.error_code + '），以上是说明，不是回答' : '规则模板 · 在本机查询你的数据生成，没有调用模型';
+  const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '') + '\n\n— ' + tlsAskSrc(d);
+  function tlsThinking(q, preset) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">' + (preset ? '正在本机查询…' : '本地 Agent 正在回答…') + '</span>'; }
   function tlsAsk(body, q) {
-    clearInterval(ASKT); tlsThinking(q);
+    clearInterval(ASKT); tlsThinking(q, body.preset_index != null);
     TL.send('POST', '/v1/ai/ask', body).then((r) => {
       const d = r.data || {};
       if (d.answer != null) return d;
-      if (!d.job_id) return { answer: '' };
-      return TL.pollJob(d.job_id, null).then((job) => { if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error((job.error && (job.error.message || job.error.code)) || '回答失败'), { status: 500, code: 'job_' + job.status }); return job.result || {}; });
+      if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { status: 500, code: 'no_job' });
+      return TL.pollJob(d.job_id, null).then((job) => {
+        if (job.status === 'fallback' && job.result && job.result.answer) return job.result;
+        if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error(job.status === 'cancelled' ? '已取消' : (job.error && (job.error.message || job.error.code || job.error)) || '回答失败'), { status: 500, code: 'job_' + job.status });
+        return job.result || {};
+      });
     }).then((d) => { if (ASK) askStream(q, tlsAnswer(d)); }, (e) => {
       if (TL.unavailable(e)) { if (ASK) askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
       if (ASK) askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));
@@ -14243,7 +14340,7 @@ if (TL.mode === 'live') {
       if (tlsDemo(TL.resource(R.con))) sample('AI 通道');
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
-        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
+        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 近 30 天 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用' + (u.totals && u.totals.unknown_calls ? '（' + TLU.num(u.totals.unknown_calls) + ' 次没有价格，按保守单价计入预算）' : '') + ' · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
@@ -14634,7 +14731,9 @@ if (LV.live) {
   popYest = function () { const d = popData(); const iso = d && d.yesterday && d.yesterday.date; if (iso) return tloMD(iso).replace(/ 周.$/, ''); const t = lvUtc(todayIso()) - 864e5; return tloMD(new Date(t).toISOString()).replace(/ 周.$/, ''); };
   popOpening = function () {
     const d = popData(); const o = d && d.opening; const t = o && (typeof o === 'string' ? o : o.text || o.line || o.body); if (!t) return '';
-    return '<div class="sec row" data-tl="opening" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (o.title ? '<b style="color:var(--ink-1)">' + esc(o.title) + '</b>：' : '') + esc(t) + '</span></div>';
+    // AI 徽标与紫色底只给模型写的句子；/v1/shell/popover 的开场提示是规则模板（basis: rule），标「规则」
+    const ai = o.basis === 'ai' || o.source === 'ai';
+    return '<div class="sec row" data-tl="opening" data-basis="' + (ai ? 'ai' : 'rule') + '" style="align-items:flex-start;gap:8px' + (ai ? ';background:var(--ai-bg)' : '') + '">' + (ai ? '<span class="aib" style="background:var(--surface)">AI</span>' : '<span class="bdg" title="按最近的问题与纠偏数据套用规则生成，未调用模型">规则</span>') + '<span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (o.title ? '<b style="color:var(--ink-1)">' + esc(o.title) + '</b>：' : '') + esc(t) + '</span></div>';
   };
   popLiveCard = function () {
     const d = TLO.d; const s = d && d.primary; if (!s || S.paused) return '';
