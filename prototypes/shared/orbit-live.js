@@ -276,9 +276,13 @@ const OrbitLive = (function () {
         if (!e.status || e.status >= 500) C.failure = r.error;
         // a network failure / 5xx is transient: retry on Retry-After, else with backoff (base · 2ⁿ, capped), so a resource
         // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
+        // Retry-After is a floor, not the schedule: a gateway that answers 503 projection_pending + Retry-After: 1 for the
+        // whole of a long import would otherwise be polled once a second per resource (and the page rendered twice a second)
+        // until it publishes. Consecutive failures still back off; data.published / a reconnect refetch at once anyway.
         r.fails = (r.fails || 0) + 1;
-        const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
-        if (wait != null) retryLater(r, wait);
+        const bo = r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
+        const wait = e.retryAfter != null ? Math.max(e.retryAfter, bo || 0) : bo;
+        if (wait != null) { r.error.retryAfter = wait; retryLater(r, wait); }
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
     };

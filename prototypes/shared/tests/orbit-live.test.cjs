@@ -289,6 +289,31 @@ test('F08: past the busy cap the retries stay quiet while the import job keeps a
   assert.ok(C.failure && C.failure.code === 'service_unavailable');
 });
 
+test('a persistent 503 projection_pending + Retry-After: 1 backs off (1, 2, 4 … 30 s) and data.published refetches at once', async () => {
+  // real v0.0.2 data mid-import: every uiview answered 503 projection_pending, Retry-After: 1 → one request per second forever
+  const gw = gateway({ '/v1/uiview/sessions': () => json({ error: { code: 'projection_pending', message: 'Import is publishing a new revision', retryable: true } }, 503, { 'Retry-After': '1' }) });
+  const t = timers();
+  const C = live(gw, { timers: t });
+  const r = C.resource('/v1/uiview/sessions');
+  const waits = [];
+  for (let i = 0; i < 8; i++) {
+    await C.load(r);
+    const next = t.long[t.long.length - 1];
+    assert.ok(next, 'a retry is scheduled after failure ' + (i + 1));
+    waits.push(next.ms);
+    assert.equal(r.error.retryAfter, next.ms);             // the banner names the real delay
+    t.long.length = 0; next.f();
+  }
+  assert.deepEqual(waits, [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000]);
+  assert.match(OrbitLive.ui.banner(C), /30 秒后重试/);
+  // the import publishes: the parked retry is dropped and the resource refetches right away
+  const before = gw.hits['/v1/uiview/sessions'];
+  C.invalidate();
+  assert.equal(r.dirty, true);
+  await C.load(r);
+  assert.equal(gw.hits['/v1/uiview/sessions'], before + 1);
+});
+
 test('SSE: exponential backoff, Last-Event-ID resume and resync on a gap', async () => {
   const f = FX('events').frames;
   const gw = gateway({

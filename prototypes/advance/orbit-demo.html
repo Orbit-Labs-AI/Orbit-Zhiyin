@@ -2830,9 +2830,13 @@ const OrbitLive = (function () {
         if (!e.status || e.status >= 500) C.failure = r.error;
         // a network failure / 5xx is transient: retry on Retry-After, else with backoff (base · 2ⁿ, capped), so a resource
         // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
+        // Retry-After is a floor, not the schedule: a gateway that answers 503 projection_pending + Retry-After: 1 for the
+        // whole of a long import would otherwise be polled once a second per resource (and the page rendered twice a second)
+        // until it publishes. Consecutive failures still back off; data.published / a reconnect refetch at once anyway.
         r.fails = (r.fails || 0) + 1;
-        const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
-        if (wait != null) retryLater(r, wait);
+        const bo = r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
+        const wait = e.retryAfter != null ? Math.max(e.retryAfter, bo || 0) : bo;
+        if (wait != null) { r.error.retryAfter = wait; retryLater(r, wait); }
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
     };
@@ -3230,8 +3234,7 @@ const OrbitLive = (function () {
       idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
       disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
       units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
-      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null,
-      versionUnknown: t.version_check === 'unknown'
+      adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
     }));
   }
   // Selection sent with preview / apply: selected_units only lists targets whose units were narrowed.
