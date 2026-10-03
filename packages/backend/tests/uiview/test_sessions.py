@@ -37,7 +37,8 @@ def test_fact_rows(l1):
                                                              8, 53)
     assert (cc["msgs"], cc["tools"], cc["errors"], cc["corr"]) == (3, 8, 3, 2)
     assert cc["dur"] == 12.0 and cc["dur_basis"] == "active_estimate"
-    assert cc["tok"] == 211_700 and cc["out"] == "ok" and cc["out_basis"] == "estimate"
+    # Completed, but 2 of 3 human messages are corrections (2/3 >= 1/3, >= 2): needs rework.
+    assert cc["tok"] == 211_700 and cc["out"] == "part" and cc["out_basis"] == "estimate"
     assert cx["errors"] is None and cx["tok"] is None and cx["out"] is None
     assert cx["title"] == "重构 data loader 模块" and cx["title_source"] == "first_message"
     assert cx["excluded"] is True and cc["excluded"] is False
@@ -57,9 +58,14 @@ def test_estimated_outcome_rules():
     est = sessions.estimate_outcome
     assert est(True, "completed", None, []) == "live"
     assert est(False, "completed", None, ["failed"] * 3) == "part"
-    assert est(False, "unknown", "interrupted", []) == "part"
+    assert est(False, "completed", None, ["failed", "failed", "success"]) == "ok"
+    assert est(False, "unknown", "interrupted", []) == "fail"  # shown as 疑似中断
     assert est(False, "unknown", "completed", ["success"]) == "ok"
     assert est(False, "unknown", None, []) is None
+    # Correction density, not a raw count: 3 corrections in 200 messages is routine steering.
+    assert est(False, "unknown", "completed", [], corr=3, msgs=200) == "ok"
+    assert est(False, "unknown", "completed", [], corr=2, msgs=6) == "part"  # 2/6 = 1/3
+    assert est(False, "unknown", "completed", [], corr=1, msgs=1) == "ok"  # one hit never decides
     assert sessions.errors_of([]) == 0
     assert sessions.errors_of(["unknown", "unknown"]) is None
     assert sessions.errors_of(["unknown", "failed"]) == 1
@@ -220,3 +226,26 @@ def test_overlay_unit_rules():
     assert got["a"]["out"] == "live"
     assert (got["b"]["out"], got["b"]["out_basis"]) == ("part", "estimate")
     assert got["c"]["out"] is None  # facts explicitly unknown still win for finished rows
+
+
+def test_route_search_uses_full_session_cover(client, l1, monkeypatch):
+    """UT-03: the list filter takes every session the search sources hit, and passes the
+    cover's completeness through as meta.search_partial."""
+    from tandem_backend import features
+
+    populate(l1, 9)
+    calls = []
+
+    class Svc:
+        def search(self, q, kinds=None, limit=20, session_cover=False):
+            calls.append((limit, session_cover))
+            return {"results": [], "session_uids": [f"s{i:02d}" for i in range(1, 9)],
+                    "session_cover_complete": complete}
+
+    monkeypatch.setattr(features, "current", lambda: Svc())
+    complete = True
+    body = client.get("/v1/uiview/sessions?q=zzqx").json()
+    assert body["total"] == 8 and body["meta"]["search_partial"] is False
+    assert calls[-1][1] is True
+    complete = False
+    assert client.get("/v1/uiview/sessions?q=zzqy").json()["meta"]["search_partial"] is True

@@ -58,7 +58,8 @@ def test_header_stats_and_resume(l1):
     head, stats = body["header"], body["stats7"]
     assert head["agent_name"] == "Claude Code" and head["model"] == "claude-opus-4-5"
     assert head["effort"] == "high" and head["cwd"] == "/w/p1" and head["started_at"] == T0
-    assert head["out"] == "ok" and head["out_basis"] == "estimate"
+    # 2 of 3 human messages are corrections: same "part" as the list row (uiview.outcome).
+    assert head["out"] == "part" and head["out_basis"] == "estimate"
     assert head["resume"]["shell"] == "cd /w/p1 && claude --resume native-cc-fix"
     assert head["resume"]["verified"] is False
     assert stats["tools"] == 8 and stats["errors"] == 3 and stats["steps"] == 10

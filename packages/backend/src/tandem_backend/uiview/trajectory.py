@@ -282,7 +282,8 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
                   "last_event_ts": max(stamps) if stamps else None}
     cmd = resume.build(resume_row, now_ms if now_ms is not None else int(time.time() * 1000))
     first = (cmd["commands"] or [{}])[0]
-    out = estimate_outcome(live, status, last_turn[0] if last_turn else None, tree_statuses)
+    out = estimate_outcome(live, status, last_turn[0] if last_turn else None, tree_statuses,
+                           corr, msgs)
     header = {
         "id": uid, "a": agent, "agent_name": agent_name(agent),
         "model": models.most_common(1)[0][0] if models else None,

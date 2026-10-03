@@ -15,13 +15,12 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from . import CONTRACT
+from . import CONTRACT, outcome
 
 UIDS = "(SELECT value FROM json_each(?))"
 IDLE_CAP_MS = 5 * 60_000
 FAILED = frozenset(("failed", "error", "failure"))
 UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
-STOPPED_TURN = frozenset(("failed", "error", "interrupted", "aborted", "cancelled"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")
@@ -144,7 +143,7 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
                                    f"event_uid IN {UIDS}", json.dumps(sorted(verify_events))):
             requested.add(turn)
     per_root: dict[str, list[list[int]]] = defaultdict(list)
-    last: dict[str, tuple[int, str | None]] = {}
+    last: dict[str, tuple[int, str | None, bool]] = {}
     for turn, uid, idx, status in _rows(
             conn, f"SELECT turn_uid, session_uid, idx, status FROM turn WHERE trigger = 'human' "
                   f"AND session_uid IN {UIDS} ORDER BY session_uid, idx", uids):
@@ -153,8 +152,21 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
             per_root[root].append([calls.get(turn, 0) + finals.get(turn, 0),
                                    int(turn in checked or turn in requested)])
             if root not in last or (idx or 0) >= last[root][0]:
-                last[root] = (idx or 0, status)
-    return per_root, {k: v[1] for k, v in last.items()}
+                last[root] = (idx or 0, status, finals.get(turn, 0) > 0)
+    return per_root, {k: (v[1], v[2]) for k, v in last.items()}
+
+
+def _tails(conn, uids: str, root_of: dict) -> dict[str, list[str | None]]:
+    """Last ``outcome.TAIL_FAILED`` tool-call statuses of each main session, oldest first."""
+    out: dict[str, list[str | None]] = defaultdict(list)
+    for uid, status in _rows(conn, f"SELECT session_uid, status FROM tool_call WHERE "
+                                   f"session_uid IN {UIDS} ORDER BY session_uid, started_at, "
+                                   f"call_uid", uids):
+        if root_of.get(uid, uid) == uid:
+            tail = out[uid]
+            tail.append(status)
+            del tail[:-outcome.TAIL_FAILED]
+    return out
 
 
 def _tools(conn, uids: str, root_of: dict):
@@ -284,16 +296,15 @@ def friction_of(corr: int | None, texts: list[str], signals: Counter) -> tuple[s
     return best, "lexical_candidate" if lexical else "rule_signal"
 
 
-def outcome_of(last_status: str | None, corr: int | None, errors: int | None, tools: int,
-               steps: int | None) -> str | None:
-    """Estimate only (no user confirmation exists in agent logs)."""
-    if last_status in STOPPED_TURN or (corr or 0) >= 3:
-        return "fail"
-    if (corr or 0) >= 1 or (errors is not None and tools and errors / tools > 0.09):
-        return "part"
-    if steps:
-        return "ok"
-    return None
+def outcome_of(last_turn: tuple[str | None, bool] | None, corr: int | None,
+               msgs: int | None, tail: list[str | None] | None) -> str | None:
+    """Estimate only, via the shared ``uiview.outcome`` rule (same as the A3 list/detail).
+
+    ``last_turn`` = (status, has_final_reply) of the last human turn, ``None`` without turns.
+    """
+    status, has_final = last_turn if last_turn else (None, None)
+    return outcome.estimate(last_turn=status, corr=corr, msgs=msgs, tail=tail,
+                            has_final=has_final)
 
 
 def _clock(ts: int | None, tz) -> tuple[str | None, int | None, int | None]:
@@ -350,7 +361,8 @@ def build_facts(conn, result: dict, scope) -> dict:
     main_json = json.dumps(sorted(s["session_uid"] for s in mains))
     verify_events, structured_events = _instruction_index(result)
     active = _active(conn, uids, root_of)
-    turns, last_status = _turns(conn, uids, root_of, verify_events)
+    turns, last_turn = _turns(conn, uids, root_of, verify_events)
+    tails = _tails(conn, uids, root_of)
     tools = _tools(conn, uids, root_of)
     tok, cumulative, models, efforts = _models(conn, uids, root_of)
     first, texts = _human(conn, main_json)
@@ -386,7 +398,7 @@ def build_facts(conn, result: dict, scope) -> dict:
         verify = (any(t[1] for t in unit_rows) or None) if unit_rows else None
         if unit_rows and verify is None:
             verify = False
-        out = outcome_of(last_status.get(uid), corr, errors, n_tools, steps)
+        out = outcome_of(last_turn.get(uid), corr, f.get("user_message_count"), tails.get(uid))
         span = f.get("observed_session_span_ms")
         row = {
             "id": uid, "d": d, "h": h, "mi": mi, "a": s.get("agent"), "p": s.get("project_id"),

@@ -150,3 +150,33 @@ def test_section_reuses_the_memoised_analysis():
     assert seen == [(tuple(section.INPUTS), True, 7)]
     assert out["rows"] == body["rows"]
     assert SECTIONS["uiview_facts"].cost == "heavy"
+
+
+@pytest.mark.parametrize(("last_turn", "corr", "msgs", "tail", "expected"), [
+    # Long session with a few corrections: 3/200 = 1.5% << 1/3, last turn completed.
+    (("completed", True), 3, 200, ["success"], "ok"),
+    # Old rule called this "fail" (corr >= 3); density 3/9 = 1/3 is rework, not failure.
+    (("completed", True), 3, 9, ["success"], "part"),
+    (("completed", True), 2, 7, [], "ok"),  # 2/7 < 1/3
+    (("completed", False), 1, 2, [], "ok"),  # 1/2 dense but a single hit never decides
+    # No human turn (agents without turns, steps=None): no evidence -> None.
+    (None, None, None, None, None),
+    (None, 0, 5, ["success", "success"], None),
+    # A turn without status: a final reply is completion evidence, none is unknown.
+    ((None, True), 0, 3, [], "ok"),
+    ((None, False), 0, 3, [], None),
+    # Unresolved failure streak at the end.
+    (("completed", True), 0, 4, ["success", "failed", "failed", "failed"], "part"),
+    (("completed", True), 0, 4, ["failed", "failed", "success"], "ok"),
+] + [((status, True), 0, 3, [], "fail") for status in
+     ("failed", "error", "interrupted", "aborted", "cancelled", "rejected")])
+def test_outcome_of_boundaries(last_turn, corr, msgs, tail, expected):
+    assert facts.outcome_of(last_turn, corr, msgs, tail) == expected
+
+
+def test_outcome_labels_never_claim_abandoned():
+    from tandem_backend.uiview import derive, outcome
+
+    names = {oid: name for oid, name, _ in derive.OUT_IDS}
+    assert names == {k: outcome.LABELS[k] for k in ("ok", "part", "fail")}
+    assert "放弃" not in "".join(names.values())

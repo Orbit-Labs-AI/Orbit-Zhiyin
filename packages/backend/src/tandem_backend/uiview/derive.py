@@ -13,8 +13,9 @@ from collections.abc import Callable, Iterable
 from datetime import date, timedelta
 
 RANGES = (7, 30, 90, 0)
-OUT_IDS = (("ok", "完成", "var(--good)"), ("part", "部分完成", "var(--warn)"),
-           ("fail", "放弃", "var(--crit)"))
+# Labels from uiview.outcome: estimates from logs, never "放弃" (no user verdict exists).
+OUT_IDS = (("ok", "完成", "var(--good)"), ("part", "需返工", "var(--warn)"),
+           ("fail", "疑似中断", "var(--crit)"))
 AGENT_COLORS = {"claude_code": "var(--a1)", "codex": "var(--a2)", "gemini": "var(--a3)",
                 "gemini_cli": "var(--a3)", "deepseek": "var(--a4)", "dsh": "var(--a4)",
                 "copilot": "var(--a5)"}
