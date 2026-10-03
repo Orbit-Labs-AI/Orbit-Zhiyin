@@ -7,7 +7,7 @@
    生成过程用 App 自己的 studioStep / refreshStudio，但按成片拍逐帧推进（App 自带的定时器约 8 秒跑完，这里压到 b68.95–73.75，SKILL.md 逐字写出）。 */
 scene('50-tools', () => {
   css(`
-.mt-ph{display:inline-flex;align-items:center;gap:14px;font:600 44px var(--sans);color:#fff;padding:10px 26px 12px;border-radius:999px;background:rgba(10,11,13,.9);border:1px solid rgba(255,255,255,.22)}
+.mt-ph{display:inline-flex;align-items:center;gap:14px;font:600 44px var(--sans);color:#fff;padding:10px 26px 12px;border-radius:999px;background:#0a0b0d;border:1px solid rgba(255,255,255,.22)}
 .mt-ph i{width:14px;height:14px;border-radius:50%;background:#fff}
 .mt-ph b{font-weight:600}
 .mt-ph.warn b{color:#f3c56b}.mt-ph.warn i{background:#f3c56b}
@@ -38,7 +38,7 @@ scene('50-tools', () => {
      run card (the generator) → b74.1–75.2 screen centre (960, 540), where 60-close's spiral starts. All E.inOut. */
   const io = (b, b0, d) => E.inOut(clamp((b - b0) / d)), mix = (P, Q, e) => [lerp(P[0], Q[0], e), lerp(P[1], Q[1], e)];
   const MERGE = [330, 540], HOME = [960, 540], BACK = 73.9;   // v18.1: the orb leaves for the centre at b73.9 (was 74.1)
-  const SHR = 67.15, PIN = 71.7, IN6 = 73.8;              // v18.4: card into the orb · pin on line 9 · SKILL.md into the orb
+  const SHR = 67.15, PIN = 71.7, IN6 = 73.9;              // v18.4: card into the orb · pin on line 9 · SKILL.md into the orb
   const HOV = 68.5, PRESS = 68.8, BOFF = 69.4;              // v18.2: hover (.3 beat) before the press; button gone
   const PADS = () => 22 * decks[0].C.s;                     // the timeline panel's margin (promo-card, 22 frame px) on screen
   // under the playhead, card-fixed: the card's exit (b67.3, .45 beat, E.in, moves only ax by −240) is taken back out,
@@ -83,19 +83,22 @@ scene('50-tools', () => {
   // then grows out of the same point (b67.6–68.1) and the orb, now a pointer, travels with the button's edge
   // v18.4 5 pin: b71.7–72.3 the generator leaves its post and pins line 9 (the purple「ai」line) as a pin pointing right;
   // that point (held from b73.8) is where SKILL.md is drawn in
+  // v18.5 03→04 就近: b66.6–67.15 the orb leaves the playhead for (1180, 700) — on the card, ≤ 250 px from 开始生成's
+  // final place (960, 690) — and the card collapses into that point; the button grows out of it
+  const NEAR0 = 66.6, NEAR = [1180, 700];
   let O = null;
   const pinXY = () => {
     const row = (D) => skillCard(D)?.querySelectorAll('.code > div')[8];
     if (!row(decks[1].D)) return genXY();
-    const p = elXY(1, row, 0, .5), c = skillEdge(); return [c[0] - 62, p[1]];
+    const p = elXY(1, row, 0, .5), c = elXY(1, skillCard, 0, .5); return [c[0] - 40, p[1]];   // v18.5: card left − 40
   };
   let MB = -1, MP = MERGE;                                  // per-frame memo: the live params are read 5× a frame
   const mergeXY = (b) => {
-    if (b === MB) return MP; MB = b; if (b < IN6) G0 = null; if (b < SHR) O = null;
+    if (b === MB) return MP; MB = b; if (b < IN6) G0 = null; if (b < NEAR0) O = null;
     const q = b < 56.8 ? MERGE : b >= 75.2 ? HOME
-      : b < SHR ? toRide(b)
-      : b < SHR + .45 ? (O = O || toRide(b))
-      : b < 68.95 ? mix(O = O || toRide(b), btnXY(b), io(b, SHR + .45, .5))
+      : b < NEAR0 ? toRide(b)
+      : b < SHR + .45 ? mix(O = O || toRide(NEAR0), NEAR, io(b, NEAR0, SHR - NEAR0))
+      : b < 68.95 ? mix(NEAR, btnXY(b), io(b, SHR + .45, .5))
       : b < PIN ? toGen(b)
       : b < IN6 ? mix(genXY(), pinXY(), io(b, PIN, .6))
       : backXY(b);
@@ -104,7 +107,7 @@ scene('50-tools', () => {
     const sk = 3 * (io(b, HOV, .3) - io(b, PRESS + .05, .2));
     return MP = e || sk ? [q[0] + PTR[0] * e, q[1] + PTR[1] * e + sk] : q;
   };
-  const mergeR = (b) => b < 69.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < BACK ? lerp(26, 36, io(b, 69.0, .6)) : lerp(36, 40, io(b, BACK, 1.3));
+  const mergeR = (b) => b < 69.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < BACK ? lerp(26, 36, io(b, 69.0, .6)) : lerp(36, 54, io(b, BACK, 1.3));   // v18.5: 1 → 1.5 on its way to the centre
   // v17.7 hand-off: the column closes in 1.0 beat (stag .03) and dots 1–4 fade as they slip under cc (b55.3–55.75), so
   // their logos never stack half-offset under it; the orb forms b55.72–56.12 and is whole before the b56.2 pill. Their a
   // comes back at b56.4–56.5, where the merge already hides them, so 60-close's split blends from visible dots
@@ -134,7 +137,7 @@ scene('50-tools', () => {
   const line = (b0, cls, a, b, y, swapAt, so) => txt(b0, 74.7, [[cls + ' t5s', sw(a, b)]], { x: 960, y, align: 'c' },
     { anim: K.all(mask(0, 1.2, .5), seq(swapAt - b0, so), K.exit({ out: .5, dir: { dx: 0, dy: Math.round((540 - y) * .14) }, push: .9 })),
       tick: (el, tl) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .003 * (tl / BEAT + b0 - 56.4)).toFixed(4) + ')'; } });
-  line(56.4, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 67.3);
+  line(56.4, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 66.9, { ins: .2, ind: .45 });   // v18.5: 04 is in by b67.55
   // v18.4: the old headline rolls out b67.3–67.58 and the new one is in from b67.55 (film 99.25): a title on every frame
   line(56.6, 'hv sv t5h', '回放每一次协作', '把你的做法，写成 Skill', 190, 67.3, { dy: 24, bl: 0, od: .28, ins: .25, ind: .3 });
   line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '本地 Agent 起草，按你的会话改写', 270, 67.25, { ins: .55, ind: .5 });
@@ -212,15 +215,18 @@ scene('50-tools', () => {
   // each phase pill pops in over .3 beat (rise + scale from .9), then stays readable ≥ 1.8 beats while it rides the playhead
   // v18.3: the failing deploy's pill (crit) is the widest and sat on the +30m label and stage marker 4; while it is up the
   // pill lifts so its bottom edge is 56 px above the marker (gap 10 → 92, eased with the pill's pop), the others stay low
-  const PO = { at: .5, gap: 10 }, GAP = (f) => (f[2] === 'crit' ? 92 : 10);
+  // v18.5: every pill sits wholly ABOVE the card (its bottom 12 px over the panel's top edge), opaque from its first frame
+  // (no translucent fade-in over the axis labels), popping in by scale .9 → 1 only; its stem stretches down to the playhead
+  // (gap 4) and the tag is stacked over the trail chips
+  const PO = { at: .5, gap: 4 }, phDrop = () => { const C = decks[0].C, p = rectOf(0, TL + ' .vz-playhead'), t = rectOf(0, TL); return Math.max(0, (p.y - t.y + 22) * C.s); };
   tag(0, 55.4, 67.45, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], Object.assign(PO, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT, f = phaseOf(phAt(b)), pill = el.querySelector('.mt-ph');
-      if (el.dataset.p !== f[1]) { el.dataset.p = f[1]; pill.className = 'mt-ph ' + f[2]; pill.querySelector('b').textContent = f[1]; el._g0 = el._t == null ? GAP(f) : PO.gap; el._t = b; }
-      const k = E.out(clamp((b - (el._t ?? b)) / .3)), q = exitQ(tl, life, .45), inn = E.out(clamp(tl / BB(.5)));
-      PO.gap = lerp(el._g0 ?? 10, GAP(f), k);
-      pill.style.transform = 'translateY(' + ((1 - k) * 22).toFixed(1) + 'px) scale(' + (.9 + .1 * k).toFixed(3) + ')'; pill.style.opacity = (Math.min(1, .2 + k) * q * inn).toFixed(3);
-      el.querySelector('.mt-stem').style.opacity = (q * inn).toFixed(3); fixTag(el);
+      if (el.dataset.p !== f[1]) { el.dataset.p = f[1]; pill.className = 'mt-ph ' + f[2]; pill.querySelector('b').textContent = f[1]; el._t = b; }
+      const k = E.out(clamp((b - (el._t ?? b)) / .3)), q = exitQ(tl, life, .45);
+      el.style.zIndex = '5'; pill.style.transformOrigin = '50% 100%';
+      pill.style.transform = 'scale(' + (.9 + .1 * k).toFixed(3) + ')'; pill.style.opacity = q.toFixed(3);
+      const st = el.querySelector('.mt-stem'); st.style.height = (phDrop() + 8).toFixed(1) + 'px'; st.style.opacity = q.toFixed(3); fixTag(el);
     }
   }));
   // v18.1: a phase the pin has left stays behind as a small chip at .45 over the middle of its own band (the app's .vz-phase,
@@ -284,6 +290,7 @@ scene('50-tools', () => {
   // click the button dips to .94 (.06 beat) and springs back (.14 beat) before it gives way to 停止
   // the pressed button stays on as the camera pulls away and fades with it (b69.0–69.4, E.in), so the press bloom never
   // hangs on bare black
+  let BG = null;                                            // 开始生成's own fill (r,g,b)
   const btnFx = (b) => {
     placeBtn(); const el = startBtn(decks[1].D); if (!el) return;
     el.style.opacity = (1 - E.in(clamp((b - 69.0) / (BOFF - 69.0)))).toFixed(3);
@@ -292,7 +299,14 @@ scene('50-tools', () => {
     const rp = clamp((b - PRESS) / .6), ring = b >= PRESS ? 'rgba(242,122,72,' + (.8 * (1 - E.out(rp))).toFixed(3) + ') 0 0 0 ' + (4 * E.out(rp)).toFixed(2) + 'px' : '';
     const hv = h * (1 - io(b, PRESS + .1, .3)), tint = hv > .001 ? 'inset 0 0 0 999px rgba(255,255,255,' + Math.max(0, .15 * hv - .05 * d).toFixed(3) + ')' : '';
     // (inline !important: the solo rule sets box-shadow !important; its own edge + drop shadow are kept in the list)
-    if (tint || ring) el.style.setProperty('box-shadow', [tint, ring, '0 0 0 .5px rgba(255,255,255,.14)', '0 30px 90px rgba(0,0,0,.55)'].filter(Boolean).join(','), 'important');
+    // v18.5 grow (b67.6–68.4): the outline + glow come out of the orb first (.6 → 1 by b67.8) and the dark fill fills in
+    // (α 0 → 1 by b67.8 = film 99.5); the outline then relaxes (b67.9–68.4) so the hover / press read on their own
+    const gw = b >= SHR + .45 ? (.6 + .4 * E.out(clamp((b - SHR - .45) / .2))) * (1 - io(b, 67.9, .5)) : 0;
+    const fa = b >= SHR + .45 ? E.out(clamp((b - SHR - .45) / .2)) : 0;
+    if (!BG) { el.style.removeProperty('background-color'); const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g); if (m) BG = m.slice(0, 3).join(','); }
+    if (BG) { if (fa < .999) el.style.setProperty('background-color', 'rgba(' + BG + ',' + fa.toFixed(3) + ')', 'important'); else el.style.removeProperty('background-color'); }
+    const glw = gw > .002 ? ['inset 0 0 0 1px rgba(242,122,72,' + gw.toFixed(3) + ')', '0 0 5px 0 rgba(242,122,72,' + (.55 * gw).toFixed(3) + ')'] : [];
+    if (tint || ring || glw.length) el.style.setProperty('box-shadow', [tint, ring, ...glw, '0 0 0 .5px rgba(255,255,255,.14)', '0 30px 90px rgba(0,0,0,.55)'].filter(Boolean).join(','), 'important');
     else el.style.removeProperty('box-shadow');
     el.style.transformOrigin = '50% 50%'; el.style.transform = d > .001 ? 'scale(' + (1 - .06 * d).toFixed(4) + ')' : '';
   };
@@ -302,18 +316,18 @@ scene('50-tools', () => {
   const skFx = (b) => { const el = skillCard(decks[1].D); if (el) el.style.opacity = clamp((b - 68.95) / .6).toFixed(3); };
   drive(1, 56.15, 69.6, (p, b) => skFx(b));
   at(69.6, () => { const el = skillCard(decks[1].D); if (el) el.style.opacity = ''; });
-  at(BOFF, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; } });
+  at(BOFF, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; b.style.removeProperty('background-color'); b.style.removeProperty('box-shadow'); } });
   // v18.1 one shot: a push-in on 开始生成 alone (b67.3–68.8, the dot slides on and presses it), then the camera glides to
   // SKILL.md (b69.0–70.1), framed at 1.9× from its top edge: the frontmatter and step lines (11.5 px mono) read at ≈ 22 px;
   // the card's lower part (checks, actions) runs off the bottom of the frame
   // v18.2 framed 2.5× closer than before (s 2.3 → 5.5 → ×1.05): the 13 px label reads at ≈ 65 px and the button is the shot
   const BZ = 5.5;
-  const btnCam = () => { const r = rectOf(1, startBtn); return { x: r.x + r.w / 2, y: r.y + r.h / 2, s: BZ, ax: 960, ay: 600, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 }; };
+  const btnCam = () => { const r = rectOf(1, startBtn); return { x: r.x + r.w / 2, y: r.y + r.h / 2, s: BZ, ax: 960, ay: 690, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 }; };
   const studioCam = () => { const r = SR || rectOf(1, skillCard); return { x: r.x + r.w / 2, y: r.y, s: 1.9, ax: 1000, ay: 318, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 }; };
-  // v18.4 03→04: 开始生成 GROWS OUT OF the orb — the camera starts anchored on the orb's held point at .3 of its size and
+  // v18.4 03→04: 开始生成 GROWS OUT OF the orb — the camera starts anchored on the orb's held point (v18.5: NEAR, at .12) and
   // eases to the framed shot (b67.6–68.1, film 99.3–99.8, E.out): the button travels from the orb to its place as it grows,
   // the orb (now the pointer) rides its edge; then a slow linear push 1 → 1.05 through the hover and the press
-  tween(1, SHR + .45, .5, btnCam, E.out, (T) => { const [px, py] = mergeXY(SHR + .3); return { s: T.s * .3, ax: px, ay: py, o: 0, bl: 0 }; });
+  tween(1, SHR + .45, .5, btnCam, E.out, (T) => { const [px, py] = mergeXY(SHR + .3); return { s: T.s * .12, ax: px, ay: py, o: 1, bl: 0 }; });
   tween(1, 68.55, .5, () => ({ s: decks[1].C.s * 1.05 }), E.lin);
   tween(1, 69.0, 1.1, studioCam, E.inOut);
   // continuous push (+3 % over 3.8 beats, linear) so the file never holds still while it is written and read
@@ -387,6 +401,24 @@ scene('50-tools', () => {
   drive(1, PIN, 75.2, (p, b) => rowsDim(b));
   at(75.2, () => skillCard(decks[1].D)?.querySelectorAll('.code > div').forEach((r) => { r.style.opacity = ''; }));
   AGD.glow(0, 68.95, 73.75, 1);
+  // v18.5 5→6: the orb that took SKILL.md in glows as it grows 1 → 1.5 on its way to the centre (the close splits it)
+  AGD.glow(0, BACK, 75.05, .9);
+  // v18.5 04 value landing, b72.6 (film 104.3): the header's「生成中」becomes a green「已写入 ✓」(pops .85 → 1) and the two
+  // grey skeleton bars under the code fold to height 0 in .25 beat (the run's re-render at b72.85 then drops them unseen);
+  // re-applied after every re-render through the exit (the app's own「待审阅」at b73.75 is replaced too)
+  const DONE = 72.6;
+  const doneFx = (b) => {
+    const card = skillCard(decks[1].D); if (!card) return;
+    const hd = card.firstElementChild, bd = hd && hd.lastElementChild;
+    if (bd && !bd.dataset.done && (bd.classList.contains('aib') || bd.classList.contains('bdg'))) {
+      bd.outerHTML = '<span class="bdg" data-done="1" style="margin-bottom:5px;color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent);font-size:13px;font-weight:600;padding:3px 9px;display:inline-block">已写入 ✓</span>';
+    }
+    const nb = hd && hd.lastElementChild; if (nb && nb.dataset.done) { const k = E.out(clamp((b - DONE) / .25)); nb.style.transform = 'scale(' + (.85 + .15 * k).toFixed(3) + ')'; nb.style.transformOrigin = '100% 50%'; }
+    const sh = card.querySelector('.shim'), box = sh && sh.parentElement;
+    if (box) { if (!box.dataset.h) box.dataset.h = box.offsetHeight; const e = E.inOut(clamp((b - DONE) / .25));
+      Object.assign(box.style, { overflow: 'hidden', boxSizing: 'border-box', height: (box.dataset.h * (1 - e)).toFixed(1) + 'px', paddingTop: (10 * (1 - e)).toFixed(1) + 'px', paddingBottom: (10 * (1 - e)).toFixed(1) + 'px', opacity: (1 - e).toFixed(3) }); }
+  };
+  drive(1, DONE, 75.2, (p, b) => doneFx(b));
 
   /* ---------- v17.7 the merged dot's shapes (STORYBOARD「v17.7」F3 5). Only dot 0 draws inside the merge; every shape keeps
      the five mini Agent badges (micro 1, no cc logo) so the merged dot always reads as「all five」. Each morph goes with the
@@ -412,7 +444,7 @@ scene('50-tools', () => {
   // button centre. The b68.8 press is AGD.pulse(0, 68.8, .88, .3) below: the whole pointer dips and comes back
   // v18.4: at b67.1 the pin rounds back into the orb the card is drawn into, and from b67.6 it tilts into the pointer
   // as 开始生成 grows out of it
-  AGD.morph(SHR - .05, 0, 'dot', { dur: .3 });
+  AGD.morph(NEAR0 - .05, 0, 'dot', { dur: .35 });   // v18.5: as it leaves the playhead for NEAR
   AGD.morph(SHR + .45, 0, 'pointer', { ...M5, ring: 1.2, dur: .45 });
   // b68.95 the pointer opens into the spark (the generator) as it backs off to the run card's left edge. Its five rays turn
   // slowly (kept short, .62: the run card is only 56 px away and its step list must stay clear); the one facing the card
@@ -434,9 +466,11 @@ scene('50-tools', () => {
   at(75.25, () => decks[1].D.documentElement.classList.remove('promo-x'));
   tween(1, IN6, 0, () => { const C = decks[1].C, [px, py] = mergeXY(IN6); return { x: C.x + (px - C.ax) / C.s, y: C.y + (py - C.ay) / C.s, ax: px, ay: py }; });
   tween(1, BACK, 1.3, { ax: HOME[0], ay: HOME[1] }, E.inOut);
-  tween(1, IN6, .5, () => { const C = decks[1].C, r = SR || rectOf(1, skillCard), yc = C.y + (SKY - C.ay) / C.s;
+  // v18.5 a real intake: b73.9–74.35 the card's visible centre slides onto the orb while it shrinks 1 → .12 on E.in, fully
+  // opaque; only the last .15 beat (b74.2–74.35) fades it (and softens it) — it is gone inside the orb, not faded beside it
+  tween(1, IN6, .45, () => { const C = decks[1].C, r = SR || rectOf(1, skillCard), yc = C.y + (SKY - C.ay) / C.s;
     return { x: r.x + r.w / 2, y: (r.y + Math.min(r.y + r.h, yc)) / 2 }; }, E.inOut);
-  tween(1, IN6, .5, () => ({ s: decks[1].C.s * .2 }), E.in);
-  tween(1, IN6 + .2, .3, { bl: 4 }, E.in);
-  tween(1, IN6 + .28, .22, { o: 0 }, E.out);   // QA r4: fade out E.out so the card is near-clear before b106.0 (E.in left it opaque at ~.4 scale → pop)
+  tween(1, IN6, .45, () => ({ s: decks[1].C.s * .12 }), E.in);
+  tween(1, IN6 + .3, .15, { bl: 2 }, E.in);
+  tween(1, IN6 + .3, .15, { o: 0 }, E.in);
 });
