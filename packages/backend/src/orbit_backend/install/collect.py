@@ -26,7 +26,7 @@ from pathlib import Path
 
 from . import store
 from .env import display
-from .targets import check_path, render_hook_entry
+from .targets import check_path, reason_text, render_hook_entry
 
 SPEC_ID = "orbit-collect"
 SCRIPT_NAME = "orbit_collect.py"
@@ -102,7 +102,8 @@ def resolve_targets(spec: dict, env_info: dict, *, env=None) -> list[dict]:
         reason = check_path(path, env, env_info, None)
         row = {"idx": len(out), "agent": agent, "kind": "collect", "path": path}
         if reason:
-            out.append({**row, "mappable": False, "reason": f"path_policy:{reason}"})
+            out.append({**row, "mappable": False, "reason": f"path_policy:{reason}",
+                        "reason_text": reason_text(f"path_policy:{reason}")})
             return
         out.append({**row, "scope": "user", "display": display(path, home), "action": action, "pointer": pointer,
                     "content": content, "write_mode": write_mode if action == "merge_json" else "set",
@@ -114,12 +115,13 @@ def resolve_targets(spec: dict, env_info: dict, *, env=None) -> list[dict]:
         info = infos.get(agent)
         lander = LANDERS.get(agent)
         if not info or info.get("install_support") != "full":
+            reason = (info or {}).get("unsupported_reason") or "agent_not_supported_v1"
             out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
-                        "reason": (info or {}).get("unsupported_reason") or "agent_not_supported_v1"})
+                        "reason": reason, "reason_text": reason_text(reason)})
             continue
         if lander is None:  # installable agent, but no collector of ours exists for it yet
             out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
-                        "reason": "collect_not_available"})
+                        "reason": "collect_not_available", "reason_text": reason_text("collect_not_available")})
             continue
         root = Path(info["root_abs"])
         script_path = str(root / "hooks" / "orbit" / SCRIPT_NAME)
@@ -145,9 +147,9 @@ def _land_claude(add, out, agent, root, script, script_path, argv, events) -> No
 def _land_codex(add, out, agent, root, script, script_path, argv, events) -> None:
     config = _read_toml(root / "config.toml")
     if config is None or "notify" in config:
+        reason = "codex_config_unparsable" if config is None else "codex_notify_in_use"
         out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
-                    "path": str(root / "config.toml"),
-                    "reason": "codex_config_unparsable" if config is None else "codex_notify_in_use"})
+                    "path": str(root / "config.toml"), "reason": reason, "reason_text": reason_text(reason)})
         return
     add(agent, script_path, "create_file", script, file_mode=0o755)
     notify = [*argv, "notify", "--agent", "codex", "--out", events]
