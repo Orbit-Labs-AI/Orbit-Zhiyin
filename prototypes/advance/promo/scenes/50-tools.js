@@ -57,14 +57,21 @@ scene('50-tools', () => {
   // there for almost a beat; held, it lands on (960, 540) exactly at the b75.2 hand-off (E.inOut, zero speed both ends)
   let G0 = null;
   const backXY = (b) => { if (!G0) G0 = genXY(); return mix(G0, HOME, io(b, 74.1, 1.1)); };
+  // v17.7: on 开始生成 the dot is a pointer (rot −28, tip up): its TIP, not its centre, lands on the button centre. The
+  // pointer's tip sits 1.25·(1 + .6·.9)·1.15 = 2.21 r from the centre toward −118° (r 26 → (−27, −50.9) px), so the centre is
+  // carried that far down-right of the button while the pointer forms (b67.4–68.65) and eased back out as it becomes the
+  // generator (b69.0–69.6): continuous, the hand-off positions are unchanged
+  const PTR = [27, 50.9], ptrE = (b) => io(b, 67.4, 1.25) - io(b, 69.0, .6);
   let MB = -1, MP = MERGE;                                  // per-frame memo: the live params are read 5× a frame
   const mergeXY = (b) => {
     if (b === MB) return MP; MB = b; if (b < 74.1) G0 = null;
-    return MP = b < 56.8 ? MERGE : b >= 75.2 ? HOME
+    const q = b < 56.8 ? MERGE : b >= 75.2 ? HOME
       : b < 67.4 ? toRide(b)
       : b < 68.95 ? mix(rideXY(b), btnXY(b), io(b, 67.4, 1.25))
       : b < 74.1 ? mix(btnXY(b), genXY(), io(b, 69.0, .6))
       : backXY(b);
+    const e = b >= 67.4 && b < 69.6 ? ptrE(b) : 0;
+    return MP = e ? [q[0] + PTR[0] * e, q[1] + PTR[1] * e] : q;
   };
   const mergeR = (b) => b < 69.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < 74.1 ? lerp(26, 36, io(b, 69.0, .6)) : lerp(36, 40, io(b, 74.1, 1.1));
   AGD.key(55.0, 'merge', { x: (b) => mergeXY(b)[0], y: (b) => mergeXY(b)[1], r: (b) => mergeR(b), dur: 1.2, stag: .05 });
@@ -176,6 +183,10 @@ scene('50-tools', () => {
   // 1.45 beats before the exit), new log lines fade/rise in
   const RUN = [[68.95, 0], [69.45, 1], [69.95, 2], [72.85, 3], [73.3, 4], [73.75, 5]], L0 = 70.05, L1 = 72.65;
   let GL = null, GW = null;                                 // SKILL.md lines (code points) and cumulative typing weights
+  const genW = () => {
+    if (!GL) { GL = decks[1].W.eval('GEN[S.studio.type].lines.map((l) => l[0])').map((s) => [...s]); GW = [0]; GL.forEach((c) => GW.push(GW[GW.length - 1] + 2 + c.length)); }
+    return GW;
+  };
   drive(1, 68.8, 73.85, (p, b) => {
     const W = decks[1].W, D = decks[1].D, run = W.eval('S.studio.run'); if (!run) return;
     W.eval('clearTimeout(RUNT)');
@@ -183,7 +194,7 @@ scene('50-tools', () => {
     while (k + 1 < RUN.length && b >= RUN[k + 1][0]) { k++; W.studioStep(RUN[k][1]); W.eval('clearTimeout(RUNT)'); }
     run._k = k;
     if (run.step === 2 && !run.done) {
-      if (!GL) { GL = W.eval('GEN[S.studio.type].lines.map((l) => l[0])').map((s) => [...s]); GW = [0]; GL.forEach((c) => GW.push(GW[GW.length - 1] + 2 + c.length)); }
+      genW();
       const u = GW[GW.length - 1] * clamp((b - L0) / (L1 - L0));
       let i = 0; while (i < GL.length - 1 && u >= GW[i + 1]) i++;
       const n = u <= 0 ? 0 : u >= GW[GW.length - 1] ? GL.length : i + 1;
@@ -210,6 +221,37 @@ scene('50-tools', () => {
   const runEdge = () => elXY(1, runCard, 0, .5);
   AGD.link(69.35, 74.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
   AGD.glow(0, 68.95, 73.75, 1);
+
+  /* ---------- v17.7 the merged dot's shapes (STORYBOARD「v17.7」F3 5). Only dot 0 draws inside the merge; every shape keeps
+     the five mini Agent badges (micro 1, no cc logo) so the merged dot always reads as「all five」. Each morph goes with the
+     element it serves: wire → pill, playhead → pin, 开始生成 → pointer, SKILL.md → spark; back to 'dot' (= the orb while
+     merged, so 60-close's split starts from a plain merge) when the generator is done. ---------- */
+  const M5 = { micro: 1, la: 0, k: 1.15 };                  // the orb's size: the mini badges stay as large as in the orb
+  // b56.25 the orb stretches into a pill aimed at the card's left edge as the wire is drawn out of its tip (b56.4–56.9)…
+  AGD.morph(56.2, 0, 'pill', { ...M5, w: 2.6, aim: () => elXY(0, '.tl-card', 0, .5), dur: .4 });
+  // …and rounds back as the wire is taken back (b57.0–57.3) and the dot drops to the playhead
+  AGD.morph(56.9, 0, 'dot', { dur: .35 });
+  // b57.1 under the playhead it becomes a pin, tip up, its tip just touching the card's bottom edge (the dot rides 46 px
+  // below it: 1.2 · (1 + .6 · .5) · 1.15 r = 1.79 × 26 ≈ 47 px). Before each phase pill pops (playhead knots 57.8 / 60.0 /
+  // 62.3 / 65.0) the pin's tip pushes up into the card's margin (h 2.4 → 2.8 over .2 beat, back over .3) — it「pins」the phase.
+  // While the deploy keeps failing (crit, b62.3–65.0) its outline turns warm orange (mixed, not swapped); no shake.
+  const PINS = KN.slice(1, 5).map((k) => k[0]);
+  const stab = (b) => Math.max(0, ...PINS.map((K) => io(b, K - .35, .2) - io(b, K - .15, .3)));
+  AGD.morph(57.1, 0, 'pin', { ...M5, w: 1.8, h: (b) => 2.4 + .4 * stab(b), tip: .5, ly: .3, ring: 1.2,
+    warm: (b) => io(b, 62.15, .35) - io(b, 64.8, .4), dur: .45 });
+  // b67.6 on the way to 开始生成 the pin tilts into a pointer (rot −28, en route .6 beat); mergeXY carries its tip onto the
+  // button centre. The b68.8 press is AGD.pulse(0, 68.8, .88, .3) below: the whole pointer dips and comes back
+  AGD.morph(67.6, 0, 'pointer', { ...M5, ring: 1.2, dur: .6 });
+  // b68.95 the pointer opens into the spark (the generator) as it backs off to the run card's left edge. Its five rays turn
+  // slowly (kept short, .62: the run card is only 56 px away and its step list must stay clear); the one facing the card
+  // (rayDir 0) lengthens each time the app starts a new SKILL.md line — the line starts
+  // come from the app's own GEN lines and the typing schedule above (L0–L1, GW weights), soft .35-beat bumps
+  const lineB = () => { const W = genW(), T = W[W.length - 1]; return W.slice(0, -1).map((w) => L0 + (L1 - L0) * (w + 1) / T); };
+  let LB = null;
+  const rayG = (b) => { LB = LB || lineB(); return .5 * AGD.beatPulse(b, LB, .35); };
+  AGD.morph(68.95, 0, 'spark', { ...M5, rays: (b) => .62 * (io(b, 68.95, .5) - io(b, 73.75, .45)), rayDir: 0, rayGain: rayG, dur: .5 });
+  // b73.75 done: the rays draw back in and it is the orb again, carried to the centre (b74.1–75.2) for 60-close
+  AGD.morph(73.75, 0, 'dot', { dur: .5 });
   // 5.7 out: the cards shrink into the dot, turn slightly and fade (clear by b75.1) while the dot returns to the centre. The
   // camera is first re-anchored on the dot (same picture: the frame point under the dot becomes the anchor), then the anchor
   // travels with the dot to (960, 540) on the dot's own curve (1.1 beats, E.inOut: the dot stays on the anchor); the cards
