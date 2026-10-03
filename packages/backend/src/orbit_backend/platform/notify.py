@@ -205,6 +205,8 @@ class Notifier:
         settings = getattr(getattr(self.gw, "platform", None), "settings", None)
         if settings is None:
             return True
+        if callable(getattr(settings, "flag", None)):
+            return settings.flag("notifications")
         if isinstance(settings, dict):
             return bool(settings.get("notifications", True))
         return bool(getattr(settings, "notifications", True))
