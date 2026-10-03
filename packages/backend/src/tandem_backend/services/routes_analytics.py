@@ -37,6 +37,10 @@ if TYPE_CHECKING:
 CONTRACT = "tandem-app-analytics-v1"
 PLAIN_SECTIONS = ("overview", "tools", "projects", "text", "tasks", "instruction", "statistics",
                   "lexical", "bottleneck")
+# GET routes that, without days/from_ts/until_ts, serve the fast-path window
+# (``fastpath.choose``) instead of the literal all-time scope. Recompute resolves the same
+# window, so its scope_hash is the one the GET response reports.
+AUTO_WINDOW_SECTIONS = frozenset({"overview"})
 PAGED_ROWS = {"products": "sessions"}  # Sections whose paged list is not their section key.
 CLIENT_ERRORS = {"not_found": 404, "invalid_request": 422, "analysis_scope_too_large": 422}
 
@@ -145,6 +149,11 @@ def check_target(target_agent: str) -> None:
     if target_agent not in TARGETS:
         raise ApiError(422, "invalid_request",
                        f"Unknown target_agent {target_agent!r}; expected one of {sorted(TARGETS)}")
+
+
+def auto_window(scope, days: int | None) -> bool:
+    """No days/from_ts/until_ts: an AUTO_WINDOW_SECTIONS route picks the window itself."""
+    return days is None and scope.from_ts is None and scope.until_ts is None
 
 
 def now_ms() -> int:
@@ -378,7 +387,7 @@ def router(gw: Gateway) -> APIRouter:
             from ..analytics.inputs import Scope
             from . import fastpath
 
-            if days is not None or scope.from_ts is not None or scope.until_ts is not None:
+            if not auto_window(scope, days):
                 return serve(name, scope, {}, wait_ms, if_none_match)
             base = asdict(scope)
             chosen, window = fastpath.choose(gw, name, base, None)
@@ -386,7 +395,7 @@ def router(gw: Gateway) -> APIRouter:
             fastpath.follow_up(gw, name, base, window)
             return response
 
-        return windowed if name == "overview" else plain
+        return windowed if name in AUTO_WINDOW_SECTIONS else plain
 
     for name in PLAIN_SECTIONS:
         api.add_api_route(f"/v1/analytics/{name}", plain_route(name), methods=["GET"], name=name)
@@ -601,10 +610,15 @@ def router(gw: Gateway) -> APIRouter:
         if rev["data_rev"] is None:
             raise ApiError(409, "no_projection", "No published data to analyse", retryable=True)
         rules = rules_digest()
-        scope_dict = asdict(scope)
         jobs = []
         for name in request.sections:
             params = prepared[name]
+            scope_dict = asdict(scope)
+            if name in AUTO_WINDOW_SECTIONS and auto_window(scope, request.scope.get("days")):
+                from . import fastpath
+
+                # Refresh the window the GET route serves, not the literal all-time scope.
+                scope_dict, _ = fastpath.choose(gw, name, scope_dict, None, params)
             h = scope_hash(scope_dict, params)
             gw.supervisor.analysis.clear_failures(name, h)  # Manual recompute resets the circuit.
             task = gw.supervisor.analysis.submit(name, scope_dict, params, h,
