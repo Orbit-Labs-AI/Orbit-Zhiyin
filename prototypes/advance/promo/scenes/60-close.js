@@ -1,16 +1,20 @@
-/* 60-close 6–7（b69.2–89） — STORYBOARD.md v17.1 T13（5 → 6 交接 b69.2）与 v17「6」「7」、「转场关键帧」H14–H17、M6–M9.
+/* 60-close 6–7（b69.2–94） — STORYBOARD.md v17.1 T13（5 → 6 交接 b69.2）与 v17「6」「7」、「转场关键帧」H14–H17、M6–M9.
    合并点在画面中心 (960, 540) 螺旋放出，各自身后画出一段圆弧，5 段合成收拢罗盘（= R 300 圆环）→ 展开成罗盘（你的类型的花）→
-   再收回圆环 → 圆环平着长出螺旋（与 2.2 同一个镜头）→ 立起成 45° Orbit 标志 → 标志上移缩小、点沿圆环两侧滑到底部排成一行 →
-   「Orbit」+「An Assistant Redesign for everyone & every agent」→ 一起淡出到全黑。
-   本场景拥有：deck 2（b69.2 起）、标志 markAt M6–M9、AGD 的 b69.2 / 78.0 / 87.2 三个 key 与 b69.2–71.4 的螺旋 follow、片尾文字。
+   再收回圆环 → 圆环平着长出螺旋（与 2.2 同一个镜头）→ 立起成 45° Orbit 标志，在画面正中停留约 1.2 s（慢慢呼吸）、点沿圆环两侧
+   滑到它下方排成一行 → v17.4：标志按 logo kit 的 reveal（scenes/03-wordmark.js）继续绕轴转身成 O、向左展开成居中的「Orbit·知音」
+   → 字标下方「An Assistant Redesign for everyone & every agent」、点收成标语下的一小行 → 可读停留 ≥ 2.5 s → 一起淡出到全黑。
+   v17.4 时序（场景拍）：ICON 到位 b78.4、停留到 b81.0、转身 b81.0–84.3、字母 b83.475–85.85、标语 b85.0–86.4、淡出 b92.2–94（END 89 → 94）。
+   本场景拥有：deck 2（b69.2 起）、标志 markAt M6–M7 与片尾字标层、AGD 的 b69.2 / 78.0 / 85.2 / 92.2 四个 key 与 b69.2–71.4 的螺旋 follow、片尾标语。
    v17.3 看清文字：罗盘展开后多停 1 拍（插在 b73.2，之后一切 +1，END 88 → 89）——展开提前到 b71.04（圆环合成整圈即开，不再空等 .16 拍），
    类型码 b72.64 全亮、b74.2 才开始收回，完整可读 1.56 拍（DIMV 加粗那一个约 1.9 拍）；停留时不定格：花继续慢慢开、慢转 ±10°，
    deck 2 慢推 1 → 1.025（收回圆环时同一段 E.inOut 退回 1，b75.4 圆环仍是 R 300，接 M6）。 */
 scene('60-close', () => {
-  END = 89;
+  END = 94;
   const PC = [960, 540];
-  // 片尾慢推：b79.6–89 由 1 匀速推到 1.07，前 20 % 二次缓起（M8 上移收尾时接上，不会停一下再动）
-  const push = (b) => { const p = lp(b, 79.6, 9.4), a = .2; return 1 + .07 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
+  // v17.4 片尾：45° 标志正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
+  const TURN0 = 81.0, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = 85.0, TAG_AG = TAG0 + 1.4, FADE0 = 92.2;
+  // 片尾慢推：字标转身起（b81.0）到 END 由 1 匀速推到 1.06，前 20 % 二次缓起
+  const push = (b) => { const p = lp(b, TURN0, END - TURN0), a = .2; return 1 + .06 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
 
   /* ---------- T13 螺旋放出（b69.2–71.04） ----------
      50-tools 的合并点 b69.2 停在 (960, 540)、r 40；从这里 5 个点各按 e_i = E.io((b − 69.2 − .06i) / 1.6) 向外放出（ρ = 圆环当帧半径，
@@ -69,44 +73,52 @@ scene('60-close', () => {
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
     return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
   }, { blend: .2 });
-  // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b80.32 落定（「Orbit」b80.0 起淡入时还在收尾）
+  // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b80.32 落定（标志在正中立成 45° 并停留时，点在它下方）
   AGD.key(78.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: [4, 3, 2, 1, 0], dur: 2.0, stag: .08, polar: PC });
-  // 7.4：片尾不定格——标志、字、点一起以 (960, 540) 为中心匀速慢推 1 → 1.07（b79.6–89，开头 0.2 段缓起），点另有 2px 漂移；
-  // follow 到 b90 才淡出（b1 处的 0.6 拍混回不落在片内）
-  AGD.follow(80.0, 90, (i, b, q) => {
+  // v17.4：标语出现时（b85.0）点收成标语下方的一小行，b86.9 落定
+  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 50, r: 13, order: [4, 3, 2, 1, 0], dur: 1.4, ease: E.sine, stag: .06 });
+  // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
+  AGD.follow(TURN0 - .6, END + 1, (i, b, q) => {
     const s = push(b);
     return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
   }, { blend: .6 });
-  // 7.3：「agent」落下（b82.62）时 5 个点从左到右依次亮起，间隔 .16 拍、各亮 .5 拍（.3 拍渐起渐落），像一道光扫过这一行
-  for (let k = 0; k < 5; k++) AGD.glow(4 - k, 82.62 + .16 * k, 83.12 + .16 * k, .9);
+  // 7.3：「agent」出现时 5 个点从左到右依次亮起，间隔 .16 拍、各亮 .5 拍（.3 拍渐起渐落），像一道光扫过这一行
+  for (let k = 0; k < 5; k++) AGD.glow(4 - k, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .9);
   // H17：原地缩小淡出
-  AGD.key(87.2, 'off', { dur: 1.6, stag: 0 });
+  AGD.key(FADE0, 'off', { dur: 1.6, stag: 0 });
 
-  /* ---------- 标志（K3 M6–M9） ---------- */
+  /* ---------- 标志（K3 M6–M7）→ 45° 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
   // M6 grow（b75.4–77.0）：俯视螺旋从圆环尾部（方位 199.6°，(859, 823)）顺时针往里长出，同 M1
   markAt(75.4, 77.0, (p, b) => markRing({ cx: 960, cy: 540, R: 300, grow: E.inOut(lp(b, 75.4, 1.6)), a: E.out(lp(b, 75.4, .3)) }));
-  // M7 rise（b77.0–78.4）：TOP → ICON（R 300 → 215，cy 540 → 470），markRing 的 lift（两端为 0）；
-  // M8 上移缩小（b78.2–80.2，cy 470 → 300，R 215 → 150，外框 y 188–392）与立起的收尾重叠，中间不再停 0.8 拍；
-  // 之后随片尾慢推（push，以 (960, 540) 为中心等比放大，姿态不变）→ M9 淡出（b87.2–89）
-  markAt(77.0, 89, (p, b) => {
-    const e = E.inOut(lp(b, 77.0, 1.4)), u = E.inOut(lp(b, 78.2, 2.0)), s = push(b);
-    const cy = lerp(lerp(540, 470, e), 300, u), R = lerp(lerp(300, 215, e), 150, u);
-    return markRing({ cx: 960, cy: 540 + (cy - 540) * s, R: R * s, yaw: lerp(0, 20, e), pitch: lerp(90, 45, e), lift: 1 - e, a: 1 - E.inOut(lp(b, 87.2, 1.8)) });
+  // M7 rise（b77.0–78.4）：TOP → ICON（R 300 → 230，cy 540 → 520，yaw 0 → 20、pitch 90 → 45），markRing 的 lift（两端为 0）；
+  // 之后在画面正中停留到 b81.0（约 1.2 s），停留时慢慢「呼吸」：R × 1 → 1.04（b78.0–81.0，sine），不定格
+  const icon = (b) => {
+    const e = E.inOut(lp(b, 77.0, 1.4)), s = 1 + .04 * E.sine(lp(b, 78.0, TURN0 - 78.0));
+    return markRing({ cx: 960, cy: lerp(540, 520, e), R: lerp(300, 230, e) * s, yaw: lerp(0, 20, e), pitch: lerp(90, 45, e), lift: 1 - e });
+  };
+  markAt(77.0, TURN0, (p, b) => icon(b));
+  // 字标段（b81.0–END）：kit 的帧原样——标志绕自身轴再转一圈成为字标的 O、向左滑到 O 的位置，「rbit·知音」在它右边逐字升起
+  // （kit 时序：转 T = 3.3 拍、字母自 .75T 起 110 ms 错开、各 420 ms）；第 0 帧由 WORDMARK.place 与 b81.0 的 ICON 姿态精确重合，
+  // 摆放从那里移到读字位置（字标整体居中 (960, 470)、k .5 ≈ 1160 px 宽），之后随 push 慢推；b92.2–94 与标语、点一起淡出
+  let P0 = null;
+  const readAt = (b) => { const s = push(b); return { cx: 960, cy: 540 + (470 - 540) * s, k: .5 * s }; };
+  markAt(TURN0, END, (p, b) => {
+    if (!WORDMARK.F) return Object.assign(icon(b), { a: 1 - E.inOut(lp(b, FADE0, 1.8)) });   // frames missing: keep the icon
+    P0 = P0 || WORDMARK.place(icon(TURN0));
+    const v = E.inOut(lp(b, TURN0, WORDMARK.T)), r = readAt(b);
+    WORDMARK.add(WORDMARK.svg({ a: 1 - E.inOut(lp(b, FADE0, 1.8)), cx: lerp(P0.cx, r.cx, v), cy: lerp(P0.cy, r.cy, v), k: lerp(P0.k, r.k, v), v, b, on: LET0 }));
+    return null;
   });
 
-  /* ---------- 片尾文字（7.3，b87.2–89 与标志、点一起淡出） ---------- */
+  /* ---------- 片尾标语（7.3，b92.2–94 与字标、点一起淡出） ---------- */
   css(`
-.cl-orbit{font-size:128px;font-weight:700;letter-spacing:-.015em;line-height:1;color:#fff}
-.cl-orbit .ch{background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}
 .cl-tag{font-size:48px;font-weight:500;color:rgba(255,255,255,.88);letter-spacing:.01em}
 .cl-tag b{color:var(--acc);font-weight:600}
 `);
-  // 银色渐变放在每个字符上（K.blurIn 逐字淡入；放在行上会被父级的 background-clip 整块先画出来）
   // 字随片尾慢推一起放大：锚点 y 相对 540 外移 × push，字号 × push（tick 在 anim 之后覆盖 transform）
   const pushT = (y) => (el, tl, life, ts) => { const s = push(ts / BEAT); el.style.transform = 'translate(-50%,-50%) translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')'; };
-  // 「Orbit」b80.0–81.4 逐字从模糊里浮出（spread .8 + dur .6）；标语 b80.9 起逐词出现，间隔约 .24 拍，「agent」b82.62
-  txt(80.0, 89, [['cl-orbit', 'Orbit']], { x: 960, y: 560, align: 'c' }, { anim: K.blurIn({ spread: .8, dur: .6, out: 1.8 }), tick: pushT(560) });
+  // 标语在最后两个字升起时（b85.0）居中出现在字标下方，逐词间隔 .2 拍，「agent」b86.4；之后完整可读到 b92.2（5.8 拍 ≈ 2.6 s）
   const W = ['An ', 'Assistant ', 'Redesign ', 'for ', 'everyone ', '&amp; ', '<b>every </b>', '<b>agent</b>'];
-  txt(80.9, 89, [['cl-tag', W.map((w) => '<span class="w">' + w + '</span>').join('')]], { x: 960, y: 660, align: 'c' },
-    { anim: K.words({ at: [0, .24, .48, .74, .98, 1.22, 1.46, 1.72], out: 1.8 }), tick: pushT(660) });
+  txt(TAG0, END, [['cl-tag', W.map((w) => '<span class="w">' + w + '</span>').join('')]], { x: 960, y: 648, align: 'c' },
+    { anim: K.words({ at: [0, .2, .4, .6, .8, 1.0, 1.2, 1.4], out: 1.8 }), tick: pushT(648) });
 });
