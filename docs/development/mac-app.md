@@ -1,6 +1,6 @@
 # Orbit Mac App
 
-Orbit v0.0.1 是本地 macOS App：原生 AppKit/WKWebView 宿主 + 冻结的 Python gateway（`tandem-helper`）+ 单文件 Advance UI（Lite 是同一界面内的侧栏切换）。宿主外壳移植自 PR #41；后端统一使用 `tandem_backend.services` gateway，不再有单独的桌面服务。代码标识（`tandem_*`、`tandem-helper`、`Application Support/Tandem`）保持不变。
+Orbit v0.0.2 是本地 macOS App：原生 AppKit/WKWebView 宿主 + 冻结的 Python gateway（`tandem-helper`）+ 单文件 Advance UI（Lite 是同一界面内的侧栏切换）。宿主外壳移植自 PR #41；后端统一使用 `tandem_backend.services` gateway，不再有单独的桌面服务。代码标识（`tandem_*`、`tandem-helper`、`Application Support/Tandem`）保持不变。
 
 ## 构建
 
@@ -20,7 +20,7 @@ uv run python apps/desktop/build.py --skip-helper  # 复用上次 PyInstaller �
 4. 图标 `Orbit.icns` 只用现有原稿：1024 px 直接取 `docs/design/logo/orbit-icon.png`，其他尺寸由 `render_svg.swift` 原样渲染 `orbit-icon.svg`；低于 128 px 按 `prototypes/advance/tools/brand-icon.mjs` 的规则换用 `orbit-mark-small.svg`（同一底板与变换）。菜单栏图标 `StatusIcon.png`/`@2x` 由 `render_svg.swift` 按原始宽高比原样渲染 `orbit-mark-small.svg`（16 pt 高），宿主作为模板图使用。不重绘、不调整线宽。
 5. 扫描 `.app` 内全部 Mach-O 的最低系统版本（`LC_BUILD_VERSION` / `LC_VERSION_MIN_MACOSX`），任一高于 `MIN_MACOS`（14.0，同时决定 swiftc target 与 `LSMinimumSystemVersion`）即构建失败；helper 的下限来自第三方 wheel（当前 numpy/scipy 为 14.0），升级依赖时据此发现兼容性回退。
 6. `codesign --force --deep` 签名并 `--verify --deep --strict` 校验。
-7. 输出到 `.local/macos-build/`（已忽略）：`Orbit.app`、`Orbit-0.0.1-arm64.zip`（ditto）、`Orbit-0.0.1-arm64.dmg`（UDZO，含 `/Applications` 链接）。
+7. 输出到 `.local/macos-build/`（已忽略）：`Orbit.app`、`Orbit-0.0.2-arm64.zip`（ditto）、`Orbit-0.0.2-arm64.dmg`（UDZO，含 `/Applications` 链接）。
 
 ## 运行组成
 
@@ -31,7 +31,7 @@ Orbit.app (AppKit / WKWebView, 非持久 WebsiteDataStore)
   ├─ 读取 stdout 首行 {"port": N}，带 Bearer 轮询 /v1/status，就绪后各界面加载 http://127.0.0.1:N/app[?surface=…]
   │    主窗口 /app · 菜单栏 NSPopover /app?surface=panel · HUD /app?surface=hud · 小组件 /app?surface=widgets
   ├─ 每个 WKWebView 在 document-start 注入 window.__TANDEM_TOKEN__ / __TANDEM_ENDPOINT__ /
-  │    __ORBIT_NATIVE__ = {v: 1, app: '0.0.1', platform: 'macos', features: [...]}（页面也应把旧的 true 视为原生）
+  │    __ORBIT_NATIVE__ = {v: 1, app: '0.0.2', platform: 'macos', features: [...]}（页面也应把旧的 true 视为原生）
   └─ 消息桥 window.webkit.messageHandlers.tandem（所有界面共用一个处理实现；仅主框架、同源）
 gateway (FastAPI + uvicorn, 127.0.0.1 动态端口)
   ├─ GET / → /app；GET /app、/lite：单文件 UI，无需 token（仍校验 Host/Origin）
