@@ -88,7 +88,8 @@ def cache_arxiv_downloads(dockerfile: str) -> str:
     dockerfile = dockerfile.replace(start,
         '    cache_key="$(printf \'%s\' "$url" | sha256sum | cut -d \' \' -f 1)"\n'
         '    cached="/var/cache/orbit-arxiv/$cache_key"\n'
-        '    if [ ! -s "$cached" ]; then\n')
+        '    if [ ! -s "$cached" ]; then\n'
+        '        printf \'Fetching %s\\n\' "$url"\n')
     return dockerfile.replace(end,
         '            -O "$cached.part" "$url"\n'
         '        test "$(head -c 5 "$cached.part")" = "%PDF-"\n'
@@ -257,9 +258,11 @@ def build(output: Path, docker: str) -> None:
         print(f"Building {task['task_id']} ({tag})", flush=True)
         build_args = []
         if proxy := os.environ.get("ORBIT_BUILD_PROXY"):
-            build_args = ["--build-arg", f"HTTP_PROXY={proxy}", "--build-arg", f"HTTPS_PROXY={proxy}"]
+            for proxy_name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+                build_args += ["--build-arg", f"{proxy_name}={proxy}"]
         if study.get("pip_index"):
-            build_args += ["--build-arg", "NO_PROXY=" + urlparse(study["pip_index"]).hostname]
+            for proxy_name in ("NO_PROXY", "no_proxy"):
+                build_args += ["--build-arg", proxy_name + "=" + urlparse(study["pip_index"]).hostname]
         with (context / "build.log").open("w") as log:
             subprocess.run([docker, "build", "--progress=plain", *build_args, "-t", tag, str(context)],
                            stdout=log, stderr=subprocess.STDOUT, check=True)
