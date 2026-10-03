@@ -6,6 +6,9 @@
 #   FX_PY        python with backend deps (default from fx-env.sh)
 #   JOURNEY_SHOTS  screenshot root (default: $FX_RELEASE/shots)
 #   JOURNEY_BE_ROOT  backend checkout to run (default: this worktree)
+#   JOURNEY_SPEC   spec to run (default tests/app-journey.spec.mjs; e.g. tests/region-import-audit.spec.mjs)
+#   JOURNEY_SRC    synthetic source roots (default: $FX_RELEASE/fx-src)
+#   JOURNEY_ASSETS serve this prebuilt tandem-demo.html instead of building this worktree (e.g. an older build to compare)
 #   JOURNEY_GATEWAY  reuse an already-running gateway (e.g. the frozen tandem-helper in Orbit.app) instead of starting one;
 #                    needs TANDEM_TOKEN, and optionally JOURNEY_FAKE_HOME / JOURNEY_DATA_HOME / JOURNEY_GATEWAY_LOG.
 #                    The caller owns that gateway's lifecycle; nothing is built, started or cleaned up here.
@@ -23,13 +26,19 @@ if [ -n "${JOURNEY_GATEWAY:-}" ]; then
   echo "reusing gateway $JOURNEY_GATEWAY"
   cd "$ROOT/prototypes/advance"
   LIVE_GATEWAY="$JOURNEY_GATEWAY" TANDEM_TOKEN="$TANDEM_TOKEN" JOURNEY_FAKE_HOME="${JOURNEY_FAKE_HOME:-}" \
-    JOURNEY_DATA_HOME="${JOURNEY_DATA_HOME:-}" JOURNEY_SRC="$FX_RELEASE/fx-src" JOURNEY_SHOTS="${JOURNEY_SHOTS:-$FX_RELEASE/shots}" \
+    JOURNEY_DATA_HOME="${JOURNEY_DATA_HOME:-}" JOURNEY_SRC="${JOURNEY_SRC:-$FX_RELEASE/fx-src}" JOURNEY_SHOTS="${JOURNEY_SHOTS:-$FX_RELEASE/shots}" \
     JOURNEY_GATEWAY_LOG="${JOURNEY_GATEWAY_LOG:-}" \
-    exec pnpm exec playwright test tests/app-journey.spec.mjs --project=mac-14 --workers=1 "$@"
+    exec pnpm exec playwright test "${JOURNEY_SPEC:-tests/app-journey.spec.mjs}" --project=mac-14 --workers=1 "$@"
 fi
-node "$ROOT/prototypes/shared/sync-live.mjs" >/dev/null
-node "$ROOT/prototypes/advance/build.mjs" >/dev/null
-ASSETS="$ROOT/prototypes/advance/tandem-demo.html"
+SPEC="${JOURNEY_SPEC:-tests/app-journey.spec.mjs}"
+JOURNEY_SRC="${JOURNEY_SRC:-$FX_RELEASE/fx-src}"
+if [ -n "${JOURNEY_ASSETS:-}" ]; then
+  ASSETS="$JOURNEY_ASSETS"
+else
+  node "$ROOT/prototypes/shared/sync-live.mjs" >/dev/null
+  node "$ROOT/prototypes/advance/build.mjs" >/dev/null
+  ASSETS="$ROOT/prototypes/advance/tandem-demo.html"
+fi
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/orbit-journey.XXXXXX")"
 HOME_DIR="$WORK/home"; FAKE_HOME="$WORK/userhome"; mkdir -p "$HOME_DIR" "$FAKE_HOME"
 TOKEN="$(python3 -c 'import secrets;print(secrets.token_hex(24))')"
@@ -61,5 +70,5 @@ done
 echo "gateway 127.0.0.1:$PORT home=$HOME_DIR fakehome=$FAKE_HOME"
 cd "$ROOT/prototypes/advance"
 LIVE_GATEWAY="http://127.0.0.1:$PORT" TANDEM_TOKEN="$TOKEN" JOURNEY_FAKE_HOME="$FAKE_HOME" JOURNEY_DATA_HOME="$HOME_DIR" \
-  JOURNEY_SRC="$FX_RELEASE/fx-src" JOURNEY_SHOTS="${JOURNEY_SHOTS:-$FX_RELEASE/shots}" JOURNEY_GATEWAY_LOG="$WORK/gateway.log" \
-  pnpm exec playwright test tests/app-journey.spec.mjs --project=mac-14 --workers=1 "$@"
+  JOURNEY_SRC="$JOURNEY_SRC" JOURNEY_SHOTS="${JOURNEY_SHOTS:-$FX_RELEASE/shots}" JOURNEY_GATEWAY_LOG="$WORK/gateway.log" \
+  pnpm exec playwright test "$SPEC" --project=mac-14 --workers=1 "$@"
