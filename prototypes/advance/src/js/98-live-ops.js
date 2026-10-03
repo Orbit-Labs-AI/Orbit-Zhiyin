@@ -399,7 +399,7 @@ if (LV.live) {
     const code = d.code || '----'; const p = { v: {}, code }; ['D', 'I', 'M', 'V'].forEach((k, i) => { p.v[k] = code[i] === k ? 70 : 30; });
     const hl = (d.copy && d.copy.headline) || ''; const cut = hl.indexOf('，') + 1;
     return { code, label: '近 30 天', zh: d.type_name || '', en: ((d.copy && d.copy.lines && d.copy.lines[0]) || '').split(' · ')[1] || '', q: cut > 0 ? [hl.slice(0, cut), hl.slice(cut)] : [hl, ''],
-      glyph: petals(p, 40, 0.68), axes: AXES.map((ax, i) => ({ L: code[i] || '', name: code[i] === ax.L ? ax.Ln : ax.Rn, strong: '' })),
+      glyph: bloomGlyph(p), axes: AXES.map((ax, i) => ({ L: code[i] || '', name: code[i] === ax.L ? ax.Ln : ax.Rn, strong: '' })),
       stats: (d.stats || []).filter((s) => !s.hidden && s.value != null).slice(0, 4).map((s) => [TLU.num(s.value), s.label]), foot: (d.disclaimer ? d.disclaimer + ' · ' : '') + '全部分析在本机完成' };
   }
   const tloShareOpen = openShare;

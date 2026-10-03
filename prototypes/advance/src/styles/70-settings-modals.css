@@ -39,7 +39,7 @@
 .toast-in button:hover{background:var(--field)}
 .tip{position:fixed;z-index:130;pointer-events:none;max-width:280px;background:var(--tip);color:var(--tip-ink);border-radius:6px;padding:4px 8px;font-size:11px;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.14);white-space:pre-line}
 .overlay{position:absolute;inset:0;z-index:110;background:var(--scrim);display:grid;place-items:center;padding:16px}
-/* .reveal（人格揭晓）与首次启动 2–3 步同为 .obox.gen，分段时间轴与 .pet / .code 的生长、淡入见 76-genesis.css */
+/* .reveal（人格揭晓）与首次启动 2–3 步同为 .obox.gen，分段时间轴、开花与 .code 的淡入见 76-genesis.css */
 .obox{width:min(560px,100%);max-height:100%;overflow:auto;border-radius:14px;background:var(--bg);box-shadow:var(--sh-win);padding:28px 36px;display:flex;flex-direction:column;gap:14px}
 @keyframes grow{from{transform:scale(0)}to{transform:scale(1)}}
 .sharecard{width:100%;aspect-ratio:1080/1350;max-width:100%;border-radius:18px;overflow:hidden;container-type:inline-size}

@@ -12,7 +12,7 @@
    PingFang SC (Chinese); titles are larger 600-weight sans; SF Mono only for code, paths, commands, IDs and keycaps. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
-   --orbit is the brand slate of the Orbit mark; it is used only by the mark, the north half of the compass needle and the
+   --orbit is the brand slate of the Orbit mark; it is used only by the mark, the lead petal of the persona flower and the
    00 reference triangle on the persona compass.
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
@@ -865,7 +865,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 @container main (min-width:640px) and (max-width:799px){#ovTiles{grid-template-columns:repeat(6,minmax(0,1fr))}#ovTiles>:nth-child(-n+3){grid-column:span 2}#ovTiles>:nth-child(n+4){grid-column:span 3}}
 @container main (max-width:639px){#ovTiles>:last-child:nth-child(odd){grid-column:1/-1}}
 
-/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass (bezel ticks / smooth five-layer orbit band + hour hit areas + Agent planets / rhythm band / compass rose + needle), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass (bezel ticks / smooth five-layer orbit band + hour hit areas + Agent planets / rhythm band / type flower whose lead petal points at the collaboration centre), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
@@ -890,12 +890,13 @@ body.native .win.nosb .tbar{padding-left:20px}
 .pe-evl{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container main (max-width:1100px){.letters .L{font-size:72px}.persona-hero{grid-template-columns:minmax(0,1fr) 380px}}
 @container main (max-width:639px){.pe-ev{grid-template-columns:minmax(0,1fr)}}
-/* 罗盘指针：外层按 --hd（协作重心）定位，内层 .fp-nd 留给晃动（进入页面的 WAAPI 阻尼晃动、悬停颤动 ±3°） */
-.fp2 .fp-needle{transform:rotate(var(--hd,0deg));transform-origin:200px 200px;transform-box:view-box}
-.fp2 .fp-nd{transform-origin:200px 200px;transform-box:view-box}
-.fp2:hover .fp-nd{animation:fp-jit .9s ease-in-out infinite}
+/* 内盘的花：.fp-bloom 按 --hd（协作重心）旋转，领瓣朝它；.fp-bd 留给晃动（进入页面的 WAAPI 阻尼晃动、悬停颤动 ±3°）；
+   .fp-pw 是 Genesis 开花的缩放层 */
+.fp2 .fp-bloom{transform:rotate(var(--hd,0deg));transform-origin:200px 200px;transform-box:view-box}
+.fp2 :is(.fp-bd,.fp-pw){transform-origin:200px 200px;transform-box:view-box}
+.fp2:hover .fp-bd{animation:fp-jit .9s ease-in-out infinite}
 @keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
-@media (prefers-reduced-motion:reduce){.fp2:hover .fp-nd{animation:none}}
+@media (prefers-reduced-motion:reduce){.fp2:hover .fp-bd{animation:none}}
 .pe-fp-legend .lnk{white-space:nowrap}
 /* hero polish: evolution months as one row of four, fingerprint + legend centred in the paper panel */
 .pe-evw{margin-top:24px}
@@ -1675,7 +1676,7 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .toast-in button:hover{background:var(--field)}
 .tip{position:fixed;z-index:130;pointer-events:none;max-width:280px;background:var(--tip);color:var(--tip-ink);border-radius:6px;padding:4px 8px;font-size:11px;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.14);white-space:pre-line}
 .overlay{position:absolute;inset:0;z-index:110;background:var(--scrim);display:grid;place-items:center;padding:16px}
-/* .reveal（人格揭晓）与首次启动 2–3 步同为 .obox.gen，分段时间轴与 .pet / .code 的生长、淡入见 76-genesis.css */
+/* .reveal（人格揭晓）与首次启动 2–3 步同为 .obox.gen，分段时间轴、开花与 .code 的淡入见 76-genesis.css */
 .obox{width:min(560px,100%);max-height:100%;overflow:auto;border-radius:14px;background:var(--bg);box-shadow:var(--sh-win);padding:28px 36px;display:flex;flex-direction:column;gap:14px}
 @keyframes grow{from{transform:scale(0)}to{transform:scale(1)}}
 .sharecard{width:100%;aspect-ratio:1080/1350;max-width:100%;border-radius:18px;overflow:hidden;container-type:inline-size}
@@ -1730,17 +1731,16 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-over{position:absolute;left:8px;top:8px;width:var(--gd);height:var(--gd);overflow:visible;pointer-events:none}
 .g-ring0{fill:none;stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1}
 .g-ticks{stroke:var(--ink-3);stroke-width:1.2;opacity:0}
-/* 扫掠扇形：跟在指针（fp2SVG 的 .fp-needle，由 js 逐帧写 transform）身后转一圈 */
+/* 扫掠扇形：跟在花（fp2SVG 的 .fp-bloom，由 js 逐帧写 transform）身后转一圈 */
 .g-hand{transform-origin:200px 200px;transform-box:view-box;opacity:0}
 .g-wedge{fill:var(--ink-1);opacity:.07}
 .gen:not(.run) .g-over{display:none}
-.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-compass,.fp-ax,.fps){opacity:0}
-/* 首次启动 01：.g-fp 与 .g-over 同步从倾斜轨道视角翻正（js 逐帧写 transform）；Orbit 内弧收拢成指针 */
+.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-flower,.fps){opacity:0}
+/* 首次启动 01：.g-fp 与 .g-over 同步从倾斜轨道视角翻正（js 逐帧写 transform）；Orbit 内弧收拢成领瓣 */
 .g-fp,.g-over{transform-origin:50% 50%}
 .g-arc{fill:none;stroke:var(--orbit);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
-.gen .g-fp :is(.fps,.fp-core,.fp-compass){transform-origin:200px 200px;transform-box:view-box}
-/* 生长：罗盘玫瑰主角（.pet）从中心长出，人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
-.gen .pet{transform-origin:200px 200px;transform-box:view-box;animation:grow .6s var(--ease) var(--g-grow,0ms) both}
+.gen .g-fp :is(.fps,.fp-core,.fp-flower){transform-origin:200px 200px;transform-box:view-box}
+/* 开花（.fp-front / .fp-back 的缩放由 js 逐帧写）时人格码淡入；起点由 js 写进 --g-grow（首次启动 3.0 s，揭晓 1.8 s） */
 .gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
 .gen.skip,.gen.skip *{animation:none!important}
 .g-side{display:flex;flex-direction:column;gap:12px;min-width:0}
@@ -4161,6 +4161,29 @@ const MENUS = {
   demo: () => [{ h: '模拟事件（会触发通知、菜单栏与悬浮组件）' }, { t: '会话完成', v: () => simEvent('done') }, { t: '有会话等你确认', v: () => simEvent('waiting') }, { t: '同一命令连续失败', v: () => simEvent('stuck') }, { t: '上下文即将压缩', v: () => simEvent('ctx') }, { t: '每周报告已生成', v: () => simEvent('weekly') }, { t: '发现新的数据来源', v: () => simEvent('newsrc') }, { sep: 1 }, { t: '播放首次启动', v: () => openOnboarding(0) }, { t: '播放人格揭晓', v: () => openReveal() }, { sep: 1 }, { t: '重置演示数据', v: () => resetDemo() }]
 };
 
+/* ============ Agent logos ============
+ * 协作指纹上的 Agent 行星画成对应 Agent 的标志（单色，用该 Agent 的识别色）。路径取自 lobe-icons（MIT，lobehub），
+ * 经 codexbar（MIT，Copyright (c) 2026 Peter Steinberger）docs/logos 整理；标志本身是各公司 / 项目的商标，只用来指认来源。
+ * Codex 只取图形本身（不含白底），Gemini 只取星形轮廓，OpenCode 只取外框。
+ * 没有标志的 Agent（如 Hermes）画首字母。值：[viewBox, path, evenodd?] */
+const AGLOGO = {
+  cc: ['0 0 24 24', 'M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z'],
+  cx: ['0 0 24 24', 'M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388zm3.482 10.565a.637.637 0 000 1.272h3.636a.637.637 0 100-1.272h-3.636zM8.462 9.23a.637.637 0 00-1.106.631l1.272 2.224-1.266 2.136a.636.636 0 101.095.649l1.454-2.455a.636.636 0 00.005-.64L8.462 9.23z'],
+  gm: ['0 0 24 24', 'M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z'],
+  ds: ['0 0 24 24', 'M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45'],
+  cp: ['0 0 24 24', 'M19.245 5.364c1.322 1.36 1.877 3.216 2.11 5.817.622 0 1.2.135 1.592.654l.73.964c.21.278.323.61.323.955v2.62c0 .339-.173.669-.453.868C20.239 19.602 16.157 21.5 12 21.5c-4.6 0-9.205-2.583-11.547-4.258-.28-.2-.452-.53-.453-.868v-2.62c0-.345.113-.679.321-.956l.73-.963c.392-.517.974-.654 1.593-.654l.029-.297c.25-2.446.81-4.213 2.082-5.52 2.461-2.54 5.71-2.851 7.146-2.864h.198c1.436.013 4.685.323 7.146 2.864zm-7.244 4.328c-.284 0-.613.016-.962.05-.123.447-.305.85-.57 1.108-1.05 1.023-2.316 1.18-2.994 1.18-.638 0-1.306-.13-1.851-.464-.516.165-1.012.403-1.044.996a65.882 65.882 0 00-.063 2.884l-.002.48c-.002.563-.005 1.126-.013 1.69.002.326.204.63.51.765 2.482 1.102 4.83 1.657 6.99 1.657 2.156 0 4.504-.555 6.985-1.657a.854.854 0 00.51-.766c.03-1.682.006-3.372-.076-5.053-.031-.596-.528-.83-1.046-.996-.546.333-1.212.464-1.85.464-.677 0-1.942-.157-2.993-1.18-.266-.258-.447-.661-.57-1.108-.32-.032-.64-.049-.96-.05zm-2.525 4.013c.539 0 .976.426.976.95v1.753c0 .525-.437.95-.976.95a.964.964 0 01-.976-.95v-1.752c0-.525.437-.951.976-.951zm5 0c.539 0 .976.426.976.95v1.753c0 .525-.437.95-.976.95a.964.964 0 01-.976-.95v-1.752c0-.525.437-.951.976-.951zM7.635 5.087c-1.05.102-1.935.438-2.385.906-.975 1.037-.765 3.668-.21 4.224.405.394 1.17.657 1.995.657h.09c.649-.013 1.785-.176 2.73-1.11.435-.41.705-1.433.675-2.47-.03-.834-.27-1.52-.63-1.813-.39-.336-1.275-.482-2.265-.394zm6.465.394c-.36.292-.6.98-.63 1.813-.03 1.037.24 2.06.675 2.47.968.957 2.136 1.104 2.776 1.11h.044c.825 0 1.59-.263 1.995-.657.555-.556.765-3.187-.21-4.224-.45-.468-1.335-.804-2.385-.906-.99-.088-1.875.058-2.265.394zM12 7.615c-.24 0-.525.015-.84.044.03.16.045.336.06.526l-.001.159a2.94 2.94 0 01-.014.25c.225-.022.425-.027.612-.028h.366c.187 0 .387.006.612.028-.015-.146-.015-.277-.015-.409.015-.19.03-.365.06-.526a9.29 9.29 0 00-.84-.044z', 1],
+  pi: ['0 0 100 100', 'M20 25H80C82.7614 25 85 27.2386 85 30C85 32.7614 82.7614 35 80 35H68V75C68 77.7614 65.7614 80 63 80C60.2386 80 58 77.7614 58 75V35H42V75C42 77.7614 39.7614 80 37 80C34.2386 80 32 77.7614 32 75V35H20C17.2386 35 15 32.7614 15 30C15 27.2386 17.2386 25 20 25Z'],
+  km: ['0 0 24 24', 'M21.846 0a1.923 1.923 0 110 3.846H20.15a.226.226 0 01-.227-.226V1.923C19.923.861 20.784 0 21.846 0zM11.065 11.199l7.257-7.2c.137-.136.06-.41-.116-.41H14.3a.164.164 0 00-.117.051l-7.82 7.756c-.122.12-.302.013-.302-.179V3.82c0-.127-.083-.23-.185-.23H3.186c-.103 0-.186.103-.186.23V19.77c0 .128.083.23.186.23h2.69c.103 0 .186-.102.186-.23v-3.25c0-.069.025-.135.069-.178l2.424-2.406a.158.158 0 01.205-.023l6.484 4.772a7.677 7.677 0 003.453 1.283c.108.012.2-.095.2-.23v-3.06c0-.117-.07-.212-.164-.227a5.028 5.028 0 01-2.027-.807l-5.613-4.064c-.117-.078-.132-.279-.028-.381z', 1],
+  oc: ['0 0 54 42', 'M18 12H6V30H18V12ZM24 36H0V6H24V36ZM54 12H36V30H54V36H30V6H54V12Z', 1]
+};
+// 一枚 Agent 徽章（中心 cx, cy、半径 r）：纸色圆底 + Agent 色细环 + 单色标志；没有标志时是首字母
+function agLogo(id, cx, cy, r, color) {
+  const lg = AGLOGO[id], s = r * 1.3, x = (cx - s / 2).toFixed(1), y = (cy - s / 2).toFixed(1);
+  const mark = lg ? '<svg x="' + x + '" y="' + y + '" width="' + s.toFixed(1) + '" height="' + s.toFixed(1) + '" viewBox="' + lg[0] + '" overflow="visible"><path d="' + lg[1] + '" fill="' + color + '"' + (lg[2] ? ' fill-rule="evenodd"' : '') + '/></svg>'
+    : '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="' + (r * 1.05).toFixed(1) + '" font-weight="700" fill="' + color + '">' + esc((agent(id).short || id).slice(0, 1).toUpperCase()) + '</text>';
+  return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--surface)" stroke="' + color + '" stroke-width="1.3"/>' + mark;
+}
+
 /* ============ shared visuals ============ */
 const agent = (id) => AGI[id] || { id, name: id, short: id, c: 'var(--a0)', t: 'var(--a0t)' };   // live: an id the spine does not carry
 const CUR = {};
@@ -4174,33 +4197,41 @@ function spark(arr, w, h) {
 }
 function weekly(fn, endDay, n) { const out = []; for (let k = n - 1; k >= 0; k--) { const b = endDay - k * 7, a = b - 6; out.push(fn(ALL.filter((s) => s.d >= a && s.d <= b && pass(s, { noExtra: true })))); } return out; }
 const pt = (C, r, a) => [C + r * Math.sin(a), C - r * Math.cos(a)];
-function petal(C, deg, L) {
-  const a = deg * Math.PI / 180, w = 0.42;
-  const tip = pt(C, L, a), c1 = pt(C, L * 0.62, a + w), c2 = pt(C, L * 0.62, a - w);
-  return 'M' + C + ' ' + C + 'Q' + c1[0].toFixed(1) + ' ' + c1[1].toFixed(1) + ' ' + tip[0].toFixed(1) + ' ' + tip[1].toFixed(1) + 'Q' + c2[0].toFixed(1) + ' ' + c2[1].toFixed(1) + ' ' + C + ' ' + C + 'Z';
+// 协作人格的花：16 型各一朵。四个维度各管一个花型特征，形状由四字母决定，比例随该轴强度（50 → 85+）微调：
+//   M 多线 / F 专注 → 12 瓣 / 5 瓣
+//   I 即兴 / P 规划 → 花瓣顺时针旋卷、圆头 / 端正、尖头
+//   D 委托 / S 掌舵 → 长瓣、小花心 / 短阔瓣、大花心（花心里一圈舵环）
+//   V 求证 / T 信任 → 重瓣（身后再一轮，错开半格）/ 单瓣
+// 以 (C, C) 为圆心、R 为最大半径；领瓣（lead）的瓣尖朝 0°（12 点），由调用方整体旋转。major = 其余前排花瓣，minor = 身后一轮，
+// hr = 花心半径，helm = 是否画舵环。字母取 p.axes 的结论（live 里未定的轴是「?」），没有时按分值以 50 为界取一极。
+const BLOOM_K = ['D', 'I', 'M', 'V'];
+function bloomCode(p) { return BLOOM_K.map((k, i) => (p.axes && p.axes[i] && p.axes[i].letter) || axisView(p, i).letter).join(''); }
+function bloom(p, C, R) {
+  const av = BLOOM_K.map((k, i) => axisView(p, i)), u = (i) => clamp((av[i].strong - 50) / 35, 0, 1);
+  const D = av[0].letter === 'D', I = av[1].letter === 'I', M = av[2].letter === 'M', V = av[3].letter === 'V';
+  const n = M ? 12 : 5, L = D ? 0.88 + 0.12 * u(0) : 0.78 - 0.06 * u(0), hr = D ? 0.1 : 0.19 + 0.06 * u(0);
+  const w = (M ? 0.13 : 0.3) * (D ? 1 : 1.22), tw = I ? (24 + 22 * u(1)) * Math.PI / 180 : 0, r0 = hr * 0.92;
+  const f = (v) => v.toFixed(1);
+  // 一片花瓣：瓣轴上的点 (x 横向, y 径向) 绕圆心转到 th，旋卷时越靠瓣尖转得越多；即兴的前缘更饱满（风车）
+  const pet = (th, len, wid) => {
+    const h = len - r0, wr = wid * (I ? 1.18 : 1), wl = wid * (I ? 0.8 : 1), sd = I ? [[1.2, 0.34], [0.86, 1]] : [[1.15, 0.3], [0.62, 0.84]];
+    const P = (x, y) => { const a = th + tw * Math.pow(clamp((y - r0) / h, 0, 1.05), 1.3); return f(C + R * (y * Math.sin(a) + x * Math.cos(a))) + ' ' + f(C + R * (-y * Math.cos(a) + x * Math.sin(a))); };
+    return 'M' + P(0, r0) + 'C' + P(wr * sd[0][0], r0 + sd[0][1] * h) + ' ' + P(wr * sd[1][0], r0 + sd[1][1] * h) + ' ' + P(0, len) +
+      'C' + P(-wl * sd[1][0], r0 + sd[1][1] * h) + ' ' + P(-wl * sd[0][0], r0 + sd[0][1] * h) + ' ' + P(0, r0) + 'Z';
+  };
+  const st = Math.PI * 2 / n; let major = '', minor = '', lead = '';
+  for (let k = 0; k < n; k++) { const d = pet(k * st - tw, L, w * L); if (k) major += d; else lead = d; }
+  if (V) for (let k = 0; k < n; k++) minor += pet((k + 0.5) * st - tw, L * (0.8 + 0.1 * u(3)), w * L * 0.92);
+  return { major, minor, lead, hr: hr * R, helm: !D, n };
 }
-const DIRS = { D: 0, S: 180, I: 90, P: 270, M: 45, F: 225, V: 315, T: 135 };
-function petals(p, C, scale) {
-  let major = '', minor = '';
-  const vals = { D: p.v.D, S: 100 - p.v.D, I: p.v.I, P: 100 - p.v.I, M: p.v.M, F: 100 - p.v.M, V: p.v.V, T: 100 - p.v.V };
-  Object.keys(DIRS).forEach((k) => { const big = vals[k] >= 50; const d = petal(C, DIRS[k], (16 + vals[k] * 0.56) * scale); if (big) major += d; else minor += d; });
-  return { major, minor };
-}
+// 一个类型的代表花（算法说明的 16 型表）：四个维度都取该极、强度 72
+const typeP = (code) => ({ v: { D: code[0] === 'D' ? 72 : 28, I: code[1] === 'I' ? 72 : 28, M: code[2] === 'M' ? 72 : 28, V: code[3] === 'V' ? 72 : 28 } });
+// 小尺寸花（菜单栏、小组件、分享卡，80 视框）：领瓣并入前排；花瓣从花心外缘长出，花心不用填底色
+function bloomGlyph(p) { const g = bloom(p, 40, 36); return { major: g.lead + g.major, minor: g.minor, hr: +g.hr.toFixed(1) }; }
 function glyphSVG(p, size) {
-  const g = petals(p, 40, 0.68);
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 80 80" aria-hidden="true"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/></svg>';
-}
-function fpSVG(L, p, size, opt) {
-  opt = opt || {};
-  const C = 200;
-  let hours = '';
-  const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h]++; });
-  const hm2 = Math.max(1, ...hc);
-  for (let k = 0; k < 48; k++) { const h = Math.floor(k / 2); const v = (k % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; const a = (k + 0.5) / 48 * Math.PI * 2; const p1 = pt(C, 100, a), p2 = pt(C, 104 + v * 24, a); hours += 'M' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + 'L' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1); }
-  const dots = L.map((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; const q = pt(C, 140 + Math.min(s.dur, 126) / 126 * 40, a); const r = (2.3 + Math.min(s.msgs, 20) / 20 * 2).toFixed(1); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + r + '" fill="' + agent(s.a).c + '" stroke="var(--surface)" stroke-width="1.2"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join('');
-  const g = petals(p, C, 1);
-  const lbl = opt.labels ? Object.keys(DIRS).map((k) => { const vals = { D: p.v.D, S: 100 - p.v.D, I: p.v.I, P: 100 - p.v.I, M: p.v.M, F: 100 - p.v.M, V: p.v.V, T: 100 - p.v.V }; const q = pt(C, 16 + vals[k] * 0.56 + 11, DIRS[k] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 4).toFixed(1) + '" text-anchor="middle" font-size="11" font-family="var(--font-num)" font-weight="' + (vals[k] >= 50 ? 700 : 500) + '" fill="' + (vals[k] >= 50 ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + k + '</text>'; }).join('') + [['00', 0], ['06', 90], ['12', 180], ['18', 270]].map((h) => { const q = pt(C, 194, h[1] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 3.5).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-family="var(--font-num)" fill="var(--ink-3)">' + h[0] + '</text>'; }).join('') : '';
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：内核是四个维度，中环是 24 小时节律，外环每个点是一个会话" style="overflow:visible;max-width:100%;height:auto"><circle cx="200" cy="200" r="186" fill="var(--surface)" stroke="var(--line)"/><circle cx="200" cy="200" r="132" fill="none" stroke="var(--hair)"/><circle cx="200" cy="200" r="96" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="68" fill="var(--bg)" stroke="var(--hair)"/><g class="hours"><path d="' + hours + '" fill="none" stroke="var(--ink-3)" stroke-width="3.2" stroke-linecap="round"/></g><g class="dots">' + dots + '</g><g class="pet"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/></g><circle cx="200" cy="200" r="5" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.5"/>' + lbl + '</svg>';
+  const g = bloomGlyph(p);
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 80 80" aria-hidden="true" data-bloom="' + bloomCode(p) + '"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/>' +
+    '<circle cx="40" cy="40" r="' + g.hr + '" fill="none" stroke="var(--ink-1)" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="var(--ink-1)"/></svg>';
 }
 TIPS.sess = (id) => { const s = BYID[id]; if (!s) return ''; return '<b>' + esc(s.title) + '</b>\n<span class="mono" style="opacity:.8;font-size:11px">' + agent(s.a).name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + dur(s.dur) + '</span>'; };
 TIPS.def = (k) => ({ n: '会话数：所选范围内开始的会话。', h: '协作时长：会话从第一条消息到最后一次 Agent 输出的时间之和。', m: '你发出的消息：只计你本人输入，不含 Agent 回复。', a: '自主比 = Agent 步数 ÷ 你的消息数。\nAgent 步数 = 工具调用 + 文字回复。', f: '摩擦率 = 纠偏与不满消息 ÷ 你的消息数。\n分类由本地 Agent 判定。' })[k];
@@ -6114,7 +6145,7 @@ function reindex() {
 /* ============ A2 persona ============
  * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（Orbit 罗盘：外框 120 道刻度与 24 小时方位 /
  * 轨道环带（五层平滑，每个 Agent 一层）+ 24 个小时热区，点击展开该小时的会话点 / Agent 行星停在各自的协作重心 / 节律带 /
- * 内盘罗盘玫瑰 + 指向协作重心的指针）→ 四个维度（VZ 双向条：以 50 为界取一极、对照刻度、
+ * 内盘是协作人格的花（16 型各一朵，领瓣指向协作重心））→ 四个维度（VZ 双向条：以 50 为界取一极、对照刻度、
  * 数值跟随胜出极、每轴证据微型图）+ 优势与盲点 + 契合度（中性条、透明度随 n、95% 区间、Agent 色只在圆点）。
  * 人格口径统一走 personaScope（BUG-06）；1 个会话即出完整 4 字母，少于 30 个只在徽标旁温和提示；没有会话时列出放宽哪个筛选能补到多少（A2-V08），全部来源停用时引导到设置（BUG-50）。 */
 const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
@@ -6154,10 +6185,10 @@ function peScopeTag(per) {
   const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
   return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
 }
-const AXR = { D: 0, I: 90, M: 180, V: 270 };
-// 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道环带 R0 → R0+RH、行星轨道 PR、节律带 98 → 118、内盘 92、
-// 玫瑰半径 RR、指针半长 NL（= 0.8 × RR，短于字母位，不压住分数）。Genesis（56-onboarding.js）的粒子落点、环带扫描与玫瑰生长共用这一组常量。
-const FPG = { R0: 124, RH: 38, RR: 70, NL: 56, PR: 160 };
+// 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道 R0 → R0+RH、Agent 徽章轨道 PR、小时刻度 92 → 98、内盘 92、
+// 花的最大半径 RR、花苞比例 BUD（Genesis 01–02 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的领瓣长度 NL。
+// Genesis（56-onboarding.js）的粒子落点、环带扫描与开花共用这一组常量。
+const FPG = { R0: 102, RH: 48, RR: 82, BUD: 0.34, NL: 56, PR: 156 };
 let FP_UID = 0;
 // 协作重心：会话开始时刻在 24 小时表盘上的圆形平均（0° = 00:00，顺时针）；没有会话时指向 00
 function fpHeading(L) {
@@ -6166,9 +6197,9 @@ function fpHeading(L) {
   const mins = Math.round(deg / 360 * 1440) % 1440;
   return { deg: +deg.toFixed(1), hm: Math.floor(mins / 60) + ':' + String(mins % 60).padStart(2, '0') };
 }
-// 轨道环带（与宣传片共用的规格）：每个 Agent 一层，层高 = 该小时该 Agent 的会话数 ÷ 全天最大的小时总数 × RH；
+// 轨道（宣传片极光的曲线画法）：每个 Agent 一层，层高 = 该小时该 Agent 的会话数 ÷ 全天最大的小时总数 × RH；
 // 小时值放在该小时扇区的中线上，小时之间用周期 Catmull-Rom 平滑，每 2° 采样，按 AG 顺序逐层叠加。
-// 行星：每个有会话的 Agent 一颗，停在它自己的协作重心上（轨道半径 PR）。
+// 行星：每个有会话的 Agent 一枚标志徽章，停在它自己的协作重心上（轨道半径 PR）。
 function fpOrbit(L) {
   const hrs = Array.from({ length: 24 }, () => AG.map(() => 0)); L.forEach((s) => { const i = AG.findIndex((a) => a.id === s.a); if (i >= 0) hrs[s.h][i]++; });
   const mx = Math.max(1, ...hrs.map((r) => r.reduce((x, y) => x + y, 0)));
@@ -6179,27 +6210,27 @@ function fpOrbit(L) {
     for (let s = 0; s <= N; s++) cum[s] += Math.max(0, cr(i, s / N * 24 - 0.5)) / mx * FPG.RH;
     layers.push({ a: ag, inner, outer: cum.slice(), n: hrs.reduce((x, r) => x + r[i], 0) });
   });
-  const planets = AG.map((ag) => { const xs = L.filter((s) => s.a === ag.id); if (!xs.length) return null; const hd = fpHeading(xs); return { a: ag, n: xs.length, deg: hd.deg, hm: hd.hm }; }).filter(Boolean);
+  const planets = AG.map((ag) => { const xs = L.filter((s) => s.a === ag.id); if (!xs.length) return null; const hd = fpHeading(xs); return { a: ag, n: xs.length, deg: hd.deg, hm: hd.hm, r: FPG.PR }; }).filter(Boolean);
+  // 协作重心相近的徽章不叠在一起：与已放下的徽章角距小于 8.5° 时往里收一档（每档 23）
+  planets.slice().sort((a, b) => b.n - a.n).forEach((x, i, arr) => { while (arr.slice(0, i).some((y) => y.r === x.r && Math.abs(((x.deg - y.deg) % 360 + 540) % 360 - 180) < 8.5)) x.r -= 23; });
   return { hrs, mx, layers, planets };
 }
-// 一层环带的路径：外缘顺时针，内缘逆时针收口
+// 一层的外缘曲线（等高线）
+function fpEdgeD(edge) {
+  const N = edge.length - 1, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
+  for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f(pt(200, FPG.R0 + 1 + edge[s], s / N * Math.PI * 2));
+  return d + 'Z';
+}
+// 一层的色带：外缘顺时针，内缘逆时针收口
 function fpLayerD(ly) {
   const N = ly.outer.length - 1, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
   for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f(pt(200, FPG.R0 + 1 + ly.outer[s], s / N * Math.PI * 2));
   for (let s = N; s >= 0; s--) d += 'L' + f(pt(200, FPG.R0 + 1 + ly.inner[s], s / N * Math.PI * 2));
   return d + 'Z';
 }
-// 玫瑰主角长度：随该轴强度（50 → 85+）从 0.36 长到 1.0 × RR（实际强度多在 55–80，按 85 封顶让形状可读）；u 用于 Genesis 生长（0 = 强度 50 的长度）
-const fpRoseLen = (strong, u) => FPG.RR * (0.36 + 0.64 * clamp((strong - 50) / 35, 0, 1) * (u == null ? 1 : u));
-// 一个罗盘角：顺时针半面实心、逆时针半面空心描边（经典明暗面）；w = 侧点半径
-function fpRosePt(deg, len, w) {
-  const a = deg * Math.PI / 180, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
-  const tip = f(pt(200, len, a)), r = f(pt(200, w, a + Math.PI / 4)), l = f(pt(200, w, a - Math.PI / 4));
-  return ['M200 200L' + tip + 'L' + r + 'Z', 'M200 200L' + tip + 'L' + l + 'Z'];
-}
-// 协作指纹 · Orbit 罗盘（评审 A2-V01/02/03）：外框 120 道刻度与 24 小时方位；轨道环带（五层平滑，每个 Agent 一层）上有 24 个透明的
-// 小时热区（选中小时展开会话点）与 Agent 行星（各自的协作重心）；节律带；内盘是罗盘玫瑰（四个主角朝 D I M V，长度 = 该轴强度，
-// 端点标胜出极与分数），指针指向全体协作重心（--hd，CSS rotate），画在字母与分数下层。环带的 .fp-sweep 遮罩与行星的 --pa 留给入场动画。
+// 协作指纹 · Orbit 罗盘（评审 A2-V01/02/03）：外框 120 道刻度与 24 小时方位；轨道（每个 Agent 一层的平滑曲线）上有 24 个透明的
+// 小时热区（选中小时展开会话点）与 Agent 标志徽章（各自的协作重心）；小时刻度；内盘是协作人格的花（bloom：16 型各一朵，
+// 花型由四字母决定），整朵花按全体协作重心旋转（--hd，CSS rotate），石板色领瓣指向它。环带的 .fp-sweep 遮罩与行星的 --pa 留给入场动画。
 function fp2SVG(L, p, size, opt) {
   opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const k = sm ? 1.25 : 1; const uid = 'fpm' + (++FP_UID);
   const byH = Array.from({ length: 24 }, () => []); L.forEach((s) => byH[s.h].push(s));
@@ -6209,8 +6240,12 @@ function fp2SVG(L, p, size, opt) {
   const f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
   const sector = (r0, r1, a0, a1) => { const p0 = pt(C, r0, a0), p1 = pt(C, r1, a0), p2 = pt(C, r1, a1), p3 = pt(C, r0, a1); const lg = a1 - a0 > Math.PI ? 1 : 0; return 'M' + f(p0) + 'L' + f(p1) + 'A' + r1 + ' ' + r1 + ' 0 ' + lg + ' 1 ' + f(p2) + 'L' + f(p3) + 'A' + r0 + ' ' + r0 + ' 0 ' + lg + ' 0 ' + f(p0) + 'Z'; };
   const sel = S.persona.fpHour;
-  // 轨道环带：五层连续平滑的 Agent 色带，叠成一条有厚度起伏的轨道（遮罩 .fp-sweep 从 00 顺时针展开）
-  const band5 = '<g class="fp-orb" mask="url(#' + uid + ')">' + orb.layers.map((ly, i) => ly.n ? '<path class="fpo" data-a="' + ly.a.id + '" d="' + fpLayerD(ly) + '" fill="' + ly.a.c + '" fill-opacity="' + (0.95 - i * 0.05).toFixed(2) + '"/>' : '').join('') + '</g>';
+  // 轨道：学宣传片的极光，用一组嵌套的平滑曲线代替实心色块。每个 Agent 一层：层内铺一层很淡的 Agent 色（色带越宽，
+  // 这一小时该 Agent 的占比越高），层的外缘是一条 Agent 色细线；最外一条是整条轨道的峰线。遮罩 .fp-sweep 从 00 顺时针展开
+  const lys = orb.layers.filter((ly) => ly.n), top = lys[lys.length - 1];
+  const band5 = '<g class="fp-orb" mask="url(#' + uid + ')">' + (top ? '<path class="fp-crest" d="' + fpEdgeD(top.outer) + '" fill="none" stroke="var(--ink-1)" stroke-opacity=".07" stroke-width="7" stroke-linejoin="round"/>' : '') + lys.map((ly) => '<path class="fpo" data-a="' + ly.a.id + '" d="' + fpLayerD(ly) + '" fill="' + ly.a.c + '" fill-opacity=".2"/>').join('') +
+    lys.map((ly) => '<path class="fpc" data-a="' + ly.a.id + '" d="' + fpEdgeD(ly.outer) + '" fill="none" stroke="' + ly.a.c + '" stroke-width="1.3" stroke-linejoin="round"/>').join('') +
+    '</g>';
   // 24 个透明的小时热区：悬停提示该小时按 Agent 的会话数，点击展开会话点；选中时其余小时罩一层纸色
   let ring = '';
   byH.forEach((xs, h) => {
@@ -6220,48 +6255,34 @@ function fp2SVG(L, p, size, opt) {
   // 选中小时：展开该小时的会话点（角度 = 开始分钟，半径 = 时长），这时才能悬停到单个会话
   let dots = '';
   if (sel != null) dots = byH[sel].map((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; const q = pt(C, R0 + 4 + Math.min(s.dur, 126) / 126 * (RH - 6), a); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="4" fill="' + agent(s.a).c + '" stroke="var(--surface)" stroke-width="1.5"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join('');
-  // 行星：画在 (200, 200 − PR)，外层按 --pa（该 Agent 的协作重心）旋转到位；实心 Agent 色 + 浅色光晕
-  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><circle cx="200" cy="' + (C - FPG.PR) + '" r="9" fill="' + x.a.c + '" fill-opacity=".2"/><circle class="fp-pd" cx="200" cy="' + (C - FPG.PR) + '" r="4.6" fill="' + x.a.c + '" stroke="var(--surface)" stroke-width="1.3"/></g>').join('') + '</g>';
+  // 行星：画在 (200, 200 − PR)，外层按 --pa（该 Agent 的协作重心）旋转到位；Agent 标志徽章 + 浅色光晕
+  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><circle cx="200" cy="' + (C - x.r) + '" r="14" fill="' + x.a.c + '" fill-opacity=".16"/><g class="fp-pd">' + agLogo(x.a.id, 200, C - x.r, 10, x.a.c) + '</g></g>').join('') + '</g>';
   // 外框：120 道刻度（每 3°），整点较长、每 6 小时最长；每 3 小时一个方位数字，00 / 06 / 12 / 18 用衬线当作四方位；00 外侧基准三角（--orbit）
   const tk = ['', '', '']; for (let i = 0; i < 120; i++) { const w = i % 30 === 0 ? 2 : i % 5 === 0 ? 1 : 0; const a = i * 3 * Math.PI / 180; tk[w] += 'M' + f(pt(C, 194.5, a)) + 'L' + f(pt(C, [190.5, 187.5, 184][w], a)); }
   const hrs = [0, 3, 6, 9, 12, 15, 18, 21].filter((h) => !sm || h % 6 === 0).map((h) => { const card = h % 6 === 0; const q = pt(C, card ? (sm ? 170 : 171.5) : 176, h * 15 * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central"' + (card ? ' font-size="' + (sm ? 17 : 15) + '" font-family="var(--font-display)" font-weight="700" fill="var(--ink-1)" paint-order="stroke" stroke="var(--bg)" stroke-width="4"' : ' font-size="9.5" font-family="var(--font-num)" fill="var(--ink-3)"') + '>' + String(h).padStart(2, '0') + '</text>'; }).join('');
-  // 中环：节律带（每半小时一个采样点，半径 98 → 118）+ 24 个小刻度
-  const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h]++; });
-  const hm2 = Math.max(1, ...hc);
+  // 内盘外缘：24 个小时刻度（每 6 小时较长）
   let ticks = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; ticks += 'M' + f(pt(C, 92, a)) + 'L' + f(pt(C, h % 6 ? 95 : 98, a)); }
-  let band = ''; for (let i = 0; i < 48; i++) { const h = Math.floor(i / 2); const v = (i % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; band += (i ? 'L' : 'M') + f(pt(C, 98 + v * 20, i / 48 * Math.PI * 2)); }
-  band += 'Z'; let inner = ''; for (let i = 0; i < 48; i++) inner += (i ? 'L' : 'M') + f(pt(C, 98, i / 48 * Math.PI * 2));
-  // 内盘：罗盘玫瑰。四个次角（45°）固定短；四个主角朝 D I M V，长度随强度；深色面与字母都按分值判定（以 50 为界取一极；该轴没有数据时浅灰）
-  const axes = ['D', 'I', 'M', 'V'];
-  const av = axes.map((x, i) => axisView(p, i));
-  const minor = [45, 135, 225, 315].map((d) => fpRosePt(d, RR * 0.4, RR * 0.1)).map((x) => '<g class="fp-minor"><path d="' + x[0] + '" fill="var(--ink-4)"/><path d="' + x[1] + '" fill="var(--line)" stroke="var(--ink-4)" stroke-width=".8" stroke-linejoin="round"/></g>').join('');
-  const major = axes.map((x, i) => { const q = fpRosePt(AXR[x], fpRoseLen(av[i].strong), RR * 0.18), un = !!(p.axes && p.axes[i] && p.axes[i].state === 'no_data'), ink = un ? 'var(--ink-3)' : 'var(--ink-1)'; return '<g class="fp-pt" data-k="' + x + '"><path d="' + q[1] + '" fill="var(--surface)" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/><path d="' + q[0] + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="1.1" stroke-linejoin="round"/></g>'; }).join('');
-  const lbl = axes.map((x, i) => {
-    const a = av[i]; const sl = p.axes && p.axes[i] && p.axes[i].letter; const ch = sl || a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
-    const q = pt(C, len + 11 * k, rad);
-    const sq = [q[0], q[1] + (d === 0 ? -13 : 13) * k];
-    return '<g class="fp-ax" data-k="' + x + '"><text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 15 * k + '" font-family="var(--font-display)" font-weight="600" fill="' + (ch === '?' ? 'var(--ink-3)' : 'var(--ink-1)') + '" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + ch + '</text>' +
-      (opt.labels && !sm ? '<text x="' + sq[0].toFixed(1) + '" y="' + sq[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 9 * k + '" font-family="var(--font-num)" fill="var(--ink-3)" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + a.strong + '</text>' : '') + '</g>';
-  }).join('');
-  // 指针：细长双头菱形，北半 --orbit 实心、南半空心描边；--hd = 协作重心。画在玫瑰之上、字母与分数之下
-  const hd = fpHeading(L); const NL = FPG.NL;
-  const needle = '<g class="fp-compass"><g class="fp-needle" data-hd="' + hd.deg + '" style="--hd:' + hd.deg + 'deg"><title>协作重心 ' + hd.hm + '</title><g class="fp-nd"><path class="fp-nn" d="M200 ' + (C - NL) + 'L203.6 200L196.4 200Z" fill="var(--orbit)" stroke="var(--surface)" stroke-width="1" stroke-linejoin="round"/><path class="fp-ns" d="M200 ' + (C + NL) + 'L203.6 200L196.4 200Z" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.1" stroke-linejoin="round"/></g></g>' +
-    '<circle cx="200" cy="200" r="7" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.4"/><circle cx="200" cy="200" r="2" fill="var(--ink-1)"/></g>';
-  const hub = (fpRoseLen(55) - 1).toFixed(1);
-  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 24 小时罗盘刻度；轨道环带按小时叠出各 Agent 的会话数，环带外缘的行星停在各 Agent 的协作重心；中环是节律带，内盘罗盘玫瑰的四个主角长度是四个维度的强度；指针指向协作重心 ' + hd.hm + '" style="overflow:visible;max-width:100%;height:auto">' +
+  // 内盘：协作人格的花。.fp-flower（Genesis 淡入）› .fp-bloom（--hd 旋转，Genesis 逐帧写）› .fp-bd（入场晃动、悬停轻颤）›
+  // .fp-back 身后一轮 / .fp-front 前排与领瓣（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
+  const hd = fpHeading(L), code = bloomCode(p), g = bloom(p, C, RR), un = !p.ok || code.includes('?'), ink = un ? 'var(--ink-3)' : 'var(--ink-1)', sep = ' stroke="var(--bg)" stroke-width=".8" stroke-linejoin="round"';
+  const flower = '<g class="fp-flower" data-code="' + code + '"><g class="fp-bloom" data-hd="' + hd.deg + '" style="--hd:' + hd.deg + 'deg"><title>协作重心 ' + hd.hm + '</title><g class="fp-bd">' +
+    (g.minor ? '<g class="fp-pw fp-back"><path d="' + g.minor + '" fill="var(--h2)"' + sep + '/></g>' : '') +
+    '<g class="fp-pw fp-front"><path class="fp-pet" d="' + g.major + '" fill="' + ink + '"' + sep + '/><path class="fp-lead" d="' + g.lead + '" fill="' + (un ? 'var(--ink-4)' : 'var(--orbit)') + '"' + sep + '/></g></g></g>' +
+    '<g class="fp-heart"><circle cx="200" cy="200" r="' + g.hr.toFixed(1) + '" fill="var(--bg)" stroke="' + ink + '" stroke-width="1.4"/>' + (g.helm ? '<circle cx="200" cy="200" r="' + (g.hr * 0.55).toFixed(1) + '" fill="none" stroke="var(--ink-3)" stroke-width=".9" stroke-dasharray="1.6 2.2"/>' : '') + '<circle cx="200" cy="200" r="2.4" fill="' + ink + '"/></g></g>';
+  const tn = TYPES[code];
+  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 24 小时罗盘刻度；轨道是一组平滑曲线，按小时逐层叠出各 Agent 的会话数，色带越宽占比越高；Agent 标志停在各自的协作重心；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向协作重心 ' + hd.hm + '" style="overflow:visible;max-width:100%;height:auto">' +
     '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask></defs>' +
     '<g class="fp-base"><circle cx="200" cy="200" r="198" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.1"/><circle cx="200" cy="200" r="179.5" fill="none" stroke="var(--bg)" stroke-width="31"/><circle cx="200" cy="200" r="195" fill="none" stroke="var(--ink-3)" stroke-width=".6"/><circle cx="200" cy="200" r="164" fill="none" stroke="var(--line)"/>' +
     '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".8"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-3)" stroke-width="1.1"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-1)" stroke-width="1.6"/>' +
     '<path class="fp-n0" d="M200 3L194.5 -7L205.5 -7Z" fill="var(--orbit)"/>' +
     '<circle cx="200" cy="200" r="' + R0 + '" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="' + FPG.PR + '" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/></g>' +
     '<g class="fp-hours">' + hrs + '</g>' +
-    '<g class="fp-band"><path d="' + band + inner + '" fill="var(--h2)" fill-opacity=".7" fill-rule="evenodd"/><path d="' + ticks + '" stroke="var(--ink-3)" stroke-width="1"/></g>' +
+    '<g class="fp-band"><path d="' + ticks + '" stroke="var(--ink-3)" stroke-width="1"/></g>' +
     band5 + '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' + planets +
-    '<g class="fp-core"><circle cx="200" cy="200" r="92" fill="var(--bg)" stroke="var(--line)"/><circle cx="200" cy="200" r="' + hub + '" fill="var(--sunken)" stroke="var(--hair)"/><circle cx="200" cy="200" r="' + RR + '" fill="none" stroke="var(--line)" stroke-dasharray="1.5 3"/>' +
-    '<path d="M200 110V290M110 200H290" stroke="var(--line)" stroke-width=".8"/>' + minor + '</g>' +
-    '<g class="fp-rose pet">' + major + '</g>' + needle + '<g class="fp-axl">' + lbl + '</g></svg>';
+    '<g class="fp-core"><circle cx="200" cy="200" r="92" fill="var(--bg)" stroke="var(--line)"/><circle cx="200" cy="200" r="' + (RR + 4) + '" fill="none" stroke="var(--line)" stroke-dasharray="1.5 3"/></g>' +
+    flower + '</svg>';
 }
-TIPS.fpp = (id) => { const F = CUR.fp; const x = F && F.pl.find((q) => q.a.id === id); if (!x) return ''; return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + x.a.c + ';vertical-align:-1px"></span> <b>' + x.a.name + ' · 协作重心 ' + x.hm + ' · ' + x.n + ' 个会话</b>\n<span style="opacity:.75">该 Agent 会话开始时刻的圆形平均</span>'; };
+TIPS.fpp = (id) => { const F = CUR.fp; const x = F && F.pl.find((q) => q.a.id === id); if (!x) return ''; return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + x.a.c + ';vertical-align:-1px"></span> <b>' + x.a.name + ' · 协作重心 ' + x.hm + ' · ' + x.n + ' 个会话（' + Math.round(x.n / Math.max(1, F.pl.reduce((t, q) => t + q.n, 0)) * 100) + '%）</b>\n<span style="opacity:.75">该 Agent 会话开始时刻的圆形平均</span>'; };
 TIPS.fph = (h) => { const F = CUR.fp; if (!F) return ''; const xs = F.byH[+h]; const by = AG.map((a) => [a, xs.filter((s) => s.a === a.id).length]).filter((x) => x[1]); return '<b>' + h + ':00–' + (+h + 1) + ':00 · ' + xs.length + ' 个会话</b>\n' + (by.length ? by.map((x) => '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + x[0].c + ';vertical-align:-1px"></span> ' + x[0].short + ' ' + x[1]).join(' · ') : '这个小时没有会话') + '\n<span style="opacity:.75">' + (S.persona.fpHour === +h ? '再点一次收起' : '点击展开这个小时的会话点') + '</span>'; };
 // previous calendar month of a month period (null for 近 90 天 / 全部)
 function pePrevKey(k) { const ks = peMonthKeys(); const i = ks.indexOf(k); return i > 0 ? ks[i - 1] : null; }
@@ -6320,7 +6341,7 @@ PAGES.persona = () => {
     '<div class="pe-evw"><div class="eb" style="margin-bottom:8px" title="按月重算，点击月份切换统计周期">演变 · 按月</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap pe-foot" title="四个维度逐月的值；跨过中线 50 的月份，该位字母会变">中线 50 · ≥ 50 取高值一极</div></div></div>' +
     '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
-    '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>玫瑰 · 主角越长，该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--orbit)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span style="width:14px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3))"></span>轨道 · 每小时会话数，按 Agent 分层（峰值 ' + CUR.fp.mxH + '）· ' + (S.persona.fpHour != null ? '<button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '点击展开') + '</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>行星 · 各 Agent 的协作重心</span></div></div></div></div>' +
+    '<div class="pe-fp-legend"><span class="row" style="gap:5px" data-tip="16 型各一朵，花型由四个字母决定：\n瓣数 · 多线 M 12 瓣 / 专注 F 5 瓣\n旋卷 · 即兴 I 旋卷圆头 / 规划 P 端正尖头\n瓣长 · 委托 D 长瓣小花心 / 掌舵 S 短阔瓣大花心\n重瓣 · 求证 V 身后再一轮 / 信任 T 单瓣">' + glyphSVG(p, 14) + '花 · ' + (TYPES[p.code] ? p.zh + '的花型' : '协作人格的花型') + '</span><span class="row" style="gap:5px"><span style="width:6px;height:11px;border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;background:var(--orbit)"></span>领瓣 · 指向协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span>' + '<span class="row" style="gap:5px"><span style="width:14px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3));opacity:.75"></span>轨道 · 每小时会话数，按 Agent 分层，色带越宽占比越高（峰值 ' + CUR.fp.mxH + '）· ' + (S.persona.fpHour != null ? '<button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '点击展开') + '</span><span class="row" style="gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">' + agLogo('cc', 12, 12, 10.5, 'var(--a1)') + '</svg>标志 · 各 Agent 的协作重心</span></div></div></div></div>' +
     '<div class="three pe-three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
     '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button>' + (LV.live ? '' : '<button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button>') + '</div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +
@@ -6379,11 +6400,11 @@ Object.assign(ACT, {
     go('sessions');
   }
 });
-// 进入画像页（Advance persona / Lite l-persona）：指针做一次阻尼晃动后定位到协作重心，轨道环带随扫描遮罩从 00 顺时针展开（0.9 s），
+// 进入画像页（Advance persona / Lite l-persona）：花做一次阻尼晃动后定位到协作重心，轨道环带随扫描遮罩从 00 顺时针展开（0.9 s），
 // 行星从 00 出发沿轨道运行到各自的协作重心（1.2 s，彼此错开 60 ms）。Genesis 落地时（overlay 仍开着）都不播，
 // 免得飞入的表盘与页面对不上。减少动态效果时静止。
 function fpWobble(svg) {
-  const nd = svg && svg.querySelector('.fp-nd'); if (!nd || !nd.animate || reduceMotion()) return null;
+  const nd = svg && svg.querySelector('.fp-bd'); if (!nd || !nd.animate || reduceMotion()) return null;
   return nd.animate([-40, 24, -12, 6, -2, 0].map((d) => ({ transform: 'rotate(' + d + 'deg)' })), { duration: 1400, easing: 'cubic-bezier(.37,0,.63,1)' });
 }
 function fpOrbitIn(svg) {
@@ -8088,7 +8109,7 @@ function openMethod() {
   openModal(modalHead('协作人格如何计算', '四个维度各取一极，组成 16 型 · 1 个会话即可出结论，样本越多越准') +
     '<div class="mb col" style="gap:14px">' + AXES.map((ax, i) => { const v = p.ok ? axisView(p, i) : null; return '<div class="col" style="gap:3px"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="mono" style="font-size:13px;min-width:36px">' + ax.L + ' / ' + ax.R + '</b><b style="font-size:13px">' + METHOD_POLE[ax.k] + '</b><span class="cap" style="font-size:12px">' + ax.Ln + ' ↔ ' + ax.Rn + '</span>' + (v ? '<span class="mono cap" style="margin-left:auto" data-method="you">你 · ' + esc(mp.label) + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '</span>' : '') + '</div><span class="cap" style="font-size:12px">' + ax.q + ' 信号：' + ax.sig + '</span></div>'; }).join('') +
     '<div class="code" style="padding:10px 12px;white-space:pre-wrap;font-size:12px;line-height:1.7">委托 D = 50 + (自主比 − 8) × 5.8\n即兴 I、求证 V = 各项目特征按协作时长加权\n多线 M = 20 + 7 × 日均会话 + 5 × 日均 Agent 数 − 6\n「你」一栏是偏向那一极的强度（50–100），不是百分比\n每个维度以 50 为界：≥ 50 取 D / I / M / V，< 50 取 S / P / F / T（恰好 50 归前者）\n始终给出完整 4 字母；少于 30 个会话时置信度标「低」</div>' +
-    '<div class="eb">16 型 · 点击查看</div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + Object.keys(TYPES).map((k) => '<button type="button" data-act="typeInfo" data-k="' + k + '" style="border-radius:8px;padding:6px 8px;text-align:left;display:flex;flex-direction:column;gap:1px;' + (p.ok && p.code === k ? 'border:1.5px solid var(--ink-1);background:var(--surface)' : 'border:1px solid var(--line);background:var(--bg)') + '"><b class="mono" style="font-size:12px;letter-spacing:.04em">' + k + '</b><span style="font-size:12px;color:var(--ink-2)">' + TYPES[k][0] + '</span></button>').join('') + '</div><div id="typeLine" style="min-height:20px;font-size:13px;line-height:20px;color:var(--ink-2)">' + (p.ok ? '<b style="color:var(--ink-1)">' + p.code + ' ' + p.zh + '</b>：' + esc(p.line) : '点击任一类型查看描述') + '</div></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">维度信号与权重是初版设想，待真实数据校准</span><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>', 'wide');
+    '<div class="eb">16 型 · 16 朵花 · 点击查看</div><div class="cap" style="font-size:12px;margin-top:-8px">花型由四个字母决定：瓣数看多线 M（12 瓣）/ 专注 F（5 瓣），旋卷看即兴 I / 规划 P（端正尖头），瓣长与花心看委托 D（长瓣小花心）/ 掌舵 S（短阔瓣大花心），重瓣看求证 V / 信任 T（单瓣）</div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + Object.keys(TYPES).map((k) => '<button type="button" data-act="typeInfo" data-k="' + k + '" style="border-radius:8px;padding:6px 8px;text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:8px;align-items:center;' + (p.ok && p.code === k ? 'border:1.5px solid var(--ink-1);background:var(--surface)' : 'border:1px solid var(--line);background:var(--bg)') + '"><span style="grid-row:span 2;display:flex">' + glyphSVG(typeP(k), 30) + '</span><b class="mono" style="font-size:12px;letter-spacing:.04em">' + k + '</b><span style="font-size:12px;color:var(--ink-2)">' + TYPES[k][0] + '</span></button>').join('') + '</div><div id="typeLine" style="min-height:20px;font-size:13px;line-height:20px;color:var(--ink-2)">' + (p.ok ? '<b style="color:var(--ink-1)">' + p.code + ' ' + p.zh + '</b>：' + esc(p.line) : '点击任一类型查看描述') + '</div></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">维度信号与权重是初版设想，待真实数据校准</span><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>', 'wide');
 }
 Object.assign(ACT, {
   openKeys: () => openKeys(),
@@ -8142,11 +8163,11 @@ function qrSVG(seed, C) {
 function shareCard(sp) {
   const p = sp.p, L = sp.L, dk = S.shareDark, nn = S.shareNoNum;
   const C = dk ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
-  const g = petals(p, 40, 0.68); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
+  const g = bloomGlyph(p); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
   const nAg = new Set(L.map((s) => s.a)).size;
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--font-num);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
-    '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/></svg>' +
+    '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/><circle cx="40" cy="40" r="' + g.hr + '" fill="none" stroke="' + C.mj + '" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="' + C.mj + '"/></svg>' +
     '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--font-display)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--font-display)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--font-display);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
     '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--font-display)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
@@ -8190,7 +8211,7 @@ function expSave(filename, mime, data) {
    cannot be rasterised as is). The model mirrors shareCard(): colours, code letters, names, quote, stats, glyph, QR seed. */
 function shareModel(sp) {
   const p = sp.p; const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
-  const g = petals(p, 40, 0.68); const nAg = new Set(sp.L.map((s) => s.a)).size;
+  const g = bloomGlyph(p); const nAg = new Set(sp.L.map((s) => s.a)).size;
   return { code: p.code, label: sp.label, zh: p.zh, en: p.en, q, glyph: g,
     axes: AXES.map((ax, i) => { const v = axisView(p, i); return { L: v.letter, name: v.name, strong: v.strong + '%' }; }),
     stats: [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [String(nAg), 'Agent'], [f1(p.st.auto) + '×', '自主比']], foot: '全部分析在本机完成' };
@@ -8210,7 +8231,8 @@ async function sharePNG(m, dark, noNum) {
   text('我的 AI 协作人格 · ' + m.label, R, 7 * u + 2.6 * u, 2.5 * u + 'px ' + F.sans, C.ink3, 'right');
   if (m.glyph && typeof Path2D === 'function') {
     const k = 32 * u / 80; x.save(); x.translate(W - 5 * u - 32 * u, 12 * u); x.scale(k, k);
-    x.fillStyle = C.mn; x.fill(new Path2D(m.glyph.minor)); x.fillStyle = C.mj; x.fill(new Path2D(m.glyph.major)); x.restore();
+    x.fillStyle = C.mn; x.fill(new Path2D(m.glyph.minor)); x.fillStyle = C.mj; x.fill(new Path2D(m.glyph.major));
+    x.strokeStyle = C.mj; x.lineWidth = 1.6; x.beginPath(); x.arc(40, 40, m.glyph.hr, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(40, 40, 1.6, 0, Math.PI * 2); x.fill(); x.restore();
   }
   let cx = L; const by = 7 * u + 2.6 * u + 9 * u + 12.6 * u;
   m.axes.forEach((a) => {
@@ -8242,14 +8264,14 @@ async function sharePNG(m, dark, noNum) {
  * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
  * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
  *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成罗盘外框；
- *            标志的内弧收拢成指针，随后指针自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
- *            来源列表收拢淡出，计数器累加；粒子汇入时指针逐渐减速，转满整圈停在 00 接上 02
- *   02 归位  指针匀速扫一圈（身后拖一道淡扇形），粒子在指针扫过处按开始时间落到表盘对应角度（半径 = 时长），再汇入轨道环带；
- *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着指针公转，扫完走最短弧滑到各自的协作重心（fp2SVG 的几何，FPG）
- *   03 生长  罗盘玫瑰四个主角（.pet）从中心长出并伸到各轴强度；字母位在两极之间翻牌时指针左右寻向，
- *            最后一个字母锁定时摆向协作重心，阻尼振荡后停住
- *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（指针轻颤），其余淡出，胜出的一张飞入四字母（指针定住），给出匹配度
- *   05 落地  「查看完整画像」：大人格码与指纹（含指针）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
+ *            标志的内弧收拢成领瓣，合拢的花苞随后自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
+ *            来源列表收拢淡出，计数器累加；粒子汇入时花苞逐渐减速，转满整圈停在 00 接上 02
+ *   02 归位  花苞（领瓣在前）匀速扫一圈（身后拖一道淡扇形），粒子在领瓣扫过处按开始时间落到表盘对应角度（半径 = 时长），再汇入轨道环带；
+ *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着领瓣公转，扫完走最短弧滑到各自的协作重心（fp2SVG 的几何，FPG）
+ *   03 开花  花苞开成该类型的花（前排先开、身后一轮稍晚，带回弹）；字母位在两极之间翻牌时花左右寻向，
+ *            最后一个字母锁定时领瓣摆向协作重心，阻尼振荡后停住
+ *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（花轻颤），其余淡出，胜出的一张飞入四字母（花定住），给出匹配度
+ *   05 落地  「查看完整画像」：大人格码与指纹（含花）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
  * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、环带扫描与行星在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
  * 跳过 / Esc / 在后台继续随时可用；closeOverlay() 取消全部计时器、动画帧与动画；prefers-reduced-motion 直接给最终态。 */
 let OB = null, REV = null, GNS = null;
@@ -8417,7 +8439,7 @@ function genHTML(g) {
   const hr = S.persona.fpHour, cur = CUR.fp; S.persona.fpHour = null;
   const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
   S.persona.fpHour = hr; CUR.fp = cur;
-  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、指针身后的扫掠扇形（指针本身是 fp2SVG 里的 .fp-needle）、首次启动的 Orbit 内弧
+  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、花身后的扫掠扇形（花本身是 fp2SVG 里的 .fp-bloom）、首次启动的 Orbit 内弧
   let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
   const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
   const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
@@ -8439,26 +8461,27 @@ function genHTML(g) {
     '<div class="g-tail">' + (ob ? '<div class="g-foot" data-g="run"><span class="cap">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>' : '') +
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
 }
-// 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 指南针 .fp-compass /
-// 玫瑰主角 .fp-rose = .pet / 主角标签 .fp-ax / 轨道环带的扫描遮罩 .fp-sweep / 行星 .fp-pl）与翻正用的两层（.g-fp、.g-over）
+// 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 花 .fp-flower（旋转层 .fp-bloom、
+// 开花层 .fp-front / .fp-back）/ 轨道环带的扫描遮罩 .fp-sweep / 行星 .fp-pl）与翻正用的两层（.g-fp、.g-over）
 function genMark(g) {
   const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; g.pls = []; g.tiltEls = []; if (!svg) return;
-  g.rose = Array.from(svg.querySelectorAll('.fp-rose .fp-pt')).map((el) => Array.from(el.querySelectorAll('path')));
-  g.axl = g.p.ok ? Array.from(svg.querySelectorAll('.fp-ax')) : [];
-  g.nd = svg.querySelector('.fp-needle'); g.hd = g.nd ? +g.nd.dataset.hd : 0;
+  g.front = svg.querySelector('.fp-front'); g.back = svg.querySelector('.fp-back');
+  g.nd = svg.querySelector('.fp-bloom'); g.hd = g.nd ? +g.nd.dataset.hd : 0;
   g.sweepEl = svg.querySelector('.fp-sweep');
   g.pls = Array.from(svg.querySelectorAll('.fp-pl')).map((el) => ({ el, deg: +el.dataset.pa }));
   g.tiltEls = [g.box.querySelector('.g-fp'), g.box.querySelector('.g-over')].filter(Boolean); g.arc = g.box.querySelector('.g-arc');
   g.slotL = Array.from(g.box.querySelectorAll('.g-slot .L'));
 }
-// 玫瑰主角从强度 50 的长度伸到各轴强度（u 可以超过 1，配合 genBack 的回弹）
-function genRose(g, u) {
-  if (!g.rose || !g.p.ok) return;
-  ['D', 'I', 'M', 'V'].forEach((k, i) => { const el = g.rose[i]; if (!el) return; const q = fpRosePt(AXR[k], fpRoseLen(axisView(g.p, i).strong, u), FPG.RR * 0.18); el[0].setAttribute('d', q[1]); el[1].setAttribute('d', q[0]); });
+// 开花：x = 0 是花苞（FPG.BUD 倍），1 是全开；前排用 genBack 回弹，身后一轮晚 18%。x ≥ 1 交回 CSS（清掉内联 transform）；
+// 样本不足时一直是花苞
+function genBloom(g, x) {
+  const set = (el, v) => { if (el) el.style.transform = v >= 1 && x >= 1 ? '' : 'scale(' + (FPG.BUD + (1 - FPG.BUD) * v).toFixed(4) + ')'; };
+  const k = g.p.ok ? x : 0;
+  set(g.front, k <= 0 ? 0 : genBack(k)); set(g.back, k <= 0.18 ? 0 : genBack((k - 0.18) / 0.82));
 }
-// 指针角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫针的速度；02 匀速扫一圈；
+// 花（领瓣）的角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫描的速度；02 匀速扫一圈；
 // 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向协作重心，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
-// 首次启动：Orbit 内弧先在 00 收拢成指针（G_HOLD 之前指针停在 00），再从静止起转，快转两圈后减速落到 00
+// 首次启动：Orbit 内弧先在 00 收拢成领瓣（G_HOLD 之前花苞停在 00），再从静止起转，快转两圈后减速落到 00
 const G_HOLD = 960;
 function genNeedle(g, t) {
   const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, ob = g.mode === 'ob', t0 = ob ? G_HOLD : 0, w0 = ob ? 0 : 1.25;
@@ -8493,7 +8516,7 @@ function genProj(q, k) {
 function genTilt(g, t) {
   const k = genTiltAt(t), done = t >= G_TILT;
   g.tiltEls.forEach((el) => { el.style.transform = done ? '' : 'rotate(' + k.z.toFixed(2) + 'deg) scale(' + k.s.toFixed(4) + ') rotateX(' + k.a.toFixed(2) + 'deg)'; });
-  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 00 方向的指针北半：每个采样点从弧上滑到指针上对应的位置
+  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 00 方向的领瓣：每个采样点从弧上滑到指针上对应的位置
   if (g.arc) {
     const u = genIO((t - 420) / 540), n = 28, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
     for (let i = 0; i <= n; i++) { const A = pt(200, 112, (235 + i / n * 225) * Math.PI / 180), B = [200, 200 - FPG.NL * i / n]; d += (i ? 'L' : 'M') + f([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u]); }
@@ -8526,7 +8549,7 @@ function genOpen(mode, opt) {
   box.style.setProperty('--g-grow', g.T.grow + 'ms');
   box.innerHTML = genHTML(g); g.box = box; genMark(g);
   if (opt.final || reduceMotion()) { genFinal('init'); return; }
-  genRose(g, 0);
+  genBloom(g, 0);
   if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '1';
   g.pls.forEach((x) => { x.el.style.opacity = '0'; });
   if (ob) genTilt(g, 0);
@@ -8612,7 +8635,7 @@ function genTick(g) {
   const sr = dr ? { left: dr.left + 8, top: dr.top + 8, width: dr.width - 16 } : null;
   if (g.cv && sr) genDraw(g, t, orc, sr);
   if (!g.counted) { genCount(g); if (g.arrived >= g.N) g.counted = true; }
-  if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genRose(g, genBack(u)); if (u >= 1) g.roseDone = true; }
+  if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genBloom(g, Math.min(u, 1)); if (u >= 1) g.roseDone = true; }
   if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
   if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
   // 02：环带在指针扫过处长出（比指针晚 450 ms，等粒子落位）；行星依次出现、跟在指针后公转，扫完走最短弧滑到各自的协作重心
@@ -8642,7 +8665,6 @@ function genLock(g, i) {
   el.textContent = g.p.ok ? g.p.code[i] : '—'; el.parentNode.classList.add('lock');
   genAnim(g, el, [{ transform: 'scale(1.3)', opacity: 0.4 }, { transform: 'scale(.93)', opacity: 1, offset: 0.55 }, { transform: 'none', opacity: 1 }], { duration: 520, easing: 'ease-out', fill: 'none' });
   genAnim(g, el.parentNode.querySelector('.g-ax'), [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 320 });
-  if (g.axl[i]) genAnim(g, g.axl[i], [{ opacity: 0 }, { opacity: 1 }], { duration: 320 });
 }
 function genFactRun(g, i) { const r = g.box.querySelectorAll('.g-fact')[i]; if (!r) return; r.classList.add('run'); r.querySelector('.mk').innerHTML = '<span class="spin" style="width:12px;height:12px"></span>'; }
 function genFact(g, i) {
@@ -8683,21 +8705,21 @@ function genPlay(g) {
   const at = (ms, fn) => g.timers.push(setTimeout(() => { if (GNS === g && !g.done) fn(); }, ms));
   const A = (el, kf, o) => genAnim(g, el, kf, o), fade = { opacity: [0, 1] };
   const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
-  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 指针扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 生长 · 罗盘玫瑰长出 D I M V'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
+  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 花苞扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 开花 · 长成你的协作人格之花'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
   genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
-  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与指南针随即出现（指针角度在 genTick 里逐帧写）。
+  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与花苞随即出现（花的角度在 genTick 里逐帧写）。
   // 首次启动时外框先是 Orbit 标志的倾斜椭圆（石板灰、留一道缺口），随翻正补全并换成外框的墨色
   if (ob) A(q('.g-ring0'), [{ strokeDashoffset: 0.17, stroke: 'var(--orbit)', strokeWidth: 4.5 }, { strokeDashoffset: 0.12, stroke: 'var(--orbit)', strokeWidth: 4.5, offset: 0.4 }, { strokeDashoffset: 0, stroke: 'var(--ink-2)', strokeWidth: 1.2 }], { duration: G_TILT, easing: 'ease-in-out' });
   else A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 600 });
   A(q('.g-ticks'), fade, { duration: 500, delay: ob ? 500 : 200 });
   qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
   A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
-  A(q('.g-fp .fp-compass'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
-  // 02：扫掠扇形跟着指针转一圈，会话点在指针扫过处落位；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
+  A(q('.g-fp .fp-flower'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
+  // 02：扫掠扇形跟着花苞转一圈，会话点在领瓣扫过处落位；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
   qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
-  // 03：玫瑰主角（.pet，CSS grow）从中心长出并在 rAF 里伸到各轴强度；字母位翻牌（指针寻向），按顺序锁定
+  // 03：花苞在 rAF 里开成该类型的花；字母位翻牌（花寻向），按顺序锁定
   [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
   // 已经知道的：每完成一段给一条
   genFactRun(g, 0);
@@ -8716,7 +8738,7 @@ function genFinal(how) {
   if (g.cv) { g.cv.remove(); g.cv = null; }
   const box = g.box, ob = g.mode === 'ob', p = g.p, q = (s) => box.querySelector(s);
   box.querySelectorAll('.g-ghost').forEach((el) => el.remove()); box.classList.remove('run', 'g-morph'); box.classList.add('skip');
-  genRose(g, 1); if (g.nd) g.nd.style.transform = '';
+  genBloom(g, 1); if (g.nd) g.nd.style.transform = '';
   if (g.sweepEl) g.sweepEl.style.strokeDashoffset = '';
   g.pls.forEach((x) => { x.el.style.opacity = ''; x.el.style.transform = ''; });
   g.tiltEls.forEach((el) => { el.style.transform = ''; });
@@ -13415,7 +13437,7 @@ if (LV.live) {
     const code = d.code || '----'; const p = { v: {}, code }; ['D', 'I', 'M', 'V'].forEach((k, i) => { p.v[k] = code[i] === k ? 70 : 30; });
     const hl = (d.copy && d.copy.headline) || ''; const cut = hl.indexOf('，') + 1;
     return { code, label: '近 30 天', zh: d.type_name || '', en: ((d.copy && d.copy.lines && d.copy.lines[0]) || '').split(' · ')[1] || '', q: cut > 0 ? [hl.slice(0, cut), hl.slice(cut)] : [hl, ''],
-      glyph: petals(p, 40, 0.68), axes: AXES.map((ax, i) => ({ L: code[i] || '', name: code[i] === ax.L ? ax.Ln : ax.Rn, strong: '' })),
+      glyph: bloomGlyph(p), axes: AXES.map((ax, i) => ({ L: code[i] || '', name: code[i] === ax.L ? ax.Ln : ax.Rn, strong: '' })),
       stats: (d.stats || []).filter((s) => !s.hidden && s.value != null).slice(0, 4).map((s) => [TLU.num(s.value), s.label]), foot: (d.disclaimer ? d.disclaimer + ' · ' : '') + '全部分析在本机完成' };
   }
   const tloShareOpen = openShare;
