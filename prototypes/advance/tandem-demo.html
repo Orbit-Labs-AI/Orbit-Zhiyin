@@ -3173,7 +3173,7 @@ if (typeof module === 'object' && module && module.exports) module.exports = Tan
 
 /* ============ state ============ */
 const S = {
-  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), srcOff: new Set(),
+  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), agentOff: new Set(), srcOff: new Set(),
   project: null, topic: null, outcome: null, fric: null, hour: null,
   compare: true, metric: 'n', view: 'chart', theme: store.get('theme', 'system'),
   // shell: sidebar shown (user intent) / sidebar as an overlay in a narrow window / collapsible groups / key window /
@@ -3204,6 +3204,20 @@ function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); 
 /* ============ derived data ============ */
 function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [Math.max(0, Math.min(FIRSTDAY, L)), L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
+// Agent filter model: the default is every imported agent (S.agents = all of AG). Only an explicit deselection is remembered
+// (S.agentOff, ids); agents that show up later join the filter unless the user unchecked them. agentSync() records the user's
+// choice from S.agents (ids no longer in AG stay in agentOff until picked again); agentApply() rebuilds S.agents from AG
+// and agentOff after AG changes (live hydrate, a restored store) and heals a stale pick: an empty result means all.
+function agentSync() {
+  const off = new Set(Array.from(S.agentOff).filter((id) => !AGI[id]));
+  AG.forEach((a) => { if (!S.agents.has(a.id)) off.add(a.id); });
+  S.agentOff = off;
+}
+function agentApply() {
+  let on = AG.filter((a) => !S.agentOff.has(a.id)).map((a) => a.id);
+  if (!on.length) { on = AG.map((a) => a.id); S.agentOff = new Set(); }
+  S.agents = new Set(on);
+}
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
 function pass(s, o) {
@@ -3627,6 +3641,7 @@ function go(route, keepScroll) {
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
 function render() {
+  agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
   if (!$('#set').hidden) renderSet();
@@ -9429,8 +9444,8 @@ LV.hydrate = function (spine) {
   LASTDAY = Math.round((t - DAY0) / 86400000);
   // 全部 starts at the earliest session, not at the 120-day spine floor (R4-04); no rows keeps the full spine
   FIRSTDAY = first ? Math.max(0, Math.min(LASTDAY, Math.round((lvUtc(first) - DAY0) / 86400000))) : 0;
-  // agents: present in facts or detected, ordered by session count; deselections survive by id
-  const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
+  // agents: present in facts or detected, ordered by session count; default all; an explicit deselection survives by id (agentOff)
+  agentSync();
   const ags = {};
   const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
   (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
@@ -9467,7 +9482,7 @@ LV.hydrate = function (spine) {
   Object.keys(PJI).forEach((k) => { delete PJI[k]; }); PJ.forEach((p) => { PJI[p.id] = p; });
   LV.excluded = excluded; LV.undated = undated; LV.rev++;
   // S fix-ups
-  S.agents = new Set(AG.map((a) => a.id).filter((id) => !prevOff.has(id)));
+  agentApply();
   S.srcOff = new Set(Array.from(S.srcOff).filter((id) => AGI[id]));
   if (S.project && !PJI[S.project]) S.project = null;
   const done = ALL.filter((s) => !s.live);
