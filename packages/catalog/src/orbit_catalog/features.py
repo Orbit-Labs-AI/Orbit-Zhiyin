@@ -4,9 +4,10 @@ import re
 
 from .contracts import Feature, Resource, digest
 
-FEATURE_VERSION = "features-4"
-CHUNK_VERSION = "heading-1200-120-v1"
 EMBED_CHUNKS = 4
+
+FEATURE_VERSION = "features-4"
+CHUNK_VERSION = "heading-1200-120-balanced-v2"
 EXTRACTED_FRICTION_WEIGHT = 0.6  # Below curated (1.0): text mentioning a problem is not proof it solves it.
 
 # Bilingual lexical vocabulary. Source text never adds *curated* features; friction values are
@@ -175,6 +176,11 @@ GENERIC = frozenset({"github", "security", "testing", "performance", "documentat
                      "error handling", "logging", "planning", "observability", "migration", "debug", "ci/cd"})
 _ASCII_WORDS = {w for words in VOCABULARY.values() for w in words if _ASCII.match(w)}
 _HAN_WORDS = sorted({w for words in VOCABULARY.values() for w in words} - _ASCII_WORDS)
+_HAN = re.compile(r"[\u3400-\u9fff]")
+_KEYS_BY_WORD: dict[str, set[tuple[str, str]]] = {}
+for _key, _words in VOCABULARY.items():
+    for _word in _words:
+        _KEYS_BY_WORD.setdefault(_word, set()).add(_key)
 _ALNUM = re.compile(r"[a-z0-9]+")
 # Latin words need token boundaries ("pr" must not hit "prompt"): bucket every word by its first
 # alphanumeric token, then confirm candidates only at token starts. Han words match as substrings.
@@ -192,7 +198,7 @@ def vocabulary_hits(text: str) -> dict[str, list[int]]:
             end = start + len(word)
             if text.startswith(word, start) and not (end < len(text) and text[end].isascii() and text[end].isalnum()):
                 hits.setdefault(word, []).append(start)
-    for word in _HAN_WORDS:
+    for word in (_HAN_WORDS if _HAN.search(text) else ()):
         start = text.find(word)
         while start >= 0:
             hits.setdefault(word, []).append(start)
@@ -254,7 +260,11 @@ def extract(resource: Resource) -> list[Feature]:
     body = resource.body.lower()
     text = head + "\n" + body
     head_hits, body_hits = vocabulary_hits(head), vocabulary_hits(body)
-    for (key, value), words in VOCABULARY.items():
+    matched_keys = set()
+    for word in head_hits.keys() | body_hits.keys():
+        matched_keys.update(_KEYS_BY_WORD[word])
+    for key, value in sorted(matched_keys):
+        words = VOCABULARY[(key, value)]
         # One occurrence per position: nested words ("失败后重复" / "失败后") are one mention.
         head_at, body_at, used = {}, {}, []
         for word in words:
@@ -292,7 +302,7 @@ def chunks(resource: Resource) -> list[dict]:
     metadata = "\n".join(filter(None, [resource.name, resource.summary,
                          " ".join(f"{f.feature}: {f.value}" for f in resource.features)]))
     sections = [("metadata", "Overview", metadata)]
-    if resource.body_policy == "licensed" and resource.body:
+    if resource.body_policy in {"licensed", "index_only"} and resource.body:
         heading, buffer = "Body", []
         for line in resource.body.splitlines():
             if re.match(r"^#{1,6}\s", line):
@@ -310,8 +320,15 @@ def chunks(resource: Resource) -> list[dict]:
             if not text or (field, text) in seen:
                 continue
             seen.add((field, text))
-            # Overview + first three body chunks get vectors; FTS indexes every chunk.
             result.append({"field": field, "heading": heading[:300], "text": text,
                            "text_hash": digest(text)[:32], "ordinal": len(result), "start": start,
-                           "embed": int(len(result) < EMBED_CHUNKS)})
+                           "embed": 0})
+    # Overview is always eligible. The default samples the complete body rather than only
+    # its introduction; bulk imports can explicitly opt into full passage embeddings.
+    if resource.metadata.get("embedding_policy") == "all" or len(result) <= EMBED_CHUNKS:
+        selected = range(len(result))
+    else:
+        selected = {0, *(round(i * (len(result) - 1) / (EMBED_CHUNKS - 1)) for i in range(1, EMBED_CHUNKS))}
+    for ordinal in selected:
+        result[ordinal]["embed"] = 1
     return result

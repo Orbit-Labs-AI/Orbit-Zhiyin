@@ -55,7 +55,8 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
             "ORDER BY c.priority DESC,s.has_path DESC,s.source_id,s.native_id) AS n FROM item_source s "
             "JOIN catalog_source c USING(source_id) WHERE s.status='active' AND c.enabled=1) w "
             "ON w.item_id=i.item_id AND w.n=1 WHERE i.listable=1 AND i.canonical_of IS NULL AND i.status='active' "
-            "AND i.type IN (SELECT value FROM json_each(?))", (json.dumps(sorted(kinds)),)).fetchall()
+            "AND i.body_policy!='index_only' AND i.type IN (SELECT value FROM json_each(?))",
+            (json.dumps(sorted(kinds)),)).fetchall()
         seen = set()
         for row in rows:
             spec = specs.get(row["source_id"]) or {}
@@ -83,7 +84,8 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
                 if specs.get(row["source_id"], {}).get("kind") in OFFLINE_KINDS:
                     continue
                 doc = json.loads(zlib.decompress(row["resource"]))
-                if doc.get("type") not in found or doc.get("status", "active") != "active" or doc["item_id"] in seen:
+                if (doc.get("body_policy") == "index_only" or doc.get("type") not in found
+                        or doc.get("status", "active") != "active" or doc["item_id"] in seen):
                     continue
                 seen.add(doc["item_id"])
                 manifest = doc.get("manifest") or {}

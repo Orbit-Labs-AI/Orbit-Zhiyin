@@ -48,6 +48,9 @@ def default_sources() -> list[SourceSpec]:
 
 
 def connector(source: SourceSpec, http):
+    if source.kind == "bulk":
+        from .bulk import BulkConnector
+        return BulkConnector(source, http)
     if source.kind == "github":
         from .github import GitHubConnector
         return GitHubConnector(source, http)

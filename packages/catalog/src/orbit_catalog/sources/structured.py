@@ -1,5 +1,6 @@
 """Public registries, model catalogs and benchmark snapshots."""
 
+import hashlib
 import json
 import math
 import re
@@ -134,10 +135,93 @@ def _iso_date(value) -> str | None:
         return None
 
 
+class _MCPSnapshot:
+    """Validated raw registry pages; no arbitrary serialized Resource ingestion."""
+
+    def __init__(self, directory: str, source_url: str):
+        self.root = Path(directory)
+        if not self.root.is_absolute():
+            raise ValueError("mcp_snapshot_dir_must_be_absolute")
+        self.manifest_bytes = self._bytes(self.root / "manifest.json")
+        manifest = self._json(self.manifest_bytes)
+        pages = manifest.get("pages")
+        if manifest.get("complete") is not True or isinstance(pages, bool) or not isinstance(pages, int) or not 1 <= pages <= 10000:
+            raise ValueError("mcp_snapshot_incomplete")
+        if manifest.get("next_cursor") or manifest.get("source", source_url) != source_url:
+            raise ValueError("mcp_snapshot_manifest_mismatch")
+        try:
+            fetched = datetime.fromisoformat(manifest["fetched_at"].replace("Z", "+00:00"))
+            if fetched.tzinfo is None:
+                raise ValueError("missing_timezone")
+            self.fetched_at = fetched.isoformat()
+        except (KeyError, TypeError, AttributeError, ValueError) as exc:
+            raise ValueError("mcp_snapshot_invalid_fetched_at") from exc
+        self.paths = [self.root / f"page-{index:04d}.json" for index in range(pages)]
+        if set(self.root.glob("page-*.json")) != set(self.paths):
+            raise ValueError("mcp_snapshot_noncontiguous_pages")
+        self.hashes, self.cursors = [], [None]
+        identity, names, cursors, count = hashlib.sha256(self.manifest_bytes), set(), set(), 0
+        for index, path in enumerate(self.paths):
+            raw = self._bytes(path)
+            data = self._json(raw)
+            if not isinstance(data.get("servers"), list) or not isinstance(data.get("metadata"), dict):
+                raise ValueError("invalid_mcp_page")
+            cursor = data["metadata"].get("nextCursor")
+            if bool(cursor) != (index < pages - 1) or (cursor and (not isinstance(cursor, str) or cursor in cursors)):
+                raise ValueError("mcp_snapshot_cursor_mismatch")
+            if cursor:
+                cursors.add(cursor)
+            self.cursors.append(cursor)
+            for entry in data["servers"]:
+                name = (entry.get("server") or {}).get("name") if isinstance(entry, dict) else None
+                if not isinstance(name, str) or not name or name in names:
+                    raise ValueError("mcp_snapshot_invalid_or_duplicate_name")
+                names.add(name)
+            count += len(data["servers"])
+            if data["metadata"].get("count", len(data["servers"])) != len(data["servers"]):
+                raise ValueError("mcp_snapshot_count_mismatch")
+            page_hash = hashlib.sha256(raw).digest()
+            self.hashes.append(page_hash)
+            identity.update(page_hash)
+        if manifest.get("records", count) != count or manifest.get("unique_names", len(names)) != len(names):
+            raise ValueError("mcp_snapshot_count_mismatch")
+        self.identity = "mcp-snapshot:" + identity.hexdigest()
+
+    @staticmethod
+    def _bytes(path):
+        if not path.is_file():
+            raise ValueError("mcp_snapshot_file_not_found")
+        if path.stat().st_size > MAX_SOURCE_FILE:
+            raise ValueError("source_file_too_large")
+        return path.read_bytes()
+
+    @staticmethod
+    def _json(raw):
+        try:
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise ValueError("not_object")
+            return value
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError("mcp_snapshot_invalid_json") from exc
+
+    def page(self, checkpoint):
+        index = checkpoint.get("pages", 0)
+        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(self.paths):
+            raise ValueError("mcp_snapshot_invalid_checkpoint")
+        if checkpoint and (checkpoint.get("snapshot_revision") != self.identity or checkpoint.get("cursor") != self.cursors[index]):
+            raise ValueError("mcp_snapshot_checkpoint_mismatch")
+        raw = self._bytes(self.paths[index])
+        if hashlib.sha256(raw).digest() != self.hashes[index] or self._bytes(self.root / "manifest.json") != self.manifest_bytes:
+            raise ValueError("mcp_snapshot_changed_during_scan")
+        return self._json(raw)
+
+
 class StructuredConnector:
     def __init__(self, source, http):
         self.source, self.http = source, http
         self.known_models: set[str] = set()
+        self._mcp_snapshot = None
 
     def _load(self):
         """`config.file` imports a local fixture/cache snapshot without network or host allowlist."""
@@ -206,16 +290,27 @@ class StructuredConnector:
         return Page(records=records, complete=True, revision=revision)
 
     def _mcp(self, checkpoint, state):
-        params = {"limit": 100, "version": "latest"}
-        scan_started_at = checkpoint.get("scan_started_at") or datetime.now(timezone.utc).isoformat()
-        watermark = state.get("watermark")
-        mode = "incremental" if watermark else "full"
-        if watermark:
-            dt = datetime.fromisoformat(watermark.replace("Z", "+00:00")) - timedelta(minutes=5)
-            params["updated_since"] = dt.isoformat().replace("+00:00", "Z")
-        if checkpoint.get("cursor"):
-            params["cursor"] = checkpoint["cursor"]
-        data = self.http.json(self.source.url + "?" + urlencode(params))
+        snapshot = None
+        if self.source.config.get("snapshot_dir"):
+            if self._mcp_snapshot is None:
+                self._mcp_snapshot = _MCPSnapshot(self.source.config["snapshot_dir"], self.source.url)
+            snapshot = self._mcp_snapshot
+            if not checkpoint and state.get("revision") == snapshot.identity:
+                return Page(records=[], complete=True, mode="incremental", revision=snapshot.identity,
+                            watermark=snapshot.fetched_at)
+            data = snapshot.page(checkpoint)
+            scan_started_at, watermark, mode = snapshot.fetched_at, None, "full"
+        else:
+            params = {"limit": 100, "version": "latest"}
+            scan_started_at = checkpoint.get("scan_started_at") or datetime.now(timezone.utc).isoformat()
+            watermark = state.get("watermark")
+            mode = "incremental" if watermark else "full"
+            if watermark:
+                dt = datetime.fromisoformat(watermark.replace("Z", "+00:00")) - timedelta(minutes=5)
+                params["updated_since"] = dt.isoformat().replace("+00:00", "Z")
+            if checkpoint.get("cursor"):
+                params["cursor"] = checkpoint["cursor"]
+            data = self.http.json(self.source.url + "?" + urlencode(params))
         if not isinstance(data, dict) or not isinstance(data.get("servers"), list) or not isinstance(data.get("metadata"), dict):
             raise ValueError("invalid_mcp_page")
         records, maximum = [], checkpoint.get("watermark", watermark)
@@ -246,6 +341,10 @@ class StructuredConnector:
         if cursor and cursor == checkpoint.get("cursor"):
             raise ValueError("mcp_cursor_did_not_advance")
         pages = int(checkpoint.get("pages", 0)) + 1
+        if snapshot:
+            return Page(records=records, complete=pages == len(snapshot.paths), mode="full",
+                        revision=snapshot.identity, watermark=snapshot.fetched_at,
+                        checkpoint={"pages": pages, "cursor": cursor, "snapshot_revision": snapshot.identity})
         # Empty registry has no provider clock; the bounded overlap covers the initial scan time.
         maximum = maximum or scan_started_at
         # Never advance past the scan start: updates behind the pagination cursor must
