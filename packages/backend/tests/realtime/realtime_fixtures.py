@@ -58,13 +58,13 @@ class Tandem:
             (f"c{self.n}", uid, name, name.lower(), "shell", head, status, "paired",
              error_class, digest, ts, ts + 10 if ended else None, "unknown", "missing"))
 
-    def usage(self, uid, ts, input_tokens, cache_read=0, model="claude-sonnet-4-5"):
+    def usage(self, uid, ts, input_tokens, cache_read=0, model="claude-sonnet-4-5", cache_write=None):
         self.n += 1
         self.db.execute(
             "INSERT INTO model_call(call_uid, session_uid, usage_event_uid, model_raw, model_id, "
-            "model_resolution, coverage, input_tokens, cache_read_tokens, ts) "
-            "VALUES (?,?,?,?,?,'exact','full',?,?,?)",
-            (f"m{self.n}", uid, f"u{self.n}", model, model, input_tokens, cache_read, ts))
+            "model_resolution, coverage, input_tokens, cache_read_tokens, cache_write_tokens, ts) "
+            "VALUES (?,?,?,?,?,'exact','full',?,?,?,?)",
+            (f"m{self.n}", uid, f"u{self.n}", model, model, input_tokens, cache_read, cache_write, ts))
 
 
 class Reads:
