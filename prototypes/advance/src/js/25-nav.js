@@ -14,6 +14,8 @@ function go(route, keepScroll) {
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
+  // a fresh visit starts the page and each of its panes (88-panes.css) at the top instead of restoring the last scroll
+  if (!keepScroll) UI_SCROLLED.forEach((el) => { if (!el.closest('#side')) UI_SCROLLED.delete(el); });
   render();
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
@@ -65,6 +67,7 @@ function render() {
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
   uiRestore(snap);
+  paneSync();
   if (window.__lvRendered) window.__lvRendered();
 }
 function renderMain() {

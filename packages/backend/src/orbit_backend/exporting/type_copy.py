@@ -1,8 +1,8 @@
 """Static 16-type copy for the share card and persona reveal, kept verbatim as data.
 
 Source: prototypes/advance/src/js/05-data.js (``TYPES``: code -> [中文名, English, 描述]) and
-prototypes/advance/src/js/55-exports.js (``SHAREQ``: share-card two-line quote and its
-default). Codes outside this table get no name or copy; nothing here is generated.
+prototypes/advance/src/js/55-exports.js (``SHAREQ``: share-card two-line quote for every
+type and its default). Codes outside this table get no name or copy; nothing here is generated.
 """
 
 from __future__ import annotations
@@ -27,13 +27,22 @@ TYPES: dict[str, tuple[str, str, str]] = {
 }
 
 SHARE_QUOTES: dict[str, tuple[str, str]] = {
-    "DIMV": ("把目标交出去，", "把验收留给自己。"),
-    "DIFV": ("让 Agent 带路，", "方向由我来核实。"),
-    "DIMT": ("同时开很多条线，", "顺着结果往前走。"),
-    "DIFT": ("放手让它发挥，", "享受意外的收获。"),
     "DPMV": ("先把规格写清楚，", "再让每个 Agent 各司其职。"),
-    "SIFV": ("一次只做一件事，", "每一步都亲自确认。"),
+    "DPMT": ("把需求讲清楚，", "让产出并行流动。"),
+    "DPFV": ("一次只推一件事，", "每一件都严格验收。"),
+    "DPFT": ("把想法写成好任务，", "把精力留给关键判断。"),
+    "DIMV": ("把目标交出去，", "把验收留给自己。"),
+    "DIMT": ("同时开很多条线，", "顺着结果往前走。"),
+    "DIFV": ("让 Agent 带路，", "方向由我来核实。"),
+    "DIFT": ("放手让它发挥，", "享受意外的收获。"),
+    "SPMV": ("多条线同时起飞，", "每一条都稳稳落地。"),
+    "SPMT": ("计划周全，亲自操盘，", "几件事一起向前跑。"),
     "SPFV": ("先想清楚，再动手，", "每一步都有依据。"),
+    "SPFT": ("把每一步讲清楚，", "Agent 照着就能抵达。"),
+    "SIMV": ("几种做法一起试，", "让结果说出更优解。"),
+    "SIMT": ("和 Agent 你来我往，", "灵感在对话里生长。"),
+    "SIFV": ("一次只做一件事，", "每一步都亲自确认。"),
+    "SIFT": ("边聊边推进，", "彼此信任，配合默契。"),
 }
 DEFAULT_QUOTE = ("和 AI 一起，", "找到自己的节奏。")
 
@@ -45,4 +54,5 @@ def copy_for(code: str | None) -> tuple[str | None, dict | None]:
         return None, None
     zh, en, line = entry
     quote = SHARE_QUOTES.get(code, DEFAULT_QUOTE)
-    return zh, {"headline": "".join(quote), "lines": [f"{zh} · {en}", line]}
+    return zh, {"headline": "".join(quote), "quote": list(quote), "en": en, "line": line,
+                "lines": [f"{zh} · {en}", line]}

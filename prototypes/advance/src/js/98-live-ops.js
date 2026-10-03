@@ -393,61 +393,68 @@ if (LV.live) {
     }, unavailable('CSV'));
   };
   ACT.csvSave = () => expSave('orbit-tool-calls-' + expStamp() + '.csv', 'text/csv', { text: CUR.csv || '' });
-  // share card: the gateway's payload (/v1/export/share_card) when it has one, else the persona the app computed (slice 1);
-  // neither → an honest toast
-  function liveModel(d) {
-    const code = d.code || '----'; const p = { v: {}, code }; ['D', 'I', 'M', 'V'].forEach((k, i) => { p.v[k] = code[i] === k ? 70 : 30; });
-    const hl = (d.copy && d.copy.headline) || ''; const cut = hl.indexOf('，') + 1;
-    return { code, label: '近 30 天', zh: d.type_name || '', en: ((d.copy && d.copy.lines && d.copy.lines[0]) || '').split(' · ')[1] || '', q: cut > 0 ? [hl.slice(0, cut), hl.slice(cut)] : [hl, ''],
-      glyph: petals(p, 40, 0.68), axes: AXES.map((ax, i) => ({ L: code[i] || '', name: code[i] === ax.L ? ax.Ln : ax.Rn, strong: '' })),
-      stats: (d.stats || []).filter((s) => !s.hidden && s.value != null).slice(0, 4).map((s) => [TLU.num(s.value), s.label]), foot: (d.disclaimer ? d.disclaimer + ' · ' : '') + '全部分析在本机完成' };
+  // share card: one gateway card per time span (POST /v1/export/share_card, period = that span, same Agent / project
+  // filters as the persona page). Each card shows what the gateway computed for its window — code, axis values (so the
+  // flower's proportions), type copy, quote and stats; label / date / day ring come from the spine. A span the gateway
+  // refuses shows its reason in the sheet; every span refused → the sheet closes with the reason; gateway unavailable →
+  // the persona the app computed for that window (slice 1).
+  TLO.shareBy = {};
+  const tloSpanState = shareSpanState;
+  function liveSpan(k, d) {
+    const sp = sharePersona(k); const c = d.copy || {}; const t = TYPES[d.code] || [];
+    const v = Object.assign({}, d.v || {}); (d.axes || []).forEach((a) => { if (v[a.k] == null && a.value != null) v[a.k] = a.value; });
+    const n = ((d.stats || []).find((s) => s.label === '会话') || {}).value;
+    sp.p = { ok: true, classified: true, code: d.code, zh: d.type_name || t[0] || '', en: c.en || t[1] || '', line: c.line || t[2] || '', v, axes: d.axes || [], n: n != null ? n : sp.p.n };
+    sp.q = c.quote && c.quote.length === 2 ? c.quote : SHAREQ[d.code] || null;
+    sp.stats = (d.stats || []).slice(0, 4).map((s) => [s.value == null ? '—' : TLU.num(s.value), s.label]);
+    if (d.period_label && !/^\d{4}-\d{2}$/.test(d.period_label)) sp.label = d.period_label;
+    if (d.span && d.span.tag) sp.tag = [d.span.tag, d.span.tag_en || ''];
+    if (Array.isArray(d.window) && d.window.length === 2) sp.range = spanRange(new Date(d.window[0] + 'T00:00:00Z'), new Date(d.window[1] + 'T00:00:00Z'));
+    sp.disclaimer = d.disclaimer || ''; sp.live = true;
+    return sp;
   }
-  const tloShareOpen = openShare;
-  openShare = function () {
-    TLO.share = null;
-    // same scope as the persona the app shows (A2 / Genesis: S.persona.period + filters); without a period the gateway
-    // falls back to its own 30-day window and can refuse a card the persona page offers
+  shareSpanState = function (k) {
+    const e = TLO.shareBy[k];
+    if (!e || e.state === 'pending') return { state: 'pending', sp: null };
+    if (e.state === 'ok') return { state: 'ok', sp: liveSpan(k, e.d) };
+    if (e.state === 'local') return tloSpanState(k);
+    return { state: 'blocked', sp: null, reason: e.reason };
+  };
+  function shareFetch(k, seq, tries) {
     const sc = LV.scope();
-    // H4: ⇧⌘S answers at once — a pending sheet the gateway's answer fills (or closes, with the reason as a toast)
-    const seq = TLO.shareSeq = (TLO.shareSeq || 0) + 1;
-    openModal(modalHead('导出分享卡', '1080 × 1350 · 适合朋友圈、小红书与 X') + '<div class="mb" id="shareBody" data-tl="share-pending" aria-busy="true" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start"><span class="cap">正在生成分享卡…</span></div><div class="mf"><button type="button" class="btn" data-act="shareCopy" disabled>' + ic('copy', 13) + '复制分享文案</button><button type="button" class="btn p" data-act="shareSave" disabled>' + ic('down', 13) + '保存图片</button></div>', 'wide');
-    MODAL_KEY = 'share-pending';
-    const mine = () => seq === TLO.shareSeq && MODAL_KEY === 'share-pending';
-    const drop = () => { if (mine()) closeModal(); };
-    TL.send('POST', '/v1/export/share_card', { hide_numbers: !!S.shareNoNum, theme: S.shareDark ? 'dark' : 'light', save: false,
-      period: String(S.persona.period || '90'), agents: sc.agents || null, project: sc.project || null,
+    return TL.send('POST', '/v1/export/share_card', { hide_numbers: false, theme: S.shareDark ? 'dark' : 'light', save: false,
+      period: String(k), agents: sc.agents || null, project: sc.project || null,
       scope: { display_timezone: TL_TZ || 'UTC' } }).then((r) => r.data).then((d) => {
-      if (!mine()) return;
-      if (d.freshness === 'computing') { drop(); toast('协作画像正在计算，稍后再试'); return; }
-      if (!d.eligible) { drop(); toast(H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡'); return; }
-      TLO.share = d;
-      openModal(modalHead('导出分享卡', '1080 × 1350 · 适合朋友圈、小红书与 X') + '<div class="mb" id="shareBody" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start">' + shareBody() + '</div><div class="mf"><button type="button" class="btn" data-act="shareCopy">' + ic('copy', 13) + '复制分享文案</button><button type="button" class="btn p" data-act="shareSave">' + ic('down', 13) + '保存图片</button></div>', 'wide');
-      MODAL_KEY = 'share';
+      if (seq !== TLO.shareSeq) return;
+      if (d.freshness === 'computing' && tries < 3) return new Promise((res) => setTimeout(res, 1200)).then(() => shareFetch(k, seq, tries + 1));
+      TLO.shareBy[k] = d.freshness === 'computing' ? { state: 'blocked', reason: '协作画像正在计算，稍后再试' }
+        : !d.eligible ? { state: 'blocked', reason: H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡' } : { state: 'ok', d };
     }, (e) => {
-      if (!mine()) return; drop();
-      if (!TL.unavailable(e)) { toast('生成分享卡失败：' + (e.message || e.code)); return; }
-      const sp = sharePersona(); if (sp.p && sp.p.ok) tloShareOpen(); else toast('协作画像还没有算好，暂时不能生成分享卡');
+      if (seq !== TLO.shareSeq) return;
+      TLO.shareBy[k] = TL.unavailable(e) ? (tloSpanState(k).state === 'ok' ? { state: 'local' } : { state: 'blocked', reason: '协作画像还没有算好，暂时不能生成分享卡' })
+        : { state: 'blocked', reason: '生成分享卡失败：' + (e.message || e.code) };
     });
+  }
+  openShare = function () {
+    // H4: ⇧⌘S answers at once — a pending sheet the gateway's answers fill (or close, with the reason as a toast)
+    const seq = TLO.shareSeq = (TLO.shareSeq || 0) + 1; TLO.shareBy = {}; TLO.sharePicked = false;
+    const ks = shareSpans(); ks.forEach((k) => { TLO.shareBy[k] = { state: 'pending' }; });
+    S.shareSpan = null; S.shareSpan = shareKey();
+    shareSheet(); MODAL_KEY = 'share-pending';
+    const mine = () => seq === TLO.shareSeq && (MODAL_KEY === 'share-pending' || MODAL_KEY === 'share') && !!$('#shareBody');
+    const settle = () => {
+      if (!mine()) return;
+      const sts = ks.map((k) => [k, shareSpanState(k)]); const ok = sts.filter((x) => x[1].state === 'ok');
+      if (sts.every((x) => x[1].state === 'blocked')) { closeModal(); toast(sts.find((x) => x[0] === S.shareSpan)[1].reason || '暂时不能生成分享卡'); return; }
+      // the span the sheet opened on was refused and the user has not picked one: show the first card that came back
+      if (!TLO.sharePicked && shareSpanState(S.shareSpan).state === 'blocked' && ok.length) S.shareSpan = ok[0][0];
+      if (ok.length) MODAL_KEY = 'share';
+      shareRefresh();
+    };
+    // the span on screen first, then the others
+    [S.shareSpan].concat(ks.filter((k) => k !== S.shareSpan)).forEach((k) => { shareFetch(k, seq, 0).then(settle); });
   };
-  // with a gateway payload the card markup is the demo's own, filled from it
-  const tloShareCard = shareCard;
-  shareCard = function (sp) {
-    const d = TLO.share; if (!d) return tloShareCard(sp);
-    const m = liveModel(d);
-    const fake = { p: { code: m.code, zh: m.zh, en: m.en, v: {}, st: { n: 0, hours: 0, auto: 0 } }, L: [], label: m.label };
-    ['D', 'I', 'M', 'V'].forEach((k, i) => { fake.p.v[k] = m.code[i] === k ? 70 : 30; });
-    // per-axis strengths and the stats grid are not in the payload: the card always uses its「隐藏具体数字」form
-    const nn = S.shareNoNum; S.shareNoNum = true; const html = tloShareCard(fake); S.shareNoNum = nn;
-    return html.replace('<div class="sharecard"', '<div class="sharecard" data-tl="share-card"');
-  };
-  wrap('shareCopy', (base, el, ev) => {
-    const d = TLO.share; if (!d) return base(el, ev);
-    copyText('我的 AI 协作人格是 ' + d.code + '「' + (d.type_name || '') + '」：' + ((d.copy && d.copy.lines && d.copy.lines[1]) || '') + ' —— 来自 Orbit，全部分析在本机完成。', '分享文案');
-  });
-  ACT.shareSave = () => {
-    const sp = sharePersona(); const m = TLO.share ? liveModel(TLO.share) : shareModel(sp);
-    sharePNG(m, S.shareDark, S.shareNoNum || !!TLO.share).then((b64) => expSave('orbit-persona-' + m.code + '-' + expStamp() + '.png', 'image/png', { base64: b64 }), (e) => toast('生成图片失败：' + (e && e.message || e)));
-  };
+  wrap('shareSpan', (base, el, ev) => { TLO.sharePicked = true; return base(el, ev); });
 
   const tloRender = render;
   render = function () { tloApply(); tloRender(); };

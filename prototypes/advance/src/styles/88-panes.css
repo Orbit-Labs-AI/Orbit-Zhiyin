@@ -1,0 +1,59 @@
+/* Pane scrolling. A page whose body is a side-by-side master / detail split no longer scrolls as a whole: the page guide and
+   filter rows stay put, the split fills the rest of the window and every pane scrolls on its own (overscroll stays inside
+   it), so scrolling a long list never moves the detail next to it. Pages that are one column of stacked cards (overview,
+   persona, sentiment, tools, library, Lite home / persona / recs) keep the single page scroll. Pane mode only applies while
+   the split is side by side; once 90-responsive.css stacks it (content column < 800px, projects < 1100px) the page scrolls
+   as before. #content keeps overflow:auto, so a window too short for the panes' 300px floor still scrolls as a whole.
+     会话与轨迹 .sess        list card (search head fixed, #slist scrolls) | detail stack
+     Lite 会话轨迹 .l-sess   list card (.slist scrolls)                    | detail stack
+     优化建议 .recs           card list                                     | detail column
+     项目习惯 .pj (≥1100)     table + scatter                               | project detail
+     生成工坊 .studio         task card | run card | artifact card — each card scrolls itself and is only as tall as its
+                              content; at 800–999px the artifact card moves under the run card in the right column
+   Panes carry a 4px inset (padding + negative margin) so selection rings and card shadows at their edges are not clipped,
+   and 24px of bottom padding (the content column's own bottom padding moves into the panes). go() starts every pane at the
+   top on a page change; js/88-panes.js keeps the selected row / card visible in its own pane. */
+@container main (min-width:800px){
+  .content:has(>:is(.sess,.recs,.studio),>.lite>.sess){display:flex;flex-direction:column;padding-bottom:0}
+  :where(.content:has(>:is(.sess,.recs,.studio),>.lite>.sess))>*{flex:none}
+  .content>:is(.sess,.recs,.studio),.content>.lite:has(>.sess){flex:1 1 0;min-height:300px}
+  .content>.lite:has(>.sess){padding-bottom:0}
+  .lite>.sess{flex:1 1 0;min-height:0}
+  .content>.sess,.lite>.sess,.content>.recs{grid-template-rows:minmax(0,1fr);align-items:stretch}
+  /* the list card fills its column; only the rows scroll under the search / title head */
+  .sess>.card{display:flex;flex-direction:column;min-height:0}
+  :where(.sess>.card)>*{flex:none}
+  .sess>.card>.slist,.lite .sess>.card>.slist{flex:1 1 0;min-height:0;max-height:none;overscroll-behavior:contain}
+  .sess>.stack,.recs>*{min-height:0;overflow:auto;overscroll-behavior:contain;margin:-4px -4px 0;padding:4px 4px 24px}
+  .sess>.card{margin-bottom:24px}
+  .recs>:last-child{position:static!important}
+  /* studio: each card is its own pane, sized to its content up to the pane height */
+  .content>.studio{grid-template-rows:minmax(0,1fr);align-items:start;padding-bottom:24px}
+  .content>.studio>.card{max-height:100%;min-height:0;overflow:auto!important;overscroll-behavior:contain}
+  /* 开始生成 / 存为草稿 stay reachable at the bottom of the task card while its options scroll */
+  .content>.studio>.card:first-child>.row:last-child{position:sticky;bottom:-16px;z-index:1;margin-bottom:-16px;padding:8px 0 16px;background:var(--surface)}
+}
+@container main (min-width:800px) and (max-width:999px){
+  .content>.studio{grid-template-rows:minmax(0,auto) minmax(200px,1fr)}
+  .content>.studio>.card:first-child{grid-row:1/3}
+  .content .studio>.card:last-child{grid-column:2;grid-row:2}
+}
+@container main (min-width:1100px){
+  .content:has(>.pj){display:flex;flex-direction:column;padding-bottom:0}
+  :where(.content:has(>.pj))>*{flex:none}
+  .content>.pj{flex:1 1 0;min-height:300px;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .content>.pj>*{min-height:0;overflow:auto;overscroll-behavior:contain;margin:-4px -4px 0;padding:4px 4px 24px}
+}
+/* sheets: title and buttons stay, the body scrolls (the palette has no .mb and keeps its own list scroll). A sheet whose
+   body is a preview + options pair (导出分享卡) scrolls each column on its own while they sit side by side; 导出报告's text
+   box already scrolls itself, and its options column is short. */
+.modal:not(.pal):has(>.mb){display:flex;flex-direction:column;overflow:hidden}
+:where(.modal:not(.pal):has(>.mb))>*{flex:none}
+.modal:not(.pal)>.mb{flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
+.modal.wide{container:sheet/inline-size}
+@container sheet (min-width:600px){
+  #shareBody{flex-wrap:nowrap!important;align-items:stretch!important;overflow:hidden}
+  #shareBody>*{min-height:0;overflow:auto;overscroll-behavior:contain}
+}
+/* every other scroller keeps its wheel to itself at the ends */
+.set .body,.pop,.obox,.modal,.code,.log,.vz-tbl,[data-ob="sources"]{overscroll-behavior:contain}

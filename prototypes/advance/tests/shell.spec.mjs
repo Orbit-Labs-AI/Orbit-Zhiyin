@@ -483,13 +483,15 @@ test('motion inventory: the published effects plus the shell additions are wired
   await expect.poll(async () => (await box(page, '#hudPill')).y).toBe(MB + 8);
   await page.clock.runFor(500); await expect(page.locator('#notes .nt')).toHaveCount(0);
   await page.evaluate(() => { S.hud.user = false; renderHud(); });
-  // reveal storyboard (Genesis 2–5, ~4.9s): five stage labels at 0 / 0.7 / 1.8 / 3.1 / 4.9 s; pet (radar) grows, code fades in
+  // reveal storyboard (Genesis 2–5, ~4.9s): five stage labels at 0 / 0.7 / 1.8 / 3.1 / 4.9 s; the flower is a closed bud until 03,
+  // has bloomed (js scale handed back to CSS) by 04, the code fades in
   await page.evaluate(() => openReveal());
   await expect(page.locator('#revStage')).toContainText('01 /');
   await page.clock.runFor(750); await expect(page.locator('#revStage')).toContainText('02 /');
+  expect(await page.evaluate(() => $('.reveal .fp-front').style.transform)).toBe('scale(0.34)');
   await page.clock.runFor(1150); await expect(page.locator('#revStage')).toContainText('03 /');
   await page.clock.runFor(1300); await expect(page.locator('#revStage')).toContainText('04 /');
-  expect(await anim('.reveal .pet')).toBe('grow'); expect(await anim('.reveal .code')).toBe('fadein');
+  expect(await page.evaluate(() => $('.reveal .fp-front').style.transform)).toBe(''); expect(await anim('.reveal .code')).toBe('fadein');
   await page.clock.runFor(1800); await expect(page.locator('#revStage')).toContainText('05 /');
   await page.evaluate(() => { closeOverlay(); render(); });
   // reduced motion: the sheet entrance collapses to ~0ms

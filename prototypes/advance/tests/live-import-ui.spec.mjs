@@ -24,8 +24,9 @@ test('import frames do not re-render the page; scroll and the Agent dropdown sta
   // the entry uses the system-font tokens (an undefined var() would drop the whole font shorthand)
   expect(await page.locator('#side [data-side="import"]').evaluate((el) => { const cs = getComputedStyle(el); return [cs.fontSize, cs.fontWeight]; })).toEqual(['12px', '500']);
   // user scrolls the page and the sidebar, then opens the Agent dropdown
-  // a long page and a short sidebar list (synthetic data is small): both survive re-renders as CSS
-  await page.addStyleTag({ content: '#content::after{content:"";display:block;height:3000px} #side .sb-scroll{max-height:120px}' });
+  // a long page and a short sidebar list (synthetic data is small): both survive re-renders as CSS. flex:none keeps the
+  // filler tall when the page is in pane mode (#content is a flex column there, 88-panes.css)
+  await page.addStyleTag({ content: '#content::after{content:"";display:block;flex:none;height:3000px} #side .sb-scroll{max-height:120px}' });
   await page.evaluate(() => { document.querySelector('#content').scrollTop = 400; document.querySelector('#side .sb-scroll').scrollTop = 40; });
   await page.waitForTimeout(50);
   // DOM click: Playwright's click would scroll the chip (top of the page) into view first
