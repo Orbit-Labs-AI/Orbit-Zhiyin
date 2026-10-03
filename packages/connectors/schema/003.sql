@@ -18,4 +18,16 @@ CREATE INDEX IF NOT EXISTS tool_call_by_session ON tool_call(session_uid);
 CREATE INDEX IF NOT EXISTS model_call_by_session ON model_call(session_uid);
 CREATE INDEX IF NOT EXISTS usage_snapshot_by_session ON usage_snapshot(session_uid,snapshot_key,observation_seq);
 CREATE INDEX IF NOT EXISTS link_by_session ON link(session_uid);
+-- event_fts deletes matched on the UNINDEXED event_uid column, a full FTS scan per deleted event: rebuilding a
+-- session was O(events in the whole database) per event. Key FTS rows by the event rowid instead.
+DROP TRIGGER IF EXISTS event_fts_insert;
+DROP TRIGGER IF EXISTS event_fts_delete;
+DELETE FROM event_fts;
+INSERT INTO event_fts(rowid,event_uid,text) SELECT rowid,event_uid,text FROM event;
+CREATE TRIGGER event_fts_insert AFTER INSERT ON event BEGIN
+  INSERT INTO event_fts(rowid,event_uid,text) VALUES(new.rowid,new.event_uid,new.text);
+END;
+CREATE TRIGGER event_fts_delete AFTER DELETE ON event BEGIN
+  DELETE FROM event_fts WHERE rowid=old.rowid;
+END;
 INSERT OR IGNORE INTO dirty_session SELECT DISTINCT session_uid FROM current_record WHERE session_uid IS NOT NULL;

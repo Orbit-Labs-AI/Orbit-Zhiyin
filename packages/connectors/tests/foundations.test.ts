@@ -117,3 +117,16 @@ test('truncation cuts on a UTF-8 character boundary',()=>{
     const kept=value.replace(/<truncated:.*$/,'');assert.ok(Buffer.byteLength(kept)<=budget&&Buffer.byteLength(kept)>budget-3);
   }
 });
+test('full-text rows follow event rowids, so deleting an event removes exactly its FTS row',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'tandem-fts-'));
+  const store=new ConnectorStore(dir);
+  try {
+    store.db.exec("INSERT INTO source VALUES('s','codex','/r','r',1,1); INSERT INTO source_file(file_id,source_id,path,role,format) VALUES('f','s','/r/x','transcript','jsonl');"+
+      "INSERT INTO raw_record VALUES('r','f',1,1,0,0,1,'h','t',null,null,'sess',null,null,'mapped',null,null); INSERT INTO session(session_uid,source_id,native_id,kind) VALUES('sess','s','n','main');");
+    for (const [id,text] of [['e1','alpha words'],['e2','beta words']]) store.db.prepare(`INSERT INTO event(event_uid,session_uid,seq,ts,kind,actor,text,attrs,record_uid,native_key,event_path,mapper_version)
+      VALUES(?,'sess',?,null,'message.user','human',?,'{"time":{"quality":"missing"}}','r','[]','p','m')`).run(id,id==='e1'?0:1,text);
+    assert.deepEqual(store.db.prepare("SELECT event_uid FROM event_fts WHERE event_fts MATCH 'words' ORDER BY event_uid").all().map(row=>row.event_uid),['e1','e2']);
+    store.db.prepare("DELETE FROM event WHERE event_uid='e1'").run();
+    assert.deepEqual(store.db.prepare("SELECT event_uid FROM event_fts WHERE event_fts MATCH 'words'").all().map(row=>row.event_uid),['e2']);
+  } finally { store.close(); await rm(dir,{recursive:true,force:true}); }
+});
