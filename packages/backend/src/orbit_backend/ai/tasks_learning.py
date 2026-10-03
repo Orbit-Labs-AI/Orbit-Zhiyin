@@ -59,20 +59,26 @@ def validate(output, pack):
         if candidate["name"] in names:
             errors.append("Candidate names must be unique")
         names.add(candidate["name"])
-        refs = candidate["evidence"]
+        refs = [*candidate["evidence"], *(r for step in candidate["procedure"] for r in step["evidence"])]
         cited = {(r["session_uid"], r["event_uid"]) for r in refs}
         if not cited <= allowed or len({r[0] for r in cited}) < 2:
             errors.append("Candidate needs grounded evidence from two distinct selected sessions")
         for step in candidate["procedure"]:
             step_refs = {(r["session_uid"], r["event_uid"]) for r in step["evidence"]}
-            if not step_refs <= cited:
-                errors.append("Procedure evidence must be grounded in the candidate's cited events")
+            if not step_refs <= allowed:
+                errors.append("Procedure evidence must be grounded in the selected input events")
     return errors
 
 
 def finalize(output, pack, source):
     candidates = []
     for candidate in output["candidates"]:
+        # Step evidence is also candidate evidence. Avoid demanding a redundant,
+        # separately bounded list that can never enumerate all grounded step refs.
+        refs = {(r["session_uid"], r["event_uid"]) for r in candidate["evidence"]}
+        refs.update((r["session_uid"], r["event_uid"]) for step in candidate["procedure"] for r in step["evidence"])
+        candidate = {**candidate, "evidence": [{"session_uid": uid, "event_uid": event}
+                                              for uid, event in sorted(refs)]}
         sha = content_hash(candidate)
         candidates.append({**candidate, "candidate_id": "learned_" + sha[:20], "content_hash": sha,
                            "support_sessions": len({e["session_uid"] for e in candidate["evidence"]})})

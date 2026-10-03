@@ -46,7 +46,17 @@ def test_grounding_rejects_foreign_sessions_and_fabricated_step_refs():
     assert validate({"candidates": [candidate]}, evidence_pack())
     candidate = example()
     candidate["evidence"] = candidate["evidence"][:1]
+    candidate["procedure"][1]["evidence"] = candidate["evidence"]
     assert validate({"candidates": [candidate]}, evidence_pack())
+
+
+def test_step_evidence_is_merged_instead_of_demanding_redundant_citations():
+    candidate = example()
+    candidate["evidence"] = candidate["evidence"][:1]
+    assert not validate({"candidates": [candidate]}, evidence_pack())
+    result = finalize({"candidates": [candidate], "gaps": []}, evidence_pack(), "model")
+    assert result["result"]["candidates"][0]["support_sessions"] == 2
+    assert len(result["result"]["candidates"][0]["evidence"]) == 2
 
 
 def test_pack_preserves_arguments_redacts_and_cannot_be_replaced_by_slots(tmp_path):

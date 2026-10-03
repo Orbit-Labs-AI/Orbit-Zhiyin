@@ -34,6 +34,10 @@ python3 scripts/heavy.py uv run python -m evals.skill_learning.development audit
 
 `trace --run ATTEMPT [--review REVIEW.json]` 从原生 session 提取注入和读取记录。人工方法使用审计采用 `skills: {name: {used, evidence: [{tool_call_id, step}], note}}`；声明 `used=true` 必须有已记录的成功 body read，以及读取后的真实工具调用 ID。没有审阅的使用情况保持 null。
 
+`interventions` 按当前任务查询确定性检索学习库，并导出 `skill` 或带统一激活要求的 `bundle`。LLM 对照使用同一激活要求。选择诊断存入并列的 audit 目录，不挂载进模型容器。离线的阈值、top-k、去重、兼容性与证据裁减仅是 selection sensitivity，不把它们描述为重新训练后的效果实验。
+
+`final freeze` 需要干净提交、固定的 library/LLM 输出和逐族 validation 证明。所有 oracle 阶段选出的族都保留；整体 validation 须改善且存在已确认使用的有效候选，不因某族 ours 无效就移除该族。冻结检查确认 test 内容尚未下载，写入代码、协议、模型、资产、检索参数及固定随机顺序；之后才能准备 test。`final run` 再次验证这些摘要，为所有三组先生成完整运行计划，然后执行；既有运行目录禁止覆盖。
+
 单元检查不调用模型、不需要 Docker：
 
 ```bash
