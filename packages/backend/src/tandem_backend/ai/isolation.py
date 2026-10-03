@@ -18,6 +18,11 @@ from tandem_data.pipeline import TANDEM_AI_MARKER_FILE as MARKER_FILE
 
 ENV_KEEP = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")
 ENV_OPTIONAL = ("CLAUDE_CONFIG_DIR", "CODEX_HOME")
+# Network plumbing the CLIs need behind a corporate proxy / custom CA (both CLIs honour these;
+# Node reads NODE_EXTRA_CA_CERTS). Never credentials: no *_API_KEY, tokens, ANTHROPIC_* or OPENAI_*.
+ENV_NETWORK = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY",
+               "https_proxy", "http_proxy", "all_proxy", "no_proxy",
+               "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS")
 
 
 def cwd(home: Path) -> Path:
@@ -37,7 +42,8 @@ def marker_line(task_id: str, job_id: str) -> str:
 
 def env() -> dict[str, str]:
     """Whitelisted environment: never forwards CLAUDE_CODE_*, ANTHROPIC_* or OPENAI_*."""
-    result = {key: os.environ[key] for key in (*ENV_KEEP, *ENV_OPTIONAL) if key in os.environ}
+    result = {key: os.environ[key] for key in (*ENV_KEEP, *ENV_OPTIONAL, *ENV_NETWORK)
+              if key in os.environ}
     result["NO_COLOR"] = "1"
     return result
 

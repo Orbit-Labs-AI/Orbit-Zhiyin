@@ -17,7 +17,8 @@ BATCH = 20
 
 
 def new_session_uids(gw, limit: int = BATCH) -> list[str]:
-    """Recent finished main sessions (≥2 human messages) without an ``ai_facet`` row."""
+    """Recent finished main sessions (≥2 human messages) without an ``ok`` ``ai_facet`` row
+    (failed / skipped / stale facets are retried)."""
     since = now_ms() - WINDOW_DAYS * 86400 * 1000
     with gw.reads.read() as db:
         uids = [row[0] for row in db.execute(
@@ -30,7 +31,8 @@ def new_session_uids(gw, limit: int = BATCH) -> list[str]:
     marks = ",".join("?" * len(uids))
     with gw.appdb.read() as db:
         done = {row[0] for row in db.execute(
-            f"SELECT session_uid FROM ai_facet WHERE session_uid IN ({marks})", uids)}
+            f"SELECT session_uid FROM ai_facet WHERE session_uid IN ({marks}) AND status = 'ok'",
+            uids)}
     return [uid for uid in uids if uid not in done][:limit]
 
 

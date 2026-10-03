@@ -1,8 +1,8 @@
 """``AIService``: the one entry point other modules and the routes use.
 
 Recommend / install call ``service(gw).run(...)``; AI never imports them. Context packs
-come from ``tandem_backend.ai.pack.build`` when present, otherwise a minimal pack built
-from the request's slots / goal so the runtime still works on its own.
+come from ``tandem_backend.ai.pack.build``; ``fallback_pack`` (a minimal pack from the
+request's slots / goal) is only used when ``_builder`` is patched to return None in tests.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def pack_digest(task_id: str, prompt_version: str, goal, content: dict) -> str:
 
 
 def fallback_pack(task: dict, req: dict) -> dict:
-    """Minimal C3 pack when the context-pack module is not installed."""
+    """Minimal C3 pack from the request's slots / goal (test seam, see ``_builder``)."""
     goal = req.get("goal")
     content = req.get("slots") or {"goal": {"text": goal, "source": req.get("goal_source")}}
     chosen = ((req.get("selection") or {}).get("items") or {})
@@ -159,10 +159,11 @@ class AIService:
         return task
 
     def _builder(self):
-        try:
-            from .pack import build
-        except ImportError:
-            return None
+        """The context-pack builder. pack is part of this package, so an import error (e.g. a
+        missing jieba) surfaces instead of silently degrading every task to the goal-only
+        ``fallback_pack``; tests that want the minimal pack patch this to return None."""
+        from .pack import build
+
         return build
 
     def _pack(self, task: dict, req: dict) -> dict:

@@ -279,7 +279,19 @@ def test_is_tandem_ai_session(ai_env):
     assert isolation.is_tandem_ai_session("/x", "[tandem-analysis v1 task=a job=b]\nhi")
     assert not isolation.is_tandem_ai_session("/x", "hello", home)
     assert oct(cwd.stat().st_mode & 0o777) == "0o700"
-    assert set(isolation.env()) <= {*isolation.ENV_KEEP, *isolation.ENV_OPTIONAL, "NO_COLOR"}
+    assert set(isolation.env()) <= {*isolation.ENV_KEEP, *isolation.ENV_OPTIONAL, *isolation.ENV_NETWORK, "NO_COLOR"}
+
+
+def test_isolation_env_keeps_network_drops_credentials(monkeypatch):
+    keep = {"HTTPS_PROXY": "http://p:1", "http_proxy": "http://p:2", "ALL_PROXY": "socks5://p:3",
+            "no_proxy": "localhost", "SSL_CERT_FILE": "/ca.pem", "NODE_EXTRA_CA_CERTS": "/ca2.pem"}
+    drop = {"ANTHROPIC_API_KEY": "sk-x", "OPENAI_API_KEY": "sk-y", "GITHUB_TOKEN": "t",
+            "ANTHROPIC_BASE_URL": "http://x", "CLAUDE_CODE_USE_BEDROCK": "1", "AWS_SECRET_ACCESS_KEY": "s"}
+    for k, v in {**keep, **drop}.items():
+        monkeypatch.setenv(k, v)
+    env = isolation.env()
+    assert {k: env.get(k) for k in keep} == keep
+    assert not set(drop) & set(env)
 
 
 @pytest.mark.parametrize("model,price_in,price_out", [
