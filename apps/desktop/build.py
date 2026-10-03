@@ -5,8 +5,8 @@ Usage (from the repository root, after ``bash scripts/bootstrap.sh``):
     uv run python apps/desktop/build.py            # full build -> .local/macos-build/
     uv run python apps/desktop/build.py --skip-helper   # reuse the last PyInstaller output
 
-Outputs in ``.local/macos-build/``: ``Orbit.app``, ``Orbit-0.0.2-arm64.zip`` and
-``Orbit-0.0.2-arm64.dmg``. Signing is ad-hoc unless ``TANDEM_SIGN_IDENTITY`` names a
+Outputs in ``.local/macos-build/``: ``Orbit.app``, ``Orbit-0.0.3-arm64.zip`` and
+``Orbit-0.0.3-arm64.dmg``. Signing is ad-hoc unless ``TANDEM_SIGN_IDENTITY`` names a
 Developer ID identity; ``TANDEM_NOTARY_PROFILE`` additionally notarizes and staples.
 """
 
@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[2]
 HERE = ROOT / "apps/desktop"
 OUTPUT = ROOT / ".local/macos-build"
 NAME = "Orbit"
-VERSION = "0.0.2"
-BUILD = "2"
+VERSION = "0.0.3"
+BUILD = "3"
 BUNDLE_ID = "ai.actionmesh.orbit"
 MIN_MACOS = "14.0"  # swiftc target, LSMinimumSystemVersion and the ceiling for bundled Mach-O minos
 APP = OUTPUT / f"{NAME}.app"
