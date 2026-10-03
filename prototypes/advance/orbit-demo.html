@@ -11727,7 +11727,7 @@ LV.personaFor = function (period, L) {
 LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
 // single-project subsets: /v1/uiview/projects[].persona (persona_pending until the backend computes it → 样本不足)
 function lvProjPersona(pid, L) {
-  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { range: sc.range, agent: sc.agents, display_timezone: TL_TZ || 'UTC' });
+  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz }); // same window as A5 (93-live-tools-projects)
   let e = LVP.proj.get(path);
   if (!e || (e.rev !== LV.rev && !e.loading)) {
     e = e || { rev: null, loading: false, map: {} }; LVP.proj.set(path, e); e.loading = true; const rev = LV.rev;
@@ -12162,7 +12162,7 @@ if (LV.live) (function () {
   TIPS.trans = (i, j) => { const m = (LVTP.tools && LVTP.tools.matrix) || {}; const c = m.counts && m.counts[+i] ? m.counts[+i][+j] : null; return '<b>' + esc(TRANS_NAMES[+i] + ' → ' + TRANS_NAMES[+j]) + '</b>\n条件概率 ' + Math.round((TRANS[+i] ? TRANS[+i][+j] : 0) * 100) + '%' + (+i === +j ? '（同一工具连用）' : '') + (c != null ? '\n' + fmt(c) + ' 次转移' : ''); };
 
   /* ---------- A5 feed ---------- */
-  LV.feed('projects', (sc) => [{ name: 'p', path: LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), group: S.proj.group === 'folder' ? 'folder' : null }) }], (d) => { LVTP.projects = d.p || {}; });
+  LV.feed('projects', (sc) => [{ name: 'p', path: LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz, group: S.proj.group === 'folder' ? 'folder' : null }) }], (d) => { LVTP.projects = d.p || {}; });
   TIPS.split = (id) => { const r = lvtpRows().find((x) => x.p.id === id); if (!r) return ''; const tot = r.split.reduce((a, b) => a + b, 0) || 1; return '<b>' + esc(r.p.name) + ' · Agent 构成</b>\n' + r.split.map((v, j) => v ? '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + AG[j].c + ';margin-right:5px;vertical-align:-1px"></span>' + esc(AG[j].name) + ' <b class="mono">' + v + '</b> · ' + Math.round(v / tot * 100) + '%' : '').filter(Boolean).join('\n'); };
   const reveal = (path, what) => { if (!path || path === '—') { toast('没有记录' + what + '路径'); return; } ORBIT.native.request('reveal', { path }).then((r) => { if (r && r.ok === false) toast('无法在 Finder 中显示：' + path); }, () => toast('无法在 Finder 中显示：' + path)); };
   Object.assign(ACT, {
@@ -12295,7 +12295,7 @@ function lvtpRows() {
 }
 function lvtpDetail(id, cmp) {
   const sc = LV.scope();
-  const path = LV.withQuery('/v1/uiview/projects/' + encodeURIComponent(id), { agent: sc.agents, since: lvtpFrom(sc.range), compare: cmp || null });
+  const path = LV.withQuery('/v1/uiview/projects/' + encodeURIComponent(id), { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz, compare: cmp || null });
   return LV.detail(LVTP.det, path, path);
 }
 function lvtpLinked(id) { const path = LV.withQuery('/v1/features/linked', { project_id: id }); return LV.detail(LVTP.linked, path, path); }
@@ -12408,7 +12408,7 @@ function lvSentApply(d) {
 if (LV.live) {
   LV.feed('sentiment', (sc) => [{ name: 's', path: LV.withQuery('/v1/uiview/sentiment', {
     days: [7, 30, 90].indexOf(sc.range) >= 0 ? sc.range : Math.min(730, LASTDAY + 1), agent: sc.agents,
-    project_id: sc.project && sc.project !== '_none' ? sc.project : null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
+    project_id: sc.project || null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
 }
 // the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, phrases, words, scope}
 function lvSentView(L) {
