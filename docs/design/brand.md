@@ -53,7 +53,7 @@
 | [`favicon/`](logo/kit/favicon/favicon.svg) | 网页图标：`favicon.svg`（随浏览器深色模式切换黑夜配色）、`favicon.ico`（16/32/48）、`apple-touch-icon.png`（180，方形不加圆角，由系统裁切）、PWA `icon-192/512.png` | SVG、ICO、PNG |
 | [`wordmark/`](logo/kit/wordmark/orbit-wordmark-ink.svg) | 字标 Orbit·知音：俯视螺旋作 O；板岩灰、黑、暖纸与深色底用的香槟黄（`night`）四色，透明底 | SVG、PDF；PNG 高 32、48、64、128、256、512 |
 | [`compare/`](logo/kit/compare/orbit-zhiyin-fonts.html) | 中文字体对比页：16 种开源中文字体与字重逐一排成完整字标（浅色 / 深色），由 [`compare_cjk.py`](logo/compare_cjk.py) 生成，供选定「知音」字体 | 单文件 HTML |
-| [`motion/`](logo/kit/motion/orbit-reveal.html) | 交互动效页：点击 45° 标志 → 绕螺旋自身的轴旋转一周（`motion.spin` 360°，首尾朝向不变、旋转中大小不跳动），同时转为俯视正圆并移到 O 的位置 → r、b、i、t、·、知、音 依次升起淡入（深色模式为香槟黄）；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°、yaw 转 360°，`motion` 一节记录帧数 121、时长 1.5 s），支持深色模式与减少动态效果 | 单文件 HTML |
+| [`motion/`](logo/kit/motion/orbit-reveal.html) | 交互动效页（另有 MP4、GIF 录屏与关键帧图，浅色 / 深色）：点击 45° 标志 → 绕螺旋自身的轴旋转一周（`motion.spin` 360°，首尾朝向不变、旋转中大小不跳动），同时转为俯视正圆并移到 O 的位置 → r、b、i、t、·、知、音 依次升起淡入（深色模式为香槟黄）；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°、yaw 转 360°，`motion` 一节记录帧数 121、时长 1.5 s），支持深色模式与减少动态效果 | 单文件 HTML |
 | [`social/`](logo/kit/social/orbit-social.svg) | 分享图 1280×640：图标居中于同色底 | SVG、PNG |
 
 PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xcode 资源目录（勾选 Preserve Vector Data）。
@@ -106,6 +106,50 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 | `dot.height` | 0.38 | 中文间隔点圆心在基线上方的高度（× H） |
 | `cjk.height` | 0.86 | 知音墨迹高度（× H），底边对齐基线 |
 | `tracking` | 0 | rbit 额外字距 |
+
+### 定稿速查（2026-10-03）
+
+**全名与字体**
+
+| 部分 | 字体 | 字重 | 授权 | 排版规则 |
+| --- | --- | --- | --- | --- |
+| O | 标志螺旋（非字体），俯视 75° | 线宽 4–14（设计单位） | — | 墨迹高度定义字高 H |
+| rbit | Josefin Sans | Regular 400 | OFL 1.1 | b 的升部顶 = 字高；O–r 间距 0.16 H |
+| · | 思源黑体（Noto Sans SC）的中文间隔号 | SemiBold 600 | OFL 1.1 | 与知音同比例；圆心在基线上方 0.38 H；左右空隙各 0.3 H |
+| 知音 | 思源黑体（Noto Sans SC） | SemiBold 600 | OFL 1.1 | 墨迹高 0.86 H；底边与 rbit 基线对齐 |
+
+**字号**：以字标总高（含 4 单位留白的 viewBox 高）为基准，字高 H = 0.952 倍总高；rbit 的字号（1 em）= 1.291 H = 1.229 倍总高，知音与间隔点的字号 = 0.910 H = 0.866 倍总高。网页或 PPT 中用同字体排版近似字标时按下表取字号（正式场合直接用 `kit/wordmark/` 的矢量文件）：
+
+| 字标总高 | 字高 H | rbit 字号（Josefin Sans 400） | 知音字号（思源黑体 600） |
+| --- | --- | --- | --- |
+| 32 px | 30.5 px | 39.3 px | 27.7 px |
+| 48 px | 45.7 px | 59.0 px | 41.6 px |
+| 64 px | 60.9 px | 78.7 px | 55.4 px |
+| 128 px | 121.8 px | 157.3 px | 110.8 px |
+| 256 px | 243.7 px | 314.6 px | 221.7 px |
+
+**配色**：浅色底 `#5f6b6f`（板岩灰，底色 `#f5f4f0` 暖纸）；深色底字标 `#d6c7a1`（香槟黄，底色 `#000000`）；App 图标黑夜版为黑底白线 `#ffffff`。另有纯黑、暖纸色单色字标。
+
+**不同场景**
+
+| 场景 | 浅色 | 深色 |
+| --- | --- | --- |
+| 字标（文档、官网、PPT 标题） | ![](logo/kit/wordmark/png/orbit-wordmark-ink-64.png) | ![](logo/kit/wordmark/png/orbit-wordmark-night-64.png) |
+| App 图标（满版圆角） | ![](logo/kit/app-icon/png/orbit-app-icon-128.png) | ![](logo/kit/app-icon/png/orbit-app-icon-night-128.png) |
+| macOS Dock（Apple 图标网格，带投影） | ![](logo/kit/dock/png/orbit-dock-128.png) | ![](logo/kit/dock/png/orbit-dock-night-128.png) |
+| 透明底标志（45° 螺旋） | ![](logo/kit/mark/png/orbit-mark-ink-64.png) | ![](logo/kit/mark/png/orbit-mark-white-64.png) |
+| 菜单栏 / 导航栏（模板图，系统着色） | ![](logo/kit/nav/orbit-nav-template-22@2x.png) | ![](logo/kit/nav/orbit-nav-white-22@2x.png) |
+| 网页 favicon / 分享图 | ![](logo/kit/favicon/favicon-48.png) | [分享图](logo/kit/social/orbit-social-night.png) |
+
+**动画效果**（[`kit/motion/orbit-reveal.html`](logo/kit/motion/orbit-reveal.html) 可点击；录屏 [MP4](logo/kit/motion/orbit-reveal.mp4) / [深色 MP4](logo/kit/motion/orbit-reveal-night.mp4)）：点击 45° 标志，1.5 s 内绕自身轴旋转一周并转为俯视正圆、移到 O 的位置，随后 r、b、i、t、·、知、音 每隔 0.11 s 依次升起淡入（各 0.42 s）；再点击按反序收回。
+
+![Orbit·知音 展开动效](logo/kit/motion/orbit-reveal.gif)
+
+![展开动效（深色）](logo/kit/motion/orbit-reveal-night.gif)
+
+关键帧（转动进度 0、¼、½、¾、1 与展开完成）：
+
+![展开动效关键帧](logo/kit/motion/orbit-reveal-frames.png)
 
 **与上一版的关系**：上一版（v1）把中心线每 1.5 设计单位取一点、画成折线多边形。矢量版沿用 v1 的离散常数（端点、深度范围、断口区间与外框，记录在 `orbit-geometry.json` 的 `v1`），只把折线换成平滑曲线；轮廓与 v1 顶点的最大偏差为 0.013 设计单位（1024 图标上约 0.02 px），渲染出的 1024 PNG 与旧版逐像素比对，差异只在抗锯齿边缘。
 

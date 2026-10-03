@@ -70,6 +70,9 @@ class Wordmark:
         low = max(y1, self.base - min(lat[ch]["bounds"][1] for ch in "rbit") * s, y - lo * s2)
         self.box = (x0, min(y0, self.base - p["ascender"] * H), right, low)
         self.cap_height = H
+        # 等效字号（1 em 在设计坐标中的长度）：rbit 用 s、知音与间隔点用 s2
+        self.latin_em = data["latin"]["units_per_em"] * s
+        self.cjk_em = data["cjk"]["units_per_em"] * s2
 
     def path(self, digits: int = 3, letters: str = TEXT) -> str:
         f = lambda q: f"{num(q[0], digits)} {num(q[1], digits)}"  # noqa: E731

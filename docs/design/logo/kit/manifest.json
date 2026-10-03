@@ -359,6 +359,48 @@
       "height": 1024
     },
     {
+      "file": "motion/orbit-reveal-frames-night.png",
+      "source": "kit/motion/orbit-reveal.html",
+      "width": 1440,
+      "height": 340,
+      "use": "动效关键帧：转动进度 0、¼、½、¾、1 与字标展开"
+    },
+    {
+      "file": "motion/orbit-reveal-frames.png",
+      "source": "kit/motion/orbit-reveal.html",
+      "width": 1440,
+      "height": 340,
+      "use": "动效关键帧：转动进度 0、¼、½、¾、1 与字标展开"
+    },
+    {
+      "file": "motion/orbit-reveal-night.gif",
+      "source": "kit/motion/orbit-reveal.html",
+      "width": 720,
+      "height": 300,
+      "use": "动效录屏 GIF（文档内嵌用）"
+    },
+    {
+      "file": "motion/orbit-reveal-night.mp4",
+      "source": "kit/motion/orbit-reveal.html",
+      "width": 960,
+      "height": 400,
+      "use": "动效录屏（点击展开）"
+    },
+    {
+      "file": "motion/orbit-reveal.gif",
+      "source": "kit/motion/orbit-reveal.html",
+      "width": 720,
+      "height": 300,
+      "use": "动效录屏 GIF（文档内嵌用）"
+    },
+    {
+      "file": "motion/orbit-reveal.mp4",
+      "source": "kit/motion/orbit-reveal.html",
+      "width": 960,
+      "height": 400,
+      "use": "动效录屏（点击展开）"
+    },
+    {
       "file": "nav/orbit-nav-ink-16.png",
       "source": "kit/mark/orbit-mark-ink.svg",
       "width": 21,
