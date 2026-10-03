@@ -2,7 +2,9 @@
 
 import json
 import os
+import selectors
 import shutil
+import signal
 import subprocess
 import tempfile
 import time
@@ -57,6 +59,66 @@ DISABLED_FEATURES = (
     "skill_mcp_dependency_install",
     "unbounded_connection_retries",
 )
+
+MAX_TRACE_BYTES = 1_048_576
+MAX_STDERR_BYTES = 65_536
+
+
+def _run_bounded(command, payload, folder, timeout):
+    """Bound captured bytes while receiving; a file-backed stdin cannot block writes."""
+    request = folder / "request.json"
+    request.write_bytes(payload.encode())
+    captures = {"stdout": bytearray(), "stderr": bytearray()}
+    limits = {"stdout": MAX_TRACE_BYTES, "stderr": MAX_STDERR_BYTES}
+    deadline = time.perf_counter() + timeout
+    with (
+        request.open("rb") as source,
+        subprocess.Popen(
+            command,
+            stdin=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=dict(os.environ),
+            start_new_session=True,
+        ) as process,
+    ):
+        try:
+            with selectors.DefaultSelector() as selector:
+                for name in captures:
+                    selector.register(getattr(process, name), selectors.EVENT_READ, name)
+                while selector.get_map():
+                    remaining = deadline - time.perf_counter()
+                    if remaining <= 0:
+                        raise TimeoutError("semantic model deadline exceeded")
+                    output = folder / "result.json"
+                    if output.exists() and output.stat().st_size > MAX_RESPONSE_BYTES:
+                        raise ValueError("semantic output byte budget exceeded")
+                    for key, _ in selector.select(min(remaining, 0.05)):
+                        chunk = os.read(key.fd, 65_536)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        target, limit = captures[key.data], limits[key.data]
+                        available = limit - len(target)
+                        target.extend(chunk[:available])
+                        if len(chunk) > available:
+                            raise ValueError(f"semantic {key.data} byte budget exceeded")
+                process.wait(timeout=max(0.001, deadline - time.perf_counter()))
+        except BaseException as exc:  # Always reap the CLI and its children before re-raising.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+            exc.stdout, exc.stderr = bytes(captures["stdout"]), bytes(captures["stderr"])
+            if isinstance(exc, subprocess.TimeoutExpired):
+                error = TimeoutError("semantic model deadline exceeded")
+                error.stdout, error.stderr = exc.stdout, exc.stderr
+                raise error from exc
+            raise
+    return subprocess.CompletedProcess(
+        command, process.returncode, bytes(captures["stdout"]), bytes(captures["stderr"])
+    )
 
 
 def request_payload(batch):
@@ -149,17 +211,10 @@ class CodexProvider:
             if len(payload) > budget.batch_chars + 32:
                 raise ValueError("serialized request exceeds context budget")
             try:
-                result = subprocess.run(
-                    command,
-                    input=payload,
-                    text=True,
-                    capture_output=True,
-                    timeout=budget.timeout_seconds,
-                    env=dict(os.environ),
-                )
-            except subprocess.TimeoutExpired as exc:
-                self._audit(index, exc.stdout or b"", exc.stderr or b"")
-                raise TimeoutError("semantic model deadline exceeded") from exc
+                result = _run_bounded(command, payload, folder, budget.timeout_seconds)
+            except (TimeoutError, ValueError, OSError) as exc:
+                self._audit(index, getattr(exc, "stdout", b""), getattr(exc, "stderr", b""))
+                raise
             self._audit(index, result.stdout, result.stderr)
             if result.returncode != 0 or not output.is_file():
                 raise RuntimeError("semantic provider failed; consult private audit")
@@ -171,7 +226,8 @@ class CodexProvider:
                     raise RuntimeError("provider emitted a prohibited tool or unknown activity")
                 if item.get("type") == "turn.completed":
                     usage = item.get("usage")
-            raw = output.read_bytes()
+            with output.open("rb") as handle:
+                raw = handle.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raise ValueError("semantic output byte budget exceeded")
             return raw.decode(), {
@@ -182,6 +238,8 @@ class CodexProvider:
                 "wrapper_retries": 0,
                 "provider_retry_limit": None,
                 "server_output_token_cap": None,
+                "captured_trace_byte_cap": MAX_TRACE_BYTES,
+                "captured_stderr_byte_cap": MAX_STDERR_BYTES,
             }
 
     def _audit(self, index, stdout, stderr):

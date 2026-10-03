@@ -2,7 +2,6 @@
 
 import copy
 import json
-import subprocess
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -27,6 +26,7 @@ from tandem_backend.analytics.semantic_cascade import (
     run_cascade,
     select_candidates,
 )
+from tandem_backend.analytics.semantic_cascade import provider as provider_module
 from tandem_backend.analytics.semantic_cascade.provider import CodexProvider
 from tandem_backend.analytics.service import analyze_bundle
 
@@ -379,11 +379,11 @@ def test_all_four_families_and_graph_use_the_same_control_identity(fixtures):
 def test_provider_rejects_tool_activity_even_with_schema_valid_output(fixtures, monkeypatch):
     candidates, _ = select_candidates([task_event(fixtures, "一个要求")], {"s"})
 
-    def native(command, **kwargs):
+    def native(command, payload, folder, timeout):
         assert "--model" in command and command[command.index("--model") + 1] == "gpt-6.1-sol"
         assert 'model_reasoning_effort="medium"' in command
         assert "features.shell_tool=false" in command and "features.multi_agent=false" in command
-        assert kwargs["timeout"] == 1
+        assert timeout == 1
         from pathlib import Path
 
         Path(command[command.index("-o") + 1]).write_text(
@@ -395,7 +395,7 @@ def test_provider_rejects_tool_activity_even_with_schema_valid_output(fixtures, 
             stdout=json.dumps({"type": "item.completed", "item": {"type": "command_execution"}}),
         )
 
-    monkeypatch.setattr(subprocess, "run", native)
+    monkeypatch.setattr(provider_module, "_run_bounded", native)
     with pytest.raises(RuntimeError, match="prohibited"):
         CodexProvider(executable="test-codex")(candidates, Budget(timeout_seconds=1))
 
