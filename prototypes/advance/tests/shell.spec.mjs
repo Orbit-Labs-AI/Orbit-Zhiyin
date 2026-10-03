@@ -302,11 +302,11 @@ test('shortcuts: ⌥digits switch pages, ⌥0 restores the window, labels match 
   expect(errors).toEqual([]);
 });
 
-// 洞察 order: 概览 · 协作人格 · 情绪与语义 · 会话与轨迹 · 项目习惯 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
+// 洞察 order: 概览 · 协作人格 · 情绪语义 · 会话轨迹 · 项目习惯 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
 test('insight order: sidebar, ⌥1–6, window menu and palette follow one page order', async ({ page }) => {
   const errors = await openDemo(page);
   const ORDER = ['overview', 'persona', 'sentiment', 'sessions', 'projects', 'tools'];
-  const NAMES = ['概览', '协作人格', '情绪与语义', '会话与轨迹', '项目习惯', '工具调用'];
+  const NAMES = ['概览', '协作人格', '情绪语义', '会话轨迹', '项目习惯', '工具调用'];
   await page.evaluate(() => { S.sideOpen.insight = true; render(); });
   const side = await page.locator('#side .nav').first().locator('[data-act="go"]').evaluateAll((els) => els.map((e) => e.dataset.r));
   expect(side).toEqual(ORDER);

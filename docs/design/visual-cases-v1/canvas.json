@@ -13,10 +13,10 @@
   "boards": {
     "Main.dc.html": {"x": 0, "y": 0, "w": 2040, "h": 1000, "title": "A1 概览", "page": "app"},
     "Persona.dc.html": {"x": 2120, "y": 0, "w": 2040, "h": 1000, "title": "A2 协作人格", "page": "app"},
-    "Sessions.dc.html": {"x": 0, "y": 1120, "w": 2040, "h": 1000, "title": "A3 会话与轨迹", "page": "app"},
+    "Sessions.dc.html": {"x": 0, "y": 1120, "w": 2040, "h": 1000, "title": "A3 会话轨迹", "page": "app"},
     "Tools.dc.html": {"x": 2120, "y": 1120, "w": 2040, "h": 1000, "title": "A4 工具调用", "page": "app"},
     "Projects.dc.html": {"x": 0, "y": 2240, "w": 2040, "h": 1000, "title": "A5 项目习惯", "page": "app"},
-    "Sentiment.dc.html": {"x": 2120, "y": 2240, "w": 2040, "h": 1000, "title": "A6 情绪与语义", "page": "app"},
+    "Sentiment.dc.html": {"x": 2120, "y": 2240, "w": 2040, "h": 1000, "title": "A6 情绪语义", "page": "app"},
     "Recs.dc.html": {"x": 0, "y": 3360, "w": 2040, "h": 1000, "title": "A7 优化建议", "page": "app"},
     "Library.dc.html": {"x": 2120, "y": 3360, "w": 2040, "h": 1000, "title": "A8 资源库", "page": "app"},
     "Studio.dc.html": {"x": 0, "y": 4480, "w": 2040, "h": 1000, "title": "A9 生成工坊", "page": "app"},

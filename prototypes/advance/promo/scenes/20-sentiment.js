@@ -47,7 +47,7 @@ scene('20-sentiment', () => {
   }));
   // title block at the lower left, clear of the road and the signposts; leaves with its letters drifting apart b19.8–20.4
   const TX = 110;
-  txt(15.4, 20.4, [['eb', 'Sentiment · 情绪与语义']], { x: TX, y: 850 }, { inB: .8, outB: .6, spread: 1 });
+  txt(15.4, 20.4, [['eb', 'Sentiment · 情绪语义']], { x: TX, y: 850 }, { inB: .8, outB: .6, spread: 1 });
   txt(15.7, 20.4, [['hv', '听懂每一句话']], { x: TX, y: 925 }, { anim: K.blurIn({ spread: .6, dur: .35, out: .6, spread2: true }) });
   txt(16.4, 20.4, [['lt', '<span style="color:var(--a1)">本地 Agent 给每条消息打分、归类</span>']], { x: TX, y: 1000 }, { inB: .8, outB: .6, spread: 1 });
 });
