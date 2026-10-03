@@ -48,6 +48,6 @@ pnpm check:ui --project=mac-14
 - 金标更新：只有结果变化是有意为之时运行 `uv run python tests/regression/test_analysis_equivalence.py --update-golden`，并在 PR 描述中说明原因与差异（哪些 section、哪些数值变化）。不得为让检查通过而放宽断言或重生成金标掩盖回归。
 - 分阶段基准：`uv run python -m benchmarks.analytics.full_pipeline --sizes 500 1000 2500 --repeats 3`，可加 `--with-text`、`--canonical`（测量 read_analysis）与 `--profile`。基准不作 CI 硬门槛，结果连同硬件和口径放 `.local/` 或写入 PR 说明。
 
-服务流程验收覆盖 CLI 导入、API 会话与证据、报告一致性和评价隔离；目前尚无原生 App，不能将其称为原生 UI 验收。
+服务流程验收覆盖 CLI 导入、API 会话与证据、报告一致性和评价隔离。原生 macOS 宿主位于 apps/desktop；上述测试不等同于原生安装包的系统权限、通知和窗口交互验收。
 
 Swift 客户端的 6 项测试通过 swift test --package-path packages/catalog-macos 运行，已纳入 pnpm check。Catalog 的本地 E5 权重测试是显式可选集成，默认缺少 ORBIT_TEST_E5_DIR 时跳过；不与必须执行的 staging 桥接测试混淆。

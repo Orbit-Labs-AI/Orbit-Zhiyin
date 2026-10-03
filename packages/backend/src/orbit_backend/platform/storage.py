@@ -15,7 +15,6 @@ COMPONENTS = (
     ("orbit_db", "规范数据库", ("orbit.db", "orbit.db-wal", "orbit.db-shm"), True,
      "从 Agent 日志重新导入可重建"),
     ("raw", "原始归档", ("archive", "raw"), False, "无损原始记录，删除后无法从已轮转日志恢复"),
-    ("hooks", "实时采集记录", ("hooks",), False, "审批历史、实时采集事件与读取进度"),
     ("app_db", "应用数据库", ("app.db", "app.db-wal", "app.db-shm"), False,
      "推荐记录、安装台账、AI 产物与遥测"),
     ("catalog_db", "组件目录", ("catalog.db", "catalog.db-wal", "catalog.db-shm"), True,
@@ -25,6 +24,7 @@ COMPONENTS = (
     ("backups", "备份", ("backups",), False, "数据库备份"),
     ("logs", "日志", ("logs",), True, "本机日志，2 MB × 5 轮转"),
     ("exports", "导出", ("exports",), True, "诊断包与导出文件，保留最近 5 个"),
+    ("hooks", "实时采集记录", ("hooks",), False, "审批历史、实时采集事件与读取进度"),
 )
 
 

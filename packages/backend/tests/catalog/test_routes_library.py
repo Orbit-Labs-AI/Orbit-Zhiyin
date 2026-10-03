@@ -54,7 +54,6 @@ def with_features(monkeypatch, seeded):
     from orbit_backend import features
     client, local_id = seeded
     calls = []
-    monkeypatch.setattr(features, "current", lambda: object())
     monkeypatch.setattr(features, "profile", lambda scope=None, **kw: calls.append(scope) or PROFILE)
     linked = {"items": [{"inv_id": "i1", "agent": "codex", "scope": "user", "status": "active",
                          "orbit_installed": True,
@@ -115,3 +114,14 @@ def test_library_etag_batch_cards_and_detail_scan(with_features):
     assert detail["scan"]["estimate"] is True and detail["scan"]["verdict"] in ("safe", "caution", "dangerous")
     assert detail["source_label"] == "本地" and detail["compat_label"] == "Codex"
     assert {"stars_scope", "updated_scope", "license_spdx"} <= set(detail)
+
+
+def test_library_etag_changes_with_persistent_exclusions(with_features):
+    from orbit_backend.sessionops import exclusion
+
+    client, _, _ = with_features
+    first = client.get("/v1/catalog/library")
+    old_tag = first.headers["etag"]
+    exclusion.add(client.app.state.gateway.appdb, "private-synthetic", reason="private")
+    fresh = client.get("/v1/catalog/library", headers={"If-None-Match": old_tag})
+    assert fresh.status_code == 200 and fresh.headers["etag"] != old_tag
