@@ -345,7 +345,8 @@ function cpSector(r0, r1, a0, a1) { const p0 = cpt(r0, a0), p1 = cpt(r1, a0), p2
      (a null: b only unfolds from its heart, turning 32°), u = 0..1 progress of the app's 860 ms (fold 0–35 %, unfold
      30–100 %), da / db = data sets before / after (curves morph, badges glide; default st.data). While a wave runs the
      flower, triangle and emphasis follow it (deg is ignored when a is set).
-   sweep (band reveal: a wedge from sweepFrom, clockwise), keep: 16 × 0..1 (1 = type still possible, 0 = ruled out:
+   sweep (band reveal: a wedge from sweepFrom, clockwise), sweepSegs ([[from°, span°] × N]: the band shows through the
+   union of N wedges; overrides sweep / sweepFrom), keep: 16 × 0..1 (1 = type still possible, 0 = ruled out:
    its band sector and code dim), dial, core (flower), needle (triangle), codes (0..1 code opacity factor), collapse
    (curves → one ring at r 300, badges onto it), ticks (0..1: ticks and codes revealed clockwise from north), trace
    (0..1: a light running once around the ticks; traceA its strength), pl (opacity of the compass's own badges; the film
@@ -406,7 +407,8 @@ function drawCompass(st) {
     svg.querySelector('.cp-band .ring').setAttribute('opacity', E.in(col).toFixed(3));
   }
   const bg = svg.querySelector('.cp-band');
-  if (sw < 1) { svg.querySelector('#cpBandClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); bg.setAttribute('clip-path', 'url(#cpBandClip)'); } else bg.removeAttribute('clip-path');
+  if (st.sweepSegs) { svg.querySelector('#cpBandClip path').setAttribute('d', st.sweepSegs.map(([a0, sp]) => cpWedge(a0, sp)).join('')); bg.setAttribute('clip-path', 'url(#cpBandClip)'); }
+  else if (sw < 1) { svg.querySelector('#cpBandClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); bg.setAttribute('clip-path', 'url(#cpBandClip)'); } else bg.removeAttribute('clip-path');
   k.dims.forEach((p, t) => { p.setAttribute('opacity', ((1 - (keep ? keep[t] : 1)) * .72 * (1 - col)).toFixed(3)); });
   // ---- badges on the orbit at each Agent's mean direction; a data change glides them along the shortest arc (640 ms,
   // 40 ms apart, BM_IO), a new Agent fades in (260–580 ms), a gone one fades out. Positions go to CPS.pl for AGD
@@ -595,7 +597,8 @@ function orbitAt(bf) {
 const CURSOR_SVG = '<svg viewBox="0 0 28 28" width="28" height="28"><path d="M6 3.5v19.2l4.6-4.4 3 6.9 3.3-1.4-2.9-6.8h6.5z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 const clicks = [];
 // o.bloom: colour of a press bloom (a radial fill under the pointer, then a soft glow that spreads to about 3×, as in
-// the GWI reference); o.size: its diameter on screen in px; o.glide: beats the pointer takes to reach the control.
+// the GWI reference); o.size: its diameter on screen in px; o.glide: beats the pointer takes to reach the control;
+// o.cursor: false = no pointer and no glide, only the bloom at the target (an Agent dot plays the pointer).
 function clickAt(d, b, sel, fn, o = {}) { clicks.push({ d, b: b + SH, sel, fn, o }); at(b, () => { const el = find(d, sel); if (el) fn(app(d), el); else console.warn('promo: no click target', sel); }); }
 function cursorEl(d) {
   const k = decks[d]; if (k.cursor) return k.cursor;
@@ -605,27 +608,30 @@ function applyCursors(t) {
   const b = t / BEAT;
   for (const k of decks) { const c = k.cursor; if (c) c.style.opacity = '0'; }
   for (const x of clicks) {
-    const gl = x.o.glide || 1.1;
+    const nc = x.o.cursor === false, gl = nc ? 0 : x.o.glide || 1.1;
     if (b < x.b - gl - .2 || b > x.b + .9) { if (x.bloom) x.bloom.style.opacity = '0'; continue; }
     if (!x.to) { const el = find(x.d, x.sel); if (!el) continue; const r = el.getBoundingClientRect(); x.to = [r.left + r.width * .5, r.top + r.height * .55]; x.from = [x.to[0] + 160, x.to[1] + 120]; }
-    const c = cursorEl(x.d), s = decks[x.d].C.s;
+    const s = decks[x.d].C.s;
+    if (nc) { if (x.o.bloom) clickBloom(x, b, s, null); continue; }
+    const c = cursorEl(x.d);
     const m = E.inOut(lp(b, x.b - gl, gl - .1)), press = b >= x.b && b < x.b + .25 ? .82 : 1;
     const px = lerp(x.from[0], x.to[0], m), py = lerp(x.from[1], x.to[1], m);
     c.style.opacity = (E.out(lp(b, x.b - 1.3, .35)) * (1 - E.in(lp(b, x.b + .55, .35)))).toFixed(3);
     c.style.transform = 'translate(' + px.toFixed(2) + 'px,' + py.toFixed(2) + 'px) scale(' + (1.8 / s * press).toFixed(4) + ')';
     const rp = lp(b, x.b, .6); const ri = c.querySelector('.ripple');
     ri.style.opacity = b >= x.b ? (1 - rp).toFixed(3) : '0'; ri.style.transform = 'translate(-50%,-50%) scale(' + (.4 + rp * 1.6).toFixed(3) + ')';
-    if (x.o.bloom) {
-      if (!x.bloom) { x.bloom = document.createElement('div'); x.bloom.className = 'bloom'; x.bloom.innerHTML = '<i class="bf"></i><i class="bg"></i>'; x.bloom.style.setProperty('--c', x.o.bloom); decks[x.d].rig.insertBefore(x.bloom, c); }
-      const fp = E.out(lp(b, x.b, .14)), gp = E.out(lp(b, x.b + .05, .75)), sz = (x.o.size || 90) / s;
-      x.bloom.style.opacity = b >= x.b ? '1' : '0';
-      x.bloom.style.transform = 'translate(' + x.to[0].toFixed(1) + 'px,' + x.to[1].toFixed(1) + 'px)';
-      const bf = x.bloom.firstChild, bg = x.bloom.lastChild;
-      bf.style.width = bf.style.height = bg.style.width = bg.style.height = sz.toFixed(1) + 'px';
-      bf.style.transform = 'translate(-50%,-50%) scale(' + fp.toFixed(3) + ')'; bf.style.opacity = (1 - E.in(lp(b, x.b + .3, .5))).toFixed(3);
-      bg.style.transform = 'translate(-50%,-50%) scale(' + (1 + 2.2 * gp).toFixed(3) + ')'; bg.style.opacity = (.85 * (1 - gp)).toFixed(3);
-    }
+    if (x.o.bloom) clickBloom(x, b, s, c);
   }
+}
+function clickBloom(x, b, s, c) {
+  if (!x.bloom) { x.bloom = document.createElement('div'); x.bloom.className = 'bloom'; x.bloom.innerHTML = '<i class="bf"></i><i class="bg"></i>'; x.bloom.style.setProperty('--c', x.o.bloom); decks[x.d].rig.insertBefore(x.bloom, c || null); }
+  const fp = E.out(lp(b, x.b, .14)), gp = E.out(lp(b, x.b + .05, .75)), sz = (x.o.size || 90) / s;
+  x.bloom.style.opacity = b >= x.b ? '1' : '0';
+  x.bloom.style.transform = 'translate(' + x.to[0].toFixed(1) + 'px,' + x.to[1].toFixed(1) + 'px)';
+  const bf = x.bloom.firstChild, bg = x.bloom.lastChild;
+  bf.style.width = bf.style.height = bg.style.width = bg.style.height = sz.toFixed(1) + 'px';
+  bf.style.transform = 'translate(-50%,-50%) scale(' + fp.toFixed(3) + ')'; bf.style.opacity = (1 - E.in(lp(b, x.b + .3, .5))).toFixed(3);
+  bg.style.transform = 'translate(-50%,-50%) scale(' + (1 + 2.2 * gp).toFixed(3) + ')'; bg.style.opacity = (.85 * (1 - gp)).toFixed(3);
 }
 // screen (stage) position of a point given in deck d's frame px, or of an element of deck d (ax, ay = share of its box);
 // follows the deck's camera, tilts included. Used for portals and for type that has to meet a component on screen.
