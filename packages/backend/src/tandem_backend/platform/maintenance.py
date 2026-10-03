@@ -213,14 +213,19 @@ class Maintenance:
         return detail
 
     def _install_sweep(self) -> dict:
-        """Idle-mark stale installs and drop old backups, plans and fetch-cache objects."""
+        """Record real usage, idle-mark stale installs, drop old backups, plans and fetch cache."""
         service = getattr(self.platform.gw, "install", None)  # set by routes_install.router
         if service is None:
             return {"skipped": True}
         from ..install import lifecycle
         from ..install.fetch import gc
 
-        return {"idle": lifecycle.sweep(service, int(time.time() * 1000)),
+        try:
+            used = lifecycle.record_usage(service)
+        except Exception as error:  # noqa: BLE001 - tandem.db missing/old: sweep still closes windows
+            logs.log_event("install_usage_failed", logging.WARNING, error=str(error))
+            used = None
+        return {"triggered": used, **lifecycle.sweep(service, int(time.time() * 1000)),
                 "backups": service.sweep_backups(keep=50, days=90),
                 "plans": service.sweep_plans(30), "fetch_cache": gc(service.cache_dir)}
 
