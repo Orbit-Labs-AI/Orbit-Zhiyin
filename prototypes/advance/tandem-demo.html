@@ -7021,8 +7021,9 @@ function sessCount(list) {
 }
 /* ---------- 区域（24-regions.js）：页头、筛选、列表、详情各卡片按依赖独立刷新 ----------
    整页只在首次进入 / 切换路由 / 切换版本时重建；其余 render()（筛选、点选会话、搜索、live 帧、详情到达）只刷新依赖变化的区域，
-   列表滚动、搜索框焦点与输入法组字、展开的下拉、正在进行的回放都不受影响。轨迹盒 #tlBox / 总览条 #tlOv / 检视 #tlInsp / 对比时间线
-   带 data-vz，归 VZ 与本页的命令式更新所有，morph 不碰；它们在区域的 after 里挂载与同步。 */
+   列表滚动、搜索框焦点与输入法组字、展开的下拉、正在进行的回放都不受影响。轨迹盒 #tlBox / 总览条 #tlOv / 检视 #tlInsp / 对比时间线 /
+   读数 #tlRead 带 data-vz，归 VZ 与本页的命令式更新所有（回放每帧直接改它们），morph 不碰；它们在区域的 after 里挂载与同步，
+   所以轨迹区域的 HTML 不随播放头变化，回放中的数据刷新不会重画它。 */
 RG.pages.add('sessions');
 // live 钩子（92-live-sessions.js）给出详情 / 搜索的签名；演示模式为空串（不变）
 const A3_DET = () => (A3H.detSig ? A3H.detSig() : '');
@@ -7075,7 +7076,7 @@ function a3TlCard() {
   const summary = A3H.summary(s, tr, [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · '));
   const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
   return '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
-    '<div class="cap tl-sum"' + (A3H.sumAttr ? A3H.sumAttr(s, tr) : '') + '>' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" data-vz="tl-ov" aria-label="总览条"></div><div class="tl-box" id="tlBox" data-vz="tl-box"></div><div class="row tl-read" id="tlRead">' + readout(s) + '</div>' +
+    '<div class="cap tl-sum"' + (A3H.sumAttr ? A3H.sumAttr(s, tr) : '') + '>' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" data-vz="tl-ov" aria-label="总览条"></div><div class="tl-box" id="tlBox" data-vz="tl-box"></div><div class="row tl-read" id="tlRead" data-vz="tl-read"></div>' +
     '<div class="tl-legend">' + li('<span class="tl-sw2">' + sw('background:var(--vz-mood-pos)') + sw('background:var(--vz-mood-neg)') + '</span>你的消息 · 情绪正 / 负') + li(sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '纠偏') + li(sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + 'Agent 回复 / 工具密度') + li(sw('background:var(--vz-err);width:3px;height:11px;border-radius:1px') + '失败') + li(sw('background:var(--ink-1);border-radius:50%') + '关键时刻') + li(sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '上下文（虚线 80%）') + '<span class="tl-hint" data-tip="拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放">' + ic('info', 12) + '<span class="tl-hint-t">⌘ 滚轮缩放 · 拖选统计 · Space 回放</span></span></div></div>' +
     '<aside class="tl-insp" id="tlInsp" data-vz="tl-insp"></aside></div></div>';
 }
