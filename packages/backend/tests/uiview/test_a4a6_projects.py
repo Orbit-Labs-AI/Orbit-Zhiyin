@@ -287,3 +287,56 @@ def test_routes(db, home):
         assert client.get("/v1/uiview/sentiment", params={"bucket": "month"}).status_code == 400
     finally:
         appdb.close()
+
+
+def _count(client, path, **params):
+    body = client.get(path, params=params).json()
+    if path == "/v1/uiview/projects/p1":
+        return body["header"]["sessions"], body
+    return body["meta"]["n_sessions"], body
+
+
+def test_routes_respect_exclusion_and_source_range(db, home, monkeypatch):
+    """A5/A6 see the same session set as analytics_scope (UT-01)."""
+    from tandem_backend.appdata import sources_scope
+    from tandem_backend.sessionops import exclusion
+
+    # x1/x2 (p2) share a phrase (phrases need >= 2 sessions) and fail twice (rule friction,
+    # so x1's opening message is the friction ``typical`` quote).
+    marker = "这个迁移脚本又跑挂了"
+    for i, uid in enumerate(("x1", "x2")):
+        start = T0 + (6 + i) * DAY
+        db.session(uid, project="p2", start=start, minutes=15)
+        db.human(uid, marker, ts=start)
+        for j in range(2):
+            db.call(uid, head="pytest -q", status="failed", ts=start + (1 + j) * MIN)
+    window = {"since": T0 - DAY, "until": T0 + 10 * DAY, "tz": "UTC"}
+    client, appdb = make_client(home, db.path)
+    try:
+        base = {path: _count(client, path, **(window if "sentiment" in path else {}))
+                for path in ("/v1/uiview/projects", "/v1/uiview/projects/p1",
+                             "/v1/uiview/sentiment")}
+        senti = base["/v1/uiview/sentiment"][1]
+        assert any(p["text"] == marker for p in senti["phrases"])
+        assert any(marker in t for f in senti["friction"] for t in f["typical"])
+        monkeypatch.setattr(exclusion, "_provider", lambda: ["s1", "x1"])
+        got, _ = _count(client, "/v1/uiview/projects")
+        assert got == base["/v1/uiview/projects"][0] - 2
+        got, _ = _count(client, "/v1/uiview/projects/p1")
+        assert got == base["/v1/uiview/projects/p1"][0] - 1
+        got, senti = _count(client, "/v1/uiview/sentiment", **window)
+        assert got == base["/v1/uiview/sentiment"][0] - 2
+        # x2 alone no longer forms a phrase; the typical quote now comes from x2, never x1/s1.
+        assert all(p["text"] != marker for p in senti["phrases"])
+        assert all("x1" not in f["session_uids"] and "s1" not in f["session_uids"]
+                   for f in senti["friction"])
+        monkeypatch.setattr(exclusion, "_provider", lambda: [])
+        # Disabling the codex source drops s5 and s6 (the only codex sessions; s6 is in p1).
+        monkeypatch.setattr(sources_scope, "_provider", lambda: [
+            {"id": "src-claude_code", "enabled": True}, {"id": "src-codex", "enabled": False}])
+        n, _ = _count(client, "/v1/uiview/projects/p1")
+        assert n == base["/v1/uiview/projects/p1"][0] - 2
+        n, _ = _count(client, "/v1/uiview/sentiment", **window)
+        assert n == base["/v1/uiview/sentiment"][0] - 2
+    finally:
+        appdb.close()

@@ -155,6 +155,14 @@ def scope_sql(scope: dict | None, alias: str = "s") -> tuple[str, list]:
     if scope.get("session_uids") is not None:
         sql.append(f"{alias}.session_uid IN (SELECT value FROM json_each(?))")
         params.append(json.dumps(list(scope["session_uids"])))
+    # Same source range and exclusion list as A1/A3/A4 (services.routes_analytics.analytics_scope):
+    # ``source_ids`` None = every source, [] = none; excluded sessions never reach A5/A6 text.
+    if scope.get("source_ids") is not None:
+        sql.append(f"{alias}.source_id IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(scope["source_ids"])))
+    if scope.get("excluded_session_uids"):
+        sql.append(f"{alias}.session_uid NOT IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(scope["excluded_session_uids"])))
     if scope.get("excluded_cwd_prefix"):
         sql.append(f"({alias}.cwd IS NULL OR {alias}.cwd NOT LIKE ?)")
         params.append(scope["excluded_cwd_prefix"] + "%")
@@ -532,11 +540,13 @@ def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
 def register(api, gw) -> None:
     from pathlib import Path
 
-    from fastapi import Query
+    from fastapi import Depends, Query
 
     from ..services.auth import ApiError
     from ..services.routes_data import mark_empty
     from . import a4a6_common as common
+
+    range_dependency = Depends(common.range_scope)
 
     @api.get("/v1/uiview/sentiment")
     def sentiment(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
@@ -544,7 +554,8 @@ def register(api, gw) -> None:
                   days: int = Query(30, ge=1, le=730), bucket: str = "auto",
                   tz: str | None = None, topic: str | None = None, outcome: str | None = None,
                   fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
-                  wait_ms: int = Query(0, ge=0, le=3000)):
+                  wait_ms: int = Query(0, ge=0, le=3000),
+                  ranges: dict = range_dependency):
         if bucket not in ("auto", "day", "week"):
             raise ApiError(400, "invalid_request", "bucket 只接受 auto|day|week")
         if since is not None and until is not None and since >= until:
@@ -559,7 +570,7 @@ def register(api, gw) -> None:
         if early is not None:
             return early
         scope = {"project_ids": project_id or None,
-                 "agent_ids": common.agent_list(agent, agents), "session_uids": ids,
+                 "agent_ids": common.agent_list(agent, agents), "session_uids": ids, **ranges,
                  "excluded_cwd_prefix": str(Path(gw.home) / "agent-cwd")}
         params = {"since": since, "until": until, "days": days, "bucket": bucket, "tz": tz}
         with gw.reads.read(empty=True) as conn:

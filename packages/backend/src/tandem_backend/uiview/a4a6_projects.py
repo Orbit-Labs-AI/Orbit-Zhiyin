@@ -435,7 +435,7 @@ def _linked_items(project_ids):
 
 
 def register(api, gw) -> None:
-    from fastapi import Query
+    from fastapi import Depends, Query
 
     from ..services.auth import ApiError
     from ..services.routes_data import mark_empty
@@ -448,6 +448,8 @@ def register(api, gw) -> None:
                 "from_ts": since, "until_ts": until,
                 "excluded_cwd_prefix": str(Path(gw.home) / "agent-cwd")}
 
+    range_dependency = Depends(common.range_scope)
+
     def lookup():
         return getattr(gw, "persona_lookup", None)
 
@@ -456,7 +458,8 @@ def register(api, gw) -> None:
                  since: int | None = None, until: int | None = None, group: str = "project",
                  topic: str | None = None, outcome: str | None = None,
                  fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
-                 tz: str | None = None, wait_ms: int = Query(0, ge=0, le=3000)):
+                 tz: str | None = None, wait_ms: int = Query(0, ge=0, le=3000),
+                 ranges: dict = range_dependency):
         if group not in ("project", "folder"):
             raise ApiError(400, "invalid_request", "group 只接受 project|folder")
         ids, early = common.facet_sessions(
@@ -464,15 +467,16 @@ def register(api, gw) -> None:
         if early is not None:
             return early
         scope = {**scope_of(project_id, common.agent_list(agent, agents), since, until),
-                 "session_uids": ids}
+                 **ranges, "session_uids": ids}
         with gw.reads.read(empty=True) as conn:
             body = build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
             return mark_empty(body) if gw.reads.is_empty(conn) else body
 
     @api.get("/v1/uiview/projects/{project_id}")
     def project(project_id: str, agent: ManyQuery = None, since: int | None = None,
-                until: int | None = None, compare: str = "overall"):
-        scope = scope_of(None, agent, since, until)
+                until: int | None = None, compare: str = "overall",
+                ranges: dict = range_dependency):
+        scope = {**scope_of(None, agent, since, until), **ranges}
         items = _linked_items([project_id])
         with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
             body = build_project(conn, scope, project_id, {"compare": compare},
