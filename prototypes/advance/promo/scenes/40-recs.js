@@ -17,7 +17,13 @@
    alternating). An entry is sharp from 260 px below to 320 px above the centre line (≈3.6 beats; two entries are sharp
    at once between arrivals, so one can be read to the end while the next comes in). The last entry passes the centre at
    b61.0 and the column keeps rising, easing faster from b61.9, out by b63.1. Dots and counters drift slowly so nothing
-   sits frozen. Numbers are read from recPct / recTotal at run time. */
+   sits frozen. Numbers are read from recPct / recTotal at run time; an entry adds to its own measured share (time / token
+   alternating where both exist; think-medium has none — the app says 未估算 — and adds nothing).
+   v17.7 shapes (STORYBOARD F3 (4)): in the column the dots are bullets (rows 3–4 morph on landing b40.52 / 40.66); rows 0–2
+   stretch into pills aimed at their intro line as their links start (b39.5 / 39.64 / 39.78) and land as bullets; the
+   three waves are a pill breath (w 2 → 2.3); each linked dot is a pill aimed at its card from link start, then a bullet
+   with a ✓ (thin for a dashed link) from emission + .4 (b45.4 / 47.9 / 50.9 / 53.9 / 56.9 / 59.9), held 1.4 beats; all
+   back to round badges b62.3–62.96 so the merge (b63.0, 50-tools) closes them into the orb. Counter rolls enter left → right. */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:128px;line-height:1}
@@ -28,7 +34,7 @@ scene('40-recs', () => {
 `);
   const IDS = ['retry-breaker', 'remove-figma', 'acceptance', 'pr-wrapup', 'headless', 'think-medium'];
   const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', 'Workflow', 'Thinking'];
-  const FLD = ['t', 'k', 't', 'k', 't', 'k'];                    // which counter each entry adds to
+  const PREF = ['t', 'k', 't', 'k', 't', 'k'];                   // which counter each entry would add to (time / token alternating)
   const PIT = 3.0, ARR = IDS.map((_, n) => 46.0 + PIT * n);      // beat entry n reaches the centre line (46.0 … 61.0)
   const S4 = 44.5, MV = 1.1, OUT4 = 63.1;                        // intro → eyebrow slot move (b44.5–45.6); scene clear
   const GAP = 490, CX = 540, CY = 540, CW = 820;                 // entry pitch (screen px), card left / centre line, card width
@@ -66,12 +72,19 @@ scene('40-recs', () => {
     order: ORD, dur: .001, stag: 0
   });
   const ROWIN = [0, 1, 2].map((r) => PEEL + PST * r + 1.05);    // row r's dot is ≈ 70 % home: it starts writing intro line r (links b39.55 / 39.69 / 39.83)
+  // v17.7 F3 (4): in the column the dots are list bullets (rounded squares, ring 1.4, logo whole). Rows 3–4 turn into them
+  // over the last .4 beat of their glide (b40.52 / 40.66); rows 0–2 get there through their intro pill (below)
+  [3, 4].forEach((r) => AGD.morph(PEEL + PST * r + PD - .4, ROWDOT[r], 'bullet', { dur: .5 }));
 
   /* ---------- app data (read once; nothing hard-coded) ---------- */
   const W = decks[0].W;
   let PCT = IDS.map(() => null), AGS = IDS.map(() => [0]), TOT = { t: [], k: [] };
+  const FLD = PREF.slice();
   try {
     PCT = IDS.map((id) => W.eval('recPct(' + JSON.stringify(id) + ')'));
+    // the counter each entry really adds to: its preferred one if the app measured that share, else the other; none when
+    // the app has no share at all (think-medium: reasoning tokens are not logged apart, the card itself says 未估算)
+    PCT.forEach((p, n) => { const o = PREF[n] === 't' ? 'k' : 't'; FLD[n] = p && p[PREF[n]] != null ? PREF[n] : p && p[o] != null ? o : null; });
     AGS = IDS.map((id) => W.eval('recAgents(RECI[' + JSON.stringify(id) + '])').map((a) => AGID.indexOf(a)).filter((i) => i >= 0));
     // each counter: recTotal of its own rows that have arrived (alternatives on one problem take the best, then add)
     for (const f of ['t', 'k']) {
@@ -79,9 +92,8 @@ scene('40-recs', () => {
       TOT[f] = mine.map((_, j) => +W.eval('(recTotal(' + JSON.stringify(mine.slice(0, j + 1)) + '.map((id) => RECI[id])) || {}).' + f) || 0);
     }
   } catch (e) { console.error('promo 40-recs: app data', e); }
-  IDS.forEach((id, n) => { if (!PCT[n] || PCT[n][FLD[n]] == null) console.warn('promo 40-recs: no ' + FLD[n] + ' share for', id); });
-  // per entry: the rise of its counter when it arrives
-  const STEP = IDS.map((_, n) => { const f = FLD[n], j = IDS.slice(0, n).filter((__, m) => FLD[m] === f).length; return { f, d: (TOT[f][j] || 0) - (j ? TOT[f][j - 1] || 0 : 0) }; });
+  // per entry: the rise of its counter when it arrives (none for an entry without a share)
+  const STEP = IDS.map((_, n) => { const f = FLD[n]; if (!f) return { f: null, d: 0 }; const j = IDS.slice(0, n).filter((__, m) => FLD[m] === f).length; return { f, d: (TOT[f][j] || 0) - (j ? TOT[f][j - 1] || 0 : 0) }; });
 
   /* ---------- which dots each entry links to ---------- */
   // solid = the Agents the app says the rec applies to (more than 3: hash01 picks 3); a single one gets a dashed neighbour
@@ -114,14 +126,22 @@ scene('40-recs', () => {
       AGD.link(b0 + k * .1, b1, i, toCard(id), { bend: .45, draw: .55, out: .45, pulse: 2, dash: dashed ? '3 6' : undefined });
       AGD.glow(i, EV[n] - .2, b1 - .3, .9);
       AGD.pulse(i, EV[n] - .05, 1.08, .6);
+      // v17.7: as it steps forward and its link starts, the dot stretches into a pill aimed at the card (the link leaves
+      // from its tip); once the type word has wiped in it settles back into a bullet with a ✓ (solid link = full tick,
+      // dashed = a thin 1.2 px one): this entry uses these Agents. The tick holds 1.4 beats, then draws back out
+      AGD.morph(b0 + k * .1, i, 'pill', { w: 2.6, aim: toCard(id), dur: .4 });
+      AGD.morph(EV[n] + .4, i, 'bullet', { tick: 1, tickW: dashed ? 1.2 : 2, dur: .45, hold: 1.4, back: .35, to: 'bullet' });
     });
   });
+  // T11: the column leaves its bullets for round badges just before the merge (b63.0, 50-tools), which then closes them into the orb
+  AGD.morph(62.3, ROWDOT, 'dot', { dur: .5, stag: .04 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
   // starts from the exact column (the centre row at (330, 540)). During the intro card all five sit at a .8 and pulse in
   // three soft waves down the column (r ×1.08 with a faint glow, b41.6 / 42.7 / 43.8, .12 beat per row)
-  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => { const b = w + .12 * r; AGD.pulse(i, b, 1.08, .8); AGD.glow(i, b + .15, b + .45, .35); }));
+  // v17.7: each wave is a small pill breath of the bullet (w 2 → 2.3 → 2 along x, logo whole) instead of the r pulse
+  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => { const b = w + .12 * r; AGD.morph(b, i, 'bullet', { w: 2.3, dur: .35, hold: .05, back: .4, to: 'bullet' }); AGD.glow(i, b + .15, b + .45, .35); }));
   const near = (i, b, d) => {
     let v = 0;
     IDS.forEach((_, n) => {
@@ -189,7 +209,7 @@ scene('40-recs', () => {
       el.style.opacity = a.toFixed(3);
       el.style.filter = bl > .05 ? 'blur(' + (bl / S0).toFixed(2) + 'px)' : 'none';
       // the card's own 省时 / token figure is swept by a marker as its share lands in the counter
-      const f = FLD[n], fig = el.querySelector('.rc-save b[data-ck="' + MK[f] + ':' + id + '"]') || el.querySelector('.rc-save b:' + (f === 't' ? 'first-of-type' : 'last-of-type'));
+      const f = FLD[n], fig = f ? el.querySelector('.rc-save b[data-ck="' + MK[f] + ':' + id + '"]') || el.querySelector('.rc-save b:' + (f === 't' ? 'first-of-type' : 'last-of-type')) : null;
       if (fig) {
         const w = E.inOut(lp(b, EV[n] - .1, .9)) * 100;
         fig.style.backgroundImage = w > .1 ? 'linear-gradient(rgba(226,96,43,.34),rgba(226,96,43,.34))' : '';
@@ -234,6 +254,9 @@ scene('40-recs', () => {
     const my = (b) => E.inOut(lp(b, S4, MV - .25)), ly = (b) => lerp(y0 - 12 * lp(b, 40.3, S4 - 40.3), y1, my(b));
     AGD.link(ROWIN[r], wb + .9, i, (b) => [530, ly(b)], { bend: .45, draw: .3, out: .4, pulse: 1 });
     AGD.pulse(i, wb - .05, 1.08, .5); AGD.glow(i, wb - .1, wb + .35, .35);
+    // v17.7: as its link starts the gliding dot stretches into a pill aimed at the line's start (the link leaves its tip,
+    // the line wipes out of the link), then lands as a bullet .5 beat after the line starts writing
+    AGD.morph(ROWIN[r] - .05, i, 'pill', { w: 2.6, aim: (b) => [530, ly(b)], dur: .3, hold: .55, back: .4, to: 'bullet' });
     txt(wb - .02, OUT4, [[cls, html]], { x: 540, y: y0 }, {
       anim: (el, tl, life, t) => {
         m0(el, tl, life);
@@ -247,7 +270,15 @@ scene('40-recs', () => {
   });
   const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
   const val = (f, b) => STEP.reduce((v, s, n) => v + (s.f === f ? s.d * E.out(lp(b, EV[n] - .1, 1.2)) : 0), 0);   // 1.2-beat roll from the emission
-  const num = (f) => (el, tl, life, t) => { const n = el.querySelector('.r4-v'); if (n) n.textContent = pct(val(f, t / BEAT)); };
+  // v17.7: each roll enters the way its links flow (left → right): the figure slides in from 4 px left out of a 2 px blur
+  const num = (f) => (el, tl, life, t) => {
+    const nd = el.querySelector('.r4-v'); if (!nd) return;
+    const b = t / BEAT; nd.textContent = pct(val(f, b));
+    let g = 0; STEP.forEach((s, n) => { if (s.f === f && s.d > 0) { const u = lp(b, EV[n] - .1, .7); if (u > 0 && u < 1) g = Math.max(g, 1 - E.out(u)); } });
+    nd.style.display = 'inline-block';
+    nd.style.transform = g > .002 ? 'translateX(' + (-4 * g).toFixed(2) + 'px)' : '';
+    nd.style.filter = g > .02 ? 'blur(' + (2 * g).toFixed(2) + 'px)' : '';
+  };
   // the counter block drifts up 40 px over the scene (mask in / out unchanged), so it never stands frozen between rolls. It
   // comes in behind the moving headline's right end (b44.85 on: the headline has shrunk inside x 1500) as the first entry
   // is emitted; it leaves over the last .5 beat, so the final token total stays readable ≈2 beats
