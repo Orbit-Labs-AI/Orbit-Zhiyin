@@ -433,7 +433,8 @@ scene('10-intro', () => {
   // it leaves over b14.8–15.4 (.6, not .8): the lower dots rise across its 「ng」 on their way left (b15.0–15.3), so it is
   // under half opacity by b15.1 instead of .77
   txt(T(12.3), T(15.4), [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
-    { anim: wipe({ at: [0], dur: .26, push: .03, out: .6, spread: true }) });
+    // v18.3: and it drifts up 32 px as it blurs (K.exit dir), with the line above and the gloss — up, out of the arc's way
+    { anim: K.all(wipe({ at: [0], dur: .26, push: .03, out: .6, spread: true }), K.exit({ out: .6, dir: { dx: 0, dy: -32 } })) });
   // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in with 「Everything」 (v17.4: from b12.3, not 12.5; .3 beat, rising
   // 14 px out of a light blur, whole by b12.6) at y 728 under it, and leaves a touch after the English (b15.35–15.75, .4 beat,
   // gone before 15-redesign's box passes y 728) so it reads 3.65 beats; 15-redesign's first type (b15.8) is not under it
