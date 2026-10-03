@@ -25,8 +25,34 @@ UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")
-# Same candidate regex as analytics.outcome.validation (validation_runs candidates).
-VALIDATION_RE = re.compile(r"\b(test|pytest|lint|typecheck|build|check)\b", re.I)
+# Validation commands, matched on the command's own head (after env assignments and
+# runners), never on any word in it: ``cd build``, ``ls test/``, ``git diff --check`` and
+# ``docker build`` are not validation. Tools that only test / lint / type-check:
+VALIDATION_TOOLS = frozenset((
+    "pytest", "py.test", "tox", "nox", "jest", "vitest", "mocha", "ava", "playwright", "rspec",
+    "phpunit", "ctest", "bats", "ruff", "eslint", "biome", "flake8", "pylint", "mypy",
+    "pyright", "tsc", "vue-tsc", "shellcheck", "swiftlint", "golangci-lint", "rubocop",
+    "stylelint", "markdownlint", "hadolint", "clippy-driver"))
+# Build tools whose test / lint / type-check / compile subcommand is validation.
+VALIDATION_SUBCOMMANDS = {
+    "cargo": {"test", "check", "clippy", "build", "nextest"},
+    "go": {"test", "vet", "build"}, "swift": {"test", "build"},
+    "dotnet": {"test", "build"}, "mvn": {"test", "verify", "compile", "package"},
+    "gradle": {"test", "check", "build"}, "./gradlew": {"test", "check", "build"},
+    "make": {"test", "check", "lint", "build", "typecheck"},
+    "xcodebuild": {"test", "build", "build-for-testing"}, "mix": {"test", "compile"},
+    "deno": {"test", "lint", "check"}, "bun": {"test"}, "unittest": {"discover"},
+}
+# Package-manager scripts: ``npm test``, ``pnpm run lint``, ``yarn typecheck``.
+SCRIPT_RUNNERS = frozenset(("npm", "pnpm", "yarn", "bun"))
+VALIDATION_SCRIPT_RE = re.compile(r"^(?:test|tests|lint|typecheck|type-check|check|build|"
+                                  r"verify|ci)(?::[\w:-]+)?$", re.I)
+# Prefixes that run another command (``uv run pytest``, ``npx vitest``, ``python -m mypy``).
+RUNNERS = {"uv": ("run",), "poetry": ("run",), "pipenv": ("run",), "hatch": ("run",),
+           "pdm": ("run",), "npx": (), "pnpx": (), "bunx": (), "time": (), "sudo": (),
+           "env": (), "nice": (), "dotenv": ("--",)}
+_SPLIT_RE = re.compile(r"&&|\|\||[;|\n]")
+_ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 FRIC_LEXICON = (
     ("方向错误", re.compile(r"不要用|别用|换成|改用|方向(?:错|不对)|不是这个方案|用\S{1,20}而不是")),
     ("工具 / 环境失败", re.compile(r"别重复试|先检查|环境|认证|权限|command not found|装不上|"
@@ -48,11 +74,13 @@ DOMAIN_TOPIC = {"software.frontend": "design", "software.devops": "design", "des
                 "software.ai_engineering": "data", "software.database": "data",
                 "data.statistics": "quant", "data.visualization": "quant",
                 "data.machine_learning": "quant", "mathematics": "quant"}
+# A structured opening states its plan or its acceptance: ≥ 2 list items, acceptance words,
+# or a named spec / plan document. A file name alone (``fix README.md``) or a long message
+# (a pasted stack trace) is not structure, so neither triggers it.
 STRUCTURED_RE = re.compile(
     r"(?:^|\n)\s*(?:[-*•]|\d+[.、)])\s+\S.*(?:\n\s*(?:[-*•]|\d+[.、)])\s+\S)"  # ≥ 2 list items
     r"|验收|完成标准|预期结果|acceptance|done when|definition of done"
-    r"|\b[\w./-]+\.(?:md|txt|ya?ml|json)\b|规格|\bspec\b|\bPRD\b|计划文档", re.I | re.S)
-STRUCTURED_LEN = 200
+    r"|规格|\bspec\b|\bPRD\b|计划文档", re.I | re.S)
 TITLE_LEN = 60
 NULLABLE = ("d", "h", "mi", "a", "p", "title", "dur", "span", "errors", "steps", "verify",
             "out", "fric", "topic", "tok", "model", "effort")
@@ -130,7 +158,10 @@ def _active(conn, uids: str, root_of: dict) -> dict[str, float]:
 
 
 def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
-    """Human-triggered turns per root: [[steps, verify]] plus the last turn's status."""
+    """Human-triggered turns per root: [[steps, verify, requested, ran]] plus the last
+    turn's status. ``requested``: the user's instruction in that turn asks for verification
+    (``instruction.verification_requirements``); ``ran``: the agent ran a validation command
+    in it (``is_validation_command``); ``verify`` is either."""
     calls = dict(_rows(conn, f"SELECT turn_uid, count(*) FROM tool_call WHERE turn_uid IS NOT "
                              f"NULL AND session_uid IN {UIDS} GROUP BY turn_uid", uids,
                              fields=('steps',)))
@@ -145,15 +176,7 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
                   f" FROM tool_call tc LEFT JOIN event e ON e.event_uid = tc.call_event_uid "
                   f"WHERE tc.turn_uid IS NOT NULL AND tc.kind = 'shell' AND tc.session_uid IN "
                   f"{UIDS}", uids, fields=('verify',)):
-        text = head or ""
-        if command:
-            try:
-                parsed = json.loads(command)
-                text += " " + (" ".join(map(str, parsed)) if isinstance(parsed, list)
-                               else str(parsed))
-            except ValueError:
-                text += " " + str(command)
-        if VALIDATION_RE.search(text):
+        if is_validation_command(shell_text(head, command)):
             checked.add(turn)
     requested: set[str] = set()
     if verify_events:
@@ -169,8 +192,10 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
                   fields=('steps', 'verify', 'out')):
         root = root_of.get(uid, uid)
         if uid == root:
+            # [steps, verify, user asked for verification, agent ran a validation command]
             per_root[root].append([calls.get(turn, 0) + finals.get(turn, 0),
-                                   int(turn in checked or turn in requested)])
+                                   int(turn in checked or turn in requested),
+                                   int(turn in requested), int(turn in checked)])
             if root not in last or (idx or 0) >= last[root][0]:
                 last[root] = (idx or 0, status, finals.get(turn, 0) > 0)
     return per_root, {k: (v[1], v[2]) for k, v in last.items()}
@@ -300,7 +325,64 @@ def topic_of(first_text: str | None, counts: Counter | None) -> str | None:
 def structured_opening(text: str | None, flagged: bool) -> int | None:
     if text is None:
         return None
-    return int(flagged or len(text) >= STRUCTURED_LEN or bool(STRUCTURED_RE.search(text)))
+    return int(flagged or bool(STRUCTURED_RE.search(text)))
+
+
+def _command_words(segment: str) -> list[str]:
+    """Words of one shell segment without env assignments and runner prefixes."""
+    words = segment.strip().split()
+    while words:
+        head = words[0].rsplit("/", 1)[-1] if not words[0].startswith("./") else words[0]
+        if _ENV_RE.match(words[0]):
+            words = words[1:]
+        elif head in RUNNERS:
+            words = words[1:]
+            for sub in RUNNERS[head]:
+                if words and words[0] == sub:
+                    words = words[1:]
+            while words and words[0].startswith("-"):  # runner flags (npx -y, uv run --frozen)
+                words = words[1:]
+        elif head.startswith("python") and len(words) > 2 and words[1] == "-m":
+            words = words[2:]
+        else:
+            return [head, *words[1:]]
+    return []
+
+
+def shell_text(head: str | None, command) -> str:
+    """The command line of a shell call: ``$.input.command`` (a string, or an argv list as
+    JSON for Codex exec) else ``command_head``; ``bash -lc "<script>"`` yields the script."""
+    if not command:
+        return head or ""
+    try:
+        parsed = json.loads(command)
+        text = " ".join(map(str, parsed)) if isinstance(parsed, list) else str(parsed)
+    except ValueError:
+        text = str(command)
+    parts = text.split(None, 2)
+    if len(parts) == 3 and parts[0].rsplit("/", 1)[-1] in ("bash", "sh", "zsh") \
+            and parts[1].startswith("-") and "c" in parts[1]:
+        return parts[2]
+    return text
+
+
+def is_validation_command(text: str | None) -> bool:
+    """True when any ``&&`` / ``;`` / ``|`` segment of ``text`` runs a test, lint,
+    type-check or build command (see ``VALIDATION_TOOLS`` / ``VALIDATION_SUBCOMMANDS``)."""
+    for segment in _SPLIT_RE.split(text or ""):
+        words = [w.strip("'\"") for w in _command_words(segment)]
+        if not words:
+            continue
+        head, rest = words[0].lower(), [w for w in words[1:] if not w.startswith("-")]
+        if head in VALIDATION_TOOLS:
+            return True
+        if head in VALIDATION_SUBCOMMANDS and rest and rest[0] in VALIDATION_SUBCOMMANDS[head]:
+            return True
+        if head in SCRIPT_RUNNERS and rest:
+            script = rest[1] if rest[0] in ("run", "run-script") and len(rest) > 1 else rest[0]
+            if VALIDATION_SCRIPT_RE.match(script):
+                return True
+    return False
 
 
 def friction_of(corr: int | None, texts: list[str], signals: Counter) -> tuple[str | None,
@@ -517,6 +599,13 @@ ID_PREFIX = "session_"
 # subset: dk/dn = turns with ≥ STEP_THRESHOLD steps / turns, vk = verified turns,
 # op = structured opening (0 / 1 / null), t0 / t1 = observed interval (ms).
 AUX_KEYS = ("dk", "dn", "vk", "op", "t0", "t1")
+# Product default, not calibrated: no population distribution of steps per turn has been
+# measured. A step is one recorded tool call or final reply, so the scale depends on the
+# agent's tool granularity — Claude Code logs one call per Read / Edit / Bash (and
+# parallel calls separately), while one Codex ``apply_patch`` call can edit several files
+# (third_party/codex/codex-rs/apply-patch) and one exec can chain commands with ``&&``.
+# The same work can therefore read as more "delegated" under Claude Code; profiling.md
+# lists this under 局限 until per-agent distributions are measured on consented data.
 STEP_THRESHOLD = 5
 WIRE_TITLE_LEN = 40
 

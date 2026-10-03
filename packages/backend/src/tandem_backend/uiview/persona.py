@@ -59,7 +59,8 @@ SIG_USED = {
     "D": f"单轮步数 ≥ {STEP_THRESHOLD} 的轮次占比（按会话聚类）",
     "I": "首条消息是否无结构（未标执行顺序/验收标准、未达长度阈值、无列表或规格引用）",
     "M": "同日使用 ≥ 2 个 Agent 或会话时间重叠的天数占比",
-    "V": "要求验证或运行验证命令的轮次占比（按会话聚类；含 Agent 自行运行的命令）",
+    "V": "要求验证或运行测试/检查/构建命令的轮次占比（按会话聚类；含 Agent 自行运行的命令，"
+         "证据里分开列出）",
 }
 UNITS = {"D": "turn", "I": "session_opening", "M": "active_day", "V": "turn"}
 LEFT_RIGHT = {"D": ("D 委托", "掌舵 S"), "I": ("P 规划", "即兴 I"), "M": ("M 多线", "专注 F"),
@@ -299,6 +300,12 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
     d_txt = ("消息数未知" if per is None else f"每会话 {per:.1f} 条消息" +
              (f" · 单轮平均 {auto:.1f} 步" if auto is not None else ""))
     verify = st.get("verify")
+    # Who asked for the verification turns: the user (instruction) or the agent on its own.
+    # Snapshots built before the split carry [steps, verify] only and stay unknown here.
+    split = [t for r in rows for t in (aux.get(r["id"]) or {}).get("turns") or []
+             if len(t) >= 4]
+    asked = sum(1 for t in split if t[2]) if split else None
+    ran = sum(1 for t in split if t[3] and not t[2]) if split else None
     return {
         "D": {"txt": d_txt,
               "vals": _hist([r["msgs"] for r in with_msgs], 10, 20) if with_msgs else None,
@@ -314,6 +321,9 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
         "V": {"txt": ("验证情况未知" if verify is None
                       else f"{round(verify)}% 会话要求或运行了验证"),
               "verify_n": st.get("verify_n"),
+              "requested_turns": asked, "agent_only_turns": ran,
+              "detail": None if asked is None else
+              f"用户要求验证 {asked} 轮 · 仅 Agent 自行运行 {ran} 轮",
               "vals": [round(v * 100) for v, _ in check], "lbl": "项目验证轮次占比 · 低 → 高",
               "projects": [derive.project_name(projects, pid) for _, pid in check]},
     }
