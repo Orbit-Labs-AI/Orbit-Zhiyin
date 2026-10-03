@@ -2,6 +2,34 @@
 
 本次审计验证了 10 万资源、30 万向量块的索引基础层，并用本地真实 multilingual-e5-small 权重测量实际资源文本的编码吞吐。构造基准只证明基础层的时间和内存边界；真实 E5 小样本只支持吞吐估计。本文不作为 13.8 万条实际资源及全部正文已经编码完成的证明，实际完成状态必须读取运行数据库的覆盖统计。
 
+## 实际资源库阶段记录
+
+以下为本轮本地运行在 **2026-10-03 23:58:47 UTC+8** 的只读 SQL 快照；**全文编码仍在进行**，此表不是最终完成报告。固定源已全部导入，完整正文进入本地全文索引，活动资源中没有因正文长度上限而截断的条目。
+
+| 活动资源类型 | 数量 |
+|---|---:|
+| Skill | 138,745 |
+| MCP server | 38,445 |
+| Prompt / command | 2,243 |
+| Hook 条目 | 100 |
+| Workflow | 338 |
+| Plugin / rule / subagent / guide / benchmark | 496 |
+| 合计 | 180,367 |
+
+138,133 条新增 Skill 来自 [SkillMD-138K 固定快照](https://huggingface.co/datasets/FayeZC/SkillMD-138K/tree/0d73048abf2fb6ee91f6f9f5ac598d5be8d6bdd7)，逐条验证完整正文 SHA-256。MCP 官方快照扫描 389 页并核对完整分页链；保留活跃及废弃状态，不把废弃条目计为活动资源。补充来源包括固定版本 [Prompts](https://github.com/f/prompts.chat/tree/7d3f248962d1dca209d59e033524bcb86c2b26b8)、[Copilot Hooks / Workflows](https://github.com/github/awesome-copilot/tree/143a3d976b3c1603cc8932984d5e1f28501cb5fc)、[GitHub Agentic Workflows](https://github.com/github/gh-aw/tree/eafd5d5aabcd5d48f97d047fbd444f8ff3a4b09c) 与 [Claude hooks reference](https://github.com/shanraisshan/claude-code-hooks/tree/8beecc514a1cd4775ec2aff34b86488141a1c9dd)。后者的 30 个事件参考来自同一个配置文件，不能解释为 30 个独立成熟工具；GitHub workflows 仅将 304 个独立流程计为 workflow，排除共享片段。
+
+| SQL 覆盖指标 | 阶段快照 |
+|---|---:|
+| 概览已覆盖资源 / 全部活动资源 | 180,367 / 180,367 |
+| 已覆盖正文块 / 全部正文块 | 402,727 / 3,010,717 |
+| 已覆盖所有块 / 全部块 | 583,292 / 3,191,990 |
+| 纳入编码的块 | 3,191,990 |
+| 尚未覆盖的块 | 2,608,698 |
+
+正文目标为 **3,010,717 块**，已启用全目录 `--all-passages`；概览全部完成之后继续正文。进度日志的 `computed` 与此表不同：SQL 按块所有权计算覆盖，相同正文可复用一个向量。成功条件仍是下文的完整覆盖与完成后检索验收，不能由当前概览 `ready` 推断。
+
+导入原件、断点、日志、数据库与模型均在本地忽略目录，不随代码提交。用户已授权每 15 分钟临时检查，范围限于任务状态、原参数断点续跑、只读完成核验及通知；完成后暂停。该检查没有修改源代码、提交或推送的权限。
+
 ## 范围与执行环境
 
 - 本机 macOS、Apple Silicon；`os.cpu_count()` 返回 14。该数字不等于所有核心都能持续提供相同推理吞吐。

@@ -60,7 +60,7 @@ orbit-catalog --home /absolute/library --model-dir /absolute/e5 embed \
 orbit-catalog --home /absolute/library verify
 ```
 
-`--all-passages` 将目录内既有全部正文块设为可编码，并为以后的来源发布和重建保留全量策略。默认的四块均衡采样仅适用于未选择全量的其他目录。`scope=all` 单独使用指“全部已选可编码块”，因此全文任务必须显式设置 `--all-passages` 或来源 `embedding_policy=all`。
+`--all-passages` 将目录内既有全部正文块设为可编码，并为以后的来源发布和重建保留全量策略。默认的四块均衡采样仅适用于未选择全量的其他目录。`scope=all` 单独使用指“全部已选可编码块”，因此全目录全文任务应显式设置 `--all-passages`；单个来源的 `embedding_policy=all` 只约束该来源，不能保证其他来源和既有资源全部纳入。
 
 SQLite 保存分块、按文本哈希去重的 float16 向量和模型身份。每批提交后才输出进度；重跑复用已保存向量。编码用主键分页；多进程按资源 ID 范围分片，不复制整个正文库。最多四个模型进程，线程数独立配置，默认仍单进程。取消与异常清理有界；`computed` 是本次编码次数，唯一向量数与覆盖率从 SQL 重新统计。
 
