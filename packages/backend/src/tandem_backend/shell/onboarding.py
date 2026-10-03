@@ -64,15 +64,27 @@ def _import_job(gw) -> dict | None:
     return next((j for j in gw.state.jobs() if j.get("kind") == "import"), None)
 
 
+def _stage_note(progress: dict) -> str | None:
+    """「解析会话记录 · Codex · 第 1/2 个来源 …」: the stage name and the worker's detail."""
+    from tandem_data.progress import STAGES
+
+    stage = progress.get("stage")
+    if not stage:
+        return None
+    label = progress.get("label") or STAGES.get(stage, (stage,))[0]
+    return f"{label} · {progress['detail']}" if progress.get("detail") else label
+
+
 def _backfill(job: dict | None) -> dict:
     stage = {"id": "backfill", "label": STAGES[0][1], "status": "pending", "done": None,
-             "total": None, "note": None}
+             "total": None, "unit": None, "note": None}
     if job is None:
         return stage
     progress = job.get("progress") or {}
     status = job.get("status")
     stage.update(done=progress.get("completed"), total=progress.get("total"),
-                 note=progress.get("stage") or job.get("current_phase") or job.get("phase"))
+                 unit=progress.get("unit"), note=_stage_note(progress)
+                 or job.get("current_phase") or job.get("phase"))
     if status in ACTIVE:
         stage["status"] = "running"
     elif status in ("completed", "partial"):

@@ -39,6 +39,8 @@
 
 **RC-8 阶段和数字没有说明。** 进度帧只有内部阶段名和 `completed/total`，没有单位、来源序号、批次和重试次数；一个任务里每个来源都会从 capture 走到 published，再加上 RC-3 的回滚重来，看上去就是「反复 prepare、project、map」。UI 直接把 `map`、`reset_projection` 这样的内部名显示给用户。设置页「立即重新索引」发送不带 `source_ids` 的导入请求，网关以 422「Select at least one enabled source」拒绝，重试入口本身也是坏的。
 
+**RC-9 会话闭包遇到「属于闭包外已有会话的新文件」时整次导入失败。** 闭包在计算时还不知道全新文件的记录属于哪个会话（尚未映射）。如果新文件属于闭包外的已有会话——之后才写出的会话标题 `custom-title.json`、又一个工作流 `journal.jsonl`（RC-2 所说，全部映射进同一个会话）——它的事件按闭包内从 0 重新编号插入，与该会话保留的事件撞号，`UNIQUE constraint failed: event.session_uid, event.seq`，整次导入失败；该来源一直待发布，之后每次扫描都失败，其他来源的步骤也会在「顺带发布」时失败。v0.0.2 上 `~/.claude` 因 RC-2 一直整源重建才没暴露；修好 RC-2 后用真实来源副本复现到：首次导入的 window 批与之后每个 sync 任务的两个来源全部报错。没有孤儿会话的用户在 v0.0.2 上重命名一个 Claude Code 会话就会碰到。
+
 ### 1.3 修复对照
 
 | 根因 | 修复 | 回归测试 |
@@ -51,6 +53,7 @@
 | RC-6 | 溢出目录名带属主 pid；ingest worker 启动时删除属主已退出的目录，持有导入锁时也删除 v0.0.2 旧名目录 | `test_import_pipeline.py::test_worker_start_removes_spill_directories_of_killed_imports` |
 | RC-7 | 不支持会话闭包的来源（Codex 等）首次导入保留 head、window，rest 合成一批 | `test_import_pipeline.py::test_import_progress_explains_itself_and_never_moves_backwards` |
 | RC-8 | 阶段目录 `tandem_data.progress.STAGES`；进度帧增加 `label`/`unit`/`detail`/`step`/`steps`/`batch`/`attempt`/`overall` 等；UI 按 `detail` 显示、进度条按 `overall` 走；`import` 不带 `source_ids` 时导入全部已启用来源 | 同上，及 `::test_import_without_sources_reindexes_every_enabled_source`、UI 测试 |
+| RC-9 | `pipeline.ClosureSequences`：闭包重建里第一次给闭包外、已有事件的会话编号时扩大闭包重试（至多 4 次，之后整源） | `test_incremental_projection.py::test_new_file_of_a_session_outside_the_closure_escalates`（标题 sidecar、新 journal 两种） |
 | 卡住 | 导入 15 分钟没有任何进度帧即停止并记为 `interrupted(job_stalled)`，可重试 | `test_import_pipeline.py::test_stalled_import_is_stopped_with_a_retryable_error` |
 
 ## 2. 一次导入从提交到可读
