@@ -8,6 +8,8 @@
 
 > 真实数据验收见 [real-data-validation.md](real-data-validation.md)：本机真实日志只读导入（1,895 个会话、77.2 万事件）后，逐页核对分析、推荐、安装与 AI 上下文包，记录性能热点、缺陷和修复分支（基线 `wip/yhyfhgs-backend-r4`），只含聚合结果。
 
+> 2026-10-03 更新：集成状态已变化，`wip/yhyfhgs-backend@4862c6c6` 经 PR #49 进入 main，之后的提交走 v0.0.1 发布分支 `feat/macos-app`；round 5–6 的集成过程与前端依赖的接口约定见 §9。上文的状态与 §8 的数字仍是第 1–3 轮的记录。
+
 ## 0. 结论
 
 1. 两轮共合入六个区域（catalog、features、recommend、ai、install、platform）、五条接线分支，以及四个补缺包（realtime、evalrun、eval-suites、session-ops）。网关按模块挂载 9 个路由文件，app.db 新增 8 个模块的 38 张表。
@@ -546,3 +548,49 @@ DT、AN 两行只列本分支触及的项，其余数据与分析 feature 的现
 6. **资源库内容与复测**：确定默认来源和首次同步策略，在空闲机器上复测 20k 条构建与检索；成绩到模型的模糊对齐。
 7. **UI 对真实网关验收**：两版原型在 live 模式下逐页对接真实网关；补齐 A7 的会话数和常驻 token 字段、Lite 标签入口、HUD 和小组件推荐、安装面板的项目选择。
 8. **第 3 轮合入后的补接线**：export 补 `weekly` / `menubar` 快照类型并接菜单栏 MB-06；quota 补任务类型维度（依赖 AN-12）；collect-hooks 接 hook 级使用量（AN-11）和审批等待（HUD-03），Codex 改用 hooks.json 并处理已有 notify；`narrate.weekly` 分节调用与 weekly_report 可读性场景预算；AI-03.1、AI-06.8、AI-07.4 未做。
+
+## 9. round 5–6 与 v0.0.1 集成
+
+> 记录 2026-10-03 凌晨 round 5–6 在 `wip/yhyfhgs-backend` 上的集成，以及前端依赖的新接口约定。真实规模复测见 [real-data-validation.md](real-data-validation.md) §8。时间为本地时间（10-03）；round 6 的 SHA 取自集成日志，round 5 取自提交历史。
+
+### 9.1 集成时间线
+
+| 时间 | 集成分支头 | 合入内容 | 全量 pytest |
+| --- | --- | --- | --- |
+| 00:18–01:45 | `abbe6f6c` … `1b671070` | round 4 对照修复与报告、活跃日志导入修复；round 5：资料库种子与同步、uiview 接线、推荐去重、测试修复、v0.0.1 会话报告的四个后端问题；`report-merge` | 日志未记录 |
+| 01:58 | `fe8b6457` | app-journey（J02 / J11 / J15） | 针对性用例通过 |
+| 02:03 | `7f377fc6` | install | 2987 通过 / 0 失败 |
+| 02:12–02:17 | `3b9af5de` | recs-plumbing；`wip/yhyfhgs-merge-be-perf@1d4fe81`（来自 `feat/yhyfhgs-dev` 的分析与导入性能，第一轮） | 3246–3247 通过；1 个计时抖动单独通过 |
+| 02:35 | `72f38bff` | release-recs（发布旅程 R1 / R2 / J18） | 769 个针对性用例通过 |
+| 02:45 | `0784f931` | data-reduce | 3403 通过 / 5 失败（4 个合入前已存在，1 个计时抖动） |
+| 02:59 | `da05aa78` | data-projects-query、data-connectors | 3423 通过 / 5 失败（同上 4 个，另 1 个已修） |
+| 03:09 | `4862c6c6` | legacy-gateway、metrics-routes、ai-pack、analysis-text | 3428 通过 / 0 失败；最后两处修复只重跑了相关文件 |
+| 03:28 | `5f1b294d` | recs-quality | 3453 通过 / 0 失败；1 个计时抖动重跑通过 |
+| 03:36 | main `ba441a25` | **PR #49**（`feat/macos-app`）合入 main，带入 `wip/yhyfhgs-backend@4862c6c6` | — |
+| 03:38 | `66c45835` | perf2（`wip/yhyfhgs-merge-be-perf2@4346dfb`，即 `feat/yhyfhgs-dev@8dca571` 的导入与分析性能第二轮） | 3454 通过 / 1 个计时抖动 |
+| 03:42 | `b65663eb` | search-v8（v8 `event_search` 事件命中） | 78 个 feature 用例通过 |
+| 04:04 | `710e381f` | perf3（`wip/yhyfhgs-merge-be-perf3@79c28e7`，即 `feat/yhyfhgs-dev@8a28fcf` 的第三轮数据层性能） | 3471 通过；延迟用例改为串行 |
+| 04:42 | `2c66362b` | r6-perf（首开自动窗口、渐进扩窗、进度与明确错误） | 3508 通过 / 0 失败；1 个抖动重跑通过 |
+
+- **去向**：PR #49 只带进了 `4862c6c6`；`5f1b294d` 及之后的提交不在 main 里，随 v0.0.1 发布分支 `feat/macos-app` 走（`63854111` 已合入到 `2c66362b`），之后的 SHA 也继续合入这条分支。
+- **旧库重建**：数据层现为 `MAPPER_VERSION` 1.3.6、`REDUCER_VERSION` 1.2.4，分析读取版本 `analysis-input-reader-1.1`；版本变化会让旧库重新派生、旧分析缓存失效。
+
+### 9.2 前端依赖的接口约定
+
+- **窗口与进度（`days`、`meta.window`、`meta.progress`）**
+  - `days` 取 7、30、90 或 0（全时段），其他值 422；与 `from_ts` / `until_ts` 同用也是 422。所有 `/v1/analytics/*` 都接受，`POST /v1/analytics/recompute` 的 scope 里也可用。窗口从 UTC 日界起算，同一 UTC 日内 `scope_hash` 不变。
+  - 不带窗口参数是自动首开模式，适用于 `/v1/uiview/{facts,overview,persona,persona/reveal}` 与 `/v1/analytics/overview`：优先给已新鲜的最宽窗口（全时段 → 30 → 7 天），其次给最宽的旧快照，都没有就现算最小的有事件窗口并排队更宽窗口。`/v1/analytics/overview` 不带参数不再等于全时段，要全时段传 `days=0`。
+  - `meta.window = {days, requested: "auto"|n, wider: [{days, state, scope_hash}]}`，`state` 为 ready / stale / computing / queued / failed / absent；200、stale、202 都带，uiview 的 overview 与 persona 在 `payload.meta.window`。更宽窗口变 ready 时（`scope_hash` 与 SSE `analysis.ready` 对应），用 `days=<n>` 重新请求；此前 persona（90 天）与 overview（30 天）只覆盖 7 天，前端按 `meta.window` 切换。
+  - 202 带 `meta.progress = {status: queued|running, attempt, events, last_error, queue_position | elapsed_s, budget_s, rss_bytes}`；`GET /v1/analytics/jobs/{job_id}` 查 202 背后的作业（queued / running / completed / failed，含耗时、超时与错误）。
+  - `POST /v1/analytics/warmup` 只入队，返回 `{status, queued, job_ids, data_rev}`；首次导入前返回 409 `no_projection`。
+- **422 / 503 错误状态**：熔断打开，或已记录客户端错误且没有快照可给时，analytics 与 uiview 统一返回 503 `analysis_unavailable`（带 `Retry-After`）或 422 `analysis_scope_too_large`，不再返回 `job_id=null` 的 202。422 也表示超出封顶的时间预算（900 s）或 worker 内存上限，处理办法是缩小窗口。按需（旧版）分节失败一次就不再重派，到数据版本变化或 `POST /v1/analytics/recompute` 才恢复。`/v1/analytics/*` 的未声明查询参数返回 422 `invalid_request`（`weekday`、`hour`、`query`、`q`、`agent` 的信息写明不支持，`agent_ids` 已生效）。
+- **`sample_files`**：分析分节只带 `sample_boundary = {file_count, files_digest}`；完整文件清单走 `GET /v1/analytics/sample_files?offset&limit`，不预热。
+- **文本截断**：`/v1/sessions/{id}/events` 的文本默认 `max_chars=8000`，`/v1/evidence/{id}` 默认 64000。过长的 `text` / `details` 被截断，并带 `truncated`、`truncated_fields`、`text_range{offset,length,total}`；剩余部分用 `?text_offset=&max_chars=` 取（上限 4,000,000）。`/v1/evidence` 的 404 使用网关错误形状 `{error:{code:not_found}}`。
+- **安装计划状态**：
+  - 不可映射的 target 都带中文 `reason_text`，前端直接展示，不显示原始码；同名但内容不同的 MCP 报 `mcp_exists` 冲突。
+  - 不可安装的目录条目（mcp、plugin、hook、workflow）返回 `link_only` 计划，带 `links` 与 `link_reason`（`needs_plugin` / `no_install_declaration` / `kind_not_installable`），不再是 422；`GET /v1/catalog/items` 接受 `?type=` 作为 `?kind=` 的别名。
+  - 撤销时若用户改过我们装入的条目，返回 `modified` 并带三方 diff，不执行；推荐卡含未填写的槽位时，即使用通用措辞展示，也拒绝一键安装。
+- **检索 `partial_reasons`**：`/v1/search` 每个来源的期限从它开始运行时起算，整个请求硬上限 2 s；检索有独立的 16 线程池，排队加运行不超过 64 个任务，超出的标 `overloaded`。响应新增 `partial_reasons`（`timeout` / `queued_timeout` / `overloaded` / `error` / `index_building`）、`complete`、`counts_at_least`，空结果一定附原因，前端按 `complete=false` 提示，不显示「无结果」。事件来源改读 v8 `event_search`，短查询走有界 LIKE 窗口。
+- **会话、项目与缺失值**：
+  - `GET /v1/sessions` 新增 `kind`（默认 `main`；`all` 或逗号列表；非法值 422 `invalid_kind`），条目带 `kind`、`agent` 与真实 `model`（未知为 `unknown`），`X-Total-Count` 随过滤变化。`/v1/projects` 的 `sessions` 只数主会话，另有 `sessions_all`；无会话的项目默认隐藏（`include_empty=true` 显示），重名加父目录后缀。
+  - 没有价格的模型，成本为 `null`，前端显示「未知」而不是 0；工具成功率 / 失败率在已知结果覆盖不足一半时为 `null`，并带 `status_coverage` 与 `rate_reason`；无工具调用的会话 `tool_call_count` 为 0。
