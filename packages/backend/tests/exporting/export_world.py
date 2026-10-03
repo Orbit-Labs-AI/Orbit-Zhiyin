@@ -33,9 +33,12 @@ class World:
 
         self.home = home
         self.path = home / "tandem.db"
+        from tandem_data.store import Store
+
+        # The real Store applies every migration and stamps schema_version / user_version
+        # (raw migration files alone leave the manifest at the last version a file stamps).
+        Store(home).db.close()
         self.db = sqlite3.connect(self.path, isolation_level=None)
-        for path in sorted(MIGRATIONS.glob("[0-9][0-9][0-9].sql")):
-            self.db.executescript(path.read_text())
         self.db.execute("INSERT INTO projection_run VALUES (1, 1, ?, ?, 0, 0, 0)",
                         (MAPPER_VERSION, REDUCER_VERSION))
         self.db.executemany("INSERT INTO source (source_id, agent, root_path, discovered_at) "

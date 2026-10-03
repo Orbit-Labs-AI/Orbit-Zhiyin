@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import socket
 import sqlite3
@@ -29,6 +30,7 @@ from starlette.types import Receive, Scope, Send
 from .. import __version__
 from ..appdata.wipe import apply_pending
 from ..appdb import AppDB
+from ..platform import logs
 from ..platform.middleware import PlatformMiddleware
 from ..platform.runtime import Platform
 from .auth import TOKEN_ENV, ApiError, GuardMiddleware, error_body, validate_token
@@ -359,25 +361,12 @@ class Gateway:
         interval = low
         collection = self.platform.collection
         while not self.stopping.wait(interval):
-            if collection.paused:
-                interval = high
-                continue  # Collection paused (DT-02.1); explicit re-index still works.
-            state = self.state.snapshot()
-            enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-            catch_up = collection.consume_catch_up()
-            mode = state["settings"].get("sync_mode")
-            if (mode not in ("live", "hour") and not catch_up) or not enabled:
-                interval = high
-                continue
-            last = next((j for j in self.state.jobs() if j.get("origin") == "sync"), None)
-            changed = bool(last and any(r.get("changed") for r in last.get("results") or []))
-            interval = next_sync_interval(mode, interval, changed, self.sync_interval_s,
-                                          getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
             try:
-                self.jobs.submit("import", enabled, phase="full", origin="sync")
-            except (JobConflict, ValueError):
-                collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
-                interval = low  # A user job is running; check again soon.
+                interval = _sync_round(self, collection, interval)
+            except Exception as error:  # noqa: BLE001 - one bad round must not end continuous sync
+                logs.log_event("sync_loop_error", logging.ERROR,
+                               error=f"{type(error).__name__}: {error}"[:300])
+                interval = high
 
     # -- application ---------------------------------------------------------------------
     def app(self, *, token: str, port: int | None, hosts=None) -> FastAPI:
@@ -501,3 +490,26 @@ def run_gateway(home: Path, *, port: int = 0, host: str = "127.0.0.1") -> int:
     print(json.dumps({"port": bound}), flush=True)  # First stdout line: the host's handshake.
     server.run(sockets=[sock])
     return 0
+
+
+def _sync_round(self, collection, interval: float) -> float:
+    """One continuous-sync round for gateway ``self``; returns the wait before the next."""
+    low, high = self.sync_interval_s
+    if collection.paused:
+        return high  # Collection paused (DT-02.1); explicit re-index still works.
+    state = self.state.snapshot()
+    enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
+    catch_up = collection.consume_catch_up()
+    mode = state["settings"].get("sync_mode")
+    if (mode not in ("live", "hour") and not catch_up) or not enabled:
+        return high
+    last = self.state.latest_job("sync")
+    changed = bool(last and any(r.get("changed") for r in last.get("results") or []))
+    interval = next_sync_interval(mode, interval, changed, self.sync_interval_s,
+                                  getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
+    try:
+        self.jobs.submit("import", enabled, phase="full", origin="sync")
+    except (JobConflict, ValueError):
+        collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
+        interval = low  # A user job is running; check again soon.
+    return interval

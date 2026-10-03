@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -120,3 +121,50 @@ def test_storage_endpoint_recomputes_an_old_report(started):
     report = fresh_report(started.appdb, started.home)
     assert report["generated_at"] > old["generated_at"] and report["total_bytes"] > 0
     assert fresh_report(started.appdb, started.home)["generated_at"] == report["generated_at"]
+
+
+def test_prune_logs_truncates_live_worker_log_and_keeps_it_writable(tmp_path):
+    from tandem_backend.platform.maintenance import LOGS_CAP, _prune_logs
+
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    MB = 1024 * 1024
+    old = logs_dir / "tandem.log.1"
+    old.write_bytes(b"o" * (8 * MB))
+    os.utime(old, (1, 1))                                       # oldest file of all
+    (logs_dir / "tandem.log").write_bytes(b"t" * MB)
+    live = logs_dir / "ingest.log"
+    live.write_bytes(b"i" * (15 * MB))
+    os.utime(live, (2, 2))                                      # older than tandem.log
+    writer = open(live, "ab")                                   # the worker's stderr handle
+    try:
+        # 8 + 1 + 15 = 24 MB > 20 MB cap: deleting tandem.log.1 (8 MB) leaves 16 MB, done;
+        # the live worker log is not touched although it is older than tandem.log.
+        assert _prune_logs(logs_dir) == 1
+        assert not old.exists() and live.stat().st_size == 15 * MB
+        (logs_dir / "tandem.log.2").write_bytes(b"o" * (2 * MB))
+        (logs_dir / "analysis.log").write_bytes(b"a" * (5 * MB))
+        # 1 + 15 + 2 + 5 = 23 MB: rotated file goes first (-2 → 21 MB), then the oldest live
+        # worker log is truncated in place (-15 → 6 MB) instead of unlinked.
+        assert _prune_logs(logs_dir) == 2
+        assert not (logs_dir / "tandem.log.2").exists()
+        assert live.exists() and live.stat().st_size == 0
+        assert (logs_dir / "analysis.log").stat().st_size == 5 * MB
+        writer.write(b"after\n")
+        writer.flush()
+        assert live.read_bytes() == b"after\n"                  # same inode, append continues
+        assert sum(p.stat().st_size for p in logs_dir.iterdir()) <= LOGS_CAP
+    finally:
+        writer.close()
+
+
+def test_worker_log_rotates_on_spawn_when_large(tmp_path):
+    from tandem_backend.services.supervisor import WORKER_LOG_MAX, rotate_worker_log
+
+    path = tmp_path / "ingest.log"
+    assert rotate_worker_log(path) is False                     # missing: nothing to do
+    path.write_bytes(b"x" * WORKER_LOG_MAX)
+    assert rotate_worker_log(path) is False                     # at the cap: keep appending
+    path.write_bytes(b"x" * (WORKER_LOG_MAX + 1))
+    assert rotate_worker_log(path) is True
+    assert not path.exists() and (tmp_path / "ingest.log.1").stat().st_size == WORKER_LOG_MAX + 1

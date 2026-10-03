@@ -27,7 +27,7 @@ def test_broken_revert_is_caught(tmp_path, monkeypatch):
     assert "install.rule.claude_code.roundtrip" in failed
 
 
-def test_real_flag_adds_placeholder(tmp_path):
+def test_real_flag_adds_no_always_true_check(tmp_path):
     result = suite.run(EvalContext(tmp=tmp_path, real=True))
-    smoke = [c for c in result.checks if c.id == "install.real_smoke"]
-    assert smoke and "not implemented" in smoke[0].detail
+    assert not [c for c in result.checks if c.id == "install.real_smoke"]
+    assert result.metrics["real_smoke"] == "not_implemented"

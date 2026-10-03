@@ -53,7 +53,6 @@ class InstallService:
         self.catalog_lookup = catalog_lookup or default_catalog_lookup
         # (artifact_id, status, install_id) -> None; the gateway binds AIService.set_artifact_status.
         self.artifact_status = artifact_status
-        store.ensure_columns(appdb)
         self.backups = self.home / "backups"
         self.lock_dir = self.home / "locks" / "install"
         self.cache_dir = self.home / "cache" / "install"
@@ -532,10 +531,16 @@ class InstallService:
         return store.sweep_plans(self.appdb, older_than_days)
 
     def maintain(self) -> dict:
-        """Idle marking, backup/plan retention and fetch-cache GC; run at gateway start."""
+        """Usage marking, idle/observation sweep, backup/plan retention and fetch-cache GC; run at
+        gateway start."""
         from . import lifecycle  # noqa: PLC0415 - lifecycle imports this module
 
-        out = {"idle": lifecycle.sweep(self, self.now_ms()), "backups": self.sweep_backups(keep=50, days=90),
+        try:
+            triggered = lifecycle.record_usage(self)
+        except Exception:  # noqa: BLE001 - tandem.db not imported yet; the sweep still runs
+            triggered = None
+        out = {"triggered": triggered, **lifecycle.sweep(self, self.now_ms()),
+               "backups": self.sweep_backups(keep=50, days=90),
                "plans": self.sweep_plans(30), "linked": self.link_inventory()}
         if self.cache_dir.is_dir():
             fetch_gc(self.cache_dir)

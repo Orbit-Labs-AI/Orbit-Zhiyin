@@ -190,3 +190,14 @@ def bus_events(gateway: Gateway, name: str) -> list:
 # The overview without a window serves the first-open fast path (7 days first); tests that
 # assert the all-time snapshot lifecycle ask for all time explicitly.
 ALL_TIME = {"days": 0}
+
+
+@pytest.fixture(autouse=True)
+def _reset_exclusion_provider():
+    """Every gateway registers the process-wide exclusion provider; exclusion.merged is
+    fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
+    from tandem_backend.sessionops import exclusion
+
+    exclusion.set_provider(None)
+    yield
+    exclusion.set_provider(None)
