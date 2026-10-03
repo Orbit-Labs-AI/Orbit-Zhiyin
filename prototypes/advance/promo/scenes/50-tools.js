@@ -249,8 +249,9 @@ scene('50-tools', () => {
   // v18.4 03→04: the card is drawn INTO the orb — re-anchored on the orb's held point (same picture), it scales 1 → .15
   // about it on E.inOut (b67.15–67.65, film 98.85–99.35) and stays opaque until the last .2 beat (no grey slab, no slide)
   tween(0, SHR, 0, () => { const C = decks[0].C, [px, py] = mergeXY(SHR); return { x: C.x + (px - C.ax) / C.s, y: C.y + (py - C.ay) / C.s, ax: px, ay: py }; });
-  tween(0, SHR, .5, () => ({ s: decks[0].C.s * .15 }), E.inOut);
-  tween(0, SHR + .3, .2, { o: 0, bl: 3 }, E.in);
+  // QA v18.5: down to .05 (≈ the orb's width) and fading only over the last .15 beat, so it really ends inside the orb
+  tween(0, SHR, .5, () => ({ s: decks[0].C.s * .05 }), E.inOut);
+  tween(0, SHR + .35, .15, { o: 0, bl: 3 }, E.in);
 
   /* ---------- 5.4–5.7 studio (deck 1, b56.1–75.2) ---------- */
   const runCard = (D) => { const s = D.querySelector('#main .st-steps'); return s ? s.closest('.card') : D.querySelectorAll('#main .card.pad.col')[1]; };
