@@ -92,5 +92,5 @@ def test_merge_keeps_the_primary_problem_type():
         return {"evidence": {"session_uids": ["a"], "signal_ids": [], "counts": {"sessions": 1}}, "problem": prob}
 
     merged = multi._merge("k", {"catalog": {"k": payload("tool_env_failure", .04)},
-                                "dense": {"k": payload("installed_unused", .58)}})
+                                "hashed_lexical": {"k": payload("installed_unused", .58)}})
     assert merged["problem"]["type"] == "tool_env_failure"

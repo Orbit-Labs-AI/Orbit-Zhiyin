@@ -27,7 +27,10 @@ PRIOR_MEAN = {"permission_rule": .9, "removal": .9, "hook": .8, "builtin": .7, "
               "rule": .5, "subagent": .5, "mcp": .5, "plugin": .5,
               "prompt": .4, "model": .4, "workflow": .4, "generate": .4}
 PRIOR_STRENGTH = 10
-BASIS_BENEFIT = {"generic": .1, "model": .3, "profile": .15}
+# Fixed benefit/confidence for cards without a problem (uncalibrated design values, see module doc).
+BASIS_BENEFIT = {"generic": .1, "model": .3, "profile": .15, "complement": .15}
+# complement: a KB-curated pairs_with edge to something already installed — editor knowledge, no user data.
+COMPLEMENT_CONFIDENCE = .3
 AGENT_FIT = {"native": 1., "manual": .8, "adaptation_required": .4, "unknown": .5, "unsupported": 0.}
 RISK = {"low": .05, "medium": .25, "high": .6}
 ENGAGED_LABELS = {"install", "installed", "open", "opened", "preview"}
@@ -50,11 +53,13 @@ def combine(benefit: float, confidence: float, p_effective: float, fit: float, c
 
 
 def basis(raw: dict) -> str:
-    """problem | model | profile | generic — which evidence the card stands on."""
+    """problem | model | complement | profile | generic — which evidence the card stands on."""
     if raw.get("problem"):
         return "problem"
     if raw.get("kind") == "model":
         return "model"
+    if raw.get("match_basis") == "complement":
+        return "complement"
     return "profile" if raw.get("match_basis") in {"profile", "preference"} else "generic"
 
 
@@ -71,6 +76,8 @@ def _confidence(raw: dict, inputs: dict, kind_basis: str) -> float:
         return float(raw["problem"].get("wilson_lo") or 0)
     if kind_basis == "model":
         return float(raw.get("confidence", .5))
+    if kind_basis == "complement":
+        return COMPLEMENT_CONFIDENCE
     if kind_basis == "profile":
         ev = (inputs.get("profile") or {}).get("evidence_sessions") or 0
         ev = sum(ev.values()) if isinstance(ev, dict) else ev

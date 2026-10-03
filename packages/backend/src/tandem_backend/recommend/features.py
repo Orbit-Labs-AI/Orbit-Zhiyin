@@ -88,7 +88,6 @@ def candidate_features(state: RecommendationState, item: RecommendationItem, can
     return {
         "task_match": _unit(_task_match(state, item)),
         "trigger_match": float(bool(trigger_signals)),
-        "semantic_match": 0.,  # P0 has no embedding backend; absence is not semantic agreement.
         "effect_match": _unit(effect_match),
         "preference_match": preference["score"],
         "preference_active": preference["active"],

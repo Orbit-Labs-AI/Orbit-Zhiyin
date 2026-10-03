@@ -177,7 +177,7 @@ def test_features_explain_grounding_and_normalize_fusion_with_enabled_route_boun
     assert result["grounded"] and result["grounded_signal_ids"] == ["signal-identical_retries"]
     assert result["primary_signal_id"] == "signal-identical_retries"
     assert result["trigger_match"] == result["effect_match"] == 1.
-    assert result["confidence"] == .9 and result["semantic_match"] == 0.
+    assert result["confidence"] == .9 and "semantic_match" not in result
     assert result["fusion_match"] == pytest.approx((1 / 61 + 1 / 62) / (4 / 61))
     assert features()["fusion_match"] == 0.
 
