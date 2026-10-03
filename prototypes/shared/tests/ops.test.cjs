@@ -144,7 +144,7 @@ test('export: CSV text with the bearer header, report sections and scope, share 
   assert.equal(card.code, 'DIMV');
   assert.deepEqual(gw.calls[2].body, { hide_numbers: true, theme: 'dark', save: false });
   assert.equal((await C.ops.shareCard({ save: true })).snapshot_id, 'fx-snap-1');
-  assert.equal(H.BLOCKED[FX('export-share-blocked').blocked_reason].slice(0, 4), '样本不足');
+  assert.equal(H.BLOCKED[FX('export-share-blocked').blocked_reason].slice(0, 7), '所选范围还没有');
   const down = gateway({ '/v1/export/csv': () => json({ error: { code: 'not_ready', message: '还没有数据' } }, 503) });
   await assert.rejects(live(down).ops.csv('tool_calls'), (e) => e.status === 503 && e.code === 'not_ready');
 });

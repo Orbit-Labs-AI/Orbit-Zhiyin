@@ -16,6 +16,7 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
 (function init() {
   document.documentElement.lang = 'zh-CN';
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
+  if (!h && store.native && !ED_SURFACE) h = edLastRoute(S.ed) || '';   // App: back to the last page of the last edition
   if (/^l-/.test(h)) S.ed = 'lite';
   if (PAGES[h]) S.route = h;
   S.route = edRoute(S.route); if (!PAGES[S.route]) S.route = S.ed === 'lite' ? 'l-home' : 'overview';

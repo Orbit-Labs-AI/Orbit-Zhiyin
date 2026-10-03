@@ -31,11 +31,11 @@ function ovMini(kind, a, b) {
 }
 // 人格未揭晓：保留卡片的结构（占位码 + 进度 + 四轴空轨），不留大块空白，也不编造数值（R4-14）
 function ovPersEmpty(pers) {
-  const n = pers.n || 0; const need = Math.max(0, 30 - n);
-  const why = pers.error ? '画像暂时取不到，稍后会自动重试' : need ? '再积累 ' + need + ' 个会话后揭晓' : '当前筛选下暂不计算画像';
-  return '<div class="ov-code" data-lv="pers-empty"><span class="serif ov-code-l" style="color:var(--ink-4)">????</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600;color:var(--ink-3)">尚未揭晓</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-4)">Not yet revealed</span></span></div>' +
-    '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + ' / 30</span>' : '') + '</div>' +
-    (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:' + Math.min(100, n / 30 * 100).toFixed(0) + '%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
+  const n = pers.n || 0; const need = 0;   // 1 个会话即可出结论：这里只剩「没有会话 / 取不到 / 暂不计算」三种空态，不再有进度条
+  const why = pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
+  return '<div class="ov-code" data-lv="pers-empty"><span class="serif ov-code-l" style="color:var(--ink-4)">????</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600;color:var(--ink-3)">尚未揭晓</span><span class="serif" style="font-size:15px;color:var(--ink-4)">Not yet revealed</span></span></div>' +
+    '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + '</span>' : '') + '</div>' +
+    (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
 }
 PAGES.overview = () => {
@@ -59,7 +59,7 @@ PAGES.overview = () => {
     ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
-  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。');
+  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
@@ -92,7 +92,7 @@ PAGES.overview = () => {
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
     '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three ov-three">' +

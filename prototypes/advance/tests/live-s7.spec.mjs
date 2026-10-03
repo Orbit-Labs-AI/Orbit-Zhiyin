@@ -217,6 +217,32 @@ test('native: tandem:command settings / palette / about / route / toggleEdition 
   expect(errors).toEqual([]);
 });
 
+test('native: help / file menu commands open their sheets; drag regions are reported to the host', async ({ page }) => {
+  await clock(page);
+  const errors = collectErrors(page);
+  await stubGateway(page, ['core', 's7'], { 'GET /v1/app/state': fx('s7/app-state-full.json') }, { native: NATIVE });
+  await openLive(page, 'overview');
+  const cmd = (d) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('tandem:command', { detail: x })), d);
+  await cmd({ cmd: 'keys' });
+  await expect(page.locator('#modal')).toContainText('⌘1–9');
+  await cmd({ cmd: 'report' });
+  await expect(page.locator('#modal')).toBeVisible();
+  await cmd({ cmd: 'onboarding' });
+  await expect.poll(() => page.evaluate(() => OVL)).toBe('ob');
+  await page.keyboard.press('Escape');
+  // drag regions: the page header is draggable, its buttons and the sidebar toggle are not
+  await expect.poll(() => page.evaluate(() => window.__dragRegions.length)).toBeGreaterThan(0);
+  const r = await page.evaluate(() => window.__dragRegions[window.__dragRegions.length - 1]);
+  const inside = (list, el) => { return list.some(([x, y, w, h]) => el.x + el.width / 2 >= x && el.x + el.width / 2 <= x + w && el.y + el.height / 2 >= y && el.y + el.height / 2 <= y + h); };
+  const tbar = await page.locator('#main .tbar').boundingBox();
+  expect(inside(r.drag, tbar)).toBe(true);
+  const toggle = await page.locator('#wtop .sbtoggle').boundingBox();
+  expect(inside(r.noDrag, toggle)).toBe(true);
+  const btn = await page.locator('#main .tbar .tright button').first().boundingBox();
+  expect(inside(r.noDrag, btn)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('native: 添加文件夹 asks the host (chooseFolder) and posts the picked folder', async ({ page }) => {
   await clock(page);
   const errors = collectErrors(page);

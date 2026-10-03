@@ -7,15 +7,18 @@ instruction / preferences snapshots, built through the export package's
 the same persona. Without the export package the payload says ``persona_unavailable``.
 
 Axis mapping onto the UI's four letters (prototypes/advance/src/js/05-data.js ``AXES``):
-UI value 0..100 per axis, ≥55 the first letter, ≤45 the second, else "?".
+UI value 0..100 per axis, ≥50 the first (high) letter, <50 the second; there is no
+undetermined band, so a profile always yields a full four-letter code.
 
     D 委托 ↔ S 掌舵   = delegation   (profile 委托 D ↔ 控制 C)
     I 即兴 ↔ P 规划   = planning, inverted (profile 规划 P ↔ 探索 E)
     M 多线 ↔ F 专注   = orchestration (profile 编排 O ↔ 专精 S)
     V 求证 ↔ T 信任   = verification  (profile 验证 V ↔ 加速 A)
 
-An axis is settled only when the profile itself gives it a direction (its sample gate and
-thresholds) and the value lies outside the 45–55 band; the backend never imputes an axis.
+The value is the profile's ``observed_score``; below the profile's own task minimum it falls
+back to ``observed_mean`` (delegation) or ``signal_rate`` (single-pole planning /
+verification). An axis without any value counts as 50 (high letter) and is reported with
+``value = None``. Only a missing profile or no value on any axis blocks the reveal.
 """
 
 from __future__ import annotations
@@ -25,8 +28,9 @@ from itertools import product
 
 from . import cached_section, default_scope, has_db, reader, submit_section
 
-MIN_UNITS, MIN_ACTIVE_DAYS = 30, 10
-MID_BAND = (45, 55)
+MIN_UNITS, MIN_ACTIVE_DAYS = 0, 0
+MIDPOINT = 50
+SINGLE_POLE = ("planning", "verification")
 PERSONA_SECTIONS = ("tasks", "instruction", "preferences", "overview")
 # (UI key, profile axis, high letter, high name, low letter, low name, inverted)
 UI_AXES = (
@@ -72,19 +76,21 @@ def ui_axes(profile: dict | None) -> list[dict]:
     for key, name, hi, hi_name, lo, lo_name, inverted in UI_AXES:
         axis = axes.get(name) or {}
         score = axis.get("observed_score")
+        if score is None:
+            score = axis.get("signal_rate" if name in SINGLE_POLE else "observed_mean")
         n = int(axis.get("effective_task_n") or 0)
+        m = max(n, int(axis.get("observable_task_n") or 0))
         value = lo_v = hi_v = None
-        if isinstance(score, (int, float)) and n > 0:
+        if isinstance(score, (int, float)) and m > 0:
             p = min(1.0, max(0.0, float(score)))
-            half = 1.96 * math.sqrt(p * (1 - p) / n) if n else 0.5
+            half = 1.96 * math.sqrt(p * (1 - p) / m)
             low, high = max(0.0, p - half), min(1.0, p + half)
             if inverted:
                 p, low, high = 1 - p, 1 - high, 1 - low
             value, lo_v, hi_v = round(p * 100, 1), round(low * 100, 1), round(high * 100, 1)
-        letter = "?" if value is None else hi if value >= MID_BAND[1] else lo \
-            if value <= MID_BAND[0] else "?"
+        letter = hi if (MIDPOINT if value is None else value) >= MIDPOINT else lo
         direction = DIRECTION[name].get(axis.get("direction") or "")
-        settled = letter != "?" and direction == letter
+        settled = value is not None
         out.append({"axis": key, "profile_axis": name, "direction": direction,
                     "letter": letter, "name": hi_name if letter == hi else lo_name
                     if letter == lo else None, "value": value, "lo": lo_v, "hi": hi_v,
@@ -94,13 +100,13 @@ def ui_axes(profile: dict | None) -> list[dict]:
 
 
 def code_of(axes: list[dict]) -> str:
-    return "".join(a["letter"] if a["settled"] else "?" for a in axes)
+    return "".join(a["letter"] for a in axes)
 
 
 def gate(axes: list[dict], active_days: int | None) -> dict:
     rows = [{"axis": a["axis"], "n_units": a["n_units"]} for a in axes]
-    passed = bool(rows) and all(r["n_units"] >= MIN_UNITS for r in rows) \
-        and (active_days or 0) >= MIN_ACTIVE_DAYS
+    # No sample threshold: any axis with a value is enough to give a type.
+    passed = any(a["value"] is not None for a in axes)
     return {"min_units": MIN_UNITS, "min_active_days": MIN_ACTIVE_DAYS, "axes": rows,
             "active_days": active_days, "passed": passed}
 
@@ -204,7 +210,7 @@ def method(profile: dict | None) -> dict:
             "axes": [{"axis": key, "signal": SIGNALS[name], "unit": "task"}
                      for key, name, *_ in UI_AXES],
             "thresholds": {"min_units": MIN_UNITS, "min_active_days": MIN_ACTIVE_DAYS,
-                           "mid_band": list(MID_BAND)}}
+                           "midpoint": MIDPOINT}}
 
 
 def compose(profile: dict | None, overview_body: dict | None, *, reason: str | None = None,

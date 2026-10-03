@@ -29,8 +29,8 @@
 // 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 // 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
 //                      zoomed and in full screen, on three representative pages.
-// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); the page title is serif, meta /
-//                      counts / eyebrows are mono, nav and the system clock are the system font; resize handles are invisible
+// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); every surface uses the system sans (SF Pro + PingFang SC, 600-weight
+//                      title, tabular counts), keycaps SF Mono, no web fonts; resize handles are invisible
 //                      (no background, no pseudo content); notifications are 344px wide, 16px from the stage edge, and reveal
 //                      their actions on hover.
 // 13. motion           every effect of the published demo is still wired up (mac-14 only): keyframes blink / fadein / grow /
@@ -302,6 +302,25 @@ test('shortcuts: ⌥digits switch pages, ⌥0 restores the window, labels match 
   expect(errors).toEqual([]);
 });
 
+// 洞察 order: 概览 · 协作人格 · 情绪与语义 · 会话与轨迹 · 项目习惯 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
+test('insight order: sidebar, ⌥1–6, window menu and palette follow one page order', async ({ page }) => {
+  const errors = await openDemo(page);
+  const ORDER = ['overview', 'persona', 'sentiment', 'sessions', 'projects', 'tools'];
+  const NAMES = ['概览', '协作人格', '情绪与语义', '会话与轨迹', '项目习惯', '工具调用'];
+  await page.evaluate(() => { S.sideOpen.insight = true; render(); });
+  const side = await page.locator('#side .nav').first().locator('[data-act="go"]').evaluateAll((els) => els.map((e) => e.dataset.r));
+  expect(side).toEqual(ORDER);
+  const menu = await page.evaluate(() => MENUS.window().filter((i) => i.k && /^⌥[1-9]$/.test(i.k)).map((i) => [i.t, i.k]));
+  expect(menu.slice(0, 6)).toEqual(NAMES.map((n, i) => [n, '⌥' + (i + 1)]));
+  for (let i = 0; i < ORDER.length; i++) {
+    await page.keyboard.press('Alt+Digit' + (i + 1));
+    await expect.poll(() => page.evaluate(() => S.route)).toBe(ORDER[i]);
+  }
+  const pal = await page.evaluate(() => { const out = []; navRoutes().forEach((r, i) => out.push([r[1], kb('⌥' + (i + 1))])); return out.slice(0, 6); });
+  expect(pal.map((x) => x[0])).toEqual(NAMES);
+  expect(errors).toEqual([]);
+});
+
 test('page key hook runs before global shortcuts; layout changes dispatch tandem:layout', async ({ page }) => {
   const errors = await openDemo(page);
   await page.evaluate(() => {
@@ -360,12 +379,14 @@ test('shell text uses the macOS type scale and system font; resize handles are i
     }));
     const fam = (sel) => getComputedStyle(document.querySelector(sel)).fontFamily;
     const handles = Array.from(document.querySelectorAll('#win .rz')).map((h) => { const cs = getComputedStyle(h), ps = getComputedStyle(h, '::after'); return { bg: cs.backgroundColor, after: ps.content, w: h.offsetWidth, h: h.offsetHeight, radius: cs.borderRadius }; });
-    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), meta: fam('#main .tbar .meta'), eb: fam('#pop .eb'), ct: fam('.nav .ct'), handles };
+    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), meta: fam('#main .tbar .meta'), eb: fam('#pop .eb'), ct: fam('.nav .ct'), kbd: fam('.kbd'), titleW: getComputedStyle(document.querySelector('#main .tbar h1')).fontWeight, web: Array.from(document.styleSheets).some((ss) => { try { return Array.from(ss.cssRules).some((x) => /Source Serif|JetBrains|@font-face/.test(x.cssText)); } catch (_) { return true; } }), handles };
   });
   expect(r.offScale).toEqual([]);
-  expect(r.title.split(',')[0].trim()).toBe('"Source Serif 4"');
-  for (const f of [r.nav, r.clock]) expect(f.split(',')[0].trim()).toBe('system-ui');
-  expect(r.meta.split(',')[0].trim()).toBe('"JetBrains Mono"'); expect(r.eb.split(',')[0].trim()).toBe('"JetBrains Mono"'); expect(r.ct.split(',')[0].trim()).toBe('"JetBrains Mono"');
+  // one system sans everywhere (SF Pro + PingFang SC), 600-weight titles, SF Mono only for keycaps / code; no web fonts
+  for (const f of [r.title, r.nav, r.clock, r.meta, r.eb, r.ct]) { expect(f.split(',')[0].trim()).toBe('-apple-system'); expect(f).toContain('"PingFang SC"'); }
+  expect(r.titleW).toBe('600');
+  expect(r.kbd.split(',')[0].trim()).toBe('ui-monospace');
+  expect(r.web).toBe(false);
   expect(r.handles).toHaveLength(8);
   for (const h of r.handles) { expect(h.bg).toBe('rgba(0, 0, 0, 0)'); expect(h.after).toBe('none'); expect(Math.max(h.w, h.h) <= 10 || Math.min(h.w, h.h) <= 6).toBe(true); expect(h.radius).toBe('0px'); }
   expect(errors).toEqual([]);
