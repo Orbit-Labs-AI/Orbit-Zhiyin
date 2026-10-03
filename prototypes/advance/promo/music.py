@@ -412,7 +412,7 @@ for k in range(1, NT + 1):
         prev = cur
 
 # 4d · four evidence locks, rising; riser and a snare roll into the drop
-for b_, m in zip((37.6, 39.1, 40.6, 42.1), (57, 60, 64, 69)):      # A3 C4 E4 A4
+for b_, m in zip((37.6, 39.1, 40.6, 42.1), (57, 60, 64, 69), strict=True):      # A3 C4 E4 A4
     put(clack(m), b_, 0.42, 0.0, to='verbsend')
     put(clack(m + 12), b_, 0.12, 0.3)
     put(whoosh(0.7 * BEAT), b_ - 0.6, 0.12, -0.4)                   # the chip flying in
