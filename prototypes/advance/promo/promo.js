@@ -206,6 +206,8 @@ function applyDrives(t) {
   }
 }
 const SVGNS = 'http://www.w3.org/2000/svg';
+// the Orbit·知音 wordmark, night colourway, used as is from the logo kit (served from the repo root, see render.mjs)
+const WORDMARK = '<img class="wordmark" src="../../../docs/design/logo/kit/wordmark/orbit-wordmark-night.svg" alt="Orbit·知音">';
 const lp = (b, b0, dur) => clamp((b - b0) / dur);          // local progress of a staggered item
 
 // odometer digits: every digit is a strip 0-9 ×3 that rolls up and settles on its value
@@ -278,86 +280,64 @@ function applyTags(t) {
 }
 
 /* ---------- the persona compass (deck 2) ----------
-   Same geometry as the app's compass dial (fp2SVG in 41-a2-persona.js, the spec shared with the "Lite/Advanced UI 协调与
-   动效设计" and "16型人格名称" sessions): bezel with 120 ticks and 24-hour bearings, a rose whose four major points face the
-   D I M V axes (length = strength, the tip shows the winning pole), four short minor points, a double-diamond needle.
-   For the film the needle is the selector: the 16 types sit on 16 bearings (Gray-code order, so neighbours differ by one
-   letter and the rose morphs smoothly; your type sits at north), and as the needle sweeps, the rose, the tip letters
-   and the aurora around the dial follow it continuously. The aurora is the 24-hour rhythm drawn as six thin ribbons
-   with a soft body, in the Orbit steel-blue range; it swells where the needle is, and the faster the needle moves the
-   further the swell runs ahead and behind it. The five Agents are the planets on it. */
-const CP = { C: 400, R0: 250, BAND: 80, RR: 140, NL: 112 };
-const AXR2 = { D: 0, I: 90, M: 180, V: 270 };
+   The app's Orbit dial (fp2SVG in 41-a2-persona.js, FPG geometry × 2 on an 800 frame), drawn from the app's own
+   functions so it follows the app: a bezel with 128 ticks and the 16 types in Gray-code order (neighbours differ by one
+   letter; right half 委托 D, left 掌舵 S, top 即兴 I, bottom 规划 P — only these four words), the orbit band where every
+   session sits at the bearing of its own four axes (fpClassify / fpOrbit, one muted layer per Agent, the Agent logos on
+   the crest), and in the core the persona flower (bloom) whose lead petal points at a type.
+   For the film the lead petal is the selector: as it turns, the flower becomes the type it points at (typeP), the
+   bezel pointer follows it, and sectors that the evidence rules out dim. Colours are the app's, re-mixed for black. */
+const CP = { C: 400, K: 2, R0: 200, RH: 116, RR: 160, CORE: 180, BUD: .34 };
 const cpt = (r, deg) => [CP.C + r * Math.sin(deg * Math.PI / 180), CP.C - r * Math.cos(deg * Math.PI / 180)];
 const f2 = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
-const roseLen = (strong) => CP.RR * (.36 + .64 * clamp((strong - 50) / 35));
-function rosePt(deg, len, w) { const tip = cpt(len, deg), r = cpt(w, deg + 45), l = cpt(w, deg - 45); return ['M400 400L' + f2(tip) + 'L' + f2(r) + 'Z', 'M400 400L' + f2(tip) + 'L' + f2(l) + 'Z']; }
 function axisOf(v, i) { const ax = CPD.AXES[i], val = v[ax.k], pos = ax.k !== 'I' ? 100 - val : val; return { strong: Math.max(val, 100 - val), letter: pos < 50 ? ax.L : ax.R }; }
-const CODES = Array.from({ length: 16 }, (_, i) => { const g = i ^ (i >> 1); return ['DS', 'IP', 'MF', 'VT'].map((p, k) => p[(g >> (3 - k)) & 1]).join(''); });   // CODES[0] = DIMV
-function archetype(code) {
-  const h = [...code].reduce((a, c) => a * 31 + c.charCodeAt(0), 7), j = (k) => ((h >> (k * 3)) & 7) - 3, s = (k) => 78 + j(k);
-  return { D: code[0] === 'D' ? s(0) : 100 - s(0), I: code[1] === 'I' ? s(1) : 100 - s(1), M: code[2] === 'M' ? s(2) : 100 - s(2), V: code[3] === 'V' ? s(3) : 100 - s(3) };
-}
-function rhythm(code) {                                     // 24 hourly totals (0..1.6) for an archetype
-  const peak = code[1] === 'P' ? 10.5 : 21.5, peak2 = code[0] === 'D' ? 15.5 : 13, wd = code[2] === 'M' ? 3.4 : 2.1;
-  const g = (h, c) => { const d = Math.min(Math.abs(h - c), 24 - Math.abs(h - c)); return Math.exp(-d * d / (2 * wd * wd)); };
-  return Array.from({ length: 24 }, (_, h) => .12 + g(h, peak) + .7 * g(h, peak2));
-}
+const CODES = Array.from({ length: 16 }, (_, i) => { const g = i ^ (i >> 1); return ['DS', 'IP', 'MF', 'VT'].map((p, k) => p[(g >> (3 - k)) & 1]).join(''); });   // = the app's FP_TYPES; CODES[0] = DIMV
 const AGC = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--a5)'];
-const RIB = ['#1d4a57', '#2a6c7d', '#3f93a6', '#6cb8c8', '#a8d9e3', '#eaf7f9'];      // deep teal → ice, inner → outer
+const cpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + k + '%, #5d6066)';          // the app's fpMute, against a dark grey
 let CPD = null;
 function compassData() {
   if (CPD) return CPD;
-  const W = decks[0].W;
-  const L = W.eval('sel({ noExtra: true })'), ids = W.eval('AG').map((a) => a.id);
-  const tot = new Array(24).fill(0); L.forEach((s) => { tot[s.h]++; });
-  const mx = Math.max(...tot);
-  const head = (xs) => { let a = 0, c = 0; xs.forEach((s) => { const r = (s.h + s.mi / 60) / 24 * Math.PI * 2; a += Math.sin(r); c += Math.cos(r); }); return (Math.atan2(a, c) * 180 / Math.PI + 360) % 360; };
-  CPD = { TYPES: W.eval('TYPES'), AXES: W.eval('AXES'), me: W.eval('persona(sel({ noExtra: true }))'), rh: tot.map((x) => x / mx * 1.6), ahd: ids.map((id) => head(L.filter((s) => s.a === id))) };
+  const W = decks[0].W, L = W.eval('sel({ noExtra: true })'), cls = W.eval('fpClassify')(L), orb = W.eval('fpOrbit')(L, cls);
+  const me = W.eval('persona(sel({ noExtra: true }))'), typeP = W.eval('typeP'), bloom = W.eval('bloom'), parts = W.eval('bloomParts'), agLogo = W.eval('agLogo');
+  const col = { ink: '#eef0f3', gray: 'rgba(238,240,243,.34)', lead: 'var(--orbit)', bg: '#0b0c0f', hw: 2.8 };
+  const flower = (p) => { const g = bloom(p, CP.C, CP.RR), q = parts(g, CP.C, CP.C, col); return { back: q.back, front: q.front, heart: q.heart }; };
+  CPD = { TYPES: W.eval('TYPES'), AXES: W.eval('AXES'), AG: W.eval('AG'), me, L, cls, orb, agLogo,
+    fl: CODES.map((c) => flower(typeP(c))), mine: flower(me), mineIdx: CODES.indexOf(W.eval('bloomCode')(me)) };
   return CPD;
-}
-// the persona at a needle bearing: a smooth blend of the two nearest types (index = bearing / 22.5)
-function personaAt(deg, mine) {
-  const D = compassData(), u = (((deg % 360) + 360) % 360) / 22.5, i0 = Math.floor(u) % 16, i1 = (i0 + 1) % 16, f = E.inOut(u - Math.floor(u));
-  const a = archetype(CODES[i0]), b = archetype(CODES[i1]), ra = rhythm(CODES[i0]), rb = rhythm(CODES[i1]);
-  const v = {}; for (const k of 'DIMV') v[k] = lerp(a[k], b[k], f);
-  let rh = ra.map((x, h) => lerp(x, rb[h], f));
-  if (mine > 0) { for (const k of 'DIMV') v[k] = lerp(v[k], D.me.v[k], mine); rh = rh.map((x, h) => lerp(x, D.rh[h], mine)); }
-  return { v, rh, code: CODES[Math.round(u) % 16] };
 }
 function buildCompass() {
   const k = decks[2]; if (k.svg) return k.svg;
-  compassData();
-  const W = 'rgba(255,255,255,';
-  const tk = ['', '', '']; for (let i = 0; i < 120; i++) { const w = i % 30 === 0 ? 2 : i % 5 === 0 ? 1 : 0; tk[w] += 'M' + f2(cpt(389, i * 3)) + 'L' + f2(cpt([381, 375, 368][w], i * 3)); }
-  const h = '<defs><radialGradient id="cpFace"><stop offset="0" stop-color="' + W + '.06)"/><stop offset=".75" stop-color="' + W + '.025)"/><stop offset="1" stop-color="' + W + '0)"/></radialGradient>' +
-    '<radialGradient id="cpBody" cx="400" cy="400" r="340" gradientUnits="userSpaceOnUse"><stop offset=".72" stop-color="#123843" stop-opacity="0"/><stop offset=".78" stop-color="#1f6577" stop-opacity=".75"/><stop offset=".9" stop-color="#4fb3c8" stop-opacity=".45"/><stop offset="1" stop-color="#eaf7f9" stop-opacity="0"/></radialGradient>' +
-    '<filter id="cpSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>' +
+  const D = compassData(), Wt = 'rgba(255,255,255,';
+  const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f2(cpt(392, i * 2.8125)) + 'L' + f2(cpt([385, 378, 370][w], i * 2.8125)); }
+  const poles = [[0, '即兴'], [90, '委托'], [180, '规划'], [270, '掌舵']].map(([a, t]) => { const q = cpt(352, a); return '<text class="cp-pole" x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central">' + t + '</text>'; }).join('');
+  const lys = D.orb.layers.filter((ly) => ly.n);
+  const fl = (f, i) => '<g class="fl" data-i="' + i + '" opacity="0"><g class="rot">' + (f.back ? '<g class="bk">' + f.back + '</g>' : '') + '<g class="fr">' + f.front + '</g></g>' + f.heart + '</g>';
+  const h = '<defs><radialGradient id="cpFace"><stop offset="0" stop-color="' + Wt + '.06)"/><stop offset=".75" stop-color="' + Wt + '.025)"/><stop offset="1" stop-color="' + Wt + '0)"/></radialGradient>' +
     '<radialGradient id="cpHead"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="#cfe9ef" stop-opacity=".6"/><stop offset="1" stop-color="#a3adb0" stop-opacity="0"/></radialGradient></defs>' +
-    '<clipPath id="cpTickClip"><path/></clipPath><clipPath id="cpAurClip"><path/></clipPath>' +
-    '<g class="cp-dial"><circle cx="400" cy="400" r="396" fill="url(#cpFace)" stroke="' + W + '.5)" stroke-width="2"/><circle cx="400" cy="400" r="390" fill="none" stroke="' + W + '.15)"/>' +
-    '<g class="cp-ticks"><path d="' + tk[0] + '" stroke="' + W + '.2)"/><path d="' + tk[1] + '" stroke="' + W + '.42)" stroke-width="1.4"/><path d="' + tk[2] + '" stroke="#fff" stroke-width="2.4"/>' +
-    '<path d="M400 8L390 -10L410 -10Z" fill="var(--orbit)"/>' +
-    [0, 3, 6, 9, 12, 15, 18, 21].map((hh) => { const card = hh % 6 === 0, q = cpt(card ? 343 : 352, hh * 15); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" class="' + (card ? 'cp-hc' : 'cp-hs') + '">' + String(hh).padStart(2, '0') + '</text>'; }).join('') + '</g></g>' +
+    '<clipPath id="cpTickClip"><path/></clipPath><clipPath id="cpBandClip"><path/></clipPath>' +
+    '<g class="cp-dial"><circle cx="400" cy="400" r="392" fill="url(#cpFace)" stroke="' + Wt + '.5)" stroke-width="1.8"/>' +
+    '<g class="cp-ticks"><path d="' + tk[0] + '" stroke="' + Wt + '.22)" stroke-width="1.4"/><path d="' + tk[1] + '" stroke="' + Wt + '.45)" stroke-width="2"/><path d="' + tk[2] + '" stroke="#fff" stroke-width="2.8"/></g>' +
+    '<g class="cp-poles">' + poles + '</g><path class="cp-ptr" d="M400 396L390 376L410 376Z" fill="var(--orbit)"/></g>' +
     '<g class="cp-trace" fill="none" stroke-linecap="round"></g>' +
-    '<g id="cpAur"><path class="body" fill="url(#cpBody)" fill-rule="evenodd"/><path class="glow" fill="none" stroke="#ffd9b8" stroke-width="9" stroke-linecap="round" filter="url(#cpSoft)" opacity=".8"/>' + RIB.map((c, i) => '<path class="rib" fill="none" stroke="' + c + '" stroke-width="' + (2 + i * .5).toFixed(2) + '" stroke-opacity="' + (.7 + i * .05).toFixed(2) + '"/>').join('') + '</g>' +
-    '<g id="cpPlanets">' + AGC.map((c) => '<g class="pl"><circle r="16" fill="' + c + '" opacity=".2"/><circle r="7.5" fill="' + c + '" stroke="#000" stroke-width="2"/></g>').join('') + '</g>' +
-    '<g class="cp-core"><circle cx="400" cy="400" r="184" fill="rgba(8,9,11,.94)" stroke="' + W + '.2)"/><circle cx="400" cy="400" r="' + CP.RR + '" fill="none" stroke="' + W + '.1)" stroke-dasharray="2 6"/><path d="M400 220V580M220 400H580" stroke="' + W + '.1)" stroke-width="1.4"/>' +
-    [45, 135, 225, 315].map((d) => { const x = rosePt(d, CP.RR * .4, CP.RR * .1); return '<path d="' + x[0] + '" fill="' + W + '.5)"/><path d="' + x[1] + '" fill="none" stroke="' + W + '.5)" stroke-width="1.4" stroke-linejoin="round"/>'; }).join('') + '</g>' +
-    '<g id="cpRose">' + 'DIMV'.split('').map((x) => '<g class="pt" data-k="' + x + '"><path class="a" fill="#f4f4f6"/><path class="b" fill="rgba(8,9,11,.9)" stroke="#f4f4f6" stroke-width="2.2" stroke-linejoin="round"/></g>').join('') + '</g>' +
-    '<g id="cpNeedle"><path d="M400 ' + (400 - CP.NL) + 'L406 400L394 400Z" fill="var(--orbit)"/><path d="M400 ' + (400 + CP.NL) + 'L406 400L394 400Z" fill="rgba(8,9,11,.9)" stroke="var(--orbit)" stroke-width="2"/></g>' +
-    '<g id="cpLbl">' + 'DIMV'.split('').map((x) => '<g class="lb" data-k="' + x + '"><text class="cp-l" text-anchor="middle" dominant-baseline="central"></text><text class="cp-s" text-anchor="middle" dominant-baseline="central"></text></g>').join('') + '</g>' +
-    '<g id="cpTip"><text class="cp-tc" text-anchor="middle" dominant-baseline="central"></text><text class="cp-tn" text-anchor="middle" dominant-baseline="central"></text></g>' +
-    '<circle class="cp-hub" cx="400" cy="400" r="14" fill="#08090b" stroke="#fff" stroke-width="2.6"/><circle class="cp-hub" cx="400" cy="400" r="4" fill="#fff"/>';
+    '<g class="cp-band"><circle class="base" cx="400" cy="400" r="' + (CP.R0 + 2) + '" fill="none" stroke="' + Wt + '.16)" stroke-width="1.4"/>' +
+    '<path class="crest" fill="none" stroke="' + Wt + '.07)" stroke-width="18" stroke-linejoin="round"/>' +
+    lys.map((ly) => '<path class="ly" fill="' + cpMute(AGC[D.AG.indexOf(ly.a)], 58) + '" fill-opacity=".42"/>').join('') +
+    lys.map((ly) => '<path class="ed" fill="none" stroke="' + cpMute(AGC[D.AG.indexOf(ly.a)], 78) + '" stroke-width="2.3" stroke-linejoin="round"/>').join('') +
+    '<g class="dim">' + CODES.map((c, t) => '<path data-t="' + t + '" fill="#000" opacity="0" d="' + cpSector(CP.R0 - 2, CP.R0 + CP.RH + 10, t * 22.5, (t + 1) * 22.5) + '"/>').join('') + '</g></g>' +
+    '<g class="cp-pls">' + D.orb.planets.map((x) => { const c = AGC[D.AG.indexOf(x.a)]; return '<g class="pl"><circle r="27" fill="' + cpMute(c, 60) + '" fill-opacity=".2"/>' + D.agLogo(x.a.id, 0, 0, 19, cpMute(c, 86)) + '</g>'; }).join('') + '</g>' +
+    '<g class="cp-core"><circle cx="400" cy="400" r="' + CP.CORE + '" fill="#08090b" stroke="' + Wt + '.16)" stroke-width="1.6"/></g>' +
+    '<g class="cp-flower">' + D.fl.map(fl).join('') + fl(D.mine, 'me') + '</g>';
   const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('viewBox', '0 0 800 800'); svg.setAttribute('width', '800'); svg.setAttribute('height', '800'); svg.setAttribute('class', 'compass');
   svg.style.overflow = 'visible'; svg.innerHTML = h; k.rig.appendChild(svg); k.svg = svg;
+  k.lys = lys; k.fls = [...svg.querySelectorAll('.cp-flower .fl')];
   return svg;
 }
-/* st: { deg: needle bearing, mine: 0..1 blend to your real persona, speed: needle deg/beat, grow, sweep (aurora reveal:
-   a wedge from sweepFrom, default north, clockwise), orbit (planet phase), settle (planets to their headings), dial, core,
-   collapse (aurora → one ring), tip (needle label), ticks (0..1: ticks and hour labels revealed clockwise from north),
-   trace (0..1: head of a light running once around the ticks; traceA its strength),
-   lock: { D: { k: 0..1+ (petal pulled to s; may overshoot), s: strength, letter, sy: letter flip scaleY, fill } … } } */
+function cpSector(r0, r1, a0, a1) { const p0 = cpt(r0, a0), p1 = cpt(r1, a0), p2 = cpt(r1, a1), p3 = cpt(r0, a1); return 'M' + f2(p0) + 'L' + f2(p1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + f2(p2) + 'L' + f2(p3) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + f2(p0) + 'Z'; }
+/* st: { deg: bearing of the lead petal and the bezel pointer, mine: 0..1 from the type's flower to your own, grow: 0 bud
+   .. 1 open, sweep (band reveal: a wedge from sweepFrom, clockwise), orbit (badge phase while they ride with the petal),
+   settle (badges to their own bearings), keep: 16 × 0..1 (1 = sector still possible, 0 = ruled out and dimmed), dial,
+   core, needle (pointer), collapse (band → one ring at r 300), ticks (0..1: ticks revealed clockwise from north),
+   trace (0..1: a light running once around the ticks; traceA its strength) } */
 // a pie wedge (clip) from bearing a0, span degrees clockwise
 function cpWedge(a0, span) {
   if (span >= 359.9) return 'M-200 -200H1000V1000H-200Z';
@@ -367,68 +347,54 @@ function cpWedge(a0, span) {
 }
 function cpArc(r, a0, a1) { const p0 = cpt(r, a0), p1 = cpt(r, a1); return 'M' + f2(p0) + 'A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + f2(p1); }
 function drawCompass(st) {
-  const svg = buildCompass(), P = personaAt(st.deg, st.mine || 0);
-  // aurora: radius profile = rhythm (Catmull-Rom over the hours) + a swell around the needle that stretches with speed
-  const N = 240, rh = P.rh, val = (hh) => { const i = Math.floor(hh), f = hh - i, a = rh[(i + 23) % 24], b = rh[i % 24], c = rh[(i + 1) % 24], d = rh[(i + 2) % 24]; return .5 * (2 * b + (-a + c) * f + (2 * a - 5 * b + 4 * c - d) * f * f + (-a + 3 * b - 3 * c + d) * f * f * f); };
-  const sp = Math.min(1, Math.abs(st.speed || 0) / 260), sig = 16 + 40 * sp, col = clamp(st.collapse || 0);
-  const prof = []; for (let s = 0; s <= N; s++) {
-    const a = s / N * 360, dd = ((a - st.deg) % 360 + 540) % 360 - 180;
-    const swell = (.45 + .55 * sp) * Math.exp(-dd * dd / (2 * sig * sig)) + .18 * sp * Math.exp(-(dd + sig) * (dd + sig) / (2 * sig * sig * 2.5)) * Math.sin(dd / 6);
-    prof.push(Math.max(.04, (val(((a / 15 - .5) % 24 + 24) % 24) / 1.6 * .75 + swell * .55)) * (1 - col));   // each hour's value sits on the middle of its sector, as in the app
+  const svg = buildCompass(), k = decks[2], D = CPD, col = clamp(st.collapse || 0), deg = st.deg;
+  // the band: each Agent layer between its inner and outer edge (app units × 2); collapsing pulls every edge to r 300
+  const N = D.orb.layers[0].outer.length - 1, rad = (e) => lerp(CP.R0 + 2 + e * CP.K, 300, col);
+  const edge = (e) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(rad(e[s]), s / N * 360)); return d + 'Z'; };
+  const band = (ly) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(rad(ly.outer[s]), s / N * 360)); for (let s = N; s >= 0; s--) d += 'L' + f2(cpt(rad(ly.inner[s]), s / N * 360)); return d + 'Z'; };
+  if (k.col !== col) {
+    k.col = col;
+    svg.querySelectorAll('.cp-band .ly').forEach((p, i) => p.setAttribute('d', band(k.lys[i])));
+    svg.querySelectorAll('.cp-band .ed').forEach((p, i) => p.setAttribute('d', edge(k.lys[i].outer)));
+    svg.querySelector('.cp-band .crest').setAttribute('d', edge(k.lys[k.lys.length - 1].outer));
+    svg.querySelectorAll('.cp-band .ly, .cp-band .crest').forEach((p) => { p.style.opacity = (1 - col).toFixed(3); });
   }
-  const ring = (k) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(lerp(CP.R0 + CP.BAND * prof[s] * k, 300, col), s / N * 360)); return d + 'Z'; };
-  const sw = clamp(st.sweep ?? 1), aur = svg.querySelector('#cpAur');
-  const ribs = svg.querySelectorAll('#cpAur .rib');
-  ribs.forEach((p, i) => { p.setAttribute('d', ring(Math.pow((i + 1) / RIB.length, .85))); });
-  // the aurora is revealed by a wedge that opens clockwise from sweepFrom
-  if (sw < 1) { svg.querySelector('#cpAurClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); aur.setAttribute('clip-path', 'url(#cpAurClip)'); } else aur.removeAttribute('clip-path');
-  svg.querySelector('#cpAur .body').setAttribute('d', ring(1) + ring(0));
-  svg.querySelector('#cpAur .body').style.opacity = (Math.min(1, sw * 4) * (1 - col)).toFixed(3);
+  const sw = clamp(st.sweep ?? 1), bg = svg.querySelector('.cp-band');
+  if (sw < 1) { svg.querySelector('#cpBandClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); bg.setAttribute('clip-path', 'url(#cpBandClip)'); } else bg.removeAttribute('clip-path');
+  svg.querySelector('.cp-band .base').style.opacity = ((st.dial ?? 1) * (1 - col)).toFixed(3);
+  // ruled-out sectors dim
+  svg.querySelectorAll('.cp-band .dim path').forEach((p, t) => { p.setAttribute('opacity', ((1 - (st.keep ? st.keep[t] : 1)) * .72 * (1 - col)).toFixed(3)); });
   // ticks drawn on clockwise from north, and a light that runs once around them
   const tkv = clamp(st.ticks ?? 1), tg = svg.querySelector('.cp-ticks');
   if (tkv < 1) { svg.querySelector('#cpTickClip path').setAttribute('d', cpWedge(0, tkv * 360)); tg.setAttribute('clip-path', 'url(#cpTickClip)'); } else tg.removeAttribute('clip-path');
+  svg.querySelector('.cp-poles').style.opacity = E.out(clamp(tkv * 1.4 - .4)).toFixed(3);
   const trg = svg.querySelector('.cp-trace'), tr = st.trace, ta = st.traceA ?? 1;
   if (tr != null && tr > 0 && ta > .001) {
     const head = tr * 360, n = 14, tail = 120; let h = '';
-    for (let j = 0; j < n; j++) { const a0 = Math.max(0, head - tail * (j + 1) / n), a1 = Math.max(0, head - tail * j / n); if (a1 - a0 < .2) continue; h += '<path d="' + cpArc(379, a0, a1) + '" stroke="var(--orbit)" stroke-width="' + (9 - j * .5).toFixed(1) + '" stroke-opacity="' + ((1 - j / n) * .9 * ta).toFixed(3) + '"/>'; }
-    const hp = cpt(379, head); h += '<circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="18" fill="url(#cpHead)" opacity="' + ta.toFixed(3) + '"/><circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="5" fill="#fff" opacity="' + ta.toFixed(3) + '"/>';
+    for (let j = 0; j < n; j++) { const a0 = Math.max(0, head - tail * (j + 1) / n), a1 = Math.max(0, head - tail * j / n); if (a1 - a0 < .2) continue; h += '<path d="' + cpArc(381, a0, a1) + '" stroke="var(--orbit)" stroke-width="' + (9 - j * .5).toFixed(1) + '" stroke-opacity="' + ((1 - j / n) * .9 * ta).toFixed(3) + '"/>'; }
+    const hp = cpt(381, head); h += '<circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="18" fill="url(#cpHead)" opacity="' + ta.toFixed(3) + '"/><circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="5" fill="#fff" opacity="' + ta.toFixed(3) + '"/>';
     trg.innerHTML = h;
   } else if (trg.firstChild) trg.innerHTML = '';
-  // the bright crest that rides on the outer ribbon at the needle
-  let gd = ''; for (let s = -24; s <= 24; s++) { const a = st.deg + s * (1.2 + sp), idx = Math.round((((a % 360) + 360) % 360) / 360 * N); gd += (s > -24 ? 'L' : 'M') + f2(cpt(CP.R0 + CP.BAND * prof[idx] + 2, a)); }
-  const gl = svg.querySelector('#cpAur .glow'); gl.setAttribute('d', gd); gl.style.opacity = (.35 + .55 * sp) * sw * (1 - col) * (st.dial ?? 1);
-  // planets
-  svg.querySelectorAll('#cpPlanets .pl').forEach((g, i) => {
-    const run = (st.orbit || 0) + i * 23, rest = CPD.ahd[i], k = clamp(st.settle || 0);
-    const a = run + ((((rest - run) % 360) + 540) % 360 - 180) * E.inOut(k), q = cpt(lerp(CP.R0 + CP.BAND * .5, 300, col), a);
-    g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = (clamp(sw * 2 - i * .2) * (1 - col)).toFixed(3);
+  // badges: ride with the petal (spread 23° apart), then take the shortest arc to their own bearing and radius
+  svg.querySelectorAll('.cp-pls .pl').forEach((g, i) => {
+    const x = D.orb.planets[i], run = (st.orbit || 0) + i * 23, kk = E.inOut(clamp(st.settle || 0));
+    const a = run + ((((x.deg - run) % 360) + 540) % 360 - 180) * kk, r = lerp(lerp(CP.R0 + CP.RH * .55, x.r * CP.K, kk), 300, col), q = cpt(r, a);
+    g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = (clamp(sw * 2 - i * .2) * (1 - col) * (st.dial ?? 1)).toFixed(3);
   });
-  // rose and its tip letters
-  const gr = clamp(st.grow ?? 1);
-  'DIMV'.split('').forEach((x, i) => {
-    const a = axisOf(P.v, i), lk = st.lock && st.lock[x], g0 = E.out(clamp(gr * 1.5 - i * .15));
-    let len = roseLen(a.strong);
-    if (lk) len = lerp(len, roseLen(lk.s), lk.k);             // a locked axis is pulled to its own strength
-    len = Math.max(1, len * g0); const q = rosePt(AXR2[x], len, CP.RR * .18);
-    const g = svg.querySelector('#cpRose .pt[data-k="' + x + '"]'); g.querySelector('.a').setAttribute('d', q[0]); g.querySelector('.b').setAttribute('d', q[1]);
-    const lb = svg.querySelector('#cpLbl .lb[data-k="' + x + '"]'), tip = cpt(len + 30, AXR2[x]), sc = [tip[0], tip[1] + (AXR2[x] === 0 ? -30 : 30)];
-    const t1 = lb.querySelector('.cp-l'), t2 = lb.querySelector('.cp-s');
-    t1.setAttribute('x', tip[0].toFixed(1)); t1.setAttribute('y', tip[1].toFixed(1)); t1.textContent = lk && lk.letter ? lk.letter : a.letter;
-    t2.setAttribute('x', sc[0].toFixed(1)); t2.setAttribute('y', sc[1].toFixed(1)); t2.textContent = Math.round(lk && lk.k > .5 ? lk.s : a.strong);
-    const sy = lk && lk.sy != null ? lk.sy : 1;
-    t1.setAttribute('transform', sy < .999 ? 'translate(' + f2(tip) + ') scale(1 ' + Math.max(.02, sy).toFixed(3) + ') translate(' + (-tip[0]).toFixed(1) + ' ' + (-tip[1]).toFixed(1) + ')' : '');
-    t1.style.fill = lk && lk.fill ? lk.fill : ''; t2.style.fill = lk && lk.fill2 ? lk.fill2 : '';
-    lb.style.opacity = (gr * (st.core ?? 1)).toFixed(3);
+  // the flower of the type under the petal; near a sector edge it cross-fades into the neighbour; `mine` hands over to
+  // your own flower (same type, your own proportions)
+  const u = ((deg % 360) + 360) % 360 / 22.5, i0 = Math.floor(u) % 16, fr = u - Math.floor(u), dd = Math.min(fr, 1 - fr), nb = (i0 + (fr < .5 ? 15 : 1)) % 16;
+  const x = dd < .15 ? dd / .15 : 1, op = new Array(17).fill(0); op[i0] = .5 + .5 * x; op[nb] += .5 - .5 * x;
+  const mine = clamp(st.mine || 0); if (mine > 0) { for (let j = 0; j < 16; j++) op[j] *= 1 - mine; op[16] = mine; }
+  const gr = clamp(st.grow ?? 1), sc = CP.BUD + (1 - CP.BUD) * gr, core = st.core ?? 1;
+  k.fls.forEach((g, j) => {
+    const o = op[j] * core; g.setAttribute('opacity', o.toFixed(3)); if (o < .002) return;
+    g.querySelector('.rot').setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' 400 400) translate(400 400) scale(' + sc.toFixed(4) + ') translate(-400 -400)');
   });
-  svg.querySelector('#cpNeedle').setAttribute('transform', 'rotate(' + st.deg.toFixed(2) + ' 400 400)');
-  svg.querySelector('#cpNeedle').style.opacity = (st.needle ?? 1) * (st.core ?? 1);
-  // the type under the needle, written just outside the bezel at the needle's bearing
-  const tp = svg.querySelector('#cpTip'), tq = cpt(452, st.deg), tc = tp.querySelector('.cp-tc'), tn = tp.querySelector('.cp-tn');
-  tc.setAttribute('x', tq[0].toFixed(1)); tc.setAttribute('y', (tq[1] - 14).toFixed(1)); tn.setAttribute('x', tq[0].toFixed(1)); tn.setAttribute('y', (tq[1] + 18).toFixed(1));
-  const code = (st.mine || 0) > .5 ? CPD.me.code : P.code; tc.textContent = code; tn.textContent = '';
-  tp.style.opacity = (st.tip ?? 0).toFixed(3);
+  svg.querySelector('.cp-ptr').setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' 400 400)');
+  svg.querySelector('.cp-ptr').style.opacity = ((st.needle ?? 1) * (st.dial ?? 1)).toFixed(3);
   svg.querySelector('.cp-dial').style.opacity = (st.dial ?? 1).toFixed(3);
-  svg.querySelectorAll('.cp-core, #cpRose, .cp-hub').forEach((e) => { e.style.opacity = (st.core ?? 1).toFixed(3); });
+  svg.querySelector('.cp-core').style.opacity = core.toFixed(3);
 }
 /* ---------- the Orbit mark, live ----------
    The same conical spiral as docs/design/logo/generate.py, variant "spiral" (1.6 turns, radius 9 → 16, rise 14, phase
@@ -437,7 +403,9 @@ function drawCompass(st) {
    Open: the five Agent planets fall onto its tail, it is traced, it tips over to a top view and the camera spirals down
    into the hole in its middle, where the first scene is waiting. Close: the compass aurora collapses to one ring, the
    ring grows its inner turn back (a flat spiral seen from above), and the spiral rises into the icon. */
-const ORB = { turns: 1.6, r0: 9, r1: 16, rise: 14, phase: .6, N: 260, TAPER: .12 };
+// curve and stroke = docs/design/logo/orbit-spec.json; K = design px per curve unit at the icon view
+// (orbit-geometry.json projection.scale), so every pose is the app icon's curve scaled as a whole
+const ORB = { turns: 1.6, r0: 9, r1: 16, rise: 14, phase: .6, N: 480, K: 15.044624443, wFar: 4, wNear: 14, taper: .1, wFloor: .6, gap: 24 };
 const orbEl = $('#orbit');
 function orbitPts(yaw, pitch) {
   const Y = yaw * Math.PI / 180, P = pitch * Math.PI / 180, out = [];
@@ -450,24 +418,47 @@ function orbitPts(yaw, pitch) {
   }
   return out;
 }
-// o = { t0, t: drawn span 0..1 along the curve, yaw, pitch, R: px per unit, cx, cy, w, a, head }
+/* The line follows docs/design/logo/orbit.py: width = max(w_floor, (w_far + (w_near − w_far)·depth)·sin(e·π/2)) with
+   depth normalised over this pose and e the taper over the first / last 10 % of the screen arc length; where the
+   projection crosses itself the far branch is cut gap/2 + its width on either side; round ends. Each run is one filled
+   outline. o = { t0, t: drawn span 0..1 along the curve, yaw, pitch, R: px per unit, cx, cy, a, head, color } */
 function orbitSVG(o) {
   if (!o || o.a <= .001) return '';
-  const p = orbitPts(o.yaw, o.pitch), n0 = Math.min(ORB.N - 1, Math.round((o.t0 || 0) * ORB.N)), n = Math.min(ORB.N, Math.max(n0 + 1, Math.round(o.t * ORB.N)));
-  const z0 = Math.min(...p.map((q) => q[2])), z1 = Math.max(...p.map((q) => q[2]));
-  const L = 6, X = (q) => (o.cx + q[0] * o.R).toFixed(1) + ' ' + (o.cy + q[1] * o.R).toFixed(1);
-  const lvl = (k) => Math.min(L - 1, Math.floor(((p[k][2] + p[k + 1][2]) / 2 - z0) / (z1 - z0 || 1) * L));
-  const runs = []; let cur = null;
-  for (let k = n0; k < n; k++) { const v = lvl(k); if (!cur || cur.v !== v) { cur = { v, k0: k, k1: k }; runs.push(cur); } else cur.k1 = k; }
-  runs.sort((a, b) => a.v - b.v);
-  let h = '<g opacity="' + o.a.toFixed(3) + '" fill="none" stroke-linecap="round" stroke-linejoin="round">';
-  for (const r of runs) {
-    let d = 'M' + X(p[r.k0]); for (let k = r.k0 + 1; k <= r.k1 + 1; k++) d += 'L' + X(p[k]);
-    const h0 = Math.min(r.k1, r.k0 + 3), h1 = Math.max(h0, r.k1 - 2); let dh = 'M' + X(p[h0]); for (let k = h0 + 1; k <= h1 + 1; k++) dh += 'L' + X(p[k]);
-    const end = Math.min(1, Math.min(r.k0 - n0 + (n0 ? 99 : 0), n - r.k1) / ORB.N / ORB.TAPER + .35), w = (o.w * .45 + o.w * .55 * (r.v + .5) / L) * end;
-    h += (h1 > h0 ? '<path d="' + dh + '" stroke="#000" stroke-width="' + (w + 10).toFixed(1) + '"/>' : '') + '<path d="' + d + '" stroke="' + (o.color || '#e9eaee') + '" stroke-width="' + w.toFixed(1) + '"/>';
+  const N = ORB.N, u = o.R / (ORB.r1 * ORB.K), p = orbitPts(o.yaw, o.pitch).map((q) => [o.cx + q[0] * o.R, o.cy + q[1] * o.R, q[2]]);
+  const Ls = [0]; for (let k = 1; k <= N; k++) Ls.push(Ls[k - 1] + Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]));
+  const T = Ls[N] || 1, z0 = Math.min(...p.map((q) => q[2])), z1 = Math.max(...p.map((q) => q[2]));
+  const w = p.map((q, k) => { const e = Math.min(1, Ls[k] / (T * ORB.taper), (T - Ls[k]) / (T * ORB.taper)); return Math.max(ORB.wFloor, (ORB.wFar + (ORB.wNear - ORB.wFar) * (q[2] - z0) / (z1 - z0 || 1)) * Math.sin(e * Math.PI / 2)) * u; });
+  const cut = new Uint8Array(N + 1);
+  for (let i = 0; i < N; i++) {
+    const a = p[i], b = p[i + 1];
+    for (let j = i + 3; j < N; j++) {
+      const c = p[j], d = p[j + 1];
+      if (Math.max(c[0], d[0]) < Math.min(a[0], b[0]) || Math.min(c[0], d[0]) > Math.max(a[0], b[0]) || Math.max(c[1], d[1]) < Math.min(a[1], b[1]) || Math.min(c[1], d[1]) > Math.max(a[1], b[1])) continue;
+      const den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]); if (Math.abs(den) < 1e-12) continue;
+      const s = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den, v = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den;
+      if (s < 0 || s >= 1 || v < 0 || v >= 1) continue;
+      const f = a[2] + s * (b[2] - a[2]) < c[2] + v * (d[2] - c[2]) ? i : j, r = ORB.gap / 2 * u + w[f];
+      for (let k = 0; k <= N; k++) if (Math.abs(Ls[k] - Ls[f]) < r) cut[k] = 1;
+    }
   }
-  if (o.head > .01 && n < ORB.N) { const q = X(p[n]).split(' '); h += '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="' + (o.w * 1.6).toFixed(1) + '" fill="url(#orbGlow)" opacity="' + o.head.toFixed(3) + '"/><circle cx="' + q[0] + '" cy="' + q[1] + '" r="' + (o.w * .55).toFixed(1) + '" fill="#fff" opacity="' + o.head.toFixed(3) + '"/>'; }
+  const n0 = Math.min(N - 1, Math.round((o.t0 || 0) * N)), n = Math.min(N, Math.max(n0 + 1, Math.round(o.t * N)));
+  const X = (q) => q[0].toFixed(2) + ' ' + q[1].toFixed(2);
+  const run = (k0, k1) => {
+    const L = [], Rr = [];
+    for (let k = k0; k <= k1; k++) {
+      const a = p[Math.max(k0, k - 1)], b = p[Math.min(k1, k + 1)], ln = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / ln, ny = (b[0] - a[0]) / ln, h = w[k] / 2;
+      L.push([p[k][0] + nx * h, p[k][1] + ny * h]); Rr.push([p[k][0] - nx * h, p[k][1] - ny * h]);
+    }
+    const r1 = (w[k1] / 2).toFixed(2), r0 = (w[k0] / 2).toFixed(2);
+    return 'M' + L.map(X).join('L') + 'A' + r1 + ' ' + r1 + ' 0 0 0 ' + X(Rr[Rr.length - 1]) + 'L' + Rr.reverse().map(X).join('L') + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + X(L[0]) + 'Z';
+  };
+  let d = '', k0 = null;
+  for (let k = n0; k <= n; k++) {
+    if (!cut[k] && k0 == null) k0 = k;
+    if ((cut[k] || k === n) && k0 != null) { const k1 = cut[k] ? k - 1 : k; if (k1 > k0) d += run(k0, k1); k0 = null; }
+  }
+  let h = '<g opacity="' + o.a.toFixed(3) + '"><path d="' + d + '" fill="' + (o.color || '#e9eaee') + '"/>';
+  if (o.head > .01 && n < N) { const q = p[n], hw = ORB.wNear * u; h += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (hw * 1.6).toFixed(1) + '" fill="url(#orbGlow)" opacity="' + o.head.toFixed(3) + '"/><circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (hw * .55).toFixed(1) + '" fill="#fff" opacity="' + o.head.toFixed(3) + '"/>'; }
   return h + '</g>';
 }
 function planetsSVG(o) {
@@ -494,12 +485,12 @@ function orbitAt(b) {
     const yaw = lerp(lerp(-25, 20, turn), 0, tilt) - 620 * E.in(dive);                       // the dive spins the spiral
     const Rn = lerp(215, 270, tilt) * Math.pow(18, E.in(dive));
     $('#hole1').style.clipPath = b >= OPEN.dive ? 'circle(' + (Rn * ORB.r0 / ORB.r1 * .9).toFixed(1) + 'px at 960px ' + lerp(410, 540, tilt).toFixed(1) + 'px)' : 'circle(0px at 960px 540px)';
-    h += orbitSVG({ t: E.inOut(lp(b, OPEN.trace, 2.4)), yaw, pitch: lerp(lerp(72, 45, turn), 90, tilt), R: lerp(215, 270, tilt) * Math.pow(18, E.in(dive)), cx: 960, cy: lerp(410, 540, tilt), w: lerp(15, 13, tilt) * (1 + 6 * E.in(dive)), a: 1 - E.in(lp(b, OPEN.end - .6, .6)), head: 1 - lp(b, OPEN.trace + 2.2, .5) });
+    h += orbitSVG({ t: E.inOut(lp(b, OPEN.trace, 2.4)), yaw, pitch: lerp(lerp(72, 45, turn), 90, tilt), R: lerp(215, 270, tilt) * Math.pow(18, E.in(dive)), cx: 960, cy: lerp(410, 540, tilt), a: 1 - E.in(lp(b, OPEN.end - .6, .6)), head: 1 - lp(b, OPEN.trace + 2.2, .5) });
   }
   if (b >= OPEN.end && b < OPEN.end + .2) $('#hole1').style.clipPath = 'none';
   if (b >= CLOSE.ring) {
     const R0 = 300 * decks[2].C.s, grow = E.inOut(lp(b, CLOSE.ring, CLOSE.rise - CLOSE.ring)), rise = E.inOut(lp(b, CLOSE.rise, CLOSE.settle - CLOSE.rise));
-    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise) + 12 * Math.sin((b - CLOSE.sway) * .35) * lp(b, CLOSE.sway, 3), pitch: lerp(90, 45, rise), R: lerp(R0, 215, rise), cx: 960, cy: lerp(540, 410, rise), w: lerp(7, 15, rise), a: E.out(lp(b, CLOSE.ring, .4)) * (1 - E.inOut(lp(b, CLOSE.out, CLOSE.outDur))), head: 0 });
+    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise) + 12 * Math.sin((b - CLOSE.sway) * .35) * lp(b, CLOSE.sway, 3), pitch: lerp(90, 45, rise), R: lerp(R0, 215, rise), cx: 960, cy: lerp(540, 410, rise), a: E.out(lp(b, CLOSE.ring, .4)) * (1 - E.inOut(lp(b, CLOSE.out, CLOSE.outDur))), head: 0 });
   }
   orbEl.innerHTML = '<defs><radialGradient id="orbGlow"><stop offset="0" stop-color="rgba(255,255,255,.9)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>' + h;
 }
