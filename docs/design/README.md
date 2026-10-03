@@ -8,7 +8,7 @@
 | --- | --- |
 | [品牌](brand.md) | 产品名 Orbit、代码标识与旧名兼容、标志、字标与 App 图标、字体、备选与历史版本 |
 | [路演组件素材](ppt-assets/README.md) | 从现行 UI 提取 PPT 可用的透明 PNG、SVG、页面与素材索引 |
-| [人格素材](persona/README.md) | 16 型协作人格之花、16 型总览图与画像页表盘（协作人格之花与轨道）的浅色 / 深色 SVG、PNG，由原型导出 |
+| [人格素材](persona/README.md) | 16 型协作人格之花、16 型总览图与画像页表盘（协作人格之花、每个 Agent 的轨道曲线、类型码与徽章）的浅色 / 深色 SVG、PNG，由原型导出 |
 | [Demo 说明](demo.md) | 统一 App（Lite + Advance）怎么看、有哪些交互、怎么修改与发布 |
 | [画板与设计决定](boards.md) | Advance v1 画板索引、原始设计决定、v1 之后的现行决定、假设 |
 | [Lite 审查](lite-review.md) | `genius-FXC` 的 Lite 原稿：需求对应、交互说明与自查 |
@@ -42,5 +42,6 @@
 | Lite + Advance | v1.8 | 2026-10-03 | 侧栏页脚去掉「仅本地处理 · 0 B 上传 · 脱敏规则」白色卡片，改为侧栏底色上的索引指示灯 +「N 个会话 · 实时」；真实 App 按本机服务状态点灯；画板 D3 同步 | `visual-cases-v1/Sidebar.dc.html`、`prototypes/advance/` |
 | Lite + Advance | v1.9 | 2026-10-03 | 罗盘内盘的玫瑰与指针换成协作人格之花（16 型 16 朵，每朵 3–6 瓣、两色；分享卡、菜单栏、小组件与算法说明同用）；外环改为宣传画式的多峰色带：每个会话按自身四维归到 16 型（只标即兴 / 委托 / 规划 / 掌舵），按 Agent 分层、宽度表示占比，低饱和、透明底；Agent 标志徽章停在各 Agent 会话的平均方向；人格素材包见 [人格素材](persona/README.md) | `prototypes/advance/`（`34-agent-logos.js`、`35-visuals.js`、`41-a2-persona.js`、`56-onboarding.js`）、[Demo 说明](demo.md) |
 | Lite + Advance | v1.10 | 2026-10-03 | 分享卡按时间长度各出一张（周卡 / 月卡 / 季卡 / 全时卡），内容取自该窗口的真实人格；页眉换成 Orbit·知音 字标，类型码 SF Pro Rounded、16 型新版名称与描述；版式放松留白，金句移入分享文案；各页面板改为各自滚动 | `prototypes/advance/`、`visual-cases-v1/ShareCard.dc.html` |
+| Lite + Advance | v1.11 / **0.0.4** | 2026-10-03 | 人格视觉定稿，随 App 0.0.4：16 型花改为旋转对称（3–6 片相同主瓣 + 可选一圈浅灰小瓣，没有领瓣；V 环 + 中心点 / T 实心点，小瓣 token `--petal2`）；表盘外圈改为每个 Agent 一条独立曲线（同一基线、共用高度尺度、可重叠，不再叠加），去掉四个方位字，外框 16 个扇区各标类型码（SF Pro Rounded）；`--orbit` 改为只标表盘上指向你的类型的三角；Agent 徽章停在各自全部会话方位的平均方向；人格切换时旧花转向新类型收起、新花绽开，曲线、徽章与三角平滑过渡；侧栏用户行与概览人格卡加小花，分享卡的花按类型画花心；Genesis 对齐新表盘；人格素材包（`persona/`）随之重新导出 | `prototypes/advance/`（`35-visuals.js`、`38-bloom-motion.js`、`41-a2-persona.js`、`56-onboarding.js`）、`apps/desktop/`、[人格素材](persona/README.md)、[品牌](brand.md)、[Demo 说明](demo.md) |
 
 画板与 Demo 的数值都是示例数据，不替代 MVP 范围；当前实现边界见[产品与交付边界](../product/scope.md)。

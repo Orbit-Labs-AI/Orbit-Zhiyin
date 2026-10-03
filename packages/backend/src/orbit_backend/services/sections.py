@@ -383,9 +383,12 @@ def rules_digest() -> str:
         from .. import __version__
         from ..analytics import FEATURE_VERSION
         from ..analytics.products.contracts import rule_versions
+        from ..recommend.engine import ENGINE_VERSION
+        from ..recommend.section import FACTS_VERSION
 
         payload = json.dumps([rule_versions(), FEATURE_VERSION, __version__, sorted(SECTIONS),
-                              {"full_pass_with_text": WITH_TEXT}], sort_keys=True)
+                              {"full_pass_with_text": WITH_TEXT, "recommend_facts": FACTS_VERSION,
+                               "recommend_engine": ENGINE_VERSION}], sort_keys=True)
         _RULES = hashlib.sha256(payload.encode()).hexdigest()[:12]
     return _RULES
 

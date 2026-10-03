@@ -28,7 +28,7 @@ from .env import environment as env_environment
 from .errors import InstallError, OpConflict, PlanError, RiskBlocked, StaleError
 from .fetch import fetch_source
 from .fetch import gc as fetch_gc
-from .plan import INVENTORY_KIND, default_catalog_lookup, digest, make_plan
+from .plan import INVENTORY_KIND, build_spec, default_catalog_lookup, digest, make_plan
 
 OBSERVE_DAYS = 7
 UNDO_WINDOW_MS = 10_000
@@ -71,6 +71,16 @@ class InstallService:
     def plan(self, source: dict, agents=None, scope: str = "user", project_path: str | None = None,
              fetch: bool = False) -> dict:
         return make_plan(source, agents=agents, scope=scope, project_path=project_path, fetch=fetch, service=self)
+
+    def resolve(self, source: dict, fetch: bool = False) -> dict:
+        """Expose the same InstallSpec as planning, without agent targets or installation.
+
+        Catalog references, AI artifacts, templates, validation and fetch statuses all
+        remain owned by build_spec. Consumers may render ready payloads for another runtime.
+        """
+        spec, extra = build_spec(source, appdb=self.appdb, catalog_lookup=self.catalog_lookup,
+                                 cache_dir=self.cache_dir, fetcher=self.fetcher, allow_network=fetch)
+        return {"spec": spec, **extra}
 
     def _plan(self, plan_id: str) -> dict:
         plan = store.get_plan(self.appdb, plan_id)
