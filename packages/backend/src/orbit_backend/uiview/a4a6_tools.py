@@ -385,6 +385,28 @@ def _norm_name(name: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
 
 
+def _mcp_tools(server: str, rows) -> list[dict]:
+    """Tools called under one MCP server: ``[{name, raw, n, failed, known, unknown, err}]``.
+    ``name`` drops the ``mcp__<server>__`` prefix agents put in front of the tool name."""
+    by: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        by[row["name_raw"] or ""].append(row)
+    prefix = re.compile(r"^(?:mcp__" + re.escape(server) + r"__|" + re.escape(server) + r"[./:])",
+                        re.IGNORECASE)
+    merged: dict[str, dict] = {}
+    for raw, items in by.items():
+        name = prefix.sub("", raw) or raw
+        entry = merged.setdefault(name, {"name": name, "raw": [], "rows": []})
+        entry["raw"].append(raw)
+        entry["rows"].extend(items)
+    out = []
+    for entry in merged.values():
+        c = _counts(entry["rows"])
+        out.append({"name": entry["name"], "raw": sorted(entry["raw"]), **c,
+                    "err": common.rate(c["failed"], c["known"])})
+    return sorted(out, key=lambda t: (-t["n"], t["name"]))
+
+
 def mcp(rows, inventory_items) -> list[dict]:
     servers: dict[str, dict] = {}
     for row in rows:
@@ -401,7 +423,8 @@ def mcp(rows, inventory_items) -> list[dict]:
             "err": common.rate(c["failed"], c["known"]),
             "sessions": len({r["session_uid"] for r in s["rows"]}),
             "last_used_at": max(dated) if dated else None, "status": "unscanned",
-            "resident_tokens": None, "resident_basis": "unknown", "inv_id": None}
+            "resident_tokens": None, "resident_basis": "unknown", "inv_id": None,
+            "tools": _mcp_tools(name, s["rows"])}
     seen = set()
     for item in inventory_items or []:
         if item.get("type") != "mcp":
@@ -414,7 +437,7 @@ def mcp(rows, inventory_items) -> list[dict]:
         entry = out.setdefault(key, {
             "server": item.get("name"), "calls": 0, "failed": 0, "err": None, "sessions": 0,
             "last_used_at": None, "status": None, "resident_tokens": None,
-            "resident_basis": "unknown", "inv_id": None})
+            "resident_basis": "unknown", "inv_id": None, "tools": []})
         if entry["inv_id"] is not None:
             continue  # Same server configured twice: the first scan wins.
         resident = item.get("resident") or {}
