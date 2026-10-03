@@ -28,7 +28,9 @@ css(`
 .k .ln.rd-xl{font-size:94px}
 /* v18.1: 1e's So line — silver, a step under the peak (36 px, 500); 「So，」 lands alone at the ring centre first, so the
    line may not clip it on its way up to its slot */
-.k .ln.rd-s1{font-size:36px;font-weight:500;letter-spacing:0;overflow:visible}
+.k .ln.rd-s1{font-size:48px;font-weight:600;letter-spacing:0;overflow:visible}
+/* v18.2: the So line is 48 px / 600 and 「Assistant」 is pure white (no silver gradient), so the line reads as the answer */
+.k .ln.sv .w.rd-w{background:none;color:#fff;-webkit-text-fill-color:#fff}
 .k .ln.sv b.rd-or{color:var(--a1);-webkit-text-fill-color:var(--a1)}
 /* v17.2: the connectives 「但，」/「So，…」 share one light small size; 「重新定义」 is an orange .w inside silver type; the
    highlighter word keeps its own white fill so the band sits under the glyphs, not over the silver gradient */
@@ -54,13 +56,15 @@ scene('15-redesign', () => {
   // ring still reaches 228 exactly at the hand-off. H3E instead of E.inOut: T6 has gm above y 300 by b20.9, before
   // 「So，」 (y 400) lands (with E.inOut it would still be at y ≈ 506 and cross the word at b21.1); H3E puts it at y ≈ 320
   // at b20.9 and clears line 3 (bottom 420) only after the 1d lines are gone (b20.7)
-  // v17.7: each of 1e's three hard cuts (b21.9 / 22.3 / 22.7) steps the beads 4° on along the ring (.2 beat, E.inOut, no
+  // v17.7: each of 1e's three hard cuts (CUT, v18.2: b22.5 / 22.9 / 23.3) steps the beads 4° on along the ring (.2 beat, E.inOut, no
   // rebound); the spin gives those 12° back (9° over 5.7 beats), so the ring still hands on at 228° (b26.0)
-  const JUMP = (b) => 4 * [21.9, 22.3, 22.7].reduce((s, t) => s + E.inOut(clamp((b - t) / .2)), 0);
+  // v18.2: the three cuts moved 21.9 / 22.3 / 22.7 → 22.5 / 22.9 / 23.3 so the whole So line holds alone ≥ .5 beat first
+  const CUT = [22.5, 22.9, 23.3];
+  const JUMP = (b) => 4 * CUT.reduce((s, t) => s + E.inOut(clamp((b - t) / .2)), 0);
   // v18.1 slow push on the 1e peak: ring + So line + three lines scale 1 → 1.04 about the ring centre from the first hard
-  // cut (b21.9) to b25.7 (E.sine), then hold at 1.04 into 20-orbit's b26.0 key; the beads ride the scaled radius so they
+  // cut (CUT[0], v18.2: b22.5) to b25.7 (E.sine), then hold at 1.04 into 20-orbit's b26.0 key; the beads ride the scaled radius so they
   // stay matched with the dashed circle and the type
-  const PUSH = (b) => 1 + .04 * E.sine(clamp((b - 21.9) / 3.8));
+  const PUSH = (b) => 1 + .04 * E.sine(clamp((b - CUT[0]) / (25.7 - CUT[0])));
   AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: (b) => 420 * PUSH(b), ph: (b) => 207 + JUMP(b), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b20.1–20.7 一起向上淡出、模糊） ---------- */
@@ -240,7 +244,7 @@ scene('15-redesign', () => {
   }, { blend: .05 });
   // 1e: on the way out to the ring each dot becomes a bead (ls .85) threaded on the dashed circle; 「everyone」 lands
   // (b23.0) with a beat of glow
-  AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, 23.0, 24.0, .3) });
+  AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, CUT[2] + .3, CUT[2] + 1.3, .3) });
 
   /* ---------- 1e 虚线圆（#agdBack，跟着 cc 的半径，b26.8–27.4 淡出） ---------- */
   // 1e → 2 hand-off: while the three lines spread out (b25.8–26.4) the circle brightens .24 → .32 (v17.7: was .14, too faint to see it drawn out of the beads), so in b26.4–26.9,
@@ -272,7 +276,7 @@ scene('15-redesign', () => {
   // everyone 3.1 beats readable). From b21.3 everything pushes in together (scale 1 → 1.04 about the ring centre,
   // constant speed) so it never sits still under the turning ring; the fit widths keep every line's corners inside the
   // ring's inner edge (radius 380) at 1.04
-  // v18.1: the push is PUSH (b21.9–25.7, E.sine, the ring scales with it), so before the first cut the type sits still
+  // v18.1: the push is PUSH (v18.2: b22.5–25.7, E.sine, the ring scales with it), so before the first cut the type sits still
   const zoom = (y, own) => (el, tl, life, ts) => {
     const s = PUSH(ts / BEAT), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
     el.style.transform = (own ? 'translate(-50%,-50%)' : el.style.transform) + add;     // K.words rewrites it every frame, K.big never
@@ -280,16 +284,18 @@ scene('15-redesign', () => {
   // v18.1: 「So，」 comes in at b20.6 at the ring centre (soft and large, as the 1d lines leave and the box shrinks into
   // the dots there), so the ring is never empty; at b20.95–21.35 it rises to its slot at the head of the line and the
   // rest of the line follows it in (「我们做了一个」 21.45, 「Assistant」 21.65)
+  // v18.2: the rise is one .6-beat E.inOut (b20.9–21.5) on scale and translate together (was .4 beat, ≈ 4 frames at
+  // its middle, read as a jump); 「我们做了一个」 wipes in only as 「So，」 arrives (b21.45), 「Assistant」 (white) at b21.62
   const soRise = (el, tl) => {
-    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp((u - .35) / .4));
-    const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - 362;
+    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp((u - .3) / .6));
+    const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - 352;
     w.style.transform = 'translate(' + (dx * (1 - m)).toFixed(1) + 'px,' + (dy * (1 - m)).toFixed(1) + 'px) scale(' + (lerp(1.9, 1, p) * lerp(2.2, 1, m)).toFixed(4) + ')';
     w.style.transformOrigin = '50% 60%';
     w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 14).toFixed(1) + 'px)' : 'none';
     w.style.opacity = Math.min(1, p * 2).toFixed(3);
   };
-  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
-    { x: 960, y: 362, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .22, 1.07], [1.05, .24, 1.12]], { dy: 18 })), tick: zoom(362, true) });
+  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w rd-w">Assistant</span>']],
+    { x: 960, y: 352, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.1]], { dy: 18 })), tick: zoom(352, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
   // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
   // that bead set it down inside the ring
@@ -307,7 +313,7 @@ scene('15-redesign', () => {
     w.style.filter = z < .5 ? 'blur(' + ((1 - z * 2) * 3).toFixed(1) + 'px)' : 'none';
   });
   // [beat, y, html, fit]
-  for (const [b, y, h, fit] of [[21.9, 460, 'Redesign', 740], [22.3, 568, 'Agent Workflow', 740], [22.7, 676, 'for <b class="rd-or">everyone</b>', 740]]) {
+  for (const [b, y, h, fit] of [[CUT[0], 460, 'Redesign', 740], [CUT[1], 568, 'Agent Workflow', 740], [CUT[2], 676, 'for <b class="rd-or">everyone</b>', 740]]) {
     txt(b, 26.4, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
       { anim: K.all(K.words({ at: [0], fit, out: .6, spread: true }), settle(fromBead(b, y))), tick: zoom(y) });
   }
