@@ -69,7 +69,8 @@ function countUp(root, opt) {
   // keep the box as wide as the final value while digits are missing (tabular-nums keeps each digit the same width);
   // all widths are read before any text is written, so a re-render with many changed numbers forces one layout, not one each
   const widths = todo.map((r) => getComputedStyle(r.el).display !== 'inline' ? r.el.getBoundingClientRect().width : null);
-  const els = new Set(todo.map((r) => r.el)); MOTION.runs = MOTION.runs.filter((r) => !els.has(r.el));
+  // a superseded run is marked done so its settle timer cannot write its stale final value over the new run
+  const els = new Set(todo.map((r) => r.el)); MOTION.runs = MOTION.runs.filter((r) => { if (!els.has(r.el)) return true; r.done = true; return false; });
   todo.forEach((run, i) => {
     const el = run.el;
     if (widths[i] != null) el.style.minWidth = widths[i] + 'px';
