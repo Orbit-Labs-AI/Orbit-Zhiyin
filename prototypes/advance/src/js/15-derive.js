@@ -1,6 +1,20 @@
 /* ============ derived data ============ */
 function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [Math.max(0, Math.min(FIRSTDAY, L)), L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
+// Agent filter model: the default is every imported agent (S.agents = all of AG). Only an explicit deselection is remembered
+// (S.agentOff, ids); agents that show up later join the filter unless the user unchecked them. agentSync() records the user's
+// choice from S.agents (ids no longer in AG stay in agentOff until picked again); agentApply() rebuilds S.agents from AG
+// and agentOff after AG changes (live hydrate, a restored store) and heals a stale pick: an empty result means all.
+function agentSync() {
+  const off = new Set(Array.from(S.agentOff).filter((id) => !AGI[id]));
+  AG.forEach((a) => { if (!S.agents.has(a.id)) off.add(a.id); });
+  S.agentOff = off;
+}
+function agentApply() {
+  let on = AG.filter((a) => !S.agentOff.has(a.id)).map((a) => a.id);
+  if (!on.length) { on = AG.map((a) => a.id); S.agentOff = new Set(); }
+  S.agents = new Set(on);
+}
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
 function pass(s, o) {

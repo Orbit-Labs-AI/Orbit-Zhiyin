@@ -2,7 +2,7 @@
    other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
    before the sidebar re-renders; the content then swaps under a View Transition (ed-side / ed-main) or the .ed-in fallback. */
 .edsw{position:relative;flex:none;display:grid;grid-template-columns:1fr 1fr;height:30px;margin:0 10px 10px;padding:2px;border-radius:9px;background:var(--field)}
-.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
+.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--font-sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
 .edsw button[aria-checked="true"]{color:var(--ink-1)}
 .edsw button:hover{color:var(--ink-1)}
 .edsw-thumb{position:absolute;z-index:0;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:7px;background:var(--surface);box-shadow:var(--sh-raise);transition:transform .32s cubic-bezier(.3,1.35,.5,1)}

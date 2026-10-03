@@ -33,6 +33,7 @@ function hostInit([endpoint, token, features, native]) {
   window.__nativeMsgs = []; window.__folders = [];
   const fire = (name, detail) => setTimeout(() => window.dispatchEvent(new CustomEvent(name, { detail })), 30);
   window.webkit = { messageHandlers: { tandem: { postMessage(m) {
+    if (m && m.type === 'dragRegions') return;  // layout report from 23-native-drag.js, not a bridge call
     const rec = Object.assign({}, m);
     if (rec.base64 != null) { rec.bytes = Math.floor(rec.base64.length * 3 / 4); delete rec.base64; }
     if (rec.text != null) { rec.bytes = new Blob([rec.text]).size; rec.head = String(rec.text).slice(0, 160); delete rec.text; }

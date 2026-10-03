@@ -851,7 +851,7 @@ const TandemLive = (function () {
     '.tl-kpi b{display:block;font-size:22px;font-weight:600;color:var(--ink-1,#17181b)}.tl-kpi span{font-size:12px;color:var(--ink-3,#62666f)}' +
     '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
-    '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+    '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
   const ui = {
