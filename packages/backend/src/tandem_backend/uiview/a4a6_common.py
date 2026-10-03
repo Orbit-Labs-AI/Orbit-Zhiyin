@@ -71,6 +71,28 @@ def attach_event_seq(conn, rows: list[dict], *, rowid_key: str = "call_event_row
     return rows
 
 
+def needs_command(row) -> bool:
+    """Only an approval-gated call with a command head is classified from its full argv
+    (``features.vocab.command_info``: read-only approvals in A4 and the A6 friction rule)."""
+    return row.get("approval") is not None and bool(row.get("command_head"))
+
+
+def attach_call_command(conn, rows: list[dict], *, event_key: str = "call_event_uid") -> list[dict]:
+    """Set ``row["command"]`` (the call event's ``$.input.command``) on the rows that
+    ``needs_command``; other rows get no key. Reading attrs for every call would pull one
+    wide event row per call again (55 of 145k real calls need it)."""
+    wanted = sorted({r[event_key] for r in rows if needs_command(r) and r.get(event_key)})
+    command_of = {}
+    if wanted:
+        command_of = {uid: command for uid, command in conn.execute(
+            "SELECT event_uid, json_extract(attrs, '$.input.command') FROM event "
+            "WHERE event_uid IN (SELECT value FROM json_each(?))", (json.dumps(wanted),))}
+    for r in rows:
+        if needs_command(r):
+            r["command"] = command_of.get(r.get(event_key))
+    return rows
+
+
 # -- scope -------------------------------------------------------------------------------
 
 def scope_dict(scope) -> dict:
@@ -231,6 +253,21 @@ def agent_list(agent: list[str] | None, agents: str | None) -> list[str] | None:
     out = [*(agent or []), *(a.strip() for a in (agents or "").split(","))]
     out = sorted({a for a in out if a})
     return out or None
+
+
+def range_scope(source_ids: Annotated[list[str] | None, Query()] = None,
+                excluded_session_uids: Annotated[list[str] | None, Query()] = None) -> dict:
+    """FastAPI dependency: the source range and exclusion list ``analytics_scope`` applies.
+
+    A5/A6 keep their own ``project_id`` / ``since`` parameters but must see the same session
+    set as A1/A3/A4: ``default_source_ids`` (disabled sources dropped) plus the persisted
+    ``sessionops.exclusion`` list merged with any explicit ``excluded_session_uids``.
+    """
+    from ..services.routes_analytics import analytics_scope
+
+    scope = analytics_scope(source_ids=source_ids, excluded_session_uids=excluded_session_uids)
+    return {"source_ids": scope.source_ids,
+            "excluded_session_uids": list(scope.excluded_session_uids or [])}
 
 
 def facet_sessions(gw, facets: dict, tz: str | None = None, wait_ms: int = 0):

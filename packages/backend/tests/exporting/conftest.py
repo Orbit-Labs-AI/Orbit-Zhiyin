@@ -20,3 +20,14 @@ def env(world):
     gw = fake_gateway(world.home, data_rev=1)
     yield client_for(gw), gw, world
     gw.appdb.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_exclusion_provider():
+    """Every gateway registers the process-wide exclusion provider; exclusion.merged is
+    fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
+    from tandem_backend.sessionops import exclusion
+
+    exclusion.set_provider(None)
+    yield
+    exclusion.set_provider(None)

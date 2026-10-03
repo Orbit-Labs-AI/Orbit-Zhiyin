@@ -8,6 +8,7 @@ emitted per ``(session, kind, key)``; ``value`` keeps the number of occurrences.
 
 import json
 import re
+import shlex
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
@@ -16,17 +17,27 @@ from typing import Any
 from ...models import stable_id
 from ...privacy import direct_user_text
 from ...profiling.bottlenecks import _expected_failure
-from ..common import human
+from ..common import clauses, human
 from ..context import AnalysisContext
-from ..interaction.rules import correction_terms
+from ..interaction.rules import QUOTED, correction_terms
+from ..lexicon import emotion_cues
 from .dictionary import (
     CORRECTION_CHARS,
     EDIT_KINDS,
-    FRUSTRATION,
+    FIND_WRITE_ACTIONS,
+    FRUSTRATION_STREAK_CHARS,
+    GIT_BRANCH_LIST,
+    GIT_BRANCH_WRITE,
     READONLY_COMMANDS,
     RISKY_COMMANDS,
+    RM_DANGEROUS_TARGETS,
+    RM_REGENERABLE_DIRS,
     RULES_VERSION,
     SIGNAL_KINDS,
+    SQL_CLIENTS,
+    SQL_DROP,
+    STATE_ONLY_COMMANDS,
+    WRITE_REDIRECTS,
 )
 
 Record = dict[str, Any]
@@ -160,10 +171,162 @@ def call_files(call: Record) -> list[str]:
     return [f if isinstance(f, str) else str(f.get("path", "")) for f in files if f]
 
 
-def permission_mode(session: Record) -> str | None:
-    meta = session.get("meta") or {}
-    return (session.get("permission_mode") or (session.get("attrs") or {}).get("permission_mode")
-            or (meta.get("attrs") or {}).get("permission_mode"))
+def _command_value(value) -> str | None:
+    if isinstance(value, dict):
+        return _command_value(value.get("command", value.get("cmd")))
+    if isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+        if len(value) == 3 and PurePosixPath(value[0]).name in ("sh", "bash", "zsh") \
+                and value[1] in ("-c", "-lc", "-ic"):
+            return value[2]
+        return shlex.join(value)
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def command_line(call: Record, event: Record | None = None) -> str:
+    """Full command text: L3 arguments, else the ``tool.call`` event input, else the head.
+
+    L3 rows only keep ``command_head`` (program + subcommand) and an argv digest, so the
+    arguments that decide read-only / destructive live in the call event's ``attrs.input``.
+    """
+    attrs = (event or {}).get("attrs") or {}
+    for value in (call.get("command"), call.get("arguments", call.get("input")), attrs.get("input"),
+                  attrs.get("arguments")):
+        text = _command_value(value)
+        if text:
+            return text
+    return call.get("command_head") or ""
+
+
+def command_pipelines(text: str) -> list[list[list[str]]]:
+    """``a | b && c`` → ``[[a, b], [c]]`` with quoting respected; newlines separate commands."""
+    lexer = shlex.shlex(text.replace("\n", " ; "), posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        tokens = text.split()
+    pipelines, segments, current = [], [], []
+    for token in tokens:
+        if token in ("&&", "||", ";", "&", ";;", "|", "|&"):
+            if current:
+                segments.append(current)
+            current = []
+            if token not in ("|", "|&") and segments:
+                pipelines.append(segments)
+                segments = []
+            continue
+        current.append(token)
+    if current:
+        segments.append(current)
+    if segments:
+        pipelines.append(segments)
+    return pipelines
+
+
+def _program(segment: list[str]) -> tuple[str, list[str]]:
+    """Strip ``sudo`` and leading ``NAME=value`` assignments; return (program, args)."""
+    i = 0
+    while i < len(segment) and (segment[i] == "sudo" or re.fullmatch(r"[A-Za-z_]\w*=.*", segment[i])):
+        i += 1
+    if i >= len(segment):
+        return "", []
+    return PurePosixPath(segment[i]).name.lower(), segment[i + 1:]
+
+
+def _segment_readonly(segment: list[str]) -> bool | None:
+    """True read-only, False writes/executes, None neutral (``cd``)."""
+    if any("$(" in t or "`" in t for t in segment):
+        return False  # command substitution runs an unknown command
+    for i, token in enumerate(segment):
+        if token in WRITE_REDIRECTS and (i + 1 >= len(segment) or segment[i + 1] != "/dev/null"):
+            return False
+    program, args = _program(segment)
+    if program in STATE_ONLY_COMMANDS:
+        return None
+    head = f"git {args[0].lower()}" if program == "git" and args else program
+    if head not in READONLY_COMMANDS:
+        return False
+    if program == "find":
+        return not FIND_WRITE_ACTIONS & set(args)
+    if head == "git branch":
+        rest = args[1:]
+        positional = [a for a in rest if not a.startswith("-")]
+        return not GIT_BRANCH_WRITE & set(rest) and (not positional or bool(GIT_BRANCH_LIST & set(rest)))
+    if program == "env":
+        # env with only options/assignments prints the environment; anything else runs a command.
+        return all(a.startswith("-") or re.fullmatch(r"[A-Za-z_]\w*=.*", a) for a in args)
+    return True
+
+
+def is_readonly_command(text: str) -> bool:
+    """Every segment is a read-only command (state-only ``cd`` segments are neutral)."""
+    if "$(" in text or "`" in text or "<(" in text:
+        return False  # command/process substitution runs an unknown command
+    verdicts = [_segment_readonly(seg) for pipe in command_pipelines(text) for seg in pipe]
+    real = [v for v in verdicts if v is not None]
+    return bool(real) and all(real)
+
+
+def _rm_target_dangerous(target: str) -> bool:
+    t = target.rstrip("/") or "/"
+    if t in RM_DANGEROUS_TARGETS or all(part == ".." for part in t.split("/")):
+        return True
+    path = PurePosixPath(t)
+    if path.is_absolute() and len(path.parts) <= 2:  # "/", "/usr", "/etc" ...
+        return True
+    return any(ch in t for ch in "*?[") and not set(path.parts) & RM_REGENERABLE_DIRS
+
+
+def _rm_recursive_force(args: list[str]) -> bool:
+    recursive = force = False
+    targets, options = [], True
+    for a in args:
+        if options and a == "--":
+            options = False
+        elif options and a.startswith("--"):
+            recursive |= a == "--recursive"
+            force |= a == "--force"
+        elif options and a.startswith("-") and len(a) > 1:
+            recursive |= bool(set(a[1:]) & {"r", "R"})
+            force |= "f" in a[1:]
+        else:
+            targets.append(a)
+    return recursive and force and any(_rm_target_dangerous(t) for t in targets)
+
+
+_HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n(.*?)\n\s*\1\b", re.S)
+
+
+def _sql_drop_executed(text: str) -> bool:
+    if not SQL_DROP.search(text):
+        return False
+    for pipeline in command_pipelines(_HEREDOC.sub(" ", text)):
+        programs = [_program(seg) for seg in pipeline]
+        if any(p in SQL_CLIENTS for p, _ in programs) and any(
+                SQL_DROP.search(" ".join([p, *args])) for p, args in programs):
+            return True
+    # heredoc bodies fed to a client: ``sqlite3 db <<EOF ... DROP TABLE ... EOF``
+    for match in _HEREDOC.finditer(text):
+        line = text[:match.start()].rsplit("\n", 1)[-1]
+        if SQL_DROP.search(match.group(2)) and any(
+                _program(seg)[0] in SQL_CLIENTS for pipe in command_pipelines(line) for seg in pipe):
+            return True
+    return False
+
+
+def risky_family(text: str) -> str | None:
+    """DT-13 family of one command line, or None."""
+    for pipeline in command_pipelines(text):
+        for segment in pipeline:
+            program, args = _program(segment)
+            if program == "rm" and _rm_recursive_force(args):
+                return "rm_recursive_force"
+    if _sql_drop_executed(text):
+        return "sql_drop"
+    for family, pattern in RISKY_COMMANDS:
+        if pattern.search(text):
+            return family
+    return None
 
 
 def allowed_heads(inventory: list[Record] | None) -> set[str] | None:
@@ -196,7 +359,7 @@ def _order(row: Record) -> tuple:
 
 
 def detect_correction(view: SessionView) -> list[Record] | None:
-    """Lexical correction proxy between assistant replies (5–200 direct characters)."""
+    """Lexical correction proxy between assistant replies (``CORRECTION_CHARS`` direct characters)."""
     if view.events is None:
         return None
     responded, groups = set(), defaultdict(list)
@@ -221,17 +384,18 @@ def detect_correction(view: SessionView) -> list[Record] | None:
 
 
 def detect_frustration(view: SessionView) -> list[Record] | None:
-    """v1 lexical proxy: frustration vocabulary or two short corrections in a row."""
+    """v1 lexical proxy: a negative emotion cue (``lexicon.emotion_cues``) or two short
+    corrections in a row. Quoted material never counts."""
     if view.events is None:
         return None
     hits, streak = [], []
     for e in _human_messages(view):
         text = direct_user_text(e.get("text") or "")
-        if FRUSTRATION.search(text):
-            hits.append(_event_occurrence(e, reason="vocabulary"))
+        if any(emotion_cues(c)[1] for c in clauses(QUOTED.sub("", text))):
+            hits.append(_event_occurrence(e, reason="emotion_cue"))
             streak = []
             continue
-        if len(text) <= 40 and correction_terms(text):
+        if len(text) <= FRUSTRATION_STREAK_CHARS and correction_terms(text):
             streak.append(e)
             if len(streak) == 2:
                 hits.append(_event_occurrence(e, reason="short_correction_streak"))
@@ -326,26 +490,41 @@ def detect_missing_verification(view: SessionView) -> list[Record] | None:
                     [_call_occurrence(last)], evidence={"edit_calls": len(edits)})]
 
 
+def _call_events(view: SessionView) -> dict[str, Record]:
+    return {e["event_uid"]: e for e in view.events or [] if e["kind"] == "tool.call"}
+
+
+def _prompted(call: Record) -> bool:
+    return call.get("approval") is not None or call.get("approval_wait_ms") is not None
+
+
 def detect_would_prompt(view: SessionView) -> list[Record] | None:
-    """Read-only shell commands that still need approval under ``default`` mode."""
+    """Read-only shell commands that actually waited for an approval prompt.
+
+    Evidence is the call-level ``approval`` / ``approval_wait_ms`` the reducer copies from
+    ``permission.request/decision`` events, not a session permission mode (no connector
+    records one). Without any approval data for the session the answer is unknown.
+    """
     if view.calls is None:
         return None
+    events = _call_events(view)
     readonly = [c for c in view.calls if c.get("kind") == "shell" and not c.get("is_wrapper")
-                and normalized_head(c) in READONLY_COMMANDS]
+                and is_readonly_command(command_line(c, events.get(c.get("call_event_uid"))))]
     if not readonly:
         return []
-    mode = permission_mode(view.session)
-    if mode is None:
+    observed = any(_prompted(c) for c in view.calls) or any(
+        e["kind"] in ("permission.request", "permission.decision") for e in view.events or [])
+    if not observed:
         return None
-    if mode != "default":
-        return []
     allowed = allowed_heads(view.inventory)
-    hits = [c for c in sorted(readonly, key=_order) if allowed is None or normalized_head(c) not in allowed]
+    hits = [c for c in sorted(readonly, key=_order) if _prompted(c)
+            and (allowed is None or normalized_head(c) not in allowed)]
     if not hits:
         return []
     return [_signal(view, "would_prompt", "would_prompt:readonly_shell",
-                    [_call_occurrence(c, head=normalized_head(c)) for c in hits],
-                    basis="proxy" if allowed is None else "measured",
+                    [_call_occurrence(c, head=normalized_head(c), approval=c.get("approval"),
+                                      approval_wait_ms=c.get("approval_wait_ms")) for c in hits],
+                    basis="measured",
                     evidence={"allow_rules": "unavailable" if allowed is None else sorted(allowed)})]
 
 
@@ -373,18 +552,17 @@ def detect_permission_denied(view: SessionView) -> list[Record] | None:
 
 
 def detect_risky_command(view: SessionView) -> list[Record] | None:
-    """DT-13 destructive command vocabulary (MVP); path and mode checks are v1."""
+    """DT-13 destructive commands on the full command line (targets and clients checked)."""
     if view.calls is None:
         return None
+    events = _call_events(view)
     groups = defaultdict(list)
     for c in sorted(view.calls, key=_order):
         if c.get("kind") != "shell":
             continue
-        text = call_text(c)
-        for family, pattern in RISKY_COMMANDS:
-            if pattern.search(text):
-                groups[family].append(_call_occurrence(c))
-                break
+        family = risky_family(command_line(c, events.get(c.get("call_event_uid"))))
+        if family:
+            groups[family].append(_call_occurrence(c))
     return [_signal(view, "risky_command", f"risky_command:{family}", occ)
             for family, occ in sorted(groups.items())]
 

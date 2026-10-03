@@ -48,7 +48,7 @@ def _placeholder(problem: dict, kind: str, inputs: dict, memory: dict, rule=None
             "alternatives": [], "kb": None, "item": None, "agents": {}, "prior": {"alpha": 1., "beta": 1.},
             "cost": {"setup_minutes": 10., "context_tokens": 300, "reversible": True},
             "risk": {"level": "medium", "flags": ["generated_content"]}, "requirements": {"tools": [], "software": []},
-            "gates_hint": {"scenes": None, "language": None}, "unit_minutes": 2., "tags": [problem["type"], kind],
+            "gates_hint": {"scenes": None, "language": None}, "unit_minutes": None, "tags": [problem["type"], kind],
             "file": None,
             "explain_hints": {"reason_template": problem["reason"], "mechanism": "没有现成方案时按证据生成。",
                               "trial": "生成后先预览再安装。", "limitation": "生成内容需要人工审阅。",

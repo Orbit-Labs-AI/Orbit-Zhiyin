@@ -103,3 +103,16 @@ def test_metrics_tools_insight_and_lite():
     assert insight["basis"] == "l0_template" and insight["lede"]
     assert insight["good"]["basis"] == "estimate"
     assert payload["persona_mini"]["method"] == "uiview-persona-v0"
+
+
+def test_unknown_steps_tile_shows_unknown_not_zero():
+    """UT-04: a window where no row has steps shows auto as unknown (None), not 0.0."""
+    body = analysed()[4]
+    rows = [{**r, "steps": None, "verify": None, "out": None} for r in body["rows"]]
+    payload = overview.build({**body, "rows": rows},
+                             {"range": 30, "agents": None, "project": None, "compare": True,
+                              "metric": "n", "edition": "lite"}, TODAY)
+    tile = {t["k"]: t for t in payload["tiles"]}["a"]
+    assert tile["value"] is None and tile["delta"] is None
+    assert payload["completion"]["value"] is None and payload["completion"]["n"] == 0
+    assert "未知" in payload["insight"]["good"]["text"]

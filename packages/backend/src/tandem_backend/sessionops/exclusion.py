@@ -1,13 +1,21 @@
 """Persisted session exclusions (AN-16.1) in app.db ``session_exclusion``.
 
 Analytics reads them through a module-level provider (``set_provider``) because its scope
-dependency has no gateway; ``merged`` never fails a request over a missing provider.
+dependency has no gateway. No provider registered (CLI, tests, before the gateway binds it)
+means no persisted exclusions. A provider that *fails* (app.db closed or broken) is
+fail-closed: ``merged`` logs and raises ``ExclusionsUnavailable`` (HTTP 503, retryable)
+instead of silently analysing sessions the user excluded as private.
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
+
+from ..services.auth import ApiError
+
+log = logging.getLogger(__name__)
 
 REASONS = ("test", "private", "duplicate", "other")
 _provider: Callable[[], list[str]] | None = None
@@ -52,12 +60,24 @@ def set_provider(fn: Callable[[], list[str]] | None) -> None:
     _provider = fn
 
 
+class ExclusionsUnavailable(ApiError):
+    """The persisted exclusion list could not be read; results would include excluded sessions."""
+
+    def __init__(self, cause: BaseException):
+        super().__init__(503, "exclusions_unavailable", "无法读取已排除的会话列表，暂不返回分析结果",
+                         retryable=True, retry_after=5)
+        self.__cause__ = cause
+
+
 def merged(explicit: list[str] | None) -> list[str]:
-    """``explicit`` (order kept) plus persisted uids not already in it."""
+    """``explicit`` (order kept) plus persisted uids not already in it.
+
+    Raises ``ExclusionsUnavailable`` when the provider fails (fail-closed)."""
     values = [*(explicit or [])]
     try:
         persisted = _provider() if _provider is not None else []
-    except Exception:  # noqa: BLE001 - a closed/missing app.db must not break analytics.
-        persisted = []
+    except Exception as error:  # noqa: BLE001 - any read failure: refuse rather than leak
+        log.warning("session exclusions unavailable: %s: %s", type(error).__name__, error)
+        raise ExclusionsUnavailable(error) from error
     seen = set(values)
     return values + [v for v in persisted if v not in seen]

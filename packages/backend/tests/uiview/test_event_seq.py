@@ -113,3 +113,19 @@ def test_attach_event_seq_handles_empty_and_missing(tmp_path):
     common.attach_event_seq(conn, rows)
     assert [r["seq"] for r in rows] == [None, None]
     assert isinstance(conn, sqlite3.Connection)
+
+
+def test_command_only_for_approval_gated_calls(tmp_path):
+    t = Tandem(tmp_path)
+    t.project("p1")
+    t.session("m1")
+    asked = t.call("m1", head="find", approval="approved", ts=T0)
+    t.call("m1", head="find", ts=T0 + 1)
+    t.db.execute("UPDATE event SET attrs=json_set(attrs, '$.input.command', ?) WHERE event_uid=?",
+                 ("find . -name '*.py' -delete", asked))
+    t.close()
+    conn = ro(tmp_path / "tandem.db")
+    for rows in (S.fetch_calls(conn, ["m1"]), tools.fetch_calls(conn, Scope())):
+        by = {r["call_uid"]: r for r in rows}
+        assert by["c1"]["command"] == "find . -name '*.py' -delete"  # argv decides: a write
+        assert "command" not in by["c2"]  # never consumed: no event row read for it

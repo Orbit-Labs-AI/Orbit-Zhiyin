@@ -273,3 +273,29 @@ def test_known_resources_and_vacuum(store):
     publish(store, [record(body="# A\nsecond", body_policy="licensed")], revision="r2")
     assert store.rebuild()["items_checked"] == 1
     assert blob_count(store) <= before + 4 and store.verify()["ok"]
+
+
+def _features_of(name="tool", summary="", body=""):
+    from tandem_catalog.features import extract
+    resource = Resource(item_id="f", type="skill", name=name, summary=summary, body=body, url="https://example.org")
+    return {(f.feature, f.value): f.weight for f in extract(resource)}
+
+
+def test_extraction_weight_follows_position_and_repetition():
+    filler = "x " * 1100  # 2200 characters: later mentions are past BODY_HEAD_CHARS
+    assert _features_of(name="pytest helper")[("domain", "testing")] == 0.75          # head: 3 / (3 + 1)
+    assert _features_of(body="run pytest first")[("domain", "testing")] == 0.5        # early body: 1 / 2
+    assert ("domain", "testing") not in _features_of(body=filler + "pytest")          # late once: 0.3 / 1.3
+    assert _features_of(body=filler + "pytest " * 4)[("domain", "testing")] == round(1.2 / 2.2, 3)
+    # Generic words (>= 5 % of seed items) count half: one early "security" is 0.5 / 1.5 < 0.5.
+    assert ("domain", "security") not in _features_of(body="mind security")
+    assert _features_of(body="security and security")[("domain", "security")] == 0.5
+
+
+def test_extraction_vocabulary_misfires():
+    texture = _features_of(summary="UV mapping for textures rendered in a TeX-like vertex shader, see GitHub")
+    assert ("domain", "latex") not in texture and ("software", "uv") not in texture
+    assert ("command", "uv") not in texture and ("software", "git") not in texture
+    assert ("command", "uv") in _features_of(body="uv run pytest -q")
+    assert ("file_type", ".md") not in _features_of(body="edit SKILL.md and notes.md")
+    assert ("software", "python") in _features_of(summary="A Python formatter")

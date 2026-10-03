@@ -155,3 +155,22 @@ def test_analytics_routes_apply_agent_ids_and_reject_unknown_filters(client_fact
         assert all(key in response.json()["error"]["message"] for key in params)
     detail = client.get("/v1/analytics/sessions/s1", params={"hour": 5})
     assert detail.status_code == 422
+
+
+def test_gateway_shadows_legacy_purge_and_reports_export(client_factory):
+    client, gateway = client_factory()
+    marker = gateway.home / "keep.txt"
+    marker.write_text("x")
+    before = sorted(p.name for p in gateway.home.iterdir())
+    from tandem_data.maintenance import PURGE_CONFIRMATION
+
+    response = client.post("/v1/storage/purge", json={"confirm": PURGE_CONFIRMATION})
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+    assert "/v1/app/data/clear" in response.json()["error"]["message"]
+    assert sorted(p.name for p in gateway.home.iterdir()) == before  # nothing deleted or marked
+    assert not (gateway.home / ".clear_pending").exists()
+    # Export routes are always registered, so the capability flag says so.
+    assert client.get("/v1/status").json()["capabilities"]["export"] is True
+    assert client.get("/v1/app/state").json()["capabilities"]["export"] is True
+    assert client.get("/v1/export/tables").status_code == 200

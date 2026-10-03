@@ -9,7 +9,7 @@ from .formats import format_arguments
 from .structure import FILE
 from .text import instruction_text
 
-INSTRUCTION_VERSION = "instruction-v1.2-zh-lexicon"
+INSTRUCTION_VERSION = "instruction-v1.3-zh-lexicon"
 FIELDS = (
     "requested_autonomy", "execution_order", "verification_requirements",
     "allowed_scope", "prohibited_actions", "acceptance_criteria",
@@ -25,10 +25,10 @@ RULES = {
     "execution_order": (
         ("plan_first", r"先(?:给出?|提供|写|制定)?(?:计划|方案|规划)|先(?:出|列|做|拟)(?:个|一个|一份)?(?:计划|方案|规划|大纲)|(?:制定|撰写|给出?)(?:一份|一个|个)?(?:详细的?)?(?:计划|规划)|\b(?:plan first|first (?:make|write|provide) (?:a )?plan|(?:make|write|propose|draft|outline) (?:a |the )?plan)\b"),
         ("discuss_first", r"先(?:讨论|沟通|分析|调研|研究|评估|梳理)|\b(?:discuss first|first discuss)\b"),
-        ("execute_first", r"(?:^|[，,]\s*)(?:请)?直接(?:开始)?(?:执行|实现|修改|动手)|\b(?:execute first|start implementing)\b"),
+        ("execute_first", r"(?:^|[，,]\s*)(?:请)?直接(?:开始)?(?:执行|实现|修改|改|动手|做)|\b(?:execute first|start implementing)\b"),
     ),
     "verification_requirements": (
-        ("requested", r"(?:运行|执行|补充|补齐|添加|完成|通过|检查|验证|确保).{0,28}(?:测试|检查|构建|pytest|ruff|lint|mypy|typecheck|build)|\b(?:run|add|write|pass|check|verify)\b.{0,35}\b(?:tests?|pytest|ruff|lint|build|typecheck)\b"
+        ("requested", r"(?:运行|执行|跑|补充|补齐|添加|完成|通过|检查|验证|确保).{0,28}(?:测试|检查|构建|单测|pytest|ruff|lint|mypy|typecheck|build|(?<![A-Za-z])tests?(?![A-Za-z]))|\b(?:run|add|write|pass|check|verify)\b.{0,35}\b(?:tests?|pytest|ruff|lint|build|typecheck)\b"
                       r"|(?:仔细|认真|再次|重新)(?:检查|核对|确认|验证|复查)|(?:检查|核对|验证|复查|自测)(?:一下|一遍)?(?:是否|有没有|无误|正确)|确保.{0,24}(?:正确|无误|一致|可运行|能运行|能跑|没有?问题)"
                       r"|\b(?:double[- ]check|make sure .{0,30}\b(?:works?|pass(?:es)?|correct)|verify (?:that|the|it))\b"),
     ),
@@ -36,16 +36,17 @@ RULES = {
         ("restricted", r"(?:^|[，,]\s*)(?:请)?(?:只(?:能|允许)?|仅(?:限)?)(?:修改|编辑|处理|读取|检查|操作)|(?:^|[，,]\s*)(?:现在)?(?:允许|可以)(?:修改|编辑|读取|处理)|\b(?:only (?:modify|edit|read|change)|you may (?:modify|edit|read))\b"),
     ),
     "prohibited_actions": (
-        ("prohibited", r"(?:^|[，,]\s*)(?:请)?(?:不要|禁止|不得|不能|不可|严禁)|(?:^|[，,]\s*)(?:please )?(?:do not|don't|never)\b"),
+        # v1.3: colloquial imperatives 别/不许/不准/千万不要/切勿 (别人/别的/别处 are nouns).
+        ("prohibited", r"(?:^|[，,]\s*)(?:请|你)?(?:千万|一定)?(?:不要|别(?![人的处名称])|禁止|不得|不能|不可|严禁|不许|不准|切勿)|(?:^|[，,]\s*)(?:please )?(?:do not|don't|never)\b"),
     ),
     "acceptance_criteria": (
         ("criterion", r"^(?:验收(?:标准|条件|要求)|完成标准)\s*(?:是|为|[:：])|\bacceptance criteria\s*:"),
     ),
     "format_requirements": (
-        ("format", r"(?:请用|使用|输出为|写成|以).{0,10}(?:表格|列表|JSON|Markdown|分点)|\b(?:output|return|format).{0,15}\b(?:json|markdown|table|list)\b"),
+        ("format", r"(?:请用|使用|(?:^|(?<=[，,]))\s*用|输出为|写成|以(?![前后上下及便免为]|往)).{0,10}(?:表格|列表|JSON|Markdown|分点)|\b(?:output|return|format).{0,24}\b(?:json|markdown|table|list)\b"),
     ),
     "tool_requirements": (
-        ("tool", r"(?:使用|调用|用)\s*(?:[\w.]*MCP|pytest|git|bash|ruff|skill)\b|\buse\s+(?:pytest|git|bash|ruff|[\w.]*mcp|skill)\b"),
+        ("tool", r"(?:使用|调用|用)\s*(?:[\w.]*MCP|pytest|git|bash|ruff|skill|npm|pnpm|yarn|uv|cargo|docker)\b|\buse\s+(?:pytest|git|bash|ruff|[\w.]*mcp|skill|npm|pnpm|yarn|uv|cargo|docker)\b"),
     ),
 }
 RULES = {field: [(value, re.compile(pattern, re.I)) for value, pattern in rules]
@@ -54,7 +55,7 @@ REPORTING = re.compile(
     r"^(?:[-*+]\s+|\d+[.)、]\s*)?(?:示例|例子|例如|比如|举例|引用|日志|文档中|他说|她说|"
     r"我(?:之前|昨天|曾经)|请?(?:解释|翻译|分析).{0,12}(?:这句话|含义)|"
     r"(?:example|quote|the log|he said|she said|translate|explain the phrase)\b)", re.I)
-NEGATIVE = re.compile(r"不要|禁止|不得|不能|不可|无需|不必|不用|不需要|没有要求|\b(?:do not|don't|never|not required)\b", re.I)
+NEGATIVE = re.compile(r"不要|别(?![人的处名称])|不许|不准|切勿|禁止|不得|不能|不可|无需|不必|不用|不需要|没有要求|\b(?:do not|don't|never|not required)\b", re.I)
 CONDITION = re.compile(r"如果|除非|只有|若|等.{0,12}确认|确认后|通过后|\b(?:if|unless|when|after|before|until)\b", re.I)
 ACTIONS = (
     ("modify", re.compile(r"修改|编辑|\b(?:modify|edit|change)\b", re.I)),
@@ -97,8 +98,8 @@ def _request_prefix(clause, start):
     if CONDITION.search(prefix):
         return True
     return bool(re.fullmatch(
-        r"(?:(?:请你?|必须|务必|需要你?|记得|然后|再|并且|并|还要|提交前|修改后|完成后|"
-        r"执行后|确认后|最后|先|现在)\s*)*|"
+        r"(?:(?:请你?|你(?:要|需要|得|应该|必须)|一定要|千万|必须|务必|需要你?|记得要?|然后|再|并且|并|还要|提交前|"
+        r"修改后|改完(?:之?后)?|做完(?:之?后)?|完成(?:之?后)|执行后|确认后|最后|先|现在)\s*)*|"
         r"(?:(?:please|you must|you should|then|first)\s*)*", prefix, re.I))
 
 

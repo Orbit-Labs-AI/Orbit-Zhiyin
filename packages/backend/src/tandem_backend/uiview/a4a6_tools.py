@@ -122,7 +122,7 @@ def fetch_calls(conn, scope, *, agents=None, from_ts=None, until_ts=None) -> lis
         row = dict(zip(names, values, strict=True))
         row["state"] = STATE.get((row["status"] or "").lower(), "unknown")
         rows.append(row)
-    return common.attach_event_seq(conn, rows)
+    return common.attach_call_command(conn, common.attach_event_seq(conn, rows))
 
 
 def _texts(conn, uids) -> dict[str, str]:
@@ -366,7 +366,7 @@ def approvals(rows) -> dict:
             break
     heads = Counter()
     for r in asked:
-        info = command_info(r["command_head"])
+        info = command_info(r["command_head"], r.get("command"))
         if r["command_head"] and info["cls"] == "readonly":
             heads[info["head"]] += 1
     agents = sorted({r["agent"] for r in rows if r["agent"]})

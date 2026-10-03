@@ -9,8 +9,8 @@ LABELS = {
     "native_event_payload": "原生扩展正文", "sample_exclusions": "额外样本筛选",
     "human_origin": "真人来源",
 }
-STATUS_LABELS = {
-    "sessions": "会话", "projects": "项目", "turns": "轮次", "usage_snapshot": "累计用量快照","partial": "部分证据可用", "unavailable": "输入尚不可用", "excluded": "按配置或范围省略"}
+STATUS_LABELS = {"available": "输入可用，空集也是有效观测", "partial": "部分证据可用",
+                 "unavailable": "输入尚不可用", "excluded": "按配置或范围省略"}
 REASONS = {
     "truncated_text": "条事件文本曾被截断",
     "missing_timestamps": "条事件缺少时间戳",
@@ -94,7 +94,7 @@ def _describe(coverage):
 def build_coverage_report(coverage):
     return {"contract": COVERAGE_CONTRACT, "metadata_available": bool(coverage),
             "meaning": "输入完整性，不是任务执行状态；可用不保证每个字段都已知，也不表示工具成功",
-            "status_meanings": {"available": "输入可用，空集也是有效观测", **STATUS_LABELS},
+            "status_meanings": dict(STATUS_LABELS),
             "datasets": _describe(coverage or {})}
 
 
