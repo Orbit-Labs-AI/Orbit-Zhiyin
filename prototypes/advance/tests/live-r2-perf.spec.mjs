@@ -80,16 +80,18 @@ test('A3: picking a session swaps the detail pane only and moves the selection',
   await countRenders(page);
   const id = await page.locator('#slist .srow').nth(2).getAttribute('data-id');
   // checked in the same task as the click: a later detail arrival may still re-render the page
-  const st = await page.evaluate((x) => { window.__R.render = 0; $('#slist').__keep = 1; $('#sessQ').__keep = 1; $('#slist .srow[data-id="' + x + '"]').click(); return {
+  // region page (24-regions.js): the pick runs render() as a region pass; the page itself must not be rebuilt
+  const st = await page.evaluate((x) => { const full0 = window.__renderCount; $('#slist').__keep = 1; $('#sessQ').__keep = 1; $('#slist .srow[data-id="' + x + '"]').click(); return {
     keep: $('#slist').__keep === 1 && $('#sessQ').__keep === 1, sel: S.sess.sel,
     on: $$('#slist .srow.sel').map((b) => b.dataset.id), pressed: $$('#slist .srow[aria-pressed="true"]').map((b) => b.dataset.id),
-    title: ($('#main .sb-title') || {}).textContent, want: BYID[x].title, renders: window.__R.render }; }, id);
+    title: ($('#main .sb-title') || {}).textContent, want: BYID[x].title, renders: window.__renderCount - full0, band: !!$('#main [data-region="a3:band"]') }; }, id);
   expect(st.keep).toBe(true);
   expect(st.sel).toBe(id);
   expect(st.on).toEqual([id]); expect(st.pressed).toEqual([id]);
   expect(st.title).toBe(st.want);
   expect(st.renders).toBe(0);
-  // compare mode still renders the whole page
+  expect(st.band).toBe(true);
+  // compare mode swaps the detail regions in place
   await page.locator('[data-act="sessMode"][data-v="cmp"]').click();
   await expect(page.locator('.tl-cmp')).toHaveCount(2);
   expect(errors).toEqual([]);

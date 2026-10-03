@@ -1,200 +1,168 @@
-// Region rendering on the Lite pages, A2 persona and A6 sentiment (24-regions.js): a live feed / facts change or a page
-// interaction refreshes only the regions that read it. The page is never rebuilt (window.__renderCount stays), nodes
-// tagged before the change keep their identity, scroll boxes keep their offset and in-page state (selected session,
-// fingerprint hour, word-cloud layout) survives. Mock demo for interactions, stub gateway (s1 / s4 fixtures) for live data.
+// Region rendering (24-regions.js) on A3 sessions, A4 tools and A5 projects: a live feed update refreshes only the regions
+// reading that feed. The page is never rebuilt (__renderCount stays), unrelated regions keep their node identity (tagged
+// before the change), long lists and the content keep their scroll, and page state — a running replay, the search field
+// with focus, an expanded tool row, the selected project — survives. Stub gateway, core + s2 / s3 fixtures.
 import { test, expect } from '@playwright/test';
-import { openDemo } from './helpers.mjs';
 import { stubGateway, openLive, collectErrors, fx, PASS } from './live-helpers.mjs';
+import { openDemo, go } from './helpers.mjs';
 
 const ONLY = (name) => test.skip(test.info().project.name !== name, 'runs once, at the default size');
-test.use({ timezoneId: 'Asia/Shanghai' });
+test.skip(!!PASS, 'stub-only: swaps fixtures mid-test');
 const NOW = new Date('2026-10-03T12:00:00+08:00');
-
-const counts = (page) => page.evaluate(() => ({ full: window.__renderCount, rg: Object.assign({}, window.__regionRenders) }));
-const mark = (page, sels) => page.evaluate((xs) => xs.forEach((s) => { const el = document.querySelector(s); if (el) el.__rr = 1; }), sels);
-const marked = (page, sels) => page.evaluate((xs) => xs.filter((s) => { const el = document.querySelector(s); return el && el.__rr === 1; }), sels);
+const clone = (o) => JSON.parse(JSON.stringify(o));
 const frame = (page, name, data) => page.evaluate(([n, d]) => TL.dispatch(n, d), [name, data]);
-const grew = (c0, c, k) => (c.rg[k] || 0) > (c0.rg[k] || 0);
-const same = (c0, c, k) => (c.rg[k] || 0) === (c0.rg[k] || 0);
-function factsPlus(n) {
-  const f = fx('s1/facts.json'); const iId = f.fields.indexOf('id'), iD = f.fields.indexOf('d');
-  const src = f.rows[f.rows.length - 1];
-  for (let k = 0; k < n; k++) { const r = src.slice(); r[iId] = 'rp' + k; r[iD] = '2026-10-02'; f.rows.push(r); }
-  return f;
-}
-function overview(edit) {
-  const OV = { 7: fx('s1/overview-7.json'), 30: fx('s1/overview-30.json'), 90: fx('s1/overview-90.json'), 0: fx('s1/overview-0.json') };
-  return (req, u) => { const b = OV[u.searchParams.get('range')]; if (!b) return { status: 404 }; return edit ? edit(JSON.parse(JSON.stringify(b))) : b; };
-}
-const s1 = () => ({
-  'GET /v1/uiview/overview': overview(),
-  'GET /v1/uiview/persona': (req, u) => ((u.searchParams.get('period') || '90') === '30' ? fx('s1/persona-30.json') : fx('s1/persona-90.json'))
-});
+const counts = (page) => page.evaluate(() => ({ full: window.__renderCount, rg: Object.assign({}, window.__regionRenders) }));
+const mark = (page, sels) => page.evaluate((ss) => ss.forEach((s) => { const el = document.querySelector(s); if (el) el.__rr = 1; }), sels);
+const marked = (page, sels) => page.evaluate((ss) => ss.filter((s) => { const el = document.querySelector(s); return el && el.__rr === 1; }), sels);
+const unchanged = (c0, c, keys) => keys.forEach((k) => expect(c.rg[k] || 0, k).toBe(c0.rg[k] || 0));
 
-test('A2 persona: fingerprint hour, comparison group and period refresh their own cards only', async ({ page }) => {
-  ONLY('mac-14');
-  const errors = await openDemo(page, 'persona');
-  await expect(page.locator('[data-region="a2:fp"] svg.fp2')).toBeVisible();
-  await page.addStyleTag({ content: '#content::after{content:"";display:block;height:3000px}' });
-  await page.evaluate(() => { document.querySelector('#content').scrollTop = 260; });
-  const MARKS = ['#content', '[data-region="a2:hero"] .letters', '[data-vz="pe-evo"] svg', '[data-region="a2:axes"]', '[data-vz="pe-axes"] svg', '[data-region="a2:fit"]', '#main .tsearch'];
+test.beforeEach(async ({ page }) => { ONLY('mac-14'); await page.clock.setFixedTime(NOW); });
+
+test('A3: a list feed update refreshes the list only; the replay, list scroll and search focus survive', async ({ page }) => {
+  const errors = collectErrors(page);
+  const LIST = fx('s2/list.json');
+  const route = (list) => (req, u) => (u.searchParams.get('q') ? { meta: list.meta, days: [], rows: [], total: 0, next_offset: null } : list);
+  const gw = await stubGateway(page, ['core', 's2'], { 'GET /v1/uiview/sessions': route(LIST) });
+  await openLive(page, 'sessions');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await expect(page.locator('#tlBox svg.vz-svg')).toHaveCount(1);
+  await expect(page.locator('.tl-sum')).not.toHaveAttribute('data-lv', /.*/);
+  const A = await page.evaluate(() => S.sess.sel);
+  const bar = () => page.evaluate((a) => document.querySelector('.srow[data-id="' + a + '"] svg[preserveAspectRatio="none"] path').getAttribute('d'), A);
+  await expect.poll(bar).toContain('M');
+  const d0 = await bar();
+  // a short, scrolled list
+  await page.addStyleTag({ content: '#slist{max-height:140px;overflow:auto}' });
+  await page.evaluate(() => { document.querySelector('#slist').scrollTop = 40; });
+  const top0 = await page.evaluate(() => document.querySelector('#slist').scrollTop);
+  expect(top0).toBeGreaterThan(0);
+  const MARKS = ['#main .tbar', '[data-region="a3:list"]', '#slist', '#sessQ', '[data-region="a3:band"]', '[data-region="a3:tl"]', '#tlBox', '#tlBox svg.vz-svg', '.tl-mom', '[data-region="a3:ins"]', '#content'];
   await mark(page, MARKS);
   const c0 = await counts(page);
-  // an hour on the fingerprint: only the fingerprint region redraws
-  await page.evaluate(() => ACT.fpHour({ dataset: { h: '14' } }));
-  await expect(page.locator('[data-region="a2:fp"] .fps.sel')).toHaveCount(1);
+
+  // 1) replay running: the list feed changes (new barcode ticks for the selected session)
+  await page.evaluate(() => ACT.playToggle());
+  expect(await page.evaluate(() => S.sess.playing)).toBe(true);
+  const L2 = clone(LIST); L2.rows.find((r) => r.id === A).ticks = { t: [0.5], e: [] };
+  gw.set('GET /v1/uiview/sessions', route(L2));
+  await frame(page, 'data.published', { data_rev: 2 });
+  await expect.poll(bar).not.toBe(d0);
+  expect(await bar()).toBe('M' + (0.5 * 280).toFixed(1) + ' 1V7');
   let c = await counts(page);
   expect(c.full).toBe(c0.full);
-  expect(grew(c0, c, 'a2:fp')).toBe(true);
-  for (const k of ['a2:hero', 'a2:axes', 'a2:sw', 'a2:fit', 'a2:tbar']) expect(same(c0, c, k), k).toBe(true);
+  expect(c.rg['a3:list'] || 0).toBeGreaterThan(c0.rg['a3:list'] || 0);
+  unchanged(c0, c, ['a3:band', 'a3:tl', 'a3:mom', 'a3:ins']);   // the toolbar follows S.sess.playing (回放 → 暂停) in place
   expect(await marked(page, MARKS)).toEqual(MARKS);
-  expect(await page.evaluate(() => document.querySelector('#content').scrollTop)).toBe(260);
-  // 对照组: only the axes card (its chart box keeps its node; the diverging chart redraws for the new reference)
-  const c1 = await counts(page);
-  await page.evaluate(() => document.querySelector('[data-region="a2:axes"] [data-act="vs"][data-v="pop"]').click());
-  await expect(page.locator('[data-region="a2:axes"] [data-v="pop"]')).toHaveClass(/on/);
+  expect(await page.evaluate(() => document.querySelector('#slist').scrollTop)).toBe(top0);
+  // the replay was not interrupted: still playing, the timeline not re-mounted (same svg), the playhead moving
+  expect(await page.evaluate(() => S.sess.playing)).toBe(true);
+  await page.evaluate(() => ACT.playToggle());
+  expect(await page.evaluate(() => S.sess.playing)).toBe(false);
+
+  // 2) typing in the search field (focus kept) while another list update lands: value, caret and node identity stay
+  await page.locator('#sessQ').click();
+  await page.keyboard.type('#1');
+  await expect(page.locator('#sessQ')).toBeFocused();
+  const L3 = clone(L2); L3.rows.find((r) => r.id === A).ticks = { t: [0.25], e: [] };
+  gw.set('GET /v1/uiview/sessions', route(L3));
+  await frame(page, 'data.published', { data_rev: 3 });
+  await expect.poll(() => page.evaluate(() => LV.feeds.sessions[0].data.list.rows.find((r) => r.id === S.sess.sel)?.ticks.t[0])).toBe(0.25);
+  await expect(page.locator('#sessQ')).toBeFocused();
+  await expect(page.locator('#sessQ')).toHaveValue('#1');
   c = await counts(page);
   expect(c.full).toBe(c0.full);
-  expect(grew(c1, c, 'a2:axes')).toBe(true);
-  for (const k of ['a2:hero', 'a2:fp', 'a2:fit']) expect(same(c1, c, k), k).toBe(true);
-  await expect(page.locator('[data-region="a2:fp"] .fps.sel')).toHaveCount(1);   // the hour stays expanded
-  // a period switch refreshes the cards in place: no page rebuild, the content box keeps its node
-  await page.evaluate(() => document.querySelector('#main .tbar [data-act="period"][data-v="all"]').click());
-  await expect(page.locator('#main .tbar [data-act="period"][data-v="all"]')).toHaveClass(/on/);
-  c = await counts(page);
+  expect(await marked(page, ['#sessQ', '#slist', '[data-region="a3:list"]'])).toEqual(['#sessQ', '#slist', '[data-region="a3:list"]']);
+  expect(errors).toEqual([]);
+});
+
+test('A3 (demo): picking a session, highlighting a stat and switching the axis refresh regions only', async ({ page }) => {
+  await openDemo(page);
+  await go(page, 'sessions');
+  await expect(page.locator('#tlBox svg.vz-svg')).toHaveCount(1);
+  await page.addStyleTag({ content: '#slist{max-height:160px;overflow:auto}' });
+  await page.evaluate(() => { document.querySelector('#slist').scrollTop = 120; });
+  const top0 = await page.evaluate(() => document.querySelector('#slist').scrollTop);
+  const MARKS = ['#main .tbar', '[data-region="a3:list"]', '#slist', '#sessQ', '[data-region="a3:tl"]', '#tlBox', '#content'];
+  await mark(page, MARKS);
+  const c0 = await counts(page);
+  const other = await page.evaluate(() => Array.from(document.querySelectorAll('#slist .srow')).map((b) => b.dataset.id).find((id) => id !== S.sess.sel));
+  await page.evaluate((id) => document.querySelector('#slist .srow[data-id="' + id + '"]').click(), other);
+  await expect(page.locator('#slist .srow[data-id="' + other + '"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.stats7 [data-act="hiStat"][data-v="tools"]').click();
+  await expect(page.locator('.stats7 [data-act="hiStat"][data-v="tools"]')).toHaveClass(/on/);
+  await page.locator('[data-act="axis"][data-v="steps"]').click();
+  await expect(page.locator('[data-act="axis"][data-v="steps"]')).toHaveClass(/on/);
+  const c = await counts(page);
   expect(c.full).toBe(c0.full);
-  expect(await marked(page, ['#content', '#main .tsearch'])).toEqual(['#content', '#main .tsearch']);
-  // a route change is still one full render
-  await page.evaluate(() => go('overview'));
+  expect(await marked(page, MARKS)).toEqual(MARKS);
+  expect(await page.evaluate(() => document.querySelector('#slist').scrollTop)).toBe(top0);
+  await expect(page.locator('#tlBox svg.vz-svg')).toHaveCount(1);
+  // a route switch is still one full render
+  await go(page, 'tools');
   expect((await counts(page)).full).toBe(c0.full + 1);
-  expect(errors).toEqual([]);
 });
 
-test('Lite sessions: picking a session keeps the list node and its scroll; a range switch does not rebuild', async ({ page }) => {
-  ONLY('mac-14');
-  const errors = await openDemo(page, 'overview');
-  await page.evaluate(() => edSet('lite'));
-  await expect.poll(() => page.evaluate(() => S.route)).toBe('l-home');
-  await page.evaluate(() => go('l-sessions'));
-  await expect(page.locator('[data-region="ls:list"] .srow')).toHaveCount(8);
-  await page.addStyleTag({ content: '.l-slist-c .slist{max-height:160px;overflow:auto}' });
-  await page.evaluate(() => { document.querySelector('.l-slist-c .slist').scrollTop = 120; });
-  const MARKS = ['.l-slist-c .slist', '[data-region="ls:list"]', '#content', '#main .tsearch'];
-  await mark(page, MARKS);
-  const c0 = await counts(page);
-  const id = await page.locator('[data-region="ls:list"] .srow').nth(5).getAttribute('data-id');
-  await page.evaluate((x) => document.querySelector('.srow[data-id="' + x + '"]').click(), id);
-  await expect(page.locator('.srow.sel')).toHaveAttribute('data-id', id);
-  let c = await counts(page);
-  expect(c.full).toBe(c0.full);
-  expect(grew(c0, c, 'ls:head')).toBe(true);
-  expect(await marked(page, MARKS)).toEqual(MARKS);
-  expect(await page.evaluate(() => document.querySelector('.l-slist-c .slist').scrollTop)).toBe(120);
-  // 7 天: regions refresh, the page is not rebuilt
-  await page.evaluate(() => document.querySelector('#main .tbar .seg [data-v="7"]').click());
-  await expect(page.locator('#main .tbar .seg button.on')).toHaveText('7 天');
-  c = await counts(page);
-  expect(c.full).toBe(c0.full);
-  expect(await marked(page, ['#content', '#main .tsearch'])).toEqual(['#content', '#main .tsearch']);
-  expect(errors).toEqual([]);
-});
-
-test('Lite home (live): the overview feed refreshes the hero only; facts roll the tiles in place', async ({ page }) => {
-  ONLY('mac-14');
-  test.skip(!!PASS, 'stub-only: swaps fixtures');
-  await page.clock.setFixedTime(NOW);
+test('A4: a tools feed update refreshes the KPI tiles only; the expanded row, chart and content scroll survive', async ({ page }) => {
   const errors = collectErrors(page);
-  const gw = await stubGateway(page, 's1', s1());
-  await openLive(page, 'overview');
-  await page.evaluate(() => edSet('lite'));
-  await expect.poll(() => page.evaluate(() => S.route)).toBe('l-home');
-  await expect.poll(() => page.evaluate(() => LV.feedState('l-home'))).toBe('ready');
-  await expect(page.locator('[data-region="lh:tiles"] .vz-kpi .v').first()).toBeVisible();
-  await page.waitForTimeout(700);
-  const MARKS = ['#content', '[data-region="lh:tiles"]', '[data-region="lh:one"]', '#main .tsearch', '#side .sb-scroll'];
+  const TOOLS = fx('s3/tools.json');
+  const gw = await stubGateway(page, ['core', 's3']);
+  await openLive(page, 'tools');
+  await expect(page.locator('#main table.tt tbody tr[data-t="Bash"]')).toBeVisible();
+  await page.locator('#main tr[data-t="Bash"]').click();
+  await expect(page.locator('#main tr.tt-open [data-tl="call"]').first()).toBeVisible();
+  await expect(page.locator('[data-vz="waits"] svg').first()).toBeVisible();
+  await page.addStyleTag({ content: '#content::after{content:"";display:block;height:2000px}' });
+  await page.evaluate(() => { document.querySelector('#content').scrollTop = 260; });
+  const top0 = await page.evaluate(() => document.querySelector('#content').scrollTop);
+  const MARKS = ['#main .tbar', '[data-region="a4:table"]', '#main tr.tt-open', '[data-region="a4:matrix"]', '#tm', '[data-region="a4:fails"]', '[data-region="a4:waits"]', '[data-vz="waits"] svg', '[data-region="a4:mcp"]', '#content'];
   await mark(page, MARKS);
   const c0 = await counts(page);
-  const lede = 'Lite 首页只换了这一句，数字与条带保持不动。';
-  gw.set('GET /v1/uiview/overview', overview((b) => { b.insight = Object.assign({}, b.insight, { lede }); return b; }));
+  const kpi = () => page.locator('[data-region="a4:kpi"] .vz-kpi .v').first();
+  const T2 = clone(TOOLS); T2.kpis.calls.value = 1700;
+  gw.set('GET /v1/uiview/tools', T2);
   await frame(page, 'data.published', { data_rev: 2 });
-  await expect(page.locator('[data-region="lh:hero"] .l-say')).toHaveText(lede);
-  let c = await counts(page);
-  expect(c.full).toBe(c0.full);
-  expect(grew(c0, c, 'lh:hero')).toBe(true);
-  for (const k of ['lh:tiles', 'lh:strip']) expect(same(c0, c, k), k).toBe(true);
-  expect(await marked(page, MARKS)).toEqual(MARKS);
-  // +12 sessions yesterday: the session tile reaches the new count without a page rebuild
-  const before = await page.locator('[data-region="lh:tiles"] .vz-kpi .v').first().textContent();
-  gw.set('GET /v1/uiview/facts', factsPlus(12));
-  await frame(page, 'data.published', { data_rev: 3 });
-  await expect(page.locator('[data-region="lh:tiles"] .vz-kpi .v').first()).toHaveText(String(+before.replace(/,/g, '') + 12));
-  c = await counts(page);
-  expect(c.full).toBe(c0.full);
-  expect(await marked(page, MARKS)).toEqual(MARKS);
-  expect(errors).toEqual([]);
-});
-
-test('A2 / Lite persona (live): a facts change refreshes in place and keeps the scroll', async ({ page }) => {
-  ONLY('mac-14');
-  test.skip(!!PASS, 'stub-only: swaps fixtures');
-  await page.clock.setFixedTime(NOW);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  const errors = collectErrors(page);
-  const gw = await stubGateway(page, 's1', s1());
-  await openLive(page, 'persona');
-  await expect(page.locator('[data-region="a2:hero"] .letters')).toBeVisible();
-  await page.addStyleTag({ content: '#content::after{content:"";display:block;height:3000px}' });
-  await page.evaluate(() => { document.querySelector('#content').scrollTop = 240; });
-  const MARKS = ['#content', '[data-region="a2:hero"]', '[data-region="a2:axes"]', '#main .tsearch'];
-  await mark(page, MARKS);
-  const c0 = await counts(page);
-  gw.set('GET /v1/uiview/facts', factsPlus(12));
-  await frame(page, 'data.published', { data_rev: 2 });
-  await expect.poll(() => page.evaluate(() => LV.rev)).toBeGreaterThan(0);
-  await expect(page.locator('#main .tbar .meta')).toContainText('个会话');
-  await page.waitForTimeout(400);
+  await expect(kpi()).toHaveText('1,700');
   const c = await counts(page);
   expect(c.full).toBe(c0.full);
+  expect(c.rg['a4:kpi'] || 0).toBeGreaterThan(c0.rg['a4:kpi'] || 0);
+  unchanged(c0, c, ['a4:table', 'a4:matrix', 'a4:fails', 'a4:waits', 'a4:mcp', 'a4:tbar']);
   expect(await marked(page, MARKS)).toEqual(MARKS);
-  expect(await page.evaluate(() => document.querySelector('#content').scrollTop)).toBe(240);
-  // Lite persona: same, then a route change is one full render
-  await page.evaluate(() => edSet('lite'));
-  await expect.poll(() => page.evaluate(() => S.route)).toBe('l-persona');
-  await expect(page.locator('[data-region="lp:hero"] .letters')).toBeVisible();
-  await mark(page, ['[data-region="lp:hero"]', '[data-region="lp:evo"]']);
-  const c1 = await counts(page);
-  gw.set('GET /v1/uiview/facts', factsPlus(20));
-  await frame(page, 'data.published', { data_rev: 3 });
-  await page.waitForTimeout(600);
-  expect((await counts(page)).full).toBe(c1.full);
-  expect(await marked(page, ['[data-region="lp:hero"]', '[data-region="lp:evo"]'])).toEqual(['[data-region="lp:hero"]', '[data-region="lp:evo"]']);
+  await expect(page.locator('#main tr[data-t="Bash"]')).toHaveAttribute('aria-expanded', 'true');
+  expect(Math.abs((await page.evaluate(() => document.querySelector('#content').scrollTop)) - top0)).toBeLessThanOrEqual(40);
+  // sorting is state too: the table region morphs in place, the page is still not rebuilt
+  await page.locator('#main table.tt th button[data-k="name"]').click();
+  await expect(page.locator('#main table.tt th button[data-k="name"]')).toHaveAttribute('aria-sort', 'ascending');
+  expect((await counts(page)).full).toBe(c0.full);
+  expect(await marked(page, ['[data-region="a4:table"]', '[data-region="a4:kpi"]'])).toEqual(['[data-region="a4:table"]']);
   expect(errors).toEqual([]);
 });
 
-test('A6 sentiment (live): a phrases-only feed change refreshes that card; the word cloud keeps nodes and layout', async ({ page }) => {
-  ONLY('mac-14');
-  test.skip(!!PASS, 'stub-only: swaps fixtures');
-  await page.clock.setFixedTime(NOW);
+test('A5: a projects feed update refreshes the table side only; the selected project and its detail cards stay', async ({ page }) => {
   const errors = collectErrors(page);
-  const base = fx('s4/sentiment.json');
-  const gw = await stubGateway(page, ['core', 's4'], { 'GET /v1/uiview/sentiment': base, 'GET /v1/search': { results: [] } });
-  await openLive(page, 'sentiment');
-  await expect(page.locator('[data-region="a6:words"] .sn-w').first()).toBeVisible();
-  await page.waitForTimeout(600);
-  const geo = () => page.evaluate(() => Array.from(document.querySelectorAll('.sn-cloud .sn-w')).map((e) => e.style.left + ',' + e.style.top + ',' + e.style.fontSize).join('|'));
-  const g0 = await geo();
-  const MARKS = ['#content', '[data-region="a6:words"]', '.sn-cloud', '.sn-cloud .sn-w', '[data-region="a6:fric"]', '[data-region="a6:mood"]', '#main .tsearch'];
+  const PROJ = fx('s3/projects.json');
+  const gw = await stubGateway(page, ['core', 's3']);
+  await openLive(page, 'projects');
+  await expect(page.locator('#main .pj-tbl tbody tr[data-p]').first()).toBeVisible();
+  await expect(page.locator('[data-region="a5:vs"] .pj-vs').first()).toBeVisible();
+  const sel = await page.evaluate(() => S.proj.sel);
+  const other = PROJ.projects.find((r) => r.project_id !== sel);
+  const MARKS = ['#main .tbar', '[data-region="a5:table"]', '[data-region="a5:head"]', '[data-region="a5:vs"]', '[data-region="a5:ag"]', '[data-region="a5:flow"]', '[data-region="a5:cov"]', '#content'];
   await mark(page, MARKS);
   const c0 = await counts(page);
-  const d = JSON.parse(JSON.stringify(base)); d.phrases[0].text = '示例：只改了这一条反馈语';
-  gw.set('GET /v1/uiview/sentiment', d);
+  const P2 = clone(PROJ); P2.projects.find((r) => r.project_id === other.project_id).sessions = other.sessions + 1;
+  gw.set('GET /v1/uiview/projects', P2);
   await frame(page, 'data.published', { data_rev: 2 });
-  await expect(page.locator('[data-region="a6:phr"] .sn-ph').first()).toContainText('只改了这一条反馈语');
+  await expect(page.locator('#main .pj-tbl tr[data-p="' + other.project_id + '"] td[data-count]').first()).toHaveText(String(other.sessions + 1));
   const c = await counts(page);
   expect(c.full).toBe(c0.full);
-  expect(grew(c0, c, 'a6:phr')).toBe(true);
-  for (const k of ['a6:words', 'a6:fric', 'a6:mood', 'a6:body']) expect(same(c0, c, k), k).toBe(true);
+  expect(c.rg['a5:table'] || 0).toBeGreaterThan(c0.rg['a5:table'] || 0);
+  unchanged(c0, c, ['a5:head', 'a5:vs', 'a5:ag', 'a5:flow', 'a5:cov']);
   expect(await marked(page, MARKS)).toEqual(MARKS);
-  expect(await geo()).toBe(g0);
+  expect(await page.evaluate(() => S.proj.sel)).toBe(sel);
+  // picking the other project refreshes regions in place (no page rebuild)
+  await page.locator('#main .pj-tbl tr[data-p="' + other.project_id + '"]').click();
+  await expect(page.locator('#main .pj-tbl tr[data-p="' + other.project_id + '"]')).toHaveAttribute('aria-selected', 'true');
+  expect((await counts(page)).full).toBe(c0.full);
+  expect(await marked(page, ['[data-region="a5:table"]', '#content'])).toEqual(['[data-region="a5:table"]', '#content']);
   expect(errors).toEqual([]);
 });

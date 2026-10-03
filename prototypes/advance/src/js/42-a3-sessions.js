@@ -234,7 +234,7 @@ function tlInspect(s) {
   const tr = traj(s); const d = S.sess.evd; let e = null, bucket = null, picked = false;
   if (d && d.bucket) { bucket = d; picked = true; } else if (d && d.id) { e = tr.ev.find((x) => x.id === d.id) || null; picked = !!e; }
   if (!e && !bucket) tr.ev.forEach((x) => { if (x.t <= S.sess.ph + 1e-9) e = x; });
-  const key = bucket ? 'b' + bucket.t0 + ':' + bucket.lane : e ? e.id : 'none'; if (el.dataset.key === key && el.dataset.picked === String(picked)) return; el.dataset.key = key; el.dataset.picked = String(picked);
+  const key = s.id + '|' + tr.ev.length + '|' + (bucket ? 'b' + bucket.t0 + ':' + bucket.lane : e ? e.id : 'none');   // 会话 + 事件数：换会话 / 详情到达时 e5 不会误判为同一项 if (el.dataset.key === key && el.dataset.picked === String(picked)) return; el.dataset.key = key; el.dataset.picked = String(picked);
   const row = (k, v, cls) => v == null || v === '' ? '' : '<div class="tl-kv"><span class="k">' + k + '</span><span class="v' + (cls ? ' ' + cls : '') + '">' + v + '</span></div>';
   let body;
   if (bucket) {
@@ -282,10 +282,10 @@ function sessRows(list) {
   let lastDay = null;
   const rows = list.slice(0, S.sess.limit).map((x) => {
     let h = '';
-    if (x.d !== lastDay) { lastDay = x.d; h += '<div class="dayh">' + A3H.dayLabel(x.d) + '</div>'; }
+    if (x.d !== lastDay) { lastDay = x.d; h += '<div class="dayh" data-key="d' + x.d + '">' + A3H.dayLabel(x.d) + '</div>'; }
     const o = OUT[x.out] || OUT.ok;
     const isSel = x.id === S.sess.sel, isCmp = x.id === S.sess.cmp;
-    return h + '<button type="button" class="srow' + (isSel || isCmp ? ' sel' : '') + '" data-act="pickSession" data-id="' + x.id + '" aria-pressed="' + (isSel || isCmp) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + (S.sess.mode === 'cmp' && (isSel || isCmp) ? '<span class="bdg">' + (isSel ? 'A' : 'B') + '</span>' : '') + (S.excluded.has(x.id) ? '<span class="tag" style="height:16px;font-size:10px">不计入</span>' : '') + ic(o[0], 14, 'color:' + o[1]) + '</span><span class="m">' + PJI[x.p].name + ' · ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + ' · ' + x.tools + ' 工具' + (x.corr ? ' · ' + x.corr + ' 纠偏' : '') + '</span><span style="padding-left:16px;width:100%">' + barcode(x, 280) + '</span></button>';
+    return h + '<button type="button" class="srow' + (isSel || isCmp ? ' sel' : '') + '" data-key="' + esc(x.id) + '" data-act="pickSession" data-id="' + x.id + '" aria-pressed="' + (isSel || isCmp) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + (S.sess.mode === 'cmp' && (isSel || isCmp) ? '<span class="bdg">' + (isSel ? 'A' : 'B') + '</span>' : '') + (S.excluded.has(x.id) ? '<span class="tag" style="height:16px;font-size:10px">不计入</span>' : '') + ic(o[0], 14, 'color:' + o[1]) + '</span><span class="m">' + PJI[x.p].name + ' · ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + ' · ' + x.tools + ' 工具' + (x.corr ? ' · ' + x.corr + ' 纠偏' : '') + '</span><span style="padding-left:16px;width:100%">' + barcode(x, 280) + '</span></button>';
   }).join('');
   // 截断提示（评审 BUG-05）：声明了多少、渲染了多少，一键加载更多
   const more = list.length > S.sess.limit ? '<button type="button" class="tl-more" data-act="sessLoadMore">已显示前 ' + S.sess.limit + ' 个 · 还有 ' + (list.length - S.sess.limit) + ' 个<b>加载更多</b></button>' : list.length > 120 ? '<div class="cap tl-more-end">已显示全部 ' + list.length + ' 个会话</div>' : '';
@@ -297,28 +297,133 @@ function sessCount(list) {
   const w = win(S.range); const inWin = list.filter((s) => s.d >= w[0] && s.d <= w[1]).length; const today = list.length - inWin; const live = list.filter((s) => s.live).length; const excl = list.filter((s) => S.excluded.has(s.id)).length;
   return inWin + ' 个会话 · ' + rangeLabel() + (today ? ' · 今天 ' + today + ' 个' : '') + (live ? '（' + live + ' 个运行中）' : '') + (excl ? ' · ' + excl + ' 个不计入分析' : '');
 }
-// 搜索 / 加载更多只重绘列表与计数，不重建输入框（评审 BUG-12：不打断输入法组字）；选中项被筛掉时才整页重绘
-function updSessList() {
-  const list = sessList(); const sl = $('#slist'); const sc = $('#sessCount');
-  const selOk = S.sess.sel && list.some((x) => x.id === S.sess.sel);
-  if (!sl || (list.length && !selOk) || (!list.length && S.sess.sel)) { const n0 = $('#sessQ'); const pos = n0 ? n0.selectionStart : null; renderMain(); const n = $('#sessQ'); if (n && n0) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } return; }
-  sl.innerHTML = sessRows(list); if (sc) { sc.textContent = sessCountShort(list); sc.title = sessCount(list); }
+/* ---------- 区域（24-regions.js）：页头、筛选、列表、详情各卡片按依赖独立刷新 ----------
+   整页只在首次进入 / 切换路由 / 切换版本时重建；其余 render()（筛选、点选会话、搜索、live 帧、详情到达）只刷新依赖变化的区域，
+   列表滚动、搜索框焦点与输入法组字、展开的下拉、正在进行的回放都不受影响。轨迹盒 #tlBox / 总览条 #tlOv / 检视 #tlInsp / 对比时间线 /
+   读数 #tlRead 带 data-vz，归 VZ 与本页的命令式更新所有（回放每帧直接改它们），morph 不碰；它们在区域的 after 里挂载与同步，
+   所以轨迹区域的 HTML 不随播放头变化，回放中的数据刷新不会重画它。 */
+RG.pages.add('sessions');
+// live 钩子（92-live-sessions.js）给出详情 / 搜索的签名；演示模式为空串（不变）
+const A3_DET = () => (A3H.detSig ? A3H.detSig() : '');
+const A3_SRCH = () => (A3H.listSig ? A3H.listSig() : '');
+const a3List = () => RG.memo('a3list', sessList);
+// 运行中会话的「运行中 Nm」：按分钟变化（S.live.t0 为起点）
+const A3_MIN = () => liveMin();
+// 选中项校正：被筛掉时退到列表第一项；从其他入口换了会话时停止回放、播放头回到末尾、视窗复位（评审 BUG-15 / 16）。
+// 整页渲染与每轮区域刷新前都跑一次（RG.prep），区域 fn 只读状态
+function sessNorm() {
+  if (A3H.pre) A3H.pre();
+  const list = a3List();
+  const s = list.find((x) => x.id === S.sess.sel) || list[0];
+  S.sess.sel = s ? s.id : null;
+  if (S.sess.limit < 120) S.sess.limit = 120;
+  if (!list.some((x) => x.id === S.sess.cmp) || S.sess.cmp === S.sess.sel) S.sess.cmp = null;
+  if (S.sess.sel !== S.sess.last) { stopPlay(); S.sess.last = S.sess.sel; if (s) { S.sess.ph = traj(s).T; S.sess.view = null; S.sess.zoom = 1; S.sess.ev = null; S.sess.evd = null; S.sess.brush = null; S.sess.hi = null; } }
+  if (A3H.post) A3H.post(s);
 }
-// 单个模式下点选会话：只换右侧详情并切换列表行的 .sel，不重建整页（上千行的列表不必重新解析）。页面 HTML 仍由
-// PAGES.sessions()（含 live 包装）生成，取出末尾的详情栏；结构对不上或处于对比模式时返回 false，由调用方整页渲染。
-const SESS_DET_OPEN = '<div class="stack" style="min-width:0">', SESS_DET_CLOSE = '</div></div></div>';
-function sessPickPartial() {
-  if (S.route !== 'sessions' || S.sess.mode === 'cmp') return false;
-  const m = $('#main'); const host = m && m.querySelector('.sess > .stack'); const sl = $('#slist');
-  if (!host || !sl) return false;
-  const html = PAGES.sessions(); const i = html.lastIndexOf(SESS_DET_OPEN);
-  if (i < 0 || html.slice(-SESS_DET_CLOSE.length) !== SESS_DET_CLOSE || !sl.querySelector('[data-act="pickSession"][data-id="' + S.sess.sel + '"]')) return false;
-  host.innerHTML = html.slice(i + SESS_DET_OPEN.length, html.length - SESS_DET_CLOSE.length);
-  sl.querySelectorAll('.srow').forEach((b) => { const on = b.dataset.id === S.sess.sel || b.dataset.id === S.sess.cmp; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
-  if (PAGES.sessions.after) PAGES.sessions.after();
-  RENDER_HOOKS.forEach((fn) => { try { fn(m, false); } catch (e) { console.error(e); } });
-  if (window.__lvRendered) window.__lvRendered();
-  return true;
+RG.prep('sessions', sessNorm);
+const a3Sel = () => BYID[S.sess.sel] || null;
+const A3_LIST = ['facts', 'filters', 'S.excluded', 'feed:sessions', 'S.sess.q', 'S.sess.limit', 'S.sess.sel', 'S.sess.cmp', 'S.sess.mode', 'S.sess.turn', A3_SRCH, A3_MIN];
+// 搜索 / 加载更多 / 搜索结果到达：只刷新列表区域（输入框节点不变，不打断输入法组字，评审 BUG-12）
+function updSessList() { if (RG.canRefresh()) RG.refreshNow(['S.sess'], 'sessList'); else renderMain(); }
+function a3Tbar() {
+  const list = a3List();
+  const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="ask" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
+  return tbar('会话与轨迹', S.sess.sel ? sessCount(list) : '', right);
+}
+function a3ListCard() {
+  const list = a3List();
+  return '<div class="card" style="overflow:hidden"><div class="sl-top"><label class="row sl-q">' + ic('search', 14) + '<span class="vh">搜索会话</span><input id="sessQ" type="search" data-in="sessQ" placeholder="搜索标题、项目、Agent…" value="' + esc(S.sess.q) + '" ></label><div class="row cap sl-hd"><span id="sessCount" title="' + esc(sessCount(list)) + '">' + sessCountShort(list) + '</span>' + (S.sess.mode === 'cmp' ? '<span title="依次点选 A、B">下一次点选作为 <b>' + (S.sess.turn === 'B' ? 'B' : 'A') + '</b></span>' : '<span>最新在前</span>') + '</div></div><div class="slist" id="slist">' + sessRows(list) + '</div></div>';
+}
+function a3ListAfter() {
+  const q = $('#sessQ');
+  if (q && !q.dataset.bound) { q.dataset.bound = '1'; q.addEventListener('compositionstart', () => { q.dataset.ime = '1'; }); q.addEventListener('compositionend', () => { delete q.dataset.ime; ACT.sessQ(q, { isComposing: false }); }); }
+}
+function a3Band() {
+  const s = a3Sel(); if (!s) return '';
+  const tr = traj(s); const o = OUT[s.out] || OUT.ok; const ag = agent(s.a);
+  const corrN = tr.users.filter((u) => u[2]).length;
+  const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span class="st-k">' + label + '</span><span class="st-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + v + '</span></button>';
+  return '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--font-sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + A3H.model(s, ag) + '</span><span>·</span><span class="sb-path" title="' + esc(A3H.path(s)) + '">' + esc(A3H.path(s)) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
+    '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', A3H.steps(s)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', A3H.ctxPeak(s, tr)) + statBtn('', 'Tokens', A3H.tok(s)) + '</div></div>';
+}
+function a3TlCard() {
+  const s = a3Sel(); if (!s) return '';
+  const tr = traj(s); const o = OUT[s.out] || OUT.ok;
+  const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
+  const summary = A3H.summary(s, tr, [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · '));
+  const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
+  return '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
+    '<div class="cap tl-sum"' + (A3H.sumAttr ? A3H.sumAttr(s, tr) : '') + '>' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" data-vz="tl-ov" aria-label="总览条"></div><div class="tl-box" id="tlBox" data-vz="tl-box"></div><div class="row tl-read" id="tlRead" data-vz="tl-read"></div>' +
+    '<div class="tl-legend">' + li('<span class="tl-sw2">' + sw('background:var(--vz-mood-pos)') + sw('background:var(--vz-mood-neg)') + '</span>你的消息 · 情绪正 / 负') + li(sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '纠偏') + li(sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + 'Agent 回复 / 工具密度') + li(sw('background:var(--vz-err);width:3px;height:11px;border-radius:1px') + '失败') + li(sw('background:var(--ink-1);border-radius:50%') + '关键时刻') + li(sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '上下文（虚线 80%）') + '<span class="tl-hint" data-tip="拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放">' + ic('info', 12) + '<span class="tl-hint-t">⌘ 滚轮缩放 · 拖选统计 · Space 回放</span></span></div></div>' +
+    '<aside class="tl-insp" id="tlInsp" data-vz="tl-insp"></aside></div></div>';
+}
+// 轨迹卡片挂载：首次进入 DOM 或依赖变化时重挂时间线；回放进行中只同步读数，不重挂（播放结束时 startPlay 会重挂一次）
+function a3TlAfter(el, first) {
+  const box = $('#tlBox'); const s = a3Sel(); if (!box || !s) return;
+  if (!box._a3bound) {
+    box._a3bound = true;
+    // 点击空白处移动播放头（拖动是 VZ 的刷选，位移 < 4px 才算点击）；事件 / 徽章 / 手柄的点击由 VZ 的 onSelect 与播放头拖动处理
+    let down = null;
+    box.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+    box.addEventListener('click', (e) => {
+      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+      if (e.target.closest('[data-i],.vz-playhead,.vz-marker,.vz-legend')) return;
+      const inst = VZ._inst.get(box); const plot = box.querySelector('.vz-plot'); if (!inst || !inst.model || !plot) return;
+      const F = inst.model.F; const x = e.clientX - plot.getBoundingClientRect().left; if (x < F.x0 || x > F.x1) return;
+      tlSeek(F.inv(x));
+    });
+  }
+  if (first || !S.sess.playing || !VZ._inst.get(box)) updTimeline();
+  else { tlReadout(s); tlInspect(s); tlCtl(); }
+}
+function a3MomCard() {
+  const s = a3Sel(); if (!s) return '';
+  const tr = traj(s);
+  return '<div class="card pad"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">关键时刻</span><span class="cap" title="悬停联动图上徽章 · 点击把播放头跳到这一刻">' + (s.featured ? '语义检测' : '规则检测') + ' · 点击跳转</span></div></div><div class="col" style="gap:2px">' + tr.moments.map((m, i) => '<button type="button" class="tl-mom" data-act="moment" data-t="' + m[0] + '" data-mk="' + i + '"><span class="n' + (m[3] ? ' alert' : '') + '">' + (i + 1) + '</span><span class="mono tl-mt">' + absT(s, m[0]) + '</span><span class="tl-mx"><b>' + esc(m[1]) + '</b> ' + esc(m[2]) + '</span></button>').join('') + '</div></div>';
+}
+// 关键时刻列表 ⇄ 图上徽章联动；「当前」高亮随播放头（morph 后补回）
+function a3MomAfter(el) {
+  $$('.tl-mom', el).forEach((b) => {
+    if (b._a3h) return; b._a3h = true;
+    b.addEventListener('mouseenter', () => { const k = b.dataset.mk; $$('#tlBox .vz-marker').forEach((m) => m.classList.toggle('vz-hot', m.dataset.mk.split(',').includes(k))); });
+    b.addEventListener('mouseleave', () => $$('#tlBox .vz-marker.vz-hot').forEach((m) => m.classList.remove('vz-hot')));
+  });
+  const s = a3Sel(); if (s) tlMomentsOn(s);
+}
+function a3InsCard() {
+  const s = a3Sel(); if (!s) return '';
+  const tr = traj(s); const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
+  return '<div class="card pad col"><div class="row"><span class="ct">这次会话的启示</span><span class="aib">' + ic('spark', 11) + 'AI</span></div>' + (A3H.insight ? sessInsightLive(A3H.insight(s, corrN, errN)) : '<p class="tl-ai">' + (s.featured ? '若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。' : corrN || errN >= 3 ? (corrN ? '本次有 ' + corrN + ' 次纠偏，' : '') + (errN >= 3 ? '出现 ' + errN + ' 次失败，' : '') + '把相关约定写进规则，下次可以少说一次。' : '这次协作很顺：目标清楚、失败少。可以把开场方式记成模板。') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto"><button type="button" class="btn sm p" data-act="install" data-id="' + (s.featured || s.fric === '方向错误' ? 'deploy-target' : 'acceptance') + '">生成规则</button><button type="button" class="btn sm" data-act="install" data-id="retry-breaker">加 Hook：重复失败提醒</button><button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div>') + '</div>';
+}
+function a3CmpCard() {
+  const list = a3List(); const s = a3Sel(); if (!s) return '';
+  const b = list.find((x) => x.id === S.sess.cmp);
+  if (!b) return empty('对比模式：在左侧列表再选一个会话作为 B（当前 A：' + esc(s.title) + '）');
+  const T = Math.max(traj(s).T, traj(b).T); const sa = stats([s]), sb = stats([b]);
+  // 差异列：Δ(B − A) + 百分比 + 方向色（goodDown：越小越好）
+  const delta = (va, vb, goodDown, fmt) => { const d = vb - va; if (!d) return '<span class="cap">持平</span>'; const pct = va ? Math.round(d / va * 100) : null; const good = goodDown == null ? null : (d < 0) === goodDown; return '<span class="mono' + (good == null ? '' : good ? ' vz-good' : ' vz-bad') + '">' + (d > 0 ? '+' : '−') + fmt(Math.abs(d)) + (pct != null ? ' · ' + (d > 0 ? '+' : '−') + Math.abs(pct) + '%' : '') + '</span>' + (good == null ? '' : '<span class="cap"> · ' + (good ? 'B 更好' : 'A 更好') + '</span>'); };
+  const rowc = (lbl, va, vb, dl) => '<tr><td>' + lbl + '</td><td class="mono" style="text-align:right">' + va + '</td><td class="mono" style="text-align:right">' + vb + '</td><td style="text-align:right;font-size:11px">' + dl + '</td></tr>';
+  const phasePct = (x, side) => { const t = traj(x); return (A3H.phasePct ? A3H.phasePct(x, side) : t.phases.map((p) => [p[2], Math.round((p[1] - p[0]) / t.T * 100)])).map((p) => '<span class="tl-ph-i">' + p[0] + ' <span class="mono">' + p[1] + '%</span></span>').join(''); };
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">对比</span><span class="cap" title="A、B 横轴对齐到同一时间尺度；B 结束于 ' + absT(b, traj(b).T) + '">同一时间尺度 · ' + Math.round(T) + ' 分钟</span></div><button type="button" class="btn sm" data-act="swapCmp">交换 A / B</button></div>' +
+    [['a', s], ['b', b]].map((p) => '<div class="tl-cmp-row"><div class="row tl-cmp-hd"><span class="bdg">' + p[0].toUpperCase() + '</span><span class="dot" style="background:' + agent(p[1].a).c + '"></span><b class="tl-cmp-t" title="' + esc(p[1].title) + '">' + esc(p[1].title) + '</b><span class="cap tl-cmp-m">' + dur(p[1].dur) + ' · ' + p[1].tools + ' 工具 · ' + p[1].errors + ' 失败</span></div><div class="tl-cmp" data-vz="tl-cmp-' + p[0] + '" data-cmp="' + p[0] + '" data-id="' + p[1].id + '"></div></div>').join('') +
+    '<div class="scroll-x" style="margin-top:10px"><table class="tbl tl-cmp-tbl"><thead><tr><th>指标</th><th style="text-align:right">A</th><th style="text-align:right">B</th><th style="text-align:right">Δ（B − A）</th></tr></thead><tbody>' + rowc('时长', dur(s.dur), dur(b.dur), delta(s.dur, b.dur, true, (v) => dur(v))) + rowc('你的消息', s.msgs, b.msgs, delta(s.msgs, b.msgs, null, String)) + rowc('工具调用', s.tools, b.tools, delta(s.tools, b.tools, null, String)) + rowc('错误', s.errors, b.errors, delta(s.errors, b.errors, true, String)) + rowc('纠偏', s.corr, b.corr, delta(s.corr, b.corr, true, String)) + rowc('自主比', f1(sa.auto) + '×', f1(sb.auto) + '×', delta(sa.auto, sb.auto, false, (v) => f1(v) + '×')) + '<tr class="tl-ph-row"><td>阶段耗时占比</td><td colspan="3"><div class="tl-ph"><span class="bdg">A</span>' + phasePct(s, 'a') + '</div><div class="tl-ph"><span class="bdg">B</span>' + phasePct(b, 'b') + '</div></td></tr>' + '</tbody></table></div></div>';
+}
+// 对比时间线：data-vz 盒子归 VZ，每次依赖变化（换 A / B、详情到达）都按当前会话重挂
+function a3CmpAfter(el) {
+  const cs = $$('.tl-cmp', el).filter((x) => BYID[x.dataset.id]); if (!cs.length) return;
+  const T = Math.max(...cs.map((x) => traj(BYID[x.dataset.id]).T));
+  cs.forEach((x) => { x.dataset.deco = '0'; VZ.mount(x, cmpSpec(BYID[x.dataset.id], T, x.dataset.cmp === 'b')); });
+}
+function a3Body() {
+  if (!S.sess.sel) return empty('没有会话');
+  const det = ['facts', 'S.excluded', 'S.sess.sel', A3_DET];
+  const detail = S.sess.mode === 'cmp'
+    ? region('a3:cmp', det.concat(['S.sess.cmp', 'filters']), a3CmpCard, { after: (el) => a3CmpAfter(el) })
+    : region('a3:band', det.concat(['S.sess.hi', () => (a3Sel() && a3Sel().live ? liveElapsed() : '')]), a3Band) +
+      region('a3:tl', det.concat(['S.sess.axis', 'S.sess.hi']), a3TlCard, { after: (el, first) => a3TlAfter(el, first) }) +
+      '<div class="two tl-two">' + region('a3:mom', det, a3MomCard, { after: (el) => a3MomAfter(el) }) + region('a3:ins', det.concat(['S.installed']), a3InsCard) + '</div>';
+  return '<div class="sess">' + region('a3:list', A3_LIST, a3ListCard, { after: () => a3ListAfter() }) + '<div class="stack" style="min-width:0">' + detail + '</div></div>';
 }
 /* ---------- 页面 ---------- */
 // 启示卡（live）：服务端文案 + 动作按钮，沿用演示的 tl-ai 段落与按钮行
@@ -327,69 +432,10 @@ function sessInsightLive(x) {
   return '<p class="tl-ai">' + esc((x && x.text) || '暂无启示') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto">' + acts.map((a, i) => '<button type="button" class="btn sm' + (i ? '' : ' p') + '" data-act="' + (a.act || 'install') + '" data-id="' + esc(a.id || '') + '">' + esc(a.label) + '</button>').join('') + '<button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div>';
 }
 PAGES.sessions = () => {
-  const list = sessList();
-  const s = list.find((x) => x.id === S.sess.sel) || list[0];
-  S.sess.sel = s ? s.id : null;
-  if (S.sess.limit < 120) S.sess.limit = 120;
-  if (!list.some((x) => x.id === S.sess.cmp) || S.sess.cmp === S.sess.sel) S.sess.cmp = null;
-  // 从其他入口（命令面板、A2 指纹、菜单栏面板）切到另一个会话：播放头回到末尾、视窗复位、停止回放（评审 BUG-15 / 16）
-  if (S.sess.sel !== S.sess.last) { stopPlay(); S.sess.last = S.sess.sel; if (s) { S.sess.ph = traj(s).T; S.sess.view = null; S.sess.zoom = 1; S.sess.ev = null; S.sess.evd = null; S.sess.brush = null; S.sess.hi = null; } }
-  const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="ask" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
-  const listCard = '<div class="card" style="overflow:hidden"><div class="sl-top"><label class="row sl-q">' + ic('search', 14) + '<span class="vh">搜索会话</span><input id="sessQ" type="search" data-in="sessQ" placeholder="搜索标题、项目、Agent…" value="' + esc(S.sess.q) + '" ></label><div class="row cap sl-hd"><span id="sessCount" title="' + esc(sessCount(list)) + '">' + sessCountShort(list) + '</span>' + (S.sess.mode === 'cmp' ? '<span title="依次点选 A、B">下一次点选作为 <b>' + (S.sess.turn === 'B' ? 'B' : 'A') + '</b></span>' : '<span>最新在前</span>') + '</div></div><div class="slist" id="slist">' + sessRows(list) + '</div></div>';
-  const meta = sessCount(list);
-  if (!s) return tbar('会话与轨迹', '', right) + '<div class="content" id="content">' + filterRow() + empty('没有会话') + '</div>';
-  const tr = traj(s); const o = OUT[s.out] || OUT.ok; const ag = agent(s.a);
-  const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
-  const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span class="st-k">' + label + '</span><span class="st-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + v + '</span></button>';
-  let detail;
-  if (S.sess.mode === 'cmp') {
-    const b = list.find((x) => x.id === S.sess.cmp);
-    if (!b) detail = empty('对比模式：在左侧列表再选一个会话作为 B（当前 A：' + esc(s.title) + '）');
-    else {
-      const T = Math.max(traj(s).T, traj(b).T); const sa = stats([s]), sb = stats([b]);
-      // 差异列：Δ(B − A) + 百分比 + 方向色（goodDown：越小越好）
-      const delta = (va, vb, goodDown, fmt) => { const d = vb - va; if (!d) return '<span class="cap">持平</span>'; const pct = va ? Math.round(d / va * 100) : null; const good = goodDown == null ? null : (d < 0) === goodDown; return '<span class="mono' + (good == null ? '' : good ? ' vz-good' : ' vz-bad') + '">' + (d > 0 ? '+' : '−') + fmt(Math.abs(d)) + (pct != null ? ' · ' + (d > 0 ? '+' : '−') + Math.abs(pct) + '%' : '') + '</span>' + (good == null ? '' : '<span class="cap"> · ' + (good ? 'B 更好' : 'A 更好') + '</span>'); };
-      const rowc = (lbl, va, vb, dl) => '<tr><td>' + lbl + '</td><td class="mono" style="text-align:right">' + va + '</td><td class="mono" style="text-align:right">' + vb + '</td><td style="text-align:right;font-size:11px">' + dl + '</td></tr>';
-      const phasePct = (x, side) => { const t = traj(x); return (A3H.phasePct ? A3H.phasePct(x, side) : t.phases.map((p) => [p[2], Math.round((p[1] - p[0]) / t.T * 100)])).map((p) => '<span class="tl-ph-i">' + p[0] + ' <span class="mono">' + p[1] + '%</span></span>').join(''); };
-      detail = '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">对比</span><span class="cap" title="A、B 横轴对齐到同一时间尺度；B 结束于 ' + absT(b, traj(b).T) + '">同一时间尺度 · ' + Math.round(T) + ' 分钟</span></div><button type="button" class="btn sm" data-act="swapCmp">交换 A / B</button></div>' +
-        [['a', s], ['b', b]].map((p) => '<div class="tl-cmp-row"><div class="row tl-cmp-hd"><span class="bdg">' + p[0].toUpperCase() + '</span><span class="dot" style="background:' + agent(p[1].a).c + '"></span><b class="tl-cmp-t" title="' + esc(p[1].title) + '">' + esc(p[1].title) + '</b><span class="cap tl-cmp-m">' + dur(p[1].dur) + ' · ' + p[1].tools + ' 工具 · ' + p[1].errors + ' 失败</span></div><div class="tl-cmp" data-cmp="' + p[0] + '" data-id="' + p[1].id + '"></div></div>').join('') +
-        '<div class="scroll-x" style="margin-top:10px"><table class="tbl tl-cmp-tbl"><thead><tr><th>指标</th><th style="text-align:right">A</th><th style="text-align:right">B</th><th style="text-align:right">Δ（B − A）</th></tr></thead><tbody>' + rowc('时长', dur(s.dur), dur(b.dur), delta(s.dur, b.dur, true, (v) => dur(v))) + rowc('你的消息', s.msgs, b.msgs, delta(s.msgs, b.msgs, null, String)) + rowc('工具调用', s.tools, b.tools, delta(s.tools, b.tools, null, String)) + rowc('错误', s.errors, b.errors, delta(s.errors, b.errors, true, String)) + rowc('纠偏', s.corr, b.corr, delta(s.corr, b.corr, true, String)) + rowc('自主比', f1(sa.auto) + '×', f1(sb.auto) + '×', delta(sa.auto, sb.auto, false, (v) => f1(v) + '×')) + '<tr class="tl-ph-row"><td>阶段耗时占比</td><td colspan="3"><div class="tl-ph"><span class="bdg">A</span>' + phasePct(s, 'a') + '</div><div class="tl-ph"><span class="bdg">B</span>' + phasePct(b, 'b') + '</div></td></tr>' + '</tbody></table></div></div>';
-    }
-  } else {
-    const summary = A3H.summary(s, tr, [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · '));
-    const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
-    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--font-sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + A3H.model(s, ag) + '</span><span>·</span><span class="sb-path" title="' + esc(A3H.path(s)) + '">' + esc(A3H.path(s)) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
-      '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', A3H.steps(s)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', A3H.ctxPeak(s, tr)) + statBtn('', 'Tokens', A3H.tok(s)) + '</div></div>' +
-      '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
-      '<div class="cap tl-sum">' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" aria-label="总览条"></div><div class="tl-box" id="tlBox"></div><div class="row tl-read" id="tlRead">' + readout(s) + '</div>' +
-      '<div class="tl-legend">' + li('<span class="tl-sw2">' + sw('background:var(--vz-mood-pos)') + sw('background:var(--vz-mood-neg)') + '</span>你的消息 · 情绪正 / 负') + li(sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '纠偏') + li(sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + 'Agent 回复 / 工具密度') + li(sw('background:var(--vz-err);width:3px;height:11px;border-radius:1px') + '失败') + li(sw('background:var(--ink-1);border-radius:50%') + '关键时刻') + li(sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '上下文（虚线 80%）') + '<span class="tl-hint" data-tip="拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放">' + ic('info', 12) + '<span class="tl-hint-t">⌘ 滚轮缩放 · 拖选统计 · Space 回放</span></span></div></div>' +
-      '<aside class="tl-insp" id="tlInsp"></aside></div></div>' +
-      '<div class="two tl-two"><div class="card pad"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">关键时刻</span><span class="cap" title="悬停联动图上徽章 · 点击把播放头跳到这一刻">' + (s.featured ? '语义检测' : '规则检测') + ' · 点击跳转</span></div></div><div class="col" style="gap:2px">' + tr.moments.map((m, i) => '<button type="button" class="tl-mom" data-act="moment" data-t="' + m[0] + '" data-mk="' + i + '"><span class="n' + (m[3] ? ' alert' : '') + '">' + (i + 1) + '</span><span class="mono tl-mt">' + absT(s, m[0]) + '</span><span class="tl-mx"><b>' + esc(m[1]) + '</b> ' + esc(m[2]) + '</span></button>').join('') + '</div></div>' +
-      '<div class="card pad col"><div class="row"><span class="ct">这次会话的启示</span><span class="aib">' + ic('spark', 11) + 'AI</span></div>' + (A3H.insight ? sessInsightLive(A3H.insight(s, corrN, errN)) : '<p class="tl-ai">' + (s.featured ? '若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。' : corrN || errN >= 3 ? (corrN ? '本次有 ' + corrN + ' 次纠偏，' : '') + (errN >= 3 ? '出现 ' + errN + ' 次失败，' : '') + '把相关约定写进规则，下次可以少说一次。' : '这次协作很顺：目标清楚、失败少。可以把开场方式记成模板。') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto"><button type="button" class="btn sm p" data-act="install" data-id="' + (s.featured || s.fric === '方向错误' ? 'deploy-target' : 'acceptance') + '">生成规则</button><button type="button" class="btn sm" data-act="install" data-id="retry-breaker">加 Hook：重复失败提醒</button><button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div>') + '</div></div>';
-  }
-  return tbar('会话与轨迹', meta, right) + '<div class="content" id="content">' + filterRow() + '<div class="sess">' + listCard + '<div class="stack" style="min-width:0">' + detail + '</div></div></div>';
-};
-PAGES.sessions.after = () => {
-  const q = $('#sessQ');
-  if (q && !q.dataset.bound) { q.dataset.bound = '1'; q.addEventListener('compositionstart', () => { q.dataset.ime = '1'; }); q.addEventListener('compositionend', () => { delete q.dataset.ime; ACT.sessQ(q, { isComposing: false }); }); }
-  if (S.sess.mode === 'cmp') { const T = Math.max(...$$('.tl-cmp').map((el) => traj(BYID[el.dataset.id]).T)); $$('.tl-cmp').forEach((el) => { el.dataset.deco = '0'; VZ.mount(el, cmpSpec(BYID[el.dataset.id], T, el.dataset.cmp === 'b')); }); return; }
-  const box = $('#tlBox'); if (!box) return;
-  updTimeline();
-  // 点击空白处移动播放头（拖动是 VZ 的刷选，位移 < 4px 才算点击）；事件 / 徽章 / 手柄的点击由 VZ 的 onSelect 与播放头拖动处理
-  let down = null;
-  box.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
-  box.addEventListener('click', (e) => {
-    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
-    if (e.target.closest('[data-i],.vz-playhead,.vz-marker,.vz-legend')) return;
-    const inst = VZ._inst.get(box); const plot = box.querySelector('.vz-plot'); if (!inst || !inst.model || !plot) return;
-    const F = inst.model.F; const x = e.clientX - plot.getBoundingClientRect().left; if (x < F.x0 || x > F.x1) return;
-    tlSeek(F.inv(x));
-  });
-  // 关键时刻列表 ⇄ 图上徽章联动
-  $$('.tl-mom').forEach((b) => {
-    b.addEventListener('mouseenter', () => { const k = b.dataset.mk; $$('#tlBox .vz-marker').forEach((m) => m.classList.toggle('vz-hot', m.dataset.mk.split(',').includes(k))); });
-    b.addEventListener('mouseleave', () => $$('#tlBox .vz-marker.vz-hot').forEach((m) => m.classList.remove('vz-hot')));
-  });
+  sessNorm();
+  return region('a3:tbar', ['facts', 'filters', 'S.excluded', 'S.sess.mode', 'S.sess.playing', 'S.sess.q', 'S.sess.sel', A3_SRCH], a3Tbar, { after: () => tbarFit() }) +
+    '<div class="content" id="content">' + region('a3:filters', ['facts', 'filters'], () => filterRow(), { wrap: true }) +
+    region('a3:body', [() => [!!S.sess.sel, S.sess.mode]], a3Body) + '</div>';
 };
 Object.assign(ACT, {
   sessQ: (el, e) => { if ((e && e.isComposing) || el.dataset.ime) return; if (el.value === S.sess.q) return; S.sess.q = el.value; S.sess.limit = 120; updSessList(); },
@@ -400,7 +446,7 @@ Object.assign(ACT, {
       if (id === S.sess.sel || id === S.sess.cmp) return;
       if (S.sess.turn === 'B' || !S.sess.cmp) { S.sess.cmp = id; S.sess.turn = 'A'; } else { S.sess.sel = id; S.sess.turn = 'B'; }
     } else { S.sess.sel = id; const s = BYID[id]; S.sess.ph = s ? traj(s).T : 0; S.sess.hi = null; S.sess.view = null; S.sess.zoom = 1; S.sess.ev = null; S.sess.evd = null; S.sess.brush = null; }
-    if (!sessPickPartial()) render();
+    render();
   },
   sessMode: (el) => { S.sess.mode = el.dataset.v; stopPlay(); S.sess.turn = 'A'; if (S.sess.mode === 'cmp' && !S.sess.cmp) { const l = sessList().filter((x) => x.id !== S.sess.sel && x.p === BYID[S.sess.sel].p); S.sess.cmp = l[0] ? l[0].id : null; } render(); },
   swapCmp: () => { const a = S.sess.sel; S.sess.sel = S.sess.cmp; S.sess.cmp = a; S.sess.last = S.sess.sel; render(); },

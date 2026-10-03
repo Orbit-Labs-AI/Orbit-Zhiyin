@@ -130,14 +130,17 @@ function lvRecDetail(id) {
 }
 
 // A7 without live rows: the page's own toolbar, dimension row and two-column layout with an honest state, never demo rows.
-function lvRecEmptyPage() {
+function lvRecEmptyParts() {
   const st = lvRecState(); const run = LVR.applied && LVR.applied.run;
   const msg = { pending: null, computing: '正在根据你的会话计算建议…', error: '建议服务暂时不可用，稍后自动重试。', empty: run ? '这次分析没有找到值得改的地方。导入更多会话或过几天再看。' : '还没有建议：Orbit 需要先分析你导入的会话。导入完成后会自动计算，也可以点「重新计算」。' }[st];
   const dims = (LVR.applied && LVR.applied.dims) || DIMS.map((d) => ({ id: d[0], label: d[1], count: 0 }));
   const body = msg ? '<div class="card pad col" data-tl="recs-empty" data-state="' + st + '" style="gap:10px;align-items:flex-start"><span class="eb">优化建议</span><p class="serif" style="margin:0;font-size:17px;line-height:1.5">' + esc(msg) + '</p>' + (st === 'error' ? '' : '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button>') + '</div>' : LV.pend(160);
-  return tbar('优化建议', st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
-    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + TLU.num(d.count || 0) + '</span></button>').join('') + '</div></div>' +
-    '<div class="recs"><div class="stack">' + body + '</div><div style="position:sticky;top:0">' + empty(st === 'pending' ? '正在读取建议…' : '有建议后，这里显示说明、预览和效果追踪') + '</div></div></div>';
+  return {
+    tbar: tbar('优化建议', st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>'),
+    dims: '<div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + TLU.num(d.count || 0) + '</span></button>').join('') + '</div></div>',
+    list: '<div class="stack">' + body + '</div>',
+    detail: '<div style="position:sticky;top:0">' + empty(st === 'pending' ? '正在读取建议…' : '有建议后，这里显示说明、预览和效果追踪') + '</div>'
+  };
 }
 const lvRecWhen = (ms) => { const d = new Date(ms); return isNaN(d) ? '—' : (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 // toolbar subtitle of the A7 page (46-a7-recs.js): the live run's time instead of the demo's fixed one
@@ -156,8 +159,19 @@ if (TL.mode === 'live') {
 
   // ---- pages: A7 and Lite l-recs keep the demo renderers; overview / Lite home get the rec card appended ----
   const baseRecs = PAGES.recs, baseLiteRecs = PAGES['l-recs'];
-  TL_PAGES.recs = function () { lvView('recs'); lvRecSync(); lvRecInstalls(); return RECS.length || LV.demo ? baseRecs() : lvRecEmptyPage(); };
-  TL_PAGES.recs.after = baseRecs.after;
+  // A7 is region-built (46-a7-recs.js): the page function only runs on entering the page; every later pass (a live frame, a
+  // selection) syncs the rows in RG.prep and the regions pick the honest empty parts or the cards themselves
+  const a7Prep = () => {
+    lvView('recs'); lvRecSync(); lvRecInstalls();
+    // 重新计算 dims the content until a new A7 answer arrives (the regions refresh in place, #content is not rebuilt)
+    if (LVR.staleFrom !== undefined && (LVR.applied !== LVR.staleFrom || Date.now() - LVR.staleT > 10000)) { const c = $('#content'); if (c) c.classList.remove('stale'); delete LVR.staleFrom; }
+  };
+  TL_PAGES.recs = function () { a7Prep(); return baseRecs(); };
+  RG.prep('recs', a7Prep);
+  recEmptyParts = () => (RECS.length || LV.demo ? null : RG.memo('a7e', lvRecEmptyParts));
+  // precise invalidation: the A7 answer, its state, the relations and the per-rec details (not every TandemLive tick)
+  recLiveSig = () => { const a7 = TL.recs.resource('A7', lvScope()); return [lvId(LVR.applied), a7.state, lvId(a7.error), lvId(LVR.rel), Object.keys(LVR.detail).map((k) => k + ':' + lvId(LVR.detail[k])).join(',')]; };
+  recRelTags = (r) => (S.recs.tab === 'why' && LVR.rel[r.id] ? '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[r.id].map((p) => { const o = RECI[p.a === r.id ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>' : '');
   PAGES.recs = TL_PAGES.recs;
   PAGES['l-recs'] = function () { lvView('recs'); lvRecSync(['lite']); lvRecInstalls(); return baseLiteRecs(); };
   if (baseLiteRecs.after) PAGES['l-recs'].after = baseLiteRecs.after;
@@ -177,10 +191,6 @@ if (TL.mode === 'live') {
     const c = $('#content'); if (!c) return;
     const surface = LVR_ROUTES[S.route];
     if (!surface) return;
-    if (S.route === 'recs' && S.recs.tab === 'why' && LVR.rel[S.recs.sel]) {
-      const ev = c.querySelector('.rc-ev');
-      if (ev && !c.querySelector('[data-tl="rec-rel"]')) ev.insertAdjacentHTML('beforebegin', '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[S.recs.sel].map((p) => { const o = RECI[p.a === S.recs.sel ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>');
-    }
     if (S.route === 'recs' && lvRecLive(S.recs.sel)) lvRecDetail(S.recs.sel);
     const ids = [...c.querySelectorAll(S.route === 'recs' ? '.rcard[data-id]' : S.route === 'overview' ? '.ov-recs [data-act="openRec"][data-id]' : S.route === 'l-home' ? '.l-one [data-id]' : '.l-rc[data-id]')].map((el) => el.dataset.id).filter(lvRecLive);
     if (ids.length) TL.recs.viewed(surface, Array.from(new Set(ids))).catch(() => {});
@@ -237,7 +247,7 @@ if (TL.mode === 'live') {
   };
   ACT.recalc = () => {
     if (!LVR.applied && lvRecDegraded()) { toast('建议服务暂不可用，稍后再试'); return; }
-    const c = $('#content'); if (c) c.classList.add('stale');
+    const c = $('#content'); if (c) c.classList.add('stale'); LVR.staleFrom = LVR.applied; LVR.staleT = Date.now();
     TL.recs.recompute(lvScope(), true).then((res) => {
       TL.recs.invalidate();
       toast(res.status === 202 ? '正在重新计算建议…' : '建议已按最新数据重算');

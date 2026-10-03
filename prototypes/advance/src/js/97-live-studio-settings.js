@@ -100,6 +100,7 @@ if (TL.mode === 'live') {
   // while the user is typing the goal a full re-render would drop the IME composition: patch the stack bar, the preview
   // sheet and the per-item sizes in place when the item set is unchanged
   function tlsPreviewShow(keys) {
+    if (RG.canRefresh() && S.route === 'studio') { refreshCtx(); refreshStudio(); return; }   // region morph keeps the caret / IME
     const a = document.activeElement; const rows = $$('#main .st-ctx');
     if (!(a && a.id === 'studioGoal') || keys !== CTX.map((c) => c[0]).join(',') || rows.length !== CTX.length) { refreshStudio(); refreshCtx(); return; }
     refreshCtx();
@@ -120,8 +121,11 @@ if (TL.mode === 'live') {
     return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
       '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, L)) + '</span></div></div>';
   };
-  const tlsStudioBase = PAGES.studio; const tlsStudioAfter = PAGES.studio.after;
-  PAGES.studio = function () {
+  // A9 is region-built (48-a9-studio.js): the engines / preview / history sync runs before every region pass (RG.prep) as
+  // well as on entering the page; the form region reads the budget and engines through stLiveSig
+  const tlsStudioBase = PAGES.studio;
+  stLiveSig = () => [TLS.limit, TLS.studioDemo, TLS.engine, STUDIO_COPY.detected, STUDIO_COPY.hist];
+  function tlsStudioPrep() {
     const v = lvView('studio'); const d = engines();
     TLS.studioDemo = tlsDemo(v.res.engines);
     if (d && !TLS.engInit) { TLS.engInit = true; TLS.engine = d.default_engine || null; const a = tlsAgOf(TLS.engine); if (a) S.studio.agent = a; }
@@ -130,9 +134,9 @@ if (TL.mode === 'live') {
       : TLS.studioDemo ? '本地服务暂不提供生成接口' : '正在检测本地 Agent…';
     const arts = tlsRes('/v1/ai/artifacts', { limit: 20 });
     STUDIO_COPY.hist = Array.isArray(arts.data) ? arts.data.length : (arts.data && arts.data.items ? arts.data.items.length : 0);
-    return tlsStudioBase();
-  };
-  PAGES.studio.after = tlsStudioAfter;
+  }
+  RG.prep('studio', tlsStudioPrep);
+  PAGES.studio = function () { tlsStudioPrep(); return tlsStudioBase(); };
 
   function tlsRunReset() {
     Object.keys(TLS.genDemo).forEach((k) => { GEN[k] = TLS.genDemo[k]; }); TLS.genDemo = {};
