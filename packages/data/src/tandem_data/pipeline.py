@@ -115,6 +115,19 @@ class NativeMapped:
     encoded: list | None = None
 
 
+def settled_files(store, source_ids=None) -> set[str]:
+    """Files whose captured revision is already settled as retained (see ``query``)."""
+    from tandem_data.query import SETTLED, UNPROJECTED, projection_versions
+
+    sql = f"SELECT file_id,source_id FROM source_file WHERE {UNPROJECTED} AND {SETTLED}"
+    wanted = None if source_ids is None else set(source_ids)
+    return {
+        row[0]
+        for row in store.db.execute(sql, (projection_versions(),))
+        if wanted is None or row[1] in wanted
+    }
+
+
 def rebuild_retaining(store, **kwargs):
     """``rebuild`` that tolerates sources rewritten or truncated after capture.
 
@@ -123,9 +136,29 @@ def rebuild_retaining(store, **kwargs):
     retried with that file's last published facts retained (``source_status='changed'``)
     until the next scan captures the new revision. A session closure cannot carry
     retained facts, so that retry covers the closure's source instead.
+
+    Files already settled as retained at their captured revision are retained from the
+    first attempt: their live source is known not to match it, so reading them again
+    would only roll back the whole rebuild and repeat it (``progress`` reports each
+    attempt as ``reset_projection`` with ``attempt``).
     """
-    changed = set()
+    scope = kwargs.get("scope")
+    changed = settled_files(store, scope.source_ids if scope is not None else kwargs.get("source_ids"))
+    if scope is not None:
+        if changed & set(scope.files):
+            kwargs.pop("scope")
+            kwargs["source_ids"] = scope.source_ids
+        else:
+            changed = set()
+    report = kwargs.get("progress")
+    attempt = 0
     while True:
+        attempt += 1
+        if report is not None:
+            # Every event of a retry says which attempt it belongs to and why it reran.
+            extra = {"attempt": attempt} if attempt == 1 else {
+                "attempt": attempt, "retry_reason": "source_changed", "retained": len(changed)}
+            kwargs["progress"] = lambda update, extra=extra: report({**update, **extra})
         try:
             return rebuild(store, changed=frozenset(changed), **kwargs)
         except SourceUnavailable as error:
@@ -735,12 +768,20 @@ def rebuild(
         exclude_tandem_ai_sessions(store)
         # Changed files are not projected: the next import rebuilds them from a fresh capture.
         store.db.executemany(
-            "UPDATE source_file SET watermark=json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?) WHERE file_id=?",
+            "UPDATE source_file SET watermark=json_remove(json_set(watermark,'$.projected_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.mapper_version',?,'$.reducer_version',?,'$.redaction_version',?),'$.retained_revision','$.retained_versions') WHERE file_id=?",
             [
                 (mapper_version, REDUCER_VERSION, REDACTION_VERSION, info["file_id"])
                 for info in infos
                 if info["file_id"] not in changed
             ],
+        )
+        # ...and their captured revision is settled as retained: until a newer capture,
+        # neither the freshness check nor the next import treats it as pending again
+        # (otherwise every later import, of any source, rebuilt this source once more).
+        attempted = f"{mapper_version}|{REDUCER_VERSION}|{REDACTION_VERSION}"
+        store.db.executemany(
+            "UPDATE source_file SET watermark=json_set(watermark,'$.retained_revision',COALESCE(json_extract(watermark,'$.revision'),0),'$.retained_versions',?) WHERE file_id=?",
+            [(attempted, file_id) for file_id in sorted(changed)],
         )
 
         if not store.db.execute(

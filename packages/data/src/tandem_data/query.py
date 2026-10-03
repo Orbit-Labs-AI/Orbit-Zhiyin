@@ -1,4 +1,20 @@
-"""Read-only product queries. Every projection reader checks publication freshness."""
+"""Read-only product queries. Every projection reader checks publication freshness.
+
+Freshness has three outcomes (``projection_state``):
+
+* **ready** — every captured L1 revision is reflected in the published L2/L3;
+* **pending** — newer L1 revisions are captured but not yet published (an import is
+  between capture and publication, or one was interrupted). The published projection is
+  still one consistent, committed snapshot: readers of L2/L3 may serve it, marked stale;
+* **invalid** — nothing valid to read (wrong contract, obsolete schema, no publication
+  yet, output of an obsolete mapper/reducer): ``ValueError``.
+
+A file whose source changed again between capture and projection keeps its previously
+published facts and is marked *retained* at that revision (``watermark.retained_revision``
+plus the versions that attempted it). A retained revision is settled: it is neither
+pending nor stale until the next capture records a newer revision, so one live file can
+no longer keep every later import rebuilding its source (docs/development/import-pipeline.md).
+"""
 
 from __future__ import annotations
 
@@ -12,38 +28,102 @@ from tandem_data.store import readonly_connection
 # Trajectory totals per (home, session, children, publication); a publication is immutable.
 _TOTALS: dict[tuple, int] = {}
 
+# Exactly the predicate of the v8 partial index ``source_file_unprojected``.
+UNPROJECTED = (
+    "COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> "
+    "COALESCE(json_extract(watermark,'$.revision'),0)"
+)
+# A revision whose projection retained the previous facts under the current versions.
+SETTLED = (
+    "(COALESCE(json_extract(watermark,'$.retained_revision'),-1) = "
+    "COALESCE(json_extract(watermark,'$.revision'),0) AND "
+    "COALESCE(json_extract(watermark,'$.retained_versions'),'') = ?)"
+)
+PENDING_MESSAGE = "Projection is pending; rebuild before analysis"
+OBSOLETE_MESSAGE = "Projection version is obsolete or incomplete; rebuild before analysis"
 
-def current_projection(connection):
+
+def projection_versions() -> str:
+    """The versions a retained revision was attempted with (``retained_versions``)."""
+    return f"{MAPPER_VERSION}|{REDUCER_VERSION}|{REDACTION_VERSION}"
+
+
+def settled(watermark: dict) -> bool:
+    return watermark.get("retained_revision") == watermark.get("revision", 0) and (
+        watermark.get("retained_versions") == projection_versions()
+    )
+
+
+def projection_state(connection) -> dict:
+    """Published run and its freshness; raises ``ValueError`` only when nothing is readable.
+
+    ``pending_files`` counts captured files whose newest revision is not published yet;
+    ``retained_files`` counts settled retained files (their previous facts are published
+    and flagged by a ``source_unavailable`` issue).
+    """
     manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
     if not manifest or manifest["contract_id"] != "tandem-session-v1":
         raise ValueError("Expected canonical tandem-session-v1")
     if manifest["schema_version"] != SCHEMA_VERSION:
         raise ValueError("Storage schema is obsolete; migrate and rebuild before analysis")
     run = connection.execute("SELECT * FROM projection_run ORDER BY run_id DESC LIMIT 1").fetchone()
-    revisions = connection.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
-    if not run or revisions != run["l1_revision_count"]:
-        raise ValueError("Projection is pending; rebuild before analysis")
-    obsolete = run["mapper_version"] != MAPPER_VERSION or run["reducer_version"] != REDUCER_VERSION
-    incomplete = _incomplete_files(connection)
-    if obsolete or incomplete:
-        raise ValueError("Projection version is obsolete or incomplete; rebuild before analysis")
-    return manifest, run
-
-
-def _incomplete_files(connection) -> bool:
-    # Both predicates match v8 indexes exactly (a partial index and an expression index),
-    # so freshness costs index lookups instead of parsing every file watermark.
-    unprojected = connection.execute(
-        "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) LIMIT 1"
-    ).fetchone()
-    if unprojected:
-        return True
+    if not run:
+        raise ValueError(PENDING_MESSAGE)  # Nothing published yet (the first import runs).
+    if run["mapper_version"] != MAPPER_VERSION or run["reducer_version"] != REDUCER_VERSION:
+        raise ValueError(OBSOLETE_MESSAGE)
+    # The unprojected set is small (captured, not yet published); the partial index finds it.
+    pending = retained = unprojected_current = gap = 0
+    for row in connection.execute(f"SELECT watermark FROM source_file WHERE {UNPROJECTED}"):
+        watermark = json.loads(row[0])
+        if settled(watermark):
+            retained += 1
+            gap += watermark.get("revision", 0) - (watermark.get("projected_revision") or 0)
+        else:
+            pending += 1
+        unprojected_current += (
+            watermark.get("mapper_version"),
+            watermark.get("reducer_version"),
+            watermark.get("redaction_version"),
+        ) == (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION)
+    total = connection.execute("SELECT COUNT(*) FROM source_file").fetchone()[0]
     current = connection.execute(
         "SELECT COUNT(*) FROM source_file WHERE json_extract(watermark,'$.mapper_version')=? "
         "AND json_extract(watermark,'$.reducer_version')=? AND json_extract(watermark,'$.redaction_version')=?",
         (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
     ).fetchone()[0]
-    return current != connection.execute("SELECT COUNT(*) FROM source_file").fetchone()[0]
+    # Published files whose facts came from an older mapper/reducer/redaction need a rebuild;
+    # unprojected files (pending or settled) are accounted for above.
+    unprojected = pending + retained
+    if total - current - (unprojected - unprojected_current) > 0:
+        raise ValueError(OBSOLETE_MESSAGE)
+    revisions = connection.execute("SELECT COUNT(*) FROM source_revision").fetchone()[0]
+    # Revisions this run accounts for: projected ones plus settled retained ones.
+    behind = revisions - gap != run["l1_revision_count"]
+    return {
+        "manifest": manifest,
+        "run": run,
+        "pending": bool(pending or behind),
+        "pending_files": pending,
+        "retained_files": retained,
+    }
+
+
+def current_projection(connection):
+    """Strict check for readers that mix L1 and L2 (or must not serve a stale snapshot)."""
+    state = projection_state(connection)
+    if state["pending"]:
+        raise ValueError(PENDING_MESSAGE)
+    return state["manifest"], state["run"]
+
+
+def published_projection(connection):
+    """For L2/L3 readers: the published snapshot, also while newer captures are pending.
+
+    Returns ``(manifest, run, state)``; ``state["pending"]`` tells the caller to mark its
+    answer stale instead of failing it.
+    """
+    state = projection_state(connection)
+    return state["manifest"], state["run"], state
 
 
 def source_status(connection) -> list[dict]:
@@ -68,7 +148,7 @@ def event_page(
         raise ValueError("limit must be between 1 and 1000")
     with readonly_connection(Path(home) / "tandem.db") as db:
         db.execute("BEGIN")
-        current_projection(db)
+        published_projection(db)  # L2 only: the published snapshot, also while pending.
         rows = db.execute(
             "SELECT * FROM event WHERE session_uid=? AND seq>? ORDER BY seq LIMIT ?",
             (session_uid, after_seq, limit),

@@ -62,10 +62,22 @@ def test_full_lengths_redaction_scope_and_empty_selection(tmp_path):
         assert not read_analysis(store.home, AnalysisScope("Asia/Shanghai", project_ids=()))[
             "events"
         ]
+        published = read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
         source = store.add_source("pi", tmp_path / "source")
         store.capture_stream(source, "new.jsonl", [b'{"type":"session","id":"new"}\n'])
-        with pytest.raises(ValueError, match="pending"):
-            read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        # A capture that is not published yet leaves the published run readable: analysis
+        # reads that snapshot (named by projection_run_id); only strict readers refuse.
+        pending = read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        assert pending["projection_run_id"] == published["projection_run_id"]
+        assert pending["sessions"] == published["sessions"]
+        assert pending["events"] == published["events"]
+        from tandem_data.query import current_projection
+        from tandem_data.store import readonly_connection
+
+        with readonly_connection(store.home / "tandem.db") as db, pytest.raises(
+            ValueError, match="pending"
+        ):
+            current_projection(db)
 
 
 def test_verified_pi_fork_is_not_new_behavior(tmp_path):
