@@ -438,6 +438,7 @@ def get_model(store, canonical_id: str) -> dict | None:
 # -- A8 library view -------------------------------------------------------------------
 LIBRARY_WEIGHTS = {"feature_overlap": 0.5, "friction": 0.3, "trust": 0.2}
 LIBRARY_SORTS = ("fit", "pain", "updated", "stars", "name")
+LIBRARY_PROFILE_CANDIDATES = 1000
 ORIGIN_WEIGHT = {"curated": 1.0, "declared": 1.0, "extracted": 0.6}
 LIBRARY_KINDS = ("skill", "hook", "plugin", "subagent", "mcp_server", "rule", "workflow", "command")
 
@@ -470,6 +471,42 @@ def _profile_overlap(conn, pairs: dict, ids: list[str] | None) -> dict:
             scores[item_id] = scores.get(item_id, 0.0) + score / total
     return scores
 
+
+
+
+def _profile_rows(pairs):
+    return sorted([feature, value, p["weight"]] for (feature, value), p in pairs.items())
+
+def _profile_candidates(conn, pairs, where, args, sort):
+    """Bounded, eligibility-first profile recall; SQL aggregates do not materialize cards.
+
+    The requested sort determines this window, then existing A8 parts rank its union
+    with hybrid candidates. Fit is approximate beyond the window; returned counts say so.
+    """
+    if not pairs:
+        return {}, 0
+    total = sum(p["weight"] for p in pairs.values())
+    if total <= 0:
+        return {}, 0
+    top_friction = max((p["weight"] for (feature, _), p in pairs.items() if feature == "friction"), default=1) or 1
+    requested = _profile_rows(pairs)
+    order = {"fit": "overlap DESC", "pain": "friction DESC,overlap DESC", "stars": "i.stars DESC",
+             "updated": "i.updated_at DESC", "name": "i.name_key"}[sort]
+    rows = conn.execute(
+        "WITH q AS (SELECT json_extract(value,'$[0]') feature,json_extract(value,'$[1]') value,"
+        "json_extract(value,'$[2]') w FROM json_each(?)), matches AS ("
+        "SELECT f.item_id,f.feature,f.value,q.w,min(max(f.weight),1.0) weight,"
+        "max(CASE f.origin WHEN 'curated' THEN 1.0 WHEN 'declared' THEN 1.0 ELSE 0.6 END) origin_weight "
+        "FROM q JOIN item_feature f ON f.feature=q.feature AND f.value=q.value "
+        "JOIN catalog_item i ON i.item_id=f.item_id WHERE " + " AND ".join(where) +
+        " GROUP BY f.item_id,f.feature,f.value), scores AS ("
+        "SELECT item_id,sum(w*weight)/? overlap,"
+        "max(CASE WHEN feature='friction' THEN w*origin_weight/? ELSE 0 END) friction "
+        "FROM matches GROUP BY item_id) "
+        "SELECT s.item_id,s.overlap,count(*) OVER () total FROM scores s JOIN catalog_item i USING(item_id) "
+        "ORDER BY " + order + ",s.item_id LIMIT ?",
+        [json.dumps(requested), *args, total, top_friction, LIBRARY_PROFILE_CANDIDATES]).fetchall()
+    return {row["item_id"]: row["overlap"] for row in rows}, rows[0]["total"] if rows else 0
 
 def library(store, *, profile: dict | None = None, lexical: dict | None = None, tab: str = "for", kinds=(),
             agents=(), q: str = "", sort: str = "fit", exclude=(), limit: int = 20, cursor: str | None = None) -> dict:
@@ -509,7 +546,10 @@ def library(store, *, profile: dict | None = None, lexical: dict | None = None, 
         if tab == "local":
             seed = None  # Every local item is a candidate.
         else:
-            overlap_all = _profile_overlap(conn, pairs, None) if pairs else {}
+            recall_key = (str(store.path), generation, "library-profile", canonical_json(_profile_rows(pairs)),
+                          canonical_json([where, args, sort]))
+            overlap_all, profile_matches = _cached(
+                recall_key, lambda: _profile_candidates(conn, pairs, where, args, sort)) if pairs and not q.strip() else ({}, 0)
             seed = set(lexical) if q.strip() else set(overlap_all) | set(lexical)
             if not seed and not q.strip():
                 # No profile and no query: fall back to a trust/popularity shortlist, never personal.
@@ -523,13 +563,16 @@ def library(store, *, profile: dict | None = None, lexical: dict | None = None, 
             needle = q.strip().casefold()
             rows = [r for r in rows if needle in f"{r['name']} {r['summary']}".casefold()]
         ids = [r["item_id"] for r in rows]
-        overlap = (_profile_overlap(conn, pairs, ids) if tab == "local" else
-                   {i: overlap_all[i] for i in ids if i in overlap_all}) if pairs else {}
+        # Score the bounded union, including hybrid-only candidates omitted by the profile
+        # window. A direct query still gets profile scores for its lexical candidate set.
+        overlap = _profile_overlap(conn, pairs, ids) if pairs else {}
         feats: dict[str, list] = {}
-        for start in range(0, len(ids), 500):
+        for start in range(0, len(ids) if pairs else 0, 500):
             part = ids[start:start + 500]
             for r in conn.execute("SELECT item_id,feature,value,weight,origin,evidence FROM item_feature "
-                                  "WHERE item_id IN (SELECT value FROM json_each(?))", (json.dumps(part),)):
+                                  "WHERE item_id IN (SELECT value FROM json_each(?)) AND (feature,value) IN "
+                                  "(SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?))",
+                                  (json.dumps(part), json.dumps(list(pairs)))):
                 feats.setdefault(r[0], []).append(r)
         hidden = conn.execute("SELECT count(*) FROM catalog_item WHERE listable=1 AND item_id IN "
                               "(SELECT value FROM json_each(?))", (json.dumps(list(exclude)),)).fetchone()[0] if exclude else 0
@@ -593,5 +636,10 @@ def library(store, *, profile: dict | None = None, lexical: dict | None = None, 
             "profile_basis": {"scope_hash": profile.get("scope_hash"), "n_sessions": profile.get("n_sessions", 0),
                               "window_days": window, "ok": ok},
             "weights": dict(LIBRARY_WEIGHTS), "total": len(items),
+            "total_scope": "eligible_candidate_window" if tab != "local" else "local_items",
+            "candidate_window": {"profile_limit": LIBRARY_PROFILE_CANDIDATES,
+                                 "profile_matches": profile_matches if tab != "local" else None,
+                                 "profile_truncated": tab != "local" and profile_matches > LIBRARY_PROFILE_CANDIDATES,
+                                 "hybrid_candidates": len(lexical)},
             "next_cursor": _encode_cursor(["library", sort, end]) if end < len(items) else None,
             "hidden_excluded": hidden, "installed_summary": None, "items": items[offset:end]}

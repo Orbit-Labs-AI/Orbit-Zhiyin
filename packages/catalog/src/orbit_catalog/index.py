@@ -5,6 +5,7 @@ The store rebuilds the snapshot lazily when ``catalog_meta.generation`` moves.
 """
 
 import json
+import tempfile
 import threading
 from typing import get_args
 
@@ -22,6 +23,7 @@ class CatalogIndex:
     def __init__(self, generation: int):
         self.generation = generation
         self._matrices = {}
+        self._matrix_generation = None
         self._lock = threading.Lock()
 
     @classmethod
@@ -144,15 +146,42 @@ class CatalogIndex:
         return mask
 
     def matrix(self, conn, model_id: str, dimensions: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """(fp16[n, d] vectors, owning item index[n], chunk_rowid[n]) for embed chunks of active items."""
+        """Exact fp16 vectors + owners, streamed into a bounded-memory snapshot.
+
+        Large matrices are backed by anonymous temporary files, so the OS can evict
+        pages rather than requiring several full heap copies. Embedding batches only
+        invalidate these matrices, never the immutable catalog/filter index.
+        """
         with self._lock:
-            if model_id not in self._matrices:
-                rows = conn.execute("SELECT c.chunk_rowid,e.vector FROM resource_chunk c JOIN embedding_cache e "
-                                    "ON e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash WHERE c.embed=1 ORDER BY c.chunk_rowid",
-                                    (model_id,)).fetchall()
-                vectors = np.frombuffer(b"".join(r[1] for r in rows), dtype="<f2").reshape(len(rows), dimensions)
-                rowids = np.array([r[0] for r in rows], dtype=np.int64)
-                owners = self.items_of(rowids)
-                keep = owners >= 0
-                self._matrices[model_id] = (np.ascontiguousarray(vectors[keep]), owners[keep], rowids[keep])
-            return self._matrices[model_id]
+            row = conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()
+            generation = int(row[0]) if row else 0
+            if generation != self._matrix_generation:
+                self._matrices.clear()
+                self._matrix_generation = generation
+            cache_key = (model_id, dimensions)
+            if cache_key not in self._matrices:
+                joins = (" FROM resource_chunk c JOIN embedding_cache e ON e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) "
+                         "AND e.text_hash=c.text_hash WHERE c.embed=1")
+                count = conn.execute("SELECT count(*)" + joins, (model_id,)).fetchone()[0]
+                shape = (count, dimensions)
+                if count * dimensions * 2 >= 64 * 1024 * 1024:
+                    with tempfile.TemporaryFile(prefix="orbit-vectors-") as backing:
+                        vectors = np.memmap(backing, dtype="<f2", mode="w+", shape=shape)
+                else:
+                    vectors = np.empty(shape, dtype="<f2")
+                rowids, owners = np.empty(count, dtype=np.int64), np.empty(count, dtype=np.int32)
+                rows = conn.execute("SELECT c.chunk_rowid,c.item_id,e.vector" + joins +
+                                    " ORDER BY c.item_id,c.ordinal", (model_id,))
+                offset = 0
+                while batch := rows.fetchmany(1024):
+                    batch = [r for r in batch if r[1] in self.pos]
+                    if not batch:
+                        continue
+                    end = offset + len(batch)
+                    vectors[offset:end] = np.frombuffer(b"".join(r[2] for r in batch), dtype="<f2").reshape(-1, dimensions)
+                    rowids[offset:end] = [r[0] for r in batch]
+                    owners[offset:end] = [self.pos[r[1]] for r in batch]
+                    offset = end
+                vectors.flags.writeable = False
+                self._matrices[cache_key] = (vectors[:offset], owners[:offset], rowids[:offset])
+            return self._matrices[cache_key]

@@ -265,13 +265,17 @@ class CatalogService:
         return {"by_kind": stats["by_type"], "by_source": by_source, "seeded": seeded,
                 "last_sync_at": last_sync, "partial_sources": partial}
 
-    def start_embeddings(self, max_chunks: int | None = None) -> dict:
+    def start_embeddings(self, max_chunks: int | None = None, *, scope: str = "all", all_passages: bool = False) -> dict:
         if not self.model_dir and self._encoder is None:
             raise ValueError("local_embedding_model_not_configured")
-        return self._submit("embed", lambda cancel: index_embeddings(self.store, self.encoder(),
-                            max_chunks=max_chunks, cancelled=cancel))
+        def materialize(cancel, report):
+            if all_passages:
+                report(self.store.enable_all_embeddings())
+            return index_embeddings(self.store, self.encoder(), max_chunks=max_chunks,
+                                    cancelled=cancel, scope=scope, progress=report)
+        return self._submit("embed", materialize, with_progress=True)
 
-    def _submit(self, kind, operation):
+    def _submit(self, kind, operation, *, with_progress=False):
         with self._jobs_lock:
             active = [j for j in self._jobs.values() if j["status"] in ("queued", "running")]
             if active:
@@ -287,8 +291,11 @@ class CatalogService:
             with self._jobs_lock:
                 job["status"] = "running"
             started = time.perf_counter()
+            def report(value):
+                with self._jobs_lock:
+                    job["progress"] = {**value, "label": "正在为资源建立语义索引"}
             try:
-                result = operation(job["cancel"].is_set)
+                result = operation(job["cancel"].is_set, report) if with_progress else operation(job["cancel"].is_set)
                 failed = kind == "sync" and any(r["status"] == "failed" for r in result)
                 with self._jobs_lock:
                     job.update(result=result, status="cancelled" if job["cancel"].is_set() else "failed" if failed else "completed")
