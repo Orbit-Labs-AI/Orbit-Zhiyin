@@ -169,6 +169,8 @@ def report(output: Path) -> dict:
               f"文件整理的 history/test 每对共享 {min(r['shared_papers'] for r in paper_overlap)}–"
               f"{max(r['shared_papers'] for r in paper_overlap)} / 100 篇论文；"
               "排除完全相同环境后的子集仍然存在部分输入重叠。",
+              "部分上游论文 URL 未指定版本号；本实验以实际下载文件哈希和冻结镜像 ID 固定输入，"
+              "上游源码 commit 本身不足以冻结这些远程文件。",
               "history 中 weighted-gdp-calculation-2 缺少上游 verifier，标为未评分并保留轨迹；所有 held-out verifier 齐全。",
               "只有四个任务族、每组每题一次；公开数据可能已进入模型训练集。缓存、API 延迟和并发影响耗时，耗时仅作次要指标。",
               "本实验不等同于官方 SkillLearnBench 协议；镜像去掉预装技能，工具通过 Pi Docker adapter，"

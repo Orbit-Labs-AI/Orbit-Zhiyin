@@ -75,6 +75,7 @@ Prompt / workflow 使用产品已有片段；未填写的槽位和只有安装�
 最终输出含逐题 CSV、分组/分任务族统计、配对胜平负、adaptation 摊销和七节报告。
 单独报告 history/test 环境完全相同的实例；不把这些重叠任务解释为新数据泛化。
 文件整理论文也逐 URL 检查部分重叠；输入下载和镜像文件哈希审计（若提供）一并冻结。
+上游部分论文 URL 没有版本号；复现应复用冻结的 PDF / 镜像，不能仅凭源码 commit 重新下载。
 
 针对计量与 verifier 转换的回归检查：
 `uv run pytest -q tests/regression/test_artificial_benchmark.py`。
