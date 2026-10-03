@@ -517,9 +517,9 @@ def router(gw: Gateway) -> APIRouter:
                     "batches": [service.match(MatchRequest.model_validate(r))
                                 for r in body.get("requests") or []]}
 
-        from tandem_catalog import get_service
-
         import sqlite3
+
+        from tandem_catalog import get_service
 
         store = get_service(gw.home / "catalog.db").store
         try:  # catalog changes must change the ETag (no stale 304)
