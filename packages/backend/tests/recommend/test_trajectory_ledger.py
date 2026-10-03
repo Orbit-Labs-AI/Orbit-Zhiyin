@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import Counter, defaultdict
 
 from fact_db import SCHEMA
 
@@ -92,6 +93,26 @@ def test_readonly_prompt_without_a_recorded_wait_is_counted_not_priced_by_run_ti
     flags = {"a": (False, True), "c": (False, True)}
     ops = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, flags, [])["ops"]
     assert ops["readonly"] == {"n": 1, "tokens": 0, "ms": 2500, "unmeasured": 1}
+
+
+def test_codex_prompt_without_a_decision_timestamp_is_counted_as_unmeasured():
+    """R8: a Codex permission.request with no decision timestamp arrives as (root, None)."""
+    conn = _store()
+    ops = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, {},
+                          [("root", 4000), ("root", None)])["ops"]
+    assert ops["readonly"] == {"n": 1, "tokens": 0, "ms": 4000, "unmeasured": 1}
+
+
+def test_permission_prompts_pass_requests_without_a_decision_as_none():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE event (session_uid, kind, call_id, ext, ts, seq)")
+    conn.executemany("INSERT INTO event VALUES (?,?,?,?,?,?)", [
+        ("s", "permission.request", "c1", json.dumps({"call_id": "c1", "command": ["ls"]}), 1000, 1),
+        ("s", "permission.decision", "c1", json.dumps({"call_id": "c1", "decision": "approved"}), 3000, 2),
+        ("s", "permission.request", "c2", json.dumps({"call_id": "c2", "command": ["cat", "a"]}), 5000, 3)])
+    readonly, per_root, waits = {}, defaultdict(Counter), []
+    section._permission_prompts(conn, json.dumps(["s"]), {}, readonly, per_root, Counter(), waits)
+    assert sorted(waits, key=str) == [("s", 2000), ("s", None)]
 
 
 def test_each_human_turn_carries_its_own_measured_cost():

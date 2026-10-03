@@ -283,7 +283,7 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     any_approval = False
     # call_uid -> (failed, approved read-only) for the ledger; plain calls stay out
     flags: dict[str, tuple[bool, bool]] = {}
-    waits: list[tuple[str, int]] = []
+    waits: list[tuple[str, int | None]] = []
     for head, _error_class, status, approval, name, uid, command, call_uid, kind in _call_rows(conn, uids):
         root = root_of.get(uid, uid)
         head = real_head(head, command)
@@ -459,6 +459,9 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
     for root in set(calls) | set(requests):
         _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops, unmeasured)
     for _root, wait in waits:
+        if wait is None:
+            unmeasured["readonly"] = unmeasured.get("readonly", 0) + 1
+            continue
         ops["readonly"][0] += 1
         ops["readonly"][2] += min(max(0, wait), IDLE_CAP_MS)
     return {"tokens": total, "active_ms": sum(active.values()), "turns": turns,
@@ -631,7 +634,8 @@ def _command_text(value) -> str | None:
 
 def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None, waits=None) -> None:
     """Codex keeps approvals as permission.request/decision events, not tool_call.approval.
-    ``waits`` collects (root, request → decision ms) of the allowed read-only prompts."""
+    ``waits`` collects (root, request → decision ms) of the allowed read-only prompts; a prompt
+    without a decision timestamp is (root, None) and only counted as unmeasured."""
     requests, decisions = [], {}
     for uid, kind, call_id, command, decision, ts in conn.execute(
             f"SELECT session_uid, kind, COALESCE(json_extract(ext,'$.call_id'), call_id), "
@@ -657,8 +661,8 @@ def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None, wa
         entry["count"] += 1
         entry["sessions"].add(root)
         per_root[root]["readonly_prompts"] += 1
-        if waits is not None and asked is not None and answered is not None:
-            waits.append((root, answered - asked))
+        if waits is not None:  # None: no decision timestamp, counted as an unmeasured prompt (never priced)
+            waits.append((root, answered - asked if asked is not None and answered is not None else None))
 
 
 _MISSING_PROGRAM = re.compile(
