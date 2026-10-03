@@ -247,12 +247,30 @@ def test_close_waits_for_the_prewarm_read(orbit):
     assert not rt.prewarm_thread.is_alive()
 
 
+def test_close_waits_for_a_slow_tick_like_the_prewarm(orbit, monkeypatch):
+    """A tick runs the same cold tail reads as the prewarm, so it gets the same join budget
+    (it used to get TICK_S + 1); close() reports a thread that outlived the budget."""
+    import threading
+
+    from orbit_backend.realtime import service
+
+    rt, _, _ = make(orbit, Recorder())
+    done = threading.Event()
+    rt.thread = threading.Thread(target=lambda: done.wait(5), daemon=True)
+    rt.thread.start()
+    monkeypatch.setattr(service, "PREWARM_JOIN_S", 0.05)
+    assert rt.close() is False  # still reading after the budget: the gateway logs it
+    monkeypatch.setattr(service, "PREWARM_JOIN_S", service.TICK_S + 3)
+    threading.Timer(service.TICK_S + 1.5, done.set).start()  # longer than the old TICK_S + 1
+    assert rt.close() is True and not rt.thread.is_alive()
+
+
 def test_gateway_close_stops_realtime_before_the_read_pool(home):
     from orbit_backend.services.gateway import Gateway
 
     gateway = Gateway(home, discovery=lambda: [], prewarm_debounce_s=3600.0)
     order = []
-    gateway.realtime = SimpleNamespace(close=lambda: order.append("realtime"))
+    gateway.realtime = SimpleNamespace(close=lambda: order.append("realtime") or True)
     reads_close = gateway.reads.close
     gateway.reads.close = lambda: (order.append("reads"), reads_close())
     gateway.close()

@@ -123,14 +123,19 @@ class Realtime:
                                                    daemon=True)
             self.prewarm_thread.start()
 
-    def close(self) -> None:
+    def close(self) -> bool:
         """Stop the tick loop and wait for it and the prewarm: both read orbit.db through
         the gateway's read pool, which the gateway closes right after (a read still running
-        on a closed SQLite connection could crash the process)."""
+        on a closed SQLite connection could crash the process). A tick runs the same cold
+        tail reads as the prewarm, so both get ``PREWARM_JOIN_S``. Returns False when a
+        thread is still alive after that, so the caller can say so."""
         self.stop.set()
-        for thread, timeout in ((self.thread, TICK_S + 1), (self.prewarm_thread, PREWARM_JOIN_S)):
+        stopped = True
+        for thread in (self.thread, self.prewarm_thread):
             if thread and thread.is_alive() and thread is not threading.current_thread():
-                thread.join(timeout)
+                thread.join(PREWARM_JOIN_S)
+                stopped = stopped and not thread.is_alive()
+        return stopped
 
     def attach(self) -> None:
         with self.lock:

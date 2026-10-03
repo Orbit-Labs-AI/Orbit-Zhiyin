@@ -287,8 +287,9 @@ class Gateway:
             if self.prewarm_timer is not None:
                 self.prewarm_timer.cancel()
         realtime = getattr(self, "realtime", None)
-        if realtime is not None:  # its loop and prewarm read orbit.db: stop before reads close
-            realtime.close()
+        if realtime is not None and not realtime.close():  # its reads must end before reads close
+            log.warning("realtime thread still reading after the join timeout; "
+                        "closing the read pool anyway")
         self.bus.close()
         self.supervisor.stop()
         self.state.save()  # Persist the scope MRU used for prewarm.
