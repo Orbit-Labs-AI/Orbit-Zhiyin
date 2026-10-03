@@ -76,7 +76,9 @@ def test_facets_ignore_their_own_dimension(store):
     hooks = query.facets(store, kinds=["hook"])
     assert hooks["total"] == 8
     assert {f["value"] for f in hooks["kind"]} == {"skill", "hook", "plugin"}  # Own filter ignored.
-    assert sum(f["count"] for f in hooks["agent"]) == 8
+    # Hooks are i01,i04,...,i22 (8); the odd ones (i01,i07,i13,i19) declare claude_code, whose
+    # hooks.json format deepseek-harness also runs (compat.CLAUDE_HOOK_READERS) -> +4 dsh.
+    assert {f["value"]: f["count"] for f in hooks["agent"]} == {"codex": 4, "claude_code": 4, "dsh": 4}
     assert hooks["official"] == {"true": 0, "false": 8}
 
 

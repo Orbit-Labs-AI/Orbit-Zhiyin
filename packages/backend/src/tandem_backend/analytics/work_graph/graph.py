@@ -7,7 +7,7 @@ from ...models import stable_id
 from ..common import timestamp
 from ..outcome_subjective import analyze_subjective_outcomes
 from ..respond import result_status
-from .index import REPORTED_TASK_QUALITIES, WORK_GRAPH_VERSION, WorkIndex
+from .index import GRAPH_ID_NAMESPACE, REPORTED_TASK_QUALITIES, WORK_GRAPH_VERSION, WorkIndex
 
 
 class Graph:
@@ -74,7 +74,7 @@ class Graph:
 
     def node(self, kind, entity_uid, *, session_uid=None, evidence=(), source="typed_fact",
              state="confirmed", attributes=None, task_uid=None, available_at=None):
-        uid = stable_id(WORK_GRAPH_VERSION, kind, session_uid, entity_uid)
+        uid = stable_id(GRAPH_ID_NAMESPACE, kind, session_uid, entity_uid)
         old = self.nodes.get(uid)
         if old is None:
             ids, summary = self._merge(self._node_evidence, uid, None, evidence)
@@ -97,7 +97,7 @@ class Graph:
         if start is None or end is None:
             return
         assert start in self.nodes and end in self.nodes
-        uid = stable_id(WORK_GRAPH_VERSION, kind, start, end)
+        uid = stable_id(GRAPH_ID_NAMESPACE, kind, start, end)
         old = self.edges.get(uid)
         if old:
             if old["state"] != state:
@@ -115,6 +115,16 @@ class Graph:
                            "to_node_uid": end, "state": state,
                            "missing_reasons": sorted(set(missing)),
                            **provenance}
+
+
+def combine_acceptance(states):
+    """Conjunction over declared acceptance sets, same rule as one set's criteria
+    (outcome/acceptance.summarize_objective_outcomes): any failed set fails the task,
+    success needs every set passed, otherwise unknown."""
+    states = list(states)
+    if False in states:
+        return False
+    return True if states and all(s is True for s in states) else None
 
 
 def _state(row):
@@ -297,7 +307,8 @@ def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions,
         evidence = [*graph.nodes[first]["evidence_uids"], *graph.nodes[second]["evidence_uids"]] if first and second else []
         graph.edge("RETRIES", second, first, evidence=evidence, source=retry["basis"],
                    state=retry["state"], missing=retry["missing"])
-        if retry.get("task_uid"):
+        # Count only retries the graph can show: both call nodes must exist.
+        if retry.get("task_uid") and first and second:
             trajectory_counts[retry["task_uid"]][retry["state"] + "_retries"] += 1
 
     for validation in outcome.get("validation_runs") or []:
@@ -364,7 +375,7 @@ def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions,
             continue
         sid, uid = observation["session_uid"], observation["event_uid"]
         event = by_event[sid, uid]
-        identity = stable_id(WORK_GRAPH_VERSION, "Feedback", sid, uid)
+        identity = stable_id(GRAPH_ID_NAMESPACE, "Feedback", sid, uid)
         if (sid, uid) in feedback_ids:
             node = identity
             graph.nodes[node]["attributes"]["interaction_observation"] = observation
@@ -430,8 +441,7 @@ def build_work_graph(index: WorkIndex, sessions, respond, outcome, instructions,
             results[result["task_uid"]].append(result)
     def acceptance(uid):
         declared = results[uid]
-        states = {row["task_success"] for row in declared}
-        success = next(iter(states)) if len(states) == 1 else None
+        success = combine_acceptance(row["task_success"] for row in declared)
         return {"task_success": success,
                 "acceptance_sets": declared,
                 "missing_reasons": [] if success is not None else ["complete_task_acceptance_not_established"]}

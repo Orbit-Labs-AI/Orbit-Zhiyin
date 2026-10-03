@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 
+from ..sessionops.exclusion import ExclusionsUnavailable
 from . import queries
 from .errors import AIError
 from .pack import features_profile
@@ -75,6 +76,8 @@ class _Q:
                 params.setdefault("scope", scope)
         try:
             r = queries.run(api, params, reads=self.reads, appdb=self.appdb, home=self.home)
+        except ExclusionsUnavailable:
+            raise  # fail-closed: an empty answer would read as "0 sessions"
         except Exception:  # noqa: BLE001 - no tandem.db yet: answer degrades, never 500
             log.debug("ask query %s failed", api, exc_info=True)
             return []
@@ -85,6 +88,8 @@ class _Q:
         """Full-inventory aggregates: {"totals": {type: {count, unused}}, "unused": [...]}."""
         try:
             r = queries.run("inventory", {"limit": 20}, reads=self.reads, appdb=self.appdb, home=self.home)
+        except ExclusionsUnavailable:
+            raise  # fail-closed: an empty answer would read as "0 sessions"
         except Exception:  # noqa: BLE001 - no tandem.db yet
             log.debug("ask inventory failed", exc_info=True)
             return {"totals": {}, "unused": [], "hooks": []}

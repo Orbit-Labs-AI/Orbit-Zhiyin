@@ -14,7 +14,10 @@ import yaml
 from tandem_data.contract import canonical, uid
 from tandem_data.privacy import redact
 
-KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task")
+# "command" (slash-command prompt documents) and "agent" (subagent definitions) exist
+# since schema 15; layouts that do not scan them report them as unsupported.
+BASE_KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task")
+KINDS = (*BASE_KINDS, "command", "agent")
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ENTRIES = 10000
 EXCLUDED_DIRECTORIES = {".trash", ".git", "node_modules", "__pycache__"}

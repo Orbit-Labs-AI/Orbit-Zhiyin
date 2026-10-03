@@ -64,8 +64,12 @@ def _corrections(interaction):
                  refs=_refs(known, "event_uid")), corrected
 
 
-def _duration_summary(calls, duration_rows, source):
-    lookup = {(r.get("session_uid"), r.get("call_uid")): r for r in duration_rows or []}
+def _duration_lookup(duration_rows):
+    return {(r.get("session_uid"), r.get("call_uid")): r for r in duration_rows or []}
+
+
+def _duration_summary(calls, lookup, source):
+    """``lookup`` comes from ``_duration_lookup`` once per diagnostics build, not per tool group."""
     reliable, estimated = [], []
     for call in calls:
         row = lookup.get((call.get("session_uid"), call.get("call_uid")), {})
@@ -89,7 +93,7 @@ def _duration_summary(calls, duration_rows, source):
             "evidence_refs": _refs(reliable, "call_uid"), "rule_version": RULE_VERSION}
 
 
-def _tool_rates(calls, source, duration_rows):
+def _tool_rates(calls, source, durations):
     statuses = Counter(c.get("tool_result_status", "unknown") for c in calls)
     eligible = statuses["success"] + statuses["failed"]
     unknown = len(calls) - sum(statuses[s] for s in
@@ -115,7 +119,7 @@ def _tool_rates(calls, source, duration_rows):
                                 eligible if measured and covered else None, source=source,
                                 unknown_n=unknown if measured else None,
                                 basis="known failed calls / (known successful + known failed calls)", refs=refs),
-            "average_execution_duration_ms": _duration_summary(calls, duration_rows, source)}
+            "average_execution_duration_ms": _duration_summary(calls, durations, source)}
 
 
 def _tool_key(call):
@@ -270,7 +274,7 @@ def build_diagnostics(analysis: dict) -> dict:
     correction, corrected = _corrections(interaction)
     calls, source = respond.get("tool_sequence"), respond.get("status", "unavailable")
     durations = (families.get("cost_time") or {}).get("durations") or {}
-    duration_rows = durations.get("execution_durations")
+    duration_lookup = _duration_lookup(durations.get("execution_durations"))
     subagent_relations = respond.get("subagent_relations")
     subagent_ids = {r["child_session_uid"] for r in subagent_relations or [] if r.get("child_session_uid")}
     retry_links = respond.get("retry_links")
@@ -279,8 +283,8 @@ def build_diagnostics(analysis: dict) -> dict:
     groups = defaultdict(list)
     for call in calls or []:
         groups[_tool_key(call)].append(call)
-    tools = {"status": source, **_tool_rates(calls or [], source, duration_rows),
-             "by_tool": [{"name_raw": key[0], "kind": key[1], **_tool_rates(rows, source, duration_rows)}
+    tools = {"status": source, **_tool_rates(calls or [], source, duration_lookup),
+             "by_tool": [{"name_raw": key[0], "kind": key[1], **_tool_rates(rows, source, duration_lookup)}
                          for key, rows in sorted(groups.items(), key=lambda p: (-len(p[1]), str(p[0])))]
                         if calls is not None else None,
              "transition_matrix": _transitions(calls, source),

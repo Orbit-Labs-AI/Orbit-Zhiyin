@@ -206,3 +206,59 @@ def test_first_sync_retries_soon_when_another_job_runs(monkeypatch):
     holder.stopping.set()
     thread.join(2)
     assert [s for s, _ in states] == ["scheduled", "deferred", "started"] and states[-1][1] == "j1"
+
+
+def run_refresher(service, until, timeout_s=2.0):
+    class Holder:
+        stopping = threading.Event()
+        platform = types.SimpleNamespace(started=True)
+    holder = Holder()
+    thread = threading.Thread(target=routes_catalog._refresher, args=(weakref.ref(holder), service, 0.01), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline and not until():
+        time.sleep(0.01)
+    holder.stopping.set()
+    thread.join(2)
+
+
+def test_vector_tick_waits_for_the_first_sync(monkeypatch):
+    calls = []
+    service = types.SimpleNamespace(bootstrap=lambda: None, needs_network_sync=lambda: True,
+                                    track_first_sync=lambda state, **kw: None,
+                                    vector_tick=lambda: calls.append("vector"))
+    monkeypatch.setattr(routes_catalog, "refresh_tick", lambda svc: calls.append("sync") or {"job_id": "j1"})
+    monkeypatch.setattr(routes_catalog, "FIRST_RUN_DELAY_S", 0.0)
+    monkeypatch.setattr(routes_catalog, "VECTOR_TICK_S", 0.0)
+    monkeypatch.delenv("TANDEM_CATALOG_AUTOEMBED", raising=False)
+    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "1")
+    run_refresher(service, lambda: calls.count("vector") >= 2)
+    assert calls[0] == "sync" and calls.count("vector") >= 2
+
+
+def test_autoembed_follows_autosync_unless_set(monkeypatch):
+    calls = []
+    service = types.SimpleNamespace(bootstrap=lambda: None, needs_network_sync=lambda: True,
+                                    track_first_sync=lambda state, **kw: None,
+                                    vector_tick=lambda: calls.append("vector"))
+    monkeypatch.setattr(routes_catalog, "VECTOR_TICK_S", 0.0)
+    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "0")
+    monkeypatch.delenv("TANDEM_CATALOG_AUTOEMBED", raising=False)
+    run_refresher(service, lambda: False, timeout_s=0.2)
+    assert calls == []
+    # Offline install that still wants local vectors: no network sync is pending a turn.
+    monkeypatch.setenv("TANDEM_CATALOG_AUTOEMBED", "1")
+    run_refresher(service, lambda: bool(calls))
+    assert calls
+
+
+def test_status_reports_vector_block_and_consent(gateway):
+    gw, client = gateway
+    vector = client.get("/v1/catalog/status").json()["vector"]
+    assert vector["download"]["allowed"] is False
+    assert vector["download"]["revision"] == "614241f622f53c4eeff9890bdc4f31cfecc418b3"
+    assert vector["status"] in ("not_configured", "not_loaded", "unavailable")  # a dev machine may hold a model
+    declined = client.put("/v1/catalog/embeddings/model", json={"allow_download": False}).json()
+    assert declined["download"]["allowed"] is False
+    assert json.loads((gw.home / "models/download.json").read_text())["allowed"] is False
+    assert client.get("/v1/catalog/embeddings/status").json()["download"]["allowed"] is False

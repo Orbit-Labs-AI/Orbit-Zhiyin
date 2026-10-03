@@ -219,6 +219,13 @@ class AIService:
                 "preview_digest": pack.get("preview_digest"), "payload": pack.get("content", {}),
                 "stages": task["stages"]}
 
+    def _data_identity(self) -> dict:
+        """Published revision the job reads (stored with the request, never sent to engines),
+        so consumers can tell a narrative written before the latest import (ai/narratives)."""
+        revisions = getattr(self.gw, "revisions", None)
+        rev = revisions.snapshot() if revisions is not None else {}
+        return {"data_rev": rev.get("data_rev"), "inventory_rev": rev.get("inventory_rev")}
+
     def submit(self, task_id: str, req: dict, *, waiter: bool = False,
                skip_preview: bool = False) -> dict:
         task = self._task(task_id)
@@ -254,7 +261,8 @@ class AIService:
                 "(?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
                 (job_id, task_id, engine_id, slot, template, pack.get("goal", req.get("goal")),
                  pack.get("goal_source", req.get("goal_source")),
-                 json.dumps(req, ensure_ascii=False, default=str), pack.get("preview_digest"),
+                 json.dumps({**req, "_data": self._data_identity()}, ensure_ascii=False,
+                            default=str), pack.get("preview_digest"),
                  now_ms()))
         if waiter:
             self.runner.waiters.add(job_id)
