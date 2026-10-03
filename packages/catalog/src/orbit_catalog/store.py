@@ -161,6 +161,8 @@ class CatalogStore:
                 conn.executescript("BEGIN IMMEDIATE;\n" + schema +
                                    f"\nPRAGMA application_id={APPLICATION_ID};"
                                    f"\nPRAGMA user_version={SCHEMA_VERSION}; COMMIT;")
+                conn.execute("INSERT INTO catalog_meta(key,value) VALUES('projection_version',?)",
+                             (f"{FEATURE_VERSION}:{CHUNK_VERSION}",))
             elif legacy.has_catalog_sources(conn):
                 conn.execute("BEGIN IMMEDIATE")
                 legacy.rename_catalog_sources(conn)
@@ -729,6 +731,16 @@ class CatalogStore:
         with self.writer(), self.connect() as conn:
             return self._vacuum_blobs(conn)
 
+    def ensure_projections(self) -> bool:
+        """Re-extract an existing cache once when the feature/chunk contract changes."""
+        expected = f"{FEATURE_VERSION}:{CHUNK_VERSION}"
+        with self.connect(True) as conn:
+            row = conn.execute("SELECT value FROM catalog_meta WHERE key='projection_version'").fetchone()
+        if row and row[0] == expected:
+            return False
+        self.rebuild()
+        return True
+
     def rebuild(self):
         """Recompute feature/chunk projections from normalized source records, without network."""
         with self.writer(), self.connect() as conn:
@@ -736,6 +748,8 @@ class CatalogStore:
             changed, _ = self._materialize_many(conn, ids, _now(), force=True)
             self._vacuum_blobs(conn)
             self._bump(conn)
+            conn.execute("INSERT INTO catalog_meta(key,value) VALUES('projection_version',?) "
+                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (f"{FEATURE_VERSION}:{CHUNK_VERSION}",))
             conn.execute("PRAGMA optimize")
         self._release_free_pages()
         return {"items_checked": len(ids), "changed": changed}

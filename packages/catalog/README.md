@@ -51,3 +51,9 @@
     uv run python benchmarks/catalog_bench.py --items 20000 --seed 7 [--embeddings] [--json out.json] [--check]
 
 确定性合成数据（Zipf 词表含中文二元词、12 类、正文约 6KB、每条 3–8 个特征、5% 内容重复），向量用无模型的 ToyHashEncoder（384 维）。`--check` 仅在 20k 规模断言目标。
+
+## 推荐可靠性审计更新
+
+2026-10-03 增加 Microsoft 官方 skills 来源并扩大随包离线种子至 1,543 项；新版快照按来源 revision 更新旧安装，已完成网络同步的来源仍优先。`features-4` 增加任务阶段、产物和实践维度，bootstrap 会按投影版本一次重建旧特征索引。
+
+卡片与检索响应新增 `quality` 元数据完整度报告（五维证据、缺失项、版本与明确的未评测/未审计状态），检索保留 verification、language、声明支持矩阵。向量加载或编码失败时保留 BM25/特征结果并返回降级诊断。精确条数、来源 revision、测试与边界见 [推荐可靠性审计](../../docs/audits/recommendation-reliability-2026-10-03.md)。

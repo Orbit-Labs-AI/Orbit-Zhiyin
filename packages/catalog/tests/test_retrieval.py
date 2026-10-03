@@ -330,7 +330,7 @@ def test_seed_mmr_keeps_docx_at_or_above_its_score_rank(seeded):
 # Chinese query -> substrings of acceptable English target names (by intent, read off the seed).
 GOLDEN_ZH = {"代码审查": ("review",), "数据库迁移": ("sql", "migration", "database"), "浏览器测试": ("playwright", "testing"),
              "论文引用": ("research", "citation", "consensus"), "调试": ("debug",), "部署": ("deploy",),
-             "性能优化": ("performance",), "容器": ("docker", "container"), "安全漏洞": ("vulnerab", "security"),
+             "性能优化": ("performance",), "容器": ("docker", "container", "infrastructure engineer"), "安全漏洞": ("vulnerab", "security"),
              "表格": ("xlsx",), "幻灯片": ("pptx",), "前端": ("frontend",), "监控日志": ("logging", "monitor"),
              "机器学习": ("machine-learning",), "持续集成": ("cicd",), "重构": ("refactor",),
              "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system",)}

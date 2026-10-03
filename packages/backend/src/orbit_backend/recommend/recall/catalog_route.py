@@ -74,7 +74,7 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         "routes": {}, "fusion": 0., "evidence": evidence_of(problem),
         "source": {"origin": "catalog", "item_id": item["item_id"], "url": item.get("url"),
                    "license": item.get("license"), "version": item.get("version_id"),
-                   "verified": bool(item.get("verified"))},
+                   "verified": bool(item.get("verified")), "quality": item.get("quality")},
         "target": {"agents": target_agents(support, inputs), "scope": "project" if project_of(problem) else "user",
                    "project_id": project_of(problem), "path_hint": None,
                    "agents_listed": list(item.get("agents") or ())},
@@ -86,7 +86,8 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         "prior": {"alpha": 2., "beta": 2.},
         "cost": {"setup_minutes": 5., "context_tokens": 500 if kind in ("skill", "mcp", "plugin") else 100,
                  "reversible": True},
-        "risk": {"level": "medium" if len(risk_flags) > 1 else "low", "flags": risk_flags},
+        "risk": {"level": ("high" if (item.get("risk_level") or 0) >= 3 else "medium"
+                           if (item.get("risk_level") or 0) >= 2 or len(risk_flags) > 1 else "low"), "flags": risk_flags},
         "requirements": {"tools": [], "software": []}, "gates_hint": {"scenes": None, "language": None},
         "unit_minutes": None, "tags": list(item.get("tags") or ()), "file": None,
         "explain_hints": {"reason_template": reason, "mechanism": mechanism,
@@ -104,6 +105,7 @@ def _normalise_catalog(row: dict) -> dict | None:
             "summary": row.get("summary") or "", "url": row.get("url"), "agents": row.get("agents") or [],
             "license": row.get("license"), "difficulty": row.get("difficulty"), "risk": row.get("risk") or [],
             "language": row.get("language"), "content_hash": row.get("content_hash"),
+            "support": row.get("support") or {}, "quality": row.get("quality"), "risk_level": row.get("risk_level"),
             "version_id": row.get("version_id"), "verified": row.get("verification") in VERIFIED,
             "tags": tags, "score": row.get("score", 0.)}
 

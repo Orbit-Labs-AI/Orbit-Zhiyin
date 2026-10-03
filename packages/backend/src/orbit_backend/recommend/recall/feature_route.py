@@ -72,7 +72,9 @@ def _items(catalog, ids: list[str]) -> dict[str, dict]:
         out[row["item_id"]] = {"item_id": row["item_id"], "kind": kind, "name": row["name"],
                                "summary": row["summary"] or "", "url": row["url"],
                                "agents": json.loads(row["agents"] or "[]"), "license": row["license"],
-                               "difficulty": row["difficulty"], "risk": meta.get("risk") or [],
+                               "difficulty": row["difficulty"], "risk": json.loads(row["risk"] or "[]"),
+                               "risk_level": row["risk_level"], "language": row["language"],
+                               "support": (meta.get("metadata") or {}).get("agent_support") or {},
                                "content_hash": row["content_hash"], "version_id": row["latest_version"],
                                "verified": row["verification"] in VERIFIED if "verification" in row.keys() else False}
     return out
