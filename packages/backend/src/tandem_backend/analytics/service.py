@@ -91,6 +91,20 @@ TEXT_FREE_SECTIONS = (
 )
 
 
+def _unknown_model_calls(model_calls) -> int | None:
+    """Request rows whose usage cannot be attributed: invalid rows + conflicting request ids.
+
+    Same rule as ``cost_time.tokens.prepare_requests`` (the basis of every usage metric), so
+    the unknown count matches what the usage numbers actually dropped. ``None`` = no source.
+    """
+    if model_calls is None:
+        return None
+    from .cost_time.tokens import prepare_requests
+
+    prepared = prepare_requests(model_calls)
+    return prepared["invalid_request_rows"] + len(prepared["conflicting_request_ids"])
+
+
 def text_variant_meta(meta: Record, content_digest, with_text: bool) -> Record:
     """``meta`` as the other ``with_text`` variant reports it (only the digest differs)."""
     from .products.contracts import rule_versions
@@ -803,7 +817,7 @@ class AnalysisSections:
                             s.get("kind") == "unknown" for s in context.sessions
                         ),
                         "timestamp": diagnostics["time_unknown_events"],
-                        "model_calls": None if model_calls is None else 0,
+                        "model_calls": _unknown_model_calls(model_calls),
                     },
                     "limitations": list(LIMITATIONS),
                     "inventory": bundle.inventory,
