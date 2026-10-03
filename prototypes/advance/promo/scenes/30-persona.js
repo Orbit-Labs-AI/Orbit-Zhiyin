@@ -1,10 +1,10 @@
 /* 30-persona 3（b26.4–45.4；v17.3 / v17.4 读字共加长 5.0 拍，见下方 XL） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
    罗盘在翻平的标志下成形（刻度 → 描边光从标志尾端出发 → 轨道层随扫描展开 → 花苞边转边减速落在你的类型并绽开）
    → 标题「引入协作人格分析」→ 罗盘左移 → 右侧竖向滚动列（R1–R7），条目经过中心线 y 540 时罗盘做对应反应
-   → 揭晓块减速到中心线后慢漂（不停住）→ 列上移淡出、罗盘缩小淡出。
+   → 揭晓块减速到中心线后慢漂（不停住）→ 徽章按行依次从公转的外圈剥离、滑成左侧竖列，表盘同时朝点列收缩淡出、揭晓块上漂淡出。
    本场景拥有 deck 2（b26.4 直接设定相机，drawCompass 每帧调用，pl: 0）与 b26.4 的 AGD compass key；标志归 20-orbit
-   （到 b28.2），CO（旧 b39.4 + XL = b44.4）的 column key 归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
-   一直调到 b41.5 + XL，deck 2 自 CO + .85 起已透明）。 */
+   （到 b28.2），CO − .9 起的剥离（column key）归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
+   一直调到 b41.5 + XL，deck 2 自 CO + 1.2 起已透明）。 */
 scene('30-persona', () => {
   css(`
 .k .ln.pe-or>span{color:var(--a1)}
@@ -74,8 +74,11 @@ scene('30-persona', () => {
   tween(2, 29.5, MV - 29.5, { s: .88 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
   tween(2, MV + MVD, CO - MV - MVD, { s: .81 }, E.sine);
-  // v17.1 T10：缩小淡出时中心同拍左移 600 → 480，表盘朝 40-recs 的点列（x 330）收去，像被点带走
-  tween(2, CO, .85, { s: .6, o: 0, ax: 480 }, E.inOut);     // E.inOut：表盘底盘与轨道层不在点飞走后残留（CO + .85 已透明）
+  // T10（r176b）：40-recs 在 CO − .9 让第一枚徽章离开外圈；表盘同拍起用 2.0 拍长缓动朝点列（x 330）收缩（s .81 → .5，
+  // 中心 → (400, 545)），还没剥离的徽章随外圈一起向点列聚拢，五个点始终是一组；透明度晚 .8 拍起 1.3 拍淡完（CO + 1.2），
+  // 与揭晓块的退场、引言卡的写入重叠，中间没有空黑帧
+  tween(2, CO - .9, 2.0, { s: .5, ax: 400, ay: 545 }, E.inOut);
+  tween(2, CO - .1, 1.3, { o: 0 }, E.inOut);
 
   /* ---------- 花苞：随扫描转（梯形速度），b28.4 起减速，b29.6 落在起始类型 X0 ---------- */
   // v17.5：分析前还不知道你的类型——花先落在与你四个字母里三个相反的 X0（DIMV → SIFT），分析列每定一个字母，
@@ -175,9 +178,9 @@ scene('30-persona', () => {
     });
   };
 
-  /* ---------- 罗盘：每帧一次（b26.4–41.5 + XL；deck 2 自 CO + .85 透明，之后只为 40-recs 的点提供出发位置） ---------- */
+  /* ---------- 罗盘：每帧一次（b26.4–41.5 + XL；deck 2 自 CO + 1.2 透明，之前一直为 40-recs 剥离中的点提供出发位置） ---------- */
   drive(2, 26.4, 41.5 + XL, (p, b) => {
-    const out = 1 - E.inOut(lp(b, CO, .8)), keep = keepAt(b);
+    const out = 1 - E.inOut(lp(b, CO - .4, 1.5)), keep = keepAt(b);   // 表盘、花随剥离慢慢退暗（与 deck 2 的淡出相乘）
     const dial = E.out(lp(b, 26.5, .8)) * out;
     const ck = CH.find((c) => b >= c.s && b < c.s + c.L);
     drawCompass({
@@ -221,7 +224,7 @@ scene('30-persona', () => {
       y = YR + V * (SLOW - TR0 - RU) + VR * u + (V - VR) * (u / 2 + d / (2 * Math.PI) * Math.sin(Math.PI * u / d));
       if (b > T6) y += VR * (b - T6);
     }
-    return y + 330 * E.in(lp(b, EX, 1.0));
+    return y + 150 * E.inOut(lp(b, EX, 1.4));               // 退场：长缓动上漂 150px（不再 E.in 猛拉）
   };
   const P6 = scrollY(T6);                                  // 揭晓块锚点（R5 下方 185px）
   const FLAP = 'DSIPMFVT', DRUM = FLAP + FLAP[0];
@@ -248,7 +251,7 @@ scene('30-persona', () => {
   // 揭晓块的进场（相对 T6）：类型码 T6 − .8（居中向外显影），中文名 T6 − .55，一句话 T6 − .4（解码），
   // 优势 / 盲点 T6 + .05 / + .25 依次上浮淡入（原来只是糊着滚进来，读不到）；都读到 EX = T6 + 3.0
   const codeIn = K.centerOut({ step: .15, dur: .55, out: 0 }), lineIn = K.decode({ step: .04, dur: .45, out: 0, from: .3 });
-  txt(C0, 40.3 + XL, [['', '']], { x: 0, y: 0 }, {
+  txt(C0, EX + 1.4, [['', '']], { x: 0, y: 0 }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT;
       if (!el._pe) {
@@ -256,8 +259,10 @@ scene('30-persona', () => {
         el.innerHTML = '<div class="pe-col">' + ITEMS.map((it) => '<div class="pe-it">' + it.html + '</div>').join('') + '</div>';
         el._it = [...el.querySelectorAll('.pe-it')];
       }
-      const Y = scrollY(b), colA = E.out(lp(b, C0, .8)) * (1 - E.inOut(lp(b, EX, 1.0)));
-      el.querySelector('.pe-col').style.opacity = colA.toFixed(3);
+      // 退场（EX 起 1.1 拍）：揭晓块边上漂边淡、轻微失焦（≤ 5px），在引言卡标题写到 x 1100 前（≈ EX + 1.1）淡完，不残留
+      const Y = scrollY(b), xo = E.inOut(lp(b, EX, 1.1)), colA = E.out(lp(b, C0, .8)) * (1 - xo), col = el.querySelector('.pe-col');
+      col.style.opacity = colA.toFixed(3);
+      col.style.filter = xo > .01 ? 'blur(' + (5 * xo).toFixed(2) + 'px)' : 'none';
       ITEMS.forEach((it, n) => {
         const node = el._it[n], s = (it.fy ?? it.y) - Y;
         let y = 540 + it.y - Y;

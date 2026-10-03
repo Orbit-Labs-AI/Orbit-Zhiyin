@@ -1,7 +1,8 @@
 /* 40-recs 4（b39.4–63.1） — STORYBOARD.md v17「4 优化建议」+ v17.1 T10 / T10′, hand-offs T10 (in) / T11 (out).
    v17.3: 3 beats longer than v17.2 (pitch 2.4 → 3.0, everything after b41.5 later; T11 at b58.0 instead of b55.0).
-   v17.5: 5 beats longer (start unchanged; T11 at b63.0). Intro card first (+4.5): while the dots close into their column,
-   「02 · 优化建议」/「根据你的使用习惯，智能推荐」(silver, heavy) /「提高效率」(orange) rise in at x 540 (b40.25–40.45) and
+   v17.5: 5 beats longer (start unchanged; T11 at b63.0). Intro card first (+4.5): the badges peel off the persona dial
+   row by row (b38.5–40.76, r176b) and, as each of the top three rows comes home, it writes one line out of a link at x 540
+   (b39.85 / 39.99 / 40.13):「02 · 优化建议」/「根据你的使用习惯，智能推荐」(silver, heavy) /「提高效率」(orange); they
    stay, drifting up 12 px, while the column breathes in three soft pulse waves (b41.6 / 42.7 / 43.8); at b44.5 the three
    lines rise, then slide left and shrink together into the top-left eyebrow slot (eyebrow 160,100; the two lines below
    it at 26 px; 1.1 beats) as the first entry's dots step forward and emit it (b45.0); the counters come in behind the headline's tail.
@@ -48,7 +49,23 @@ scene('40-recs', () => {
   /* ---------- T10: the dots leave the compass rim and close into one short column (ranked by their y on the compass,
      so no paths cross; the centre row lands on the centre line, where T11 merges the column) ---------- */
   const COLX = 330, STEP_X = 56;                                 // column x; a linked dot steps forward to 386
-  AGD.key(39.4, 'column', { x: COLX, y0: 372, gap: 84, r: 30, order: ORD, dur: 1.6, stag: .08, arc: 20 });
+  // r176b: the badges peel off the still-revolving rim one row at a time (top row first, .14 beat apart, from b38.5 =
+  // 30-persona CO − .9, .7 beat before the reveal block starts to leave) and glide 1.7 beats (E.inOut, bowing up ≤ 14 px)
+  // into the column, growing r 18·s → 30. Each path starts from the badge's live rim position (cpBadge: the dial is
+  // collapsing towards the column meanwhile, so the rows still on it close in with it) — the five stay one converging
+  // group and no two paths cross (closest pair ≥ 20 px apart, edge to edge).
+  // The key itself switches at once (dur ≈ 0); the live x / y0 / r carry the whole move.
+  const PEEL = 38.5, PST = .14, PD = 1.7, PARC = 14;
+  const peel = (b, i) => E.inOut(clamp((b - PEEL - PST * ORD[i]) / PD));
+  const rim = (b, i, k) => { const e = peel(b, i); return e >= 1 ? null : cpBadge(i)[k]; };
+  AGD.key(PEEL, 'column', {
+    x: (b, i) => { const e = peel(b, i), q = rim(b, i, 'x'); return q == null ? COLX : lerp(q, COLX, e); },
+    y0: (b, i) => { const e = peel(b, i), q = rim(b, i, 'y'), y = 372 + 84 * ORD[i]; return (q == null ? y : lerp(q, y, e)) - PARC * 4 * e * (1 - e); },
+    gap: 0, r: (b, i) => { const e = peel(b, i), q = rim(b, i, 'r'); return q == null ? 30 : lerp(q, 30, e); },
+    a: (b, i) => { const e = peel(b, i), q = rim(b, i, 'a'); return q == null ? 1 : lerp(q, 1, e); },
+    order: ORD, dur: .001, stag: 0
+  });
+  const ROWIN = [0, 1, 2].map((r) => PEEL + PST * r + 1.05);    // row r's dot is ≈ 70 % home: it starts writing intro line r (links b39.55 / 39.69 / 39.83)
 
   /* ---------- app data (read once; nothing hard-coded) ---------- */
   const W = decks[0].W;
@@ -202,21 +219,29 @@ scene('40-recs', () => {
   });
 
   /* ---------- intro card → eyebrow, and the two running totals ---------- */
-  // the three lines rise in at x 540 (left edge of the coming cards) as the dial and persona column leave, drift up 12 px
-  // while they hold (b40.8–44.5: the headline readable ≈3.7 beats at full size), then move and shrink together into the
-  // top-left eyebrow slot (no stagger, so the lines never overlap mid-move) and stay there, small, until the scene leaves.
+  // the three lines are written out of the dot column as it arrives (r176b): when row r's dot is ≈ 70 % home a link
+  // grows from it to the left edge of line r (x 530; rows 0–2 sit level with the eyebrow / headline / orange line), and
+  // .3 beat later, as the link lands and the dot settles, the line wipes in left → right (soft 15 % edge) while sliding
+  // 28 px out of the link (E.out); the dot pulses as it emits, and the link retracts .9 beat after. The lines then drift up
+  // 12 px while they hold (headline written by b40.6, readable ≈3.9 beats at full size, as before), then move and shrink
+  // together into the top-left eyebrow slot (no stagger, so the lines never overlap mid-move) and stay there, small, until the scene leaves.
   // The rise leads the slide left by .25 beat (both .85 beats), so the lines pass above the dot column's top row instead
   // of over it, and the orange line is far above the first type word, which wipes in at b45.0 from y ≈480
-  [['eb', '02 · 优化建议', 40.25, 370, 100, 1],
-   ['sv r4-h', '根据你的使用习惯，智能推荐', 40.3, 466, 146, 26 / 88],
-   ['r4-a', '提高效率', 40.45, 584, 182, 26 / 64]].forEach(([cls, html, b0, y0, y1, k1]) => {
-    const m0 = mask(.18, 1, .6);
-    txt(b0, OUT4, [[cls, html]], { x: 540, y: y0 }, {
+  [['eb', '02 · 优化建议', 370, 100, 1, .4],
+   ['sv r4-h', '根据你的使用习惯，智能推荐', 466, 146, 26 / 88, .6],
+   ['r4-a', '提高效率', 584, 182, 26 / 64, .45]].forEach(([cls, html, y0, y1, k1, wd], r) => {
+    const m0 = mask(.18, .001, .6), wb = ROWIN[r] + .3, i = ROWDOT[r];
+    const my = (b) => E.inOut(lp(b, S4, MV - .25)), ly = (b) => lerp(y0 - 12 * lp(b, 40.3, S4 - 40.3), y1, my(b));
+    AGD.link(ROWIN[r], wb + .9, i, (b) => [530, ly(b)], { bend: .45, draw: .3, out: .4, pulse: 1 });
+    AGD.pulse(i, wb - .05, 1.08, .5); AGD.glow(i, wb - .1, wb + .35, .35);
+    txt(wb - .02, OUT4, [[cls, html]], { x: 540, y: y0 }, {
       anim: (el, tl, life, t) => {
         m0(el, tl, life);
-        const b = t / BEAT, my = E.inOut(lp(b, S4, MV - .25)), mx = E.inOut(lp(b, S4 + .25, MV - .25)), dr = lp(b, 40.3, S4 - 40.3), k = lerp(1, k1, my);
-        el.style.left = lerp(540, 160, mx).toFixed(1) + 'px'; el.style.top = lerp(y0 - 12 * dr, y1, my).toFixed(1) + 'px';
+        const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), k = lerp(1, k1, my(b)), w = E.inOut(lp(b, wb, wd));
+        el.style.left = (lerp(540, 160, mx) - 28 * (1 - E.out(lp(b, wb, wd + .4)))).toFixed(1) + 'px'; el.style.top = ly(b).toFixed(1) + 'px';
         el.style.transformOrigin = '0 50%'; el.style.transform = 'translate(0,-50%) scale(' + k.toFixed(4) + ')';
+        const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
+        el.style.maskImage = m; el.style.webkitMaskImage = m;
       }
     });
   });
