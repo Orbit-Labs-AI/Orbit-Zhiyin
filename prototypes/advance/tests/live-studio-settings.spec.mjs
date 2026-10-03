@@ -364,3 +364,46 @@ test('overview live: 「AI 生成」 posts narrate.overview with the card scope 
   expect(posts[1]).toEqual({ task_id: 'narrate.overview', scope: { days: 30 }, fresh: true });
   expect(errors).toEqual([]);
 });
+
+test('overview live: the running state survives re-renders, 「停止」 cancels the job, ok without model text says so', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, (t) => /status of (404|403)/.test(t));
+  const OV = FX('s1/overview-30'); let job = 'running'; let jobN = 0; const cancels = [];
+  let scoped = true;
+  const ovBody = () => { const o = JSON.parse(JSON.stringify(OV)); o.insight.ai_scope = scoped ? { days: 30 } : null; return o; };
+  await gateway(page, { extra: {
+    'GET /v1/uiview/overview': () => ovBody(),
+    'POST /v1/ai/jobs': () => ({ job_id: 'fx-ov-' + (++jobN), status: 'queued', cached: false }),
+    'GET /v1/ai/jobs/fx-ov-1': () => ({ job_id: 'fx-ov-1', task_id: 'narrate.overview', status: job, stages: [], log: [] }),
+    'POST /v1/ai/jobs/fx-ov-1/cancel': () => { cancels.push(1); job = 'cancelled'; return { job_id: 'fx-ov-1', status: 'cancelled' }; },
+    // the job ends ok, but the overview re-read still returns the rule template (data changed / incomplete output)
+    'GET /v1/ai/jobs/fx-ov-2': () => ({ job_id: 'fx-ov-2', task_id: 'narrate.overview', status: 'ok', stages: [], log: [] })
+  } });
+  await page.goto('http://orbit.test/app#token=fx-token');
+  await page.evaluate(() => { S.range = 30; go('overview'); });
+  const card = page.locator('#aiCard');
+  await expect(card.locator('[data-aigen]')).toHaveText('规则模板 · 本地生成');
+  await card.locator('[data-act="regen"]').click();
+  await expect(card.locator('[data-aigen]')).toContainText('本地 Agent 生成中');
+  await page.evaluate(() => render());                                             // a refresh keeps the running state
+  await expect(card.locator('[data-aigen] .spin')).toHaveCount(1);
+  await expect(card.locator('[data-act="regen"]')).toHaveCount(0);
+  await card.locator('[data-act="regenStop"]').click();
+  await expect(page.locator('#toast')).toContainText('AI 解读已停止');
+  expect(cancels.length).toBe(1);
+  await expect(card.locator('[data-act="regen"]')).toHaveCount(1);
+  await expect(card.locator('[data-aigen]')).toHaveText('规则模板 · 本地生成');
+  await card.locator('[data-act="regen"]').click();
+  await expect(page.locator('#toast')).toContainText('卡片保持规则模板');
+  await expect(page.locator('#toast')).not.toContainText('已更新');
+  await expect(card.locator('.aib')).toHaveCount(0);
+  // no ai_scope (「全部」/ filtered): the button stays focusable with its reason (aria-disabled), a click explains instead of submitting
+  scoped = false;
+  await page.evaluate(() => TL.invalidate((x) => String(x.path).indexOf('/v1/uiview/overview') === 0));
+  const off = card.locator('[data-act="regen"]');
+  await expect(off).toHaveAttribute('aria-disabled', 'true');
+  expect(await off.evaluate((el) => el.disabled)).toBe(false);
+  await off.click({ force: true });   // Playwright treats aria-disabled as not enabled; a real click still reaches ACT.regen
+  await expect(page.locator('#toast')).toContainText('暂不生成 AI 解读');
+  expect(errors).toEqual([]);
+});

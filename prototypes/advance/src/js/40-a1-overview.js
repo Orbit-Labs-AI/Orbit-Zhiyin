@@ -78,7 +78,10 @@ PAGES.overview = () => {
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? ovInsWhen(ins) : '本地 Claude Code 生成 · 9/30 23:10';
   const caveat = LV.live && ins && ins.basis === 'ai_narrative' && (ins.caveats || []).length ? ins.caveats.join('；') : '';
   // live「重新生成」提交 narrate.overview：「全部」与带筛选的视图没有可用的 ai_scope，按钮如实不可用
+  // 不可用时用 aria-disabled 而非 disabled：按钮仍可悬停 / 聚焦看到原因，点击由 ACT.regen 提示
   const regenOff = LV.live && !(ins && ins.ai_scope);
+  // 生成中（LV.ovRegen，91-live-persona）：重绘后仍显示进度，按钮变为「停止」可取消作业
+  const regenRun = LV.live && LV.ovRegen;
   const regenTip = regenOff ? (ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
@@ -102,7 +105,7 @@ PAGES.overview = () => {
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
     // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
-    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih">' + ovInsBadge(ins) + '<button type="button" class="btn sm gh" data-act="regen"' + (regenOff ? ' disabled' : '') + (regenTip ? ' data-tip="' + esc(regenTip) + '"' : '') + '>' + ic('sync', 12) + (LV.live && !ovInsAI(ins) ? 'AI 生成' : '重新生成') + '</button></div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen' + (caveat ? ' data-tip="' + esc(caveat) + '"' : '') + '>' + esc(ledeWhen) + '</span></div>' +
+    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih">' + ovInsBadge(ins) + (regenRun ? '<button type="button" class="btn sm gh" data-act="regenStop" data-tip="取消这次生成，卡片保持现有内容">' + ic('x', 12) + '停止</button>' : '<button type="button" class="btn sm gh" data-act="regen"' + (regenOff ? ' aria-disabled="true"' : '') + (regenTip ? ' data-tip="' + esc(regenTip) + '"' : '') + '>' + ic('sync', 12) + (LV.live && !ovInsAI(ins) ? 'AI 生成' : '重新生成') + '</button>') + '</div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen' + (caveat && !regenRun ? ' data-tip="' + esc(caveat) + '"' : '') + '>' + (regenRun ? '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + esc(LV.ovRegen.msg || '已提交给本地 Agent…') : esc(ledeWhen)) + '</span></div>' +
     ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
     '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
     // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
