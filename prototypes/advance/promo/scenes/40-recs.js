@@ -58,7 +58,9 @@ scene('40-recs', () => {
 
   /* ---------- 5a three cards drop under a fixed headline (b54.8–66.4) ---------- */
   const IDS = ['paper-audit', 'acceptance', RB];
-  const LAND = [57.0, 60.8, 64.6], HOLD = 3.2, DROP = .6;                  // card i: drops from LAND − DROP, leaves at LAND + HOLD
+  const LAND = [57.0, 62.0, 67.0], HOLD = 4.4, DROP = .6;                  // card i: drops from LAND − DROP, leaves at LAND + HOLD
+  // later beats move with the longer card holds (A), the longer install sheet (B), applied state (C) and before/after (D)
+  const dA = 4.0, dB = dA + 1.5, dC = dB + 1, dD = dC + 2;
   const CARDBOX = [960, 690, 1760, 440];
   let BASE = {}, SAVE = [0, 0, 0], FR = null;
   at(54.8, () => {
@@ -73,10 +75,10 @@ scene('40-recs', () => {
   const P0 = () => BASE[IDS[0]] || { x: 800, y: 400, w: 380, h: 170 };
   const frameCards = () => { const p = P0(), [cx, cy, w, h] = CARDBOX, s = Math.min(w / p.w, h / p.h); return { x: p.x, y: p.y, s, ax: cx, ay: cy, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0 }; };
   tween(0, 55.2, 0, () => (FR = frameCards()), E.lin, () => ({}));
-  tween(0, 57.4, 7.6, () => ({ s: decks[0].C.s * 1.02 }), E.sine);
-  drive(0, 54.85, 67.2, (p, b, D) => {
+  tween(0, 57.4, 7.6 + dA, () => ({ s: decks[0].C.s * 1.02 }), E.sine);
+  drive(0, 54.85, 67.2 + dA, (p, b, D) => {
     unscroll(D); still(D);
-    const p0 = P0(), lift = E.inOut(lp(b, 65.6, .7));
+    const p0 = P0(), lift = E.inOut(lp(b, 65.6 + dA, .7));
     IDS.forEach((id, i) => {
       const el = card(D, id), B = BASE[id]; if (!el || !B) return;
       const inn = E.out(lp(b, LAND[i] - DROP, DROP)), out = i < 2 ? E.in(lp(b, LAND[i] + HOLD, DROP)) : 0;
@@ -88,52 +90,52 @@ scene('40-recs', () => {
     });
   });
   // headline: the eyebrow, the rolling estimate and one line that says what the number is
-  txt(56.0, 66.4, [['eb', '02 · 推荐 · 按协作人格定制']], { x: 960, y: 120, align: 'c' }, { outB: .5 });
-  const cum = (b) => SAVE.reduce((v, h, i) => v + h * E.out(lp(b, LAND[i], .8)), 0);
-  txt(56.4, 66.4, [['xl sv r-tot', '<span class="r-n">0.0</span><span class="r-u">h / 月</span>']], { x: 960, y: 290, align: 'c' }, {
+  txt(56.0, 66.4 + dA, [['eb', '02 · 推荐 · 按协作人格定制']], { x: 960, y: 120, align: 'c' }, { outB: .5 });
+  const cum = (b) => SAVE.reduce((v, h, i) => v + h * E.out(lp(b, LAND[i], 1.4)), 0);   // rolls for ≈ 0.7 s as each card lands
+  txt(56.4, 66.4 + dA, [['xl sv r-tot', '<span class="r-n">0.0</span><span class="r-u">h / 月</span>']], { x: 960, y: 290, align: 'c' }, {
     anim: K.rise({ in: .8, out: .5 }),
     tick: (el, tl, life, t) => { const n = el.querySelector('.r-n'); if (n) n.textContent = cum(t / BEAT).toFixed(1); }
   });
-  txt(56.8, 66.4, [['lt', '每条建议都标明预计省下的时间']], { x: 960, y: 440, align: 'c' }, { outB: .5 });
+  txt(56.8, 66.4 + dA, [['lt', '每条建议都标明预计省下的时间']], { x: 960, y: 440, align: 'c' }, { outB: .5 });
   // the type of each card, beside it while it holds
   IDS.forEach((id, i) => {
     const kind = { 'paper-audit': 'Skill · 把流程写成技能', acceptance: 'Prompt · 更好的开场', 'retry-breaker': 'Hook · 自动拦住重复失败' }[id];
-    tag(0, LAND[i] - .2, i < 2 ? LAND[i] + HOLD : 66.2, (D) => card(D, id), 'bottom', [['lt r-or', kind]], { gap: 34, at: .5, outB: .3, tick: pin() });
+    tag(0, LAND[i] - .2, i < 2 ? LAND[i] + HOLD : 66.2 + dA, (D) => card(D, id), 'bottom', [['lt r-or', kind]], { gap: 34, at: .5, outB: .3, tick: pin() });
   });
 
   /* ---------- 5b lift → press → flip into the install sheet; read; 下一步 → 确认写入 → 已应用 (b65.6–75.2) ---------- */
-  tween(0, 65.6, .9, () => ({ s: decks[0].C.s * 1.06, ay: 620 }), E.inOut);
-  clickAt(0, 66.6, (D) => { const c = card(D, RB); return c && c.querySelector('[data-act="install"]'); }, () => {}, { bloom: 'var(--a1)', glide: .9 });
-  tween(0, 66.7, .32, () => ({ ry: 90, s: decks[0].C.s * .96 }), E.in);
-  tween(0, 67.04, 0, { o: 0 }, E.lin);
-  at(65.6, () => {
+  tween(0, 65.6 + dA, .9, () => ({ s: decks[0].C.s * 1.06, ay: 620 }), E.inOut);
+  clickAt(0, 66.6 + dA, (D) => { const c = card(D, RB); return c && c.querySelector('[data-act="install"]'); }, () => {}, { bloom: 'var(--a1)', glide: .9 });
+  tween(0, 66.7 + dA, .32, () => ({ ry: 90, s: decks[0].C.s * .96 }), E.in);
+  tween(0, 67.04 + dA, 0, { o: 0 }, E.lin);
+  at(65.6 + dA, () => {
     advLight(1);
     const a = app(1); a.S.recs.sel = RB; a.S.recs.tab = 'why'; a.go('recs');
     if (a.W.eval('S.installed.has("' + RB + '")')) a.W.eval('S.installed.delete("' + RB + '")');
     a.W.openInstall(RB); solo(1, '#modal');
   });
   const SHEET = [960, 420, 1180, 640];
-  tween(1, 67.02, .36, () => framing(1, '#modal', SHEET), E.out, () => ({ ry: -90, o: 1 }));
-  tween(1, 67.4, 7.4, () => ({ s: decks[1].C.s * 1.03 }), E.sine);
+  tween(1, 67.02 + dA, .36, () => framing(1, '#modal', SHEET), E.out, () => ({ ry: -90, o: 1 }));
+  tween(1, 67.4 + dA, 7.4 + dC - dA, () => ({ s: decks[1].C.s * 1.03 }), E.sine);
   const press = (a, el) => { a.W.eval('INST && (INST.t = 0)'); a.click(el); };   // runs the app's own flow; a jump in time must not trip its double-click guard
-  clickAt(1, 71.8, '#modal .btn.p', press, { glide: 1.0 });
-  clickAt(1, 73.0, '#modal .btn.p', press, { glide: .6 });
-  txt(67.0, 75.2, [['hv sv', '看清改动，再确认应用'], ['md r-or', '<span class="sw"><span>一键安装 · 随时撤销</span><span>已应用 · 自动对比前后效果</span></span>']], { x: 960, y: 928, align: 'c' }, {
-    anim: K.all(K.rise({ st: .25, out: .5 }), K.swap({ at: [73.3 - 67.0], dur: .35 }))
+  clickAt(1, 71.8 + dB, '#modal .btn.p', press, { glide: 1.0 });
+  clickAt(1, 73.0 + dB, '#modal .btn.p', press, { glide: .6 });
+  txt(67.0 + dA, 75.2 + dC, [['hv sv', '看清改动，再确认应用'], ['md r-or', '<span class="sw"><span>一键安装 · 随时撤销</span><span>已应用 · 自动对比前后效果</span></span>']], { x: 960, y: 928, align: 'c' }, {
+    anim: K.all(K.rise({ st: .25, out: .5 }), K.swap({ at: [73.3 + dB - 67.0 - dA], dur: .35 }))
   });
 
   /* ---------- 5c before / after of the same recommendation, no seven-day strip (b74.6–81.6) ---------- */
   const METS = (D) => { const m = D.querySelector('.rc-metric'); return m && m.parentElement; };
-  at(74.6, () => {
+  at(74.6 + dC, () => {
     const a = app(0), S = a.S;
     S.recs.sel = RB; S.recs.tab = 'track'; S.recs.peek = RB;
     S.installed.set(RB, { days: 7, at: 0, target: a.W.eval('RECI["' + RB + '"].target'), scope: 'global' });
     a.go('recs'); paperCss(a.D);
     solo(0, METS); unscroll(a.D);
   });
-  tween(1, 75.0, .7, () => ({ s: decks[1].C.s * .9, o: 0, bl: 8 }), E.in);
-  const ROW = [76.4, 77.2, 78.0], SLIDE = .9;
-  drive(0, 74.62, 81.6, (p, b, D) => {
+  tween(1, 75.0 + dC, .7, () => ({ s: decks[1].C.s * .9, o: 0, bl: 8 }), E.in);
+  const ROW = [76.4 + dC, 77.2 + dC, 78.0 + dC], SLIDE = .9;
+  drive(0, 74.62 + dC, 81.6 + dD, (p, b, D) => {
     const mets = METS(D); if (!mets) return;
     mets.classList.add('promo-card'); unscroll(D);
     D.querySelectorAll('.rc-metric').forEach((m, i) => {
@@ -148,28 +150,28 @@ scene('40-recs', () => {
     });
   });
   const MET = [660, 560, 1000, 700];
-  tween(0, 75.2, 1.0, () => framing(0, METS, MET, { max: 3 }), E.quart, IN.depth);
-  tween(0, 76.2, 5.0, () => ({ s: decks[0].C.s * 1.025 }), E.sine);
-  txt(75.4, 81.2, [['lt', '装上之后，自动对比前后效果']], { x: 960, y: 205, align: 'c' }, { anim: K.blurIn({ out: .5 }) });
+  tween(0, 75.2 + dC, 1.0, () => framing(0, METS, MET, { max: 3 }), E.quart, IN.depth);
+  tween(0, 76.2 + dC, 5.0 + dD - dC, () => ({ s: decks[0].C.s * 1.025 }), E.sine);
+  txt(75.4 + dC, 81.2 + dD, [['lt', '装上之后，自动对比前后效果']], { x: 960, y: 205, align: 'c' }, { anim: K.blurIn({ out: .5 }) });
   // row figures from the app's own statistics (trackStats: 23 → 7 段, 58 → 17 分钟, 12 → 5 次)
   let ST = [];
   try { ST = decks[0].W.eval('trackStats(RECI["' + RB + '"]).rows').map((m) => ({ name: m.name, a: m.a, b: m.b, unit: m.unit, rel: m.rel })); } catch (e) { console.error('promo 40-recs: trackStats', e); }
   ST.forEach((m, i) => {
     const b0 = ROW[i] - .5;
-    tag(0, b0, 81.2, (D) => D.querySelectorAll('.rc-metric')[i], 'right', [['lt r-mn', m.name], ['md r-mv', '<span class="r-ar">安装前 → 安装后</span><span class="pill r-g">' + (m.rel < 0 ? '↓ ' : '↑ ') + '<b data-to="' + Math.round(Math.abs(m.rel) * 100) + '">0</b>%</span>']], {
+    tag(0, b0, 81.2 + dD, (D) => D.querySelectorAll('.rc-metric')[i], 'right', [['lt r-mn', m.name], ['md r-mv', '<span class="r-ar">安装前 → 安装后</span><span class="pill r-g">' + (m.rel < 0 ? '↓ ' : '↑ ') + '<b data-to="' + Math.round(Math.abs(m.rel) * 100) + '">0</b>%</span>']], {
       gap: 84, at: .5, tick: (el) => { el.style.textAlign = 'left'; },
       anim: K.all(mask(.14, .9, .5), K.pop(.5, 0, .3), K.count(.5, SLIDE + .4))
     });
   });
-  tag(0, 76.0, 81.2, METS, 'bottom', [['eb', '同一批项目 · 安装前后对比']], { gap: 80, at: 0 });
-  tag(0, 79.2, 81.2, METS, 'top', [['r-vd', '<span class="pill r-ok">✓ 有效</span>']], {
+  tag(0, 76.0 + dC, 81.2 + dD, METS, 'bottom', [['eb', '同一批项目 · 安装前后对比']], { gap: 80, at: 0 });
+  tag(0, 79.2 + dC, 81.2 + dD, METS, 'top', [['r-vd', '<span class="pill r-ok">✓ 有效</span>']], {
     gap: 78, at: 1, tick: pin(), anim: K.all(K.pop(0, 0, .3), (el, tl, life) => { el.style.opacity = exitQ(tl, life, .5).toFixed(3); })
   });
 
   /* ---------- 5e 把时间还给你 (b81.2–86.6) ---------- */
-  tween(0, 81.2, .8, () => { const C = decks[0].C; return { rx: 58, s: C.s * .62, ay: C.ay + 300, o: 0, bl: 6 }; }, E.in);
-  const PRE = [81.6, 81.9], HIT = 82.2, UNIT = 82.4, F3 = 3 / 60 / BEAT;    // three frames, in beats
-  txt(81.5, 86.6, [['r5', '<span class="r5-pre"><span>把时间</span><span>还给</span></span><span class="r5-num">你</span><span class="r5-u">自己</span>']], { x: 960, y: 452, align: 'c' }, {
+  tween(0, 81.2 + dD, .8, () => { const C = decks[0].C; return { rx: 58, s: C.s * .62, ay: C.ay + 300, o: 0, bl: 6 }; }, E.in);
+  const PRE = [81.6 + dD, 81.9 + dD], HIT = 82.2 + dD, UNIT = 82.4 + dD, F3 = 3 / 60 / BEAT;    // three frames, in beats
+  txt(81.5 + dD, 86.6 + dD, [['r5', '<span class="r5-pre"><span>把时间</span><span>还给</span></span><span class="r5-num">你</span><span class="r5-u">自己</span>']], { x: 960, y: 452, align: 'c' }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT;
       el.querySelectorAll('.r5-pre span').forEach((s, i) => { const q = clamp((b - PRE[i]) / (2 / 60 / BEAT)); s.style.opacity = q.toFixed(3); s.style.transform = 'translateY(' + ((1 - E.out(lp(b, PRE[i], .25))) * 14).toFixed(1) + 'px)'; });
@@ -183,7 +185,7 @@ scene('40-recs', () => {
       leave(el, exitQ(tl, life, .55), true);
     }
   });
-  txt(83.4, 86.6, [['lt', '按协作人格定制 · 一键安装 · 前后对比验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .55, spread2: true }) });
+  txt(83.4 + dD, 86.6 + dD, [['lt', '按协作人格定制 · 一键安装 · 前后对比验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .55, spread2: true }) });
   glowAt(HIT, .9, .5);
-  glowAt(83.2, 0, 2.2);
+  glowAt(83.2 + dD, 0, 2.2);
 });
