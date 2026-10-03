@@ -202,6 +202,7 @@ class Gateway:
         self.jobs = JobService(self.state, self.supervisor.ingest, self._emit)
         self.supervisor.ingest.jobs = self.jobs
         self.jobs.on_import_done = self._after_import
+        self._bind_insight()
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
         self.hourly_sync_s = HOURLY_SYNC_S
@@ -247,9 +248,11 @@ class Gateway:
         from .. import features, privacy_rules
         from ..appdata import sources_scope
         from ..sessionops import exclusion
+        from ..uiview import insight
 
         privacy_rules.bind(None)
         sources_scope.set_provider(None)
+        insight.set_ai_provider(None)
         # The exclusion provider reads this gateway's app.db and fails closed once it is
         # closed; unbind it so later readers (CLI, the next gateway) are not refused.
         exclusion.set_provider(None)
@@ -284,6 +287,14 @@ class Gateway:
             "phase": entry.get("phase"), "counts": after["counts"],
             "sources": [entry.get("source_id")] if entry.get("source_id") else []})
         self.schedule_prewarm(heavy=entry.get("phase") not in ("head", "window"))
+
+    def _bind_insight(self) -> None:
+        """A1 insight shows a model-written overview only for this gateway's app.db."""
+        from ..ai.narratives import latest_overview
+        from ..uiview import insight
+
+        appdb = self.appdb
+        insight.set_ai_provider(lambda scope, data_rev: latest_overview(appdb, scope, data_rev))
 
     def _after_import(self, job: dict) -> None:
         """Import finished with new data: queue AI facets for new sessions when the user turned
