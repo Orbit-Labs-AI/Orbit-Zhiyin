@@ -79,7 +79,7 @@ scene('60-close', () => {
     // 这 .6° 也随 e_i 长出，开头不会先冒出一小截）；b71.04 合成整圈后不再裁剪
     // v17.7：曲线画起后圆环从笔头的方位向两侧退开（缺口以笔头方位为中心、b75.8–77.6 张到整圈），与 deck 2 的淡出同段，视线留在笔头
     const g = 360 * E.inOut(lp(b, 75.8, 1.8)), pen = g > .01 ? penBearing(b) : 0;
-    const segs = b < SP_END ? spG().map(([d, G], i) => [d - G - .6, (G + .6) * spE(i, b)]) : g > .01 ? [[pen + g / 2, Math.max(0, 360 - g)]] : undefined;
+    const segs = b < SP_END ? spG().map(([d, G], i) => { const a = d - G - .6; let L = spWrap(spPolar(i, b).th - SP_HS(i, b) - a); if (L > 300) L = 0; return [a, Math.min(L, G + .6)]; }) : g > .01 ? [[pen + g / 2, Math.max(0, 360 - g)]] : undefined;
     drawCompass({
       collapse: 1 - open + fold, dial: on, core: on, pl: 0,     // pl 0：徽章只由 AGD 画（compass 编队骑在同一位置）
       sweepSegs: segs,
@@ -100,22 +100,47 @@ scene('60-close', () => {
     if (a <= .002) return '';
     const fb = b + (SHIFT['60-close'] || 0), mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= fb).pop();
     const sp = mK ? agV(mK.o, 'spin', 6, fb, 0, mK.sh) * (fb - mK.b) : 6 * fb;
-    let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>';
+    // v18.4：orb 自己的 cc 橙色外缘（02-agents orb 形态的徽章描边）也留在外壳上随之张开淡掉，b106.91 不再一帧消失
+    let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>' +
+      '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="none" stroke="' + AGC[0] + '" stroke-width="2" opacity="' + a.toFixed(3) + '"/>';
     for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 7, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="1.5" opacity="' + a.toFixed(3) + '"/>';
     return s;
   });
-  AGD.follow(69.0, 71.4, (i, b) => {
-    if (b <= HB) return null;                                  // b69.2 这一帧仍是完整的 orb（50-tools 交来的 r 40）
+  // 点 i 在 b 的极坐标：中心 (cx, cy)、方位 th（度，罗盘角）、半径 rad；R 是圆环当帧半径（舞台 px），ring = [d0, G]
+  const spPolar = (i, b) => {
     // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
     const e = spE(i, b), [d0, G] = spG()[i], c = cpBadge(i), C = cpStage(400, 400), O = spOrb();
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]);
     let D = spWrap(spBeta(i) - (d0 - G)); if (D > 180) D -= 360;               // 小徽章方位 − 螺旋起点方位（近的一边）
     const pop = E.out(lp(b, HB, SP_POP)), wA = e;
-    const th = (dc - G * (1 - e) + D * (1 - wA)) * Math.PI / 180, rad = lerp(O.m, R, pop) + SP_LANE[i] * Math.sin(Math.PI * wA);
-    const cx = lerp(O.x, C[0], pop), cy = lerp(O.y, C[1], pop);
+    return { e, d0, G, c, C, O, R, th: dc - G * (1 - e) + D * (1 - wA), rad: lerp(O.m, R, pop) + SP_LANE[i] * Math.sin(Math.PI * wA), cx: lerp(O.x, C[0], pop), cy: lerp(O.y, C[1], pop) };
+  };
+  AGD.follow(69.0, 71.4, (i, b) => {
+    if (b <= HB) return null;                                  // b69.2 这一帧仍是完整的 orb（50-tools 交来的 r 40）
+    const P = spPolar(i, b), th = P.th * Math.PI / 180;
     // 第一帧 r = 小徽章的 .3R（≈ 14），.35 拍内长到 16（logo ≈ 27 px），之后再随 e 长到罗盘徽章的 19
-    return { x: cx + rad * Math.sin(th), y: cy - rad * Math.cos(th), r: Math.max(lerp(O.r, c.r / decks[2].C.s, e), lerp(O.r, 16, E.out(lp(b, HB, .35)))) };
+    return { x: P.cx + P.rad * Math.sin(th), y: P.cy - P.rad * Math.cos(th), r: Math.max(lerp(P.O.r, P.c.r / decks[2].C.s, P.e), lerp(P.O.r, 16, E.out(lp(b, HB, .35)))) };
   }, { blend: .2 });
+  /* v18.4 圆弧头接到点上：点在螺旋途中走分道（SP_LANE）、方位还带着小徽章起点的偏差，罗盘画的圆弧却在圆环半径上——b107.5–107.7
+     弧头离点头几十 px。现在罗盘的第 i 段只画到弧头前 SP_HS 度，最后这一截由这里在点的下层画：从圆环上平滑弯到点心
+     （同圆环的白 .6 / 2.4·s 描边），点到位（e = 1）时分道与偏差都归零、这一截与圆环重合，SP_END 起交回整圈 */
+  const SP_HS = (i, b) => Math.min(36, spG()[i][1] * spE(i, b));
+  AGD.back(HB, SP_END, (b) => {
+    const C = cpStage(400, 400), Rr = Math.hypot(...((q) => [q[0] - C[0], q[1] - C[1]])(cpStage(400, 100))), w = 2.4 * decks[2].C.s;
+    let s = '';
+    for (let i = 0; i < 5; i++) {
+      const P = spPolar(i, b), hs = SP_HS(i, b); if (hs < .3) continue;
+      // 这一截从点身后 hs 度的圆环上起，向前弯到点心（只向前，不回钩）；罗盘那段画到同一方位为止
+      let d = '';
+      for (let n = 0; n <= 24; n++) {
+        const u = n / 24, m = u * u * (3 - 2 * u), th = (P.th - hs * (1 - u)) * Math.PI / 180, r = lerp(Rr, P.rad, m);
+        const x = lerp(C[0], P.cx, m) + r * Math.sin(th), y = lerp(C[1], P.cy, m) - r * Math.cos(th);
+        d += (n ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+      }
+      s += '<path d="' + d + '" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="' + w.toFixed(2) + '"/>';
+    }
+    return s;
+  });
   /* v17.7 F3「6」形态（场景拍）：
      · b69.2 先显式回 dot（50-tools 交来的合并 orb 随 compass 键 .4 拍拆开）；b69.5 + .06i 起每个点变 head（rot 'vel'，尾尖朝着
        身后刚画出的圆弧，弧就是彗星尾迹），e_i 到 .7 左右（b70.35 + .06i）回 dot，合成整圈时已是圆徽章骑在罗盘外圈上
@@ -145,7 +170,10 @@ scene('60-close', () => {
   const strokeT = (b) => E.sine(lp(b, D0, D1 - D0));
   // v18.1 停留（M1–TURN0，.8 拍）：整枚标志只做匀速放大 1 → 1.015（前 20 % 二次缓起，接上倾倒的减速；只缩放，不重画、不改线宽），
   // 不再定格；TURN0 起 WORDMARK.place 取这一刻的姿态，之后交给 push
-  const holdPush = (b) => { const p = lp(b, M1, TURN0 - M1), a = .2; return 1 + .015 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
+  // v18.4：停顿（成片 b116.3–119.3 = 场景 D1 → D1 + 3）改为整体慢推 1 → 1.04（E.inOut）：标志、落行的点、之后的字标 / 标语 / 点
+  // 都乘这一层（hold），之后再叠 push；标志本身只等比缩放，不重画、不改线宽
+  const holdPush = (b) => 1 + .04 * E.inOut(lp(b, D1, 3.0));
+  const S = (b) => holdPush(b) * push(b);
   const pose = (b) => {
     const d = lp(b, D0, D1 - D0), e = E.inOut(lp(b, D1, M1 - D1)), s = holdPush(b);
     return { cx: 960, cy: lerp(540, 520, e), R: lerp(300, 230, e) * s, yaw: lerp(lerp(-100, -70, E.sine(d)), 20, e), pitch: lerp(lerp(90, 80, d), 45, e) };
@@ -195,16 +223,18 @@ scene('60-close', () => {
   AGD.morph(D1 + .5, LTR, 'dot', { dur: .9, stag: .05 });
   LTR.forEach((i, k) => AGD.pulse(i, 80.45 + .1 * k, 1.05, 1.3));
   // v17.4：标语出现时（TAG0）点收成标语下方的一小行，b86.9 落定
-  // v17.7：标语下一行 r 13 → 16（logo ≈ 21 px），间距 50 → 56
-  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 56, r: 16, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
+  // v17.7：标语下一行 r 13 → 16（logo ≈ 21 px），间距 50 → 56；v18.4 标语加大下移后 y 736 → 752
+  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 752, gap: 56, r: 16, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
   // v17.7 7.1：字母「rbit·知音」从左到右升起（LET0 起，kit 110 ms 错开）时，点行跟着从左到右轻提 4 px，像一道波
   const lift = (i, b) => 4 * Math.sin(Math.PI * clamp((b - LET0 - .2 * ROW[i]) / .7));
   // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
   // v18.1 停留时点行不定格：落定（b80.4）后一道 ±3 px 的波从左到右走过这一行（周期 1.6 拍，相邻点相差 .9 rad），
   // 字母升起前（LET0 − .3 起 .5 拍）让给 lift
-  const wave = (i, b) => 3 * Math.sin(2 * Math.PI * (b - M1) / 1.6 - .9 * ROW[i]) * E.inOut(lp(b, M1 + .15, .45)) * (1 - E.inOut(lp(b, LET0 - .3, .5)));
-  AGD.follow(M1 - .1, END + 1, (i, b, q) => {
-    const s = push(b);
+  // v18.4：±3 → ±6 px，相邻点相位错开 .5 拍（周期 1.6 拍），读得出是一道从左到右的波
+  const wave = (i, b) => 6 * Math.sin(2 * Math.PI * (b - M1 - .5 * ROW[i]) / 1.6) * E.inOut(lp(b, M1 + .15, .45)) * (1 - E.inOut(lp(b, LET0 - .3, .5)));
+  // v18.4：从 D1 起挂上（那时 S = 1，无跳变），落行途中就随 holdPush 一起慢推
+  AGD.follow(D1, END + 1, (i, b, q) => {
+    const s = S(b);
     return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s - lift(i, b) - wave(i, b) + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
   }, { blend: .5 });
   // v17.7 7.3：标语逐词出现时，词下方的点 glow .2（Redesign 下两点 · for 下中间一点 · everyone 下两点），像被点逐个点亮
@@ -215,7 +245,7 @@ scene('60-close', () => {
     AGD.glow(i, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .5);
   });
   // v17.7 H17：不再原地缩小——五点在约 1 拍内向行中心合成 orb（r 30，与开场 b0.2 的 orb 同大），再与字标、标语一起淡到全黑
-  AGD.key(FADE0, 'merge', { x: 960, y: 736, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .45, .55))), a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .85, stag: .04, spin: 6 });
+  AGD.key(FADE0, 'merge', { x: 960, y: 752, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .45, .55))), a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .85, stag: .04, spin: 6 });
 
   /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
   // 白线 = App 图标黑夜版（#fff）；字标 = 深色底的香槟黄 #d6c7a1（brand.md），转身 v 0 → 1 时由白过渡到香槟黄
@@ -230,7 +260,7 @@ scene('60-close', () => {
   // （kit 时序：转 T = 3.3 拍、字母自 .75T 起 110 ms 错开、各 420 ms）；第 0 帧由 WORDMARK.place 与 b81.8 的 ICON 姿态精确重合，
   // 摆放从那里移到读字位置（字标整体居中 (960, 470)、k .5 ≈ 1160 px 宽），之后随 push 慢推；FADE0–END 与标语、点一起淡出
   let P0 = null;
-  const readAt = (b) => { const s = push(b); return { cx: 960, cy: 540 + (470 - 540) * s, k: .5 * s }; };
+  const readAt = (b) => { const s = S(b); return { cx: 960, cy: 540 + (470 - 540) * s, k: .5 * s }; };
   markAt(TURN0, END, (p, b) => {
     if (!WORDMARK.F) return Object.assign(icon(TURN0), { a: 1 - E.inOut(lp(b, FADE0, 1.8)), color: '#ffffff' });   // frames missing: keep the icon
     P0 = P0 || WORDMARK.place(icon(TURN0));
@@ -241,13 +271,15 @@ scene('60-close', () => {
 
   /* ---------- 片尾标语（7.3，FADE0–END 与字标、点一起淡出） ---------- */
   css(`
-.cl-tag{font-size:48px;font-weight:500;color:rgba(255,255,255,.88);letter-spacing:.01em}
-.cl-tag b{color:var(--acc);font-weight:600}
+.cl-tag{font-size:54px;font-weight:500;color:rgba(255,255,255,.88);letter-spacing:.005em}
+.cl-tag b{color:#d6c7a1;font-weight:600}
 `);
   // 字随片尾慢推一起放大：锚点 y 相对 540 外移 × push，字号 × push（tick 在 anim 之后覆盖 transform）
-  const pushT = (y) => (el, tl, life, ts) => { const s = push(ts / BEAT); el.style.transform = 'translate(-50%,-50%) translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')'; };
+  const pushT = (y) => (el, tl, life, ts) => { const s = S(ts / BEAT); el.style.transform = 'translate(-50%,-50%) translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')'; };
   // 标语在最后两个字升起时（TAG0 b85.8）居中出现在字标下方，逐词间隔 .2 拍，「agent」b87.2；之后完整可读到 FADE0 b93.0（5.8 拍 ≈ 2.6 s）
-  const W = ['Redesigning ', 'Agent ', 'workflow ', 'for ', 'everyone ', '&amp; ', '<b>every </b>', '<b>agent</b>'];
-  txt(TAG0, END, [['cl-tag', W.map((w) => '<span class="w">' + w + '</span>').join('')]], { x: 960, y: 648, align: 'c' },
-    { anim: K.words({ at: [0, .2, .4, .6, .8, 1.0, 1.2, 1.4], out: 1.8 }), tick: pushT(648) });
+  // v18.4：强调色只留字标的香槟色 #d6c7a1（不再混入钢蓝 --acc），字号 48 → 54（60 时宽 1550 px、超出字标太多），下移 16 px 与字标拉开，
+  // 大小写与 1e 的「Agent Workflow」一致
+  const W = ['Redesigning ', 'Agent ', 'Workflow ', 'for ', 'everyone ', '&amp; ', '<b>every </b>', '<b>agent</b>'];
+  txt(TAG0, END, [['cl-tag', W.map((w) => '<span class="w">' + w + '</span>').join('')]], { x: 960, y: 664, align: 'c' },
+    { anim: K.words({ at: [0, .2, .4, .6, .8, 1.0, 1.2, 1.4], out: 1.8 }), tick: pushT(664) });
 });
