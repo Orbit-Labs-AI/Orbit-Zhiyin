@@ -107,3 +107,24 @@ def test_project_persona_comes_from_the_fact_rows():
     assert empty["code"] is None and empty["status"] == "insufficient_sample"
     assert a4a6_projects._persona(pid, a4a6_projects.facts_persona_lookup(None))["status"] \
         == "persona_pending"
+
+
+def test_feature_corrections_use_the_shared_verdict():
+    """A1 ``corr`` (``correction_signal_count``) uses ``rules.is_correction`` like A3 / A6:
+    a correction past the length gate is not counted, a short one is."""
+    from orbit_backend.analytics.features import session_features
+    from orbit_backend.analytics.interaction.rules import CORRECTION_CHARS, is_correction
+
+    short = "不对，改回去"
+    long_ = short + "。" + "补充背景说明" * (CORRECTION_CHARS[1] // 6 + 1)
+    assert is_correction(short) and not is_correction(long_)
+
+    def ev(uid, text):
+        return {"event_uid": uid, "session_uid": "s", "kind": "message.user", "seq": 1,
+                "ts": 1_790_000_000_000, "actor": "human", "text": text,
+                "attrs": {"origin": "human"}}
+
+    result = session_features({"session_uid": "s"}, [ev("u1", short), ev("u2", long_)], [],
+                              {"s"})
+    assert result["features"]["correction_signal_count"] == 1
+    assert [c["event_uid"] for c in result["correction_signals"]] == ["u1"]
