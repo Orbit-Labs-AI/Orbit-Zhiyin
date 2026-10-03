@@ -94,6 +94,7 @@
 | [端到端集成审计](audits/integration-reliability-2026-10-03.md) | 设置并发、问答范围、页面接线、交互证据与本轮验收 |
 | [向量规模审计](audits/catalog-vector-scale-2026-10-03.md) | 100K 构造基准、真实 E5 吞吐、分片物化与覆盖口径 |
 | [后端深度排查修复](audits/backend-debug-fixes-2026-10-04.md) | 12 项隐私、缓存、AI 控制、安装回滚与实时状态缺陷的修复和回归 |
+| [非 Skill 资源扩容](audits/catalog-resource-expansion-2026-10-04.md) | 正文暂停断点、五类资源增量、来源分级与实际入库数量 |
 
 ## 7. 调研
 
