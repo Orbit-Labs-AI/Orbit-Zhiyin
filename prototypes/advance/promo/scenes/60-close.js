@@ -98,10 +98,13 @@ scene('60-close', () => {
     const q = PTS.q[Math.round(clamp(t) * ORB.N)];
     return [P.cx + q[0] * P.R, P.cy + q[1] * P.R];
   };
-  AGD.key(78.8, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: ROW, dur: 1.6, ease: E.sine, stag: .04, polar: PC });
-  AGD.follow(75.3, 81.2, (i, b, q) => {
+  const ROW0 = { cx: 960, y: 780, gap: 72, r: 20, order: ROW };
+  AGD.key(78.8, 'row', Object.assign({ dur: 1.6, ease: E.sine, stag: .04, polar: PC }, ROW0));
+  // 落位直接奔向一行的最终格位（静态），不追 row 键还在极坐标过渡中的位置——否则点会穿过图标中间、互相叠住、到位前排不齐
+  const ROWP = AGD.pts('row', ROW0);
+  AGD.follow(75.3, 81.2, (i, b) => {
     const P = pose(b), [x, y] = curveAt(P, strokeT(b) - .045 - .05 * ROW[i]), e = E.inOut(lp(b, D1 + .5, 1.3));
-    return { x: lerp(x, q.x, e), y: lerp(y, q.y, e), r: lerp(10, q.r, e) };
+    return { x: lerp(x, ROWP[i][0], e), y: lerp(y, ROWP[i][1], e), r: lerp(10, ROW0.r, e) };
   }, { blend: 1.0 });
   // v17.4：标语出现时（TAG0）点收成标语下方的一小行，b86.9 落定
   AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 50, r: 13, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
