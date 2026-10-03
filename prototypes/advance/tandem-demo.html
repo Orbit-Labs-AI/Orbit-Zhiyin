@@ -10104,7 +10104,7 @@ LV.pump = function (route) {
       if (swap) return;   // same scope, another window still loading: keep the applied screen
       f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return;
     }
-    const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt).join('|') + '#' + LV.rev;
+    const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt + ':' + lvId(x.r.data)).join('|') + '#' + LV.rev;   // + body identity: two loads in one ms
     if (stamp === f.stamp) return;
     // a 304 / identical body refreshes updatedAt but hands back the same objects: nothing to re-apply
     const same = f.parts && f.rev === LV.rev && f.parts.length === rs.length && rs.every((x, i) => f.parts[i] === x.r.data);

@@ -67,3 +67,39 @@ Demo 把主应用、菜单栏面板、悬浮组件、桌面小组件和关键流
 | `node build.mjs --artifact <文件>` | 生成发布到 claude.ai 的版本（去掉 doctype、html、head、body 行），再发布到上面的在线 Demo 地址 |
 
 仓库根的 `pnpm check:ui` 同时跑 Lite 数据检查与 Advance 浏览器测试。源码与产物一起提交；PR 中 `tandem-demo.html` 的差异会被折叠（见仓库根 `.gitattributes`）。
+
+## 区域渲染
+
+数据或筛选变化时，App 只刷新依赖它的组件，其它节点原样保留，所以滚动条、展开的下拉 / 菜单、焦点、选中的文字、hover 状态和正在播放的动画都不受影响。框架在 [`src/js/24-regions.js`](../../prototypes/advance/src/js/24-regions.js)。
+
+- **整页渲染**只发生在首次进入、切换路由和切换 Lite / Advance 时（`window.__renderCount` 计数）。在已迁移的页面上（`RG.pages`，目前是概览），其它所有 `render()`（筛选、开关、实时帧、feed 到达、导入进度）都改为区域刷新；未迁移的页面仍整页渲染，并沿用滚动与焦点恢复。
+- **外壳**也是区域：侧栏的导入入口 `side:import`、页面列表 `side:insight` / `side:action`、`side:agents`、`side:pins`、页脚 `side:foot`；菜单栏、标题行和整个侧栏用 `rgPut` 原地 morph。实时状态条与导入进度条也原地 morph。
+- **实时数据**：`90-live-core.js` 的 `lvFlush` 在可区域刷新时只把实时相关的键（`facts`、当前路由的 `feed:<route>`、`live`、`tl`、`job`）交给本轮刷新，不再推迟到用户停止滚动或关闭下拉；导入期间的 4 秒间隔仍保留。导入的 job 帧只 `RG.bump('job')`，刷新 `side:import` 与进度条。
+
+### API
+
+| 写法 | 作用 |
+| --- | --- |
+| `region(key, deps, fn, { after, wrap })` | 返回 `fn()` 的 HTML，并在根元素上加 `data-region="key"`；注册区域。`fn` 每次刷新都会重新运行，必须现读状态，不能引用页面函数里的局部变量。`after(el, first)` 在区域进入 DOM 和每次输入变化后运行（挂图表）。`fn` 返回多个根元素时传 `wrap: true`（外包 `display:contents`）。空字符串会留一个隐藏占位，之后可原位出现。 |
+| `deps` | `'S.a.b'`（状态路径，Set / Map 按内容比较）、`'filters'`（`sel()` 读取的全部筛选）、`'facts'`（ALL / AG / PJ）、`'feed:<route>'`、`'live'`、`'job'`、`'tl'`（任何 TandemLive 变化）、`RG.bump(name)` 的任意名字，或返回可比较值的函数；`'*'` 表示每轮都重算。依赖值算出签名，签名未变的区域整块跳过；HTML 未变也不碰 DOM。 |
+| `RG.refresh(keys, why)` / `RG.refreshNow(keys, why)` | 按依赖键失效；前者同一帧合并（rAF，120 ms 兜底），后者同步。 |
+| `RG.bump(name)` | 递增命名版本并刷新依赖它的区域。 |
+| `RG.memo(name, fn)` | 每轮刷新只算一次的共享数据（如概览的 `ovCtx()`：`sel()`、`stats()`、人格与 feed）。 |
+| `RG.prep(route, fn)` | 该页每轮区域刷新前运行（如 live 建议的 `lvRecSync`）。 |
+| `rgPut(el, html)` / `rgSwap(el, html)` | 把元素的子节点 / 元素本身 morph 成新 HTML。 |
+
+morph 按 `data-region`、`id`、`data-key`、`data-vz` 匹配有键的子节点，其余按位置与标签匹配；聚焦中的输入框保留用户正在输入的值；`[data-vz]` 图表容器归 vizkit 所有，morph 不碰其属性与内容，由区域的 `after` 重新挂载（概览用 `ovMount`：图表输入不变就不重画）。
+
+### 新增或迁移一个区域
+
+1. 把页面拆成卡片级区域，键名用页面前缀（`a3:list`、`a4:table`）。每个区域一个函数，状态从 `RG.memo` 的共享上下文里读。
+2. 页面函数只拼骨架：`RG.pages.add('<route>')`，然后 `PAGES.x = () => region(...) + '<div class="content" id="content">' + region(...) + …`。工具栏 `.tbar` 必须是 `#main` 的直接子元素，它所在区域的 `after` 调 `tbarFit()`。
+3. 原来的 `PAGES.x.after` 拆进各区域的 `after`；原来直接改 DOM 的局部更新（如概览刷选）改成改状态后 `RG.refreshNow(['S.…'])`。
+4. 动效自动按区域生效：`data-count` 数字从该区域刷新前的值滚到新值（`37-motion.js` 的区域钩子），筛选 chip 弹入、seg 滑块、图表 ↔ 表格淡入照旧；只有首次进入页面才播放入场编排；`prefers-reduced-motion` 下直接显示终值。
+
+### 调试
+
+- `window.__renderCount`：整页渲染次数；`window.__regionRenders[key]`：每个区域的刷新次数。
+- 地址加 `?debug=render`，控制台打印 `[render]`（整页）与 `[region] key ← 来源`（区域与失效来源）。
+- 每次区域刷新后派发 `tandem:regions` 事件；原生壳的拖拽区域上报（`23-native-drag.js`）由 MutationObserver 节流（200 ms），只有被 morph 的节点产生变更记录。
+- 回归用例：[`tests/region-render.spec.mjs`](../../prototypes/advance/tests/region-render.spec.mjs)。
