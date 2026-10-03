@@ -109,3 +109,60 @@ def test_auto_facet_new_respects_setting_and_skips_faceted(client, monkeypatch):
         db.execute("UPDATE ai_facet SET status='failed' WHERE session_uid=?", (retry,))
     pending = set(auto.new_session_uids(gw, 50))
     assert retry in pending and not (faceted - {retry}) & pending
+
+
+def test_import_done_triggers_auto_facet_only_when_enabled(client, monkeypatch):
+    """Wiring: JobService.on_import_done → Gateway._after_import → ai.auto_facet_new."""
+    from orbit_backend.ai import auto
+
+    c, gw, _ = client
+    monkeypatch.setattr(auto, "WINDOW_DAYS", 100000)
+    assert gw.jobs.on_import_done == gw._after_import
+    import threading
+
+    seen: list = []
+    ran = threading.Event()
+
+    def record():
+        seen.append(type(gw).auto_facet(gw))
+        ran.set()
+
+    monkeypatch.setattr(gw, "auto_facet", record)
+
+    def trigger(job_id):
+        ran.clear()
+        gw._after_import({"id": job_id, "kind": "import"})
+        assert ran.wait(30)
+
+    trigger("job-1")
+    assert seen == [{"status": "skipped", "reason": "disabled"}]
+    with gw.appdb.read() as db:
+        assert db.execute("SELECT COUNT(*) FROM ai_job WHERE task_id='facet.session'").fetchone()[0] == 0
+    assert c.put("/v1/ai/consent", json={"settings": {"auto_facet_new": True}}).status_code == 200
+    trigger("job-2")
+    assert seen[-1]["status"] == "submitted" and seen[-1]["sessions"] > 0
+    assert _wait(c, seen[-1]["job_id"])["status"] == "ok"
+
+
+def test_overview_narrative_is_matched_by_scope_and_data_rev(client):
+    """submit records the published data_rev; latest_overview only returns a model-written
+    narrative for the exact scope and the current data."""
+    import json as _json
+
+    from orbit_backend.ai.narratives import latest_overview
+
+    c, gw, _ = client
+    rev = gw.revisions.snapshot()["data_rev"]
+    assert rev is not None
+    job = c.post("/v1/ai/jobs", json={"task_id": "narrate.overview", "engine": "fake",
+                                      "scope": {"days": 30}}).json()
+    assert _wait(c, job["job_id"])["status"] == "ok"
+    with gw.appdb.read() as db:
+        req = _json.loads(db.execute("SELECT request FROM ai_job WHERE job_id=?",
+                                     (job["job_id"],)).fetchone()[0])
+    assert req["_data"]["data_rev"] == rev
+    found = latest_overview(gw.appdb, {"days": 30, "project_id": None}, rev)
+    assert found["job_id"] == job["job_id"] and found["result"]["summary"] == "概览"
+    assert latest_overview(gw.appdb, {"days": 7}, rev) is None          # other window
+    assert latest_overview(gw.appdb, {"days": 30}, rev + 1) is None     # data changed since
+    assert latest_overview(gw.appdb, {"days": 30}, None) is None        # unknown data

@@ -4,14 +4,12 @@ import hashlib
 import importlib
 import json
 import os
-from pathlib import Path
 
 import pytest
 
 
 @pytest.fixture
 def runner(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     return importlib.import_module("evals.recommendation.local_codex")
 
 

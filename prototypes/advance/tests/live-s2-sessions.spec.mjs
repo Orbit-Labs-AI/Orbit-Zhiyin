@@ -203,3 +203,35 @@ test('real gateway smoke: sessions page, detail, compare and messages render wit
   console.log('real gateway smoke:', JSON.stringify(await page.evaluate(() => ({ sel: S.sess.sel, ev: traj(BYID[S.sess.sel]).ev.length, cmp: S.sess.cmp, msgs: window.LVS.msgs.size }))));
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
+
+// F25：摘要卡在 live 下只读会话详情的事件 —— 目标是第一条消息、阶段按详情的 phases、连续失败 / 纠偏 / 审批等待来自事件字段；
+// 服务端启示 basis = l0_template（规则模板），所以标「规则」而不是 AI。
+test('F25: digest card reads the detail events; template insight is labelled 规则, not AI', async ({ page }) => {
+  const { errors } = await open(page);
+  const card = page.locator('.sd-card');
+  await expect(card).toContainText('「修复示例构建脚本 #16」');
+  const labels = DA.trajectory.phases.map((p) => p.label);
+  await expect(card.locator('.sd-tbl tbody tr td:first-child b')).toHaveText(labels);
+  const evs = DA.trajectory.events; const tools = evs.filter((e) => ['read', 'edit', 'bash', 'web'].includes(e.lane));
+  await expect(card).toContainText('工具 ' + tools.length + ' 次');
+  await expect(card).toContainText('失败 ' + tools.filter((e) => e.err).length + ' 次');
+  await expect(card.locator('.sd-chip')).toContainText(['你纠偏', '等你批准', '连续失败']);
+  // the header's stats7 counts the whole session; the digest says which of its numbers use a different basis
+  await expect(card.locator('.sd-basis')).toHaveText('按轨迹事件统计 · 工具、消息、失败数与页头口径不同');
+  await expect(card.locator('.sd-ph')).toHaveCount(labels.length);
+  await expect(card.locator('.sd-chip').filter({ hasText: '连续失败' })).toContainText('pnpm build 连续失败 3 次');
+  await expect(card.locator('.sd-chip').filter({ hasText: '等你批准' })).toContainText('等了 1 分钟');
+  // the approval wait is drawn in the 你的消息 lane and explained in the inspector
+  await expect(page.locator('#tlBox .vz-span[style*="--warn-m"]')).toHaveCount(1);
+  await page.evaluate(() => { const s = BYID[S.sess.sel]; const e = traj(s).ev.find((x) => x.wait > 0); tlPick(s, { id: e.id }); });
+  await expect(page.locator('#tlInsp')).toContainText('等你批准 1 分钟');
+  await expect(page.locator('#tlInsp')).toContainText('你批准了');
+  // the live client's generic .tl-grid style must not squeeze the A3 timeline: below 860px the inspector drops under it
+  const w = await page.evaluate(() => ({ card: document.querySelector('.tl-card').clientWidth, main: document.querySelector('.tl-main').getBoundingClientRect().width }));
+  if (w.card < 860) expect(w.main).toBeGreaterThan(w.card * 0.8); else expect(w.main).toBeGreaterThan(w.card - 300);
+  // insight card: rule template → 规则 tag, no AI badge
+  const ins = page.locator('.tl-two .card').nth(1);
+  await expect(ins.locator('.aib')).toHaveCount(0);
+  await expect(ins).toContainText('规则');
+  expect(errors).toEqual([]);
+});

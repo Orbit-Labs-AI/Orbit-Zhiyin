@@ -6,6 +6,9 @@ import type { SourceFile, RawRecord, StandardEvent } from './types.ts';
 import { rebuildSource } from './normalize.ts';
 import { sanitize } from './privacy.ts';
 
+/** Bump when redact()/sanitize() change (re-cleans cached L1) or when L2/L3 derivation changes (rebuilds). */
+export const SCHEMA_VERSION=3;
+export const REDACTION_VERSION='codex-redact/0.2.4', DERIVATION_VERSION='codex-derive/0.2.5';
 export class ConnectorStore {
   readonly db: DatabaseSync;
   readonly directory: string;
@@ -28,23 +31,29 @@ export class ConnectorStore {
         this.db.exec(readFileSync(new URL('../schema/001.sql',import.meta.url),'utf8'));
         this.db.exec('PRAGMA user_version=1');
       });
-    } else if (version !== 1 && version !== 2) { this.db.close(); throw new Error(`Unsupported orbit.db version: ${version}`); }
-    const migrated=version===0||version===1;
-    if (migrated) {
+    } else if (version !== 1 && version !== 2 && version !== SCHEMA_VERSION) { this.db.close(); throw new Error(`Unsupported orbit.db version: ${version}`); }
+    const migrated=version!==SCHEMA_VERSION;
+    if (version===0||version===1) {
       this.transaction(()=>{
         this.db.exec(readFileSync(new URL('../schema/002.sql',import.meta.url),'utf8'));
         this.db.exec('PRAGMA user_version=2');
       });
     }
+    if (migrated) {
+      this.transaction(()=>{
+        this.db.exec(readFileSync(new URL('../schema/003.sql',import.meta.url),'utf8'));
+        this.db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
+      });
+    }
     const redaction=this.db.prepare("SELECT version FROM pipeline_version WHERE component='redaction'").get()?.version;
     const derivation=this.db.prepare("SELECT version FROM pipeline_version WHERE component='derivation'").get()?.version;
-    if (migrated||redaction!=='codex-redact/0.2.3'||derivation!=='codex-derive/0.2.4') {
+    if (migrated||redaction!==REDACTION_VERSION||derivation!==DERIVATION_VERSION) {
       this.transaction(()=>{
-        if(migrated||redaction!=='codex-redact/0.2.3') for (const row of this.db.prepare('SELECT record_uid,body FROM raw_record WHERE body IS NOT NULL').iterate()) {
+        if(migrated||redaction!==REDACTION_VERSION) for (const row of this.db.prepare('SELECT record_uid,body FROM raw_record WHERE body IS NOT NULL').iterate()) {
             this.db.prepare('UPDATE raw_record SET body=? WHERE record_uid=?').run(JSON.stringify(sanitize(JSON.parse(String(row.body)))),String(row.record_uid));
           }
-        this.db.prepare("UPDATE pipeline_version SET version='codex-redact/0.2.3' WHERE component='redaction'").run();
-        this.db.prepare("UPDATE pipeline_version SET version='codex-derive/0.2.4' WHERE component='derivation'").run();
+        this.db.prepare("UPDATE pipeline_version SET version=? WHERE component='redaction'").run(REDACTION_VERSION);
+        this.db.prepare("UPDATE pipeline_version SET version=? WHERE component='derivation'").run(DERIVATION_VERSION);
         this.db.prepare("UPDATE pipeline_version SET version='codex-connector/0.2.1' WHERE component='parser'").run();
         this.db.prepare('INSERT OR IGNORE INTO dirty_session SELECT DISTINCT session_uid FROM current_record WHERE session_uid IS NOT NULL').run();
       });

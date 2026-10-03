@@ -7,6 +7,7 @@ from pathlib import Path
 from evals.analytics.robustness import save
 
 from .contracts import NONE_ACTION
+from .metrics import action_sweep_budget
 from .score import ROOT, file_digest, read_study
 
 
@@ -118,7 +119,7 @@ def run(study, output, *, expected_manifest_digest=None):
                         "expected_skill_body_digest": plan["skill_body_digests"].get(action),
                         "seed": config["seeds"][0],
                         "budget": {
-                            "total_tokens": 10000,
+                            "total_tokens": action_sweep_budget(config),
                             "turns": config["turn_budget"],
                             "tool_calls": config["tool_call_budget"],
                             "wall_ms": config["wall_budget_ms"],

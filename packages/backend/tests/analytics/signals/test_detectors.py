@@ -26,7 +26,7 @@ def chat(sid, *texts, **kw):
 
 def test_correction_positive_negative_and_unavailable():
     found = detected([chat("a", "不对，我说的是用 Python 写")])["correction"]
-    assert keys(found) == [("correction:none", 1)]
+    assert keys(found) == [("correction:session", 1)]
     sig = found[0]
     assert sig["unit"] == "message" and sig["basis"] == "proxy"
     assert sig["problem_type"] == "misunderstood_request"
@@ -40,7 +40,7 @@ def test_correction_positive_negative_and_unavailable():
 @pytest.mark.parametrize("text", ["错了", "不对", "重来", "不行，重来", "不是这样的"])
 def test_short_corrections_reach_the_detector(text):
     # CORRECTION_CHARS lower bound is 2: the commonest Chinese rejections are 2-5 chars.
-    assert keys(detected([chat("a", text)])["correction"]) == [("correction:none", 1)]
+    assert keys(detected([chat("a", text)])["correction"]) == [("correction:session", 1)]
 
 
 @pytest.mark.parametrize("text", ["哪里错了？", "好", "算了一下复杂度"])
@@ -48,14 +48,32 @@ def test_short_non_corrections_stay_silent(text):
     assert detected([chat("a", text)])["correction"] == []
 
 
-def test_correction_dimension_maps_to_repeated_instruction():
+def test_unproduced_dimension_attr_no_longer_splits_corrections():
+    # ``attrs.interaction.dimension`` had no producer (audit C14); the branch was removed, so
+    # the attribute neither renames the key nor maps to repeated_instruction.
     s = Session("a")
     s.user("请写报告")
     s.reply()
     s.user("不对，改成表格形式", interaction={"dimension": "format"})
     found = detected([s])["correction"]
-    assert keys(found) == [("correction:format", 1)]
-    assert found[0]["problem_type"] == "repeated_instruction"
+    assert keys(found) == [("correction:session", 1)]
+    assert found[0]["problem_type"] == "misunderstood_request"
+
+
+@pytest.mark.parametrize("text", ["还是不行，测试依然失败", "still failing with the same error"])
+def test_result_feedback_is_not_a_correction_signal(text):
+    assert detected([chat("a", text)])["correction"] == []
+
+
+def test_two_short_result_feedbacks_still_form_a_frustration_streak():
+    s = Session("a")
+    s.user("修一下登录测试")
+    s.reply()
+    s.user("还是不行")
+    s.reply()
+    s.user("依然失败")
+    assert [o["reason"] for o in detected([s])["frustration"][0]["occurrences"]] == [
+        "short_correction_streak"]
 
 
 def test_correction_before_any_reply_is_not_counted():
@@ -284,3 +302,18 @@ def test_signal_ids_are_stable_across_recomputation():
     second = analyze(bundle(sessions))[2].signals
     assert [s["signal_id"] for s in first] == [s["signal_id"] for s in second]
     assert len({s["signal_id"] for s in first}) == len(first)
+
+
+def test_threshold_table_names_a_source_for_every_value():
+    from orbit_backend.analytics.common import MIN_STATUS_COVERAGE
+    from orbit_backend.analytics.interaction.rules import CORRECTION_CHARS
+    from orbit_backend.analytics.signals import dictionary as D
+
+    for name, row in D.THRESHOLDS.items():
+        assert row["source"] and row["where"] and isinstance(row["calibrated"], bool), name
+    # The table reports the values the code actually uses.
+    assert D.THRESHOLDS["correction_chars"]["value"] == CORRECTION_CHARS == (2, 200)
+    assert D.THRESHOLDS["min_status_coverage"]["value"] == MIN_STATUS_COVERAGE
+    assert D.THRESHOLDS["retry_loop_min_chain"]["value"] == D.RETRY_LOOP_MIN_CHAIN
+    assert D.THRESHOLDS["weekly_window_weeks"]["value"] == D.WEEKLY_WINDOW_WEEKS
+    assert [k for k, r in D.THRESHOLDS.items() if r["calibrated"]] == ["wilson_lo_min"]

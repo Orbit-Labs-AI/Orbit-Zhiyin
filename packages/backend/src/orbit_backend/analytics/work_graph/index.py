@@ -14,7 +14,10 @@ from ..respond.calls import native_sequence
 from ..respond.relations import build_execution_relations
 from ..task import segment_tasks
 
-WORK_GRAPH_VERSION = "work-graph-v1"
+# v2: result-event task ownership, acceptance conjunction, retry counts need call nodes.
+WORK_GRAPH_VERSION = "work-graph-v2"
+# Node/edge identities keep the v1 namespace so ids stay stable across rule-only bumps.
+GRAPH_ID_NAMESPACE = "work-graph-v1"
 REPORTED_TASK_QUALITIES = {"native", "human_confirmed", "explicit_boundary", "explicit"}
 
 
@@ -152,14 +155,25 @@ def build_work_index(events, sessions, calls, model_calls):
             break
 
     # A tool result belongs to its paired invocation even if a new task has begun.
+    # When the invocation itself has no task, a span-derived membership of the
+    # result is dropped (the span may be a later task), but a typed reference
+    # carried by the result event itself is kept: it is evidence of its own.
     for call in calls or []:
         sid = call["session_uid"]
         found = membership.get((sid, call.get("call_event_uid")))
         end_key = (sid, call.get("result_event_uid"))
-        if end_key in selected:
-            membership.pop(end_key, None)
-            if found:
-                membership[end_key] = {**found, "task_relation_source": "paired_tool_invocation"}
+        if end_key not in selected:
+            continue
+        if found:
+            membership[end_key] = {**found, "task_relation_source": "paired_tool_invocation"}
+            reasons.pop(end_key, None)
+            continue
+        own = membership.get(end_key)
+        if own and own["task_relation_source"] in ("canonical_task_uid", "native_task_id") \
+                and own["task_evidence_uids"] == [end_key[1]]:
+            continue
+        if membership.pop(end_key, None):
+            reasons[end_key] = "paired_call_task_unknown"
 
     projected_events = []
     for event in events or []:

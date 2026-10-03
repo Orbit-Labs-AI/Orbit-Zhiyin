@@ -44,12 +44,8 @@
         "error",
         "ui.state",
         "link",
-        "queue",
         "unknown",
-        "subagent.activity",
-        "subagent.message",
-        "subagent.wait",
-        "subagent.close"
+        "subagent.activity"
       ]
     },
     "actor": {
@@ -97,7 +93,17 @@
       "type": "object"
     },
     "ext": {
-      "type": "object"
+      "type": "object",
+      "description": "Index data only (native_type). The native record is retrieved through record_uid -> raw_record.body; it is never copied here.",
+      "properties": {
+        "native_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "native_type"
+      ],
+      "additionalProperties": false
     },
     "record_uid": {
       "type": "string"
@@ -519,22 +525,6 @@
       "if": {
         "properties": {
           "kind": {
-            "const": "queue"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "attrs": {
-            "$ref": "#/definitions/queue"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "kind": {
             "const": "unknown"
           }
         }
@@ -605,54 +595,6 @@
         "properties": {
           "attrs": {
             "$ref": "#/definitions/subagent.activity"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "subagent.message"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "attrs": {
-            "$ref": "#/definitions/subagent.message"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "subagent.wait"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "attrs": {
-            "$ref": "#/definitions/subagent.wait"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "subagent.close"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "attrs": {
-            "$ref": "#/definitions/subagent.close"
           }
         }
       }
@@ -1359,6 +1301,9 @@
             "literal_redacted",
             "unavailable"
           ]
+        },
+        "command_line": {
+          "type": "string"
         }
       },
       "required": [
@@ -1654,6 +1599,12 @@
         },
         "counter_cycle": {
           "type": "string"
+        },
+        "reset": {
+          "type": "boolean"
+        },
+        "cache_write_assumed_zero": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2455,64 +2406,6 @@
       ],
       "additionalProperties": false
     },
-    "queue": {
-      "type": "object",
-      "properties": {
-        "operation": {
-          "type": "string"
-        },
-        "time": {
-          "$ref": "#/definitions/time"
-        },
-        "order": {
-          "type": "object",
-          "properties": {
-            "quality": {
-              "enum": [
-                "reported",
-                "derived"
-              ]
-            },
-            "basis": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "quality",
-            "basis"
-          ]
-        },
-        "native_turn_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "model_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "effort_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "provider": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "time",
-        "order"
-      ],
-      "additionalProperties": false
-    },
     "unknown": {
       "type": "object",
       "properties": {
@@ -2611,216 +2504,6 @@
       "additionalProperties": false
     },
     "subagent.activity": {
-      "type": "object",
-      "properties": {
-        "child_id": {
-          "type": "string"
-        },
-        "agent_path": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        },
-        "time": {
-          "$ref": "#/definitions/time"
-        },
-        "order": {
-          "type": "object",
-          "properties": {
-            "quality": {
-              "enum": [
-                "reported",
-                "derived"
-              ]
-            },
-            "basis": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "quality",
-            "basis"
-          ]
-        },
-        "native_turn_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "model_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "effort_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "provider": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lifecycle_phase": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "time",
-        "order"
-      ],
-      "additionalProperties": false
-    },
-    "subagent.message": {
-      "type": "object",
-      "properties": {
-        "child_id": {
-          "type": "string"
-        },
-        "agent_path": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        },
-        "time": {
-          "$ref": "#/definitions/time"
-        },
-        "order": {
-          "type": "object",
-          "properties": {
-            "quality": {
-              "enum": [
-                "reported",
-                "derived"
-              ]
-            },
-            "basis": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "quality",
-            "basis"
-          ]
-        },
-        "native_turn_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "model_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "effort_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "provider": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lifecycle_phase": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "time",
-        "order"
-      ],
-      "additionalProperties": false
-    },
-    "subagent.wait": {
-      "type": "object",
-      "properties": {
-        "child_id": {
-          "type": "string"
-        },
-        "agent_path": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        },
-        "time": {
-          "$ref": "#/definitions/time"
-        },
-        "order": {
-          "type": "object",
-          "properties": {
-            "quality": {
-              "enum": [
-                "reported",
-                "derived"
-              ]
-            },
-            "basis": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "quality",
-            "basis"
-          ]
-        },
-        "native_turn_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "model_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "effort_raw": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "provider": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "lifecycle_phase": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "time",
-        "order"
-      ],
-      "additionalProperties": false
-    },
-    "subagent.close": {
       "type": "object",
       "properties": {
         "child_id": {

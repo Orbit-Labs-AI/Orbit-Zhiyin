@@ -401,7 +401,7 @@ def test_kimi_current_scan_removes_deleted_cron_and_bad_records_are_partial(tmp_
         assert len(result["diagnostics"]) == 2
 
 
-def test_claude_commands_and_agents_are_inventoried_with_component_marker(tmp_path):
+def test_claude_commands_and_agents_are_inventoried_as_their_own_types(tmp_path):
     root = tmp_path / "claude"
     write(root, "commands/review.md", "Review the diff")
     write(root, "commands/git/commit.md", "---\ndescription: commit\n---\nCommit")
@@ -409,23 +409,64 @@ def test_claude_commands_and_agents_are_inventoried_with_component_marker(tmp_pa
     write(root, "agents/researcher.md", "---\nname: deep-researcher\ndescription: d\n---\nbody")
     write(root, "agents/plain.md", "no frontmatter")
     result, data, dump = run(tmp_path, "claude_code", root)
-    found = {
-        (item["name"], json.loads(item["config"])["component"])
-        if isinstance(item["config"], str)
-        else (item["name"], item["config"]["component"])
-        for item in data["items"]
-        if item["type"] == "skill"
-    }
+    found = {(item["type"], item["name"]) for item in data["items"] if item["type"] != "rule"}
     assert found == {
-        ("review", "command"),
-        ("git:commit", "command"),
-        ("deep-researcher", "agent"),
-        ("plain", "agent"),
+        ("command", "review"),
+        ("command", "git:commit"),
+        ("agent", "deep-researcher"),
+        ("agent", "plain"),
     }
     assert "Review the diff" not in dump and "body" not in dump
-    assert result["coverage"]["skill"]["rows"] == 4
+    assert result["coverage"]["skill"]["rows"] == 0
+    assert result["coverage"]["command"] == {"status": "available", "rows": 2, "reason": None}
+    assert result["coverage"]["agent"] == {"status": "available", "rows": 2, "reason": None}
     # ~/.claude.json was not passed: user-scope MCP servers are not represented.
     assert result["coverage"]["mcp"]["reason"] == "user_scope_not_scanned"
+
+
+def test_migration_015_retypes_scanner_130_command_and_agent_rows(tmp_path):
+    """A v14 library keeps its earlier observations; component-marked skills become typed."""
+    import sqlite3
+
+    with Store(tmp_path / "data") as store:
+        scan = store.db.execute(
+            "INSERT INTO inventory_scan(source_key,agent,root_path,scope,observed_at,"
+            "scanner_version,coverage,diagnostics) VALUES('k','claude_code','/r','global',1,"
+            "'1.3.0','{}','[]')"
+        ).lastrowid
+    db = sqlite3.connect(tmp_path / "data/orbit.db")
+    db.executescript(
+        "DROP TABLE inventory_item;"
+        "CREATE TABLE inventory_item (scan_id INTEGER NOT NULL REFERENCES inventory_scan,"
+        " inv_id TEXT NOT NULL, type TEXT NOT NULL CHECK(type IN"
+        " ('skill','mcp','hook','plugin','rule','scheduled_task')), name TEXT NOT NULL,"
+        " config_path TEXT NOT NULL, locator TEXT NOT NULL, enabled INTEGER CHECK(enabled IN (0,1)),"
+        " evidence TEXT NOT NULL CHECK(evidence IN ('file','configured','cached','installed')),"
+        " config TEXT NOT NULL CHECK(json_valid(config)), content_hash TEXT NOT NULL,"
+        " PRIMARY KEY(scan_id, inv_id)) STRICT;"
+        "UPDATE schema_manifest SET schema_version=14; PRAGMA user_version=14;"
+    )
+    rows = [
+        ("i1", "skill", "review", '{"component":"command"}'),
+        ("i2", "skill", "helper", '{"component":"agent"}'),
+        ("i3", "skill", "dataviz", "{}"),
+        ("i4", "mcp", "docs", '{"component":"command"}'),
+    ]
+    db.executemany(
+        "INSERT INTO inventory_item VALUES(?,?,?,?,'/p','',NULL,'file',?,'h')",
+        [(scan, inv, kind, name, config) for inv, kind, name, config in rows],
+    )
+    db.commit()
+    db.close()
+    with Store(tmp_path / "data") as store:
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] >= 15
+        typed = dict(store.db.execute("SELECT inv_id,type FROM inventory_item"))
+        # Only skill rows carrying a command/agent component marker change type.
+        assert typed == {"i1": "command", "i2": "agent", "i3": "skill", "i4": "mcp"}
+        store.db.execute(
+            "INSERT INTO inventory_item VALUES(?,?,?,?,'/p','',NULL,'file','{}','h')",
+            (scan, "i5", "command", "new"),
+        )
 
 
 def test_claude_mcp_coverage_has_no_gap_reason_when_user_config_is_scanned(tmp_path):

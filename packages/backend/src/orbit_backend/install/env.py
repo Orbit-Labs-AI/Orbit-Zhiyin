@@ -40,10 +40,20 @@ AGENTS = {
     "opencode": ("OpenCode", "opencode", ".local/share/opencode"),
     "kimi": ("Kimi Code", "kimi", ".kimi-code"),
 }
-FULL_SUPPORT = {"claude_code", "codex"}
+# Install landing points for every agent below are taken from the vendored upstream sources
+# (third_party/<agent>/...); targets.py cites the exact file per row. Kimi Code is not vendored,
+# so its layout is unverified and it is never written to.
+FULL_SUPPORT = {"claude_code", "codex", "dsh", "pi", "hermes", "opencode"}
+UNVERIFIED = {"kimi": "kimi_unverified_no_source"}
 SUPPORTED = {
     "claude_code": set(CAPABILITIES),
-    "codex": {"skills", "hooks", "mcp", "commands", "rules", "permission_rules"},
+    # Custom prompts (~/.codex/prompts) are gone upstream: external-agent-migration/src/service.rs
+    # import_commands turns Claude commands into skills, and nothing reads a prompts dir any more.
+    "codex": {"skills", "hooks", "mcp", "rules", "permission_rules"},
+    "dsh": {"skills", "rules"},
+    "pi": {"skills", "mcp", "commands", "rules"},
+    "hermes": {"skills", "rules"},
+    "opencode": {"skills", "mcp", "commands", "rules", "permission_rules"},
 }
 # Minimum versions per capability. 待验证：数值取自各 Agent 更新日志的大致时间点，未实测。
 MIN_VERSIONS = {
@@ -55,7 +65,6 @@ MIN_VERSIONS = {
     ("claude_code", "plugins"): "2.0.12",
     ("codex", "mcp"): "0.10.0",
     ("codex", "rules"): "0.10.0",
-    ("codex", "commands"): "0.20.0",
     ("codex", "permission_rules"): "0.60.0",
     ("codex", "skills"): "0.60.0",
     ("codex", "hooks"): "0.70.0",
@@ -280,13 +289,31 @@ def claude_json_path(env: Env) -> Path:
     return Path(custom).expanduser() / ".claude.json" if custom else env.home / ".claude.json"
 
 
+ROOT_VARIABLES = {"claude_code": "CLAUDE_CONFIG_DIR", "codex": "CODEX_HOME", "dsh": "DSH_HOME",
+                  "pi": "PI_CODING_AGENT_DIR", "hermes": "HERMES_HOME", "kimi": "KIMI_CODE_HOME"}
+
+
 def agent_root(agent: str, env: Env) -> Path:
-    variable = {"claude_code": "CLAUDE_CONFIG_DIR", "codex": "CODEX_HOME"}.get(agent)
+    """Agent home from ``env`` only (never the process environment), so tests stay hermetic.
+
+    Sources: dsh ``$DSH_HOME`` or ``~/.dsh`` (deepseek-harness packages/skill/skill-filesystem/src/index.ts:54);
+    pi ``$PI_CODING_AGENT_DIR`` or ``~/.pi/agent`` (pi packages/coding-agent/src/config.ts:563);
+    hermes ``$HERMES_HOME`` or ``~/.hermes`` (hermes-agent hermes_constants.py:111).
+    """
+    variable = ROOT_VARIABLES.get(agent)
     if variable and env.environ.get(variable):
         return Path(env.environ[variable]).expanduser()
     if agent == "opencode" and env.environ.get("XDG_DATA_HOME"):
         return Path(env.environ["XDG_DATA_HOME"]) / "opencode"
     return env.home / AGENTS[agent][2]
+
+
+def opencode_config_dir(env: Env) -> Path:
+    """OpenCode's config dir, separate from its data root (opencode packages/core/src/global.ts:13,64)."""
+    if env.environ.get("OPENCODE_CONFIG_DIR"):
+        return Path(env.environ["OPENCODE_CONFIG_DIR"]).expanduser()
+    base = env.environ.get("XDG_CONFIG_HOME")
+    return (Path(base) if base else env.home / ".config") / "opencode"
 
 
 def _claude(env: Env, root: Path) -> tuple[list, dict, list]:
@@ -310,27 +337,42 @@ def _codex(env: Env, root: Path) -> tuple[list, dict, list]:
     h = env.home
     layers = [layer("config_toml", root / "config.toml", h), layer("agents_md", root / "AGENTS.md", h),
               layer("hooks_json", root / "hooks.json", h)]
-    # 待验证 V6：Codex 的用户 skills 目录在 ~/.codex/skills 与 ~/.agents/skills 之间并不确定。
-    options = [root / "skills", h / ".agents/skills"]
-    chosen = next((p for p in options if p.is_dir()), options[1])
-    skills = dir_info(chosen, h, _skills)
-    skills["alternatives"] = [str(p) for p in options if p != chosen]
+    # User skills: ~/.agents/skills is the current root; $CODEX_HOME/skills is still read but
+    # marked deprecated (codex-rs/ext/skills/src/host_roots.rs:96-107), so installs go to the former.
+    skills = dir_info(h / ".agents/skills", h, _skills)
+    skills["alternatives"] = [str(root / "skills")]
     dirs = {"skills": skills, "agents": None, "commands": None, "plugins": None,
-            "hooks": dir_info(root / "hooks", h), "rules": dir_info(root / "rules", h),
-            "prompts": dir_info(root / "prompts", h)}
+            "hooks": dir_info(root / "hooks", h), "rules": dir_info(root / "rules", h), "prompts": None}
     return layers, dirs, []
 
 
-def _other_root(agent: str, env: Env) -> Path:
-    try:
-        from orbit_data.discovery import candidates
+def _dsh(env: Env, root: Path) -> tuple[list, dict, list]:
+    h = env.home
+    return [layer("agents_md", root / "AGENTS.md", h)], {"skills": dir_info(root / "skills", h, _skills)}, []
 
-        for c in candidates(env.home):
-            if c["agent"] == agent:
-                return Path(c["root"])
-    except Exception:  # noqa: BLE001 - discovery is a best-effort hint
-        pass
-    return agent_root(agent, env)
+
+def _pi(env: Env, root: Path) -> tuple[list, dict, list]:
+    h = env.home
+    layers = [layer("agents_md", root / "AGENTS.md", h), layer("mcp_json", root / "mcp.json", h)]
+    return layers, {"skills": dir_info(root / "skills", h, _skills), "prompts": dir_info(root / "prompts", h)}, []
+
+
+def _hermes(env: Env, root: Path) -> tuple[list, dict, list]:
+    h = env.home
+    return [layer("config_yaml", root / "config.yaml", h)], {"skills": dir_info(root / "skills", h, _skills)}, []
+
+
+def _opencode(env: Env, root: Path) -> tuple[list, dict, list]:
+    h, cfg = env.home, opencode_config_dir(env)
+    layers = [layer("opencode_json", cfg / "opencode.json", h), layer("opencode_jsonc", cfg / "opencode.jsonc", h),
+              layer("agents_md", cfg / "AGENTS.md", h)]
+    dirs = {"config": dir_info(cfg, h), "skills": dir_info(cfg / "skills", h, _skills),
+            "commands": dir_info(cfg / "commands", h)}
+    return layers, dirs, []
+
+
+LAYOUTS = {"claude_code": _claude, "codex": _codex, "dsh": _dsh, "pi": _pi, "hermes": _hermes,
+           "opencode": _opencode}
 
 
 # ---- orbit.db reads ----------------------------------------------------------------------
@@ -398,6 +440,10 @@ def file_counts(agent: str, env: Env, root: Path, dirs: dict) -> dict:
         counts["plugin"] = _size(_load(root / "plugins/installed_plugins.json").get("plugins"))
     elif agent == "codex":
         counts["mcp"] = _size(_load(root / "config.toml", tomllib.loads).get("mcp_servers"))
+    elif agent == "pi":
+        counts["mcp"] = _size(_load(root / "mcp.json").get("mcpServers"))
+    elif agent == "opencode":
+        counts["mcp"] = _size(_load(opencode_config_dir(env) / "opencode.json").get("mcp"))
     return counts
 
 
@@ -471,15 +517,8 @@ def _environment(env: Env, reads, cache_dir: Path | None, projects: bool, refres
     counts = all_installed_counts(reads)
     agents = []
     for agent, (name, _, _) in AGENTS.items():
-        if agent == "claude_code":
-            root = agent_root(agent, env)
-            layers, dirs, profiles = _claude(env, root)
-        elif agent == "codex":
-            root = agent_root(agent, env)
-            layers, dirs, profiles = _codex(env, root)
-        else:
-            root = _other_root(agent, env)
-            layers, dirs, profiles = [], {}, []
+        root = agent_root(agent, env)
+        layers, dirs, profiles = LAYOUTS[agent](env, root) if agent in LAYOUTS else ([], {}, [])
         has_dir = root.is_dir()
         binary = binaries.get(agent)
         version = (probes.get(agent) or {}).get("version")
@@ -496,10 +535,11 @@ def _environment(env: Env, reads, cache_dir: Path | None, projects: bool, refres
             "detected_via": [v for v, ok in (("config_dir", has_dir), ("binary", binary)) if ok],
             "binary": binary, "version": version, "version_basis": "probed" if version else "unknown",
             "root": display(root, h), "root_abs": str(root), "profiles": profiles,
-            "install_support": "full" if full else "read_only", "capabilities": caps,
+            "install_support": "full" if full else ("unverified" if agent in UNVERIFIED else "read_only"),
+            "capabilities": caps,
             "layers": layers, "dirs": dirs, "installed_counts": agent_counts,
             "counts_basis": "inventory" if counts is not None else ("files" if agent_counts else "unknown"),
-            "unsupported_reason": None if full else "agent_not_supported_v1",
+            "unsupported_reason": None if full else UNVERIFIED.get(agent, "agent_not_supported_v1"),
         })
     project_list = [project_info(p) for p in project_paths(reads)] if projects else []
     return {"home": str(h), "platform": "darwin", "scanned_at": int(env.now() * 1000),

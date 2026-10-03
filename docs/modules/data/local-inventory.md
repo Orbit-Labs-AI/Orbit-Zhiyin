@@ -43,7 +43,7 @@ uv run orbit-data --home .orbit inventory
 
 ## 数据含义与隐私
 
-六种 `type` 为 `skill / mcp / hook / plugin / rule / scheduled_task`。每项保留名称、来源配置路径、文件内 locator、内容哈希、可空 `enabled` 和少量白名单元数据。
+`type` 为 `skill / mcp / hook / plugin / rule / scheduled_task / command / agent`。`command`（斜杠命令文档，如 Claude Code `commands/**/*.md`，名称为 `目录:文件名`）与 `agent`（子代理定义，如 `agents/**/*.md`，名称取 frontmatter `name`）自 schema 15 起独立成类，目前只有 `claude_code` 与 `project` 布局扫描；其他布局在覆盖中报 `unsupported_by_layout`，因此读取清单时计入 `inventory_layout_incomplete`。扫描器 1.3.0 曾把这两类存为 `skill` 并以 `config.component` 区分，迁移 015 已原地改类型。每项保留名称、来源配置路径、文件内 locator、内容哈希、可空 `enabled` 和少量白名单元数据。
 
 `evidence` 区分：
 

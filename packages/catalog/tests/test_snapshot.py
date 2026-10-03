@@ -245,6 +245,23 @@ def test_listable_names_and_summaries_carry_no_template_slots(tmp_path):
     assert [r["item_id"] for r in rows if slot.search(r["name"] + " " + r["summary"])] == []
 
 
+def test_kb_bodies_mark_session_slots_instead_of_printing_templates():
+    import re
+
+    from orbit_catalog.sources.structured import body_text
+    assert body_text("- {instruction}") == "- 〈你反复提出的要求〉"
+    assert body_text("## {software} 环境") == "## 〈所用软件〉 环境"
+    with pytest.raises(ValueError, match="kb_slot_without_listing_text:weekly"):
+        body_text("{weekly}")
+    slot = re.compile(r"(?<!\{)\{[a-z_]+\}(?!\})")
+    entries = official_entries(json.loads(REMEDIES.read_text()))
+    assert [e["id"] for e in entries if slot.search(e["body"])] == []
+    env = next(e for e in entries if e["id"] == "env-quirks-rule")
+    assert env["body"].startswith("# AGENTS.md：写明所用软件的环境约定") and "〈所用软件〉" in env["body"]
+    # The raw template stays for the recommendation renderer.
+    assert "{software}" in env["metadata"]["title_template"]
+
+
 def test_bundled_seed_is_small_valid_and_covers_every_library_kind():
     data = bundled_seed()
     assert data is not None and len(data) <= 3_000_000
@@ -273,3 +290,17 @@ def test_bundled_seed_has_fixed_source_mappings():
     assert len(by_kind["mcp_server"]) >= 100 and len({r["item_id"] for r in items}) == len(items)
     keys = [(r["type"], r["name"].lower(), r.get("summary", "")) for r in items]
     assert len(set(keys)) == len(keys)
+
+
+def test_pick_stratifies_by_source_and_declared_agent(monkeypatch):
+    from orbit_catalog import snapshot
+    monkeypatch.setattr(snapshot, "MIN_PER_AGENT", 2)
+    monkeypatch.setattr(snapshot, "MIN_PER_SOURCE", 1)
+    # Ranked best first: ten big-source claude_code items, then a small source with two hermes items.
+    ranked = [{"item_id": f"big{n}", "source_id": "big", "agents": ["claude_code"]} for n in range(10)]
+    ranked += [{"item_id": f"small{n}", "source_id": "small", "agents": ["hermes"]} for n in range(3)]
+    picked = [r["item_id"] for r in snapshot._pick(ranked, 5)]
+    # 1. best per source: big0, small0; 2. two per agent: big1 (claude_code), small1 (hermes);
+    # 3. one per source: already met; 4. fill by rank: big2. Returned in rank order.
+    assert picked == ["big0", "big1", "big2", "small0", "small1"]
+    assert [r["item_id"] for r in snapshot._pick(ranked, 1)] == ["big0"]

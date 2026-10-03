@@ -302,11 +302,11 @@ test('shortcuts: ⌥digits switch pages, ⌥0 restores the window, labels match 
   expect(errors).toEqual([]);
 });
 
-// 洞察 order: 概览 · 协作人格 · 情绪与语义 · 会话与轨迹 · 项目习惯 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
+// 洞察 order: 概览 · 协作人格 · 情绪语义 · 项目习惯 · 会话轨迹 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
 test('insight order: sidebar, ⌥1–6, window menu and palette follow one page order', async ({ page }) => {
   const errors = await openDemo(page);
-  const ORDER = ['overview', 'persona', 'sentiment', 'sessions', 'projects', 'tools'];
-  const NAMES = ['概览', '协作人格', '情绪与语义', '会话与轨迹', '项目习惯', '工具调用'];
+  const ORDER = ['overview', 'persona', 'sentiment', 'projects', 'sessions', 'tools'];
+  const NAMES = ['概览', '协作人格', '情绪语义', '项目习惯', '会话轨迹', '工具调用'];
   await page.evaluate(() => { S.sideOpen.insight = true; render(); });
   const side = await page.locator('#side .nav').first().locator('[data-act="go"]').evaluateAll((els) => els.map((e) => e.dataset.r));
   expect(side).toEqual(ORDER);
@@ -318,6 +318,87 @@ test('insight order: sidebar, ⌥1–6, window menu and palette follow one page 
   }
   const pal = await page.evaluate(() => { const out = []; navRoutes().forEach((r, i) => out.push([r[1], kb('⌥' + (i + 1))])); return out.slice(0, 6); });
   expect(pal.map((x) => x[0])).toEqual(NAMES);
+  expect(errors).toEqual([]);
+});
+
+// F05 / F14: the Agents list starts with every agent checked; a click checks / unchecks (any subset), 「仅此」 keeps one,
+// the group head's 「全部」 and unchecking the last one restore all; the filter-row Agent chip reads the same S.agents.
+// Rows show the agent logo, not a colour dot. Lite uses the same list.
+test('sidebar Agents: multi-select subset, only-this, all, logos; shared with the Agent chip', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'sidebar behaviour runs once, at the default size');
+  const errors = await openDemo(page);
+  const picked = () => page.evaluate(() => AG.filter((a) => S.agents.has(a.id)).map((a) => a.id).join(','));
+  const all = await page.evaluate(() => AG.map((a) => a.id).join(','));
+  expect(await picked()).toBe(all);
+  await expect(page.locator('#side .ag .ag-ic')).toHaveCount(5);
+  await expect(page.locator('#side .ag .dot')).toHaveCount(0);
+  await expect(page.locator('#side .sect .sr-btn[data-act="agentAll"]')).toHaveCount(0);
+  await page.locator('#side .ag[data-a="cx"] .ag-b').click();
+  await page.locator('#side .ag[data-a="gm"] .ag-b').click();
+  expect(await picked()).toBe('cc,ds,cp');
+  await expect(page.locator('#side .ag[data-a="cx"]')).toHaveClass(/dim/);
+  await expect(page.locator('#side .ag[data-a="cx"] .ag-b')).toHaveAttribute('aria-pressed', 'false');
+  // checked vs unchecked reads at a glance: checked rows carry the selected tint while a subset is picked, unchecked logos go grey
+  await expect(page.locator('#side .ag[data-a="cc"]')).toHaveClass(/\bpk\b/);
+  await expect(page.locator('#side .ag[data-a="cx"]')).not.toHaveClass(/\bpk\b/);
+  expect(await page.locator('#side .ag[data-a="cx"] .ag-ic').evaluate((e) => getComputedStyle(e).filter)).toContain('grayscale');
+  // an unchecked row still counts its own sessions (what checking it would add)
+  expect(Number(await page.locator('#side .ag[data-a="cx"] .ct').textContent())).toBeGreaterThan(0);
+  await expect(page.locator('#main .frow [data-act="agentMenu"]')).toContainText('3 个');
+  await page.locator('#side .ag[data-a="ds"]').hover();
+  await page.locator('#side .ag[data-a="ds"] .ag-only').click();
+  expect(await picked()).toBe('ds');
+  await expect(page.locator('#side .ag[data-a="ds"] .ag-only')).toHaveCount(0);
+  await page.locator('#side .sect [data-act="agentAll"]').click();
+  expect(await picked()).toBe(all);
+  await page.locator('#side .ag[data-a="cc"]').hover();
+  await page.locator('#side .ag[data-a="cc"] .ag-only').click();
+  await page.locator('#side .ag[data-a="cc"] .ag-b').click();   // unchecking the last one = every agent again
+  expect(await picked()).toBe(all);
+  await page.evaluate(() => edSet('lite'));
+  await expect.poll(() => page.evaluate(() => S.ed)).toBe('lite');
+  await page.locator('#side .ag[data-a="cx"] .ag-b').click();
+  expect(await picked()).toBe('cc,gm,ds,cp');
+  expect(errors).toEqual([]);
+});
+
+// F26: pinned projects — without manual pins the group shows the 3 projects with the most sessions in the range and says
+// so in its head; pinning (sidebar hover button or the 项目习惯 page) replaces that with the pinned list, kept in the UI prefs
+test('pinned projects: visible auto rule, pin / unpin from sidebar and projects page, persisted', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'sidebar behaviour runs once, at the default size');
+  const errors = await openDemo(page);
+  const sideIds = () => page.locator('#side .pjp').evaluateAll((els) => els.map((e) => e.dataset.p));
+  const auto = await page.evaluate(() => pinsAuto());
+  expect(auto.length).toBe(3);
+  expect(await sideIds()).toEqual(auto);
+  const head = page.locator('#side .sect').filter({ hasText: '置顶项目' });
+  await expect(head).toContainText('近 30 天会话最多');
+  const n = await page.evaluate((ids) => ids.map((id) => sel({ noExtra: true, project: id }).length), auto);
+  expect([...n].sort((a, b) => b - a)).toEqual(n);
+  await page.locator('#side .pjp').nth(1).hover();
+  await page.locator('#side .pjp').nth(1).locator('.pin-b').click();
+  expect(await sideIds()).toEqual([auto[1]]);
+  await expect(head).toContainText('已置顶');
+  await page.evaluate(() => go('projects'));
+  const other = await page.evaluate((a) => PJ.find((p) => a.indexOf(p.id) < 0).id, auto);
+  await page.locator('#main .pj-tbl tr[data-p="' + other + '"] .pj-pin').click({ force: true });
+  expect(await sideIds()).toEqual([auto[1], other]);
+  await page.reload();
+  await page.waitForFunction(() => typeof S !== 'undefined');
+  expect(await page.evaluate(() => S.pins)).toEqual([auto[1], other]);
+  await page.locator('#side .pjp[data-p="' + other + '"]').hover();
+  await page.locator('#side .pjp[data-p="' + other + '"] .pin-b').click();
+  await page.locator('#side .pjp[data-p="' + auto[1] + '"]').hover();
+  await page.locator('#side .pjp[data-p="' + auto[1] + '"] .pin-b').click();
+  expect(await sideIds()).toEqual(auto);
+  await expect(page.locator('#side .sect').filter({ hasText: '置顶项目' })).toContainText('会话最多');
+  // live's synthetic '_none' group (sessions without a project) is not a project: never auto-pinned, no pin button, not pinnable
+  const none = await page.evaluate(() => {
+    const p = { id: '_none', name: '未归属项目', path: '', git: '', tags: [] };
+    return { btn: pjPinBtn(p), toggled: (pinToggle('_none'), S.pins.indexOf('_none')) };
+  });
+  expect(none).toEqual({ btn: '', toggled: -1 });
+  expect(await page.evaluate(() => { PJ.push({ id: '_none', name: '未归属项目' }); PJI._none = PJ[PJ.length - 1]; ALL.forEach((s) => { if (s.p === PJ[0].id) s.p = '_none'; }); const r = pinsAuto(); return r.indexOf('_none'); })).toBe(-1);
   expect(errors).toEqual([]);
 });
 

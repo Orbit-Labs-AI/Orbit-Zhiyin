@@ -6,16 +6,22 @@
 
 import re
 
+from ..profiling.bottlenecks import JARGON_MIN_TERMS, unexplained_terms
 from ..profiling.content import visible_text
 
-READABILITY_RULE_VERSION = "readability-v2"
+READABILITY_RULE_VERSION = "readability-v3"
 
 SCENE_BUDGETS = {"profile": 900, "bottleneck": 1200, "recommendation": 1100,
                  "developer_report": 2200, "math_explanation": 3200, "status_update": 450}
 _EMPTY = re.compile(r"^(?:很好|一切正常|继续努力|持续优化|效果很好)[。！!\s]*$")
 _INFLATED = re.compile(r"赋能|全方位|革命性|毋庸置疑|完美实现|全面提升|极致体验")
 _CERTAINTY = re.compile(r"(?:保证|必然|一定)(?:能|会|让|提升)|(?:已经|已)(?:证明|证实).{0,12}(?:有效|提升)")
-_JARGON = re.compile(r"\b(?:KL|JS|POMDP|embedding|latent|factorize|z_u)\b", re.I)
+# Unexplained terms by form, not by this corpus' words (the old list was KL / JS / POMDP /
+# z_u …): ``profiling.bottlenecks.unexplained_terms`` flags acronyms and subscripted symbols
+# outside a common-acronym list that have no local gloss (「：」「（」「即」「是指」…). Basis: U.S.
+# Federal Plain Language Guidelines (2011), "Minimize abbreviations" / "Define technical
+# terms"; Google developer documentation style guide, "Abbreviations". The ≥ 3 bar is the
+# bottleneck rule's uncalibrated review heuristic (``JARGON_MIN_TERMS``).
 
 
 def evaluate_text(text: str, scene: str, required_facts: list[str] | None = None,
@@ -35,7 +41,7 @@ def evaluate_text(text: str, scene: str, required_facts: list[str] | None = None
     if len(visible) > SCENE_BUDGETS[scene]:
         issues.append({"code": "detail_overload", "severity": "warning", "message": "首层内容过长，考虑把细节移入可展开部分。"})
     opening = re.sub(r"^#.*\n", "", visible).strip()[:230]
-    if scene != "math_explanation" and len(_JARGON.findall(opening)) >= 3:
+    if scene != "math_explanation" and len(unexplained_terms(opening)) >= JARGON_MIN_TERMS:
         issues.append({"code": "unexplained_jargon", "severity": "warning", "message": "开头堆叠术语，读者还不知道结论。"})
     if _INFLATED.search(text):
         issues.append({"code": "inflated_language", "severity": "warning", "message": "夸大词没有说明具体变化。"})

@@ -141,7 +141,7 @@ def prev_window(from_ms: int | None, until_ms: int | None) -> tuple[int, int] | 
 # -- cache -------------------------------------------------------------------------------
 
 class LRU:
-    """Small thread-safe LRU; keys carry data_rev/inventory_rev so stale entries never hit."""
+    """Small thread-safe LRU; keys carry home + revision (``cache_key``) so stale entries never hit."""
 
     def __init__(self, maxsize: int = 32):
         self.maxsize = maxsize
@@ -170,9 +170,14 @@ def params_hash(params: dict) -> str:
     return _scope_hash({}, params)
 
 
-def cache_key(name: str, scope, params: dict, rev: dict) -> tuple:
-    return (name, scope_hash(scope), rev.get("data_rev"), rev.get("inventory_rev"),
-            params_hash(params))
+def cache_key(name: str, scope, params: dict, rev: dict, *, home) -> tuple:
+    """``CACHE`` is process-wide, so the key names the data it was computed from: the gateway
+    home (two gateways in one process, e.g. a re-pointed home) and the published revision.
+    ``data_rev`` is ``MAX(projection_run.run_id)`` and restarts at 1 for a fresh orbit.db
+    (clear-all-data then re-import), so the published counts join it as a data identity."""
+    counts = rev.get("counts") or {}
+    return (name, str(home), scope_hash(scope), rev.get("data_rev"), rev.get("inventory_rev"),
+            tuple(sorted(counts.items())), params_hash(params))
 
 
 def scope_hash(scope, params: dict | None = None) -> str:

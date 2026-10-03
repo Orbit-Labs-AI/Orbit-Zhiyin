@@ -6,7 +6,7 @@ from collections import Counter
 from ...models import stable_id
 from ..semantic_cascade import observation_for
 from .formats import format_arguments
-from .structure import FILE
+from .structure import file_pattern
 from .text import instruction_text
 
 INSTRUCTION_VERSION = "instruction-v1.3-zh-lexicon"
@@ -86,7 +86,7 @@ def _clauses(text):
                 # A leading condition keeps its dependent command. A later
                 # condition starts a new command, never qualifying the prior one.
                 preceding = part[start:match.start()]
-                if not CONDITION.search(FILE.sub("", preceding)):
+                if not CONDITION.search(file_pattern().sub("", preceding)):
                     yield preceding
                     start = match.end()
             yield part[start:]
@@ -123,9 +123,9 @@ def extract_instruction_constraints(messages, *, main_ids):
         text = instruction_text(event.get("text"))
         constraints, matched = [], set()
         for clause in _clauses(text):
-            targets = sorted({m[0] for m in FILE.finditer(clause)})
+            targets = sorted({m[0] for m in file_pattern().finditer(clause)})
             # Filenames such as if.py are objects, not linguistic conditions.
-            match_text = FILE.sub(lambda m: " " * len(m[0]), clause)
+            match_text = file_pattern().sub(lambda m: " " * len(m[0]), clause)
             condition = clause if CONDITION.search(match_text) else None
             for feature, rules in RULES.items():
                 for value, pattern in rules:

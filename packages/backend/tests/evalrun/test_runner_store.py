@@ -9,7 +9,8 @@ def test_pass_skip_and_scores(fake_suites):
     report = runner.run(["ok", "skip"])
     assert report["passed"] and report["score"] == 1.0 and report["status"] == "done"
     skipped = report["suites"][1]
-    assert skipped == {"suite": "skip", "skipped": "no data", "score": None, "checks": [], "metrics": {}}
+    assert skipped == {"suite": "skip", "kind": "unclassified", "skipped": "no data", "score": None,
+                       "checks": [], "metrics": {}}
 
 
 def test_failed_check_fails_and_score_is_unweighted_mean(fake_suites):
@@ -95,3 +96,34 @@ def test_prune_keeps_latest_runs(fake_suites, tmp_path, monkeypatch):
         assert conn.execute("SELECT count(DISTINCT run_id) FROM eval_check").fetchone()[0] == 3
     db.close()
 
+
+
+def test_real_suites_are_classified_and_guards_are_labelled():
+    """Every shipped suite has a kind; constructed/synthetic suites whose bar is the current
+    result are labelled regression_guard (audit P1-14), never presented as accuracy."""
+    from orbit_backend.evalrun import registry
+
+    kinds = {d["id"]: d["kind"] for d in registry.list_suites()}
+    assert "unclassified" not in kinds.values(), kinds
+    for guard in ("pipeline", "probe", "readability", "realtime", "recommend_replay"):
+        assert kinds[guard] == "regression_guard"
+    assert kinds["insights"] == "agreement" and kinds["privacy"] == "contract"
+
+
+def test_kind_is_stored_and_old_runs_get_it_from_the_registry(fake_suites, tmp_path, monkeypatch):
+    import json
+
+    from orbit_backend.evalrun import registry
+
+    monkeypatch.setitem(registry.SUITE_KINDS, "ok", "regression_guard")
+    db = AppDB(tmp_path / "app.db")
+    report = runner.run(["ok"], store=db)
+    assert report["suites"][0]["kind"] == "regression_guard"
+    assert eval_store.get_run(db, report["run_id"])["suites"][0]["kind"] == "regression_guard"
+    # A run stored before this change has no kind in its summary.
+    with db.write() as conn:
+        conn.execute("UPDATE eval_run SET summary=? WHERE run_id=?",
+                     (json.dumps({"suites": [{"suite": "ok", "skipped": None, "score": 1.0,
+                                              "metrics": {}}]}), report["run_id"]))
+    assert eval_store.get_run(db, report["run_id"])["suites"][0]["kind"] == "regression_guard"
+    db.close()

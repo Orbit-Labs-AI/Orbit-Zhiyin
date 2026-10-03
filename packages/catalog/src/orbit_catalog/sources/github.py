@@ -124,6 +124,24 @@ def frontmatter(text: str) -> tuple[dict, str]:
         return {"parse_error": "invalid_frontmatter"}, parts[1].lstrip("\n")
 
 
+def first_paragraph(body: str, limit: int = 280) -> str:
+    """First prose paragraph of a markdown body (headings, fences, lists and tables skipped)."""
+    fenced = False
+    for block in re.split(r"\n\s*\n", body):
+        lines = [line.strip() for line in block.strip().splitlines()]
+        if not lines or lines[0].startswith("```"):
+            fenced = fenced != (block.count("```") % 2 == 1)
+            continue
+        if fenced:
+            fenced = block.count("```") % 2 == 0
+            continue
+        text = " ".join(line for line in lines if not re.match(r"^(#|[-*+] |\d+\. |\||>)", line))
+        text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text).strip()  # links -> their text
+        if len(text) >= 20 and len(re.findall(r"[^\W\d_]{2,}", text)) >= 4:  # prose, not a link or code line
+            return text[:limit]
+    return ""
+
+
 class GitHubConnector:
     def __init__(self, source, http):
         self.source, self.http = source, http
@@ -246,6 +264,8 @@ class GitHubConnector:
                     return "MIT"
                 if re.match(r"(?:#\s*)?Apache License\s+Version 2\.0", text, re.I):
                     return "Apache-2.0"
+                if re.match(r"(?:#\s*)?(?:Creative Commons Legal Code\s+)?CC0 1\.0 Universal", text, re.I):
+                    return "CC0-1.0"
                 return str(explicit or "repository_specific")
         return str(explicit) if explicit else checkpoint.get("license")
 
@@ -347,6 +367,8 @@ class GitHubConnector:
             name = self._default_name(kind, path)  # hooks.json / .mcp.json `name` fields are not item names
         description = metadata.get("description")
         summary = str(description)[:12000] if description else ""
+        if not summary and kind in ("rule", "command", "subagent"):
+            summary = first_paragraph(body)  # Cursor .mdc / prompt files often omit `description`.
         license_id = self._license(path, metadata, checkpoint, blobs)
         allowed = license_id in PERMISSIVE
         item_id = self._item_id(kind, path, checkpoint)

@@ -45,6 +45,7 @@
 | [过去到未来推荐 Benchmark](../evals/benchmark/README.md) | 效用、Regret、时间与个性化的统一评测协议 |
 | [链路验收](development/acceptance.md) | 本地 Codex 记录 → 证据 → 画像 → 推荐的验收步骤 |
 | [目录迁移](development/structure-migration.md) | 活跃分支如何接入新结构（含本次文档搬迁） |
+| [Orbit Mac App](development/mac-app.md) | AppKit/WKWebView 宿主、冻结 gateway（orbit-helper）的构建与发布 |
 
 ## 4. 模块说明（现行）
 
@@ -52,7 +53,7 @@
 
 | 模块 | 文档 |
 | --- | --- |
-| 数据 | [Agent 连接器](modules/data/agent-connectors.md)、[本地数据服务](modules/data/data-services.md)、[来源索引与轨迹读取](modules/data/indexed-trajectories.md)、[本机安装清单](modules/data/local-inventory.md)、[安装清单测试](modules/data/inventory-testing.md)、[安装清单复核](modules/data/inventory-audit.md) |
+| 数据 | [Agent 连接器](modules/data/agent-connectors.md)、[本地数据服务](modules/data/data-services.md)、[来源索引与轨迹读取](modules/data/indexed-trajectories.md)、[本机安装清单](modules/data/local-inventory.md)、[安装清单测试](modules/data/inventory-testing.md)、[安装清单复核](modules/data/inventory-audit.md)、[导入性能](modules/data/import-performance.md) |
 | 分析 | [统计与分析记录](modules/analytics/statistics-history.md)、[画像推导](modules/analytics/profiling.md)、[特征分析](modules/analytics/feature-analytics.md)、[特征与 Skill 诊断](modules/analytics/fact-diagnostics.md)、[瓶颈特征](modules/analytics/bottleneck-features.md)、[Signal 层](modules/analytics/signals.md)、[前端指标](modules/analytics/presentation-metrics.md)、[UI 分析与验收](modules/analytics/analysis-products.md)、[原始 UI 对应](modules/analytics/original-ui-mapping.md)、[数字的含义](modules/analytics/modeling.md)、[Preference](modules/analytics/preference.md)、[Task](modules/analytics/task.md)、[任务领域分类](modules/analytics/task-taxonomy.md)、[Instruction 验收](modules/analytics/instruction-validation.md)、[验证范围](modules/analytics/validation.md) |
 | 资源目录 | [Catalog 架构](modules/catalog/architecture.md)、[实测记录](modules/catalog/validation.md) |
 | 推荐 | [推荐引擎](modules/recommendation/engine.md)、[偏好与收益测试](modules/recommendation/validation.md)、[个性化产物输出接口](contracts/personalization-output.md) |
@@ -70,11 +71,13 @@
 | [AI 接入](plans/ai-module.md) | 分析侧与推荐侧如何用模型 |
 | [评测](plans/evaluation-module.md) | Benchmark 与评测（EV） |
 | [分析补全建议](plans/analysis-review.md) | 八族边界与 Lite / Advance 的分析功能缺口 |
+| [UI ↔ 后端对齐报告](plans/ui-backend-parity.md) | 第 4 轮：UI 元素的后端支撑、资料库完整度、推荐与分析还原度 |
 
 ## 6. 审计（某一基线上的核对）
 
 | 文档 | 内容 |
 | --- | --- |
+| [后端全面审计（2026-10-03）](audits/2026-10-03-backend-gap-audit.md) | 12 个区两轮审计的修复清单、遗留项与需要 UI 侧配合的事项 |
 | [后端缺口](audits/backend-gap.md) | 数据、分析、推荐与横切程序对照两版 UI 的差距与补齐顺序 |
 | [数据模块审计](audits/data-audit.md) | DT 完成度、导入性能与优化任务包 |
 | [分析模块审计](audits/analysis-audit.md) | AN 功能覆盖、持久化与性能 |

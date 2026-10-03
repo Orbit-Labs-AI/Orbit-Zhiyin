@@ -50,7 +50,8 @@ def _wait(c, run_id):
 
 def test_suites_list(client):
     body = client.get("/v1/eval/suites").json()
-    assert {"id": "ok", "title": "Ok", "ev": ["EV-12"], "description": "Fake suite ok."} in body["suites"]
+    assert {"id": "ok", "title": "Ok", "ev": ["EV-12"], "kind": "unclassified",
+            "description": "Fake suite ok."} in body["suites"]
 
 
 def test_run_poll_list_and_404(client):

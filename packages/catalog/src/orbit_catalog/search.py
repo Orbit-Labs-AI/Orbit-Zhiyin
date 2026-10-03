@@ -14,6 +14,8 @@ from collections import OrderedDict, defaultdict
 
 import numpy as np
 
+from .admission import ADMIT_FRICTION_WEIGHT, ADMIT_MAX_RISK, ADMIT_TYPES, review_decisions
+from .compat import support_matrix
 from .contracts import Feature, MatchRequest, canonical_json
 from .features import VOCABULARY, lexical_tokens
 from .vectors import blocked_scores, normalize_vectors
@@ -22,11 +24,14 @@ RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v4"
 ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
 # Han function words, Lucene's EnglishAnalyzer default stop set (a an and are as at be but by for
 # if in into is it no not of on or such that the their then there these they this to was will with),
-# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助).
+# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助)
+# and catalog-domain filler ("tool", "best": the 2026-10-03 seed scored "the best tool" at 0.20).
 STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 将 并 要 如何 是否 以及 进行 帮助 我 你 我们 怎么 一下 "
                  "a an and are as at be but by for if in into is it no not of on or such that the their then there "
                  "these they this to was will with i me my you your we our its those how what why when which who "
-                 "do does did can could should would please help".split())
+                 "do does did can could should would please help "
+                 # Catalog-domain filler: every item is a tool/resource, so these words select nothing.
+                 "tool tools best".split())
 # Han query words -> English phrases. Generated from features.VOCABULARY (every Han word of a
 # key expands to the Latin words of the same key), plus query-only aliases that are not
 # extraction features. Expansions only add lexical alternatives; they never become features.
@@ -87,6 +92,7 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
                      "AND s.status='active' AND (cs.enabled=1 OR cs.source_id='local') AND s.source_id IN (SELECT value FROM json_each(?)))")
         args.append(canonical_json(request.source_ids))
     if request.agents:
+        # item_agent holds declared plus format-inferred agents (compat.supported_agents, store.upsert).
         compatibility = "EXISTS(SELECT 1 FROM item_agent a WHERE a.item_id=i.item_id AND a.agent IN (SELECT value FROM json_each(?)))"
         if request.purpose == "library":
             compatibility = "(" + compatibility + " OR i.agents='[]')"
@@ -97,11 +103,17 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
         args.append(canonical_json(request.language.split("_or_")))
     if request.purpose == "recommendation":
         curated = "EXISTS(SELECT 1 FROM item_feature f WHERE f.item_id=i.item_id AND f.origin='curated' AND f.feature="
-        terms.extend([curated + "'friction' AND f.value=?)", curated + "'scene' AND f.value=?)",
-                      curated + "'dimension' AND f.value IN (SELECT value FROM json_each(?)))",
-                      "i.verification IN ('repository_and_skill_read','repository_and_source_read')"])
+        rejected = [k for k, v in review_decisions().items() if v == "reviewed_reject"]
+        terms.extend(["i.verification IN ('repository_and_skill_read','repository_and_source_read')",
+                      "(" + curated + "'friction' AND f.value=?) AND " + curated + "'scene' AND f.value=?) AND " + curated
+                      + "'dimension' AND f.value IN (SELECT value FROM json_each(?)))) OR (i.body_policy='licensed' AND "
+                      "i.risk_level<=? AND i.type IN (SELECT value FROM json_each(?)) AND i.item_id NOT IN "
+                      "(SELECT value FROM json_each(?)) AND EXISTS(SELECT 1 FROM item_feature f WHERE f.item_id=i.item_id "
+                      "AND f.origin='extracted' AND f.feature='friction' AND f.value=? AND f.weight>=?))"])
         args.extend([request.problem_type, request.scene,
-                     canonical_json([f.value for f in request.features if f.feature == "dimension"])])
+                     canonical_json([f.value for f in request.features if f.feature == "dimension"]),
+                     ADMIT_MAX_RISK, canonical_json(list(ADMIT_TYPES)), canonical_json(rejected),
+                     request.problem_type, ADMIT_FRICTION_WEIGHT])
     return " AND ".join("(" + term + ")" for term in terms), args
 
 
@@ -472,8 +484,19 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         penalty = min(0.1, len(risk) * 0.02)
         # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
         relevance = max(0.0, evidence * (0.9 + 0.1 * quality) - penalty)
+        agents = json.loads(row["agents"])
+        stored = json.loads(row["metadata"] or "{}")
+        declared = (stored.get("metadata") or {}).get("agent_support") if isinstance(stored, dict) else None
+        matrix = support_matrix(row["type"], agents, row["url"], declared=declared if isinstance(declared, dict) else None)
         candidates.append({"item_id": item_id, "type": row["type"], "name": row["name"], "summary": row["summary"],
-                           "url": row["url"], "agents": json.loads(row["agents"]), "license": row["license"],
+                           "url": row["url"], "agents": agents, "license": row["license"],
+                           # Provenance and compatibility the recommender gates on (source_verified,
+                           # agent_supported): raw catalog values, never defaulted to "verified"/"native".
+                           "verification": row["verification"], "body_policy": row["body_policy"],
+                           "language": row["language"], "support": {a: m["support"] for a, m in matrix.items()},
+                           # Known levels only (unknown omitted), the shape orbit_backend reads.
+                           "agent_support": {a: m["support"] for a, m in matrix.items() if m["support"] != "unknown"},
+                           "support_basis": matrix, "admission": index.admission(item_id, request.problem_type),
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],
                            "evidence": evidence, "rrf": fusion[item_id], "feature_coverage": coverage,
