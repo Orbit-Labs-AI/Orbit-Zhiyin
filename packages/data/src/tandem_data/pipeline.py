@@ -143,7 +143,9 @@ def rebuild_retaining(store, **kwargs):
     attempt as ``reset_projection`` with ``attempt``).
     """
     scope = kwargs.get("scope")
-    changed = settled_files(store, scope.source_ids if scope is not None else kwargs.get("source_ids"))
+    changed = settled_files(
+        store, scope.source_ids if scope is not None else kwargs.get("source_ids")
+    )
     if scope is not None:
         if changed & set(scope.files):
             kwargs.pop("scope")
@@ -156,8 +158,15 @@ def rebuild_retaining(store, **kwargs):
         attempt += 1
         if report is not None:
             # Every event of a retry says which attempt it belongs to and why it reran.
-            extra = {"attempt": attempt} if attempt == 1 else {
-                "attempt": attempt, "retry_reason": "source_changed", "retained": len(changed)}
+            extra = (
+                {"attempt": attempt}
+                if attempt == 1
+                else {
+                    "attempt": attempt,
+                    "retry_reason": "source_changed",
+                    "retained": len(changed),
+                }
+            )
             kwargs["progress"] = lambda update, extra=extra: report({**update, **extra})
         try:
             return rebuild(store, changed=frozenset(changed), **kwargs)

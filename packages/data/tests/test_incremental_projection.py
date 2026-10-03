@@ -154,9 +154,12 @@ def test_orphan_subagent_keeps_session_closures(tmp_path):
     import json as _json
 
     def turn(session, uuid, text):
-        return _json.dumps(
-            {"type": "user", "sessionId": session, "uuid": uuid, "message": {"content": text}}
-        ) + "\n"
+        return (
+            _json.dumps(
+                {"type": "user", "sessionId": session, "uuid": uuid, "message": {"content": text}}
+            )
+            + "\n"
+        )
 
     root = tmp_path / "claude"
     for n in range(10):

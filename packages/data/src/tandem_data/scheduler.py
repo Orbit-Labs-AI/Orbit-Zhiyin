@@ -273,15 +273,17 @@ def project(store, *, workers, pool=None, progress=None, max_fraction=MAX_CLOSUR
     stale = stale_files(store.db)
     result = None
     report = progress or (lambda _: None)
-    agents = {
-        row[0]: row[1] for row in store.db.execute("SELECT source_id,agent FROM source")
-    }
+    agents = {row[0]: row[1] for row in store.db.execute("SELECT source_id,agent FROM source")}
     try:
         if not stale:
             return rebuild(store, source_ids=set(), progress=progress, workers=workers, pool=pool)
         for position, source_id in enumerate(sorted(stale), 1):
-            where = {"projecting": agents.get(source_id), "source_index": position,
-                     "sources": len(stale), "files_stale": len(stale[source_id])}
+            where = {
+                "projecting": agents.get(source_id),
+                "source_index": position,
+                "sources": len(stale),
+                "files_stale": len(stale[source_id]),
+            }
 
             def tagged(kind, where=where):
                 return lambda update: report({**update, **where, "scope": kind})
@@ -312,8 +314,11 @@ def project(store, *, workers, pool=None, progress=None, max_fraction=MAX_CLOSUR
                     # Outside a batch, or a batch retried after a source changed under it:
                     # savepoint-backed attempts that retain a rewritten file's facts.
                     result = rebuild_retaining(
-                        store, source_ids={source_id}, progress=tagged("source"),
-                        workers=workers, pool=pool,
+                        store,
+                        source_ids={source_id},
+                        progress=tagged("source"),
+                        workers=workers,
+                        pool=pool,
                     )
                 else:
                     # Fast path: no savepoint. A file rewritten after capture raises

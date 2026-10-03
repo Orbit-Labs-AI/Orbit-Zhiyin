@@ -172,7 +172,9 @@ def index_file(store, source_id, path, role, scan=None):
             "UPDATE source_file SET watermark=? WHERE file_id=?", (canonical(watermark), file_id)
         )
     if kept is not None:
-        remember_capture(store, file_id, latest["revision_uid"] if unchanged else revision_uid, kept)
+        remember_capture(
+            store, file_id, latest["revision_uid"] if unchanged else revision_uid, kept
+        )
     store._resolve_capture_issues(source_id, file_id)
     return {"file_id": file_id, "changed": not unchanged, "records": count}
 

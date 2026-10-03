@@ -74,8 +74,9 @@ def test_full_lengths_redaction_scope_and_empty_selection(tmp_path):
         from tandem_data.query import current_projection
         from tandem_data.store import readonly_connection
 
-        with readonly_connection(store.home / "tandem.db") as db, pytest.raises(
-            ValueError, match="pending"
+        with (
+            readonly_connection(store.home / "tandem.db") as db,
+            pytest.raises(ValueError, match="pending"),
         ):
             current_projection(db)
 

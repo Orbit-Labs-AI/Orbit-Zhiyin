@@ -69,14 +69,18 @@ def test_list_and_tool_queries_avoid_temp_sorts(tmp_path):
             db, "SELECT * FROM tool_call WHERE name='Bash' ORDER BY started_at DESC LIMIT 5"
         )
         # Freshness reads a partial index and an expression index, never every watermark.
-        freshness = plan(
-            db,
-            "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) LIMIT 1",
-        ) + plan(db, f"SELECT watermark FROM source_file WHERE {UNPROJECTED}") + plan(
-            db,
-            "SELECT COUNT(*) FROM source_file WHERE json_extract(watermark,'$.mapper_version')=? "
-            "AND json_extract(watermark,'$.reducer_version')=? AND json_extract(watermark,'$.redaction_version')=?",
-            ("a", "b", "c"),
+        freshness = (
+            plan(
+                db,
+                "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) LIMIT 1",
+            )
+            + plan(db, f"SELECT watermark FROM source_file WHERE {UNPROJECTED}")
+            + plan(
+                db,
+                "SELECT COUNT(*) FROM source_file WHERE json_extract(watermark,'$.mapper_version')=? "
+                "AND json_extract(watermark,'$.reducer_version')=? AND json_extract(watermark,'$.redaction_version')=?",
+                ("a", "b", "c"),
+            )
         )
         assert "source_file_unprojected" in freshness
         assert "source_file_projection_versions" in freshness

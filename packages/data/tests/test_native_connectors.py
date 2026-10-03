@@ -1029,8 +1029,9 @@ def test_analysis_reader_rejects_obsolete_projection_without_new_input(tmp_path,
         assert bundle["projection_run_id"] == latest
         from tandem_data.query import current_projection
 
-        with readonly_connection(store.home / "tandem.db") as db, pytest.raises(
-            ValueError, match="pending"
+        with (
+            readonly_connection(store.home / "tandem.db") as db,
+            pytest.raises(ValueError, match="pending"),
         ):
             current_projection(db)
 

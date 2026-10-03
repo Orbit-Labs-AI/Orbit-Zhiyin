@@ -52,8 +52,10 @@ def test_retained_file_neither_rebuilds_other_imports_nor_stays_pending(tmp_path
     session = pi / "sessions/one.jsonl"
     session.parent.mkdir(parents=True)
     session.write_text(
-        canonical({"type": "session", "id": "pi-1", "cwd": "/work"}) + "\n"
-        + canonical({"type": "message", "message": {"role": "user", "content": "hi"}}) + "\n"
+        canonical({"type": "session", "id": "pi-1", "cwd": "/work"})
+        + "\n"
+        + canonical({"type": "message", "message": {"role": "user", "content": "hi"}})
+        + "\n"
     )
 
     def rewrite():
@@ -129,15 +131,23 @@ def codex_root(tmp_path):
     rollout = root / "sessions/rollout-t1.jsonl"
     rollout.parent.mkdir(parents=True)
     rows = [
-        {"type": "session_meta", "timestamp": "2026-10-01T00:00:00.000Z",
-         "payload": {"id": "t1", "cwd": "/work", "source": "cli"}},
-        {"type": "event_msg", "timestamp": "2026-10-01T00:00:01.000Z",
-         "payload": {"type": "user_message", "message": "hello"}},
+        {
+            "type": "session_meta",
+            "timestamp": "2026-10-01T00:00:00.000Z",
+            "payload": {"id": "t1", "cwd": "/work", "source": "cli"},
+        },
+        {
+            "type": "event_msg",
+            "timestamp": "2026-10-01T00:00:01.000Z",
+            "payload": {"type": "user_message", "message": "hello"},
+        },
     ]
     rollout.write_text("".join(json.dumps(r) + "\n" for r in rows))
     with sqlite3.connect(root / "state_5.sqlite") as db:
-        db.execute("CREATE TABLE threads(id TEXT PRIMARY KEY, rollout_path TEXT, title TEXT, "
-                   "updated_at INTEGER)")
+        db.execute(
+            "CREATE TABLE threads(id TEXT PRIMARY KEY, rollout_path TEXT, title TEXT, "
+            "updated_at INTEGER)"
+        )
         db.execute("INSERT INTO threads VALUES('t1', ?, 'Captured title', 1)", (str(rollout),))
     return root
 
