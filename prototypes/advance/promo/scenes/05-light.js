@@ -2,7 +2,9 @@
    每团整片沿自己的连续路径走：经过手写路点的向心 Catmull-Rom 样条（x、y、宽、强度一起插值；拍 → 样条参数用单调
    Hermite 弧长映射，速度连续，路点处不停顿），叠加慢漂移与呼吸（周期 20–40 拍，不随节拍）和各自的匀速自转。
    光体不读取任何场景对象（不调用 AGD / MARK / elXY / 相机），场景改动不会牵动光。只在 b0–3 淡入、b85.6–88 淡出；
-   「衍生」= 原位、原宽度上 2 拍交叉溶解换图。拍号是成片拍（SHIFT 0）。 */
+   「衍生」= 原位、原宽度上 2 拍交叉溶解换图。拍号是成片拍（SHIFT 0）。
+   v17.7（用户：标志时刻落在纯黑上）：20-orbit 字标段（场景拍 b24.0–31.2）前后各 3–4 拍长淡，光体压到每团 ≤ .15；
+   60-close 曲线画起前（场景拍 b70.4–75.4）长淡到 0，此后保持全黑到片尾。时间只按 SHIFT 表换算，不读场景对象。 */
 scene('05-light', () => {
   css(`
 .light{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -81,11 +83,21 @@ scene('05-light', () => {
   };
   const env = (b) => E.sine(clamp((b - FADE_IN[0]) / (FADE_IN[1] - FADE_IN[0]))) * (1 - E.sine(clamp((b - FADE_OUT[0]) / (FADE_OUT[1] - FADE_OUT[0]))));
 
-  // v17.3: the waypoints stay in the v17 88-beat grid; the whole path is stretched evenly to the film's length (closing
-  // scene END 89 + its SHIFT), so the fade-out still ends on the last frame
-  const LK = (89 + (SHIFT['60-close'] || 0)) / 88;
-  every(0, 90 * LK, (p, bf) => {
-    const b = bf / LK, e = env(b);
+  // v17.7: logo moments on pure black (film beats, from the SHIFT table only — no scene objects).
+  // DIM: behind the Orbit·知音 wordmark of 20-orbit every blob is scaled to ≤ .15 (DIM_K · CAP), long sine fades either side;
+  // DARK: before the close's curve starts drawing, a long fade to 0 that holds to the last frame.
+  const OS = SHIFT['20-orbit'] || 0, CS = SHIFT['60-close'] || 0;
+  const DIM = [OS + 20.7, OS + 24.0, OS + 31.2, OS + 35.2], DIM_K = .15 / CAP, DARK = [CS + 70.4, CS + 75.4];
+  const look = (bf) => {
+    const dim = E.sine(clamp((bf - DIM[0]) / (DIM[1] - DIM[0]))) * (1 - E.sine(clamp((bf - DIM[2]) / (DIM[3] - DIM[2]))));
+    return lerp(1, DIM_K, dim) * (1 - E.sine(clamp((bf - DARK[0]) / (DARK[1] - DARK[0]))));
+  };
+
+  // v17.3: the waypoints stay in the v17 88-beat grid; the whole path is stretched evenly to the film's length.
+  // v17.7: the length is the engine's END, read per frame (60-close sets it after this scene registers, boot() then adds
+  // its SHIFT, so by the first frame END is already the film length in film beats) — the fade-out ends on the last frame.
+  every(0, 1e6, (p, bf) => {
+    const LK = END / 88, b = bf / LK, e = env(b) * look(bf);
     B.forEach((o) => {
       const [x, y, w, st] = o.at(b), d = o.d, wt = weights(o, b);
       // slow drift and breathing (periods ≈ 26–37 beats, never in time with the music)
