@@ -103,18 +103,23 @@ scene('50-tools', () => {
   // slower rise (1.2 beats) and swap (.75); the block keeps a slow push (+.3 % / beat) instead of a dead hold
   // v18.2 the swap is sequential, not a cross: the old line leaves in .3 beat (E.in, up 20 px, blur 8) and the new one comes
   // in .25 beat after the old one started leaving (.55 beat, E.out, from 20 px below, blur 8 → 0): never two lines on top
-  const seq = (at) => (el, tl) => el.querySelectorAll('.sw').forEach((s) => {
-    const [a, n] = s.children, po = E.in(clamp((tl - BB(at)) / BB(.3))), pi = E.out(clamp((tl - BB(at + .25)) / BB(.55)));
-    const set = (w, q, dy) => { w.style.opacity = q.toFixed(3); w.style.transform = 'translate(-50%,' + dy.toFixed(1) + 'px)'; w.style.filter = q < .999 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none'; };
-    set(a, 1 - po, -20 * po); set(n, pi, 20 * (1 - pi));
+  // v18.3 per line: dy (px), the old line's out (.3 beat E.in), when the new one starts (`ins`, beats after `at`), its
+  // in-duration and blur. The headline swaps vertically like a card-internal roll (−24 out in .22 beat, then +24 in over .3, no blur; never both
+  // at once: two centred lines of different width read as one smeared word);
+  // the old orange accent is out first (gone by b67.55 = film 99.25), so the new headline never sits over the old accent
+  const seq = (at, o = {}) => (el, tl) => el.querySelectorAll('.sw').forEach((s) => {
+    const dy = o.dy ?? 20, bl = o.bl ?? 8, od = o.od ?? .3, ins = o.ins ?? .25, ind = o.ind ?? .55;
+    const [a, n] = s.children, po = E.in(clamp((tl - BB(at)) / BB(od))), pi = E.out(clamp((tl - BB(at + ins)) / BB(ind)));
+    const set = (w, q, y) => { w.style.opacity = q.toFixed(3); w.style.transform = 'translate(-50%,' + y.toFixed(1) + 'px)'; w.style.filter = q < .999 && bl ? 'blur(' + ((1 - q) * bl).toFixed(1) + 'px)' : 'none'; };
+    set(a, 1 - po, -dy * po); set(n, pi, dy * (1 - pi));
     s.style.width = Math.max(a.offsetWidth, n.offsetWidth) + 'px'; s.style.height = a.offsetHeight + 'px';
   });
-  const line = (b0, cls, a, b, y, swapAt) => txt(b0, 75.0, [[cls + ' t5s', sw(a, b)]], { x: 960, y, align: 'c' },
-    { anim: K.all(mask(0, 1.2, .6), seq(swapAt - b0)),
+  const line = (b0, cls, a, b, y, swapAt, so) => txt(b0, 75.0, [[cls + ' t5s', sw(a, b)]], { x: 960, y, align: 'c' },
+    { anim: K.all(mask(0, 1.2, .6), seq(swapAt - b0, so)),
       tick: (el, tl) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .003 * (tl / BEAT + b0 - 56.4)).toFixed(4) + ')'; } });
   line(56.4, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 67.3);
-  line(56.6, 'hv sv t5h', '回放每一次协作', '交给本地 Agent，写成 Skill', 190, 67.45);
-  line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '边写边验', 270, 67.6);
+  line(56.6, 'hv sv t5h', '回放每一次协作', '把你的做法，写成 Skill', 190, 67.35, { dy: 24, bl: 0, od: .22, ins: .22, ind: .3 });
+  line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '本地 Agent 生成 · 边写边验', 270, 67.25, { ins: .55, ind: .5 });
 
   /* ---------- 5.2–5.3 trajectory (deck 0, b55.09–68.2) ----------
      v18.1: only the timeline itself is shown (svg.vz-t-timeline on its own white panel, promo-card), framed ≈ 1300 px wide (QA: 1440 cut the panel at the right edge)
@@ -138,12 +143,17 @@ scene('50-tools', () => {
   };
   // grows from the orb (left): s .94 → 1 about the orb's point while it clears (b55.09–56.4, E.out); no slide from the right
   // QA: opacity is left to the separate fade below (with o here the E.out tween had the panel half-visible under the % at b55.2)
-  tween(0, 55.09, 1.31, () => { const c = trajCam(); delete c.o; return c; }, E.out, (T) => ({ s: T.s * .94, bl: 6 }));
+  // v18.3 4→5: the card GROWS OUT OF the orb — the camera's anchor is the orb's screen point (MERGE), the card waits at
+  // .12 (b55.09–55.2, still at o 0) and scales .12 → 1 on E.out over .8 beat (b55.2–56.0), blur 4 → 0 (no grey slab)
+  const trajIn = (k, bl) => () => { const c = trajCam(); delete c.o; c.s *= k; c.bl = bl; return c; };
+  tween(0, 55.09, 0, trajIn(.12, 4));
+  tween(0, 55.2, .8, trajIn(1, 0), E.out);
   // its opacity on a slower in-out (.1 at b55.4, whole by b56.1) so it does not stack on 40-recs' fading % payoff
   // QA: starts at b55.35 (film 86.25), once 40-recs' % payoff has cleared — earlier the half-faded panel sat under it
   // hand-off QA v18.2: 40-recs now clears its payoff at film b86.9 (scene 55.2); the old 55.35 start left ~.5 beat of
   // only the dot stack, then a 3-frame grey slab — start as the payoff clears and ramp in .6 beat (film b86.9–87.5)
-  tween(0, 55.2, .6, { o: 1 }, E.inOut);
+  // v18.3: α 0 → 1 in the first .3 beat of the growth (b55.2–55.5), so the small card is already solid while it grows
+  tween(0, 55.2, .3, { o: 1 }, E.out);
   // then the slow drift with the playhead (2 · PAN left) and a 3 % push about the orb's point
   tween(0, 56.6, 11.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.03 }), E.sine);
   // the merged dot owns this session: a thin wire to the panel's left edge, drawn .5 beat and taken back by b57.3 as the dot
@@ -208,7 +218,8 @@ scene('50-tools', () => {
   tween(0, CX, .45, () => { const C = decks[0].C; return { ax: C.ax - 240, bl: 10 }; }, E.in);
   // QA v18.2: α on its own shorter in-out (.35 beat) — with α on the same E.in the card was still ≈ .7 opaque at blur 7–10
   // (b67.65–67.75) and read as a grey slab for 3–4 frames; now it is mostly gone before the blur builds up
-  tween(0, CX, .35, { o: 0 }, E.inOut);
+  // v18.3: E.out .3 — the in-out still left a translucent grey card for 2 frames (film 99.1–99.2) while the blur grew
+  tween(0, CX, .3, { o: 0 }, E.out);
 
   /* ---------- 5.4–5.7 studio (deck 1, b56.1–75.2) ---------- */
   const runCard = (D) => { const s = D.querySelector('#main .st-steps'); return s ? s.closest('.card') : D.querySelectorAll('#main .card.pad.col')[1]; };
@@ -277,7 +288,8 @@ scene('50-tools', () => {
   // in from the right as the card leaves to the left (mirrored, 240 px, a touch of depth; starts b67.75, once the card is
   // gone, so the button never lies over it), then a slow linear push 1 → 1.05 that is still moving through the hover and
   // the press (b68.55–69.05; the glide to SKILL.md takes over at b69.0)
-  tween(1, CX + .45, .9, btnCam, E.quart, (T) => ({ ax: T.ax + 240, s: T.s * .9, o: 0, bl: 10 }));
+  // v18.3: the button RISES from b67.65 (film 99.35), while the card's α is nearly out, so no frame is empty
+  tween(1, 67.65, .9, btnCam, E.quart, (T) => ({ ay: T.ay + 140, s: T.s * .92, o: 0, bl: 6 }));
   tween(1, 68.55, .5, () => ({ s: decks[1].C.s * 1.05 }), E.lin);
   tween(1, 69.0, 1.1, studioCam, E.inOut);
   // continuous push (+3 % over 3.8 beats, linear) so the file never holds still while it is written and read
