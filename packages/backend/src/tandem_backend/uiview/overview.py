@@ -34,8 +34,13 @@ def _day_index(ts: int, tz_name: str, today: date) -> int:
     return (today_in(tz_name, ts) - today).days
 
 
+def _round(value, digits):
+    return None if value is None else round(value, digits)
+
+
 def _tile_value(key: str, st: dict):
-    return {"n": st["n"], "h": round(st["hours"], 1), "m": st["msgs"], "a": round(st["auto"], 1),
+    # ``auto`` is None when no session in the window has a known step count: shown as unknown.
+    return {"n": st["n"], "h": round(st["hours"], 1), "m": st["msgs"], "a": _round(st["auto"], 1),
             "f": round(st["fric"], 1)}[key]
 
 
@@ -45,6 +50,8 @@ def _delta(key: str, st: dict, prev: dict | None):
     cur_v, prev_v = {"n": (st["n"], prev["n"]), "h": (st["hours"], prev["hours"]),
                      "m": (st["msgs"], prev["msgs"]), "a": (st["auto"], prev["auto"]),
                      "f": (st["fric"], prev["fric"])}[key]
+    if cur_v is None or prev_v is None:
+        return None
     out = {"cur": round(cur_v, 2), "prev": round(prev_v, 2),
            "unit": "pt" if key in ("a", "f") else "pct"}
     if key == "f":
@@ -54,11 +61,12 @@ def _delta(key: str, st: dict, prev: dict | None):
 
 def tiles(rows_all: list[dict], L: list[dict], prev: dict | None, f: dict, range_: int,
           end: int, compare: bool, brushed: bool) -> list[dict]:
-    st = derive.stats(L)
+    st = derive.stats(L, unknown=None)
     cmp = compare and not brushed and prev is not None and prev["n"] >= MIN_PREV
     sub = "刷选范围" if brushed else ("无可比上期" if compare and not cmp else "")
     fns = {"n": len, "h": lambda xs: round(derive.stats(xs)["hours"], 2),
            "m": lambda xs: derive.stats(xs)["msgs"],
+           # Sparkline points stay numeric (empty bucket = 0) for the prototype's chart.
            "a": lambda xs: round(derive.stats(xs)["auto"], 2),
            "f": lambda xs: round(derive.stats(xs)["fric"], 2)}
     out = []
@@ -131,9 +139,9 @@ def build(body: dict, params: dict, today: date) -> dict:
               if params.get("until_ts") is not None else window[1])
         window, brushed = (lo, hi), True
     L = derive.sel(rows, window, f)
-    st = derive.stats(L)
+    st = derive.stats(L, unknown=None)
     pw = derive.prev_win(range_, first)
-    prev = derive.stats(derive.sel(rows, pw, f)) if pw and not brushed else None
+    prev = derive.stats(derive.sel(rows, pw, f), unknown=None) if pw and not brushed else None
     base_window = derive.win(range_, first)
     p = persona.persona(derive.sel(rows, base_window, f, no_extra=True), aux)
     visible_agents = [a for a in agents if f["agents"] is None or a["id"] in f["agents"]]
@@ -164,6 +172,6 @@ def build(body: dict, params: dict, today: date) -> dict:
             by_day[r["di"]] = by_day.get(r["di"], 0) + 1
         payload["strip"] = [{"d": derive.iso(today, d), "n": by_day.get(d, 0)}
                             for d in range(-(STRIP_DAYS - 1), 1)]
-        payload["completion"] = {"value": round(st["ok"], 1) if st["n"] else None,
-                                 "n": st["n"], "basis": "estimate", "label": "估计完成率"}
+        payload["completion"] = {"value": _round(st["ok"], 1) if st["n"] else None,
+                                 "n": st["ok_n"], "basis": "estimate", "label": "估计完成率"}
     return payload

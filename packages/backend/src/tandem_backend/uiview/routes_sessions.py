@@ -69,7 +69,8 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
         live, excluded = live_uids(), excluded_uids()
         rows = [{**r, "live": r["id"] in live, "excluded": r["id"] in excluded,
                  "out": "live" if r["id"] in live else
-                 (r["out"] if r["out"] != "live" else None)} for r in base]
+                 (r["out"] if r["out"] != "live" else None),
+                 "out_basis": "realtime" if r["id"] in live else r["out_basis"]} for r in base]
         return sessions.overlay(rows, facts_provider() if facts_provider else None)
 
     def search_uids(q: str) -> tuple[set[str] | None, bool]:
@@ -79,12 +80,13 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
         if svc is None:
             return None, True
         try:
-            result = svc.search(q, kinds=SEARCH_KINDS, limit=100)
+            # Every matched session, not the top fused hits: a list filter must not drop
+            # sessions past the ranking limit. Partial when a source was capped or slow.
+            result = svc.search(q, kinds=SEARCH_KINDS, limit=1, session_cover=True)
         except Exception:  # noqa: BLE001 - search is best effort; substring match still runs.
             return None, True
-        uids = {h.get("session_uid") or (h.get("ref") or {}).get("id")
-                for h in result.get("results", [])}
-        return {u for u in uids if u}, bool(result.get("partial"))
+        return set(result.get("session_uids") or []), \
+            not result.get("session_cover_complete", False)
 
     def detail_for(session_uid: str, tz_name: str | None) -> dict:
         tz = zone(tz_name)
