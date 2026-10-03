@@ -341,11 +341,9 @@ def test_golden_records_the_generator_truth():
     assert golden["truth"] == generate_bundle_with_truth(SESSIONS, SEED)[1]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "follow-up (analytics lexicon): of the generator's 4 correction phrases the detector hits "
-    "'不对' and 'revert that' but misses '这个方向错了，先回滚再说' and '没看懂，换个直观的例子', "
-    "and it counts the feedback '还是不行' as a correction"))
 def test_correction_signals_match_injected_corrections():
+    # The generator injects 4 correction phrases and the result feedback "还是不行，测试依然失败";
+    # only the corrections count (interaction.rules.correction_verdict).
     bundle, truth = generate_bundle_with_truth(SESSIONS, SEED)
     result = analyze_bundle(AnalysisInputBundle.from_dict(bundle), Scope(display_timezone=TIMEZONE),
                             with_text=False)

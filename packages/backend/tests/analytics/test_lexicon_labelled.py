@@ -6,26 +6,29 @@ emotion recall >= 0.8 with no label on neutral/hypothetical text.
 
 import pytest
 
-from tandem_backend.analytics.interaction.rules import correction_terms
-from tandem_backend.analytics.lexicon import correction_hits
+from tandem_backend.analytics.interaction.rules import (
+    CORRECTION_HINT,
+    correction_kind,
+    correction_terms,
+    correction_verdict,
+    is_correction,
+    result_feedback_terms,
+)
+from tandem_backend.analytics.lexicon import CORRECTION_EXTRA_HINT, correction_hits
 from tandem_backend.analytics.products.feedback import classify_emotion
-from tandem_backend.uiview.sessions import is_correction
+from tandem_backend.uiview import sessions
 
 CORRECTIONS = [
     "this is still broken, try a different approach",
     "don't touch other files",
     "not what I asked",
-    "still failing with the same error",
     "you broke the login page",
     "I said use pnpm, not npm",
     "revert that change please",
     "that's not right, the button should be blue",
-    "same error again",
     "stop changing the config",
     "do not modify unrelated tests",
     "use another approach, this one is too slow",
-    "还是报错",
-    "又失败了，看一下日志",
     "换个思路，别用正则",
     "不是我要的效果",
     "别动其他文件",
@@ -33,11 +36,9 @@ CORRECTIONS = [
     "你理解错了，我要的是表格",
     "撤销刚才的修改",
     "改坏了，首页打不开",
-    "怎么又是这个问题",
     "我说过不要用 any 类型",
     "这不是这个意思",
     "不对，应该先读配置",
-    "还是没解决",
     "回滚你刚才的提交",
     "换一种方案试试",
     "搞错了，是另一个仓库",
@@ -53,6 +54,17 @@ CORRECTIONS = [
     "不是这样的",
     "你错了，是另一个文件",
     "not like that",
+]
+# Result feedback: reports that the agent's work still fails without redirecting it; a
+# different label from a correction (``interaction.rules.correction_verdict``).
+RESULT_FEEDBACK = [
+    "still failing with the same error",
+    "same error again",
+    "还是报错",
+    "又失败了，看一下日志",
+    "怎么又是这个问题",
+    "还是没解决",
+    "还是不行，测试依然失败",
 ]
 NOT_CORRECTIONS = [
     "请修复登录测试",
@@ -97,18 +109,28 @@ NEUTRAL_OR_NONE = ["完美地实现这个功能并补充文档说明和测试用
 
 
 def test_correction_recall_and_precision_on_labelled_set():
-    tp = sum(bool(correction_terms(t)) for t in CORRECTIONS)
-    fp = sum(bool(correction_terms(t)) for t in NOT_CORRECTIONS)
+    tp = sum(is_correction(t) for t in CORRECTIONS)
+    fp = sum(is_correction(t) for t in NOT_CORRECTIONS + RESULT_FEEDBACK)
     recall, precision = tp / len(CORRECTIONS), tp / (tp + fp)
-    missed = [t for t in CORRECTIONS if not correction_terms(t)]
-    false = [t for t in NOT_CORRECTIONS if correction_terms(t)]
+    missed = [t for t in CORRECTIONS if not is_correction(t)]
+    false = [t for t in NOT_CORRECTIONS + RESULT_FEEDBACK if is_correction(t)]
     assert recall >= 0.85, missed
     assert precision >= 0.9, false
 
 
-@pytest.mark.parametrize("text", CORRECTIONS)
-def test_uiview_prefilter_never_hides_a_lexicon_hit(text):
-    assert is_correction(text) == bool(correction_terms(text))
+@pytest.mark.parametrize("text", RESULT_FEEDBACK)
+def test_result_feedback_is_labelled_apart_from_corrections(text):
+    assert correction_kind(text) == "result_feedback"
+    assert correction_terms(text) == [] and result_feedback_terms(text)
+
+
+@pytest.mark.parametrize("text", CORRECTIONS + RESULT_FEEDBACK + NOT_CORRECTIONS)
+def test_prefilter_never_hides_a_lexicon_hit(text):
+    verdict = correction_verdict(text)
+    assert correction_kind(text) == verdict["kind"]
+    assert sessions.is_correction(text) == (verdict["kind"] == "correction")
+    for hit in verdict["hits"]:
+        assert CORRECTION_HINT.search(hit["term"]) or CORRECTION_EXTRA_HINT.search(hit["term"]), hit
 
 
 def test_hits_carry_rule_ids():

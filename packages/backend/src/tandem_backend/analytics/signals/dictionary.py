@@ -6,7 +6,9 @@ backend encodes ``signal.kind → problem.type``. Thresholds change ``RULES_VERS
 
 import re
 
-RULES_VERSION = "signals-v1.1"
+from ..interaction.rules import CORRECTION_CHARS as _CORRECTION_CHARS
+
+RULES_VERSION = "signals-v1.2"
 
 EDIT_KINDS = frozenset({"file.edit", "file.write", "file.change"})
 
@@ -63,10 +65,9 @@ PROBLEM_TYPES: dict[str, dict] = {
 WILSON_LO_MIN = 0.0
 SCOPES = ("all", "project", "source")
 
-# Direct characters of a correction candidate: 2 admits the commonest Chinese short
-# rejections ("错了", "重来", "不对"); above 200 the message is a pasted spec/log where a
-# lexical hit is mostly quoted material.
-CORRECTION_CHARS = (2, 200)
+# Direct characters of a correction candidate: defined once with the verdict in
+# ``interaction.rules`` (re-exported here for the threshold table).
+CORRECTION_CHARS = _CORRECTION_CHARS
 # Frustration reuses ``analytics.lexicon.emotion_cues`` (negation/hypothetical aware);
 # a short-correction streak is "two consecutive corrections of at most this many chars".
 FRUSTRATION_STREAK_CHARS = 40
