@@ -41,9 +41,11 @@ scene('20-orbit', () => {
   // 路径向下兜 90px（arc −90），最左的 cp 在标志左缘扫到前已落到它下方，不再从 O 上穿过
   const ROW = WS + .2;
   AGD.key(ROW, 'row', { cx: 960, y: (b) => 812 - 3 * Math.max(0, b - ROW), gap: (b) => 60 + 1.4 * Math.max(0, b - ROW), r: 15, order: 'x', dur: 1.6, ease: E.sine, stag: .06, arc: -90 });
-  // 收字时点先回到轨道（polar 沿椭圆参数）；相位使 CK 交给 compass 时每个点的位置与原来（轨道 key 后 1.9 拍）完全一样
-  const RET = BACK0 - .3;
-  AGD.key(RET, 'orbit', { ...OB, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.6, ease: E.sine, stag: .04, polar: PC });
+  // 收字时点先回到轨道（polar 沿椭圆参数）；相位使 CK 交给 compass 时每个点的位置与原来（轨道 key 后 1.9 拍）完全一样。
+  // 交接检查：原先 BACK0 − .3 起 1.6 拍，点在副标题淡出、「rb」还实着时就从字母间穿上去；改为 BACK0 + .25 起 1.1 拍
+  // （到位拍不变），路径中段向下兜 40px（arc −40）：点升进字母带时副标题已无、「rb」只剩 ≲ 15 % 的残影
+  const RET = BACK0 + .25;
+  AGD.key(RET, 'orbit', { ...OB, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.1, ease: E.sine, stag: .04, polar: PC, arc: -40 });
   // 2.5 / H9：轨道椭圆张开成罗盘外圈，点比翻平早 .2 拍起步（b34.5，sine），领着标志翻开。交接汇总规定这条 compass key 由接手方 30-persona 写；
   // 为了两边谁都不漏、也不重复，在第一帧检查（按本场景拍比较）：CK −.3 / +.8 内没有 compass key 时才补这一条
   let compassChecked = false;
