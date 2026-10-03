@@ -51,7 +51,7 @@
 /* 2 persona: .persona-hero with the letters at display size */
 .lite .persona-hero{grid-template-columns:minmax(0,1fr) 320px;padding:28px 30px;align-items:center}
 .lite .letters{gap:clamp(6px,1.2cqi,16px);margin:18px 0 16px;align-items:flex-end}
-.lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--font-display);letter-spacing:-.01em}
+.lite .letters .L{font:700 clamp(84px,15cqi,150px)/.86 var(--font-type);letter-spacing:-.01em}
 .l-line{margin:14px 0 14px;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
 .l-acts{margin-top:20px;flex-wrap:wrap}
 .l-fp{padding:12px}

@@ -25,7 +25,7 @@
 .persona-hero{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:28px;padding:24px 28px}
 .letters{display:flex;gap:20px;align-items:flex-end;margin-top:14px;flex-wrap:wrap}
 .letters button{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;padding:0;color:inherit}
-.letters .L{font:600 100px/.92 var(--font-display)}
+.letters .L{font:700 100px/.92 var(--font-type)}
 .fp-wrap{position:relative;display:flex;flex-direction:column;align-items:center;border-radius:12px;background-color:var(--bg);background-image:radial-gradient(var(--line) 1px,transparent 1.2px);background-size:14px 14px;padding:8px}
 .evo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .evo button{width:98px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);text-align:left}

@@ -170,7 +170,7 @@ function sideFoot() {
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
     '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
-    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? me.code + ' · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
+    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? '<span class="tcode">' + me.code + '</span> · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */

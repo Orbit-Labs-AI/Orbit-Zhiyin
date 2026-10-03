@@ -169,7 +169,8 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 | 用途 | 字体 | token（`prototypes/advance/src/styles/00-base.css`） |
 | --- | --- | --- |
 | 正文、控件、眉题 | SF Pro（拉丁、数字）+ PingFang SC（中文） | `--font-sans` |
-| 页面标题、弹窗标题、人格字母 | 同上，用较大字号和 600 字重，不用衬线 | `--font-display` |
+| 页面标题、弹窗标题 | 同上，用较大字号和 600 字重，不用衬线 | `--font-display` |
+| 人格类型码（DPMV 等，大字母、卡片、侧栏、分享卡） | SF Pro Rounded（`ui-rounded`）700，圆头笔画呼应 Orbit 字标；中文回退 PingFang SC | `--font-type`（`.tcode` 类） |
 | KPI、表格、日期范围、计数 | 同 `--font-sans`，加 `font-variant-numeric: tabular-nums` | `--font-num`（`.mono` 类） |
 | 代码、路径、命令、ID、快捷键、原始 CSV/报告文本 | SF Mono（`ui-monospace`），中文回退 PingFang SC | `--font-mono`（`.code-t` 类与 `code`/`kbd`/`.tt-cmd` 等） |
 

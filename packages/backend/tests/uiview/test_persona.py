@@ -56,7 +56,7 @@ def test_type_copy_matches_the_prototype_table():
     parsed = {code: (zh, en, line) for code, zh, en, line in
               re.findall(r"(\w{4}): \['([^']*)', '([^']*)', '([^']*)'\]", table)}
     assert len(parsed) == 16 and BUILTIN == parsed
-    assert len(TYPES) == 16 and TYPES["SPFV"][0] == "工匠"
+    assert len(TYPES) == 16 and TYPES["SPFV"][0] == "分析学家"
 
 
 def page(**params):
