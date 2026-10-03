@@ -281,12 +281,20 @@ def _analysis_retention(home: Path) -> dict:
     return stats
 
 
+# Files another writer holds open: tandem.log (RotatingFileHandler) and the workers' stderr
+# logs opened in append mode by services/supervisor.py. Unlinking one would leave the writer
+# on a deleted inode (disk not freed, later lines lost), so live worker logs are truncated in
+# place instead — O_APPEND writers continue at the new end.
+LIVE_LOGS = ("tandem.log", "ingest.log", "analysis.log")
+
+
 def _prune_logs(directory: Path) -> int:
-    """Delete the oldest rotated logs while the folder exceeds the cap; keeps the live one."""
+    """While the folder exceeds the cap: delete the oldest rotated logs first, then truncate
+    live worker logs; tandem.log rotates itself. Returns files deleted or truncated."""
     if not directory.is_dir():
         return 0
     files = sorted((p for p in directory.iterdir() if p.is_file()),
-                   key=lambda p: p.stat().st_mtime)
+                   key=lambda p: (p.name in LIVE_LOGS, p.stat().st_mtime))
     total = sum(p.stat().st_size for p in files)
     removed = 0
     for path in files:
@@ -294,7 +302,13 @@ def _prune_logs(directory: Path) -> int:
             break
         if path.name == "tandem.log":
             continue
-        total -= path.stat().st_size
-        path.unlink(missing_ok=True)
+        size = path.stat().st_size
+        if path.name in LIVE_LOGS:
+            if not size:
+                continue
+            os.truncate(path, 0)
+        else:
+            path.unlink(missing_ok=True)
+        total -= size
         removed += 1
     return removed
