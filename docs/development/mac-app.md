@@ -51,11 +51,17 @@ gateway (FastAPI + uvicorn, 127.0.0.1 动态端口)
 | `openExternal` | `url` | 仅 http/https，用默认浏览器打开 |
 | `reveal` | `path` | 在 Finder 中显示 |
 | `close` / `minimize` / `zoom` / `fullscreen` | — | 主窗口控制；在 panel 上 `close` 关闭弹出框，在 HUD/小组件上 `close` 隐藏该面板 |
-| `notify` | `id?, title, body, route?` | 系统通知（UNUserNotificationCenter）；首次使用时请求授权，被拒绝则静默；点击通知激活主窗口（带 route 时同时下发） |
+| `notify` | `id?, title, body, route?, force?` | 系统通知（UNUserNotificationCenter）；未决定时请求授权；派发 `tandem:notified {id, delivered, reason?}`（被拒为 `reason: 'denied'`，不再静默）；`force` 只影响页面（可见时也发），宿主一律投递；点击通知激活主窗口（带 route 时同时下发） |
+| `notificationStatus` | `id` | 派发 `tandem:notificationStatus {id, status}`，status 为 `notDetermined`／`denied`／`authorized`／`provisional` |
+| `openNotificationSettings` | — | 打开系统设置 › 通知 › Orbit |
+| `loginItem` | `id, enabled?` | 无 enabled 为读取，有则 `SMAppService.mainApp.register()`／`unregister()`；派发 `tandem:loginItem {id, enabled, status, error?}`，状态以系统回读为准 |
+| `statusBadge` | `state: none｜info｜warn` | 菜单栏图标右上角叠加着色小点（图标仍为模板图像）；状态栏项 autosaveName `OrbitStatusItem` |
+| `appearance` | `mode: system｜light｜dark` | 设置 `NSApp.appearance`（system 为 nil）；主窗口底色为随外观变化的动态色（浅 #f5f4f0／深 #161619） |
+| `menuState` | `sidebar, pages` | 主窗口页面上报侧栏显隐与当前版本的页面标题，宿主据此命名「显示 › 隐藏/显示侧边栏」与「前往」菜单 |
 | `openMain` | `route?` | 关闭弹出框，激活主窗口；有 route 时向主窗口派发 `tandem:command {cmd: 'route', route}` |
-| `resizeSurface` | `height` | 调整 panel 弹出框高度，或 HUD/小组件面板高度（保持顶边；限制 80–900 pt） |
+| `resizeSurface` | `height, width?` | 调整 panel 弹出框高度，或 HUD/小组件面板高度（保持顶边；小组件 80–900 pt）；HUD 另带 width，面板按右上角锚定收缩到胶囊宽度 |
 
-宿主 → 页面事件：`tandem:folder`、`tandem:saved`、`tandem:endpoint {endpoint, token}`、`tandem:command {cmd, route?}`，其中 `cmd` 为 `settings`、`palette`、`about`、`route`、`toggleEdition`、`refresh`。
+宿主 → 页面事件：`tandem:folder`、`tandem:saved`、`tandem:endpoint {endpoint, token}`、`tandem:command {cmd, route?}`，`tandem:notified`、`tandem:notificationStatus`、`tandem:loginItem`（见上表），其中 `cmd` 为 `settings`、`palette`、`about`、`route`、`toggleEdition`、`refresh`、`page {n}`、`sidebar`、`hud`、`undo`、`find`、`back`、`mainAction`、`chartTable`、`reindex` 等。新能力都登记在 `features`，页面据此特性检测；用 `ORBIT.native.request()` 等回包的类型需在 `90-live-core.js` 的 REPLY 表登记对应事件名。
 
 helper 异常退出时宿主重启一次：新 token 与端口重新注入每个界面，并派发 `tandem:endpoint`，`detail: {endpoint, token}`（`prototypes/shared/tandem-live.js` 监听它）；再次退出则弹窗提示，日志见 `<home>/desktop.log`。
 

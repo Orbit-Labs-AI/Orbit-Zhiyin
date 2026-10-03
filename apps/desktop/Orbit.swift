@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Security
+import ServiceManagement
 import UserNotifications
 import WebKit
 
@@ -10,7 +11,17 @@ import WebKit
 let appVersion = "0.0.2"
 let bundleID = "ai.actionmesh.orbit"
 let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
-                      "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets"]
+                      "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets",
+                      "menuState", "loginItem", "statusBadge", "notificationStatus", "openNotificationSettings",
+                      "notifyResult", "appearance"]
+
+/// Window background in both appearances: the page's --bg (00-base.css), so a first frame, a live resize or the
+/// rubber band never shows a light edge in dark mode.
+let windowBackground = NSColor(name: NSColor.Name("OrbitWindowBackground")) { appearance in
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        ? NSColor(red: 0x16 / 255, green: 0x16 / 255, blue: 0x19 / 255, alpha: 1)
+        : NSColor(red: 0xf5 / 255, green: 0xf4 / 255, blue: 0xf0 / 255, alpha: 1)
+}
 
 func dataHome() -> URL {
     if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
@@ -213,7 +224,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var restarts = 0
     var output = Data()
     var bookmarks: [URL] = []
-    var notificationsAsked = false
     lazy var bridge = BridgeProxy(self)
 
     var mainWebView: WKWebView { hosts[.main]!.webView }
@@ -233,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false  // Closing hides it; the menu-bar item keeps Orbit running.
-        window.backgroundColor = NSColor(red: 0xf5 / 255, green: 0xf4 / 255, blue: 0xf0 / 255, alpha: 1)
+        window.backgroundColor = windowBackground
         window.minSize = NSSize(width: 960, height: 640)
         window.contentView = main.webView
         window.dragView = main.webView
@@ -523,6 +533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func buildStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = "OrbitStatusItem"  // Keeps the user's ⌘-drag position in the menu bar.
         if let image = NSImage(named: "StatusIcon") {
             image.isTemplate = true  // orbit-mark-small.svg rendered verbatim; the menu bar tints it.
             image.size = NSSize(width: image.size.width * 16 / max(image.size.height, 1), height: 16)
@@ -535,6 +546,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         item.button?.action = #selector(statusClicked(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
+    }
+
+    /// statusBadge {state: none | info | warn}: a small tinted dot over the template icon (the icon itself stays a
+    /// template image, so the menu bar still tints it for light, dark and selected states).
+    var badgeLayer: CALayer?
+    func setStatusBadge(_ state: String) {
+        guard let button = statusItem?.button else { return }
+        button.wantsLayer = true
+        let dot = badgeLayer ?? {
+            let layer = CALayer()
+            layer.cornerRadius = 3.5
+            layer.borderWidth = 1
+            button.layer?.addSublayer(layer)
+            badgeLayer = layer
+            return layer
+        }()
+        let size: CGFloat = 7
+        dot.frame = NSRect(x: button.bounds.maxX - size - 1, y: button.bounds.maxY - size - 2, width: size, height: size)
+        switch state {
+        case "warn": dot.backgroundColor = NSColor.systemOrange.cgColor
+        case "info": dot.backgroundColor = NSColor.controlAccentColor.cgColor
+        default: dot.isHidden = true; button.setAccessibilityLabel("Orbit"); return
+        }
+        dot.borderColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8).cgColor
+        dot.isHidden = false
+        button.setAccessibilityLabel(state == "warn" ? "Orbit，有需要处理的事项" : "Orbit，有新消息")
     }
 
     @objc func statusClicked(_ sender: NSStatusBarButton) {
@@ -794,7 +831,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             if let path = body["path"] as? String, FileManager.default.fileExists(atPath: path) {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
-        case "notify": notify(body)
+        case "notify": notify(body, id: id, host: host)
+        case "notificationStatus": notificationStatus(id: id, host: host)
+        case "openNotificationSettings":
+            let target = "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(bundleID)"
+            if let url = URL(string: target) { NSWorkspace.shared.open(url) }
+        case "loginItem": loginItem(body, id: id, host: host)
+        case "statusBadge": setStatusBadge(body["state"] as? String ?? "none")
+        case "appearance": setAppearance(body["mode"] as? String ?? "system")
         case "prefs": savePrefs(body, from: host)
         case "openMain": openMain(route: body["route"] as? String)
         case "onboarded":
@@ -888,9 +932,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     // MARK: notifications
 
-    /// System notification; authorization is requested on first use and denial is silent.
-    func notify(_ body: [String: Any]) {
-        guard Bundle.main.bundleIdentifier != nil, let title = body["title"] as? String else { return }
+    /// System notification; authorization is requested on first use (notDetermined). The page gets
+    /// tandem:notified {id, delivered, reason?}: denied, an unbundled build or a failed add are reported, not dropped.
+    /// force:true only matters to the page (it posts even while visible); the host always delivers.
+    func notify(_ body: [String: Any], id replyID: Any = NSNull(), host: WebHost? = nil) {
+        let reply = { (delivered: Bool, reason: String?) in
+            var detail: [String: Any] = ["id": replyID, "delivered": delivered]
+            if let reason = reason { detail["reason"] = reason }
+            DispatchQueue.main.async { self.dispatch("tandem:notified", detail, to: host) }
+        }
+        guard Bundle.main.bundleIdentifier != nil else { reply(false, "unbundled"); return }
+        guard let title = body["title"] as? String, !title.isEmpty else { reply(false, "no title"); return }
         let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = title
@@ -898,11 +950,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if let route = body["route"] as? String { content.userInfo = ["route": route] }
         let id = (body["id"] as? String) ?? (body["id"] as? NSNumber)?.stringValue ?? UUID().uuidString
         let request = UNNotificationRequest(identifier: "orbit.\(id)", content: content, trigger: nil)
-        let post = { center.add(request) { _ in } }
-        if notificationsAsked { post(); return }
-        center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
-            DispatchQueue.main.async { self?.notificationsAsked = true }
-            if granted { post() }
+        let post = { center.add(request) { error in reply(error == nil, error?.localizedDescription) } }
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .denied: reply(false, "denied")
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if granted { post() } else { reply(false, error?.localizedDescription ?? "denied") }
+                }
+            default: post()
+            }
+        }
+    }
+
+    static func authorizationName(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        case .provisional, .ephemeral: return "provisional"
+        default: return "notDetermined"
+        }
+    }
+
+    /// notificationStatus → tandem:notificationStatus {id, status: notDetermined | denied | authorized | provisional}.
+    func notificationStatus(id: Any, host: WebHost) {
+        guard Bundle.main.bundleIdentifier != nil else {
+            dispatch("tandem:notificationStatus", ["id": id, "status": "notDetermined", "error": "unbundled"], to: host); return
+        }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let status = AppDelegate.authorizationName(settings.authorizationStatus)
+            DispatchQueue.main.async { self.dispatch("tandem:notificationStatus", ["id": id, "status": status], to: host) }
+        }
+    }
+
+    // MARK: login item and appearance
+
+    static func loginStatusName(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .enabled: return "enabled"
+        case .requiresApproval: return "requiresApproval"
+        case .notFound: return "notFound"
+        default: return "notRegistered"
+        }
+    }
+
+    /// loginItem {enabled?}: without enabled it reads, with it registers / unregisters the app (SMAppService.mainApp).
+    /// Replies tandem:loginItem {id, enabled, status, error?}; the state is always the system's, read back after the change.
+    func loginItem(_ body: [String: Any], id: Any, host: WebHost) {
+        let service = SMAppService.mainApp
+        var error: String?
+        if let enable = body["enabled"] as? Bool {
+            do { if enable { try service.register() } else { try service.unregister() } }
+            catch let failure { error = failure.localizedDescription }
+        }
+        let status = service.status
+        var detail: [String: Any] = ["id": id, "enabled": status == .enabled, "status": AppDelegate.loginStatusName(status)]
+        if let error = error { detail["error"] = error }
+        dispatch("tandem:loginItem", detail, to: host)
+    }
+
+    /// appearance {mode: system | light | dark}: the whole app (windows, panels, popover, sheets) follows the page's theme.
+    func setAppearance(_ mode: String) {
+        switch mode {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: NSApp.appearance = nil
         }
     }
 

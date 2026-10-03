@@ -83,7 +83,8 @@ def build_helper() -> Path:
 
 def build_host(contents: Path) -> None:
     run("xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}", "-framework", "AppKit",
-        "-framework", "WebKit", "-framework", "Security", "-framework", "UserNotifications", HERE / "Orbit.swift",
+        "-framework", "WebKit", "-framework", "Security", "-framework", "UserNotifications",
+        "-framework", "ServiceManagement", HERE / "Orbit.swift",
         "-o", contents / f"MacOS/{NAME}")
 
 
