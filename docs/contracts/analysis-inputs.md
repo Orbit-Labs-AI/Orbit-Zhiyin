@@ -72,6 +72,15 @@
 | `unavailable` | 来源不支持、尚未实现或归档已缺失 | 对应结果为未知，给出缺失原因 |
 | `excluded` | 被样本策略主动排除 | 不计入样本；说明排除规模即可 |
 
+设置页的数据覆盖卡不加载整份分析输入，而是调用 `orbit_data.analysis_input.coverage_summary(conn, scope=None)`，经 `GET /v1/app/coverage` 返回（库不存在时为 `{"available": false, "reason": "no_database"}`）：
+
+| 字段 | 含义 |
+| --- | --- |
+| `sessions.rows`、`sessions.status_known_rows`、`sessions.status_known_share` | 分析口径内的会话数、结果状态已知的会话数及其占比；分母为 0 时占比为 `null` |
+| `model_call.rows`、`model_call.unmapped_model_rows`、`model_call.unmapped_model_share`、`model_call.cost_usd` | 分析口径内的模型调用数、模型名未识别的调用数与占比、已计价花费 |
+| `excluded_sessions` | 与 `coverage-v1` 相同的 `status`、`rows`、`reasons`、`reason_counts`，另加被排除会话的 `model_calls`、`tokens`、`cost_usd` 与 `cost_share`（占「口径内 + 被排除」已计价花费的比例，无计价时为 `null`） |
+| `excluded_sessions.reasons_labelled` | 仅 API 附加：`[{code, label, count}]`，`label` 为中文原因，按数量降序 |
+
 `[]` 只有在来源支持且所选范围已完整读取时才表示「观察到零条」。来源根本没有工具、正文或逐次用量记录时，不能用空数组证明「用户不用工具」「用户没有反馈」或「成本为零」。
 
 ### 2.3 字段的通用规则
