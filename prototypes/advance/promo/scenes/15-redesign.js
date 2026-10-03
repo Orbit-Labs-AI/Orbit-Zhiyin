@@ -28,13 +28,20 @@ css(`
 .k .ln.rd-xl{font-size:94px}
 /* v18.1: 1e's So line — silver, a step under the peak (36 px, 500); 「So，」 lands alone at the ring centre first, so the
    line may not clip it on its way up to its slot */
-.k .ln.rd-s1{font-size:48px;font-weight:600;letter-spacing:0;overflow:visible}
+.k .ln.rd-s1{font-size:52px;font-weight:600;letter-spacing:0;overflow:visible}
+/* v18.5: 「Assistant」 one step up (60 px, pure white) — the answer the line gives */
+.k .ln.rd-s1 .w.rd-w{font-size:60px;margin-left:.12em}
+/* the bigger line must stay inside the ring's inner edge (≈ 380): the full-width comma gives back part of its blank half
+   and the CJK run sits a hair tighter, and the line sits 10 px lower (y 362) where the ring is wider */
+.k .ln.rd-s1 .w:first-child{margin-right:-.2em}
+.k .ln.rd-s1 .w:nth-child(2){letter-spacing:-.03em}
 /* v18.2: the So line is 48 px / 600 and 「Assistant」 is pure white (no silver gradient), so the line reads as the answer */
 .k .ln.sv .w.rd-w{background:none;color:#fff;-webkit-text-fill-color:#fff}
 .k .ln.sv b.rd-or{color:var(--a1);-webkit-text-fill-color:var(--a1)}
 /* v17.2: the connectives 「但，」/「So，…」 share one light small size; 「重新定义」 is an orange .w inside silver type; the
    highlighter word keeps its own white fill so the band sits under the glyphs, not over the silver gradient */
-.k .ln.rd-cj{font-size:44px;font-weight:300;color:rgba(255,255,255,.72);letter-spacing:0}
+/* v18.5: 「但，」 is the story's pivot, so it matches the So line's weight (52 px / 600, silver at α 1) */
+.k .ln.rd-cj{font-size:52px;font-weight:600;letter-spacing:0;overflow:visible}
 .k .ln.sv .w.rd-or{background:none;color:var(--a1);-webkit-text-fill-color:var(--a1)}
 .k .ln.sv .rd-mk{color:#fff;-webkit-text-fill-color:#fff;--mk:rgba(226,96,43,.78)}
 `);
@@ -96,16 +103,25 @@ scene('15-redesign', () => {
     });
     leave(el, exitQ(tl, life, o.out ?? .6), true);
   };
-  txt(12.8, 20.7, [['rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
-    { anim: K.big({ scale: 2.0, dur: .32, out: .6, spread: true }), tick: drift(true) });
-  for (let i = 0; i < 5; i++) AGD.pulse(i, 12.8, .9, .5);
+  // v18.5: 「但，」 comes in at b12.35 (film 19.25), under the title's exit: it blurs in (K.blurIn) 40 px above the dot
+  // row (y ≈ 490) and rises to its slot (y 150) in .5 beat (E.out), so the pivot word is launched by the dots; whole at
+  // b12.85, it holds alone ≈ .3 beat before 「人与 Agent 的」 (b13.15). The dots flinch as it leaves them (r × .9)
+  const RISE = 340;
+  const cjRise = (el, tl) => el.querySelectorAll('.w').forEach((w) => {
+    const p = E.out(clamp(tl / BB(.5)));
+    w.style.transform = p < .999 ? 'translateY(' + ((1 - p) * RISE).toFixed(1) + 'px)' : '';
+  });
+  txt(12.35, 20.7, [['sv rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
+    { anim: K.all(K.blurIn({ spread: .1, dur: .42, out: .6, spread2: true }), cjRise), tick: drift(true) });
+  for (let i = 0; i < 5; i++) AGD.pulse(i, 12.35, .9, .5);
   const markBy = (el, b) => {
     const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
     el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (p * 100).toFixed(1) + '% .26em'; });
   };
   // v17.5: 「人与 Agent 的」 b13.4 → 「交互本身，」 b13.85 (whole by b14.1, was 14.6)
-  txt(13.4, 20.7, [['hv sv rd-h', '<span class="w">人与 Agent 的</span><span class="w"><span class="mk rd-mk">交互本身</span>，</span>']], { x: 960, y: 255, align: 'c' },
-    { anim: step([[0, .24, 1.07], [.45, .26, 1.08]]), tick: (el, tl, life, ts) => { drift(true)(el, tl, life, ts); markBy(el, ts / BEAT); } });
+  // v18.5: 「人与 Agent 的」 b13.4 → 13.15 (.3 beat after 「但，」 is whole); 「交互本身，」 stays at b13.85
+  txt(13.15, 20.7, [['hv sv rd-h', '<span class="w">人与 Agent 的</span><span class="w"><span class="mk rd-mk">交互本身</span>，</span>']], { x: 960, y: 255, align: 'c' },
+    { anim: step([[0, .24, 1.07], [.7, .26, 1.08]]), tick: (el, tl, life, ts) => { drift(true)(el, tl, life, ts); markBy(el, ts / BEAT); } });
   // v17.5: both halves are quick steps with the same settle — 「也需要被」 rises (E.out .26, b15.1), 「重新定义」 drops in
   // half a beat later (.3, lands b15.9) and comes to rest from 1.1× (the punchline lands firmer)
   const fall = (o) => (el, tl, life) => {
@@ -294,17 +310,19 @@ scene('15-redesign', () => {
   // rest of the line follows it in (「我们做了一个」 21.45, 「Assistant」 21.65)
   // v18.2: the rise is one .6-beat E.inOut (b20.9–21.5) on scale and translate together (was .4 beat, ≈ 4 frames at
   // its middle, read as a jump); 「我们做了一个」 wipes in only as 「So，」 arrives (b21.45), 「Assistant」 (white) at b21.62
+  // v18.5: 52 px / 600 with a 60 px 「Assistant」, 10 px lower (y 352 → 362) so its ends clear the ring's inner edge
+  const SO_Y = 362;
   const soRise = (el, tl) => {
     const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp((u - .3) / .6));
-    const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - 352;
+    const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - SO_Y;
     w.style.transform = 'translate(' + (dx * (1 - m)).toFixed(1) + 'px,' + (dy * (1 - m)).toFixed(1) + 'px) scale(' + (lerp(1.9, 1, p) * lerp(2.2, 1, m)).toFixed(4) + ')';
     w.style.transformOrigin = '50% 60%';
     w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 14).toFixed(1) + 'px)' : 'none';
     w.style.opacity = Math.min(1, p * 2).toFixed(3);
   };
   // v18.2 QA: 「Assistant」 lands from 1.04× (was 1.1×: at 48 px its centre-origin scale ate the space after 「一个」 for ≈ .1 beat)
-  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w rd-w">Assistant</span>']],
-    { x: 960, y: 352, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.04]], { dy: 18 })), tick: zoom(352, true) });
+  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个</span><span class="w rd-w">Assistant</span>']],
+    { x: 960, y: SO_Y, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.04]], { dy: 18 })), tick: zoom(SO_Y, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
   // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
   // that bead set it down inside the ring
