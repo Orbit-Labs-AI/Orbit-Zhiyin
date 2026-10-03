@@ -253,9 +253,14 @@ def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_pa
 
 
 @pytest.mark.serial  # gateway with worker processes and wall-clock waits
-def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path):
+def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path, monkeypatch):
+    from orbit_backend.services import routes_catalog
     from orbit_catalog import get_service
 
+    # Router bootstrap publishes its small offline sources synchronously. This test
+    # needs a stable catalog between reads: the background seed/network publisher is
+    # tested separately and a publication between these reads correctly returns 200.
+    monkeypatch.setattr(routes_catalog, "_refresher", lambda *_: None)
     url = "/v1/catalog/match-analysis?wait_ms=3000"
     with imported_gateway(tmp_path) as (client, gateway):
         first = poll(client, url, fresh)
