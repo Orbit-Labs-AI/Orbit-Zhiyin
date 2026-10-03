@@ -335,6 +335,56 @@ def _duration(call, result, attrs):
     return None, "unknown", "missing"
 
 
+def _usage_extras(reported, cache_write):
+    """(1h cache-write tokens, service tier) from Anthropic usage; None when not reported.
+
+    ``cache_creation`` splits ``cache_creation_input_tokens`` by TTL; with only the 5m part
+    present the 1h part is the remainder of the reported total.
+    """
+    if not isinstance(reported, dict):
+        return None, None
+    tier = reported.get("service_tier")
+    split = reported.get("cache_creation")
+    write_1h = None
+    if isinstance(split, dict):
+        one_hour, five_min = (
+            split.get("ephemeral_1h_input_tokens"),
+            split.get("ephemeral_5m_input_tokens"),
+        )
+        if model_catalog._count(one_hour):
+            write_1h = one_hour
+        elif (
+            model_catalog._count(five_min)
+            and model_catalog._count(cache_write)
+            and five_min <= cache_write
+        ):
+            write_1h = cache_write - five_min
+    return write_1h, tier if isinstance(tier, str) and tier else None
+
+
+# Approval decisions that mean the call was refused (Claude Code "denied", Codex
+# ReviewDecision "denied"/"abort", dsh "rejected"/"cancelled", Kimi "reject").
+_REFUSED = frozenset(("denied", "deny", "rejected", "reject", "abort", "cancelled", "declined"))
+
+
+def _failure_kind(values):
+    """Why a call failed, only from recorded evidence; NULL when nothing says why."""
+    status = values.get("status")
+    exit_code = values.get("exit_code")
+    nonzero = isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code != 0
+    if status not in ("failed", "interrupted") and not nonzero:
+        return None
+    if str(values.get("approval") or "").lower() in _REFUSED:
+        return "permission_denied"
+    if status == "interrupted":
+        return "interrupted"
+    if nonzero:
+        return "nonzero_exit"
+    if values.get("error_class"):
+        return "harness_error"
+    return None
+
+
 def _approve(values, call_uid, approval, evidence):
     """Copy a permission decision onto one tool call and keep both events as its evidence."""
     decision, wait, decision_event, request_event = approval
@@ -781,12 +831,13 @@ def _derive_session(
             model_id, resolution = _model(store, provider, raw)
             metrics = {token: attrs.get(token) for token in TOKENS}
             metrics.update(cost_usd=attrs.get("cost_usd"), cost_source=attrs.get("cost_source"))
+            write_1h, tier = _usage_extras(attrs.get("reported"), metrics["cache_write_tokens"])
             if (
                 metrics["cost_usd"] is None
                 and resolution == "resolved"
                 and attrs["usage_scope"] == "call"
             ):
-                price = model_catalog.cost_usd(model_id, metrics)
+                price = model_catalog.cost_usd(model_id, metrics, cache_write_1h=write_1h)
                 if price is not None:
                     metrics.update(cost_usd=price, cost_source="price_table")
             if attrs["usage_scope"] == "call":
@@ -819,6 +870,8 @@ def _derive_session(
                         "purpose": attrs.get("purpose"),
                         "coverage": attrs["coverage"],
                         **metrics,
+                        "cache_write_1h_tokens": write_1h,
+                        "service_tier": tier,
                         "latency_ms": attrs.get("latency_ms"),
                         "ttft_ms": attrs.get("ttft_ms"),
                         "stop_reason": attrs.get("stop_reason"),
@@ -888,7 +941,7 @@ def _derive_session(
     call_events = []
     unmapped = {}
     for values, call in tools.values():
-        values.pop("file_ops")
+        values["_file_ops"] = values.pop("file_ops")
         if not values.pop("kind_known") and call:
             first, count = unmapped.get(values["name_raw"], (call["record_uid"], 0))
             unmapped[values["name_raw"]] = (first, count + 1)
@@ -907,6 +960,19 @@ def _derive_session(
             for filename in json.loads(values["files"]):
                 if Path(filename).suffix:
                     features[("file_extension", Path(filename).suffix)] += 1
+    file_rows = []
+    for values, _ in tools.values():
+        values["failure_kind"] = _failure_kind(values)
+        for path, op in values.pop("_file_ops"):
+            file_rows.append(
+                (
+                    values["call_uid"],
+                    session_uid,
+                    path,
+                    op,
+                    "missing" if op == "unknown" else "reported",
+                )
+            )
     called = sum(1 for _, call in tools.values() if call)
     for name, (record_uid, count) in unmapped.items():
         # No tolerance threshold: every table lists the harness's registered names, so any
@@ -926,6 +992,7 @@ def _derive_session(
             },
         )
     _insert_grouped(store.db, "tool_call", [values for values, _ in tools.values()])
+    store.db.executemany("INSERT INTO tool_call_file VALUES(?,?,?,?,?)", file_rows)
     store.db.executemany("INSERT INTO tool_call_event VALUES(?,?,?)", call_events)
     store.db.executemany("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", permission_evidence)
     insert_rows(store.db, "turn", turns.values())
