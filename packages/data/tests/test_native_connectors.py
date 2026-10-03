@@ -1928,3 +1928,39 @@ def test_string_or_null_source_cost_and_error_do_not_abort_mapping(tmp_path):
         assert result["attrs"]["status"] == "failed"
         assert not [e for e in events if e["kind"] == "unknown"]
         assert_sound(store)
+
+
+@pytest.mark.parametrize(
+    ("titles", "expected"),
+    [
+        # A later model summary must not replace the name given to the run.
+        (
+            [("agent-name", "agentName", "named run"), ("ai-title", "aiTitle", "summary")],
+            ("named run", "agent_name"),
+        ),
+        # A user rename beats the run name even when it comes first.
+        (
+            [("custom-title", "customTitle", "renamed"), ("agent-name", "agentName", "named run")],
+            ("renamed", "custom"),
+        ),
+        # Equal rank: the later title wins.
+        ([("ai-title", "aiTitle", "first"), ("ai-title", "aiTitle", "second")], ("second", "ai")),
+    ],
+)
+def test_session_title_precedence_ranks_agent_name_between_custom_and_native(
+    tmp_path, titles, expected
+):
+    from tandem_data.analysis_input import AnalysisScope, read_analysis
+
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "2.1.284", "entrypoint": "cli"}
+    records = [
+        {**common, "type": "user", "uuid": "u", "timestamp": ISO, "message": {"content": "hi"}}
+    ]
+    records += [{"type": kind, field: text, "sessionId": "s1"} for kind, field, text in titles]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records, path="projects/-fixture/s1.jsonl")
+        store.rebuild()
+        (session,) = rows(store, "session")
+        assert (session["title"], session["title_source"]) == expected
+    (analysed,) = read_analysis(store.home, AnalysisScope("UTC"))["sessions"]
+    assert (analysed["title"], analysed["title_source"]) == expected

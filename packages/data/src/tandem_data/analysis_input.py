@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from tandem_data.contract import TITLE_PRIORITY
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.models import PRICE_TABLE_VERSION
@@ -660,10 +661,8 @@ def read_analysis(
                             session["timezone_source"] = attrs.get("timezone_source", "reported")
                         if attrs.get("cwd"):
                             session["project_id"] = event["project_id"]
-                    if event["kind"] == "session.title":
-                        priority = {"custom": 3, "native": 2, "ai": 1}.get(
-                            attrs.get("title_source"), 0
-                        )
+                    if event["kind"] == "session.title" and event["text"] is not None:
+                        priority = TITLE_PRIORITY.get(attrs.get("title_source"), 0)
                         if priority >= title_priority:
                             session["title"], session["title_source"] = (
                                 event["text"],
