@@ -193,3 +193,96 @@ def test_tool_rates_use_known_results_only(tdb, tandem_home):
     assert rows["Read"]["failure_rate"] == 0.25 and rows["Read"]["rejected"] == 1
     m = {r["metric"]: r["value"] for r in queries.run("metrics", {"scope": {"days": 30}}, **kw)["rows"]}
     assert m["tool_failures"] == 2 and m["tool_failure_rate"] == round(2 / 5, 3)
+
+
+def _subagent_lineage(tdb, child, root):
+    tdb.db.execute("ALTER TABLE session ADD COLUMN root_uid TEXT")
+    tdb.db.execute("ALTER TABLE session ADD COLUMN lineage_unresolved INTEGER DEFAULT 0")
+    tdb.db.execute("UPDATE session SET root_uid=? WHERE session_uid=?", (root, child))
+
+
+def test_inventory_counts_beyond_twenty_and_subagent_calls(tdb, tandem_home, monkeypatch):
+    monkeypatch.setattr(P, "now_ms", lambda: NOW)
+    tdb.session("main1", start=NOW - DAY, tools=[("mcp:m00", "mcp")])
+    # m07 is only ever called from a subagent of main1
+    tdb.session("sub1", kind="subagent", start=NOW - DAY, tools=[("mcp:m07", "mcp"), ("mcp:m07", "mcp")])
+    items = [("mcp", f"m{i:02d}", f"/m{i}") for i in range(25)] + [("skill", f"s{i}", f"/s{i}") for i in range(3)]
+    tdb.inventory(items)
+    _subagent_lineage(tdb, "sub1", "main1")
+    tdb.commit()
+    r = queries.run("inventory", {"limit": 5}, reads=tdb.reads, home=tandem_home)
+    # 25 MCPs and 3 skills installed; only m00 (1 call) and m07 (2 subagent calls) were used.
+    assert r["totals"] == {"mcp": {"count": 25, "unused": 23}, "skill": {"count": 3, "unused": 3}}
+    assert [(x["name"], x["calls_30d"]) for x in r["rows"][:2]] == [("m07", 2), ("m00", 1)]
+    assert len(r["rows"]) == 5
+    unused = {x["name"] for x in r["unused"]}
+    assert "m07" not in unused and "m00" not in unused and "m24" in unused and len(unused) == 26
+    q = ask._Q(tdb.reads, None, {}, tandem_home)
+    assert ask._li_all(q, None)[0] == "已装组件：mcp 25 个，skill 3 个。"
+    text, _ = ask._to_mcp(q, None)
+    assert "m07" not in text and "等 23 个" in text
+    text, _ = ask._li_unused(q, None)
+    assert text.startswith("近 30 天没有调用的有 26 个：")
+
+
+def test_inventory_respects_exclusion(tdb, tandem_home, monkeypatch):
+    monkeypatch.setattr(P, "now_ms", lambda: NOW)
+    tdb.session("keep", start=NOW - DAY, tools=[("mcp:a", "mcp")])
+    tdb.session("drop", start=NOW - DAY, tools=[("mcp:b", "mcp")])
+    tdb.inventory([("mcp", "a", "/a"), ("mcp", "b", "/b")])
+    tdb.commit()
+    monkeypatch.setattr(queries, "_excluded", lambda appdb: ["drop"])
+    r = queries.run("inventory", {}, reads=tdb.reads, home=tandem_home)
+    assert {x["name"]: x["calls_30d"] for x in r["rows"]} == {"a": 1, "b": 0}
+
+
+def test_session_answers_state_counts_without_ranking_units(tdb, tandem_home, monkeypatch):
+    monkeypatch.setattr(P, "now_ms", lambda: NOW)
+    # e1: 3 tool errors, 0 corrections; c1: 0 errors, 1 correction; both: 1 error + 2 corrections
+    fail = ("Bash", "shell", "pytest", "failed", "exit_nonzero")
+    tdb.session("e1", start=NOW - DAY, humans=["跑测试"], tools=[fail] * 3)
+    tdb.session("c1", start=NOW - DAY, humans=["改一下", "不对，不是这个文件"], tools=[("Read", "read")])
+    tdb.session("b1", start=NOW - DAY, humans=["改", "不对", "我说的是另一个"], tools=[fail])
+    tdb.commit()
+    kw = dict(reads=tdb.reads, appdb=None, home=tandem_home)
+    tool_rule, approach_rule = ask.FRIC_RULE["tool_env_failure"], ask.FRIC_RULE["wrong_approach"]
+    e = ask.preset_answer("session", 0, session_uid="e1", **kw)["answer"]
+    assert "3 次错误，0 次纠偏" in e and tool_rule in e and approach_rule not in e
+    c = ask.preset_answer("session", 0, session_uid="c1", **kw)["answer"]
+    assert "0 次错误，1 次纠偏" in c and approach_rule in c and tool_rule not in c
+    b = ask.preset_answer("session", 0, session_uid="b1", **kw)["answer"]
+    # errors (1) < corrections (2) used to hide the tool rule; both are now listed
+    assert "1 次错误，2 次纠偏" in b and tool_rule in b and approach_rule in b
+    assert "主要卡在" not in e + c + b
+    rule = ask.preset_answer("session", 2, session_uid="b1", **kw)["answer"]
+    assert f"- {tool_rule}" in rule and f"- {approach_rule}" in rule
+
+
+def test_recs_pair_makes_no_compatibility_claim(data, tandem_home, monkeypatch):
+    cands = [{"candidate_id": "a", "title": "熔断", "kind": "hook", "priority": 3},
+             {"candidate_id": "b", "title": "提交规范", "kind": "rule", "priority": 2}]
+    monkeypatch.setattr(P, "candidates", lambda scope, limit, appdb: cands)
+    a = ask.preset_answer("recs", 1, reads=data.reads, home=tandem_home)["answer"]
+    assert "「熔断」（hook）" in a and "「提交规范」（rule）" in a and "互不影响" not in a
+
+
+def test_persona_tradeoff_reads_profile(data, tandem_home, monkeypatch):
+    kw = dict(reads=data.reads, home=tandem_home)
+    monkeypatch.setattr(ask, "features_profile", lambda scope: {})
+    assert "画像还没生成" in ask.preset_answer("persona", 1, **kw)["answer"]
+    monkeypatch.setattr(ask, "features_profile", lambda scope: {
+        "code": "P", "label": "规划型", "weights": {"planning": 0.72, "verification": 0.4}})
+    a1 = ask.preset_answer("persona", 1, **kw)["answer"]
+    monkeypatch.setattr(ask, "features_profile", lambda scope: {
+        "code": "B", "label": "速攻型", "weights": {"brevity": 0.9}})
+    a2 = ask.preset_answer("persona", 1, **kw)["answer"]
+    assert "planning 72%" in a1 and "verification 40%" in a1 and "brevity 90%" in a2 and a1 != a2
+
+
+def test_tool_worst_recommends_breaker_only_when_missing(data, tandem_home):
+    kw = dict(reads=data.reads, home=tandem_home)
+    assert "装「重复失败熔断」" in ask.preset_answer("tools", 0, **kw)["answer"]
+    data.inventory([("hook", "tandem-retry-breaker", "/h")], root="/hooks")
+    data.commit()
+    a = ask.preset_answer("tools", 0, **kw)["answer"]
+    assert "已安装" in a and "装「重复失败熔断」" not in a
