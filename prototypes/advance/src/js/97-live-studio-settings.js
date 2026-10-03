@@ -530,6 +530,7 @@ if (TL.mode === 'live') {
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
         (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 近 30 天 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用' + (u.totals && u.totals.unknown_calls ? '（' + TLU.num(u.totals.unknown_calls) + ' 次没有价格，按保守单价计入预算）' : '') + ' · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
+      if (c && d && typeof lvaiAutoRow === 'function' && !c.querySelector('[data-tl="auto-ov"]')) c.lastElementChild.insertAdjacentHTML('beforeend', lvaiAutoRow(d));
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
