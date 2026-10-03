@@ -322,7 +322,7 @@ function lvProjectsPage() {
   }
   const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['尚未定型'])[0] } : selRow.pers;
   const now = personaNow();
-  const plineTxt = pp.ok ? '在这个项目里你是 <b class="mono" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（' + esc(now.code + ' ' + now.zh) + '）不同' : '，和整体一致') : '') + '。'
+  const plineTxt = pp.ok ? '在这个项目里你是 <b class="tcode" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（' + esc(now.code + ' ' + now.zh) + '）不同' : '，和整体一致') : '') + '。'
     : (pp.status === 'persona_pending' ? (fs === 'computing' || LV.state === 'computing' || LV.state === 'connecting' ? '这个项目的人格还在计算，导入完成后会出现。' : '本地服务还没有给出这个项目的人格，表格里先记为「—」。') : '这个项目的样本还不够，暂不判断人格。');
   const vsRows = d ? ((d.vs && d.vs.metrics) || []).map((m) => {
     const f = LVTP_VS[m.key] || [m.label || m.key, (v) => f1(v), 'pct', null];

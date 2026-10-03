@@ -66,7 +66,7 @@
 /* 候选类型卡：.card 的小号，码 mono、名字衬线、相似度 mono；胜出的一张加深描边 */
 .g-cards{position:absolute;inset:0;pointer-events:none;z-index:2}
 .g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
-.g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
+.g-card .c{font-family:var(--font-type);font-size:12px;font-weight:700;letter-spacing:.06em}
 .g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
 .g-card .z{grid-column:1/-1;font:600 12px/1.3 var(--font-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
