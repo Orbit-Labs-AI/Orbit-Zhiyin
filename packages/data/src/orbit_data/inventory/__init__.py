@@ -14,6 +14,21 @@ from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
 SCANNER_VERSION = "1.4.0"
+# Connectors that split ``<server>_<tool>`` tool names only with inventoried MCP server
+# names (connectors.base.split_mcp_name); their mapping depends on the inventory.
+MCP_NAME_MAPPED = frozenset({"opencode", "hermes"})
+
+
+def _mcp_names(db, agent: str) -> set[str]:
+    return {
+        row[0]
+        for row in db.execute(
+            "SELECT DISTINCT i.name FROM inventory_item i JOIN inventory_scan s USING(scan_id) "
+            "WHERE i.type='mcp' AND s.agent=?",
+            (agent,),
+        )
+        if isinstance(row[0], str) and row[0]
+    }
 
 
 @dataclass(frozen=True)
@@ -101,7 +116,11 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
             # User and local-scope MCP servers live in ~/.claude.json, which is only read
             # when passed explicitly; the rows here cover settings files and plugins only.
             coverage["mcp"]["reason"] = "user_scope_not_scanned"
+        remap_files = 0
         with store.transaction():
+            before = (
+                _mcp_names(store.db, request.agent) if request.agent in MCP_NAME_MAPPED else set()
+            )
             cursor = store.db.execute(
                 "INSERT INTO inventory_scan(source_key,agent,root_path,scope,project_id,observed_at,scanner_version,coverage,diagnostics) VALUES(?,?,?,?,?,?,?,?,?)",
                 (
@@ -123,12 +142,25 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
                     "inventory_item",
                     {**item, "scan_id": scan_id, "config": canonical(item["config"])},
                 )
+            if request.agent in MCP_NAME_MAPPED and _mcp_names(store.db, request.agent) - before:
+                # Sessions imported before this scan mapped these tool names without the
+                # server list; mark their files stale so the next projection resolves
+                # mcp_server/mcp_tool instead of leaving them unknown for good.
+                remap_files = store.db.execute(
+                    "UPDATE source_file SET watermark=json_set(watermark,'$.mapper_version','') "
+                    "WHERE source_id IN (SELECT source_id FROM source WHERE agent=?) "
+                    "AND json_extract(watermark,'$.mapper_version') IS NOT NULL",
+                    (request.agent,),
+                ).rowcount
+        if getattr(store, "_mcp_server_names", None):
+            store._mcp_server_names.pop(request.agent, None)
     return {
         "scan_id": scan_id,
         "items": len(reader.items),
         "coverage": coverage,
         "diagnostics": reader.diagnostics,
         "status": "partial" if reader.failed else "available",
+        "remap_files": remap_files,
     }
 
 

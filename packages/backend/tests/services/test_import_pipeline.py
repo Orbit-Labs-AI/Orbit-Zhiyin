@@ -260,3 +260,43 @@ def test_freshness_reload_never_moves_the_published_revision_back(tmp_path, monk
     revisions.load(tmp_path)
     snap = revisions.snapshot()
     assert snap["projection"] == "pending" and snap["pending_files"] == 1 and snap["pending_since"]
+
+
+def test_inventory_job_republishes_tool_names_its_mcp_servers_resolve(tmp_path):
+    """opencode splits ``<server>_<tool>`` only with inventoried server names: an inventory
+    job after the import republishes those sessions instead of leaving them stale or
+    unresolved until some later import."""
+    import json
+
+    from orbit_data.contract import canonical
+
+    home, root = tmp_path / "home", tmp_path / "agents" / "opencode"
+    root.mkdir(parents=True)
+    (root / "opencode.json").write_text(
+        json.dumps({"mcp": {"my-server": {"type": "local", "command": ["x"]}}}))
+    part = {"type": "tool", "callID": "c", "tool": "my-server_search", "state": {}}
+    rows = [
+        {"table": "session", "key": {"id": "s"}, "row": {"id": "s", "directory": "/fixture"}},
+        {"table": "part", "key": {"id": "p"}, "row": {
+            "id": "p", "message_id": "m", "session_id": "s", "time_created": 1790900000000,
+            "data": canonical(part)}},
+    ]
+    with Store(home) as store:
+        source = store.add_source("opencode", root)
+        store.capture_stream(source, "opencode.db",
+                             [(canonical(r) + "\n").encode() for r in rows],
+                             format_name="sqlite_rows")
+        store.rebuild()
+    io = FakeIO()
+    job = {"id": "job-inv", "kind": "inventory",
+           "sources": [{"id": source, "agent": "opencode", "root": str(root),
+                        "allowed_roots": []}]}
+    IngestWorker(home, io).run(job)
+    done = next(m for m in io.messages if m["t"] == "done")
+    assert done["status"] == "completed", done
+    assert done["results"][0]["remap_files"] == 1 and done["results"][-1]["kind"] == "remap"
+    assert [m["phase"] for m in io.messages if m["t"] == "published"] == ["inventory", "rebuild"]
+    with Store(home) as store:
+        row = store.db.execute(
+            "SELECT kind, mcp_server, mcp_tool FROM tool_call WHERE native_call_id='c'").fetchone()
+        assert tuple(row) == ("mcp", "my-server", "search")

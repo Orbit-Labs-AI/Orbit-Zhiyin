@@ -247,6 +247,16 @@ class IngestWorker:
                                 store, InventoryRequest(**inventory_request(source, self.home)))
                             results.append({"source_id": source["id"], **result})
                         self._publish(job, "inventory")
+                        if any(r.get("remap_files") for r in results) and not self.cancel.is_set():
+                            # New MCP server names resolve tool names of sessions imported
+                            # before the scan: republish those files now, not at next import.
+                            from orbit_data.scheduler import stale_files
+
+                            with service.writer():
+                                ids = set(stale_files(store.db))
+                                results.append({"kind": "remap", **store.rebuild(
+                                    source_ids=ids, progress=service.progress)})
+                            self._publish(job, "rebuild")
                     else:
                         self._import(job, service, results)
                 finally:
