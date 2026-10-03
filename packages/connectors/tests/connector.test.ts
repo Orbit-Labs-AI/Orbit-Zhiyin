@@ -498,3 +498,9 @@ test('one session failing validation is isolated: others rebuild, it stays dirty
   await assert.rejects(run(process.execPath,[cli,'ingest','--codex-home',s.home,'--data-dir',join(s.root,'cli-broken')]),(error:{code:number,stdout:string})=>{
     assert.equal(error.code,2);assert.equal(JSON.parse(error.stdout).rebuild_failed,1);return true;});
 }));
+test('events carry only index data in ext; the native record is reachable through raw_record',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());await s.connector.ingest();
+  const rows=s.store.db.prepare('SELECT e.ext,r.native_type,r.body FROM event e JOIN raw_record r USING(record_uid)').all();
+  assert.ok(rows.length>0);
+  for (const row of rows) { assert.deepEqual(JSON.parse(String(row.ext)),{native_type:row.native_type}); assert.ok(row.body); }
+}));

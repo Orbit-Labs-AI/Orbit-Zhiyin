@@ -59,7 +59,7 @@ test('SQLite migration is repeatable, private and rejects invalid event attribut
     store.close(); store = new ConnectorStore(dir); store.close();
     assert.equal((await stat(join(dir,'tandem.db'))).mode & 0o777,0o600);
     assert.throws(() => validateEvent({event_uid:'e',session_uid:'s',seq:1,ts:1,kind:'message.user',actor:'human',
-      turn_uid:null,parent_uid:null,call_id:null,text:'hi',text_truncated:0,attrs:{origin:'invented'},ext:{},record_uid:'r',native_id:null,
+      turn_uid:null,parent_uid:null,call_id:null,text:'hi',text_truncated:0,attrs:{origin:'invented'},ext:{native_type:'event_msg:user_message'},record_uid:'r',native_id:null,
       native_key:['s','r'],event_path:'message.text',contract_version:1,mapper_version:'test'}));
   } finally { await rm(dir,{recursive:true,force:true}); }
 });

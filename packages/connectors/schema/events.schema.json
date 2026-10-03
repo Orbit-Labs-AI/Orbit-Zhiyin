@@ -97,7 +97,17 @@
       "type": "object"
     },
     "ext": {
-      "type": "object"
+      "type": "object",
+      "description": "Index data only (native_type). The native record is retrieved through record_uid -> raw_record.body; it is never copied here.",
+      "properties": {
+        "native_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "native_type"
+      ],
+      "additionalProperties": false
     },
     "record_uid": {
       "type": "string"

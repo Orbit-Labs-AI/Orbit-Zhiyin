@@ -168,7 +168,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     const shared=nonNull({model_raw:string(settings.model),provider:string(settings.model_provider_id)??string(ctx.meta.model_provider),effort_raw:string(settings.effort)??string(settings.reasoning_effort),native_turn_id:turn});
     result.push({key,priority,record:row,position:row.ordinal,slot:result.length,event:{event_uid:uid(nativeKey,kind,eventPath),native_key:nativeKey,event_path:eventPath,contract_version:1,mapper_version:'codex-connector/0.2.1',session_uid:ctx.session,seq:0,ts,kind,actor,
       turn_uid:turn ? uid(ctx.session,'turn',turn) : null,parent_uid:null,call_id:call,text,text_truncated:text?.includes('<truncated:sha256:') ? 1 : 0,
-      attrs:{...shared,...attrs,time,order:{quality:'reported',basis:'native_ordinal_or_line'}},ext:{native:body},record_uid:row.record_uid,native_id:native}});
+      attrs:{...shared,...attrs,time,order:{quality:'reported',basis:'native_ordinal_or_line'}},ext:{native_type:row.native_type},record_uid:row.record_uid,native_id:native}});
   }
   function message(role: string, text: string, id: string | null, phase: string | null, priority: number, isResponse = false, measuredChars=Array.from(text).length): void {
     const signature = messageKey(role,turn,phase,text);
