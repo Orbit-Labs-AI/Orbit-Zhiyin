@@ -32,7 +32,7 @@ function openCSV() {
   CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
   openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
-const SHAREQ = { DIMV: ['把目标交出去，', '把验收留给自己。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFT: ['放手让它发挥，', '享受意外的收获。'], DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], SIFV: ['一次只做一件事，', '每一步都亲自确认。'], SPFV: ['先规划，再打磨，', '每一处都亲手确认。'] };
+const SHAREQ = { DIMV: ['把目标交出去，', '把验收留给自己。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFT: ['放手让它发挥，', '享受意外的收获。'], DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], SIFV: ['一次只做一件事，', '每一步都亲自确认。'], SPFV: ['先想清楚，再动手，', '每一步都有依据。'] };
 function sharePersona() { const per = PERIODS[S.persona.period]; const L = sel({ win: [per[0], per[1]] }); return { L, p: persona(L), label: /月$/.test(per[2]) ? '2026 年 ' + per[2].replace(' ', ' ') : per[2] }; }
 function qrSVG(seed, C) {
   const r = rng(hash(seed)); const N = 17; let cells = '';

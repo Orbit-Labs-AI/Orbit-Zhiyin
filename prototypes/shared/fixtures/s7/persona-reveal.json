@@ -78,8 +78,8 @@
   },
   {
    "code": "SIFT",
-   "zh": "搭档",
-   "en": "The Partner",
+   "zh": "同行者",
+   "en": "The Companion",
    "match": 70.9,
    "basis": "axis_distance"
   },
@@ -106,8 +106,8 @@
   },
   {
    "code": "DIFT",
-   "zh": "漫游者",
-   "en": "The Wanderer",
+   "zh": "远航者",
+   "en": "The Voyager",
    "match": 56.6,
    "basis": "axis_distance"
   }
