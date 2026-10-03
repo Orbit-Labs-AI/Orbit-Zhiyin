@@ -13076,7 +13076,7 @@ if (TL.mode === 'live') {
     const surface = LVR_ROUTES[S.route];
     if (!surface) return;
     const selected = RECI[S.recs.sel];
-    if (S.route === 'recs' && S.recs.tab === 'why' && selected && selected.expertAdvice.length) {
+    if (S.route === 'recs' && S.recs.tab === 'why' && selected && (selected.expertAdvice || []).length) {
       const ev = c.querySelector('.rc-ev');
       if (ev && !c.querySelector('[data-tl="expert-advice"]')) ev.insertAdjacentHTML('beforebegin', '<div class="col" style="gap:10px;margin-bottom:14px" data-tl="expert-advice"><b style="font-size:13px">AI 补充建议 · 待验证</b>' + selected.expertAdvice.map((a, i) => '<div class="col" style="gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px"><b style="font-size:13px">' + esc(a.title) + '</b><div style="font-size:12px;line-height:1.6">' + esc(a.summary) + '</div><ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">' + (a.steps || []).map((s) => '<li>' + esc(s) + '</li>').join('') + '</ol><div class="cap" style="font-size:11px">依据：' + esc((a.evidence_ids || []).join('、') || '尚无具体证据') + '</div>' + (a.limitations || []).map((s) => '<div class="cap" style="font-size:11px">' + esc(s) + '</div>').join('') + '<div class="row"><span class="cap" style="font-size:11px;flex:1">效果尚未实测，先审阅再应用</span><button type="button" class="btn sm" data-act="recExpertStudio" data-id="' + esc(selected.id) + '" data-i="' + i + '">交给生成工坊</button></div></div>').join('') + '</div>');
     }
