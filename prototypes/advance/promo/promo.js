@@ -10,7 +10,7 @@ let END = 118;                                            // length in beats; th
    and is played SHIFT[name] beats later: 8 for the wordmark reveal, more after the persona and the recommendations,
    which were given longer holds so every line can be read. Each cue, tween, text, tag, drive and click remembers the
    shift of the scene that registered it and sees the clock in its own scene beats. music.py uses the same table. */
-const SHIFT = { '10-open': 0, '20-sentiment': 8, '30-persona': 8, '40-recs': 12, '50-montage': 16, '60-close': 8 };
+const SHIFT = { '10-open': 0, '20-sentiment': 8, '30-persona': 8, '40-recs': 22, '60-close': 16 };
 let SH = 0;
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
@@ -291,7 +291,7 @@ function applyTags(t) {
    the crest), and in the core the persona flower (bloom) whose lead petal points at a type.
    For the film the lead petal is the selector: as it turns, the flower becomes the type it points at (typeP), the
    bezel pointer follows it, and sectors that the evidence rules out dim. Colours are the app's, re-mixed for black. */
-const CP = { C: 400, K: 2, R0: 200, RH: 116, RR: 160, CORE: 180, BUD: .34 };
+const CP = { C: 400, K: 2, R0: 200, RH: 116, RR: 160, CORE: 180, BUD: .34, SPIN: [6.5, 5, 3.8, 2.9, 2.2] };   // SPIN: deg / beat per Agent layer
 const cpt = (r, deg) => [CP.C + r * Math.sin(deg * Math.PI / 180), CP.C - r * Math.cos(deg * Math.PI / 180)];
 const f2 = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
 function axisOf(v, i) { const ax = CPD.AXES[i], val = v[ax.k], pos = ax.k !== 'I' ? 100 - val : val; return { strong: Math.max(val, 100 - val), letter: pos < 50 ? ax.L : ax.R }; }
@@ -340,7 +340,7 @@ function cpSector(r0, r1, a0, a1) { const p0 = cpt(r0, a0), p1 = cpt(r1, a0), p2
 /* st: { deg: bearing of the lead petal and the bezel pointer, mine: 0..1 from the type's flower to your own, grow: 0 bud
    .. 1 open, fi (flower to show, a CODES index; default: the type under the petal), twist (extra turn of the flower,
    deg), sweep (band reveal: a wedge from sweepFrom, clockwise), orbit (badge phase while they ride with the petal),
-   settle (badges to their own bearings), keep: 16 × 0..1 (1 = sector still possible, 0 = ruled out and dimmed), dial,
+   spin (beats: each Agent layer and its badge turn by spin × CP.SPIN[layer]), settle (badges to their own bearings), keep: 16 × 0..1 (1 = sector still possible, 0 = ruled out and dimmed), dial,
    core, needle (pointer), collapse (band → one ring at r 300), ticks (0..1: ticks revealed clockwise from north),
    trace (0..1: a light running once around the ticks; traceA its strength) } */
 // a pie wedge (clip) from bearing a0, span degrees clockwise
@@ -364,6 +364,11 @@ function drawCompass(st) {
     svg.querySelector('.cp-band .crest').setAttribute('d', edge(k.lys[k.lys.length - 1].outer));
     svg.querySelectorAll('.cp-band .ly, .cp-band .crest').forEach((p) => { p.style.opacity = (1 - col).toFixed(3); });
   }
+  // each Agent's layer (and its badge) keeps circling at its own even speed, inner layers faster, like orbits
+  const rot = k.lys.map((ly, i) => (st.spin || 0) * CP.SPIN[i % CP.SPIN.length]);
+  svg.querySelectorAll('.cp-band .ly').forEach((p, i) => p.setAttribute('transform', 'rotate(' + rot[i].toFixed(2) + ' 400 400)'));
+  svg.querySelectorAll('.cp-band .ed').forEach((p, i) => p.setAttribute('transform', 'rotate(' + rot[i].toFixed(2) + ' 400 400)'));
+  svg.querySelector('.cp-band .crest').setAttribute('transform', 'rotate(' + rot[rot.length - 1].toFixed(2) + ' 400 400)');
   const sw = clamp(st.sweep ?? 1), bg = svg.querySelector('.cp-band');
   if (sw < 1) { svg.querySelector('#cpBandClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); bg.setAttribute('clip-path', 'url(#cpBandClip)'); } else bg.removeAttribute('clip-path');
   svg.querySelector('.cp-band .base').style.opacity = ((st.dial ?? 1) * (1 - col)).toFixed(3);
@@ -383,7 +388,8 @@ function drawCompass(st) {
   // badges: ride with the petal (spread 23° apart), then take the shortest arc to their own bearing and radius
   svg.querySelectorAll('.cp-pls .pl').forEach((g, i) => {
     const x = D.orb.planets[i], run = (st.orbit || 0) + i * 23, kk = E.inOut(clamp(st.settle || 0));
-    const a = run + ((((x.deg - run) % 360) + 540) % 360 - 180) * kk, r = lerp(lerp(CP.R0 + CP.RH * .55, x.r * CP.K, kk), 300, col), q = cpt(r, a);
+    const li = k.lys.findIndex((ly) => ly.a === x.a || (ly.a && x.a && ly.a.id === x.a.id)), home = x.deg + (li >= 0 ? rot[li] : 0);
+    const a = run + ((((home - run) % 360) + 540) % 360 - 180) * kk, r = lerp(lerp(CP.R0 + CP.RH * .55, x.r * CP.K, kk), 300, col), q = cpt(r, a);
     g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = (clamp(sw * 2 - i * .2) * (1 - col) * (st.dial ?? 1)).toFixed(3);
   });
   // the flower of the type under the petal; near a sector edge it cross-fades into the neighbour; `mine` hands over to

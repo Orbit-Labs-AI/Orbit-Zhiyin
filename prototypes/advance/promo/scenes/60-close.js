@@ -10,7 +10,7 @@ scene('60-close', () => {
   // KF 7.1–7.2: the compass, the flower settling on your type with a small damped wobble; core and dial fade, the band pulls in
   drive(2, 100.7, 105.7, (p, b) => drawCompass({
     deg: 11.25 + 4 * Math.sin((b - 101) * 1.5) * Math.exp(-(b - 101) * .5), mine: 1, grow: 1 + .02 * Math.sin((b - 101) * 1.6),
-    sweep: 1, orbit: 0, settle: 1, needle: 1,
+    sweep: 1, orbit: 0, spin: b - 60, settle: 1, needle: 1,   // the Agent layers keep circling, each at its own speed
     core: 1 - E.inOut(lp(b, C0, 1.0)), dial: 1 - E.inOut(lp(b, C0, 1.3)), collapse: E.inOut(lp(b, C0, C1 - C0))
   }));
   tween(2, 100.8, 2, () => framing(2, 'all', [960, 540, 900, 900]), E.quart, (T) => ({ s: T.s * .3, rz: -80, o: 0, bl: 6 }));
