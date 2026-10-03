@@ -18,6 +18,7 @@ import os
 import plistlib
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -29,6 +30,7 @@ NAME = "Orbit"
 VERSION = "0.0.1"
 BUILD = "1"
 BUNDLE_ID = "ai.actionmesh.orbit"
+MIN_MACOS = "14.0"  # swiftc target, LSMinimumSystemVersion and the ceiling for bundled Mach-O minos
 APP = OUTPUT / f"{NAME}.app"
 ARTIFACT = f"{NAME}-{VERSION}-arm64"
 LOGO = ROOT / "docs/design/logo"
@@ -115,7 +117,7 @@ def build_helper() -> Path:
 
 
 def build_host(contents: Path) -> None:
-    run("xcrun", "swiftc", "-O", "-target", "arm64-apple-macos15.0", "-framework", "AppKit",
+    run("xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}", "-framework", "AppKit",
         "-framework", "WebKit", "-framework", "Security", "-framework", "UserNotifications", HERE / "Orbit.swift",
         "-o", contents / f"MacOS/{NAME}")
 
@@ -183,12 +185,71 @@ def write_plist(contents: Path) -> None:
             "CFBundleShortVersionString": VERSION,
             "CFBundleVersion": BUILD,
             "CFBundleDevelopmentRegion": "zh_CN",
-            "LSMinimumSystemVersion": "15.0",
+            "LSMinimumSystemVersion": MIN_MACOS,
             "LSApplicationCategoryType": "public.app-category.developer-tools",
             "NSHighResolutionCapable": True,
             "NSHumanReadableCopyright": "ActionMesh AI",
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
         }, handle)
+
+
+def _macho_minos(data: bytes) -> list[tuple[int, int]]:
+    """macOS minimum versions declared by a thin or fat Mach-O image (empty if not Mach-O)."""
+    if data[:4] in (b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf"):
+        wide = data[3] == 0xbf
+        count = struct.unpack_from(">I", data, 4)[0]
+        if count > 32:  # Java class files share the 0xcafebabe magic
+            return []
+        found = []
+        for index in range(count):
+            if wide:
+                offset, size = struct.unpack_from(">QQ", data, 8 + index * 32 + 8)
+            else:
+                offset, size = struct.unpack_from(">II", data, 8 + index * 20 + 8)
+            found += _macho_minos(data[offset:offset + size])
+        return found
+    if data[:4] not in (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe"):
+        return []
+    ncmds = struct.unpack_from("<I", data, 16)[0]
+    cursor = 32 if data[0] == 0xcf else 28
+    found = []
+    for _ in range(ncmds):
+        cmd, size = struct.unpack_from("<II", data, cursor)
+        if cmd == 0x32 and struct.unpack_from("<I", data, cursor + 8)[0] == 1:  # LC_BUILD_VERSION, macOS
+            version = struct.unpack_from("<I", data, cursor + 12)[0]
+        elif cmd == 0x24:  # LC_VERSION_MIN_MACOSX
+            version = struct.unpack_from("<I", data, cursor + 8)[0]
+        else:
+            cursor += size
+            continue
+        found.append((version >> 16, (version >> 8) & 0xFF))
+        cursor += size
+    return found
+
+
+def check_minos(bundle: Path) -> None:
+    """Fail the build if any bundled binary needs a newer macOS than MIN_MACOS.
+
+    The helper's floor comes from third-party wheels (numpy/scipy ship 14.0 today), so a
+    dependency bump can silently drop older systems; this keeps that visible.
+    """
+    limit = tuple(map(int, MIN_MACOS.split(".")))
+    offenders, scanned = [], 0
+    for path in sorted(bundle.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        with path.open("rb") as handle:
+            if handle.read(4) not in (b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf",
+                                      b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe"):
+                continue
+        versions = _macho_minos(path.read_bytes())
+        scanned += bool(versions)
+        newest = max(versions, default=(0, 0))
+        if newest > limit:
+            offenders.append(f"  {newest[0]}.{newest[1]}  {path.relative_to(bundle)}")
+    if offenders:
+        raise SystemExit(f"binaries require macOS newer than {MIN_MACOS}:\n" + "\n".join(offenders))
+    print(f"minos check: {scanned} Mach-O files <= macOS {MIN_MACOS}", flush=True)
 
 
 def sign(identity: str) -> None:
@@ -227,6 +288,7 @@ def main() -> None:
     build_icon(resources)
     build_host(contents)
     write_plist(contents)
+    check_minos(APP)
     identity = os.environ.get("TANDEM_SIGN_IDENTITY", "-")
     sign(identity)
     profile = os.environ.get("TANDEM_NOTARY_PROFILE")

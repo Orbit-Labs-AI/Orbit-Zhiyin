@@ -16,10 +16,11 @@ uv run python apps/desktop/build.py --skip-helper  # 复用上次 PyInstaller �
 
 1. `node prototypes/advance/build.mjs --out Resources/orbit.html` 生成单文件 UI；随后去掉 Google Fonts `<link>`，把根 devDependencies `@fontsource-variable/source-serif-4`（opsz 正体/斜体）与 `@fontsource-variable/jetbrains-mono`（wght）的 latin、latin-ext 子集以 base64 woff2 内联为 `<style id="orbit-fonts">`（字体名沿用页面的 `Source Serif 4`、`JetBrains Mono`，约 0.7 MB）。中文仍回退系统 PingFang/宋体。需先 `pnpm install`。
 2. PyInstaller 6.22.3（`uv run --with`，不新增锁文件）以 onedir 打包 `apps/desktop/server_entry.py` 为 `Resources/backend/tandem-helper`；`--collect-all` 工作区包（含 SQL/JSON/模板等包数据）与 jieba，`--copy-metadata` 读取发行元数据的包，并显式加入 uvicorn 与 worker 模块。
-3. `swiftc -O -target arm64-apple-macos15.0` 编译 `Orbit.swift`（AppKit、WebKit、Security、UserNotifications）。
+3. `swiftc -O -target arm64-apple-macos14.0` 编译 `Orbit.swift`（AppKit、WebKit、Security、UserNotifications）。
 4. 图标 `Orbit.icns` 只用现有原稿：1024 px 直接取 `docs/design/logo/orbit-icon.png`，其他尺寸由 `render_svg.swift` 原样渲染 `orbit-icon.svg`；低于 128 px 按 `prototypes/advance/tools/brand-icon.mjs` 的规则换用 `orbit-mark-small.svg`（同一底板与变换）。菜单栏图标 `StatusIcon.png`/`@2x` 由 `render_svg.swift` 按原始宽高比原样渲染 `orbit-mark-small.svg`（16 pt 高），宿主作为模板图使用。不重绘、不调整线宽。
-5. `codesign --force --deep` 签名并 `--verify --deep --strict` 校验。
-6. 输出到 `.local/macos-build/`（已忽略）：`Orbit.app`、`Orbit-0.0.1-arm64.zip`（ditto）、`Orbit-0.0.1-arm64.dmg`（UDZO，含 `/Applications` 链接）。
+5. 扫描 `.app` 内全部 Mach-O 的最低系统版本（`LC_BUILD_VERSION` / `LC_VERSION_MIN_MACOSX`），任一高于 `MIN_MACOS`（14.0，同时决定 swiftc target 与 `LSMinimumSystemVersion`）即构建失败；helper 的下限来自第三方 wheel（当前 numpy/scipy 为 14.0），升级依赖时据此发现兼容性回退。
+6. `codesign --force --deep` 签名并 `--verify --deep --strict` 校验。
+7. 输出到 `.local/macos-build/`（已忽略）：`Orbit.app`、`Orbit-0.0.1-arm64.zip`（ditto）、`Orbit-0.0.1-arm64.dmg`（UDZO，含 `/Applications` 链接）。
 
 ## 运行组成
 
