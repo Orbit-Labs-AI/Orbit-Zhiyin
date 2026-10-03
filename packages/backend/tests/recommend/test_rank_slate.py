@@ -19,12 +19,21 @@ def permission_raw(**kw):
 def test_priority_formula_hand_computed():
     s = score(permission_raw(), {}, INPUTS, MEMORY, max_fusion=.05)
     # B = 1-exp(-13.25*.5/30) = .19815; c = .31; p = .9; f = .5*1 + .3*1 + .2*0 = .8
+    # value = (.19815*.31*.9*.8) ** .25 = .044226 ** .25 = .45859 ; net = .45859 - .05 = .40859
     assert s["benefit"] == pytest.approx(.1981, abs=1e-4)
     assert s["p_effective"] == .9 and s["fit"] == .8 and s["risk"] == .05
-    assert s["priority"] == 3.92
+    assert s["value"] == pytest.approx(.4586, abs=1e-4)
+    assert s["priority"] == pytest.approx(40.86, abs=.01)
     costly = score(permission_raw(cost={"setup_minutes": 2, "context_tokens": 500}), {}, INPUTS, MEMORY,
                    max_fusion=.05)
-    assert costly["priority"] == 2.86
+    # cost = 2/30 + 500/2000 = .31667 ; net = .45859/1.31667 - .05 = .29830
+    assert costly["priority"] == pytest.approx(29.83, abs=.01)
+
+
+def test_unknown_unit_cost_ranks_on_frequency_only():
+    s = score(permission_raw(unit_minutes=None), {}, INPUTS, MEMORY, max_fusion=.05)
+    # 13.25 events/week × 1 unit: B = 1-exp(-13.25/30) = .35706
+    assert s["benefit_basis"] == "frequency_only" and s["benefit"] == pytest.approx(.3571, abs=1e-4)
 
 
 def test_default_prior_and_posterior_update():
@@ -52,9 +61,9 @@ def test_decay_curve_and_reset():
 
 def test_personalization_clip():
     memory = MEMORY | {"weights": {"kind": {"permission_rule": 3}, "dim": {"hook": 2}}}
-    assert score(permission_raw(), {}, INPUTS, memory)["personal"] == 1.5
+    assert score(permission_raw(), {}, INPUTS, memory)["personal"] == 1.4
     memory = MEMORY | {"weights": {"kind": {"permission_rule": .1}}}
-    assert score(permission_raw(), {}, INPUTS, memory)["personal"] == .5
+    assert score(permission_raw(), {}, INPUTS, memory)["personal"] == .6
 
 
 def test_gated_and_generic_bases_still_score():
@@ -109,10 +118,17 @@ def test_tie_break_by_rec_key():
     assert ranked[0]["rec_key"] == "a"
 
 
-def test_utility_orders_clipped_priorities():
-    low = cand("a-low", 0, "hook", "hook", "p1")
-    high = cand("z-high", 0, "skill", "skill", "p2")
-    low["score"]["utility"], high["score"]["utility"] = -.002, .001
+def test_utility_breaks_priority_ties():
+    low = cand("a-low", 5, "hook", "hook", "p1")
+    high = cand("z-high", 5, "skill", "skill", "p2")
+    low["score"]["utility"], high["score"]["utility"] = .049, .051
     assert [c["rec_key"] for c in select([low, high])] == ["z-high", "a-low"]
-    weak = score(permission_raw(problem={"problem_id": "p", "weekly_count": .1, "wilson_lo": .05}), {}, INPUTS, MEMORY)
-    assert weak["priority"] == 0 and weak["utility"] < 0
+
+
+def test_risk_above_value_is_non_positive():
+    # B = 1-exp(-.1*.5/30) = .0016653 ; value = (.0016653*.05*.9*.8)**.25 = (5.9951e-5)**.25 = .08799
+    # high risk .6 ⇒ net = .08799 - .6 < 0
+    weak = score(permission_raw(problem={"problem_id": "p", "weekly_count": .1, "wilson_lo": .05},
+                                risk={"level": "high"}), {}, INPUTS, MEMORY)
+    assert weak["value"] == pytest.approx(.0880, abs=1e-4)
+    assert weak["priority"] == 0 and weak["utility"] == pytest.approx(.08799 - .6, abs=1e-4)

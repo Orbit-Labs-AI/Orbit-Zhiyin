@@ -13,8 +13,9 @@ from collections.abc import Callable, Iterable
 from datetime import date, timedelta
 
 RANGES = (7, 30, 90, 0)
-OUT_IDS = (("ok", "完成", "var(--good)"), ("part", "部分完成", "var(--warn)"),
-           ("fail", "放弃", "var(--crit)"))
+# Labels from uiview.outcome: estimates from logs, never "放弃" (no user verdict exists).
+OUT_IDS = (("ok", "完成", "var(--good)"), ("part", "需返工", "var(--warn)"),
+           ("fail", "疑似中断", "var(--crit)"))
 AGENT_COLORS = {"claude_code": "var(--a1)", "codex": "var(--a2)", "gemini": "var(--a3)",
                 "gemini_cli": "var(--a3)", "deepseek": "var(--a4)", "dsh": "var(--a4)",
                 "copilot": "var(--a5)"}
@@ -78,7 +79,23 @@ def _sum(rows: list[dict], key: str) -> float:
     return sum(r.get(key) or 0 for r in rows)
 
 
-def stats(rows: list[dict]) -> dict:
+def _share(rows: list[dict], key: str, hit, unknown):
+    """Share (0–100) of rows whose ``key`` is known and satisfies ``hit``; ``unknown`` if none."""
+    known = [r for r in rows if r.get(key) is not None]
+    if not known:
+        return unknown, 0
+    return sum(1 for r in known if hit(r[key])) / len(known) * 100, len(known)
+
+
+def stats(rows: list[dict], unknown: float | None = 0) -> dict:
+    """Window aggregates. Ratios only use rows where their inputs are known.
+
+    ``auto`` = Σsteps / Σmsgs over rows with ``steps`` (agents without human turns have
+    ``steps=None`` and must not add their messages to the denominator); ``verify`` / ``ok``
+    are shares of rows whose ``verify`` / ``out`` is known. With no known row the ratio is
+    ``unknown`` — ``0`` keeps the prototype's numeric contract, the overview passes ``None``.
+    ``*_n`` report how many rows each ratio rests on.
+    """
     n = len(rows)
     mins, msgs, tools = _sum(rows, "dur"), _sum(rows, "msgs"), _sum(rows, "tools")
     corr, steps = _sum(rows, "corr"), _sum(rows, "steps")
@@ -86,14 +103,18 @@ def stats(rows: list[dict]) -> dict:
     errors = _sum(known, "errors")
     known_tools = _sum(known, "tools")
     toks = [r["tok"] for r in rows if r.get("tok") is not None]
+    stepped = [r for r in rows if r.get("steps") is not None]
+    stepped_msgs = _sum(stepped, "msgs")
+    verify, verify_n = _share(rows, "verify", bool, unknown)
+    ok, ok_n = _share(rows, "out", lambda v: v == "ok", unknown)
     return {
         "n": n, "hours": mins / 60, "msgs": msgs, "tools": tools,
         "errors": errors if known else None, "corr": corr, "steps": steps,
         "tok": sum(toks) if toks else None,
-        "auto": steps / msgs if msgs else 0, "fric": corr / msgs * 100 if msgs else 0,
+        "auto": steps / stepped_msgs if stepped_msgs else unknown, "auto_n": len(stepped),
+        "fric": corr / msgs * 100 if msgs else 0,
         "per": msgs / n if n else 0,
-        "verify": sum(1 for r in rows if r.get("verify")) / n * 100 if n else 0,
-        "ok": sum(1 for r in rows if r.get("out") == "ok") / n * 100 if n else 0,
+        "verify": verify, "verify_n": verify_n, "ok": ok, "ok_n": ok_n,
         "err": errors / known_tools * 100 if known and known_tools else None,
     }
 

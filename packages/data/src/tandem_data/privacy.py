@@ -5,7 +5,7 @@ import json
 import re
 from functools import lru_cache
 
-REDACTION_VERSION = "1.3.0"
+REDACTION_VERSION = "1.4.0"
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",

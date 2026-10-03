@@ -53,3 +53,43 @@ def test_path_markers_and_table():
     assert table["version"] == "vocab-1"
     assert "readonly" in table["namespaces"]["cmdcls"]["values"]
     assert len(table["friction"]) == 6
+
+
+def _cls(cmd, head=None):
+    return command_info(head or cmd.split()[0], cmd)["cls"]
+
+
+def test_dangerous_arguments_downgrade_readonly_heads():
+    """UT-07: risk is judged by arguments when the full command is known."""
+    assert _cls("git branch -D feature", "git branch") == "destructive"
+    assert _cls("git branch --delete old", "git branch") == "destructive"
+    assert _cls("git branch new-feature", "git branch") == "write"  # creates a branch
+    assert _cls("git branch -m old new", "git branch") == "write"
+    assert _cls("git branch -a -v", "git branch") == "readonly"
+    assert _cls("git branch --list 'feat/*'", "git branch") == "readonly"
+    assert _cls("find . -name '*.pyc' -delete") == "destructive"
+    assert _cls("find . -name x -exec rm {} ;") == "destructive"  # rm segment after ';'
+    assert _cls("find . -type f -name '*.py'") == "readonly"
+    assert _cls("sed -i 's/a/b/' f.txt") == "write"
+    assert _cls("sed -i.bak 's/a/b/' f.txt") == "write"
+    assert _cls("sed --in-place 's/a/b/' f.txt") == "write"
+    assert _cls("sed -n '1,20p' f.txt") == "readonly"
+    assert _cls("echo hi > notes.txt") == "write"
+    assert _cls("echo hi >> notes.txt") == "write"
+    assert _cls("ls > /dev/null 2>&1") == "readonly"
+    assert _cls("echo hi") == "readonly"
+    assert _cls("cat a.txt | tee b.txt") == "write"
+    assert _cls("ls && rm -rf build") == "destructive"
+    assert _cls("uv run python manage.py migrate", "uv run") == "write"
+    assert _cls("uv run ./scripts/anything.sh", "uv run") == "unknown"
+    assert _cls("uv run pytest -q", "uv run") == "write"
+    assert command_info("uv run", "uv run pytest -q")["family"] == "test"
+    # argv lists and their JSON text (event.attrs.input.command) are accepted too.
+    assert command_info("sed", ["/bin/zsh", "-lc", "sed -i s/a/b/ f"])["cls"] == "write"
+    assert command_info("ls", '["ls", "-la"]')["cls"] == "readonly"
+
+
+def test_conditional_heads_without_arguments_are_unknown():
+    for head in ("find", "git branch", "sed", "uv run"):
+        assert command_info(head)["cls"] == "unknown", head
+    assert command_info("ls")["cls"] == "readonly"  # argument-independent heads keep class

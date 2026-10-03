@@ -1,8 +1,14 @@
 """Fixed, evidence-backed projections of the existing feature families.
 
-The current extractor observes both autonomy directions, but only the positive
-planning/verification pole and no explicit orchestration choice. Its blind spots
-are kept in the contract; missing signals never become personality opposites.
+Instruction rules observe both delegation directions (ask_first ↔ explicit) and both
+planning directions (plan_first/discuss_first ↔ execute_first), but only the requested
+side of verification and no explicit orchestration choice. Those blind spots stay in
+the contract; missing signals never become personality opposites.
+
+This projection does **not** produce the 16-type code. The authoritative four-letter
+type is ``uiview.persona`` (behavioural units with Wilson intervals); this module only
+describes explicit requests, task distribution, preferences and trends, and says so in
+``typing`` so downstream callers never wait for a code that cannot exist here.
 """
 
 from collections import defaultdict
@@ -16,10 +22,17 @@ from ..task import summarize_task_distribution
 
 PROFILE_VERSION = "collaboration-profile-v2"
 MAX_TREND_MONTHS = 12
-# An axis score needs this much explicit evidence; below it the axis is "insufficient"
-# (same abstain-until-enough-units rule as uiview persona, which uses Wilson intervals).
+# An axis score needs this much explicit evidence; below it the axis is "insufficient".
+# These are product display gates, not the uiview persona gates (30 units / 10 days).
 MIN_TASKS, MIN_SESSIONS = 5, 2
-SINGLE_POLE = {"planning", "verification"}
+# Direction thresholds on the per-task mean. A direction is shown only when the whole
+# Wilson 95% interval of the mean lies beyond a threshold, so 4/5 (interval ≈0.38–0.96)
+# stays undetermined while 20/25 (≈0.61–0.91) is high. Votes are binary (0/1), so the
+# mean is a proportion and Wilson (Wilson 1927; Brown, Cai & DasGupta 2001) applies.
+LOW_THRESHOLD, HIGH_THRESHOLD = 0.4, 0.6
+TWO_POLE = {"delegation", "planning"}
+SINGLE_POLE = {"verification"}
+TYPE_AUTHORITY = "uiview-persona-v0"
 AXES = {
     "delegation": ("控制", "委托", "C", "D"),
     "planning": ("探索", "规划", "E", "P"),
@@ -95,7 +108,7 @@ def _task_states(tasks, instructions):
     states = {tid: {"task_id": tid, "observable": False, "session_ids": set(),
                     "candidate_boundary": any(b.get("status") != "explicit"
                                               for b in task.get("task_boundaries", [])),
-                    "values": defaultdict(set), "conflicts": set(),
+                    "values": defaultdict(set), "conflicts": set(), "scoped": False,
                     "evidence": defaultdict(list), "conditional_n": 0,
                     "active_checks": [], "active_prohibitions": [],
                     "unresolved": set(), "unresolved_evidence": defaultdict(list)}
@@ -163,10 +176,14 @@ def _task_states(tasks, instructions):
                 if check.get("action") and check["action"] == prohibition.get("action") and overlapping:
                     state["conflicts"].add("verification")
                     state["evidence"]["verification"].append(_evidence(prohibition))
+        # "scoped" (limited authorisation) is neither pole: it is counted separately and
+        # never enters the mean as a neutral 0.5 (missing/neutral is never imputed).
+        state["scoped"] = "scoped" in autonomy and not autonomy & {"ask_first", "explicit"}
         state["scores"] = {
-            "delegation": (0.0 if "ask_first" in autonomy else 1.0 if "explicit" in autonomy
-                           else 0.5 if "scoped" in autonomy else None),
-            "planning": 1.0 if "plan_first" in planning else None,
+            "delegation": 0.0 if "ask_first" in autonomy else 1.0 if "explicit" in autonomy else None,
+            # execute_first is the observed opposite pole of plan/discuss-first.
+            "planning": (1.0 if planning & {"plan_first", "discuss_first"}
+                         else 0.0 if "execute_first" in planning else None),
             "verification": 1.0 if "requested" in state["values"]["verification"] else None,
             "orchestration": None,
         }
@@ -189,12 +206,14 @@ def _axes(states, source_available):
         known = [s for s in states if s["scores"][key] is not None]
         observed = [s for s in states if s["observable"] and key not in s["conflicts"] | s["unresolved"]]
         sessions = {ref["session_uid"] for state in known for ref in state["evidence"][key]}
-        mean = sum(s["scores"][key] for s in known) / len(known) if known else None
+        high_n = sum(s["scores"][key] == 1.0 for s in known)
+        mean = high_n / len(known) if known else None
+        mean_ci = _wilson(high_n, len(known)) if known else None
         reasons = []
         direction = None
         if not source_available:
             reasons.append("instruction_or_task_source_unavailable")
-        if key in ("planning", "verification"):
+        if key in SINGLE_POLE:
             reasons.append("single_pole_extractor")
         elif key == "orchestration":
             reasons.append("explicit_orchestration_choice_not_extracted")
@@ -207,18 +226,19 @@ def _axes(states, source_available):
             reasons.append("requires_five_tasks_and_two_sessions")
         if any(s["candidate_boundary"] for s in known):
             reasons.append("candidate_task_boundaries")
-        if key == "delegation" and not reasons:
-            direction = low_code if mean < 0.4 else high_code if mean > 0.6 else None
+        if key in TWO_POLE and not reasons:
+            direction = (low_code if mean_ci[1] < LOW_THRESHOLD
+                         else high_code if mean_ci[0] > HIGH_THRESHOLD else None)
             if direction is None:
-                reasons.append("no_clear_direction")
+                reasons.append("interval_crosses_direction_threshold")
         result[key] = {
             "label": f"{low} / {high}", "low_label": low, "high_label": high,
             "low_code": low_code, "high_code": high_code,
             # Single-pole extractors only ever vote 1.0, so their mean is not a score;
             # signal_rate (with its interval) is the observable quantity there.
-            "score": mean if key == "delegation" and enough else None,
-            "observed_score": mean if enough and key not in SINGLE_POLE else None,
-            "observed_mean": mean, "direction": direction,
+            "score": mean if key in TWO_POLE and enough else None,
+            "observed_score": mean if enough and key in TWO_POLE else None,
+            "observed_mean": mean, "observed_mean_ci": mean_ci, "direction": direction,
             "direction_status": "provisional" if direction else "undetermined",
             "score_basis": "equal_weight_per_task_with_explicit_axis_evidence",
             "signal_rate": len(known) / len(observed) if observed and key != "orchestration" else None,
@@ -227,6 +247,8 @@ def _axes(states, source_available):
             if observed and key != "orchestration" else None,
             "minimum": {"tasks": MIN_TASKS, "sessions": MIN_SESSIONS},
             "effective_task_n": len(known), "observable_task_n": len(observed),
+            "high_pole_task_n": high_n,
+            "scoped_task_n": sum(s["scoped"] for s in states) if key == "delegation" else None,
             "unknown_task_n": len(states) - len(known), "session_n": len(sessions),
             "conflicting_task_n": sum(key in s["conflicts"] for s in states),
             "unresolved_task_n": sum(key in s["unresolved"] for s in states),
@@ -317,13 +339,16 @@ def _scatter(tasks, instructions, sessions):
         states, _ = _task_states(included, groups[sid])
         axes = _axes(states, True)
         # Per-session coordinates are observed request metrics, not gated axis scores.
-        x, y = axes["delegation"]["observed_mean"], axes["planning"]["signal_rate"]
+        planning = axes["planning"]
+        x = axes["delegation"]["observed_mean"]
+        y = (planning["high_pole_task_n"] / planning["observable_task_n"]
+             if planning["observable_task_n"] else None)
         if x is None or y is None:
             missing.append(sid)
             continue
         points.append({"session_uid": sid, "x": x, "y": y,
                        "delegation_task_n": axes["delegation"]["effective_task_n"],
-                       "planning_hit_task_n": axes["planning"]["effective_task_n"],
+                       "planning_hit_task_n": planning["high_pole_task_n"],
                        "planning_observable_task_n": axes["planning"]["observable_task_n"],
                        "axis_details": axes})
     return {"points": points, "missing_session_ids": missing, "missing_n": len(missing),
@@ -367,14 +392,17 @@ def build_profile(analysis: dict) -> dict:
     available = task_rows is not None and instruction_rows is not None
     states, unmapped = _task_states(tasks, instructions)
     axes = _axes(states, available)
-    code = "".join(a["direction"] for a in axes.values()) if all(a["direction"] for a in axes.values()) else None
     distribution = summarize_task_distribution(tasks if task_rows is not None else None, scope)
     distribution["semantic_status"] = "lexical_candidates_not_confirmed_interest_or_personality"
     direction = axes["delegation"]["direction"]
     headline = (f"已观察到偏{'委托' if direction == 'D' else '控制'}的授权方式；其余协作方向仍需证据。"
                 if direction else "先展示有证据的协作习惯；当前数据不足以确定完整四维类型。")
     return {
-        "method_version": PROFILE_VERSION, "scope": scope, "axes": axes, "code": code,
+        "method_version": PROFILE_VERSION, "scope": scope, "axes": axes,
+        # No four-letter code here by design: orchestration has no extractor and
+        # verification only one pole, so a code would always be partly imputed.
+        "typing": {"produces_type_code": False, "type_authority": TYPE_AUTHORITY,
+                   "reason": "orchestration_not_extracted_and_verification_single_pole"},
         "headline": headline, "task_distribution": distribution,
         "preferences": _preferences(analysis.get("preferences", {}), scope),
         "monthly_trend": _trend(tasks, instructions, scope, zone, available),
@@ -387,12 +415,14 @@ def build_profile(analysis: dict) -> dict:
         "rules": {"aggregation": "one_equal_weight_vote_per_task_per_axis",
                   "minimum_tasks": MIN_TASKS, "minimum_sessions": MIN_SESSIONS,
                   "score_gate": "score/observed_score null and status insufficient below the minimum",
-                  "direction_thresholds": [0.4, 0.6],
+                  "direction_thresholds": [LOW_THRESHOLD, HIGH_THRESHOLD],
+                  "direction_rule": "wilson_95_interval_of_mean_entirely_beyond_threshold",
+                  "scoped_authorisation": "counted_separately_not_in_mean",
                   "threshold_status": "product_heuristic_not_calibrated_probability",
                   "time_decay": None, "missing": "abstain_never_impute_zero_or_neutral"},
         "limitations": ["四轴为协作行为展示，不是心理学 MBTI 或能力评价",
                         "Instruction 词面规则尚无真实样本的独立质量校准",
-                        "P/V 只提取支持侧，O 未提取；不能据此补齐四字码",
+                        "V 只提取支持侧，O 未提取；本投影不输出四字码，16 型以 uiview persona 为准",
                         "明确偏好按原作用范围保留；不复制为所有任务的投票",
                         "任务边界、来源和时间缺失影响趋势与分母；画像不混入错误率或消耗"],
     }

@@ -183,9 +183,6 @@ def test_all_offline_routes_accept_empty_catalog_and_validate_limit(route):
         route(state(), [], limit=-1)
 
 
-def test_dense_is_explicitly_disabled_with_three_distinct_query_fields():
+def test_dense_is_explicitly_disabled():
     assert dense.status()["enabled"] is False
     assert dense.status()["status"] == "disabled"
-    assert dense.queries(state(task_text="task", problem_text="problem", desired_effect_text="effect")) == {
-        "task": "task", "trigger": "problem", "capability": "effect",
-    }

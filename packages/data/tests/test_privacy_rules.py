@@ -114,3 +114,43 @@ def test_cli_rules_keep_the_command_shape():
         == "t --password <redacted:secret> --token '<redacted:secret>'"
     )
     assert preview("x --secret abcd")["matches"] == {"secret": 1}
+
+
+# Synthetic tokens are assembled at runtime so no literal resembles a live credential.
+_ALNUM = "A1b2C3d4E5f6G7h8J9k0"
+VENDOR_TOKENS = {
+    "google": ("AI" + "za" + (_ALNUM * 2)[:35], "<redacted:api_key>"),
+    "slack_bot": ("xo" + "xb-" + "1234567890-0987654321-" + _ALNUM, "<redacted:api_key>"),
+    "slack_user": ("xo" + "xp-" + "1234567890-" + _ALNUM, "<redacted:api_key>"),
+    "stripe_secret": ("sk" + "_live_" + _ALNUM + "XyZ", "<redacted:api_key>"),
+    "stripe_restricted": ("rk" + "_live_" + _ALNUM, "<redacted:api_key>"),
+    "stripe_test": ("sk" + "_test_" + _ALNUM, "<redacted:api_key>"),
+    "huggingface": ("hf" + "_" + (_ALNUM * 2)[:34], "<redacted:api_key>"),
+    "npm": ("np" + "m_" + (_ALNUM * 2)[:36], "<redacted:api_key>"),
+    "gitlab": ("gl" + "pat-" + _ALNUM, "<redacted:api_key>"),
+    "jwt": (
+        "ey" + "JhbGciOiJIUzI1NiJ9" + ".ey" + "JzdWIiOiJmaXh0dXJlIn0" + "." + _ALNUM,
+        "<redacted:token>",
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(VENDOR_TOKENS))
+def test_vendor_tokens_in_plain_text_are_redacted(name):
+    token, marker = VENDOR_TOKENS[name]
+    text = f"deploy failed, retry with {token} then report"
+    assert redact(text) == f"deploy failed, retry with {marker} then report"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "call hf_hub_download and npm_config_cache before AIzawa visits",
+        "the sk_live_ prefix and rk_test_ prefix are Stripe conventions",
+        "set xoxb- tokens in Slack; glpat- is the GitLab prefix",
+        "a header eyJhbGciOiJIUzI1NiJ9 alone is not a JWT",
+        "version 1.2.3.4 and file a.b.c are not tokens",
+    ],
+)
+def test_vendor_prefixes_in_prose_are_not_redacted(text):
+    assert redact(text) == text

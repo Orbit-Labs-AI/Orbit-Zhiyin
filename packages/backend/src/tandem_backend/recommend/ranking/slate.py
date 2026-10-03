@@ -11,6 +11,7 @@ LAMBDA = .8
 PER_PROBLEM = 2
 KIND_CAPS = {"skill": 2, "removal": 2, "builtin": 1, "generate": 1}
 GENERIC_CAP = 3
+COMPLEMENT_CAP = 1  # graph complements of installed items: shown beside problem cards, never crowding them
 # One plugin / repo family never fills the list: ≤ 2 evidence cards, ≤ 1 on the library shelf.
 FAMILY_CAP, LIBRARY_FAMILY_CAP = 2, 1
 
@@ -85,6 +86,9 @@ def select(cands: list[dict], limit: int = 30) -> list[dict]:
             continue
         if pid and len(per_problem.get(pid, [])) >= PER_PROBLEM:
             best["excluded"] = "cap:problem"
+            continue
+        if basis(best) == "complement" and sum(basis(c) == "complement" for c in chosen) >= COMPLEMENT_CAP:
+            best["excluded"] = "cap:complement"
             continue
         if per_kind.get(kind, 0) >= KIND_CAPS.get(kind, limit):
             best["excluded"] = f"cap:{kind}"
