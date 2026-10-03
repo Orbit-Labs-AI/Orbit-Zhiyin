@@ -270,7 +270,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 @keyframes edSideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){.edsw-thumb{transition:none}.main.ed-in,.side.ed-in{animation:none}}
 /* sidebar import entry (live): sits under the edition switch in both editions — 导入中 42% · 查看 / 重新打开引导 / 重试 */
-.sb-imp{flex:none;display:flex;align-items:center;gap:7px;height:30px;margin:-4px 10px 8px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-1);font:500 12px/1 var(--sans);text-align:left;transition:background .15s var(--ease)}
+.sb-imp{flex:none;display:flex;align-items:center;gap:7px;height:30px;margin:-4px 10px 8px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-1);font:500 12px/1 var(--font-sans);text-align:left;transition:background .15s var(--ease)}
 .sb-imp:hover{background:var(--sel-off)}
 .sb-imp-ic{display:grid;place-items:center;flex:none;color:var(--ai)}
 .sb-imp[data-k="fail"] .sb-imp-ic{color:var(--crit)}
@@ -3983,10 +3983,13 @@ function renderSideLite() {
     sideGroup('action', '行动', nav(3, '', recN || '')) +
     sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
 }
-function edSet(ed) {
+// edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
+// thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
+// S.ed is still the old edition, and be overwritten by the swap's own go).
+function edSet(ed, route) {
   if (ed !== 'lite' && ed !== 'advance') return;
-  if (ed === S.ed) return;
-  const target = edRoute(S.route, ed);
+  if (ed === S.ed) { if (route) go(route); return; }
+  const target = route ? edRoute(route, ed) : edRoute(S.route, ed);
   const win = $('#win');
   const swap = () => { S.ed = ed; store.set('edition', ed); win.dataset.ed = ed; closeDD(); go(target); };
   const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -9186,8 +9189,11 @@ const WG_SIZES = [['s', '小'], ['m', '中'], ['l', '大']];
 function wgPair() { return typeof LV !== 'undefined' && LV.live ? [AG[0] ? AG[0].id : null, AG[1] ? AG[1].id : null] : ['cc', 'cx']; }
 const wgC = (k) => (k && AGI[k] ? AGI[k].c : 'var(--h2)');
 const wgN = (k) => (k && AGI[k] ? AGI[k].short : '—');
+// The native widgets panel (?surface=widgets) always shows them: opening it from the menu is the request, whatever the
+// in-window setting (S.widgets follows the window width there and would leave the panel blank).
+const WG_SURFACE = /[?&]surface=widgets(&|$)/.test(location.search || '');
 function renderWidgets() {
-  const w = $('#widgets'); const on = S.widgets && !S.win.full;
+  const w = $('#widgets'); const on = WG_SURFACE || (S.widgets && !S.win.full);
   w.hidden = !on; if (!on) { w.innerHTML = ''; return; }
   const size = S.wgSize || 'm';
   const p = personaNow();
@@ -9330,6 +9336,10 @@ ACT.studioStart = (el, e) => { if (S.engine === 'stats') { toast('分析引擎�
 // Demo bindings (browser-safe; the App uses ⌘ where noted): ⌥1–9 pages (⌘1–9), ⌥0 main window (⌘0), ⌃⌘S sidebar, ⌃⌘F full
 // screen, ⌘M minimise, ⌘K palette, ⌘, settings, ⇧⌘S share card, ⇧⌘E report, ⌥⌘P HUD, ⌃⌥T panel, ⌥R reindex (⌘R), ⌥T chart/table
 // (⌘T), ⌘F find, ⌘↩ main action, ⌘Z undo install, ⌘[ back, ? shortcuts, Space play/pause (sessions).
+// KB_DID[cmd] = when the page handled a shortcut that the native menu also carries (95-live-native.js LVN.command skips the
+// menu's tandem:command for the same cmd right after, so a key never acts twice whichever side sees it first).
+const KB_DID = {};
+const kbDid = (c) => { KB_DID[c] = Date.now(); };
 document.addEventListener('keydown', (e) => {
   const tg = e.target; const tag = (tg.tagName || '').toLowerCase();
   const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || tg.isContentEditable;
@@ -9367,24 +9377,24 @@ document.addEventListener('keydown', (e) => {
   if (tg.id === 'hudPill' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.hud.open = !S.hud.open; renderHud(); const p = $('#hudPill'); if (p) p.focus(); return; }
   if (ovOpen) return;
   if (e.ctrlKey && e.altKey && e.code === 'KeyT') { e.preventDefault(); S.pop = !S.pop; render(); return; }
-  if (e.ctrlKey && e.metaKey && e.code === 'KeyS') { e.preventDefault(); toggleSide(); return; }
+  if (e.ctrlKey && e.metaKey && e.code === 'KeyS') { e.preventDefault(); kbDid('sidebar'); toggleSide(); return; }
   if (e.ctrlKey && e.metaKey && e.code === 'KeyF') { e.preventDefault(); winFullToggle(); return; }
-  if (mod && e.altKey && e.code === 'KeyP') { e.preventDefault(); toggleHud(); return; }
+  if (mod && e.altKey && e.code === 'KeyP') { e.preventDefault(); kbDid('hud'); toggleHud(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); if (MODAL_KEY === 'palette' && modalOpen) closeModal(); else { closeModal(); openPalette(); } return; }
   if (mod && e.key === ',') { e.preventDefault(); closeModal(); openSettings(); return; }
-  if (mod && e.shiftKey && e.code === 'KeyS') { e.preventDefault(); closeModal(); openShare(); return; }
-  if (mod && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); closeModal(); openReport(); return; }
+  if (mod && e.shiftKey && e.code === 'KeyS') { e.preventDefault(); kbDid('share'); closeModal(); openShare(); return; }
+  if (mod && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); kbDid('report'); closeModal(); openReport(); return; }
   if (modalOpen) return;
-  if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && !typing) { e.preventDefault(); undoInstall(); return; }
-  if (mod && !e.altKey && e.code === 'KeyF') { e.preventDefault(); findCmd(); return; }
-  if (mod && e.key === 'Enter') { e.preventDefault(); mainAction(); return; }
+  if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && !typing) { e.preventDefault(); kbDid('undo'); undoInstall(); return; }
+  if (mod && !e.altKey && e.code === 'KeyF') { e.preventDefault(); kbDid('find'); findCmd(); return; }
+  if (mod && e.key === 'Enter') { e.preventDefault(); kbDid('mainAction'); mainAction(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyM' && !typing) { e.preventDefault(); ACT.winMin(); return; }
-  if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); goBack(); return; }
+  if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); kbDid('back'); goBack(); return; }
   // in the native App the browser-safe ⌥ bindings also answer to ⌘ (⌘1–9 pages, ⌘0 main window, ⌘T chart / table);
   // ⌘R stays with the App menu (刷新 → tandem:command refresh)
   const appKey = e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && nativeShell();
-  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
-  if (appKey && e.code === 'KeyT') { e.preventDefault(); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
+  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); kbDid('page'); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
+  if (appKey && e.code === 'KeyT') { e.preventDefault(); kbDid('chartTable'); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
   if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); return; }
   if (e.altKey && !mod && e.code === 'Digit0') { e.preventDefault(); showMain(); return; }
   if (e.altKey && !mod && e.code === 'KeyR') { e.preventDefault(); reindex(); return; }
@@ -10927,7 +10937,8 @@ function lvSearchMerge(out, q, have) {
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
    (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
-   toggleEdition / refresh).
+   toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
+   menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
    /v1/shell/onboarding (+ /v1/app/discovery) with estimates, 添加文件夹 = LVN.addSource() (native chooseFolder, browser: the
    path field) → POST /v1/app/sources; 开始分析 aligns the sources, PATCHes recent_days and POSTs an import job; job frames
@@ -10947,8 +10958,40 @@ LVN.refresh = function () {
   TL.invalidate(); LV.loadSpine(); TL.changed();
   toast('正在刷新');
 };
+// a shortcut the page itself just handled (85-keyboard.js kbDid) also fired the host menu item: act once
+const LVN_KB = { sidebar: 1, hud: 1, share: 1, report: 1, undo: 1, find: 1, mainAction: 1, back: 1, page: 1, chartTable: 1 };
+// the host asks before routing Edit › 撤销 here: an undoable install, and no text field that owns ⌘Z
+LVN.canUndo = function () {
+  const a = document.activeElement; const tag = ((a && a.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (a && a.isContentEditable)) return false;
+  return typeof LAST_INSTALL !== 'undefined' && !!LAST_INSTALL && typeof instDone === 'function' && !!instDone(LAST_INSTALL);
+};
+// menu titles that follow page state (显示 › 显示 / 隐藏侧边栏): sent to the host whenever they change
+LVN.menuState = function () {
+  if (!ORBIT.native.isNative || ORBIT.native.surface) return;
+  const st = { sidebar: !!S.side, pages: navRoutes().slice(0, 9).map((r) => r[1]) };
+  const k = JSON.stringify(st); if (LVN.lastMenu === k) return;
+  LVN.lastMenu = k; ORBIT.native.post('menuState', st);
+};
+function lvnChartTable() {
+  if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); }
+  else toast('图表 ↔ 表格只在概览页可用');
+}
 LVN.command = function (d) {
   const cmd = d && d.cmd; if (!cmd) return;
+  if (LVN_KB[cmd] && typeof KB_DID !== 'undefined' && KB_DID[cmd] && Date.now() - KB_DID[cmd] < 600) return;
+  if (cmd === 'page') {   // 前往 › page n (⌘1–9) of the edition in use
+    const r = navRoutes()[(+d.n || 0) - 1]; if (!r) return;
+    if (OVL) closeOverlay(); closeModal(); S.winGone = false; go(r[0]); return;
+  }
+  if (cmd === 'sidebar') { toggleSide(); return; }
+  if (cmd === 'hud') { toggleHud(); return; }
+  if (cmd === 'undo') { undoInstall(); return; }
+  if (cmd === 'find') { findCmd(); return; }
+  if (cmd === 'back') { goBack(); return; }
+  if (cmd === 'mainAction') { mainAction(); return; }
+  if (cmd === 'chartTable') { lvnChartTable(); return; }
+  if (cmd === 'reindex') { reindex(); return; }
   if (cmd === 'settings') { closeModal(); openSettings(d.tab || undefined); }
   else if (cmd === 'palette') { closeModal(); openPalette(); }
   else if (cmd === 'about') { closeModal(); openAbout(); }
@@ -10964,10 +11007,17 @@ LVN.command = function (d) {
     const r = String(d.route || '').replace(/^#/, '');
     if (r === 'settings' || /^settings[:/]/.test(r)) { openSettings(r.split(/[:/]/)[1] || undefined); return; }
     if (r === 'onboarding') { openOnboarding(0); return; }
-    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance'); go(r); }
+    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); S.pop = false; S.winGone = false; if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance', r); else go(r); }
   }
 };
 ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });
+if (ORBIT.native.isNative && !ORBIT.native.surface) {
+  const lvnBaseSide = toggleSide;
+  toggleSide = function () { const r = lvnBaseSide.apply(this, arguments); LVN.menuState(); return r; };
+  const lvnBaseRender = render;   // edition switches change the 前往 titles
+  render = function () { const r = lvnBaseRender.apply(this, arguments); LVN.menuState(); return r; };
+  setTimeout(() => LVN.menuState(), 0);
+}
 
 /* ---- sources ---- */
 const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],
@@ -12798,16 +12848,22 @@ function tloOpen(uid) {
     'body.surface .desk>.wall,body.surface #mbar,body.surface #win,body.surface #set,body.surface .desk>:is(#pop,#hud,#widgets):not(' + keep + '){display:none!important}' +
     'body.surface ' + keep + '{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;margin:0}' +
     'body.surface-panel #pop{width:100%;max-height:none;border-radius:12px;animation:none}' +
-    'body.surface-hud #hud{align-items:flex-start!important;flex-direction:column!important;padding:4px}' +
+    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:4px}' +
+    // intrinsic widths (not viewport-relative): the reported width must not shrink with the panel it resizes
+    'body.surface-hud #hud>.pill{width:max-content;max-width:500px}body.surface-hud .hcard{width:380px}' +
     'body.surface-widgets #widgets{width:364px;padding:8px}';
   document.head.appendChild(st);
   S.winGone = true; S.pop = sf === 'panel'; S.widgets = sf === 'widgets'; S.hud.show = sf === 'hud';
   const el = () => $(keep);
-  let lastH = 0;
+  let lastH = 0, lastW = 0;
+  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no transparent margin takes other windows' clicks
   function report() {
     const e = el(); if (!e) return;
-    const h = Math.ceil(e.hidden ? 0 : e.getBoundingClientRect().height + (sf === 'panel' ? 0 : 8));
-    if (h !== lastH) { lastH = h; ORBIT.native.post('resizeSurface', { height: h }); }
+    const r = e.getBoundingClientRect();
+    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'panel' ? 0 : 8));
+    let w = 0;
+    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 16);
+    if (h !== lastH || w !== lastW) { lastH = h; lastW = w; ORBIT.native.post('resizeSurface', w ? { height: h, width: w } : { height: h }); }
   }
   hudPlace = function () { /* the host window is the position */ };
   popPlace = function () { /* the NSPopover is the position */ };
@@ -12829,15 +12885,16 @@ function tloOpen(uid) {
   ACT.popOpen = () => openMain(null);
   if (typeof ResizeObserver === 'function') new ResizeObserver(report).observe(el());
 })();
-// main window: routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>' | 'settings/<tab>' | page})
+// main window: deep routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>'}).
+// Plain pages and settings/<tab> are LVN.command's (95-live-native.js): handling them here too ran go() twice and, across
+// editions, the second go() undid the edition switch.
 if (!ORBIT.native.surface) ORBIT.native.onCommand((c) => {
   if (c.cmd !== 'route' || !c.route) return;
-  const m = /^(sessions|recs|settings)\/(.+)$/.exec(c.route);
+  const m = /^(sessions|recs)\/(.+)$/.exec(c.route);
+  if (!m) return;
   S.pop = false; S.winGone = false;
-  if (!m) { if (PAGES[c.route]) go(c.route); else render(); return; }
   if (m[1] === 'sessions') tloOpen(m[2]);
-  else if (m[1] === 'recs') { if (RECI[m[2]]) ACT.openRec({ dataset: { id: m[2] } }); else go('recs'); }
-  else openSettings(m[2]);
+  else if (RECI[m[2]]) ACT.openRec({ dataset: { id: m[2] } }); else go('recs');
 });
 
 if (LV.live) {

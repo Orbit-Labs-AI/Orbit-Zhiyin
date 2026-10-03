@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Security
+import ServiceManagement
 import UserNotifications
 import WebKit
 
@@ -10,7 +11,17 @@ import WebKit
 let appVersion = "0.0.2"
 let bundleID = "ai.actionmesh.orbit"
 let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
-                      "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets"]
+                      "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets",
+                      "menuState", "loginItem", "statusBadge", "notificationStatus", "openNotificationSettings",
+                      "notifyResult", "appearance"]
+
+/// Window background in both appearances: the page's --bg (00-base.css), so a first frame, a live resize or the
+/// rubber band never shows a light edge in dark mode.
+let windowBackground = NSColor(name: NSColor.Name("OrbitWindowBackground")) { appearance in
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        ? NSColor(red: 0x16 / 255, green: 0x16 / 255, blue: 0x19 / 255, alpha: 1)
+        : NSColor(red: 0xf5 / 255, green: 0xf4 / 255, blue: 0xf0 / 255, alpha: 1)
+}
 
 func dataHome() -> URL {
     if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
@@ -97,6 +108,25 @@ final class WebHost {
     let webView: WKWebView
     var loaded = false
     init(surface: Surface, webView: WKWebView) { self.surface = surface; self.webView = webView }
+}
+
+/// The page's web view: the default WebKit context menu (重新载入, 返回, 检查元素…) is not Orbit's; only text editing
+/// items (拷贝 / 粘贴 / 查询…) stay, plus 拷贝链接 on a link.
+final class OrbitWebView: WKWebView {
+    static let keep: Set<String> = ["WKMenuItemIdentifierCopy", "WKMenuItemIdentifierCut", "WKMenuItemIdentifierPaste",
+                                    "WKMenuItemIdentifierLookUp", "WKMenuItemIdentifierSearchWeb", "WKMenuItemIdentifierShareMenu",
+                                    "WKMenuItemIdentifierSpellingMenu", "WKMenuItemIdentifierCopyLink",
+                                    "WKMenuItemIdentifierTranslate", "WKMenuItemIdentifierSpeechMenu"]
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        for item in menu.items.reversed() {
+            let id = item.identifier?.rawValue ?? ""
+            if item.isSeparatorItem || OrbitWebView.keep.contains(id) { continue }
+            menu.removeItem(item)
+        }
+        while let first = menu.items.first, first.isSeparatorItem { menu.removeItem(first) }
+        while let last = menu.items.last, last.isSeparatorItem { menu.removeItem(last) }
+        super.willOpenMenu(menu, with: event)
+    }
 }
 
 /// Borderless floating panel (HUD, widgets): may take key for text input without activating
@@ -194,13 +224,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var restarts = 0
     var output = Data()
     var bookmarks: [URL] = []
-    var notificationsAsked = false
     lazy var bridge = BridgeProxy(self)
 
     var mainWebView: WKWebView { hosts[.main]!.webView }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        NSWindow.allowsAutomaticWindowTabbing = false  // One main window: no 显示标签页栏 / 合并所有窗口 items.
+        rotateLogIfNeeded()
         buildMenu()
         token = randomToken()
         let main = makeHost(.main)
@@ -212,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false  // Closing hides it; the menu-bar item keeps Orbit running.
-        window.backgroundColor = NSColor(red: 0xf5 / 255, green: 0xf4 / 255, blue: 0xf0 / 255, alpha: 1)
+        window.backgroundColor = windowBackground
         window.minSize = NSSize(width: 960, height: 640)
         window.contentView = main.webView
         window.dragView = main.webView
@@ -221,7 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.setFrameAutosaveName("OrbitMainWindow")  // Remembers size and position.
         resetFrameIfOffscreen(window)
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         if Bundle.main.bundleIdentifier != nil { UNUserNotificationCenter.current().delegate = self }
         buildStatusItem()
         // First launch keeps the HUD hidden until the page reports onboarding done ("onboarded").
@@ -251,11 +282,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.userContentController.add(bridge, name: "tandem")
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = OrbitWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.setValue(false, forKey: "drawsBackground")  // No white flash; surfaces stay transparent.
         webView.underPageBackgroundColor = .clear
+        // Web Inspector only on request (ORBIT_DEBUG_INSPECT=1): the shipped app does not expose its pages to Safari.
+        webView.isInspectable = ProcessInfo.processInfo.environment["ORBIT_DEBUG_INSPECT"] == "1"
         let host = WebHost(surface: surface, webView: webView)
         hosts[surface] = host
         if let origin = origin { load(host, origin) }
@@ -334,7 +367,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
         let editItem = NSMenuItem(); main.addItem(editItem)
         let edit = NSMenu(title: "编辑"); editItem.submenu = edit
-        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "撤销", action: #selector(undoAction(_:)), keyEquivalent: "z").target = self
         let redo = edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
@@ -342,15 +375,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                                      ("全选", "selectAll:", "a")] {
             edit.addItem(withTitle: title, action: Selector((action)), keyEquivalent: key)
         }
+        edit.addItem(.separator())
+        edit.addItem(command("查找", "find", key: "f"))
 
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let view = NSMenu(title: "显示"); viewItem.submenu = view
         view.addItem(command("命令面板", "palette", key: "k"))
         view.addItem(command("切换 Lite / Advance", "toggleEdition", key: "l", mods: [.command, .control]))
+        view.addItem(command("隐藏侧边栏", "sidebar", key: "s", mods: [.command, .control]))  // title follows menuState
+        view.addItem(command("图表 / 表格", "chartTable", key: "t"))
         view.addItem(.separator())
         view.addItem(command("刷新", "refresh", key: "r"))
         let reload = view.addItem(withTitle: "重新载入页面", action: #selector(reloadPage(_:)), keyEquivalent: "r")
         reload.keyEquivalentModifierMask = [.command, .shift]
+
+        // 前往: the edition's pages (⌘1–9, titles from the page's menuState), back and the page's main action.
+        let goItem = NSMenuItem(); main.addItem(goItem)
+        let go = NSMenu(title: "前往"); goItem.submenu = go
+        for n in 1...9 { go.addItem(pageItem(n)) }
+        go.addItem(.separator())
+        go.addItem(command("返回", "back", key: "["))
+        go.addItem(command("当前页主操作", "mainAction", key: "\r"))
+        goMenu = go
+        applyPageTitles()
 
         let windowItem = NSMenuItem(); main.addItem(windowItem)
         let win = NSMenu(title: "窗口"); windowItem.submenu = win
@@ -360,9 +407,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         full.keyEquivalentModifierMask = [.command, .control]
         win.addItem(.separator())
         win.addItem(withTitle: "Orbit 主窗口", action: #selector(showMain(_:)), keyEquivalent: "0")
-        let hud = win.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "h")
+        // ⌥⌘P matches the page's HUD key (85-keyboard.js); ⌥⌘H stays with 隐藏其他 and ⌥⌘W with the system's 全部关闭.
+        let hud = win.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "p")
         hud.keyEquivalentModifierMask = [.command, .option]
-        let widgets = win.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "w")
+        let widgets = win.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "d")
         widgets.keyEquivalentModifierMask = [.command, .option]
         win.addItem(.separator())
         win.addItem(withTitle: "前置全部窗口", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
@@ -380,6 +428,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         NSApp.mainMenu = main
     }
 
+    static let defaultPages = ["概览", "协作画像", "会话轨迹", "优化建议", "", "", "", "", ""]  // Lite, the App's first edition
+    var pageTitles: [String] = AppDelegate.defaultPages
+    var sidebarVisible = true
+    weak var goMenu: NSMenu?
+
+    func pageItem(_ n: Int) -> NSMenuItem {
+        let item = NSMenuItem(title: "页面 \(n)", action: #selector(sendCommand(_:)), keyEquivalent: String(n))
+        item.keyEquivalentModifierMask = .command
+        item.representedObject = ["cmd": "page", "n": n] as [String: Any]
+        item.target = self
+        item.tag = n
+        return item
+    }
+
+    /// Page titles of the edition in use; pages the edition does not have are hidden (Lite has four).
+    func applyPageTitles() {
+        guard let go = goMenu else { return }
+        for item in go.items where item.tag >= 1 && item.tag <= 9 {
+            let title = item.tag <= pageTitles.count ? pageTitles[item.tag - 1] : ""
+            item.title = title.isEmpty ? "页面 \(item.tag)" : title
+            item.isHidden = title.isEmpty
+        }
+    }
+
+    /// {type: "menuState", sidebar: Bool, pages: [String]} from the main window's page.
+    func updateMenuState(_ body: [String: Any]) {
+        if let side = body["sidebar"] as? Bool { sidebarVisible = side }
+        if let pages = body["pages"] as? [String] { pageTitles = Array(pages.prefix(9)); applyPageTitles() }
+    }
+
+    /// Edit › 撤销: the page's undo-install when it has one and no text field owns ⌘Z; otherwise the responder chain.
+    @objc func undoAction(_ sender: Any?) {
+        let key = NSApp.keyWindow
+        guard key === window, let main = hosts[.main], main.loaded else {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: sender); return
+        }
+        main.webView.evaluateJavaScript("typeof LVN !== 'undefined' && !!LVN.canUndo && LVN.canUndo()") { [weak self] result, _ in
+            if (result as? Bool) == true { self?.dispatch("tandem:command", ["cmd": "undo"], to: main) }
+            else { NSApp.sendAction(Selector(("undo:")), to: nil, from: sender) }
+        }
+    }
+
     func command(_ title: String, _ cmd: String, key: String = "", mods: NSEvent.ModifierFlags = .command) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: #selector(sendCommand(_:)), keyEquivalent: key)
         item.keyEquivalentModifierMask = mods
@@ -390,9 +480,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     /// Menu commands go to the main window's page as tandem:command.
     @objc func sendCommand(_ sender: NSMenuItem) {
-        guard let cmd = sender.representedObject as? String else { return }
+        let detail: [String: Any]
+        if let cmd = sender.representedObject as? String { detail = ["cmd": cmd] }
+        else if let object = sender.representedObject as? [String: Any], object["cmd"] is String { detail = object }
+        else { return }
         showMain(nil)
-        dispatch("tandem:command", ["cmd": cmd], to: hosts[.main])
+        dispatch("tandem:command", detail, to: hosts[.main])
     }
 
     @objc func reloadPage(_ sender: Any?) {
@@ -421,7 +514,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if window.isMiniaturized { window.deminiaturize(nil) }
         resetFrameIfOffscreen(window)
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 
     @objc func toggleHUD(_ sender: Any?) { setPanel(.hud, visible: !(hudPanel?.isVisible ?? false)) }
@@ -430,6 +523,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleHUD(_:)) { item.state = hudPanel?.isVisible == true ? .on : .off }
         if item.action == #selector(toggleWidgets(_:)) { item.state = widgetsPanel?.isVisible == true ? .on : .off }
+        if item.action == #selector(sendCommand(_:)), item.representedObject as? String == "sidebar" {
+            item.title = sidebarVisible ? "隐藏侧边栏" : "显示侧边栏"
+        }
         return true
     }
 
@@ -437,6 +533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func buildStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = "OrbitStatusItem"  // Keeps the user's ⌘-drag position in the menu bar.
         if let image = NSImage(named: "StatusIcon") {
             image.isTemplate = true  // orbit-mark-small.svg rendered verbatim; the menu bar tints it.
             image.size = NSSize(width: image.size.width * 16 / max(image.size.height, 1), height: 16)
@@ -449,6 +546,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         item.button?.action = #selector(statusClicked(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
+    }
+
+    /// statusBadge {state: none | info | warn}: a small tinted dot over the template icon (the icon itself stays a
+    /// template image, so the menu bar still tints it for light, dark and selected states).
+    var badgeLayer: CALayer?
+    func setStatusBadge(_ state: String) {
+        guard let button = statusItem?.button else { return }
+        button.wantsLayer = true
+        let dot = badgeLayer ?? {
+            let layer = CALayer()
+            layer.cornerRadius = 3.5
+            layer.borderWidth = 1
+            button.layer?.addSublayer(layer)
+            badgeLayer = layer
+            return layer
+        }()
+        let size: CGFloat = 7
+        dot.frame = NSRect(x: button.bounds.maxX - size - 1, y: button.bounds.maxY - size - 2, width: size, height: size)
+        switch state {
+        case "warn": dot.backgroundColor = NSColor.systemOrange.cgColor
+        case "info": dot.backgroundColor = NSColor.controlAccentColor.cgColor
+        default: dot.isHidden = true; button.setAccessibilityLabel("Orbit"); return
+        }
+        dot.borderColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8).cgColor
+        dot.isHidden = false
+        button.setAccessibilityLabel(state == "warn" ? "Orbit，有需要处理的事项" : "Orbit，有新消息")
     }
 
     @objc func statusClicked(_ sender: NSStatusBarButton) {
@@ -495,7 +618,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func makePanel(_ surface: Surface) -> FloatingPanel {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let size = surface == .hud ? NSSize(width: 340, height: 200) : NSSize(width: 320, height: 620)
+        // Start at the surface's own size: the HUD pill is ~80 pt tall and the widgets column is 364 pt wide (98-live-ops.js
+        // body.surface-widgets #widgets), so no transparent margin covers other windows before the first resizeSurface.
+        let size = surface == .hud ? NSSize(width: 340, height: 80) : NSSize(width: AppDelegate.widgetsWidth, height: 480)
         let offset: CGFloat = surface == .hud ? 0 : 360  // Widgets sit left of the HUD by default.
         let frame = NSRect(x: screen.maxX - size.width - 20 - offset, y: screen.maxY - size.height - 20,
                            width: size.width, height: size.height)
@@ -510,14 +635,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.isReleasedWhenClosed = false
+        panel.title = surface == .hud ? "Orbit HUD" : "Orbit 小组件"  // Mission Control, VoiceOver and the window list.
+        panel.setAccessibilityLabel(panel.title)
         panel.contentView = makeHost(surface).webView
         panel.setFrameAutosaveName(surface == .hud ? "OrbitHUD" : "OrbitWidgets")  // Remembers position.
+        if surface == .widgets, panel.frame.width != AppDelegate.widgetsWidth {  // an older build saved 320 pt
+            var f = panel.frame; f.size.width = AppDelegate.widgetsWidth; panel.setFrame(f, display: false)
+        }
         if surface == .hud { hudPanel = panel } else { widgetsPanel = panel }
         return panel
     }
 
-    func resizeSurface(_ host: WebHost, height raw: Double) {
-        let height = CGFloat(min(max(raw, 80), 900))
+    static let widgetsWidth: CGFloat = 364
+
+    /// The page reports its component's size; the HUD also reports its width so the panel never extends past the pill
+    /// (the transparent rest of a wider window would swallow clicks meant for the windows below).
+    func resizeSurface(_ host: WebHost, height raw: Double, width rawWidth: Double? = nil) {
+        let height = CGFloat(min(max(raw, host.surface == .hud ? 32 : 80), 900))
         switch host.surface {
         case .panel: popover?.contentSize = NSSize(width: popover?.contentSize.width ?? 360, height: height)
         case .hud, .widgets:
@@ -525,6 +659,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             var frame = panel.frame
             frame.origin.y += frame.height - height  // Keep the top edge where the user put it.
             frame.size.height = height
+            if host.surface == .hud, let w = rawWidth, w.isFinite {
+                let width = CGFloat(min(max(w, 120), 520))
+                frame.origin.x += frame.width - width  // Keep the right edge (the HUD sits at the top right).
+                frame.size.width = width
+            }
             panel.setFrame(frame, display: true, animate: false)
         case .main: break
         }
@@ -538,6 +677,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             fatalError("SecRandomCopyBytes failed")
         }
         return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    static let logLimit: UInt64 = 5 * 1024 * 1024
+
+    /// desktop.log (the helper's stderr) is appended across launches: past 5 MB it moves to desktop.log.1 at launch.
+    func rotateLogIfNeeded() {
+        let log = home.appendingPathComponent("desktop.log")
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: log.path))?[.size] as? UInt64,
+              size > AppDelegate.logLimit else { return }
+        let old = home.appendingPathComponent("desktop.log.1")
+        try? FileManager.default.removeItem(at: old)
+        try? FileManager.default.moveItem(at: log, to: old)
     }
 
     func startBackend() {
@@ -616,11 +767,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     // MARK: bridge (page -> host)
 
+    /// Saved folder bookmarks, one per path (older builds appended a copy on every choice); rewritten deduplicated.
     func restoreBookmarks() {
+        var kept: [Data] = []
+        var seen = Set<String>()
         for data in UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? [] {
             var stale = false
-            if let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &stale),
-               url.startAccessingSecurityScopedResource() { bookmarks.append(url) }
+            guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &stale),
+                  seen.insert(url.standardizedFileURL.path).inserted else { continue }
+            kept.append(data)
+            if url.startAccessingSecurityScopedResource() { bookmarks.append(url) }
+        }
+        UserDefaults.standard.set(kept, forKey: "sourceBookmarks")
+    }
+
+    func rememberBookmark(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        guard let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil,
+                                                   relativeTo: nil) else { return }
+        var saved = (UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? []).filter { data in
+            var stale = false
+            let other = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &stale)
+            return other?.standardizedFileURL.path != path
+        }
+        saved.append(bookmark)
+        UserDefaults.standard.set(saved, forKey: "sourceBookmarks")
+        if !bookmarks.contains(where: { $0.standardizedFileURL.path == path }), url.startAccessingSecurityScopedResource() {
+            bookmarks.append(url)
         }
     }
 
@@ -658,15 +831,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             if let path = body["path"] as? String, FileManager.default.fileExists(atPath: path) {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
-        case "notify": notify(body)
+        case "notify": notify(body, id: id, host: host)
+        case "notificationStatus": notificationStatus(id: id, host: host)
+        case "openNotificationSettings":
+            let target = "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(bundleID)"
+            if let url = URL(string: target) { NSWorkspace.shared.open(url) }
+        case "loginItem": loginItem(body, id: id, host: host)
+        case "statusBadge": setStatusBadge(body["state"] as? String ?? "none")
+        case "appearance": setAppearance(body["mode"] as? String ?? "system")
         case "prefs": savePrefs(body, from: host)
         case "openMain": openMain(route: body["route"] as? String)
         case "onboarded":
             // Show the HUD once onboarding finishes, unless the user has already hidden it.
             if UserDefaults.standard.object(forKey: "hudVisible") == nil { setPanel(.hud, visible: true) }
         case "dragRegions": if host.surface == .main { window.updateRegions(body) }
+        case "menuState": if host.surface == .main { updateMenuState(body) }
         case "resizeSurface":
-            if let height = (body["height"] as? NSNumber)?.doubleValue { resizeSurface(host, height: height) }
+            if let height = (body["height"] as? NSNumber)?.doubleValue {
+                resizeSurface(host, height: height, width: (body["width"] as? NSNumber)?.doubleValue)
+            }
         default: break
         }
     }
@@ -697,7 +880,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if host.surface == .main, window.isVisible {
             panel.beginSheetModal(for: window, completionHandler: done)
         } else {
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             panel.begin(completionHandler: done)
         }
     }
@@ -718,11 +901,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             guard response == .OK, let url = panel.url else {
                 self.dispatch("tandem:folder", ["id": id, "path": NSNull(), "cancelled": true], to: host); return
             }
-            if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
-                var saved = UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? []
-                saved.append(bookmark); UserDefaults.standard.set(saved, forKey: "sourceBookmarks")
-            }
-            if url.startAccessingSecurityScopedResource() { self.bookmarks.append(url) }
+            self.rememberBookmark(url)
             self.dispatch("tandem:folder", ["id": id, "path": url.path, "cancelled": false], to: host)
         }
     }
@@ -753,9 +932,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     // MARK: notifications
 
-    /// System notification; authorization is requested on first use and denial is silent.
-    func notify(_ body: [String: Any]) {
-        guard Bundle.main.bundleIdentifier != nil, let title = body["title"] as? String else { return }
+    /// System notification; authorization is requested on first use (notDetermined). The page gets
+    /// tandem:notified {id, delivered, reason?}: denied, an unbundled build or a failed add are reported, not dropped.
+    /// force:true only matters to the page (it posts even while visible); the host always delivers.
+    func notify(_ body: [String: Any], id replyID: Any = NSNull(), host: WebHost? = nil) {
+        let reply = { (delivered: Bool, reason: String?) in
+            var detail: [String: Any] = ["id": replyID, "delivered": delivered]
+            if let reason = reason { detail["reason"] = reason }
+            DispatchQueue.main.async { self.dispatch("tandem:notified", detail, to: host) }
+        }
+        guard Bundle.main.bundleIdentifier != nil else { reply(false, "unbundled"); return }
+        guard let title = body["title"] as? String, !title.isEmpty else { reply(false, "no title"); return }
         let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = title
@@ -763,11 +950,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if let route = body["route"] as? String { content.userInfo = ["route": route] }
         let id = (body["id"] as? String) ?? (body["id"] as? NSNumber)?.stringValue ?? UUID().uuidString
         let request = UNNotificationRequest(identifier: "orbit.\(id)", content: content, trigger: nil)
-        let post = { center.add(request) { _ in } }
-        if notificationsAsked { post(); return }
-        center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
-            DispatchQueue.main.async { self?.notificationsAsked = true }
-            if granted { post() }
+        let post = { center.add(request) { error in reply(error == nil, error?.localizedDescription) } }
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .denied: reply(false, "denied")
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if granted { post() } else { reply(false, error?.localizedDescription ?? "denied") }
+                }
+            default: post()
+            }
+        }
+    }
+
+    static func authorizationName(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        case .provisional, .ephemeral: return "provisional"
+        default: return "notDetermined"
+        }
+    }
+
+    /// notificationStatus → tandem:notificationStatus {id, status: notDetermined | denied | authorized | provisional}.
+    func notificationStatus(id: Any, host: WebHost) {
+        guard Bundle.main.bundleIdentifier != nil else {
+            dispatch("tandem:notificationStatus", ["id": id, "status": "notDetermined", "error": "unbundled"], to: host); return
+        }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let status = AppDelegate.authorizationName(settings.authorizationStatus)
+            DispatchQueue.main.async { self.dispatch("tandem:notificationStatus", ["id": id, "status": status], to: host) }
+        }
+    }
+
+    // MARK: login item and appearance
+
+    static func loginStatusName(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .enabled: return "enabled"
+        case .requiresApproval: return "requiresApproval"
+        case .notFound: return "notFound"
+        default: return "notRegistered"
+        }
+    }
+
+    /// loginItem {enabled?}: without enabled it reads, with it registers / unregisters the app (SMAppService.mainApp).
+    /// Replies tandem:loginItem {id, enabled, status, error?}; the state is always the system's, read back after the change.
+    func loginItem(_ body: [String: Any], id: Any, host: WebHost) {
+        let service = SMAppService.mainApp
+        var error: String?
+        if let enable = body["enabled"] as? Bool {
+            do { if enable { try service.register() } else { try service.unregister() } }
+            catch let failure { error = failure.localizedDescription }
+        }
+        let status = service.status
+        var detail: [String: Any] = ["id": id, "enabled": status == .enabled, "status": AppDelegate.loginStatusName(status)]
+        if let error = error { detail["error"] = error }
+        dispatch("tandem:loginItem", detail, to: host)
+    }
+
+    /// appearance {mode: system | light | dark}: the whole app (windows, panels, popover, sheets) follows the page's theme.
+    func setAppearance(_ mode: String) {
+        switch mode {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: NSApp.appearance = nil
         }
     }
 
@@ -815,10 +1062,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         return true
     }
 
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "打开 Orbit", action: #selector(showMain(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "").target = self
+        return menu
+    }
+
     // Closing the main window hides it; Orbit keeps running in the menu bar until ⌘Q.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    var quitConfirmed = false
+
+    /// ⌘Q during an import asks first. The job list comes from /v1/app/state with a 1.5 s limit: no answer (or an error)
+    /// quits as before, so a stuck helper can never hold the quit.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if !quitConfirmed, let origin = origin, backend?.isRunning == true {
+            var request = URLRequest(url: origin.appendingPathComponent("v1/app/state")); request.timeoutInterval = 1.5
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+                let state = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+                let body = (state?["data"] as? [String: Any]) ?? state ?? [:]
+                let busy = ((body["jobs"] as? [[String: Any]]) ?? []).contains { job in
+                    ["queued", "pending", "running"].contains(job["status"] as? String ?? "")
+                        && ["import", "ingest", "backfill"].contains(job["kind"] as? String ?? "")
+                }
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    if busy && !self.confirmQuitDuringImport() { NSApp.reply(toApplicationShouldTerminate: false); return }
+                    self.quitConfirmed = true
+                    // .terminateLater: stopBackend replies itself once the helper has exited.
+                    if self.stopBackend() == .terminateNow { NSApp.reply(toApplicationShouldTerminate: true) }
+                }
+            }.resume()
+            return .terminateLater
+        }
+        return stopBackend()
+    }
+
+    func confirmQuitDuringImport() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "正在导入会话，确定退出 Orbit？"
+        alert.informativeText = "导入会中断，下次打开 Orbit 时显示为 interrupted，可以重新开始。"
+        alert.addButton(withTitle: "退出")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Stops the helper; .terminateLater replies itself once the helper is gone.
+    func stopBackend() -> NSApplication.TerminateReply {
         stopping = true
         guard let process = backend, process.isRunning else { return .terminateNow }
         process.terminate()  // SIGTERM: the gateway stops workers and exits gracefully.
