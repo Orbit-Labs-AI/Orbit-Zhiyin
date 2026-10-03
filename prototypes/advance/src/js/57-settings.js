@@ -76,8 +76,38 @@ let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE
 // A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
 // swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
 function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
-function openSettings(tab) { if (tab) S.setTab = tab; NATV.loginGet(); if (S.setTab === 'notify') NATV.notifGet(); S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
-function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
+// The settings window is a dialog (role, name from its title) that takes the focus when it opens, keeps Tab inside itself
+// while it is the key window, and gives the focus back to whatever opened it (⌘, / palette / menu button) when it closes.
+let SET_OPENER = null;
+const setFocusables = () => $$('#set button:not([disabled]), #set input:not([disabled]), #set textarea:not([disabled]), #set select:not([disabled]), #set a[href], #set [tabindex]:not([tabindex="-1"])').filter((x) => x.offsetParent !== null || x === document.activeElement);
+function setFocusIn() { const el = $('#set'); if (el.hidden) return; const f = el.querySelector('[role="tab"][aria-selected="true"]') || setFocusables()[0]; if (f) f.focus({ preventScroll: true }); }
+function openSettings(tab) {
+  const el = $('#set'); const a = document.activeElement;
+  if (el.hidden) SET_OPENER = a && a !== document.body && !el.contains(a) ? a : null;
+  if (tab) S.setTab = tab; NATV.loginGet(); if (S.setTab === 'notify') NATV.notifGet();
+  S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-labelledby', 'setTitle'); el.removeAttribute('aria-label');
+  el.hidden = false; render(); setPlace(); keyWinApply();
+  if (!el.contains(document.activeElement)) setFocusIn();
+}
+function closeSettings() {
+  if (MODAL_HOST === $('#set')) closeModal();
+  const el = $('#set'); const had = el.contains(document.activeElement);
+  el.hidden = true; S.keyWin = 'main'; keyWinApply();
+  const o = SET_OPENER; SET_OPENER = null;
+  if (o && o.isConnected && o.offsetParent !== null) { try { o.focus({ preventScroll: true }); return; } catch (e) { /* fall through */ } }
+  if (had || document.activeElement === document.body) { const h = $('#main .tbar h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+}
+document.addEventListener('keydown', (e) => {
+  const el = $('#set'); if (!el || el.hidden || S.keyWin !== 'set' || !$('#modal').hidden || (typeof OVL !== 'undefined' && OVL)) return;
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); closeSettings(); return; }
+  if (e.key !== 'Tab') return;
+  const fs = setFocusables(); if (!fs.length) return;
+  const i = fs.indexOf(document.activeElement);
+  if (i < 0) { e.preventDefault(); (e.shiftKey ? fs[fs.length - 1] : fs[0]).focus(); }
+  else if (!e.shiftKey && i === fs.length - 1) { e.preventDefault(); fs[0].focus(); }
+  else if (e.shiftKey && i === 0) { e.preventDefault(); fs[fs.length - 1].focus(); }
+}, true);
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
   const el = $('#set'); if (el.hidden) return;
@@ -130,8 +160,14 @@ function renderSet() {
   } else {
     body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px">' + appIcon(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">' + (LV.live ? '关于 Orbit' : '关于这个 Demo') + '</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
   }
-  el.innerHTML = '<div class="ptop"><div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div><span class="ptitle">' + curTab[1] + '</span></div>' +
+    // the App draws real traffic lights on its own windows: inside it the page-drawn ones (yellow / green greyed out) would be a
+  // fake window, so the settings card keeps a plain close button instead (Esc and ⌘W close it as well)
+  const fakeLights = !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative);
+  const keepF = el.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement : null;
+  const keepK = keepF && keepF.dataset.act ? '[data-act="' + keepF.dataset.act + '"]' + (keepF.dataset.v != null ? '[data-v="' + keepF.dataset.v + '"]' : '') + (keepF.dataset.k != null ? '[data-k="' + keepF.dataset.k + '"]' : '') : null;
+  el.innerHTML = '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<h2 class="ptitle" id="setTitle"><span class="vh">设置 · </span>' + curTab[1] + '</h2></div>' +
     '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
+  if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {
   store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null);

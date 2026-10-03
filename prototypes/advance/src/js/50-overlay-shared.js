@@ -17,3 +17,25 @@ let HUD_T = 0, OVL = null, SIMT = null, ASKT = null;
 // page guide (「这页回答」, inserted by 37-motion.js's render hook, which runs before this one): the full sentence is also its
 // tooltip, so the line can stay one short row — on narrow content columns the 「先看 …」 half is hidden (90-responsive.css)
 RENDER_HOOKS.push((m) => { const t = m.querySelector('.pg-guide-t'); if (t && !t.dataset.tip) t.dataset.tip = t.textContent.replace(/^这页回答/, '这页回答：'); });
+
+// #modal is role=dialog + aria-modal: name it after its sheet title (the palette, which has none, is「命令面板」), and when a
+// sheet closes with nothing to return to (opened from a host command while <body> had the focus), the keyboard continues in
+// the settings window if it is the key window, else on the page title, instead of falling back to <body>.
+{
+  const baseOpen = openModal, baseClose = closeModal;
+  openModal = function (html, cls) {
+    baseOpen(html, cls);
+    const m = $('#modal'); const h = m.querySelector('.mh h2');
+    if (h) { h.id = 'modalTitle'; m.setAttribute('aria-labelledby', 'modalTitle'); m.removeAttribute('aria-label'); }
+    else { m.removeAttribute('aria-labelledby'); m.setAttribute('aria-label', /\bpal\b/.test(cls || '') ? '命令面板' : '对话框'); }
+  };
+  closeModal = function () {
+    const was = !$('#modal').hidden;
+    baseClose();
+    if (!was) return;
+    $('#modal').removeAttribute('aria-labelledby'); $('#modal').removeAttribute('aria-label');
+    const a = document.activeElement; if (a && a !== document.body && a.isConnected) return;
+    if (!$('#set').hidden && S.keyWin === 'set' && typeof setFocusIn === 'function') { setFocusIn(); return; }
+    const t = $('#main .tbar h1'); if (t) { t.tabIndex = -1; t.focus({ preventScroll: true }); }
+  };
+}
