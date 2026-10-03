@@ -4,7 +4,7 @@
    persona, sentiment, tools, library, Lite home / persona / recs) keep the single page scroll. Pane mode only applies while
    the split is side by side; once 90-responsive.css stacks it (content column < 800px, projects < 1100px) the page scrolls
    as before. #content keeps overflow:auto, so a window too short for the panes' 300px floor still scrolls as a whole.
-     会话与轨迹 .sess        list card (search head fixed, #slist scrolls) | detail stack
+     会话轨迹 .sess        list card (search head fixed, #slist scrolls) | detail stack
      Lite 会话轨迹 .l-sess   list card (.slist scrolls)                    | detail stack
      优化建议 .recs           card list                                     | detail column
      项目习惯 .pj (≥1100)     table + scatter                               | project detail

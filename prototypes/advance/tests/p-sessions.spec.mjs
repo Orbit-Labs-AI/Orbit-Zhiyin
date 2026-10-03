@@ -1,4 +1,4 @@
-// A3 会话与轨迹（src/js/42-a3-sessions.js + styles/43-a3-sessions.css）。只在 mac-14 跑一次。
+// A3 会话轨迹（src/js/42-a3-sessions.js + styles/43-a3-sessions.css）。只在 mac-14 跑一次。
 // 流程：
 //   1. 列表口径：结果 = 放弃 时今天 / 运行中的会话也要满足筛选（BUG-02），页头不再写死「1 个运行中」（BUG-03）；
 //      「全部历史」只渲染 120 行时给出截断提示，「加载更多」追加（BUG-05）；运行中时长按真实分钟（BUG-68）；
