@@ -4,6 +4,7 @@ The bottleneck feature families live in interaction/respond/cost_time/outcome.
 Existing callers keep their imports and v1 field meanings.
 """
 
+import re
 from collections import Counter
 from statistics import mean, median
 from zoneinfo import ZoneInfo
@@ -11,7 +12,7 @@ from zoneinfo import ZoneInfo
 from .common import human, quantile, ratio, timestamp
 from .cost_time import activity, token_total, usage
 from .cost_time.activity import local_parts
-from .instruction.structure import FILE, structure
+from .instruction.structure import structure
 from .interaction import correction_terms
 from .outcome import legacy_objective_candidates
 from .outcome_subjective import analyze_subjective_outcomes
@@ -31,10 +32,48 @@ def _wilson(successes, trials):
     return wilson(successes, trials)
 
 
-LANG = {"py": "Python", "ipynb": "Python", "ts": "TypeScript", "tsx": "TypeScript",
-        "js": "JavaScript", "jsx": "JavaScript", "tex": "LaTeX", "rs": "Rust", "go": "Go",
-        "java": "Java", "cpp": "C++", "c": "C", "h": "C/C++", "sh": "Shell",
-        "html": "HTML", "css": "CSS", "md": "Markdown", "json": "JSON", "yaml": "YAML", "yml": "YAML"}
+LANGUAGE_TABLE_VERSION = "file-extension-languages-v2"
+# Extension → language, named as GitHub Linguist (languages.yml) names them. Only
+# extensions Linguist maps to a single language, plus ``h`` (Linguist's default for .h is C
+# absent content heuristics; we have no content, so it stays the honest "C/C++").
+# Single-letter / ambiguous suffixes with mostly non-code use in prose (``m``, ``r``, ``v``,
+# ``d``, ``pl`` vs Prolog) are left out on purpose: they would be guessed, not observed.
+_LANGUAGES = {
+    "Python": ("py", "pyi", "pyw", "ipynb"),
+    "TypeScript": ("ts", "tsx", "mts", "cts"),
+    "JavaScript": ("js", "jsx", "mjs", "cjs"),
+    "LaTeX": ("tex", "sty", "cls", "bib"),
+    "Rust": ("rs",), "Go": ("go",), "Java": ("java",), "Kotlin": ("kt", "kts"),
+    "Scala": ("scala", "sc"), "Groovy": ("groovy", "gradle"), "Swift": ("swift",),
+    "Objective-C++": ("mm",), "C": ("c",), "C/C++": ("h",),
+    "C++": ("cpp", "cc", "cxx", "hpp", "hh", "hxx"), "C#": ("cs", "csx"), "F#": ("fs", "fsx"),
+    "Ruby": ("rb", "rake", "gemspec"), "PHP": ("php",), "Perl": ("pm",), "Lua": ("lua",),
+    "Dart": ("dart",), "Elixir": ("ex", "exs"), "Erlang": ("erl", "hrl"),
+    "Haskell": ("hs",), "OCaml": ("ml", "mli"), "Clojure": ("clj", "cljs", "cljc", "edn"),
+    "Zig": ("zig",), "Nim": ("nim",), "Julia": ("jl",), "Solidity": ("sol",),
+    "CUDA": ("cu", "cuh"), "Metal": ("metal",), "GLSL": ("glsl", "vert", "frag"),
+    "Fortran": ("f90", "f95"), "Assembly": ("asm", "s"),
+    "Shell": ("sh", "bash", "zsh"), "fish": ("fish",), "PowerShell": ("ps1", "psm1"),
+    "Batchfile": ("bat", "cmd"), "SQL": ("sql",), "HTML": ("html", "htm"), "CSS": ("css",),
+    "SCSS": ("scss",), "Sass": ("sass",), "Less": ("less",), "Vue": ("vue",),
+    "Svelte": ("svelte",), "Markdown": ("md", "mdx", "markdown"),
+    "reStructuredText": ("rst",), "JSON": ("json", "jsonc", "jsonl"), "YAML": ("yaml", "yml"),
+    "TOML": ("toml",), "XML": ("xml", "plist", "xib", "storyboard"), "INI": ("ini", "cfg"),
+    "Protocol Buffer": ("proto",), "GraphQL": ("graphql", "gql"), "HCL": ("tf", "hcl"),
+    "Nix": ("nix",), "CMake": ("cmake",), "Makefile": ("mk", "mak"), "CSV": ("csv", "tsv"),
+}
+LANG = {ext: language for language, extensions in _LANGUAGES.items() for ext in extensions}
+# A file mention in prose: a path-like token ending in a known extension (longest first so
+# ``.tsx`` wins over ``.ts``). Shared by session ``language_signals``; the instruction
+# family's ``FILE`` should be generated from the same table (see ``file_reference``).
+FILE_REFERENCE = re.compile(
+    r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(" + "|".join(sorted(LANG, key=len, reverse=True))
+    + r")\b", re.I)
+
+
+def file_reference():
+    """The file-mention pattern built from ``LANG``, for other families to reuse."""
+    return FILE_REFERENCE
 
 
 def text_lengths(events):
@@ -73,7 +112,8 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
     corrections = [{"event_uid": e["event_uid"], "terms": terms} for e in users
                    if (terms := correction_terms(e.get("text") or ""))]
     structures = [s for e in users if (s := structure(e)) is not None]
-    languages = Counter(ext.lower() for e in users for ext in FILE.findall(e.get("text") or ""))
+    languages = Counter(ext.lower() for e in users
+                        for ext in FILE_REFERENCE.findall(e.get("text") or ""))
     objective = legacy_objective_candidates(calls)
     subjective = analyze_subjective_outcomes(events, main_ids, event_status)
     feedback = None if subjective["feedback"] is None else [
