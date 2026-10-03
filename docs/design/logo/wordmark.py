@@ -1,4 +1,4 @@
-"""Orbit 字标：首字母 O 是标志本身（同一条 path、同一坐标），后接几何单线小写 rbit。
+"""Orbit 字标：首字母 O 是同一条螺旋在俯视视角（o_pitch）下的投影，后接几何单线小写 rbit。
 
 参数全部来自 orbit-spec.json 的 wordmark 一节，长度以「字高」H（标志墨迹高度去掉上下视觉溢出）为单位，
 线宽以设计单位给出。字母由直线段与圆弧组成，均按圆头单线描边后展开成填充轮廓（三次贝塞尔），
@@ -90,7 +90,7 @@ class Wordmark:
         xh, asc, th = p["x_height"] * H, p["ascender"] * H, p["t_height"] * H
         sp = {k: v * H for k, v in p["spacing"].items()}
         base, xtop = self.base, self.base - xh
-        contours = []
+        contours, self.letters = [], {}
 
         # r：竖干 + 肩部圆弧
         x = x1 + sp["O_r"] + h
@@ -99,6 +99,7 @@ class Wordmark:
         ca = (x + rr, xtop + h + rr)
         contours += arc_band(ca, rr, math.pi, math.radians(p["r_arm_end"]), w)
         right = max(x + h, ca[0] + (rr + h) * math.cos(math.radians(p["r_arm_end"])))
+        self.letters["r"], mark = contours[:], len(contours)
         # b：升部竖干 + 整圆碗
         x = right + sp["r_b"] + h
         rb = (xh - w) / 2
@@ -106,12 +107,14 @@ class Wordmark:
         cb = (x + rb, base - xh / 2)
         contours += ring(cb, rb, w)
         right = cb[0] + rb + h
+        self.letters["b"], mark = contours[mark:], len(contours)
         # i：竖干 + 圆点
         x = right + sp["b_i"] + h
         contours += capsule((x, xtop + h), (x, base - h), w)
         dot = p["i_dot"] * w / 2
         contours += disc((x, xtop - p["i_dot_gap"] * H - dot), dot)
         right = x + max(h, dot)
+        self.letters["i"], mark = contours[mark:], len(contours)
         # t：竖干 + 横笔（以竖干为中心）+ 底部圆弧收尾（t_hook = 圆弧半径 × x 字高，0 为直干）
         x = right + sp["i_t"] + p["t_bar"] * xh / 2
         bar = p["t_bar"] * xh / 2
@@ -126,11 +129,13 @@ class Wordmark:
             contours += capsule((x, base - th + h), (x, base - h), w)
             right = x + bar
         contours += capsule((x - bar + h, xtop + h), (x + bar - h, xtop + h), w)
+        self.letters["t"] = contours[mark:]
 
         self.contours = contours
         self.box = (x0, min(y0, base - asc), right, max(y1, base))
         self.cap_height, self.x_height = H, xh
 
-    def path(self, digits: int = 3) -> str:
+    def path(self, digits: int = 3, letters: str = "rbit") -> str:
         f = lambda q: f"{num(q[0], digits)} {num(q[1], digits)}"  # noqa: E731
-        return "".join("M" + f(s[0][0]) + "".join("C" + " ".join(f(q) for q in seg[1:]) for seg in s) + "Z" for s in self.contours)
+        cs = [c for ch in letters for c in self.letters[ch]]
+        return "".join("M" + f(s[0][0]) + "".join("C" + " ".join(f(q) for q in seg[1:]) for seg in s) + "Z" for s in cs)

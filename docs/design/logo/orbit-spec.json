@@ -49,7 +49,8 @@
     }
   },
   "wordmark": {
-    "note": "长度以字高 H（标志墨迹高度减去上下溢出）为单位；stroke 为设计单位",
+    "note": "长度以字高 H（标志墨迹高度减去上下溢出）为单位；stroke 为设计单位；O 为同一螺旋在 o_pitch 视角下的投影（其余参数与标志相同）",
+    "o_pitch": 75,
     "overshoot": 0.015,
     "stroke": 22,
     "x_height": 0.6,
@@ -68,6 +69,15 @@
       "b_i": 0.13,
       "i_t": 0.1
     }
+  },
+  "motion": {
+    "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时移到字标 O 的位置，随后 rbit 依次出现；再点击按相反顺序收回",
+    "frames": 49,
+    "tolerance": 0.05,
+    "digits": 1,
+    "turn_ms": 900,
+    "letter_delay_ms": 110,
+    "letter_ms": 420
   },
   "colors": {
     "ink": "#5f6b6f",

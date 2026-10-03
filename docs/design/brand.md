@@ -52,6 +52,7 @@
 | [`nav/`](logo/kit/nav/orbit-nav-template-22@2x.png) | 菜单栏与导航栏：黑色模板图（`template`，macOS `isTemplate` 只取 alpha）、板岩灰、白 | PNG 高 16、18、20、22、24、32 pt，各 @1x @2x @3x；矢量用 `mark/orbit-mark-black.pdf` |
 | [`favicon/`](logo/kit/favicon/favicon.svg) | 网页图标：`favicon.svg`（随浏览器深色模式切换黑夜配色）、`favicon.ico`（16/32/48）、`apple-touch-icon.png`（180，方形不加圆角，由系统裁切）、PWA `icon-192/512.png` | SVG、ICO、PNG |
 | [`wordmark/`](logo/kit/wordmark/orbit-wordmark-ink.svg) | 字标 Orbit：标志作首字母 O，后接小写 rbit；板岩灰、黑、白、暖纸四色，透明底 | SVG、PDF；PNG 高 32、48、64、128、256、512 |
+| [`motion/`](logo/kit/motion/orbit-reveal.html) | 交互动效页：点击 45° 标志 → 转为俯视正圆并移到 O 的位置 → r、b、i、t 依次升起淡入；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°，`motion` 一节记录帧数与时长），支持深色模式与减少动态效果 | 单文件 HTML |
 | [`social/`](logo/kit/social/orbit-social.svg) | 分享图 1280×640：图标居中于同色底 | SVG、PNG |
 
 PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xcode 资源目录（勾选 Preserve Vector Data）。
@@ -80,10 +81,11 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 
 ![Orbit 字标](logo/kit/wordmark/png/orbit-wordmark-ink-128.png)
 
-字标的 O 就是标志本身：同一条 path、同一设计坐标，不缩放、不改线宽。rbit 是几何单线小写字母（直线与圆弧，圆头收笔，r 肩部与 t 收尾用大圆弧），线宽 22（比标志最粗处 14 略重，让小写字母在 O 旁站得住）；O 保持标志原比例（宽高比 1.30），不为字标拉圆；字母同样展开成填充的贝塞尔轮廓，字标 SVG 只含标志 path 与字母 path 两条。参数在 `orbit-spec.json` 的 `wordmark` 一节，长度以字高 H 为单位（H = 标志墨迹高度去掉上下各 1.5% 的圆形溢出；基线 = 标志墨迹底边上移 1.5%）：
+字标的 O 是同一条螺旋换成俯视视角（pitch 75°，宽高比约 1.01，近正圆）的投影：曲线、线宽规则、断口与标志完全相同，只改 `wordmark.o_pitch`。单独使用的标志仍是 45° 斜视。rbit 是几何单线小写字母（直线与圆弧，圆头收笔，r 肩部与 t 收尾用大圆弧），线宽 22；字母同样展开成填充的贝塞尔轮廓，字标 SVG 只含标志 path 与字母 path 两条。参数在 `orbit-spec.json` 的 `wordmark` 一节，长度以字高 H 为单位（H = 标志墨迹高度去掉上下各 1.5% 的圆形溢出；基线 = 标志墨迹底边上移 1.5%）：
 
 | 参数 | 值 | 含义 |
 | --- | --- | --- |
+| `o_pitch` | 75° | 字标 O 的俯仰视角（标志本身为 45°） |
 | `stroke` | 22 | 字母线宽（设计单位） |
 | `x_height` / `ascender` / `t_height` | 0.6 / 1.0 / 0.8 | 小写字高、b 的升部、t 的高度 |
 | `r_shoulder` / `r_arm_end` | 0.5 / 320° | r 肩部圆弧半径（× x 字高）与收笔角度 |
