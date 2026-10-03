@@ -1,15 +1,15 @@
 # Orbit 宣传片
 
-约 55 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../tandem-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
+约 59 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../tandem-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
 - **人格罗盘**：App 的 Orbit 表盘（`fp2SVG`：16 型扇区、按会话四维分布的 Agent 轨道与标志、人格之花），直接调用 App 的 `fpClassify` / `fpOrbit` / `bloom` / `typeP` / `agLogo` 绘制，App 改了表盘或花型，宣传片随之更新。
-- **Orbit 标志**：与 `docs/design/logo/orbit-spec.json` 同一条锥形螺旋、同一套线宽规则（近粗远细、两端渐细、交叉处断开，按 `orbit.py` 计算）实时生成，任何视角都是 App 图标曲线的整体等比缩放。字标用 `docs/design/logo/kit/wordmark/orbit-wordmark-night.svg` 原文件。
+- **Orbit 标志**：与 `docs/design/logo/orbit-spec.json` 同一条锥形螺旋、同一套线宽规则（近粗远细、两端渐细、交叉处断开，按 `orbit.py` 计算）实时生成，任何视角都是 App 图标曲线的整体等比缩放。标志与字标一律白色。片头：描出 45° 标志 → 原样播放 `docs/design/logo/kit/motion/orbit-reveal.html` 的展开帧（绕轴转一周、转为 O 并展开 rbit·知音）→ 字母收回，O 转为俯视螺旋并旋转下潜进入功能展示。片尾：罗盘轨道收成圆环 → 圆环倾倒成带 5 颗 Agent 行星的轨道 → 沿轨道长出螺旋 → 回到 45° 标志，下方只有标语，不再放字标。
 
 字体与 App 一致：SF Pro + PingFang SC、SF Mono，人格类型码用 SF Pro Rounded（`.tcode`）。
 
 全片回答开场的两个问题：
 - **01 人格分析**：数字碎成粒子、按各自方位落进轨道 → 花苞随扫描转一圈后开花，领瓣扫过 16 型 → 四条证据各排除一半类型（16 → 8 → 4 → 2 → 1）→ 揭晓「指挥家 DIMV」→ 优势与盲点。
 - **02 推荐 → 效率**：点盲点旁的「建议 →」打开推荐 → 每条建议的节省时间逐张汇入 22.7 h/月 → 一键安装 → 7 天后前后对比 → 「每月多出 22.7 小时」。
-之后快速带过轨迹回放、生成工坊、问本地 Agent 和桌面上的各项功能，最后罗盘的轨道收成圆环，长回 Orbit 标志。
+之后快速带过轨迹回放、生成工坊、问本地 Agent 和桌面上的各项功能，最后罗盘的轨道收成圆环，倾倒成轨道、长出螺旋，回到 45° 标志。
 
 | 文件 | 作用 |
 | --- | --- |
@@ -31,10 +31,14 @@ node build.mjs && node promo/render.mjs            # -> promo/out/tandem-promo.m
 
 `render.mjs` 的参数：`--fps 60`、`--scale 2`（按 2× 渲染后缩放到 1080p）、`--from/--to <秒>`、`--frames <目录>`（输出 JPG 序列而不是 MP4）、`--only 16,20.5`（只截取这几拍的画面，用于快速出联系表）、`--debug`（打印镜头目标的位置）。环境变量 `PROMO_PAGE=<文件名>` 可以渲染同目录下的另一个页面（例如只加载某几个场景的测试页）。
 
-预览：在仓库根启动任意静态服务器，打开 `prototypes/advance/promo/promo.html`（片头片尾的字标从 `docs/design/logo/kit` 读取），点击「播放」即可带配乐实时播放（`?t=<秒>` 可从中间开始，`?debug` 会显示当前拍号）。实时预览的效果取决于机器性能，最终成片以 `render.mjs` 的输出为准。
+预览：在仓库根启动任意静态服务器，打开 `prototypes/advance/promo/promo.html`（片头的字标展开帧从 `docs/design/logo/kit/motion` 读取），点击「播放」即可带配乐实时播放（`?t=<秒>` 可从中间开始，`?debug` 会显示当前拍号）。实时预览的效果取决于机器性能，最终成片以 `render.mjs` 的输出为准。
 
 ## 卡点原理
 
 每一帧先把时钟推进整数毫秒，再执行 `PROMO.sync(t)`：所有镜头和字幕都只由 `t` 计算；App 里正在进行的 CSS 动画和过渡也会暂停，并把进度设到同一时刻；JS 定时器和 `requestAnimationFrame` 则由 Playwright 的假时钟驱动。因此无论机器快慢，画面都会准确落在拍子上。View Transition 不受虚拟时钟控制，所以渲染时会关闭，改走 App 自带的回退动画。
 
 成片、帧序列与 `out/` 都不进仓库。
+
+## 时间轴
+
+片头（`scenes/10-open.js`）用成片拍号；之后各场景仍按 v7 的拍号书写，由引擎整体后移 `INTRO = 8` 拍（`promo.js` 中每个镜头、文字、驱动与点击都记住所属场景的后移量）。`music.py` 同样在片头之后把 `SH` 设为 `INTRO`。`render.mjs --only` 的拍号是成片拍号（= 场景拍号 + 8）。
