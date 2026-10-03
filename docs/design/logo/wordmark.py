@@ -3,7 +3,7 @@
 rbit 与知音的字形来自开源字体（orbit-spec.json 的 wordmark.fonts，轮廓由 extract_glyphs.py 写入 wordmark-glyphs.json），
 这里只做等比缩放与排列，字形本身不重画。长度以「字高」H（O 的墨迹高度去掉上下视觉溢出）为单位：
 - rbit：b 的升部顶与字高对齐，O 与 r 的墨迹间距 spacing.O_r，其后按字体步进宽度排列（另加 tracking）；
-- 间隔点：圆点，直径 = l 竖干宽 × dot.diameter，圆心在字高中线，与 t、知的墨迹间距 spacing.t_dot / dot_cjk；
+- 间隔点：cjk 字体的中文「·」，与知音同比例，圆心在基线上方 dot.height × H，与 t、知的墨迹间距 spacing.t_dot / dot_cjk；
 - 知音：墨迹高度 = H × cjk.height，垂直中心在字高中线，按字体步进宽度排列。
 
 坐标与标志的设计坐标相同（y 向下）：基线 = O 墨迹底边 − 溢出，字高顶 = O 墨迹顶边 + 溢出。
@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from orbit import KAPPA, num
+from orbit import num
 
 ROOT = Path(__file__).parent
 TEXT = "rbit·知音"  # O 之后的字符，也是动效里依次出现的顺序
@@ -25,21 +25,15 @@ def _place(contours, s: float, x: float, y: float):
     return [[tuple((x + q[0] * s, y - q[1] * s) for q in seg) for seg in c] for c in contours]
 
 
-def _disc(cx: float, cy: float, r: float):
-    k = KAPPA * r
-    pts = [(cx - r, cy), (cx, cy - r), (cx + r, cy), (cx, cy + r)]
-    hs = [((0, -k), (-k, 0)), ((k, 0), (0, -k)), ((0, k), (k, 0)), ((-k, 0), (0, k))]
-    return [[[pts[i], (pts[i][0] + hs[i][0][0], pts[i][1] + hs[i][0][1]),
-              (pts[(i + 1) % 4][0] + hs[i][1][0], pts[(i + 1) % 4][1] + hs[i][1][1]), pts[(i + 1) % 4]] for i in range(4)]]
-
-
 class Wordmark:
-    def __init__(self, spec: dict, mark_ink: tuple[float, float, float, float]):
+    def __init__(self, spec: dict, mark_ink: tuple[float, float, float, float], data: dict | None = None):
+        """data：字形数据（默认读 wordmark-glyphs.json 并核对字体；compare_cjk.py 传入候选字体）。"""
         p = spec["wordmark"]
-        data = json.loads((ROOT / p["glyphs"]).read_text(encoding="utf-8"))
-        for key in ("latin", "cjk"):
-            if (data[key]["family"], data[key]["weight"]) != (p["fonts"][key]["family"], p["fonts"][key]["weight"]):
-                raise SystemExit("wordmark-glyphs.json 与 orbit-spec.json 的字体不一致：运行 extract_glyphs.py")
+        if data is None:
+            data = json.loads((ROOT / p["glyphs"]).read_text(encoding="utf-8"))
+            for key in ("latin", "cjk"):
+                if (data[key]["family"], data[key]["weight"]) != (p["fonts"][key]["family"], p["fonts"][key]["weight"]):
+                    raise SystemExit("wordmark-glyphs.json 与 orbit-spec.json 的字体不一致：运行 extract_glyphs.py")
         x0, y0, x1, y1 = mark_ink  # O 的墨迹外框（设计坐标）
         over = p["overshoot"] * (y1 - y0)
         self.base, top = y1 - over, y0 + over
@@ -55,18 +49,17 @@ class Wordmark:
             self.letters[ch] = _place(lat[ch]["contours"], s, x, self.base)
             right = x + lat[ch]["bounds"][2] * s
             x += lat[ch]["advance"] * s + p["tracking"] * H
-        self.x_height = None
-
-        lb = lat["l"]["bounds"]
-        r = (lb[2] - lb[0]) * s * p["dot"]["diameter"] / 2
-        cx = right + sp["t_dot"] * H + r
-        self.letters["·"] = _disc(cx, mid, r)
-        right = cx + r
 
         cjk = data["cjk"]["glyphs"]
         lo = min(cjk[ch]["bounds"][1] for ch in "知音")
         hi = max(cjk[ch]["bounds"][3] for ch in "知音")
         s2 = p["cjk"]["height"] * H / (hi - lo)
+
+        db = cjk["·"]["bounds"]  # 中文间隔点：与知音同比例，圆心在基线上方 dot.height × H
+        x = right + sp["t_dot"] * H - db[0] * s2
+        self.letters["·"] = _place(cjk["·"]["contours"], s2, x, self.base - p["dot"]["height"] * H + (db[1] + db[3]) / 2 * s2)
+        right = x + db[2] * s2
+
         y = mid + (lo + hi) / 2 * s2  # 字体基线位置：使知音墨迹的垂直中心落在字高中线
         x = right + sp["dot_cjk"] * H - cjk["知"]["bounds"][0] * s2
         for ch in "知音":

@@ -715,145 +715,145 @@
     {
       "file": "wordmark/png/orbit-wordmark-black-32.png",
       "source": "kit/wordmark/orbit-wordmark-black.svg",
-      "width": 166,
+      "width": 173,
       "height": 32
     },
     {
       "file": "wordmark/png/orbit-wordmark-black-48.png",
       "source": "kit/wordmark/orbit-wordmark-black.svg",
-      "width": 249,
+      "width": 260,
       "height": 48
     },
     {
       "file": "wordmark/png/orbit-wordmark-black-64.png",
       "source": "kit/wordmark/orbit-wordmark-black.svg",
-      "width": 332,
+      "width": 346,
       "height": 64
     },
     {
       "file": "wordmark/png/orbit-wordmark-black-128.png",
       "source": "kit/wordmark/orbit-wordmark-black.svg",
-      "width": 664,
+      "width": 693,
       "height": 128
     },
     {
       "file": "wordmark/png/orbit-wordmark-black-256.png",
       "source": "kit/wordmark/orbit-wordmark-black.svg",
-      "width": 1329,
+      "width": 1386,
       "height": 256
     },
     {
       "file": "wordmark/png/orbit-wordmark-black-512.png",
       "source": "kit/wordmark/orbit-wordmark-black.svg",
-      "width": 2658,
+      "width": 2772,
       "height": 512
     },
     {
       "file": "wordmark/png/orbit-wordmark-ink-32.png",
       "source": "kit/wordmark/orbit-wordmark-ink.svg",
-      "width": 166,
+      "width": 173,
       "height": 32
     },
     {
       "file": "wordmark/png/orbit-wordmark-ink-48.png",
       "source": "kit/wordmark/orbit-wordmark-ink.svg",
-      "width": 249,
+      "width": 260,
       "height": 48
     },
     {
       "file": "wordmark/png/orbit-wordmark-ink-64.png",
       "source": "kit/wordmark/orbit-wordmark-ink.svg",
-      "width": 332,
+      "width": 346,
       "height": 64
     },
     {
       "file": "wordmark/png/orbit-wordmark-ink-128.png",
       "source": "kit/wordmark/orbit-wordmark-ink.svg",
-      "width": 664,
+      "width": 693,
       "height": 128
     },
     {
       "file": "wordmark/png/orbit-wordmark-ink-256.png",
       "source": "kit/wordmark/orbit-wordmark-ink.svg",
-      "width": 1329,
+      "width": 1386,
       "height": 256
     },
     {
       "file": "wordmark/png/orbit-wordmark-ink-512.png",
       "source": "kit/wordmark/orbit-wordmark-ink.svg",
-      "width": 2658,
+      "width": 2772,
       "height": 512
     },
     {
       "file": "wordmark/png/orbit-wordmark-night-32.png",
       "source": "kit/wordmark/orbit-wordmark-night.svg",
-      "width": 166,
+      "width": 173,
       "height": 32
     },
     {
       "file": "wordmark/png/orbit-wordmark-night-48.png",
       "source": "kit/wordmark/orbit-wordmark-night.svg",
-      "width": 249,
+      "width": 260,
       "height": 48
     },
     {
       "file": "wordmark/png/orbit-wordmark-night-64.png",
       "source": "kit/wordmark/orbit-wordmark-night.svg",
-      "width": 332,
+      "width": 346,
       "height": 64
     },
     {
       "file": "wordmark/png/orbit-wordmark-night-128.png",
       "source": "kit/wordmark/orbit-wordmark-night.svg",
-      "width": 664,
+      "width": 693,
       "height": 128
     },
     {
       "file": "wordmark/png/orbit-wordmark-night-256.png",
       "source": "kit/wordmark/orbit-wordmark-night.svg",
-      "width": 1329,
+      "width": 1386,
       "height": 256
     },
     {
       "file": "wordmark/png/orbit-wordmark-night-512.png",
       "source": "kit/wordmark/orbit-wordmark-night.svg",
-      "width": 2658,
+      "width": 2772,
       "height": 512
     },
     {
       "file": "wordmark/png/orbit-wordmark-paper-32.png",
       "source": "kit/wordmark/orbit-wordmark-paper.svg",
-      "width": 166,
+      "width": 173,
       "height": 32
     },
     {
       "file": "wordmark/png/orbit-wordmark-paper-48.png",
       "source": "kit/wordmark/orbit-wordmark-paper.svg",
-      "width": 249,
+      "width": 260,
       "height": 48
     },
     {
       "file": "wordmark/png/orbit-wordmark-paper-64.png",
       "source": "kit/wordmark/orbit-wordmark-paper.svg",
-      "width": 332,
+      "width": 346,
       "height": 64
     },
     {
       "file": "wordmark/png/orbit-wordmark-paper-128.png",
       "source": "kit/wordmark/orbit-wordmark-paper.svg",
-      "width": 664,
+      "width": 693,
       "height": 128
     },
     {
       "file": "wordmark/png/orbit-wordmark-paper-256.png",
       "source": "kit/wordmark/orbit-wordmark-paper.svg",
-      "width": 1329,
+      "width": 1386,
       "height": 256
     },
     {
       "file": "wordmark/png/orbit-wordmark-paper-512.png",
       "source": "kit/wordmark/orbit-wordmark-paper.svg",
-      "width": 2658,
+      "width": 2772,
       "height": 512
     }
   ]

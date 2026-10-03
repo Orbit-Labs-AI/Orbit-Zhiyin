@@ -1,6 +1,6 @@
-"""从开源字体提取字标「Orbit·知音」中 rbit 与知音的字形轮廓，写入 wordmark-glyphs.json（generate.py 只读这个文件，不依赖字体或 fontTools）。
+"""从开源字体提取字标「Orbit·知音」中 rbit、间隔点与知音的字形轮廓，写入 wordmark-glyphs.json（generate.py 只读这个文件，不依赖字体或 fontTools）。
 
-字体与字重来自 orbit-spec.json 的 wordmark.fonts（latin：rbit 与量竖干宽用的 l；cjk：知音）；字体文件从 google/fonts 下载并记录 SHA-256。TrueType 的二次曲线
+字体与字重来自 orbit-spec.json 的 wordmark.fonts（latin：rbit；cjk：知音与中文间隔点「·」）；字体文件从 google/fonts 下载并记录 SHA-256。TrueType 的二次曲线
 按精确公式升为三次贝塞尔，坐标为字体单位（y 向上）。换字体或字重时运行：
 
   uv run --no-project --with fonttools python docs/design/logo/extract_glyphs.py
@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import urllib.request
+import zipfile
 from pathlib import Path
 
 from fontTools.pens.basePen import BasePen
@@ -56,14 +57,23 @@ class CubicPen(BasePen):
     _endPath = _closePath
 
 
+def fetch(source: str) -> bytes:
+    """下载字体；source 为「zip 地址#包内路径」时取出包内文件。"""
+    url, _, member = source.partition("#")
+    raw = urllib.request.urlopen(url).read()
+    return zipfile.ZipFile(io.BytesIO(raw)).read(member) if member else raw
+
+
 def extract(spec: dict, chars: str) -> dict:
-    raw = urllib.request.urlopen(spec["source"]).read()
+    raw = fetch(spec["source"])
     font = TTFont(io.BytesIO(raw))
     if "fvar" in font:
         font = instantiateVariableFont(font, {"wght": spec["weight"]}, inplace=False)
     gs, cmap = font.getGlyphSet(), font.getBestCmap()
     glyphs = {}
     for ch in chars:
+        if ord(ch) not in cmap:
+            continue
         g = gs[cmap[ord(ch)]]
         pen, box = CubicPen(gs), BoundsPen(gs)
         g.draw(pen)
@@ -78,7 +88,7 @@ def extract(spec: dict, chars: str) -> dict:
 
 def main() -> None:
     fonts = json.loads((ROOT / "orbit-spec.json").read_text(encoding="utf-8"))["wordmark"]["fonts"]
-    out = {"latin": extract(fonts["latin"], "rbitl"), "cjk": extract(fonts["cjk"], "知音")}
+    out = {"latin": extract(fonts["latin"], "rbit"), "cjk": extract(fonts["cjk"], "知音·")}
     (ROOT / "wordmark-glyphs.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     for k, v in out.items():
         print(f"{k}: {v['family']} {v['weight']}, {sum(len(g['contours']) for g in v['glyphs'].values())} contours")
