@@ -39,8 +39,8 @@ test('Lite: four pages render without errors, overflow or the Advance filter row
   await expect(page.locator('#content [data-hero="code"]')).toBeVisible();
   await expect(page.locator('#content [data-hero="fp"] svg.fp2')).toBeVisible();
   await expect(page.locator('#content .l-ax')).toHaveCount(4);
-  // 一屏一个结论：每页至多三个主区块（加一行去 Advance 的链接）
-  for (const r of LITE) { await goLite(page, r); expect(await page.locator('#content .lite > :not(.l-foot)').count()).toBeLessThanOrEqual(3); }
+  // 一屏一个结论：每页至多三个主区块（加一行去 Advance 的链接；区域的隐藏占位不算）
+  for (const r of LITE) { await goLite(page, r); expect(await page.locator('#content .lite > :not(.l-foot):not([hidden])').count()).toBeLessThanOrEqual(3); }
   expect(errors).toEqual([]);
 });
 
