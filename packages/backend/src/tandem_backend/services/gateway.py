@@ -244,9 +244,13 @@ class Gateway:
         """Area services created by their routers (features hub, lazy AI service)."""
         from .. import features, privacy_rules
         from ..appdata import sources_scope
+        from ..sessionops import exclusion
 
         privacy_rules.bind(None)
         sources_scope.set_provider(None)
+        # The exclusion provider reads this gateway's app.db and fails closed once it is
+        # closed; unbind it so later readers (CLI, the next gateway) are not refused.
+        exclusion.set_provider(None)
         # bind(None) closes the bound hub; module helpers then fall back to "unbound".
         features.bind(None)
         ai = getattr(self, "_ai", None)
