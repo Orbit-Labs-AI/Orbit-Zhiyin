@@ -64,7 +64,6 @@ function sharePersona(k) {
 }
 // 一张卡在弹窗里的状态：ok（可导出）/ pending（计算中）/ blocked（附原因）。live 覆盖它
 function shareSpanState(k) { const sp = sharePersona(k); return sp.p.ok ? { state: 'ok', sp } : { state: 'blocked', sp, reason: sp.label + '还没有会话' }; }
-function qrCells(seed) { const r = rng(hash(seed)); const N = 17, out = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { if ((x < 5 && y < 5) || (x > N - 6 && y < 5) || (x < 5 && y > N - 6)) continue; if (r() < 0.45) out.push([x, y]); } return out; }
 /* 卡片模型 → 绘制指令（100 × 125 的单位格，1 单位 = 卡宽的 1%）。网页预览（SVG）与 1080 × 1350 PNG（canvas 2D；WebKit 会污染
    画了 SVG foreignObject 的 canvas，所以不能直接栅格化 HTML）都只执行这一份指令，排版、字体与换行逐像素一致。 */
 function shareModel(sp) {
@@ -94,50 +93,48 @@ function shareWrap(t, maxW, mw, o) {
   if (cur) lines.push(cur);
   return lines;
 }
+/* 版式（留白优先）：页眉 → 花 + 日历环 → 类型码 → 类型名与描述 → 四个数字 → 一行页脚。金句不上卡（放进「复制分享文案」），
+   二维码占位去掉；隐藏数字时类型名以下整体下移，留白均匀。 */
 function shareOps(m, dark, noNum) {
-  const C = SHARE_C[dark ? 'dark' : 'light'], F = shareFonts(), mw = shareMeasure(F); const ops = []; const L = 7.5, R = 92.5;
+  const C = SHARE_C[dark ? 'dark' : 'light'], F = shareFonts(), mw = shareMeasure(F); const ops = []; const L = 8, R = 92;
   const T = (s, x, y, o) => ops.push(Object.assign({ t: 'text', s: String(s), x, y }, o));
   ops.push({ t: 'rect', x: 0, y: 0, w: 100, h: 125, fill: C.bg });
   // 页眉：字标 + 这张卡的标签胶囊；下一行是卡名与日期
-  T('ORBIT', L, 9.4, { size: 2.6, weight: 700, family: 'mono', color: C.ink, ls: 0.32 });
-  const tag = m.tag[0] + ' · ' + m.tag[1], tagO = { size: 2.1, weight: 600, family: 'sans', color: C.ink, ls: 0.06 }; const tw = mw(tag, tagO) + 4.4;
-  ops.push({ t: 'rrect', x: R - tw, y: 6.15, w: tw, h: 4.6, r: 2.3, stroke: C.ink, sw: 0.22 });
-  T(tag, R - tw / 2, 9.25, Object.assign({ align: 'center' }, tagO));
-  T('我的 AI 协作人格 · ' + m.label, L, 15.2, { size: 2.5, family: 'sans', color: C.ink3 });
-  T(m.range || '', R, 15.2, { size: 2.3, weight: 500, family: 'mono', color: C.ink3, align: 'right' });
+  T('ORBIT', L, 10, { size: 2.5, weight: 700, family: 'mono', color: C.ink, ls: 0.32 });
+  const tag = m.tag[0] + ' · ' + m.tag[1], tagO = { size: 2, weight: 600, family: 'sans', color: C.ink, ls: 0.06 }; const tw = mw(tag, tagO) + 4.4;
+  ops.push({ t: 'rrect', x: R - tw, y: 6.8, w: tw, h: 4.5, r: 2.25, stroke: C.ink, sw: 0.2 });
+  T(tag, R - tw / 2, 9.85, Object.assign({ align: 'center' }, tagO));
+  T('我的 AI 协作人格 · ' + m.label, L, 16.2, { size: 2.4, family: 'sans', color: C.ink3 });
+  T(m.range || '', R, 16.2, { size: 2.2, weight: 500, family: 'mono', color: C.ink3, align: 'right' });
   // 花 + 日历环：12 点起顺时针，最早的一格在最前
-  const cx = 76.5, cy = 34.5, rr = 16.2, cells = m.ring.cells || []; const n = cells.length;
+  const cx = 75.5, cy = 36.5, rr = 15.6, cells = m.ring.cells || []; const n = cells.length;
   if (n) {
     const gap = n <= 12 ? 0.11 : Math.min(2 * Math.PI / n * 0.34, 0.05), seg = 2 * Math.PI / n;
-    cells.forEach((v, i) => { const a0 = -Math.PI / 2 + i * seg + gap / 2, a1 = a0 + seg - gap; ops.push(v > 0 ? { t: 'arc', cx, cy, r: rr, a0, a1, sw: n <= 31 ? 1.15 : 0.9, color: C.ink, alpha: +(0.3 + 0.7 * v).toFixed(3) } : { t: 'arc', cx, cy, r: rr, a0, a1, sw: 0.4, color: C.mn, alpha: 1 }); });
+    cells.forEach((v, i) => { const a0 = -Math.PI / 2 + i * seg + gap / 2, a1 = a0 + seg - gap; ops.push(v > 0 ? { t: 'arc', cx, cy, r: rr, a0, a1, sw: n <= 31 ? 1.1 : 0.85, color: C.ink, alpha: +(0.3 + 0.7 * v).toFixed(3) } : { t: 'arc', cx, cy, r: rr, a0, a1, sw: 0.4, color: C.mn, alpha: 1 }); });
   }
-  if (m.glyph) { const k = 12.6 / 36; ops.push({ t: 'flower', g: m.glyph, tx: cx - 40 * k, ty: cy - 40 * k, k, mj: C.mj, mn: C.mn }); }
+  if (m.glyph) { const k = 11.8 / 36; ops.push({ t: 'flower', g: m.glyph, tx: cx - 40 * k, ty: cy - 40 * k, k, mj: C.mj, mn: C.mn }); }
   // 四个字母（SF Pro Rounded）+ 极名 + 强度
-  let x = L; const by = 46.5;
+  let x = L; const by = 59;
   m.axes.forEach((a) => {
-    const lo = { size: 13, weight: 700, family: 'type', color: C.ink }, no = { size: 2.6, family: 'sans', color: C.ink2 };
-    T(a.L, x, by, lo); T(a.name, x, by + 3.9, no);
-    if (!noNum && a.strong) T(a.strong, x, by + 7.1, { size: 2.3, weight: 600, family: 'mono', color: C.ink3 });
-    x += Math.max(mw(a.L, lo), mw(a.name, no)) + 3.4;
+    const lo = { size: 12, weight: 700, family: 'type', color: C.ink }, no = { size: 2.5, family: 'sans', color: C.ink2 };
+    T(a.L, x, by, lo); T(a.name, x, by + 4.4, no);
+    if (!noNum && a.strong) T(a.strong, x, by + 7.8, { size: 2.2, weight: 600, family: 'mono', color: C.ink3 });
+    x += Math.max(mw(a.L, lo), mw(a.name, no)) + 3.6;
   });
-  let y = by + (noNum ? 4 : 7.1) + 10.4 + (noNum ? 3 : 0);
-  T(m.zh || '', L, y, { size: 8.4, weight: 600, family: 'serif', color: C.ink }); y += 4.9;
-  T(m.en || '', L, y, { size: 3.3, italic: true, family: 'serif', color: C.ink3 }); y += 5.6;
+  // 类型名、英文名、描述（最多两行）
+  let y = by + (noNum ? 22 : 20);
+  T(m.zh || '', L, y, { size: 7.6, weight: 600, family: 'serif', color: C.ink }); y += 5.4;
+  T(m.en || '', L, y, { size: 3.1, italic: true, family: 'serif', color: C.ink3 }); y += 7.2;
   const lineO = { size: 2.9, family: 'sans', color: C.ink2 };
-  shareWrap(m.line || '', R - L, mw, lineO).slice(0, 2).forEach((s) => { T(s, L, y, lineO); y += 4.4; });
-  y += 3.6; const qO = { size: 4.4, weight: 500, family: 'serif', color: C.ink };
-  T('「' + (m.q[0] || ''), L, y, qO); y += 6.1; T((m.q[1] || '') + '」', L, y, qO);
+  shareWrap(m.line || '', 76, mw, lineO).slice(0, 2).forEach((s) => { T(s, L, y, lineO); y += 4.9; });
   if (!noNum && m.stats.length) {
-    y += 4.4; ops.push({ t: 'rect', x: L, y, w: R - L, h: 0.12, fill: C.line }); y += 7.6;
+    const sy = 101.5; ops.push({ t: 'rect', x: L, y: sy, w: R - L, h: 0.12, fill: C.line });
     const cw = (R - L - 6) / 4;
-    m.stats.slice(0, 4).forEach((s, i) => { const sx = L + i * (cw + 2); T(s[0], sx, y, { size: 5.2, weight: 600, family: 'mono', color: C.ink }); T(s[1], sx, y + 3.3, { size: 2.3, family: 'sans', color: C.ink3 }); });
+    m.stats.slice(0, 4).forEach((s, i) => { const sx = L + i * (cw + 2); T(s[0], sx, sy + 8, { size: 4.6, weight: 600, family: 'mono', color: C.ink }); T(s[1], sx, sy + 11.6, { size: 2.2, family: 'sans', color: C.ink3 }); });
   }
-  // 页脚 + 二维码占位
-  const qs = 10, qx = R - qs, qy = 125 - 6.3 - qs, cell = qs / 19;
-  qrCells(m.code).forEach((c) => ops.push({ t: 'rect', x: qx + (c[0] + 1) * cell, y: qy + (c[1] + 1) * cell, w: cell, h: cell, fill: C.ink }));
-  [[0, 0], [12, 0], [0, 12]].forEach((f) => { ops.push({ t: 'srect', x: qx + (f[0] + 1.5) * cell, y: qy + (f[1] + 1.5) * cell, w: 4 * cell, h: 4 * cell, stroke: C.ink, sw: cell }); ops.push({ t: 'rect', x: qx + (f[0] + 2.5) * cell, y: qy + (f[1] + 2.5) * cell, w: 2 * cell, h: 2 * cell, fill: C.ink }); });
-  T('测测你和 AI 是哪种搭档', L, 125 - 6.3 - 4.2, { size: 3.3, weight: 600, family: 'sans', color: C.ink });
-  T(m.foot || '', L, 125 - 6.3, { size: 2.2, family: 'sans', color: C.ink3 });
+  // 页脚：一行
+  T('测测你和 AI 是哪种搭档', L, 119, { size: 2.3, weight: 600, family: 'sans', color: C.ink2 });
+  T(m.foot || '', R, 119, { size: 2.1, family: 'sans', color: C.ink3, align: 'right' });
   return { ops, F };
 }
 const shareFam = { type: 'type', serif: 'serif', mono: 'mono', sans: 'sans' };
@@ -174,7 +171,7 @@ function shareBody() {
     (codes.size > 1 ? '<span class="cap" style="font-size:11px">不同时间长度算出了 ' + codes.size + ' 种人格：短期看最近的习惯，长期看稳定的风格</span>' : '<span class="cap" style="font-size:11px">口径与「协作人格」页相同：时间窗 + Agent + 项目筛选</span>') + '</div>' +
     '<div class="col" style="gap:6px"><span class="eb">外观</span><div class="seg" role="radiogroup" aria-label="外观" style="align-self:flex-start"><button type="button" role="radio" aria-checked="' + S.shareDark + '" data-act="shareTheme" data-v="dark" class="' + (S.shareDark ? 'on' : '') + '">深色</button><button type="button" role="radio" aria-checked="' + !S.shareDark + '" data-act="shareTheme" data-v="light" class="' + (!S.shareDark ? 'on' : '') + '">浅色</button></div></div>' +
     '<div class="row" style="gap:10px">' + swBtn(S.shareNoNum, 'shareNum', '', '隐藏具体数字') + '<span style="font-size:13px">隐藏具体数字</span></div>' +
-    '<div class="col" style="gap:4px;padding:10px 12px;border-radius:9px;background:var(--sunken);font-size:12px;line-height:1.55;color:var(--ink-2)"><b style="color:var(--ink-1)">包含</b>类型代号、四个维度、人格描述与这段时间的活跃日历' + (S.shareNoNum ? '' : '、会话数与对话轮次') + '<b style="color:var(--ink-1);margin-top:4px">不包含</b>项目名、会话标题与任何对话原文</div></div>';
+    '<div class="col" style="gap:4px;padding:10px 12px;border-radius:9px;background:var(--sunken);font-size:12px;line-height:1.55;color:var(--ink-2)"><b style="color:var(--ink-1)">包含</b>类型代号、四个维度、人格描述与这段时间的活跃日历（金句放在分享文案里）' + (S.shareNoNum ? '' : '、会话数与对话轮次') + '<b style="color:var(--ink-1);margin-top:4px">不包含</b>项目名、会话标题与任何对话原文</div></div>';
 }
 function shareFoot() {
   const n = shareSpans().filter((k) => shareSpanState(k).state === 'ok').length;
@@ -198,7 +195,7 @@ function openShare() {
   S.shareSpan = ok.indexOf(shareKey()) >= 0 ? shareKey() : ok[0];
   shareSheet(); MODAL_KEY = 'share';
 }
-function shareText(sp) { const p = sp.p; return '我的 AI 协作人格（' + sp.label + '）是 ' + p.code + '「' + p.zh + '」：' + (p.line || '') + (S.shareNoNum || p.n == null ? '' : '（' + p.n + ' 个会话）') + ' —— 来自 Orbit，全部分析在本机完成。'; }
+function shareText(sp) { const p = sp.p; const q = sp.q || SHAREQ[p.code] || SHAREQ0; return '「' + q.join('') + '」' + '我的 AI 协作人格（' + sp.label + '）是 ' + p.code + '「' + p.zh + '」：' + (p.line || '') + (S.shareNoNum || p.n == null ? '' : '（' + p.n + ' 个会话）') + ' —— 来自 Orbit，全部分析在本机完成。'; }
 const shareFile = (m) => 'orbit-persona-' + ({ '7': '7d', '30': '30d', '90': '90d', all: 'all' }[m.key] || m.key) + '-' + m.code + '-' + expStamp() + '.png';
 function shareSaveOne(sp) { const m = shareModel(sp); return sharePNG(m, S.shareDark, S.shareNoNum).then((b64) => expSave(shareFile(m), 'image/png', { base64: b64 }), (e) => { toast('生成图片失败：' + (e && e.message || e)); return { ok: false }; }); }
 Object.assign(ACT, {

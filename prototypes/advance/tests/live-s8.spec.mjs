@@ -157,11 +157,12 @@ test('share card: one gateway card per time span, the persona page period first,
   expect(bodies[0]).toMatchObject({ period: per, save: false });
   expect(bodies.map((b) => b.period).sort()).toEqual(spans.slice().sort());
   expect(bodies[0].scope.display_timezone).toBeTruthy();
-  // the card is the gateway's persona: its code, copy, quote and axis strengths (no 70 / 30 stand-ins), labelled by span
+  // the card is the gateway's persona: its code, description and axis strengths (no 70 / 30 stand-ins), labelled by span;
+  // the quote goes into the share text
   const card = await page.locator('#modal .sharecard').innerHTML();
   const d = fx('s8/export-share-card.json');
   expect(card).toContain('>' + d.copy.line.slice(0, 8));
-  expect(card).toContain(d.copy.quote[0]);
+  expect(await page.evaluate(() => shareText(shareSpanState(shareKey()).sp))).toContain(d.copy.quote.join(''));
   for (const a of d.axes) expect(card).toContain('>' + a.strong + '%<');
   expect(card).toContain('>' + d.span.tag + ' · ' + d.span.tag_en + '<');
   await expect(page.locator('#modal [data-act="shareSpan"]')).toHaveCount(spans.length);
