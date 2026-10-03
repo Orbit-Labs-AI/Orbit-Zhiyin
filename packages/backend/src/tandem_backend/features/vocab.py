@@ -9,7 +9,9 @@ never materialized). The command table is shared by AN-05.2 / RC-06 / AI-07.2.
 from __future__ import annotations
 
 import fnmatch
+import json
 import re
+import shlex
 from pathlib import PurePosixPath
 
 VOCAB_VERSION = "vocab-1"
@@ -99,15 +101,118 @@ def split(fid: str) -> tuple[str, str]:
     return ns, value
 
 
-def command_info(head: str | None) -> dict:
-    words = (head or "").strip().split()
-    if not words:
-        return {"head": "", "family": "other", "cls": "unknown"}
+# Heads whose risk depends on their arguments: without the full command they are unknown.
+CONDITIONAL = {"find", "git branch", "sed", "uv run"}
+FIND_WRITE = {"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0",
+              "-fprintf", "-fls"}
+# ``git branch`` flags that only list/show; anything else (or a positional name without
+# ``--list``) creates, renames, copies or deletes a branch.
+BRANCH_READ_FLAGS = {"-a", "--all", "-r", "--remotes", "-v", "-vv", "--verbose", "-l",
+                     "--list", "--show-current", "--no-color", "--color", "--column",
+                     "--no-column", "-i", "--ignore-case", "--omit-empty"}
+BRANCH_READ_PREFIXES = ("--contains", "--no-contains", "--merged", "--no-merged", "--sort",
+                        "--format", "--points-at", "--color=", "--column=", "--abbrev")
+BRANCH_DELETE = {"-d", "-D", "--delete"}
+UV_RUN_TOOLS = {"pytest": ("test", "write"), "ruff": ("build", "write"),
+                "mypy": ("build", "readonly"), "python": ("runtime", "write")}
+RISK = {"readonly": 0, "network": 1, "write": 2, "unknown": 2, "destructive": 3}
+SEPARATORS = re.compile(r"\|\||&&|;|\||\n")
+REDIRECT = re.compile(r"(?<![<>])>>?\s*(&?[^\s|;&<>]*)")
+SHELLS = {"sh", "bash", "zsh", "dash", "fish"}
+
+
+def command_text(value) -> str | None:
+    """Full shell command from ``event.attrs.input.command`` (string, argv list or its JSON)."""
+    if isinstance(value, str) and value.lstrip().startswith("["):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return value
+    if isinstance(value, list):
+        words = [str(w) for w in value]
+        if len(words) >= 3 and PurePosixPath(words[0]).name in SHELLS \
+                and words[1].startswith("-") and "c" in words[1]:
+            return " ".join(words[2:])
+        return " ".join(shlex.quote(w) for w in words) if words else None
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _words(text: str) -> list[str]:
+    try:
+        return shlex.split(text, posix=True)
+    except ValueError:
+        return text.split()
+
+
+def _segment(words: list[str]) -> tuple[str, str, str]:
+    """(head, family, cls) of one simple command, judged by its arguments."""
     first = PurePosixPath(words[0]).name
     two = f"{first} {words[1]}" if len(words) > 1 and first in TWO_WORD_HEADS else None
     key = two if two in COMMANDS else first
+    head = two or first
     family, cls = COMMANDS.get(key, ("other", "unknown"))
-    return {"head": two or first, "family": family, "cls": cls}
+    args = words[2:] if key == two else words[1:]
+    if key == "find":
+        if "-delete" in args:
+            cls = "destructive"
+        elif FIND_WRITE & set(args):
+            cls = "write"
+            for i, a in enumerate(args):  # -exec rm {} ; runs rm: judge the inner command
+                if a in ("-exec", "-execdir", "-ok", "-okdir") and i + 1 < len(args):
+                    inner = _segment(args[i + 1:])[2]
+                    if RISK[inner] > RISK[cls]:
+                        cls = inner
+    elif key == "git branch":
+        if BRANCH_DELETE & set(args):
+            cls = "destructive"
+        elif not all(a in BRANCH_READ_FLAGS or a.startswith(BRANCH_READ_PREFIXES)
+                     or ("--list" in args or "-l" in args) and not a.startswith("-")
+                     for a in args):
+            cls = "write"
+    elif key == "sed":
+        # Without -i, sed only prints to stdout (POSIX sed); -i / --in-place edits files.
+        in_place = any(a == "--in-place" or a.startswith("--in-place=")
+                       or (a.startswith("-") and not a.startswith("--") and "i" in a[1:])
+                       for a in args)
+        family, cls = ("fs", "write") if in_place else ("fs", "readonly")
+    elif key == "uv run":
+        rest = [a for a in args if not a.startswith("-")]
+        tool = PurePosixPath(rest[0]).name if rest else None
+        family, cls = UV_RUN_TOOLS.get(tool, ("runtime", "unknown"))
+    return head, family, cls
+
+
+def command_info(head: str | None, command=None) -> dict:
+    """Family and risk class of a shell command.
+
+    ``head`` alone (``tool_call.command_head``) classifies by program; argument-dependent
+    heads (``CONDITIONAL``) are then ``unknown``. With the full ``command`` every chained
+    segment (``;``, ``&&``, ``||``, ``|``) is judged by its arguments (``find -delete``,
+    ``git branch -D``, ``sed -i``, ``uv run <tool>``), file redirection upgrades a read to
+    a write, and the riskiest segment decides ``cls``.
+    """
+    text = command_text(command)
+    if text:
+        segments = [_words(part) for part in SEPARATORS.split(text)]
+        judged = [_segment(w) for w in segments if w]
+        if judged:
+            head_, family, cls = judged[0]
+            for _, _, seg_cls in judged[1:]:
+                if RISK[seg_cls] > RISK[cls]:
+                    cls = seg_cls
+            if cls == "readonly" and any(
+                    m.group(1) and not m.group(1).startswith("&")
+                    and m.group(1) != "/dev/null" for m in REDIRECT.finditer(text)):
+                cls = "write"
+            return {"head": head_, "family": family, "cls": cls}
+    words = (head or "").strip().split()
+    if not words:
+        return {"head": "", "family": "other", "cls": "unknown"}
+    head_, family, cls = _segment(words[:2])
+    key = head_ if head_ in COMMANDS else head_.split()[0]
+    if key in CONDITIONAL:
+        cls = "unknown"
+    return {"head": head_, "family": family, "cls": cls}
 
 
 def _command_ids(head: str) -> list[str]:

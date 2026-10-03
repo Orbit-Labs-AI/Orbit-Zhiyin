@@ -38,7 +38,7 @@ flowchart LR
 | `dimension`、`value`、`polarity` | 统一维度、值与 prefer／avoid 极性；无法确定值时为 null |
 | `session_uid`、`task_id`、`task_identity_quality` | 会话与任务归属；优先使用 Task 族映射，来源局部任务 ID 仅在会话内去重 |
 | `project_id`、`legacy_project_id`、`cluster_id` | 项目与可选会话聚类上下文；复用同次分析的聚类 ID（-1 表示噪声），未计算或样本不足时为 null；不跨分析比较 ID |
-| `confidence` | 固定的证据等级：Explicit 为 1.0，Instruction 历史证据为 0.6；不是校准后的正确率或偏好强度 |
+| `confidence` | 固定的证据等级：Explicit 为 1.0，Instruction 历史证据为 0.6，语义任务指令（`semantic_task_instruction`）为 0.4；只表示来源优先级，不是校准后的正确率或偏好强度 |
 | `observed_at`、`seq`、`evidence_event_uids`、`statement` | 观察时间、会话顺序、事件引用与经过既有清理的原话；观察时间不等于计划生效时间 |
 | `scope`、`operation`、`history` | Explicit 原有范围、修改／撤销／重申关系；Instruction 保持任务范围 |
 | `status`、`condition`、`targets`、`missing_reasons` | 可观察／待解析状态、条件、目标与缺失原因 |
@@ -78,6 +78,12 @@ Explicit 路径继续支持语言、详略、格式、工具、协作方式，�
 service 只提取一次 Instruction，再传给证据适配器；分析缓存摘要包含 Instruction、Preference 与 Evidence 的各自版本。来源不可用保留 null，已观察但没有证据返回空集合，二者不混淆。默认输入属于同一被分析用户，多用户身份隔离尚未实现。
 
 `at` 为包含该时刻的时间点；API 的 `until_ts` 不包含上界，所以内部使用 `until_ts - 1`。跨会话缺时钟或同时间不臆造版本先后。所有查询仅使用本次筛选内的历史，`from_ts` 之前的偏好不会自动补入。
+
+## 关键词边界与多值维度
+
+Python 的 `\b` 把汉字当作单词字符，“以后用pytest跑测试”中“用”和“p”之间没有词边界。显式偏好规则里的英文关键词因此改用只排除 ASCII 字母、数字和下划线的边界 `(?<![A-Za-z0-9_])…(?![A-Za-z0-9_])`，中英混排可以命中，`digit` 中的 `git` 不会误中。转述标记 `if` 也加了同样的边界，`elif` 不再让整句失效。
+
+`rules.EXCLUSIVE` 声明各维度是否互斥：`language`、`detail` 只有一个当前值，修改（revise）会取代同范围的旧值，多个首选值会被报告为冲突；`tool`、`format`、`collaboration` 可以同时有多个值，修改只作用于相同取值，`git` 之后说“改用 pytest”两者都保留。工具偏好要求工具名前有“用／使用／改用／use”等动词，“以后 git diff 要简洁”只记为简洁偏好。
 
 ## 验证与边界
 

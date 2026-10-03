@@ -195,6 +195,25 @@ def test_approvals(tandem, conn):
     assert tools.wait_bucket(4999) == "<5s" and tools.wait_bucket(5000) == "5–15s"
 
 
+def test_readonly_prompted_counts_only_truly_readonly_commands(tandem, conn):
+    """UT-07: a prompted ``find -delete`` / ``git branch -D`` / ``sed -i`` is not read-only, so
+    it must not feed readonly_prompted or the 「只读命令自动放行」 automation."""
+    tandem.session("cx", agent="codex")
+    tandem.call("cx", head="find", command="find . -name '*.log' -delete", approval="approved")
+    tandem.call("cx", head="git branch", command="git branch -D old", approval="approved")
+    tandem.call("cx", head="sed", command="sed -i 's/a/b/' x.txt", approval="approved")
+    tandem.call("cx", head="echo", command="echo hi > out.txt", approval="approved")
+    body = build(conn)
+    assert body["approval"]["readonly_prompted"]["n"] == 0
+    assert all(a["kind"] != "permission_rule" for a in body["automation"])
+    tandem.call("cx", head="sed", command="sed -n '1,5p' x.txt", approval="approved")
+    tandem.call("cx", head="git branch", command="git branch -a", approval="approved")
+    body = build(conn)
+    heads = {h["head"]: h["n"] for h in body["approval"]["readonly_prompted"]["heads"]}
+    assert heads == {"sed": 1, "git branch": 1}
+    assert any(a["kind"] == "permission_rule" and a["count"] == 2 for a in body["automation"])
+
+
 def test_parallel(tandem, conn):
     tandem.session("p")
     tandem.session("k0", kind="subagent", parent="p", started=T0, status="interrupted")
